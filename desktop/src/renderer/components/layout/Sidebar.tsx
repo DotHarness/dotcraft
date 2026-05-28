@@ -88,6 +88,7 @@ export function Sidebar({ workspaceName, workspacePath }: SidebarProps): JSX.Ele
           active={activeMainView === 'channels'}
           onClick={() => setActiveMainView('channels')}
           icon={<ChannelsIcon />}
+          testId="nav-channels"
         />
         {agentTeamsAvailable && (
           <SidebarNavRow
@@ -95,6 +96,7 @@ export function Sidebar({ workspaceName, workspacePath }: SidebarProps): JSX.Ele
             active={activeMainView === 'teams'}
             onClick={() => setActiveMainView('teams')}
             icon={<TeamIcon />}
+            testId="nav-teams"
           />
         )}
         <SidebarNavRow
@@ -104,12 +106,14 @@ export function Sidebar({ workspaceName, workspacePath }: SidebarProps): JSX.Ele
           icon={<AutomationsIcon />}
           disabled={!automationsAvailable}
           title={automationsDisabledTitle}
+          testId="nav-automations"
         />
         <SidebarNavRow
           label={t('sidebar.skills')}
           active={activeMainView === 'skills'}
           onClick={() => setActiveMainView('skills')}
           icon={<SkillsIcon />}
+          testId="nav-skills"
         />
       </div>
 
@@ -129,6 +133,7 @@ interface SidebarNavRowProps {
   icon: JSX.Element
   disabled?: boolean
   title?: string
+  testId?: string
 }
 
 function SidebarNavRow({
@@ -137,12 +142,14 @@ function SidebarNavRow({
   onClick,
   icon,
   disabled,
-  title
+  title,
+  testId
 }: SidebarNavRowProps): JSX.Element {
   const button = (
     <button
       className="dotcraft-sidebar-control-radius"
       type="button"
+      data-testid={testId}
       onClick={disabled ? undefined : onClick}
       disabled={disabled}
       style={{

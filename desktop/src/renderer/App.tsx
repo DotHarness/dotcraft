@@ -2640,37 +2640,39 @@ export function App(): JSX.Element {
               : <Sidebar workspaceName={workspaceName} workspacePath={workspacePath} />
           }
           conversation={
-            activeMainView === 'settings' ? (
-              <SettingsView
-                workspacePath={workspacePath}
-                onThreadListRefreshRequested={() => {
-                  void reloadThreadList()
-                }}
-                workspaceConfigChange={workspaceConfigChange}
-                workspaceConfigChangeSeq={workspaceConfigChangeSeq}
-                openChromeSettingsSeq={chromeSettingsOpenSeq}
-              />
-            ) : activeMainView === 'channels' ? (
-              <ChannelsView />
-            ) : activeMainView === 'skills' ? (
-              <PluginsView />
-            ) : activeMainView === 'automations' ? (
-              <AutomationsView />
-            ) : activeMainView === 'teams' ? (
-              agentTeamsAvailable ? <TeamsView /> : capabilities?.pluginManagement === true ? <PluginsView /> : (
+            <div data-testid={`view-${activeMainView}`} style={{ display: 'contents' }}>
+              {activeMainView === 'settings' ? (
+                <SettingsView
+                  workspacePath={workspacePath}
+                  onThreadListRefreshRequested={() => {
+                    void reloadThreadList()
+                  }}
+                  workspaceConfigChange={workspaceConfigChange}
+                  workspaceConfigChangeSeq={workspaceConfigChangeSeq}
+                  openChromeSettingsSeq={chromeSettingsOpenSeq}
+                />
+              ) : activeMainView === 'channels' ? (
+                <ChannelsView />
+              ) : activeMainView === 'skills' ? (
+                <PluginsView />
+              ) : activeMainView === 'automations' ? (
+                <AutomationsView />
+              ) : activeMainView === 'teams' ? (
+                agentTeamsAvailable ? <TeamsView /> : capabilities?.pluginManagement === true ? <PluginsView /> : (
+                  <ConversationPanel
+                    workspacePath={workspacePath}
+                    workspaceConfigChange={workspaceConfigChange}
+                    workspaceConfigChangeSeq={workspaceConfigChangeSeq}
+                  />
+                )
+              ) : (
                 <ConversationPanel
                   workspacePath={workspacePath}
                   workspaceConfigChange={workspaceConfigChange}
                   workspaceConfigChangeSeq={workspaceConfigChangeSeq}
                 />
-              )
-            ) : (
-              <ConversationPanel
-                workspacePath={workspacePath}
-                workspaceConfigChange={workspaceConfigChange}
-                workspaceConfigChangeSeq={workspaceConfigChangeSeq}
-              />
-            )
+              )}
+            </div>
           }
           detail={<DetailPanel workspacePath={workspacePath} />}
         />

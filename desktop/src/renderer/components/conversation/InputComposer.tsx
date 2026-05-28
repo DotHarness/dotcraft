@@ -148,6 +148,7 @@ export function InputComposer({
   /** Bumps on rich-input edits so `canSend` re-evaluates from ref (contentEditable has no React state). */
   const [contentRevision, setContentRevision] = useState(0)
   const [historyCursor, setHistoryCursor] = useState<number | null>(null)
+  const [mascotBounce, setMascotBounce] = useState(0)
   const richRef = useRef<RichInputAreaHandle>(null)
   const sendInFlightRef = useRef(false)
   const pendingModeChangeRef = useRef<Promise<void> | null>(null)
@@ -688,6 +689,8 @@ export function InputComposer({
       return
     }
 
+    setMascotBounce((n) => n + 1)
+
     if (pendingModeChangeRef.current) {
       await pendingModeChangeRef.current
     }
@@ -1069,6 +1072,8 @@ export function InputComposer({
         onDragLeave={onDragLeave}
         onDrop={onDrop}
         focused={editorFocused}
+        showMascot
+        mascotBounceSignal={mascotBounce}
         attachmentStrip={
           <AttachmentStrip
             images={images}

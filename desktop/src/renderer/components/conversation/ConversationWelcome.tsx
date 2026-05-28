@@ -120,6 +120,7 @@ export function ConversationWelcome({
   const [editorFocused, setEditorFocused] = useState(false)
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null)
   const [starting, setStarting] = useState(false)
+  const [mascotBounce, setMascotBounce] = useState(0)
   const [dynamicSuggestions, setDynamicSuggestions] = useState<Suggestion[] | null>(null)
   const [suggestionsStatus, setSuggestionsStatus] = useState<SuggestionsStatus>('idle')
   const [atQuery, setAtQuery] = useState<string | null>(null)
@@ -906,6 +907,7 @@ export function ConversationWelcome({
     sendInFlightRef.current = true
     setGoalBusy(true)
     setStarting(true)
+    setMascotBounce((n) => n + 1)
     const capturedMode = welcomeMode
     const capturedApprovalPolicy = welcomeApprovalPolicy
     const capturedModel = modelName === 'Default' ? '' : modelName
@@ -1032,6 +1034,7 @@ export function ConversationWelcome({
 
     sendInFlightRef.current = true
     setStarting(true)
+    setMascotBounce((n) => n + 1)
     const capturedImages = [...images]
     const capturedFiles = [...files]
     const capturedMode = welcomeMode
@@ -1281,6 +1284,8 @@ export function ConversationWelcome({
               onDrop={onDrop}
               opacity={starting ? 0.65 : 1}
               focused={editorFocused}
+              showMascot
+              mascotBounceSignal={mascotBounce}
               attachmentStrip={
                 <AttachmentStrip
                   images={images}
