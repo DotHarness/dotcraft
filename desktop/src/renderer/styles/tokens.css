@@ -555,6 +555,46 @@ kbd {
   animation: spin var(--animate-spinner) linear infinite;
 }
 
+/* ─── Composer mascot: idle breathing + send bounce ─── */
+@keyframes composer-mascot-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.035);
+  }
+}
+
+.composer-mascot-breathe {
+  animation: composer-mascot-breathe 4s ease-in-out infinite;
+  transform-origin: bottom center;
+  will-change: transform;
+}
+
+@keyframes composer-mascot-bounce {
+  0% {
+    transform: translateY(0) scale(1);
+  }
+  28% {
+    transform: translateY(-9px) scale(1.06);
+  }
+  52% {
+    transform: translateY(0) scale(0.97);
+  }
+  72% {
+    transform: translateY(-3px) scale(1.01);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+  }
+}
+
+.composer-mascot-bounce {
+  animation: composer-mascot-bounce 640ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  transform-origin: bottom center;
+}
+
 /* ─── Running tool text shimmer ─── */
 @keyframes tool-running-gradient {
   0% {
@@ -1131,6 +1171,11 @@ kbd {
 
 @media (prefers-reduced-motion: reduce) {
   .dotcraft-automation-viewer-tab {
+    animation: none !important;
+  }
+
+  .composer-mascot-breathe,
+  .composer-mascot-bounce {
     animation: none !important;
   }
 

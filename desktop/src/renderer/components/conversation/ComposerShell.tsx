@@ -1,6 +1,7 @@
 import { useState, type CSSProperties, type DragEventHandler, type JSX, type ReactNode } from 'react'
 import { ListChecks, Square, X } from 'lucide-react'
 import { ActionTooltip } from '../ui/ActionTooltip'
+import { MascotRobot, type MascotExpression } from './MascotRobot'
 import type { ShortcutSpec } from '../ui/shortcutKeys'
 
 type ComposerActionButtonTone = 'enabled' | 'disabled'
@@ -27,6 +28,73 @@ interface ComposerShellProps {
   onDrop: DragEventHandler<HTMLDivElement>
   opacity?: number
   focused?: boolean
+  /** Show the DotCraft mascot standing on the composer's top-right edge. */
+  showMascot?: boolean
+  /** Monotonic counter; bump on send to trigger a one-shot bounce. */
+  mascotBounceSignal?: number
+}
+
+const MASCOT_SIZE = 58
+/** Default display scale; applied via a wrapper so it shrinks the motion too. */
+const MASCOT_SCALE = 0.75
+/** Fraction of the mascot tucked behind the composer rim (only its feet rest on the edge). */
+const MASCOT_HIDDEN_RATIO = 0.06
+
+/**
+ * DotCraft mascot standing on the composer's top-right edge.
+ * Nested transform layers keep idle breathing, focus perk-up, and the send
+ * bounce from clobbering each other's `transform`. The face swaps by state:
+ * drag → operator, inputting (focused) → happy, else neutral.
+ */
+function ComposerMascot({
+  focused,
+  dragOver,
+  bounceSignal
+}: {
+  focused: boolean
+  dragOver: boolean
+  bounceSignal: number
+}): JSX.Element {
+  const expression: MascotExpression = dragOver ? 'operator' : focused ? 'happy' : 'neutral'
+
+  return (
+    <div
+      aria-hidden
+      style={{
+        position: 'absolute',
+        right: '40px',
+        top: `${-(MASCOT_SIZE * (1 - MASCOT_HIDDEN_RATIO))}px`,
+        zIndex: 0,
+        pointerEvents: 'none'
+      }}
+    >
+      {/* Display scale: shrinks size + all nested motion uniformly, feet planted. */}
+      <div
+        style={{
+          transformOrigin: 'bottom center',
+          transform: `scale(${MASCOT_SCALE})`,
+          filter: 'drop-shadow(0 4px 8px color-mix(in srgb, var(--accent) 22%, transparent))'
+        }}
+      >
+        {/* Focus perk-up: grow in place (feet stay planted on the edge) when focused. */}
+        <div
+          style={{
+            transformOrigin: 'bottom center',
+            transition: 'transform 280ms cubic-bezier(0.34, 1.56, 0.64, 1)',
+            transform: focused ? 'scale(1.1)' : 'scale(1)'
+          }}
+        >
+          {/* Send bounce: remounted by key so the one-shot replays each send. */}
+          <div key={bounceSignal} className={bounceSignal > 0 ? 'composer-mascot-bounce' : undefined}>
+            {/* Idle breathing. */}
+            <div className="composer-mascot-breathe">
+              <MascotRobot expression={expression} size={MASCOT_SIZE} />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 interface ComposerPlanModeLabelProps {
@@ -51,7 +119,9 @@ export function ComposerShell({
   onDragLeave,
   onDrop,
   opacity = 1,
-  focused = false
+  focused = false,
+  showMascot = false,
+  mascotBounceSignal = 0
 }: ComposerShellProps): JSX.Element {
   return (
     <div
@@ -65,6 +135,9 @@ export function ComposerShell({
         isolation: 'isolate'
       }}
     >
+      {showMascot && !topAccessoryVisible && (
+        <ComposerMascot focused={focused} dragOver={dragOver} bounceSignal={mascotBounceSignal} />
+      )}
       {topAccessoryVisible && (
         <div
           data-testid="composer-top-accessory-overlay"
