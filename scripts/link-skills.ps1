@@ -40,66 +40,6 @@ function Resolve-LinkTarget {
     }
 }
 
-function New-SkillsLink {
-    param(
-        [Parameter(Mandatory = $true)][string]$LinkPath,
-        [Parameter(Mandatory = $true)][string]$TargetPath,
-        [Parameter(Mandatory = $true)][string]$DisplayName
-    )
-
-    Write-Section -Text "Linking $DisplayName"
-    Write-Host "Link path:   $LinkPath" -ForegroundColor Gray
-    Write-Host "Target path: $TargetPath" -ForegroundColor Gray
-
-    $parentDir = Split-Path -Parent $LinkPath
-    if (-not (Test-Path -LiteralPath $parentDir)) {
-        New-Item -ItemType Directory -Path $parentDir -Force | Out-Null
-        Write-Host "Created parent directory: $parentDir" -ForegroundColor Green
-    }
-
-    if (Test-Path -LiteralPath $LinkPath) {
-        $existingItem = Get-Item -LiteralPath $LinkPath -Force
-        $existingTarget = Resolve-LinkTarget -Path $LinkPath
-        $expectedTarget = [System.IO.Path]::GetFullPath($TargetPath)
-
-        if ($existingItem.LinkType -and $existingTarget -eq $expectedTarget) {
-            Write-Host ""
-            Write-Host "$DisplayName is already linked to the source skills." -ForegroundColor Green
-            Write-Host "Nothing to change." -ForegroundColor Green
-            return
-        }
-
-        if ($existingItem.LinkType) {
-            Write-Host ""
-            Write-Host "Replacing existing $($existingItem.LinkType) at $LinkPath" -ForegroundColor Yellow
-            if ($existingTarget) {
-                Write-Host "Current target: $existingTarget" -ForegroundColor Yellow
-            }
-            Remove-Item -LiteralPath $LinkPath -Force
-        } else {
-            $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
-            $leafName = Split-Path -Leaf $LinkPath
-            $backupPath = Join-Path $parentDir ("$leafName.backup-" + $timestamp)
-
-            Write-Host ""
-            Write-Host "Existing $LinkPath is a normal directory. Moving it to backup:" -ForegroundColor Yellow
-            Write-Host $backupPath -ForegroundColor Yellow
-            Move-Item -LiteralPath $LinkPath -Destination $backupPath
-        }
-    }
-
-    New-Item -ItemType Junction -Path $LinkPath -Target $TargetPath | Out-Null
-
-    $createdItem = Get-Item -LiteralPath $LinkPath -Force
-    $createdTarget = Resolve-LinkTarget -Path $LinkPath
-
-    Write-Host ""
-    Write-Host "Created $($createdItem.LinkType) successfully." -ForegroundColor Green
-    if ($createdTarget) {
-        Write-Host "Target: $createdTarget" -ForegroundColor Green
-    }
-}
-
 function New-PerSkillLinks {
     param(
         [Parameter(Mandatory = $true)][string]$SourceDir,
@@ -174,6 +114,7 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 $samplesSkillsPath = Join-Path $repoRoot "samples\plugins\dotcraft-dev\skills"
 $cursorSkillsPath = Join-Path $repoRoot ".cursor\skills"
 $codexSkillsPath = Join-Path $env:USERPROFILE ".codex\skills"
+$claudeSkillsPath = Join-Path $repoRoot ".claude\skills"
 
 Write-Section -Text "DotCraft Skills Linker"
 Write-Host "Repository root: $repoRoot" -ForegroundColor Gray
@@ -183,11 +124,13 @@ if (-not (Test-Path -LiteralPath $samplesSkillsPath)) {
     throw "Source skills directory not found: $samplesSkillsPath"
 }
 
-New-SkillsLink -LinkPath $cursorSkillsPath -TargetPath $samplesSkillsPath -DisplayName ".cursor\skills"
+New-PerSkillLinks -SourceDir $samplesSkillsPath -DestinationDir $cursorSkillsPath -DisplayName ".cursor\skills"
 New-PerSkillLinks -SourceDir $samplesSkillsPath -DestinationDir $codexSkillsPath -DisplayName "~\.codex\skills"
+New-PerSkillLinks -SourceDir $samplesSkillsPath -DestinationDir $claudeSkillsPath -DisplayName ".claude\skills"
 
 Write-Host ""
 Write-Host "Done." -ForegroundColor Green
-Write-Host "  - Cursor reads skills via a junction on .cursor\skills." -ForegroundColor Green
-Write-Host "  - Codex gets per-skill junctions; its own skills are preserved." -ForegroundColor Green
-Write-Host "Skill edits in the repo take effect immediately on both sides." -ForegroundColor Green
+Write-Host "  - Cursor gets per-skill junctions; unrelated existing skills are left untouched." -ForegroundColor Green
+Write-Host "  - Codex gets per-skill junctions; unrelated existing skills are left untouched." -ForegroundColor Green
+Write-Host "  - Claude gets per-skill junctions; unrelated existing skills are left untouched." -ForegroundColor Green
+Write-Host "Skill edits in the repo take effect immediately in all linked tools." -ForegroundColor Green
