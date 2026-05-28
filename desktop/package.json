@@ -21,6 +21,7 @@
     "test:watch": "vitest",
     "e2e": "npx tsx e2e/smoke.ts",
     "e2e:terminal": "npx tsx e2e/terminal-smoke.ts",
+    "shot": "npx tsx e2e/shot.ts",
     "verify:package": "node scripts/verify-package.mjs",
     "pack": "npm run ensure:electron && electron-builder --dir",
     "dist": "npm run ensure:electron && electron-vite build && electron-builder && npm run verify:package"
