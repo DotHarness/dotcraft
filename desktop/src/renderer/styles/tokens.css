@@ -595,6 +595,35 @@ kbd {
   transform-origin: bottom center;
 }
 
+@keyframes composer-mascot-jelly {
+  0% {
+    transform: scale(1, 1);
+  }
+  25% {
+    transform: scale(1.16, 0.84);
+  }
+  45% {
+    transform: scale(0.9, 1.1);
+  }
+  62% {
+    transform: scale(1.06, 0.94);
+  }
+  78% {
+    transform: scale(0.98, 1.02);
+  }
+  100% {
+    transform: scale(1, 1);
+  }
+}
+
+.composer-mascot-jelly {
+  transform-origin: bottom center;
+}
+
+.composer-mascot-jelly:hover {
+  animation: composer-mascot-jelly 600ms ease-out;
+}
+
 /* ─── Running tool text shimmer ─── */
 @keyframes tool-running-gradient {
   0% {
@@ -1175,7 +1204,8 @@ kbd {
   }
 
   .composer-mascot-breathe,
-  .composer-mascot-bounce {
+  .composer-mascot-bounce,
+  .composer-mascot-jelly:hover {
     animation: none !important;
   }
 

@@ -39,6 +39,8 @@ const MASCOT_SIZE = 58
 const MASCOT_SCALE = 0.75
 /** Fraction of the mascot tucked behind the composer rim (only its feet rest on the edge). */
 const MASCOT_HIDDEN_RATIO = 0.06
+/** Extra upward nudge so the (scaled) feet sit flush on the rim, not sunk or floating. */
+const MASCOT_RAISE = 3
 
 /**
  * DotCraft mascot standing on the composer's top-right edge.
@@ -63,7 +65,7 @@ function ComposerMascot({
       style={{
         position: 'absolute',
         right: '40px',
-        top: `${-(MASCOT_SIZE * (1 - MASCOT_HIDDEN_RATIO))}px`,
+        top: `${-(MASCOT_SIZE * (1 - MASCOT_HIDDEN_RATIO)) - MASCOT_RAISE}px`,
         zIndex: 0,
         pointerEvents: 'none'
       }}
@@ -88,7 +90,11 @@ function ComposerMascot({
           <div key={bounceSignal} className={bounceSignal > 0 ? 'composer-mascot-bounce' : undefined}>
             {/* Idle breathing. */}
             <div className="composer-mascot-breathe">
-              <MascotRobot expression={expression} size={MASCOT_SIZE} />
+              {/* Hover jelly: pointer-events re-enabled here so only the visible
+                  robot (above the rim) is hoverable; the rest stays click-through. */}
+              <div className="composer-mascot-jelly" style={{ pointerEvents: 'auto' }}>
+                <MascotRobot expression={expression} size={MASCOT_SIZE} />
+              </div>
             </div>
           </div>
         </div>
