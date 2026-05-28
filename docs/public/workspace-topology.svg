@@ -1,0 +1,113 @@
+<svg width="1440" height="980" viewBox="0 0 1440 980" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">DotCraft workspace topology</title>
+  <desc id="desc">A grouped diagram showing how entry points share one project workspace and the persistent state under the .craft directory.</desc>
+  <style>
+    text { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; letter-spacing: 0; }
+    .title { fill: #17203A; font-size: 42px; font-weight: 760; }
+    .subtitle { fill: #667085; font-size: 18px; }
+    .cardTitle { font-size: 24px; font-weight: 760; }
+    .label { font-size: 14px; font-weight: 720; }
+    .body { fill: #1F2937; font-size: 15px; }
+    .mono { fill: #1F2937; font-size: 15px; font-family: "Cascadia Mono", ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .muted { fill: #667085; font-size: 13px; }
+  </style>
+
+  <rect width="1440" height="980" fill="#F8FAF7"/>
+  <text x="72" y="86" class="title">DotCraft workspace topology</text>
+  <text x="72" y="123" class="subtitle">Every entry point reads the same project root and persists shared Agent state under .craft/.</text>
+
+  <g transform="translate(72 158)">
+    <rect x="0" y="0" width="1296" height="108" rx="8" fill="#FFFFFF" stroke="#D9E0EA"/>
+    <text x="28" y="34" fill="#17203A" font-size="17" font-weight="760">Entry points</text>
+    <g transform="translate(28 52)">
+      <rect x="0" y="0" width="128" height="34" rx="8" fill="#E9F5F0"/><text x="64" y="22" text-anchor="middle" fill="#247A57" font-size="14" font-weight="720">Desktop</text>
+      <rect x="146" y="0" width="96" height="34" rx="8" fill="#E9F5F0"/><text x="194" y="22" text-anchor="middle" fill="#247A57" font-size="14" font-weight="720">TUI</text>
+      <rect x="260" y="0" width="156" height="34" rx="8" fill="#E9F5F0"/><text x="338" y="22" text-anchor="middle" fill="#247A57" font-size="14" font-weight="720">IDE / ACP</text>
+      <rect x="434" y="0" width="172" height="34" rx="8" fill="#E9F5F0"/><text x="520" y="22" text-anchor="middle" fill="#247A57" font-size="14" font-weight="720">Channels / Bots</text>
+      <rect x="624" y="0" width="146" height="34" rx="8" fill="#E9F5F0"/><text x="697" y="22" text-anchor="middle" fill="#247A57" font-size="14" font-weight="720">Automations</text>
+      <rect x="788" y="0" width="104" height="34" rx="8" fill="#E9F5F0"/><text x="840" y="22" text-anchor="middle" fill="#247A57" font-size="14" font-weight="720">SDKs</text>
+    </g>
+    <path d="M952 68H1048" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round"/>
+    <path d="M1038 60L1048 68L1038 76" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <g transform="translate(1080 30)">
+      <rect x="0" y="0" width="176" height="54" rx="8" fill="#EAF0FF"/>
+      <text x="88" y="23" text-anchor="middle" fill="#3659D4" font-size="15" font-weight="760">Project root</text>
+      <text x="88" y="42" text-anchor="middle" fill="#52607A" font-size="12">one workspace</text>
+    </g>
+  </g>
+
+  <g transform="translate(72 306)">
+    <rect x="0" y="0" width="396" height="244" rx="8" fill="#EAF0FF" stroke="#C2CEF7"/>
+    <text x="28" y="44" class="cardTitle" fill="#23305F">Project files</text>
+    <line x1="28" y1="64" x2="368" y2="64" stroke="#C2CEF7"/>
+    <text x="28" y="96" class="label" fill="#4459B8">User-owned repository</text>
+    <text x="28" y="122" class="mono">code/</text>
+    <text x="28" y="146" class="mono">docs/</text>
+    <text x="28" y="170" class="mono">samples/</text>
+    <text x="28" y="194" class="mono">README.md</text>
+    <text x="28" y="224" class="muted">DotCraft works beside the project, not above it.</text>
+  </g>
+
+  <g transform="translate(522 306)">
+    <rect x="0" y="0" width="396" height="244" rx="8" fill="#E9F5F0" stroke="#B7DED0"/>
+    <text x="28" y="44" class="cardTitle" fill="#153E33">Bootstrap identity</text>
+    <line x1="28" y1="64" x2="368" y2="64" stroke="#B7DED0"/>
+    <text x="28" y="96" class="label" fill="#2E6B56">Loaded into every session</text>
+    <text x="28" y="122" class="mono">.craft/AGENTS.md</text>
+    <text x="28" y="146" class="mono">.craft/SOUL.md</text>
+    <text x="28" y="170" class="mono">.craft/USER.md</text>
+    <text x="28" y="224" class="muted">Role, tone, user context, and project rules.</text>
+  </g>
+
+  <g transform="translate(972 306)">
+    <rect x="0" y="0" width="396" height="244" rx="8" fill="#FFF1E6" stroke="#F3C9A4"/>
+    <text x="28" y="44" class="cardTitle" fill="#623314">Sessions</text>
+    <line x1="28" y1="64" x2="368" y2="64" stroke="#F3C9A4"/>
+    <text x="28" y="96" class="label" fill="#A85C21">Thread and turn history</text>
+    <text x="28" y="122" class="mono">.craft/threads/active/</text>
+    <text x="28" y="146" class="mono">.craft/threads/archived/</text>
+    <text x="28" y="170" class="mono">.craft/sessions/</text>
+    <text x="28" y="194" class="mono">.craft/state.db</text>
+    <text x="28" y="224" class="muted">Desktop, TUI, channels, and SDKs resume here.</text>
+  </g>
+
+  <g transform="translate(72 594)">
+    <rect x="0" y="0" width="396" height="252" rx="8" fill="#F1EBFA" stroke="#D7C5EF"/>
+    <text x="28" y="44" class="cardTitle" fill="#39205F">Memory and Dreams</text>
+    <line x1="28" y1="64" x2="368" y2="64" stroke="#D7C5EF"/>
+    <text x="28" y="96" class="label" fill="#7653A8">Long-lived context</text>
+    <text x="28" y="122" class="mono">.craft/MEMORY.md</text>
+    <text x="28" y="146" class="mono">.craft/HISTORY.md</text>
+    <text x="28" y="170" class="mono">.craft/dreams/</text>
+    <text x="28" y="222" class="muted">Readable by humans, maintained by Agent flows.</text>
+  </g>
+
+  <g transform="translate(522 594)">
+    <rect x="0" y="0" width="396" height="252" rx="8" fill="#E8F4FA" stroke="#BBDCEE"/>
+    <text x="28" y="44" class="cardTitle" fill="#15384B">Capabilities</text>
+    <line x1="28" y1="64" x2="368" y2="64" stroke="#BBDCEE"/>
+    <text x="28" y="96" class="label" fill="#2B7599">Reusable project abilities</text>
+    <text x="28" y="122" class="mono">.craft/skills/</text>
+    <text x="28" y="146" class="mono">.craft/plugins/</text>
+    <text x="28" y="170" class="mono">commands and MCP config</text>
+    <text x="28" y="222" class="muted">Shared workflows travel with the workspace.</text>
+  </g>
+
+  <g transform="translate(972 594)">
+    <rect x="0" y="0" width="396" height="252" rx="8" fill="#F3F4EA" stroke="#D9DEC0"/>
+    <text x="28" y="44" class="cardTitle" fill="#3F431E">Config and policy</text>
+    <line x1="28" y1="64" x2="368" y2="64" stroke="#D9DEC0"/>
+    <text x="28" y="96" class="label" fill="#727934">Workspace-specific overrides</text>
+    <text x="28" y="122" class="mono">.craft/config.json</text>
+    <text x="28" y="146" class="mono">ProviderId / Model</text>
+    <text x="28" y="170" class="mono">entry switches</text>
+    <text x="28" y="194" class="mono">security and approvals</text>
+    <text x="28" y="222" class="muted">Global secrets stay in ~/.craft/config.json.</text>
+  </g>
+
+  <g transform="translate(72 884)">
+    <rect x="0" y="0" width="1296" height="48" rx="8" fill="#FFFFFF" stroke="#D9E0EA"/>
+    <text x="24" y="30" fill="#475467" font-size="14">Result:</text>
+    <text x="84" y="30" fill="#17203A" font-size="14" font-weight="720">sync or restore the project directory, and the Agent state comes with it.</text>
+  </g>
+</svg>

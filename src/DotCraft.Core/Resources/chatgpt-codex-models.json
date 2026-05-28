@@ -1,0 +1,66 @@
+{
+  "models": [
+    {
+      "slug": "gpt-5.5",
+      "display_name": "GPT-5.5",
+      "visibility": "list",
+      "priority": 0,
+      "minimal_client_version": "0.124.0",
+      "supported_reasoning_levels": [
+        { "effort": "low", "description": "Fast responses with lighter reasoning" },
+        { "effort": "medium", "description": "Balances speed and reasoning depth for everyday tasks" },
+        { "effort": "high", "description": "Greater reasoning depth for complex problems" },
+        { "effort": "xhigh", "description": "Extra high reasoning depth for complex problems" }
+      ]
+    },
+    {
+      "slug": "gpt-5.4",
+      "display_name": "GPT-5.4",
+      "visibility": "list",
+      "priority": 1,
+      "minimal_client_version": "0.98.0",
+      "supported_reasoning_levels": [
+        { "effort": "low", "description": "Fast responses with lighter reasoning" },
+        { "effort": "medium", "description": "Balances speed and reasoning depth for everyday tasks" },
+        { "effort": "high", "description": "Greater reasoning depth for complex problems" },
+        { "effort": "xhigh", "description": "Extra high reasoning depth for complex problems" }
+      ]
+    },
+    {
+      "slug": "gpt-5.4-mini",
+      "display_name": "GPT-5.4 Mini",
+      "visibility": "list",
+      "priority": 2,
+      "minimal_client_version": "0.98.0",
+      "supported_reasoning_levels": [
+        { "effort": "low", "description": "Fast responses with lighter reasoning" },
+        { "effort": "medium", "description": "Balances speed and reasoning depth for everyday tasks" },
+        { "effort": "high", "description": "Greater reasoning depth for complex problems" }
+      ]
+    },
+    {
+      "slug": "gpt-5.3-codex",
+      "display_name": "gpt-5.3-codex",
+      "visibility": "list",
+      "priority": 3,
+      "minimal_client_version": "0.98.0",
+      "supported_reasoning_levels": [
+        { "effort": "low", "description": "Fast responses with lighter reasoning" },
+        { "effort": "medium", "description": "Balances speed and reasoning depth for everyday tasks" },
+        { "effort": "high", "description": "Greater reasoning depth for complex problems" }
+      ]
+    },
+    {
+      "slug": "gpt-5.2",
+      "display_name": "GPT-5.2",
+      "visibility": "list",
+      "priority": 4,
+      "minimal_client_version": "0.0.1",
+      "supported_reasoning_levels": [
+        { "effort": "low", "description": "Fast responses with lighter reasoning" },
+        { "effort": "medium", "description": "Balances speed and reasoning depth for everyday tasks" },
+        { "effort": "high", "description": "Greater reasoning depth for complex problems" }
+      ]
+    }
+  ]
+}

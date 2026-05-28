@@ -1,0 +1,12 @@
+export type SettingsTab =
+  | 'general'
+  | 'personalization'
+  | 'dreams'
+  | 'connection'
+  | 'llmService'
+  | 'browserUse'
+  | 'computerControl'
+  | 'usage'
+  | 'archivedThreads'
+  | 'mcp'
+  | 'subAgents'

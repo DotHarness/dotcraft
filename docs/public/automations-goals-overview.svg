@@ -1,0 +1,60 @@
+<svg width="1440" height="430" viewBox="0 0 1440 430" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">DotCraft automations and goals overview</title>
+  <desc id="desc">A lightweight comparison diagram showing that Automations decide when work runs while Goals decide what one thread keeps pursuing.</desc>
+  <style>
+    text { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; letter-spacing: 0; }
+    .eyebrow { font-size: 14px; font-weight: 800; letter-spacing: 0; }
+    .cardTitle { font-size: 34px; font-weight: 760; }
+    .smallTitle { font-size: 24px; font-weight: 760; }
+    .label { font-size: 18px; font-weight: 720; }
+    .body { fill: #1F2937; font-size: 19px; }
+    .mono { fill: #1F2937; font-size: 18px; font-family: "Cascadia Mono", ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .muted { fill: #667085; font-size: 16px; }
+  </style>
+
+  <rect width="1440" height="430" fill="#F8FAF7"/>
+
+  <g transform="translate(72 50)">
+    <rect x="0" y="0" width="604" height="330" rx="8" fill="#E8F4FA" stroke="#BBDCEE"/>
+    <text x="32" y="44" class="eyebrow" fill="#2B7599">WHEN TO RUN</text>
+    <text x="32" y="90" class="cardTitle" fill="#15384B">Automations</text>
+    <text x="32" y="128" class="body">Workspace tasks run manually or on a schedule.</text>
+    <g transform="translate(32 168)">
+      <rect x="0" y="0" width="166" height="98" rx="8" fill="#FFFFFF" stroke="#BBDCEE"/>
+      <text x="20" y="34" class="smallTitle" fill="#15384B">Trigger</text>
+      <text x="20" y="64" class="muted">Manual run or</text>
+      <text x="20" y="86" class="muted">scheduled time</text>
+      <rect x="187" y="0" width="166" height="98" rx="8" fill="#FFFFFF" stroke="#BBDCEE"/>
+      <text x="207" y="34" class="smallTitle" fill="#15384B">Workflow</text>
+      <text x="207" y="64" class="muted">Task prompt</text>
+      <text x="207" y="86" class="muted">and variables</text>
+      <rect x="374" y="0" width="166" height="98" rx="8" fill="#FFFFFF" stroke="#BBDCEE"/>
+      <text x="394" y="34" class="smallTitle" fill="#15384B">Complete</text>
+      <text x="394" y="64" class="muted">Record summary</text>
+      <text x="394" y="86" class="muted">and activity</text>
+    </g>
+    <text x="32" y="302" class="mono">.craft/tasks/</text>
+  </g>
+
+  <g transform="translate(764 50)">
+    <rect x="0" y="0" width="604" height="330" rx="8" fill="#FFF1E6" stroke="#F3C9A4"/>
+    <text x="32" y="44" class="eyebrow" fill="#A85C21">WHAT TO KEEP DOING</text>
+    <text x="32" y="90" class="cardTitle" fill="#623314">Goals</text>
+    <text x="32" y="128" class="body">Thread objectives keep one conversation moving.</text>
+    <g transform="translate(32 168)">
+      <rect x="0" y="0" width="166" height="98" rx="8" fill="#FFFFFF" stroke="#F3C9A4"/>
+      <text x="20" y="34" class="smallTitle" fill="#623314">Objective</text>
+      <text x="20" y="64" class="muted">User declares</text>
+      <text x="20" y="86" class="muted">the target</text>
+      <rect x="187" y="0" width="166" height="98" rx="8" fill="#FFFFFF" stroke="#F3C9A4"/>
+      <text x="207" y="34" class="smallTitle" fill="#623314">Thread</text>
+      <text x="207" y="64" class="muted">Progress stays</text>
+      <text x="207" y="86" class="muted">with context</text>
+      <rect x="374" y="0" width="166" height="98" rx="8" fill="#FFFFFF" stroke="#F3C9A4"/>
+      <text x="394" y="34" class="smallTitle" fill="#623314">Continue</text>
+      <text x="394" y="64" class="muted">Idle threads</text>
+      <text x="394" y="86" class="muted">advance again</text>
+    </g>
+    <text x="32" y="302" class="mono">active / paused / budgetLimited / complete</text>
+  </g>
+</svg>

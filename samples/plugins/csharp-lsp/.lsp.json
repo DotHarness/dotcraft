@@ -1,0 +1,11 @@
+{
+  "lspServers": {
+    "csharp": {
+      "transport": "stdio",
+      "command": "./server/csharp-ls/csharp-ls",
+      "extensionToLanguage": {
+        ".cs": "csharp"
+      }
+    }
+  }
+}

@@ -1,0 +1,79 @@
+<svg width="1440" height="940" viewBox="0 0 1440 940" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">DotCraft Hub bootstrap flow</title>
+  <desc id="desc">A step diagram showing how local clients discover Hub, ensure an AppServer, receive an endpoint, and connect to AppServer directly.</desc>
+  <style>
+    text { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; letter-spacing: 0; }
+    .title { fill: #17203A; font-size: 42px; font-weight: 760; }
+    .subtitle { fill: #667085; font-size: 18px; }
+    .cardTitle { font-size: 24px; font-weight: 760; }
+    .step { font-size: 15px; font-weight: 760; }
+    .label { font-size: 14px; font-weight: 720; }
+    .body { fill: #1F2937; font-size: 15px; }
+    .mono { fill: #1F2937; font-size: 15px; font-family: "Cascadia Mono", ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .muted { fill: #667085; font-size: 13px; }
+  </style>
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M2 2L10 6L2 10" fill="none" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+  <rect width="1440" height="940" fill="#F8FAF7"/>
+  <text x="72" y="86" class="title">DotCraft Hub bootstrap flow</text>
+  <text x="72" y="123" class="subtitle">Use Hub to locate or start the workspace runtime, then move normal session traffic to AppServer.</text>
+
+  <g transform="translate(72 184)">
+    <rect x="0" y="0" width="250" height="170" rx="8" fill="#EAF0FF" stroke="#C2CEF7"/>
+    <text x="24" y="36" class="step" fill="#4459B8">1. Resolve</text>
+    <text x="24" y="76" class="cardTitle" fill="#23305F">workspace path</text>
+    <text x="24" y="112" class="mono">project root</text>
+  </g>
+  <g transform="translate(382 184)">
+    <rect x="0" y="0" width="250" height="170" rx="8" fill="#E9F5F0" stroke="#B7DED0"/>
+    <text x="24" y="36" class="step" fill="#2E6B56">2. Discover</text>
+    <text x="24" y="76" class="cardTitle" fill="#153E33">hub.lock</text>
+    <text x="24" y="112" class="mono">~/.craft/hub/</text>
+  </g>
+  <g transform="translate(692 184)">
+    <rect x="0" y="0" width="250" height="170" rx="8" fill="#FFF1E6" stroke="#F3C9A4"/>
+    <text x="24" y="36" class="step" fill="#A85C21">3. Verify</text>
+    <text x="24" y="76" class="cardTitle" fill="#623314">GET /status</text>
+    <text x="24" y="112" class="mono">pid and token</text>
+  </g>
+  <g transform="translate(1002 184)">
+    <rect x="0" y="0" width="366" height="170" rx="8" fill="#F1EBFA" stroke="#D7C5EF"/>
+    <text x="24" y="36" class="step" fill="#7653A8">4. Ensure</text>
+    <text x="24" y="76" class="cardTitle" fill="#39205F">POST /appservers/ensure</text>
+    <text x="24" y="112" class="mono">start or reuse workspace AppServer</text>
+  </g>
+
+  <path d="M322 269H382" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
+  <path d="M632 269H692" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
+  <path d="M942 269H1002" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <g transform="translate(206 500)">
+    <rect x="0" y="0" width="386" height="190" rx="8" fill="#F3F4EA" stroke="#D9DEC0"/>
+    <text x="28" y="44" class="cardTitle" fill="#3F431E">Hub response</text>
+    <line x1="28" y1="64" x2="358" y2="64" stroke="#D9DEC0"/>
+    <text x="28" y="100" class="mono">state: running</text>
+    <text x="28" y="126" class="mono">endpoints.appServerWebSocket</text>
+    <text x="28" y="158" class="muted">May include dashboard and sidecar service status.</text>
+  </g>
+
+  <g transform="translate(848 500)">
+    <rect x="0" y="0" width="386" height="190" rx="8" fill="#E8F4FA" stroke="#BBDCEE"/>
+    <text x="28" y="44" class="cardTitle" fill="#15384B">AppServer connection</text>
+    <line x1="28" y1="64" x2="358" y2="64" stroke="#BBDCEE"/>
+    <text x="28" y="100" class="mono">JSON-RPC initialize</text>
+    <text x="28" y="126" class="mono">initialized notification</text>
+    <text x="28" y="158" class="muted">After this point, session traffic bypasses Hub.</text>
+  </g>
+
+  <path d="M1185 354C1185 424 1002 456 1002 500" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
+  <path d="M592 595H848" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <g transform="translate(72 780)">
+    <rect x="0" y="0" width="1296" height="58" rx="8" fill="#FFFFFF" stroke="#D9E0EA"/>
+    <text x="24" y="36" fill="#475467" font-size="14">Boundary:</text>
+    <text x="100" y="36" fill="#17203A" font-size="14" font-weight="720">Hub is an HTTP/SSE coordinator, not a JSON-RPC session proxy.</text>
+  </g>
+</svg>

@@ -1,0 +1,293 @@
+using System.ClientModel;
+using System.ClientModel.Primitives;
+using System.Collections.Concurrent;
+using System.Net.Http.Headers;
+using DotCraft.Auth.OpenAI;
+using DotCraft.Configuration;
+using Microsoft.Extensions.AI;
+using OpenAI;
+using OpenAI.Chat;
+using OpenAI.Responses;
+
+#pragma warning disable OPENAI001
+
+namespace DotCraft.Agents;
+
+/// <summary>
+/// Creates and caches OpenAI SDK clients for DotCraft runtime paths.
+/// </summary>
+public sealed class OpenAIClientProvider
+{
+    private static readonly HttpClient SharedChatGptHttpClient = new();
+
+    private readonly ConcurrentDictionary<OpenAIClientKey, OpenAIClient> _openAIClients = new();
+    private readonly ConcurrentDictionary<OpenAIChatClientKey, ChatClient> _openAIChatClients = new();
+    private readonly ConcurrentDictionary<OpenAIClientKey, ResponsesClient> _openAIResponsesClients = new();
+    private readonly ConcurrentDictionary<OpenAIChatClientKey, IChatClient> _openAIResponsesChatClients = new();
+    private readonly IOpenAIAuthService? _openAIAuthService;
+    private readonly OpenAIInstallationIdProvider? _installationIdProvider;
+    private readonly HttpClient _chatGptHttpClient;
+
+    /// <summary>Default constructor for DI; OAuth-mode providers require an auth service.</summary>
+    public OpenAIClientProvider(
+        IOpenAIAuthService? openAIAuthService = null,
+        OpenAIInstallationIdProvider? installationIdProvider = null)
+        : this(openAIAuthService, installationIdProvider, chatGptHttpMessageHandler: null)
+    {
+    }
+
+    internal OpenAIClientProvider(
+        IOpenAIAuthService? openAIAuthService,
+        HttpMessageHandler? chatGptHttpMessageHandler)
+        : this(openAIAuthService, installationIdProvider: null, chatGptHttpMessageHandler)
+    {
+    }
+
+    internal OpenAIClientProvider(
+        IOpenAIAuthService? openAIAuthService,
+        OpenAIInstallationIdProvider? installationIdProvider,
+        HttpMessageHandler? chatGptHttpMessageHandler)
+    {
+        _openAIAuthService = openAIAuthService;
+        _installationIdProvider = installationIdProvider;
+        _chatGptHttpClient = chatGptHttpMessageHandler is null
+            ? SharedChatGptHttpClient
+            : new HttpClient(chatGptHttpMessageHandler, disposeHandler: false);
+    }
+
+    /// <summary>
+    /// Gets a cached OpenAI client for a resolved OpenAI protocol runtime.
+    /// </summary>
+    public OpenAIClient GetOpenAIClient(EffectiveModelRuntime runtime)
+    {
+        ArgumentNullException.ThrowIfNull(runtime);
+        if (!runtime.IsOpenAICompatible)
+            throw new ArgumentException($"Provider '{runtime.ProviderId}' does not use the OpenAI protocol.", nameof(runtime));
+
+        return GetOpenAIClient(OpenAIClientKey.From(runtime));
+    }
+
+    /// <summary>
+    /// Gets a cached OpenAI SDK chat client for OpenAI protocol integrations.
+    /// </summary>
+    public ChatClient GetOpenAIChatClient(EffectiveModelRuntime runtime)
+    {
+        ArgumentNullException.ThrowIfNull(runtime);
+        if (!runtime.IsOpenAICompatible)
+            throw new ArgumentException($"Provider '{runtime.ProviderId}' does not use the OpenAI protocol.", nameof(runtime));
+
+        var key = OpenAIChatClientKey.From(runtime);
+        return _openAIChatClients.GetOrAdd(key, static (chatKey, provider) =>
+            provider.GetOpenAIClient(chatKey.Client).GetChatClient(chatKey.Model), this);
+    }
+
+    /// <summary>
+    /// Gets a cached OpenAI Responses chat client for OpenAI Responses protocol integrations.
+    /// </summary>
+    public IChatClient GetOpenAIResponsesChatClient(EffectiveModelRuntime runtime)
+    {
+        ArgumentNullException.ThrowIfNull(runtime);
+        if (!runtime.IsOpenAIResponses)
+            throw new ArgumentException($"Provider '{runtime.ProviderId}' does not use the OpenAI Responses protocol.", nameof(runtime));
+
+        var key = OpenAIChatClientKey.From(runtime);
+        return _openAIResponsesChatClients.GetOrAdd(key, static (chatKey, provider) =>
+            new OpenAIResponsesToolSearchChatClient(
+                provider.GetOpenAIResponsesClient(chatKey.Client),
+                chatKey.Model), this);
+    }
+
+    internal static OpenAIClientOptions CreateClientOptions(Uri endpoint, int networkTimeoutSeconds)
+    {
+        var options = new OpenAIClientOptions
+        {
+            Endpoint = endpoint,
+            NetworkTimeout = TimeSpan.FromSeconds(NormalizeNetworkTimeoutSeconds(networkTimeoutSeconds)),
+            RetryPolicy = new ClientRetryPolicy(0)
+        };
+        options.AddPolicy(new PromptCacheControlPipelinePolicy(), PipelinePosition.PerCall);
+        options.AddPolicy(new DotCraftUserAgentPipelinePolicy(), PipelinePosition.PerCall);
+        options.AddPolicy(new LlmHttpCapturePipelinePolicy(), PipelinePosition.PerCall);
+        return options;
+    }
+
+    internal string? ResolveChatGptAccountId(EffectiveModelRuntime runtime)
+    {
+        ArgumentNullException.ThrowIfNull(runtime);
+        if (!string.IsNullOrWhiteSpace(runtime.ChatGptAccountId))
+            return runtime.ChatGptAccountId.Trim();
+        return _openAIAuthService?.GetAccountId();
+    }
+
+    internal async Task<ChatGptCodexModelsHttpResponse> FetchChatGptCodexModelsAsync(
+        EffectiveModelRuntime runtime,
+        string clientVersion,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(runtime);
+        if (!runtime.IsChatGptOAuth)
+            throw new ArgumentException("Provider must use ChatGPT OAuth.", nameof(runtime));
+        if (_openAIAuthService is null)
+            throw new InvalidOperationException(
+                "ChatGPT OAuth provider requested but no IOpenAIAuthService was registered.");
+        if (string.IsNullOrWhiteSpace(clientVersion))
+            throw new ArgumentException("Client version must be configured.", nameof(clientVersion));
+
+        var requestUri = BuildChatGptCodexModelsUri(runtime, clientVersion);
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutCts.CancelAfter(TimeSpan.FromSeconds(NormalizeNetworkTimeoutSeconds(runtime.NetworkTimeoutSeconds)));
+
+        var response = await SendChatGptCodexModelsRequestAsync(
+            requestUri,
+            runtime,
+            forceRefresh: false,
+            timeoutCts.Token).ConfigureAwait(false);
+        if ((int)response.StatusCode == 401)
+        {
+            response.Dispose();
+            response = await SendChatGptCodexModelsRequestAsync(
+                requestUri,
+                runtime,
+                forceRefresh: true,
+                timeoutCts.Token).ConfigureAwait(false);
+        }
+
+        return await ReadChatGptCodexModelsResponseAsync(response, timeoutCts.Token).ConfigureAwait(false);
+    }
+
+    private OpenAIClient GetOpenAIClient(OpenAIClientKey key)
+    {
+        return _openAIClients.GetOrAdd(key, static (clientKey, provider) =>
+        {
+            var options = CreateClientOptions(clientKey.Endpoint, clientKey.NetworkTimeoutSeconds);
+            if (clientKey.AuthMethod == ModelProviderAuthMethods.ChatGptOAuth)
+            {
+                if (provider._openAIAuthService is null)
+                    throw new InvalidOperationException(
+                        "ChatGPT OAuth provider requested but no IOpenAIAuthService was registered.");
+
+                var installationId = provider._installationIdProvider?.GetInstallationId();
+                options.AddPolicy(
+                    new OpenAIOAuthPipelinePolicy(
+                        provider._openAIAuthService,
+                        clientKey.AccountId,
+                        installationId),
+                    PipelinePosition.BeforeTransport);
+                if (!string.IsNullOrWhiteSpace(installationId))
+                {
+                    options.AddPolicy(
+                        new OpenAIResponsesClientMetadataPipelinePolicy(installationId),
+                        PipelinePosition.PerCall);
+                }
+
+                // SDK requires a non-empty credential to construct the client; the OAuth policy
+                // overrides Authorization right before transport so the value is ignored.
+                return new OpenAIClient(new ApiKeyCredential("chatgpt-oauth"), options);
+            }
+
+            return new OpenAIClient(new ApiKeyCredential(clientKey.ApiKey), options);
+        }, this);
+    }
+
+    private ResponsesClient GetOpenAIResponsesClient(OpenAIClientKey key) =>
+        _openAIResponsesClients.GetOrAdd(key, static (clientKey, provider) =>
+            provider.GetOpenAIClient(clientKey).GetResponsesClient(), this);
+
+    private async Task<HttpResponseMessage> SendChatGptCodexModelsRequestAsync(
+        Uri requestUri,
+        EffectiveModelRuntime runtime,
+        bool forceRefresh,
+        CancellationToken cancellationToken)
+    {
+        var token = await _openAIAuthService!.GetAccessTokenAsync(forceRefresh, cancellationToken).ConfigureAwait(false);
+        using var request = new HttpRequestMessage(HttpMethod.Get, requestUri);
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        var accountId = ResolveChatGptAccountId(runtime);
+        if (!string.IsNullOrWhiteSpace(accountId))
+            request.Headers.TryAddWithoutValidation(OpenAIAuthConstants.AccountIdHeader, accountId);
+        request.Headers.TryAddWithoutValidation(OpenAIAuthConstants.OriginatorHeader, OpenAIAuthConstants.Originator);
+        return await _chatGptHttpClient.SendAsync(
+            request,
+            HttpCompletionOption.ResponseHeadersRead,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async Task<ChatGptCodexModelsHttpResponse> ReadChatGptCodexModelsResponseAsync(
+        HttpResponseMessage response,
+        CancellationToken cancellationToken)
+    {
+        using (response)
+        {
+            var body = response.Content is null
+                ? string.Empty
+                : await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            return new ChatGptCodexModelsHttpResponse(
+                StatusCode: (int)response.StatusCode,
+                Content: body,
+                ETag: response.Headers.ETag?.Tag);
+        }
+    }
+
+    private static Uri BuildChatGptCodexModelsUri(EffectiveModelRuntime runtime, string clientVersion)
+    {
+        if (!Uri.TryCreate(runtime.EndPoint, UriKind.Absolute, out var endpoint))
+            throw new ArgumentException("Endpoint must be an absolute URI.", nameof(runtime));
+
+        var baseUri = new Uri(endpoint.ToString().TrimEnd('/') + "/");
+        var uriBuilder = new UriBuilder(new Uri(baseUri, "models"))
+        {
+            Query = $"client_version={Uri.EscapeDataString(clientVersion.Trim())}"
+        };
+        return uriBuilder.Uri;
+    }
+
+    private static string NormalizeRequiredModel(string? model)
+    {
+        if (string.IsNullOrWhiteSpace(model))
+            throw new ArgumentException("Model must be configured.", nameof(model));
+
+        return model.Trim();
+    }
+
+    private readonly record struct OpenAIClientKey(
+        Uri Endpoint,
+        string ApiKey,
+        int NetworkTimeoutSeconds,
+        string AuthMethod,
+        string? AccountId)
+    {
+        public static OpenAIClientKey From(EffectiveModelRuntime runtime)
+        {
+            var authMethod = ModelProviderAuthMethods.Normalize(runtime.AuthMethod);
+            if (authMethod == ModelProviderAuthMethods.ApiKey &&
+                string.IsNullOrWhiteSpace(runtime.ApiKey))
+            {
+                throw new ArgumentException("API key must be configured.", nameof(runtime));
+            }
+
+            if (!Uri.TryCreate(runtime.EndPoint, UriKind.Absolute, out var endpoint))
+                throw new ArgumentException("Endpoint must be an absolute URI.", nameof(runtime));
+
+            return new OpenAIClientKey(
+                endpoint,
+                runtime.ApiKey,
+                NormalizeNetworkTimeoutSeconds(runtime.NetworkTimeoutSeconds),
+                authMethod,
+                runtime.ChatGptAccountId);
+        }
+    }
+
+    private readonly record struct OpenAIChatClientKey(OpenAIClientKey Client, string Model)
+    {
+        public static OpenAIChatClientKey From(EffectiveModelRuntime runtime) =>
+            new(OpenAIClientKey.From(runtime), NormalizeRequiredModel(runtime.Model));
+    }
+
+    private static int NormalizeNetworkTimeoutSeconds(int seconds) => Math.Max(1, seconds);
+}
+
+internal sealed record ChatGptCodexModelsHttpResponse(
+    int StatusCode,
+    string Content,
+    string? ETag);

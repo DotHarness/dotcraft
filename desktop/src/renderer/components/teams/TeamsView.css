@@ -1,0 +1,1633 @@
+.teams-card-game {
+  --team-card-ink: #171717;
+  --team-card-line: #1d1d1d;
+  --team-card-paper: #fff5cf;
+  --team-card-paper-soft: #fffbe8;
+  --team-card-task: #eef7ff;
+  --team-card-done: #e9f8dc;
+  --team-board-frame: rgba(129, 180, 235, .42);
+  --team-board-grid: rgba(129, 180, 235, .12);
+  --team-board-grid-strong: rgba(129, 180, 235, .22);
+  --team-board-guide: rgba(170, 207, 243, .34);
+  --team-board-guide-soft: rgba(129, 180, 235, .14);
+  --team-rail-ink: var(--text-primary, #f1f8ff);
+  --team-rail-muted: var(--text-secondary, #bdcbda);
+  --team-rail-section: color-mix(in srgb, var(--bg-primary, #111418) 74%, transparent);
+  --team-rail-field: color-mix(in srgb, var(--bg-secondary, #1f1f1f) 88%, transparent);
+  --team-rail-field-border: color-mix(in srgb, var(--border-default, #3d3d3d) 88%, transparent);
+  --team-rail-action-bg: color-mix(in srgb, var(--bg-secondary, #1f1f1f) 92%, transparent);
+  --team-card-shadow: rgba(3, 11, 22, .32);
+
+  height: 100%;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(232px, 22vw, 304px);
+  gap: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--text-primary);
+  overflow: hidden;
+  position: relative;
+  isolation: isolate;
+}
+
+html[data-theme="light"] .teams-card-game {
+  --team-board-frame: rgba(47, 112, 182, .32);
+  --team-board-grid: rgba(47, 112, 182, .11);
+  --team-board-grid-strong: rgba(47, 112, 182, .2);
+  --team-board-guide: rgba(35, 93, 158, .27);
+  --team-board-guide-soft: rgba(47, 112, 182, .12);
+  --team-rail-ink: #122033;
+  --team-rail-muted: #4d6075;
+  --team-rail-section: color-mix(in srgb, var(--bg-primary, #f4f4f4) 78%, transparent);
+  --team-rail-field: color-mix(in srgb, var(--bg-primary, #fbfdff) 96%, #fff);
+  --team-rail-field-border: color-mix(in srgb, var(--border-default, #d1d5db) 88%, transparent);
+  --team-rail-action-bg: color-mix(in srgb, var(--bg-secondary, #fff) 92%, transparent);
+  --team-card-shadow: rgba(30, 58, 91, .22);
+}
+
+.teams-card-game::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(var(--team-board-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--team-board-grid) 1px, transparent 1px),
+    linear-gradient(var(--team-board-grid-strong) 1px, transparent 1px),
+    linear-gradient(90deg, var(--team-board-grid-strong) 1px, transparent 1px);
+  background-size: 32px 32px, 32px 32px, 160px 160px, 160px 160px;
+  background-position: 0 0;
+}
+
+.teams-card-board {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  display: grid;
+  place-items: stretch;
+  isolation: isolate;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.teams-card-board::before,
+.teams-card-board::after {
+  content: none;
+}
+
+.teams-card-board-viewport {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  padding: 0;
+}
+
+.teams-card-board-stage-shell {
+  position: relative;
+  flex: 0 0 auto;
+  overflow: visible;
+}
+
+.teams-card-board-stage {
+  position: relative;
+  overflow: visible;
+  transform-origin: 0 0;
+  background: transparent;
+}
+
+.teams-card-stage-world {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1360px;
+  height: 2560px;
+  transform: translateY(-1280px);
+  transform-origin: 0 0;
+  transition: transform .72s cubic-bezier(.18,.86,.18,1);
+  will-change: transform;
+}
+
+.teams-card-board-stage.history-mode .teams-card-stage-world {
+  transform: translateY(0);
+}
+
+.teams-card-stage-world::before,
+.teams-card-stage-world::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.teams-card-stage-world::before {
+  content: none;
+}
+
+.teams-card-stage-world::after {
+  z-index: 0;
+  inset: 16px;
+  opacity: .72;
+  background:
+    linear-gradient(90deg, transparent calc(50% - .5px), var(--team-board-guide-soft) calc(50% - .5px) calc(50% + .5px), transparent calc(50% + .5px)),
+    linear-gradient(0deg, transparent calc(50% - .5px), var(--team-board-guide-soft) calc(50% - .5px) calc(50% + .5px), transparent calc(50% + .5px)),
+    linear-gradient(var(--team-board-guide) 0 0) 3% 8% / 68px 1px no-repeat,
+    linear-gradient(90deg, var(--team-board-guide) 0 0) 3% 8% / 1px 68px no-repeat,
+    linear-gradient(var(--team-board-guide) 0 0) 92% 10% / 72px 1px no-repeat,
+    linear-gradient(90deg, var(--team-board-guide) 0 0) 97% 10% / 1px 72px no-repeat,
+    linear-gradient(var(--team-board-guide) 0 0) 6% 91% / 78px 1px no-repeat,
+    linear-gradient(var(--team-board-guide) 0 0) 86% 91% / 78px 1px no-repeat;
+}
+
+.teams-history-space,
+.teams-active-space {
+  position: absolute;
+  left: 0;
+  width: 1360px;
+  height: 1280px;
+  overflow: visible;
+}
+
+.teams-history-space {
+  top: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.teams-active-space {
+  top: 1280px;
+  z-index: 2;
+}
+
+.teams-card-board-stage.history-mode .teams-history-space {
+  pointer-events: auto;
+}
+
+.teams-card-board-stage.history-mode .teams-active-space {
+  pointer-events: none;
+}
+
+.teams-card-board-stage.history-mode .teams-card-member.working .teams-card-face {
+  animation-play-state: paused;
+}
+
+.teams-card-hand-zone {
+  position: absolute;
+  left: 120px;
+  right: 120px;
+  top: 520px;
+  height: 142px;
+  pointer-events: none;
+  border: 1px dashed color-mix(in srgb, var(--team-board-frame) 42%, transparent);
+  border-radius: 8px;
+  background: transparent;
+}
+
+.teams-table-card {
+  position: absolute;
+  width: 128px;
+  min-height: 168px;
+  color: var(--team-card-ink);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  transform: rotate(var(--rot, 0deg));
+  transform-origin: 50% 50%;
+  transition: filter .16s ease;
+  will-change: transform, left, top;
+}
+
+.teams-table-card:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 4px;
+}
+
+.teams-table-card * {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.teams-card-face {
+  position: relative;
+  width: 100%;
+  min-height: inherit;
+  padding: 9px;
+  border: 3px solid var(--team-card-line);
+  border-radius: 5px;
+  background: var(--team-card-paper);
+  box-shadow: 0 12px 16px var(--team-card-shadow);
+  transition: box-shadow .16s ease, filter .16s ease, transform .16s ease;
+  transform-origin: 50% 50%;
+  will-change: transform;
+}
+
+.teams-table-card.selected .teams-card-face {
+  box-shadow: 0 0 0 3px #fff, 0 0 0 6px #3b82f6, 0 16px 24px var(--team-card-shadow);
+}
+
+.teams-table-card.dragging {
+  cursor: grabbing;
+}
+
+.teams-table-card.dragging .teams-card-face {
+  animation: none !important;
+  transform: translateY(-8px) scale(1.04);
+  box-shadow: 0 22px 28px rgba(3, 11, 22, .28);
+  filter: saturate(1.05);
+}
+
+.teams-table-card.hovering:not(.dragging) .teams-card-face {
+  transform: translateY(-5px) rotate(.4deg);
+  box-shadow: 0 18px 24px var(--team-card-shadow);
+  filter: saturate(1.06);
+}
+
+.teams-table-card.elevated:not(.dragging) .teams-card-face {
+  transform: translateY(-12px) rotate(.7deg) scale(1.02);
+  box-shadow: 0 24px 30px var(--team-card-shadow);
+}
+
+.teams-table-card.walking .teams-card-face {
+  box-shadow: 0 18px 24px rgba(3, 11, 22, .22);
+}
+
+.teams-card-mission .teams-card-face,
+.teams-card-draft .teams-card-face {
+  background: #fff0b8;
+}
+
+.teams-card-task .teams-card-face {
+  background: var(--team-card-task);
+}
+
+.teams-card-task.completed .teams-card-face {
+  background: var(--team-card-done);
+}
+
+.teams-card-member .teams-card-face {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  background: var(--team-card-paper-soft);
+}
+
+.teams-card-member.settling .teams-card-face {
+  animation: team-card-settle .16s ease-out both;
+}
+
+.teams-card-member.working .teams-card-face {
+  animation: team-card-work 1.35s ease-in-out infinite;
+}
+
+.teams-card-strip {
+  height: 23px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 7px;
+  margin: -2px -2px 9px;
+  padding: 0 8px;
+  border: 2px solid var(--team-card-line);
+  border-radius: 3px;
+  background: #2f4637;
+  color: #fff9e8;
+  font-size: 12px;
+  line-height: 1;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.teams-card-draft .teams-card-strip {
+  background: #171717;
+}
+
+.teams-card-task .teams-card-strip {
+  background: #475569;
+}
+
+.teams-card-task.completed .teams-card-strip {
+  background: #188a4e;
+}
+
+.teams-card-member[data-role="leader"] .teams-card-strip {
+  background: #4f7cf6;
+}
+
+.teams-card-member[data-role="explorer"] .teams-card-strip {
+  background: #0ea5e9;
+}
+
+.teams-card-member[data-role="builder"] .teams-card-strip {
+  background: #7c3aed;
+}
+
+.teams-card-member[data-role="reviewer"] .teams-card-strip {
+  background: #22a45a;
+}
+
+.teams-card-member[data-role="operator"] .teams-card-strip {
+  background: #d88700;
+}
+
+.teams-card-title {
+  padding: 9px 4px 1px;
+  text-align: center;
+  font-size: 16px;
+  line-height: 1.12;
+  font-weight: 900;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.teams-card-note {
+  margin-top: 7px;
+  color: #6f624e;
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.18;
+  font-weight: 760;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.teams-card-task .teams-card-title {
+  -webkit-line-clamp: 5;
+}
+
+.teams-card-avatar {
+  display: grid;
+  place-items: center;
+  min-height: 108px;
+  border-radius: 4px;
+  background: rgba(255,255,255,.62);
+}
+
+.teams-card-avatar img {
+  width: 100px;
+  height: 100px;
+  object-fit: contain;
+  pointer-events: none;
+  filter: drop-shadow(0 8px 8px rgba(0,0,0,.16));
+}
+
+.teams-draft-title,
+.teams-draft-prompt {
+  width: 100%;
+  border-radius: 4px;
+  background: rgba(255,255,255,.64);
+  color: var(--team-card-ink);
+  font-weight: 800;
+}
+
+.teams-draft-title {
+  height: 32px;
+  display: flex;
+  align-items: center;
+  padding: 0 7px;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.teams-draft-prompt {
+  min-height: 68px;
+  margin-top: 8px;
+  padding: 7px;
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+.teams-card-progress {
+  position: absolute;
+  left: 9px;
+  right: 9px;
+  bottom: -12px;
+  height: 12px;
+  border: 2px solid var(--team-card-line);
+  border-radius: 999px;
+  background: #202020;
+  overflow: hidden;
+}
+
+.teams-card-progress::before {
+  content: "";
+  display: block;
+  width: var(--progress, 48%);
+  height: 100%;
+  background: linear-gradient(90deg, #ffcf11, #f97316);
+}
+
+.teams-card-status-chip {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  top: -20px;
+  min-height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+  border: 2px solid var(--team-card-line);
+  border-radius: 999px;
+  background: #fffdf0;
+  color: var(--team-card-ink);
+  box-shadow: 0 5px 8px rgba(0,0,0,.12);
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 900;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.teams-card-status-chip.live {
+  background: #fff7bf;
+}
+
+.teams-card-status-chip.live::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  margin-right: 5px;
+  border-radius: 999px;
+  background: #f59e0b;
+  box-shadow: 0 0 0 0 rgba(245, 158, 11, .34);
+  animation: team-status-pulse 1.4s ease-in-out infinite;
+}
+
+.teams-card-status-chip.queued {
+  background: #edf2ff;
+}
+
+.teams-card-status-chip.done {
+  background: #e9f8dc;
+}
+
+.teams-card-status-chip.cancelled {
+  background: #e5e7eb;
+  color: #475569;
+}
+
+.teams-card-checkmark {
+  position: absolute;
+  right: -10px;
+  bottom: -14px;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border: 3px solid var(--team-card-line);
+  border-radius: 999px;
+  background: #fff;
+  color: #15803d;
+  font-size: 22px;
+  font-weight: 900;
+}
+
+.teams-card-spawned {
+  animation: team-card-spawn 760ms cubic-bezier(.18, .9, .28, 1.06) both;
+}
+
+/* Intent chip — small label below member cards advertising current behavior intent.
+   Lives inside .teams-card-face so it inherits the working/breathing transform.
+   Uses the prototype's bottom-edge overlap instead of fully mirroring the top status chip. */
+.teams-intent-chip {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: -13px;
+  min-height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 8px;
+  border: 2px solid var(--team-card-line);
+  border-radius: 999px;
+  background: #fffdf0;
+  color: var(--team-card-ink);
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 900;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  box-shadow: 0 5px 8px rgba(0,0,0,.12);
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-4px) scale(.85);
+  transition:
+    transform 220ms cubic-bezier(.34, 1.56, .64, 1),
+    opacity 180ms ease;
+  z-index: 3;
+}
+
+.teams-intent-chip.show {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.teams-intent-chip svg {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+  stroke: currentColor;
+}
+
+.teams-intent-chip.plan {
+  background: #efe6ff;
+  color: #4a1faf;
+}
+
+.teams-intent-chip.talk {
+  background: #dde9ff;
+  color: #1f3a96;
+}
+
+.teams-intent-chip.task {
+  background: #d5f1de;
+  color: #126a35;
+}
+
+.teams-intent-chip.work {
+  background: #fdebbf;
+  color: #7a4d00;
+}
+
+.teams-intent-chip.work svg {
+  animation: teams-card-spin 1.4s linear infinite;
+}
+
+.teams-intent-chip.rest {
+  background: #e7ecf2;
+  color: #344459;
+}
+
+/* Dialog bubble — transient speech bubble shown above an actor during meet-and-greet. */
+.teams-dialog-bubble {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 14px);
+  transform: translateX(-50%) translateY(8px) scale(.85);
+  min-width: 96px;
+  max-width: 200px;
+  padding: 8px 11px;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #1c2533;
+  border: 1.5px solid #2a3550;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 6;
+  box-shadow: 0 10px 22px rgba(15, 25, 50, .28);
+  transition:
+    transform 240ms cubic-bezier(.34, 1.56, .64, 1),
+    opacity 200ms ease;
+}
+
+.teams-dialog-bubble::after {
+  content: '';
+  position: absolute;
+  bottom: -7px;
+  left: 50%;
+  width: 12px;
+  height: 12px;
+  background: #ffffff;
+  border-right: 1.5px solid #2a3550;
+  border-bottom: 1.5px solid #2a3550;
+  transform: translateX(-50%) rotate(45deg);
+}
+
+.teams-dialog-bubble.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0) scale(1);
+}
+
+/* Meeting marker — faint dashed ring at the convergence point of a meet-and-greet. */
+.teams-meeting-marker {
+  position: absolute;
+  width: 120px;
+  height: 120px;
+  margin: -60px 0 0 -60px;
+  border-radius: 50%;
+  border: 2px dashed rgba(80, 100, 140, .35);
+  opacity: 0;
+  pointer-events: none;
+  transform: scale(.7);
+  transition: opacity 220ms ease, transform 260ms cubic-bezier(.34, 1.56, .64, 1);
+  z-index: 4;
+}
+
+.teams-meeting-marker::before {
+  content: '';
+  position: absolute;
+  inset: 14px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(80, 100, 140, .14), transparent 70%);
+}
+
+.teams-meeting-marker.show {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.teams-mission-create-zone {
+  position: absolute;
+  z-index: 86;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  border: 2px dashed color-mix(in srgb, var(--team-board-guide) 90%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg-primary, #111418) 78%, transparent);
+  color: var(--team-rail-muted);
+  text-align: center;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(6px) scale(.98);
+  transition:
+    opacity 200ms ease,
+    transform 220ms cubic-bezier(.2,.8,.2,1),
+    border-color 180ms ease,
+    background 180ms ease,
+    color 180ms ease;
+}
+
+.teams-mission-create-zone.show {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.teams-mission-create-zone.over,
+.teams-mission-create-zone.occupied {
+  border-color: color-mix(in srgb, var(--accent) 60%, var(--team-board-guide));
+  background: color-mix(in srgb, var(--accent) 9%, var(--bg-primary, #111418));
+  color: var(--team-rail-ink);
+}
+
+.teams-mission-create-content {
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+}
+
+.teams-mission-create-plus {
+  color: var(--team-card-ink);
+  font-size: 68px;
+  line-height: .82;
+  font-weight: 900;
+}
+
+.teams-mission-create-hint {
+  color: currentColor;
+  font-size: 13px;
+  line-height: 1.2;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.teams-archive-pile {
+  position: absolute;
+  left: 1190px;
+  top: 32px;
+  z-index: 70;
+  width: 160px;
+  height: 150px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--team-card-ink);
+  cursor: pointer;
+  transform: rotate(3deg);
+  transform-origin: 50% 50%;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: transform .28s cubic-bezier(.2,.8,.2,1), filter .16s ease;
+}
+
+.teams-archive-pile:focus-visible,
+.teams-history-edge-deck:focus-visible,
+.teams-history-return-ledge:focus-visible,
+.teams-history-card:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 5px;
+}
+
+.teams-archive-stack-layer,
+.teams-archive-stack-top {
+  position: absolute;
+  width: 128px;
+  min-height: 102px;
+  left: 14px;
+  top: 18px;
+  border: 2px solid color-mix(in srgb, var(--team-card-line) 84%, transparent);
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--team-card-paper-soft) 84%, var(--bg-primary, #111418));
+  box-shadow: 0 8px 12px var(--team-card-shadow);
+}
+
+.teams-archive-stack-layer:nth-child(1) {
+  transform: translate(12px, 12px) rotate(4deg);
+  opacity: .42;
+}
+
+.teams-archive-stack-layer:nth-child(2) {
+  transform: translate(7px, 7px) rotate(-2deg);
+  opacity: .58;
+}
+
+.teams-archive-stack-layer:nth-child(3) {
+  transform: translate(3px, 3px) rotate(1.2deg);
+  opacity: .72;
+}
+
+.teams-archive-stack-top {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  padding: 9px;
+  background: var(--team-card-paper-soft);
+  transition: transform .18s ease, box-shadow .18s ease;
+}
+
+.teams-archive-pile:hover .teams-archive-stack-top,
+.teams-archive-pile.selected .teams-archive-stack-top {
+  transform: translateY(-4px) rotate(-1deg);
+}
+
+.teams-archive-pile.selected .teams-archive-stack-top {
+  box-shadow: 0 0 0 3px #fff, 0 0 0 6px #3b82f6, 0 12px 18px var(--team-card-shadow);
+}
+
+.teams-archive-stack-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 22px;
+  padding: 0 8px;
+  border: 2px solid var(--team-card-line);
+  border-radius: 3px;
+  background: #475569;
+  color: #fff9e8;
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 900;
+}
+
+.teams-archive-stack-title {
+  color: var(--team-card-ink);
+  font-size: 16px;
+  line-height: 1.06;
+  font-weight: 900;
+  text-align: left;
+}
+
+.teams-archive-stack-meta {
+  color: #6f624e;
+  font-size: 12px;
+  line-height: 1.2;
+  font-weight: 850;
+  text-align: left;
+}
+
+.teams-archive-pile-count {
+  position: absolute;
+  right: -2px;
+  top: -8px;
+  min-width: 42px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 7px;
+  border: 2px solid color-mix(in srgb, var(--team-card-line) 70%, transparent);
+  border-radius: 999px;
+  background: var(--team-rail-field);
+  color: var(--team-card-ink);
+  font-size: 14px;
+  line-height: 1;
+  font-weight: 900;
+  box-shadow: 0 5px 10px rgba(0,0,0,.1);
+  pointer-events: none;
+}
+
+.teams-discard-pile {
+  position: absolute;
+  left: 1190px;
+  top: 198px;
+  z-index: 68;
+  width: 160px;
+  height: 150px;
+  color: var(--team-card-ink);
+  transform: rotate(-2deg);
+  transform-origin: 50% 50%;
+  opacity: .34;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: opacity .18s ease, transform .18s ease, filter .18s ease;
+}
+
+.teams-discard-pile.armed {
+  opacity: .88;
+  filter: saturate(1.04);
+}
+
+.teams-discard-pile.over {
+  opacity: 1;
+  transform: rotate(-2deg) translateY(-5px) scale(1.06);
+  filter: saturate(1.16);
+}
+
+.teams-discard-stack-layer,
+.teams-discard-stack-top {
+  position: absolute;
+  width: 128px;
+  min-height: 102px;
+  left: 14px;
+  top: 18px;
+  border: 2px solid color-mix(in srgb, var(--team-card-line) 82%, transparent);
+  border-radius: 5px;
+  background: color-mix(in srgb, #f3f4f6 80%, var(--bg-primary, #111418));
+  box-shadow: 0 8px 12px var(--team-card-shadow);
+}
+
+.teams-discard-stack-layer:nth-child(1) {
+  transform: translate(11px, 10px) rotate(5deg);
+  opacity: .34;
+}
+
+.teams-discard-stack-layer:nth-child(2) {
+  transform: translate(6px, 6px) rotate(-3deg);
+  opacity: .5;
+}
+
+.teams-discard-stack-top {
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  padding: 9px;
+  background: color-mix(in srgb, var(--team-card-paper-soft) 72%, #fee2e2);
+  transition: box-shadow .18s ease, transform .18s ease;
+}
+
+.teams-discard-pile.cancel-mode.over .teams-discard-stack-top {
+  box-shadow: 0 0 0 3px #fff, 0 0 0 6px #ef4444, 0 14px 20px var(--team-card-shadow);
+}
+
+.teams-discard-pile.archive-mode .teams-discard-stack-top {
+  background: color-mix(in srgb, var(--team-card-paper-soft) 78%, #dbeafe);
+}
+
+.teams-discard-pile.archive-mode.over .teams-discard-stack-top {
+  box-shadow: 0 0 0 3px #fff, 0 0 0 6px #3b82f6, 0 14px 20px var(--team-card-shadow);
+}
+
+.teams-discard-stack-strip {
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 7px;
+  border: 2px solid var(--team-card-line);
+  border-radius: 3px;
+  background: #991b1b;
+  color: #fff9e8;
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.teams-discard-pile.archive-mode .teams-discard-stack-strip {
+  background: #475569;
+}
+
+.teams-discard-stack-title {
+  color: var(--team-card-ink);
+  font-size: 16px;
+  line-height: 1.06;
+  font-weight: 900;
+}
+
+.teams-discard-stack-meta {
+  color: #7f5f5f;
+  font-size: 12px;
+  line-height: 1.15;
+  font-weight: 850;
+}
+
+.teams-discard-pile.archive-mode .teams-discard-stack-meta {
+  color: #56677d;
+}
+
+.teams-history-heading {
+  position: absolute;
+  left: 138px;
+  top: 36px;
+  z-index: 7;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  opacity: 0;
+  transform: translateY(-18px);
+  transition: opacity .24s ease .34s, transform .24s ease .34s;
+}
+
+.teams-card-board-stage.history-mode .teams-history-heading {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.teams-history-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 9px;
+  border: 2px solid var(--team-card-line);
+  border-radius: 5px;
+  background: var(--team-rail-field);
+  color: var(--team-card-ink);
+  font-size: 12px;
+  line-height: 1;
+  font-weight: 900;
+}
+
+.teams-history-page-label {
+  color: var(--team-rail-muted);
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 850;
+}
+
+.teams-history-grid {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+}
+
+.teams-history-card {
+  position: absolute;
+  left: var(--x, 0px);
+  top: var(--y, 0px);
+  width: 128px;
+  min-height: 176px;
+  color: var(--team-card-ink);
+  user-select: none;
+  -webkit-user-select: none;
+  opacity: 0;
+  transform: rotate(var(--rot, 0deg));
+  transform-origin: 50% 50%;
+  transition: filter .16s ease;
+  cursor: pointer;
+  pointer-events: none;
+  animation: team-history-card-deal .5s cubic-bezier(.12,.82,.22,1) both;
+  animation-delay: var(--delay, 0ms);
+  will-change: transform, opacity;
+}
+
+.teams-card-board-stage.history-mode .teams-history-card {
+  pointer-events: auto;
+}
+
+.teams-history-card .teams-card-face {
+  min-height: 176px;
+  background: color-mix(in srgb, var(--team-card-paper-soft) 88%, var(--bg-primary, #111418));
+  box-shadow: 0 18px 24px rgba(0,0,0,.24);
+}
+
+.teams-history-card:hover {
+  filter: saturate(1.08);
+}
+
+.teams-history-card.selected .teams-card-face {
+  box-shadow: 0 0 0 3px #fff, 0 0 0 6px #3b82f6, 0 16px 24px var(--team-card-shadow);
+}
+
+.teams-history-title {
+  padding: 8px 4px 0;
+  color: var(--team-card-ink);
+  font-size: 15px;
+  line-height: 1.08;
+  font-weight: 900;
+}
+
+.teams-history-meta {
+  margin-top: 9px;
+  color: #6f624e;
+  font-size: 11px;
+  line-height: 1.22;
+  font-weight: 850;
+}
+
+.teams-history-card.leaving {
+  pointer-events: none;
+  animation: team-history-card-collect .2s ease-in both;
+  animation-delay: calc(var(--index, 0) * 18ms);
+}
+
+.teams-history-edge-deck,
+.teams-history-return-ledge {
+  position: absolute;
+  z-index: 7;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--team-card-ink);
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .2s ease .4s, transform .2s ease, filter .16s ease;
+}
+
+.teams-card-board-stage.history-mode .teams-history-edge-deck,
+.teams-card-board-stage.history-mode .teams-history-return-ledge {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.teams-history-edge-deck {
+  top: 250px;
+  width: 96px;
+  height: 138px;
+}
+
+.teams-history-edge-deck.prev {
+  left: 68px;
+  transform: rotate(-7deg);
+}
+
+.teams-history-edge-deck.next {
+  right: 68px;
+  transform: rotate(7deg);
+}
+
+.teams-history-edge-deck:hover {
+  filter: saturate(1.12);
+}
+
+.teams-history-edge-deck:disabled {
+  opacity: .24 !important;
+  cursor: default;
+}
+
+.teams-history-edge-deck .teams-archive-stack-layer,
+.teams-history-edge-deck .teams-archive-stack-top {
+  left: 0;
+  top: 0;
+  width: 84px;
+  min-height: 118px;
+}
+
+.teams-history-edge-deck .teams-archive-stack-strip {
+  justify-content: center;
+  margin: 5px 5px 8px;
+}
+
+.teams-history-edge-label {
+  display: block;
+  padding: 0 6px;
+  color: var(--team-card-ink);
+  font-size: 14px;
+  line-height: 1.05;
+  font-weight: 900;
+}
+
+.teams-history-return-ledge {
+  left: 590px;
+  width: 260px;
+  min-height: 54px;
+  border: 2px dashed color-mix(in srgb, var(--team-board-guide) 90%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg-primary, #111418) 78%, transparent);
+  color: var(--team-rail-muted);
+  font-size: 12px;
+  line-height: 1.1;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.teams-history-return-ledge:hover {
+  color: var(--team-rail-ink);
+  transform: translateY(-3px);
+}
+
+.teams-history-empty {
+  position: absolute;
+  left: 520px;
+  top: 252px;
+  width: 400px;
+  padding: 14px;
+  border: 2px dashed color-mix(in srgb, var(--team-board-guide) 88%, transparent);
+  border-radius: 8px;
+  color: var(--team-rail-muted);
+  background: color-mix(in srgb, var(--bg-primary, #111418) 72%, transparent);
+  text-align: center;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.teams-paper-rail {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 14px;
+  overflow: auto;
+  border: 0;
+  border-left: 1px solid color-mix(in srgb, var(--team-board-frame) 72%, transparent);
+  border-radius: 0;
+  background: transparent;
+  color: var(--team-rail-ink);
+  box-shadow: none;
+}
+
+.teams-rail-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+}
+
+.teams-rail-identity {
+  min-width: 0;
+}
+
+.teams-rail-avatar {
+  width: 82px;
+  height: 82px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  transform: translateX(-10px);
+}
+
+.teams-rail-avatar img {
+  width: 80px;
+  height: 80px;
+  object-fit: contain;
+  filter: drop-shadow(0 8px 8px rgba(0,0,0,.16));
+}
+
+.teams-rail-member-description {
+  margin: 8px 0 14px;
+  color: var(--team-rail-muted);
+  font-size: 13px;
+  line-height: 1.42;
+  font-weight: 650;
+}
+
+.teams-rail-tab {
+  display: inline-block;
+  margin: 0 0 12px;
+  padding: 4px 10px;
+  border: 1px solid var(--team-rail-field-border);
+  border-radius: 8px;
+  background: var(--team-rail-field);
+  color: var(--team-rail-ink);
+  font-size: 13px;
+  line-height: 1.1;
+  font-weight: 850;
+}
+
+.teams-rail-title {
+  margin: 0 0 8px;
+  font-size: 22px;
+  line-height: 1.05;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+.teams-rail-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+  padding: 5px 8px;
+  border: 1px solid var(--team-rail-field-border);
+  border-radius: 999px;
+  background: var(--team-rail-field);
+  color: var(--team-rail-ink);
+  font-size: 12px;
+  line-height: 1;
+  font-weight: 800;
+}
+
+.teams-rail-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+.teams-rail-section {
+  margin-top: 12px;
+  padding: 10px;
+  border: 1px solid var(--team-rail-field-border);
+  border-radius: 8px;
+  background: var(--team-rail-section);
+}
+
+.teams-rail-section h2 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  line-height: 1.2;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
+.teams-rail-section p {
+  margin: 0;
+  color: var(--team-rail-muted);
+  font-size: 13px;
+  line-height: 1.42;
+  font-weight: 650;
+}
+
+.teams-rail-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.teams-rail-field label {
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.teams-rail-field input,
+.teams-rail-field textarea {
+  width: 100%;
+  border: 1px solid var(--composer-input-border, var(--team-rail-field-border));
+  border-radius: 8px;
+  background: var(--composer-input-background, var(--team-rail-field));
+  color: var(--text-primary, var(--team-rail-ink));
+  padding: 8px;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.teams-rail-field input:focus,
+.teams-rail-field textarea:focus {
+  outline: none;
+  border-color: var(--composer-input-border-focus, var(--border-active));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.teams-rail-field textarea {
+  resize: vertical;
+  min-height: 96px;
+}
+
+.teams-rail-action {
+  width: 100%;
+  min-height: 38px;
+  margin-top: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid var(--text-primary);
+  border-radius: 8px;
+  background: var(--text-primary);
+  color: var(--bg-primary);
+  box-shadow: none;
+  font-size: 13px;
+  line-height: 1;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.teams-rail-action:disabled {
+  opacity: .56;
+  cursor: not-allowed;
+  border-color: var(--team-rail-field-border);
+  background: var(--team-rail-action-bg);
+  color: var(--team-rail-muted);
+}
+
+.teams-rail-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 9px;
+  border: 1px solid var(--error);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--error) 14%, var(--bg-primary, #111418));
+  color: var(--team-rail-ink);
+  font-size: 12px;
+  line-height: 1.35;
+  font-weight: 700;
+}
+
+.teams-mission-create-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: color-mix(in srgb, #000 42%, transparent);
+}
+
+.teams-mission-create-card {
+  width: min(430px, calc(100vw - 48px));
+  padding: 22px;
+  border: 1px solid var(--team-rail-field-border);
+  border-radius: 10px;
+  background: var(--bg-primary);
+  color: var(--team-rail-ink);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, .32);
+}
+
+.teams-mission-create-card h2 {
+  margin: 0 0 8px;
+  font-size: 16px;
+  line-height: 1.25;
+  font-weight: 800;
+}
+
+.teams-mission-create-card p {
+  margin: 0;
+  color: var(--team-rail-muted);
+  font-size: 13px;
+  line-height: 1.45;
+  font-weight: 650;
+}
+
+.teams-mission-create-card .teams-rail-field {
+  margin-top: 12px;
+}
+
+.teams-mission-create-card .teams-rail-field textarea {
+  min-height: 108px;
+}
+
+.teams-mission-create-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 9px;
+  border: 1px solid var(--error);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--error) 14%, var(--bg-primary));
+  color: var(--team-rail-ink);
+  font-size: 12px;
+  line-height: 1.35;
+  font-weight: 700;
+}
+
+.teams-mission-create-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.teams-mission-create-actions button {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 14px;
+  border: 1px solid var(--team-rail-field-border);
+  border-radius: 8px;
+  background: var(--team-rail-action-bg);
+  color: var(--team-rail-ink);
+  font-size: 13px;
+  line-height: 1;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.teams-mission-create-actions button[type="submit"] {
+  border-color: var(--text-primary);
+  background: var(--text-primary);
+  color: var(--bg-primary);
+  font-weight: 850;
+}
+
+.teams-mission-create-actions button:disabled {
+  opacity: .56;
+  cursor: not-allowed;
+  border-color: var(--team-rail-field-border);
+  background: var(--team-rail-action-bg);
+  color: var(--team-rail-muted);
+}
+
+.teams-rail-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.teams-rail-stat {
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid var(--team-rail-field-border);
+  border-radius: 8px;
+  background: var(--team-rail-section);
+}
+
+.teams-rail-stat strong,
+.teams-rail-stat span {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.teams-rail-stat strong {
+  font-size: 15px;
+  line-height: 1.2;
+}
+
+.teams-rail-stat span {
+  margin-top: 3px;
+  color: var(--team-rail-muted);
+  font-size: 10px;
+  line-height: 1.2;
+  font-weight: 800;
+}
+
+.teams-card-loading {
+  animation: teams-card-spin 1s linear infinite;
+}
+
+@keyframes team-card-work {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg) scale(1);
+  }
+
+  42% {
+    transform: translateY(-7px) rotate(.8deg) scale(1.045, .98);
+  }
+
+  68% {
+    transform: translateY(-2px) rotate(-.5deg) scale(.985, 1.025);
+  }
+}
+
+@keyframes team-card-settle {
+  0% {
+    transform: translateY(-2px) rotate(.8deg) scale(1.01);
+  }
+
+  100% {
+    transform: translateY(0) rotate(0deg) scale(1);
+  }
+}
+
+@keyframes team-status-pulse {
+  0%,
+  100% {
+    transform: scale(.88);
+    opacity: .72;
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, .3);
+  }
+
+  50% {
+    transform: scale(1.08);
+    opacity: 1;
+    box-shadow: 0 0 0 5px rgba(245, 158, 11, 0);
+  }
+}
+
+/* Stacklands-style flip-out spawn for new task cards.
+   Drives off CSS vars set inline by TeamsView.tsx when a card is freshly spawned:
+   --flip-from-x / --flip-from-y: offset of the source (e.g. leader stack) relative to the
+   final landing position; --flip-arc-x: lateral arc apex; --flip-spin-from / --flip-spin-mid:
+   intermediate rotation offsets added to --rot. Defaults give a gentle pop in place. */
+@keyframes team-card-spawn {
+  0% {
+    opacity: 0;
+    transform:
+      translate(var(--flip-from-x, -10px), var(--flip-from-y, 14px))
+      rotate(calc(var(--rot, 0deg) + var(--flip-spin-from, 22deg)))
+      scale(.5);
+  }
+
+  14% {
+    opacity: 1;
+  }
+
+  58% {
+    transform:
+      translate(
+        calc(var(--flip-from-x, -10px) * .42 + var(--flip-arc-x, 0px) * .35),
+        calc(var(--flip-from-y, 14px) * .42 - 30px)
+      )
+      rotate(calc(var(--rot, 0deg) + var(--flip-spin-mid, 9deg)))
+      scale(1.04);
+  }
+
+  84% {
+    transform:
+      translate(0, 3px)
+      rotate(calc(var(--rot, 0deg) - 1.2deg))
+      scale(1.015, .985);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translate(0, 0) rotate(var(--rot, 0deg)) scale(1);
+  }
+}
+
+@keyframes team-history-card-deal {
+  0% {
+    opacity: 0;
+    transform:
+      translate(var(--deal-x, -220px), var(--deal-y, -180px))
+      rotate(calc(var(--rot, 0deg) - 22deg))
+      scale(.72);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translate(0, 0) rotate(var(--rot, 0deg)) scale(1);
+  }
+}
+
+@keyframes team-history-card-collect {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) rotate(var(--rot, 0deg)) scale(1);
+  }
+
+  100% {
+    opacity: 0;
+    transform:
+      translate(calc(var(--deal-x, -220px) * .45), calc(var(--deal-y, -180px) * .38))
+      rotate(calc(var(--rot, 0deg) + 14deg))
+      scale(.82);
+  }
+}
+
+@keyframes teams-card-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .teams-table-card,
+  .teams-card-stage-world,
+  .teams-history-card,
+  .teams-card-face,
+  .teams-card-status-chip.live::before,
+  .teams-intent-chip,
+  .teams-dialog-bubble,
+  .teams-meeting-marker,
+  .teams-mission-create-zone {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .teams-history-card {
+    opacity: 1 !important;
+    transform: rotate(var(--rot, 0deg)) !important;
+  }
+}
+
+@media (max-width: 940px) {
+  .teams-card-game {
+    grid-template-columns: minmax(0, 1fr) 232px;
+    gap: 0;
+    padding: 0;
+  }
+
+  .teams-rail-title {
+    font-size: 18px;
+  }
+}

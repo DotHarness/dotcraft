@@ -1,0 +1,4 @@
+interface:
+  display_name: "Error Diagnosis"
+  short_description: "Diagnose DotCraft LLM failures from thread rollout and state DB"
+  default_prompt: "Use $error-diagnosis to inspect DotCraft .craft thread JSONL and state.db evidence for LLM/tool failures."

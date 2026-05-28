@@ -1,0 +1,230 @@
+{
+  "moduleId": "wecom-standard",
+  "channelName": "wecom",
+  "displayName": "WeCom",
+  "localizedDisplayName": {
+    "en": "WeCom",
+    "zh-Hans": "企业微信"
+  },
+  "interface": {
+    "shortDescription": "Connect DotCraft to WeCom bots and group workflows.",
+    "localizedShortDescription": {
+      "en": "Connect DotCraft to WeCom bots and group workflows.",
+      "zh-Hans": "让 DotCraft 接入企业微信机器人和群聊工作流。"
+    },
+    "longDescription": "Use the WeCom channel to receive enterprise chat events, coordinate workspace tasks from group conversations, and deliver DotCraft replies back to the right teams.",
+    "localizedLongDescription": {
+      "en": "Use the WeCom channel to receive enterprise chat events, coordinate workspace tasks from group conversations, and deliver DotCraft replies back to the right teams.",
+      "zh-Hans": "通过企业微信渠道接收企业会话事件，从群聊中协调工作区任务，并把 DotCraft 回复投递给对应团队。"
+    },
+    "previewPrompt": "Sync this WeCom thread into project memory.",
+    "localizedPreviewPrompt": {
+      "en": "Sync this WeCom thread into project memory.",
+      "zh-Hans": "把这段企业微信讨论同步到项目记忆中。"
+    }
+  },
+  "packageName": "@dotcraft/channel-wecom",
+  "configFileName": "wecom.json",
+  "supportedTransports": [
+    "websocket"
+  ],
+  "requiresInteractiveSetup": false,
+  "capabilitySummary": {
+    "hasChannelTools": true,
+    "hasStructuredDelivery": true,
+    "requiresInteractiveSetup": false,
+    "capabilitySetMayVaryByEnvironment": false
+  },
+  "sdkContractVersion": "1.0.0",
+  "supportedProtocolVersions": [
+    "0.2"
+  ],
+  "variant": "standard",
+  "launcher": {
+    "bin": "dotcraft-channel-wecom",
+    "supportsWorkspaceFlag": true,
+    "supportsConfigOverrideFlag": true
+  },
+  "configDescriptors": [
+    {
+      "key": "dotcraft.wsUrl",
+      "displayLabel": "AppServer WebSocket URL",
+      "description": "DotCraft AppServer WebSocket endpoint (ws:// or wss://).",
+      "localizedDisplayLabel": {
+        "en": "AppServer WebSocket URL",
+        "zh-Hans": "AppServer WebSocket 地址"
+      },
+      "localizedDescription": {
+        "en": "DotCraft AppServer WebSocket endpoint.",
+        "zh-Hans": "DotCraft AppServer 的 WebSocket 端点。"
+      },
+      "required": true,
+      "dataKind": "string",
+      "masked": false,
+      "interactiveSetupOnly": false,
+      "defaultValue": "ws://127.0.0.1:9100/ws"
+    },
+    {
+      "key": "dotcraft.token",
+      "displayLabel": "AppServer Auth Token",
+      "description": "Optional token used by DotCraft AppServer WebSocket transport.",
+      "localizedDisplayLabel": {
+        "en": "AppServer Auth Token",
+        "zh-Hans": "AppServer 认证令牌"
+      },
+      "localizedDescription": {
+        "en": "Optional AppServer token.",
+        "zh-Hans": "DotCraft AppServer WebSocket 传输使用的可选认证令牌。"
+      },
+      "required": false,
+      "dataKind": "secret",
+      "masked": true,
+      "interactiveSetupOnly": false
+    },
+    {
+      "key": "wecom.host",
+      "displayLabel": "Callback Listen Host",
+      "description": "Host address for the WeCom callback server.",
+      "localizedDisplayLabel": {
+        "en": "Callback Listen Host",
+        "zh-Hans": "回调监听地址"
+      },
+      "localizedDescription": {
+        "en": "Host address for the WeCom callback server.",
+        "zh-Hans": "企业微信回调服务监听地址。"
+      },
+      "required": false,
+      "dataKind": "string",
+      "masked": false,
+      "interactiveSetupOnly": false,
+      "defaultValue": "0.0.0.0"
+    },
+    {
+      "key": "wecom.port",
+      "displayLabel": "Callback Listen Port",
+      "description": "Port for the WeCom callback server.",
+      "localizedDisplayLabel": {
+        "en": "Callback Listen Port",
+        "zh-Hans": "回调监听端口"
+      },
+      "localizedDescription": {
+        "en": "Port for the WeCom callback server.",
+        "zh-Hans": "企业微信回调服务监听端口。"
+      },
+      "required": false,
+      "dataKind": "number",
+      "masked": false,
+      "interactiveSetupOnly": false,
+      "defaultValue": 9000
+    },
+    {
+      "key": "wecom.scheme",
+      "displayLabel": "Callback Scheme",
+      "description": "Callback server scheme. Use https only when certPath/keyPath are configured.",
+      "localizedDisplayLabel": {
+        "en": "Callback Scheme",
+        "zh-Hans": "回调服务协议"
+      },
+      "localizedDescription": {
+        "en": "Callback server scheme.",
+        "zh-Hans": "回调服务协议；生产环境也可由反向代理提供 HTTPS。"
+      },
+      "required": false,
+      "dataKind": "enum",
+      "masked": false,
+      "interactiveSetupOnly": false,
+      "defaultValue": "http"
+    },
+    {
+      "key": "wecom.adminUsers",
+      "displayLabel": "Admin Users",
+      "description": "WeCom user IDs with admin permissions.",
+      "localizedDisplayLabel": {
+        "en": "Admin Users",
+        "zh-Hans": "管理员用户"
+      },
+      "localizedDescription": {
+        "en": "WeCom user IDs with admin permissions.",
+        "zh-Hans": "拥有管理员权限的企业微信 UserId。"
+      },
+      "required": false,
+      "dataKind": "list",
+      "masked": false,
+      "interactiveSetupOnly": false,
+      "defaultValue": []
+    },
+    {
+      "key": "wecom.whitelistedUsers",
+      "displayLabel": "Whitelisted Users",
+      "description": "WeCom user IDs allowed to chat with DotCraft.",
+      "localizedDisplayLabel": {
+        "en": "Whitelisted Users",
+        "zh-Hans": "白名单用户"
+      },
+      "localizedDescription": {
+        "en": "WeCom user IDs allowed to chat with DotCraft.",
+        "zh-Hans": "允许与 DotCraft 对话的企业微信 UserId。"
+      },
+      "required": false,
+      "dataKind": "list",
+      "masked": false,
+      "interactiveSetupOnly": false,
+      "defaultValue": []
+    },
+    {
+      "key": "wecom.whitelistedChats",
+      "displayLabel": "Whitelisted Chats",
+      "description": "WeCom chat IDs whose members may chat with DotCraft.",
+      "localizedDisplayLabel": {
+        "en": "Whitelisted Chats",
+        "zh-Hans": "白名单会话"
+      },
+      "localizedDescription": {
+        "en": "WeCom chat IDs whose members may chat with DotCraft.",
+        "zh-Hans": "允许会话成员与 DotCraft 对话的 ChatId。"
+      },
+      "required": false,
+      "dataKind": "list",
+      "masked": false,
+      "interactiveSetupOnly": false,
+      "defaultValue": []
+    },
+    {
+      "key": "wecom.approvalTimeoutMs",
+      "displayLabel": "Approval Timeout (ms)",
+      "description": "Timeout before WeCom approval requests auto-reject.",
+      "localizedDisplayLabel": {
+        "en": "Approval Timeout (ms)",
+        "zh-Hans": "审批超时（毫秒）"
+      },
+      "localizedDescription": {
+        "en": "Timeout before WeCom approval requests auto-reject.",
+        "zh-Hans": "企业微信审批请求自动拒绝前的等待时长。"
+      },
+      "required": false,
+      "dataKind": "number",
+      "masked": false,
+      "interactiveSetupOnly": false,
+      "advanced": true,
+      "defaultValue": 60000
+    },
+    {
+      "key": "wecom.robots",
+      "displayLabel": "Robots",
+      "description": "WeCom robot callback credentials: [{ path, token, aesKey }].",
+      "localizedDisplayLabel": {
+        "en": "Robots",
+        "zh-Hans": "机器人配置"
+      },
+      "localizedDescription": {
+        "en": "WeCom robot callback credentials.",
+        "zh-Hans": "企业微信机器人回调凭据：[{ path, token, aesKey }]。"
+      },
+      "required": true,
+      "dataKind": "list",
+      "masked": false,
+      "interactiveSetupOnly": false,
+      "defaultValue": []
+    }
+  ]
+}

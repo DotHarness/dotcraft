@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>DotCraft Chrome</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <main class="popup-shell">
+      <section class="brand" aria-label="DotCraft Chrome">
+        <div class="brand-mark" aria-hidden="true">D</div>
+        <h1>DotCraft</h1>
+      </section>
+
+      <section class="status-card">
+        <div class="status-header">
+          <span class="status-pill is-loading" data-status-pill>
+            <span class="status-dot"></span>
+            <span data-status-label>Connecting</span>
+          </span>
+          <button class="icon-button" type="button" data-settings-button aria-label="Open DotCraft Chrome settings">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 15.5A3.5 3.5 0 1 0 12 8a3.5 3.5 0 0 0 0 7.5Z"></path>
+              <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.6V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.1a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.6 1Z"></path>
+            </svg>
+          </button>
+        </div>
+        <p data-status-message>Connecting to DotCraft...</p>
+        <p class="version" data-version>Version -</p>
+      </section>
+    </main>
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

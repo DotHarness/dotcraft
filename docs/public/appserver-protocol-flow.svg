@@ -1,0 +1,103 @@
+<svg width="1440" height="980" viewBox="0 0 1440 980" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">DotCraft AppServer protocol flow</title>
+  <desc id="desc">A step diagram showing AppServer Protocol initialization, thread start, turn start, streaming events, approvals, and final turn state.</desc>
+  <style>
+    text { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; letter-spacing: 0; }
+    .title { fill: #17203A; font-size: 42px; font-weight: 760; }
+    .subtitle { fill: #667085; font-size: 18px; }
+    .cardTitle { font-size: 24px; font-weight: 760; }
+    .step { font-size: 15px; font-weight: 760; }
+    .label { font-size: 14px; font-weight: 720; }
+    .body { fill: #1F2937; font-size: 15px; }
+    .mono { fill: #1F2937; font-size: 15px; font-family: "Cascadia Mono", ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .muted { fill: #667085; font-size: 13px; }
+  </style>
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M2 2L10 6L2 10" fill="none" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+  <rect width="1440" height="980" fill="#F8FAF7"/>
+  <text x="72" y="86" class="title">DotCraft AppServer protocol flow</text>
+  <text x="72" y="123" class="subtitle">Initialize once, then create or resume threads, submit turns, stream events, and answer approvals.</text>
+
+  <g transform="translate(72 178)">
+    <rect x="0" y="0" width="292" height="180" rx="8" fill="#EAF0FF" stroke="#C2CEF7"/>
+    <text x="24" y="36" class="step" fill="#4459B8">1. Client request</text>
+    <text x="24" y="76" class="cardTitle" fill="#23305F">initialize</text>
+    <text x="24" y="112" class="mono">clientInfo</text>
+    <text x="24" y="138" class="mono">capabilities</text>
+  </g>
+  <g transform="translate(414 178)">
+    <rect x="0" y="0" width="292" height="180" rx="8" fill="#E9F5F0" stroke="#B7DED0"/>
+    <text x="24" y="36" class="step" fill="#2E6B56">2. Server response</text>
+    <text x="24" y="76" class="cardTitle" fill="#153E33">capabilities</text>
+    <text x="24" y="112" class="mono">serverInfo</text>
+    <text x="24" y="138" class="mono">feature flags</text>
+  </g>
+  <g transform="translate(756 178)">
+    <rect x="0" y="0" width="292" height="180" rx="8" fill="#FFF1E6" stroke="#F3C9A4"/>
+    <text x="24" y="36" class="step" fill="#A85C21">3. Client notification</text>
+    <text x="24" y="76" class="cardTitle" fill="#623314">initialized</text>
+    <text x="24" y="112" class="mono">no id</text>
+    <text x="24" y="138" class="mono">connection is live</text>
+  </g>
+  <g transform="translate(1098 178)">
+    <rect x="0" y="0" width="270" height="180" rx="8" fill="#F1EBFA" stroke="#D7C5EF"/>
+    <text x="24" y="36" class="step" fill="#7653A8">4. Server events</text>
+    <text x="24" y="76" class="cardTitle" fill="#39205F">notifications</text>
+    <text x="24" y="112" class="mono">thread/*</text>
+    <text x="24" y="138" class="mono">turn/* and item/*</text>
+  </g>
+
+  <path d="M364 268H414" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
+  <path d="M706 268H756" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
+  <path d="M1048 268H1098" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <g transform="translate(72 468)">
+    <rect x="0" y="0" width="1296" height="326" rx="8" fill="#FFFFFF" stroke="#D9E0EA"/>
+    <text x="28" y="46" class="cardTitle" fill="#17203A">Common client loop</text>
+    <line x1="28" y1="70" x2="1268" y2="70" stroke="#D9E0EA"/>
+
+    <g transform="translate(28 108)">
+      <rect x="0" y="0" width="230" height="148" rx="8" fill="#EAF0FF" stroke="#C2CEF7"/>
+      <text x="22" y="42" class="label" fill="#4459B8">Create or resume</text>
+      <text x="22" y="76" class="mono">thread/start</text>
+      <text x="22" y="102" class="mono">thread/resume</text>
+    </g>
+    <g transform="translate(282 108)">
+      <rect x="0" y="0" width="230" height="148" rx="8" fill="#E9F5F0" stroke="#B7DED0"/>
+      <text x="22" y="42" class="label" fill="#2E6B56">Submit work</text>
+      <text x="22" y="76" class="mono">turn/start</text>
+      <text x="22" y="102" class="mono">turn/enqueue</text>
+    </g>
+    <g transform="translate(536 108)">
+      <rect x="0" y="0" width="230" height="148" rx="8" fill="#FFF1E6" stroke="#F3C9A4"/>
+      <text x="22" y="42" class="label" fill="#A85C21">Stream updates</text>
+      <text x="22" y="76" class="mono">item/delta</text>
+      <text x="22" y="102" class="mono">plan/updated</text>
+    </g>
+    <g transform="translate(790 108)">
+      <rect x="0" y="0" width="230" height="148" rx="8" fill="#F1EBFA" stroke="#D7C5EF"/>
+      <text x="22" y="42" class="label" fill="#7653A8">Human gate</text>
+      <text x="22" y="76" class="mono">approval request</text>
+      <text x="22" y="102" class="mono">decision result</text>
+    </g>
+    <g transform="translate(1044 108)">
+      <rect x="0" y="0" width="224" height="148" rx="8" fill="#F3F4EA" stroke="#D9DEC0"/>
+      <text x="22" y="42" class="label" fill="#727934">Final state</text>
+      <text x="22" y="76" class="mono">turn/completed</text>
+      <text x="22" y="102" class="mono">failed / cancelled</text>
+    </g>
+    <path d="M258 182H282" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
+    <path d="M512 182H536" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
+    <path d="M766 182H790" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
+    <path d="M1020 182H1044" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
+  </g>
+
+  <g transform="translate(72 842)">
+    <rect x="0" y="0" width="1296" height="48" rx="8" fill="#FFFFFF" stroke="#D9E0EA"/>
+    <text x="24" y="30" fill="#475467" font-size="14">Rule:</text>
+    <text x="72" y="30" fill="#17203A" font-size="14" font-weight="720">clients should keep reading notifications and treat capabilities as the source of truth.</text>
+  </g>
+</svg>

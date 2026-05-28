@@ -1,0 +1,253 @@
+using System.Text.Json;
+
+namespace DotCraft.Sdk.AppServer;
+
+/// <summary>
+/// DotCraft AppServer initialize options.
+/// </summary>
+public class DotCraftClientOptions
+{
+    /// <summary>
+    /// Machine-readable client name.
+    /// </summary>
+    public string ClientName { get; set; } = "dotcraft-dotnet";
+
+    /// <summary>
+    /// Human-readable client title.
+    /// </summary>
+    public string? ClientTitle { get; set; }
+
+    /// <summary>
+    /// Client version string.
+    /// </summary>
+    public string ClientVersion { get; set; } = "0.1.0";
+
+    /// <summary>
+    /// Whether the client can answer approval requests.
+    /// </summary>
+    public bool ApprovalSupport { get; set; } = true;
+
+    /// <summary>
+    /// Whether the client wants streaming delta notifications.
+    /// </summary>
+    public bool StreamingSupport { get; set; } = true;
+
+    /// <summary>
+    /// Whether the client can answer model request-user-input prompts.
+    /// </summary>
+    public bool RequestUserInputSupport { get; set; }
+
+    /// <summary>
+    /// Whether the client wants workspace config change notifications.
+    /// </summary>
+    public bool ConfigChange { get; set; } = true;
+
+    /// <summary>
+    /// Additional client capability fields merged into the initialize request.
+    /// </summary>
+    public IReadOnlyDictionary<string, object?>? ExtraCapabilities { get; set; }
+}
+
+/// <summary>
+/// Options for Hub-backed local AppServer connections.
+/// </summary>
+public sealed class DotCraftLocalClientOptions : DotCraftClientOptions
+{
+    /// <summary>
+    /// Optional dotcraft executable or dll path used when starting Hub.
+    /// </summary>
+    public string? DotCraftBin { get; set; }
+
+    /// <summary>
+    /// Optional override for the Hub lock file path.
+    /// </summary>
+    public string? HubLockPath { get; set; }
+
+    /// <summary>
+    /// Hub startup timeout.
+    /// </summary>
+    public TimeSpan HubStartupTimeout { get; set; } = TimeSpan.FromSeconds(15);
+}
+
+/// <summary>
+/// Result of the AppServer initialize handshake.
+/// </summary>
+public sealed record AppServerInitializeResult(
+    AppServerServerInfo ServerInfo,
+    AppServerServerCapabilities Capabilities,
+    JsonElement Raw);
+
+/// <summary>
+/// Server identity returned by AppServer initialize.
+/// </summary>
+public sealed record AppServerServerInfo(
+    string Name,
+    string Version,
+    string ProtocolVersion,
+    IReadOnlyList<string> Extensions);
+
+/// <summary>
+/// Server capability flags returned by AppServer initialize.
+/// </summary>
+public sealed record AppServerServerCapabilities(
+    bool ThreadManagement,
+    bool ThreadSubscriptions,
+    bool DynamicToolRebind,
+    bool AppBinding,
+    bool ModelCatalogManagement,
+    JsonElement Raw);
+
+/// <summary>
+/// Raw AppServer notification.
+/// </summary>
+public sealed record AppServerNotification(string Method, JsonElement Params);
+
+/// <summary>
+/// Session identity for thread operations.
+/// </summary>
+public sealed record SessionIdentity(
+    string ChannelName,
+    string UserId,
+    string? WorkspacePath = null,
+    string? ChannelContext = null);
+
+/// <summary>
+/// AppServer thread/start request.
+/// </summary>
+public sealed record DotCraftThreadStartRequest(
+    SessionIdentity Identity,
+    string? DisplayName = null,
+    string HistoryMode = "server",
+    object? Config = null,
+    IReadOnlyList<DynamicToolSpec>? DynamicTools = null);
+
+/// <summary>
+/// AppServer thread/resume request options.
+/// </summary>
+public sealed record DotCraftThreadResumeRequest(
+    string ThreadId,
+    IReadOnlyList<DynamicToolSpec>? DynamicTools = null);
+
+/// <summary>
+/// AppServer thread result with raw thread JSON.
+/// </summary>
+public sealed record DotCraftThread(string Id, JsonElement Raw);
+
+/// <summary>
+/// AppServer thread/read result with raw thread JSON.
+/// </summary>
+public sealed record DotCraftThreadReadResult(string ThreadId, JsonElement Thread);
+
+/// <summary>
+/// One input part for turn/start and turn/enqueue.
+/// </summary>
+public sealed record TurnInputPart(
+    string Type,
+    string? Text = null,
+    string? Name = null,
+    string? ArgsText = null,
+    string? RawText = null,
+    string? Path = null,
+    string? DisplayPath = null,
+    string? Url = null,
+    string? MimeType = null,
+    string? FileName = null);
+
+/// <summary>
+/// turn/start result.
+/// </summary>
+public sealed record DotCraftTurnStartResult(string? TurnId, JsonElement Raw);
+
+/// <summary>
+/// turn/enqueue result.
+/// </summary>
+public sealed record DotCraftTurnEnqueueResult(string? QueuedInputId, JsonElement Raw);
+
+/// <summary>
+/// Model catalog item returned by model/list.
+/// </summary>
+public sealed record ModelInfo(string Id, string DisplayName, string? Provider);
+
+/// <summary>
+/// Runtime dynamic tool declaration.
+/// </summary>
+public sealed record DynamicToolSpec(
+    string? Namespace,
+    string Name,
+    string Description,
+    JsonElement InputSchema,
+    bool DeferLoading = false,
+    ToolApprovalDescriptor? Approval = null);
+
+/// <summary>
+/// Approval metadata for a runtime dynamic tool.
+/// </summary>
+public sealed record ToolApprovalDescriptor(
+    string Kind,
+    string TargetArgument,
+    string? Operation = null,
+    string? OperationArgument = null);
+
+/// <summary>
+/// Runtime dynamic tool call sent from AppServer to the SDK client.
+/// </summary>
+public sealed record DynamicToolCall(
+    string ThreadId,
+    string? TurnId,
+    string? CallId,
+    string? Namespace,
+    string Tool,
+    JsonElement Arguments);
+
+/// <summary>
+/// Runtime dynamic tool result returned by the SDK client.
+/// </summary>
+public sealed record DynamicToolResult(
+    bool Success,
+    IReadOnlyList<ToolContentItem>? ContentItems = null,
+    object? StructuredResult = null,
+    string? ErrorCode = null,
+    string? ErrorMessage = null);
+
+/// <summary>
+/// Text or media content returned from a runtime dynamic tool.
+/// </summary>
+public sealed record ToolContentItem(string Type, string? Text = null);
+
+internal static class JsonElementReaders
+{
+    public static string? ReadString(JsonElement element, string propertyName)
+    {
+        if (element.ValueKind != JsonValueKind.Object || !element.TryGetProperty(propertyName, out var property))
+        {
+            return null;
+        }
+
+        return property.ValueKind == JsonValueKind.String ? property.GetString() : property.ToString();
+    }
+
+    public static string? ReadNestedString(JsonElement element, string container, string propertyName)
+    {
+        if (element.ValueKind != JsonValueKind.Object || !element.TryGetProperty(container, out var nested))
+        {
+            return null;
+        }
+
+        return ReadString(nested, propertyName);
+    }
+
+    public static bool ReadNestedBoolean(JsonElement element, string container, string propertyName)
+    {
+        if (element.ValueKind != JsonValueKind.Object || !element.TryGetProperty(container, out var nested))
+        {
+            return false;
+        }
+
+        if (nested.ValueKind != JsonValueKind.Object || !nested.TryGetProperty(propertyName, out var property))
+        {
+            return false;
+        }
+
+        return property.ValueKind == JsonValueKind.True;
+    }
+}

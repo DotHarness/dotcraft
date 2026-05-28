@@ -1,0 +1,99 @@
+<svg width="1440" height="940" viewBox="0 0 1440 940" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">DotCraft AppServer mode topology</title>
+  <desc id="desc">A grouped diagram showing clients, transports, AppServer, Session Core, Agent Engine, and workspace state.</desc>
+  <style>
+    text { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; letter-spacing: 0; }
+    .title { fill: #17203A; font-size: 42px; font-weight: 760; }
+    .subtitle { fill: #667085; font-size: 18px; }
+    .cardTitle { font-size: 24px; font-weight: 760; }
+    .smallTitle { font-size: 18px; font-weight: 760; }
+    .label { font-size: 14px; font-weight: 720; }
+    .body { fill: #1F2937; font-size: 15px; }
+    .mono { fill: #1F2937; font-size: 15px; font-family: "Cascadia Mono", ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .muted { fill: #667085; font-size: 13px; }
+  </style>
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M2 2L10 6L2 10" fill="none" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+  <rect width="1440" height="940" fill="#F8FAF7"/>
+  <text x="72" y="86" class="title">DotCraft AppServer mode topology</text>
+  <text x="72" y="123" class="subtitle">AppServer exposes the workspace runtime through JSON-RPC over stdio, WebSocket, or both.</text>
+
+  <g transform="translate(72 184)">
+    <rect x="0" y="0" width="286" height="330" rx="8" fill="#EAF0FF" stroke="#C2CEF7"/>
+    <text x="28" y="44" class="cardTitle" fill="#23305F">Clients</text>
+    <line x1="28" y1="64" x2="258" y2="64" stroke="#C2CEF7"/>
+    <text x="28" y="100" class="mono">Desktop / TUI</text>
+    <text x="28" y="130" class="mono">ACP / custom UI</text>
+    <text x="28" y="160" class="mono">dotcraft exec</text>
+    <text x="28" y="190" class="mono">external channels</text>
+    <text x="28" y="220" class="mono">SDK clients</text>
+    <text x="28" y="282" class="muted">Local, remote, or subprocess clients.</text>
+  </g>
+
+  <g transform="translate(430 184)">
+    <rect x="0" y="0" width="262" height="330" rx="8" fill="#E9F5F0" stroke="#B7DED0"/>
+    <text x="28" y="44" class="cardTitle" fill="#153E33">Transport</text>
+    <line x1="28" y1="64" x2="234" y2="64" stroke="#B7DED0"/>
+    <text x="28" y="100" class="label" fill="#2E6B56">stdio</text>
+    <text x="28" y="126" class="mono">JSONL over stdin/stdout</text>
+    <text x="28" y="166" class="label" fill="#2E6B56">WebSocket</text>
+    <text x="28" y="192" class="mono">one frame per message</text>
+    <text x="28" y="232" class="label" fill="#2E6B56">dual mode</text>
+    <text x="28" y="258" class="mono">ws+stdio://</text>
+  </g>
+
+  <g transform="translate(764 184)">
+    <rect x="0" y="0" width="250" height="330" rx="8" fill="#FFF1E6" stroke="#F3C9A4"/>
+    <text x="28" y="44" class="cardTitle" fill="#623314">AppServer</text>
+    <line x1="28" y1="64" x2="222" y2="64" stroke="#F3C9A4"/>
+    <text x="28" y="100" class="mono">initialize</text>
+    <text x="28" y="126" class="mono">thread/*</text>
+    <text x="28" y="152" class="mono">turn/*</text>
+    <text x="28" y="178" class="mono">item/* events</text>
+    <text x="28" y="204" class="mono">approval requests</text>
+    <text x="28" y="282" class="muted">Stable boundary for external clients.</text>
+  </g>
+
+  <g transform="translate(1086 184)">
+    <rect x="0" y="0" width="282" height="330" rx="8" fill="#F1EBFA" stroke="#D7C5EF"/>
+    <text x="28" y="44" class="cardTitle" fill="#39205F">Runtime</text>
+    <line x1="28" y1="64" x2="254" y2="64" stroke="#D7C5EF"/>
+    <text x="28" y="100" class="label" fill="#7653A8">ISessionService</text>
+    <text x="28" y="130" class="mono">Thread / Turn / Item</text>
+    <text x="28" y="170" class="label" fill="#7653A8">Agent Engine</text>
+    <text x="28" y="200" class="mono">tools</text>
+    <text x="28" y="226" class="mono">memory</text>
+    <text x="28" y="252" class="mono">skills</text>
+  </g>
+
+  <path d="M358 349H430" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
+  <path d="M692 349H764" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
+  <path d="M1014 349H1086" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <g transform="translate(72 612)">
+    <rect x="0" y="0" width="408" height="170" rx="8" fill="#FFFFFF" stroke="#D9E0EA"/>
+    <text x="28" y="44" class="cardTitle" fill="#17203A">Security</text>
+    <line x1="28" y1="64" x2="380" y2="64" stroke="#D9E0EA"/>
+    <text x="28" y="100" class="mono">--token for remote WebSocket</text>
+    <text x="28" y="126" class="mono">loopback by default</text>
+  </g>
+
+  <g transform="translate(516 612)">
+    <rect x="0" y="0" width="408" height="170" rx="8" fill="#FFFFFF" stroke="#D9E0EA"/>
+    <text x="28" y="44" class="cardTitle" fill="#17203A">Workspace state</text>
+    <line x1="28" y1="64" x2="380" y2="64" stroke="#D9E0EA"/>
+    <text x="28" y="100" class="mono">.craft/threads</text>
+    <text x="28" y="126" class="mono">.craft/state.db</text>
+  </g>
+
+  <g transform="translate(960 612)">
+    <rect x="0" y="0" width="408" height="170" rx="8" fill="#FFFFFF" stroke="#D9E0EA"/>
+    <text x="28" y="44" class="cardTitle" fill="#17203A">Best fit</text>
+    <line x1="28" y1="64" x2="380" y2="64" stroke="#D9E0EA"/>
+    <text x="28" y="100" class="mono">manual remote runtime</text>
+    <text x="28" y="126" class="mono">custom protocol clients</text>
+  </g>
+</svg>

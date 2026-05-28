@@ -1,0 +1,4 @@
+interface:
+  display_name: "DotCraft UI Prototype"
+  short_description: "Prototype DotCraft UI before production edits"
+  default_prompt: "Use $ui-prototype to create or update a standalone interactive HTML prototype for a DotCraft Desktop UI change before editing production code."

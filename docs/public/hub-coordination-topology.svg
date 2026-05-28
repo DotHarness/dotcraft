@@ -1,0 +1,92 @@
+<svg width="1440" height="900" viewBox="0 0 1440 900" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">DotCraft Hub local coordination topology</title>
+  <desc id="desc">A grouped diagram showing how clients use Hub to ensure a workspace AppServer and then connect directly to AppServer.</desc>
+  <style>
+    text { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; letter-spacing: 0; }
+    .title { fill: #17203A; font-size: 42px; font-weight: 760; }
+    .subtitle { fill: #667085; font-size: 18px; }
+    .cardTitle { font-size: 24px; font-weight: 760; }
+    .label { font-size: 14px; font-weight: 720; }
+    .body { fill: #1F2937; font-size: 15px; }
+    .mono { fill: #1F2937; font-size: 15px; font-family: "Cascadia Mono", ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .muted { fill: #667085; font-size: 13px; }
+  </style>
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M2 2L10 6L2 10" fill="none" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+  <rect width="1440" height="900" fill="#F8FAF7"/>
+  <text x="72" y="86" class="title">DotCraft Hub local coordination topology</text>
+  <text x="72" y="123" class="subtitle">Hub starts or reuses the workspace AppServer, then clients talk directly to AppServer.</text>
+
+  <g transform="translate(72 198)">
+    <rect x="0" y="0" width="288" height="250" rx="8" fill="#EAF0FF" stroke="#C2CEF7"/>
+    <text x="28" y="44" class="cardTitle" fill="#23305F">Local client</text>
+    <line x1="28" y1="64" x2="260" y2="64" stroke="#C2CEF7"/>
+    <text x="28" y="100" class="mono">Desktop</text>
+    <text x="28" y="126" class="mono">TUI</text>
+    <text x="28" y="152" class="mono">editor extension</text>
+    <text x="28" y="204" class="muted">Needs a workspace runtime endpoint.</text>
+  </g>
+
+  <g transform="translate(454 198)">
+    <rect x="0" y="0" width="286" height="250" rx="8" fill="#F3F4EA" stroke="#D9DEC0"/>
+    <text x="28" y="44" class="cardTitle" fill="#3F431E">Hub</text>
+    <line x1="28" y1="64" x2="258" y2="64" stroke="#D9DEC0"/>
+    <text x="28" y="100" class="label" fill="#727934">One per OS user</text>
+    <text x="28" y="130" class="mono">GET /v1/status</text>
+    <text x="28" y="156" class="mono">POST /appservers/ensure</text>
+    <text x="28" y="204" class="muted">Coordinates process lifecycle only.</text>
+  </g>
+
+  <g transform="translate(834 198)">
+    <rect x="0" y="0" width="286" height="250" rx="8" fill="#FFF1E6" stroke="#F3C9A4"/>
+    <text x="28" y="38" class="cardTitle" fill="#623314">Workspace</text>
+    <text x="28" y="68" class="cardTitle" fill="#623314">AppServer</text>
+    <line x1="28" y1="88" x2="258" y2="88" stroke="#F3C9A4"/>
+    <text x="28" y="120" class="label" fill="#A85C21">One per workspace</text>
+    <text x="28" y="150" class="mono">WebSocket endpoint</text>
+    <text x="28" y="176" class="mono">JSON-RPC traffic</text>
+    <text x="28" y="214" class="muted">Owns threads, tools, approvals.</text>
+  </g>
+
+  <g transform="translate(1214 198)">
+    <rect x="0" y="0" width="154" height="250" rx="8" fill="#F1EBFA" stroke="#D7C5EF"/>
+    <text x="24" y="44" fill="#39205F" font-size="22" font-weight="760">.craft</text>
+    <line x1="24" y1="64" x2="130" y2="64" stroke="#D7C5EF"/>
+    <text x="24" y="100" class="mono">state</text>
+    <text x="24" y="126" class="mono">threads</text>
+    <text x="24" y="152" class="mono">locks</text>
+  </g>
+
+  <path d="M360 292H454" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
+  <path d="M740 292H834" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
+  <path d="M1120 292H1214" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
+  <path d="M360 380C560 560 790 560 834 380" stroke="#A8B4C6" stroke-width="2" stroke-dasharray="7 7" marker-end="url(#arrow)"/>
+  <text x="494" y="540" fill="#667085" font-size="14">after ensure, the client connects directly</text>
+
+  <g transform="translate(72 560)">
+    <rect x="0" y="0" width="398" height="170" rx="8" fill="#FFFFFF" stroke="#D9E0EA"/>
+    <text x="28" y="44" class="cardTitle" fill="#17203A">Hub state</text>
+    <line x1="28" y1="64" x2="370" y2="64" stroke="#D9E0EA"/>
+    <text x="28" y="100" class="mono">~/.craft/hub/hub.lock</text>
+    <text x="28" y="126" class="mono">~/.craft/hub/appservers.json</text>
+  </g>
+
+  <g transform="translate(522 560)">
+    <rect x="0" y="0" width="398" height="170" rx="8" fill="#FFFFFF" stroke="#D9E0EA"/>
+    <text x="28" y="44" class="cardTitle" fill="#17203A">Workspace lock</text>
+    <line x1="28" y1="64" x2="370" y2="64" stroke="#D9E0EA"/>
+    <text x="28" y="100" class="mono">.craft/appserver.lock</text>
+    <text x="28" y="126" class="muted">Prevents duplicate local AppServers.</text>
+  </g>
+
+  <g transform="translate(970 560)">
+    <rect x="0" y="0" width="398" height="170" rx="8" fill="#FFFFFF" stroke="#D9E0EA"/>
+    <text x="28" y="44" class="cardTitle" fill="#17203A">Desktop tray</text>
+    <line x1="28" y1="64" x2="370" y2="64" stroke="#D9E0EA"/>
+    <text x="28" y="100" class="mono">running workspaces</text>
+    <text x="28" y="126" class="mono">notifications</text>
+  </g>
+</svg>

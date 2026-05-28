@@ -1,0 +1,4 @@
+version: 1
+display_name: "Browser"
+short_description: "Control the in-app browser with DotCraft."
+default_prompt: "Use $browser to inspect, navigate, or test a local browser target."

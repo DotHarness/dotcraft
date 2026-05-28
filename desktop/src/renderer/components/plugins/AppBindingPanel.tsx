@@ -1,0 +1,399 @@
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { Link2, RefreshCw, ShieldCheck, Unlink } from 'lucide-react'
+import { useT } from '../../contexts/LocaleContext'
+import { useAppBindingStore, type AppHandoff, type AppInfo } from '../../stores/appBindingStore'
+import { useConnectionStore } from '../../stores/connectionStore'
+import { useThreadStore } from '../../stores/threadStore'
+import { addToast } from '../../stores/toastStore'
+import { useConfirmDialog } from '../ui/ConfirmDialog'
+import type { PluginEntry } from '../../stores/pluginStore'
+
+interface AppBindingPanelProps {
+  plugin: PluginEntry
+}
+
+export function AppBindingPanel({ plugin }: AppBindingPanelProps): JSX.Element | null {
+  const t = useT()
+  const confirm = useConfirmDialog()
+  const canUseAppBinding = useConnectionStore((s) => s.capabilities?.appBinding === true)
+  const activeThreadId = useThreadStore((s) => s.activeThreadId)
+  const {
+    apps,
+    appsLoading,
+    appsError,
+    fetchApps,
+    startConnection,
+    revokeConnection,
+    createBindingRequest,
+    refreshThreadBindings,
+    revokeThreadBinding,
+    waitForConnection,
+    waitForThreadBinding
+  } = useAppBindingStore()
+  const [busyKey, setBusyKey] = useState<string | null>(null)
+  const [handoffByAppId, setHandoffByAppId] = useState<Record<string, AppHandoff>>({})
+
+  const refreshPanel = useCallback(async (forceRefresh = false): Promise<void> => {
+    if (activeThreadId) {
+      try {
+        await refreshThreadBindings(activeThreadId)
+      } finally {
+        await fetchApps(activeThreadId, forceRefresh, 'pluginDetail')
+      }
+      return
+    }
+
+    await fetchApps(null, forceRefresh, 'pluginDetail')
+  }, [activeThreadId, fetchApps, refreshThreadBindings])
+
+  useEffect(() => {
+    if (!canUseAppBinding || !plugin.installed) return
+    void refreshPanel(false).catch(() => undefined)
+  }, [canUseAppBinding, plugin.installed, refreshPanel])
+
+  const pluginApps = useMemo(
+    () => apps.filter((app) => app.pluginId === plugin.id),
+    [apps, plugin.id]
+  )
+
+  if (!plugin.installed || !canUseAppBinding || (!appsLoading && pluginApps.length === 0 && !appsError)) return null
+
+  async function runAction(key: string, action: () => Promise<void>): Promise<void> {
+    if (busyKey) return
+    setBusyKey(key)
+    try {
+      await action()
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : String(err), 'error')
+    } finally {
+      setBusyKey(null)
+    }
+  }
+
+  async function handleConnect(app: AppInfo): Promise<void> {
+    await runAction(`${app.appId}:connect`, async () => {
+      const result = await startConnection(app.appId)
+      setHandoffByAppId((current) => ({ ...current, [app.appId]: result.handoff }))
+      await openAppHandoff(result.handoff, t)
+      addToast(t('appBinding.connectStarted'), 'info')
+      await waitForConnection(app.appId)
+      addToast(t('appBinding.connection.connected'), 'success')
+    })
+  }
+
+  async function handleInstallNative(app: AppInfo): Promise<void> {
+    await runAction(`${app.appId}:installNative`, async () => {
+      const url = app.nativeApp?.installUrl || app.releasePage || app.downloadUrl
+      if (!url) throw new Error(t('appBinding.nativeInstallMissing'))
+      await window.api.shell.openExternal(url)
+    })
+  }
+
+  async function handleOpenApp(app: AppInfo, bindingId?: string): Promise<void> {
+    await runAction(`${app.appId}:openApp`, async () => {
+      const result = await startConnection(app.appId)
+      setHandoffByAppId((current) => ({ ...current, [app.appId]: result.handoff }))
+      await openAppHandoff(result.handoff, t)
+      addToast(t('appBinding.connectStarted'), 'info')
+      await waitForConnection(app.appId)
+      if (activeThreadId && bindingId) {
+        await refreshThreadBindings(activeThreadId, bindingId)
+      }
+      await fetchApps(activeThreadId, true, 'pluginDetail')
+    })
+  }
+
+  async function handleBind(app: AppInfo): Promise<void> {
+    if (!activeThreadId) return
+    await runAction(`${app.appId}:bind`, async () => {
+      const scopes = defaultRequestedScopes(app)
+      const scopeSummary = scopes
+        .map((scopeId) => {
+          const scope = app.scopes.find((candidate) => candidate.id === scopeId)
+          return scope == null
+            ? scopeId
+            : `${scope.displayName || scope.id} (${riskLabel(scope.risk, t)})`
+        })
+        .join('\n')
+      const approved = await confirm({
+        title: t('appBinding.bindConfirmTitle'),
+        message: `${t('appBinding.bindConfirmMessage')}\n\n${scopeSummary}`,
+        confirmLabel: t('appBinding.bindThread'),
+        danger: scopes.some((scopeId) => {
+          const risk = app.scopes.find((scope) => scope.id === scopeId)?.risk
+          return risk === 'mutate' || risk === 'externalWrite'
+        })
+      })
+      if (!approved) return
+      const result = await createBindingRequest({
+        threadId: activeThreadId,
+        appId: app.appId,
+        requestedScopes: scopes,
+        requestedTools: requestedToolsForBinding(app),
+        source: 'pluginDetail'
+      })
+      setHandoffByAppId((current) => ({ ...current, [app.appId]: result.handoff }))
+      await openAppHandoff(result.handoff, t)
+      addToast(t('appBinding.bindingStarted'), 'info')
+      await waitForThreadBinding({
+        threadId: activeThreadId,
+        appId: app.appId,
+        bindingRequestId: result.bindingRequestId
+      })
+      addToast(t('appBinding.binding.activeToast'), 'success')
+    })
+  }
+
+  return (
+    <section style={section}>
+      <div style={sectionHeader}>
+        <h2 style={sectionTitle}>{t('appBinding.pluginTitle')}</h2>
+        <button
+          type="button"
+          style={iconButton}
+          aria-label={t('appBinding.refresh')}
+          title={t('appBinding.refresh')}
+          onClick={() => { void runAction('setup:refresh', () => refreshPanel(true)) }}
+        >
+          <RefreshCw size={14} aria-hidden />
+        </button>
+      </div>
+      {appsLoading && <p style={mutedText}>{t('appBinding.loading')}</p>}
+      {appsError && <p style={errorText}>{appsError}</p>}
+      <div style={appList}>
+        {pluginApps.map((app) => {
+          const binding = app.bindingSummary
+          const connected = app.connectionState === 'connected'
+          const bindingActive = binding?.state === 'active'
+          const bindingOffline = binding?.state === 'offline'
+          const handoff = handoffByAppId[app.appId]
+          const nativeMissing = app.nativeApp?.status === 'missing'
+          return (
+            <div key={app.appId} style={appRow}>
+              <div style={appMain}>
+                <div style={appTitleRow}>
+                  <strong style={appTitle}>{app.displayName}</strong>
+                  <span style={statePill(app.connectionState === 'connected')}>
+                    {connectionStateLabel(app.connectionState, t)}
+                  </span>
+                  {binding && (
+                    <span style={statePill(binding.state === 'active')}>
+                      {bindingStateLabel(binding.state, t)}
+                    </span>
+                  )}
+                </div>
+                <p style={appDescription}>{app.description}</p>
+                <div style={scopeLine}>
+                  {app.scopes.slice(0, 4).map((scope) => (
+                    <span key={scope.id} style={scopePill}>{scope.displayName || scope.id}</span>
+                  ))}
+                </div>
+                {handoff && <HandoffHint handoff={handoff} t={t} />}
+              </div>
+              <div style={actions}>
+                {bindingOffline ? (
+                  <button
+                    type="button"
+                    style={primaryButton}
+                    disabled={busyKey === `${app.appId}:openApp`}
+                    onClick={() => { void handleOpenApp(app, binding?.bindingId) }}
+                  >
+                    <Link2 size={13} aria-hidden />
+                    {t('appBinding.openApp')}
+                  </button>
+                ) : connected ? (
+                  <button
+                    type="button"
+                    style={secondaryButton}
+                    disabled={busyKey === `${app.appId}:revokeConnection`}
+                    onClick={() => {
+                      void runAction(`${app.appId}:revokeConnection`, async () => {
+                        await revokeConnection(app.appId)
+                        addToast(t('appBinding.connectionRevoked'), 'success')
+                      })
+                    }}
+                  >
+                    <Unlink size={13} aria-hidden />
+                    {t('appBinding.disconnect')}
+                  </button>
+                ) : nativeMissing ? (
+                  <button
+                    type="button"
+                    style={primaryButton}
+                    disabled={busyKey === `${app.appId}:installNative`}
+                    onClick={() => { void handleInstallNative(app) }}
+                  >
+                    <Link2 size={13} aria-hidden />
+                    {t('appBinding.installNative')}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    style={primaryButton}
+                    disabled={busyKey === `${app.appId}:connect` || !app.enabled || !app.installed}
+                    onClick={() => { void handleConnect(app) }}
+                  >
+                    <Link2 size={13} aria-hidden />
+                    {app.connectionState === 'needsAuth' ? t('appBinding.reconnect') : t('appBinding.connect')}
+                  </button>
+                )}
+                {bindingOffline && connected && (
+                  <button
+                    type="button"
+                    style={secondaryButton}
+                    disabled={busyKey === `${app.appId}:revokeConnection`}
+                    onClick={() => {
+                      void runAction(`${app.appId}:revokeConnection`, async () => {
+                        await revokeConnection(app.appId)
+                        addToast(t('appBinding.connectionRevoked'), 'success')
+                      })
+                    }}
+                  >
+                    <Unlink size={13} aria-hidden />
+                    {t('appBinding.disconnect')}
+                  </button>
+                )}
+                {connected && activeThreadId && !binding && !bindingActive && (
+                  <button
+                    type="button"
+                    style={primaryButton}
+                    disabled={busyKey === `${app.appId}:bind`}
+                    onClick={() => { void handleBind(app) }}
+                  >
+                    <ShieldCheck size={13} aria-hidden />
+                    {t('appBinding.bindThread')}
+                  </button>
+                )}
+                {activeThreadId && binding && (
+                  <>
+                    <button
+                      type="button"
+                      style={secondaryButton}
+                      disabled={busyKey === `${app.appId}:refreshBinding`}
+                      onClick={() => {
+                        void runAction(`${app.appId}:refreshBinding`, async () => {
+                          await refreshThreadBindings(activeThreadId, binding.bindingId)
+                          addToast(t('appBinding.bindingRefreshed'), 'success')
+                        })
+                      }}
+                    >
+                      <RefreshCw size={13} aria-hidden />
+                      {t('appBinding.refresh')}
+                    </button>
+                    <button
+                      type="button"
+                      style={secondaryButton}
+                      disabled={busyKey === `${app.appId}:revokeBinding`}
+                      onClick={() => {
+                        void runAction(`${app.appId}:revokeBinding`, async () => {
+                          await revokeThreadBinding(activeThreadId, binding.bindingId)
+                          addToast(t('appBinding.bindingRevoked'), 'success')
+                        })
+                      }}
+                    >
+                      <Unlink size={13} aria-hidden />
+                      {t('appBinding.revoke')}
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
+function HandoffHint({
+  handoff,
+  t
+}: {
+  handoff: AppHandoff
+  t: ReturnType<typeof useT>
+}): JSX.Element | null {
+  const value = handoff.uri
+  if (!value) return null
+
+  return (
+    <div style={handoffBox} title={value}>
+      <div style={handoffHint}>{t('appBinding.handoffOpening')}</div>
+    </div>
+  )
+}
+
+export async function openAppHandoff(
+  handoff: AppHandoff,
+  t: ReturnType<typeof useT>
+): Promise<void> {
+  if (!handoff.uri) return
+  try {
+    await (window.api.shell.openAppHandoff ?? window.api.shell.openExternal)(handoff.uri)
+  } catch {
+    addToast(t('appBinding.handoffReady'), 'info')
+  }
+}
+
+function defaultRequestedScopes(app: AppInfo): string[] {
+  return app.scopes.map((scope) => scope.id)
+}
+
+function requestedToolsForBinding(app: AppInfo): string[] | undefined {
+  return app.dynamicToolCatalog?.enabled === true
+    ? undefined
+    : app.toolCatalog.map((tool) => tool.name)
+}
+
+function riskLabel(risk: string, t: ReturnType<typeof useT>): string {
+  if (risk === 'mutate') return t('appBinding.risk.mutate')
+  if (risk === 'externalWrite') return t('appBinding.risk.externalWrite')
+  return t('appBinding.risk.read')
+}
+
+function connectionStateLabel(state: string, t: ReturnType<typeof useT>): string {
+  if (state === 'connected') return t('appBinding.connection.connected')
+  if (state === 'connecting') return t('appBinding.connection.connecting')
+  if (state === 'needsAuth') return t('appBinding.connection.needsAuth')
+  if (state === 'error') return t('appBinding.connection.error')
+  return t('appBinding.connection.notConnected')
+}
+
+function bindingStateLabel(state: string, t: ReturnType<typeof useT>): string {
+  if (state === 'active') return t('appBinding.binding.active')
+  if (state === 'offline') return t('appBinding.binding.offline')
+  if (state === 'expired') return t('appBinding.binding.expired')
+  if (state === 'revoked') return t('appBinding.binding.revoked')
+  if (state === 'error') return t('appBinding.binding.error')
+  return t('appBinding.binding.pending')
+}
+
+const section: CSSProperties = { marginTop: 28 }
+const sectionHeader: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 12 }
+const sectionTitle: CSSProperties = { margin: 0, fontSize: 15, fontWeight: 600 }
+const appList: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 10 }
+const appRow: CSSProperties = { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 12, border: '1px solid var(--border-default)', borderRadius: 8, padding: 12, background: 'var(--bg-secondary)' }
+const appMain: CSSProperties = { minWidth: 0 }
+const appTitleRow: CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }
+const appTitle: CSSProperties = { fontSize: 13, color: 'var(--text-primary)' }
+const appDescription: CSSProperties = { margin: '6px 0 0', color: 'var(--text-secondary)', fontSize: 12, lineHeight: 1.45 }
+const scopeLine: CSSProperties = { display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }
+const scopePill: CSSProperties = { border: '1px solid var(--border-default)', borderRadius: 999, padding: '3px 7px', fontSize: 11, color: 'var(--text-secondary)' }
+const handoffBox: CSSProperties = { marginTop: 8, display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }
+const handoffHint: CSSProperties = { marginTop: 8, fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-tertiary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }
+const actions: CSSProperties = { display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 8, maxWidth: 280 }
+const baseButton: CSSProperties = { border: 'none', borderRadius: 8, padding: '7px 10px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600 }
+const primaryButton: CSSProperties = { ...baseButton, background: '#050505', color: '#fff' }
+const secondaryButton: CSSProperties = { ...baseButton, background: 'var(--bg-tertiary)', color: 'var(--text-primary)' }
+const iconButton: CSSProperties = { width: 30, height: 30, border: 'none', borderRadius: 8, background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }
+const mutedText: CSSProperties = { margin: 0, color: 'var(--text-secondary)', fontSize: 13 }
+const errorText: CSSProperties = { margin: 0, color: 'var(--error)', fontSize: 13 }
+
+function statePill(good: boolean): CSSProperties {
+  return {
+    borderRadius: 999,
+    padding: '3px 7px',
+    fontSize: 11,
+    background: good ? 'rgba(22, 163, 74, 0.12)' : 'var(--bg-tertiary)',
+    color: good ? 'var(--success, #15803d)' : 'var(--text-secondary)'
+  }
+}

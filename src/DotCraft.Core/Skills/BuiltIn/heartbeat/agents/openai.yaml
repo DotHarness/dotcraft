@@ -1,0 +1,6 @@
+interface:
+  display_name: "Heartbeat"
+  short_description: "Configure and maintain lightweight recurring checks"
+  icon_small: "./assets/heartbeat-small.svg"
+  icon_large: "./assets/heartbeat.svg"
+  default_prompt: "Use $heartbeat to configure recurring lightweight checks for this workspace."

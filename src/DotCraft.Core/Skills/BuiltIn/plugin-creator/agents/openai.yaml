@@ -1,0 +1,7 @@
+interface:
+  display_name: "Plugin Creator"
+  short_description: "Scaffold DotCraft local plugins"
+  icon_small: "./assets/plugin-creator-small.svg"
+  icon_large: "./assets/plugin-creator.svg"
+  default_prompt: "Use $plugin-creator to create a DotCraft plugin."
+

@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="Dothar dot T logo">
+  <rect width="512" height="512" fill="#050505"/>
+  <path
+    fill="#fff"
+    d="M155 182
+       C155 136 190 104 238 104
+       H415
+       V184
+       H319
+       V313
+       C319 371 278 408 228 408
+       V184
+       H155
+       Z"/>
+  <circle cx="138" cy="295" r="40" fill="#fff"/>
+</svg>

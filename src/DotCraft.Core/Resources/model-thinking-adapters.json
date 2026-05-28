@@ -1,0 +1,165 @@
+{
+  "deepThinking": {
+    "models": [
+      "deepseek",
+      "mimo"
+    ],
+    "endpoints": [
+      "deepseek"
+    ]
+  },
+  "anthropicThinking": {
+    "adapters": [
+      {
+        "models": [
+          "claude-opus-4-7"
+        ],
+        "thinking": {
+          "type": "adaptive",
+          "display": "fromReasoningOutput"
+        },
+        "outputConfig": {
+          "effort": "fromReasoningEffort",
+          "effortMap": {
+            "extraHigh": "xhigh"
+          }
+        }
+      },
+      {
+        "models": [
+          "claude-mythos-preview",
+          "claude-opus-4-6",
+          "claude-sonnet-4-6"
+        ],
+        "thinking": {
+          "type": "adaptive",
+          "display": "fromReasoningOutput"
+        },
+        "outputConfig": {
+          "effort": "fromReasoningEffort",
+          "effortMap": {
+            "extraHigh": "max"
+          }
+        }
+      }
+    ]
+  },
+  "reasoningCapabilities": {
+    "adapters": [
+      {
+        "protocols": [
+          "openai-chat-completions",
+          "openai-responses"
+        ],
+        "supportsDisable": true,
+        "supportedEfforts": [
+          "low",
+          "medium",
+          "high",
+          "extraHigh"
+        ],
+        "defaultEffort": "medium",
+        "supportedOutputs": [
+          "none",
+          "summary",
+          "full"
+        ],
+        "defaultOutput": "full"
+      },
+      {
+        "protocols": [
+          "openai-chat-completions",
+          "openai-responses"
+        ],
+        "models": [
+          "deepseek",
+          "mimo"
+        ],
+        "endpoints": [
+          "deepseek"
+        ],
+        "supportsDisable": true,
+        "supportedEfforts": [
+          "low",
+          "medium",
+          "high",
+          "extraHigh"
+        ],
+        "defaultEffort": "medium",
+        "supportedOutputs": [
+          "none",
+          "summary",
+          "full"
+        ],
+        "defaultOutput": "full"
+      },
+      {
+        "protocols": [
+          "anthropic"
+        ],
+        "models": [
+          "claude-opus-4-7"
+        ],
+        "supportsDisable": true,
+        "supportedEfforts": [
+          "low",
+          "medium",
+          "high",
+          "extraHigh"
+        ],
+        "defaultEffort": "high",
+        "supportedOutputs": [
+          "none",
+          "summary",
+          "full"
+        ],
+        "defaultOutput": "full"
+      },
+      {
+        "protocols": [
+          "anthropic"
+        ],
+        "models": [
+          "claude-opus-4-6",
+          "claude-sonnet-4-6"
+        ],
+        "supportsDisable": true,
+        "supportedEfforts": [
+          "low",
+          "medium",
+          "high",
+          "extraHigh"
+        ],
+        "defaultEffort": "high",
+        "supportedOutputs": [
+          "none",
+          "summary",
+          "full"
+        ],
+        "defaultOutput": "full"
+      },
+      {
+        "protocols": [
+          "anthropic"
+        ],
+        "models": [
+          "claude-mythos-preview"
+        ],
+        "supportsDisable": false,
+        "supportedEfforts": [
+          "low",
+          "medium",
+          "high",
+          "extraHigh"
+        ],
+        "defaultEffort": "high",
+        "supportedOutputs": [
+          "none",
+          "summary",
+          "full"
+        ],
+        "defaultOutput": "full"
+      }
+    ]
+  }
+}

@@ -1,0 +1,138 @@
+<svg width="1440" height="1040" viewBox="0 0 1440 1040" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">DotCraft SDK event topology</title>
+  <desc id="desc">A grouped topology of DotCraft AppServer and SDK event methods across thread, turn, item, callback, coordination, system, and workspace categories.</desc>
+  <rect width="1440" height="1040" fill="#F8FAF7"/>
+
+  <g font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif">
+    <text x="72" y="86" fill="#17203A" font-size="42" font-weight="760" letter-spacing="0">DotCraft SDK event topology</text>
+    <text x="72" y="123" fill="#667085" font-size="18" letter-spacing="0">AppServer wire notifications plus server-initiated requests, grouped for SDK clients and channel adapters.</text>
+
+    <g transform="translate(72 156)">
+      <rect x="0" y="0" width="1296" height="74" rx="8" fill="#FFFFFF" stroke="#D9E0EA"/>
+      <g transform="translate(34 22)">
+        <circle cx="15" cy="15" r="15" fill="#E9F5F0"/>
+        <text x="15" y="21" text-anchor="middle" fill="#247A57" font-size="18" font-weight="760" letter-spacing="0">1</text>
+        <text x="42" y="11" fill="#17203A" font-size="15" font-weight="720" letter-spacing="0">Session Core</text>
+        <text x="42" y="33" fill="#667085" font-size="13" letter-spacing="0">Thread / Turn / Item state</text>
+      </g>
+      <path d="M244 37H332" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round"/>
+      <path d="M322 29L332 37L322 45" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <g transform="translate(364 22)">
+        <circle cx="15" cy="15" r="15" fill="#EAF0FF"/>
+        <text x="15" y="21" text-anchor="middle" fill="#3659D4" font-size="18" font-weight="760" letter-spacing="0">2</text>
+        <text x="42" y="11" fill="#17203A" font-size="15" font-weight="720" letter-spacing="0">AppServer JSON-RPC</text>
+        <text x="42" y="33" fill="#667085" font-size="13" letter-spacing="0">Notifications and requests</text>
+      </g>
+      <path d="M616 37H704" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round"/>
+      <path d="M694 29L704 37L694 45" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <g transform="translate(736 22)">
+        <circle cx="15" cy="15" r="15" fill="#FFF1E6"/>
+        <text x="15" y="21" text-anchor="middle" fill="#B35A13" font-size="18" font-weight="760" letter-spacing="0">3</text>
+        <text x="42" y="11" fill="#17203A" font-size="15" font-weight="720" letter-spacing="0">SDK stream</text>
+        <text x="42" y="33" fill="#667085" font-size="13" letter-spacing="0">runStreamed(), reducers, raw escape hatch</text>
+      </g>
+      <g transform="translate(1084 20)">
+        <rect x="0" y="0" width="176" height="34" rx="8" fill="#F1F5F9"/>
+        <text x="88" y="22" text-anchor="middle" fill="#475467" font-size="13" font-weight="680" letter-spacing="0">unknown -> raw</text>
+      </g>
+    </g>
+
+    <g transform="translate(72 266)">
+      <rect x="0" y="0" width="396" height="360" rx="8" fill="#E9F5F0" stroke="#B7DED0"/>
+      <text x="28" y="44" fill="#153E33" font-size="24" font-weight="760" letter-spacing="0">Thread events</text>
+      <line x1="28" y1="64" x2="368" y2="64" stroke="#B7DED0"/>
+      <text x="28" y="96" fill="#2E6B56" font-size="14" font-weight="720" letter-spacing="0">Lifecycle</text>
+      <text x="28" y="122" fill="#1F2937" font-size="15" font-family="Cascadia Mono, ui-monospace, SFMono-Regular, Menlo, monospace" letter-spacing="0">thread/started</text>
+      <text x="28" y="146" fill="#1F2937" font-size="15" font-family="Cascadia Mono, ui-monospace, SFMono-Regular, Menlo, monospace" letter-spacing="0">thread/resumed</text>
+      <text x="28" y="170" fill="#1F2937" font-size="15" font-family="Cascadia Mono, ui-monospace, SFMono-Regular, Menlo, monospace" letter-spacing="0">thread/statusChanged</text>
+      <text x="28" y="194" fill="#1F2937" font-size="15" font-family="Cascadia Mono, ui-monospace, SFMono-Regular, Menlo, monospace" letter-spacing="0">thread/renamed</text>
+      <text x="28" y="218" fill="#1F2937" font-size="15" font-family="Cascadia Mono, ui-monospace, SFMono-Regular, Menlo, monospace" letter-spacing="0">thread/deleted</text>
+      <text x="28" y="246" fill="#2E6B56" font-size="14" font-weight="720" letter-spacing="0">Runtime and queue</text>
+      <text x="28" y="272" fill="#1F2937" font-size="15" font-family="Cascadia Mono, ui-monospace, SFMono-Regular, Menlo, monospace" letter-spacing="0">thread/runtimeChanged</text>
+      <text x="28" y="296" fill="#1F2937" font-size="15" font-family="Cascadia Mono, ui-monospace, SFMono-Regular, Menlo, monospace" letter-spacing="0">thread/queue/updated</text>
+      <text x="28" y="320" fill="#1F2937" font-size="15" font-family="Cascadia Mono, ui-monospace, SFMono-Regular, Menlo, monospace" letter-spacing="0">thread/goal/updated</text>
+      <text x="28" y="344" fill="#1F2937" font-size="15" font-family="Cascadia Mono, ui-monospace, SFMono-Regular, Menlo, monospace" letter-spacing="0">thread/goal/cleared</text>
+    </g>
+
+    <g transform="translate(522 266)">
+      <rect x="0" y="0" width="396" height="360" rx="8" fill="#EAF0FF" stroke="#C2CEF7"/>
+      <text x="28" y="44" fill="#23305F" font-size="24" font-weight="760" letter-spacing="0">Turn events</text>
+      <line x1="28" y1="64" x2="368" y2="64" stroke="#C2CEF7"/>
+      <text x="28" y="96" fill="#4459B8" font-size="14" font-weight="720" letter-spacing="0">Execution</text>
+      <text x="28" y="122" fill="#1F2937" font-size="15" font-family="Cascadia Mono, ui-monospace, SFMono-Regular, Menlo, monospace" letter-spacing="0">turn/started</text>
+      <text x="28" y="146" fill="#1F2937" font-size="15" font-family="Cascadia Mono, ui-monospace, SFMono-Regular, Menlo, monospace" letter-spacing="0">turn/completed</text>
+      <text x="28" y="170" fill="#1F2937" font-size="15" font-family="Cascadia Mono, ui-monospace, SFMono-Regular, Menlo, monospace" letter-spacing="0">turn/failed</text>
+      <text x="28" y="194" fill="#1F2937" font-size="15" font-family="Cascadia Mono, ui-monospace, SFMono-Regular, Menlo, monospace" letter-spacing="0">turn/cancelled</text>
+      <text x="222" y="96" fill="#4459B8" font-size="14" font-weight="720" letter-spacing="0">Run aliases</text>
+      <text x="222" y="122" fill="#1F2937" font-size="15" font-family="Cascadia Mono, ui-monospace, SFMono-Regular, Menlo, monospace" letter-spacing="0">completed</text>
+      <text x="222" y="146" fill="#1F2937" font-size="15" font-family="Cascadia Mono, ui-monospace, SFMono-Regular, Menlo, monospace" letter-spacing="0">failed</text>
+      <text x="222" y="170" fill="#1F2937" font-size="15" font-family="Cascadia Mono, ui-monospace, SFMono-Regular, Menlo, monospace" letter-spacing="0">cancelled</text>
+      <rect x="28" y="310" width="340" height="1" fill="#D1DAFA"/>
+      <text x="28" y="334" fill="#52607A" font-size="13" letter-spacing="0">A terminal turn event ends the high-level run.</text>
+    </g>
+
+    <g transform="translate(972 266)">
+      <rect x="0" y="0" width="396" height="360" rx="8" fill="#FFF1E6" stroke="#F3C9A4"/>
+      <text x="28" y="44" fill="#623314" font-size="24" font-weight="760" letter-spacing="0">Item and stream events</text>
+      <line x1="28" y1="64" x2="368" y2="64" stroke="#F3C9A4"/>
+      <text x="28" y="96" fill="#A85C21" font-size="14" font-weight="720" letter-spacing="0">Lifecycle</text>
+      <text x="28" y="122" fill="#1F2937" font-size="15" font-family="Cascadia Mono, ui-monospace, SFMono-Regular, Menlo, monospace" letter-spacing="0">item/started</text>
+      <text x="28" y="146" fill="#1F2937" font-size="15" font-family="Cascadia Mono, ui-monospace, SFMono-Regular, Menlo, monospace" letter-spacing="0">item/completed</text>
+      <text x="28" y="182" fill="#A85C21" font-size="14" font-weight="720" letter-spacing="0">Deltas and usage</text>
+      <text x="28" y="208" fill="#1F2937" font-size="14" font-family="Cascadia Mono, ui-monospace, SFMono-Regular, Menlo, monospace" letter-spacing="0">item/agentMessage/delta</text>
+      <text x="28" y="230" fill="#1F2937" font-size="14" font-family="Cascadia Mono, ui-monospace, SFMono-Regular, Menlo, monospace" letter-spacing="0">item/reasoning/delta</text>
+      <text x="28" y="252" fill="#1F2937" font-size="14" font-family="Cascadia Mono, ui-monospace, SFMono-Regular, Menlo, monospace" letter-spacing="0">item/toolCall/argumentsDelta</text>
+      <text x="28" y="274" fill="#1F2937" font-size="14" font-family="Cascadia Mono, ui-monospace, SFMono-Regular, Menlo, monospace" letter-spacing="0">item/commandExecution/outputDelta</text>
+      <text x="28" y="296" fill="#1F2937" font-size="14" font-family="Cascadia Mono, ui-monospace, SFMono-Regular, Menlo, monospace" letter-spacing="0">item/usage/delta</text>
+      <rect x="28" y="316" width="340" height="1" fill="#F5D6BB"/>
+      <text x="28" y="340" fill="#6C5A4D" font-size="13" letter-spacing="0">item/completed remains authoritative.</text>
+    </g>
+
+    <g transform="translate(72 662)">
+      <rect x="0" y="0" width="396" height="250" rx="8" fill="#F1EBFA" stroke="#D7C5EF"/>
+      <text x="28" y="44" fill="#39205F" font-size="24" font-weight="760" letter-spacing="0">Client callback events</text>
+      <line x1="28" y1="64" x2="368" y2="64" stroke="#D7C5EF"/>
+      <text x="28" y="96" fill="#7653A8" font-size="14" font-weight="720" letter-spacing="0">Server requests</text>
+      <text x="28" y="122" fill="#1F2937" font-size="15" font-family="Cascadia Mono, ui-monospace, SFMono-Regular, Menlo, monospace" letter-spacing="0">item/approval/request</text>
+      <text x="28" y="146" fill="#1F2937" font-size="15" font-family="Cascadia Mono, ui-monospace, SFMono-Regular, Menlo, monospace" letter-spacing="0">item/tool/requestUserInput</text>
+      <text x="28" y="170" fill="#1F2937" font-size="15" font-family="Cascadia Mono, ui-monospace, SFMono-Regular, Menlo, monospace" letter-spacing="0">item/tool/call</text>
+      <text x="28" y="204" fill="#7653A8" font-size="14" font-weight="720" letter-spacing="0">Notification after response</text>
+      <text x="28" y="230" fill="#1F2937" font-size="15" font-family="Cascadia Mono, ui-monospace, SFMono-Regular, Menlo, monospace" letter-spacing="0">item/approval/resolved</text>
+    </g>
+
+    <g transform="translate(522 662)">
+      <rect x="0" y="0" width="396" height="250" rx="8" fill="#E8F4FA" stroke="#BBDCEE"/>
+      <text x="28" y="44" fill="#15384B" font-size="24" font-weight="760" letter-spacing="0">Coordination events</text>
+      <line x1="28" y1="64" x2="368" y2="64" stroke="#BBDCEE"/>
+      <text x="28" y="96" fill="#2B7599" font-size="14" font-weight="720" letter-spacing="0">Plans</text>
+      <text x="28" y="122" fill="#1F2937" font-size="15" font-family="Cascadia Mono, ui-monospace, SFMono-Regular, Menlo, monospace" letter-spacing="0">plan/updated</text>
+      <text x="206" y="96" fill="#2B7599" font-size="14" font-weight="720" letter-spacing="0">SubAgents</text>
+      <text x="206" y="122" fill="#1F2937" font-size="15" font-family="Cascadia Mono, ui-monospace, SFMono-Regular, Menlo, monospace" letter-spacing="0">subagent/progress</text>
+      <text x="206" y="146" fill="#1F2937" font-size="15" font-family="Cascadia Mono, ui-monospace, SFMono-Regular, Menlo, monospace" letter-spacing="0">subagent/graphChanged</text>
+      <rect x="28" y="176" width="340" height="1" fill="#CBE5F2"/>
+      <text x="28" y="200" fill="#506979" font-size="13" letter-spacing="0">Snapshots replace local plan/subagent state.</text>
+      <text x="28" y="222" fill="#506979" font-size="13" letter-spacing="0">SpawnAgent also appears through item lifecycle events.</text>
+    </g>
+
+    <g transform="translate(972 662)">
+      <rect x="0" y="0" width="396" height="250" rx="8" fill="#F3F4EA" stroke="#D9DEC0"/>
+      <text x="28" y="44" fill="#3F431E" font-size="24" font-weight="760" letter-spacing="0">System and workspace</text>
+      <line x1="28" y1="64" x2="368" y2="64" stroke="#D9DEC0"/>
+      <text x="28" y="96" fill="#727934" font-size="14" font-weight="720" letter-spacing="0">Maintenance</text>
+      <text x="28" y="122" fill="#1F2937" font-size="15" font-family="Cascadia Mono, ui-monospace, SFMono-Regular, Menlo, monospace" letter-spacing="0">system/event compact*</text>
+      <text x="28" y="146" fill="#1F2937" font-size="15" font-family="Cascadia Mono, ui-monospace, SFMono-Regular, Menlo, monospace" letter-spacing="0">system/event consolidation*</text>
+      <text x="28" y="182" fill="#727934" font-size="14" font-weight="720" letter-spacing="0">Workspace</text>
+      <text x="28" y="208" fill="#1F2937" font-size="15" font-family="Cascadia Mono, ui-monospace, SFMono-Regular, Menlo, monospace" letter-spacing="0">workspace/configChanged</text>
+      <text x="28" y="232" fill="#1F2937" font-size="15" font-family="Cascadia Mono, ui-monospace, SFMono-Regular, Menlo, monospace" letter-spacing="0">mcp/status/updated</text>
+    </g>
+
+    <g transform="translate(72 946)">
+      <rect x="0" y="0" width="1296" height="62" rx="8" fill="#FFFFFF" stroke="#D9E0EA"/>
+      <text x="24" y="25" fill="#475467" font-size="14" letter-spacing="0">Channel adapter server requests:</text>
+      <text x="286" y="25" fill="#1F2937" font-size="14" font-family="Cascadia Mono, ui-monospace, SFMono-Regular, Menlo, monospace" letter-spacing="0">ext/channel/heartbeat</text>
+      <text x="542" y="25" fill="#1F2937" font-size="14" font-family="Cascadia Mono, ui-monospace, SFMono-Regular, Menlo, monospace" letter-spacing="0">ext/channel/send</text>
+      <text x="762" y="25" fill="#1F2937" font-size="14" font-family="Cascadia Mono, ui-monospace, SFMono-Regular, Menlo, monospace" letter-spacing="0">ext/channel/toolCall</text>
+      <text x="24" y="49" fill="#667085" font-size="13" letter-spacing="0">TypeScript SDK normalizes common wire methods. Unknown notifications remain available as raw events.</text>
+    </g>
+  </g>
+</svg>

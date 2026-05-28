@@ -1,0 +1,6 @@
+interface:
+  display_name: "Create Hooks"
+  short_description: "Create and configure DotCraft lifecycle hooks"
+  icon_small: "./assets/create-hooks-small.svg"
+  icon_large: "./assets/create-hooks.svg"
+  default_prompt: "Use $create-hooks to create or update DotCraft lifecycle hooks for this workspace."

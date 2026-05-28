@@ -1,0 +1,2 @@
+python-telegram-bot[http2]>=21.0
+websockets>=12.0

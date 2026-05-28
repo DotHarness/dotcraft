@@ -1,0 +1,1410 @@
+:root {
+  --vp-c-brand-1: #4a7fa5;
+  --vp-c-brand-2: #5a9bc0;
+  --vp-c-brand-3: #3f6f92;
+  --vp-c-brand-soft: color-mix(in srgb, #4a7fa5 14%, transparent);
+  --vp-c-bg: #f9f9f9;
+  --vp-c-bg-alt: #ffffff;
+  --vp-c-bg-soft: #ffffff;
+  --vp-c-bg-elv: #ffffff;
+  /* OpenHuman-style: sidebar shares the page background for a frameless look */
+  --vp-sidebar-bg-color: var(--vp-c-bg);
+  --vp-nav-bg-color: var(--vp-c-bg);
+  --vp-c-text-1: #1a1c1f;
+  --vp-c-text-2: color-mix(in srgb, #1a1c1f 70%, #f9f9f9);
+  --vp-c-text-3: color-mix(in srgb, #1a1c1f 50%, #f9f9f9);
+  --vp-c-divider: color-mix(in srgb, #1a1c1f 8%, transparent);
+  --vp-c-gutter: color-mix(in srgb, #1a1c1f 6%, transparent);
+  --vp-c-default-soft: color-mix(in srgb, #1a1c1f 5%, transparent);
+  --vp-font-family-base: "Aptos", "Segoe UI Variable", "SF Pro Display", "Segoe UI", "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei UI", "Noto Sans CJK SC", sans-serif;
+  --vp-font-family-mono: "Cascadia Code", "Fira Code", "JetBrains Mono", "Consolas", "Courier New", monospace;
+  --dc-accent: #4a7fa5;
+  --dc-accent-hover: #5a9bc0;
+  --dc-accent-strong: #3f6f92;
+  --dc-surface: #ffffff;
+  --dc-shell: #f9f9f9;
+  --dc-line: color-mix(in srgb, #1a1c1f 8%, transparent);
+  --dc-line-strong: color-mix(in srgb, #1a1c1f 12%, transparent);
+  --dc-text: #1a1c1f;
+  --dc-muted: color-mix(in srgb, #1a1c1f 70%, #f9f9f9);
+  --dc-dimmed: color-mix(in srgb, #1a1c1f 50%, #f9f9f9);
+  --dc-green: #16a34a;
+  --dc-amber: #c9a227;
+  --dc-coral: #d76b4a;
+  --dc-cyan: #0f91a8;
+  --dc-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --dc-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --dc-shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.10);
+  --dc-radius-sm: 6px;
+  --dc-radius-md: 8px;
+  --dc-radius-lg: 8px;
+}
+
+.dark {
+  --vp-c-bg: #141515;
+  --vp-c-bg-alt: #202020;
+  --vp-c-bg-soft: #2a2a2a;
+  --vp-c-bg-elv: #242424;
+  --vp-c-text-1: #eeeeec;
+  --vp-c-text-2: color-mix(in srgb, #eeeeec 66%, #141515);
+  --vp-c-text-3: color-mix(in srgb, #eeeeec 42%, #141515);
+  --vp-c-divider: color-mix(in srgb, #eeeeec 10%, transparent);
+  --vp-c-gutter: color-mix(in srgb, #eeeeec 8%, transparent);
+  --vp-c-default-soft: color-mix(in srgb, #eeeeec 6%, transparent);
+  --vp-c-brand-soft: color-mix(in srgb, #5a9bc0 18%, transparent);
+  --dc-accent: #5a9bc0;
+  --dc-accent-hover: #79b3d4;
+  --dc-accent-strong: #4a7fa5;
+  --dc-surface: #202020;
+  --dc-shell: #141515;
+  --dc-line: color-mix(in srgb, #eeeeec 10%, transparent);
+  --dc-line-strong: color-mix(in srgb, #eeeeec 18%, transparent);
+  --dc-text: #eeeeec;
+  --dc-muted: color-mix(in srgb, #eeeeec 66%, #141515);
+  --dc-dimmed: color-mix(in srgb, #eeeeec 42%, #141515);
+  --dc-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --dc-shadow-md: 0 8px 22px rgba(0, 0, 0, 0.32);
+  --dc-shadow-lg: 0 18px 48px rgba(0, 0, 0, 0.4);
+}
+
+.VPNavBarTitle .logo {
+  border-radius: 0;
+}
+
+/* ─── Top navbar: subtle glass blur + soft border (Desktop-aligned) ─── */
+.VPNav,
+.VPNavBar,
+.VPNavBar .content,
+.VPNavBar .content-body {
+  background: color-mix(in srgb, var(--vp-c-bg) 78%, transparent);
+  -webkit-backdrop-filter: blur(12px) saturate(1.05);
+  backdrop-filter: blur(12px) saturate(1.05);
+}
+
+.VPNavBar .content-body {
+  border-bottom: 1px solid var(--vp-c-divider);
+}
+
+.VPNavBar.has-sidebar .content {
+  padding-right: 32px;
+}
+
+.VPNavBar .divider {
+  display: none;
+}
+
+/* Polished search button */
+.DocSearch-Button {
+  border-radius: var(--dc-radius-md) !important;
+  background: var(--vp-c-default-soft) !important;
+  border: 1px solid transparent !important;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease !important;
+}
+
+.DocSearch-Button:hover,
+.DocSearch-Button:focus {
+  border-color: color-mix(in srgb, var(--dc-accent) 35%, transparent) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--dc-accent) 16%, transparent) !important;
+  background: var(--vp-c-bg-alt) !important;
+}
+
+/* ─── Sidebar: OpenHuman-style icons + uppercase group labels ─── */
+.dc-side-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-right: 10px;
+  flex-shrink: 0;
+  color: var(--vp-c-text-3);
+  transition: color 0.18s ease;
+}
+
+.dc-side-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.dc-side-label {
+  display: inline;
+  white-space: normal;
+}
+
+/* Tighten horizontal gutters without touching the desktop nav-height clearance */
+@media (min-width: 960px) {
+  .VPSidebar {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+    padding-bottom: 64px !important;
+  }
+  .VPSidebar .group {
+    width: calc(var(--vp-sidebar-width) - 32px) !important;
+  }
+}
+
+/* On wide screens VitePress fills the left margin by extending the sidebar with
+   a giant left padding, leaving a huge blank zone before the first item.
+   Anchor the sidebar to the centered-layout edge instead so its right edge
+   meets the content's left edge with no gap. */
+@media (min-width: 1440px) {
+  .VPSidebar {
+    left: calc((100vw - var(--vp-layout-max-width)) / 2) !important;
+    width: var(--vp-sidebar-width) !important;
+    padding-left: 16px !important;
+  }
+  .VPSidebar .group {
+    width: calc(var(--vp-sidebar-width) - 32px) !important;
+  }
+  .VPSidebar .curtain {
+    margin-left: -16px !important;
+    margin-right: -16px !important;
+  }
+}
+
+/* Subtler group separator */
+.VPSidebar .group + .group {
+  border-top: 1px solid var(--vp-c-divider);
+  padding-top: 10px;
+}
+
+/* Hidden-by-default scrollbar; fades in only when hovering the sidebar */
+.VPSidebar {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+  transition: scrollbar-color 0.2s ease;
+}
+.VPSidebar:hover {
+  scrollbar-color: color-mix(in srgb, var(--vp-c-text-1) 18%, transparent) transparent;
+}
+.VPSidebar::-webkit-scrollbar {
+  width: 6px;
+}
+.VPSidebar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.VPSidebar::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 3px;
+  transition: background-color 0.2s ease;
+}
+.VPSidebar:hover::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--vp-c-text-1) 18%, transparent);
+}
+.VPSidebar::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--vp-c-text-1) 30%, transparent);
+}
+
+/* Inner item row: rounded, hover/active surface, smooth indent */
+.VPSidebarItem .item {
+  border-radius: var(--dc-radius-md);
+  padding: 6px 8px;
+  margin: 1px 0;
+  transition: background-color 0.18s ease, color 0.18s ease;
+}
+
+.VPSidebarItem .text {
+  display: flex;
+  align-items: center;
+  padding: 0 !important;
+  line-height: 1.4 !important;
+  font-size: 13.5px !important;
+}
+
+.VPSidebarItem.is-link > .item:hover {
+  background: var(--vp-c-default-soft);
+}
+
+.VPSidebarItem.is-link > .item:hover .dc-side-icon {
+  color: var(--dc-accent);
+}
+
+.VPSidebarItem.is-active > .item {
+  background: color-mix(in srgb, var(--dc-accent) 14%, transparent);
+}
+
+.VPSidebarItem.is-active .dc-side-icon {
+  color: var(--dc-accent);
+}
+
+.VPSidebarItem.is-active > .item .text,
+.VPSidebarItem.is-active > .item .link > .text {
+  color: var(--dc-accent) !important;
+  font-weight: 600 !important;
+}
+
+/* Section group labels (level-0): uppercase, dimmed, narrow */
+.VPSidebarItem.level-0 {
+  padding-bottom: 14px !important;
+}
+
+.VPSidebarItem.level-0 > .item {
+  padding: 4px 8px;
+  margin-bottom: 4px;
+  background: transparent !important;
+}
+
+.VPSidebarItem.level-0 > .item > .text {
+  text-transform: uppercase;
+  font-size: 11px !important;
+  letter-spacing: 0.08em;
+  font-weight: 700 !important;
+  color: var(--vp-c-text-3) !important;
+}
+
+/* Drop the default left vertical indicator in favor of bg highlight */
+.VPSidebarItem .indicator {
+  display: none !important;
+}
+
+/* Nested rail: indent by icon width + gap so children align under the label */
+.VPSidebarItem.level-1 .items,
+.VPSidebarItem.level-2 .items,
+.VPSidebarItem.level-3 .items,
+.VPSidebarItem.level-4 .items,
+.VPSidebarItem.level-5 .items {
+  border-left: none !important;
+  padding-left: 18px !important;
+}
+
+/* Make caret feel lighter and align nicely */
+.VPSidebarItem .caret {
+  width: 24px !important;
+  height: 24px !important;
+  margin-right: -4px !important;
+  color: var(--vp-c-text-3);
+  border-radius: 6px;
+  transition: background-color 0.18s ease, color 0.18s ease;
+}
+
+.VPSidebarItem .caret:hover {
+  background: var(--vp-c-default-soft);
+  color: var(--dc-accent);
+}
+
+.VPDoc table {
+  display: table;
+  width: 100%;
+  overflow-x: auto;
+}
+
+.VPDoc th,
+.VPDoc td {
+  min-width: 120px;
+}
+
+.vp-doc .custom-block.github-alert.note,
+.vp-doc .custom-block.github-alert.tip,
+.vp-doc .custom-block.github-alert.warning,
+.vp-doc .custom-block.github-alert.caution {
+  --dc-alert-color: var(--dc-accent);
+  position: relative;
+  margin: 18px 0;
+  padding: 12px 16px 12px 18px;
+  border: 1px solid var(--dc-line);
+  border-left: 4px solid var(--dc-alert-color);
+  border-radius: var(--dc-radius-md);
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--dc-alert-color) 7%, transparent) 0%,
+      color-mix(in srgb, var(--dc-surface) 92%, transparent) 48%,
+      var(--dc-surface) 100%
+    );
+  color: var(--dc-muted);
+  box-shadow: none;
+}
+
+.vp-doc .custom-block.github-alert.note {
+  --dc-alert-color: var(--dc-accent);
+}
+
+.vp-doc .custom-block.github-alert.tip {
+  --dc-alert-color: var(--dc-green);
+}
+
+.vp-doc .custom-block.github-alert.warning {
+  --dc-alert-color: var(--dc-amber);
+}
+
+.vp-doc .custom-block.github-alert.caution {
+  --dc-alert-color: var(--dc-coral);
+}
+
+.dark .vp-doc .custom-block.github-alert.note,
+.dark .vp-doc .custom-block.github-alert.tip,
+.dark .vp-doc .custom-block.github-alert.warning,
+.dark .vp-doc .custom-block.github-alert.caution {
+  border-color: var(--dc-line);
+  border-left-color: var(--dc-alert-color);
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--dc-alert-color) 13%, transparent) 0%,
+      color-mix(in srgb, var(--dc-surface) 88%, transparent) 52%,
+      var(--dc-surface) 100%
+    );
+}
+
+.vp-doc .custom-block.github-alert.note .custom-block-title,
+.vp-doc .custom-block.github-alert.tip .custom-block-title,
+.vp-doc .custom-block.github-alert.warning .custom-block-title,
+.vp-doc .custom-block.github-alert.caution .custom-block-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 6px;
+  color: var(--dc-alert-color);
+  font-size: 13px;
+  font-weight: 750;
+  letter-spacing: 0;
+  line-height: 1.35;
+}
+
+.vp-doc .custom-block.github-alert.note .custom-block-title::before,
+.vp-doc .custom-block.github-alert.tip .custom-block-title::before,
+.vp-doc .custom-block.github-alert.warning .custom-block-title::before,
+.vp-doc .custom-block.github-alert.caution .custom-block-title::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: currentColor;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--dc-alert-color) 16%, transparent);
+  flex: 0 0 auto;
+}
+
+.vp-doc .custom-block.github-alert.note p,
+.vp-doc .custom-block.github-alert.tip p,
+.vp-doc .custom-block.github-alert.warning p,
+.vp-doc .custom-block.github-alert.caution p {
+  margin: 0;
+  line-height: 1.7;
+}
+
+.vp-doc .custom-block.github-alert.note p + p,
+.vp-doc .custom-block.github-alert.tip p + p,
+.vp-doc .custom-block.github-alert.warning p + p,
+.vp-doc .custom-block.github-alert.caution p + p {
+  margin-top: 8px;
+}
+
+.vp-doc .custom-block.github-alert.note a,
+.vp-doc .custom-block.github-alert.note code,
+.vp-doc .custom-block.github-alert.tip a,
+.vp-doc .custom-block.github-alert.tip code,
+.vp-doc .custom-block.github-alert.warning a,
+.vp-doc .custom-block.github-alert.warning code,
+.vp-doc .custom-block.github-alert.caution a,
+.vp-doc .custom-block.github-alert.caution code {
+  color: var(--dc-alert-color);
+}
+
+.vp-doc .custom-block.github-alert.note code,
+.vp-doc .custom-block.github-alert.tip code,
+.vp-doc .custom-block.github-alert.warning code,
+.vp-doc .custom-block.github-alert.caution code {
+  background: color-mix(in srgb, var(--dc-alert-color) 11%, transparent);
+  border-color: color-mix(in srgb, var(--dc-alert-color) 18%, transparent);
+}
+
+.dc-home {
+  color: var(--dc-text);
+  width: 100vw;
+  margin: -32px calc(50% - 50vw) 0;
+  overflow-x: hidden;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--dc-shell) 86%, var(--dc-surface)) 0%, var(--dc-surface) 100%);
+}
+
+.dc-home a {
+  text-decoration: none;
+}
+
+.dc-hero {
+  position: relative;
+  padding: 84px 24px 0;
+  overflow: hidden;
+  border-bottom: 0;
+  background:
+    radial-gradient(1100px 540px at 12% 18%, color-mix(in srgb, var(--dc-accent) 10%, transparent) 0%, transparent 60%),
+    radial-gradient(720px 380px at 88% 12%, color-mix(in srgb, var(--dc-amber) 6%, transparent) 0%, transparent 60%),
+    linear-gradient(180deg, var(--dc-shell) 0%, var(--dc-surface) 100%);
+}
+
+/* On narrow viewports the walking band is hidden, so the hero needs its
+ * bottom padding restored to keep visual rhythm with the next section. */
+@media (max-width: 1100px) {
+  .dc-hero { padding-bottom: 64px; }
+}
+
+.dark .dc-hero {
+  background:
+    radial-gradient(1100px 540px at 12% 18%, color-mix(in srgb, var(--dc-accent) 18%, transparent) 0%, transparent 60%),
+    radial-gradient(720px 380px at 88% 12%, color-mix(in srgb, var(--dc-amber) 10%, transparent) 0%, transparent 60%),
+    linear-gradient(180deg, var(--dc-shell) 0%, var(--dc-surface) 100%);
+}
+
+/* ── Floating mascots in the hero background.
+ *
+ * Two transparent robot SVGs anchor the corners of the hero whitespace.
+ * They breathe and float on their own keyframes, with a small color halo
+ * underneath. Decorative only — content sits at z-index 1 above them. ── */
+.dc-hero__mascot {
+  position: absolute;
+  z-index: 0;
+  display: block;
+  pointer-events: none;
+  user-select: none;
+  isolation: isolate;
+}
+
+.dc-hero__mascot::before {
+  position: absolute;
+  inset: -18px -22px -20px;
+  border-radius: 999px;
+  content: "";
+  filter: blur(14px);
+  pointer-events: none;
+  z-index: -1;
+}
+
+.dc-hero__mascot img {
+  display: block;
+  width: 100%;
+  height: auto;
+  -webkit-user-drag: none;
+  user-select: none;
+}
+
+/* Accent treatment for "AI Agent" in the hero tagline — accent on the word,
+ * static (no gradient text fill — that fights with Bahnschrift hinting). */
+.dc-hero__accent {
+  color: var(--dc-accent);
+}
+
+.dark .dc-hero__accent {
+  color: var(--dc-accent-hover);
+}
+
+/* =============================================================================
+ * Hero walking band ("the stage").
+ *
+ * Five Teams mascots stroll left-to-right across a full-width band below the
+ * 2-column hero, each on its own cycle (24–32s) with a layered Y bob that
+ * reads as a walking gait. A small grid-tinted "ground" suggests the tabletop
+ * surface from desktop's agent-teams card-game preview. Above each mascot,
+ * a speech bubble cycles three short one-liners.
+ *
+ * The whole band is decorative (aria-hidden) and collapses < 1100px.
+ * ============================================================================= */
+
+/* Band stretches edge-to-edge of the hero (negative horizontal margins cancel
+ * the hero's 24px horizontal padding) so the walking line spans full width
+ * and replaces the hero's previous border-bottom. */
+.dc-hero__stage {
+  position: relative;
+  margin: 16px -24px 0;
+  height: 130px;
+  overflow: hidden;
+}
+
+/* =============================================================================
+ * Walking choreography
+ *
+ * Each mascot walks across the band with stop-and-go pacing — 3 pauses per
+ * cycle baked into the keyframe. Three bubble elements per mascot, each
+ * timed to one of the pauses, pop in fully, hold 2-3s, and pop out, leaving
+ * silence between phrases.
+ *
+ * Direction split: 3 LTR, 2 RTL. The __sprite layer flips horizontally for
+ * RTL so the mascot faces its direction; the bubble stays upright.
+ *
+ * Hover an individual mascot → all of that mascot's animations
+ * (walk, gait, bubble pops) freeze in place. Mouse off, resume.
+ * ============================================================================= */
+
+.dc-stage-mascot {
+  position: absolute;
+  bottom: 4px;           /* feet sit on the ground line at bottom 4px */
+  left: 0;
+  width: 60px;
+  height: 60px;
+  cursor: pointer;
+  will-change: transform;
+}
+
+.dc-stage-mascot {
+  /* Single shared walk keyframe; each mascot's --start/--p1/--p2/--p3/--end
+   * inline CSS vars define its own unique pause set, so no two mascots ever
+   * sit at the exact same X during a pause. */
+  animation: dc-stage-walk var(--duration, 28s) linear var(--delay, 0s) infinite;
+}
+
+.dc-stage-mascot__body {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  animation: dc-stage-gait 1.1s ease-in-out infinite;
+  animation-delay: var(--delay, 0s);
+  will-change: transform;
+}
+
+.dc-stage-mascot__body::before {
+  position: absolute;
+  inset: auto 8px -2px;    /* shadow sits on the line, blending into it */
+  height: 4px;
+  border-radius: 999px;
+  background: radial-gradient(ellipse at center, color-mix(in srgb, var(--dc-accent) 30%, #000) 0%, transparent 70%);
+  content: "";
+  filter: blur(2px);
+  z-index: 0;
+  animation: dc-stage-shadow 1.1s ease-in-out infinite;
+  animation-delay: var(--delay, 0s);
+}
+
+.dc-stage-mascot__sprite {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+}
+
+.dc-stage-mascot[data-dir="rtl"] .dc-stage-mascot__sprite {
+  transform: scaleX(-1);
+}
+
+.dc-stage-mascot img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 6px 10px color-mix(in srgb, var(--dc-accent) 20%, transparent));
+}
+
+/* Bubble — pops in fully (border, fill, tail) at a scheduled moment, holds
+ * for ~3s, pops out. Three per mascot, scheduled at 0%, 28%, 56% of cycle
+ * so each one aligns with one of the three walk pauses. */
+
+.dc-stage-bubble {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 14px);
+  padding: 6px 11px;
+  border: 1.5px solid var(--bubble-tint, color-mix(in srgb, var(--dc-accent) 60%, var(--dc-line-strong)));
+  border-radius: 12px;
+  background: var(--dc-surface);
+  color: var(--dc-text);
+  box-shadow: 0 10px 22px color-mix(in srgb, var(--bubble-tint, var(--dc-accent)) 22%, rgba(15, 25, 50, 0.18));
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 2;
+  opacity: 0;
+  transform: translateX(-50%) translateY(6px) scale(0.85);
+  animation: dc-stage-bubble-pop var(--duration, 28s) ease-in-out infinite;
+  /* Bubble aligns with the corresponding walk-pause by shifting its start so
+   * its visible window (22-34%) overlaps the pause's % of the cycle.
+   * Pauses sit at 22-34%, 50-62%, 78-90% of cycle, so the per-phrase offset
+   * is 0, 0.28, 0.56 of the cycle. We subtract that from the per-mascot
+   * --delay so all three bubbles + the walk share the same time origin. */
+  animation-delay: calc(var(--delay, 0s) - var(--duration, 28s) * var(--phase-offset, 0));
+}
+
+.dc-stage-bubble[data-phrase="0"] { --phase-offset: 0; }
+.dc-stage-bubble[data-phrase="1"] { --phase-offset: 0.28; }
+.dc-stage-bubble[data-phrase="2"] { --phase-offset: 0.56; }
+
+.dc-stage-bubble::after {
+  position: absolute;
+  left: 50%;
+  bottom: -7px;
+  width: 12px;
+  height: 12px;
+  margin-left: -6px;
+  background: var(--dc-surface);
+  border-right: 1.5px solid var(--bubble-tint, color-mix(in srgb, var(--dc-accent) 60%, var(--dc-line-strong)));
+  border-bottom: 1.5px solid var(--bubble-tint, color-mix(in srgb, var(--dc-accent) 60%, var(--dc-line-strong)));
+  content: "";
+  transform: rotate(45deg);
+  z-index: -1;
+}
+
+/* Per-mascot bubble tint matches the role's body color. */
+.dc-stage-mascot[data-mascot="leader"]   { --bubble-tint: #4f7cf6; }
+.dc-stage-mascot[data-mascot="explorer"] { --bubble-tint: #0ea5e9; }
+.dc-stage-mascot[data-mascot="builder"]  { --bubble-tint: #8b5cf6; }
+.dc-stage-mascot[data-mascot="reviewer"] { --bubble-tint: #22c55e; }
+.dc-stage-mascot[data-mascot="operator"] { --bubble-tint: #eab308; }
+
+/* Hover any mascot — freeze that mascot's walk, gait, shadow, bubble pops.
+ * Position locks where it currently is, bubble stays whatever opacity it has
+ * at that instant. Mouse out, animations resume from the same point. */
+.dc-stage-mascot:hover,
+.dc-stage-mascot:hover .dc-stage-mascot__body,
+.dc-stage-mascot:hover .dc-stage-mascot__body::before,
+.dc-stage-mascot:hover .dc-stage-bubble {
+  animation-play-state: paused;
+}
+
+/* =============================================================================
+ * Keyframes
+ *
+ * One shared walk keyframe reads per-mascot CSS vars for start, pauses, end.
+ * Each mascot defines a unique pause set so no two mascots ever sit at the
+ * exact same X coordinate during a pause. Walking velocity stays roughly
+ * constant (~2 vw per % of cycle) within each mascot's path.
+ *
+ *   0%  walk      22%  PAUSE  34%  walk  50%  PAUSE  62%  walk  78%  PAUSE  90%  walk 100%
+ *  --start        --p1         --p1     --p2          --p2      --p3        --p3     --end
+ *
+ * RTL mascots simply set --start > --end and pauses in descending order; the
+ * keyframe interpolation handles the direction automatically.
+ * ============================================================================= */
+
+@keyframes dc-stage-walk {
+  0%   { transform: translateX(var(--start, -15vw)); }
+  22%  { transform: translateX(var(--p1, 30vw)); }
+  34%  { transform: translateX(var(--p1, 30vw)); }
+  50%  { transform: translateX(var(--p2, 62vw)); }
+  62%  { transform: translateX(var(--p2, 62vw)); }
+  78%  { transform: translateX(var(--p3, 94vw)); }
+  90%  { transform: translateX(var(--p3, 94vw)); }
+  100% { transform: translateX(var(--end, 115vw)); }
+}
+
+@keyframes dc-stage-gait {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  25%      { transform: translateY(-3px) rotate(-1deg); }
+  50%      { transform: translateY(0) rotate(0deg); }
+  75%      { transform: translateY(-3px) rotate(1deg); }
+}
+
+@keyframes dc-stage-shadow {
+  0%, 50%, 100% { opacity: 0.5; transform: scaleX(1); }
+  25%, 75%      { opacity: 0.32; transform: scaleX(0.78); }
+}
+
+/* Bubble pops in just after the mascot arrives at its pause (~22% of cycle
+ * for phase 0). Visible 22-34% of cycle (~12% = a few seconds depending on
+ * duration), then exits as the mascot starts walking again. */
+@keyframes dc-stage-bubble-pop {
+  0%, 21%   { opacity: 0; transform: translateX(-50%) translateY(6px) scale(0.85); }
+  24%, 31%  { opacity: 1; transform: translateX(-50%) translateY(0)   scale(1);    }
+  34%, 100% { opacity: 0; transform: translateX(-50%) translateY(6px) scale(0.85); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dc-stage-mascot,
+  .dc-stage-mascot__body,
+  .dc-stage-mascot__body::before,
+  .dc-stage-bubble {
+    animation: none;
+  }
+  /* Park each mascot at a fixed spot; show only the first phrase. */
+  .dc-stage-mascot[data-mascot="leader"]   { left: 8%;  transform: none; }
+  .dc-stage-mascot[data-mascot="explorer"] { left: 28%; transform: none; }
+  .dc-stage-mascot[data-mascot="builder"]  { left: 48%; transform: none; }
+  .dc-stage-mascot[data-mascot="reviewer"] { left: 68%; transform: none; }
+  .dc-stage-mascot[data-mascot="operator"] { left: 88%; transform: none; }
+  .dc-stage-bubble[data-phrase="0"] {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+}
+
+@media (max-width: 1100px) {
+  .dc-hero__stage {
+    display: none;
+  }
+}
+
+.dc-hero__inner {
+  position: relative;
+  z-index: 1;
+  width: min(1280px, 100%);
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
+  gap: 56px;
+  align-items: center;
+}
+
+.dc-hero__content {
+  padding: 0;
+}
+
+.dc-hero__media {
+  position: relative;
+  margin: 0;
+}
+
+.dc-hero__media img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 12px;
+  border: 1px solid var(--dc-line);
+  background: var(--dc-surface);
+  box-shadow: var(--dc-shadow-lg);
+}
+
+.dc-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--dc-accent) 22%, transparent);
+  background: color-mix(in srgb, var(--dc-accent) 8%, transparent);
+  color: var(--dc-accent-strong);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  margin: 0 0 22px;
+}
+
+.dark .dc-kicker {
+  color: var(--dc-accent-hover);
+  background: color-mix(in srgb, var(--dc-accent) 14%, transparent);
+}
+
+.dc-hero h1 {
+  max-width: 760px;
+  margin: 0;
+  font-family: "Bahnschrift", "Aptos Display", "Segoe UI Variable Display", var(--vp-font-family-base);
+  font-size: 84px;
+  font-weight: 800;
+  line-height: 0.94;
+  letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
+}
+
+.dc-hero__tagline {
+  max-width: 620px;
+  margin: 20px 0 0;
+  color: var(--dc-text);
+  font-family: "Bahnschrift", "Aptos Display", "Segoe UI Variable Display", var(--vp-font-family-base);
+  font-size: 28px;
+  font-weight: 650;
+  line-height: 1.18;
+  letter-spacing: -0.01em;
+}
+
+.dc-hero__lead {
+  max-width: 560px;
+  margin: 22px 0 0;
+  color: var(--dc-muted);
+  font-size: 16.5px;
+  line-height: 1.72;
+}
+
+.dc-hero__lead code {
+  color: var(--dc-accent-strong);
+  background: color-mix(in srgb, var(--dc-accent) 11%, transparent);
+  border: 1px solid color-mix(in srgb, var(--dc-accent) 18%, transparent);
+  border-radius: 6px;
+  padding: 2px 5px;
+}
+
+.dc-route-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-width: 560px;
+  margin-top: 26px;
+}
+
+.dc-route-list span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--dc-line);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--dc-surface) 88%, transparent);
+  color: var(--dc-muted);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.dc-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 34px;
+}
+
+.dc-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: var(--dc-radius-md);
+  border: 1px solid var(--dc-line);
+  color: var(--dc-text);
+  background: color-mix(in srgb, var(--dc-surface) 78%, transparent);
+  font-weight: 600;
+  line-height: 1;
+  transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.dc-button:hover {
+  border-color: var(--dc-line-strong);
+  background: var(--dc-surface);
+  transform: translateY(-1px);
+  box-shadow: var(--dc-shadow-sm);
+}
+
+.dc-button--primary {
+  color: #ffffff;
+  border-color: var(--dc-accent);
+  background: var(--dc-accent);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--dc-accent) 35%, transparent);
+}
+
+.dc-button--primary:hover {
+  border-color: var(--dc-accent-hover);
+  background: var(--dc-accent-hover);
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--dc-accent) 35%, transparent);
+}
+
+.dc-section {
+  padding: 92px 24px;
+  border-bottom: 1px solid var(--dc-line);
+  background: var(--dc-surface);
+}
+
+.dc-section--quiet {
+  background: var(--dc-shell);
+}
+
+.dc-section--final {
+  border-bottom: 0;
+}
+
+.dc-section__inner {
+  width: min(1280px, 100%);
+  margin: 0 auto;
+}
+
+.dc-section__header {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 44px;
+  max-width: 720px;
+}
+
+.dc-section h2 {
+  margin: 0;
+  font-family: "Bahnschrift", "Aptos Display", "Segoe UI Variable Display", var(--vp-font-family-base);
+  font-size: 42px;
+  font-weight: 760;
+  line-height: 1.1;
+  letter-spacing: -0.015em;
+}
+
+.dc-section__text {
+  margin: 0;
+  color: var(--dc-muted);
+  font-size: 16px;
+  line-height: 1.75;
+}
+
+.dc-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.dc-card {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--dc-line);
+  border-radius: var(--dc-radius-lg);
+  background: var(--dc-surface);
+  padding: 26px 26px 28px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.dc-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
+  background: var(--card-accent, var(--dc-accent));
+}
+
+.dc-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--dc-line-strong);
+  box-shadow: var(--dc-shadow-md);
+}
+
+.dc-card--workspace,
+.dc-card--appserver {
+  --card-accent: var(--dc-accent);
+}
+
+.dc-card--memory,
+.dc-card--editors {
+  --card-accent: var(--dc-green);
+}
+
+.dc-card--runtime,
+.dc-card--sdks {
+  --card-accent: var(--dc-amber);
+}
+
+.dc-card__index {
+  display: block;
+  margin-bottom: 14px;
+  color: var(--card-accent, var(--dc-accent));
+  font-family: var(--vp-font-family-mono);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.dc-card--link {
+  display: block;
+  color: var(--dc-text);
+}
+
+.dc-card--link:hover h3 {
+  color: var(--dc-accent);
+}
+
+.dc-card h3 {
+  margin: 0 0 10px;
+  font-size: 19px;
+  letter-spacing: 0;
+}
+
+.dc-card p {
+  margin: 0;
+  color: var(--dc-muted);
+  line-height: 1.7;
+}
+
+.dc-showcase {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.74fr) minmax(360px, 1fr);
+  gap: 40px;
+  align-items: center;
+}
+
+.dc-showcase--reverse .dc-media {
+  order: -1;
+}
+
+.dc-media {
+  position: relative;
+  margin: 0;
+}
+
+.dc-media img {
+  display: block;
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid var(--dc-line);
+  background: var(--dc-surface);
+  box-shadow: var(--dc-shadow-lg);
+}
+
+.dc-steps {
+  counter-reset: dc-step;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.dc-step {
+  counter-increment: dc-step;
+  padding: 24px 26px 28px;
+  border: 1px solid var(--dc-line);
+  border-radius: var(--dc-radius-lg);
+  background: var(--dc-surface);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.dc-step:hover {
+  border-color: var(--dc-line-strong);
+  box-shadow: var(--dc-shadow-md);
+  transform: translateY(-2px);
+}
+
+.dc-step::before {
+  content: counter(dc-step, decimal-leading-zero);
+  display: block;
+  margin-bottom: 14px;
+  color: var(--dc-accent);
+  font-family: var(--vp-font-family-mono);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.dc-step strong {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 17px;
+}
+
+.dc-step span {
+  display: block;
+  color: var(--dc-muted);
+  line-height: 1.65;
+}
+
+.dc-link-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.dc-link-list a {
+  border: 1px solid var(--dc-line);
+  border-radius: var(--dc-radius-md);
+  padding: 15px 16px;
+  color: var(--dc-text);
+  background: var(--dc-surface);
+  font-weight: 600;
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, color 0.2s ease;
+}
+
+.dc-link-list a:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--dc-accent) 45%, var(--dc-line-strong));
+  color: var(--dc-accent);
+  box-shadow: var(--dc-shadow-md);
+}
+
+.dc-link-list a:hover span {
+  color: var(--dc-muted);
+}
+
+.dc-link-list a span {
+  display: block;
+  margin-top: 4px;
+  color: var(--dc-muted);
+  font-weight: 400;
+  line-height: 1.55;
+}
+
+.dc-section--cta {
+  background:
+    radial-gradient(900px 380px at 50% -20%, color-mix(in srgb, var(--dc-accent) 14%, transparent) 0%, transparent 65%),
+    var(--dc-surface);
+  border-bottom: 0;
+}
+
+.dc-cta {
+  width: min(900px, 100%);
+  margin: 0 auto;
+  text-align: center;
+}
+
+.dc-cta h2 {
+  margin: 0;
+  font-family: "Bahnschrift", "Aptos Display", "Segoe UI Variable Display", var(--vp-font-family-base);
+  font-size: 42px;
+  font-weight: 760;
+  line-height: 1.1;
+  letter-spacing: -0.015em;
+}
+
+.dc-cta p {
+  margin: 16px auto 0;
+  max-width: 620px;
+  color: var(--dc-muted);
+  font-size: 16px;
+  line-height: 1.72;
+}
+
+.dc-cta .dc-actions {
+  justify-content: center;
+  margin-top: 30px;
+}
+
+@media (max-width: 1100px) {
+  .dc-hero__inner {
+    gap: 40px;
+  }
+
+  .dc-hero h1 {
+    font-size: 72px;
+  }
+}
+
+@media (max-width: 860px) {
+  .dc-home {
+    width: 100%;
+    margin: -24px 0 0;
+  }
+
+  .dc-hero {
+    padding: 56px 20px 64px;
+  }
+
+  .dc-hero__inner {
+    grid-template-columns: 1fr;
+    gap: 36px;
+  }
+
+  .dc-hero h1 {
+    max-width: 100%;
+    font-size: 56px;
+    line-height: 0.98;
+  }
+
+  .dc-hero__tagline {
+    max-width: 100%;
+    font-size: 24px;
+    line-height: 1.2;
+  }
+
+  .dc-hero__lead {
+    max-width: 100%;
+    font-size: 16px;
+  }
+
+  .dc-button {
+    padding: 0 14px;
+  }
+
+  .dc-showcase {
+    grid-template-columns: 1fr;
+  }
+
+  .dc-showcase--reverse .dc-media {
+    order: 0;
+  }
+
+  .dc-grid,
+  .dc-link-list,
+  .dc-steps {
+    grid-template-columns: 1fr;
+  }
+
+  .dc-section {
+    padding: 64px 20px;
+  }
+
+  .dc-section h2 {
+    font-size: 34px;
+  }
+
+  .dc-cta h2 {
+    font-size: 34px;
+  }
+}
+
+@media (max-width: 520px) {
+  .dc-hero {
+    padding-top: 48px;
+  }
+
+  .dc-hero h1 {
+    font-size: 44px;
+  }
+
+  .dc-hero__tagline {
+    font-size: 22px;
+  }
+
+  .dc-route-list {
+    gap: 6px;
+  }
+
+  .dc-route-list span {
+    font-size: 12px;
+    min-height: 28px;
+    padding: 0 10px;
+  }
+
+  .dc-actions {
+    gap: 8px;
+  }
+
+  .dc-button {
+    flex: 1 1 calc(50% - 8px);
+    min-width: 0;
+    font-size: 13px;
+    padding: 0 10px;
+  }
+}
+
+/* =============================================================================
+ * What's-new feature reel — 3 × 2 GIF grid.
+ *
+ * Each card is an <a>: GIF on top, copy below. Animated GIFs draw the eye on
+ * their own, so the cards keep their chrome quiet (no hover glow, just a
+ * lift). Mobile collapses to a single column.
+ * ============================================================================= */
+
+.dc-section--reel .dc-section__header {
+  margin-bottom: 32px;
+}
+
+.dc-reel {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.dc-reel-card {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--dc-line);
+  border-radius: var(--dc-radius-lg);
+  background: var(--dc-surface);
+  color: inherit;
+  text-decoration: none;
+  transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
+}
+
+.dc-reel-card:hover {
+  border-color: color-mix(in srgb, var(--dc-accent) 35%, var(--dc-line-strong));
+  box-shadow: var(--dc-shadow-md);
+  transform: translateY(-3px);
+}
+
+.dc-reel-card__media {
+  position: relative;
+  display: block;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  background: var(--dc-shell);
+  border-bottom: 1px solid var(--dc-line);
+}
+
+.dc-reel-card__media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  display: block;
+}
+
+.dc-reel-card__body {
+  display: grid;
+  gap: 4px;
+  padding: 18px 20px 22px;
+}
+
+.dc-reel-card__body small {
+  font-family: var(--vp-font-family-mono);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dc-accent);
+}
+
+.dark .dc-reel-card__body small {
+  color: var(--dc-accent-hover);
+}
+
+.dc-reel-card__body strong {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--dc-text);
+  letter-spacing: -0.005em;
+}
+
+.dc-reel-card__body span {
+  margin-top: 4px;
+  color: var(--dc-muted);
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+@media (max-width: 960px) {
+  .dc-reel {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .dc-reel {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* =============================================================================
+ * Content-page refinements — subtle gradient hints on prose.
+ *
+ * Blockquotes pick up a soft accent-tinted gradient. Tables get a softer
+ * shell. Bahnschrift headings get a subtle gradient text fill on h1 only.
+ * Existing GitHub alerts already use gradients; left alone here.
+ * ============================================================================= */
+
+.vp-doc blockquote {
+  position: relative;
+  margin: 18px 0;
+  padding: 14px 18px 14px 18px;
+  border: 1px solid var(--dc-line);
+  border-left: 3px solid color-mix(in srgb, var(--dc-accent) 60%, transparent);
+  border-radius: var(--dc-radius-md);
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--dc-accent) 6%, transparent) 0%,
+    color-mix(in srgb, var(--dc-surface) 96%, transparent) 50%,
+    var(--dc-surface) 100%
+  );
+  color: var(--dc-muted);
+}
+
+.dark .vp-doc blockquote {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--dc-accent) 12%, transparent) 0%,
+    color-mix(in srgb, var(--dc-surface) 90%, transparent) 50%,
+    var(--dc-surface) 100%
+  );
+}
+
+.vp-doc blockquote p:first-child { margin-top: 0; }
+.vp-doc blockquote p:last-child { margin-bottom: 0; }
+
+.vp-doc h1 {
+  background: linear-gradient(
+    100deg,
+    var(--dc-text) 0%,
+    var(--dc-text) 65%,
+    color-mix(in srgb, var(--dc-accent) 80%, var(--dc-text)) 100%
+  );
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
+.vp-doc table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.vp-doc th {
+  background: color-mix(in srgb, var(--dc-accent) 6%, var(--vp-c-bg-soft));
+}
+
+.dark .vp-doc th {
+  background: color-mix(in srgb, var(--dc-accent) 14%, var(--vp-c-bg-soft));
+}
+
+.vp-doc tr:nth-child(even) td {
+  background: color-mix(in srgb, var(--dc-text) 2%, var(--vp-c-bg-alt));
+}
+
+.dark .vp-doc tr:nth-child(even) td {
+  background: color-mix(in srgb, var(--dc-text) 3%, var(--vp-c-bg-alt));
+}
+

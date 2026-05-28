@@ -1,0 +1,14 @@
+{
+  "DashBoard": {
+    "Enabled": true,
+    "Host": "127.0.0.1",
+    "Port": 8080
+  },
+  "Tools": {
+    "Sandbox": {
+      "Enabled": false,
+      "Domain": "127.0.0.1:5880",
+      "Image": "ubuntu:latest"
+    }
+  }
+}

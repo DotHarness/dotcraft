@@ -1,0 +1,1447 @@
+import { useRef, useState, useCallback, useEffect, useMemo, type CSSProperties } from 'react'
+import { Archive, ChevronsDown, ListChecks, Target } from 'lucide-react'
+import { useLocale, useT } from '../../contexts/LocaleContext'
+import { useConversationStore } from '../../stores/conversationStore'
+import { addToast } from '../../stores/toastStore'
+import { useUIStore } from '../../stores/uiStore'
+import { useConnectionStore } from '../../stores/connectionStore'
+import { useCustomCommandCatalog } from '../../hooks/useCustomCommandCatalog'
+import { useSkillsStore } from '../../stores/skillsStore'
+import { useSubAgentStore } from '../../stores/subAgentStore'
+import { useThreadStore } from '../../stores/threadStore'
+import type { ContextUsageSnapshotWire, Thread, ThreadGoal } from '../../types/thread'
+import type { ComposerDraftSegment } from '../../types/composerDraft'
+import { wireTurnToConversationTurn } from '../../types/conversation'
+import type {
+  ComposerFileAttachment,
+  ConversationItem,
+  ConversationTurn,
+  ImageAttachment,
+  InputPart,
+  QueuedTurnInput
+} from '../../types/conversation'
+import { startTurnWithOptimisticUI } from '../../utils/startTurn'
+import { buildComposerInputParts } from '../../utils/composeInputParts'
+import { isAcceptPlanSentinel } from '../../utils/planAcceptSentinel'
+import { extractGoal, formatGoalUsage, parseGoalSlashCommand, type GoalSlashCommand } from '../../utils/threadGoal'
+import {
+  classifyDroppedComposerFiles,
+  extForFile,
+  isImageFile,
+  mergeComposerFileAttachments
+} from '../../utils/composerAttachments'
+import { PendingMessageIndicator } from './PendingMessageIndicator'
+import { RichInputArea, type RichInputAreaHandle } from './RichInputArea'
+import { AttachmentStrip } from './AttachmentStrip'
+import { FileSearchPopover } from './FileSearchPopover'
+import { CommandSearchPopover, type SlashSystemActionInfo } from './CommandSearchPopover'
+import { GoalControlPopover } from './GoalControlPopover'
+import { ModelPicker, type ReasoningQuickValue } from './ModelPicker'
+import type { ModelCatalogItem } from '../../stores/modelCatalogStore'
+import { useModelCatalogStore } from '../../stores/modelCatalogStore'
+import { useProvidersStore, useChatGptOAuthSummary } from '../../stores/providersStore'
+import { ChatGptUsageBadge } from './ChatGptUsageBadge'
+import { ComposerAttachmentMenu } from './ComposerAttachmentMenu'
+import { ContextUsageRing } from './ContextUsageRing'
+import { ApprovalPolicyPicker } from './ApprovalPolicyPicker'
+import { BackgroundActivityDock } from './SubAgentDock'
+import {
+  COMPOSER_FOOTER_CONTROL_HEIGHT,
+  ComposerPlanModeLabel,
+  ComposerShell,
+  SendIcon,
+  StopIcon,
+  composerSendButtonStyle,
+  composerModelPillStyle
+} from './ComposerShell'
+import { ActionTooltip } from '../ui/ActionTooltip'
+import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
+import { useConfirmDialog } from '../ui/ConfirmDialog'
+import { ConversationColumn } from './ConversationColumn'
+import { stringifyComposerDraftSegments } from './richInputSerialization'
+
+const MAX_TEXT_LENGTH = 100_000
+const MAX_IMAGES = 5
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024
+const MANUAL_COMPACTION_TIMEOUT_MS = 5 * 60 * 1000
+const MANUAL_MEMORY_CONSOLIDATION_TIMEOUT_MS = 5 * 60 * 1000
+
+interface ComposerHistoryEntry {
+  text: string
+  segments: ComposerDraftSegment[]
+}
+
+interface ComposerDraftSnapshot extends ComposerHistoryEntry {
+  files: ComposerFileAttachment[]
+  images: ImageAttachment[]
+}
+
+function isTurnBusyError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err)
+  const normalized = message.toLowerCase()
+  return normalized.includes('turninprogress')
+    || normalized.includes('already has a running turn')
+    || normalized.includes('active thread maintenance')
+    || normalized.includes('thread maintenance')
+    || normalized.includes('-32012')
+}
+
+function isRequestTimeoutError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err)
+  const normalized = message.toLowerCase()
+  return normalized.includes('timed out') || normalized.includes('timeout')
+}
+
+interface InputComposerProps {
+  threadId: string
+  workspacePath: string
+  modelName?: string
+  modelOptions?: string[]
+  modelCatalog?: ModelCatalogItem[]
+  reasoningValue?: ReasoningQuickValue
+  modelLoading?: boolean
+  modelDisabled?: boolean
+  /** When true, model/list reported that the upstream API does not support listing; show a read-only label. */
+  modelListUnsupportedEndpoint?: boolean
+  modelCatalogError?: boolean
+  modelCatalogErrorMessage?: string | null
+  onModelChange?: (model: string) => void
+  onReasoningChange?: (value: ReasoningQuickValue) => void
+  onModelCatalogRetry?: () => void
+}
+
+/**
+ * Bottom input area for the conversation panel.
+ * Rich input with @ file refs, image strip (paste / drag-drop), Enter to send.
+ */
+export function InputComposer({
+  threadId,
+  workspacePath,
+  modelName = 'Default',
+  modelOptions = [],
+  modelCatalog = [],
+  reasoningValue = 'off',
+  modelLoading = false,
+  modelDisabled = false,
+  modelListUnsupportedEndpoint = false,
+  modelCatalogError = false,
+  modelCatalogErrorMessage = null,
+  onModelChange,
+  onReasoningChange,
+  onModelCatalogRetry
+}: InputComposerProps): JSX.Element {
+  const t = useT()
+  const [images, setImages] = useState<ImageAttachment[]>([])
+  const [files, setFiles] = useState<ComposerFileAttachment[]>([])
+  const [atQuery, setAtQuery] = useState<string | null>(null)
+  const [mentionDismissed, setMentionDismissed] = useState(false)
+  const [slashQuery, setSlashQuery] = useState<string | null>(null)
+  const [slashDismissed, setSlashDismissed] = useState(false)
+  const [skillQuery, setSkillQuery] = useState<string | null>(null)
+  const [skillDismissed, setSkillDismissed] = useState(false)
+  const [goalPopoverOpen, setGoalPopoverOpen] = useState(false)
+  const [goalBusy, setGoalBusy] = useState(false)
+  const [compactBusy, setCompactBusy] = useState(false)
+  const [consolidateBusy, setConsolidateBusy] = useState(false)
+  const [dragOver, setDragOver] = useState(false)
+  const [editorFocused, setEditorFocused] = useState(false)
+  /** Bumps on rich-input edits so `canSend` re-evaluates from ref (contentEditable has no React state). */
+  const [contentRevision, setContentRevision] = useState(0)
+  const [historyCursor, setHistoryCursor] = useState<number | null>(null)
+  const richRef = useRef<RichInputAreaHandle>(null)
+  const sendInFlightRef = useRef(false)
+  const pendingModeChangeRef = useRef<Promise<void> | null>(null)
+  const applyingHistoryRef = useRef(false)
+  const historyDraftRef = useRef<ComposerDraftSnapshot | null>(null)
+  const capabilities = useConnectionStore((s) => s.capabilities)
+
+  // Load providers once so the ChatGPT subscription badge can render in the composer footer.
+  const reloadProviders = useProvidersStore((s) => s.reload)
+  useEffect(() => {
+    if (capabilities?.providerManagement !== true) return
+    void reloadProviders()
+  }, [capabilities?.providerManagement, reloadProviders])
+  const activeCatalogProviderId = useModelCatalogStore((s) => s.providerId)
+  const activeChatGptProvider = useChatGptOAuthSummary(activeCatalogProviderId)
+
+  const turns = useConversationStore((s) => s.turns)
+  const turnStatus = useConversationStore((s) => s.turnStatus)
+  const pendingMessage = useConversationStore((s) => s.pendingMessage)
+  const queuedInputs = useConversationStore((s) => s.queuedInputs)
+  const maintenanceKind = useConversationStore((s) => s.maintenanceKind)
+  const threadMode = useConversationStore((s) => s.threadMode)
+  const setThreadMode = useConversationStore((s) => s.setThreadMode)
+  const composerPrefill = useUIStore((s) => s.composerPrefill)
+  const currentGoal = useThreadStore((s) => s.goalSnapshots.get(threadId) ?? null)
+  const hasSubAgentDock = useSubAgentStore((s) => (s.childrenByParent.get(threadId)?.length ?? 0) > 0)
+  const hasBackgroundActivityDock = queuedInputs.length > 0 || hasSubAgentDock
+  const locale = useLocale()
+  const confirm = useConfirmDialog()
+
+  const isRunning = turnStatus === 'running'
+  const isWaitingApproval = turnStatus === 'waitingApproval'
+  const isWaitingInput = turnStatus === 'waitingInput'
+  const isMaintenanceActive = maintenanceKind === 'compacting' || maintenanceKind === 'consolidating'
+  const isBusyForInput = isRunning || isMaintenanceActive
+  const canUseCommandPicker = capabilities?.commandManagement === true
+  const canUseSkillPicker = capabilities?.skillsManagement === true
+  const canUseThreadGoals = capabilities?.threadGoals === true
+  const canUseManualCompaction = capabilities?.manualCompaction === true
+  const canUseManualMemoryConsolidation = capabilities?.manualMemoryConsolidation === true
+  const turnsLength = turns.length
+  const canCompactCurrentThread = canUseManualCompaction && turnsLength > 0 && turnStatus === 'idle' && !isMaintenanceActive
+  const canConsolidateCurrentThread = canUseManualMemoryConsolidation && turnsLength > 0 && turnStatus === 'idle' && !isMaintenanceActive
+  const canUseSystemActions = true
+  const canUseSlashPicker = canUseCommandPicker || canUseSkillPicker || canUseThreadGoals || canUseSystemActions
+
+  const showMentionPopover = atQuery !== null && !mentionDismissed
+  const normalizedSlashQuery = slashQuery?.toLowerCase() ?? null
+  const isExactSystemSlashQuery = normalizedSlashQuery === 'plan' || normalizedSlashQuery === 'agent' || normalizedSlashQuery === 'compact' || normalizedSlashQuery === 'consolidate'
+  const showSlashPopover = slashQuery !== null && !slashDismissed && canUseSlashPicker && !isExactSystemSlashQuery
+  const showSkillPopover = skillQuery !== null && !skillDismissed && canUseSkillPicker
+  const { commands: customCommands, status: customCommandStatus } = useCustomCommandCatalog({
+    enabled: canUseCommandPicker,
+    locale
+  })
+  const skills = useSkillsStore((s) => s.skills)
+  const skillsLoading = useSkillsStore((s) => s.loading)
+  const fetchSkills = useSkillsStore((s) => s.fetchSkills)
+  const availableSkills = useMemo(
+    () =>
+      skills
+        .filter((skill) => skill.available)
+        .map((skill) => ({
+          name: skill.name.replace(/^\/+/, ''),
+          description: skill.description
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [skills]
+  )
+  const richRefCatalog = useMemo(
+    () => ({
+      commands: customCommands,
+      skills: availableSkills
+    }),
+    [availableSkills, customCommands]
+  )
+  const composerHistory = useMemo(
+    () => buildComposerHistory(turns, threadId),
+    [threadId, turns]
+  )
+  const systemActions = useMemo(
+    () => {
+      const actions: SlashSystemActionInfo[] = [
+        {
+          id: 'planMode',
+          label: t('composer.system.plan'),
+          description: threadMode === 'agent'
+            ? t('composer.system.plan.enable')
+            : t('composer.system.plan.disable'),
+          keywords: ['plan', 'agent'],
+          icon: <ListChecks size={11} strokeWidth={2} aria-hidden />
+        }
+      ]
+      if (canCompactCurrentThread) {
+        actions.push({
+          id: 'compact',
+          label: t('composer.system.compact'),
+          description: t('composer.system.compact.description'),
+          keywords: ['compact'],
+          icon: <ChevronsDown size={11} strokeWidth={2} aria-hidden />
+        })
+      }
+      if (canConsolidateCurrentThread) {
+        actions.push({
+          id: 'consolidate',
+          label: t('composer.system.consolidate'),
+          description: t('composer.system.consolidate.description'),
+          keywords: ['consolidate', 'memory'],
+          icon: <Archive size={11} strokeWidth={2} aria-hidden />
+        })
+      }
+      if (canUseThreadGoals) {
+        actions.push({
+          id: 'goal',
+          label: t('goal.system.label'),
+          description: t('goal.system.description'),
+          keywords: ['goal', '目标'],
+          icon: <Target size={11} strokeWidth={2} aria-hidden />
+        })
+      }
+      return actions
+    },
+    [canCompactCurrentThread, canConsolidateCurrentThread, canUseThreadGoals, t, threadMode]
+  )
+
+  useEffect(() => {
+    if (!canUseSkillPicker) return
+    void fetchSkills()
+  }, [canUseSkillPicker, fetchSkills])
+
+  useEffect(() => {
+    setHistoryCursor(null)
+    historyDraftRef.current = null
+  }, [threadId])
+
+  const captureComposerDraft = useCallback((): ComposerDraftSnapshot => ({
+    text: richRef.current?.getText() ?? '',
+    segments: richRef.current?.getSegments() ?? [],
+    files: [...files],
+    images: [...images]
+  }), [files, images])
+
+  const applyComposerSnapshot = useCallback((
+    snapshot: ComposerHistoryEntry,
+    nextFiles: ComposerFileAttachment[] = [],
+    nextImages: ImageAttachment[] = []
+  ): void => {
+    applyingHistoryRef.current = true
+    try {
+      richRef.current?.setContent({
+        text: snapshot.text,
+        segments: snapshot.segments
+      })
+      const cursor = linearLengthOfComposerEntry(snapshot)
+      richRef.current?.setSelectionRange({ start: cursor, end: cursor })
+      setFiles([...nextFiles])
+      setImages([...nextImages])
+    } finally {
+      applyingHistoryRef.current = false
+    }
+  }, [])
+
+  const handleComposerContentChange = useCallback((): void => {
+    setContentRevision((n) => n + 1)
+    if (applyingHistoryRef.current) return
+    setHistoryCursor(null)
+    historyDraftRef.current = null
+  }, [])
+
+  const handleHistoryNavigate = useCallback((direction: 'previous' | 'next'): boolean => {
+    if (showMentionPopover || showSlashPopover || showSkillPopover || goalPopoverOpen) {
+      return false
+    }
+    const historyCount = composerHistory.length
+    if (historyCount === 0) return false
+
+    if (direction === 'previous') {
+      const currentCursor = Math.min(Math.max(historyCursor ?? historyCount, 0), historyCount)
+      if (currentCursor <= 0) return false
+      if (historyCursor === null) {
+        historyDraftRef.current = captureComposerDraft()
+      }
+      const nextCursor = currentCursor - 1
+      const entry = composerHistory[nextCursor]
+      if (!entry) return false
+      setHistoryCursor(nextCursor)
+      applyComposerSnapshot(entry)
+      return true
+    }
+
+    if (historyCursor === null) return false
+    const nextCursor = historyCursor + 1
+    if (nextCursor >= historyCount) {
+      const draft = historyDraftRef.current
+      setHistoryCursor(null)
+      historyDraftRef.current = null
+      if (draft) {
+        applyComposerSnapshot(draft, draft.files, draft.images)
+      } else {
+        applyComposerSnapshot({ text: '', segments: [] })
+      }
+      return true
+    }
+
+    const entry = composerHistory[nextCursor]
+    if (!entry) return false
+    setHistoryCursor(nextCursor)
+    applyComposerSnapshot(entry)
+    return true
+  }, [
+    applyComposerSnapshot,
+    captureComposerDraft,
+    composerHistory,
+    goalPopoverOpen,
+    historyCursor,
+    showMentionPopover,
+    showSkillPopover,
+    showSlashPopover
+  ])
+
+  const handleAtQuery = useCallback((q: string | null): void => {
+    setAtQuery(q)
+    if (q !== null) setMentionDismissed(false)
+  }, [])
+
+  const handleSlashQuery = useCallback((q: string | null): void => {
+    setSlashQuery(q)
+    if (q !== null) setSlashDismissed(false)
+  }, [])
+
+  const handleSkillQuery = useCallback((q: string | null): void => {
+    setSkillQuery(q)
+    if (q !== null) setSkillDismissed(false)
+  }, [])
+
+  // Consume any pending prefill text when InputComposer mounts
+  useEffect(() => {
+    if (composerPrefill) {
+      const prefill = composerPrefill
+      useUIStore.getState().consumeComposerPrefill()
+      setTimeout(() => {
+        richRef.current?.setPlainText(prefill)
+        richRef.current?.focus()
+      }, 0)
+    }
+  }, [composerPrefill])
+
+  useEffect(() => {
+    const focus = (): void => {
+      richRef.current?.focus()
+    }
+    const setTextAndFocus = (value: string): void => {
+      richRef.current?.setPlainText(value)
+      setTimeout(() => richRef.current?.focus(), 0)
+    }
+    ;(window as Window & { __inputComposerFocus?: () => void }).__inputComposerFocus = focus
+    ;(window as Window & { __inputComposerSetText?: (v: string) => void }).__inputComposerSetText = setTextAndFocus
+    return () => {
+      delete (window as Window & { __inputComposerFocus?: () => void }).__inputComposerFocus
+      delete (window as Window & { __inputComposerSetText?: (v: string) => void }).__inputComposerSetText
+    }
+  }, [])
+
+  const prevTurnStatusRef = useRef(turnStatus)
+  useEffect(() => {
+    const prev = prevTurnStatusRef.current
+    if (prev === 'waitingApproval' && turnStatus !== 'waitingApproval') {
+      richRef.current?.focus()
+    }
+    prevTurnStatusRef.current = turnStatus
+  }, [turnStatus])
+
+  const ensureCurrentGoal = useCallback(async (): Promise<ThreadGoal | null> => {
+    if (currentGoal) return currentGoal
+    const raw = await window.api.appServer.sendRequest('thread/goal/get', { threadId })
+    const goal = extractGoal(raw)
+    if (goal) {
+      useThreadStore.getState().setThreadGoal(goal)
+    } else {
+      useThreadStore.getState().clearThreadGoal(threadId)
+    }
+    return goal
+  }, [currentGoal, threadId])
+
+  const showGoalUnavailable = useCallback((): void => {
+    addToast(t('goal.toast.unsupported'), 'warning')
+  }, [t])
+
+  const setGoalObjective = useCallback(async (objective: string): Promise<boolean> => {
+    if (!canUseThreadGoals) {
+      showGoalUnavailable()
+      return false
+    }
+    const trimmedObjective = objective.trim()
+    if (!trimmedObjective) {
+      addToast(t('goal.toast.emptyObjective'), 'warning')
+      return false
+    }
+
+    setGoalBusy(true)
+    try {
+      const existing = await ensureCurrentGoal()
+      const replacing =
+        existing != null &&
+        existing.status !== 'complete' &&
+        existing.objective.trim() !== trimmedObjective
+      if (replacing) {
+        const accepted = await confirm({
+          title: t('goal.replaceConfirm.title'),
+          message: t('goal.replaceConfirm.message', {
+            current: existing.objective,
+            next: trimmedObjective
+          }),
+          confirmLabel: t('goal.replaceConfirm.confirm'),
+          cancelLabel: t('goal.action.cancel')
+        })
+        if (!accepted) return false
+      }
+
+      const result = await window.api.appServer.sendRequest('thread/goal/set', {
+        threadId,
+        objective: trimmedObjective,
+        mode: replacing ? 'replaceExisting' : 'upsertOrUpdate'
+      })
+      const goal = extractGoal(result)
+      if (goal) {
+        useThreadStore.getState().setThreadGoal(goal)
+      }
+      return true
+    } catch (err) {
+      addToast(t('goal.toast.updateFailed', { error: err instanceof Error ? err.message : String(err) }), 'error')
+      try {
+        await ensureCurrentGoal()
+      } catch {
+        // Best-effort refresh only.
+      }
+      return false
+    } finally {
+      setGoalBusy(false)
+    }
+  }, [canUseThreadGoals, confirm, ensureCurrentGoal, showGoalUnavailable, t, threadId])
+
+  const updateGoalStatus = useCallback(async (status: 'active' | 'paused'): Promise<boolean> => {
+    if (!canUseThreadGoals) {
+      showGoalUnavailable()
+      return false
+    }
+    setGoalBusy(true)
+    try {
+      const existing = await ensureCurrentGoal()
+      if (!existing) {
+        addToast(t('goal.toast.noCurrent'), 'warning')
+        return false
+      }
+      const result = await window.api.appServer.sendRequest('thread/goal/set', {
+        threadId,
+        status,
+        mode: 'updateOnly'
+      })
+      const goal = extractGoal(result)
+      if (goal) {
+        useThreadStore.getState().setThreadGoal(goal)
+      }
+      return true
+    } catch (err) {
+      addToast(t('goal.toast.updateFailed', { error: err instanceof Error ? err.message : String(err) }), 'error')
+      try {
+        await ensureCurrentGoal()
+      } catch {
+        // Best-effort refresh only.
+      }
+      return false
+    } finally {
+      setGoalBusy(false)
+    }
+  }, [canUseThreadGoals, ensureCurrentGoal, showGoalUnavailable, t, threadId])
+
+  const clearGoal = useCallback(async (): Promise<boolean> => {
+    if (!canUseThreadGoals) {
+      showGoalUnavailable()
+      return false
+    }
+    setGoalBusy(true)
+    try {
+      await window.api.appServer.sendRequest('thread/goal/clear', { threadId })
+      useThreadStore.getState().clearThreadGoal(threadId)
+      return true
+    } catch (err) {
+      addToast(t('goal.toast.updateFailed', { error: err instanceof Error ? err.message : String(err) }), 'error')
+      try {
+        await ensureCurrentGoal()
+      } catch {
+        // Best-effort refresh only.
+      }
+      return false
+    } finally {
+      setGoalBusy(false)
+    }
+  }, [canUseThreadGoals, ensureCurrentGoal, showGoalUnavailable, t, threadId])
+
+  const executeGoalCommand = useCallback(async (command: GoalSlashCommand): Promise<boolean> => {
+    if (!canUseThreadGoals) {
+      showGoalUnavailable()
+      return false
+    }
+    if (command.kind === 'show') {
+      setGoalPopoverOpen(true)
+      try {
+        await ensureCurrentGoal()
+      } catch {
+        // Showing an empty panel is still useful when refresh fails.
+      }
+      return true
+    }
+    if (command.kind === 'set') return setGoalObjective(command.objective)
+    if (command.kind === 'pause') return updateGoalStatus('paused')
+    if (command.kind === 'resume') return updateGoalStatus('active')
+    return clearGoal()
+  }, [canUseThreadGoals, clearGoal, ensureCurrentGoal, setGoalObjective, showGoalUnavailable, updateGoalStatus])
+
+  const saveDataUrlAsTemp = useCallback(
+    async (dataUrl: string, fileName: string, mimeType: string): Promise<void> => {
+      const baseLen = dataUrl.split(',')[1]?.length ?? 0
+      const approxBytes = Math.floor((baseLen * 3) / 4)
+      if (approxBytes > MAX_IMAGE_BYTES) {
+        addToast(
+          t('input.imageTooLarge', { mb: MAX_IMAGE_BYTES / 1024 / 1024 }),
+          'warning'
+        )
+        return
+      }
+      if (images.length >= MAX_IMAGES) {
+        addToast(t('input.maxImages', { max: MAX_IMAGES }), 'warning')
+        return
+      }
+      try {
+        const { path } = await window.api.workspace.saveImageToTemp({ dataUrl, fileName })
+        setImages((prev) => [
+          ...prev,
+          { tempPath: path, dataUrl, fileName, mimeType }
+        ])
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        addToast(t('input.saveImageFailed', { error: msg }), 'error')
+      }
+    },
+    [images.length, t]
+  )
+
+  const onPasteImage = useCallback(
+    (file: File): void => {
+      if (!isImageFile(file)) {
+        addToast(
+          t('input.unsupportedImage', { ext: extForFile(file.name) || 'unknown' }),
+          'warning'
+        )
+        return
+      }
+      const reader = new FileReader()
+      reader.onload = () => {
+        const dataUrl = reader.result as string
+        void saveDataUrlAsTemp(dataUrl, file.name, file.type || 'image/png')
+      }
+      reader.readAsDataURL(file)
+    },
+    [saveDataUrlAsTemp]
+  )
+
+  const onDragOver = useCallback((e: React.DragEvent): void => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragOver(true)
+  }, [])
+
+  const onDragLeave = useCallback((e: React.DragEvent): void => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragOver(false)
+  }, [])
+
+  const attachImages = useCallback((picked: File[]): void => {
+    for (const file of picked) {
+      onPasteImage(file)
+    }
+  }, [onPasteImage])
+
+  const onDrop = useCallback(
+    (e: React.DragEvent): void => {
+      e.preventDefault()
+      e.stopPropagation()
+      setDragOver(false)
+      const { imageFiles, fileAttachments, skippedCount } = classifyDroppedComposerFiles(
+        e.dataTransfer,
+        window.api.workspace.getPathForFile
+      )
+      attachImages(imageFiles)
+      if (fileAttachments.length > 0) {
+        setFiles((prev) => mergeComposerFileAttachments(prev, fileAttachments))
+      }
+      if (skippedCount > 0) {
+        addToast(t('input.dropItemsSkipped', { count: skippedCount }), 'warning')
+      }
+    },
+    [attachImages, t]
+  )
+
+  const sendMessage = useCallback(async () => {
+    const text = richRef.current?.getText() ?? ''
+    const segments = richRef.current?.getSegments() ?? []
+    const trimmed = text.trim()
+    if (!trimmed && images.length === 0 && files.length === 0) return
+    if (isWaitingApproval || isWaitingInput) return
+    if (modelLoading) return
+
+    const systemCommand = parseSystemSlashCommand(trimmed)
+    if (systemCommand) {
+      let clearInput = false
+      if (systemCommand.kind === 'plan') clearInput = await setComposerMode('plan')
+      else if (systemCommand.kind === 'agent') clearInput = await setComposerMode('agent')
+      else if (systemCommand.kind === 'compact') clearInput = await compactThreadContext()
+      else clearInput = await consolidateThreadMemory()
+      if (clearInput) {
+        richRef.current?.clear()
+        setImages([])
+        setFiles([])
+      }
+      return
+    }
+
+    const goalCommand = parseGoalSlashCommand(trimmed)
+    if (goalCommand) {
+      const clearInput = await executeGoalCommand(goalCommand)
+      if (clearInput) {
+        richRef.current?.clear()
+        setImages([])
+        setFiles([])
+      }
+      return
+    }
+
+    if (pendingModeChangeRef.current) {
+      await pendingModeChangeRef.current
+    }
+
+    if (isBusyForInput) {
+      if (sendInFlightRef.current) return
+      sendInFlightRef.current = true
+      try {
+        if (trimmed || files.length > 0 || images.length > 0) {
+          const { inputParts } = buildComposerInputParts({ text: trimmed, segments, files, images })
+          await window.api.appServer.sendRequest('turn/enqueue', {
+            threadId,
+            input: inputParts,
+            sender: undefined
+          })
+        }
+        richRef.current?.clear()
+        setImages([])
+        setFiles([])
+      } catch (err) {
+        console.error('turn/enqueue failed:', err)
+        addToast(err instanceof Error ? err.message : String(err), 'error')
+      } finally {
+        sendInFlightRef.current = false
+      }
+      return
+    }
+
+    if (sendInFlightRef.current) return
+    sendInFlightRef.current = true
+    const capturedImages = [...images]
+    const capturedFiles = [...files]
+    const capturedSegments = [...segments]
+    const { inputParts } = buildComposerInputParts({
+      text: trimmed,
+      segments: capturedSegments,
+      files: capturedFiles,
+      images: capturedImages
+    })
+    try {
+      richRef.current?.clear()
+      setImages([])
+      setFiles([])
+      await startTurnWithOptimisticUI({
+        threadId,
+        workspacePath,
+        text: trimmed,
+        segments,
+        images: capturedImages,
+        files: capturedFiles,
+        fallbackThreadName: t('toast.imageMessage'),
+        fileFallbackThreadName: t('toast.fileReferenceMessage'),
+        attachmentFallbackThreadName: t('toast.attachmentMessage'),
+        throwOnStartError: true
+      })
+    } catch (err) {
+      console.error('turn/start failed:', err)
+      if (isTurnBusyError(err)) {
+        try {
+          await window.api.appServer.sendRequest('turn/enqueue', {
+            threadId,
+            input: inputParts,
+            sender: undefined
+          })
+          return
+        } catch (enqueueErr) {
+          console.error('turn/enqueue fallback failed:', enqueueErr)
+          richRef.current?.setContent({ text: trimmed, segments: capturedSegments })
+          setImages(capturedImages)
+          setFiles(capturedFiles)
+          addToast(enqueueErr instanceof Error ? enqueueErr.message : String(enqueueErr), 'error')
+          return
+        }
+      }
+      richRef.current?.setContent({ text: trimmed, segments: capturedSegments })
+      setImages(capturedImages)
+      setFiles(capturedFiles)
+      addToast(err instanceof Error ? err.message : String(err), 'error')
+    } finally {
+      sendInFlightRef.current = false
+    }
+  }, [compactThreadContext, consolidateThreadMemory, executeGoalCommand, files, images, isBusyForInput, isWaitingApproval, isWaitingInput, modelLoading, setComposerMode, threadId, workspacePath, t])
+
+  const removeQueuedInput = useCallback(async (queuedInputId: string): Promise<void> => {
+    try {
+      const res = await window.api.appServer.sendRequest('turn/queue/remove', { threadId, queuedInputId }) as {
+        queuedInputs?: unknown[]
+      }
+      useConversationStore.getState().setQueuedInputs((res.queuedInputs ?? []) as QueuedTurnInput[])
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : String(err), 'error')
+    }
+  }, [threadId])
+
+  const steerQueuedInput = useCallback(async (queuedInputId: string): Promise<void> => {
+    const state = useConversationStore.getState()
+    const activeTurnId = state.activeTurnId
+    const queued = state.queuedInputs.find((item) => item.id === queuedInputId)
+    if (!activeTurnId || !queued) return
+    if (queued.status === 'guidancePending') return
+    try {
+      const res = await window.api.appServer.sendRequest('turn/steer', {
+        threadId,
+        expectedTurnId: activeTurnId,
+        queuedInputId
+      }) as { queuedInputs?: unknown[] }
+      useConversationStore.getState().setQueuedInputs((res.queuedInputs ?? []) as QueuedTurnInput[])
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : String(err), 'error')
+    }
+  }, [threadId])
+
+  const reorderQueuedInputs = useCallback(async (orderedQueuedInputIds: string[]): Promise<void> => {
+    const previousQueue = useConversationStore.getState().queuedInputs
+    const previousById = new Map(previousQueue.map((item) => [item.id, item]))
+    const optimisticQueue = orderedQueuedInputIds
+      .map((id) => previousById.get(id))
+      .filter((item): item is QueuedTurnInput => item !== undefined)
+    if (optimisticQueue.length !== previousQueue.length) return
+
+    useConversationStore.getState().setQueuedInputs(optimisticQueue)
+    try {
+      const res = await window.api.appServer.sendRequest('turn/queue/reorder', {
+        threadId,
+        orderedQueuedInputIds
+      }) as { queuedInputs?: unknown[] }
+      useConversationStore.getState().setQueuedInputs((res.queuedInputs ?? []) as QueuedTurnInput[])
+    } catch (err) {
+      useConversationStore.getState().setQueuedInputs(previousQueue)
+      addToast(
+        t('composer.queueReorderFailed', {
+          error: err instanceof Error ? err.message : String(err)
+        }),
+        'error'
+      )
+    }
+  }, [threadId, t])
+
+  const stopTurn = useCallback(async () => {
+    const state = useConversationStore.getState()
+    const activeTurnId = state.activeTurnId
+    try {
+      if (activeTurnId && !activeTurnId.startsWith('local-turn-')) {
+        await window.api.appServer.sendRequest('turn/interrupt', { threadId, turnId: activeTurnId })
+        return
+      }
+      if (state.maintenanceKind === 'compacting' || state.maintenanceKind === 'consolidating') {
+        await window.api.appServer.sendRequest('thread/maintenance/interrupt', { threadId })
+      }
+    } catch (err) {
+      console.error('interrupt failed:', err)
+    }
+  }, [threadId])
+
+  async function setComposerMode(nextMode: 'agent' | 'plan'): Promise<boolean> {
+    if (pendingModeChangeRef.current) return false
+    const previousMode = useConversationStore.getState().threadMode
+    if (previousMode === nextMode) return true
+
+    setThreadMode(nextMode)
+    const request = window.api.appServer
+      .sendRequest('thread/mode/set', {
+        threadId,
+        mode: nextMode
+      })
+      .catch((err) => {
+        console.error('thread/mode/set failed:', err)
+        setThreadMode(previousMode)
+        addToast(
+          t('composer.modeSwitchFailed', {
+            error: err instanceof Error ? err.message : String(err)
+          }),
+          'error'
+        )
+        return false
+      })
+      .finally(() => {
+        if (pendingModeChangeRef.current === request) {
+          pendingModeChangeRef.current = null
+        }
+      })
+
+    pendingModeChangeRef.current = request
+    const result = await request
+    return result !== false
+  }
+
+  async function toggleMode(): Promise<void> {
+    const previousMode = useConversationStore.getState().threadMode
+    const newMode = previousMode === 'agent' ? 'plan' : 'agent'
+    await setComposerMode(newMode)
+  }
+
+  async function compactThreadContext(): Promise<boolean> {
+    if (compactBusy) return false
+    if (!canCompactCurrentThread) {
+      addToast(t('composer.compact.unavailable'), 'warning')
+      return false
+    }
+
+    setCompactBusy(true)
+    addToast(t('composer.compact.started'), 'info')
+    try {
+      const result = (await window.api.appServer.sendRequest(
+        'thread/compact/start',
+        { threadId },
+        MANUAL_COMPACTION_TIMEOUT_MS
+      )) as {
+        outcome?: string
+        message?: string
+        contextUsage?: ContextUsageSnapshotWire | null
+      }
+      if (result.contextUsage) {
+        useConversationStore.getState().setContextUsage(result.contextUsage)
+      }
+      const outcome = String(result.outcome ?? '').toLowerCase()
+      if (outcome === 'micro' || outcome === 'partial') {
+        await refreshThreadAfterManualCompact()
+        addToast(t('composer.compact.succeeded'), 'success')
+      } else if (outcome === 'skipped') {
+        addToast(t('composer.compact.skipped'), 'info')
+      } else {
+        addToast(t('composer.compact.failed', { error: result.message || outcome || 'unknown' }), 'error')
+      }
+      return true
+    } catch (err) {
+      if (isRequestTimeoutError(err) && useConversationStore.getState().maintenanceKind === 'compacting') {
+        addToast(t('composer.compact.stillRunning'), 'info')
+        return true
+      }
+      addToast(t('composer.compact.failed', { error: err instanceof Error ? err.message : String(err) }), 'error')
+      return false
+    } finally {
+      setCompactBusy(false)
+    }
+  }
+
+  async function refreshThreadAfterManualCompact(): Promise<void> {
+    try {
+      const response = (await window.api.appServer.sendRequest(
+        'thread/read',
+        { threadId, includeTurns: true }
+      )) as { thread?: Thread }
+      const refreshed = response.thread
+      if (!refreshed || useThreadStore.getState().activeThreadId !== threadId) return
+
+      useThreadStore.getState().setActiveThread(refreshed)
+      useConversationStore.getState().setTurns(
+        (refreshed.turns ?? []).map((turn) =>
+          wireTurnToConversationTurn(turn as unknown as Record<string, unknown>)
+        )
+      )
+      useConversationStore.getState().setQueuedInputs(refreshed.queuedInputs ?? [])
+      if ('contextUsage' in refreshed) {
+        useConversationStore.getState().setContextUsage(refreshed.contextUsage ?? null)
+      }
+    } catch (err) {
+      console.warn('thread/read after manual compaction failed:', err)
+    }
+  }
+
+  async function consolidateThreadMemory(): Promise<boolean> {
+    if (consolidateBusy) return false
+    if (!canConsolidateCurrentThread) {
+      addToast(t('composer.consolidate.unavailable'), 'warning')
+      return false
+    }
+
+    setConsolidateBusy(true)
+    addToast(t('composer.consolidate.started'), 'info')
+    try {
+      const result = (await window.api.appServer.sendRequest(
+        'thread/memory/consolidate/start',
+        { threadId },
+        MANUAL_MEMORY_CONSOLIDATION_TIMEOUT_MS
+      )) as {
+        outcome?: string
+        message?: string
+        memoryWritten?: boolean
+        historyWritten?: boolean
+      }
+      const outcome = String(result.outcome ?? '').toLowerCase()
+      if (outcome === 'succeeded') {
+        addToast(t('composer.consolidate.succeeded'), 'success')
+      } else if (outcome === 'skipped') {
+        addToast(t('composer.consolidate.skipped'), 'info')
+      } else {
+        addToast(t('composer.consolidate.failed', { error: result.message || outcome || 'unknown' }), 'error')
+      }
+      return true
+    } catch (err) {
+      addToast(t('composer.consolidate.failed', { error: err instanceof Error ? err.message : String(err) }), 'error')
+      return false
+    } finally {
+      setConsolidateBusy(false)
+    }
+  }
+
+  const canSend = useMemo(() => {
+    const textLen = (richRef.current?.getText() ?? '').trim().length
+    return (textLen > 0 || images.length > 0 || files.length > 0) && !isWaitingApproval && !isWaitingInput && !modelLoading
+  }, [contentRevision, files.length, images.length, isWaitingApproval, isWaitingInput, modelLoading])
+
+  const addPickedFiles = useCallback((picked: Array<{ path: string; fileName: string }>): void => {
+    if (picked.length === 0) return
+    setFiles((prev) => mergeComposerFileAttachments(prev, picked))
+  }, [])
+
+  const pickFiles = useCallback(async (): Promise<void> => {
+    try {
+      const picked = await window.api.workspace.pickFiles()
+      addPickedFiles(picked)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      addToast(t('input.pickFilesFailed', { error: msg }), 'error')
+    }
+  }, [addPickedFiles, t])
+
+  const onSelectFile = useCallback(
+    (relativePath: string): void => {
+      richRef.current?.insertFileTag(relativePath)
+    },
+    []
+  )
+
+  const onSelectCommand = useCallback((commandName: string): void => {
+    richRef.current?.insertCommandTag(commandName)
+  }, [])
+
+  const clearSlashSystemInput = useCallback((): void => {
+    const text = richRef.current?.getText() ?? ''
+    if (text.trim().startsWith('/')) {
+      richRef.current?.clear()
+    }
+  }, [])
+
+  const onSelectSystemAction = useCallback((actionId: string): void => {
+    setSlashDismissed(true)
+    clearSlashSystemInput()
+    if (actionId === 'planMode') {
+      void toggleMode()
+      return
+    }
+    if (actionId === 'compact') {
+      void compactThreadContext()
+      return
+    }
+    if (actionId === 'consolidate') {
+      void consolidateThreadMemory()
+      return
+    }
+    if (actionId !== 'goal') return
+    setGoalPopoverOpen(true)
+    void ensureCurrentGoal().catch(() => {})
+  }, [clearSlashSystemInput, ensureCurrentGoal, compactThreadContext, consolidateThreadMemory, toggleMode])
+
+  const onSelectSkill = useCallback((skillName: string): void => {
+    richRef.current?.insertSkillTag(skillName)
+  }, [])
+
+  return (
+    <div style={composerDockStyle}>
+      <ConversationColumn>
+      {pendingMessage && <PendingMessageIndicator message={pendingMessage} />}
+      <ComposerShell
+        dragOver={dragOver}
+        dropLabel={t('composer.dropImage')}
+        topAccessory={(
+          <BackgroundActivityDock
+            parentThreadId={threadId}
+            queuedInputs={queuedInputs}
+            onQueueSteer={(id) => { void steerQueuedInput(id) }}
+            onQueueRemove={(id) => { void removeQueuedInput(id) }}
+            onQueueReorder={(orderedIds) => { void reorderQueuedInputs(orderedIds) }}
+          />
+        )}
+        topAccessoryVisible={hasBackgroundActivityDock}
+        onDragOver={onDragOver}
+        onDragLeave={onDragLeave}
+        onDrop={onDrop}
+        focused={editorFocused}
+        attachmentStrip={
+          <AttachmentStrip
+            images={images}
+            files={files}
+            onRemoveImage={(idx) => {
+              setImages((prev) => prev.filter((_, i) => i !== idx))
+            }}
+            onRemoveFile={(idx) => {
+              setFiles((prev) => prev.filter((_, i) => i !== idx))
+            }}
+            removeImageLabel={t('composer.removeImageAria')}
+            removeFileLabel={t('composer.removeFileAria')}
+          />
+        }
+        editor={
+          <div style={{ position: 'relative' }}>
+            <div style={{ position: 'relative', minWidth: 0 }}>
+              <GoalControlPopover
+                visible={goalPopoverOpen}
+                goal={currentGoal}
+                busy={goalBusy}
+                onSetObjective={setGoalObjective}
+                onPause={() => updateGoalStatus('paused')}
+                onResume={() => updateGoalStatus('active')}
+                onClear={clearGoal}
+                onDismiss={() => {
+                  setGoalPopoverOpen(false)
+                }}
+              />
+              <CommandSearchPopover
+                query={slashQuery ?? ''}
+                visible={showSlashPopover}
+                loading={customCommandStatus === 'loading' || skillsLoading}
+                systemActions={systemActions}
+                commands={customCommands}
+                skills={availableSkills}
+                onSelectSystemAction={onSelectSystemAction}
+                onSelectCommand={onSelectCommand}
+                onSelectSkill={onSelectSkill}
+                onDismiss={() => {
+                  setSlashDismissed(true)
+                }}
+              />
+              <CommandSearchPopover
+                query={skillQuery ?? ''}
+                visible={showSkillPopover}
+                loading={skillsLoading}
+                commands={[]}
+                skills={availableSkills}
+                onSelectCommand={() => {}}
+                onSelectSkill={onSelectSkill}
+                onDismiss={() => {
+                  setSkillDismissed(true)
+                }}
+              />
+              <FileSearchPopover
+                query={atQuery ?? ''}
+                visible={showMentionPopover}
+                workspacePath={workspacePath}
+                onSelect={onSelectFile}
+                onDismiss={() => {
+                  setMentionDismissed(true)
+                }}
+              />
+              <RichInputArea
+                ref={richRef}
+                chrome="minimal"
+                disabled={isWaitingApproval || isWaitingInput}
+                suppressSubmit={showMentionPopover || showSlashPopover || showSkillPopover || modelLoading}
+                onToggleModeShortcut={() => {
+                  void toggleMode()
+                }}
+                onHistoryNavigate={handleHistoryNavigate}
+                historyNavigationActive={historyCursor !== null}
+                placeholder={
+                  isWaitingApproval
+                    ? t('composer.placeholder.approval')
+                    : isWaitingInput
+                      ? t('composer.placeholder.userInput')
+                      : t('composer.placeholder.ask')
+                }
+                onSubmit={() => {
+                  void sendMessage()
+                }}
+                onAtQuery={handleAtQuery}
+                onSlashQuery={handleSlashQuery}
+                onSkillQuery={handleSkillQuery}
+                onContentChange={handleComposerContentChange}
+                onFocusChange={setEditorFocused}
+                onPasteImage={onPasteImage}
+                onPasteTextOversized={() => {
+                  addToast(
+                    t('input.truncated', { max: MAX_TEXT_LENGTH.toLocaleString() }),
+                    'warning'
+                  )
+                }}
+                refCatalog={richRefCatalog}
+              />
+            </div>
+          </div>
+        }
+        footerLeading={
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flexWrap: 'wrap' }}>
+            <ComposerAttachmentMenu
+              title={t('composer.attachFileTitle')}
+              ariaLabel={t('composer.attachFileAria')}
+              attachImageLabel={t('composer.attachImage')}
+              referenceFileLabel={t('composer.referenceFile')}
+              onAttachImages={attachImages}
+              onReferenceFiles={() => {
+                void pickFiles()
+              }}
+              planModeLabel={t('composer.system.plan')}
+              planModeToggleLabel={t('composer.system.plan.toggle')}
+              planModeEnabled={threadMode === 'plan'}
+              onTogglePlanMode={() => {
+                void toggleMode()
+              }}
+            />
+
+            <ApprovalPolicyPicker threadId={threadId} disabled={isBusyForInput || isWaitingApproval || isWaitingInput} />
+
+            <ComposerPlanModeLabel
+              value={threadMode}
+              onDisable={() => {
+                void setComposerMode('agent')
+              }}
+              label={t('composer.mode.plan')}
+              shortcut={ACTION_SHORTCUTS.toggleMode}
+              title={t('composer.planPill.create')}
+              ariaLabel={t('composer.system.plan.disable')}
+            />
+            {currentGoal && (
+              <ActionTooltip label={currentGoal.objective} placement="top">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setGoalPopoverOpen(true)
+                    void ensureCurrentGoal().catch(() => {})
+                  }}
+                  aria-label={t('goal.pill.aria', { status: t(`goal.status.${currentGoal.status}`) })}
+                  style={goalPillStyle(currentGoal.status)}
+                >
+                  <Target size={13} aria-hidden />
+                  <span>{t(`goal.pill.${currentGoal.status}`)}</span>
+                  {formatGoalUsage(currentGoal) && (
+                    <span style={{ color: 'var(--composer-footer-muted)' }}>
+                      {formatGoalUsage(currentGoal)}
+                    </span>
+                  )}
+                </button>
+              </ActionTooltip>
+            )}
+          </div>
+        }
+        footerAction={
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <ChatGptUsageBadge provider={activeChatGptProvider} />
+            <ContextUsageRing />
+            <ModelPicker
+              modelName={modelName}
+              modelOptions={modelOptions}
+              modelCatalog={modelCatalog}
+              reasoningValue={reasoningValue}
+              loading={modelLoading}
+              unsupported={modelListUnsupportedEndpoint}
+              modelListReady={!modelLoading && !modelListUnsupportedEndpoint && !modelCatalogError && modelOptions.length > 0}
+              errorMessage={modelCatalogError ? (modelCatalogErrorMessage || t('composer.modelListError')) : null}
+              disabled={modelDisabled}
+              onChange={onModelChange}
+              onReasoningChange={onReasoningChange}
+              onRetry={onModelCatalogRetry}
+              shortcut={ACTION_SHORTCUTS.selectModel}
+              triggerStyle={composerModelPillStyle(
+                modelDisabled || modelLoading ? 'var(--composer-footer-muted)' : 'var(--composer-footer-highlight)',
+                modelDisabled || modelLoading
+              )}
+            />
+            {!isWaitingApproval && !isWaitingInput ? (
+              isBusyForInput ? (
+                canSend ? (
+                  <ActionTooltip label={t('composer.queueSendTitle')} placement="top">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void sendMessage()
+                      }}
+                      aria-label={t('composer.queueSendAria')}
+                      style={composerSendButtonStyle('enabled')}
+                    >
+                      <SendIcon />
+                    </button>
+                  </ActionTooltip>
+                ) : (
+                  <ActionTooltip
+                    label={t('composer.stopTitle')}
+                    shortcut={ACTION_SHORTCUTS.cancel}
+                    placement="top"
+                  >
+                    <button
+                      type="button"
+                      onClick={stopTurn}
+                      aria-label={t('composer.stopAria')}
+                      style={composerSendButtonStyle('enabled')}
+                    >
+                      <StopIcon />
+                    </button>
+                  </ActionTooltip>
+                )
+              ) : (
+                <ActionTooltip
+                  label={t('composer.sendAriaAlt')}
+                  shortcut={canSend ? ACTION_SHORTCUTS.send : undefined}
+                  placement="top"
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void sendMessage()
+                    }}
+                    disabled={!canSend}
+                    aria-label={t('composer.sendAriaAlt')}
+                    style={composerSendButtonStyle(canSend ? 'enabled' : 'disabled')}
+                  >
+                    <SendIcon />
+                  </button>
+                </ActionTooltip>
+              )
+            ) : null}
+          </div>
+        }
+      />
+      </ConversationColumn>
+    </div>
+  )
+}
+
+const composerDockStyle: CSSProperties = {
+  flexShrink: 0,
+  padding: '0 clamp(20px, 4vw, 40px)'
+}
+
+function buildComposerHistory(turns: ConversationTurn[], threadId: string): ComposerHistoryEntry[] {
+  const entries: ComposerHistoryEntry[] = []
+  for (const turn of turns) {
+    if (turn.threadId !== threadId) continue
+    for (const item of turn.items) {
+      const entry = userItemToComposerHistoryEntry(item)
+      if (entry) entries.push(entry)
+    }
+  }
+  return entries
+}
+
+function userItemToComposerHistoryEntry(item: ConversationItem): ComposerHistoryEntry | null {
+  if (item.type !== 'userMessage') return null
+  if (item.deliveryMode === 'guidance') return null
+  const text = item.text ?? ''
+  if (isAcceptPlanSentinel(text)) return null
+
+  const inputParts = item.nativeInputParts ?? item.materializedInputParts
+  if (inputParts && inputParts.length > 0) {
+    const segments = inputPartsToComposerSegments(inputParts)
+    const serialized = stringifyComposerDraftSegments(segments).trim()
+    if (serialized.length === 0) return null
+    return {
+      text: serialized,
+      segments
+    }
+  }
+
+  const trimmedText = text.trim()
+  if (trimmedText.length === 0) return null
+  return {
+    text,
+    segments: []
+  }
+}
+
+function inputPartsToComposerSegments(parts: InputPart[]): ComposerDraftSegment[] {
+  const segments: ComposerDraftSegment[] = []
+  for (const part of parts) {
+    switch (part.type) {
+      case 'text':
+        pushComposerTextSegment(segments, part.text)
+        break
+      case 'fileRef':
+        segments.push({ type: 'file', relativePath: part.displayPath ?? part.path })
+        break
+      case 'commandRef':
+        pushCommandRefSegments(segments, part)
+        break
+      case 'skillRef':
+        if (part.name.trim().length > 0) {
+          segments.push({ type: 'skill', skillName: part.name.trim() })
+        }
+        break
+      default:
+        break
+    }
+  }
+  return segments
+}
+
+function pushComposerTextSegment(segments: ComposerDraftSegment[], value: string): void {
+  if (value.length === 0) return
+  const previous = segments[segments.length - 1]
+  if (previous?.type === 'text') {
+    previous.value += value
+    return
+  }
+  segments.push({ type: 'text', value })
+}
+
+function pushCommandRefSegments(
+  segments: ComposerDraftSegment[],
+  part: Extract<InputPart, { type: 'commandRef' }>
+): void {
+  const rawText = typeof part.rawText === 'string' ? part.rawText.trim() : ''
+  const name = typeof part.name === 'string' ? part.name.trim().replace(/^\/+/, '') : ''
+  const normalizedRaw = rawText.length > 0
+    ? (rawText.startsWith('/') ? rawText : `/${rawText}`)
+    : name.length > 0
+      ? `/${name}`
+      : ''
+  if (normalizedRaw.length === 0) return
+
+  const firstWhitespace = normalizedRaw.search(/\s/)
+  const command = firstWhitespace >= 0 ? normalizedRaw.slice(0, firstWhitespace) : normalizedRaw
+  const rawArgs = firstWhitespace >= 0 ? normalizedRaw.slice(firstWhitespace + 1).trim() : ''
+  const argsText = (part.argsText?.trim() || rawArgs).trim()
+  segments.push({ type: 'command', command })
+  if (argsText.length > 0) {
+    pushComposerTextSegment(segments, ` ${argsText}`)
+  }
+}
+
+function linearLengthOfComposerEntry(entry: ComposerHistoryEntry): number {
+  if (entry.segments.length === 0) return entry.text.length
+  return entry.segments.reduce((total, segment) => {
+    if (segment.type === 'text') return total + segment.value.length
+    return total + 1
+  }, 0)
+}
+
+function parseSystemSlashCommand(text: string): { kind: 'plan' | 'agent' | 'compact' | 'consolidate' } | null {
+  const trimmed = text.trim().toLowerCase()
+  if (trimmed === '/plan') return { kind: 'plan' }
+  if (trimmed === '/agent') return { kind: 'agent' }
+  if (trimmed === '/compact') return { kind: 'compact' }
+  if (trimmed === '/consolidate') return { kind: 'consolidate' }
+  return null
+}
+
+function goalPillStyle(_status: ThreadGoal['status']): CSSProperties {
+  const color = 'var(--composer-footer-text)'
+  return {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+    maxWidth: 260,
+    minHeight: COMPOSER_FOOTER_CONTROL_HEIGHT,
+    border: 'none',
+    borderRadius: 8,
+    background: 'transparent',
+    color,
+    cursor: 'pointer',
+    fontSize: 'var(--type-secondary-size)',
+    lineHeight: 'var(--type-secondary-line-height)',
+    fontWeight: 'var(--type-ui-emphasis-weight)',
+    padding: '2px 6px',
+    overflow: 'hidden',
+    whiteSpace: 'nowrap'
+  }
+}
+

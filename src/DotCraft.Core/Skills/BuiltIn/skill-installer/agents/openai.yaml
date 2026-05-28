@@ -1,0 +1,6 @@
+interface:
+  display_name: "Skill Installer"
+  short_description: "Install and check DotCraft skills through the verifier workflow."
+  icon_small: "./assets/skill-installer-small.svg"
+  icon_large: "./assets/skill-installer.svg"
+  default_prompt: "Install this skill with $skill-installer and check whether it needs workspace-specific adaptation."

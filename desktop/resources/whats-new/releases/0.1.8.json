@@ -1,0 +1,59 @@
+{
+  "version": "0.1.8",
+  "cards": [
+    {
+      "id": "agent-teams",
+      "icon": "teams",
+      "title": {
+        "en": "Agent Teams",
+        "zh-Hans": "智能体团队"
+      },
+      "summary": {
+        "en": "Compose teams of specialized agents that collaborate on complex tasks.",
+        "zh-Hans": "组建多智能体团队，让它们协作处理复杂任务。"
+      },
+      "media": {
+        "fileName": "teams.gif",
+        "url": "https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/teams.gif",
+        "sizeBytes": 4180309,
+        "sha256": "57DF3E8605B9DE58A5BE6B0F8ABEFEFCEB9F10284095852569FEC7B34ECF690D"
+      }
+    },
+    {
+      "id": "app-integrations",
+      "icon": "app",
+      "title": {
+        "en": "App Integrations",
+        "zh-Hans": "应用集成"
+      },
+      "summary": {
+        "en": "Extend DotCraft with installable apps that bring new skills and tools.",
+        "zh-Hans": "通过可安装的应用拓展 DotCraft，一键添加新的技能与工具。"
+      },
+      "media": {
+        "fileName": "app.gif",
+        "url": "https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/app.gif",
+        "sizeBytes": 2912532,
+        "sha256": "05E77BEE73C2F585D2821248BE41F360F8CF0F20A32D6963D6729C0D22590B71"
+      }
+    },
+    {
+      "id": "chatgpt-plan-reuse",
+      "icon": "subscription",
+      "title": {
+        "en": "Reuse Your ChatGPT Plan",
+        "zh-Hans": "复用 ChatGPT 订阅"
+      },
+      "summary": {
+        "en": "Plug your existing ChatGPT subscription into DotCraft — no extra fees required.",
+        "zh-Hans": "把已有的 ChatGPT 订阅接入 DotCraft，无需额外费用。"
+      },
+      "media": {
+        "fileName": "chatgpt.gif",
+        "url": "https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/chatgpt.gif",
+        "sizeBytes": 1119781,
+        "sha256": "1AFDA7940DDB7F03B43A4F98C4905333A337699FD8EC560770F2F34E13328217"
+      }
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "review": {
+      "transport": "stdio",
+      "command": "node",
+      "arguments": ["./mcp-server/index.js"],
+      "cwd": "./",
+      "startupTimeoutSec": 5
+    }
+  }
+}

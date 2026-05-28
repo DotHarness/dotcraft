@@ -1,0 +1,92 @@
+[package]
+name = "dotcraft-tui"
+version = "0.1.8"
+edition = "2021"
+description = "DotCraft terminal user interface built on Ratatui"
+license = "Apache-2.0"
+
+[build-dependencies]
+winres = "0.1"
+
+[[bin]]
+name = "dotcraft-tui"
+path = "src/main.rs"
+
+[lib]
+name = "dotcraft_tui"
+path = "src/lib.rs"
+
+[features]
+default = ["websocket"]
+# WebSocket transport for --remote mode
+websocket = ["dep:tokio-tungstenite"]
+# System clipboard integration (opt-in)
+clipboard = ["dep:arboard"]
+
+[dependencies]
+# TUI framework
+ratatui = { version = "0.29", features = [
+    "scrolling-regions",
+    "unstable-widget-ref",
+    "unstable-rendered-line-info",
+] }
+crossterm = { version = "0.28", features = ["bracketed-paste", "event-stream"] }
+
+# Async runtime
+tokio = { version = "1", features = [
+    "io-std",
+    "io-util",
+    "macros",
+    "net",
+    "process",
+    "rt-multi-thread",
+    "signal",
+    "time",
+] }
+tokio-stream = { version = "0.1", features = ["sync"] }
+
+# WebSocket (optional, required by "websocket" feature)
+tokio-tungstenite = { version = "0.26", optional = true }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+reqwest = { version = "0.12", default-features = false, features = ["json"] }
+
+# CLI argument parsing
+clap = { version = "4", features = ["derive", "env"] }
+
+# Markdown rendering
+pulldown-cmark = "0.12"
+syntect = { version = "5", default-features = false, features = [
+    "default-fancy",
+] }
+unicode-width = "0.2"
+
+# Configuration (theme TOML)
+toml = "0.8"
+
+# Async stream utilities (StreamExt for EventStream)
+futures = { version = "0.3", default-features = false, features = ["std"] }
+
+# Error handling
+anyhow = "1"
+thiserror = "2"
+
+# Utilities
+chrono = { version = "0.4", features = ["serde"] }
+dirs = "6"
+
+# Logging / tracing
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Clipboard (optional, required by "clipboard" feature)
+arboard = { version = "3", optional = true }
+
+[target.'cfg(windows)'.dependencies]
+# Required for proper Windows console handling
+windows-sys = { version = "0.59", features = [
+    "Win32_Foundation",
+    "Win32_System_Console",
+] }

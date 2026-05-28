@@ -1,0 +1,14 @@
+{
+  "ExternalChannels": {
+    "telegram": {
+      "enabled": true,
+      "transport": "subprocess",
+      "command": "python",
+      "args": ["-m", "dotcraft_telegram"],
+      "workingDirectory": "sdk/python/examples/telegram",
+      "env": {
+        "TELEGRAM_BOT_TOKEN": "your-bot-token-here"
+      }
+    }
+  }
+}

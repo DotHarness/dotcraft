@@ -1,0 +1,3 @@
+# DotCraft {{ VERSION }}
+
+{{ CHANGELOG }}

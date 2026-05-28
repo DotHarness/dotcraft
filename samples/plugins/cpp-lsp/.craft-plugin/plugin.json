@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "cpp-lsp",
+  "version": "0.1.0",
+  "displayName": "C/C++ LSP",
+  "description": "Sample plugin-bundled clangd language server configuration and setup skill.",
+  "capabilities": ["skill", "lsp"],
+  "skills": "./skills/",
+  "lspServers": "./.lsp.json",
+  "interface": {
+    "displayName": "C/C++ LSP",
+    "shortDescription": "Adds clangd setup guidance and plugin-bundled LSP routing.",
+    "longDescription": "A sample DotCraft plugin that contributes a C/C++ LSP setup skill and C/C++ routing through clangd.",
+    "developerName": "DotHarness",
+    "category": "Coding",
+    "capabilities": ["Skill", "LSP"],
+    "brandColor": "#00599C"
+  }
+}

@@ -1,0 +1,2211 @@
+using System.Diagnostics;
+using System.Reflection;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using System.Collections.Concurrent;
+using DotCraft.Abstractions;
+using DotCraft.Agents;
+using DotCraft.AppServer;
+using DotCraft.Configuration;
+using DotCraft.ExternalChannel;
+using DotCraft.Memory;
+using DotCraft.Processes;
+using DotCraft.Protocol;
+using DotCraft.Plugins;
+using DotCraft.Modules;
+using DotCraft.Protocol.AppServer;
+using DotCraft.Security;
+using DotCraft.Sessions;
+using DotCraft.Skills;
+using DotCraft.Tools;
+using Microsoft.Agents.AI;
+using Microsoft.Extensions.AI;
+
+namespace DotCraft.Tests.AppServer;
+
+public sealed class ExternalChannelDeliveryTests : IDisposable
+{
+    private readonly string _tempDir = Path.Combine(Path.GetTempPath(), "ExternalChannelDeliveryTests_" + Guid.NewGuid().ToString("N")[..8]);
+
+    public ExternalChannelDeliveryTests()
+    {
+        Directory.CreateDirectory(_tempDir);
+    }
+
+    public void Dispose()
+    {
+        try { Directory.Delete(_tempDir, recursive: true); }
+        catch
+        {
+            // ignored
+        }
+    }
+
+    [Fact]
+    public async Task ChannelMediaResolver_RejectsTextMessageWithSource()
+    {
+        var store = new FileSystemChannelMediaArtifactStore(_tempDir);
+        var resolver = CreateResolver(store, _tempDir);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => resolver.ResolveAsync(new ChannelOutboundMessage
+        {
+            Kind = "text",
+            Text = "hello",
+            Source = new ChannelMediaSource
+            {
+                Kind = "hostPath",
+                HostPath = "x.txt"
+            }
+        }));
+
+        Assert.Contains("Text delivery", ex.Message);
+    }
+
+    [Fact]
+    public async Task ChannelMediaResolver_RejectsSourceWithMultipleFields()
+    {
+        var store = new FileSystemChannelMediaArtifactStore(_tempDir);
+        var resolver = CreateResolver(store, _tempDir);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => resolver.ResolveAsync(new ChannelOutboundMessage
+        {
+            Kind = "file",
+            Source = new ChannelMediaSource
+            {
+                Kind = "hostPath",
+                HostPath = "a.txt",
+                Url = "https://example.com/a.txt"
+            }
+        }));
+
+        Assert.Contains("exactly one", ex.Message);
+    }
+
+    [Fact]
+    public async Task ChannelMediaResolver_RegistersHostPathArtifact_AndArtifactIdCanResolve()
+    {
+        var path = Path.Combine(_tempDir, "report.txt");
+        await File.WriteAllTextAsync(path, "report");
+
+        var store = new FileSystemChannelMediaArtifactStore(_tempDir);
+        var resolver = CreateResolver(store, _tempDir);
+
+        var first = await resolver.ResolveAsync(new ChannelOutboundMessage
+        {
+            Kind = "file",
+            Source = new ChannelMediaSource
+            {
+                Kind = "hostPath",
+                HostPath = path
+            }
+        });
+
+        var second = await resolver.ResolveAsync(new ChannelOutboundMessage
+        {
+            Kind = "file",
+            Source = new ChannelMediaSource
+            {
+                Kind = "artifactId",
+                ArtifactId = first.Artifact.Id
+            }
+        });
+
+        Assert.Equal(first.Artifact.Id, second.Artifact.Id);
+        Assert.Equal(path, second.Artifact.ResolvedPath);
+    }
+
+    [Fact]
+    public async Task ChannelMediaResolver_HostPathOutsideWorkspace_RequestsApprovalAndRejectsWhenDenied()
+    {
+        var outsideDir = Path.Combine(Path.GetTempPath(), "ExternalChannelOutside_" + Guid.NewGuid().ToString("N")[..8]);
+        Directory.CreateDirectory(outsideDir);
+        try
+        {
+            var outsidePath = Path.Combine(outsideDir, "secret.txt");
+            await File.WriteAllTextAsync(outsidePath, "secret");
+
+            var store = new FileSystemChannelMediaArtifactStore(_tempDir);
+            var approvalService = new RecordingApprovalService(approve: false);
+            var resolver = CreateResolver(store, _tempDir, approvalService: approvalService);
+
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => resolver.ResolveAsync(new ChannelOutboundMessage
+            {
+                Kind = "file",
+                Source = new ChannelMediaSource
+                {
+                    Kind = "hostPath",
+                    HostPath = outsidePath
+                }
+            }));
+
+            Assert.Contains("rejected by user", ex.Message);
+            Assert.Equal("read-for-delivery", approvalService.LastOperation);
+            Assert.Equal(Path.GetFullPath(outsidePath), approvalService.LastPath);
+        }
+        finally
+        {
+            try { Directory.Delete(outsideDir, recursive: true); }
+            catch { }
+        }
+    }
+
+    [Fact]
+    public async Task ChannelMediaResolver_HostPathOutsideWorkspace_AllowsApprovedDelivery()
+    {
+        var outsideDir = Path.Combine(Path.GetTempPath(), "ExternalChannelOutside_" + Guid.NewGuid().ToString("N")[..8]);
+        Directory.CreateDirectory(outsideDir);
+        try
+        {
+            var outsidePath = Path.Combine(outsideDir, "approved.txt");
+            await File.WriteAllTextAsync(outsidePath, "approved");
+
+            var store = new FileSystemChannelMediaArtifactStore(_tempDir);
+            var approvalService = new RecordingApprovalService(approve: true);
+            var resolver = CreateResolver(store, _tempDir, approvalService: approvalService);
+
+            var result = await resolver.ResolveAsync(new ChannelOutboundMessage
+            {
+                Kind = "file",
+                Source = new ChannelMediaSource
+                {
+                    Kind = "hostPath",
+                    HostPath = outsidePath
+                }
+            });
+
+            Assert.Equal(Path.GetFullPath(outsidePath), result.Artifact.ResolvedPath);
+            Assert.Equal("read-for-delivery", approvalService.LastOperation);
+        }
+        finally
+        {
+            try { Directory.Delete(outsideDir, recursive: true); }
+            catch { }
+        }
+    }
+
+    [Fact]
+    public async Task ChannelMediaResolver_RejectsBlacklistedHostPath()
+    {
+        var blockedPath = Path.Combine(_tempDir, "blocked.txt");
+        await File.WriteAllTextAsync(blockedPath, "blocked");
+
+        var store = new FileSystemChannelMediaArtifactStore(_tempDir);
+        var resolver = CreateResolver(store, _tempDir, blacklist: new PathBlacklist([blockedPath]));
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => resolver.ResolveAsync(new ChannelOutboundMessage
+        {
+            Kind = "file",
+            Source = new ChannelMediaSource
+            {
+                Kind = "hostPath",
+                HostPath = blockedPath
+            }
+        }));
+
+        Assert.Contains("blacklist", ex.Message);
+    }
+
+    [Fact]
+    public async Task ChannelMediaResolver_CleansUpTemporaryBase64Artifact_WhenRegisterFails()
+    {
+        var mediaRoot = Path.Combine(_tempDir, "register-failure-media");
+        var store = new ThrowingRegisterArtifactStore();
+        var resolver = CreateResolver(store, mediaRoot);
+
+        await Assert.ThrowsAsync<IOException>(() => resolver.ResolveAsync(new ChannelOutboundMessage
+        {
+            Kind = "file",
+            FileName = "report.txt",
+            Source = new ChannelMediaSource
+            {
+                Kind = "dataBase64",
+                DataBase64 = Convert.ToBase64String("hello"u8.ToArray())
+            }
+        }));
+
+        var tmpDir = Path.Combine(mediaRoot, "tmp");
+        Assert.False(Directory.Exists(tmpDir) && Directory.EnumerateFiles(tmpDir).Any());
+    }
+
+    [Fact]
+    public async Task ExternalChannelMessageDispatcher_RejectsUnsupportedUrlSource()
+    {
+        var store = new FileSystemChannelMediaArtifactStore(_tempDir);
+        var resolver = CreateResolver(store, _tempDir);
+        var dispatcher = new ExternalChannelMessageDispatcher(resolver, store);
+        var transport = new StubTransport();
+        var connection = CreateAdapterConnection(structuredDelivery: true, fileConstraints: new ChannelMediaConstraints
+        {
+            SupportsUrl = false,
+            SupportsBase64 = true
+        });
+
+        var result = await dispatcher.DeliverAsync(
+            transport,
+            connection,
+            "telegram",
+            "group:1",
+            new ChannelOutboundMessage
+            {
+                Kind = "file",
+                Source = new ChannelMediaSource
+                {
+                    Kind = "url",
+                    Url = "https://example.com/file.pdf"
+                }
+            },
+            metadata: null);
+
+        Assert.False(result.Delivered);
+        Assert.Equal("UnsupportedMediaSource", result.ErrorCode);
+    }
+
+    [Fact]
+    public async Task ExternalChannelMessageDispatcher_RejectsUrlSource_WhenMaxBytesCannotBeValidated()
+    {
+        var store = new FileSystemChannelMediaArtifactStore(_tempDir);
+        var resolver = CreateResolver(store, _tempDir);
+        var dispatcher = new ExternalChannelMessageDispatcher(resolver, store);
+        var transport = new StubTransport();
+        var connection = CreateAdapterConnection(structuredDelivery: true, fileConstraints: new ChannelMediaConstraints
+        {
+            SupportsUrl = true,
+            MaxBytes = 1024
+        });
+
+        var result = await dispatcher.DeliverAsync(
+            transport,
+            connection,
+            "telegram",
+            "group:1",
+            new ChannelOutboundMessage
+            {
+                Kind = "file",
+                Source = new ChannelMediaSource
+                {
+                    Kind = "url",
+                    Url = "https://example.com/file.pdf"
+                }
+            },
+            metadata: null);
+
+        Assert.False(result.Delivered);
+        Assert.Equal("MediaResolutionFailed", result.ErrorCode);
+        Assert.Null(transport.LastMethod);
+    }
+
+    [Fact]
+    public async Task ExternalChannelMessageDispatcher_CleansUpTemporaryBase64Artifact()
+    {
+        var mediaRoot = Path.Combine(_tempDir, "media");
+        var store = new FileSystemChannelMediaArtifactStore(mediaRoot);
+        var resolver = CreateResolver(store, mediaRoot);
+        var dispatcher = new ExternalChannelMessageDispatcher(resolver, store);
+        var transport = new StubTransport(new ExtChannelSendResult { Delivered = true });
+        var connection = CreateAdapterConnection(structuredDelivery: true, fileConstraints: new ChannelMediaConstraints
+        {
+            SupportsBase64 = true
+        });
+
+        var result = await dispatcher.DeliverAsync(
+            transport,
+            connection,
+            "feishu",
+            "group:1",
+            new ChannelOutboundMessage
+            {
+                Kind = "file",
+                FileName = "report.txt",
+                Source = new ChannelMediaSource
+                {
+                    Kind = "dataBase64",
+                    DataBase64 = Convert.ToBase64String("hello"u8.ToArray())
+                }
+            },
+            metadata: null);
+
+        Assert.True(result.Delivered);
+        var tmpDir = Path.Combine(mediaRoot, "tmp");
+        Assert.False(Directory.Exists(tmpDir) && Directory.EnumerateFiles(tmpDir).Any());
+    }
+
+    [Fact]
+    public async Task ExternalChannelMessageDispatcher_TextDelivery_RequiresUnifiedSendCapabilities()
+    {
+        var transport = new StubTransport(new { delivered = false, error = "legacy failed" });
+        var store = new FileSystemChannelMediaArtifactStore(_tempDir);
+        var resolver = CreateResolver(store, _tempDir);
+        var dispatcher = new ExternalChannelMessageDispatcher(resolver, store);
+        var connection = CreateAdapterConnection(structuredDelivery: false, fileConstraints: null);
+
+        var result = await dispatcher.DeliverAsync(
+            transport,
+            connection,
+            "telegram",
+            "group:1",
+            new ChannelOutboundMessage
+            {
+                Kind = "text",
+                Text = "hello"
+            },
+            metadata: null);
+
+        Assert.False(result.Delivered);
+        Assert.Equal("UnsupportedDeliveryKind", result.ErrorCode);
+        Assert.Null(transport.LastMethod);
+    }
+
+    [Fact]
+    public async Task ExternalChannelMessageDispatcher_TextDelivery_IsRejectedWithoutStructuredCapabilities()
+    {
+        var transport = new StubTransport(new ExtChannelSendResult { Delivered = true });
+        var store = new FileSystemChannelMediaArtifactStore(_tempDir);
+        var resolver = CreateResolver(store, _tempDir);
+        var dispatcher = new ExternalChannelMessageDispatcher(resolver, store);
+        var connection = CreateAdapterConnection(structuredDelivery: false, fileConstraints: null);
+
+        var result = await dispatcher.DeliverAsync(
+            transport,
+            connection,
+            "telegram",
+            "group:1",
+            new ChannelOutboundMessage
+            {
+                Kind = "text",
+                Text = "hello"
+            },
+            metadata: null);
+
+        Assert.False(result.Delivered);
+        Assert.Equal("UnsupportedDeliveryKind", result.ErrorCode);
+        Assert.Null(transport.LastMethod);
+    }
+
+    [Fact]
+    public async Task ExternalChannelMessageDispatcher_StructuredAdapter_UsesSendForText()
+    {
+        var transport = new StubTransport(new ExtChannelSendResult { Delivered = true });
+        var store = new FileSystemChannelMediaArtifactStore(_tempDir);
+        var resolver = CreateResolver(store, _tempDir);
+        var dispatcher = new ExternalChannelMessageDispatcher(resolver, store);
+        var connection = CreateAdapterConnection(structuredDelivery: true, fileConstraints: new ChannelMediaConstraints
+        {
+            SupportsBase64 = true
+        });
+
+        var result = await dispatcher.DeliverAsync(
+            transport,
+            connection,
+            "telegram",
+            "group:1",
+            new ChannelOutboundMessage
+            {
+                Kind = "text",
+                Text = "hello"
+            },
+            metadata: null);
+
+        Assert.True(result.Delivered);
+        Assert.Equal(AppServerMethods.ExtChannelSend, transport.LastMethod);
+    }
+
+    [Fact]
+    public async Task ExternalChannelMessageDispatcher_RejectsUnsupportedMediaKind_BeforeDispatch()
+    {
+        var transport = new StubTransport(new ExtChannelSendResult { Delivered = true });
+        var store = new FileSystemChannelMediaArtifactStore(_tempDir);
+        var resolver = CreateResolver(store, _tempDir);
+        var dispatcher = new ExternalChannelMessageDispatcher(resolver, store);
+        var connection = CreateAdapterConnection(structuredDelivery: true, fileConstraints: null);
+
+        var result = await dispatcher.DeliverAsync(
+            transport,
+            connection,
+            "telegram",
+            "group:1",
+            new ChannelOutboundMessage
+            {
+                Kind = "audio",
+                Source = new ChannelMediaSource
+                {
+                    Kind = "url",
+                    Url = "https://example.com/voice.mp3"
+                }
+            },
+            metadata: null);
+
+        Assert.False(result.Delivered);
+        Assert.Equal("UnsupportedDeliveryKind", result.ErrorCode);
+        Assert.Null(transport.LastMethod);
+    }
+
+    [Fact]
+    public async Task ExternalChannelHost_DeliverAsync_WhenDisconnected_ReturnsFailure()
+    {
+        var host = new ExternalChannelHost(
+            new ExternalChannelEntry
+            {
+                Name = "telegram",
+                Enabled = true,
+                Transport = ExternalChannelTransport.Subprocess,
+                Command = "python"
+            },
+            new FakeSessionService(),
+            "0.0.1-test",
+            new ModuleRegistry(),
+            _tempDir);
+
+        var result = await host.DeliverAsync(
+            "group:1",
+            new ChannelOutboundMessage
+            {
+                Kind = "text",
+                Text = "hello"
+            });
+
+        Assert.False(result.Delivered);
+        Assert.Equal("AdapterDeliveryFailed", result.ErrorCode);
+    }
+
+    [Fact]
+    public async Task ExternalChannelHost_SpawnAdapterProcess_UsesManagedFactory()
+    {
+        ProcessStartInfo? capturedStartInfo = null;
+        ManagedChildProcess? spawnedProcess = null;
+        var host = new ExternalChannelHost(
+            new ExternalChannelEntry
+            {
+                Name = "telegram",
+                Enabled = true,
+                Transport = ExternalChannelTransport.Subprocess,
+                Command = "python",
+                Args = ["-m", "dotcraft_telegram"],
+                WorkingDirectory = _tempDir,
+                Env = new Dictionary<string, string> { ["DOTCRAFT_TEST"] = "1" }
+            },
+            new FakeSessionService(),
+            "0.0.1-test",
+            new ModuleRegistry(),
+            _tempDir,
+            deliveryDependenciesFactory: null,
+            managedChildProcessFactory: startInfo =>
+            {
+                capturedStartInfo = startInfo;
+                spawnedProcess = ManagedChildProcess.Start(CreateLongRunningStartInfo());
+                return spawnedProcess;
+            });
+
+        try
+        {
+            var method = typeof(ExternalChannelHost)
+                .GetMethod("SpawnAdapterProcess", BindingFlags.Instance | BindingFlags.NonPublic)!;
+            var managed = Assert.IsType<ManagedChildProcess>(method.Invoke(host, null));
+
+            Assert.Same(spawnedProcess, managed);
+            Assert.NotNull(capturedStartInfo);
+            Assert.Equal("python", capturedStartInfo!.FileName);
+            Assert.Equal(_tempDir, capturedStartInfo.WorkingDirectory);
+            Assert.Contains("-m", capturedStartInfo.ArgumentList);
+            Assert.Equal("1", capturedStartInfo.Environment["DOTCRAFT_TEST"]);
+        }
+        finally
+        {
+            if (spawnedProcess is not null)
+                await spawnedProcess.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task ExternalChannelHost_SpawnManagedWebsocketProcess_InjectsRuntimeEndpoint()
+    {
+        ProcessStartInfo? capturedStartInfo = null;
+        ManagedChildProcess? spawnedProcess = null;
+        var appConfig = new AppConfig();
+        appConfig.SetSection("AppServer", new AppServerConfig
+        {
+            Mode = AppServerMode.StdioAndWebSocket,
+            WebSocket = new WebSocketServerConfig
+            {
+                Host = "0.0.0.0",
+                Port = 9133,
+                Token = "secret-token"
+            }
+        });
+
+        var host = new ExternalChannelHost(
+            new ExternalChannelEntry
+            {
+                Name = "telegram",
+                Enabled = true,
+                Transport = ExternalChannelTransport.ManagedWebsocket,
+                Command = "python",
+                Env = new Dictionary<string, string>
+                {
+                    ["DOTCRAFT_CHANNEL_TRANSPORT"] = "stdio",
+                    ["DOTCRAFT_CHANNEL_WS_URL"] = "ws://stale/ws",
+                    ["DOTCRAFT_CHANNEL_WS_TOKEN"] = "stale-token"
+                }
+            },
+            new FakeSessionService(),
+            "0.0.1-test",
+            new ModuleRegistry(),
+            _tempDir,
+            deliveryDependenciesFactory: null,
+            managedChildProcessFactory: startInfo =>
+            {
+                capturedStartInfo = startInfo;
+                spawnedProcess = ManagedChildProcess.Start(CreateLongRunningStartInfo());
+                return spawnedProcess;
+            },
+            appConfigMonitor: new AppConfigMonitor(appConfig));
+
+        try
+        {
+            var method = typeof(ExternalChannelHost)
+                .GetMethod("SpawnAdapterProcess", BindingFlags.Instance | BindingFlags.NonPublic)!;
+            _ = Assert.IsType<ManagedChildProcess>(method.Invoke(host, null));
+
+            Assert.NotNull(capturedStartInfo);
+            Assert.Equal("websocket", capturedStartInfo!.Environment["DOTCRAFT_CHANNEL_TRANSPORT"]);
+            Assert.Equal("ws://127.0.0.1:9133/ws", capturedStartInfo.Environment["DOTCRAFT_CHANNEL_WS_URL"]);
+            Assert.Equal("secret-token", capturedStartInfo.Environment["DOTCRAFT_CHANNEL_WS_TOKEN"]);
+            Assert.True(capturedStartInfo.RedirectStandardOutput);
+            Assert.True(capturedStartInfo.RedirectStandardError);
+        }
+        finally
+        {
+            if (spawnedProcess is not null)
+                await spawnedProcess.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task ExternalChannelHost_StopAsync_DisposesManagedAdapterProcess()
+    {
+        var host = CreateHost("telegram");
+        await using var managedProcess = ManagedChildProcess.Start(CreateLongRunningStartInfo());
+        var processId = managedProcess.Process.Id;
+
+        typeof(ExternalChannelHost)
+            .GetField("_adapterProcess", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .SetValue(host, managedProcess);
+
+        await host.StopAsync();
+
+        Assert.ThrowsAny<ArgumentException>(() => Process.GetProcessById(processId));
+        Assert.Null(typeof(ExternalChannelHost)
+            .GetField("_adapterProcess", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .GetValue(host));
+    }
+
+    [Fact]
+    public async Task ExternalChannelHost_RunSubprocessCycleAsync_DoesNotAccessDisposedProcess()
+    {
+        var host = new ExternalChannelHost(
+            new ExternalChannelEntry
+            {
+                Name = "telegram",
+                Enabled = true,
+                Transport = ExternalChannelTransport.Subprocess,
+                Command = "python"
+            },
+            new FakeSessionService(),
+            "0.0.1-test",
+            new ModuleRegistry(),
+            _tempDir,
+            deliveryDependenciesFactory: null,
+            managedChildProcessFactory: _ => ManagedChildProcess.Start(CreateImmediateExitStartInfo()));
+
+        var method = typeof(ExternalChannelHost)
+            .GetMethod("RunSubprocessCycleAsync", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var task = Assert.IsAssignableFrom<Task>(
+            method.Invoke(host, [CancellationToken.None]));
+
+        await task;
+    }
+
+    [Fact]
+    public async Task ExternalChannelToolProvider_InjectsOnlyMatchingChannelTools()
+    {
+        var registry = new ExternalChannelRegistry();
+        var host = CreateHost("telegram");
+        var transport = new StubTransport(new ExtChannelToolCallResult
+        {
+            Success = true,
+            ContentItems = [new ExtChannelToolContentItem { Type = "text", Text = "Document sent." }]
+        });
+        var connection = CreateToolAdapterConnection(
+            "telegram",
+            [
+                new ChannelToolDescriptor
+                {
+                    Name = "TelegramSendDocumentToCurrentChat",
+                    Description = "Send a document to the current Telegram chat.",
+                    RequiresChatContext = true,
+                    InputSchema = new JsonObject
+                    {
+                        ["type"] = "object",
+                        ["properties"] = new JsonObject
+                        {
+                            ["fileName"] = new JsonObject { ["type"] = "string" }
+                        },
+                        ["required"] = new JsonArray("fileName")
+                    }
+                }
+            ]);
+        AttachFakeAdapter(host, transport, connection);
+        registry.Register("telegram", host);
+
+        var provider = new ExternalChannelToolProvider(registry);
+        provider.ConfigureReservedToolNames([]);
+        var thread = new SessionThread
+        {
+            Id = "thread_001",
+            WorkspacePath = _tempDir,
+            OriginChannel = "telegram",
+            ChannelContext = "chat_123",
+            Status = ThreadStatus.Active
+        };
+
+        var tools = provider.CreateToolsForThread(thread, new HashSet<string>(StringComparer.Ordinal));
+        var otherTools = provider.CreateToolsForThread(
+            new SessionThread
+            {
+                Id = "thread_002",
+                WorkspacePath = _tempDir,
+                OriginChannel = "feishu",
+                Status = ThreadStatus.Active
+            },
+            new HashSet<string>(StringComparer.Ordinal));
+
+        Assert.Single(tools);
+        Assert.Empty(otherTools);
+
+        var fn = Assert.IsAssignableFrom<AIFunction>(tools[0]);
+        var turn = new SessionTurn
+        {
+            Id = "turn_001",
+            ThreadId = thread.Id,
+            Status = TurnStatus.Running,
+            StartedAt = DateTimeOffset.UtcNow
+        };
+        var lifecycle = new List<string>();
+        using var scope = PluginFunctionExecutionScope.Set(
+            new PluginFunctionExecutionContext
+            {
+                ThreadId = thread.Id,
+                TurnId = turn.Id,
+                OriginChannel = thread.OriginChannel,
+                ChannelContext = thread.ChannelContext,
+                SenderId = "user_42",
+                GroupId = "chat_123",
+                WorkspacePath = _tempDir,
+                RequireApprovalOutsideWorkspace = true,
+                ApprovalService = new AutoApproveApprovalService(),
+                Turn = turn,
+                NextItemSequence = () => turn.Items.Count + 1,
+                EmitItemStarted = _ => lifecycle.Add("started"),
+                EmitItemCompleted = _ => lifecycle.Add("completed")
+            });
+
+        var result = await fn.InvokeAsync(
+            new AIFunctionArguments(new Dictionary<string, object?>
+            {
+                ["fileName"] = "report.pdf"
+            }),
+            CancellationToken.None);
+
+        Assert.Equal(AppServerMethods.ExtChannelToolCall, transport.LastMethod);
+        var toolParams = Assert.IsType<ExtChannelToolCallParams>(transport.LastParams);
+        Assert.Equal("TelegramSendDocumentToCurrentChat", toolParams.Tool);
+        Assert.Equal("chat_123", toolParams.Context.ChannelContext);
+        Assert.Equal("user_42", toolParams.Context.SenderId);
+        Assert.Single(turn.Items);
+        Assert.Equal(ItemType.PluginFunctionCall, turn.Items[0].Type);
+        Assert.Equal(["started", "completed"], lifecycle);
+        Assert.NotNull(result);
+    }
+
+    [Fact]
+    public void ExternalChannelToolProvider_WhenPluginDisabled_ReturnsNoTools()
+    {
+        var registry = new ExternalChannelRegistry();
+        var host = CreateHost("telegram");
+        AttachFakeAdapter(host, new StubTransport(), CreateToolAdapterConnection(
+            "telegram",
+            [
+                new ChannelToolDescriptor
+                {
+                    Name = "TelegramSendDocumentToCurrentChat",
+                    Description = "Send a document to the current Telegram chat.",
+                    RequiresChatContext = false,
+                    InputSchema = new JsonObject
+                    {
+                        ["type"] = "object",
+                        ["properties"] = new JsonObject()
+                    }
+                }
+            ]));
+        registry.Register("telegram", host);
+
+        var config = new AppConfig();
+        config.Plugins.DisabledPlugins.Add("external-channel");
+        var provider = new ExternalChannelToolProvider(registry, config);
+        provider.ConfigureReservedToolNames([]);
+        var tools = provider.CreateToolsForThread(
+            new SessionThread
+            {
+                Id = "thread_plugin_disabled",
+                WorkspacePath = _tempDir,
+                OriginChannel = "telegram",
+                Status = ThreadStatus.Active
+            },
+            new HashSet<string>(StringComparer.Ordinal));
+
+        Assert.Empty(tools);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SessionService_PluginFunctionCall_DoesNotEmitToolCallOrToolResultItems(bool nullToolNameInFirstDelta)
+    {
+        var registry = new ExternalChannelRegistry();
+        var host = CreateHost("telegram");
+        var transport = new StubTransport(new ExtChannelToolCallResult
+        {
+            Success = true,
+            ContentItems = [new ExtChannelToolContentItem { Type = "text", Text = "Document sent." }]
+        });
+        const string toolName = "TelegramSendDocumentToCurrentChat";
+        AttachFakeAdapter(host, transport, CreateToolAdapterConnection(
+            "telegram",
+            [
+                new ChannelToolDescriptor
+                {
+                    Name = toolName,
+                    Description = "Send a document to the current Telegram chat.",
+                    RequiresChatContext = false,
+                    InputSchema = new JsonObject
+                    {
+                        ["type"] = "object",
+                        ["properties"] = new JsonObject
+                        {
+                            ["fileName"] = new JsonObject { ["type"] = "string" }
+                        },
+                        ["required"] = new JsonArray("fileName")
+                    }
+                }
+            ]));
+        registry.Register("telegram", host);
+
+        var provider = new ExternalChannelToolProvider(registry);
+        provider.ConfigureReservedToolNames([]);
+        var runtimeTools = provider.CreateToolsForThread(
+            new SessionThread
+            {
+                Id = "thread_tool_script",
+                WorkspacePath = _tempDir,
+                OriginChannel = "telegram",
+                Status = ThreadStatus.Active
+            },
+            new HashSet<string>(StringComparer.Ordinal));
+        var externalTool = Assert.IsAssignableFrom<AIFunction>(Assert.Single(runtimeTools));
+
+        using var scriptedClient = new ExternalToolScriptedChatClient(externalTool, toolName, nullToolNameInFirstDelta);
+        var scriptedAgent = scriptedClient.AsAIAgent(new ChatClientAgentOptions
+        {
+            Name = "SessionServiceExternalToolTest",
+            UseProvidedChatClientAsIs = true,
+            ChatOptions = new ChatOptions()
+        });
+
+        await using var agentFactory = CreateAgentFactoryForSessionTests();
+        var persistence = new SessionPersistenceService(new ThreadStore(_tempDir));
+        var service = new SessionService(
+            agentFactory,
+            scriptedAgent,
+            persistence,
+            new SessionGate());
+        var thread = await service.CreateThreadAsync(new SessionIdentity
+        {
+            ChannelName = "telegram",
+            UserId = "user_1",
+            WorkspacePath = _tempDir
+        });
+        SeedExternalChannelToolNames(service, thread.Id, new HashSet<string>([toolName], StringComparer.Ordinal));
+
+        var events = new List<SessionEvent>();
+        await foreach (var evt in service.SubmitInputAsync(thread.Id, [new TextContent("send report.pdf")]))
+            events.Add(evt);
+
+        Assert.Equal(AppServerMethods.ExtChannelToolCall, transport.LastMethod);
+        var completed = events.Single(e => e.EventType == SessionEventType.TurnCompleted);
+        Assert.NotNull(completed.TurnPayload);
+        var turn = completed.TurnPayload!;
+
+        Assert.Single(turn.Items, i => i.Type == ItemType.PluginFunctionCall);
+        Assert.DoesNotContain(turn.Items, i => i.Type == ItemType.ToolCall);
+        Assert.DoesNotContain(turn.Items, i => i.Type == ItemType.ToolResult);
+        Assert.DoesNotContain(turn.Items, i =>
+            i.Payload is ToolCallPayload payload
+            && string.Equals(payload.ToolName, "unknown", StringComparison.OrdinalIgnoreCase));
+
+        Assert.DoesNotContain(events, e =>
+            e.EventType == SessionEventType.ItemStarted
+            && e.ItemPayload?.Type == ItemType.ToolCall);
+        Assert.DoesNotContain(events, e =>
+            e.EventType == SessionEventType.ItemCompleted
+            && e.ItemPayload?.Type == ItemType.ToolCall);
+        Assert.DoesNotContain(events, e =>
+            e.EventType == SessionEventType.ItemStarted
+            && e.ItemPayload?.Type == ItemType.ToolResult);
+        Assert.DoesNotContain(events, e =>
+            e.EventType == SessionEventType.ItemCompleted
+            && e.ItemPayload?.Type == ItemType.ToolResult);
+        Assert.DoesNotContain(events, e =>
+            e.EventType == SessionEventType.ItemDelta
+            && e.ToolCallArgumentsDeltaPayload != null);
+        Assert.DoesNotContain(events, e =>
+            (e.EventType == SessionEventType.ItemStarted || e.EventType == SessionEventType.ItemCompleted)
+            && e.ItemPayload?.Payload is ToolCallPayload payload
+            && (string.IsNullOrWhiteSpace(payload.ToolName)
+                || string.Equals(payload.ToolName, "unknown", StringComparison.OrdinalIgnoreCase)));
+    }
+
+    [Fact]
+    public async Task SessionService_PluginFunctionCall_InterleavesWithAgentMessages()
+    {
+        var registry = new ExternalChannelRegistry();
+        var host = CreateHost("telegram");
+        var transport = new StubTransport(new ExtChannelToolCallResult
+        {
+            Success = true,
+            ContentItems = [new ExtChannelToolContentItem { Type = "text", Text = "Document sent." }]
+        });
+        const string toolName = "TelegramSendDocumentToCurrentChat";
+        AttachFakeAdapter(host, transport, CreateToolAdapterConnection(
+            "telegram",
+            [
+                new ChannelToolDescriptor
+                {
+                    Name = toolName,
+                    Description = "Send a document to the current Telegram chat.",
+                    RequiresChatContext = false,
+                    InputSchema = new JsonObject
+                    {
+                        ["type"] = "object",
+                        ["properties"] = new JsonObject
+                        {
+                            ["fileName"] = new JsonObject { ["type"] = "string" }
+                        },
+                        ["required"] = new JsonArray("fileName")
+                    }
+                }
+            ]));
+        registry.Register("telegram", host);
+
+        var provider = new ExternalChannelToolProvider(registry);
+        provider.ConfigureReservedToolNames([]);
+        var runtimeTools = provider.CreateToolsForThread(
+            new SessionThread
+            {
+                Id = "thread_tool_interleave",
+                WorkspacePath = _tempDir,
+                OriginChannel = "telegram",
+                Status = ThreadStatus.Active
+            },
+            new HashSet<string>(StringComparer.Ordinal));
+        var externalTool = Assert.IsAssignableFrom<AIFunction>(Assert.Single(runtimeTools));
+
+        using var scriptedClient = new InterleavingExternalToolScriptedChatClient(externalTool, toolName);
+        var scriptedAgent = scriptedClient.AsAIAgent(new ChatClientAgentOptions
+        {
+            Name = "SessionServiceExternalToolInterleaveTest",
+            UseProvidedChatClientAsIs = true,
+            ChatOptions = new ChatOptions()
+        });
+
+        await using var agentFactory = CreateAgentFactoryForSessionTests();
+        var persistence = new SessionPersistenceService(new ThreadStore(_tempDir));
+        var service = new SessionService(
+            agentFactory,
+            scriptedAgent,
+            persistence,
+            new SessionGate());
+        var thread = await service.CreateThreadAsync(new SessionIdentity
+        {
+            ChannelName = "telegram",
+            UserId = "user_1",
+            WorkspacePath = _tempDir
+        });
+        SeedExternalChannelToolNames(service, thread.Id, new HashSet<string>([toolName], StringComparer.Ordinal));
+
+        var events = new List<SessionEvent>();
+        await foreach (var evt in service.SubmitInputAsync(thread.Id, [new TextContent("interleave tools and messages")]))
+            events.Add(evt);
+
+        var completed = events.Single(e => e.EventType == SessionEventType.TurnCompleted);
+        Assert.NotNull(completed.TurnPayload);
+        var turn = completed.TurnPayload!;
+
+        var ordered = turn.Items
+            .Where(i => i.Type is ItemType.PluginFunctionCall or ItemType.AgentMessage)
+            .ToList();
+        Assert.Equal(4, ordered.Count);
+        Assert.Equal(ItemType.PluginFunctionCall, ordered[0].Type);
+        Assert.Equal(ItemType.AgentMessage, ordered[1].Type);
+        Assert.Equal(ItemType.PluginFunctionCall, ordered[2].Type);
+        Assert.Equal(ItemType.AgentMessage, ordered[3].Type);
+
+        var firstMessage = Assert.IsType<AgentMessagePayload>(ordered[1].Payload);
+        var secondMessage = Assert.IsType<AgentMessagePayload>(ordered[3].Payload);
+        Assert.Equal("b", firstMessage.Text);
+        Assert.Equal("d", secondMessage.Text);
+
+        Assert.Equal(2, turn.Items.Count(i => i.Type == ItemType.PluginFunctionCall));
+        Assert.Equal(2, turn.Items.Count(i => i.Type == ItemType.AgentMessage));
+    }
+
+    [Fact]
+    public async Task ExternalChannelToolProvider_FileApprovalMetadata_BlocksDispatchWhenRejected()
+    {
+        var registry = new ExternalChannelRegistry();
+        var host = CreateHost("telegram");
+        var transport = new StubTransport(new ExtChannelToolCallResult { Success = true });
+        AttachFakeAdapter(host, transport, CreateToolAdapterConnection(
+            "telegram",
+            [
+                new ChannelToolDescriptor
+                {
+                    Name = "TelegramSendDocumentToCurrentChat",
+                    Description = "Send a document to the current Telegram chat.",
+                    RequiresChatContext = true,
+                    Approval = new ChannelToolApprovalDescriptor
+                    {
+                        Kind = "file",
+                        TargetArgument = "filePath",
+                        Operation = "read"
+                    },
+                    InputSchema = new JsonObject
+                    {
+                        ["type"] = "object",
+                        ["properties"] = new JsonObject
+                        {
+                            ["filePath"] = new JsonObject { ["type"] = "string" }
+                        },
+                        ["required"] = new JsonArray("filePath")
+                    }
+                }
+            ]));
+        registry.Register("telegram", host);
+
+        var provider = new ExternalChannelToolProvider(registry);
+        provider.ConfigureReservedToolNames([]);
+        var fn = Assert.IsAssignableFrom<AIFunction>(Assert.Single(provider.CreateToolsForThread(
+            new SessionThread
+            {
+                Id = "thread_approval_reject",
+                WorkspacePath = _tempDir,
+                OriginChannel = "telegram",
+                ChannelContext = "chat_123",
+                Status = ThreadStatus.Active
+            },
+            new HashSet<string>(StringComparer.Ordinal))));
+        var turn = new SessionTurn
+        {
+            Id = "turn_approval_reject",
+            ThreadId = "thread_approval_reject",
+            Status = TurnStatus.Running,
+            StartedAt = DateTimeOffset.UtcNow
+        };
+        var approvalService = new RecordingApprovalService(approve: false);
+        var outsidePath = Path.Combine(Path.GetTempPath(), $"ext_tool_reject_{Guid.NewGuid():N}.txt");
+        await File.WriteAllTextAsync(outsidePath, "demo");
+
+        try
+        {
+            using var scope = PluginFunctionExecutionScope.Set(
+                new PluginFunctionExecutionContext
+                {
+                    ThreadId = "thread_approval_reject",
+                    TurnId = "turn_approval_reject",
+                    OriginChannel = "telegram",
+                    ChannelContext = "chat_123",
+                    GroupId = "chat_123",
+                    WorkspacePath = _tempDir,
+                    RequireApprovalOutsideWorkspace = true,
+                    ApprovalService = approvalService,
+                    Turn = turn,
+                    NextItemSequence = () => turn.Items.Count + 1,
+                    EmitItemStarted = _ => { },
+                    EmitItemCompleted = _ => { }
+                });
+
+            var result = await fn.InvokeAsync(
+                new AIFunctionArguments(new Dictionary<string, object?>
+                {
+                    ["filePath"] = outsidePath
+                }),
+                CancellationToken.None);
+
+            var resultText = ExtractResultText(result);
+            Assert.Contains("AccessDenied", resultText);
+            Assert.Null(transport.LastMethod);
+            Assert.Equal("read", approvalService.LastOperation);
+            Assert.Equal(Path.GetFullPath(outsidePath), approvalService.LastPath);
+        }
+        finally
+        {
+            try { File.Delete(outsidePath); }
+            catch { }
+        }
+    }
+
+    [Fact]
+    public async Task ExternalChannelToolProvider_FileApprovalMetadata_DispatchesAfterApproval()
+    {
+        var registry = new ExternalChannelRegistry();
+        var host = CreateHost("telegram");
+        var transport = new StubTransport(new ExtChannelToolCallResult
+        {
+            Success = true,
+            ContentItems = [new ExtChannelToolContentItem { Type = "text", Text = "Document sent." }]
+        });
+        AttachFakeAdapter(host, transport, CreateToolAdapterConnection(
+            "telegram",
+            [
+                new ChannelToolDescriptor
+                {
+                    Name = "TelegramSendDocumentToCurrentChat",
+                    Description = "Send a document to the current Telegram chat.",
+                    RequiresChatContext = true,
+                    Approval = new ChannelToolApprovalDescriptor
+                    {
+                        Kind = "file",
+                        TargetArgument = "filePath",
+                        Operation = "read"
+                    },
+                    InputSchema = new JsonObject
+                    {
+                        ["type"] = "object",
+                        ["properties"] = new JsonObject
+                        {
+                            ["filePath"] = new JsonObject { ["type"] = "string" }
+                        },
+                        ["required"] = new JsonArray("filePath")
+                    }
+                }
+            ]));
+        registry.Register("telegram", host);
+
+        var provider = new ExternalChannelToolProvider(registry);
+        provider.ConfigureReservedToolNames([]);
+        var fn = Assert.IsAssignableFrom<AIFunction>(Assert.Single(provider.CreateToolsForThread(
+            new SessionThread
+            {
+                Id = "thread_approval_accept",
+                WorkspacePath = _tempDir,
+                OriginChannel = "telegram",
+                ChannelContext = "chat_123",
+                Status = ThreadStatus.Active
+            },
+            new HashSet<string>(StringComparer.Ordinal))));
+        var turn = new SessionTurn
+        {
+            Id = "turn_approval_accept",
+            ThreadId = "thread_approval_accept",
+            Status = TurnStatus.Running,
+            StartedAt = DateTimeOffset.UtcNow
+        };
+        var approvalService = new RecordingApprovalService(approve: true);
+        var outsidePath = Path.Combine(Path.GetTempPath(), $"ext_tool_accept_{Guid.NewGuid():N}.txt");
+        await File.WriteAllTextAsync(outsidePath, "demo");
+
+        try
+        {
+            using var scope = PluginFunctionExecutionScope.Set(
+                new PluginFunctionExecutionContext
+                {
+                    ThreadId = "thread_approval_accept",
+                    TurnId = "turn_approval_accept",
+                    OriginChannel = "telegram",
+                    ChannelContext = "chat_123",
+                    GroupId = "chat_123",
+                    WorkspacePath = _tempDir,
+                    RequireApprovalOutsideWorkspace = true,
+                    ApprovalService = approvalService,
+                    Turn = turn,
+                    NextItemSequence = () => turn.Items.Count + 1,
+                    EmitItemStarted = _ => { },
+                    EmitItemCompleted = _ => { }
+                });
+
+            await fn.InvokeAsync(
+                new AIFunctionArguments(new Dictionary<string, object?>
+                {
+                    ["filePath"] = outsidePath
+                }),
+                CancellationToken.None);
+
+            Assert.Equal(AppServerMethods.ExtChannelToolCall, transport.LastMethod);
+            var toolParams = Assert.IsType<ExtChannelToolCallParams>(transport.LastParams);
+            Assert.Equal(outsidePath, toolParams.Arguments["filePath"]?.GetValue<string>());
+            Assert.Equal("read", approvalService.LastOperation);
+            Assert.Equal(Path.GetFullPath(outsidePath), approvalService.LastPath);
+        }
+        finally
+        {
+            try { File.Delete(outsidePath); }
+            catch { }
+        }
+    }
+
+    [Fact]
+    public void ExternalChannelToolProvider_RegistersDescriptorDisplayMetadata()
+    {
+        var registry = new ExternalChannelRegistry();
+        var host = CreateHost("telegram");
+        AttachFakeAdapter(host, new StubTransport(), CreateToolAdapterConnection(
+            "telegram",
+            [
+                new ChannelToolDescriptor
+                {
+                    Name = "TelegramSendDocumentToCurrentChat",
+                    Description = "Send a document to the current Telegram chat.",
+                    RequiresChatContext = true,
+                    Display = new ChannelToolDisplay
+                    {
+                        Icon = "📎",
+                        Title = "Send document to current Telegram chat"
+                    },
+                    InputSchema = new JsonObject
+                    {
+                        ["type"] = "object",
+                        ["properties"] = new JsonObject()
+                    }
+                }
+            ]));
+        registry.Register("telegram", host);
+
+        var provider = new ExternalChannelToolProvider(registry);
+        provider.ConfigureReservedToolNames([]);
+        var tools = provider.CreateToolsForThread(
+            new SessionThread
+            {
+                Id = "thread_011",
+                WorkspacePath = _tempDir,
+                OriginChannel = "telegram",
+                Status = ThreadStatus.Active
+            },
+            new HashSet<string>(StringComparer.Ordinal));
+
+        Assert.Single(tools);
+        Assert.Equal("📎", ToolRegistry.GetToolIcon("TelegramSendDocumentToCurrentChat"));
+        Assert.Equal(
+            "Send document to current Telegram chat",
+            ToolRegistry.FormatToolCall("TelegramSendDocumentToCurrentChat", (IDictionary<string, object?>?)null));
+    }
+
+    [Fact]
+    public void ExternalChannelToolProvider_RejectsInvalidSchema_And_NameConflicts()
+    {
+        var registry = new ExternalChannelRegistry();
+        var firstHost = CreateHost("telegram");
+        AttachFakeAdapter(firstHost, new StubTransport(), CreateToolAdapterConnection(
+            "telegram",
+            [
+                new ChannelToolDescriptor
+                {
+                    Name = "sharedTool",
+                    Description = "Valid descriptor.",
+                    InputSchema = new JsonObject
+                    {
+                        ["type"] = "object",
+                        ["properties"] = new JsonObject()
+                    }
+                },
+                new ChannelToolDescriptor
+                {
+                    Name = "invalidTool",
+                    Description = "Invalid descriptor.",
+                    InputSchema = new JsonObject
+                    {
+                        ["type"] = "array"
+                    }
+                }
+            ]));
+
+        registry.Register("telegram", firstHost);
+
+        var provider = new ExternalChannelToolProvider(registry);
+        provider.ConfigureReservedToolNames(["sharedTool"]);
+        _ = provider.CreateToolsForThread(
+            new SessionThread
+            {
+                Id = "thread_010",
+                WorkspacePath = _tempDir,
+                OriginChannel = "telegram",
+                Status = ThreadStatus.Active
+            },
+            new HashSet<string>(StringComparer.Ordinal));
+
+        Assert.Empty(firstHost.AdapterConnection!.RegisteredChannelTools);
+        Assert.Contains(firstHost.AdapterConnection.ChannelToolDiagnostics, d => d.ToolName == "invalidTool");
+        Assert.Contains(firstHost.AdapterConnection.ChannelToolDiagnostics, d => d.ToolName == "sharedTool");
+        Assert.True(firstHost.AdapterConnection.ChannelToolRegistrationFinalized);
+    }
+
+    [Fact]
+    public void ExternalChannelToolProvider_ReusesRegisteredDescriptorsAcrossMatchingThreads()
+    {
+        var registry = new ExternalChannelRegistry();
+        var host = CreateHost("telegram");
+        AttachFakeAdapter(host, new StubTransport(), CreateToolAdapterConnection(
+            "telegram",
+            [
+                new ChannelToolDescriptor
+                {
+                    Name = "TelegramSendDocumentToCurrentChat",
+                    Description = "Send a document to the current Telegram chat.",
+                    RequiresChatContext = true,
+                    InputSchema = new JsonObject
+                    {
+                        ["type"] = "object",
+                        ["properties"] = new JsonObject
+                        {
+                            ["fileName"] = new JsonObject { ["type"] = "string" }
+                        },
+                        ["required"] = new JsonArray("fileName")
+                    }
+                }
+            ]));
+        registry.Register("telegram", host);
+
+        var provider = new ExternalChannelToolProvider(registry);
+        provider.ConfigureReservedToolNames([]);
+
+        var firstTools = provider.CreateToolsForThread(
+            new SessionThread
+            {
+                Id = "thread_a",
+                WorkspacePath = _tempDir,
+                OriginChannel = "telegram",
+                Status = ThreadStatus.Active
+            },
+            new HashSet<string>(StringComparer.Ordinal));
+
+        Assert.True(host.AdapterConnection!.ChannelToolRegistrationFinalized);
+        Assert.Single(host.AdapterConnection.RegisteredChannelTools);
+
+        var secondTools = provider.CreateToolsForThread(
+            new SessionThread
+            {
+                Id = "thread_b",
+                WorkspacePath = _tempDir,
+                OriginChannel = "telegram",
+                Status = ThreadStatus.Active
+            },
+            new HashSet<string>(StringComparer.Ordinal));
+
+        Assert.Single(firstTools);
+        Assert.Single(secondTools);
+        Assert.Single(host.AdapterConnection.RegisteredChannelTools);
+        Assert.Empty(host.AdapterConnection.ChannelToolDiagnostics);
+    }
+
+    [Fact]
+    public void ExternalChannelToolProvider_DoesNotRecomputeRegistrationForThreadSpecificConflicts()
+    {
+        var registry = new ExternalChannelRegistry();
+        var host = CreateHost("telegram");
+        AttachFakeAdapter(host, new StubTransport(), CreateToolAdapterConnection(
+            "telegram",
+            [
+                new ChannelToolDescriptor
+                {
+                    Name = "TelegramSendDocumentToCurrentChat",
+                    Description = "Send a document to the current Telegram chat.",
+                    RequiresChatContext = true,
+                    InputSchema = new JsonObject
+                    {
+                        ["type"] = "object",
+                        ["properties"] = new JsonObject
+                        {
+                            ["fileName"] = new JsonObject { ["type"] = "string" }
+                        },
+                        ["required"] = new JsonArray("fileName")
+                    }
+                }
+            ]));
+        registry.Register("telegram", host);
+
+        var provider = new ExternalChannelToolProvider(registry);
+        provider.ConfigureReservedToolNames([]);
+
+        var firstTools = provider.CreateToolsForThread(
+            new SessionThread
+            {
+                Id = "thread_one",
+                WorkspacePath = _tempDir,
+                OriginChannel = "telegram",
+                Status = ThreadStatus.Active
+            },
+            new HashSet<string>(StringComparer.Ordinal));
+
+        var secondTools = provider.CreateToolsForThread(
+            new SessionThread
+            {
+                Id = "thread_two",
+                WorkspacePath = _tempDir,
+                OriginChannel = "telegram",
+                Status = ThreadStatus.Active
+            },
+            new HashSet<string>(["TelegramSendDocumentToCurrentChat"], StringComparer.Ordinal));
+
+        Assert.Single(firstTools);
+        Assert.Empty(secondTools);
+        Assert.True(host.AdapterConnection!.ChannelToolRegistrationFinalized);
+        Assert.Single(host.AdapterConnection.RegisteredChannelTools);
+        Assert.Empty(host.AdapterConnection.ChannelToolDiagnostics);
+    }
+
+    [Fact]
+    public async Task ExternalChannelToolProvider_RequiresChatContextBeforeDispatch()
+    {
+        var registry = new ExternalChannelRegistry();
+        var host = CreateHost("telegram");
+        var transport = new StubTransport(new ExtChannelToolCallResult
+        {
+            Success = true,
+            ContentItems = [new ExtChannelToolContentItem { Type = "text", Text = "ok" }]
+        });
+        AttachFakeAdapter(host, transport, CreateToolAdapterConnection(
+            "telegram",
+            [
+                new ChannelToolDescriptor
+                {
+                    Name = "TelegramSendDocumentToCurrentChat",
+                    Description = "Send a document to the current Telegram chat.",
+                    RequiresChatContext = true,
+                    InputSchema = new JsonObject
+                    {
+                        ["type"] = "object",
+                        ["properties"] = new JsonObject
+                        {
+                            ["fileName"] = new JsonObject { ["type"] = "string" }
+                        },
+                        ["required"] = new JsonArray("fileName")
+                    }
+                }
+            ]));
+        registry.Register("telegram", host);
+
+        var provider = new ExternalChannelToolProvider(registry);
+        provider.ConfigureReservedToolNames([]);
+        var tools = provider.CreateToolsForThread(
+            new SessionThread
+            {
+                Id = "thread_020",
+                WorkspacePath = _tempDir,
+                OriginChannel = "telegram",
+                Status = ThreadStatus.Active
+            },
+            new HashSet<string>(StringComparer.Ordinal));
+
+        var fn = Assert.IsAssignableFrom<AIFunction>(Assert.Single(tools));
+        var turn = new SessionTurn
+        {
+            Id = "turn_020",
+            ThreadId = "thread_020",
+            Status = TurnStatus.Running,
+            StartedAt = DateTimeOffset.UtcNow
+        };
+        using var scope = PluginFunctionExecutionScope.Set(
+            new PluginFunctionExecutionContext
+            {
+                ThreadId = "thread_020",
+                TurnId = "turn_020",
+                OriginChannel = "telegram",
+                WorkspacePath = _tempDir,
+                RequireApprovalOutsideWorkspace = true,
+                ApprovalService = new AutoApproveApprovalService(),
+                Turn = turn,
+                NextItemSequence = () => turn.Items.Count + 1,
+                EmitItemStarted = _ => { },
+                EmitItemCompleted = _ => { }
+            });
+
+        var result = await fn.InvokeAsync(
+            new AIFunctionArguments(new Dictionary<string, object?>
+            {
+                ["fileName"] = "report.pdf"
+            }),
+            CancellationToken.None);
+
+        Assert.Null(transport.LastMethod);
+        var resultText = ExtractResultText(result);
+        Assert.Contains("MissingChatContext", resultText);
+        Assert.Single(turn.Items);
+        Assert.Equal(ItemStatus.Completed, turn.Items[0].Status);
+        Assert.False(turn.Items[0].AsPluginFunctionCall?.Success);
+    }
+
+    [Fact]
+    public async Task ExternalChannelToolProvider_TimeoutYieldsFailedItem()
+    {
+        var registry = new ExternalChannelRegistry();
+        var host = CreateHost("telegram");
+        var transport = new StubTransport(exception: new OperationCanceledException("tool timeout"));
+        AttachFakeAdapter(host, transport, CreateToolAdapterConnection(
+            "telegram",
+            [
+                new ChannelToolDescriptor
+                {
+                    Name = "TelegramSendDocumentToCurrentChat",
+                    Description = "Send a document to the current Telegram chat.",
+                    RequiresChatContext = true,
+                    InputSchema = new JsonObject
+                    {
+                        ["type"] = "object",
+                        ["properties"] = new JsonObject
+                        {
+                            ["fileName"] = new JsonObject { ["type"] = "string" }
+                        },
+                        ["required"] = new JsonArray("fileName")
+                    }
+                }
+            ]));
+        registry.Register("telegram", host);
+
+        var provider = new ExternalChannelToolProvider(registry);
+        provider.ConfigureReservedToolNames([]);
+        var fn = Assert.IsAssignableFrom<AIFunction>(Assert.Single(provider.CreateToolsForThread(
+            new SessionThread
+            {
+                Id = "thread_030",
+                WorkspacePath = _tempDir,
+                OriginChannel = "telegram",
+                ChannelContext = "chat_123",
+                Status = ThreadStatus.Active
+            },
+            new HashSet<string>(StringComparer.Ordinal))));
+        var turn = new SessionTurn
+        {
+            Id = "turn_030",
+            ThreadId = "thread_030",
+            Status = TurnStatus.Running,
+            StartedAt = DateTimeOffset.UtcNow
+        };
+        using var scope = PluginFunctionExecutionScope.Set(
+            new PluginFunctionExecutionContext
+            {
+                ThreadId = "thread_030",
+                TurnId = "turn_030",
+                OriginChannel = "telegram",
+                ChannelContext = "chat_123",
+                GroupId = "chat_123",
+                WorkspacePath = _tempDir,
+                RequireApprovalOutsideWorkspace = true,
+                ApprovalService = new AutoApproveApprovalService(),
+                Turn = turn,
+                NextItemSequence = () => turn.Items.Count + 1,
+                EmitItemStarted = _ => { },
+                EmitItemCompleted = _ => { }
+            });
+
+        var result = await fn.InvokeAsync(
+            new AIFunctionArguments(new Dictionary<string, object?>
+            {
+                ["fileName"] = "report.pdf"
+            }),
+            CancellationToken.None);
+
+        var resultText = ExtractResultText(result);
+        Assert.Contains("ExternalChannelToolTimeout", resultText);
+        Assert.Single(turn.Items);
+        var payload = Assert.IsType<PluginFunctionCallPayload>(turn.Items[0].Payload);
+        Assert.False(payload.Success);
+        Assert.Equal("ExternalChannelToolTimeout", payload.ErrorCode);
+    }
+
+    [Fact]
+    public void ExternalChannelHost_AcceptsWebSocketAdapterAttach_MatchesTransport()
+    {
+        var subprocess = CreateHost("telegram");
+        Assert.Equal(ExternalChannelTransport.Subprocess, subprocess.Transport);
+        Assert.False(subprocess.AcceptsWebSocketAdapterAttach);
+
+        var websocket = new ExternalChannelHost(
+            new ExternalChannelEntry
+            {
+                Name = "feishu",
+                Enabled = true,
+                Transport = ExternalChannelTransport.Websocket,
+            },
+            new FakeSessionService(),
+            "0.0.1-test",
+            new ModuleRegistry(),
+            _tempDir);
+        Assert.Equal(ExternalChannelTransport.Websocket, websocket.Transport);
+        Assert.True(websocket.AcceptsWebSocketAdapterAttach);
+
+        var managedWebsocket = new ExternalChannelHost(
+            new ExternalChannelEntry
+            {
+                Name = "weixin",
+                Enabled = true,
+                Transport = ExternalChannelTransport.ManagedWebsocket,
+                BuiltinModule = "channel-weixin",
+            },
+            new FakeSessionService(),
+            "0.0.1-test",
+            new ModuleRegistry(),
+            _tempDir);
+        Assert.Equal(ExternalChannelTransport.ManagedWebsocket, managedWebsocket.Transport);
+        Assert.True(managedWebsocket.AcceptsWebSocketAdapterAttach);
+    }
+
+    [Fact]
+    public void ExternalChannelManager_RegistersSubprocessHostInRegistry()
+    {
+        var registry = new ExternalChannelRegistry();
+        var config = new AppConfig
+        {
+            ExternalChannels =
+            [
+                new ExternalChannelEntry
+                {
+                    Name = "telegram",
+                    Enabled = true,
+                    Transport = ExternalChannelTransport.Subprocess,
+                    Command = "python",
+                },
+            ]
+        };
+
+        var ecManager = new ExternalChannelManager(
+            config,
+            new FakeSessionService(),
+            [],
+            new ModuleRegistry(),
+            _tempDir,
+            registry: registry);
+
+        Assert.Single(ecManager.Channels);
+        Assert.True(registry.TryGet("telegram", out var host));
+        Assert.NotNull(host);
+        Assert.Equal(ExternalChannelTransport.Subprocess, host.Transport);
+        Assert.False(host.AcceptsWebSocketAdapterAttach);
+    }
+
+    [Fact]
+    public void ExternalChannelManager_RegistersSubprocessBuiltinModuleHostInRegistry()
+    {
+        var registry = new ExternalChannelRegistry();
+        var config = new AppConfig
+        {
+            ExternalChannels =
+            [
+                new ExternalChannelEntry
+                {
+                    Name = "telegram",
+                    Enabled = true,
+                    Transport = ExternalChannelTransport.Subprocess,
+                    BuiltinModule = "channel-telegram",
+                },
+            ]
+        };
+
+        var ecManager = new ExternalChannelManager(
+            config,
+            new FakeSessionService(),
+            [],
+            new ModuleRegistry(),
+            _tempDir,
+            registry: registry);
+
+        Assert.Single(ecManager.Channels);
+        Assert.True(registry.TryGet("telegram", out var host));
+        Assert.NotNull(host);
+        Assert.Equal(ExternalChannelTransport.Subprocess, host.Transport);
+        Assert.False(host.AcceptsWebSocketAdapterAttach);
+    }
+
+    [Fact]
+    public void ExternalChannelManager_RegistersManagedWebsocketBuiltinModuleHostWhenAppServerWebSocketEnabled()
+    {
+        var registry = new ExternalChannelRegistry();
+        var config = new AppConfig();
+        config.SetSection("AppServer", new AppServerConfig { Mode = AppServerMode.StdioAndWebSocket });
+        config.ExternalChannels =
+        [
+            new ExternalChannelEntry
+            {
+                Name = "feishu",
+                Enabled = true,
+                Transport = ExternalChannelTransport.ManagedWebsocket,
+                BuiltinModule = "channel-feishu",
+            },
+        ];
+
+        var ecManager = new ExternalChannelManager(
+            config,
+            new FakeSessionService(),
+            [],
+            new ModuleRegistry(),
+            _tempDir,
+            registry: registry,
+            appConfigMonitor: new AppConfigMonitor(config));
+
+        Assert.Single(ecManager.Channels);
+        Assert.True(registry.TryGet("feishu", out var host));
+        Assert.NotNull(host);
+        Assert.Equal(ExternalChannelTransport.ManagedWebsocket, host.Transport);
+        Assert.True(host.AcceptsWebSocketAdapterAttach);
+    }
+
+    [Fact]
+    public void ExternalChannelManager_SkipsSubprocessHostWithoutCommandOrBuiltinModule()
+    {
+        var registry = new ExternalChannelRegistry();
+        var config = new AppConfig
+        {
+            ExternalChannels =
+            [
+                new ExternalChannelEntry
+                {
+                    Name = "telegram",
+                    Enabled = true,
+                    Transport = ExternalChannelTransport.Subprocess,
+                },
+            ]
+        };
+
+        var ecManager = new ExternalChannelManager(
+            config,
+            new FakeSessionService(),
+            [],
+            new ModuleRegistry(),
+            _tempDir,
+            registry: registry);
+
+        Assert.Empty(ecManager.Channels);
+        Assert.False(registry.TryGet("telegram", out _));
+    }
+
+    [Fact]
+    public void ExternalChannelManager_SkipsManagedWebsocketWithoutCommandOrBuiltinModule()
+    {
+        var registry = new ExternalChannelRegistry();
+        var config = new AppConfig();
+        config.SetSection("AppServer", new AppServerConfig { Mode = AppServerMode.WebSocket });
+        config.ExternalChannels =
+        [
+            new ExternalChannelEntry
+            {
+                Name = "feishu",
+                Enabled = true,
+                Transport = ExternalChannelTransport.ManagedWebsocket,
+            },
+        ];
+
+        var ecManager = new ExternalChannelManager(
+            config,
+            new FakeSessionService(),
+            [],
+            new ModuleRegistry(),
+            _tempDir,
+            registry: registry,
+            appConfigMonitor: new AppConfigMonitor(config));
+
+        Assert.Empty(ecManager.Channels);
+        Assert.False(registry.TryGet("feishu", out _));
+    }
+
+    [Fact]
+    public void ExternalChannelManager_SkipsManagedWebsocketWhenAppServerWebSocketDisabled()
+    {
+        var registry = new ExternalChannelRegistry();
+        var config = new AppConfig();
+        config.SetSection("AppServer", new AppServerConfig { Mode = AppServerMode.Stdio });
+        config.ExternalChannels =
+        [
+            new ExternalChannelEntry
+            {
+                Name = "feishu",
+                Enabled = true,
+                Transport = ExternalChannelTransport.ManagedWebsocket,
+                BuiltinModule = "channel-feishu",
+            },
+        ];
+
+        var ecManager = new ExternalChannelManager(
+            config,
+            new FakeSessionService(),
+            [],
+            new ModuleRegistry(),
+            _tempDir,
+            registry: registry,
+            appConfigMonitor: new AppConfigMonitor(config));
+
+        Assert.Empty(ecManager.Channels);
+        Assert.False(registry.TryGet("feishu", out _));
+    }
+
+    [Fact]
+    public void ExternalChannelManager_RegistersWebsocketHostWhenAppServerWebSocketEnabled()
+    {
+        var registry = new ExternalChannelRegistry();
+        var config = new AppConfig();
+        config.SetSection("AppServer", new AppServerConfig { Mode = AppServerMode.WebSocket });
+        config.ExternalChannels =
+        [
+            new ExternalChannelEntry
+            {
+                Name = "feishu",
+                Enabled = true,
+                Transport = ExternalChannelTransport.Websocket,
+            },
+        ];
+
+        var ecManager = new ExternalChannelManager(
+            config,
+            new FakeSessionService(),
+            [],
+            new ModuleRegistry(),
+            _tempDir,
+            registry: registry);
+
+        Assert.Single(ecManager.Channels);
+        Assert.True(registry.TryGet("feishu", out var host));
+        Assert.NotNull(host);
+        Assert.True(host.AcceptsWebSocketAdapterAttach);
+    }
+
+    private static AppServerConnection CreateAdapterConnection(
+        bool structuredDelivery,
+        ChannelMediaConstraints? fileConstraints)
+    {
+        var connection = new AppServerConnection();
+        connection.TryMarkInitialized(
+            new AppServerClientInfo { Name = "adapter", Version = "1.0.0" },
+            new AppServerClientCapabilities
+            {
+                ChannelAdapter = new ChannelAdapterCapability
+                {
+                    ChannelName = "telegram",
+                    DeliveryCapabilities = structuredDelivery
+                        ? new ChannelDeliveryCapabilities
+                        {
+                            StructuredDelivery = true,
+                            Media = new ChannelMediaCapabilitySet
+                            {
+                                File = fileConstraints
+                            }
+                        }
+                        : null
+                }
+            });
+        connection.MarkClientReady();
+        return connection;
+    }
+
+    private static AppServerConnection CreateToolAdapterConnection(
+        string channelName,
+        IReadOnlyList<ChannelToolDescriptor> tools)
+    {
+        var connection = new AppServerConnection();
+        connection.TryMarkInitialized(
+            new AppServerClientInfo { Name = $"{channelName}-adapter", Version = "1.0.0" },
+            new AppServerClientCapabilities
+            {
+                ChannelAdapter = new ChannelAdapterCapability
+                {
+                    ChannelName = channelName,
+                    ChannelTools = tools.ToList()
+                }
+            });
+        connection.MarkClientReady();
+        return connection;
+    }
+
+    private static ChannelMediaResolver CreateResolver(
+        IChannelMediaArtifactStore store,
+        string workspaceRoot,
+        IApprovalService? approvalService = null,
+        PathBlacklist? blacklist = null)
+        => new(
+            store,
+            Path.Combine(workspaceRoot, "tmp"),
+            new FileAccessGuard(
+                workspaceRoot,
+                requireApprovalOutsideWorkspace: true,
+                approvalService,
+                blacklist));
+
+    private ExternalChannelHost CreateHost(string channelName)
+        => new(
+            new ExternalChannelEntry
+            {
+                Name = channelName,
+                Enabled = true,
+                Transport = ExternalChannelTransport.Subprocess,
+                Command = "python"
+            },
+            new FakeSessionService(),
+            "0.0.1-test",
+            new ModuleRegistry(),
+            _tempDir);
+
+    private static ProcessStartInfo CreateLongRunningStartInfo()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return new ProcessStartInfo
+            {
+                FileName = "powershell",
+                UseShellExecute = false,
+                RedirectStandardInput = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true,
+                ArgumentList =
+                {
+                    "-NoProfile",
+                    "-Command",
+                    "Start-Sleep -Seconds 30"
+                }
+            };
+        }
+
+        return new ProcessStartInfo
+        {
+            FileName = "/bin/sh",
+            UseShellExecute = false,
+            RedirectStandardInput = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true,
+            ArgumentList =
+            {
+                "-c",
+                "sleep 30"
+            }
+        };
+    }
+
+    private static ProcessStartInfo CreateImmediateExitStartInfo()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return new ProcessStartInfo
+            {
+                FileName = "powershell",
+                UseShellExecute = false,
+                RedirectStandardInput = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true,
+                ArgumentList =
+                {
+                    "-NoProfile",
+                    "-Command",
+                    "exit 0"
+                }
+            };
+        }
+
+        return new ProcessStartInfo
+        {
+            FileName = "/bin/sh",
+            UseShellExecute = false,
+            RedirectStandardInput = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true,
+            ArgumentList =
+            {
+                "-c",
+                "exit 0"
+            }
+        };
+    }
+
+    private static void AttachFakeAdapter(
+        ExternalChannelHost host,
+        StubTransport transport,
+        AppServerConnection connection)
+    {
+        typeof(ExternalChannelHost)
+            .GetField("_transport", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .SetValue(host, transport);
+        typeof(ExternalChannelHost)
+            .GetField("_connection", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .SetValue(host, connection);
+    }
+
+    private AgentFactory CreateAgentFactoryForSessionTests()
+    {
+        var config = new AppConfig
+        {
+            ProviderId = "openai",
+            Providers =
+            {
+                ["openai"] = new AppConfig.ModelProviderConfig
+                {
+                    Protocol = ModelProviderProtocols.OpenAI,
+                    ApiKey = "sk-test-not-used-for-network",
+                    EndPoint = "https://127.0.0.1:9/v1"
+                }
+            }
+        };
+        var memory = new MemoryStore(_tempDir);
+        var skills = new SkillsLoader(_tempDir);
+        return new AgentFactory(
+            dotcraftPath: _tempDir,
+            workspacePath: _tempDir,
+            config: config,
+            memoryStore: memory,
+            skillsLoader: skills,
+            approvalService: new AutoApproveApprovalService(),
+            blacklist: null,
+            toolProviders: Array.Empty<IAgentToolProvider>());
+    }
+
+    private static void SeedExternalChannelToolNames(
+        SessionService service,
+        string threadId,
+        IReadOnlySet<string> toolNames)
+    {
+        var field = typeof(SessionService)
+            .GetField("_threadPluginFunctionToolNames", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(field);
+        var cache = Assert.IsType<ConcurrentDictionary<string, IReadOnlySet<string>>>(field!.GetValue(service));
+        cache[threadId] = new HashSet<string>(toolNames, StringComparer.Ordinal);
+    }
+
+    private static string ExtractResultText(object? result)
+    {
+        if (result is string text)
+            return text;
+
+        if (result is IReadOnlyList<AIContent> contents)
+            return string.Join("\n", contents.OfType<TextContent>().Select(content => content.Text));
+
+        return result?.ToString() ?? string.Empty;
+    }
+
+    private sealed class StubTransport(object? result = null, Exception? exception = null) : IAppServerTransport
+    {
+        public string? LastMethod { get; private set; }
+
+        public object? LastParams { get; private set; }
+
+        public Task<AppServerIncomingMessage?> ReadMessageAsync(CancellationToken ct = default) =>
+            Task.FromResult<AppServerIncomingMessage?>(null);
+
+        public Task WriteMessageAsync(object message, CancellationToken ct = default) => Task.CompletedTask;
+
+        public Task<AppServerIncomingMessage> SendClientRequestAsync(string method, object? @params, CancellationToken ct = default, TimeSpan? timeout = null)
+        {
+            LastMethod = method;
+            LastParams = @params;
+            if (exception != null)
+                return Task.FromException<AppServerIncomingMessage>(exception);
+            var payload = result ?? new ExtChannelSendResult { Delivered = true };
+            var json = JsonSerializer.Serialize(new { jsonrpc = "2.0", id = 1, result = payload }, SessionWireJsonOptions.Default);
+            var msg = JsonSerializer.Deserialize<AppServerIncomingMessage>(json, new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                PropertyNameCaseInsensitive = true
+            })!;
+            return Task.FromResult(msg);
+        }
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
+    private sealed class ExternalToolScriptedChatClient(
+        AIFunction externalTool,
+        string toolName,
+        bool nullToolNameInFirstDelta) : IChatClient
+    {
+        public Task<ChatResponse> GetResponseAsync(
+            IEnumerable<ChatMessage> chatMessages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult(new ChatResponse([new ChatMessage(ChatRole.Assistant, [new TextContent("ok")])]));
+
+        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+            IEnumerable<ChatMessage> chatMessages,
+            ChatOptions? options = null,
+            [System.Runtime.CompilerServices.EnumeratorCancellation]
+            CancellationToken cancellationToken = default)
+        {
+            const string callId = "call_external_001";
+            var args = new Dictionary<string, object?> { ["fileName"] = "report.pdf" };
+
+            if (nullToolNameInFirstDelta)
+            {
+                yield return new ChatResponseUpdate(ChatRole.Assistant, [new ToolCallArgumentsDeltaContent
+                {
+                    ToolCallIndex = 0,
+                    ToolName = null,
+                    CallId = null,
+                    ArgumentsDelta = "{"
+                }]);
+                yield return new ChatResponseUpdate(ChatRole.Assistant, [new ToolCallArgumentsDeltaContent
+                {
+                    ToolCallIndex = 0,
+                    ToolName = toolName,
+                    CallId = callId,
+                    ArgumentsDelta = "\"fileName\":\"report.pdf\"}"
+                }]);
+            }
+            else
+            {
+                yield return new ChatResponseUpdate(ChatRole.Assistant, [new ToolCallArgumentsDeltaContent
+                {
+                    ToolCallIndex = 0,
+                    ToolName = toolName,
+                    CallId = callId,
+                    ArgumentsDelta = "{\"fileName\":\"report.pdf\"}"
+                }]);
+            }
+
+            yield return new ChatResponseUpdate(ChatRole.Assistant, [new FunctionCallContent(
+                callId: callId,
+                name: toolName,
+                arguments: args)]);
+
+            await externalTool.InvokeAsync(new AIFunctionArguments(args), cancellationToken);
+
+            yield return new ChatResponseUpdate(ChatRole.Assistant, [new FunctionResultContent(callId, "Document sent.")]);
+        }
+
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+
+        public void Dispose()
+        {
+        }
+    }
+
+    private sealed class InterleavingExternalToolScriptedChatClient(AIFunction externalTool, string toolName) : IChatClient
+    {
+        public Task<ChatResponse> GetResponseAsync(
+            IEnumerable<ChatMessage> chatMessages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult(new ChatResponse([new ChatMessage(ChatRole.Assistant, [new TextContent("ok")])]));
+
+        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+            IEnumerable<ChatMessage> chatMessages,
+            ChatOptions? options = null,
+            [System.Runtime.CompilerServices.EnumeratorCancellation]
+            CancellationToken cancellationToken = default)
+        {
+            const string callA = "call_external_a";
+            const string callC = "call_external_c";
+            var argsA = new Dictionary<string, object?> { ["fileName"] = "a.pdf" };
+            var argsC = new Dictionary<string, object?> { ["fileName"] = "c.pdf" };
+
+            yield return new ChatResponseUpdate(ChatRole.Assistant, [new FunctionCallContent(
+                callId: callA,
+                name: toolName,
+                arguments: argsA)]);
+            await externalTool.InvokeAsync(new AIFunctionArguments(argsA), cancellationToken);
+            yield return new ChatResponseUpdate(ChatRole.Assistant, [new FunctionResultContent(callA, "done a")]);
+            yield return new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("b")]);
+
+            yield return new ChatResponseUpdate(ChatRole.Assistant, [new FunctionCallContent(
+                callId: callC,
+                name: toolName,
+                arguments: argsC)]);
+            await externalTool.InvokeAsync(new AIFunctionArguments(argsC), cancellationToken);
+            yield return new ChatResponseUpdate(ChatRole.Assistant, [new FunctionResultContent(callC, "done c")]);
+            yield return new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("d")]);
+        }
+
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+
+        public void Dispose()
+        {
+        }
+    }
+
+    private sealed class RecordingApprovalService(bool approve) : IApprovalService
+    {
+        public string? LastOperation { get; private set; }
+
+        public string? LastPath { get; private set; }
+
+        public Task<bool> RequestFileApprovalAsync(string operation, string path, ApprovalContext? context = null)
+        {
+            LastOperation = operation;
+            LastPath = path;
+            return Task.FromResult(approve);
+        }
+
+        public Task<bool> RequestShellApprovalAsync(string command, string? workingDir, ApprovalContext? context = null)
+            => throw new NotSupportedException();
+
+        public Task<bool> RequestResourceApprovalAsync(string kind, string operation, string target, ApprovalContext? context = null)
+        {
+            LastOperation = operation;
+            LastPath = target;
+            return Task.FromResult(approve);
+        }
+    }
+
+    private sealed class ThrowingRegisterArtifactStore : IChannelMediaArtifactStore
+    {
+        public Task<ChannelMediaArtifact?> GetAsync(string artifactId, CancellationToken cancellationToken = default)
+            => Task.FromResult<ChannelMediaArtifact?>(null);
+
+        public Task RegisterAsync(ChannelMediaArtifact artifact, CancellationToken cancellationToken = default)
+            => Task.FromException(new IOException("register failed"));
+
+        public Task DeleteAsync(string artifactId, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+    }
+
+    private sealed class FakeSessionService : ISessionService
+    {
+        public Action<SessionThread>? ThreadCreatedForBroadcast { get; set; }
+        public Action<string>? ThreadDeletedForBroadcast { get; set; }
+        public Action<SessionThread>? ThreadRenamedForBroadcast { get; set; }
+        public Action<string, ThreadStatus, ThreadStatus>? ThreadStatusChangedForBroadcast { get; set; }
+        public Action<string, SessionThreadRuntimeSignal>? ThreadRuntimeSignalForBroadcast { get; set; }
+
+        public Task<SessionThread> CreateThreadAsync(SessionIdentity identity, ThreadConfiguration? config = null, HistoryMode historyMode = HistoryMode.Server, string? threadId = null, string? displayName = null, CancellationToken ct = default, ThreadSource? source = null) => throw new NotImplementedException();
+        public Task<ThreadResetResult> ResetConversationAsync(SessionIdentity identity, ThreadConfiguration? config = null, HistoryMode historyMode = HistoryMode.Server, string? displayName = null, CancellationToken ct = default) => throw new NotImplementedException();
+        public Task<SessionThread> ResumeThreadAsync(string threadId, CancellationToken ct = default) => throw new NotImplementedException();
+        public Task PauseThreadAsync(string threadId, CancellationToken ct = default) => throw new NotImplementedException();
+        public Task ArchiveThreadAsync(string threadId, CancellationToken ct = default) => throw new NotImplementedException();
+        public Task UnarchiveThreadAsync(string threadId, CancellationToken ct = default) => throw new NotImplementedException();
+        public Task<IReadOnlyList<ThreadSummary>> FindThreadsAsync(SessionIdentity identity, bool includeArchived = false, IReadOnlyList<string>? crossChannelOrigins = null, CancellationToken ct = default, bool includeSubAgents = false) => throw new NotImplementedException();
+        public Task UpsertThreadSpawnEdgeAsync(ThreadSpawnEdge edge, CancellationToken ct = default) => throw new NotImplementedException();
+        public Task SetThreadSpawnEdgeStatusAsync(string parentThreadId, string childThreadId, string status, CancellationToken ct = default) => throw new NotImplementedException();
+        public Task<IReadOnlyList<ThreadSpawnEdge>> ListSubAgentChildrenAsync(string parentThreadId, bool includeClosed = false, CancellationToken ct = default) => throw new NotImplementedException();
+        public IAsyncEnumerable<SessionEvent> SubscribeThreadAsync(string threadId, bool replayRecent = false, CancellationToken ct = default) => throw new NotImplementedException();
+        public IAsyncEnumerable<SessionEvent> SubmitInputAsync(string threadId, IList<AIContent> content, SenderContext? sender = null, ChatMessage[]? messages = null, CancellationToken ct = default, SessionInputSnapshot? inputSnapshot = null) => throw new NotImplementedException();
+        public Task ResolveApprovalAsync(string threadId, string turnId, string requestId, SessionApprovalDecision decision, CancellationToken ct = default) => throw new NotImplementedException();
+        public Task ResolveUserInputRequestAsync(string threadId, string turnId, string requestId, RequestUserInputResponse response, CancellationToken ct = default) => throw new NotImplementedException();
+        public Task CancelTurnAsync(string threadId, string turnId, CancellationToken ct = default) => throw new NotImplementedException();
+        public Task CleanBackgroundTerminalsAsync(string threadId, CancellationToken ct = default) => throw new NotImplementedException();
+        public Task<SessionThread> RollbackThreadAsync(string threadId, int numTurns, CancellationToken ct = default) => throw new NotImplementedException();
+        public Task<QueuedTurnInput> EnqueueTurnInputAsync(string threadId, IList<AIContent> content, SenderContext? sender = null, CancellationToken ct = default, SessionInputSnapshot? inputSnapshot = null) => throw new NotImplementedException();
+        public Task<IReadOnlyList<QueuedTurnInput>> RemoveQueuedTurnInputAsync(string threadId, string queuedInputId, CancellationToken ct = default) => throw new NotImplementedException();
+        public Task<IReadOnlyList<QueuedTurnInput>> ReorderQueuedTurnInputsAsync(string threadId, IReadOnlyList<string> orderedQueuedInputIds, CancellationToken ct = default) => throw new NotImplementedException();
+        public Task<TurnSteerResult> SteerTurnAsync(string threadId, string expectedTurnId, string queuedInputId, CancellationToken ct = default, SenderContext? sender = null) => throw new NotImplementedException();
+        public Task SetThreadModeAsync(string threadId, string mode, CancellationToken ct = default) => throw new NotImplementedException();
+        public Task UpdateThreadConfigurationAsync(string threadId, ThreadConfiguration config, CancellationToken ct = default) => throw new NotImplementedException();
+        public Task<SessionThread> GetThreadAsync(string threadId, CancellationToken ct = default) => throw new NotImplementedException();
+        public Task<SessionThread> EnsureThreadLoadedAsync(string threadId, CancellationToken ct = default) => throw new NotImplementedException();
+        public Task DeleteThreadPermanentlyAsync(string threadId, CancellationToken ct = default) => throw new NotImplementedException();
+        public Task RenameThreadAsync(string threadId, string displayName, CancellationToken ct = default) => throw new NotImplementedException();
+        public ContextUsageSnapshot? TryGetContextUsageSnapshot(string threadId) => null;
+    }
+}
+

@@ -1,0 +1,116 @@
+<svg width="1440" height="1040" viewBox="0 0 1440 1040" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">DotCraft tool surface topology</title>
+  <desc id="desc">A grouped diagram showing built-in tools, skills, plugins, MCP, SDK dynamic tools, channel tools, policies, and conversation records.</desc>
+  <style>
+    text { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; letter-spacing: 0; }
+    .title { fill: #17203A; font-size: 42px; font-weight: 760; }
+    .subtitle { fill: #667085; font-size: 18px; }
+    .cardTitle { font-size: 24px; font-weight: 760; }
+    .label { font-size: 14px; font-weight: 720; }
+    .mono { fill: #1F2937; font-size: 15px; font-family: "Cascadia Mono", ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .muted { fill: #667085; font-size: 13px; }
+  </style>
+
+  <rect width="1440" height="1040" fill="#F8FAF7"/>
+  <text x="72" y="86" class="title">DotCraft tool surface topology</text>
+  <text x="72" y="123" class="subtitle">Multiple capability sources become one governed agent-callable surface, then leave records in the session.</text>
+
+  <g transform="translate(72 164)">
+    <rect x="0" y="0" width="396" height="252" rx="8" fill="#E9F5F0" stroke="#B7DED0"/>
+    <text x="28" y="44" class="cardTitle" fill="#153E33">Built-in tools</text>
+    <line x1="28" y1="64" x2="368" y2="64" stroke="#B7DED0"/>
+    <text x="28" y="96" class="label" fill="#2E6B56">DotCraft-owned actions</text>
+    <text x="28" y="122" class="mono">File: read / write / edit / grep</text>
+    <text x="28" y="146" class="mono">Shell: Exec</text>
+    <text x="28" y="170" class="mono">Web: search / fetch</text>
+    <text x="28" y="194" class="mono">LSP, Plan, Todo</text>
+    <text x="28" y="224" class="muted">Controlled by Tools.*, EnabledTools, and policy.</text>
+  </g>
+
+  <g transform="translate(522 164)">
+    <rect x="0" y="0" width="396" height="252" rx="8" fill="#EAF0FF" stroke="#C2CEF7"/>
+    <text x="28" y="44" class="cardTitle" fill="#23305F">Workspace bundles</text>
+    <line x1="28" y1="64" x2="368" y2="64" stroke="#C2CEF7"/>
+    <text x="28" y="96" class="label" fill="#4459B8">Skills and plugins</text>
+    <text x="28" y="122" class="mono">.craft/skills/</text>
+    <text x="28" y="146" class="mono">.craft/plugins/*/.craft-plugin/</text>
+    <text x="28" y="170" class="mono">plugin-contained skills</text>
+    <text x="28" y="194" class="mono">plugin dynamic tools</text>
+    <text x="28" y="224" class="muted">Enablement controls whether they enter context.</text>
+  </g>
+
+  <g transform="translate(972 164)">
+    <rect x="0" y="0" width="396" height="252" rx="8" fill="#FFF1E6" stroke="#F3C9A4"/>
+    <text x="28" y="44" class="cardTitle" fill="#623314">External surfaces</text>
+    <line x1="28" y1="64" x2="368" y2="64" stroke="#F3C9A4"/>
+    <text x="28" y="96" class="label" fill="#A85C21">Remote or client-owned tools</text>
+    <text x="28" y="122" class="mono">MCP servers</text>
+    <text x="28" y="146" class="mono">SDK Runtime Dynamic Tools</text>
+    <text x="28" y="170" class="mono">Channel Tools</text>
+    <text x="28" y="194" class="mono">App Binding tools</text>
+    <text x="28" y="224" class="muted">Callbacks stay bound to the owning connection/app.</text>
+  </g>
+
+  <g transform="translate(72 474)">
+    <rect x="0" y="0" width="396" height="250" rx="8" fill="#F1EBFA" stroke="#D7C5EF"/>
+    <text x="28" y="44" class="cardTitle" fill="#39205F">Selection and policy</text>
+    <line x1="28" y1="64" x2="368" y2="64" stroke="#D7C5EF"/>
+    <text x="28" y="96" class="label" fill="#7653A8">Before model exposure</text>
+    <text x="28" y="122" class="mono">EnabledTools</text>
+    <text x="28" y="146" class="mono">tool profiles</text>
+    <text x="28" y="170" class="mono">SubAgent role policies</text>
+    <text x="28" y="194" class="mono">approval metadata</text>
+    <text x="28" y="222" class="muted">Server policy chooses the visible tool set.</text>
+  </g>
+
+  <g transform="translate(522 474)">
+    <rect x="0" y="0" width="396" height="250" rx="8" fill="#E8F4FA" stroke="#BBDCEE"/>
+    <text x="28" y="44" class="cardTitle" fill="#15384B">Agent tool surface</text>
+    <line x1="28" y1="64" x2="368" y2="64" stroke="#BBDCEE"/>
+    <text x="28" y="96" class="label" fill="#2B7599">What the model can call</text>
+    <text x="28" y="122" class="mono">built-ins</text>
+    <text x="28" y="146" class="mono">plugin functions</text>
+    <text x="28" y="170" class="mono">MCP tools</text>
+    <text x="28" y="194" class="mono">runtime dynamic tools</text>
+    <text x="28" y="222" class="muted">Deferred loading may expose tools later by search.</text>
+  </g>
+
+  <g transform="translate(972 474)">
+    <rect x="0" y="0" width="396" height="250" rx="8" fill="#F3F4EA" stroke="#D9DEC0"/>
+    <text x="28" y="44" class="cardTitle" fill="#3F431E">Execution backends</text>
+    <line x1="28" y1="64" x2="368" y2="64" stroke="#D9DEC0"/>
+    <text x="28" y="96" class="label" fill="#727934">Where calls run</text>
+    <text x="28" y="122" class="mono">DotCraft.Core</text>
+    <text x="28" y="146" class="mono">plugin stdio process</text>
+    <text x="28" y="170" class="mono">MCP server</text>
+    <text x="28" y="194" class="mono">SDK / channel / app callback</text>
+    <text x="28" y="222" class="muted">Sensitive calls can pause for approval first.</text>
+  </g>
+
+  <g transform="translate(72 802)">
+    <rect x="0" y="0" width="616" height="150" rx="8" fill="#FFFFFF" stroke="#D9E0EA"/>
+    <text x="28" y="44" class="cardTitle" fill="#17203A">Conversation records</text>
+    <line x1="28" y1="64" x2="588" y2="64" stroke="#D9E0EA"/>
+    <text x="28" y="96" class="mono">toolCall / toolResult</text>
+    <text x="272" y="96" class="mono">pluginFunctionCall</text>
+    <text x="28" y="124" class="mono">dynamicToolCall</text>
+    <text x="272" y="124" class="mono">approvalRequest / approvalResponse</text>
+  </g>
+
+  <g transform="translate(752 802)">
+    <rect x="0" y="0" width="616" height="150" rx="8" fill="#FFFFFF" stroke="#D9E0EA"/>
+    <text x="28" y="44" class="cardTitle" fill="#17203A">Operational safeguards</text>
+    <line x1="28" y1="64" x2="588" y2="64" stroke="#D9E0EA"/>
+    <text x="28" y="96" class="mono">workspace boundary</text>
+    <text x="282" y="96" class="mono">blacklists</text>
+    <text x="28" y="124" class="mono">sandbox / approvals</text>
+    <text x="282" y="124" class="mono">Dashboard traces</text>
+  </g>
+
+  <path d="M468 290H512" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round"/><path d="M502 282L512 290L502 298" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M918 290H962" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round"/><path d="M952 282L962 290L952 298" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M270 416V464" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round"/><path d="M262 454L270 464L278 454" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M468 600H512" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round"/><path d="M502 592L512 600L502 608" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M918 600H962" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round"/><path d="M952 592L962 600L952 608" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M720 724V792" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round"/><path d="M712 782L720 792L728 782" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

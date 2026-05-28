@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "dotcraft-unity",
+  "version": "0.1.0",
+  "displayName": "dotcraft-unity",
+  "description": "Bind running Unity Editor instances to DotCraft threads.",
+  "capabilities": ["app"],
+  "apps": "./apps.json",
+  "interface": {
+    "displayName": "dotcraft-unity",
+    "shortDescription": "Use Unity Editor tools from selected DotCraft threads",
+    "longDescription": "dotcraft-unity connects running Unity Editor projects to DotCraft threads so agents can inspect scenes, read project state, and invoke explicitly enabled Unity runtime tools.",
+    "developerName": "DotHarness",
+    "category": "Engineering",
+    "capabilities": ["App", "Unity", "Read", "Write"],
+    "defaultPrompt": "Fix the error in the Unity Editor console.",
+    "brandColor": "#1E88E5",
+    "composerIcon": "./assets/dotcraft-unity.svg",
+    "logo": "./assets/dotcraft-unity.svg",
+    "websiteUrl": "https://github.com/DotHarness/dotcraft-unity",
+    "privacyPolicyUrl": "https://github.com/DotHarness/dotcraft-unity",
+    "termsOfServiceUrl": "https://github.com/DotHarness/dotcraft-unity"
+  }
+}

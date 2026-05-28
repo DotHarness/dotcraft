@@ -1,0 +1,50 @@
+name: SDK CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-test-pack:
+    name: Build, test, and pack
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore ./sdk/dotnet/DotCraft.Sdk.sln
+
+      - name: Test
+        run: dotnet test ./sdk/dotnet/DotCraft.Sdk.sln --configuration Release --no-restore
+
+      - name: Pack CI artifact
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          New-Item -ItemType Directory -Force -Path artifacts/nuget | Out-Null
+          dotnet pack ./sdk/dotnet/src/DotCraft.Sdk/DotCraft.Sdk.csproj `
+            --configuration Release `
+            --no-build `
+            --output artifacts/nuget `
+            /p:PackageVersion=0.0.0-ci.${{ github.run_number }} `
+            /p:ContinuousIntegrationBuild=true
+
+      - name: Upload package artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dotcraft-sdk-ci-packages
+          path: artifacts/nuget/*
+          if-no-files-found: error

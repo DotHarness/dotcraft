@@ -1,0 +1,168 @@
+using DotCraft.Context.Compaction;
+using Microsoft.Extensions.AI;
+
+namespace DotCraft.Tests.Context.Compaction;
+
+public sealed class ContextUsageTokenCounterTests
+{
+    [Fact]
+    public void EstimateFromAnchor_AddsOnlyMessagesAfterUsageBoundary()
+    {
+        var messages = new List<ChatMessage>
+        {
+            new(ChatRole.User, "first user"),
+            new(ChatRole.Assistant, "first assistant"),
+            new(ChatRole.User, new string('u', 400))
+        };
+        var anchor = new ContextUsageAnchor(
+            Tokens: 190_000,
+            MessageCount: 2);
+
+        var tokens = ContextUsageTokenCounter.EstimateFromAnchor(anchor, messages);
+
+        Assert.NotNull(tokens);
+        Assert.True(tokens > 190_000);
+        Assert.Equal(
+            190_000 + MessageTokenEstimator.EstimateDelta([messages[2]]),
+            tokens);
+    }
+
+    [Fact]
+    public void EstimateFromAnchor_ValidatesPrefixFingerprint()
+    {
+        var messages = new List<ChatMessage>
+        {
+            new(ChatRole.User, "first user"),
+            new(ChatRole.Assistant, "first assistant"),
+            new(ChatRole.User, "delta")
+        };
+        var anchor = new ContextUsageAnchor(
+            Tokens: 190_000,
+            MessageCount: 2,
+            PrefixFingerprint: MessageTokenEstimator.ComputePrefixFingerprint(messages, 2));
+
+        Assert.NotNull(ContextUsageTokenCounter.EstimateFromAnchor(anchor, messages));
+
+        messages[0] = new ChatMessage(ChatRole.User, "changed first user");
+        Assert.Null(ContextUsageTokenCounter.EstimateFromAnchor(anchor, messages));
+    }
+
+    [Fact]
+    public void ContextTokenUsageEstimator_UsesPersistedAnchorBeforeRawPersistedTokens()
+    {
+        var messages = new List<ChatMessage>
+        {
+            new(ChatRole.User, "first user"),
+            new(ChatRole.Assistant, "first assistant"),
+            new(ChatRole.User, new string('d', 400))
+        };
+        var anchor = new ContextUsageAnchor(
+            Tokens: 10_000,
+            MessageCount: 2,
+            PrefixFingerprint: MessageTokenEstimator.ComputePrefixFingerprint(messages, 2));
+
+        var estimate = ContextTokenUsageEstimator.Estimate(
+            messages,
+            memoryAnchor: null,
+            persistedAnchor: anchor,
+            latestProviderTokens: 0,
+            persistedTokens: 190_000);
+
+        Assert.Equal("persisted_anchor", estimate.Source);
+        Assert.Equal(10_000 + MessageTokenEstimator.EstimateDelta([messages[2]]), estimate.Tokens);
+    }
+
+    [Fact]
+    public void ContextTokenUsageEstimator_UsesRoughEstimateWhenAnchorsAreMissingAndProviderIsStale()
+    {
+        var messages = new List<ChatMessage>
+        {
+            new(ChatRole.User, "current " + new string('u', 2_000)),
+            new(ChatRole.Assistant, "reply " + new string('a', 2_000))
+        };
+        var rough = MessageTokenEstimator.Estimate(messages);
+
+        var estimate = ContextTokenUsageEstimator.Estimate(
+            messages,
+            memoryAnchor: null,
+            persistedAnchor: null,
+            latestProviderTokens: 10,
+            persistedTokens: 20);
+
+        Assert.Equal("estimate", estimate.Source);
+        Assert.Equal(rough, estimate.Tokens);
+    }
+
+    [Fact]
+    public void ContextTokenUsageEstimator_StillUsesProviderOrPersistedWhenGreaterThanRoughEstimate()
+    {
+        var messages = new List<ChatMessage> { new(ChatRole.User, "short") };
+        var rough = MessageTokenEstimator.Estimate(messages);
+
+        var providerEstimate = ContextTokenUsageEstimator.Estimate(
+            messages,
+            memoryAnchor: null,
+            persistedAnchor: null,
+            latestProviderTokens: rough + 1_000,
+            persistedTokens: 0);
+        var persistedEstimate = ContextTokenUsageEstimator.Estimate(
+            messages,
+            memoryAnchor: null,
+            persistedAnchor: null,
+            latestProviderTokens: rough + 1_000,
+            persistedTokens: rough + 2_000);
+
+        Assert.Equal("provider", providerEstimate.Source);
+        Assert.Equal(rough + 1_000, providerEstimate.Tokens);
+        Assert.Equal("persisted", persistedEstimate.Source);
+        Assert.Equal(rough + 2_000, persistedEstimate.Tokens);
+    }
+
+    [Fact]
+    public void EstimateFromAnchor_ImageToolResultDeltaDoesNotScaleWithImageBytes()
+    {
+        var imageBytes = new byte[1_000_000];
+        var messages = new List<ChatMessage>
+        {
+            new(ChatRole.User, "first user"),
+            new(ChatRole.Assistant, "first assistant"),
+            new(
+                ChatRole.Tool,
+                (IList<AIContent>)
+                [
+                    new FunctionResultContent(
+                        "call-1",
+                        (IList<AIContent>)
+                        [
+                            new TextContent("Image: screenshot.png (1,000,000 bytes, image/png)"),
+                            new DataContent(imageBytes, "image/png")
+                        ])
+                ])
+        };
+        var anchor = new ContextUsageAnchor(
+            Tokens: 50_000,
+            MessageCount: 2,
+            PrefixFingerprint: MessageTokenEstimator.ComputePrefixFingerprint(messages, 2));
+
+        var tokens = ContextUsageTokenCounter.EstimateFromAnchor(anchor, messages);
+
+        Assert.NotNull(tokens);
+        var delta = tokens.Value - anchor.Tokens;
+        Assert.InRange(delta, 2_000, 20_000);
+        Assert.True(delta < imageBytes.Length / 16);
+    }
+
+    [Fact]
+    public void EstimateFromAnchor_ReturnsNull_WhenBoundaryNoLongerMatchesHistory()
+    {
+        var messages = new List<ChatMessage>
+        {
+            new(ChatRole.User, "short")
+        };
+        var anchor = new ContextUsageAnchor(
+            Tokens: 190_000,
+            MessageCount: 2);
+
+        Assert.Null(ContextUsageTokenCounter.EstimateFromAnchor(anchor, messages));
+    }
+}

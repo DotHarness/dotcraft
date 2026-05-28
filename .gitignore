@@ -1,0 +1,41 @@
+# Ignore cache and dist
+
+.cursorignore
+cache
+dist
+
+# TypeScript incremental build cache
+*.tsbuildinfo
+
+# Ignore Js dependencies
+
+node_modules
+.idea
+.vs
+bin
+obj
+build
+out
+*.user
+.codebuddy
+.vscode
+.claude
+.craft
+.cursor/*
+.ai
+/references
+__pycache__
+*.egg-info
+*.egg
+.venv
+venv
+tmp
+*.tmp.md
+
+# Ignore Rust dependencies
+
+target/
+
+# E2E test artifacts
+desktop/e2e/screenshots/
+/sdk/typescript/packages/channel-weixin/data

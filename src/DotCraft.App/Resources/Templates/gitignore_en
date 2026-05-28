@@ -1,0 +1,17 @@
+# DotCraft Workspace - Sensitive data should not be committed
+
+# Session files (contain conversation history)
+sessions/
+
+# Memory files (may contain sensitive information)
+memory/
+
+# Approval records (contain user authorization records)
+security/
+
+# Log files
+*.log
+
+# Temporary files
+*.tmp
+*.temp

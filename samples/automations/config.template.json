@@ -1,0 +1,8 @@
+{
+  "Automations": {
+    "Enabled": true,
+    "LocalTasksRoot": "",
+    "PollingInterval": "00:00:30",
+    "MaxConcurrentTasks": 3
+  }
+}

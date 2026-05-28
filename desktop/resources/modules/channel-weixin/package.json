@@ -1,0 +1,47 @@
+{
+  "name": "@dotcraft/channel-weixin",
+  "version": "0.1.8",
+  "private": true,
+  "type": "module",
+  "description": "DotCraft external channel adapter for WeChat (iLink) using @dotcraft/sdk",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "bin": {
+    "dotcraft-channel-weixin": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "manifest.json",
+    "README.md",
+    "README_ZH.md"
+  ],
+  "scripts": {
+    "start": "node dist/cli.js --workspace .",
+    "generate:manifest": "node ../../scripts/generate-manifest.mjs .",
+    "build": "tsc -p tsconfig.json && npm run generate:manifest",
+    "bundle": "esbuild dist/cli.js --bundle --platform=node --format=esm --outfile=dist/cli.bundle.js --external:node:* --banner:js=\"import{createRequire}from'node:module';const require=createRequire(import.meta.url);\"",
+    "dev": "npm run build && node dist/cli.js --workspace .",
+    "test": "npm run build && node --test dist/module.test.js dist/config.test.js dist/auth.test.js dist/paths.test.js dist/conformance.test.js dist/weixin-api.test.js dist/weixin-media-tools.test.js dist/weixin-streaming.test.js",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "@dotcraft/sdk": "*",
+    "qrcode": "^1.5.4",
+    "qrcode-terminal": "^0.12.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/qrcode": "^1.5.6",
+    "@types/qrcode-terminal": "^0.12.2",
+    "typescript": "^5.7.0"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "dotcraft-dev",
+  "version": "0.1.0",
+  "displayName": "DotCraft Dev",
+  "description": "Development plugin for working on DotCraft itself.",
+  "capabilities": ["skill"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "DotCraft Dev",
+    "shortDescription": "DotCraft development guidance, workflows, UI prototyping, diagnostics, and SVG support.",
+    "longDescription": "A DotCraft development plugin for contributors working on DotCraft itself. It bundles repository guidance, feature workflow planning, Desktop UI prototyping, LLM error diagnosis, and SVG asset design skills under one shared DotCraft Developer logo.",
+    "developerName": "DotHarness",
+    "category": "Engineering",
+    "capabilities": ["Skill"],
+    "defaultPrompt": "Use the bundled DotCraft development skills for repository guidance, feature workflow planning, Desktop UI prototyping, LLM error diagnosis, or SVG asset design.",
+    "brandColor": "#2458F7",
+    "composerIcon": "./assets/dotcraft-developer.svg",
+    "logo": "./assets/dotcraft-developer.svg"
+  }
+}

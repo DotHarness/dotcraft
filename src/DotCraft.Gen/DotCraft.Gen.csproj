@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>DotCraft.Gen</RootNamespace>
+    <Description>Source generator for automatic DotCraft module discovery</Description>
+    
+    <!-- NuGet package metadata -->
+    <PackageId>DotCraft.Gen</PackageId>
+    <PackageVersion>1.0.0</PackageVersion>
+    <Authors>DotCraft</Authors>
+    
+    <!-- Source generator settings -->
+    <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+    <IsRoslynComponent>true</IsRoslynComponent>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.11.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.11.0" />
+    <!-- Polyfills for C# features in netstandard2.0 -->
+    <PackageReference Include="System.Memory" Version="4.5.5" />
+    <PackageReference Include="System.Collections.Immutable" Version="8.0.0" />
+  </ItemGroup>
+
+</Project>

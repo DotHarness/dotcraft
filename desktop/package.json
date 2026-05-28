@@ -1,0 +1,182 @@
+{
+  "name": "dotcraft-desktop",
+  "version": "0.1.8",
+  "description": "DotCraft",
+  "author": {
+    "name": "DotCraft"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DotHarness/dotcraft"
+  },
+  "private": true,
+  "main": "./out/main/index.js",
+  "scripts": {
+    "ensure:electron": "node scripts/ensure-electron.mjs",
+    "dev": "npm run ensure:electron && electron-vite dev",
+    "dev:websocket": "npm run ensure:electron && electron-vite dev -- --remote ws://127.0.0.1:9100/ws",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "e2e": "npx tsx e2e/smoke.ts",
+    "e2e:terminal": "npx tsx e2e/terminal-smoke.ts",
+    "verify:package": "node scripts/verify-package.mjs",
+    "pack": "npm run ensure:electron && electron-builder --dir",
+    "dist": "npm run ensure:electron && electron-vite build && electron-builder && npm run verify:package"
+  },
+  "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
+    "@electron-toolkit/preload": "^3.0.1",
+    "@electron-toolkit/utils": "^4.0.0",
+    "@lydell/node-pty": "^1.2.0-beta.3",
+    "@monaco-editor/react": "^4.7.0",
+    "@types/ws": "^8.18.1",
+    "@vscode/ripgrep": "^1.18.0",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/addon-serialize": "^0.14.0",
+    "@xterm/addon-web-links": "^0.12.0",
+    "@xterm/xterm": "^6.0.0",
+    "diff": "^8.0.3",
+    "dompurify": "^3.4.5",
+    "fflate": "^0.8.2",
+    "globby": "^14.1.0",
+    "highlight.js": "^11.11.1",
+    "ignore-walk": "^8.0.0",
+    "lucide-react": "^1.8.0",
+    "mermaid": "^11.15.0",
+    "monaco-editor": "^0.55.1",
+    "playwright-core": "^1.59.1",
+    "react-markdown": "^10.1.0",
+    "rehype-highlight": "^7.0.2",
+    "remark-gfm": "^4.0.1",
+    "ws": "^8.19.0",
+    "zustand": "^5.0.3"
+  },
+  "devDependencies": {
+    "@electron-toolkit/eslint-config-prettier": "^3.0.0",
+    "@electron-toolkit/eslint-config-ts": "^2.0.0",
+    "@electron/asar": "^3.4.1",
+    "@tailwindcss/vite": "^4.0.0",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@types/diff": "^7.0.2",
+    "@types/node": "^22.10.10",
+    "@types/react": "^19.0.7",
+    "@types/react-dom": "^19.0.3",
+    "@vitejs/plugin-react": "^4.3.4",
+    "electron": "^42.0.1",
+    "electron-builder": "^26.8.1",
+    "electron-vite": "^3.0.0",
+    "jsdom": "^29.0.1",
+    "playwright": "^1.58.2",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tailwindcss": "^4.0.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.5"
+  },
+  "build": {
+    "appId": "com.dotcraft.desktop",
+    "productName": "DotCraft",
+    "icon": "resources/icon.png",
+    "directories": {
+      "buildResources": "resources"
+    },
+    "files": [
+      "out/**/*"
+    ],
+    "asarUnpack": [
+      "node_modules/@vscode/ripgrep/bin/**",
+      "node_modules/@vscode/ripgrep-*/bin/**"
+    ],
+    "extraResources": [
+      {
+        "from": "resources/icon.png",
+        "to": "icon.png"
+      },
+      {
+        "from": "resources/tray-icon.png",
+        "to": "tray-icon.png"
+      },
+      {
+        "from": "resources/bin",
+        "to": "bin",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "resources/modules",
+        "to": "modules",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "resources/plugins",
+        "to": "plugins",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "resources/browser",
+        "to": "browser",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "resources/chrome",
+        "to": "chrome",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "resources/whats-new",
+        "to": "whats-new",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "win": {
+      "asar": true,
+      "executableName": "DotCraft",
+      "icon": "resources/icon.ico",
+      "target": [
+        "nsis"
+      ]
+    },
+    "mac": {
+      "icon": "resources/icon.png",
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.developer-tools"
+    },
+    "linux": {
+      "icon": "resources/icon.png",
+      "target": [
+        "AppImage",
+        "deb"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "selectPerMachineByDefault": false,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "DotCraft-Setup-${version}.${ext}",
+      "installerIcon": "resources/icon.ico",
+      "uninstallerIcon": "resources/icon.ico",
+      "installerHeaderIcon": "resources/icon.ico"
+    }
+  }
+}

@@ -1,0 +1,6 @@
+interface:
+  display_name: "Memory"
+  short_description: "Recall and maintain durable workspace memory"
+  icon_small: "./assets/memory-small.svg"
+  icon_large: "./assets/memory.svg"
+  default_prompt: "Use $memory to search or update durable workspace memory."

@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "agent-teams",
+  "version": "0.1.0",
+  "displayName": "Agent Teams",
+  "description": "Unlock the DotCraft Team card board with robot teammates, missions, planning, and task dispatch.",
+  "capabilities": ["metadata", "team", "card-board"],
+  "interface": {
+    "displayName": "Agent Teams",
+    "shortDescription": "Run missions with a small robot team",
+    "longDescription": "Agent Teams opens a DotCraft Team card board where robot teammates plan missions, split work into tasks, and keep progress visible as stackable cards.",
+    "developerName": "DotHarness",
+    "category": "Productivity",
+    "capabilities": ["Team", "Missions", "Card Board"],
+    "defaultPrompt": "Create a mission for the team.",
+    "brandColor": "#4F7CF6",
+    "composerIcon": "./assets/agent-teams.svg",
+    "logo": "./assets/agent-teams.svg",
+    "websiteUrl": "https://github.com/DotHarness/dotcraft",
+    "privacyPolicyUrl": "https://github.com/DotHarness/dotcraft",
+    "termsOfServiceUrl": "https://github.com/DotHarness/dotcraft"
+  }
+}

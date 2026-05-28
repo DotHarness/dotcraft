@@ -1,0 +1,319 @@
+using System.Net;
+using DotCraft.Agents;
+using DotCraft.Protocol;
+using Microsoft.Extensions.AI;
+
+namespace DotCraft.Tests.Agents;
+
+public sealed class StreamRetryingChatClientTests
+{
+    [Fact]
+    public async Task GetStreamingResponseAsync_RetriesBeforeVisibleUpdateAndReportsStreamError()
+    {
+        var inner = new SequenceChatClient(
+            _ => ThrowStream(new IOException("stream closed before completion")),
+            _ => Stream([new ChatResponseUpdate(ChatRole.Assistant, "ok")]));
+        var client = new StreamRetryingChatClient(inner, Options(maxRetries: 1));
+        var notifications = new List<string>();
+
+        using var scope = ModelStreamRetryRuntimeScope.Set(new ModelStreamRetryRuntimeContext
+        {
+            NotifyRetry = (attempt, maxRetries, _) => notifications.Add($"{attempt}/{maxRetries}")
+        });
+
+        var updates = await CollectAsync(client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "hi")]));
+
+        Assert.Equal(2, inner.Calls);
+        Assert.Equal(["1/1"], notifications);
+        Assert.Equal("ok", string.Concat(updates.SelectMany(update => update.Contents).OfType<TextContent>().Select(text => text.Text)));
+    }
+
+    [Fact]
+    public async Task GetStreamingResponseAsync_RetriesWhenIdleMoveNextAndDisposeHangBeforeVisibleUpdate()
+    {
+        var inner = new SequenceChatClient(
+            _ => new HangingStream(),
+            _ => Stream([new ChatResponseUpdate(ChatRole.Assistant, "ok")]));
+        var client = new StreamRetryingChatClient(inner, Options(maxRetries: 1, idleTimeoutMs: 25));
+        var notifications = new List<string>();
+
+        using var scope = ModelStreamRetryRuntimeScope.Set(new ModelStreamRetryRuntimeContext
+        {
+            NotifyRetry = (attempt, maxRetries, _) => notifications.Add($"{attempt}/{maxRetries}")
+        });
+
+        var updates = await CollectAsync(client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "hi")]))
+            .WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal(2, inner.Calls);
+        Assert.Equal(["1/1"], notifications);
+        Assert.Equal("ok", string.Concat(updates.SelectMany(update => update.Contents).OfType<TextContent>().Select(text => text.Text)));
+    }
+
+    [Fact]
+    public async Task GetStreamingResponseAsync_DoesNotRetryAfterVisibleUpdate()
+    {
+        var inner = new SequenceChatClient(
+            _ => StreamThenThrow(
+                [new ChatResponseUpdate(ChatRole.Assistant, "partial")],
+                new IOException("connection reset")),
+            _ => Stream([new ChatResponseUpdate(ChatRole.Assistant, "retry")]));
+        var client = new StreamRetryingChatClient(inner, Options(maxRetries: 1));
+        var seen = new List<ChatResponseUpdate>();
+
+        await Assert.ThrowsAsync<IOException>(async () =>
+        {
+            await foreach (var update in client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "hi")]))
+                seen.Add(update);
+        });
+
+        Assert.Equal(1, inner.Calls);
+        Assert.Equal("partial", string.Concat(seen.SelectMany(update => update.Contents).OfType<TextContent>().Select(text => text.Text)));
+    }
+
+    [Fact]
+    public async Task GetStreamingResponseAsync_DoesNotRetryAfterVisibleUpdateWhenIdleDisposeHangs()
+    {
+        var inner = new SequenceChatClient(
+            _ => new HangingStream([new ChatResponseUpdate(ChatRole.Assistant, "partial")]),
+            _ => Stream([new ChatResponseUpdate(ChatRole.Assistant, "retry")]));
+        var client = new StreamRetryingChatClient(inner, Options(maxRetries: 1, idleTimeoutMs: 25));
+        var seen = new List<ChatResponseUpdate>();
+
+        var exception = await Record.ExceptionAsync(async () =>
+        {
+            await ConsumeAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        });
+
+        Assert.IsAssignableFrom<IOException>(exception);
+        Assert.Contains("Provider stream idle", exception.Message);
+        Assert.Equal(1, inner.Calls);
+        Assert.Equal("partial", string.Concat(seen.SelectMany(update => update.Contents).OfType<TextContent>().Select(text => text.Text)));
+
+        async Task ConsumeAsync()
+        {
+            await foreach (var update in client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "hi")]))
+                seen.Add(update);
+        }
+    }
+
+    [Fact]
+    public async Task GetStreamingResponseAsync_DiscardsUsageFromFailedAttempt()
+    {
+        var failedUsage = new UsageContent(new UsageDetails { InputTokenCount = 10, OutputTokenCount = 1 });
+        var inner = new SequenceChatClient(
+            _ => StreamThenThrow(
+                [new ChatResponseUpdate(ChatRole.Assistant, [failedUsage])],
+                new IOException("connection reset")),
+            _ => Stream([new ChatResponseUpdate(ChatRole.Assistant, "ok")]));
+        var client = new StreamRetryingChatClient(inner, Options(maxRetries: 1));
+
+        var updates = await CollectAsync(client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "hi")]));
+
+        Assert.Equal(2, inner.Calls);
+        Assert.DoesNotContain(updates.SelectMany(update => update.Contents), content => content is UsageContent);
+        Assert.Equal("ok", string.Concat(updates.SelectMany(update => update.Contents).OfType<TextContent>().Select(text => text.Text)));
+    }
+
+    [Fact]
+    public async Task GetStreamingResponseAsync_PreservesNonVisibleUpdateOrderBeforeFirstVisibleUpdate()
+    {
+        var metadata = new ChatResponseUpdate { Role = ChatRole.Assistant };
+        var functionCall = new FunctionCallContent("call-1", "ReadFile", new Dictionary<string, object?>());
+        var toolUse = new ChatResponseUpdate(ChatRole.Assistant, [functionCall]);
+        var usage = new ChatResponseUpdate(ChatRole.Assistant, [
+            new UsageContent(new UsageDetails { InputTokenCount = 10, OutputTokenCount = 1 })
+        ]);
+        var inner = new SequenceChatClient(_ => Stream([metadata, toolUse, usage]));
+        var client = new StreamRetryingChatClient(inner, Options(maxRetries: 1));
+
+        var updates = await CollectAsync(client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "hi")]));
+
+        Assert.Equal(3, updates.Count);
+        Assert.Same(metadata, updates[0]);
+        Assert.Same(toolUse, updates[1]);
+        Assert.Same(usage, updates[2]);
+    }
+
+    [Fact]
+    public async Task GetStreamingResponseAsync_DoesNotRetryUserCancellation()
+    {
+        using var cts = new CancellationTokenSource();
+        var inner = new SequenceChatClient(_ => ThrowStream(new OperationCanceledException(cts.Token)));
+        var client = new StreamRetryingChatClient(inner, Options(maxRetries: 1));
+        cts.Cancel();
+
+        var exception = await Record.ExceptionAsync(async () =>
+        {
+            await foreach (var _ in client.GetStreamingResponseAsync(
+                               [new ChatMessage(ChatRole.User, "hi")],
+                               cancellationToken: cts.Token))
+            {
+            }
+        });
+
+        Assert.IsAssignableFrom<OperationCanceledException>(exception);
+        Assert.Equal(1, inner.Calls);
+    }
+
+    [Fact]
+    public async Task GetStreamingResponseAsync_DoesNotRetryBadRequest()
+    {
+        var inner = new SequenceChatClient(
+            _ => ThrowStream(new HttpRequestException("bad request", null, HttpStatusCode.BadRequest)),
+            _ => Stream([new ChatResponseUpdate(ChatRole.Assistant, "retry")]));
+        var client = new StreamRetryingChatClient(inner, Options(maxRetries: 1));
+
+        await Assert.ThrowsAsync<HttpRequestException>(async () =>
+        {
+            await foreach (var _ in client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "hi")]))
+            {
+            }
+        });
+
+        Assert.Equal(1, inner.Calls);
+    }
+
+    [Fact]
+    public async Task GetStreamingResponseAsync_ThrowsAfterRetryBudgetExhausted()
+    {
+        var inner = new SequenceChatClient(
+            _ => ThrowStream(new IOException("first")),
+            _ => ThrowStream(new IOException("second")));
+        var client = new StreamRetryingChatClient(inner, Options(maxRetries: 1));
+
+        var exception = await Assert.ThrowsAsync<IOException>(async () =>
+        {
+            await foreach (var _ in client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "hi")]))
+            {
+            }
+        });
+
+        Assert.Equal("second", exception.Message);
+        Assert.Equal(2, inner.Calls);
+    }
+
+    [Fact]
+    public async Task GetStreamingResponseAsync_PreservesStreamFailureWhenEnumeratorDisposeThrows()
+    {
+        var inner = new SequenceChatClient(
+            _ => new DisposeThrowingStream(new IOException("stream closed"), new NotSupportedException("dispose unsupported")),
+            _ => Stream([new ChatResponseUpdate(ChatRole.Assistant, "ok")]));
+        var client = new StreamRetryingChatClient(inner, Options(maxRetries: 1));
+
+        var updates = await CollectAsync(client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "hi")]));
+
+        Assert.Equal(2, inner.Calls);
+        Assert.Equal("ok", string.Concat(updates.SelectMany(update => update.Contents).OfType<TextContent>().Select(text => text.Text)));
+    }
+
+    private static StreamRetryOptions Options(int maxRetries, int idleTimeoutMs = 30_000) =>
+        new(maxRetries, TimeSpan.FromMilliseconds(idleTimeoutMs));
+
+    private static async Task<List<ChatResponseUpdate>> CollectAsync(IAsyncEnumerable<ChatResponseUpdate> updates)
+    {
+        var collected = new List<ChatResponseUpdate>();
+        await foreach (var update in updates)
+            collected.Add(update);
+        return collected;
+    }
+
+    private static async IAsyncEnumerable<ChatResponseUpdate> Stream(IReadOnlyList<ChatResponseUpdate> updates)
+    {
+        foreach (var update in updates)
+        {
+            await Task.Yield();
+            yield return update;
+        }
+    }
+
+    private static async IAsyncEnumerable<ChatResponseUpdate> StreamThenThrow(
+        IReadOnlyList<ChatResponseUpdate> updates,
+        Exception exception)
+    {
+        foreach (var update in updates)
+        {
+            await Task.Yield();
+            yield return update;
+        }
+
+        throw exception;
+    }
+
+    private static async IAsyncEnumerable<ChatResponseUpdate> ThrowStream(Exception exception)
+    {
+        await Task.Yield();
+        throw exception;
+#pragma warning disable CS0162
+        yield break;
+#pragma warning restore CS0162
+    }
+
+    private sealed class SequenceChatClient(params Func<CancellationToken, IAsyncEnumerable<ChatResponseUpdate>>[] streams)
+        : IChatClient
+    {
+        private int _calls;
+
+        public int Calls => _calls;
+
+        public Task<ChatResponse> GetResponseAsync(
+            IEnumerable<ChatMessage> messages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ChatResponse([new ChatMessage(ChatRole.Assistant, "ok")]));
+
+        public IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+            IEnumerable<ChatMessage> messages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default)
+        {
+            var callIndex = Interlocked.Increment(ref _calls) - 1;
+            var stream = streams[Math.Min(callIndex, streams.Length - 1)];
+            return stream(cancellationToken);
+        }
+
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+
+        public void Dispose()
+        {
+        }
+    }
+
+    private sealed class DisposeThrowingStream(Exception moveNextException, Exception disposeException)
+        : IAsyncEnumerable<ChatResponseUpdate>, IAsyncEnumerator<ChatResponseUpdate>
+    {
+        public ChatResponseUpdate Current => new(ChatRole.Assistant, string.Empty);
+
+        public IAsyncEnumerator<ChatResponseUpdate> GetAsyncEnumerator(CancellationToken cancellationToken = default) => this;
+
+        public ValueTask<bool> MoveNextAsync() => ValueTask.FromException<bool>(moveNextException);
+
+        public ValueTask DisposeAsync() => ValueTask.FromException(disposeException);
+    }
+
+    private sealed class HangingStream(IReadOnlyList<ChatResponseUpdate>? prefix = null)
+        : IAsyncEnumerable<ChatResponseUpdate>, IAsyncEnumerator<ChatResponseUpdate>
+    {
+        private readonly IReadOnlyList<ChatResponseUpdate> _prefix = prefix ?? [];
+        private readonly TaskCompletionSource<bool> _moveNextCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource _disposeCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int _index;
+
+        public ChatResponseUpdate Current { get; private set; } = new(ChatRole.Assistant, string.Empty);
+
+        public IAsyncEnumerator<ChatResponseUpdate> GetAsyncEnumerator(CancellationToken cancellationToken = default) => this;
+
+        public ValueTask<bool> MoveNextAsync()
+        {
+            if (_index < _prefix.Count)
+            {
+                Current = _prefix[_index++];
+                return ValueTask.FromResult(true);
+            }
+
+            return new ValueTask<bool>(_moveNextCompletion.Task);
+        }
+
+        public ValueTask DisposeAsync() => new(_disposeCompletion.Task);
+    }
+}

@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DotCraft DashBoard — Login</title>
+<style>
+:root {
+  color-scheme: dark;
+  --bg-primary: #1a1a1a;
+  --bg-secondary: #242424;
+  --bg-tertiary: #2e2e2e;
+  --bg-card: #242424;
+  --bg-hover: #2e2e2e;
+  --border: #333333;
+  --border-active: #555555;
+  --text-primary: #e5e5e5;
+  --text-secondary: #a0a0a0;
+  --text-muted: #666666;
+  --accent: #4A7FA5;
+  --accent-light: #5A9BC0;
+  --accent-dim: rgba(74,127,165,0.15);
+  --success: #22c55e;
+  --success-dim: rgba(52,211,153,0.12);
+  --warning: #eab308;
+  --warning-dim: rgba(251,191,36,0.12);
+  --error: #ef4444;
+  --error-dim: rgba(248,113,113,0.12);
+  --info: #3b82f6;
+  --info-dim: rgba(96,165,250,0.12);
+  --radius: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --shadow: 0 1px 3px rgba(0,0,0,0.3);
+  --shadow-lg: 0 8px 24px rgba(0,0,0,0.5);
+  --surface-2: #3a3a3a;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --transition: 0.2s cubic-bezier(0.4,0,0.2,1);
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    color-scheme: light;
+    --bg-primary: #f7f8fa;
+    --bg-secondary: #ffffff;
+    --bg-tertiary: #eef2f6;
+    --bg-card: #ffffff;
+    --bg-hover: #eef2f6;
+    --border: #d8e0ea;
+    --border-active: #b8c9db;
+    --text-primary: #1e3347;
+    --text-secondary: #5c6b7a;
+    --text-muted: #94a3b8;
+    --accent: #4a7fa5;
+    --accent-light: #5a9bc0;
+    --accent-dim: rgba(74,127,165,0.12);
+    --shadow: 0 1px 2px rgba(15,23,42,0.06);
+    --shadow-lg: 0 8px 24px rgba(15,23,42,0.1);
+    --surface-2: #e2e8f0;
+  }
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: var(--font-sans);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.login-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 40px 36px 36px;
+  width: 380px;
+  box-shadow: var(--shadow);
+}
+.login-header {
+  text-align: center;
+  margin-bottom: 32px;
+}
+.login-logo {
+  font-size: 22px;
+  font-weight: 650;
+  color: var(--accent-light);
+  letter-spacing: 0;
+}
+.login-logo-sub {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-weight: 500;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  margin-left: 8px;
+}
+.login-desc {
+  color: var(--text-secondary);
+  font-size: 13px;
+  margin-top: 10px;
+}
+.form-group {
+  margin-bottom: 18px;
+}
+.form-group label {
+  display: block;
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+  font-weight: 500;
+}
+.form-group input {
+  width: 100%;
+  padding: 10px 14px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-primary);
+  font-size: 14px;
+  font-family: var(--font-sans);
+  outline: none;
+  transition: border-color var(--transition);
+}
+.form-group input:focus {
+  border-color: var(--accent);
+}
+.form-group input::placeholder {
+  color: var(--text-muted);
+}
+.login-btn {
+  width: 100%;
+  padding: 11px 0;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 14px;
+  font-weight: 600;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: background var(--transition);
+  margin-top: 6px;
+}
+.login-btn:hover { background: var(--accent-light); }
+.login-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.error-msg {
+  background: var(--error-dim);
+  color: var(--error);
+  font-size: 13px;
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  margin-bottom: 18px;
+  display: none;
+  text-align: center;
+}
+.error-msg.visible { display: block; }
+</style>
+</head>
+<body>
+<div class="login-card">
+  <div class="login-header">
+    <span class="login-logo">DotCraft</span><span class="login-logo-sub">DashBoard</span>
+    <div class="login-desc">Please sign in to continue</div>
+  </div>
+  <div class="error-msg" id="errorMsg"></div>
+  <form id="loginForm" autocomplete="on">
+    <div class="form-group">
+      <label for="username">Username</label>
+      <input type="text" id="username" name="username" placeholder="Enter username" autocomplete="username" required autofocus>
+    </div>
+    <div class="form-group">
+      <label for="password">Password</label>
+      <input type="password" id="password" name="password" placeholder="Enter password" autocomplete="current-password" required>
+    </div>
+    <button type="submit" class="login-btn" id="loginBtn">Sign In</button>
+  </form>
+</div>
+<script>
+const form = document.getElementById('loginForm');
+const errorMsg = document.getElementById('errorMsg');
+const loginBtn = document.getElementById('loginBtn');
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  errorMsg.classList.remove('visible');
+  loginBtn.disabled = true;
+  loginBtn.textContent = 'Signing in...';
+  try {
+    const res = await fetch('/dashboard/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: document.getElementById('username').value,
+        password: document.getElementById('password').value
+      })
+    });
+    if (res.ok) {
+      window.location.href = '/dashboard/';
+    } else {
+      const data = await res.json().catch(() => null);
+      errorMsg.textContent = data?.error || 'Invalid username or password';
+      errorMsg.classList.add('visible');
+    }
+  } catch {
+    errorMsg.textContent = 'Network error, please try again';
+    errorMsg.classList.add('visible');
+  } finally {
+    loginBtn.disabled = false;
+    loginBtn.textContent = 'Sign In';
+  }
+});
+</script>
+</body>
+</html>

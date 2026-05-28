@@ -1,0 +1,499 @@
+using System.Text.Json.Serialization;
+using System.Text.Json.Nodes;
+using DotCraft.Protocol;
+
+namespace DotCraft.Teams;
+
+public static class TeamsConstants
+{
+    public const string AppId = "com.dotharness.dotcraft-teams";
+    public const string ToolNamespace = "teams";
+    public const string UserId = "dotcraft-teams";
+    public const string ChannelName = "teams";
+}
+
+public static class TeamMissionStatuses
+{
+    public const string Planning = "planning";
+    public const string Active = "active";
+    public const string AwaitingLeaderReview = "awaitingLeaderReview";
+    public const string Done = "done";
+    public const string Cancelled = "cancelled";
+}
+
+public static class TeamTaskStatuses
+{
+    public const string Pending = "pending";
+    public const string WaitingDependencies = "waitingDependencies";
+    public const string Ready = "ready";
+    public const string Running = "running";
+    public const string Blocked = "blocked";
+    public const string Review = "review";
+    public const string Done = "done";
+    public const string Failed = "failed";
+    public const string Cancelled = "cancelled";
+}
+
+public static class TeamMessageStatuses
+{
+    public const string Recorded = "recorded";
+    public const string Summarized = "summarized";
+    public const string DeliveredToTurn = "deliveredToTurn";
+    public const string Superseded = "superseded";
+}
+
+public static class TeamMessageKinds
+{
+    public const string Info = "info";
+    public const string Request = "request";
+    public const string Handoff = "handoff";
+    public const string Revision = "revision";
+    public const string Decision = "decision";
+    public const string Blocker = "blocker";
+    public const string Synthesis = "synthesis";
+}
+
+public static class TeamLeaderWaitStatuses
+{
+    public const string Active = "active";
+    public const string Satisfied = "satisfied";
+    public const string Delivered = "delivered";
+    public const string Superseded = "superseded";
+    public const string Cancelled = "cancelled";
+}
+
+public static class TeamLeaderWaitConditions
+{
+    public const string MissionReady = "missionReady";
+    public const string AllTasksDone = "allTasksDone";
+    public const string AnyTaskDone = "anyTaskDone";
+    public const string AnyTaskBlocked = "anyTaskBlocked";
+    public const string AnyTaskFailed = "anyTaskFailed";
+}
+
+public sealed class TeamsStateDocument
+{
+    public TeamRecord Team { get; set; } = new();
+
+    public List<TeamMemberRecord> Members { get; set; } = [];
+
+    public List<MissionRecord> Missions { get; set; } = [];
+
+    public List<MissionThreadRecord> MissionThreads { get; set; } = [];
+
+    public List<TeamTaskRecord> Tasks { get; set; } = [];
+
+    public List<TeamMessageRecord> Messages { get; set; } = [];
+
+    public List<TeamLeaderWaitRecord> LeaderWaits { get; set; } = [];
+
+    public List<MailboxDigestRecord> MailboxDigests { get; set; } = [];
+
+    public List<ArtifactRefRecord> Artifacts { get; set; } = [];
+}
+
+public sealed record TeamsMissionOrigin(string ThreadId, string BindingId);
+
+public sealed class TeamRecord
+{
+    public string TeamId { get; set; } = "default";
+
+    public bool Enabled { get; set; }
+
+    public DateTimeOffset CreatedAt { get; set; }
+
+    public DateTimeOffset UpdatedAt { get; set; }
+}
+
+public class TeamMemberRecord
+{
+    public string MemberId { get; set; } = string.Empty;
+
+    public string Role { get; set; } = string.Empty;
+
+    public string DisplayName { get; set; } = string.Empty;
+
+    public string Description { get; set; } = string.Empty;
+
+    public string ThreadId { get; set; } = string.Empty;
+
+    public string BindingId { get; set; } = string.Empty;
+
+    public string GrantId { get; set; } = string.Empty;
+
+    public string AvatarAccent { get; set; } = string.Empty;
+
+    public string Status { get; set; } = "idle";
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? CurrentTaskId { get; set; }
+
+    public double DeskX { get; set; }
+
+    public double DeskY { get; set; }
+}
+
+public sealed class MissionRecord
+{
+    public string MissionId { get; set; } = string.Empty;
+
+    public string Title { get; set; } = string.Empty;
+
+    public string Prompt { get; set; } = string.Empty;
+
+    public string Plan { get; set; } = string.Empty;
+
+    public string Status { get; set; } = "new";
+
+    public DateTimeOffset CreatedAt { get; set; }
+
+    public DateTimeOffset UpdatedAt { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DateTimeOffset? CompletedAt { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? CompletionSummary { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? FinalResponse { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ScratchpadPath { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? LeaderContinuationQueuedInputId { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DateTimeOffset? ArchivedAt { get; set; }
+
+    public string LeaderThreadId { get; set; } = string.Empty;
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? OriginThreadId { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? OriginBindingId { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? CompletionQueuedInputId { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DateTimeOffset? CompletionNotifiedAt { get; set; }
+}
+
+public class MissionThreadRecord
+{
+    public string MissionId { get; set; } = string.Empty;
+
+    public string MemberId { get; set; } = string.Empty;
+
+    public string ThreadId { get; set; } = string.Empty;
+
+    public string BindingId { get; set; } = string.Empty;
+
+    public string GrantId { get; set; } = string.Empty;
+
+    public string Status { get; set; } = "idle";
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? CurrentTaskId { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? QueuedInputId { get; set; }
+
+    public DateTimeOffset CreatedAt { get; set; }
+
+    public DateTimeOffset UpdatedAt { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DateTimeOffset? ArchivedAt { get; set; }
+}
+
+public sealed class TeamTaskRecord
+{
+    public string TaskId { get; set; } = string.Empty;
+
+    public string Alias { get; set; } = string.Empty;
+
+    public string MissionId { get; set; } = string.Empty;
+
+    public string AssigneeMemberId { get; set; } = string.Empty;
+
+    public string Title { get; set; } = string.Empty;
+
+    public string Prompt { get; set; } = string.Empty;
+
+    public string Status { get; set; } = TeamTaskStatuses.Pending;
+
+    public string Kind { get; set; } = "work";
+
+    public bool RequiredForMission { get; set; } = true;
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool RequiresLeaderSynthesis { get; set; }
+
+    public List<string> DependsOnTaskIds { get; set; } = [];
+
+    public List<string> BlockedOnTaskIds { get; set; } = [];
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? BlockedReason { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? LatestUpdate { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? OutputSummary { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonObject? Metadata { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? QueuedInputId { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? SynthesisMessageId { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool CompletionRecoveryPending { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? CompletionRecoveryQueuedInputId { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DateTimeOffset? LeaderNotifiedAt { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int CompletionRecoveryAttempts { get; set; }
+
+    public DateTimeOffset CreatedAt { get; set; }
+
+    public DateTimeOffset UpdatedAt { get; set; }
+
+    public string Digest { get; set; } = string.Empty;
+}
+
+public sealed class MailboxDigestRecord
+{
+    public string DigestId { get; set; } = string.Empty;
+
+    public string MemberId { get; set; } = string.Empty;
+
+    public string Content { get; set; } = string.Empty;
+
+    public DateTimeOffset UpdatedAt { get; set; }
+}
+
+public sealed class TeamMessageRecord
+{
+    public string MessageId { get; set; } = string.Empty;
+
+    public string MissionId { get; set; } = string.Empty;
+
+    public string FromMemberId { get; set; } = string.Empty;
+
+    public string ToMemberId { get; set; } = string.Empty;
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? TaskId { get; set; }
+
+    public string Content { get; set; } = string.Empty;
+
+    public string Kind { get; set; } = "info";
+
+    public bool RequiresAction { get; set; }
+
+    public string Status { get; set; } = TeamMessageStatuses.Recorded;
+
+    public List<string> ArtifactIds { get; set; } = [];
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonObject? Metadata { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? DeliveredQueuedInputId { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DateTimeOffset? DeliveredAt { get; set; }
+
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
+public sealed class TeamLeaderWaitRecord
+{
+    public string WaitId { get; set; } = string.Empty;
+
+    public string MissionId { get; set; } = string.Empty;
+
+    public string Condition { get; set; } = TeamLeaderWaitConditions.MissionReady;
+
+    public List<string> TaskIds { get; set; } = [];
+
+    public string Reason { get; set; } = string.Empty;
+
+    public string Status { get; set; } = TeamLeaderWaitStatuses.Active;
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? SatisfiedReason { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? DeliveredQueuedInputId { get; set; }
+
+    public DateTimeOffset CreatedAt { get; set; }
+
+    public DateTimeOffset UpdatedAt { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DateTimeOffset? SatisfiedAt { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DateTimeOffset? DeliveredAt { get; set; }
+}
+
+public sealed class ArtifactRefRecord
+{
+    public string ArtifactId { get; set; } = string.Empty;
+
+    public string Alias { get; set; } = string.Empty;
+
+    public string TaskId { get; set; } = string.Empty;
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? SourceTaskId { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? SourceMessageId { get; set; }
+
+    public string MemberId { get; set; } = string.Empty;
+
+    public string Title { get; set; } = string.Empty;
+
+    public string Uri { get; set; } = string.Empty;
+
+    public string Kind { get; set; } = "reference";
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Format { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Summary { get; set; }
+
+    public string Description { get; set; } = string.Empty;
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonObject? Metadata { get; set; }
+
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
+public sealed class TeamsTeamViewResult
+{
+    public TeamRecord Team { get; set; } = new();
+
+    public TeamsTeamStats Stats { get; set; } = new();
+
+    public List<TeamMemberView> Members { get; set; } = [];
+
+    public List<MissionRecord> Missions { get; set; } = [];
+
+    public List<MissionRecord> ArchivedMissions { get; set; } = [];
+
+    public List<MissionThreadView> MissionThreads { get; set; } = [];
+
+    public List<TeamTaskRecord> Tasks { get; set; } = [];
+
+    public List<TeamMessageRecord> Messages { get; set; } = [];
+
+    public List<TeamLeaderWaitRecord> LeaderWaits { get; set; } = [];
+
+    public List<MailboxDigestRecord> MailboxDigests { get; set; } = [];
+
+    public List<ArtifactRefRecord> Artifacts { get; set; } = [];
+}
+
+public sealed class TeamsTeamStats
+{
+    public int RunningMembers { get; set; }
+
+    public int QueuedInputs { get; set; }
+
+    public int TotalTasks { get; set; }
+
+    public int CompletedTasks { get; set; }
+
+    public long InputTokens { get; set; }
+
+    public long OutputTokens { get; set; }
+
+    public long CachedInputTokens { get; set; }
+
+    public long TotalTokens { get; set; }
+}
+
+public sealed class TeamMemberView : TeamMemberRecord
+{
+    public int QueuedInputCount { get; set; }
+
+    public bool Running { get; set; }
+
+    public bool WaitingOnApproval { get; set; }
+
+    public bool WaitingOnInput { get; set; }
+}
+
+public sealed class MissionThreadView : MissionThreadRecord
+{
+    public int QueuedInputCount { get; set; }
+
+    public bool Running { get; set; }
+
+    public bool WaitingOnApproval { get; set; }
+
+    public bool WaitingOnInput { get; set; }
+}
+
+public sealed class TeamsTeamEnableParams
+{
+}
+
+public sealed class TeamsMissionCreateParams
+{
+    public string Title { get; set; } = string.Empty;
+
+    public string Prompt { get; set; } = string.Empty;
+}
+
+public sealed class TeamsMissionCreateResult
+{
+    public MissionRecord Mission { get; set; } = new();
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public QueuedTurnInput? QueuedInput { get; set; }
+
+    public TeamsTeamViewResult Team { get; set; } = new();
+}
+
+public sealed class TeamsMissionCancelParams
+{
+    public string MissionId { get; set; } = string.Empty;
+}
+
+public sealed class TeamsMissionArchiveParams
+{
+    public string MissionId { get; set; } = string.Empty;
+}
+
+public sealed class TeamsMemberOpenThreadParams
+{
+    public string MemberId { get; set; } = string.Empty;
+
+    public string MissionId { get; set; } = string.Empty;
+
+    public string TaskId { get; set; } = string.Empty;
+}
+
+public sealed class TeamsMemberOpenThreadResult
+{
+    public string ThreadId { get; set; } = string.Empty;
+}

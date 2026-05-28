@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "browser",
+  "version": "1.0.0",
+  "displayName": "Browser",
+  "description": "Control the DotCraft Desktop embedded browser through the persistent Node REPL runtime.",
+  "capabilities": ["interactive", "read", "write", "browser", "javascript", "desktop"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Browser",
+    "shortDescription": "Control the in-app browser with DotCraft",
+    "longDescription": "Browser lets DotCraft open and control the Desktop embedded browser for local development pages, files, and approved web targets. Use it to navigate, inspect, click, type, and take screenshots while testing pages inside DotCraft.",
+    "developerName": "DotHarness",
+    "category": "Coding",
+    "capabilities": ["Interactive", "Read", "Write"],
+    "defaultPrompt": "Test my checkout flow on localhost",
+    "brandColor": "#0B63CE",
+    "composerIcon": "./skills/browser/assets/browser-small.svg",
+    "logo": "./skills/browser/assets/browser.svg",
+    "websiteUrl": "https://github.com/DotHarness/dotcraft",
+    "privacyPolicyUrl": "https://github.com/DotHarness/dotcraft",
+    "termsOfServiceUrl": "https://github.com/DotHarness/dotcraft"
+  }
+}

@@ -1,0 +1,203 @@
+name: Publish NuGet
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Package version, for example 0.1.0-preview.1"
+        required: true
+        type: string
+      channel:
+        description: "Release channel"
+        required: true
+        default: preview
+        type: choice
+        options:
+          - preview
+          - stable
+      target:
+        description: "Dry run only, or publish to nuget.org"
+        required: true
+        default: dry-run
+        type: choice
+        options:
+          - dry-run
+          - nuget-org
+      confirm:
+        description: "Required for nuget-org: publish DotCraft.Sdk <version> to nuget.org"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  pack:
+    name: Validate, test, and pack
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.validate.outputs.version }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Validate release inputs
+        id: validate
+        shell: pwsh
+        env:
+          PACKAGE_VERSION: ${{ inputs.version }}
+          CHANNEL: ${{ inputs.channel }}
+          TARGET: ${{ inputs.target }}
+          CONFIRM: ${{ inputs.confirm }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+          GITHUB_REF_FULL: ${{ github.ref }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $version = $env:PACKAGE_VERSION.Trim()
+          if ([string]::IsNullOrWhiteSpace($version)) {
+            throw "Package version is required."
+          }
+
+          $previewPattern = '^\d+\.\d+\.\d+-preview\.\d+$'
+          $stablePattern = '^\d+\.\d+\.\d+$'
+          if ($env:CHANNEL -eq "preview" -and $version -notmatch $previewPattern) {
+            throw "Preview releases must use MAJOR.MINOR.PATCH-preview.N, for example 0.1.0-preview.1."
+          }
+          if ($env:CHANNEL -eq "stable" -and $version -notmatch $stablePattern) {
+            throw "Stable releases must use MAJOR.MINOR.PATCH, for example 0.1.0."
+          }
+
+          if ($env:TARGET -eq "nuget-org") {
+            if ($env:GITHUB_REF_FULL -ne "refs/heads/main") {
+              throw "nuget.org publishing is allowed only from the main branch."
+            }
+            $expected = "publish DotCraft.Sdk $version to nuget.org"
+            if ($env:CONFIRM -cne $expected) {
+              throw "Confirmation must exactly match: $expected"
+            }
+          }
+
+          $indexUrl = "https://api.nuget.org/v3-flatcontainer/dotcraft.sdk/index.json"
+          try {
+            $index = Invoke-RestMethod -Uri $indexUrl
+            $versions = @($index.versions)
+          }
+          catch {
+            $statusCode = 0
+            if ($_.Exception.Response -and $_.Exception.Response.StatusCode) {
+              $statusCode = [int]$_.Exception.Response.StatusCode
+            }
+            if ($statusCode -eq 404) {
+              $versions = @()
+            }
+            else {
+              throw
+            }
+          }
+
+          if ($versions -contains $version.ToLowerInvariant()) {
+            throw "DotCraft.Sdk $version already exists on nuget.org."
+          }
+
+          "version=$version" >> $env:GITHUB_OUTPUT
+          Write-Host "Validated DotCraft.Sdk $version for $($env:TARGET)."
+
+      - name: Restore
+        run: dotnet restore ./sdk/dotnet/DotCraft.Sdk.sln
+
+      - name: Test
+        run: dotnet test ./sdk/dotnet/DotCraft.Sdk.sln --configuration Release --no-restore
+
+      - name: Pack release artifacts
+        shell: pwsh
+        env:
+          PACKAGE_VERSION: ${{ steps.validate.outputs.version }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          New-Item -ItemType Directory -Force -Path artifacts/nuget | Out-Null
+          dotnet pack ./sdk/dotnet/src/DotCraft.Sdk/DotCraft.Sdk.csproj `
+            --configuration Release `
+            --no-build `
+            --output artifacts/nuget `
+            /p:PackageVersion=$env:PACKAGE_VERSION `
+            /p:ContinuousIntegrationBuild=true
+
+      - name: Inspect package artifacts
+        shell: pwsh
+        env:
+          PACKAGE_VERSION: ${{ steps.validate.outputs.version }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $nupkg = "artifacts/nuget/DotCraft.Sdk.$env:PACKAGE_VERSION.nupkg"
+          $snupkg = "artifacts/nuget/DotCraft.Sdk.$env:PACKAGE_VERSION.snupkg"
+          if (!(Test-Path $nupkg)) {
+            throw "Missing package: $nupkg"
+          }
+          if (!(Test-Path $snupkg)) {
+            throw "Missing symbol package: $snupkg"
+          }
+          Get-ChildItem artifacts/nuget | Format-Table Name, Length
+          Get-FileHash $nupkg, $snupkg -Algorithm SHA256 | Format-Table Algorithm, Hash, Path
+
+      - name: Upload package artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dotcraft-sdk-${{ steps.validate.outputs.version }}
+          path: artifacts/nuget/*
+          if-no-files-found: error
+
+  publish:
+    name: Publish to nuget.org
+    needs: pack
+    if: ${{ inputs.target == 'nuget-org' }}
+    runs-on: ubuntu-latest
+    environment: nuget-production
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Download package artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dotcraft-sdk-${{ needs.pack.outputs.version }}
+          path: artifacts/nuget
+
+      - name: Validate NuGet trusted publishing user
+        shell: pwsh
+        env:
+          NUGET_USER: ${{ vars.NUGET_USER }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:NUGET_USER)) {
+            throw "Set the NUGET_USER repository or environment variable to the nuget.org profile name used for Trusted Publishing."
+          }
+
+      - name: NuGet login through Trusted Publishing
+        id: login
+        uses: NuGet/login@v1
+        with:
+          user: ${{ vars.NUGET_USER }}
+
+      - name: Push exact package artifacts
+        shell: pwsh
+        env:
+          PACKAGE_VERSION: ${{ needs.pack.outputs.version }}
+          NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $source = "https://api.nuget.org/v3/index.json"
+          $nupkg = "artifacts/nuget/DotCraft.Sdk.$env:PACKAGE_VERSION.nupkg"
+          $snupkg = "artifacts/nuget/DotCraft.Sdk.$env:PACKAGE_VERSION.snupkg"
+          dotnet nuget push $nupkg --source $source --api-key $env:NUGET_API_KEY
+          dotnet nuget push $snupkg --source $source --api-key $env:NUGET_API_KEY

@@ -1,0 +1,75 @@
+<svg width="1440" height="430" viewBox="0 0 1440 430" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">DotCraft skill sources overview</title>
+  <desc id="desc">A card overview showing five sources of DotCraft skills: system, personal, workspace, plugin-bundled, and marketplace-installed skills.</desc>
+  <style>
+    text { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; letter-spacing: 0; }
+    .eyebrow { font-size: 14px; font-weight: 800; letter-spacing: 0; }
+    .cardTitle { font-size: 32px; font-weight: 760; }
+    .label { font-size: 18px; font-weight: 720; }
+    .body { fill: #1F2937; font-size: 19px; }
+    .mono { fill: #1F2937; font-size: 18px; font-family: "Cascadia Mono", ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .muted { fill: #667085; font-size: 16px; }
+  </style>
+
+  <rect width="1440" height="430" fill="#F8FAF7"/>
+
+  <g transform="translate(72 50)">
+    <rect x="0" y="0" width="248" height="330" rx="8" fill="#E9F5F0" stroke="#B7DED0"/>
+    <text x="24" y="40" class="eyebrow" fill="#2E6B56">BUILT IN</text>
+    <text x="24" y="84" class="cardTitle" fill="#153E33">System</text>
+    <line x1="24" y1="102" x2="224" y2="102" stroke="#B7DED0"/>
+    <text x="24" y="140" class="label" fill="#2E6B56">Ready with DotCraft</text>
+    <text x="24" y="178" class="body">Default procedures</text>
+    <text x="24" y="208" class="body">shipped with the app.</text>
+    <rect x="24" y="244" width="200" height="42" rx="8" fill="#FFFFFF" stroke="#B7DED0"/>
+    <text x="124" y="271" text-anchor="middle" class="mono">installation</text>
+  </g>
+
+  <g transform="translate(334 50)">
+    <rect x="0" y="0" width="248" height="330" rx="8" fill="#EAF0FF" stroke="#C2CEF7"/>
+    <text x="24" y="40" class="eyebrow" fill="#4459B8">YOUR HABITS</text>
+    <text x="24" y="84" class="cardTitle" fill="#23305F">Personal</text>
+    <line x1="24" y1="102" x2="224" y2="102" stroke="#C2CEF7"/>
+    <text x="24" y="140" class="label" fill="#4459B8">Cross-project reuse</text>
+    <text x="24" y="178" class="body">Private workflows</text>
+    <text x="24" y="208" class="body">and preferences.</text>
+    <rect x="24" y="244" width="200" height="42" rx="8" fill="#FFFFFF" stroke="#C2CEF7"/>
+    <text x="124" y="271" text-anchor="middle" class="mono">~/.craft/skills</text>
+  </g>
+
+  <g transform="translate(596 50)">
+    <rect x="0" y="0" width="248" height="330" rx="8" fill="#FFF1E6" stroke="#F3C9A4"/>
+    <text x="24" y="40" class="eyebrow" fill="#A85C21">PROJECT</text>
+    <text x="24" y="84" class="cardTitle" fill="#623314">Workspace</text>
+    <line x1="24" y1="102" x2="224" y2="102" stroke="#F3C9A4"/>
+    <text x="24" y="140" class="label" fill="#A85C21">Team-local knowledge</text>
+    <text x="24" y="178" class="body">Project procedures</text>
+    <text x="24" y="208" class="body">that travel with repo.</text>
+    <rect x="24" y="244" width="200" height="42" rx="8" fill="#FFFFFF" stroke="#F3C9A4"/>
+    <text x="124" y="271" text-anchor="middle" class="mono">.craft/skills</text>
+  </g>
+
+  <g transform="translate(858 50)">
+    <rect x="0" y="0" width="248" height="330" rx="8" fill="#F1EBFA" stroke="#D7C5EF"/>
+    <text x="24" y="40" class="eyebrow" fill="#7653A8">EXTENSION</text>
+    <text x="24" y="84" class="cardTitle" fill="#39205F">Plugin skills</text>
+    <line x1="24" y1="102" x2="224" y2="102" stroke="#D7C5EF"/>
+    <text x="24" y="140" class="label" fill="#7653A8">Scoped to a plugin</text>
+    <text x="24" y="178" class="body">Available while</text>
+    <text x="24" y="208" class="body">the plugin is on.</text>
+    <rect x="24" y="244" width="200" height="42" rx="8" fill="#FFFFFF" stroke="#D7C5EF"/>
+    <text x="124" y="271" text-anchor="middle" class="mono">plugin skills</text>
+  </g>
+
+  <g transform="translate(1120 50)">
+    <rect x="0" y="0" width="248" height="330" rx="8" fill="#E8F4FA" stroke="#BBDCEE"/>
+    <text x="24" y="40" class="eyebrow" fill="#2B7599">COMMUNITY</text>
+    <text x="24" y="84" class="cardTitle" fill="#15384B">Marketplace</text>
+    <line x1="24" y1="102" x2="224" y2="102" stroke="#BBDCEE"/>
+    <text x="24" y="140" class="label" fill="#2B7599">Install before use</text>
+    <text x="24" y="178" class="body">SkillHub and ClawHub</text>
+    <text x="24" y="208" class="body">become local skills.</text>
+    <rect x="24" y="244" width="200" height="42" rx="8" fill="#FFFFFF" stroke="#BBDCEE"/>
+    <text x="124" y="271" text-anchor="middle" class="mono">market install</text>
+  </g>
+</svg>

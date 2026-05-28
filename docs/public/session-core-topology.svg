@@ -1,0 +1,105 @@
+<svg width="1440" height="920" viewBox="0 0 1440 920" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">DotCraft session core topology</title>
+  <desc id="desc">A grouped diagram showing how DotCraft models conversations as threads, turns, and items behind one session service.</desc>
+  <style>
+    text { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; letter-spacing: 0; }
+    .title { fill: #17203A; font-size: 42px; font-weight: 760; }
+    .subtitle { fill: #667085; font-size: 18px; }
+    .cardTitle { font-size: 24px; font-weight: 760; }
+    .smallTitle { font-size: 18px; font-weight: 760; }
+    .label { font-size: 14px; font-weight: 720; }
+    .body { fill: #1F2937; font-size: 15px; }
+    .mono { fill: #1F2937; font-size: 15px; font-family: "Cascadia Mono", ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .muted { fill: #667085; font-size: 13px; }
+  </style>
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M2 2L10 6L2 10" fill="none" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <rect width="1440" height="920" fill="#F8FAF7"/>
+  <text x="72" y="86" class="title">DotCraft session core topology</text>
+  <text x="72" y="123" class="subtitle">All entry points submit work into one Thread / Turn / Item model through ISessionService.</text>
+
+  <g transform="translate(72 158)">
+    <rect x="0" y="0" width="1296" height="108" rx="8" fill="#FFFFFF" stroke="#D9E0EA"/>
+    <text x="28" y="34" fill="#17203A" font-size="17" font-weight="760">Entry surfaces</text>
+    <g transform="translate(28 52)">
+      <rect x="0" y="0" width="114" height="34" rx="8" fill="#E9F5F0"/><text x="57" y="22" text-anchor="middle" fill="#247A57" font-size="14" font-weight="720">Desktop</text>
+      <rect x="132" y="0" width="90" height="34" rx="8" fill="#E9F5F0"/><text x="177" y="22" text-anchor="middle" fill="#247A57" font-size="14" font-weight="720">TUI</text>
+      <rect x="240" y="0" width="108" height="34" rx="8" fill="#E9F5F0"/><text x="294" y="22" text-anchor="middle" fill="#247A57" font-size="14" font-weight="720">ACP</text>
+      <rect x="366" y="0" width="134" height="34" rx="8" fill="#E9F5F0"/><text x="433" y="22" text-anchor="middle" fill="#247A57" font-size="14" font-weight="720">Channels</text>
+      <rect x="518" y="0" width="142" height="34" rx="8" fill="#E9F5F0"/><text x="589" y="22" text-anchor="middle" fill="#247A57" font-size="14" font-weight="720">Automations</text>
+      <rect x="678" y="0" width="94" height="34" rx="8" fill="#E9F5F0"/><text x="725" y="22" text-anchor="middle" fill="#247A57" font-size="14" font-weight="720">CLI</text>
+      <rect x="790" y="0" width="94" height="34" rx="8" fill="#E9F5F0"/><text x="837" y="22" text-anchor="middle" fill="#247A57" font-size="14" font-weight="720">SDKs</text>
+    </g>
+    <path d="M932 68H1038" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
+    <g transform="translate(1070 28)">
+      <rect x="0" y="0" width="188" height="58" rx="8" fill="#EAF0FF"/>
+      <text x="94" y="24" text-anchor="middle" fill="#3659D4" font-size="15" font-weight="760">ISessionService</text>
+      <text x="94" y="44" text-anchor="middle" fill="#52607A" font-size="12">one core API</text>
+    </g>
+  </g>
+
+  <g transform="translate(72 318)">
+    <rect x="0" y="0" width="1296" height="450" rx="8" fill="#FFFFFF" stroke="#D9E0EA"/>
+    <text x="28" y="45" class="cardTitle" fill="#17203A">Thread</text>
+    <text x="128" y="45" fill="#667085" font-size="16">persistent conversation, resumable across entry points</text>
+    <line x1="28" y1="70" x2="1268" y2="70" stroke="#D9E0EA"/>
+
+    <g transform="translate(28 104)">
+      <rect x="0" y="0" width="376" height="296" rx="8" fill="#EAF0FF" stroke="#C2CEF7"/>
+      <text x="24" y="42" class="smallTitle" fill="#23305F">Turn #1</text>
+      <text x="24" y="70" class="muted">one user input to visible result</text>
+      <g transform="translate(24 92)">
+        <rect x="0" y="0" width="328" height="30" rx="6" fill="#FFFFFF" stroke="#C2CEF7"/><text x="18" y="20" class="mono">Item: user message</text>
+        <rect x="0" y="38" width="328" height="30" rx="6" fill="#FFFFFF" stroke="#C2CEF7"/><text x="18" y="58" class="mono">Item: tool call</text>
+        <rect x="0" y="76" width="328" height="30" rx="6" fill="#FFFFFF" stroke="#C2CEF7"/><text x="18" y="96" class="mono">Item: tool result</text>
+        <rect x="0" y="114" width="328" height="30" rx="6" fill="#FFFFFF" stroke="#C2CEF7"/><text x="18" y="134" class="mono">Item: approval request</text>
+        <rect x="0" y="152" width="328" height="30" rx="6" fill="#FFFFFF" stroke="#C2CEF7"/><text x="18" y="172" class="mono">Item: agent message</text>
+      </g>
+    </g>
+
+    <g transform="translate(450 104)">
+      <rect x="0" y="0" width="250" height="296" rx="8" fill="#E9F5F0" stroke="#B7DED0"/>
+      <text x="24" y="42" class="smallTitle" fill="#153E33">Turn #2</text>
+      <text x="24" y="70" class="muted">additional user input</text>
+      <line x1="24" y1="98" x2="226" y2="98" stroke="#B7DED0"/>
+      <text x="24" y="132" class="mono">items stream</text>
+      <text x="24" y="158" class="mono">status updates</text>
+      <text x="24" y="184" class="mono">tool lifecycle</text>
+      <text x="24" y="248" class="muted">Ordered in one Thread.</text>
+    </g>
+
+    <g transform="translate(746 104)">
+      <rect x="0" y="0" width="250" height="296" rx="8" fill="#FFF1E6" stroke="#F3C9A4"/>
+      <text x="24" y="42" class="smallTitle" fill="#623314">Turn #N</text>
+      <text x="24" y="70" class="muted">long-running continuity</text>
+      <line x1="24" y1="98" x2="226" y2="98" stroke="#F3C9A4"/>
+      <text x="24" y="132" class="mono">resume</text>
+      <text x="24" y="158" class="mono">archive</text>
+      <text x="24" y="184" class="mono">audit</text>
+      <text x="24" y="248" class="muted">Durable boundary.</text>
+    </g>
+
+    <g transform="translate(1042 104)">
+      <rect x="0" y="0" width="226" height="296" rx="8" fill="#F1EBFA" stroke="#D7C5EF"/>
+      <text x="24" y="42" class="smallTitle" fill="#39205F">Event stream</text>
+      <line x1="24" y1="64" x2="202" y2="64" stroke="#D7C5EF"/>
+      <text x="24" y="98" class="mono">thread/*</text>
+      <text x="24" y="124" class="mono">turn/*</text>
+      <text x="24" y="150" class="mono">item/*</text>
+      <text x="24" y="176" class="mono">plan/updated</text>
+      <text x="24" y="202" class="mono">approval/*</text>
+      <text x="24" y="238" class="muted">Rendered by each</text>
+      <text x="24" y="258" class="muted">client UI.</text>
+    </g>
+  </g>
+
+  <g transform="translate(72 810)">
+    <rect x="0" y="0" width="1296" height="48" rx="8" fill="#FFFFFF" stroke="#D9E0EA"/>
+    <text x="24" y="30" fill="#475467" font-size="14">Result:</text>
+    <text x="84" y="30" fill="#17203A" font-size="14" font-weight="720">execution, state, approvals, and observability all grow from one session model.</text>
+  </g>
+</svg>

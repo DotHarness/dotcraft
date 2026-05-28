@@ -1,0 +1,398 @@
+import { create } from 'zustand'
+import type { SubAgentEntry } from '../types/toolCall'
+import type { ThreadRuntimeSnapshot, ThreadSummary } from '../types/thread'
+import { useThreadStore } from './threadStore'
+
+export interface SubAgentEdgeWire {
+  parentThreadId?: string
+  childThreadId?: string
+  parentTurnId?: string | null
+  depth?: number
+  agentNickname?: string | null
+  agentRole?: string | null
+  agentType?: string | null
+  agent_type?: string | null
+  role?: string | null
+  profileName?: string | null
+  runtimeType?: string | null
+  supportsSendInput?: boolean
+  supportsResume?: boolean
+  supportsClose?: boolean
+  status?: string
+}
+
+interface SubAgentChildWire {
+  edge?: SubAgentEdgeWire
+  thread?: ThreadSummary | null
+}
+
+export interface SubAgentChild {
+  childThreadId: string
+  parentThreadId: string
+  nickname: string
+  agentRole: string | null
+  profileName: string | null
+  runtimeType: string | null
+  supportsSendInput: boolean
+  supportsResume: boolean
+  supportsClose: boolean
+  status: string
+  lastToolDisplay: string | null
+  currentTool: string | null
+  inputTokens: number
+  outputTokens: number
+  isCompleted: boolean
+  isPlaceholder?: boolean
+  runtime?: ThreadRuntimeSnapshot
+  threadSummary?: ThreadSummary | null
+}
+
+interface SubAgentStoreState {
+  childrenByParent: Map<string, SubAgentChild[]>
+  collapsedByParent: Map<string, boolean>
+  userCollapsedByParent: Map<string, boolean>
+  loadingParents: Set<string>
+}
+
+interface SubAgentStoreActions {
+  setChildren(parentThreadId: string, children: SubAgentChild[]): void
+  fetchChildren(parentThreadId: string): Promise<void>
+  updateProgress(parentThreadId: string, entries: SubAgentEntry[]): void
+  updateChildRuntime(childThreadId: string, runtime: ThreadRuntimeSnapshot): void
+  setParentCollapsed(parentThreadId: string, collapsed: boolean, userInitiated?: boolean): void
+  clearParent(parentThreadId: string): void
+  reset(): void
+}
+
+export interface SubAgentStore extends SubAgentStoreState, SubAgentStoreActions {}
+
+const initialState: SubAgentStoreState = {
+  childrenByParent: new Map(),
+  collapsedByParent: new Map(),
+  userCollapsedByParent: new Map(),
+  loadingParents: new Set()
+}
+
+function normalizeText(value: unknown): string | null {
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null
+}
+
+function normalizeRole(source: {
+  agentRole?: unknown
+  agentType?: unknown
+  agent_type?: unknown
+  role?: unknown
+} | null | undefined): string | null {
+  return normalizeText(source?.agentRole)
+    ?? normalizeText(source?.agentType)
+    ?? normalizeText(source?.agent_type)
+    ?? normalizeText(source?.role)
+}
+
+export function isTerminalSubAgentStatus(status: string | null | undefined): boolean {
+  const normalized = status?.trim().toLowerCase()
+  return normalized === 'closed'
+    || normalized === 'completed'
+    || normalized === 'failed'
+    || normalized === 'cancelled'
+    || normalized === 'canceled'
+}
+
+export function isSubAgentChildRunning(child: SubAgentChild): boolean {
+  if (child.runtime?.running === true) return true
+  if (child.runtime?.running === false) return false
+  if (child.isPlaceholder === true) return !child.isCompleted && !isTerminalSubAgentStatus(child.status)
+  if (child.isCompleted || isTerminalSubAgentStatus(child.status)) return false
+  return false
+}
+
+function childFromWire(parentThreadId: string, wire: SubAgentChildWire): SubAgentChild | null {
+  const edge = wire.edge ?? {}
+  const childThreadId = normalizeText(edge.childThreadId) ?? normalizeText(wire.thread?.id)
+  if (!childThreadId) return null
+  const cachedThread = useThreadStore.getState().threadList.find((thread) => thread.id === childThreadId)
+  const threadSummary = wire.thread ?? cachedThread ?? null
+  const source = threadSummary?.source?.subAgent
+  const runtime = threadSummary?.runtime
+  const status = normalizeText(edge.status) ?? 'open'
+  const isCompleted = runtime?.running === true
+    ? false
+    : runtime?.running === false || isTerminalSubAgentStatus(status)
+  const nickname =
+    normalizeText(edge.agentNickname)
+    ?? normalizeText(source?.agentNickname)
+    ?? normalizeText(wire.thread?.displayName)
+    ?? childThreadId
+  return {
+    childThreadId,
+    parentThreadId: normalizeText(edge.parentThreadId) ?? parentThreadId,
+    nickname,
+    agentRole: normalizeRole(edge) ?? normalizeRole(source),
+    profileName: normalizeText(edge.profileName) ?? normalizeText(source?.profileName),
+    runtimeType: normalizeText(edge.runtimeType) ?? normalizeText(source?.runtimeType),
+    supportsSendInput: edge.supportsSendInput ?? source?.supportsSendInput ?? true,
+    supportsResume: edge.supportsResume ?? source?.supportsResume ?? true,
+    supportsClose: edge.supportsClose ?? source?.supportsClose ?? true,
+    status,
+    lastToolDisplay: null,
+    currentTool: null,
+    inputTokens: 0,
+    outputTokens: 0,
+    isCompleted,
+    isPlaceholder: false,
+    runtime,
+    threadSummary
+  }
+}
+
+function mergeExistingProgress(next: SubAgentChild, existing: SubAgentChild | undefined): SubAgentChild {
+  if (!existing) return next
+  let runtime = next.runtime ?? existing.runtime
+  const nextCompleted = next.runtime?.running === true
+    ? false
+    : next.isCompleted || next.runtime?.running === false || isTerminalSubAgentStatus(next.status)
+  if (nextCompleted && runtime) {
+    runtime = { ...runtime, running: false }
+  }
+  const isCompleted = nextCompleted
+    ? true
+    : existing.runtime?.running === true
+      ? false
+      : existing.isCompleted
+  return {
+    ...next,
+    agentRole: next.agentRole ?? existing.agentRole,
+    profileName: next.profileName ?? existing.profileName,
+    runtimeType: next.runtimeType ?? existing.runtimeType,
+    lastToolDisplay: existing.lastToolDisplay,
+    currentTool: isCompleted ? null : existing.currentTool,
+    inputTokens: existing.inputTokens,
+    outputTokens: existing.outputTokens,
+    isCompleted,
+    isPlaceholder: false,
+    runtime
+  }
+}
+
+function createPlaceholderChild(
+  parentThreadId: string,
+  progress: SubAgentEntry,
+  index: number
+): SubAgentChild {
+  const label = normalizeText(progress.label) ?? `Agent ${index + 1}`
+  const task = normalizeText((progress as SubAgentEntry & { task?: string }).task)
+  const display = normalizeText(progress.currentToolDisplay)
+    ?? normalizeText(progress.currentTool)
+    ?? task
+  const isCompleted = progress.isCompleted === true
+  return {
+    childThreadId: `subagent-placeholder:${parentThreadId}:${index}:${label}`,
+    parentThreadId,
+    nickname: label,
+    agentRole: null,
+    profileName: null,
+    runtimeType: null,
+    supportsSendInput: false,
+    supportsResume: false,
+    supportsClose: false,
+    status: isCompleted ? 'completed' : 'open',
+    lastToolDisplay: display,
+    currentTool: isCompleted ? null : progress.currentTool,
+    inputTokens: progress.inputTokens,
+    outputTokens: progress.outputTokens,
+    isCompleted,
+    isPlaceholder: true,
+    runtime: {
+      running: !isCompleted,
+      waitingOnApproval: false,
+      waitingOnPlanConfirmation: false
+    },
+    threadSummary: null
+  }
+}
+
+function maybeAutoExpandParent(
+  state: SubAgentStoreState,
+  parentThreadId: string,
+  previous: SubAgentChild[],
+  next: SubAgentChild[]
+): Map<string, boolean> | null {
+  if (state.userCollapsedByParent.get(parentThreadId) === true) return null
+
+  const hadChildren = previous.length > 0
+  const hadRunning = previous.some(isSubAgentChildRunning)
+  const hasChildren = next.length > 0
+  const hasRunning = next.some(isSubAgentChildRunning)
+  if ((!hadChildren && hasChildren) || (!hadRunning && hasRunning)) {
+    const collapsedByParent = new Map(state.collapsedByParent)
+    collapsedByParent.set(parentThreadId, false)
+    return collapsedByParent
+  }
+
+  return null
+}
+
+export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
+  ...initialState,
+
+  setChildren(parentThreadId, children) {
+    set((state) => {
+      const previous = state.childrenByParent.get(parentThreadId) ?? []
+      if (children.length === 0 && previous.some((child) => child.isPlaceholder)) {
+        return state
+      }
+
+      const byId = new Map(previous.map((child) => [child.childThreadId, child]))
+      const placeholderMatches = previous
+        .map((child, index) => ({ child, index }))
+        .filter((entry) => entry.child.isPlaceholder)
+      const usedPlaceholderIndexes = new Set<number>()
+      const merged = children.map((child) => {
+        let existing = byId.get(child.childThreadId)
+        if (!existing) {
+          const nicknameMatch = placeholderMatches.find((entry) =>
+            !usedPlaceholderIndexes.has(entry.index)
+            && entry.child.nickname === child.nickname
+          )
+          const fallbackMatch = nicknameMatch
+            ?? placeholderMatches.find((entry) => !usedPlaceholderIndexes.has(entry.index))
+          if (fallbackMatch) {
+            usedPlaceholderIndexes.add(fallbackMatch.index)
+            existing = fallbackMatch.child
+          }
+        }
+        return mergeExistingProgress(child, existing)
+      })
+      const childrenByParent = new Map(state.childrenByParent)
+      childrenByParent.set(parentThreadId, merged)
+      const collapsedByParent = maybeAutoExpandParent(state, parentThreadId, previous, merged)
+      return collapsedByParent ? { childrenByParent, collapsedByParent } : { childrenByParent }
+    })
+  },
+
+  async fetchChildren(parentThreadId) {
+    if (!parentThreadId) return
+    set((state) => {
+      const loadingParents = new Set(state.loadingParents)
+      loadingParents.add(parentThreadId)
+      return { loadingParents }
+    })
+    try {
+      const result = await window.api.appServer.sendRequest('subagent/children/list', {
+        parentThreadId,
+        includeClosed: true,
+        includeThreads: true
+      }) as { data?: SubAgentChildWire[] }
+      const children = (result.data ?? [])
+        .map((entry) => childFromWire(parentThreadId, entry))
+        .filter((entry): entry is SubAgentChild => entry != null)
+      const childThreads = children
+        .map((child) => child.threadSummary)
+        .filter((thread): thread is ThreadSummary => thread != null)
+      useThreadStore.getState().upsertThreads(childThreads)
+      get().setChildren(parentThreadId, children)
+    } finally {
+      set((state) => {
+        const loadingParents = new Set(state.loadingParents)
+        loadingParents.delete(parentThreadId)
+        return { loadingParents }
+      })
+    }
+  },
+
+  updateProgress(parentThreadId, entries) {
+    set((state) => {
+      const current = state.childrenByParent.get(parentThreadId) ?? []
+      const unmatched = [...entries]
+      const next = current.map((child) => {
+        const index = unmatched.findIndex((entry) => entry.label === child.nickname)
+        const progress = index >= 0 ? unmatched.splice(index, 1)[0] : unmatched.shift()
+        if (!progress) return child
+        const isCompleted = child.runtime?.running === false || progress.isCompleted
+        return {
+          ...child,
+          lastToolDisplay: progress.currentToolDisplay ?? progress.currentTool ?? child.lastToolDisplay,
+          currentTool: isCompleted ? null : progress.currentTool ?? child.currentTool,
+          inputTokens: progress.inputTokens,
+          outputTokens: progress.outputTokens,
+          isCompleted,
+          runtime: child.runtime
+            ? { ...child.runtime, running: child.runtime.running === false ? false : !isCompleted }
+            : child.runtime
+        }
+      })
+      for (let index = 0; index < unmatched.length; index += 1) {
+        next.push(createPlaceholderChild(parentThreadId, unmatched[index], current.length + index))
+      }
+      if (next.length === 0 && current.length === 0) return state
+      const childrenByParent = new Map(state.childrenByParent)
+      childrenByParent.set(parentThreadId, next)
+      const collapsedByParent = maybeAutoExpandParent(state, parentThreadId, current, next)
+      return collapsedByParent ? { childrenByParent, collapsedByParent } : { childrenByParent }
+    })
+  },
+
+  updateChildRuntime(childThreadId, runtime) {
+    set((state) => {
+      let changed = false
+      const childrenByParent = new Map(state.childrenByParent)
+      for (const [parentThreadId, children] of childrenByParent) {
+        const next = children.map((child) => {
+          if (child.childThreadId !== childThreadId) return child
+          changed = true
+          return {
+            ...child,
+            runtime,
+            currentTool: runtime.running ? child.currentTool : null,
+            isCompleted: !runtime.running
+          }
+        })
+        childrenByParent.set(parentThreadId, next)
+        const collapsedByParent = maybeAutoExpandParent(state, parentThreadId, children, next)
+        if (collapsedByParent) {
+          return { childrenByParent, collapsedByParent }
+        }
+      }
+      return changed ? { childrenByParent } : state
+    })
+  },
+
+  setParentCollapsed(parentThreadId, collapsed, userInitiated = true) {
+    set((state) => {
+      const collapsedByParent = new Map(state.collapsedByParent)
+      collapsedByParent.set(parentThreadId, collapsed)
+      if (!userInitiated) {
+        return { collapsedByParent }
+      }
+
+      const userCollapsedByParent = new Map(state.userCollapsedByParent)
+      if (collapsed) {
+        userCollapsedByParent.set(parentThreadId, true)
+      } else {
+        userCollapsedByParent.delete(parentThreadId)
+      }
+      return { collapsedByParent, userCollapsedByParent }
+    })
+  },
+
+  clearParent(parentThreadId) {
+    set((state) => {
+      const childrenByParent = new Map(state.childrenByParent)
+      const collapsedByParent = new Map(state.collapsedByParent)
+      const userCollapsedByParent = new Map(state.userCollapsedByParent)
+      childrenByParent.delete(parentThreadId)
+      collapsedByParent.delete(parentThreadId)
+      userCollapsedByParent.delete(parentThreadId)
+      return { childrenByParent, collapsedByParent, userCollapsedByParent }
+    })
+  },
+
+  reset() {
+    set({
+      childrenByParent: new Map(),
+      collapsedByParent: new Map(),
+      userCollapsedByParent: new Map(),
+      loadingParents: new Set()
+    })
+  }
+}))

@@ -1,0 +1,105 @@
+<svg width="1440" height="920" viewBox="0 0 1440 920" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">DotCraft channel adapter topology</title>
+  <desc id="desc">A grouped diagram showing how social platforms connect through channel adapters, SDKs, AppServer, and Session Core.</desc>
+  <style>
+    text { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; letter-spacing: 0; }
+    .title { fill: #17203A; font-size: 42px; font-weight: 760; }
+    .subtitle { fill: #667085; font-size: 18px; }
+    .cardTitle { font-size: 24px; font-weight: 760; }
+    .smallTitle { font-size: 18px; font-weight: 760; }
+    .label { font-size: 14px; font-weight: 720; }
+    .body { fill: #1F2937; font-size: 15px; }
+    .mono { fill: #1F2937; font-size: 15px; font-family: "Cascadia Mono", ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .muted { fill: #667085; font-size: 13px; }
+  </style>
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M2 2L10 6L2 10" fill="none" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+  <rect width="1440" height="920" fill="#F8FAF7"/>
+  <text x="72" y="86" class="title">DotCraft channel adapter topology</text>
+  <text x="72" y="123" class="subtitle">A channel is a platform surface for the same workspace, not a separate agent.</text>
+
+  <g transform="translate(72 184)">
+    <rect x="0" y="0" width="214" height="220" rx="8" fill="#F1EBFA" stroke="#D7C5EF"/>
+    <text x="24" y="44" class="cardTitle" fill="#39205F">Platform</text>
+    <line x1="24" y1="64" x2="190" y2="64" stroke="#D7C5EF"/>
+    <text x="24" y="100" class="mono">QQ</text>
+    <text x="24" y="126" class="mono">WeCom</text>
+    <text x="24" y="152" class="mono">Feishu / Lark</text>
+    <text x="24" y="178" class="mono">Telegram / WeChat</text>
+  </g>
+  <g transform="translate(368 184)">
+    <rect x="0" y="0" width="238" height="220" rx="8" fill="#EAF0FF" stroke="#C2CEF7"/>
+    <text x="24" y="44" class="cardTitle" fill="#23305F">Channel adapter</text>
+    <line x1="24" y1="64" x2="214" y2="64" stroke="#C2CEF7"/>
+    <text x="24" y="100" class="mono">identity mapping</text>
+    <text x="24" y="126" class="mono">message parsing</text>
+    <text x="24" y="152" class="mono">native replies</text>
+    <text x="24" y="178" class="mono">approval UI</text>
+  </g>
+  <g transform="translate(688 184)">
+    <rect x="0" y="0" width="214" height="220" rx="8" fill="#E9F5F0" stroke="#B7DED0"/>
+    <text x="24" y="44" class="cardTitle" fill="#153E33">SDK</text>
+    <line x1="24" y1="64" x2="190" y2="64" stroke="#B7DED0"/>
+    <text x="24" y="100" class="mono">TypeScript</text>
+    <text x="24" y="126" class="mono">Python</text>
+    <text x="24" y="152" class="mono">wire client</text>
+    <text x="24" y="178" class="muted">Platform events become turns.</text>
+  </g>
+  <g transform="translate(984 184)">
+    <rect x="0" y="0" width="176" height="220" rx="8" fill="#FFF1E6" stroke="#F3C9A4"/>
+    <text x="24" y="44" class="cardTitle" fill="#623314">AppServer</text>
+    <line x1="24" y1="64" x2="152" y2="64" stroke="#F3C9A4"/>
+    <text x="24" y="100" class="mono">WebSocket</text>
+    <text x="24" y="126" class="mono">JSON-RPC</text>
+    <text x="24" y="152" class="mono">events</text>
+  </g>
+  <g transform="translate(1242 184)">
+    <rect x="0" y="0" width="126" height="220" rx="8" fill="#F3F4EA" stroke="#D9DEC0"/>
+    <text x="24" y="44" fill="#3F431E" font-size="21" font-weight="760">Core</text>
+    <line x1="24" y1="64" x2="102" y2="64" stroke="#D9DEC0"/>
+    <text x="24" y="100" class="mono">Thread</text>
+    <text x="24" y="126" class="mono">Turn</text>
+    <text x="24" y="152" class="mono">Item</text>
+  </g>
+
+  <path d="M286 294H368" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
+  <path d="M606 294H688" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
+  <path d="M902 294H984" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
+  <path d="M1160 294H1242" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <g transform="translate(72 506)">
+    <rect x="0" y="0" width="408" height="190" rx="8" fill="#FFFFFF" stroke="#D9E0EA"/>
+    <text x="28" y="44" class="cardTitle" fill="#17203A">Embedded in Desktop</text>
+    <line x1="28" y1="64" x2="380" y2="64" stroke="#D9E0EA"/>
+    <text x="28" y="100" class="mono">transport: subprocess</text>
+    <text x="28" y="126" class="mono">builtinModule: channel-*</text>
+    <text x="28" y="158" class="muted">Desktop owns configuration UI and launch lifecycle.</text>
+  </g>
+
+  <g transform="translate(516 506)">
+    <rect x="0" y="0" width="408" height="190" rx="8" fill="#FFFFFF" stroke="#D9E0EA"/>
+    <text x="28" y="44" class="cardTitle" fill="#17203A">Standalone adapter</text>
+    <line x1="28" y1="64" x2="380" y2="64" stroke="#D9E0EA"/>
+    <text x="28" y="100" class="mono">transport: websocket</text>
+    <text x="28" y="126" class="mono">server or container process</text>
+    <text x="28" y="158" class="muted">Good for long-running external platforms.</text>
+  </g>
+
+  <g transform="translate(960 506)">
+    <rect x="0" y="0" width="408" height="190" rx="8" fill="#FFFFFF" stroke="#D9E0EA"/>
+    <text x="28" y="44" class="cardTitle" fill="#17203A">Shared session semantics</text>
+    <line x1="28" y1="64" x2="380" y2="64" stroke="#D9E0EA"/>
+    <text x="28" y="100" class="mono">group chat = Thread</text>
+    <text x="28" y="126" class="mono">message = Turn / Item</text>
+    <text x="28" y="158" class="muted">Desktop and TUI can inspect or take over.</text>
+  </g>
+
+  <g transform="translate(72 768)">
+    <rect x="0" y="0" width="1296" height="48" rx="8" fill="#FFFFFF" stroke="#D9E0EA"/>
+    <text x="24" y="30" fill="#475467" font-size="14">Security:</text>
+    <text x="94" y="30" fill="#17203A" font-size="14" font-weight="720">narrow EnabledTools, set WebSocket tokens, and render approvals in the native platform surface.</text>
+  </g>
+</svg>

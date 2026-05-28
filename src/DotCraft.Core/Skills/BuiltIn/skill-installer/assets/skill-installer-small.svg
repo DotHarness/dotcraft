@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 64 64" fill="none">
+  <rect width="64" height="64" rx="14" fill="#2A2450"/>
+  <defs>
+    <clipPath id="skill-installer-shape">
+      <rect width="64" height="64" rx="14"/>
+    </clipPath>
+  </defs>
+  <g clip-path="url(#skill-installer-shape)" transform="translate(13 13) scale(.59375)">
+    <path d="M0 0h32v12c-8 0-8 12 0 12v8H20c0 8-12 8-12 0H0V0Z" fill="#FFD166"/>
+    <path d="M32 0h32v32H52c0-8-12-8-12 0h-8v-8c-8 0-8-12 0-12V0Z" fill="#FF6F91"/>
+    <path d="M0 32h8c0 8 12 8 12 0h12v8c8 0 8 12 0 12v12H0V32Z" fill="#FF7A52"/>
+    <path d="M32 32h8c0-8 12-8 12 0h12v32H32V52c8 0 8-12 0-12v-8Z" fill="#FFD166"/>
+  </g>
+</svg>

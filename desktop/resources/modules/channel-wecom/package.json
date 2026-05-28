@@ -1,0 +1,43 @@
+{
+  "name": "@dotcraft/channel-wecom",
+  "version": "0.1.8",
+  "private": true,
+  "type": "module",
+  "description": "DotCraft external channel adapter for WeCom enterprise bots using @dotcraft/sdk",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "bin": {
+    "dotcraft-channel-wecom": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "manifest.json",
+    "README.md",
+    "README_ZH.md"
+  ],
+  "scripts": {
+    "start": "node dist/cli.js --workspace .",
+    "generate:manifest": "node ../../scripts/generate-manifest.mjs .",
+    "build": "tsc -p tsconfig.json && npm run generate:manifest",
+    "bundle": "esbuild dist/cli.js --bundle --platform=node --format=esm --outfile=dist/cli.bundle.js --external:node:* --banner:js=\"import{createRequire}from'node:module';const require=createRequire(import.meta.url);\"",
+    "dev": "npm run build && node dist/cli.js --workspace .",
+    "test": "npm run build && node --test dist/config.test.js dist/conformance.test.js dist/crypto.test.js dist/message-splitter.test.js dist/pusher.test.js dist/wecom-adapter.test.js",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "@dotcraft/sdk": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.0"
+  }
+}

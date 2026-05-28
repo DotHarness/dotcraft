@@ -1,0 +1,28 @@
+{
+    "hooks": {
+        "PreToolUse": [
+            {
+                "matcher": "Exec",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "& \".craft/hooks/guard-exec.ps1\"",
+                        "timeout": 30
+                    }
+                ]
+            }
+        ],
+        "PostToolUse": [
+            {
+                "matcher": "WriteFile|EditFile",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "& \".craft/hooks/log-post-tool.ps1\"",
+                        "timeout": 30
+                    }
+                ]
+            }
+        ]
+    }
+}
