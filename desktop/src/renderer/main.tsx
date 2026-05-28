@@ -3,7 +3,10 @@ import { createRoot } from 'react-dom/client'
 import { App } from './App'
 import { LocaleProvider } from './contexts/LocaleContext'
 import { applyTheme, resolveTheme } from './utils/theme'
+import { installAutomationBridge } from './e2e/automationBridge'
 import './styles/tokens.css'
+
+installAutomationBridge()
 
 const params = new URLSearchParams(window.location.search)
 const initialTheme = resolveTheme(params.get('theme') ?? window.api?.initialTheme)
