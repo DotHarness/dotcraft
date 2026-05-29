@@ -1,7 +1,5 @@
 using System.ClientModel;
 using System.ClientModel.Primitives;
-using System.Text.Json;
-using System.Text.Json.Nodes;
 using DotCraft.Auth.OpenAI;
 
 namespace DotCraft.Agents;
@@ -16,7 +14,6 @@ namespace DotCraft.Agents;
 /// </summary>
 internal sealed class OpenAIResponsesClientMetadataPipelinePolicy : PipelinePolicy
 {
-    private const string ClientMetadataField = "client_metadata";
     private const string ResponsesPathSuffix = "/responses";
 
     private readonly string _installationId;
@@ -86,48 +83,9 @@ internal sealed class OpenAIResponsesClientMetadataPipelinePolicy : PipelinePoli
 
     internal static string? AddInstallationIdMetadata(string json, string installationId)
     {
-        if (string.IsNullOrWhiteSpace(json))
-            return null;
-
-        // The OpenAI .NET SDK serializes a CreateResponseOptions whose auto-generated
-        // InputItems/Tools/IncludedProperties properties emit empty arrays AND whose Patch.Set
-        // entries emit the real values, producing duplicate top-level keys. JsonNode.Parse
-        // throws on duplicate keys, so we parse via JsonDocument (which tolerates duplicates by
-        // keeping the last occurrence) and reconstruct a clean JsonObject before patching.
-        JsonObject obj;
-        try
-        {
-            using var doc = JsonDocument.Parse(json);
-            if (doc.RootElement.ValueKind != JsonValueKind.Object)
-                return null;
-
-            obj = new JsonObject();
-            foreach (var prop in doc.RootElement.EnumerateObject())
-            {
-                // Last-write-wins: when the SDK emitted both an empty placeholder and a real
-                // patch for the same path, the patch (which serializes later) overwrites.
-                obj[prop.Name] = JsonNode.Parse(prop.Value.GetRawText());
-            }
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
-
-        if (obj[ClientMetadataField] is JsonObject existing)
-        {
-            if (existing.ContainsKey(OpenAIAuthConstants.InstallationIdHeader))
-                return null; // caller already set it; do not clobber
-            existing[OpenAIAuthConstants.InstallationIdHeader] = installationId;
-        }
-        else
-        {
-            obj[ClientMetadataField] = new JsonObject
-            {
-                [OpenAIAuthConstants.InstallationIdHeader] = installationId
-            };
-        }
-
-        return obj.ToJsonString();
+        return OpenAIResponsesRequestBodyCanonicalizer.AddInstallationIdMetadata(
+            json,
+            OpenAIAuthConstants.InstallationIdHeader,
+            installationId);
     }
 }
