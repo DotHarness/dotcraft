@@ -45,6 +45,72 @@ public sealed class ModelRequestHistorySanitizerTests
     }
 
     [Fact]
+    public void Sanitize_WhenToolResultsAreSplitAcrossMessages_MergesIntoOneToolMessage()
+    {
+        var call1 = new FunctionCallContent("call-1", "ReadFile", new Dictionary<string, object?>());
+        var call2 = new FunctionCallContent("call-2", "Exec", new Dictionary<string, object?>());
+        var messages = new List<ChatMessage>
+        {
+            new(ChatRole.Assistant, (IList<AIContent>)[call1, call2]),
+            new(ChatRole.Tool, (IList<AIContent>)[new FunctionResultContent("call-1", "one")]),
+            new(ChatRole.Tool, (IList<AIContent>)[new FunctionResultContent("call-2", "two")])
+        };
+
+        var repaired = ModelRequestHistorySanitizer.Sanitize(messages);
+
+        Assert.Equal([ChatRole.Assistant, ChatRole.Tool], repaired.Select(message => message.Role).ToArray());
+        var results = repaired[1].Contents.OfType<FunctionResultContent>().ToArray();
+        Assert.Equal(["call-1", "call-2"], results.Select(result => result.CallId).ToArray());
+        Assert.Equal(["one", "two"], results.Select(result => result.Result).ToArray());
+        Assert.DoesNotContain(results, result =>
+            result.Result?.ToString()?.Contains("repaired an incomplete historical tool call") == true);
+    }
+
+    [Fact]
+    public void Sanitize_WhenSplitToolResultsMissOneResult_SynthesizesOnlyMissingResult()
+    {
+        var call1 = new FunctionCallContent("call-1", "ReadFile", new Dictionary<string, object?>());
+        var call2 = new FunctionCallContent("call-2", "Exec", new Dictionary<string, object?>());
+        var messages = new List<ChatMessage>
+        {
+            new(ChatRole.Assistant, (IList<AIContent>)[call1, call2]),
+            new(ChatRole.Tool, (IList<AIContent>)[new FunctionResultContent("call-1", "one")]),
+            new(ChatRole.Tool, (IList<AIContent>)[new FunctionResultContent("call-extra", "ignored")])
+        };
+
+        var repaired = ModelRequestHistorySanitizer.Sanitize(messages);
+
+        Assert.Equal([ChatRole.Assistant, ChatRole.Tool], repaired.Select(message => message.Role).ToArray());
+        var results = repaired[1].Contents.OfType<FunctionResultContent>().ToArray();
+        Assert.Equal(["call-1", "call-2"], results.Select(result => result.CallId).ToArray());
+        Assert.Equal("one", results[0].Result);
+        Assert.Contains("repaired an incomplete historical tool call", results[1].Result?.ToString());
+    }
+
+    [Fact]
+    public void Sanitize_WhenSplitToolResultsDuplicateId_KeepsFirstResult()
+    {
+        var call1 = new FunctionCallContent("call-1", "ReadFile", new Dictionary<string, object?>());
+        var call2 = new FunctionCallContent("call-2", "Exec", new Dictionary<string, object?>());
+        var messages = new List<ChatMessage>
+        {
+            new(ChatRole.Assistant, (IList<AIContent>)[call1, call2]),
+            new(ChatRole.Tool, (IList<AIContent>)[new FunctionResultContent("call-1", "first")]),
+            new(ChatRole.Tool, (IList<AIContent>)[
+                new FunctionResultContent("call-1", "duplicate"),
+                new FunctionResultContent("call-2", "second")
+            ])
+        };
+
+        var repaired = ModelRequestHistorySanitizer.Sanitize(messages);
+
+        Assert.Equal([ChatRole.Assistant, ChatRole.Tool], repaired.Select(message => message.Role).ToArray());
+        var results = repaired[1].Contents.OfType<FunctionResultContent>().ToArray();
+        Assert.Equal(["call-1", "call-2"], results.Select(result => result.CallId).ToArray());
+        Assert.Equal(["first", "second"], results.Select(result => result.Result).ToArray());
+    }
+
+    [Fact]
     public void Sanitize_WhenToolResultHasNoPendingCall_PreservesExistingBridgeMessage()
     {
         var messages = new List<ChatMessage>

@@ -1675,7 +1675,6 @@ Choose the next concrete action that advances the goal. Before doing substantial
             var mainTraceUsageBaseline = 0;
             long inputTokens = 0, outputTokens = 0, cachedInputTokens = 0, cacheWriteInputTokens = 0, reasoningOutputTokens = 0;
             var llmCallCount = 0;
-            var optimizedSessionChanged = false;
             Dictionary<int, SessionItem>? streamingToolCallItemsByIndex = null;
             Dictionary<int, string>? streamingToolNameByIndex = null;
             Dictionary<string, SessionItem>? streamingToolCallItemsByCallId = null;
@@ -1888,7 +1887,6 @@ Choose the next concrete action that advances the goal. Before doing substantial
                             [.. result.Messages],
                             jsonSerializerOptions: SessionPersistenceJsonOptions.Default);
                         InvalidatePromptRequestSnapshot(threadId, "auto_compaction");
-                        optimizedSessionChanged = true;
                         await TrySaveSessionAsync(agent, session, threadId);
                         var contextUsage = await SaveContextUsageSnapshotAsync(
                             threadId,
@@ -1940,10 +1938,7 @@ Choose the next concrete action that advances the goal. Before doing substantial
                 }
             }
 
-            async Task FailAndPersistTurnAsync(
-                string errorMsg,
-                string errorCode,
-                bool saveCurrentSession = false)
+            async Task FailAndPersistTurnAsync(string errorMsg, string errorCode)
             {
                 FinalizeStreamingAgentMessage();
                 FinalizeStreamingReasoning();
@@ -1957,12 +1952,20 @@ Choose the next concrete action that advances the goal. Before doing substantial
                 FailTurn(turn, eventChannel, errorMsg);
                 ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnFailed);
                 await TrySaveThreadAsync(thread);
-                if (saveCurrentSession && session is not null)
-                    await TrySaveSessionAsync(agent, session, threadId);
-                else if (optimizedSessionChanged && session is not null)
-                    await TrySaveSessionAsync(agent, session, threadId);
-                else
-                    await TryRebuildAndSaveSessionAsync(agent, threadId);
+                if (session is not null)
+                {
+                    if (TryAppendFailedTurnTailToSession(session, turn) &&
+                        await TrySaveSessionAsync(agent, session, threadId))
+                    {
+                        return;
+                    }
+                }
+                else if (persistence.SessionFileExists(threadId))
+                {
+                    return;
+                }
+
+                await TryRebuildAndSaveSessionAsync(agent, threadId);
             }
 
             try
@@ -2763,7 +2766,6 @@ Choose the next concrete action that advances the goal. Before doing substantial
                 // already gone), but the compacted history lets the user re-send their
                 // prompt and succeed without any manual cleanup.
                 var reactiveMessage = ex.Message;
-                var reactiveCompactionSucceeded = false;
                 if (CompactionErrors.IsPromptTooLong(ex) && session is not null)
                 {
                     try
@@ -2778,7 +2780,6 @@ Choose the next concrete action that advances the goal. Before doing substantial
                         {
                             tokenTracker?.Reset();
                             InvalidatePromptRequestSnapshot(threadId, "reactive_compaction");
-                            optimizedSessionChanged = true;
                             var contextUsage = await SaveContextUsageSnapshotAsync(
                                 threadId,
                                 status.ThresholdAfter.Tokens,
@@ -2807,7 +2808,6 @@ Choose the next concrete action that advances the goal. Before doing substantial
                             reactiveMessage =
                                 "The request exceeded the model's context window. "
                                 + "History has been compacted; please re-send the message.";
-                            reactiveCompactionSucceeded = true;
                         }
                         else
                         {
@@ -2829,8 +2829,7 @@ Choose the next concrete action that advances the goal. Before doing substantial
 
                 await FailAndPersistTurnAsync(
                     reactiveMessage,
-                    "agent_error",
-                    saveCurrentSession: reactiveCompactionSucceeded);
+                    "agent_error");
             }
             finally
             {
@@ -4393,6 +4392,143 @@ Choose the next concrete action that advances the goal. Before doing substantial
         {
             logger?.LogError(ex, "Failed to persist thread state for thread {ThreadId}", thread.Id);
         }
+    }
+
+    private static bool TryAppendFailedTurnTailToSession(AgentSession session, SessionTurn turn)
+    {
+        if (!session.TryGetInMemoryChatHistory(
+                out var history,
+                jsonSerializerOptions: SessionPersistenceJsonOptions.Default))
+        {
+            return false;
+        }
+
+        var turnTail = ThreadStore.BuildModelVisibleHistoryFromTurn(turn);
+        if (turnTail.Count == 0)
+            return true;
+
+        var overlap = FindHistoryTailOverlap(history, turnTail);
+        if (overlap >= turnTail.Count)
+            return true;
+
+        var merged = new List<ChatMessage>(history.Count + turnTail.Count - overlap);
+        merged.AddRange(history);
+        for (var i = overlap; i < turnTail.Count; i++)
+            merged.Add(turnTail[i]);
+
+        session.SetInMemoryChatHistory(merged, jsonSerializerOptions: SessionPersistenceJsonOptions.Default);
+        return true;
+    }
+
+    private static int FindHistoryTailOverlap(
+        IReadOnlyList<ChatMessage> history,
+        IReadOnlyList<ChatMessage> tail)
+    {
+        var max = Math.Min(history.Count, tail.Count);
+        for (var length = max; length > 0; length--)
+        {
+            var historyStart = history.Count - length;
+            var matched = true;
+            for (var i = 0; i < length; i++)
+            {
+                if (ChatMessagesEquivalent(history[historyStart + i], tail[i]))
+                    continue;
+
+                matched = false;
+                break;
+            }
+
+            if (matched)
+                return length;
+        }
+
+        return 0;
+    }
+
+    private static bool ChatMessagesEquivalent(ChatMessage left, ChatMessage right)
+    {
+        if (left.Role != right.Role)
+            return false;
+
+        var leftContents = BuildContentSignatures(left);
+        var rightContents = BuildContentSignatures(right);
+        return leftContents.SequenceEqual(rightContents, StringComparer.Ordinal);
+    }
+
+    private static List<string> BuildContentSignatures(ChatMessage message)
+    {
+        var signatures = new List<string>();
+        foreach (var content in message.Contents)
+        {
+            switch (content)
+            {
+                case TextContent text:
+                {
+                    var normalized = NormalizeTextForHistorySignature(text.Text);
+                    if (!string.IsNullOrWhiteSpace(normalized))
+                        signatures.Add("text:" + normalized);
+                    break;
+                }
+                case TextReasoningContent reasoning:
+                {
+                    if (ReasoningContentHelper.TryGetText(reasoning, out var reasoningText) &&
+                        !string.IsNullOrWhiteSpace(reasoningText))
+                    {
+                        signatures.Add("reasoning:" + reasoningText.Trim());
+                    }
+
+                    break;
+                }
+                case FunctionCallContent call:
+                    signatures.Add($"call:{call.CallId}:{call.Name}");
+                    break;
+                case FunctionResultContent result:
+                    signatures.Add(
+                        $"result:{result.CallId}:{ImageContentSanitizingChatClient.DescribeResult(result.Result)}");
+                    break;
+                default:
+                    signatures.Add($"{content.GetType().FullName}:{content}");
+                    break;
+            }
+        }
+
+        return signatures;
+    }
+
+    private static string NormalizeTextForHistorySignature(string? text)
+    {
+        var normalized = StripSystemReminderBlocks(text).Trim();
+        var runtimeContextIndex = normalized.IndexOf("\n[Runtime Context]", StringComparison.Ordinal);
+        if (runtimeContextIndex >= 0)
+            normalized = normalized[..runtimeContextIndex].Trim();
+        return normalized;
+    }
+
+    private static string StripSystemReminderBlocks(string? text)
+    {
+        if (string.IsNullOrEmpty(text))
+            return string.Empty;
+
+        const string startTag = "<system-reminder>";
+        const string endTag = "</system-reminder>";
+
+        var result = text;
+        var searchStart = 0;
+        while (searchStart < result.Length)
+        {
+            var start = result.IndexOf(startTag, searchStart, StringComparison.Ordinal);
+            if (start < 0)
+                break;
+
+            var end = result.IndexOf(endTag, start + startTag.Length, StringComparison.Ordinal);
+            var removeLength = end < 0
+                ? result.Length - start
+                : end + endTag.Length - start;
+            result = result.Remove(start, removeLength);
+            searchStart = start;
+        }
+
+        return result;
     }
 
     private async Task<bool> TrySaveSessionAsync(AIAgent agent, AgentSession session, string threadId)

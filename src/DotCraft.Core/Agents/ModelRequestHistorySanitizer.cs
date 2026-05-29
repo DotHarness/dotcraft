@@ -26,9 +26,18 @@ internal static class ModelRequestHistorySanitizer
             {
                 if (message.Role == ChatRole.Tool)
                 {
-                    var repairedTool = RepairToolMessage(message, pendingCalls, out var changedTool);
+                    var toolMessages = new List<ChatMessage>();
+                    var blockStart = i;
+                    while (i < messages.Count && messages[i].Role == ChatRole.Tool)
+                    {
+                        toolMessages.Add(messages[i]);
+                        i++;
+                    }
+
+                    i--;
+                    var repairedTool = RepairToolMessages(toolMessages, pendingCalls, out var changedTool);
                     if (changedTool)
-                        repaired ??= CopyPrefix(messages, i);
+                        repaired ??= CopyPrefix(messages, blockStart);
                     repaired?.Add(repairedTool);
                     pendingCalls = null;
                     continue;
@@ -75,22 +84,32 @@ internal static class ModelRequestHistorySanitizer
         return calls;
     }
 
-    private static ChatMessage RepairToolMessage(
-        ChatMessage message,
+    private static ChatMessage RepairToolMessages(
+        IReadOnlyList<ChatMessage> messages,
         IReadOnlyList<FunctionCallContent> pendingCalls,
         out bool changed)
     {
-        changed = false;
+        changed = messages.Count != 1;
         var existingResults = new Dictionary<string, FunctionResultContent>(StringComparer.Ordinal);
-        foreach (var content in message.Contents)
+        var originalResults = new List<FunctionResultContent>();
+        var pendingCallIds = pendingCalls
+            .Select(static call => call.CallId)
+            .ToHashSet(StringComparer.Ordinal);
+
+        foreach (var message in messages)
         {
-            if (content is FunctionResultContent { CallId: { Length: > 0 } } result &&
-                !existingResults.ContainsKey(result.CallId))
+            foreach (var content in message.Contents)
             {
-                existingResults.Add(result.CallId, result);
-            }
-            else
-            {
+                if (content is FunctionResultContent { CallId: { Length: > 0 } } result)
+                {
+                    originalResults.Add(result);
+                    if (pendingCallIds.Contains(result.CallId) && !existingResults.ContainsKey(result.CallId))
+                    {
+                        existingResults.Add(result.CallId, result);
+                        continue;
+                    }
+                }
+
                 changed = true;
             }
         }
@@ -108,10 +127,29 @@ internal static class ModelRequestHistorySanitizer
             changed = true;
         }
 
-        if (!changed && contents.Count == message.Contents.Count)
-            return message;
+        if (!changed)
+        {
+            if (originalResults.Count == contents.Count)
+            {
+                for (var i = 0; i < contents.Count; i++)
+                {
+                    if (!ReferenceEquals(originalResults[i], contents[i]))
+                    {
+                        changed = true;
+                        break;
+                    }
+                }
+            }
+            else
+            {
+                changed = true;
+            }
+        }
 
-        return CloneWithContents(message, contents);
+        if (!changed)
+            return messages[0];
+
+        return CloneWithContents(messages[0], contents);
     }
 
     private static ChatMessage CreateSyntheticToolMessage(IEnumerable<FunctionCallContent> calls) =>

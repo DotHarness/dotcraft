@@ -877,6 +877,123 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
     }
 
     [Fact]
+    public async Task SubmitInputAsync_WhenAgentFailsAfterPreviousCompaction_PreservesCompactedSessionAndFailedTurnTail()
+    {
+        var seedChatClient = new RecordingChatClient("seed answer");
+        await using var seedFactory = CreateAgentFactory(seedChatClient, configureConfig: ConfigureSmallCompaction);
+        var seedService = CreateService(seedFactory, seedChatClient);
+        var thread = await seedService.CreateThreadAsync(MakeIdentity());
+
+        for (var i = 0; i < 4; i++)
+        {
+            await DrainAsync(seedService.SubmitInputAsync(
+                thread.Id,
+                [new TextContent($"seed {i} " + new string('u', 1200))]));
+        }
+
+        var compactMainChatClient = new RecordingChatClient("unused");
+        await using var compactFactory = CreateAgentFactory(
+            compactMainChatClient,
+            configureConfig: ConfigureSmallCompaction,
+            compactionChatClient: new SummaryChatClient("<summary>compacted previous context</summary>"));
+        var compactService = CreateService(compactFactory, compactMainChatClient);
+        await compactService.ResumeThreadAsync(thread.Id);
+
+        var compactResult = await compactService.CompactThreadAsync(thread.Id);
+        Assert.Equal("partial", compactResult.Outcome);
+
+        IChatClient failingChatClient = new FakeChatClient(
+            [
+                new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("partial failure")]),
+                new ChatResponseUpdate(ChatRole.Assistant, [
+                    new FunctionCallContent("fail-call", "ReadFile", new Dictionary<string, object?>())
+                ]),
+                new ChatResponseUpdate(ChatRole.Assistant, [
+                    new FunctionResultContent("fail-call", "tool ok")
+                ]),
+                new ChatResponseUpdate(ChatRole.Assistant, [])
+                {
+                    FinishReason = ChatFinishReason.Length
+                }
+            ]);
+        await using var failFactory = CreateAgentFactory(failingChatClient, configureConfig: ConfigureSmallCompaction);
+        var failService = CreateService(failFactory, failingChatClient);
+        await failService.ResumeThreadAsync(thread.Id);
+
+        await DrainAsync(failService.SubmitInputAsync(thread.Id, [new TextContent("fail after compact")]));
+
+        var failedThread = await failService.GetThreadAsync(thread.Id);
+        var failedTurn = failedThread.Turns.Last();
+        Assert.Equal(TurnStatus.Failed, failedTurn.Status);
+
+        var followUpChatClient = new RecordingChatClient("follow answer");
+        await using var followUpFactory = CreateAgentFactory(followUpChatClient);
+        var followUpService = CreateService(followUpFactory, followUpChatClient);
+        await followUpService.ResumeThreadAsync(thread.Id);
+
+        await DrainAsync(followUpService.SubmitInputAsync(thread.Id, [new TextContent("follow up")]));
+
+        var followUpHistory = followUpChatClient.LastMessages.Select(MessageText).ToList();
+        Assert.Contains(followUpHistory, text => text.Contains("compacted previous context", StringComparison.Ordinal));
+        Assert.Contains(followUpHistory, text => text.Contains("fail after compact", StringComparison.Ordinal));
+        Assert.Contains(followUpHistory, text => text.Contains("partial failure", StringComparison.Ordinal));
+        Assert.Contains(followUpHistory, text => text.Contains("function_call:ReadFile:fail-call", StringComparison.Ordinal));
+        Assert.Contains(followUpHistory, text => text.Contains("function_result:fail-call:tool ok", StringComparison.Ordinal));
+        Assert.DoesNotContain(followUpHistory, text => text.Contains("seed 0", StringComparison.Ordinal));
+        Assert.True(followUpHistory.Count < 10, string.Join(Environment.NewLine, followUpHistory));
+    }
+
+    [Fact]
+    public async Task SubmitInputAsync_WhenProviderThrowsAfterPreviousCompaction_PreservesCompactedSessionAndPartialAssistant()
+    {
+        var seedChatClient = new RecordingChatClient("seed answer");
+        await using var seedFactory = CreateAgentFactory(seedChatClient, configureConfig: ConfigureSmallCompaction);
+        var seedService = CreateService(seedFactory, seedChatClient);
+        var thread = await seedService.CreateThreadAsync(MakeIdentity());
+
+        for (var i = 0; i < 4; i++)
+        {
+            await DrainAsync(seedService.SubmitInputAsync(
+                thread.Id,
+                [new TextContent($"seed {i} " + new string('u', 1200))]));
+        }
+
+        var compactMainChatClient = new RecordingChatClient("unused");
+        await using var compactFactory = CreateAgentFactory(
+            compactMainChatClient,
+            configureConfig: ConfigureSmallCompaction,
+            compactionChatClient: new SummaryChatClient("<summary>compacted previous context</summary>"));
+        var compactService = CreateService(compactFactory, compactMainChatClient);
+        await compactService.ResumeThreadAsync(thread.Id);
+
+        var compactResult = await compactService.CompactThreadAsync(thread.Id);
+        Assert.Equal("partial", compactResult.Outcome);
+
+        IChatClient failingChatClient = new ThrowingAfterUpdatesChatClient(
+            [new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("partial provider failure")])],
+            new InvalidOperationException("provider boom"));
+        await using var failFactory = CreateAgentFactory(failingChatClient, configureConfig: ConfigureSmallCompaction);
+        var failService = CreateService(failFactory, failingChatClient);
+        await failService.ResumeThreadAsync(thread.Id);
+
+        await DrainAsync(failService.SubmitInputAsync(thread.Id, [new TextContent("provider fail after compact")]));
+
+        var followUpChatClient = new RecordingChatClient("follow answer");
+        await using var followUpFactory = CreateAgentFactory(followUpChatClient);
+        var followUpService = CreateService(followUpFactory, followUpChatClient);
+        await followUpService.ResumeThreadAsync(thread.Id);
+
+        await DrainAsync(followUpService.SubmitInputAsync(thread.Id, [new TextContent("follow up")]));
+
+        var followUpHistory = followUpChatClient.LastMessages.Select(MessageText).ToList();
+        Assert.Contains(followUpHistory, text => text.Contains("compacted previous context", StringComparison.Ordinal));
+        Assert.Contains(followUpHistory, text => text.Contains("provider fail after compact", StringComparison.Ordinal));
+        Assert.Contains(followUpHistory, text => text.Contains("partial provider failure", StringComparison.Ordinal));
+        Assert.DoesNotContain(followUpHistory, text => text.Contains("seed 0", StringComparison.Ordinal));
+        Assert.True(followUpHistory.Count < 10, string.Join(Environment.NewLine, followUpHistory));
+    }
+
+    [Fact]
     public async Task DeleteThreadPermanentlyAsync_DuringRunningTurn_DoesNotRecreateThreadArtifacts()
     {
         IChatClient chatClient = new BlockingChatClient();
