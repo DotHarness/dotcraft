@@ -28,6 +28,7 @@ internal sealed class TestableSessionService : ISessionService, IThreadAgentRefr
     public IReadOnlyList<(string threadId, string turnId, string requestId, RequestUserInputResponse response)> ResolvedUserInputs => _resolvedUserInputs;
     public IReadOnlyList<SessionEventType> YieldedSubmitEventTypes => _yieldedSubmitEventTypes;
     public IReadOnlyList<AIContent> LastSubmittedContent { get; private set; } = [];
+    public QueuedTurnInput? LastStartedQueuedInput { get; private set; }
     public IReadOnlyList<ChatMessage>? LastSubmittedMessages { get; private set; }
     public CancellationToken LastSubmitCancellationToken { get; private set; }
     public Func<string, IList<AIContent>, ChatMessage[]?, IEnumerable<SessionEvent>>? SubmitInputHandler { get; set; }
@@ -585,6 +586,7 @@ internal sealed class TestableSessionService : ISessionService, IThreadAgentRefr
         thread.LastActiveAt = DateTimeOffset.UtcNow;
         await _store.SaveThreadAsync(thread, ct);
 
+        LastStartedQueuedInput = queued;
         LastSubmittedContent = queued.MaterializedInputParts.Select(part => part.ToAIContent()).ToList();
     }
 

@@ -381,7 +381,7 @@ public sealed class TeamsServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task MarkMissionDone_EnqueuesCompletionNotificationToOriginThread()
+    public async Task MarkMissionDone_StartsCompletionNotificationWhenOriginThreadIsIdle()
     {
         var originThread = await _sessionService.CreateThreadAsync(new SessionIdentity
         {
@@ -435,10 +435,91 @@ public sealed class TeamsServiceTests : IDisposable
 
         Assert.True(done.Success, done.ErrorMessage);
         var updatedOrigin = await _sessionService.GetThreadAsync(originThread.Id);
+        Assert.Empty(updatedOrigin.QueuedInputs);
+        var started = _sessionService.LastStartedQueuedInput;
+        Assert.NotNull(started);
+        Assert.Equal(originThread.Id, started.ThreadId);
+        Assert.Equal("team", started.TriggerKind);
+        Assert.Equal(created.Mission.MissionId, started.TriggerRefId);
+        Assert.Contains("Mission completed: Return result", started.TriggerLabel);
+        Assert.Contains("Final answer from the Team.", started.DisplayText);
+        Assert.Contains("mission.completed", Assert.Single(started.MaterializedInputParts).Text);
+        var submitted = Assert.IsType<TextContent>(Assert.Single(_sessionService.LastSubmittedContent));
+        Assert.Contains("mission.completed", submitted.Text, StringComparison.Ordinal);
+        Assert.Contains("Final answer from the Team.", submitted.Text, StringComparison.Ordinal);
+
+        var view = await _teamsService.ViewTeamAsync(_sessionService, _workspaceCraftPath, CancellationToken.None);
+        var mission = Assert.Single(view.Missions);
+        Assert.Equal(started.Id, mission.CompletionQueuedInputId);
+        Assert.NotNull(mission.CompletionNotifiedAt);
+    }
+
+    [Fact]
+    public async Task MarkMissionDone_LeavesCompletionQueuedWhenOriginThreadIsBusy()
+    {
+        var originThread = await _sessionService.CreateThreadAsync(new SessionIdentity
+        {
+            WorkspacePath = _tempRoot,
+            ChannelName = "desktop",
+            UserId = "user"
+        });
+        var originBinding = _appBindingService.EnsureManagedBinding(
+            _workspaceCraftPath,
+            originThread.Id,
+            TeamsConstants.AppId,
+            "user",
+            "origin-grant",
+            ["mission.manage"],
+            _teamsService.GetToolSpecsForSurface(ManagedAppBindingToolSurfaces.ThreadBinding),
+            _teamsService.GetCatalogDescriptor(AppBindingCatalogSurfaces.ThreadBinding));
+        var created = await _teamsService.CreateMissionAsync(
+            _appBindingService,
+            _sessionService,
+            _tempRoot,
+            _workspaceCraftPath,
+            new TeamsMissionCreateParams
+            {
+                Title = "Return later",
+                Prompt = "Return a final response to the origin thread."
+            },
+            CancellationToken.None,
+            new TeamsMissionOrigin(originThread.Id, originBinding.BindingId));
+        originThread.Turns.Add(new SessionTurn
+        {
+            Id = "turn_origin_running",
+            ThreadId = originThread.Id,
+            Status = TurnStatus.Running,
+            StartedAt = DateTimeOffset.UtcNow
+        });
+        var leaderThread = Assert.Single(created.Team.MissionThreads, thread => thread.MemberId == "leader");
+
+        var done = await _teamsService.InvokeToolAsync(
+            new ManagedAppBindingToolCallContext(
+                _workspaceCraftPath,
+                _tempRoot,
+                leaderThread.BindingId,
+                leaderThread.ThreadId,
+                "turn_leader",
+                "call_done",
+                TeamsConstants.AppId,
+                leaderThread.GrantId,
+                "MarkMissionDone")
+            {
+                AppBindingService = _appBindingService,
+                SessionService = _sessionService
+            },
+            new JsonObject
+            {
+                ["finalResponse"] = "Final answer from the Team."
+            },
+            CancellationToken.None);
+
+        Assert.True(done.Success, done.ErrorMessage);
+        var updatedOrigin = await _sessionService.GetThreadAsync(originThread.Id);
         var queued = Assert.Single(updatedOrigin.QueuedInputs);
         Assert.Equal("team", queued.TriggerKind);
         Assert.Equal(created.Mission.MissionId, queued.TriggerRefId);
-        Assert.Contains("Mission completed: Return result", queued.TriggerLabel);
+        Assert.Contains("Mission completed: Return later", queued.TriggerLabel);
         Assert.Contains("Final answer from the Team.", queued.DisplayText);
         Assert.Contains("mission.completed", Assert.Single(queued.MaterializedInputParts).Text);
 
