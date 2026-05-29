@@ -21,6 +21,7 @@ import type {
   QueuedTurnInput
 } from '../../types/conversation'
 import { startTurnWithOptimisticUI } from '../../utils/startTurn'
+import { useComposerMascot } from './useComposerMascot'
 import { buildComposerInputParts } from '../../utils/composeInputParts'
 import { isAcceptPlanSentinel } from '../../utils/planAcceptSentinel'
 import { extractGoal, formatGoalUsage, parseGoalSlashCommand, type GoalSlashCommand } from '../../utils/threadGoal'
@@ -170,6 +171,7 @@ export function InputComposer({
   const pendingMessage = useConversationStore((s) => s.pendingMessage)
   const queuedInputs = useConversationStore((s) => s.queuedInputs)
   const maintenanceKind = useConversationStore((s) => s.maintenanceKind)
+  const mascotInteraction = useComposerMascot({ threadId, workspacePath })
   const threadMode = useConversationStore((s) => s.threadMode)
   const setThreadMode = useConversationStore((s) => s.setThreadMode)
   const composerPrefill = useUIStore((s) => s.composerPrefill)
@@ -1074,6 +1076,7 @@ export function InputComposer({
         focused={editorFocused}
         showMascot
         mascotBounceSignal={mascotBounce}
+        mascotInteraction={mascotInteraction}
         attachmentStrip={
           <AttachmentStrip
             images={images}

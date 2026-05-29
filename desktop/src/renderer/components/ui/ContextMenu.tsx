@@ -1,10 +1,13 @@
 import { useEffect, useRef, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { ActionTooltip } from './ActionTooltip'
 
 export interface ContextMenuItem {
   label: string
   onClick: () => void
   icon?: ReactNode
+  /** Native tooltip describing what the item does (shown on hover). */
+  title?: string
   danger?: boolean
   disabled?: boolean
 }
@@ -74,62 +77,71 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps): JSX
         overflow: 'hidden'
       }}
     >
-      {items.map((item, i) => (
-        <button
-          key={i}
-          role="menuitem"
-          disabled={item.disabled}
-          onClick={() => {
-            if (!item.disabled) {
-              item.onClick()
-              onClose()
-            }
-          }}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            width: '100%',
-            padding: '6px 14px',
-            textAlign: 'left',
-            background: 'none',
-            border: 'none',
-            fontSize: '13px',
-            color: item.danger
-              ? 'var(--error)'
-              : item.disabled
-                ? 'var(--text-dimmed)'
-                : 'var(--text-primary)',
-            cursor: item.disabled ? 'default' : 'pointer',
-            transition: 'background-color 80ms ease'
-          }}
-          onMouseEnter={(e) => {
-            if (!item.disabled) {
-              ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--glass-surface-soft)'
-            }
-          }}
-          onMouseLeave={(e) => {
-            ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent'
-          }}
-        >
-          {item.icon && (
-            <span
-              aria-hidden="true"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: 16,
-                height: 16,
-                flexShrink: 0
-              }}
-            >
-              {item.icon}
-            </span>
-          )}
-          {item.label}
-        </button>
-      ))}
+      {items.map((item, i) => {
+        const button = (
+          <button
+            role="menuitem"
+            disabled={item.disabled}
+            onClick={() => {
+              if (!item.disabled) {
+                item.onClick()
+                onClose()
+              }
+            }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              width: '100%',
+              padding: '6px 14px',
+              textAlign: 'left',
+              background: 'none',
+              border: 'none',
+              fontSize: '13px',
+              color: item.danger
+                ? 'var(--error)'
+                : item.disabled
+                  ? 'var(--text-dimmed)'
+                  : 'var(--text-primary)',
+              cursor: item.disabled ? 'default' : 'pointer',
+              transition: 'background-color 80ms ease'
+            }}
+            onMouseEnter={(e) => {
+              if (!item.disabled) {
+                ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--glass-surface-soft)'
+              }
+            }}
+            onMouseLeave={(e) => {
+              ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent'
+            }}
+          >
+            {item.icon && (
+              <span
+                aria-hidden="true"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: 16,
+                  height: 16,
+                  flexShrink: 0
+                }}
+              >
+                {item.icon}
+              </span>
+            )}
+            {item.label}
+          </button>
+        )
+
+        return item.title ? (
+          <ActionTooltip key={i} label={item.title} placement="right" wrapperStyle={{ width: '100%' }}>
+            {button}
+          </ActionTooltip>
+        ) : (
+          <div key={i}>{button}</div>
+        )
+      })}
     </div>
   )
 

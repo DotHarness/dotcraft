@@ -1,8 +1,35 @@
 import { useState, type CSSProperties, type DragEventHandler, type JSX, type ReactNode } from 'react'
 import { ListChecks, Square, X } from 'lucide-react'
 import { ActionTooltip } from '../ui/ActionTooltip'
-import { MascotRobot, type MascotExpression } from './MascotRobot'
+import { MascotRobot, type MascotExpression, type MascotLight } from './MascotRobot'
+import { MascotBubble, type MascotBubbleAction, type MascotBubbleTone } from './MascotBubble'
+import { ContextMenu, type ContextMenuItem, type ContextMenuPosition } from '../ui/ContextMenu'
 import type { ShortcutSpec } from '../ui/shortcutKeys'
+
+/** Bubble content shown above the mascot (copy already localized by the caller). */
+export interface ComposerMascotBubble {
+  tone?: MascotBubbleTone
+  title: string
+  body?: string
+  actions?: MascotBubbleAction[]
+}
+
+/**
+ * State-driven mascot behavior supplied by the in-conversation composer.
+ * When omitted (e.g. the welcome composer) the mascot keeps its ambient
+ * focus/drag-driven expression and no bubble or right-click menu.
+ */
+export interface ComposerMascotInteraction {
+  /** Overrides the ambient focus/drag expression when set. */
+  expression?: MascotExpression
+  /** Antenna status light (semantic). */
+  light?: MascotLight
+  /** Non-blocking bubble above the mascot; null/undefined hides it. Dismissal is
+   *  one of the bubble's own reply actions (no separate close control). */
+  bubble?: ComposerMascotBubble | null
+  /** Right-click preset actions (already localized). Empty disables the menu. */
+  menuItems?: ContextMenuItem[]
+}
 
 type ComposerActionButtonTone = 'enabled' | 'disabled'
 
@@ -32,6 +59,8 @@ interface ComposerShellProps {
   showMascot?: boolean
   /** Monotonic counter; bump on send to trigger a one-shot bounce. */
   mascotBounceSignal?: number
+  /** State-driven expression/light/bubble/right-click menu for the mascot. */
+  mascotInteraction?: ComposerMascotInteraction
 }
 
 const MASCOT_SIZE = 58
@@ -51,17 +80,26 @@ const MASCOT_RAISE = 3
 function ComposerMascot({
   focused,
   dragOver,
-  bounceSignal
+  bounceSignal,
+  interaction
 }: {
   focused: boolean
   dragOver: boolean
   bounceSignal: number
+  interaction?: ComposerMascotInteraction
 }): JSX.Element {
-  const expression: MascotExpression = dragOver ? 'operator' : focused ? 'happy' : 'neutral'
+  const [menuPos, setMenuPos] = useState<ContextMenuPosition | null>(null)
+  // Conversation state overrides the ambient focus/drag expression when present.
+  const expression: MascotExpression =
+    interaction?.expression ?? (dragOver ? 'operator' : focused ? 'happy' : 'neutral')
+  const light: MascotLight = interaction?.light ?? 'default'
+  const menuItems = interaction?.menuItems ?? []
+  const bubble = interaction?.bubble ?? null
 
   return (
     <div
-      aria-hidden
+      // Decorative only until it carries a bubble or a right-click menu.
+      aria-hidden={interaction ? undefined : true}
       style={{
         position: 'absolute',
         right: '40px',
@@ -70,12 +108,34 @@ function ComposerMascot({
         pointerEvents: 'none'
       }}
     >
+      {bubble && (
+        <div
+          style={{
+            position: 'absolute',
+            right: 0,
+            bottom: 'calc(100% + 8px)',
+            zIndex: 5,
+            pointerEvents: 'auto'
+          }}
+        >
+          <MascotBubble
+            tone={bubble.tone}
+            title={bubble.title}
+            body={bubble.body}
+            actions={bubble.actions}
+          />
+        </div>
+      )}
+
       {/* Display scale: shrinks size + all nested motion uniformly, feet planted. */}
       <div
         style={{
           transformOrigin: 'bottom center',
           transform: `scale(${MASCOT_SCALE})`,
-          filter: 'drop-shadow(0 4px 8px color-mix(in srgb, var(--accent) 22%, transparent))'
+          // Mascot drop-shadow biases downward so it reads with the contact shadow on
+          // the rim below. Raw navy is a brand-asset rendering artifact (mirrors the
+          // robot's own shadows in MascotRobot), not a themed surface color.
+          filter: 'drop-shadow(0 5.3px 7.3px color-mix(in srgb, #0b3d62 20%, transparent))'
         }}
       >
         {/* Focus perk-up: grow in place (feet stay planted on the edge) when focused. */}
@@ -92,13 +152,28 @@ function ComposerMascot({
             <div className="composer-mascot-breathe">
               {/* Hover jelly: pointer-events re-enabled here so only the visible
                   robot (above the rim) is hoverable; the rest stays click-through. */}
-              <div className="composer-mascot-jelly" style={{ pointerEvents: 'auto' }}>
-                <MascotRobot expression={expression} size={MASCOT_SIZE} />
+              <div
+                className="composer-mascot-jelly"
+                style={{ pointerEvents: 'auto', cursor: menuItems.length > 0 ? 'context-menu' : undefined }}
+                onContextMenu={
+                  menuItems.length > 0
+                    ? (e) => {
+                        e.preventDefault()
+                        setMenuPos({ x: e.clientX, y: e.clientY })
+                      }
+                    : undefined
+                }
+              >
+                <MascotRobot expression={expression} light={light} size={MASCOT_SIZE} />
               </div>
             </div>
           </div>
         </div>
       </div>
+
+      {menuPos && menuItems.length > 0 && (
+        <ContextMenu items={menuItems} position={menuPos} onClose={() => setMenuPos(null)} />
+      )}
     </div>
   )
 }
@@ -127,7 +202,8 @@ export function ComposerShell({
   opacity = 1,
   focused = false,
   showMascot = false,
-  mascotBounceSignal = 0
+  mascotBounceSignal = 0,
+  mascotInteraction
 }: ComposerShellProps): JSX.Element {
   return (
     <div
@@ -142,7 +218,12 @@ export function ComposerShell({
       }}
     >
       {showMascot && !topAccessoryVisible && (
-        <ComposerMascot focused={focused} dragOver={dragOver} bounceSignal={mascotBounceSignal} />
+        <ComposerMascot
+          focused={focused}
+          dragOver={dragOver}
+          bounceSignal={mascotBounceSignal}
+          interaction={mascotInteraction}
+        />
       )}
       {topAccessoryVisible && (
         <div
@@ -176,6 +257,29 @@ export function ComposerShell({
         onDragLeave={onDragLeave}
         onDrop={onDrop}
       >
+        {showMascot && !topAccessoryVisible && (
+          // Contact shadow cast by the mascot's feet onto the composer rim, so the
+          // robot reads as standing on the surface rather than floating above it.
+          // Anchored under the mascot (right:40 + half width 29 − 1px border ≈ 68);
+          // translateX(50%) centers the blob on that point. Brand-asset rendering
+          // artifact (raw navy mirrors MascotRobot's shadows), not a themed color.
+          <div
+            aria-hidden
+            style={{
+              position: 'absolute',
+              right: '68px',
+              top: '1px',
+              width: '72px',
+              height: '24px',
+              transform: 'translateX(50%)',
+              borderRadius: '50%',
+              background:
+                'radial-gradient(50% 100% at 50% 0%, color-mix(in srgb, #0b3d62 10%, transparent) 0%, transparent 72%)',
+              filter: 'blur(2px)',
+              pointerEvents: 'none'
+            }}
+          />
+        )}
         {dragOver && (
           <div
             style={{
