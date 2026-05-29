@@ -312,51 +312,56 @@ public sealed class ThreadStore
         var history = new List<ChatMessage>();
 
         foreach (var turn in thread.Turns.OrderBy(t => t.StartedAt).ThenBy(t => t.Id, StringComparer.Ordinal))
-        {
-            var completedItems = turn.Items
-                .Where(static item => item.Status == ItemStatus.Completed)
-                .ToList();
-            var pairedToolCallIds = CollectPairedToolCallIds(completedItems);
-            var assistantBuilder = new AssistantSamplingSegmentBuilder();
-
-            foreach (var item in completedItems)
-            {
-                if (item.Type == ItemType.UserMessage && TryBuildUserMessage(item, out var userMessage))
-                {
-                    FlushAssistantSegment(history, assistantBuilder);
-                    history.Add(userMessage);
-                }
-                else if (item.Type == ItemType.ReasoningContent &&
-                         item.AsReasoningContent is { Text: { } reasoningText } &&
-                         !string.IsNullOrWhiteSpace(reasoningText))
-                {
-                    assistantBuilder.AddReasoning(reasoningText);
-                }
-                else if (item.Type == ItemType.AgentMessage && item.AsAgentMessage is { Text: { } agentText } &&
-                         !string.IsNullOrWhiteSpace(agentText))
-                {
-                    assistantBuilder.AddText(agentText.Trim());
-                }
-                else if (item.Type == ItemType.ToolCall &&
-                         TryBuildToolCallContent(item, pairedToolCallIds, out var toolCallContent))
-                {
-                    assistantBuilder.AddToolCall(toolCallContent);
-                }
-                else if (item.Type == ItemType.ToolResult &&
-                         TryBuildToolResultMessage(item, pairedToolCallIds, out var toolResultMessage))
-                {
-                    FlushAssistantSegment(history, assistantBuilder);
-                    history.Add(toolResultMessage);
-                }
-            }
-
-            FlushAssistantSegment(history, assistantBuilder);
-        }
+            history.AddRange(BuildModelVisibleHistoryFromTurn(turn));
 
         if (history.Count == 0)
             return await agent.CreateSessionAsync(ct);
 
         return await CreateSessionWithHistoryAsync(agent, history, ct);
+    }
+
+    internal static IReadOnlyList<ChatMessage> BuildModelVisibleHistoryFromTurn(SessionTurn turn)
+    {
+        var history = new List<ChatMessage>();
+        var completedItems = turn.Items
+            .Where(static item => item.Status == ItemStatus.Completed)
+            .ToList();
+        var pairedToolCallIds = CollectPairedToolCallIds(completedItems);
+        var assistantBuilder = new AssistantSamplingSegmentBuilder();
+
+        foreach (var item in completedItems)
+        {
+            if (item.Type == ItemType.UserMessage && TryBuildUserMessage(item, out var userMessage))
+            {
+                FlushAssistantSegment(history, assistantBuilder);
+                history.Add(userMessage);
+            }
+            else if (item.Type == ItemType.ReasoningContent &&
+                     item.AsReasoningContent is { Text: { } reasoningText } &&
+                     !string.IsNullOrWhiteSpace(reasoningText))
+            {
+                assistantBuilder.AddReasoning(reasoningText);
+            }
+            else if (item.Type == ItemType.AgentMessage && item.AsAgentMessage is { Text: { } agentText } &&
+                     !string.IsNullOrWhiteSpace(agentText))
+            {
+                assistantBuilder.AddText(agentText.Trim());
+            }
+            else if (item.Type == ItemType.ToolCall &&
+                     TryBuildToolCallContent(item, pairedToolCallIds, out var toolCallContent))
+            {
+                assistantBuilder.AddToolCall(toolCallContent);
+            }
+            else if (item.Type == ItemType.ToolResult &&
+                     TryBuildToolResultMessage(item, pairedToolCallIds, out var toolResultMessage))
+            {
+                FlushAssistantSegment(history, assistantBuilder);
+                history.Add(toolResultMessage);
+            }
+        }
+
+        FlushAssistantSegment(history, assistantBuilder);
+        return history;
     }
 
     private static async Task<AgentSession> CreateSessionWithHistoryAsync(
