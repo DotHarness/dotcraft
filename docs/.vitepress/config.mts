@@ -238,8 +238,7 @@ const redirectMap: Record<string, string> = {
   'samples/automations.md': 'resources/samples.md',
   'samples/bootstrap.md': 'resources/samples.md',
   'samples/hooks.md': 'resources/samples.md',
-  'samples/skills.md': 'resources/samples.md',
-  'samples/workspace.md': 'resources/samples.md'
+  'samples/skills.md': 'resources/samples.md'
 }
 
 const rewrites: Record<string, string> = {}

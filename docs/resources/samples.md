@@ -9,7 +9,9 @@ The [`samples/`](https://github.com/DotHarness/dotcraft/tree/master/samples) dir
 
 | Name | Purpose | Repository |
 |---|---|---|
-| Workspace | A complete workspace template with `start.sh`, `config.template.json`, optional OpenSandbox launchers | [samples/workspace](https://github.com/DotHarness/dotcraft/tree/master/samples/workspace) |
+| Automations | Local task templates and a minimal workspace config for Automations | [samples/automations](https://github.com/DotHarness/dotcraft/tree/master/samples/automations) |
+| Hooks | Example lifecycle hooks for Linux and Windows | [samples/hooks](https://github.com/DotHarness/dotcraft/tree/master/samples/hooks) |
+| Plugins | Reference plugin packages for development and integration testing | [samples/plugins](https://github.com/DotHarness/dotcraft/tree/master/samples/plugins) |
 
 ## Workspace Behavior Examples
 
@@ -43,13 +45,12 @@ dotcraft setup --language English --provider-mode create \
   --profile developer
 ```
 
-This is the safest first-time path. After setup, `.craft/` contains workspace config and bootstrap files. If you want a reusable source-tree workspace or a long-running workspace on a server, use `samples/workspace`:
+This is the safest first-time path. After setup, `.craft/` contains workspace config and bootstrap files. If you want a long-running server deployment for social-channel bots, use the Docker path in [Server Deployment](../developing/server-deployment.md):
 
 ```bash
-cd samples/workspace
-mkdir -p .craft
-cp config.template.json .craft/config.json
-bash start.sh
+cd deploy/docker
+cp .env.example .env
+docker compose up -d
 ```
 
 The template's most-edited fields:
