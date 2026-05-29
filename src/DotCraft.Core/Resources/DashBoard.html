@@ -1169,9 +1169,10 @@ body {
   flex-wrap: nowrap;
   min-width: 0;
   overflow-x: auto;
-  scrollbar-width: thin;
-  padding-bottom: 2px;
+  scrollbar-width: none;        /* hide native bar; partial chip hints overflow */
+  -ms-overflow-style: none;
 }
+.filter-bar::-webkit-scrollbar { display: none; }
 
 .filter-chip {
   flex-shrink: 0;
