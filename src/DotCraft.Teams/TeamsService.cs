@@ -1315,6 +1315,8 @@ public sealed class TeamsService(IAppConfigMonitor? appConfigMonitor = null) : I
                     write.Team.UpdatedAt = now;
                     return write;
                 });
+
+                await sessionService.TryStartNextQueuedTurnAsync(mission.OriginThreadId, ct);
             }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
