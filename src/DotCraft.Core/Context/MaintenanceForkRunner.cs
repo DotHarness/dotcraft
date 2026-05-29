@@ -1,5 +1,5 @@
-using AnthropicCacheControlEphemeral = Anthropic.Models.Messages.CacheControlEphemeral;
-using AnthropicTextBlockParam = Anthropic.Models.Messages.TextBlockParam;
+using System.Security.Cryptography;
+using System.Text;
 using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Tracing;
@@ -82,10 +82,21 @@ public sealed record MaintenanceForkCacheDiagnostics(
     bool CacheShapeApplied,
     string? CacheShapeKind = null,
     bool? PromptCacheKeyPresent = null,
-    string? CacheMarkerSource = null)
+    string? CacheMarkerSource = null,
+    string? CacheStateKeyKind = null,
+    string? CacheStateKeyHash = null)
 {
     public static MaintenanceForkCacheDiagnostics None { get; } = new(false);
 }
+
+internal sealed record MaintenanceForkPromptCacheState(
+    string StateKey,
+    string StateKeyHash,
+    AppConfig.PromptCachingConfig PromptCaching,
+    string Model,
+    PromptCacheMarkerStrategy MarkerStrategy,
+    string CacheShapeKind,
+    string CacheMarkerSource);
 
 /// <summary>
 /// Runs provider-agnostic maintenance requests by reusing a captured prompt
@@ -142,12 +153,15 @@ public sealed class MaintenanceForkRunner(
     {
         var messages = BuildMessages(snapshot, task, messagesBeforeTask).ToList();
         var options = BuildOptions(snapshot);
+        var sessionKey = ResolveTraceSessionKey(snapshot);
+        var maintenancePathKey = BuildMaintenancePathKey(snapshot, task, sessionKey);
+        var promptCacheState = CreatePromptCacheState(snapshot, maintenancePathKey);
         var cacheDiagnostics = MaintenanceForkCacheShaper.Apply(
             snapshot,
             messages,
             options,
-            cacheOptions);
-        var sessionKey = ResolveTraceSessionKey(snapshot);
+            cacheOptions,
+            promptCacheState);
         var taskPrompt = FormatTask(task);
         var estimatedInputTokens = EstimateInputTokens(snapshot, messages, options, messagesBeforeTask, task);
         traceCollector?.RecordMaintenanceForkRequest(
@@ -170,14 +184,19 @@ public sealed class MaintenanceForkRunner(
             cacheShapeApplied: cacheDiagnostics.CacheShapeApplied,
             cacheShapeKind: cacheDiagnostics.CacheShapeKind,
             promptCacheKeyPresent: cacheDiagnostics.PromptCacheKeyPresent,
-            cacheMarkerSource: cacheDiagnostics.CacheMarkerSource);
+            cacheMarkerSource: cacheDiagnostics.CacheMarkerSource,
+            cacheStateKeyKind: cacheDiagnostics.CacheStateKeyKind,
+            cacheStateKeyHash: cacheDiagnostics.CacheStateKeyHash);
 
         try
         {
-            using var traceScope = traceCollector == null
-                ? null
-                : BeginToolExecutionTraceScope(snapshot, task, sessionKey, toolExecution);
-            var responseClient = CreateResponseClient(toolExecution);
+            using var runtimeScope = BeginMaintenanceRuntimeScope(
+                snapshot,
+                sessionKey,
+                maintenancePathKey,
+                promptCacheState,
+                toolExecution);
+            var responseClient = CreateResponseClient(toolExecution, promptCacheState);
             var response = await GetResponseAsync(
                 responseClient,
                 messages,
@@ -229,12 +248,15 @@ public sealed class MaintenanceForkRunner(
         }
     }
 
-    private IChatClient CreateResponseClient(MaintenanceForkToolExecutionOptions? toolExecution)
+    private IChatClient CreateResponseClient(
+        MaintenanceForkToolExecutionOptions? toolExecution,
+        MaintenanceForkPromptCacheState? promptCacheState)
     {
+        var baseClient = CreatePromptCachingClient(promptCacheState);
         if (toolExecution == null)
-            return chatClient;
+            return baseClient;
 
-        var invokingClient = new StreamingFunctionInvokingChatClient(chatClient)
+        var invokingClient = new StreamingFunctionInvokingChatClient(baseClient)
         {
             AllowConcurrentInvocation = toolExecution.AllowConcurrentInvocation,
             IncludeDetailedErrors = toolExecution.IncludeDetailedErrors,
@@ -246,6 +268,25 @@ public sealed class MaintenanceForkRunner(
         return traceCollector == null
             ? invokingClient
             : new TracingChatClient(invokingClient, traceCollector);
+    }
+
+    private IChatClient CreatePromptCachingClient(MaintenanceForkPromptCacheState? promptCacheState)
+    {
+        if (promptCacheState == null)
+            return chatClient;
+
+        return promptCacheState.MarkerStrategy == PromptCacheMarkerStrategy.AnthropicNative
+            ? new PromptCachingChatClient(
+                chatClient,
+                promptCacheState.PromptCaching,
+                promptCacheState.Model,
+                PromptCacheMarkerStrategy.AnthropicNative,
+                traceCollector)
+            : new PromptCachingChatClient(
+                chatClient,
+                promptCacheState.PromptCaching,
+                promptCacheState.Model,
+                traceCollector);
     }
 
     private async Task<ChatResponse> GetResponseAsync(
@@ -268,23 +309,27 @@ public sealed class MaintenanceForkRunner(
             cancellationToken);
     }
 
-    private static IDisposable? BeginToolExecutionTraceScope(
+    private static IDisposable BeginMaintenanceRuntimeScope(
         PromptRequestSnapshot snapshot,
-        MaintenanceForkTask task,
         string sessionKey,
+        string maintenancePathKey,
+        MaintenanceForkPromptCacheState? promptCacheState,
         MaintenanceForkToolExecutionOptions? toolExecution)
     {
-        if (toolExecution == null)
-            return null;
-
         var previousSessionKey = TracingChatClient.CurrentSessionKey;
         TracingChatClient.CurrentSessionKey = sessionKey;
-        var callStateKey = BuildMaintenanceCallStateKey(snapshot, task, sessionKey);
-        var callStateScope = TracingChatClient.UseCallStateKey(callStateKey);
-        return new MaintenanceTraceScope(previousSessionKey, callStateKey, callStateScope);
+        var callStateKey = toolExecution == null ? null : maintenancePathKey;
+        var callStateScope = callStateKey == null ? null : TracingChatClient.UseCallStateKey(callStateKey);
+        var promptCacheScope = promptCacheState == null
+            ? null
+            : PromptCachingChatClient.UseCacheStateKey(
+                promptCacheState.StateKey,
+                sessionKey,
+                new PromptCacheMaintenanceScope(snapshot.Messages.Count));
+        return new MaintenanceRuntimeScope(previousSessionKey, callStateKey, callStateScope, promptCacheScope);
     }
 
-    private static string BuildMaintenanceCallStateKey(
+    private static string BuildMaintenancePathKey(
         PromptRequestSnapshot snapshot,
         MaintenanceForkTask task,
         string sessionKey)
@@ -295,15 +340,18 @@ public sealed class MaintenanceForkRunner(
         return $"{sessionKey}:maintenance:{FormatKind(task.Kind)}:{turnOrRequestId}";
     }
 
-    private sealed class MaintenanceTraceScope(
+    private sealed class MaintenanceRuntimeScope(
         string? previousSessionKey,
-        string callStateKey,
-        IDisposable callStateScope) : IDisposable
+        string? callStateKey,
+        IDisposable? callStateScope,
+        IDisposable? promptCacheScope) : IDisposable
     {
         public void Dispose()
         {
-            TracingChatClient.ResetCallState(callStateKey);
-            callStateScope.Dispose();
+            promptCacheScope?.Dispose();
+            if (callStateKey != null)
+                TracingChatClient.ResetCallState(callStateKey);
+            callStateScope?.Dispose();
             TracingChatClient.CurrentSessionKey = previousSessionKey;
         }
     }
@@ -376,6 +424,47 @@ Task: {FormatKind(task.Kind)}
         return "maintenance:" + Guid.NewGuid().ToString("N")[..12];
     }
 
+    private MaintenanceForkPromptCacheState? CreatePromptCacheState(
+        PromptRequestSnapshot snapshot,
+        string maintenancePathKey)
+    {
+        if (cacheOptions?.PromptCaching == null)
+            return null;
+
+        var model = cacheOptions.Model ?? snapshot.ModelId ?? string.Empty;
+        if (!cacheOptions.PromptCaching.ShouldApply(model))
+            return null;
+
+        var protocol = MaintenanceForkCacheShaper.NormalizeProtocol(cacheOptions.ProviderProtocol);
+        var markerStrategy = protocol switch
+        {
+            ModelProviderProtocols.Anthropic => PromptCacheMarkerStrategy.AnthropicNative,
+            ModelProviderProtocols.OpenAIChatCompletions => PromptCacheMarkerStrategy.OpenAICompatible,
+            _ => (PromptCacheMarkerStrategy?)null
+        };
+        if (!markerStrategy.HasValue)
+            return null;
+
+        return new MaintenanceForkPromptCacheState(
+            maintenancePathKey,
+            ComputeCacheStateKeyHash(maintenancePathKey),
+            cacheOptions.PromptCaching,
+            model,
+            markerStrategy.Value,
+            markerStrategy.Value == PromptCacheMarkerStrategy.AnthropicNative
+                ? "anthropic-cache-control"
+                : "openai-compatible-cache-control",
+            markerStrategy.Value == PromptCacheMarkerStrategy.AnthropicNative
+                ? "system+snapshot_prefix+fork_tail"
+                : "system+fork_tail");
+    }
+
+    private static string ComputeCacheStateKeyHash(string cacheStateKey)
+    {
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(cacheStateKey));
+        return Convert.ToHexString(bytes)[..12];
+    }
+
     private static string? ClassifyFallbackReason(ChatResponse response)
     {
         if (!string.IsNullOrWhiteSpace(response.Text))
@@ -440,7 +529,8 @@ internal static class MaintenanceForkCacheShaper
         PromptRequestSnapshot snapshot,
         List<ChatMessage> messages,
         ChatOptions options,
-        MaintenanceForkCacheOptions? cacheOptions)
+        MaintenanceForkCacheOptions? cacheOptions,
+        MaintenanceForkPromptCacheState? promptCacheState = null)
     {
         if (cacheOptions == null)
             return MaintenanceForkCacheDiagnostics.None;
@@ -448,44 +538,53 @@ internal static class MaintenanceForkCacheShaper
         var protocol = NormalizeProtocol(cacheOptions.ProviderProtocol);
         return protocol switch
         {
-            ModelProviderProtocols.Anthropic => ApplyAnthropic(snapshot, messages, options, cacheOptions),
+            ModelProviderProtocols.Anthropic => ApplyAnthropic(promptCacheState),
             ModelProviderProtocols.OpenAIResponses => ApplyOpenAIResponses(snapshot, options),
+            ModelProviderProtocols.OpenAIChatCompletions => ApplyOpenAICompatible(promptCacheState),
             _ => MaintenanceForkCacheDiagnostics.None
         };
     }
 
-    private static MaintenanceForkCacheDiagnostics ApplyAnthropic(
-        PromptRequestSnapshot snapshot,
-        List<ChatMessage> messages,
-        ChatOptions options,
-        MaintenanceForkCacheOptions cacheOptions)
+    internal static string NormalizeProtocol(string? protocol)
     {
-        var promptCaching = cacheOptions.PromptCaching;
-        if (promptCaching == null || !promptCaching.ShouldApply(cacheOptions.Model ?? snapshot.ModelId))
+        try
+        {
+            return ModelProviderProtocols.Normalize(protocol);
+        }
+        catch (ArgumentException)
+        {
+            return string.Empty;
+        }
+    }
+
+    private static MaintenanceForkCacheDiagnostics ApplyAnthropic(
+        MaintenanceForkPromptCacheState? promptCacheState)
+    {
+        if (promptCacheState == null)
             return MaintenanceForkCacheDiagnostics.None;
 
-        var cacheControl = CreateAnthropicCacheControl(promptCaching.Ttl);
-        var markedSources = new List<string>(capacity: 2);
-        if (!string.IsNullOrWhiteSpace(options.Instructions))
-        {
-            messages.Insert(0, new ChatMessage(
-                ChatRole.System,
-                (IList<AIContent>)[CreateAnthropicCachedTextContent(new TextContent(options.Instructions), cacheControl)]));
-            options.Instructions = null;
-            markedSources.Add("system");
-        }
+        return new MaintenanceForkCacheDiagnostics(
+            true,
+            promptCacheState.CacheShapeKind,
+            PromptCacheKeyPresent: false,
+            CacheMarkerSource: promptCacheState.CacheMarkerSource,
+            CacheStateKeyKind: "maintenanceFork",
+            CacheStateKeyHash: promptCacheState.StateKeyHash);
+    }
 
-        var stableSnapshotOffset = markedSources.Count > 0 ? 1 : 0;
-        if (MarkSnapshotTextBlocks(messages, stableSnapshotOffset, snapshot.Messages.Count, cacheControl) > 0)
-            markedSources.Add("snapshot_prefix");
+    private static MaintenanceForkCacheDiagnostics ApplyOpenAICompatible(
+        MaintenanceForkPromptCacheState? promptCacheState)
+    {
+        if (promptCacheState == null)
+            return MaintenanceForkCacheDiagnostics.None;
 
-        return markedSources.Count == 0
-            ? MaintenanceForkCacheDiagnostics.None
-            : new MaintenanceForkCacheDiagnostics(
-                true,
-                "anthropic-cache-control",
-                PromptCacheKeyPresent: false,
-                CacheMarkerSource: string.Join("+", markedSources));
+        return new MaintenanceForkCacheDiagnostics(
+            true,
+            promptCacheState.CacheShapeKind,
+            PromptCacheKeyPresent: null,
+            CacheMarkerSource: promptCacheState.CacheMarkerSource,
+            CacheStateKeyKind: "maintenanceFork",
+            CacheStateKeyHash: promptCacheState.StateKeyHash);
     }
 
     private static MaintenanceForkCacheDiagnostics ApplyOpenAIResponses(
@@ -507,172 +606,4 @@ internal static class MaintenanceForkCacheShaper
             CacheMarkerSource: "thread");
     }
 
-    private static int MarkSnapshotTextBlocks(
-        List<ChatMessage> messages,
-        int offset,
-        int snapshotMessageCount,
-        AnthropicCacheControlEphemeral cacheControl)
-    {
-        var marked = 0;
-        var endExclusive = Math.Min(messages.Count, offset + Math.Max(0, snapshotMessageCount));
-        var targets = new HashSet<(int MessageIndex, int ContentIndex)>();
-        if (TryFindFirstSnapshotTextBlock(messages, offset, endExclusive, out var first))
-            targets.Add(first);
-        if (TryFindLatestSnapshotTextBlock(messages, offset, endExclusive, out var latest))
-            targets.Add(latest);
-
-        foreach (var group in targets
-                     .GroupBy(static target => target.MessageIndex)
-                     .OrderBy(static group => group.Key))
-        {
-            var message = messages[group.Key];
-            var targetIndexes = group.Select(static target => target.ContentIndex).ToHashSet();
-            var contents = message.Contents.ToList();
-            var messageMarked = false;
-            for (var i = 0; i < contents.Count; i++)
-            {
-                if (!targetIndexes.Contains(i) ||
-                    contents[i] is not TextContent text ||
-                    string.IsNullOrEmpty(text.Text))
-                {
-                    continue;
-                }
-
-                contents[i] = CreateAnthropicCachedTextContent(text, cacheControl);
-                messageMarked = true;
-                marked++;
-            }
-
-            if (!messageMarked)
-                continue;
-
-            messages[group.Key] = new ChatMessage(message.Role, contents)
-            {
-                AdditionalProperties = message.AdditionalProperties,
-                AuthorName = message.AuthorName,
-                CreatedAt = message.CreatedAt,
-                MessageId = message.MessageId,
-                RawRepresentation = message.RawRepresentation
-            };
-        }
-
-        return marked;
-    }
-
-    private static bool TryFindFirstSnapshotTextBlock(
-        IReadOnlyList<ChatMessage> messages,
-        int offset,
-        int endExclusive,
-        out (int MessageIndex, int ContentIndex) target)
-    {
-        for (var messageIndex = offset; messageIndex < endExclusive; messageIndex++)
-        {
-            if (TryFindTextBlock(messages[messageIndex], reverse: false, out var contentIndex))
-            {
-                target = (messageIndex, contentIndex);
-                return true;
-            }
-        }
-
-        target = default;
-        return false;
-    }
-
-    private static bool TryFindLatestSnapshotTextBlock(
-        IReadOnlyList<ChatMessage> messages,
-        int offset,
-        int endExclusive,
-        out (int MessageIndex, int ContentIndex) target)
-    {
-        for (var messageIndex = endExclusive - 1; messageIndex >= offset; messageIndex--)
-        {
-            if (TryFindTextBlock(messages[messageIndex], reverse: true, out var contentIndex))
-            {
-                target = (messageIndex, contentIndex);
-                return true;
-            }
-        }
-
-        target = default;
-        return false;
-    }
-
-    private static bool TryFindTextBlock(
-        ChatMessage message,
-        bool reverse,
-        out int contentIndex)
-    {
-        contentIndex = -1;
-        if (message.Role != ChatRole.User &&
-            message.Role != ChatRole.Assistant &&
-            message.Role != ChatRole.Tool &&
-            message.Role != ChatRole.System)
-        {
-            return false;
-        }
-
-        if (reverse)
-        {
-            for (var i = message.Contents.Count - 1; i >= 0; i--)
-            {
-                if (message.Contents[i] is TextContent { Text.Length: > 0 })
-                {
-                    contentIndex = i;
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
-        for (var i = 0; i < message.Contents.Count; i++)
-        {
-            if (message.Contents[i] is TextContent { Text.Length: > 0 })
-            {
-                contentIndex = i;
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static TextContent CreateAnthropicCachedTextContent(
-        TextContent text,
-        AnthropicCacheControlEphemeral cacheControl)
-    {
-        var cached = new TextContent(text.Text)
-        {
-            AdditionalProperties = text.AdditionalProperties == null
-                ? null
-                : new AdditionalPropertiesDictionary(text.AdditionalProperties),
-            RawRepresentation = text.RawRepresentation is AnthropicTextBlockParam block
-                ? block with { CacheControl = cacheControl }
-                : null
-        };
-        cached.WithCacheControl(cacheControl);
-        return cached;
-    }
-
-    private static AnthropicCacheControlEphemeral CreateAnthropicCacheControl(string? configuredTtl)
-    {
-        var ttl = string.IsNullOrWhiteSpace(configuredTtl)
-            ? null
-            : configuredTtl.Trim();
-        return string.IsNullOrWhiteSpace(ttl)
-            ? new AnthropicCacheControlEphemeral()
-            : new AnthropicCacheControlEphemeral { Ttl = ttl };
-    }
-
-    private static string? NormalizeProtocol(string? protocol)
-    {
-        try
-        {
-            return ModelProviderProtocols.Normalize(protocol);
-        }
-        catch (ArgumentException)
-        {
-            return null;
-        }
-    }
 }

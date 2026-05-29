@@ -657,6 +657,21 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
     }
 
     [Fact]
+    public async Task GetStreamingResponseAsync_WithDuplicateInputRawResponseItem_DoesNotThrow()
+    {
+        var inner = new FakeChatClient(new ChatResponse([new ChatMessage(ChatRole.Assistant, "inner response")]));
+        var transport = new FakeToolSearchTransport(CreateOutputItemDone(CreateResponseItemWithDuplicateInputKeys()));
+        using var client = CreateClient(inner, transport);
+
+        var updates = await CollectStreamingAsync(client.GetStreamingResponseAsync(
+            [new ChatMessage(ChatRole.User, "inspect")],
+            new ChatOptions { Tools = [new NativeToolSearchTool(new DeferredToolRegistry([]))] }));
+
+        Assert.NotEmpty(updates);
+        Assert.Empty(updates.SelectMany(update => update.Contents).OfType<FunctionCallContent>());
+    }
+
+    [Fact]
     public async Task StreamingFunctionLoop_WithNativeToolSearch_ReplaysNamespaceToolWithoutTopLevelInjection()
     {
         var dynamicTool = new DeferredDynamicFunction(
@@ -878,6 +893,20 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
             call_id = callId,
             query
         }, JsonOptions);
+        return ModelReaderWriter.Read<ResponseItem>(BinaryData.FromString(json), ModelReaderWriterOptions.Json)!;
+    }
+
+    private static ResponseItem CreateResponseItemWithDuplicateInputKeys()
+    {
+        const string json = """
+            {
+              "type": "apply_patch_call",
+              "id": "item-duplicate-input",
+              "call_id": "call-duplicate-input",
+              "input": { "old": true },
+              "input": { "new": true }
+            }
+            """;
         return ModelReaderWriter.Read<ResponseItem>(BinaryData.FromString(json), ModelReaderWriterOptions.Json)!;
     }
 

@@ -1061,6 +1061,41 @@ public sealed class PromptCachingChatClientTests
         Assert.DoesNotContain(disabledStore.GetEvents("disabled"), e => e.Type == TraceEventType.PromptCachePoint);
     }
 
+    [Fact]
+    public async Task UseCacheStateKey_Isolates_Remembered_Points_While_Keeping_TraceSession()
+    {
+        var store = new TraceStore();
+        var collector = new TraceCollector(store);
+        var capture = new CaptureChatClient();
+        var client = CreateClient(
+            "claude-opus-4-1",
+            capture: capture,
+            sessionKey: "thread_1",
+            traceCollector: collector);
+
+        await client.GetResponseAsync([new ChatMessage(ChatRole.User, "shared prefix")]);
+
+        using (PromptCachingChatClient.UseCacheStateKey(
+                   "thread_1:maintenance:memory_consolidation:turn_1",
+                   traceSessionKey: "thread_1"))
+        {
+            await client.GetResponseAsync([
+                new ChatMessage(ChatRole.User, "shared prefix"),
+                new ChatMessage(ChatRole.User, "fork tail")
+            ]);
+        }
+
+        await client.GetResponseAsync([
+            new ChatMessage(ChatRole.User, "shared prefix"),
+            new ChatMessage(ChatRole.User, "main tail")
+        ]);
+
+        AssertCacheControl(AssertLastTextContent(capture.LastMessages![0]), expectedTtl: null);
+        AssertCacheControl(AssertLastTextContent(capture.LastMessages![1]), expectedTtl: null);
+        Assert.Equal(3, store.GetEvents("thread_1").Count(e => e.Type == TraceEventType.PromptCachePoint));
+        Assert.Empty(store.GetEvents("thread_1:maintenance:memory_consolidation:turn_1"));
+    }
+
     private static PromptCachingChatClient CreateClient(
         string model,
         string ttl = "",

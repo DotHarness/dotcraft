@@ -273,7 +273,9 @@ public sealed class StateRuntime
                     started_at TEXT NOT NULL,
                     last_activity_at TEXT NOT NULL,
                     request_count INTEGER NOT NULL DEFAULT 0,
+                    maintenance_fork_request_count INTEGER NOT NULL DEFAULT 0,
                     response_count INTEGER NOT NULL DEFAULT 0,
+                    maintenance_fork_response_count INTEGER NOT NULL DEFAULT 0,
                     tool_call_count INTEGER NOT NULL DEFAULT 0,
                     error_count INTEGER NOT NULL DEFAULT 0,
                     context_compaction_count INTEGER NOT NULL DEFAULT 0,
@@ -312,6 +314,8 @@ public sealed class StateRuntime
 
                 CREATE INDEX IF NOT EXISTS idx_trace_events_session_ts
                     ON trace_events(session_key, timestamp, id);
+                CREATE INDEX IF NOT EXISTS idx_trace_events_ts
+                    ON trace_events(timestamp, id);
 
                 CREATE TABLE IF NOT EXISTS trace_session_bindings (
                     session_key TEXT PRIMARY KEY,
@@ -388,6 +392,8 @@ public sealed class StateRuntime
             EnsureColumn(connection, "trace_sessions", "token_usage_count", "INTEGER NOT NULL DEFAULT 0");
             EnsureColumn(connection, "trace_sessions", "total_cache_write_input_tokens", "INTEGER NOT NULL DEFAULT 0");
             EnsureColumn(connection, "trace_sessions", "total_reasoning_output_tokens", "INTEGER NOT NULL DEFAULT 0");
+            EnsureColumn(connection, "trace_sessions", "maintenance_fork_request_count", "INTEGER NOT NULL DEFAULT 0");
+            EnsureColumn(connection, "trace_sessions", "maintenance_fork_response_count", "INTEGER NOT NULL DEFAULT 0");
             EnsureColumn(connection, "token_usage_records", "cache_write_input_tokens", "INTEGER NOT NULL DEFAULT 0");
             EnsureColumn(connection, "dashboard_usage_records", "cached_input_tokens", "INTEGER NOT NULL DEFAULT 0");
             EnsureColumn(connection, "dashboard_usage_records", "cache_write_input_tokens", "INTEGER NOT NULL DEFAULT 0");

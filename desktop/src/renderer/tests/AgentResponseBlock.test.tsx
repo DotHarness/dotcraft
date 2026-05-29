@@ -3,7 +3,9 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { AgentResponseBlock } from '../components/conversation/AgentResponseBlock'
 import { useUIStore } from '../stores/uiStore'
+import { useConversationStore } from '../stores/conversationStore'
 import type { ConversationItem, ConversationTurn } from '../types/conversation'
+import type { FileDiff } from '../types/toolCall'
 import { getSubAgentAccent } from '../utils/subAgentPresentation'
 
 function makeToolCallItem(
@@ -42,6 +44,29 @@ function makeCreatePlanItem(
     },
     success: true,
     createdAt
+  }
+}
+
+function makeDiff(filePath: string, turnId: string): FileDiff {
+  return {
+    filePath,
+    turnId,
+    turnIds: [turnId],
+    additions: 1,
+    deletions: 0,
+    status: 'written',
+    isNewFile: true,
+    originalContent: '',
+    currentContent: 'new\n',
+    diffHunks: [
+      {
+        oldStart: 0,
+        oldLines: 0,
+        newStart: 1,
+        newLines: 1,
+        lines: [{ type: 'add', content: 'new' }]
+      }
+    ]
   }
 }
 
@@ -84,6 +109,7 @@ function expectDisclosureInsideTitleGroup(container: HTMLElement): HTMLElement {
 }
 
 beforeEach(() => {
+  useConversationStore.getState().reset()
   useUIStore.getState().setShowThinkingContent(true)
 })
 
@@ -1646,6 +1672,123 @@ describe('AgentResponseBlock completed turn folding', () => {
     fireEvent.click(screen.getByRole('button', { name: /Processed in 8s/ }))
 
     expect(screen.getByText('First Plan')).toBeInTheDocument()
+  })
+})
+
+describe('AgentResponseBlock historical tool trimming', () => {
+  beforeEach(() => {
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {
+        settings: {
+          get: async () => ({ locale: 'en' })
+        }
+      }
+    })
+  })
+
+  it('hides historical tool details and artifacts while preserving plans and assistant text', () => {
+    useConversationStore.setState({
+      workspacePath: 'F:/workspace',
+      changedFiles: new Map([
+        ['docs/old-artifact.md', makeDiff('docs/old-artifact.md', 'turn-trimmed')]
+      ])
+    })
+
+    const turn: ConversationTurn = {
+      id: 'turn-trimmed',
+      threadId: 'thread-1',
+      status: 'completed',
+      startedAt: '2026-04-18T12:00:00.000Z',
+      completedAt: '2026-04-18T12:00:10.000Z',
+      items: [
+        {
+          id: 'reasoning-1',
+          type: 'reasoningContent',
+          status: 'completed',
+          reasoning: 'private reasoning',
+          elapsedSeconds: 2,
+          createdAt: '2026-04-18T12:00:01.000Z'
+        },
+        {
+          id: 'read-1',
+          type: 'toolCall',
+          status: 'completed',
+          toolCallId: 'read-call-1',
+          toolName: 'ReadFile',
+          arguments: { path: 'src/main.ts' },
+          success: true,
+          createdAt: '2026-04-18T12:00:02.000Z'
+        },
+        {
+          id: 'write-1',
+          type: 'toolCall',
+          status: 'completed',
+          toolCallId: 'write-call-1',
+          toolName: 'WriteFile',
+          arguments: { path: 'docs/old-artifact.md', content: 'new\n' },
+          result: 'Wrote docs/old-artifact.md',
+          success: true,
+          createdAt: '2026-04-18T12:00:03.000Z'
+        },
+        {
+          id: 'shell-1',
+          type: 'toolCall',
+          status: 'completed',
+          toolCallId: 'shell-call-1',
+          toolName: 'Exec',
+          arguments: { command: 'npm test' },
+          result: 'all green',
+          success: true,
+          createdAt: '2026-04-18T12:00:04.000Z'
+        },
+        {
+          id: 'tool-result-1',
+          type: 'toolResult',
+          status: 'completed',
+          toolCallId: 'read-call-1',
+          result: 'raw tool result',
+          success: true,
+          createdAt: '2026-04-18T12:00:04.500Z'
+        },
+        {
+          id: 'approval-1',
+          type: 'approvalCard',
+          status: 'completed',
+          approvalType: 'shell',
+          approvalOperation: 'npm test',
+          approvalTarget: 'F:/workspace',
+          approvalState: 'accepted',
+          createdAt: '2026-04-18T12:00:05.000Z'
+        },
+        makeCreatePlanItem('plan-1', 'Visible Plan', '2026-04-18T12:00:06.000Z'),
+        {
+          id: 'assistant-final',
+          type: 'agentMessage',
+          status: 'completed',
+          text: 'final response stays visible',
+          createdAt: '2026-04-18T12:00:08.000Z'
+        }
+      ]
+    }
+
+    render(
+      <LocaleProvider>
+        <AgentResponseBlock turn={turn} historicalToolContentMode="trimmed" />
+      </LocaleProvider>
+    )
+
+    expect(screen.getByText('Visible Plan')).toBeInTheDocument()
+    expect(screen.getByText('final response stays visible')).toBeInTheDocument()
+    expect(screen.queryByText(/Processed in/)).toBeNull()
+    expect(screen.queryByText('private reasoning')).toBeNull()
+    expect(screen.queryByText('Thought 2s')).toBeNull()
+    expect(screen.queryByText('Read main.ts')).toBeNull()
+    expect(screen.queryByText(/Ran npm test/)).toBeNull()
+    expect(screen.queryByText(/Shell/)).toBeNull()
+    expect(screen.queryByText('raw tool result')).toBeNull()
+    expect(screen.queryByText('old-artifact.md')).toBeNull()
+    expect(screen.queryByText(/file changed/)).toBeNull()
   })
 })
 

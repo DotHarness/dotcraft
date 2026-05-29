@@ -25,6 +25,7 @@ import { TurnCollapsedSummary } from './TurnCollapsedSummary'
 import { translate, type AppLocale } from '../../../shared/locales'
 import { formatSubAgentMeta, getSubAgentAccent } from '../../utils/subAgentPresentation'
 import type { StreamRetrySignal } from '../../stores/conversationStore'
+import type { SubAgentEntry } from '../../types/toolCall'
 
 interface AgentResponseBlockProps {
   turn: ConversationTurn
@@ -49,7 +50,16 @@ interface AgentResponseBlockProps {
    * (e.g. automation task review panel).
    */
   activeItemIdOverride?: string | null
+  /** Scoped to automation review surfaces that do not use the global conversation store. */
+  subAgentEntriesOverride?: SubAgentEntry[]
+  /**
+   * Main conversation optimization for older history: keep assistant/user text
+   * and plans visible while avoiding historical tool-detail component mounts.
+   */
+  historicalToolContentMode?: HistoricalToolContentMode
 }
+
+export type HistoricalToolContentMode = 'full' | 'trimmed'
 
 type ConversationNodeKind = 'assistant' | 'tool' | 'user' | 'other'
 
@@ -84,7 +94,8 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
   streamRetrySignals = [],
   isActiveTurn = false,
   showIdleThinkingFallback = false,
-  activeItemIdOverride
+  activeItemIdOverride,
+  historicalToolContentMode = 'full'
 }: AgentResponseBlockProps): JSX.Element {
   const pendingApproval = useConversationStore((s) => s.pendingApproval)
   const activeItemIdFromStore = useConversationStore((s) => s.activeItemId)
@@ -92,16 +103,20 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
   const activeItemId =
     activeItemIdOverride !== undefined ? activeItemIdOverride : activeItemIdFromStore
 
-  const hydratedItems = hydrateToolCallItems(turn.items)
+  const trimHistoricalToolContent = historicalToolContentMode === 'trimmed'
+  const hydratedItems = trimHistoricalToolContent ? turn.items : hydrateToolCallItems(turn.items)
 
   // Exclude user messages and toolResult items (toolResults are merged into their
   // parent toolCall items before rendering, not rendered independently)
   const renderableItems = hydratedItems.filter(
-    (i) =>
-      (i.type !== 'userMessage' || i.deliveryMode === 'guidance')
-      && i.type !== 'toolResult'
-      && i.type !== 'commandExecution'
-      && i.type !== 'toolExecution'
+    (i) => trimHistoricalToolContent
+      ? isTrimmedHistoryRenderableItem(i)
+      : (
+          (i.type !== 'userMessage' || i.deliveryMode === 'guidance')
+          && i.type !== 'toolResult'
+          && i.type !== 'commandExecution'
+          && i.type !== 'toolExecution'
+        )
   )
 
   const renderItemSequence = (
@@ -276,7 +291,10 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
   }
 
   const lastFinalAgentMessageIndex =
-    !isRunning && turn.status === 'completed' && !renderableItems.some(isGuidanceUserMessage)
+    !trimHistoricalToolContent &&
+    !isRunning &&
+    turn.status === 'completed' &&
+    !renderableItems.some(isGuidanceUserMessage)
       ? findLastAgentMessageIndex(renderableItems)
       : -1
   const lastAgentMessageIndex =
@@ -376,7 +394,7 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
       )}
 
       {/* Turn completion artifacts and file changes */}
-      {turn.status === 'completed' && (
+      {!trimHistoricalToolContent && turn.status === 'completed' && (
         <>
           <TurnArtifacts turnId={turn.id} />
           <TurnCompletionSummary turnId={turn.id} />
@@ -832,6 +850,18 @@ function findLastCreatePlanIndexBefore(items: ConversationItem[], beforeIndex: n
 
 function isGuidanceUserMessage(item: ConversationItem): boolean {
   return item.type === 'userMessage' && item.deliveryMode === 'guidance'
+}
+
+function isCreatePlanItem(item: ConversationItem): boolean {
+  return isToolLikeItemType(item.type) && item.toolName === 'CreatePlan'
+}
+
+function isTrimmedHistoryRenderableItem(item: ConversationItem): boolean {
+  if (item.type === 'agentMessage') return true
+  if (item.type === 'userMessage') return item.deliveryMode === 'guidance'
+  if (item.type === 'error') return true
+  if (item.type === 'systemNotice') return true
+  return isCreatePlanItem(item)
 }
 
 function shouldRenderIdleThinkingFallback({

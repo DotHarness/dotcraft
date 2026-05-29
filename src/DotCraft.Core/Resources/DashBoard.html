@@ -97,6 +97,10 @@ body {
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--border-active); }
 
+/* Keyboard focus ring (does not show on mouse interaction) */
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 5px; }
+:focus:not(:focus-visible) { outline: none; }
+
 /* Layout */
 .app { display: flex; height: 100vh; }
 
@@ -337,6 +341,7 @@ body {
 .top-link svg { display: block; flex-shrink: 0; }
 
 .panel { display: none; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
+#panel-traces { position: relative; }
 .panel.active { display: flex; }
 
 .panel-header {
@@ -369,6 +374,24 @@ body {
   margin-bottom: 24px;
 }
 
+.stats-section { margin-bottom: 4px; }
+.stats-section .stats-grid { margin-bottom: 16px; }
+.stats-section-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin: 0 2px 10px;
+}
+
+.section-heading {
+  margin-bottom: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
 .stat-card {
   background: var(--bg-card);
   border: 1px solid var(--border);
@@ -378,6 +401,13 @@ body {
 }
 
 .stat-card:hover { border-color: var(--border-active); }
+
+/* Headline metrics: stronger weight + accent edge */
+.stat-card.primary {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  background: color-mix(in srgb, var(--accent-dim) 60%, var(--bg-card));
+}
+.stat-card.primary .stat-value { font-size: 28px; }
 
 .stat-label {
   font-size: 11px;
@@ -564,12 +594,64 @@ body {
 
 .session-stat-label { color: var(--text-muted); }
 
-.session-metadata {
+.session-meta-block {
   width: 100%;
   margin-top: 2px;
-  padding-top: 8px;
+  padding-top: 10px;
   border-top: 1px solid var(--border);
 }
+
+/* Collapsed summary line: always visible, single-line request + expand toggle */
+.session-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--text-muted);
+  min-width: 0;
+}
+
+.session-summary-label { color: var(--text-secondary); flex-shrink: 0; }
+
+.session-request-preview {
+  color: var(--text-secondary);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-expand-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.session-expand-btn:hover { border-color: var(--border-active); color: var(--text-primary); background: var(--bg-hover); }
+.session-card[data-expanded="true"] .session-expand-btn { border-color: var(--border-active); color: var(--accent-light); }
+.session-expand-chevron { transition: transform var(--transition); flex-shrink: 0; }
+.session-card[data-expanded="true"] .session-expand-chevron { transform: rotate(90deg); }
+
+/* Collapsible detail (grid 0fr/1fr avoids max-height jank, matches accordion timing) */
+.session-detail {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--accordion-transition);
+}
+.session-card[data-expanded="true"] .session-detail { grid-template-rows: 1fr; }
+.session-detail-inner { min-height: 0; overflow: hidden; }
+.session-card[data-expanded="true"] .session-detail-inner { padding-top: 10px; }
 
 .session-meta-line {
   font-size: 12px;
@@ -582,10 +664,6 @@ body {
   gap: 8px;
   align-items: center;
   flex-wrap: wrap;
-}
-
-.session-request-preview {
-  color: var(--text-secondary);
 }
 
 .session-tools-inline {
@@ -646,6 +724,19 @@ body {
   background: var(--bg-card);
 }
 .trace-icon svg { width: 14px; height: 14px; stroke-width: 2; }
+
+/* Tint the icon chip to match the event type (reinforces the left color bar) */
+.trace-event.type-Request .trace-icon,
+.trace-event.type-MaintenanceForkRequest .trace-icon { color: var(--info); border-color: color-mix(in srgb, var(--info) 45%, var(--border)); background: var(--info-dim); }
+.trace-event.type-Response .trace-icon { color: var(--success); border-color: color-mix(in srgb, var(--success) 45%, var(--border)); background: var(--success-dim); }
+.trace-event.type-ToolCallStarted .trace-icon,
+.trace-event.type-MaintenanceForkResponse .trace-icon { color: var(--warning); border-color: color-mix(in srgb, var(--warning) 45%, var(--border)); background: var(--warning-dim); }
+.trace-event.type-ToolCallCompleted .trace-icon { color: var(--accent-light); border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); background: var(--accent-dim); }
+.trace-event.type-ToolInjection .trace-icon,
+.trace-event.type-DeferredToolLoading .trace-icon,
+.trace-event.type-TokenUsage .trace-icon { color: var(--cyan); border-color: color-mix(in srgb, var(--cyan) 45%, var(--border)); background: var(--cyan-dim); }
+.trace-event.type-Error .trace-icon { color: var(--error); border-color: color-mix(in srgb, var(--error) 45%, var(--border)); background: var(--error-dim); }
+.trace-event.type-Thinking .trace-icon { color: var(--thinking); border-color: color-mix(in srgb, var(--thinking) 45%, var(--border)); background: var(--thinking-dim); }
 
 .trace-body { flex: 1; min-width: 0; }
 
@@ -736,26 +827,20 @@ body {
 }
 .trace-expand-toggle:hover,
 .trace-expand-toggle.open { color: var(--text-secondary); }
-.trace-expand-toggle::before {
-  content: '▶';
-  font-size: 10px;
-  transition: transform var(--transition);
-  display: inline-block;
-}
-.trace-expand-toggle.open::before { transform: rotate(90deg); }
 
 .trace-detail {
   margin-top: 6px;
-  padding: 8px 12px;
+  padding: 10px 14px;
   background: var(--bg-primary);
   border-radius: var(--radius);
   font-family: var(--font-mono);
   font-size: 12px;
+  line-height: 1.55;
   color: var(--text-secondary);
-  max-height: 200px;
-  overflow-y: auto;
-  white-space: pre-wrap;
-  word-break: break-all;
+  max-height: 360px;
+  overflow: auto;
+  white-space: pre;
+  tab-size: 2;
   border: 1px solid var(--border);
 }
 
@@ -845,6 +930,15 @@ body {
 .config-section-header { background: var(--bg-tertiary) !important; }
 .config-section-header td { font-weight: 600; color: var(--text-primary) !important; padding-top: 16px; border-bottom: 2px solid var(--border) !important; }
 
+/* Usage breakdown tables: numeric columns right-aligned, sticky header, row hover */
+.usage-table th, .usage-table td { padding: 9px 14px; }
+.usage-table th { position: sticky; top: 0; z-index: 1; }
+.usage-table td { font-variant-numeric: tabular-nums; }
+.usage-table th:nth-child(n+3), .usage-table td:nth-child(n+3) { text-align: right; }
+.usage-table tbody tr { transition: background var(--transition); }
+.usage-table tbody tr:hover { background: var(--bg-hover); }
+.usage-table tbody tr:last-child td { border-bottom: none; }
+
 /* Buttons */
 .btn {
   display: inline-flex;
@@ -898,6 +992,59 @@ body {
 
 .btn-accent { border-color: rgba(74,127,165,0.3); color: var(--accent-light); }
 .btn-accent:hover { background: var(--accent-dim); border-color: var(--accent); }
+
+/* Toggle button (e.g. auto-scroll): a borderless switch + label, no box */
+.btn-toggle {
+  border: none;
+  background: none;
+  padding: 6px 4px;
+  white-space: nowrap;
+  color: var(--text-secondary);
+}
+.btn-toggle:hover { background: none; border: none; color: var(--text-primary); }
+.btn-toggle.active { background: none; border: none; color: var(--accent-light); }
+.btn-toggle .toggle-track {
+  width: 26px; height: 15px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  position: relative;
+  flex-shrink: 0;
+  transition: background var(--transition), border-color var(--transition);
+}
+.btn-toggle .toggle-thumb {
+  position: absolute;
+  top: 1px; left: 1px;
+  width: 11px; height: 11px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  transition: transform var(--transition), background var(--transition);
+}
+.btn-toggle.active .toggle-track { background: var(--accent); border-color: var(--accent); }
+.btn-toggle.active .toggle-thumb { transform: translateX(11px); background: #fff; }
+
+/* Floating "jump to latest" button, anchored to the trace viewport */
+.trace-jump-btn {
+  position: absolute;
+  bottom: 24px; right: 32px;
+  z-index: 20;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 16px;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  box-shadow: var(--shadow-lg);
+  transition: background var(--transition), border-color var(--transition), transform var(--transition);
+}
+.trace-jump-btn:hover { background: var(--accent-light); border-color: var(--accent-light); transform: translateY(-1px); }
+.trace-jump-btn[hidden] { display: none; }
 
 .btn-compact {
   padding: 3px 8px;
@@ -971,14 +1118,20 @@ body {
   gap: 4px;
 }
 
-.collapsible-toggle::before {
-  content: '▶';
-  font-size: 10px;
+.collapsible-toggle::before,
+.trace-expand-toggle::before {
+  content: '';
+  width: 11px;
+  height: 11px;
+  flex-shrink: 0;
+  background-color: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='9 18 15 12 9 6'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='9 18 15 12 9 6'/%3E%3C/svg%3E") center / contain no-repeat;
   transition: transform var(--transition);
-  display: inline-block;
 }
 
-.collapsible-toggle.open::before { transform: rotate(90deg); }
+.collapsible-toggle.open::before,
+.trace-expand-toggle.open::before { transform: rotate(90deg); }
 
 .collapsible-content {
   display: none;
@@ -1008,6 +1161,15 @@ body {
   .panel-header { padding: 10px 14px; }
 }
 
+/* Traces header: title/auto-scroll on top, filter chips on their own full row */
+.trace-header { flex-direction: column; align-items: stretch; gap: 12px; }
+.trace-header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
 /* Filter bar */
 .filter-bar {
   display: flex;
@@ -1017,6 +1179,8 @@ body {
 }
 
 .filter-chip {
+  flex-shrink: 0;
+  white-space: nowrap;
   padding: 4px 12px;
   border-radius: 16px;
   font-size: 12px;
@@ -1723,52 +1887,65 @@ body {
           </button>
         </div>
         <div class="panel-body">
-          <div class="stats-grid" id="statsGrid">
-            <div class="stat-card"><div class="stat-label">Sessions</div><div class="stat-value accent" id="statSessions">-</div></div>
-            <div class="stat-card"><div class="stat-label">Total Requests</div><div class="stat-value info" id="statRequests">-</div></div>
-            <div class="stat-card"><div class="stat-label">Total Responses</div><div class="stat-value info" id="statResponses">-</div></div>
-            <div class="stat-card"><div class="stat-label">Tool Calls</div><div class="stat-value warning" id="statToolCalls">-</div></div>
-            <div class="stat-card"><div class="stat-label">Errors</div><div class="stat-value text-error" id="statErrors">-</div></div>
-            <div class="stat-card"><div class="stat-label">Avg Tool Latency</div><div class="stat-value" id="statAvgToolMs">-</div></div>
-            <div class="stat-card"><div class="stat-label">Total Input</div><div class="stat-value" id="statInputTokens">-</div></div>
-            <div class="stat-card"><div class="stat-label">Fresh Input</div><div class="stat-value warning" id="statFreshInputTokens">-</div></div>
-            <div class="stat-card"><div class="stat-label">Cache Hit Input</div><div class="stat-value info" id="statCachedInputTokens">-</div></div>
-            <div class="stat-card"><div class="stat-label">Cache Write Input</div><div class="stat-value accent" id="statCacheWriteInputTokens">-</div></div>
-            <div class="stat-card"><div class="stat-label">Cache Hit Rate</div><div class="stat-value success" id="statCacheHitRate">-</div></div>
-            <div class="stat-card"><div class="stat-label">Output Tokens</div><div class="stat-value" id="statOutputTokens">-</div></div>
-            <div class="stat-card"><div class="stat-label">Total Tokens</div><div class="stat-value success" id="statTotalTokens">-</div></div>
+          <div class="stats-section">
+            <div class="stats-section-label">Activity</div>
+            <div class="stats-grid">
+              <div class="stat-card primary"><div class="stat-label">Sessions</div><div class="stat-value accent" id="statSessions">-</div></div>
+              <div class="stat-card"><div class="stat-label">Total Requests</div><div class="stat-value info" id="statRequests">-</div></div>
+              <div class="stat-card"><div class="stat-label">Total Responses</div><div class="stat-value info" id="statResponses">-</div></div>
+              <div class="stat-card"><div class="stat-label">Maintenance</div><div class="stat-value accent" id="statMaintenance">-</div></div>
+              <div class="stat-card"><div class="stat-label">Tool Calls</div><div class="stat-value warning" id="statToolCalls">-</div></div>
+              <div class="stat-card"><div class="stat-label">Errors</div><div class="stat-value text-error" id="statErrors">-</div></div>
+              <div class="stat-card"><div class="stat-label">Avg Tool Latency</div><div class="stat-value" id="statAvgToolMs">-</div></div>
+            </div>
           </div>
-          <h3 style="margin-bottom:12px;font-size:14px;color:var(--text-secondary)">Recent Activity</h3>
+          <div class="stats-section">
+            <div class="stats-section-label">Tokens</div>
+            <div class="stats-grid">
+              <div class="stat-card primary"><div class="stat-label">Total Tokens</div><div class="stat-value success" id="statTotalTokens">-</div></div>
+              <div class="stat-card primary"><div class="stat-label">Cache Hit Rate</div><div class="stat-value success" id="statCacheHitRate">-</div></div>
+              <div class="stat-card"><div class="stat-label">Total Input</div><div class="stat-value" id="statInputTokens">-</div></div>
+              <div class="stat-card"><div class="stat-label">Fresh Input</div><div class="stat-value warning" id="statFreshInputTokens">-</div></div>
+              <div class="stat-card"><div class="stat-label">Cache Hit Input</div><div class="stat-value info" id="statCachedInputTokens">-</div></div>
+              <div class="stat-card"><div class="stat-label">Cache Write Input</div><div class="stat-value accent" id="statCacheWriteInputTokens">-</div></div>
+              <div class="stat-card"><div class="stat-label">Output Tokens</div><div class="stat-value" id="statOutputTokens">-</div></div>
+            </div>
+          </div>
+          <h3 class="section-heading">Recent Activity</h3>
           <div id="recentActivity"></div>
         </div>
       </div>
 
       <!-- Traces Panel -->
       <div class="panel" id="panel-traces">
-        <div class="panel-header">
-          <div style="display:flex;align-items:center;gap:12px">
+        <div class="panel-header trace-header">
+          <div class="trace-header-top">
             <div class="panel-title" id="tracePanelTitle">Traces</div>
-            <div class="filter-bar" id="traceFilters">
-              <button class="filter-chip active" data-filter="all" onclick="setTraceFilter('all')">All</button>
-              <button class="filter-chip" data-filter="Request" onclick="setTraceFilter('Request')">Requests</button>
-              <button class="filter-chip" data-filter="Response" onclick="setTraceFilter('Response')">Responses</button>
-              <button class="filter-chip" data-filter="Thinking" onclick="setTraceFilter('Thinking')">Thinking</button>
-              <button class="filter-chip" data-filter="Tool" onclick="setTraceFilter('Tool')">Tools</button>
-              <button class="filter-chip" data-filter="Maintenance" onclick="setTraceFilter('Maintenance')">Maintenance</button>
-              <button class="filter-chip" data-filter="TokenUsage" onclick="setTraceFilter('TokenUsage')">Tokens</button>
-              <button class="filter-chip" data-filter="Error" onclick="setTraceFilter('Error')">Errors</button>
+            <div style="display:flex;gap:8px;flex-shrink:0">
+              <button class="btn btn-toggle active" onclick="toggleAutoScroll()" id="autoScrollBtn" aria-pressed="true" title="Auto-scroll to newest events">
+                <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                Auto-scroll
+              </button>
             </div>
           </div>
-          <div style="display:flex;gap:8px">
-            <button class="btn" onclick="toggleAutoScroll()" id="autoScrollBtn">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
-              Auto-scroll
-            </button>
+          <div class="filter-bar" id="traceFilters">
+            <button class="filter-chip active" data-filter="all" onclick="setTraceFilter('all')">All</button>
+            <button class="filter-chip" data-filter="Request" onclick="setTraceFilter('Request')">Requests</button>
+            <button class="filter-chip" data-filter="Response" onclick="setTraceFilter('Response')">Responses</button>
+            <button class="filter-chip" data-filter="Thinking" onclick="setTraceFilter('Thinking')">Thinking</button>
+            <button class="filter-chip" data-filter="Tool" onclick="setTraceFilter('Tool')">Tools</button>
+            <button class="filter-chip" data-filter="Maintenance" onclick="setTraceFilter('Maintenance')">Maintenance</button>
+            <button class="filter-chip" data-filter="TokenUsage" onclick="setTraceFilter('TokenUsage')">Tokens</button>
+            <button class="filter-chip" data-filter="Error" onclick="setTraceFilter('Error')">Errors</button>
           </div>
         </div>
         <div class="panel-body" id="traceBody">
           <div class="trace-timeline" id="traceTimeline"></div>
         </div>
+        <button type="button" class="trace-jump-btn" id="traceJumpBtn" onclick="jumpToTraceBottom()" hidden>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
+          <span id="traceJumpLabel">Jump to latest</span>
+        </button>
       </div>
 
       <!-- Sessions Panel -->
@@ -1795,7 +1972,7 @@ body {
           </button>
         </div>
         <div class="panel-body">
-          <div class="stats-grid" id="tokenUsageStats"></div>
+          <div id="tokenUsageStats"></div>
           <div class="filter-bar" id="tokenUsageFilters" style="margin-bottom:16px"></div>
           <div id="tokenUsageContent"></div>
         </div>
@@ -1922,8 +2099,12 @@ let autoScroll = true;
 let selectedSession = null;
 let eventSource = null;
 let allTraceEvents = [];
+let traceOldestCursor = null;
+let traceHasMore = false;
+let traceLoadingOlder = false;
 let allSessions = [];
 const traceExpandableText = new Map();
+const TRACE_PAGE_LIMIT = 1000;
 const DASHBOARD_THEME_KEY = 'dotcraft.dashboard.theme';
 const DASHBOARD_SETTINGS_CALLOUT_KEY = 'dotcraft.dashboard.settingsCalloutSeen';
 
@@ -2325,6 +2506,18 @@ function inlinePreview(text) {
   return (text || '').replace(/\s+/g, ' ').trim();
 }
 
+// Strip harness-injected noise from a user request so previews show only what
+// the user actually typed: <system-reminder> blocks (which carry the Runtime
+// Context, tool reminders, etc.) and any trailing unclosed reminder.
+function cleanUserRequest(text) {
+  if (!text) return '';
+  return String(text)
+    .replace(/<system-reminder>[\s\S]*?<\/system-reminder>/gi, ' ')
+    .replace(/<system-reminder>[\s\S]*$/i, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function renderExpandableTraceText(id, text, limit, options = {}) {
   const content = text == null ? '' : String(text);
   const preview = truncate(content, limit);
@@ -2363,6 +2556,25 @@ function toggleInlineTraceText(toggle) {
   if (eventCard) eventCard.classList.toggle('is-expanded', expanded);
 }
 
+function prettyJson(raw) {
+  if (raw == null) return '';
+  const text = String(raw);
+  try {
+    return JSON.stringify(JSON.parse(text), null, 2);
+  } catch {
+    return text;
+  }
+}
+
+// Shared "Metadata" disclosure for trace events: pretty-prints JSON so the
+// expanded block is readable instead of a single escaped line.
+function renderMetadataDetail(evtId, metadataJson) {
+  if (!metadataJson) return '';
+  const id = `${evtId}-meta`;
+  return `<div class="collapsible-toggle" onclick="toggleDetail('${id}', this)">Metadata</div>`
+    + `<div class="collapsible-content trace-detail" id="${id}">${escapeHtml(prettyJson(metadataJson))}</div>`;
+}
+
 function getSessionByKey(sessionKey) {
   return allSessions.find(s => s.sessionKey === sessionKey) || null;
 }
@@ -2388,7 +2600,7 @@ function renderToolBadges(toolNames) {
 
 function renderSessionMetadata(session, idPrefix) {
   const prompt = session.finalSystemPrompt || '';
-  const firstRequest = inlinePreview(session.firstUserRequest || '');
+  const firstRequest = cleanUserRequest(session.firstUserRequest || '');
   const requestPreview = firstRequest
     ? escapeHtml(truncate(firstRequest, 160))
     : '<span style="color:var(--text-muted)">Not captured yet.</span>';
@@ -2397,27 +2609,47 @@ function renderSessionMetadata(session, idPrefix) {
   const promptButton = prompt
     ? `<button type="button" class="btn btn-compact session-prompt-btn" data-session-key="${encodedSessionKey}" onclick="showSystemPrompt(event, decodeURIComponent('${encodedSessionKey}'))">System prompt</button>`
     : '';
-  const tools = renderToolBadges(session.toolNames || []);
+  const toolNames = session.toolNames || [];
+  const tools = renderToolBadges(toolNames);
   const drift = session.promptDriftCount || 0;
   const promptHash = session.systemPromptHash ? session.systemPromptHash.slice(0, 12) : '-';
   const toolHash = session.toolSchemaHash ? session.toolSchemaHash.slice(0, 12) : '-';
   const promptCacheBadge = renderPromptCacheSessionBadge(session);
+  const driftChip = drift > 0
+    ? `<span class="badge badge-warning">drift ${formatNumber(drift)}</span>`
+    : '';
 
-  return `<div class="session-metadata" onclick="event.stopPropagation()">
-    <div class="session-meta-line">
-      <span style="color:var(--text-secondary)">User request:</span>
+  return `<div class="session-meta-block" onclick="event.stopPropagation()">
+    <div class="session-summary">
+      <span class="session-summary-label">User request:</span>
       <span class="session-request-preview"${requestTitle}>${requestPreview}</span>
+      ${driftChip}
+      <button type="button" class="session-expand-btn" aria-expanded="false" onclick="toggleSessionCard(this)" title="Show prompt & tools">
+        <svg class="session-expand-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+        ${formatNumber(toolNames.length)} tools
+      </button>
     </div>
-    <div class="session-meta-line session-meta-actions">
-      ${promptButton}
-      <span style="color:var(--text-secondary)">Tools (${(session.toolNames || []).length}):</span>
-      <span class="badge ${drift > 0 ? 'badge-warning' : 'badge-success'}">drift ${formatNumber(drift)}</span>
-      <span class="badge badge-info">prompt ${escapeHtml(promptHash)}</span>
-      <span class="badge badge-info">tools ${escapeHtml(toolHash)}</span>
-      ${promptCacheBadge}
+    <div class="session-detail">
+      <div class="session-detail-inner">
+        <div class="session-meta-line session-meta-actions">
+          ${promptButton}
+          <span class="badge ${drift > 0 ? 'badge-warning' : 'badge-success'}">drift ${formatNumber(drift)}</span>
+          <span class="badge badge-info">prompt ${escapeHtml(promptHash)}</span>
+          <span class="badge badge-info">tools ${escapeHtml(toolHash)}</span>
+          ${promptCacheBadge}
+        </div>
+        <div class="session-tools-inline">${tools}</div>
+      </div>
     </div>
-    <div class="session-tools-inline">${tools}</div>
   </div>`;
+}
+
+function toggleSessionCard(btn) {
+  const card = btn.closest('.session-card');
+  if (!card) return;
+  const open = card.dataset.expanded === 'true';
+  card.dataset.expanded = open ? 'false' : 'true';
+  btn.setAttribute('aria-expanded', open ? 'false' : 'true');
 }
 
 function renderPromptCacheSessionBadge(session) {
@@ -2442,6 +2674,7 @@ async function refreshDashboard() {
   document.getElementById('statSessions').textContent = formatNumber(summary.sessionCount);
   document.getElementById('statRequests').textContent = formatNumber(summary.totalRequests);
   document.getElementById('statResponses').textContent = formatNumber(summary.totalResponses);
+  document.getElementById('statMaintenance').textContent = formatNumber(summary.totalMaintenanceForkRequests || summary.totalMaintenanceForkResponses || 0);
   document.getElementById('statToolCalls').textContent = formatNumber(summary.totalToolCalls);
   document.getElementById('statErrors').textContent = formatNumber(summary.totalErrors);
   document.getElementById('statAvgToolMs').textContent = formatDurationMs(summary.avgToolDurationMs || 0);
@@ -2458,7 +2691,7 @@ async function refreshDashboard() {
     allSessions = sessions;
     const recent = sessions.slice(0, 5);
     document.getElementById('recentActivity').innerHTML = recent.map(s => `
-      <div class="session-card" data-session-key="${encodeURIComponent(s.sessionKey)}">
+      <div class="session-card" data-session-key="${encodeURIComponent(s.sessionKey)}" data-expanded="false">
         <div class="session-main">
           <div class="session-info">
             <div class="session-key" style="display:flex;align-items:center;gap:8px">${escapeHtml(s.sessionKey)} ${renderFinishReasonBadge(s.lastFinishReason)}</div>
@@ -2469,6 +2702,7 @@ async function refreshDashboard() {
           <div class="session-stats">
             <div class="session-stat"><div class="session-stat-value">${s.requestCount}</div><div class="session-stat-label">requests</div></div>
             <div class="session-stat"><div class="session-stat-value">${s.responseCount || 0}</div><div class="session-stat-label">responses</div></div>
+            <div class="session-stat"><div class="session-stat-value text-accent">${s.maintenanceForkRequestCount || s.maintenanceForkResponseCount || 0}</div><div class="session-stat-label">maint</div></div>
             <div class="session-stat"><div class="session-stat-value">${s.toolCallCount}</div><div class="session-stat-label">tools</div></div>
             <div class="session-stat"><div class="session-stat-value" style="color:var(--error)">${s.errorCount || 0}</div><div class="session-stat-label">errors</div></div>
             <div class="session-stat"><div class="session-stat-value">${formatDurationMs(s.avgToolDurationMs || 0)}</div><div class="session-stat-label">avg tool</div></div>
@@ -2506,7 +2740,7 @@ async function refreshSessions() {
   }
 
   container.innerHTML = sessions.map(s => `
-    <div class="session-card" data-session-key="${encodeURIComponent(s.sessionKey)}">
+    <div class="session-card" data-session-key="${encodeURIComponent(s.sessionKey)}" data-expanded="false">
       <div class="session-main">
         <div class="session-info">
           <div class="session-key" style="display:flex;align-items:center;gap:8px">${escapeHtml(s.sessionKey)} ${renderFinishReasonBadge(s.lastFinishReason)}</div>
@@ -2518,6 +2752,7 @@ async function refreshSessions() {
         <div class="session-stats">
           <div class="session-stat"><div class="session-stat-value text-info">${s.requestCount}</div><div class="session-stat-label">requests</div></div>
           <div class="session-stat"><div class="session-stat-value text-info">${s.responseCount || 0}</div><div class="session-stat-label">responses</div></div>
+          <div class="session-stat"><div class="session-stat-value text-accent">${s.maintenanceForkRequestCount || s.maintenanceForkResponseCount || 0}</div><div class="session-stat-label">maint</div></div>
           <div class="session-stat"><div class="session-stat-value text-warning">${s.toolCallCount}</div><div class="session-stat-label">tools</div></div>
           <div class="session-stat"><div class="session-stat-value text-error">${s.errorCount || 0}</div><div class="session-stat-label">errors</div></div>
           <div class="session-stat"><div class="session-stat-value">${formatDurationMs(s.avgToolDurationMs || 0)}</div><div class="session-stat-label">avg tool</div></div>
@@ -2537,7 +2772,7 @@ async function viewSessionTraces(sessionKey) {
   selectedSession = sessionKey;
   switchPanel('traces');
   const session = getSessionByKey(sessionKey);
-  const firstRequest = inlinePreview(session?.firstUserRequest || '');
+  const firstRequest = cleanUserRequest(session?.firstUserRequest || '');
   const requestPreview = firstRequest ? escapeHtml(truncate(firstRequest, 180)) : 'Not captured';
   const toolCount = session?.toolNames ? session.toolNames.length : 0;
   const promptButton = session?.finalSystemPrompt
@@ -2557,29 +2792,73 @@ async function viewSessionTraces(sessionKey) {
 }
 
 async function refreshTraces() {
-  let events;
-  if (selectedSession) {
-    events = await fetchJson('/sessions/' + encodeURIComponent(selectedSession) + '/events');
-  } else {
-    const sessions = await fetchJson('/sessions');
-    if (!Array.isArray(sessions) || sessions.length === 0) {
-      renderTraceTimeline([]);
-      return;
-    }
-    events = [];
-    for (const s of sessions.slice(0, 10)) {
-      const se = await fetchJson('/sessions/' + encodeURIComponent(s.sessionKey) + '/events');
-      if (se) events.push(...se);
-    }
-    events.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+  if (!selectedSession) {
     document.getElementById('tracePanelTitle').textContent = 'Traces (All Sessions)';
   }
 
-  allTraceEvents = events || [];
+  traceOldestCursor = null;
+  traceHasMore = false;
+  traceLoadingOlder = false;
+  const page = await fetchTraceEventPage(null);
+  allTraceEvents = Array.isArray(page?.events) ? page.events : [];
+  traceOldestCursor = page?.oldestCursor || null;
+  traceHasMore = page?.hasMore === true;
   renderTraceTimeline(allTraceEvents);
 }
 
-function renderTraceTimeline(events) {
+async function fetchTraceEventPage(beforeCursor) {
+  const params = new URLSearchParams();
+  params.set('limit', String(TRACE_PAGE_LIMIT));
+  if (currentFilter && currentFilter !== 'all') params.set('filter', currentFilter);
+  if (beforeCursor) params.set('beforeCursor', beforeCursor);
+  const endpoint = selectedSession
+    ? '/sessions/' + encodeURIComponent(selectedSession) + '/events/page'
+    : '/events/page';
+  return await fetchJson(endpoint + '?' + params.toString());
+}
+
+async function loadOlderTraceEvents() {
+  if (traceLoadingOlder || !traceHasMore || !traceOldestCursor || currentPanel !== 'traces')
+    return;
+
+  traceLoadingOlder = true;
+  const body = document.getElementById('traceBody');
+  const previousHeight = body.scrollHeight;
+  const previousTop = body.scrollTop;
+  const page = await fetchTraceEventPage(traceOldestCursor);
+  const olderEvents = Array.isArray(page?.events) ? page.events : [];
+
+  if (olderEvents.length > 0) {
+    allTraceEvents = mergeTraceEvents(olderEvents, allTraceEvents);
+    renderTraceTimeline(allTraceEvents, { autoScrollToBottom: false });
+    body.scrollTop = body.scrollHeight - previousHeight + previousTop;
+  }
+
+  traceOldestCursor = page?.oldestCursor || traceOldestCursor;
+  traceHasMore = page?.hasMore === true;
+  traceLoadingOlder = false;
+}
+
+function handleTraceScroll() {
+  const body = document.getElementById('traceBody');
+  updateTraceJumpButton();
+  if (!body || body.scrollTop > 120) return;
+  loadOlderTraceEvents();
+}
+
+function mergeTraceEvents(prefix, suffix) {
+  const seen = new Set();
+  const merged = [];
+  for (const event of [...prefix, ...suffix]) {
+    const key = event.id || `${event.sessionKey || ''}:${event.timestamp || ''}:${event.type || ''}:${merged.length}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(event);
+  }
+  return merged;
+}
+
+function renderTraceTimeline(events, options = {}) {
   const container = document.getElementById('traceTimeline');
   const decoratedEvents = decorateTraceEventsWithPromptCacheDiagnostics(events || []);
 
@@ -2598,13 +2877,21 @@ function renderTraceTimeline(events) {
     return;
   }
 
+  const body = document.getElementById('traceBody');
+  // Capture position before swapping content so we only stick to the bottom
+  // when the user was already there (manual scroll-up pauses auto-scroll).
+  const wasNearBottom = isNearTraceBottom(body);
+
   traceExpandableText.clear();
   container.innerHTML = filtered.map(e => renderTraceEvent(e)).join('');
 
-  if (autoScroll) {
-    const body = document.getElementById('traceBody');
-    body.scrollTop = body.scrollHeight;
-  }
+  let shouldScroll;
+  if (options.autoScrollToBottom === false) shouldScroll = false;
+  else if (options.autoScrollToBottom === true) shouldScroll = true;
+  else shouldScroll = autoScroll && wasNearBottom;
+
+  if (body && shouldScroll) body.scrollTop = body.scrollHeight;
+  updateTraceJumpButton();
 }
 
 function decorateTraceEventsWithPromptCacheDiagnostics(events) {
@@ -2834,7 +3121,7 @@ function renderTraceEvent(e) {
           <div class="trace-label response">Response${e.sessionKey && !selectedSession ? ' <span class="badge badge-success">' + escapeHtml(e.sessionKey) + '</span>' : ''}</div>
           ${renderExpandableTraceText(evtId, e.content, 500)}
           ${metaLine}
-          ${e.metadataJson ? `<div class="collapsible-toggle" onclick="toggleDetail('${evtId}-meta', this)">Metadata</div><div class="collapsible-content trace-detail" id="${evtId}-meta">${escapeHtml(e.metadataJson)}</div>` : ''}
+          ${renderMetadataDetail(evtId, e.metadataJson)}
         </div></div>`;
 
     case 'MaintenanceForkRequest': {
@@ -2858,7 +3145,7 @@ function renderTraceEvent(e) {
           ${cacheLine}
           ${renderExpandableTraceText(evtId, e.content, 500)}
           ${metaLine}
-          ${e.metadataJson ? `<div class="collapsible-toggle" onclick="toggleDetail('${evtId}-meta', this)">Metadata</div><div class="collapsible-content trace-detail" id="${evtId}-meta">${escapeHtml(e.metadataJson)}</div>` : ''}
+          ${renderMetadataDetail(evtId, e.metadataJson)}
         </div></div>`;
     }
 
@@ -2876,7 +3163,7 @@ function renderTraceEvent(e) {
           <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">${fallbackBadge}${md.taskKind ? ` <span class="badge badge-info">${escapeHtml(md.taskKind)}</span>` : ''}</div>
           ${renderExpandableTraceText(evtId, e.content, 500, fallback ? { tone: 'error' } : undefined)}
           ${metaLine}
-          ${e.metadataJson ? `<div class="collapsible-toggle" onclick="toggleDetail('${evtId}-meta', this)">Metadata</div><div class="collapsible-content trace-detail" id="${evtId}-meta">${escapeHtml(e.metadataJson)}</div>` : ''}
+          ${renderMetadataDetail(evtId, e.metadataJson)}
         </div></div>`;
     }
 
@@ -2946,7 +3233,7 @@ function renderTraceEvent(e) {
           ${renderExpandableTraceText(evtId, e.content, 500)}
           ${toolDetails}
           ${md.query ? `<div class="session-meta-line">query: ${escapeHtml(md.query)}</div>` : ''}
-          ${e.metadataJson ? `<div class="collapsible-toggle" onclick="toggleDetail('${evtId}-meta', this)">Metadata</div><div class="collapsible-content trace-detail" id="${evtId}-meta">${escapeHtml(e.metadataJson)}</div>` : ''}
+          ${renderMetadataDetail(evtId, e.metadataJson)}
         </div></div>`;
     }
 
@@ -3014,14 +3301,46 @@ function toggleDetail(id, toggle) {
 function setTraceFilter(filter) {
   currentFilter = filter;
   document.querySelectorAll('#traceFilters .filter-chip').forEach(c => c.classList.toggle('active', c.dataset.filter === filter));
-  renderTraceTimeline(allTraceEvents);
+  if (currentPanel === 'traces') {
+    refreshTraces();
+  } else {
+    renderTraceTimeline(allTraceEvents);
+  }
+}
+
+function isNearTraceBottom(body, threshold = 80) {
+  if (!body) return true;
+  return body.scrollHeight - body.scrollTop - body.clientHeight < threshold;
+}
+
+function updateAutoScrollButton() {
+  const btn = document.getElementById('autoScrollBtn');
+  if (!btn) return;
+  btn.classList.toggle('active', autoScroll);
+  btn.setAttribute('aria-pressed', autoScroll ? 'true' : 'false');
 }
 
 function toggleAutoScroll() {
   autoScroll = !autoScroll;
-  const btn = document.getElementById('autoScrollBtn');
-  btn.style.borderColor = autoScroll ? 'var(--accent)' : 'var(--border)';
-  btn.style.color = autoScroll ? 'var(--accent-light)' : 'var(--text-secondary)';
+  updateAutoScrollButton();
+  if (autoScroll) jumpToTraceBottom();
+}
+
+function jumpToTraceBottom() {
+  const body = document.getElementById('traceBody');
+  if (body) body.scrollTop = body.scrollHeight;
+  updateTraceJumpButton();
+}
+
+function updateTraceJumpButton() {
+  const btn = document.getElementById('traceJumpBtn');
+  if (!btn) return;
+  const body = document.getElementById('traceBody');
+  const show = currentPanel === 'traces'
+    && body
+    && !isNearTraceBottom(body)
+    && (allTraceEvents?.length || 0) > 0;
+  btn.hidden = !show;
 }
 
 async function deleteSession(sessionKey) {
@@ -3152,24 +3471,34 @@ async function refreshTokenUsage() {
   const totalSubjects = tokenUsageSources.reduce((sum, s) => sum + (s.subjectCount || 0), 0);
 
   statsEl.innerHTML = `
-    <div class="stat-card"><div class="stat-label">Total Tokens</div><div class="stat-value success">${formatNumber(totalTokens)}</div></div>
-    <div class="stat-card"><div class="stat-label">Total Input</div><div class="stat-value">${formatNumber(totalInputTokens)}</div></div>
-    <div class="stat-card"><div class="stat-label">Fresh Input</div><div class="stat-value warning">${formatNumber(totalFreshInputTokens)}</div></div>
-    <div class="stat-card"><div class="stat-label">Cache Hit Input</div><div class="stat-value info">${formatNumber(totalCachedInputTokens)}</div></div>
-    <div class="stat-card"><div class="stat-label">Cache Write Input</div><div class="stat-value accent">${formatNumber(totalCacheWriteInputTokens)}</div></div>
-    <div class="stat-card"><div class="stat-label">Cache Hit Rate</div><div class="stat-value success">${formatPercent(totalCacheHitRate)}</div></div>
-    <div class="stat-card"><div class="stat-label">LLM Calls</div><div class="stat-value accent">${formatNumber(totalLlmCalls)}</div></div>
-    <div class="stat-card"><div class="stat-label">Active Sources</div><div class="stat-value info">${formatNumber(tokenUsageSources.length)}</div></div>
-    <div class="stat-card"><div class="stat-label">Active Subjects</div><div class="stat-value warning">${formatNumber(totalSubjects)}</div></div>
-    ${tokenUsageSources.map(source => `
-      <div class="stat-card">
-        <div class="stat-label">${escapeHtml(formatSourceLabel(source.sourceId))}</div>
-        <div class="stat-value accent">${formatNumber(source.totalTokens || 0)}</div>
-        <div style="margin-top:8px;color:var(--text-secondary);font-size:12px">
-          ${formatNumber(source.llmCallCount || source.requestCount || 0)} LLM calls • ${formatPercent(source.cacheHitRate || 0)} cache hit
-        </div>
+    <div class="stats-section">
+      <div class="stats-section-label">Totals</div>
+      <div class="stats-grid">
+        <div class="stat-card primary"><div class="stat-label">Total Tokens</div><div class="stat-value success">${formatNumber(totalTokens)}</div></div>
+        <div class="stat-card primary"><div class="stat-label">Cache Hit Rate</div><div class="stat-value success">${formatPercent(totalCacheHitRate)}</div></div>
+        <div class="stat-card"><div class="stat-label">Total Input</div><div class="stat-value">${formatNumber(totalInputTokens)}</div></div>
+        <div class="stat-card"><div class="stat-label">Fresh Input</div><div class="stat-value warning">${formatNumber(totalFreshInputTokens)}</div></div>
+        <div class="stat-card"><div class="stat-label">Cache Hit Input</div><div class="stat-value info">${formatNumber(totalCachedInputTokens)}</div></div>
+        <div class="stat-card"><div class="stat-label">Cache Write Input</div><div class="stat-value accent">${formatNumber(totalCacheWriteInputTokens)}</div></div>
+        <div class="stat-card"><div class="stat-label">LLM Calls</div><div class="stat-value accent">${formatNumber(totalLlmCalls)}</div></div>
+        <div class="stat-card"><div class="stat-label">Active Sources</div><div class="stat-value info">${formatNumber(tokenUsageSources.length)}</div></div>
+        <div class="stat-card"><div class="stat-label">Active Subjects</div><div class="stat-value warning">${formatNumber(totalSubjects)}</div></div>
       </div>
-    `).join('')}
+    </div>
+    ${tokenUsageSources.length > 0 ? `<div class="stats-section">
+      <div class="stats-section-label">By Source</div>
+      <div class="stats-grid">
+        ${tokenUsageSources.map(source => `
+          <div class="stat-card">
+            <div class="stat-label">${escapeHtml(formatSourceLabel(source.sourceId))}</div>
+            <div class="stat-value accent">${formatNumber(source.totalTokens || 0)}</div>
+            <div style="margin-top:8px;color:var(--text-secondary);font-size:12px">
+              ${formatNumber(source.llmCallCount || source.requestCount || 0)} LLM calls • ${formatPercent(source.cacheHitRate || 0)} cache hit
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>` : ''}
   `;
 
   const visibleSources = tokenUsageFilter === 'all'
@@ -3229,7 +3558,7 @@ function renderUsageBreakdownTable(entries, kind, showRelatedSubjects) {
   }
 
   const relatedHeader = showRelatedSubjects ? '<th>Subjects</th>' : '';
-  return `<table class="config-table" style="margin-bottom:16px">
+  return `<table class="config-table usage-table" style="margin-bottom:16px">
     <thead>
       <tr>
         <th>${escapeHtml(humanizeUsageKind(kind || 'record'))} ID</th>
@@ -3320,13 +3649,12 @@ function connectSSE() {
   eventSource.onmessage = (event) => {
     try {
       const evt = JSON.parse(event.data);
-      allTraceEvents.push(evt);
 
       if (currentPanel === 'traces') {
-        const visibleEvents = selectedSession
-          ? allTraceEvents.filter(e => e.sessionKey === selectedSession)
-          : allTraceEvents;
-        renderTraceTimeline(visibleEvents);
+        if (traceEventBelongsToCurrentView(evt) && traceEventMatchesCurrentFilter(evt)) {
+          allTraceEvents = mergeTraceEvents(allTraceEvents, [evt]);
+          renderTraceTimeline(allTraceEvents);
+        }
       }
 
       if (currentPanel === 'dashboard') {
@@ -3348,6 +3676,26 @@ function connectSSE() {
     }
     setTimeout(connectSSE, 3000);
   };
+}
+
+function traceEventBelongsToCurrentView(evt) {
+  return !selectedSession || evt.sessionKey === selectedSession;
+}
+
+function traceEventMatchesCurrentFilter(evt) {
+  if (!evt || currentFilter === 'all') return true;
+  if (currentFilter === 'Tool') {
+    return evt.type === 'ToolCallStarted' ||
+      evt.type === 'ToolCallCompleted' ||
+      evt.type === 'ToolInjection' ||
+      evt.type === 'DeferredToolLoading';
+  }
+  if (currentFilter === 'Maintenance') {
+    return evt.type === 'MaintenanceForkRequest' ||
+      evt.type === 'MaintenanceForkResponse' ||
+      evt.type === 'ContextCompaction';
+  }
+  return evt.type === currentFilter;
 }
 
 let CONFIG_SCHEMA = [];
@@ -5062,8 +5410,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     switchPanel('settings');
   }
   window.addEventListener('hashchange', handleDashboardHash);
-  document.getElementById('autoScrollBtn').style.borderColor = 'var(--accent)';
-  document.getElementById('autoScrollBtn').style.color = 'var(--accent-light)';
+  document.getElementById('traceBody').addEventListener('scroll', handleTraceScroll);
+  updateAutoScrollButton();
 });
 </script>
 

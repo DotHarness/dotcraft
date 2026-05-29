@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Threading.Channels;
@@ -25,6 +26,8 @@ public sealed class TraceStore
             SingleWriter = false
         });
     private int _persistInFlight;
+    private const int DefaultEventPageLimit = 1000;
+    private const int MaxEventPageLimit = 1000;
 
     private static readonly JsonSerializerOptions PersistJsonOptions = new()
     {
@@ -183,6 +186,21 @@ public sealed class TraceStore
         return session.Events.OrderBy(e => e.Timestamp).ToList();
     }
 
+    public TraceEventPage GetEventPage(
+        string? sessionKey = null,
+        int limit = DefaultEventPageLimit,
+        string? beforeCursor = null,
+        string? filter = null)
+    {
+        var normalizedLimit = Math.Clamp(limit <= 0 ? DefaultEventPageLimit : limit, 1, MaxEventPageLimit);
+        var types = ResolveEventPageFilter(filter);
+
+        if (_stateRuntime != null)
+            return GetEventPageFromDb(sessionKey, normalizedLimit, beforeCursor, types);
+
+        return GetEventPageFromMemory(sessionKey, normalizedLimit, beforeCursor, types);
+    }
+
     public bool ClearSession(string sessionKey)
     {
         lock (_diskMutationLock)
@@ -327,7 +345,8 @@ public sealed class TraceStore
     public TraceSummary GetSummary()
     {
         long totalInput = 0, totalOutput = 0, totalCachedInput = 0, totalCacheWriteInput = 0, totalReasoningOutput = 0;
-        int totalRequests = 0, totalResponses = 0, totalToolCalls = 0, totalErrors = 0, totalContextCompactions = 0;
+        int totalRequests = 0, totalMaintenanceForkRequests = 0, totalResponses = 0, totalMaintenanceForkResponses = 0;
+        int totalToolCalls = 0, totalErrors = 0, totalContextCompactions = 0;
         long totalToolDuration = 0, maxToolDuration = 0;
 
         foreach (var session in _sessions.Values)
@@ -338,7 +357,9 @@ public sealed class TraceStore
             totalCacheWriteInput += session.TotalCacheWriteInputTokens;
             totalReasoningOutput += session.TotalReasoningOutputTokens;
             totalRequests += session.RequestCount;
+            totalMaintenanceForkRequests += session.MaintenanceForkRequestCount;
             totalResponses += session.ResponseCount;
+            totalMaintenanceForkResponses += session.MaintenanceForkResponseCount;
             totalToolCalls += session.ToolCallCount;
             totalErrors += session.ErrorCount;
             totalContextCompactions += session.ContextCompactionCount;
@@ -350,7 +371,9 @@ public sealed class TraceStore
         {
             SessionCount = _sessions.Count,
             TotalRequests = totalRequests,
+            TotalMaintenanceForkRequests = totalMaintenanceForkRequests,
             TotalResponses = totalResponses,
+            TotalMaintenanceForkResponses = totalMaintenanceForkResponses,
             TotalToolCalls = totalToolCalls,
             TotalErrors = totalErrors,
             TotalContextCompactions = totalContextCompactions,
@@ -431,7 +454,6 @@ public sealed class TraceStore
                     evt.PromptCacheChangedFields);
                 break;
             case TraceEventType.Request:
-            case TraceEventType.MaintenanceForkRequest:
                 session.RequestCount++;
                 if (evt.Type == TraceEventType.Request
                     && string.IsNullOrWhiteSpace(session.FirstUserRequest)
@@ -440,11 +462,16 @@ public sealed class TraceStore
                     session.FirstUserRequest = evt.Content.Trim();
                 }
                 break;
+            case TraceEventType.MaintenanceForkRequest:
+                session.MaintenanceForkRequestCount++;
+                break;
             case TraceEventType.Response:
-            case TraceEventType.MaintenanceForkResponse:
                 session.ResponseCount++;
                 if (!string.IsNullOrEmpty(evt.FinishReason))
                     session.LastFinishReason = evt.FinishReason;
+                break;
+            case TraceEventType.MaintenanceForkResponse:
+                session.MaintenanceForkResponseCount++;
                 break;
             case TraceEventType.ToolCallCompleted:
                 session.ToolCallCount++;
@@ -478,8 +505,7 @@ public sealed class TraceStore
                 break;
         }
 
-        if (session.Events.Count < _maxEventsPerSession)
-            session.Events.Add(evt);
+        AddInMemoryEvent(session, evt);
 
         if (writeToSse)
             _sseChannel.Writer.TryWrite(evt);
@@ -619,7 +645,9 @@ public sealed class TraceStore
                 started_at,
                 last_activity_at,
                 request_count,
+                maintenance_fork_request_count,
                 response_count,
+                maintenance_fork_response_count,
                 tool_call_count,
                 error_count,
                 context_compaction_count,
@@ -640,7 +668,9 @@ public sealed class TraceStore
                 $started_at,
                 $last_activity_at,
                 $request_count,
+                $maintenance_fork_request_count,
                 $response_count,
+                $maintenance_fork_response_count,
                 $tool_call_count,
                 $error_count,
                 $context_compaction_count,
@@ -661,7 +691,9 @@ public sealed class TraceStore
                 started_at = excluded.started_at,
                 last_activity_at = excluded.last_activity_at,
                 request_count = excluded.request_count,
+                maintenance_fork_request_count = excluded.maintenance_fork_request_count,
                 response_count = excluded.response_count,
+                maintenance_fork_response_count = excluded.maintenance_fork_response_count,
                 tool_call_count = excluded.tool_call_count,
                 error_count = excluded.error_count,
                 context_compaction_count = excluded.context_compaction_count,
@@ -682,7 +714,9 @@ public sealed class TraceStore
         command.Parameters.AddWithValue("$started_at", session.StartedAt.UtcDateTime.ToString("O"));
         command.Parameters.AddWithValue("$last_activity_at", session.LastActivityAt.UtcDateTime.ToString("O"));
         command.Parameters.AddWithValue("$request_count", session.RequestCount);
+        command.Parameters.AddWithValue("$maintenance_fork_request_count", session.MaintenanceForkRequestCount);
         command.Parameters.AddWithValue("$response_count", session.ResponseCount);
+        command.Parameters.AddWithValue("$maintenance_fork_response_count", session.MaintenanceForkResponseCount);
         command.Parameters.AddWithValue("$tool_call_count", session.ToolCallCount);
         command.Parameters.AddWithValue("$error_count", session.ErrorCount);
         command.Parameters.AddWithValue("$context_compaction_count", session.ContextCompactionCount);
@@ -760,6 +794,8 @@ public sealed class TraceStore
             ContextCompactionCount = session.ContextCompactionCount,
             ThinkingCount = session.ThinkingCount,
             TokenUsageCount = session.TokenUsageCount,
+            MaintenanceForkRequestCount = session.MaintenanceForkRequestCount,
+            MaintenanceForkResponseCount = session.MaintenanceForkResponseCount,
             FinalSystemPrompt = session.FinalSystemPrompt,
             SystemPromptHash = session.SystemPromptHash,
             ToolSchemaHash = session.ToolSchemaHash,
@@ -781,13 +817,253 @@ public sealed class TraceStore
             session.TotalToolDurationMs,
             session.MaxToolDurationMs);
         foreach (var evt in session.Events)
-            clone.Events.Add(evt);
+            clone.Events.Enqueue(evt);
         return clone;
+    }
+
+    private void AddInMemoryEvent(TraceSession session, TraceEvent evt)
+    {
+        if (_maxEventsPerSession <= 0)
+            return;
+
+        session.Events.Enqueue(evt);
+        while (session.Events.Count > _maxEventsPerSession)
+            session.Events.TryDequeue(out _);
+    }
+
+    private TraceEventPage GetEventPageFromDb(
+        string? sessionKey,
+        int limit,
+        string? beforeCursor,
+        IReadOnlyList<TraceEventType>? types)
+    {
+        TryDecodeDbCursor(beforeCursor, out var beforeTimestamp, out var beforeRowId);
+        using var connection = _stateRuntime!.OpenConnection();
+        using var command = connection.CreateCommand();
+        var where = new List<string>();
+        if (!string.IsNullOrWhiteSpace(sessionKey))
+        {
+            where.Add("session_key = $session_key");
+            command.Parameters.AddWithValue("$session_key", sessionKey.Trim());
+        }
+
+        if (!string.IsNullOrWhiteSpace(beforeTimestamp) && beforeRowId.HasValue)
+        {
+            where.Add("(timestamp < $before_timestamp OR (timestamp = $before_timestamp AND id < $before_id))");
+            command.Parameters.AddWithValue("$before_timestamp", beforeTimestamp);
+            command.Parameters.AddWithValue("$before_id", beforeRowId.Value);
+        }
+
+        if (types is { Count: > 0 })
+        {
+            var names = new List<string>(types.Count);
+            for (var i = 0; i < types.Count; i++)
+            {
+                var name = "$type" + i;
+                names.Add(name);
+                command.Parameters.AddWithValue(name, types[i].ToString());
+            }
+
+            where.Add("type IN (" + string.Join(", ", names) + ")");
+        }
+
+        command.Parameters.AddWithValue("$limit", limit + 1);
+        command.CommandText = $"""
+            SELECT id, timestamp, event_json
+            FROM trace_events
+            {(where.Count == 0 ? string.Empty : "WHERE " + string.Join(" AND ", where))}
+            ORDER BY timestamp DESC, id DESC
+            LIMIT $limit
+            """;
+
+        var rows = new List<TraceEventDbRow>(limit + 1);
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            rows.Add(new TraceEventDbRow(
+                reader.GetInt64(0),
+                reader.GetString(1),
+                reader.GetString(2)));
+        }
+
+        var hasMore = rows.Count > limit;
+        var pageRows = rows.Take(limit).ToList();
+        var events = new List<TraceEvent>(pageRows.Count);
+        foreach (var row in pageRows)
+        {
+            try
+            {
+                var evt = JsonSerializer.Deserialize<TraceEvent>(row.EventJson, PersistJsonOptions);
+                if (evt != null)
+                    events.Add(evt);
+            }
+            catch
+            {
+                // Skip corrupted rows.
+            }
+        }
+
+        events.Reverse();
+        var oldestCursor = pageRows.Count == 0
+            ? null
+            : EncodeDbCursor(pageRows[^1].Timestamp, pageRows[^1].RowId);
+        return new TraceEventPage(events, oldestCursor, hasMore);
+    }
+
+    private TraceEventPage GetEventPageFromMemory(
+        string? sessionKey,
+        int limit,
+        string? beforeCursor,
+        IReadOnlyList<TraceEventType>? types)
+    {
+        IEnumerable<TraceEvent> source = string.IsNullOrWhiteSpace(sessionKey)
+            ? _sessions.Values.SelectMany(static session => session.Events)
+            : _sessions.TryGetValue(sessionKey.Trim(), out var session)
+                ? session.Events
+                : [];
+
+        if (types is { Count: > 0 })
+        {
+            var typeSet = types.ToHashSet();
+            source = source.Where(evt => typeSet.Contains(evt.Type));
+        }
+
+        if (TryDecodeMemoryCursor(beforeCursor, out var beforeTicks, out var beforeEventId))
+        {
+            source = source.Where(evt =>
+            {
+                var ticks = evt.Timestamp.UtcDateTime.Ticks;
+                if (ticks < beforeTicks)
+                    return true;
+                if (ticks > beforeTicks)
+                    return false;
+                return string.CompareOrdinal(evt.Id, beforeEventId) < 0;
+            });
+        }
+
+        var rows = source
+            .OrderByDescending(static evt => evt.Timestamp)
+            .ThenByDescending(static evt => evt.Id, StringComparer.Ordinal)
+            .Take(limit + 1)
+            .ToList();
+        var hasMore = rows.Count > limit;
+        var page = rows.Take(limit).ToList();
+        page.Reverse();
+        var oldest = page.FirstOrDefault();
+        return new TraceEventPage(
+            page,
+            oldest == null ? null : EncodeMemoryCursor(oldest),
+            hasMore);
+    }
+
+    private static IReadOnlyList<TraceEventType>? ResolveEventPageFilter(string? filter)
+    {
+        if (string.IsNullOrWhiteSpace(filter) || string.Equals(filter, "all", StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        return filter.Trim().ToLowerInvariant() switch
+        {
+            "request" => [TraceEventType.Request],
+            "response" => [TraceEventType.Response],
+            "thinking" => [TraceEventType.Thinking],
+            "tool" => [
+                TraceEventType.ToolCallStarted,
+                TraceEventType.ToolCallCompleted,
+                TraceEventType.ToolInjection,
+                TraceEventType.DeferredToolLoading
+            ],
+            "maintenance" => [
+                TraceEventType.MaintenanceForkRequest,
+                TraceEventType.MaintenanceForkResponse,
+                TraceEventType.ContextCompaction
+            ],
+            "tokenusage" or "tokens" => [TraceEventType.TokenUsage],
+            "error" => [TraceEventType.Error],
+            _ => Enum.TryParse<TraceEventType>(filter, ignoreCase: true, out var type)
+                ? [type]
+                : null
+        };
+    }
+
+    private static string EncodeDbCursor(string timestamp, long rowId)
+        => "db:" + ToBase64Url($"{timestamp}|{rowId}");
+
+    private static bool TryDecodeDbCursor(string? cursor, out string? timestamp, out long? rowId)
+    {
+        timestamp = null;
+        rowId = null;
+        if (string.IsNullOrWhiteSpace(cursor) || !cursor.StartsWith("db:", StringComparison.Ordinal))
+            return false;
+
+        if (!TryFromBase64Url(cursor[3..], out var decoded))
+            return false;
+        var separator = decoded.LastIndexOf('|');
+        if (separator <= 0 || separator >= decoded.Length - 1)
+            return false;
+
+        if (!long.TryParse(decoded[(separator + 1)..], out var parsedRowId))
+            return false;
+
+        timestamp = decoded[..separator];
+        rowId = parsedRowId;
+        return true;
+    }
+
+    private static string EncodeMemoryCursor(TraceEvent evt)
+        => "mem:" + ToBase64Url($"{evt.Timestamp.UtcDateTime.Ticks}|{evt.Id}");
+
+    private static bool TryDecodeMemoryCursor(string? cursor, out long ticks, out string eventId)
+    {
+        ticks = 0;
+        eventId = string.Empty;
+        if (string.IsNullOrWhiteSpace(cursor) || !cursor.StartsWith("mem:", StringComparison.Ordinal))
+            return false;
+
+        if (!TryFromBase64Url(cursor[4..], out var decoded))
+            return false;
+        var separator = decoded.IndexOf('|');
+        if (separator <= 0 || separator >= decoded.Length - 1)
+            return false;
+
+        if (!long.TryParse(decoded[..separator], out ticks))
+            return false;
+
+        eventId = decoded[(separator + 1)..];
+        return true;
+    }
+
+    private static string ToBase64Url(string value)
+        => Convert.ToBase64String(Encoding.UTF8.GetBytes(value))
+            .TrimEnd('=')
+            .Replace('+', '-')
+            .Replace('/', '_');
+
+    private static bool TryFromBase64Url(string value, out string decoded)
+    {
+        decoded = string.Empty;
+        try
+        {
+            var base64 = value.Replace('-', '+').Replace('_', '/');
+            base64 = base64.PadRight(base64.Length + (4 - base64.Length % 4) % 4, '=');
+            decoded = Encoding.UTF8.GetString(Convert.FromBase64String(base64));
+            return true;
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
     }
 
     private static string SanitizeFileName(string value)
         => string.Concat(value.Split(Path.GetInvalidFileNameChars()));
+
+    private sealed record TraceEventDbRow(long RowId, string Timestamp, string EventJson);
 }
+
+public sealed record TraceEventPage(
+    IReadOnlyList<TraceEvent> Events,
+    string? OldestCursor,
+    bool HasMore);
 
 public sealed class TraceSummary
 {
@@ -795,7 +1071,11 @@ public sealed class TraceSummary
 
     public int TotalRequests { get; init; }
 
+    public int TotalMaintenanceForkRequests { get; init; }
+
     public int TotalResponses { get; init; }
+
+    public int TotalMaintenanceForkResponses { get; init; }
 
     public int TotalToolCalls { get; init; }
 

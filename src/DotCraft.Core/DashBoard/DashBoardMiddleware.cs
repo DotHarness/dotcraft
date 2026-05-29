@@ -146,7 +146,9 @@ public static class DashBoardMiddleware
                     s.CacheHitRate,
                     totalTokens = s.TotalInputTokens + s.TotalOutputTokens,
                     s.RequestCount,
+                    s.MaintenanceForkRequestCount,
                     s.ResponseCount,
+                    s.MaintenanceForkResponseCount,
                     s.ToolCallCount,
                     s.ErrorCount,
                     s.ContextCompactionCount,
@@ -177,6 +179,28 @@ public static class DashBoardMiddleware
             RefreshTraceFromDiskIfEnabled();
             var events = traceStore.GetEvents(sessionKey);
             return Results.Json(events, JsonOptions);
+        });
+
+        endpoints.MapGet("/dashboard/api/events/page", (HttpContext http) =>
+        {
+            RefreshTraceFromDiskIfEnabled();
+            var page = traceStore.GetEventPage(
+                sessionKey: null,
+                limit: ParseIntQuery(http, "limit", 1000),
+                beforeCursor: ReadQuery(http, "beforeCursor") ?? ReadQuery(http, "before"),
+                filter: ReadQuery(http, "filter"));
+            return Results.Json(page, JsonOptions);
+        });
+
+        endpoints.MapGet("/dashboard/api/sessions/{sessionKey}/events/page", (HttpContext http, string sessionKey) =>
+        {
+            RefreshTraceFromDiskIfEnabled();
+            var page = traceStore.GetEventPage(
+                sessionKey,
+                ParseIntQuery(http, "limit", 1000),
+                ReadQuery(http, "beforeCursor") ?? ReadQuery(http, "before"),
+                ReadQuery(http, "filter"));
+            return Results.Json(page, JsonOptions);
         });
 
         var capturedHandler = sessionHandler;
@@ -470,6 +494,18 @@ public static class DashBoardMiddleware
                 logger?.LogDebug("Dashboard SSE client disconnected");
             }
         });
+    }
+
+    private static string? ReadQuery(HttpContext http, string name)
+    {
+        var value = http.Request.Query[name].ToString();
+        return string.IsNullOrWhiteSpace(value) ? null : value;
+    }
+
+    private static int ParseIntQuery(HttpContext http, string name, int defaultValue)
+    {
+        var value = http.Request.Query[name].ToString();
+        return int.TryParse(value, out var parsed) ? parsed : defaultValue;
     }
 
     private static JsonNode MergeNodes(JsonNode baseNode, JsonNode overrideNode)

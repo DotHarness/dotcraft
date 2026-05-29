@@ -71,6 +71,49 @@ public sealed class OpenAIResponsesClientMetadataPipelinePolicyTests
     }
 
     [Fact]
+    public void DoesNotOverwriteExistingInstallationIdButCanonicalizesDuplicateTopLevelKeys()
+    {
+        var existingId = "22222222-2222-4222-8222-222222222222";
+        var original = """
+            {
+              "model": "gpt-test",
+              "input": [],
+              "client_metadata": {
+                "x-codex-installation-id": "22222222-2222-4222-8222-222222222222"
+              },
+              "input": [
+                {
+                  "type": "message",
+                  "role": "user",
+                  "content": [
+                    {
+                      "type": "input_text",
+                      "text": "hello"
+                    }
+                  ]
+                }
+              ]
+            }
+            """;
+
+        var rewritten = OpenAIResponsesClientMetadataPipelinePolicy.AddInstallationIdMetadata(
+            original,
+            InstallationId);
+
+        Assert.NotNull(rewritten);
+        using var document = JsonDocument.Parse(rewritten!);
+        Assert.Equal(1, document.RootElement.EnumerateObject().Count(prop => prop.Name == "input"));
+        Assert.Equal(
+            existingId,
+            document.RootElement
+                .GetProperty("client_metadata")
+                .GetProperty("x-codex-installation-id")
+                .GetString());
+        var input = Assert.Single(document.RootElement.GetProperty("input").EnumerateArray());
+        Assert.Equal("hello", input.GetProperty("content")[0].GetProperty("text").GetString());
+    }
+
+    [Fact]
     public void ReturnsNullOnMalformedJson()
     {
         Assert.Null(OpenAIResponsesClientMetadataPipelinePolicy.AddInstallationIdMetadata(

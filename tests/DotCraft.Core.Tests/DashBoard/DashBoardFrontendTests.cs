@@ -28,4 +28,17 @@ public sealed class DashBoardFrontendTests
         Assert.Contains("id=\"navTabSettings\"", html);
         Assert.Contains("id=\"clearAllSessionsBtn\"", html);
     }
+
+    [Fact]
+    public void Html_UsesPagedTraceLoading()
+    {
+        var html = DashBoardFrontend.GetHtml();
+
+        Assert.Contains("TRACE_PAGE_LIMIT = 1000", html);
+        Assert.Contains("/events/page", html);
+        Assert.Contains("/events/page'", html);
+        Assert.Contains("beforeCursor", html);
+        Assert.Contains("handleTraceScroll", html);
+        Assert.Contains("loadOlderTraceEvents", html);
+    }
 }

@@ -85,6 +85,78 @@ public sealed class StateBackedStoreTests : IDisposable
     }
 
     [Fact]
+    public void TraceStore_PageQuery_Returns_Latest_StateDb_Events_Beyond_InMemory_Cap()
+    {
+        var writer = new TraceStore(_tracingPath, 5000, true, _stateRuntime);
+        var startedAt = new DateTimeOffset(2026, 5, 29, 1, 0, 0, TimeSpan.Zero);
+        for (var i = 0; i < 5005; i++)
+        {
+            writer.Record(new TraceEvent
+            {
+                SessionKey = "thread-page",
+                Type = TraceEventType.Request,
+                Content = "request-" + i,
+                Timestamp = startedAt.AddSeconds(i)
+            });
+        }
+
+        writer.Record(new TraceEvent
+        {
+            SessionKey = "thread-page",
+            Type = TraceEventType.MaintenanceForkRequest,
+            Content = "latest maintenance",
+            Timestamp = startedAt.AddSeconds(6000)
+        });
+
+        var reader = new TraceStore(_tracingPath, 5000, false, _stateRuntime);
+        reader.LoadFromDisk();
+
+        Assert.Equal(5000, reader.GetEvents("thread-page").Count);
+        Assert.DoesNotContain(reader.GetEvents("thread-page"), evt => evt.Content == "request-0");
+        Assert.Contains(reader.GetEvents("thread-page"), evt => evt.Content == "latest maintenance");
+
+        var firstPage = reader.GetEventPage("thread-page", limit: 1000);
+        Assert.Equal(1000, firstPage.Events.Count);
+        Assert.True(firstPage.HasMore);
+        Assert.Equal("latest maintenance", firstPage.Events[^1].Content);
+        Assert.NotNull(firstPage.OldestCursor);
+
+        var secondPage = reader.GetEventPage("thread-page", limit: 1000, beforeCursor: firstPage.OldestCursor);
+        Assert.Equal(1000, secondPage.Events.Count);
+        Assert.DoesNotContain(
+            secondPage.Events.Select(static evt => evt.Id),
+            id => firstPage.Events.Any(evt => evt.Id == id));
+
+        var maintenancePage = reader.GetEventPage("thread-page", limit: 1000, filter: "Maintenance");
+        var maintenance = Assert.Single(maintenancePage.Events);
+        Assert.Equal(TraceEventType.MaintenanceForkRequest, maintenance.Type);
+        Assert.Equal("latest maintenance", maintenance.Content);
+    }
+
+    [Fact]
+    public void TraceStore_Counts_MaintenanceFork_Separately_From_Normal_Request_Response()
+    {
+        var store = new TraceStore(_tracingPath, 5000, true, _stateRuntime);
+        store.Record(new TraceEvent { SessionKey = "thread-maint", Type = TraceEventType.Request, Content = "user" });
+        store.Record(new TraceEvent { SessionKey = "thread-maint", Type = TraceEventType.MaintenanceForkRequest, Content = "maint request" });
+        store.Record(new TraceEvent { SessionKey = "thread-maint", Type = TraceEventType.Response, Content = "assistant" });
+        store.Record(new TraceEvent { SessionKey = "thread-maint", Type = TraceEventType.MaintenanceForkResponse, Content = "maint response" });
+
+        var session = store.GetSession("thread-maint");
+        Assert.NotNull(session);
+        Assert.Equal(1, session.RequestCount);
+        Assert.Equal(1, session.ResponseCount);
+        Assert.Equal(1, session.MaintenanceForkRequestCount);
+        Assert.Equal(1, session.MaintenanceForkResponseCount);
+
+        var summary = store.GetSummary();
+        Assert.Equal(1, summary.TotalRequests);
+        Assert.Equal(1, summary.TotalResponses);
+        Assert.Equal(1, summary.TotalMaintenanceForkRequests);
+        Assert.Equal(1, summary.TotalMaintenanceForkResponses);
+    }
+
+    [Fact]
     public void TraceStore_Captures_FirstUserRequest_And_Does_Not_Overwrite_It()
     {
         var writer = new TraceStore(_tracingPath, 5000, false, _stateRuntime);

@@ -62,6 +62,8 @@ If short-term compaction has already replaced older history with summaries, clea
 
 When consolidation is implemented as a same-model maintenance fork, DotCraft may preserve the full model-visible tool schema from the active agent request so provider prompt-cache shape remains stable. Tool-schema stability is not the security boundary. The execution layer must enforce a consolidation-specific policy that rejects all tool calls except scoped file reads, searches, writes, and edits for the memory files described below.
 
+Maintenance forks keep provider-facing cache identity attached to the active thread id, but they may use a fork-local internal prompt-cache state path. This lets a tool-executing consolidation fork reuse the main conversation's stable prefix while advancing its own task/tool-result tail breakpoints across continuation calls. The fork-local state path must not change `prompt_cache_key`, OAuth `session-id` / `thread-id`, or dashboard trace session ownership.
+
 ## 5. Persistence Contract
 
 Consolidation writes two memory layers:
@@ -104,6 +106,8 @@ Memory consolidation emits transient `system/event` notifications so clients can
 On `consolidated`, Session Core also persists a `SystemNotice` item with `kind = "memoryConsolidated"` into the completed Turn and broadcasts `item/started` + `item/completed` through the thread event broker. This gives Desktop and other timeline clients a durable divider that survives thread reloads. Skipped and failed attempts do not create persistent conversation items.
 
 Manual consolidation uses thread-scoped `system/event` notifications because there is no active turn-scoped event channel. It still emits `consolidating` before running and one terminal event after completion. Thread-scoped `consolidating` represents blocking thread maintenance and should put clients into queued-input mode. On success, the `memoryConsolidated` notice is appended to the latest completed Turn.
+
+Dashboard trace events for same-model forks are recorded under the active thread trace session. `MaintenanceForkRequest` and `MaintenanceForkResponse` are maintenance envelope events and must be counted separately from normal LLM `Request` / `Response` events. Detailed tool-loop calls and token usage emitted by the trace collector remain in the same trace session so the dashboard can correlate the fork envelope with the underlying collector events.
 
 ## 8. Configuration
 

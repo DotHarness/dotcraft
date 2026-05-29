@@ -126,6 +126,7 @@ Breakpoint placement contract:
 
 1. **System prompt** — marked at the end of the system message so the entire system prompt is cached as one segment.
 2. **Snapshot prefix** — marked at the last message of a captured snapshot so successive maintenance forks reuse the snapshot segment.
+3. **Maintenance fork tail** — when a maintenance fork performs multiple LLM calls, the fork keeps an internal cache-state path separate from the main conversation so tool-loop tails can advance their own remembered breakpoints without overwriting the main thread's remembered points.
 
 The cache write that produced a segment counts as `cache_write_input_tokens` on that call and as `cached_input_tokens` on subsequent calls; both fields surface in trace.
 
@@ -143,6 +144,7 @@ These rules apply to every protocol unless the protocol contract above explicitl
 4. **Reasoning items round-trip verbatim.** When a model emits a reasoning item with `encrypted_content`, the next request must pass that exact blob back. Decrypting and re-encrypting, dropping the field, or normalising whitespace inside it all break the cache.
 5. **Thread id is the cache identity.** Wherever a provider exposes a cache key (`prompt_cache_key`, `session-id`, `thread-id`, etc.), it MUST be populated from the active thread id. Different threads MUST NOT share a cache key, and the same thread MUST reuse the same key across maintenance forks, subagent turns, and reactive recovery paths.
 6. **One canonical body per request.** Wire bodies must not contain duplicate top-level JSON keys. Downstream policies and inspectors are allowed to assume the body parses cleanly into a flat object.
+7. **Internal cache state may be narrower than provider identity.** DotCraft may track remembered prompt-cache breakpoints under an internal state key such as `thread:<id>:maintenance:<kind>:<run>` so maintenance forks and the main conversation do not overwrite each other's breakpoint history. This internal state key MUST NOT replace provider-visible cache identity; Responses `prompt_cache_key`, OAuth `session-id` / `thread-id`, and trace session ownership still use the active thread id.
 
 ---
 
