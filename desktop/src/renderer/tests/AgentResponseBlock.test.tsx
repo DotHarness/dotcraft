@@ -1687,7 +1687,7 @@ describe('AgentResponseBlock historical tool trimming', () => {
     })
   })
 
-  it('collapses historical tool details while preserving plans and assistant text', () => {
+  it('hides historical tool details and artifacts while preserving plans and assistant text', () => {
     useConversationStore.setState({
       workspacePath: 'F:/workspace',
       changedFiles: new Map([
@@ -1794,9 +1794,12 @@ describe('AgentResponseBlock historical tool trimming', () => {
     fireEvent.click(processedSummary)
 
     expect(screen.getByText('Thought 2s')).toBeInTheDocument()
-    expect(screen.getByText('Read main.ts')).toBeInTheDocument()
-    expect(screen.getByText(/Ran npm test/)).toBeInTheDocument()
-    expect(screen.queryByText(/file changed/)).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /Thought 2s/ }))
+    expect(screen.getByText('private reasoning')).toBeInTheDocument()
+    expect(screen.queryByText('Read main.ts')).toBeNull()
+    expect(screen.queryByText(/Ran npm test/)).toBeNull()
+    expect(screen.queryByText(/Shell/)).toBeNull()
+    expect(screen.queryByText('raw tool result')).toBeNull()
   })
 })
 

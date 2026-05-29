@@ -1,54 +1,51 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronDown, ChevronRight, GitBranch, GitCommit, Loader2, Sparkles, X } from 'lucide-react'
+import { ChevronDown, ChevronRight, GitBranch, GitCommitHorizontal, X } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
-import { useConnectionStore } from '../../stores/connectionStore'
-import { addToast } from '../../stores/toastStore'
-import { ActionTooltip } from '../ui/ActionTooltip'
 
 interface CommitDialogProps {
   workspacePath: string
-  threadId: string
+  /**
+   * Hands the (possibly empty) message off to the owner. The owner runs the
+   * async commit + toast lifecycle so it survives this dialog unmounting; the
+   * dialog never sits in a committing/generating state. Spec §16.5.
+   */
+  onCommit: (message: string) => void
   onClose: () => void
 }
 
 /**
- * Modal dialog for staging and committing file changes to git.
- * Lists only non-reverted (written) files; commit message is pre-populated.
- * Spec §16.5.
+ * Frameless modal for staging and committing written file changes to git.
+ * Collects an optional commit message (blank = autogenerate) and the branch /
+ * change summary, then hands off to the owner and closes. Spec §16.5.
  */
-export function CommitDialog({ workspacePath, threadId, onClose }: CommitDialogProps): JSX.Element {
+export function CommitDialog({ workspacePath, onCommit, onClose }: CommitDialogProps): JSX.Element {
   const t = useT()
   const changedFiles = useConversationStore((s) => s.changedFiles)
-  const turns = useConversationStore((s) => s.turns)
-  const connectionStatus = useConnectionStore((s) => s.status)
-  const isConnected = connectionStatus === 'connected'
 
   const allFiles = Array.from(changedFiles.values())
   const writtenFiles = allFiles.filter((f) => f.status === 'written')
   const revertedCount = allFiles.length - writtenFiles.length
 
-  const [message, setMessage] = useState(() => generateCommitMessage(turns))
-  const [committing, setCommitting] = useState(false)
-  const [generating, setGenerating] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState(false)
+  const [message, setMessage] = useState('')
   const [branch, setBranch] = useState<string | null>(null)
   const [filesExpanded, setFilesExpanded] = useState(false)
+  const [focused, setFocused] = useState(false)
   const messageRef = useRef<HTMLTextAreaElement>(null)
   const totalAdditions = writtenFiles.reduce((sum, file) => sum + file.additions, 0)
   const totalDeletions = writtenFiles.reduce((sum, file) => sum + file.deletions, 0)
+  const hasFiles = writtenFiles.length > 0
 
   useEffect(() => {
     messageRef.current?.focus()
 
     function handleKeyDown(e: KeyboardEvent): void {
-      if (e.key === 'Escape' && !committing && !generating) onClose()
+      if (e.key === 'Escape') onClose()
     }
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [committing, generating, onClose])
+  }, [onClose])
 
   useEffect(() => {
     let cancelled = false
@@ -69,72 +66,11 @@ export function CommitDialog({ workspacePath, threadId, onClose }: CommitDialogP
     }
   }, [workspacePath])
 
-  async function suggestFromChanges(options?: { applyToEditor?: boolean; showToastOnSuccess?: boolean }): Promise<string | null> {
-    if (!isConnected || writtenFiles.length === 0 || !threadId.trim()) return null
-    const applyToEditor = options?.applyToEditor ?? true
-    const showToastOnSuccess = options?.showToastOnSuccess ?? true
-    setGenerating(true)
-    setError(null)
-    try {
-      const paths = writtenFiles.map((f) => toRelativePath(f.filePath, workspacePath))
-      const result = (await window.api.appServer.sendRequest(
-        'workspace/commitMessage/suggest',
-        {
-          threadId,
-          paths
-        },
-        120_000
-      )) as { message?: string }
-      if (result?.message?.trim()) {
-        const nextMessage = result.message.trim()
-        if (applyToEditor) setMessage(nextMessage)
-        if (showToastOnSuccess) addToast(t('commit.toast.generated'), 'success')
-        return nextMessage
-      } else {
-        setError(t('commit.error.emptyServer'))
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      setError(msg)
-      addToast(t('commit.toast.generateFailed', { error: msg }), 'error')
-      return null
-    } finally {
-      setGenerating(false)
-    }
-    return null
-  }
-
-  async function handleSuggestFromChanges(): Promise<void> {
-    await suggestFromChanges({ applyToEditor: true, showToastOnSuccess: true })
-  }
-
-  async function handleSubmit(): Promise<void> {
-    if (writtenFiles.length === 0 || committing || generating || success) return
-    setCommitting(true)
-    setError(null)
-    try {
-      let commitMessage = message.trim()
-      if (!commitMessage) {
-        addToast(t('commit.autoGeneratingBeforeCommit'), 'success')
-        const generated = await suggestFromChanges({
-          applyToEditor: true,
-          showToastOnSuccess: false
-        })
-        if (!generated) {
-          setCommitting(false)
-          return
-        }
-        commitMessage = generated
-      }
-      const filePaths = writtenFiles.map((f) => f.filePath)
-      await window.api.git.commit(workspacePath, filePaths, commitMessage)
-      setSuccess(true)
-      addToast(t('commit.toast.done', { line: commitMessage.split('\n')[0] }), 'success')
-      setTimeout(onClose, 1200)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-      setCommitting(false)
-    }
+  function handleSubmit(): void {
+    if (!hasFiles) return
+    // Hand off and leave immediately — the owner runs the commit via toasts.
+    onCommit(message.trim())
+    onClose()
   }
 
   const dialog = (
@@ -152,138 +88,126 @@ export function CommitDialog({ workspacePath, threadId, onClose }: CommitDialogP
         backgroundColor: 'var(--overlay-scrim)'
       }}
       onMouseDown={(e) => {
-        if (e.target === e.currentTarget && !committing && !generating) onClose()
+        if (e.target === e.currentTarget) onClose()
       }}
     >
       <div
         style={{
           backgroundColor: 'var(--bg-secondary)',
-          borderRadius: '10px',
+          borderRadius: '16px',
           boxShadow: 'var(--shadow-level-3)',
-          padding: '24px',
-          width: '480px',
+          padding: '18px 24px 22px',
+          width: '440px',
           maxWidth: 'calc(100vw - 48px)',
           maxHeight: 'calc(100vh - 96px)',
           overflow: 'auto'
         }}
         onMouseDown={(e) => e.stopPropagation()}
       >
+        {/* Header: bare git-commit node icon + borderless close */}
         <div
           style={{
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'space-between',
-            marginBottom: '10px'
+            justifyContent: 'space-between'
           }}
         >
-          <div
+          <span
             style={{
-              width: '30px',
-              height: '30px',
-              borderRadius: '8px',
-              border: '1px solid var(--border-default)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               color: 'var(--text-primary)'
             }}
           >
-            <GitCommit size={16} />
-          </div>
+            <GitCommitHorizontal size={20} aria-hidden="true" />
+          </span>
           <button
             type="button"
             aria-label={t('commit.close')}
             onClick={onClose}
-            disabled={committing || generating}
             style={{
-              width: '28px',
-              height: '28px',
-              borderRadius: '6px',
-              border: '1px solid var(--border-default)',
+              width: '30px',
+              height: '30px',
+              borderRadius: '8px',
+              border: 'none',
               background: 'transparent',
               color: 'var(--text-secondary)',
-              cursor: committing || generating ? 'default' : 'pointer',
-              opacity: committing || generating ? 0.5 : 1,
+              cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center'
+              justifyContent: 'center',
+              transition: 'background-color 100ms ease, color 100ms ease'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'
+              e.currentTarget.style.color = 'var(--text-primary)'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'transparent'
+              e.currentTarget.style.color = 'var(--text-secondary)'
             }}
           >
-            <X size={14} />
+            <X size={16} />
           </button>
         </div>
 
         <h2
           style={{
-            margin: '0 0 16px',
-            fontSize: '17px',
+            margin: '14px 0',
+            fontSize: '24px',
             fontWeight: 600,
+            letterSpacing: '-0.01em',
             color: 'var(--text-primary)'
           }}
         >
           {t('commit.title')}
         </h2>
 
-        <div
-          style={{
-            border: '1px solid var(--border-default)',
-            borderRadius: '8px',
-            marginBottom: '12px'
-          }}
-        >
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              padding: '10px 12px',
-              borderBottom: '1px solid var(--border-default)',
-              fontSize: '12px'
-            }}
-          >
-            <span style={{ color: 'var(--text-secondary)' }}>{t('commit.branchLabel')}</span>
-            <span style={{ color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px', fontFamily: 'var(--font-mono)' }}>
-              <GitBranch size={14} />
-              {branch || t('commit.detachedHead')}
-            </span>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setFilesExpanded((v) => !v)}
-            aria-label={filesExpanded ? t('commit.collapseFiles') : t('commit.expandFiles')}
-            style={{
-              width: '100%',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              padding: '10px 12px',
-              border: 'none',
-              borderRadius: 0,
-              background: 'transparent',
-              fontSize: '12px',
-              cursor: 'pointer'
-            }}
-          >
-            <span style={{ color: 'var(--text-secondary)' }}>{t('commit.changesLabel')}</span>
-            <span style={{ color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px', fontFamily: 'var(--font-mono)' }}>
-              <span>{t('commit.changesSummary', { files: writtenFiles.length })}</span>
-              <span style={{ color: 'var(--success)' }}>+{totalAdditions}</span>
-              <span style={{ color: 'var(--error)' }}>-{totalDeletions}</span>
-              {filesExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-            </span>
-          </button>
+        {/* Frameless info rows */}
+        <div style={infoRowStyle}>
+          <span style={infoLabelStyle}>{t('commit.branchLabel')}</span>
+          <span style={infoValueStyle}>
+            <GitBranch size={14} />
+            {branch || t('commit.detachedHead')}
+          </span>
         </div>
 
+        <button
+          type="button"
+          onClick={() => setFilesExpanded((v) => !v)}
+          aria-label={filesExpanded ? t('commit.collapseFiles') : t('commit.expandFiles')}
+          style={{
+            ...infoRowStyle,
+            width: '100%',
+            border: 'none',
+            background: 'transparent',
+            cursor: 'pointer',
+            textAlign: 'left',
+            fontFamily: 'inherit'
+          }}
+        >
+          <span style={infoLabelStyle}>{t('commit.changesLabel')}</span>
+          <span style={{ ...infoValueStyle, gap: '8px' }}>
+            <span>{t('commit.changesSummary', { files: writtenFiles.length })}</span>
+            <span style={{ color: 'var(--success)' }}>+{totalAdditions}</span>
+            <span style={{ color: 'var(--error)' }}>-{totalDeletions}</span>
+            {filesExpanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+          </span>
+        </button>
+
         {filesExpanded && (
-          <>
-            <div
-              style={{
-                fontSize: '12px',
-                color: 'var(--text-secondary)',
-                marginBottom: '6px'
-              }}
-            >
+          <div
+            style={{
+              background: 'var(--bg-primary)',
+              borderRadius: '10px',
+              padding: '2px 4px',
+              margin: '2px 0 4px',
+              maxHeight: '180px',
+              overflowY: 'auto'
+            }}
+          >
+            <div style={{ fontSize: '11px', color: 'var(--text-secondary)', padding: '6px 8px 2px' }}>
               {t('commit.filesHeader', {
                 written: writtenFiles.length,
                 all: allFiles.length,
@@ -291,207 +215,106 @@ export function CommitDialog({ workspacePath, threadId, onClose }: CommitDialogP
                   revertedCount > 0 ? t('commit.revertedSuffix', { count: revertedCount }) : ''
               })}
             </div>
-
-            <div
-              style={{
-                border: '1px solid var(--border-default)',
-                borderRadius: '6px',
-                overflow: 'hidden',
-                marginBottom: '16px',
-                maxHeight: '200px',
-                overflowY: 'auto'
-              }}
-            >
-              {writtenFiles.map((file, idx) => (
-                <div
-                  key={file.filePath}
+            {writtenFiles.map((file, idx) => (
+              <div
+                key={file.filePath}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '6px 8px',
+                  borderTop: idx === 0 ? 'none' : '1px solid var(--glass-border)',
+                  fontSize: '12px'
+                }}
+              >
+                <span
                   style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    padding: '5px 10px',
-                    borderBottom: idx < writtenFiles.length - 1 ? '1px solid var(--border-default)' : 'none',
-                    fontSize: '12px'
+                    width: '7px',
+                    height: '7px',
+                    borderRadius: '50%',
+                    background: 'var(--info)',
+                    flexShrink: 0
+                  }}
+                />
+                <span
+                  style={{
+                    flex: 1,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    fontFamily: 'var(--font-mono)',
+                    color: 'var(--text-primary)'
                   }}
                 >
-                  <span
-                    style={{
-                      width: '7px',
-                      height: '7px',
-                      borderRadius: '50%',
-                      background: 'var(--info)',
-                      flexShrink: 0
-                    }}
-                  />
-                  <span
-                    style={{
-                      flex: 1,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                      fontFamily: 'var(--font-mono)',
-                      color: 'var(--text-primary)'
-                    }}
-                  >
-                    {toRelativePath(file.filePath, workspacePath)}
-                  </span>
-                  <span style={{ display: 'flex', gap: '4px', fontFamily: 'var(--font-mono)', fontSize: '11px', flexShrink: 0 }}>
-                    {file.additions > 0 && <span style={{ color: 'var(--success)' }}>+{file.additions}</span>}
-                    {file.deletions > 0 && <span style={{ color: 'var(--error)' }}>-{file.deletions}</span>}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </>
+                  {toRelativePath(file.filePath, workspacePath)}
+                </span>
+                <span style={{ display: 'flex', gap: '5px', fontFamily: 'var(--font-mono)', fontSize: '11px', flexShrink: 0 }}>
+                  {file.additions > 0 && <span style={{ color: 'var(--success)' }}>+{file.additions}</span>}
+                  {file.deletions > 0 && <span style={{ color: 'var(--error)' }}>-{file.deletions}</span>}
+                </span>
+              </div>
+            ))}
+          </div>
         )}
 
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '8px',
-            marginBottom: '6px'
-          }}
-        >
-          <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{t('commit.messageLabel')}</span>
-          <ActionTooltip
-            label={t('commit.generateTitle.connected')}
-            disabledReason={
-              !isConnected
-                ? t('commit.generateTitle.disconnected')
-                : writtenFiles.length === 0
-                  ? t('commit.generateTitle.noFiles')
-                  : undefined
-            }
-            placement="top"
-          >
-            <button
-              type="button"
-              onClick={() => {
-                void handleSuggestFromChanges()
-              }}
-              disabled={
-                generating ||
-                committing ||
-                success ||
-                !isConnected ||
-                writtenFiles.length === 0 ||
-                !threadId.trim()
-              }
-              aria-label={t('commit.generateButton')}
-              style={{
-              width: '28px',
-              height: '28px',
-              borderRadius: '6px',
-              border: '1px solid var(--border-default)',
-              backgroundColor: 'transparent',
-              color: 'var(--text-primary)',
-              cursor:
-                generating || committing || success || !isConnected || writtenFiles.length === 0 || !threadId.trim()
-                  ? 'default'
-                  : 'pointer',
-              opacity:
-                generating || committing || success || !isConnected || writtenFiles.length === 0 || !threadId.trim() ? 0.5 : 1,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0
-            }}
-          >
-            {generating
-              ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
-              : <Sparkles size={14} />}
-            </button>
-          </ActionTooltip>
+        <div style={{ margin: '12px 0 6px', fontSize: '12px', color: 'var(--text-secondary)' }}>
+          {t('commit.messageLabel')}
         </div>
 
         <textarea
           ref={messageRef}
           value={message}
           onChange={(e) => setMessage(e.target.value)}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
           onKeyDown={(e) => {
             if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
               e.preventDefault()
-              void handleSubmit()
+              handleSubmit()
             }
           }}
-          disabled={committing || success || generating}
           rows={3}
           style={{
             width: '100%',
             boxSizing: 'border-box',
-            padding: '8px 10px',
+            padding: '10px 12px',
             fontSize: '13px',
-            borderRadius: '6px',
-            border: '1px solid var(--border-default)',
+            borderRadius: '10px',
+            border: `1px solid ${focused ? 'var(--accent)' : 'transparent'}`,
             background: 'var(--bg-primary)',
             color: 'var(--text-primary)',
             resize: 'vertical',
             outline: 'none',
-            marginBottom: '8px',
             fontFamily: 'inherit',
-            lineHeight: 1.5
+            lineHeight: 1.5,
+            transition: 'border-color 120ms ease'
           }}
           placeholder={t('commit.placeholderAuto')}
         />
 
-        <style>
-          {`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}
-        </style>
-
-        {error && (
-          <div
-            style={{
-              padding: '8px 10px',
-              borderRadius: '6px',
-              background: 'var(--error-bg, rgba(255,80,80,0.1))',
-              border: '1px solid var(--error)',
-              color: 'var(--error)',
-              fontSize: '12px',
-              marginBottom: '12px',
-              whiteSpace: 'pre-wrap',
-              wordBreak: 'break-word'
-            }}
-          >
-            {error}
-          </div>
-        )}
-
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
           <button
-            onClick={() => { void handleSubmit() }}
-            disabled={
-              generating ||
-              committing ||
-              success ||
-              writtenFiles.length === 0
-            }
+            type="button"
+            onClick={handleSubmit}
+            disabled={!hasFiles}
             style={{
-              padding: '7px 16px',
-              border: 'none',
-              borderRadius: '6px',
-              backgroundColor: 'var(--accent)',
-              color: 'var(--on-accent)',
+              padding: '8px 18px',
+              border: '1px solid var(--text-primary)',
+              borderRadius: '9px',
+              backgroundColor: 'var(--text-primary)',
+              color: 'var(--bg-primary)',
               fontSize: '13px',
-              fontWeight: 500,
-              display: 'flex',
+              fontWeight: 600,
+              display: 'inline-flex',
               alignItems: 'center',
-              gap: '6px',
-              cursor:
-                generating || committing || success || writtenFiles.length === 0 ? 'default' : 'pointer',
-              opacity:
-                generating || committing || success || writtenFiles.length === 0 ? 0.6 : 1
+              justifyContent: 'center',
+              gap: '7px',
+              cursor: hasFiles ? 'pointer' : 'default',
+              opacity: hasFiles ? 1 : 0.5
             }}
           >
-            <GitCommit size={14} />
-            {success
-              ? t('commit.success')
-              : committing
-                ? t('commit.committing')
-                : generating
-                  ? t('commit.generating')
-                  : t('commit.button')}
+            <GitCommitHorizontal size={16} />
+            {t('commit.button')}
           </button>
         </div>
       </div>
@@ -501,28 +324,30 @@ export function CommitDialog({ workspacePath, threadId, onClose }: CommitDialogP
   return createPortal(dialog, document.body) as JSX.Element
 }
 
-function toRelativePath(filePath: string, workspacePath: string): string {
+const infoRowStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  padding: '9px 2px',
+  fontSize: '13px'
+}
+
+const infoLabelStyle: React.CSSProperties = {
+  color: 'var(--text-secondary)'
+}
+
+const infoValueStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '6px',
+  color: 'var(--text-primary)',
+  fontFamily: 'var(--font-mono)'
+}
+
+export function toRelativePath(filePath: string, workspacePath: string): string {
   if (!workspacePath) return filePath
   const ws = workspacePath.replace(/\\/g, '/').replace(/\/$/, '')
   const fp = filePath.replace(/\\/g, '/')
   if (fp.startsWith(ws + '/')) return fp.slice(ws.length + 1)
   return filePath
 }
-
-function generateCommitMessage(turns: ReturnType<typeof useConversationStore.getState>['turns']): string {
-  // Try to get the last agent message as a commit message suggestion
-  for (let i = turns.length - 1; i >= 0; i--) {
-    const turn = turns[i]
-    for (let j = turn.items.length - 1; j >= 0; j--) {
-      const item = turn.items[j]
-      if (item.type === 'agentMessage' && item.text) {
-        // Take first 72 chars of first non-empty line
-        const firstLine = item.text.split('\n').find((l) => l.trim().length > 0) ?? ''
-        const cleaned = firstLine.replace(/^[#*\->\s]+/, '').trim()
-        if (cleaned) return cleaned.slice(0, 72)
-      }
-    }
-  }
-  return ''
-}
-

@@ -37,8 +37,8 @@
   --color-error: #ef4444;
   --color-info: #3b82f6;
 
-  /* Message backgrounds */
-  --color-user-message-bg: #1E2A35;
+  /* Message backgrounds (neutral surface, one step above bg-primary) */
+  --color-user-message-bg: #2a2a2a;
 
   /* Diff colors */
   --color-diff-add-bg: rgba(34, 197, 94, 0.15);
@@ -102,8 +102,8 @@
   --error: #ef4444;
   --info: #3b82f6;
 
-  /* Message backgrounds */
-  --user-message-bg: #1E2A35;
+  /* Message backgrounds (neutral surface, one step above bg-primary) */
+  --user-message-bg: #2a2a2a;
 
   /* Diff */
   --diff-add-bg: rgba(34, 197, 94, 0.15);
@@ -666,8 +666,8 @@ kbd {
 }
 
 .workspace-setup-nav-button--primary:hover:not(:disabled) {
-  background: var(--accent-hover) !important;
-  color: var(--on-accent) !important;
+  background: color-mix(in srgb, var(--text-primary) 88%, var(--bg-primary)) !important;
+  color: var(--bg-primary) !important;
 }
 
 .workspace-setup-nav-button:focus-visible {

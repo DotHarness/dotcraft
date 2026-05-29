@@ -113,10 +113,10 @@ export function ConfirmDialog({
             autoFocus={false}
             style={{
               padding: '7px 16px',
-              border: 'none',
+              border: danger ? '1px solid var(--error)' : '1px solid var(--text-primary)',
               borderRadius: '6px',
-              backgroundColor: danger ? 'var(--error)' : 'var(--accent)',
-              color: 'var(--on-accent)',
+              backgroundColor: danger ? 'var(--error)' : 'var(--text-primary)',
+              color: danger ? 'var(--on-accent)' : 'var(--bg-primary)',
               fontSize: '13px',
               fontWeight: 500,
               cursor: 'pointer'

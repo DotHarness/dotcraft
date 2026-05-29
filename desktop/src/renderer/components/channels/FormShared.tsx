@@ -166,8 +166,8 @@ export function FormActions({ saving, onSave }: FormActionsProps): JSX.Element {
         height: '38px',
         border: 'none',
         borderRadius: '8px',
-        backgroundColor: saving ? 'var(--border-active)' : 'var(--accent)',
-        color: saving ? 'var(--text-secondary)' : 'var(--on-accent)',
+        backgroundColor: saving ? 'var(--border-active)' : 'var(--text-primary)',
+        color: saving ? 'var(--text-secondary)' : 'var(--bg-primary)',
         fontSize: '13px',
         fontWeight: 600,
         cursor: saving ? 'default' : 'pointer',
@@ -176,12 +176,12 @@ export function FormActions({ saving, onSave }: FormActionsProps): JSX.Element {
       }}
       onMouseEnter={(e) => {
         if (!saving) {
-          ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--accent-hover)'
+          ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'color-mix(in srgb, var(--text-primary) 88%, var(--bg-primary))'
         }
       }}
       onMouseLeave={(e) => {
         if (!saving) {
-          ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--accent)'
+          ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--text-primary)'
         }
       }}
     >

@@ -299,10 +299,10 @@ function dialogSecondaryButtonStyle(danger = false): CSSProperties {
 function dialogPrimaryButtonStyle(): CSSProperties {
   return {
     padding: '8px 12px',
-    border: 'none',
+    border: '1px solid var(--text-primary)',
     borderRadius: '8px',
-    background: 'var(--accent)',
-    color: 'var(--on-accent)',
+    background: 'var(--text-primary)',
+    color: 'var(--bg-primary)',
     fontSize: '13px',
     fontWeight: 700,
     cursor: 'pointer'
@@ -326,10 +326,10 @@ function topBannerSecondaryButtonStyle(disabled = false): CSSProperties {
 function topBannerPrimaryButtonStyle(disabled = false): CSSProperties {
   return {
     padding: '6px 10px',
-    border: '1px solid transparent',
+    border: '1px solid var(--text-primary)',
     borderRadius: '8px',
-    background: 'var(--accent)',
-    color: 'var(--on-accent)',
+    background: 'var(--text-primary)',
+    color: 'var(--bg-primary)',
     fontSize: '12px',
     fontWeight: 700,
     cursor: disabled ? 'default' : 'pointer',

@@ -271,7 +271,8 @@ describe('MessageStream plan-accept sentinel filtering', () => {
 
     fireEvent.click(processedSummary)
 
-    expect(screen.getByText('Read old.ts')).toBeInTheDocument()
+    expect(screen.queryByText('Read old.ts')).toBeNull()
+    expect(screen.queryByText('old-artifact.md')).toBeNull()
   })
 
   it('keeps an active older running or waiting turn fully rendered outside the newest-three window', () => {

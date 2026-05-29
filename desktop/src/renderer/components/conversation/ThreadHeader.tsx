@@ -2,9 +2,11 @@ import { useState, useRef, useEffect } from 'react'
 import { PanelRightOpen } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
+import { useConnectionStore } from '../../stores/connectionStore'
 import { useThreadStore } from '../../stores/threadStore'
 import { useUIStore } from '../../stores/uiStore'
-import { CommitDialog } from '../detail/CommitDialog'
+import { addToast, useToastStore } from '../../stores/toastStore'
+import { CommitDialog, toRelativePath } from '../detail/CommitDialog'
 import { CommitIcon } from '../ui/AppIcons'
 import { OpenWorkspaceButton } from './OpenWorkspaceButton'
 import { ActionTooltip } from '../ui/ActionTooltip'
@@ -77,6 +79,56 @@ export function ThreadHeader({ threadName, threadId, workspacePath }: ThreadHead
   function handleRenameKeyDown(e: React.KeyboardEvent<HTMLInputElement>): void {
     if (e.key === 'Enter') { e.preventDefault(); void commitRename() }
     if (e.key === 'Escape') { e.preventDefault(); cancelRename() }
+  }
+
+  /**
+   * Runs the commit after the dialog has closed. All feedback flows through a
+   * "Committing…" toast that is replaced by a success/error toast on
+   * completion, so the user is never held on the dialog. Spec §16.5.
+   */
+  async function runCommit(message: string): Promise<void> {
+    const files = Array.from(useConversationStore.getState().changedFiles.values()).filter(
+      (f) => f.status === 'written'
+    )
+    if (files.length === 0) return
+
+    // Persistent progress toast — cleared once the result lands.
+    addToast(t('commit.committing'), 'info', 60_000)
+    const committingId = useToastStore.getState().toasts.at(-1)?.id
+    const clearCommitting = (): void => {
+      if (committingId) useToastStore.getState().removeToast(committingId)
+    }
+
+    let finalMessage = message
+    try {
+      if (!finalMessage) {
+        const isConnected = useConnectionStore.getState().status === 'connected'
+        if (!isConnected) {
+          clearCommitting()
+          addToast(t('commit.generateTitle.disconnected'), 'error')
+          return
+        }
+        const paths = files.map((f) => toRelativePath(f.filePath, workspacePath))
+        const result = (await window.api.appServer.sendRequest(
+          'workspace/commitMessage/suggest',
+          { threadId, paths },
+          120_000
+        )) as { message?: string }
+        if (!result?.message?.trim()) {
+          clearCommitting()
+          addToast(t('commit.error.emptyServer'), 'error')
+          return
+        }
+        finalMessage = result.message.trim()
+      }
+
+      await window.api.git.commit(workspacePath, files.map((f) => f.filePath), finalMessage)
+      clearCommitting()
+      addToast(t('commit.toast.done', { line: finalMessage.split('\n')[0] }), 'success')
+    } catch (err) {
+      clearCommitting()
+      addToast(t('commit.toast.failed', { error: err instanceof Error ? err.message : String(err) }), 'error')
+    }
   }
 
   return (
@@ -195,7 +247,9 @@ export function ThreadHeader({ threadName, threadId, workspacePath }: ThreadHead
       {commitOpen && (
         <CommitDialog
           workspacePath={workspacePath}
-          threadId={threadId}
+          onCommit={(message) => {
+            void runCommit(message)
+          }}
           onClose={() => setCommitOpen(false)}
         />
       )}

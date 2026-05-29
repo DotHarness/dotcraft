@@ -446,10 +446,10 @@ function primaryButtonStyle(disabled: boolean): CSSProperties {
   return {
     minWidth: 112,
     padding: '7px 12px',
-    border: '1px solid transparent',
+    border: '1px solid var(--text-primary)',
     borderRadius: 6,
-    background: 'var(--accent)',
-    color: 'var(--on-accent)',
+    background: 'var(--text-primary)',
+    color: 'var(--bg-primary)',
     fontSize: 'var(--type-ui-size)',
     lineHeight: 'var(--type-ui-line-height)',
     fontWeight: 680,

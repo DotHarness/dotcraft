@@ -48,10 +48,10 @@ export function monoTextAreaStyle(): CSSProperties {
 export function primaryButtonStyle(disabled = false): CSSProperties {
   return {
     padding: '8px 14px',
-    border: 'none',
+    border: '1px solid var(--text-primary)',
     borderRadius: '8px',
-    background: disabled ? 'color-mix(in srgb, var(--accent) 45%, var(--bg-tertiary))' : 'var(--accent)',
-    color: 'var(--accent-foreground, white)',
+    background: disabled ? 'color-mix(in srgb, var(--text-primary) 45%, var(--bg-tertiary))' : 'var(--text-primary)',
+    color: 'var(--bg-primary)',
     fontSize: '13px',
     fontWeight: 600,
     cursor: disabled ? 'default' : 'pointer',
