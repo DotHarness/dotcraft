@@ -272,9 +272,13 @@ public sealed class TraceSession
 
     public int RequestCount { get; set; }
 
+    public int MaintenanceForkRequestCount { get; set; }
+
     public int ToolCallCount { get; set; }
 
     public int ResponseCount { get; set; }
+
+    public int MaintenanceForkResponseCount { get; set; }
 
     public int ErrorCount { get; set; }
 
@@ -325,5 +329,5 @@ public sealed class TraceSession
         _toolNames = normalized;
     }
 
-    public ConcurrentBag<TraceEvent> Events { get; } = [];
+    public ConcurrentQueue<TraceEvent> Events { get; } = [];
 }

@@ -1727,6 +1727,7 @@ body {
             <div class="stat-card"><div class="stat-label">Sessions</div><div class="stat-value accent" id="statSessions">-</div></div>
             <div class="stat-card"><div class="stat-label">Total Requests</div><div class="stat-value info" id="statRequests">-</div></div>
             <div class="stat-card"><div class="stat-label">Total Responses</div><div class="stat-value info" id="statResponses">-</div></div>
+            <div class="stat-card"><div class="stat-label">Maintenance</div><div class="stat-value accent" id="statMaintenance">-</div></div>
             <div class="stat-card"><div class="stat-label">Tool Calls</div><div class="stat-value warning" id="statToolCalls">-</div></div>
             <div class="stat-card"><div class="stat-label">Errors</div><div class="stat-value text-error" id="statErrors">-</div></div>
             <div class="stat-card"><div class="stat-label">Avg Tool Latency</div><div class="stat-value" id="statAvgToolMs">-</div></div>
@@ -1922,8 +1923,12 @@ let autoScroll = true;
 let selectedSession = null;
 let eventSource = null;
 let allTraceEvents = [];
+let traceOldestCursor = null;
+let traceHasMore = false;
+let traceLoadingOlder = false;
 let allSessions = [];
 const traceExpandableText = new Map();
+const TRACE_PAGE_LIMIT = 1000;
 const DASHBOARD_THEME_KEY = 'dotcraft.dashboard.theme';
 const DASHBOARD_SETTINGS_CALLOUT_KEY = 'dotcraft.dashboard.settingsCalloutSeen';
 
@@ -2442,6 +2447,7 @@ async function refreshDashboard() {
   document.getElementById('statSessions').textContent = formatNumber(summary.sessionCount);
   document.getElementById('statRequests').textContent = formatNumber(summary.totalRequests);
   document.getElementById('statResponses').textContent = formatNumber(summary.totalResponses);
+  document.getElementById('statMaintenance').textContent = formatNumber(summary.totalMaintenanceForkRequests || summary.totalMaintenanceForkResponses || 0);
   document.getElementById('statToolCalls').textContent = formatNumber(summary.totalToolCalls);
   document.getElementById('statErrors').textContent = formatNumber(summary.totalErrors);
   document.getElementById('statAvgToolMs').textContent = formatDurationMs(summary.avgToolDurationMs || 0);
@@ -2469,6 +2475,7 @@ async function refreshDashboard() {
           <div class="session-stats">
             <div class="session-stat"><div class="session-stat-value">${s.requestCount}</div><div class="session-stat-label">requests</div></div>
             <div class="session-stat"><div class="session-stat-value">${s.responseCount || 0}</div><div class="session-stat-label">responses</div></div>
+            <div class="session-stat"><div class="session-stat-value text-accent">${s.maintenanceForkRequestCount || s.maintenanceForkResponseCount || 0}</div><div class="session-stat-label">maint</div></div>
             <div class="session-stat"><div class="session-stat-value">${s.toolCallCount}</div><div class="session-stat-label">tools</div></div>
             <div class="session-stat"><div class="session-stat-value" style="color:var(--error)">${s.errorCount || 0}</div><div class="session-stat-label">errors</div></div>
             <div class="session-stat"><div class="session-stat-value">${formatDurationMs(s.avgToolDurationMs || 0)}</div><div class="session-stat-label">avg tool</div></div>
@@ -2518,6 +2525,7 @@ async function refreshSessions() {
         <div class="session-stats">
           <div class="session-stat"><div class="session-stat-value text-info">${s.requestCount}</div><div class="session-stat-label">requests</div></div>
           <div class="session-stat"><div class="session-stat-value text-info">${s.responseCount || 0}</div><div class="session-stat-label">responses</div></div>
+          <div class="session-stat"><div class="session-stat-value text-accent">${s.maintenanceForkRequestCount || s.maintenanceForkResponseCount || 0}</div><div class="session-stat-label">maint</div></div>
           <div class="session-stat"><div class="session-stat-value text-warning">${s.toolCallCount}</div><div class="session-stat-label">tools</div></div>
           <div class="session-stat"><div class="session-stat-value text-error">${s.errorCount || 0}</div><div class="session-stat-label">errors</div></div>
           <div class="session-stat"><div class="session-stat-value">${formatDurationMs(s.avgToolDurationMs || 0)}</div><div class="session-stat-label">avg tool</div></div>
@@ -2557,29 +2565,72 @@ async function viewSessionTraces(sessionKey) {
 }
 
 async function refreshTraces() {
-  let events;
-  if (selectedSession) {
-    events = await fetchJson('/sessions/' + encodeURIComponent(selectedSession) + '/events');
-  } else {
-    const sessions = await fetchJson('/sessions');
-    if (!Array.isArray(sessions) || sessions.length === 0) {
-      renderTraceTimeline([]);
-      return;
-    }
-    events = [];
-    for (const s of sessions.slice(0, 10)) {
-      const se = await fetchJson('/sessions/' + encodeURIComponent(s.sessionKey) + '/events');
-      if (se) events.push(...se);
-    }
-    events.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+  if (!selectedSession) {
     document.getElementById('tracePanelTitle').textContent = 'Traces (All Sessions)';
   }
 
-  allTraceEvents = events || [];
+  traceOldestCursor = null;
+  traceHasMore = false;
+  traceLoadingOlder = false;
+  const page = await fetchTraceEventPage(null);
+  allTraceEvents = Array.isArray(page?.events) ? page.events : [];
+  traceOldestCursor = page?.oldestCursor || null;
+  traceHasMore = page?.hasMore === true;
   renderTraceTimeline(allTraceEvents);
 }
 
-function renderTraceTimeline(events) {
+async function fetchTraceEventPage(beforeCursor) {
+  const params = new URLSearchParams();
+  params.set('limit', String(TRACE_PAGE_LIMIT));
+  if (currentFilter && currentFilter !== 'all') params.set('filter', currentFilter);
+  if (beforeCursor) params.set('beforeCursor', beforeCursor);
+  const endpoint = selectedSession
+    ? '/sessions/' + encodeURIComponent(selectedSession) + '/events/page'
+    : '/events/page';
+  return await fetchJson(endpoint + '?' + params.toString());
+}
+
+async function loadOlderTraceEvents() {
+  if (traceLoadingOlder || !traceHasMore || !traceOldestCursor || currentPanel !== 'traces')
+    return;
+
+  traceLoadingOlder = true;
+  const body = document.getElementById('traceBody');
+  const previousHeight = body.scrollHeight;
+  const previousTop = body.scrollTop;
+  const page = await fetchTraceEventPage(traceOldestCursor);
+  const olderEvents = Array.isArray(page?.events) ? page.events : [];
+
+  if (olderEvents.length > 0) {
+    allTraceEvents = mergeTraceEvents(olderEvents, allTraceEvents);
+    renderTraceTimeline(allTraceEvents, { autoScrollToBottom: false });
+    body.scrollTop = body.scrollHeight - previousHeight + previousTop;
+  }
+
+  traceOldestCursor = page?.oldestCursor || traceOldestCursor;
+  traceHasMore = page?.hasMore === true;
+  traceLoadingOlder = false;
+}
+
+function handleTraceScroll() {
+  const body = document.getElementById('traceBody');
+  if (!body || body.scrollTop > 120) return;
+  loadOlderTraceEvents();
+}
+
+function mergeTraceEvents(prefix, suffix) {
+  const seen = new Set();
+  const merged = [];
+  for (const event of [...prefix, ...suffix]) {
+    const key = event.id || `${event.sessionKey || ''}:${event.timestamp || ''}:${event.type || ''}:${merged.length}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(event);
+  }
+  return merged;
+}
+
+function renderTraceTimeline(events, options = {}) {
   const container = document.getElementById('traceTimeline');
   const decoratedEvents = decorateTraceEventsWithPromptCacheDiagnostics(events || []);
 
@@ -2601,7 +2652,8 @@ function renderTraceTimeline(events) {
   traceExpandableText.clear();
   container.innerHTML = filtered.map(e => renderTraceEvent(e)).join('');
 
-  if (autoScroll) {
+  const shouldAutoScroll = options.autoScrollToBottom ?? autoScroll;
+  if (shouldAutoScroll) {
     const body = document.getElementById('traceBody');
     body.scrollTop = body.scrollHeight;
   }
@@ -3014,7 +3066,11 @@ function toggleDetail(id, toggle) {
 function setTraceFilter(filter) {
   currentFilter = filter;
   document.querySelectorAll('#traceFilters .filter-chip').forEach(c => c.classList.toggle('active', c.dataset.filter === filter));
-  renderTraceTimeline(allTraceEvents);
+  if (currentPanel === 'traces') {
+    refreshTraces();
+  } else {
+    renderTraceTimeline(allTraceEvents);
+  }
 }
 
 function toggleAutoScroll() {
@@ -3320,13 +3376,12 @@ function connectSSE() {
   eventSource.onmessage = (event) => {
     try {
       const evt = JSON.parse(event.data);
-      allTraceEvents.push(evt);
 
       if (currentPanel === 'traces') {
-        const visibleEvents = selectedSession
-          ? allTraceEvents.filter(e => e.sessionKey === selectedSession)
-          : allTraceEvents;
-        renderTraceTimeline(visibleEvents);
+        if (traceEventBelongsToCurrentView(evt) && traceEventMatchesCurrentFilter(evt)) {
+          allTraceEvents = mergeTraceEvents(allTraceEvents, [evt]);
+          renderTraceTimeline(allTraceEvents);
+        }
       }
 
       if (currentPanel === 'dashboard') {
@@ -3348,6 +3403,26 @@ function connectSSE() {
     }
     setTimeout(connectSSE, 3000);
   };
+}
+
+function traceEventBelongsToCurrentView(evt) {
+  return !selectedSession || evt.sessionKey === selectedSession;
+}
+
+function traceEventMatchesCurrentFilter(evt) {
+  if (!evt || currentFilter === 'all') return true;
+  if (currentFilter === 'Tool') {
+    return evt.type === 'ToolCallStarted' ||
+      evt.type === 'ToolCallCompleted' ||
+      evt.type === 'ToolInjection' ||
+      evt.type === 'DeferredToolLoading';
+  }
+  if (currentFilter === 'Maintenance') {
+    return evt.type === 'MaintenanceForkRequest' ||
+      evt.type === 'MaintenanceForkResponse' ||
+      evt.type === 'ContextCompaction';
+  }
+  return evt.type === currentFilter;
 }
 
 let CONFIG_SCHEMA = [];
@@ -5062,6 +5137,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     switchPanel('settings');
   }
   window.addEventListener('hashchange', handleDashboardHash);
+  document.getElementById('traceBody').addEventListener('scroll', handleTraceScroll);
   document.getElementById('autoScrollBtn').style.borderColor = 'var(--accent)';
   document.getElementById('autoScrollBtn').style.color = 'var(--accent-light)';
 });

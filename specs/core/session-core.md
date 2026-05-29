@@ -1250,6 +1250,8 @@ The supported persistence contract is:
 
 Dashboard trace-session deletion follows the same persistence contract. Deleting one trace session removes that session's trace rows and associated dashboard usage rows; if the session is bound to a thread, deletion cascades through permanent thread deletion. Clearing all trace sessions deletes the selected trace/thread state and associated usage rows, but preserves global usage rows that have no `thread_id` or `session_key`. Bulk trace clearing may run SQLite maintenance (`wal_checkpoint(TRUNCATE)` and conditional `VACUUM`) after deletion to reclaim WAL/free-page space.
 
+Dashboard trace event reads are paged from the durable trace store. The first page returns at most the newest 1000 events for the selected session or all sessions; clients fetch older events with an opaque `beforeCursor` when the user scrolls upward. Maintenance envelope events are filterable as maintenance events and are counted separately from normal LLM request/response totals, while detailed collector events and token usage remain in the same trace session for correlation.
+
 ### 9.7 Persistence Failure Handling
 
 - **Save failure**: If Session Core cannot write to disk after a Turn completes, the Turn's result is still delivered to the adapter (events were already emitted). The error is logged. The in-memory Thread state is preserved. The next save attempt retries.

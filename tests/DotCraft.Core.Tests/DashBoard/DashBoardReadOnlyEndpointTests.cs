@@ -101,6 +101,41 @@ public sealed class DashBoardReadOnlyEndpointTests : IDisposable
             evt => evt.Type == TraceEventType.Request && evt.Content == "compact smoke request");
     }
 
+    [Fact]
+    public async Task ReadOnlyDashboard_ExposesPagedTraceEventsFromStateDb()
+    {
+        var stateRuntime = new StateRuntime(_craft);
+        var writer = new TraceStore(Path.Combine(_craft, "tracing"), 5000, true, stateRuntime);
+        var startedAt = new DateTimeOffset(2026, 5, 29, 2, 0, 0, TimeSpan.Zero);
+        writer.Record(new TraceEvent
+        {
+            SessionKey = "thread_page",
+            Type = TraceEventType.Request,
+            Content = "older",
+            Timestamp = startedAt
+        });
+        writer.Record(new TraceEvent
+        {
+            SessionKey = "thread_page",
+            Type = TraceEventType.MaintenanceForkRequest,
+            Content = "maintenance",
+            Timestamp = startedAt.AddSeconds(1)
+        });
+
+        await using var app = await CreateDashboardApp();
+        using var http = new HttpClient { BaseAddress = new Uri(app.Urls.Single()) };
+
+        using var response = await http.GetAsync("/dashboard/api/sessions/thread_page/events/page?limit=1&filter=Maintenance");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var root = doc.RootElement;
+        Assert.False(root.GetProperty("hasMore").GetBoolean());
+        var evt = Assert.Single(root.GetProperty("events").EnumerateArray());
+        Assert.Equal("MaintenanceForkRequest", evt.GetProperty("type").GetString());
+        Assert.Equal("maintenance", evt.GetProperty("content").GetString());
+    }
+
     private async Task<WebApplication> CreateDashboardApp()
     {
         var stores = DashBoardReadOnlyStoreLoader.Load(_craft);

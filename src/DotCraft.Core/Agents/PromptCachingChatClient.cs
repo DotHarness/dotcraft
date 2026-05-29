@@ -25,6 +25,7 @@ public sealed class PromptCachingChatClient : DelegatingChatClient
     internal const string CacheControlKey = "cache_control";
     private const int MaxCacheBreakpoints = 4;
     private const string DefaultSessionKey = "__default__";
+    private static readonly AsyncLocal<PromptCacheStateOverride?> CacheStateOverrideLocal = new();
 
     private readonly AppConfig.PromptCachingConfig _config;
     private readonly string _model;
@@ -92,11 +93,28 @@ public sealed class PromptCachingChatClient : DelegatingChatClient
         CommitCachePoints(prepared);
     }
 
+    internal static IDisposable UseCacheStateKey(
+        string cacheStateKey,
+        string? traceSessionKey = null,
+        PromptCacheMaintenanceScope? maintenanceScope = null)
+    {
+        if (string.IsNullOrWhiteSpace(cacheStateKey))
+            throw new ArgumentException("Prompt cache state key must not be empty.", nameof(cacheStateKey));
+
+        var previous = CacheStateOverrideLocal.Value;
+        CacheStateOverrideLocal.Value = new PromptCacheStateOverride(
+            cacheStateKey.Trim(),
+            string.IsNullOrWhiteSpace(traceSessionKey) ? null : traceSessionKey.Trim(),
+            maintenanceScope);
+        return new RestorePromptCacheStateOverrideScope(previous);
+    }
+
     internal (
         IReadOnlyList<ChatMessage> Messages,
         ChatOptions? Options,
         IReadOnlyList<PendingCachePoint> PendingCachePoints,
-        string? SessionKey,
+        string? TraceSessionKey,
+        string? CacheStateKey,
         int? LlmCallIndex,
         PromptCacheRequestDiagnosticSnapshot? PromptCacheDiagnostic) Prepare(
         IEnumerable<ChatMessage> chatMessages,
@@ -104,13 +122,14 @@ public sealed class PromptCachingChatClient : DelegatingChatClient
     {
         var messages = chatMessages as IReadOnlyList<ChatMessage> ?? chatMessages.ToList();
         if (!_config.ShouldApply(_model))
-            return (messages, options, [], null, null, null);
+            return (messages, options, [], null, null, null, null);
 
         var preparedMessages = new List<ChatMessage>(messages.Count + 1);
         var preparedOptions = options;
         var cacheControl = CreateCacheControl();
-        var sessionKey = ResolveSessionKey();
-        var state = _cachePointStates.GetOrAdd(sessionKey, static _ => new CachePointState());
+        var keys = ResolveCacheKeys();
+        var state = _cachePointStates.GetOrAdd(keys.CacheStateKey, static _ => new CachePointState());
+        var insertedSystemMessage = false;
 
         if (!string.IsNullOrWhiteSpace(options?.Instructions))
         {
@@ -119,13 +138,14 @@ public sealed class PromptCachingChatClient : DelegatingChatClient
             preparedMessages.Add(new ChatMessage(
                 ChatRole.System,
                 (IList<AIContent>)[new TextContent(options.Instructions!)]));
+            insertedSystemMessage = true;
         }
 
         foreach (var message in messages)
             preparedMessages.Add(message);
 
         var candidates = BuildCachePointCandidates(preparedMessages);
-        var selected = SelectCachePoints(state, candidates);
+        var selected = SelectCachePoints(state, candidates, keys.MaintenanceScope, insertedSystemMessage);
         ApplyCacheControl(preparedMessages, selected, cacheControl);
         var llmCallIndex = selected.Count == 0
             ? (int?)null
@@ -150,7 +170,7 @@ public sealed class PromptCachingChatClient : DelegatingChatClient
                 point.Candidate.Hash[..Math.Min(12, point.Candidate.Hash.Length)],
                 point.Remembered,
                 point.Latest,
-                point.Candidate.ContentKind))).ToArray(), sessionKey, llmCallIndex, promptCacheDiagnostic);
+                point.Candidate.ContentKind))).ToArray(), keys.TraceSessionKey, keys.CacheStateKey, llmCallIndex, promptCacheDiagnostic);
     }
 
     private CacheControlMarker CreateCacheControl()
@@ -183,29 +203,85 @@ public sealed class PromptCachingChatClient : DelegatingChatClient
             ? new AnthropicCacheControlEphemeral()
             : new AnthropicCacheControlEphemeral { Ttl = ttl };
 
-    private string ResolveSessionKey()
+    private (string TraceSessionKey, string CacheStateKey, PromptCacheMaintenanceScope? MaintenanceScope) ResolveCacheKeys()
     {
         var sessionKey = _sessionKeyAccessor();
-        return string.IsNullOrWhiteSpace(sessionKey)
+        var fallback = string.IsNullOrWhiteSpace(sessionKey)
             ? DefaultSessionKey
             : sessionKey.Trim();
+        var promptCacheOverride = CacheStateOverrideLocal.Value;
+        if (promptCacheOverride == null)
+            return (fallback, fallback, null);
+
+        return (
+            string.IsNullOrWhiteSpace(promptCacheOverride.TraceSessionKey)
+                ? fallback
+                : promptCacheOverride.TraceSessionKey!,
+            promptCacheOverride.CacheStateKey,
+            promptCacheOverride.MaintenanceScope);
     }
 
     private List<SelectedCachePoint> SelectCachePoints(
         CachePointState state,
-        IReadOnlyList<CachePointCandidate> candidates)
+        IReadOnlyList<CachePointCandidate> candidates,
+        PromptCacheMaintenanceScope? maintenanceScope,
+        bool insertedSystemMessage)
     {
         if (candidates.Count == 0)
             return [];
 
         var remembered = state.GetHashes();
-        var selected = _markerStrategy == PromptCacheMarkerStrategy.OpenAICompatible
+        var selected = maintenanceScope != null
+            ? SelectMaintenanceForkCachePoints(candidates, remembered, maintenanceScope, insertedSystemMessage)
+            : _markerStrategy == PromptCacheMarkerStrategy.OpenAICompatible
             ? SelectOpenAICompatibleCachePoints(candidates, remembered)
             : SelectStablePrefixCachePoints(candidates, remembered);
 
         return selected.Values
             .OrderBy(static point => point.Candidate.Sequence)
             .ToList();
+    }
+
+    private static Dictionary<string, SelectedCachePoint> SelectMaintenanceForkCachePoints(
+        IReadOnlyList<CachePointCandidate> candidates,
+        HashSet<string> remembered,
+        PromptCacheMaintenanceScope maintenanceScope,
+        bool insertedSystemMessage)
+    {
+        var selected = new Dictionary<string, SelectedCachePoint>(StringComparer.Ordinal);
+
+        AddLatest(selected, candidates, remembered, ChatRole.System);
+        AddLatestSnapshotPrefix(selected, candidates, remembered, insertedSystemMessage ? 1 : 0, maintenanceScope.SnapshotMessageCount);
+
+        var latestTail = FindLatestConversationTail(candidates);
+        AddNearestRememberedBefore(
+            selected,
+            candidates,
+            remembered,
+            latestTail?.Sequence ?? int.MaxValue);
+        if (latestTail != null)
+            AddSelected(selected, latestTail, remembered.Contains(latestTail.Hash), latest: true);
+
+        return selected;
+    }
+
+    private static void AddLatestSnapshotPrefix(
+        Dictionary<string, SelectedCachePoint> selected,
+        IReadOnlyList<CachePointCandidate> candidates,
+        HashSet<string> remembered,
+        int snapshotOffset,
+        int snapshotMessageCount)
+    {
+        if (snapshotMessageCount <= 0)
+            return;
+
+        var endExclusive = snapshotOffset + snapshotMessageCount;
+        var latestSnapshot = candidates
+            .Where(candidate => candidate.MessageIndex >= snapshotOffset && candidate.MessageIndex < endExclusive)
+            .OrderByDescending(static candidate => candidate.Sequence)
+            .FirstOrDefault();
+        if (latestSnapshot != null)
+            AddSelected(selected, latestSnapshot, remembered.Contains(latestSnapshot.Hash), latest: false);
     }
 
     private static Dictionary<string, SelectedCachePoint> SelectOpenAICompatibleCachePoints(
@@ -337,39 +413,41 @@ public sealed class PromptCachingChatClient : DelegatingChatClient
         (IReadOnlyList<ChatMessage> Messages,
             ChatOptions? Options,
             IReadOnlyList<PendingCachePoint> PendingCachePoints,
-            string? SessionKey,
+            string? TraceSessionKey,
+            string? CacheStateKey,
             int? LlmCallIndex,
             PromptCacheRequestDiagnosticSnapshot? PromptCacheDiagnostic) prepared)
     {
         if (_traceCollector == null ||
-            prepared.SessionKey == null ||
+            prepared.TraceSessionKey == null ||
             prepared.PendingCachePoints.Count == 0)
         {
             return;
         }
 
         _traceCollector.RecordPromptCachePoints(
-            prepared.SessionKey,
+            prepared.TraceSessionKey,
             _model,
             prepared.PendingCachePoints.Select(static point => point.Trace).ToArray(),
             prepared.LlmCallIndex);
 
         if (prepared.PromptCacheDiagnostic != null)
-            _traceCollector.RecordPromptCacheRequestSnapshot(prepared.SessionKey, prepared.PromptCacheDiagnostic);
+            _traceCollector.RecordPromptCacheRequestSnapshot(prepared.TraceSessionKey, prepared.PromptCacheDiagnostic);
     }
 
     private void CommitCachePoints(
         (IReadOnlyList<ChatMessage> Messages,
             ChatOptions? Options,
             IReadOnlyList<PendingCachePoint> PendingCachePoints,
-            string? SessionKey,
+            string? TraceSessionKey,
+            string? CacheStateKey,
             int? LlmCallIndex,
             PromptCacheRequestDiagnosticSnapshot? PromptCacheDiagnostic) prepared)
     {
-        if (prepared.SessionKey == null || prepared.PendingCachePoints.Count == 0)
+        if (prepared.CacheStateKey == null || prepared.PendingCachePoints.Count == 0)
             return;
 
-        var state = _cachePointStates.GetOrAdd(prepared.SessionKey, static _ => new CachePointState());
+        var state = _cachePointStates.GetOrAdd(prepared.CacheStateKey, static _ => new CachePointState());
         state.Replace(prepared.PendingCachePoints.Select(static point => point.Hash));
     }
 
@@ -999,6 +1077,19 @@ public sealed class PromptCachingChatClient : DelegatingChatClient
 
     internal sealed record PendingCachePoint(string Hash, PromptCachePointTraceEntry Trace);
 
+    private sealed record PromptCacheStateOverride(
+        string CacheStateKey,
+        string? TraceSessionKey,
+        PromptCacheMaintenanceScope? MaintenanceScope);
+
+    private sealed class RestorePromptCacheStateOverrideScope(PromptCacheStateOverride? previous) : IDisposable
+    {
+        public void Dispose()
+        {
+            CacheStateOverrideLocal.Value = previous;
+        }
+    }
+
     private sealed record SelectedCachePoint(
         CachePointCandidate Candidate,
         bool Remembered,
@@ -1038,6 +1129,8 @@ public sealed class PromptCachingChatClient : DelegatingChatClient
         private int _llmCallIndex;
     }
 }
+
+internal sealed record PromptCacheMaintenanceScope(int SnapshotMessageCount);
 
 internal enum PromptCacheMarkerStrategy
 {
