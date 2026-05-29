@@ -88,6 +88,7 @@ See [Getting Started](https://dotharness.github.io/dotcraft/getting-started) for
 | Use the full terminal interface | [TUI](https://dotharness.github.io/dotcraft/features/entry-points/tui) |
 | Run local automation tasks | [Automations & Hooks](https://dotharness.github.io/dotcraft/features/automations) |
 | Connect clients, bots, or custom adapters | [Channels & Bots](https://dotharness.github.io/dotcraft/features/entry-points/channels) |
+| Deploy DotCraft and channel bots on a server | [Server Deployment](https://dotharness.github.io/dotcraft/developing/server-deployment) |
 | Architecture, SDKs, and protocols | [Architecture](https://dotharness.github.io/dotcraft/developing/architecture) |
 
 ## Contributing

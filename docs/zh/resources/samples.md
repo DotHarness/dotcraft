@@ -9,7 +9,9 @@
 
 | 名称 | 用途 | 仓库链接 |
 |---|---|---|
-| Workspace | 一个完整的 workspace 模板，含 `start.sh`、`config.template.json`、可选 OpenSandbox 启动脚本 | [samples/workspace](https://github.com/DotHarness/dotcraft/tree/master/samples/workspace) |
+| Automations | 本地任务模板和启用 Automations 的最小工作区配置 | [samples/automations](https://github.com/DotHarness/dotcraft/tree/master/samples/automations) |
+| Hooks | Linux 和 Windows 生命周期 Hook 示例 | [samples/hooks](https://github.com/DotHarness/dotcraft/tree/master/samples/hooks) |
+| Plugins | 用于开发和集成测试的参考插件包 | [samples/plugins](https://github.com/DotHarness/dotcraft/tree/master/samples/plugins) |
 
 ## 工作区行为示例
 
@@ -43,13 +45,12 @@ dotcraft setup --language Chinese --provider-mode create \
   --profile developer
 ```
 
-这是第一次使用 DotCraft 最稳的路径。完成后，`.craft/` 包含工作区配置和 bootstrap 文件。如果你想要一个可复用的源码工作区或长期运行在服务器上的工作区，再使用 `samples/workspace`：
+这是第一次使用 DotCraft 最稳的路径。完成后，`.craft/` 包含工作区配置和 bootstrap 文件。如果你想长期运行服务器上的社交渠道机器人，请使用 [服务器部署](../developing/server-deployment.md) 中的 Docker 方式：
 
 ```bash
-cd samples/workspace
-mkdir -p .craft
-cp config.template.json .craft/config.json
-bash start.sh
+cd deploy/docker
+cp .env.example .env
+docker compose up -d
 ```
 
 模板里最常需要修改的字段：

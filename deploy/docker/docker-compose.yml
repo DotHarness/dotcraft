@@ -1,0 +1,43 @@
+services:
+  dotcraft:
+    image: ghcr.io/dotharness/dotcraft:latest
+    # To build from a source checkout instead of pulling GHCR:
+    # build:
+    #   context: ../..
+    #   dockerfile: deploy/docker/Dockerfile
+    env_file:
+      - .env
+    environment:
+      DOTCRAFT_WORKSPACE: /workspace
+      DOTCRAFT_NODE_BIN: /usr/local/bin/node
+      DOTCRAFT_MODULES_DIR: /opt/dotcraft/modules
+      APPSERVER_PORT: ${APPSERVER_PORT:-9100}
+      DASHBOARD_PORT: ${DASHBOARD_PORT:-8080}
+      QQ_PORT: ${QQ_PORT:-6700}
+      WECOM_PORT: ${WECOM_PORT:-9000}
+      SANDBOX_ENABLED: ${SANDBOX_ENABLED:-false}
+    ports:
+      - "${APPSERVER_PORT:-9100}:${APPSERVER_PORT:-9100}"
+      - "${DASHBOARD_PORT:-8080}:${DASHBOARD_PORT:-8080}"
+      # QQ OneBot reverse WebSocket and WeCom callback ports are harmless when
+      # their channels are disabled, and make one-click channel enablement work.
+      - "${QQ_PORT:-6700}:${QQ_PORT:-6700}"
+      - "${WECOM_PORT:-9000}:${WECOM_PORT:-9000}"
+    volumes:
+      - ./workspace:/workspace
+    restart: unless-stopped
+
+  opensandbox:
+    image: ghcr.io/dotharness/dotcraft:latest
+    profiles:
+      - sandbox
+    entrypoint: ["/opt/dotcraft/opensandbox-entrypoint.sh"]
+    environment:
+      SANDBOX_PORT: 5880
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - opensandbox-config:/etc/opensandbox
+    restart: unless-stopped
+
+volumes:
+  opensandbox-config:

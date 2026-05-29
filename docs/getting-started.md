@@ -15,6 +15,20 @@ Go to [GitHub Releases](https://github.com/DotHarness/dotcraft/releases) and dow
 
 Desktop is the recommended first entry point because workspace selection, model configuration, sessions, diffs, plans, automation review, and runtime status live in one UI.
 
+If you only need the CLI and TUI binaries, install them directly:
+
+```bash
+curl -fsSL https://dotharness.github.io/dotcraft/install.sh | bash
+```
+
+Windows PowerShell:
+
+```powershell
+irm https://dotharness.github.io/dotcraft/install.ps1 | iex
+```
+
+Release archives are currently x64-only. Arm64 users can build from source until arm64 artifacts are available.
+
 ![DotCraft](https://github.com/DotHarness/resources/raw/master/dotcraft/desktop.png)
 
 If you prefer building from source, install the [.NET 10 SDK](https://dotnet.microsoft.com/download), Rust toolchain, and Node.js, then run this from the repository root:

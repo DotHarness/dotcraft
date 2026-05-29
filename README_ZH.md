@@ -88,6 +88,7 @@ DotCraft 是一个 .NET 10 / C# Agent Harness。它围绕真实项目目录组�
 | 在终端里使用完整界面 | [TUI](https://dotharness.github.io/dotcraft/zh/features/entry-points/tui) |
 | 运行本地自动化任务 | [Automations 与 Hooks](https://dotharness.github.io/dotcraft/zh/features/automations) |
 | 接入外部客户端、机器人或自定义适配器 | [Channels 与 Bots](https://dotharness.github.io/dotcraft/zh/features/entry-points/channels) |
+| 在服务器上一键部署 DotCraft 与渠道机器人 | [服务器部署](https://dotharness.github.io/dotcraft/zh/developing/server-deployment) |
 | 架构、SDK 与协议 | [架构总览](https://dotharness.github.io/dotcraft/zh/developing/architecture) |
 
 ## 贡献代码

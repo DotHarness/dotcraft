@@ -24,7 +24,8 @@ TypeScript channel modules follow the [TypeScript Module integration contract](.
 Two integration shapes:
 
 - **Embedded in Desktop**: Desktop launches the channel as a subprocess via `transport: "subprocess"` and `builtinModule`. Use the Desktop **Channels** page to fill in platform tokens, callbacks, allowlists, or QR-code auth, then enable in one click.
-- **Standalone adapter**: An external process connects to AppServer over WebSocket via `transport: "websocket"`. Best for long-running processes on a server or container.
+- **Server Compose deployment**: Use [Server Deployment](../../developing/server-deployment.md) to run AppServer, bundled TypeScript channels, and optional OpenSandbox from Docker Compose.
+- **Standalone adapter**: An external process connects to AppServer over WebSocket via `transport: "websocket"`. Best when you need to operate a custom adapter process yourself.
 
 AppServer and channel registration fields live in [Entry Points and Services](../../developing/configuration.md#entry-points-and-services). Platform-specific connection, permission allowlists, and approval timeouts live in adapter-specific files like `.craft/qq.json` and `.craft/wecom.json`.
 
@@ -84,5 +85,6 @@ Confirm Desktop and the bot connect to the **same** workspace / AppServer.
 
 - [Unified Session Core](../session-core.md)
 - [Security & Sandbox](../security.md)
+- [Server Deployment](../../developing/server-deployment.md)
 - [TypeScript SDK](../../developing/sdk-typescript.md) · [Python SDK](../../developing/sdk-python.md)
 - [TypeScript Module integration contract](../../developing/typescript-module.md)
