@@ -1161,18 +1161,22 @@ body {
   .panel-header { padding: 10px 14px; }
 }
 
+/* Traces header: title/auto-scroll on top, filter chips on their own full row */
+.trace-header { flex-direction: column; align-items: stretch; gap: 12px; }
+.trace-header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
 /* Filter bar */
 .filter-bar {
   display: flex;
   gap: 8px;
   align-items: center;
-  flex-wrap: nowrap;
-  min-width: 0;
-  overflow-x: auto;
-  scrollbar-width: none;        /* hide native bar; partial chip hints overflow */
-  -ms-overflow-style: none;
+  flex-wrap: wrap;
 }
-.filter-bar::-webkit-scrollbar { display: none; }
 
 .filter-chip {
   flex-shrink: 0;
@@ -1914,25 +1918,25 @@ body {
 
       <!-- Traces Panel -->
       <div class="panel" id="panel-traces">
-        <div class="panel-header">
-          <div style="display:flex;align-items:center;gap:12px;flex:1;min-width:0">
-            <div class="panel-title" id="tracePanelTitle" style="flex-shrink:0">Traces</div>
-            <div class="filter-bar" id="traceFilters">
-              <button class="filter-chip active" data-filter="all" onclick="setTraceFilter('all')">All</button>
-              <button class="filter-chip" data-filter="Request" onclick="setTraceFilter('Request')">Requests</button>
-              <button class="filter-chip" data-filter="Response" onclick="setTraceFilter('Response')">Responses</button>
-              <button class="filter-chip" data-filter="Thinking" onclick="setTraceFilter('Thinking')">Thinking</button>
-              <button class="filter-chip" data-filter="Tool" onclick="setTraceFilter('Tool')">Tools</button>
-              <button class="filter-chip" data-filter="Maintenance" onclick="setTraceFilter('Maintenance')">Maintenance</button>
-              <button class="filter-chip" data-filter="TokenUsage" onclick="setTraceFilter('TokenUsage')">Tokens</button>
-              <button class="filter-chip" data-filter="Error" onclick="setTraceFilter('Error')">Errors</button>
+        <div class="panel-header trace-header">
+          <div class="trace-header-top">
+            <div class="panel-title" id="tracePanelTitle">Traces</div>
+            <div style="display:flex;gap:8px;flex-shrink:0">
+              <button class="btn btn-toggle active" onclick="toggleAutoScroll()" id="autoScrollBtn" aria-pressed="true" title="Auto-scroll to newest events">
+                <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                Auto-scroll
+              </button>
             </div>
           </div>
-          <div style="display:flex;gap:8px;margin-left:16px;flex-shrink:0">
-            <button class="btn btn-toggle active" onclick="toggleAutoScroll()" id="autoScrollBtn" aria-pressed="true" title="Auto-scroll to newest events">
-              <span class="toggle-track"><span class="toggle-thumb"></span></span>
-              Auto-scroll
-            </button>
+          <div class="filter-bar" id="traceFilters">
+            <button class="filter-chip active" data-filter="all" onclick="setTraceFilter('all')">All</button>
+            <button class="filter-chip" data-filter="Request" onclick="setTraceFilter('Request')">Requests</button>
+            <button class="filter-chip" data-filter="Response" onclick="setTraceFilter('Response')">Responses</button>
+            <button class="filter-chip" data-filter="Thinking" onclick="setTraceFilter('Thinking')">Thinking</button>
+            <button class="filter-chip" data-filter="Tool" onclick="setTraceFilter('Tool')">Tools</button>
+            <button class="filter-chip" data-filter="Maintenance" onclick="setTraceFilter('Maintenance')">Maintenance</button>
+            <button class="filter-chip" data-filter="TokenUsage" onclick="setTraceFilter('TokenUsage')">Tokens</button>
+            <button class="filter-chip" data-filter="Error" onclick="setTraceFilter('Error')">Errors</button>
           </div>
         </div>
         <div class="panel-body" id="traceBody">
