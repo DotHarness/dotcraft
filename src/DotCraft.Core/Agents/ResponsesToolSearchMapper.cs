@@ -755,30 +755,31 @@ internal static class ResponsesToolSearchMapper
     {
         functionCall = null!;
 
-        string itemJson;
         try
         {
-            itemJson = ModelReaderWriter.Write(item).ToString();
+            var itemJson = ModelReaderWriter.Write(item).ToString();
+            if (OpenAIResponsesRequestBodyCanonicalizer.NormalizeTopLevelObject(itemJson) is not { } normalizedJson)
+                return false;
+
+            using var document = JsonDocument.Parse(normalizedJson);
+            var root = document.RootElement;
+            if (!string.Equals(ReadString(root, "type"), "tool_search_call", StringComparison.Ordinal))
+                return false;
+
+            var callId = ReadString(root, "call_id")
+                ?? ReadString(root, "id")
+                ?? Guid.NewGuid().ToString("N");
+            var arguments = ReadToolSearchArguments(root);
+            functionCall = new FunctionCallResponseItem(
+                callId,
+                NativeToolSearchTool.ToolName,
+                BinaryData.FromString(JsonSerializer.Serialize(arguments, JsonOptions)));
+            return true;
         }
-        catch (InvalidOperationException)
+        catch (Exception ex) when (ex is InvalidOperationException or NotSupportedException or JsonException or ArgumentException)
         {
             return false;
         }
-
-        using var document = JsonDocument.Parse(itemJson);
-        var root = document.RootElement;
-        if (!string.Equals(ReadString(root, "type"), "tool_search_call", StringComparison.Ordinal))
-            return false;
-
-        var callId = ReadString(root, "call_id")
-            ?? ReadString(root, "id")
-            ?? Guid.NewGuid().ToString("N");
-        var arguments = ReadToolSearchArguments(root);
-        functionCall = new FunctionCallResponseItem(
-            callId,
-            NativeToolSearchTool.ToolName,
-            BinaryData.FromString(JsonSerializer.Serialize(arguments, JsonOptions)));
-        return true;
     }
 
     private static bool TryReadFunctionCallNamespace(
@@ -836,15 +837,21 @@ internal static class ResponsesToolSearchMapper
 
             if (rawRepresentation is JsonElement { ValueKind: JsonValueKind.Object } element)
             {
-                rawObject = JsonNode.Parse(element.GetRawText()) as JsonObject ?? [];
+                if (OpenAIResponsesRequestBodyCanonicalizer.NormalizeTopLevelObject(element.GetRawText()) is not { } normalizedJson)
+                    return false;
+
+                rawObject = JsonNode.Parse(normalizedJson) as JsonObject ?? [];
                 return true;
             }
 
             var rawJson = ModelReaderWriter.Write(rawRepresentation).ToString();
-            rawObject = JsonNode.Parse(rawJson) as JsonObject ?? [];
+            if (OpenAIResponsesRequestBodyCanonicalizer.NormalizeTopLevelObject(rawJson) is not { } normalizedRawJson)
+                return false;
+
+            rawObject = JsonNode.Parse(normalizedRawJson) as JsonObject ?? [];
             return rawObject.Count > 0;
         }
-        catch (Exception ex) when (ex is InvalidOperationException or NotSupportedException or JsonException)
+        catch (Exception ex) when (ex is InvalidOperationException or NotSupportedException or JsonException or ArgumentException)
         {
             return false;
         }

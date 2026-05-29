@@ -19,6 +19,14 @@ internal static class OpenAIResponsesRequestBodyCanonicalizer
         return body.HadDuplicateTopLevelKeys ? body.ToJsonString() : null;
     }
 
+    internal static string? NormalizeTopLevelObject(string json)
+    {
+        if (!TryParseTopLevelObject(json, out var body))
+            return null;
+
+        return body.ToJsonString();
+    }
+
     internal static string? AddInstallationIdMetadata(
         string json,
         string installationIdHeader,
