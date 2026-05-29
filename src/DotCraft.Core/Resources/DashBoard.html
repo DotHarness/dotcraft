@@ -97,6 +97,10 @@ body {
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--border-active); }
 
+/* Keyboard focus ring (does not show on mouse interaction) */
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 5px; }
+:focus:not(:focus-visible) { outline: none; }
+
 /* Layout */
 .app { display: flex; height: 100vh; }
 
@@ -370,6 +374,24 @@ body {
   margin-bottom: 24px;
 }
 
+.stats-section { margin-bottom: 4px; }
+.stats-section .stats-grid { margin-bottom: 16px; }
+.stats-section-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin: 0 2px 10px;
+}
+
+.section-heading {
+  margin-bottom: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
 .stat-card {
   background: var(--bg-card);
   border: 1px solid var(--border);
@@ -379,6 +401,13 @@ body {
 }
 
 .stat-card:hover { border-color: var(--border-active); }
+
+/* Headline metrics: stronger weight + accent edge */
+.stat-card.primary {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  background: color-mix(in srgb, var(--accent-dim) 60%, var(--bg-card));
+}
+.stat-card.primary .stat-value { font-size: 28px; }
 
 .stat-label {
   font-size: 11px;
@@ -696,6 +725,19 @@ body {
 }
 .trace-icon svg { width: 14px; height: 14px; stroke-width: 2; }
 
+/* Tint the icon chip to match the event type (reinforces the left color bar) */
+.trace-event.type-Request .trace-icon,
+.trace-event.type-MaintenanceForkRequest .trace-icon { color: var(--info); border-color: color-mix(in srgb, var(--info) 45%, var(--border)); background: var(--info-dim); }
+.trace-event.type-Response .trace-icon { color: var(--success); border-color: color-mix(in srgb, var(--success) 45%, var(--border)); background: var(--success-dim); }
+.trace-event.type-ToolCallStarted .trace-icon,
+.trace-event.type-MaintenanceForkResponse .trace-icon { color: var(--warning); border-color: color-mix(in srgb, var(--warning) 45%, var(--border)); background: var(--warning-dim); }
+.trace-event.type-ToolCallCompleted .trace-icon { color: var(--accent-light); border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); background: var(--accent-dim); }
+.trace-event.type-ToolInjection .trace-icon,
+.trace-event.type-DeferredToolLoading .trace-icon,
+.trace-event.type-TokenUsage .trace-icon { color: var(--cyan); border-color: color-mix(in srgb, var(--cyan) 45%, var(--border)); background: var(--cyan-dim); }
+.trace-event.type-Error .trace-icon { color: var(--error); border-color: color-mix(in srgb, var(--error) 45%, var(--border)); background: var(--error-dim); }
+.trace-event.type-Thinking .trace-icon { color: var(--thinking); border-color: color-mix(in srgb, var(--thinking) 45%, var(--border)); background: var(--thinking-dim); }
+
 .trace-body { flex: 1; min-width: 0; }
 
 .trace-label {
@@ -785,13 +827,6 @@ body {
 }
 .trace-expand-toggle:hover,
 .trace-expand-toggle.open { color: var(--text-secondary); }
-.trace-expand-toggle::before {
-  content: '▶';
-  font-size: 10px;
-  transition: transform var(--transition);
-  display: inline-block;
-}
-.trace-expand-toggle.open::before { transform: rotate(90deg); }
 
 .trace-detail {
   margin-top: 6px;
@@ -1074,14 +1109,20 @@ body {
   gap: 4px;
 }
 
-.collapsible-toggle::before {
-  content: '▶';
-  font-size: 10px;
+.collapsible-toggle::before,
+.trace-expand-toggle::before {
+  content: '';
+  width: 11px;
+  height: 11px;
+  flex-shrink: 0;
+  background-color: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='9 18 15 12 9 6'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='9 18 15 12 9 6'/%3E%3C/svg%3E") center / contain no-repeat;
   transition: transform var(--transition);
-  display: inline-block;
 }
 
-.collapsible-toggle.open::before { transform: rotate(90deg); }
+.collapsible-toggle.open::before,
+.trace-expand-toggle.open::before { transform: rotate(90deg); }
 
 .collapsible-content {
   display: none;
@@ -1116,10 +1157,16 @@ body {
   display: flex;
   gap: 8px;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  padding-bottom: 2px;
 }
 
 .filter-chip {
+  flex-shrink: 0;
+  white-space: nowrap;
   padding: 4px 12px;
   border-radius: 16px;
   font-size: 12px;
@@ -1826,23 +1873,31 @@ body {
           </button>
         </div>
         <div class="panel-body">
-          <div class="stats-grid" id="statsGrid">
-            <div class="stat-card"><div class="stat-label">Sessions</div><div class="stat-value accent" id="statSessions">-</div></div>
-            <div class="stat-card"><div class="stat-label">Total Requests</div><div class="stat-value info" id="statRequests">-</div></div>
-            <div class="stat-card"><div class="stat-label">Total Responses</div><div class="stat-value info" id="statResponses">-</div></div>
-            <div class="stat-card"><div class="stat-label">Maintenance</div><div class="stat-value accent" id="statMaintenance">-</div></div>
-            <div class="stat-card"><div class="stat-label">Tool Calls</div><div class="stat-value warning" id="statToolCalls">-</div></div>
-            <div class="stat-card"><div class="stat-label">Errors</div><div class="stat-value text-error" id="statErrors">-</div></div>
-            <div class="stat-card"><div class="stat-label">Avg Tool Latency</div><div class="stat-value" id="statAvgToolMs">-</div></div>
-            <div class="stat-card"><div class="stat-label">Total Input</div><div class="stat-value" id="statInputTokens">-</div></div>
-            <div class="stat-card"><div class="stat-label">Fresh Input</div><div class="stat-value warning" id="statFreshInputTokens">-</div></div>
-            <div class="stat-card"><div class="stat-label">Cache Hit Input</div><div class="stat-value info" id="statCachedInputTokens">-</div></div>
-            <div class="stat-card"><div class="stat-label">Cache Write Input</div><div class="stat-value accent" id="statCacheWriteInputTokens">-</div></div>
-            <div class="stat-card"><div class="stat-label">Cache Hit Rate</div><div class="stat-value success" id="statCacheHitRate">-</div></div>
-            <div class="stat-card"><div class="stat-label">Output Tokens</div><div class="stat-value" id="statOutputTokens">-</div></div>
-            <div class="stat-card"><div class="stat-label">Total Tokens</div><div class="stat-value success" id="statTotalTokens">-</div></div>
+          <div class="stats-section">
+            <div class="stats-section-label">Activity</div>
+            <div class="stats-grid">
+              <div class="stat-card primary"><div class="stat-label">Sessions</div><div class="stat-value accent" id="statSessions">-</div></div>
+              <div class="stat-card"><div class="stat-label">Total Requests</div><div class="stat-value info" id="statRequests">-</div></div>
+              <div class="stat-card"><div class="stat-label">Total Responses</div><div class="stat-value info" id="statResponses">-</div></div>
+              <div class="stat-card"><div class="stat-label">Maintenance</div><div class="stat-value accent" id="statMaintenance">-</div></div>
+              <div class="stat-card"><div class="stat-label">Tool Calls</div><div class="stat-value warning" id="statToolCalls">-</div></div>
+              <div class="stat-card"><div class="stat-label">Errors</div><div class="stat-value text-error" id="statErrors">-</div></div>
+              <div class="stat-card"><div class="stat-label">Avg Tool Latency</div><div class="stat-value" id="statAvgToolMs">-</div></div>
+            </div>
           </div>
-          <h3 style="margin-bottom:12px;font-size:14px;color:var(--text-secondary)">Recent Activity</h3>
+          <div class="stats-section">
+            <div class="stats-section-label">Tokens</div>
+            <div class="stats-grid">
+              <div class="stat-card primary"><div class="stat-label">Total Tokens</div><div class="stat-value success" id="statTotalTokens">-</div></div>
+              <div class="stat-card primary"><div class="stat-label">Cache Hit Rate</div><div class="stat-value success" id="statCacheHitRate">-</div></div>
+              <div class="stat-card"><div class="stat-label">Total Input</div><div class="stat-value" id="statInputTokens">-</div></div>
+              <div class="stat-card"><div class="stat-label">Fresh Input</div><div class="stat-value warning" id="statFreshInputTokens">-</div></div>
+              <div class="stat-card"><div class="stat-label">Cache Hit Input</div><div class="stat-value info" id="statCachedInputTokens">-</div></div>
+              <div class="stat-card"><div class="stat-label">Cache Write Input</div><div class="stat-value accent" id="statCacheWriteInputTokens">-</div></div>
+              <div class="stat-card"><div class="stat-label">Output Tokens</div><div class="stat-value" id="statOutputTokens">-</div></div>
+            </div>
+          </div>
+          <h3 class="section-heading">Recent Activity</h3>
           <div id="recentActivity"></div>
         </div>
       </div>
@@ -1850,8 +1905,8 @@ body {
       <!-- Traces Panel -->
       <div class="panel" id="panel-traces">
         <div class="panel-header">
-          <div style="display:flex;align-items:center;gap:12px">
-            <div class="panel-title" id="tracePanelTitle">Traces</div>
+          <div style="display:flex;align-items:center;gap:12px;flex:1;min-width:0">
+            <div class="panel-title" id="tracePanelTitle" style="flex-shrink:0">Traces</div>
             <div class="filter-bar" id="traceFilters">
               <button class="filter-chip active" data-filter="all" onclick="setTraceFilter('all')">All</button>
               <button class="filter-chip" data-filter="Request" onclick="setTraceFilter('Request')">Requests</button>
