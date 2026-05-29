@@ -23,6 +23,8 @@ When DotCraft starts in a fresh workspace, it can initialize `.craft/` for you a
 
 Use this `samples/workspace` directory when you specifically want a reusable source checkout workspace or a server-style helper environment.
 
+For a production-style server bot deployment, prefer the newer [Docker server deployment](../../docs/developing/server-deployment.md). It bundles the AppServer, TypeScript channel modules, and optional OpenSandbox so you do not need to run the sandbox helper and channel adapters by hand.
+
 ## Sample Contents
 
 | File | Purpose |

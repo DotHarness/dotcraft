@@ -23,6 +23,8 @@ dotcraft
 
 只有当你明确想要一个可复用的源码工作区，或者希望在服务器上保留一套长期运行的 workspace 时，才更适合使用 `samples/workspace`。
 
+如果你的目标是生产式服务器机器人部署，优先使用新的 [Docker 服务器部署](../../docs/zh/developing/server-deployment.md)。它会把 AppServer、TypeScript 渠道模块和可选 OpenSandbox 打包到 Compose 流程里，不需要手动分别启动 sandbox helper 和渠道适配器。
+
 ## 示例内容
 
 | 文件 | 用途 |
