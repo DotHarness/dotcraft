@@ -1687,7 +1687,7 @@ describe('AgentResponseBlock historical tool trimming', () => {
     })
   })
 
-  it('hides historical tool details and artifacts while preserving plans and assistant text', () => {
+  it('collapses historical tool details while preserving plans and assistant text', () => {
     useConversationStore.setState({
       workspacePath: 'F:/workspace',
       changedFiles: new Map([
@@ -1780,7 +1780,8 @@ describe('AgentResponseBlock historical tool trimming', () => {
 
     expect(screen.getByText('Visible Plan')).toBeInTheDocument()
     expect(screen.getByText('final response stays visible')).toBeInTheDocument()
-    expect(screen.queryByText(/Processed in/)).toBeNull()
+    const processedSummary = screen.getByRole('button', { name: /Processed in 8s/ })
+    expect(processedSummary).toBeInTheDocument()
     expect(screen.queryByText('private reasoning')).toBeNull()
     expect(screen.queryByText('Thought 2s')).toBeNull()
     expect(screen.queryByText('Read main.ts')).toBeNull()
@@ -1788,6 +1789,13 @@ describe('AgentResponseBlock historical tool trimming', () => {
     expect(screen.queryByText(/Shell/)).toBeNull()
     expect(screen.queryByText('raw tool result')).toBeNull()
     expect(screen.queryByText('old-artifact.md')).toBeNull()
+    expect(screen.queryByText(/file changed/)).toBeNull()
+
+    fireEvent.click(processedSummary)
+
+    expect(screen.getByText('Thought 2s')).toBeInTheDocument()
+    expect(screen.getByText('Read main.ts')).toBeInTheDocument()
+    expect(screen.getByText(/Ran npm test/)).toBeInTheDocument()
     expect(screen.queryByText(/file changed/)).toBeNull()
   })
 })

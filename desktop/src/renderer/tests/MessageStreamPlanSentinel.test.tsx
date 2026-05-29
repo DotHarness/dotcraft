@@ -263,10 +263,15 @@ describe('MessageStream plan-accept sentinel filtering', () => {
     expect(screen.queryByText('Read old.ts')).toBeNull()
     expect(screen.queryByText('old-artifact.md')).toBeNull()
     expect(screen.queryByText(/hidden/i)).toBeNull()
-    expect(screen.queryByText(/Processed in/)).toBeNull()
+    const processedSummary = screen.getByRole('button', { name: /Processed in/ })
+    expect(processedSummary).toBeInTheDocument()
     expect(screen.getByText('Read recent-2.ts')).toBeInTheDocument()
     expect(screen.getByText('Read recent-3.ts')).toBeInTheDocument()
     expect(screen.getByText('Read recent-4.ts')).toBeInTheDocument()
+
+    fireEvent.click(processedSummary)
+
+    expect(screen.getByText('Read old.ts')).toBeInTheDocument()
   })
 
   it('keeps an active older running or waiting turn fully rendered outside the newest-three window', () => {

@@ -104,20 +104,14 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
     activeItemIdOverride !== undefined ? activeItemIdOverride : activeItemIdFromStore
 
   const trimHistoricalToolContent = historicalToolContentMode === 'trimmed'
-  const hydratedItems = trimHistoricalToolContent ? turn.items : hydrateToolCallItems(turn.items)
+  const hydratedItems = hydrateToolCallItems(turn.items)
+  const fullRenderableItems = hydratedItems.filter(isDefaultRenderableItem)
 
   // Exclude user messages and toolResult items (toolResults are merged into their
   // parent toolCall items before rendering, not rendered independently)
-  const renderableItems = hydratedItems.filter(
-    (i) => trimHistoricalToolContent
-      ? isTrimmedHistoryRenderableItem(i)
-      : (
-          (i.type !== 'userMessage' || i.deliveryMode === 'guidance')
-          && i.type !== 'toolResult'
-          && i.type !== 'commandExecution'
-          && i.type !== 'toolExecution'
-        )
-  )
+  const renderableItems = trimHistoricalToolContent
+    ? fullRenderableItems.filter(isTrimmedHistoryRenderableItem)
+    : fullRenderableItems
 
   const renderItemSequence = (
     itemsToRender: ConversationItem[],
@@ -290,12 +284,12 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
     return nodes
   }
 
+  const collapseSourceItems = trimHistoricalToolContent ? fullRenderableItems : renderableItems
   const lastFinalAgentMessageIndex =
-    !trimHistoricalToolContent &&
     !isRunning &&
     turn.status === 'completed' &&
-    !renderableItems.some(isGuidanceUserMessage)
-      ? findLastAgentMessageIndex(renderableItems)
+    !collapseSourceItems.some(isGuidanceUserMessage)
+      ? findLastAgentMessageIndex(collapseSourceItems)
       : -1
   const lastAgentMessageIndex =
     !isRunning && turn.status === 'completed'
@@ -303,7 +297,12 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
       : -1
   const footerAgentMessageId =
     lastAgentMessageIndex >= 0 ? renderableItems[lastAgentMessageIndex]?.id : null
-  const shouldCollapseIntermediate = lastFinalAgentMessageIndex > 0
+  const hiddenHistoricalItems = trimHistoricalToolContent && !collapseSourceItems.some(isGuidanceUserMessage)
+    ? collapseSourceItems.filter((item) => !isTrimmedHistoryRenderableItem(item))
+    : []
+  const shouldCollapseIntermediate = trimHistoricalToolContent
+    ? hiddenHistoricalItems.length > 0
+    : lastFinalAgentMessageIndex > 0
   const renderNodes: ConversationRenderNode[] = []
   const streamingMessageStalled = useStreamingMessageStall({
     enabled:
@@ -322,34 +321,44 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
   })
 
   if (shouldCollapseIntermediate) {
-    const pinnedPlanIndex = findLastCreatePlanIndexBefore(renderableItems, lastFinalAgentMessageIndex)
-    const pinnedPlanItem = pinnedPlanIndex >= 0 ? renderableItems[pinnedPlanIndex] : null
-    const intermediateItems = pinnedPlanItem
-      ? [
-          ...renderableItems.slice(0, pinnedPlanIndex),
-          ...renderableItems.slice(pinnedPlanIndex + 1, lastFinalAgentMessageIndex)
-        ]
-      : renderableItems.slice(0, lastFinalAgentMessageIndex)
-    const trailingItems = renderableItems.slice(lastFinalAgentMessageIndex)
-    const intermediateNodes = pinnedPlanItem
-      ? [
-          ...renderItemSequence(
-            renderableItems.slice(0, pinnedPlanIndex),
-            'before-pinned-plan'
-          ),
-          ...renderItemSequence(
-            renderableItems.slice(pinnedPlanIndex + 1, lastFinalAgentMessageIndex),
-            'after-pinned-plan'
-          )
-        ]
-      : renderItemSequence(intermediateItems)
-    const pinnedPlanNodes = pinnedPlanItem
-      ? renderItemSequence([pinnedPlanItem], 'pinned-plan')
-      : []
-    const trailingNodes = renderItemSequence(trailingItems)
+    let intermediateNodes: ConversationRenderNode[]
+    let pinnedPlanNodes: ConversationRenderNode[] = []
+    let trailingNodes: ConversationRenderNode[]
+
+    if (trimHistoricalToolContent) {
+      intermediateNodes = renderItemSequence(hiddenHistoricalItems, 'trimmed-history-details')
+      trailingNodes = renderItemSequence(renderableItems)
+    } else {
+      const pinnedPlanIndex = findLastCreatePlanIndexBefore(renderableItems, lastFinalAgentMessageIndex)
+      const pinnedPlanItem = pinnedPlanIndex >= 0 ? renderableItems[pinnedPlanIndex] : null
+      const intermediateItems = pinnedPlanItem
+        ? [
+            ...renderableItems.slice(0, pinnedPlanIndex),
+            ...renderableItems.slice(pinnedPlanIndex + 1, lastFinalAgentMessageIndex)
+          ]
+        : renderableItems.slice(0, lastFinalAgentMessageIndex)
+      const trailingItems = renderableItems.slice(lastFinalAgentMessageIndex)
+
+      intermediateNodes = pinnedPlanItem
+        ? [
+            ...renderItemSequence(
+              renderableItems.slice(0, pinnedPlanIndex),
+              'before-pinned-plan'
+            ),
+            ...renderItemSequence(
+              renderableItems.slice(pinnedPlanIndex + 1, lastFinalAgentMessageIndex),
+              'after-pinned-plan'
+            )
+          ]
+        : renderItemSequence(intermediateItems)
+      pinnedPlanNodes = pinnedPlanItem
+        ? renderItemSequence([pinnedPlanItem], 'pinned-plan')
+        : []
+      trailingNodes = renderItemSequence(trailingItems)
+    }
 
     if (intermediateNodes.length > 0) {
-      const elapsedMs = getIntermediateElapsedMs(turn, renderableItems[lastFinalAgentMessageIndex])
+      const elapsedMs = getIntermediateElapsedMs(turn, collapseSourceItems[lastFinalAgentMessageIndex])
       renderNodes.push({
         kind: 'other',
         node: (
@@ -850,6 +859,15 @@ function findLastCreatePlanIndexBefore(items: ConversationItem[], beforeIndex: n
 
 function isGuidanceUserMessage(item: ConversationItem): boolean {
   return item.type === 'userMessage' && item.deliveryMode === 'guidance'
+}
+
+function isDefaultRenderableItem(item: ConversationItem): boolean {
+  return (
+    (item.type !== 'userMessage' || item.deliveryMode === 'guidance')
+    && item.type !== 'toolResult'
+    && item.type !== 'commandExecution'
+    && item.type !== 'toolExecution'
+  )
 }
 
 function isCreatePlanItem(item: ConversationItem): boolean {
