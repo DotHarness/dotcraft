@@ -7,7 +7,7 @@ import { addToast } from '../../stores/toastStore'
 import { useT } from '../../contexts/LocaleContext'
 import { useAutoScroll } from '../../hooks/useAutoScroll'
 import { UserMessageBlock } from './UserMessageBlock'
-import { AgentResponseBlock } from './AgentResponseBlock'
+import { AgentResponseBlock, type HistoricalToolContentMode } from './AgentResponseBlock'
 import { ScrollToBottomButton } from './ScrollToBottomButton'
 import { ConversationColumn } from './ConversationColumn'
 import { wireTurnToConversationTurn } from '../../types/conversation'
@@ -23,6 +23,7 @@ const scrollPositionCache = new Map<string, number>()
 const NEAR_BOTTOM_THRESHOLD = 50
 const SCROLL_BUTTON_BASE_BOTTOM_PX = 10
 const SCROLL_BUTTON_DOCK_GAP_PX = 10
+const FULL_HISTORY_TURN_COUNT = 3
 
 interface InlineEditState {
   threadId: string
@@ -264,6 +265,12 @@ export function MessageStream(): JSX.Element {
             <TurnBlock
               key={turn.id}
               turn={turn}
+              historicalToolContentMode={getHistoricalToolContentMode({
+                turn,
+                index: idx,
+                totalTurns: turns.length,
+                activeTurnId
+              })}
               streamingMessage={turn.id === activeTurnId ? streamingMessage : ''}
               streamingMessageLastDeltaAt={
                 turn.id === activeTurnId ? streamingMessageLastDeltaAt : null
@@ -425,6 +432,7 @@ function SystemStatusDivider({ labelKey }: { labelKey: string }): JSX.Element {
 
 interface TurnBlockProps {
   turn: ConversationTurn
+  historicalToolContentMode: HistoricalToolContentMode
   streamingMessage: string
   streamingMessageLastDeltaAt: number | null
   streamingReasoning: string
@@ -444,6 +452,7 @@ interface TurnBlockProps {
 
 function TurnBlock({
   turn,
+  historicalToolContentMode,
   streamingMessage,
   streamingMessageLastDeltaAt,
   streamingReasoning,
@@ -513,7 +522,28 @@ function TurnBlock({
         showIdleThinkingFallback={showIdleThinkingFallback}
         isActiveTurn={isActiveTurn}
         isLastTurn={isLastTurn}
+        historicalToolContentMode={historicalToolContentMode}
       />
     </div>
   )
+}
+
+function getHistoricalToolContentMode({
+  turn,
+  index,
+  totalTurns,
+  activeTurnId
+}: {
+  turn: ConversationTurn
+  index: number
+  totalTurns: number
+  activeTurnId: string | null
+}): HistoricalToolContentMode {
+  const recentStartIndex = Math.max(0, totalTurns - FULL_HISTORY_TURN_COUNT)
+  if (index >= recentStartIndex) return 'full'
+  if (turn.id === activeTurnId) return 'full'
+  if (turn.status === 'running' || turn.status === 'waitingApproval' || turn.status === 'waitingInput') {
+    return 'full'
+  }
+  return 'trimmed'
 }

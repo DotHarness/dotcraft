@@ -7,6 +7,7 @@ import { useConversationStore } from '../stores/conversationStore'
 import { useThreadStore } from '../stores/threadStore'
 import { ACCEPT_PLAN_SENTINEL_EN } from '../utils/planAcceptSentinel'
 import type { ThreadGoal } from '../types/thread'
+import type { FileDiff } from '../types/toolCall'
 
 const appServerSendRequest = vi.fn()
 
@@ -47,6 +48,73 @@ function makeGoal(threadId: string, objective: string, createdAt: string): Threa
     timeUsedSeconds: 0,
     createdAt,
     updatedAt: createdAt
+  }
+}
+
+function makeDiff(filePath: string, turnId: string): FileDiff {
+  return {
+    filePath,
+    turnId,
+    turnIds: [turnId],
+    additions: 1,
+    deletions: 0,
+    status: 'written',
+    isNewFile: true,
+    originalContent: '',
+    currentContent: 'new\n',
+    diffHunks: [
+      {
+        oldStart: 0,
+        oldLines: 0,
+        newStart: 1,
+        newLines: 1,
+        lines: [{ type: 'add', content: 'new' }]
+      }
+    ]
+  }
+}
+
+function completedToolTurn(
+  id: string,
+  toolPath: string,
+  assistantText?: string
+): ReturnType<typeof useConversationStore.getState>['turns'][number] {
+  const startedAt = `2026-04-18T10:0${id.slice(-1)}:00.000Z`
+  return {
+    id,
+    threadId: 'thread-1',
+    status: 'completed',
+    startedAt,
+    completedAt: startedAt,
+    items: [
+      {
+        id: `${id}-user`,
+        type: 'userMessage',
+        status: 'completed',
+        text: `request ${id}`,
+        createdAt: startedAt
+      },
+      {
+        id: `${id}-tool`,
+        type: 'toolCall',
+        status: 'completed',
+        toolCallId: `${id}-tool-call`,
+        toolName: 'ReadFile',
+        arguments: { path: toolPath },
+        result: 'ok',
+        success: true,
+        createdAt: startedAt
+      },
+      ...(assistantText
+        ? [{
+            id: `${id}-assistant`,
+            type: 'agentMessage' as const,
+            status: 'completed' as const,
+            text: assistantText,
+            createdAt: startedAt
+          }]
+        : [])
+    ]
   }
 }
 
@@ -155,6 +223,109 @@ describe('MessageStream plan-accept sentinel filtering', () => {
     expect(screen.getByText('Build feature')).toBeInTheDocument()
     expect(screen.getByText('Sent as goal')).toBeInTheDocument()
     expect(screen.queryByText('Goal auto-continue')).toBeNull()
+  })
+
+  it('hides tool-derived content before the newest three turns without adding a hidden-tools notice', () => {
+    useConversationStore.setState({
+      turns: [
+        {
+          ...completedToolTurn('turn-1', 'src/old.ts', 'old assistant stays visible'),
+          items: [
+            ...completedToolTurn('turn-1', 'src/old.ts', 'old assistant stays visible').items,
+            {
+              id: 'turn-1-write',
+              type: 'toolCall',
+              status: 'completed',
+              toolCallId: 'turn-1-write-call',
+              toolName: 'WriteFile',
+              arguments: { path: 'docs/old-artifact.md', content: 'new\n' },
+              result: 'Wrote docs/old-artifact.md',
+              success: true,
+              createdAt: '2026-04-18T10:01:30.000Z'
+            }
+          ]
+        },
+        completedToolTurn('turn-2', 'src/recent-2.ts'),
+        completedToolTurn('turn-3', 'src/recent-3.ts'),
+        completedToolTurn('turn-4', 'src/recent-4.ts')
+      ],
+      changedFiles: new Map([
+        ['docs/old-artifact.md', makeDiff('docs/old-artifact.md', 'turn-1')]
+      ]),
+      turnStatus: 'idle',
+      activeTurnId: null
+    })
+
+    renderWithLocale(<MessageStream />)
+
+    expect(screen.getByText('request turn-1')).toBeInTheDocument()
+    expect(screen.getByText('old assistant stays visible')).toBeInTheDocument()
+    expect(screen.queryByText('Read old.ts')).toBeNull()
+    expect(screen.queryByText('old-artifact.md')).toBeNull()
+    expect(screen.queryByText(/hidden/i)).toBeNull()
+    expect(screen.queryByText(/Processed in/)).toBeNull()
+    expect(screen.getByText('Read recent-2.ts')).toBeInTheDocument()
+    expect(screen.getByText('Read recent-3.ts')).toBeInTheDocument()
+    expect(screen.getByText('Read recent-4.ts')).toBeInTheDocument()
+  })
+
+  it('keeps an active older running or waiting turn fully rendered outside the newest-three window', () => {
+    const statuses: Array<'running' | 'waitingApproval' | 'waitingInput'> = [
+      'running',
+      'waitingApproval',
+      'waitingInput'
+    ]
+
+    for (const status of statuses) {
+      useConversationStore.getState().reset()
+      useConversationStore.getState().setWorkspacePath('F:\\dotcraft')
+      const activeTurnId = `turn-active-${status}`
+      useConversationStore.setState({
+        turns: [
+          {
+            id: activeTurnId,
+            threadId: 'thread-1',
+            status,
+            startedAt: '2026-04-18T09:00:00.000Z',
+            items: [
+              {
+                id: `${activeTurnId}-user`,
+                type: 'userMessage',
+                status: 'completed',
+                text: `active ${status}`,
+                createdAt: '2026-04-18T09:00:00.000Z'
+              },
+              {
+                id: `${activeTurnId}-tool`,
+                type: 'toolCall',
+                status: 'completed',
+                toolCallId: `${activeTurnId}-tool-call`,
+                toolName: 'ReadFile',
+                arguments: { path: `src/active-${status}.ts` },
+                result: 'ok',
+                success: true,
+                createdAt: '2026-04-18T09:00:01.000Z'
+              }
+            ]
+          },
+          completedToolTurn('turn-2', 'src/recent-2.ts'),
+          completedToolTurn('turn-3', 'src/recent-3.ts'),
+          completedToolTurn('turn-4', 'src/recent-4.ts')
+        ],
+        turnStatus: status,
+        activeTurnId,
+        turnStartedAt: Date.now()
+      })
+
+      const { unmount } = render(
+        <LocaleProvider>
+          <MessageStream />
+        </LocaleProvider>
+      )
+
+      expect(screen.getByText(`Read active-${status}.ts`)).toBeInTheDocument()
+      unmount()
+    }
   })
 
   it('renders guidance user messages inline instead of grouping them with the initial request', () => {
