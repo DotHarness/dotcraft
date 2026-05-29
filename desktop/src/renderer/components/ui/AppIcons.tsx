@@ -8,7 +8,7 @@ import {
   Clock,
   ExternalLink,
   Folder,
-  GitCommitVertical,
+  GitCommitHorizontal,
   Monitor,
   RotateCw,
   Settings,
@@ -33,7 +33,7 @@ export function OpenInBrowserIcon({ size = 16 }: { size?: number }): JSX.Element
 }
 
 export function CommitIcon({ size = 16 }: { size?: number }): JSX.Element {
-  return <GitCommitVertical size={size} strokeWidth={1.8} aria-hidden="true" />
+  return <GitCommitHorizontal size={size} strokeWidth={1.8} aria-hidden="true" />
 }
 
 export function EditorGenericIcon({ size = 16 }: { size?: number }): JSX.Element {

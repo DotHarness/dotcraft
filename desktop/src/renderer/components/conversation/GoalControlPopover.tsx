@@ -271,10 +271,10 @@ const secondaryButtonStyle: CSSProperties = {
 }
 
 const primaryButtonStyle: CSSProperties = {
-  border: 'none',
+  border: '1px solid var(--text-primary)',
   borderRadius: 7,
-  background: 'var(--accent)',
-  color: 'var(--on-accent)',
+  background: 'var(--text-primary)',
+  color: 'var(--bg-primary)',
   cursor: 'pointer',
   fontSize: 12,
   fontWeight: 600,

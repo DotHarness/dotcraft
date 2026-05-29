@@ -126,9 +126,9 @@ export function ErrorScreen({ onOpenSettings }: ErrorScreenProps = {}): JSX.Elem
           onClick={handleAction}
           style={{
             padding: '10px 24px',
-            backgroundColor: 'var(--accent)',
-            color: 'var(--on-accent)',
-            border: 'none',
+            backgroundColor: 'var(--text-primary)',
+            color: 'var(--bg-primary)',
+            border: '1px solid var(--text-primary)',
             borderRadius: '8px',
             fontSize: '14px',
             fontWeight: 500,
@@ -137,10 +137,10 @@ export function ErrorScreen({ onOpenSettings }: ErrorScreenProps = {}): JSX.Elem
             boxShadow: 'var(--shadow-level-1)'
           }}
           onMouseEnter={(e) => {
-            ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--accent-hover)'
+            ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'color-mix(in srgb, var(--text-primary) 88%, var(--bg-primary))'
           }}
           onMouseLeave={(e) => {
-            ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--accent)'
+            ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--text-primary)'
           }}
         >
           {actionLabel}
