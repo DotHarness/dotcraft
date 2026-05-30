@@ -353,6 +353,75 @@ test("TurnStreamReducer preserves segment boundaries and final results", async (
   assert.deepEqual(completed, [{ reply: "before after", segmentsWereDelivered: true }]);
 });
 
+test("TurnStreamReducer preserves failed segment tails for final delivery", async () => {
+  const reducer = new TurnStreamReducer();
+  const segments: Array<{ text: string; isFinal: boolean }> = [];
+  const completed: Array<{ reply: string; segmentsWereDelivered: boolean }> = [];
+
+  await reducer.consume(events([
+    { method: "item/agentMessage/delta", params: { threadId: "t", itemId: "a", delta: "before " } },
+    { method: "item/started", params: { threadId: "t", item: { id: "tool", type: "pluginFunctionCall" } } },
+    {
+      method: "item/completed",
+      params: { threadId: "t", item: { id: "a", type: "agentMessage", payload: { text: "before " } } },
+    },
+    { method: "item/agentMessage/delta", params: { threadId: "t", itemId: "b", delta: "after" } },
+    {
+      method: "turn/completed",
+      params: {
+        threadId: "t",
+        turn: {
+          items: [
+            { id: "a", type: "agentMessage", payload: { text: "before " } },
+            { id: "b", type: "agentMessage", payload: { text: "after" } },
+          ],
+        },
+      },
+    },
+  ]), { threadId: "t", turnId: "turn", channelContext: "c" }, {
+    onSegmentCompleted: async (_threadId, _turnId, text, isFinal) => {
+      segments.push({ text, isFinal });
+      return isFinal;
+    },
+    onTurnCompleted: async (_threadId, _turnId, reply, _channelContext, segmentsWereDelivered) => {
+      completed.push({ reply, segmentsWereDelivered });
+    },
+    onTurnFailed: async () => {},
+    onTurnCancelled: async () => {},
+  });
+
+  assert.deepEqual(segments, [
+    { text: "before ", isFinal: false },
+    { text: "before after", isFinal: true },
+  ]);
+  assert.deepEqual(completed, [{ reply: "before after", segmentsWereDelivered: true }]);
+});
+
+test("TurnStreamReducer allows full-reply fallback when final segment delivery fails", async () => {
+  const completed: Array<{ reply: string; segmentsWereDelivered: boolean }> = [];
+  const segments: string[] = [];
+
+  await new TurnStreamReducer().consume(events([
+    {
+      method: "turn/completed",
+      params: { threadId: "t", turn: { items: [{ id: "a", type: "agentMessage", payload: { text: "from snapshot" } }] } },
+    },
+  ]), { threadId: "t", turnId: "turn", channelContext: "c" }, {
+    onSegmentCompleted: async (_threadId, _turnId, text) => {
+      segments.push(text);
+      return false;
+    },
+    onTurnCompleted: async (_threadId, _turnId, reply, _channelContext, segmentsWereDelivered) => {
+      completed.push({ reply, segmentsWereDelivered });
+    },
+    onTurnFailed: async () => {},
+    onTurnCancelled: async () => {},
+  });
+
+  assert.deepEqual(segments, ["from snapshot"]);
+  assert.deepEqual(completed, [{ reply: "from snapshot", segmentsWereDelivered: false }]);
+});
+
 test("TurnStreamReducer handles orphan deltas, snapshot-only turns, failures, and cancellation", async () => {
   const snapshotReducer = new TurnStreamReducer();
   const snapshotSegments: string[] = [];

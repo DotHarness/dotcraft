@@ -197,7 +197,7 @@ export abstract class ChannelAdapter {
     _segmentText: string,
     _isFinal: boolean,
     _channelContext: string,
-  ): Promise<void> {
+  ): Promise<boolean | void> {
     // Default no-op; adapters can override for progressive delivery.
   }
 

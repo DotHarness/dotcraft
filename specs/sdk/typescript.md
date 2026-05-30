@@ -823,6 +823,7 @@ Rules:
 - Final snapshots are preferred when they contain the complete text and are at least as long as deltas.
 - The SDK must avoid duplicating text when both delta and snapshot contain overlapping content.
 - Channel adapters and high-level runs should share the same reducer logic.
+- Channel segment delivery is acknowledged by the adapter hook: `onSegmentCompleted` may return `false` to indicate the segment was not delivered. The reducer must not advance the delivered frontier for failed or thrown segment deliveries, so the final snapshot can resend the remaining text.
 
 ### 13.4 Segment Boundaries
 
@@ -1049,7 +1050,7 @@ getDeliveryCapabilities(): Record<string, unknown> | null;
 getChannelTools(): Record<string, unknown>[] | null;
 onSend(target: string, message: Record<string, unknown>, metadata: Record<string, unknown>): Promise<Record<string, unknown>>;
 onToolCall(request: Record<string, unknown>): Promise<Record<string, unknown>>;
-onSegmentCompleted(threadId: string, turnId: string, segmentText: string, isFinal: boolean, channelContext: string): Promise<void>;
+onSegmentCompleted(threadId: string, turnId: string, segmentText: string, isFinal: boolean, channelContext: string): Promise<boolean | void>;
 onTurnCompleted(threadId: string, turnId: string, replyText: string, channelContext: string, segmentsWereDelivered: boolean): Promise<void>;
 onTurnFailed(threadId: string, turnId: string, error: string): Promise<void>;
 onTurnCancelled(threadId: string, turnId: string): Promise<void>;

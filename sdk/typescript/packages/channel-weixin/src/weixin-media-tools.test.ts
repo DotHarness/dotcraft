@@ -46,6 +46,10 @@ class TestWeixinAdapter extends WeixinAdapter {
   async exposeSend(target: string, message: Record<string, unknown>): Promise<Record<string, unknown>> {
     return await this.onSend(target, message, {});
   }
+
+  async exposeToolCall(request: Record<string, unknown>): Promise<Record<string, unknown>> {
+    return await this.onToolCall(request);
+  }
 }
 
 function assertHex(value: unknown, length: number): asserts value is string {
@@ -231,6 +235,92 @@ test("CDN upload retries 5xx responses and preserves x-error-message", async () 
   }
 });
 
+test("media tools report getUploadUrl fetch failures with stage context", async () => {
+  const tools = new WeixinMediaTools({
+    async getUploadUrl(): Promise<GetUploadUrlResp> {
+      throw new TypeError("fetch failed");
+    },
+    async sendMessage(): Promise<void> {},
+  });
+
+  await assert.rejects(
+    async () =>
+      await tools.sendStructuredMessage({
+        baseUrl: "https://ilink.example",
+        toUserId: "user@im.wechat",
+        clientId: "client",
+        message: { kind: "file", source: { kind: "dataBase64", dataBase64: Buffer.from("x").toString("base64") } },
+      }),
+    (error: unknown) =>
+      error instanceof WeixinMediaError &&
+      error.code === "UploadUrlRequestFailed" &&
+      error.message === "getUploadUrl failed: fetch failed",
+  );
+});
+
+test("media tools report CDN fetch failures with stage context", async () => {
+  const originalFetch = globalThis.fetch;
+  const api = new FakeWeixinApi({ upload_full_url: "https://upload.example/file" });
+  let attempts = 0;
+  globalThis.fetch = (async () => {
+    attempts += 1;
+    throw new TypeError("fetch failed");
+  }) as typeof fetch;
+
+  try {
+    const tools = new WeixinMediaTools(api);
+    await assert.rejects(
+      async () =>
+        await tools.sendStructuredMessage({
+          baseUrl: "https://ilink.example",
+          toUserId: "user@im.wechat",
+          clientId: "client",
+          message: { kind: "file", source: { kind: "dataBase64", dataBase64: Buffer.from("x").toString("base64") } },
+        }),
+      (error: unknown) =>
+        error instanceof WeixinMediaError &&
+        error.code === "CdnUploadFailed" &&
+        error.message === "file CDN upload failed: fetch failed",
+    );
+    assert.equal(attempts, 3);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("media tools report final sendMessage failures with stage context", async () => {
+  const originalFetch = globalThis.fetch;
+  const api: WeixinMediaApi = {
+    async getUploadUrl(): Promise<GetUploadUrlResp> {
+      return { upload_full_url: "https://upload.example/file" };
+    },
+    async sendMessage(): Promise<void> {
+      throw new TypeError("fetch failed");
+    },
+  };
+  globalThis.fetch = (async () =>
+    new Response("", { status: 200, headers: { "x-encrypted-param": "download-file" } })) as typeof fetch;
+
+  try {
+    const tools = new WeixinMediaTools(api);
+    await assert.rejects(
+      async () =>
+        await tools.sendStructuredMessage({
+          baseUrl: "https://ilink.example",
+          toUserId: "user@im.wechat",
+          clientId: "client",
+          message: { kind: "file", source: { kind: "dataBase64", dataBase64: Buffer.from("x").toString("base64") } },
+        }),
+      (error: unknown) =>
+        error instanceof WeixinMediaError &&
+        error.code === "MediaMessageSendFailed" &&
+        error.message === "sendMessage failed: fetch failed",
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("media tools reject invalid sources", async () => {
   const tools = new WeixinMediaTools(new FakeWeixinApi({ upload_full_url: "https://upload.example/file" }));
 
@@ -350,5 +440,67 @@ test("adapter sends caption as normalized text before media delivery", async () 
     assert.equal(msg.context_token, "ctx");
   } finally {
     globalThis.fetch = originalFetch;
+  }
+});
+
+test("adapter reports caption failure without blocking file tool delivery", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalError = console.error;
+  const adapter = new TestWeixinAdapter();
+  const internals = adapter as unknown as {
+    apiBaseUrl: string;
+    botToken: string;
+    contextTokens: Record<string, string>;
+    mediaTools: {
+      executeToolCall(): Promise<Record<string, unknown>>;
+      sendStructuredMessage(): Promise<Record<string, unknown>>;
+      getDeliveryCapabilities(): Record<string, unknown>;
+      getChannelTools(): Record<string, unknown>[];
+    };
+  };
+  internals.apiBaseUrl = "https://ilink.example";
+  internals.botToken = "token";
+  internals.contextTokens = { "user@im.wechat": "ctx" };
+  let mediaCalled = false;
+  internals.mediaTools = {
+    async executeToolCall(): Promise<Record<string, unknown>> {
+      mediaCalled = true;
+      return {
+        success: true,
+        contentItems: [{ type: "text", text: "Sent file." }],
+        structuredResult: { delivered: true, mediaId: "media-id", fileName: "report.txt" },
+      };
+    },
+    async sendStructuredMessage(): Promise<Record<string, unknown>> {
+      throw new Error("not used");
+    },
+    getDeliveryCapabilities(): Record<string, unknown> {
+      return {};
+    },
+    getChannelTools(): Record<string, unknown>[] {
+      return [];
+    },
+  };
+
+  globalThis.fetch = (async () => new Response("bad request", { status: 400 })) as typeof fetch;
+  console.error = () => {};
+
+  try {
+    const result = await adapter.exposeToolCall({
+      tool: WEIXIN_SEND_FILE_TOOL,
+      arguments: { filePath: "report.txt", caption: "caption" },
+      context: { channelContext: "user@im.wechat" },
+    });
+
+    assert.equal(mediaCalled, true);
+    assert.equal(result.success, true);
+    assert.equal(result.captionDelivered, false);
+    assert.match(String(result.captionError ?? ""), /sendMessage 400/);
+    const structured = result.structuredResult as Record<string, unknown>;
+    assert.equal(structured.captionDelivered, false);
+    assert.match(String(structured.captionError ?? ""), /sendMessage 400/);
+  } finally {
+    globalThis.fetch = originalFetch;
+    console.error = originalError;
   }
 });

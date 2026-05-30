@@ -27,6 +27,15 @@ export class WeixinMediaError extends Error {
   }
 }
 
+function formatErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function wrapMediaStageError(stage: string, code: string, error: unknown): WeixinMediaError {
+  if (error instanceof WeixinMediaError) return error;
+  return new WeixinMediaError(code, `${stage} failed: ${formatErrorMessage(error)}`);
+}
+
 export interface WeixinMediaApi {
   getUploadUrl(opts: WeixinApiOptions & { body: GetUploadUrlReq }): Promise<GetUploadUrlResp>;
   sendMessage(opts: WeixinApiOptions & { body: SendMessageReq }): Promise<void>;
@@ -133,11 +142,15 @@ export class WeixinMediaTools {
     const uploaded = kind === "image"
       ? await this.uploadImage(opts, prepared)
       : await this.uploadFile(opts, prepared);
-    await this.api.sendMessage({
-      baseUrl: opts.baseUrl,
-      token: opts.token,
-      body: uploaded.body,
-    });
+    try {
+      await this.api.sendMessage({
+        baseUrl: opts.baseUrl,
+        token: opts.token,
+        body: uploaded.body,
+      });
+    } catch (error) {
+      throw wrapMediaStageError("sendMessage", "MediaMessageSendFailed", error);
+    }
     return {
       delivered: true,
       remoteMediaId: uploaded.media.encrypt_query_param ?? null,
@@ -281,11 +294,15 @@ export class WeixinMediaTools {
       no_need_thumb: true,
       aeskey: aesKeyHex,
     };
-    return await this.api.getUploadUrl({
-      baseUrl: opts.baseUrl,
-      token: opts.token,
-      body,
-    });
+    try {
+      return await this.api.getUploadUrl({
+        baseUrl: opts.baseUrl,
+        token: opts.token,
+        body,
+      });
+    } catch (error) {
+      throw wrapMediaStageError("getUploadUrl", "UploadUrlRequestFailed", error);
+    }
   }
 
   private async uploadBufferToCdn(params: {
@@ -306,11 +323,18 @@ export class WeixinMediaTools {
     const encrypted = encryptAesEcb(params.buf, params.aesKey);
     let lastFailure = "";
     for (let attempt = 1; attempt <= MAX_CDN_UPLOAD_ATTEMPTS; attempt += 1) {
-      const response = await fetch(uploadUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/octet-stream" },
-        body: new Uint8Array(encrypted),
-      });
+      let response: Response;
+      try {
+        response = await fetch(uploadUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/octet-stream" },
+          body: new Uint8Array(encrypted),
+        });
+      } catch (error) {
+        lastFailure = `${params.label} CDN upload failed: ${formatErrorMessage(error)}`;
+        if (attempt === MAX_CDN_UPLOAD_ATTEMPTS) break;
+        continue;
+      }
       if (response.ok) {
         const downloadParam = response.headers.get("x-encrypted-param") ?? "";
         if (!downloadParam) {

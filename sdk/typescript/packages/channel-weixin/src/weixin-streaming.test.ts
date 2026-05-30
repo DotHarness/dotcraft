@@ -4,8 +4,8 @@ import test from "node:test";
 import { WeixinAdapter } from "./weixin-adapter.js";
 
 class TestWeixinAdapter extends WeixinAdapter {
-  async exposeSegmentCompleted(segmentText: string, isFinal: boolean, channelContext: string): Promise<void> {
-    await this.onSegmentCompleted("thread-1", "turn-1", segmentText, isFinal, channelContext);
+  async exposeSegmentCompleted(segmentText: string, isFinal: boolean, channelContext: string): Promise<boolean | void> {
+    return await this.onSegmentCompleted("thread-1", "turn-1", segmentText, isFinal, channelContext);
   }
 }
 
@@ -35,6 +35,64 @@ test("Weixin sends non-final segments immediately instead of waiting for turn co
     await adapter.exposeSegmentCompleted("最终结果。", true, "user@im.wechat");
 
     assert.deepEqual(sentTexts, ["先给你中间结果。", "最终结果。"]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("Weixin reports segment delivery failure instead of acknowledging it", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalError = console.error;
+  const adapter = new TestWeixinAdapter();
+  const internals = adapter as unknown as {
+    apiBaseUrl: string;
+    botToken: string;
+    contextTokens: Record<string, string>;
+  };
+  internals.apiBaseUrl = "https://ilink.example";
+  internals.botToken = "token";
+  internals.contextTokens = { "user@im.wechat": "ctx" };
+
+  globalThis.fetch = (async () => new Response("bad request", { status: 400 })) as typeof fetch;
+  console.error = () => {};
+
+  try {
+    const delivered = await adapter.exposeSegmentCompleted("不会成功发送。", false, "user@im.wechat");
+    assert.equal(delivered, false);
+  } finally {
+    globalThis.fetch = originalFetch;
+    console.error = originalError;
+  }
+});
+
+test("Weixin retries transient text fetch failures with the same client id", async () => {
+  const originalFetch = globalThis.fetch;
+  const adapter = new TestWeixinAdapter();
+  const internals = adapter as unknown as {
+    apiBaseUrl: string;
+    botToken: string;
+    contextTokens: Record<string, string>;
+  };
+  internals.apiBaseUrl = "https://ilink.example";
+  internals.botToken = "token";
+  internals.contextTokens = { "user@im.wechat": "ctx" };
+
+  const clientIds: string[] = [];
+  let attempts = 0;
+  globalThis.fetch = (async (_input: string | URL | Request, init?: RequestInit) => {
+    attempts += 1;
+    const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    const msg = body.msg as Record<string, unknown>;
+    clientIds.push(String(msg.client_id ?? ""));
+    if (attempts < 3) throw new TypeError("fetch failed");
+    return new Response("", { status: 200 });
+  }) as typeof fetch;
+
+  try {
+    const delivered = await adapter.exposeSegmentCompleted("重试后成功。", false, "user@im.wechat");
+    assert.equal(delivered, true);
+    assert.equal(attempts, 3);
+    assert.equal(new Set(clientIds).size, 1);
   } finally {
     globalThis.fetch = originalFetch;
   }

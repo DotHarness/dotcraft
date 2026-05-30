@@ -73,6 +73,16 @@ function hasUsableCredentials(credentials: WeixinCredentials | null | undefined)
   return Boolean(credentials.botToken?.trim() && credentials.ilinkBotId?.trim());
 }
 
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function shouldRetrySendMessage(error: unknown): boolean {
+  const name = error instanceof Error ? error.name : "";
+  const message = error instanceof Error ? error.message : String(error);
+  return name === "AbortError" || message.includes("fetch failed") || /\b5\d\d:/.test(message);
+}
+
 export function validateWeixinConfig(rawConfig: unknown): asserts rawConfig is WeixinConfig {
   if (!rawConfig || typeof rawConfig !== "object") {
     throw new ConfigValidationError("Weixin config must be an object.", ["config"]);
@@ -107,6 +117,12 @@ export interface WeixinAdapterConfig {
   approvalTimeoutMs: number;
   state: WeixinState;
   credentials: WeixinCredentials;
+}
+
+interface CaptionDeliveryResult {
+  attempted: boolean;
+  delivered?: boolean;
+  errorMessage?: string;
 }
 
 export class WeixinAdapter extends ModuleChannelAdapter<WeixinConfig> {
@@ -360,6 +376,43 @@ export class WeixinAdapter extends ModuleChannelAdapter<WeixinConfig> {
     return error instanceof Error ? error.message : String(error);
   }
 
+  private async sendCaptionIfPresent(toUserId: string, caption: string): Promise<CaptionDeliveryResult> {
+    if (!caption.trim()) return { attempted: false };
+    try {
+      await this.sendWeixinText(toUserId, caption);
+      return { attempted: true, delivered: true };
+    } catch (error) {
+      console.error("caption send failed:", error);
+      return { attempted: true, delivered: false, errorMessage: this.errText(error) };
+    }
+  }
+
+  private attachCaptionInfo(
+    result: Record<string, unknown>,
+    caption: CaptionDeliveryResult,
+  ): Record<string, unknown> {
+    if (!caption.attempted) return result;
+
+    const updated: Record<string, unknown> = {
+      ...result,
+      captionDelivered: caption.delivered === true,
+    };
+    if (caption.errorMessage) {
+      updated.captionError = caption.errorMessage;
+    }
+
+    const structured = result.structuredResult;
+    if (structured && typeof structured === "object" && !Array.isArray(structured)) {
+      updated.structuredResult = {
+        ...(structured as Record<string, unknown>),
+        captionDelivered: caption.delivered === true,
+        captionError: caption.errorMessage ?? null,
+      };
+    }
+
+    return updated;
+  }
+
   private findUserIdForThread(threadId: string): string | undefined {
     for (const [identityKey, tid] of this.threadMap) {
       if (tid === threadId) {
@@ -372,17 +425,29 @@ export class WeixinAdapter extends ModuleChannelAdapter<WeixinConfig> {
 
   private async sendWeixinText(toUserId: string, text: string): Promise<void> {
     const ctx = this.contextTokens[toUserId];
+    const clientId = `dotcraft-weixin-${randomUUID()}`;
     const req = buildTextMessageReq({
       toUserId,
       text: markdownToPlainText(text),
       contextToken: ctx,
-      clientId: `dotcraft-weixin-${randomUUID()}`,
+      clientId,
     });
-    await sendMessage({
-      baseUrl: this.apiBaseUrl,
-      token: this.getBotToken(),
-      body: req,
-    });
+    let lastError: unknown = null;
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      try {
+        await sendMessage({
+          baseUrl: this.apiBaseUrl,
+          token: this.getBotToken(),
+          body: req,
+        });
+        return;
+      } catch (error) {
+        lastError = error;
+        if (attempt === 3 || !shouldRetrySendMessage(error)) break;
+        await delay(attempt === 1 ? 250 : 750);
+      }
+    }
+    throw lastError instanceof Error ? lastError : new Error(String(lastError));
   }
 
   /**
@@ -443,12 +508,11 @@ export class WeixinAdapter extends ModuleChannelAdapter<WeixinConfig> {
       };
     }
 
+    let captionResult: CaptionDeliveryResult = { attempted: false };
     try {
       const userId = target.replace(/^user:/, "");
       const caption = String(message.caption ?? "");
-      if (caption.trim()) {
-        await this.sendWeixinText(userId, caption);
-      }
+      captionResult = await this.sendCaptionIfPresent(userId, caption);
       const result = await this.mediaTools.sendStructuredMessage({
         baseUrl: this.apiBaseUrl,
         token: this.getBotToken(),
@@ -457,16 +521,22 @@ export class WeixinAdapter extends ModuleChannelAdapter<WeixinConfig> {
         clientId: `dotcraft-weixin-${randomUUID()}`,
         message,
       });
-      return result;
+      return this.attachCaptionInfo(result, captionResult);
     } catch (error) {
       if (error instanceof WeixinMediaError) {
-        return { delivered: false, errorCode: error.code, errorMessage: error.message };
+        return this.attachCaptionInfo(
+          { delivered: false, errorCode: error.code, errorMessage: error.message },
+          captionResult,
+        );
       }
-      return {
-        delivered: false,
-        errorCode: "AdapterDeliveryFailed",
-        errorMessage: error instanceof Error ? error.message : String(error),
-      };
+      return this.attachCaptionInfo(
+        {
+          delivered: false,
+          errorCode: "AdapterDeliveryFailed",
+          errorMessage: error instanceof Error ? error.message : String(error),
+        },
+        captionResult,
+      );
     }
   }
 
@@ -493,11 +563,10 @@ export class WeixinAdapter extends ModuleChannelAdapter<WeixinConfig> {
       };
     }
 
+    let captionResult: CaptionDeliveryResult = { attempted: false };
     try {
       const caption = String(args.caption ?? "");
-      if (caption.trim()) {
-        await this.sendWeixinText(target, caption);
-      }
+      captionResult = await this.sendCaptionIfPresent(target, caption);
       const result = await this.mediaTools.executeToolCall({
         baseUrl: this.apiBaseUrl,
         token: this.getBotToken(),
@@ -507,16 +576,38 @@ export class WeixinAdapter extends ModuleChannelAdapter<WeixinConfig> {
         toolName: tool,
         args,
       });
-      return result;
+      return this.attachCaptionInfo(result, captionResult);
     } catch (error) {
       if (error instanceof WeixinMediaError) {
-        return { success: false, errorCode: error.code, errorMessage: error.message };
+        return this.attachCaptionInfo(
+          {
+            success: false,
+            errorCode: error.code,
+            errorMessage: error.message,
+            contentItems: [{ type: "text", text: error.message }],
+            structuredResult: {
+              delivered: false,
+              errorCode: error.code,
+              errorMessage: error.message,
+            },
+          },
+          captionResult,
+        );
       }
-      return {
-        success: false,
-        errorCode: "AdapterToolCallFailed",
-        errorMessage: error instanceof Error ? error.message : String(error),
-      };
+      return this.attachCaptionInfo(
+        {
+          success: false,
+          errorCode: "AdapterToolCallFailed",
+          errorMessage: error instanceof Error ? error.message : String(error),
+          contentItems: [{ type: "text", text: error instanceof Error ? error.message : String(error) }],
+          structuredResult: {
+            delivered: false,
+            errorCode: "AdapterToolCallFailed",
+            errorMessage: error instanceof Error ? error.message : String(error),
+          },
+        },
+        captionResult,
+      );
     }
   }
 
@@ -563,12 +654,14 @@ export class WeixinAdapter extends ModuleChannelAdapter<WeixinConfig> {
     segmentText: string,
     _isFinal: boolean,
     channelContext: string,
-  ): Promise<void> {
-    if (!segmentText.trim()) return;
+  ): Promise<boolean> {
+    if (!segmentText.trim()) return true;
     try {
       await this.sendWeixinText(channelContext, segmentText);
+      return true;
     } catch (e) {
       console.error("onSegmentCompleted send failed:", e);
+      return false;
     }
   }
 

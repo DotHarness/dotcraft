@@ -623,7 +623,7 @@ export interface TurnStreamReducerHandlers {
     segmentText: string,
     isFinal: boolean,
     channelContext: string,
-  ): Promise<void>;
+  ): Promise<boolean | void>;
   onTurnCompleted(
     threadId: string,
     turnId: string,
@@ -702,6 +702,42 @@ export class TurnStreamReducer {
       orphanDeltaChars: orphanDeltaTail.length,
       segmentsWereDelivered,
     });
+    const hasUnsentText = (): boolean =>
+      itemOrder.some((id) => getUnsentTail(id, "").trim().length > 0) || orphanDeltaTail.trim().length > 0;
+    const deliverSegment = async (
+      segmentText: string,
+      isFinal: boolean,
+      deliveredParts: Array<{ itemId: string | null; text: string }>,
+      clearOrphanOnSuccess: boolean,
+    ): Promise<boolean> => {
+      try {
+        const delivered = await handlers.onSegmentCompleted(threadId, turnId, segmentText, isFinal, channelContext);
+        if (delivered === false) {
+          this.log("segment.delivery_failed", () => ({
+            isFinal,
+            segmentChars: segmentText.length,
+            segmentPreview: previewWireText(segmentText),
+            ...snapshotStreamState(),
+          }));
+          return false;
+        }
+        segmentsWereDelivered = true;
+        for (const part of deliveredParts) {
+          markSegmentDelivered(part.itemId, part.text);
+        }
+        if (clearOrphanOnSuccess) orphanDeltaTail = "";
+        return true;
+      } catch (error) {
+        this.log("segment.delivery_threw", () => ({
+          isFinal,
+          error: error instanceof Error ? error.message : String(error),
+          segmentChars: segmentText.length,
+          segmentPreview: previewWireText(segmentText),
+          ...snapshotStreamState(),
+        }));
+        return false;
+      }
+    };
 
     for await (const event of eventStream) {
       this.log("event", () => ({
@@ -750,12 +786,14 @@ export class TurnStreamReducer {
             segmentText = getUnsentFromMerged(segmentItemId, merged);
           } else if (orphanDeltaTail) {
             segmentText = orphanDeltaTail;
-            orphanDeltaTail = "";
           }
           if (segmentText.trim()) {
-            segmentsWereDelivered = true;
-            await handlers.onSegmentCompleted(threadId, turnId, segmentText, false, channelContext);
-            markSegmentDelivered(segmentItemId, segmentText);
+            await deliverSegment(
+              segmentText,
+              false,
+              [{ itemId: segmentItemId, text: segmentText }],
+              segmentItemId == null,
+            );
           }
           this.log("event.item/started.flush_segment", () => ({
             itemType,
@@ -812,32 +850,26 @@ export class TurnStreamReducer {
         const snapshots = extractAgentReplyTextsFromTurnCompletedParams(params);
         const lastSnap = snapshots.length > 0 ? snapshots[snapshots.length - 1] ?? "" : "";
         const unsentParts: Array<{ itemId: string | null; text: string }> = [];
+        const orphanTailForReply = orphanDeltaTail;
         for (const itemId of itemOrder) {
           const tail = getUnsentTail(itemId, "");
           if (tail.length > 0) unsentParts.push({ itemId, text: tail });
         }
         if (orphanDeltaTail.length > 0) {
           unsentParts.push({ itemId: null, text: orphanDeltaTail });
-          orphanDeltaTail = "";
         }
         let segmentText = unsentParts.map((part) => part.text).join("");
         if (!segmentText.trim() && lastSnap && !segmentsWereDelivered && itemOrder.length === 0) {
           segmentText = lastSnap;
         }
         if (segmentText.trim()) {
-          segmentsWereDelivered = true;
-          await handlers.onSegmentCompleted(threadId, turnId, segmentText, true, channelContext);
-          if (unsentParts.length > 0) {
-            for (const part of unsentParts) {
-              markSegmentDelivered(part.itemId, part.text);
-            }
-          } else {
-            const lastItemId = itemOrder.length > 0 ? itemOrder[itemOrder.length - 1] : null;
-            markSegmentDelivered(lastItemId, segmentText);
-          }
+          const deliveredParts = unsentParts.length > 0
+            ? unsentParts
+            : [{ itemId: itemOrder.length > 0 ? itemOrder[itemOrder.length - 1] : null, text: segmentText }];
+          await deliverSegment(segmentText, true, deliveredParts, unsentParts.some((part) => part.itemId == null));
         }
         const snapshotText = extractAgentReplyTextFromTurnCompletedParams(params);
-        const deltaText = itemOrder.map((id) => perItemDelta.get(id) ?? "").join("");
+        const deltaText = itemOrder.map((id) => perItemDelta.get(id) ?? "").join("") + orphanTailForReply;
         const fullReply = mergeReplyTextFromDeltaAndSnapshot(deltaText, snapshotText);
         this.log("event.turn/completed", () => ({
           unsentParts: unsentParts.map((p) => ({
@@ -856,7 +888,7 @@ export class TurnStreamReducer {
           segmentsWereDelivered,
           ...snapshotStreamState(),
         }));
-        await handlers.onTurnCompleted(threadId, turnId, fullReply, channelContext, segmentsWereDelivered);
+        await handlers.onTurnCompleted(threadId, turnId, fullReply, channelContext, segmentsWereDelivered && !hasUnsentText());
         break;
       } else if (event.method === "turn/failed") {
         const err = String(
