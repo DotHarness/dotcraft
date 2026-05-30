@@ -41,6 +41,8 @@ dotcraft hub
 
 它表示该工作区当前由哪个 AppServer 进程拥有，防止同一个工作区被多个本地 AppServer 同时占用。
 
+当 Hub 或 AppServer 发现 `appserver.lock` 是已退出进程留下的 stale lock 时，会自动移除并继续启动。如果锁指向的 AppServer 仍在运行且 WebSocket 端点健康，Hub 会直接复用该端点，而不是启动重复进程。
+
 ## Desktop 与托盘
 
 Desktop 提供 Hub 的可视化层，Hub 自身是无界面的后台协调器。Desktop 可以提供：
@@ -61,7 +63,7 @@ Desktop 提供 Hub 的可视化层，Hub 自身是无界面的后台协调器。
 
 ### 工作区被占用
 
-`<workspace>/.craft/appserver.lock` 指向另一个仍然存活的 AppServer。关闭占用工作区的 Desktop / TUI / CLI，或在托盘里停止对应工作区运行时后重试。
+`<workspace>/.craft/appserver.lock` 指向另一个仍然存活、且 Hub 无法安全复用的 AppServer。关闭占用工作区的 Desktop / TUI / CLI，或在托盘里停止对应工作区运行时后重试。已退出进程留下的锁会自动恢复。
 
 ### 本地端口冲突
 

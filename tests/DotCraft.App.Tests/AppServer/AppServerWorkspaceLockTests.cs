@@ -84,6 +84,22 @@ public sealed class AppServerWorkspaceLockTests : IDisposable
     }
 
     [Fact]
+    public void CleanupStaleFiles_RemovesLockWhenPidWasReused()
+    {
+        if (!CanReadCurrentProcessStartTime())
+            return;
+
+        var lockPath = AppServerWorkspaceLock.GetLockFilePath(BotPath);
+        WriteLock(lockPath, pid: Environment.ProcessId, startedAt: DateTimeOffset.UnixEpoch);
+        File.WriteAllText(lockPath + ".guard", string.Empty);
+
+        AppServerWorkspaceLock.CleanupStaleFiles(BotPath);
+
+        Assert.False(File.Exists(lockPath));
+        Assert.False(File.Exists(lockPath + ".guard"));
+    }
+
+    [Fact]
     public void CleanupStaleFiles_PreservesLiveLockAndGuard()
     {
         var lockPath = AppServerWorkspaceLock.GetLockFilePath(BotPath);
@@ -96,17 +112,31 @@ public sealed class AppServerWorkspaceLockTests : IDisposable
         Assert.True(File.Exists(lockPath + ".guard"));
     }
 
-    private void WriteLock(string lockPath, int pid)
+    private void WriteLock(string lockPath, int pid, DateTimeOffset? startedAt = null)
     {
         var json = System.Text.Json.JsonSerializer.Serialize(new AppServerLockInfo(
             Pid: pid,
             WorkspacePath: _workspacePath,
             ManagedByHub: true,
             HubApiBaseUrl: "http://127.0.0.1:43000",
-            StartedAt: DateTimeOffset.UtcNow,
+            StartedAt: startedAt ?? DateTimeOffset.UtcNow,
             Version: "test",
             Endpoints: new Dictionary<string, string>()), DotCraft.Hub.HubJson.Options);
         File.WriteAllText(lockPath, json);
+    }
+
+    private static bool CanReadCurrentProcessStartTime()
+    {
+        try
+        {
+            using var process = System.Diagnostics.Process.GetCurrentProcess();
+            _ = process.StartTime;
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private DotCraftPaths Paths() => new()

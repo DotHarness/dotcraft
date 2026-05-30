@@ -180,6 +180,8 @@ Hub 是同一操作系统用户下的本地协调器，不是跨用户安全边�
 
 `runtimeTools` 是可选的本机运行时提示集合。Desktop 用它把内嵌的 `rg`、TypeScript 模块运行时和内置插件 roots 传给 AppServer。Hub 只把这些值作为 `DOTCRAFT_RG_PATH`、`DOTCRAFT_MODULES_DIR`、`DOTCRAFT_BUILTIN_PLUGIN_ROOTS` 等环境变量传给托管进程，不会在状态响应中回显。
 
+如果 Hub 发现工作区 `appserver.lock` 已经 stale，会删除该锁并继续处理。如果锁指向的 AppServer 仍然存活，且其 `appServerWebSocket` 端点能完成 initialize 握手，Hub 可以返回该端点，并将 `startedByHub` 置为 `false`、相关 `serviceStatus` 标记为 `external`。如果这个 live lock 无法安全复用，Hub 会返回 `workspaceLocked`。
+
 ### 停止与重启
 
 停止请求：
@@ -312,7 +314,7 @@ data: {"kind":"appserver.running","at":"2026-04-30T06:31:00Z","workspacePath":"/
 |------|------|------|
 | `unauthorized` | 401 | 令牌缺失或不匹配。 |
 | `workspaceNotFound` | 400/404 | 工作区路径缺失、不存在，或不是 DotCraft 工作区。 |
-| `workspaceLocked` | 409 | 另一个运行中的 AppServer 拥有该工作区锁。 |
+| `workspaceLocked` | 409 | 另一个运行中的 AppServer 拥有该工作区锁，且无法安全复用。 |
 | `appServerStartFailed` | 500 | 托管 AppServer 启动失败。 |
 | `appServerUnhealthy` | 500 | 托管 AppServer 未通过就绪检查或健康检查。 |
 | `portUnavailable` | 500 | Hub 无法分配需要的本地端口。 |
