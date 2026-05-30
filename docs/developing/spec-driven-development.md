@@ -44,7 +44,6 @@ The development plugin at [`samples/plugins/dotcraft-dev`](https://github.com/Do
 |---|---|
 | `dev-guide` | The project's spec-first norms, testing rules, and bilingual-docs guidance. |
 | `feature-workflow` | Runs the seven-phase flow above for large features — milestone specs, one-at-a-time implementation, spec validation. |
-| `error-diagnosis` | Read-only diagnosis of LLM / agent / tool / session failures. |
 | `ui-prototype` | Standalone Desktop UI prototypes before touching production code. |
 | `svg-design` | Designing and validating repo-native SVG assets. |
 | `release-draft` | Drafting release notes. |

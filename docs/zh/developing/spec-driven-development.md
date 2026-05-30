@@ -44,7 +44,6 @@ SDD 在 2025–2026 年间逐渐流行，作为对 AI 辅助下随性"vibe codin
 |---|---|
 | `dev-guide` | 项目的 spec-first 规范、测试规则与双语文档指引。 |
 | `feature-workflow` | 为大型功能运行上述七阶段流程——里程碑规范、一次一个里程碑的实现、基于规范的验证。 |
-| `error-diagnosis` | 对 LLM / Agent / 工具 / 会话故障的只读诊断。 |
 | `ui-prototype` | 在改动生产代码前先做独立的 Desktop UI 原型。 |
 | `svg-design` | 设计与校验仓库原生的 SVG 资源。 |
 | `release-draft` | 起草发布说明。 |

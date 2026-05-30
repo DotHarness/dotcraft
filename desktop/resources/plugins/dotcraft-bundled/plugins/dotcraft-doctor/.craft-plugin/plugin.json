@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "dotcraft-doctor",
+  "version": "0.1.0",
+  "displayName": "DotCraft Doctor",
+  "description": "Diagnose DotCraft errors and help report them to the developers.",
+  "capabilities": ["skill"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "DotCraft Doctor",
+    "shortDescription": "Diagnose failures and draft a developer report",
+    "longDescription": "DotCraft Doctor inspects a failed turn from local .craft evidence to explain what went wrong, then helps turn the findings into a clear issue report for the DotCraft developers. It is the plugin the composer mascot installs when you ask it to look into an error.",
+    "developerName": "DotHarness",
+    "category": "Engineering",
+    "capabilities": ["Skill", "Read"],
+    "defaultPrompt": "Diagnose the latest DotCraft error and, if asked, draft an issue report for the developers.",
+    "brandColor": "#2458F7",
+    "composerIcon": "./assets/dotcraft-doctor.svg",
+    "logo": "./assets/dotcraft-doctor.svg",
+    "websiteUrl": "https://github.com/DotHarness/dotcraft",
+    "privacyPolicyUrl": "https://github.com/DotHarness/dotcraft",
+    "termsOfServiceUrl": "https://github.com/DotHarness/dotcraft"
+  }
+}

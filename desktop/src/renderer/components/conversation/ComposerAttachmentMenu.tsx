@@ -171,24 +171,25 @@ export function ComposerAttachmentMenu({
                   margin: '6px 4px'
                 }}
               />
-              <button
-                type="button"
-                role="menuitemcheckbox"
-                aria-checked={planModeEnabled}
-                title={planModeToggleLabel}
-                onClick={() => {
-                  onTogglePlanMode?.()
-                }}
-                style={planModeMenuItemStyle}
-              >
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
-                  <ListChecks size={14} aria-hidden />
-                  <span>{planModeLabel}</span>
-                </span>
-                <span aria-hidden style={switchTrackStyle(planModeEnabled)}>
-                  <span style={switchThumbStyle(planModeEnabled)} />
-                </span>
-              </button>
+              <ActionTooltip label={planModeToggleLabel ?? ''} placement="right" wrapperStyle={{ width: '100%' }}>
+                <button
+                  type="button"
+                  role="menuitemcheckbox"
+                  aria-checked={planModeEnabled}
+                  onClick={() => {
+                    onTogglePlanMode?.()
+                  }}
+                  style={planModeMenuItemStyle}
+                >
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                    <ListChecks size={14} aria-hidden />
+                    <span>{planModeLabel}</span>
+                  </span>
+                  <span aria-hidden style={switchTrackStyle(planModeEnabled)}>
+                    <span style={switchThumbStyle(planModeEnabled)} />
+                  </span>
+                </button>
+              </ActionTooltip>
             </>
           )}
         </div>

@@ -10,8 +10,15 @@ import { useId, type CSSProperties, type JSX } from 'react'
 
 export type MascotExpression = 'neutral' | 'happy' | 'operator'
 
+/**
+ * Antenna "status light" colour. Semantic state per the visual spec:
+ * `error` → `--error`, `success` → `--success`, `default` → the brand yellow.
+ */
+export type MascotLight = 'default' | 'error' | 'success'
+
 interface MascotRobotProps {
   expression?: MascotExpression
+  light?: MascotLight
   size?: number
   className?: string
   style?: CSSProperties
@@ -52,6 +59,7 @@ function Face({ expression, mark, accent }: {
 
 export function MascotRobot({
   expression = 'neutral',
+  light = 'default',
   size = 48,
   className,
   style
@@ -115,7 +123,12 @@ export function MascotRobot({
         </g>
 
         <rect x="295" y="464" width="434" height="315" rx="78" fill="#fff" />
-        <circle cx="512" cy="229" r="73" fill={`url(#${yellow})`} />
+        <circle
+          cx="512"
+          cy="229"
+          r="73"
+          fill={light === 'error' ? 'var(--error)' : light === 'success' ? 'var(--success)' : `url(#${yellow})`}
+        />
 
         <Face expression={expression} mark={`url(#${blueMark})`} accent={`url(#${yellow})`} />
       </g>

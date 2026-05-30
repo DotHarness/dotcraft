@@ -648,6 +648,27 @@ public sealed class PluginDiscoveryTests
     }
 
     [Fact]
+    public void BuiltInPluginCatalog_DiscoversDotCraftDoctorPlugin()
+    {
+        var result = new BuiltInPluginCatalog([BundledPluginSourceRoot()]).Discover();
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Severity == PluginDiagnosticSeverity.Error);
+        var doctor = Assert.Single(result.Plugins, plugin => plugin.Manifest.Id == "dotcraft-doctor");
+        Assert.Equal(PluginDiscoverySourceKind.BuiltIn, doctor.SourceKind);
+        Assert.False(doctor.Installed);
+        Assert.True(doctor.Installable);
+        Assert.Equal("DotCraft Doctor", doctor.Manifest.DisplayName);
+        Assert.Equal("DotCraft Doctor", doctor.Manifest.Interface?.DisplayName);
+        Assert.NotNull(doctor.Manifest.SkillsPath);
+
+        // Both bundled skills must be present on disk so the plugin's right-click
+        // actions (diagnose via error-diagnosis, draft a report via report-issue) work.
+        var pluginDir = Path.Combine(BundledPluginSourceRoot(), "dotcraft-doctor");
+        Assert.True(File.Exists(Path.Combine(pluginDir, "skills", "error-diagnosis", "SKILL.md")));
+        Assert.True(File.Exists(Path.Combine(pluginDir, "skills", "report-issue", "SKILL.md")));
+    }
+
+    [Fact]
     public void BuiltInPluginDeployer_MarkerIncludesResourceFingerprint()
     {
         var root = NewTempDir();
