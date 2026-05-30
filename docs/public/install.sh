@@ -2,7 +2,7 @@
 set -euo pipefail
 
 REPO="${DOTCRAFT_REPO:-DotHarness/dotcraft}"
-INSTALL_DIR="${DOTCRAFT_INSTALL_DIR:-$HOME/.dotcraft/bin}"
+INSTALL_DIR="${DOTCRAFT_INSTALL_DIR:-$HOME/.craft/bin}"
 VERSION="${DOTCRAFT_VERSION:-latest}"
 
 need() {

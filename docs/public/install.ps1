@@ -1,7 +1,7 @@
 $ErrorActionPreference = "Stop"
 
 $Repo = if ($env:DOTCRAFT_REPO) { $env:DOTCRAFT_REPO } else { "DotHarness/dotcraft" }
-$InstallDir = if ($env:DOTCRAFT_INSTALL_DIR) { $env:DOTCRAFT_INSTALL_DIR } else { Join-Path $HOME ".dotcraft\bin" }
+$InstallDir = if ($env:DOTCRAFT_INSTALL_DIR) { $env:DOTCRAFT_INSTALL_DIR } else { Join-Path $HOME ".craft\bin" }
 $Version = if ($env:DOTCRAFT_VERSION) { $env:DOTCRAFT_VERSION } else { "latest" }
 
 $processorArch = $env:PROCESSOR_ARCHITECTURE
