@@ -392,6 +392,43 @@ public sealed class PromptCachingChatClientTests
     }
 
     [Fact]
+    public void RewriteJson_IgnoresResponsesInputTextContainingCacheControl()
+    {
+        var rewritten = PromptCacheControlPipelinePolicy.RewriteJson(
+            """
+            {
+              "model": "gpt-test",
+              "input": [
+                {
+                  "type": "message",
+                  "role": "user",
+                  "content": [
+                    {
+                      "type": "input_text",
+                      "text": "old cache_control text"
+                    }
+                  ]
+                }
+              ],
+              "input": [
+                {
+                  "type": "message",
+                  "role": "user",
+                  "content": [
+                    {
+                      "type": "input_text",
+                      "text": "new cache_control text"
+                    }
+                  ]
+                }
+              ]
+            }
+            """);
+
+        Assert.Null(rewritten);
+    }
+
+    [Fact]
     public void OpenAIAdapter_SingleTextMessageAddsRootMarkerForPipelineRewrite()
     {
         var client = CreateClient("claude-opus-4-1");

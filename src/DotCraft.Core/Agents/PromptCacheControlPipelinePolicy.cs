@@ -11,10 +11,12 @@ namespace DotCraft.Agents;
 internal sealed class PromptCacheControlPipelinePolicy : PipelinePolicy
 {
     private const string CacheControlKey = PromptCachingChatClient.CacheControlKey;
+    private const string ChatCompletionsPathSuffix = "/chat/completions";
 
     public override void Process(PipelineMessage message, IReadOnlyList<PipelinePolicy> pipeline, int currentIndex)
     {
-        RewriteRequestContent(message);
+        if (ShouldRewrite(message))
+            RewriteRequestContent(message);
         ProcessNext(message, pipeline, currentIndex);
     }
 
@@ -23,14 +25,15 @@ internal sealed class PromptCacheControlPipelinePolicy : PipelinePolicy
         IReadOnlyList<PipelinePolicy> pipeline,
         int currentIndex)
     {
-        await RewriteRequestContentAsync(message).ConfigureAwait(false);
+        if (ShouldRewrite(message))
+            await RewriteRequestContentAsync(message).ConfigureAwait(false);
         await ProcessNextAsync(message, pipeline, currentIndex).ConfigureAwait(false);
     }
 
     internal static string? RewriteJson(string json)
     {
         if (string.IsNullOrWhiteSpace(json) ||
-            !json.Contains(CacheControlKey, StringComparison.Ordinal))
+            !HasMessageRootCacheControl(json))
         {
             return null;
         }
@@ -59,6 +62,54 @@ internal sealed class PromptCacheControlPipelinePolicy : PipelinePolicy
         }
 
         return changed ? rootObject.ToJsonString() : null;
+    }
+
+    private static bool ShouldRewrite(PipelineMessage message)
+    {
+        var uri = message.Request.Uri;
+        if (uri is null)
+            return false;
+
+        return uri.AbsolutePath.EndsWith(ChatCompletionsPathSuffix, StringComparison.Ordinal);
+    }
+
+    private static bool HasMessageRootCacheControl(string json)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(json);
+            if (document.RootElement.ValueKind != JsonValueKind.Object)
+                return false;
+
+            foreach (var property in document.RootElement.EnumerateObject())
+            {
+                if (!string.Equals(property.Name, "messages", StringComparison.Ordinal) ||
+                    property.Value.ValueKind != JsonValueKind.Array)
+                {
+                    continue;
+                }
+
+                foreach (var message in property.Value.EnumerateArray())
+                {
+                    if (message.ValueKind != JsonValueKind.Object)
+                        continue;
+
+                    foreach (var messageProperty in message.EnumerateObject())
+                    {
+                        if (string.Equals(messageProperty.Name, CacheControlKey, StringComparison.Ordinal))
+                            return true;
+                    }
+                }
+
+                return false;
+            }
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+
+        return false;
     }
 
     private static bool MoveMessageRootCacheControl(JsonObject message)

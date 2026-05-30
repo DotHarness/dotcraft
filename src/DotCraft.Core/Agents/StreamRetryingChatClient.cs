@@ -20,7 +20,6 @@ internal sealed class StreamRetryingChatClient(
 {
     private const int InitialDelayMs = 200;
     private const int FailedAttemptDisposeTimeoutMs = 2_000;
-    private readonly StreamRetryOptions _retryOptions = retryOptions;
 
     public override async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
         IEnumerable<ChatMessage> chatMessages,
@@ -100,7 +99,7 @@ internal sealed class StreamRetryingChatClient(
                 retries++;
                 ModelStreamRetryRuntimeScope.Current?.NotifyRetry(
                     retries,
-                    _retryOptions.MaxRetries,
+                    retryOptions.MaxRetries,
                     failure);
                 await Task.Delay(Backoff(retries), cancellationToken).ConfigureAwait(false);
                 continue;
@@ -119,7 +118,7 @@ internal sealed class StreamRetryingChatClient(
         {
             var hasNext = await enumerator.MoveNextAsync()
                 .AsTask()
-                .WaitAsync(_retryOptions.IdleTimeout, cancellationToken)
+                .WaitAsync(retryOptions.IdleTimeout, cancellationToken)
                 .ConfigureAwait(false);
             return new MoveNextResult(hasNext, null);
         }
@@ -129,7 +128,7 @@ internal sealed class StreamRetryingChatClient(
             return new MoveNextResult(
                 HasNext: false,
                 new ModelStreamDisconnectedException(
-                    $"Provider stream idle for {_retryOptions.IdleTimeout.TotalMilliseconds:0}ms.",
+                    $"Provider stream idle for {retryOptions.IdleTimeout.TotalMilliseconds:0}ms.",
                     ex));
         }
         catch (Exception ex)
@@ -156,7 +155,7 @@ internal sealed class StreamRetryingChatClient(
         int retries) =>
         !cancellationToken.IsCancellationRequested
         && !emittedVisibleUpdate
-        && retries < _retryOptions.MaxRetries
+        && retries < retryOptions.MaxRetries
         && IsRetryable(exception);
 
     private static bool IsVisibleUpdate(ChatResponseUpdate update)
