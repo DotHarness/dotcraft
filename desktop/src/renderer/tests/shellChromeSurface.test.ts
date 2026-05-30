@@ -90,6 +90,18 @@ describe('shell chrome surface styling', () => {
     expect(hookSource).toContain('windowApi.isMaximized()')
   })
 
+  it('keeps the update available indicator from tinting the title bar background', () => {
+    const menuBarSource = readRendererFile('components/layout/CustomMenuBar.tsx')
+    const updateButtonSource = menuBarSource.slice(
+      menuBarSource.indexOf('function updateButtonStyle'),
+      menuBarSource.indexOf('const updateBadgeStyle')
+    )
+
+    expect(updateButtonSource).toContain("color: active ? 'var(--accent)' : 'var(--text-secondary)'")
+    expect(updateButtonSource).toContain("backgroundColor: 'transparent'")
+    expect(updateButtonSource).not.toContain('color-mix(in srgb, var(--accent) 14%, transparent)')
+  })
+
   it('uses glass-aware sidebar state tokens instead of solid panel fills', () => {
     const tokensCss = readRendererFile('styles/tokens.css')
     const sidebarSource = readRendererFile('components/layout/Sidebar.tsx')

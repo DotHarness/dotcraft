@@ -4,6 +4,7 @@ import { AlertCircle, CheckCircle2, Download, ExternalLink, LoaderCircle, X } fr
 
 import type { AppUpdateState } from '../../../shared/appUpdate'
 import { useT } from '../../contexts/LocaleContext'
+import { MarkdownRenderer } from '../conversation/MarkdownRenderer'
 
 interface AppUpdateDialogProps {
   state: AppUpdateState
@@ -98,17 +99,14 @@ export function AppUpdateDialog({
                 })}
               </p>
 
-              <div style={metaGridStyle}>
-                <UpdateMeta label={t('update.currentVersion')} value={update.currentVersion} />
-                <UpdateMeta label={t('update.latestVersion')} value={update.latestVersion} />
-                <UpdateMeta label={t('update.asset')} value={update.assetName} />
-                <UpdateMeta label={t('update.size')} value={formatBytes(update.sizeBytes)} />
-              </div>
-
               <div style={releaseNotesStyle}>
                 <div style={releaseNotesTitleStyle}>{t('update.releaseNotes')}</div>
                 <div style={releaseNotesBodyStyle}>
-                  {update.releaseNotes || t('update.noReleaseNotes')}
+                  <MarkdownRenderer
+                    content={update.releaseNotes || t('update.noReleaseNotes')}
+                    linkMode="external"
+                    containOverflow
+                  />
                 </div>
               </div>
 
@@ -191,15 +189,6 @@ export function AppUpdateDialog({
   )
 
   return createPortal(dialog, document.body)
-}
-
-function UpdateMeta({ label, value }: { label: string; value: string }): JSX.Element {
-  return (
-    <div style={metaItemStyle}>
-      <span style={metaLabelStyle}>{label}</span>
-      <span style={metaValueStyle}>{value}</span>
-    </div>
-  )
 }
 
 function formatBytes(bytes: number): string {
@@ -289,37 +278,6 @@ const bodyStyle: CSSProperties = {
   lineHeight: 'var(--type-body-line-height)'
 }
 
-const metaGridStyle: CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-  gap: 10,
-  marginBottom: 14
-}
-
-const metaItemStyle: CSSProperties = {
-  minWidth: 0,
-  padding: 10,
-  border: '1px solid var(--border-subtle)',
-  borderRadius: 8,
-  background: 'var(--bg-secondary)'
-}
-
-const metaLabelStyle: CSSProperties = {
-  display: 'block',
-  marginBottom: 4,
-  color: 'var(--text-dimmed)',
-  fontSize: 11,
-  lineHeight: '14px'
-}
-
-const metaValueStyle: CSSProperties = {
-  display: 'block',
-  color: 'var(--text-primary)',
-  fontSize: 'var(--type-secondary-size)',
-  lineHeight: 'var(--type-secondary-line-height)',
-  overflowWrap: 'anywhere'
-}
-
 const releaseNotesStyle: CSSProperties = {
   border: '1px solid var(--border-subtle)',
   borderRadius: 8,
@@ -340,7 +298,6 @@ const releaseNotesBodyStyle: CSSProperties = {
   maxHeight: 156,
   overflowY: 'auto',
   padding: '10px 11px',
-  whiteSpace: 'pre-wrap',
   color: 'var(--text-secondary)',
   fontSize: 'var(--type-secondary-size)',
   lineHeight: 'var(--type-secondary-line-height)',

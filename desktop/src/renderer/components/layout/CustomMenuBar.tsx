@@ -271,7 +271,7 @@ function updateButtonStyle(status: AppUpdateState['status']): CSSProperties {
     height: TITLE_BAR_OVERLAY_HEIGHT,
     borderRadius: 0,
     color: active ? 'var(--accent)' : 'var(--text-secondary)',
-    backgroundColor: active ? 'color-mix(in srgb, var(--accent) 14%, transparent)' : 'transparent'
+    backgroundColor: 'transparent'
   }
 }
 
