@@ -698,73 +698,75 @@ function PluginDetailView({
         <p style={detailSubtitle}>{pluginSubtitle(plugin)}</p>
       </header>
       <main style={detailMain}>
-        {loading && <p style={emptyText}>{t('plugins.loading')}</p>}
-        <div style={promptPreview}>
-          <span style={promptBubble}>
-            <PluginIcon plugin={plugin} size={18} />
-            <strong>{pluginTitle(plugin)}</strong>
-            {info?.defaultPrompt || t('plugins.defaultPromptFallback')}
-          </span>
-        </div>
-        <p style={longDescription}>{info?.longDescription || plugin.description}</p>
-        <AppBindingPanel plugin={plugin} />
-        <section style={detailSection}>
-          <h2 style={detailSectionTitle}>{t('plugins.detail.contents')}</h2>
-          <div style={contentList}>
-            {contents.map((item) => (
-              <div key={item.key} style={contentItem}>
-                <span style={contentIcon}>
-                  {item.type === 'app' ? (
-                    <Link size={16} aria-hidden />
-                  ) : item.type === 'desktopExtension' ? (
-                    <Settings size={16} aria-hidden />
-                  ) : item.type === 'skill' ? (
-                    <Box size={16} aria-hidden />
-                  ) : item.type === 'mcp' ? (
-                    <Server size={16} aria-hidden />
-                  ) : item.type === 'lsp' ? (
-                    <Code2 size={16} aria-hidden />
-                  ) : (
-                    <Wrench size={16} aria-hidden />
-                  )}
-                </span>
-                <span style={pluginText}>
-                  <span style={contentTitleLine}>
-                    <strong style={rowTitle}>{item.title}</strong>
-                    <span style={contentKind}>{item.kind}</span>
+        <div style={detailContent}>
+          {loading && <p style={emptyText}>{t('plugins.loading')}</p>}
+          <div style={promptPreview}>
+            <span style={promptBubble}>
+              <PluginIcon plugin={plugin} size={18} />
+              <strong>{pluginTitle(plugin)}</strong>
+              {info?.defaultPrompt || t('plugins.defaultPromptFallback')}
+            </span>
+          </div>
+          <p style={longDescription}>{info?.longDescription || plugin.description}</p>
+          <AppBindingPanel plugin={plugin} />
+          <section style={detailSection}>
+            <h2 style={detailSectionTitle}>{t('plugins.detail.contents')}</h2>
+            <div style={contentList}>
+              {contents.map((item) => (
+                <div key={item.key} style={contentItem}>
+                  <span style={contentIcon}>
+                    {item.type === 'app' ? (
+                      <Link size={16} aria-hidden />
+                    ) : item.type === 'desktopExtension' ? (
+                      <Settings size={16} aria-hidden />
+                    ) : item.type === 'skill' ? (
+                      <Box size={16} aria-hidden />
+                    ) : item.type === 'mcp' ? (
+                      <Server size={16} aria-hidden />
+                    ) : item.type === 'lsp' ? (
+                      <Code2 size={16} aria-hidden />
+                    ) : (
+                      <Wrench size={16} aria-hidden />
+                    )}
                   </span>
-                  <span style={rowDesc}>{item.description}</span>
-                </span>
-              </div>
-            ))}
-          </div>
-        </section>
-        {shouldOfferLspEnable && (
-          <div style={lspEnablePanel} role="status">
-            <span style={rowDesc}>{t('plugins.lsp.enablePrompt')}</span>
-            <button type="button" style={secondaryDetailButton} disabled={enablingLsp} onClick={onEnableLsp}>
-              <Code2 size={14} aria-hidden />
-              {enablingLsp ? t('plugins.lsp.enabling') : t('plugins.lsp.enable')}
-            </button>
-          </div>
-        )}
-        <section style={detailSection}>
-          <h2 style={detailSectionTitle}>{t('plugins.detail.info')}</h2>
-          <div style={infoTable}>
-            <InfoRow label={t('plugins.detail.category')} value={[displayCategory(info?.category, t), info?.developerName].filter(Boolean).join(', ')} />
-            <InfoRow label={t('plugins.detail.capabilities')} value={(info?.capabilities ?? []).join(', ')} />
-            <InfoRow label={t('plugins.detail.developer')} value={info?.developerName || 'DotHarness'} />
-            <InfoLinkRow label={t('plugins.detail.website')} href={info?.websiteUrl} />
-            <InfoLinkRow label={t('plugins.detail.privacy')} href={info?.privacyPolicyUrl} />
-            <InfoLinkRow label={t('plugins.detail.terms')} href={info?.termsOfServiceUrl} />
-          </div>
-        </section>
-        {plugin.installed && (
-          <div style={detailToggleRow}>
-            <span>{plugin.enabled ? t('plugins.enabled') : t('plugins.disabled')}</span>
-            <PillSwitch checked={plugin.enabled} onChange={onToggle} aria-label={`${pluginTitle(plugin)} enabled`} />
-          </div>
-        )}
+                  <span style={pluginText}>
+                    <span style={contentTitleLine}>
+                      <strong style={rowTitle}>{item.title}</strong>
+                      <span style={contentKind}>{item.kind}</span>
+                    </span>
+                    <span style={rowDesc}>{item.description}</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </section>
+          {shouldOfferLspEnable && (
+            <div style={lspEnablePanel} role="status">
+              <span style={rowDesc}>{t('plugins.lsp.enablePrompt')}</span>
+              <button type="button" style={secondaryDetailButton} disabled={enablingLsp} onClick={onEnableLsp}>
+                <Code2 size={14} aria-hidden />
+                {enablingLsp ? t('plugins.lsp.enabling') : t('plugins.lsp.enable')}
+              </button>
+            </div>
+          )}
+          <section style={detailSection}>
+            <h2 style={detailSectionTitle}>{t('plugins.detail.info')}</h2>
+            <div style={infoTable}>
+              <InfoRow label={t('plugins.detail.category')} value={[displayCategory(info?.category, t), info?.developerName].filter(Boolean).join(', ')} />
+              <InfoRow label={t('plugins.detail.capabilities')} value={(info?.capabilities ?? []).join(', ')} />
+              <InfoRow label={t('plugins.detail.developer')} value={info?.developerName || 'DotHarness'} />
+              <InfoLinkRow label={t('plugins.detail.website')} href={info?.websiteUrl} />
+              <InfoLinkRow label={t('plugins.detail.privacy')} href={info?.privacyPolicyUrl} />
+              <InfoLinkRow label={t('plugins.detail.terms')} href={info?.termsOfServiceUrl} />
+            </div>
+          </section>
+          {plugin.installed && (
+            <div style={detailToggleRow}>
+              <span>{plugin.enabled ? t('plugins.enabled') : t('plugins.disabled')}</span>
+              <PillSwitch checked={plugin.enabled} onChange={onToggle} aria-label={`${pluginTitle(plugin)} enabled`} />
+            </div>
+          )}
+        </div>
       </main>
     </div>
   )
@@ -1068,8 +1070,9 @@ const manageItemMain: CSSProperties = { ...compactItem, flex: 1, padding: 0, hei
 const manageSource: CSSProperties = { width: '86px', color: 'var(--text-secondary)', fontSize: '13px', textAlign: 'left' }
 const installMiniButton: CSSProperties = { border: 'none', borderRadius: 999, background: 'var(--bg-tertiary)', color: 'var(--text-primary)', padding: '6px 11px', fontSize: 12, cursor: 'pointer' }
 const pluginText: CSSProperties = { display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }
-const detailMain: CSSProperties = { flex: 1, minHeight: 0, overflow: 'auto', maxWidth: 760, width: '100%', margin: '0 auto', padding: '0 0 48px' }
-const detailHeader: CSSProperties = { maxWidth: 760, width: '100%', margin: '22px auto 28px' }
+const detailMain: CSSProperties = { flex: 1, minHeight: 0, overflow: 'auto', width: '100%' }
+const detailContent: CSSProperties = { width: 'min(760px, calc(100% - 48px))', margin: '0 auto', padding: '0 0 48px' }
+const detailHeader: CSSProperties = { width: 'min(760px, calc(100% - 48px))', margin: '22px auto 28px' }
 const detailTopRow: CSSProperties = { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 28 }
 const detailTitle: CSSProperties = { margin: '22px 0 6px', fontSize: 22, fontWeight: 600 }
 const detailSubtitle: CSSProperties = { margin: 0, color: 'var(--text-secondary)', fontSize: 15 }
