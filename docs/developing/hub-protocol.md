@@ -180,6 +180,8 @@ If `startIfMissing` is `false`, clients can inspect state without creating a new
 
 `runtimeTools` contains optional local runtime hints. Desktop uses it to pass its bundled `rg` executable, TypeScript module runtime, and built-in plugin roots to AppServer. Hub only forwards these values as environment variables such as `DOTCRAFT_RG_PATH`, `DOTCRAFT_MODULES_DIR`, and `DOTCRAFT_BUILTIN_PLUGIN_ROOTS`; it does not echo them in status responses.
 
+If Hub finds a stale workspace `appserver.lock`, it removes the stale lock and continues. If the lock points to a live AppServer whose `appServerWebSocket` endpoint accepts an initialize handshake, Hub may return that endpoint with `startedByHub: false` and `serviceStatus` entries marked `external`. If the live lock cannot be safely reused, Hub returns `workspaceLocked`.
+
 ### Stop And Restart
 
 Stop request:
@@ -312,7 +314,7 @@ Common error codes:
 |------|------|-------------|
 | `unauthorized` | 401 | Missing or invalid token. |
 | `workspaceNotFound` | 400/404 | Workspace path is missing, does not exist, or is not a DotCraft workspace. |
-| `workspaceLocked` | 409 | Another live AppServer owns the workspace lock. |
+| `workspaceLocked` | 409 | Another live AppServer owns the workspace lock and could not be safely reused. |
 | `appServerStartFailed` | 500 | Managed AppServer failed during startup. |
 | `appServerUnhealthy` | 500 | Managed AppServer failed readiness or health checks. |
 | `portUnavailable` | 500 | Hub could not allocate a required local port. |

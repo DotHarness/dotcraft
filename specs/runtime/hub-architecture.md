@@ -182,13 +182,17 @@ Clients must verify both process liveness and `/v1/status` before trusting it. L
 
 The registry is not the source of truth for workspace ownership. The live OS process and workspace lock are authoritative.
 
-If Hub restarts and sees an old live workspace lock, it may display that AppServer as external/known, but it must not silently take over a process handle it did not start.
+If Hub restarts and sees an old live workspace lock, it may display or return that AppServer as external/known, but it must not silently take over a process handle it did not start.
 
 ### Workspace Lock
 
 Every AppServer, managed or direct, participates in `<workspace>/.craft/appserver.lock`.
 
 The lock records owner metadata such as pid, workspace path, managed-by-Hub flag, Hub URL, version, start time, and published endpoints. A live lock prevents a second AppServer from starting for the same workspace. Stale locks may be recovered.
+
+Hub and AppServer must treat a workspace lock as stale when the recorded PID no longer exists, or when the recorded PID appears to have been reused by an OS process that started after the lock was written. Confirmed stale locks may be removed along with their guard file.
+
+When Hub encounters a live lock owned by a process it does not supervise, it should probe the published `appServerWebSocket` endpoint. If the endpoint accepts an AppServer initialize handshake, `ensure` may return that endpoint as an external running AppServer without taking ownership of the process. If the endpoint is missing or unhealthy, Hub must keep the workspace protected and return `workspaceLocked`.
 
 ---
 
@@ -206,7 +210,7 @@ Hub start flow:
 
 1. Canonicalize and validate the workspace.
 2. Reuse a healthy managed entry if one exists.
-3. Refuse to start if a different live process owns the workspace lock.
+3. Recover confirmed stale workspace locks, reuse a healthy external AppServer published by a live workspace lock, or refuse startup when a live lock cannot be safely reused.
 4. Allocate local endpoints.
 5. Start `dotcraft app-server`.
 6. Complete stdio and WebSocket readiness checks.

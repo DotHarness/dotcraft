@@ -29,6 +29,9 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
     private Task? _healthTask;
     private bool _disposed;
 
+    internal Func<AppServerLockInfo, CancellationToken, Task<string?>> ExistingAppServerProbeAsync { get; set; } =
+        ProbeExistingAppServerAsync;
+
     public ManagedAppServerRegistry(
         HubEventBus events,
         string hubApiBaseUrl,
@@ -80,6 +83,9 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
                 return entry.ToResponse();
             }
 
+            if (await TryUseExistingWorkspaceLockAsync(entry, craftPath, cancellationToken) is { } existingBeforeStart)
+                return existingBeforeStart;
+
             if (!request.StartIfMissing)
             {
                 entry.State = HubAppServerStates.Stopped;
@@ -93,9 +99,11 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
                 await StopManagedProcessesAsync(entry, craftPath);
             }
 
-            ThrowIfExternalLockIsLive(entry, craftPath);
+            if (await TryUseExistingWorkspaceLockAsync(entry, craftPath, cancellationToken) is { } existing)
+                return existing;
 
             var plan = BuildServicePlan(canonical, craftPath, MergeRuntimeTools(request.RuntimeTools));
+            entry.AdoptedExternalLock = false;
             entry.State = HubAppServerStates.Starting;
             entry.LastError = null;
             entry.RecentStderr = null;
@@ -170,16 +178,25 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
 
         foreach (var entry in _entries.Values)
         {
-            RefreshExited(entry);
-            _persisted[entry.CanonicalWorkspacePath] = entry.ToRegistryRecord();
+            if (entry.AdoptedExternalLock)
+                RefreshAdoptedExternalEntry(entry, Path.Combine(entry.CanonicalWorkspacePath, ".craft"));
+            else
+                RefreshExited(entry);
+
             if (ShouldListEntry(entry))
             {
+                _persisted[entry.CanonicalWorkspacePath] = entry.ToRegistryRecord();
                 responses[entry.CanonicalWorkspacePath] = entry.ToResponse();
             }
             else if (responses.TryGetValue(entry.CanonicalWorkspacePath, out var response)
                      && response.State != HubAppServerStates.Running)
             {
+                _persisted[entry.CanonicalWorkspacePath] = entry.ToRegistryRecord();
                 responses.Remove(entry.CanonicalWorkspacePath);
+            }
+            else if (!responses.ContainsKey(entry.CanonicalWorkspacePath))
+            {
+                _persisted[entry.CanonicalWorkspacePath] = entry.ToRegistryRecord();
             }
         }
 
@@ -205,12 +222,16 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
         var (resolvedWorkspace, canonical, craftPath) = ResolveWorkspace(workspacePath);
         if (_entries.TryGetValue(canonical, out var entry))
         {
-            RefreshExited(entry);
+            if (entry.AdoptedExternalLock)
+                RefreshAdoptedExternalEntry(entry, craftPath);
+            else
+                RefreshExited(entry);
+
             return entry.ToResponse();
         }
 
         var lockInfo = AppServerWorkspaceLock.TryRead(AppServerWorkspaceLock.GetLockFilePath(craftPath));
-        if (lockInfo is { } info && info.IsProcessAlive())
+        if (lockInfo is { } info && info.IsOwnerProcessAlive())
         {
             return new HubAppServerResponse(
                 resolvedWorkspace,
@@ -223,7 +244,7 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
                     pair => new HubServiceStatus("external", pair.Value),
                     StringComparer.OrdinalIgnoreCase),
                 info.Version,
-                info.ManagedByHub,
+                false,
                 null,
                 null,
                 null);
@@ -252,6 +273,13 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
         await entry.Mutex.WaitAsync(cancellationToken);
         try
         {
+            if (entry.AdoptedExternalLock)
+            {
+                RefreshAdoptedExternalEntry(entry, craftPath);
+                Persist(entry);
+                return entry.ToResponse();
+            }
+
             if (entry.Process is { })
             {
                 entry.State = HubAppServerStates.Stopping;
@@ -303,6 +331,13 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
             await entry.Mutex.WaitAsync();
             try
             {
+                if (entry.AdoptedExternalLock)
+                {
+                    RefreshAdoptedExternalEntry(entry, Path.Combine(entry.CanonicalWorkspacePath, ".craft"));
+                    Persist(entry);
+                    continue;
+                }
+
                 await StopManagedProcessesAsync(entry, Path.Combine(entry.CanonicalWorkspacePath, ".craft"));
                 entry.State = HubAppServerStates.Stopped;
                 entry.LastExitedAt = DateTimeOffset.UtcNow;
@@ -404,28 +439,51 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
         }
     }
 
-    private static void ThrowIfExternalLockIsLive(ManagedEntry entry, string craftPath)
+    private async Task<HubAppServerResponse?> TryUseExistingWorkspaceLockAsync(
+        ManagedEntry entry,
+        string craftPath,
+        CancellationToken cancellationToken)
     {
         var lockPath = AppServerWorkspaceLock.GetLockFilePath(craftPath);
         var info = AppServerWorkspaceLock.TryRead(lockPath);
-        if (info is null || !info.IsProcessAlive())
-            return;
+        if (info is null)
+            return null;
+
+        if (!info.IsOwnerProcessAlive())
+        {
+            CleanupWorkspaceLock(craftPath);
+            return null;
+        }
 
         if (entry.Process is { IsRunning: true } && entry.Process.ProcessId == info.Pid)
-            return;
+            return null;
+
+        var probeError = await ExistingAppServerProbeAsync(info, cancellationToken);
+        if (probeError is null)
+        {
+            var response = ToExternalResponse(entry, info);
+            PersistExternal(entry, info);
+            _events.Publish("appserver.running", entry.CanonicalWorkspacePath, new
+            {
+                pid = info.Pid,
+                endpoints = info.Endpoints,
+                external = true
+            });
+            return response;
+        }
 
         throw new HubProtocolException(
             "workspaceLocked",
             "A live process appears to own the workspace AppServer lock.",
             StatusCodes.Status409Conflict,
-            new { workspacePath = entry.CanonicalWorkspacePath, lockPath, pid = info.Pid });
+            new { workspacePath = entry.CanonicalWorkspacePath, lockPath, pid = info.Pid, reason = probeError });
     }
 
     private static void VerifyManagedLock(string craftPath, int expectedPid, string canonicalWorkspacePath)
     {
         var lockPath = AppServerWorkspaceLock.GetLockFilePath(craftPath);
         var info = AppServerWorkspaceLock.TryRead(lockPath);
-        if (info is { ManagedByHub: true } && info.Pid == expectedPid && info.IsProcessAlive())
+        if (info is { ManagedByHub: true } && info.Pid == expectedPid && info.IsOwnerProcessAlive())
             return;
 
         throw new HubProtocolException(
@@ -433,6 +491,106 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
             "Managed AppServer did not publish the expected workspace lock.",
             StatusCodes.Status500InternalServerError,
             new { workspacePath = canonicalWorkspacePath, expectedPid, lockPath });
+    }
+
+    private void PersistExternal(ManagedEntry entry, AppServerLockInfo info)
+    {
+        ApplyExternalLockInfo(entry, info);
+        Persist(entry);
+    }
+
+    private static HubAppServerResponse ToExternalResponse(ManagedEntry entry, AppServerLockInfo info) => new(
+        entry.WorkspacePath,
+        entry.CanonicalWorkspacePath,
+        HubAppServerStates.Running,
+        info.Pid,
+        info.Endpoints,
+        ExternalServiceStatus(info.Endpoints),
+        info.Version,
+        StartedByHub: false,
+        ExitCode: null,
+        LastError: null,
+        RecentStderr: null);
+
+    private static IReadOnlyDictionary<string, HubServiceStatus> ExternalServiceStatus(
+        IReadOnlyDictionary<string, string> endpoints) =>
+        endpoints.ToDictionary(
+            pair => pair.Key,
+            pair => new HubServiceStatus("external", pair.Value),
+            StringComparer.OrdinalIgnoreCase);
+
+    private static void ApplyExternalLockInfo(ManagedEntry entry, AppServerLockInfo info)
+    {
+        entry.Process = null;
+        entry.AdoptedExternalLock = true;
+        entry.State = HubAppServerStates.Running;
+        entry.Pid = info.Pid;
+        entry.ServerVersion = info.Version;
+        entry.StartedByHub = false;
+        entry.StartedInCurrentHubProcess = false;
+        entry.ExitCode = null;
+        entry.LastError = null;
+        entry.RecentStderr = null;
+        entry.LastStartedAt = info.StartedAt;
+        entry.LastSeenAt = DateTimeOffset.UtcNow;
+        entry.LastExitedAt = null;
+        entry.Endpoints = info.Endpoints;
+        entry.ServiceStatus = ExternalServiceStatus(info.Endpoints);
+    }
+
+    private static void RefreshAdoptedExternalEntry(ManagedEntry entry, string craftPath)
+    {
+        var lockPath = AppServerWorkspaceLock.GetLockFilePath(craftPath);
+        var info = AppServerWorkspaceLock.TryRead(lockPath);
+        if (info is { } live && live.IsOwnerProcessAlive())
+        {
+            ApplyExternalLockInfo(entry, live);
+            return;
+        }
+
+        entry.Process = null;
+        entry.AdoptedExternalLock = false;
+        entry.State = HubAppServerStates.Exited;
+        entry.StartedByHub = false;
+        entry.StartedInCurrentHubProcess = false;
+        entry.LastSeenAt = DateTimeOffset.UtcNow;
+        entry.LastExitedAt ??= DateTimeOffset.UtcNow;
+    }
+
+    private static async Task<string?> ProbeExistingAppServerAsync(
+        AppServerLockInfo info,
+        CancellationToken cancellationToken)
+    {
+        if (!info.Endpoints.TryGetValue("appServerWebSocket", out var wsUrl)
+            || string.IsNullOrWhiteSpace(wsUrl))
+        {
+            return "Workspace AppServer lock does not publish an appServerWebSocket endpoint.";
+        }
+
+        if (!Uri.TryCreate(wsUrl, UriKind.Absolute, out var uri))
+            return "Workspace AppServer lock publishes an invalid appServerWebSocket endpoint.";
+
+        try
+        {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            cts.CancelAfter(TimeSpan.FromSeconds(3));
+            await using var connection = await WebSocketClientConnection.ConnectAsync(uri, null, cts.Token);
+            var response = await connection.Wire.InitializeAsync(
+                clientName: "dotcraft-hub-reconnect",
+                clientVersion: AppVersion.Informational,
+                approvalSupport: false,
+                streamingSupport: true);
+            response.Dispose();
+            return null;
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return "Workspace AppServer WebSocket probe timed out.";
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return "Workspace AppServer WebSocket probe failed: " + ex.Message;
+        }
     }
 
     private HubRuntimeToolsRequest MergeRuntimeTools(HubRuntimeToolsRequest? runtimeTools)
@@ -479,6 +637,7 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
             entry.RecentStderr = process.RecentStderr;
             entry.ExitCode = process.ExitCode;
             entry.Process = null;
+            entry.AdoptedExternalLock = false;
             entry.Pid = null;
             CleanupWorkspaceLock(craftPath);
         }
@@ -617,7 +776,7 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
         var lockInfo = AppServerWorkspaceLock.TryRead(AppServerWorkspaceLock.GetLockFilePath(craftPath));
         if (lockInfo is null)
             return "Workspace AppServer lock is missing.";
-        if (lockInfo.Pid != process.ProcessId || !lockInfo.ManagedByHub || !lockInfo.IsProcessAlive())
+        if (lockInfo.Pid != process.ProcessId || !lockInfo.ManagedByHub || !lockInfo.IsOwnerProcessAlive())
             return "Workspace AppServer lock no longer matches the managed process.";
 
         if (!entry.Endpoints.TryGetValue("appServerWebSocket", out var wsUrl) || string.IsNullOrWhiteSpace(wsUrl))
@@ -648,7 +807,7 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
         {
             var lockPath = AppServerWorkspaceLock.GetLockFilePath(Path.Combine(record.CanonicalWorkspacePath, ".craft"));
             var info = AppServerWorkspaceLock.TryRead(lockPath);
-            if (info is { } live && live.IsProcessAlive())
+            if (info is { } live && live.IsOwnerProcessAlive())
             {
                 var refreshed = record with
                 {
@@ -785,6 +944,8 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
         public string State { get; set; } = HubAppServerStates.Stopped;
 
         public AppServerProcess? Process { get; set; }
+
+        public bool AdoptedExternalLock { get; set; }
 
         public string? TypeScriptNodeBin { get; set; }
 

@@ -29,7 +29,7 @@ public sealed class AppServerWorkspaceLock : IDisposable
         Directory.CreateDirectory(paths.CraftPath);
         var lockPath = GetLockFilePath(paths.CraftPath);
         existingInfo = TryRead(lockPath);
-        if (existingInfo is not null && existingInfo.IsProcessAlive())
+        if (existingInfo is not null && existingInfo.IsOwnerProcessAlive())
         {
             lockFile = null;
             return false;
@@ -46,6 +46,8 @@ public sealed class AppServerWorkspaceLock : IDisposable
         }
 
         lockFile = new AppServerWorkspaceLock(lockPath, fileLock!);
+        if (existingInfo is not null)
+            DeleteLockFile(lockPath);
         return true;
     }
 
@@ -105,7 +107,7 @@ public sealed class AppServerWorkspaceLock : IDisposable
     {
         var lockPath = GetLockFilePath(craftPath);
         var info = TryRead(lockPath);
-        if (info is not null && info.IsProcessAlive())
+        if (info is not null && info.IsOwnerProcessAlive())
             return;
 
         DeleteLockFile(lockPath);
@@ -183,4 +185,48 @@ public sealed record AppServerLockInfo(
             return false;
         }
     }
+
+    internal bool IsOwnerProcessAlive() => GetOwnerProcessStatus() == AppServerLockOwnerStatus.Alive;
+
+    internal AppServerLockOwnerStatus GetOwnerProcessStatus()
+    {
+        if (Pid <= 0)
+            return AppServerLockOwnerStatus.NotRunning;
+
+        try
+        {
+            using var process = Process.GetProcessById(Pid);
+            if (process.HasExited)
+                return AppServerLockOwnerStatus.NotRunning;
+
+            if (StartedAt != default && ProcessStartedAfterLock(process))
+                return AppServerLockOwnerStatus.PidReused;
+
+            return AppServerLockOwnerStatus.Alive;
+        }
+        catch
+        {
+            return AppServerLockOwnerStatus.NotRunning;
+        }
+    }
+
+    private bool ProcessStartedAfterLock(Process process)
+    {
+        try
+        {
+            var processStartedAt = new DateTimeOffset(process.StartTime.ToUniversalTime());
+            return StartedAt.AddSeconds(1) < processStartedAt;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+}
+
+internal enum AppServerLockOwnerStatus
+{
+    Alive,
+    NotRunning,
+    PidReused
 }
