@@ -70,17 +70,18 @@ public class FileToolsConcurrencyTests
         var tools = new FileTools(workspace, requireApprovalOutsideWorkspace: false);
 
         var singleRead = Stopwatch.StartNew();
-        await tools.ReadFile("large.txt");
+        await tools.ReadFile("large.txt", limit: 100);
         singleRead.Stop();
 
         var parallelRead = Stopwatch.StartNew();
-        var results = await Task.WhenAll(Enumerable.Range(0, 16).Select(_ => tools.ReadFile("large.txt")));
+        var results = await Task.WhenAll(Enumerable.Range(0, 16).Select(_ => tools.ReadFile("large.txt", limit: 100)));
         parallelRead.Stop();
 
         Assert.All(results, result =>
         {
             var text = Assert.Single(result.OfType<TextContent>());
-            Assert.Contains("line-000000", text.Text, StringComparison.Ordinal);
+            Assert.Contains("1: line-000000", text.Text, StringComparison.Ordinal);
+            Assert.Contains("Use offset=101 to read more", text.Text, StringComparison.Ordinal);
         });
         Assert.True(
             parallelRead.ElapsedMilliseconds < Math.Max(singleRead.ElapsedMilliseconds * 12, 2_000),

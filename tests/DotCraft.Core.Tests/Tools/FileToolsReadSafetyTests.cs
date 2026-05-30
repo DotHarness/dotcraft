@@ -96,7 +96,74 @@ public sealed class FileToolsReadSafetyTests : IDisposable
         var result = await tools.ReadFile("utf16.txt");
 
         var text = Assert.Single(result.OfType<TextContent>());
-        Assert.Equal("hello utf16", text.Text);
+        Assert.Contains("1: hello utf16", text.Text, StringComparison.Ordinal);
+        Assert.Contains("End of file - total 1 lines", text.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ReadFile_LimitWithoutOffset_ReadsFirstPageOnly()
+    {
+        await File.WriteAllTextAsync(
+            Path.Combine(_workspace, "paged.txt"),
+            string.Join('\n', Enumerable.Range(1, 120).Select(i => $"line-{i:D3}")));
+        var tools = new FileTools(_workspace, requireApprovalOutsideWorkspace: false);
+
+        var result = await tools.ReadFile("paged.txt", limit: 50);
+
+        var text = Assert.Single(result.OfType<TextContent>()).Text;
+        Assert.Contains("1: line-001", text, StringComparison.Ordinal);
+        Assert.Contains("50: line-050", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("51: line-051", text, StringComparison.Ordinal);
+        Assert.Contains("Use offset=51 to read more", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ReadFile_OffsetAndLimit_ReadsRequestedPage()
+    {
+        await File.WriteAllTextAsync(
+            Path.Combine(_workspace, "paged-offset.txt"),
+            string.Join('\n', Enumerable.Range(1, 120).Select(i => $"value-{i:D3}")));
+        var tools = new FileTools(_workspace, requireApprovalOutsideWorkspace: false);
+
+        var result = await tools.ReadFile("paged-offset.txt", offset: 51, limit: 50);
+
+        var text = Assert.Single(result.OfType<TextContent>()).Text;
+        Assert.Contains("51: value-051", text, StringComparison.Ordinal);
+        Assert.Contains("100: value-100", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("50: value-050", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("101: value-101", text, StringComparison.Ordinal);
+        Assert.Contains("Use offset=101 to read more", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ReadFile_LargeTextWithoutPagination_ReturnsShortErrorWithoutPayload()
+    {
+        var secret = "secret-large-file-payload";
+        var content = new string('x', TextFileReadLimiter.MaxUnpaginatedTextBytes + 1) + secret;
+        await File.WriteAllTextAsync(Path.Combine(_workspace, "large.txt"), content);
+        var tools = new FileTools(_workspace, requireApprovalOutsideWorkspace: false);
+
+        var result = await tools.ReadFile("large.txt");
+
+        var text = Assert.Single(result.OfType<TextContent>()).Text;
+        Assert.Contains("too large to read without pagination", text, StringComparison.Ordinal);
+        Assert.Contains("offset=1", text, StringComparison.Ordinal);
+        Assert.DoesNotContain(secret, text, StringComparison.Ordinal);
+        Assert.True(text.Length < 400, text);
+    }
+
+    [Fact]
+    public async Task ReadFile_SmallTextWithoutPagination_ReturnsLineNumberedContent()
+    {
+        await File.WriteAllTextAsync(Path.Combine(_workspace, "small.txt"), "alpha\nbeta");
+        var tools = new FileTools(_workspace, requireApprovalOutsideWorkspace: false);
+
+        var result = await tools.ReadFile("small.txt");
+
+        var text = Assert.Single(result.OfType<TextContent>()).Text;
+        Assert.Contains("1: alpha", text, StringComparison.Ordinal);
+        Assert.Contains("2: beta", text, StringComparison.Ordinal);
+        Assert.Contains("End of file - total 2 lines", text, StringComparison.Ordinal);
     }
 
     [Fact]

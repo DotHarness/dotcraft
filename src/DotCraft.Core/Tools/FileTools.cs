@@ -25,15 +25,13 @@ public sealed class FileTools(
     string? ripgrepPath = null,
     TimeSpan? searchTimeout = null)
 {
-    private const int DefaultReadLimit = 2000;
-    
-    private const int MaxLineLength = 2000;
-    
     private const int MaxGrepMatches = 100;
     
     private const int MaxFindResults = 200;
     
     private const int MaxGrepFileSize = 5 * 1024 * 1024;
+
+    private const int MaxLineLength = TextFileReadLimiter.MaxLineLength;
 
     private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
 
@@ -65,12 +63,12 @@ public sealed class FileTools(
     private readonly RipgrepFileSearcher _ripgrep = new(ripgrepPath);
     private readonly TimeSpan _searchTimeout = NormalizeSearchTimeout(searchTimeout);
 
-    [Description("Read the contents of a file or list the contents of a directory. If the path is a directory, lists its entries. Supports offset and limit for paginated reading of large text files. Image files (.png, .jpg, .jpeg, .gif, .webp, .bmp) are returned as vision input for the model (full file only; offset/limit do not apply). PDF and other binary files are rejected instead of read as text.")]
+    [Description("Read the contents of a file or list the contents of a directory. If the path is a directory, lists its entries. Supports 1-indexed offset and limit for paginated reading of text files; limit without offset starts at line 1. Text output is line-numbered and indicates whether more lines remain. Large text files require offset/limit or GrepFiles. Image files (.png, .jpg, .jpeg, .gif, .webp, .bmp) are returned as vision input for the model (full file only; offset/limit do not apply). PDF and other binary files are rejected instead of read as text.")]
     [Tool(Icon = "📄", DisplayType = typeof(CoreToolDisplays), DisplayMethod = nameof(CoreToolDisplays.ReadFile), MaxResultChars = 0)]
     public async Task<IList<AIContent>> ReadFile(
         [Description("The workspace-relative or absolute path to read.")] string path,
-        [Description("The line number to start reading from (1-indexed). Enables line-numbered output when set.")] int offset = 0,
-        [Description("The maximum number of lines to read (defaults to 2000 when offset is used).")] int limit = 0,
+        [Description("The line number to start reading from (1-indexed). Omit or pass 0 to start at line 1 when limit is provided.")] int offset = 0,
+        [Description("The maximum number of lines to read. When omitted with offset, defaults to 2000. When provided without offset, reads from line 1.")] int limit = 0,
         CancellationToken cancellationToken = default)
     {
         try
@@ -93,7 +91,7 @@ public sealed class FileTools(
 
             if (TryGetImageMediaType(fullPath, out var mediaType))
             {
-                if (offset > 0)
+                if (TextFileReadLimiter.IsPagedRead(offset, limit))
                 {
                     return ReadFileTextResult(
                         "Error: Line offset/limit pagination is not supported for image files; call ReadFile without offset and limit to load the image as vision input.");
@@ -117,37 +115,18 @@ public sealed class FileTools(
 
             var encoding = DetectFileEncoding(fullPath);
 
-            if (offset > 0)
-            {
-                var lines = await WithSharingViolationRetryAsync(
-                    () => File.ReadAllLinesAsync(fullPath, encoding, cancellationToken),
-                    cancellationToken);
-                var startIndex = offset - 1;
-                if (startIndex >= lines.Length)
-                    return ReadFileTextResult($"Error: Offset {offset} is out of range for this file ({lines.Length} lines).");
+            if (TextFileReadLimiter.IsPagedRead(offset, limit))
+                return ReadFileTextResult(await WithSharingViolationRetryAsync(
+                    () => TextFileReadLimiter.ReadPageAsync(fullPath, encoding, offset, limit, cancellationToken),
+                    cancellationToken));
 
-                var readLimit = limit > 0 ? limit : DefaultReadLimit;
-                var endIndex = Math.Min(lines.Length, startIndex + readLimit);
-                var sb = new StringBuilder();
-                for (var i = startIndex; i < endIndex; i++)
-                {
-                    var line = lines[i].Length > MaxLineLength
-                        ? lines[i][..MaxLineLength] + "..."
-                        : lines[i];
-                    sb.AppendLine($"{i + 1}: {line}");
-                }
+            if (fileInfo.Length > TextFileReadLimiter.MaxUnpaginatedTextBytes)
+                return ReadFileTextResult(TextFileReadLimiter.FormatUnpaginatedTooLarge(path, fileInfo.Length));
 
-                if (endIndex < lines.Length)
-                    sb.AppendLine($"\n(Showing lines {offset}-{endIndex} of {lines.Length}. Use offset={endIndex + 1} to read more.)");
-                else
-                    sb.AppendLine($"\n(End of file - total {lines.Length} lines)");
-
-                return ReadFileTextResult(sb.ToString());
-            }
-
-            return ReadFileTextResult(await WithSharingViolationRetryAsync(
+            var content = await WithSharingViolationRetryAsync(
                 () => File.ReadAllTextAsync(fullPath, encoding, cancellationToken),
-                cancellationToken));
+                cancellationToken);
+            return ReadFileTextResult(TextFileReadLimiter.FormatInMemory(content, offset, limit));
         }
         catch (OperationCanceledException)
         {

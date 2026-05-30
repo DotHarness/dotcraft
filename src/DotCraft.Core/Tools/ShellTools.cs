@@ -49,7 +49,7 @@ public sealed class ShellTools
         _inspector = new ShellCommandInspector(_workingDirectory);
     }
 
-    [Description("Execute a shell command and return its output.")]
+    [Description("Execute a shell command and return its output. On Windows PowerShell, run inline Python by piping a here-string to stdin, for example @'\\nprint('hello')\\n'@ | python -, instead of python -c with nested escaped quotes.")]
     [Tool(Icon = "⌨️", DisplayType = typeof(CoreToolDisplays), DisplayMethod = nameof(CoreToolDisplays.Exec), MaxResultChars = 30_000)]
     public async Task<string> Exec(
         [Description("The shell command to execute.")] string command,

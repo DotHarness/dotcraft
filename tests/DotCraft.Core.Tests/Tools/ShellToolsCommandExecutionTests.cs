@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using DotCraft.Protocol;
 using DotCraft.Tools;
 using DotCraft.Tools.BackgroundTerminals;
@@ -19,6 +20,17 @@ public sealed class ShellToolsCommandExecutionTests : IDisposable
     public void Dispose()
     {
         try { Directory.Delete(_tempDir, recursive: true); } catch { }
+    }
+
+    [Fact]
+    public void Exec_Description_IncludesPowerShellHereStringPythonExample()
+    {
+        var method = typeof(ShellTools).GetMethod(nameof(ShellTools.Exec));
+        var description = Assert.IsType<DescriptionAttribute>(
+            Assert.Single(method!.GetCustomAttributes(typeof(DescriptionAttribute), inherit: false))).Description;
+
+        Assert.Contains("@'\\nprint('hello')\\n'@ | python -", description, StringComparison.Ordinal);
+        Assert.Contains("instead of python -c", description, StringComparison.Ordinal);
     }
 
     [Fact]
