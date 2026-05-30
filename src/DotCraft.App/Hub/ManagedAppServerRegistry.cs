@@ -103,6 +103,7 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
                 return existing;
 
             var plan = BuildServicePlan(canonical, craftPath, MergeRuntimeTools(request.RuntimeTools));
+            entry.AdoptedExternalLock = false;
             entry.State = HubAppServerStates.Starting;
             entry.LastError = null;
             entry.RecentStderr = null;
@@ -177,7 +178,11 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
 
         foreach (var entry in _entries.Values)
         {
-            RefreshExited(entry);
+            if (entry.AdoptedExternalLock)
+                RefreshAdoptedExternalEntry(entry, Path.Combine(entry.CanonicalWorkspacePath, ".craft"));
+            else
+                RefreshExited(entry);
+
             if (ShouldListEntry(entry))
             {
                 _persisted[entry.CanonicalWorkspacePath] = entry.ToRegistryRecord();
@@ -217,7 +222,11 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
         var (resolvedWorkspace, canonical, craftPath) = ResolveWorkspace(workspacePath);
         if (_entries.TryGetValue(canonical, out var entry))
         {
-            RefreshExited(entry);
+            if (entry.AdoptedExternalLock)
+                RefreshAdoptedExternalEntry(entry, craftPath);
+            else
+                RefreshExited(entry);
+
             return entry.ToResponse();
         }
 
@@ -264,6 +273,13 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
         await entry.Mutex.WaitAsync(cancellationToken);
         try
         {
+            if (entry.AdoptedExternalLock)
+            {
+                RefreshAdoptedExternalEntry(entry, craftPath);
+                Persist(entry);
+                return entry.ToResponse();
+            }
+
             if (entry.Process is { })
             {
                 entry.State = HubAppServerStates.Stopping;
@@ -315,6 +331,13 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
             await entry.Mutex.WaitAsync();
             try
             {
+                if (entry.AdoptedExternalLock)
+                {
+                    RefreshAdoptedExternalEntry(entry, Path.Combine(entry.CanonicalWorkspacePath, ".craft"));
+                    Persist(entry);
+                    continue;
+                }
+
                 await StopManagedProcessesAsync(entry, Path.Combine(entry.CanonicalWorkspacePath, ".craft"));
                 entry.State = HubAppServerStates.Stopped;
                 entry.LastExitedAt = DateTimeOffset.UtcNow;
@@ -472,23 +495,8 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
 
     private void PersistExternal(ManagedEntry entry, AppServerLockInfo info)
     {
-        _persisted[entry.CanonicalWorkspacePath] = new HubAppServerRegistryRecord(
-            entry.WorkspacePath,
-            entry.CanonicalWorkspacePath,
-            Path.GetFileName(entry.CanonicalWorkspacePath),
-            HubAppServerStates.Running,
-            info.Pid,
-            info.Endpoints,
-            ExternalServiceStatus(info.Endpoints),
-            info.Version,
-            StartedByHub: false,
-            LastStartedAt: info.StartedAt,
-            LastSeenAt: DateTimeOffset.UtcNow,
-            LastExitedAt: null,
-            ExitCode: null,
-            LastError: null,
-            RecentStderr: null);
-        PersistAll();
+        ApplyExternalLockInfo(entry, info);
+        Persist(entry);
     }
 
     private static HubAppServerResponse ToExternalResponse(ManagedEntry entry, AppServerLockInfo info) => new(
@@ -510,6 +518,44 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
             pair => pair.Key,
             pair => new HubServiceStatus("external", pair.Value),
             StringComparer.OrdinalIgnoreCase);
+
+    private static void ApplyExternalLockInfo(ManagedEntry entry, AppServerLockInfo info)
+    {
+        entry.Process = null;
+        entry.AdoptedExternalLock = true;
+        entry.State = HubAppServerStates.Running;
+        entry.Pid = info.Pid;
+        entry.ServerVersion = info.Version;
+        entry.StartedByHub = false;
+        entry.StartedInCurrentHubProcess = false;
+        entry.ExitCode = null;
+        entry.LastError = null;
+        entry.RecentStderr = null;
+        entry.LastStartedAt = info.StartedAt;
+        entry.LastSeenAt = DateTimeOffset.UtcNow;
+        entry.LastExitedAt = null;
+        entry.Endpoints = info.Endpoints;
+        entry.ServiceStatus = ExternalServiceStatus(info.Endpoints);
+    }
+
+    private static void RefreshAdoptedExternalEntry(ManagedEntry entry, string craftPath)
+    {
+        var lockPath = AppServerWorkspaceLock.GetLockFilePath(craftPath);
+        var info = AppServerWorkspaceLock.TryRead(lockPath);
+        if (info is { } live && live.IsOwnerProcessAlive())
+        {
+            ApplyExternalLockInfo(entry, live);
+            return;
+        }
+
+        entry.Process = null;
+        entry.AdoptedExternalLock = false;
+        entry.State = HubAppServerStates.Exited;
+        entry.StartedByHub = false;
+        entry.StartedInCurrentHubProcess = false;
+        entry.LastSeenAt = DateTimeOffset.UtcNow;
+        entry.LastExitedAt ??= DateTimeOffset.UtcNow;
+    }
 
     private static async Task<string?> ProbeExistingAppServerAsync(
         AppServerLockInfo info,
@@ -591,6 +637,7 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
             entry.RecentStderr = process.RecentStderr;
             entry.ExitCode = process.ExitCode;
             entry.Process = null;
+            entry.AdoptedExternalLock = false;
             entry.Pid = null;
             CleanupWorkspaceLock(craftPath);
         }
@@ -897,6 +944,8 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
         public string State { get; set; } = HubAppServerStates.Stopped;
 
         public AppServerProcess? Process { get; set; }
+
+        public bool AdoptedExternalLock { get; set; }
 
         public string? TypeScriptNodeBin { get; set; }
 

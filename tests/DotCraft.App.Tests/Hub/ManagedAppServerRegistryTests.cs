@@ -138,7 +138,20 @@ public sealed class ManagedAppServerRegistryTests : IDisposable
         Assert.Equal(wsUrl, response.Endpoints["appServerWebSocket"]);
         Assert.Equal("external", response.ServiceStatus["appServerWebSocket"].State);
 
+        var inspected = registry.GetByWorkspace(workspace);
+        Assert.Equal(HubAppServerStates.Running, inspected.State);
+        Assert.False(inspected.StartedByHub);
+
         var listed = Assert.Single(registry.List());
+        Assert.Equal(HubAppServerStates.Running, listed.State);
+        Assert.False(listed.StartedByHub);
+
+        var stopResponse = await registry.StopAsync(workspace, CancellationToken.None);
+        Assert.Equal(HubAppServerStates.Running, stopResponse.State);
+        Assert.False(stopResponse.StartedByHub);
+        Assert.Equal(wsUrl, stopResponse.Endpoints["appServerWebSocket"]);
+
+        listed = Assert.Single(registry.List());
         Assert.Equal(HubAppServerStates.Running, listed.State);
         Assert.False(listed.StartedByHub);
     }
@@ -167,6 +180,38 @@ public sealed class ManagedAppServerRegistryTests : IDisposable
         Assert.Equal("workspaceLocked", ex.Code);
         Assert.Equal("probe failed", ex.Details?.GetType().GetProperty("reason")?.GetValue(ex.Details));
         Assert.True(File.Exists(lockPath));
+    }
+
+    [Fact]
+    public async Task Dispose_DoesNotMarkAdoptedExternalWorkspaceStopped()
+    {
+        var registryPath = Path.Combine(_tempDir, "hub", "appservers.json");
+        var workspace = CreateWorkspace("external-dispose-workspace");
+        var wsUrl = "ws://127.0.0.1:43123/ws?token=x";
+        var lockPath = AppServerWorkspaceLock.GetLockFilePath(Path.Combine(workspace, ".craft"));
+        WriteWorkspaceLock(lockPath, workspace, pid: Environment.ProcessId, wsUrl: wsUrl);
+
+        var registry = new ManagedAppServerRegistry(
+            new HubEventBus(),
+            "http://127.0.0.1:43000",
+            "hub-token",
+            registryPath: registryPath)
+        {
+            ExistingAppServerProbeAsync = (_, _) => Task.FromResult<string?>(null)
+        };
+
+        await registry.EnsureAsync(new EnsureAppServerRequest
+        {
+            WorkspacePath = workspace,
+            StartIfMissing = true
+        }, CancellationToken.None);
+
+        await registry.DisposeAsync();
+
+        var persisted = Assert.Single(new HubAppServerRegistryStore(registryPath).Load().Values);
+        Assert.Equal(HubAppServerStates.Running, persisted.State);
+        Assert.False(persisted.StartedByHub);
+        Assert.Equal(wsUrl, persisted.Endpoints["appServerWebSocket"]);
     }
 
     [Fact]
