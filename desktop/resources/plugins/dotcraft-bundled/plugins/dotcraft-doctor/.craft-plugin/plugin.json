@@ -13,7 +13,7 @@
     "developerName": "DotHarness",
     "category": "Engineering",
     "capabilities": ["Skill", "Read"],
-    "defaultPrompt": "Diagnose the latest DotCraft error and, if asked, draft an issue report for the developers.",
+    "defaultPrompt": "Diagnose DotCraft errors and draft an issue.",
     "brandColor": "#2458F7",
     "composerIcon": "./assets/dotcraft-doctor.svg",
     "logo": "./assets/dotcraft-doctor.svg",

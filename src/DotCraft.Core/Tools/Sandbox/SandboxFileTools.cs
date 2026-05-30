@@ -16,9 +16,6 @@ public sealed class SandboxFileTools
     private readonly SandboxSessionManager _sandboxManager;
     private readonly int _maxFileSize;
 
-    private const int DefaultReadLimit = 2000;
-    private const int MaxLineLength = 2000;
-
     private static readonly Regex UnicodeEscapeRegex = new(@"\\u([0-9a-fA-F]{4})", RegexOptions.Compiled);
 
     public SandboxFileTools(
@@ -29,12 +26,12 @@ public sealed class SandboxFileTools
         _maxFileSize = maxFileSize;
     }
 
-    [Description("Read the contents of a file or list the contents of a directory. If the path is a directory, lists its entries. Supports offset and limit for paginated reading of large text files. PDF and other binary files are rejected instead of read as text.")]
+    [Description("Read the contents of a file or list the contents of a directory. If the path is a directory, lists its entries. Supports 1-indexed offset and limit for paginated reading of text files; limit without offset starts at line 1. Text output is line-numbered and indicates whether more lines remain. Large text files require offset/limit or GrepFiles. PDF and other binary files are rejected instead of read as text.")]
     [Tool(Icon = "📄", DisplayType = typeof(CoreToolDisplays), DisplayMethod = nameof(CoreToolDisplays.ReadFile), MaxResultChars = 0)]
     public async Task<string> ReadFile(
         [Description("Path inside the sandbox (absolute or relative to /workspace).")] string path,
-        [Description("Line number to start reading from (1-indexed).")] int offset = 0,
-        [Description("Maximum number of lines to read.")] int limit = 0)
+        [Description("Line number to start reading from (1-indexed). Omit or pass 0 to start at line 1 when limit is provided.")] int offset = 0,
+        [Description("Maximum number of lines to read. When omitted with offset, defaults to 2000. When provided without offset, reads from line 1.")] int limit = 0)
     {
         try
         {
@@ -65,39 +62,22 @@ public sealed class SandboxFileTools
             if (FileContentClassifier.LooksBinary(sample))
                 return FileContentClassifier.FormatBinaryUnsupportedMessage(path, fullPath, byteLength, detectedFromSample: true);
 
+            if (!TextFileReadLimiter.IsPagedRead(offset, limit)
+                && byteLength.HasValue
+                && byteLength.Value > TextFileReadLimiter.MaxUnpaginatedTextBytes)
+                return TextFileReadLimiter.FormatUnpaginatedTooLarge(path, byteLength.Value);
+
             // Read file content
             var content = await sandbox.Files.ReadFileAsync(fullPath);
 
             if (content.Length > _maxFileSize)
                 return $"Error: File too large ({content.Length} bytes). Max size: {_maxFileSize} bytes.";
 
-            if (offset > 0)
-            {
-                var lines = content.Split('\n');
-                var startIndex = offset - 1;
-                if (startIndex >= lines.Length)
-                    return $"Error: Offset {offset} is out of range for this file ({lines.Length} lines).";
+            if (!TextFileReadLimiter.IsPagedRead(offset, limit)
+                && content.Length > TextFileReadLimiter.MaxUnpaginatedTextBytes)
+                return TextFileReadLimiter.FormatUnpaginatedTooLarge(path, content.Length);
 
-                var readLimit = limit > 0 ? limit : DefaultReadLimit;
-                var endIndex = Math.Min(lines.Length, startIndex + readLimit);
-                var sb = new StringBuilder();
-                for (var i = startIndex; i < endIndex; i++)
-                {
-                    var line = lines[i].Length > MaxLineLength
-                        ? lines[i][..MaxLineLength] + "..."
-                        : lines[i];
-                    sb.AppendLine($"{i + 1}: {line}");
-                }
-
-                if (endIndex < lines.Length)
-                    sb.AppendLine($"\n(Showing lines {offset}-{endIndex} of {lines.Length}. Use offset={endIndex + 1} to read more.)");
-                else
-                    sb.AppendLine($"\n(End of file - total {lines.Length} lines)");
-
-                return sb.ToString();
-            }
-
-            return content;
+            return FormatTextReadResult(content, offset, limit);
         }
         catch (OpenSandbox.Core.SandboxException ex)
         {
@@ -299,6 +279,9 @@ public sealed class SandboxFileTools
         var output = sb.ToString().TrimEnd();
         return string.IsNullOrWhiteSpace(output) ? "(no output)" : output;
     }
+
+    internal static string FormatTextReadResult(string content, int offset, int limit)
+        => TextFileReadLimiter.FormatInMemory(content, offset, limit);
 
     private static async Task<long?> TryGetSandboxFileSizeAsync(OpenSandbox.Sandbox sandbox, string fullPath)
     {

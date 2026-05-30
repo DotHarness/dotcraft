@@ -27,6 +27,17 @@ python path\to\error-diagnosis\scripts\analyze_dotcraft_thread.py `
   --thread "D:\path\to\workspace\.craft\threads\active\thread_x.jsonl"
 ```
 
+For ad-hoc Python on PowerShell, prefer a script file or pipe a here-string to stdin:
+
+```powershell
+@'
+import sqlite3
+print("ok")
+'@ | python -
+```
+
+Avoid `python -c "...\"SQL\"..."` for SQLite probes on PowerShell; `\"` is not a PowerShell double-quote escape and can corrupt the Python or SQL string.
+
 If only a thread ID is known, find candidate rollout files:
 
 ```powershell
