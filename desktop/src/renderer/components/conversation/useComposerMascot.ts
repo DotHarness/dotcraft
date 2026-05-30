@@ -144,8 +144,8 @@ export function useComposerMascot({
     [lastTurnError, t]
   )
   const reportContext = useCallback(
-    () => t('mascot.prompt.report', { error: (lastTurnError ?? '').slice(0, 600) }),
-    [lastTurnError, t]
+    () => t('mascot.prompt.report', { threadId, error: (lastTurnError ?? '').slice(0, 600) }),
+    [lastTurnError, t, threadId]
   )
 
   // Install (idempotent) the doctor plugin, open a fresh thread, and run `skill`.
@@ -303,7 +303,7 @@ export function useComposerMascot({
               label: t('mascot.menu.reportShort'),
               title: t('mascot.tip.report'),
               icon: createElement(MessageSquareWarning, { size: 14 }),
-              onClick: () => void runDoctor('report-issue', t('mascot.prompt.reportGeneric'))
+              onClick: () => void runDoctor('report-issue', t('mascot.prompt.reportGeneric', { threadId }))
             }
           ]
         : []
