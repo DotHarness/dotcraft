@@ -1928,7 +1928,8 @@ export const MESSAGES_EN = {
   'viewer.browser.reloadTab': 'Reload tab',
   'viewer.browser.blockedScheme': 'Blocked URL scheme.',
   'viewer.browser.downloadBlocked': 'Downloads are disabled in browser tabs.',
-  'viewer.browser.startPageHint': 'Enter a URL in the address bar to begin browsing.',
+  'viewer.browser.startPageHint': 'Enter a URL to open a page',
+  'viewer.browser.startTitle': 'Start browsing',
   'viewer.browser.defaultLabel': 'New Tab',
 
   // Automations / cron (Phase 3)

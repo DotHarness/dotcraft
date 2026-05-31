@@ -1852,7 +1852,8 @@ export const MESSAGES_ZH_HANS = {
   'viewer.browser.reloadTab': '重新加载标签页',
   'viewer.browser.blockedScheme': '已阻止的 URL 协议。',
   'viewer.browser.downloadBlocked': '浏览器标签页中已禁用下载。',
-  'viewer.browser.startPageHint': '在地址栏输入 URL 以开始浏览。',
+  'viewer.browser.startPageHint': '输入网址以打开页面',
+  'viewer.browser.startTitle': '开始浏览',
   'viewer.browser.defaultLabel': '新标签页',
 
   'auto.viewTitle': '让 DotCraft 持续推进工作',

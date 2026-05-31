@@ -145,17 +145,22 @@ export function DetailPanel({ workspacePath = '' }: DetailPanelProps): JSX.Eleme
           shortcut: fmt(ACTION_SHORTCUTS.newTerminalTab),
           enabled: canOpenWorkspaceTab
         },
-        {
-          action: 'newChanges',
-          label: t('detailPanel.tabChanges'),
-          shortcut: fmt(ACTION_SHORTCUTS.viewChanges),
-          enabled: true
-        },
-        {
-          action: 'newPlan',
-          label: t('detailPanel.tabPlan'),
-          enabled: true
-        }
+        // Diff / Progress are dropped from the menu once already open.
+        ...(openSystemTabs.includes('changes')
+          ? []
+          : [{
+              action: 'newChanges' as const,
+              label: t('detailPanel.tabChanges'),
+              shortcut: fmt(ACTION_SHORTCUTS.viewChanges),
+              enabled: true
+            }]),
+        ...(openSystemTabs.includes('plan')
+          ? []
+          : [{
+              action: 'newPlan' as const,
+              label: t('detailPanel.tabPlan'),
+              enabled: true
+            }])
       ]
     }
     const action = await window.api.menu.popupAddTabMenu(request)
