@@ -82,39 +82,6 @@ struct ConnectedAppServer {
     ws_url: String,
 }
 
-/// Resolve the UI language with the following priority:
-///   1. Explicit `--lang` CLI flag (highest priority).
-///   2. `Language` field in `{workspace}/.craft/config.json`.
-///   3. Default: `"en"`.
-///
-/// config.json values recognised (case-insensitive):
-///   "Chinese" | "中文" | "zh" | "zh-cn" -> "zh"
-///   "English" | "en"                    -> "en"
-fn resolve_language(cli_lang: Option<&str>, workspace_path: Option<&std::path::Path>) -> String {
-    // 1. CLI flag wins unconditionally.
-    if let Some(lang) = cli_lang {
-        return lang.to_string();
-    }
-
-    // 2. Try .craft/config.json in the workspace directory.
-    if let Some(ws) = workspace_path {
-        let config_path = ws.join(".craft").join("config.json");
-        if let Ok(content) = std::fs::read_to_string(&config_path) {
-            if let Ok(value) = serde_json::from_str::<serde_json::Value>(&content) {
-                if let Some(lang_val) = value.get("Language").and_then(|v| v.as_str()) {
-                    return match lang_val.to_lowercase().as_str() {
-                        "chinese" | "中文" | "zh" | "zh-cn" | "zh_cn" => "zh".to_string(),
-                        _ => "en".to_string(),
-                    };
-                }
-            }
-        }
-    }
-
-    // 3. Default.
-    "en".to_string()
-}
-
 fn read_workspace_model(workspace_path: &std::path::Path) -> Option<String> {
     let config_path = workspace_path.join(".craft").join("config.json");
     let content = std::fs::read_to_string(config_path).ok()?;
@@ -167,7 +134,6 @@ pub async fn run(
     server_bin: Option<String>,
     workspace: Option<String>,
     theme_path: Option<String>,
-    lang: Option<String>,
 ) -> Result<()> {
     // ── 1. Logging ────────────────────────────────────────────────────────
     tracing_subscriber::fmt()
@@ -175,9 +141,8 @@ pub async fn run(
         .with_env_filter(tracing_subscriber::EnvFilter::from_env("DOTCRAFT_TUI_LOG"))
         .init();
 
-    // ── 2. Theme and i18n ─────────────────────────────────────────────────
-    // Resolve the effective workspace path early so theme and language loading
-    // can both read .craft/ from it.
+    // ── 2. Theme and text ─────────────────────────────────────────────────
+    // Resolve the effective workspace path early so theme loading can read .craft/.
     let resolved_workspace: std::path::PathBuf = workspace
         .as_deref()
         .map(std::path::PathBuf::from)
@@ -187,8 +152,7 @@ pub async fn run(
 
     let cli_theme_path = theme_path.as_deref().map(std::path::Path::new);
     let theme = Theme::resolve(cli_theme_path, workspace_path)?;
-    let resolved_lang = resolve_language(lang.as_deref(), workspace_path);
-    let strings = i18n::load(&resolved_lang);
+    let strings = i18n::english();
 
     // ── 3. Connection intent ──────────────────────────────────────────────
     let connection_mode = if remote.is_some() {
@@ -220,7 +184,6 @@ pub async fn run(
         &mut state,
         &theme,
         &strings,
-        &resolved_lang,
         &connection_mode,
     )
     .await?;
@@ -235,7 +198,6 @@ async fn run_event_loop(
     state: &mut AppState,
     theme: &Theme,
     strings: &Strings,
-    language: &str,
     conn_mode: &ConnectionMode,
 ) -> Result<()> {
     let mut tick = time::interval(Duration::from_millis(16)); // ~60 fps
@@ -326,7 +288,6 @@ async fn run_event_loop(
                         &mut connection_in_flight,
                         state,
                         strings,
-                        language,
                         &deferred_tx,
                         deferred,
                     ).await?;
@@ -573,34 +534,15 @@ async fn spawn_skills_list_load(
     Ok(())
 }
 
-fn normalize_command_language(language: &str) -> &'static str {
-    if language.eq_ignore_ascii_case("zh")
-        || language.eq_ignore_ascii_case("zh-cn")
-        || language.eq_ignore_ascii_case("zh_cn")
-    {
-        "zh"
-    } else {
-        "en"
-    }
-}
-
-async fn refresh_command_catalog(
-    wire: &mut WireClient,
-    state: &mut AppState,
-    language: &str,
-) -> Result<()> {
+async fn refresh_command_catalog(wire: &mut WireClient, state: &mut AppState) -> Result<()> {
     if !wire.capabilities.command_management.unwrap_or(false) {
         state.server_commands.clear();
         state.command_catalog = commands::merge_command_catalog(&state.server_commands);
         return Ok(());
     }
 
-    let result: wire::types::CommandListResult = wire
-        .request(
-            "command/list",
-            serde_json::json!({ "language": normalize_command_language(language) }),
-        )
-        .await?;
+    let result: wire::types::CommandListResult =
+        wire.request("command/list", serde_json::json!({})).await?;
     state.server_commands = result.commands;
     state.command_catalog = commands::merge_command_catalog(&state.server_commands);
     Ok(())
@@ -1032,7 +974,6 @@ async fn connect_appserver(conn_mode: &ConnectionMode) -> Result<ConnectedAppSer
 async fn finish_connection_setup(
     wire: &mut WireClient,
     state: &mut AppState,
-    language: &str,
     deferred_tx: &tokio_mpsc::UnboundedSender<DeferredResult>,
 ) {
     state.connected = true;
@@ -1055,7 +996,7 @@ async fn finish_connection_setup(
         }
     }
 
-    if let Err(e) = refresh_command_catalog(wire, state, language).await {
+    if let Err(e) = refresh_command_catalog(wire, state).await {
         tracing::warn!("Failed to load command catalog: {e}");
         state.history.push(HistoryEntry::Error {
             message: format!("Failed to load command catalog: {e}"),
@@ -1239,14 +1180,13 @@ async fn handle_deferred_result(
     connection_in_flight: &mut bool,
     state: &mut AppState,
     strings: &Strings,
-    language: &str,
     deferred_tx: &tokio_mpsc::UnboundedSender<DeferredResult>,
     result: DeferredResult,
 ) -> Result<()> {
     match result {
         DeferredResult::ConnectionReady(Ok(mut connected)) => {
             *connection_in_flight = false;
-            finish_connection_setup(&mut connected.wire, state, language, deferred_tx).await;
+            finish_connection_setup(&mut connected.wire, state, deferred_tx).await;
             state.history.push(HistoryEntry::SystemInfo {
                 message: format!("Connected to AppServer: {}", connected.ws_url),
             });

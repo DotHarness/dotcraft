@@ -18,7 +18,6 @@ Rust-native terminal interface for DotCraft, built on [Ratatui](https://ratatui.
 | **Inline Plan view** | Agent todo list rendered inline in the chat flow |
 | **Session management** | `/sessions` opens the session picker (resume / archive / delete) |
 | **Approval flow** | `ApprovalOverlay` for tool calls that require human approval |
-| **i18n** | Built-in Chinese / English (`--lang zh` / `--lang en`) |
 | **Theme customization** | TOML-based color overrides |
 | **Clipboard** | `y` key copies the last agent message (requires `clipboard` feature) |
 | **WebSocket mode** | Connect to a remote AppServer (requires `websocket` feature) |
@@ -87,15 +86,9 @@ Starting the AppServer for remote mode:
 dotcraft app-server --listen ws://0.0.0.0:3000
 ```
 
-### Language and Theme
+### Theme
 
 ```bash
-# Chinese UI (default)
-dotcraft-tui --lang zh
-
-# English UI
-dotcraft-tui --lang en
-
 # Custom theme
 dotcraft-tui --theme /path/to/theme.toml
 ```
@@ -108,7 +101,6 @@ dotcraft-tui --theme /path/to/theme.toml
 | `--server-bin <PATH>` | `dotcraft` binary used to start Hub | sibling `dotcraft`, then PATH |
 | `--workspace <PATH>` | Workspace directory path | current directory |
 | `--theme <PATH>` | Custom theme TOML file path | built-in dark theme |
-| `--lang <LANG>` | UI language (`zh` / `en`) | `zh` |
 
 ## Key Bindings
 

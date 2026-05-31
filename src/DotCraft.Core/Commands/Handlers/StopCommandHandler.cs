@@ -1,5 +1,5 @@
 using DotCraft.Commands.Core;
-using DotCraft.Localization;
+using DotCraft.Text;
 using DotCraft.Protocol;
 using Spectre.Console;
 
@@ -24,24 +24,24 @@ public sealed class StopCommandHandler : ICommandHandler
                 t.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput);
             if (activeTurn == null)
             {
-                await responder.SendTextAsync(Strings.CommandStopNoActiveRun);
+                await responder.SendTextAsync(FallbackText.CommandStopNoActiveRun);
                 return CommandResult.HandledResult();
             }
 
             await context.SessionService.CancelTurnAsync(thread.Id, activeTurn.Id);
-            await responder.SendTextAsync(Strings.CommandStopStopped);
+            await responder.SendTextAsync(FallbackText.CommandStopStopped);
             return CommandResult.HandledResult();
         }
 
         var registry = context.ActiveRunRegistry;
         if (registry == null || !registry.TryCancelAndRemove(context.SessionId))
         {
-            await responder.SendTextAsync(Strings.CommandStopNoActiveRun);
+            await responder.SendTextAsync(FallbackText.CommandStopNoActiveRun);
             AnsiConsole.MarkupLine($"[grey][[{context.Source}]][/] /stop: no active run for {Markup.Escape(context.SessionId)}");
             return CommandResult.HandledResult();
         }
 
-        await responder.SendTextAsync(Strings.CommandStopStopped);
+        await responder.SendTextAsync(FallbackText.CommandStopStopped);
         AnsiConsole.MarkupLine($"[grey][[{context.Source}]][/] [yellow]/stop:[/] cancelled run for {Markup.Escape(context.SessionId)}");
         return CommandResult.HandledResult();
     }

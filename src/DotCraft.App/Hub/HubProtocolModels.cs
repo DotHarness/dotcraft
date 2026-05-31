@@ -56,6 +56,16 @@ public sealed class HubNotificationRequest
 
     public string Kind { get; set; } = string.Empty;
 
+    public string? TitleKey { get; set; }
+
+    public string? BodyKey { get; set; }
+
+    public object? Params { get; set; }
+
+    public string? FallbackTitle { get; set; }
+
+    public string? FallbackBody { get; set; }
+
     public string Title { get; set; } = string.Empty;
 
     public string? Body { get; set; }

@@ -2672,6 +2672,7 @@ Choose the next concrete action that advances the goal. Before doing substantial
                 turn.CompletedAt = DateTimeOffset.UtcNow;
                 thread.LastActiveAt = DateTimeOffset.UtcNow;
                 RecordTurnTokenUsage(thread, turn);
+                RecordTurnDurationTrace(threadId, turn);
                 eventChannel.EmitTurnCompleted(turn);
 
                 try
@@ -3799,6 +3800,21 @@ Choose the next concrete action that advances the goal. Before doing substantial
             ReasoningOutputTokens = turn.TokenUsage.ReasoningOutputTokens,
             LlmCallCount = turn.TokenUsage.LlmCallCount
         });
+    }
+
+    /// <summary>
+    /// Records the wall-clock duration of a completed Turn into the trace store, feeding
+    /// the workspace "longest task" aggregate (spec §27A.3). Keyed by the thread's main
+    /// trace session (threadId), matching how token-usage trace events are recorded.
+    /// </summary>
+    private void RecordTurnDurationTrace(string threadId, SessionTurn turn)
+    {
+        if (traceCollector == null || turn.CompletedAt == null)
+            return;
+
+        var durationMs = (turn.CompletedAt.Value - turn.StartedAt).TotalMilliseconds;
+        if (durationMs > 0)
+            traceCollector.RecordTurnCompleted(threadId, durationMs);
     }
 
     private async Task EnsurePerThreadAgentIfMissingAsync(

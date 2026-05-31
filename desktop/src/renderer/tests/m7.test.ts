@@ -53,10 +53,14 @@ describe('toastStore', () => {
     expect(remaining[0].message).toBe('second')
   })
 
-  it('auto-dismisses toast after its duration', () => {
-    ts().addToast('auto', 'info', 3000)
+  it('keeps toast until removeToast is called', () => {
+    ts().addToast('manual', 'info', 3000)
     expect(ts().toasts).toHaveLength(1)
     vi.advanceTimersByTime(3001)
+    expect(ts().toasts).toHaveLength(1)
+
+    const id = ts().toasts[0].id
+    ts().removeToast(id)
     expect(ts().toasts).toHaveLength(0)
   })
 

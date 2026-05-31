@@ -52,7 +52,6 @@ dotcraft-tui --remote ws://server:9100/ws --token my-secret
 | `--server-bin` | `dotcraft` binary used to start Hub |
 | `--remote` | Connect to an existing WebSocket AppServer |
 | `--token` | Remote AppServer auth token |
-| `--lang zh|en` | UI language |
 | `--theme` | Custom TOML theme |
 
 ## Common Slash Commands

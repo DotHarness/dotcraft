@@ -13,7 +13,6 @@ describe('initial workspace status argument parsing', () => {
       workspacePath: 'F:\\dotcraft',
       hasUserConfig: true,
       userConfigDefaults: {
-        language: 'Chinese',
         providerId: 'openai',
         model: 'gpt-5.4'
       },

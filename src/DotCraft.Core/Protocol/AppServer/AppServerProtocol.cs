@@ -1198,6 +1198,10 @@ public sealed class TerminalCleanParams
 
 public sealed class CommandListParams
 {
+    /// <summary>
+    /// Deprecated compatibility field. The server ignores this value and always
+    /// returns English fallback text plus stable message keys.
+    /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Language { get; set; }
 
@@ -1216,6 +1220,13 @@ public sealed class CommandInfoWire
 
     public string[] Aliases { get; set; } = [];
 
+    public string DescriptionKey { get; set; } = string.Empty;
+
+    public string FallbackDescription { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Compatibility alias for <see cref="FallbackDescription"/>.
+    /// </summary>
     public string Description { get; set; } = string.Empty;
 
     public string Category { get; set; } = "builtin";
@@ -1427,6 +1438,59 @@ public sealed class UsageSummaryResult
     public double CacheHitRate { get; set; }
 
     public long TotalTokens { get; set; }
+}
+
+// ───── usage/timeseries (spec Section 27A.3) ─────
+
+/// <summary>
+/// Params for <c>usage/timeseries</c>. All fields optional; an absent bound means
+/// "no bound" and an absent <see cref="TzOffsetMinutes"/> means UTC bucketing.
+/// </summary>
+public sealed class UsageTimeseriesParams
+{
+    /// <summary>Inclusive lower bound, <c>YYYY-MM-DD</c> in the client's local frame.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? From { get; set; }
+
+    /// <summary>Inclusive upper bound, <c>YYYY-MM-DD</c> in the client's local frame.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? To { get; set; }
+
+    /// <summary>Minutes to add to UTC to obtain the client's local time (<c>-getTimezoneOffset()</c>).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? TzOffsetMinutes { get; set; }
+}
+
+/// <summary>
+/// Per-day token usage across all traced sessions, for activity charts (spec Section 27A.3).
+/// The <see cref="Days"/> series is sparse (only days with activity) and ascending by date.
+/// </summary>
+public sealed class UsageTimeseriesResult
+{
+    /// <summary>The (clamped) offset in minutes the server used to bucket sessions by local day.</summary>
+    public int TzOffsetMinutes { get; set; }
+
+    /// <summary>
+    /// Longest single Turn (one unit of agent work) across the workspace, in milliseconds.
+    /// Lifetime maximum, independent of the requested date range. 0 when none recorded.
+    /// </summary>
+    public long LongestTaskMs { get; set; }
+
+    public List<UsageTimeseriesDay> Days { get; set; } = [];
+}
+
+public sealed class UsageTimeseriesDay
+{
+    /// <summary><c>YYYY-MM-DD</c> in the client's local frame.</summary>
+    public string Date { get; set; } = string.Empty;
+
+    public long InputTokens { get; set; }
+
+    public long OutputTokens { get; set; }
+
+    public long TotalTokens { get; set; }
+
+    public int SessionCount { get; set; }
 }
 
 // ───── heartbeat/trigger (spec Section 17.2) ─────
@@ -3600,6 +3664,9 @@ public static class AppServerMethods
 
     /// <summary>Aggregate usage telemetry pull (spec Section 27A). Available when tracing is enabled.</summary>
     public const string UsageSummary = "usage/summary";
+
+    /// <summary>Per-day token usage for activity charts (spec Section 27A.3). Available when tracing is enabled.</summary>
+    public const string UsageTimeseries = "usage/timeseries";
 
     public const string McpList = "mcp/list";
     public const string McpGet = "mcp/get";

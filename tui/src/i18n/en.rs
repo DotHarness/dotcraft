@@ -1,4 +1,4 @@
-// English UI strings.
+// TUI strings.
 
 pub const THINKING: &str = "Thinking...";
 pub const THINKING_COLLAPSED: &str = "Thinking... (Tab to expand)";

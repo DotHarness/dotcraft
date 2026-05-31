@@ -147,7 +147,7 @@ describe('InputComposer custom command expansion', () => {
     renderWithLocale(<InputComposer threadId="thread-1" workspacePath="E:\\Git\\dotcraft" />)
 
     await waitFor(() => {
-      expect(appServerSendRequest).toHaveBeenCalledWith('command/list', { language: 'en' })
+      expect(appServerSendRequest).toHaveBeenCalledWith('command/list', {})
     })
 
     const textbox = screen.getByRole('textbox')
@@ -194,7 +194,7 @@ describe('InputComposer custom command expansion', () => {
     renderWithLocale(<InputComposer threadId="thread-1" workspacePath="E:\\Git\\dotcraft" />)
 
     await waitFor(() => {
-      expect(appServerSendRequest).toHaveBeenCalledWith('command/list', { language: 'en' })
+      expect(appServerSendRequest).toHaveBeenCalledWith('command/list', {})
     })
 
     const textbox = screen.getByRole('textbox')
@@ -292,7 +292,7 @@ describe('InputComposer custom command expansion', () => {
     renderWithLocale(<InputComposer threadId="thread-1" workspacePath="E:\\Git\\dotcraft" />)
 
     await waitFor(() => {
-      expect(appServerSendRequest).toHaveBeenCalledWith('command/list', { language: 'en' })
+      expect(appServerSendRequest).toHaveBeenCalledWith('command/list', {})
     })
 
     const textbox = screen.getByRole('textbox')

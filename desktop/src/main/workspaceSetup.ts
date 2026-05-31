@@ -15,7 +15,6 @@ import {
 
 export type WorkspaceSetupState = 'no-workspace' | 'needs-setup' | 'ready'
 export type WorkspaceBootstrapProfile = 'default' | 'developer' | 'personal-assistant'
-export type WorkspaceLanguage = 'Chinese' | 'English'
 export type WorkspaceSetupProviderProtocol = DesktopProviderProtocol
 export type WorkspaceSetupProviderMode = 'existing' | 'create' | 'skip'
 export type WorkspaceSetupBootstrapImportSourceId = 'codex' | 'claude'
@@ -37,7 +36,6 @@ export interface WorkspaceSetupProviderSummary {
 }
 
 export interface WorkspaceUserConfigDefaults {
-  language?: WorkspaceLanguage
   providerId?: string
   model?: string
 }
@@ -64,7 +62,6 @@ export interface WorkspaceSetupProviderDraft {
 }
 
 export interface WorkspaceSetupRequest {
-  language: WorkspaceLanguage
   model: string
   profile: WorkspaceBootstrapProfile
   providerMode: WorkspaceSetupProviderMode
@@ -147,20 +144,6 @@ function resolveDesktopBinary(settings: AppSettings): string {
   throw buildBinaryResolutionError(settings)
 }
 
-function parseWorkspaceLanguage(value: unknown): WorkspaceLanguage | undefined {
-  if (typeof value === 'number') {
-    if (value === 0) return 'Chinese'
-    if (value === 1) return 'English'
-    return undefined
-  }
-  if (typeof value !== 'string') return undefined
-  const trimmed = value.trim()
-  if (trimmed === 'Chinese' || trimmed === 'English') {
-    return trimmed
-  }
-  return undefined
-}
-
 function getConfigValueCaseInsensitive(
   config: Record<string, unknown>,
   key: string
@@ -237,14 +220,12 @@ function getUserConfigStatus(
   }
 
   const providers = readExplicitProviders(parsed)
-  const language = getConfigValueCaseInsensitive(parsed, 'Language')
   const providerId = normalizeOptionalString(getConfigValueCaseInsensitive(parsed, 'ProviderId'))
   const model = normalizeOptionalString(getConfigValueCaseInsensitive(parsed, 'Model'))
   const explicitProviderIds = new Set(providers.map((provider) => provider.id.toLowerCase()))
   return {
     hasUserConfig: true,
     userConfigDefaults: {
-      language: parseWorkspaceLanguage(language),
       providerId:
         providerId && !isImplicitProviderId(providerId) && explicitProviderIds.has(providerId.toLowerCase())
           ? providerId
@@ -645,8 +626,6 @@ export function runWorkspaceSetup(
   const binaryPath = resolveDesktopBinary(settings)
   const args = [
     'setup',
-    '--language',
-    request.language,
     '--profile',
     request.profile
   ]

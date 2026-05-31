@@ -64,6 +64,16 @@ describe('mergeUpdatedSettings', () => {
     })
   })
 
+  it('merges profile settings when provided', () => {
+    const current: AppSettings = {}
+
+    const next = mergeUpdatedSettings(current, {
+      profile: { githubUsername: 'octocat' }
+    })
+
+    expect(next.profile).toEqual({ githubUsername: 'octocat' })
+  })
+
   it('merges pinned thread ids by workspace without dropping other workspaces', () => {
     const current: AppSettings = {
       pinnedThreadIdsByWorkspace: {

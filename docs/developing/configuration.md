@@ -12,7 +12,6 @@ DotCraft reads global `~/.craft/config.json` first, then overlays workspace `.cr
 | `Model` | Default model name | `gpt-4o-mini` |
 | `NetworkTimeoutSeconds` | Global model request timeout in seconds; providers can override it | `600` |
 | `Providers` | Personal model provider dictionary, usually stored in `~/.craft/config.json` | Empty |
-| `Language` | UI language: `Chinese` / `English` | `Chinese` |
 | `SubagentMaxConcurrency` | Maximum concurrent subagents | `3` |
 | `MaxSessionQueueSize` | Maximum queued requests per session; `0` means unlimited | `3` |
 | `ConsolidationModel` | Memory consolidation model. Empty uses the main model | Empty |

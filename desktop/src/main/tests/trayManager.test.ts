@@ -118,6 +118,27 @@ describe('trayManager notifications', () => {
     })
   })
 
+  it('localizes Hub notification keys with fallback text', async () => {
+    const { parseHubNotificationPayload } = await import('../trayManager')
+    const event: HubEvent = {
+      kind: 'notification.requested',
+      at: new Date().toISOString(),
+      workspacePath: 'F:/dotcraft',
+      data: {
+        titleKey: 'hub.notification.turn_completed.title',
+        fallbackTitle: 'DotCraft task completed',
+        bodyKey: 'hub.notification.turn_completed.body',
+        fallbackBody: '"Current chat" finished.',
+        params: { name: 'Current chat' }
+      }
+    }
+
+    expect(parseHubNotificationPayload(event, 'zh-Hans')).toMatchObject({
+      title: 'DotCraft 任务已完成',
+      body: '“Current chat” 已完成。'
+    })
+  })
+
   it('shows supported notification events', async () => {
     const { showHubNotification } = await import('../trayManager')
     const shown = showHubNotification({

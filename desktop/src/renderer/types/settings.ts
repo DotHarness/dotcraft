@@ -1,4 +1,5 @@
 export type SettingsTab =
+  | 'profile'
   | 'general'
   | 'personalization'
   | 'dreams'

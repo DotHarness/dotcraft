@@ -136,7 +136,7 @@ describe('InputComposer layout', () => {
     expect(screen.getByTestId('approval-policy-trigger').getAttribute('style')).toContain('height: 24px')
 
     fireEvent.click(screen.getByRole('button', { name: 'Add attachment' }))
-    const planModeMenuItem = screen.getByRole('menuitemcheckbox', { name: 'plan' })
+    const planModeMenuItem = screen.getByRole('menuitemcheckbox', { name: 'Plan mode' })
     expect(planModeMenuItem).toHaveAttribute('aria-checked', 'false')
     fireEvent.click(planModeMenuItem)
 
@@ -149,7 +149,7 @@ describe('InputComposer layout', () => {
       })
     })
     expect(screen.getByRole('button', { name: 'Disable plan mode' }).getAttribute('style')).toContain('height: 24px')
-    expect(screen.getByRole('menuitemcheckbox', { name: 'plan' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('menuitemcheckbox', { name: 'Plan mode' })).toHaveAttribute('aria-checked', 'true')
     expect(Boolean(
       screen.getByRole('button', { name: 'Add attachment' })
         .compareDocumentPosition(screen.getByTestId('approval-policy-trigger')) & Node.DOCUMENT_POSITION_FOLLOWING

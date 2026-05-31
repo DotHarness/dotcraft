@@ -39,7 +39,7 @@
 
 ```bash
 cd /path/to/your-project
-dotcraft setup --language Chinese --provider-mode create \
+dotcraft setup --provider-mode create \
   --provider-protocol anthropic --provider-id anthropic \
   --model claude-sonnet-4-5 --api-key <anthropic-api-key> \
   --profile developer

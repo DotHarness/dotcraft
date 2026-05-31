@@ -6,7 +6,6 @@ using DotCraft.Plugins;
 using System.Text.RegularExpressions;
 using DotCraft.Context;
 using DotCraft.Context.Compaction;
-using DotCraft.Localization;
 using DotCraft.Lsp;
 using DotCraft.Mcp;
 using DotCraft.Dreams;
@@ -52,11 +51,6 @@ public sealed class AppConfig
     /// </summary>
     [ConfigField(Ignore = true)]
     public PromptCachingConfig PromptCaching { get; set; } = new();
-
-    /// <summary>
-    /// Language setting for CLI interface. QQ and WeCom bots always use Chinese.
-    /// </summary>
-    public Language Language { get; set; } = Language.Chinese;
 
     /// <summary>
     /// Maximum number of subagents that can run concurrently.
@@ -274,6 +268,7 @@ public sealed class AppConfig
         }
 
         var node = JsonNode.Parse(File.ReadAllText(path)) ?? new JsonObject();
+        RemoveLegacyLanguage(node);
         ExpandEnvironmentVariables(node);
         var config = node.Deserialize<AppConfig>(SerializerOptions) ?? new AppConfig();
         ModelContextWindowCatalog.ApplyToConfig(config, node, globalConfigPath: null, workspaceConfigPath: path);
@@ -305,9 +300,12 @@ public sealed class AppConfig
         JsonNode? workspaceNode = File.Exists(workspacePath)
             ? JsonNode.Parse(File.ReadAllText(workspacePath))
             : new JsonObject();
+        RemoveLegacyLanguage(globalNode);
+        RemoveLegacyLanguage(workspaceNode);
 
         // Merge workspace config into global config (workspace values take precedence)
         var mergedNode = MergeNodes(globalNode ?? new JsonObject(), workspaceNode ?? new JsonObject());
+        RemoveLegacyLanguage(mergedNode);
 
         // Expand environment variable references before deserializing
         ExpandEnvironmentVariables(mergedNode);
@@ -315,6 +313,16 @@ public sealed class AppConfig
         var config = mergedNode.Deserialize<AppConfig>(SerializerOptions) ?? new AppConfig();
         ModelContextWindowCatalog.ApplyToConfig(config, mergedNode, globalConfigPath, workspacePath);
         return config;
+    }
+
+    private static void RemoveLegacyLanguage(JsonNode? node)
+    {
+        if (node is not JsonObject obj) return;
+        var key = obj
+            .Select(property => property.Key)
+            .FirstOrDefault(name => string.Equals(name, "Language", StringComparison.OrdinalIgnoreCase));
+        if (key is not null)
+            obj.Remove(key);
     }
 
     /// <summary>

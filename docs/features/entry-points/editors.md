@@ -27,7 +27,7 @@ cd <your project directory>
 dotcraft setup
 ```
 
-Follow the prompts for language / provider / model / api-key. See [Configuration Reference](../../developing/configuration.md) for full fields, or run `dotcraft setup --help` for supported options.
+Follow the prompts for provider / model / api-key. See [Configuration Reference](../../developing/configuration.md) for full fields, or run `dotcraft setup --help` for supported options.
 
 Once setup completes, the workspace is ready for ACP, TUI, Desktop, or automation entries.
 

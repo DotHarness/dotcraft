@@ -7,6 +7,7 @@ import {
 import { viewerBrowserManager } from './viewerBrowser'
 import { browserUseManager } from './browserUseManager'
 import { nodeReplManager } from './nodeReplManager'
+import { getGitHubIdentity } from './githubProfile'
 
 // Register the custom viewer scheme as privileged BEFORE app.whenReady().
 registerViewerScheme()
@@ -1401,6 +1402,9 @@ function registerMenuPopupIpc(): void {
   ipcMain.handle('app:update-download-and-install', () => (
     getAppUpdateService().downloadAndInstall()
   ))
+  ipcMain.handle('profile:get-github-identity', (_event, username: string) =>
+    getGitHubIdentity(typeof username === 'string' ? username : '')
+  )
 }
 
 // ─── App lifecycle ────────────────────────────────────────────────────────────

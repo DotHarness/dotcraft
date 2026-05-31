@@ -9,7 +9,7 @@ using DotCraft.Common;
 using DotCraft.Configuration;
 using DotCraft.Cron;
 using DotCraft.Heartbeat;
-using DotCraft.Localization;
+using DotCraft.Text;
 using DotCraft.Logging;
 using DotCraft.Hosting;
 using DotCraft.Lsp;
@@ -1197,7 +1197,6 @@ public sealed class AppServerHost(
 
         _ = Task.Run(async () =>
         {
-            var lang = LanguageService.Current;
             var decision = await HubTurnNotificationPolicy.ResolveDecisionAsync(_runtime.SessionService, threadId);
             if (!decision.ShouldNotify)
                 return;
@@ -1209,8 +1208,11 @@ public sealed class AppServerHost(
             await HubNotificationClient.RequestAsync(
                 _runtime.Paths.WorkspacePath,
                 spec.Kind,
-                lang.T(spec.TitleKey),
-                lang.T(spec.BodyKey, decision.DisplayName),
+                spec.TitleKey,
+                FallbackText.Format(spec.TitleKey),
+                spec.BodyKey,
+                FallbackText.Format(spec.BodyKey, decision.DisplayName),
+                new { name = decision.DisplayName },
                 spec.Severity,
                 decision.ThreadId,
                 actionUrl,

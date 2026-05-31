@@ -1,5 +1,3 @@
-using DotCraft.Localization;
-
 namespace DotCraft.CLI;
 
 public enum WorkspaceBootstrapProfile
@@ -47,8 +45,6 @@ public sealed record WorkspaceSetupProviderDraft
 
 public sealed record WorkspaceSetupRequest
 {
-    public required Language Language { get; init; }
-
     public required string Model { get; init; }
 
     public required string EndPoint { get; init; }

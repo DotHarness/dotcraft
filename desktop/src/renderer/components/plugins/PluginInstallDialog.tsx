@@ -217,7 +217,7 @@ export function PluginInstallDialog({
         </div>
 
         {setupStage.stage === 'pluginInstall' ? (
-          <button type="button" onClick={() => { void onInstall() }} disabled={installing} style={primaryButton}>
+          <button type="button" onClick={() => { void onInstall() }} disabled={installing} style={installPrimaryButton}>
             {installing ? t('plugins.installing') : t('plugins.installDialog.addToDotCraft')}
           </button>
         ) : (
@@ -530,4 +530,5 @@ const appSetupActions: CSSProperties = { display: 'inline-flex', flexWrap: 'wrap
 const appSetupIconImg: CSSProperties = { width: 36, height: 36, borderRadius: 8, objectFit: 'contain', flex: '0 0 auto' }
 const appSetupIconFallback: CSSProperties = { width: 36, height: 36, borderRadius: 8, background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flex: '0 0 auto' }
 const primaryButton: CSSProperties = { minHeight: 38, border: 'none', borderRadius: 999, backgroundColor: 'var(--text-primary)', color: 'var(--bg-primary)', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '0 16px' }
+const installPrimaryButton: CSSProperties = { ...primaryButton, width: '100%' }
 const secondaryButton: CSSProperties = { minHeight: 34, border: 'none', borderRadius: 8, backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-primary)', fontSize: 12, fontWeight: 650, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '0 12px' }

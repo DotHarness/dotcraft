@@ -1,6 +1,6 @@
 using DotCraft.Commands.Custom;
 using DotCraft.Commands.Handlers;
-using DotCraft.Localization;
+using DotCraft.Text;
 
 namespace DotCraft.Commands.Core;
 
@@ -49,8 +49,7 @@ public sealed class CommandRegistry
     /// Lists command metadata for help rendering and SDK discovery.
     /// </summary>
     /// <param name="context">When set, filters commands whose required services are unavailable.</param>
-    /// <param name="language">When set, resolves descriptions for this language without mutating global <see cref="LanguageService.Current"/>.</param>
-    public IReadOnlyList<CommandInfo> ListCommands(CommandContext? context = null, Language? language = null)
+    public IReadOnlyList<CommandInfo> ListCommands(CommandContext? context = null)
     {
         var result = new List<CommandInfo>();
         foreach (var registration in _registrations.Values.OrderBy(registration => registration.Name, StringComparer.OrdinalIgnoreCase))
@@ -62,7 +61,9 @@ public sealed class CommandRegistry
             {
                 Name = registration.Name,
                 Aliases = registration.Aliases,
-                Description = ResolveDescription(registration, language),
+                DescriptionKey = registration.DescriptionKey,
+                FallbackDescription = ResolveDescription(registration),
+                Description = ResolveDescription(registration),
                 Category = registration.Category,
                 RequiresAdmin = registration.RequiresAdmin
             });
@@ -74,6 +75,10 @@ public sealed class CommandRegistry
             {
                 Name = $"/{custom.Name}",
                 Aliases = [],
+                DescriptionKey = string.Empty,
+                FallbackDescription = string.IsNullOrWhiteSpace(custom.Description)
+                    ? "(no description)"
+                    : custom.Description,
                 Description = string.IsNullOrWhiteSpace(custom.Description)
                     ? "(no description)"
                     : custom.Description,
@@ -116,13 +121,13 @@ public sealed class CommandRegistry
             {
                 if (registration.RequiresAdmin && !context.IsAdmin)
                 {
-                    await responder.SendTextAsync(Strings.CommandPermissionDenied);
+                    await responder.SendTextAsync(FallbackText.CommandPermissionDenied);
                     return CommandResult.HandledResult();
                 }
 
                 if (!IsServiceAvailable(registration, context))
                 {
-                    await responder.SendTextAsync(Strings.CommandServiceUnavailable);
+                    await responder.SendTextAsync(FallbackText.CommandServiceUnavailable);
                     return CommandResult.HandledResult();
                 }
             }
@@ -240,20 +245,17 @@ public sealed class CommandRegistry
         };
     }
 
-    private static string ResolveDescription(CommandRegistration registration, Language? language = null)
+    private static string ResolveDescription(CommandRegistration registration)
     {
         if (string.IsNullOrWhiteSpace(registration.DescriptionKey))
             return registration.Name;
 
-        var localized = language.HasValue
-            ? LanguageService.Translate(registration.DescriptionKey, language.Value)
-            : LanguageService.Current.T(registration.DescriptionKey);
-        if (!string.Equals(localized, registration.DescriptionKey, StringComparison.Ordinal))
-            return localized;
+        var fallback = FallbackText.Format(registration.DescriptionKey);
+        if (!string.Equals(fallback, registration.DescriptionKey, StringComparison.Ordinal))
+            return fallback;
 
         return registration.DescriptionKey switch
         {
-            "command.stop.description" => Strings.CommandStopDescription,
             _ => registration.Name
         };
     }
@@ -292,6 +294,8 @@ public sealed class CommandInfo
 {
     public string Name { get; set; } = string.Empty;
     public string[] Aliases { get; set; } = [];
+    public string DescriptionKey { get; set; } = string.Empty;
+    public string FallbackDescription { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     public string Category { get; set; } = "builtin";
     public bool RequiresAdmin { get; set; }

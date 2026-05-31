@@ -139,7 +139,6 @@ First-time setup only needs a few fields:
 | `Providers` | Model provider registry, including API keys and endpoints | Global config |
 | `ProviderId` | Current model provider id | Global or workspace config |
 | `Model` | Default model name | Global or workspace config |
-| `Language` | UI language: `Chinese` / `English` | Global config |
 | `DashBoard.Enabled` | Enable web debugging and visual configuration | Workspace config |
 
 If unsure, put providers globally and let the workspace override only `ProviderId` and `Model`.

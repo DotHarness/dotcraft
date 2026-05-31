@@ -52,7 +52,6 @@ dotcraft-tui --remote ws://server:9100/ws --token my-secret
 | `--server-bin` | 指定用于启动 Hub 的 `dotcraft` 二进制 |
 | `--remote` | 连接已有 WebSocket AppServer |
 | `--token` | 远程 AppServer 认证 token |
-| `--lang zh|en` | 指定界面语言 |
 | `--theme` | 加载自定义主题 TOML |
 
 ## 常用斜杠命令

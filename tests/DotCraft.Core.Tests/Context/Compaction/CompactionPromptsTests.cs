@@ -1,5 +1,4 @@
 using DotCraft.Context.Compaction;
-using DotCraft.Localization;
 
 namespace DotCraft.Tests.Context.Compaction;
 
@@ -19,7 +18,7 @@ public sealed class CompactionPromptsTests
     [Fact]
     public void GetCompactPrompt_UsesBoundedHandoffSummaryContract()
     {
-        var prompt = CompactionPrompts.GetCompactPrompt(Language.English);
+        var prompt = CompactionPrompts.GetCompactPrompt();
         Assert.Contains("Do NOT call any tools", prompt, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("4,000-6,000", prompt);
         Assert.Contains("12,000", prompt);
@@ -31,46 +30,25 @@ public sealed class CompactionPromptsTests
     }
 
     [Fact]
-    public void GetCompactPrompt_ChineseLanguageStillReturnsEnglishOnlyPrompt()
+    public void GetPartialCompactPrompt_ReturnsEnglishOnlyPrompt()
     {
-        var prompt = CompactionPrompts.GetCompactPrompt(Language.Chinese);
-        Assert.Contains("Do NOT call any tools", prompt, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("4,000-6,000", prompt);
-        Assert.Contains("12,000", prompt);
-        Assert.Contains("handoff summary", prompt, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("不要调用任何工具", prompt);
-        Assert.DoesNotContain("当前任务", prompt);
-        Assert.DoesNotContain("摘要", prompt);
-        Assert.DoesNotContain("<analysis>", prompt);
-    }
-
-    [Fact]
-    public void GetPartialCompactPrompt_ChineseLanguageStillReturnsEnglishOnlyPrompt()
-    {
-        var prompt = CompactionPrompts.GetPartialCompactPrompt(Language.Chinese);
+        var prompt = CompactionPrompts.GetPartialCompactPrompt();
         Assert.Contains("older portion of this conversation", prompt, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Recent", prompt, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("较早", prompt);
-        Assert.DoesNotContain("后续原样保留", prompt);
-        Assert.DoesNotContain("摘要", prompt);
     }
 
     [Fact]
-    public void GetCompactUserSummaryMessage_ChineseLanguageStillUsesEnglishOnlyText()
+    public void GetCompactUserSummaryMessage_UsesEnglishOnlyText()
     {
         var msg = CompactionPrompts.GetCompactUserSummaryMessage(
             "<summary>X</summary>",
             transcriptPath: "transcript.md",
-            recentMessagesPreserved: true,
-            language: Language.Chinese);
+            recentMessagesPreserved: true);
 
         Assert.Contains("This session is being continued", msg);
         Assert.Contains("Summary:", msg);
         Assert.Contains("read the full transcript at: transcript.md", msg);
         Assert.Contains("Recent messages are preserved", msg);
-        Assert.DoesNotContain("本次会话", msg);
-        Assert.DoesNotContain("摘要", msg);
-        Assert.DoesNotContain("最近的消息", msg);
     }
 
     [Fact]
@@ -79,8 +57,7 @@ public sealed class CompactionPromptsTests
         var msg = CompactionPrompts.GetCompactUserSummaryMessage(
             "<summary>X</summary>",
             transcriptPath: null,
-            recentMessagesPreserved: true,
-            language: Language.English);
+            recentMessagesPreserved: true);
         Assert.Contains("This session is being continued", msg);
         Assert.Contains("Recent messages are preserved", msg);
     }
@@ -91,8 +68,7 @@ public sealed class CompactionPromptsTests
         var msg = CompactionPrompts.GetCompactUserSummaryMessage(
             "<summary>X</summary>",
             transcriptPath: null,
-            recentMessagesPreserved: false,
-            language: Language.English);
+            recentMessagesPreserved: false);
         Assert.DoesNotContain("read the full transcript", msg, StringComparison.OrdinalIgnoreCase);
     }
 }

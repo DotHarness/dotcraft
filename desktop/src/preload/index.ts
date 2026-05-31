@@ -41,7 +41,6 @@ export type TaskCompletionNotificationMode = 'whenUnfocused' | 'always' | 'never
 export type BrowserUseApprovalResponseAction = 'allowOnce' | 'allowDomain' | 'blockDomain' | 'deny'
 export type WorkspaceSetupState = 'no-workspace' | 'needs-setup' | 'ready'
 export type WorkspaceBootstrapProfile = 'default' | 'developer' | 'personal-assistant'
-export type WorkspaceLanguage = 'Chinese' | 'English'
 export type WorkspaceSetupProviderProtocol = DesktopProviderProtocol
 export type WorkspaceSetupProviderMode = 'existing' | 'create' | 'skip'
 export type WorkspaceSetupBootstrapImportSourceId = 'codex' | 'claude'
@@ -168,7 +167,6 @@ export interface WorkspaceStatusPayload {
   workspacePath: string
   hasUserConfig: boolean
   userConfigDefaults?: {
-    language?: WorkspaceLanguage
     providerId?: string
     model?: string
   }
@@ -202,7 +200,6 @@ export interface WorkspaceSetupProviderDraft {
 }
 
 export interface WorkspaceSetupRequest {
-  language: WorkspaceLanguage
   model: string
   profile: WorkspaceBootstrapProfile
   providerMode: WorkspaceSetupProviderMode
@@ -234,8 +231,8 @@ export interface ConfigDescriptorWire {
   key: string
   displayLabel: string
   description: string
-  localizedDisplayLabel?: Partial<Record<'en' | 'zh-Hans', string>>
-  localizedDescription?: Partial<Record<'en' | 'zh-Hans', string>>
+  localizedDisplayLabel?: Partial<Record<AppLocale, string>>
+  localizedDescription?: Partial<Record<AppLocale, string>>
   required: boolean
   dataKind: string
   masked: boolean
@@ -247,18 +244,18 @@ export interface ConfigDescriptorWire {
 
 export interface ModuleInterfaceWire {
   shortDescription?: string
-  localizedShortDescription?: Partial<Record<'en' | 'zh-Hans', string>>
+  localizedShortDescription?: Partial<Record<AppLocale, string>>
   longDescription?: string
-  localizedLongDescription?: Partial<Record<'en' | 'zh-Hans', string>>
+  localizedLongDescription?: Partial<Record<AppLocale, string>>
   previewPrompt?: string
-  localizedPreviewPrompt?: Partial<Record<'en' | 'zh-Hans', string>>
+  localizedPreviewPrompt?: Partial<Record<AppLocale, string>>
 }
 
 export interface DiscoveredModule {
   moduleId: string
   channelName: string
   displayName: string
-  localizedDisplayName?: Partial<Record<'en' | 'zh-Hans', string>>
+  localizedDisplayName?: Partial<Record<AppLocale, string>>
   interface?: ModuleInterfaceWire
   packageName: string
   configFileName: string
@@ -719,6 +716,19 @@ const api = {
     }
   },
 
+  profile: {
+    /**
+     * Resolves a public GitHub identity (display name + avatar data URL) for the
+     * Profile page, fetched and cached in the main process. Returns null when the
+     * username is invalid or unavailable.
+     */
+    getGithubIdentity(
+      username: string
+    ): Promise<{ login: string; name: string | null; avatarDataUrl: string | null } | null> {
+      return ipcRenderer.invoke('profile:get-github-identity', username)
+    }
+  },
+
   chrome: {
     checkSetup(): Promise<ChromeSetupStatus> {
       return ipcRenderer.invoke('chrome:check-setup')
@@ -1169,7 +1179,7 @@ const api = {
       modulesDirectory?: string
       activeModuleVariants?: Record<string, string>
       theme?: 'dark' | 'light'
-      locale?: 'en' | 'zh-Hans'
+      locale?: AppLocale
       showThinkingContent?: boolean
       visibleChannels?: string[]
       lastOpenEditorId?: EditorId
@@ -1181,6 +1191,9 @@ const api = {
       }
       notifications?: {
         taskCompletionMode?: TaskCompletionNotificationMode
+      }
+      profile?: {
+        githubUsername?: string
       }
       pinnedThreadIdsByWorkspace?: Record<string, string[]>
     }> {
@@ -1205,7 +1218,7 @@ const api = {
       modulesDirectory?: string
       activeModuleVariants?: Record<string, string>
       theme?: 'dark' | 'light'
-      locale?: 'en' | 'zh-Hans'
+      locale?: AppLocale
       showThinkingContent?: boolean
       visibleChannels?: string[]
       lastOpenEditorId?: EditorId
@@ -1217,6 +1230,9 @@ const api = {
       }
       notifications?: {
         taskCompletionMode?: TaskCompletionNotificationMode
+      }
+      profile?: {
+        githubUsername?: string
       }
       pinnedThreadIdsByWorkspace?: Record<string, string[]>
     }): Promise<void> {

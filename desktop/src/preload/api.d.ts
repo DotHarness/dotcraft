@@ -26,7 +26,6 @@ export type ThemeMode = 'dark' | 'light'
 export type AddTabMenuAction = 'openFile' | 'newBrowser' | 'newTerminal'
 export type WorkspaceSetupState = 'no-workspace' | 'needs-setup' | 'ready'
 export type WorkspaceBootstrapProfile = 'default' | 'developer' | 'personal-assistant'
-export type WorkspaceLanguage = 'Chinese' | 'English'
 export type WorkspaceSetupProviderProtocol = DesktopProviderProtocol
 export type WorkspaceSetupProviderMode = 'existing' | 'create' | 'skip'
 export type WorkspaceSetupBootstrapImportSourceId = 'codex' | 'claude'
@@ -169,7 +168,6 @@ export interface WorkspaceStatusPayload {
   workspacePath: string
   hasUserConfig: boolean
   userConfigDefaults?: {
-    language?: WorkspaceLanguage
     providerId?: string
     model?: string
   }
@@ -222,7 +220,6 @@ export interface OpenAiAuthStatus {
 }
 
 export interface WorkspaceSetupRequest {
-  language: WorkspaceLanguage
   model: string
   profile: WorkspaceBootstrapProfile
   providerMode: WorkspaceSetupProviderMode
@@ -254,8 +251,8 @@ export interface ConfigDescriptorWire {
   key: string
   displayLabel: string
   description: string
-  localizedDisplayLabel?: Partial<Record<'en' | 'zh-Hans', string>>
-  localizedDescription?: Partial<Record<'en' | 'zh-Hans', string>>
+  localizedDisplayLabel?: Partial<Record<AppLocale, string>>
+  localizedDescription?: Partial<Record<AppLocale, string>>
   required: boolean
   dataKind: string
   masked: boolean
@@ -267,18 +264,18 @@ export interface ConfigDescriptorWire {
 
 export interface ModuleInterfaceWire {
   shortDescription?: string
-  localizedShortDescription?: Partial<Record<'en' | 'zh-Hans', string>>
+  localizedShortDescription?: Partial<Record<AppLocale, string>>
   longDescription?: string
-  localizedLongDescription?: Partial<Record<'en' | 'zh-Hans', string>>
+  localizedLongDescription?: Partial<Record<AppLocale, string>>
   previewPrompt?: string
-  localizedPreviewPrompt?: Partial<Record<'en' | 'zh-Hans', string>>
+  localizedPreviewPrompt?: Partial<Record<AppLocale, string>>
 }
 
 export interface DiscoveredModule {
   moduleId: string
   channelName: string
   displayName: string
-  localizedDisplayName?: Partial<Record<'en' | 'zh-Hans', string>>
+  localizedDisplayName?: Partial<Record<AppLocale, string>>
   interface?: ModuleInterfaceWire
   packageName: string
   configFileName: string
@@ -458,6 +455,11 @@ declare global {
         openLocalPath(path: string): Promise<void>
         revealLocalPath(path: string): Promise<void>
         showItemInFolder(path: string): Promise<void>
+      }
+      profile: {
+        getGithubIdentity(
+          username: string
+        ): Promise<{ login: string; name: string | null; avatarDataUrl: string | null } | null>
       }
       chrome: {
         checkSetup(): Promise<{
@@ -660,7 +662,7 @@ declare global {
           modulesDirectory?: string
           activeModuleVariants?: Record<string, string>
           theme?: 'dark' | 'light'
-          locale?: 'en' | 'zh-Hans'
+          locale?: AppLocale
           showThinkingContent?: boolean
           visibleChannels?: string[]
           lastOpenEditorId?: EditorId
@@ -672,6 +674,9 @@ declare global {
           }
           notifications?: {
             taskCompletionMode?: TaskCompletionNotificationMode
+          }
+          profile?: {
+            githubUsername?: string
           }
           pinnedThreadIdsByWorkspace?: Record<string, string[]>
         }>
@@ -691,7 +696,7 @@ declare global {
             modulesDirectory?: string
             activeModuleVariants?: Record<string, string>
             theme?: 'dark' | 'light'
-            locale?: 'en' | 'zh-Hans'
+            locale?: AppLocale
             showThinkingContent?: boolean
             visibleChannels?: string[]
             lastOpenEditorId?: EditorId
@@ -703,6 +708,9 @@ declare global {
             }
             notifications?: {
               taskCompletionMode?: TaskCompletionNotificationMode
+            }
+            profile?: {
+              githubUsername?: string
             }
             pinnedThreadIdsByWorkspace?: Record<string, string[]>
           }

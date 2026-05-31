@@ -129,12 +129,15 @@ internal sealed class ThreadEventBroker(string threadId)
         long? tokenCount = null,
         ContextUsageSnapshot? contextUsage = null)
     {
+        var presentation = BuildSystemEventPresentation(kind, message);
         PublishThreadEvent(
             SessionEventType.SystemEvent,
             new SystemEventPayload
             {
                 Kind = kind,
-                Message = message,
+                MessageKey = presentation.Key,
+                FallbackText = presentation.FallbackText,
+                Message = presentation.FallbackText,
                 PercentLeft = percentLeft,
                 TokenCount = tokenCount,
                 ContextUsage = contextUsage
@@ -154,6 +157,7 @@ internal sealed class ThreadEventBroker(string threadId)
         long? tokenCount = null,
         ContextUsageSnapshot? contextUsage = null)
     {
+        var presentation = BuildSystemEventPresentation(kind, message);
         Publish(new SessionEvent
         {
             EventId = NextEventId(),
@@ -164,12 +168,31 @@ internal sealed class ThreadEventBroker(string threadId)
             Payload = new SystemEventPayload
             {
                 Kind = kind,
-                Message = message,
+                MessageKey = presentation.Key,
+                FallbackText = presentation.FallbackText,
+                Message = presentation.FallbackText,
                 PercentLeft = percentLeft,
                 TokenCount = tokenCount,
                 ContextUsage = contextUsage
             }
         });
+    }
+
+    private static (string? Key, string? FallbackText) BuildSystemEventPresentation(string kind, string? message)
+    {
+        if (!string.IsNullOrWhiteSpace(message))
+            return ($"system.{kind}", message);
+
+        return kind switch
+        {
+            "compacting" => ("context.limit_reached", "Context token limit reached, compacting conversation..."),
+            "compacted" => ("context.compacted", "Context compacted successfully."),
+            "compactSkipped" => ("context.compact_skipped", "Context compaction skipped (insufficient history)."),
+            "consolidating" => ("memory.consolidating", "Consolidating memory..."),
+            "consolidated" => ("memory.consolidated", "Memory consolidation complete."),
+            "consolidationFailed" => ("memory.consolidation_failed", "Memory consolidation failed."),
+            _ => ($"system.{kind}", null)
+        };
     }
 
     public void PublishItemEvent(SessionEventType eventType, string turnId, SessionItem item)

@@ -78,4 +78,33 @@ describe('WhatsNewCatalog', () => {
     await expect(catalog.getReleases()).resolves.toMatchObject([{ version: '0.1.6' }])
     expect(warn).toHaveBeenCalled()
   })
+
+  it('allows release text to omit non-English locales', async () => {
+    const releasesDir = await createReleasesDir()
+    await writeJson(releasesDir, '0.1.6.json', {
+      version: '0.1.6',
+      cards: [
+        {
+          id: 'demo',
+          icon: 'message',
+          title: { en: 'Demo' },
+          summary: { en: 'Demo summary.' }
+        }
+      ]
+    })
+
+    const catalog = new WhatsNewCatalog({ releasesDir })
+
+    await expect(catalog.getReleases()).resolves.toMatchObject([
+      {
+        version: '0.1.6',
+        cards: [
+          {
+            title: { en: 'Demo' },
+            summary: { en: 'Demo summary.' }
+          }
+        ]
+      }
+    ])
+  })
 })

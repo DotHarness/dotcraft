@@ -50,6 +50,7 @@ public sealed class AppServerThreadModelSnapshotTests : IDisposable
             """);
 
         var config = AppConfigTestFactory.CreateOpenAI(model: "model-a");
+        config.GlobalConfigPath = Path.Combine(_tempDir, "global", "config.json");
         var monitor = new AppConfigMonitor(config);
         await using var agentFactory = CreateAgentFactory(config);
         var service = new SessionService(

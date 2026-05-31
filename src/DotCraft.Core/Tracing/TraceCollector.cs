@@ -175,6 +175,23 @@ public sealed class TraceCollector(TraceStore store)
         });
     }
 
+    /// <summary>
+    /// Records the completion of one Turn (one unit of agent work) with its wall-clock
+    /// duration, feeding the session's longest-turn aggregate (spec §27A.3 longestTaskMs).
+    /// </summary>
+    public void RecordTurnCompleted(string sessionKey, double durationMs)
+    {
+        if (durationMs <= 0)
+            return;
+
+        store.Record(new TraceEvent
+        {
+            Type = TraceEventType.TurnCompleted,
+            SessionKey = sessionKey,
+            DurationMs = durationMs
+        });
+    }
+
     public void RecordToolInjection(string sessionKey, IReadOnlyList<string> toolNames)
     {
         var normalizedToolNames = NormalizeToolNames(toolNames);

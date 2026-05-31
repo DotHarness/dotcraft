@@ -5,7 +5,7 @@ using DotCraft.Diagnostics;
 using DotCraft.Configuration;
 using DotCraft.Hub;
 using DotCraft.Hosting;
-using DotCraft.Localization;
+using DotCraft.Text;
 using DotCraft.Modules;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -112,32 +112,11 @@ if (cliArgs.Mode == CommandLineArgs.RunMode.Auth)
 {
     // Authentication commands (e.g. Sign in with ChatGPT) operate on the global ~/.craft directory
     // and do not require a workspace. Run before workspace discovery.
-    var languageForAuth = GuessAuthCommandLanguage();
-    LanguageService.Current = new LanguageService(languageForAuth);
     using var ctsAuth = new CancellationTokenSource();
     Console.CancelKeyPress += (_, e) => { e.Cancel = true; ctsAuth.Cancel(); };
     var authResult = await AuthCliRunner.RunAsync(cliArgs, ctsAuth.Token);
     Environment.Exit(authResult);
     return;
-}
-
-static Language GuessAuthCommandLanguage()
-{
-    var globalConfigPath = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-        ".craft",
-        "config.json");
-    if (!File.Exists(globalConfigPath))
-        return Language.Chinese;
-    try
-    {
-        var cfg = AppConfig.LoadWithGlobalFallback(Path.Combine(Directory.GetCurrentDirectory(), ".craft", "config.json"), globalConfigPath);
-        return cfg.Language;
-    }
-    catch
-    {
-        return Language.Chinese;
-    }
 }
 
 // -------------------------------------------------------------------------
@@ -156,15 +135,6 @@ if (cliArgs.Mode == CommandLineArgs.RunMode.Skill)
 
 if (cliArgs.Mode == CommandLineArgs.RunMode.Setup)
 {
-    static Language ParseSetupLanguage(string? value)
-    {
-        if (string.Equals(value, "Chinese", StringComparison.OrdinalIgnoreCase))
-            return Language.Chinese;
-        if (string.Equals(value, "English", StringComparison.OrdinalIgnoreCase))
-            return Language.English;
-        throw new ArgumentException("Missing or invalid --language. Expected Chinese or English.");
-    }
-
     static WorkspaceBootstrapProfile ParseSetupProfile(string? value)
     {
         if (string.Equals(value, "default", StringComparison.OrdinalIgnoreCase))
@@ -234,7 +204,6 @@ if (cliArgs.Mode == CommandLineArgs.RunMode.Setup)
 
         request = new WorkspaceSetupRequest
         {
-            Language = ParseSetupLanguage(cliArgs.SetupLanguage),
             Model = cliArgs.SetupModel?.Trim() ?? string.Empty,
             EndPoint = cliArgs.SetupEndPoint?.Trim() ?? string.Empty,
             ApiKey = cliArgs.SetupApiKey?.Trim() ?? string.Empty,
@@ -303,20 +272,15 @@ if (startupDecision == WorkspaceStartupDecision.MissingWorkspace)
 
 if (startupDecision == WorkspaceStartupDecision.InitializeInteractively)
 {
-    // First, select language
-    var selectedLanguage = InitHelper.SelectLanguage();
-    var lang = new LanguageService(selectedLanguage);
-    LanguageService.Current = lang;
-
     // Trust folder confirmation
     Console.WriteLine();
     var trustPanel = new Panel(
         new Markup(
-            $"[cyan]{Strings.InitTrustFolderWorkspacePath}[/]\n" +
+            $"[cyan]{FallbackText.InitTrustFolderWorkspacePath}[/]\n" +
             $"  [white]{Markup.Escape(workspacePath)}[/]\n\n" +
-            Strings.InitTrustFolderDescription))
+            FallbackText.InitTrustFolderDescription))
     {
-        Header = new PanelHeader($"[cyan]🔐 {Strings.InitTrustFolderTitle}[/]"),
+        Header = new PanelHeader($"[cyan]🔐 {FallbackText.InitTrustFolderTitle}[/]"),
         Border = BoxBorder.Rounded,
         BorderStyle = new Style(Color.Cyan),
         Padding = new Padding(1, 0, 1, 0)
@@ -324,11 +288,11 @@ if (startupDecision == WorkspaceStartupDecision.InitializeInteractively)
     AnsiConsole.Write(trustPanel);
     Console.WriteLine();
 
-    if (!InitHelper.AskYesNo(Strings.InitTrustFolderQuestion))
+    if (!InitHelper.AskYesNo(FallbackText.InitTrustFolderQuestion))
     {
-        AnsiConsole.MarkupLine($"\n[grey]{Strings.InitTrustFolderCancelled}[/]");
+        AnsiConsole.MarkupLine($"\n[grey]{FallbackText.InitTrustFolderCancelled}[/]");
         AnsiConsole.WriteLine();
-        AnsiConsole.MarkupLine($"[grey]{Strings.InitPressAnyKey}[/]");
+        AnsiConsole.MarkupLine($"[grey]{FallbackText.InitPressAnyKey}[/]");
         Console.ReadKey(true);
         Environment.Exit(0);
         return;
@@ -336,12 +300,12 @@ if (startupDecision == WorkspaceStartupDecision.InitializeInteractively)
 
     // Initialize workspace
     AnsiConsole.WriteLine();
-    var initResult = InitHelper.InitializeWorkspace(botPath, selectedLanguage);
+    var initResult = InitHelper.InitializeWorkspace(botPath);
     if (initResult != 0)
     {
-        AnsiConsole.MarkupLine($"\n[red]{Strings.InitFailedShort}[/]");
+        AnsiConsole.MarkupLine($"\n[red]{FallbackText.InitFailedShort}[/]");
         AnsiConsole.WriteLine();
-        AnsiConsole.MarkupLine($"[grey]{Strings.InitPressAnyKey}[/]");
+        AnsiConsole.MarkupLine($"[grey]{FallbackText.InitPressAnyKey}[/]");
         Console.ReadKey(true);
         Environment.Exit(1);
         return;
@@ -362,16 +326,6 @@ if (cliArgs.Mode == CommandLineArgs.RunMode.AppServer)
     ManagedAppServerEnvironment.ApplyTo(config);
 }
 
-// -------------------------------------------------------------------------
-// 5. Language & debug mode
-// -------------------------------------------------------------------------
-// Ensure LanguageService.Current is set for the main flow
-// (may already be set during first-run setup above)
-if (LanguageService.Current.CurrentLanguage != config.Language)
-{
-    LanguageService.Current = new LanguageService(config.Language);
-}
-
 DebugModeService.Initialize(config.DebugMode);
 if (config.DebugMode)
 {
@@ -383,7 +337,7 @@ if (cliArgs.Mode == CommandLineArgs.RunMode.None)
     if (workspaceJustInitialized)
     {
         AnsiConsole.WriteLine();
-        AnsiConsole.MarkupLine($"[green]✓ {Strings.InitWorkspaceInitialized}[/]");
+        AnsiConsole.MarkupLine($"[green]✓ {FallbackText.InitWorkspaceInitialized}[/]");
         await Console.Out.WriteLineAsync("Run `dotcraft exec <prompt>` to start a one-shot command-line task.");
     }
     return;

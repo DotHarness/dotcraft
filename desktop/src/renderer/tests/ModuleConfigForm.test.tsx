@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { ModuleConfigForm } from '../components/channels/ModuleConfigForm'
 import type { DiscoveredModule, ModuleStatusEntry } from '../../preload/api'
+import type { AppLocale } from '../../shared/locales'
 
 const settingsGet = vi.fn()
 
@@ -65,7 +66,7 @@ function createModuleStatus(processState: ModuleStatusEntry['processState']): Mo
 }
 
 function renderForm(
-  locale: 'en' | 'zh-Hans',
+  locale: AppLocale,
   options: {
     moduleStatus?: ModuleStatusEntry
     persistedEnabled?: boolean

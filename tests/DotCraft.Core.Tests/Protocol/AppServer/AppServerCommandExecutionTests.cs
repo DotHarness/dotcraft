@@ -20,7 +20,7 @@ public sealed class AppServerCommandExecutionTests : IDisposable
     [Fact]
     public async Task CommandList_DoesNotExposeClientOnlyClearCommand()
     {
-        var msg = _h.BuildRequest(AppServerMethods.CommandList, new { });
+        var msg = _h.BuildRequest(AppServerMethods.CommandList, new { language = "zh" });
         await _h.ExecuteRequestAsync(msg);
 
         var response = await _h.Transport.ReadNextSentAsync();
@@ -36,6 +36,15 @@ public sealed class AppServerCommandExecutionTests : IDisposable
 
         Assert.Contains("/new", commands);
         Assert.DoesNotContain("/clear", commands);
+
+        var newCommand = response.RootElement
+            .GetProperty("result")
+            .GetProperty("commands")
+            .EnumerateArray()
+            .First(e => e.GetProperty("name").GetString() == "/new");
+        Assert.Equal("cmd.new", newCommand.GetProperty("descriptionKey").GetString());
+        Assert.Equal("Create a new session", newCommand.GetProperty("fallbackDescription").GetString());
+        Assert.Equal("Create a new session", newCommand.GetProperty("description").GetString());
     }
 
     [Fact]

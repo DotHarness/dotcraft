@@ -13,7 +13,6 @@ using DotCraft.Context;
 using DotCraft.Cron;
 using DotCraft.Heartbeat;
 using DotCraft.Logging;
-using DotCraft.Localization;
 using DotCraft.Lsp;
 using DotCraft.Mcp;
 using DotCraft.Memory;
@@ -169,6 +168,7 @@ public sealed class AppServerRequestHandler(
         AppServerMethods.DreamsDiscard,
         AppServerMethods.MemoryReset,
         AppServerMethods.UsageSummary,
+        AppServerMethods.UsageTimeseries,
         AppServerMethods.CronList,
         AppServerMethods.CronRemove,
         AppServerMethods.CronEnable,
@@ -352,6 +352,7 @@ public sealed class AppServerRequestHandler(
                 AppServerMethods.DreamsDiscard => HandleDreamsDiscardAsync(msg, ct),
                 AppServerMethods.MemoryReset => HandleMemoryResetAsync(msg, ct),
                 AppServerMethods.UsageSummary => HandleUsageSummaryAsync(msg, ct),
+                AppServerMethods.UsageTimeseries => HandleUsageTimeseriesAsync(msg, ct),
                 _ => TryHandleExtensionAsync(method, msg, ct)
             });
         }
@@ -3038,6 +3039,8 @@ public sealed class AppServerRequestHandler(
         var configPath = Path.Combine(workspaceCraftPath, "config.json");
         Directory.CreateDirectory(workspaceCraftPath);
         var root = LoadWorkspaceConfigObject(configPath);
+        var legacyLanguageKey = FindCaseInsensitiveKey(root, "Language");
+        var legacyLanguageRemoved = legacyLanguageKey != null && root.Remove(legacyLanguageKey);
 
         var key = FindCaseInsensitiveKey(root, "McpServers") ?? "McpServers";
         var serverObject = new JsonObject();
@@ -3930,6 +3933,44 @@ public sealed class AppServerRequestHandler(
         });
     }
 
+    // ── usage/timeseries (spec Section 27A.3) ────────────────────────────────
+
+    private Task<object?> HandleUsageTimeseriesAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    {
+        if (traceStore == null) throw AppServerErrors.MethodNotFound(AppServerMethods.UsageTimeseries);
+        var p = GetParams<UsageTimeseriesParams>(msg);
+
+        var from = ParseUsageDate(p.From, "from");
+        var to = ParseUsageDate(p.To, "to");
+        var tz = Math.Clamp(p.TzOffsetMinutes ?? 0, -840, 840);
+
+        var buckets = traceStore.GetDailyUsage(from, to, tz);
+        return Task.FromResult<object?>(new UsageTimeseriesResult
+        {
+            TzOffsetMinutes = tz,
+            LongestTaskMs = traceStore.GetLongestTurnDurationMs(),
+            Days = buckets
+                .Select(b => new UsageTimeseriesDay
+                {
+                    Date = b.Date.ToString("yyyy-MM-dd"),
+                    InputTokens = b.InputTokens,
+                    OutputTokens = b.OutputTokens,
+                    TotalTokens = b.TotalTokens,
+                    SessionCount = b.SessionCount
+                })
+                .ToList()
+        });
+    }
+
+    private static DateOnly? ParseUsageDate(string? value, string field)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
+        if (!DateOnly.TryParseExact(value.Trim(), "yyyy-MM-dd", out var date))
+            throw AppServerErrors.InvalidParams($"'{field}' must be a 'YYYY-MM-DD' date.");
+        return date;
+    }
+
     // ── heartbeat/trigger (spec Section 17.2) ────────────────────────────────
 
     private async Task<object?> HandleHeartbeatTriggerAsync(
@@ -4505,14 +4546,7 @@ public sealed class AppServerRequestHandler(
         _ = ct;
         var p = GetParams<CommandListParams>(msg);
 
-        Language? overrideLanguage = p.Language?.ToLowerInvariant() switch
-        {
-            "zh" => Language.Chinese,
-            "en" => Language.English,
-            _ => null
-        };
-
-        var commands = _commandRegistry.ListCommands(language: overrideLanguage)
+        var commands = _commandRegistry.ListCommands()
             .Where(c => p.IncludeBuiltins != false ||
                 !string.Equals(c.Category, "builtin", StringComparison.OrdinalIgnoreCase))
             .Where(c =>
@@ -4524,6 +4558,8 @@ public sealed class AppServerRequestHandler(
             {
                 Name = c.Name,
                 Aliases = c.Aliases,
+                DescriptionKey = c.DescriptionKey,
+                FallbackDescription = c.FallbackDescription,
                 Description = c.Description,
                 Category = c.Category,
                 RequiresAdmin = c.RequiresAdmin
@@ -5370,6 +5406,8 @@ public sealed class AppServerRequestHandler(
         var configPath = Path.Combine(workspaceCraftPath, "config.json");
         Directory.CreateDirectory(workspaceCraftPath);
         var root = LoadWorkspaceConfigObject(configPath);
+        var legacyLanguageKey = FindCaseInsensitiveKey(root, "Language");
+        var legacyLanguageRemoved = legacyLanguageKey != null && root.Remove(legacyLanguageKey);
 
         var providerIdKey = FindCaseInsensitiveKey(root, "ProviderId");
         var modelKey = FindCaseInsensitiveKey(root, "Model");
@@ -5529,7 +5567,8 @@ public sealed class AppServerRequestHandler(
             || dreamsAutoApplyChanged
             || defaultApprovalPolicyChanged
             || toolsLspEnabledChanged
-            || reasoningChanged)
+            || reasoningChanged
+            || legacyLanguageRemoved)
         {
             WriteConfigObject(configPath, root);
         }

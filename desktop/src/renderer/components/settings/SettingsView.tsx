@@ -7,7 +7,7 @@ import {
 } from 'lucide-react'
 import { addToast } from '../../stores/toastStore'
 import { applyTheme, resolveTheme, type ThemeMode } from '../../utils/theme'
-import { normalizeLocale, type AppLocale } from '../../../shared/locales'
+import { normalizeLocale, SUPPORTED_LOCALES, type AppLocale } from '../../../shared/locales'
 import { useSetUiLocale, useT } from '../../contexts/LocaleContext'
 import type { MessageKey } from '../../../shared/locales'
 import {
@@ -59,6 +59,8 @@ import { ConnectionPanel } from './panels/ConnectionPanel'
 import { ProviderProtocolIcon } from './panels/ProviderProtocolIcon'
 import { UsagePanel } from './panels/UsagePanel'
 import { UsageOverview } from './UsageOverview'
+import { ProfilePanel } from './panels/ProfilePanel'
+import { ProfileView } from './ProfileView'
 import { McpPanel } from './panels/McpPanel'
 import { SubAgentsPanel } from './panels/SubAgentsPanel'
 import {
@@ -3127,6 +3129,12 @@ export function SettingsView({
     >
       <main style={settingsMainStyle()}>
         <div style={settingsContentContainerStyle()}>
+            {activeSettingsTab === 'profile' && (
+              <ProfilePanel>
+                <ProfileView />
+              </ProfilePanel>
+            )}
+
             {activeSettingsTab === 'general' && (
               <GeneralPanel>
               <SettingsPanelShell
@@ -3145,10 +3153,10 @@ export function SettingsView({
                           void handleLocaleChange(nextLocale as AppLocale)
                         }}
                         style={{ width: SETTINGS_SELECT_WIDTH }}
-                        options={[
-                          { value: 'en', label: t('settings.language.en') },
-                          { value: 'zh-Hans', label: t('settings.language.zhHans') }
-                        ]}
+                        options={SUPPORTED_LOCALES.map((item) => ({
+                          value: item.value,
+                          label: item.nativeName
+                        }))}
                       />
                     }
                   />

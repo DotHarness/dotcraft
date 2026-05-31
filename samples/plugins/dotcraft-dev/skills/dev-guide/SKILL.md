@@ -62,7 +62,8 @@ Pre-commit: run the relevant full suites for touched areas (`dotnet test` for C#
 ### Language Preference
 
 - **Code comments**: English
-- **User-facing messages**: Use `LanguageService` for bilingual support, e.g. `lang.GetString("中文", "English")`. For CLI strings, the codebase centralizes entries in `DotCraft.Core.Localization.Strings`; search for `Strings.` and `LanguageService` for examples.
+- **C# runtime/UI-adjacent messages**: Do not add UI localization state or server-side translation catalogs. C# should emit stable machine-readable keys/codes plus English fallback text (`FallbackText` for CLI/server fallback copy). Desktop owns UI localization.
+- **Protocol-visible system messages**: New client-visible notifications and errors must provide a stable key/code, structured params where useful, and an English fallback. User text, model output, and raw tool output must pass through unchanged.
 
 ## Documentation Guidelines
 

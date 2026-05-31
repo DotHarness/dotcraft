@@ -2,13 +2,14 @@ import { app } from 'electron'
 import { promises as fs } from 'fs'
 import * as path from 'path'
 import type { AppSettings } from './settings'
+import { SUPPORTED_LOCALE_VALUES, type LocalizedTextMap } from '../shared/locales'
 
 export interface ConfigDescriptorWire {
   key: string
   displayLabel: string
   description: string
-  localizedDisplayLabel?: Partial<Record<'en' | 'zh-Hans', string>>
-  localizedDescription?: Partial<Record<'en' | 'zh-Hans', string>>
+  localizedDisplayLabel?: LocalizedTextMap
+  localizedDescription?: LocalizedTextMap
   required: boolean
   dataKind: string
   masked: boolean
@@ -20,18 +21,18 @@ export interface ConfigDescriptorWire {
 
 export interface ModuleInterfaceWire {
   shortDescription?: string
-  localizedShortDescription?: Partial<Record<'en' | 'zh-Hans', string>>
+  localizedShortDescription?: LocalizedTextMap
   longDescription?: string
-  localizedLongDescription?: Partial<Record<'en' | 'zh-Hans', string>>
+  localizedLongDescription?: LocalizedTextMap
   previewPrompt?: string
-  localizedPreviewPrompt?: Partial<Record<'en' | 'zh-Hans', string>>
+  localizedPreviewPrompt?: LocalizedTextMap
 }
 
 export interface DiscoveredModule {
   moduleId: string
   channelName: string
   displayName: string
-  localizedDisplayName?: Partial<Record<'en' | 'zh-Hans', string>>
+  localizedDisplayName?: LocalizedTextMap
   interface?: ModuleInterfaceWire
   packageName: string
   configFileName: string
@@ -75,19 +76,19 @@ function asStringArray(value: unknown): string[] | null {
   return parsed.length === value.length ? parsed : null
 }
 
-function asLocalizedStringMap(
-  value: unknown
-): Partial<Record<'en' | 'zh-Hans', string>> | null {
+const SUPPORTED_LOCALE_SET = new Set<string>(SUPPORTED_LOCALE_VALUES)
+
+function asLocalizedStringMap(value: unknown): LocalizedTextMap | null {
   if (value == null) return {}
   if (typeof value !== 'object' || Array.isArray(value)) return null
   const record = value as Record<string, unknown>
-  const localized: Partial<Record<'en' | 'zh-Hans', string>> = {}
+  const localized: Record<string, string> = {}
   for (const [key, item] of Object.entries(record)) {
-    if (key !== 'en' && key !== 'zh-Hans') return null
+    if (!SUPPORTED_LOCALE_SET.has(key)) return null
     if (typeof item !== 'string') return null
     localized[key] = item
   }
-  return localized
+  return localized as LocalizedTextMap
 }
 
 function asOptionalString(value: unknown): string | undefined | null {

@@ -1,4 +1,4 @@
-using DotCraft.Localization;
+using DotCraft.Text;
 
 namespace DotCraft.Commands;
 
@@ -25,8 +25,8 @@ public static class CommandHelper
         var inputCmd = rawInput.Split(' ', 2)[0].ToLowerInvariant();
         var suggestion = FindSimilarCommand(inputCmd, knownCommands);
         return suggestion != null
-            ? $"{Strings.UnknownCommand}：{rawInput.Split(' ', 2)[0]}，{Strings.DidYouMean} {suggestion}？{Strings.ViewAllCommands}"
-            : $"{Strings.UnknownCommand}：{rawInput.Split(' ', 2)[0]}，{Strings.ViewAllCommands}";
+            ? $"{FallbackText.UnknownCommand}: {rawInput.Split(' ', 2)[0]}, {FallbackText.DidYouMean} {suggestion}? {FallbackText.ViewAllCommands}"
+            : $"{FallbackText.UnknownCommand}: {rawInput.Split(' ', 2)[0]}, {FallbackText.ViewAllCommands}";
     }
 
     private static int LevenshteinDistance(string a, string b)
