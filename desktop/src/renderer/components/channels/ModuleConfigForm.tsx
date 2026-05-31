@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { DiscoveredModule, ModuleStatusEntry } from '../../../preload/api.d'
+import type { AppLocale } from '../../../shared/locales'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import type { ChannelConnectionState } from './ChannelCard'
 import { FieldCard, FormActions, SecretInput, StatusPill, formStyles } from './FormShared'
@@ -122,7 +123,7 @@ function resolveModulePill(
 
 function resolveModuleDisplayName(
   module: Pick<DiscoveredModule, 'displayName' | 'localizedDisplayName'>,
-  locale: 'en' | 'zh-Hans'
+  locale: AppLocale
 ): string {
   return module.localizedDisplayName?.[locale] ?? module.displayName
 }

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNod
 import { ChevronLeft, Ellipsis, Plus } from 'lucide-react'
 import { addToast } from '../../stores/toastStore'
 import { useLocale, useT } from '../../contexts/LocaleContext'
+import type { AppLocale, LocalizedTextMap } from '../../../shared/locales'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { FolderIcon, RefreshIcon } from '../ui/AppIcons'
 import type { ChannelConnectionState } from './ChannelCard'
@@ -268,15 +269,15 @@ function seedConfigWithDescriptorDefaults(
 
 function resolveModuleDisplayName(
   module: Pick<DiscoveredModule, 'displayName' | 'localizedDisplayName'>,
-  locale: 'en' | 'zh-Hans'
+  locale: AppLocale
 ): string {
   return module.localizedDisplayName?.[locale] ?? module.displayName
 }
 
 function resolveLocalizedText(
-  localized: Partial<Record<'en' | 'zh-Hans', string>> | undefined,
+  localized: LocalizedTextMap | undefined,
   fallback: string | undefined,
-  locale: 'en' | 'zh-Hans'
+  locale: AppLocale
 ): string | undefined {
   const localizedValue = localized?.[locale]?.trim()
   if (localizedValue) return localizedValue
@@ -284,7 +285,7 @@ function resolveLocalizedText(
   return fallbackValue || undefined
 }
 
-function moduleShortDescription(module: DiscoveredModule, locale: 'en' | 'zh-Hans'): string {
+function moduleShortDescription(module: DiscoveredModule, locale: AppLocale): string {
   return (
     resolveLocalizedText(
       module.interface?.localizedShortDescription,
@@ -294,7 +295,7 @@ function moduleShortDescription(module: DiscoveredModule, locale: 'en' | 'zh-Han
   )
 }
 
-function moduleLongDescription(module: DiscoveredModule, locale: 'en' | 'zh-Hans'): string {
+function moduleLongDescription(module: DiscoveredModule, locale: AppLocale): string {
   return (
     resolveLocalizedText(
       module.interface?.localizedLongDescription,
@@ -304,7 +305,7 @@ function moduleLongDescription(module: DiscoveredModule, locale: 'en' | 'zh-Hans
   )
 }
 
-function modulePreviewPrompt(module: DiscoveredModule, locale: 'en' | 'zh-Hans'): string {
+function modulePreviewPrompt(module: DiscoveredModule, locale: AppLocale): string {
   return (
     resolveLocalizedText(
       module.interface?.localizedPreviewPrompt,

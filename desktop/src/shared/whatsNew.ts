@@ -1,4 +1,4 @@
-import type { AppLocale } from './locales'
+import { SUPPORTED_LOCALE_VALUES, type AppLocale, type EnglishRequiredLocalizedText } from './locales'
 
 export type WhatsNewIcon = 'message' | 'dreams' | 'goal' | 'teams' | 'app' | 'subscription'
 export const WHATS_NEW_ICONS: readonly WhatsNewIcon[] = [
@@ -10,10 +10,7 @@ export const WHATS_NEW_ICONS: readonly WhatsNewIcon[] = [
   'subscription'
 ]
 
-export interface LocalizedWhatsNewText {
-  en: string
-  'zh-Hans': string
-}
+export type LocalizedWhatsNewText = EnglishRequiredLocalizedText
 
 export interface WhatsNewMedia {
   fileName: string
@@ -64,12 +61,20 @@ export function isWhatsNewIcon(value: unknown): value is WhatsNewIcon {
   return typeof value === 'string' && WHATS_NEW_ICONS.includes(value as WhatsNewIcon)
 }
 
+const SUPPORTED_LOCALE_SET = new Set<string>(SUPPORTED_LOCALE_VALUES)
+
 function parseLocalizedWhatsNewText(value: unknown): LocalizedWhatsNewText | null {
   if (!isRecord(value)) return null
   const en = value.en
-  const zhHans = value['zh-Hans']
-  if (typeof en !== 'string' || typeof zhHans !== 'string') return null
-  return { en, 'zh-Hans': zhHans }
+  if (typeof en !== 'string') return null
+  const localized: Record<string, string> = { en }
+  for (const [key, item] of Object.entries(value)) {
+    if (key === 'en') continue
+    if (!SUPPORTED_LOCALE_SET.has(key)) return null
+    if (typeof item !== 'string') return null
+    localized[key] = item
+  }
+  return localized as LocalizedWhatsNewText
 }
 
 function parseWhatsNewMedia(value: unknown): WhatsNewMedia | null {

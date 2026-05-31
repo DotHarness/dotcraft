@@ -251,8 +251,8 @@ export interface ConfigDescriptorWire {
   key: string
   displayLabel: string
   description: string
-  localizedDisplayLabel?: Partial<Record<'en' | 'zh-Hans', string>>
-  localizedDescription?: Partial<Record<'en' | 'zh-Hans', string>>
+  localizedDisplayLabel?: Partial<Record<AppLocale, string>>
+  localizedDescription?: Partial<Record<AppLocale, string>>
   required: boolean
   dataKind: string
   masked: boolean
@@ -264,18 +264,18 @@ export interface ConfigDescriptorWire {
 
 export interface ModuleInterfaceWire {
   shortDescription?: string
-  localizedShortDescription?: Partial<Record<'en' | 'zh-Hans', string>>
+  localizedShortDescription?: Partial<Record<AppLocale, string>>
   longDescription?: string
-  localizedLongDescription?: Partial<Record<'en' | 'zh-Hans', string>>
+  localizedLongDescription?: Partial<Record<AppLocale, string>>
   previewPrompt?: string
-  localizedPreviewPrompt?: Partial<Record<'en' | 'zh-Hans', string>>
+  localizedPreviewPrompt?: Partial<Record<AppLocale, string>>
 }
 
 export interface DiscoveredModule {
   moduleId: string
   channelName: string
   displayName: string
-  localizedDisplayName?: Partial<Record<'en' | 'zh-Hans', string>>
+  localizedDisplayName?: Partial<Record<AppLocale, string>>
   interface?: ModuleInterfaceWire
   packageName: string
   configFileName: string
@@ -657,7 +657,7 @@ declare global {
           modulesDirectory?: string
           activeModuleVariants?: Record<string, string>
           theme?: 'dark' | 'light'
-          locale?: 'en' | 'zh-Hans'
+          locale?: AppLocale
           showThinkingContent?: boolean
           visibleChannels?: string[]
           lastOpenEditorId?: EditorId
@@ -688,7 +688,7 @@ declare global {
             modulesDirectory?: string
             activeModuleVariants?: Record<string, string>
             theme?: 'dark' | 'light'
-            locale?: 'en' | 'zh-Hans'
+            locale?: AppLocale
             showThinkingContent?: boolean
             visibleChannels?: string[]
             lastOpenEditorId?: EditorId

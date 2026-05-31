@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MutableRefObject, type Ref } from 'react'
 import { ArrowLeft, ArrowRight, Check, Folder } from 'lucide-react'
-import { normalizeLocale, type AppLocale } from '../../shared/locales'
+import { normalizeLocale, SUPPORTED_LOCALES, type AppLocale } from '../../shared/locales'
 import { useLocale, useSetUiLocale, useT } from '../contexts/LocaleContext'
 import type {
   WorkspaceBootstrapProfile,
@@ -182,9 +182,7 @@ export function WorkspaceSetupWizard({
   const profileLogoTransitionIdRef = useRef(0)
   const profileLogoTransitionTimerRef = useRef<number | null>(null)
   const localizedDisplayLanguage =
-    locale === 'zh-Hans'
-      ? t('setupWizard.language.chinese')
-      : t('setupWizard.language.english')
+    SUPPORTED_LOCALES.find((item) => item.value === locale)?.nativeName ?? locale
 
   const bootstrapImportSourceIds = bootstrapImportSources.map((source) => source.id).join('|')
 
@@ -961,10 +959,10 @@ function WelcomeStep({
             width: '220px',
             opacity: switchingDisplayLocale ? 0.7 : 1
           }}
-          options={[
-            { value: 'en', label: locale === 'zh-Hans' ? '英文' : t('setupWizard.language.english') },
-            { value: 'zh-Hans', label: locale === 'zh-Hans' ? '中文' : t('setupWizard.language.chinese') }
-          ]}
+          options={SUPPORTED_LOCALES.map((item) => ({
+            value: item.value,
+            label: item.nativeName
+          }))}
         />
         <p style={{ margin: '12px 0 0', color: 'var(--text-dimmed)', fontSize: '13px', lineHeight: 1.55 }}>
           {t('setupWizard.welcome.note')}

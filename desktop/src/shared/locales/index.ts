@@ -1,4 +1,4 @@
-export type { AppLocale, TopLevelMenuId } from './types'
-export { DEFAULT_LOCALE, TOP_LEVEL_MENU_IDS } from './types'
+export type { AppLocale, EnglishRequiredLocalizedText, LocalizedTextMap, TopLevelMenuId } from './types'
+export { DEFAULT_LOCALE, SUPPORTED_LOCALES, SUPPORTED_LOCALE_VALUES, TOP_LEVEL_MENU_IDS } from './types'
 export { normalizeLocale, localeToHtmlLang } from './normalize'
 export { translate, type MessageKey } from './catalog'
