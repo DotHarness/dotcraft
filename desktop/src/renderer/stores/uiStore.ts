@@ -15,6 +15,11 @@ const DETAIL_MIN_WIDTH = 300
 const DETAIL_DEFAULT_MAIN_SURFACE_WIDTH = 1676
 const DETAIL_DEFAULT_WIDTH_RATIO = DETAIL_DEFAULT_WIDTH / DETAIL_DEFAULT_MAIN_SURFACE_WIDTH
 
+/** Built-in workspace explorer (docked inside the file viewer). */
+const EXPLORER_DEFAULT_WIDTH = 260
+const EXPLORER_MIN_WIDTH = 180
+const EXPLORER_MAX_WIDTH = 480
+
 /** Timeout for pending welcome turn to prevent permanent residue */
 const PENDING_WELCOME_TIMEOUT_MS = 30_000
 
@@ -95,6 +100,16 @@ export interface UIState {
   lastActiveSystemTab: SystemDetailTab
   /** Whether the Quick-Open file finder dialog is visible. */
   quickOpenVisible: boolean
+  /** Whether the built-in workspace explorer is docked open in the file viewer. */
+  explorerVisible: boolean
+  /** Width (px) of the docked explorer sub-panel. */
+  explorerWidth: number
+  /**
+   * One-shot absolute directory the explorer should expand to and scroll into
+   * view (set when a breadcrumb folder segment is clicked). Cleared by the
+   * explorer once consumed.
+   */
+  explorerRevealPath: string | null
   /** Currently selected file path in the Changes tab */
   selectedChangedFile: string | null
   /** Per-thread display mode for the Changes diff stream. */
@@ -172,6 +187,16 @@ interface UIStore extends UIState {
   closeViewerTab(options?: DetailRevealOptions): void
   /** Show or hide the Quick-Open dialog. */
   setQuickOpenVisible(visible: boolean): void
+  /** Toggle the docked workspace explorer. */
+  toggleExplorer(): void
+  /** Show or hide the docked workspace explorer. */
+  setExplorerVisible(visible: boolean): void
+  /** Set the docked explorer width (clamped to its min/max). */
+  setExplorerWidth(width: number): void
+  /** Open the explorer and request it expand to / reveal the given directory. */
+  revealInExplorer(absoluteDir: string): void
+  /** Clear the one-shot explorer reveal target after it has been consumed. */
+  consumeExplorerReveal(): void
   selectChangedFile(filePath: string | null): void
   getChangesDiffMode(threadId: string | null): ChangesDiffMode
   setChangesDiffMode(threadId: string | null, mode: ChangesDiffMode): void
@@ -281,6 +306,9 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
   activeDetailTab: { kind: 'system', id: 'changes' },
   lastActiveSystemTab: 'changes',
   quickOpenVisible: false,
+  explorerVisible: false,
+  explorerWidth: EXPLORER_DEFAULT_WIDTH,
+  explorerRevealPath: null,
   selectedChangedFile: null,
   changesDiffModeByThread: {},
   autoShowTriggeredForTurn: null,
@@ -451,6 +479,29 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
 
   setQuickOpenVisible(visible: boolean) {
     set({ quickOpenVisible: visible })
+  },
+
+  toggleExplorer() {
+    set((state) => ({ explorerVisible: !state.explorerVisible }))
+  },
+
+  setExplorerVisible(visible: boolean) {
+    set({ explorerVisible: visible })
+  },
+
+  setExplorerWidth(width: number) {
+    const clamped = Math.min(EXPLORER_MAX_WIDTH, Math.max(EXPLORER_MIN_WIDTH, width))
+    set({ explorerWidth: clamped })
+  },
+
+  revealInExplorer(absoluteDir: string) {
+    set({ explorerVisible: true, explorerRevealPath: absoluteDir })
+  },
+
+  consumeExplorerReveal() {
+    if (get().explorerRevealPath !== null) {
+      set({ explorerRevealPath: null })
+    }
   },
 
   selectChangedFile(filePath) {
@@ -641,5 +692,8 @@ export {
   DETAIL_DEFAULT_WIDTH,
   DETAIL_MIN_WIDTH,
   DETAIL_DEFAULT_MAIN_SURFACE_WIDTH,
-  DETAIL_DEFAULT_WIDTH_RATIO
+  DETAIL_DEFAULT_WIDTH_RATIO,
+  EXPLORER_DEFAULT_WIDTH,
+  EXPLORER_MIN_WIDTH,
+  EXPLORER_MAX_WIDTH
 }

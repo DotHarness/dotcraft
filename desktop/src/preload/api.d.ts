@@ -526,6 +526,15 @@ declare global {
             indexedCount?: number
             stale?: boolean
           }>
+          listDir(params: { dirPath?: string }): Promise<{
+            dirPath: string
+            entries: Array<{
+              name: string
+              relativePath: string
+              absolutePath: string
+              isDir: boolean
+            }>
+          }>
           classify(params: {
             absolutePath: string
           }): Promise<{

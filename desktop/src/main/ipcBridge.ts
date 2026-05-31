@@ -28,7 +28,8 @@ import {
 import {
   classifyFile,
   readTextFile,
-  listViewerFiles
+  listViewerFiles,
+  listDirectory
 } from './viewerIpc'
 import { authorizeViewerFile, buildViewerUrl } from './viewerFileProtocol'
 import { partitionForWorkspace, viewerBrowserManager } from './viewerBrowser'
@@ -1366,6 +1367,21 @@ export function registerIpcHandlers(
     }
   )
 
+  // Renderer -> Main: list immediate children of a workspace directory (explorer tree)
+  handleSafe(
+    'workspace:viewer:list-dir',
+    async (_event, params: { dirPath?: string }) => {
+      if (!workspacePath) {
+        throw new Error(translate(mainLocale(callbacks), 'ipc.noWorkspaceOpen'))
+      }
+      const target = params.dirPath && params.dirPath.trim()
+        ? params.dirPath
+        : workspacePath
+      const resolved = assertPathWithinWorkspace(target, workspacePath, mainLocale(callbacks))
+      return listDirectory(resolved, workspacePath)
+    }
+  )
+
   // Renderer -> Main: classify a file (text / image / pdf / unsupported)
   handleSafe(
     'workspace:viewer:classify',
@@ -2024,6 +2040,7 @@ export function unregisterIpcHandlers(): void {
   ipcMain.removeHandler('workspace:read-image-as-data-url')
   ipcMain.removeHandler('workspace:search-files')
   ipcMain.removeHandler('workspace:viewer:list-files')
+  ipcMain.removeHandler('workspace:viewer:list-dir')
   ipcMain.removeHandler('workspace:viewer:classify')
   ipcMain.removeHandler('workspace:viewer:read-text')
   ipcMain.removeHandler('workspace:viewer:authorize-file')

@@ -4,27 +4,16 @@ import { useUIStore } from '../../stores/uiStore'
 import { useViewerTabStore } from '../../stores/viewerTabStore'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useThreadStore } from '../../stores/threadStore'
-import { FilePlus2, ListChecks, SquareTerminal, Plus, FileText, Image, FileType2, X, Globe, PanelRightClose, MousePointer2 } from 'lucide-react'
+import { FilePlus2, ListChecks, SquareTerminal, Plus, X, Globe, PanelRightClose, MousePointer2 } from 'lucide-react'
 import { ChangesTab } from '../detail/ChangesTab'
 import { PlanTab } from '../detail/PlanTab'
-import type { ViewerContentClass } from '../../../shared/viewer/types'
+import { FileTypeIcon } from '../ui/FileTypeIcon'
 import type { AddTabMenuAction, AddTabMenuRequest } from '../../../shared/addTabMenu'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
 
 interface DetailPanelProps {
   workspacePath?: string
-}
-
-function contentClassIcon(contentClass: ViewerContentClass): JSX.Element {
-  switch (contentClass) {
-    case 'image':
-      return <Image size={14} strokeWidth={2} aria-hidden style={{ display: 'block' }} />
-    case 'pdf':
-      return <FileType2 size={14} strokeWidth={2} aria-hidden style={{ display: 'block' }} />
-    default:
-      return <FileText size={14} strokeWidth={2} aria-hidden style={{ display: 'block' }} />
-  }
 }
 
 function browserTabIcon(faviconDataUrl?: string): JSX.Element {
@@ -346,7 +335,7 @@ export function DetailPanel({ workspacePath = '' }: DetailPanelProps): JSX.Eleme
                   : browserTabIcon(tab.faviconDataUrl)
                 : tab.kind === 'terminal'
                   ? <SquareTerminal size={14} strokeWidth={2} aria-hidden style={{ display: 'block' }} />
-                  : contentClassIcon(tab.contentClass)}
+                  : <FileTypeIcon path={tab.relativePath} size={14} />}
               <span
                 style={{
                   overflow: 'hidden',

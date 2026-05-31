@@ -22,6 +22,8 @@ loader.config({ monaco })
 
 interface TextViewerProps {
   absolutePath: string
+  /** Word-wrap preference; undefined is treated as enabled (historical default). */
+  wordWrap?: boolean
 }
 
 interface TextState {
@@ -31,7 +33,7 @@ interface TextState {
   error?: string
 }
 
-export function TextViewer({ absolutePath }: TextViewerProps): JSX.Element {
+export function TextViewer({ absolutePath, wordWrap = true }: TextViewerProps): JSX.Element {
   const t = useT()
   const themeMode = useDocumentThemeMode()
   const [state, setState] = useState<TextState>({ status: 'idle', text: '', truncated: false })
@@ -115,7 +117,7 @@ export function TextViewer({ absolutePath }: TextViewerProps): JSX.Element {
             readOnly: true,
             minimap: { enabled: false },
             scrollBeyondLastLine: false,
-            wordWrap: 'on',
+            wordWrap: wordWrap ? 'on' : 'off',
             fontSize: 13,
             lineNumbers: 'on',
             renderWhitespace: 'none',

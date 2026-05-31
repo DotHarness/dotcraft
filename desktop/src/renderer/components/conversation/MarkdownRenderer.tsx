@@ -1,5 +1,6 @@
 import { isValidElement, memo, useMemo, useState } from 'react'
-import { FileText, Globe, Link2 } from 'lucide-react'
+import { Globe, Link2 } from 'lucide-react'
+import { FileTypeIcon } from '../ui/FileTypeIcon'
 import ReactMarkdown, { defaultUrlTransform } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
@@ -432,11 +433,7 @@ function InlineReferenceLink({
     })
   }
 
-  const Icon = presentation.kind === 'file'
-    ? FileText
-    : presentation.kind === 'browser'
-      ? Globe
-      : Link2
+  const NonFileIcon = presentation.kind === 'browser' ? Globe : Link2
   const borderColor = presentation.kind === 'file'
     ? 'color-mix(in srgb, var(--border-active) 44%, transparent)'
     : 'color-mix(in srgb, var(--accent) 46%, transparent)'
@@ -463,12 +460,12 @@ function InlineReferenceLink({
         style={{
           display: 'inline-flex',
           alignItems: 'center',
-          gap: '5px',
-          verticalAlign: '-0.12em',
-          margin: '0 2px',
-          padding: '2px 8px',
+          gap: '4px',
+          verticalAlign: '-0.2em',
+          margin: '0 4px',
+          padding: '1px 7px',
           maxWidth: 'min(100%, var(--inline-reference-max-width))',
-          borderRadius: '999px',
+          borderRadius: '7px',
           border: `1px solid ${borderColor}`,
           background,
           color: presentation.kind === 'file' ? 'var(--text-primary)' : 'var(--accent)',
@@ -480,7 +477,9 @@ function InlineReferenceLink({
         }}
         {...props}
       >
-        <Icon size={12} strokeWidth={2.1} aria-hidden style={{ flexShrink: 0 }} />
+        {presentation.kind === 'file'
+          ? <FileTypeIcon path={presentation.absolutePath ?? presentation.label} size={12} />
+          : <NonFileIcon size={12} strokeWidth={2.1} aria-hidden style={{ flexShrink: 0 }} />}
         <span
           style={{
             minWidth: 0,

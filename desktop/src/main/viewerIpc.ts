@@ -17,6 +17,8 @@ import {
 } from './workspaceComposerIpc'
 import type {
   ClassifyResult,
+  DirEntryWire,
+  ListDirResult,
   ReadTextResult,
   ViewerContentClass
 } from '../shared/viewer/types'
@@ -241,6 +243,51 @@ export async function readTextFile(
   const text = decoder.decode(buffer)
 
   return { text, truncated, encoding: 'utf-8' }
+}
+
+// ─── list-dir (built-in explorer) ────────────────────────────────────────────
+
+/** Directory names hidden from the explorer tree regardless of git status. */
+const EXPLORER_SKIP_NAMES = new Set(['.git'])
+
+/**
+ * Lists the immediate children of a directory for the built-in explorer.
+ * Unlike `list-files`, this is NOT gitignore-filtered (so ignored dirs such as
+ * `Library/`, `obj/`, `Temp/` remain browsable, matching a native file tree);
+ * only `.git` is skipped. Symlinked directories are reported as files to avoid
+ * following links outside the workspace.
+ *
+ * `relativePath` is workspace-relative (POSIX); entries are sorted
+ * directories-first, then case-insensitively by name.
+ */
+export async function listDirectory(
+  absoluteDir: string,
+  workspaceRoot: string
+): Promise<ListDirResult> {
+  const stat = await fs.stat(absoluteDir)
+  if (!stat.isDirectory()) {
+    throw new Error(`Not a directory: ${absoluteDir}`)
+  }
+
+  const dirents = await fs.readdir(absoluteDir, { withFileTypes: true })
+  const wsRoot = path.resolve(workspaceRoot)
+  const entries: DirEntryWire[] = []
+
+  for (const dirent of dirents) {
+    const name = dirent.name
+    if (EXPLORER_SKIP_NAMES.has(name)) continue
+    const absolutePath = path.join(absoluteDir, name)
+    const isDir = dirent.isDirectory()
+    const relativePath = path.relative(wsRoot, absolutePath).replace(/\\/g, '/')
+    entries.push({ name, relativePath, absolutePath, isDir })
+  }
+
+  entries.sort((a, b) => {
+    if (a.isDir !== b.isDir) return a.isDir ? -1 : 1
+    return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+  })
+
+  return { dirPath: path.resolve(absoluteDir), entries }
 }
 
 // ─── list-files (re-export for IPC) ──────────────────────────────────────────
