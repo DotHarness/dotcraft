@@ -1,4 +1,4 @@
-import { useRef, lazy, Suspense } from 'react'
+import { useRef, useState, lazy, Suspense, type CSSProperties, type ReactNode } from 'react'
 import { useT } from '../../contexts/LocaleContext'
 import { useUIStore } from '../../stores/uiStore'
 import type { SystemDetailTab } from '../../stores/uiStore'
@@ -204,97 +204,20 @@ export function DetailPanel({ workspacePath = '' }: DetailPanelProps): JSX.Eleme
           scrollbarWidth: 'none'
         }}
       >
-        {/* System tabs (Diff / Progress) — only rendered when open; closable. */}
+        {/* System tabs (Diff / Progress) — icon-only; the icon slot becomes the close button on hover. */}
         {openSystemTabs.map((id) => {
           const meta = systemTabMeta[id]
-          const isActive = activeSystemId === id
           return (
-            <div
+            <DetailPanelTab
               key={id}
-              role="tab"
-              aria-selected={isActive}
+              active={activeSystemId === id}
               title={meta.label}
-              onClick={() => setActiveDetailTab(id)}
-              onAuxClick={(e) => {
-                if (e.button === 1) {
-                  e.preventDefault()
-                  handleCloseSystemTab(id)
-                }
-              }}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '5px',
-                height: '100%',
-                padding: '0 6px 0 10px',
-                fontSize: '13px',
-                fontWeight: isActive ? 500 : 400,
-                color: isActive ? 'var(--text-primary)' : 'var(--text-secondary)',
-                backgroundColor: 'transparent',
-                boxSizing: 'border-box',
-                boxShadow: isActive ? 'inset 0 -2px 0 var(--accent)' : 'none',
-                cursor: 'pointer',
-                flexShrink: 0,
-                userSelect: 'none',
-                transition: 'color 100ms ease, box-shadow 100ms ease'
-              }}
-            >
-              {meta.icon}
-              <span style={{ whiteSpace: 'nowrap' }}>{meta.label}</span>
-              {meta.badge !== undefined && (
-                <span
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    minWidth: '16px',
-                    height: '16px',
-                    padding: '0 4px',
-                    borderRadius: '8px',
-                    background: isActive ? 'var(--accent)' : 'var(--bg-tertiary)',
-                    color: isActive ? '#ffffff' : 'var(--text-secondary)',
-                    fontSize: '10px',
-                    fontWeight: 500
-                  }}
-                >
-                  {meta.badge}
-                </span>
-              )}
-              <ActionTooltip label={t('viewer.close')} placement="bottom">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleCloseSystemTab(id)
-                  }}
-                  aria-label={`${t('viewer.close')} ${meta.label}`}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: '16px',
-                    height: '16px',
-                    borderRadius: '3px',
-                    border: 'none',
-                    background: 'transparent',
-                    color: 'var(--text-secondary)',
-                    cursor: 'pointer',
-                    padding: 0,
-                    flexShrink: 0,
-                    opacity: isActive ? 1 : 0
-                  }}
-                  onMouseEnter={(e) => {
-                    ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--bg-hover, rgba(255,255,255,0.1))'
-                    ;(e.currentTarget as HTMLButtonElement).style.opacity = '1'
-                  }}
-                  onMouseLeave={(e) => {
-                    ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent'
-                    ;(e.currentTarget as HTMLButtonElement).style.opacity = isActive ? '1' : '0'
-                  }}
-                >
-                  <X size={10} aria-hidden style={{ display: 'block' }} />
-                </button>
-              </ActionTooltip>
-            </div>
+              icon={meta.icon}
+              badge={meta.badge}
+              closeLabel={`${t('viewer.close')} ${meta.label}`}
+              onActivate={() => setActiveDetailTab(id)}
+              onClose={() => handleCloseSystemTab(id)}
+            />
           )
         })}
 
@@ -313,108 +236,39 @@ export function DetailPanel({ workspacePath = '' }: DetailPanelProps): JSX.Eleme
           />
         )}
 
-        {/* Viewer tabs */}
+        {/* Viewer tabs — label + leading icon slot that becomes the close button on hover. */}
         {viewerTabs.map((tab) => {
-          const isActive = activeViewerId === tab.id
           const automationActive = tab.kind === 'browser' && tab.automationActive === true
+          const icon = tab.kind === 'browser'
+            ? (automationActive
+                ? <MousePointer2 size={14} strokeWidth={2} aria-hidden style={{ display: 'block', color: 'var(--accent)' }} />
+                : browserTabIcon(tab.faviconDataUrl))
+            : tab.kind === 'terminal'
+              ? <SquareTerminal size={14} strokeWidth={2} aria-hidden style={{ display: 'block' }} />
+              : <FileTypeIcon path={tab.relativePath} size={14} />
+          const automationStyle: CSSProperties = automationActive
+            ? {
+                backgroundColor: 'rgba(47, 138, 245, 0.10)',
+                backgroundImage: 'repeating-linear-gradient(90deg, rgba(47,138,245,0.05) 0px, rgba(47,138,245,0.18) 24px, rgba(47,138,245,0.05) 48px, rgba(47,138,245,0.05) 96px)',
+                backgroundSize: '96px 100%',
+                animation: 'dotcraft-automation-tab-flow 1.8s linear infinite',
+                borderRadius: '6px'
+              }
+            : {}
           return (
-            <div
+            <DetailPanelTab
               key={tab.id}
               className={automationActive ? 'dotcraft-automation-viewer-tab' : undefined}
-              role="tab"
-              aria-selected={isActive}
-              title={
-                tab.kind === 'browser'
-                  ? tab.currentUrl
-                  : tab.kind === 'terminal'
-                    ? tab.cwd
-                    : tab.absolutePath
-              }
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                height: '100%',
-                padding: '0 6px 0 10px',
-                fontSize: '13px',
-                fontWeight: isActive ? 500 : 400,
-                color: isActive ? 'var(--text-primary)' : 'var(--text-secondary)',
-                backgroundColor: automationActive ? 'rgba(47, 138, 245, 0.10)' : 'transparent',
-                backgroundImage: automationActive
-                  ? 'repeating-linear-gradient(90deg, rgba(47,138,245,0.05) 0px, rgba(47,138,245,0.18) 24px, rgba(47,138,245,0.05) 48px, rgba(47,138,245,0.05) 96px)'
-                  : 'none',
-                backgroundSize: automationActive ? '96px 100%' : undefined,
-                animation: automationActive ? 'dotcraft-automation-tab-flow 1.8s linear infinite' : undefined,
-                borderRadius: automationActive ? '6px' : undefined,
-                boxSizing: 'border-box',
-                boxShadow: isActive ? 'inset 0 -2px 0 var(--accent)' : 'none',
-                cursor: 'pointer',
-                flexShrink: 0,
-                transition: 'color 100ms ease, box-shadow 100ms ease',
-                userSelect: 'none',
-                maxWidth: '160px'
-              }}
-              onClick={() => setActiveViewerTab(tab.id)}
-              onAuxClick={(e) => {
-                // Middle-click to close
-                if (e.button === 1) {
-                  e.preventDefault()
-                  handleCloseViewerTab(tab.id)
-                }
-              }}
-            >
-              {tab.kind === 'browser'
-                ? automationActive
-                  ? <MousePointer2 size={14} strokeWidth={2} aria-hidden style={{ display: 'block', color: 'var(--accent)' }} />
-                  : browserTabIcon(tab.faviconDataUrl)
-                : tab.kind === 'terminal'
-                  ? <SquareTerminal size={14} strokeWidth={2} aria-hidden style={{ display: 'block' }} />
-                  : <FileTypeIcon path={tab.relativePath} size={14} />}
-              <span
-                style={{
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                  maxWidth: '100px'
-                }}
-              >
-                {tab.label}
-              </span>
-              <ActionTooltip label={t('viewer.close')} placement="bottom">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleCloseViewerTab(tab.id)
-                  }}
-                  aria-label={`${t('viewer.close')} ${tab.label}`}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: '16px',
-                    height: '16px',
-                    borderRadius: '3px',
-                    border: 'none',
-                    background: 'transparent',
-                    color: 'var(--text-secondary)',
-                    cursor: 'pointer',
-                    padding: 0,
-                    flexShrink: 0,
-                    opacity: isActive ? 1 : 0
-                  }}
-                  onMouseEnter={(e) => {
-                    ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--bg-hover, rgba(255,255,255,0.1))'
-                    ;(e.currentTarget as HTMLButtonElement).style.opacity = '1'
-                  }}
-                  onMouseLeave={(e) => {
-                    ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent'
-                    ;(e.currentTarget as HTMLButtonElement).style.opacity = isActive ? '1' : '0'
-                  }}
-              >
-                  <X size={10} aria-hidden style={{ display: 'block' }} />
-                </button>
-              </ActionTooltip>
-            </div>
+              active={activeViewerId === tab.id}
+              title={tab.kind === 'browser' ? tab.currentUrl : tab.kind === 'terminal' ? tab.cwd : tab.absolutePath}
+              icon={icon}
+              label={tab.label}
+              closeLabel={`${t('viewer.close')} ${tab.label}`}
+              onActivate={() => setActiveViewerTab(tab.id)}
+              onClose={() => handleCloseViewerTab(tab.id)}
+              maxWidth={160}
+              style={automationStyle}
+            />
           )
         })}
 
@@ -516,6 +370,148 @@ export function DetailPanel({ workspacePath = '' }: DetailPanelProps): JSX.Eleme
 
     </div>
   )
+}
+
+/**
+ * A single detail-panel tab. The leading slot shows the tab icon and, while the
+ * tab is hovered, swaps to a close (×) button — so closing reuses the icon's
+ * footprint instead of a separate trailing button, which keeps tabs compact.
+ * System tabs render icon-only (no `label`); viewer tabs render icon + label.
+ * Local hover state keeps re-renders scoped to the hovered tab.
+ */
+function DetailPanelTab({
+  active,
+  title,
+  icon,
+  label,
+  badge,
+  closeLabel,
+  onActivate,
+  onClose,
+  className,
+  style,
+  maxWidth
+}: {
+  active: boolean
+  title: string
+  icon: ReactNode
+  label?: string
+  badge?: number
+  closeLabel: string
+  onActivate: () => void
+  onClose: () => void
+  className?: string
+  style?: CSSProperties
+  maxWidth?: number
+}): JSX.Element {
+  const [hovered, setHovered] = useState(false)
+  return (
+    <div
+      className={className}
+      role="tab"
+      aria-selected={active}
+      title={title}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onClick={onActivate}
+      onAuxClick={(e) => {
+        if (e.button === 1) {
+          e.preventDefault()
+          onClose()
+        }
+      }}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '6px',
+        height: '100%',
+        padding: label === undefined ? '0 8px' : '0 10px',
+        fontSize: '13px',
+        fontWeight: active ? 500 : 400,
+        color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
+        backgroundColor: 'transparent',
+        boxSizing: 'border-box',
+        boxShadow: active ? 'inset 0 -2px 0 var(--accent)' : 'none',
+        cursor: 'pointer',
+        flexShrink: 0,
+        userSelect: 'none',
+        transition: 'color 100ms ease, box-shadow 100ms ease',
+        ...(maxWidth ? { maxWidth: `${maxWidth}px` } : {}),
+        ...style
+      }}
+    >
+      <span style={tabLeadingSlotStyle}>
+        {hovered ? (
+          <button
+            type="button"
+            aria-label={closeLabel}
+            title={closeLabel}
+            onClick={(e) => {
+              e.stopPropagation()
+              onClose()
+            }}
+            style={tabCloseButtonStyle}
+            onMouseEnter={(e) => {
+              ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--bg-hover)'
+            }}
+            onMouseLeave={(e) => {
+              ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent'
+            }}
+          >
+            <X size={12} aria-hidden style={{ display: 'block' }} />
+          </button>
+        ) : icon}
+      </span>
+      {label !== undefined && (
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '120px' }}>
+          {label}
+        </span>
+      )}
+      {badge !== undefined && (
+        <span
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            minWidth: '16px',
+            height: '16px',
+            padding: '0 4px',
+            borderRadius: '8px',
+            background: active ? 'var(--accent)' : 'var(--bg-tertiary)',
+            color: active ? '#ffffff' : 'var(--text-secondary)',
+            fontSize: '10px',
+            fontWeight: 500
+          }}
+        >
+          {badge}
+        </span>
+      )}
+    </div>
+  )
+}
+
+const tabLeadingSlotStyle: CSSProperties = {
+  position: 'relative',
+  width: '16px',
+  height: '16px',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  flexShrink: 0
+}
+
+const tabCloseButtonStyle: CSSProperties = {
+  width: '16px',
+  height: '16px',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  border: 'none',
+  borderRadius: '3px',
+  background: 'transparent',
+  color: 'var(--text-secondary)',
+  cursor: 'pointer',
+  padding: 0
 }
 
 const LazyViewerTab = lazy(() => import('../detail/ViewerTab').then((m) => ({ default: m.ViewerTab })))
