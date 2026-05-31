@@ -790,7 +790,9 @@ describe('PluginsView local plugin visibility', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Install' }))
 
     expect(await screen.findByRole('heading', { name: 'Install Browser' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Add to DotCraft' })).toBeInTheDocument()
+    const addButton = screen.getByRole('button', { name: 'Add to DotCraft' })
+    expect(addButton).toBeInTheDocument()
+    expect(addButton.style.width).toBe('100%')
     expect(screen.queryByText('Required app')).not.toBeInTheDocument()
   })
 
