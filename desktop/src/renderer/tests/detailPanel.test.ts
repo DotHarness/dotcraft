@@ -47,6 +47,7 @@ beforeEach(() => {
     autoShowTriggeredForTurn: null,
     autoShowPlanForItem: null,
     activeDetailTab: { kind: 'system', id: 'changes' },
+    openSystemTabs: ['changes'],
     lastActiveSystemTab: 'changes',
     detailPanelVisible: true,
     responsiveLayout: 'full'
@@ -279,16 +280,16 @@ describe('onPlanUpdated via store', () => {
 
 describe('viewer tab in uiStore', () => {
   it('setActiveViewerTab switches to viewer kind and shows the panel', () => {
-    ui().setActiveDetailTab('terminal')
+    ui().setActiveDetailTab('plan')
 
     ui().setActiveViewerTab('vtab-123')
 
     expect(ui().activeDetailTab).toEqual({ kind: 'viewer', id: 'vtab-123' })
     expect(ui().detailPanelVisible).toBe(true)
-    expect(ui().lastActiveSystemTab).toBe('terminal')
+    expect(ui().lastActiveSystemTab).toBe('plan')
   })
 
-  it('closeViewerTab falls back to lastActiveSystemTab', () => {
+  it('closeViewerTab falls back to an open system tab', () => {
     ui().setActiveDetailTab('plan')
     ui().setActiveViewerTab('vtab-abc')
 
@@ -299,9 +300,9 @@ describe('viewer tab in uiStore', () => {
 
   it('lastActiveSystemTab is remembered when switching between system tabs', () => {
     ui().setActiveDetailTab('changes')
-    ui().setActiveDetailTab('terminal')
+    ui().setActiveDetailTab('plan')
 
-    expect(ui().lastActiveSystemTab).toBe('terminal')
+    expect(ui().lastActiveSystemTab).toBe('plan')
   })
 
   it('setQuickOpenVisible toggles the flag', () => {
@@ -310,6 +311,70 @@ describe('viewer tab in uiStore', () => {
     expect(ui().quickOpenVisible).toBe(true)
     ui().setQuickOpenVisible(false)
     expect(ui().quickOpenVisible).toBe(false)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Optional system tabs (Diff / Progress) + launcher empty state
+// ---------------------------------------------------------------------------
+
+describe('optional system tabs', () => {
+  beforeEach(() => {
+    useUIStore.setState({ openSystemTabs: [], activeDetailTab: { kind: 'launcher' } })
+  })
+
+  it('setActiveDetailTab opens the tab and focuses it', () => {
+    ui().setActiveDetailTab('plan')
+    expect(ui().openSystemTabs).toEqual(['plan'])
+    expect(ui().activeDetailTab).toEqual({ kind: 'system', id: 'plan' })
+  })
+
+  it('keeps system tabs in canonical order regardless of open order', () => {
+    ui().setActiveDetailTab('plan')
+    ui().setActiveDetailTab('changes')
+    expect(ui().openSystemTabs).toEqual(['changes', 'plan'])
+  })
+
+  it('closeSystemTab removes the tab and falls back to the remaining system tab', () => {
+    ui().setActiveDetailTab('changes')
+    ui().setActiveDetailTab('plan')
+    ui().closeSystemTab('plan')
+    expect(ui().openSystemTabs).toEqual(['changes'])
+    expect(ui().activeDetailTab).toEqual({ kind: 'system', id: 'changes' })
+  })
+
+  it('closeSystemTab falls back to the launcher when no tabs remain', () => {
+    ui().setActiveDetailTab('changes')
+    ui().closeSystemTab('changes')
+    expect(ui().openSystemTabs).toEqual([])
+    expect(ui().activeDetailTab).toEqual({ kind: 'launcher' })
+  })
+
+  it('closeSystemTab falls back to a supplied viewer tab when no system tabs remain', () => {
+    ui().setActiveDetailTab('changes')
+    ui().closeSystemTab('changes', 'vtab-9')
+    expect(ui().activeDetailTab).toEqual({ kind: 'viewer', id: 'vtab-9' })
+  })
+
+  it('closeSystemTab on an inactive tab keeps the active tab', () => {
+    ui().setActiveDetailTab('changes')
+    ui().setActiveDetailTab('plan')
+    ui().closeSystemTab('changes')
+    expect(ui().openSystemTabs).toEqual(['plan'])
+    expect(ui().activeDetailTab).toEqual({ kind: 'system', id: 'plan' })
+  })
+
+  it('closeViewerTab falls back to the launcher when no system tabs are open', () => {
+    ui().setActiveViewerTab('vtab-1')
+    ui().closeViewerTab()
+    expect(ui().activeDetailTab).toEqual({ kind: 'launcher' })
+  })
+
+  it('resetDetailTabs clears open tabs and shows the launcher', () => {
+    ui().setActiveDetailTab('changes')
+    ui().resetDetailTabs()
+    expect(ui().openSystemTabs).toEqual([])
+    expect(ui().activeDetailTab).toEqual({ kind: 'launcher' })
   })
 })
 
@@ -361,6 +426,29 @@ describe('detail panel add-tab menu', () => {
         ])
       }))
     })
+  })
+
+  it('offers Diff and Progress entries that open the system tabs', async () => {
+    useUIStore.setState({ openSystemTabs: [], activeDetailTab: { kind: 'launcher' } })
+    vi.mocked(window.api.menu.popupAddTabMenu).mockResolvedValueOnce('newPlan')
+    render(createElement(Harness, { workspacePath: '' }))
+
+    fireEvent.click(screen.getByLabelText('Add tab'))
+
+    await waitFor(() => {
+      expect(window.api.menu.popupAddTabMenu).toHaveBeenCalledWith(expect.objectContaining({
+        items: expect.arrayContaining([
+          expect.objectContaining({ action: 'newBrowser', shortcut: 'Ctrl+T' }),
+          expect.objectContaining({ action: 'newTerminal', shortcut: 'Ctrl+`' }),
+          expect.objectContaining({ action: 'newChanges', shortcut: 'Ctrl+Shift+G', enabled: true }),
+          expect.objectContaining({ action: 'newPlan', enabled: true })
+        ])
+      }))
+    })
+    await waitFor(() => {
+      expect(ui().activeDetailTab).toEqual({ kind: 'system', id: 'plan' })
+    })
+    expect(ui().openSystemTabs).toEqual(['plan'])
   })
 
   it('opens Quick Open when the menu returns openFile', async () => {

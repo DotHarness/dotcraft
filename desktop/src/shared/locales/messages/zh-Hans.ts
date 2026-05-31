@@ -1791,6 +1791,18 @@ export const MESSAGES_ZH_HANS = {
   'detailPanel.addTabNewBrowser': '新建浏览器标签',
   'detailPanel.addTabNewTerminal': '新建终端',
   'detailPanel.addTabNewBrowserLater': '下个版本可用',
+  // 空状态启动器卡片（没有打开任何详情标签时显示）
+  'detailPanel.launcherFilesTitle': '文件',
+  'detailPanel.launcherFilesDesc': '浏览项目文件',
+  'detailPanel.launcherBrowserTitle': '浏览器',
+  'detailPanel.launcherBrowserDesc': '打开网页',
+  'detailPanel.launcherReviewTitle': '更改',
+  'detailPanel.launcherReviewDesc': '查看代码更改',
+  'detailPanel.launcherTerminalTitle': '终端',
+  'detailPanel.launcherTerminalDesc': '启动交互式终端',
+  // 查看器头部的打开按钮（打开当前文件，而非工作区）
+  'detailPanel.openFileTitle': '打开：{{path}}',
+  'detailPanel.openFileMenuAria': '选择打开方式',
 
   'quickOpen.title': '打开文件',
   'quickOpen.placeholder': '按文件名搜索…',

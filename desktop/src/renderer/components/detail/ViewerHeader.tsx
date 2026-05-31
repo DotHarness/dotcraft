@@ -124,8 +124,8 @@ export function ViewerHeader({
 
         <OpenTargetButton
           targetPath={absolutePath}
-          tooltipLabel={t('threadHeader.openTitle', { path: relativePath })}
-          menuAriaLabel={t('threadHeader.openMenuAria')}
+          tooltipLabel={t('detailPanel.openFileTitle', { path: relativePath })}
+          menuAriaLabel={t('detailPanel.openFileMenuAria')}
           showPrimaryLabel
         />
       </div>

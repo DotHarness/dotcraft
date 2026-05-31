@@ -23,7 +23,8 @@ vi.mock('electron', () => ({
     getFileIcon: getFileIconMock
   },
   shell: {
-    openPath: vi.fn().mockResolvedValue('')
+    openPath: vi.fn().mockResolvedValue(''),
+    showItemInFolder: vi.fn()
   }
 }))
 
@@ -258,7 +259,7 @@ describe('externalEditors icon extraction', () => {
     await expect(launchEditor('cursor', filePath)).rejects.toThrow('spawn failed')
   })
 
-  it('opens file targets directly with the default OS handler for explorer', async () => {
+  it('reveals file targets in the file manager for explorer', async () => {
     const filePath = process.platform === 'win32'
       ? 'F:\\workspace\\README.md'
       : '/workspace/README.md'
@@ -266,7 +267,21 @@ describe('externalEditors icon extraction', () => {
 
     await launchEditor('explorer', filePath)
 
-    expect(shell.openPath).toHaveBeenCalledWith(filePath)
+    expect(shell.showItemInFolder).toHaveBeenCalledWith(filePath)
+    expect(shell.openPath).not.toHaveBeenCalled()
+    expect(spawnMock).not.toHaveBeenCalled()
+  })
+
+  it('opens directory targets in the file manager for explorer', async () => {
+    const dirPath = process.platform === 'win32'
+      ? 'F:\\workspace'
+      : '/workspace'
+    statMock.mockResolvedValue({ isDirectory: () => true })
+
+    await launchEditor('explorer', dirPath)
+
+    expect(shell.openPath).toHaveBeenCalledWith(dirPath)
+    expect(shell.showItemInFolder).not.toHaveBeenCalled()
     expect(spawnMock).not.toHaveBeenCalled()
   })
 

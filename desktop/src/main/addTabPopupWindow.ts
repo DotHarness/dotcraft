@@ -76,7 +76,8 @@ function normalizeAction(
   payload: AddTabPopupPayload,
   action: unknown
 ): AddTabMenuAction | null {
-  if (action !== 'openFile' && action !== 'newBrowser' && action !== 'newTerminal') {
+  const allowed: readonly AddTabMenuAction[] = ['openFile', 'newBrowser', 'newTerminal', 'newChanges', 'newPlan']
+  if (!allowed.includes(action as AddTabMenuAction)) {
     return null
   }
   const item = payload.items.find((candidate) => candidate.action === action)

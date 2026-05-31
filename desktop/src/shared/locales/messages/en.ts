@@ -1865,6 +1865,18 @@ export const MESSAGES_EN = {
   'detailPanel.addTabNewBrowser': 'New Browser Tab',
   'detailPanel.addTabNewTerminal': 'New Terminal',
   'detailPanel.addTabNewBrowserLater': 'Available in the next update',
+  // Empty-state launcher cards (shown when no detail tab is open)
+  'detailPanel.launcherFilesTitle': 'Files',
+  'detailPanel.launcherFilesDesc': 'Browse project files',
+  'detailPanel.launcherBrowserTitle': 'Browser',
+  'detailPanel.launcherBrowserDesc': 'Open a website',
+  'detailPanel.launcherReviewTitle': 'Changes',
+  'detailPanel.launcherReviewDesc': 'View code changes',
+  'detailPanel.launcherTerminalTitle': 'Terminal',
+  'detailPanel.launcherTerminalDesc': 'Start an interactive shell',
+  // Viewer header open button (opens the current file, not the workspace)
+  'detailPanel.openFileTitle': 'Open {{path}}',
+  'detailPanel.openFileMenuAria': 'Choose how to open',
 
   // Quick-Open file finder dialog
   'quickOpen.title': 'Open File',

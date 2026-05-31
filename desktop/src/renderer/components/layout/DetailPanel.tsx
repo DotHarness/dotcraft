@@ -1,16 +1,19 @@
 import { useRef, lazy, Suspense } from 'react'
 import { useT } from '../../contexts/LocaleContext'
 import { useUIStore } from '../../stores/uiStore'
+import type { SystemDetailTab } from '../../stores/uiStore'
 import { useViewerTabStore } from '../../stores/viewerTabStore'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useThreadStore } from '../../stores/threadStore'
 import { FilePlus2, ListChecks, SquareTerminal, Plus, X, Globe, PanelRightClose, MousePointer2 } from 'lucide-react'
 import { ChangesTab } from '../detail/ChangesTab'
 import { PlanTab } from '../detail/PlanTab'
+import { DetailPanelLauncher } from '../detail/DetailPanelLauncher'
 import { FileTypeIcon } from '../ui/FileTypeIcon'
 import type { AddTabMenuAction, AddTabMenuRequest } from '../../../shared/addTabMenu'
 import { ActionTooltip } from '../ui/ActionTooltip'
-import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
+import { ACTION_SHORTCUTS, formatShortcutParts, type ShortcutSpec } from '../ui/shortcutKeys'
+import { performAddTabAction } from '../../utils/detailTabActions'
 
 interface DetailPanelProps {
   workspacePath?: string
@@ -41,20 +44,17 @@ export function DetailPanel({ workspacePath = '' }: DetailPanelProps): JSX.Eleme
   const t = useT()
   const {
     activeDetailTab,
-    lastActiveSystemTab,
+    openSystemTabs,
     setActiveDetailTab,
+    closeSystemTab,
     setActiveViewerTab,
     closeViewerTab,
-    toggleDetailPanel,
-    setQuickOpenVisible,
-    setDetailPanelVisible
+    toggleDetailPanel
   } = useUIStore()
 
   const currentThreadId = useViewerTabStore((s) => s.currentThreadId)
   const viewerTabs = useViewerTabStore((s) => s.getThreadState(s.currentThreadId ?? '').tabs)
   const closeViewerTabInStore = useViewerTabStore((s) => s.closeTab)
-  const openBrowser = useViewerTabStore((s) => s.openBrowser)
-  const openTerminal = useViewerTabStore((s) => s.openTerminal)
   const activeThreadId = useThreadStore((s) => s.activeThreadId)
 
   const changedFiles = useConversationStore((s) => s.changedFiles)
@@ -63,9 +63,9 @@ export function DetailPanel({ workspacePath = '' }: DetailPanelProps): JSX.Eleme
 
   const addButtonRef = useRef<HTMLButtonElement>(null)
 
-  const isSystemTab = activeDetailTab.kind === 'system'
-  const activeSystemId = isSystemTab ? activeDetailTab.id : lastActiveSystemTab
-  const activeViewerId = !isSystemTab ? activeDetailTab.id : null
+  const activeSystemId = activeDetailTab.kind === 'system' ? activeDetailTab.id : null
+  const activeViewerId = activeDetailTab.kind === 'viewer' ? activeDetailTab.id : null
+  const isLauncher = activeDetailTab.kind === 'launcher'
 
   const handleCloseViewerTab = (tabId: string): void => {
     if (!currentThreadId) return
@@ -99,47 +99,22 @@ export function DetailPanel({ workspacePath = '' }: DetailPanelProps): JSX.Eleme
     }
   }
 
+  const handleCloseSystemTab = (id: SystemDetailTab): void => {
+    // If this was the active tab and no other system tab remains, fall back to
+    // the first viewer tab (else the launcher) — the store resolves the choice.
+    closeSystemTab(id, viewerTabs[0]?.id ?? null)
+  }
+
   const handleAddTabAction = (action: AddTabMenuAction | null): void => {
-    if (action === 'openFile') {
-      setQuickOpenVisible(true)
-      setDetailPanelVisible(true)
-      return
-    }
-
-    if (!activeThreadId || !workspacePath) return
-
-    if (action === 'newBrowser') {
-      const tabId = openBrowser({
-        threadId: activeThreadId,
-        initialLabel: t('viewer.newBrowserTab')
-      })
-      setActiveViewerTab(tabId)
-      void window.api.workspace.viewer.browser.create({
-        tabId,
-        threadId: activeThreadId,
-        workspacePath
-      })
-      return
-    }
-
-    if (action === 'newTerminal') {
-      const tabId = openTerminal({
-        threadId: activeThreadId,
-        cwd: workspacePath,
-        initialLabel: t('viewer.newTerminalTab')
-      })
-      setActiveViewerTab(tabId)
-    }
+    if (!action) return
+    performAddTabAction(action, { threadId: activeThreadId, workspacePath, t })
   }
 
   const handleOpenAddTabMenu = async (): Promise<void> => {
     const anchor = addButtonRef.current?.getBoundingClientRect()
     if (!anchor) return
     const canOpenWorkspaceTab = Boolean(activeThreadId && workspacePath)
-    const shortcutText =
-      window.api.platform === 'darwin'
-        ? t('detailPanel.addTabOpenFileShortcut').replace('Ctrl', 'Cmd')
-        : t('detailPanel.addTabOpenFileShortcut')
+    const fmt = (spec: ShortcutSpec): string => formatShortcutParts(spec).join('+')
     const theme = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark'
     const request: AddTabMenuRequest = {
       x: anchor.left,
@@ -155,18 +130,31 @@ export function DetailPanel({ workspacePath = '' }: DetailPanelProps): JSX.Eleme
         {
           action: 'openFile',
           label: t('detailPanel.addTabOpenFile'),
-          shortcut: shortcutText,
+          shortcut: fmt(ACTION_SHORTCUTS.quickOpen),
           enabled: true
         },
         {
           action: 'newBrowser',
           label: t('detailPanel.addTabNewBrowser'),
+          shortcut: fmt(ACTION_SHORTCUTS.newBrowserTab),
           enabled: canOpenWorkspaceTab
         },
         {
           action: 'newTerminal',
           label: t('detailPanel.addTabNewTerminal'),
+          shortcut: fmt(ACTION_SHORTCUTS.newTerminalTab),
           enabled: canOpenWorkspaceTab
+        },
+        {
+          action: 'newChanges',
+          label: t('detailPanel.tabChanges'),
+          shortcut: fmt(ACTION_SHORTCUTS.viewChanges),
+          enabled: true
+        },
+        {
+          action: 'newPlan',
+          label: t('detailPanel.tabPlan'),
+          enabled: true
         }
       ]
     }
@@ -174,19 +162,17 @@ export function DetailPanel({ workspacePath = '' }: DetailPanelProps): JSX.Eleme
     handleAddTabAction(action)
   }
 
-  const systemTabs = [
-    {
-      id: 'changes' as const,
+  const systemTabMeta: Record<SystemDetailTab, { label: string; icon: JSX.Element; badge?: number }> = {
+    changes: {
       label: t('detailPanel.tabChanges'),
       icon: <FilePlus2 size={16} strokeWidth={2} aria-hidden style={{ display: 'block' }} />,
       badge: changedFileCount > 0 ? changedFileCount : undefined
     },
-    {
-      id: 'plan' as const,
+    plan: {
       label: t('detailPanel.tabPlan'),
       icon: <ListChecks size={16} strokeWidth={2} aria-hidden style={{ display: 'block' }} />
     }
-  ]
+  }
 
   return (
     <div
@@ -213,34 +199,44 @@ export function DetailPanel({ workspacePath = '' }: DetailPanelProps): JSX.Eleme
           scrollbarWidth: 'none'
         }}
       >
-        {/* System tabs */}
-        {systemTabs.map((tab) => {
-          const isActive = isSystemTab && activeSystemId === tab.id
+        {/* System tabs (Diff / Progress) — only rendered when open; closable. */}
+        {openSystemTabs.map((id) => {
+          const meta = systemTabMeta[id]
+          const isActive = activeSystemId === id
           return (
-            <ActionTooltip key={tab.id} label={tab.label} placement="bottom" wrapperStyle={{ height: '100%' }}>
-              <button
-                onClick={() => setActiveDetailTab(tab.id)}
-                aria-label={tab.label}
-                style={{
+            <div
+              key={id}
+              role="tab"
+              aria-selected={isActive}
+              title={meta.label}
+              onClick={() => setActiveDetailTab(id)}
+              onAuxClick={(e) => {
+                if (e.button === 1) {
+                  e.preventDefault()
+                  handleCloseSystemTab(id)
+                }
+              }}
+              style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: '5px',
                 height: '100%',
-                padding: '0 10px',
+                padding: '0 6px 0 10px',
                 fontSize: '13px',
                 fontWeight: isActive ? 500 : 400,
                 color: isActive ? 'var(--text-primary)' : 'var(--text-secondary)',
                 backgroundColor: 'transparent',
-                border: 'none',
                 boxSizing: 'border-box',
                 boxShadow: isActive ? 'inset 0 -2px 0 var(--accent)' : 'none',
                 cursor: 'pointer',
                 flexShrink: 0,
+                userSelect: 'none',
                 transition: 'color 100ms ease, box-shadow 100ms ease'
               }}
             >
-              {tab.icon}
-              {tab.badge !== undefined && (
+              {meta.icon}
+              <span style={{ whiteSpace: 'nowrap' }}>{meta.label}</span>
+              {meta.badge !== undefined && (
                 <span
                   style={{
                     display: 'inline-flex',
@@ -256,16 +252,49 @@ export function DetailPanel({ workspacePath = '' }: DetailPanelProps): JSX.Eleme
                     fontWeight: 500
                   }}
                 >
-                  {tab.badge}
+                  {meta.badge}
                 </span>
               )}
-              </button>
-            </ActionTooltip>
+              <ActionTooltip label={t('viewer.close')} placement="bottom">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleCloseSystemTab(id)
+                  }}
+                  aria-label={`${t('viewer.close')} ${meta.label}`}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: '16px',
+                    height: '16px',
+                    borderRadius: '3px',
+                    border: 'none',
+                    background: 'transparent',
+                    color: 'var(--text-secondary)',
+                    cursor: 'pointer',
+                    padding: 0,
+                    flexShrink: 0,
+                    opacity: isActive ? 1 : 0
+                  }}
+                  onMouseEnter={(e) => {
+                    ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--bg-hover, rgba(255,255,255,0.1))'
+                    ;(e.currentTarget as HTMLButtonElement).style.opacity = '1'
+                  }}
+                  onMouseLeave={(e) => {
+                    ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent'
+                    ;(e.currentTarget as HTMLButtonElement).style.opacity = isActive ? '1' : '0'
+                  }}
+                >
+                  <X size={10} aria-hidden style={{ display: 'block' }} />
+                </button>
+              </ActionTooltip>
+            </div>
           )
         })}
 
-        {/* Separator — only visible when viewer tabs exist */}
-        {viewerTabs.length > 0 && (
+        {/* Separator — only visible when both system and viewer tabs exist */}
+        {openSystemTabs.length > 0 && viewerTabs.length > 0 && (
           <div
             aria-hidden
             style={{
@@ -281,7 +310,7 @@ export function DetailPanel({ workspacePath = '' }: DetailPanelProps): JSX.Eleme
 
         {/* Viewer tabs */}
         {viewerTabs.map((tab) => {
-          const isActive = !isSystemTab && activeViewerId === tab.id
+          const isActive = activeViewerId === tab.id
           const automationActive = tab.kind === 'browser' && tab.automationActive === true
           return (
             <div
@@ -465,6 +494,12 @@ export function DetailPanel({ workspacePath = '' }: DetailPanelProps): JSX.Eleme
           boxShadow: 'inset 1px 0 0 0 var(--detail-divider-border, var(--glass-border))'
         }}
       >
+        {isLauncher && (
+          <DetailPanelLauncher
+            onAction={handleAddTabAction}
+            canOpenWorkspaceTab={Boolean(activeThreadId && workspacePath)}
+          />
+        )}
         {activeDetailTab.kind === 'system' && activeDetailTab.id === 'changes' && (
           <ChangesTab workspacePath={workspacePath} />
         )}

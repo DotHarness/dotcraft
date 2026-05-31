@@ -30,6 +30,7 @@ interface EditorDescriptor extends EditorInfo {
 interface ResolvedLaunchTarget {
   targetPath: string
   cwd: string
+  isDirectory: boolean
 }
 
 let cachedEditors: EditorDescriptor[] | null = null
@@ -362,7 +363,14 @@ function getCachedEditorById(editorId: EditorId): EditorDescriptor | null {
 export async function launchEditor(editorId: EditorId, targetPath: string): Promise<void> {
   const target = await resolveLaunchTarget(targetPath)
   if (editorId === 'explorer') {
-    await shell.openPath(target.targetPath)
+    // A directory (e.g. the workspace root) opens its contents in the file
+    // manager; a file is revealed/highlighted inside its containing folder —
+    // `shell.openPath` on a file would launch its default app instead.
+    if (target.isDirectory) {
+      await shell.openPath(target.targetPath)
+    } else {
+      shell.showItemInFolder(target.targetPath)
+    }
     return
   }
   if (!cachedEditors) {
@@ -399,11 +407,11 @@ async function resolveLaunchTarget(targetPath: string): Promise<ResolvedLaunchTa
   try {
     const targetStat = await stat(resolved)
     if (targetStat.isDirectory()) {
-      return { targetPath: resolved, cwd: resolved }
+      return { targetPath: resolved, cwd: resolved, isDirectory: true }
     }
-    return { targetPath: resolved, cwd: path.dirname(resolved) }
+    return { targetPath: resolved, cwd: path.dirname(resolved), isDirectory: false }
   } catch {
-    return { targetPath: resolved, cwd: path.dirname(resolved) }
+    return { targetPath: resolved, cwd: path.dirname(resolved), isDirectory: false }
   }
 }
 
