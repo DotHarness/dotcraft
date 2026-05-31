@@ -13,6 +13,41 @@ export const SUPPORTED_LOCALES = [
     htmlLang: 'zh-Hans',
     matchLanguage: false,
     aliases: ['zh', 'zh-CN', 'zh-SG']
+  },
+  {
+    value: 'ja',
+    nativeName: '日本語',
+    htmlLang: 'ja',
+    matchLanguage: true,
+    aliases: ['ja-JP']
+  },
+  {
+    value: 'ko',
+    nativeName: '한국어',
+    htmlLang: 'ko',
+    matchLanguage: true,
+    aliases: ['ko-KR']
+  },
+  {
+    value: 'es',
+    nativeName: 'Español',
+    htmlLang: 'es',
+    matchLanguage: true,
+    aliases: ['es-ES', 'es-MX', 'es-AR', 'es-CL', 'es-CO']
+  },
+  {
+    value: 'fr',
+    nativeName: 'Français',
+    htmlLang: 'fr',
+    matchLanguage: true,
+    aliases: ['fr-FR', 'fr-CA', 'fr-BE', 'fr-CH']
+  },
+  {
+    value: 'de',
+    nativeName: 'Deutsch',
+    htmlLang: 'de',
+    matchLanguage: true,
+    aliases: ['de-DE', 'de-AT', 'de-CH']
   }
 ] as const
 
