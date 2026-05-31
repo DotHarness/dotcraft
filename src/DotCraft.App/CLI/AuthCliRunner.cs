@@ -1,5 +1,5 @@
 using DotCraft.Auth.OpenAI;
-using DotCraft.Localization;
+using DotCraft.Text;
 using Spectre.Console;
 
 namespace DotCraft.CLI;
@@ -15,13 +15,13 @@ public static class AuthCliRunner
         var provider = cliArgs.AuthProvider?.Trim().ToLowerInvariant();
         if (provider is null or "")
         {
-            AnsiConsole.MarkupLine($"[red]{Strings.AuthUsage}[/]");
+            AnsiConsole.MarkupLine($"[red]{FallbackText.AuthUsage}[/]");
             return 64;
         }
 
         if (!string.Equals(provider, "openai", StringComparison.Ordinal))
         {
-            AnsiConsole.MarkupLine($"[red]{Strings.AuthOpenAiUnsupported}[/]");
+            AnsiConsole.MarkupLine($"[red]{FallbackText.AuthOpenAiUnsupported}[/]");
             return 64;
         }
 
@@ -44,7 +44,7 @@ public static class AuthCliRunner
 
     private static int UsageError()
     {
-        AnsiConsole.MarkupLine($"[red]{Strings.AuthUsage}[/]");
+        AnsiConsole.MarkupLine($"[red]{FallbackText.AuthUsage}[/]");
         return 64;
     }
 
@@ -55,7 +55,7 @@ public static class AuthCliRunner
         bool noBrowser,
         CancellationToken cancellationToken)
     {
-        AnsiConsole.MarkupLine($"[green]{Strings.AuthOpenAiLoginStarting}[/]");
+        AnsiConsole.MarkupLine($"[green]{FallbackText.AuthOpenAiLoginStarting}[/]");
 
         OpenAIAuthStatus status;
         try
@@ -64,29 +64,29 @@ public static class AuthCliRunner
                 openBrowser: !noBrowser,
                 onAuthorizationUrl: url =>
                 {
-                    AnsiConsole.MarkupLine(Strings.AuthOpenAiLoginUrl(url).EscapeMarkup());
-                    AnsiConsole.MarkupLine($"[grey]{Strings.AuthOpenAiLoginWaiting(OpenAIAuthConstants.RedirectPortPrimary).EscapeMarkup()}[/]");
+                    AnsiConsole.MarkupLine(FallbackText.AuthOpenAiLoginUrl(url).EscapeMarkup());
+                    AnsiConsole.MarkupLine($"[grey]{FallbackText.AuthOpenAiLoginWaiting(OpenAIAuthConstants.RedirectPortPrimary).EscapeMarkup()}[/]");
                 },
                 cancellationToken);
         }
         catch (OperationCanceledException)
         {
-            AnsiConsole.MarkupLine($"[yellow]{Strings.AuthOpenAiLoginCancelled}[/]");
+            AnsiConsole.MarkupLine($"[yellow]{FallbackText.AuthOpenAiLoginCancelled}[/]");
             return 130;
         }
         catch (OpenAIAuthException ex)
         {
-            AnsiConsole.MarkupLine($"[red]{Strings.AuthOpenAiLoginFailed(ex.Message).EscapeMarkup()}[/]");
+            AnsiConsole.MarkupLine($"[red]{FallbackText.AuthOpenAiLoginFailed(ex.Message).EscapeMarkup()}[/]");
             return 1;
         }
 
         var accountDisplay = MaskAccount(status.AccountId);
         var planDisplay = string.IsNullOrEmpty(status.PlanType) ? "unknown" : status.PlanType!;
 
-        AnsiConsole.MarkupLine($"[green]✓ {Strings.AuthOpenAiLoginSuccess(accountDisplay, planDisplay).EscapeMarkup()}[/]");
+        AnsiConsole.MarkupLine($"[green]✓ {FallbackText.AuthOpenAiLoginSuccess(accountDisplay, planDisplay).EscapeMarkup()}[/]");
 
         OpenAIAuthBindingPersistence.BindProviderToOAuth(providerId, status, globalConfigPath);
-        AnsiConsole.MarkupLine($"[grey]{Strings.AuthOpenAiLoginBound(providerId).EscapeMarkup()}[/]");
+        AnsiConsole.MarkupLine($"[grey]{FallbackText.AuthOpenAiLoginBound(providerId).EscapeMarkup()}[/]");
         return 0;
     }
 
@@ -98,8 +98,8 @@ public static class AuthCliRunner
     {
         await authService.LogoutAsync(cancellationToken);
         OpenAIAuthBindingPersistence.UnbindProvider(providerId, globalConfigPath);
-        AnsiConsole.MarkupLine($"[green]✓ {Strings.AuthOpenAiLogoutSuccess}[/]");
-        AnsiConsole.MarkupLine($"[grey]{Strings.AuthOpenAiLogoutUnbound(providerId).EscapeMarkup()}[/]");
+        AnsiConsole.MarkupLine($"[green]✓ {FallbackText.AuthOpenAiLogoutSuccess}[/]");
+        AnsiConsole.MarkupLine($"[grey]{FallbackText.AuthOpenAiLogoutUnbound(providerId).EscapeMarkup()}[/]");
         return 0;
     }
 
@@ -108,14 +108,14 @@ public static class AuthCliRunner
         var status = authService.GetStatus();
         if (!status.LoggedIn)
         {
-            AnsiConsole.MarkupLine($"[grey]{Strings.AuthOpenAiStatusSignedOut}[/]");
+            AnsiConsole.MarkupLine($"[grey]{FallbackText.AuthOpenAiStatusSignedOut}[/]");
             return 0;
         }
 
         var account = MaskAccount(status.AccountId);
         var plan = string.IsNullOrEmpty(status.PlanType) ? "unknown" : status.PlanType!;
         var lastRefresh = status.LastRefresh?.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "—";
-        AnsiConsole.MarkupLine($"[green]{Strings.AuthOpenAiStatusSignedIn(account, plan, lastRefresh).EscapeMarkup()}[/]");
+        AnsiConsole.MarkupLine($"[green]{FallbackText.AuthOpenAiStatusSignedIn(account, plan, lastRefresh).EscapeMarkup()}[/]");
 
         if (status.AccessTokenExpiresAt is { } expires)
             AnsiConsole.MarkupLine($"[grey]Access token expires {expires.ToLocalTime():yyyy-MM-dd HH:mm}.[/]");
@@ -137,7 +137,7 @@ public static class AuthCliRunner
         }
         catch (OpenAIAuthException ex)
         {
-            AnsiConsole.MarkupLine($"[grey]{Strings.AuthOpenAiUsageUnavailable(ex.Message).EscapeMarkup()}[/]");
+            AnsiConsole.MarkupLine($"[grey]{FallbackText.AuthOpenAiUsageUnavailable(ex.Message).EscapeMarkup()}[/]");
             return;
         }
         catch (OperationCanceledException)
@@ -146,21 +146,21 @@ public static class AuthCliRunner
         }
 
         AnsiConsole.WriteLine();
-        AnsiConsole.MarkupLine($"[white]{Strings.AuthOpenAiUsageHeader}[/]");
-        PrintWindow(Strings.AuthOpenAiUsageWindowFiveHour, snapshot.Primary);
-        PrintWindow(Strings.AuthOpenAiUsageWindowWeekly, snapshot.Secondary);
+        AnsiConsole.MarkupLine($"[white]{FallbackText.AuthOpenAiUsageHeader}[/]");
+        PrintWindow(FallbackText.AuthOpenAiUsageWindowFiveHour, snapshot.Primary);
+        PrintWindow(FallbackText.AuthOpenAiUsageWindowWeekly, snapshot.Secondary);
 
         if (snapshot.Credits is { } credits && credits.HasCredits)
         {
             var balance = credits.Unlimited
-                ? Strings.AuthOpenAiUsageCreditsUnlimited
-                : Strings.AuthOpenAiUsageCreditsBalance(credits.Balance ?? "—");
+                ? FallbackText.AuthOpenAiUsageCreditsUnlimited
+                : FallbackText.AuthOpenAiUsageCreditsBalance(credits.Balance ?? "—");
             AnsiConsole.MarkupLine($"  [white]Credits[/]    {balance.EscapeMarkup()}");
         }
 
         if (!string.IsNullOrEmpty(snapshot.LimitReachedKind))
         {
-            AnsiConsole.MarkupLine($"[yellow]{Strings.AuthOpenAiUsageLimitReached(snapshot.LimitReachedKind).EscapeMarkup()}[/]");
+            AnsiConsole.MarkupLine($"[yellow]{FallbackText.AuthOpenAiUsageLimitReached(snapshot.LimitReachedKind).EscapeMarkup()}[/]");
         }
     }
 

@@ -312,7 +312,7 @@ describe('ConversationWelcome composer', () => {
     expect(screen.queryByText('Attach file')).not.toBeInTheDocument()
     expect(screen.queryByRole('combobox', { name: 'Bind an app before first turn' })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Add attachment' }))
-    expect(screen.getByRole('menuitemcheckbox', { name: 'plan' })).toHaveAttribute('aria-checked', 'false')
+    expect(screen.getByRole('menuitemcheckbox', { name: 'Plan mode' })).toHaveAttribute('aria-checked', 'false')
   })
 
   it('shows ChatGPT subscription usage in the welcome composer footer', async () => {

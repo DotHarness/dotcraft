@@ -1122,7 +1122,7 @@ mod tests {
     use super::*;
     use crate::{
         app::state::{ActiveCommandExecution, HistoryEntry, PlanSnapshot, PlanTodo},
-        i18n::load,
+        i18n::english,
     };
 
     fn plain_text(lines: &[Line<'static>]) -> Vec<String> {
@@ -1140,7 +1140,7 @@ mod tests {
     #[test]
     fn inline_plan_renders_checklist_statuses() {
         let theme = Theme::default();
-        let strings = load("en");
+        let strings = english();
         let plan = PlanSnapshot {
             title: "Ship plan UI".to_string(),
             overview: String::new(),
@@ -1188,7 +1188,7 @@ mod tests {
     #[test]
     fn inline_plan_wraps_overview_and_todos_with_alignment() {
         let theme = Theme::default();
-        let strings = load("en");
+        let strings = english();
         let plan = PlanSnapshot {
             title: "A narrow terminal plan title".to_string(),
             overview: "This overview should wrap into aligned follow-up lines.".to_string(),
@@ -1225,7 +1225,7 @@ mod tests {
     #[test]
     fn committed_exec_uses_live_elapsed_when_command_still_running() {
         let theme = Theme::default();
-        let strings = load("en");
+        let strings = english();
         let mut state = AppState::new("workspace".to_string());
         state.history.push(HistoryEntry::ToolCall {
             call_id: "call-live".to_string(),
@@ -1265,7 +1265,7 @@ mod tests {
     #[test]
     fn committed_exec_falls_back_to_committed_duration_without_active_execution() {
         let theme = Theme::default();
-        let strings = load("en");
+        let strings = english();
         let mut state = AppState::new("workspace".to_string());
         state.history.push(HistoryEntry::ToolCall {
             call_id: "call-final".to_string(),
@@ -1288,7 +1288,7 @@ mod tests {
     #[test]
     fn committed_todo_tool_omits_fixed_result_text() {
         let theme = Theme::default();
-        let strings = load("en");
+        let strings = english();
         let mut state = AppState::new("workspace".to_string());
         state.history.push(HistoryEntry::ToolCall {
             call_id: "todo-call".to_string(),

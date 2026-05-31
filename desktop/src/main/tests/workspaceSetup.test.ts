@@ -56,7 +56,6 @@ describe('getWorkspaceStatus', () => {
     writeFileSync(
       userConfigPath,
       JSON.stringify({
-        Language: 'English',
         ProviderId: 'anthropic',
         Model: 'claude-sonnet-4-5',
         ApiKey: 'sk-legacy',
@@ -91,7 +90,6 @@ describe('getWorkspaceStatus', () => {
       workspacePath: workspace,
       hasUserConfig: true,
       userConfigDefaults: {
-        language: 'English',
         providerId: 'anthropic',
         model: 'claude-sonnet-4-5'
       },

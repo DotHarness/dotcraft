@@ -228,10 +228,8 @@ export class DotCraftWireClient {
     return (await this.request("turn/enqueue", p)) as Record<string, unknown>;
   }
 
-  async commandList(language?: string): Promise<Record<string, unknown>[]> {
-    const params: Record<string, unknown> = {};
-    if (language) params.language = language;
-    const result = (await this.request("command/list", params)) as Record<string, unknown>;
+  async commandList(): Promise<Record<string, unknown>[]> {
+    const result = (await this.request("command/list", {})) as Record<string, unknown>;
     return ((result.commands as Record<string, unknown>[]) ?? []);
   }
 

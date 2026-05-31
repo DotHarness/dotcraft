@@ -5,7 +5,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using DotCraft.Configuration;
-using DotCraft.Localization;
+using DotCraft.Text;
 using Spectre.Console;
 
 namespace DotCraft.CLI;
@@ -24,14 +24,13 @@ public static class InitHelper
     };
 
     /// <summary>
-    /// 从嵌入资源读取模板内容
+    /// Reads a workspace bootstrap template from embedded resources.
     /// </summary>
     private static string GetTemplateContent(
         string templateName,
-        Language language,
         WorkspaceBootstrapProfile profile = WorkspaceBootstrapProfile.Default)
     {
-        var langSuffix = language == Language.Chinese ? "zh" : "en";
+        const string langSuffix = "en";
         var extension = templateName == "gitignore" ? string.Empty : ".md";
         string resourceName;
 
@@ -102,24 +101,23 @@ public static class InitHelper
 
     private static void WriteWorkspaceTemplates(
         string craftPath,
-        Language language,
         WorkspaceBootstrapProfile profile,
         List<(string Status, string Path)>? createdItems = null)
     {
         var agentsPath = Path.Combine(craftPath, "AGENTS.md");
-        File.WriteAllText(agentsPath, GetTemplateContent("AGENTS", language, profile), Encoding.UTF8);
+        File.WriteAllText(agentsPath, GetTemplateContent("AGENTS", profile), Encoding.UTF8);
         createdItems?.Add(("[green]✓[/]", "AGENTS.md"));
 
         var userPath = Path.Combine(craftPath, "USER.md");
-        File.WriteAllText(userPath, GetTemplateContent("USER", language, profile), Encoding.UTF8);
+        File.WriteAllText(userPath, GetTemplateContent("USER", profile), Encoding.UTF8);
         createdItems?.Add(("[green]✓[/]", "USER.md"));
 
         var memoryPath = Path.Combine(craftPath, "memory", "MEMORY.md");
-        File.WriteAllText(memoryPath, GetTemplateContent("MEMORY", language), Encoding.UTF8);
+        File.WriteAllText(memoryPath, GetTemplateContent("MEMORY"), Encoding.UTF8);
         createdItems?.Add(("[green]✓[/]", "memory/MEMORY.md"));
 
         var gitignorePath = Path.Combine(craftPath, ".gitignore");
-        File.WriteAllText(gitignorePath, GetTemplateContent("gitignore", language), Encoding.UTF8);
+        File.WriteAllText(gitignorePath, GetTemplateContent("gitignore"), Encoding.UTF8);
         createdItems?.Add(("[green]✓[/]", ".gitignore"));
     }
 
@@ -239,24 +237,13 @@ public static class InitHelper
         providers[draft.Id] = providerNode;
     }
 
-    private static void ApplyLanguageWorkspaceOverride(JsonObject workspaceNode, JsonObject globalNode, Language language)
-    {
-        var languageText = language.ToString();
-        if (!string.Equals(ReadTrimmedString(globalNode, "Language"), languageText, StringComparison.Ordinal))
-            workspaceNode["Language"] = languageText;
-        else
-            workspaceNode.Remove("Language");
-    }
-
     private static void ApplyProviderAwareWorkspaceSelection(
         JsonObject workspaceNode,
         JsonObject globalNode,
         string providerId,
-        string model,
-        Language language)
+        string model)
     {
         RemoveProviderAwareWorkspaceFields(workspaceNode);
-        ApplyLanguageWorkspaceOverride(workspaceNode, globalNode, language);
 
         var trimmedProviderId = providerId.Trim();
         if (!string.IsNullOrWhiteSpace(trimmedProviderId)
@@ -287,15 +274,15 @@ public static class InitHelper
         string globalConfigPath)
     {
         var globalNode = LoadJsonObject(globalConfigPath);
+        globalNode.Remove("Language");
         var workspaceConfigPath = Path.Combine(craftPath, "config.json");
         var workspaceNode = LoadJsonObject(workspaceConfigPath);
 
         if (request.ProviderMode == WorkspaceSetupProviderMode.Skip)
         {
             RemoveProviderAwareWorkspaceFields(workspaceNode);
-            ApplyLanguageWorkspaceOverride(workspaceNode, globalNode, request.Language);
             SaveJsonObject(workspaceConfigPath, workspaceNode);
-            WriteWorkspaceTemplates(craftPath, request.Language, request.Profile);
+            WriteWorkspaceTemplates(craftPath, request.Profile);
             return 0;
         }
 
@@ -340,51 +327,24 @@ public static class InitHelper
 
         if (setAsUserDefault)
         {
-            globalNode["Language"] = request.Language.ToString();
             globalNode["ProviderId"] = providerId;
             globalNode["Model"] = model;
         }
 
         SaveJsonObject(globalConfigPath, globalNode);
-        ApplyProviderAwareWorkspaceSelection(workspaceNode, globalNode, providerId, model, request.Language);
+        ApplyProviderAwareWorkspaceSelection(workspaceNode, globalNode, providerId, model);
         SaveJsonObject(workspaceConfigPath, workspaceNode);
-        WriteWorkspaceTemplates(craftPath, request.Language, request.Profile);
+        WriteWorkspaceTemplates(craftPath, request.Profile);
         return 0;
     }
 
     /// <summary>
-    /// 选择语言
-    /// </summary>
-    public static Language SelectLanguage()
-    {
-        Console.WriteLine();
-        var welcomePanel = new Panel(
-            new Markup(
-                "[cyan]Welcome to DotCraft![/]\n\n" +
-                "[grey]请选择语言 / Please select language:[/]"))
-        {
-            Header = new PanelHeader("[cyan]🌐 Language Selection[/]"),
-            Border = BoxBorder.Rounded,
-            BorderStyle = new Style(Color.Cyan),
-            Padding = new Padding(1, 0, 1, 0)
-        };
-        AnsiConsole.Write(welcomePanel);
-        Console.WriteLine();
-
-        var choice = AnsiConsole.Prompt(
-            new SelectionPrompt<string>()
-                .AddChoices("中文 (Chinese)", "English"));
-
-        return choice == "中文 (Chinese)" ? Language.Chinese : Language.English;
-    }
-
-    /// <summary>
-    /// 询问用户是否确认，使用 Spectre.Console 选项（多语言支持）
+    /// 询问用户是否确认，使用 Spectre.Console 选项。
     /// </summary>
     public static bool AskYesNo(string title)
     {
-        var yesOption = Strings.InitAskYes;
-        var noOption = Strings.InitAskNo;
+        var yesOption = FallbackText.InitAskYes;
+        var noOption = FallbackText.InitAskNo;
 
         var choice = AnsiConsole.Prompt(
             new SelectionPrompt<string>()
@@ -395,19 +355,13 @@ public static class InitHelper
     }
 
     /// <summary>
-    /// 初始化工作区（多语言支持）
+    /// 初始化工作区
     /// </summary>
     public static int InitializeWorkspace(
         string craftPath,
-        Language language = Language.Chinese,
         WorkspaceBootstrapProfile profile = WorkspaceBootstrapProfile.Default)
     {
-        if (LanguageService.Current.CurrentLanguage != language)
-        {
-            LanguageService.Current = new LanguageService(language);
-        }
-
-        AnsiConsole.MarkupLine($"[blue]🚀 {Strings.InitInitializing}[/]");
+        AnsiConsole.MarkupLine($"[blue]🚀 {FallbackText.InitInitializing}[/]");
 
         var createdItems = new List<(string Status, string Path)>();
 
@@ -415,10 +369,7 @@ public static class InitHelper
         {
             EnsureWorkspaceStructure(craftPath, createdItems);
 
-            var workspaceNode = new JsonObject
-            {
-                ["Language"] = language.ToString()
-            };
+            var workspaceNode = new JsonObject();
 
             var globalConfigPath = GetGlobalConfigPath();
             if (File.Exists(globalConfigPath))
@@ -434,13 +385,13 @@ public static class InitHelper
             SaveJsonObject(configPath, workspaceNode);
             createdItems.Add(("[green]✓[/]", configPath.EscapeMarkup()));
 
-            WriteWorkspaceTemplates(craftPath, language, profile, createdItems);
+            WriteWorkspaceTemplates(craftPath, profile, createdItems);
 
             var table = new Table()
                 .Border(TableBorder.Rounded)
                 .BorderColor(Color.Grey)
-                .AddColumn(new TableColumn(Strings.InitStatus).Centered())
-                .AddColumn(new TableColumn(Strings.InitPath).LeftAligned());
+                .AddColumn(new TableColumn(FallbackText.InitStatus).Centered())
+                .AddColumn(new TableColumn(FallbackText.InitPath).LeftAligned());
 
             foreach (var item in createdItems)
             {
@@ -453,7 +404,7 @@ public static class InitHelper
         catch (Exception ex)
         {
             AnsiConsole.WriteLine();
-            AnsiConsole.MarkupLine($"[red]✗ {Strings.InitFailedShort}: {ex.Message.EscapeMarkup()}[/]");
+            AnsiConsole.MarkupLine($"[red]✗ {FallbackText.InitFailedShort}: {ex.Message.EscapeMarkup()}[/]");
             return 1;
         }
     }
@@ -486,7 +437,7 @@ public static class InitHelper
     /// <summary>
     /// 创建全局配置文件
     /// </summary>
-    public static void CreateGlobalConfig(string configPath, string apiKey, Language language)
+    public static void CreateGlobalConfig(string configPath, string apiKey)
     {
         var configNode = new JsonObject();
         var providers = GetOrCreateObject(configNode, "Providers");
@@ -496,7 +447,6 @@ public static class InitHelper
             ["Protocol"] = ModelProviderProtocols.OpenAI,
             ["ApiKey"] = apiKey
         };
-        configNode["Language"] = language.ToString();
         configNode["ProviderId"] = "openai";
         configNode["Model"] = "gpt-4o-mini";
         SaveJsonObject(configPath, configNode);

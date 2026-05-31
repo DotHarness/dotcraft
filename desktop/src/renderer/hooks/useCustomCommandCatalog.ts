@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { AppLocale } from '../../shared/locales'
+import { translate, type AppLocale } from '../../shared/locales'
 
 export interface CustomCommandInfo {
   name: string
@@ -16,11 +16,14 @@ interface UseCustomCommandCatalogArgs {
 
 type LoadStatus = 'idle' | 'loading' | 'ready' | 'error'
 
-function toCommandLanguage(locale: AppLocale): 'en' | 'zh' {
-  return locale === 'zh-Hans' ? 'zh' : 'en'
+function serverFallback(locale: AppLocale, key: string, fallback: string): string {
+  const trimmedKey = key.trim()
+  if (!trimmedKey) return fallback
+  const localized = translate(locale, trimmedKey)
+  return localized === trimmedKey ? fallback : localized
 }
 
-function parseCustomCommands(payload: unknown): CustomCommandInfo[] {
+function parseCustomCommands(payload: unknown, locale: AppLocale): CustomCommandInfo[] {
   const typed = payload as { commands?: unknown[] }
   const rawList = Array.isArray(typed.commands) ? typed.commands : []
   const mapped = rawList
@@ -28,6 +31,8 @@ function parseCustomCommands(payload: unknown): CustomCommandInfo[] {
       const item = entry as {
         name?: unknown
         aliases?: unknown
+        descriptionKey?: unknown
+        fallbackDescription?: unknown
         description?: unknown
         category?: unknown
         requiresAdmin?: unknown
@@ -44,7 +49,15 @@ function parseCustomCommands(payload: unknown): CustomCommandInfo[] {
       return {
         name,
         aliases,
-        description: typeof item.description === 'string' ? item.description : '',
+        description: serverFallback(
+          locale,
+          typeof item.descriptionKey === 'string' ? item.descriptionKey : '',
+          typeof item.fallbackDescription === 'string'
+            ? item.fallbackDescription
+            : typeof item.description === 'string'
+              ? item.description
+              : ''
+        ),
         category,
         requiresAdmin: Boolean(item.requiresAdmin)
       } satisfies CustomCommandInfo
@@ -74,11 +87,9 @@ export function useCustomCommandCatalog({
     const reqId = ++reqRef.current
     setStatus('loading')
     try {
-      const payload = await window.api.appServer.sendRequest('command/list', {
-        language: toCommandLanguage(locale)
-      })
+      const payload = await window.api.appServer.sendRequest('command/list', {})
       if (reqId !== reqRef.current) return
-      setCommands(parseCustomCommands(payload))
+      setCommands(parseCustomCommands(payload, locale))
       setStatus('ready')
     } catch {
       if (reqId !== reqRef.current) return

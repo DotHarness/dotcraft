@@ -41,7 +41,6 @@ export type TaskCompletionNotificationMode = 'whenUnfocused' | 'always' | 'never
 export type BrowserUseApprovalResponseAction = 'allowOnce' | 'allowDomain' | 'blockDomain' | 'deny'
 export type WorkspaceSetupState = 'no-workspace' | 'needs-setup' | 'ready'
 export type WorkspaceBootstrapProfile = 'default' | 'developer' | 'personal-assistant'
-export type WorkspaceLanguage = 'Chinese' | 'English'
 export type WorkspaceSetupProviderProtocol = DesktopProviderProtocol
 export type WorkspaceSetupProviderMode = 'existing' | 'create' | 'skip'
 export type WorkspaceSetupBootstrapImportSourceId = 'codex' | 'claude'
@@ -168,7 +167,6 @@ export interface WorkspaceStatusPayload {
   workspacePath: string
   hasUserConfig: boolean
   userConfigDefaults?: {
-    language?: WorkspaceLanguage
     providerId?: string
     model?: string
   }
@@ -202,7 +200,6 @@ export interface WorkspaceSetupProviderDraft {
 }
 
 export interface WorkspaceSetupRequest {
-  language: WorkspaceLanguage
   model: string
   profile: WorkspaceBootstrapProfile
   providerMode: WorkspaceSetupProviderMode

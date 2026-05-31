@@ -1,4 +1,4 @@
-using DotCraft.Localization;
+using DotCraft.Text;
 using Spectre.Console;
 
 namespace DotCraft.Security;
@@ -27,11 +27,10 @@ public static class ApprovalPrompt
     /// <returns>审批选项</returns>
     public static ApprovalOption RequestFileApproval(string operation, string path)
     {
-        var t = LanguageService.Current;
         AnsiConsole.WriteLine();
-        var panel = new Panel($"[yellow]{t.T("approval.file.operation")}[/] {EscapeMarkup(operation)}\n[yellow]{t.T("approval.file.path")}[/] {EscapeMarkup(path)}")
+        var panel = new Panel($"[yellow]{FallbackText.Format("approval.file.operation")}[/] {EscapeMarkup(operation)}\n[yellow]{FallbackText.Format("approval.file.path")}[/] {EscapeMarkup(path)}")
         {
-            Header = new PanelHeader($"[yellow]{t.T("approval.file.title")}[/]"),
+            Header = new PanelHeader($"[yellow]{FallbackText.Format("approval.file.title")}[/]"),
             Border = BoxBorder.Rounded,
             BorderStyle = new Style(Color.Yellow)
         };
@@ -39,7 +38,7 @@ public static class ApprovalPrompt
 
         var choice = AnsiConsole.Prompt(
             new SelectionPrompt<ApprovalOption>()
-                .Title($"[green]{t.T("approval.file.approve_question")}[/]")
+                .Title($"[green]{FallbackText.Format("approval.file.approve_question")}[/]")
                 .AddChoices(
                     ApprovalOption.Once,
                     ApprovalOption.Session,
@@ -47,10 +46,10 @@ public static class ApprovalPrompt
                     ApprovalOption.Reject)
                 .UseConverter(option => option switch
                 {
-                    ApprovalOption.Once => t.T("approval.option.once"),
-                    ApprovalOption.Session => t.T("approval.option.session"),
-                    ApprovalOption.Always => t.T("approval.option.always"),
-                    ApprovalOption.Reject => t.T("approval.option.reject"),
+                    ApprovalOption.Once => FallbackText.Format("approval.option.once"),
+                    ApprovalOption.Session => FallbackText.Format("approval.option.session"),
+                    ApprovalOption.Always => FallbackText.Format("approval.option.always"),
+                    ApprovalOption.Reject => FallbackText.Format("approval.option.reject"),
                     _ => option.ToString()
                 })
                 .PageSize(4));
@@ -67,17 +66,16 @@ public static class ApprovalPrompt
     /// <returns>审批选项</returns>
     public static ApprovalOption RequestShellApproval(string command, string? workingDir)
     {
-        var t = LanguageService.Current;
         AnsiConsole.WriteLine();
-        var message = $"[yellow]{t.T("approval.shell.command")}[/] {EscapeMarkup(command)}";
+        var message = $"[yellow]{FallbackText.Format("approval.shell.command")}[/] {EscapeMarkup(command)}";
         if (!string.IsNullOrWhiteSpace(workingDir))
         {
-            message += $"\n[yellow]{t.T("approval.shell.working_dir")}[/] {EscapeMarkup(workingDir)}";
+            message += $"\n[yellow]{FallbackText.Format("approval.shell.working_dir")}[/] {EscapeMarkup(workingDir)}";
         }
 
         var panel = new Panel(message)
         {
-            Header = new PanelHeader($"[yellow]{t.T("approval.shell.title")}[/]"),
+            Header = new PanelHeader($"[yellow]{FallbackText.Format("approval.shell.title")}[/]"),
             Border = BoxBorder.Rounded,
             BorderStyle = new Style(Color.Yellow)
         };
@@ -85,7 +83,7 @@ public static class ApprovalPrompt
 
         var choice = AnsiConsole.Prompt(
             new SelectionPrompt<ApprovalOption>()
-                .Title($"[green]{t.T("approval.shell.approve_question")}[/]")
+                .Title($"[green]{FallbackText.Format("approval.shell.approve_question")}[/]")
                 .AddChoices(
                     ApprovalOption.Once,
                     ApprovalOption.Session,
@@ -93,10 +91,10 @@ public static class ApprovalPrompt
                     ApprovalOption.Reject)
                 .UseConverter(option => option switch
                 {
-                    ApprovalOption.Once => t.T("approval.option.once"),
-                    ApprovalOption.Session => t.T("approval.option.session"),
-                    ApprovalOption.Always => t.T("approval.option.always"),
-                    ApprovalOption.Reject => t.T("approval.option.reject"),
+                    ApprovalOption.Once => FallbackText.Format("approval.option.once"),
+                    ApprovalOption.Session => FallbackText.Format("approval.option.session"),
+                    ApprovalOption.Always => FallbackText.Format("approval.option.always"),
+                    ApprovalOption.Reject => FallbackText.Format("approval.option.reject"),
                     _ => option.ToString()
                 })
                 .PageSize(4));
@@ -110,20 +108,19 @@ public static class ApprovalPrompt
     /// </summary>
     private static void DisplayResult(ApprovalOption option)
     {
-        var t = LanguageService.Current;
         switch (option)
         {
             case ApprovalOption.Once:
-                AnsiConsole.MarkupLine($"[green]{t.T("approval.result.once")}[/]");
+                AnsiConsole.MarkupLine($"[green]{FallbackText.Format("approval.result.once")}[/]");
                 break;
             case ApprovalOption.Session:
-                AnsiConsole.MarkupLine($"[green]{t.T("approval.result.session")}[/]");
+                AnsiConsole.MarkupLine($"[green]{FallbackText.Format("approval.result.session")}[/]");
                 break;
             case ApprovalOption.Always:
-                AnsiConsole.MarkupLine($"[green]{t.T("approval.result.always")}[/]");
+                AnsiConsole.MarkupLine($"[green]{FallbackText.Format("approval.result.always")}[/]");
                 break;
             case ApprovalOption.Reject:
-                AnsiConsole.MarkupLine($"[red]{t.T("approval.result.reject")}[/]");
+                AnsiConsole.MarkupLine($"[red]{FallbackText.Format("approval.result.reject")}[/]");
                 break;
         }
         AnsiConsole.WriteLine();

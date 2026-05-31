@@ -1,5 +1,5 @@
 using DotCraft.Commands.Core;
-using DotCraft.Localization;
+using DotCraft.Text;
 
 namespace DotCraft.Commands.Handlers;
 
@@ -16,7 +16,7 @@ public sealed class HeartbeatCommandHandler : ICommandHandler
     {
         if (context.HeartbeatService == null)
         {
-            await responder.SendTextAsync(Strings.HeartbeatUnavailable);
+            await responder.SendTextAsync(FallbackText.HeartbeatUnavailable);
             return CommandResult.HandledResult();
         }
         
@@ -25,16 +25,16 @@ public sealed class HeartbeatCommandHandler : ICommandHandler
         
         if (subCmd == "trigger")
         {
-            await responder.SendTextAsync(Strings.TriggeringHeartbeat);
+            await responder.SendTextAsync(FallbackText.TriggeringHeartbeat);
             var result = await context.HeartbeatService.TriggerNowAsync();
             if (result != null)
-                await responder.SendTextAsync($"{Strings.HeartbeatResult}:\n{result}");
+                await responder.SendTextAsync($"{FallbackText.HeartbeatResult}:\n{result}");
             else
-                await responder.SendTextAsync(Strings.HeartbeatNoResponse);
+                await responder.SendTextAsync(FallbackText.HeartbeatNoResponse);
         }
         else
         {
-            await responder.SendTextAsync(Strings.HeartbeatUsage);
+            await responder.SendTextAsync(FallbackText.HeartbeatUsage);
         }
         
         return CommandResult.HandledResult();

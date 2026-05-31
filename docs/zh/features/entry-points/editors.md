@@ -27,7 +27,7 @@ cd <你的项目目录>
 dotcraft setup
 ```
 
-按提示填写 language / provider / model / api-key 即可。完整字段可见 [配置完整参考](../../developing/configuration.md)；其余支持的 setup 参数可通过 `dotcraft setup --help` 查看。
+按提示填写 provider / model / api-key 即可。完整字段可见 [配置完整参考](../../developing/configuration.md)；其余支持的 setup 参数可通过 `dotcraft setup --help` 查看。
 
 DotCraft 初始化完成后，工作区即可供 ACP、TUI、Desktop 或自动化入口使用。
 

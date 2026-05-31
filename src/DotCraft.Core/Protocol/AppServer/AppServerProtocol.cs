@@ -1198,6 +1198,10 @@ public sealed class TerminalCleanParams
 
 public sealed class CommandListParams
 {
+    /// <summary>
+    /// Deprecated compatibility field. The server ignores this value and always
+    /// returns English fallback text plus stable message keys.
+    /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Language { get; set; }
 
@@ -1216,6 +1220,13 @@ public sealed class CommandInfoWire
 
     public string[] Aliases { get; set; } = [];
 
+    public string DescriptionKey { get; set; } = string.Empty;
+
+    public string FallbackDescription { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Compatibility alias for <see cref="FallbackDescription"/>.
+    /// </summary>
     public string Description { get; set; } = string.Empty;
 
     public string Category { get; set; } = "builtin";

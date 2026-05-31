@@ -135,7 +135,7 @@ pub fn format_completed_invocation_display_with_result(
     ))
 }
 
-/// When `true`, [`crate::ui::chat_view::ChatView`] should prefix the line with localized
+/// When `true`, [`crate::ui::chat_view::ChatView`] should prefix the line with
 /// `Calling` / `Called`. When `false`, [`format_invocation_display`] is already a full sentence
 /// (standalone tools), so those prefixes are omitted to avoid double verbs (e.g. `Calling Searched "…"`).
 pub fn invocation_needs_calling_called_prefix(tool_name: &str, args: &str) -> bool {

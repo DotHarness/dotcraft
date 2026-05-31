@@ -154,6 +154,10 @@ pub struct CommandInfo {
     pub name: String,
     pub aliases: Vec<String>,
     pub description: String,
+    #[serde(default)]
+    pub description_key: String,
+    #[serde(default)]
+    pub fallback_description: String,
     pub category: String,
     pub requires_admin: bool,
 }

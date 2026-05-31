@@ -18,7 +18,6 @@ DotCraft 的 Rust 原生终端界面，基于 [Ratatui](https://ratatui.rs/) 构
 | **内联 Plan 视图** | Agent 任务计划（待办清单）内联展示 |
 | **会话管理** | `/sessions` 打开会话选择器，支持恢复/归档/删除 |
 | **审批流** | 工具调用需要审批时弹出 `ApprovalOverlay`，支持多种决策选项 |
-| **多语言** | 内置中文 / English 切换（`--lang zh` / `--lang en`） |
 | **主题定制** | 通过 TOML 文件自定义配色 |
 | **剪贴板** | `y` 键复制最后一条 Agent 消息（需 `clipboard` feature） |
 | **WebSocket 模式** | 可连接远程 AppServer（需 `websocket` feature） |
@@ -87,15 +86,9 @@ AppServer 启动方式参考：
 dotcraft app-server --listen ws://0.0.0.0:3000
 ```
 
-### 语言与主题
+### 主题
 
 ```bash
-# 使用中文界面（默认）
-dotcraft-tui --lang zh
-
-# 使用英文界面
-dotcraft-tui --lang en
-
 # 使用自定义主题
 dotcraft-tui --theme /path/to/theme.toml
 ```
@@ -108,7 +101,6 @@ dotcraft-tui --theme /path/to/theme.toml
 | `--server-bin <PATH>` | 用于启动 Hub 的 `dotcraft` 二进制 | 同目录 `dotcraft`，再 PATH |
 | `--workspace <PATH>` | 工作区路径 | 当前目录 |
 | `--theme <PATH>` | 自定义主题 TOML 路径 | 内置深色主题 |
-| `--lang <LANG>` | 界面语言（`zh` / `en`） | `zh` |
 
 ## 快捷键
 

@@ -1,7 +1,6 @@
 using System.Text.Json.Nodes;
 using DotCraft.CLI;
 using DotCraft.Configuration;
-using DotCraft.Localization;
 
 namespace DotCraft.Tests.CLI;
 
@@ -23,7 +22,6 @@ public sealed class InitHelperSetupTests : IDisposable
 
         var result = InitHelper.RunSetup(craftPath, new WorkspaceSetupRequest
         {
-            Language = Language.English,
             ApiKey = "sk-global",
             EndPoint = "https://example.com/v1",
             Model = "gpt-4o-mini",
@@ -35,7 +33,7 @@ public sealed class InitHelperSetupTests : IDisposable
         Assert.True(File.Exists(globalConfigPath));
 
         var globalNode = JsonNode.Parse(File.ReadAllText(globalConfigPath))!.AsObject();
-        Assert.Equal("English", globalNode["Language"]?.GetValue<string>());
+        Assert.DoesNotContain("Language", globalNode.Select(p => p.Key));
         Assert.Equal("openai", globalNode["ProviderId"]?.GetValue<string>());
         Assert.Equal("gpt-4o-mini", globalNode["Model"]?.GetValue<string>());
         var globalProvider = globalNode["Providers"]!["openai"]!;
@@ -61,7 +59,6 @@ public sealed class InitHelperSetupTests : IDisposable
 
         var result = InitHelper.RunSetup(craftPath, new WorkspaceSetupRequest
         {
-            Language = Language.Chinese,
             ApiKey = "sk-local",
             EndPoint = "https://local.example/v1",
             Model = "deepseek-chat",
@@ -80,12 +77,12 @@ public sealed class InitHelperSetupTests : IDisposable
         Assert.DoesNotContain("EndPoint", globalNode.Select(p => p.Key));
 
         var workspaceNode = JsonNode.Parse(File.ReadAllText(Path.Combine(craftPath, "config.json")))!.AsObject();
-        Assert.Equal("Chinese", workspaceNode["Language"]?.GetValue<string>());
+        Assert.DoesNotContain("Language", workspaceNode.Select(p => p.Key));
         Assert.Equal("openai", workspaceNode["ProviderId"]?.GetValue<string>());
         Assert.Equal("deepseek-chat", workspaceNode["Model"]?.GetValue<string>());
         Assert.DoesNotContain("ApiKey", workspaceNode.Select(p => p.Key));
         Assert.DoesNotContain("EndPoint", workspaceNode.Select(p => p.Key));
-        Assert.Contains("个人助理", File.ReadAllText(Path.Combine(craftPath, "AGENTS.md")));
+        Assert.Contains("Personal Assistant", File.ReadAllText(Path.Combine(craftPath, "AGENTS.md")));
     }
 
     [Fact]
@@ -105,7 +102,6 @@ public sealed class InitHelperSetupTests : IDisposable
 
         var result = InitHelper.RunSetup(craftPath, new WorkspaceSetupRequest
         {
-            Language = Language.English,
             ApiKey = "",
             EndPoint = "https://workspace.example/v1",
             Model = "gpt-4.1",
@@ -119,6 +115,7 @@ public sealed class InitHelperSetupTests : IDisposable
         Assert.Equal("https://example.com/v1", globalNode["EndPoint"]?.GetValue<string>());
         Assert.Equal("gpt-4o-mini", globalNode["Model"]?.GetValue<string>());
         Assert.Equal("sk-global", globalNode["ApiKey"]?.GetValue<string>());
+        Assert.DoesNotContain("Language", globalNode.Select(p => p.Key));
         var provider = globalNode["Providers"]!["openai"]!;
         Assert.Equal("", provider["ApiKey"]?.GetValue<string>());
         Assert.Equal("https://workspace.example/v1", provider["EndPoint"]?.GetValue<string>());
@@ -139,7 +136,6 @@ public sealed class InitHelperSetupTests : IDisposable
 
         var result = InitHelper.RunSetup(craftPath, new WorkspaceSetupRequest
         {
-            Language = Language.English,
             ApiKey = "",
             EndPoint = "",
             Model = "claude-sonnet-4-5",
@@ -172,7 +168,7 @@ public sealed class InitHelperSetupTests : IDisposable
         Assert.Equal("claude-sonnet-4-5", workspaceNode["Model"]?.GetValue<string>());
         Assert.DoesNotContain("ApiKey", workspaceNode.Select(p => p.Key));
         Assert.DoesNotContain("EndPoint", workspaceNode.Select(p => p.Key));
-        Assert.Equal("English", workspaceNode["Language"]?.GetValue<string>());
+        Assert.DoesNotContain("Language", workspaceNode.Select(p => p.Key));
     }
 
     [Fact]
@@ -183,7 +179,6 @@ public sealed class InitHelperSetupTests : IDisposable
 
         var result = InitHelper.RunSetup(craftPath, new WorkspaceSetupRequest
         {
-            Language = Language.English,
             ApiKey = "",
             EndPoint = "",
             Model = "gpt-4.1",
@@ -221,7 +216,6 @@ public sealed class InitHelperSetupTests : IDisposable
 
         var result = InitHelper.RunSetup(craftPath, new WorkspaceSetupRequest
         {
-            Language = Language.Chinese,
             ApiKey = "",
             EndPoint = "",
             Model = "gpt-4.1",
@@ -241,7 +235,7 @@ public sealed class InitHelperSetupTests : IDisposable
         Assert.Equal(0, result);
 
         var globalNode = JsonNode.Parse(File.ReadAllText(globalConfigPath))!.AsObject();
-        Assert.Equal("Chinese", globalNode["Language"]?.GetValue<string>());
+        Assert.DoesNotContain("Language", globalNode.Select(p => p.Key));
         Assert.Equal("openai-main", globalNode["ProviderId"]?.GetValue<string>());
         Assert.Equal("gpt-4.1", globalNode["Model"]?.GetValue<string>());
         Assert.Equal("OpenAI", globalNode["Providers"]!["openai-main"]!["DisplayName"]?.GetValue<string>());
@@ -261,7 +255,6 @@ public sealed class InitHelperSetupTests : IDisposable
 
         var result = InitHelper.RunSetup(craftPath, new WorkspaceSetupRequest
         {
-            Language = Language.English,
             ApiKey = "",
             EndPoint = "",
             Model = "",

@@ -1,7 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using DotCraft.Localization;
+using DotCraft.Text;
 using DotCraft.Protocol;
 using DotCraft.Protocol.AppServer;
 using DotCraft.Tools;
@@ -253,7 +253,9 @@ public static class StreamAdapter
                     if (!hasParams) break;
                     var kind = @params.TryGetProperty("kind", out var k) ? k.GetString() : null;
                     if (string.IsNullOrEmpty(kind)) break;
-                    var message = @params.TryGetProperty("message", out var m) && m.ValueKind == JsonValueKind.String
+                    var message = @params.TryGetProperty("fallbackText", out var ft) && ft.ValueKind == JsonValueKind.String
+                        ? ft.GetString()
+                        : @params.TryGetProperty("message", out var m) && m.ValueKind == JsonValueKind.String
                         ? m.GetString() : null;
                     var payload = new SystemEventPayload { Kind = kind!, Message = message };
                     foreach (var re in MapSystemEvent(payload))
@@ -305,28 +307,28 @@ public static class StreamAdapter
         switch (sysEvt.Kind)
         {
             case "compacting":
-                yield return RenderEvent.SystemInfoEvent(sysEvt.Message ?? Strings.ContextLimitReached);
+                yield return RenderEvent.SystemInfoEvent(sysEvt.Message ?? FallbackText.ContextLimitReached);
                 break;
             case "compacted":
-                yield return RenderEvent.SystemInfoEvent(sysEvt.Message ?? Strings.ContextCompacted);
+                yield return RenderEvent.SystemInfoEvent(sysEvt.Message ?? FallbackText.ContextCompacted);
                 break;
             case "compactSkipped":
-                yield return RenderEvent.SystemInfoEvent(sysEvt.Message ?? Strings.ContextCompactSkipped);
+                yield return RenderEvent.SystemInfoEvent(sysEvt.Message ?? FallbackText.ContextCompactSkipped);
                 break;
             case "consolidating":
                 yield return RenderEvent.SystemStatusEvent(
-                    sysEvt.Message ?? Strings.MemoryConsolidating,
-                    Strings.MemoryConsolidated);
+                    sysEvt.Message ?? FallbackText.MemoryConsolidating,
+                    FallbackText.MemoryConsolidated);
                 break;
             case "consolidated":
                 // The completion event dismisses the SystemStatus spinner in the renderer.
-                yield return RenderEvent.SystemInfoEvent(sysEvt.Message ?? Strings.MemoryConsolidated);
+                yield return RenderEvent.SystemInfoEvent(sysEvt.Message ?? FallbackText.MemoryConsolidated);
                 break;
             case "consolidationSkipped":
                 yield return RenderEvent.SystemInfoEvent(string.Empty);
                 break;
             case "consolidationFailed":
-                yield return RenderEvent.SystemInfoEvent(sysEvt.Message ?? Strings.MemoryConsolidationFailed);
+                yield return RenderEvent.SystemInfoEvent(sysEvt.Message ?? FallbackText.MemoryConsolidationFailed);
                 break;
         }
     }

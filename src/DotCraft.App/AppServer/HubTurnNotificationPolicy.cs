@@ -1,4 +1,4 @@
-using DotCraft.Localization;
+using DotCraft.Text;
 using DotCraft.Protocol;
 
 namespace DotCraft.AppServer;
@@ -54,7 +54,7 @@ internal static class HubTurnNotificationPolicy
                     thread.Id);
 
             return Notify(
-                LanguageService.Current.T("hub.notification.thread.default"),
+                FallbackText.Format("hub.notification.thread.default"),
                 IsDesktopOriginThread(thread),
                 thread.Id);
         }
@@ -65,7 +65,7 @@ internal static class HubTurnNotificationPolicy
         }
 
         return Notify(
-            LanguageService.Current.T("hub.notification.thread.default"),
+            FallbackText.Format("hub.notification.thread.default"),
             openDesktopOnClick: false,
             threadId: null);
     }

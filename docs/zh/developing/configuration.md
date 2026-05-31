@@ -12,7 +12,6 @@ DotCraft 先读取全局 `~/.craft/config.json`，再叠加工作区 `.craft/con
 | `Model` | 默认模型名称 | `gpt-4o-mini` |
 | `NetworkTimeoutSeconds` | 全局模型请求超时时间，单位秒；Provider 可单独覆盖 | `600` |
 | `Providers` | 个人模型 Provider 字典，通常写在 `~/.craft/config.json` | 空 |
-| `Language` | 界面语言：`Chinese` / `English` | `Chinese` |
 | `SubagentMaxConcurrency` | 最大并发子 Agent 数量 | `3` |
 | `MaxSessionQueueSize` | 每个 Session 最大排队请求数；`0` 表示无限制 | `3` |
 | `ConsolidationModel` | 记忆整合专用模型，空值使用主模型 | 空 |

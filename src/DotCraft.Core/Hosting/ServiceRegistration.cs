@@ -7,7 +7,6 @@ using DotCraft.Hooks;
 using DotCraft.Tracing;
 using DotCraft.Logging;
 using DotCraft.Sessions;
-using DotCraft.Localization;
 using DotCraft.Lsp;
 using DotCraft.Mcp;
 using DotCraft.Memory;
@@ -112,10 +111,6 @@ public static class ServiceRegistration
         var customCommandLoader = new CustomCommandLoader(botPath);
         customCommandLoader.DeployBuiltInCommands();
         services.AddSingleton(customCommandLoader);
-
-        var languageService = new LanguageService(config.Language);
-        LanguageService.Current = languageService;
-        services.AddSingleton(languageService);
 
         var cronStorePath = Path.Combine(botPath, config.Cron.StorePath);
         services.AddSingleton(sp =>

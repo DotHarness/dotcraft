@@ -4,7 +4,6 @@ import { normalizeLocale, type AppLocale } from '../../shared/locales'
 import { useLocale, useSetUiLocale, useT } from '../contexts/LocaleContext'
 import type {
   WorkspaceBootstrapProfile,
-  WorkspaceLanguage,
   WorkspaceSetupBootstrapImportSource,
   WorkspaceSetupBootstrapImportSourceId,
   WorkspaceSetupProviderDraft,
@@ -182,7 +181,6 @@ export function WorkspaceSetupWizard({
   const logoNodeRef = useRef<HTMLDivElement | null>(null)
   const profileLogoTransitionIdRef = useRef(0)
   const profileLogoTransitionTimerRef = useRef<number | null>(null)
-  const setupLanguage: WorkspaceLanguage = locale === 'zh-Hans' ? 'Chinese' : 'English'
   const localizedDisplayLanguage =
     locale === 'zh-Hans'
       ? t('setupWizard.language.chinese')
@@ -394,7 +392,6 @@ export function WorkspaceSetupWizard({
   function buildSetupRequest(): WorkspaceSetupRequest {
     if (providerChoice === 'existing') {
       return {
-        language: setupLanguage,
         model: model.trim(),
         profile,
         providerMode: 'existing',
@@ -406,7 +403,6 @@ export function WorkspaceSetupWizard({
 
     const draft = activeDraft ?? templateDraft(activeProtocol, providers)
     return {
-      language: setupLanguage,
       model: model.trim(),
       profile,
       providerMode: 'create',

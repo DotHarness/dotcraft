@@ -139,7 +139,6 @@ DotCraft 将不同入口连接到同一个项目级工作空间，由统一会�
 | `Providers` | 模型提供商注册表，包含 API Key 和 Endpoint | 全局配置 |
 | `ProviderId` | 当前使用的模型提供商 id | 全局或工作区配置 |
 | `Model` | 默认模型名称 | 全局或工作区配置 |
-| `Language` | 界面语言：`Chinese` / `English` | 全局配置 |
 | `DashBoard.Enabled` | 启用 Web 调试与可视化配置 | 工作区配置 |
 
 如果你不确定应该把配置放在哪里：Provider 放全局，工作区只覆盖 `ProviderId` 和 `Model`。

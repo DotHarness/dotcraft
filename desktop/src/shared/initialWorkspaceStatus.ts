@@ -4,7 +4,6 @@ import {
 } from './providerProtocols'
 
 export type InitialWorkspaceSetupState = 'no-workspace' | 'needs-setup' | 'ready'
-export type InitialWorkspaceLanguage = 'Chinese' | 'English'
 export type InitialWorkspaceProviderProtocol = DesktopProviderProtocol
 export type InitialWorkspaceBootstrapImportSourceId = 'codex' | 'claude'
 
@@ -18,7 +17,6 @@ export interface InitialWorkspaceProviderSummary {
 }
 
 export interface InitialWorkspaceUserConfigDefaults {
-  language?: InitialWorkspaceLanguage
   providerId?: string
   model?: string
 }
@@ -157,9 +155,6 @@ function normalizeUserConfigDefaults(value: unknown): InitialWorkspaceUserConfig
 
   const raw = value as Record<string, unknown>
   const defaults: InitialWorkspaceUserConfigDefaults = {}
-  if (raw.language === 'Chinese' || raw.language === 'English') {
-    defaults.language = raw.language
-  }
   if (typeof raw.providerId === 'string') {
     defaults.providerId = raw.providerId
   }

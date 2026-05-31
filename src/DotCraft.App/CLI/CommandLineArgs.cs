@@ -97,8 +97,6 @@ public sealed record CommandLineArgs
     /// </summary>
     public bool ExecReadStdin { get; init; }
 
-    public string? SetupLanguage { get; init; }
-
     public string? SetupModel { get; init; }
 
     public string? SetupEndPoint { get; init; }
@@ -183,7 +181,6 @@ public sealed record CommandLineArgs
         string? execPrompt = null;
         var execReadStdin = false;
         var execPromptParts = new List<string>();
-        string? setupLanguage = null;
         string? setupModel = null;
         string? setupEndPoint = null;
         string? setupApiKey = null;
@@ -313,15 +310,15 @@ public sealed record CommandLineArgs
                 continue;
             }
 
-            if (arg.Equals("--language", StringComparison.OrdinalIgnoreCase))
-            {
-                setupLanguage = ConsumeNext(args, ref i, "--language");
-                continue;
-            }
-
             if (arg.Equals("--model", StringComparison.OrdinalIgnoreCase))
             {
                 setupModel = ConsumeNext(args, ref i, "--model");
+                continue;
+            }
+
+            if (arg.Equals("--language", StringComparison.OrdinalIgnoreCase))
+            {
+                _ = ConsumeNext(args, ref i, "--language");
                 continue;
             }
 
@@ -470,15 +467,14 @@ public sealed record CommandLineArgs
                 continue;
             }
 
-            if (TryParseKeyValue(arg, "--language", out var languageValue))
-            {
-                setupLanguage = languageValue;
-                continue;
-            }
-
             if (TryParseKeyValue(arg, "--model", out var modelValue))
             {
                 setupModel = modelValue;
+                continue;
+            }
+
+            if (TryParseKeyValue(arg, "--language", out _))
+            {
                 continue;
             }
 
@@ -608,7 +604,6 @@ public sealed record CommandLineArgs
             Token = token,
             ExecPrompt = execPrompt,
             ExecReadStdin = execReadStdin,
-            SetupLanguage = setupLanguage,
             SetupModel = setupModel,
             SetupEndPoint = setupEndPoint,
             SetupApiKey = setupApiKey,

@@ -1936,7 +1936,10 @@ Emitted when a system-level maintenance operation occurs during a Turn's post-pr
   "threadId": "thread_...",
   "turnId": "turn_001",
   "kind": "compactWarning",
-  "message": "Context nearing capacity",
+  "messageKey": "context.limit_reached",
+  "params": {},
+  "fallbackText": "Context token limit reached, compacting conversation...",
+  "message": "Context token limit reached, compacting conversation...",
   "percentLeft": 0.12,
   "tokenCount": 176000,
   "contextUsage": null
@@ -1948,7 +1951,10 @@ Emitted when a system-level maintenance operation occurs during a Turn's post-pr
 | `threadId` | string | Parent thread. |
 | `turnId` | string? | Active turn. May be null for asynchronous thread-scoped maintenance events such as `consolidated`, `consolidationSkipped`, and `consolidationFailed`. |
 | `kind` | string | Event kind. One of: `"compactWarning"`, `"compactError"`, `"compacting"`, `"compacted"`, `"compactSkipped"`, `"compactFailed"`, `"compactCancelled"`, `"streamError"`, `"consolidating"`, `"consolidated"`, `"consolidationSkipped"`, `"consolidationFailed"`, `"consolidationCancelled"`. |
-| `message` | string? | Human-readable description (or machine-readable reason on `compactSkipped` / `compactFailed` / `consolidationSkipped` / `consolidationFailed`). May be null. |
+| `messageKey` | string? | Stable client-localization key. May be null when no key exists. |
+| `params` | object? | Optional interpolation params for `messageKey`. User text, model output, and raw tool output MUST NOT be translated by the server. |
+| `fallbackText` | string? | English fallback text suitable for display when the client has no translation. |
+| `message` | string? | Compatibility alias for `fallbackText`. New clients should prefer `messageKey` + `params` + `fallbackText`. |
 | `percentLeft` | number? | Fraction of the effective context window still unused (`0.0`-`1.0`). Populated for compaction-related events. |
 | `tokenCount` | number? | Current estimated prompt token usage. Populated for compaction-related events. |
 | `contextUsage` | object? | Full `ContextUsageSnapshot` on successful `compacted` events when available. Clients should prefer it over `tokenCount` / `percentLeft` when updating context-window UI because it includes thresholds. |
@@ -2269,10 +2275,18 @@ Errors follow the standard JSON-RPC 2.0 error response format:
   "error": {
     "code": -32600,
     "message": "Invalid request",
-    "data": { "detail": "Thread not found: thread_invalid" }
+    "data": {
+      "code": "InvalidRequest",
+      "messageKey": "errors.invalidRequest",
+      "params": {},
+      "fallbackText": "Invalid request",
+      "detail": "Thread not found: thread_invalid"
+    }
   }
 }
 ```
+
+`error.message` is always an English fallback for legacy clients and diagnostics. New UI clients should use `error.data.messageKey`, `error.data.params`, and `error.data.fallbackText` for localized display, falling back to `error.message` only when structured data is absent.
 
 ### 8.2 Standard Error Codes
 
@@ -4052,7 +4066,9 @@ Client-local UX commands (for example CLI/TUI `/clear`) are intentionally outsid
 |-------|------|-------------|
 | `name` | string | Canonical slash command name. |
 | `aliases` | string[] | Alternative slash names mapped to the same handler. |
-| `description` | string | Localized or source description text shown to users. |
+| `descriptionKey` | string | Stable key for client-side localization. Empty for custom commands without a server key. |
+| `fallbackDescription` | string | English fallback description supplied by the server. |
+| `description` | string | Compatibility alias for `fallbackDescription`; clients should prefer `descriptionKey` + `fallbackDescription`. |
 | `category` | string | `"builtin"` or `"custom"`. |
 | `requiresAdmin` | boolean | Whether the command requires admin permission. |
 
@@ -4068,7 +4084,7 @@ Clients that build a composer slash-command picker for `commandRef` insertion sh
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `language` | string | no | Optional language override (`"zh"` or `"en"`). When omitted, server default language is used. |
+| `language` | string | no | Deprecated compatibility field. Servers MUST ignore it. Clients SHOULD omit it. |
 | `includeBuiltins` | boolean | no | Optional filter for built-in commands. Defaults to `true`. Pass `false` when the caller wants a `commandRef`-safe custom-command list for a composer picker. |
 
 **Result**:
@@ -4079,13 +4095,17 @@ Clients that build a composer slash-command picker for `commandRef` insertion sh
     {
       "name": "/new",
       "aliases": [],
-      "description": "Create a new conversation",
+      "descriptionKey": "cmd.new",
+      "fallbackDescription": "Create a new session",
+      "description": "Create a new session",
       "category": "builtin",
       "requiresAdmin": false
     },
     {
       "name": "/code-review",
       "aliases": [],
+      "descriptionKey": "",
+      "fallbackDescription": "Review changed files and report issues",
       "description": "Review changed files and report issues",
       "category": "custom",
       "requiresAdmin": false

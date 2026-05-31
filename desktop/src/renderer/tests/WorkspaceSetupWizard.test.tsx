@@ -149,7 +149,6 @@ describe('WorkspaceSetupWizard', () => {
       workspacePath: 'E:\\Git\\dotcraft',
       hasUserConfig: true,
       userConfigDefaults: {
-        language: 'English',
         providerId: 'anthropic',
         model: 'claude-opus-4-5'
       },
@@ -175,7 +174,6 @@ describe('WorkspaceSetupWizard', () => {
     await createWorkspace()
 
     expect(runSetup).toHaveBeenCalledWith({
-      language: 'English',
       model: 'claude-sonnet-4-5',
       profile: 'default',
       providerMode: 'existing',
@@ -272,7 +270,6 @@ describe('WorkspaceSetupWizard', () => {
     await createWorkspace()
 
     expect(runSetup).toHaveBeenCalledWith({
-      language: 'English',
       model: 'claude-sonnet-4-5',
       profile: 'default',
       providerMode: 'create',

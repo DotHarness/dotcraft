@@ -1,7 +1,7 @@
 using System.Text;
 using DotCraft.Commands.Core;
 using DotCraft.Cron;
-using DotCraft.Localization;
+using DotCraft.Text;
 
 namespace DotCraft.Commands.Handlers;
 
@@ -18,7 +18,7 @@ public sealed class CronCommandHandler : ICommandHandler
     {
         if (context.CronService == null)
         {
-            await responder.SendTextAsync(Strings.CronUnavailable);
+            await responder.SendTextAsync(FallbackText.CronUnavailable);
             return CommandResult.HandledResult();
         }
         
@@ -34,7 +34,7 @@ public sealed class CronCommandHandler : ICommandHandler
                 await HandleRemoveAsync(context.CronService, args, responder);
                 break;
             default:
-                await responder.SendTextAsync(Strings.CronUsage);
+                await responder.SendTextAsync(FallbackText.CronUsage);
                 break;
         }
         
@@ -46,29 +46,29 @@ public sealed class CronCommandHandler : ICommandHandler
         var jobs = cronService.ListJobs(includeDisabled: true);
         if (jobs.Count == 0)
         {
-            await responder.SendTextAsync(Strings.NoCronJobs);
+            await responder.SendTextAsync(FallbackText.NoCronJobs);
             return;
         }
         
         var sb = new StringBuilder();
-        sb.AppendLine(string.Format(Strings.CommandCronListTitle, jobs.Count));
+        sb.AppendLine(string.Format(FallbackText.CommandCronListTitle, jobs.Count));
         foreach (var job in jobs)
         {
-            var status = job.Enabled ? Strings.CronEnabled : Strings.CronDisabled;
+            var status = job.Enabled ? FallbackText.CronEnabled : FallbackText.CronDisabled;
             var schedDesc = job.Schedule.Kind switch
             {
                 "at" when job.Schedule.AtMs.HasValue =>
-                    $"{Strings.CronExecuteOnce} {DateTimeOffset.FromUnixTimeMilliseconds(job.Schedule.AtMs.Value):u}",
+                    $"{FallbackText.CronExecuteOnce} {DateTimeOffset.FromUnixTimeMilliseconds(job.Schedule.AtMs.Value):u}",
                 "every" when job.Schedule.EveryMs.HasValue =>
-                    $"{Strings.CronEvery} {TimeSpan.FromMilliseconds(job.Schedule.EveryMs.Value)}",
+                    $"{FallbackText.CronEvery} {TimeSpan.FromMilliseconds(job.Schedule.EveryMs.Value)}",
                 _ => job.Schedule.Kind
             };
             var next = job.State.NextRunAtMs.HasValue
                 ? DateTimeOffset.FromUnixTimeMilliseconds(job.State.NextRunAtMs.Value).ToString("u")
                 : "-";
             sb.AppendLine($"[{job.Id}] {job.Name} ({status})");
-            sb.AppendLine($"  {Strings.CronColSchedule}: {schedDesc}");
-            sb.AppendLine($"  {Strings.CronColNextRun}: {next}");
+            sb.AppendLine($"  {FallbackText.CronColSchedule}: {schedDesc}");
+            sb.AppendLine($"  {FallbackText.CronColNextRun}: {next}");
         }
         
         await responder.SendTextAsync(sb.ToString().TrimEnd());
@@ -78,14 +78,14 @@ public sealed class CronCommandHandler : ICommandHandler
     {
         if (args.Length < 2)
         {
-            await responder.SendTextAsync(Strings.CronRemoveUsage);
+            await responder.SendTextAsync(FallbackText.CronRemoveUsage);
             return;
         }
         
         var jobId = args[1];
         if (cronService.RemoveJob(jobId))
-            await responder.SendTextAsync($"{Strings.CronJobDeleted} '{jobId}' {Strings.CronJobDeletedSuffix}");
+            await responder.SendTextAsync($"{FallbackText.CronJobDeleted} '{jobId}' {FallbackText.CronJobDeletedSuffix}");
         else
-            await responder.SendTextAsync($"{Strings.CronJobNotFound} '{jobId}'.");
+            await responder.SendTextAsync($"{FallbackText.CronJobNotFound} '{jobId}'.");
     }
 }

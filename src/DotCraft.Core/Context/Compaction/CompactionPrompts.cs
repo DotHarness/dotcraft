@@ -1,6 +1,4 @@
 using System.Text.RegularExpressions;
-using DotCraft.Localization;
-
 namespace DotCraft.Context.Compaction;
 
 /// <summary>
@@ -123,14 +121,14 @@ If you choose not to use tags, keep the same section order.
     /// <summary>
     /// Returns the system-prompt text for a full-history compaction.
     /// </summary>
-    public static string GetCompactPrompt(Language? language = null) =>
+    public static string GetCompactPrompt() =>
         NoToolsPreambleEn + BaseCompactPromptEn + NoToolsTrailerEn;
 
     /// <summary>
     /// Returns the system-prompt text for a partial (up-to) compaction where
     /// the summary will precede retained recent messages.
     /// </summary>
-    public static string GetPartialCompactPrompt(Language? language = null) =>
+    public static string GetPartialCompactPrompt() =>
         NoToolsPreambleEn + PartialCompactUpToEn + NoToolsTrailerEn;
 
     private static readonly Regex AnalysisBlockRegex =
@@ -170,8 +168,7 @@ If you choose not to use tags, keep the same section order.
     public static string GetCompactUserSummaryMessage(
         string summary,
         string? transcriptPath = null,
-        bool recentMessagesPreserved = false,
-        Language? language = null)
+        bool recentMessagesPreserved = false)
     {
         var formatted = FormatCompactSummary(summary);
 

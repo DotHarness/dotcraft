@@ -1,5 +1,5 @@
 using DotCraft.Commands.Core;
-using DotCraft.Localization;
+using DotCraft.Text;
 using Spectre.Console;
 
 namespace DotCraft.Commands.Handlers;
@@ -16,7 +16,7 @@ public sealed class DebugCommandHandler : ICommandHandler
     public async Task<CommandResult> HandleAsync(CommandContext context, ICommandResponder responder)
     {
         var newState = Diagnostics.DebugModeService.Toggle();
-        var statusMsg = newState ? Strings.DebugEnabled : Strings.DebugDisabled;
+        var statusMsg = newState ? FallbackText.DebugEnabled : FallbackText.DebugDisabled;
         await responder.SendTextAsync(statusMsg);
         
         AnsiConsole.MarkupLine(

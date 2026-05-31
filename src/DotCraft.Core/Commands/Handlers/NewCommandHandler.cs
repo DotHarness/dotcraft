@@ -1,5 +1,5 @@
 using DotCraft.Commands.Core;
-using DotCraft.Localization;
+using DotCraft.Text;
 using DotCraft.Protocol;
 using Spectre.Console;
 
@@ -32,7 +32,7 @@ public sealed class NewCommandHandler : ICommandHandler
             context.AgentFactory?.RemoveTokenTracker(reset.Thread.Id);
         }
         
-        await responder.SendTextAsync(Strings.CommandNewCleared);
+        await responder.SendTextAsync(FallbackText.CommandNewCleared);
         var sessionLabel = reset?.Thread.Id ?? context.SessionId;
         AnsiConsole.MarkupLine($"[grey][[{context.Source}]][/] [green]Session cleared:[/] {Markup.Escape(sessionLabel)}");
 

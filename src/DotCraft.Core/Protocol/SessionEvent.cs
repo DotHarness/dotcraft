@@ -304,7 +304,24 @@ public sealed record SystemEventPayload
     public required string Kind { get; init; }
 
     /// <summary>
-    /// Optional human-readable message describing the operation.
+    /// Optional stable key clients can translate. Servers also populate
+    /// <see cref="FallbackText"/> and the legacy <see cref="Message"/> field
+    /// with English fallback text.
+    /// </summary>
+    public string? MessageKey { get; init; }
+
+    /// <summary>
+    /// Optional interpolation parameters for <see cref="MessageKey"/>.
+    /// </summary>
+    public IReadOnlyDictionary<string, object?>? Params { get; init; }
+
+    /// <summary>
+    /// English fallback message describing the operation.
+    /// </summary>
+    public string? FallbackText { get; init; }
+
+    /// <summary>
+    /// Compatibility alias for <see cref="FallbackText"/>.
     /// </summary>
     public string? Message { get; init; }
 

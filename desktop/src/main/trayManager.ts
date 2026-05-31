@@ -10,7 +10,7 @@ import {
   type RecentWorkspace
 } from './settings'
 import { tryAcquireTrayLock, type TrayLockHandle } from './trayLock'
-import { normalizeLocale, translate, type AppLocale } from '../shared/locales'
+import { DEFAULT_LOCALE, normalizeLocale, translate, type AppLocale } from '../shared/locales'
 import { resolveDotCraftRuntimeTools } from './ripgrepRuntime'
 import { checkWorkspaceLock } from './workspaceLock'
 import { requestWorkspaceActivation } from './desktopActivation'
@@ -31,10 +31,42 @@ const REFRESH_INTERVAL_MS = 5_000
 interface HubNotificationPayload {
   workspacePath?: string | null
   threadId?: string | null
+  titleKey?: string | null
+  bodyKey?: string | null
+  params?: unknown
   title?: string
   body?: string | null
   actionUrl?: string | null
   openDesktopOnClick?: boolean | null
+}
+
+function notificationVars(value: unknown): Record<string, string | number> | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
+  const vars: Record<string, string | number> = {}
+  for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
+    if (typeof raw === 'string' || typeof raw === 'number') vars[key] = raw
+    else if (typeof raw === 'boolean') vars[key] = raw ? 'true' : 'false'
+  }
+  return Object.keys(vars).length > 0 ? vars : undefined
+}
+
+function resolveNotificationText(
+  locale: AppLocale,
+  key: unknown,
+  params: unknown,
+  fallback: unknown,
+  legacy: unknown
+): string | null {
+  const fallbackText =
+    typeof fallback === 'string'
+      ? fallback
+      : typeof legacy === 'string'
+        ? legacy
+        : null
+  if (typeof key !== 'string' || key.trim() === '') return fallbackText
+  const normalizedKey = key.trim()
+  const localized = translate(locale, normalizedKey, notificationVars(params))
+  return localized === normalizedKey ? fallbackText : localized
 }
 
 export function resolveTrayIconPath(platform: NodeJS.Platform = process.platform): string | null {
@@ -260,27 +292,46 @@ function buildTrayMenu(
   return Menu.buildFromTemplate(template)
 }
 
-export function parseHubNotificationPayload(event: HubEvent): HubNotificationPayload | null {
+export function parseHubNotificationPayload(
+  event: HubEvent,
+  locale: AppLocale = DEFAULT_LOCALE
+): HubNotificationPayload | null {
   if (event.kind !== 'notification.requested' || !event.data || typeof event.data !== 'object') {
     return null
   }
 
   const data = event.data as Record<string, unknown>
-  const title = typeof data.title === 'string' ? data.title.trim() : ''
+  const title = (resolveNotificationText(
+    locale,
+    data.titleKey,
+    data.params,
+    data.fallbackTitle,
+    data.title
+  ) ?? '').trim()
   if (!title) return null
+  const body = resolveNotificationText(
+    locale,
+    data.bodyKey,
+    data.params,
+    data.fallbackBody,
+    data.body
+  )
 
   return {
     workspacePath: typeof data.workspacePath === 'string' ? data.workspacePath : event.workspacePath,
     threadId: typeof data.threadId === 'string' ? data.threadId : null,
+    titleKey: typeof data.titleKey === 'string' ? data.titleKey : null,
+    bodyKey: typeof data.bodyKey === 'string' ? data.bodyKey : null,
+    params: data.params,
     title,
-    body: typeof data.body === 'string' ? data.body : null,
+    body,
     actionUrl: typeof data.actionUrl === 'string' ? data.actionUrl : null,
     openDesktopOnClick: typeof data.openDesktopOnClick === 'boolean' ? data.openDesktopOnClick : null
   }
 }
 
-export function showHubNotification(event: HubEvent): boolean {
-  const payload = parseHubNotificationPayload(event)
+export function showHubNotification(event: HubEvent, locale: AppLocale = DEFAULT_LOCALE): boolean {
+  const payload = parseHubNotificationPayload(event, locale)
   if (!payload || !Notification.isSupported()) return false
 
   const notification = new Notification({
@@ -352,7 +403,7 @@ export async function runTrayProcess(): Promise<void> {
     const controller = new AbortController()
     eventAbortController = controller
     void hubClient.subscribeEvents((event: HubEvent) => {
-      showHubNotification(event)
+      showHubNotification(event, normalizeLocale(settings.locale))
       void refresh()
     }, controller.signal).then(() => {
       eventAbortController = null

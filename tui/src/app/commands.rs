@@ -83,12 +83,17 @@ pub fn merge_command_catalog(server_commands: &[CommandInfo]) -> Vec<SlashComman
         if known.contains(&key) {
             continue;
         }
+        let description = if cmd.fallback_description.trim().is_empty() {
+            cmd.description.as_str()
+        } else {
+            cmd.fallback_description.as_str()
+        };
         merged.push(SlashCommandDescriptor::new(
             cmd.name,
-            if cmd.description.trim().is_empty() {
+            if description.trim().is_empty() {
                 "(no description)"
             } else {
-                cmd.description.as_str()
+                description
             },
             cmd.category,
         ));
@@ -179,6 +184,8 @@ mod tests {
             name: "/skills".to_string(),
             aliases: vec![],
             description: "Server skills".to_string(),
+            description_key: "commands.skills.description".to_string(),
+            fallback_description: "Server skills".to_string(),
             category: "builtin".to_string(),
             requires_admin: false,
         }]);

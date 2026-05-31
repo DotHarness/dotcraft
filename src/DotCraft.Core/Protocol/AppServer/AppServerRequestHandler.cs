@@ -13,7 +13,6 @@ using DotCraft.Context;
 using DotCraft.Cron;
 using DotCraft.Heartbeat;
 using DotCraft.Logging;
-using DotCraft.Localization;
 using DotCraft.Lsp;
 using DotCraft.Mcp;
 using DotCraft.Memory;
@@ -3038,6 +3037,8 @@ public sealed class AppServerRequestHandler(
         var configPath = Path.Combine(workspaceCraftPath, "config.json");
         Directory.CreateDirectory(workspaceCraftPath);
         var root = LoadWorkspaceConfigObject(configPath);
+        var legacyLanguageKey = FindCaseInsensitiveKey(root, "Language");
+        var legacyLanguageRemoved = legacyLanguageKey != null && root.Remove(legacyLanguageKey);
 
         var key = FindCaseInsensitiveKey(root, "McpServers") ?? "McpServers";
         var serverObject = new JsonObject();
@@ -4505,14 +4506,7 @@ public sealed class AppServerRequestHandler(
         _ = ct;
         var p = GetParams<CommandListParams>(msg);
 
-        Language? overrideLanguage = p.Language?.ToLowerInvariant() switch
-        {
-            "zh" => Language.Chinese,
-            "en" => Language.English,
-            _ => null
-        };
-
-        var commands = _commandRegistry.ListCommands(language: overrideLanguage)
+        var commands = _commandRegistry.ListCommands()
             .Where(c => p.IncludeBuiltins != false ||
                 !string.Equals(c.Category, "builtin", StringComparison.OrdinalIgnoreCase))
             .Where(c =>
@@ -4524,6 +4518,8 @@ public sealed class AppServerRequestHandler(
             {
                 Name = c.Name,
                 Aliases = c.Aliases,
+                DescriptionKey = c.DescriptionKey,
+                FallbackDescription = c.FallbackDescription,
                 Description = c.Description,
                 Category = c.Category,
                 RequiresAdmin = c.RequiresAdmin
@@ -5370,6 +5366,8 @@ public sealed class AppServerRequestHandler(
         var configPath = Path.Combine(workspaceCraftPath, "config.json");
         Directory.CreateDirectory(workspaceCraftPath);
         var root = LoadWorkspaceConfigObject(configPath);
+        var legacyLanguageKey = FindCaseInsensitiveKey(root, "Language");
+        var legacyLanguageRemoved = legacyLanguageKey != null && root.Remove(legacyLanguageKey);
 
         var providerIdKey = FindCaseInsensitiveKey(root, "ProviderId");
         var modelKey = FindCaseInsensitiveKey(root, "Model");
@@ -5529,7 +5527,8 @@ public sealed class AppServerRequestHandler(
             || dreamsAutoApplyChanged
             || defaultApprovalPolicyChanged
             || toolsLspEnabledChanged
-            || reasoningChanged)
+            || reasoningChanged
+            || legacyLanguageRemoved)
         {
             WriteConfigObject(configPath, root);
         }

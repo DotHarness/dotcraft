@@ -100,7 +100,6 @@ public sealed class CommandLineArgsTests
         ]);
 
         Assert.Equal(CommandLineArgs.RunMode.Setup, args.Mode);
-        Assert.Equal("English", args.SetupLanguage);
         Assert.Equal("gpt-4o-mini", args.SetupModel);
         Assert.Equal("https://api.openai.com/v1", args.SetupEndPoint);
         Assert.Equal("sk-test", args.SetupApiKey);
@@ -115,7 +114,6 @@ public sealed class CommandLineArgsTests
     {
         var args = CommandLineArgs.Parse([
             "setup",
-            "--language", "English",
             "--profile", "developer",
             "--provider-mode", "create",
             "--provider-id", "anthropic",
