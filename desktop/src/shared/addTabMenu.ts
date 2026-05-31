@@ -1,3 +1,5 @@
+import type { AppLocale } from './locales'
+
 export type AddTabMenuAction =
   | 'openFile'
   | 'newBrowser'
@@ -30,6 +32,7 @@ export interface AddTabMenuRequest {
   y: number
   anchor?: AddTabMenuAnchor
   theme: 'dark' | 'light'
+  locale?: AppLocale
   items: AddTabMenuItem[]
 }
 

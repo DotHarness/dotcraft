@@ -14,6 +14,7 @@ const payload: AddTabPopupPayload = {
     bottom: 40
   },
   theme: 'dark',
+  locale: 'ja',
   position: {
     left: 80,
     top: 44,
@@ -27,6 +28,7 @@ const payload: AddTabPopupPayload = {
 }
 
 beforeEach(() => {
+  document.documentElement.lang = 'en'
   let payloadListener: ((payload: AddTabPopupPayload) => void) | null = null
   Object.defineProperty(window, 'api', {
     configurable: true,
@@ -49,6 +51,9 @@ beforeEach(() => {
 describe('AddTabPopupWindow', () => {
   it('renders themed menu items and resolves enabled choices', async () => {
     render(<AddTabPopupWindow />)
+
+    await screen.findByRole('menu')
+    expect(document.documentElement.lang).toBe('ja')
 
     fireEvent.click(await screen.findByRole('menuitem', { name: /Open File/ }))
 
@@ -88,6 +93,7 @@ describe('AddTabPopupWindow', () => {
       }).emitAddTabMenuPayload({
         ...payload,
         theme: 'light',
+        locale: 'ko',
         position: { left: 24, top: 30, width: 210 },
         items: [
           { action: 'openFile', label: 'Open Something', enabled: true },
@@ -98,5 +104,6 @@ describe('AddTabPopupWindow', () => {
 
     expect(await screen.findByRole('menuitem', { name: 'Open Something' })).toBeTruthy()
     expect(screen.getByRole('menu').getAttribute('style')).toContain('left: 24px')
+    expect(document.documentElement.lang).toBe('ko')
   })
 })

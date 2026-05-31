@@ -2,7 +2,7 @@ import { contextBridge, ipcRenderer, shell, webUtils } from 'electron'
 import { resolveThemeMode, type ThemeMode } from '../shared/theme'
 import { readInitialWorkspaceStatusFromArgv } from '../shared/initialWorkspaceStatus'
 import type { DesktopProviderProtocol } from '../shared/providerProtocols'
-import { normalizeLocale, type AppLocale } from '../shared/locales'
+import { localeToHtmlLang, normalizeLocale, type AppLocale } from '../shared/locales'
 import {
   TITLE_BAR_OVERLAY_HEIGHT,
   TITLE_BAR_OVERLAY_RIGHT_RESERVE
@@ -79,14 +79,17 @@ const initialTheme = readInitialTheme()
 const initialLocale = readInitialLocale()
 const initialWorkspaceStatus = readInitialWorkspaceStatusFromArgv(process.argv) as WorkspaceStatusPayload
 
-function applyInitialThemeToDocument(): void {
-  document.documentElement?.setAttribute('data-theme', initialTheme)
+function applyInitialDocumentState(): void {
+  const root = document.documentElement
+  if (!root) return
+  root.setAttribute('data-theme', initialTheme)
+  root.lang = localeToHtmlLang(initialLocale)
 }
 
 if (typeof document !== 'undefined') {
-  applyInitialThemeToDocument()
+  applyInitialDocumentState()
   if (!document.documentElement) {
-    document.addEventListener('DOMContentLoaded', applyInitialThemeToDocument, { once: true })
+    document.addEventListener('DOMContentLoaded', applyInitialDocumentState, { once: true })
   }
 }
 

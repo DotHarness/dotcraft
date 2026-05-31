@@ -143,6 +143,7 @@ const payload: AddTabMenuRequest = {
     bottom: 40
   },
   theme: 'dark',
+  locale: 'ja',
   items: [
     { action: 'openFile', label: 'Open File', shortcut: 'Ctrl+P', enabled: true },
     { action: 'newBrowser', label: 'Browser', enabled: true },
@@ -204,6 +205,7 @@ describe('popupAddTabMenuWindow', () => {
     const popupPayload = await getPayload({ sender: { id: popup.webContents.id } })
     expect(popupPayload).toEqual(expect.objectContaining({
       theme: 'dark',
+      locale: 'ja',
       position: expect.objectContaining({ width: 210 })
     }))
 

@@ -27,14 +27,23 @@ const dashboardLoginPath = resolve(__dirname, '../../../../src/DotCraft.Core/Res
 const systemSansStack = '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
 const systemMonoStack = 'ui-monospace, "SFMono-Regular", "SF Mono", Menlo,\n    Consolas, "Liberation Mono", monospace'
 const systemMonoStackInline = 'ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace'
-const explicitCjkFallbacks = [
+const cjkFallbacks = [
   'Microsoft YaHei UI',
   'PingFang SC',
   'Hiragino Sans GB',
   'Noto Sans CJK SC',
   'Source Han Sans SC',
-  'Segoe UI Variable Text',
-  'Segoe UI Variable'
+  'Hiragino Sans',
+  'Hiragino Kaku Gothic ProN',
+  'Yu Gothic UI',
+  'Yu Gothic',
+  'Meiryo',
+  'Noto Sans CJK JP',
+  'Source Han Sans JP',
+  'Apple SD Gothic Neo',
+  'Malgun Gothic',
+  'Noto Sans CJK KR',
+  'Source Han Sans KR'
 ]
 
 function readSource(path: string): string {
@@ -50,7 +59,7 @@ function sourceSlice(source: string, startMarker: string, endMarker: string): st
 }
 
 describe('conversation typography tokens', () => {
-  it('uses system font stacks instead of explicit CJK fallbacks', () => {
+  it('uses system font stacks with locale-aware CJK fallbacks', () => {
     const tokensCss = readSource(tokensCssPath)
     const dashboardSource = readSource(dashboardPath)
     const dashboardLoginSource = readSource(dashboardLoginPath)
@@ -63,6 +72,25 @@ describe('conversation typography tokens', () => {
     expect(tokensCss).toContain('--font-body: var(--font-sans-default)')
     expect(tokensCss).toContain('--font-sans: var(--font-sans-default)')
     expect(tokensCss).toContain('--font-mono: var(--font-mono-default)')
+    expect(tokensCss).toContain('--font-sans-zh:')
+    expect(tokensCss).toContain('--font-sans-ja:')
+    expect(tokensCss).toContain('--font-sans-ko:')
+    for (const fontName of cjkFallbacks) {
+      expect(tokensCss).toContain(fontName)
+    }
+    for (const [selector, token] of [
+      [':root:lang(zh)', '--font-sans-zh'],
+      [':root:lang(ja)', '--font-sans-ja'],
+      [':root:lang(ko)', '--font-sans-ko']
+    ] as const) {
+      const block = sourceSlice(tokensCss, `${selector} {`, '}\n')
+      expect(block).toContain(`--font-ui: var(${token})`)
+      expect(block).toContain(`--font-body: var(${token})`)
+      expect(block).toContain(`--font-sans: var(${token})`)
+    }
+    expect(tokensCss).not.toContain('@font-face')
+    expect(tokensCss).not.toContain('.woff')
+    expect(tokensCss).not.toContain('.ttf')
     expect(dashboardSource).toContain(`--font-sans: ${systemSansStack}`)
     expect(dashboardSource).toContain(`--font-mono: ${systemMonoStackInline}`)
     expect(dashboardLoginSource).toContain(`--font-sans: ${systemSansStack}`)
@@ -70,11 +98,9 @@ describe('conversation typography tokens', () => {
     expect(terminalViewerSource).toContain(systemMonoStackInline)
     expect(newTaskDialogSource).toContain("fontFamily: 'var(--font-mono)'")
 
-    const checkedSources = [tokensCss, dashboardSource, dashboardLoginSource]
-    for (const fontName of explicitCjkFallbacks) {
-      for (const source of checkedSources) {
-        expect(source).not.toContain(fontName)
-      }
+    for (const fontName of cjkFallbacks) {
+      expect(dashboardSource).not.toContain(fontName)
+      expect(dashboardLoginSource).not.toContain(fontName)
     }
     expect(dashboardSource).not.toContain('font-smoothing')
     expect(dashboardLoginSource).not.toContain('font-smoothing')

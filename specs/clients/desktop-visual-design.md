@@ -193,6 +193,7 @@ Desktop should favor compact, readable UI typography:
 - supporting text: 12px tokenized secondary text;
 - card and panel headings: modest weight increase rather than large display type;
 - hero-scale type only for true entry surfaces, not compact panels or dialogs.
+- UI fonts are system-first and must not require bundled web fonts; `--font-ui`, `--font-body`, and `--font-sans` may switch by document `lang` for CJK locales while preserving the same sizing, weight, and spacing tokens.
 
 Use 8px radius or less for ordinary controls and cards unless an existing component family uses another token. Keep fixed-format controls stable with explicit height, padding, and alignment so text, icons, and loading states do not shift layout.
 

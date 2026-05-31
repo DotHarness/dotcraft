@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { FilePlus2, FolderOpen, Globe, ListChecks, SquareTerminal } from 'lucide-react'
 import type { AddTabMenuAction, AddTabMenuItem, AddTabPopupPayload } from '../../../shared/addTabMenu'
+import { localeToHtmlLang, normalizeLocale } from '../../../shared/locales'
 import { applyTheme } from '../../utils/theme'
 
 function itemIcon(action: AddTabMenuAction): JSX.Element {
@@ -36,6 +37,7 @@ export function AddTabPopupWindow(): JSX.Element | null {
     setHoveredAction(null)
     setPayload(nextPayload)
     applyTheme(nextPayload.theme, { syncTitleBarOverlay: false })
+    document.documentElement.lang = localeToHtmlLang(normalizeLocale(nextPayload.locale))
   }, [])
 
   useEffect(() => {

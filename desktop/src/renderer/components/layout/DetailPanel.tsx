@@ -1,5 +1,5 @@
 import { useRef, useState, lazy, Suspense, type CSSProperties, type ReactNode } from 'react'
-import { useT } from '../../contexts/LocaleContext'
+import { useLocale, useT } from '../../contexts/LocaleContext'
 import { useUIStore } from '../../stores/uiStore'
 import type { SystemDetailTab } from '../../stores/uiStore'
 import { useViewerTabStore } from '../../stores/viewerTabStore'
@@ -42,6 +42,7 @@ function browserTabIcon(faviconDataUrl?: string): JSX.Element {
  */
 export function DetailPanel({ workspacePath = '' }: DetailPanelProps): JSX.Element {
   const t = useT()
+  const locale = useLocale()
   const {
     activeDetailTab,
     openSystemTabs,
@@ -126,6 +127,7 @@ export function DetailPanel({ workspacePath = '' }: DetailPanelProps): JSX.Eleme
         bottom: anchor.bottom
       },
       theme,
+      locale,
       items: [
         {
           action: 'openFile',
