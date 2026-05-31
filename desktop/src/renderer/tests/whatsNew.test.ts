@@ -13,16 +13,17 @@ import {
 } from '../../shared/whatsNew'
 
 const releasesDir = resolve(__dirname, '../../../resources/whats-new/releases')
+const bundledReleaseFiles = readdirSync(releasesDir)
+  .filter((name) => name.toLowerCase().endsWith('.json'))
+
 const bundledReleases = sortWhatsNewReleasesNewestFirst(
-  readdirSync(releasesDir)
-    .filter((name) => name.toLowerCase().endsWith('.json'))
-    .map((name) => {
-      const release = parseWhatsNewRelease(JSON.parse(readFileSync(resolve(releasesDir, name), 'utf8')))
-      if (!release) {
-        throw new Error(`Bundled What's New release fixture is invalid: ${name}`)
-      }
-      return release
-    })
+  bundledReleaseFiles.map((name) => {
+    const release = parseWhatsNewRelease(JSON.parse(readFileSync(resolve(releasesDir, name), 'utf8')))
+    if (!release) {
+      throw new Error(`Bundled What's New release fixture is invalid: ${name}`)
+    }
+    return release
+  })
 )
 const WHATS_NEW_RELEASES = bundledReleases
 const LATEST_BUNDLED_VERSION = getLatestWhatsNewVersion(WHATS_NEW_RELEASES) ?? ''
@@ -30,8 +31,11 @@ const LATEST_BUNDLED_VERSION = getLatestWhatsNewVersion(WHATS_NEW_RELEASES) ?? '
 describe('whatsNew release filtering', () => {
   it('loads the bundled JSON release configs', () => {
     const versions = WHATS_NEW_RELEASES.map((release) => release.version)
-    expect(versions).toContain('0.1.6')
-    expect(versions).toContain('0.1.7')
+    const fileVersions = bundledReleaseFiles.map((name) => name.replace(/\.json$/i, ''))
+
+    expect(versions).toHaveLength(fileVersions.length)
+    expect(new Set(versions).size).toBe(versions.length)
+    expect(versions).toEqual(expect.arrayContaining(fileVersions))
   })
 
   it('treats missing last-seen state as unseen for the current release', () => {
