@@ -213,7 +213,7 @@ describe('showChangesForFile', () => {
   it('works when panel is already visible', () => {
     useUIStore.setState({
       detailPanelVisible: true,
-      activeDetailTab: { kind: 'system', id: 'terminal' }
+      activeDetailTab: { kind: 'system', id: 'plan' }
     })
 
     ui().showChangesForFile('src/bar.ts')
@@ -452,7 +452,7 @@ describe('detail panel add-tab menu', () => {
   })
 
   it('opens Quick Open when the menu returns openFile', async () => {
-    window.api.menu.popupAddTabMenu = vi.fn(async () => 'openFile')
+    window.api.menu.popupAddTabMenu = vi.fn(async () => 'openFile' as const)
 
     render(createElement(Harness, {}))
 
@@ -478,7 +478,7 @@ describe('detail panel add-tab menu', () => {
   })
 
   it('opens a browser viewer tab when the menu returns newBrowser', async () => {
-    window.api.menu.popupAddTabMenu = vi.fn(async () => 'newBrowser')
+    window.api.menu.popupAddTabMenu = vi.fn(async () => 'newBrowser' as const)
     cs().setWorkspacePath('/workspace/path')
     useThreadStore.getState().setActiveThreadId('thread-1')
     useViewerTabStore.getState().onThreadSwitched('thread-1')
@@ -500,7 +500,7 @@ describe('detail panel add-tab menu', () => {
   })
 
   it('opens a terminal viewer tab when the menu returns newTerminal', async () => {
-    window.api.menu.popupAddTabMenu = vi.fn(async () => 'newTerminal')
+    window.api.menu.popupAddTabMenu = vi.fn(async () => 'newTerminal' as const)
     cs().setWorkspacePath('/workspace/path')
     useThreadStore.getState().setActiveThreadId('thread-1')
     useViewerTabStore.getState().onThreadSwitched('thread-1')

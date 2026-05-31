@@ -77,11 +77,12 @@ function normalizeAction(
   action: unknown
 ): AddTabMenuAction | null {
   const allowed: readonly AddTabMenuAction[] = ['openFile', 'newBrowser', 'newTerminal', 'newChanges', 'newPlan']
-  if (!allowed.includes(action as AddTabMenuAction)) {
+  if (typeof action !== 'string' || !allowed.includes(action as AddTabMenuAction)) {
     return null
   }
-  const item = payload.items.find((candidate) => candidate.action === action)
-  return item?.enabled === true ? action : null
+  const normalized = action as AddTabMenuAction
+  const item = payload.items.find((candidate) => candidate.action === normalized)
+  return item?.enabled === true ? normalized : null
 }
 
 function finishPopup(runtime: AddTabPopupRuntime, action: AddTabMenuAction | null): void {

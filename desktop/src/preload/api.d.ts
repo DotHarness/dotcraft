@@ -15,6 +15,7 @@ import type { AppUpdateState } from '../shared/appUpdate'
 import type { DesktopProviderProtocol } from '../shared/providerProtocols'
 import type { ConnectionSettingsDraft } from '../shared/remoteConnection'
 import type { AppLocale } from '../shared/locales'
+import type { AddTabMenuAction, AddTabMenuRequest, AddTabPopupPayload } from '../shared/addTabMenu'
 
 export type UnsubscribeFn = () => void
 export type ConnectionMode = 'local' | 'remote'
@@ -23,7 +24,6 @@ export type BrowserUseApprovalMode = 'alwaysAsk' | 'askUnknown' | 'neverAsk'
 export type TaskCompletionNotificationMode = 'whenUnfocused' | 'always' | 'never'
 export type BrowserUseApprovalResponseAction = 'allowOnce' | 'allowDomain' | 'blockDomain' | 'deny'
 export type ThemeMode = 'dark' | 'light'
-export type AddTabMenuAction = 'openFile' | 'newBrowser' | 'newTerminal'
 export type WorkspaceSetupState = 'no-workspace' | 'needs-setup' | 'ready'
 export type WorkspaceBootstrapProfile = 'default' | 'developer' | 'personal-assistant'
 export type WorkspaceSetupProviderProtocol = DesktopProviderProtocol
@@ -317,38 +317,6 @@ export interface EditorInfo {
   labelKey: string
   iconKey: string
   iconDataUrl?: string
-}
-
-export interface AddTabMenuItem {
-  action: AddTabMenuAction
-  label: string
-  shortcut?: string
-  enabled: boolean
-}
-
-export interface AddTabMenuAnchor {
-  left: number
-  top: number
-  right: number
-  bottom: number
-}
-
-export interface AddTabMenuPosition {
-  left: number
-  top: number
-  width: number
-}
-
-export interface AddTabMenuRequest {
-  x: number
-  y: number
-  anchor?: AddTabMenuAnchor
-  theme: ThemeMode
-  items: AddTabMenuItem[]
-}
-
-export interface AddTabPopupPayload extends AddTabMenuRequest {
-  position: AddTabMenuPosition
 }
 
 declare global {
