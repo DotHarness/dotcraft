@@ -1,3 +1,6 @@
+import { readdirSync, readFileSync, statSync } from 'node:fs'
+import { dirname, join, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_LOCALE,
@@ -6,6 +9,22 @@ import {
   normalizeLocale,
   translate
 } from '.'
+import { MESSAGES_DE } from './messages/de'
+import { MESSAGES_EN } from './messages/en'
+import { MESSAGES_ES } from './messages/es'
+import { MESSAGES_FR } from './messages/fr'
+import { MESSAGES_JA } from './messages/ja'
+import { MESSAGES_KO } from './messages/ko'
+import { MESSAGES_ZH_HANS } from './messages/zh-Hans'
+
+const NON_ENGLISH_CATALOGS = {
+  'zh-Hans': MESSAGES_ZH_HANS,
+  ja: MESSAGES_JA,
+  ko: MESSAGES_KO,
+  es: MESSAGES_ES,
+  fr: MESSAGES_FR,
+  de: MESSAGES_DE
+} satisfies Record<string, Record<string, string>>
 
 describe('desktop locales', () => {
   it('normalizes supported locale aliases', () => {
@@ -48,7 +67,42 @@ describe('desktop locales', () => {
     expect(translate('de', 'settings.title')).toBe('Einstellungen')
   })
 
-  it('falls back to English for untranslated keys in partial catalogs', () => {
-    expect(translate('ja', 'settings.llm.title')).toBe(translate('en', 'settings.llm.title'))
+  it('keeps settings screen keys covered in every supported locale', () => {
+    const missing = Array.from(collectSettingsMessageKeys()).flatMap((key) =>
+      Object.entries(NON_ENGLISH_CATALOGS)
+        .filter(([, catalog]) => catalog[key] == null)
+        .map(([locale]) => `${locale}:${key}`)
+    )
+
+    expect(missing).toEqual([])
   })
 })
+
+function collectSettingsMessageKeys(): Set<string> {
+  const localeDir = dirname(fileURLToPath(import.meta.url))
+  const settingsDir = resolve(localeDir, '../../renderer/components/settings')
+  const keys = new Set<string>()
+
+  for (const file of walkSourceFiles(settingsDir)) {
+    const source = readFileSync(file, 'utf8')
+    const keyPattern = /['"]([a-z][a-zA-Z0-9]*(?:\.[a-zA-Z0-9]+)+)['"]/g
+    let match: RegExpExecArray | null
+
+    while ((match = keyPattern.exec(source)) != null) {
+      if (Object.hasOwn(MESSAGES_EN, match[1])) {
+        keys.add(match[1])
+      }
+    }
+  }
+
+  return keys
+}
+
+function walkSourceFiles(dir: string): string[] {
+  return readdirSync(dir).flatMap((name) => {
+    const fullPath = join(dir, name)
+    const stats = statSync(fullPath)
+    if (stats.isDirectory()) return walkSourceFiles(fullPath)
+    return /\.(ts|tsx)$/.test(name) ? [fullPath] : []
+  })
+}
