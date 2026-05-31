@@ -573,7 +573,7 @@ export const MESSAGES_EN = {
   'approval.rejectShortcutAria': 'Reject approval',
   'approval.sendFailed': 'Failed to send approval decision: {{error}}',
   'settings.optionThemeDark': 'Dark',
-  'settings.optionThemeLight': 'Light (default)',
+  'settings.optionThemeLight': 'Light',
   'archivedThreads.title': 'Archived Threads',
   'archivedThreads.description': 'Browse archived conversations for this workspace and restore them when needed.',
   'archivedThreads.loading': 'Loading archived conversations…',

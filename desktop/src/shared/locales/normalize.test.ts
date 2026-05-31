@@ -68,7 +68,48 @@ describe('desktop locales', () => {
   })
 
   it('keeps settings screen keys covered in every supported locale', () => {
-    const missing = Array.from(collectSettingsMessageKeys()).flatMap((key) =>
+    const missing = Array.from(collectMessageKeys(['settings'])).flatMap((key) =>
+      Object.entries(NON_ENGLISH_CATALOGS)
+        .filter(([, catalog]) => catalog[key] == null)
+        .map(([locale]) => `${locale}:${key}`)
+    )
+
+    expect(missing).toEqual([])
+  })
+
+  it('keeps main shell navigation keys covered in every supported locale', () => {
+    const missing = Array.from(collectMessageKeys([
+      'layout',
+      'sidebar',
+      'plugins/PluginInstallDialog.tsx'
+    ])).flatMap((key) =>
+      Object.entries(NON_ENGLISH_CATALOGS)
+        .filter(([, catalog]) => catalog[key] == null)
+        .map(([locale]) => `${locale}:${key}`)
+    )
+
+    expect(missing).toEqual([])
+  })
+
+  it('keeps welcome composer keys covered in every supported locale', () => {
+    const missing = Array.from(collectMessageKeys([
+      'conversation/ConversationWelcome.tsx'
+    ])).flatMap((key) =>
+      Object.entries(NON_ENGLISH_CATALOGS)
+        .filter(([, catalog]) => catalog[key] == null)
+        .map(([locale]) => `${locale}:${key}`)
+    )
+
+    expect(missing).toEqual([])
+  })
+
+  it('keeps channel, plugin, automation, and team keys covered in every supported locale', () => {
+    const missing = Array.from(collectMessageKeys([
+      'channels',
+      'plugins',
+      'automations',
+      'teams'
+    ])).flatMap((key) =>
       Object.entries(NON_ENGLISH_CATALOGS)
         .filter(([, catalog]) => catalog[key] == null)
         .map(([locale]) => `${locale}:${key}`)
@@ -78,19 +119,21 @@ describe('desktop locales', () => {
   })
 })
 
-function collectSettingsMessageKeys(): Set<string> {
+function collectMessageKeys(componentTargets: string[]): Set<string> {
   const localeDir = dirname(fileURLToPath(import.meta.url))
-  const settingsDir = resolve(localeDir, '../../renderer/components/settings')
   const keys = new Set<string>()
 
-  for (const file of walkSourceFiles(settingsDir)) {
-    const source = readFileSync(file, 'utf8')
-    const keyPattern = /['"]([a-z][a-zA-Z0-9]*(?:\.[a-zA-Z0-9]+)+)['"]/g
-    let match: RegExpExecArray | null
+  for (const target of componentTargets) {
+    const targetPath = resolve(localeDir, '../../renderer/components', target)
+    for (const file of walkSourceFiles(targetPath)) {
+      const source = readFileSync(file, 'utf8')
+      const keyPattern = /['"]([a-z][a-zA-Z0-9]*(?:\.[a-zA-Z0-9]+)+)['"]/g
+      let match: RegExpExecArray | null
 
-    while ((match = keyPattern.exec(source)) != null) {
-      if (Object.hasOwn(MESSAGES_EN, match[1])) {
-        keys.add(match[1])
+      while ((match = keyPattern.exec(source)) != null) {
+        if (Object.hasOwn(MESSAGES_EN, match[1])) {
+          keys.add(match[1])
+        }
       }
     }
   }
@@ -99,6 +142,8 @@ function collectSettingsMessageKeys(): Set<string> {
 }
 
 function walkSourceFiles(dir: string): string[] {
+  if (!statSync(dir).isDirectory()) return [dir]
+
   return readdirSync(dir).flatMap((name) => {
     const fullPath = join(dir, name)
     const stats = statSync(fullPath)

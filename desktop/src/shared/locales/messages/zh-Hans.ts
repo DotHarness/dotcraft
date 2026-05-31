@@ -569,7 +569,7 @@ export const MESSAGES_ZH_HANS = {
   'settings.pickBinaryTitle': '选择 DotCraft 可执行文件',
   'settings.pickBinaryFailed': '选择 DotCraft 可执行文件失败：{{error}}',
   'settings.optionThemeDark': '深色',
-  'settings.optionThemeLight': '浅色（默认）',
+  'settings.optionThemeLight': '浅色',
   // Channels view
   'channels.title': '渠道',
   'channels.heroTitle': '让 DotCraft 在社交渠道中协作',
