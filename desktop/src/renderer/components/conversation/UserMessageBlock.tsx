@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type MouseEvent } from 'react'
-import { Bot, CornerDownRight, FileText, Image as ImageIcon, Pencil, Sparkle, Target, Terminal, UsersRound } from 'lucide-react'
+import { Bot, CornerDownRight, Image as ImageIcon, Pencil, Sparkle, Target, Terminal, UsersRound } from 'lucide-react'
+import { FileTypeIcon } from '../ui/FileTypeIcon'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { translate } from '../../../shared/locales'
 import { useConversationStore } from '../../stores/conversationStore'
@@ -557,10 +558,10 @@ function SkillRefChip({ skillName }: { skillName: string }): JSX.Element {
           display: 'inline-flex',
           alignItems: 'center',
           gap: '4px',
-          verticalAlign: '-0.12em',
-          margin: '0 2px',
-          padding: '2px 8px',
-          borderRadius: '999px',
+          verticalAlign: '-0.2em',
+          margin: '0 4px',
+          padding: '1px 7px',
+          borderRadius: '7px',
           border: '1px solid color-mix(in srgb, var(--success) 38%, transparent)',
           background: 'color-mix(in srgb, var(--success) 16%, transparent)',
           color: 'var(--success)',
@@ -595,10 +596,10 @@ function CommandRefChip({ commandText }: { commandText: string }): JSX.Element {
           display: 'inline-flex',
           alignItems: 'center',
           gap: '4px',
-          verticalAlign: '-0.12em',
-          margin: '0 2px',
-          padding: '2px 8px',
-          borderRadius: '999px',
+          verticalAlign: '-0.2em',
+          margin: '0 4px',
+          padding: '1px 7px',
+          borderRadius: '7px',
           border: '1px solid color-mix(in srgb, var(--accent) 38%, transparent)',
           background: 'color-mix(in srgb, var(--accent) 16%, transparent)',
           color: 'var(--accent)',
@@ -663,10 +664,10 @@ function FileRefChip({
           display: 'inline-flex',
           alignItems: 'center',
           gap: '4px',
-          verticalAlign: '-0.12em',
-          margin: '0 2px',
-          padding: '2px 8px',
-          borderRadius: '999px',
+          verticalAlign: '-0.2em',
+          margin: '0 4px',
+          padding: '1px 7px',
+          borderRadius: '7px',
           border: '1px solid color-mix(in srgb, var(--border-active) 44%, transparent)',
           background: 'color-mix(in srgb, var(--bg-tertiary) 88%, transparent)',
           color: 'var(--text-primary)',
@@ -679,7 +680,7 @@ function FileRefChip({
           font: 'inherit'
         }}
       >
-        <FileText size={12} strokeWidth={2.1} aria-hidden />
+        <FileTypeIcon path={displayPath} size={12} />
         <span>{fileName}</span>
       </button>
       {contextMenu && (

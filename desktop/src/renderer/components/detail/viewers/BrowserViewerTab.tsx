@@ -52,10 +52,15 @@ export function BrowserViewerTab({ tabId }: BrowserViewerTabProps): JSX.Element 
   const [editingAddress, setEditingAddress] = useState(false)
   const bodyRef = useRef<HTMLDivElement>(null)
 
+  // A fresh tab sits on the internal start page (about:blank / a data: start
+  // page). Treat those as "no page": empty address bar + a themed empty state,
+  // matching the reference design rather than leaking the start-page URL.
+  const isBlank = !currentUrl || currentUrl === 'about:blank' || currentUrl.startsWith('data:')
+
   useEffect(() => {
     if (editingAddress) return
-    setUrlInput(currentUrl)
-  }, [currentUrl, editingAddress])
+    setUrlInput(isBlank ? '' : currentUrl)
+  }, [currentUrl, editingAddress, isBlank])
 
   useEffect(() => {
     if (!currentThreadId || !workspacePath || !existsTab) return
@@ -82,12 +87,15 @@ export function BrowserViewerTab({ tabId }: BrowserViewerTabProps): JSX.Element 
 
   useEffect(() => {
     if (!existsTab) return
-    void window.api.workspace.viewer.browser.setVisible({ tabId, visible: true })
-    void window.api.workspace.viewer.browser.setActive({ tabId })
+    // Keep the native view hidden on the start page so the themed empty state
+    // below is visible instead of a blank/white web page.
+    const visible = !isBlank
+    void window.api.workspace.viewer.browser.setVisible({ tabId, visible })
+    if (visible) void window.api.workspace.viewer.browser.setActive({ tabId })
     return () => {
       void window.api.workspace.viewer.browser.setVisible({ tabId, visible: false })
     }
-  }, [existsTab, tabId])
+  }, [existsTab, tabId, isBlank])
 
   const pushBounds = useCallback(() => {
     if (!bodyRef.current) return
@@ -266,36 +274,38 @@ export function BrowserViewerTab({ tabId }: BrowserViewerTabProps): JSX.Element 
         </div>
       )}
 
-      <div style={{
-        padding: '4px 10px',
-        borderBottom: '1px solid var(--border-default)',
-        fontSize: '12px',
-        color: 'var(--text-secondary)',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '6px',
-        flexShrink: 0
-      }}>
-        {faviconDataUrl
-          ? <img src={faviconDataUrl} alt="" width={14} height={14} style={{ borderRadius: '2px' }} />
-          : <Globe size={14} aria-hidden style={{ display: 'block' }} />}
-        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {automationSessionName.trim() || title}
-        </span>
-        {automationActive && lastAutomationAction && (
-          <span style={{
-            flexShrink: 0,
-            maxWidth: '120px',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-            color: 'var(--accent)',
-            fontSize: '11px'
-          }}>
-            {lastAutomationAction}
+      {!isBlank && (
+        <div style={{
+          padding: '4px 10px',
+          borderBottom: '1px solid var(--border-default)',
+          fontSize: '12px',
+          color: 'var(--text-secondary)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+          flexShrink: 0
+        }}>
+          {faviconDataUrl
+            ? <img src={faviconDataUrl} alt="" width={14} height={14} style={{ borderRadius: '2px' }} />
+            : <Globe size={14} aria-hidden style={{ display: 'block' }} />}
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {automationSessionName.trim() || title}
           </span>
-        )}
-      </div>
+          {automationActive && lastAutomationAction && (
+            <span style={{
+              flexShrink: 0,
+              maxWidth: '120px',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              color: 'var(--accent)',
+              fontSize: '11px'
+            }}>
+              {lastAutomationAction}
+            </span>
+          )}
+        </div>
+      )}
 
       <div
         ref={bodyRef}
@@ -305,7 +315,30 @@ export function BrowserViewerTab({ tabId }: BrowserViewerTabProps): JSX.Element 
           overflow: 'hidden',
           background: 'var(--bg-primary)'
         }}
-      />
+      >
+        {isBlank && (
+          <div style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '10px',
+            padding: '24px',
+            textAlign: 'center',
+            pointerEvents: 'none'
+          }}>
+            <Globe size={48} strokeWidth={1.25} aria-hidden style={{ display: 'block', color: 'var(--text-dimmed)' }} />
+            <span style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text-primary)' }}>
+              {t('viewer.browser.startTitle')}
+            </span>
+            <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+              {t('viewer.browser.startPageHint')}
+            </span>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -334,7 +367,7 @@ function ToolbarButton({
           border: 'none',
           borderRadius: '4px',
           background: 'transparent',
-          color: disabled ? 'var(--text-disabled, rgba(255,255,255,0.3))' : 'var(--text-secondary)',
+          color: disabled ? 'var(--text-disabled)' : 'var(--text-secondary)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -343,7 +376,7 @@ function ToolbarButton({
         }}
         onMouseEnter={(e) => {
           if (disabled) return
-          ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--bg-hover, rgba(255,255,255,0.06))'
+          ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--bg-hover)'
         }}
         onMouseLeave={(e) => {
           ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent'

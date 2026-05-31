@@ -64,6 +64,7 @@ import { buildComposerInputParts } from './utils/composeInputParts'
 import { getFallbackThreadName } from './utils/threadFallbackName'
 import { handleBrowserEvent } from './utils/browserEventHandler'
 import { handleBrowserUseOpen } from './utils/browserUseOpenHandler'
+import { performAddTabAction } from './utils/detailTabActions'
 import { getSubAgentParentThreadId, isSubAgentThread } from './utils/subAgentThreads'
 import { isFatalConnectionError, useSlowConnectingHint } from './utils/connectionUi'
 import { isAgentTeamsPluginEnabled } from './utils/agentTeamsPlugin'
@@ -1167,7 +1168,7 @@ export function App(): JSX.Element {
       useAutomationsStore.getState().selectTask(null)
       useSubAgentStore.getState().reset()
       useUIStore.getState().setAutomationsTab('tasks')
-      useUIStore.getState().setActiveDetailTab('changes', { reveal: false })
+      useUIStore.getState().resetDetailTabs()
       if (useUIStore.getState().activeMainView !== 'settings') {
         useUIStore.getState().setActiveMainView('conversation')
       }
@@ -1901,6 +1902,43 @@ export function App(): JSX.Element {
       if (ctrl && e.key === ',') {
         e.preventDefault()
         useUIStore.getState().setActiveMainView('settings')
+        return
+      }
+
+      // Ctrl+T: open a new browser tab in the detail panel
+      if (ctrl && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 't') {
+        const target = e.target as HTMLElement | null
+        if (target?.closest('[role="dialog"], [aria-modal="true"]')) return
+        e.preventDefault()
+        performAddTabAction('newBrowser', {
+          threadId: useThreadStore.getState().activeThreadId,
+          workspacePath: workspacePathRef.current,
+          t: (key, vars) => translate(localeRef.current, key, vars)
+        })
+        return
+      }
+
+      // Ctrl+` : open a new terminal tab in the detail panel
+      if (ctrl && !e.shiftKey && e.key === '`') {
+        const target = e.target as HTMLElement | null
+        if (target?.closest('[role="dialog"], [aria-modal="true"]')) return
+        e.preventDefault()
+        performAddTabAction('newTerminal', {
+          threadId: useThreadStore.getState().activeThreadId,
+          workspacePath: workspacePathRef.current,
+          t: (key, vars) => translate(localeRef.current, key, vars)
+        })
+        return
+      }
+
+      // Ctrl+Shift+G: open the Changes (Diff) tab
+      if (ctrl && e.shiftKey && e.key === 'G') {
+        e.preventDefault()
+        performAddTabAction('newChanges', {
+          threadId: useThreadStore.getState().activeThreadId,
+          workspacePath: workspacePathRef.current,
+          t: (key, vars) => translate(localeRef.current, key, vars)
+        })
         return
       }
 

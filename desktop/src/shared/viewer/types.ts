@@ -42,6 +42,11 @@ export interface FileViewerTab extends ViewerTabBase {
   sizeBytes?: number
   /** Optional deep-link navigation hint (line/column/query/fragment). */
   navigationHint?: FileNavigationHint
+  /**
+   * Per-tab word-wrap preference for the text viewer. Undefined is treated as
+   * enabled (the historical default); toggled via the viewer `…` menu.
+   */
+  wordWrap?: boolean
 }
 
 /** Browser-viewer tab descriptor. */
@@ -144,6 +149,30 @@ export interface ClassifyParams {
 export interface ReadTextParams {
   absolutePath: string
   limitBytes?: number
+}
+
+/** A single directory entry returned by `workspace:viewer:list-dir`. */
+export interface DirEntryWire {
+  name: string
+  /** Workspace-relative POSIX path (forward slashes). */
+  relativePath: string
+  /** Normalized absolute path. */
+  absolutePath: string
+  isDir: boolean
+}
+
+/** Parameters for `workspace:viewer:list-dir`. */
+export interface ListDirParams {
+  /** Absolute directory to list. Defaults to the workspace root when omitted. */
+  dirPath?: string
+}
+
+/** Result returned by `workspace:viewer:list-dir`. */
+export interface ListDirResult {
+  /** Absolute directory that was listed. */
+  dirPath: string
+  /** Immediate children, directories first then files, each alpha-sorted. */
+  entries: DirEntryWire[]
 }
 
 export interface BrowserCreateParams {

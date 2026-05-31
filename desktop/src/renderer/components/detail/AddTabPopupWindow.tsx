@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { FolderOpen, Globe, SquareTerminal } from 'lucide-react'
+import { FilePlus2, FolderOpen, Globe, ListChecks, SquareTerminal } from 'lucide-react'
 import type { AddTabMenuAction, AddTabMenuItem, AddTabPopupPayload } from '../../../shared/addTabMenu'
 import { applyTheme } from '../../utils/theme'
 
@@ -10,6 +10,12 @@ function itemIcon(action: AddTabMenuAction): JSX.Element {
   }
   if (action === 'newBrowser') {
     return <Globe size={14} aria-hidden style={style} />
+  }
+  if (action === 'newChanges') {
+    return <FilePlus2 size={14} aria-hidden style={style} />
+  }
+  if (action === 'newPlan') {
+    return <ListChecks size={14} aria-hidden style={style} />
   }
   return <SquareTerminal size={14} aria-hidden style={style} />
 }

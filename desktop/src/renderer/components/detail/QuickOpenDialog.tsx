@@ -25,7 +25,8 @@ import { useT } from '../../contexts/LocaleContext'
 import { useUIStore } from '../../stores/uiStore'
 import { useViewerTabStore } from '../../stores/viewerTabStore'
 import { useConversationStore } from '../../stores/conversationStore'
-import { FileText, Search, AlertCircle } from 'lucide-react'
+import { Search, AlertCircle } from 'lucide-react'
+import { FileTypeIcon } from '../ui/FileTypeIcon'
 
 const MAX_FILE_LIST = 500
 const MAX_RESULTS = 50
@@ -404,7 +405,7 @@ export function QuickOpenDialog({ onClose, anchorRef }: QuickOpenDialogProps): J
                       color: 'var(--text-primary)'
                     }}
                   >
-                    <FileText size={14} aria-hidden style={{ flexShrink: 0, color: 'var(--text-secondary)' }} />
+                    <FileTypeIcon path={match.entry.relativePath} size={14} style={{ flexShrink: 0 }} />
                     <span style={{
                       flex: 1,
                       overflow: 'hidden',

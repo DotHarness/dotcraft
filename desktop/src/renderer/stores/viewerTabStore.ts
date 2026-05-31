@@ -195,6 +195,9 @@ interface ViewerTabStoreActions {
   /** Activates an existing tab in `threadId`. */
   setActiveTab(threadId: string, tabId: string): void
 
+  /** Sets the word-wrap preference for a file tab in `threadId`. */
+  setWordWrap(threadId: string, tabId: string, wordWrap: boolean): void
+
   /** Sets the active thread (does not alter tab state). */
   onThreadSwitched(newThreadId: string | null): void
 
@@ -492,6 +495,23 @@ export const useViewerTabStore = create<ViewerTabStore>((set, get) => ({
     set((s) => {
       const next = new Map(s.byThread)
       next.set(threadId, { ...threadState, activeTabId: tabId })
+      return { byThread: next }
+    })
+  },
+
+  setWordWrap(threadId, tabId, wordWrap) {
+    const state = get()
+    const threadState = state.getThreadState(threadId)
+    const idx = threadState.tabs.findIndex((t) => t.id === tabId && t.kind === 'file')
+    if (idx === -1) return
+    const current = threadState.tabs[idx] as FileViewerTab
+    if (current.wordWrap === wordWrap) return
+
+    const nextTabs = [...threadState.tabs]
+    nextTabs[idx] = { ...current, wordWrap }
+    set((s) => {
+      const next = new Map(s.byThread)
+      next.set(threadId, { ...threadState, tabs: nextTabs })
       return { byThread: next }
     })
   },

@@ -916,6 +916,19 @@ const api = {
         return ipcRenderer.invoke('workspace:viewer:list-files', params)
       },
 
+      /** Lists immediate children of a workspace directory for the explorer tree. */
+      listDir(params: { dirPath?: string }): Promise<{
+        dirPath: string
+        entries: Array<{
+          name: string
+          relativePath: string
+          absolutePath: string
+          isDir: boolean
+        }>
+      }> {
+        return ipcRenderer.invoke('workspace:viewer:list-dir', params)
+      },
+
       /** Classifies a file into text / image / pdf / unsupported. */
       classify(params: {
         absolutePath: string

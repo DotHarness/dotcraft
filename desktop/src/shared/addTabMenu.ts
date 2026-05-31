@@ -1,4 +1,9 @@
-export type AddTabMenuAction = 'openFile' | 'newBrowser' | 'newTerminal'
+export type AddTabMenuAction =
+  | 'openFile'
+  | 'newBrowser'
+  | 'newTerminal'
+  | 'newChanges'
+  | 'newPlan'
 
 export interface AddTabMenuItem {
   action: AddTabMenuAction

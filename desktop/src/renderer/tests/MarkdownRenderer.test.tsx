@@ -490,7 +490,7 @@ describe('MarkdownRenderer', () => {
     const link = screen.getByRole('link', { name: /guide\.md/i })
     expect(link).toHaveAttribute('data-inline-reference-kind', 'file')
     expect(link).toHaveAttribute('title', './docs/guide.md')
-    expect(link).toHaveStyle({ verticalAlign: '-0.12em' })
+    expect(link).toHaveStyle({ verticalAlign: '-0.2em' })
   })
 
   it('copies the resolved path from a markdown file pill context menu', async () => {

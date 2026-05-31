@@ -1865,6 +1865,18 @@ export const MESSAGES_EN = {
   'detailPanel.addTabNewBrowser': 'New Browser Tab',
   'detailPanel.addTabNewTerminal': 'New Terminal',
   'detailPanel.addTabNewBrowserLater': 'Available in the next update',
+  // Empty-state launcher cards (shown when no detail tab is open)
+  'detailPanel.launcherFilesTitle': 'Files',
+  'detailPanel.launcherFilesDesc': 'Browse project files',
+  'detailPanel.launcherBrowserTitle': 'Browser',
+  'detailPanel.launcherBrowserDesc': 'Open a website',
+  'detailPanel.launcherReviewTitle': 'Changes',
+  'detailPanel.launcherReviewDesc': 'View code changes',
+  'detailPanel.launcherTerminalTitle': 'Terminal',
+  'detailPanel.launcherTerminalDesc': 'Start an interactive shell',
+  // Viewer header open button (opens the current file, not the workspace)
+  'detailPanel.openFileTitle': 'Open {{path}}',
+  'detailPanel.openFileMenuAria': 'Choose how to open',
 
   // Quick-Open file finder dialog
   'quickOpen.title': 'Open File',
@@ -1880,6 +1892,22 @@ export const MESSAGES_EN = {
   'viewer.truncatedNotice': 'File is large — showing first 5 MB only.',
   'viewer.missingFile': 'File not found',
   'viewer.readFailed': 'Failed to read file',
+  // Viewer header / actions / built-in explorer
+  'viewer.moreActions': 'More actions',
+  'viewer.copyPath': 'Copy path',
+  'viewer.copyContents': 'Copy file contents',
+  'viewer.copyContentsFailed': 'Failed to copy file contents',
+  'viewer.actionFailed': 'Action failed',
+  'viewer.enableWordWrap': 'Enable word wrap',
+  'viewer.disableWordWrap': 'Disable word wrap',
+  'viewer.openExplorer': 'Show explorer',
+  'viewer.closeExplorer': 'Hide explorer',
+  'viewer.explorerTitle': 'Explorer',
+  'viewer.explorerFilter': 'Filter files…',
+  'viewer.explorerEmpty': 'Empty folder',
+  'viewer.explorerNoMatch': 'No matching files',
+  'viewer.explorerLoadFailed': "Couldn't load folder",
+  'viewer.explorerNoWorkspace': 'Open a workspace to browse files',
   'viewer.pdfRenderFailed': 'Failed to render PDF. Open externally to view.',
   'viewer.zoomIn': 'Zoom in',
   'viewer.zoomOut': 'Zoom out',
@@ -1900,7 +1928,8 @@ export const MESSAGES_EN = {
   'viewer.browser.reloadTab': 'Reload tab',
   'viewer.browser.blockedScheme': 'Blocked URL scheme.',
   'viewer.browser.downloadBlocked': 'Downloads are disabled in browser tabs.',
-  'viewer.browser.startPageHint': 'Enter a URL in the address bar to begin browsing.',
+  'viewer.browser.startPageHint': 'Enter a URL to open a page',
+  'viewer.browser.startTitle': 'Start browsing',
   'viewer.browser.defaultLabel': 'New Tab',
 
   // Automations / cron (Phase 3)

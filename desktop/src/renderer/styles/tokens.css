@@ -77,6 +77,7 @@
   --bg-secondary: #202020;
   --bg-tertiary: #2a2a2a;
   --bg-active: #343434;
+  --bg-hover: color-mix(in srgb, var(--text-primary) 8%, transparent);
 
   /* Text */
   --text-primary: #eeeeec;
@@ -89,6 +90,7 @@
   --composer-control-text: color-mix(in srgb, var(--text-primary) 78%, var(--bg-primary));
   --composer-control-muted: color-mix(in srgb, var(--text-primary) 52%, var(--bg-primary));
   --text-tertiary: color-mix(in srgb, var(--text-primary) 42%, var(--bg-primary));
+  --text-disabled: color-mix(in srgb, var(--text-primary) 30%, var(--bg-primary));
 
   /* Borders */
   --border-default: color-mix(in srgb, var(--text-primary) 10%, transparent);
@@ -337,11 +339,13 @@ html[data-theme="light"] {
   --bg-secondary: #ffffff;
   --bg-tertiary: #ededed;
   --bg-active: #e8e8e8;
+  --bg-hover: color-mix(in srgb, var(--text-primary) 6%, transparent);
 
   --text-primary: #1a1c1f;
   --text-secondary: color-mix(in srgb, var(--text-primary) 70%, var(--bg-primary));
   --text-dimmed: color-mix(in srgb, var(--text-primary) 50%, var(--bg-primary));
   --text-tertiary: color-mix(in srgb, var(--text-primary) 50%, var(--bg-primary));
+  --text-disabled: color-mix(in srgb, var(--text-primary) 38%, var(--bg-primary));
   --composer-placeholder: color-mix(in srgb, var(--text-primary) 62%, var(--bg-primary));
   --composer-footer-text: var(--text-secondary);
   --composer-footer-muted: var(--text-dimmed);

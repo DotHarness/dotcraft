@@ -15,6 +15,11 @@ const DETAIL_MIN_WIDTH = 300
 const DETAIL_DEFAULT_MAIN_SURFACE_WIDTH = 1676
 const DETAIL_DEFAULT_WIDTH_RATIO = DETAIL_DEFAULT_WIDTH / DETAIL_DEFAULT_MAIN_SURFACE_WIDTH
 
+/** Built-in workspace explorer (docked inside the file viewer). */
+const EXPLORER_DEFAULT_WIDTH = 260
+const EXPLORER_MIN_WIDTH = 180
+const EXPLORER_MAX_WIDTH = 480
+
 /** Timeout for pending welcome turn to prevent permanent residue */
 const PENDING_WELCOME_TIMEOUT_MS = 30_000
 
@@ -24,10 +29,24 @@ export type ChangesDiffMode = 'inline' | 'split'
 /** @deprecated Use `ActiveDetailTab` instead. Kept for backwards compatibility. */
 export type DetailPanelTab = SystemDetailTab
 
-/** Discriminated union identifying the active detail panel tab. */
+/**
+ * Discriminated union identifying the active detail panel tab.
+ * `launcher` is the empty state: no system tab and no viewer tab is open, so the
+ * panel shows the launcher card grid instead of a tab body.
+ */
 export type ActiveDetailTab =
   | { kind: 'system'; id: SystemDetailTab }
   | { kind: 'viewer'; id: string }
+  | { kind: 'launcher' }
+
+/** Canonical left-to-right order of the optional system tabs in the tab strip. */
+const SYSTEM_TAB_ORDER: readonly SystemDetailTab[] = ['changes', 'plan']
+
+/** Insert `id` into the open system tabs list, preserving canonical order. */
+function withSystemTabOpen(open: SystemDetailTab[], id: SystemDetailTab): SystemDetailTab[] {
+  if (open.includes(id)) return open
+  return SYSTEM_TAB_ORDER.filter((tab) => tab === id || open.includes(tab))
+}
 
 interface DetailRevealOptions {
   reveal?: boolean
@@ -86,15 +105,32 @@ export interface UIState {
   detailPanelWidth: number
   /** Current responsive layout classification used to constrain panel visibility. */
   responsiveLayout: 'full' | 'no-detail' | 'collapsed'
-  /** Active detail panel tab — either a system tab or a viewer tab. */
+  /** Active detail panel tab — a system tab, a viewer tab, or the launcher. */
   activeDetailTab: ActiveDetailTab
   /**
-   * Last active system tab, saved when the user switches to a viewer tab.
-   * Used for fallback when the last viewer tab is closed.
+   * The optional system tabs (Diff / Progress) currently open in the strip, in
+   * canonical order. Empty by default — they are no longer pinned; they open via
+   * the launcher, the `+` menu, or agent auto-show, and can be closed.
+   */
+  openSystemTabs: SystemDetailTab[]
+  /**
+   * Last active system tab, saved when the user switches to a viewer tab. Used as
+   * a fallback hint when the last viewer tab is closed — only honored if the tab
+   * is still present in `openSystemTabs`.
    */
   lastActiveSystemTab: SystemDetailTab
   /** Whether the Quick-Open file finder dialog is visible. */
   quickOpenVisible: boolean
+  /** Whether the built-in workspace explorer is docked open in the file viewer. */
+  explorerVisible: boolean
+  /** Width (px) of the docked explorer sub-panel. */
+  explorerWidth: number
+  /**
+   * One-shot absolute directory the explorer should expand to and scroll into
+   * view (set when a breadcrumb folder segment is clicked). Cleared by the
+   * explorer once consumed.
+   */
+  explorerRevealPath: string | null
   /** Currently selected file path in the Changes tab */
   selectedChangedFile: string | null
   /** Per-thread display mode for the Changes diff stream. */
@@ -162,16 +198,33 @@ interface UIStore extends UIState {
   setResponsiveLayout(layout: 'full' | 'no-detail' | 'collapsed'): void
   setDetailPanelWidth(width: number, mainSurfaceWidth?: number | null): void
   /**
-   * Sets the active detail tab to a system tab.
-   * Allowed values: `'changes' | 'plan'`.
+   * Opens a system tab (`'changes' | 'plan'`) if not already open, makes it the
+   * active tab, and reveals the panel. This is the "auto-open + focus" entry point.
    */
   setActiveDetailTab(tab: SystemDetailTab, options?: DetailRevealOptions): void
+  /**
+   * Closes an open system tab. If it was active, falls back to the nearest
+   * remaining open system tab, else the given viewer tab, else the launcher.
+   */
+  closeSystemTab(tab: SystemDetailTab, fallbackViewerId?: string | null): void
+  /** Resets the detail panel to its empty state (no tabs open → launcher). */
+  resetDetailTabs(): void
   /** Activates a viewer tab by its ID and makes the detail panel visible. */
   setActiveViewerTab(tabId: string, options?: DetailRevealOptions): void
-  /** Closes the viewer panel and falls back to the last active system tab. */
+  /** Closes the viewer panel and falls back to an open system tab or the launcher. */
   closeViewerTab(options?: DetailRevealOptions): void
   /** Show or hide the Quick-Open dialog. */
   setQuickOpenVisible(visible: boolean): void
+  /** Toggle the docked workspace explorer. */
+  toggleExplorer(): void
+  /** Show or hide the docked workspace explorer. */
+  setExplorerVisible(visible: boolean): void
+  /** Set the docked explorer width (clamped to its min/max). */
+  setExplorerWidth(width: number): void
+  /** Open the explorer and request it expand to / reveal the given directory. */
+  revealInExplorer(absoluteDir: string): void
+  /** Clear the one-shot explorer reveal target after it has been consumed. */
+  consumeExplorerReveal(): void
   selectChangedFile(filePath: string | null): void
   getChangesDiffMode(threadId: string | null): ChangesDiffMode
   setChangesDiffMode(threadId: string | null, mode: ChangesDiffMode): void
@@ -278,9 +331,13 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
   detailPanelWidthRatio: DETAIL_DEFAULT_WIDTH_RATIO,
   detailPanelWidth: DETAIL_DEFAULT_WIDTH,
   responsiveLayout: 'full',
-  activeDetailTab: { kind: 'system', id: 'changes' },
+  activeDetailTab: { kind: 'launcher' },
+  openSystemTabs: [],
   lastActiveSystemTab: 'changes',
   quickOpenVisible: false,
+  explorerVisible: false,
+  explorerWidth: EXPLORER_DEFAULT_WIDTH,
+  explorerRevealPath: null,
   selectedChangedFile: null,
   changesDiffModeByThread: {},
   autoShowTriggeredForTurn: null,
@@ -406,6 +463,7 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
       : true
     set({
       activeDetailTab: { kind: 'system', id: tab },
+      openSystemTabs: withSystemTabOpen(state.openSystemTabs, tab),
       lastActiveSystemTab: tab,
       detailPanelPreferredVisible,
       ...resolveResponsivePanels(
@@ -414,6 +472,29 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
         detailPanelPreferredVisible
       )
     })
+  },
+
+  closeSystemTab(tab: SystemDetailTab, fallbackViewerId?: string | null) {
+    const state = get()
+    const openSystemTabs = state.openSystemTabs.filter((id) => id !== tab)
+    const wasActive = state.activeDetailTab.kind === 'system' && state.activeDetailTab.id === tab
+    if (!wasActive) {
+      set({ openSystemTabs })
+      return
+    }
+    // The closed tab was active — pick the nearest remaining open system tab,
+    // else the supplied viewer tab, else the launcher. Panel visibility is left
+    // untouched (the user closed a tab from inside the already-open panel).
+    const nextActive: ActiveDetailTab = openSystemTabs.length > 0
+      ? { kind: 'system', id: openSystemTabs[openSystemTabs.length - 1] }
+      : fallbackViewerId
+        ? { kind: 'viewer', id: fallbackViewerId }
+        : { kind: 'launcher' }
+    set({ openSystemTabs, activeDetailTab: nextActive })
+  },
+
+  resetDetailTabs() {
+    set({ openSystemTabs: [], activeDetailTab: { kind: 'launcher' } })
   },
 
   setActiveViewerTab(tabId: string, options?: DetailRevealOptions) {
@@ -434,12 +515,17 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
 
   closeViewerTab(options?: DetailRevealOptions) {
     const state = get()
-    const fallback = state.lastActiveSystemTab
+    // Fall back to an open system tab (preferring the last-active one if it is
+    // still open), otherwise the launcher.
+    const open = state.openSystemTabs
+    const nextActive: ActiveDetailTab = open.length > 0
+      ? { kind: 'system', id: open.includes(state.lastActiveSystemTab) ? state.lastActiveSystemTab : open[open.length - 1] }
+      : { kind: 'launcher' }
     const detailPanelPreferredVisible = options?.reveal === false
       ? state.detailPanelPreferredVisible
       : true
     set({
-      activeDetailTab: { kind: 'system', id: fallback },
+      activeDetailTab: nextActive,
       detailPanelPreferredVisible,
       ...resolveResponsivePanels(
         state.responsiveLayout,
@@ -451,6 +537,29 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
 
   setQuickOpenVisible(visible: boolean) {
     set({ quickOpenVisible: visible })
+  },
+
+  toggleExplorer() {
+    set((state) => ({ explorerVisible: !state.explorerVisible }))
+  },
+
+  setExplorerVisible(visible: boolean) {
+    set({ explorerVisible: visible })
+  },
+
+  setExplorerWidth(width: number) {
+    const clamped = Math.min(EXPLORER_MAX_WIDTH, Math.max(EXPLORER_MIN_WIDTH, width))
+    set({ explorerWidth: clamped })
+  },
+
+  revealInExplorer(absoluteDir: string) {
+    set({ explorerVisible: true, explorerRevealPath: absoluteDir })
+  },
+
+  consumeExplorerReveal() {
+    if (get().explorerRevealPath !== null) {
+      set({ explorerRevealPath: null })
+    }
   },
 
   selectChangedFile(filePath) {
@@ -477,6 +586,7 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
     const detailPanelPreferredVisible = true
     set({
       activeDetailTab: { kind: 'system', id: 'changes' },
+      openSystemTabs: withSystemTabOpen(state.openSystemTabs, 'changes'),
       lastActiveSystemTab: 'changes',
       selectedChangedFile: filePath,
       detailPanelPreferredVisible,
@@ -641,5 +751,8 @@ export {
   DETAIL_DEFAULT_WIDTH,
   DETAIL_MIN_WIDTH,
   DETAIL_DEFAULT_MAIN_SURFACE_WIDTH,
-  DETAIL_DEFAULT_WIDTH_RATIO
+  DETAIL_DEFAULT_WIDTH_RATIO,
+  EXPLORER_DEFAULT_WIDTH,
+  EXPLORER_MIN_WIDTH,
+  EXPLORER_MAX_WIDTH
 }
