@@ -168,6 +168,7 @@ public sealed class AppServerRequestHandler(
         AppServerMethods.DreamsDiscard,
         AppServerMethods.MemoryReset,
         AppServerMethods.UsageSummary,
+        AppServerMethods.UsageTimeseries,
         AppServerMethods.CronList,
         AppServerMethods.CronRemove,
         AppServerMethods.CronEnable,
@@ -351,6 +352,7 @@ public sealed class AppServerRequestHandler(
                 AppServerMethods.DreamsDiscard => HandleDreamsDiscardAsync(msg, ct),
                 AppServerMethods.MemoryReset => HandleMemoryResetAsync(msg, ct),
                 AppServerMethods.UsageSummary => HandleUsageSummaryAsync(msg, ct),
+                AppServerMethods.UsageTimeseries => HandleUsageTimeseriesAsync(msg, ct),
                 _ => TryHandleExtensionAsync(method, msg, ct)
             });
         }
@@ -3929,6 +3931,44 @@ public sealed class AppServerRequestHandler(
             CacheHitRate = s.CacheHitRate,
             TotalTokens = s.TotalTokens
         });
+    }
+
+    // ── usage/timeseries (spec Section 27A.3) ────────────────────────────────
+
+    private Task<object?> HandleUsageTimeseriesAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    {
+        if (traceStore == null) throw AppServerErrors.MethodNotFound(AppServerMethods.UsageTimeseries);
+        var p = GetParams<UsageTimeseriesParams>(msg);
+
+        var from = ParseUsageDate(p.From, "from");
+        var to = ParseUsageDate(p.To, "to");
+        var tz = Math.Clamp(p.TzOffsetMinutes ?? 0, -840, 840);
+
+        var buckets = traceStore.GetDailyUsage(from, to, tz);
+        return Task.FromResult<object?>(new UsageTimeseriesResult
+        {
+            TzOffsetMinutes = tz,
+            LongestTaskMs = traceStore.GetLongestTurnDurationMs(),
+            Days = buckets
+                .Select(b => new UsageTimeseriesDay
+                {
+                    Date = b.Date.ToString("yyyy-MM-dd"),
+                    InputTokens = b.InputTokens,
+                    OutputTokens = b.OutputTokens,
+                    TotalTokens = b.TotalTokens,
+                    SessionCount = b.SessionCount
+                })
+                .ToList()
+        });
+    }
+
+    private static DateOnly? ParseUsageDate(string? value, string field)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
+        if (!DateOnly.TryParseExact(value.Trim(), "yyyy-MM-dd", out var date))
+            throw AppServerErrors.InvalidParams($"'{field}' must be a 'YYYY-MM-DD' date.");
+        return date;
     }
 
     // ── heartbeat/trigger (spec Section 17.2) ────────────────────────────────

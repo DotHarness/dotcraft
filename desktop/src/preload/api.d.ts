@@ -456,6 +456,11 @@ declare global {
         revealLocalPath(path: string): Promise<void>
         showItemInFolder(path: string): Promise<void>
       }
+      profile: {
+        getGithubIdentity(
+          username: string
+        ): Promise<{ login: string; name: string | null; avatarDataUrl: string | null } | null>
+      }
       chrome: {
         checkSetup(): Promise<{
           extension: unknown
@@ -670,6 +675,9 @@ declare global {
           notifications?: {
             taskCompletionMode?: TaskCompletionNotificationMode
           }
+          profile?: {
+            githubUsername?: string
+          }
           pinnedThreadIdsByWorkspace?: Record<string, string[]>
         }>
         set(
@@ -700,6 +708,9 @@ declare global {
             }
             notifications?: {
               taskCompletionMode?: TaskCompletionNotificationMode
+            }
+            profile?: {
+              githubUsername?: string
             }
             pinnedThreadIdsByWorkspace?: Record<string, string[]>
           }

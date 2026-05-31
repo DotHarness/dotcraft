@@ -59,6 +59,8 @@ import { ConnectionPanel } from './panels/ConnectionPanel'
 import { ProviderProtocolIcon } from './panels/ProviderProtocolIcon'
 import { UsagePanel } from './panels/UsagePanel'
 import { UsageOverview } from './UsageOverview'
+import { ProfilePanel } from './panels/ProfilePanel'
+import { ProfileView } from './ProfileView'
 import { McpPanel } from './panels/McpPanel'
 import { SubAgentsPanel } from './panels/SubAgentsPanel'
 import {
@@ -3127,6 +3129,12 @@ export function SettingsView({
     >
       <main style={settingsMainStyle()}>
         <div style={settingsContentContainerStyle()}>
+            {activeSettingsTab === 'profile' && (
+              <ProfilePanel>
+                <ProfileView />
+              </ProfilePanel>
+            )}
+
             {activeSettingsTab === 'general' && (
               <GeneralPanel>
               <SettingsPanelShell

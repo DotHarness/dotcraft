@@ -40,6 +40,13 @@ export function mergeUpdatedSettings(current: AppSettings, partial: Partial<AppS
     }
   }
 
+  if (partial.profile !== undefined) {
+    next.profile = {
+      ...(current.profile ?? {}),
+      ...partial.profile
+    }
+  }
+
   if (partial.pinnedThreadIdsByWorkspace !== undefined) {
     next.pinnedThreadIdsByWorkspace = {
       ...(current.pinnedThreadIdsByWorkspace ?? {}),

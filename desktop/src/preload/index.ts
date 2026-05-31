@@ -716,6 +716,19 @@ const api = {
     }
   },
 
+  profile: {
+    /**
+     * Resolves a public GitHub identity (display name + avatar data URL) for the
+     * Profile page, fetched and cached in the main process. Returns null when the
+     * username is invalid or unavailable.
+     */
+    getGithubIdentity(
+      username: string
+    ): Promise<{ login: string; name: string | null; avatarDataUrl: string | null } | null> {
+      return ipcRenderer.invoke('profile:get-github-identity', username)
+    }
+  },
+
   chrome: {
     checkSetup(): Promise<ChromeSetupStatus> {
       return ipcRenderer.invoke('chrome:check-setup')
@@ -1179,6 +1192,9 @@ const api = {
       notifications?: {
         taskCompletionMode?: TaskCompletionNotificationMode
       }
+      profile?: {
+        githubUsername?: string
+      }
       pinnedThreadIdsByWorkspace?: Record<string, string[]>
     }> {
       return ipcRenderer.invoke('settings:get')
@@ -1214,6 +1230,9 @@ const api = {
       }
       notifications?: {
         taskCompletionMode?: TaskCompletionNotificationMode
+      }
+      profile?: {
+        githubUsername?: string
       }
       pinnedThreadIdsByWorkspace?: Record<string, string[]>
     }): Promise<void> {

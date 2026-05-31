@@ -20,7 +20,8 @@ public enum TraceEventType
     PromptCachePoint,
     PromptCacheDiagnostic,
     MaintenanceForkRequest,
-    MaintenanceForkResponse
+    MaintenanceForkResponse,
+    TurnCompleted
 }
 
 /// <summary>
@@ -202,6 +203,7 @@ public sealed class TraceSession
     private long _totalReasoningOutputTokens;
     private long _totalToolDurationMs;
     private long _maxToolDurationMs;
+    private long _maxTurnDurationMs;
 
     public long TotalInputTokens => Interlocked.Read(ref _totalInputTokens);
 
@@ -224,6 +226,9 @@ public sealed class TraceSession
     public long TotalToolDurationMs => Interlocked.Read(ref _totalToolDurationMs);
 
     public long MaxToolDurationMs => Interlocked.Read(ref _maxToolDurationMs);
+
+    /// <summary>Longest single Turn (one unit of agent work) in this session, in milliseconds.</summary>
+    public long MaxTurnDurationMs => Interlocked.Read(ref _maxTurnDurationMs);
 
     public double AvgToolDurationMs => ToolCallCount > 0
         ? TotalToolDurationMs / (double)ToolCallCount
@@ -252,6 +257,21 @@ public sealed class TraceSession
         } while (Interlocked.CompareExchange(ref _maxToolDurationMs, value, current) != current);
     }
 
+    /// <summary>Records the duration of one completed Turn, retaining the maximum seen.</summary>
+    public void RecordTurnDuration(long value)
+    {
+        if (value <= 0)
+            return;
+
+        long current;
+        do
+        {
+            current = Interlocked.Read(ref _maxTurnDurationMs);
+            if (value <= current)
+                break;
+        } while (Interlocked.CompareExchange(ref _maxTurnDurationMs, value, current) != current);
+    }
+
     internal void LoadAggregateSnapshot(
         long totalInputTokens,
         long totalOutputTokens,
@@ -259,7 +279,8 @@ public sealed class TraceSession
         long totalCacheWriteInputTokens,
         long totalReasoningOutputTokens,
         long totalToolDurationMs,
-        long maxToolDurationMs)
+        long maxToolDurationMs,
+        long maxTurnDurationMs)
     {
         Interlocked.Exchange(ref _totalInputTokens, totalInputTokens);
         Interlocked.Exchange(ref _totalOutputTokens, totalOutputTokens);
@@ -268,6 +289,7 @@ public sealed class TraceSession
         Interlocked.Exchange(ref _totalReasoningOutputTokens, totalReasoningOutputTokens);
         Interlocked.Exchange(ref _totalToolDurationMs, totalToolDurationMs);
         Interlocked.Exchange(ref _maxToolDurationMs, maxToolDurationMs);
+        Interlocked.Exchange(ref _maxTurnDurationMs, maxTurnDurationMs);
     }
 
     public int RequestCount { get; set; }

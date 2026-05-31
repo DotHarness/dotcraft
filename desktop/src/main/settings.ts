@@ -48,6 +48,11 @@ export interface NotificationSettings {
   taskCompletionMode?: TaskCompletionNotificationMode
 }
 
+export interface ProfileSettings {
+  /** GitHub login used to source the profile avatar/handle on the Profile page. */
+  githubUsername?: string
+}
+
 export interface AppSettings {
   lastWorkspacePath?: string
   modulesDirectory?: string
@@ -72,6 +77,8 @@ export interface AppSettings {
   lastOpenEditorId?: LastOpenEditorId
   browserUse?: BrowserUseSettings
   notifications?: NotificationSettings
+  /** Desktop-local profile identity for the Profile page. */
+  profile?: ProfileSettings
   /** Desktop-local pinned thread ids, keyed by normalized workspace path. */
   pinnedThreadIdsByWorkspace?: Record<string, string[]>
 }
@@ -178,6 +185,21 @@ function normalizeActiveModuleVariants(settings: AppSettings): Record<string, st
   return Object.keys(normalized).length > 0 ? normalized : undefined
 }
 
+/** GitHub logins are 1–39 chars of alphanumerics or single hyphens (not leading/trailing). */
+const GITHUB_USERNAME_PATTERN = /^[a-zA-Z\d](?:[a-zA-Z\d]|-(?=[a-zA-Z\d])){0,38}$/
+
+export function normalizeProfileSettings(settings: AppSettings): ProfileSettings | undefined {
+  const raw = settings.profile
+  if (raw == null || typeof raw !== 'object' || Array.isArray(raw)) {
+    return undefined
+  }
+  const username = typeof raw.githubUsername === 'string' ? raw.githubUsername.trim() : ''
+  if (!username || !GITHUB_USERNAME_PATTERN.test(username)) {
+    return undefined
+  }
+  return { githubUsername: username }
+}
+
 function normalizeShowThinkingContent(settings: AppSettings): boolean | undefined {
   return typeof settings.showThinkingContent === 'boolean'
     ? settings.showThinkingContent
@@ -240,6 +262,7 @@ export function loadSettings(): AppSettings {
       raw.activeModuleVariants = normalizeActiveModuleVariants(raw)
       raw.showThinkingContent = normalizeShowThinkingContent(raw)
       raw.lastSeenWhatsNewVersion = normalizeLastSeenWhatsNewVersion(raw)
+      raw.profile = normalizeProfileSettings(raw)
       raw.pinnedThreadIdsByWorkspace = normalizePinnedThreadIdsByWorkspace(raw)
       if (raw.locale !== undefined) {
         raw.locale = normalizeLocale(raw.locale)
@@ -272,6 +295,7 @@ export function saveSettings(settings: AppSettings): void {
     settings.activeModuleVariants = normalizeActiveModuleVariants(settings)
     settings.showThinkingContent = normalizeShowThinkingContent(settings)
     settings.lastSeenWhatsNewVersion = normalizeLastSeenWhatsNewVersion(settings)
+    settings.profile = normalizeProfileSettings(settings)
     settings.pinnedThreadIdsByWorkspace = normalizePinnedThreadIdsByWorkspace(settings)
     writeFileSync(filePath, JSON.stringify(settings, null, 2), 'utf8')
   } catch {

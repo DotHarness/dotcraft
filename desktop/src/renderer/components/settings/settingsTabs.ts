@@ -8,6 +8,7 @@ import {
   Monitor,
   Server,
   Settings as SettingsIcon,
+  SlidersHorizontal,
   UserRound,
   type LucideIcon
 } from 'lucide-react'
@@ -32,6 +33,7 @@ export interface SettingsTabOptions {
 export function buildSettingsTabs(t: Translate, options: SettingsTabOptions): SettingsTabDefinition[] {
   const tabs: SettingsTabDefinition[] = [
     { id: 'general', label: t('settings.tab.general'), icon: SettingsIcon },
+    { id: 'profile', label: t('settings.tab.profile'), icon: UserRound },
     { id: 'connection', label: t('settings.tab.connection'), icon: Cable },
     { id: 'llmService', label: t('settings.tab.llmService'), icon: Cpu },
     { id: 'browserUse', label: t('settings.tab.browserUse'), icon: Globe2 },
@@ -40,7 +42,8 @@ export function buildSettingsTabs(t: Translate, options: SettingsTabOptions): Se
   ]
 
   if (options.personalizationAvailable) {
-    tabs.splice(1, 0, { id: 'personalization', label: t('settings.tab.personalization'), icon: UserRound })
+    // After General and Profile.
+    tabs.splice(2, 0, { id: 'personalization', label: t('settings.tab.personalization'), icon: SlidersHorizontal })
   }
   if (options.mcpEnabled) {
     tabs.push({ id: 'mcp', label: 'MCP', icon: Server })

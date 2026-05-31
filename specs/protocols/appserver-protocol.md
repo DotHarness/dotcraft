@@ -5479,15 +5479,17 @@ Review semantics:
 
 ### 27A.1 Scope
 
-This method exposes the workspace's aggregate trace/usage telemetry as a single pull
-request, so in-process clients (Desktop, TUI) can render a usage overview without
-opening the hosted HTML Dashboard. The numbers are the same aggregate the Dashboard
-serves at `GET /dashboard/api/summary`; this method projects it over the JSON-RPC
-surface and is independent of whether the HTML Dashboard endpoint is enabled.
+These methods expose the workspace's trace/usage telemetry over the JSON-RPC surface,
+so in-process clients (Desktop, TUI) can render usage overviews without opening the
+hosted HTML Dashboard. `usage/summary` returns the workspace aggregate (the same number
+the Dashboard serves at `GET /dashboard/api/summary`); `usage/timeseries` returns a
+per-day breakdown for activity charts. Both are independent of whether the HTML
+Dashboard endpoint is enabled.
 
-Clients must check `capabilities.usageTelemetry` before calling `usage/summary`. If the
-capability is absent or `false`, the server returns `-32601` (Method not found). The
-capability is `false` when tracing is disabled, because no trace store exists.
+Clients must check `capabilities.usageTelemetry` before calling `usage/summary` or
+`usage/timeseries`. If the capability is absent or `false`, the server returns `-32601`
+(Method not found). The capability is `false` when tracing is disabled, because no trace
+store exists.
 
 ### 27A.2 `usage/summary`
 
@@ -5565,9 +5567,68 @@ When there are no traced sessions yet, every numeric field is `0`.
 } }
 ```
 
-### 27A.3 Capability Advertisement
+### 27A.3 `usage/timeseries`
 
-Clients must check `capabilities.usageTelemetry` before calling `usage/summary`.
+Return per-day token usage across all traced sessions in the workspace, for rendering
+activity charts (e.g. a contribution-style heatmap). Each traced session contributes its
+token totals to the calendar day of its `StartedAt`, evaluated in the client's local time
+frame (see `tzOffsetMinutes`). Only days with at least one session are returned (the
+series is sparse); clients fill the gaps when laying out a calendar.
+
+**Direction**: client → server (request)
+
+**Params**:
+
+```json
+{ "from": "2025-07-01", "to": "2026-05-31", "tzOffsetMinutes": -480 }
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `from` | string? | Inclusive lower bound, `YYYY-MM-DD` in the client's local frame. Omit for no lower bound. |
+| `to` | string? | Inclusive upper bound, `YYYY-MM-DD` in the client's local frame. Omit for no upper bound. |
+| `tzOffsetMinutes` | int? | Minutes to add to UTC to obtain the client's local time, i.e. `-new Date().getTimezoneOffset()` in JS. Used to bucket sessions by local calendar day. Defaults to `0` (UTC). Clamped to `[-840, 840]`. |
+
+A malformed (non-empty) `from`/`to` that is not a valid `YYYY-MM-DD` date yields
+`-32602` (Invalid params).
+
+**Result**:
+
+```json
+{
+  "tzOffsetMinutes": -480,
+  "longestTaskMs": 7830000,
+  "days": [
+    { "date": "2026-05-29", "inputTokens": 100, "outputTokens": 23, "totalTokens": 123, "sessionCount": 2 },
+    { "date": "2026-05-30", "inputTokens": 40, "outputTokens": 8, "totalTokens": 48, "sessionCount": 1 }
+  ]
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `tzOffsetMinutes` | int | The (clamped) offset the server used for bucketing. |
+| `longestTaskMs` | long | Longest single Turn (one unit of agent work, `completedAt − startedAt`) across the workspace, in milliseconds. Lifetime maximum, independent of `from`/`to`. `0` when none recorded. |
+| `days` | array | Days with activity, ascending by `date`. Empty when no sessions match. |
+| `days[].date` | string | `YYYY-MM-DD` in the client's local frame. |
+| `days[].inputTokens` | long | Summed prompt (input) tokens for sessions started that day. |
+| `days[].outputTokens` | long | Summed completion (output) tokens for sessions started that day. |
+| `days[].totalTokens` | long | `inputTokens + outputTokens`. |
+| `days[].sessionCount` | int | Number of sessions started that day. |
+
+When there are no traced sessions in range, `days` is `[]`.
+
+**Errors**:
+
+| Code | When |
+|------|------|
+| `-32601` | Tracing is disabled on this server (no trace store available). |
+| `-32602` | `from` or `to` is present but not a valid `YYYY-MM-DD` date. |
+
+### 27A.4 Capability Advertisement
+
+Clients must check `capabilities.usageTelemetry` before calling `usage/summary` or
+`usage/timeseries`.
 
 ---
 

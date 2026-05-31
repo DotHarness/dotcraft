@@ -288,6 +288,7 @@ public sealed class StateRuntime
                     total_reasoning_output_tokens INTEGER NOT NULL DEFAULT 0,
                     total_tool_duration_ms INTEGER NOT NULL DEFAULT 0,
                     max_tool_duration_ms INTEGER NOT NULL DEFAULT 0,
+                    max_turn_duration_ms INTEGER NOT NULL DEFAULT 0,
                     last_finish_reason TEXT,
                     final_system_prompt TEXT,
                     tool_names_json TEXT
@@ -394,6 +395,7 @@ public sealed class StateRuntime
             EnsureColumn(connection, "trace_sessions", "total_reasoning_output_tokens", "INTEGER NOT NULL DEFAULT 0");
             EnsureColumn(connection, "trace_sessions", "maintenance_fork_request_count", "INTEGER NOT NULL DEFAULT 0");
             EnsureColumn(connection, "trace_sessions", "maintenance_fork_response_count", "INTEGER NOT NULL DEFAULT 0");
+            EnsureColumn(connection, "trace_sessions", "max_turn_duration_ms", "INTEGER NOT NULL DEFAULT 0");
             EnsureColumn(connection, "token_usage_records", "cache_write_input_tokens", "INTEGER NOT NULL DEFAULT 0");
             EnsureColumn(connection, "dashboard_usage_records", "cached_input_tokens", "INTEGER NOT NULL DEFAULT 0");
             EnsureColumn(connection, "dashboard_usage_records", "cache_write_input_tokens", "INTEGER NOT NULL DEFAULT 0");

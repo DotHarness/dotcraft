@@ -33,11 +33,19 @@ DotCraft --workspace /path/to/project
 
 | Section | Purpose |
 |---|---|
+| **Settings → Profile** | Token-activity heatmap for this workspace, lifetime/peak/streak stats, optional GitHub identity |
 | **Settings → General** | Current workspace path, AppServer binary path, language |
 | **Settings → Personalization** | Long-term memory / Dreams switches, run-now, auto-update, reset memory |
 | **Settings → Model Providers** | Personal providers, credentials, endpoints, workspace provider and model |
 | **Settings → Sub Agents** | Reuse external CLI sessions (see [SubAgents](../subagents.md)) |
 | **Settings → Connection** | Switch between local Hub and remote AppServer |
+
+### Profile
+
+- **Token activity** — a GitHub-contribution-style heatmap of daily token usage across all traced sessions in the current workspace. Switch between **Daily**, **Weekly**, and **Cumulative** colorings.
+- **Stats** — lifetime tokens, single-day peak, longest task (the longest single agent turn), current streak, and longest streak.
+- **Identity (optional)** — link a GitHub username to show its public avatar and handle in the header; otherwise an initials avatar is shown. When a signed-in ChatGPT provider is detected, its plan (e.g. Pro) appears as a badge.
+- Requires tracing to be enabled for the workspace; otherwise the activity view is unavailable.
 
 ### Personalization → Dreams
 

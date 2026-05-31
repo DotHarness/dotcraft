@@ -33,11 +33,19 @@ DotCraft --workspace /path/to/project
 
 | 配置入口 | 说明 |
 |---|---|
+| **Settings → Profile** | 当前工作区的 Token 活动热力图、累计/峰值/连续天数统计，以及可选的 GitHub 身份 |
 | **Settings → General** | 当前 Workspace 路径、AppServer binary 路径、语言 |
 | **Settings → Personalization** | 长期记忆与 Dreams 的开关、立即运行、自动更新、重置记忆 |
 | **Settings → Model Providers** | 个人 provider、凭证、Endpoint、工作区 provider 与模型 |
 | **Settings → Sub Agents** | 复用外部 CLI 会话（详见 [SubAgents](../subagents.md)） |
 | **Settings → Connection** | 本地 Hub vs 远程 AppServer 切换 |
+
+### Profile
+
+- **Token 活动** — 类似 GitHub 贡献图的热力图，展示当前工作区所有会话的每日 Token 用量；可在**每日**、**每周**、**累计**三种着色方式间切换。
+- **统计** — 累计 Token、单日峰值、最长任务（最长的单次 Agent turn）、当前连续天数与最长连续天数。
+- **身份（可选）** — 关联一个 GitHub 用户名即可在头部显示其公开头像与 handle；未关联时显示首字母头像。检测到已登录的 ChatGPT provider 时，会以徽章显示其套餐（如 Pro）。
+- 需要为该工作区启用 tracing，否则活动视图不可用。
 
 ### Personalization → Dreams
 

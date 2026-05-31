@@ -347,10 +347,11 @@ public sealed class TraceStore
         long totalInput = 0, totalOutput = 0, totalCachedInput = 0, totalCacheWriteInput = 0, totalReasoningOutput = 0;
         int totalRequests = 0, totalMaintenanceForkRequests = 0, totalResponses = 0, totalMaintenanceForkResponses = 0;
         int totalToolCalls = 0, totalErrors = 0, totalContextCompactions = 0;
-        long totalToolDuration = 0, maxToolDuration = 0;
+        long totalToolDuration = 0, maxToolDuration = 0, maxTurnDuration = 0;
 
         foreach (var session in _sessions.Values)
         {
+            maxTurnDuration = Math.Max(maxTurnDuration, session.MaxTurnDurationMs);
             totalInput += session.TotalInputTokens;
             totalOutput += session.TotalOutputTokens;
             totalCachedInput += session.TotalCachedInputTokens;
@@ -380,6 +381,7 @@ public sealed class TraceStore
             TotalToolDurationMs = totalToolDuration,
             AvgToolDurationMs = totalToolCalls > 0 ? totalToolDuration / (double)totalToolCalls : 0,
             MaxToolDurationMs = maxToolDuration,
+            MaxTurnDurationMs = maxTurnDuration,
             TotalInputTokens = totalInput,
             TotalOutputTokens = totalOutput,
             TotalCachedInputTokens = totalCachedInput,
@@ -387,6 +389,61 @@ public sealed class TraceStore
             TotalReasoningOutputTokens = totalReasoningOutput,
             TotalTokens = totalInput + totalOutput
         };
+    }
+
+    /// <summary>
+    /// Aggregates per-day token usage across all sessions for activity charts (spec Section 27A.3).
+    /// Each session contributes its token totals to the local calendar day of its
+    /// <see cref="TraceSession.StartedAt"/>, where local day is derived by shifting the UTC
+    /// timestamp by <paramref name="tzOffsetMinutes"/>. The result is sparse (only days with
+    /// at least one session) and ascending by date.
+    /// </summary>
+    /// <param name="from">Inclusive lower bound on the local day, or null for no lower bound.</param>
+    /// <param name="to">Inclusive upper bound on the local day, or null for no upper bound.</param>
+    /// <param name="tzOffsetMinutes">Minutes to add to UTC to obtain the client's local time.</param>
+    public IReadOnlyList<DailyUsageBucket> GetDailyUsage(DateOnly? from, DateOnly? to, int tzOffsetMinutes)
+    {
+        var offset = TimeSpan.FromMinutes(tzOffsetMinutes);
+        var buckets = new Dictionary<DateOnly, (long Input, long Output, int Sessions)>();
+
+        foreach (var session in _sessions.Values)
+        {
+            var localWallClock = session.StartedAt.ToUniversalTime().Add(offset).DateTime;
+            var date = DateOnly.FromDateTime(localWallClock);
+            if (from.HasValue && date < from.Value)
+                continue;
+            if (to.HasValue && date > to.Value)
+                continue;
+
+            var current = buckets.GetValueOrDefault(date);
+            buckets[date] = (
+                current.Input + session.TotalInputTokens,
+                current.Output + session.TotalOutputTokens,
+                current.Sessions + 1);
+        }
+
+        return buckets
+            .OrderBy(kv => kv.Key)
+            .Select(kv => new DailyUsageBucket
+            {
+                Date = kv.Key,
+                InputTokens = kv.Value.Input,
+                OutputTokens = kv.Value.Output,
+                SessionCount = kv.Value.Sessions
+            })
+            .ToList();
+    }
+
+    /// <summary>
+    /// Longest single Turn duration (ms) across all sessions — the workspace "longest task"
+    /// (spec §27A.3). Returns 0 when no turn durations have been recorded.
+    /// </summary>
+    public long GetLongestTurnDurationMs()
+    {
+        long max = 0;
+        foreach (var session in _sessions.Values)
+            max = Math.Max(max, session.MaxTurnDurationMs);
+        return max;
     }
 
     public void LoadFromDisk()
@@ -477,6 +534,10 @@ public sealed class TraceStore
                 session.ToolCallCount++;
                 if (evt.DurationMs.HasValue)
                     session.AddToolDuration((long)Math.Round(evt.DurationMs.Value));
+                break;
+            case TraceEventType.TurnCompleted:
+                if (evt.DurationMs.HasValue)
+                    session.RecordTurnDuration((long)Math.Round(evt.DurationMs.Value));
                 break;
             case TraceEventType.ToolInjection:
                 ApplyPromptCacheChangeSummary(session, evt);
@@ -660,6 +721,7 @@ public sealed class TraceStore
                 total_reasoning_output_tokens,
                 total_tool_duration_ms,
                 max_tool_duration_ms,
+                max_turn_duration_ms,
                 last_finish_reason,
                 final_system_prompt,
                 tool_names_json
@@ -683,6 +745,7 @@ public sealed class TraceStore
                 $total_reasoning_output_tokens,
                 $total_tool_duration_ms,
                 $max_tool_duration_ms,
+                $max_turn_duration_ms,
                 $last_finish_reason,
                 $final_system_prompt,
                 $tool_names_json
@@ -706,6 +769,7 @@ public sealed class TraceStore
                 total_reasoning_output_tokens = excluded.total_reasoning_output_tokens,
                 total_tool_duration_ms = excluded.total_tool_duration_ms,
                 max_tool_duration_ms = excluded.max_tool_duration_ms,
+                max_turn_duration_ms = excluded.max_turn_duration_ms,
                 last_finish_reason = excluded.last_finish_reason,
                 final_system_prompt = excluded.final_system_prompt,
                 tool_names_json = excluded.tool_names_json
@@ -729,6 +793,7 @@ public sealed class TraceStore
         command.Parameters.AddWithValue("$total_reasoning_output_tokens", session.TotalReasoningOutputTokens);
         command.Parameters.AddWithValue("$total_tool_duration_ms", session.TotalToolDurationMs);
         command.Parameters.AddWithValue("$max_tool_duration_ms", session.MaxToolDurationMs);
+        command.Parameters.AddWithValue("$max_turn_duration_ms", session.MaxTurnDurationMs);
         command.Parameters.AddWithValue("$last_finish_reason", (object?)session.LastFinishReason ?? DBNull.Value);
         command.Parameters.AddWithValue("$final_system_prompt", (object?)session.FinalSystemPrompt ?? DBNull.Value);
         command.Parameters.AddWithValue("$tool_names_json", JsonSerializer.Serialize(session.ToolNames, PersistJsonOptions));
@@ -815,7 +880,8 @@ public sealed class TraceStore
             session.TotalCacheWriteInputTokens,
             session.TotalReasoningOutputTokens,
             session.TotalToolDurationMs,
-            session.MaxToolDurationMs);
+            session.MaxToolDurationMs,
+            session.MaxTurnDurationMs);
         foreach (var evt in session.Events)
             clone.Events.Enqueue(evt);
         return clone;
@@ -1089,6 +1155,9 @@ public sealed class TraceSummary
 
     public long MaxToolDurationMs { get; init; }
 
+    /// <summary>Longest single Turn (one unit of agent work) across all sessions, in milliseconds.</summary>
+    public long MaxTurnDurationMs { get; init; }
+
     public long TotalInputTokens { get; init; }
 
     public long TotalOutputTokens { get; init; }
@@ -1108,4 +1177,21 @@ public sealed class TraceSummary
         : 0;
 
     public long TotalTokens { get; init; }
+}
+
+/// <summary>
+/// One day of aggregated token usage produced by <see cref="TraceStore.GetDailyUsage"/>.
+/// <see cref="Date"/> is a local calendar day (see the caller's timezone offset).
+/// </summary>
+public sealed class DailyUsageBucket
+{
+    public DateOnly Date { get; init; }
+
+    public long InputTokens { get; init; }
+
+    public long OutputTokens { get; init; }
+
+    public int SessionCount { get; init; }
+
+    public long TotalTokens => InputTokens + OutputTokens;
 }
