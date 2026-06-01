@@ -9,6 +9,7 @@ export const ACTION_SHORTCUTS = {
   quickOpen: ['Mod', 'P'],
   newBrowserTab: ['Mod', 'T'],
   viewChanges: ['Mod', 'Shift', 'G'],
+  newPlan: ['Mod', 'Shift', 'P'],
   newTerminalTab: ['Mod', '`'],
   settings: ['Mod', ','],
   send: ['Enter'],

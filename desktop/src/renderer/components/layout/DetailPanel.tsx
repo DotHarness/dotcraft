@@ -161,6 +161,7 @@ export function DetailPanel({ workspacePath = '' }: DetailPanelProps): JSX.Eleme
           : [{
               action: 'newPlan' as const,
               label: t('detailPanel.tabPlan'),
+              shortcut: fmt(ACTION_SHORTCUTS.newPlan),
               enabled: true
             }])
       ]

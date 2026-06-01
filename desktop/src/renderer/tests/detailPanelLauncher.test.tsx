@@ -70,6 +70,7 @@ describe('DetailPanelLauncher', () => {
     expect(screen.getByText('Ctrl+P')).toBeInTheDocument()
     expect(screen.getByText('Ctrl+T')).toBeInTheDocument()
     expect(screen.getByText('Ctrl+Shift+G')).toBeInTheDocument()
+    expect(screen.getByText('Ctrl+Shift+P')).toBeInTheDocument()
     expect(screen.getByText('Ctrl+`')).toBeInTheDocument()
   })
 })

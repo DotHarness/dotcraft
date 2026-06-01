@@ -1942,6 +1942,17 @@ export function App(): JSX.Element {
         return
       }
 
+      // Ctrl+Shift+P: open the Plan (Progress) tab
+      if (ctrl && e.shiftKey && e.key === 'P') {
+        e.preventDefault()
+        performAddTabAction('newPlan', {
+          threadId: useThreadStore.getState().activeThreadId,
+          workspacePath: workspacePathRef.current,
+          t: (key, vars) => translate(localeRef.current, key, vars)
+        })
+        return
+      }
+
       // Ctrl+Shift+C: copy last agent message to clipboard
       if (ctrl && e.shiftKey && e.key === 'C') {
         e.preventDefault()

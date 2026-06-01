@@ -69,6 +69,7 @@ export function DetailPanelLauncher({ onAction, canOpenWorkspaceTab }: DetailPan
       title: t('detailPanel.launcherPlanTitle'),
       description: t('detailPanel.launcherPlanDesc'),
       icon: <ListChecks size={22} strokeWidth={1.75} aria-hidden style={iconStyle} />,
+      shortcut: fmt(ACTION_SHORTCUTS.newPlan),
       enabled: true
     },
     {

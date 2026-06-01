@@ -441,7 +441,7 @@ describe('detail panel add-tab menu', () => {
           expect.objectContaining({ action: 'newBrowser', shortcut: 'Ctrl+T' }),
           expect.objectContaining({ action: 'newTerminal', shortcut: 'Ctrl+`' }),
           expect.objectContaining({ action: 'newChanges', shortcut: 'Ctrl+Shift+G', enabled: true }),
-          expect.objectContaining({ action: 'newPlan', enabled: true })
+          expect.objectContaining({ action: 'newPlan', shortcut: 'Ctrl+Shift+P', enabled: true })
         ])
       }))
     })
