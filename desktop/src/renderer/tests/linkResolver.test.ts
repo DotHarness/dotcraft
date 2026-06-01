@@ -14,6 +14,17 @@ describe('resolveConversationLink', () => {
     })
   })
 
+  it('resolves relative paths with line and column hints', () => {
+    expect(resolveConversationLink({
+      target: './src/Foo.cs:42:7',
+      workspacePath
+    })).toEqual({
+      kind: 'file',
+      absolutePath: 'C:/repo/src/Foo.cs',
+      hint: { line: 42, column: 7 }
+    })
+  })
+
   it('resolves relative paths against source context directory when provided', () => {
     expect(resolveConversationLink({
       target: '../shared/types.ts',

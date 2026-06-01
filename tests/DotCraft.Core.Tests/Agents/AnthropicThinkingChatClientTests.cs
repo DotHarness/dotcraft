@@ -19,7 +19,7 @@ public sealed class AnthropicThinkingChatClientTests
             enabled: true,
             effort: ReasoningEffort.High,
             output: ReasoningOutput.Full);
-        var client = CreateClient(handler, config, model: "vertex_ai/claude-opus-4-7");
+        var client = CreateClient(handler, config, model: "provider/claude-opus-4-7");
 
         await client.GetResponseAsync([new ChatMessage(ChatRole.User, "hello")], new ChatOptions
         {
@@ -92,6 +92,27 @@ public sealed class AnthropicThinkingChatClientTests
         var prepared = client.PrepareOptions(options);
 
         Assert.Same(options, prepared);
+    }
+
+    [Fact]
+    public void PrepareOptions_ExplicitOnlyWithoutRequestReasoningLeavesOptionsUnchanged()
+    {
+        var config = CreateConfig(
+            enabled: true,
+            effort: ReasoningEffort.High,
+            output: ReasoningOutput.Full);
+        var client = new AnthropicThinkingChatClient(
+            new CaptureChatClient(),
+            config,
+            "claude-opus-4-8",
+            "https://api.anthropic.com",
+            useDefaultReasoning: false);
+        var options = new ChatOptions();
+
+        var prepared = client.PrepareOptions(options);
+
+        Assert.Same(options, prepared);
+        Assert.Null(prepared!.RawRepresentationFactory);
     }
 
     private static AnthropicThinkingChatClient CreateClient(

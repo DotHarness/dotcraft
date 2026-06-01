@@ -131,6 +131,91 @@ internal sealed class ThreadRolloutStore
         return targetPath;
     }
 
+    public async Task<string> AppendCompactionCheckpointAsync(
+        string threadId,
+        string coveredThroughTurnId,
+        string trigger,
+        string mode,
+        long tokensBefore,
+        long tokensAfter,
+        JsonElement replacementHistory,
+        DateTimeOffset createdAt,
+        CancellationToken ct = default)
+    {
+        var existingPath = ResolveExistingPath(threadId);
+        if (existingPath == null)
+            throw new KeyNotFoundException($"Thread '{threadId}' not found.");
+
+        var record = new ThreadRolloutRecord
+        {
+            Kind = "context_compacted",
+            Timestamp = createdAt,
+            ContextCompacted = new ContextCompactedPayload
+            {
+                ThreadId = threadId,
+                CoveredThroughTurnId = coveredThroughTurnId,
+                CheckpointId = $"compact_{createdAt:yyyyMMddHHmmssfff}_{Guid.NewGuid():N}",
+                Trigger = trigger,
+                Mode = mode,
+                TokensBefore = tokensBefore,
+                TokensAfter = tokensAfter,
+                CreatedAt = createdAt,
+                ReplacementHistory = replacementHistory.Clone()
+            }
+        };
+
+        Directory.CreateDirectory(Path.GetDirectoryName(existingPath)!);
+        var payload = JsonSerializer.Serialize(record, JsonOptions) + Environment.NewLine;
+        await File.AppendAllTextAsync(existingPath, payload, ct);
+        return existingPath;
+    }
+
+    public async Task<IReadOnlyList<ThreadCompactionCheckpoint>> LoadCompactionCheckpointsAsync(
+        string threadId,
+        CancellationToken ct = default)
+    {
+        var path = ResolveExistingPath(threadId);
+        if (path == null)
+            return [];
+
+        var checkpoints = new List<ThreadCompactionCheckpoint>();
+        await foreach (var line in File.ReadLinesAsync(path, ct))
+        {
+            ct.ThrowIfCancellationRequested();
+            if (string.IsNullOrWhiteSpace(line))
+                continue;
+
+            ThreadRolloutRecord? record;
+            try
+            {
+                record = JsonSerializer.Deserialize<ThreadRolloutRecord>(line, JsonOptions);
+            }
+            catch
+            {
+                continue;
+            }
+
+            if (record is not { Kind: "context_compacted", ContextCompacted: { } checkpoint } ||
+                !string.Equals(checkpoint.ThreadId, threadId, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            checkpoints.Add(new ThreadCompactionCheckpoint(
+                checkpoint.ThreadId,
+                checkpoint.CoveredThroughTurnId,
+                checkpoint.CheckpointId,
+                checkpoint.Trigger,
+                checkpoint.Mode,
+                checkpoint.TokensBefore,
+                checkpoint.TokensAfter,
+                checkpoint.CreatedAt,
+                checkpoint.ReplacementHistory.Clone()));
+        }
+
+        return checkpoints;
+    }
+
     public void DeleteThread(string threadId)
     {
         foreach (var path in EnumerateCandidatePaths(threadId).Distinct(StringComparer.OrdinalIgnoreCase))
@@ -592,6 +677,8 @@ internal sealed class ThreadRolloutRecord
 
     public ThreadRolledBackPayload? ThreadRolledBack { get; init; }
 
+    public ContextCompactedPayload? ContextCompacted { get; init; }
+
     public QueuedInputAddedPayload? QueuedInputAdded { get; init; }
 
     public QueuedInputRemovedPayload? QueuedInputRemoved { get; init; }
@@ -677,6 +764,38 @@ internal sealed class ThreadRolledBackPayload
 
     public DateTimeOffset LastActiveAt { get; init; }
 }
+
+internal sealed class ContextCompactedPayload
+{
+    public string ThreadId { get; init; } = string.Empty;
+
+    public string CoveredThroughTurnId { get; init; } = string.Empty;
+
+    public string CheckpointId { get; init; } = string.Empty;
+
+    public string Trigger { get; init; } = string.Empty;
+
+    public string Mode { get; init; } = string.Empty;
+
+    public long TokensBefore { get; init; }
+
+    public long TokensAfter { get; init; }
+
+    public DateTimeOffset CreatedAt { get; init; }
+
+    public JsonElement ReplacementHistory { get; init; }
+}
+
+internal sealed record ThreadCompactionCheckpoint(
+    string ThreadId,
+    string CoveredThroughTurnId,
+    string CheckpointId,
+    string Trigger,
+    string Mode,
+    long TokensBefore,
+    long TokensAfter,
+    DateTimeOffset CreatedAt,
+    JsonElement ReplacementHistory);
 
 internal sealed class QueuedInputAddedPayload
 {

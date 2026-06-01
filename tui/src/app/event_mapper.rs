@@ -96,6 +96,87 @@ fn structured_invocation_result_text(payload: &serde_json::Value) -> Option<Stri
         .map(str::to_string)
 }
 
+fn is_run_in_background_terminal(terminal: &serde_json::Value) -> bool {
+    terminal
+        .get("backgroundReason")
+        .and_then(|v| v.as_str())
+        == Some("runInBackground")
+}
+
+fn terminal_duration(terminal: &serde_json::Value) -> Option<std::time::Duration> {
+    terminal
+        .get("wallTimeMs")
+        .and_then(|v| v.as_u64())
+        .map(std::time::Duration::from_millis)
+}
+
+fn terminal_exit_code(terminal: &serde_json::Value) -> Option<i32> {
+    terminal
+        .get("exitCode")
+        .and_then(|v| v.as_i64())
+        .and_then(|v| i32::try_from(v).ok())
+}
+
+fn merge_shell_output_by_call_id(
+    state: &mut AppState,
+    call_id: &str,
+    output: Option<String>,
+    exit_code: Option<i32>,
+    duration: Option<std::time::Duration>,
+    status: Option<&str>,
+) {
+    let failed_status = matches!(status, Some("failed" | "killed" | "timedOut" | "lost"));
+
+    if let Some(tool) = state
+        .streaming
+        .active_tools
+        .iter_mut()
+        .find(|t| t.call_id == call_id)
+    {
+        if let Some(ref out) = output {
+            if !out.is_empty() {
+                tool.result = Some(out.clone());
+            }
+        }
+        if let Some(d) = duration {
+            tool.duration = Some(d);
+        }
+        if let Some(code) = exit_code {
+            tool.success = code == 0;
+        } else if failed_status {
+            tool.success = false;
+        }
+    }
+
+    for entry in state.history.iter_mut().rev() {
+        if let HistoryEntry::ToolCall {
+            call_id: ref id,
+            result: ref mut r,
+            success: ref mut s,
+            duration: ref mut d,
+            ..
+        } = entry
+        {
+            if id == call_id {
+                if let Some(ref out) = output {
+                    if !out.is_empty() {
+                        *r = Some(out.clone());
+                    }
+                }
+                if let Some(code) = exit_code {
+                    *s = code == 0;
+                } else if failed_status {
+                    *s = false;
+                }
+                if duration.is_some() {
+                    *d = duration;
+                }
+                break;
+            }
+        }
+    }
+}
+
 /// Process one incoming wire message and mutate AppState accordingly.
 /// Returns true if the message was handled, false if it was unknown/ignored.
 pub fn apply(state: &mut AppState, msg: &JsonRpcMessage) -> bool {
@@ -403,6 +484,139 @@ pub fn apply(state: &mut AppState, msg: &JsonRpcMessage) -> bool {
                         }
                     }
                 }
+            }
+
+            true
+        }
+
+        "terminal/started" | "terminal/outputDelta" | "terminal/completed" | "terminal/stalled"
+        | "terminal/cleaned" => {
+            let terminal = params.get("terminal").unwrap_or(&serde_json::Value::Null);
+            if method == "terminal/cleaned" || is_run_in_background_terminal(terminal) {
+                return true;
+            }
+
+            let session_id = terminal
+                .get("sessionId")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let call_id = terminal
+                .get("callId")
+                .and_then(|v| v.as_str())
+                .map(str::to_string);
+            let Some(call_id_value) = call_id.clone() else {
+                return true;
+            };
+            if session_id.is_empty() {
+                return true;
+            }
+
+            let command = terminal
+                .get("command")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let working_directory = terminal
+                .get("workingDirectory")
+                .and_then(|v| v.as_str())
+                .map(str::to_string);
+            let source = terminal
+                .get("source")
+                .and_then(|v| v.as_str())
+                .map(str::to_string);
+            let status = terminal
+                .get("status")
+                .and_then(|v| v.as_str())
+                .unwrap_or("running")
+                .to_string();
+            let snapshot_output = terminal
+                .get("output")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let delta = params
+                .get("delta")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let exit_code = terminal_exit_code(terminal);
+            let duration = terminal_duration(terminal);
+            let completed = method == "terminal/completed"
+                || matches!(
+                    status.as_str(),
+                    "completed" | "failed" | "killed" | "timedOut" | "lost"
+                );
+
+            let output_for_merge;
+            let existing_index = state
+                .streaming
+                .active_command_executions
+                .iter()
+                .position(|e| {
+                    e.item_id == session_id || e.call_id.as_deref() == Some(call_id_value.as_str())
+                });
+
+            if let Some(index) = existing_index {
+                let exec = &mut state.streaming.active_command_executions[index];
+                exec.call_id = Some(call_id_value.clone());
+                if !command.is_empty() {
+                    exec.command = command;
+                }
+                exec.working_directory = working_directory;
+                exec.source = source;
+                exec.status = status.clone();
+                exec.exit_code = exit_code;
+                exec.duration = duration.or_else(|| Some(exec.started_at.elapsed()));
+                exec.completed = completed;
+                if !delta.is_empty() {
+                    exec.aggregated_output.push_str(&delta);
+                } else if !snapshot_output.is_empty() {
+                    exec.aggregated_output = snapshot_output;
+                }
+                output_for_merge = exec.aggregated_output.clone();
+            } else {
+                let aggregated_output = if !delta.is_empty() {
+                    delta
+                } else {
+                    snapshot_output
+                };
+                output_for_merge = aggregated_output.clone();
+                state
+                    .streaming
+                    .active_command_executions
+                    .push(ActiveCommandExecution {
+                        item_id: session_id.clone(),
+                        call_id: Some(call_id_value.clone()),
+                        command,
+                        working_directory,
+                        source,
+                        aggregated_output,
+                        completed,
+                        started_at: std::time::Instant::now(),
+                        duration,
+                        exit_code,
+                        status: status.clone(),
+                    });
+            }
+
+            if !output_for_merge.is_empty() {
+                state.at_bottom = true;
+            }
+            merge_shell_output_by_call_id(
+                state,
+                &call_id_value,
+                Some(output_for_merge),
+                exit_code,
+                duration,
+                Some(status.as_str()),
+            );
+
+            if completed {
+                state
+                    .streaming
+                    .active_command_executions
+                    .retain(|e| e.item_id != session_id);
             }
 
             true
@@ -1082,6 +1296,177 @@ mod tests {
         assert_eq!(merged_tool.0, Some("hello\\nworld\\n".to_string()));
         assert!(merged_tool.1);
         assert!(merged_tool.2.is_some());
+    }
+
+    #[test]
+    fn terminal_lifecycle_merges_into_exec_tool() {
+        let mut state = AppState::new("workspace".to_string());
+        state.streaming.active_tools.push(ActiveToolCall {
+            call_id: "call-term".to_string(),
+            tool_name: "Exec".to_string(),
+            arguments: r#"{"command":"echo hi"}"#.to_string(),
+            completed: false,
+            result: None,
+            success: true,
+            started_at: std::time::Instant::now(),
+            duration: None,
+        });
+        state.history.push(HistoryEntry::ToolCall {
+            call_id: "call-term".to_string(),
+            name: "Exec".to_string(),
+            args: r#"{"command":"echo hi"}"#.to_string(),
+            result: None,
+            success: true,
+            duration: None,
+        });
+
+        assert!(apply(
+            &mut state,
+            &notification(
+                "terminal/started",
+                serde_json::json!({
+                    "terminal": {
+                        "sessionId": "term-1",
+                        "threadId": "thread-1",
+                        "turnId": "turn-1",
+                        "callId": "call-term",
+                        "command": "echo hi",
+                        "workingDirectory": "/tmp",
+                        "source": "host",
+                        "status": "running",
+                        "output": ""
+                    }
+                })
+            )
+        ));
+        assert_eq!(state.streaming.active_command_executions.len(), 1);
+
+        state.at_bottom = false;
+        assert!(apply(
+            &mut state,
+            &notification(
+                "terminal/outputDelta",
+                serde_json::json!({
+                    "terminal": {
+                        "sessionId": "term-1",
+                        "threadId": "thread-1",
+                        "turnId": "turn-1",
+                        "callId": "call-term",
+                        "command": "echo hi",
+                        "workingDirectory": "/tmp",
+                        "source": "host",
+                        "status": "running",
+                        "output": "hello\\n",
+                        "wallTimeMs": 8
+                    },
+                    "delta": "hello\\n"
+                })
+            )
+        ));
+        assert!(state.at_bottom);
+        assert_eq!(
+            state
+                .streaming
+                .active_command_executions
+                .first()
+                .map(|e| e.aggregated_output.clone()),
+            Some("hello\\n".to_string())
+        );
+        assert_eq!(
+            state
+                .streaming
+                .active_tools
+                .first()
+                .and_then(|t| t.result.clone()),
+            Some("hello\\n".to_string())
+        );
+
+        assert!(apply(
+            &mut state,
+            &notification(
+                "terminal/completed",
+                serde_json::json!({
+                    "terminal": {
+                        "sessionId": "term-1",
+                        "threadId": "thread-1",
+                        "turnId": "turn-1",
+                        "callId": "call-term",
+                        "command": "echo hi",
+                        "workingDirectory": "/tmp",
+                        "source": "host",
+                        "status": "completed",
+                        "output": "hello\\nworld\\n",
+                        "exitCode": 0,
+                        "wallTimeMs": 12
+                    }
+                })
+            )
+        ));
+
+        assert!(state.streaming.active_command_executions.is_empty());
+        let merged_tool = state
+            .history
+            .iter()
+            .rev()
+            .find_map(|entry| match entry {
+                HistoryEntry::ToolCall {
+                    call_id,
+                    result,
+                    success,
+                    duration,
+                    ..
+                } if call_id == "call-term" => Some((result.clone(), *success, *duration)),
+                _ => None,
+            })
+            .expect("merged terminal exec tool");
+        assert_eq!(merged_tool.0, Some("hello\\nworld\\n".to_string()));
+        assert!(merged_tool.1);
+        assert_eq!(merged_tool.2, Some(std::time::Duration::from_millis(12)));
+    }
+
+    #[test]
+    fn run_in_background_terminal_output_is_not_inline() {
+        let mut state = AppState::new("workspace".to_string());
+        state.streaming.active_tools.push(ActiveToolCall {
+            call_id: "call-bg".to_string(),
+            tool_name: "Exec".to_string(),
+            arguments: r#"{"command":"npm run dev","runInBackground":true}"#.to_string(),
+            completed: false,
+            result: None,
+            success: true,
+            started_at: std::time::Instant::now(),
+            duration: None,
+        });
+
+        assert!(apply(
+            &mut state,
+            &notification(
+                "terminal/outputDelta",
+                serde_json::json!({
+                    "terminal": {
+                        "sessionId": "term-bg",
+                        "threadId": "thread-1",
+                        "turnId": "turn-1",
+                        "callId": "call-bg",
+                        "command": "npm run dev",
+                        "status": "running",
+                        "output": "server ready\\n",
+                        "backgroundReason": "runInBackground"
+                    },
+                    "delta": "server ready\\n"
+                })
+            )
+        ));
+
+        assert!(state.streaming.active_command_executions.is_empty());
+        assert_eq!(
+            state
+                .streaming
+                .active_tools
+                .first()
+                .and_then(|t| t.result.clone()),
+            None
+        );
     }
 
     #[test]

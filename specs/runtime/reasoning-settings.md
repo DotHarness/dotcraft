@@ -209,7 +209,7 @@ Rules:
 - request shaping, such as Anthropic adaptive thinking or OpenAI-compatible deep-thinking body patches
 - UI capability metadata, such as supported efforts, default effort, output support, and whether Off is enforceable
 
-Catalog entries must support model prefix matching and namespaced suffix matching, so `vertex_ai/claude-opus-4-7` matches `claude-opus-4-7`.
+Catalog entries must support model prefix matching and namespaced suffix matching, so a namespaced model ID ending in `claude-opus-4-7` matches `claude-opus-4-7`.
 
 ### 6.2 OpenAI Protocols
 

@@ -2,6 +2,7 @@ using DotCraft.State;
 using DotCraft.Tracing;
 using DotCraft.Context.Compaction;
 using Microsoft.Agents.AI;
+using Microsoft.Extensions.AI;
 
 namespace DotCraft.Protocol;
 
@@ -61,6 +62,28 @@ public sealed class SessionPersistenceService(
 
     public Task RollbackThreadAsync(SessionThread thread, int numTurns, CancellationToken ct = default)
         => threadStore.RollbackThreadAsync(thread, numTurns, ct);
+
+    /// <summary>
+    /// Appends an internal recovery checkpoint for the current compacted model-visible history.
+    /// </summary>
+    public Task AppendCompactionCheckpointAsync(
+        string threadId,
+        string coveredThroughTurnId,
+        IReadOnlyList<ChatMessage> replacementHistory,
+        string trigger,
+        string mode,
+        long tokensBefore,
+        long tokensAfter,
+        CancellationToken ct = default)
+        => threadStore.AppendCompactionCheckpointAsync(
+            threadId,
+            coveredThroughTurnId,
+            replacementHistory,
+            trigger,
+            mode,
+            tokensBefore,
+            tokensAfter,
+            ct);
 
     public void DeleteSessionFile(string threadId)
         => threadStore.DeleteSessionFile(threadId);

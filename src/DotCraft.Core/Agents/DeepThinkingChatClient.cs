@@ -15,11 +15,13 @@ internal sealed class DeepThinkingChatClient(
     AppConfig config,
     string? model,
     string? endpoint,
-    AppConfig.ReasoningConfig? reasoningConfig = null)
+    AppConfig.ReasoningConfig? reasoningConfig = null,
+    bool useDefaultReasoning = true)
     : DelegatingChatClient(innerClient)
 {
     private readonly bool _enabled = ModelThinkingAdapterCatalog.ShouldApplyDeepThinking(config, endpoint, model);
     private readonly AppConfig.ReasoningConfig _reasoningConfig = reasoningConfig ?? config.Reasoning;
+    private readonly bool _useDefaultReasoning = useDefaultReasoning;
 
     public override async Task<ChatResponse> GetResponseAsync(
         IEnumerable<ChatMessage> messages,
@@ -72,7 +74,7 @@ internal sealed class DeepThinkingChatClient(
 
     private ChatOptions? PrepareOptions(ChatOptions? options)
     {
-        var reasoning = options?.Reasoning ?? _reasoningConfig.ToOptions();
+        var reasoning = options?.Reasoning ?? (_useDefaultReasoning ? _reasoningConfig.ToOptions() : null);
         if (reasoning == null)
             return options;
 

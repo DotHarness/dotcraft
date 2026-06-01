@@ -149,11 +149,13 @@ public sealed class AppServerHandshakeTests : IDisposable
         await _h.InitializeAsync(
             approvalSupport: true,
             streamingSupport: false,
-            toolExecutionLifecycle: true);
+            toolExecutionLifecycle: true,
+            backgroundTerminals: true);
 
         Assert.True(_h.Connection.SupportsApproval);
         Assert.False(_h.Connection.SupportsStreaming);
         Assert.True(_h.Connection.SupportsToolExecutionLifecycle);
+        Assert.True(_h.Connection.SupportsBackgroundTerminals);
     }
 
     // -------------------------------------------------------------------------

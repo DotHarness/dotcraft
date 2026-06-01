@@ -698,6 +698,7 @@ body {
 .trace-event.type-TokenUsage { border-left-color: var(--cyan); }
 .trace-event.type-Error { border-left-color: var(--error); }
 .trace-event.type-ContextCompaction { border-left-color: var(--text-muted); }
+.trace-event.type-ThreadRollback { border-left-color: var(--warning); }
 .trace-event.type-Thinking { border-left-color: var(--thinking); }
 .trace-event.type-MaintenanceForkRequest { border-left-color: var(--info); }
 .trace-event.type-MaintenanceForkResponse { border-left-color: var(--warning); }
@@ -736,6 +737,7 @@ body {
 .trace-event.type-DeferredToolLoading .trace-icon,
 .trace-event.type-TokenUsage .trace-icon { color: var(--cyan); border-color: color-mix(in srgb, var(--cyan) 45%, var(--border)); background: var(--cyan-dim); }
 .trace-event.type-Error .trace-icon { color: var(--error); border-color: color-mix(in srgb, var(--error) 45%, var(--border)); background: var(--error-dim); }
+.trace-event.type-ThreadRollback .trace-icon { color: var(--warning); border-color: color-mix(in srgb, var(--warning) 45%, var(--border)); background: var(--warning-dim); }
 .trace-event.type-Thinking .trace-icon { color: var(--thinking); border-color: color-mix(in srgb, var(--thinking) 45%, var(--border)); background: var(--thinking-dim); }
 
 .trace-body { flex: 1; min-width: 0; }
@@ -753,6 +755,7 @@ body {
 .trace-label.deferred { color: var(--cyan); }
 .trace-label.token { color: var(--cyan); }
 .trace-label.error { color: var(--error); }
+.trace-label.rollback { color: var(--warning); }
 .trace-label.compaction { color: var(--text-muted); }
 .trace-label.thinking { color: var(--thinking); }
 
@@ -2099,6 +2102,7 @@ let autoScroll = true;
 let selectedSession = null;
 let eventSource = null;
 let allTraceEvents = [];
+let selectedSessionOperations = [];
 let traceOldestCursor = null;
 let traceHasMore = false;
 let traceLoadingOlder = false;
@@ -2149,6 +2153,7 @@ function iconSvg(name, size = 16, extra = '') {
     terminal: '<path d="m4 17 6-5-6-5"/><path d="M12 19h8"/>',
     thinking: '<path d="M9.5 17H8a5 5 0 0 1 0-10h.6A6 6 0 0 1 20 10.2 4.5 4.5 0 0 1 17.5 19H16"/><path d="M12 13v5"/><path d="m9 16 3 3 3-3"/>',
     tool: '<path d="M14.7 6.3a4 4 0 0 0-5 5L3 18v3h3l6.7-6.7a4 4 0 0 0 5-5l-2.4 2.4-3-3Z"/>',
+    undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 1 1-4.2 10.2"/>',
     x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>'
   };
   return `<svg class="${extra}" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[name] || icons.info}</svg>`;
@@ -2618,12 +2623,16 @@ function renderSessionMetadata(session, idPrefix) {
   const driftChip = drift > 0
     ? `<span class="badge badge-warning">drift ${formatNumber(drift)}</span>`
     : '';
+  const rollbackBadge = (session.rollbackCount || 0) > 0
+    ? `<span class="badge badge-warning">rollback ${formatNumber(session.rollbackCount)}</span>`
+    : '';
 
   return `<div class="session-meta-block" onclick="event.stopPropagation()">
     <div class="session-summary">
       <span class="session-summary-label">User request:</span>
       <span class="session-request-preview"${requestTitle}>${requestPreview}</span>
       ${driftChip}
+      ${rollbackBadge}
       <button type="button" class="session-expand-btn" aria-expanded="false" onclick="toggleSessionCard(this)" title="Show prompt & tools">
         <svg class="session-expand-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
         ${formatNumber(toolNames.length)} tools
@@ -2637,6 +2646,7 @@ function renderSessionMetadata(session, idPrefix) {
           <span class="badge badge-info">prompt ${escapeHtml(promptHash)}</span>
           <span class="badge badge-info">tools ${escapeHtml(toolHash)}</span>
           ${promptCacheBadge}
+          ${rollbackBadge}
         </div>
         <div class="session-tools-inline">${tools}</div>
       </div>
@@ -2775,6 +2785,8 @@ async function viewSessionTraces(sessionKey) {
   const firstRequest = cleanUserRequest(session?.firstUserRequest || '');
   const requestPreview = firstRequest ? escapeHtml(truncate(firstRequest, 180)) : 'Not captured';
   const toolCount = session?.toolNames ? session.toolNames.length : 0;
+  const rollbackCount = session?.rollbackCount || 0;
+  const rollbackBadge = rollbackCount > 0 ? `<span class="badge badge-warning">rollback ${formatNumber(rollbackCount)}</span>` : '';
   const promptButton = session?.finalSystemPrompt
     ? `<button type="button" class="btn btn-compact" onclick="showSystemPrompt(event, decodeURIComponent('${encodeURIComponent(sessionKey)}'))">System prompt</button>`
     : '';
@@ -2785,7 +2797,7 @@ async function viewSessionTraces(sessionKey) {
     <div style="display:flex;flex-direction:column;gap:4px">
       <div style="display:flex;align-items:center;gap:8px">Traces: <span style="color:var(--accent-light);font-family:var(--font-mono)">${escapeHtml(sessionKey)}</span>${renderFinishReasonBadge(session?.lastFinishReason)}</div>
       <div style="font-size:12px;color:var(--text-muted)">User request: <span style="color:var(--text-secondary)">${requestPreview}</span></div>
-      <div style="font-size:12px;color:var(--text-muted);display:flex;align-items:center;gap:8px">Tools: ${toolCount} ${promptButton}</div>
+      <div style="font-size:12px;color:var(--text-muted);display:flex;align-items:center;gap:8px">Tools: ${toolCount} ${rollbackBadge} ${promptButton}</div>
     </div>
   `;
   await refreshTraces();
@@ -2794,6 +2806,9 @@ async function viewSessionTraces(sessionKey) {
 async function refreshTraces() {
   if (!selectedSession) {
     document.getElementById('tracePanelTitle').textContent = 'Traces (All Sessions)';
+    selectedSessionOperations = [];
+  } else {
+    selectedSessionOperations = await fetchSessionOperations(selectedSession);
   }
 
   traceOldestCursor = null;
@@ -2815,6 +2830,16 @@ async function fetchTraceEventPage(beforeCursor) {
     ? '/sessions/' + encodeURIComponent(selectedSession) + '/events/page'
     : '/events/page';
   return await fetchJson(endpoint + '?' + params.toString());
+}
+
+async function fetchSessionOperations(sessionKey) {
+  try {
+    const operations = await fetchJson('/sessions/' + encodeURIComponent(sessionKey) + '/operations');
+    return Array.isArray(operations) ? operations : [];
+  } catch (e) {
+    console.warn('Failed to load session operations', e);
+    return [];
+  }
 }
 
 async function loadOlderTraceEvents() {
@@ -2860,11 +2885,12 @@ function mergeTraceEvents(prefix, suffix) {
 
 function renderTraceTimeline(events, options = {}) {
   const container = document.getElementById('traceTimeline');
-  const decoratedEvents = decorateTraceEventsWithPromptCacheDiagnostics(events || []);
+  const timelineEvents = mergeTraceEventsWithOperations(events || [], selectedSessionOperations || []);
+  const decoratedEvents = decorateTraceEventsWithPromptCacheDiagnostics(timelineEvents);
 
   const filtered = currentFilter === 'all' ? decoratedEvents : decoratedEvents.filter(e => {
     if (currentFilter === 'Tool') return e.type === 'ToolCallStarted' || e.type === 'ToolCallCompleted' || e.type === 'ToolInjection' || e.type === 'DeferredToolLoading';
-    if (currentFilter === 'Maintenance') return e.type === 'MaintenanceForkRequest' || e.type === 'MaintenanceForkResponse' || e.type === 'ContextCompaction';
+    if (currentFilter === 'Maintenance') return e.type === 'MaintenanceForkRequest' || e.type === 'MaintenanceForkResponse' || e.type === 'ContextCompaction' || e.type === 'ThreadRollback';
     return e.type === currentFilter;
   });
 
@@ -2892,6 +2918,66 @@ function renderTraceTimeline(events, options = {}) {
 
   if (body && shouldScroll) body.scrollTop = body.scrollHeight;
   updateTraceJumpButton();
+}
+
+function mergeTraceEventsWithOperations(events, operations) {
+  if (!selectedSession || !operations || operations.length === 0) return events;
+
+  const output = [];
+  const rollbackKeys = new Set();
+  for (const event of events) {
+    if (event?.type === 'ThreadRollback') {
+      const key = rollbackDedupeKeyFromEvent(event);
+      if (key) rollbackKeys.add(key);
+    }
+    output.push(event);
+  }
+
+  for (const operation of operations) {
+    if (!operation || operation.type !== 'rollback') continue;
+    const synthetic = traceEventFromRollbackOperation(operation);
+    const key = rollbackDedupeKeyFromEvent(synthetic);
+    if (key && rollbackKeys.has(key)) continue;
+    if (key) rollbackKeys.add(key);
+    output.push(synthetic);
+  }
+
+  return output.sort((a, b) => {
+    const at = Date.parse(a.timestamp || 0);
+    const bt = Date.parse(b.timestamp || 0);
+    if (Number.isFinite(at) && Number.isFinite(bt) && at !== bt) return at - bt;
+    return String(a.id || '').localeCompare(String(b.id || ''));
+  });
+}
+
+function traceEventFromRollbackOperation(operation) {
+  const metadata = {
+    threadId: operation.threadId,
+    numTurns: operation.numTurns,
+    source: operation.source || 'rollout',
+    operationId: operation.id
+  };
+  return {
+    id: operation.id,
+    type: 'ThreadRollback',
+    sessionKey: selectedSession,
+    timestamp: operation.timestamp,
+    content: `Rollback removed ${formatNumber(operation.numTurns || 0)} turn(s)`,
+    metadataJson: JSON.stringify(metadata),
+    rolloutOperation: true
+  };
+}
+
+function rollbackDedupeKeyFromEvent(event) {
+  if (!event || event.type !== 'ThreadRollback') return null;
+  const md = parseTraceMetadata(event.metadataJson) || {};
+  const threadId = md.threadId || event.sessionKey || '';
+  const numTurns = md.numTurns ?? md.num_turns ?? '';
+  const timestamp = Date.parse(event.timestamp || '');
+  const normalizedTimestamp = Number.isFinite(timestamp)
+    ? new Date(timestamp).toISOString()
+    : String(event.timestamp || '');
+  return `${threadId}|${normalizedTimestamp}|${numTurns}`;
 }
 
 function decorateTraceEventsWithPromptCacheDiagnostics(events) {
@@ -3272,6 +3358,28 @@ function renderTraceEvent(e) {
           <div class="trace-label compaction">Context Compaction</div>
           ${renderExpandableTraceText(evtId, e.content, 500)}
         </div></div>`;
+
+    case 'ThreadRollback': {
+      const md = parseTraceMetadata(e.metadataJson) || {};
+      const removed = md.numTurns ?? e.numTurns ?? 0;
+      const remainingBadge = md.remainingTurns != null
+        ? `<span class="badge badge-info">${formatNumber(md.remainingTurns)} remaining</span>`
+        : '';
+      const sourceBadge = md.source
+        ? `<span class="badge badge-accent">${escapeHtml(md.source)}</span>`
+        : '';
+      const sessionBadge = e.sessionKey && !selectedSession
+        ? ' <span class="badge badge-info">' + escapeHtml(e.sessionKey) + '</span>'
+        : '';
+      return `<div class="trace-event type-ThreadRollback">
+        <div class="trace-time">${time}</div>
+        <div class="trace-icon">${iconSvg('undo', 14)}</div>
+        <div class="trace-body">
+          <div class="trace-label rollback">Rollback${sessionBadge} <span class="badge badge-warning">removed ${formatNumber(removed)} turn(s)</span> ${remainingBadge} ${sourceBadge}</div>
+          ${renderExpandableTraceText(evtId, e.content || `Rollback removed ${formatNumber(removed)} turn(s)`, 500)}
+          ${renderMetadataDetail(evtId, e.metadataJson)}
+        </div></div>`;
+    }
 
     case 'Thinking':
       return `<div class="trace-event type-Thinking">
@@ -3693,7 +3801,8 @@ function traceEventMatchesCurrentFilter(evt) {
   if (currentFilter === 'Maintenance') {
     return evt.type === 'MaintenanceForkRequest' ||
       evt.type === 'MaintenanceForkResponse' ||
-      evt.type === 'ContextCompaction';
+      evt.type === 'ContextCompaction' ||
+      evt.type === 'ThreadRollback';
   }
   return evt.type === currentFilter;
 }

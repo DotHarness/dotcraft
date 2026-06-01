@@ -297,7 +297,7 @@ Fields:
   - `UserMessage` — User's input text.
   - `AgentMessage` — Agent's response text (may be streamed incrementally).
   - `ReasoningContent` — Agent's internal reasoning/thinking (if exposed by the model).
-  - `CommandExecution` — Server-observed shell execution stream for `Exec`-style tools. Payload includes command metadata and aggregated output.
+  - `CommandExecution` — Server-observed shell execution projection for `Exec`-style tools. Payload includes command metadata and aggregated output for persistence, history summaries, and non-terminal-capable fallback rendering.
   - `ToolExecution` — Server-observed runtime lifecycle for a normal tool invocation. Payload includes call id, tool name, status, duration, and optional preview/error text.
   - `ToolCall` — Agent invokes a tool. Payload includes tool name and arguments.
   - `PluginFunctionCall` — Agent invokes a Plugin Function. Payload includes plugin identity, function name, arguments, content items, structured result, and success/failure metadata. Plugin-backed tools do not create companion `ToolResult` items.
@@ -511,6 +511,11 @@ When an `Exec`-style tool returns while its process is still alive, the
 `CommandExecution` Item is completed with `status = "backgrounded"`. Later
 process lifecycle changes are represented by the background terminal runtime,
 not by appending deltas to an already completed Turn.
+
+Terminal-capable AppServer clients consume live shell process output from
+`terminal/*` notifications. `CommandExecution` remains the persisted observable
+summary and compatibility projection; clients that consume both paths merge by
+`callId` and avoid rendering duplicate output.
 
 #### ApprovalRequest
 
@@ -993,6 +998,7 @@ Context compaction is a short-term context-window optimization. It is not long-t
 - Cache-sharing snapshot forks should keep cache-sensitive request parameters stable when possible, but a snapshot is usable only while its captured messages remain a prefix of the current canonical model-visible history. Any successful history replacement (auto, reactive, or manual compaction; rollback; deletion) invalidates older snapshots. Maintenance forks should attempt the provider request first so prompt-cache-aware providers can reuse the captured prefix. If the provider rejects the snapshot request with a conservatively classified prompt-too-long / context-overflow error, the fork returns `maintenance_snapshot_too_large` and falls back to a trimmed non-cache path when one exists. Other provider, authentication, rate-limit, model, or request-shape errors must not be reclassified as context overflow.
 - Snapshot forks enforce summary length through the prompt and by validating the returned summary. A summary that exceeds the compact-specific hard budget is treated as `compact_summary_too_long` and must fall back to a non-cache path or report `compactFailed`.
 - Compaction model-call cancellation, provider/network timeout, and overlong summaries must be observable in trace storage with a terminal maintenance-fork response. Manual compaction maps user cancellation to `compactCancelled`; provider timeout and overlong/invalid summary map to `compactFailed` with machine-readable `message` values.
+- Successful history replacement must persist a recovery checkpoint containing the replacement model-visible history and the newest covered Turn. Later recovery and rollback rebuilds use the newest checkpoint whose covered Turn still survives in the canonical Thread.
 
 #### Usage Events
 
@@ -1186,11 +1192,12 @@ Workspace-managed local images referenced by persisted `localImage` input parts 
 Session Core manages the mapping:
 - **Save**: After each successful compaction and after each terminal Turn when an optimized session is available, serialize the `AgentSession` and upsert `thread_sessions.session_json`.
 - **Load**: On Thread resume, deserialize `thread_sessions.session_json` via `agent.DeserializeSessionAsync`.
-- **Rebuild**: Rebuild from rollout only when the optimized session row is missing, malformed, or cannot be saved/deserialized. Rebuilds must be treated as recovery and should not overwrite a usable optimized session after compaction.
+- **Rebuild**: Rebuild from rollout only when the optimized session row is missing, malformed, or cannot be saved/deserialized. Rebuilds must first apply the newest surviving compaction checkpoint and then replay only later surviving Turns. Full rollout rebuild is a legacy fallback when no usable checkpoint exists. Rebuilds must be treated as recovery and should not overwrite a usable optimized session after compaction.
 
 The separation between rollout history and agent session state is intentional:
 - The rollout JSONL files are the source of truth for the Session Protocol UI/domain model.
 - The `thread_sessions` table is the source of truth for optimized LLM conversation history. It may contain compacted summaries, cleared tool-result markers, or other model-visible projections that intentionally differ from the full UI rollout.
+- Rollout may also contain internal compaction checkpoints. These records store replacement model-visible history for recovery only; they are not Session Items and are not projected to clients.
 
 ### 9.4 Thread Discovery
 
@@ -1254,6 +1261,8 @@ The supported persistence contract is:
 Dashboard trace-session deletion follows the same persistence contract. Deleting one trace session removes that session's trace rows and associated dashboard usage rows; if the session is bound to a thread, deletion cascades through permanent thread deletion. Clearing all trace sessions deletes the selected trace/thread state and associated usage rows, but preserves global usage rows that have no `thread_id` or `session_key`. Bulk trace clearing may run SQLite maintenance (`wal_checkpoint(TRUNCATE)` and conditional `VACUUM`) after deletion to reclaim WAL/free-page space.
 
 Dashboard trace event reads are paged from the durable trace store. The first page returns at most the newest 1000 events for the selected session or all sessions; clients fetch older events with an opaque `beforeCursor` when the user scrolls upward. Maintenance envelope events are filterable as maintenance events and are counted separately from normal LLM request/response totals, while detailed collector events and token usage remain in the same trace session for correlation.
+
+Dashboard may also project read-only thread operations from canonical thread JSONL. Rollback visibility is derived from `thread_rolled_back` records and exposed as operation metadata (`type = rollback`, `threadId`, timestamp, removed Turn count, and source). Hidden recovery records such as compaction checkpoints remain internal and must not be exposed through Dashboard operation APIs or trace views.
 
 ### 9.7 Persistence Failure Handling
 
@@ -1365,7 +1374,9 @@ Cross-channel resume works for channels that share the same identity shape:
 
 `RollbackThread(threadId, numTurns)` removes `numTurns` turns from the end of a non-archived Thread. `numTurns` must be at least 1 and no turn in the Thread may be `Running` or `WaitingApproval`.
 
-Rollback appends a canonical rollback record to thread JSONL and updates thread metadata; it does not revert files or other workspace side effects created by tools. After rollback, Session Core rebuilds or invalidates the persisted `AgentSession` from canonical history so future turns use the pruned conversation.
+Rollback appends a canonical rollback record to thread JSONL and updates thread metadata; it does not revert files or other workspace side effects created by tools. After rollback, Session Core first tries to trim the removed Turn tail from the optimized `AgentSession`. If the removed Turns are no longer present as a plain model-visible suffix, Session Core rebuilds through the newest surviving compaction checkpoint before falling back to full canonical history. Rollback must not silently restore model-visible history that had already been compacted out.
+Successful rollback also records a maintenance trace event for live Dashboard visibility. Dashboard must de-duplicate that live event with the canonical rollout-derived operation when both are available.
+
 - **Channel disconnects** are transparent to Session Core. Turns run to completion regardless of adapter state. Results are persisted and available on reconnect.
 
 ### 12.3 Error Reporting
@@ -1420,7 +1431,7 @@ All failures surface as:
 - `turn/started` emitted on `SubmitInput`
 - `item/started` emitted for each Item creation
 - `item/delta` emitted for streaming AgentMessage content
-- `item/delta` emitted for streaming CommandExecution output when shell streaming is enabled
+- `item/delta` emitted for CommandExecution compatibility output when shell streaming is enabled
 - `item/completed` emitted when Item is finalized
 - `turn/completed` emitted after all Items are complete
 - `turn/failed` emitted on error
@@ -1707,7 +1718,7 @@ QQ and WeCom use `ActiveRunRegistry` to track and cancel in-flight runs. Under S
 
 Bidirectional capabilities are outside the session model.
 
-The Session Protocol models conversation state and turn execution. It does not model transport-specific request/response features such as IDE filesystem access, terminal control, extension calls, or API-specific REST flows. Those remain tool- or channel-level concerns. Background terminals follow the same boundary: Session Core records the observable `CommandExecution` Item for the originating tool call. The model-facing shell surface stays minimal (`Exec` plus `WriteStdin`, where empty stdin polls output); terminal listing, direct reads, stopping, and cleanup are AppServer/control-plane capabilities.
+The Session Protocol models conversation state and turn execution. It does not model transport-specific request/response features such as IDE filesystem access, terminal control, extension calls, or API-specific REST flows. Those remain tool- or channel-level concerns. Background terminals follow the same boundary: Session Core records the observable `CommandExecution` Item for the originating tool call, while AppServer exposes live terminal snapshots and output deltas to terminal-capable clients. The model-facing shell surface stays minimal (`Exec` plus `WriteStdin`, where empty stdin polls output); terminal listing, direct reads, stopping, and cleanup are AppServer/control-plane capabilities.
 
 The design rule is simple:
 

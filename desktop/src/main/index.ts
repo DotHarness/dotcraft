@@ -841,6 +841,7 @@ function probeRemoteAppServerConnection(wsUrl: string): Promise<void> {
             streamingSupport: true,
             commandExecutionStreaming: true,
             toolExecutionLifecycle: true,
+            backgroundTerminals: true,
             configChange: true,
             optOutNotificationMethods: [],
             nodeRepl: {

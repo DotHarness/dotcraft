@@ -1,3 +1,8 @@
+using System.ClientModel.Primitives;
+using System.Net;
+using System.Text;
+using System.Text.Json;
+using Anthropic;
 using DotCraft.Agents;
 using DotCraft.Context;
 using DotCraft.Configuration;
@@ -434,6 +439,83 @@ public sealed class MaintenanceForkRunnerTests
     }
 
     [Fact]
+    public async Task RunAsync_AnthropicOpus48ForkSerializesAdaptiveThinking()
+    {
+        var handler = new AnthropicCaptureHandler("<summary>important bits</summary>");
+        var anthropicClient = new AnthropicClient
+        {
+            HttpClient = new HttpClient(handler) { BaseAddress = new Uri("http://localhost") },
+            ApiKey = "test-key"
+        };
+        var config = CreateReasoningConfig();
+        var chatClient = ProviderChatClientAdapters.CreateRequestAdaptedClient(
+            anthropicClient.AsIChatClient("claude-opus-4-8"),
+            config,
+            Runtime(ModelProviderProtocols.Anthropic, "claude-opus-4-8"),
+            useDefaultReasoning: false);
+        var runner = new MaintenanceForkRunner(chatClient);
+        var snapshot = PromptRequestSnapshot.Capture(
+            [new ChatMessage(ChatRole.User, "stable prefix")],
+            new ChatOptions
+            {
+                Instructions = "stable base",
+                ModelId = "claude-opus-4-8",
+                Reasoning = config.Reasoning.ToOptions()
+            },
+            providerId: "anthropic",
+            mode: "agent",
+            threadId: "thread_1",
+            turnId: "turn_1");
+
+        var result = await runner.RunAsync(
+            snapshot,
+            new MaintenanceForkTask(MaintenanceForkTaskKind.ContextCompaction, "Summarize older context."));
+
+        Assert.Null(result.FallbackReason);
+        using var document = JsonDocument.Parse(handler.LastRequestJson!);
+        var root = document.RootElement;
+        Assert.Equal("adaptive", root.GetProperty("thinking").GetProperty("type").GetString());
+        Assert.Equal("summarized", root.GetProperty("thinking").GetProperty("display").GetString());
+        Assert.False(root.GetProperty("thinking").TryGetProperty("budget_tokens", out _));
+        Assert.Equal("high", root.GetProperty("output_config").GetProperty("effort").GetString());
+    }
+
+    [Fact]
+    public async Task RunAsync_MimoForkAppliesDeepThinkingFromExplicitSnapshotReasoning()
+    {
+        var config = CreateReasoningConfig(model: "mimo-v2.5-pro");
+        var capture = new RecordingChatClient("<summary>important bits</summary>");
+        var chatClient = ProviderChatClientAdapters.CreateRequestAdaptedClient(
+            capture,
+            config,
+            Runtime(ModelProviderProtocols.OpenAIChatCompletions, "mimo-v2.5-pro", "https://api.openai-compatible.test/v1"),
+            useDefaultReasoning: false);
+        var runner = new MaintenanceForkRunner(chatClient);
+        var snapshot = PromptRequestSnapshot.Capture(
+            [new ChatMessage(ChatRole.User, "stable prefix")],
+            new ChatOptions
+            {
+                Instructions = "stable base",
+                ModelId = "mimo-v2.5-pro",
+                Reasoning = config.Reasoning.ToOptions()
+            },
+            providerId: "mimo",
+            mode: "agent",
+            threadId: "thread_1",
+            turnId: "turn_1");
+
+        var result = await runner.RunAsync(
+            snapshot,
+            new MaintenanceForkTask(MaintenanceForkTaskKind.ContextCompaction, "Summarize older context."));
+
+        Assert.Null(result.FallbackReason);
+        var raw = Assert.IsType<OpenAI.Chat.ChatCompletionOptions>(
+            capture.Options!.RawRepresentationFactory!(capture));
+        using var document = JsonDocument.Parse(ModelReaderWriter.Write(raw).ToString());
+        Assert.Equal("enabled", document.RootElement.GetProperty("thinking").GetProperty("type").GetString());
+    }
+
+    [Fact]
     public async Task RunAsync_AnthropicToolExecution_UpdatesForkLocalTailCachePoints()
     {
         var store = new TraceStore();
@@ -594,6 +676,34 @@ public sealed class MaintenanceForkRunnerTests
             threadId: "thread_1",
             turnId: "turn_1");
 
+    private static AppConfig CreateReasoningConfig(string model = "claude-opus-4-8") =>
+        new()
+        {
+            Model = model,
+            Reasoning = new AppConfig.ReasoningConfig
+            {
+                Enabled = true,
+                Effort = ReasoningEffort.High,
+                Output = ReasoningOutput.Full
+            }
+        };
+
+    private static EffectiveModelRuntime Runtime(
+        string protocol,
+        string model,
+        string endpoint = "http://localhost") =>
+        new(
+            ProviderId: protocol,
+            Model: model,
+            Protocol: protocol,
+            DisplayName: protocol,
+            ApiKey: "test-key",
+            EndPoint: endpoint,
+            NetworkTimeoutSeconds: 60,
+            MaxOutputTokens: 64_000,
+            IsImplicit: false,
+            Capabilities: ModelProviderCapabilities.ForProtocol(protocol));
+
     private static string ReadFile(string path) => "memory file";
 
     private static void AssertAnthropicCacheControl(AIContent content)
@@ -655,6 +765,41 @@ public sealed class MaintenanceForkRunnerTests
 
         public void Dispose()
         {
+        }
+    }
+
+    private sealed class AnthropicCaptureHandler(string responseText) : HttpMessageHandler
+    {
+        public string? LastRequestJson { get; private set; }
+
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            LastRequestJson = await request.Content!.ReadAsStringAsync(cancellationToken);
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(
+                    $$"""
+                    {
+                        "id": "msg_maintenance_test",
+                        "type": "message",
+                        "role": "assistant",
+                        "model": "claude-opus-4-8",
+                        "content": [{
+                            "type": "text",
+                            "text": {{JsonSerializer.Serialize(responseText)}}
+                        }],
+                        "stop_reason": "end_turn",
+                        "usage": {
+                            "input_tokens": 10,
+                            "output_tokens": 1
+                        }
+                    }
+                    """,
+                    Encoding.UTF8,
+                    "application/json")
+            };
         }
     }
 

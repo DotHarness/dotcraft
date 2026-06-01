@@ -962,6 +962,117 @@ public sealed class ThreadStoreTests : IDisposable
             await ExtractHistoryAsync(agent, session));
     }
 
+    [Fact]
+    public async Task LoadOrCreateSessionAsync_WhenCheckpointExists_RebuildsFromCheckpointAndTail()
+    {
+        var thread = CreateThread();
+        AddTurnWithMessages(thread, "old seed", "old answer");
+        AddTurnWithMessages(thread, "recent request", "recent answer");
+        await _store.SaveThreadAsync(thread);
+        await _store.AppendCompactionCheckpointAsync(
+            thread.Id,
+            thread.Turns[0].Id,
+            [new ChatMessage(ChatRole.Assistant, "compacted summary")],
+            "manual",
+            "partial",
+            1000,
+            100);
+
+        var session = await new ThreadStore(_root).LoadOrCreateSessionAsync(CreateAgent(), thread.Id);
+
+        Assert.Equal(
+            ["assistant:compacted summary", "user:recent request", "assistant:recent answer"],
+            await ExtractHistoryAsync(CreateAgent(), session));
+    }
+
+    [Fact]
+    public async Task LoadOrCreateSessionAsync_AfterRollbackPastCheckpoint_RebuildsCheckpointWithoutRemovedTail()
+    {
+        var thread = CreateThread();
+        AddTurnWithMessages(thread, "old seed", "old answer");
+        AddTurnWithMessages(thread, "rolled back request", "rolled back answer");
+        await _store.SaveThreadAsync(thread);
+        await _store.AppendCompactionCheckpointAsync(
+            thread.Id,
+            thread.Turns[0].Id,
+            [new ChatMessage(ChatRole.Assistant, "compacted summary")],
+            "manual",
+            "partial",
+            1000,
+            100);
+
+        thread.Turns.RemoveAt(1);
+        thread.LastActiveAt = DateTimeOffset.UtcNow;
+        await _store.RollbackThreadAsync(thread, 1);
+
+        var session = await new ThreadStore(_root).LoadOrCreateSessionAsync(CreateAgent(), thread.Id);
+
+        Assert.Equal(
+            ["assistant:compacted summary"],
+            await ExtractHistoryAsync(CreateAgent(), session));
+    }
+
+    [Fact]
+    public async Task LoadOrCreateSessionAsync_AfterRollbackRemovesCoveredTurn_IgnoresCheckpoint()
+    {
+        var thread = CreateThread();
+        AddTurnWithMessages(thread, "surviving seed", "surviving answer");
+        AddTurnWithMessages(thread, "covered request", "covered answer");
+        await _store.SaveThreadAsync(thread);
+        await _store.AppendCompactionCheckpointAsync(
+            thread.Id,
+            thread.Turns[1].Id,
+            [new ChatMessage(ChatRole.Assistant, "summary including removed turn")],
+            "manual",
+            "partial",
+            1000,
+            100);
+
+        thread.Turns.RemoveAt(1);
+        thread.LastActiveAt = DateTimeOffset.UtcNow;
+        await _store.RollbackThreadAsync(thread, 1);
+
+        var session = await new ThreadStore(_root).LoadOrCreateSessionAsync(CreateAgent(), thread.Id);
+
+        Assert.Equal(
+            ["user:surviving seed", "assistant:surviving answer"],
+            await ExtractHistoryAsync(CreateAgent(), session));
+    }
+
+    [Fact]
+    public async Task LoadOrCreateSessionAsync_WhenCheckpointHistoryIsInvalid_FallsBackToRolloutHistory()
+    {
+        var thread = CreateThread();
+        AddTurnWithMessages(thread, "seed", "answer");
+        await _store.SaveThreadAsync(thread);
+        var badCheckpoint = new
+        {
+            kind = "context_compacted",
+            timestamp = DateTimeOffset.UtcNow,
+            contextCompacted = new
+            {
+                threadId = thread.Id,
+                coveredThroughTurnId = thread.Turns[0].Id,
+                checkpointId = "bad_checkpoint",
+                trigger = "manual",
+                mode = "partial",
+                tokensBefore = 1000,
+                tokensAfter = 100,
+                createdAt = DateTimeOffset.UtcNow,
+                replacementHistory = new { invalid = true }
+            }
+        };
+        await File.AppendAllTextAsync(
+            GetCanonicalPath(thread.Id, archived: false),
+            JsonSerializer.Serialize(badCheckpoint, SessionJsonOptions.Default) + Environment.NewLine);
+
+        var session = await new ThreadStore(_root).LoadOrCreateSessionAsync(CreateAgent(), thread.Id);
+
+        Assert.Equal(
+            ["user:seed", "assistant:answer"],
+            await ExtractHistoryAsync(CreateAgent(), session));
+    }
+
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------

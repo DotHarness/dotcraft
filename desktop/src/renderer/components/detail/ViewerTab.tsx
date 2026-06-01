@@ -114,7 +114,11 @@ export function ViewerTab({ tabId }: ViewerTabProps): JSX.Element {
             {tab.contentClass === 'text' && (
               markdown
                 ? <LazyMarkdownViewer absolutePath={tab.absolutePath} />
-                : <LazyTextViewer absolutePath={tab.absolutePath} wordWrap={wordWrap} />
+                : <LazyTextViewer
+                    absolutePath={tab.absolutePath}
+                    wordWrap={wordWrap}
+                    navigationHint={tab.navigationHint}
+                  />
             )}
             {tab.contentClass === 'image' && (
               <LazyImageViewer absolutePath={tab.absolutePath} sizeBytes={tab.sizeBytes} />

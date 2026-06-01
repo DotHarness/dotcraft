@@ -21,6 +21,7 @@ public enum TraceEventType
     PromptCacheDiagnostic,
     MaintenanceForkRequest,
     MaintenanceForkResponse,
+    ThreadRollback,
     TurnCompleted
 }
 

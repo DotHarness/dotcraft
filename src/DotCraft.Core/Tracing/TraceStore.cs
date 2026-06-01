@@ -1041,7 +1041,8 @@ public sealed class TraceStore
             "maintenance" => [
                 TraceEventType.MaintenanceForkRequest,
                 TraceEventType.MaintenanceForkResponse,
-                TraceEventType.ContextCompaction
+                TraceEventType.ContextCompaction,
+                TraceEventType.ThreadRollback
             ],
             "tokenusage" or "tokens" => [TraceEventType.TokenUsage],
             "error" => [TraceEventType.Error],

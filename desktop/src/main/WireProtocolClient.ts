@@ -28,6 +28,7 @@ export interface ServerCapabilities {
   externalChannelManagement?: boolean
   mcpStatus?: boolean
   manualCompaction?: boolean
+  backgroundTerminals?: boolean
 }
 
 export interface InitializeResult {
@@ -397,6 +398,7 @@ export class WireProtocolClient extends EventEmitter {
           streamingSupport: true,
           commandExecutionStreaming: true,
           toolExecutionLifecycle: true,
+          backgroundTerminals: true,
           configChange: true,
           optOutNotificationMethods: [],
           nodeRepl: {

@@ -224,9 +224,9 @@ Client                              Server
 | `capabilities.approvalSupport` | boolean | no | Whether the client can handle server-initiated approval requests. Default `true`. |
 | `capabilities.requestUserInputSupport` | boolean | no | Whether the client can handle model-initiated Plan Mode question requests (`item/tool/requestUserInput`). Default `false`. |
 | `capabilities.streamingSupport` | boolean | no | Whether the client can consume `item/*/delta` notifications. Default `true`. |
-| `capabilities.commandExecutionStreaming` | boolean | no | Whether the client can consume `commandExecution` items and `item/commandExecution/outputDelta` notifications. Default `false`. |
+| `capabilities.commandExecutionStreaming` | boolean | no | Whether the client can consume `commandExecution` items and `item/commandExecution/outputDelta` fallback notifications. Default `false`. |
 | `capabilities.toolExecutionLifecycle` | boolean | no | Whether the client can consume `toolExecution` lifecycle items for per-call runtime completion. Default `false`. |
-| `capabilities.backgroundTerminals` | boolean | no | Whether the client can consume `terminal/*` background terminal notifications. Default `false`. |
+| `capabilities.backgroundTerminals` | boolean | no | Whether the client can consume `terminal/*` terminal notifications for server-managed shell processes. Default `false`. |
 | `capabilities.configChange` | boolean | no | Whether the client wants `workspace/configChanged` notifications. Default `true`. |
 | `capabilities.optOutNotificationMethods` | string[] | no | Exact notification method names to suppress for this connection. See [Section 10](#10-notification-opt-out). |
 | `capabilities.channelAdapter` | object | no | External channel adapter metadata. When present, the connection is treated as the remote backend for one unified channel runtime. See [external-channel-adapter.md](external-channel-adapter.md). |
@@ -551,6 +551,7 @@ Argument conventions:
 - `CreateThread.model` and `SendMessageToThread.model`, when supported by the client, map to thread configuration or a turn-scoped override only through explicit AppServer protocol support. A client that cannot apply the override must return `success = false` with `errorCode = "UnsupportedOption"` rather than silently ignoring it.
 - `ListThreads.query` and `ListThreads.limit` are optional client-side filtering controls. `query` is not a server-side search contract unless a future `thread/list` filter defines it.
 - `ReadThread.includeOutputs`, `ReadThread.maxOutputCharsPerItem`, and `ReadThread.turnLimit` are optional presentation controls for the client-produced summary. Pagination cursors are deferred until the AppServer read protocol defines cursor-based history access.
+- `ReadThread` summaries must be payload-aware: clients should extract model-useful previews from item `payload` / `payloadKind`, bound all text and output fields, and never dump raw media data, full tool results, or full command output unless explicitly requested through `includeOutputs` and still capped by `maxOutputCharsPerItem`.
 
 Result conventions:
 
@@ -1710,7 +1711,7 @@ Emitted when an item is finalized. The `item.status` is `"completed"` and the pa
 
 #### `item/commandExecution/outputDelta`
 
-Streamed output delta for a `commandExecution` item. Concatenate `delta` values in order to reconstruct the live command output shown to the user.
+Streamed output delta for a `commandExecution` item. Concatenate `delta` values in order to reconstruct the command output for clients that use the compatibility projection.
 
 **Params**:
 
@@ -1731,9 +1732,10 @@ Streamed output delta for a `commandExecution` item. Concatenate `delta` values 
 
 Compatibility rule:
 
-- When a connection advertises `capabilities.commandExecutionStreaming = true`, the server may emit the `commandExecution` projection for `Exec`-style tools so clients can render real-time shell output.
-- The underlying `toolCall` / `toolResult` items still exist for model execution and persistence, but clients that support `commandExecution` should treat that item type as the primary terminal-output source to avoid duplicate rendering.
-- A client may also use `commandExecution` as an enhancement source for an existing `Exec` tool card instead of rendering it as a standalone conversation item.
+- Terminal-capable clients that advertise `capabilities.backgroundTerminals = true` should use `terminal/started`, `terminal/outputDelta`, and `terminal/completed` as the primary live shell output source for `Exec`-style tools.
+- When a connection advertises `capabilities.commandExecutionStreaming = true`, the server may also emit the `commandExecution` projection for persistence, history summaries, and compatibility fallback.
+- The underlying `toolCall` / `toolResult` items still exist for model execution and persistence. Clients that consume both `terminal/*` and `commandExecution` must merge by `callId` and avoid double-rendering the same shell output.
+- A client may use `commandExecution` as an enhancement source for an existing `Exec` tool card when `terminal/*` notifications are unavailable.
 - Clients that do not advertise the capability continue to rely on existing `toolCall` / `toolResult` behavior.
 
 #### `toolExecution` lifecycle
@@ -4299,6 +4301,10 @@ Servers that have a client-declared `backgroundTerminals` capability may emit:
 - `terminal/cleaned`
 
 Notifications use the same terminal snapshot shape. `terminal/outputDelta` additionally carries the output delta text.
+
+First-party terminal-capable clients such as Desktop and TUI use these notifications for live Shell tool output, including foreground `Exec` calls. When a terminal originates from an `Exec` tool call, `terminal.callId` correlates it to the `toolCall` item that should receive live output and status updates. `terminal.threadId` scopes the update to the owning thread, and `terminal.turnId` scopes it to the originating turn when available.
+
+If `terminal.backgroundReason = "runInBackground"`, the client must not keep appending later process output into the inline foreground `Exec` card. The inline card may show the returned session/status/final summary, while the background terminal UI owns ongoing process output.
 
 ---
 

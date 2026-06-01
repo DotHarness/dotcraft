@@ -93,6 +93,36 @@ public sealed class ShellToolsCommandExecutionTests : IDisposable
         Assert.Contains("background-ok", payload.AggregatedOutput);
     }
 
+    [Fact]
+    public async Task Exec_BackgroundTerminalService_PassesPendingShellCallIdWithoutCommandExecutionStreaming()
+    {
+        const string callId = "call_exec_terminal";
+        const string command = "echo terminal";
+        var turn = CreateTurn();
+        var completed = new List<SessionItem>();
+        var context = CreateRuntimeContext(turn, completed, supportsCommandExecutionStreaming: false);
+        context.RegisterPendingShellExecution(new PendingShellExecutionRegistration
+        {
+            CallId = callId,
+            Command = command,
+            WorkingDirectory = _tempDir,
+            Source = "host"
+        });
+        var backgroundTerminals = new FakeBackgroundTerminalService("terminal-ok");
+        using var _ = CommandExecutionRuntimeScope.Set(context);
+        var tools = new ShellTools(_tempDir, backgroundTerminals: backgroundTerminals);
+
+        var result = await tools.Exec(command);
+
+        Assert.Contains("terminal-ok", result);
+        var request = Assert.Single(backgroundTerminals.StartRequests);
+        Assert.Equal(callId, request.CallId);
+        Assert.Equal(turn.ThreadId, request.ThreadId);
+        Assert.Equal(turn.Id, request.TurnId);
+        Assert.Empty(turn.Items);
+        Assert.Empty(completed);
+    }
+
     private SessionTurn CreateTurn() => new()
     {
         Id = "turn_001",
@@ -130,7 +160,8 @@ public sealed class ShellToolsCommandExecutionTests : IDisposable
 
     private static CommandExecutionRuntimeContext CreateRuntimeContext(
         SessionTurn turn,
-        List<SessionItem> completed)
+        List<SessionItem> completed,
+        bool supportsCommandExecutionStreaming = true)
     {
         var nextItemSequence = 1;
         return new CommandExecutionRuntimeContext
@@ -142,7 +173,7 @@ public sealed class ShellToolsCommandExecutionTests : IDisposable
             EmitItemStarted = _ => { },
             EmitItemDelta = (_, _) => { },
             EmitItemCompleted = completed.Add,
-            SupportsCommandExecutionStreaming = true
+            SupportsCommandExecutionStreaming = supportsCommandExecutionStreaming
         };
     }
 

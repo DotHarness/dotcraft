@@ -168,7 +168,8 @@ While a turn is actively running, the conversation view must always show visible
 | `item/agentMessage/delta` | Agent text streams incrementally when streaming is enabled. |
 | `item/reasoning/delta` | Reasoning content is exposed only if the client chooses to show reasoning. |
 | `item/toolCall/argumentsDelta` | Tool argument construction streams incrementally. For known built-in tools, the client renders a bespoke running label (e.g. "Writing <path>", "Searching \"<pattern>\"", "Drafting plan...") and, where useful, a progressive preview of the parsed argument fields. For unknown tools (including MCP and module tools), the client renders a generic "Generating parameters for <toolName>..." placeholder without surfacing the raw argument JSON. |
-| `item/commandExecution/outputDelta` | Running shell output is appended live to the matching command block in both the conversation view and the Terminal review surface. |
+| `terminal/started`, `terminal/outputDelta`, `terminal/completed` | Running shell output/status is merged by `terminal.threadId + terminal.callId` into the matching `Exec` tool card in both the conversation view and the Terminal review surface. |
+| `item/commandExecution/outputDelta` | Compatibility fallback for clients or sessions that do not receive `terminal/*`; Desktop must not double-render the same shell output when both paths are present. |
 | `item/completed` | The final item output replaces or finalizes any in-progress representation. If a completed `dynamicToolCall` includes a supported Tool Result Presentation payload, the client may render a trusted local presentation card with generic fallback available. |
 | `item/usage/delta` | Context usage indicators refresh when the client surfaces real-time usage. Deltas accumulate for the active turn and are reconciled by the final `turn/completed.tokenUsage` snapshot. |
 
@@ -313,9 +314,10 @@ Desktop must also tolerate the request being replayed by AppServer when the user
 - Supported presentation cards may include explicit actions such as opening the bound app, opening an http(s) URL, copying an id, opening an authorized file, or starting/enqueuing a normal DotCraft turn.
 - Presentation actions must not directly execute app-bound tools, shell commands, local executables, or arbitrary protocols.
 - If a presentation payload is unsupported, invalid, too large, or references an unsafe action target, Desktop falls back to generic `contentItems` / `structuredResult` rendering and may show a non-blocking warning.
-- `commandExecution` items are the Desktop client's primary source of shell output data, but the conversation view keeps the existing tool-card presentation for shell work instead of rendering command output as a standalone message block.
+- Desktop declares `backgroundTerminals = true` and treats `terminal/*` notifications as its primary live shell output data. `commandExecution` remains a persisted/compatibility projection and fallback.
 - In the conversation view, shell work remains collapsed by default using the normal tool-card style. If the user expands the card, live output may be shown there while the command is still running.
-- The Terminal detail surface shows all `commandExecution` items for the current thread history, including in-progress commands.
+- The Terminal detail surface merges terminal snapshots and command execution history for the current thread, including in-progress commands.
+- If `terminal.backgroundReason = "runInBackground"`, Desktop does not keep appending subsequent process output to the inline foreground `Exec` card; the background terminal UI owns ongoing output.
 - If the user switches to another thread while a command is still running, the output continues updating in the background thread state without forcing a focus change.
 - Desktop does not require interactive terminal input; shell output is read-only from the Desktop client's perspective.
 - The client may reveal related context automatically when new changes or plans appear, but the rule should be based on relevance, not on any fixed panel design.
@@ -387,7 +389,7 @@ Required behavior:
 - Desktop implements the tools by calling ordinary AppServer methods. It must not mutate local thread state directly or bypass AppServer persistence.
 - `CreateThread` calls `thread/start` using the current workspace identity, then submits the initial prompt with `turn/start`. The created thread appears through normal `thread/started` synchronization, but Desktop does not switch the user's active conversation unless the user explicitly opens it.
 - `ListThreads` calls `thread/list` for the current workspace identity and may apply local `query` and `limit` filtering before returning a model-facing summary.
-- `ReadThread` calls `thread/read` and returns a compact summary without resuming the thread, subscribing the UI to it, or making it active.
+- `ReadThread` calls `thread/read` and returns a compact payload-aware summary without resuming the thread, subscribing the UI to it, or making it active. The summary must bound turn history, extract useful message/tool previews from item payloads, and avoid raw media data or uncapped command/tool output.
 - `SendMessageToThread` sends a normal turn to the target thread without stealing focus. If the thread is running, waiting, or under blocking maintenance, Desktop uses `turn/enqueue` when available; otherwise the tool returns a structured busy failure.
 - `SetThreadTitle` and `SetThreadArchived` map to `thread/rename`, `thread/archive`, and `thread/unarchive`. Desktop waits for the RPC result and normal broadcasts to update visible state.
 - Pinned-thread tools remain unavailable until AppServer defines pinned-thread state. Desktop must not present a pinned-thread tool in this profile before that backing contract exists.

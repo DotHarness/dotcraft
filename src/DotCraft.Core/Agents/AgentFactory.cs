@@ -84,14 +84,27 @@ public sealed class AgentFactory : IAsyncDisposable
         var mainModel = mainRuntime.Model;
         var mainCompactionConfig = ModelContextWindowCatalog.ResolveCompactionConfig(config, mainModel);
         _chatClient = _chatClientRegistry.GetChatClient(mainRuntime);
+        var consolidationRuntime = _chatClientRegistry.ResolveConsolidationRuntime(
+            config,
+            mainRuntime.ProviderId,
+            mainModel);
+        var maintenanceMainChatClient = ProviderChatClientAdapters.CreateRequestAdaptedClient(
+            _chatClient,
+            config,
+            mainRuntime,
+            useDefaultReasoning: false);
         var legacyConsolidator = new MemoryConsolidator(
-            _chatClientRegistry.GetConsolidationChatClient(config, mainRuntime.ProviderId, mainModel),
+            ProviderChatClientAdapters.CreateRequestAdaptedClient(
+                _chatClientRegistry.GetChatClient(consolidationRuntime),
+                config,
+                consolidationRuntime,
+                useDefaultReasoning: false),
             memoryStore,
             onConsolidatorStatus);
         Consolidator = _memoryConsolidatorOverride
             ?? new MemoryForkConsolidator(
                 new MaintenanceForkRunner(
-                    _chatClient,
+                    maintenanceMainChatClient,
                     cacheOptions: new MaintenanceForkCacheOptions(
                         mainRuntime.Protocol,
                         _config.PromptCaching,
@@ -99,13 +112,17 @@ public sealed class AgentFactory : IAsyncDisposable
                 legacyConsolidator,
                 memoryStore,
                 mainModel,
-                _chatClientRegistry.ResolveConsolidationRuntime(config, mainRuntime.ProviderId, mainModel).Model,
+                consolidationRuntime.Model,
                 mainCompactionConfig.BlockingLimit(),
                 workspacePath);
 
         CompactionPipeline = new CompactionPipeline(
             mainCompactionConfig,
-            _compactionChatClientOverride ?? _chatClient,
+            ProviderChatClientAdapters.CreateRequestAdaptedClient(
+                _compactionChatClientOverride ?? _chatClient,
+                config,
+                mainRuntime,
+                useDefaultReasoning: false),
             _traceCollector,
             new MaintenanceForkCacheOptions(
                 mainRuntime.Protocol,
@@ -178,11 +195,16 @@ public sealed class AgentFactory : IAsyncDisposable
         return _compactionPipelines.GetOrAdd(key, static (pipelineKey, state) =>
         {
             var (factory, resolvedConfig, config) = state;
-            var chatClient = factory._compactionChatClientOverride
-                ?? factory._chatClientRegistry.GetChatClient(pipelineKey.ToRuntime());
+            var runtime = pipelineKey.ToRuntime();
+            var baseChatClient = factory._compactionChatClientOverride
+                ?? factory._chatClientRegistry.GetChatClient(runtime);
             return new CompactionPipeline(
                 resolvedConfig,
-                chatClient,
+                ProviderChatClientAdapters.CreateRequestAdaptedClient(
+                    baseChatClient,
+                    config,
+                    runtime,
+                    useDefaultReasoning: false),
                 factory._traceCollector,
                 new MaintenanceForkCacheOptions(
                     pipelineKey.ProviderProtocol,
@@ -208,13 +230,21 @@ public sealed class AgentFactory : IAsyncDisposable
             mainRuntime.ProviderId,
             mainRuntime.Model);
         var fallback = new MemoryConsolidator(
-            _chatClientRegistry.GetChatClient(consolidationRuntime),
+            ProviderChatClientAdapters.CreateRequestAdaptedClient(
+                _chatClientRegistry.GetChatClient(consolidationRuntime),
+                config,
+                consolidationRuntime,
+                useDefaultReasoning: false),
             _memoryStore,
             _onConsolidatorStatus);
 
         return new MemoryForkConsolidator(
             new MaintenanceForkRunner(
-                _chatClientRegistry.GetChatClient(mainRuntime),
+                ProviderChatClientAdapters.CreateRequestAdaptedClient(
+                    _chatClientRegistry.GetChatClient(mainRuntime),
+                    config,
+                    mainRuntime,
+                    useDefaultReasoning: false),
                 _traceCollector,
                 new MaintenanceForkCacheOptions(
                     mainRuntime.Protocol,
@@ -449,40 +479,16 @@ public sealed class AgentFactory : IAsyncDisposable
             chatClientBuilder.Use(innerClient => new DynamicToolInjectionChatClient(innerClient, registry, tc, hr));
         }
         chatClientBuilder.Use(innerClient => new ImageContentSanitizingChatClient(innerClient));
-        if (ctx.IsOpenAICompatible)
-        {
-            chatClientBuilder.Use(innerClient => new PromptCachingChatClient(
-                innerClient,
-                ctx.Config.PromptCaching,
-                ctx.EffectiveMainModel,
-                _traceCollector));
-            chatClientBuilder.Use(innerClient => new DeepThinkingChatClient(
-                innerClient,
-                ctx.Config,
-                ctx.EffectiveMainModel,
-                ctx.ChatClientRegistry.ResolveMainRuntime(ctx.Config, ctx.EffectiveProviderId, ctx.EffectiveMainModel).EndPoint,
-                ctx.EffectiveReasoning));
-        }
-        else if (string.Equals(ctx.EffectiveProviderProtocol, ModelProviderProtocols.Anthropic, StringComparison.OrdinalIgnoreCase))
-        {
-            var runtime = ctx.ChatClientRegistry.ResolveMainRuntime(
+        ProviderChatClientAdapters.UseProviderAdapters(
+            chatClientBuilder,
+            ctx.Config,
+            ctx.ChatClientRegistry.ResolveMainRuntime(
                 ctx.Config,
                 ctx.EffectiveProviderId,
-                ctx.EffectiveMainModel);
-            chatClientBuilder.Use(innerClient => new PromptCachingChatClient(
-                innerClient,
-                ctx.Config.PromptCaching,
-                ctx.EffectiveMainModel,
-                PromptCacheMarkerStrategy.AnthropicNative,
-                _traceCollector));
-            chatClientBuilder.Use(innerClient => new AnthropicThinkingChatClient(
-                innerClient,
-                ctx.Config,
-                ctx.EffectiveMainModel,
-                runtime.EndPoint,
-                runtime.MaxOutputTokens,
-                ctx.EffectiveReasoning));
-        }
+                ctx.EffectiveMainModel),
+            ctx.EffectiveReasoning,
+            ctx.Config.PromptCaching,
+            _traceCollector);
         var configuredChatClient = chatClientBuilder.Build();
 
         var options = new ChatClientAgentOptions
@@ -606,46 +612,16 @@ public sealed class AgentFactory : IAsyncDisposable
             chatClientBuilder.Use(innerClient => new DynamicToolInjectionChatClient(innerClient, registry, tc, hr));
         }
         chatClientBuilder.Use(innerClient => new ImageContentSanitizingChatClient(innerClient));
-        if (_toolProviderContext.IsOpenAICompatible)
-        {
-            chatClientBuilder.Use(innerClient => new PromptCachingChatClient(
-                innerClient,
-                _config.PromptCaching,
-                _toolProviderContext.EffectiveMainModel,
-                _traceCollector));
-            chatClientBuilder.Use(innerClient => new DeepThinkingChatClient(
-                innerClient,
-                _config,
-                _toolProviderContext.EffectiveMainModel,
-                _chatClientRegistry.ResolveMainRuntime(
-                    _config,
-                    _toolProviderContext.EffectiveProviderId,
-                    _toolProviderContext.EffectiveMainModel).EndPoint,
-                _toolProviderContext.EffectiveReasoning));
-        }
-        else if (string.Equals(
-                     _toolProviderContext.EffectiveProviderProtocol,
-                     ModelProviderProtocols.Anthropic,
-                     StringComparison.OrdinalIgnoreCase))
-        {
-            var runtime = _chatClientRegistry.ResolveMainRuntime(
+        ProviderChatClientAdapters.UseProviderAdapters(
+            chatClientBuilder,
+            _config,
+            _chatClientRegistry.ResolveMainRuntime(
                 _config,
                 _toolProviderContext.EffectiveProviderId,
-                _toolProviderContext.EffectiveMainModel);
-            chatClientBuilder.Use(innerClient => new PromptCachingChatClient(
-                innerClient,
-                _config.PromptCaching,
-                _toolProviderContext.EffectiveMainModel,
-                PromptCacheMarkerStrategy.AnthropicNative,
-                _traceCollector));
-            chatClientBuilder.Use(innerClient => new AnthropicThinkingChatClient(
-                innerClient,
-                _config,
-                _toolProviderContext.EffectiveMainModel,
-                runtime.EndPoint,
-                runtime.MaxOutputTokens,
-                _toolProviderContext.EffectiveReasoning));
-        }
+                _toolProviderContext.EffectiveMainModel),
+            _toolProviderContext.EffectiveReasoning,
+            _config.PromptCaching,
+            _traceCollector);
         return chatClientBuilder.Build();
     }
 

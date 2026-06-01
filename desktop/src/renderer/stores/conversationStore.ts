@@ -229,6 +229,8 @@ interface ConversationActions {
   onReasoningDelta(delta: string): void
   /** item/commandExecution/outputDelta notification */
   onCommandExecutionDelta(params: { threadId?: string; turnId?: string; itemId?: string; delta?: string }): void
+  /** terminal/* notification */
+  onTerminalEvent(params: { event: string; terminal?: Record<string, unknown>; delta?: string }): void
   /** item/toolCall/argumentsDelta notification */
   onToolCallArgumentsDelta(params: {
     threadId?: string
@@ -389,6 +391,8 @@ function mergeCommandExecutionIntoToolCall(
 
   return {
     ...item,
+    command: commandExecution.command ?? item.command,
+    workingDirectory: commandExecution.workingDirectory ?? item.workingDirectory,
     aggregatedOutput: commandExecution.aggregatedOutput ?? item.aggregatedOutput,
     executionStatus: commandExecution.executionStatus ?? item.executionStatus,
     exitCode: commandExecution.exitCode ?? item.exitCode,
@@ -402,6 +406,69 @@ function mergeCommandExecutionAcrossItems(
   commandExecution: Partial<ConversationItem>
 ): ConversationItem[] {
   return items.map((i) => mergeCommandExecutionIntoToolCall(i, commandExecution))
+}
+
+function terminalStatusToExecutionStatus(status: string | undefined): ConversationItem['executionStatus'] | undefined {
+  switch (status) {
+    case 'running':
+      return 'inProgress'
+    case 'completed':
+      return 'completed'
+    case 'killed':
+    case 'timedOut':
+      return 'cancelled'
+    case 'failed':
+    case 'lost':
+      return 'failed'
+    default:
+      return undefined
+  }
+}
+
+function isRunInBackgroundTerminal(terminal: Record<string, unknown>): boolean {
+  return terminal.backgroundReason === 'runInBackground'
+}
+
+function mergeTerminalIntoExecToolCall(
+  item: ConversationItem,
+  terminal: Record<string, unknown>,
+  event: string,
+  delta: string
+): ConversationItem {
+  if (item.type !== 'toolCall') return item
+  if (!isShellToolName(item.toolName)) return item
+  const callId = terminal.callId as string | undefined
+  if (!callId || item.toolCallId !== callId) return item
+
+  const status = terminalStatusToExecutionStatus(terminal.status as string | undefined)
+  const output = terminal.output as string | undefined
+  const shouldUseSnapshotOutput =
+    !delta && typeof output === 'string' && (event !== 'terminal/started' || output.length > 0)
+  const aggregatedOutput = delta
+    ? `${item.aggregatedOutput ?? ''}${delta}`
+    : shouldUseSnapshotOutput
+      ? output
+      : item.aggregatedOutput
+
+  return {
+    ...item,
+    command: (terminal.command as string | undefined) ?? item.command,
+    workingDirectory: (terminal.workingDirectory as string | undefined) ?? item.workingDirectory,
+    commandSource: (terminal.source as 'host' | 'sandbox' | undefined) ?? item.commandSource,
+    aggregatedOutput,
+    executionStatus: status ?? item.executionStatus,
+    exitCode: (terminal.exitCode as number | null | undefined) ?? item.exitCode,
+    duration: (terminal.wallTimeMs as number | undefined) ?? item.duration
+  }
+}
+
+function mergeTerminalAcrossItems(
+  items: ConversationItem[],
+  terminal: Record<string, unknown>,
+  event: string,
+  delta: string
+): ConversationItem[] {
+  return items.map((item) => mergeTerminalIntoExecToolCall(item, terminal, event, delta))
 }
 
 function mergeToolExecutionIntoToolCall(
@@ -1280,6 +1347,31 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
               })())
             }
       )
+    }))
+  },
+
+  onTerminalEvent(params) {
+    const terminal = params.terminal ?? {}
+    if (isRunInBackgroundTerminal(terminal)) return
+
+    const callId = terminal.callId as string | undefined
+    if (!callId) return
+
+    const turnId = (terminal.turnId as string | undefined) ?? ''
+    const delta = params.delta ?? ''
+    set((state) => ({
+      turns: state.turns.map((t) => {
+        if (turnId && t.id !== turnId) return t
+        if (!t.items.some((item) => item.type === 'toolCall' && item.toolCallId === callId)) {
+          return t
+        }
+        return {
+          ...t,
+          items: sortItemsByCreatedAt(
+            mergeTerminalAcrossItems(t.items, terminal, params.event, delta)
+          )
+        }
+      })
     }))
   },
 

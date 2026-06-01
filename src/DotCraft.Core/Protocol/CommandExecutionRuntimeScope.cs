@@ -22,7 +22,12 @@ public sealed class CommandExecutionRuntimeContext
 
     private readonly ConcurrentQueue<PendingCommandExecutionRegistration> _pending = new();
 
+    private readonly ConcurrentQueue<PendingShellExecutionRegistration> _pendingShellExecutions = new();
+
     public void RegisterPending(PendingCommandExecutionRegistration registration) => _pending.Enqueue(registration);
+
+    public void RegisterPendingShellExecution(PendingShellExecutionRegistration registration) =>
+        _pendingShellExecutions.Enqueue(registration);
 
     public PendingCommandExecutionRegistration? TryClaimPending(
         string command,
@@ -52,6 +57,35 @@ public sealed class CommandExecutionRuntimeContext
 
         return match;
     }
+
+    public PendingShellExecutionRegistration? TryClaimPendingShellExecution(
+        string command,
+        string workingDirectory)
+    {
+        if (_pendingShellExecutions.IsEmpty)
+            return null;
+
+        var remaining = new Queue<PendingShellExecutionRegistration>();
+        PendingShellExecutionRegistration? match = null;
+
+        while (_pendingShellExecutions.TryDequeue(out var entry))
+        {
+            if (match == null &&
+                string.Equals(entry.Command, command, StringComparison.Ordinal) &&
+                string.Equals(entry.WorkingDirectory, workingDirectory, StringComparison.OrdinalIgnoreCase))
+            {
+                match = entry;
+                continue;
+            }
+
+            remaining.Enqueue(entry);
+        }
+
+        while (remaining.Count > 0)
+            _pendingShellExecutions.Enqueue(remaining.Dequeue());
+
+        return match;
+    }
 }
 
 public sealed class PendingCommandExecutionRegistration
@@ -65,6 +99,17 @@ public sealed class PendingCommandExecutionRegistration
     public required string Source { get; init; }
 
     public required SessionItem Item { get; init; }
+}
+
+public sealed class PendingShellExecutionRegistration
+{
+    public required string CallId { get; init; }
+
+    public required string Command { get; init; }
+
+    public required string WorkingDirectory { get; init; }
+
+    public required string Source { get; init; }
 }
 
 public static class CommandExecutionRuntimeScope

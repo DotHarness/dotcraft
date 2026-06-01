@@ -139,6 +139,22 @@ function dispatch(payload: { method: string; params: unknown }): void {
       }
       break
 
+    case 'terminal/started':
+    case 'terminal/outputDelta':
+    case 'terminal/completed':
+    case 'terminal/stalled':
+    case 'terminal/cleaned': {
+      const terminal = (p.terminal ?? {}) as Record<string, unknown>
+      if (shouldUpdateActiveConversation((terminal.threadId as string | undefined) ?? '')) {
+        conv.onTerminalEvent({
+          event: method,
+          terminal,
+          delta: (p.delta as string | undefined)
+        })
+      }
+      break
+    }
+
     case 'item/toolCall/argumentsDelta':
       if (shouldUpdateActiveConversation((p.threadId as string | undefined) ?? '')) {
         conv.onToolCallArgumentsDelta({
@@ -939,6 +955,116 @@ describe('notification dispatch payload format', () => {
     expect(toolItem?.type).toBe('toolCall')
     expect(toolItem?.aggregatedOutput).toBe('file.txt\n')
     expect(toolItem?.executionStatus).toBe('inProgress')
+  })
+
+  it('dispatches terminal output deltas into the matching Exec tool card', () => {
+    dispatch({ method: 'turn/started', params: { turn: makeTurnPayload('turn_1') } })
+    dispatch({
+      method: 'item/started',
+      params: {
+        turnId: 'turn_1',
+        item: {
+          id: 'tool_terminal',
+          type: 'toolCall',
+          payload: {
+            callId: 'exec-terminal',
+            toolName: 'Exec',
+            arguments: { command: 'npm test' }
+          }
+        }
+      }
+    })
+
+    dispatch({
+      method: 'terminal/outputDelta',
+      params: {
+        terminal: {
+          sessionId: 'term_1',
+          threadId: 'thread-1',
+          turnId: 'turn_1',
+          callId: 'exec-terminal',
+          command: 'npm test',
+          workingDirectory: '/workspace/project',
+          source: 'host',
+          status: 'running',
+          output: 'chunk\n',
+          wallTimeMs: 25
+        },
+        delta: 'chunk\n'
+      }
+    })
+
+    let toolItem = s().turns[0].items.find((i) => i.id === 'tool_terminal')
+    expect(toolItem?.type).toBe('toolCall')
+    expect(toolItem?.aggregatedOutput).toBe('chunk\n')
+    expect(toolItem?.executionStatus).toBe('inProgress')
+    expect(toolItem?.command).toBe('npm test')
+    expect(toolItem?.workingDirectory).toBe('/workspace/project')
+
+    dispatch({
+      method: 'terminal/completed',
+      params: {
+        terminal: {
+          sessionId: 'term_1',
+          threadId: 'thread-1',
+          turnId: 'turn_1',
+          callId: 'exec-terminal',
+          command: 'npm test',
+          workingDirectory: '/workspace/project',
+          source: 'host',
+          status: 'completed',
+          output: 'chunk\nok\n',
+          exitCode: 0,
+          wallTimeMs: 120
+        }
+      }
+    })
+
+    toolItem = s().turns[0].items.find((i) => i.id === 'tool_terminal')
+    expect(toolItem?.aggregatedOutput).toBe('chunk\nok\n')
+    expect(toolItem?.executionStatus).toBe('completed')
+    expect(toolItem?.exitCode).toBe(0)
+    expect(toolItem?.duration).toBe(120)
+  })
+
+  it('does not append runInBackground terminal output inline', () => {
+    dispatch({ method: 'turn/started', params: { turn: makeTurnPayload('turn_1') } })
+    dispatch({
+      method: 'item/started',
+      params: {
+        turnId: 'turn_1',
+        item: {
+          id: 'tool_background',
+          type: 'toolCall',
+          payload: {
+            callId: 'exec-background',
+            toolName: 'Exec',
+            arguments: { command: 'npm run dev', runInBackground: true }
+          }
+        }
+      }
+    })
+
+    dispatch({
+      method: 'terminal/outputDelta',
+      params: {
+        terminal: {
+          sessionId: 'term_bg',
+          threadId: 'thread-1',
+          turnId: 'turn_1',
+          callId: 'exec-background',
+          command: 'npm run dev',
+          status: 'running',
+          output: 'server ready\n',
+          backgroundReason: 'runInBackground'
+        },
+        delta: 'server ready\n'
+      }
+    })
+
+    const toolItem = s().turns[0].items.find((i) => i.id === 'tool_background')
+    expect(toolItem?.aggregatedOutput).toBeUndefined()
+    expect(toolItem?.executionStatus).toBeUndefined()
   })
 
   it('keeps Exec render state live when command execution starts before toolCall completion', () => {

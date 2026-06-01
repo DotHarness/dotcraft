@@ -994,6 +994,166 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
     }
 
     [Fact]
+    public async Task RollbackThreadAsync_AfterCompaction_TrimsSessionTailWithoutRestoringOldHistory()
+    {
+        var seedChatClient = new RecordingChatClient("seed answer");
+        await using var seedFactory = CreateAgentFactory(seedChatClient, configureConfig: ConfigureSmallCompaction);
+        var seedService = CreateService(seedFactory, seedChatClient);
+        var thread = await seedService.CreateThreadAsync(MakeIdentity());
+
+        for (var i = 0; i < 4; i++)
+        {
+            await DrainAsync(seedService.SubmitInputAsync(
+                thread.Id,
+                [new TextContent($"seed {i} " + new string('u', 1200))]));
+        }
+
+        var compactMainChatClient = new RecordingChatClient("unused");
+        await using var compactFactory = CreateAgentFactory(
+            compactMainChatClient,
+            configureConfig: ConfigureSmallCompaction,
+            compactionChatClient: new SummaryChatClient("<summary>compacted previous context</summary>"));
+        var compactService = CreateService(compactFactory, compactMainChatClient);
+        await compactService.ResumeThreadAsync(thread.Id);
+        var compactResult = await compactService.CompactThreadAsync(thread.Id);
+        Assert.Equal("partial", compactResult.Outcome);
+
+        var rollbackChatClient = new RecordingChatClient("rolled back answer");
+        await using var rollbackFactory = CreateAgentFactory(rollbackChatClient);
+        var rollbackService = CreateService(rollbackFactory, rollbackChatClient);
+        await rollbackService.ResumeThreadAsync(thread.Id);
+        await DrainAsync(rollbackService.SubmitInputAsync(thread.Id, [new TextContent("rolled back request")]));
+        await rollbackService.RollbackThreadAsync(thread.Id, 1);
+
+        var followUpChatClient = new RecordingChatClient("follow answer");
+        await using var followUpFactory = CreateAgentFactory(followUpChatClient);
+        var followUpService = CreateService(followUpFactory, followUpChatClient);
+        await followUpService.ResumeThreadAsync(thread.Id);
+        await DrainAsync(followUpService.SubmitInputAsync(thread.Id, [new TextContent("follow up")]));
+
+        var followUpHistory = followUpChatClient.LastMessages.Select(MessageText).ToList();
+        Assert.Contains(followUpHistory, text => text.Contains("compacted previous context", StringComparison.Ordinal));
+        Assert.DoesNotContain(followUpHistory, text => text.Contains("seed 0", StringComparison.Ordinal));
+        Assert.DoesNotContain(followUpHistory, text => text.Contains("rolled back request", StringComparison.Ordinal));
+        Assert.DoesNotContain(followUpHistory, text => text.Contains("rolled back answer", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task RollbackThreadAsync_RecordsThreadRollbackTraceEvent()
+    {
+        var traceStore = new TraceStore();
+        var traceCollector = new TraceCollector(traceStore);
+        var chatClient = new RecordingChatClient("answer");
+        await using var factory = CreateAgentFactory(chatClient);
+        var service = CreateService(factory, chatClient, traceCollector: traceCollector);
+        var thread = await service.CreateThreadAsync(MakeIdentity());
+
+        await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("request")]));
+        await service.RollbackThreadAsync(thread.Id, 1);
+
+        var evt = Assert.Single(traceStore.GetEvents(thread.Id), e => e.Type == TraceEventType.ThreadRollback);
+        Assert.Equal("Rollback removed 1 turn(s)", evt.Content);
+        using var metadata = JsonDocument.Parse(evt.MetadataJson!);
+        Assert.Equal(thread.Id, metadata.RootElement.GetProperty("threadId").GetString());
+        Assert.Equal(1, metadata.RootElement.GetProperty("numTurns").GetInt32());
+        Assert.Equal(0, metadata.RootElement.GetProperty("remainingTurns").GetInt32());
+    }
+
+    [Fact]
+    public async Task RollbackThreadAsync_WhenRejected_DoesNotRecordThreadRollbackTraceEvent()
+    {
+        var traceStore = new TraceStore();
+        var traceCollector = new TraceCollector(traceStore);
+        var chatClient = new RecordingChatClient("answer");
+        await using var factory = CreateAgentFactory(chatClient);
+        var service = CreateService(factory, chatClient, traceCollector: traceCollector);
+        var thread = await service.CreateThreadAsync(MakeIdentity());
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => service.RollbackThreadAsync(thread.Id, 0));
+
+        Assert.DoesNotContain(traceStore.GetEvents(thread.Id), e => e.Type == TraceEventType.ThreadRollback);
+    }
+
+    [Fact]
+    public async Task RollbackThreadAsync_WithOnlyCompactedSessionCheckpointMissing_TrimsPersistedSessionTail()
+    {
+        var seedChatClient = new RecordingChatClient("seed answer");
+        await using var seedFactory = CreateAgentFactory(seedChatClient);
+        var seedService = CreateService(seedFactory, seedChatClient);
+        var thread = await seedService.CreateThreadAsync(MakeIdentity());
+
+        await DrainAsync(seedService.SubmitInputAsync(thread.Id, [new TextContent("seed request")]));
+        var rolledBackTurnChatClient = new RecordingChatClient("rolled back answer");
+        await using var rolledBackTurnFactory = CreateAgentFactory(rolledBackTurnChatClient);
+        var rolledBackTurnService = CreateService(rolledBackTurnFactory, rolledBackTurnChatClient);
+        await rolledBackTurnService.ResumeThreadAsync(thread.Id);
+        await DrainAsync(rolledBackTurnService.SubmitInputAsync(thread.Id, [new TextContent("rolled back request")]));
+        await SaveSyntheticSessionAsync(
+            thread.Id,
+            [
+                new ChatMessage(ChatRole.Assistant, "<summary>legacy compacted context</summary>"),
+                new ChatMessage(ChatRole.User, "rolled back request"),
+                new ChatMessage(ChatRole.Assistant, "rolled back answer")
+            ]);
+
+        var rollbackChatClient = new RecordingChatClient("unused");
+        await using var rollbackFactory = CreateAgentFactory(rollbackChatClient);
+        var rollbackService = CreateService(rollbackFactory, rollbackChatClient);
+        await rollbackService.ResumeThreadAsync(thread.Id);
+        await rollbackService.RollbackThreadAsync(thread.Id, 1);
+
+        var followUpChatClient = new RecordingChatClient("follow answer");
+        await using var followUpFactory = CreateAgentFactory(followUpChatClient);
+        var followUpService = CreateService(followUpFactory, followUpChatClient);
+        await followUpService.ResumeThreadAsync(thread.Id);
+        await DrainAsync(followUpService.SubmitInputAsync(thread.Id, [new TextContent("follow up")]));
+
+        var followUpHistory = followUpChatClient.LastMessages.Select(MessageText).ToList();
+        Assert.Contains(followUpHistory, text => text.Contains("legacy compacted context", StringComparison.Ordinal));
+        Assert.DoesNotContain(followUpHistory, text => text.Contains("seed request", StringComparison.Ordinal));
+        Assert.DoesNotContain(followUpHistory, text => text.Contains("rolled back request", StringComparison.Ordinal));
+        Assert.DoesNotContain(followUpHistory, text => text.Contains("rolled back answer", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task SubmitInputAsync_WhenSessionRowMissingAfterCompaction_RebuildsFromCheckpoint()
+    {
+        var seedChatClient = new RecordingChatClient("seed answer");
+        await using var seedFactory = CreateAgentFactory(seedChatClient, configureConfig: ConfigureSmallCompaction);
+        var seedService = CreateService(seedFactory, seedChatClient);
+        var thread = await seedService.CreateThreadAsync(MakeIdentity());
+
+        for (var i = 0; i < 4; i++)
+        {
+            await DrainAsync(seedService.SubmitInputAsync(
+                thread.Id,
+                [new TextContent($"seed {i} " + new string('u', 1200))]));
+        }
+
+        var compactMainChatClient = new RecordingChatClient("unused");
+        await using var compactFactory = CreateAgentFactory(
+            compactMainChatClient,
+            configureConfig: ConfigureSmallCompaction,
+            compactionChatClient: new SummaryChatClient("<summary>checkpoint compacted context</summary>"));
+        var compactService = CreateService(compactFactory, compactMainChatClient);
+        await compactService.ResumeThreadAsync(thread.Id);
+        var compactResult = await compactService.CompactThreadAsync(thread.Id);
+        Assert.Equal("partial", compactResult.Outcome);
+
+        DeleteSessionRow(thread.Id);
+
+        var followUpChatClient = new RecordingChatClient("follow answer");
+        await using var followUpFactory = CreateAgentFactory(followUpChatClient);
+        var followUpService = CreateService(followUpFactory, followUpChatClient);
+        await followUpService.ResumeThreadAsync(thread.Id);
+        await DrainAsync(followUpService.SubmitInputAsync(thread.Id, [new TextContent("follow up")]));
+
+        var followUpHistory = followUpChatClient.LastMessages.Select(MessageText).ToList();
+        Assert.Contains(followUpHistory, text => text.Contains("checkpoint compacted context", StringComparison.Ordinal));
+        Assert.DoesNotContain(followUpHistory, text => text.Contains("seed 0", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task DeleteThreadPermanentlyAsync_DuringRunningTurn_DoesNotRecreateThreadArtifacts()
     {
         IChatClient chatClient = new BlockingChatClient();
@@ -1129,7 +1289,8 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
         AgentFactory agentFactory,
         IChatClient chatClient,
         TokenUsageStore? tokenUsageStore = null,
-        bool useStreamingFunctionInvoker = false)
+        bool useStreamingFunctionInvoker = false,
+        TraceCollector? traceCollector = null)
     {
         var defaultAgent = useStreamingFunctionInvoker
             ? new StreamingFunctionInvokingChatClient(chatClient).AsAIAgent(
@@ -1140,6 +1301,7 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
             defaultAgent,
             new SessionPersistenceService(new ThreadStore(_tempDir)),
             new SessionGate(),
+            traceCollector: traceCollector,
             tokenUsageStore: tokenUsageStore);
     }
 
@@ -1280,6 +1442,14 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
         command.CommandText = "DELETE FROM thread_sessions WHERE thread_id = $thread_id";
         command.Parameters.AddWithValue("$thread_id", threadId);
         command.ExecuteNonQuery();
+    }
+
+    private async Task SaveSyntheticSessionAsync(string threadId, IReadOnlyList<ChatMessage> history)
+    {
+        var agent = new RecordingChatClient("unused").AsAIAgent(new ChatClientAgentOptions());
+        var session = await agent.CreateSessionAsync();
+        session.SetInMemoryChatHistory([.. history], jsonSerializerOptions: SessionPersistenceJsonOptions.Default);
+        await new ThreadStore(_tempDir).SaveSessionAsync(agent, session, threadId);
     }
 
     private SqliteConnection OpenStateConnection()

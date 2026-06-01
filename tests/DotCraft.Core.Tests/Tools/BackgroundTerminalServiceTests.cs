@@ -51,6 +51,31 @@ public sealed class BackgroundTerminalServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task StartAsync_ForegroundCommand_OutputDeltaCarriesCorrelationIds()
+    {
+        var events = new List<BackgroundTerminalEvent>();
+        Service.TerminalEvent += events.Add;
+
+        var snapshot = await Service.StartAsync(new BackgroundTerminalStartRequest
+        {
+            ThreadId = "thread_live",
+            TurnId = "turn_live",
+            CallId = "call_live",
+            Command = EchoCommand("live"),
+            WorkingDirectory = _tempDir,
+            TimeoutSeconds = 5,
+            MaxOutputChars = 1000
+        });
+
+        Assert.Equal(BackgroundTerminalStatus.Completed, snapshot.Status);
+        var outputDelta = Assert.Single(events, e => e.EventType == "outputDelta");
+        Assert.Equal("call_live", outputDelta.Terminal.CallId);
+        Assert.Equal("thread_live", outputDelta.Terminal.ThreadId);
+        Assert.Equal("turn_live", outputDelta.Terminal.TurnId);
+        Assert.Contains("live", outputDelta.Delta);
+    }
+
+    [Fact]
     public async Task StartAsync_BackgroundCommand_CanBeReadAfterCompletion()
     {
         var started = await Service.StartAsync(new BackgroundTerminalStartRequest

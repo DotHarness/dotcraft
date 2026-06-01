@@ -81,6 +81,18 @@ public sealed class SessionServiceManualCompactionTests : IDisposable
             .Single(p => p.Kind == "compacted" && p.Trigger == "manual");
         Assert.Equal("partial", notice.Mode);
         Assert.Equal(resultUsage.Tokens, notice.TokensAfter);
+
+        var wireJson = JsonSerializer.Serialize(reloaded.ToWire(includeTurns: true), SessionWireJsonOptions.Default);
+        Assert.DoesNotContain("replacementHistory", wireJson, StringComparison.Ordinal);
+        Assert.DoesNotContain("contextCompacted", wireJson, StringComparison.Ordinal);
+
+        var rolloutJson = await File.ReadAllTextAsync(Path.Combine(
+            _tempDir,
+            "threads",
+            "active",
+            $"{thread.Id}.jsonl"));
+        Assert.Contains("context_compacted", rolloutJson, StringComparison.Ordinal);
+        Assert.Contains("replacementHistory", rolloutJson, StringComparison.Ordinal);
     }
 
     [Fact]

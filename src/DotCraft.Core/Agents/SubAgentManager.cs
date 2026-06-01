@@ -318,26 +318,16 @@ public sealed class SubAgentManager
             var tc = _traceCollector;
             chatClientBuilder.Use(inner => new TracingChatClient(inner, tc));
         }
-        if (string.Equals(_providerProtocol, ModelProviderProtocols.OpenAI, StringComparison.OrdinalIgnoreCase))
-        {
-            chatClientBuilder.Use(inner => new PromptCachingChatClient(inner, _promptCachingConfig, _model, _traceCollector));
-        }
-        else if (string.Equals(_providerProtocol, ModelProviderProtocols.Anthropic, StringComparison.OrdinalIgnoreCase))
-        {
-            chatClientBuilder.Use(inner => new PromptCachingChatClient(
-                inner,
-                _promptCachingConfig,
-                _model,
-                PromptCacheMarkerStrategy.AnthropicNative,
-                _traceCollector));
-            chatClientBuilder.Use(inner => new AnthropicThinkingChatClient(
-                inner,
-                _config,
-                _model,
-                _endpoint,
-                _maxOutputTokens,
-                _reasoningConfig));
-        }
+        ProviderChatClientAdapters.UseProviderAdapters(
+            chatClientBuilder,
+            _config,
+            _providerProtocol,
+            _model,
+            _endpoint,
+            _maxOutputTokens,
+            _reasoningConfig,
+            _promptCachingConfig,
+            _traceCollector);
         var configuredChatClient = chatClientBuilder.Build();
 
         var options = new ChatClientAgentOptions

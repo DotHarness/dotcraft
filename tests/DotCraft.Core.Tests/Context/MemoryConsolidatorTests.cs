@@ -1,3 +1,5 @@
+using DotCraft.Agents;
+using DotCraft.Configuration;
 using DotCraft.Context;
 using DotCraft.Memory;
 using Microsoft.Extensions.AI;
@@ -47,6 +49,50 @@ public sealed class MemoryConsolidatorTests : IDisposable
             cts.Token));
     }
 
+    [Fact]
+    public async Task ConsolidateAsync_ExplicitOnlyAdapterDoesNotInjectDefaultReasoning()
+    {
+        var config = new AppConfig
+        {
+            Model = "claude-opus-4-8",
+            Reasoning = new AppConfig.ReasoningConfig
+            {
+                Enabled = true,
+                Effort = ReasoningEffort.High,
+                Output = ReasoningOutput.Full
+            }
+        };
+        var capture = new CaptureOptionsChatClient("{}");
+        var client = ProviderChatClientAdapters.CreateRequestAdaptedClient(
+            capture,
+            config,
+            Runtime(ModelProviderProtocols.Anthropic, "claude-opus-4-8"),
+            useDefaultReasoning: false);
+        var consolidator = new MemoryConsolidator(
+            client,
+            new MemoryStore(_tempDir));
+
+        await consolidator.ConsolidateAsync(
+            [new ChatMessage(ChatRole.User, "remember blue")]);
+
+        Assert.NotNull(capture.Options);
+        Assert.Null(capture.Options!.Reasoning);
+        Assert.Null(capture.Options.RawRepresentationFactory);
+    }
+
+    private static EffectiveModelRuntime Runtime(string protocol, string model) =>
+        new(
+            ProviderId: protocol,
+            Model: model,
+            Protocol: protocol,
+            DisplayName: protocol,
+            ApiKey: "test-key",
+            EndPoint: "http://localhost",
+            NetworkTimeoutSeconds: 60,
+            MaxOutputTokens: 64_000,
+            IsImplicit: false,
+            Capabilities: ModelProviderCapabilities.ForProtocol(protocol));
+
     private sealed class ThrowingChatClient(Exception exception) : IChatClient
     {
         public Task<ChatResponse> GetResponseAsync(
@@ -60,6 +106,32 @@ public sealed class MemoryConsolidatorTests : IDisposable
             ChatOptions? options = null,
             CancellationToken cancellationToken = default) =>
             throw exception;
+
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+
+        public void Dispose()
+        {
+        }
+    }
+
+    private sealed class CaptureOptionsChatClient(string responseText) : IChatClient
+    {
+        public ChatOptions? Options { get; private set; }
+
+        public Task<ChatResponse> GetResponseAsync(
+            IEnumerable<ChatMessage> messages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default)
+        {
+            Options = options;
+            return Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, responseText)));
+        }
+
+        public IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+            IEnumerable<ChatMessage> messages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
 
         public object? GetService(Type serviceType, object? serviceKey = null) => null;
 

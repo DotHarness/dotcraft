@@ -1678,6 +1678,7 @@ Choose the next concrete action that advances the goal. Before doing substantial
             Dictionary<int, SessionItem>? streamingToolCallItemsByIndex = null;
             Dictionary<int, string>? streamingToolNameByIndex = null;
             Dictionary<string, SessionItem>? streamingToolCallItemsByCallId = null;
+            PendingCompactionCheckpoint? pendingCompactionCheckpoint = null;
 
             void FinalizeStreamingAgentMessage()
             {
@@ -1710,10 +1711,30 @@ Choose the next concrete action that advances the goal. Before doing substantial
             async Task PersistCancelledTurnAsync()
             {
                 await TrySaveThreadAsync(thread);
-                if (session is not null && await TrySaveSessionAsync(agent, session, threadId))
+                if (session is not null)
+                {
+                    await TrySaveSessionAsync(agent, session, threadId);
+                    await TryAppendPendingCompactionCheckpointAsync();
+                    return;
+                }
+
+                if (!persistence.SessionFileExists(threadId))
+                    await TryRebuildAndSaveSessionAsync(agent, threadId);
+            }
+
+            async Task TryAppendPendingCompactionCheckpointAsync()
+            {
+                if (pendingCompactionCheckpoint is null || session is null)
                     return;
 
-                await TryRebuildAndSaveSessionAsync(agent, threadId);
+                var checkpoint = pendingCompactionCheckpoint;
+                pendingCompactionCheckpoint = null;
+                await TryAppendCompactionCheckpointAsync(
+                    threadId,
+                    turn.Id,
+                    session,
+                    checkpoint,
+                    CancellationToken.None);
             }
 
             async Task<ChatMessage?> TryDrainGuidanceMessageAsync(CancellationToken drainCt)
@@ -1886,6 +1907,11 @@ Choose the next concrete action that advances the goal. Before doing substantial
                         session.SetInMemoryChatHistory(
                             [.. result.Messages],
                             jsonSerializerOptions: SessionPersistenceJsonOptions.Default);
+                        pendingCompactionCheckpoint = new PendingCompactionCheckpoint(
+                            "auto",
+                            CompactionOutcomeToWire(status.Outcome),
+                            status.ThresholdBefore.Tokens,
+                            status.ThresholdAfter.Tokens);
                         InvalidatePromptRequestSnapshot(threadId, "auto_compaction");
                         await TrySaveSessionAsync(agent, session, threadId);
                         var contextUsage = await SaveContextUsageSnapshotAsync(
@@ -1954,9 +1980,10 @@ Choose the next concrete action that advances the goal. Before doing substantial
                 await TrySaveThreadAsync(thread);
                 if (session is not null)
                 {
-                    if (TryAppendFailedTurnTailToSession(session, turn) &&
-                        await TrySaveSessionAsync(agent, session, threadId))
+                    if (TryAppendFailedTurnTailToSession(session, turn))
                     {
+                        await TrySaveSessionAsync(agent, session, threadId);
+                        await TryAppendPendingCompactionCheckpointAsync();
                         return;
                     }
                 }
@@ -2679,6 +2706,7 @@ Choose the next concrete action that advances the goal. Before doing substantial
                 {
                     await PersistThreadWithMaterializationAsync(thread, CancellationToken.None);
                     await TrySaveSessionAsync(agent, session, threadId);
+                    await TryAppendPendingCompactionCheckpointAsync();
                 }
                 catch (Exception ex)
                 {
@@ -2780,6 +2808,11 @@ Choose the next concrete action that advances the goal. Before doing substantial
                         if (status.Success)
                         {
                             tokenTracker?.Reset();
+                            pendingCompactionCheckpoint = new PendingCompactionCheckpoint(
+                                "reactive",
+                                CompactionOutcomeToWire(status.Outcome),
+                                status.ThresholdBefore.Tokens,
+                                status.ThresholdAfter.Tokens);
                             InvalidatePromptRequestSnapshot(threadId, "reactive_compaction");
                             var contextUsage = await SaveContextUsageSnapshotAsync(
                                 threadId,
@@ -3146,14 +3179,20 @@ Choose the next concrete action that advances the goal. Before doing substantial
         if (thread.Turns.Count < numTurns)
             throw new InvalidOperationException($"Thread '{threadId}' has only {thread.Turns.Count} turns; cannot roll back {numTurns}.");
 
+        var removedTurns = thread.Turns
+            .Skip(thread.Turns.Count - numTurns)
+            .ToList();
         thread.Turns.RemoveRange(thread.Turns.Count - numTurns, numTurns);
         thread.LastActiveAt = DateTimeOffset.UtcNow;
 
         await persistence.RollbackThreadAsync(thread, numTurns, ct);
+        traceCollector?.RecordThreadRollback(threadId, thread.Id, numTurns, thread.Turns.Count, thread.LastActiveAt);
         InvalidatePromptRequestSnapshot(threadId, "rollback");
         _contextUsageAnchors.TryRemove(threadId, out _);
         ForgetContextPages(threadId);
-        await TryRebuildAndSaveSessionAsync(_threadAgents.GetValueOrDefault(threadId, defaultAgent), threadId);
+        var agent = _threadAgents.GetValueOrDefault(threadId, defaultAgent);
+        var updatedSession = await TryUpdateSessionAfterRollbackAsync(agent, threadId, removedTurns, ct);
+        await SaveContextUsageFromSessionAsync(threadId, updatedSession, ct);
         ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnCompleted);
         return thread;
     }
@@ -3295,6 +3334,19 @@ Choose the next concrete action that advances the goal. Before doing substantial
                         AppendManualCompactionNotice(thread, status, broker);
                     thread.LastActiveAt = DateTimeOffset.UtcNow;
                     await PersistThreadWithMaterializationAsync(thread, maintenanceCt);
+                    if (thread.Turns.LastOrDefault(t => t.Status == TurnStatus.Completed) is { } coveredTurn)
+                    {
+                        await TryAppendCompactionCheckpointAsync(
+                            threadId,
+                            coveredTurn.Id,
+                            session,
+                            new PendingCompactionCheckpoint(
+                                "manual",
+                                CompactionOutcomeToWire(status.Outcome),
+                                status.ThresholdBefore.Tokens,
+                                status.ThresholdAfter.Tokens),
+                            maintenanceCt);
+                    }
                     ThreadRuntimeSignalForBroadcast?.Invoke(
                         threadId,
                         SessionThreadRuntimeSignal.ContextCompacted);
@@ -4003,9 +4055,6 @@ Choose the next concrete action that advances the goal. Before doing substantial
         bool supportsCommandExecutionStreaming,
         string defaultWorkspacePath)
     {
-        if (!supportsCommandExecutionStreaming)
-            return;
-
         if (!string.Equals(functionCall.Name, "Exec", StringComparison.Ordinal))
             return;
 
@@ -4025,6 +4074,17 @@ Choose the next concrete action that advances the goal. Before doing substantial
         workingDirectory = !string.IsNullOrWhiteSpace(workingDirectory)
             ? Path.GetFullPath(workingDirectory)
             : defaultWorkspacePath;
+
+        runtime.RegisterPendingShellExecution(new PendingShellExecutionRegistration
+        {
+            CallId = functionCall.CallId,
+            Command = command,
+            WorkingDirectory = workingDirectory,
+            Source = "host"
+        });
+
+        if (!supportsCommandExecutionStreaming)
+            return;
 
         var item = new SessionItem
         {
@@ -4395,6 +4455,57 @@ Choose the next concrete action that advances the goal. Before doing substantial
         return fallback;
     }
 
+    private async Task TryAppendCompactionCheckpointAsync(
+        string threadId,
+        string coveredThroughTurnId,
+        AgentSession session,
+        PendingCompactionCheckpoint checkpoint,
+        CancellationToken ct)
+    {
+        if (IsPendingPermanentDeletion(threadId))
+            return;
+
+        if (!TrySnapshotInMemoryHistory(session, out var history))
+            return;
+
+        try
+        {
+            await persistence.AppendCompactionCheckpointAsync(
+                threadId,
+                coveredThroughTurnId,
+                history,
+                checkpoint.Trigger,
+                checkpoint.Mode,
+                checkpoint.TokensBefore,
+                checkpoint.TokensAfter,
+                ct);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            logger?.LogError(ex, "Failed to persist compaction checkpoint for thread {ThreadId}", threadId);
+        }
+    }
+
+    private static bool TrySnapshotInMemoryHistory(
+        AgentSession session,
+        out IReadOnlyList<ChatMessage> history)
+    {
+        history = [];
+        if (!session.TryGetInMemoryChatHistory(
+                out var messages,
+                jsonSerializerOptions: SessionPersistenceJsonOptions.Default))
+        {
+            return false;
+        }
+
+        history = messages.ToList();
+        return true;
+    }
+
     private async Task TrySaveThreadAsync(SessionThread thread)
     {
         if (IsPendingPermanentDeletion(thread.Id))
@@ -4433,6 +4544,104 @@ Choose the next concrete action that advances the goal. Before doing substantial
             merged.Add(turnTail[i]);
 
         session.SetInMemoryChatHistory(merged, jsonSerializerOptions: SessionPersistenceJsonOptions.Default);
+        return true;
+    }
+
+    private async Task<AgentSession?> TryUpdateSessionAfterRollbackAsync(
+        AIAgent agent,
+        string threadId,
+        IReadOnlyList<SessionTurn> removedTurns,
+        CancellationToken ct)
+    {
+        try
+        {
+            var session = await persistence.LoadOrCreateSessionAsync(agent, threadId, ct);
+            if (TryTrimRolledBackTailFromSession(session, removedTurns))
+            {
+                await TrySaveSessionAsync(agent, session, threadId);
+                return session;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            logger?.LogWarning(ex, "Failed to trim agent session after rollback for thread {ThreadId}", threadId);
+        }
+
+        await TryRebuildAndSaveSessionAsync(agent, threadId);
+
+        try
+        {
+            return await persistence.LoadOrCreateSessionAsync(agent, threadId, ct);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            logger?.LogWarning(ex, "Failed to load rebuilt agent session after rollback for thread {ThreadId}", threadId);
+            return null;
+        }
+    }
+
+    private async Task SaveContextUsageFromSessionAsync(
+        string threadId,
+        AgentSession? session,
+        CancellationToken ct)
+    {
+        try
+        {
+            var tokens = 0L;
+            if (session is not null && TrySnapshotInMemoryHistory(session, out var history) && history.Count > 0)
+                tokens = EstimateContextTokens(threadId, history, latestProviderTokens: 0).Tokens;
+
+            await SaveContextUsageSnapshotAsync(threadId, tokens, ct);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            logger?.LogWarning(ex, "Failed to update context usage after rollback for thread {ThreadId}", threadId);
+        }
+    }
+
+    private static bool TryTrimRolledBackTailFromSession(
+        AgentSession session,
+        IReadOnlyList<SessionTurn> removedTurns)
+    {
+        if (!session.TryGetInMemoryChatHistory(
+                out var history,
+                jsonSerializerOptions: SessionPersistenceJsonOptions.Default))
+        {
+            return false;
+        }
+
+        var removedTail = new List<ChatMessage>();
+        foreach (var turn in removedTurns.OrderBy(t => t.StartedAt).ThenBy(t => t.Id, StringComparer.Ordinal))
+            removedTail.AddRange(ThreadStore.BuildModelVisibleHistoryFromTurn(turn));
+
+        if (removedTail.Count == 0)
+            return true;
+        if (removedTail.Count > history.Count)
+            return false;
+
+        var historyStart = history.Count - removedTail.Count;
+        for (var i = 0; i < removedTail.Count; i++)
+        {
+            if (ChatMessagesEquivalent(history[historyStart + i], removedTail[i]))
+                continue;
+
+            return false;
+        }
+
+        var trimmed = history.Take(historyStart).ToList();
+        session.SetInMemoryChatHistory(trimmed, jsonSerializerOptions: SessionPersistenceJsonOptions.Default);
         return true;
     }
 
@@ -4686,6 +4895,12 @@ Choose the next concrete action that advances the goal. Before doing substantial
         broker.PublishItemEvent(SessionEventType.ItemStarted, turn.Id, noticeItem);
         broker.PublishItemEvent(SessionEventType.ItemCompleted, turn.Id, noticeItem);
     }
+
+    private sealed record PendingCompactionCheckpoint(
+        string Trigger,
+        string Mode,
+        long TokensBefore,
+        long TokensAfter);
 
     private static SessionItem CreateMemoryConsolidationNoticeItem(SessionTurn turn, int seq)
     {

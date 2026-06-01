@@ -98,7 +98,9 @@ public sealed class ModelThinkingAdapterCatalogTests : IDisposable
 
     [Theory]
     [InlineData("claude-opus-4-7")]
-    [InlineData("vertex_ai/claude-opus-4-7")]
+    [InlineData("claude-opus-4-8")]
+    [InlineData("provider/claude-opus-4-7")]
+    [InlineData("provider/claude-opus-4-8")]
     [InlineData("claude-mythos-preview")]
     [InlineData("claude-opus-4-6")]
     [InlineData("claude-sonnet-4-6")]
@@ -160,13 +162,15 @@ public sealed class ModelThinkingAdapterCatalogTests : IDisposable
         Assert.Equal("high", byEndpoint.OutputConfigEffort);
     }
 
-    [Fact]
-    public void ResolveReasoningCapability_UsesBuiltInAnthropicCatalog()
+    [Theory]
+    [InlineData("provider/claude-opus-4-7")]
+    [InlineData("provider/claude-opus-4-8")]
+    public void ResolveReasoningCapability_UsesBuiltInAnthropicCatalog(string model)
     {
         var capability = ModelThinkingAdapterCatalog.ResolveReasoningCapability(
             protocol: ModelProviderProtocols.Anthropic,
             endpoint: "https://api.anthropic.com",
-            model: "vertex_ai/claude-opus-4-7");
+            model: model);
 
         Assert.NotNull(capability);
         Assert.True(capability.SupportsDisable);

@@ -73,6 +73,7 @@ impl WireClient {
                 streaming_support: true,
                 command_execution_streaming: true,
                 tool_execution_lifecycle: true,
+                background_terminals: true,
                 opt_out_notification_methods: vec![],
             },
         };
