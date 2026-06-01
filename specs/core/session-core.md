@@ -993,6 +993,7 @@ Context compaction is a short-term context-window optimization. It is not long-t
 - Cache-sharing snapshot forks should keep cache-sensitive request parameters stable when possible, but a snapshot is usable only while its captured messages remain a prefix of the current canonical model-visible history. Any successful history replacement (auto, reactive, or manual compaction; rollback; deletion) invalidates older snapshots. Maintenance forks should attempt the provider request first so prompt-cache-aware providers can reuse the captured prefix. If the provider rejects the snapshot request with a conservatively classified prompt-too-long / context-overflow error, the fork returns `maintenance_snapshot_too_large` and falls back to a trimmed non-cache path when one exists. Other provider, authentication, rate-limit, model, or request-shape errors must not be reclassified as context overflow.
 - Snapshot forks enforce summary length through the prompt and by validating the returned summary. A summary that exceeds the compact-specific hard budget is treated as `compact_summary_too_long` and must fall back to a non-cache path or report `compactFailed`.
 - Compaction model-call cancellation, provider/network timeout, and overlong summaries must be observable in trace storage with a terminal maintenance-fork response. Manual compaction maps user cancellation to `compactCancelled`; provider timeout and overlong/invalid summary map to `compactFailed` with machine-readable `message` values.
+- Successful history replacement must persist a recovery checkpoint containing the replacement model-visible history and the newest covered Turn. Later recovery and rollback rebuilds use the newest checkpoint whose covered Turn still survives in the canonical Thread.
 
 #### Usage Events
 
@@ -1186,11 +1187,12 @@ Workspace-managed local images referenced by persisted `localImage` input parts 
 Session Core manages the mapping:
 - **Save**: After each successful compaction and after each terminal Turn when an optimized session is available, serialize the `AgentSession` and upsert `thread_sessions.session_json`.
 - **Load**: On Thread resume, deserialize `thread_sessions.session_json` via `agent.DeserializeSessionAsync`.
-- **Rebuild**: Rebuild from rollout only when the optimized session row is missing, malformed, or cannot be saved/deserialized. Rebuilds must be treated as recovery and should not overwrite a usable optimized session after compaction.
+- **Rebuild**: Rebuild from rollout only when the optimized session row is missing, malformed, or cannot be saved/deserialized. Rebuilds must first apply the newest surviving compaction checkpoint and then replay only later surviving Turns. Full rollout rebuild is a legacy fallback when no usable checkpoint exists. Rebuilds must be treated as recovery and should not overwrite a usable optimized session after compaction.
 
 The separation between rollout history and agent session state is intentional:
 - The rollout JSONL files are the source of truth for the Session Protocol UI/domain model.
 - The `thread_sessions` table is the source of truth for optimized LLM conversation history. It may contain compacted summaries, cleared tool-result markers, or other model-visible projections that intentionally differ from the full UI rollout.
+- Rollout may also contain internal compaction checkpoints. These records store replacement model-visible history for recovery only; they are not Session Items and are not projected to clients.
 
 ### 9.4 Thread Discovery
 
@@ -1365,7 +1367,7 @@ Cross-channel resume works for channels that share the same identity shape:
 
 `RollbackThread(threadId, numTurns)` removes `numTurns` turns from the end of a non-archived Thread. `numTurns` must be at least 1 and no turn in the Thread may be `Running` or `WaitingApproval`.
 
-Rollback appends a canonical rollback record to thread JSONL and updates thread metadata; it does not revert files or other workspace side effects created by tools. After rollback, Session Core rebuilds or invalidates the persisted `AgentSession` from canonical history so future turns use the pruned conversation.
+Rollback appends a canonical rollback record to thread JSONL and updates thread metadata; it does not revert files or other workspace side effects created by tools. After rollback, Session Core first tries to trim the removed Turn tail from the optimized `AgentSession`. If the removed Turns are no longer present as a plain model-visible suffix, Session Core rebuilds through the newest surviving compaction checkpoint before falling back to full canonical history. Rollback must not silently restore model-visible history that had already been compacted out.
 - **Channel disconnects** are transparent to Session Core. Turns run to completion regardless of adapter state. Results are persisted and available on reconnect.
 
 ### 12.3 Error Reporting

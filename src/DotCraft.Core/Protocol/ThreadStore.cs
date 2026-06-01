@@ -65,6 +65,33 @@ public sealed class ThreadStore
         _attachmentStore.ReplaceThreadAttachments(thread);
     }
 
+    internal async Task AppendCompactionCheckpointAsync(
+        string threadId,
+        string coveredThroughTurnId,
+        IReadOnlyList<ChatMessage> replacementHistory,
+        string trigger,
+        string mode,
+        long tokensBefore,
+        long tokensAfter,
+        CancellationToken ct = default)
+    {
+        ct.ThrowIfCancellationRequested();
+        var replacementElement = JsonSerializer.SerializeToElement(
+            replacementHistory,
+            SessionPersistenceJsonOptions.Default);
+
+        await _rolloutStore.AppendCompactionCheckpointAsync(
+            threadId,
+            coveredThroughTurnId,
+            trigger,
+            mode,
+            tokensBefore,
+            tokensAfter,
+            replacementElement,
+            DateTimeOffset.UtcNow,
+            ct);
+    }
+
     /// <summary>
     /// Loads a thread by replaying canonical thread history.
     /// </summary>
@@ -309,15 +336,77 @@ public sealed class ThreadStore
         if (thread == null)
             return await agent.CreateSessionAsync(ct);
 
-        var history = new List<ChatMessage>();
-
-        foreach (var turn in thread.Turns.OrderBy(t => t.StartedAt).ThenBy(t => t.Id, StringComparer.Ordinal))
-            history.AddRange(BuildModelVisibleHistoryFromTurn(turn));
+        var history =
+            await TryBuildModelVisibleHistoryFromLatestCheckpointAsync(thread, ct) ??
+            BuildModelVisibleHistoryFromTurns(thread.Turns);
 
         if (history.Count == 0)
             return await agent.CreateSessionAsync(ct);
 
         return await CreateSessionWithHistoryAsync(agent, history, ct);
+    }
+
+    private async Task<List<ChatMessage>?> TryBuildModelVisibleHistoryFromLatestCheckpointAsync(
+        SessionThread thread,
+        CancellationToken ct)
+    {
+        var checkpoints = await _rolloutStore.LoadCompactionCheckpointsAsync(thread.Id, ct);
+        if (checkpoints.Count == 0)
+            return null;
+
+        var orderedTurns = thread.Turns
+            .OrderBy(t => t.StartedAt)
+            .ThenBy(t => t.Id, StringComparer.Ordinal)
+            .ToList();
+
+        for (var i = checkpoints.Count - 1; i >= 0; i--)
+        {
+            var checkpoint = checkpoints[i];
+            var coveredTurnIndex = orderedTurns.FindIndex(turn =>
+                string.Equals(turn.Id, checkpoint.CoveredThroughTurnId, StringComparison.Ordinal));
+            if (coveredTurnIndex < 0)
+                continue;
+
+            if (!TryDeserializeCheckpointHistory(checkpoint, out var history))
+                continue;
+
+            for (var turnIndex = coveredTurnIndex + 1; turnIndex < orderedTurns.Count; turnIndex++)
+                history.AddRange(BuildModelVisibleHistoryFromTurn(orderedTurns[turnIndex]));
+
+            return history;
+        }
+
+        return null;
+    }
+
+    private static bool TryDeserializeCheckpointHistory(
+        ThreadCompactionCheckpoint checkpoint,
+        out List<ChatMessage> history)
+    {
+        history = [];
+        try
+        {
+            var restored = checkpoint.ReplacementHistory.Deserialize<List<ChatMessage>>(
+                SessionPersistenceJsonOptions.Default);
+            if (restored is null)
+                return false;
+
+            history = MessageGrouper.NormalizeFunctionCallArguments(restored).ToList();
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static List<ChatMessage> BuildModelVisibleHistoryFromTurns(IEnumerable<SessionTurn> turns)
+    {
+        var history = new List<ChatMessage>();
+        foreach (var turn in turns.OrderBy(t => t.StartedAt).ThenBy(t => t.Id, StringComparer.Ordinal))
+            history.AddRange(BuildModelVisibleHistoryFromTurn(turn));
+
+        return history;
     }
 
     internal static IReadOnlyList<ChatMessage> BuildModelVisibleHistoryFromTurn(SessionTurn turn)
