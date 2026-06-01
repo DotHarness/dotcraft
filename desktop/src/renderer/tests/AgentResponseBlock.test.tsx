@@ -1396,6 +1396,11 @@ describe('AgentResponseBlock idle running fallback', () => {
     expect(screen.getByText('Thinking...')).toBeInTheDocument()
 
     rerender(renderLive('Streaming answer continued', Date.now()))
+    // Appended text reveals via the typewriter cadence; advance well under the
+    // 2000ms stall threshold so it finishes without re-triggering the fallback.
+    act(() => {
+      vi.advanceTimersByTime(500)
+    })
 
     expect(screen.queryByText('Thinking...')).toBeNull()
     expect(screen.getByText('Streaming answer continued')).toBeInTheDocument()

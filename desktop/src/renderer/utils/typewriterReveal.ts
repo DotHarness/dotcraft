@@ -1,0 +1,73 @@
+/**
+ * Pure helpers for the streaming "typewriter" reveal used by assistant messages.
+ *
+ * The reveal advances a character cursor at a steady characters-per-second rate
+ * that is decoupled from the bursty arrival of network deltas. When the cursor
+ * falls far behind the received text it speeds up proportionally so it never
+ * lags by more than a bounded backlog. These functions hold no DOM/timing state
+ * so they can be unit tested directly.
+ */
+
+export interface RevealParams {
+  /** Steady reveal rate while the cursor keeps pace with arriving text. */
+  baseCps: number
+  /** Backlog (in code points) tolerated before the cursor speeds up. */
+  catchupThreshold: number
+  /** Larger values make catch-up acceleration gentler. */
+  catchupDivisor: number
+  /** Hard cap on how much faster than `baseCps` catch-up may run. */
+  maxCatchupMultiplier: number
+}
+
+export const DEFAULT_REVEAL_PARAMS: RevealParams = {
+  baseCps: 80,
+  catchupThreshold: 60,
+  catchupDivisor: 120,
+  maxCatchupMultiplier: 4
+}
+
+/** Minimum gap between committed reveal updates (~30fps) to bound re-renders. */
+export const REVEAL_COMMIT_INTERVAL_MS = 33
+
+/**
+ * Effective characters-per-second given how far the reveal cursor lags the
+ * received text. Within the threshold the rate is steady; beyond it the rate
+ * scales up linearly, capped at `baseCps * maxCatchupMultiplier`.
+ */
+export function effectiveCps(backlog: number, params: RevealParams = DEFAULT_REVEAL_PARAMS): number {
+  if (backlog <= params.catchupThreshold) return params.baseCps
+  const scaled = params.baseCps * (1 + (backlog - params.catchupThreshold) / params.catchupDivisor)
+  return Math.min(params.baseCps * params.maxCatchupMultiplier, scaled)
+}
+
+/**
+ * Advance the (fractional) revealed count by `dtSeconds` toward `total`.
+ * Never overshoots `total` and treats negative dt as zero.
+ */
+export function advanceReveal(
+  revealed: number,
+  total: number,
+  dtSeconds: number,
+  params: RevealParams = DEFAULT_REVEAL_PARAMS
+): number {
+  if (revealed >= total) return total
+  const backlog = total - revealed
+  const next = revealed + effectiveCps(backlog, params) * Math.max(0, dtSeconds)
+  return next >= total ? total : next
+}
+
+/** Number of Unicode code points in `text` (so surrogate pairs count as one). */
+export function codePointLength(text: string): number {
+  return Array.from(text).length
+}
+
+/**
+ * Code-point-aware prefix of `text` (avoids splitting surrogate pairs such as
+ * emoji or astral CJK). `count` is clamped to the valid range.
+ */
+export function sliceByCodePoints(text: string, count: number): string {
+  if (count <= 0) return ''
+  const points = Array.from(text)
+  if (count >= points.length) return text
+  return points.slice(0, count).join('')
+}

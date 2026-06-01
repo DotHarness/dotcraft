@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useT } from '../../contexts/LocaleContext'
 import { addToast } from '../../stores/toastStore'
+import { useTypewriterReveal } from '../../hooks/useTypewriterReveal'
 import { ContextMenu, type ContextMenuItem, type ContextMenuPosition } from '../ui/ContextMenu'
 import { MarkdownRenderer } from './MarkdownRenderer'
 import { MessageCopyButton } from './MessageCopyButton'
@@ -29,6 +30,8 @@ export function AgentMessage({
   const [selectionText, setSelectionText] = useState('')
   const actionsVisible = hovered || focusedWithin
   const sentTime = formatMessageTime(createdAt)
+  // Steady-cadence typewriter reveal while streaming; full text once finalized.
+  const displayText = useTypewriterReveal(text, streaming)
 
   async function copyText(content: string): Promise<void> {
     if (content.length === 0) return
@@ -79,7 +82,7 @@ export function AgentMessage({
       }}
       onContextMenu={handleContextMenu}
     >
-      <MarkdownRenderer content={text} />
+      <MarkdownRenderer content={displayText} />
       {showFooter && (
         <div
           data-testid="agent-message-footer"
