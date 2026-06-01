@@ -67,6 +67,16 @@ describe('desktop locales', () => {
     expect(translate('de', 'settings.title')).toBe('Einstellungen')
   })
 
+  it('keeps every English catalog key covered in every supported locale', () => {
+    const missing = Object.keys(MESSAGES_EN).flatMap((key) =>
+      Object.entries(NON_ENGLISH_CATALOGS)
+        .filter(([, catalog]) => catalog[key] == null)
+        .map(([locale]) => `${locale}:${key}`)
+    )
+
+    expect(missing).toEqual([])
+  })
+
   it('keeps settings screen keys covered in every supported locale', () => {
     const missing = Array.from(collectMessageKeys(['settings'])).flatMap((key) =>
       Object.entries(NON_ENGLISH_CATALOGS)
