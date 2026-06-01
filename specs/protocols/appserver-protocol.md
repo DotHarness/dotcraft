@@ -551,6 +551,7 @@ Argument conventions:
 - `CreateThread.model` and `SendMessageToThread.model`, when supported by the client, map to thread configuration or a turn-scoped override only through explicit AppServer protocol support. A client that cannot apply the override must return `success = false` with `errorCode = "UnsupportedOption"` rather than silently ignoring it.
 - `ListThreads.query` and `ListThreads.limit` are optional client-side filtering controls. `query` is not a server-side search contract unless a future `thread/list` filter defines it.
 - `ReadThread.includeOutputs`, `ReadThread.maxOutputCharsPerItem`, and `ReadThread.turnLimit` are optional presentation controls for the client-produced summary. Pagination cursors are deferred until the AppServer read protocol defines cursor-based history access.
+- `ReadThread` summaries must be payload-aware: clients should extract model-useful previews from item `payload` / `payloadKind`, bound all text and output fields, and never dump raw media data, full tool results, or full command output unless explicitly requested through `includeOutputs` and still capped by `maxOutputCharsPerItem`.
 
 Result conventions:
 

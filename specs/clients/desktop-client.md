@@ -389,7 +389,7 @@ Required behavior:
 - Desktop implements the tools by calling ordinary AppServer methods. It must not mutate local thread state directly or bypass AppServer persistence.
 - `CreateThread` calls `thread/start` using the current workspace identity, then submits the initial prompt with `turn/start`. The created thread appears through normal `thread/started` synchronization, but Desktop does not switch the user's active conversation unless the user explicitly opens it.
 - `ListThreads` calls `thread/list` for the current workspace identity and may apply local `query` and `limit` filtering before returning a model-facing summary.
-- `ReadThread` calls `thread/read` and returns a compact summary without resuming the thread, subscribing the UI to it, or making it active.
+- `ReadThread` calls `thread/read` and returns a compact payload-aware summary without resuming the thread, subscribing the UI to it, or making it active. The summary must bound turn history, extract useful message/tool previews from item payloads, and avoid raw media data or uncapped command/tool output.
 - `SendMessageToThread` sends a normal turn to the target thread without stealing focus. If the thread is running, waiting, or under blocking maintenance, Desktop uses `turn/enqueue` when available; otherwise the tool returns a structured busy failure.
 - `SetThreadTitle` and `SetThreadArchived` map to `thread/rename`, `thread/archive`, and `thread/unarchive`. Desktop waits for the RPC result and normal broadcasts to update visible state.
 - Pinned-thread tools remain unavailable until AppServer defines pinned-thread state. Desktop must not present a pinned-thread tool in this profile before that backing contract exists.

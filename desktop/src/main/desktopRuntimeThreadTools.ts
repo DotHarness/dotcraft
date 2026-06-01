@@ -757,8 +757,13 @@ function summarizeThreadWithTurns(
   )
   return {
     ...summarizeThread(thread),
-    queuedInputs: thread.queuedInputs ?? [],
+    queuedInputCount: Array.isArray(thread.queuedInputs) ? thread.queuedInputs.length : 0,
     turnCount: turns.length,
+    page: {
+      order: 'oldest_first',
+      limit: turnLimit,
+      hasMore: turns.length > recentTurns.length
+    },
     turns: recentTurns
   }
 }
@@ -774,28 +779,327 @@ function summarizeTurn(
     status: typeof turn.status === 'string' ? turn.status : 'unknown',
     startedAt: typeof turn.startedAt === 'string' ? turn.startedAt : null,
     completedAt: typeof turn.completedAt === 'string' ? turn.completedAt : null,
+    itemCount: items.length,
     items: items.map((item) => summarizeItem(item, includeOutputs, maxOutputCharsPerItem))
   }
 }
 
 function summarizeItem(item: unknown, includeOutputs: boolean, maxOutputCharsPerItem: number): JsonObject {
   if (!isRecord(item)) return { type: 'unknown' }
+  const payload = isRecord(item.payload) ? item.payload : {}
+  const type = stringProperty(item, 'type') ?? stringProperty(item, 'payloadKind') ?? 'unknown'
   const summary: JsonObject = {
-    id: typeof item.id === 'string' ? item.id : '',
-    type: typeof item.type === 'string' ? item.type : 'unknown',
-    status: typeof item.status === 'string' ? item.status : 'unknown'
+    id: stringProperty(item, 'id') ?? '',
+    type,
+    status: stringProperty(item, 'status') ?? 'unknown'
   }
-  const text = firstString(item.text, item.content, item.message, item.errorMessage)
+
+  switch (type) {
+    case 'userMessage':
+      return summarizeUserMessage(summary, payload, includeOutputs, maxOutputCharsPerItem)
+    case 'agentMessage':
+      return summarizeTextPayload(summary, payload, includeOutputs, maxOutputCharsPerItem)
+    case 'reasoningContent':
+      summary.note = 'reasoning content omitted'
+      if (includeOutputs) return summarizeTextPayload(summary, payload, includeOutputs, maxOutputCharsPerItem)
+      return summary
+    case 'commandExecution':
+      return summarizeCommandExecution(summary, payload, includeOutputs, maxOutputCharsPerItem)
+    case 'toolExecution':
+      return summarizeToolExecution(summary, payload)
+    case 'toolCall':
+      return summarizeToolCall(summary, payload)
+    case 'pluginFunctionCall':
+      return summarizePluginFunctionCall(summary, payload, includeOutputs, maxOutputCharsPerItem)
+    case 'dynamicToolCall':
+      return summarizeDynamicToolCall(summary, payload, includeOutputs, maxOutputCharsPerItem)
+    case 'toolResult':
+      return summarizeToolResult(summary, payload, includeOutputs, maxOutputCharsPerItem)
+    case 'approvalRequest':
+      return summarizeApprovalRequest(summary, payload)
+    case 'approvalResponse':
+      return copyKnownFields(summary, payload, ['requestId', 'approved', 'decision'])
+    case 'userInputRequest':
+      return summarizeUserInputRequest(summary, payload)
+    case 'userInputResponse':
+      return copyKnownFields(summary, payload, ['requestId'])
+    case 'systemNotice':
+      return summarizeSystemNotice(summary, payload)
+    case 'error':
+      return summarizeError(summary, payload)
+    default:
+      return summarizeFallbackItem(summary, item, payload, includeOutputs, maxOutputCharsPerItem)
+  }
+}
+
+function summarizeUserMessage(
+  summary: JsonObject,
+  payload: Record<string, unknown>,
+  includeOutputs: boolean,
+  maxOutputCharsPerItem: number
+): JsonObject {
+  const maxTextChars = includeOutputs ? maxOutputCharsPerItem : 500
+  const text = stringProperty(payload, 'text')
+  if (text) summary.text = truncate(text, maxTextChars)
+
+  const nativeInputParts = Array.isArray(payload.nativeInputParts) ? payload.nativeInputParts : []
+  const materializedInputParts = Array.isArray(payload.materializedInputParts) ? payload.materializedInputParts : []
+  const inputParts = nativeInputParts.length > 0 ? nativeInputParts : materializedInputParts
+  if (inputParts.length > 0) {
+    summary.content = inputParts
+      .map((part) => summarizeInputPart(part, maxTextChars))
+      .filter((part): part is JsonObject => part != null)
+  }
+
+  copyOptionalStringFields(summary, payload, [
+    'deliveryMode',
+    'senderId',
+    'senderName',
+    'channelName',
+    'triggerKind',
+    'triggerLabel'
+  ])
+  return summary
+}
+
+function summarizeTextPayload(
+  summary: JsonObject,
+  payload: Record<string, unknown>,
+  includeOutputs: boolean,
+  maxOutputCharsPerItem: number
+): JsonObject {
+  const text = stringProperty(payload, 'text')
+  if (text) {
+    summary.text = truncate(text, includeOutputs ? maxOutputCharsPerItem : 500)
+    delete summary.note
+  }
+  return summary
+}
+
+function summarizeCommandExecution(
+  summary: JsonObject,
+  payload: Record<string, unknown>,
+  includeOutputs: boolean,
+  maxOutputCharsPerItem: number
+): JsonObject {
+  copyOptionalStringFields(summary, payload, [
+    'command',
+    'workingDirectory',
+    'source',
+    'sessionId',
+    'outputPath',
+    'backgroundReason',
+    'callId'
+  ])
+  copyOptionalNumberFields(summary, payload, ['exitCode', 'durationMs', 'originalOutputChars'])
+  copyOptionalBooleanFields(summary, payload, ['truncated'])
+  const payloadStatus = stringProperty(payload, 'status')
+  if (payloadStatus) summary.status = payloadStatus
+  const output = stringProperty(payload, 'aggregatedOutput')
+  if (includeOutputs && output) {
+    summary.output = truncate(output, maxOutputCharsPerItem)
+  } else if (output) {
+    summary.outputChars = output.length
+  }
+  return summary
+}
+
+function summarizeToolExecution(summary: JsonObject, payload: Record<string, unknown>): JsonObject {
+  copyOptionalStringFields(summary, payload, ['callId', 'toolName', 'errorMessage'])
+  copyOptionalNumberFields(summary, payload, ['durationMs'])
+  copyOptionalBooleanFields(summary, payload, ['success'])
+  const payloadStatus = stringProperty(payload, 'status')
+  if (payloadStatus) summary.status = payloadStatus
+  const resultPreview = stringProperty(payload, 'resultPreview')
+  if (resultPreview) summary.resultPreview = truncate(resultPreview, 500)
+  return summary
+}
+
+function summarizeToolCall(summary: JsonObject, payload: Record<string, unknown>): JsonObject {
+  copyOptionalStringFields(summary, payload, ['toolName', 'callId'])
+  const argumentsPreview = jsonPreview(payload.arguments, 500)
+  if (argumentsPreview) summary.argumentsPreview = argumentsPreview
+  return summary
+}
+
+function summarizePluginFunctionCall(
+  summary: JsonObject,
+  payload: Record<string, unknown>,
+  includeOutputs: boolean,
+  maxOutputCharsPerItem: number
+): JsonObject {
+  copyOptionalStringFields(summary, payload, [
+    'pluginId',
+    'namespace',
+    'functionName',
+    'callId',
+    'errorCode',
+    'errorMessage'
+  ])
+  copyOptionalBooleanFields(summary, payload, ['success'])
+  const argumentsPreview = jsonPreview(payload.arguments, 500)
+  if (argumentsPreview) summary.argumentsPreview = argumentsPreview
+  if (includeOutputs) {
+    addToolOutputPreview(summary, payload, maxOutputCharsPerItem)
+  }
+  return summary
+}
+
+function summarizeDynamicToolCall(
+  summary: JsonObject,
+  payload: Record<string, unknown>,
+  includeOutputs: boolean,
+  maxOutputCharsPerItem: number
+): JsonObject {
+  copyOptionalStringFields(summary, payload, [
+    'namespace',
+    'toolName',
+    'callId',
+    'errorCode',
+    'errorMessage'
+  ])
+  copyOptionalBooleanFields(summary, payload, ['success'])
+  const argumentsPreview = jsonPreview(payload.arguments, 500)
+  if (argumentsPreview) summary.argumentsPreview = argumentsPreview
+  if (includeOutputs) {
+    addToolOutputPreview(summary, payload, maxOutputCharsPerItem)
+  }
+  return summary
+}
+
+function summarizeToolResult(
+  summary: JsonObject,
+  payload: Record<string, unknown>,
+  includeOutputs: boolean,
+  maxOutputCharsPerItem: number
+): JsonObject {
+  copyOptionalStringFields(summary, payload, ['callId'])
+  copyOptionalBooleanFields(summary, payload, ['success'])
+  const result = stringProperty(payload, 'result')
+  if (includeOutputs && result) {
+    summary.result = truncate(result, maxOutputCharsPerItem)
+  } else if (result) {
+    summary.resultChars = result.length
+  }
+  return summary
+}
+
+function summarizeApprovalRequest(summary: JsonObject, payload: Record<string, unknown>): JsonObject {
+  copyOptionalStringFields(summary, payload, ['approvalType', 'operation', 'target', 'requestId', 'scopeKey'])
+  const reason = stringProperty(payload, 'reason')
+  if (reason) summary.reason = truncate(reason, 500)
+  return summary
+}
+
+function summarizeUserInputRequest(summary: JsonObject, payload: Record<string, unknown>): JsonObject {
+  copyOptionalStringFields(summary, payload, ['requestId'])
+  const questions = Array.isArray(payload.questions) ? payload.questions : []
+  summary.questionCount = questions.length
+  if (questions.length > 0) {
+    summary.questions = questions.map((question) => {
+      if (!isRecord(question)) return { question: 'unknown' }
+      return {
+        id: stringProperty(question, 'id') ?? '',
+        header: stringProperty(question, 'header') ?? '',
+        question: truncate(stringProperty(question, 'question') ?? '', 500),
+        optionCount: Array.isArray(question.options) ? question.options.length : 0
+      }
+    })
+  }
+  return summary
+}
+
+function summarizeSystemNotice(summary: JsonObject, payload: Record<string, unknown>): JsonObject {
+  copyOptionalStringFields(summary, payload, ['kind', 'trigger', 'mode'])
+  copyOptionalNumberFields(summary, payload, ['tokensBefore', 'tokensAfter', 'percentLeftAfter', 'clearedToolResults'])
+  return summary
+}
+
+function summarizeError(summary: JsonObject, payload: Record<string, unknown>): JsonObject {
+  copyOptionalStringFields(summary, payload, ['code'])
+  copyOptionalBooleanFields(summary, payload, ['fatal'])
+  const message = stringProperty(payload, 'message')
+  if (message) summary.message = truncate(message, 500)
+  return summary
+}
+
+function summarizeFallbackItem(
+  summary: JsonObject,
+  item: Record<string, unknown>,
+  payload: Record<string, unknown>,
+  includeOutputs: boolean,
+  maxOutputCharsPerItem: number
+): JsonObject {
+  const text = firstString(
+    item.text,
+    item.content,
+    item.message,
+    item.errorMessage,
+    payload.text,
+    payload.content,
+    payload.message,
+    payload.errorMessage
+  )
   if (text) {
     summary.text = truncate(text, includeOutputs ? maxOutputCharsPerItem : 500)
   }
   if (includeOutputs) {
-    const output = firstString(item.aggregatedOutput, item.output, item.result)
+    const output = firstString(
+      payload.aggregatedOutput,
+      payload.output,
+      payload.result,
+      item.aggregatedOutput,
+      item.output,
+      item.result
+    )
     if (output) {
       summary.output = truncate(output, maxOutputCharsPerItem)
     }
   }
   return summary
+}
+
+function summarizeInputPart(part: unknown, maxTextChars: number): JsonObject | null {
+  if (!isRecord(part)) return null
+  const type = stringProperty(part, 'type') ?? 'unknown'
+  const summary: JsonObject = { type }
+  switch (type) {
+    case 'text': {
+      const text = stringProperty(part, 'text')
+      if (text) summary.text = truncate(text, maxTextChars)
+      return summary
+    }
+    case 'commandRef':
+      copyOptionalStringFields(summary, part, ['name', 'argsText', 'rawText'])
+      return summary
+    case 'skillRef':
+      copyOptionalStringFields(summary, part, ['name'])
+      return summary
+    case 'fileRef':
+    case 'localImage':
+      copyOptionalStringFields(summary, part, ['path', 'displayPath', 'fileName', 'mimeType'])
+      return summary
+    case 'image':
+      copyOptionalStringFields(summary, part, ['url'])
+      return summary
+    default:
+      copyOptionalStringFields(summary, part, ['name', 'path', 'displayPath', 'url', 'fileName'])
+      return summary
+  }
+}
+
+function addToolOutputPreview(summary: JsonObject, payload: Record<string, unknown>, maxOutputCharsPerItem: number): void {
+  const contentItems = Array.isArray(payload.contentItems) ? payload.contentItems : []
+  const textItems = contentItems
+    .map((item) => isRecord(item) ? stringProperty(item, 'text') : null)
+    .filter((text): text is string => Boolean(text))
+  if (textItems.length > 0) {
+    summary.contentPreview = truncate(textItems.join('\n'), maxOutputCharsPerItem)
+  }
+  const structuredResult = jsonPreview(payload.structuredResult, maxOutputCharsPerItem)
+  if (structuredResult) {
+    summary.structuredResultPreview = structuredResult
+  }
 }
 
 function formatThreadTitle(thread: ThreadSummaryWire | undefined): string {
@@ -815,7 +1119,167 @@ function formatReadThreadText(summary: JsonObject): string {
   const title = typeof summary.displayName === 'string' && summary.displayName.trim()
     ? summary.displayName.trim()
     : '(untitled)'
-  return `Thread ${summary.id}: ${title}\nStatus: ${summary.status ?? 'unknown'}\nRecent turns: ${turns.length}`
+  const turnCount = numberProperty(summary, 'turnCount') ?? turns.length
+  const queuedInputCount = numberProperty(summary, 'queuedInputCount') ?? 0
+  const page = isRecord(summary.page) ? summary.page : {}
+  const hasMore = booleanProperty(page, 'hasMore') ?? false
+  const firstShown = turns.length === 0 ? 0 : Math.max(1, turnCount - turns.length + 1)
+  const lastShown = turns.length === 0 ? 0 : turnCount
+  const lines = [
+    `Thread ${summary.id}: ${title}`,
+    `Status: ${summary.status ?? 'unknown'}`,
+    `Runtime: ${formatRuntimeSummary(summary.runtime)}`,
+    `Queued inputs: ${queuedInputCount}`,
+    `Turns: ${turnCount} total; showing ${firstShown}-${lastShown}${hasMore ? ' (more older turns available)' : ''}`
+  ]
+
+  for (const turn of turns) {
+    if (!isRecord(turn)) continue
+    lines.push('')
+    lines.push(formatTurnSummaryLine(turn))
+    const items = Array.isArray(turn.items) ? turn.items : []
+    if (items.length === 0) {
+      lines.push('  - No items')
+      continue
+    }
+    for (const item of items) {
+      if (!isRecord(item)) continue
+      lines.push(`  - ${formatItemSummaryLine(item)}`)
+    }
+  }
+
+  return lines.join('\n')
+}
+
+function formatRuntimeSummary(runtime: unknown): string {
+  if (!isRecord(runtime)) return 'unknown'
+  const flags: string[] = []
+  for (const key of ['running', 'busy', 'waitingOnApproval', 'waitingOnInput', 'waitingOnPlanConfirmation']) {
+    if (booleanProperty(runtime, key) === true) flags.push(key)
+  }
+  const maintenanceKind = stringProperty(runtime, 'maintenanceKind')
+  if (maintenanceKind) flags.push(`maintenance=${maintenanceKind}`)
+  return flags.length > 0 ? flags.join(', ') : 'idle'
+}
+
+function formatTurnSummaryLine(turn: Record<string, unknown>): string {
+  const id = stringProperty(turn, 'id') ?? '(unknown turn)'
+  const status = stringProperty(turn, 'status') ?? 'unknown'
+  const startedAt = stringProperty(turn, 'startedAt')
+  const completedAt = stringProperty(turn, 'completedAt')
+  const timestamps = [startedAt, completedAt].filter(Boolean).join(' -> ')
+  return `Turn ${id} [${status}]${timestamps ? ` ${timestamps}` : ''}`
+}
+
+function formatItemSummaryLine(item: Record<string, unknown>): string {
+  const type = stringProperty(item, 'type') ?? 'unknown'
+  const status = stringProperty(item, 'status') ?? 'unknown'
+  switch (type) {
+    case 'userMessage':
+      return `User: ${formatTextOrContent(item)}`
+    case 'agentMessage':
+      return `Agent: ${stringProperty(item, 'text') ?? '(empty message)'}`
+    case 'reasoningContent':
+      return 'Reasoning content omitted'
+    case 'commandExecution':
+      return formatCommandExecutionLine(item, status)
+    case 'toolExecution':
+      return formatToolExecutionLine(item, status)
+    case 'toolCall':
+      return `Tool call: ${stringProperty(item, 'toolName') ?? '(unknown tool)'}${formatCallId(item)}`
+    case 'pluginFunctionCall':
+      return `Plugin tool: ${formatQualifiedName(item, 'pluginId', 'functionName')}${formatSuccess(item)}${formatCallId(item)}`
+    case 'dynamicToolCall':
+      return `Dynamic tool: ${formatQualifiedName(item, 'namespace', 'toolName')}${formatSuccess(item)}${formatCallId(item)}`
+    case 'toolResult':
+      return `Tool result${formatCallId(item)}${formatSuccess(item)}${formatLengthHint(item, 'resultChars')}`
+    case 'approvalRequest':
+      return `Approval request: ${stringProperty(item, 'operation') ?? '(unknown operation)'} ${stringProperty(item, 'target') ?? ''}`.trim()
+    case 'approvalResponse':
+      return `Approval response: ${booleanProperty(item, 'approved') === true ? 'approved' : 'declined'}`
+    case 'userInputRequest':
+      return `User input request: ${numberProperty(item, 'questionCount') ?? 0} question(s)`
+    case 'userInputResponse':
+      return 'User input response'
+    case 'systemNotice':
+      return `System notice: ${stringProperty(item, 'kind') ?? 'unknown'}${stringProperty(item, 'trigger') ? ` (${stringProperty(item, 'trigger')})` : ''}`
+    case 'error':
+      return `Error: ${stringProperty(item, 'message') ?? stringProperty(item, 'code') ?? 'unknown error'}`
+    default:
+      return `${type} [${status}]${stringProperty(item, 'text') ? `: ${stringProperty(item, 'text')}` : ''}`
+  }
+}
+
+function formatTextOrContent(item: Record<string, unknown>): string {
+  const text = stringProperty(item, 'text')
+  if (text) return text
+  const content = Array.isArray(item.content) ? item.content : []
+  const parts = content.map(formatInputPartLine).filter(Boolean)
+  return parts.length > 0 ? parts.join('; ') : '(empty message)'
+}
+
+function formatInputPartLine(part: unknown): string | null {
+  if (!isRecord(part)) return null
+  const type = stringProperty(part, 'type') ?? 'unknown'
+  switch (type) {
+    case 'text':
+      return stringProperty(part, 'text')
+    case 'image':
+      return `image ${stringProperty(part, 'url') ?? ''}`.trim()
+    case 'localImage':
+      return `local image ${firstString(part.fileName, part.displayPath, part.path, part.mimeType) ?? ''}`.trim()
+    case 'fileRef':
+      return `file ${firstString(part.displayPath, part.path, part.fileName) ?? ''}`.trim()
+    case 'commandRef':
+      return stringProperty(part, 'rawText') ?? `command ${stringProperty(part, 'name') ?? ''}`.trim()
+    case 'skillRef':
+      return `skill ${stringProperty(part, 'name') ?? ''}`.trim()
+    default:
+      return type
+  }
+}
+
+function formatCommandExecutionLine(item: Record<string, unknown>, status: string): string {
+  const parts = [`Command: ${stringProperty(item, 'command') ?? '(unknown command)'}`, `[${status}]`]
+  const exitCode = numberProperty(item, 'exitCode')
+  if (exitCode != null) parts.push(`exit=${exitCode}`)
+  const durationMs = numberProperty(item, 'durationMs')
+  if (durationMs != null) parts.push(`durationMs=${durationMs}`)
+  const workingDirectory = stringProperty(item, 'workingDirectory')
+  if (workingDirectory) parts.push(`cwd=${workingDirectory}`)
+  const outputChars = numberProperty(item, 'outputChars')
+  if (outputChars != null) parts.push(`outputChars=${outputChars}`)
+  return parts.join(' ')
+}
+
+function formatToolExecutionLine(item: Record<string, unknown>, status: string): string {
+  const parts = [`Tool execution: ${stringProperty(item, 'toolName') ?? '(unknown tool)'}`, `[${status}]`]
+  const success = booleanProperty(item, 'success')
+  if (success != null) parts.push(`success=${success}`)
+  const error = stringProperty(item, 'errorMessage')
+  if (error) parts.push(`error=${error}`)
+  return parts.join(' ')
+}
+
+function formatQualifiedName(item: Record<string, unknown>, prefixKey: string, nameKey: string): string {
+  const prefix = stringProperty(item, prefixKey)
+  const name = stringProperty(item, nameKey) ?? '(unknown tool)'
+  return prefix ? `${prefix}.${name}` : name
+}
+
+function formatCallId(item: Record<string, unknown>): string {
+  const callId = stringProperty(item, 'callId')
+  return callId ? ` callId=${callId}` : ''
+}
+
+function formatSuccess(item: Record<string, unknown>): string {
+  const success = booleanProperty(item, 'success')
+  return success == null ? '' : ` success=${success}`
+}
+
+function formatLengthHint(item: Record<string, unknown>, field: string): string {
+  const length = numberProperty(item, field)
+  return length == null ? '' : ` ${field}=${length}`
 }
 
 function extractThreadId(result: unknown): string | null {
@@ -831,6 +1295,66 @@ function getStringProperty(value: unknown, key: string): string | null {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value != null && typeof value === 'object' && !Array.isArray(value)
+}
+
+function stringProperty(value: unknown, key: string): string | null {
+  if (!isRecord(value)) return null
+  const property = value[key]
+  if (typeof property !== 'string' || property.trim() === '') return null
+  return property
+}
+
+function numberProperty(value: unknown, key: string): number | null {
+  if (!isRecord(value)) return null
+  const property = value[key]
+  return typeof property === 'number' && Number.isFinite(property) ? property : null
+}
+
+function booleanProperty(value: unknown, key: string): boolean | null {
+  if (!isRecord(value)) return null
+  const property = value[key]
+  return typeof property === 'boolean' ? property : null
+}
+
+function copyKnownFields(summary: JsonObject, payload: Record<string, unknown>, fields: string[]): JsonObject {
+  for (const field of fields) {
+    const value = payload[field]
+    if (typeof value === 'string' || typeof value === 'boolean' || typeof value === 'number') {
+      summary[field] = value
+    }
+  }
+  return summary
+}
+
+function copyOptionalStringFields(summary: JsonObject, payload: Record<string, unknown>, fields: string[]): void {
+  for (const field of fields) {
+    const value = stringProperty(payload, field)
+    if (value) summary[field] = value
+  }
+}
+
+function copyOptionalNumberFields(summary: JsonObject, payload: Record<string, unknown>, fields: string[]): void {
+  for (const field of fields) {
+    const value = numberProperty(payload, field)
+    if (value != null) summary[field] = value
+  }
+}
+
+function copyOptionalBooleanFields(summary: JsonObject, payload: Record<string, unknown>, fields: string[]): void {
+  for (const field of fields) {
+    const value = booleanProperty(payload, field)
+    if (value != null) summary[field] = value
+  }
+}
+
+function jsonPreview(value: unknown, maxChars: number): string | null {
+  if (value == null) return null
+  if (typeof value === 'string') return truncate(value, maxChars)
+  try {
+    return truncate(JSON.stringify(value), maxChars)
+  } catch {
+    return null
+  }
 }
 
 function firstString(...values: unknown[]): string | null {
