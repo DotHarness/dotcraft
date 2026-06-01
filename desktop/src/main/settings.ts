@@ -3,6 +3,7 @@ import { join, basename, normalize } from 'path'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { normalizeLocale, type AppLocale } from '../shared/locales'
 import { isValidAppVersion } from '../shared/whatsNew'
+import { normalizeRemoteHosts, type RemoteHost } from '../shared/remoteServers'
 
 export interface RecentWorkspace {
   path: string
@@ -81,6 +82,8 @@ export interface AppSettings {
   profile?: ProfileSettings
   /** Desktop-local pinned thread ids, keyed by normalized workspace path. */
   pinnedThreadIdsByWorkspace?: Record<string, string[]>
+  /** Desktop-local saved remote servers (SSH targets + DotCraft stacks). */
+  remoteHosts?: RemoteHost[]
 }
 
 const MAX_RECENT = 20
@@ -212,6 +215,11 @@ function normalizeLastSeenWhatsNewVersion(settings: AppSettings): string | undef
   return raw.trim()
 }
 
+export function normalizeRemoteHostsSetting(settings: AppSettings): RemoteHost[] | undefined {
+  const hosts = normalizeRemoteHosts(settings.remoteHosts)
+  return hosts.length > 0 ? hosts : undefined
+}
+
 export function normalizePinnedThreadIdsByWorkspace(settings: AppSettings): Record<string, string[]> | undefined {
   const raw = settings.pinnedThreadIdsByWorkspace
   if (raw == null || typeof raw !== 'object' || Array.isArray(raw)) {
@@ -264,6 +272,7 @@ export function loadSettings(): AppSettings {
       raw.lastSeenWhatsNewVersion = normalizeLastSeenWhatsNewVersion(raw)
       raw.profile = normalizeProfileSettings(raw)
       raw.pinnedThreadIdsByWorkspace = normalizePinnedThreadIdsByWorkspace(raw)
+      raw.remoteHosts = normalizeRemoteHostsSetting(raw)
       if (raw.locale !== undefined) {
         raw.locale = normalizeLocale(raw.locale)
       } else {
@@ -297,6 +306,7 @@ export function saveSettings(settings: AppSettings): void {
     settings.lastSeenWhatsNewVersion = normalizeLastSeenWhatsNewVersion(settings)
     settings.profile = normalizeProfileSettings(settings)
     settings.pinnedThreadIdsByWorkspace = normalizePinnedThreadIdsByWorkspace(settings)
+    settings.remoteHosts = normalizeRemoteHostsSetting(settings)
     writeFileSync(filePath, JSON.stringify(settings, null, 2), 'utf8')
   } catch {
     // Non-fatal

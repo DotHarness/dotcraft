@@ -4,6 +4,7 @@ export type SettingsTab =
   | 'personalization'
   | 'dreams'
   | 'connection'
+  | 'servers'
   | 'llmService'
   | 'browserUse'
   | 'computerControl'

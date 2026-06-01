@@ -975,7 +975,7 @@ describe('SettingsView self-learning settings', () => {
   it('applies remote connection edits through the global connect banner', async () => {
     renderView()
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Connection' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Connections' }))
     const modeSelect = await screen.findByRole('combobox', { name: 'Connection mode' }) as HTMLSelectElement
     fireEvent.change(modeSelect, { target: { value: 'remote' } })
     fireEvent.change(await screen.findByLabelText('Remote WebSocket URL'), {
@@ -1000,7 +1000,7 @@ describe('SettingsView self-learning settings', () => {
     appServerApplyConnectionSettings.mockRejectedValueOnce(new Error('Remote AppServer did not respond within 10 seconds.'))
     renderView()
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Connection' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Connections' }))
     const modeSelect = await screen.findByRole('combobox', { name: 'Connection mode' }) as HTMLSelectElement
     fireEvent.change(modeSelect, { target: { value: 'remote' } })
     fireEvent.change(await screen.findByLabelText('Remote WebSocket URL'), {

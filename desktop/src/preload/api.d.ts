@@ -1,4 +1,12 @@
 import type {
+  RemoteHost,
+  RemoteStack,
+  RemoteStackStatus,
+  RemoteStackAction,
+  SshTestResult,
+  OperationResult
+} from '../shared/remoteServers'
+import type {
   MarketInstallResult,
   MarketDotCraftInstallPreparation,
   MarketSkillDetail,
@@ -704,6 +712,39 @@ declare global {
         check(): Promise<AppUpdateState>
         downloadAndInstall(): Promise<AppUpdateState>
         onStateChanged(callback: (state: AppUpdateState) => void): UnsubscribeFn
+      }
+      remoteServers: {
+        list(): Promise<RemoteHost[]>
+        create(input: {
+          name: string
+          sshTarget: string
+          identityFile?: string
+          stacks?: RemoteStack[]
+        }): Promise<RemoteHost>
+        update(id: string, patch: Partial<Omit<RemoteHost, 'id'>>): Promise<RemoteHost>
+        delete(id: string): Promise<{ ok: boolean }>
+        test(input: {
+          id?: string
+          draft?: { name?: string; sshTarget?: string; identityFile?: string }
+        }): Promise<SshTestResult>
+        listStacks(hostId: string): Promise<RemoteStack[]>
+        status(hostId: string, stackId: string): Promise<RemoteStackStatus>
+        logs(
+          hostId: string,
+          stackId: string,
+          options?: { service?: string; tail?: number }
+        ): Promise<{ text: string; service?: string; tail: number }>
+        action(
+          hostId: string,
+          stackId: string,
+          action: RemoteStackAction
+        ): Promise<OperationResult>
+        openInDesktop(
+          hostId: string,
+          stackId: string
+        ): Promise<{ ok: boolean; hostId: string; stackId: string; localPort: number }>
+        openDashboard(hostId: string, stackId: string): Promise<{ ok: boolean; localPort: number }>
+        disconnect(hostId: string, stackId: string): Promise<{ ok: boolean }>
       }
     }
   }

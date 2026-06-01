@@ -209,6 +209,7 @@ export const MESSAGES_ZH_HANS = {
   'settings.tab.general': '常规',
   'settings.tab.personalization': '个性化',
   'settings.tab.connection': '连接',
+  'settings.tab.servers': '服务器',
   'settings.tab.llmService': '模型提供商',
   'settings.tab.usage': '使用情况',
   'settings.tab.profile': '个人资料',

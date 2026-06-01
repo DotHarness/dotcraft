@@ -56,6 +56,7 @@ import {
 import { SettingsSelect } from './ui/SettingsSelect'
 import { GeneralPanel } from './panels/GeneralPanel'
 import { ConnectionPanel } from './panels/ConnectionPanel'
+import { ServersPanel } from './panels/servers/ServersPanel'
 import { ProviderProtocolIcon } from './panels/ProviderProtocolIcon'
 import { UsagePanel } from './panels/UsagePanel'
 import { UsageOverview } from './UsageOverview'
@@ -4395,6 +4396,8 @@ export function SettingsView({
               </SettingsPanelShell>
               </ConnectionPanel>
             )}
+
+            {activeSettingsTab === 'servers' && <ServersPanel />}
 
             {activeSettingsTab === 'browserUse' && (
               <GeneralPanel>

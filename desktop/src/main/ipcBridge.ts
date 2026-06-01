@@ -11,6 +11,11 @@ import type {
   TaskCompletionNotificationMode
 } from './settings'
 import { resolveBinaryLocation } from './AppServerManager'
+import { RemoteServersManager } from './remoteServers/remoteServersManager'
+import {
+  registerRemoteServersHandlers,
+  REMOTE_SERVERS_CHANNELS
+} from './remoteServers/remoteServersIpc'
 import { checkWorkspaceLock } from './workspaceLock'
 import {
   TITLE_BAR_OVERLAY_BY_THEME,
@@ -714,6 +719,12 @@ function mainLocale(callbacks?: IpcHandlerCallbacks): AppLocale {
 let moduleProcessManager: ModuleProcessManager | null = null
 let ensureModulesScanned: (() => Promise<DiscoveredModule[]>) | null = null
 let getSettingsSnapshotForModules: (() => AppSettings) | null = null
+
+let remoteServersManager: RemoteServersManager | null = null
+function getRemoteServersManager(): RemoteServersManager {
+  if (!remoteServersManager) remoteServersManager = new RemoteServersManager()
+  return remoteServersManager
+}
 const terminalCleanupHookedWindows = new Set<number>()
 
 function normalizeChannelName(channelName: string): string {
@@ -1593,6 +1604,14 @@ export function registerIpcHandlers(
     }
   )
 
+  registerRemoteServersHandlers({
+    handleSafe,
+    getSettings: () => callbacks?.getSettings() ?? {},
+    updateSettings: (partial) => callbacks?.updateSettings(partial),
+    applyConnectionSettings: callbacks?.onApplyConnectionSettings,
+    manager: getRemoteServersManager()
+  })
+
   handleSafe('modules:list', async () => {
     if (cachedModules !== null) {
       return cachedModules
@@ -1998,6 +2017,10 @@ export function broadcastServerRequest(
  * Removes all registered ipcMain handlers (call before re-registering on workspace switch).
  */
 export function unregisterIpcHandlers(): void {
+  for (const channel of REMOTE_SERVERS_CHANNELS) {
+    ipcMain.removeHandler(channel)
+  }
+  remoteServersManager?.closeAllTunnels()
   ipcMain.removeHandler('appserver:send-request')
   ipcMain.removeHandler('appserver:model-list')
   ipcMain.removeHandler('appserver:workspace-config-schema')

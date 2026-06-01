@@ -3,6 +3,14 @@ import { resolveThemeMode, type ThemeMode } from '../shared/theme'
 import { readInitialWorkspaceStatusFromArgv } from '../shared/initialWorkspaceStatus'
 import type { DesktopProviderProtocol } from '../shared/providerProtocols'
 import { localeToHtmlLang, normalizeLocale, type AppLocale } from '../shared/locales'
+import type {
+  RemoteHost,
+  RemoteStack,
+  RemoteStackStatus,
+  RemoteStackAction,
+  SshTestResult,
+  OperationResult
+} from '../shared/remoteServers'
 import {
   TITLE_BAR_OVERLAY_HEIGHT,
   TITLE_BAR_OVERLAY_RIGHT_RESERVE
@@ -1295,6 +1303,61 @@ const api = {
           activeAppUpdateStateCallback = null
         }
       }
+    }
+  },
+
+  /** Remote DotCraft Docker stack management over SSH (the "Servers" surface). */
+  remoteServers: {
+    list(): Promise<RemoteHost[]> {
+      return ipcRenderer.invoke('remoteHosts:list')
+    },
+    create(input: {
+      name: string
+      sshTarget: string
+      identityFile?: string
+      stacks?: RemoteStack[]
+    }): Promise<RemoteHost> {
+      return ipcRenderer.invoke('remoteHosts:create', input)
+    },
+    update(id: string, patch: Partial<Omit<RemoteHost, 'id'>>): Promise<RemoteHost> {
+      return ipcRenderer.invoke('remoteHosts:update', { id, patch })
+    },
+    delete(id: string): Promise<{ ok: boolean }> {
+      return ipcRenderer.invoke('remoteHosts:delete', { id })
+    },
+    test(input: {
+      id?: string
+      draft?: { name?: string; sshTarget?: string; identityFile?: string }
+    }): Promise<SshTestResult> {
+      return ipcRenderer.invoke('remoteHosts:test', input)
+    },
+    listStacks(hostId: string): Promise<RemoteStack[]> {
+      return ipcRenderer.invoke('remoteStacks:list', { hostId })
+    },
+    status(hostId: string, stackId: string): Promise<RemoteStackStatus> {
+      return ipcRenderer.invoke('remoteStacks:status', { hostId, stackId })
+    },
+    logs(
+      hostId: string,
+      stackId: string,
+      options?: { service?: string; tail?: number }
+    ): Promise<{ text: string; service?: string; tail: number }> {
+      return ipcRenderer.invoke('remoteStacks:logs', { hostId, stackId, ...options })
+    },
+    action(hostId: string, stackId: string, action: RemoteStackAction): Promise<OperationResult> {
+      return ipcRenderer.invoke('remoteStacks:action', { hostId, stackId, action })
+    },
+    openInDesktop(
+      hostId: string,
+      stackId: string
+    ): Promise<{ ok: boolean; hostId: string; stackId: string; localPort: number }> {
+      return ipcRenderer.invoke('remoteStacks:open-app-server-tunnel', { hostId, stackId })
+    },
+    openDashboard(hostId: string, stackId: string): Promise<{ ok: boolean; localPort: number }> {
+      return ipcRenderer.invoke('remoteStacks:open-dashboard-tunnel', { hostId, stackId })
+    },
+    disconnect(hostId: string, stackId: string): Promise<{ ok: boolean }> {
+      return ipcRenderer.invoke('remoteStacks:disconnect', { hostId, stackId })
     }
   }
 }

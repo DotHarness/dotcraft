@@ -82,6 +82,7 @@ export const MESSAGES_JA = {
   'settings.tab.general': '一般',
   'settings.tab.personalization': 'パーソナライズ',
   'settings.tab.connection': '接続',
+  'settings.tab.servers': 'サーバー',
   'settings.tab.llmService': 'モデルプロバイダー',
   'settings.tab.browserUse': 'ブラウザー',
   'settings.tab.computerControl': 'コンピューター操作',

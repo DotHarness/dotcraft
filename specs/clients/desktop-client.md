@@ -24,6 +24,7 @@ Purpose: Define the stable user-experience behavior of **DotCraft Desktop** as a
 - [6.7 Settings Surface](#67-settings-surface)
 - [6.8 Channel Modules](#68-channel-modules)
 - [6.9 What's New](#69-whats-new)
+- [6.10 Remote Servers](#610-remote-servers)
 - [7. Keyboard Accessibility and Localization](#7-keyboard-accessibility-and-localization)
 - [8. Error Handling and Recovery](#8-error-handling-and-recovery)
 - [9. Non-Functional UX Requirements](#9-non-functional-ux-requirements)
@@ -90,6 +91,7 @@ Purpose: Define the stable user-experience behavior of **DotCraft Desktop** as a
 - Remote connection changes are applied with test-and-connect semantics: Desktop validates the draft `ws://` or `wss://` URL and token, completes a WebSocket `initialize` probe against that draft endpoint with a bounded timeout, then persists the settings and switches to the new connection only after the probe succeeds.
 - If the remote probe fails, Desktop leaves the persisted connection settings unchanged so the next launch is not trapped behind a newly saved bad endpoint.
 - When Desktop is launched with an explicit transient `--remote` endpoint, persistent connection-mode switching is unavailable. Settings must explain that the launch argument owns the current connection for that session.
+- Remote connections opened through the Servers surface (see [§6.10](#610-remote-servers) and [remote-server-management.md](../runtime/remote-server-management.md)) are a tunnel-fronted special case of Remote mode: Desktop connects to a `ws://127.0.0.1:<port>/ws` local tunnel endpoint and reuses this same test-and-connect path. Remote AppServer lifecycle remains owned by the remote environment; Desktop manages only the SSH tunnel and the deployment-level container lifecycle, never a remote AppServer process restart.
 
 ### 3.2 Connection States
 
@@ -483,7 +485,7 @@ Required behavior:
   - provider testing uses `provider/test` and must not perform hidden chat-completion requests;
   - unsupported model listing remains a recoverable setup state with manual model entry.
 - The legacy shared footer Save/Cancel pattern is retired. Settings actions are group-scoped (for example Apply, Restart, or Apply & Restart) based on the tier semantics of that group.
-- The Connection settings group distinguishes lifecycle ownership:
+- The Connections settings group distinguishes lifecycle ownership:
   - Local mode shows Hub-managed AppServer actions, including Apply & Restart when local process settings change.
   - Remote mode uses Apply & Connect for URL/token changes, validates before persisting, and hides or disables local-only AppServer binary and restart controls with explanatory copy.
 - Desktop exposes a workspace-level `Personalization` tab with an `Enable personalized welcome suggestions` toggle backed by workspace config rather than client-global preferences.
@@ -581,6 +583,20 @@ Desktop owns a versioned What's New surface for release highlights. It is a clie
 - Release highlights are grouped by version and may include short text plus optional media.
 - Missing or unloadable media must degrade to a stable text/icon presentation rather than showing broken image chrome.
 - Remote What's New media must remain small enough for first-run UX expectations; each manifest entry's declared size must stay within the agreed per-card animated-asset budget, and manifest entries declaring a larger size must be rejected at load time.
+
+### 6.10 Remote Servers
+
+Desktop owns a **Servers** surface for managing remote DotCraft Docker stacks over SSH. The full architecture, settings schema, API contract, SSH/Compose operations, and security model are defined in [remote-server-management.md](../runtime/remote-server-management.md); this section states the Desktop UX workflow contract.
+
+- The Servers surface is a dedicated Settings tab, separate from the Connections group, with **list → detail drill-in** navigation: a list of saved servers, a per-server detail view, and a back path. No new top-level navigation is added.
+- A **server (host)** is an SSH target; a **stack** is one DotCraft Compose deployment on that host. One host has many stacks. Host SSH-reachability and the active Desktop session are distinct signals and must not be conflated; reachability is shown per host, and an "active" marker indicates the host whose stack is the current session.
+- The server list exposes at most one primary action (Add server) and a first-run empty state explaining the feature and its prerequisites.
+- The detail view exposes Test SSH, an SSH summary, a stacks section (one card per stack), and a redacted recent-operations area. When SSH is unreachable, stack actions are disabled and a redacted error with a retry is shown.
+- Each stack card tiers its actions: **Open in Desktop** (the single primary; toggles to Disconnect when active) and secondary **Dashboard** / **Logs**, with **Update**, **Restart**, **Stop/Start**, **Edit**, and **Remove** in an overflow menu. Update-available is informational, not risk. Logs appear as an inline, bounded, redacted, monospace panel under the card.
+- Adding a server collects name, SSH target, and an optional identity file (key/agent only; no password entry or key storage), and may offer one-click import of discovered stacks. Stack records never accept the AppServer token; token presence is shown as present/missing only.
+- "Open in Desktop" reads the remote `workspace/.craft/appserver.token`, opens a local SSH tunnel, and connects through the existing remote-mode test-and-connect path (§3.1.1) using a `ws://127.0.0.1:<port>/ws` URL. Desktop must not expose remote AppServer restart; stack lifecycle (start/stop/restart) is a deployment action distinct from AppServer process restart.
+- There is one source of truth for the active connection. While a Servers stack is the active session, the Connections group shows a read-only "Connected via Servers ▸ &lt;host&gt; / &lt;stack&gt;" banner linking back to Servers instead of an editable raw URL; the raw URL/token form remains for the manual/advanced case.
+- The visual treatment follows [Desktop Visual Design](desktop-visual-design.md): neutral-first surfaces, semantic color only for state and risk, and the neutral inverted primary for Open in Desktop.
 
 ---
 

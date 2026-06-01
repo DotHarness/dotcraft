@@ -82,6 +82,7 @@ export const MESSAGES_KO = {
   'settings.tab.general': '일반',
   'settings.tab.personalization': '개인화',
   'settings.tab.connection': '연결',
+  'settings.tab.servers': '서버',
   'settings.tab.llmService': '모델 제공자',
   'settings.tab.browserUse': '브라우저',
   'settings.tab.computerControl': '컴퓨터 제어',
