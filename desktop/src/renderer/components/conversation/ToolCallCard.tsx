@@ -169,13 +169,9 @@ export const ToolCallCard = memo(function ToolCallCard({
   )
   const isRunning = isToolItemLive(item, { turnRunning })
   const shellOutput = item.aggregatedOutput ?? item.result ?? ''
-  const shellFailed = item.executionStatus === 'failed'
-    || item.executionStatus === 'cancelled'
-    || (item.exitCode != null && item.exitCode !== 0)
   const skillManageDisplay = isSkillManageTool ? getSkillManageDisplay(args, item.result) : null
   const skillViewDisplay = isSkillViewTool ? getSkillViewDisplay(args, item.result) : null
-  const success = item.success !== false
-    && !shellFailed
+  const success = (isShellTool || item.success !== false)
     && (!isSkillManageTool || skillManageDisplay?.result?.success !== false)
     && (!isSkillViewTool || skillViewDisplay?.loaded !== false)
 
@@ -451,7 +447,7 @@ export const ToolCallCard = memo(function ToolCallCard({
                 toolName={toolName}
                 args={args}
                 result={shellOutput}
-                success={!shellFailed}
+                success
                 fileDiff={undefined}
                 contentItems={item.contentItems}
                 locale={locale}

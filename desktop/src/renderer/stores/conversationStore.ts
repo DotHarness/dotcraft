@@ -396,12 +396,22 @@ function mergeCommandExecutionIntoToolCall(
   if (item.type !== 'toolCall') return item
   if (!isShellToolName(item.toolName)) return item
   if (!commandExecution.toolCallId || item.toolCallId !== commandExecution.toolCallId) return item
+  const commandOutput = commandExecution.aggregatedOutput
+  const currentOutput = item.aggregatedOutput
+  const aggregatedOutput =
+    commandOutput != null
+      && commandExecution.executionStatus === 'inProgress'
+      && currentOutput != null
+      && currentOutput.length > commandOutput.length
+      && currentOutput.startsWith(commandOutput)
+      ? currentOutput
+      : commandOutput ?? currentOutput
 
   return {
     ...item,
     command: commandExecution.command ?? item.command,
     workingDirectory: commandExecution.workingDirectory ?? item.workingDirectory,
-    aggregatedOutput: commandExecution.aggregatedOutput ?? item.aggregatedOutput,
+    aggregatedOutput,
     executionStatus: commandExecution.executionStatus ?? item.executionStatus,
     exitCode: commandExecution.exitCode ?? item.exitCode,
     commandSource: commandExecution.commandSource ?? item.commandSource,
