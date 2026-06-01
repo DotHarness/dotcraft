@@ -1,0 +1,4 @@
+interface:
+  display_name: "Context Handoff"
+  short_description: "Find and export DotCraft context for external agents"
+  default_prompt: "Use $context-handoff to search DotCraft sessions and export a clean Markdown handoff for another coding agent."

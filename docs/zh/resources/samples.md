@@ -45,7 +45,7 @@ dotcraft setup --provider-mode create \
   --profile developer
 ```
 
-这是第一次使用 DotCraft 最稳的路径。完成后，`.craft/` 包含工作区配置和 bootstrap 文件。如果你想长期运行服务器上的社交渠道机器人，请使用 [服务器部署](../developing/server-deployment.md) 中的 Docker 方式：
+这是第一次使用 DotCraft 最稳的路径。完成后，`.craft/` 包含工作区配置和 bootstrap 文件。如果你想长期运行服务器上的社交渠道机器人，请使用 [服务器部署](../developing/lifecycle/server-deployment) 中的 Docker 方式：
 
 ```bash
 cd deploy/docker
@@ -95,7 +95,7 @@ chmod +x hooks/*.sh
 
 ### 示例配置复制后不生效
 
-确认配置在当前工作区 `.craft/config.json`，并重启相关 Host。启动级字段不会自动热更新，详见 [设置生效层级](../developing/settings-lifecycle.md)。
+确认配置在当前工作区 `.craft/config.json`，并重启相关 Host。启动级字段不会自动热更新，详见 [设置生效层级](../developing/lifecycle/settings-lifecycle)。
 
 ### 找不到示例源码文件
 
@@ -103,10 +103,10 @@ chmod +x hooks/*.sh
 
 ### 不知道先跑哪个示例
 
-先按照 [快速开始](../getting-started.md) 完成 Desktop + 模型配置，再按需要选择本页对应的示例。
+先按照 [快速开始](../getting-started) 完成 Desktop + 模型配置，再按需要选择本页对应的示例。
 
 ## 相关入口
 
-- [快速开始](../getting-started.md)
-- [Plugins 与工具](../features/plugins-tools.md)
-- [配置完整参考](../developing/configuration.md)
+- [快速开始](../getting-started)
+- [Plugins 与工具](../features/agent-system/plugins-tools)
+- [配置完整参考](../developing/configuration)

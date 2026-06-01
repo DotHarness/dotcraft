@@ -108,7 +108,7 @@ lastUpdated: false
             <span>Reuse a ChatGPT Plus / Pro / Team / Business / Enterprise plan — no separate API key.</span>
           </span>
         </a>
-        <a class="dc-reel-card" href="./features/app">
+        <a class="dc-reel-card" href="./developing/integrations/app-binding">
           <span class="dc-reel-card__media">
             <img src="https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/app.gif" alt="" loading="lazy" />
           </span>
@@ -118,7 +118,7 @@ lastUpdated: false
             <span>One-tap consent to let external apps drive the same project agent — Oratorio, IDE plugins, your own tools.</span>
           </span>
         </a>
-        <a class="dc-reel-card" href="./features/memory">
+        <a class="dc-reel-card" href="./features/agent-system/memory">
           <span class="dc-reel-card__media">
             <img src="https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/dreams.gif" alt="" loading="lazy" />
           </span>
@@ -128,7 +128,7 @@ lastUpdated: false
             <span>Markdown memory the agent reads, edits, and rolls back &mdash; no black box.</span>
           </span>
         </a>
-        <a class="dc-reel-card" href="./features/automations">
+        <a class="dc-reel-card" href="./features/agent-system/automations">
           <span class="dc-reel-card__media">
             <img src="https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/goal.gif" alt="" loading="lazy" />
           </span>
@@ -138,7 +138,7 @@ lastUpdated: false
             <span>Long-running objectives with thread binding, scheduling, and activity display.</span>
           </span>
         </a>
-        <a class="dc-reel-card" href="./features/teams">
+        <a class="dc-reel-card" href="./features/agent-system/teams">
           <span class="dc-reel-card__media">
             <img src="https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/teams.gif" alt="" loading="lazy" />
           </span>
@@ -219,7 +219,7 @@ lastUpdated: false
         </p>
       </div>
       <div class="dc-grid">
-        <a class="dc-card dc-card--link dc-card--appserver" href="./developing/appserver">
+        <a class="dc-card dc-card--link dc-card--appserver" href="./developing/lifecycle/appserver">
           <span class="dc-card__index">APPSERVER</span>
           <h3>AppServer</h3>
           <p>Headless service, remote clients, shared workspaces.</p>
@@ -229,7 +229,7 @@ lastUpdated: false
           <h3>IDEs / Editors</h3>
           <p>Connect JetBrains, Obsidian, Unity via ACP.</p>
         </a>
-        <a class="dc-card dc-card--link dc-card--sdks" href="./developing/sdk">
+        <a class="dc-card dc-card--link dc-card--sdks" href="./developing/sdks/">
           <span class="dc-card__index">SDKs</span>
           <h3>SDKs</h3>
           <p>TypeScript, .NET, and Python SDKs for apps, native integrations, bots, and external channels.</p>
@@ -247,8 +247,8 @@ lastUpdated: false
           Local tasks, Cron, and Goals provide scheduling, thread binding, activity display, and long-running objectives inside the workspace — so the agent can be on duty too.
         </p>
         <div class="dc-actions">
-          <a class="dc-button dc-button--primary" href="./features/automations">View Automations</a>
-          <a class="dc-button" href="./features/observability">Observability</a>
+          <a class="dc-button dc-button--primary" href="./features/agent-system/automations">View Automations</a>
+          <a class="dc-button" href="./features/self-hosted/observability">Observability</a>
         </div>
       </div>
       <figure class="dc-media">

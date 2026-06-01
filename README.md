@@ -26,7 +26,7 @@ DotCraft is a .NET 10 / C# Agent Harness. It organizes AI workflows around a rea
 
 Pin a long-term objective to a conversation and set a token or time budget — whenever the conversation goes idle, DotCraft will quietly keep working toward it. You decide when it pauses, resumes, or wraps up.
 
-[Learn more →](https://dotharness.github.io/dotcraft/features/automations#goals)
+[Learn more →](https://dotharness.github.io/dotcraft/features/agent-system/automations#goals)
 
 ### Teams — Multi-agent Mission Board
 
@@ -34,7 +34,7 @@ Pin a long-term objective to a conversation and set a token or time budget — w
 
 For a complex request, DotCraft assembles a small team — Explorer, Builder, Reviewer, Operator — and a Team Leader who splits the work, dispatches it in parallel, and brings the results back together. You hand over one ask; you get the finished mission.
 
-[Learn more →](https://dotharness.github.io/dotcraft/features/teams)
+[Learn more →](https://dotharness.github.io/dotcraft/features/agent-system/teams)
 
 ### Dreams — Background Memory Consolidation
 
@@ -42,7 +42,7 @@ For a complex request, DotCraft assembles a small team — Explorer, Builder, Re
 
 While you work, Dreams quietly reviews recent activity in the background and drafts memory entries worth keeping. You approve them at your own pace, so the agent only remembers what you've actually agreed to.
 
-[Learn more →](https://dotharness.github.io/dotcraft/features/memory)
+[Learn more →](https://dotharness.github.io/dotcraft/features/agent-system/memory)
 
 ### Cross Channels — One Conversation, Any Platform
 
@@ -58,7 +58,7 @@ Start a conversation on Desktop, continue it in the TUI, and pick it back up lat
 
 With the DotCraft SDK you can wrap your own service into an App and plug it straight into the agent — bringing custom tools, data, and workflows into the conversation with no extra middleware. Per-tool approval and full audit trails come built in.
 
-[Learn more →](https://dotharness.github.io/dotcraft/features/app)
+[Learn more →](https://dotharness.github.io/dotcraft/developing/integrations/app-binding)
 
 ### ChatGPT Plan — Sign in with ChatGPT, No Extra API Costs
 
@@ -86,10 +86,10 @@ See [Getting Started](https://dotharness.github.io/dotcraft/getting-started) for
 | Install, configure, and run DotCraft for the first time | [Getting Started](https://dotharness.github.io/dotcraft/getting-started) |
 | Use the graphical desktop client | [Desktop](https://dotharness.github.io/dotcraft/features/entry-points/desktop) |
 | Use the full terminal interface | [TUI](https://dotharness.github.io/dotcraft/features/entry-points/tui) |
-| Run local automation tasks | [Automations & Hooks](https://dotharness.github.io/dotcraft/features/automations) |
+| Run local automation tasks | [Automations & Hooks](https://dotharness.github.io/dotcraft/features/agent-system/automations) |
 | Connect clients, bots, or custom adapters | [Channels & Bots](https://dotharness.github.io/dotcraft/features/entry-points/channels) |
-| Deploy DotCraft and channel bots on a server | [Server Deployment](https://dotharness.github.io/dotcraft/developing/server-deployment) |
-| Architecture, SDKs, and protocols | [Architecture](https://dotharness.github.io/dotcraft/developing/architecture) |
+| Deploy DotCraft and channel bots on a server | [Server Deployment](https://dotharness.github.io/dotcraft/developing/lifecycle/server-deployment) |
+| Architecture, SDKs, and protocols | [Architecture](https://dotharness.github.io/dotcraft/developing/architecture/overview) |
 
 ## Contributing
 

@@ -5,4 +5,5 @@
 包含的 skills：
 
 - `error-diagnosis` —— 只读地根据本地 `.craft` 证据（状态库 + 线程回放）还原失败的回合并定位根因。
+- `context-handoff` —— 搜索 DotCraft 会话 / trace，并导出清理后的 Markdown 交接材料，包含 rollback 与 compact 的连续性说明。
 - `report-issue` —— 把诊断结果（或一段 bug 描述）整理成发往 `DotHarness/dotcraft` 的清晰 issue，并生成可供用户审核、提交的预填「新建 issue」链接。

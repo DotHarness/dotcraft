@@ -61,7 +61,10 @@ public sealed record CommandLineArgs
         Dashboard,
 
         /// <summary>Interactive authentication commands (e.g. Sign in with ChatGPT).</summary>
-        Auth
+        Auth,
+
+        /// <summary>Read-only context export and search commands.</summary>
+        Context
     }
 
     /// <summary>Top-level execution mode.</summary>
@@ -159,6 +162,39 @@ public sealed record CommandLineArgs
     /// <summary>When true, skip the usage / rate-limit lookup in <c>auth openai status</c> (CI-friendly).</summary>
     public bool AuthNoUsage { get; init; }
 
+    /// <summary>Context subcommand: "export" or "search".</summary>
+    public string? ContextCommand { get; init; }
+
+    /// <summary>Thread id supplied to <c>dotcraft context export</c>.</summary>
+    public string? ContextThreadId { get; init; }
+
+    /// <summary>Free-text query supplied to <c>dotcraft context search</c>.</summary>
+    public string? ContextQuery { get; init; }
+
+    /// <summary>Workspace path or direct <c>.craft</c> path supplied to context commands.</summary>
+    public string? ContextWorkspacePath { get; init; }
+
+    /// <summary>Optional output file for <c>dotcraft context export</c>.</summary>
+    public string? ContextOutputPath { get; init; }
+
+    /// <summary>Context export profile: "handoff" or "transcript".</summary>
+    public string? ContextProfile { get; init; }
+
+    /// <summary>Context export tool result mode: "none", "summary", or "full".</summary>
+    public string? ContextToolResults { get; init; }
+
+    /// <summary>Context export memory history mode: "none", "tail", or "full".</summary>
+    public string? ContextHistory { get; init; }
+
+    /// <summary>Maximum number of context search hits.</summary>
+    public int? ContextLimit { get; init; }
+
+    /// <summary>Context search status filter: "active", "archived", or "all".</summary>
+    public string? ContextStatus { get; init; }
+
+    /// <summary>When true, context search emits JSON.</summary>
+    public bool ContextJson { get; init; }
+
     /// <summary>
     /// Whether this execution mode reserves stdout for a wire protocol (stdio-based JSON-RPC).
     /// When <c>true</c>, all console diagnostics must be redirected to stderr.
@@ -209,6 +245,17 @@ public sealed record CommandLineArgs
         string? authProviderId = null;
         var authNoBrowser = false;
         var authNoUsage = false;
+        string? contextCommand = null;
+        string? contextThreadId = null;
+        string? contextQuery = null;
+        string? contextWorkspacePath = null;
+        string? contextOutputPath = null;
+        string? contextProfile = null;
+        string? contextToolResults = null;
+        string? contextHistory = null;
+        int? contextLimit = null;
+        string? contextStatus = null;
+        var contextJson = false;
 
         for (int i = 0; i < args.Length; i++)
         {
@@ -266,6 +313,14 @@ public sealed record CommandLineArgs
                     authProvider = args[++i];
                 if (i + 1 < args.Length && !args[i + 1].StartsWith("-", StringComparison.Ordinal))
                     authAction = args[++i];
+                continue;
+            }
+
+            if (arg.Equals("context", StringComparison.OrdinalIgnoreCase))
+            {
+                mode = RunMode.Context;
+                if (i + 1 < args.Length && !args[i + 1].StartsWith("-", StringComparison.Ordinal))
+                    contextCommand = args[++i];
                 continue;
             }
 
@@ -336,7 +391,10 @@ public sealed record CommandLineArgs
 
             if (arg.Equals("--profile", StringComparison.OrdinalIgnoreCase))
             {
-                setupProfile = ConsumeNext(args, ref i, "--profile");
+                if (mode == RunMode.Context)
+                    contextProfile = ConsumeNext(args, ref i, "--profile");
+                else
+                    setupProfile = ConsumeNext(args, ref i, "--profile");
                 continue;
             }
 
@@ -426,13 +484,61 @@ public sealed record CommandLineArgs
 
             if (arg.Equals("--json", StringComparison.OrdinalIgnoreCase))
             {
-                skillJson = true;
+                if (mode == RunMode.Context)
+                    contextJson = true;
+                else
+                    skillJson = true;
                 continue;
             }
 
             if (arg.Equals("--workspace", StringComparison.OrdinalIgnoreCase))
             {
-                dashboardWorkspacePath = ConsumeNext(args, ref i, "--workspace");
+                if (mode == RunMode.Context)
+                    contextWorkspacePath = ConsumeNext(args, ref i, "--workspace");
+                else
+                    dashboardWorkspacePath = ConsumeNext(args, ref i, "--workspace");
+                continue;
+            }
+
+            if (arg.Equals("--thread", StringComparison.OrdinalIgnoreCase))
+            {
+                contextThreadId = ConsumeNext(args, ref i, "--thread");
+                continue;
+            }
+
+            if (arg.Equals("--query", StringComparison.OrdinalIgnoreCase))
+            {
+                contextQuery = ConsumeNext(args, ref i, "--query");
+                continue;
+            }
+
+            if (arg.Equals("--output", StringComparison.OrdinalIgnoreCase))
+            {
+                contextOutputPath = ConsumeNext(args, ref i, "--output");
+                continue;
+            }
+
+            if (arg.Equals("--tool-results", StringComparison.OrdinalIgnoreCase))
+            {
+                contextToolResults = ConsumeNext(args, ref i, "--tool-results");
+                continue;
+            }
+
+            if (arg.Equals("--history", StringComparison.OrdinalIgnoreCase))
+            {
+                contextHistory = ConsumeNext(args, ref i, "--history");
+                continue;
+            }
+
+            if (arg.Equals("--limit", StringComparison.OrdinalIgnoreCase))
+            {
+                contextLimit = ParsePositiveInt(ConsumeNext(args, ref i, "--limit"), "--limit");
+                continue;
+            }
+
+            if (arg.Equals("--status", StringComparison.OrdinalIgnoreCase))
+            {
+                contextStatus = ConsumeNext(args, ref i, "--status");
                 continue;
             }
 
@@ -492,7 +598,10 @@ public sealed record CommandLineArgs
 
             if (TryParseKeyValue(arg, "--profile", out var profileValue))
             {
-                setupProfile = profileValue;
+                if (mode == RunMode.Context)
+                    contextProfile = profileValue;
+                else
+                    setupProfile = profileValue;
                 continue;
             }
 
@@ -552,7 +661,52 @@ public sealed record CommandLineArgs
 
             if (TryParseKeyValue(arg, "--workspace", out var workspaceValue))
             {
-                dashboardWorkspacePath = workspaceValue;
+                if (mode == RunMode.Context)
+                    contextWorkspacePath = workspaceValue;
+                else
+                    dashboardWorkspacePath = workspaceValue;
+                continue;
+            }
+
+            if (TryParseKeyValue(arg, "--thread", out var threadValue))
+            {
+                contextThreadId = threadValue;
+                continue;
+            }
+
+            if (TryParseKeyValue(arg, "--query", out var queryValue))
+            {
+                contextQuery = queryValue;
+                continue;
+            }
+
+            if (TryParseKeyValue(arg, "--output", out var outputValue))
+            {
+                contextOutputPath = outputValue;
+                continue;
+            }
+
+            if (TryParseKeyValue(arg, "--tool-results", out var toolResultsValue))
+            {
+                contextToolResults = toolResultsValue;
+                continue;
+            }
+
+            if (TryParseKeyValue(arg, "--history", out var historyValue))
+            {
+                contextHistory = historyValue;
+                continue;
+            }
+
+            if (TryParseKeyValue(arg, "--limit", out var limitValue))
+            {
+                contextLimit = ParsePositiveInt(limitValue, "--limit");
+                continue;
+            }
+
+            if (TryParseKeyValue(arg, "--status", out var statusValue))
+            {
+                contextStatus = statusValue;
                 continue;
             }
 
@@ -633,6 +787,17 @@ public sealed record CommandLineArgs
             AuthProviderId = mode == RunMode.Auth ? setupProviderId : authProviderId,
             AuthNoBrowser = authNoBrowser,
             AuthNoUsage = authNoUsage,
+            ContextCommand = contextCommand,
+            ContextThreadId = contextThreadId,
+            ContextQuery = contextQuery,
+            ContextWorkspacePath = contextWorkspacePath,
+            ContextOutputPath = contextOutputPath,
+            ContextProfile = contextProfile,
+            ContextToolResults = contextToolResults,
+            ContextHistory = contextHistory,
+            ContextLimit = contextLimit,
+            ContextStatus = contextStatus,
+            ContextJson = contextJson,
             ReservesStdout = reservesStdout
         };
     }
@@ -685,6 +850,7 @@ public sealed record CommandLineArgs
             case RunMode.Hub:
             case RunMode.Skill:
             case RunMode.Auth:
+            case RunMode.Context:
                 break;
         }
     }
@@ -825,6 +991,14 @@ public sealed record CommandLineArgs
             return port;
 
         throw new ArgumentException($"Invalid value for '{flag}'. Expected a TCP port between 1 and 65535.");
+    }
+
+    private static int ParsePositiveInt(string value, string flag)
+    {
+        if (int.TryParse(value, out var parsed) && parsed > 0)
+            return parsed;
+
+        throw new ArgumentException($"Invalid value for '{flag}'. Expected a positive integer.");
     }
 
     private static bool TryParseKeyValue(string arg, string key, out string value)

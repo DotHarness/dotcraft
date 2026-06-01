@@ -95,7 +95,7 @@ lastUpdated: false
         </p>
       </div>
       <div class="dc-grid">
-        <a class="dc-card dc-card--link dc-card--appserver" href="./developing/appserver">
+        <a class="dc-card dc-card--link dc-card--appserver" href="./developing/lifecycle/appserver">
           <span class="dc-card__index">APPSERVER</span>
           <h3>AppServer</h3>
           <p>无头服务、远程客户端、多客户端共享工作区。</p>
@@ -105,7 +105,7 @@ lastUpdated: false
           <h3>IDE / 编辑器</h3>
           <p>通过 ACP 接入 JetBrains、Obsidian、Unity 等编辑器。</p>
         </a>
-        <a class="dc-card dc-card--link dc-card--sdks" href="./developing/sdk">
+        <a class="dc-card dc-card--link dc-card--sdks" href="./developing/sdks/">
           <span class="dc-card__index">SDKs</span>
           <h3>SDK</h3>
           <p>TypeScript、.NET 与 Python SDK，用于应用、原生集成、机器人和外部渠道。</p>
@@ -123,8 +123,8 @@ lastUpdated: false
           本地任务、Cron、Goals 在工作区内提供调度、线程绑定、活动展示和长期目标推进能力——让 Agent 也能值班。
         </p>
         <div class="dc-actions">
-          <a class="dc-button dc-button--primary" href="./features/automations">查看 Automations</a>
-          <a class="dc-button" href="./features/observability">可观测性</a>
+          <a class="dc-button dc-button--primary" href="./features/agent-system/automations">查看 Automations</a>
+          <a class="dc-button" href="./features/self-hosted/observability">可观测性</a>
         </div>
       </div>
       <figure class="dc-media">

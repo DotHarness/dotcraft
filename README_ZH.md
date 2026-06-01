@@ -26,7 +26,7 @@ DotCraft 是一个 .NET 10 / C# Agent Harness。它围绕真实项目目录组�
 
 把一项长期目标钉在某次会话上，给它设定 token 或时间预算——只要会话空闲，DotCraft 就会在后台自动继续推进。何时暂停、继续或完成，始终由你说了算。
 
-[了解更多 →](https://dotharness.github.io/dotcraft/zh/features/automations#goals)
+[了解更多 →](https://dotharness.github.io/dotcraft/zh/features/agent-system/automations#goals)
 
 ### Teams — 多 Agent 的 Mission 协作板
 
@@ -34,7 +34,7 @@ DotCraft 是一个 .NET 10 / C# Agent Harness。它围绕真实项目目录组�
 
 面对一项复杂请求，DotCraft 会组建一支小队（Explorer、Builder、Reviewer、Operator），由 Team Leader 拆解任务、并行分派并汇总结果。你只交代一次需求，剩下的交给团队完成。
 
-[了解更多 →](https://dotharness.github.io/dotcraft/zh/features/teams)
+[了解更多 →](https://dotharness.github.io/dotcraft/zh/features/agent-system/teams)
 
 ### Dreams — 后台被动记忆整理
 
@@ -42,7 +42,7 @@ DotCraft 是一个 .NET 10 / C# Agent Harness。它围绕真实项目目录组�
 
 在你工作时，Dreams 会在后台默默梳理近期的活动，整理出值得保留的记忆草稿。你按自己的节奏审阅与批准——Agent 只会记住你真正认可的内容。
 
-[了解更多 →](https://dotharness.github.io/dotcraft/zh/features/memory)
+[了解更多 →](https://dotharness.github.io/dotcraft/zh/features/agent-system/memory)
 
 ### Cross Channels — 一段对话，多端共享
 
@@ -58,7 +58,7 @@ DotCraft 是一个 .NET 10 / C# Agent Harness。它围绕真实项目目录组�
 
 借助 DotCraft SDK，你可以把自己的服务封装成一个 App，直接接入 Agent——把自定义的工具、数据和流程带进对话，无需任何中间层。单工具审批和完整审计链路开箱即用。
 
-[了解更多 →](https://dotharness.github.io/dotcraft/zh/features/app)
+[了解更多 →](https://dotharness.github.io/dotcraft/zh/developing/integrations/app-binding)
 
 ### ChatGPT Plan — 复用已有的 ChatGPT 订阅
 
@@ -86,10 +86,10 @@ DotCraft 是一个 .NET 10 / C# Agent Harness。它围绕真实项目目录组�
 | 第一次安装、配置和运行 | [快速开始](https://dotharness.github.io/dotcraft/zh/getting-started) |
 | 使用图形化桌面客户端 | [Desktop](https://dotharness.github.io/dotcraft/zh/features/entry-points/desktop) |
 | 在终端里使用完整界面 | [TUI](https://dotharness.github.io/dotcraft/zh/features/entry-points/tui) |
-| 运行本地自动化任务 | [Automations 与 Hooks](https://dotharness.github.io/dotcraft/zh/features/automations) |
+| 运行本地自动化任务 | [Automations 与 Hooks](https://dotharness.github.io/dotcraft/zh/features/agent-system/automations) |
 | 接入外部客户端、机器人或自定义适配器 | [Channels 与 Bots](https://dotharness.github.io/dotcraft/zh/features/entry-points/channels) |
-| 在服务器上一键部署 DotCraft 与渠道机器人 | [服务器部署](https://dotharness.github.io/dotcraft/zh/developing/server-deployment) |
-| 架构、SDK 与协议 | [架构总览](https://dotharness.github.io/dotcraft/zh/developing/architecture) |
+| 在服务器上一键部署 DotCraft 与渠道机器人 | [服务器部署](https://dotharness.github.io/dotcraft/zh/developing/lifecycle/server-deployment) |
+| 架构、SDK 与协议 | [架构总览](https://dotharness.github.io/dotcraft/zh/developing/architecture/overview) |
 
 ## 贡献代码
 

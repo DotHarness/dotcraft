@@ -1,6 +1,6 @@
 # DotCraft Full Configuration Reference
 
-This page collects configuration fields, defaults, JSON examples, and advanced references in one place. For first-time setup, read [Project Workspace](../features/workspace.md). For product-level explanations, start from the matching Feature page and come back here for exact fields.
+This page collects configuration fields, defaults, JSON examples, and advanced references in one place. For first-time setup, read [Project Workspace](../features/project-first). For product-level explanations, start from the matching Feature page and come back here for exact fields.
 
 DotCraft reads global `~/.craft/config.json` first, then overlays workspace `.craft/config.json`; workspace fields win. String values support `$VAR` and `${VAR}` environment variable placeholders. If a variable is not set, the original placeholder is preserved.
 
@@ -465,7 +465,7 @@ With `Tools.DeferredLoading.Strategy = Auto`, `openai-responses` uses native cli
 
 ## SubAgent and External CLI Profiles
 
-For the beginner path, read [SubAgents](../features/subagents.md).
+For the beginner path, read [SubAgents](../features/agent-system/subagents).
 
 | Field | Description | Default |
 |-------|-------------|---------|

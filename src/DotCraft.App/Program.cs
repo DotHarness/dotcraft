@@ -126,6 +126,15 @@ var workspacePath = Directory.GetCurrentDirectory();
 var botPath = Path.GetFullPath(".craft");
 var workspaceJustInitialized = false;
 
+if (cliArgs.Mode == CommandLineArgs.RunMode.Context)
+{
+    using var ctsContext = new CancellationTokenSource();
+    Console.CancelKeyPress += (_, e) => { e.Cancel = true; ctsContext.Cancel(); };
+    var result = await ContextCliRunner.RunAsync(cliArgs, Console.Out, Console.Error, ctsContext.Token);
+    Environment.Exit(result);
+    return;
+}
+
 if (cliArgs.Mode == CommandLineArgs.RunMode.Skill)
 {
     var result = await SkillCliRunner.RunAsync(botPath, cliArgs, Console.Out, Console.Error);

@@ -86,6 +86,6 @@ dotcraft-tui --remote ws://server:9100/ws --token my-secret
 
 ## 相关入口
 
-- [Desktop](./desktop.md) — 图形界面入口
-- [AppServer 模式](../../developing/appserver.md) — 远程 / 多客户端
-- [设置生效层级](../../developing/settings-lifecycle.md)
+- [Desktop](./desktop) — 图形界面入口
+- [AppServer 模式](../../developing/lifecycle/appserver) — 远程 / 多客户端
+- [设置生效层级](../../developing/lifecycle/settings-lifecycle)

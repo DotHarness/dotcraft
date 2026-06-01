@@ -160,4 +160,54 @@ public sealed class CommandLineArgsTests
         Assert.True(args.SkillJson);
         Assert.False(args.ReservesStdout);
     }
+
+    [Fact]
+    public void Parse_ContextExportSubcommand_ParsesExportFlags()
+    {
+        var args = CommandLineArgs.Parse([
+            "context",
+            "export",
+            "--thread", "thread_20260601_ab12cd",
+            "--workspace", @"E:\workspaces\demo",
+            "--output", "handoff.md",
+            "--profile", "transcript",
+            "--tool-results", "none",
+            "--history", "full"
+        ]);
+
+        Assert.Equal(CommandLineArgs.RunMode.Context, args.Mode);
+        Assert.Equal("export", args.ContextCommand);
+        Assert.Equal("thread_20260601_ab12cd", args.ContextThreadId);
+        Assert.Equal(@"E:\workspaces\demo", args.ContextWorkspacePath);
+        Assert.Equal("handoff.md", args.ContextOutputPath);
+        Assert.Equal("transcript", args.ContextProfile);
+        Assert.Equal("none", args.ContextToolResults);
+        Assert.Equal("full", args.ContextHistory);
+        Assert.Null(args.DashboardWorkspacePath);
+        Assert.False(args.ReservesStdout);
+    }
+
+    [Fact]
+    public void Parse_ContextSearchSubcommand_ParsesSearchFlags()
+    {
+        var args = CommandLineArgs.Parse([
+            "context",
+            "search",
+            "--query=context explosion",
+            "--workspace=.",
+            "--limit=3",
+            "--status=archived",
+            "--json"
+        ]);
+
+        Assert.Equal(CommandLineArgs.RunMode.Context, args.Mode);
+        Assert.Equal("search", args.ContextCommand);
+        Assert.Equal("context explosion", args.ContextQuery);
+        Assert.Equal(".", args.ContextWorkspacePath);
+        Assert.Equal(3, args.ContextLimit);
+        Assert.Equal("archived", args.ContextStatus);
+        Assert.True(args.ContextJson);
+        Assert.False(args.SkillJson);
+        Assert.False(args.ReservesStdout);
+    }
 }

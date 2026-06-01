@@ -45,7 +45,7 @@ dotcraft setup --provider-mode create \
   --profile developer
 ```
 
-This is the safest first-time path. After setup, `.craft/` contains workspace config and bootstrap files. If you want a long-running server deployment for social-channel bots, use the Docker path in [Server Deployment](../developing/server-deployment.md):
+This is the safest first-time path. After setup, `.craft/` contains workspace config and bootstrap files. If you want a long-running server deployment for social-channel bots, use the Docker path in [Server Deployment](../developing/lifecycle/server-deployment):
 
 ```bash
 cd deploy/docker
@@ -95,7 +95,7 @@ Keep the structure after copying and gradually replace placeholders with project
 
 ### Sample config does not take effect
 
-Confirm the config is in the current workspace's `.craft/config.json`, then restart the relevant host. Startup-level fields do not hot-reload — see [Settings Lifecycle](../developing/settings-lifecycle.md).
+Confirm the config is in the current workspace's `.craft/config.json`, then restart the relevant host. Startup-level fields do not hot-reload — see [Settings Lifecycle](../developing/lifecycle/settings-lifecycle).
 
 ### Cannot find sample source files
 
@@ -103,10 +103,10 @@ Confirm you are at the repository root. Source samples live under `samples/`; do
 
 ### Not sure which sample to run first
 
-Follow [Getting Started](../getting-started.md) for Desktop + model config, then pick a sample matching your goal.
+Follow [Getting Started](../getting-started) for Desktop + model config, then pick a sample matching your goal.
 
 ## Related
 
-- [Getting Started](../getting-started.md)
-- [Plugins & Tools](../features/plugins-tools.md)
-- [Configuration Reference](../developing/configuration.md)
+- [Getting Started](../getting-started)
+- [Plugins & Tools](../features/agent-system/plugins-tools)
+- [Configuration Reference](../developing/configuration)

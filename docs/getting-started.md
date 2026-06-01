@@ -95,7 +95,7 @@ The minimal configuration usually contains a `Providers` registry plus the selec
 
 Already paying for ChatGPT Plus / Pro / Team / Business / Enterprise? Pick **Sign in with ChatGPT** in the setup wizard's OpenAI template, or run `dotcraft auth openai login` after setup, to reuse that subscription instead of an API key.
 
-Put secrets and endpoints in the global `Providers` registry under `~/.craft/config.json`; workspaces usually save only `ProviderId` and `Model` overrides. If you need to edit files directly, the paths are global `~/.craft/config.json` and workspace `<workspace>/.craft/config.json`. See [Configuration Reference](./developing/configuration.md) for the full field list.
+Put secrets and endpoints in the global `Providers` registry under `~/.craft/config.json`; workspaces usually save only `ProviderId` and `Model` overrides. If you need to edit files directly, the paths are global `~/.craft/config.json` and workspace `<workspace>/.craft/config.json`. See [Configuration Reference](./developing/configuration) for the full field list.
 
 ### 4. Run the First Session
 
@@ -113,7 +113,7 @@ dotcraft exec "Read this repository's README and docs/index.md, then tell me how
 
 In an initialized workspace, `dotcraft` does not enter an interactive chat. Use the TUI for terminal interaction.
 
-For a richer terminal UI, continue with the [TUI guide](./features/entry-points/tui.md).
+For a richer terminal UI, continue with the [TUI guide](./features/entry-points/tui).
 
 ## Understand the Entry Model
 
@@ -147,19 +147,19 @@ If unsure, put providers globally and let the workspace override only `ProviderI
 
 | Goal | Next step |
 |------|-----------|
-| Work visually with sessions and diffs | [Desktop](./features/entry-points/desktop.md) |
-| Use a full terminal interface | [TUI](./features/entry-points/tui.md) |
-| Share a workspace across remote or multiple clients | [AppServer Mode](./developing/appserver.md) |
-| Connect an IDE or editor | [IDE / Editors (ACP)](./features/entry-points/editors.md) |
-| Build bots or external adapters | [Channels & Bots](./features/entry-points/channels.md) |
-| Run local automation tasks | [Automations & Goals](./features/automations.md) |
-| Inspect traces, tool calls, and merged configuration | [Observability](./features/observability.md) |
+| Work visually with sessions and diffs | [Desktop](./features/entry-points/desktop) |
+| Use a full terminal interface | [TUI](./features/entry-points/tui) |
+| Share a workspace across remote or multiple clients | [AppServer Mode](./developing/lifecycle/appserver) |
+| Connect an IDE or editor | [IDE / Editors (ACP)](./features/entry-points/editors) |
+| Build bots or external adapters | [Channels & Bots](./features/entry-points/channels) |
+| Run local automation tasks | [Automations & Goals](./features/agent-system/automations) |
+| Inspect traces, tool calls, and merged configuration | [Observability](./features/self-hosted/observability) |
 
 ## Explore More
 
 ### Social Channels
 
-DotCraft integrates with Telegram, WeChat, Feishu/Lark, QQ, WeCom, and other social channels through SDK extensions. See [Channels & Bots](./features/entry-points/channels.md), the [Python SDK](./developing/sdk-python.md), and the [TypeScript SDK](./developing/sdk-typescript.md).
+DotCraft integrates with Telegram, WeChat, Feishu/Lark, QQ, WeCom, and other social channels through SDK extensions. See [Channels & Bots](./features/entry-points/channels), the [Python SDK](./developing/sdks/python), and the [TypeScript SDK](./developing/sdks/typescript).
 
 | Telegram (Python SDK) | WeChat (TypeScript SDK) |
 |:---:|:---:|
@@ -167,7 +167,7 @@ DotCraft integrates with Telegram, WeChat, Feishu/Lark, QQ, WeCom, and other soc
 
 ### Automations
 
-Automations are for running local workspace tasks. Scheduling, thread binding, templates, Goals, and retry flows are covered in [Automations & Goals](./features/automations.md).
+Automations are for running local workspace tasks. Scheduling, thread binding, templates, Goals, and retry flows are covered in [Automations & Goals](./features/agent-system/automations).
 
 | Desktop Automations |
 |:---:|
@@ -175,7 +175,7 @@ Automations are for running local workspace tasks. Scheduling, thread binding, t
 
 ### Dashboard
 
-Dashboard is DotCraft's visual inspection and configuration surface for sessions, traces, and workspace settings. See [Observability](./features/observability.md) for the page overview.
+Dashboard is DotCraft's visual inspection and configuration surface for sessions, traces, and workspace settings. See [Observability](./features/self-hosted/observability) for the page overview.
 
 | Usage overview | Session trace |
 |:---:|:---:|
@@ -183,10 +183,10 @@ Dashboard is DotCraft's visual inspection and configuration surface for sessions
 
 ## Advanced Topics
 
-- Use [Hooks](./features/security.md#hooks) to run scripts on lifecycle events.
-- Use [Security & Sandbox](./features/security.md) to constrain file, shell, and network access.
-- Use [Samples & Templates](./resources/samples.md) to validate a complete workspace template.
-- For an architectural view, jump to [Architecture Overview](./developing/architecture.md).
+- Use [Hooks](./features/self-hosted/security#hooks) to run scripts on lifecycle events.
+- Use [Security & Sandbox](./features/self-hosted/security) to constrain file, shell, and network access.
+- Use [Samples & Templates](./resources/samples) to validate a complete workspace template.
+- For an architectural view, jump to [Architecture Overview](./developing/architecture/overview).
 
 ## Troubleshooting
 

@@ -2,7 +2,7 @@
 
 Desktop 是 DotCraft 推荐的第一入口。它作为 AppServer 客户端工作，用图形界面管理工作区、会话、Diff、计划、模型配置、自动化审核和运行状态。
 
-第一次使用先按 [快速开始](../../getting-started.md) 完成下载、选工作区和配模型；本页只讲 Desktop 自己的特有面板与设置。
+第一次使用先按 [快速开始](../../getting-started) 完成下载、选工作区和配模型；本页只讲 Desktop 自己的特有面板与设置。
 
 ## 安装
 
@@ -37,7 +37,7 @@ DotCraft --workspace /path/to/project
 | **Settings → General** | 当前 Workspace 路径、AppServer binary 路径、语言 |
 | **Settings → Personalization** | 长期记忆与 Dreams 的开关、立即运行、自动更新、重置记忆 |
 | **Settings → Model Providers** | 个人 provider、凭证、Endpoint、工作区 provider 与模型 |
-| **Settings → Sub Agents** | 复用外部 CLI 会话（详见 [SubAgents](../subagents.md)） |
+| **Settings → Sub Agents** | 复用外部 CLI 会话（详见 [SubAgents](../agent-system/subagents)） |
 | **Settings → Connection** | 本地 Hub vs 远程 AppServer 切换 |
 
 ### Profile
@@ -54,7 +54,7 @@ DotCraft --workspace /path/to/project
 - **管理梦境** — 列出最近运行记录，每条记录可打开 Dashboard 完成 diff、trace、应用、丢弃、取消、归档。
 - **重置记忆** — 一次性清空 `MEMORY.md`、`HISTORY.md`、`.craft/dreams/` 与派生缓存；不会删除会话、配置、技能或自动化任务。
 
-详见 [长期记忆与 Dreams](../memory.md)。
+详见 [长期记忆与 Dreams](../agent-system/memory)。
 
 ### Model Providers
 
@@ -102,15 +102,15 @@ Desktop 升级后，会在进入可用工作区主界面时显示一次 **What's
 
 ### 设置修改后没有生效
 
-Provider 和模型选择通常立即用于新会话；已有 provider-aware 线程会保留创建时捕获的 provider 和模型，除非显式修改当前线程模型。AppServer、端口、入口模式等启动级配置需要重启 Desktop 或后台 Host。详见 [设置生效层级](../../developing/settings-lifecycle.md)。
+Provider 和模型选择通常立即用于新会话；已有 provider-aware 线程会保留创建时捕获的 provider 和模型，除非显式修改当前线程模型。AppServer、端口、入口模式等启动级配置需要重启 Desktop 或后台 Host。详见 [设置生效层级](../../developing/lifecycle/settings-lifecycle)。
 
 ### 自动化面板为空
 
-确认使用 Gateway 或支持 Automations 的 Host，并在配置中启用对应任务来源。详见 [Automations](../automations.md)。
+确认使用 Gateway 或支持 Automations 的 Host，并在配置中启用对应任务来源。详见 [Automations](../agent-system/automations)。
 
 ## 相关入口
 
-- [快速开始](../../getting-started.md) — 第一次安装与配置
-- [TUI](./tui.md) — 终端富界面
-- [可观测性](../observability.md) — 在 Dashboard 看会话与 Trace
-- [设置生效层级](../../developing/settings-lifecycle.md)
+- [快速开始](../../getting-started) — 第一次安装与配置
+- [TUI](./tui) — 终端富界面
+- [可观测性](../self-hosted/observability) — 在 Dashboard 看会话与 Trace
+- [设置生效层级](../../developing/lifecycle/settings-lifecycle)

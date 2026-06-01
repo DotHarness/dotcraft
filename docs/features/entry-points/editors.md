@@ -27,7 +27,7 @@ cd <your project directory>
 dotcraft setup
 ```
 
-Follow the prompts for provider / model / api-key. See [Configuration Reference](../../developing/configuration.md) for full fields, or run `dotcraft setup --help` for supported options.
+Follow the prompts for provider / model / api-key. See [Configuration Reference](../../developing/configuration) for full fields, or run `dotcraft setup --help` for supported options.
 
 Once setup completes, the workspace is ready for ACP, TUI, Desktop, or automation entries.
 
@@ -163,6 +163,6 @@ Confirm AppServer is started in WebSocket mode, the URL contains `/ws`, and the 
 
 ## Related
 
-- [Desktop](./desktop.md) — GUI client over the same backend
-- [AppServer Mode](../../developing/appserver.md) — remote or multi-client
-- [Unified Session Core](../session-core.md) — Thread / Turn / Item model and ACP bridging
+- [Desktop](./desktop) — GUI client over the same backend
+- [AppServer Mode](../../developing/lifecycle/appserver) — remote or multi-client
+- [Unified Session Core](../../developing/architecture/session-core) — Thread / Turn / Item model and ACP bridging

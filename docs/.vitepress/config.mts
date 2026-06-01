@@ -20,67 +20,116 @@ const enSidebar: DefaultTheme.Sidebar = [
   {
     text: 'Features',
     items: [
-      { text: withIcon('folder', 'Project Workspace'), link: '/features/workspace' },
-      { text: withIcon('brain', 'Memory & Dreams'), link: '/features/memory' },
-      { text: withIcon('sparkles', 'Skills & Self-Learning'), link: '/features/skills' },
-      { text: withIcon('layers', 'Unified Session Core'), link: '/features/session-core' },
+      { text: withIcon('folder', 'Project First'), link: '/features/project-first' },
+      {
+        text: withIcon('cpu', 'Agent System'),
+        link: '/features/agent-system/memory',
+        collapsed: false,
+        items: [
+          { text: withIcon('brain', 'Memory & Dreams'), link: '/features/agent-system/memory' },
+          { text: withIcon('sparkles', 'Skills & Self-Learning'), link: '/features/agent-system/skills' },
+          { text: withIcon('puzzle', 'Plugins & Tools'), link: '/features/agent-system/plugins-tools' },
+          { text: withIcon('workflow', 'Automations & Goals'), link: '/features/agent-system/automations' },
+          { text: withIcon('users', 'SubAgents'), link: '/features/agent-system/subagents' },
+          { text: withIcon('network', 'Teams'), link: '/features/agent-system/teams' }
+        ]
+      },
       {
         text: withIcon('grid', 'Entry Points'),
         link: '/features/entry-points/',
         collapsed: false,
         items: [
-          { text: withIcon('grid', 'Overview'), link: '/features/entry-points/' },
+          { text: withIcon('globe', 'Overview'), link: '/features/entry-points/' },
           { text: withIcon('monitor', 'Desktop'), link: '/features/entry-points/desktop' },
           { text: withIcon('terminal', 'TUI'), link: '/features/entry-points/tui' },
           { text: withIcon('code', 'IDE / Editors (ACP)'), link: '/features/entry-points/editors' },
           { text: withIcon('bot', 'Channels & Bots'), link: '/features/entry-points/channels' }
         ]
       },
-      { text: withIcon('puzzle', 'Plugins & Tools'), link: '/features/plugins-tools' },
-      { text: withIcon('plug', 'App Binding'), link: '/features/app' },
-      { text: withIcon('users', 'SubAgents'), link: '/features/subagents' },
-      { text: withIcon('network', 'Teams'), link: '/features/teams' },
-      { text: withIcon('workflow', 'Automations & Goals'), link: '/features/automations' },
-      { text: withIcon('activity', 'Observability'), link: '/features/observability' },
-      { text: withIcon('shield', 'Security & Sandbox'), link: '/features/security' }
+      {
+        text: withIcon('lockKeyhole', 'Self-hosted Control'),
+        link: '/features/self-hosted/observability',
+        collapsed: false,
+        items: [
+          { text: withIcon('activity', 'Observability'), link: '/features/self-hosted/observability' },
+          { text: withIcon('shield', 'Security & Sandbox'), link: '/features/self-hosted/security' }
+        ]
+      }
     ]
   },
   {
     text: 'Developing',
     items: [
-      { text: withIcon('workflow', 'Spec-Driven Development'), link: '/developing/spec-driven-development' },
-      { text: withIcon('branch', 'Architecture'), link: '/developing/architecture' },
-      { text: withIcon('cog', 'Configuration Reference'), link: '/developing/configuration' },
-      { text: withIcon('layers', 'Settings Lifecycle'), link: '/developing/settings-lifecycle' },
-      { text: withIcon('server', 'AppServer Mode'), link: '/developing/appserver' },
-      { text: withIcon('server', 'Server Deployment'), link: '/developing/server-deployment' },
-      { text: withIcon('network', 'Hub Local Coordination'), link: '/developing/hub' },
-      { text: withIcon('fileCode', 'AppServer Protocol'), link: '/developing/appserver-protocol' },
-      { text: withIcon('fileCode', 'Hub Protocol'), link: '/developing/hub-protocol' },
-      { text: withIcon('fileCode', 'Dashboard API'), link: '/developing/dashboard-api' },
       {
-        text: withIcon('package', 'SDKs'),
-        link: '/developing/sdk',
+        text: withIcon('route', 'Workflow'),
+        link: '/developing/workflow/spec-driven-development',
         collapsed: false,
         items: [
-          { text: withIcon('package', 'Overview'), link: '/developing/sdk' },
-          { text: withIcon('typescript', 'TypeScript'), link: '/developing/sdk-typescript' },
-          { text: withIcon('code', '.NET'), link: '/developing/sdk-dotnet' },
-          { text: withIcon('python', 'Python'), link: '/developing/sdk-python' }
+          { text: withIcon('scrollText', 'Spec-Driven Development'), link: '/developing/workflow/spec-driven-development' },
+          { text: withIcon('share', 'Workspace Handoff'), link: '/developing/workflow/workspace-handoff' }
         ]
       },
-      { text: withIcon('plug', 'App Binding Integration'), link: '/developing/app-binding' },
-      { text: withIcon('package', 'TypeScript Module Integration'), link: '/developing/typescript-module' },
       {
-        text: withIcon('plug', 'Channel Adapters'),
+        text: withIcon('waypoints', 'Architecture'),
+        link: '/developing/architecture/overview',
+        collapsed: false,
+        items: [
+          { text: withIcon('branch', 'Overview'), link: '/developing/architecture/overview' },
+          { text: withIcon('layers', 'Unified Session Core'), link: '/developing/architecture/session-core' }
+        ]
+      },
+      { text: withIcon('sliders', 'Configuration'), link: '/developing/configuration' },
+      {
+        text: withIcon('repeat', 'Lifecycle'),
+        link: '/developing/lifecycle/settings-lifecycle',
+        collapsed: false,
+        items: [
+          { text: withIcon('history', 'Settings Lifecycle'), link: '/developing/lifecycle/settings-lifecycle' },
+          { text: withIcon('server', 'AppServer Mode'), link: '/developing/lifecycle/appserver' },
+          { text: withIcon('cloud', 'Server Deployment'), link: '/developing/lifecycle/server-deployment' },
+          { text: withIcon('radio', 'Hub Local Coordination'), link: '/developing/lifecycle/hub' }
+        ]
+      },
+      {
+        text: withIcon('webhook', 'Protocols & APIs'),
+        link: '/developing/protocols/appserver-protocol',
+        collapsed: false,
+        items: [
+          { text: withIcon('fileJson', 'AppServer Protocol'), link: '/developing/protocols/appserver-protocol' },
+          { text: withIcon('antenna', 'Hub Protocol'), link: '/developing/protocols/hub-protocol' },
+          { text: withIcon('dashboard', 'Dashboard API'), link: '/developing/protocols/dashboard-api' }
+        ]
+      },
+      {
+        text: withIcon('boxes', 'SDKs'),
+        link: '/developing/sdks/',
+        collapsed: false,
+        items: [
+          { text: withIcon('package', 'Overview'), link: '/developing/sdks/' },
+          { text: withIcon('typescript', 'TypeScript'), link: '/developing/sdks/typescript' },
+          { text: withIcon('fileCode', '.NET'), link: '/developing/sdks/dotnet' },
+          { text: withIcon('python', 'Python'), link: '/developing/sdks/python' }
+        ]
+      },
+      {
+        text: withIcon('plugZap', 'Integrations'),
+        link: '/developing/integrations/app-binding',
+        collapsed: false,
+        items: [
+          { text: withIcon('plug', 'App Binding'), link: '/developing/integrations/app-binding' },
+          { text: withIcon('blocks', 'TypeScript Module'), link: '/developing/integrations/typescript-module' }
+        ]
+      },
+      {
+        text: withIcon('satelliteDish', 'Channels'),
         collapsed: true,
         items: [
-          { text: withIcon('plug', 'QQ'), link: '/developing/channels/qq' },
-          { text: withIcon('plug', 'WeCom'), link: '/developing/channels/wecom' },
-          { text: withIcon('plug', 'Feishu'), link: '/developing/channels/feishu' },
-          { text: withIcon('plug', 'Telegram (TypeScript)'), link: '/developing/channels/telegram' },
-          { text: withIcon('plug', 'Weixin'), link: '/developing/channels/weixin' },
-          { text: withIcon('plug', 'Telegram (Python)'), link: '/developing/channels/python-telegram' }
+          { text: withIcon('messageSquare', 'QQ'), link: '/developing/channels/qq' },
+          { text: withIcon('building', 'WeCom'), link: '/developing/channels/wecom' },
+          { text: withIcon('feather', 'Feishu'), link: '/developing/channels/feishu' },
+          { text: withIcon('send', 'Telegram (TypeScript)'), link: '/developing/channels/telegram' },
+          { text: withIcon('messagesSquare', 'Weixin'), link: '/developing/channels/weixin' },
+          { text: withIcon('botMessage', 'Telegram (Python)'), link: '/developing/channels/python-telegram' }
         ]
       }
     ]
@@ -105,67 +154,116 @@ const zhSidebar: DefaultTheme.Sidebar = [
   {
     text: '功能',
     items: [
-      { text: withIcon('folder', '项目级工作区'), link: '/zh/features/workspace' },
-      { text: withIcon('brain', '长期记忆与 Dreams'), link: '/zh/features/memory' },
-      { text: withIcon('sparkles', 'Skills 与自学习'), link: '/zh/features/skills' },
-      { text: withIcon('layers', '统一会话核心'), link: '/zh/features/session-core' },
+      { text: withIcon('folder', '项目优先'), link: '/zh/features/project-first' },
+      {
+        text: withIcon('cpu', 'Agent 系统'),
+        link: '/zh/features/agent-system/memory',
+        collapsed: false,
+        items: [
+          { text: withIcon('brain', '长期记忆与 Dreams'), link: '/zh/features/agent-system/memory' },
+          { text: withIcon('sparkles', 'Skills 与自学习'), link: '/zh/features/agent-system/skills' },
+          { text: withIcon('puzzle', '插件与工具'), link: '/zh/features/agent-system/plugins-tools' },
+          { text: withIcon('workflow', 'Automations 与 Goals'), link: '/zh/features/agent-system/automations' },
+          { text: withIcon('users', 'SubAgents'), link: '/zh/features/agent-system/subagents' },
+          { text: withIcon('network', 'Teams'), link: '/zh/features/agent-system/teams' }
+        ]
+      },
       {
         text: withIcon('grid', '入口'),
         link: '/zh/features/entry-points/',
         collapsed: false,
         items: [
-          { text: withIcon('grid', '入口总览'), link: '/zh/features/entry-points/' },
+          { text: withIcon('globe', '入口总览'), link: '/zh/features/entry-points/' },
           { text: withIcon('monitor', 'Desktop'), link: '/zh/features/entry-points/desktop' },
           { text: withIcon('terminal', 'TUI'), link: '/zh/features/entry-points/tui' },
           { text: withIcon('code', 'IDE / 编辑器（ACP）'), link: '/zh/features/entry-points/editors' },
           { text: withIcon('bot', 'Channels 与 Bots'), link: '/zh/features/entry-points/channels' }
         ]
       },
-      { text: withIcon('puzzle', '插件与工具'), link: '/zh/features/plugins-tools' },
-      { text: withIcon('plug', 'App Binding'), link: '/zh/features/app' },
-      { text: withIcon('users', 'SubAgents'), link: '/zh/features/subagents' },
-      { text: withIcon('network', 'Teams'), link: '/zh/features/teams' },
-      { text: withIcon('workflow', 'Automations 与 Goals'), link: '/zh/features/automations' },
-      { text: withIcon('activity', '可观测性'), link: '/zh/features/observability' },
-      { text: withIcon('shield', '安全与沙箱'), link: '/zh/features/security' }
+      {
+        text: withIcon('lockKeyhole', 'Self-hosted Control'),
+        link: '/zh/features/self-hosted/observability',
+        collapsed: false,
+        items: [
+          { text: withIcon('activity', '可观测性'), link: '/zh/features/self-hosted/observability' },
+          { text: withIcon('shield', '安全与沙箱'), link: '/zh/features/self-hosted/security' }
+        ]
+      }
     ]
   },
   {
     text: '开发者',
     items: [
-      { text: withIcon('workflow', 'Spec-Driven Development'), link: '/zh/developing/spec-driven-development' },
-      { text: withIcon('branch', '架构总览'), link: '/zh/developing/architecture' },
-      { text: withIcon('cog', '配置参考'), link: '/zh/developing/configuration' },
-      { text: withIcon('layers', '设置生效层级'), link: '/zh/developing/settings-lifecycle' },
-      { text: withIcon('server', 'AppServer 模式'), link: '/zh/developing/appserver' },
-      { text: withIcon('server', '服务器部署'), link: '/zh/developing/server-deployment' },
-      { text: withIcon('network', 'Hub 本地协调'), link: '/zh/developing/hub' },
-      { text: withIcon('fileCode', 'AppServer 协议'), link: '/zh/developing/appserver-protocol' },
-      { text: withIcon('fileCode', 'Hub 协议'), link: '/zh/developing/hub-protocol' },
-      { text: withIcon('fileCode', 'Dashboard API'), link: '/zh/developing/dashboard-api' },
       {
-        text: withIcon('package', 'SDK'),
-        link: '/zh/developing/sdk',
+        text: withIcon('route', '工作流'),
+        link: '/zh/developing/workflow/spec-driven-development',
         collapsed: false,
         items: [
-          { text: withIcon('package', '总览'), link: '/zh/developing/sdk' },
-          { text: withIcon('typescript', 'TypeScript'), link: '/zh/developing/sdk-typescript' },
-          { text: withIcon('code', '.NET'), link: '/zh/developing/sdk-dotnet' },
-          { text: withIcon('python', 'Python'), link: '/zh/developing/sdk-python' }
+          { text: withIcon('scrollText', 'Spec-Driven Development'), link: '/zh/developing/workflow/spec-driven-development' },
+          { text: withIcon('share', '外部 Agent 协作'), link: '/zh/developing/workflow/workspace-handoff' }
         ]
       },
-      { text: withIcon('plug', 'App Binding 集成'), link: '/zh/developing/app-binding' },
-      { text: withIcon('package', 'TypeScript Module 集成'), link: '/zh/developing/typescript-module' },
       {
-        text: withIcon('plug', 'Channel 适配器'),
+        text: withIcon('waypoints', '架构'),
+        link: '/zh/developing/architecture/overview',
+        collapsed: false,
+        items: [
+          { text: withIcon('branch', '架构总览'), link: '/zh/developing/architecture/overview' },
+          { text: withIcon('layers', '统一会话核心'), link: '/zh/developing/architecture/session-core' }
+        ]
+      },
+      { text: withIcon('sliders', '配置'), link: '/zh/developing/configuration' },
+      {
+        text: withIcon('repeat', '生命周期'),
+        link: '/zh/developing/lifecycle/settings-lifecycle',
+        collapsed: false,
+        items: [
+          { text: withIcon('history', '设置生效层级'), link: '/zh/developing/lifecycle/settings-lifecycle' },
+          { text: withIcon('server', 'AppServer 模式'), link: '/zh/developing/lifecycle/appserver' },
+          { text: withIcon('cloud', '服务器部署'), link: '/zh/developing/lifecycle/server-deployment' },
+          { text: withIcon('radio', 'Hub 本地协调'), link: '/zh/developing/lifecycle/hub' }
+        ]
+      },
+      {
+        text: withIcon('webhook', '协议与 API'),
+        link: '/zh/developing/protocols/appserver-protocol',
+        collapsed: false,
+        items: [
+          { text: withIcon('fileJson', 'AppServer 协议'), link: '/zh/developing/protocols/appserver-protocol' },
+          { text: withIcon('antenna', 'Hub 协议'), link: '/zh/developing/protocols/hub-protocol' },
+          { text: withIcon('dashboard', 'Dashboard API'), link: '/zh/developing/protocols/dashboard-api' }
+        ]
+      },
+      {
+        text: withIcon('boxes', 'SDK'),
+        link: '/zh/developing/sdks/',
+        collapsed: false,
+        items: [
+          { text: withIcon('package', '总览'), link: '/zh/developing/sdks/' },
+          { text: withIcon('typescript', 'TypeScript'), link: '/zh/developing/sdks/typescript' },
+          { text: withIcon('fileCode', '.NET'), link: '/zh/developing/sdks/dotnet' },
+          { text: withIcon('python', 'Python'), link: '/zh/developing/sdks/python' }
+        ]
+      },
+      {
+        text: withIcon('plugZap', '集成'),
+        link: '/zh/developing/integrations/app-binding',
+        collapsed: false,
+        items: [
+          { text: withIcon('plug', 'App Binding'), link: '/zh/developing/integrations/app-binding' },
+          { text: withIcon('blocks', 'TypeScript Module'), link: '/zh/developing/integrations/typescript-module' }
+        ]
+      },
+      {
+        text: withIcon('satelliteDish', 'Channels'),
         collapsed: true,
         items: [
-          { text: withIcon('plug', 'QQ'), link: '/zh/developing/channels/qq' },
-          { text: withIcon('plug', '企业微信'), link: '/zh/developing/channels/wecom' },
-          { text: withIcon('plug', '飞书'), link: '/zh/developing/channels/feishu' },
-          { text: withIcon('plug', 'Telegram (TypeScript)'), link: '/zh/developing/channels/telegram' },
-          { text: withIcon('plug', '微信'), link: '/zh/developing/channels/weixin' },
-          { text: withIcon('plug', 'Telegram (Python)'), link: '/zh/developing/channels/python-telegram' }
+          { text: withIcon('messageSquare', 'QQ'), link: '/zh/developing/channels/qq' },
+          { text: withIcon('building', '企业微信'), link: '/zh/developing/channels/wecom' },
+          { text: withIcon('feather', '飞书'), link: '/zh/developing/channels/feishu' },
+          { text: withIcon('send', 'Telegram (TypeScript)'), link: '/zh/developing/channels/telegram' },
+          { text: withIcon('messagesSquare', '微信'), link: '/zh/developing/channels/weixin' },
+          { text: withIcon('botMessage', 'Telegram (Python)'), link: '/zh/developing/channels/python-telegram' }
         ]
       }
     ]
@@ -182,58 +280,89 @@ const zhSidebar: DefaultTheme.Sidebar = [
 const enNav: DefaultTheme.NavItem[] = [
   { text: 'Overview', link: '/' },
   { text: 'Getting Started', link: '/getting-started' },
-  { text: 'Features', link: '/features/workspace' },
-  { text: 'Developing', link: '/developing/spec-driven-development' },
+  { text: 'Features', link: '/features/project-first' },
+  { text: 'Developing', link: '/developing/workflow/spec-driven-development' },
   { text: 'Samples', link: '/resources/samples' }
 ]
 
 const zhNav: DefaultTheme.NavItem[] = [
   { text: '总览', link: '/zh/' },
   { text: '快速开始', link: '/zh/getting-started' },
-  { text: '功能', link: '/zh/features/workspace' },
-  { text: '开发者', link: '/zh/developing/spec-driven-development' },
+  { text: '功能', link: '/zh/features/project-first' },
+  { text: '开发者', link: '/zh/developing/workflow/spec-driven-development' },
   { text: '示例', link: '/zh/resources/samples' }
 ]
 
 const redirectMap: Record<string, string> = {
-  'reference.md': 'developing/architecture.md',
-  'features.md': 'features/workspace.md',
+  'reference.md': 'developing/architecture/overview.md',
+  'features.md': 'features/project-first.md',
   'getting-started.md': 'getting-started.md',
-  'config_guide.md': 'features/workspace.md',
+  'config_guide.md': 'features/project-first.md',
   'desktop_guide.md': 'features/entry-points/desktop.md',
   'tui_guide.md': 'features/entry-points/tui.md',
   'acp_guide.md': 'features/entry-points/editors.md',
   'unity_guide.md': 'features/entry-points/editors.md',
-  'appserver_guide.md': 'developing/appserver.md',
-  'hub_guide.md': 'developing/hub.md',
-  'dash_board_guide.md': 'features/observability.md',
-  'subagents_guide.md': 'features/subagents.md',
-  'external_cli_subagents_guide.md': 'features/subagents.md',
-  'automations_guide.md': 'features/automations.md',
-  'hooks_guide.md': 'features/automations.md',
-  'automations/reference.md': 'features/automations.md',
-  'hooks/reference.md': 'features/automations.md',
-  'config/security.md': 'features/security.md',
-  'settings-lifecycle.md': 'developing/settings-lifecycle.md',
-  'typescript-module-integration.md': 'developing/typescript-module.md',
+  'appserver_guide.md': 'developing/lifecycle/appserver.md',
+  'hub_guide.md': 'developing/lifecycle/hub.md',
+  'dash_board_guide.md': 'features/self-hosted/observability.md',
+  'subagents_guide.md': 'features/agent-system/subagents.md',
+  'external_cli_subagents_guide.md': 'features/agent-system/subagents.md',
+  'automations_guide.md': 'features/agent-system/automations.md',
+  'hooks_guide.md': 'features/agent-system/automations.md',
+  'automations/reference.md': 'features/agent-system/automations.md',
+  'hooks/reference.md': 'features/agent-system/automations.md',
+  'config/security.md': 'features/self-hosted/security.md',
+  'settings-lifecycle.md': 'developing/lifecycle/settings-lifecycle.md',
+  'features/workspace-handoff.md': 'developing/workflow/workspace-handoff.md',
+  'developing/context-export-cli.md': 'developing/workflow/workspace-handoff.md',
+  'typescript-module-integration.md': 'developing/integrations/typescript-module.md',
   'reference/config.md': 'developing/configuration.md',
-  'reference/appserver-protocol.md': 'developing/appserver-protocol.md',
-  'reference/hub-protocol.md': 'developing/hub-protocol.md',
-  'reference/dashboard-api.md': 'developing/dashboard-api.md',
-  'sdk/index.md': 'developing/sdk.md',
-  'sdk/python.md': 'developing/sdk-python.md',
-  'sdk/typescript.md': 'developing/sdk-typescript.md',
-  'sdk/dotnet.md': 'developing/sdk-dotnet.md',
+  'reference/appserver-protocol.md': 'developing/protocols/appserver-protocol.md',
+  'reference/hub-protocol.md': 'developing/protocols/hub-protocol.md',
+  'reference/dashboard-api.md': 'developing/protocols/dashboard-api.md',
+  'sdk/index.md': 'developing/sdks/index.md',
+  'sdk/python.md': 'developing/sdks/python.md',
+  'sdk/typescript.md': 'developing/sdks/typescript.md',
+  'sdk/dotnet.md': 'developing/sdks/dotnet.md',
   'sdk/python-telegram.md': 'developing/channels/python-telegram.md',
   'sdk/typescript-feishu.md': 'developing/channels/feishu.md',
   'sdk/typescript-telegram.md': 'developing/channels/telegram.md',
   'sdk/typescript-weixin.md': 'developing/channels/weixin.md',
   'sdk/typescript-qq.md': 'developing/channels/qq.md',
   'sdk/typescript-wecom.md': 'developing/channels/wecom.md',
-  'skills/agent-self-learning.md': 'features/skills.md',
-  'skills/marketplace.md': 'features/skills.md',
-  'plugins/install.md': 'features/plugins-tools.md',
-  'plugins/build.md': 'features/plugins-tools.md',
+  'skills/agent-self-learning.md': 'features/agent-system/skills.md',
+  'skills/marketplace.md': 'features/agent-system/skills.md',
+  'plugins/install.md': 'features/agent-system/plugins-tools.md',
+  'plugins/build.md': 'features/agent-system/plugins-tools.md',
+  'features/workspace.md': 'features/project-first.md',
+  'features/project-design/workspace.md': 'features/project-first.md',
+  'features/memory.md': 'features/agent-system/memory.md',
+  'features/skills.md': 'features/agent-system/skills.md',
+  'features/plugins-tools.md': 'features/agent-system/plugins-tools.md',
+  'features/automations.md': 'features/agent-system/automations.md',
+  'features/subagents.md': 'features/agent-system/subagents.md',
+  'features/teams.md': 'features/agent-system/teams.md',
+  'features/observability.md': 'features/self-hosted/observability.md',
+  'features/security.md': 'features/self-hosted/security.md',
+  'features/session-core.md': 'developing/architecture/session-core.md',
+  'features/app.md': 'developing/integrations/app-binding.md',
+  'developing/spec-driven-development.md': 'developing/workflow/spec-driven-development.md',
+  'developing/workspace-handoff.md': 'developing/workflow/workspace-handoff.md',
+  'developing/architecture.md': 'developing/architecture/overview.md',
+  'developing/configuration/reference.md': 'developing/configuration.md',
+  'developing/settings-lifecycle.md': 'developing/lifecycle/settings-lifecycle.md',
+  'developing/appserver.md': 'developing/lifecycle/appserver.md',
+  'developing/hub.md': 'developing/lifecycle/hub.md',
+  'developing/server-deployment.md': 'developing/lifecycle/server-deployment.md',
+  'developing/appserver-protocol.md': 'developing/protocols/appserver-protocol.md',
+  'developing/hub-protocol.md': 'developing/protocols/hub-protocol.md',
+  'developing/dashboard-api.md': 'developing/protocols/dashboard-api.md',
+  'developing/sdk.md': 'developing/sdks/index.md',
+  'developing/sdk-typescript.md': 'developing/sdks/typescript.md',
+  'developing/sdk-dotnet.md': 'developing/sdks/dotnet.md',
+  'developing/sdk-python.md': 'developing/sdks/python.md',
+  'developing/app-binding.md': 'developing/integrations/app-binding.md',
+  'developing/typescript-module.md': 'developing/integrations/typescript-module.md',
   'samples/index.md': 'resources/samples.md',
   'samples/automations.md': 'resources/samples.md',
   'samples/bootstrap.md': 'resources/samples.md',

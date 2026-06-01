@@ -17,6 +17,7 @@ internal static class CliStartup
             or CommandLineArgs.RunMode.Hub
             or CommandLineArgs.RunMode.Skill
             or CommandLineArgs.RunMode.Dashboard
+            or CommandLineArgs.RunMode.Context
             or CommandLineArgs.RunMode.Exec;
 
     public static WorkspaceStartupDecision DecideWorkspaceStartup(
@@ -39,6 +40,8 @@ internal static class CliStartup
         await writer.WriteLineAsync("Usage: dotcraft exec <prompt>").ConfigureAwait(false);
         await writer.WriteLineAsync("       dotcraft exec -").ConfigureAwait(false);
         await writer.WriteLineAsync("       dotcraft dashboard [--workspace <dir>] [--host <host>] [--port <port>]").ConfigureAwait(false);
+        await writer.WriteLineAsync("       dotcraft context export --thread <threadId> [--workspace <dir>] [--output <file>]").ConfigureAwait(false);
+        await writer.WriteLineAsync("       dotcraft context search --query <text> [--workspace <dir>] [--limit <n>] [--json]").ConfigureAwait(false);
         await writer.WriteLineAsync("       dotcraft app-server | gateway | hub | acp | setup | skill").ConfigureAwait(false);
         await writer.WriteLineAsync("       dotcraft auth openai <login|logout|status> [--provider-id <id>] [--no-browser]").ConfigureAwait(false);
     }

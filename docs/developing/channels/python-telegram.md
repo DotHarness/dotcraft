@@ -162,5 +162,5 @@ examples/telegram/
 
 ## Further Reading
 
-- [Python SDK](../sdk-python.md) — `dotcraft_wire` SDK overview and API reference.
+- [Python SDK](../sdks/python) — `dotcraft_wire` SDK overview and API reference.
 - [SDK Architecture](https://github.com/DotHarness/dotcraft/blob/master/sdk/python/ARCHITECTURE.md) — How the SDK works internally.

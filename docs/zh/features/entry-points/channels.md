@@ -8,14 +8,14 @@ DotCraft 通过 SDK 扩展把同一个工作区接入到主流社交平台：QQ�
 
 | 渠道 | SDK 语言 | 文档 |
 |---|---|---|
-| QQ | TypeScript | [channel-qq](../../developing/channels/qq.md) |
-| 企业微信 / WeCom | TypeScript | [channel-wecom](../../developing/channels/wecom.md) |
-| 飞书 / Lark | TypeScript | [channel-feishu](../../developing/channels/feishu.md) |
-| Telegram（TypeScript） | TypeScript | [channel-telegram](../../developing/channels/telegram.md) |
-| 微信 | TypeScript | [channel-weixin](../../developing/channels/weixin.md) |
-| Telegram（Python） | Python | [python-telegram](../../developing/channels/python-telegram.md) |
+| QQ | TypeScript | [channel-qq](../../developing/channels/qq) |
+| 企业微信 / WeCom | TypeScript | [channel-wecom](../../developing/channels/wecom) |
+| 飞书 / Lark | TypeScript | [channel-feishu](../../developing/channels/feishu) |
+| Telegram（TypeScript） | TypeScript | [channel-telegram](../../developing/channels/telegram) |
+| 微信 | TypeScript | [channel-weixin](../../developing/channels/weixin) |
+| Telegram（Python） | Python | [python-telegram](../../developing/channels/python-telegram) |
 
-TypeScript 频道模块统一遵循 [TypeScript Module 集成契约](../../developing/typescript-module.md)，有标准的 `manifest`、`createModule`、`configDescriptors`、生命周期状态。
+TypeScript 频道模块统一遵循 [TypeScript Module 集成契约](../../developing/integrations/typescript-module)，有标准的 `manifest`、`createModule`、`configDescriptors`、生命周期状态。
 
 ## 接入路径
 
@@ -24,10 +24,10 @@ TypeScript 频道模块统一遵循 [TypeScript Module 集成契约](../../devel
 两种接入方式：
 
 - **Desktop 内嵌渠道**：Desktop 把渠道作为 subprocess 启动，使用 `transport: "subprocess"` 与 `builtinModule`。在 Desktop **Channels** 页面填写平台 token、回调地址、白名单或扫码认证后一键启用。
-- **服务器 Compose 部署**：使用 [服务器部署](../../developing/server-deployment.md)，通过 Docker Compose 启动 AppServer、内置 TypeScript 渠道和可选 OpenSandbox。
+- **服务器 Compose 部署**：使用 [服务器部署](../../developing/lifecycle/server-deployment)，通过 Docker Compose 启动 AppServer、内置 TypeScript 渠道和可选 OpenSandbox。
 - **独立运行的适配器**：通过 `transport: "websocket"` 让外部进程以 WebSocket 方式连接 AppServer，适合需要自行运维适配器进程的场景。
 
-AppServer 与渠道注册字段见 [入口与服务](../../developing/configuration.md#entry-points-and-services)。平台连接、权限白名单和审批超时等渠道专属设置分别放在 `.craft/qq.json`、`.craft/wecom.json` 等适配器配置文件中。
+AppServer 与渠道注册字段见 [入口与服务](../../developing/configuration#entry-points-and-services)。平台连接、权限白名单和审批超时等渠道专属设置分别放在 `.craft/qq.json`、`.craft/wecom.json` 等适配器配置文件中。
 
 ## 渠道与统一会话核心
 
@@ -36,7 +36,7 @@ AppServer 与渠道注册字段见 [入口与服务](../../developing/configurat
 - Agent 想发起审批（写文件、Shell 命令）时，渠道会把审批请求渲染成平台原生消息（按钮 / 引用），用户点同意才会执行。
 - Desktop / TUI 可同时连接同一个 AppServer，看到机器人会话历史、接管会话、修正回复。
 
-详细机制见 [统一会话核心](../session-core.md)。
+详细机制见 [统一会话核心](../../developing/architecture/session-core)。
 
 ## 适用场景
 
@@ -45,7 +45,7 @@ AppServer 与渠道注册字段见 [入口与服务](../../developing/configurat
 | 团队内部知识库 bot | 飞书 / WeCom，企业内已有 IT 流程 |
 | 开源社区答疑 | Telegram / QQ |
 | 项目客服 / 售后 | 微信 / WeCom |
-| 想在群里调 Agent 跑 CI 报告 | 任意渠道 + [Automations](../automations.md) |
+| 想在群里调 Agent 跑 CI 报告 | 任意渠道 + [Automations](../agent-system/automations) |
 | 想在 Desktop 里看群聊历史并接管回复 | 任意渠道 + Desktop 同工作区 |
 
 ## 安全建议
@@ -55,17 +55,17 @@ AppServer 与渠道注册字段见 [入口与服务](../../developing/configurat
 - 工作区外文件和 Shell 操作需要审批
 - 收紧到必要工具表面积
 - 使用强随机 AppServer WebSocket token
-- 必要时启用 [OpenSandbox](../security.md#沙箱opensandbox)
+- 必要时启用 [OpenSandbox](../self-hosted/security#沙箱opensandbox)
 
-完整建议和准确字段见 [安全与沙箱](../security.md) 与 [配置完整参考](../../developing/configuration.md#tools-security-与-sandbox)。
+完整建议和准确字段见 [安全与沙箱](../self-hosted/security) 与 [配置完整参考](../../developing/configuration#tools-security-与-sandbox)。
 
 ## 何时直接用 SDK 写自定义渠道
 
 DotCraft 内置 5 个常用渠道。需要接入其他平台（Slack、Discord、Lark 私有部署、企业 IM 等）时：
 
-- TypeScript：参考 [TypeScript SDK](../../developing/sdk-typescript.md) 与 [Module 集成契约](../../developing/typescript-module.md)
-- Python：参考 [Python SDK](../../developing/sdk-python.md)
-- 任何语言：直接对接 [AppServer Protocol](../../developing/appserver-protocol.md)
+- TypeScript：参考 [TypeScript SDK](../../developing/sdks/typescript) 与 [Module 集成契约](../../developing/integrations/typescript-module)
+- Python：参考 [Python SDK](../../developing/sdks/python)
+- 任何语言：直接对接 [AppServer Protocol](../../developing/protocols/appserver-protocol)
 
 ## 故障排查
 
@@ -83,8 +83,8 @@ DotCraft 内置 5 个常用渠道。需要接入其他平台（Slack、Discord�
 
 ## 相关入口
 
-- [统一会话核心](../session-core.md)
-- [安全与沙箱](../security.md)
-- [服务器部署](../../developing/server-deployment.md)
-- [TypeScript SDK](../../developing/sdk-typescript.md) · [Python SDK](../../developing/sdk-python.md)
-- [TypeScript Module 集成契约](../../developing/typescript-module.md)
+- [统一会话核心](../../developing/architecture/session-core)
+- [安全与沙箱](../self-hosted/security)
+- [服务器部署](../../developing/lifecycle/server-deployment)
+- [TypeScript SDK](../../developing/sdks/typescript) · [Python SDK](../../developing/sdks/python)
+- [TypeScript Module 集成契约](../../developing/integrations/typescript-module)

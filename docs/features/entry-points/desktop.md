@@ -2,7 +2,7 @@
 
 Desktop is the recommended first entry point for DotCraft. It works as an AppServer client and provides a visual UI for workspaces, sessions, diffs, plans, model configuration, automation review, and runtime status.
 
-For first-time setup, follow [Getting Started](../../getting-started.md) for download, workspace selection, and model configuration. This page focuses on Desktop-specific panels and settings.
+For first-time setup, follow [Getting Started](../../getting-started) for download, workspace selection, and model configuration. This page focuses on Desktop-specific panels and settings.
 
 ## Installation
 
@@ -37,7 +37,7 @@ DotCraft --workspace /path/to/project
 | **Settings → General** | Current workspace path, AppServer binary path, language |
 | **Settings → Personalization** | Long-term memory / Dreams switches, run-now, auto-update, reset memory |
 | **Settings → Model Providers** | Personal providers, credentials, endpoints, workspace provider and model |
-| **Settings → Sub Agents** | Reuse external CLI sessions (see [SubAgents](../subagents.md)) |
+| **Settings → Sub Agents** | Reuse external CLI sessions (see [SubAgents](../agent-system/subagents)) |
 | **Settings → Connection** | Switch between local Hub and remote AppServer |
 
 ### Profile
@@ -54,7 +54,7 @@ DotCraft --workspace /path/to/project
 - **Manage Dreams** — list of recent runs; each opens Dashboard for diff, trace, apply, discard, cancel, archive.
 - **Reset memory** — clear `MEMORY.md`, `HISTORY.md`, `.craft/dreams/`, and derived caches in one click. It does not delete sessions, config, skills, or automations.
 
-See [Memory & Dreams](../memory.md) for the full picture.
+See [Memory & Dreams](../agent-system/memory) for the full picture.
 
 ### Model Providers
 
@@ -102,15 +102,15 @@ Confirm a workspace is selected and the AppServer / `dotcraft` binary can run.
 
 ### Settings changes do not apply
 
-Provider and model selections take effect for new sessions. Existing provider-aware threads keep their captured provider and model unless you explicitly change the active thread's model. AppServer, port, and entry-point settings require restarting Desktop or the background host. See [Settings Lifecycle](../../developing/settings-lifecycle.md).
+Provider and model selections take effect for new sessions. Existing provider-aware threads keep their captured provider and model unless you explicitly change the active thread's model. AppServer, port, and entry-point settings require restarting Desktop or the background host. See [Settings Lifecycle](../../developing/lifecycle/settings-lifecycle).
 
 ### The Automations panel is empty
 
-Use Gateway or a host that loads Automations, and enable the relevant task source. See [Automations](../automations.md).
+Use Gateway or a host that loads Automations, and enable the relevant task source. See [Automations](../agent-system/automations).
 
 ## Related
 
-- [Getting Started](../../getting-started.md)
-- [TUI](./tui.md)
-- [Observability](../observability.md)
-- [Settings Lifecycle](../../developing/settings-lifecycle.md)
+- [Getting Started](../../getting-started)
+- [TUI](./tui)
+- [Observability](../self-hosted/observability)
+- [Settings Lifecycle](../../developing/lifecycle/settings-lifecycle)

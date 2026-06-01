@@ -86,6 +86,6 @@ Use a modern terminal with Unicode and color support; make sure the terminal siz
 
 ## Related
 
-- [Desktop](./desktop.md)
-- [AppServer Mode](../../developing/appserver.md)
-- [Settings Lifecycle](../../developing/settings-lifecycle.md)
+- [Desktop](./desktop)
+- [AppServer Mode](../../developing/lifecycle/appserver)
+- [Settings Lifecycle](../../developing/lifecycle/settings-lifecycle)

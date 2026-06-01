@@ -1,6 +1,6 @@
 # DotCraft 完整配置参考
 
-本页集中列出配置字段、默认值、JSON 示例和高级参考。第一次配置请先读 [项目级工作区](../features/workspace.md)。想理解功能本身时先读对应 Feature 页面，需要准确字段时再回到这里。
+本页集中列出配置字段、默认值、JSON 示例和高级参考。第一次配置请先读 [项目级工作区](../features/project-first)。想理解功能本身时先读对应 Feature 页面，需要准确字段时再回到这里。
 
 DotCraft 先读取全局 `~/.craft/config.json`，再叠加工作区 `.craft/config.json`，工作区字段优先生效。配置字符串支持 `$VAR` 和 `${VAR}` 环境变量占位；变量不存在时保留原始占位符。
 
@@ -465,7 +465,7 @@ MCP 示例：
 
 ## SubAgent 与 External CLI Profiles
 
-入门说明见 [SubAgents](../features/subagents.md)。
+入门说明见 [SubAgents](../features/agent-system/subagents)。
 
 | 配置项 | 说明 | 默认值 |
 |--------|------|--------|

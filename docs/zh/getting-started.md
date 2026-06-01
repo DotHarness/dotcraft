@@ -95,7 +95,7 @@ DotCraft 使用 Provider 注册表管理模型服务。常见方式包括：
 
 已有 ChatGPT Plus / Pro / Team / Business / Enterprise 订阅时，可在初始化向导的 OpenAI 模板里选「使用 ChatGPT 登录」，或在终端运行 `dotcraft auth openai login`，无需 API Key 即可复用订阅。
 
-敏感信息和端点放在全局 `~/.craft/config.json` 的 `Providers` 中；工作区通常只保存 `ProviderId` 和 `Model` 覆盖。需要手动编辑文件时，对应路径是全局 `~/.craft/config.json` 和工作区 `<workspace>/.craft/config.json`。完整字段见 [配置参考](./developing/configuration.md)。
+敏感信息和端点放在全局 `~/.craft/config.json` 的 `Providers` 中；工作区通常只保存 `ProviderId` 和 `Model` 覆盖。需要手动编辑文件时，对应路径是全局 `~/.craft/config.json` 和工作区 `<workspace>/.craft/config.json`。完整字段见 [配置参考](./developing/configuration)。
 
 ### 4. 第一次运行
 
@@ -113,7 +113,7 @@ dotcraft exec "请阅读这个仓库的 README 和 docs/index.md，告诉我这�
 
 已经初始化的工作区中，`dotcraft` 不会进入交互式聊天；终端里的交互体验请使用 TUI。
 
-如果你想使用终端富界面，请继续阅读 [TUI 指南](./features/entry-points/tui.md)。
+如果你想使用终端富界面，请继续阅读 [TUI 指南](./features/entry-points/tui)。
 
 ## 理解入口模型
 
@@ -147,19 +147,19 @@ DotCraft 将不同入口连接到同一个项目级工作空间，由统一会�
 
 | 我想做什么 | 下一步 |
 |------------|--------|
-| 使用图形界面持续协作 | [Desktop](./features/entry-points/desktop.md) |
-| 在终端里使用完整界面 | [TUI](./features/entry-points/tui.md) |
-| 远程或多客户端共享工作区 | [AppServer 模式](./developing/appserver.md) |
-| 接入 IDE 或编辑器 | [IDE / 编辑器（ACP）](./features/entry-points/editors.md) |
-| 构建机器人或外部适配器 | [Channels 与 Bots](./features/entry-points/channels.md) |
-| 运行本地自动化任务 | [Automations 与 Goals](./features/automations.md) |
-| 查看 Trace、工具调用和配置合并结果 | [可观测性](./features/observability.md) |
+| 使用图形界面持续协作 | [Desktop](./features/entry-points/desktop) |
+| 在终端里使用完整界面 | [TUI](./features/entry-points/tui) |
+| 远程或多客户端共享工作区 | [AppServer 模式](./developing/lifecycle/appserver) |
+| 接入 IDE 或编辑器 | [IDE / 编辑器（ACP）](./features/entry-points/editors) |
+| 构建机器人或外部适配器 | [Channels 与 Bots](./features/entry-points/channels) |
+| 运行本地自动化任务 | [Automations 与 Goals](./features/agent-system/automations) |
+| 查看 Trace、工具调用和配置合并结果 | [可观测性](./features/self-hosted/observability) |
 
 ## 继续探索
 
 ### 社交渠道
 
-DotCraft 通过 SDK 扩展集成 Telegram、微信、飞书、QQ、企业微信等社交渠道。详见 [Channels 与 Bots](./features/entry-points/channels.md)、[Python SDK](./developing/sdk-python.md) 与 [TypeScript SDK](./developing/sdk-typescript.md)。
+DotCraft 通过 SDK 扩展集成 Telegram、微信、飞书、QQ、企业微信等社交渠道。详见 [Channels 与 Bots](./features/entry-points/channels)、[Python SDK](./developing/sdks/python) 与 [TypeScript SDK](./developing/sdks/typescript)。
 
 | Telegram（Python SDK） | 微信（TypeScript SDK） |
 |:---:|:---:|
@@ -167,7 +167,7 @@ DotCraft 通过 SDK 扩展集成 Telegram、微信、飞书、QQ、企业微信�
 
 ### Automations
 
-Automations 适合运行本地工作区任务。更多调度、线程绑定、模板、Goals 和重试流程见 [Automations 与 Goals](./features/automations.md)。
+Automations 适合运行本地工作区任务。更多调度、线程绑定、模板、Goals 和重试流程见 [Automations 与 Goals](./features/agent-system/automations)。
 
 | Desktop 自动化面板 |
 |:---:|
@@ -175,7 +175,7 @@ Automations 适合运行本地工作区任务。更多调度、线程绑定、�
 
 ### Dashboard
 
-Dashboard 是 DotCraft 的可视化观察与配置入口，用于查看会话、追踪调用和编辑工作区设置。详见 [可观测性](./features/observability.md)。
+Dashboard 是 DotCraft 的可视化观察与配置入口，用于查看会话、追踪调用和编辑工作区设置。详见 [可观测性](./features/self-hosted/observability)。
 
 | 用量与会话概览 | 会话追踪 |
 |:---:|:---:|
@@ -183,10 +183,10 @@ Dashboard 是 DotCraft 的可视化观察与配置入口，用于查看会话、
 
 ## 进阶
 
-- 使用 [Hooks](./features/security.md#hooks) 在生命周期事件中执行脚本。
-- 使用 [安全与沙箱](./features/security.md) 限制文件、Shell 和网络能力。
-- 使用 [示例与模板](./resources/samples.md) 验证完整工作区模板。
-- 想从架构角度了解，跳到 [架构总览](./developing/architecture.md)。
+- 使用 [Hooks](./features/self-hosted/security#hooks) 在生命周期事件中执行脚本。
+- 使用 [安全与沙箱](./features/self-hosted/security) 限制文件、Shell 和网络能力。
+- 使用 [示例与模板](./resources/samples) 验证完整工作区模板。
+- 想从架构角度了解，跳到 [架构总览](./developing/architecture/overview)。
 
 ## 故障排查
 

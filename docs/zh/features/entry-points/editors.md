@@ -27,7 +27,7 @@ cd <你的项目目录>
 dotcraft setup
 ```
 
-按提示填写 provider / model / api-key 即可。完整字段可见 [配置完整参考](../../developing/configuration.md)；其余支持的 setup 参数可通过 `dotcraft setup --help` 查看。
+按提示填写 provider / model / api-key 即可。完整字段可见 [配置完整参考](../../developing/configuration)；其余支持的 setup 参数可通过 `dotcraft setup --help` 查看。
 
 DotCraft 初始化完成后，工作区即可供 ACP、TUI、Desktop 或自动化入口使用。
 
@@ -163,6 +163,6 @@ ACP 作为完整的 AppServer 客户端工作。通过编辑器创建的会话�
 
 ## 相关入口
 
-- [Desktop](./desktop.md) — 图形界面 + ACP 同后台
-- [AppServer 模式](../../developing/appserver.md) — 远程或多客户端
-- [统一会话核心](../session-core.md) — Thread / Turn / Item 模型与 ACP 桥接关系
+- [Desktop](./desktop) — 图形界面 + ACP 同后台
+- [AppServer 模式](../../developing/lifecycle/appserver) — 远程或多客户端
+- [统一会话核心](../../developing/architecture/session-core) — Thread / Turn / Item 模型与 ACP 桥接关系
