@@ -132,6 +132,7 @@ internal sealed class AppServerTestHarness : IDisposable
         bool streamingSupport = true,
         bool toolExecutionLifecycle = false,
         bool requestUserInputSupport = false,
+        bool backgroundTerminals = false,
         bool? configChange = null,
         List<string>? optOutMethods = null,
         bool nodeReplBrowserUse = false,
@@ -143,6 +144,7 @@ internal sealed class AppServerTestHarness : IDisposable
             streamingSupport,
             toolExecutionLifecycle,
             requestUserInputSupport,
+            backgroundTerminals,
             configChange,
             optOutNotificationMethods = optOutMethods ?? [],
             nodeRepl = nodeReplBrowserUse

@@ -23,6 +23,8 @@ internal sealed class CommandExecutionTracker
         _emitItemCompleted = emitItemCompleted;
     }
 
+    public string? CallId => _item.AsCommandExecution?.CallId;
+
     public static CommandExecutionTracker? Begin(string command, string workingDirectory, string source)
     {
         var runtime = CommandExecutionRuntimeScope.Current;

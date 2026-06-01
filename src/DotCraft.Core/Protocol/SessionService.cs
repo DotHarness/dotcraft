@@ -4055,9 +4055,6 @@ Choose the next concrete action that advances the goal. Before doing substantial
         bool supportsCommandExecutionStreaming,
         string defaultWorkspacePath)
     {
-        if (!supportsCommandExecutionStreaming)
-            return;
-
         if (!string.Equals(functionCall.Name, "Exec", StringComparison.Ordinal))
             return;
 
@@ -4077,6 +4074,17 @@ Choose the next concrete action that advances the goal. Before doing substantial
         workingDirectory = !string.IsNullOrWhiteSpace(workingDirectory)
             ? Path.GetFullPath(workingDirectory)
             : defaultWorkspacePath;
+
+        runtime.RegisterPendingShellExecution(new PendingShellExecutionRegistration
+        {
+            CallId = functionCall.CallId,
+            Command = command,
+            WorkingDirectory = workingDirectory,
+            Source = "host"
+        });
+
+        if (!supportsCommandExecutionStreaming)
+            return;
 
         var item = new SessionItem
         {

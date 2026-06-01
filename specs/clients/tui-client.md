@@ -240,6 +240,9 @@ The TUI sends the following during `initialize`:
     "approvalSupport": true,
     "requestUserInputSupport": true,
     "streamingSupport": true,
+    "commandExecutionStreaming": true,
+    "toolExecutionLifecycle": true,
+    "backgroundTerminals": true,
     "optOutNotificationMethods": []
   }
 }
@@ -272,10 +275,14 @@ This section defines how Wire Protocol notifications and server-initiated reques
 | `item/agentMessage/delta` | Append `delta` to `active_streaming.message_buffer`. |
 | `item/reasoning/delta` | Append `delta` to `active_streaming.reasoning_buffer`. Set `active_streaming.is_reasoning = true`. |
 | `item/toolCall/argumentsDelta` | Append `delta` to matching `ActiveToolCall.arguments` (prefer matching by `callId`; fallback to latest unfinished tool call). Used for progressive argument preview rendering. The TUI renders a bespoke running label for each known built-in tool (`WriteFile`, `EditFile`, `ReadFile`, `GrepFiles`, `Exec`, `CreatePlan`, `WebSearch`, LSP tools, etc.) extracted tolerantly from the partial JSON, and falls back to a generic `Generating parameters for <toolName>...` label for unknown tools without leaking raw JSON to the user. |
+| `terminal/started`, `terminal/outputDelta`, `terminal/completed` | Merge shell output/status by `terminal.callId` into the active `Exec` row and matching committed history entry. This is the primary live shell output path when `backgroundTerminals = true`. |
+| `item/commandExecution/outputDelta` | Compatibility fallback. Append to matching active command execution and merge into the `Exec` row only when the terminal notification path is unavailable. |
 | `item/completed` (type: `agentMessage`) | Finalize: move `active_streaming.message_buffer` to a `HistoryEntry::AgentMessage`. |
 | `item/completed` (type: `toolResult`) | Mark matching `ActiveToolCall` as completed. Set `duration = Instant::now() - started_at`. Store result summary. |
 | `item/approval/resolved` | Clear `pending_approval`. Resume normal rendering. |
 | `item/tool/requestUserInput/resolved` | Clear `pending_user_input`. Resume normal rendering. |
+
+When `terminal.backgroundReason = "runInBackground"`, TUI does not keep appending subsequent process output to the inline foreground `Exec` row. The inline row may show the returned session/status/final summary through normal tool completion, while background terminal views own ongoing output.
 
 ### 6.3 SubAgent Progress
 

@@ -254,13 +254,15 @@ public sealed class ShellTools
         {
             commandExecution ??= CommandExecutionTracker.Begin(command, cwd, source: "host");
             var runtime = CommandExecutionRuntimeScope.Current;
+            var shellExecution = runtime?.TryClaimPendingShellExecution(command, cwd);
             var snapshot = await _backgroundTerminals!.StartAsync(new BackgroundTerminalStartRequest
             {
                 ThreadId = runtime?.ThreadId ?? "workspace",
                 TurnId = runtime?.TurnId,
+                CallId = shellExecution?.CallId ?? commandExecution?.CallId,
                 Command = command,
                 WorkingDirectory = cwd,
-                Source = "host",
+                Source = shellExecution?.Source ?? "host",
                 RunInBackground = runInBackground,
                 Interactive = interactive,
                 Shell = shell,

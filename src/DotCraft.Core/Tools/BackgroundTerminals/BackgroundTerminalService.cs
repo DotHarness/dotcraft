@@ -683,7 +683,7 @@ public sealed class BackgroundTerminalService : IBackgroundTerminalService, IAsy
                 WallTimeMs = (long)Math.Max(0, ((completedAt ?? DateTimeOffset.UtcNow) - StartedAt).TotalMilliseconds),
                 OriginalOutputChars = original,
                 Truncated = truncated,
-                BackgroundReason = backgroundReason
+                BackgroundReason = backgroundReason ?? (Request.RunInBackground ? "runInBackground" : null)
             };
         }
 

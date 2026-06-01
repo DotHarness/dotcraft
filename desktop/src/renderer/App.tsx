@@ -1500,6 +1500,28 @@ export function App(): JSX.Element {
             break
           }
 
+          case 'terminal/started':
+          case 'terminal/outputDelta':
+          case 'terminal/completed':
+          case 'terminal/stalled':
+          case 'terminal/cleaned': {
+            const terminal = (p.terminal ?? {}) as Record<string, unknown>
+            const tid = (terminal.threadId as string | undefined) ?? ''
+            const params = {
+              event: method,
+              terminal,
+              delta: (p.delta as string | undefined)
+            }
+            if (shouldUpdateActiveConversation(tid)) {
+              conv.onTerminalEvent(params)
+            }
+            if (shouldUpdateReviewThread(tid)) {
+              const rs = useReviewPanelStore.getState()
+              rs.onTerminalEvent(params)
+            }
+            break
+          }
+
           case 'item/toolCall/argumentsDelta': {
             const tid = (p.threadId as string | undefined) ?? ''
             if (shouldUpdateActiveConversation(tid)) {

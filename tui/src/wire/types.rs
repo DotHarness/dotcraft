@@ -63,6 +63,7 @@ pub struct ClientCapabilities {
     pub streaming_support: bool,
     pub command_execution_streaming: bool,
     pub tool_execution_lifecycle: bool,
+    pub background_terminals: bool,
     pub opt_out_notification_methods: Vec<String>,
 }
 
@@ -250,6 +251,7 @@ mod tests {
             streaming_support: true,
             command_execution_streaming: true,
             tool_execution_lifecycle: true,
+            background_terminals: true,
             opt_out_notification_methods: vec![],
         };
 
@@ -261,6 +263,10 @@ mod tests {
         );
         assert_eq!(
             json.get("toolExecutionLifecycle").and_then(|v| v.as_bool()),
+            Some(true)
+        );
+        assert_eq!(
+            json.get("backgroundTerminals").and_then(|v| v.as_bool()),
             Some(true)
         );
     }

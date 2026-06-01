@@ -297,7 +297,7 @@ Fields:
   - `UserMessage` — User's input text.
   - `AgentMessage` — Agent's response text (may be streamed incrementally).
   - `ReasoningContent` — Agent's internal reasoning/thinking (if exposed by the model).
-  - `CommandExecution` — Server-observed shell execution stream for `Exec`-style tools. Payload includes command metadata and aggregated output.
+  - `CommandExecution` — Server-observed shell execution projection for `Exec`-style tools. Payload includes command metadata and aggregated output for persistence, history summaries, and non-terminal-capable fallback rendering.
   - `ToolExecution` — Server-observed runtime lifecycle for a normal tool invocation. Payload includes call id, tool name, status, duration, and optional preview/error text.
   - `ToolCall` — Agent invokes a tool. Payload includes tool name and arguments.
   - `PluginFunctionCall` — Agent invokes a Plugin Function. Payload includes plugin identity, function name, arguments, content items, structured result, and success/failure metadata. Plugin-backed tools do not create companion `ToolResult` items.
@@ -511,6 +511,11 @@ When an `Exec`-style tool returns while its process is still alive, the
 `CommandExecution` Item is completed with `status = "backgrounded"`. Later
 process lifecycle changes are represented by the background terminal runtime,
 not by appending deltas to an already completed Turn.
+
+Terminal-capable AppServer clients consume live shell process output from
+`terminal/*` notifications. `CommandExecution` remains the persisted observable
+summary and compatibility projection; clients that consume both paths merge by
+`callId` and avoid rendering duplicate output.
 
 #### ApprovalRequest
 
@@ -1426,7 +1431,7 @@ All failures surface as:
 - `turn/started` emitted on `SubmitInput`
 - `item/started` emitted for each Item creation
 - `item/delta` emitted for streaming AgentMessage content
-- `item/delta` emitted for streaming CommandExecution output when shell streaming is enabled
+- `item/delta` emitted for CommandExecution compatibility output when shell streaming is enabled
 - `item/completed` emitted when Item is finalized
 - `turn/completed` emitted after all Items are complete
 - `turn/failed` emitted on error
@@ -1713,7 +1718,7 @@ QQ and WeCom use `ActiveRunRegistry` to track and cancel in-flight runs. Under S
 
 Bidirectional capabilities are outside the session model.
 
-The Session Protocol models conversation state and turn execution. It does not model transport-specific request/response features such as IDE filesystem access, terminal control, extension calls, or API-specific REST flows. Those remain tool- or channel-level concerns. Background terminals follow the same boundary: Session Core records the observable `CommandExecution` Item for the originating tool call. The model-facing shell surface stays minimal (`Exec` plus `WriteStdin`, where empty stdin polls output); terminal listing, direct reads, stopping, and cleanup are AppServer/control-plane capabilities.
+The Session Protocol models conversation state and turn execution. It does not model transport-specific request/response features such as IDE filesystem access, terminal control, extension calls, or API-specific REST flows. Those remain tool- or channel-level concerns. Background terminals follow the same boundary: Session Core records the observable `CommandExecution` Item for the originating tool call, while AppServer exposes live terminal snapshots and output deltas to terminal-capable clients. The model-facing shell surface stays minimal (`Exec` plus `WriteStdin`, where empty stdin polls output); terminal listing, direct reads, stopping, and cleanup are AppServer/control-plane capabilities.
 
 The design rule is simple:
 
