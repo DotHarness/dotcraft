@@ -128,6 +128,27 @@ public sealed class DeepThinkingChatClientTests
         Assert.Equal("enabled", document.RootElement.GetProperty("thinking").GetProperty("type").GetString());
     }
 
+    [Fact]
+    public void Prepare_ExplicitOnlyWithoutRequestReasoningDoesNotAddDeepThinkingOption()
+    {
+        var client = new DeepThinkingChatClient(
+            new CaptureChatClient(),
+            new AppConfig
+            {
+                Model = "mimo-v2.5-pro",
+                Reasoning = new AppConfig.ReasoningConfig { Enabled = true }
+            },
+            "mimo-v2.5-pro",
+            "https://api.openai-compatible.test/v1",
+            useDefaultReasoning: false);
+        var options = new ChatOptions { ModelId = "mimo-v2.5-pro" };
+
+        var prepared = client.Prepare([new ChatMessage(ChatRole.User, "hello")], options);
+
+        Assert.Same(options, prepared.Options);
+        Assert.Null(prepared.Options!.RawRepresentationFactory);
+    }
+
     private static DeepThinkingChatClient CreateClient(
         string endpoint,
         string model,

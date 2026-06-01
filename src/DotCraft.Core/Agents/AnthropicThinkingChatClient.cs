@@ -14,7 +14,8 @@ internal sealed class AnthropicThinkingChatClient(
     string? model,
     string? endpoint,
     int? defaultMaxOutputTokens = null,
-    AppConfig.ReasoningConfig? reasoningConfig = null)
+    AppConfig.ReasoningConfig? reasoningConfig = null,
+    bool useDefaultReasoning = true)
     : DelegatingChatClient(innerClient)
 {
     private const string FromReasoningEffort = "fromReasoningEffort";
@@ -23,6 +24,7 @@ internal sealed class AnthropicThinkingChatClient(
     private readonly ModelThinkingAdapterCatalog.AnthropicThinkingAdapterData? _adapter =
         ModelThinkingAdapterCatalog.ResolveAnthropicThinkingAdapter(config, endpoint, model);
     private readonly AppConfig.ReasoningConfig _reasoningConfig = reasoningConfig ?? config.Reasoning;
+    private readonly bool _useDefaultReasoning = useDefaultReasoning;
     private readonly string? _model = string.IsNullOrWhiteSpace(model) ? null : model.Trim();
     private readonly int _defaultMaxOutputTokens =
         defaultMaxOutputTokens is > 0 ? defaultMaxOutputTokens.Value : AnthropicClientProvider.DefaultMaxOutputTokens;
@@ -46,7 +48,7 @@ internal sealed class AnthropicThinkingChatClient(
 
     internal ChatOptions? PrepareOptions(ChatOptions? options)
     {
-        var reasoning = options?.Reasoning ?? _reasoningConfig.ToOptions();
+        var reasoning = options?.Reasoning ?? (_useDefaultReasoning ? _reasoningConfig.ToOptions() : null);
         if (_adapter == null || reasoning == null)
             return options;
 

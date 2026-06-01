@@ -1,3 +1,9 @@
+using System.Net;
+using System.Text;
+using System.Text.Json;
+using Anthropic;
+using DotCraft.Agents;
+using DotCraft.Configuration;
 using DotCraft.Context;
 using DotCraft.Memory;
 using DotCraft.Tools;
@@ -66,6 +72,60 @@ public sealed class MemoryForkConsolidatorTests : IDisposable
         Assert.DoesNotContain("## Current MEMORY.md", chatClient.Messages[^1].Text);
         Assert.DoesNotContain("## Completed conversation snapshot", chatClient.Messages[^1].Text);
         Assert.DoesNotContain("remember blue", chatClient.Messages[^1].Text);
+    }
+
+    [Fact]
+    public async Task ConsolidateAsync_WithAnthropicSameModelSnapshotSerializesAdaptiveThinking()
+    {
+        var handler = new AnthropicCaptureHandler("""{"status":"unchanged"}""");
+        var anthropicClient = new AnthropicClient
+        {
+            HttpClient = new HttpClient(handler) { BaseAddress = new Uri("http://localhost") },
+            ApiKey = "test-key"
+        };
+        var config = new AppConfig
+        {
+            Model = "claude-opus-4-8",
+            Reasoning = new AppConfig.ReasoningConfig
+            {
+                Enabled = true,
+                Effort = ReasoningEffort.High,
+                Output = ReasoningOutput.Full
+            }
+        };
+        var chatClient = ProviderChatClientAdapters.CreateRequestAdaptedClient(
+            anthropicClient.AsIChatClient("claude-opus-4-8"),
+            config,
+            Runtime(ModelProviderProtocols.Anthropic, "claude-opus-4-8"),
+            useDefaultReasoning: false);
+        var memoryStore = new MemoryStore(_tempDir);
+        var legacy = new FakeMemoryConsolidator(MemoryConsolidationResult.Skipped("legacy_fallback"));
+        var consolidator = new MemoryForkConsolidator(
+            new MaintenanceForkRunner(chatClient),
+            legacy,
+            memoryStore,
+            mainModelId: "claude-opus-4-8",
+            consolidationModelId: "claude-opus-4-8",
+            workspaceRoot: _tempDir);
+        var snapshot = PromptRequestSnapshot.Capture(
+            [new ChatMessage(ChatRole.User, "remember blue")],
+            new ChatOptions
+            {
+                Instructions = "stable base",
+                ModelId = "claude-opus-4-8",
+                Reasoning = config.Reasoning.ToOptions()
+            });
+
+        await consolidator.ConsolidateAsync(
+            [new ChatMessage(ChatRole.User, "remember blue")],
+            snapshot);
+
+        Assert.NotNull(handler.LastRequestJson);
+        using var document = JsonDocument.Parse(handler.LastRequestJson!);
+        var root = document.RootElement;
+        Assert.Equal("adaptive", root.GetProperty("thinking").GetProperty("type").GetString());
+        Assert.False(root.GetProperty("thinking").TryGetProperty("budget_tokens", out _));
+        Assert.Equal("high", root.GetProperty("output_config").GetProperty("effort").GetString());
     }
 
     [Fact]
@@ -317,6 +377,19 @@ public sealed class MemoryForkConsolidatorTests : IDisposable
         ];
     }
 
+    private static EffectiveModelRuntime Runtime(string protocol, string model) =>
+        new(
+            ProviderId: protocol,
+            Model: model,
+            Protocol: protocol,
+            DisplayName: protocol,
+            ApiKey: "test-key",
+            EndPoint: "http://localhost",
+            NetworkTimeoutSeconds: 60,
+            MaxOutputTokens: 64_000,
+            IsImplicit: false,
+            Capabilities: ModelProviderCapabilities.ForProtocol(protocol));
+
     private sealed class FakeMemoryConsolidator(MemoryConsolidationResult result) : IMemoryConsolidator
     {
         public int Calls { get; private set; }
@@ -362,6 +435,41 @@ public sealed class MemoryForkConsolidatorTests : IDisposable
 
         public void Dispose()
         {
+        }
+    }
+
+    private sealed class AnthropicCaptureHandler(string responseText) : HttpMessageHandler
+    {
+        public string? LastRequestJson { get; private set; }
+
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            LastRequestJson = await request.Content!.ReadAsStringAsync(cancellationToken);
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(
+                    $$"""
+                    {
+                        "id": "msg_memory_test",
+                        "type": "message",
+                        "role": "assistant",
+                        "model": "claude-opus-4-8",
+                        "content": [{
+                            "type": "text",
+                            "text": {{JsonSerializer.Serialize(responseText)}}
+                        }],
+                        "stop_reason": "end_turn",
+                        "usage": {
+                            "input_tokens": 10,
+                            "output_tokens": 1
+                        }
+                    }
+                    """,
+                    Encoding.UTF8,
+                    "application/json")
+            };
         }
     }
 

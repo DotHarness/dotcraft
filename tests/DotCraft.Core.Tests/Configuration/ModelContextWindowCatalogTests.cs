@@ -93,6 +93,12 @@ public sealed class ModelContextWindowCatalogTests : IDisposable
     }
 
     [Fact]
+    public void Resolve_UsesBuiltInClaudeOpusCatalogThroughProviderPrefixes()
+    {
+        Assert.Equal(1_000_000, ModelContextWindowCatalog.Resolve("provider/claude-opus-4-8"));
+    }
+
+    [Fact]
     public void ResolveCompactionConfig_UsesEffectiveModel_WhenContextWindowIsInferred()
     {
         var config = new AppConfig
