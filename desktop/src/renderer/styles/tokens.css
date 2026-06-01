@@ -1253,7 +1253,70 @@ kbd {
   animation: logo-handoff-move 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
+/* ── Profile token-activity heatmap entrance ──────────────────────────────
+   Cells pop in as a staggered left→right "wave" when the heatmap mounts (the
+   Profile tab remounts it on open). Per-cell `animation-delay` is set inline
+   from grid position in TokenActivityHeatmap.tsx; `fill` transitions so
+   switching daily/weekly/cumulative recolors smoothly without re-running. */
+.heatmap-root {
+  animation: heatmap-root-enter 360ms ease-out both;
+}
+
+.heatmap-cell {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: fill 240ms ease;
+  animation: heatmap-cell-pop 380ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.heatmap-month-label {
+  animation: heatmap-month-label-in 320ms ease-out both;
+}
+
+@keyframes heatmap-root-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes heatmap-cell-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.35);
+  }
+  60% {
+    opacity: 1;
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes heatmap-month-label-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .heatmap-root,
+  .heatmap-cell,
+  .heatmap-month-label {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+
   .dotcraft-automation-viewer-tab {
     animation: none !important;
   }

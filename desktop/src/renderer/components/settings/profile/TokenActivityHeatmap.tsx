@@ -21,6 +21,17 @@ const LABEL_HEIGHT = 16
 /** Intrinsic pixel width of the heatmap grid; used to align the section header (tabs) to it. */
 export const HEATMAP_WIDTH = WEEKS * STEP - GAP
 
+// Entrance reveal: cells pop in as a left→right "wave", staggered by grid
+// position. Delay = col * COL_STEP + row * ROW_STEP (ms). The keyframes,
+// duration, easing, and reduced-motion fallback live in `styles/tokens.css`
+// (`.heatmap-cell` / `.heatmap-month-label`). The reveal runs once on mount —
+// opening the Profile tab remounts this component — and recolors via a `fill`
+// transition when the mode changes without re-running.
+const ENTER_COL_STEP = 11
+const ENTER_ROW_STEP = 7
+/** Month labels fade in just after the wave reaches their column. */
+const ENTER_LABEL_OFFSET = 76
+
 /** Local YYYY-MM-DD, matching the server's local-day bucketing (spec §27A.3). */
 function localKey(d: Date): string {
   const y = d.getFullYear()
@@ -41,6 +52,9 @@ interface Cell {
   key: string
   x: number
   y: number
+  /** Grid column/row, driving the entrance stagger delay. */
+  col: number
+  row: number
   /** The per-day token total (always the raw daily value). */
   dayTokens: number
   /** The value driving the cell color, depends on the active mode. */
@@ -105,7 +119,7 @@ export function TokenActivityHeatmap({ days, mode }: TokenActivityHeatmapProps):
           if (c !== undefined) lastCumulative = c
           intensityValue = lastCumulative
         }
-        grid.push({ key, x: w * STEP, y: r * STEP, dayTokens, intensityValue })
+        grid.push({ key, x: w * STEP, y: r * STEP, col: w, row: r, dayTokens, intensityValue })
       }
     }
 
@@ -113,14 +127,14 @@ export function TokenActivityHeatmap({ days, mode }: TokenActivityHeatmapProps):
 
     // Month labels: place one at each column where the month changes.
     const monthFmt = new Intl.DateTimeFormat(locale, { month: 'short' })
-    const labels: Array<{ x: number; text: string }> = []
+    const labels: Array<{ x: number; col: number; text: string }> = []
     let lastMonth = -1
     for (let w = 0; w < WEEKS; w++) {
       const colDate = addDays(gridStart, w * 7)
       if (colDate > today) break
       const month = colDate.getMonth()
       if (month !== lastMonth) {
-        labels.push({ x: w * STEP, text: monthFmt.format(colDate) })
+        labels.push({ x: w * STEP, col: w, text: monthFmt.format(colDate) })
         lastMonth = month
       }
     }
@@ -138,7 +152,7 @@ export function TokenActivityHeatmap({ days, mode }: TokenActivityHeatmapProps):
   }
 
   return (
-    <div style={{ overflowX: 'auto', paddingBottom: '2px' }}>
+    <div className="heatmap-root" style={{ overflowX: 'auto', paddingBottom: '2px' }}>
       <svg
         width={width}
         height={height + LABEL_HEIGHT}
@@ -158,6 +172,8 @@ export function TokenActivityHeatmap({ days, mode }: TokenActivityHeatmapProps):
             rx={2}
             ry={2}
             fill={levelColor(intensityLevel(cell.intensityValue, maxIntensity))}
+            className="heatmap-cell"
+            style={{ animationDelay: `${cell.col * ENTER_COL_STEP + cell.row * ENTER_ROW_STEP}ms` }}
             onMouseEnter={(e) => showTip(e, cell)}
             onMouseLeave={() => setTip(null)}
           />
@@ -169,6 +185,8 @@ export function TokenActivityHeatmap({ days, mode }: TokenActivityHeatmapProps):
             y={height + LABEL_HEIGHT - 4}
             fontSize={10}
             fill="var(--text-dimmed)"
+            className="heatmap-month-label"
+            style={{ animationDelay: `${label.col * ENTER_COL_STEP + ENTER_LABEL_OFFSET}ms` }}
           >
             {label.text}
           </text>
