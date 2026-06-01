@@ -42,6 +42,7 @@ export type {
   ResumeThreadOptions,
   RunInput,
   RunOptions,
+  RuntimeAdditionalContextEntry,
   SenderContext,
   SessionIdentity,
   StartThreadOptions,

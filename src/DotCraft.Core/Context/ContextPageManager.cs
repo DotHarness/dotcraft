@@ -219,4 +219,7 @@ public static class ContextPageKeys
 
     public static ContextPageKey AppContextBlocks() =>
         new("appBinding", "contextBlocks", "");
+
+    public static ContextPageKey RuntimeAdditionalContext() =>
+        new("runtime", "additionalContext", "");
 }

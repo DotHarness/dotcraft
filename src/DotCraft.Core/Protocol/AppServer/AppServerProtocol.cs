@@ -561,6 +561,12 @@ public sealed class AppServerServerCapabilities
     public bool DynamicToolRebind { get; set; }
 
     /// <summary>
+    /// Server supports thread-bound runtime context supplied by the AppServer client.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool RuntimeAdditionalContext { get; set; }
+
+    /// <summary>
     /// Server supports App Binding methods (<c>app/*</c> and <c>thread/appBindings/*</c>).
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -758,6 +764,9 @@ public sealed class ThreadStartParams
     public List<DynamicToolSpec>? DynamicTools { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Dictionary<string, RuntimeAdditionalContextEntry>? AdditionalContext { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? HistoryMode { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -772,6 +781,21 @@ public sealed class ThreadResumeParams
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<DynamicToolSpec>? DynamicTools { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Dictionary<string, RuntimeAdditionalContextEntry>? AdditionalContext { get; set; }
+}
+
+public static class RuntimeAdditionalContextKinds
+{
+    public const string Application = "application";
+}
+
+public sealed class RuntimeAdditionalContextEntry
+{
+    public string Kind { get; set; } = RuntimeAdditionalContextKinds.Application;
+
+    public string Value { get; set; } = string.Empty;
 }
 
 // ───── thread/list ─────

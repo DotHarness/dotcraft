@@ -365,7 +365,7 @@ Leader synthesis rules:
 
 ## 5. App Context Blocks
 
-App Context Blocks are binding-scoped, persisted in App Binding state, and rendered by DotCraft's context framework into a fixed `App Context` system prompt section.
+App Context Blocks are binding-scoped, persisted in App Binding state, and rendered by DotCraft's context framework into a fixed `App Context` system prompt section. Model-visible block content is wrapped in the shared `<app-context>` tag.
 
 Required fields:
 

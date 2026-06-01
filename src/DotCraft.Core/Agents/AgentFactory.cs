@@ -514,7 +514,6 @@ public sealed class AgentFactory : IAsyncDisposable
                     .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
                     .ToArray();
             }
-
             var skillVariantModeEnabled = string.Equals(
                 ctx.Config.Skills.SelfLearning.VariantMode,
                 "enabled",

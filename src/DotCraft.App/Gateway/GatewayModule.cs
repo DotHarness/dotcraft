@@ -1,4 +1,5 @@
 using DotCraft.Abstractions;
+using DotCraft.AppServer;
 using DotCraft.AppBinding;
 using DotCraft.Automations;
 using DotCraft.Configuration;
@@ -33,8 +34,10 @@ public sealed partial class GatewayModule : ModuleBase
         services.TryAddSingleton<ExternalChannelRegistry>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IThreadPluginFunctionProvider, ExternalChannelToolProvider>());
         services.TryAddSingleton<AppBindingService>();
+        services.TryAddSingleton<WireRuntimeAdditionalContextProvider>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IThreadRuntimeToolProvider, WireDynamicToolProxy>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IThreadRuntimeToolProvider, AppBindingRuntimeToolProvider>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IThreadSystemPromptContextProvider, WireRuntimeAdditionalContextSystemPromptProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IThreadSystemPromptContextProvider, AppBindingThreadSystemPromptContextProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IThreadRuntimeToolProvider, ThreadPluginFunctionToolProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IAppServerProtocolExtension, AppBindingProtocolExtension>());

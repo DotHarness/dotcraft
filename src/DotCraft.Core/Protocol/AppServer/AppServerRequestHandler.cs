@@ -76,7 +76,8 @@ public sealed class AppServerRequestHandler(
     AppBindingService? appBindingService = null,
     PlanStore? planStore = null,
     TraceStore? traceStore = null,
-    IReadOnlyList<string>? builtInPluginSourceRoots = null)
+    IReadOnlyList<string>? builtInPluginSourceRoots = null,
+    WireRuntimeAdditionalContextProvider? wireRuntimeAdditionalContextProvider = null)
 {
     private const string AppBindingAppListUpdatedNotification = "app/list/updated";
     private const string AppBindingThreadBindingsChangedNotification = "thread/appBindings/changed";
@@ -397,6 +398,7 @@ public sealed class AppServerRequestHandler(
             ManualCompaction = true,
             ManualMemoryConsolidation = memoryStore != null,
             DynamicToolRebind = wireDynamicToolProxy != null,
+            RuntimeAdditionalContext = wireRuntimeAdditionalContextProvider != null,
             ThreadMaintenanceInterrupt = true,
             ApprovalFlow = true,
             RequestUserInput = true,
@@ -464,6 +466,10 @@ public sealed class AppServerRequestHandler(
         var p = GetParams<ThreadStartParams>(msg);
         if (!WireDynamicToolProxy.TryValidateSpecs(p.DynamicTools, out var dynamicToolError))
             throw AppServerErrors.InvalidParams(dynamicToolError);
+        if (!WireRuntimeAdditionalContextProvider.TryValidateAdditionalContext(p.AdditionalContext, out var additionalContextError))
+            throw AppServerErrors.InvalidParams(additionalContextError);
+        if (p.AdditionalContext != null && wireRuntimeAdditionalContextProvider == null)
+            throw AppServerErrors.InvalidParams("additionalContext is not supported by this AppServer host.");
 
         var identity = NormalizeIdentityWorkspace(p.Identity);
 
@@ -502,6 +508,12 @@ public sealed class AppServerRequestHandler(
             shouldRefreshAgent = true;
         }
 
+        if (wireRuntimeAdditionalContextProvider?.BindThread(thread.Id, transport, connection, p.AdditionalContext) == true)
+        {
+            contextPageManager?.ReleaseStablePage(thread.Id, ContextPageKeys.RuntimeAdditionalContext());
+            shouldRefreshAgent = true;
+        }
+
         if (shouldRefreshAgent && sessionService is IThreadAgentRefreshService refreshService)
             await refreshService.RefreshThreadAgentAsync(thread.Id, ct);
 
@@ -527,6 +539,10 @@ public sealed class AppServerRequestHandler(
         var p = GetParams<ThreadResumeParams>(msg);
         if (!WireDynamicToolProxy.TryValidateSpecs(p.DynamicTools, out var dynamicToolError))
             throw AppServerErrors.InvalidParams(dynamicToolError);
+        if (!WireRuntimeAdditionalContextProvider.TryValidateAdditionalContext(p.AdditionalContext, out var additionalContextError))
+            throw AppServerErrors.InvalidParams(additionalContextError);
+        if (p.AdditionalContext != null && wireRuntimeAdditionalContextProvider == null)
+            throw AppServerErrors.InvalidParams("additionalContext is not supported by this AppServer host.");
 
         var thread = await sessionService.ResumeThreadAsync(p.ThreadId, ct);
 
@@ -542,6 +558,12 @@ public sealed class AppServerRequestHandler(
         if (p.DynamicTools is { Count: > 0 } && wireDynamicToolProxy != null)
         {
             wireDynamicToolProxy.BindThread(thread.Id, transport, connection, p.DynamicTools);
+            shouldRefreshAgent = true;
+        }
+
+        if (wireRuntimeAdditionalContextProvider?.BindThread(thread.Id, transport, connection, p.AdditionalContext) == true)
+        {
+            contextPageManager?.ReleaseStablePage(thread.Id, ContextPageKeys.RuntimeAdditionalContext());
             shouldRefreshAgent = true;
         }
 

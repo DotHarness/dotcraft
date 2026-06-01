@@ -874,7 +874,7 @@ If no handler is registered, high-level clients should default to `accept` for c
 
 ### 14.3 Dynamic Tool Handler
 
-Runtime dynamic tools are declared on `thread/start.dynamicTools` or `thread/resume.dynamicTools`.
+Runtime dynamic tools are declared on `thread/start.dynamicTools` or `thread/resume.dynamicTools`. Clients may also pass thread-bound runtime app context through `additionalContext?: Record<string, { kind: "application"; value: string }>` on start/resume options when the server advertises `runtimeAdditionalContext`; an empty object on resume clears that context.
 
 Handler:
 

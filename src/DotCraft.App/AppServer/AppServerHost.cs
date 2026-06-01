@@ -7,6 +7,7 @@ using DotCraft.AppBinding;
 using Microsoft.Extensions.Logging;
 using DotCraft.Common;
 using DotCraft.Configuration;
+using DotCraft.Context;
 using DotCraft.Cron;
 using DotCraft.Heartbeat;
 using DotCraft.Text;
@@ -271,7 +272,8 @@ public sealed class AppServerHost(
             dreamsService: _runtime.DreamsService,
             appBindingService: _services.GetService<AppBindingService>(),
             planStore: _runtime.PlanStore,
-            traceStore: _services.GetService<TraceStore>());
+            traceStore: _services.GetService<TraceStore>(),
+            wireRuntimeAdditionalContextProvider: _services.GetService<WireRuntimeAdditionalContextProvider>());
     }
 
     // -------------------------------------------------------------------------
@@ -292,7 +294,7 @@ public sealed class AppServerHost(
 
         try
         {
-            await RunLoopAsync(transport, connection, handler, _runtime.WireAcpExtensionProxy, _runtime.WireNodeReplProxy, _runtime.WireDynamicToolProxy, cancellationToken);
+            await RunLoopAsync(transport, connection, handler, _runtime.WireAcpExtensionProxy, _runtime.WireNodeReplProxy, _runtime.WireDynamicToolProxy, _services.GetService<WireRuntimeAdditionalContextProvider>(), _runtime.ContextPageManager, cancellationToken);
         }
         finally
         {
@@ -344,7 +346,7 @@ public sealed class AppServerHost(
 
         try
         {
-            await RunLoopAsync(transport, connection, handler, _runtime.WireAcpExtensionProxy, _runtime.WireNodeReplProxy, _runtime.WireDynamicToolProxy, cancellationToken);
+            await RunLoopAsync(transport, connection, handler, _runtime.WireAcpExtensionProxy, _runtime.WireNodeReplProxy, _runtime.WireDynamicToolProxy, _services.GetService<WireRuntimeAdditionalContextProvider>(), _runtime.ContextPageManager, cancellationToken);
         }
         finally
         {
@@ -498,7 +500,7 @@ public sealed class AppServerHost(
 
                         // Not a channel adapter — fall through to normal RunLoopAsync
                         // (initialize already processed, loop will handle subsequent messages)
-                        await RunLoopAsync(wsTransport, wsConnection, wsHandler, _runtime.WireAcpExtensionProxy, _runtime.WireNodeReplProxy, _runtime.WireDynamicToolProxy, hostCt);
+                        await RunLoopAsync(wsTransport, wsConnection, wsHandler, _runtime.WireAcpExtensionProxy, _runtime.WireNodeReplProxy, _runtime.WireDynamicToolProxy, _services.GetService<WireRuntimeAdditionalContextProvider>(), _runtime.ContextPageManager, hostCt);
                         return;
                     }
 
@@ -513,7 +515,7 @@ public sealed class AppServerHost(
                     }
                 }
 
-                await RunLoopAsync(wsTransport, wsConnection, wsHandler, _runtime.WireAcpExtensionProxy, _runtime.WireNodeReplProxy, _runtime.WireDynamicToolProxy, hostCt);
+                await RunLoopAsync(wsTransport, wsConnection, wsHandler, _runtime.WireAcpExtensionProxy, _runtime.WireNodeReplProxy, _runtime.WireDynamicToolProxy, _services.GetService<WireRuntimeAdditionalContextProvider>(), _runtime.ContextPageManager, hostCt);
             } // end try
             finally
             {
@@ -543,6 +545,8 @@ public sealed class AppServerHost(
         WireAcpExtensionProxy? wireAcpProxy,
         WireNodeReplProxy? wireNodeReplProxy,
         WireDynamicToolProxy? wireDynamicToolProxy,
+        WireRuntimeAdditionalContextProvider? wireRuntimeAdditionalContextProvider,
+        IContextPageManager? contextPageManager,
         CancellationToken ct)
     {
         while (!ct.IsCancellationRequested)
@@ -600,6 +604,11 @@ public sealed class AppServerHost(
         wireAcpProxy?.UnbindTransport(transport);
         wireNodeReplProxy?.UnbindTransport(transport);
         wireDynamicToolProxy?.UnbindTransport(transport);
+        if (wireRuntimeAdditionalContextProvider != null)
+        {
+            foreach (var threadId in wireRuntimeAdditionalContextProvider.UnbindTransport(transport))
+                contextPageManager?.ReleaseStablePage(threadId, ContextPageKeys.RuntimeAdditionalContext());
+        }
     }
 
     private static async Task ProcessRequestAsync(

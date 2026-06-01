@@ -1,7 +1,10 @@
+using DotCraft.Abstractions;
 using DotCraft.AppServer;
 using DotCraft.Configuration;
+using DotCraft.Context;
 using DotCraft.Hosting;
 using DotCraft.Modules;
+using DotCraft.Protocol.AppServer;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DotCraft.Tests.AppServer;
@@ -36,6 +39,10 @@ public sealed class AppServerHostResolutionTests
         await using var disposableProvider = (ServiceProvider)provider;
         Assert.IsType<AppServerHost>(host);
         Assert.NotNull(provider.GetRequiredService<WorkspaceRuntime>());
+        Assert.NotNull(provider.GetRequiredService<WireRuntimeAdditionalContextProvider>());
+        Assert.Contains(
+            provider.GetServices<IThreadSystemPromptContextProvider>(),
+            p => p.ContextPageKey == ContextPageKeys.RuntimeAdditionalContext());
     }
 
     private sealed class WorkspaceFixture : IDisposable

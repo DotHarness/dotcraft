@@ -188,6 +188,9 @@ public sealed class AppBindingProtocolTests : IDisposable
         var section = promptProvider.GetSystemPromptSection(new ThreadSystemPromptContext(thread.Id, _tempRoot));
         Assert.NotNull(section);
         Assert.Contains("# App Context", section, StringComparison.Ordinal);
+        Assert.Contains("<app-context>", section, StringComparison.Ordinal);
+        Assert.Contains("</app-context>", section, StringComparison.Ordinal);
+        Assert.DoesNotContain("<app-provided-context>", section, StringComparison.Ordinal);
         Assert.Contains("Prefer concise review notes.", section, StringComparison.Ordinal);
         Assert.DoesNotContain("hidden debug state", section, StringComparison.Ordinal);
         Assert.DoesNotContain("stale digest", section, StringComparison.Ordinal);

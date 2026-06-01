@@ -259,6 +259,7 @@ public sealed class DotCraftThreadClient(DotCraftClient client)
             request.DisplayName,
             request.HistoryMode,
             request.DynamicTools,
+            request.AdditionalContext,
             config = request.Config
         }, cancellationToken);
         var thread = result.TryGetProperty("thread", out var threadElement) ? threadElement : result;
@@ -278,7 +279,8 @@ public sealed class DotCraftThreadClient(DotCraftClient client)
         var result = await client.RequestAsync("thread/resume", new
         {
             request.ThreadId,
-            request.DynamicTools
+            request.DynamicTools,
+            request.AdditionalContext
         }, cancellationToken);
         var thread = result.TryGetProperty("thread", out var threadElement) ? threadElement : result;
         var id = JsonElementReaders.ReadString(thread, "id")

@@ -842,7 +842,7 @@ Future app-bound MCP tools must enter through an equivalent attachment path and 
 
 ### 10.6 `app/binding/context/upsert`
 
-Creates or replaces one app-provided context block for an active binding. Context blocks are persisted with App Binding state and rendered into the bound thread's fixed App Context prompt section. They do not create Turns, Items, thread rollout records, or `ThreadConfiguration` updates.
+Creates or replaces one app-provided context block for an active binding. Context blocks are persisted with App Binding state and rendered into the bound thread's fixed App Context prompt section. Model-visible block content is wrapped in the shared `<app-context>` tag. They do not create Turns, Items, thread rollout records, or `ThreadConfiguration` updates.
 
 **Direction**: app -> server
 
