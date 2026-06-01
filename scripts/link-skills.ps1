@@ -111,22 +111,53 @@ function New-PerSkillLinks {
 }
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$samplesSkillsPath = Join-Path $repoRoot "samples\plugins\dotcraft-dev\skills"
+$skillSources = @(
+    @{
+        Name = "DotCraft dev skills"
+        Path = Join-Path $repoRoot "samples\plugins\dotcraft-dev\skills"
+    },
+    @{
+        Name = "DotCraft Doctor skills"
+        Path = Join-Path $repoRoot "desktop\resources\plugins\dotcraft-bundled\plugins\dotcraft-doctor\skills"
+    }
+)
 $cursorSkillsPath = Join-Path $repoRoot ".cursor\skills"
 $codexSkillsPath = Join-Path $env:USERPROFILE ".codex\skills"
 $claudeSkillsPath = Join-Path $repoRoot ".claude\skills"
 
 Write-Section -Text "DotCraft Skills Linker"
 Write-Host "Repository root: $repoRoot" -ForegroundColor Gray
-Write-Host "Source skills:   $samplesSkillsPath" -ForegroundColor Gray
-
-if (-not (Test-Path -LiteralPath $samplesSkillsPath)) {
-    throw "Source skills directory not found: $samplesSkillsPath"
+Write-Host "Source skills:" -ForegroundColor Gray
+foreach ($skillSource in $skillSources) {
+    Write-Host "  - $($skillSource.Name): $($skillSource.Path)" -ForegroundColor Gray
 }
 
-New-PerSkillLinks -SourceDir $samplesSkillsPath -DestinationDir $cursorSkillsPath -DisplayName ".cursor\skills"
-New-PerSkillLinks -SourceDir $samplesSkillsPath -DestinationDir $codexSkillsPath -DisplayName "~\.codex\skills"
-New-PerSkillLinks -SourceDir $samplesSkillsPath -DestinationDir $claudeSkillsPath -DisplayName ".claude\skills"
+foreach ($skillSource in $skillSources) {
+    if (-not (Test-Path -LiteralPath $skillSource.Path)) {
+        throw "Source skills directory not found: $($skillSource.Path)"
+    }
+}
+
+$skillDestinations = @(
+    @{
+        Name = ".cursor\skills"
+        Path = $cursorSkillsPath
+    },
+    @{
+        Name = "~\.codex\skills"
+        Path = $codexSkillsPath
+    },
+    @{
+        Name = ".claude\skills"
+        Path = $claudeSkillsPath
+    }
+)
+
+foreach ($skillDestination in $skillDestinations) {
+    foreach ($skillSource in $skillSources) {
+        New-PerSkillLinks -SourceDir $skillSource.Path -DestinationDir $skillDestination.Path -DisplayName $skillDestination.Name
+    }
+}
 
 Write-Host ""
 Write-Host "Done." -ForegroundColor Green
