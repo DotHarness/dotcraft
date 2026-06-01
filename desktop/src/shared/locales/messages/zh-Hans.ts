@@ -1798,6 +1798,8 @@ export const MESSAGES_ZH_HANS = {
   'detailPanel.launcherBrowserDesc': '打开网页',
   'detailPanel.launcherReviewTitle': '更改',
   'detailPanel.launcherReviewDesc': '查看代码更改',
+  'detailPanel.launcherPlanTitle': '计划',
+  'detailPanel.launcherPlanDesc': '查看计划与进度',
   'detailPanel.launcherTerminalTitle': '终端',
   'detailPanel.launcherTerminalDesc': '启动交互式终端',
   // 查看器头部的打开按钮（打开当前文件，而非工作区）

@@ -2207,6 +2207,8 @@ export const MESSAGES_KO = {
   'detailPanel.launcherBrowserDesc': '웹사이트 열기',
   'detailPanel.launcherReviewTitle': '변경 사항',
   'detailPanel.launcherReviewDesc': '코드 변경사항 보기',
+  'detailPanel.launcherPlanTitle': '계획',
+  'detailPanel.launcherPlanDesc': '계획과 진행 상황 보기',
   'detailPanel.launcherTerminalTitle': '터미널',
   'detailPanel.launcherTerminalDesc': '대화형 셸 시작',
   'detailPanel.openFileTitle': '{{path}} 열기',

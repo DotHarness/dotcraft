@@ -33,11 +33,12 @@ describe('DetailPanelLauncher', () => {
     })
   })
 
-  it('renders the four Codex-style launcher cards', () => {
+  it('renders the five launcher cards', () => {
     renderLauncher({ onAction: vi.fn() })
     expect(screen.getByRole('button', { name: 'Files' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Browser' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Changes' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Plan' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Terminal' })).toBeInTheDocument()
   })
 
@@ -50,6 +51,9 @@ describe('DetailPanelLauncher', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Changes' }))
     expect(onAction).toHaveBeenCalledWith('newChanges')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Plan' }))
+    expect(onAction).toHaveBeenCalledWith('newPlan')
   })
 
   it('disables Browser and Terminal without an active workspace', () => {
@@ -58,9 +62,10 @@ describe('DetailPanelLauncher', () => {
     expect(screen.getByRole('button', { name: 'Terminal' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Files' })).not.toBeDisabled()
     expect(screen.getByRole('button', { name: 'Changes' })).not.toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Plan' })).not.toBeDisabled()
   })
 
-  it('shows a keyboard shortcut on every card', () => {
+  it('shows keyboard shortcuts on the cards that have them', () => {
     renderLauncher({ onAction: vi.fn() })
     expect(screen.getByText('Ctrl+P')).toBeInTheDocument()
     expect(screen.getByText('Ctrl+T')).toBeInTheDocument()

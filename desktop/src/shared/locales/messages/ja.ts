@@ -2207,6 +2207,8 @@ export const MESSAGES_JA = {
   'detailPanel.launcherBrowserDesc': 'ウェブサイトを開く',
   'detailPanel.launcherReviewTitle': '変更点',
   'detailPanel.launcherReviewDesc': 'コードの変更を表示する',
+  'detailPanel.launcherPlanTitle': 'プラン',
+  'detailPanel.launcherPlanDesc': 'プランと進捗を表示する',
   'detailPanel.launcherTerminalTitle': 'ターミナル',
   'detailPanel.launcherTerminalDesc': '対話型シェルを開始する',
   'detailPanel.openFileTitle': '{{path}} を開く',

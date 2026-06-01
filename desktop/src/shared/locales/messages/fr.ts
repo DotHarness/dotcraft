@@ -2207,6 +2207,8 @@ export const MESSAGES_FR = {
   'detailPanel.launcherBrowserDesc': 'Ouvrir un site Web',
   'detailPanel.launcherReviewTitle': 'Changements',
   'detailPanel.launcherReviewDesc': 'Afficher les modifications du code',
+  'detailPanel.launcherPlanTitle': 'Plan',
+  'detailPanel.launcherPlanDesc': 'Afficher le plan et la progression',
   'detailPanel.launcherTerminalTitle': 'Borne',
   'detailPanel.launcherTerminalDesc': 'Démarrer un shell interactif',
   'detailPanel.openFileTitle': 'Ouvrir {{path}}',

@@ -1872,6 +1872,8 @@ export const MESSAGES_EN = {
   'detailPanel.launcherBrowserDesc': 'Open a website',
   'detailPanel.launcherReviewTitle': 'Changes',
   'detailPanel.launcherReviewDesc': 'View code changes',
+  'detailPanel.launcherPlanTitle': 'Plan',
+  'detailPanel.launcherPlanDesc': 'View plan and progress',
   'detailPanel.launcherTerminalTitle': 'Terminal',
   'detailPanel.launcherTerminalDesc': 'Start an interactive shell',
   // Viewer header open button (opens the current file, not the workspace)
