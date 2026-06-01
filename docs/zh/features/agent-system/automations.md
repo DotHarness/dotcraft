@@ -1,9 +1,9 @@
 # Automations 与 Goals
 
-DotCraft 把"让 Agent 在特定时机自动跑一段任务"和"让一个 Thread 持续朝明确目标推进"分成两个互补的能力：
+DotCraft 给 Agent 两种"不用你一轮轮盯着也能干活"的方式：
 
-- **Automations** — 工作区级任务调度，定时或手动触发 Agent 跑一段工作流
-- **Goals** — Thread 级长期目标，用户显式设置后，DotCraft 可在 Thread 空闲时继续推进
+- **Automations** — 让 Agent 定时或手动跑起来，报告、巡检、清理这类例行活儿自己就完成了。
+- **Goals** — 给一段对话钉一个长期目标，每当这段对话空下来，DotCraft 就接着往前推。
 
 ![DotCraft Automations and Goals overview](/automations-goals-overview.svg)
 
@@ -119,25 +119,7 @@ Automations 适合"按时间或手动触发一次任务"，Goals 适合"让同�
 | 文件写入后自动 lint/format | [Hooks](../self-hosted/security#hooks) `AfterToolCall` |
 | 阻止危险 Shell 命令 | [Hooks](../self-hosted/security#hooks) `BeforeToolCall` |
 
-## 故障排查
-
-### Goal 没有继续推进
-
-确认配置中启用了 Goals 和自动继续，目标状态是 `active`，并且当前 Thread 没有正在运行的 Turn 或等待用户审批。
-
-### Goal 进入 budgetLimited
-
-目标达到 token 预算后会停止自动继续。你可以增加预算、替换目标、暂停目标，或让 Agent 总结当前进度后重新设置更小的目标。
-
-### 客户端看不到 Goal 控件
-
-确认 AppServer `initialize` 返回了 `capabilities.threadGoals = true`。如果 Goals 被禁用，服务器不会暴露目标控制。
-
-### 自动化任务不显示在 Desktop
-
-Automations 面板需要 Gateway 加载 Automations 模块；本地 Dashboard 适合调试单工作区，不负责完整自动化编排。
-
-## 相关入口
+## 相关文档
 
 - [项目级工作区](../project-first) — `.craft/tasks/`、`.craft/automations/` 在整体目录里的位置
 - [统一会话核心](../../developing/architecture/session-core) — Thread / Turn / Item 与目标状态的关系

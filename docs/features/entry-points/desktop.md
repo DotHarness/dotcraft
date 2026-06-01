@@ -1,6 +1,6 @@
 # Desktop
 
-Desktop is the recommended first entry point for DotCraft. It works as an AppServer client and provides a visual UI for workspaces, sessions, diffs, plans, model configuration, automation review, and runtime status.
+Desktop is the recommended way to start with DotCraft. It puts everything in one window — workspaces, sessions, diffs, plans, model configuration, automation review, and live status — so you can drive the agent visually instead of from the command line. (Under the hood it's an AppServer client, sharing the same workspace as every other entry point.)
 
 For first-time setup, follow [Getting Started](../../getting-started) for download, workspace selection, and model configuration. This page focuses on Desktop-specific panels and settings.
 
@@ -94,21 +94,7 @@ On startup, DotCraft checks [GitHub Releases](https://github.com/DotHarness/dotc
 - Image attachments live under `.craft/attachments/images/` and survive restart.
 - Markdown surfaces render fenced `mermaid` / `mmd` code blocks as Mermaid diagrams. If a diagram cannot be rendered, Desktop falls back to the source block.
 
-## Troubleshooting
-
-### No session is available after startup
-
-Confirm a workspace is selected and the AppServer / `dotcraft` binary can run.
-
-### Settings changes do not apply
-
-Provider and model selections take effect for new sessions. Existing provider-aware threads keep their captured provider and model unless you explicitly change the active thread's model. AppServer, port, and entry-point settings require restarting Desktop or the background host. See [Settings Lifecycle](../../developing/lifecycle/settings-lifecycle).
-
-### The Automations panel is empty
-
-Use Gateway or a host that loads Automations, and enable the relevant task source. See [Automations](../agent-system/automations).
-
-## Related
+## Related docs
 
 - [Getting Started](../../getting-started)
 - [TUI](./tui)

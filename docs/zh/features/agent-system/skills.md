@@ -1,6 +1,6 @@
 # Skills 与自学习
 
-Skills 是 DotCraft 让 Agent 复用工作流程的方式：把"怎么做这件事"沉淀为带 frontmatter 的 Markdown 文件，Agent 在遇到匹配场景时主动加载并按其中的步骤执行。Skills 可以系统内置、可以你手写，也可以让 Agent 在成功完成任务后自己保存——而且坏掉时永远可以回到原版。
+Skills 把"怎么做这件事"教给 Agent 一次，下次它就不用重新摸索。每个 skill 是一份带 frontmatter 的 Markdown，Agent 遇到匹配场景时主动加载、照着步骤执行。Skills 可以系统内置、可以你手写，也可以让 Agent 在成功完成任务后自己保存——万一坏了，永远能回到原版。
 
 ## Skills 来源
 
@@ -107,7 +107,7 @@ Skills 页面右上角 **管理** 是批量启用/禁用入口：
 | 想让 Agent 把刚解决的问题沉淀下来 | 启用自学习，让它调用 `SkillManage create` |
 | 想用社区已有方案 | Skills 页面市场搜索 + Install with DotCraft |
 
-## 相关入口
+## 相关文档
 
 - [Plugins 与工具](./plugins-tools) — 用插件分发 skills + tools 的能力包
 - [项目级工作区](../project-first) — `.craft/skills/` 在整体目录中的位置

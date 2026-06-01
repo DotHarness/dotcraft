@@ -1,9 +1,9 @@
 # Automations & Goals
 
-DotCraft splits "schedule the agent to do something at a certain time" and "keep one Thread moving toward a declared objective" into two complementary capabilities:
+DotCraft gives the agent two ways to keep working without you driving every turn:
 
-- **Automations** — Workspace-level task scheduling that runs the agent on a timer or on-demand
-- **Goals** — Thread-level long-running objectives that DotCraft can continue when the Thread is idle
+- **Automations** — run the agent on a schedule or on demand, so routine work like reports, checks, and cleanups happens on its own.
+- **Goals** — pin a long-running objective to a conversation, and DotCraft keeps pushing it forward whenever that conversation goes idle.
 
 ![DotCraft Automations and Goals overview](/automations-goals-overview.svg)
 
@@ -119,25 +119,7 @@ Automations are best for "run this task on a schedule or on demand." Goals are b
 | Auto-lint / format after file writes | [Hooks](../self-hosted/security#hooks) `AfterToolCall` |
 | Block dangerous shell commands | [Hooks](../self-hosted/security#hooks) `BeforeToolCall` |
 
-## Troubleshooting
-
-### Goal does not continue
-
-Confirm the goal feature and auto-continue are enabled in configuration, the goal status is `active`, and the current Thread has no running Turn or pending user approval.
-
-### Goal entered budgetLimited
-
-The goal reached its token budget and auto-continuation stopped. Increase the budget, replace the goal, pause it, or ask the agent to summarize progress before setting a smaller follow-up goal.
-
-### Client does not show Goal controls
-
-Confirm AppServer `initialize` returns `capabilities.threadGoals = true`. If Goals are disabled, the server does not expose goal controls.
-
-### Automation tasks not visible in Desktop
-
-The Automations panel requires Gateway to load the Automations module. The local Dashboard works for single-workspace debugging but does not orchestrate full automation runs.
-
-## Related
+## Related docs
 
 - [Project Workspace](../project-first) — where `.craft/tasks/` and `.craft/automations/` sit
 - [Unified Session Core](../../developing/architecture/session-core) — how Thread / Turn / Item relate to goal state

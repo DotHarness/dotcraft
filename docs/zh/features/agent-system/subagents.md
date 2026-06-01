@@ -1,9 +1,9 @@
 # SubAgents
 
-SubAgent 用于把一段独立任务委派给子 Agent。两个概念要分清：
+SubAgent 让主 Agent 把一段独立任务交给一个专注的"帮手"：它在自己的上下文里干活，再把结果交回来——主对话因此保持干净。两件事决定一个 SubAgent：
 
-- `agentRole` 控制子 Agent 的行为、工具边界和提示词约束。
-- `profile` 控制子 Agent 使用的运行时：DotCraft 原生运行时或外部 CLI。
+- `agentRole` — 它能做什么：行为、工具边界和提示词约束。
+- `profile` — 用哪个运行时跑：DotCraft 原生运行时或外部 CLI。
 
 如果只想让 DotCraft 安全地做一级委派，通常不需要改配置。默认设置允许根 Agent 创建一级 SubAgent，并阻止 SubAgent 再继续创建 SubAgent。
 
@@ -91,7 +91,7 @@ DotCraft 会把 role instructions 传给外部 CLI，但无法强制拦截外部
 | 需要强工具隔离 | 优先 `native` + allow/deny list + sandbox |
 | 需要团队固定委派行为 | 在工作区配置中定义 role |
 
-## 相关入口
+## 相关文档
 
 - [项目级工作区](../project-first)
 - [安全与沙箱](../self-hosted/security) — 用工作区边界和沙箱限制 SubAgent 行为

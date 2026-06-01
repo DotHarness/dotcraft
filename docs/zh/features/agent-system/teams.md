@@ -1,6 +1,6 @@
 # Teams
 
-Teams 是一个可安装的"团队工作区"：Team Leader 把一个 Mission 拆成有依赖关系的任务板，分派给一支固定的机器人小队，每位队友在自己的 Mission 线程中工作。调度器在后台运行任务，只在需要综合、交接或最终审核时唤醒 Leader。
+交给 DotCraft 一个复杂请求，它会派一支小队来做。Team Leader 把请求拆成一块任务板，并行分派给一支固定的专家小队——Explorer、Builder、Reviewer、Operator——再把各自的结果汇总成一个完成的答复。你只提一个需求，拿回的是做完的 Mission，而不是一堆要自己盯的子任务。
 
 Teams 通过内置插件 `agent-teams` 提供。在插件目录启用后，Desktop 会出现 Team 入口；Team 面板是创建 Mission、查看团队状态的主入口。
 
@@ -109,7 +109,7 @@ Mission 的 scratchpad / 工件工作区路径会以 App Context Block 形式挂
 
 运行时字段在 `teams` 配置段中。可用键见 [配置完整参考](../../developing/configuration)。
 
-## 相关入口
+## 相关文档
 
 - [SubAgents](./subagents) — Teams 显得过重时的单级委派。
 - [Automations 与 Goals](./automations) — 计划驱动的任务与 Thread 级目标，可与 Teams Mission 组合使用。

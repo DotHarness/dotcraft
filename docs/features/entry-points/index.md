@@ -1,6 +1,6 @@
 # Entry Points Overview
 
-DotCraft offers several ways to "open the same workspace". Every entry point speaks to the same [Unified Session Core](../../developing/architecture/session-core), reads the same `.craft/`, and shares the same long-term memory. The only difference is **the surface you talk to the agent through**.
+There's more than one way to open a DotCraft workspace. Whichever you choose, you're working with the same agent: it reads the same `.craft/` and shares the same [session core](../../developing/architecture/session-core) and long-term memory. The only thing that changes is **the surface you talk to it through**.
 
 ## Surface Shapes
 
@@ -40,7 +40,7 @@ If you have not started yet:
 2. Walk through "select workspace + configure a model + first chat" inside Desktop.
 3. Add a second entry (TUI / ACP / Channels) only when a real need shows up.
 
-## Related
+## Related docs
 
 - [Unified Session Core](../../developing/architecture/session-core) — the Thread / Turn / Item model behind cross-entry sharing
 - [AppServer Mode](../../developing/lifecycle/appserver) — remote, multi-client, custom integrations

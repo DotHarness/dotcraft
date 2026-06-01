@@ -1,6 +1,6 @@
 # 插件与工具
 
-DotCraft 把 Agent 可调用的"动作"分成两类：**内置工具**（文件 / Shell / Web / 搜索 / Plan / Todo 等，DotCraft 自己实现）和**插件提供的能力**（dynamic tools + skills，由你或第三方分发）。MCP servers 提供的是插件之外的另一条工具来源。
+工具就是 Agent 真正能做的事——读文件、跑命令、搜网页。DotCraft 的工具来自三处：**内置工具**（文件、Shell、Web、搜索、Plan、Todo 等，DotCraft 自带）、**插件**（你或第三方打包的额外工具和 skills），以及 **MCP servers**。开哪些，由你决定。
 
 ![DotCraft tool surface topology](/tool-surface-topology.svg)
 
@@ -126,7 +126,7 @@ DotCraft 使用 `.craft-plugin/plugin.json` 作为插件入口。插件可以贡
 - 插件详情中的网站、隐私政策和服务条款链接用于帮助你确认插件来源和行为边界。
 - 黑名单、工作区边界、沙箱等限制对插件 tools 同样生效。详见 [安全与沙箱](../self-hosted/security)。
 
-## 相关入口
+## 相关文档
 
 - [Skills 与自学习](./skills) — Skill 与 Plugin 的关系
 - [可观测性](../self-hosted/observability) — 在 Dashboard 看插件 tool 调用与审批

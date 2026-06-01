@@ -1,6 +1,6 @@
 # Teams
 
-Teams is an installable team workspace where a Team Leader agent breaks a Mission into a dependency-aware task board and dispatches it to a fixed roster of specialist robots. A scheduler runs teammates in their own Mission threads and only wakes the Leader when synthesis, handoffs, or final review is needed.
+Hand DotCraft a complex request and it puts a small team on it. A Team Leader breaks the request into a task board and dispatches the work in parallel to a fixed roster of specialists — Explorer, Builder, Reviewer, Operator — then pulls their results back into one finished answer. You give a single ask and get the completed mission, not a pile of subtasks to babysit.
 
 Teams ships behind the built-in `agent-teams` plugin. After enabling it from the Plugins catalog, Desktop shows a Team sidebar entry; the Team panel is the primary entry point for creating Missions and inspecting the team board.
 
@@ -109,7 +109,7 @@ The mission scratchpad / artifact workspace path is mounted into each Mission te
 
 Runtime fields live in the `teams` config section. See [Configuration Reference](../../developing/configuration) for available keys.
 
-## See Also
+## Related docs
 
 - [SubAgents](./subagents) — single-level delegation when Teams is overkill.
 - [Automations & Goals](./automations) — schedule-driven tasks and Thread-level objectives that pair with Teams Missions.

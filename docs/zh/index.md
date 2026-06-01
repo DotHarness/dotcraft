@@ -12,11 +12,10 @@ lastUpdated: false
   <section class="dc-hero">
     <div class="dc-hero__inner">
       <div class="dc-hero__content">
-        <p class="dc-kicker">项目原生 Agent Harness</p>
         <h1>DotCraft</h1>
-        <p class="dc-hero__tagline">AI Agent 住进你的项目。所有入口，共用同一个工作区。</p>
+        <p class="dc-hero__tagline"><span class="dc-hero__accent">AI Agent</span> 住进你的项目。</p>
         <p class="dc-hero__lead">
-          DotCraft 把 Desktop、CLI、IDE、聊天机器人、API 与自动化任务连接到同一个项目上下文，让对话、计划、记忆和工具连续流动，而不是被困在某一个应用里。
+          DotCraft 把 Desktop、CLI、IDE、聊天机器人、API 和自动化都连到同一个项目上下文，让对话、计划、记忆和工具持续流动，而不是困在某一个应用里。
         </p>
         <div class="dc-route-list" aria-label="DotCraft 入口">
           <span>Desktop</span>
@@ -36,6 +35,131 @@ lastUpdated: false
         <img src="https://cdn.jsdelivr.net/gh/DotHarness/resources@master/dotcraft/desktop_banner.png" alt="DotCraft Desktop 预览" />
       </figure>
     </div>
+    <div class="dc-hero__stage">
+      <div class="dc-stage-mascot" data-mascot="leader" data-dir="ltr" style="--duration: 32s; --delay: -2s; --start: -15vw; --p1: 30vw; --p2: 62vw; --p3: 94vw; --end: 115vw;">
+        <div class="dc-stage-mascot__body">
+          <div class="dc-stage-mascot__sprite">
+            <img src="/team-leader.svg" alt="Leader" />
+          </div>
+          <div class="dc-stage-bubble" data-phrase="0">这轮先排个计划。</div>
+          <div class="dc-stage-bubble" data-phrase="1">谁来认领？</div>
+          <div class="dc-stage-bubble" data-phrase="2">任务已派发。</div>
+        </div>
+      </div>
+      <div class="dc-stage-mascot" data-mascot="explorer" data-dir="rtl" style="--duration: 28s; --delay: -10s; --start: 125vw; --p1: 80vw; --p2: 48vw; --p3: 16vw; --end: -5vw;">
+        <div class="dc-stage-mascot__body">
+          <div class="dc-stage-mascot__sprite">
+            <img src="/team-explorer.svg" alt="Explorer" />
+          </div>
+          <div class="dc-stage-bubble" data-phrase="0">在读这个仓库。</div>
+          <div class="dc-stage-bubble" data-phrase="1">找到了。</div>
+          <div class="dc-stage-bubble" data-phrase="2">我再往下挖挖。</div>
+        </div>
+      </div>
+      <div class="dc-stage-mascot" data-mascot="builder" data-dir="ltr" style="--duration: 30s; --delay: -18s; --start: -25vw; --p1: 20vw; --p2: 52vw; --p3: 84vw; --end: 105vw;">
+        <div class="dc-stage-mascot__body">
+          <div class="dc-stage-mascot__sprite">
+            <img src="/team-builder.svg" alt="Builder" />
+          </div>
+          <div class="dc-stage-bubble" data-phrase="0">这就去做。</div>
+          <div class="dc-stage-bubble" data-phrase="1">重构中。</div>
+          <div class="dc-stage-bubble" data-phrase="2">修复马上提交。</div>
+        </div>
+      </div>
+      <div class="dc-stage-mascot" data-mascot="reviewer" data-dir="rtl" style="--duration: 24s; --delay: -7s; --start: 115vw; --p1: 70vw; --p2: 38vw; --p3: 6vw; --end: -15vw;">
+        <div class="dc-stage-mascot__body">
+          <div class="dc-stage-mascot__sprite">
+            <img src="/team-reviewer.svg" alt="Reviewer" />
+          </div>
+          <div class="dc-stage-bubble" data-phrase="0">Diff 没问题。</div>
+          <div class="dc-stage-bubble" data-phrase="1">两个小问题。</div>
+          <div class="dc-stage-bubble" data-phrase="2">通过。</div>
+        </div>
+      </div>
+      <div class="dc-stage-mascot" data-mascot="operator" data-dir="ltr" style="--duration: 26s; --delay: -14s; --start: -35vw; --p1: 10vw; --p2: 42vw; --p3: 74vw; --end: 95vw;">
+        <div class="dc-stage-mascot__body">
+          <div class="dc-stage-mascot__sprite">
+            <img src="/team-operator.svg" alt="Operator" />
+          </div>
+          <div class="dc-stage-bubble" data-phrase="0">正在跑测试。</div>
+          <div class="dc-stage-bubble" data-phrase="1">队列清空了。</div>
+          <div class="dc-stage-bubble" data-phrase="2">状态：全绿。</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="dc-section dc-section--quiet dc-section--reel">
+    <div class="dc-section__inner">
+      <div class="dc-section__header">
+        <h2>功能一览</h2>
+        <p class="dc-section__text">
+          DotCraft 给项目带来的几样能力，每一样都归到同一个工作区里。
+        </p>
+      </div>
+      <div class="dc-reel">
+        <a class="dc-reel-card" href="./getting-started">
+          <span class="dc-reel-card__media">
+            <img src="https://cdn.jsdelivr.net/gh/DotHarness/resources@master/dotcraft/whats-new/chatgpt.gif" alt="" loading="lazy" />
+          </span>
+          <span class="dc-reel-card__body">
+            <small>登录即用</small>
+            <strong>复用 ChatGPT 订阅</strong>
+            <span>用你的 ChatGPT Plus / Pro / Team / Business / Enterprise 直接登录，不用单独的 API Key。</span>
+          </span>
+        </a>
+        <a class="dc-reel-card" href="./developing/integrations/app-binding">
+          <span class="dc-reel-card__media">
+            <img src="https://cdn.jsdelivr.net/gh/DotHarness/resources@master/dotcraft/whats-new/app.gif" alt="" loading="lazy" />
+          </span>
+          <span class="dc-reel-card__body">
+            <small>接力</small>
+            <strong>App 绑定</strong>
+            <span>一次授权，外部应用就能驱动同一个项目 Agent——Oratorio、IDE 插件，或你自己的工具。</span>
+          </span>
+        </a>
+        <a class="dc-reel-card" href="./features/agent-system/memory">
+          <span class="dc-reel-card__media">
+            <img src="https://cdn.jsdelivr.net/gh/DotHarness/resources@master/dotcraft/whats-new/dreams.gif" alt="" loading="lazy" />
+          </span>
+          <span class="dc-reel-card__body">
+            <small>记忆</small>
+            <strong>Dreams</strong>
+            <span>Agent 在后台整理每次会话，把值得记住的写成草稿，你批准后才生效。</span>
+          </span>
+        </a>
+        <a class="dc-reel-card" href="./features/agent-system/automations">
+          <span class="dc-reel-card__media">
+            <img src="https://cdn.jsdelivr.net/gh/DotHarness/resources@master/dotcraft/whats-new/goal.gif" alt="" loading="lazy" />
+          </span>
+          <span class="dc-reel-card__body">
+            <small>自动化</small>
+            <strong>Goals</strong>
+            <span>给会话钉一个长期目标，配上时间或 token 预算，空闲时 Agent 会自己继续推进。</span>
+          </span>
+        </a>
+        <a class="dc-reel-card" href="./features/agent-system/teams">
+          <span class="dc-reel-card__media">
+            <img src="https://cdn.jsdelivr.net/gh/DotHarness/resources@master/dotcraft/whats-new/teams.gif" alt="" loading="lazy" />
+          </span>
+          <span class="dc-reel-card__body">
+            <small>多智能体</small>
+            <strong>Teams</strong>
+            <span>多个 Agent 共用一个工作区，按 Explorer / Builder / Reviewer / Operator 分工协作。</span>
+          </span>
+        </a>
+        <a class="dc-reel-card" href="./features/entry-points/channels">
+          <span class="dc-reel-card__media">
+            <img src="https://cdn.jsdelivr.net/gh/DotHarness/resources@master/dotcraft/whats-new/channels.gif" alt="" loading="lazy" />
+          </span>
+          <span class="dc-reel-card__body">
+            <small>随处可达</small>
+            <strong>群聊机器人</strong>
+            <span>Telegram、微信、飞书、QQ、企业微信——每个平台上都是同一个 Agent。</span>
+          </span>
+        </a>
+      </div>
+    </div>
   </section>
 
   <section id="features" class="dc-section">
@@ -43,24 +167,24 @@ lastUpdated: false
       <div class="dc-section__header">
         <h2>为什么选 DotCraft</h2>
         <p class="dc-section__text">
-          它不是又一个聊天机器人，也不是一组散落的代码代理 CLI。DotCraft 把仓库当作 Agent 状态、能力与协作的长期归属。
+          AI Agent 住进你的项目，而不是某个聊天框。记忆、技能、会话和自动化都留在项目里，每个入口连上的都是同一个 Agent。
         </p>
       </div>
       <div class="dc-grid">
         <article class="dc-card dc-card--workspace">
           <span class="dc-card__index">01</span>
           <h3>项目就是工作区</h3>
-          <p>会话、记忆、技能、自动化和设置跟着项目走，所以无论从哪个入口打开，Agent 都拥有同一份上下文。</p>
+          <p>会话、记忆、技能、自动化和设置都跟着项目走。换个入口打开，还是同一个 Agent、同一份上下文。</p>
         </article>
         <article class="dc-card dc-card--memory">
           <span class="dc-card__index">02</span>
-          <h3>记忆是 Markdown，不是黑箱</h3>
-          <p><code>MEMORY.md</code>、<code>HISTORY.md</code> 与 Dreams 把 Agent 的学习过程暴露给你审阅、修改、回滚。</p>
+          <h3>越用越懂你的项目</h3>
+          <p>每次会话结束，Dreams 都会在后台回顾一遍，把值得记住的写成草稿，你审阅通过才生效。所有记忆都是项目里的 Markdown，随时可读、可改、可回退。</p>
         </article>
         <article class="dc-card dc-card--runtime">
           <span class="dc-card__index">03</span>
-          <h3>一个核心，多种入口</h3>
-          <p>Desktop、TUI、IDE、群聊机器人、HTTP API 都连同一个会话核心；同一段会话可在不同设备和平台之间接力。</p>
+          <h3>一个 Agent，处处可达</h3>
+          <p>Desktop、TUI、IDE、群聊机器人、HTTP API 共用同一个会话核心。在电脑上开的会话，换设备、换平台都能接着聊。</p>
         </article>
       </div>
     </div>

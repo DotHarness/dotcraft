@@ -1,6 +1,6 @@
 # Channels 与 Bots
 
-DotCraft 通过 SDK 扩展把同一个工作区接入到主流社交平台：QQ、企业微信、飞书 / Lark、Telegram、微信。这些渠道复用同一份会话核心、记忆、技能、安全策略——你在 Desktop 看到的对话上下文，机器人也看得到。
+DotCraft 可以把同一个 Agent 接进你团队本来就在用的聊天平台——QQ、企业微信、飞书 / Lark、Telegram、微信。渠道机器人和其他入口共用同一份会话核心、记忆、技能和安全策略，你在 Desktop 看到的上下文，就是机器人干活时用的同一份。
 
 ![DotCraft Channels 配置与会话](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/channels.gif)
 
@@ -67,21 +67,7 @@ DotCraft 内置 5 个常用渠道。需要接入其他平台（Slack、Discord�
 - Python：参考 [Python SDK](../../developing/sdks/python)
 - 任何语言：直接对接 [AppServer Protocol](../../developing/protocols/appserver-protocol)
 
-## 故障排查
-
-### 适配器连不上 AppServer
-
-确认 AppServer 已以 WebSocket 模式启动，URL 包含 `/ws`，token 与客户端配置一致。
-
-### 消息收得到但 Agent 不回复
-
-检查适配器是否在初始化握手中声明了投递能力；模型 Provider 在 Dashboard Settings 页是否有合并结果；工具是否被审批拒绝。
-
-### Desktop 看不到机器人会话
-
-确认 Desktop 与机器人连接的是**同一个**工作区 / AppServer。
-
-## 相关入口
+## 相关文档
 
 - [统一会话核心](../../developing/architecture/session-core)
 - [安全与沙箱](../self-hosted/security)

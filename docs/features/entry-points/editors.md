@@ -1,6 +1,6 @@
 # IDE / Editors (ACP)
 
-[Agent Client Protocol (ACP)](https://agentclientprotocol.com/) is an open protocol that standardizes communication between coding agents and editors/IDEs — much like LSP standardizes language servers, but for AI agents. Any ACP-compatible editor can connect to any ACP-compatible agent. DotCraft natively speaks ACP, so it runs as a first-class coding assistant inside the editor with no cloud subscription, no proprietary plugin, and no vendor-specific config.
+DotCraft can run right inside your editor as a coding assistant — JetBrains, Obsidian, Unity, and more — with no cloud subscription, no proprietary plugin, and no vendor lock-in. It does this by speaking [Agent Client Protocol (ACP)](https://agentclientprotocol.com/), an open standard for connecting coding agents to editors (think LSP, but for AI agents). Any ACP-compatible editor can talk to any ACP-compatible agent, and DotCraft speaks ACP natively.
 
 From the editor's view, communication is **stdio plus JSON-RPC 2.0**: the editor launches DotCraft as a subprocess and exchanges messages over standard streams. Internally, the DotCraft ACP process is a **protocol bridge** that connects the editor (ACP) to an AppServer instance (Wire Protocol). All session state, agent execution, and tool calls are handled by AppServer and shared with TUI, Desktop, and external channels. The bridge auto-launches a local AppServer subprocess or connects to a remote AppServer you specify.
 
@@ -147,21 +147,7 @@ ACP works as a full AppServer client. Sessions created in the editor land in the
 | Share sessions with Desktop | Point at the same workspace / AppServer |
 | Let the editor own file and terminal access | Use an ACP client that supports `fs/*` and `terminal/*` |
 
-## Troubleshooting
-
-### DotCraft does not show up in the editor
-
-Confirm the command path resolves to `dotcraft`, the argument is `-acp`, and the editor plugin supports Agent Client Protocol.
-
-### Cannot read unsaved files
-
-Only file access routed through the editor's ACP client sees unsaved buffers. Other entries usually read from disk.
-
-### Remote mode fails to connect
-
-Confirm AppServer is started in WebSocket mode, the URL contains `/ws`, and the token matches.
-
-## Related
+## Related docs
 
 - [Desktop](./desktop) — GUI client over the same backend
 - [AppServer Mode](../../developing/lifecycle/appserver) — remote or multi-client

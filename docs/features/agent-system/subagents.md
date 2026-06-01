@@ -1,9 +1,9 @@
 # SubAgents
 
-A SubAgent delegates a self-contained task to a child agent. Two concepts matter:
+A SubAgent lets the main agent hand off a self-contained task to a focused helper that works in its own context and reports the result back — so the main conversation stays clean. Two things shape a SubAgent:
 
-- `agentRole` controls the child agent's behavior, tool boundary, and prompt constraints.
-- `profile` controls which runtime the child uses: DotCraft native or an external CLI.
+- `agentRole` — what it's allowed to do: its behavior, tool boundary, and prompt constraints.
+- `profile` — which runtime runs it: DotCraft native or an external CLI.
 
 If you only want safe one-level delegation, you usually do not need to change anything. The defaults allow the root agent to spawn a first-level SubAgent and prevent SubAgents from spawning further SubAgents.
 
@@ -91,7 +91,7 @@ Custom external CLI profiles, resume extraction, permission forwarding, and vend
 | Need strong tool isolation | Prefer `native` plus allow/deny lists and sandbox |
 | Need recurring team behavior | Define a workspace role in configuration |
 
-## Related
+## Related docs
 
 - [Project Workspace](../project-first)
 - [Security & Sandbox](../self-hosted/security) — bound SubAgent behavior with workspace boundary and sandbox

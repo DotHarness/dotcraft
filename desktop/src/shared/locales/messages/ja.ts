@@ -2103,7 +2103,7 @@ export const MESSAGES_JA = {
   'composer.chatgptBadge.usageUnavailable': '使用不可',
   'composer.chatgptBadge.aria.sessionLeft': '{{percent}}% が 5 時間の枠に残っています',
   'composer.chatgptBadge.aria.weeklyLeft': '今週は残り {{percent}}%',
-  'composer.chatgptUsage.title': 'ChatGPT サブスクリプションの使用状況',
+  'composer.chatgptUsage.title': 'ChatGPT',
   'composer.chatgptUsage.windowFiveHour': 'セッション',
   'composer.chatgptUsage.windowWeekly': '毎週',
   'composer.chatgptUsage.percentLeft': '残り{{percent}}%',

@@ -1,6 +1,6 @@
 # TUI
 
-TUI is DotCraft's Rust-native terminal interface for users who want a full interaction experience in the terminal. It connects through the AppServer Wire Protocol and reuses the same workspace, session, and approval capabilities.
+The TUI is DotCraft's native terminal interface, built in Rust. If you live in the terminal — or work over SSH — it gives you the full DotCraft experience right there: the same workspace, sessions, and approvals you'd get in Desktop, without leaving the command line.
 
 ## Build
 
@@ -70,21 +70,7 @@ For full key bindings and theme details, see [`tui/README.md`](https://github.co
 - Enable debug logs: `DOTCRAFT_TUI_LOG=debug dotcraft-tui 2>tui.log`
 - Enable system clipboard: `cargo build --release --features clipboard`
 
-## Troubleshooting
-
-### TUI cannot find `dotcraft`
-
-Put `dotcraft` next to `dotcraft-tui` or on `PATH`, or use `--server-bin` / `DOTCRAFT_BIN` to specify the path.
-
-### Remote connection fails
-
-Confirm AppServer is running in WebSocket mode and the URL includes `/ws`. Authenticated services also need a matching token.
-
-### Terminal looks wrong
-
-Use a modern terminal with Unicode and color support; make sure the terminal size is large enough. Test with the default theme first.
-
-## Related
+## Related docs
 
 - [Desktop](./desktop)
 - [AppServer Mode](../../developing/lifecycle/appserver)

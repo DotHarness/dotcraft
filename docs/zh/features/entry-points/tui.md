@@ -1,6 +1,6 @@
 # TUI
 
-TUI 是 DotCraft 的 Rust 原生终端界面，适合希望在终端中获得完整交互体验的用户。它通过 AppServer Wire Protocol 连接 DotCraft，并复用同一套工作区、会话和审批能力。
+TUI 是 DotCraft 用 Rust 写的原生终端界面。如果你常待在终端里——或者要走 SSH 远程——它能让你在那儿获得完整的 DotCraft 体验：和 Desktop 一样的工作区、会话和审批，全程不用离开命令行。
 
 ## 构建
 
@@ -70,21 +70,7 @@ dotcraft-tui --remote ws://server:9100/ws --token my-secret
 - 打开调试日志：`DOTCRAFT_TUI_LOG=debug dotcraft-tui 2>tui.log`
 - 启用系统剪贴板：`cargo build --release --features clipboard`
 
-## 故障排查
-
-### TUI 找不到 `dotcraft`
-
-把 `dotcraft` 放在 `dotcraft-tui` 同目录或加入 `PATH`，也可以使用 `--server-bin` / `DOTCRAFT_BIN` 指定二进制路径。
-
-### 远程连接失败
-
-确认 AppServer 使用 WebSocket 模式启动，并且客户端 URL 包含 `/ws` 路径。带认证服务需要同时传入 token。
-
-### 终端显示异常
-
-使用支持 Unicode 和颜色的现代终端，并确认终端尺寸足够。必要时先使用默认主题排查。
-
-## 相关入口
+## 相关文档
 
 - [Desktop](./desktop) — 图形界面入口
 - [AppServer 模式](../../developing/lifecycle/appserver) — 远程 / 多客户端

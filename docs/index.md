@@ -124,8 +124,8 @@ lastUpdated: false
           </span>
           <span class="dc-reel-card__body">
             <small>Memory</small>
-            <strong>Dreams &amp; recall</strong>
-            <span>Markdown memory the agent reads, edits, and rolls back &mdash; no black box.</span>
+            <strong>Dreams</strong>
+            <span>The agent drafts memory in the background after each session — you approve what it keeps.</span>
           </span>
         </a>
         <a class="dc-reel-card" href="./features/agent-system/automations">
@@ -167,7 +167,7 @@ lastUpdated: false
       <div class="dc-section__header">
         <h2>Why DotCraft</h2>
         <p class="dc-section__text">
-          Not another chatbot or scattered coding-agent CLI. DotCraft treats the repository as the durable home for agent state, capabilities, and collaboration.
+          AI agents that live in your project, not in a chat window. Memory, skills, sessions, and automations stay in the repo — so every entry point connects to the same agent.
         </p>
       </div>
       <div class="dc-grid">
@@ -178,8 +178,8 @@ lastUpdated: false
         </article>
         <article class="dc-card dc-card--memory">
           <span class="dc-card__index">02</span>
-          <h3>Project memory you can shape</h3>
-          <p>Dreams organize long-term memory and reflections after every session, so the agent remembers what matters. Read, edit, or roll back any line — it's all Markdown.</p>
+          <h3>Memory that grows with the project</h3>
+          <p>After each session, Dreams reviews what happened in the background and drafts what's worth keeping — you approve before it sticks. Read, edit, or roll back any line; it's all Markdown.</p>
         </article>
         <article class="dc-card dc-card--runtime">
           <span class="dc-card__index">03</span>

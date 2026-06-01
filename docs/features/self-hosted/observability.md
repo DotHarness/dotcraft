@@ -1,6 +1,6 @@
 # Observability
 
-DotCraft Dashboard is a web-based inspection surface for sessions, traces, tool calls, automation state, merged configuration, and approval records. It exists to answer "what did the agent do?" and "why does the config behave this way?"
+The DotCraft Dashboard is a web page for seeing what's going on — sessions, traces, tool calls, automation state, the merged config, and approval records. It's where you go to answer "what did the agent actually do?" and "why is the config behaving this way?"
 
 ## Quick Start
 
@@ -85,21 +85,7 @@ Related: [Security & Sandbox](./security).
 
 To consume Trace events from your own dashboard, see the HTTP endpoints and event types in [Dashboard API](../../developing/protocols/dashboard-api). The events are the same data the AppServer protocol pushes over Wire Protocol — Dashboard just renders them as UI.
 
-## Troubleshooting
-
-### Browser cannot open Dashboard
-
-Confirm Dashboard is enabled in configuration and use the URL printed in the console (default `http://127.0.0.1:8080/dashboard`).
-
-### Automations panel is empty
-
-The Automations panel needs Gateway to load the Automations module. Local Dashboard is fine for single-workspace debugging but does not orchestrate full automation state.
-
-### Settings change has no effect
-
-Model fields usually only apply to new sessions. AppServer, ports, Gateway, and external channels are startup-level and need a DotCraft restart. See [Settings Lifecycle](../../developing/lifecycle/settings-lifecycle).
-
-## Related
+## Related docs
 
 - [Project Workspace](../project-first)
 - [Security & Sandbox](./security)

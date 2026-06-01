@@ -1,6 +1,6 @@
 # Memory & Dreams
 
-DotCraft does not pretend to have memory by stuffing more tokens into a context window. Stable information from successful conversations is written into two plain Markdown files inside the workspace, so the agent can read it across sessions and entry points — and so you can read, edit, and delete it any time.
+DotCraft gives the agent a real memory of your project. As you work, it writes down what's worth keeping in plain Markdown files inside the workspace — so it remembers across sessions and entry points, and you can read, edit, or delete any of it whenever you want.
 
 ## Three Layers of Memory
 
@@ -43,35 +43,7 @@ Desktop's **Settings → Personalization → Dreams** offers:
 
 Dreams does not replace `MEMORY.md`; it complements it. Dreams is the right place for "recent focus" and "low-signal noise to avoid" — items too noisy to commit as authoritative memory but too important to lose with the session.
 
-## How DotCraft Memory Compares
-
-| Approach | Black box | Human-readable | Human-editable | Trigger |
-|---|---|---|---|---|
-| Model context window | Yes | No | No | Every request |
-| Vector / RAG | Partly | Usually no | Usually no | At retrieval |
-| **DotCraft MEMORY.md** | No | Yes (Markdown) | Yes | Every N rounds |
-| **DotCraft Dreams** | No | Yes (Markdown) | Yes | Background loop |
-
-Putting everything in workspace-readable Markdown is DotCraft's core trust choice: **you cannot trust a memory you cannot read**.
-
-## When to Use Which
-
-| Scenario | Recommendation |
-|---|---|
-| One-shot reminder "use Python 3.11 this session" | Don't memorize; keep it in the conversation |
-| "This project uses pnpm, never npm" | `MEMORY.md` (let the agent patch it) |
-| Periodic "what have we been working on" self-check | Enable Dreams |
-| Wipe everything and start over | Desktop "Reset memory" |
-| Share project conventions with the team | Commit `MEMORY.md` to the repository |
-
-## Privacy & Local-First
-
-`.craft/memory/` and `.craft/dreams/` live entirely inside the workspace directory. DotCraft does not upload them to any external service unless you place the workspace under a synced folder. For stronger isolation:
-
-- Add `.craft/memory/` and `.craft/dreams/` to `.gitignore` to keep them on-device only.
-- Use [security configuration](../self-hosted/security) to forbid the agent from writing outside the workspace.
-
-## Related
+## Related docs
 
 - [Project Workspace](../project-first)
 - [Skills & Self-Learning](./skills)

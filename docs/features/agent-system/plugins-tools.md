@@ -1,6 +1,6 @@
 # Plugins & Tools
 
-DotCraft separates agent-callable actions into two layers: **built-in tools** (file / shell / web / search / plan / todo, implemented by DotCraft itself) and **plugin-provided capabilities** (dynamic tools + skills, distributed by you or third parties). MCP servers are a third source on top.
+Tools are what the agent can actually do — read a file, run a command, search the web. DotCraft draws them from three places: **built-in tools** (file, shell, web, search, plan, todo — shipped with DotCraft), **plugins** (extra tools and skills you or others package up), and **MCP servers**. You decide which ones are on.
 
 ![DotCraft tool surface topology](/tool-surface-topology.svg)
 
@@ -126,7 +126,7 @@ Installing a plugin adds new tools and skills to the workspace's capability surf
 - Plugin detail pages link to website, privacy policy, and ToS for source verification.
 - Blacklists, workspace boundary, sandbox, and other restrictions also apply to plugin tools. See [Security & Sandbox](../self-hosted/security).
 
-## Related
+## Related docs
 
 - [Skills & Self-Learning](./skills) — relationship between skills and plugins
 - [Observability](../self-hosted/observability) — view plugin tool calls and approvals in Dashboard

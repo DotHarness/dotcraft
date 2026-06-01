@@ -1,6 +1,6 @@
 # Channels & Bots
 
-DotCraft connects the same workspace to mainstream chat platforms via SDK extensions: QQ, WeCom, Feishu / Lark, Telegram, WeChat. These channels reuse the same session core, memory, skills, and security policy — context you see in Desktop is the same context the bot sees.
+DotCraft can bring the same agent into the chat platforms your team already uses — QQ, WeCom, Feishu / Lark, Telegram, WeChat. A channel bot shares the same session core, memory, skills, and security policy as everything else, so what you see in Desktop is the same context the bot works from.
 
 ![DotCraft Channels configuration and conversations](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/channels.gif)
 
@@ -67,21 +67,7 @@ DotCraft ships five channels out of the box. To integrate other platforms (Slack
 - Python: see [Python SDK](../../developing/sdks/python)
 - Any language: speak [AppServer Protocol](../../developing/protocols/appserver-protocol) directly
 
-## Troubleshooting
-
-### Adapter cannot connect to AppServer
-
-Confirm AppServer runs in WebSocket mode, the URL contains `/ws`, and the token matches the client config.
-
-### Messages arrive but the agent does not reply
-
-Check that the adapter declared delivery capabilities during initialize. Verify the model provider's merged result on the Dashboard Settings page. Check whether tools were rejected by approval.
-
-### Desktop does not see bot conversations
-
-Confirm Desktop and the bot connect to the **same** workspace / AppServer.
-
-## Related
+## Related docs
 
 - [Unified Session Core](../../developing/architecture/session-core)
 - [Security & Sandbox](../self-hosted/security)

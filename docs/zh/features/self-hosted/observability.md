@@ -1,6 +1,6 @@
 # 可观测性
 
-DotCraft 的 Dashboard 是 Web 端可视化排查界面，用于查看会话、Trace、工具调用、自动化状态、配置合并结果和审批记录。它适合排查"Agent 做了什么"和"配置为什么这样生效"。
+DotCraft 的 Dashboard 是一个网页，让你看清正在发生什么——会话、Trace、工具调用、自动化状态、配置合并结果和审批记录。想弄明白"Agent 到底做了什么""配置为什么这样生效"，就到这儿查。
 
 ## 快速开始
 
@@ -85,21 +85,7 @@ Dashboard 的 Approvals 页面记录每一次需要审批的工具调用：
 
 如果你想自己消费 Trace 事件或自定义 dashboard，使用 [Dashboard API](../../developing/protocols/dashboard-api) 列出的 HTTP 端点和事件类型。这些事件也是 AppServer 协议在 Wire Protocol 上推送的同一份数据，区别只是 Dashboard 把它们渲染成 UI。
 
-## 故障排查
-
-### 浏览器打不开 Dashboard
-
-确认配置中已启用 Dashboard，并使用控制台输出的地址（默认 `http://127.0.0.1:8080/dashboard`）。
-
-### Automations 面板不显示
-
-Automations 面板需要 Gateway 加载 Automations 模块。本地 Dashboard 适合调试单工作区，不负责完整自动化编排状态。
-
-### 修改 Settings 后没有变化
-
-模型类字段通常影响新会话；AppServer、端口、Gateway 和外部渠道等启动级字段需要重启 DotCraft。具体规则见 [设置生效层级](../../developing/lifecycle/settings-lifecycle)。
-
-## 相关入口
+## 相关文档
 
 - [项目级工作区](../project-first)
 - [安全与沙箱](./security)

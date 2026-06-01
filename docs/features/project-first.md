@@ -1,6 +1,6 @@
 # Project Workspace
 
-DotCraft anchors every AI workflow to a real project directory. When you open a project, its conversation history, skills, long-term memory, automations, plugins, and model selection live in a single `.craft/` directory that is backed up, shared, and restored together with the repository — never scattered across a cloud account, a system prompt, or a single editor window.
+In DotCraft, the workspace is your project folder. Everything the agent builds up there — sessions, long-term memory, skills, automations, plugins, and model choices — lives in one `.craft/` folder at the project root. It travels with the project: commit it alongside your code, back it up, sync it to another machine, or hand it to a teammate, and they open the same agent you do.
 
 ## Key Concepts
 
@@ -54,13 +54,7 @@ They are plain Markdown with no special syntax. DotCraft injects them into the s
 
 Full walkthrough: [Getting Started](../getting-started).
 
-## When to Enable / Disable
-
-Treat entry switches (ACP and external channels) and behavior switches (Memory / Skills / Automations) as separate axes. Keep personal credentials global, keep shared project policy in the workspace, and use Dashboard Settings when you need to inspect the merged result.
-
-Full switch names, defaults, and JSON examples are in the [Configuration Reference](../developing/configuration).
-
-## Related
+## Related docs
 
 - [Getting Started](../getting-started)
 - [Workspace Handoff](../developing/workflow/workspace-handoff)

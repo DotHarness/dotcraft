@@ -1,6 +1,6 @@
 # Skills & Self-Learning
 
-Skills are how DotCraft lets the agent reuse procedures: a Markdown file with frontmatter that captures "how to do this thing", which the agent loads on demand. Skills can be built-in, hand-authored, or saved by the agent itself after a successful run — and broken skills can always be reverted to their original.
+Skills teach the agent how to do something once, so it doesn't have to work it out again next time. Each skill is a Markdown file with frontmatter that captures a procedure, and the agent loads it on demand when a matching situation comes up. Skills can be built in, written by hand, or saved by the agent itself after a job goes well — and if one breaks, you can always revert it to the original.
 
 ## Skill Sources
 
@@ -107,7 +107,7 @@ When self-learning is on, DotCraft injects `skill-authoring` as an on-demand ref
 | Capture a freshly solved problem | Enable self-learning, let `SkillManage create` |
 | Reuse a community solution | Skills page → market search → Install with DotCraft |
 
-## Related
+## Related docs
 
 - [Plugins & Tools](./plugins-tools) — distributing skills + tools as plugins
 - [Project Workspace](../project-first) — where `.craft/skills/` sits

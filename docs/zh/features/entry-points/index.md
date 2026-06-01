@@ -1,6 +1,6 @@
 # 入口总览
 
-DotCraft 提供多种"打开同一个工作区"的方式。所有入口都连同一个 [统一会话核心](../../developing/architecture/session-core)、读同一份 `.craft/`、共享同一份长期记忆——区别只是**在哪种界面里和 Agent 说话**。
+打开一个 DotCraft 工作区有不止一种方式。无论你选哪种，面对的都是同一个 Agent：它读同一份 `.craft/`，共享同一个 [会话核心](../../developing/architecture/session-core) 和同一份长期记忆。变的只是**你在哪种界面里和它说话**。
 
 ## 入口形态
 
@@ -40,7 +40,7 @@ DotCraft 提供多种"打开同一个工作区"的方式。所有入口都连同
 2. 在 Desktop 里跑通"选工作区 + 配模型 + 第一次对话"。
 3. 再按真实需求决定要不要打开第二种入口（TUI / ACP / 频道）。
 
-## 相关入口
+## 相关文档
 
 - [统一会话核心](../../developing/architecture/session-core) — 跨入口共享背后的 Thread / Turn / Item 模型
 - [AppServer 模式](../../developing/lifecycle/appserver) — 远程、多客户端、自定义集成

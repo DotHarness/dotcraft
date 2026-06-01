@@ -1,6 +1,6 @@
 # Desktop
 
-Desktop 是 DotCraft 推荐的第一入口。它作为 AppServer 客户端工作，用图形界面管理工作区、会话、Diff、计划、模型配置、自动化审核和运行状态。
+Desktop 是上手 DotCraft 最省事的方式。它把一切都放在一个窗口里——工作区、会话、Diff、计划、模型配置、自动化审核和运行状态——让你用图形界面驱动 Agent，而不用敲命令行。（它底层是个 AppServer 客户端，和其他入口共用同一个工作区。）
 
 第一次使用先按 [快速开始](../../getting-started) 完成下载、选工作区和配模型；本页只讲 Desktop 自己的特有面板与设置。
 
@@ -94,21 +94,7 @@ Desktop 升级后，会在进入可用工作区主界面时显示一次 **What's
 - 图片附件保存在 `.craft/attachments/images/`，重启后仍可恢复缩略图。
 - Markdown 内容区会把标记为 `mermaid` / `mmd` 的 fenced code block 渲染为 Mermaid 图。图表无法渲染时，Desktop 会回退显示源码块。
 
-## 故障排查
-
-### Desktop 启动后没有可用会话
-
-确认已经选择工作区，并且 AppServer / `dotcraft` 二进制可执行。
-
-### 设置修改后没有生效
-
-Provider 和模型选择通常立即用于新会话；已有 provider-aware 线程会保留创建时捕获的 provider 和模型，除非显式修改当前线程模型。AppServer、端口、入口模式等启动级配置需要重启 Desktop 或后台 Host。详见 [设置生效层级](../../developing/lifecycle/settings-lifecycle)。
-
-### 自动化面板为空
-
-确认使用 Gateway 或支持 Automations 的 Host，并在配置中启用对应任务来源。详见 [Automations](../agent-system/automations)。
-
-## 相关入口
+## 相关文档
 
 - [快速开始](../../getting-started) — 第一次安装与配置
 - [TUI](./tui) — 终端富界面

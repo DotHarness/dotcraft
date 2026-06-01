@@ -1,6 +1,6 @@
 # Security & Sandbox
 
-DotCraft's security model has four layers: **file blacklist**, **workspace boundary**, **tool capability switches**, and **sandbox isolation**. Most local projects only need the defaults plus a few sensitive paths. Public deployments and external channel integrations should follow the strict deployment checklist.
+DotCraft keeps the agent inside guardrails you control, across four layers: a **file blacklist**, the **workspace boundary**, **tool capability switches**, and **sandbox isolation**. Most local projects only need the defaults plus a few sensitive paths; public deployments and external channel integrations should follow the strict deployment checklist.
 
 ## Default Safety Baseline
 
@@ -77,33 +77,7 @@ When DotCraft is exposed through external channels or the public internet, enabl
 | External channel or bot | Approvals on, restricted tools, strong tokens |
 | Automation tasks | Per-task sandbox or tightened tool surface |
 
-## Troubleshooting
-
-### Command is inside the workspace but still denied
-
-Check whether the command string also references an outside-workspace path such as a home directory, `/etc`, `C:\Users`, or an environment variable that expands outside the workspace.
-
-### Sandbox does not start
-
-Confirm Docker and `opensandbox-server` are running, then verify the sandbox domain, API key, and network policy in the configuration reference.
-
-### Web search or fetch fails
-
-Check the configured search provider, timeout, response-size limit, and the network environment.
-
-### Hook does not run
-
-Confirm Hooks are enabled, the event name is correct, the matcher covers the current tool name, and the command path works from the current workspace.
-
-### Hook times out
-
-Increase the Hook timeout or move slow work to a background queue. Hooks are for short checks, not long-running jobs.
-
-### Hooks cannot modify tool arguments
-
-By design. Hooks only observe or block.
-
-## Related
+## Related docs
 
 - [Observability](./observability) — view approval and block records in Dashboard
 - [SubAgents](../agent-system/subagents) — bound delegated work with role tool policies

@@ -1,6 +1,6 @@
 # IDE / 编辑器（ACP）
 
-[Agent Client Protocol（ACP）](https://agentclientprotocol.com/) 是一个开放协议，专门用于标准化编码代理与编辑器/IDE 之间的通信方式——与 LSP 解决编辑器与语言服务器耦合问题的思路如出一辙，但作用对象是 AI 代理。任何实现了 ACP 的编辑器都可以接入任意 ACP 兼容代理。DotCraft 原生支持 ACP，因此可以作为编辑器内的一等公民编码助手运行，无需云订阅、无需专有插件、无需任何厂商特定的配置。
+DotCraft 可以直接在你的编辑器里当编码助手用——JetBrains、Obsidian、Unity 等等——不用云订阅、不用专有插件、不绑定任何厂商。它靠的是 [Agent Client Protocol（ACP）](https://agentclientprotocol.com/)：一个把编码代理接进编辑器的开放标准（思路类似 LSP，只是对象换成了 AI 代理）。任何兼容 ACP 的编辑器都能接任意兼容 ACP 的代理，而 DotCraft 原生就支持 ACP。
 
 从编辑器角度来看，通信方式仍基于 **stdio（标准输入/输出）与 JSON-RPC 2.0**：编辑器将 DotCraft 作为子进程启动，通过标准流双向交换消息。在内部，DotCraft ACP 进程充当**协议桥接层**，将编辑器（ACP 协议）与 AppServer 实例（Wire Protocol）连接起来。所有会话状态、Agent 执行和工具调用均由 AppServer 处理，并与 TUI、Desktop、外部渠道等客户端共用同一套后端。桥接层会自动启动本地 AppServer 子进程，也可连接到你指定的远程 AppServer。
 
@@ -147,21 +147,7 @@ ACP 作为完整的 AppServer 客户端工作。通过编辑器创建的会话�
 | 与 Desktop 共享会话 | 连接同一个 workspace / AppServer |
 | 让编辑器负责文件和终端能力 | 使用支持 `fs/*` 和 `terminal/*` 的 ACP 客户端 |
 
-## 故障排查
-
-### 编辑器里没有出现 DotCraft
-
-确认命令路径指向 `dotcraft`，参数为 `-acp`，并且编辑器插件支持 Agent Client Protocol。
-
-### 无法读取未保存文件
-
-只有通过编辑器 ACP 客户端路由的文件访问才能看到未保存缓冲区。其他入口通常读取磁盘文件。
-
-### 远程模式连接失败
-
-确认 AppServer 使用 WebSocket 启动，URL 包含 `/ws`，并且 token 与服务端一致。
-
-## 相关入口
+## 相关文档
 
 - [Desktop](./desktop) — 图形界面 + ACP 同后台
 - [AppServer 模式](../../developing/lifecycle/appserver) — 远程或多客户端
