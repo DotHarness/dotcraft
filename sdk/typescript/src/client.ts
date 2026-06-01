@@ -18,6 +18,11 @@ export type ServerRequestHandler = (
 ) => unknown | Promise<unknown>;
 export type Unsubscribe = () => void;
 
+export interface RuntimeAdditionalContextEntry {
+  kind: "application";
+  value: string;
+}
+
 export class DotCraftWireClient {
   private readonly transport: Transport;
   private nextId = 1;
@@ -118,6 +123,7 @@ export class DotCraftWireClient {
     historyMode?: string;
     config?: Record<string, unknown> | null;
     dynamicTools?: Record<string, unknown>[] | null;
+    additionalContext?: Record<string, RuntimeAdditionalContextEntry> | null;
   }): Promise<Thread> {
     const identity: Record<string, unknown> = {
       channelName: params.channelName,
@@ -134,6 +140,7 @@ export class DotCraftWireClient {
       p.displayName = params.displayName;
     if (params.config) p.config = params.config;
     if (params.dynamicTools?.length) p.dynamicTools = params.dynamicTools;
+    if (params.additionalContext) p.additionalContext = params.additionalContext;
 
     const result = (await this.request("thread/start", p)) as Record<string, unknown>;
     return Thread.fromWire((result.thread as Record<string, unknown>) ?? {});
@@ -141,10 +148,15 @@ export class DotCraftWireClient {
 
   async threadResume(
     threadId: string,
-    params?: { dynamicTools?: Record<string, unknown>[] | null },
+    params?: {
+      dynamicTools?: Record<string, unknown>[] | null;
+      additionalContext?: Record<string, RuntimeAdditionalContextEntry> | null;
+    },
   ): Promise<Thread> {
     const payload: Record<string, unknown> = { threadId };
     if (params?.dynamicTools?.length) payload.dynamicTools = params.dynamicTools;
+    if (params?.additionalContext !== undefined && params.additionalContext !== null)
+      payload.additionalContext = params.additionalContext;
     const result = (await this.request("thread/resume", payload)) as Record<string, unknown>;
     return Thread.fromWire((result.thread as Record<string, unknown>) ?? {});
   }

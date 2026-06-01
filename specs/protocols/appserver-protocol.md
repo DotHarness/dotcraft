@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.2.12 |
+| **Version** | 0.2.15 |
 | **Status** | Living |
-| **Date** | 2026-05-19 |
+| **Date** | 2026-06-01 |
 | **Parent Spec** | [Session Core](../core/session-core.md) (Section 20) |
 | **Related Specs** | [Tool Result Presentation](tool-result-presentation.md) |
 
@@ -349,6 +349,7 @@ Built-in channels do not negotiate these capabilities over `initialize`; they pr
     "skillsManagement": true,
     "pluginManagement": true,
     "skillVariants": true,
+    "runtimeAdditionalContext": true,
     "appBinding": true,
     "appContextBlocks": true,
     "commandManagement": true,
@@ -377,6 +378,7 @@ Built-in channels do not negotiate these capabilities over `initialize`; they pr
 | `capabilities.manualCompaction` | boolean | Server supports manual context compaction with `thread/compact/start`. |
 | `capabilities.manualMemoryConsolidation` | boolean | Server supports manual long-term memory consolidation with `thread/memory/consolidate/start`. |
 | `capabilities.dynamicToolRebind` | boolean | Server supports rebinding Runtime Dynamic Tools to the current client connection via `thread/resume.dynamicTools`. |
+| `capabilities.runtimeAdditionalContext` | boolean | Server supports thread-bound runtime context supplied by the AppServer client through `thread/start.additionalContext` and `thread/resume.additionalContext`. |
 | `capabilities.appBinding` | boolean | Server supports App Binding methods (`app/*` and `thread/appBindings/*`). |
 | `capabilities.appContextBlocks` | boolean | Server supports App Binding context block methods (`app/binding/context/upsert`, `app/binding/context/remove`, and `thread/appContextBlocks/list`). |
 | `capabilities.appThreadInputEnqueue` | boolean | Server supports App Binding-safe app-triggered queued input via `app/threadInput/enqueue`. |
@@ -430,6 +432,7 @@ Create a new thread. The server generates a Thread ID and persists initial state
 | `identity` | SessionIdentity | yes | Channel identity for thread ownership. See [Session Core, Section 4.1.4](../core/session-core.md#414-sessionidentity). |
 | `config` | ThreadConfiguration | no | Per-thread agent configuration. Null means workspace defaults. |
 | `dynamicTools` | DynamicToolSpec[] | no | Thread-scoped runtime tools implemented by the AppServer client that creates or resumes the thread. |
+| `additionalContext` | RuntimeAdditionalContext | no | Thread-bound runtime context supplied by the AppServer client. Requires `capabilities.runtimeAdditionalContext`. |
 | `historyMode` | string | no | `"server"` (default) or `"client"`. |
 | `displayName` | string | no | Explicit thread display name. |
 
@@ -482,6 +485,7 @@ Dynamic tool spec:
 Rules:
 
 - `name` and `description` are required.
+- `name` should follow DotCraft's model-visible tool naming convention: PascalCase operation names such as `CreatePlan`, `RequestUserInput`, and `ListThreads`.
 - `namespace` is optional. When present it must be non-empty after trimming.
 - `inputSchema` is required and must be a valid JSON Schema object.
 - `outputSchema`, when present, describes the structured result returned by the tool.
@@ -491,6 +495,79 @@ Rules:
 - `(namespace, name)` pairs must be unique within a `thread/start` request.
 - `approval`, when present, uses the same descriptive approval metadata as channel tools: `file`, `shell`, or `remoteResource`. DotCraft evaluates approval before dispatching `item/tool/call`.
 - If the bound connection closes, dynamic tools bound to that thread become unavailable and calls fail with a structured failed `dynamicToolCall` item until a capable client resumes the thread with replacement `dynamicTools`.
+
+#### 4.1.0.1 Desktop Thread Management Runtime Tool Profile
+
+DotCraft Desktop may expose a standard thread-management profile as Runtime Dynamic Tools. This profile is client-owned: AppServer does not add native model tools for cross-thread management and does not define additional JSON-RPC methods for this profile. Desktop declares the tools through `thread/start.dynamicTools` and, when supported, rebinds them through `thread/resume.dynamicTools`; AppServer invokes them only through `item/tool/call`.
+
+Tool identity:
+
+- `namespace`: `desktop`
+- `name`: PascalCase, following DotCraft model-visible tool naming. Clients must expose `CreateThread`, not `create_thread`.
+- `deferLoading`: `true` by default for every tool in this profile. Clients may expose the tools directly only when the active model/runtime has no deferred-tool discovery path.
+- The profile must remain schema-stable across ordinary Agent/Plan mode switches. Availability, target validation, and policy constraints are enforced by the Desktop handler result rather than by adding/removing individual tools per mode.
+- When this profile is deferred, Desktop supplies concise thread-coordination guidance through `additionalContext["desktop.threadCoordination"]`. AppServer must not infer or hardcode this guidance from the Desktop tool names.
+
+Standard tools:
+
+| Tool | Backing AppServer methods | Required arguments | Summary |
+|------|---------------------------|--------------------|---------|
+| `CreateThread` | `thread/start`, then `turn/start` for the initial prompt | `prompt` | Creates a server-managed thread in the current Desktop workspace/identity and starts the initial turn. |
+| `ListThreads` | `thread/list` | none | Returns recent thread summaries for the current Desktop workspace/identity. The handler may post-filter by `query` and truncate by `limit`. |
+| `ReadThread` | `thread/read` | `threadId` | Reads status and recent turn summaries for one thread without opening it in the Desktop UI. |
+| `SendMessageToThread` | `turn/start` or `turn/enqueue` | `threadId`, `prompt` | Sends a follow-up prompt to an existing thread without changing the user's active Desktop selection. |
+| `SetThreadTitle` | `thread/rename` | `threadId`, `title` | Renames a thread. |
+| `SetThreadArchived` | `thread/archive` or `thread/unarchive` | `threadId`, `archived` | Archives or restores a thread. |
+
+`SetThreadPinned` is deferred until AppServer defines pinned-thread state and a backing management method. Desktop must not declare pinned-thread runtime tools until the backing protocol exists.
+
+#### 4.1.0.2 Runtime Additional Context
+
+`additionalContext` lets an AppServer client attach compact thread-bound runtime context alongside client-owned capabilities such as Runtime Dynamic Tools. The server renders this context into the model-visible System prompt using DotCraft's App Context tag semantics.
+
+Wire shape:
+
+```json
+{
+  "desktop.threadCoordination": {
+    "kind": "application",
+    "value": "When the user asks to create, inspect, continue, archive, rename, or otherwise manage DotCraft threads in the background, search for the relevant thread tool first: CreateThread, ListThreads, ReadThread, SendMessageToThread, SetThreadTitle, SetThreadArchived."
+  }
+}
+```
+
+Rules:
+
+- Keys are client-owned stable source identifiers. They must be non-empty, at most 128 characters, and contain only letters, digits, `.`, `_`, or `-`.
+- `kind` must be `"application"` in this version.
+- `value` is required, model-visible text with a maximum length of 16 KiB.
+- Runtime additional context is bound to the requesting client runtime for the thread. It does not create Turns, Items, thread rollout records, or `ThreadConfiguration` updates.
+- The server renders each entry inside `<app-context>...</app-context>` in a System prompt section. Clients must not rely on a separate developer role being available.
+
+Argument conventions:
+
+- `CreateThread.prompt` and `SendMessageToThread.prompt` are plain user prompts encoded as `InputPart` text when calling `turn/start` or `turn/enqueue`.
+- `CreateThread.displayName` is optional and maps to `thread/start.displayName` when present.
+- `CreateThread.model` and `SendMessageToThread.model`, when supported by the client, map to thread configuration or a turn-scoped override only through explicit AppServer protocol support. A client that cannot apply the override must return `success = false` with `errorCode = "UnsupportedOption"` rather than silently ignoring it.
+- `ListThreads.query` and `ListThreads.limit` are optional client-side filtering controls. `query` is not a server-side search contract unless a future `thread/list` filter defines it.
+- `ReadThread.includeOutputs`, `ReadThread.maxOutputCharsPerItem`, and `ReadThread.turnLimit` are optional presentation controls for the client-produced summary. Pagination cursors are deferred until the AppServer read protocol defines cursor-based history access.
+
+Result conventions:
+
+- `contentItems` should contain a concise text summary suitable for the model.
+- `structuredResult` should reuse AppServer wire DTOs or stable summaries derived from them. Examples include `thread`, `threads`, `turn`, `queuedInput`, `started`, `queued`, and `archived`.
+- `CreateThread` returns the created `thread` and, when the initial prompt is accepted, the started `turn` or queued input state.
+- `SendMessageToThread` returns whether the prompt was started immediately or queued.
+- `ReadThread` must not resume execution or subscribe the UI to that thread; it is a read-only projection.
+
+Failure conventions:
+
+- Desktop returns `success = false` with stable `errorCode` and English `errorMessage`.
+- Standard errors are `UnsupportedTool`, `UnsupportedOption`, `InvalidArguments`, `ThreadNotFound`, `ThreadArchived`, `ThreadBusy`, `ThreadManagementUnavailable`, `TargetUnsupported`, and `AppServerRequestFailed`.
+- If the target thread is busy, `SendMessageToThread` should use `turn/enqueue` when available. If queuing is not available or rejected, the handler returns `ThreadBusy`.
+- If the Desktop transport that owns the tools is disconnected, AppServer handles the call as an unavailable dynamic tool using the Runtime Dynamic Tools failure rules above.
+
+Thread-management tools are dynamic client callbacks, while thread lifecycle, storage, turn execution, and broadcasts remain owned by the AppServer `thread/*` and `turn/*` protocol.
 
 #### 4.1.1 `ThreadConfiguration` Wire Shape
 
@@ -620,6 +697,7 @@ Resume a paused or previously loaded thread. Session Core loads the thread from 
 |-------|------|----------|-------------|
 | `threadId` | string | yes | Thread ID to resume. |
 | `dynamicTools` | DynamicToolSpec[] | no | Replacement Runtime Dynamic Tools bound to this resume request's client connection. Requires `capabilities.dynamicToolRebind`. Omitted or empty keeps the existing binding. |
+| `additionalContext` | RuntimeAdditionalContext | no | Replacement runtime additional context bound to this resume request's client connection. Requires `capabilities.runtimeAdditionalContext`. Omitted keeps the existing binding; `{}` clears it. |
 
 **Result**: `{ "thread": Thread }` — the resumed thread object.
 
@@ -4863,7 +4941,7 @@ Supported fields mirror the effective `SubAgentProfile` contract, including:
 
 ```json
 {
-  "name": "codex-cli",
+  "name": "agent-cli",
   "isBuiltIn": true,
   "isTemplate": false,
   "hasWorkspaceOverride": true,
@@ -4871,12 +4949,12 @@ Supported fields mirror the effective `SubAgentProfile` contract, including:
   "enabled": true,
   "definition": {
     "runtime": "cli-oneshot",
-    "bin": "codex",
+    "bin": "agent",
     "workingDirectoryMode": "workspace"
   },
   "builtInDefaults": {
     "runtime": "cli-oneshot",
-    "bin": "codex",
+    "bin": "agent",
     "workingDirectoryMode": "workspace"
   },
   "diagnostic": {
@@ -5004,7 +5082,7 @@ Remove one workspace-managed SubAgent definition.
 **Params**:
 
 ```json
-{ "name": "codex-cli" }
+{ "name": "agent-cli" }
 ```
 
 **Semantics**:

@@ -335,10 +335,17 @@ export interface StartThreadOptions extends ThreadIdentityOptions {
   historyMode?: string;
   config?: Record<string, unknown> | null;
   dynamicTools?: DynamicToolBinding[];
+  additionalContext?: Record<string, RuntimeAdditionalContextEntry>;
 }
 
 export interface ResumeThreadOptions {
   dynamicTools?: DynamicToolBinding[];
+  additionalContext?: Record<string, RuntimeAdditionalContextEntry>;
+}
+
+export interface RuntimeAdditionalContextEntry {
+  kind: "application";
+  value: string;
 }
 
 export interface GetOrCreateThreadOptions extends StartThreadOptions {
@@ -579,7 +586,10 @@ class ThreadManagerImpl implements ThreadManager {
     const reusable = threads.find((thread) => thread.status === "active" || thread.status === "paused");
     if (reusable) {
       if (reusable.status === "paused") {
-        return await this.resume(reusable.id, { dynamicTools: options.dynamicTools });
+        return await this.resume(reusable.id, {
+          dynamicTools: options.dynamicTools,
+          additionalContext: options.additionalContext,
+        });
       }
       const snapshot = await this.sdk.wire.threadRead(reusable.id);
       const thread = new DotCraftThread(this.sdk, snapshot, identity);
@@ -597,6 +607,7 @@ class ThreadManagerImpl implements ThreadManager {
       historyMode: options.historyMode,
       config: options.config,
       dynamicTools: stripDynamicToolHandlers(options.dynamicTools),
+      additionalContext: options.additionalContext,
     });
     const thread = new DotCraftThread(this.sdk, snapshot, identity);
     thread.bindDynamicTools(options.dynamicTools);
@@ -606,6 +617,7 @@ class ThreadManagerImpl implements ThreadManager {
   async resume(threadId: string, options: ResumeThreadOptions = {}): Promise<DotCraftThread> {
     const snapshot = await this.sdk.wire.threadResume(threadId, {
       dynamicTools: stripDynamicToolHandlers(options.dynamicTools),
+      additionalContext: options.additionalContext,
     });
     const thread = new DotCraftThread(this.sdk, snapshot, {
       channelName: snapshot.originChannel || "sdk",

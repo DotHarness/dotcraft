@@ -63,7 +63,8 @@ internal sealed class AppServerTestHarness : IDisposable
         IContextPageManager? contextPageManager = null,
         OpenAIClientProvider? openAIClientProvider = null,
         TraceStore? traceStore = null,
-        IReadOnlyList<string>? builtInPluginSourceRoots = null)
+        IReadOnlyList<string>? builtInPluginSourceRoots = null,
+        WireRuntimeAdditionalContextProvider? wireRuntimeAdditionalContextProvider = null)
     {
         _tempDir = Path.Combine(
             Path.GetTempPath(),
@@ -106,7 +107,8 @@ internal sealed class AppServerTestHarness : IDisposable
             contextPageManager: contextPageManager,
             openAIClientProvider: openAIClientProvider,
             traceStore: traceStore,
-            builtInPluginSourceRoots: builtInPluginSourceRoots);
+            builtInPluginSourceRoots: builtInPluginSourceRoots,
+            wireRuntimeAdditionalContextProvider: wireRuntimeAdditionalContextProvider);
 
         Identity = new SessionIdentity
         {

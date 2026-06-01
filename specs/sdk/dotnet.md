@@ -631,7 +631,8 @@ public sealed record DotCraftThreadStartRequest(
     string? DisplayName = null,
     string HistoryMode = "server",
     object? Config = null,
-    IReadOnlyList<DynamicToolSpec>? DynamicTools = null);
+    IReadOnlyList<DynamicToolSpec>? DynamicTools = null,
+    IReadOnlyDictionary<string, RuntimeAdditionalContextEntry>? AdditionalContext = null);
 ```
 
 The SDK sends:
@@ -640,6 +641,7 @@ The SDK sends:
 - `displayName`
 - `historyMode`
 - `dynamicTools`
+- `additionalContext`
 - `config`
 
 The SDK accepts either `{ "thread": { ... } }` or a direct thread object response and extracts the thread id from `id` or `threadId`.
@@ -657,10 +659,12 @@ Request record:
 ```csharp
 public sealed record DotCraftThreadResumeRequest(
     string ThreadId,
-    IReadOnlyList<DynamicToolSpec>? DynamicTools = null);
+    IReadOnlyList<DynamicToolSpec>? DynamicTools = null,
+    IReadOnlyDictionary<string, RuntimeAdditionalContextEntry>? AdditionalContext = null);
 ```
 
 When `DynamicTools` is non-empty, callers should check `client.Capabilities.DynamicToolRebind`.
+When `AdditionalContext` is non-null, callers should check `client.Capabilities.RuntimeAdditionalContext`; an empty dictionary clears runtime additional context on resume.
 
 ### 10.3 `SubscribeAsync`
 

@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.3.6 |
+| **Version** | 0.3.9 |
 | **Status** | Living |
-| **Date** | 2026-05-19 |
+| **Date** | 2026-06-01 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
 | **Related Specs** | [Plugin Architecture](../extensions/plugin-architecture.md), [Tool Result Presentation](../protocols/tool-result-presentation.md), [Goal Design](../core/goal-design.md), [Desktop Visual Design](desktop-visual-design.md) |
 
@@ -41,6 +41,7 @@ Purpose: Define the stable user-experience behavior of **DotCraft Desktop** as a
 - How secondary surfaces such as Skills and Automations behave from the user's perspective.
 - How users discover, configure, enable, and recover Desktop-managed channel modules.
 - How supported tool-result presentation payloads become safe conversation cards.
+- How Desktop-owned Runtime Dynamic Tools can manage background threads through AppServer.
 - How the client communicates failure, recovery, and availability constraints.
 - Localization, accessibility, and performance expectations at the UX level.
 
@@ -371,6 +372,29 @@ The slash reference surface includes Desktop-owned system actions above custom C
 - Selecting a system action from slash search clears the slash query from the composer instead of leaving `/` behind.
 - Direct `/plan`, `/agent`, `/compact`, and `/consolidate` submissions are handled locally and must not start a normal agent turn. `/compact` and `/consolidate` show an unavailable message instead of submitting a turn when their visibility conditions are not met. On the welcome screen, Plan mode is also shown as a system action, and `/plan` / `/agent` update the pending welcome mode without starting a thread.
 - Desktop updates the context ring from the RPC response when it includes `contextUsage`, and also consumes `system/event.contextUsage` on terminal compaction notifications so the ring updates even if a long manual compaction outlives the renderer request timeout. When a compacted `SystemNotice` item is the only event that reaches the renderer, Desktop uses its `tokensAfter` / `percentLeftAfter` fields to update an already-seeded ring instead of waiting for the next model request.
+
+### 5.13 Desktop Runtime Thread Tools
+
+Desktop may expose the AppServer Protocol's Desktop Thread Management Runtime Tool Profile to agents by declaring Runtime Dynamic Tools on `thread/start` and `thread/resume`.
+
+Required behavior:
+
+- Desktop-owned thread tools use the `desktop` namespace and DotCraft PascalCase tool names: `CreateThread`, `ListThreads`, `ReadThread`, `SendMessageToThread`, `SetThreadTitle`, and `SetThreadArchived`.
+- Desktop must not expose snake_case aliases as model-visible DotCraft tool names. Compatibility aliases, if needed for private integrations, must stay inside the Desktop tool handler and must not change the DotCraft tool surface.
+- Desktop declares these tools with `deferLoading = true` by default so they are discoverable on demand and do not expand the ordinary top-level tool list. Direct exposure is reserved for runtimes without deferred-tool discovery.
+- Desktop declares `additionalContext["desktop.threadCoordination"]` with `kind = "application"` whenever it declares the thread tools. The value is a concise App Context hint telling the agent to search for the relevant thread tool before background thread management.
+- Desktop declares these tools only when it can handle `item/tool/call` requests for them on the active AppServer transport.
+- Desktop implements the tools by calling ordinary AppServer methods. It must not mutate local thread state directly or bypass AppServer persistence.
+- `CreateThread` calls `thread/start` using the current workspace identity, then submits the initial prompt with `turn/start`. The created thread appears through normal `thread/started` synchronization, but Desktop does not switch the user's active conversation unless the user explicitly opens it.
+- `ListThreads` calls `thread/list` for the current workspace identity and may apply local `query` and `limit` filtering before returning a model-facing summary.
+- `ReadThread` calls `thread/read` and returns a compact summary without resuming the thread, subscribing the UI to it, or making it active.
+- `SendMessageToThread` sends a normal turn to the target thread without stealing focus. If the thread is running, waiting, or under blocking maintenance, Desktop uses `turn/enqueue` when available; otherwise the tool returns a structured busy failure.
+- `SetThreadTitle` and `SetThreadArchived` map to `thread/rename`, `thread/archive`, and `thread/unarchive`. Desktop waits for the RPC result and normal broadcasts to update visible state.
+- Pinned-thread tools remain unavailable until AppServer defines pinned-thread state. Desktop must not present a pinned-thread tool in this profile before that backing contract exists.
+- On reconnect, Desktop re-declares the same tool specs and runtime additional context when it resumes a thread and `capabilities.dynamicToolRebind = true`. If rebind is unavailable, pending calls fail through the normal Runtime Dynamic Tools unavailable path rather than silently routing to stale handlers.
+- Runtime thread-tool calls render as ordinary dynamic tool activity in the conversation. They are non-modal unless an underlying AppServer call triggers an existing approval or user-input flow.
+- If a background-created or background-updated thread changes while the user is viewing another thread, Desktop updates the sidebar/list indicators but must not force navigation.
+- Tool failures use stable error codes from the AppServer profile and a concise localized Desktop message where shown to the user.
 
 ---
 

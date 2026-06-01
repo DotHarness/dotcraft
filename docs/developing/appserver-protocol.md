@@ -119,6 +119,8 @@ The response returns server info and capabilities:
     "capabilities": {
       "threadManagement": true,
       "threadSubscriptions": true,
+      "dynamicToolRebind": true,
+      "runtimeAdditionalContext": true,
       "approvalFlow": true,
       "skillsManagement": true,
       "pluginManagement": true,
@@ -215,6 +217,33 @@ Common thread methods:
 | `thread/delete` | Delete a thread. |
 | `thread/config/update` | Update thread configuration. |
 | `thread/mode/set` | Switch agent mode, such as `plan` or `agent`. |
+
+### Runtime Dynamic Tools and App Context
+
+Clients that expose Runtime Dynamic Tools can also attach compact app context on `thread/start` or `thread/resume`. Use `additionalContext` for short model-visible guidance that helps the agent discover or use client-owned capabilities, especially deferred tools.
+
+Check `capabilities.runtimeAdditionalContext` before sending `additionalContext`:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 3,
+  "method": "thread/resume",
+  "params": {
+    "threadId": "thread_20260316_x7k2m4",
+    "additionalContext": {
+      "myapp.threadGuidance": {
+        "kind": "application",
+        "value": "When the user asks about MyApp issues, search for the relevant MyApp tool first."
+      }
+    }
+  }
+}
+```
+
+`kind` currently supports only `"application"`. Keep `value` concise; do not include secrets, authorization material, or large state snapshots. The server renders each entry into the System prompt inside `<app-context>...</app-context>`. It is app context, not a higher-priority instruction.
+
+On `thread/resume`, omitting `additionalContext` keeps the current runtime context; sending `{}` clears it.
 
 ## Turns
 

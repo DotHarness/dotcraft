@@ -119,6 +119,37 @@ const thread = await dotcraft.threads.start({
 });
 ```
 
+Pair deferred tools with `additionalContext` when the model needs a short hint to search for the relevant tool first. The value is rendered as app context, not as a higher-priority instruction.
+
+```typescript
+const thread = await dotcraft.threads.start({
+  userId: "alice",
+  dynamicTools: [
+    {
+      namespace: "issues",
+      name: "ListIssues",
+      description: "List issues from the connected issue tracker.",
+      inputSchema: { type: "object" },
+      deferLoading: true,
+      handler: async () => ({
+        success: true,
+        contentItems: [{ type: "text", text: "No open issues." }],
+      }),
+    },
+  ],
+  additionalContext: {
+    "issues.threadGuidance": {
+      kind: "application",
+      value: "When the user asks about issues, search for the relevant issues tool first.",
+    },
+  },
+});
+
+await dotcraft.threads.resume(thread.id, { additionalContext: {} });
+```
+
+Check `capabilities.runtimeAdditionalContext` before using this field. On resume, omitting `additionalContext` keeps the current runtime context; `{}` clears it.
+
 ## Raw Wire API
 
 ```typescript

@@ -93,6 +93,7 @@ public sealed record AppServerServerCapabilities(
     bool ThreadManagement,
     bool ThreadSubscriptions,
     bool DynamicToolRebind,
+    bool RuntimeAdditionalContext,
     bool AppBinding,
     bool ModelCatalogManagement,
     JsonElement Raw);
@@ -119,14 +120,23 @@ public sealed record DotCraftThreadStartRequest(
     string? DisplayName = null,
     string HistoryMode = "server",
     object? Config = null,
-    IReadOnlyList<DynamicToolSpec>? DynamicTools = null);
+    IReadOnlyList<DynamicToolSpec>? DynamicTools = null,
+    IReadOnlyDictionary<string, RuntimeAdditionalContextEntry>? AdditionalContext = null);
 
 /// <summary>
 /// AppServer thread/resume request options.
 /// </summary>
 public sealed record DotCraftThreadResumeRequest(
     string ThreadId,
-    IReadOnlyList<DynamicToolSpec>? DynamicTools = null);
+    IReadOnlyList<DynamicToolSpec>? DynamicTools = null,
+    IReadOnlyDictionary<string, RuntimeAdditionalContextEntry>? AdditionalContext = null);
+
+/// <summary>
+/// Thread-bound runtime context supplied by an AppServer client.
+/// </summary>
+public sealed record RuntimeAdditionalContextEntry(
+    string Value,
+    string Kind = "application");
 
 /// <summary>
 /// AppServer thread result with raw thread JSON.

@@ -19,6 +19,10 @@ import { spawn } from 'child_process'
 import net from 'net'
 import WebSocket from 'ws'
 import { WireProtocolClient, type InitializeResult } from './WireProtocolClient'
+import {
+  handleDesktopRuntimeThreadToolCall,
+  resetDesktopThreadToolBindings
+} from './desktopRuntimeThreadTools'
 import { HubClient, type HubAppServerResponse, type HubEvent } from './HubClient'
 import {
   registerIpcHandlers,
@@ -161,6 +165,16 @@ function scheduleAddTabPopupWarmup(win: BrowserWindow, theme: 'dark' | 'light'):
 async function handleServerRequestInMain(method: string, params: unknown): Promise<unknown | undefined> {
   if (!mainWindow || mainWindow.isDestroyed()) {
     throw new Error('Window is not available to handle server request')
+  }
+
+  if (method === 'item/tool/call') {
+    const client = wireClient
+    if (!client) {
+      return undefined
+    }
+    return handleDesktopRuntimeThreadToolCall(client, params, currentWorkspacePath, {
+      supportsDynamicToolRebind: lastConnectionStatus.capabilities?.dynamicToolRebind === true
+    })
   }
 
   if (method === 'ext/nodeRepl/evaluate') {
@@ -910,6 +924,7 @@ async function connectViaWebSocket(
   }
   const win = mainWindow!
   lastAppServerWsUrl = wsUrl
+  resetDesktopThreadToolBindings()
   emitConnectionStatus(win, { status: 'connecting' })
   reregisterIpcForWorkspace(workspacePath)
 
@@ -931,6 +946,7 @@ async function connectViaWebSocket(
     return promise
   })
   const emitConnected = (result: InitializeResult): void => {
+    resetDesktopThreadToolBindings()
     if (mainWindow && !mainWindow.isDestroyed()) {
       emitConnectionStatus(mainWindow, {
         status: 'connected',
@@ -945,6 +961,7 @@ async function connectViaWebSocket(
   client.on('ready', (result: InitializeResult) => emitConnected(result))
   client.on('reconnected', (result: InitializeResult) => emitConnected(result))
   client.on('close', () => {
+    resetDesktopThreadToolBindings()
     if (mainWindow && !mainWindow.isDestroyed()) {
       const loc = normalizeLocale(sharedSettings.locale)
       emitConnectionStatus(mainWindow, {

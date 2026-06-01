@@ -119,6 +119,37 @@ const thread = await dotcraft.threads.start({
 });
 ```
 
+当 deferred tools 需要模型先搜索相关工具时，可以配合 `additionalContext` 放一条简短提示。该内容会作为 app context 渲染，不是更高优先级的指令。
+
+```typescript
+const thread = await dotcraft.threads.start({
+  userId: "alice",
+  dynamicTools: [
+    {
+      namespace: "issues",
+      name: "ListIssues",
+      description: "List issues from the connected issue tracker.",
+      inputSchema: { type: "object" },
+      deferLoading: true,
+      handler: async () => ({
+        success: true,
+        contentItems: [{ type: "text", text: "No open issues." }],
+      }),
+    },
+  ],
+  additionalContext: {
+    "issues.threadGuidance": {
+      kind: "application",
+      value: "When the user asks about issues, search for the relevant issues tool first.",
+    },
+  },
+});
+
+await dotcraft.threads.resume(thread.id, { additionalContext: {} });
+```
+
+使用该字段前先检查 `capabilities.runtimeAdditionalContext`。恢复线程时，省略 `additionalContext` 会保留当前 runtime context；`{}` 会清空它。
+
 ## Raw Wire API
 
 ```typescript

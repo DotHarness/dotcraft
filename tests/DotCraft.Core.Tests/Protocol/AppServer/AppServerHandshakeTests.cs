@@ -64,6 +64,19 @@ public sealed class AppServerHandshakeTests : IDisposable
     }
 
     [Fact]
+    public async Task Initialize_AdvertisesRuntimeAdditionalContext_WhenProviderRegistered()
+    {
+        using var harness = new AppServerTestHarness(wireRuntimeAdditionalContextProvider: new WireRuntimeAdditionalContextProvider());
+
+        var initDoc = await harness.InitializeAsync();
+        var caps = initDoc.RootElement
+            .GetProperty("result")
+            .GetProperty("capabilities");
+
+        Assert.True(caps.GetProperty("runtimeAdditionalContext").GetBoolean());
+    }
+
+    [Fact]
     public async Task Initialize_AdvertisesSkillVariants_WhenVariantModeEnabled()
     {
         var craftPath = Path.Combine(Path.GetTempPath(), "dotcraft-appserver-variant-caps", Guid.NewGuid().ToString("N"), ".craft");

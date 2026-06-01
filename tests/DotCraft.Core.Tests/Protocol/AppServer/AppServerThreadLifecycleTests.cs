@@ -1,5 +1,7 @@
 using System.Text.Json.Nodes;
+using DotCraft.Abstractions;
 using DotCraft.Configuration;
+using DotCraft.Context;
 using DotCraft.Memory;
 using DotCraft.Protocol;
 using DotCraft.Protocol.AppServer;
@@ -58,6 +60,40 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         AppServerTestHarness.AssertIsSuccessResponse(response);
         var thread = response.RootElement.GetProperty("result").GetProperty("thread");
         Assert.Equal(_h.Identity.WorkspacePath, thread.GetProperty("workspacePath").GetString());
+    }
+
+    [Fact]
+    public async Task ThreadStart_WithRuntimeAdditionalContext_BindsContextAndRefreshesAgent()
+    {
+        var runtimeContextProvider = new WireRuntimeAdditionalContextProvider();
+        using var h = new AppServerTestHarness(wireRuntimeAdditionalContextProvider: runtimeContextProvider);
+        await h.InitializeAsync();
+
+        var msg = h.BuildRequest(AppServerMethods.ThreadStart, new
+        {
+            identity = new { channelName = "appserver", userId = "test_user", workspacePath = h.Identity.WorkspacePath },
+            additionalContext = new Dictionary<string, RuntimeAdditionalContextEntry>
+            {
+                ["desktop.threadCoordination"] = new()
+                {
+                    Kind = RuntimeAdditionalContextKinds.Application,
+                    Value = "Search for thread tools before background thread management."
+                }
+            }
+        });
+        await h.ExecuteRequestAsync(msg);
+
+        var response = await h.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(response);
+        var threadId = response.RootElement.GetProperty("result").GetProperty("thread").GetProperty("id").GetString()!;
+
+        Assert.Contains(threadId, h.Service.RefreshedThreadAgents);
+        var section = runtimeContextProvider.GetSystemPromptSection(new ThreadSystemPromptContext(threadId, h.Identity.WorkspacePath));
+        Assert.NotNull(section);
+        Assert.Contains("# Runtime Additional Context", section, StringComparison.Ordinal);
+        Assert.Contains("desktop.threadCoordination", section, StringComparison.Ordinal);
+        Assert.Contains("<app-context>", section, StringComparison.Ordinal);
+        Assert.Contains("Search for thread tools", section, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -273,6 +309,68 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         Assert.Contains(thread.Id, harness.Service.RefreshedThreadAgents);
         var tool = Assert.Single(dynamicToolProxy.CreateToolsForThread(thread, EmptyReservedNames()));
         Assert.Equal("SubmitReviewDraft", tool.Name);
+    }
+
+    [Fact]
+    public async Task ThreadResume_WithoutRuntimeAdditionalContext_KeepsExistingContext()
+    {
+        var runtimeContextProvider = new WireRuntimeAdditionalContextProvider();
+        using var harness = new AppServerTestHarness(wireRuntimeAdditionalContextProvider: runtimeContextProvider);
+        await harness.InitializeAsync();
+        var thread = await harness.Service.CreateThreadAsync(harness.Identity);
+        runtimeContextProvider.BindThread(
+            thread.Id,
+            harness.Transport,
+            harness.Connection,
+            new Dictionary<string, RuntimeAdditionalContextEntry>
+            {
+                ["desktop.threadCoordination"] = new()
+                {
+                    Kind = RuntimeAdditionalContextKinds.Application,
+                    Value = "existing context"
+                }
+            });
+
+        var msg = harness.BuildRequest(AppServerMethods.ThreadResume, new { threadId = thread.Id });
+        await harness.ExecuteRequestAsync(msg);
+
+        var response = await harness.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(response);
+        var section = runtimeContextProvider.GetSystemPromptSection(new ThreadSystemPromptContext(thread.Id, harness.Identity.WorkspacePath));
+        Assert.Contains("existing context", section);
+    }
+
+    [Fact]
+    public async Task ThreadResume_WithEmptyRuntimeAdditionalContext_ClearsExistingContext()
+    {
+        var runtimeContextProvider = new WireRuntimeAdditionalContextProvider();
+        using var harness = new AppServerTestHarness(wireRuntimeAdditionalContextProvider: runtimeContextProvider);
+        await harness.InitializeAsync();
+        var thread = await harness.Service.CreateThreadAsync(harness.Identity);
+        runtimeContextProvider.BindThread(
+            thread.Id,
+            harness.Transport,
+            harness.Connection,
+            new Dictionary<string, RuntimeAdditionalContextEntry>
+            {
+                ["desktop.threadCoordination"] = new()
+                {
+                    Kind = RuntimeAdditionalContextKinds.Application,
+                    Value = "old context"
+                }
+            });
+
+        var msg = harness.BuildRequest(AppServerMethods.ThreadResume, new
+        {
+            threadId = thread.Id,
+            additionalContext = new Dictionary<string, RuntimeAdditionalContextEntry>()
+        });
+        await harness.ExecuteRequestAsync(msg);
+
+        var response = await harness.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(response);
+        Assert.Contains(thread.Id, harness.Service.RefreshedThreadAgents);
+        Assert.Null(runtimeContextProvider.GetSystemPromptSection(new ThreadSystemPromptContext(thread.Id, harness.Identity.WorkspacePath)));
     }
 
     [Fact]

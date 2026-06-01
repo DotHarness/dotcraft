@@ -5,20 +5,20 @@ namespace DotCraft.Tools;
 
 /// <summary>
 /// Provides the <c>SearchTools</c> AI function that allows the model to discover
-/// deferred MCP tools on demand. Matching tools are immediately activated so that
+/// deferred tools on demand. Matching tools are immediately activated so that
 /// they appear in subsequent LLM calls and can be invoked directly.
 /// </summary>
 public sealed class ToolSearchTool(DeferredToolRegistry registry, int maxSearchResults = 5)
 {
     /// <summary>
-    /// Search for available MCP tools by keyword. Call this when you need a
+    /// Search for deferred tools by keyword. Call this when you need a
     /// tool that is not in your current tool list. Returns the matching tool
     /// names and descriptions. After calling this, the matched tools become
     /// available for use in subsequent calls.
     /// </summary>
     [Tool(Icon = "🔍", DisplayType = typeof(CoreToolDisplays), DisplayMethod = nameof(CoreToolDisplays.SearchTools))]
     [Description(
-        "Search for available MCP tools by keyword. " +
+        "Search for deferred tools by keyword. " +
         "Call this when you need a tool that is not in your current tool list. " +
         "Returns matching tool names and descriptions. " +
         "After calling this, the matched tools become available for use in subsequent calls.")]

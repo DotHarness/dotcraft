@@ -81,6 +81,7 @@ import {
   resolveRemoteWebSocketConfig,
   type ConnectionSettingsDraft
 } from '../shared/remoteConnection'
+import { sendDesktopAppServerRequest } from './desktopRuntimeThreadTools'
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'error'
 
@@ -881,7 +882,9 @@ export function registerIpcHandlers(
       if (!client) {
         throw new Error(translate(mainLocale(callbacks), 'ipc.appServerNotConnected'))
       }
-      return client.sendRequest(method, params, timeoutMs)
+      return sendDesktopAppServerRequest(client, method, params, timeoutMs, {
+        supportsDynamicToolRebind: callbacks?.getConnectionStatus().capabilities?.dynamicToolRebind === true
+      })
     }
   )
 

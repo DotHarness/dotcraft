@@ -313,6 +313,7 @@ public sealed class DotCraftWireClient : IAsyncDisposable
                 ReadBoolean(capabilities, "threadManagement"),
                 ReadBoolean(capabilities, "threadSubscriptions"),
                 ReadBoolean(capabilities, "dynamicToolRebind"),
+                ReadBoolean(capabilities, "runtimeAdditionalContext"),
                 ReadBoolean(capabilities, "appBinding"),
                 ReadBoolean(capabilities, "modelCatalogManagement"),
                 capabilities.ValueKind == JsonValueKind.Undefined

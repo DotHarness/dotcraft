@@ -128,6 +128,12 @@ Connection (`app/connection/*`) works the same way at workspace+user+app scope a
 - **Approval.** App-bound tools reuse `DynamicToolSpec.approval`. DotCraft gates *before* dispatch; the app still validates *after*. Prefer the propose → record → human approve → app writes pattern for external writes.
 - **Offline stubs.** When a binding is `offline`, calls fail fast with a structured error. Standard codes: `AppBindingOffline`, `AppBindingExpired`, `AppBindingRevoked`, `AppBindingScopeDenied`, `AppBindingToolUnavailable`, `AppBindingProtocolViolation`.
 
+## App Context
+
+Runtime `thread/start.additionalContext` and `thread/resume.additionalContext` are client-runtime hints. Use them with Runtime Dynamic Tools when the connected client needs to add short guidance, such as telling the agent to search for a deferred tool first.
+
+App Binding context blocks use `app/binding/context/*`. They are persisted thread+app business context from an accepted binding, such as selected project metadata or app-side state that should survive reconnects. Both surfaces use App Context prompt semantics, but their lifecycle and write APIs are different.
+
 ## Security Essentials
 
 - **Handoff tokens** default to a 10-minute TTL, are single-purpose, bound to one request/app/workspace/user/operation (binding tokens also to thread + scopes), consumed on success, and never exposed to the model.
