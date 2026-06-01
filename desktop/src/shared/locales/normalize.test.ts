@@ -103,6 +103,18 @@ describe('desktop locales', () => {
     expect(missing).toEqual([])
   })
 
+  it('keeps composer mascot keys covered in every supported locale', () => {
+    const missing = Array.from(collectMessageKeys([
+      'conversation/useComposerMascot.ts'
+    ])).flatMap((key) =>
+      Object.entries(NON_ENGLISH_CATALOGS)
+        .filter(([, catalog]) => catalog[key] == null)
+        .map(([locale]) => `${locale}:${key}`)
+    )
+
+    expect(missing).toEqual([])
+  })
+
   it('keeps channel, plugin, automation, and team keys covered in every supported locale', () => {
     const missing = Array.from(collectMessageKeys([
       'channels',
