@@ -147,6 +147,11 @@ const SUB_AGENT_ARGUMENT_BUFFER_MAX_CHARS = 12000
 const SUB_AGENT_ARGUMENT_FIELD_MAX_CHARS = 800
 const subAgentStreamingArgumentBuffers = new Map<string, string>()
 
+interface PendingTerminalEntry {
+  event: string
+  terminal: Record<string, unknown>
+}
+
 interface ConversationState {
   turns: ConversationTurn[]
   turnStatus: 'idle' | 'running' | 'waitingApproval' | 'waitingInput'
@@ -194,6 +199,8 @@ interface ConversationState {
   streamingItemDiffs: Map<string, FileDiff>
   /** Baseline file contents captured once per streaming file tool call */
   streamingBaselines: Map<string, StreamingFileBaseline>
+  /** Foreground terminal events that arrived before their Exec toolCall item. */
+  pendingTerminalByCallId: Map<string, PendingTerminalEntry>
   /** Live SubAgent progress entries — replaced wholesale on each notification */
   subAgentEntries: SubAgentEntry[]
   /** Current agent plan from plan/updated events — replaced wholesale */
@@ -365,6 +372,7 @@ const initialState: ConversationState = {
   itemDiffs: new Map<string, FileDiff>(),
   streamingItemDiffs: new Map<string, FileDiff>(),
   streamingBaselines: new Map<string, StreamingFileBaseline>(),
+  pendingTerminalByCallId: new Map<string, PendingTerminalEntry>(),
   subAgentEntries: [],
   plan: null,
   contextUsage: null
@@ -429,6 +437,100 @@ function isRunInBackgroundTerminal(terminal: Record<string, unknown>): boolean {
   return terminal.backgroundReason === 'runInBackground'
 }
 
+function shouldUseTerminalSnapshotOutput(event: string, output: string | undefined): output is string {
+  return typeof output === 'string'
+    && output.length > 0
+    && !(event === 'terminal/started' && output === '(no output)')
+}
+
+function appendTerminalDelta(output: string | undefined, delta: string): string {
+  const base = output && output !== '(no output)' ? output : ''
+  return `${base}${delta}`
+}
+
+function mergePendingTerminalEntry(
+  previous: PendingTerminalEntry | undefined,
+  terminal: Record<string, unknown>,
+  event: string,
+  delta: string
+): PendingTerminalEntry {
+  const previousTerminal = previous?.terminal ?? {}
+  const nextTerminal: Record<string, unknown> = {
+    ...previousTerminal,
+    ...terminal
+  }
+  const snapshotOutput = terminal.output as string | undefined
+  if (shouldUseTerminalSnapshotOutput(event, snapshotOutput)) {
+    nextTerminal.output = snapshotOutput
+  } else if (delta) {
+    nextTerminal.output = appendTerminalDelta(previousTerminal.output as string | undefined, delta)
+  } else if (previousTerminal.output != null && nextTerminal.output == null) {
+    nextTerminal.output = previousTerminal.output
+  }
+
+  return { event, terminal: nextTerminal }
+}
+
+function terminalMatchesTurn(entry: PendingTerminalEntry, turn: ConversationTurn): boolean {
+  const threadId = entry.terminal.threadId as string | undefined
+  const turnId = entry.terminal.turnId as string | undefined
+  return (!threadId || threadId === turn.threadId) && (!turnId || turnId === turn.id)
+}
+
+function turnHasShellToolCall(turn: ConversationTurn, callId: string): boolean {
+  return turn.items.some(
+    (item) => item.type === 'toolCall' && item.toolCallId === callId && isShellToolName(item.toolName)
+  )
+}
+
+function removePendingTerminalEntries(
+  pending: Map<string, PendingTerminalEntry>,
+  callIds: Set<string>
+): Map<string, PendingTerminalEntry> {
+  if (callIds.size === 0) return pending
+  const next = new Map(pending)
+  for (const callId of callIds) {
+    next.delete(callId)
+  }
+  return next
+}
+
+function applyPendingTerminalsToTurn(
+  turn: ConversationTurn,
+  pending: Map<string, PendingTerminalEntry>
+): { turn: ConversationTurn; appliedCallIds: Set<string> } {
+  let items = turn.items
+  const appliedCallIds = new Set<string>()
+  for (const [callId, entry] of pending) {
+    if (!terminalMatchesTurn(entry, turn) || !turnHasShellToolCall({ ...turn, items }, callId)) {
+      continue
+    }
+    items = mergeTerminalAcrossItems(items, entry.terminal, entry.event, '')
+    appliedCallIds.add(callId)
+  }
+  return appliedCallIds.size > 0
+    ? { turn: { ...turn, items: sortItemsByCreatedAt(items) }, appliedCallIds }
+    : { turn, appliedCallIds }
+}
+
+function applyPendingTerminalsToTurns(
+  turns: ConversationTurn[],
+  pending: Map<string, PendingTerminalEntry>
+): { turns: ConversationTurn[]; pendingTerminalByCallId: Map<string, PendingTerminalEntry> } {
+  let applied = new Set<string>()
+  const nextTurns = turns.map((turn) => {
+    const result = applyPendingTerminalsToTurn(turn, pending)
+    if (result.appliedCallIds.size > 0) {
+      applied = new Set([...applied, ...result.appliedCallIds])
+    }
+    return result.turn
+  })
+  return {
+    turns: nextTurns,
+    pendingTerminalByCallId: removePendingTerminalEntries(pending, applied)
+  }
+}
+
 function mergeTerminalIntoExecToolCall(
   item: ConversationItem,
   terminal: Record<string, unknown>,
@@ -442,12 +544,10 @@ function mergeTerminalIntoExecToolCall(
 
   const status = terminalStatusToExecutionStatus(terminal.status as string | undefined)
   const output = terminal.output as string | undefined
-  const shouldUseSnapshotOutput =
-    !delta && typeof output === 'string' && (event !== 'terminal/started' || output.length > 0)
-  const aggregatedOutput = delta
-    ? `${item.aggregatedOutput ?? ''}${delta}`
-    : shouldUseSnapshotOutput
-      ? output
+  const aggregatedOutput = shouldUseTerminalSnapshotOutput(event, output)
+    ? output
+    : delta
+      ? appendTerminalDelta(item.aggregatedOutput, delta)
       : item.aggregatedOutput
 
   return {
@@ -1013,29 +1113,36 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
           ? 'running'
           : 'idle'
     const compactedNotice = latestCompactedNotice(rehydratedTurns)
-    set((state) => ({
-      turns: rehydratedTurns,
-      turnStatus: activeTurnStatus,
-      activeTurnId: activeTurn ? activeTurn.id : null,
-      streamingMessage: '',
-      streamingMessageLastDeltaAt: null,
-      streamingReasoning: '',
-      streamingReasoningStartedAt: null,
-      activeItemId: null,
-      turnStartedAt: activeTurn
-        ? (activeTurn.startedAt ? new Date(activeTurn.startedAt).getTime() : Date.now())
-        : null,
-      maintenanceKind: null,
-      backgroundMemoryStatus: null,
-      streamRetrySignals: [],
-      changedFiles: rehydratedChangedFiles,
-      itemDiffs: rehydratedItemDiffs,
-      streamingItemDiffs: new Map<string, FileDiff>(),
-      streamingBaselines: new Map<string, StreamingFileBaseline>(),
-      contextUsage: compactedNotice
-        ? applyCompactedNoticeToContextUsage(state.contextUsage, compactedNotice)
-        : state.contextUsage
-    }))
+    set((state) => {
+      const terminalApplied = applyPendingTerminalsToTurns(
+        rehydratedTurns,
+        state.pendingTerminalByCallId
+      )
+      return {
+        turns: terminalApplied.turns,
+        turnStatus: activeTurnStatus,
+        activeTurnId: activeTurn ? activeTurn.id : null,
+        streamingMessage: '',
+        streamingMessageLastDeltaAt: null,
+        streamingReasoning: '',
+        streamingReasoningStartedAt: null,
+        activeItemId: null,
+        turnStartedAt: activeTurn
+          ? (activeTurn.startedAt ? new Date(activeTurn.startedAt).getTime() : Date.now())
+          : null,
+        maintenanceKind: null,
+        backgroundMemoryStatus: null,
+        streamRetrySignals: [],
+        changedFiles: rehydratedChangedFiles,
+        itemDiffs: rehydratedItemDiffs,
+        streamingItemDiffs: new Map<string, FileDiff>(),
+        streamingBaselines: new Map<string, StreamingFileBaseline>(),
+        pendingTerminalByCallId: terminalApplied.pendingTerminalByCallId,
+        contextUsage: compactedNotice
+          ? applyCompactedNoticeToContextUsage(state.contextUsage, compactedNotice)
+          : state.contextUsage
+      }
+    })
   },
 
   onTurnStarted(rawTurn) {
@@ -1249,23 +1356,24 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       }))
     } else if (isToolLikeItemType(type)) {
       const baseItem = buildToolLikeItem(item, type, 'started')
-      set((state) => ({
-        turns: state.turns.map((t) =>
-          t.id !== turnId
-            ? t
-            : t.items.some((existing) => existing.id === baseItem.id)
-              ? t
-            : {
-                ...t,
-                items: sortItemsByCreatedAt([
-                  ...t.items,
-                  type === 'toolCall'
-                    ? mergeExistingCommandExecutionIntoToolCall(baseItem, t.items)
-                    : baseItem
-                ])
-              }
-        )
-      }))
+      set((state) => {
+        let nextPending = state.pendingTerminalByCallId
+        const turns = state.turns.map((t) => {
+          if (t.id !== turnId || t.items.some((existing) => existing.id === baseItem.id)) return t
+          const nextItem = type === 'toolCall'
+            ? mergeExistingCommandExecutionIntoToolCall(baseItem, t.items)
+            : baseItem
+          const nextTurn = {
+            ...t,
+            items: sortItemsByCreatedAt([...t.items, nextItem])
+          }
+          if (type !== 'toolCall') return nextTurn
+          const applied = applyPendingTerminalsToTurn(nextTurn, state.pendingTerminalByCallId)
+          nextPending = removePendingTerminalEntries(nextPending, applied.appliedCallIds)
+          return applied.turn
+        })
+        return { turns, pendingTerminalByCallId: nextPending }
+      })
     } else if (type === 'commandExecution') {
       const itemPayload = (item?.payload ?? {}) as Record<string, unknown>
       const newItem: ConversationItem = {
@@ -1359,20 +1467,35 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
 
     const turnId = (terminal.turnId as string | undefined) ?? ''
     const delta = params.delta ?? ''
-    set((state) => ({
-      turns: state.turns.map((t) => {
+    set((state) => {
+      const pendingEntry = mergePendingTerminalEntry(
+        state.pendingTerminalByCallId.get(callId),
+        terminal,
+        params.event,
+        delta
+      )
+      let applied = false
+      const turns = state.turns.map((t) => {
         if (turnId && t.id !== turnId) return t
-        if (!t.items.some((item) => item.type === 'toolCall' && item.toolCallId === callId)) {
+        if (!turnHasShellToolCall(t, callId)) {
           return t
         }
+        applied = true
         return {
           ...t,
           items: sortItemsByCreatedAt(
-            mergeTerminalAcrossItems(t.items, terminal, params.event, delta)
+            mergeTerminalAcrossItems(t.items, pendingEntry.terminal, pendingEntry.event, '')
           )
         }
       })
-    }))
+      const pendingTerminalByCallId = new Map(state.pendingTerminalByCallId)
+      if (applied) {
+        pendingTerminalByCallId.delete(callId)
+      } else {
+        pendingTerminalByCallId.set(callId, pendingEntry)
+      }
+      return { turns, pendingTerminalByCallId }
+    })
   },
 
   onToolCallArgumentsDelta(params) {
@@ -1703,29 +1826,33 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
         ?? (itemPayload.toolName as string | undefined)
       const completedCallId = (item?.toolCallId as string | undefined)
         ?? (itemPayload.callId as string | undefined)
-      set((s) => ({
-        turns: s.turns.map((t) =>
-          t.id === turnId
-            ? {
-                ...t,
-                items: sortItemsByCreatedAt(
-                  t.items.map((i) =>
-                    i.id === itemId
-                      ? mergeExistingCommandExecutionIntoToolCall({
-                          ...i,
-                          status: 'completed' as const,
-                          completedAt: (item?.completedAt as string),
-                          arguments: completedArgs ?? i.arguments,
-                          toolName: completedToolName ?? i.toolName,
-                          toolCallId: completedCallId ?? i.toolCallId
-                        }, t.items)
-                      : i
-                  )
-                )
-              }
-            : t
-        )
-      }))
+      set((s) => {
+        let nextPending = s.pendingTerminalByCallId
+        const turns = s.turns.map((t) => {
+          if (t.id !== turnId) return t
+          const nextTurn = {
+            ...t,
+            items: sortItemsByCreatedAt(
+              t.items.map((i) =>
+                i.id === itemId
+                  ? mergeExistingCommandExecutionIntoToolCall({
+                      ...i,
+                      status: 'completed' as const,
+                      completedAt: (item?.completedAt as string),
+                      arguments: completedArgs ?? i.arguments,
+                      toolName: completedToolName ?? i.toolName,
+                      toolCallId: completedCallId ?? i.toolCallId
+                    }, t.items)
+                  : i
+              )
+            )
+          }
+          const applied = applyPendingTerminalsToTurn(nextTurn, s.pendingTerminalByCallId)
+          nextPending = removePendingTerminalEntries(nextPending, applied.appliedCallIds)
+          return applied.turn
+        })
+        return { turns, pendingTerminalByCallId: nextPending }
+      })
     } else if (type === 'commandExecution') {
       const itemPayload = (item?.payload ?? {}) as Record<string, unknown>
       set((s) => ({
@@ -2323,6 +2450,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       itemDiffs: new Map<string, FileDiff>(),
       streamingItemDiffs: new Map<string, FileDiff>(),
       streamingBaselines: new Map<string, StreamingFileBaseline>(),
+      pendingTerminalByCallId: new Map<string, PendingTerminalEntry>(),
       subAgentEntries: [],
       pendingApproval: null,
       pendingUserInput: null,
