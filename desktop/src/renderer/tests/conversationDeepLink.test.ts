@@ -69,6 +69,24 @@ describe('openConversationLink', () => {
     expect(useUIStore.getState().detailPanelPreferredVisible).toBe(true)
   })
 
+  it('preserves line and column hints on newly opened file viewer tabs', async () => {
+    const ok = await openConversationLink({
+      target: './README.md:7:2',
+      workspacePath: 'C:/repo',
+      threadId: 'thread-1',
+      t
+    })
+    expect(ok).toBe(true)
+    expect(authorizeFileMock).toHaveBeenCalledWith({ absolutePath: 'C:/repo/README.md' })
+    const tabs = useViewerTabStore.getState().getThreadState('thread-1').tabs
+    expect(tabs).toHaveLength(1)
+    expect(tabs[0]).toMatchObject({
+      kind: 'file',
+      absolutePath: 'C:/repo/README.md',
+      navigationHint: { line: 7, column: 2 }
+    })
+  })
+
   it('focuses existing browser tab by normalized URL', async () => {
     const existingId = useViewerTabStore.getState().openBrowser({
       threadId: 'thread-1',

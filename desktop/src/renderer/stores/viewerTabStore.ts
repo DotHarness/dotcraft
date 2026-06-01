@@ -73,12 +73,16 @@ function computeLabels(tabs: ViewerTab[]): ViewerTab[] {
     // Resolve collision: keep adding parent segments until all are unique
     let depth = 1 // 0 = basename, 1 = parent/basename, ...
     const maxDepth = Math.max(
-      ...indices.map((i) => tabs[i]!.relativePath.replace(/\\/g, '/').split('/').length - 1)
+      ...indices.map((i) => {
+        const tab = tabs[i] as FileViewerTab
+        return tab.relativePath.replace(/\\/g, '/').split('/').length - 1
+      })
     )
 
     while (depth <= maxDepth) {
       const candidates = indices.map((i) => {
-        const parts = tabs[i]!.relativePath.replace(/\\/g, '/').split('/')
+        const tab = tabs[i] as FileViewerTab
+        const parts = tab.relativePath.replace(/\\/g, '/').split('/')
         const start = Math.max(0, parts.length - 1 - depth)
         return parts.slice(start).join('/')
       })
@@ -96,7 +100,8 @@ function computeLabels(tabs: ViewerTab[]): ViewerTab[] {
     // Fallback: use the full relative path if still not unique after max depth
     if (depth > maxDepth) {
       for (const i of indices) {
-        labels[i] = tabs[i]!.relativePath
+        const tab = tabs[i] as FileViewerTab
+        labels[i] = tab.relativePath
       }
     }
   }
@@ -131,6 +136,16 @@ function terminalDefaultLabel(tabs: ViewerTab[], tabIndex: number): string {
   const terminalTabs = tabs.filter((item): item is TerminalViewerTab => item.kind === 'terminal')
   const position = terminalTabs.findIndex((item) => item.id === tab.id)
   return position >= 0 ? `Terminal ${position + 1}` : 'Terminal'
+}
+
+function applyFileNavigationHint(tab: FileViewerTab, navigationHint?: FileNavigationHint): FileViewerTab {
+  const next: FileViewerTab = { ...tab }
+  if (navigationHint) {
+    next.navigationHint = { ...navigationHint }
+  } else {
+    delete next.navigationHint
+  }
+  return next
 }
 
 // ─── Store interface ────────────────────────────────────────────────────────
@@ -258,7 +273,6 @@ export const useViewerTabStore = create<ViewerTabStore>((set, get) => ({
     relativePath,
     contentClass,
     sizeBytes,
-    kind = 'file',
     forceNew = false,
     navigationHint
   }) {
@@ -268,26 +282,30 @@ export const useViewerTabStore = create<ViewerTabStore>((set, get) => ({
     // Deduplication: if a tab with the same absolutePath already exists, focus it
     const existing = forceNew
       ? undefined
-      : threadState.tabs.find((t) => t.kind === kind && t.absolutePath === absolutePath)
+      : threadState.tabs.find((t): t is FileViewerTab => t.kind === 'file' && t.absolutePath === absolutePath)
     if (existing && !forceNew) {
+      const nextTabs = computeLabels(threadState.tabs.map((tab) => {
+        if (tab.id !== existing.id || tab.kind !== 'file') return tab
+        return applyFileNavigationHint(tab, navigationHint)
+      }))
       set((s) => {
         const next = new Map(s.byThread)
-        next.set(threadId, { ...threadState, activeTabId: existing.id })
+        next.set(threadId, { tabs: nextTabs, activeTabId: existing.id })
         return { byThread: next }
       })
       return existing.id
     }
 
     // Create new tab
-    const newTab: ViewerTab = {
+    const newTab: FileViewerTab = {
       id: nextTabId(),
-      kind: kind === 'browser' ? 'file' : kind,
+      kind: 'file',
       absolutePath,
       relativePath,
       label: relativePath, // will be recomputed by computeLabels
       contentClass,
       ...(sizeBytes !== undefined ? { sizeBytes } : {}),
-      ...(navigationHint ? { navigationHint } : {})
+      ...(navigationHint ? { navigationHint: { ...navigationHint } } : {})
     }
 
     const newTabs = computeLabels([...threadState.tabs, newTab])

@@ -40,7 +40,11 @@ describe('openFile', () => {
     const state = store().getThreadState(THREAD_A)
     expect(state.tabs).toHaveLength(1)
     expect(state.activeTabId).toBe(id)
-    expect(state.tabs[0]!.relativePath).toBe('src/index.ts')
+    const tab = state.tabs[0]
+    expect(tab?.kind).toBe('file')
+    if (tab?.kind === 'file') {
+      expect(tab.relativePath).toBe('src/index.ts')
+    }
   })
 
   it('returns existing tab id on duplicate absolutePath (deduplication)', () => {
@@ -50,6 +54,54 @@ describe('openFile', () => {
 
     expect(id1).toBe(id2)
     expect(store().getThreadState(THREAD_A).tabs).toHaveLength(1)
+  })
+
+  it('refreshes navigation hint when focusing an existing file tab', () => {
+    store().onThreadSwitched(THREAD_A)
+    const id1 = store().openFile({
+      threadId: THREAD_A,
+      absolutePath: `${WS_PATH}/src/foo.ts`,
+      relativePath: 'src/foo.ts',
+      contentClass: 'text',
+      navigationHint: { line: 5 }
+    })
+    const id2 = store().openFile({
+      threadId: THREAD_A,
+      absolutePath: `${WS_PATH}/src/foo.ts`,
+      relativePath: 'src/foo.ts',
+      contentClass: 'text',
+      navigationHint: { line: 17, column: 3 }
+    })
+
+    const state = store().getThreadState(THREAD_A)
+    expect(id2).toBe(id1)
+    expect(state.tabs).toHaveLength(1)
+    expect(state.activeTabId).toBe(id1)
+    expect(state.tabs[0]).toMatchObject({
+      kind: 'file',
+      navigationHint: { line: 17, column: 3 }
+    })
+  })
+
+  it('clears stale navigation hint when focusing an existing file without one', () => {
+    store().onThreadSwitched(THREAD_A)
+    const id = store().openFile({
+      threadId: THREAD_A,
+      absolutePath: `${WS_PATH}/src/foo.ts`,
+      relativePath: 'src/foo.ts',
+      contentClass: 'text',
+      navigationHint: { line: 5 }
+    })
+    store().openFile({
+      threadId: THREAD_A,
+      absolutePath: `${WS_PATH}/src/foo.ts`,
+      relativePath: 'src/foo.ts',
+      contentClass: 'text'
+    })
+
+    const tab = store().getThreadState(THREAD_A).tabs.find((item) => item.id === id)
+    expect(tab).toBeTruthy()
+    expect(tab).not.toHaveProperty('navigationHint')
   })
 
   it('creates separate tabs for different files', () => {
@@ -350,8 +402,16 @@ describe('thread isolation', () => {
 
     expect(store().getThreadState(THREAD_A).tabs).toHaveLength(1)
     expect(store().getThreadState(THREAD_B).tabs).toHaveLength(1)
-    expect(store().getThreadState(THREAD_A).tabs[0]!.relativePath).toBe('src/a.ts')
-    expect(store().getThreadState(THREAD_B).tabs[0]!.relativePath).toBe('src/b.ts')
+    const tabA = store().getThreadState(THREAD_A).tabs[0]
+    const tabB = store().getThreadState(THREAD_B).tabs[0]
+    expect(tabA?.kind).toBe('file')
+    expect(tabB?.kind).toBe('file')
+    if (tabA?.kind === 'file') {
+      expect(tabA.relativePath).toBe('src/a.ts')
+    }
+    if (tabB?.kind === 'file') {
+      expect(tabB.relativePath).toBe('src/b.ts')
+    }
   })
 })
 
