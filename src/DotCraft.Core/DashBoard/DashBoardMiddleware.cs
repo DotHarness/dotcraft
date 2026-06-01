@@ -54,6 +54,7 @@ public static class DashBoardMiddleware
         var capturedOrchestrators = orchestratorProviders?.ToList();
         var dreamsAvailable = runtime.Capabilities.Dreams && dreamStore != null && dreamsService != null;
         var automationsAvailable = runtime.Capabilities.Automations && capturedOrchestrators is { Count: > 0 };
+        var threadOperationStore = new DashBoardThreadOperationStore(paths.CraftPath);
         var runtimeCapabilities = new
         {
             settings = runtime.Capabilities.Settings,
@@ -131,6 +132,7 @@ public static class DashBoardMiddleware
             var result = sessions.Select(s =>
             {
                 descriptors.TryGetValue(s.SessionKey, out var descriptor);
+                var rootThreadId = descriptor?.RootThreadId ?? s.SessionKey;
                 return new
                 {
                     s.SessionKey,
@@ -168,10 +170,32 @@ public static class DashBoardMiddleware
                     lastFinishReason = s.LastFinishReason,
                     rootThreadId = descriptor?.RootThreadId,
                     bindingKind = descriptor?.BindingKind ?? "unbound",
-                    deletionScope = descriptor?.DeletionScope ?? SessionPersistenceDeletionScopes.TraceOnly
+                    deletionScope = descriptor?.DeletionScope ?? SessionPersistenceDeletionScopes.TraceOnly,
+                    rollbackCount = threadOperationStore.CountThreadRollbacks(rootThreadId)
                 };
             });
             return Results.Json(result, JsonOptions);
+        });
+
+        endpoints.MapGet("/dashboard/api/sessions/{sessionKey}/operations", (string sessionKey) =>
+        {
+            RefreshTraceFromDiskIfEnabled();
+            var threadId = sessionKey;
+            if (persistence != null)
+            {
+                try
+                {
+                    var descriptor = persistence.DescribeSessionDeletion(sessionKey);
+                    if (!string.IsNullOrWhiteSpace(descriptor.RootThreadId))
+                        threadId = descriptor.RootThreadId;
+                }
+                catch (Exception ex)
+                {
+                    logger?.LogDebug(ex, "Dashboard could not resolve root thread for session {SessionKey}", sessionKey);
+                }
+            }
+
+            return Results.Json(threadOperationStore.GetThreadOperations(threadId), JsonOptions);
         });
 
         endpoints.MapGet("/dashboard/api/sessions/{sessionKey}/events", (string sessionKey) =>

@@ -1039,6 +1039,42 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
     }
 
     [Fact]
+    public async Task RollbackThreadAsync_RecordsThreadRollbackTraceEvent()
+    {
+        var traceStore = new TraceStore();
+        var traceCollector = new TraceCollector(traceStore);
+        var chatClient = new RecordingChatClient("answer");
+        await using var factory = CreateAgentFactory(chatClient);
+        var service = CreateService(factory, chatClient, traceCollector: traceCollector);
+        var thread = await service.CreateThreadAsync(MakeIdentity());
+
+        await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("request")]));
+        await service.RollbackThreadAsync(thread.Id, 1);
+
+        var evt = Assert.Single(traceStore.GetEvents(thread.Id), e => e.Type == TraceEventType.ThreadRollback);
+        Assert.Equal("Rollback removed 1 turn(s)", evt.Content);
+        using var metadata = JsonDocument.Parse(evt.MetadataJson!);
+        Assert.Equal(thread.Id, metadata.RootElement.GetProperty("threadId").GetString());
+        Assert.Equal(1, metadata.RootElement.GetProperty("numTurns").GetInt32());
+        Assert.Equal(0, metadata.RootElement.GetProperty("remainingTurns").GetInt32());
+    }
+
+    [Fact]
+    public async Task RollbackThreadAsync_WhenRejected_DoesNotRecordThreadRollbackTraceEvent()
+    {
+        var traceStore = new TraceStore();
+        var traceCollector = new TraceCollector(traceStore);
+        var chatClient = new RecordingChatClient("answer");
+        await using var factory = CreateAgentFactory(chatClient);
+        var service = CreateService(factory, chatClient, traceCollector: traceCollector);
+        var thread = await service.CreateThreadAsync(MakeIdentity());
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => service.RollbackThreadAsync(thread.Id, 0));
+
+        Assert.DoesNotContain(traceStore.GetEvents(thread.Id), e => e.Type == TraceEventType.ThreadRollback);
+    }
+
+    [Fact]
     public async Task RollbackThreadAsync_WithOnlyCompactedSessionCheckpointMissing_TrimsPersistedSessionTail()
     {
         var seedChatClient = new RecordingChatClient("seed answer");
@@ -1253,7 +1289,8 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
         AgentFactory agentFactory,
         IChatClient chatClient,
         TokenUsageStore? tokenUsageStore = null,
-        bool useStreamingFunctionInvoker = false)
+        bool useStreamingFunctionInvoker = false,
+        TraceCollector? traceCollector = null)
     {
         var defaultAgent = useStreamingFunctionInvoker
             ? new StreamingFunctionInvokingChatClient(chatClient).AsAIAgent(
@@ -1264,6 +1301,7 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
             defaultAgent,
             new SessionPersistenceService(new ThreadStore(_tempDir)),
             new SessionGate(),
+            traceCollector: traceCollector,
             tokenUsageStore: tokenUsageStore);
     }
 

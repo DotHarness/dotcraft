@@ -41,4 +41,20 @@ public sealed class DashBoardFrontendTests
         Assert.Contains("handleTraceScroll", html);
         Assert.Contains("loadOlderTraceEvents", html);
     }
+
+    [Fact]
+    public void Html_RendersThreadRollbackTraceEventsAndOperations()
+    {
+        var html = DashBoardFrontend.GetHtml();
+
+        Assert.Contains("type-ThreadRollback", html);
+        Assert.Contains("case 'ThreadRollback':", html);
+        Assert.Contains("fetchSessionOperations", html);
+        Assert.Contains("/operations", html);
+        Assert.Contains("mergeTraceEventsWithOperations", html);
+        Assert.Contains("rollbackDedupeKeyFromEvent", html);
+        Assert.Contains("e.type === 'ThreadRollback'", html);
+        Assert.Contains("evt.type === 'ThreadRollback'", html);
+        Assert.Contains("rollback ${formatNumber(session.rollbackCount)}", html);
+    }
 }

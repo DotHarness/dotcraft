@@ -134,6 +134,31 @@ public sealed class StateBackedStoreTests : IDisposable
     }
 
     [Fact]
+    public void TraceCollector_RecordThreadRollback_RoundTrips_And_MaintenanceFilterIncludesIt()
+    {
+        var writer = new TraceStore(_tracingPath, 5000, true, _stateRuntime);
+        var collector = new TraceCollector(writer);
+        var timestamp = new DateTimeOffset(2026, 6, 1, 8, 30, 0, TimeSpan.Zero);
+
+        collector.RecordThreadRollback("thread-rollback", "thread-rollback", 2, 3, timestamp);
+
+        var reader = new TraceStore(_tracingPath, 5000, false, _stateRuntime);
+        reader.LoadFromDisk();
+
+        var evt = Assert.Single(reader.GetEvents("thread-rollback"), e => e.Type == TraceEventType.ThreadRollback);
+        Assert.Equal(timestamp, evt.Timestamp);
+        Assert.Equal("Rollback removed 2 turn(s)", evt.Content);
+        using var metadata = JsonDocument.Parse(evt.MetadataJson!);
+        Assert.Equal("thread-rollback", metadata.RootElement.GetProperty("threadId").GetString());
+        Assert.Equal(2, metadata.RootElement.GetProperty("numTurns").GetInt32());
+        Assert.Equal(3, metadata.RootElement.GetProperty("remainingTurns").GetInt32());
+
+        var page = reader.GetEventPage("thread-rollback", limit: 1000, filter: "Maintenance");
+        var maintenance = Assert.Single(page.Events);
+        Assert.Equal(TraceEventType.ThreadRollback, maintenance.Type);
+    }
+
+    [Fact]
     public void TraceStore_Counts_MaintenanceFork_Separately_From_Normal_Request_Response()
     {
         var store = new TraceStore(_tracingPath, 5000, true, _stateRuntime);

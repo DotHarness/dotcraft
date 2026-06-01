@@ -1257,6 +1257,8 @@ Dashboard trace-session deletion follows the same persistence contract. Deleting
 
 Dashboard trace event reads are paged from the durable trace store. The first page returns at most the newest 1000 events for the selected session or all sessions; clients fetch older events with an opaque `beforeCursor` when the user scrolls upward. Maintenance envelope events are filterable as maintenance events and are counted separately from normal LLM request/response totals, while detailed collector events and token usage remain in the same trace session for correlation.
 
+Dashboard may also project read-only thread operations from canonical thread JSONL. Rollback visibility is derived from `thread_rolled_back` records and exposed as operation metadata (`type = rollback`, `threadId`, timestamp, removed Turn count, and source). Hidden recovery records such as compaction checkpoints remain internal and must not be exposed through Dashboard operation APIs or trace views.
+
 ### 9.7 Persistence Failure Handling
 
 - **Save failure**: If Session Core cannot write to disk after a Turn completes, the Turn's result is still delivered to the adapter (events were already emitted). The error is logged. The in-memory Thread state is preserved. The next save attempt retries.
@@ -1368,6 +1370,8 @@ Cross-channel resume works for channels that share the same identity shape:
 `RollbackThread(threadId, numTurns)` removes `numTurns` turns from the end of a non-archived Thread. `numTurns` must be at least 1 and no turn in the Thread may be `Running` or `WaitingApproval`.
 
 Rollback appends a canonical rollback record to thread JSONL and updates thread metadata; it does not revert files or other workspace side effects created by tools. After rollback, Session Core first tries to trim the removed Turn tail from the optimized `AgentSession`. If the removed Turns are no longer present as a plain model-visible suffix, Session Core rebuilds through the newest surviving compaction checkpoint before falling back to full canonical history. Rollback must not silently restore model-visible history that had already been compacted out.
+Successful rollback also records a maintenance trace event for live Dashboard visibility. Dashboard must de-duplicate that live event with the canonical rollout-derived operation when both are available.
+
 - **Channel disconnects** are transparent to Session Core. Turns run to completion regardless of adapter state. Results are persisted and available on reconnect.
 
 ### 12.3 Error Reporting

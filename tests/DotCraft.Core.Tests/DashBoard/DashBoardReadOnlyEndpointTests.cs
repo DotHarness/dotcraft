@@ -3,6 +3,7 @@ using System.Net.Sockets;
 using System.Text.Json;
 using DotCraft.DashBoard;
 using DotCraft.Hosting;
+using DotCraft.Protocol;
 using DotCraft.State;
 using DotCraft.Tracing;
 using Microsoft.AspNetCore.Builder;
@@ -77,6 +78,8 @@ public sealed class DashBoardReadOnlyEndpointTests : IDisposable
         await using var app = await CreateDashboardApp();
 
         Assert.False(File.Exists(Path.Combine(_craft, "state.db")));
+        Assert.False(Directory.Exists(Path.Combine(_craft, "threads", "active")));
+        Assert.False(Directory.Exists(Path.Combine(_craft, "threads", "archived")));
     }
 
     [Fact]
@@ -136,6 +139,87 @@ public sealed class DashBoardReadOnlyEndpointTests : IDisposable
         Assert.Equal("maintenance", evt.GetProperty("content").GetString());
     }
 
+    [Fact]
+    public async Task ReadOnlyDashboard_ExposesRollbackOperationsFromThreadRollout()
+    {
+        var timestamp = new DateTimeOffset(2026, 6, 1, 8, 0, 0, TimeSpan.Zero);
+        WriteRollbackRollout("thread_ops", timestamp, 2);
+
+        await using var app = await CreateDashboardApp();
+        using var http = new HttpClient { BaseAddress = new Uri(app.Urls.Single()) };
+
+        using var response = await http.GetAsync("/dashboard/api/sessions/thread_ops/operations");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var op = Assert.Single(doc.RootElement.EnumerateArray());
+        Assert.Equal("rollback", op.GetProperty("type").GetString());
+        Assert.Equal("thread_ops", op.GetProperty("threadId").GetString());
+        Assert.Equal(2, op.GetProperty("numTurns").GetInt32());
+        Assert.Equal("rollout", op.GetProperty("source").GetString());
+        Assert.StartsWith("rollback:thread_ops:", op.GetProperty("id").GetString());
+    }
+
+    [Fact]
+    public async Task ReadOnlyDashboard_RollbackOperationsSkipCorruptAndHiddenRolloutRecords()
+    {
+        var timestamp = new DateTimeOffset(2026, 6, 1, 9, 0, 0, TimeSpan.Zero);
+        var activeDir = Path.Combine(_craft, "threads", "active");
+        Directory.CreateDirectory(activeDir);
+        var path = Path.Combine(activeDir, "thread_corrupt.jsonl");
+        await File.WriteAllLinesAsync(path, [
+            "{\"kind\":\"thread_rolled_back\",",
+            "{\"kind\":\"context_compacted\",\"contextCompacted\":{\"threadId\":\"thread_corrupt\",\"replacementHistory\":[{\"secret\":\"summary\"}]}}",
+            BuildRollbackLine("thread_corrupt", timestamp, 1)
+        ]);
+
+        await using var app = await CreateDashboardApp();
+        using var http = new HttpClient { BaseAddress = new Uri(app.Urls.Single()) };
+
+        using var response = await http.GetAsync("/dashboard/api/sessions/thread_corrupt/operations");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(body);
+        var op = Assert.Single(doc.RootElement.EnumerateArray());
+        Assert.Equal("rollback", op.GetProperty("type").GetString());
+        Assert.Equal(1, op.GetProperty("numTurns").GetInt32());
+        Assert.DoesNotContain("replacementHistory", body);
+    }
+
+    [Fact]
+    public async Task DashboardOperationsEndpoint_UsesPersistenceRootThreadBinding()
+    {
+        var timestamp = new DateTimeOffset(2026, 6, 1, 10, 0, 0, TimeSpan.Zero);
+        WriteRollbackRollout("thread_root", timestamp, 1);
+        var stateRuntime = new StateRuntime(_craft);
+        var traceStore = new TraceStore(Path.Combine(_craft, "tracing"), 5000, true, stateRuntime);
+        traceStore.BindThreadMainSession("thread_root", timestamp);
+        traceStore.BindChildSession("child_session", "thread_root", "thread_root", timestamp);
+        var persistence = new SessionPersistenceService(
+            new ThreadStore(_craft, stateRuntime),
+            traceStore,
+            stateRuntime: stateRuntime);
+
+        var builder = WebApplication.CreateBuilder();
+        builder.Logging.ClearProviders();
+        await using var app = builder.Build();
+        app.MapDashBoard(
+            traceStore,
+            new DotCraftPaths { WorkspacePath = _workspace, CraftPath = _craft },
+            persistence: persistence);
+        app.Urls.Add($"http://127.0.0.1:{GetFreeTcpPort()}");
+        await app.StartAsync();
+        using var http = new HttpClient { BaseAddress = new Uri(app.Urls.Single()) };
+
+        using var response = await http.GetAsync("/dashboard/api/sessions/child_session/operations");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var op = Assert.Single(doc.RootElement.EnumerateArray());
+        Assert.Equal("thread_root", op.GetProperty("threadId").GetString());
+    }
+
     private async Task<WebApplication> CreateDashboardApp()
     {
         var stores = DashBoardReadOnlyStoreLoader.Load(_craft);
@@ -160,4 +244,26 @@ public sealed class DashBoardReadOnlyEndpointTests : IDisposable
         listener.Stop();
         return port;
     }
+
+    private void WriteRollbackRollout(string threadId, DateTimeOffset timestamp, int numTurns)
+    {
+        var activeDir = Path.Combine(_craft, "threads", "active");
+        Directory.CreateDirectory(activeDir);
+        File.WriteAllLines(
+            Path.Combine(activeDir, $"{threadId}.jsonl"),
+            [BuildRollbackLine(threadId, timestamp, numTurns)]);
+    }
+
+    private static string BuildRollbackLine(string threadId, DateTimeOffset timestamp, int numTurns)
+        => JsonSerializer.Serialize(new
+        {
+            kind = "thread_rolled_back",
+            timestamp,
+            threadRolledBack = new
+            {
+                threadId,
+                numTurns,
+                lastActiveAt = timestamp
+            }
+        });
 }

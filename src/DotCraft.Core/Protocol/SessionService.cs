@@ -3186,6 +3186,7 @@ Choose the next concrete action that advances the goal. Before doing substantial
         thread.LastActiveAt = DateTimeOffset.UtcNow;
 
         await persistence.RollbackThreadAsync(thread, numTurns, ct);
+        traceCollector?.RecordThreadRollback(threadId, thread.Id, numTurns, thread.Turns.Count, thread.LastActiveAt);
         InvalidatePromptRequestSnapshot(threadId, "rollback");
         _contextUsageAnchors.TryRemove(threadId, out _);
         ForgetContextPages(threadId);

@@ -717,6 +717,28 @@ public sealed class TraceCollector(TraceStore store)
         });
     }
 
+    public void RecordThreadRollback(
+        string sessionKey,
+        string threadId,
+        int numTurns,
+        int remainingTurns,
+        DateTimeOffset? timestamp = null)
+    {
+        store.Record(new TraceEvent
+        {
+            Type = TraceEventType.ThreadRollback,
+            SessionKey = sessionKey,
+            Timestamp = timestamp ?? DateTimeOffset.UtcNow,
+            Content = $"Rollback removed {numTurns} turn(s)",
+            MetadataJson = JsonSerializer.Serialize(new
+            {
+                threadId,
+                numTurns,
+                remainingTurns
+            }, JsonOptions)
+        });
+    }
+
     public void RecordThinking(string sessionKey, string content, DateTimeOffset? timestamp = null)
     {
         store.Record(new TraceEvent
