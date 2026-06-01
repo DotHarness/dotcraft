@@ -12,7 +12,8 @@
     "adapters": [
       {
         "models": [
-          "claude-opus-4-7"
+          "claude-opus-4-7",
+          "claude-opus-4-8"
         ],
         "thinking": {
           "type": "adaptive",
@@ -98,7 +99,8 @@
           "anthropic"
         ],
         "models": [
-          "claude-opus-4-7"
+          "claude-opus-4-7",
+          "claude-opus-4-8"
         ],
         "supportsDisable": true,
         "supportedEfforts": [
