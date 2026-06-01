@@ -31,9 +31,17 @@ export function ChatGptUsagePopover({ usage, onClose: _onClose }: ChatGptUsagePo
   return (
     <div style={containerStyle()} role="dialog" aria-label={t('composer.chatgptUsage.title')}>
       <div style={headerRowStyle()}>
-        <span style={titleStyle()}>{t('composer.chatgptUsage.title')}</span>
+        <div style={headerTextStyle()}>
+          <span style={titleStyle()}>{t('composer.chatgptUsage.title')}</span>
+          {usage.fetchedAt && (
+            <span style={subtitleStyle()}>
+              {t('composer.chatgptUsage.lastFetched', { time: formatRelative(usage.fetchedAt, now, t) })}
+            </span>
+          )}
+        </div>
         <span style={planTagStyle()}>{planLabel}</span>
       </div>
+      <div style={dividerStyle()} />
 
       <UsageWindowRow
         label={t('composer.chatgptUsage.windowFiveHour')}
@@ -62,12 +70,6 @@ export function ChatGptUsagePopover({ usage, onClose: _onClose }: ChatGptUsagePo
       {usage.limitReachedKind && (
         <div style={limitWarnStyle()}>
           {t('composer.chatgptUsage.limitReached', { kind: usage.limitReachedKind })}
-        </div>
-      )}
-
-      {usage.fetchedAt && (
-        <div style={footerStyle()}>
-          {t('composer.chatgptUsage.lastFetched', { time: formatRelative(usage.fetchedAt, now, t) })}
         </div>
       )}
     </div>
@@ -174,7 +176,19 @@ function containerStyle(): CSSProperties {
 }
 
 function headerRowStyle(): CSSProperties {
-  return { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }
+  return { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }
+}
+
+function headerTextStyle(): CSSProperties {
+  return { display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }
+}
+
+function subtitleStyle(): CSSProperties {
+  return { color: 'var(--text-dimmed, var(--text-secondary))', fontSize: 11 }
+}
+
+function dividerStyle(): CSSProperties {
+  return { height: 1, background: 'var(--border-default)' }
 }
 
 function titleStyle(): CSSProperties {
@@ -255,13 +269,5 @@ function emptyStateStyle(): CSSProperties {
     color: 'var(--text-secondary)',
     fontSize: 11,
     fontStyle: 'italic'
-  }
-}
-
-function footerStyle(): CSSProperties {
-  return {
-    color: 'var(--text-dimmed, var(--text-secondary))',
-    fontSize: 10,
-    textAlign: 'right'
   }
 }

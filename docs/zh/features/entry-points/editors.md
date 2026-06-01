@@ -10,7 +10,7 @@ ACP 是开放标准，生态持续扩展。DotCraft 可运行于以下环境：
 
 | 编辑器 | 插件 / 集成方式 |
 |---|---|
-| **JetBrains Rider**（及其他 JetBrains IDE） | AI Assistant 内置 Agent 支持 |
+| **JetBrains IDEs** | AI Assistant 内置 Agent 支持 |
 | **Obsidian** | [obsidian-agent-client](https://github.com/RAIT-09/obsidian-agent-client) |
 | **Unity Editor** | [dotcraft-unity](https://github.com/DotHarness/dotcraft-unity) |
 
@@ -53,7 +53,7 @@ dotcraft -acp --remote ws://<host>:<port>/ws
 
 ---
 
-## JetBrains Rider（及其他 JetBrains IDE）
+## JetBrains IDEs
 
 安装了 AI Assistant 插件的 JetBrains IDE 可以直接添加 ACP 代理。打开 **AI Chat - Add Custom Agents**，创建一条代理配置：
 

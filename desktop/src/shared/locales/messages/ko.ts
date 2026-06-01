@@ -2103,7 +2103,7 @@ export const MESSAGES_KO = {
   'composer.chatgptBadge.usageUnavailable': '이용불가',
   'composer.chatgptBadge.aria.sessionLeft': '5시간 동안 {{percent}}% 남음',
   'composer.chatgptBadge.aria.weeklyLeft': '이번 주에는 {{percent}}% 남음',
-  'composer.chatgptUsage.title': 'ChatGPT 구독 사용량',
+  'composer.chatgptUsage.title': 'ChatGPT',
   'composer.chatgptUsage.windowFiveHour': '세션',
   'composer.chatgptUsage.windowWeekly': '주간',
   'composer.chatgptUsage.percentLeft': '{{percent}}% 남음',

@@ -2103,7 +2103,7 @@ export const MESSAGES_DE = {
   'composer.chatgptBadge.usageUnavailable': 'Nutzung nicht verfügbar',
   'composer.chatgptBadge.aria.sessionLeft': '{{percent}}% verbleiben im 5-Stunden-Fenster',
   'composer.chatgptBadge.aria.weeklyLeft': '{{percent}}% sind diese Woche noch übrig',
-  'composer.chatgptUsage.title': 'Nutzung des ChatGPT-Abonnements',
+  'composer.chatgptUsage.title': 'ChatGPT',
   'composer.chatgptUsage.windowFiveHour': 'Sitzung',
   'composer.chatgptUsage.windowWeekly': 'Wöchentlich',
   'composer.chatgptUsage.percentLeft': '{{percent}}% übrig',

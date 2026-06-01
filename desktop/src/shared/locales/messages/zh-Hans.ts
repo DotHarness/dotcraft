@@ -1698,7 +1698,7 @@ export const MESSAGES_ZH_HANS = {
   'composer.chatgptBadge.usageUnavailable': '用量暂不可用',
   'composer.chatgptBadge.aria.sessionLeft': '5 小时窗口剩余 {{percent}}%',
   'composer.chatgptBadge.aria.weeklyLeft': '本周剩余 {{percent}}%',
-  'composer.chatgptUsage.title': 'ChatGPT 订阅用量',
+  'composer.chatgptUsage.title': 'ChatGPT',
   'composer.chatgptUsage.windowFiveHour': '本次',
   'composer.chatgptUsage.windowWeekly': '周窗口',
   'composer.chatgptUsage.percentLeft': '剩余 {{percent}}%',

@@ -10,7 +10,7 @@ ACP is an open standard with a growing ecosystem. DotCraft runs in:
 
 | Editor | Plugin / integration |
 |---|---|
-| **JetBrains Rider** (and other JetBrains IDEs) | Built-in AI Assistant agent support |
+| **JetBrains IDEs** | Built-in AI Assistant agent support |
 | **Obsidian** | [obsidian-agent-client](https://github.com/RAIT-09/obsidian-agent-client) |
 | **Unity Editor** | [dotcraft-unity](https://github.com/DotHarness/dotcraft-unity) |
 
@@ -53,7 +53,7 @@ Append `--token <token>` if the AppServer requires authentication. With a remote
 
 ---
 
-## JetBrains Rider (and other JetBrains IDEs)
+## JetBrains IDEs
 
 JetBrains IDEs with the AI Assistant plugin can register an ACP agent directly. Open **AI Chat → Add Custom Agents** and create:
 
