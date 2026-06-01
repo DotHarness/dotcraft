@@ -112,11 +112,18 @@ var tools = new[]
         InputSchema: inputSchema)
 };
 
+var context = new Dictionary<string, RuntimeAdditionalContextEntry>
+{
+    ["myapp.threadGuidance"] = new(
+        "When the user asks about MyApp issues, search for the relevant MyApp tool first.")
+};
+
 var thread = await client.Threads.StartAsync(
     new DotCraftThreadStartRequest(
         new SessionIdentity("myapp", Environment.UserName, workspacePath),
         DisplayName: "MyApp bound thread",
-        DynamicTools: tools),
+        DynamicTools: tools,
+        AdditionalContext: context),
     ct);
 
 using var registration = client.RegisterDynamicToolHandler(
@@ -135,7 +142,26 @@ using var registration = client.RegisterDynamicToolHandler(
     });
 ```
 
-For reconnecting clients, call `thread/resume` with replacement `DynamicTools` when `client.Capabilities.DynamicToolRebind` is true.
+Use `additionalContext` for short runtime guidance, especially when tools are deferred. Check `client.Capabilities.RuntimeAdditionalContext` before sending it.
+
+For reconnecting clients, call `thread/resume` with replacement `DynamicTools` when `client.Capabilities.DynamicToolRebind` is true, and include replacement `AdditionalContext` when `client.Capabilities.RuntimeAdditionalContext` is true.
+
+```csharp
+await client.Threads.ResumeAsync(
+    new DotCraftThreadResumeRequest(
+        thread.Id,
+        DynamicTools: tools,
+        AdditionalContext: context),
+    ct);
+
+await client.Threads.ResumeAsync(
+    new DotCraftThreadResumeRequest(
+        thread.Id,
+        AdditionalContext: new Dictionary<string, RuntimeAdditionalContextEntry>()),
+    ct);
+```
+
+On resume, omitting `AdditionalContext` keeps the current runtime context; passing an empty dictionary clears it.
 
 ## App Binding
 

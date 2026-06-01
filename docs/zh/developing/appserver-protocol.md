@@ -119,6 +119,8 @@ WebSocket 模式下，每个连接都有独立的初始化状态和线程订阅�
     "capabilities": {
       "threadManagement": true,
       "threadSubscriptions": true,
+      "dynamicToolRebind": true,
+      "runtimeAdditionalContext": true,
       "approvalFlow": true,
       "skillsManagement": true,
       "pluginManagement": true,
@@ -215,6 +217,33 @@ Server 还会广播 `thread/started`。多 client 场景下，发起请求的 cl
 | `thread/delete` | 删除线程。 |
 | `thread/config/update` | 更新线程配置。 |
 | `thread/mode/set` | 切换 agent mode，例如 `plan` 或 `agent`。 |
+
+### Runtime Dynamic Tools 与 App Context
+
+暴露 Runtime Dynamic Tools 的客户端，也可以在 `thread/start` 或 `thread/resume` 上附加精简的 app context。`additionalContext` 适合放简短的模型可见提示，帮助 agent 发现或使用客户端自有能力，尤其是 deferred tools。
+
+发送 `additionalContext` 前先检查 `capabilities.runtimeAdditionalContext`：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 3,
+  "method": "thread/resume",
+  "params": {
+    "threadId": "thread_20260316_x7k2m4",
+    "additionalContext": {
+      "myapp.threadGuidance": {
+        "kind": "application",
+        "value": "When the user asks about MyApp issues, search for the relevant MyApp tool first."
+      }
+    }
+  }
+}
+```
+
+`kind` 目前只支持 `"application"`。`value` 应保持简洁；不要放入 secret、授权材料或大块状态快照。Server 会把每个条目渲染进 System prompt 的 `<app-context>...</app-context>` 中。它是 app context，不是更高优先级的指令。
+
+在 `thread/resume` 上，省略 `additionalContext` 会保留当前 runtime context；发送 `{}` 会清空它。
 
 ## 回合
 

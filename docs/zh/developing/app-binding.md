@@ -128,6 +128,12 @@ await client.AppBindings.AcceptBindingAsync<JsonElement>(new {
 - **审批。** 应用绑定工具复用 `DynamicToolSpec.approval`。DotCraft 在派发**之前**门控；应用在**之后**仍要校验。外部写入优先采用 提议 → 记录 → 人工批准 → 应用写入 的模式。
 - **离线桩。** 绑定处于 `offline` 时，调用以结构化错误快速失败。标准错误码：`AppBindingOffline`、`AppBindingExpired`、`AppBindingRevoked`、`AppBindingScopeDenied`、`AppBindingToolUnavailable`、`AppBindingProtocolViolation`。
 
+## App Context
+
+Runtime `thread/start.additionalContext` 和 `thread/resume.additionalContext` 是客户端 runtime hint。它适合配合 Runtime Dynamic Tools 使用，例如连接中的客户端需要放一条短提示，让 agent 先搜索某个 deferred tool。
+
+App Binding context blocks 使用 `app/binding/context/*`。它们是已接受绑定提供的、持久化在线程 + app 作用域下的业务上下文，例如选中的项目元数据或需要跨重连保留的应用侧状态。两者都使用 App Context prompt 语义，但生命周期和写入 API 不同。
+
 ## 安全要点
 
 - **交接 token** 默认 10 分钟 TTL，单一用途，绑定到一个 请求/应用/工作区/用户/操作（绑定 token 还绑定线程 + scope），成功后即消费，绝不暴露给模型。

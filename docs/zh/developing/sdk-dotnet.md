@@ -112,11 +112,18 @@ var tools = new[]
         InputSchema: inputSchema)
 };
 
+var context = new Dictionary<string, RuntimeAdditionalContextEntry>
+{
+    ["myapp.threadGuidance"] = new(
+        "When the user asks about MyApp issues, search for the relevant MyApp tool first.")
+};
+
 var thread = await client.Threads.StartAsync(
     new DotCraftThreadStartRequest(
         new SessionIdentity("myapp", Environment.UserName, workspacePath),
         DisplayName: "MyApp bound thread",
-        DynamicTools: tools),
+        DynamicTools: tools,
+        AdditionalContext: context),
     ct);
 
 using var registration = client.RegisterDynamicToolHandler(
@@ -135,7 +142,26 @@ using var registration = client.RegisterDynamicToolHandler(
     });
 ```
 
-重连客户端如果看到 `client.Capabilities.DynamicToolRebind` 为 true，应通过 `thread/resume` 重新发送 replacement `DynamicTools`。
+`additionalContext` 适合放简短 runtime guidance，尤其是在工具使用 deferred exposure 时。发送前先检查 `client.Capabilities.RuntimeAdditionalContext`。
+
+重连客户端如果看到 `client.Capabilities.DynamicToolRebind` 为 true，应通过 `thread/resume` 重新发送 replacement `DynamicTools`；如果 `client.Capabilities.RuntimeAdditionalContext` 为 true，也可以同时发送 replacement `AdditionalContext`。
+
+```csharp
+await client.Threads.ResumeAsync(
+    new DotCraftThreadResumeRequest(
+        thread.Id,
+        DynamicTools: tools,
+        AdditionalContext: context),
+    ct);
+
+await client.Threads.ResumeAsync(
+    new DotCraftThreadResumeRequest(
+        thread.Id,
+        AdditionalContext: new Dictionary<string, RuntimeAdditionalContextEntry>()),
+    ct);
+```
+
+恢复线程时，省略 `AdditionalContext` 会保留当前 runtime context；传入空字典会清空它。
 
 ## App Binding
 
