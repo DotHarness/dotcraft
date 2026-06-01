@@ -11,8 +11,10 @@ function normalizeAsarPath(value) {
 
 function existingResourcesDirs() {
   const candidates = [
-    path.join(distDir, 'win-unpacked', 'resources'),
-    path.join(distDir, 'linux-unpacked', 'resources')
+    { resourcesDir: path.join(distDir, 'win-unpacked', 'resources'), platform: 'win32', arch: 'x64' },
+    { resourcesDir: path.join(distDir, 'win-arm64-unpacked', 'resources'), platform: 'win32', arch: 'arm64' },
+    { resourcesDir: path.join(distDir, 'win-ia32-unpacked', 'resources'), platform: 'win32', arch: 'ia32' },
+    { resourcesDir: path.join(distDir, 'linux-unpacked', 'resources'), platform: 'linux', arch: undefined }
   ]
 
   if (existsSync(distDir)) {
@@ -20,11 +22,14 @@ function existingResourcesDirs() {
       const maybeMacDir = path.join(distDir, name)
       if (!statSync(maybeMacDir).isDirectory()) continue
       const appDir = path.join(maybeMacDir, 'DotCraft.app', 'Contents', 'Resources')
-      if (existsSync(appDir)) candidates.push(appDir)
+      if (existsSync(appDir)) {
+        const arch = name.includes('arm64') ? 'arm64' : 'x64'
+        candidates.push({ resourcesDir: appDir, platform: 'darwin', arch })
+      }
     }
   }
 
-  return candidates.filter((candidate) => existsSync(path.join(candidate, 'app.asar')))
+  return candidates.filter((candidate) => existsSync(path.join(candidate.resourcesDir, 'app.asar')))
 }
 
 function fail(message) {
@@ -36,27 +41,32 @@ const resourcesDirs = existingResourcesDirs()
 if (resourcesDirs.length === 0) {
   fail('No packaged Electron resources directory found under dist/. Run electron-builder first.')
 } else {
-  const resourcesDir = resourcesDirs[0]
+  for (const target of resourcesDirs) {
+    verifyResourcesDir(target)
+  }
+}
+
+function verifyResourcesDir(target) {
+  const { resourcesDir, platform, arch } = target
   const appAsar = path.join(resourcesDir, 'app.asar')
   const unpackedRoot = path.join(resourcesDir, 'app.asar.unpacked')
-  const rgCandidates = [
-    path.join(unpackedRoot, 'node_modules', '@vscode', 'ripgrep', 'bin', 'rg.exe'),
-    path.join(unpackedRoot, 'node_modules', '@vscode', 'ripgrep', 'bin', 'rg')
-  ]
-  const vscodeModulesDir = path.join(unpackedRoot, 'node_modules', '@vscode')
-  if (existsSync(vscodeModulesDir)) {
-    for (const packageName of readdirSync(vscodeModulesDir)) {
-      if (!packageName.startsWith('ripgrep-')) continue
-      rgCandidates.push(
-        path.join(vscodeModulesDir, packageName, 'bin', 'rg.exe'),
-        path.join(vscodeModulesDir, packageName, 'bin', 'rg')
-      )
-    }
-  }
-  const rgPath = rgCandidates.find((candidate) => existsSync(candidate))
+  const rgPath = resolveRipgrepPath(unpackedRoot, platform, arch)
 
   if (!rgPath) {
-    fail('Missing unpacked @vscode/ripgrep binary under app.asar.unpacked.')
+    const targetLabel = arch ? `${platform}-${arch}` : platform
+    fail(`Missing unpacked @vscode/ripgrep binary for ${targetLabel} under app.asar.unpacked.`)
+  }
+
+  if (platform === 'win32' && arch) {
+    const nativePtyFiles = [
+      path.join(unpackedRoot, 'node_modules', '@lydell', `node-pty-win32-${arch}`, 'prebuilds', `win32-${arch}`, 'conpty.node'),
+      path.join(unpackedRoot, 'node_modules', '@lydell', `node-pty-win32-${arch}`, 'prebuilds', `win32-${arch}`, 'conpty', 'conpty.dll')
+    ]
+    for (const required of nativePtyFiles) {
+      if (!existsSync(required)) {
+        fail(`Missing bundled @lydell/node-pty Windows ${arch} native file ${path.relative(unpackedRoot, required)}.`)
+      }
+    }
   }
 
   const requiredResourceFiles = [
@@ -83,6 +93,30 @@ if (resourcesDirs.length === 0) {
   }
 
   if (process.exitCode !== 1) {
-    console.log(`[verify-package] OK: ripgrep, plugin resources, and file-index JS dependencies are packaged in ${resourcesDir}`)
+    console.log(`[verify-package] OK: native runtime files, plugin resources, and file-index JS dependencies are packaged in ${resourcesDir}`)
   }
+}
+
+function resolveRipgrepPath(unpackedRoot, platform, arch) {
+  if (platform === 'win32' && arch) {
+    const rg = path.join(unpackedRoot, 'node_modules', '@vscode', `ripgrep-win32-${arch}`, 'bin', 'rg.exe')
+    return existsSync(rg) ? rg : null
+  }
+
+  const rgCandidates = [
+    path.join(unpackedRoot, 'node_modules', '@vscode', 'ripgrep', 'bin', 'rg.exe'),
+    path.join(unpackedRoot, 'node_modules', '@vscode', 'ripgrep', 'bin', 'rg')
+  ]
+  const vscodeModulesDir = path.join(unpackedRoot, 'node_modules', '@vscode')
+  if (existsSync(vscodeModulesDir)) {
+    for (const packageName of readdirSync(vscodeModulesDir)) {
+      if (!packageName.startsWith('ripgrep-')) continue
+      rgCandidates.push(
+        path.join(vscodeModulesDir, packageName, 'bin', 'rg.exe'),
+        path.join(vscodeModulesDir, packageName, 'bin', 'rg')
+      )
+    }
+  }
+
+  return rgCandidates.find((candidate) => existsSync(candidate)) ?? null
 }

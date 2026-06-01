@@ -60,7 +60,7 @@ SANDBOX_ENABLED=true docker compose --profile sandbox up -d
 
 - AppServer 暴露到 localhost 之外时，请使用强 `APPSERVER_TOKEN`。
 - TLS 建议由反向代理终止。内置 AppServer 监听 `ws://`，不是 `wss://`。
-- 当前服务器镜像和 Release 归档只提供 x64。Arm64 主机在 arm64 产物可用前，请使用 Docker 模拟或从源码构建。
+- 当前服务器 Docker 镜像只提供 x64。Arm64 Linux 主机在 arm64 服务器镜像可用前，请使用 Docker 模拟或从源码构建。
 - QQ 使用发布出来的 OneBot 反向 WebSocket 端口（默认 `6700`）。
 - 企业微信使用发布出来的回调端口（默认 `9000`）。
 - 微信扫码登录文件位于 `workspace/.craft/tmp/channel-weixin-standard/`。

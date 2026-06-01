@@ -128,8 +128,10 @@ function scoreUpdateAsset(
   if (name.endsWith('.blockmap') || name.endsWith('.yml')) return -1
 
   let score = 0
-  const hasArch = name.includes(arch.toLowerCase())
+  const normalizedArch = arch.toLowerCase()
+  const hasArch = name.includes(normalizedArch)
   const hasUniversal = name.includes('universal')
+  if (!hasArch && !hasUniversal && hasDifferentKnownArchitecture(name, normalizedArch)) return -1
 
   if (platform === 'win32') {
     if (!name.endsWith('.exe') || !name.includes('setup')) return -1
@@ -151,4 +153,11 @@ function scoreUpdateAsset(
   else if (hasUniversal) score += 5
 
   return score
+}
+
+function hasDifferentKnownArchitecture(name: string, arch: string): boolean {
+  if (!arch) return false
+
+  return ['arm64', 'x64', 'ia32', 'armv7l']
+    .some((knownArch) => knownArch !== arch && name.includes(knownArch))
 }

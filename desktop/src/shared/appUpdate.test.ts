@@ -20,6 +20,12 @@ const releaseAssets: GitHubReleaseAsset[] = [
       'https://github.com/DotHarness/dotcraft/releases/download/v0.1.8/DotCraft-v0.1.8-win-x64-Setup.exe'
   },
   {
+    name: 'DotCraft-v0.1.8-win-arm64-Setup.exe',
+    size: 25,
+    browser_download_url:
+      'https://github.com/DotHarness/dotcraft/releases/download/v0.1.8/DotCraft-v0.1.8-win-arm64-Setup.exe'
+  },
+  {
     name: 'DotCraft-v0.1.8-macos-x64.dmg',
     size: 30,
     browser_download_url:
@@ -37,6 +43,16 @@ describe('app update release resolution', () => {
   it('selects the Windows installer instead of CLI archives', () => {
     expect(selectUpdateAsset(releaseAssets, 'win32', 'x64')?.name)
       .toBe('DotCraft-v0.1.8-win-x64-Setup.exe')
+  })
+
+  it('selects the Windows ARM64 installer for ARM64 builds', () => {
+    expect(selectUpdateAsset(releaseAssets, 'win32', 'arm64')?.name)
+      .toBe('DotCraft-v0.1.8-win-arm64-Setup.exe')
+  })
+
+  it('does not select a different architecture installer', () => {
+    const x64OnlyAssets = releaseAssets.filter((asset) => !asset.name?.includes('arm64'))
+    expect(selectUpdateAsset(x64OnlyAssets, 'win32', 'arm64')).toBeNull()
   })
 
   it('selects the macOS DMG for mac builds', () => {

@@ -10,7 +10,8 @@
 
 | 平台 | 推荐文件 |
 |------|----------|
-| Windows | `DotCraft-vX.Y.Z-win-x64-Setup.exe` |
+| Windows x64 | `DotCraft-vX.Y.Z-win-x64-Setup.exe` |
+| Windows ARM64 | `DotCraft-vX.Y.Z-win-arm64-Setup.exe` |
 | macOS | `DotCraft-vX.Y.Z-macos-x64.dmg` |
 
 Desktop 是推荐的第一入口，因为它把工作区选择、模型配置、会话、Diff、计划、自动化审核和运行状态放在同一个界面里。
@@ -27,7 +28,7 @@ Windows PowerShell：
 irm https://dotharness.github.io/dotcraft/install.ps1 | iex
 ```
 
-当前 Release 归档只提供 x64。Arm64 用户可在 arm64 产物可用前从源码构建。
+Windows PowerShell 安装脚本会自动选择 x64 或 ARM64 的 CLI/TUI 归档。Linux 和 macOS 的 CLI Release 归档目前仍只提供 x64。
 
 ![DotCraft](https://github.com/DotHarness/resources/raw/master/dotcraft/desktop.png)
 

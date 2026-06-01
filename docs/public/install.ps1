@@ -4,11 +4,35 @@ $Repo = if ($env:DOTCRAFT_REPO) { $env:DOTCRAFT_REPO } else { "DotHarness/dotcra
 $InstallDir = if ($env:DOTCRAFT_INSTALL_DIR) { $env:DOTCRAFT_INSTALL_DIR } else { Join-Path $HOME ".craft\bin" }
 $Version = if ($env:DOTCRAFT_VERSION) { $env:DOTCRAFT_VERSION } else { "latest" }
 
-$processorArch = $env:PROCESSOR_ARCHITECTURE
-$wow64Arch = $env:PROCESSOR_ARCHITEW6432
-if (($processorArch -ne "AMD64") -and ($wow64Arch -ne "AMD64")) {
-    throw "Unsupported architecture. DotCraft CLI releases are currently x64-only."
+function Get-DotCraftWindowsArch {
+    $runtimeArch = $null
+    try {
+        $runtimeArch = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
+    }
+    catch {
+        $runtimeArch = $null
+    }
+
+    $candidates = @(
+        $runtimeArch,
+        $env:PROCESSOR_ARCHITEW6432,
+        $env:PROCESSOR_ARCHITECTURE,
+        $env:PROCESSOR_IDENTIFIER
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+
+    if ($candidates | Where-Object { $_ -match "ARM64|AARCH64|ARMv8" }) {
+        return "arm64"
+    }
+
+    if ($candidates | Where-Object { $_ -match "AMD64|X64" }) {
+        return "x64"
+    }
+
+    $detected = if ($candidates.Count -gt 0) { $candidates -join ", " } else { "unknown" }
+    throw "Unsupported architecture: $detected. DotCraft CLI releases are available for Windows x64 and arm64."
 }
+
+$Arch = Get-DotCraftWindowsArch
 
 if ($Version -eq "latest") {
     $release = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases/latest" -Headers @{ "User-Agent" = "dotcraft-install" }
@@ -19,7 +43,7 @@ if ([string]::IsNullOrWhiteSpace($Version)) {
     throw "Could not resolve DotCraft version."
 }
 
-$archive = "DotCraft-$Version-win-x64.zip"
+$archive = "DotCraft-$Version-win-$Arch.zip"
 $url = "https://github.com/$Repo/releases/download/$Version/$archive"
 $tmp = Join-Path ([IO.Path]::GetTempPath()) ("dotcraft-install-" + [Guid]::NewGuid().ToString("N"))
 $zip = Join-Path $tmp $archive

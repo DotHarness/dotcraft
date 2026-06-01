@@ -60,7 +60,7 @@ This starts a second service from the same image and mounts `/var/run/docker.soc
 
 - Use a strong `APPSERVER_TOKEN` when AppServer is exposed beyond localhost.
 - Terminate TLS with a reverse proxy. The embedded AppServer listener serves `ws://`, not `wss://`.
-- Current server images and release archives are x64-only. Arm64 hosts should use Docker emulation or build from source until arm64 artifacts are available.
+- Current server Docker images are x64-only. Arm64 Linux hosts should use Docker emulation or build from source until arm64 server images are available.
 - QQ uses the published OneBot reverse WebSocket port (`6700` by default).
 - WeCom uses the published callback port (`9000` by default).
 - Weixin writes QR login files under `workspace/.craft/tmp/channel-weixin-standard/`.
