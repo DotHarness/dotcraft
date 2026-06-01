@@ -321,6 +321,204 @@ describe('turn lifecycle', () => {
     expect(toolItem?.executionStatus).toBe('inProgress')
   })
 
+  it('applies terminal output that arrives before the matching Exec toolCall item', () => {
+    s().onTurnStarted(makeTurn())
+    s().onTerminalEvent({
+      event: 'terminal/outputDelta',
+      terminal: {
+        threadId: 'thread-1',
+        turnId: 'turn-1',
+        callId: 'exec-terminal-early',
+        command: 'ping -n 4 10.8.8.8',
+        workingDirectory: 'C:/repo',
+        source: 'host',
+        status: 'running',
+        output: 'Pinging 10.8.8.8\n'
+      },
+      delta: 'Pinging 10.8.8.8\n'
+    })
+
+    s().onItemStarted({
+      turnId: 'turn-1',
+      item: {
+        id: 'tool-terminal-early',
+        type: 'toolCall',
+        payload: {
+          callId: 'exec-terminal-early',
+          toolName: 'Exec',
+          arguments: { command: 'ping -n 4 10.8.8.8' }
+        }
+      }
+    })
+
+    const toolItem = s().turns[0].items.find((i) => i.id === 'tool-terminal-early')
+    expect(toolItem?.type).toBe('toolCall')
+    expect(toolItem?.aggregatedOutput).toBe('Pinging 10.8.8.8\n')
+    expect(toolItem?.executionStatus).toBe('inProgress')
+    expect(toolItem?.command).toBe('ping -n 4 10.8.8.8')
+  })
+
+  it('keeps completed terminal snapshot fields when the Exec toolCall completes later', () => {
+    s().onTurnStarted(makeTurn())
+    s().onItemStarted({
+      turnId: 'turn-1',
+      item: {
+        id: 'tool-terminal-complete',
+        type: 'toolCall',
+        createdAt: '2026-06-01T10:00:00.000Z',
+        payload: {
+          callId: 'exec-terminal-complete',
+          toolName: 'Exec',
+          arguments: { command: 'ping -n 4 10.8.8.8' }
+        }
+      }
+    })
+
+    s().onTerminalEvent({
+      event: 'terminal/completed',
+      terminal: {
+        threadId: 'thread-1',
+        turnId: 'turn-1',
+        callId: 'exec-terminal-complete',
+        command: 'ping -n 4 10.8.8.8',
+        status: 'failed',
+        output: 'Request timed out.\nExit code: 1',
+        exitCode: 1,
+        wallTimeMs: 21152
+      }
+    })
+    s().onItemCompleted({
+      turnId: 'turn-1',
+      item: {
+        id: 'tool-terminal-complete',
+        type: 'toolCall',
+        completedAt: '2026-06-01T10:00:21.152Z',
+        payload: {
+          callId: 'exec-terminal-complete',
+          toolName: 'Exec',
+          arguments: { command: 'ping -n 4 10.8.8.8' }
+        }
+      }
+    })
+
+    const toolItem = s().turns[0].items.find((i) => i.id === 'tool-terminal-complete')
+    expect(toolItem?.type).toBe('toolCall')
+    expect(toolItem?.status).toBe('completed')
+    expect(toolItem?.aggregatedOutput).toBe('Request timed out.\nExit code: 1')
+    expect(toolItem?.executionStatus).toBe('failed')
+    expect(toolItem?.exitCode).toBe(1)
+    expect(toolItem?.duration).toBe(21152)
+  })
+
+  it('uses terminal snapshots as authoritative output instead of duplicating deltas', () => {
+    s().onTurnStarted(makeTurn())
+    s().onItemStarted({
+      turnId: 'turn-1',
+      item: {
+        id: 'tool-terminal-snapshot',
+        type: 'toolCall',
+        payload: {
+          callId: 'exec-terminal-snapshot',
+          toolName: 'Exec',
+          arguments: { command: 'npm test' }
+        }
+      }
+    })
+
+    s().onTerminalEvent({
+      event: 'terminal/outputDelta',
+      terminal: {
+        threadId: 'thread-1',
+        turnId: 'turn-1',
+        callId: 'exec-terminal-snapshot',
+        status: 'running',
+        output: 'line 1\n'
+      },
+      delta: 'line 1\n'
+    })
+    s().onTerminalEvent({
+      event: 'terminal/outputDelta',
+      terminal: {
+        threadId: 'thread-1',
+        turnId: 'turn-1',
+        callId: 'exec-terminal-snapshot',
+        status: 'running',
+        output: 'line 1\nline 2\n'
+      },
+      delta: 'line 2\n'
+    })
+
+    const toolItem = s().turns[0].items.find((i) => i.id === 'tool-terminal-snapshot')
+    expect(toolItem?.aggregatedOutput).toBe('line 1\nline 2\n')
+  })
+
+  it('ignores runInBackground terminal events for inline Exec tool output', () => {
+    s().onTurnStarted(makeTurn())
+    s().onItemStarted({
+      turnId: 'turn-1',
+      item: {
+        id: 'tool-terminal-background',
+        type: 'toolCall',
+        payload: {
+          callId: 'exec-terminal-background',
+          toolName: 'Exec',
+          arguments: { command: 'sleep 60' }
+        }
+      }
+    })
+
+    s().onTerminalEvent({
+      event: 'terminal/outputDelta',
+      terminal: {
+        threadId: 'thread-1',
+        turnId: 'turn-1',
+        callId: 'exec-terminal-background',
+        status: 'running',
+        backgroundReason: 'runInBackground',
+        output: 'still running\n'
+      },
+      delta: 'still running\n'
+    })
+
+    const toolItem = s().turns[0].items.find((i) => i.id === 'tool-terminal-background')
+    expect(toolItem?.aggregatedOutput).toBeUndefined()
+  })
+
+  it('applies pending terminal output when setTurns later loads the matching Exec toolCall', () => {
+    s().onTerminalEvent({
+      event: 'terminal/outputDelta',
+      terminal: {
+        threadId: 'thread-1',
+        turnId: 'turn-1',
+        callId: 'exec-terminal-setturns',
+        status: 'running',
+        output: 'booting\n'
+      },
+      delta: 'booting\n'
+    })
+
+    s().setTurns([
+      makeTurn({
+        items: [
+          {
+            id: 'tool-terminal-setturns',
+            type: 'toolCall',
+            status: 'started',
+            toolCallId: 'exec-terminal-setturns',
+            toolName: 'Exec',
+            arguments: { command: 'npm test' },
+            createdAt: '2026-06-01T10:00:00.000Z'
+          }
+        ]
+      })
+    ])
+
+    const toolItem = s().turns[0].items.find((i) => i.id === 'tool-terminal-setturns')
+    expect(toolItem?.type).toBe('toolCall')
+    expect(toolItem?.aggregatedOutput).toBe('booting\n')
+    expect(toolItem?.executionStatus).toBe('inProgress')
+  })
+
   it('uses toolExecution completion to settle the matching toolCall without storing the enhancement item', () => {
     s().onTurnStarted(makeTurn())
     s().onItemStarted({

@@ -94,6 +94,38 @@ public sealed class ShellToolsCommandExecutionTests : IDisposable
     }
 
     [Fact]
+    public async Task Exec_BackgroundTerminalService_ForwardsForegroundOutputDeltaToCommandExecution()
+    {
+        const string callId = "call_exec_stream";
+        const string command = "echo stream";
+        var turn = CreateTurn();
+        var completed = new List<SessionItem>();
+        var deltas = new List<object>();
+        var pending = CreatePendingCommandExecution(turn, callId, command, _tempDir);
+        var context = CreateRuntimeContext(turn, completed, deltas: deltas);
+        context.RegisterPending(new PendingCommandExecutionRegistration
+        {
+            CallId = callId,
+            Command = command,
+            WorkingDirectory = _tempDir,
+            Source = "host",
+            Item = pending
+        });
+        var backgroundTerminals = new FakeBackgroundTerminalService(
+            "stream-final",
+            outputDelta: "stream-live" + Environment.NewLine);
+        using var _ = CommandExecutionRuntimeScope.Set(context);
+        var tools = new ShellTools(_tempDir, backgroundTerminals: backgroundTerminals);
+
+        var result = await tools.Exec(command);
+
+        Assert.Contains("stream-final", result);
+        var delta = Assert.IsType<CommandExecutionOutputDelta>(Assert.Single(deltas));
+        Assert.Equal("stream-live" + Environment.NewLine, delta.TextDelta);
+        Assert.Same(pending, Assert.Single(completed));
+    }
+
+    [Fact]
     public async Task Exec_BackgroundTerminalService_PassesPendingShellCallIdWithoutCommandExecutionStreaming()
     {
         const string callId = "call_exec_terminal";
@@ -161,7 +193,8 @@ public sealed class ShellToolsCommandExecutionTests : IDisposable
     private static CommandExecutionRuntimeContext CreateRuntimeContext(
         SessionTurn turn,
         List<SessionItem> completed,
-        bool supportsCommandExecutionStreaming = true)
+        bool supportsCommandExecutionStreaming = true,
+        List<object>? deltas = null)
     {
         var nextItemSequence = 1;
         return new CommandExecutionRuntimeContext
@@ -171,13 +204,13 @@ public sealed class ShellToolsCommandExecutionTests : IDisposable
             Turn = turn,
             NextItemSequence = () => nextItemSequence++,
             EmitItemStarted = _ => { },
-            EmitItemDelta = (_, _) => { },
+            EmitItemDelta = (_, delta) => deltas?.Add(delta),
             EmitItemCompleted = completed.Add,
             SupportsCommandExecutionStreaming = supportsCommandExecutionStreaming
         };
     }
 
-    private sealed class FakeBackgroundTerminalService(string output) : IBackgroundTerminalService
+    private sealed class FakeBackgroundTerminalService(string output, string? outputDelta = null) : IBackgroundTerminalService
     {
         public event Action<BackgroundTerminalEvent>? TerminalEvent;
 
@@ -187,8 +220,32 @@ public sealed class ShellToolsCommandExecutionTests : IDisposable
             BackgroundTerminalStartRequest request,
             CancellationToken ct = default)
         {
-            _ = TerminalEvent;
             StartRequests.Add(request);
+            if (outputDelta != null)
+            {
+                TerminalEvent?.Invoke(new BackgroundTerminalEvent
+                {
+                    EventType = "outputDelta",
+                    Terminal = new BackgroundTerminalSnapshot
+                    {
+                        SessionId = "term_test",
+                        ThreadId = request.ThreadId,
+                        TurnId = request.TurnId,
+                        CallId = request.CallId,
+                        Command = request.Command,
+                        WorkingDirectory = request.WorkingDirectory,
+                        Source = request.Source,
+                        Status = BackgroundTerminalStatus.Running,
+                        Output = outputDelta,
+                        OutputPath = Path.Combine(request.WorkingDirectory, "term_test.log"),
+                        StartedAt = DateTimeOffset.UtcNow,
+                        WallTimeMs = 1,
+                        OriginalOutputChars = outputDelta.Length,
+                        Truncated = false
+                    },
+                    Delta = outputDelta
+                });
+            }
             return Task.FromResult(new BackgroundTerminalSnapshot
             {
                 SessionId = "term_test",

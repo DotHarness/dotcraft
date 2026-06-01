@@ -29,6 +29,7 @@ beforeEach(() => {
     streamingReasoningStartedAt: null,
     activeItemId: null,
     streamingActive: false,
+    pendingTerminalByCallId: new Map(),
     loading: false,
     loadError: null,
     subAgentEntries: [],
@@ -65,5 +66,41 @@ describe('reviewPanelStore streaming message timing', () => {
 
     expect(s().streamingMessage).toBe('')
     expect(s().streamingMessageLastDeltaAt).toBeNull()
+  })
+
+  it('applies terminal output that arrives before the matching review Exec toolCall item', () => {
+    s().onTurnStarted(makeTurn())
+    s().onTerminalEvent({
+      event: 'terminal/outputDelta',
+      terminal: {
+        threadId: 'thread-review-1',
+        turnId: 'turn-review-1',
+        callId: 'exec-review-terminal',
+        command: 'ping -n 4 10.8.8.8',
+        workingDirectory: 'C:/repo',
+        source: 'host',
+        status: 'running',
+        output: 'Pinging 10.8.8.8\n'
+      },
+      delta: 'Pinging 10.8.8.8\n'
+    })
+
+    s().onItemStarted({
+      turnId: 'turn-review-1',
+      item: {
+        id: 'tool-review-terminal',
+        type: 'toolCall',
+        payload: {
+          callId: 'exec-review-terminal',
+          toolName: 'Exec',
+          arguments: { command: 'ping -n 4 10.8.8.8' }
+        }
+      }
+    })
+
+    const toolItem = s().turns[0].items.find((i) => i.id === 'tool-review-terminal')
+    expect(toolItem?.type).toBe('toolCall')
+    expect(toolItem?.aggregatedOutput).toBe('Pinging 10.8.8.8\n')
+    expect(toolItem?.executionStatus).toBe('inProgress')
   })
 })

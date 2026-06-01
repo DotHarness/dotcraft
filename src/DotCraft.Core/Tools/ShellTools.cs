@@ -252,24 +252,57 @@ public sealed class ShellTools
     {
         try
         {
+            var terminals = _backgroundTerminals
+                ?? throw new InvalidOperationException("Background terminals are not available.");
             commandExecution ??= CommandExecutionTracker.Begin(command, cwd, source: "host");
             var runtime = CommandExecutionRuntimeScope.Current;
             var shellExecution = runtime?.TryClaimPendingShellExecution(command, cwd);
-            var snapshot = await _backgroundTerminals!.StartAsync(new BackgroundTerminalStartRequest
+            var callId = shellExecution?.CallId ?? commandExecution?.CallId;
+            void ForwardForegroundTerminalDelta(BackgroundTerminalEvent evt)
             {
-                ThreadId = runtime?.ThreadId ?? "workspace",
-                TurnId = runtime?.TurnId,
-                CallId = shellExecution?.CallId ?? commandExecution?.CallId,
-                Command = command,
-                WorkingDirectory = cwd,
-                Source = shellExecution?.Source ?? "host",
-                RunInBackground = runInBackground,
-                Interactive = interactive,
-                Shell = shell,
-                TimeoutSeconds = _timeoutSeconds,
-                YieldTimeMs = yieldTimeMs ?? 1000,
-                MaxOutputChars = maxOutputChars ?? _maxOutputLength
-            });
+                if (!string.Equals(evt.EventType, "outputDelta", StringComparison.Ordinal))
+                    return;
+                if (string.IsNullOrEmpty(evt.Delta))
+                    return;
+                if (!string.Equals(evt.Terminal.CallId, callId, StringComparison.Ordinal))
+                    return;
+                if (string.Equals(evt.Terminal.BackgroundReason, "runInBackground", StringComparison.Ordinal))
+                    return;
+
+                commandExecution?.Append(evt.Delta);
+            }
+
+            var shouldForwardTerminalDelta =
+                !runInBackground
+                && commandExecution != null
+                && !string.IsNullOrWhiteSpace(callId);
+            if (shouldForwardTerminalDelta)
+                terminals.TerminalEvent += ForwardForegroundTerminalDelta;
+
+            BackgroundTerminalSnapshot snapshot;
+            try
+            {
+                snapshot = await terminals.StartAsync(new BackgroundTerminalStartRequest
+                {
+                    ThreadId = runtime?.ThreadId ?? "workspace",
+                    TurnId = runtime?.TurnId,
+                    CallId = callId,
+                    Command = command,
+                    WorkingDirectory = cwd,
+                    Source = shellExecution?.Source ?? "host",
+                    RunInBackground = runInBackground,
+                    Interactive = interactive,
+                    Shell = shell,
+                    TimeoutSeconds = _timeoutSeconds,
+                    YieldTimeMs = yieldTimeMs ?? 1000,
+                    MaxOutputChars = maxOutputChars ?? _maxOutputLength
+                });
+            }
+            finally
+            {
+                if (shouldForwardTerminalDelta)
+                    terminals.TerminalEvent -= ForwardForegroundTerminalDelta;
+            }
 
             var toolResult = runInBackground || snapshot.Status == BackgroundTerminalStatus.Running
                 ? FormatSnapshot(snapshot)

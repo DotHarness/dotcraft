@@ -76,7 +76,12 @@ export function ChatGptUsageBadge({ provider }: ChatGptUsageBadgeProps): JSX.Ele
       aria-label={ariaParts.join(' – ')}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      onFocus={() => setFocused(true)}
+      // Only treat keyboard focus as "focused" so the highlight clears after a mouse
+      // click + click-outside (a plain click leaves DOM focus on the button, which would
+      // otherwise keep the chip stuck in its selected state once the popover closes).
+      onFocus={(event) => {
+        if (event.currentTarget.matches(':focus-visible')) setFocused(true)
+      }}
       onBlur={() => setFocused(false)}
       style={badgeStyle(active)}
     >

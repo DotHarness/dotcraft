@@ -71,12 +71,15 @@ export function MascotBubble({
         transformOrigin: 'bottom right'
       }}
     >
-      {/* Tail pointing down toward the mascot below-right. */}
+      {/* Tail pointing down toward the mascot. The caller aligns the bubble's right edge to
+          the mascot container's right edge, and the mascot's visual centre sits half its box
+          (~29px) in from that edge, so the tail's centre must land there too:
+          29px − 1px border − 5.5px half-tail ≈ 23px. */}
       <span
         aria-hidden
         style={{
           position: 'absolute',
-          right: '18px',
+          right: '23px',
           bottom: '-6px',
           width: '11px',
           height: '11px',

@@ -449,6 +449,34 @@ describe('ToolCallCard shell rendering', () => {
     expect(pre?.textContent).not.toContain('\u001b')
   })
 
+  it('renders failed shell commands with neutral styling and no Failed prefix', () => {
+    const item: ConversationItem = {
+      id: 'tool-failed-shell',
+      type: 'toolCall',
+      status: 'completed',
+      toolName: 'Exec',
+      toolCallId: 'exec-failed-1',
+      arguments: { command: 'ping 10.8.8.8 -n 1' },
+      aggregatedOutput: 'Request timed out.\nExit code: 1',
+      executionStatus: 'failed',
+      exitCode: 1,
+      createdAt: new Date().toISOString()
+    }
+
+    const { container } = renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
+
+    expect(screen.getByRole('button', { name: /Ran ping 10\.8\.8\.8 -n 1/ })).toBeInTheDocument()
+    expect(screen.queryByText(/Failed:/)).toBeNull()
+    const titleGroup = container.querySelector('[data-testid="tool-row-title-group"]') as HTMLElement
+    expect(titleGroup).toHaveStyle({ color: 'var(--text-dimmed)' })
+
+    fireEvent.click(screen.getByRole('button'))
+
+    const pre = document.querySelector('pre')
+    expect(pre?.textContent).toContain('Exit code: 1')
+    expect(pre).toHaveStyle({ color: 'var(--text-secondary)' })
+  })
+
   it('renders completed empty shell output as a non-expandable row', () => {
     const item: ConversationItem = {
       id: 'tool-empty-shell',
