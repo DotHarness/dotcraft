@@ -23,6 +23,7 @@ import {
 import { SettingsPanelShell } from '../../SettingsPanelShell'
 import { SettingsGroup, SettingsRow } from '../../SettingsGroup'
 import { useConfirmDialog } from '../../../ui/ConfirmDialog'
+import { useT } from '../../../../contexts/LocaleContext'
 import { useRemoteServersStore } from '../../../../stores/remoteServersStore'
 import type {
   RemoteHost,
@@ -36,6 +37,7 @@ import type {
 import * as s from './serversStyles'
 
 const REACHABILITY_FLASH_MS = 4000
+type TFunction = (key: string, vars?: Record<string, string | number>) => string
 
 function healthTone(health: StackHealth | undefined): s.StatusTone {
   switch (health) {
@@ -50,19 +52,22 @@ function healthTone(health: StackHealth | undefined): s.StatusTone {
   }
 }
 
-function healthLabel(status: RemoteStackStatus | undefined): string {
-  if (!status) return 'Not checked'
+function healthLabel(status: RemoteStackStatus | undefined, t: TFunction): string {
+  if (!status) return t('settings.servers.status.notChecked')
   switch (status.health) {
     case 'running':
-      return 'Running'
+      return t('settings.servers.status.running')
     case 'partial':
-      return `Partial · ${status.servicesUp} of ${status.servicesTotal} services`
+      return t('settings.servers.status.partial', {
+        up: status.servicesUp,
+        total: status.servicesTotal
+      })
     case 'unhealthy':
-      return 'Unhealthy'
+      return t('settings.servers.status.unhealthy')
     case 'stopped':
-      return 'Stopped'
+      return t('settings.servers.status.stopped')
     default:
-      return status.error ? 'Unavailable' : 'Unknown'
+      return status.error ? t('settings.servers.status.unavailable') : t('settings.servers.status.unknown')
   }
 }
 
@@ -71,12 +76,14 @@ function formatVersion(tag: string | undefined): string {
   return /^\d/.test(tag) ? `v${tag}` : tag
 }
 
-function reachabilityView(host: RemoteHost): { tone: s.StatusTone; label: string } {
+function reachabilityView(host: RemoteHost, t: TFunction): { tone: s.StatusTone; label: string } {
   const result = useRemoteServersStore.getState().testResults[host.id]
-  if (useRemoteServersStore.getState().testing[host.id]) return { tone: 'info', label: 'Checking…' }
-  if (!result) return { tone: 'neutral', label: 'Not tested' }
-  if (result.reachable) return { tone: 'success', label: 'Reachable' }
-  return { tone: 'error', label: 'Unreachable' }
+  if (useRemoteServersStore.getState().testing[host.id]) {
+    return { tone: 'info', label: t('settings.servers.reach.checking') }
+  }
+  if (!result) return { tone: 'neutral', label: t('settings.servers.reach.notChecked') }
+  if (result.reachable) return { tone: 'success', label: t('settings.servers.reach.online') }
+  return { tone: 'error', label: t('settings.servers.reach.offline') }
 }
 
 // ── Status dot + text ────────────────────────────────────────────────────────
@@ -102,20 +109,28 @@ interface ServerFormProps {
   onSaved: (host: RemoteHost) => void
 }
 
-function aliasSummary(alias: LocalSshHostAlias): string {
+function aliasSummary(alias: LocalSshHostAlias, t: TFunction): string {
   const userAt = alias.user ? `${alias.user}@` : ''
   const target = alias.hostName ? `${userAt}${alias.hostName}` : ''
   const port = alias.port ? `:${alias.port}` : ''
-  return target ? `${target}${port}` : 'SSH config alias'
+  return target ? `${target}${port}` : t('settings.servers.alias.fallback')
 }
 
-function identitySummary(identity: LocalSshIdentity): string {
+function identitySummary(identity: LocalSshIdentity, t: TFunction): string {
   const aliases = identity.hostAliases?.filter(Boolean) ?? []
-  if (aliases.length > 0) return `Used by ${aliases.slice(0, 2).join(', ')}${aliases.length > 2 ? '…' : ''}`
-  return identity.source === 'config' ? 'From SSH config' : 'Existing key'
+  if (aliases.length > 0) {
+    return t('settings.servers.identity.usedBy', {
+      aliases: aliases.slice(0, 2).join(', '),
+      suffix: aliases.length > 2 ? '…' : ''
+    })
+  }
+  return identity.source === 'config'
+    ? t('settings.servers.identity.fromConfig')
+    : t('settings.servers.identity.existingKey')
 }
 
 function ServerFormPage({ host, onBack, onSaved }: ServerFormProps): JSX.Element {
+  const t = useT()
   const store = useRemoteServersStore()
   const [name, setName] = useState(host?.name ?? '')
   const [sshTarget, setSshTarget] = useState(host?.sshTarget ?? '')
@@ -143,9 +158,16 @@ function ServerFormPage({ host, onBack, onSaved }: ServerFormProps): JSX.Element
       result.reachable
         ? {
             ok: true,
-            message: `Connected · server ${result.dockerOk && result.composeOk ? 'ready' : 'reachable'}${result.latencyMs != null ? ` · ${result.latencyMs}ms` : ''}`
+            message: t('settings.servers.test.success', {
+              state: result.dockerOk && result.composeOk
+                ? t('settings.servers.test.ready')
+                : t('settings.servers.test.online'),
+              latency: result.latencyMs != null
+                ? t('settings.servers.test.latency', { latency: result.latencyMs })
+                : ''
+            })
           }
-        : { ok: false, message: result.message ?? 'Could not reach this server.' }
+        : { ok: false, message: result.message ?? t('settings.servers.test.failed') }
     )
   }
 
@@ -162,41 +184,50 @@ function ServerFormPage({ host, onBack, onSaved }: ServerFormProps): JSX.Element
 
   const canSave = name.trim().length > 0 && sshTarget.trim().length > 0
   const authHint = sshConfig
-    ? `Leave blank to use ${sshConfig.configExists ? '~/.ssh/config, ' : ''}ssh-agent, and keys under ${sshConfig.sshDir}.`
-    : 'Leave blank to use your system SSH config, ssh-agent, and default keys.'
+    ? sshConfig.configExists
+      ? t('settings.servers.auth.hintWithConfig', { sshDir: sshConfig.sshDir })
+      : t('settings.servers.auth.hintWithoutConfig', { sshDir: sshConfig.sshDir })
+    : t('settings.servers.auth.hintGeneric')
 
   return (
     <SettingsPanelShell
-      title={editing ? 'Edit server' : 'Add server'}
-      description="Connect through the system SSH client. Saved SSH aliases, ProxyJump, ssh-agent, and existing keys are reused."
+      title={editing ? t('settings.servers.form.editTitle') : t('settings.servers.form.addTitle')}
+      description={t('settings.servers.form.description')}
       action={
         <button type="button" onClick={onBack} style={s.btn}>
-          <ArrowLeft size={15} /> Back
+          <ArrowLeft size={15} /> {t('settings.servers.back')}
         </button>
       }
     >
-      <SettingsGroup title="Identity" flush>
+      <SettingsGroup title={t('settings.servers.form.identity')} flush>
         <div style={s.formGrid}>
           <div>
-            <label style={s.fieldLabel}>Name</label>
-            <input style={s.input} value={name} onChange={(e) => setName(e.target.value)} placeholder="Example Remote" />
+            <label style={s.fieldLabel}>{t('settings.servers.form.name')}</label>
+            <input
+              style={s.input}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder={t('settings.servers.form.namePlaceholder')}
+            />
           </div>
           <div>
-            <label style={s.fieldLabel}>SSH target</label>
+            <label style={s.fieldLabel}>{t('settings.servers.form.sshTarget')}</label>
             <input
               style={{ ...s.input, fontFamily: 'var(--font-mono)' }}
               value={sshTarget}
               onChange={(e) => setSshTarget(e.target.value)}
-              placeholder="user@host or saved SSH alias"
+              placeholder={t('settings.servers.form.sshTargetPlaceholder')}
             />
-            <div style={s.fieldHint}>Use a target from your SSH config, such as a Host alias, or enter user@host.</div>
+            <div style={s.fieldHint}>{t('settings.servers.form.sshTargetHint')}</div>
           </div>
         </div>
       </SettingsGroup>
 
       <SettingsGroup
-        title="Saved SSH aliases"
-        description={sshConfigLoading ? 'Checking your local SSH config…' : 'Aliases from ~/.ssh/config can be used directly as the SSH target.'}
+        title={t('settings.servers.aliases.title')}
+        description={sshConfigLoading
+          ? t('settings.servers.aliases.loading')
+          : t('settings.servers.aliases.description')}
         flush
       >
         {aliases.length > 0 ? (
@@ -217,7 +248,7 @@ function ServerFormPage({ host, onBack, onSaved }: ServerFormProps): JSX.Element
                 </span>
                 <span style={{ minWidth: 0 }}>
                   <span style={s.choiceTitle}>{alias.alias}</span>
-                  <span style={s.choiceSubtitle}>{aliasSummary(alias)}</span>
+                  <span style={s.choiceSubtitle}>{aliasSummary(alias, t)}</span>
                 </span>
               </button>
             ))}
@@ -225,40 +256,43 @@ function ServerFormPage({ host, onBack, onSaved }: ServerFormProps): JSX.Element
         ) : (
           <div style={s.mutedText}>
             {sshConfigLoading
-              ? 'Checking for ~/.ssh/config…'
-              : 'No concrete Host aliases found. You can still enter user@host manually.'}
+              ? t('settings.servers.aliases.checking')
+              : t('settings.servers.aliases.empty')}
           </div>
         )}
       </SettingsGroup>
 
       <SettingsGroup
-        title="Authentication"
-        description="Default mode uses your normal SSH setup. Set an identity file only when you need to override that."
+        title={t('settings.servers.auth.title')}
+        description={t('settings.servers.auth.description')}
         flush
       >
         <div style={s.formGrid}>
           <div>
             <label style={s.fieldLabel}>
-              Identity file override <span style={{ color: 'var(--text-dimmed)', fontWeight: 400 }}>(optional)</span>
+              {t('settings.servers.auth.identityOverride')}{' '}
+              <span style={{ color: 'var(--text-dimmed)', fontWeight: 400 }}>
+                ({t('settings.servers.optional')})
+              </span>
             </label>
             <input
               style={{ ...s.input, fontFamily: 'var(--font-mono)' }}
               value={identityFile}
               onChange={(e) => setIdentityFile(e.target.value)}
-              placeholder="Use SSH config / agent / default keys"
+              placeholder={t('settings.servers.auth.placeholder')}
             />
             <div style={s.fieldHint}>{authHint}</div>
           </div>
           {identityFile.trim() && (
             <button type="button" style={{ ...s.btn, alignSelf: 'flex-start' }} onClick={() => setIdentityFile('')}>
-              Use SSH config
+              {t('settings.servers.auth.useSshConfig')}
             </button>
           )}
         </div>
 
         {existingIdentities.length > 0 && (
           <div style={{ marginTop: 14 }}>
-            <div style={s.fieldLabel}>Existing local keys</div>
+            <div style={s.fieldLabel}>{t('settings.servers.auth.existingKeys')}</div>
             <div style={s.choiceGrid}>
               {existingIdentities.map((identity) => (
                 <button
@@ -272,7 +306,7 @@ function ServerFormPage({ host, onBack, onSaved }: ServerFormProps): JSX.Element
                   </span>
                   <span style={{ minWidth: 0 }}>
                     <span style={s.choiceTitle}>{identity.path}</span>
-                    <span style={s.choiceSubtitle}>{identitySummary(identity)}</span>
+                    <span style={s.choiceSubtitle}>{identitySummary(identity, t)}</span>
                   </span>
                 </button>
               ))}
@@ -294,14 +328,14 @@ function ServerFormPage({ host, onBack, onSaved }: ServerFormProps): JSX.Element
       <div style={s.formActions}>
         <button style={s.btn} onClick={handleTest} disabled={!sshTarget.trim() || testing}>
           {testing ? <Loader2 size={15} className="animate-spin-custom" /> : <RefreshCw size={15} />}
-          Test SSH
+          {t('settings.servers.test.button')}
         </button>
         <span style={{ flex: 1 }} />
         <button style={s.btn} onClick={onBack}>
-          Cancel
+          {t('settings.servers.cancel')}
         </button>
         <button style={{ ...s.btnPrimary, opacity: canSave ? 1 : 0.5 }} onClick={handleSave} disabled={!canSave}>
-          {editing ? 'Save' : 'Add server'}
+          {editing ? t('settings.servers.save') : t('settings.servers.addServer')}
         </button>
       </div>
     </SettingsPanelShell>
@@ -323,6 +357,7 @@ function StackFormPage({
   onBack,
   onSaved
 }: StackFormProps): JSX.Element {
+  const t = useT()
   const store = useRemoteServersStore()
   const [name, setName] = useState(stack?.name ?? '')
   const [composeDir, setComposeDir] = useState(stack?.composeDir ?? '')
@@ -392,24 +427,24 @@ function StackFormPage({
 
   return (
     <SettingsPanelShell
-      title={editing ? 'Edit stack' : 'Add stack'}
-      description={`Register a DotCraft Docker Compose deployment on ${host.name}.`}
+      title={editing ? t('settings.servers.stack.editTitle') : t('settings.servers.stack.addTitle')}
+      description={t('settings.servers.stack.description', { server: host.name })}
       action={
         <button type="button" onClick={onBack} style={s.btn}>
-          <ArrowLeft size={15} /> Back
+          <ArrowLeft size={15} /> {t('settings.servers.back')}
         </button>
       }
     >
-      <SettingsGroup title="Deployment" flush>
+      <SettingsGroup title={t('settings.servers.stack.deployment')} flush>
         <div style={s.discoveryPanel}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             <div style={{ flex: 1, minWidth: 220 }}>
-              <div style={{ fontSize: 12.5, fontWeight: 600 }}>Discover from Docker</div>
-              <div style={s.fieldHint}>Find DotCraft Compose stacks from Docker labels on this server.</div>
+              <div style={{ fontSize: 12.5, fontWeight: 600 }}>{t('settings.servers.stack.discoverTitle')}</div>
+              <div style={s.fieldHint}>{t('settings.servers.stack.discoverHint')}</div>
             </div>
             <button type="button" style={s.btn} disabled={discovering} onClick={handleDiscover}>
               {discovering ? <Loader2 size={15} className="animate-spin-custom" /> : <Search size={15} />}
-              Discover
+              {t('settings.servers.stack.discover')}
             </button>
           </div>
 
@@ -438,39 +473,50 @@ function StackFormPage({
           )}
 
           {discoveryRan && !discovering && discoveredStacks.length === 0 && (
-            <div style={{ ...s.mutedText, marginTop: 10 }}>No new DotCraft Compose stacks found.</div>
+            <div style={{ ...s.mutedText, marginTop: 10 }}>{t('settings.servers.stack.discoverEmpty')}</div>
           )}
         </div>
 
         <div style={s.formGrid}>
           <div>
-            <label style={s.fieldLabel}>Name</label>
-            <input style={s.input} value={name} onChange={(e) => setName(e.target.value)} placeholder="prod" />
+            <label style={s.fieldLabel}>{t('settings.servers.stack.name')}</label>
+            <input
+              style={s.input}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder={t('settings.servers.stack.namePlaceholder')}
+            />
           </div>
           <div>
-            <label style={s.fieldLabel}>Deployment folder</label>
+            <label style={s.fieldLabel}>{t('settings.servers.stack.deploymentFolder')}</label>
             <input
               style={{ ...s.input, fontFamily: 'var(--font-mono)' }}
               value={composeDir}
               onChange={(e) => setComposeDir(e.target.value)}
-              placeholder="~/dotcraft/deploy/docker"
+              placeholder={t('settings.servers.stack.deploymentPlaceholder')}
             />
-            <div style={s.fieldHint}>The folder on the server where this DotCraft stack is deployed.</div>
+            <div style={s.fieldHint}>{t('settings.servers.stack.deploymentHint')}</div>
           </div>
           <div>
             <label style={s.fieldLabel}>
-              Data folder <span style={{ color: 'var(--text-dimmed)', fontWeight: 400 }}>(optional)</span>
+              {t('settings.servers.stack.dataFolder')}{' '}
+              <span style={{ color: 'var(--text-dimmed)', fontWeight: 400 }}>
+                ({t('settings.servers.optional')})
+              </span>
             </label>
             <input
               style={{ ...s.input, fontFamily: 'var(--font-mono)' }}
               value={workspaceDir}
               onChange={(e) => setWorkspaceDir(e.target.value)}
-              placeholder="Defaults to the stack's data folder"
+              placeholder={t('settings.servers.stack.dataPlaceholder')}
             />
           </div>
           <div>
             <label style={s.fieldLabel}>
-              Project name <span style={{ color: 'var(--text-dimmed)', fontWeight: 400 }}>(optional)</span>
+              {t('settings.servers.stack.projectName')}{' '}
+              <span style={{ color: 'var(--text-dimmed)', fontWeight: 400 }}>
+                ({t('settings.servers.optional')})
+              </span>
             </label>
             <input
               style={{ ...s.input, fontFamily: 'var(--font-mono)' }}
@@ -482,27 +528,27 @@ function StackFormPage({
       </SettingsGroup>
 
       <SettingsGroup
-        title="Ports"
-        description="Remote ports inside this stack. Desktop reaches them through SSH tunnels."
+        title={t('settings.servers.stack.ports')}
+        description={t('settings.servers.stack.portsDescription')}
         flush
       >
         <div style={s.twoColumnGrid}>
           <div>
-            <label style={s.fieldLabel}>App server port</label>
+            <label style={s.fieldLabel}>{t('settings.servers.stack.appServerPort')}</label>
             {portInput(appServerPort, setAppServerPort)}
           </div>
           <div>
-            <label style={s.fieldLabel}>Dashboard port</label>
+            <label style={s.fieldLabel}>{t('settings.servers.stack.dashboardPort')}</label>
             {portInput(dashboardPort, setDashboardPort)}
           </div>
         </div>
       </SettingsGroup>
 
-      <SettingsGroup title="Runtime" flush>
+      <SettingsGroup title={t('settings.servers.stack.runtime')} flush>
         <div style={s.switchRow}>
           <div>
-            <div style={{ fontSize: 12.5, fontWeight: 600 }}>Sandbox</div>
-            <div style={{ ...s.fieldHint, marginTop: 3 }}>Run the optional sandbox service alongside this stack</div>
+            <div style={{ fontSize: 12.5, fontWeight: 600 }}>{t('settings.servers.stack.sandbox')}</div>
+            <div style={{ ...s.fieldHint, marginTop: 3 }}>{t('settings.servers.stack.sandboxHint')}</div>
           </div>
           <button
             role="switch"
@@ -534,17 +580,17 @@ function StackFormPage({
           </button>
         </div>
         <div style={s.callout}>
-          DotCraft reads this stack&apos;s sign-in token automatically when you connect. You never enter or store it here.
+          {t('settings.servers.stack.tokenNote')}
         </div>
       </SettingsGroup>
 
       <div style={s.formActions}>
         <span style={{ flex: 1 }} />
         <button style={s.btn} onClick={onBack}>
-          Cancel
+          {t('settings.servers.cancel')}
         </button>
         <button style={{ ...s.btnPrimary, opacity: canSave ? 1 : 0.5 }} onClick={handleSave} disabled={!canSave}>
-          {editing ? 'Save' : 'Add stack'}
+          {editing ? t('settings.servers.save') : t('settings.servers.stack.addButton')}
         </button>
       </div>
     </SettingsPanelShell>
@@ -562,6 +608,7 @@ function StackCard({
   stack: RemoteStack
   onEdit: () => void
 }): JSX.Element {
+  const t = useT()
   const store = useRemoteServersStore()
   const confirm = useConfirmDialog()
   const status = store.statuses[stack.id]
@@ -587,7 +634,7 @@ function StackCard({
     if (next && !logsText) {
       setLogsLoading(true)
       const result = await window.api.remoteServers.logs(host.id, stack.id, { tail: 200 })
-      setLogsText(result?.text || 'No log output.')
+      setLogsText(result?.text || t('settings.servers.logs.empty'))
       setLogsLoading(false)
     }
   }
@@ -616,9 +663,9 @@ function StackCard({
           <StatusDot tone={tone} />
           <span style={{ fontSize: 13.5, fontWeight: 600, lineHeight: 1 }}>{stack.name}</span>
           {active ? (
-            <span style={s.statusTextStyle('success')}>Connected</span>
+            <span style={s.statusTextStyle('success')}>{t('settings.servers.stack.connected')}</span>
           ) : (
-            <span style={s.statusTextStyle(healthTone(status?.health))}>{healthLabel(status)}</span>
+            <span style={s.statusTextStyle(healthTone(status?.health))}>{healthLabel(status, t)}</span>
           )}
         </span>
         <span style={{ flex: 1 }} />
@@ -626,7 +673,7 @@ function StackCard({
           <span style={{ color: 'var(--text-secondary)', fontSize: 12 }}>{formatVersion(status.imageTag)}</span>
         )}
         <div style={{ position: 'relative' }}>
-          <button aria-label="More" style={s.iconBtnGhost} onClick={() => setMenuOpen((v) => !v)}>
+          <button aria-label={t('settings.servers.stack.more')} style={s.iconBtnGhost} onClick={() => setMenuOpen((v) => !v)}>
             <MoreHorizontal size={16} />
           </button>
           {menuOpen && (
@@ -637,39 +684,38 @@ function StackCard({
                   style={s.overflowItem}
                   onClick={() =>
                     confirmAndRun('update', {
-                      title: `Update ${stack.name}?`,
-                      message:
-                        'This will back up the current settings, download the latest DotCraft version, and restart the stack on the new version.\n\nYour data and conversations are kept. The stack restarts for a moment while updating.',
-                      confirmLabel: 'Update'
+                      title: t('settings.servers.confirm.updateTitle', { name: stack.name }),
+                      message: t('settings.servers.confirm.updateMessage'),
+                      confirmLabel: t('settings.servers.stack.update')
                     })
                   }
                 >
                   <Download size={14} />
-                  Update
+                  {t('settings.servers.stack.update')}
                 </button>
                 <button style={s.overflowItem} onClick={() => confirmAndRun('restart')}>
                   <RotateCw size={14} />
-                  Restart
+                  {t('settings.servers.stack.restart')}
                 </button>
                 {running ? (
                   <button
                     style={s.overflowItem}
                     onClick={() =>
                       confirmAndRun('stop', {
-                        title: `Stop ${stack.name}?`,
-                        message: 'This stops the stack on the server. You can start it again at any time.',
+                        title: t('settings.servers.confirm.stopTitle', { name: stack.name }),
+                        message: t('settings.servers.confirm.stopMessage'),
                         danger: true,
-                        confirmLabel: 'Stop'
+                        confirmLabel: t('settings.servers.stack.stop')
                       })
                     }
                   >
                     <Square size={14} />
-                    Stop
+                    {t('settings.servers.stack.stop')}
                   </button>
                 ) : (
                   <button style={s.overflowItem} onClick={() => confirmAndRun('start')}>
                     <Play size={14} />
-                    Start
+                    {t('settings.servers.stack.start')}
                   </button>
                 )}
                 <div style={{ height: 1, background: 'var(--border-default)', margin: '4px 6px' }} />
@@ -681,24 +727,24 @@ function StackCard({
                   }}
                 >
                   <Pencil size={14} />
-                  Edit stack
+                  {t('settings.servers.stack.edit')}
                 </button>
                 <button
                   style={{ ...s.overflowItem, color: 'var(--error)' }}
                   onClick={async () => {
                     setMenuOpen(false)
                     const ok = await confirm({
-                      title: `Remove ${stack.name}?`,
-                      message: 'This removes the stack from DotCraft. It does not change anything on the server.',
+                      title: t('settings.servers.confirm.removeStackTitle', { name: stack.name }),
+                      message: t('settings.servers.confirm.removeStackMessage'),
                       danger: true,
-                      confirmLabel: 'Remove'
+                      confirmLabel: t('settings.servers.stack.remove')
                     })
                     if (!ok) return
                     await store.updateHost(host.id, { stacks: host.stacks.filter((st) => st.id !== stack.id) })
                   }}
                 >
                   <Trash2 size={14} />
-                  Remove
+                  {t('settings.servers.stack.remove')}
                 </button>
               </div>
             </>
@@ -708,14 +754,14 @@ function StackCard({
 
       <div style={s.stackMeta}>
         {active
-          ? 'Linked to this Desktop · Dashboard ready'
+          ? t('settings.servers.stack.meta.active')
           : status?.tokenPresent === false
-            ? 'Sign-in token missing on the server'
+            ? t('settings.servers.stack.meta.tokenMissing')
             : status?.health === 'running'
-              ? 'Dashboard ready · ready to connect'
+              ? t('settings.servers.stack.meta.ready')
               : status?.error
                 ? status.error
-                : 'Dashboard ready'}
+                : t('settings.servers.stack.meta.dashboardReady')}
       </div>
 
       <div style={s.stackActions}>
@@ -724,7 +770,7 @@ function StackCard({
             style={{ ...s.btnDanger, ...s.btnSm }}
             onClick={() => store.disconnect(host.id, stack.id)}
           >
-            Disconnect
+            {t('settings.servers.stack.disconnect')}
           </button>
         ) : (
           <button
@@ -733,24 +779,24 @@ function StackCard({
             onClick={() => store.openInDesktop(host.id, stack.id)}
           >
             {busy ? <Loader2 size={14} className="animate-spin-custom" /> : null}
-            Open in Desktop
+            {t('settings.servers.stack.openInDesktop')}
           </button>
         )}
         <button style={{ ...s.btn, ...s.btnSm }} onClick={() => store.openDashboard(host.id, stack.id)}>
-          <ExternalLink size={14} /> Dashboard
+          <ExternalLink size={14} /> {t('settings.servers.stack.dashboard')}
         </button>
         <button style={{ ...s.btn, ...s.btnSm }} onClick={toggleLogs}>
-          <Terminal size={14} /> Logs
+          <Terminal size={14} /> {t('settings.servers.stack.logs')}
         </button>
       </div>
 
       {logsOpen && (
         <div style={s.logsBox}>
           <div style={s.logsBar}>
-            <span>Logs</span>
-            <span style={{ marginLeft: 'auto' }}>Last 200 lines</span>
+            <span>{t('settings.servers.logs.title')}</span>
+            <span style={{ marginLeft: 'auto' }}>{t('settings.servers.logs.tail')}</span>
           </div>
-          <div style={s.logsBody}>{logsLoading ? 'Loading…' : logsText}</div>
+          <div style={s.logsBody}>{logsLoading ? t('settings.servers.logs.loading') : logsText}</div>
         </div>
       )}
     </div>
@@ -772,9 +818,10 @@ function ServerDetail({
   onAddStack: () => void
   onEditStack: (stack: RemoteStack) => void
 }): JSX.Element {
+  const t = useT()
   const store = useRemoteServersStore()
   const confirm = useConfirmDialog()
-  const reach = reachabilityView(host)
+  const reach = reachabilityView(host, t)
   const testing = store.testing[host.id]
   const result = store.testResults[host.id]
   const unreachable = result != null && !result.reachable
@@ -824,7 +871,7 @@ function ServerDetail({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-        <button aria-label="Back" style={{ ...s.iconBtn, marginTop: 2 }} onClick={onBack}>
+        <button aria-label={t('settings.servers.back')} style={{ ...s.iconBtn, marginTop: 2 }} onClick={onBack}>
           <ArrowLeft size={16} />
         </button>
         <div>
@@ -841,20 +888,20 @@ function ServerDetail({
           )}
           <button style={s.btn} disabled={testing} onClick={handleTestSsh}>
             {testing ? <Loader2 size={15} className="animate-spin-custom" /> : <RefreshCw size={15} />}
-            Test SSH
+            {t('settings.servers.test.button')}
           </button>
-          <button style={s.iconBtn} aria-label="Edit server" onClick={onEditServer}>
+          <button style={s.iconBtn} aria-label={t('settings.servers.detail.editAria')} onClick={onEditServer}>
             <Pencil size={16} />
           </button>
           <button
             style={s.iconBtn}
-            aria-label="Remove server"
+            aria-label={t('settings.servers.detail.removeAria')}
             onClick={async () => {
               const ok = await confirm({
-                title: `Remove ${host.name}?`,
-                message: 'This removes the server from DotCraft. It does not change anything on the server itself.',
+                title: t('settings.servers.confirm.removeServerTitle', { name: host.name }),
+                message: t('settings.servers.confirm.removeServerMessage'),
                 danger: true,
-                confirmLabel: 'Remove'
+                confirmLabel: t('settings.servers.stack.remove')
               })
               if (ok) {
                 await store.deleteHost(host.id)
@@ -868,9 +915,9 @@ function ServerDetail({
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <h3 style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>Stacks</h3>
+        <h3 style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>{t('settings.servers.detail.stacks')}</h3>
         <button style={{ ...s.btn, ...s.btnSm }} onClick={onAddStack}>
-          <Plus size={14} /> Add stack
+          <Plus size={14} /> {t('settings.servers.stack.addButton')}
         </button>
       </div>
 
@@ -880,25 +927,25 @@ function ServerDetail({
             <AlertTriangle size={20} />
           </span>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 13, fontWeight: 600 }}>Can&apos;t reach this server over SSH</div>
+            <div style={{ fontSize: 13, fontWeight: 600 }}>{t('settings.servers.detail.unreachableTitle')}</div>
             <div style={{ marginTop: 4, color: 'var(--text-secondary)', fontSize: 12, fontFamily: 'var(--font-mono)' }}>
-              {result?.message ?? 'SSH connection failed.'}
+              {result?.message ?? t('settings.servers.detail.sshFailed')}
             </div>
             <div style={{ marginTop: 10 }}>
               <button style={{ ...s.btn, ...s.btnSm }} disabled={testing} onClick={handleTestSsh}>
-                <RefreshCw size={14} /> Test SSH
+                <RefreshCw size={14} /> {t('settings.servers.test.button')}
               </button>
             </div>
           </div>
         </div>
       ) : host.stacks.length === 0 ? (
         <div style={{ ...s.emptyBox, padding: '32px 24px' }}>
-          <div style={{ fontSize: 13.5, fontWeight: 600 }}>No stacks yet</div>
+          <div style={{ fontSize: 13.5, fontWeight: 600 }}>{t('settings.servers.detail.emptyTitle')}</div>
           <div style={{ maxWidth: '42ch', color: 'var(--text-secondary)', fontSize: 12.5 }}>
-            Add a DotCraft deployment running on this server to manage and connect to it.
+            {t('settings.servers.detail.emptyHint')}
           </div>
           <button style={{ ...s.btnPrimary, marginTop: 12 }} onClick={onAddStack}>
-            <Plus size={15} /> Add stack
+            <Plus size={15} /> {t('settings.servers.stack.addButton')}
           </button>
         </div>
       ) : (
@@ -923,6 +970,7 @@ function ServerList({
   onOpen: (id: string) => void
   onAdd: () => void
 }): JSX.Element {
+  const t = useT()
   const activeStack = useRemoteServersStore((st) => st.activeStack)
 
   if (hosts.length === 0) {
@@ -943,13 +991,12 @@ function ServerList({
         >
           <Server size={22} />
         </span>
-        <div style={{ fontSize: 14, fontWeight: 600 }}>No servers yet</div>
+        <div style={{ fontSize: 14, fontWeight: 600 }}>{t('settings.servers.list.emptyTitle')}</div>
         <div style={{ maxWidth: '44ch', color: 'var(--text-secondary)', fontSize: 12.5 }}>
-          Connect to a server you can reach over SSH and manage the DotCraft stacks running on it. Works with your
-          existing SSH keys.
+          {t('settings.servers.list.emptyHint')}
         </div>
         <button style={{ ...s.btnPrimary, marginTop: 14 }} onClick={onAdd}>
-          <Plus size={15} /> Add server
+          <Plus size={15} /> {t('settings.servers.addServer')}
         </button>
       </div>
     )
@@ -958,14 +1005,18 @@ function ServerList({
   return (
     <div style={s.card}>
       <div style={s.groupHead}>
-        <span style={{ fontSize: 13, fontWeight: 600 }}>Servers</span>
+        <span style={{ fontSize: 13, fontWeight: 600 }}>{t('settings.servers.title')}</span>
         <button style={{ ...s.btn, ...s.btnSm }} onClick={onAdd}>
-          <Plus size={14} /> Add
+          <Plus size={14} /> {t('settings.servers.add')}
         </button>
       </div>
       {hosts.map((host, index) => {
-        const reach = reachabilityView(host)
+        const reach = reachabilityView(host, t)
         const activeHere = activeStack?.hostId === host.id
+        const stackCountLabel = t(
+          host.stacks.length === 1 ? 'settings.servers.list.stackCount.one' : 'settings.servers.list.stackCount.other',
+          { count: host.stacks.length }
+        )
         return (
           <button
             key={host.id}
@@ -979,7 +1030,11 @@ function ServerList({
               <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, fontWeight: 600 }}>
                 {host.name}
                 <StatusText tone={reach.tone}>{reach.label}</StatusText>
-                {activeHere && <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent)' }}>· Active here</span>}
+                {activeHere && (
+                  <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent)' }}>
+                    {t('settings.servers.list.activeHere')}
+                  </span>
+                )}
               </span>
               <span
                 style={{
@@ -992,7 +1047,7 @@ function ServerList({
                   whiteSpace: 'nowrap'
                 }}
               >
-                {host.sshTarget} · {host.stacks.length} {host.stacks.length === 1 ? 'stack' : 'stacks'}
+                {host.sshTarget} · {stackCountLabel}
               </span>
             </span>
             <span style={{ color: 'var(--text-dimmed)', display: 'inline-flex' }}>
@@ -1018,6 +1073,7 @@ type StackFormState =
   | null
 
 export function ServersPanel(): JSX.Element {
+  const t = useT()
   const store = useRemoteServersStore()
   const [serverForm, setServerForm] = useState<ServerFormState>(null)
   const [stackForm, setStackForm] = useState<StackFormState>(null)
@@ -1122,12 +1178,12 @@ export function ServersPanel(): JSX.Element {
 
   return (
     <SettingsPanelShell
-      title="Servers"
-      description="Manage DotCraft running on your remote servers."
+      title={t('settings.servers.title')}
+      description={t('settings.servers.description')}
       action={
         store.hosts.length > 0 ? (
           <button style={s.btnPrimary} onClick={() => setServerForm({ kind: 'addServer' })}>
-            <Plus size={15} /> Add server
+            <Plus size={15} /> {t('settings.servers.addServer')}
           </button>
         ) : undefined
       }
@@ -1138,7 +1194,7 @@ export function ServersPanel(): JSX.Element {
             <AlertTriangle size={18} />
           </span>
           <div style={{ flex: 1, fontSize: 12.5, color: 'var(--text-secondary)' }}>{store.error}</div>
-          <button style={s.iconBtnGhost} aria-label="Dismiss" onClick={() => store.clearError()}>
+          <button style={s.iconBtnGhost} aria-label={t('settings.servers.error.dismiss')} onClick={() => store.clearError()}>
             <X size={16} />
           </button>
         </div>

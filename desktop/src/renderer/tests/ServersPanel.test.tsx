@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ServersPanel } from '../components/settings/panels/servers/ServersPanel'
+import { LocaleProvider } from '../contexts/LocaleContext'
 import { useRemoteServersStore } from '../stores/remoteServersStore'
 import type { LocalSshConfigInfo, RemoteHost } from '../../shared/remoteServers'
 
@@ -52,12 +53,23 @@ function resetRemoteServersStore(): void {
   })
 }
 
+function renderServersPanel(): ReturnType<typeof render> {
+  return render(
+    <LocaleProvider>
+      <ServersPanel />
+    </LocaleProvider>
+  )
+}
+
 describe('ServersPanel', () => {
   beforeEach(() => {
     resetRemoteServersStore()
     Object.defineProperty(window, 'api', {
       configurable: true,
       value: {
+        settings: {
+          get: vi.fn().mockResolvedValue({ locale: 'en' })
+        },
         remoteServers: {
           list: vi.fn<() => Promise<RemoteHost[]>>().mockResolvedValue([]),
           sshConfig: vi.fn<() => Promise<LocalSshConfigInfo>>().mockResolvedValue(sshConfig),
@@ -78,7 +90,7 @@ describe('ServersPanel', () => {
   })
 
   it('opens Add server as a settings page and shows local SSH choices', async () => {
-    render(<ServersPanel />)
+    renderServersPanel()
 
     fireEvent.click(await screen.findByRole('button', { name: /add server/i }))
 
@@ -105,7 +117,7 @@ describe('ServersPanel', () => {
       selectedHostId: 'h_prod'
     })
 
-    render(<ServersPanel />)
+    renderServersPanel()
 
     fireEvent.click(screen.getAllByRole('button', { name: /add stack/i })[0])
 
@@ -127,14 +139,14 @@ describe('ServersPanel', () => {
     }
     window.api.remoteServers.list = vi.fn<() => Promise<RemoteHost[]>>().mockResolvedValue([host])
 
-    render(<ServersPanel />)
+    renderServersPanel()
 
     await waitFor(() => {
       expect(window.api.remoteServers.test).toHaveBeenCalledWith({ id: 'h_prod' })
     })
   })
 
-  it('hides reachable SSH status until the user manually tests the server', async () => {
+  it('hides online SSH status until the user manually tests the server', async () => {
     const host: RemoteHost = {
       id: 'h_prod',
       name: 'Prod',
@@ -147,7 +159,7 @@ describe('ServersPanel', () => {
       selectedHostId: 'h_prod'
     })
 
-    render(<ServersPanel />)
+    renderServersPanel()
 
     await waitFor(() => {
       expect(window.api.remoteServers.test).toHaveBeenCalledTimes(1)
@@ -155,13 +167,13 @@ describe('ServersPanel', () => {
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /test ssh/i })).not.toBeDisabled()
     })
-    expect(screen.queryByText('Reachable')).not.toBeInTheDocument()
+    expect(screen.queryByText('Online')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /test ssh/i }))
 
     await waitFor(() => {
       expect(window.api.remoteServers.test).toHaveBeenCalledTimes(2)
-      expect(screen.getByText('Reachable')).toBeInTheDocument()
+      expect(screen.getByText('Online')).toBeInTheDocument()
     })
   })
 
@@ -190,7 +202,7 @@ describe('ServersPanel', () => {
       }
     ])
 
-    render(<ServersPanel />)
+    renderServersPanel()
 
     await waitFor(() => {
       expect(window.api.remoteServers.test).toHaveBeenCalledWith({ id: 'h_prod' })
