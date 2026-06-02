@@ -88,6 +88,10 @@ function first(value, fallback) {
   return trimmed || fallback;
 }
 
+function listenHost(name, legacyName, fallback) {
+  return first(env[name], first(env[legacyName], fallback));
+}
+
 async function renderGlobalConfig() {
   const filePath = path.join(userCraftDir, "config.json");
   const config = await readJson(filePath);
@@ -126,7 +130,7 @@ async function renderWorkspaceConfig(enabledChannels) {
     Mode: "WebSocket",
     WebSocket: {
       ...(isObject(config.AppServer?.WebSocket) ? config.AppServer.WebSocket : {}),
-      Host: first(env.APPSERVER_HOST, "0.0.0.0"),
+      Host: listenHost("APPSERVER_LISTEN_HOST", "APPSERVER_HOST", "0.0.0.0"),
       Port: intEnv("APPSERVER_PORT", 9100),
       Token: env.APPSERVER_TOKEN || "",
     },
@@ -135,7 +139,7 @@ async function renderWorkspaceConfig(enabledChannels) {
   config.DashBoard = {
     ...(isObject(config.DashBoard) ? config.DashBoard : {}),
     Enabled: boolEnv("DASHBOARD_ENABLED", true),
-    Host: first(env.DASHBOARD_HOST, "0.0.0.0"),
+    Host: listenHost("DASHBOARD_LISTEN_HOST", "DASHBOARD_HOST", "0.0.0.0"),
     Port: intEnv("DASHBOARD_PORT", 8080),
   };
 
@@ -194,7 +198,7 @@ async function renderQq() {
   const config = await readJson(filePath);
   ensureDotCraftSection(config);
   const qq = objectAt(config, "qq");
-  setIfMissing(qq, "host", first(env.QQ_HOST, "0.0.0.0"));
+  setIfMissing(qq, "host", listenHost("QQ_LISTEN_HOST", "QQ_HOST", "0.0.0.0"));
   setIfMissing(qq, "port", intEnv("QQ_PORT", 6700));
   setIfMissing(qq, "accessToken", trim(env.QQ_ACCESS_TOKEN));
   await writeJson(filePath, config);
@@ -209,7 +213,7 @@ async function renderWeCom(errors) {
   const config = await readJson(filePath);
   ensureDotCraftSection(config);
   const wecom = objectAt(config, "wecom");
-  setIfMissing(wecom, "host", first(env.WECOM_HOST, "0.0.0.0"));
+  setIfMissing(wecom, "host", listenHost("WECOM_LISTEN_HOST", "WECOM_HOST", "0.0.0.0"));
   setIfMissing(wecom, "port", intEnv("WECOM_PORT", 9000));
   setIfMissing(wecom, "scheme", first(env.WECOM_SCHEME, "http"));
 

@@ -28,7 +28,7 @@ FROM node:22-bookworm-slim AS runtime
 WORKDIR /workspace
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates python3 python3-pip tini \
+    && apt-get install -y --no-install-recommends ca-certificates python3 python3-pip tini libicu72 \
     && pip3 install --break-system-packages --no-cache-dir opensandbox-server \
     && rm -rf /var/lib/apt/lists/*
 

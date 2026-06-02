@@ -17,7 +17,16 @@ The stack stores workspace state in `./workspace`. On first start, the entrypoin
 - `./workspace/.craft/<channel>.json` for enabled channels
 - `./workspace/.craft/appserver.token` when `APPSERVER_TOKEN` is empty
 
-The default AppServer endpoint is `ws://<server>:9100/ws`. Dashboard is exposed on port `8080`.
+By default, AppServer, Dashboard, and channel ingress ports are published only on
+the server's loopback interface:
+
+- AppServer: `ws://127.0.0.1:9100/ws`
+- Dashboard: `http://127.0.0.1:8080/dashboard`
+- QQ OneBot reverse WebSocket: `ws://127.0.0.1:6700/`
+- WeCom callback: `http://127.0.0.1:9000/dotcraft`
+
+Use Desktop's remote server SSH tunnels, an SSH port forward, or a reverse proxy
+to reach AppServer and Dashboard remotely.
 
 ## Enable Channels
 
@@ -44,6 +53,15 @@ WECOM_ROBOT_AES_KEY=
 
 QQ listens on `${QQ_PORT:-6700}` for OneBot reverse WebSocket clients. WeCom listens on `${WECOM_PORT:-9000}` for callback requests.
 
+If NapCat, WeCom, or another gateway runs outside the server, explicitly publish
+the required channel port in `.env`, for example:
+
+```dotenv
+QQ_PUBLISH_HOST=0.0.0.0
+```
+
+Keep channel access tokens strong when publishing channel ports directly.
+
 Weixin requires interactive QR login. When enabled, watch `./workspace/.craft/tmp/channel-weixin-standard/qr.png`.
 
 ## Optional Sandbox
@@ -69,6 +87,7 @@ docker compose up -d
 
 ## Production Notes
 
-- Use a strong `APPSERVER_TOKEN` when exposing port `9100`.
+- The default Compose file does not expose AppServer or Dashboard beyond localhost.
+- Use a strong `APPSERVER_TOKEN` and Dashboard username/password when exposing these services through a reverse proxy.
 - Terminate TLS with a reverse proxy; the embedded AppServer listener serves `ws://`, not `wss://`.
 - Current images are linux-x64. Arm64 requires a future release target.

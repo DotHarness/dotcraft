@@ -15,7 +15,14 @@ cp .env.example .env
 docker compose up -d
 ```
 
-该栈会在 `deploy/docker/workspace` 下创建工作区。AppServer 默认监听 `ws://<server>:9100/ws`，Dashboard 默认监听 `http://<server>:8080`。
+该栈会在 `deploy/docker/workspace` 下创建工作区。默认情况下，Compose 只把 AppServer、Dashboard 和渠道入口端口发布到服务器本机回环地址：
+
+- AppServer：`ws://127.0.0.1:9100/ws`
+- Dashboard：`http://127.0.0.1:8080/dashboard`
+- QQ OneBot 反向 WebSocket：`ws://127.0.0.1:6700/`
+- 企业微信回调：`http://127.0.0.1:9000/dotcraft`
+
+远程访问 AppServer 和 Dashboard 时，优先使用 Desktop 的远程服务器 SSH tunnel、手动 SSH 端口转发，或反向代理。
 
 如果 `APPSERVER_TOKEN` 留空，容器会把稳定 token 写入 `workspace/.craft/appserver.token`。
 
@@ -44,6 +51,8 @@ WECOM_ROBOT_AES_KEY=
 
 高级字段保留在挂载目录中的渠道文件里，例如 `workspace/.craft/qq.json` 和 `workspace/.craft/wecom.json`。白名单、群聊 @ 规则、审批超时、回调路径、卡片文本等都直接编辑这些文件。重启会保留这些修改。
 
+如果渠道网关不在同一台服务器上，只显式发布需要的渠道端口，例如在 `.env` 中设置 `QQ_PUBLISH_HOST=0.0.0.0`，并使用强随机渠道访问 token。
+
 ## 可选沙箱
 
 沙箱默认关闭。普通的 `docker compose up -d` 不会挂载宿主机 Docker socket。
@@ -58,11 +67,12 @@ SANDBOX_ENABLED=true docker compose --profile sandbox up -d
 
 ## 生产环境注意事项
 
-- AppServer 暴露到 localhost 之外时，请使用强 `APPSERVER_TOKEN`。
+- 默认 Compose 文件不会把 AppServer 或 Dashboard 暴露到 localhost 之外。
+- 如果通过反向代理暴露这些服务，请使用强 `APPSERVER_TOKEN`，并配置 Dashboard 用户名/密码。
 - TLS 建议由反向代理终止。内置 AppServer 监听 `ws://`，不是 `wss://`。
 - 当前服务器 Docker 镜像只提供 x64。Arm64 Linux 主机在 arm64 服务器镜像可用前，请使用 Docker 模拟或从源码构建。
-- QQ 使用发布出来的 OneBot 反向 WebSocket 端口（默认 `6700`）。
-- 企业微信使用发布出来的回调端口（默认 `9000`）。
+- QQ 使用 OneBot 反向 WebSocket 端口（默认 `6700`）。
+- 企业微信使用回调端口（默认 `9000`）。
 - 微信扫码登录文件位于 `workspace/.craft/tmp/channel-weixin-standard/`。
 
 相关文档：[Channels 与 Bots](../../features/entry-points/channels)、[安全与沙箱](../../features/self-hosted/security)，以及 `deploy/docker/README_ZH.md`。
