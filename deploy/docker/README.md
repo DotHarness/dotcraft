@@ -17,13 +17,11 @@ The stack stores workspace state in `./workspace`. On first start, the entrypoin
 - `./workspace/.craft/<channel>.json` for enabled channels
 - `./workspace/.craft/appserver.token` when `APPSERVER_TOKEN` is empty
 
-By default, AppServer, Dashboard, and channel ingress ports are published only on
-the server's loopback interface:
+By default, the main service endpoints are published only on the server's loopback
+interface:
 
 - AppServer: `ws://127.0.0.1:9100/ws`
 - Dashboard: `http://127.0.0.1:8080/dashboard`
-- QQ OneBot reverse WebSocket: `ws://127.0.0.1:6700/`
-- WeCom callback: `http://127.0.0.1:9000/dotcraft`
 
 Use Desktop's remote server SSH tunnels, an SSH port forward, or a reverse proxy
 to reach AppServer and Dashboard remotely.
@@ -46,7 +44,7 @@ type $env:USERPROFILE\.ssh\id_ed25519.pub | ssh user@host "mkdir -p ~/.ssh && ch
 
 Then open Desktop **Settings -> Servers -> Add server**, set the SSH target to `user@host` or an SSH config alias, leave the identity override blank, test SSH, and add this Compose directory as the stack deployment folder.
 
-See the full guide in [Server Deployment](../../docs/developing/lifecycle/server-deployment.md).
+See the full guide in [Server Deployment](../../docs/features/self-hosted/server-deployment.md).
 
 ## Enable Channels
 

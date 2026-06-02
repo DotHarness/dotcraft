@@ -17,12 +17,10 @@ docker compose up -d
 - 已启用渠道对应的 `./workspace/.craft/<channel>.json`
 - 当 `APPSERVER_TOKEN` 留空时，生成 `./workspace/.craft/appserver.token`
 
-默认情况下，AppServer、Dashboard 和渠道入口端口只发布到服务器本机回环地址：
+默认情况下，主要服务端点只发布到服务器本机回环地址：
 
 - AppServer：`ws://127.0.0.1:9100/ws`
 - Dashboard：`http://127.0.0.1:8080/dashboard`
-- QQ OneBot 反向 WebSocket：`ws://127.0.0.1:6700/`
-- 企业微信回调：`http://127.0.0.1:9000/dotcraft`
 
 远程访问 AppServer 和 Dashboard 时，优先使用 Desktop 的远程服务器 SSH tunnel、手动 SSH 端口转发，或反向代理。
 
@@ -44,7 +42,7 @@ type $env:USERPROFILE\.ssh\id_ed25519.pub | ssh user@host "mkdir -p ~/.ssh && ch
 
 然后在 Desktop 打开 **Settings -> Servers -> Add server**，SSH target 填 `user@host` 或 SSH config alias，identity override 留空，Test SSH 成功后，把这个 Compose 目录添加为 stack deployment folder。
 
-完整说明见 [服务器部署](../../docs/zh/developing/lifecycle/server-deployment.md)。
+完整说明见 [服务器部署](../../docs/zh/features/self-hosted/server-deployment.md)。
 
 ## 启用渠道
 

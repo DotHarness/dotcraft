@@ -45,7 +45,7 @@ dotcraft setup --provider-mode create \
   --profile developer
 ```
 
-This is the safest first-time path. After setup, `.craft/` contains workspace config and bootstrap files. If you want a long-running server deployment for social-channel bots, use the Docker path in [Server Deployment](../developing/lifecycle/server-deployment):
+This is the safest first-time path. After setup, `.craft/` contains workspace config and bootstrap files. If you want a long-running server deployment for social-channel bots, use the Docker path in [Server Deployment](../features/self-hosted/server-deployment):
 
 ```bash
 cd deploy/docker

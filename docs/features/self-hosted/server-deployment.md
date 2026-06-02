@@ -15,12 +15,10 @@ cp .env.example .env
 docker compose up -d
 ```
 
-The stack creates a workspace under `deploy/docker/workspace`. By default, Compose publishes AppServer, Dashboard, and channel ingress ports only on the server's loopback interface:
+The stack creates a workspace under `deploy/docker/workspace`. By default, Compose publishes the main service endpoints only on the server's loopback interface:
 
 - AppServer: `ws://127.0.0.1:9100/ws`
 - Dashboard: `http://127.0.0.1:8080/dashboard`
-- QQ OneBot reverse WebSocket: `ws://127.0.0.1:6700/`
-- WeCom callback: `http://127.0.0.1:9000/dotcraft`
 
 Use Desktop's remote server SSH tunnels, an SSH port forward, or a reverse proxy to reach AppServer and Dashboard remotely.
 
@@ -154,8 +152,5 @@ This starts a second service from the same image and mounts `/var/run/docker.soc
 - Use a strong `APPSERVER_TOKEN` and Dashboard username/password when exposing these services through a reverse proxy.
 - Terminate TLS with a reverse proxy. The embedded AppServer listener serves `ws://`, not `wss://`.
 - Current server Docker images are x64-only. Arm64 Linux hosts should use Docker emulation or build from source until arm64 server images are available.
-- QQ uses the OneBot reverse WebSocket port (`6700` by default).
-- WeCom uses the callback port (`9000` by default).
-- Weixin writes QR login files under `workspace/.craft/tmp/channel-weixin-standard/`.
 
-See also: [Channels & Bots](../../features/entry-points/channels), [Security & Sandbox](../../features/self-hosted/security), and the Docker quickstart in `deploy/docker/README.md`.
+See also: [Channels & Bots](../entry-points/channels), [Security & Sandbox](./security), and the Docker quickstart in `deploy/docker/README.md`.

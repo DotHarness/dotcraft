@@ -15,12 +15,10 @@ cp .env.example .env
 docker compose up -d
 ```
 
-该栈会在 `deploy/docker/workspace` 下创建工作区。默认情况下，Compose 只把 AppServer、Dashboard 和渠道入口端口发布到服务器本机回环地址：
+该栈会在 `deploy/docker/workspace` 下创建工作区。默认情况下，Compose 只把主要服务端点发布到服务器本机回环地址：
 
 - AppServer：`ws://127.0.0.1:9100/ws`
 - Dashboard：`http://127.0.0.1:8080/dashboard`
-- QQ OneBot 反向 WebSocket：`ws://127.0.0.1:6700/`
-- 企业微信回调：`http://127.0.0.1:9000/dotcraft`
 
 远程访问 AppServer 和 Dashboard 时，优先使用 Desktop 的远程服务器 SSH tunnel、手动 SSH 端口转发，或反向代理。
 
@@ -154,8 +152,5 @@ SANDBOX_ENABLED=true docker compose --profile sandbox up -d
 - 如果通过反向代理暴露这些服务，请使用强 `APPSERVER_TOKEN`，并配置 Dashboard 用户名/密码。
 - TLS 建议由反向代理终止。内置 AppServer 监听 `ws://`，不是 `wss://`。
 - 当前服务器 Docker 镜像只提供 x64。Arm64 Linux 主机在 arm64 服务器镜像可用前，请使用 Docker 模拟或从源码构建。
-- QQ 使用 OneBot 反向 WebSocket 端口（默认 `6700`）。
-- 企业微信使用回调端口（默认 `9000`）。
-- 微信扫码登录文件位于 `workspace/.craft/tmp/channel-weixin-standard/`。
 
-相关文档：[Channels 与 Bots](../../features/entry-points/channels)、[安全与沙箱](../../features/self-hosted/security)，以及 `deploy/docker/README_ZH.md`。
+相关文档：[Channels 与 Bots](../entry-points/channels)、[安全与沙箱](./security)，以及 `deploy/docker/README_ZH.md`。

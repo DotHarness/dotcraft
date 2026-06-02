@@ -24,7 +24,7 @@ TypeScript channel modules follow the [TypeScript Module integration contract](.
 Two integration shapes:
 
 - **Embedded in Desktop**: Desktop launches the channel as a subprocess via `transport: "subprocess"` and `builtinModule`. Use the Desktop **Channels** page to fill in platform tokens, callbacks, allowlists, or QR-code auth, then enable in one click.
-- **Server Compose deployment**: Use [Server Deployment](../../developing/lifecycle/server-deployment) to run AppServer, bundled TypeScript channels, and optional OpenSandbox from Docker Compose.
+- **Server Compose deployment**: Use [Server Deployment](../self-hosted/server-deployment) to run AppServer, bundled TypeScript channels, and optional OpenSandbox from Docker Compose.
 - **Standalone adapter**: An external process connects to AppServer over WebSocket via `transport: "websocket"`. Best when you need to operate a custom adapter process yourself.
 
 AppServer and channel registration fields live in [Entry Points and Services](../../developing/configuration#entry-points-and-services). Platform-specific connection, permission allowlists, and approval timeouts live in adapter-specific files like `.craft/qq.json` and `.craft/wecom.json`.
@@ -71,6 +71,6 @@ DotCraft ships five channels out of the box. To integrate other platforms (Slack
 
 - [Unified Session Core](../../developing/architecture/session-core)
 - [Security & Sandbox](../self-hosted/security)
-- [Server Deployment](../../developing/lifecycle/server-deployment)
+- [Server Deployment](../self-hosted/server-deployment)
 - [TypeScript SDK](../../developing/sdks/typescript) · [Python SDK](../../developing/sdks/python)
 - [TypeScript Module integration contract](../../developing/integrations/typescript-module)

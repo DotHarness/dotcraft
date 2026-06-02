@@ -24,7 +24,7 @@ TypeScript 频道模块统一遵循 [TypeScript Module 集成契约](../../devel
 两种接入方式：
 
 - **Desktop 内嵌渠道**：Desktop 把渠道作为 subprocess 启动，使用 `transport: "subprocess"` 与 `builtinModule`。在 Desktop **Channels** 页面填写平台 token、回调地址、白名单或扫码认证后一键启用。
-- **服务器 Compose 部署**：使用 [服务器部署](../../developing/lifecycle/server-deployment)，通过 Docker Compose 启动 AppServer、内置 TypeScript 渠道和可选 OpenSandbox。
+- **服务器 Compose 部署**：使用 [服务器部署](../self-hosted/server-deployment)，通过 Docker Compose 启动 AppServer、内置 TypeScript 渠道和可选 OpenSandbox。
 - **独立运行的适配器**：通过 `transport: "websocket"` 让外部进程以 WebSocket 方式连接 AppServer，适合需要自行运维适配器进程的场景。
 
 AppServer 与渠道注册字段见 [入口与服务](../../developing/configuration#entry-points-and-services)。平台连接、权限白名单和审批超时等渠道专属设置分别放在 `.craft/qq.json`、`.craft/wecom.json` 等适配器配置文件中。
@@ -71,6 +71,6 @@ DotCraft 内置 5 个常用渠道。需要接入其他平台（Slack、Discord�
 
 - [统一会话核心](../../developing/architecture/session-core)
 - [安全与沙箱](../self-hosted/security)
-- [服务器部署](../../developing/lifecycle/server-deployment)
+- [服务器部署](../self-hosted/server-deployment)
 - [TypeScript SDK](../../developing/sdks/typescript) · [Python SDK](../../developing/sdks/python)
 - [TypeScript Module 集成契约](../../developing/integrations/typescript-module)
