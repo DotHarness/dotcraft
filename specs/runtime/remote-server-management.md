@@ -151,6 +151,7 @@ All operations run in the stack's `composeDir`, use the stack's `projectName` wh
 - `docker` and `docker compose` are available;
 - the `composeDir`, the compose file, and `.env` exist;
 - `workspace/.craft/config.json` exists and `workspace/.craft/appserver.token` is present (presence only — never the value);
+- `workspace/.craft/appserver.lock` is read when present to extract the DotCraft AppServer runtime version only;
 - container/service state from `docker compose ps`;
 - current image tag and digest from the running containers / image labels.
 
@@ -164,7 +165,7 @@ All operations run in the stack's `composeDir`, use the stack's `projectName` wh
 | `unhealthy` | A service is restarting / exited non-zero / failing healthcheck. |
 | `unknown` | Status could not be determined (SSH or Docker error). |
 
-Status also reports `composeOk`, `envOk`, `configOk`, `tokenPresent`, `imageTag`, `imageDigestShort`, and a list of services with per-service state.
+Status also reports `composeOk`, `envOk`, `configOk`, `tokenPresent`, optional `appVersion`, `imageTag`, `imageDigestShort`, and a list of services with per-service state. `appVersion` is the only value intended for user-facing version display. Mutable image tags such as `latest` are diagnostics and must not be presented as the running DotCraft version.
 
 ### 6.2 Logs
 
@@ -237,7 +238,8 @@ Per the visual spec's "at most one primary action per decision area," each stack
 | Secondary | **Dashboard**, **Logs** (toggle) | neutral bordered |
 | Overflow `⋯` | **Update**, **Restart**, **Stop / Start**, **Edit stack**, **Remove** | menu; lifecycle and destructive actions live here |
 
-- The card shows stack health (§6.1) as a status dot, the current image tag/version, and port info; when a tunnel is active it also shows the bound local port.
+- The card shows stack health (§6.1) as a status dot, the real DotCraft AppServer version when available, and port info; when a tunnel is active it also shows the bound local port. If only a mutable Docker tag such as `latest` is known, the version slot is omitted.
+- Stack lifecycle operation state is distinct from the Desktop connection state. While Start/Stop/Restart/Update is running, the card status and metadata name that operation (for example, "Updating..."), but **Open in Desktop** remains a connection action and only shows connection progress while the Desktop connection itself is opening.
 - **Update available is informational, not risk** — it is shown as a neutral/info pill, never a warning color. When surfaced, **Update** is promoted from the overflow to an inline affordance on the card.
 - Destructive actions (Stop, Remove) use explicit copy and require confirmation, with neutral chrome and an `--error` affordance.
 

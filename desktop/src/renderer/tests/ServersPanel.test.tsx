@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ServersPanel } from '../components/settings/panels/servers/ServersPanel'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { useRemoteServersStore } from '../stores/remoteServersStore'
-import type { LocalSshConfigInfo, RemoteHost } from '../../shared/remoteServers'
+import type { LocalSshConfigInfo, RemoteHost, RemoteStackStatus } from '../../shared/remoteServers'
 
 const sshConfig: LocalSshConfigInfo = {
   sshDir: '/Users/test/.ssh',
@@ -45,7 +45,7 @@ function resetRemoteServersStore(): void {
     discovering: {},
     statuses: {},
     statusLoading: {},
-    busyStacks: {},
+    stackOperations: {},
     activeStack: null,
     sshConfig: null,
     sshConfigLoading: false,
@@ -59,6 +59,35 @@ function renderServersPanel(): ReturnType<typeof render> {
       <ServersPanel />
     </LocaleProvider>
   )
+}
+
+const stackHost: RemoteHost = {
+  id: 'h_prod',
+  name: 'Prod',
+  sshTarget: 'prod',
+  stacks: [
+    {
+      id: 'stack_1',
+      name: 'QQBot',
+      composeDir: '~/sample-stack/deploy/docker',
+      appServerPort: 9100,
+      dashboardPort: 8080,
+      sandboxProfile: false
+    }
+  ]
+}
+
+const runningStatus: RemoteStackStatus = {
+  stackId: 'stack_1',
+  health: 'running',
+  dockerOk: true,
+  composeOk: true,
+  envOk: true,
+  configOk: true,
+  tokenPresent: true,
+  services: [{ name: 'dotcraft', state: 'running', healthy: true }],
+  servicesUp: 1,
+  servicesTotal: 1
 }
 
 describe('ServersPanel', () => {
@@ -217,6 +246,66 @@ describe('ServersPanel', () => {
       expect(screen.getByDisplayValue('/srv/sample/demo-stack/deploy/workspace')).toBeInTheDocument()
       expect(screen.getByDisplayValue('deploy')).toBeInTheDocument()
     })
+  })
+
+  it.each([
+    ['start', 'Starting…', 'Starting instance · status will refresh shortly'],
+    ['stop', 'Stopping…', 'Stopping instance · Desktop connection will be unavailable'],
+    ['update', 'Updating…', 'Updating instance · connection may pause briefly']
+  ] as const)('shows %s lifecycle progress without turning Open in Desktop into the busy action', async (
+    kind,
+    label,
+    meta
+  ) => {
+    window.api.remoteServers.status = vi.fn().mockResolvedValue(runningStatus)
+    useRemoteServersStore.setState({
+      hosts: [stackHost],
+      loaded: true,
+      selectedHostId: 'h_prod',
+      statuses: { stack_1: { ...runningStatus, imageTag: 'latest' } },
+      stackOperations: { stack_1: { kind } }
+    })
+
+    renderServersPanel()
+
+    expect(await screen.findByText(label)).toBeInTheDocument()
+    expect(screen.getByText(meta)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /open in desktop/i })).toBeDisabled()
+    expect(screen.queryByText('Opening in Desktop…')).not.toBeInTheDocument()
+  })
+
+  it('shows connection progress only for Open in Desktop', async () => {
+    window.api.remoteServers.status = vi.fn().mockResolvedValue(runningStatus)
+    useRemoteServersStore.setState({
+      hosts: [stackHost],
+      loaded: true,
+      selectedHostId: 'h_prod',
+      statuses: { stack_1: runningStatus },
+      stackOperations: { stack_1: { kind: 'connect' } }
+    })
+
+    renderServersPanel()
+
+    expect(await screen.findByText('Opening in Desktop…')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /open in desktop/i })).toBeDisabled()
+    expect(screen.queryByText('Updating…')).not.toBeInTheDocument()
+  })
+
+  it('shows the real app version without build metadata and never renders latest as a version', async () => {
+    const status = { ...runningStatus, appVersion: '0.2.3+abc', imageTag: 'latest' }
+    window.api.remoteServers.status = vi.fn().mockResolvedValue(status)
+    useRemoteServersStore.setState({
+      hosts: [stackHost],
+      loaded: true,
+      selectedHostId: 'h_prod',
+      statuses: { stack_1: status }
+    })
+
+    renderServersPanel()
+
+    expect(await screen.findByText('0.2.3')).toBeInTheDocument()
+    expect(screen.queryByText('0.2.3+abc')).not.toBeInTheDocument()
+    expect(screen.queryByText('latest')).not.toBeInTheDocument()
   })
 
   it('clears the active stack immediately while disconnect IPC is still running', async () => {

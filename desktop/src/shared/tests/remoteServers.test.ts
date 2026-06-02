@@ -180,6 +180,8 @@ describe('compose command builders', () => {
   it('status command carries markers and the quoted compose dir', () => {
     const cmd = buildStatusCommand(stack)
     expect(cmd).toContain('STATUS_BEGIN')
+    expect(cmd).toContain('LOCK_BEGIN')
+    expect(cmd).toContain('.craft/appserver.lock')
     expect(cmd).toContain('ps -a --format json')
     expect(cmd).toContain("~/'sample-stack/deploy/docker'")
   })
@@ -205,8 +207,8 @@ describe('compose command builders', () => {
 })
 
 describe('parseStatusOutput', () => {
-  const wrap = (ps: string) =>
-    `STATUS_BEGIN\ndocker=ok\ncompose=ok\nenv=ok\nconfig=ok\ntoken=present\nPS_BEGIN\n${ps}\nPS_END\nSTATUS_END`
+  const wrap = (ps: string, lock = '') =>
+    `STATUS_BEGIN\ndocker=ok\ncompose=ok\nenv=ok\nconfig=ok\ntoken=present\nLOCK_BEGIN\n${lock}\nLOCK_END\nPS_BEGIN\n${ps}\nPS_END\nSTATUS_END`
 
   it('parses a healthy single-service stack (NDJSON)', () => {
     const out = parseStatusOutput(
@@ -219,6 +221,24 @@ describe('parseStatusOutput', () => {
     expect(out.servicesUp).toBe(1)
     expect(out.servicesTotal).toBe(1)
     expect(out.imageTag).toBe('1.4.2')
+  })
+
+  it('reads the AppServer runtime version from the lock file block', () => {
+    const out = parseStatusOutput(
+      wrap(
+        '{"Service":"dotcraft","State":"running","Image":"ghcr.io/dotharness/dotcraft:latest"}',
+        '{"Version":"0.2.3+abc","Endpoints":{"appServerWebSocket":"ws://127.0.0.1:9100/ws?token=secret"}}'
+      ),
+      's_1'
+    )
+    expect(out.appVersion).toBe('0.2.3+abc')
+    expect(out.imageTag).toBe('latest')
+  })
+
+  it('leaves appVersion empty when the lock file is missing or invalid', () => {
+    expect(parseStatusOutput(wrap('{"Service":"dotcraft","State":"running"}'), 's_1').appVersion).toBeUndefined()
+    expect(parseStatusOutput(wrap('{"Service":"dotcraft","State":"running"}', '{not-json'), 's_1').appVersion).toBeUndefined()
+    expect(parseStatusOutput(wrap('{"Service":"dotcraft","State":"running"}', '{"pid":123}'), 's_1').appVersion).toBeUndefined()
   })
 
   it('derives partial when not all services are up (JSON array)', () => {

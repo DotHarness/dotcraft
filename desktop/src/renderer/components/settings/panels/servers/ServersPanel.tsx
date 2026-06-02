@@ -71,9 +71,41 @@ function healthLabel(status: RemoteStackStatus | undefined, t: TFunction): strin
   }
 }
 
-function formatVersion(tag: string | undefined): string {
-  if (!tag) return ''
-  return /^\d/.test(tag) ? `v${tag}` : tag
+function formatAppVersion(version: string | undefined): string {
+  const core = version?.trim().split('+')[0]?.trim()
+  return core || ''
+}
+
+type StackOperationKind = 'connect' | 'start' | 'stop' | 'restart' | 'update'
+
+function operationLabelKey(kind: StackOperationKind): string {
+  switch (kind) {
+    case 'connect':
+      return 'settings.servers.stack.operation.connecting'
+    case 'start':
+      return 'settings.servers.stack.operation.starting'
+    case 'stop':
+      return 'settings.servers.stack.operation.stopping'
+    case 'restart':
+      return 'settings.servers.stack.operation.restarting'
+    case 'update':
+      return 'settings.servers.stack.operation.updating'
+  }
+}
+
+function operationMetaKey(kind: StackOperationKind): string {
+  switch (kind) {
+    case 'connect':
+      return 'settings.servers.stack.meta.connecting'
+    case 'start':
+      return 'settings.servers.stack.meta.starting'
+    case 'stop':
+      return 'settings.servers.stack.meta.stopping'
+    case 'restart':
+      return 'settings.servers.stack.meta.restarting'
+    case 'update':
+      return 'settings.servers.stack.meta.updating'
+  }
 }
 
 function reachabilityView(host: RemoteHost, t: TFunction): { tone: s.StatusTone; label: string } {
@@ -612,7 +644,9 @@ function StackCard({
   const store = useRemoteServersStore()
   const confirm = useConfirmDialog()
   const status = store.statuses[stack.id]
-  const busy = store.busyStacks[stack.id]
+  const operationKind = store.stackOperations[stack.id]?.kind
+  const operationBusy = operationKind != null
+  const connectBusy = operationKind === 'connect'
   const active = store.activeStack?.hostId === host.id && store.activeStack?.stackId === stack.id
 
   const [menuOpen, setMenuOpen] = useState(false)
@@ -625,8 +659,24 @@ function StackCard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [host.id, stack.id])
 
-  const tone = active ? 'success' : healthTone(status?.health)
+  useEffect(() => {
+    if (operationBusy) setMenuOpen(false)
+  }, [operationBusy])
+
+  const tone = operationBusy ? 'info' : active ? 'success' : healthTone(status?.health)
   const running = status?.health === 'running' || status?.health === 'partial'
+  const appVersion = formatAppVersion(status?.appVersion)
+  const stackMeta = operationKind
+    ? t(operationMetaKey(operationKind))
+    : active
+      ? t('settings.servers.stack.meta.active')
+      : status?.tokenPresent === false
+        ? t('settings.servers.stack.meta.tokenMissing')
+        : status?.health === 'running'
+          ? t('settings.servers.stack.meta.ready')
+          : status?.error
+            ? status.error
+            : t('settings.servers.stack.meta.dashboardReady')
 
   const toggleLogs = async (): Promise<void> => {
     const next = !logsOpen
@@ -643,6 +693,7 @@ function StackCard({
     action: 'update' | 'restart' | 'stop' | 'start',
     opts?: { title: string; message: string; danger?: boolean; confirmLabel?: string }
   ): Promise<void> => {
+    if (operationBusy) return
     setMenuOpen(false)
     if (opts) {
       const ok = await confirm({
@@ -662,18 +713,28 @@ function StackCard({
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
           <StatusDot tone={tone} />
           <span style={{ fontSize: 13.5, fontWeight: 600, lineHeight: 1 }}>{stack.name}</span>
-          {active ? (
+          {operationKind ? (
+            <span style={{ ...s.statusTextStyle('info'), color: 'var(--text-primary)' }}>
+              <Loader2 size={13} className="animate-spin-custom" />
+              {t(operationLabelKey(operationKind))}
+            </span>
+          ) : active ? (
             <span style={s.statusTextStyle('success')}>{t('settings.servers.stack.connected')}</span>
           ) : (
             <span style={s.statusTextStyle(healthTone(status?.health))}>{healthLabel(status, t)}</span>
           )}
         </span>
         <span style={{ flex: 1 }} />
-        {status?.imageTag && (
-          <span style={{ color: 'var(--text-secondary)', fontSize: 12 }}>{formatVersion(status.imageTag)}</span>
+        {appVersion && (
+          <span style={{ color: 'var(--text-secondary)', fontSize: 12 }}>{appVersion}</span>
         )}
         <div style={{ position: 'relative' }}>
-          <button aria-label={t('settings.servers.stack.more')} style={s.iconBtnGhost} onClick={() => setMenuOpen((v) => !v)}>
+          <button
+            aria-label={t('settings.servers.stack.more')}
+            style={{ ...s.iconBtnGhost, opacity: operationBusy ? 0.55 : 1, cursor: operationBusy ? 'default' : 'pointer' }}
+            disabled={operationBusy}
+            onClick={() => setMenuOpen((v) => !v)}
+          >
             <MoreHorizontal size={16} />
           </button>
           {menuOpen && (
@@ -752,37 +813,34 @@ function StackCard({
         </div>
       </div>
 
-      <div style={s.stackMeta}>
-        {active
-          ? t('settings.servers.stack.meta.active')
-          : status?.tokenPresent === false
-            ? t('settings.servers.stack.meta.tokenMissing')
-            : status?.health === 'running'
-              ? t('settings.servers.stack.meta.ready')
-              : status?.error
-                ? status.error
-                : t('settings.servers.stack.meta.dashboardReady')}
+      <div style={s.stackMeta} aria-live="polite">
+        {stackMeta}
       </div>
 
       <div style={s.stackActions}>
         {active ? (
           <button
-            style={{ ...s.btnDanger, ...s.btnSm }}
+            style={{ ...s.btnDanger, ...s.btnSm, opacity: operationBusy ? 0.6 : 1, cursor: operationBusy ? 'default' : 'pointer' }}
+            disabled={operationBusy}
             onClick={() => store.disconnect(host.id, stack.id)}
           >
             {t('settings.servers.stack.disconnect')}
           </button>
         ) : (
           <button
-            style={{ ...s.btnPrimary, ...s.btnSm, opacity: busy ? 0.6 : 1 }}
-            disabled={busy}
+            style={{ ...s.btnPrimary, ...s.btnSm, opacity: operationBusy ? 0.6 : 1, cursor: operationBusy ? 'default' : 'pointer' }}
+            disabled={operationBusy}
             onClick={() => store.openInDesktop(host.id, stack.id)}
           >
-            {busy ? <Loader2 size={14} className="animate-spin-custom" /> : null}
+            {connectBusy ? <Loader2 size={14} className="animate-spin-custom" /> : null}
             {t('settings.servers.stack.openInDesktop')}
           </button>
         )}
-        <button style={{ ...s.btn, ...s.btnSm }} onClick={() => store.openDashboard(host.id, stack.id)}>
+        <button
+          style={{ ...s.btn, ...s.btnSm, opacity: operationBusy ? 0.6 : 1, cursor: operationBusy ? 'default' : 'pointer' }}
+          disabled={operationBusy}
+          onClick={() => store.openDashboard(host.id, stack.id)}
+        >
           <ExternalLink size={14} /> {t('settings.servers.stack.dashboard')}
         </button>
         <button style={{ ...s.btn, ...s.btnSm }} onClick={toggleLogs}>

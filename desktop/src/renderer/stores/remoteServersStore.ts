@@ -15,6 +15,12 @@ export interface ActiveStackRef {
   stackId: string
 }
 
+export type StackOperationKind = RemoteStackAction | 'connect'
+
+export interface StackOperation {
+  kind: StackOperationKind
+}
+
 interface RemoteServersState {
   hosts: RemoteHost[]
   loaded: boolean
@@ -29,8 +35,8 @@ interface RemoteServersState {
   /** Stack status, keyed by stackId. */
   statuses: Record<string, RemoteStackStatus>
   statusLoading: Record<string, boolean>
-  /** Lifecycle/update operation in flight, keyed by stackId. */
-  busyStacks: Record<string, boolean>
+  /** Connect/lifecycle/update operation in flight, keyed by stackId. */
+  stackOperations: Record<string, StackOperation>
   /** The stack whose AppServer Desktop is currently connected to, if any. */
   activeStack: ActiveStackRef | null
   sshConfig: LocalSshConfigInfo | null
@@ -67,6 +73,31 @@ function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : 'Something went wrong.'
 }
 
+type RemoteServersSet = (
+  partial:
+    | Partial<RemoteServersStore>
+    | ((state: RemoteServersStore) => Partial<RemoteServersStore>)
+) => void
+
+function beginStackOperation(
+  set: RemoteServersSet,
+  stackId: string,
+  kind: StackOperationKind
+): void {
+  set((state) => ({ stackOperations: { ...state.stackOperations, [stackId]: { kind } } }))
+}
+
+function endStackOperation(
+  set: RemoteServersSet,
+  stackId: string,
+  patch?: Partial<RemoteServersStore>
+): void {
+  set((state) => {
+    const { [stackId]: _ended, ...stackOperations } = state.stackOperations
+    return { ...patch, stackOperations }
+  })
+}
+
 export const useRemoteServersStore = create<RemoteServersStore>((set, get) => ({
   hosts: [],
   loaded: false,
@@ -77,7 +108,7 @@ export const useRemoteServersStore = create<RemoteServersStore>((set, get) => ({
   discovering: {},
   statuses: {},
   statusLoading: {},
-  busyStacks: {},
+  stackOperations: {},
   activeStack: null,
   sshConfig: null,
   sshConfigLoading: false,
@@ -203,32 +234,30 @@ export const useRemoteServersStore = create<RemoteServersStore>((set, get) => ({
   },
 
   async runAction(hostId, stackId, action) {
-    set((state) => ({ busyStacks: { ...state.busyStacks, [stackId]: true } }))
+    beginStackOperation(set, stackId, action)
     try {
       const result = await window.api.remoteServers.action(hostId, stackId, action)
-      set((state) => ({
-        busyStacks: { ...state.busyStacks, [stackId]: false },
-        statuses: result.status ? { ...state.statuses, [stackId]: result.status } : state.statuses,
-        error: result.ok ? state.error : result.message ?? state.error
-      }))
+      endStackOperation(set, stackId, {
+        statuses: result.status ? { ...get().statuses, [stackId]: result.status } : get().statuses,
+        error: result.ok ? get().error : result.message ?? get().error
+      })
       return result
     } catch (error) {
-      set((state) => ({ busyStacks: { ...state.busyStacks, [stackId]: false }, error: messageOf(error) }))
+      endStackOperation(set, stackId, { error: messageOf(error) })
       return null
     }
   },
 
   async openInDesktop(hostId, stackId) {
-    set((state) => ({ busyStacks: { ...state.busyStacks, [stackId]: true } }))
+    beginStackOperation(set, stackId, 'connect')
     try {
       await window.api.remoteServers.openInDesktop(hostId, stackId)
-      set((state) => ({
-        busyStacks: { ...state.busyStacks, [stackId]: false },
+      endStackOperation(set, stackId, {
         activeStack: { hostId, stackId }
-      }))
+      })
       return true
     } catch (error) {
-      set((state) => ({ busyStacks: { ...state.busyStacks, [stackId]: false }, error: messageOf(error) }))
+      endStackOperation(set, stackId, { error: messageOf(error) })
       return false
     }
   },

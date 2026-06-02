@@ -85,6 +85,8 @@ export interface RemoteStackStatus {
   configOk: boolean
   /** Presence only — the token value is never read into status. */
   tokenPresent: boolean
+  /** DotCraft AppServer runtime version from `.craft/appserver.lock`, when available. */
+  appVersion?: string
   imageTag?: string
   imageDigestShort?: string
   services: ServiceState[]
@@ -467,6 +469,7 @@ export function buildStatusCommand(stack: RemoteStack): string {
   const ws = effectiveWorkspaceDir(stack)
   const configPath = quoteRemotePath(remoteChildPath(ws, '.craft/config.json'))
   const tokenPath = quoteRemotePath(remoteChildPath(ws, '.craft/appserver.token'))
+  const lockPath = quoteRemotePath(remoteChildPath(ws, '.craft/appserver.lock'))
   const compose = composePrefix(stack)
   return [
     `${cdInto(stack)} 2>/dev/null && {`,
@@ -476,6 +479,7 @@ export function buildStatusCommand(stack: RemoteStack): string {
     `(test -f .env && echo env=ok || echo env=missing);`,
     `(test -f ${configPath} && echo config=ok || echo config=missing);`,
     `(test -f ${tokenPath} && echo token=present || echo token=missing);`,
+    `echo LOCK_BEGIN; (test -f ${lockPath} && cat ${lockPath} 2>/dev/null || true); echo LOCK_END;`,
     `echo PS_BEGIN; (${compose} ps -a --format json 2>/dev/null || true); echo PS_END;`,
     `echo STATUS_END;`,
     `} || echo DIR_MISSING`
@@ -614,6 +618,20 @@ function parseImageRef(image: string | undefined): { tag?: string; digestShort?:
   return { tag, digestShort }
 }
 
+function parseAppServerLockVersion(raw: string): string | undefined {
+  const text = raw.trim()
+  if (!text) return undefined
+  try {
+    const parsed = JSON.parse(text)
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return undefined
+    const record = parsed as Record<string, unknown>
+    const value = record.version ?? record.Version
+    return typeof value === 'string' && value.trim() ? value.trim() : undefined
+  } catch {
+    return undefined
+  }
+}
+
 function deriveHealth(p: {
   dockerOk: boolean
   composeOk: boolean
@@ -656,6 +674,8 @@ export function parseStatusOutput(raw: string, stackId: string): RemoteStackStat
 
   const psMatch = /PS_BEGIN\n?([\s\S]*?)\nPS_END/.exec(raw)
   const psEntries = psMatch ? parseComposePsBlock(psMatch[1]) : []
+  const lockMatch = /LOCK_BEGIN\n?([\s\S]*?)\nLOCK_END/.exec(raw)
+  const appVersion = lockMatch ? parseAppServerLockVersion(lockMatch[1]) : undefined
 
   const services: ServiceState[] = psEntries.map((e) => ({
     name: (e.Service || e.Name || 'service').trim(),
@@ -680,6 +700,7 @@ export function parseStatusOutput(raw: string, stackId: string): RemoteStackStat
     envOk: flags.env === 'ok',
     configOk: flags.config === 'ok',
     tokenPresent: flags.token === 'present',
+    appVersion,
     imageTag: image.tag,
     imageDigestShort: image.digestShort,
     services,
