@@ -28,6 +28,26 @@ the server's loopback interface:
 Use Desktop's remote server SSH tunnels, an SSH port forward, or a reverse proxy
 to reach AppServer and Dashboard remotely.
 
+## Connect from Desktop
+
+Desktop connects to this stack through your system SSH client and does not support SSH password entry or password storage. Make sure your local machine can SSH to the server non-interactively:
+
+```bash
+ssh-keygen -t ed25519 -C "dotcraft-remote"
+ssh-copy-id user@host
+ssh -o BatchMode=yes user@host "echo ok"
+```
+
+On Windows PowerShell, upload the public key with:
+
+```powershell
+type $env:USERPROFILE\.ssh\id_ed25519.pub | ssh user@host "mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
+```
+
+Then open Desktop **Settings -> Servers -> Add server**, set the SSH target to `user@host` or an SSH config alias, leave the identity override blank, test SSH, and add this Compose directory as the stack deployment folder.
+
+See the full guide in [Server Deployment](../../docs/developing/lifecycle/server-deployment.md).
+
 ## Enable Channels
 
 Set `ENABLED_CHANNELS` in `.env`:
@@ -87,7 +107,7 @@ docker compose up -d
 
 ## Production Notes
 
-- The default Compose file does not expose AppServer or Dashboard beyond localhost.
+- The default Compose file does not expose AppServer or Dashboard beyond localhost; prefer Desktop SSH tunnels instead of publishing them directly to the public internet.
 - Use a strong `APPSERVER_TOKEN` and Dashboard username/password when exposing these services through a reverse proxy.
 - Terminate TLS with a reverse proxy; the embedded AppServer listener serves `ws://`, not `wss://`.
 - Current images are linux-x64. Arm64 requires a future release target.
