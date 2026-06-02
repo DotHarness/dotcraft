@@ -108,6 +108,12 @@ Special thanks to:
 - [modelcontextprotocol/csharp-sdk](https://github.com/modelcontextprotocol/csharp-sdk)
 - [openai/symphony](https://github.com/openai/symphony)
 
+# Articles
+
+Technical articles related to dotcraft.
+
+[How to Save Money with AI Agents: Prompt Cache Optimization Practices](https://zhuanlan.zhihu.com/p/2044201072466588522)
+
 ## License
 
 Apache License 2.0

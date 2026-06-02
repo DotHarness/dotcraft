@@ -26,6 +26,8 @@ The container writes a stable AppServer token to `workspace/.craft/appserver.tok
 
 ## Connect from Desktop
 
+![servers](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/servers.gif)
+
 Desktop can connect to this Compose stack through your system SSH client. It reuses `~/.ssh/config`, `ssh-agent`, ProxyJump, hardware keys, and existing local keys. Desktop does not ask for or store SSH passwords, private keys, or key passphrases.
 
 1. Make sure the stack is running on the server:

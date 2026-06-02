@@ -108,6 +108,12 @@ DotCraft 是一个 .NET 10 / C# Agent Harness。它围绕真实项目目录组�
 - [modelcontextprotocol/csharp-sdk](https://github.com/modelcontextprotocol/csharp-sdk)
 - [openai/symphony](https://github.com/openai/symphony)
 
+# 文章
+
+dotcraft 相关技术博客.
+
+[AI Agent 如何省钱：Prompt Cache 优化实践](https://zhuanlan.zhihu.com/p/2044201072466588522)
+
 ## License
 
 Apache License 2.0

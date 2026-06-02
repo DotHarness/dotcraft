@@ -26,6 +26,8 @@ docker compose up -d
 
 ## 从 Desktop 连接
 
+![servers](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/servers.gif)
+
 Desktop 可以通过系统 SSH 客户端连接这个 Compose 栈。它会复用 `~/.ssh/config`、`ssh-agent`、ProxyJump、硬件密钥和本地已有 key。Desktop 不会要求输入或保存 SSH 密码、私钥或 key passphrase。
 
 1. 确认服务器上的栈已经启动：
