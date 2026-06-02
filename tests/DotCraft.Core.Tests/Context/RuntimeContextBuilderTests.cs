@@ -44,4 +44,17 @@ public sealed class RuntimeContextBuilderTests
         Assert.Contains("PlanState: Active", runtimeText, StringComparison.Ordinal);
         Assert.False(modeManager.JustSwitchedFromPlan);
     }
+
+    [Fact]
+    public void BuildBlock_AgentModeWarnsNotToCallCreatePlan()
+    {
+        var modeManager = new AgentModeManager();
+
+        var block = RuntimeContextBuilder.BuildBlock(
+            modeManager: modeManager,
+            workspacePath: Directory.GetCurrentDirectory());
+
+        Assert.Contains("CurrentMode: Agent", block, StringComparison.Ordinal);
+        Assert.Contains("Do not call CreatePlan in Agent mode.", block, StringComparison.Ordinal);
+    }
 }

@@ -1578,14 +1578,14 @@ ISessionService.SetThreadMode(threadId: string, mode: string) → void
 - No Turn is created. This is a metadata operation.
 - Emits `thread/statusChanged` event with mode information.
 
-### 16.3.1 Mode-Specific Tool Injection
+### 16.3.1 Mode-Stable Plan Tools
 
-Each agent mode defines a **mode-specific tool set** that is injected (or removed) when the agent is created for that mode. The `AgentFactory` is responsible for assembling the correct tools based on the mode:
+Plan-related tools remain schema-stable across ordinary Agent/Plan mode switches to preserve prompt-cache stability. When `PlanStore` is available, `AgentFactory` exposes `CreatePlan`, `UpdateTodos`, and `TodoWrite`; `ModeToolPolicy` enforces which calls are valid for the current mode:
 
-| Mode | Injected Tools | Required Dependency | Removed Tools |
-|------|---------------|---------------------|---------------|
-| `plan` | `CreatePlan` | `PlanStore` | Tools in the plan-mode deny list (e.g., `TodoWrite`, `UpdateTodos`) |
-| `agent` | `UpdateTodos`, `TodoWrite` | `PlanStore` | _(none beyond global deny list)_ |
+| Mode | Allowed Plan Tools | Denied Plan Tools |
+|------|--------------------|-------------------|
+| `plan` | `CreatePlan` | `UpdateTodos`, `TodoWrite` |
+| `agent` | `UpdateTodos`, `TodoWrite` | `CreatePlan` |
 
 **`PlanStore` as a Required Dependency**: `PlanStore` provides per-session plan persistence and is required for plan-related tool injection. All hosts that support mode switching **must** supply a `PlanStore` instance to `AgentFactory`. When `PlanStore` is `null`, plan-related tools are silently omitted regardless of the requested mode — this is considered a host configuration error, not a graceful degradation.
 

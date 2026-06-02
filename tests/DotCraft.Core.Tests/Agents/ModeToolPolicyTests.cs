@@ -7,6 +7,50 @@ namespace DotCraft.Tests.Agents;
 public sealed class ModeToolPolicyTests
 {
     [Fact]
+    public async Task StreamingClient_DeniesAgentModeCreatePlanWithRecoverableMessage()
+    {
+        var modeManager = new AgentModeManager();
+        var inner = new ToolCallChatClient("CreatePlan", new Dictionary<string, object?>());
+        var tool = AIFunctionFactory.Create(() => "plan saved", name: "CreatePlan");
+        var client = new StreamingFunctionInvokingChatClient(inner)
+        {
+            AdditionalTools = [tool],
+            ModeToolPolicy = new ModeToolPolicy(modeManager).Evaluate
+        };
+
+        await foreach (var _ in client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")]))
+        {
+        }
+
+        var result = Assert.Single(inner.Calls[1].SelectMany(message => message.Contents).OfType<FunctionResultContent>());
+        Assert.Contains("MODE_POLICY_DENIED", result.Result?.ToString(), StringComparison.Ordinal);
+        Assert.Contains("Tool: CreatePlan", result.Result?.ToString(), StringComparison.Ordinal);
+        Assert.Contains("CurrentMode: Agent", result.Result?.ToString(), StringComparison.Ordinal);
+        Assert.Contains("TodoWrite/UpdateTodos", result.Result?.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task StreamingClient_AllowsPlanModeCreatePlan()
+    {
+        var modeManager = new AgentModeManager();
+        modeManager.SwitchMode(AgentMode.Plan);
+        var inner = new ToolCallChatClient("CreatePlan", new Dictionary<string, object?>());
+        var tool = AIFunctionFactory.Create(() => "plan saved", name: "CreatePlan");
+        var client = new StreamingFunctionInvokingChatClient(inner)
+        {
+            AdditionalTools = [tool],
+            ModeToolPolicy = new ModeToolPolicy(modeManager).Evaluate
+        };
+
+        await foreach (var _ in client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")]))
+        {
+        }
+
+        var result = Assert.Single(inner.Calls[1].SelectMany(message => message.Contents).OfType<FunctionResultContent>());
+        Assert.Equal("plan saved", result.Result?.ToString());
+    }
+
+    [Fact]
     public async Task StreamingClient_DeniesPlanModeFileWriteWithRecoverableMessage()
     {
         var modeManager = new AgentModeManager();

@@ -150,7 +150,7 @@ Plan mode is active. You must not edit files, run mutating commands, change conf
         {
             return
 """
-Follow the active or approved plan. Before starting each planned task, update its progress when task tracking is active. After completing each task, mark it completed. Use workspace-changing tools when appropriate and continue until the planned work is complete or blocked.
+Follow the active or approved plan. Before starting each planned task, update its progress when task tracking is active. After completing each task, mark it completed. Use workspace-changing tools when appropriate and continue until the planned work is complete or blocked. Do not call CreatePlan in Agent mode.
 """;
         }
 
@@ -158,13 +158,13 @@ Follow the active or approved plan. Before starting each planned task, update it
         {
             return
 """
-Agent mode is active and a saved plan is available. Follow the plan when it applies, keep task progress current for non-trivial work, and use workspace-changing tools when appropriate under the normal approval and sandbox policy.
+Agent mode is active and a saved plan is available. Follow the plan when it applies, keep task progress current for non-trivial work, and use workspace-changing tools when appropriate under the normal approval and sandbox policy. Do not call CreatePlan in Agent mode.
 """;
         }
 
         return
 """
-Agent mode is active. You may use read, write, shell, and other configured tools when appropriate under the normal approval and sandbox policy. Use task tools only when the work genuinely benefits from structured tracking.
+Agent mode is active. You may use read, write, shell, and other configured tools when appropriate under the normal approval and sandbox policy. Use task tools only when the work genuinely benefits from structured tracking. Do not call CreatePlan in Agent mode.
 """;
     }
 }

@@ -25,25 +25,33 @@ public sealed class ModeToolPolicy(AgentModeManager modeManager)
     /// </summary>
     public ModeToolPolicyDecision Evaluate(FunctionInvocationContext context)
     {
+        var toolName = context.Function.Name;
+        if (modeManager.CurrentMode == AgentMode.Agent)
+        {
+            if (string.Equals(toolName, "CreatePlan", StringComparison.OrdinalIgnoreCase))
+                return DenyAgentMode(toolName, "Agent mode does not allow CreatePlan.");
+
+            return ModeToolPolicyDecision.Allow;
+        }
+
         if (modeManager.CurrentMode != AgentMode.Plan)
             return ModeToolPolicyDecision.Allow;
 
-        var toolName = context.Function.Name;
         if (PlanDeniedTools.Contains(toolName))
-            return Deny(toolName, $"Plan mode does not allow {toolName}.");
+            return DenyPlanMode(toolName, $"Plan mode does not allow {toolName}.");
 
         if (string.Equals(toolName, "Exec", StringComparison.OrdinalIgnoreCase))
         {
             var command = TryGetStringArgument(context.Arguments, "command");
             var shell = TryGetStringArgument(context.Arguments, "shell");
             if (!PlanModeShellClassifier.IsReadOnly(command, shell, out var reason))
-                return Deny(toolName, reason);
+                return DenyPlanMode(toolName, reason);
         }
 
         return ModeToolPolicyDecision.Allow;
     }
 
-    private static ModeToolPolicyDecision Deny(string toolName, string reason) =>
+    private static ModeToolPolicyDecision DenyPlanMode(string toolName, string reason) =>
         ModeToolPolicyDecision.DenyRecoverable(
             $"""
 MODE_POLICY_DENIED
@@ -52,6 +60,17 @@ CurrentMode: Plan
 AllowedActionProfile: ReadOnlyObserve
 Reason: {reason}
 NextAllowedActions: Read files, search the workspace, run non-mutating observation commands, or call CreatePlan.
+""");
+
+    private static ModeToolPolicyDecision DenyAgentMode(string toolName, string reason) =>
+        ModeToolPolicyDecision.DenyRecoverable(
+            $"""
+MODE_POLICY_DENIED
+Tool: {toolName}
+CurrentMode: Agent
+AllowedActionProfile: FullWorkspace
+Reason: {reason}
+NextAllowedActions: Continue execution, or use TodoWrite/UpdateTodos to track task progress.
 """);
 
     private static string? TryGetStringArgument(AIFunctionArguments arguments, string name)
