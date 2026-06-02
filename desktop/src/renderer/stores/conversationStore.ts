@@ -104,6 +104,7 @@ export interface PendingApproval {
   threadId: string | null
   turnId: string | null
   requestId: string
+  locallySubmittedDecision: ApprovalDecision | null
   /** Item ID in the current turn's items list */
   itemId: string
   approvalType: ApprovalType
@@ -170,6 +171,12 @@ const approvalDecisionToState: Record<ApprovalDecision, ApprovalState> = {
   acceptAlways: 'acceptedAlways',
   decline: 'declined',
   cancel: 'cancelled'
+}
+
+function normalizeApprovalDecision(value: unknown): ApprovalDecision | null {
+  return typeof value === 'string' && value in approvalDecisionToState
+    ? value as ApprovalDecision
+    : null
 }
 
 function matchesPendingApproval(
@@ -370,6 +377,13 @@ interface ConversationActions {
    * Adds an approvalCard item to the current turn and sets waitingApproval state.
    */
   onApprovalRequest(bridgeId: string, params: Record<string, unknown>): void
+  /**
+   * Marks the active approval as already submitted by this Desktop connection.
+   * Prevents runtime snapshots from sending a synthetic fallback response.
+   */
+  onApprovalSubmitStarted(decision: ApprovalDecision): void
+  /** Clears the local submission marker after the IPC response fails. */
+  onApprovalSubmitFailed(): void
   /**
    * Called when the user makes a decision.
    * Updates the approval item state locally; IPC response is sent by the caller.
@@ -2363,6 +2377,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
     if (!activeTurnId && !turnId) return
     const threadId = typeof params.threadId === 'string' ? params.threadId : null
     const requestId = typeof params.requestId === 'string' ? params.requestId : ''
+    const locallySubmittedDecision = normalizeApprovalDecision(params.locallySubmittedDecision)
 
     const rawApprovalType = params.approvalType
     const approvalType: ApprovalType =
@@ -2402,6 +2417,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
         threadId,
         turnId: turnId ?? null,
         requestId,
+        locallySubmittedDecision,
         itemId,
         approvalType,
         operation,
@@ -2409,6 +2425,34 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
         reason
       }
     }))
+  },
+
+  onApprovalSubmitStarted(decision) {
+    set((state) => {
+      const pending = state.pendingApproval
+      if (!pending) return state
+
+      return {
+        pendingApproval: {
+          ...pending,
+          locallySubmittedDecision: decision
+        }
+      }
+    })
+  },
+
+  onApprovalSubmitFailed() {
+    set((state) => {
+      const pending = state.pendingApproval
+      if (!pending) return state
+
+      return {
+        pendingApproval: {
+          ...pending,
+          locallySubmittedDecision: null
+        }
+      }
+    })
   },
 
   onApprovalDecision(decision) {

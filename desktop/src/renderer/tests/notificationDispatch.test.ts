@@ -109,6 +109,7 @@ function dispatch(payload: { method: string; params: unknown }): void {
         if (
           !runtimeSnapshot.waitingOnApproval &&
           pendingApproval != null &&
+          pendingApproval.locallySubmittedDecision == null &&
           (pendingApproval.threadId == null || pendingApproval.threadId === threadId)
         ) {
           window.api?.appServer?.sendServerResponse?.(pendingApproval.bridgeId, { decision: 'decline' })
@@ -640,6 +641,60 @@ describe('notification dispatch payload format', () => {
     })
 
     expect(sendServerResponse).toHaveBeenCalledWith('bridge-remote', { decision: 'decline' })
+    expect(s().pendingApproval).toBeNull()
+    expect(s().turnStatus).toBe('running')
+  })
+
+  it('does not synthesize a decline after a local approval decision was submitted', () => {
+    const sendServerResponse = vi.fn()
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {
+        appServer: { sendServerResponse }
+      }
+    })
+
+    dispatch({ method: 'turn/started', params: { turn: makeTurnPayload('turn_local_approval') } })
+    s().onApprovalRequest('bridge-local', {
+      threadId: 'thread-1',
+      turnId: 'turn_local_approval',
+      requestId: 'req-local',
+      itemId: 'approval-local',
+      approvalType: 'shell',
+      operation: 'npm test',
+      target: 'F:/dotcraft',
+      reason: 'Run tests.'
+    })
+    s().onApprovalSubmitStarted('accept')
+
+    dispatch({
+      method: 'thread/runtimeChanged',
+      params: {
+        threadId: 'thread-1',
+        runtime: { running: true, waitingOnApproval: false, waitingOnPlanConfirmation: false }
+      }
+    })
+
+    expect(sendServerResponse).not.toHaveBeenCalled()
+    expect(s().pendingApproval?.bridgeId).toBe('bridge-local')
+    expect(s().pendingApproval?.locallySubmittedDecision).toBe('accept')
+    expect(s().turnStatus).toBe('waitingApproval')
+
+    dispatch({
+      method: 'item/approval/resolved',
+      params: {
+        threadId: 'thread-1',
+        turnId: 'turn_local_approval',
+        item: {
+          type: 'approvalResponse',
+          payload: { requestId: 'req-local', decision: 'accept' }
+        }
+      }
+    })
+
+    const approvalItem = s().turns[0].items.find((item) => item.type === 'approvalCard')
+    expect(sendServerResponse).not.toHaveBeenCalled()
+    expect(approvalItem?.approvalState).toBe('accepted')
     expect(s().pendingApproval).toBeNull()
     expect(s().turnStatus).toBe('running')
   })

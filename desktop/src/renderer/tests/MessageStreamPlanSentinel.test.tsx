@@ -596,6 +596,7 @@ describe('MessageStream plan-accept sentinel filtering', () => {
         threadId: 'thread-1',
         turnId: 'turn-1',
         requestId: 'request-approval',
+        locallySubmittedDecision: null,
         itemId: 'approval-1',
         approvalType: 'shell',
         operation: 'npm test',

@@ -1408,6 +1408,7 @@ export function App(): JSX.Element {
               if (
                 !runtimeSnapshot.waitingOnApproval &&
                 pendingApproval != null &&
+                pendingApproval.locallySubmittedDecision == null &&
                 (pendingApproval.threadId == null || pendingApproval.threadId === threadId)
               ) {
                 window.api.appServer.sendServerResponse(pendingApproval.bridgeId, { decision: 'decline' })
@@ -2262,6 +2263,7 @@ export function App(): JSX.Element {
           turnId: convBeforeReset.activeTurnId,
           itemId: pending.itemId,
           requestId: pending.requestId,
+          locallySubmittedDecision: pending.locallySubmittedDecision,
           approvalType: pending.approvalType,
           operation: pending.operation,
           target: pending.target,
