@@ -12,16 +12,20 @@ import {
   X,
   AlertTriangle,
   Trash2,
-  Loader2
+  Loader2,
+  KeyRound
 } from 'lucide-react'
 import { SettingsPanelShell } from '../../SettingsPanelShell'
+import { SettingsGroup, SettingsRow } from '../../SettingsGroup'
 import { useConfirmDialog } from '../../../ui/ConfirmDialog'
 import { useRemoteServersStore } from '../../../../stores/remoteServersStore'
 import type {
   RemoteHost,
   RemoteStack,
   RemoteStackStatus,
-  StackHealth
+  StackHealth,
+  LocalSshHostAlias,
+  LocalSshIdentity
 } from '../../../../../shared/remoteServers'
 import * as s from './serversStyles'
 
@@ -118,95 +122,217 @@ function Modal({
   )
 }
 
-// ── Add / edit server modal ──────────────────────────────────────────────────
+// ── Add / edit server page ───────────────────────────────────────────────────
 
 interface ServerFormProps {
   host?: RemoteHost
-  onClose: () => void
+  onBack: () => void
+  onSaved: (host: RemoteHost) => void
 }
 
-function ServerFormModal({ host, onClose }: ServerFormProps): JSX.Element {
+function aliasSummary(alias: LocalSshHostAlias): string {
+  const userAt = alias.user ? `${alias.user}@` : ''
+  const target = alias.hostName ? `${userAt}${alias.hostName}` : ''
+  const port = alias.port ? `:${alias.port}` : ''
+  return target ? `${target}${port}` : 'SSH config alias'
+}
+
+function identitySummary(identity: LocalSshIdentity): string {
+  const aliases = identity.hostAliases?.filter(Boolean) ?? []
+  if (aliases.length > 0) return `Used by ${aliases.slice(0, 2).join(', ')}${aliases.length > 2 ? '…' : ''}`
+  return identity.source === 'config' ? 'From SSH config' : 'Existing key'
+}
+
+function ServerFormPage({ host, onBack, onSaved }: ServerFormProps): JSX.Element {
   const store = useRemoteServersStore()
   const [name, setName] = useState(host?.name ?? '')
   const [sshTarget, setSshTarget] = useState(host?.sshTarget ?? '')
   const [identityFile, setIdentityFile] = useState(host?.identityFile ?? '')
-  const [testResult, setTestResult] = useState<string | null>(null)
+  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null)
   const testing = store.testing[host?.id ?? 'draft']
+  const sshConfig = store.sshConfig
+  const sshConfigLoading = store.sshConfigLoading
 
   const editing = Boolean(host)
+  const existingIdentities = (sshConfig?.identities ?? []).filter((identity) => identity.exists).slice(0, 8)
+  const aliases = (sshConfig?.aliases ?? []).slice(0, 8)
+
+  useEffect(() => {
+    if (!store.sshConfig && !store.sshConfigLoading) void store.loadSshConfig()
+  }, [store.sshConfig, store.sshConfigLoading, store.loadSshConfig])
 
   const handleTest = async (): Promise<void> => {
     setTestResult(null)
-    const result = await store.testHost({ draft: { name, sshTarget, identityFile } })
+    const result = await store.testHost({
+      draft: { name, sshTarget, identityFile: identityFile.trim() || undefined }
+    })
     if (!result) return
     setTestResult(
       result.reachable
-        ? `Connected · server ${result.dockerOk && result.composeOk ? 'ready' : 'reachable'}${result.latencyMs != null ? ` · ${result.latencyMs}ms` : ''}`
-        : result.message ?? 'Could not reach this server.'
+        ? {
+            ok: true,
+            message: `Connected · server ${result.dockerOk && result.composeOk ? 'ready' : 'reachable'}${result.latencyMs != null ? ` · ${result.latencyMs}ms` : ''}`
+          }
+        : { ok: false, message: result.message ?? 'Could not reach this server.' }
     )
   }
 
   const handleSave = async (): Promise<void> => {
+    let saved: RemoteHost | null
+    const identity = identityFile.trim() || undefined
     if (editing && host) {
-      await store.updateHost(host.id, { name, sshTarget, identityFile: identityFile || undefined })
+      saved = await store.updateHost(host.id, { name, sshTarget, identityFile: identity })
     } else {
-      await store.createHost({ name, sshTarget, identityFile: identityFile || undefined })
+      saved = await store.createHost({ name, sshTarget, identityFile: identity })
     }
-    onClose()
+    if (saved) onSaved(saved)
   }
 
   const canSave = name.trim().length > 0 && sshTarget.trim().length > 0
+  const authHint = sshConfig
+    ? `Leave blank to use ${sshConfig.configExists ? '~/.ssh/config, ' : ''}ssh-agent, and keys under ${sshConfig.sshDir}.`
+    : 'Leave blank to use your system SSH config, ssh-agent, and default keys.'
 
   return (
-    <Modal
+    <SettingsPanelShell
       title={editing ? 'Edit server' : 'Add server'}
-      onClose={onClose}
-      footer={
-        <>
-          <button style={s.btn} onClick={handleTest} disabled={!sshTarget.trim() || testing}>
-            {testing ? <Loader2 size={15} className="animate-spin-custom" /> : <RefreshCw size={15} />}
-            Test SSH
-          </button>
-          <span style={{ flex: 1 }} />
-          <button style={s.btn} onClick={onClose}>
-            Cancel
-          </button>
-          <button style={{ ...s.btnPrimary, opacity: canSave ? 1 : 0.5 }} onClick={handleSave} disabled={!canSave}>
-            {editing ? 'Save' : 'Add server'}
-          </button>
-        </>
+      description="Connect through the system SSH client. Saved SSH aliases, ProxyJump, ssh-agent, and existing keys are reused."
+      action={
+        <button type="button" onClick={onBack} style={s.btn}>
+          <ArrowLeft size={15} /> Back
+        </button>
       }
     >
-      <div style={{ marginBottom: 14 }}>
-        <label style={s.fieldLabel}>Name</label>
-        <input style={s.input} value={name} onChange={(e) => setName(e.target.value)} placeholder="DotCraftCloud" />
-      </div>
-      <div style={{ marginBottom: 14 }}>
-        <label style={s.fieldLabel}>SSH target</label>
-        <input
-          style={{ ...s.input, fontFamily: 'var(--font-mono)' }}
-          value={sshTarget}
-          onChange={(e) => setSshTarget(e.target.value)}
-          placeholder="user@host  or  saved SSH alias"
-        />
-        <div style={s.fieldHint}>Works with your existing SSH setup and keys.</div>
-      </div>
-      <div style={{ marginBottom: 14 }}>
-        <label style={s.fieldLabel}>
-          SSH key <span style={{ color: 'var(--text-dimmed)', fontWeight: 400 }}>(optional)</span>
-        </label>
-        <input
-          style={{ ...s.input, fontFamily: 'var(--font-mono)' }}
-          value={identityFile}
-          onChange={(e) => setIdentityFile(e.target.value)}
-          placeholder="~/.ssh/id_ed25519"
-        />
-        <div style={s.fieldHint}>DotCraft uses your SSH keys. Passwords are never stored.</div>
-      </div>
+      <SettingsGroup title="Identity" flush>
+        <div style={s.formGrid}>
+          <div>
+            <label style={s.fieldLabel}>Name</label>
+            <input style={s.input} value={name} onChange={(e) => setName(e.target.value)} placeholder="DotCraftCloud" />
+          </div>
+          <div>
+            <label style={s.fieldLabel}>SSH target</label>
+            <input
+              style={{ ...s.input, fontFamily: 'var(--font-mono)' }}
+              value={sshTarget}
+              onChange={(e) => setSshTarget(e.target.value)}
+              placeholder="user@host or saved SSH alias"
+            />
+            <div style={s.fieldHint}>Use a target from your SSH config, such as a Host alias, or enter user@host.</div>
+          </div>
+        </div>
+      </SettingsGroup>
+
+      <SettingsGroup
+        title="Saved SSH aliases"
+        description={sshConfigLoading ? 'Checking your local SSH config…' : 'Aliases from ~/.ssh/config can be used directly as the SSH target.'}
+        flush
+      >
+        {aliases.length > 0 ? (
+          <div style={s.choiceGrid}>
+            {aliases.map((alias) => (
+              <button
+                key={alias.alias}
+                type="button"
+                style={s.choiceButton}
+                onClick={() => {
+                  setSshTarget(alias.alias)
+                  if (!name.trim()) setName(alias.alias)
+                  setIdentityFile('')
+                }}
+              >
+                <span style={s.choiceIcon}>
+                  <Server size={15} />
+                </span>
+                <span style={{ minWidth: 0 }}>
+                  <span style={s.choiceTitle}>{alias.alias}</span>
+                  <span style={s.choiceSubtitle}>{aliasSummary(alias)}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div style={s.mutedText}>
+            {sshConfigLoading
+              ? 'Checking for ~/.ssh/config…'
+              : 'No concrete Host aliases found. You can still enter user@host manually.'}
+          </div>
+        )}
+      </SettingsGroup>
+
+      <SettingsGroup
+        title="Authentication"
+        description="Default mode uses your normal SSH setup. Set an identity file only when you need to override that."
+        flush
+      >
+        <div style={s.formGrid}>
+          <div>
+            <label style={s.fieldLabel}>
+              Identity file override <span style={{ color: 'var(--text-dimmed)', fontWeight: 400 }}>(optional)</span>
+            </label>
+            <input
+              style={{ ...s.input, fontFamily: 'var(--font-mono)' }}
+              value={identityFile}
+              onChange={(e) => setIdentityFile(e.target.value)}
+              placeholder="Use SSH config / agent / default keys"
+            />
+            <div style={s.fieldHint}>{authHint}</div>
+          </div>
+          {identityFile.trim() && (
+            <button type="button" style={{ ...s.btn, alignSelf: 'flex-start' }} onClick={() => setIdentityFile('')}>
+              Use SSH config
+            </button>
+          )}
+        </div>
+
+        {existingIdentities.length > 0 && (
+          <div style={{ marginTop: 14 }}>
+            <div style={s.fieldLabel}>Existing local keys</div>
+            <div style={s.choiceGrid}>
+              {existingIdentities.map((identity) => (
+                <button
+                  key={identity.path}
+                  type="button"
+                  style={s.choiceButton}
+                  onClick={() => setIdentityFile(identity.path)}
+                >
+                  <span style={s.choiceIcon}>
+                    <KeyRound size={15} />
+                  </span>
+                  <span style={{ minWidth: 0 }}>
+                    <span style={s.choiceTitle}>{identity.path}</span>
+                    <span style={s.choiceSubtitle}>{identitySummary(identity)}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {sshConfig?.error && <div style={{ ...s.fieldHint, color: 'var(--warning)' }}>{sshConfig.error}</div>}
+      </SettingsGroup>
+
       {testResult && (
-        <div style={{ ...s.fieldHint, marginTop: 0, fontSize: 12, color: 'var(--text-secondary)' }}>{testResult}</div>
+        <SettingsGroup flush>
+          <SettingsRow>
+            <StatusText tone={testResult.ok ? 'success' : 'error'}>{testResult.message}</StatusText>
+          </SettingsRow>
+        </SettingsGroup>
       )}
-    </Modal>
+
+      <div style={s.formActions}>
+        <button style={s.btn} onClick={handleTest} disabled={!sshTarget.trim() || testing}>
+          {testing ? <Loader2 size={15} className="animate-spin-custom" /> : <RefreshCw size={15} />}
+          Test SSH
+        </button>
+        <span style={{ flex: 1 }} />
+        <button style={s.btn} onClick={onBack}>
+          Cancel
+        </button>
+        <button style={{ ...s.btnPrimary, opacity: canSave ? 1 : 0.5 }} onClick={handleSave} disabled={!canSave}>
+          {editing ? 'Save' : 'Add server'}
+        </button>
+      </div>
+    </SettingsPanelShell>
   )
 }
 
@@ -764,15 +890,19 @@ function ServerList({
 // ── Panel root ───────────────────────────────────────────────────────────────
 
 type ModalState =
-  | { kind: 'addServer' }
-  | { kind: 'editServer'; host: RemoteHost }
   | { kind: 'addStack'; host: RemoteHost }
   | { kind: 'editStack'; host: RemoteHost; stack: RemoteStack }
+  | null
+
+type ServerFormState =
+  | { kind: 'addServer' }
+  | { kind: 'editServer'; hostId: string }
   | null
 
 export function ServersPanel(): JSX.Element {
   const store = useRemoteServersStore()
   const [modal, setModal] = useState<ModalState>(null)
+  const [serverForm, setServerForm] = useState<ServerFormState>(null)
 
   useEffect(() => {
     if (!store.loaded) void store.load()
@@ -780,6 +910,10 @@ export function ServersPanel(): JSX.Element {
   }, [])
 
   const selectedHost = store.hosts.find((h) => h.id === store.selectedHostId) ?? null
+  const editingHost =
+    serverForm?.kind === 'editServer'
+      ? store.hosts.find((h) => h.id === serverForm.hostId) ?? null
+      : null
 
   const closeModal = (): void => setModal(null)
 
@@ -787,12 +921,29 @@ export function ServersPanel(): JSX.Element {
 
   return (
     <>
-      {selectedHost ? (
+      {serverForm?.kind === 'addServer' ? (
+        <ServerFormPage
+          onBack={() => setServerForm(null)}
+          onSaved={(host) => {
+            store.selectHost(host.id)
+            setServerForm(null)
+          }}
+        />
+      ) : serverForm?.kind === 'editServer' && editingHost ? (
+        <ServerFormPage
+          host={editingHost}
+          onBack={() => setServerForm(null)}
+          onSaved={(host) => {
+            store.selectHost(host.id)
+            setServerForm(null)
+          }}
+        />
+      ) : selectedHost ? (
         <div style={detailHeader}>
           <ServerDetail
             host={selectedHost}
             onBack={() => store.selectHost(null)}
-            onEditServer={() => setModal({ kind: 'editServer', host: selectedHost })}
+            onEditServer={() => setServerForm({ kind: 'editServer', hostId: selectedHost.id })}
             onAddStack={() => setModal({ kind: 'addStack', host: selectedHost })}
             onEditStack={(stack) => setModal({ kind: 'editStack', host: selectedHost, stack })}
           />
@@ -803,7 +954,7 @@ export function ServersPanel(): JSX.Element {
           description="Manage DotCraft running on your remote servers."
           action={
             store.hosts.length > 0 ? (
-              <button style={s.btnPrimary} onClick={() => setModal({ kind: 'addServer' })}>
+              <button style={s.btnPrimary} onClick={() => setServerForm({ kind: 'addServer' })}>
                 <Plus size={15} /> Add server
               </button>
             ) : undefined
@@ -823,13 +974,11 @@ export function ServersPanel(): JSX.Element {
           <ServerList
             hosts={store.hosts}
             onOpen={(id) => store.selectHost(id)}
-            onAdd={() => setModal({ kind: 'addServer' })}
+            onAdd={() => setServerForm({ kind: 'addServer' })}
           />
         </SettingsPanelShell>
       )}
 
-      {modal?.kind === 'addServer' && <ServerFormModal onClose={closeModal} />}
-      {modal?.kind === 'editServer' && <ServerFormModal host={modal.host} onClose={closeModal} />}
       {modal?.kind === 'addStack' && <StackFormModal host={modal.host} onClose={closeModal} />}
       {modal?.kind === 'editStack' && <StackFormModal host={modal.host} stack={modal.stack} onClose={closeModal} />}
     </>

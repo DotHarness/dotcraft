@@ -4,7 +4,8 @@ import type {
   RemoteStackStatus,
   RemoteStackAction,
   SshTestResult,
-  OperationResult
+  OperationResult,
+  LocalSshConfigInfo
 } from '../shared/remoteServers'
 import type {
   MarketInstallResult,
@@ -715,6 +716,7 @@ declare global {
       }
       remoteServers: {
         list(): Promise<RemoteHost[]>
+        sshConfig(): Promise<LocalSshConfigInfo>
         create(input: {
           name: string
           sshTarget: string

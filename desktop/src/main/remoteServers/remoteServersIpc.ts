@@ -8,6 +8,7 @@ import {
 } from '../../shared/remoteServers'
 import type { ConnectionSettingsDraft } from '../../shared/remoteConnection'
 import type { RemoteServersManager } from './remoteServersManager'
+import { inspectLocalSshConfig } from './localSshConfig'
 
 type HandleSafe = (
   channel: string,
@@ -25,6 +26,7 @@ export interface RemoteServersIpcDeps {
 /** All channels this module owns, used for teardown in `unregisterIpcHandlers`. */
 export const REMOTE_SERVERS_CHANNELS = [
   'remoteHosts:list',
+  'remoteHosts:ssh-config',
   'remoteHosts:create',
   'remoteHosts:update',
   'remoteHosts:delete',
@@ -68,6 +70,8 @@ export function registerRemoteServersHandlers(deps: RemoteServersIpcDeps): void 
   // ── Host CRUD ──────────────────────────────────────────────────────────────
 
   handleSafe('remoteHosts:list', () => loadHosts())
+
+  handleSafe('remoteHosts:ssh-config', () => inspectLocalSshConfig())
 
   handleSafe('remoteHosts:create', async (_event, input) => {
     const raw = asObject(input)

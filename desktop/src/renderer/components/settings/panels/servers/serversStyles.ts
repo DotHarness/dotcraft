@@ -301,6 +301,77 @@ export const fieldHint: CSSProperties = {
   fontSize: 11.5
 }
 
+export const formGrid: CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'minmax(0, 1fr)',
+  gap: 14
+}
+
+export const formActions: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  flexWrap: 'wrap'
+}
+
+export const mutedText: CSSProperties = {
+  fontSize: 12.5,
+  color: 'var(--text-dimmed)',
+  lineHeight: 1.5
+}
+
+export const choiceGrid: CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+  gap: 8
+}
+
+export const choiceButton: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 10,
+  minWidth: 0,
+  minHeight: 46,
+  padding: '9px 10px',
+  border: '1px solid var(--border-default)',
+  borderRadius: 8,
+  background: 'var(--bg-primary)',
+  color: 'var(--text-primary)',
+  cursor: 'pointer',
+  textAlign: 'left'
+}
+
+export const choiceIcon: CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: 28,
+  height: 28,
+  borderRadius: 7,
+  background: 'var(--bg-tertiary)',
+  color: 'var(--text-secondary)',
+  flexShrink: 0
+}
+
+export const choiceTitle: CSSProperties = {
+  display: 'block',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  fontSize: 12.5,
+  fontWeight: 600
+}
+
+export const choiceSubtitle: CSSProperties = {
+  display: 'block',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  marginTop: 2,
+  fontSize: 11.5,
+  color: 'var(--text-dimmed)'
+}
+
 export const switchRow: CSSProperties = {
   display: 'flex',
   alignItems: 'center',

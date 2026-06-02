@@ -9,7 +9,8 @@ import type {
   RemoteStackStatus,
   RemoteStackAction,
   SshTestResult,
-  OperationResult
+  OperationResult,
+  LocalSshConfigInfo
 } from '../shared/remoteServers'
 import {
   TITLE_BAR_OVERLAY_HEIGHT,
@@ -1310,6 +1311,9 @@ const api = {
   remoteServers: {
     list(): Promise<RemoteHost[]> {
       return ipcRenderer.invoke('remoteHosts:list')
+    },
+    sshConfig(): Promise<LocalSshConfigInfo> {
+      return ipcRenderer.invoke('remoteHosts:ssh-config')
     },
     create(input: {
       name: string

@@ -135,6 +135,8 @@ describe('ssh argv', () => {
     const args = buildSshArgs({ id: 'h', name: 'C', sshTarget: 'user@cloud', stacks: [] }, 'echo hi')
     expect(args).toContain('BatchMode=yes')
     expect(args.join(' ')).toContain('ConnectTimeout=')
+    expect(args).not.toContain('-i')
+    expect(args).not.toContain('IdentitiesOnly=yes')
     const dd = args.indexOf('--')
     expect(dd).toBeGreaterThan(-1)
     expect(args[dd + 1]).toBe('user@cloud') // target can never be read as an option

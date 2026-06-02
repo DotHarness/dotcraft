@@ -5,7 +5,8 @@ import type {
   RemoteStackStatus,
   RemoteStackAction,
   SshTestResult,
-  OperationResult
+  OperationResult,
+  LocalSshConfigInfo
 } from '../../shared/remoteServers'
 
 export interface ActiveStackRef {
@@ -29,11 +30,14 @@ interface RemoteServersState {
   busyStacks: Record<string, boolean>
   /** The stack whose AppServer Desktop is currently connected to, if any. */
   activeStack: ActiveStackRef | null
+  sshConfig: LocalSshConfigInfo | null
+  sshConfigLoading: boolean
   error: string | null
 }
 
 interface RemoteServersStore extends RemoteServersState {
   load(): Promise<void>
+  loadSshConfig(): Promise<LocalSshConfigInfo | null>
   selectHost(id: string | null): void
   createHost(input: {
     name: string
@@ -70,6 +74,8 @@ export const useRemoteServersStore = create<RemoteServersStore>((set) => ({
   statusLoading: {},
   busyStacks: {},
   activeStack: null,
+  sshConfig: null,
+  sshConfigLoading: false,
   error: null,
 
   async load() {
@@ -79,6 +85,18 @@ export const useRemoteServersStore = create<RemoteServersStore>((set) => ({
       set({ hosts, loaded: true, loading: false })
     } catch (error) {
       set({ loading: false, error: messageOf(error) })
+    }
+  },
+
+  async loadSshConfig() {
+    set({ sshConfigLoading: true })
+    try {
+      const sshConfig = await window.api.remoteServers.sshConfig()
+      set({ sshConfig, sshConfigLoading: false })
+      return sshConfig
+    } catch (error) {
+      set({ sshConfigLoading: false, error: messageOf(error) })
+      return null
     }
   },
 

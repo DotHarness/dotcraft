@@ -240,8 +240,10 @@ Per the visual spec's "at most one primary action per decision area," each stack
 
 ### 9.5 Add / Edit Server
 
-- A modal collects: name, SSH target (with helper text noting system ssh / `~/.ssh/config` / ProxyJump / ssh-agent support), and an optional identity file (path picker; key/agent only, no password).
-- On a successful in-modal **Test**, the flow may present **discovered stacks** for one-click import. If discovery is unavailable or declined, the user creates the host and adds stacks manually from the detail view. Discovery is an enhancement; manual add is always available.
+- Add/Edit server uses the same Settings drill-in pattern as MCP server configuration: selecting **Add server** or **Edit server** replaces the list/detail content with a second-level settings page and a Back affordance. It must not open a nested modal.
+- The page collects: name, SSH target (with helper text noting system ssh / `~/.ssh/config` / ProxyJump / ssh-agent support), and an optional identity file override (key/agent only, no password). Leaving the identity override empty is the recommended path and must reuse the user's normal SSH configuration, agent, and default keys.
+- The page should inspect the local SSH setup where possible and surface concrete `~/.ssh/config` `Host` aliases plus existing local key candidates. Choosing an alias should set the SSH target without forcing an identity override, so the system SSH client remains responsible for HostName/User/Port/IdentityFile/ProxyJump resolution.
+- On a successful **Test**, the flow may present **discovered stacks** for one-click import. If discovery is unavailable or declined, the user creates the host and adds stacks manually from the detail view. Discovery is an enhancement; manual add is always available.
 
 ### 9.6 Add / Edit Stack
 

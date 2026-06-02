@@ -1,6 +1,6 @@
 import { spawn, type ChildProcess } from 'child_process'
 import { buildSshTunnelArgs, type RemoteHost, type TunnelInfo } from '../../shared/remoteServers'
-import { getFreeLocalPort, waitForLocalPort } from './sshExecutor'
+import { buildSshSpawnEnv, getFreeLocalPort, waitForLocalPort } from './sshExecutor'
 
 export type TunnelKind = 'appserver' | 'dashboard'
 
@@ -41,7 +41,7 @@ export class TunnelManager {
 
     const localPort = await getFreeLocalPort()
     const args = buildSshTunnelArgs(host, localPort, remotePort)
-    const proc = spawn(this.sshPath, args, { windowsHide: true })
+    const proc = spawn(this.sshPath, args, { windowsHide: true, env: buildSshSpawnEnv() })
 
     let stderr = ''
     proc.stderr?.on('data', (chunk) => {

@@ -1,5 +1,6 @@
 import { spawn } from 'child_process'
 import net from 'net'
+import { homedir } from 'os'
 import { buildSshArgs, type RemoteHost } from '../../shared/remoteServers'
 
 export interface SshRunResult {
@@ -27,6 +28,18 @@ export type SshRunner = (
 
 const DEFAULT_TIMEOUT_MS = 30_000
 
+export function buildSshSpawnEnv(baseEnv: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  const env = { ...baseEnv }
+  const home = homedir()
+  if (home) {
+    env.HOME ??= home
+    if (process.platform === 'win32') {
+      env.USERPROFILE ??= home
+    }
+  }
+  return env
+}
+
 /**
  * Run one allow-listed remote command through the system `ssh` binary. The
  * remote command is built by the caller from validated parameters; arguments are
@@ -35,7 +48,7 @@ const DEFAULT_TIMEOUT_MS = 30_000
 export const runSshCommand: SshRunner = (host, remoteCommand, opts = {}) =>
   new Promise((resolve) => {
     const args = buildSshArgs(host, remoteCommand, { connectTimeoutSec: opts.connectTimeoutSec })
-    const child = spawn(opts.sshPath ?? 'ssh', args, { windowsHide: true })
+    const child = spawn(opts.sshPath ?? 'ssh', args, { windowsHide: true, env: buildSshSpawnEnv() })
 
     let stdout = ''
     let stderr = ''

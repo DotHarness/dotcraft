@@ -107,6 +107,34 @@ export interface SshTestResult {
   message?: string
 }
 
+export type LocalSshIdentitySource = 'default' | 'config'
+
+export interface LocalSshIdentity {
+  /** Display path suitable for the `ssh -i` option, usually `~/.ssh/<key>`. */
+  path: string
+  source: LocalSshIdentitySource
+  exists: boolean
+  hostAliases?: string[]
+}
+
+export interface LocalSshHostAlias {
+  alias: string
+  hostName?: string
+  user?: string
+  port?: string
+  identityFiles: string[]
+}
+
+export interface LocalSshConfigInfo {
+  sshDir: string
+  configPath: string
+  configExists: boolean
+  agentAvailable: boolean
+  aliases: LocalSshHostAlias[]
+  identities: LocalSshIdentity[]
+  error?: string
+}
+
 export interface OperationResult {
   ok: boolean
   action: RemoteStackAction
