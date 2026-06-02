@@ -12,6 +12,13 @@ export interface WorkspaceActivationRequest {
   threadId?: string | null
 }
 
+export interface WorkspaceWindowState {
+  ok: true
+  focused: boolean
+  visible: boolean
+  minimized: boolean
+}
+
 export interface WorkspaceActivationHandle {
   endpoint: WorkspaceActivationEndpoint
   close(): void
@@ -24,12 +31,28 @@ interface RawActivationMessage {
   threadId?: unknown
 }
 
+interface RawActivationResponse {
+  ok?: unknown
+  focused?: unknown
+  visible?: unknown
+  minimized?: unknown
+}
+
 function sameWorkspace(a: string, b: string): boolean {
   return resolvePath(a) === resolvePath(b)
 }
 
 function writeJsonLine(socket: net.Socket, payload: unknown): void {
   socket.write(JSON.stringify(payload) + '\n', 'utf8')
+}
+
+function readWindowState(win: BrowserWindow): WorkspaceWindowState {
+  return {
+    ok: true,
+    focused: win.isFocused(),
+    visible: win.isVisible(),
+    minimized: win.isMinimized()
+  }
 }
 
 export async function startWorkspaceActivationServer(options: {
@@ -50,7 +73,7 @@ export async function startWorkspaceActivationServer(options: {
         if (line) {
           try {
             const message = JSON.parse(line) as RawActivationMessage
-            if (message.type !== 'openWorkspace') {
+            if (message.type !== 'openWorkspace' && message.type !== 'windowState') {
               throw new Error('Unsupported activation request.')
             }
             if (message.token !== token) {
@@ -63,6 +86,11 @@ export async function startWorkspaceActivationServer(options: {
             const win = options.getWindow()
             if (!win || win.isDestroyed()) {
               throw new Error('Window is not available.')
+            }
+
+            if (message.type === 'windowState') {
+              writeJsonLine(socket, readWindowState(win))
+              continue
             }
 
             options.onActivate({
@@ -118,15 +146,15 @@ export async function startWorkspaceActivationServer(options: {
   }
 }
 
-export async function requestWorkspaceActivation(
+async function requestActivationMessage(
   endpoint: WorkspaceActivationEndpoint,
-  request: WorkspaceActivationRequest
-): Promise<boolean> {
+  payload: Record<string, unknown>
+): Promise<RawActivationResponse | null> {
   if (!endpoint.host || !endpoint.port || !endpoint.token) {
-    return false
+    return null
   }
 
-  return await new Promise<boolean>((resolve) => {
+  return await new Promise<RawActivationResponse | null>((resolve) => {
     const socket = net.createConnection({
       host: endpoint.host,
       port: endpoint.port
@@ -134,21 +162,19 @@ export async function requestWorkspaceActivation(
     let settled = false
     let buffer = ''
 
-    const finish = (ok: boolean): void => {
+    const finish = (response: RawActivationResponse | null): void => {
       if (settled) return
       settled = true
       socket.destroy()
-      resolve(ok)
+      resolve(response)
     }
 
     socket.setEncoding('utf8')
-    socket.setTimeout(ACTIVATION_TIMEOUT_MS, () => finish(false))
+    socket.setTimeout(ACTIVATION_TIMEOUT_MS, () => finish(null))
     socket.on('connect', () => {
       writeJsonLine(socket, {
-        type: 'openWorkspace',
-        token: endpoint.token,
-        workspacePath: request.workspacePath,
-        threadId: request.threadId ?? null
+        ...payload,
+        token: endpoint.token
       })
     })
     socket.on('data', (chunk) => {
@@ -157,13 +183,48 @@ export async function requestWorkspaceActivation(
       if (newline < 0) return
       const line = buffer.slice(0, newline).trim()
       try {
-        const response = JSON.parse(line) as { ok?: unknown }
-        finish(response.ok === true)
+        finish(JSON.parse(line) as RawActivationResponse)
       } catch {
-        finish(false)
+        finish(null)
       }
     })
-    socket.on('error', () => finish(false))
-    socket.on('close', () => finish(false))
+    socket.on('error', () => finish(null))
+    socket.on('close', () => finish(null))
   })
+}
+
+export async function requestWorkspaceActivation(
+  endpoint: WorkspaceActivationEndpoint,
+  request: WorkspaceActivationRequest
+): Promise<boolean> {
+  const response = await requestActivationMessage(endpoint, {
+    type: 'openWorkspace',
+    workspacePath: request.workspacePath,
+    threadId: request.threadId ?? null
+  })
+  return response?.ok === true
+}
+
+export async function requestWorkspaceWindowState(
+  endpoint: WorkspaceActivationEndpoint,
+  workspacePath: string
+): Promise<WorkspaceWindowState | null> {
+  const response = await requestActivationMessage(endpoint, {
+    type: 'windowState',
+    workspacePath
+  })
+  if (
+    response?.ok === true &&
+    typeof response.focused === 'boolean' &&
+    typeof response.visible === 'boolean' &&
+    typeof response.minimized === 'boolean'
+  ) {
+    return {
+      ok: true,
+      focused: response.focused,
+      visible: response.visible,
+      minimized: response.minimized
+    }
+  }
+  return null
 }

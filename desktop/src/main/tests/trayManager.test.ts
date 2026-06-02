@@ -1,16 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { HubEvent } from '../HubClient'
+import type { WorkspaceWindowState } from '../desktopActivation'
+import type { WorkspaceLockStatus } from '../workspaceLock'
 
 const childProcessMocks = vi.hoisted(() => ({
-  spawn: vi.fn(() => ({ unref: vi.fn() }))
+  spawn: vi.fn<(
+    command: string,
+    args: string[],
+    options: Record<string, unknown>
+  ) => { unref: () => void }>(() => ({ unref: vi.fn() }))
 }))
 
 const workspaceLockMocks = vi.hoisted(() => ({
-  checkWorkspaceLock: vi.fn(() => ({ locked: false }))
+  checkWorkspaceLock: vi.fn<() => WorkspaceLockStatus>(() => ({ locked: false }))
 }))
 
 const activationMocks = vi.hoisted(() => ({
-  requestWorkspaceActivation: vi.fn(async () => false)
+  requestWorkspaceActivation: vi.fn<() => Promise<boolean>>(async () => false),
+  requestWorkspaceWindowState: vi.fn<() => Promise<WorkspaceWindowState | null>>(async () => null)
 }))
 
 const electronMocks = vi.hoisted(() => {
@@ -93,6 +100,7 @@ describe('trayManager notifications', () => {
     vi.clearAllMocks()
     workspaceLockMocks.checkWorkspaceLock.mockReturnValue({ locked: false })
     activationMocks.requestWorkspaceActivation.mockResolvedValue(false)
+    activationMocks.requestWorkspaceWindowState.mockResolvedValue(null)
   })
 
   it('parses Hub notification events', async () => {
@@ -155,6 +163,188 @@ describe('trayManager notifications', () => {
       icon: expect.stringMatching(/[\\/]icon\.png$/)
     })
     expect(electronMocks.show).toHaveBeenCalled()
+  })
+
+  it('suppresses turn result notifications when task completion notifications are disabled', async () => {
+    const { showHubNotificationForSettings } = await import('../trayManager')
+
+    const completed = await showHubNotificationForSettings({
+      kind: 'notification.requested',
+      at: new Date().toISOString(),
+      workspacePath: 'F:/examples/workspace',
+      data: { kind: 'turnCompleted', title: 'Done', body: 'Finished' }
+    }, {
+      notifications: { taskCompletionMode: 'never' }
+    })
+    const failed = await showHubNotificationForSettings({
+      kind: 'notification.requested',
+      at: new Date().toISOString(),
+      workspacePath: 'F:/examples/workspace',
+      data: { kind: 'turnFailed', title: 'Failed', body: 'Try again' }
+    }, {
+      notifications: { taskCompletionMode: 'never' }
+    })
+
+    expect(completed).toBe(false)
+    expect(failed).toBe(false)
+    expect(electronMocks.Notification).not.toHaveBeenCalled()
+    expect(activationMocks.requestWorkspaceWindowState).not.toHaveBeenCalled()
+  })
+
+  it('shows turn result notifications in always mode even when the workspace window is focused', async () => {
+    workspaceLockMocks.checkWorkspaceLock.mockReturnValue({
+      locked: true,
+      pid: 123,
+      activation: {
+        host: '127.0.0.1',
+        port: 456,
+        token: 'token',
+        protocolVersion: 1
+      }
+    })
+    activationMocks.requestWorkspaceWindowState.mockResolvedValue({
+      ok: true,
+      focused: true,
+      visible: true,
+      minimized: false
+    })
+    const { showHubNotificationForSettings } = await import('../trayManager')
+
+    const shown = await showHubNotificationForSettings({
+      kind: 'notification.requested',
+      at: new Date().toISOString(),
+      workspacePath: 'F:/examples/workspace',
+      data: { kind: 'turnCompleted', title: 'Done', body: 'Finished' }
+    }, {
+      notifications: { taskCompletionMode: 'always' }
+    })
+
+    expect(shown).toBe(true)
+    expect(electronMocks.Notification).toHaveBeenCalledWith({
+      title: 'Done',
+      body: 'Finished',
+      icon: expect.stringMatching(/[\\/]icon\.png$/)
+    })
+    expect(activationMocks.requestWorkspaceWindowState).not.toHaveBeenCalled()
+  })
+
+  it('suppresses when-unfocused turn result notifications while the workspace window is focused', async () => {
+    workspaceLockMocks.checkWorkspaceLock.mockReturnValue({
+      locked: true,
+      pid: 123,
+      activation: {
+        host: '127.0.0.1',
+        port: 456,
+        token: 'token',
+        protocolVersion: 1
+      }
+    })
+    activationMocks.requestWorkspaceWindowState.mockResolvedValue({
+      ok: true,
+      focused: true,
+      visible: true,
+      minimized: false
+    })
+    const { showHubNotificationForSettings } = await import('../trayManager')
+
+    const shown = await showHubNotificationForSettings({
+      kind: 'notification.requested',
+      at: new Date().toISOString(),
+      workspacePath: 'F:/examples/workspace',
+      data: { kind: 'turnCompleted', title: 'Done', body: 'Finished' }
+    }, {
+      notifications: { taskCompletionMode: 'whenUnfocused' }
+    })
+
+    expect(shown).toBe(false)
+    expect(electronMocks.Notification).not.toHaveBeenCalled()
+    expect(activationMocks.requestWorkspaceWindowState).toHaveBeenCalledWith(
+      expect.objectContaining({ port: 456, token: 'token' }),
+      'F:/examples/workspace'
+    )
+  })
+
+  it('shows when-unfocused turn result notifications when the workspace is not focused', async () => {
+    workspaceLockMocks.checkWorkspaceLock.mockReturnValue({
+      locked: true,
+      pid: 123,
+      activation: {
+        host: '127.0.0.1',
+        port: 456,
+        token: 'token',
+        protocolVersion: 1
+      }
+    })
+    activationMocks.requestWorkspaceWindowState.mockResolvedValue({
+      ok: true,
+      focused: false,
+      visible: true,
+      minimized: false
+    })
+    const { showHubNotificationForSettings } = await import('../trayManager')
+
+    const shown = await showHubNotificationForSettings({
+      kind: 'notification.requested',
+      at: new Date().toISOString(),
+      workspacePath: 'F:/examples/workspace',
+      data: { kind: 'turnCompleted', title: 'Done', body: 'Finished' }
+    }, {
+      notifications: { taskCompletionMode: 'whenUnfocused' }
+    })
+
+    expect(shown).toBe(true)
+    expect(electronMocks.Notification).toHaveBeenCalledWith({
+      title: 'Done',
+      body: 'Finished',
+      icon: expect.stringMatching(/[\\/]icon\.png$/)
+    })
+  })
+
+  it('shows when-unfocused turn result notifications when window state cannot be queried', async () => {
+    workspaceLockMocks.checkWorkspaceLock.mockReturnValue({
+      locked: true,
+      pid: 123,
+      activation: {
+        host: '127.0.0.1',
+        port: 456,
+        token: 'token',
+        protocolVersion: 1
+      }
+    })
+    activationMocks.requestWorkspaceWindowState.mockResolvedValue(null)
+    const { showHubNotificationForSettings } = await import('../trayManager')
+
+    const shown = await showHubNotificationForSettings({
+      kind: 'notification.requested',
+      at: new Date().toISOString(),
+      workspacePath: 'F:/examples/workspace',
+      data: { kind: 'turnCompleted', title: 'Done', body: 'Finished' }
+    }, {
+      notifications: { taskCompletionMode: 'whenUnfocused' }
+    })
+
+    expect(shown).toBe(true)
+    expect(electronMocks.Notification).toHaveBeenCalled()
+  })
+
+  it('does not apply task completion notification settings to unrelated Hub notifications', async () => {
+    const { showHubNotificationForSettings } = await import('../trayManager')
+
+    const shown = await showHubNotificationForSettings({
+      kind: 'notification.requested',
+      at: new Date().toISOString(),
+      workspacePath: 'F:/examples/workspace',
+      data: { kind: 'custom', title: 'Done', body: 'Finished' }
+    }, {
+      notifications: { taskCompletionMode: 'never' }
+    })
+
+    expect(shown).toBe(true)
+    expect(electronMocks.Notification).toHaveBeenCalledWith({
+      title: 'Done',
+      body: 'Finished',
+      icon: expect.stringMatching(/[\\/]icon\.png$/)
+    })
   })
 
   it('does not launch Desktop when notification click disables Desktop opening', async () => {

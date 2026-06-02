@@ -6,6 +6,7 @@ import { HubClient, type HubAppServerResponse, type HubEvent } from './HubClient
 import {
   getRecentWorkspaces,
   loadSettings,
+  resolveTaskCompletionNotificationMode,
   type AppSettings,
   type RecentWorkspace
 } from './settings'
@@ -13,7 +14,7 @@ import { tryAcquireTrayLock, type TrayLockHandle } from './trayLock'
 import { DEFAULT_LOCALE, normalizeLocale, translate, type AppLocale } from '../shared/locales'
 import { resolveDotCraftRuntimeTools } from './ripgrepRuntime'
 import { checkWorkspaceLock } from './workspaceLock'
-import { requestWorkspaceActivation } from './desktopActivation'
+import { requestWorkspaceActivation, requestWorkspaceWindowState } from './desktopActivation'
 import {
   buildWorkspaceOpenDeepLink,
   parseWorkspaceOpenDeepLink
@@ -29,6 +30,7 @@ interface TrayState {
 const REFRESH_INTERVAL_MS = 5_000
 
 interface HubNotificationPayload {
+  kind?: string | null
   workspacePath?: string | null
   threadId?: string | null
   titleKey?: string | null
@@ -318,6 +320,7 @@ export function parseHubNotificationPayload(
   )
 
   return {
+    kind: typeof data.kind === 'string' ? data.kind : null,
     workspacePath: typeof data.workspacePath === 'string' ? data.workspacePath : event.workspacePath,
     threadId: typeof data.threadId === 'string' ? data.threadId : null,
     titleKey: typeof data.titleKey === 'string' ? data.titleKey : null,
@@ -330,9 +333,38 @@ export function parseHubNotificationPayload(
   }
 }
 
-export function showHubNotification(event: HubEvent, locale: AppLocale = DEFAULT_LOCALE): boolean {
-  const payload = parseHubNotificationPayload(event, locale)
-  if (!payload || !Notification.isSupported()) return false
+function isTurnResultNotification(payload: HubNotificationPayload): boolean {
+  return payload.kind === 'turnCompleted' || payload.kind === 'turnFailed'
+}
+
+async function shouldShowTurnResultNotification(
+  payload: HubNotificationPayload,
+  settings?: AppSettings
+): Promise<boolean> {
+  const mode = resolveTaskCompletionNotificationMode(settings)
+  if (mode === 'never') return false
+  if (mode === 'always') return true
+
+  const workspacePath = payload.workspacePath?.trim()
+  if (!workspacePath) return true
+
+  const lock = checkWorkspaceLock(workspacePath)
+  if (!lock.locked || !lock.activation) return true
+
+  const state = await requestWorkspaceWindowState(lock.activation, workspacePath)
+  return state?.focused !== true
+}
+
+async function shouldShowHubNotification(
+  payload: HubNotificationPayload,
+  settings?: AppSettings
+): Promise<boolean> {
+  if (!isTurnResultNotification(payload)) return true
+  return await shouldShowTurnResultNotification(payload, settings)
+}
+
+function showHubNotificationPayload(payload: HubNotificationPayload): boolean {
+  if (!payload.title || !Notification.isSupported()) return false
 
   const notification = new Notification({
     title: payload.title,
@@ -345,6 +377,22 @@ export function showHubNotification(event: HubEvent, locale: AppLocale = DEFAULT
   })
   notification.show()
   return true
+}
+
+export function showHubNotification(event: HubEvent, locale: AppLocale = DEFAULT_LOCALE): boolean {
+  const payload = parseHubNotificationPayload(event, locale)
+  return payload ? showHubNotificationPayload(payload) : false
+}
+
+export async function showHubNotificationForSettings(
+  event: HubEvent,
+  settings?: AppSettings,
+  locale: AppLocale = DEFAULT_LOCALE
+): Promise<boolean> {
+  const payload = parseHubNotificationPayload(event, locale)
+  if (!payload) return false
+  if (!await shouldShowHubNotification(payload, settings)) return false
+  return showHubNotificationPayload(payload)
 }
 
 export async function runTrayProcess(): Promise<void> {
@@ -403,7 +451,7 @@ export async function runTrayProcess(): Promise<void> {
     const controller = new AbortController()
     eventAbortController = controller
     void hubClient.subscribeEvents((event: HubEvent) => {
-      showHubNotification(event, normalizeLocale(settings.locale))
+      void showHubNotificationForSettings(event, settings, normalizeLocale(settings.locale))
       void refresh()
     }, controller.signal).then(() => {
       eventAbortController = null

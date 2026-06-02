@@ -7,9 +7,9 @@ import type { WireProtocolClient } from './WireProtocolClient'
 import type {
   AppSettings,
   RecentWorkspace,
-  BinarySource,
-  TaskCompletionNotificationMode
+  BinarySource
 } from './settings'
+import { resolveTaskCompletionNotificationMode } from './settings'
 import { resolveBinaryLocation } from './AppServerManager'
 import { RemoteServersManager } from './remoteServers/remoteServersManager'
 import {
@@ -1940,11 +1940,6 @@ function stripMarkdownForNotify(text: string): string {
     .replace(/`([^`]+)`/g, '$1')
     .replace(/\s+/g, ' ')
     .trim()
-}
-
-function resolveTaskCompletionNotificationMode(settings?: AppSettings): TaskCompletionNotificationMode {
-  const mode = settings?.notifications?.taskCompletionMode
-  return mode === 'always' || mode === 'never' ? mode : 'whenUnfocused'
 }
 
 export function shouldShowTaskCompletionNotification(win: BrowserWindow, settings?: AppSettings): boolean {

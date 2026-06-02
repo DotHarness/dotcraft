@@ -171,6 +171,10 @@ function normalizeTaskCompletionNotificationMode(value: unknown): TaskCompletion
   return value === 'always' || value === 'never' ? value : 'whenUnfocused'
 }
 
+export function resolveTaskCompletionNotificationMode(settings?: AppSettings): TaskCompletionNotificationMode {
+  return normalizeTaskCompletionNotificationMode(settings?.notifications?.taskCompletionMode)
+}
+
 function normalizeNotificationSettings(settings: AppSettings): NotificationSettings {
   const raw = settings.notifications
   const source: NotificationSettings = raw != null && typeof raw === 'object' && !Array.isArray(raw) ? raw : {}

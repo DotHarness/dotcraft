@@ -283,6 +283,8 @@ Notification flow:
 3. Desktop tray receives the event and displays the OS notification with the DotCraft app icon.
 4. Clicking the notification opens the related action URL. Desktop workspace links may activate an existing workspace window before starting a new one.
 
+Desktop task-completion notification settings apply to AppServer-managed turn result notifications (`turnCompleted` and `turnFailed`). `never` suppresses the OS notification, `always` displays it, and `whenUnfocused` displays it only when the related workspace window is not focused. Because tray runs in a separate process, it checks the owning Desktop workspace process through the workspace activation endpoint using a read-only window-state query; if the window state cannot be queried, the notification is treated as unfocused and remains visible.
+
 Turn-related OS notifications are for user-visible work. AppServer-managed turn notifications must suppress internal-only helper threads, such as threads marked with `dotcraft.internal` metadata or known internal origins used for welcome suggestions and commit-message suggestions. User-visible copy should use the thread display name instead of the internal thread ID.
 
 For AppServer-managed turn notifications, Desktop-opening actions are allowed only when the thread originated from `dotcraft-desktop`. Other origins may still request a notification, but they must not attach a `dotcraft://workspace/open` action and should set `openDesktopOnClick=false`.
