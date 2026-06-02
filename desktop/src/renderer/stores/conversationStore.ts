@@ -101,12 +101,30 @@ interface ContextUsageSnapshotInput {
 export interface PendingApproval {
   /** Bridge ID needed to respond via IPC */
   bridgeId: string
+  threadId: string | null
+  turnId: string | null
+  requestId: string
+  locallySubmittedDecision: ApprovalDecision | null
   /** Item ID in the current turn's items list */
   itemId: string
   approvalType: ApprovalType
   operation: string
   target: string
   reason: string
+}
+
+interface ApprovalResolvedParams {
+  threadId?: string | null
+  turnId?: string | null
+  requestId?: string | null
+  decision?: ApprovalDecision | null
+}
+
+interface ApprovalNoLongerPendingParams {
+  threadId?: string | null
+  turnId?: string | null
+  requestId?: string | null
+  nextTurnStatus: 'running' | 'idle'
 }
 
 export interface UserInputQuestionOption {
@@ -146,6 +164,45 @@ const SUB_AGENT_STREAMING_TOOLS = new Set([
 const SUB_AGENT_ARGUMENT_BUFFER_MAX_CHARS = 12000
 const SUB_AGENT_ARGUMENT_FIELD_MAX_CHARS = 800
 const subAgentStreamingArgumentBuffers = new Map<string, string>()
+
+const approvalDecisionToState: Record<ApprovalDecision, ApprovalState> = {
+  accept: 'accepted',
+  acceptForSession: 'acceptedForSession',
+  acceptAlways: 'acceptedAlways',
+  decline: 'declined',
+  cancel: 'cancelled'
+}
+
+function normalizeApprovalDecision(value: unknown): ApprovalDecision | null {
+  return typeof value === 'string' && value in approvalDecisionToState
+    ? value as ApprovalDecision
+    : null
+}
+
+function matchesPendingApproval(
+  pending: PendingApproval,
+  params: {
+    threadId?: string | null
+    turnId?: string | null
+    requestId?: string | null
+  } | undefined
+): boolean {
+  if (!params) return true
+  if (params.threadId && pending.threadId && params.threadId !== pending.threadId) return false
+  if (params.turnId && pending.turnId && params.turnId !== pending.turnId) return false
+  if (params.requestId && pending.requestId && params.requestId !== pending.requestId) return false
+  return true
+}
+
+function approvalCardMatchesResolution(
+  item: ConversationItem,
+  itemId: string | null,
+  requestId: string | null | undefined
+): boolean {
+  if (item.type !== 'approvalCard') return false
+  if (itemId && item.id === itemId) return true
+  return Boolean(requestId && item.approvalRequestId === requestId)
+}
 
 interface PendingTerminalEntry {
   event: string
@@ -321,6 +378,13 @@ interface ConversationActions {
    */
   onApprovalRequest(bridgeId: string, params: Record<string, unknown>): void
   /**
+   * Marks the active approval as already submitted by this Desktop connection.
+   * Prevents runtime snapshots from sending a synthetic fallback response.
+   */
+  onApprovalSubmitStarted(decision: ApprovalDecision): void
+  /** Clears the local submission marker after the IPC response fails. */
+  onApprovalSubmitFailed(): void
+  /**
    * Called when the user makes a decision.
    * Updates the approval item state locally; IPC response is sent by the caller.
    */
@@ -329,7 +393,12 @@ interface ConversationActions {
    * Called when item/approval/resolved notification arrives.
    * Clears pendingApproval and restores turnStatus to 'running'.
    */
-  onApprovalResolved(): void
+  onApprovalResolved(params?: ApprovalResolvedParams): void
+  /**
+   * Clears a pending approval after runtime snapshots show the request is no longer pending.
+   * Used when another AppServer connection resolved the same approval first.
+   */
+  onApprovalNoLongerPending(params: ApprovalNoLongerPendingParams): void
   /**
    * Called when approval timeout error (-32020) is received.
    * Updates the approval item to 'timedOut' state.
@@ -2306,6 +2375,9 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
     const activeTurnId = state.activeTurnId
     const turnId = typeof params.turnId === 'string' ? params.turnId : activeTurnId
     if (!activeTurnId && !turnId) return
+    const threadId = typeof params.threadId === 'string' ? params.threadId : null
+    const requestId = typeof params.requestId === 'string' ? params.requestId : ''
+    const locallySubmittedDecision = normalizeApprovalDecision(params.locallySubmittedDecision)
 
     const rawApprovalType = params.approvalType
     const approvalType: ApprovalType =
@@ -2325,6 +2397,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       id: itemId,
       type: 'approvalCard',
       status: 'completed',
+      approvalRequestId: requestId,
       approvalType,
       approvalOperation: operation,
       approvalTarget: target,
@@ -2339,8 +2412,47 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       ),
       activeTurnId: turnId ?? activeTurnId,
       turnStatus: 'waitingApproval',
-      pendingApproval: { bridgeId, itemId, approvalType, operation, target, reason }
+      pendingApproval: {
+        bridgeId,
+        threadId,
+        turnId: turnId ?? null,
+        requestId,
+        locallySubmittedDecision,
+        itemId,
+        approvalType,
+        operation,
+        target,
+        reason
+      }
     }))
+  },
+
+  onApprovalSubmitStarted(decision) {
+    set((state) => {
+      const pending = state.pendingApproval
+      if (!pending) return state
+
+      return {
+        pendingApproval: {
+          ...pending,
+          locallySubmittedDecision: decision
+        }
+      }
+    })
+  },
+
+  onApprovalSubmitFailed() {
+    set((state) => {
+      const pending = state.pendingApproval
+      if (!pending) return state
+
+      return {
+        pendingApproval: {
+          ...pending,
+          locallySubmittedDecision: null
+        }
+      }
+    })
   },
 
   onApprovalDecision(decision) {
@@ -2348,14 +2460,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
     const pending = state.pendingApproval
     if (!pending) return
 
-    const decisionToState: Record<ApprovalDecision, ApprovalState> = {
-      accept: 'accepted',
-      acceptForSession: 'acceptedForSession',
-      acceptAlways: 'acceptedAlways',
-      decline: 'declined',
-      cancel: 'cancelled'
-    }
-    const newState = decisionToState[decision]
+    const newState = approvalDecisionToState[decision]
 
     set((s) => ({
       turns: s.turns.map((t) => ({
@@ -2367,8 +2472,46 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
     }))
   },
 
-  onApprovalResolved() {
-    set({ pendingApproval: null, turnStatus: 'running' })
+  onApprovalResolved(params) {
+    set((state) => {
+      const pending = state.pendingApproval
+      if (pending && !matchesPendingApproval(pending, params)) return state
+
+      const requestId = params?.requestId ?? pending?.requestId ?? null
+      const itemId = pending?.itemId ?? null
+      const resolvedState = params?.decision ? approvalDecisionToState[params.decision] : undefined
+      const turns = resolvedState
+        ? state.turns.map((turn) => ({
+            ...turn,
+            items: turn.items.map((item) =>
+              approvalCardMatchesResolution(item, itemId, requestId)
+                ? { ...item, approvalState: resolvedState }
+                : item
+            )
+          }))
+        : state.turns
+      const shouldClearPending = pending == null || matchesPendingApproval(pending, params)
+      const shouldRestoreRunning = state.turnStatus === 'waitingApproval' || pending != null
+
+      return {
+        turns,
+        pendingApproval: shouldClearPending ? null : state.pendingApproval,
+        turnStatus: shouldRestoreRunning ? 'running' : state.turnStatus
+      }
+    })
+  },
+
+  onApprovalNoLongerPending(params) {
+    set((state) => {
+      const pending = state.pendingApproval
+      if (!pending || !matchesPendingApproval(pending, params)) return state
+
+      return {
+        pendingApproval: null,
+        turnStatus: params.nextTurnStatus,
+        activeTurnId: params.nextTurnStatus === 'idle' ? null : state.activeTurnId
+      }
+    })
   },
 
   onApprovalTimeout() {

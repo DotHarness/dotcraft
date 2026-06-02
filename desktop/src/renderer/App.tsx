@@ -56,7 +56,7 @@ import { WhatsNewDialog } from './components/whats-new/WhatsNewDialog'
 import { addJobResultToast, addToast } from './stores/toastStore'
 import type { ContextUsageSnapshotWire, SessionIdentity, Thread, ThreadGoal, ThreadSummary } from './types/thread'
 import { wireTurnToConversationTurn } from './types/conversation'
-import type { ConversationItem, ConversationTurn, QueuedTurnInput } from './types/conversation'
+import type { ApprovalDecision, ConversationItem, ConversationTurn, QueuedTurnInput } from './types/conversation'
 import type { SubAgentEntry } from './types/toolCall'
 import { applyTheme, resolveTheme } from './utils/theme'
 import { resolveDefaultCrossChannelOrigins } from './utils/visibleChannelsDefaults'
@@ -169,6 +169,41 @@ function serverFallbackText(
   const key = messageKey.trim()
   const localized = translate(locale, key, serverTextVars(params))
   return localized === key ? fallback : localized
+}
+
+function normalizeApprovalDecision(value: unknown): ApprovalDecision | null {
+  return value === 'accept' ||
+    value === 'acceptForSession' ||
+    value === 'acceptAlways' ||
+    value === 'decline' ||
+    value === 'cancel'
+    ? value
+    : null
+}
+
+function extractApprovalResolvedParams(params: Record<string, unknown>): {
+  threadId: string | null
+  turnId: string | null
+  requestId: string | null
+  decision: ApprovalDecision | null
+} {
+  const item = params.item && typeof params.item === 'object'
+    ? params.item as Record<string, unknown>
+    : {}
+  const payload = item.payload && typeof item.payload === 'object'
+    ? item.payload as Record<string, unknown>
+    : {}
+
+  return {
+    threadId: typeof params.threadId === 'string' ? params.threadId : null,
+    turnId: typeof params.turnId === 'string' ? params.turnId : null,
+    requestId: typeof payload.requestId === 'string'
+      ? payload.requestId
+      : typeof item.requestId === 'string'
+        ? item.requestId
+        : null,
+    decision: normalizeApprovalDecision(payload.decision ?? item.decision)
+  }
 }
 
 function getWhatsNewReleaseVersions(releases: WhatsNewRelease[]): string[] {
@@ -1368,6 +1403,22 @@ export function App(): JSX.Element {
               ...runtimeSnapshot
             })
             if (threadStore.activeThreadId === threadId) {
+              const conversation = useConversationStore.getState()
+              const pendingApproval = conversation.pendingApproval
+              if (
+                !runtimeSnapshot.waitingOnApproval &&
+                pendingApproval != null &&
+                pendingApproval.locallySubmittedDecision == null &&
+                (pendingApproval.threadId == null || pendingApproval.threadId === threadId)
+              ) {
+                window.api.appServer.sendServerResponse(pendingApproval.bridgeId, { decision: 'decline' })
+                conversation.onApprovalNoLongerPending({
+                  threadId,
+                  turnId: pendingApproval.turnId,
+                  requestId: pendingApproval.requestId,
+                  nextTurnStatus: runtimeSnapshot.running ? 'running' : 'idle'
+                })
+              }
               useConversationStore.getState().setMaintenanceKind(runtimeSnapshot.maintenanceKind)
             }
             break
@@ -1673,9 +1724,13 @@ export function App(): JSX.Element {
           }
 
           // ── Approval resolved ──────────────────────────────────────────
-          case 'item/approval/resolved':
-            conv.onApprovalResolved()
+          case 'item/approval/resolved': {
+            const resolved = extractApprovalResolvedParams(p)
+            if (shouldUpdateActiveConversation(resolved.threadId)) {
+              conv.onApprovalResolved(resolved)
+            }
             break
+          }
 
           case 'item/tool/requestUserInput/resolved':
             conv.onUserInputResolved()
@@ -2206,6 +2261,9 @@ export function App(): JSX.Element {
         rawParams: {
           threadId: prev,
           turnId: convBeforeReset.activeTurnId,
+          itemId: pending.itemId,
+          requestId: pending.requestId,
+          locallySubmittedDecision: pending.locallySubmittedDecision,
           approvalType: pending.approvalType,
           operation: pending.operation,
           target: pending.target,

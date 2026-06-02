@@ -61,21 +61,24 @@ export function ApprovalDecisionComposer({ request }: ApprovalDecisionComposerPr
   ], [t])
 
   const selectedOption = options[Math.min(selectedIndex, options.length - 1)] ?? options[0]
-  const locked = submitting || submitted
+  const locallySubmitted = request.locallySubmittedDecision != null
+  const locked = submitting || submitted || locallySubmitted
   const canMoveUp = selectedIndex > 0
   const canMoveDown = selectedIndex + 1 < options.length
   const showFooterReject = selectedOption.decision !== 'decline'
 
   const sendDecision = useCallback(async (decision: ApprovalDecision): Promise<void> => {
-    if (sendingRef.current) return
+    if (sendingRef.current || submitted || request.locallySubmittedDecision != null) return
     sendingRef.current = true
     setSubmitting(true)
+    useConversationStore.getState().onApprovalSubmitStarted(decision)
 
     try {
       await window.api.appServer.sendServerResponse(request.bridgeId, { decision })
       useConversationStore.getState().onApprovalDecision(decision)
       setSubmitted(true)
     } catch (err) {
+      useConversationStore.getState().onApprovalSubmitFailed()
       sendingRef.current = false
       setSubmitting(false)
       addToast(
@@ -85,7 +88,7 @@ export function ApprovalDecisionComposer({ request }: ApprovalDecisionComposerPr
         'error'
       )
     }
-  }, [request.bridgeId, t])
+  }, [request.bridgeId, request.locallySubmittedDecision, submitted, t])
 
   const submitSelected = useCallback((): void => {
     void sendDecision(selectedOption.decision)

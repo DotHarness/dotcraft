@@ -13,6 +13,10 @@ const sendServerResponse = vi.fn()
 function pendingApproval(overrides: Partial<PendingApproval> = {}): PendingApproval {
   return {
     bridgeId: 'bridge-approval',
+    threadId: 'thread-approval',
+    turnId: 'turn-approval',
+    requestId: 'request-approval',
+    locallySubmittedDecision: null,
     itemId: 'approval-bridge-approval',
     approvalType: 'shell',
     operation: 'npm test',
@@ -104,6 +108,7 @@ describe('ApprovalDecisionComposer', () => {
     await waitFor(() => {
       expect(sendServerResponse).toHaveBeenCalledWith('bridge-approval', { decision: 'accept' })
     })
+    expect(useConversationStore.getState().pendingApproval?.locallySubmittedDecision).toBe('accept')
   })
 
   it('uses number keys and Arrow keys to submit the selected decision', async () => {
@@ -189,6 +194,7 @@ describe('ApprovalDecisionComposer', () => {
     await waitFor(() => {
       expect(primary).toBeDisabled()
     })
+    expect(useConversationStore.getState().pendingApproval?.locallySubmittedDecision).toBe('accept')
     fireEvent.click(primary)
     expect(sendServerResponse).toHaveBeenCalledTimes(1)
 
@@ -199,10 +205,26 @@ describe('ApprovalDecisionComposer', () => {
     await waitFor(() => {
       expect(primary).not.toBeDisabled()
     })
+    expect(useConversationStore.getState().pendingApproval?.locallySubmittedDecision).toBeNull()
 
     fireEvent.click(primary)
     await waitFor(() => {
       expect(sendServerResponse).toHaveBeenCalledTimes(2)
     })
+    expect(useConversationStore.getState().pendingApproval?.locallySubmittedDecision).toBe('accept')
+  })
+
+  it('does not resubmit an approval that was already submitted locally', () => {
+    const pending = pendingApproval({ locallySubmittedDecision: 'accept' })
+    setPendingApproval(pending)
+    renderWithLocale(<ApprovalDecisionComposer request={pending} />)
+
+    const primary = screen.getByRole('button', { name: 'Allow once' })
+    expect(primary).toBeDisabled()
+
+    fireEvent.keyDown(window, { key: 'Escape' })
+    fireEvent.click(primary)
+
+    expect(sendServerResponse).not.toHaveBeenCalled()
   })
 })

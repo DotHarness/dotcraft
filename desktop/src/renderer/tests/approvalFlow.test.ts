@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { useConversationStore } from '../stores/conversationStore'
-import type { ApprovalDecision } from '../types/conversation'
+import type { ApprovalDecision, ApprovalState } from '../types/conversation'
 
 const s = () => useConversationStore.getState()
 
@@ -15,6 +15,9 @@ function makeTurn(id = 'turn-1') {
 }
 
 const SHELL_PARAMS = {
+  threadId: 'thread-1',
+  turnId: 'turn-1',
+  requestId: 'req-shell-1',
   approvalType: 'shell',
   operation: 'npm test',
   target: '/home/dev/project',
@@ -63,17 +66,39 @@ describe('approval card state machine', () => {
     expect(state.turnStatus).toBe('waitingApproval')
     expect(state.pendingApproval).not.toBeNull()
     expect(state.pendingApproval?.bridgeId).toBe('bridge-1')
+    expect(state.pendingApproval?.threadId).toBe('thread-1')
+    expect(state.pendingApproval?.turnId).toBe('turn-1')
+    expect(state.pendingApproval?.requestId).toBe('req-shell-1')
+    expect(state.pendingApproval?.locallySubmittedDecision).toBeNull()
     expect(state.pendingApproval?.approvalType).toBe('shell')
     expect(state.pendingApproval?.operation).toBe('npm test')
 
     const items = state.turns[0].items
     const approvalItem = items.find((i) => i.type === 'approvalCard')
     expect(approvalItem).toBeDefined()
+    expect(approvalItem?.approvalRequestId).toBe('req-shell-1')
     expect(approvalItem?.approvalState).toBe('pending')
     expect(approvalItem?.approvalType).toBe('shell')
     expect(approvalItem?.approvalOperation).toBe('npm test')
     expect(approvalItem?.approvalTarget).toBe('/home/dev/project')
     expect(approvalItem?.approvalReason).toBe('Agent wants to execute a shell command')
+  })
+
+  it('records and clears local approval submission without clearing pendingApproval', () => {
+    s().onApprovalRequest('bridge-submit', SHELL_PARAMS)
+
+    s().onApprovalSubmitStarted('accept')
+    expect(s().pendingApproval?.locallySubmittedDecision).toBe('accept')
+    expect(s().pendingApproval?.bridgeId).toBe('bridge-submit')
+    expect(s().turnStatus).toBe('waitingApproval')
+    let approvalItem = s().turns[0].items.find((i) => i.type === 'approvalCard')
+    expect(approvalItem?.approvalState).toBe('pending')
+
+    s().onApprovalSubmitFailed()
+    expect(s().pendingApproval?.locallySubmittedDecision).toBeNull()
+    expect(s().pendingApproval?.bridgeId).toBe('bridge-submit')
+    approvalItem = s().turns[0].items.find((i) => i.type === 'approvalCard')
+    expect(approvalItem?.approvalState).toBe('pending')
   })
 
   it('pending → accepted after onApprovalDecision("accept")', () => {
@@ -115,9 +140,98 @@ describe('approval card state machine', () => {
     s().onApprovalRequest('bridge-6', SHELL_PARAMS)
     expect(s().turnStatus).toBe('waitingApproval')
 
-    s().onApprovalResolved()
+    s().onApprovalResolved({
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      requestId: 'req-shell-1',
+      decision: 'accept'
+    })
     expect(s().turnStatus).toBe('running')
     expect(s().pendingApproval).toBeNull()
+    const approvalItem = s().turns[0].items.find((i) => i.type === 'approvalCard')
+    expect(approvalItem?.approvalState).toBe('accepted')
+  })
+
+  it('onApprovalResolved clears locally submitted approvals and applies the resolved decision', () => {
+    s().onApprovalRequest('bridge-6a', SHELL_PARAMS)
+    s().onApprovalSubmitStarted('accept')
+    expect(s().pendingApproval?.locallySubmittedDecision).toBe('accept')
+
+    s().onApprovalResolved({
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      requestId: 'req-shell-1',
+      decision: 'decline'
+    })
+
+    expect(s().pendingApproval).toBeNull()
+    expect(s().turnStatus).toBe('running')
+    const approvalItem = s().turns[0].items.find((i) => i.type === 'approvalCard')
+    expect(approvalItem?.approvalState).toBe('declined')
+  })
+
+  const resolvedDecisionCases: Array<[ApprovalDecision, ApprovalState]> = [
+    ['accept', 'accepted'],
+    ['acceptForSession', 'acceptedForSession'],
+    ['acceptAlways', 'acceptedAlways'],
+    ['decline', 'declined'],
+    ['cancel', 'cancelled']
+  ]
+
+  for (const [decision, expectedState] of resolvedDecisionCases) {
+    it(`onApprovalResolved maps "${decision}" to "${expectedState}"`, () => {
+      s().onApprovalRequest(`bridge-resolved-${decision}`, SHELL_PARAMS)
+
+      s().onApprovalResolved({
+        threadId: 'thread-1',
+        turnId: 'turn-1',
+        requestId: 'req-shell-1',
+        decision
+      })
+
+      const approvalItem = s().turns[0].items.find((i) => i.type === 'approvalCard')
+      expect(approvalItem?.approvalState).toBe(expectedState)
+      expect(s().pendingApproval).toBeNull()
+    })
+  }
+
+  it('onApprovalResolved ignores unrelated approval requests', () => {
+    s().onApprovalRequest('bridge-6b', SHELL_PARAMS)
+
+    s().onApprovalResolved({
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      requestId: 'req-other',
+      decision: 'accept'
+    })
+
+    expect(s().turnStatus).toBe('waitingApproval')
+    expect(s().pendingApproval?.requestId).toBe('req-shell-1')
+    const approvalItem = s().turns[0].items.find((i) => i.type === 'approvalCard')
+    expect(approvalItem?.approvalState).toBe('pending')
+  })
+
+  it('onApprovalNoLongerPending clears only the matching pending approval', () => {
+    s().onApprovalRequest('bridge-6c', SHELL_PARAMS)
+
+    s().onApprovalNoLongerPending({
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      requestId: 'req-other',
+      nextTurnStatus: 'running'
+    })
+    expect(s().pendingApproval?.bridgeId).toBe('bridge-6c')
+    expect(s().turnStatus).toBe('waitingApproval')
+
+    s().onApprovalNoLongerPending({
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      requestId: 'req-shell-1',
+      nextTurnStatus: 'idle'
+    })
+    expect(s().pendingApproval).toBeNull()
+    expect(s().turnStatus).toBe('idle')
+    expect(s().activeTurnId).toBeNull()
   })
 
   it('file approval type renders with correct fields', () => {
@@ -137,7 +251,11 @@ describe('approval card state machine', () => {
   it('onApprovalRequest does nothing when no active turn', () => {
     s().reset()
     // No turn started — activeTurnId is null
-    s().onApprovalRequest('bridge-x', SHELL_PARAMS)
+    const { threadId, turnId, requestId, ...paramsWithoutTurn } = SHELL_PARAMS
+    void threadId
+    void turnId
+    void requestId
+    s().onApprovalRequest('bridge-x', paramsWithoutTurn)
     expect(s().pendingApproval).toBeNull()
     expect(s().turns).toHaveLength(0)
   })
