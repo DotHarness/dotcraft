@@ -28,6 +28,7 @@ import {
   registerIpcHandlers,
   unregisterIpcHandlers,
   getModuleProcessManager,
+  getRemoteServersManager,
   autoStartModuleProcessesByChannelName,
   broadcastConnectionStatus,
   broadcastWorkspaceStatus,
@@ -36,6 +37,7 @@ import {
   createServerRequestBridge,
   sanitizeHttpOrHttpsUrl,
   openExternalHttpUrl,
+  type ConnectionErrorType,
   type ConnectionStatusPayload,
   type IpcHandlerCallbacks
 } from './ipcBridge'
@@ -104,6 +106,13 @@ import {
   resolveRemoteWebSocketConfig,
   type ConnectionSettingsDraft
 } from '../shared/remoteConnection'
+import {
+  effectiveAppServerWorkspacePath,
+  effectiveWorkspaceDir,
+  normalizeRemoteHosts,
+  type RemoteHost,
+  type RemoteStack
+} from '../shared/remoteServers'
 
 // ─── Single-process state ─────────────────────────────────────────────────────
 // Each Electron process owns exactly one window and one AppServer connection.
@@ -124,6 +133,11 @@ let lastWorkspaceStatus: WorkspaceStatusPayload = {
   hasUserConfig: false,
   providers: []
 }
+let activeRemoteWorkspace: WorkspaceStatusPayload['remote'] | null = null
+let lastRemoteStackLocalPort: number | null = null
+let connectionGeneration = 0
+let activeRemoteReconnectTimer: ReturnType<typeof setTimeout> | null = null
+let activeRemoteReconnectAttempt = 0
 let isAppQuitting = false
 let ipcHandlersRegistered = false
 let finalQuitCleanupDone = false
@@ -172,7 +186,7 @@ async function handleServerRequestInMain(method: string, params: unknown): Promi
     if (!client) {
       return undefined
     }
-    return handleDesktopRuntimeThreadToolCall(client, params, currentWorkspacePath, {
+    return handleDesktopRuntimeThreadToolCall(client, params, getProtocolWorkspacePath(), {
       supportsDynamicToolRebind: lastConnectionStatus.capabilities?.dynamicToolRebind === true
     })
   }
@@ -310,6 +324,78 @@ function resolveConnectionMode(settings: AppSettings): ConnectionMode {
   return mode === 'remote' ? 'remote' : 'local'
 }
 
+function buildRemoteWorkspaceStatus(
+  host: RemoteHost,
+  stack: RemoteStack
+): WorkspaceStatusPayload['remote'] {
+  return {
+    hostId: host.id,
+    stackId: stack.id,
+    serverName: host.name,
+    stackName: stack.name,
+    workspaceDir: effectiveWorkspaceDir(stack),
+    appServerWorkspacePath: effectiveAppServerWorkspacePath(stack),
+    composeDir: stack.composeDir,
+    ...(stack.projectName ? { projectName: stack.projectName } : {})
+  }
+}
+
+function resolveActiveRemoteStack(
+  settings: AppSettings
+): { host: RemoteHost; stack: RemoteStack } | null {
+  const ref = settings.activeRemoteStack
+  if (!ref?.hostId || !ref.stackId) return null
+  const host = normalizeRemoteHosts(settings.remoteHosts).find((candidate) => candidate.id === ref.hostId)
+  const stack = host?.stacks.find((candidate) => candidate.id === ref.stackId)
+  return host && stack ? { host, stack } : null
+}
+
+function getWorkspaceStatusForRenderer(workspacePath: string | null | undefined): WorkspaceStatusPayload {
+  const status = getWorkspaceStatus(workspacePath)
+  return activeRemoteWorkspace ? { ...status, remote: activeRemoteWorkspace } : status
+}
+
+function emitCurrentWorkspaceStatus(workspacePath: string): void {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    emitWorkspaceStatus(mainWindow, getWorkspaceStatusForRenderer(workspacePath))
+  }
+}
+
+function getProtocolWorkspacePath(): string {
+  return activeRemoteWorkspace?.workspaceDir || currentWorkspacePath
+}
+
+function clearActiveRemoteReconnectTimer(): void {
+  if (activeRemoteReconnectTimer) {
+    clearTimeout(activeRemoteReconnectTimer)
+    activeRemoteReconnectTimer = null
+  }
+}
+
+function hasRecoverableActiveRemoteStack(): boolean {
+  if (isAppQuitting || !currentWorkspacePath) return false
+  if (resolveConnectionMode(sharedSettings) !== 'remote') return false
+  const ref = sharedSettings.activeRemoteStack
+  return Boolean(ref?.hostId && ref.stackId)
+}
+
+function scheduleActiveRemoteStackReconnect(reason: string): void {
+  if (!hasRecoverableActiveRemoteStack()) return
+  if (activeRemoteReconnectTimer) return
+
+  const delayMs = Math.min(30_000, 1_000 * 2 ** activeRemoteReconnectAttempt)
+  activeRemoteReconnectAttempt += 1
+  console.info(`[desktop] active remote stack disconnected (${reason}); rebuilding SSH tunnel in ${delayMs}ms`)
+  activeRemoteReconnectTimer = setTimeout(() => {
+    activeRemoteReconnectTimer = null
+    if (!hasRecoverableActiveRemoteStack()) return
+    void connectToAppServer(currentWorkspacePath).catch((error) => {
+      const message = error instanceof Error ? error.message : String(error)
+      console.warn('[desktop] active remote stack reconnect failed', message)
+    })
+  }, delayMs)
+}
+
 function resolveBinarySource(settings: AppSettings): BinarySource {
   const source = settings.binarySource
   if (source === 'bundled' || source === 'path' || source === 'custom') {
@@ -398,6 +484,9 @@ async function teardownRuntime(
   const cleanedIpc = options?.cleanupIpcHandlers
     ? unregisterDesktopIpcHandlers()
     : false
+  if (options?.cleanupIpcHandlers) {
+    getRemoteServersManager().closeAllTunnels()
+  }
   const hadWireClient = wireClient !== null
   if (moduleManager) {
     void moduleManager.stopAll({ preserveExternalChannels: true }).catch((error) => {
@@ -406,6 +495,8 @@ async function teardownRuntime(
   }
   hubEventAbortController?.abort()
   hubEventAbortController = null
+  clearActiveRemoteReconnectTimer()
+  connectionGeneration += 1
   wireClient?.dispose()
   wireClient = null
   lastAppServerWsUrl = null
@@ -801,6 +892,45 @@ function stripWorkspaceArgs(argv: string[]): string[] {
 // ─── WebSocket remote connection ─────────────────────────────────────────────
 
 const REMOTE_CONNECTION_PROBE_TIMEOUT_MS = 10_000
+const REMOTE_INITIALIZE_TIMEOUT_MS = 15_000
+
+interface RemoteConnectionDiagnostic {
+  stage?: string
+  hostName?: string
+  stackName?: string
+  localPort?: number
+  targetPort?: number
+  tokenPresent?: boolean
+}
+
+interface ConnectViaWebSocketOptions {
+  autoReconnect?: boolean
+  initializeTimeoutMs?: number | null
+  initialDisconnectIsError?: boolean
+  remoteDiagnostic?: RemoteConnectionDiagnostic
+}
+
+function formatRemoteConnectionError(
+  message: string,
+  diagnostic?: RemoteConnectionDiagnostic,
+  stage?: string
+): string {
+  const details: string[] = []
+  const resolvedStage = stage ?? diagnostic?.stage
+  if (resolvedStage) details.push(`stage=${resolvedStage}`)
+  if (diagnostic?.hostName) details.push(`host=${diagnostic.hostName}`)
+  if (diagnostic?.stackName) details.push(`stack=${diagnostic.stackName}`)
+  if (typeof diagnostic?.localPort === 'number') details.push(`localPort=${diagnostic.localPort}`)
+  if (typeof diagnostic?.targetPort === 'number') details.push(`remotePort=${diagnostic.targetPort}`)
+  if (typeof diagnostic?.tokenPresent === 'boolean') {
+    details.push(`token=${diagnostic.tokenPresent ? 'present' : 'missing'}`)
+  }
+  return details.length > 0 ? `${message} (${details.join(', ')})` : message
+}
+
+function classifyRemoteInitialError(message: string): ConnectionErrorType {
+  return /timed out/i.test(message) ? 'handshake-timeout' : 'remote-config-invalid'
+}
 
 function probeRemoteAppServerConnection(wsUrl: string): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -904,21 +1034,103 @@ async function applyConnectionSettings(draft: ConnectionSettingsDraft): Promise<
       throw new Error(resolved.message)
     }
     await probeRemoteAppServerConnection(resolved.connectUrl)
-    await updateSharedSettings(draft)
+    closeActiveRemoteStackTunnels()
+    await updateSharedSettings({ ...draft, activeRemoteStack: undefined })
     await connectToAppServer(currentWorkspacePath)
     return
   }
 
-  await updateSharedSettings(draft)
+  await teardownRuntime('apply local connection settings before reconnect')
+  closeActiveRemoteStackTunnels()
+  await updateSharedSettings({ ...draft, activeRemoteStack: undefined })
   const hubClient = createHubClient(sharedSettings)
   const restarted = await hubClient.restartAppServer(currentWorkspacePath, resolveDotCraftRuntimeTools())
   await connectViaWebSocket(currentWorkspacePath, getManagedAppServerEndpoint(restarted))
   startHubEventSubscription(currentWorkspacePath, hubClient)
 }
 
+function closeActiveRemoteStackTunnels(settings: AppSettings = sharedSettings): void {
+  clearActiveRemoteReconnectTimer()
+  activeRemoteReconnectAttempt = 0
+  const ref = settings.activeRemoteStack
+  if (ref?.hostId && ref.stackId) {
+    getRemoteServersManager().closeStackTunnels(ref.hostId, ref.stackId)
+  }
+  activeRemoteWorkspace = null
+  lastRemoteStackLocalPort = null
+}
+
+async function connectRemoteStackFromServers(
+  host: RemoteHost,
+  stack: RemoteStack
+): Promise<{ localPort?: number }> {
+  if (!currentWorkspacePath) {
+    throw new Error('Open a workspace before connecting a remote stack.')
+  }
+  if (process.argv.includes('--remote')) {
+    throw new Error('Saved remote stacks cannot be activated while Desktop was launched with --remote.')
+  }
+
+  const manager = getRemoteServersManager()
+  const previousActive = sharedSettings.activeRemoteStack
+  if (
+    previousActive?.hostId &&
+    previousActive.stackId &&
+    (previousActive.hostId !== host.id || previousActive.stackId !== stack.id)
+  ) {
+    manager.closeStackTunnels(previousActive.hostId, previousActive.stackId)
+  }
+
+  const result = await manager.openAppServerTunnel(host, stack)
+  try {
+    await probeRemoteAppServerConnection(result.wsUrl)
+  } catch (error) {
+    manager.closeStackTunnels(host.id, stack.id)
+    const message = error instanceof Error ? error.message : String(error)
+    throw new Error(formatRemoteConnectionError(message, {
+      stage: 'probe',
+      hostName: host.name,
+      stackName: stack.name,
+      localPort: result.localPort,
+      targetPort: stack.appServerPort,
+      tokenPresent: result.tokenPresent
+    }))
+  }
+
+  await updateSharedSettings({
+    connectionMode: 'remote',
+    remote: undefined,
+    activeRemoteStack: { hostId: host.id, stackId: stack.id }
+  })
+  await connectToAppServer(currentWorkspacePath)
+  return { localPort: lastRemoteStackLocalPort ?? result.localPort }
+}
+
+async function disconnectRemoteStackFromServers(hostId: string, stackId: string): Promise<void> {
+  getRemoteServersManager().closeStackTunnels(hostId, stackId)
+  const active = sharedSettings.activeRemoteStack
+  if (active?.hostId !== hostId || active.stackId !== stackId) {
+    return
+  }
+
+  activeRemoteWorkspace = null
+  lastRemoteStackLocalPort = null
+  await updateSharedSettings({
+    connectionMode: 'local',
+    activeRemoteStack: undefined
+  })
+  if (currentWorkspacePath) {
+    await connectToAppServer(currentWorkspacePath)
+  } else if (mainWindow && !mainWindow.isDestroyed()) {
+    emitCurrentWorkspaceStatus('')
+    emitConnectionStatus(mainWindow, { status: 'disconnected' })
+  }
+}
+
 async function connectViaWebSocket(
   workspacePath: string,
-  wsUrl: string
+  wsUrl: string,
+  options: ConnectViaWebSocketOptions = {}
 ): Promise<void> {
   if (isAppQuitting || !mainWindow || mainWindow.isDestroyed()) {
     return
@@ -929,16 +1141,27 @@ async function connectViaWebSocket(
   emitConnectionStatus(win, { status: 'connecting' })
   reregisterIpcForWorkspace(workspacePath)
 
-  const client = WireProtocolClient.fromWebSocket(wsUrl)
+  const generation = ++connectionGeneration
+  const client = WireProtocolClient.fromWebSocket(wsUrl, {
+    autoReconnect: options.autoReconnect,
+    initializeTimeoutMs: options.initializeTimeoutMs
+  })
   wireClient = client
+  const isCurrentClient = (): boolean =>
+    !isAppQuitting &&
+    wireClient === client &&
+    connectionGeneration === generation &&
+    mainWindow === win &&
+    !win.isDestroyed()
 
   client.onNotification((method, params) => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
+    if (isCurrentClient() && mainWindow && !mainWindow.isDestroyed()) {
       broadcastNotification(mainWindow, method, params, sharedSettings)
     }
   })
 
   client.onServerRequest(async (method, params) => {
+    if (!isCurrentClient()) return undefined
     const handledInMain = await handleServerRequestInMain(method, params)
     if (handledInMain !== undefined) return handledInMain
     const win = mainWindow!
@@ -946,7 +1169,34 @@ async function connectViaWebSocket(
     broadcastServerRequest(win, { bridgeId, method, params }, sharedSettings)
     return promise
   })
+  let connectedOnce = false
+  let initialFailureEmitted = false
+  const emitInitialConnectionFailure = (
+    message: string,
+    errorType: ConnectionErrorType,
+    stage: string
+  ): void => {
+    if (initialFailureEmitted || !isCurrentClient()) return
+    initialFailureEmitted = true
+    resetDesktopThreadToolBindings()
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      emitConnectionStatus(mainWindow, {
+        status: 'error',
+        errorMessage: formatRemoteConnectionError(message, options.remoteDiagnostic, stage),
+        errorType
+      })
+    }
+    if (wireClient === client) {
+      wireClient = null
+      lastAppServerWsUrl = null
+    }
+    client.dispose()
+  }
   const emitConnected = (result: InitializeResult): void => {
+    if (!isCurrentClient()) return
+    connectedOnce = true
+    clearActiveRemoteReconnectTimer()
+    activeRemoteReconnectAttempt = 0
     resetDesktopThreadToolBindings()
     if (mainWindow && !mainWindow.isDestroyed()) {
       emitConnectionStatus(mainWindow, {
@@ -962,7 +1212,18 @@ async function connectViaWebSocket(
   client.on('ready', (result: InitializeResult) => emitConnected(result))
   client.on('reconnected', (result: InitializeResult) => emitConnected(result))
   client.on('close', () => {
+    if (!isCurrentClient()) return
     resetDesktopThreadToolBindings()
+    if (!connectedOnce && options.initialDisconnectIsError) {
+      if (!initialFailureEmitted) {
+        emitInitialConnectionFailure(
+          'Remote AppServer WebSocket closed before initialize completed.',
+          'remote-config-invalid',
+          'websocket-close-before-ready'
+        )
+      }
+      return
+    }
     if (mainWindow && !mainWindow.isDestroyed()) {
       const loc = normalizeLocale(sharedSettings.locale)
       emitConnectionStatus(mainWindow, {
@@ -970,9 +1231,19 @@ async function connectViaWebSocket(
         errorMessage: translate(loc, 'main.status.reconnecting')
       })
     }
+    scheduleActiveRemoteStackReconnect('websocket closed')
   })
   client.on('reconnect-error', (err) => {
+    if (!isCurrentClient()) return
     const message = err instanceof Error ? err.message : String(err)
+    if (!connectedOnce && options.initialDisconnectIsError) {
+      emitInitialConnectionFailure(
+        message,
+        classifyRemoteInitialError(message),
+        /timed out/i.test(message) ? 'initialize-timeout' : 'initialize'
+      )
+      return
+    }
     if (mainWindow && !mainWindow.isDestroyed()) {
       emitConnectionStatus(mainWindow, { status: 'error', errorMessage: message })
     }
@@ -1064,9 +1335,7 @@ function buildCallbacks(): IpcHandlerCallbacks {
         throw new Error('Open a workspace before running setup.')
       }
       const result = await runWorkspaceSetup(currentWorkspacePath, request, sharedSettings)
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        emitWorkspaceStatus(mainWindow, getWorkspaceStatus(currentWorkspacePath))
-      }
+      emitCurrentWorkspaceStatus(currentWorkspacePath)
       await connectToAppServer(currentWorkspacePath)
       return result
     },
@@ -1092,6 +1361,8 @@ function buildCallbacks(): IpcHandlerCallbacks {
       startHubEventSubscription(currentWorkspacePath, hubClient)
     },
     onApplyConnectionSettings: applyConnectionSettings,
+    onConnectRemoteStack: connectRemoteStackFromServers,
+    onDisconnectRemoteStack: disconnectRemoteStackFromServers,
     getSettings: () => sharedSettings,
     updateSettings: async (partial) => {
       await updateSharedSettings(partial)
@@ -1103,7 +1374,7 @@ function buildCallbacks(): IpcHandlerCallbacks {
       saveSettings(sharedSettings)
     },
     getConnectionStatus: () => lastConnectionStatus,
-    getWorkspaceStatus: () => getWorkspaceStatus(currentWorkspacePath)
+    getWorkspaceStatus: () => getWorkspaceStatusForRenderer(currentWorkspacePath)
   }
 }
 
@@ -1132,6 +1403,7 @@ async function openWorkspaceWithoutConnection(workspacePath: string): Promise<vo
   }
 
   await teardownRuntime('switch to setup-required workspace')
+  closeActiveRemoteStackTunnels()
   currentWorkspacePath = workspacePath
   ensureWorkspaceActivation(workspacePath)
   reregisterIpcForWorkspace(workspacePath)
@@ -1141,7 +1413,7 @@ async function openWorkspaceWithoutConnection(workspacePath: string): Promise<vo
     return
   }
 
-  emitWorkspaceStatus(win, getWorkspaceStatus(workspacePath))
+  emitWorkspaceStatus(win, getWorkspaceStatusForRenderer(workspacePath))
   emitConnectionStatus(win, { status: 'disconnected' })
 }
 
@@ -1149,6 +1421,7 @@ async function clearWorkspaceSelection(): Promise<void> {
   if (currentWorkspacePath) {
     await teardownRuntime('clear workspace selection', { releaseWorkspaceLock: true })
   }
+  closeActiveRemoteStackTunnels()
 
   if (mainWindow && !mainWindow.isDestroyed()) {
     viewerBrowserManager.destroyAllTabs(mainWindow)
@@ -1166,7 +1439,7 @@ async function clearWorkspaceSelection(): Promise<void> {
   reregisterIpcForWorkspace('')
   const loc = normalizeLocale(sharedSettings.locale)
   win.setTitle(translate(loc, 'app.brandSubtitle'))
-  emitWorkspaceStatus(win, getWorkspaceStatus(''))
+  emitWorkspaceStatus(win, getWorkspaceStatusForRenderer(''))
   emitConnectionStatus(win, { status: 'disconnected' })
 }
 
@@ -1197,19 +1470,82 @@ async function connectToAppServer(workspacePath: string): Promise<void> {
 
   currentWorkspacePath = workspacePath
   ensureWorkspaceActivation(workspacePath)
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    emitWorkspaceStatus(mainWindow, getWorkspaceStatus(workspacePath))
-  }
+
+  const remoteIdx = process.argv.indexOf('--remote')
+  const launchedWithRemoteUrl = remoteIdx !== -1 && Boolean(process.argv[remoteIdx + 1])
+  const connectionMode = resolveConnectionMode(sharedSettings)
+  const activeStack =
+    !launchedWithRemoteUrl && connectionMode === 'remote'
+      ? resolveActiveRemoteStack(sharedSettings)
+      : null
+  activeRemoteWorkspace = activeStack ? buildRemoteWorkspaceStatus(activeStack.host, activeStack.stack) : null
+  lastRemoteStackLocalPort = null
+  emitCurrentWorkspaceStatus(workspacePath)
 
   // --remote ws://host:port/ws?token=xxx  → skip AppServerManager, connect via WebSocket
-  const remoteIdx = process.argv.indexOf('--remote')
-  if (remoteIdx !== -1 && process.argv[remoteIdx + 1]) {
-    await connectViaWebSocket(workspacePath, process.argv[remoteIdx + 1])
+  if (launchedWithRemoteUrl) {
+    activeRemoteWorkspace = null
+    emitCurrentWorkspaceStatus(workspacePath)
+    await connectViaWebSocket(workspacePath, process.argv[remoteIdx + 1], {
+      initializeTimeoutMs: REMOTE_INITIALIZE_TIMEOUT_MS,
+      initialDisconnectIsError: true,
+      remoteDiagnostic: { stage: 'cli-remote' }
+    })
     return
   }
 
-  const connectionMode = resolveConnectionMode(sharedSettings)
   if (connectionMode === 'remote') {
+    if (activeStack) {
+      const win = mainWindow!
+      emitConnectionStatus(win, { status: 'connecting' })
+      try {
+        const result = await getRemoteServersManager().openAppServerTunnel(
+          activeStack.host,
+          activeStack.stack,
+          { forceNew: true }
+        )
+        lastRemoteStackLocalPort = result.localPort
+        await connectViaWebSocket(workspacePath, result.wsUrl, {
+          autoReconnect: false,
+          initializeTimeoutMs: REMOTE_INITIALIZE_TIMEOUT_MS,
+          initialDisconnectIsError: true,
+          remoteDiagnostic: {
+            stage: 'active-remote-stack',
+            hostName: activeStack.host.name,
+            stackName: activeStack.stack.name,
+            localPort: result.localPort,
+            targetPort: activeStack.stack.appServerPort,
+            tokenPresent: result.tokenPresent
+          }
+        })
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err)
+        emitConnectionStatus(win, {
+          status: 'error',
+          errorMessage: formatRemoteConnectionError(message, {
+            stage: 'open-appserver-tunnel',
+            hostName: activeStack.host.name,
+            stackName: activeStack.stack.name,
+            targetPort: activeStack.stack.appServerPort
+          }),
+          errorType: 'remote-config-invalid'
+        })
+      }
+      return
+    }
+
+    if (sharedSettings.activeRemoteStack?.hostId || sharedSettings.activeRemoteStack?.stackId) {
+      const win = mainWindow!
+      emitConnectionStatus(win, {
+        status: 'error',
+        errorMessage: 'Saved remote stack was not found. Check Servers settings or disconnect this stack.',
+        errorType: 'remote-config-invalid'
+      })
+      return
+    }
+
+    activeRemoteWorkspace = null
+    emitCurrentWorkspaceStatus(workspacePath)
     const remoteConfig = resolveRemoteWebSocketConfig(sharedSettings.remote)
     if (!remoteConfig.ok) {
       const win = mainWindow!
@@ -1220,7 +1556,11 @@ async function connectToAppServer(workspacePath: string): Promise<void> {
       })
       return
     }
-    await connectViaWebSocket(workspacePath, remoteConfig.connectUrl)
+    await connectViaWebSocket(workspacePath, remoteConfig.connectUrl, {
+      initializeTimeoutMs: REMOTE_INITIALIZE_TIMEOUT_MS,
+      initialDisconnectIsError: true,
+      remoteDiagnostic: { stage: 'manual-remote' }
+    })
     return
   }
 
@@ -1347,6 +1687,16 @@ function buildAppMenu(locale: AppLocale): Menu {
 
 function refreshAppMenu(): void {
   Menu.setApplicationMenu(buildAppMenu(normalizeLocale(sharedSettings.locale)))
+}
+
+function connectWorkspaceForLoadedWindow(win: BrowserWindow, workspacePath: string): void {
+  void connectToAppServer(workspacePath).catch((error) => {
+    const message = error instanceof Error ? error.message : String(error)
+    console.warn('[desktop] failed to connect restored workspace', message)
+    if (!win.isDestroyed()) {
+      emitConnectionStatus(win, { status: 'error', errorMessage: message })
+    }
+  })
 }
 
 function emitConnectionStatus(win: BrowserWindow, payload: ConnectionStatusPayload): void {
@@ -1504,7 +1854,14 @@ app.whenReady().then(async () => {
     }
   }
 
-  const initialWorkspaceStatus = getWorkspaceStatus(workspacePath)
+  const initialActiveStack =
+    workspacePath && resolveConnectionMode(sharedSettings) === 'remote'
+      ? resolveActiveRemoteStack(sharedSettings)
+      : null
+  activeRemoteWorkspace = initialActiveStack
+    ? buildRemoteWorkspaceStatus(initialActiveStack.host, initialActiveStack.stack)
+    : null
+  const initialWorkspaceStatus = getWorkspaceStatusForRenderer(workspacePath)
   lastWorkspaceStatus = initialWorkspaceStatus
   const win = createWindow(workspacePath, initialWorkspaceStatus)
   mainWindow = win
@@ -1534,7 +1891,7 @@ app.whenReady().then(async () => {
       openChromeSettingsFromDeepLink()
     }
     if (workspacePath && initialWorkspaceStatus.status === 'ready') {
-      void connectToAppServer(workspacePath)
+      connectWorkspaceForLoadedWindow(win, workspacePath)
     } else {
       emitConnectionStatus(win, { status: 'disconnected' })
     }
@@ -1554,7 +1911,14 @@ app.whenReady().then(async () => {
           saveSettings(sharedSettings)
         }
       }
-      const workspaceStatus = getWorkspaceStatus(wsPath)
+      const activeStack =
+        wsPath && resolveConnectionMode(sharedSettings) === 'remote'
+          ? resolveActiveRemoteStack(sharedSettings)
+          : null
+      activeRemoteWorkspace = activeStack
+        ? buildRemoteWorkspaceStatus(activeStack.host, activeStack.stack)
+        : null
+      const workspaceStatus = getWorkspaceStatusForRenderer(wsPath)
       lastWorkspaceStatus = workspaceStatus
       const newWin = createWindow(wsPath, workspaceStatus)
       mainWindow = newWin
@@ -1583,7 +1947,7 @@ app.whenReady().then(async () => {
           openChromeSettingsFromDeepLink()
         }
         if (wsPath && workspaceStatus.status === 'ready') {
-          void connectToAppServer(wsPath)
+          connectWorkspaceForLoadedWindow(newWin, wsPath)
         } else {
           emitConnectionStatus(newWin, { status: 'disconnected' })
         }

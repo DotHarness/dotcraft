@@ -63,6 +63,7 @@ import type {
   WorkspaceSetupModelListRequest,
   WorkspaceSetupModelListResult
 } from './workspaceSetup'
+import type { RemoteHost, RemoteStack } from '../shared/remoteServers'
 import { translate, normalizeLocale, DEFAULT_LOCALE, type AppLocale } from '../shared/locales'
 import { parseJsonConfig, parseJsonObjectConfig } from '../shared/jsonConfig'
 import { detectEditors, launchEditor, type EditorId } from './externalEditors'
@@ -563,6 +564,15 @@ function resolveModuleWsConfig(
 ): { wsUrl: string; token?: string } {
   const mode = resolveConnectionMode(settings)
   if (mode === 'remote') {
+    if (settings.activeRemoteStack) {
+      if (!runtime?.wsUrl?.trim()) {
+        throw new Error('Remote stack AppServer tunnel is not connected.')
+      }
+      return runtime.token?.trim()
+        ? { wsUrl: runtime.wsUrl.trim(), token: runtime.token.trim() }
+        : { wsUrl: runtime.wsUrl.trim() }
+    }
+
     const resolved = resolveRemoteWebSocketConfig(settings.remote)
     if (!resolved.ok) {
       throw new Error(resolved.message)
@@ -656,6 +666,10 @@ export interface IpcHandlerCallbacks {
   onRestartManagedAppServer: () => Promise<void>
   /** Applies connection settings and switches to the resulting AppServer connection. */
   onApplyConnectionSettings?: (draft: ConnectionSettingsDraft) => Promise<void>
+  /** Connects Desktop to a saved remote stack through a rebuilt SSH tunnel. */
+  onConnectRemoteStack?: (host: RemoteHost, stack: RemoteStack) => Promise<{ localPort?: number }>
+  /** Disconnects a saved remote stack; if active, Desktop should return to local mode. */
+  onDisconnectRemoteStack?: (hostId: string, stackId: string) => Promise<void>
   /** Returns the current settings object. */
   getSettings: () => AppSettings
   /** Returns the active AppServer WebSocket endpoint for Hub-managed local mode. */
@@ -721,7 +735,7 @@ let ensureModulesScanned: (() => Promise<DiscoveredModule[]>) | null = null
 let getSettingsSnapshotForModules: (() => AppSettings) | null = null
 
 let remoteServersManager: RemoteServersManager | null = null
-function getRemoteServersManager(): RemoteServersManager {
+export function getRemoteServersManager(): RemoteServersManager {
   if (!remoteServersManager) remoteServersManager = new RemoteServersManager()
   return remoteServersManager
 }
@@ -925,27 +939,27 @@ export function registerIpcHandlers(
   })
 
   handleSafe('workspace-config:get-core', async () => {
-    const workspacePath = callbacks?.getWorkspaceStatus().workspacePath?.trim()
-      if (!workspacePath) {
-        return {
-          workspace: {
-            providerId: null,
-            model: null,
-            welcomeSuggestionsEnabled: null,
-            skillsSelfLearningEnabled: null,
-            memoryAutoConsolidateEnabled: null,
-            dreamsEnabled: null,
-            dreamsInterval: null,
-            dreamsThreadLookbackCount: null,
-            dreamsAutoApply: null,
-            defaultApprovalPolicy: null
-          },
-          userDefaults: await readCoreConfigSnapshot(path.join(os.homedir(), '.craft', 'config.json'))
-        }
+    const localWorkspacePath = workspacePath.trim()
+    if (!localWorkspacePath) {
+      return {
+        workspace: {
+          providerId: null,
+          model: null,
+          welcomeSuggestionsEnabled: null,
+          skillsSelfLearningEnabled: null,
+          memoryAutoConsolidateEnabled: null,
+          dreamsEnabled: null,
+          dreamsInterval: null,
+          dreamsThreadLookbackCount: null,
+          dreamsAutoApply: null,
+          defaultApprovalPolicy: null
+        },
+        userDefaults: await readCoreConfigSnapshot(path.join(os.homedir(), '.craft', 'config.json'))
       }
+    }
 
     return {
-      workspace: await readCoreConfigSnapshot(path.join(workspacePath, '.craft', 'config.json')),
+      workspace: await readCoreConfigSnapshot(path.join(localWorkspacePath, '.craft', 'config.json')),
       userDefaults: await readCoreConfigSnapshot(path.join(os.homedir(), '.craft', 'config.json'))
     }
   })
@@ -1608,7 +1622,8 @@ export function registerIpcHandlers(
     handleSafe,
     getSettings: () => callbacks?.getSettings() ?? {},
     updateSettings: (partial) => callbacks?.updateSettings(partial),
-    applyConnectionSettings: callbacks?.onApplyConnectionSettings,
+    connectRemoteStack: callbacks?.onConnectRemoteStack,
+    disconnectRemoteStack: callbacks?.onDisconnectRemoteStack,
     manager: getRemoteServersManager()
   })
 
@@ -2020,7 +2035,6 @@ export function unregisterIpcHandlers(): void {
   for (const channel of REMOTE_SERVERS_CHANNELS) {
     ipcMain.removeHandler(channel)
   }
-  remoteServersManager?.closeAllTunnels()
   ipcMain.removeHandler('appserver:send-request')
   ipcMain.removeHandler('appserver:model-list')
   ipcMain.removeHandler('appserver:workspace-config-schema')

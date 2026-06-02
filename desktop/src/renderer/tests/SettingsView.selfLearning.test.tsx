@@ -83,7 +83,7 @@ function renderView() {
       <PendingRestartHarness />
       <div style={{ display: 'flex', height: 800 }}>
         <SettingsSidebar />
-        <SettingsView workspacePath="E:\\Git\\dotcraft" />
+        <SettingsView workspacePath="C:\\sample\\workspace" />
       </div>
     </LocaleProvider>
   )
@@ -229,7 +229,7 @@ describe('SettingsView self-learning settings', () => {
           turnId: 'turn_dream_fake_2',
           turnIds: ['turn_dream_fake_1', 'turn_dream_fake_2'],
           trigger: 'manual',
-          inputManifestPath: 'E:\\Git\\dotcraft\\.craft\\dreams\\runs\\dream_20260511000000_test\\input\\MANIFEST.md',
+          inputManifestPath: 'C:\\sample\\workspace\\.craft\\dreams\\runs\\dream_20260511000000_test\\input\\MANIFEST.md',
           message: null
         }
         dreamsStatus.lastRun = run
@@ -994,6 +994,24 @@ describe('SettingsView self-learning settings', () => {
       }))
       expect(appServerRestartManaged).not.toHaveBeenCalled()
     })
+  })
+
+  it('shows active remote stack connections as Servers-managed settings', async () => {
+    settingsGet.mockResolvedValueOnce({
+      locale: 'en',
+      connectionMode: 'remote',
+      activeRemoteStack: { hostId: 'host-1', stackId: 'stack-1' },
+      visibleChannels: []
+    })
+    renderView()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Connections' }))
+
+    expect(await screen.findByText('Managed by Servers')).toBeInTheDocument()
+    expect(screen.getByText('This remote connection uses the saved server stack. Use Servers to disconnect or change it.')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Remote WebSocket URL')).not.toBeInTheDocument()
+    expect(screen.queryByText('Enter a remote WebSocket URL before applying Remote mode.')).not.toBeInTheDocument()
+    expect(screen.queryByText('Connection changes are staged. Apply them to connect to the remote AppServer.')).not.toBeInTheDocument()
   })
 
   it('does not persist remote connection edits when connection apply fails', async () => {

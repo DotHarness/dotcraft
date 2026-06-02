@@ -1,4 +1,4 @@
-import { useEffect, useState, type JSX, type ReactNode, type CSSProperties } from 'react'
+import { useEffect, useRef, useState, type JSX, type ReactNode, type CSSProperties } from 'react'
 import {
   Server,
   Plus,
@@ -6,6 +6,10 @@ import {
   ChevronRight,
   ArrowLeft,
   RefreshCw,
+  Download,
+  RotateCw,
+  Play,
+  Square,
   MoreHorizontal,
   ExternalLink,
   Terminal,
@@ -13,7 +17,8 @@ import {
   AlertTriangle,
   Trash2,
   Loader2,
-  KeyRound
+  KeyRound,
+  Search
 } from 'lucide-react'
 import { SettingsPanelShell } from '../../SettingsPanelShell'
 import { SettingsGroup, SettingsRow } from '../../SettingsGroup'
@@ -25,9 +30,12 @@ import type {
   RemoteStackStatus,
   StackHealth,
   LocalSshHostAlias,
-  LocalSshIdentity
+  LocalSshIdentity,
+  DiscoveredStack
 } from '../../../../../shared/remoteServers'
 import * as s from './serversStyles'
+
+const REACHABILITY_FLASH_MS = 4000
 
 function healthTone(health: StackHealth | undefined): s.StatusTone {
   switch (health) {
@@ -83,42 +91,6 @@ function StatusText({ tone, children }: { tone: s.StatusTone; children: ReactNod
       <StatusDot tone={tone} />
       {children}
     </span>
-  )
-}
-
-// ── Modal shell ──────────────────────────────────────────────────────────────
-
-function Modal({
-  title,
-  onClose,
-  children,
-  footer,
-  width
-}: {
-  title: string
-  onClose: () => void
-  children: ReactNode
-  footer: ReactNode
-  width?: number
-}): JSX.Element {
-  return (
-    <div
-      style={s.modalScrim}
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onClose()
-      }}
-    >
-      <div style={{ ...s.modal, width: width ?? s.modal.width }} onMouseDown={(e) => e.stopPropagation()}>
-        <div style={s.modalHead}>
-          <span style={{ fontSize: 15, fontWeight: 650 }}>{title}</span>
-          <button aria-label="Close" onClick={onClose} style={{ ...s.iconBtnGhost, width: 28, height: 28 }}>
-            <X size={16} />
-          </button>
-        </div>
-        <div style={s.modalBody}>{children}</div>
-        <div style={s.modalFoot}>{footer}</div>
-      </div>
-    </div>
   )
 }
 
@@ -207,7 +179,7 @@ function ServerFormPage({ host, onBack, onSaved }: ServerFormProps): JSX.Element
         <div style={s.formGrid}>
           <div>
             <label style={s.fieldLabel}>Name</label>
-            <input style={s.input} value={name} onChange={(e) => setName(e.target.value)} placeholder="DotCraftCloud" />
+            <input style={s.input} value={name} onChange={(e) => setName(e.target.value)} placeholder="Example Remote" />
           </div>
           <div>
             <label style={s.fieldLabel}>SSH target</label>
@@ -336,28 +308,64 @@ function ServerFormPage({ host, onBack, onSaved }: ServerFormProps): JSX.Element
   )
 }
 
-// ── Add / edit stack modal ───────────────────────────────────────────────────
+// ── Add / edit stack page ────────────────────────────────────────────────────
 
-function StackFormModal({
-  host,
-  stack,
-  onClose
-}: {
+interface StackFormProps {
   host: RemoteHost
   stack?: RemoteStack
-  onClose: () => void
-}): JSX.Element {
+  onBack: () => void
+  onSaved: (host: RemoteHost) => void
+}
+
+function StackFormPage({
+  host,
+  stack,
+  onBack,
+  onSaved
+}: StackFormProps): JSX.Element {
   const store = useRemoteServersStore()
   const [name, setName] = useState(stack?.name ?? '')
   const [composeDir, setComposeDir] = useState(stack?.composeDir ?? '')
   const [workspaceDir, setWorkspaceDir] = useState(stack?.workspaceDir ?? '')
+  const [appServerWorkspacePath, setAppServerWorkspacePath] = useState(stack?.appServerWorkspacePath ?? '')
   const [projectName, setProjectName] = useState(stack?.projectName ?? '')
   const [appServerPort, setAppServerPort] = useState(String(stack?.appServerPort ?? 9100))
   const [dashboardPort, setDashboardPort] = useState(String(stack?.dashboardPort ?? 8080))
   const [sandbox, setSandbox] = useState(stack?.sandboxProfile ?? false)
+  const [discoveredStacks, setDiscoveredStacks] = useState<DiscoveredStack[]>([])
+  const [discoveryRan, setDiscoveryRan] = useState(false)
 
   const editing = Boolean(stack)
   const canSave = name.trim().length > 0 && composeDir.trim().length > 0
+  const discovering = store.discovering[host.id]
+
+  const applyDiscoveredStack = (candidate: DiscoveredStack): void => {
+    setName(candidate.name)
+    setComposeDir(candidate.composeDir)
+    setWorkspaceDir(candidate.workspaceDir ?? '')
+    setAppServerWorkspacePath(candidate.appServerWorkspacePath ?? '')
+    setProjectName(candidate.projectName ?? '')
+    setAppServerPort(String(candidate.appServerPort || 9100))
+    setDashboardPort(String(candidate.dashboardPort || 8080))
+    setSandbox(candidate.sandboxProfile)
+  }
+
+  const discoveryKey = (candidate: Pick<DiscoveredStack, 'composeDir' | 'projectName'>): string =>
+    `${candidate.projectName ?? ''}\u0000${candidate.composeDir}`
+
+  const handleDiscover = async (): Promise<void> => {
+    setDiscoveryRan(true)
+    const existing = new Set(
+      host.stacks
+        .filter((st) => st.id !== stack?.id)
+        .map((st) => discoveryKey({ composeDir: st.composeDir, projectName: st.projectName }))
+    )
+    const candidates = (await store.discoverStacks(host.id)).filter((candidate) => !existing.has(discoveryKey(candidate)))
+    setDiscoveredStacks(candidates)
+    if (candidates.length === 1 && !editing && !name.trim() && !composeDir.trim()) {
+      applyDiscoveredStack(candidates[0])
+    }
+  }
 
   const handleSave = async (): Promise<void> => {
     const next: RemoteStack = {
@@ -365,6 +373,7 @@ function StackFormModal({
       name: name.trim(),
       composeDir: composeDir.trim(),
       workspaceDir: workspaceDir.trim() || undefined,
+      appServerWorkspacePath: appServerWorkspacePath.trim() || undefined,
       projectName: projectName.trim() || undefined,
       appServerPort: Number(appServerPort) || 9100,
       dashboardPort: Number(dashboardPort) || 8080,
@@ -373,8 +382,8 @@ function StackFormModal({
     const stacks = editing
       ? host.stacks.map((st) => (st.id === stack!.id ? next : st))
       : [...host.stacks, next]
-    await store.updateHost(host.id, { stacks })
-    onClose()
+    const updated = await store.updateHost(host.id, { stacks })
+    if (updated) onSaved(updated)
   }
 
   const portInput = (value: string, set: (v: string) => void): JSX.Element => (
@@ -382,104 +391,163 @@ function StackFormModal({
   )
 
   return (
-    <Modal
+    <SettingsPanelShell
       title={editing ? 'Edit stack' : 'Add stack'}
-      onClose={onClose}
-      width={480}
-      footer={
-        <>
-          <button style={s.btn} onClick={onClose}>
-            Cancel
-          </button>
-          <button style={{ ...s.btnPrimary, opacity: canSave ? 1 : 0.5 }} onClick={handleSave} disabled={!canSave}>
-            {editing ? 'Save' : 'Add stack'}
-          </button>
-        </>
+      description={`Register a DotCraft Docker Compose deployment on ${host.name}.`}
+      action={
+        <button type="button" onClick={onBack} style={s.btn}>
+          <ArrowLeft size={15} /> Back
+        </button>
       }
     >
-      <div style={{ marginBottom: 14 }}>
-        <label style={s.fieldLabel}>Name</label>
-        <input style={s.input} value={name} onChange={(e) => setName(e.target.value)} placeholder="prod" />
-      </div>
-      <div style={{ marginBottom: 14 }}>
-        <label style={s.fieldLabel}>Deployment folder</label>
-        <input
-          style={{ ...s.input, fontFamily: 'var(--font-mono)' }}
-          value={composeDir}
-          onChange={(e) => setComposeDir(e.target.value)}
-          placeholder="~/dotcraft/deploy/docker"
-        />
-        <div style={s.fieldHint}>The folder on the server where this DotCraft stack is deployed.</div>
-      </div>
-      <div style={{ marginBottom: 14 }}>
-        <label style={s.fieldLabel}>
-          Data folder <span style={{ color: 'var(--text-dimmed)', fontWeight: 400 }}>(optional)</span>
-        </label>
-        <input
-          style={{ ...s.input, fontFamily: 'var(--font-mono)' }}
-          value={workspaceDir}
-          onChange={(e) => setWorkspaceDir(e.target.value)}
-          placeholder="Defaults to the stack's data folder"
-        />
-      </div>
-      <div style={{ marginBottom: 14 }}>
-        <label style={s.fieldLabel}>
-          Project name <span style={{ color: 'var(--text-dimmed)', fontWeight: 400 }}>(optional)</span>
-        </label>
-        <input
-          style={{ ...s.input, fontFamily: 'var(--font-mono)' }}
-          value={projectName}
-          onChange={(e) => setProjectName(e.target.value)}
-        />
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
-        <div>
-          <label style={s.fieldLabel}>App server port</label>
-          {portInput(appServerPort, setAppServerPort)}
+      <SettingsGroup title="Deployment" flush>
+        <div style={s.discoveryPanel}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <div style={{ flex: 1, minWidth: 220 }}>
+              <div style={{ fontSize: 12.5, fontWeight: 600 }}>Discover from Docker</div>
+              <div style={s.fieldHint}>Find DotCraft Compose stacks from Docker labels on this server.</div>
+            </div>
+            <button type="button" style={s.btn} disabled={discovering} onClick={handleDiscover}>
+              {discovering ? <Loader2 size={15} className="animate-spin-custom" /> : <Search size={15} />}
+              Discover
+            </button>
+          </div>
+
+          {discoveredStacks.length > 0 && (
+            <div style={{ ...s.choiceGrid, marginTop: 10 }}>
+              {discoveredStacks.map((candidate) => (
+                <button
+                  key={discoveryKey(candidate)}
+                  type="button"
+                  style={s.choiceButton}
+                  onClick={() => applyDiscoveredStack(candidate)}
+                >
+                  <span style={s.choiceIcon}>
+                    <Server size={15} />
+                  </span>
+                  <span style={{ minWidth: 0 }}>
+                    <span style={s.choiceTitle}>{candidate.name}</span>
+                    <span style={s.choiceSubtitle}>
+                      {candidate.composeDir}
+                      {candidate.projectName ? ` · ${candidate.projectName}` : ''}
+                    </span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {discoveryRan && !discovering && discoveredStacks.length === 0 && (
+            <div style={{ ...s.mutedText, marginTop: 10 }}>No new DotCraft Compose stacks found.</div>
+          )}
         </div>
-        <div>
-          <label style={s.fieldLabel}>Dashboard port</label>
-          {portInput(dashboardPort, setDashboardPort)}
+
+        <div style={s.formGrid}>
+          <div>
+            <label style={s.fieldLabel}>Name</label>
+            <input style={s.input} value={name} onChange={(e) => setName(e.target.value)} placeholder="prod" />
+          </div>
+          <div>
+            <label style={s.fieldLabel}>Deployment folder</label>
+            <input
+              style={{ ...s.input, fontFamily: 'var(--font-mono)' }}
+              value={composeDir}
+              onChange={(e) => setComposeDir(e.target.value)}
+              placeholder="~/dotcraft/deploy/docker"
+            />
+            <div style={s.fieldHint}>The folder on the server where this DotCraft stack is deployed.</div>
+          </div>
+          <div>
+            <label style={s.fieldLabel}>
+              Data folder <span style={{ color: 'var(--text-dimmed)', fontWeight: 400 }}>(optional)</span>
+            </label>
+            <input
+              style={{ ...s.input, fontFamily: 'var(--font-mono)' }}
+              value={workspaceDir}
+              onChange={(e) => setWorkspaceDir(e.target.value)}
+              placeholder="Defaults to the stack's data folder"
+            />
+          </div>
+          <div>
+            <label style={s.fieldLabel}>
+              Project name <span style={{ color: 'var(--text-dimmed)', fontWeight: 400 }}>(optional)</span>
+            </label>
+            <input
+              style={{ ...s.input, fontFamily: 'var(--font-mono)' }}
+              value={projectName}
+              onChange={(e) => setProjectName(e.target.value)}
+            />
+          </div>
         </div>
-      </div>
-      <div style={{ ...s.switchRow, marginBottom: 14 }}>
-        <div>
-          <div style={{ fontSize: 12.5, fontWeight: 600 }}>Sandbox</div>
-          <div style={{ ...s.fieldHint, marginTop: 3 }}>Run the optional sandbox service alongside this stack</div>
+      </SettingsGroup>
+
+      <SettingsGroup
+        title="Ports"
+        description="Remote ports inside this stack. Desktop reaches them through SSH tunnels."
+        flush
+      >
+        <div style={s.twoColumnGrid}>
+          <div>
+            <label style={s.fieldLabel}>App server port</label>
+            {portInput(appServerPort, setAppServerPort)}
+          </div>
+          <div>
+            <label style={s.fieldLabel}>Dashboard port</label>
+            {portInput(dashboardPort, setDashboardPort)}
+          </div>
         </div>
-        <button
-          role="switch"
-          aria-checked={sandbox}
-          onClick={() => setSandbox((v) => !v)}
-          style={{
-            width: 38,
-            height: 22,
-            borderRadius: 999,
-            position: 'relative',
-            cursor: 'pointer',
-            border: sandbox ? '1px solid var(--accent)' : '1px solid var(--border-default)',
-            background: sandbox ? 'var(--accent)' : 'var(--bg-active)'
-          }}
-        >
-          <span
+      </SettingsGroup>
+
+      <SettingsGroup title="Runtime" flush>
+        <div style={s.switchRow}>
+          <div>
+            <div style={{ fontSize: 12.5, fontWeight: 600 }}>Sandbox</div>
+            <div style={{ ...s.fieldHint, marginTop: 3 }}>Run the optional sandbox service alongside this stack</div>
+          </div>
+          <button
+            role="switch"
+            aria-checked={sandbox}
+            onClick={() => setSandbox((v) => !v)}
             style={{
-              position: 'absolute',
-              top: 2,
-              left: 2,
-              width: 16,
-              height: 16,
-              borderRadius: '50%',
-              background: sandbox ? 'var(--on-accent)' : 'var(--text-secondary)',
-              transform: sandbox ? 'translateX(16px)' : 'translateX(0)',
-              transition: 'transform 120ms ease'
+              width: 38,
+              height: 22,
+              borderRadius: 999,
+              position: 'relative',
+              cursor: 'pointer',
+              border: sandbox ? '1px solid var(--accent)' : '1px solid var(--border-default)',
+              background: sandbox ? 'var(--accent)' : 'var(--bg-active)'
             }}
-          />
+          >
+            <span
+              style={{
+                position: 'absolute',
+                top: 2,
+                left: 2,
+                width: 16,
+                height: 16,
+                borderRadius: '50%',
+                background: sandbox ? 'var(--on-accent)' : 'var(--text-secondary)',
+                transform: sandbox ? 'translateX(16px)' : 'translateX(0)',
+                transition: 'transform 120ms ease'
+              }}
+            />
+          </button>
+        </div>
+        <div style={s.callout}>
+          DotCraft reads this stack&apos;s sign-in token automatically when you connect. You never enter or store it here.
+        </div>
+      </SettingsGroup>
+
+      <div style={s.formActions}>
+        <span style={{ flex: 1 }} />
+        <button style={s.btn} onClick={onBack}>
+          Cancel
+        </button>
+        <button style={{ ...s.btnPrimary, opacity: canSave ? 1 : 0.5 }} onClick={handleSave} disabled={!canSave}>
+          {editing ? 'Save' : 'Add stack'}
         </button>
       </div>
-      <div style={s.callout}>
-        DotCraft reads this stack&apos;s sign-in token automatically when you connect. You never enter or store it here.
-      </div>
-    </Modal>
+    </SettingsPanelShell>
   )
 }
 
@@ -548,7 +616,7 @@ function StackCard({
           <StatusDot tone={tone} />
           <span style={{ fontSize: 13.5, fontWeight: 600, lineHeight: 1 }}>{stack.name}</span>
           {active ? (
-            <StatusText tone="success">Connected</StatusText>
+            <span style={s.statusTextStyle('success')}>Connected</span>
           ) : (
             <span style={s.statusTextStyle(healthTone(status?.health))}>{healthLabel(status)}</span>
           )}
@@ -576,9 +644,11 @@ function StackCard({
                     })
                   }
                 >
+                  <Download size={14} />
                   Update
                 </button>
                 <button style={s.overflowItem} onClick={() => confirmAndRun('restart')}>
+                  <RotateCw size={14} />
                   Restart
                 </button>
                 {running ? (
@@ -593,10 +663,12 @@ function StackCard({
                       })
                     }
                   >
+                    <Square size={14} />
                     Stop
                   </button>
                 ) : (
                   <button style={s.overflowItem} onClick={() => confirmAndRun('start')}>
+                    <Play size={14} />
                     Start
                   </button>
                 )}
@@ -608,6 +680,7 @@ function StackCard({
                     onEdit()
                   }}
                 >
+                  <Pencil size={14} />
                   Edit stack
                 </button>
                 <button
@@ -624,6 +697,7 @@ function StackCard({
                     await store.updateHost(host.id, { stacks: host.stacks.filter((st) => st.id !== stack.id) })
                   }}
                 >
+                  <Trash2 size={14} />
                   Remove
                 </button>
               </div>
@@ -704,6 +778,48 @@ function ServerDetail({
   const testing = store.testing[host.id]
   const result = store.testResults[host.id]
   const unreachable = result != null && !result.reachable
+  const [manualReachVisible, setManualReachVisible] = useState(false)
+  const reachHideTimerRef = useRef<number | null>(null)
+
+  const clearReachHideTimer = (): void => {
+    if (reachHideTimerRef.current != null) {
+      window.clearTimeout(reachHideTimerRef.current)
+      reachHideTimerRef.current = null
+    }
+  }
+
+  const scheduleReachHide = (): void => {
+    clearReachHideTimer()
+    reachHideTimerRef.current = window.setTimeout(() => {
+      reachHideTimerRef.current = null
+      setManualReachVisible(false)
+    }, REACHABILITY_FLASH_MS)
+  }
+
+  useEffect(() => {
+    clearReachHideTimer()
+    setManualReachVisible(false)
+    return clearReachHideTimer
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [host.id])
+
+  useEffect(() => {
+    if (unreachable) clearReachHideTimer()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [unreachable])
+
+  const handleTestSsh = async (): Promise<void> => {
+    clearReachHideTimer()
+    setManualReachVisible(true)
+    const nextResult = await store.testHost({ id: host.id })
+    if (nextResult?.reachable) {
+      scheduleReachHide()
+    } else if (!nextResult) {
+      scheduleReachHide()
+    }
+  }
+
+  const showReachability = unreachable || manualReachVisible
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -716,12 +832,14 @@ function ServerDetail({
           <div style={{ marginTop: 4, color: 'var(--text-secondary)', fontSize: 12.5, fontFamily: 'var(--font-mono)' }}>
             {host.sshTarget}
           </div>
-          <div style={{ marginTop: 3 }}>
-            <StatusText tone={reach.tone}>{reach.label}</StatusText>
-          </div>
         </div>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-          <button style={s.btn} disabled={testing} onClick={() => store.testHost({ id: host.id })}>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+          {showReachability && (
+            <span aria-live="polite" style={{ display: 'inline-flex', alignItems: 'center', minHeight: 32 }}>
+              <StatusText tone={reach.tone}>{reach.label}</StatusText>
+            </span>
+          )}
+          <button style={s.btn} disabled={testing} onClick={handleTestSsh}>
             {testing ? <Loader2 size={15} className="animate-spin-custom" /> : <RefreshCw size={15} />}
             Test SSH
           </button>
@@ -767,7 +885,7 @@ function ServerDetail({
               {result?.message ?? 'SSH connection failed.'}
             </div>
             <div style={{ marginTop: 10 }}>
-              <button style={{ ...s.btn, ...s.btnSm }} disabled={testing} onClick={() => store.testHost({ id: host.id })}>
+              <button style={{ ...s.btn, ...s.btnSm }} disabled={testing} onClick={handleTestSsh}>
                 <RefreshCw size={14} /> Test SSH
               </button>
             </div>
@@ -889,39 +1007,55 @@ function ServerList({
 
 // ── Panel root ───────────────────────────────────────────────────────────────
 
-type ModalState =
-  | { kind: 'addStack'; host: RemoteHost }
-  | { kind: 'editStack'; host: RemoteHost; stack: RemoteStack }
-  | null
-
 type ServerFormState =
   | { kind: 'addServer' }
   | { kind: 'editServer'; hostId: string }
   | null
 
+type StackFormState =
+  | { kind: 'addStack'; hostId: string }
+  | { kind: 'editStack'; hostId: string; stackId: string }
+  | null
+
 export function ServersPanel(): JSX.Element {
   const store = useRemoteServersStore()
-  const [modal, setModal] = useState<ModalState>(null)
   const [serverForm, setServerForm] = useState<ServerFormState>(null)
+  const [stackForm, setStackForm] = useState<StackFormState>(null)
+  const [autoTestedHostIds, setAutoTestedHostIds] = useState<Set<string>>(() => new Set())
 
   useEffect(() => {
     if (!store.loaded) void store.load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  useEffect(() => {
+    if (!store.loaded || store.hosts.length === 0) return
+    const pending = store.hosts.filter((host) => !autoTestedHostIds.has(host.id) && !store.testing[host.id])
+    if (pending.length === 0) return
+    setAutoTestedHostIds((prev) => {
+      const next = new Set(prev)
+      for (const host of pending) next.add(host.id)
+      return next
+    })
+    for (const host of pending) void store.testHost({ id: host.id })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [store.loaded, store.hosts, store.testing, autoTestedHostIds])
+
   const selectedHost = store.hosts.find((h) => h.id === store.selectedHostId) ?? null
   const editingHost =
     serverForm?.kind === 'editServer'
       ? store.hosts.find((h) => h.id === serverForm.hostId) ?? null
       : null
-
-  const closeModal = (): void => setModal(null)
+  const stackFormHost = stackForm ? store.hosts.find((h) => h.id === stackForm.hostId) ?? null : null
+  const editingStack =
+    stackForm?.kind === 'editStack'
+      ? stackFormHost?.stacks.find((st) => st.id === stackForm.stackId) ?? null
+      : null
 
   const detailHeader: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 16 }
 
-  return (
-    <>
-      {serverForm?.kind === 'addServer' ? (
+  if (serverForm?.kind === 'addServer') {
+    return (
         <ServerFormPage
           onBack={() => setServerForm(null)}
           onSaved={(host) => {
@@ -929,7 +1063,11 @@ export function ServersPanel(): JSX.Element {
             setServerForm(null)
           }}
         />
-      ) : serverForm?.kind === 'editServer' && editingHost ? (
+    )
+  }
+
+  if (serverForm?.kind === 'editServer' && editingHost) {
+    return (
         <ServerFormPage
           host={editingHost}
           onBack={() => setServerForm(null)}
@@ -938,49 +1076,78 @@ export function ServersPanel(): JSX.Element {
             setServerForm(null)
           }}
         />
-      ) : selectedHost ? (
-        <div style={detailHeader}>
-          <ServerDetail
-            host={selectedHost}
-            onBack={() => store.selectHost(null)}
-            onEditServer={() => setServerForm({ kind: 'editServer', hostId: selectedHost.id })}
-            onAddStack={() => setModal({ kind: 'addStack', host: selectedHost })}
-            onEditStack={(stack) => setModal({ kind: 'editStack', host: selectedHost, stack })}
-          />
-        </div>
-      ) : (
-        <SettingsPanelShell
-          title="Servers"
-          description="Manage DotCraft running on your remote servers."
-          action={
-            store.hosts.length > 0 ? (
-              <button style={s.btnPrimary} onClick={() => setServerForm({ kind: 'addServer' })}>
-                <Plus size={15} /> Add server
-              </button>
-            ) : undefined
-          }
-        >
-          {store.error && (
-            <div style={{ ...s.banner, marginBottom: 4 }}>
-              <span style={{ color: 'var(--error)', marginTop: 1 }}>
-                <AlertTriangle size={18} />
-              </span>
-              <div style={{ flex: 1, fontSize: 12.5, color: 'var(--text-secondary)' }}>{store.error}</div>
-              <button style={s.iconBtnGhost} aria-label="Dismiss" onClick={() => store.clearError()}>
-                <X size={16} />
-              </button>
-            </div>
-          )}
-          <ServerList
-            hosts={store.hosts}
-            onOpen={(id) => store.selectHost(id)}
-            onAdd={() => setServerForm({ kind: 'addServer' })}
-          />
-        </SettingsPanelShell>
-      )}
+    )
+  }
 
-      {modal?.kind === 'addStack' && <StackFormModal host={modal.host} onClose={closeModal} />}
-      {modal?.kind === 'editStack' && <StackFormModal host={modal.host} stack={modal.stack} onClose={closeModal} />}
-    </>
+  if (stackForm?.kind === 'addStack' && stackFormHost) {
+    return (
+      <StackFormPage
+        host={stackFormHost}
+        onBack={() => setStackForm(null)}
+        onSaved={(host) => {
+          store.selectHost(host.id)
+          setStackForm(null)
+        }}
+      />
+    )
+  }
+
+  if (stackForm?.kind === 'editStack' && stackFormHost && editingStack) {
+    return (
+      <StackFormPage
+        host={stackFormHost}
+        stack={editingStack}
+        onBack={() => setStackForm(null)}
+        onSaved={(host) => {
+          store.selectHost(host.id)
+          setStackForm(null)
+        }}
+      />
+    )
+  }
+
+  if (selectedHost) {
+    return (
+      <div style={detailHeader}>
+        <ServerDetail
+          host={selectedHost}
+          onBack={() => store.selectHost(null)}
+          onEditServer={() => setServerForm({ kind: 'editServer', hostId: selectedHost.id })}
+          onAddStack={() => setStackForm({ kind: 'addStack', hostId: selectedHost.id })}
+          onEditStack={(stack) => setStackForm({ kind: 'editStack', hostId: selectedHost.id, stackId: stack.id })}
+        />
+      </div>
+    )
+  }
+
+  return (
+    <SettingsPanelShell
+      title="Servers"
+      description="Manage DotCraft running on your remote servers."
+      action={
+        store.hosts.length > 0 ? (
+          <button style={s.btnPrimary} onClick={() => setServerForm({ kind: 'addServer' })}>
+            <Plus size={15} /> Add server
+          </button>
+        ) : undefined
+      }
+    >
+      {store.error && (
+        <div style={{ ...s.banner, marginBottom: 4 }}>
+          <span style={{ color: 'var(--error)', marginTop: 1 }}>
+            <AlertTriangle size={18} />
+          </span>
+          <div style={{ flex: 1, fontSize: 12.5, color: 'var(--text-secondary)' }}>{store.error}</div>
+          <button style={s.iconBtnGhost} aria-label="Dismiss" onClick={() => store.clearError()}>
+            <X size={16} />
+          </button>
+        </div>
+      )}
+      <ServerList
+        hosts={store.hosts}
+        onOpen={(id) => store.selectHost(id)}
+        onAdd={() => setServerForm({ kind: 'addServer' })}
+      />
+    </SettingsPanelShell>
   )
 }

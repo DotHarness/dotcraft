@@ -251,6 +251,8 @@ export const MESSAGES_FR = {
   'settings.remoteUrl': 'Télécommande WebSocket URL',
   'settings.remoteToken': 'Jeton distant',
   'settings.remoteTokenPlaceholder': 'Facultatif. Ajouté à URL si le jeton est manquant.',
+  'settings.remoteStackManaged.title': 'Géré par Servers',
+  'settings.remoteStackManaged.description': 'Cette connexion distante utilise le stack serveur enregistré. Utilisez Servers pour la déconnecter ou la changer.',
   'settings.remoteUrlError.missing': 'Entrez un WebSocket URL distant avant d\'appliquer le mode Remote.',
   'settings.remoteUrlError.invalid': 'Entrez un WebSocket URL distant valide.',
   'settings.remoteUrlError.protocol': 'WebSocket URL distant doit commencer par ws:// ou wss://.',

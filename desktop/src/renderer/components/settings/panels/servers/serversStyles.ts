@@ -147,7 +147,7 @@ export const stackCard: CSSProperties = {
   border: '1px solid var(--border-default)',
   borderRadius: 10,
   background: 'var(--bg-secondary)',
-  overflow: 'hidden'
+  overflow: 'visible'
 }
 
 export const stackHead: CSSProperties = {
@@ -307,6 +307,20 @@ export const formGrid: CSSProperties = {
   gap: 14
 }
 
+export const discoveryPanel: CSSProperties = {
+  marginBottom: 14,
+  padding: 12,
+  border: '1px solid var(--border-default)',
+  borderRadius: 8,
+  background: 'var(--bg-secondary)'
+}
+
+export const twoColumnGrid: CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+  gap: 12
+}
+
 export const formActions: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
@@ -409,7 +423,9 @@ export const overflowMenu: CSSProperties = {
 }
 
 export const overflowItem: CSSProperties = {
-  display: 'block',
+  display: 'flex',
+  alignItems: 'center',
+  gap: 9,
   width: '100%',
   textAlign: 'left',
   padding: '8px 10px',
@@ -418,5 +434,6 @@ export const overflowItem: CSSProperties = {
   background: 'transparent',
   color: 'var(--text-primary)',
   fontSize: 13,
+  fontWeight: 500,
   cursor: 'pointer'
 }

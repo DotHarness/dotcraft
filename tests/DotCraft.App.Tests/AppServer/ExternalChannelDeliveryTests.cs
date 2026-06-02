@@ -528,7 +528,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
             {
                 Host = "0.0.0.0",
                 Port = 9133,
-                Token = "secret-token"
+                Token = "fixture-channel-token"
             }
         });
 
@@ -568,7 +568,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
             Assert.NotNull(capturedStartInfo);
             Assert.Equal("websocket", capturedStartInfo!.Environment["DOTCRAFT_CHANNEL_TRANSPORT"]);
             Assert.Equal("ws://127.0.0.1:9133/ws", capturedStartInfo.Environment["DOTCRAFT_CHANNEL_WS_URL"]);
-            Assert.Equal("secret-token", capturedStartInfo.Environment["DOTCRAFT_CHANNEL_WS_TOKEN"]);
+            Assert.Equal("fixture-channel-token", capturedStartInfo.Environment["DOTCRAFT_CHANNEL_WS_TOKEN"]);
             Assert.True(capturedStartInfo.RedirectStandardOutput);
             Assert.True(capturedStartInfo.RedirectStandardError);
         }

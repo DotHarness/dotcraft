@@ -28,13 +28,40 @@ vi.mock('../components/layout/CustomMenuBar', () => ({
 }))
 
 vi.mock('../components/layout/ThreePanel', () => ({
-  ThreePanel: ({ conversation }: { conversation?: ReactNode }) => (
-    <div data-testid="three-panel">{conversation}</div>
+  ThreePanel: ({
+    sidebar,
+    conversation,
+    detail
+  }: {
+    sidebar?: ReactNode
+    conversation?: ReactNode
+    detail?: ReactNode
+  }) => (
+    <div data-testid="three-panel">
+      {sidebar}
+      {conversation}
+      {detail}
+    </div>
   )
 }))
 
 vi.mock('../components/layout/Sidebar', () => ({
-  Sidebar: () => <div data-testid="sidebar" />
+  Sidebar: ({
+    workspaceName,
+    workspacePath,
+    remoteWorkspace
+  }: {
+    workspaceName: string
+    workspacePath: string
+    remoteWorkspace?: boolean
+  }) => (
+    <div
+      data-testid="sidebar"
+      data-workspace-name={workspaceName}
+      data-workspace-path={workspacePath}
+      data-remote-workspace={remoteWorkspace === true ? 'true' : 'false'}
+    />
+  )
 }))
 
 vi.mock('../components/layout/SettingsSidebar', () => ({
@@ -111,9 +138,23 @@ vi.mock('../components/whats-new/WhatsNewDialog', () => ({
 
 const readyWorkspaceStatus: WorkspaceStatusPayload = {
   status: 'ready',
-  workspacePath: 'F:\\dotcraft',
+  workspacePath: 'C:\\sample\\workspace',
   hasUserConfig: true,
   providers: []
+}
+
+const remoteReadyWorkspaceStatus: WorkspaceStatusPayload = {
+  ...readyWorkspaceStatus,
+  remote: {
+    hostId: 'h1',
+    stackId: 's1',
+    serverName: 'Example Remote',
+    stackName: 'demo-stack',
+    workspaceDir: '/srv/sample/demo-stack/deploy/workspace',
+    appServerWorkspacePath: '/workspace',
+    composeDir: '/srv/sample/demo-stack/deploy',
+    projectName: 'deploy'
+  }
 }
 
 const noWorkspaceStatus: WorkspaceStatusPayload = {
@@ -125,7 +166,7 @@ const noWorkspaceStatus: WorkspaceStatusPayload = {
 
 const needsSetupWorkspaceStatus: WorkspaceStatusPayload = {
   status: 'needs-setup',
-  workspacePath: 'F:\\needs-setup',
+  workspacePath: 'C:\\sample\\needs-setup',
   hasUserConfig: false,
   providers: []
 }
@@ -337,6 +378,66 @@ describe('App initial workspace status bootstrap', () => {
     expect(queryByTestId('welcome-screen')).not.toBeInTheDocument()
   })
 
+  it('keeps a remote restored workspace covered while the initial connection is disconnected', () => {
+    installApi(remoteReadyWorkspaceStatus)
+
+    const { container } = renderApp()
+
+    expect(container.querySelector('.workspace-launch-transition--connecting')).toBeInTheDocument()
+
+    act(() => {
+      useConnectionStore.getState().setStatus({
+        status: 'disconnected',
+        errorMessage: 'Reconnecting...'
+      })
+    })
+
+    expect(container.querySelector('.workspace-launch-transition--connecting')).toBeInTheDocument()
+    expect(container.querySelector('.workspace-launch-transition--main-reveal')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('error-screen')).not.toBeInTheDocument()
+  })
+
+  it('shows the error screen for a remote restored workspace initial connection error', async () => {
+    installApi(remoteReadyWorkspaceStatus)
+
+    const { container } = renderApp()
+
+    expect(container.querySelector('.workspace-launch-transition--connecting')).toBeInTheDocument()
+
+    act(() => {
+      useConnectionStore.getState().setStatus({
+        status: 'error',
+        errorMessage: 'Remote AppServer initialize timed out.',
+        errorType: 'handshake-timeout'
+      })
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('error-screen')).toBeInTheDocument()
+      expect(container.querySelector('.workspace-launch-transition--error-reveal')).toBeInTheDocument()
+    })
+    expect(container.querySelector('.workspace-launch-transition--main-reveal')).not.toBeInTheDocument()
+  })
+
+  it('keeps a local restored workspace covered while the initial connection is disconnected', () => {
+    installApi(readyWorkspaceStatus)
+
+    const { container } = renderApp()
+
+    expect(container.querySelector('.workspace-launch-transition--connecting')).toBeInTheDocument()
+
+    act(() => {
+      useConnectionStore.getState().setStatus({
+        status: 'disconnected',
+        errorMessage: 'Reconnecting...'
+      })
+    })
+
+    expect(container.querySelector('.workspace-launch-transition--connecting')).toBeInTheDocument()
+    expect(container.querySelector('.workspace-launch-transition--main-reveal')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('error-screen')).not.toBeInTheDocument()
+  })
+
   it('does not auto-open What’s New before remote media is ready', async () => {
     const prefetchMedia = vi.fn().mockResolvedValue(mediaStates('failed'))
     const { getMediaStates } = installApi(readyWorkspaceStatus, {
@@ -418,6 +519,37 @@ describe('App initial workspace status bootstrap', () => {
     expect(useConnectionStore.getState().status).toBe('disconnected')
     expect(useUIStore.getState().activeMainView).toBe('settings')
     expect(useUIStore.getState().activeSettingsTab).toBe('connection')
+  })
+
+  it('uses remote stack metadata for the sidebar and AppServer thread identity', async () => {
+    const appServerSendRequest = vi.fn(async (method: string) => {
+      if (method === 'thread/list') {
+        return { data: [] }
+      }
+      return {}
+    })
+    installApi(remoteReadyWorkspaceStatus, {
+      appServerSendRequest,
+      modulesList: vi.fn().mockResolvedValue([]),
+      modulesRunning: vi.fn().mockResolvedValue({}),
+      settingsGet: vi.fn().mockResolvedValue({})
+    })
+    useConnectionStore.getState().setStatus({ status: 'connected' })
+
+    renderApp()
+
+    const sidebar = await screen.findByTestId('sidebar')
+    expect(sidebar).toHaveAttribute('data-workspace-name', 'demo-stack')
+    expect(sidebar).toHaveAttribute('data-workspace-path', '/srv/sample/demo-stack/deploy/workspace')
+    expect(sidebar).toHaveAttribute('data-remote-workspace', 'true')
+
+    await waitFor(() => {
+      expect(appServerSendRequest.mock.calls.some((call) => call[0] === 'thread/list')).toBe(true)
+    })
+    const threadListCall = appServerSendRequest.mock.calls.find((call) => call[0] === 'thread/list')
+    const params = threadListCall?.[1] as { identity?: { channelContext?: string; workspacePath?: string } } | undefined
+    expect(params?.identity?.workspacePath).toBe('/workspace')
+    expect(params?.identity?.channelContext).toBe('workspace:/workspace')
   })
 
   it('keeps the Team surface behind the installed and enabled agent-teams plugin', async () => {

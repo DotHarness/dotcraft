@@ -6,7 +6,8 @@ import type {
   RemoteStackAction,
   SshTestResult,
   OperationResult,
-  LocalSshConfigInfo
+  LocalSshConfigInfo,
+  DiscoveredStack
 } from '../../shared/remoteServers'
 
 export interface ActiveStackRef {
@@ -23,6 +24,8 @@ interface RemoteServersState {
   testing: Record<string, boolean>
   /** Last SSH test result, keyed by hostId. */
   testResults: Record<string, SshTestResult>
+  /** Stack discovery in flight, keyed by hostId. */
+  discovering: Record<string, boolean>
   /** Stack status, keyed by stackId. */
   statuses: Record<string, RemoteStackStatus>
   statusLoading: Record<string, boolean>
@@ -51,6 +54,7 @@ interface RemoteServersStore extends RemoteServersState {
     id?: string
     draft?: { name?: string; sshTarget?: string; identityFile?: string }
   }): Promise<SshTestResult | null>
+  discoverStacks(hostId: string): Promise<DiscoveredStack[]>
   refreshStatus(hostId: string, stackId: string): Promise<void>
   runAction(hostId: string, stackId: string, action: RemoteStackAction): Promise<OperationResult | null>
   openInDesktop(hostId: string, stackId: string): Promise<boolean>
@@ -70,6 +74,7 @@ export const useRemoteServersStore = create<RemoteServersStore>((set) => ({
   selectedHostId: null,
   testing: {},
   testResults: {},
+  discovering: {},
   statuses: {},
   statusLoading: {},
   busyStacks: {},
@@ -81,8 +86,22 @@ export const useRemoteServersStore = create<RemoteServersStore>((set) => ({
   async load() {
     set({ loading: true, error: null })
     try {
-      const hosts = await window.api.remoteServers.list()
-      set({ hosts, loaded: true, loading: false })
+      const settingsPromise = window.api.settings?.get
+        ? window.api.settings.get().catch(() => ({}))
+        : Promise.resolve({})
+      const [hosts, settings] = await Promise.all([
+        window.api.remoteServers.list(),
+        settingsPromise
+      ])
+      const activeRemoteStack = settings.activeRemoteStack
+      set({
+        hosts,
+        loaded: true,
+        loading: false,
+        activeStack: activeRemoteStack?.hostId && activeRemoteStack.stackId
+          ? { hostId: activeRemoteStack.hostId, stackId: activeRemoteStack.stackId }
+          : null
+      })
     } catch (error) {
       set({ loading: false, error: messageOf(error) })
     }
@@ -152,6 +171,21 @@ export const useRemoteServersStore = create<RemoteServersStore>((set) => ({
     } catch (error) {
       set((state) => ({ testing: { ...state.testing, [key]: false }, error: messageOf(error) }))
       return null
+    }
+  },
+
+  async discoverStacks(hostId) {
+    set((state) => ({ discovering: { ...state.discovering, [hostId]: true } }))
+    try {
+      const stacks = await window.api.remoteServers.discoverStacks(hostId)
+      set((state) => ({ discovering: { ...state.discovering, [hostId]: false } }))
+      return stacks
+    } catch (error) {
+      set((state) => ({
+        discovering: { ...state.discovering, [hostId]: false },
+        error: messageOf(error)
+      }))
+      return []
     }
   },
 

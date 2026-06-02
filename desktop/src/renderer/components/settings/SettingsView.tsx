@@ -175,6 +175,11 @@ interface ProviderTestResultWire {
   errorMessage?: string
 }
 
+interface ActiveRemoteStackRef {
+  hostId: string
+  stackId: string
+}
+
 // Canonical id/displayName for ChatGPT-subscription providers. Must match the literals
 // written by OpenAIAuthBindingPersistence.BindProviderToOAuth on the backend
 // (src/DotCraft.Core/Auth/OpenAI/OpenAIAuthBindingPersistence.cs) so that re-binding
@@ -1364,6 +1369,7 @@ export function SettingsView({
   const [wsPort, setWsPort] = useState(String(DEFAULT_WS_PORT))
   const [remoteUrl, setRemoteUrl] = useState('')
   const [remoteToken, setRemoteToken] = useState('')
+  const [activeRemoteStack, setActiveRemoteStack] = useState<ActiveRemoteStackRef | null>(null)
   const [theme, setTheme] = useState<ThemeMode>('light')
   const [locale, setLocale] = useState<AppLocale>(normalizeLocale(undefined))
   const [taskCompletionNotificationMode, setTaskCompletionNotificationMode] =
@@ -1521,20 +1527,25 @@ export function SettingsView({
     providerModelError.trim() === '' &&
     effectiveProviderModelOptions.length > 0
   const llmDirty = false
+  const activeRemoteStackConnection = connectionMode === 'remote' && activeRemoteStack != null
+  const manualRemoteConnection = connectionMode === 'remote' && !activeRemoteStackConnection
+  const localConnectionSettingsEnabled = connectionMode !== 'remote'
   const connectionDirty =
     baselineConnection != null &&
-    (binarySource !== baselineConnection.binarySource ||
-      binaryPath.trim() !== baselineConnection.binaryPath.trim() ||
-      connectionMode !== baselineConnection.connectionMode ||
-      wsHost.trim() !== baselineConnection.wsHost.trim() ||
-      wsPort.trim() !== baselineConnection.wsPort.trim() ||
-      remoteUrl.trim() !== baselineConnection.remoteUrl.trim() ||
-      remoteToken.trim() !== baselineConnection.remoteToken.trim())
+    (connectionMode !== baselineConnection.connectionMode ||
+      (localConnectionSettingsEnabled &&
+        (binarySource !== baselineConnection.binarySource ||
+          binaryPath.trim() !== baselineConnection.binaryPath.trim() ||
+          wsHost.trim() !== baselineConnection.wsHost.trim() ||
+          wsPort.trim() !== baselineConnection.wsPort.trim())) ||
+      (manualRemoteConnection &&
+        (remoteUrl.trim() !== baselineConnection.remoteUrl.trim() ||
+          remoteToken.trim() !== baselineConnection.remoteToken.trim())))
   const remoteConnectionValidation = useMemo(
-    () => connectionMode === 'remote'
+    () => manualRemoteConnection
       ? resolveRemoteWebSocketConfig({ url: remoteUrl, token: remoteToken })
       : null,
-    [connectionMode, remoteToken, remoteUrl]
+    [manualRemoteConnection, remoteToken, remoteUrl]
   )
   function applyWorkspaceCoreBaseline(core: WorkspaceCoreConfigResult, keepDraftValues: boolean): void {
     setWorkspaceCoreBaseline(core.workspace)
@@ -2335,6 +2346,11 @@ export function SettingsView({
         setWsPort(String(s.webSocket?.port ?? DEFAULT_WS_PORT))
         setRemoteUrl(s.remote?.url ?? '')
         setRemoteToken(s.remote?.token ?? '')
+        setActiveRemoteStack(
+          s.activeRemoteStack?.hostId && s.activeRemoteStack.stackId
+            ? { hostId: s.activeRemoteStack.hostId, stackId: s.activeRemoteStack.stackId }
+            : null
+        )
         setTheme(resolveTheme(s.theme))
         setLocale(normalizeLocale(s.locale))
         setTaskCompletionNotificationMode(
@@ -2943,6 +2959,9 @@ export function SettingsView({
       remoteUrl,
       remoteToken
     })
+    if (connectionMode !== 'remote') {
+      setActiveRemoteStack(null)
+    }
   }
 
   async function handlePickBinary(): Promise<void> {
@@ -4258,7 +4277,29 @@ export function SettingsView({
                     />
                   </SettingsRow>
 
-                  {connectionMode === 'remote' && (
+                  {activeRemoteStackConnection && (
+                    <SettingsRow
+                      orientation="block"
+                      label={t('settings.remoteStackManaged.title')}
+                    >
+                      <div
+                        style={{
+                          border: '1px solid var(--border-default)',
+                          borderLeft: '3px solid var(--accent-blue)',
+                          borderRadius: '8px',
+                          background: 'var(--bg-secondary)',
+                          color: 'var(--text-secondary)',
+                          fontSize: '12px',
+                          lineHeight: 1.5,
+                          padding: '10px 12px'
+                        }}
+                      >
+                        {t('settings.remoteStackManaged.description')}
+                      </div>
+                    </SettingsRow>
+                  )}
+
+                  {manualRemoteConnection && (
                     <SettingsRow
                       orientation="block"
                       label={t('settings.remoteUrl')}

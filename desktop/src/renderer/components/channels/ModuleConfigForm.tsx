@@ -21,6 +21,7 @@ interface ModuleConfigFormProps {
   moduleStatus?: ModuleStatusEntry
   persistedEnabled: boolean
   wsAvailable: boolean
+  localControlsAvailable?: boolean
   onStart: () => void
   onStop: () => void
   starting: boolean
@@ -141,6 +142,7 @@ export function ModuleConfigForm({
   moduleStatus,
   persistedEnabled,
   wsAvailable,
+  localControlsAvailable = true,
   onStart,
   onStop,
   starting,
@@ -507,25 +509,27 @@ export function ModuleConfigForm({
         </FieldCard>
       )}
 
-      <FieldCard>
-        <ToggleSwitch
-          checked={enableChecked}
-          disabled={enableDisabled}
-          onChange={(checked) => {
-            if (checked) {
-              onStart()
-            } else {
-              onStop()
-            }
-          }}
-          label={t('channels.modules.enable')}
-        />
-        {!wsAvailable && (
-          <div style={{ marginTop: '8px', fontSize: '12px', color: 'var(--warning, #ff9f0a)' }}>
-            {t('channels.modules.wsRequired')}
-          </div>
-        )}
-      </FieldCard>
+      {localControlsAvailable && (
+        <FieldCard>
+          <ToggleSwitch
+            checked={enableChecked}
+            disabled={enableDisabled}
+            onChange={(checked) => {
+              if (checked) {
+                onStart()
+              } else {
+                onStop()
+              }
+            }}
+            label={t('channels.modules.enable')}
+          />
+          {!wsAvailable && (
+            <div style={{ marginTop: '8px', fontSize: '12px', color: 'var(--warning, #ff9f0a)' }}>
+              {t('channels.modules.wsRequired')}
+            </div>
+          )}
+        </FieldCard>
+      )}
 
       {moduleStatus?.processState === 'crashed' && (
         <div
@@ -582,22 +586,24 @@ export function ModuleConfigForm({
             >
               {logsLoading ? t('channels.modules.logs.loading') : t('channels.modules.logs.view')}
             </button>
-            <button
-              type="button"
-              onClick={onStart}
-              style={{
-                border: '1px solid var(--error, #ff453a)',
-                background: 'transparent',
-                color: 'var(--error, #ff453a)',
-                borderRadius: '6px',
-                padding: '4px 10px',
-                fontSize: '12px',
-                fontWeight: 600,
-                cursor: 'pointer'
-              }}
-            >
-              {t('channels.modules.restart')}
-            </button>
+            {localControlsAvailable && (
+              <button
+                type="button"
+                onClick={onStart}
+                style={{
+                  border: '1px solid var(--error, #ff453a)',
+                  background: 'transparent',
+                  color: 'var(--error, #ff453a)',
+                  borderRadius: '6px',
+                  padding: '4px 10px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                {t('channels.modules.restart')}
+              </button>
+            )}
           </div>
         </div>
       )}

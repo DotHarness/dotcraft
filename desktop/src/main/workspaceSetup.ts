@@ -40,6 +40,17 @@ export interface WorkspaceUserConfigDefaults {
   model?: string
 }
 
+export interface RemoteWorkspaceStatusPayload {
+  hostId: string
+  stackId: string
+  serverName: string
+  stackName: string
+  workspaceDir: string
+  appServerWorkspacePath?: string
+  composeDir: string
+  projectName?: string
+}
+
 export interface WorkspaceStatusPayload {
   status: WorkspaceSetupState
   workspacePath: string
@@ -47,6 +58,7 @@ export interface WorkspaceStatusPayload {
   userConfigDefaults?: WorkspaceUserConfigDefaults
   providers: WorkspaceSetupProviderSummary[]
   bootstrapImportSources?: WorkspaceSetupBootstrapImportSource[]
+  remote?: RemoteWorkspaceStatusPayload
 }
 
 export interface WorkspaceSetupProviderDraft {

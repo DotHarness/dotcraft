@@ -28,6 +28,18 @@ export interface InitialWorkspaceStatusPayload {
   userConfigDefaults?: InitialWorkspaceUserConfigDefaults
   providers: InitialWorkspaceProviderSummary[]
   bootstrapImportSources?: InitialWorkspaceBootstrapImportSource[]
+  remote?: InitialRemoteWorkspaceStatusPayload
+}
+
+export interface InitialRemoteWorkspaceStatusPayload {
+  hostId: string
+  stackId: string
+  serverName: string
+  stackName: string
+  workspaceDir: string
+  appServerWorkspacePath?: string
+  composeDir: string
+  projectName?: string
 }
 
 export interface InitialWorkspaceBootstrapImportSource {
@@ -97,7 +109,41 @@ function normalizeInitialWorkspaceStatus(value: unknown): InitialWorkspaceStatus
     normalized.userConfigDefaults = userConfigDefaults
   }
 
+  const remote = normalizeRemoteWorkspaceStatus(raw.remote)
+  if (remote) {
+    normalized.remote = remote
+  }
+
   return normalized
+}
+
+function normalizeRemoteWorkspaceStatus(value: unknown): InitialRemoteWorkspaceStatusPayload | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+
+  const raw = value as Record<string, unknown>
+  const hostId = typeof raw.hostId === 'string' ? raw.hostId.trim() : ''
+  const stackId = typeof raw.stackId === 'string' ? raw.stackId.trim() : ''
+  const serverName = typeof raw.serverName === 'string' ? raw.serverName.trim() : ''
+  const stackName = typeof raw.stackName === 'string' ? raw.stackName.trim() : ''
+  const workspaceDir = typeof raw.workspaceDir === 'string' ? raw.workspaceDir.trim() : ''
+  const appServerWorkspacePath =
+    typeof raw.appServerWorkspacePath === 'string' ? raw.appServerWorkspacePath.trim() : ''
+  const composeDir = typeof raw.composeDir === 'string' ? raw.composeDir.trim() : ''
+  if (!hostId || !stackId || !serverName || !stackName || !workspaceDir || !composeDir) {
+    return null
+  }
+
+  const projectName = typeof raw.projectName === 'string' ? raw.projectName.trim() : ''
+  return {
+    hostId,
+    stackId,
+    serverName,
+    stackName,
+    workspaceDir,
+    ...(appServerWorkspacePath ? { appServerWorkspacePath } : {}),
+    composeDir,
+    ...(projectName ? { projectName } : {})
+  }
 }
 
 function normalizeProviderSummary(value: unknown): InitialWorkspaceProviderSummary | null {

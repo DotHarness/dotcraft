@@ -35,7 +35,12 @@ export class TunnelManager {
     kind: TunnelKind
   ): Promise<TunnelInfo> {
     const existing = this.tunnels.get(key(host.id, stackId, kind))
-    if (existing && !existing.proc.killed) {
+    if (
+      existing &&
+      !existing.proc.killed &&
+      existing.proc.exitCode == null &&
+      existing.proc.signalCode == null
+    ) {
       return existing.info
     }
 

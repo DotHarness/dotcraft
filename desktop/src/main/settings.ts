@@ -36,6 +36,11 @@ export interface RemoteConnectionSettings {
   token?: string
 }
 
+export interface ActiveRemoteStackSettings {
+  hostId: string
+  stackId: string
+}
+
 export type BrowserUseApprovalMode = 'alwaysAsk' | 'askUnknown' | 'neverAsk'
 export type TaskCompletionNotificationMode = 'whenUnfocused' | 'always' | 'never'
 
@@ -64,6 +69,8 @@ export interface AppSettings {
   /** Legacy local AppServer port settings retained only for reading older settings files. */
   webSocket?: WebSocketConnectionSettings
   remote?: RemoteConnectionSettings
+  /** Persisted Servers-surface connection target; tunnels are rebuilt from this on startup. */
+  activeRemoteStack?: ActiveRemoteStackSettings
   /** UI theme; omitted or invalid values are treated as light by the renderer */
   theme?: UiTheme
   /** Display language (BCP 47); omitted or invalid values are treated as English */
@@ -220,6 +227,16 @@ export function normalizeRemoteHostsSetting(settings: AppSettings): RemoteHost[]
   return hosts.length > 0 ? hosts : undefined
 }
 
+function normalizeActiveRemoteStack(settings: AppSettings): ActiveRemoteStackSettings | undefined {
+  const raw = settings.activeRemoteStack
+  if (raw == null || typeof raw !== 'object' || Array.isArray(raw)) {
+    return undefined
+  }
+  const hostId = typeof raw.hostId === 'string' ? raw.hostId.trim() : ''
+  const stackId = typeof raw.stackId === 'string' ? raw.stackId.trim() : ''
+  return hostId && stackId ? { hostId, stackId } : undefined
+}
+
 export function normalizePinnedThreadIdsByWorkspace(settings: AppSettings): Record<string, string[]> | undefined {
   const raw = settings.pinnedThreadIdsByWorkspace
   if (raw == null || typeof raw !== 'object' || Array.isArray(raw)) {
@@ -273,6 +290,7 @@ export function loadSettings(): AppSettings {
       raw.profile = normalizeProfileSettings(raw)
       raw.pinnedThreadIdsByWorkspace = normalizePinnedThreadIdsByWorkspace(raw)
       raw.remoteHosts = normalizeRemoteHostsSetting(raw)
+      raw.activeRemoteStack = normalizeActiveRemoteStack(raw)
       if (raw.locale !== undefined) {
         raw.locale = normalizeLocale(raw.locale)
       } else {
@@ -307,6 +325,7 @@ export function saveSettings(settings: AppSettings): void {
     settings.profile = normalizeProfileSettings(settings)
     settings.pinnedThreadIdsByWorkspace = normalizePinnedThreadIdsByWorkspace(settings)
     settings.remoteHosts = normalizeRemoteHostsSetting(settings)
+    settings.activeRemoteStack = normalizeActiveRemoteStack(settings)
     writeFileSync(filePath, JSON.stringify(settings, null, 2), 'utf8')
   } catch {
     // Non-fatal

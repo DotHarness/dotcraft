@@ -10,7 +10,8 @@ import type {
   RemoteStackAction,
   SshTestResult,
   OperationResult,
-  LocalSshConfigInfo
+  LocalSshConfigInfo,
+  DiscoveredStack
 } from '../shared/remoteServers'
 import {
   TITLE_BAR_OVERLAY_HEIGHT,
@@ -184,6 +185,18 @@ export interface WorkspaceStatusPayload {
   }
   providers: WorkspaceSetupProviderSummary[]
   bootstrapImportSources?: WorkspaceSetupBootstrapImportSource[]
+  remote?: RemoteWorkspaceStatusPayload
+}
+
+export interface RemoteWorkspaceStatusPayload {
+  hostId: string
+  stackId: string
+  serverName: string
+  stackName: string
+  workspaceDir: string
+  appServerWorkspacePath?: string
+  composeDir: string
+  projectName?: string
 }
 
 export interface WorkspaceSetupBootstrapImportSource {
@@ -1201,6 +1214,10 @@ const api = {
         url?: string
         token?: string
       }
+      activeRemoteStack?: {
+        hostId: string
+        stackId: string
+      }
       modulesDirectory?: string
       activeModuleVariants?: Record<string, string>
       theme?: 'dark' | 'light'
@@ -1239,6 +1256,10 @@ const api = {
       remote?: {
         url?: string
         token?: string
+      }
+      activeRemoteStack?: {
+        hostId: string
+        stackId: string
       }
       modulesDirectory?: string
       activeModuleVariants?: Record<string, string>
@@ -1337,6 +1358,9 @@ const api = {
     },
     listStacks(hostId: string): Promise<RemoteStack[]> {
       return ipcRenderer.invoke('remoteStacks:list', { hostId })
+    },
+    discoverStacks(hostId: string): Promise<DiscoveredStack[]> {
+      return ipcRenderer.invoke('remoteStacks:discover', { hostId })
     },
     status(hostId: string, stackId: string): Promise<RemoteStackStatus> {
       return ipcRenderer.invoke('remoteStacks:status', { hostId, stackId })

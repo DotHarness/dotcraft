@@ -19,6 +19,7 @@ import type { WorkspaceConfigChangedPayload } from '../../utils/workspaceConfigC
 
 interface ConversationPanelProps {
   workspacePath?: string
+  identityWorkspacePath?: string
   workspaceConfigChange?: WorkspaceConfigChangedPayload | null
   workspaceConfigChangeSeq?: number
 }
@@ -42,6 +43,7 @@ const DEFAULT_REASONING_CONFIG: ResolvedReasoningConfig = {
  */
 export function ConversationPanel({
   workspacePath = '',
+  identityWorkspacePath,
   workspaceConfigChange = null,
   workspaceConfigChangeSeq = 0
 }: ConversationPanelProps): JSX.Element {
@@ -66,6 +68,7 @@ export function ConversationPanel({
   const modelCatalogErrorCode = useModelCatalogStore((s) => s.errorCode)
   const modelCatalogErrorMessage = useModelCatalogStore((s) => s.errorMessage)
   const loadModels = useModelCatalogStore((s) => s.loadIfNeeded)
+  const protocolWorkspacePath = identityWorkspacePath || workspacePath
   const [modelName, setModelName] = useState<string>('Default')
   const [reasoningConfig, setReasoningConfig] = useState<ResolvedReasoningConfig>(DEFAULT_REASONING_CONFIG)
   const [modelApplying, setModelApplying] = useState(false)
@@ -321,6 +324,7 @@ export function ConversationPanel({
     return (
       <ConversationWelcome
         workspacePath={workspacePath}
+        identityWorkspacePath={protocolWorkspacePath}
         workspaceConfigChange={workspaceConfigChange}
         workspaceConfigChangeSeq={workspaceConfigChangeSeq}
       />
@@ -406,13 +410,13 @@ export function ConversationPanel({
       ) : showPlanApproval && latestCreatePlanTurnId ? (
         <PlanApprovalComposer
           threadId={activeThread.id}
-          workspacePath={workspacePath}
+          workspacePath={protocolWorkspacePath}
           turnId={latestCreatePlanTurnId}
         />
       ) : (
         <InputComposer
           threadId={activeThread.id}
-          workspacePath={workspacePath}
+          workspacePath={protocolWorkspacePath}
           modelName={modelName}
           modelOptions={modelOptions}
           modelCatalog={modelCatalog}

@@ -251,6 +251,8 @@ export const MESSAGES_KO = {
   'settings.remoteUrl': '원격 WebSocket URL',
   'settings.remoteToken': '원격 토큰',
   'settings.remoteTokenPlaceholder': '선택 과목. 토큰이 누락된 경우 URL에 추가됩니다.',
+  'settings.remoteStackManaged.title': 'Servers에서 관리',
+  'settings.remoteStackManaged.description': '이 원격 연결은 저장된 서버 stack을 사용합니다. 연결 해제 또는 변경은 Servers에서 하세요.',
   'settings.remoteUrlError.missing': '원격 모드를 적용하기 전에 원격 WebSocket URL을 입력하세요.',
   'settings.remoteUrlError.invalid': '유효한 원격 WebSocket URL을(를) 입력하세요.',
   'settings.remoteUrlError.protocol': '원격 WebSocket URL은 ws:// 또는 wss://로 시작해야 합니다.',

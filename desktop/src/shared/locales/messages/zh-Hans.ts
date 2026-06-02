@@ -230,6 +230,8 @@ export const MESSAGES_ZH_HANS = {
   'settings.remoteUrl': '远程 WebSocket URL',
   'settings.remoteToken': '远程 Token',
   'settings.remoteTokenPlaceholder': '可选。若 URL 未包含 token 将自动附加。',
+  'settings.remoteStackManaged.title': '由 Servers 管理',
+  'settings.remoteStackManaged.description': '这个远端连接使用已保存的服务器 stack。请在 Servers 中断开或切换。',
   'settings.remoteUrlError.missing': '请先填写远程 WebSocket URL，再应用远端模式。',
   'settings.remoteUrlError.invalid': '请输入有效的远程 WebSocket URL。',
   'settings.remoteUrlError.protocol': '远程 WebSocket URL 必须以 ws:// 或 wss:// 开头。',

@@ -251,6 +251,8 @@ export const MESSAGES_JA = {
   'settings.remoteUrl': 'リモート WebSocket URL',
   'settings.remoteToken': 'リモートトークン',
   'settings.remoteTokenPlaceholder': 'オプション。トークンが欠落している場合は URL に追加されます。',
+  'settings.remoteStackManaged.title': 'Servers で管理',
+  'settings.remoteStackManaged.description': 'このリモート接続は保存済みのサーバースタックを使用します。切断または変更は Servers で行ってください。',
   'settings.remoteUrlError.missing': 'リモート モードを適用する前に、リモート WebSocket URL を入力してください。',
   'settings.remoteUrlError.invalid': '有効なリモート WebSocket URL を入力してください。',
   'settings.remoteUrlError.protocol': 'リモート WebSocket URL は、ws:// または wss:// で始まる必要があります。',

@@ -6,7 +6,6 @@ import {
   type RemoteStack,
   type RemoteStackAction
 } from '../../shared/remoteServers'
-import type { ConnectionSettingsDraft } from '../../shared/remoteConnection'
 import type { RemoteServersManager } from './remoteServersManager'
 import { inspectLocalSshConfig } from './localSshConfig'
 
@@ -19,7 +18,11 @@ export interface RemoteServersIpcDeps {
   handleSafe: HandleSafe
   getSettings: () => { remoteHosts?: RemoteHost[] }
   updateSettings: (partial: { remoteHosts?: RemoteHost[] }) => void | Promise<void>
-  applyConnectionSettings?: (draft: ConnectionSettingsDraft) => Promise<void>
+  connectRemoteStack?: (
+    host: RemoteHost,
+    stack: RemoteStack
+  ) => Promise<{ localPort?: number }>
+  disconnectRemoteStack?: (hostId: string, stackId: string) => Promise<void>
   manager: RemoteServersManager
 }
 
@@ -32,6 +35,7 @@ export const REMOTE_SERVERS_CHANNELS = [
   'remoteHosts:delete',
   'remoteHosts:test',
   'remoteStacks:list',
+  'remoteStacks:discover',
   'remoteStacks:status',
   'remoteStacks:logs',
   'remoteStacks:action',
@@ -124,6 +128,12 @@ export function registerRemoteServersHandlers(deps: RemoteServersIpcDeps): void 
     return requireHost(loadHosts(), hostId).stacks
   })
 
+  handleSafe('remoteStacks:discover', (_event, input) => {
+    const { hostId } = asObject(input) as { hostId?: string }
+    const host = requireHost(loadHosts(), hostId)
+    return manager.discoverStacks(host)
+  })
+
   handleSafe('remoteStacks:status', (_event, input) => {
     const { hostId, stackId } = asObject(input) as { hostId?: string; stackId?: string }
     const host = requireHost(loadHosts(), hostId)
@@ -163,15 +173,11 @@ export function registerRemoteServersHandlers(deps: RemoteServersIpcDeps): void 
     const host = requireHost(loadHosts(), hostId)
     const stack = findStack(host, stackId)
     if (!stack) throw new Error('Stack not found.')
-    const result = await manager.openAppServerTunnel(host, stack)
-    if (deps.applyConnectionSettings) {
-      await deps.applyConnectionSettings({
-        connectionMode: 'remote',
-        remote: { url: `ws://127.0.0.1:${result.localPort}/ws`, token: result.token }
-      })
-    }
-    // The token is never returned to the renderer.
-    return { ok: true, hostId: host.id, stackId: stack.id, localPort: result.localPort }
+    const result = deps.connectRemoteStack
+      ? await deps.connectRemoteStack(host, stack)
+      : await manager.openAppServerTunnel(host, stack)
+    // The token is never returned to the renderer, and the transient localhost URL is never persisted.
+    return { ok: true, hostId: host.id, stackId: stack.id, localPort: result.localPort ?? 0 }
   })
 
   handleSafe('remoteStacks:open-dashboard-tunnel', async (_event, input) => {
@@ -184,10 +190,14 @@ export function registerRemoteServersHandlers(deps: RemoteServersIpcDeps): void 
     return { ok: true, localPort: result.localPort }
   })
 
-  handleSafe('remoteStacks:disconnect', (_event, input) => {
+  handleSafe('remoteStacks:disconnect', async (_event, input) => {
     const { hostId, stackId } = asObject(input) as { hostId?: string; stackId?: string }
     if (typeof hostId === 'string' && typeof stackId === 'string') {
-      manager.closeStackTunnels(hostId, stackId)
+      if (deps.disconnectRemoteStack) {
+        await deps.disconnectRemoteStack(hostId, stackId)
+      } else {
+        manager.closeStackTunnels(hostId, stackId)
+      }
     }
     return { ok: true }
   })

@@ -20,7 +20,7 @@ function renderComposer(): void {
     <LocaleProvider>
       <InputComposer
         threadId="thread-1"
-        workspacePath="F:\\dotcraft"
+        workspacePath="C:\\sample\\workspace"
         modelName="gpt-5.4"
         modelOptions={['gpt-5.4', 'gpt-5.4-mini']}
       />
@@ -588,7 +588,7 @@ describe('InputComposer layout', () => {
     fireEvent.click(badge)
 
     expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
-    expect(screen.getByRole('dialog', { name: 'ChatGPT subscription usage' })).toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'ChatGPT' })).toBeInTheDocument()
     expect(screen.getByText('96% left')).toBeInTheDocument()
     expect(screen.getByText('76% left')).toBeInTheDocument()
   })

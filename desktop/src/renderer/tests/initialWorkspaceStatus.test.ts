@@ -10,7 +10,7 @@ describe('initial workspace status argument parsing', () => {
   it('round-trips an encoded ready workspace status', () => {
     const status: InitialWorkspaceStatusPayload = {
       status: 'ready',
-      workspacePath: 'F:\\dotcraft',
+      workspacePath: 'C:\\sample\\workspace',
       hasUserConfig: true,
       userConfigDefaults: {
         providerId: 'openai',
@@ -31,10 +31,31 @@ describe('initial workspace status argument parsing', () => {
     expect(readInitialWorkspaceStatusFromArgv(['electron', encodeInitialWorkspaceStatusArg(status)])).toEqual(status)
   })
 
+  it('round-trips remote workspace metadata from startup payloads', () => {
+    const status: InitialWorkspaceStatusPayload = {
+      status: 'ready',
+      workspacePath: 'C:\\sample\\workspace',
+      hasUserConfig: true,
+      providers: [],
+      remote: {
+        hostId: 'h1',
+        stackId: 's1',
+        serverName: 'Example Remote',
+        stackName: 'demo-stack',
+        workspaceDir: '/srv/sample/demo-stack/deploy/workspace',
+        appServerWorkspacePath: '/workspace',
+        composeDir: '/srv/sample/demo-stack/deploy',
+        projectName: 'deploy'
+      }
+    }
+
+    expect(readInitialWorkspaceStatusFromArgv(['electron', encodeInitialWorkspaceStatusArg(status)])).toEqual(status)
+  })
+
   it('normalizes legacy OpenAI provider protocols from raw startup payloads', () => {
     const rawStatus = {
       status: 'ready',
-      workspacePath: 'F:\\dotcraft',
+      workspacePath: 'C:\\sample\\workspace',
       hasUserConfig: true,
       providers: [
         {

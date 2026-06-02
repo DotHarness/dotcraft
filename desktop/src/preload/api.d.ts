@@ -5,7 +5,8 @@ import type {
   RemoteStackAction,
   SshTestResult,
   OperationResult,
-  LocalSshConfigInfo
+  LocalSshConfigInfo,
+  DiscoveredStack
 } from '../shared/remoteServers'
 import type {
   MarketInstallResult,
@@ -182,6 +183,18 @@ export interface WorkspaceStatusPayload {
   }
   providers: WorkspaceSetupProviderSummary[]
   bootstrapImportSources?: WorkspaceSetupBootstrapImportSource[]
+  remote?: RemoteWorkspaceStatusPayload
+}
+
+export interface RemoteWorkspaceStatusPayload {
+  hostId: string
+  stackId: string
+  serverName: string
+  stackName: string
+  workspaceDir: string
+  appServerWorkspacePath?: string
+  composeDir: string
+  projectName?: string
 }
 
 export interface WorkspaceSetupBootstrapImportSource {
@@ -645,6 +658,10 @@ declare global {
             url?: string
             token?: string
           }
+          activeRemoteStack?: {
+            hostId: string
+            stackId: string
+          }
           modulesDirectory?: string
           activeModuleVariants?: Record<string, string>
           theme?: 'dark' | 'light'
@@ -678,6 +695,10 @@ declare global {
             remote?: {
               url?: string
               token?: string
+            }
+            activeRemoteStack?: {
+              hostId: string
+              stackId: string
             }
             modulesDirectory?: string
             activeModuleVariants?: Record<string, string>
@@ -730,6 +751,7 @@ declare global {
           draft?: { name?: string; sshTarget?: string; identityFile?: string }
         }): Promise<SshTestResult>
         listStacks(hostId: string): Promise<RemoteStack[]>
+        discoverStacks(hostId: string): Promise<DiscoveredStack[]>
         status(hostId: string, stackId: string): Promise<RemoteStackStatus>
         logs(
           hostId: string,

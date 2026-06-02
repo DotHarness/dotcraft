@@ -24,6 +24,8 @@ import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
 interface SidebarProps {
   workspaceName: string
   workspacePath: string
+  localWorkspacePath?: string
+  remoteWorkspace?: boolean
 }
 
 /**
@@ -40,7 +42,12 @@ interface SidebarProps {
  * Collapsed mode (48px): shows first-letter dots for recent threads.
  * Spec §9.8
  */
-export function Sidebar({ workspaceName, workspacePath }: SidebarProps): JSX.Element {
+export function Sidebar({
+  workspaceName,
+  workspacePath,
+  localWorkspacePath,
+  remoteWorkspace = false
+}: SidebarProps): JSX.Element {
   const t = useT()
   const { sidebarCollapsed, activeMainView, setActiveMainView } = useUIStore()
   const capabilities = useConnectionStore((s) => s.capabilities)
@@ -65,7 +72,12 @@ export function Sidebar({ workspaceName, workspacePath }: SidebarProps): JSX.Ele
         position: 'relative'
       }}
     >
-      <WorkspaceHeader workspaceName={workspaceName} workspacePath={workspacePath} />
+      <WorkspaceHeader
+        workspaceName={workspaceName}
+        workspacePath={workspacePath}
+        localWorkspacePath={localWorkspacePath ?? workspacePath}
+        localActionsDisabled={remoteWorkspace}
+      />
 
       <NewThreadButton />
 

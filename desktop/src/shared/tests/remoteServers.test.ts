@@ -11,14 +11,17 @@ import {
   isValidServiceName,
   shellSingleQuote,
   quoteRemotePath,
+  effectiveAppServerWorkspacePath,
   effectiveWorkspaceDir,
   buildSshArgs,
   composePrefix,
+  buildDiscoverStacksCommand,
   buildLogsCommand,
   buildStatusCommand,
   buildUpCommand,
   parseStatusOutput,
   parseSshTestOutput,
+  parseDiscoverStacksOutput,
   updateChangedFromOutput,
   buildTunnelWsUrl,
   buildDashboardUrl,
@@ -34,7 +37,7 @@ function counterIds(): (prefix: 'h' | 's') => string {
 const stack: RemoteStack = {
   id: 's_1',
   name: 'prod',
-  composeDir: '~/dotcraft/deploy/docker',
+  composeDir: '~/sample-stack/deploy/docker',
   appServerPort: 9100,
   dashboardPort: 8080,
   sandboxProfile: false
@@ -52,9 +55,9 @@ describe('validation', () => {
   })
 
   it('accepts absolute and home-relative paths, rejects traversal/relative', () => {
-    expect(isValidRemotePath('/srv/dotcraft')).toBe(true)
+    expect(isValidRemotePath('/srv/sample')).toBe(true)
     expect(isValidRemotePath('~')).toBe(true)
-    expect(isValidRemotePath('~/dotcraft/deploy')).toBe(true)
+    expect(isValidRemotePath('~/sample-stack/deploy')).toBe(true)
     expect(isValidRemotePath('relative/path')).toBe(false)
     expect(isValidRemotePath('~/a/../../etc')).toBe(false)
     expect(isValidRemotePath('/srv/has space')).toBe(false)
@@ -76,14 +79,19 @@ describe('shell quoting', () => {
   })
 
   it('quotes remote paths, leaving ~/ for shell expansion', () => {
-    expect(quoteRemotePath('/srv/dotcraft')).toBe("'/srv/dotcraft'")
+    expect(quoteRemotePath('/srv/sample')).toBe("'/srv/sample'")
     expect(quoteRemotePath('~')).toBe('~')
-    expect(quoteRemotePath('~/dotcraft/deploy')).toBe("~/'dotcraft/deploy'")
+    expect(quoteRemotePath('~/sample-stack/deploy')).toBe("~/'sample-stack/deploy'")
   })
 
   it('derives the workspace dir from composeDir by default', () => {
-    expect(effectiveWorkspaceDir(stack)).toBe('~/dotcraft/deploy/docker/workspace')
+    expect(effectiveWorkspaceDir(stack)).toBe('~/sample-stack/deploy/docker/workspace')
     expect(effectiveWorkspaceDir({ ...stack, workspaceDir: '/data/ws' })).toBe('/data/ws')
+  })
+
+  it('uses /workspace as the default AppServer protocol workspace path', () => {
+    expect(effectiveAppServerWorkspacePath(stack)).toBe('/workspace')
+    expect(effectiveAppServerWorkspacePath({ ...stack, appServerWorkspacePath: '/app/workspace' })).toBe('/app/workspace')
   })
 })
 
@@ -95,7 +103,7 @@ describe('normalizeRemoteHosts', () => {
           name: 'Cloud',
           sshTarget: 'user@cloud',
           stacks: [
-            { name: 'prod', composeDir: '~/dotcraft/deploy/docker' },
+            { name: 'prod', composeDir: '~/sample-stack/deploy/docker' },
             { name: 'bad', composeDir: 'relative' }, // dropped: invalid path
             { id: 's_x', name: 'sandbox', composeDir: '/srv/sb', sandboxProfile: true, appServerPort: 70000 }
           ]
@@ -157,8 +165,8 @@ describe('ssh argv', () => {
 describe('compose command builders', () => {
   it('builds the compose prefix with project + sandbox profile', () => {
     expect(composePrefix(stack)).toBe('docker compose')
-    expect(composePrefix({ ...stack, projectName: 'dotcraft', sandboxProfile: true })).toBe(
-      "docker compose -p 'dotcraft' --profile sandbox"
+    expect(composePrefix({ ...stack, projectName: 'sample-project', sandboxProfile: true })).toBe(
+      "docker compose -p 'sample-project' --profile sandbox"
     )
   })
 
@@ -172,7 +180,14 @@ describe('compose command builders', () => {
     const cmd = buildStatusCommand(stack)
     expect(cmd).toContain('STATUS_BEGIN')
     expect(cmd).toContain('ps -a --format json')
-    expect(cmd).toContain("~/'dotcraft/deploy/docker'")
+    expect(cmd).toContain("~/'sample-stack/deploy/docker'")
+  })
+
+  it('discovery command uses Docker labels and inspect JSON only', () => {
+    const cmd = buildDiscoverStacksCommand()
+    expect(cmd).toContain('DISCOVER_BEGIN')
+    expect(cmd).toContain("label=com.docker.compose.project")
+    expect(cmd).toContain('{{json .}}')
   })
 
   it('up command recreates while preserving volumes', () => {
@@ -254,6 +269,74 @@ describe('ssh test + update parsing', () => {
   })
 })
 
+describe('parseDiscoverStacksOutput', () => {
+  it('discovers DotCraft compose projects from docker inspect output', () => {
+    const dotcraft = {
+      Config: {
+        Image: 'ghcr.io/dotharness/dotcraft:latest',
+        Labels: {
+          'com.docker.compose.project': 'deploy',
+          'com.docker.compose.service': 'dotcraft',
+          'com.docker.compose.project.working_dir': '/srv/sample/demo-stack/deploy',
+          'com.docker.compose.project.config_files': '/srv/sample/demo-stack/deploy/docker-compose.yml'
+        },
+        Env: ['DOTCRAFT_PROVIDER=openai']
+      },
+      Mounts: [{ Source: '/srv/sample/demo-stack/deploy/workspace', Destination: '/workspace' }],
+      NetworkSettings: {
+        Ports: {
+          '9100/tcp': [{ HostIp: '127.0.0.1', HostPort: '9100' }],
+          '8080/tcp': [{ HostIp: '127.0.0.1', HostPort: '18080' }]
+        }
+      }
+    }
+    const sandbox = {
+      Config: {
+        Image: 'ghcr.io/open-webui/open-webui:latest',
+        Labels: {
+          'com.docker.compose.project': 'deploy',
+          'com.docker.compose.service': 'opensandbox',
+          'com.docker.compose.project.working_dir': '/srv/sample/demo-stack/deploy'
+        }
+      }
+    }
+
+    const stacks = parseDiscoverStacksOutput(
+      `DISCOVER_BEGIN\n${JSON.stringify(dotcraft)}\n${JSON.stringify(sandbox)}\nDISCOVER_END`
+    )
+
+    expect(stacks).toHaveLength(1)
+    expect(stacks[0]).toMatchObject({
+      name: 'demo-stack',
+      composeDir: '/srv/sample/demo-stack/deploy',
+      workspaceDir: '/srv/sample/demo-stack/deploy/workspace',
+      appServerWorkspacePath: '/workspace',
+      projectName: 'deploy',
+      appServerPort: 9100,
+      dashboardPort: 18080,
+      sandboxProfile: true,
+      hasSandbox: true,
+      image: 'ghcr.io/dotharness/dotcraft:latest'
+    })
+    expect(stacks[0].services).toEqual(['dotcraft', 'opensandbox'])
+  })
+
+  it('ignores non-DotCraft compose projects and malformed JSON', () => {
+    const other = {
+      Config: {
+        Image: 'postgres:16',
+        Labels: {
+          'com.docker.compose.project': 'db',
+          'com.docker.compose.service': 'postgres',
+          'com.docker.compose.project.working_dir': '/srv/db'
+        }
+      }
+    }
+
+    expect(parseDiscoverStacksOutput(`DISCOVER_BEGIN\nnot-json\n${JSON.stringify(other)}\nDISCOVER_END`)).toEqual([])
+  })
+})
+
 describe('tunnel urls', () => {
   it('builds ws and dashboard local urls', () => {
     expect(buildTunnelWsUrl(51823)).toBe('ws://127.0.0.1:51823/ws')
@@ -264,12 +347,12 @@ describe('tunnel urls', () => {
 
 describe('redactSecrets', () => {
   it('masks explicit secrets, secret-like assignments, and token query params', () => {
-    expect(redactSecrets('the token is supersecretvalue here', ['supersecretvalue'])).toBe(
+    expect(redactSecrets('the token is fixture-explicit-value here', ['fixture-explicit-value'])).toBe(
       `the token is ${REDACTION_MASK} here`
     )
-    expect(redactSecrets('APPSERVER_TOKEN=abc123def')).toBe(`APPSERVER_TOKEN=${REDACTION_MASK}`)
-    expect(redactSecrets('FEISHU_APP_SECRET: shhhh')).toBe(`FEISHU_APP_SECRET: ${REDACTION_MASK}`)
-    expect(redactSecrets('ws://127.0.0.1:9100/ws?token=abc123')).toBe(
+    expect(redactSecrets('APPSERVER_TOKEN=fixture-appserver-token')).toBe(`APPSERVER_TOKEN=${REDACTION_MASK}`)
+    expect(redactSecrets('FEISHU_APP_SECRET: fixture-secret')).toBe(`FEISHU_APP_SECRET: ${REDACTION_MASK}`)
+    expect(redactSecrets('ws://127.0.0.1:9100/ws?token=fixture-query-token')).toBe(
       `ws://127.0.0.1:9100/ws?token=${REDACTION_MASK}`
     )
   })

@@ -19,6 +19,7 @@
 
 export const DEFAULT_APP_SERVER_PORT = 9100
 export const DEFAULT_DASHBOARD_PORT = 8080
+export const DEFAULT_APP_SERVER_WORKSPACE_PATH = '/workspace'
 
 /** Default and maximum bounds for the `logs --tail` window. */
 export const DEFAULT_LOG_TAIL = 200
@@ -46,6 +47,8 @@ export interface RemoteStack {
   composeDir: string
   /** Mounted runtime dir; defaults to `<composeDir>/workspace`. */
   workspaceDir?: string
+  /** Workspace path as seen by the AppServer process; Docker stacks default to `/workspace`. */
+  appServerWorkspacePath?: string
   /** `docker compose -p <projectName>`; optional. */
   projectName?: string
   appServerPort: number
@@ -94,7 +97,15 @@ export interface RemoteStackStatus {
 export interface DiscoveredStack {
   name: string
   composeDir: string
+  workspaceDir?: string
+  appServerWorkspacePath?: string
+  projectName?: string
+  appServerPort: number
+  dashboardPort: number
+  sandboxProfile: boolean
   hasSandbox?: boolean
+  image?: string
+  services?: string[]
 }
 
 export interface SshTestResult {
@@ -249,6 +260,12 @@ export function effectiveWorkspaceDir(stack: RemoteStack): string {
   return remoteChildPath(stack.composeDir, 'workspace')
 }
 
+export function effectiveAppServerWorkspacePath(stack: RemoteStack): string {
+  const explicit = stack.appServerWorkspacePath?.trim()
+  if (explicit) return explicit
+  return DEFAULT_APP_SERVER_WORKSPACE_PATH
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Normalization
 // ─────────────────────────────────────────────────────────────────────────────
@@ -257,6 +274,16 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
   return value != null && typeof value === 'object' && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : undefined
+}
+
+function asStringRecord(value: unknown): Record<string, string> {
+  const raw = asRecord(value)
+  if (!raw) return {}
+  const out: Record<string, string> = {}
+  for (const [key, entry] of Object.entries(raw)) {
+    if (typeof entry === 'string') out[key] = entry
+  }
+  return out
 }
 
 function normalizeStack(input: unknown, genId: IdFactory): RemoteStack | undefined {
@@ -273,6 +300,10 @@ function normalizeStack(input: unknown, genId: IdFactory): RemoteStack | undefin
     typeof raw.workspaceDir === 'string' && isValidRemotePath(raw.workspaceDir.trim())
       ? raw.workspaceDir.trim()
       : undefined
+  const appServerWorkspacePath =
+    typeof raw.appServerWorkspacePath === 'string' && isValidRemotePath(raw.appServerWorkspacePath.trim())
+      ? raw.appServerWorkspacePath.trim()
+      : undefined
   const projectName =
     typeof raw.projectName === 'string' && raw.projectName.trim() ? raw.projectName.trim() : undefined
 
@@ -281,6 +312,7 @@ function normalizeStack(input: unknown, genId: IdFactory): RemoteStack | undefin
     name,
     composeDir,
     workspaceDir,
+    appServerWorkspacePath,
     projectName,
     appServerPort: isValidPort(raw.appServerPort) ? (raw.appServerPort as number) : DEFAULT_APP_SERVER_PORT,
     dashboardPort: isValidPort(raw.dashboardPort) ? (raw.dashboardPort as number) : DEFAULT_DASHBOARD_PORT,
@@ -489,6 +521,17 @@ export function buildSshTestCommand(): string {
   ].join(' ')
 }
 
+/** Discover Compose-managed DotCraft containers from Docker labels. */
+export function buildDiscoverStacksCommand(): string {
+  return [
+    `echo DISCOVER_BEGIN;`,
+    `(docker ps -a --filter 'label=com.docker.compose.project' --format '{{.ID}}' 2>/dev/null | while IFS= read -r id; do`,
+    `if [ -n "$id" ]; then docker inspect --format '{{json .}}' "$id" 2>/dev/null; fi;`,
+    `done) || true;`,
+    `echo DISCOVER_END`
+  ].join(' ')
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Output parsing
 // ─────────────────────────────────────────────────────────────────────────────
@@ -499,6 +542,21 @@ interface ComposePsEntry {
   State?: string
   Health?: string
   Image?: string
+}
+
+interface DockerInspectContainer {
+  Config?: {
+    Image?: string
+    Labels?: Record<string, string>
+    Env?: string[]
+  }
+  Mounts?: Array<{
+    Source?: string
+    Destination?: string
+  }>
+  NetworkSettings?: {
+    Ports?: Record<string, null | Array<{ HostIp?: string; HostPort?: string }>>
+  }
 }
 
 function parseComposePsBlock(block: string): ComposePsEntry[] {
@@ -628,6 +686,167 @@ export function parseSshTestOutput(raw: string, latencyMs?: number): SshTestResu
     dockerOk: /(^|\n)\s*docker=ok/.test(raw),
     composeOk: /(^|\n)\s*compose=ok/.test(raw)
   }
+}
+
+function posixDirname(remotePath: string): string {
+  const trimmed = remotePath.replace(/\/+$/, '')
+  const idx = trimmed.lastIndexOf('/')
+  if (idx <= 0) return '/'
+  return trimmed.slice(0, idx)
+}
+
+function posixBasename(remotePath: string): string {
+  return remotePath.replace(/\/+$/, '').split('/').filter(Boolean).pop() ?? ''
+}
+
+function composeDirFromLabels(labels: Record<string, string>): string | undefined {
+  const workingDir = labels['com.docker.compose.project.working_dir']?.trim()
+  if (workingDir && isValidRemotePath(workingDir)) return workingDir
+
+  const configFiles = labels['com.docker.compose.project.config_files']?.trim()
+  const firstConfig = configFiles?.split(',').map((p) => p.trim()).find(Boolean)
+  if (!firstConfig) return undefined
+  const dir = posixDirname(firstConfig)
+  return isValidRemotePath(dir) ? dir : undefined
+}
+
+function discoveredName(composeDir: string, projectName?: string): string {
+  const base = posixBasename(composeDir)
+  const parent = posixBasename(posixDirname(composeDir))
+  if (base && ['deploy', 'docker', 'compose'].includes(base.toLowerCase()) && parent) return parent
+  return base || projectName || 'DotCraft'
+}
+
+function isDotCraftImage(image: string): boolean {
+  return /(^|[/:])dotcraft(?::|@|$)/i.test(image)
+}
+
+function isDotCraftContainer(container: DockerInspectContainer, service: string): boolean {
+  const image = container.Config?.Image ?? ''
+  if (service.toLowerCase() === 'dotcraft') return true
+  if (isDotCraftImage(image)) return true
+  return (container.Config?.Env ?? []).some((entry) => entry.startsWith('DOTCRAFT_'))
+}
+
+function workspaceMount(container: DockerInspectContainer): string | undefined {
+  const mount = (container.Mounts ?? []).find((m) => m.Destination === '/workspace')
+  const source = mount?.Source?.trim()
+  return source && isValidRemotePath(source) ? source : undefined
+}
+
+function appServerWorkspaceMount(container: DockerInspectContainer): string | undefined {
+  const mount = (container.Mounts ?? []).find((m) => m.Destination === '/workspace')
+  const destination = mount?.Destination?.trim()
+  return destination && isValidRemotePath(destination) ? destination : undefined
+}
+
+function hostBoundPort(
+  container: DockerInspectContainer,
+  containerPort: number,
+  fallback: number
+): number {
+  const bindings = container.NetworkSettings?.Ports?.[`${containerPort}/tcp`]
+  if (!Array.isArray(bindings) || bindings.length === 0) return fallback
+  const records = bindings
+    .map((entry) => asRecord(entry))
+    .filter((entry): entry is Record<string, unknown> => Boolean(entry))
+  const preferred =
+    records.find((entry) => entry.HostIp === '127.0.0.1') ??
+    records.find((entry) => entry.HostIp === '0.0.0.0') ??
+    records[0]
+  const value = typeof preferred?.HostPort === 'string' ? Number(preferred.HostPort) : NaN
+  return isValidPort(value) ? value : fallback
+}
+
+interface DiscoveryGroup {
+  projectName: string
+  composeDir: string
+  workspaceDir?: string
+  appServerWorkspacePath?: string
+  appServerPort: number
+  dashboardPort: number
+  sandboxProfile: boolean
+  hasSandbox: boolean
+  image?: string
+  services: Set<string>
+  dotcraft: boolean
+}
+
+/** Parse the output of {@link buildDiscoverStacksCommand}. */
+export function parseDiscoverStacksOutput(raw: string): DiscoveredStack[] {
+  const match = /DISCOVER_BEGIN\n?([\s\S]*?)\nDISCOVER_END/.exec(raw)
+  if (!match) return []
+
+  const groups = new Map<string, DiscoveryGroup>()
+  for (const line of match[1].split('\n')) {
+    const text = line.trim()
+    if (!text.startsWith('{')) continue
+
+    let container: DockerInspectContainer
+    try {
+      container = JSON.parse(text) as DockerInspectContainer
+    } catch {
+      continue
+    }
+
+    const labels = asStringRecord(container.Config?.Labels)
+    const projectName = labels['com.docker.compose.project']?.trim()
+    if (!projectName) continue
+
+    const composeDir = composeDirFromLabels(labels)
+    if (!composeDir) continue
+
+    const key = `${projectName}\u0000${composeDir}`
+    let group = groups.get(key)
+    if (!group) {
+      group = {
+        projectName,
+        composeDir,
+        appServerPort: DEFAULT_APP_SERVER_PORT,
+        dashboardPort: DEFAULT_DASHBOARD_PORT,
+        sandboxProfile: false,
+        hasSandbox: false,
+        services: new Set<string>(),
+        dotcraft: false
+      }
+      groups.set(key, group)
+    }
+
+    const service = labels['com.docker.compose.service']?.trim() ?? ''
+    if (service) group.services.add(service)
+
+    const lowerService = service.toLowerCase()
+    if (lowerService.includes('sandbox')) {
+      group.hasSandbox = true
+      group.sandboxProfile = true
+    }
+
+    if (!isDotCraftContainer(container, service)) continue
+
+    group.dotcraft = true
+    group.image ??= container.Config?.Image
+    group.workspaceDir ??= workspaceMount(container)
+    group.appServerWorkspacePath ??= appServerWorkspaceMount(container)
+    group.appServerPort = hostBoundPort(container, DEFAULT_APP_SERVER_PORT, DEFAULT_APP_SERVER_PORT)
+    group.dashboardPort = hostBoundPort(container, DEFAULT_DASHBOARD_PORT, DEFAULT_DASHBOARD_PORT)
+  }
+
+  return [...groups.values()]
+    .filter((group) => group.dotcraft)
+    .map((group) => ({
+      name: discoveredName(group.composeDir, group.projectName),
+      composeDir: group.composeDir,
+      workspaceDir: group.workspaceDir,
+      appServerWorkspacePath: group.appServerWorkspacePath ?? DEFAULT_APP_SERVER_WORKSPACE_PATH,
+      projectName: group.projectName,
+      appServerPort: group.appServerPort,
+      dashboardPort: group.dashboardPort,
+      sandboxProfile: group.sandboxProfile,
+      hasSandbox: group.hasSandbox,
+      image: group.image,
+      services: [...group.services].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
 }
 
 /** Detect whether `docker compose pull`/`up` output reflects an actual change. */

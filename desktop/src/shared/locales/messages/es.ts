@@ -251,6 +251,8 @@ export const MESSAGES_ES = {
   'settings.remoteUrl': 'Remoto WebSocket URL',
   'settings.remoteToken': 'token remoto',
   'settings.remoteTokenPlaceholder': 'Opcional. Agregado a URL si falta el token.',
+  'settings.remoteStackManaged.title': 'Administrado por Servers',
+  'settings.remoteStackManaged.description': 'Esta conexión remota usa el stack de servidor guardado. Use Servers para desconectar o cambiarlo.',
   'settings.remoteUrlError.missing': 'Ingrese un WebSocket URL remoto antes de aplicar el modo Remoto.',
   'settings.remoteUrlError.invalid': 'Ingrese un control remoto válido WebSocket URL.',
   'settings.remoteUrlError.protocol': 'El WebSocket URL remoto debe comenzar con ws:// o wss://.',

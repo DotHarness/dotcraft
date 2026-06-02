@@ -536,6 +536,7 @@ This section defines the user-visible workflow for Desktop-managed TypeScript ch
 - Module status is communicated through user-meaningful states, including at least not configured, connecting, connected, stopped, and error conditions.
 - Desktop may derive module status from both local runtime lifecycle and server-observed channel availability, but the user-facing status must remain coherent and actionable.
 - Module status is distinct from Desktop AppServer connection state. A connected AppServer session does not imply all enabled modules are connected.
+- In Remote mode, server-observed channel status is authoritative when available. Desktop must not let local module process state override a remote `channel/status` result, and local module Start/Stop controls should be hidden or disabled because they do not control remote adapters.
 
 #### 6.8.5 Interactive Setup and QR-like Flows
 

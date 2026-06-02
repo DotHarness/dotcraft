@@ -45,6 +45,7 @@ import type { WorkspaceConfigChangedPayload } from '../../utils/workspaceConfigC
 
 interface ConversationWelcomeProps {
   workspacePath: string
+  identityWorkspacePath?: string
   workspaceConfigChange?: WorkspaceConfigChangedPayload | null
   workspaceConfigChangeSeq?: number
 }
@@ -109,10 +110,12 @@ function sanitizeSuggestionTitle(raw: string): string {
  */
 export function ConversationWelcome({
   workspacePath,
+  identityWorkspacePath,
   workspaceConfigChange = null,
   workspaceConfigChangeSeq = 0
 }: ConversationWelcomeProps): JSX.Element {
   const t = useT()
+  const identityPath = identityWorkspacePath || workspacePath
   const [contentRevision, setContentRevision] = useState(0)
   const [images, setImages] = useState<ImageAttachment[]>([])
   const [files, setFiles] = useState<ComposerFileAttachment[]>([])
@@ -511,7 +514,7 @@ export function ConversationWelcome({
     if (
       !welcomeSuggestionsConfigReady ||
       !isConnected ||
-      !workspacePath ||
+      !identityPath ||
       !welcomeSuggestionsSupported ||
       !welcomeSuggestionsEnabled
     ) {
@@ -526,8 +529,8 @@ export function ConversationWelcome({
       identity: {
         channelName: 'dotcraft-desktop',
         userId: 'local',
-        channelContext: `workspace:${workspacePath}`,
-        workspacePath
+        channelContext: `workspace:${identityPath}`,
+        workspacePath: identityPath
       },
       maxItems: 4
     }).then((raw) => {
@@ -576,6 +579,7 @@ export function ConversationWelcome({
     welcomeSuggestionsConfigReady,
     welcomeSuggestionsEnabled,
     welcomeSuggestionsSupported,
+    identityPath,
     workspacePath
   ])
 
@@ -918,8 +922,8 @@ export function ConversationWelcome({
         identity: {
           channelName: 'dotcraft-desktop',
           userId: 'local',
-          channelContext: `workspace:${workspacePath}`,
-          workspacePath
+          channelContext: `workspace:${identityPath}`,
+          workspacePath: identityPath
         },
         historyMode: 'server'
       }) as { thread: ThreadSummary }
@@ -982,7 +986,7 @@ export function ConversationWelcome({
     welcomeMode,
     modelName,
     reasoningConfig,
-    workspacePath
+    identityPath
   ])
 
   const executeWelcomeGoalCommand = useCallback(async (command: GoalSlashCommand): Promise<boolean> => {
@@ -1047,8 +1051,8 @@ export function ConversationWelcome({
         identity: {
           channelName: 'dotcraft-desktop',
           userId: 'local',
-          channelContext: `workspace:${workspacePath}`,
-          workspacePath
+          channelContext: `workspace:${identityPath}`,
+          workspacePath: identityPath
         },
         historyMode: 'server'
       }) as { thread: ThreadSummary }
@@ -1095,7 +1099,7 @@ export function ConversationWelcome({
     files,
     images,
     connectionStatus,
-    workspacePath,
+    identityPath,
     addThread,
     setActiveThreadId,
     startWelcomeAppBindings,

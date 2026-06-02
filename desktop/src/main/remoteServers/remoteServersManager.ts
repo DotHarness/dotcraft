@@ -1,6 +1,8 @@
 import {
   buildSshTestCommand,
   parseSshTestOutput,
+  buildDiscoverStacksCommand,
+  parseDiscoverStacksOutput,
   buildStatusCommand,
   parseStatusOutput,
   buildLogsCommand,
@@ -21,7 +23,8 @@ import {
   type RemoteStackStatus,
   type SshTestResult,
   type OperationResult,
-  type RemoteStackAction
+  type RemoteStackAction,
+  type DiscoveredStack
 } from '../../shared/remoteServers'
 import { runSshCommand, type SshRunner } from './sshExecutor'
 import { TunnelManager } from './tunnelManager'
@@ -44,6 +47,8 @@ export interface AppServerTunnelResult {
   wsUrl: string
   /** Returned for immediate use; never persisted. */
   token?: string
+  /** Safe diagnostic bit; do not log or return the token value to renderer. */
+  tokenPresent: boolean
 }
 
 export interface DashboardTunnelResult {
@@ -104,6 +109,15 @@ export class RemoteServersManager {
       }
     }
     return parseSshTestOutput(res.stdout, this.now() - start)
+  }
+
+  async discoverStacks(host: RemoteHost): Promise<DiscoveredStack[]> {
+    const res = await this.runner(host, buildDiscoverStacksCommand(), { timeoutMs: 20_000, connectTimeoutSec: 8 })
+    if (res.timedOut) throw new Error('Stack discovery timed out.')
+    if (!/DISCOVER_BEGIN/.test(res.stdout)) {
+      throw new Error(redactSecrets(firstLine(res.stderr) || 'Stack discovery failed.'))
+    }
+    return parseDiscoverStacksOutput(res.stdout)
   }
 
   async status(host: RemoteHost, stack: RemoteStack): Promise<RemoteStackStatus> {
@@ -179,16 +193,34 @@ export class RemoteServersManager {
   }
 
   /** Read the remote AppServer token (used only at connect time; never persisted). */
-  async readToken(host: RemoteHost, stack: RemoteStack): Promise<string | undefined> {
-    const res = await this.runner(host, buildReadTokenCommand(stack), { timeoutMs: 15_000 })
+  async readToken(host: RemoteHost, stack: RemoteStack): Promise<string> {
+    const res = await this.runner(host, buildReadTokenCommand(stack), { timeoutMs: 30_000, connectTimeoutSec: 8 })
+    if (res.timedOut) {
+      throw new Error('Remote AppServer token read timed out.')
+    }
+    if (res.code !== 0) {
+      throw new Error(redactSecrets(firstLine(res.stderr) || 'Remote AppServer token read failed.'))
+    }
     const token = res.stdout.trim()
-    return token || undefined
+    if (!token) {
+      throw new Error(
+        'Remote AppServer token was not found for this stack. Check that the DotCraft container has started and the workspace .craft/appserver.token file exists.'
+      )
+    }
+    return token
   }
 
-  async openAppServerTunnel(host: RemoteHost, stack: RemoteStack): Promise<AppServerTunnelResult> {
+  async openAppServerTunnel(
+    host: RemoteHost,
+    stack: RemoteStack,
+    options: { forceNew?: boolean } = {}
+  ): Promise<AppServerTunnelResult> {
+    if (options.forceNew) {
+      this.tunnels.closeOne(host.id, stack.id, 'appserver')
+    }
     const token = await this.readToken(host, stack)
     const info = await this.tunnels.open(host, stack.id, stack.appServerPort, 'appserver')
-    return { localPort: info.localPort, wsUrl: buildTunnelWsUrl(info.localPort, token), token }
+    return { localPort: info.localPort, wsUrl: buildTunnelWsUrl(info.localPort, token), token, tokenPresent: true }
   }
 
   async openDashboardTunnel(host: RemoteHost, stack: RemoteStack): Promise<DashboardTunnelResult> {
