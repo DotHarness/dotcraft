@@ -1,2 +1,5 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# GitHub Linguist language stats
+desktop/src/shared/locales/messages/*.ts linguist-generated=true
