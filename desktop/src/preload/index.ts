@@ -3,6 +3,16 @@ import { resolveThemeMode, type ThemeMode } from '../shared/theme'
 import { readInitialWorkspaceStatusFromArgv } from '../shared/initialWorkspaceStatus'
 import type { DesktopProviderProtocol } from '../shared/providerProtocols'
 import { localeToHtmlLang, normalizeLocale, type AppLocale } from '../shared/locales'
+import type {
+  RemoteHost,
+  RemoteStack,
+  RemoteStackStatus,
+  RemoteStackAction,
+  SshTestResult,
+  OperationResult,
+  LocalSshConfigInfo,
+  DiscoveredStack
+} from '../shared/remoteServers'
 import {
   TITLE_BAR_OVERLAY_HEIGHT,
   TITLE_BAR_OVERLAY_RIGHT_RESERVE
@@ -175,6 +185,18 @@ export interface WorkspaceStatusPayload {
   }
   providers: WorkspaceSetupProviderSummary[]
   bootstrapImportSources?: WorkspaceSetupBootstrapImportSource[]
+  remote?: RemoteWorkspaceStatusPayload
+}
+
+export interface RemoteWorkspaceStatusPayload {
+  hostId: string
+  stackId: string
+  serverName: string
+  stackName: string
+  workspaceDir: string
+  appServerWorkspacePath?: string
+  composeDir: string
+  projectName?: string
 }
 
 export interface WorkspaceSetupBootstrapImportSource {
@@ -295,6 +317,11 @@ export interface ModulesRescanSummaryPayload {
   changedRunningModuleIds: string[]
 }
 
+export interface PinnedThreadIdsChangedPayload {
+  workspacePath: string
+  threadIds: string[]
+}
+
 // ---------------------------------------------------------------------------
 // Single-listener dispatchers for notifications and connection status.
 //
@@ -404,6 +431,15 @@ let activeOpenThreadCallback: ((payload: OpenThreadPayload) => void) | null = nu
 ipcRenderer.on('app:open-thread', (_event: Electron.IpcRendererEvent, payload: OpenThreadPayload) => {
   activeOpenThreadCallback?.(payload)
 })
+
+let pinnedThreadIdsChangedToken = 0
+let activePinnedThreadIdsChangedCallback: ((payload: PinnedThreadIdsChangedPayload) => void) | null = null
+ipcRenderer.on(
+  'settings:pinned-thread-ids-changed',
+  (_event: Electron.IpcRendererEvent, payload: PinnedThreadIdsChangedPayload) => {
+    activePinnedThreadIdsChangedCallback?.(payload)
+  }
+)
 
 let maximizedChangeToken = 0
 let activeMaximizedChangeCallback: ((maximized: boolean) => void) | null = null
@@ -1192,6 +1228,10 @@ const api = {
         url?: string
         token?: string
       }
+      activeRemoteStack?: {
+        hostId: string
+        stackId: string
+      }
       modulesDirectory?: string
       activeModuleVariants?: Record<string, string>
       theme?: 'dark' | 'light'
@@ -1231,6 +1271,10 @@ const api = {
         url?: string
         token?: string
       }
+      activeRemoteStack?: {
+        hostId: string
+        stackId: string
+      }
       modulesDirectory?: string
       activeModuleVariants?: Record<string, string>
       theme?: 'dark' | 'light'
@@ -1253,6 +1297,14 @@ const api = {
       pinnedThreadIdsByWorkspace?: Record<string, string[]>
     }): Promise<void> {
       return ipcRenderer.invoke('settings:set', partial)
+    },
+
+    onPinnedThreadIdsChanged(callback: (payload: PinnedThreadIdsChangedPayload) => void): UnsubscribeFn {
+      const token = ++pinnedThreadIdsChangedToken
+      activePinnedThreadIdsChangedCallback = callback
+      return () => {
+        if (pinnedThreadIdsChangedToken === token) activePinnedThreadIdsChangedCallback = null
+      }
     }
   },
 
@@ -1295,6 +1347,67 @@ const api = {
           activeAppUpdateStateCallback = null
         }
       }
+    }
+  },
+
+  /** Remote DotCraft Docker stack management over SSH (the "Servers" surface). */
+  remoteServers: {
+    list(): Promise<RemoteHost[]> {
+      return ipcRenderer.invoke('remoteHosts:list')
+    },
+    sshConfig(): Promise<LocalSshConfigInfo> {
+      return ipcRenderer.invoke('remoteHosts:ssh-config')
+    },
+    create(input: {
+      name: string
+      sshTarget: string
+      identityFile?: string
+      stacks?: RemoteStack[]
+    }): Promise<RemoteHost> {
+      return ipcRenderer.invoke('remoteHosts:create', input)
+    },
+    update(id: string, patch: Partial<Omit<RemoteHost, 'id'>>): Promise<RemoteHost> {
+      return ipcRenderer.invoke('remoteHosts:update', { id, patch })
+    },
+    delete(id: string): Promise<{ ok: boolean }> {
+      return ipcRenderer.invoke('remoteHosts:delete', { id })
+    },
+    test(input: {
+      id?: string
+      draft?: { name?: string; sshTarget?: string; identityFile?: string }
+    }): Promise<SshTestResult> {
+      return ipcRenderer.invoke('remoteHosts:test', input)
+    },
+    listStacks(hostId: string): Promise<RemoteStack[]> {
+      return ipcRenderer.invoke('remoteStacks:list', { hostId })
+    },
+    discoverStacks(hostId: string): Promise<DiscoveredStack[]> {
+      return ipcRenderer.invoke('remoteStacks:discover', { hostId })
+    },
+    status(hostId: string, stackId: string): Promise<RemoteStackStatus> {
+      return ipcRenderer.invoke('remoteStacks:status', { hostId, stackId })
+    },
+    logs(
+      hostId: string,
+      stackId: string,
+      options?: { service?: string; tail?: number }
+    ): Promise<{ text: string; service?: string; tail: number }> {
+      return ipcRenderer.invoke('remoteStacks:logs', { hostId, stackId, ...options })
+    },
+    action(hostId: string, stackId: string, action: RemoteStackAction): Promise<OperationResult> {
+      return ipcRenderer.invoke('remoteStacks:action', { hostId, stackId, action })
+    },
+    openInDesktop(
+      hostId: string,
+      stackId: string
+    ): Promise<{ ok: boolean; hostId: string; stackId: string; localPort: number }> {
+      return ipcRenderer.invoke('remoteStacks:open-app-server-tunnel', { hostId, stackId })
+    },
+    openDashboard(hostId: string, stackId: string): Promise<{ ok: boolean; localPort: number }> {
+      return ipcRenderer.invoke('remoteStacks:open-dashboard-tunnel', { hostId, stackId })
+    },
+    disconnect(hostId: string, stackId: string): Promise<{ ok: boolean }> {
+      return ipcRenderer.invoke('remoteStacks:disconnect', { hostId, stackId })
     }
   }
 }

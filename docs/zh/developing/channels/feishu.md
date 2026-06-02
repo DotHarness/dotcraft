@@ -14,6 +14,7 @@
 - 基于外部渠道身份复用 DotCraft 线程
 - `/new` 开启新会话
 - 群聊仅在 @机器人 时响应
+- 每个飞书群聊共享一条 DotCraft thread，每条 turn 会记录真实发言人
 - 对会处理的入站消息立即添加表情回复
 - 按钮式审批卡片
 - `turn/completed` 后发送静态回复卡片
@@ -148,6 +149,7 @@ npx dotcraft-channel-feishu --workspace /path/to/workspace --config /custom/feis
 
 - 私聊：默认处理
 - 群聊：默认仅被 @ 时处理；`groupMentionRequired=false` 时放开群消息
+- 线程身份：私聊按发送者隔离，群聊按飞书 chat id 隔离。
 - 入站提示：消息通过过滤与解析后，会先添加配置的表情回复
 - 命令：`/new` 归档当前线程并创建新会话
 - 审批：通过交互式卡片处理

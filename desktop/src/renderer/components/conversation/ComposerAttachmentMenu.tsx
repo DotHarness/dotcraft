@@ -10,6 +10,7 @@ interface ComposerAttachmentMenuProps {
   referenceFileLabel: string
   onAttachImages: (files: File[]) => void
   onReferenceFiles: () => void
+  attachmentDisabledReason?: string
   planModeLabel?: string
   planModeToggleLabel?: string
   planModeEnabled?: boolean
@@ -24,6 +25,7 @@ export function ComposerAttachmentMenu({
   referenceFileLabel,
   onAttachImages,
   onReferenceFiles,
+  attachmentDisabledReason,
   planModeLabel,
   planModeToggleLabel,
   planModeEnabled = false,
@@ -35,6 +37,7 @@ export function ComposerAttachmentMenu({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const menuId = useId()
   const showPlanModeToggle = Boolean(planModeLabel && onTogglePlanMode)
+  const attachmentsDisabled = Boolean(attachmentDisabledReason)
 
   useEffect(() => {
     if (!open) return
@@ -140,11 +143,14 @@ export function ComposerAttachmentMenu({
           <button
             type="button"
             role="menuitem"
+            disabled={attachmentsDisabled}
+            title={attachmentDisabledReason}
             onClick={() => {
+              if (attachmentsDisabled) return
               setOpen(false)
               fileInputRef.current?.click()
             }}
-            style={menuItemStyle}
+            style={attachmentsDisabled ? disabledMenuItemStyle : menuItemStyle}
           >
             <ImagePlus size={14} aria-hidden />
             <span>{attachImageLabel}</span>
@@ -152,11 +158,14 @@ export function ComposerAttachmentMenu({
           <button
             type="button"
             role="menuitem"
+            disabled={attachmentsDisabled}
+            title={attachmentDisabledReason}
             onClick={() => {
+              if (attachmentsDisabled) return
               setOpen(false)
               onReferenceFiles()
             }}
-            style={menuItemStyle}
+            style={attachmentsDisabled ? disabledMenuItemStyle : menuItemStyle}
           >
             <FileText size={14} aria-hidden />
             <span>{referenceFileLabel}</span>
@@ -212,6 +221,12 @@ const menuItemStyle = {
   textAlign: 'left',
   fontSize: 'var(--type-secondary-size)',
   lineHeight: 'var(--type-secondary-line-height)'
+} as const
+
+const disabledMenuItemStyle = {
+  ...menuItemStyle,
+  color: 'var(--text-dimmed)',
+  cursor: 'default'
 } as const
 
 const planModeMenuItemStyle: CSSProperties = {

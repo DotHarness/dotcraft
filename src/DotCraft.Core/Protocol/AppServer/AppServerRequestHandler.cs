@@ -81,6 +81,11 @@ public sealed class AppServerRequestHandler(
 {
     private const string AppBindingAppListUpdatedNotification = "app/list/updated";
     private const string AppBindingThreadBindingsChangedNotification = "thread/appBindings/changed";
+    private const int ThreadListDefaultPageLimit = 50;
+    private const int ThreadListMaxPageLimit = 100;
+    private const int ThreadReadMaxPageLimit = 100;
+    private const string ThreadListCursorKind = "thread-list";
+    private const string ThreadReadCursorKind = "thread-read";
 
     private readonly CommandRegistry _commandRegistry = commandRegistry
                                                         ?? CommandRegistry.CreateDefault(
@@ -620,8 +625,33 @@ public sealed class AppServerRequestHandler(
                 .ToList();
         }
 
+        if (!string.IsNullOrWhiteSpace(p.Query))
+        {
+            var query = p.Query.Trim();
+            threads = threads
+                .Where(t => MatchesThreadListQuery(t, query))
+                .ToList();
+        }
+
+        var totalMatched = threads.Count;
+        var isPaged = p.Limit.HasValue || !string.IsNullOrWhiteSpace(p.Cursor);
+        var limit = isPaged
+            ? NormalizePageLimit(p.Limit, ThreadListDefaultPageLimit, ThreadListMaxPageLimit, "limit")
+            : totalMatched;
+        var offset = DecodeCursorOffset(p.Cursor, ThreadListCursorKind);
+        if (!isPaged && offset != 0)
+            throw AppServerErrors.InvalidParams("'cursor' requires pagination.");
+
+        var page = isPaged
+            ? threads.Skip(offset).Take(limit).ToList()
+            : threads.ToList();
+        var nextOffset = offset + page.Count;
+        var nextCursor = isPaged && nextOffset < totalMatched
+            ? EncodeCursor(ThreadListCursorKind, nextOffset)
+            : null;
+
         var data = new List<ThreadSummary>();
-        foreach (var summary in threads)
+        foreach (var summary in page)
         {
             summary.Goal = await TryGetGoalSnapshotAsync(summary.Id, ct);
             var appBindings = TryGetAppBindingSummaries(summary.Id, summary.WorkspacePath);
@@ -630,7 +660,12 @@ public sealed class AppServerRequestHandler(
             data.Add(summary);
         }
 
-        return new ThreadListResult { Data = data };
+        return new ThreadListResult
+        {
+            Data = data,
+            NextCursor = nextCursor,
+            TotalMatched = isPaged || !string.IsNullOrWhiteSpace(p.Query) ? totalMatched : null
+        };
     }
 
     private async Task<object?> HandleSubAgentChildrenListAsync(AppServerIncomingMessage msg, CancellationToken ct)
@@ -689,6 +724,68 @@ public sealed class AppServerRequestHandler(
     /// </summary>
     private static IReadOnlyList<string>? ResolveCrossChannelOriginsForThreadList(ThreadListParams p) =>
         p.CrossChannelOrigins;
+
+    private static bool MatchesThreadListQuery(ThreadSummary summary, string query)
+    {
+        static bool Contains(string? value, string query) =>
+            !string.IsNullOrWhiteSpace(value)
+            && value.Contains(query, StringComparison.OrdinalIgnoreCase);
+
+        return Contains(summary.Id, query)
+               || Contains(summary.DisplayName, query)
+               || Contains(summary.OriginChannel, query)
+               || Contains(summary.ChannelContext, query)
+               || Contains(summary.Status.ToString(), query);
+    }
+
+    private static int NormalizePageLimit(int? limit, int defaultLimit, int maxLimit, string fieldName)
+    {
+        var value = limit ?? defaultLimit;
+        if (value <= 0)
+            throw AppServerErrors.InvalidParams($"'{fieldName}' must be a positive integer.");
+        if (value > maxLimit)
+            throw AppServerErrors.InvalidParams($"'{fieldName}' must be at most {maxLimit}.");
+        return value;
+    }
+
+    private static string EncodeCursor(string kind, int offset)
+    {
+        var raw = $"{kind}:{offset.ToString(CultureInfo.InvariantCulture)}";
+        return Convert.ToBase64String(Encoding.UTF8.GetBytes(raw))
+            .TrimEnd('=')
+            .Replace('+', '-')
+            .Replace('/', '_');
+    }
+
+    private static int DecodeCursorOffset(string? cursor, string expectedKind)
+    {
+        if (string.IsNullOrWhiteSpace(cursor))
+            return 0;
+
+        try
+        {
+            var token = cursor.Trim().Replace('-', '+').Replace('_', '/');
+            token = token.PadRight(token.Length + ((4 - token.Length % 4) % 4), '=');
+            var raw = Encoding.UTF8.GetString(Convert.FromBase64String(token));
+            var prefix = expectedKind + ":";
+            if (!raw.StartsWith(prefix, StringComparison.Ordinal)
+                || !int.TryParse(raw[prefix.Length..], NumberStyles.None, CultureInfo.InvariantCulture, out var offset)
+                || offset < 0)
+            {
+                throw AppServerErrors.InvalidParams("'cursor' is invalid.");
+            }
+
+            return offset;
+        }
+        catch (AppServerException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            throw AppServerErrors.InvalidParams("'cursor' is invalid.");
+        }
+    }
 
     private Task<object?> HandleChannelListAsync(AppServerIncomingMessage msg, CancellationToken ct)
     {
@@ -1659,11 +1756,46 @@ public sealed class AppServerRequestHandler(
     {
         var p = GetParams<ThreadReadParams>(msg);
         var thread = await sessionService.GetThreadAsync(p.ThreadId, ct);
-        var includeTurns = p.IncludeTurns ?? false;
+        var isPaged = p.TurnLimit.HasValue || !string.IsNullOrWhiteSpace(p.Cursor);
+        var includeTurns = (p.IncludeTurns ?? false) || isPaged;
+        ThreadReadTurnPage? turnPage = null;
+        SessionWireThread baseWire;
+        if (isPaged)
+        {
+            var limit = NormalizePageLimit(p.TurnLimit, ThreadListDefaultPageLimit, ThreadReadMaxPageLimit, "turnLimit");
+            var offset = DecodeCursorOffset(p.Cursor, ThreadReadCursorKind);
+            var totalTurns = thread.Turns.Count;
+            var startIndex = Math.Max(0, totalTurns - offset - limit);
+            var count = Math.Max(0, totalTurns - offset - startIndex);
+            var pageTurns = count == 0
+                ? new List<SessionWireTurn>()
+                : thread.Turns.Skip(startIndex).Take(count).Select(t => t.ToWire(includeItems: true)).ToList();
+            var nextOffset = offset + count;
+            var hasMore = startIndex > 0;
+            turnPage = new ThreadReadTurnPage
+            {
+                Limit = limit,
+                TotalTurns = totalTurns,
+                StartOrdinal = count == 0 ? 0 : startIndex + 1,
+                EndOrdinal = count == 0 ? 0 : startIndex + count,
+                NextCursor = hasMore ? EncodeCursor(ThreadReadCursorKind, nextOffset) : null,
+                HasMore = hasMore
+            };
+            baseWire = thread.ToWire(includeTurns: false) with { Turns = pageTurns };
+        }
+        else
+        {
+            baseWire = thread.ToWire(includeTurns);
+        }
+
         var wire = await WithPlanAsync(WithRuntimeSnapshot(
-            WithContextUsage(FilterToolExecutionItemsForConnection(thread.ToWire(includeTurns)), thread.Id),
+            WithContextUsage(FilterToolExecutionItemsForConnection(baseWire), thread.Id),
             thread), thread.Id, ct);
-        return new { thread = await EnrichThreadWireAsync(wire, thread, ct) };
+        return new ThreadReadResult
+        {
+            Thread = await EnrichThreadWireAsync(wire, thread, ct),
+            TurnPage = turnPage
+        };
     }
 
     private async Task<object?> HandleThreadGoalGetAsync(AppServerIncomingMessage msg, CancellationToken ct)

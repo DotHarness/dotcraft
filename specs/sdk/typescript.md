@@ -474,7 +474,7 @@ Request:
 
 ```json
 {
-  "workspacePath": "F:/dotcraft",
+  "workspacePath": "F:/examples/workspace",
   "client": {
     "name": "my-app",
     "version": "0.1.0"
@@ -1066,13 +1066,13 @@ Channel identity key:
 {userId}:{channelContext}
 ```
 
-Adapters may override identity behavior when the platform needs group-specific semantics.
+`userId` is the thread identity, not necessarily the physical sender. First-party group-capable adapters use the conversation as the thread identity for group/chat contexts, for example QQ `userId = "group:{groupId}"` and WeCom `userId = "chat:{chatId}"`. The physical sender is supplied separately through `sender`.
 
 The `SessionIdentity.channelName` must match the adapter's declared channel name.
 
 ### 16.6 Sender Context
 
-Adapters should provide:
+Adapters should provide per-turn sender context:
 
 - `senderId`
 - `senderName`
@@ -1080,6 +1080,7 @@ Adapters should provide:
 - `groupId` when the platform has a group/chat delivery target
 
 If `groupId` is omitted, server-side delivery fallbacks may use `senderId`.
+Sender context is appended to the current user message runtime context, not to the system prompt.
 
 ### 16.7 Channel Tools
 

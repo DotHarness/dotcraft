@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, 
 import {
   ListChecks,
   Plus,
-  Server,
   TestTube2
 } from 'lucide-react'
 import { addToast } from '../../stores/toastStore'
@@ -56,6 +55,7 @@ import {
 import { SettingsSelect } from './ui/SettingsSelect'
 import { GeneralPanel } from './panels/GeneralPanel'
 import { ConnectionPanel } from './panels/ConnectionPanel'
+import { ServersPanel } from './panels/servers/ServersPanel'
 import { ProviderProtocolIcon } from './panels/ProviderProtocolIcon'
 import { UsagePanel } from './panels/UsagePanel'
 import { UsageOverview } from './UsageOverview'
@@ -82,6 +82,7 @@ declare const __APP_VERSION__: string | undefined
 
 interface SettingsViewProps {
   workspacePath?: string
+  identityWorkspacePath?: string
   onThreadListRefreshRequested?: () => void
   workspaceConfigChange?: WorkspaceConfigChangedPayload | null
   workspaceConfigChangeSeq?: number
@@ -172,6 +173,11 @@ interface ProviderTestResultWire {
   models?: Array<{ id?: string; Id?: string }>
   errorCode?: string
   errorMessage?: string
+}
+
+interface ActiveRemoteStackRef {
+  hostId: string
+  stackId: string
 }
 
 // Canonical id/displayName for ChatGPT-subscription providers. Must match the literals
@@ -1329,6 +1335,7 @@ function maskAccountId(accountId: string): string {
 
 export function SettingsView({
   workspacePath,
+  identityWorkspacePath,
   onThreadListRefreshRequested,
   workspaceConfigChange = null,
   workspaceConfigChangeSeq = 0,
@@ -1363,6 +1370,7 @@ export function SettingsView({
   const [wsPort, setWsPort] = useState(String(DEFAULT_WS_PORT))
   const [remoteUrl, setRemoteUrl] = useState('')
   const [remoteToken, setRemoteToken] = useState('')
+  const [activeRemoteStack, setActiveRemoteStack] = useState<ActiveRemoteStackRef | null>(null)
   const [theme, setTheme] = useState<ThemeMode>('light')
   const [locale, setLocale] = useState<AppLocale>(normalizeLocale(undefined))
   const [taskCompletionNotificationMode, setTaskCompletionNotificationMode] =
@@ -1515,25 +1523,62 @@ export function SettingsView({
     if (!current || normalized.includes(current)) return normalized
     return [current, ...normalized]
   }, [providerModelOptions, workspaceModel])
+  const selectedProviderMissing =
+    selectedProviderId.trim() !== '' &&
+    !providersLoading &&
+    providers.length > 0 &&
+    selectedProvider == null
+  const workspaceProviderMissingMessage = selectedProviderMissing
+    ? t('settings.llm.workspaceProviderMissing', { providerId: selectedProviderId })
+    : ''
+  const workspaceProviderOptions = useMemo(() => {
+    const options = []
+    const normalizedSelectedProviderId = selectedProviderId.trim()
+    if (!normalizedSelectedProviderId) {
+      options.push({
+        value: '',
+        label: t('settings.llm.workspaceNoProvider'),
+        disabled: true
+      })
+    } else if (selectedProviderMissing) {
+      options.push({
+        value: normalizedSelectedProviderId,
+        label: normalizedSelectedProviderId,
+        description: t('settings.llm.providerMissingInList'),
+        disabled: true
+      })
+    }
+    options.push(...providers.map((provider) => ({
+      value: provider.id,
+      label: provider.displayName,
+      description: provider.id
+    })))
+    return options
+  }, [providers, selectedProviderId, selectedProviderMissing, t])
   const providerModelSelectAvailable =
     !providerModelLoading &&
     providerModelError.trim() === '' &&
     effectiveProviderModelOptions.length > 0
   const llmDirty = false
+  const activeRemoteStackConnection = connectionMode === 'remote' && activeRemoteStack != null
+  const manualRemoteConnection = connectionMode === 'remote' && !activeRemoteStackConnection
+  const localConnectionSettingsEnabled = connectionMode !== 'remote'
   const connectionDirty =
     baselineConnection != null &&
-    (binarySource !== baselineConnection.binarySource ||
-      binaryPath.trim() !== baselineConnection.binaryPath.trim() ||
-      connectionMode !== baselineConnection.connectionMode ||
-      wsHost.trim() !== baselineConnection.wsHost.trim() ||
-      wsPort.trim() !== baselineConnection.wsPort.trim() ||
-      remoteUrl.trim() !== baselineConnection.remoteUrl.trim() ||
-      remoteToken.trim() !== baselineConnection.remoteToken.trim())
+    (connectionMode !== baselineConnection.connectionMode ||
+      (localConnectionSettingsEnabled &&
+        (binarySource !== baselineConnection.binarySource ||
+          binaryPath.trim() !== baselineConnection.binaryPath.trim() ||
+          wsHost.trim() !== baselineConnection.wsHost.trim() ||
+          wsPort.trim() !== baselineConnection.wsPort.trim())) ||
+      (manualRemoteConnection &&
+        (remoteUrl.trim() !== baselineConnection.remoteUrl.trim() ||
+          remoteToken.trim() !== baselineConnection.remoteToken.trim())))
   const remoteConnectionValidation = useMemo(
-    () => connectionMode === 'remote'
+    () => manualRemoteConnection
       ? resolveRemoteWebSocketConfig({ url: remoteUrl, token: remoteToken })
       : null,
-    [connectionMode, remoteToken, remoteUrl]
+    [manualRemoteConnection, remoteToken, remoteUrl]
   )
   function applyWorkspaceCoreBaseline(core: WorkspaceCoreConfigResult, keepDraftValues: boolean): void {
     setWorkspaceCoreBaseline(core.workspace)
@@ -1628,12 +1673,24 @@ export function SettingsView({
       setProviderModelOptions([])
       return
     }
+    const normalizedProviderId = providerId.trim()
+    if (
+      providerManagementEnabled &&
+      !providersLoading &&
+      providers.length > 0 &&
+      normalizedProviderId &&
+      !providers.some((provider) => provider.id === normalizedProviderId)
+    ) {
+      setProviderModelOptions([])
+      setProviderModelError(t('settings.llm.workspaceProviderMissing', { providerId: normalizedProviderId }))
+      return
+    }
     setProviderModelLoading(true)
     setProviderModelError('')
     try {
       const result = await window.api.appServer.sendRequest(
         'model/list',
-        providerId.trim() ? { providerId: providerId.trim() } : {},
+        normalizedProviderId ? { providerId: normalizedProviderId } : {},
         20_000
       ) as {
         success?: boolean
@@ -1699,6 +1756,12 @@ export function SettingsView({
     if (!selectedProviderId) return
     void reloadProviderModels(selectedProviderId)
   }, [modelCatalogManagementEnabled, selectedProviderId])
+
+  useEffect(() => {
+    if (!selectedProviderMissing) return
+    setProviderModelOptions([])
+    setProviderModelError(workspaceProviderMissingMessage)
+  }, [selectedProviderMissing, workspaceProviderMissingMessage])
 
   function startCreateProvider(): void {
     setProviderEditorId('__new__')
@@ -2334,6 +2397,11 @@ export function SettingsView({
         setWsPort(String(s.webSocket?.port ?? DEFAULT_WS_PORT))
         setRemoteUrl(s.remote?.url ?? '')
         setRemoteToken(s.remote?.token ?? '')
+        setActiveRemoteStack(
+          s.activeRemoteStack?.hostId && s.activeRemoteStack.stackId
+            ? { hostId: s.activeRemoteStack.hostId, stackId: s.activeRemoteStack.stackId }
+            : null
+        )
         setTheme(resolveTheme(s.theme))
         setLocale(normalizeLocale(s.locale))
         setTaskCompletionNotificationMode(
@@ -2942,6 +3010,9 @@ export function SettingsView({
       remoteUrl,
       remoteToken
     })
+    if (connectionMode !== 'remote') {
+      setActiveRemoteStack(null)
+    }
   }
 
   async function handlePickBinary(): Promise<void> {
@@ -3288,52 +3359,19 @@ export function SettingsView({
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                         <div style={{ ...providerFieldGridStyle(), alignItems: 'end' }}>
                           <div style={{ minWidth: 0 }}>
-                            <div style={sectionLabelStyle()}>{t('settings.llm.workspaceCurrentProvider')}</div>
-                            <div
-                              style={{
-                                minHeight: 35,
-                                boxSizing: 'border-box',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '10px',
-                                padding: '7px 10px',
-                                border: '1px solid var(--border-default)',
-                                borderRadius: '8px',
-                                background: 'var(--bg-primary)'
+                            <label htmlFor="settings-workspace-provider" style={sectionLabelStyle()}>
+                              {t('settings.llm.workspaceCurrentProvider')}
+                            </label>
+                            <SettingsSelect
+                              id="settings-workspace-provider"
+                              ariaLabel={t('settings.llm.workspaceCurrentProvider')}
+                              value={selectedProviderId}
+                              disabled={providersLoading || applyingWorkspaceProvider || providers.length === 0}
+                              onValueChange={(providerId) => {
+                                void handleWorkspaceProviderChange(providerId)
                               }}
-                            >
-                              <Server size={15} aria-hidden="true" style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
-                              <div
-                                style={{
-                                  flex: 1,
-                                  minWidth: 0,
-                                  fontSize: '13px',
-                                  fontWeight: 600,
-                                  color: 'var(--text-primary)',
-                                  overflow: 'hidden',
-                                  textOverflow: 'ellipsis',
-                                  whiteSpace: 'nowrap'
-                                }}
-                              >
-                                {selectedProvider?.displayName ?? (selectedProviderId || t('settings.llm.workspaceNoProvider'))}
-                              </div>
-                              <div
-                                title={selectedProviderId || t('settings.llm.workspaceNoProviderId')}
-                                style={{
-                                  minWidth: 0,
-                                  maxWidth: '45%',
-                                  flexShrink: 0,
-                                  fontSize: '11px',
-                                  color: 'var(--text-dimmed)',
-                                  fontFamily: 'var(--font-mono)',
-                                  overflow: 'hidden',
-                                  textOverflow: 'ellipsis',
-                                  whiteSpace: 'nowrap'
-                                }}
-                              >
-                                {selectedProviderId || t('settings.llm.workspaceNoProviderId')}
-                              </div>
-                            </div>
+                              options={workspaceProviderOptions}
+                            />
                           </div>
 
                           <div style={{ minWidth: 0 }}>
@@ -4257,7 +4295,29 @@ export function SettingsView({
                     />
                   </SettingsRow>
 
-                  {connectionMode === 'remote' && (
+                  {activeRemoteStackConnection && (
+                    <SettingsRow
+                      orientation="block"
+                      label={t('settings.remoteStackManaged.title')}
+                    >
+                      <div
+                        style={{
+                          border: '1px solid var(--border-default)',
+                          borderLeft: '3px solid var(--accent-blue)',
+                          borderRadius: '8px',
+                          background: 'var(--bg-secondary)',
+                          color: 'var(--text-secondary)',
+                          fontSize: '12px',
+                          lineHeight: 1.5,
+                          padding: '10px 12px'
+                        }}
+                      >
+                        {t('settings.remoteStackManaged.description')}
+                      </div>
+                    </SettingsRow>
+                  )}
+
+                  {manualRemoteConnection && (
                     <SettingsRow
                       orientation="block"
                       label={t('settings.remoteUrl')}
@@ -4395,6 +4455,8 @@ export function SettingsView({
               </SettingsPanelShell>
               </ConnectionPanel>
             )}
+
+            {activeSettingsTab === 'servers' && <ServersPanel />}
 
             {activeSettingsTab === 'browserUse' && (
               <GeneralPanel>
@@ -5195,7 +5257,7 @@ export function SettingsView({
 
             {activeSettingsTab === 'archivedThreads' && (
               <ArchivedThreadsSettingsView
-                workspacePath={workspacePath}
+                workspacePath={identityWorkspacePath || workspacePath}
                 onThreadListRefreshRequested={onThreadListRefreshRequested}
               />
             )}

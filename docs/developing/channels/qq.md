@@ -8,7 +8,7 @@
 - Exposes a OneBot v11 reverse WebSocket server
 - Supports QQ private chats and group chats
 - Responds in groups only when the bot is mentioned by default
-- Maps each QQ private chat or group chat to a separate DotCraft thread
+- Maps each QQ private chat user or group chat to a separate DotCraft thread
 - Supports approval inside the QQ conversation
 - Provides voice, video, and file runtime tools
 
@@ -106,7 +106,7 @@ For development:
 ```bash
 cd sdk/typescript
 npm run build --workspace @dotcraft/channel-qq
-npx dotcraft-channel-qq --workspace F:\dotcraft
+npx dotcraft-channel-qq --workspace F:\examples\workspace
 ```
 
 Or from the package directory:
@@ -114,14 +114,14 @@ Or from the package directory:
 ```bash
 cd sdk/typescript/packages/channel-qq
 npm run build
-npm start -- --workspace F:\dotcraft
+npm start -- --workspace F:\examples\workspace
 ```
 
 ## Usage
 
 - Group chats respond only when the bot is mentioned by default.
 - Private chats use a separate thread per user.
-- Each QQ group or private user maps to a separate DotCraft thread.
+- Each QQ group maps to one shared DotCraft thread, with each sender recorded on the individual turn.
 - When an admin triggers an action that needs approval, the adapter sends an approval prompt in the QQ conversation.
 - Reply `同意`, `允许`, `yes`, or `approve` to approve; reply `拒绝`, `no`, `reject`, or `deny` to reject.
 

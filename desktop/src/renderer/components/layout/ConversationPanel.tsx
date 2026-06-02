@@ -16,9 +16,12 @@ import type { ThreadConfigurationWire } from '../../types/thread'
 import type { ReasoningQuickValue } from '../conversation/ModelPicker'
 import { parseJsonConfig } from '../../../shared/jsonConfig'
 import type { WorkspaceConfigChangedPayload } from '../../utils/workspaceConfigChanged'
+import { configObjectFromWorkspaceCore, type WorkspaceCoreConfigLike } from '../../utils/workspaceCoreConfig'
 
 interface ConversationPanelProps {
   workspacePath?: string
+  identityWorkspacePath?: string
+  remoteWorkspace?: boolean
   workspaceConfigChange?: WorkspaceConfigChangedPayload | null
   workspaceConfigChangeSeq?: number
 }
@@ -42,6 +45,8 @@ const DEFAULT_REASONING_CONFIG: ResolvedReasoningConfig = {
  */
 export function ConversationPanel({
   workspacePath = '',
+  identityWorkspacePath,
+  remoteWorkspace = false,
   workspaceConfigChange = null,
   workspaceConfigChangeSeq = 0
 }: ConversationPanelProps): JSX.Element {
@@ -66,6 +71,7 @@ export function ConversationPanel({
   const modelCatalogErrorCode = useModelCatalogStore((s) => s.errorCode)
   const modelCatalogErrorMessage = useModelCatalogStore((s) => s.errorMessage)
   const loadModels = useModelCatalogStore((s) => s.loadIfNeeded)
+  const protocolWorkspacePath = identityWorkspacePath || workspacePath
   const [modelName, setModelName] = useState<string>('Default')
   const [reasoningConfig, setReasoningConfig] = useState<ResolvedReasoningConfig>(DEFAULT_REASONING_CONFIG)
   const [modelApplying, setModelApplying] = useState(false)
@@ -91,10 +97,15 @@ export function ConversationPanel({
   }, [workspacePath])
 
   const readWorkspaceConfig = useCallback(async (): Promise<Record<string, unknown>> => {
+    if (remoteWorkspace) {
+      const getCore = window.api.workspaceConfig?.getCore
+      if (typeof getCore !== 'function') return {}
+      return configObjectFromWorkspaceCore(await getCore() as WorkspaceCoreConfigLike)
+    }
     if (!workspaceConfigPath) return {}
     const raw = await window.api.file.readFile(workspaceConfigPath)
     return parseJsonConfig<Record<string, unknown>>(raw, {})
-  }, [workspaceConfigPath])
+  }, [remoteWorkspace, workspaceConfigPath])
 
   const setCaseInsensitiveField = useCallback(
     (target: Record<string, unknown>, key: string, value: unknown): void => {
@@ -321,6 +332,8 @@ export function ConversationPanel({
     return (
       <ConversationWelcome
         workspacePath={workspacePath}
+        identityWorkspacePath={protocolWorkspacePath}
+        remoteWorkspace={remoteWorkspace}
         workspaceConfigChange={workspaceConfigChange}
         workspaceConfigChangeSeq={workspaceConfigChangeSeq}
       />
@@ -341,7 +354,12 @@ export function ConversationPanel({
       }}
     >
       {/* Fixed header */}
-      <ThreadHeader threadName={threadName} threadId={activeThread.id} workspacePath={workspacePath} />
+      <ThreadHeader
+        threadName={threadName}
+        threadId={activeThread.id}
+        workspacePath={workspacePath}
+        remoteWorkspace={remoteWorkspace}
+      />
 
       {/* Reconnection banner */}
       {showReconnectionBanner && (
@@ -406,13 +424,14 @@ export function ConversationPanel({
       ) : showPlanApproval && latestCreatePlanTurnId ? (
         <PlanApprovalComposer
           threadId={activeThread.id}
-          workspacePath={workspacePath}
+          workspacePath={protocolWorkspacePath}
           turnId={latestCreatePlanTurnId}
         />
       ) : (
         <InputComposer
           threadId={activeThread.id}
-          workspacePath={workspacePath}
+          workspacePath={protocolWorkspacePath}
+          remoteWorkspace={remoteWorkspace}
           modelName={modelName}
           modelOptions={modelOptions}
           modelCatalog={modelCatalog}

@@ -14,6 +14,7 @@ It is built on:
 - DotCraft thread reuse via external channel identity
 - `/new` to start a fresh DotCraft thread
 - Group chats that only respond when the bot is @mentioned
+- One shared DotCraft thread per Feishu group chat, with the sender recorded on each turn
 - Immediate reaction on handled inbound messages
 - Interactive approval cards with buttons
 - Static reply cards after `turn/completed`
@@ -148,6 +149,7 @@ npx dotcraft-channel-feishu --workspace /path/to/workspace --config /custom/feis
 
 - DM: always handled
 - Group: handled only when the bot is mentioned, unless `groupMentionRequired` is `false`
+- Thread identity: DMs are scoped to the sender; group chats are scoped to the Feishu chat id.
 - Inbound ack: after filtering/parsing, the adapter adds the configured reaction first
 - Commands: `/new` archives the current thread and starts a new one
 - Approvals: rendered as interactive cards

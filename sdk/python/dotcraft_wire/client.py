@@ -182,6 +182,9 @@ class DotCraftClient:
         workspace_path: str = "",
         channel_context: str = "",
         include_archived: bool = False,
+        query: str | None = None,
+        limit: int | None = None,
+        cursor: str | None = None,
     ) -> list[Thread]:
         """List threads for a given identity."""
         identity: dict = {
@@ -193,18 +196,37 @@ class DotCraftClient:
         if channel_context:
             identity["channelContext"] = channel_context
 
-        result = await self._request("thread/list", {
+        params: dict = {
             "identity": identity,
             "includeArchived": include_archived,
-        })
+        }
+        if query:
+            params["query"] = query
+        if limit is not None:
+            params["limit"] = limit
+        if cursor:
+            params["cursor"] = cursor
+
+        result = await self._request("thread/list", params)
         return [Thread.from_wire(t) for t in result.get("data", [])]
 
-    async def thread_read(self, thread_id: str, include_turns: bool = False) -> Thread:
+    async def thread_read(
+        self,
+        thread_id: str,
+        include_turns: bool = False,
+        turn_limit: int | None = None,
+        cursor: str | None = None,
+    ) -> Thread:
         """Read a thread by ID."""
-        result = await self._request("thread/read", {
+        params: dict = {
             "threadId": thread_id,
             "includeTurns": include_turns,
-        })
+        }
+        if turn_limit is not None:
+            params["turnLimit"] = turn_limit
+        if cursor:
+            params["cursor"] = cursor
+        result = await self._request("thread/read", params)
         return Thread.from_wire(result["thread"])
 
     async def thread_subscribe(self, thread_id: str, replay_recent: bool = False) -> None:

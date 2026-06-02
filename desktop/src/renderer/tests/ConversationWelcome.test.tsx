@@ -11,11 +11,13 @@ import { useUIStore } from '../stores/uiStore'
 import { useSkillsStore } from '../stores/skillsStore'
 import { useToastStore } from '../stores/toastStore'
 import { useAppBindingStore } from '../stores/appBindingStore'
+import { useConversationStore } from '../stores/conversationStore'
 import type { ThreadGoal } from '../types/thread'
 import type { WorkspaceConfigChangedPayload } from '../utils/workspaceConfigChanged'
 
 const fileReadFile = vi.fn()
 const appServerSendRequest = vi.fn()
+const workspaceConfigGetCore = vi.fn()
 const saveImageToTemp = vi.fn()
 const pickFiles = vi.fn()
 const getPathForFile = vi.fn((file: File) => file.name === 'notes.txt' ? 'C:\\temp\\notes.txt' : '')
@@ -96,15 +98,18 @@ function setTextboxCaret(textbox: HTMLElement, offset: number): void {
 
 function renderWelcome({
   workspaceConfigChange = null,
-  workspaceConfigChangeSeq = 0
+  workspaceConfigChangeSeq = 0,
+  remoteWorkspace = false
 }: {
   workspaceConfigChange?: WorkspaceConfigChangedPayload | null
   workspaceConfigChangeSeq?: number
+  remoteWorkspace?: boolean
 } = {}) {
   return render(
     <LocaleProvider>
       <ConversationWelcome
         workspacePath="F:\\dotcraft"
+        remoteWorkspace={remoteWorkspace}
         workspaceConfigChange={workspaceConfigChange}
         workspaceConfigChangeSeq={workspaceConfigChangeSeq}
       />
@@ -157,6 +162,8 @@ describe('ConversationWelcome composer', () => {
 
     useConnectionStore.getState().reset()
     useThreadStore.getState().reset()
+    useConversationStore.getState().reset()
+    useConversationStore.setState({ remoteWorkspaceActive: false })
     useModelCatalogStore.getState().reset()
     useProvidersStore.getState().reset()
     useAppBindingStore.getState().reset()
@@ -210,6 +217,18 @@ describe('ConversationWelcome composer', () => {
     })
 
     fileReadFile.mockResolvedValue('{}')
+    workspaceConfigGetCore.mockResolvedValue({
+      workspace: {
+        model: null,
+        welcomeSuggestionsEnabled: null,
+        defaultApprovalPolicy: null
+      },
+      userDefaults: {
+        model: null,
+        welcomeSuggestionsEnabled: null,
+        defaultApprovalPolicy: null
+      }
+    })
     settingsGet.mockResolvedValue({ locale: 'en' })
     shellOpenExternal.mockResolvedValue(undefined)
     shellGetProtocolHandlerName.mockResolvedValue('Oratorio')
@@ -272,6 +291,9 @@ describe('ConversationWelcome composer', () => {
         },
         appServer: {
           sendRequest: appServerSendRequest
+        },
+        workspaceConfig: {
+          getCore: workspaceConfigGetCore
         },
         file: {
           readFile: fileReadFile
@@ -424,6 +446,29 @@ describe('ConversationWelcome composer', () => {
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Select model' })).toHaveTextContent('claude-sonnet-4-5')
     })
+  })
+
+  it('loads the workspace model from remote-aware core config without reading local files', async () => {
+    workspaceConfigGetCore.mockResolvedValue({
+      workspace: {
+        model: 'claude-sonnet-4-5',
+        welcomeSuggestionsEnabled: null,
+        defaultApprovalPolicy: null
+      },
+      userDefaults: {
+        model: 'gpt-5',
+        welcomeSuggestionsEnabled: null,
+        defaultApprovalPolicy: null
+      }
+    })
+
+    renderWelcome({ remoteWorkspace: true })
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Select model' })).toHaveTextContent('claude-sonnet-4-5')
+    })
+    expect(workspaceConfigGetCore).toHaveBeenCalled()
+    expect(fileReadFile).not.toHaveBeenCalled()
   })
 
   it('shows connected welcome apps as enabled switches and preserves manual disable', async () => {

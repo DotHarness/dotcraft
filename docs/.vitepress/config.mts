@@ -51,6 +51,7 @@ const enSidebar: DefaultTheme.Sidebar = [
         link: '/features/self-hosted/observability',
         collapsed: false,
         items: [
+          { text: withIcon('cloud', 'Server Deployment'), link: '/features/self-hosted/server-deployment' },
           { text: withIcon('activity', 'Observability'), link: '/features/self-hosted/observability' },
           { text: withIcon('shield', 'Security & Sandbox'), link: '/features/self-hosted/security' }
         ]
@@ -86,7 +87,6 @@ const enSidebar: DefaultTheme.Sidebar = [
         items: [
           { text: withIcon('history', 'Settings Lifecycle'), link: '/developing/lifecycle/settings-lifecycle' },
           { text: withIcon('server', 'AppServer Mode'), link: '/developing/lifecycle/appserver' },
-          { text: withIcon('cloud', 'Server Deployment'), link: '/developing/lifecycle/server-deployment' },
           { text: withIcon('radio', 'Hub Local Coordination'), link: '/developing/lifecycle/hub' }
         ]
       },
@@ -185,6 +185,7 @@ const zhSidebar: DefaultTheme.Sidebar = [
         link: '/zh/features/self-hosted/observability',
         collapsed: false,
         items: [
+          { text: withIcon('cloud', '服务器部署'), link: '/zh/features/self-hosted/server-deployment' },
           { text: withIcon('activity', '可观测性'), link: '/zh/features/self-hosted/observability' },
           { text: withIcon('shield', '安全与沙箱'), link: '/zh/features/self-hosted/security' }
         ]
@@ -220,7 +221,6 @@ const zhSidebar: DefaultTheme.Sidebar = [
         items: [
           { text: withIcon('history', '设置生效层级'), link: '/zh/developing/lifecycle/settings-lifecycle' },
           { text: withIcon('server', 'AppServer 模式'), link: '/zh/developing/lifecycle/appserver' },
-          { text: withIcon('cloud', '服务器部署'), link: '/zh/developing/lifecycle/server-deployment' },
           { text: withIcon('radio', 'Hub 本地协调'), link: '/zh/developing/lifecycle/hub' }
         ]
       },
@@ -353,7 +353,8 @@ const redirectMap: Record<string, string> = {
   'developing/settings-lifecycle.md': 'developing/lifecycle/settings-lifecycle.md',
   'developing/appserver.md': 'developing/lifecycle/appserver.md',
   'developing/hub.md': 'developing/lifecycle/hub.md',
-  'developing/server-deployment.md': 'developing/lifecycle/server-deployment.md',
+  'developing/server-deployment.md': 'features/self-hosted/server-deployment.md',
+  'developing/lifecycle/server-deployment.md': 'features/self-hosted/server-deployment.md',
   'developing/appserver-protocol.md': 'developing/protocols/appserver-protocol.md',
   'developing/hub-protocol.md': 'developing/protocols/hub-protocol.md',
   'developing/dashboard-api.md': 'developing/protocols/dashboard-api.md',

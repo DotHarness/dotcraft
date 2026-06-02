@@ -17,6 +17,7 @@ interface ThreadHeaderProps {
   threadName: string
   threadId: string
   workspacePath: string
+  remoteWorkspace?: boolean
 }
 
 /**
@@ -24,7 +25,12 @@ interface ThreadHeaderProps {
  * Shows thread name (double-click to rename inline), "Open" and "Commit" buttons.
  * Spec §10.2.
  */
-export function ThreadHeader({ threadName, threadId, workspacePath }: ThreadHeaderProps): JSX.Element {
+export function ThreadHeader({
+  threadName,
+  threadId,
+  workspacePath,
+  remoteWorkspace = false
+}: ThreadHeaderProps): JSX.Element {
   const t = useT()
   const [commitOpen, setCommitOpen] = useState(false)
   const [renaming, setRenaming] = useState(false)
@@ -87,6 +93,10 @@ export function ThreadHeader({ threadName, threadId, workspacePath }: ThreadHead
    * completion, so the user is never held on the dialog. Spec §16.5.
    */
   async function runCommit(message: string): Promise<void> {
+    if (remoteWorkspace) {
+      addToast(t('threadHeader.remoteLocalGitUnavailable'), 'warning')
+      return
+    }
     const files = Array.from(useConversationStore.getState().changedFiles.values()).filter(
       (f) => f.status === 'written'
     )
@@ -192,23 +202,29 @@ export function ThreadHeader({ threadName, threadId, workspacePath }: ThreadHead
         )}
 
         {/* Open button */}
-        <OpenWorkspaceButton workspacePath={workspacePath} />
+        {!remoteWorkspace && <OpenWorkspaceButton workspacePath={workspacePath} />}
 
         <ThreadAppBindingsButton threadId={threadId} />
 
         {/* Commit button */}
         <ActionTooltip
           label={t('threadHeader.commitTitle')}
-          disabledReason={!hasWrittenFiles ? t('threadHeader.noCommitTitle') : undefined}
+          disabledReason={
+            remoteWorkspace
+              ? t('threadHeader.remoteLocalGitUnavailable')
+              : !hasWrittenFiles
+                ? t('threadHeader.noCommitTitle')
+                : undefined
+          }
           placement="bottom"
         >
           <button
             onClick={() => setCommitOpen(true)}
-            disabled={!hasWrittenFiles}
+            disabled={remoteWorkspace || !hasWrittenFiles}
             style={{
               ...headerButtonStyle,
-              opacity: hasWrittenFiles ? 1 : 0.4,
-              cursor: hasWrittenFiles ? 'pointer' : 'default'
+              opacity: !remoteWorkspace && hasWrittenFiles ? 1 : 0.4,
+              cursor: !remoteWorkspace && hasWrittenFiles ? 'pointer' : 'default'
             }}
             aria-label={t('threadHeader.commitTitle')}
           >

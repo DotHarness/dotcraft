@@ -22,7 +22,7 @@ The SDK targets `.NET 10` and uses `System.Text.Json` with camelCase web default
 `ConnectLocalAsync` discovers or starts the local Hub, asks Hub to ensure an AppServer for the workspace, then performs the AppServer `initialize` / `initialized` handshake.
 
 ```csharp
-var workspacePath = @"E:\Git\my-workspace";
+var workspacePath = @"E:\examples\my-workspace";
 
 await using var client = await DotCraftClient.ConnectLocalAsync(
     workspacePath,
@@ -228,6 +228,17 @@ var raw = await client.RequestAsync(
     "thread/read",
     new { threadId, includeTurns = true },
     ct);
+```
+
+The typed thread read wrapper also accepts turn-history pagination:
+
+```csharp
+var snapshot = await client.Threads.ReadAsync(
+    threadId,
+    includeTurns: true,
+    turnLimit: 10,
+    cursor: nextCursor,
+    cancellationToken: ct);
 ```
 
 For tests or custom hosts, use `DotCraftWireClient` with your own `IJsonRpcTransport`.

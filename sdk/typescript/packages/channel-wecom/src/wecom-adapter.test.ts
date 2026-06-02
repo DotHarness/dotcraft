@@ -59,7 +59,7 @@ test("WeComMediaTools preserves legacy tool names and current-chat requirement",
   assert.equal((tools[1]?.display as Record<string, unknown> | undefined)?.icon, "📁");
 });
 
-test("WeComAdapter passes chat id as sender groupId", async () => {
+test("WeComAdapter uses chat thread identity and real sender context", async () => {
   const adapter = new WeComAdapter() as unknown as {
     permission: WeComPermissionService;
     handleMessage: (opts: Record<string, unknown>) => Promise<void>;
@@ -70,10 +70,10 @@ test("WeComAdapter passes chat id as sender groupId", async () => {
       inputParts: Record<string, unknown>[],
     ) => Promise<void>;
   };
-  let captured: Record<string, unknown> | null = null;
-  adapter.permission = new WeComPermissionService({ adminUsers: ["u1"] });
+  const captured: Record<string, unknown>[] = [];
+  adapter.permission = new WeComPermissionService({ adminUsers: ["u1", "u2"] });
   adapter.handleMessage = async (opts: Record<string, unknown>) => {
-    captured = opts;
+    captured.push(opts);
   };
 
   await adapter.runInboundMessage(
@@ -83,12 +83,35 @@ test("WeComAdapter passes chat id as sender groupId", async () => {
     [],
   );
 
-  const opts = captured as Record<string, unknown> | null;
+  await adapter.runInboundMessage(
+    "hello again",
+    { userId: "u2", name: "User Two" },
+    { getChatId: () => "chat-1" },
+    [],
+  );
+
+  const opts = captured[0] as Record<string, unknown> | undefined;
   assert.ok(opts);
-  assert.equal(opts["userId"], "u1");
+  assert.equal(opts["userId"], "chat:chat-1");
   assert.equal(opts["userName"], "User One");
   assert.equal(opts["channelContext"], "chat:chat-1");
-  assert.deepEqual(opts["senderExtra"], { senderRole: "admin", groupId: "chat-1" });
+  assert.deepEqual(opts["sender"], {
+    senderId: "u1",
+    senderName: "User One",
+    senderRole: "admin",
+    groupId: "chat:chat-1",
+  });
+
+  const secondOpts = captured[1] as Record<string, unknown> | undefined;
+  assert.ok(secondOpts);
+  assert.equal(secondOpts["userId"], "chat:chat-1");
+  assert.equal(secondOpts["channelContext"], "chat:chat-1");
+  assert.deepEqual(secondOpts["sender"], {
+    senderId: "u2",
+    senderName: "User Two",
+    senderRole: "admin",
+    groupId: "chat:chat-1",
+  });
 });
 
 test("WeComAdapter resolves approvals only for the matching sender and chat", async () => {

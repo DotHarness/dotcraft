@@ -180,6 +180,34 @@ function deriveModuleStatus(
   return 'notConfigured'
 }
 
+function moduleStatusEntryFromChannelStatus(
+  channelName: string,
+  statusMap: Map<string, ChannelStatusWire> | null,
+  fallbackConnected: Set<string> | null
+): ModuleStatusEntry | undefined {
+  const normalizedName = channelName.toLowerCase()
+  const status = statusMap?.get(normalizedName)
+  if (status) {
+    return {
+      processState: status.running || status.enabled ? 'running' : 'stopped',
+      connected: status.running,
+      restartCount: 0,
+      lastExitCode: null
+    }
+  }
+
+  if (fallbackConnected?.has(normalizedName)) {
+    return {
+      processState: 'running',
+      connected: true,
+      restartCount: 0,
+      lastExitCode: null
+    }
+  }
+
+  return undefined
+}
+
 function deriveExternalStatus(
   name: string,
   enabled: boolean,
@@ -542,6 +570,22 @@ export function ChannelsView(): JSX.Element {
     () => groupModulesByChannel(modules, activeModuleVariants),
     [modules, activeModuleVariants]
   )
+  const remoteConnection = connectionMode === 'remote'
+  const effectiveModuleStatusMap = useMemo<ModuleStatusMap>(() => {
+    if (!remoteConnection) return moduleStatusMap
+    const next: ModuleStatusMap = {}
+    for (const module of modules) {
+      const status = moduleStatusEntryFromChannelStatus(
+        module.channelName,
+        channelStatusMap,
+        fallbackConnected
+      )
+      if (status) {
+        next[module.moduleId] = status
+      }
+    }
+    return next
+  }, [channelStatusMap, fallbackConnected, moduleStatusMap, modules, remoteConnection])
   const moduleById = useMemo(() => {
     const map = new Map<string, DiscoveredModule>()
     for (const module of modules) {
@@ -888,7 +932,7 @@ export function ChannelsView(): JSX.Element {
       ) ?? null
     : null
   const selectedModuleVariants = selectedModuleGroup?.modules ?? []
-  const selectedModuleStatus = selectedModule ? moduleStatusMap[selectedModule.moduleId] : undefined
+  const selectedModuleStatus = selectedModule ? effectiveModuleStatusMap[selectedModule.moduleId] : undefined
   const selectedModuleQrState = selectedModuleId ? moduleQrState[selectedModuleId] : undefined
   const selectedModuleLogoPath =
     selectedModule && selectedModule.channelName
@@ -1010,8 +1054,11 @@ export function ChannelsView(): JSX.Element {
       const module = moduleById.get(group.activeModuleId)
       if (!module) return null
       const persistedEnabled =
-        persistedModuleEnabledByChannelName.get(module.channelName.toLowerCase()) === true
-      const status = deriveModuleStatus(module.moduleId, moduleStatusMap, persistedEnabled)
+        persistedModuleEnabledByChannelName.get(module.channelName.toLowerCase()) === true ||
+        (remoteConnection &&
+          (channelStatusMap?.get(module.channelName.toLowerCase())?.enabled === true ||
+            fallbackConnected?.has(module.channelName.toLowerCase()) === true))
+      const status = deriveModuleStatus(module.moduleId, effectiveModuleStatusMap, persistedEnabled)
       const title = resolveModuleDisplayName(module, locale)
       const subtitle = moduleShortDescription(module, locale)
       const longDescription = moduleLongDescription(module, locale)
@@ -1085,9 +1132,13 @@ export function ChannelsView(): JSX.Element {
         logoPath={selectedModuleLogoPath}
         moduleStatus={selectedModuleStatus as ModuleStatusEntry | undefined}
         persistedEnabled={
-          persistedModuleEnabledByChannelName.get(selectedModule.channelName.toLowerCase()) === true
+          persistedModuleEnabledByChannelName.get(selectedModule.channelName.toLowerCase()) === true ||
+          (remoteConnection &&
+            (channelStatusMap?.get(selectedModule.channelName.toLowerCase())?.enabled === true ||
+              fallbackConnected?.has(selectedModule.channelName.toLowerCase()) === true))
         }
         wsAvailable={isModuleWsAvailable(connectionMode)}
+        localControlsAvailable={!remoteConnection}
         onStart={() => {
           void handleStartModule(selectedModule.moduleId)
         }}
@@ -1132,8 +1183,11 @@ export function ChannelsView(): JSX.Element {
   if (detailContent && selectedModule) {
     const title = resolveModuleDisplayName(selectedModule, locale)
     const persistedEnabled =
-      persistedModuleEnabledByChannelName.get(selectedModule.channelName.toLowerCase()) === true
-    const status = deriveModuleStatus(selectedModule.moduleId, moduleStatusMap, persistedEnabled)
+      persistedModuleEnabledByChannelName.get(selectedModule.channelName.toLowerCase()) === true ||
+      (remoteConnection &&
+        (channelStatusMap?.get(selectedModule.channelName.toLowerCase())?.enabled === true ||
+          fallbackConnected?.has(selectedModule.channelName.toLowerCase()) === true))
+    const status = deriveModuleStatus(selectedModule.moduleId, effectiveModuleStatusMap, persistedEnabled)
     const infoItems = [
       { label: t('channels.detail.package'), value: selectedModule.packageName },
       {

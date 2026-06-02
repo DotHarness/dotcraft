@@ -300,6 +300,26 @@ describe('WireProtocolClient', () => {
     }
   })
 
+  it('uses an explicit initialize timeout override when provided', async () => {
+    vi.useFakeTimers()
+    try {
+      client.dispose()
+      client = new WireProtocolClient(
+        fromServer as unknown as Readable,
+        toServer as unknown as Writable,
+        { initializeTimeoutMs: 50 }
+      )
+
+      const initPromise = client.initialize()
+      const assertion = expect(initPromise).rejects.toThrow("Request 'initialize' timed out after 50ms")
+      await vi.advanceTimersByTimeAsync(51)
+
+      await assertion
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   // ─── Initialize handshake ────────────────────────────────────────────────────
 
   it('sends initialize request then initialized notification in sequence', async () => {
@@ -621,5 +641,36 @@ describe('WireProtocolClient websocket reconnect', () => {
 
     await readyPromise
     client.dispose()
+  })
+
+  it('emits reconnect-error when websocket initialize timeout elapses before ready', async () => {
+    vi.useFakeTimers()
+    const transport = new MockReconnectTransport()
+    const client = new WireProtocolClient(
+      transport as unknown as Readable,
+      undefined,
+      {
+        autoInitializeOnTransportOpen: true,
+        initializeTimeoutMs: 50
+      }
+    )
+    try {
+      const ready = vi.fn()
+      const reconnectError = vi.fn()
+      client.on('ready', ready)
+      client.on('reconnect-error', reconnectError)
+
+      transport.open()
+      await vi.advanceTimersByTimeAsync(51)
+
+      expect(ready).not.toHaveBeenCalled()
+      expect(reconnectError).toHaveBeenCalledTimes(1)
+      expect((reconnectError.mock.calls[0][0] as Error).message).toContain(
+        "Request 'initialize' timed out after 50ms"
+      )
+    } finally {
+      client.dispose()
+      vi.useRealTimers()
+    }
   })
 })

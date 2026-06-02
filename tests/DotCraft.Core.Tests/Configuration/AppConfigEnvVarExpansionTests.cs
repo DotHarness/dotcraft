@@ -27,12 +27,12 @@ public class AppConfigEnvVarExpansionTests : IDisposable
     [Fact]
     public void WholeValue_DollarVar_IsReplaced()
     {
-        SetEnv("CRAFT_TEST_API_KEY", "secret-token");
+        SetEnv("CRAFT_TEST_API_KEY", "fixture-config-token");
         var node = JsonNode.Parse("""{"Token": "$CRAFT_TEST_API_KEY"}""")!;
 
         AppConfig.ExpandEnvironmentVariables(node);
 
-        Assert.Equal("secret-token", node["Token"]!.GetValue<string>());
+        Assert.Equal("fixture-config-token", node["Token"]!.GetValue<string>());
     }
 
     [Fact]

@@ -1226,7 +1226,7 @@ This database-backed approach avoids replaying every rollout file during discove
 This means cross-channel discovery is **natural for channels that share the same identity shape**:
 
 - **CLI and ACP** both use `UserId = "local"` and `ChannelContext = null`. They discover each other's threads automatically. A thread created in CLI appears in ACP's session list, and vice versa. This is by design — both are local, single-user channels on the same machine.
-- **QQ and WeCom** use per-user, per-context identifiers (`ChannelContext = "group:{id}"`, `"chat:{chatId}"`). Each conversation context has its own isolated thread pool. CLI and ACP cannot see QQ/WeCom threads and vice versa. This is also by design — social channel threads are scoped to their originating context.
+- **QQ, WeCom, and Feishu** use social conversation identities. Private chats use a per-user identity; group chats use a group/chat identity (`UserId = "group:{id}"` or `"chat:{chatId}"`, with matching `ChannelContext`). Individual senders are recorded per turn through `SenderContext`. CLI and ACP cannot see social-channel threads and vice versa unless an opt-in cross-channel origin is supplied.
 
 #### Opt-in cross-context discovery (`crossChannelOrigins`)
 
@@ -1323,7 +1323,7 @@ These channels create threads, submit turns through `ISessionService`, consume `
 Cross-channel resume works for channels that share the same identity shape:
 
 - **CLI ↔ ACP** share `UserId = "local"` and `ChannelContext = null`, so they naturally share one thread pool.
-- **QQ** and **WeCom** remain isolated by `ChannelContext`, which is the intended behavior for social conversations.
+- **QQ**, **WeCom**, and **Feishu** remain isolated by social conversation `ChannelContext`, while multiple users in the same group/chat share that conversation's thread.
 
 ## 12. Failure Model
 
@@ -1516,7 +1516,7 @@ For these channels, Session Core loads persisted session state, executes the tur
 Cross-channel resume applies only to **server-managed** threads.
 
 - **CLI ↔ ACP** resume works because both participate in Session Core and share the same identity shape.
-- **QQ** and **WeCom** remain isolated by `ChannelContext`.
+- **QQ**, **WeCom**, and **Feishu** remain isolated by social conversation `ChannelContext`.
 
 ---
 
@@ -1626,9 +1626,9 @@ For channels that do not use extension capabilities, `Thread.Configuration.Exten
 
 QQ-style group sessions are supported without changing the Thread / Turn / Item model:
 
-- `Thread.UserId` for group sessions is **null or a group identifier** (e.g., `qq_group:12345`), not an individual user.
+- `Thread.UserId` for group sessions is **null or a group identifier** (e.g., `group:12345` or `chat:chatId`), not an individual user.
 - Each Turn's `Input` Item can carry per-message sender information in its payload.
-- The adapter may inject sender context into the prompt.
+- Sender context is appended to the current user message runtime context, not to the thread system prompt, so prompt-cacheable system instructions remain stable across different group senders.
 
 Add to `UserMessage` payload:
 
@@ -1677,7 +1677,7 @@ SenderContext
 └── GroupId: string            // Group/chat ID for group sessions (nullable)
 ```
 
-Session Core records `SenderContext` and passes it through to approval handling. The adapter is responsible for populating it.
+Session Core records `SenderContext`, appends it to the current user message runtime context, and passes it through to approval handling. The adapter is responsible for populating it.
 
 ### 17.3 Slash Commands
 

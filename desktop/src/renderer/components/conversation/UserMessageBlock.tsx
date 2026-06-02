@@ -79,6 +79,7 @@ export function UserMessageBlock({
   )
   const [failedImages, setFailedImages] = useState<UserMessageImageRef[]>([])
   const workspacePath = useConversationStore((s) => s.workspacePath)
+  const remoteWorkspaceActive = useConversationStore((s) => s.remoteWorkspaceActive)
   const activeThreadId = useThreadStore((s) => s.activeThreadId)
   const hasImages = hydratedImages.length > 0
   const displayText = stripSystemReminderBlocks(text)
@@ -119,6 +120,12 @@ export function UserMessageBlock({
         setFailedImages([])
         return
       }
+      if (remoteWorkspaceActive) {
+        if (cancelled) return
+        setHydratedImages([])
+        setFailedImages(images)
+        return
+      }
 
       const loaded: Array<{ url: string; absolutePath?: string }> = []
       const failed: UserMessageImageRef[] = []
@@ -150,7 +157,7 @@ export function UserMessageBlock({
     return () => {
       cancelled = true
     }
-  }, [imageDataUrls, images])
+  }, [imageDataUrls, images, remoteWorkspaceActive])
 
   return (
     <>
@@ -313,7 +320,7 @@ export function UserMessageBlock({
                   const fallbackToLightbox = (): void => {
                     setLightboxSrc(imageItem.url)
                   }
-                  if (!imageItem.absolutePath || !workspacePath || !activeThreadId) {
+                  if (remoteWorkspaceActive || !imageItem.absolutePath || !workspacePath || !activeThreadId) {
                     fallbackToLightbox()
                     return
                   }
@@ -356,7 +363,7 @@ export function UserMessageBlock({
                   key={`failed-image-${imageItem.path}-${idx}`}
                   type="button"
                   onClick={() => {
-                    if (!workspacePath || !activeThreadId) return
+                    if (remoteWorkspaceActive || !workspacePath || !activeThreadId) return
                     void openImagePathInViewer({
                       absolutePath: imageItem.path,
                       workspacePath,
@@ -364,7 +371,7 @@ export function UserMessageBlock({
                       t
                     })
                   }}
-                  disabled={!workspacePath || !activeThreadId}
+                  disabled={remoteWorkspaceActive || !workspacePath || !activeThreadId}
                   aria-label={t('conversation.openImageAttachmentAria', { file: label })}
                   title={imageItem.path}
                   style={{
@@ -377,7 +384,7 @@ export function UserMessageBlock({
                     borderRadius: '6px',
                     background: 'var(--bg-secondary)',
                     color: 'var(--text-secondary)',
-                    cursor: workspacePath && activeThreadId ? 'pointer' : 'default',
+                    cursor: !remoteWorkspaceActive && workspacePath && activeThreadId ? 'pointer' : 'default',
                     font: 'inherit',
                     fontSize: '12px',
                     lineHeight: 1.2
@@ -404,6 +411,7 @@ export function UserMessageBlock({
                   targetPath={seg.targetPath ?? seg.relativePath}
                   workspacePath={workspacePath}
                   activeThreadId={activeThreadId}
+                  remoteWorkspaceActive={remoteWorkspaceActive}
                 />
               ) : seg.type === 'commandRef' ? (
                 <CommandRefChip key={`c-${idx}-${seg.commandText}`} commandText={seg.commandText} />
@@ -533,11 +541,16 @@ function formatMessageTime(createdAt?: string): { label: string; title: string }
 
 function SkillRefChip({ skillName }: { skillName: string }): JSX.Element {
   const t = useT()
+  const remoteWorkspaceActive = useConversationStore((s) => s.remoteWorkspaceActive)
   const [contextMenu, setContextMenu] = useState<{ position: ContextMenuPosition; targetPath: string } | null>(null)
 
   async function handleContextMenu(event: MouseEvent<HTMLSpanElement>): Promise<void> {
     event.preventDefault()
     event.stopPropagation()
+    if (remoteWorkspaceActive) {
+      addToast(t('skillDetail.openFolderRemoteUnavailable'), 'warning')
+      return
+    }
     const targetPath = await resolveSkillReferencePath(skillName)
     if (!targetPath) {
       addToast(t('conversation.reference.skillPathUnavailable'), 'warning')
@@ -621,19 +634,21 @@ function FileRefChip({
   displayPath,
   targetPath,
   workspacePath,
-  activeThreadId
+  activeThreadId,
+  remoteWorkspaceActive
 }: {
   displayPath: string
   targetPath: string
   workspacePath: string
   activeThreadId: string | null
+  remoteWorkspaceActive: boolean
 }): JSX.Element {
   const t = useT()
   const [contextMenu, setContextMenu] = useState<{ position: ContextMenuPosition; targetPath: string } | null>(null)
   const fileName = displayPath.split(/[/\\]/).pop() ?? displayPath
   const resolvedTargetPath = resolveLocalReferencePath(targetPath, workspacePath)
   const title = resolvedTargetPath ?? targetPath
-  const canOpen = workspacePath.length > 0 && !!activeThreadId
+  const canOpen = !remoteWorkspaceActive && workspacePath.length > 0 && !!activeThreadId
 
   return (
     <>

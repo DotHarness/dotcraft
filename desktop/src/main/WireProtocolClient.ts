@@ -40,6 +40,12 @@ export interface InitializeResult {
 
 export const INITIALIZE_REQUEST_TIMEOUT_MS: number | null = null
 
+export interface WireProtocolClientOptions {
+  defaultTimeoutMs?: number
+  autoInitializeOnTransportOpen?: boolean
+  initializeTimeoutMs?: number | null
+}
+
 interface PendingRequest {
   resolve: (value: unknown) => void
   reject: (reason: Error) => void
@@ -154,8 +160,10 @@ class WebSocketTransport implements Transport {
   private retryMs = WS_RECONNECT_BASE_MS
   private retryTimer: ReturnType<typeof setTimeout> | null = null
   private pendingWrites: Array<{ line: string; resolve: () => void; reject: (e: Error) => void }> = []
+  private readonly autoReconnect: boolean
 
-  constructor(private url: string) {
+  constructor(private url: string, options: { autoReconnect?: boolean } = {}) {
+    this.autoReconnect = options.autoReconnect ?? true
     this.connect()
   }
 
@@ -187,6 +195,9 @@ class WebSocketTransport implements Transport {
       }
       // Notify close handlers (WireProtocolClient will reject pending)
       for (const h of this.closeHandlers) h()
+      if (!this.autoReconnect) {
+        return
+      }
       // Schedule reconnect
       const jitteredRetryMs = Math.round(this.retryMs * (0.8 + Math.random() * 0.4))
       this.retryTimer = setTimeout(() => {
@@ -276,6 +287,7 @@ export class WireProtocolClient extends EventEmitter {
   private serverRequestHandler: ServerRequestHandler | null = null
   private disposed = false
   private defaultTimeoutMs: number
+  private initializeTimeoutMs: number | null
   private autoInitializeOnTransportOpen: boolean
   private hasInitializedWebSocket = false
   private websocketInitializeInFlight = false
@@ -283,10 +295,14 @@ export class WireProtocolClient extends EventEmitter {
   constructor(
     stdoutOrTransport: Readable | Transport,
     stdinOrUndefined?: Writable,
-    options: { defaultTimeoutMs?: number; autoInitializeOnTransportOpen?: boolean } = {}
+    options: WireProtocolClientOptions = {}
   ) {
     super()
     this.defaultTimeoutMs = options.defaultTimeoutMs ?? 30_000
+    this.initializeTimeoutMs =
+      options.initializeTimeoutMs === undefined
+        ? INITIALIZE_REQUEST_TIMEOUT_MS
+        : options.initializeTimeoutMs
     this.autoInitializeOnTransportOpen = options.autoInitializeOnTransportOpen ?? false
 
     // Accept either a raw stdio pair or a pre-built Transport object
@@ -316,9 +332,9 @@ export class WireProtocolClient extends EventEmitter {
    */
   static fromWebSocket(
     url: string,
-    options: { defaultTimeoutMs?: number; autoInitializeOnTransportOpen?: boolean } = {}
+    options: WireProtocolClientOptions & { autoReconnect?: boolean } = {}
   ): WireProtocolClient {
-    const transport = new WebSocketTransport(url)
+    const transport = new WebSocketTransport(url, { autoReconnect: options.autoReconnect })
     return new WireProtocolClient(transport, undefined, {
       ...options,
       autoInitializeOnTransportOpen: options.autoInitializeOnTransportOpen ?? true
@@ -416,7 +432,7 @@ export class WireProtocolClient extends EventEmitter {
           }
         }
       },
-      INITIALIZE_REQUEST_TIMEOUT_MS
+      this.initializeTimeoutMs
     )
 
     await this.sendNotification('initialized', {})

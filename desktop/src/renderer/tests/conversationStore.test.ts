@@ -20,6 +20,7 @@ function makeTurn(overrides: Record<string, unknown> = {}): Record<string, unkno
 
 beforeEach(() => {
   s().reset()
+  useConversationStore.setState({ remoteWorkspaceActive: false })
 })
 
 afterEach(() => {
@@ -1889,6 +1890,43 @@ describe('itemDiffs per tool call', () => {
     expect(cum).toBeDefined()
     expect(cum?.currentContent).toBe('gamma')
     expect(cum?.originalContent).toBe('alpha')
+  })
+
+  it('setTurns skips local file diffs for remote workspaces', () => {
+    s().setRemoteWorkspaceActive(true)
+    const turn: ConversationTurn = {
+      id: 'turn-remote',
+      threadId: 'thread-1',
+      status: 'completed',
+      startedAt: new Date().toISOString(),
+      items: [
+        {
+          id: 'tc-a',
+          type: 'toolCall',
+          status: 'completed',
+          toolName: 'EditFile',
+          toolCallId: 'call-a',
+          arguments: { path: 'src/a.ts', oldText: 'alpha', newText: 'beta' },
+          createdAt: '2025-01-01T00:00:01.000Z'
+        },
+        {
+          id: 'tr-a',
+          type: 'toolResult',
+          status: 'completed',
+          toolCallId: 'call-a',
+          result: 'Successfully edited src/a.ts',
+          success: true,
+          createdAt: '2025-01-01T00:00:02.000Z',
+          completedAt: '2025-01-01T00:00:02.000Z'
+        }
+      ]
+    }
+
+    s().setTurns([turn])
+
+    expect(s().remoteWorkspaceActive).toBe(true)
+    expect(s().changedFiles.size).toBe(0)
+    expect(s().itemDiffs.size).toBe(0)
   })
 
   it('onItemCompleted toolResult stores distinct per-item diffs for two EditFile calls', () => {

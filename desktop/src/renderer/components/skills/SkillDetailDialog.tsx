@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Ellipsis, MessageCircle, X } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
+import { addToast } from '../../stores/toastStore'
+import { useConversationStore } from '../../stores/conversationStore'
 import type { SkillEntry } from '../../stores/skillsStore'
 import { dirname } from '../../utils/path'
 import { MarkdownRenderer } from '../conversation/MarkdownRenderer'
@@ -34,6 +36,7 @@ export function SkillDetailDialog({
   showToggle = true,
 }: SkillDetailDialogProps) {
   const t = useT()
+  const remoteWorkspaceActive = useConversationStore((s) => s.remoteWorkspaceActive)
   const [menuPosition, setMenuPosition] = useState<ContextMenuPosition | null>(null)
   const skillDir = dirname(skill.path)
   const displayName = skill.displayName ?? skill.name
@@ -134,7 +137,13 @@ export function SkillDetailDialog({
             items={[
               {
                 label: t('skillDetail.openFolder'),
+                disabled: remoteWorkspaceActive,
+                title: remoteWorkspaceActive ? t('skillDetail.openFolderRemoteUnavailable') : undefined,
                 onClick: () => {
+                  if (remoteWorkspaceActive) {
+                    addToast(t('skillDetail.openFolderRemoteUnavailable'), 'warning')
+                    return
+                  }
                   void window.api.shell.openPath(skillDir)
                 },
               },

@@ -121,6 +121,22 @@ const DEFAULT_RENDERER_WORKSPACE_STATUS: WorkspaceStatusPayload = {
   providers: []
 }
 
+function resolveProtocolWorkspacePath(status: WorkspaceStatusPayload): string {
+  return (
+    status.remote?.appServerWorkspacePath?.trim() ||
+    status.remote?.workspaceDir?.trim() ||
+    status.workspacePath ||
+    ''
+  )
+}
+
+function resolveWorkspaceDisplayName(status: WorkspaceStatusPayload): string {
+  const remoteName = status.remote?.stackName?.trim()
+  if (remoteName) return remoteName
+  const path = status.workspacePath ?? ''
+  return path ? basename(path) : 'DotCraft'
+}
+
 function serverTextVars(value: unknown): Record<string, string | number> | undefined {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
   const vars: Record<string, string | number> = {}
@@ -452,11 +468,11 @@ export function App(): JSX.Element {
   )
   const initialWorkspaceStatus = initialWorkspaceStatusRef.current
   const initialWorkspacePath = initialWorkspaceStatus.workspacePath ?? ''
+  const initialProtocolWorkspacePath = resolveProtocolWorkspacePath(initialWorkspaceStatus)
 
   const [workspacePath, setWorkspacePath] = useState(initialWorkspacePath)
-  const [workspaceName, setWorkspaceName] = useState(
-    initialWorkspacePath ? basename(initialWorkspacePath) : 'DotCraft'
-  )
+  const [protocolWorkspacePath, setProtocolWorkspacePath] = useState(initialProtocolWorkspacePath)
+  const [workspaceName, setWorkspaceName] = useState(resolveWorkspaceDisplayName(initialWorkspaceStatus))
   const [workspaceConfigChange, setWorkspaceConfigChange] = useState<WorkspaceConfigChangedPayload | null>(null)
   const [workspaceConfigChangeSeq, setWorkspaceConfigChangeSeq] = useState(0)
   const [workspaceStatus, setWorkspaceStatus] = useState<WorkspaceStatusPayload>(initialWorkspaceStatus)
@@ -475,6 +491,9 @@ export function App(): JSX.Element {
   const isExpectedRestart = useConnectionStore((s) => s.isExpectedRestart)
   const capabilities = useConnectionStore((s) => s.capabilities)
   const showSlowConnectingHint = useSlowConnectingHint(status, workspacePath)
+  const remoteWorkspaceActive = workspaceStatus.remote != null
+  const remoteWorkspaceActiveRef = useRef(remoteWorkspaceActive)
+  remoteWorkspaceActiveRef.current = remoteWorkspaceActive
   const [browserUseApprovalRequests, setBrowserUseApprovalRequests] = useState<BrowserUseApprovalRequestPayload[]>([])
   const [chromeSettingsOpenSeq, setChromeSettingsOpenSeq] = useState(0)
   const [whatsNewDialog, setWhatsNewDialog] = useState<{
@@ -505,6 +524,7 @@ export function App(): JSX.Element {
   } = useThreadStore()
 
   const workspacePathRef = useRef(initialWorkspacePath)
+  const protocolWorkspacePathRef = useRef(initialProtocolWorkspacePath)
   const setupWorkspaceStatusSnapshotRef = useRef<WorkspaceStatusPayload | null>(
     initialWorkspaceStatus.status === 'needs-setup' ? initialWorkspaceStatus : null
   )
@@ -544,7 +564,7 @@ export function App(): JSX.Element {
   }, [])
 
   const reloadThreadList = useCallback(async (options?: { includeTeams?: boolean }) => {
-    const path = workspacePathRef.current
+    const path = protocolWorkspacePathRef.current
     const identity: SessionIdentity = {
       channelName: 'dotcraft-desktop',
       userId: 'local',
@@ -575,22 +595,34 @@ export function App(): JSX.Element {
     }
   }, [setThreadList, setLoading])
 
+  useEffect(() => {
+    const onPinnedThreadIdsChanged = window.api.settings.onPinnedThreadIdsChanged
+    if (typeof onPinnedThreadIdsChanged !== 'function') return undefined
+    return onPinnedThreadIdsChanged(({ workspacePath, threadIds }) => {
+      if (workspacePath !== protocolWorkspacePathRef.current) return
+      useThreadStore.getState().hydratePinnedThreadIds(workspacePath, threadIds)
+    })
+  }, [])
+
   // -------------------------------------------------------------------------
   // Bootstrap: workspace path + connection store
   // -------------------------------------------------------------------------
   const syncWorkspaceStatus = useCallback((payload: WorkspaceStatusPayload): void => {
     const path = payload.workspacePath ?? ''
+    const protocolPath = resolveProtocolWorkspacePath(payload)
     const isInitialWorkspaceStatus = !workspaceStatusHydratedRef.current
     workspaceStatusHydratedRef.current = true
     workspacePathRef.current = path
+    protocolWorkspacePathRef.current = protocolPath
     if (payload.status === 'needs-setup') {
       setupWorkspaceStatusSnapshotRef.current = payload
     } else if (!path || payload.status === 'no-workspace') {
       setupWorkspaceStatusSnapshotRef.current = null
     }
     setWorkspacePath(path)
+    setProtocolWorkspacePath(protocolPath)
     setWorkspaceStatus(payload)
-    setWorkspaceName(path ? basename(path) : 'DotCraft')
+    setWorkspaceName(resolveWorkspaceDisplayName(payload))
     if (isInitialWorkspaceStatus && path && payload.status === 'ready') {
       const centerRect = centeredLaunchLogoRect()
       setWorkspaceLaunchTransition({
@@ -855,16 +887,18 @@ export function App(): JSX.Element {
       .catch(() => {})
   }, [])
 
-  // Keep conversation store workspace path in sync (cumulative diff IPC reads)
+  // Keep conversation store on the local owner workspace path for file/viewer IPC.
   useEffect(() => {
+    const store = useConversationStore.getState()
+    store.setRemoteWorkspaceActive(remoteWorkspaceActive)
     if (workspacePath) {
-      useConversationStore.getState().setWorkspacePath(workspacePath)
+      store.setWorkspacePath(workspacePath)
     }
-  }, [workspacePath])
+  }, [remoteWorkspaceActive, workspacePath])
 
-  // Notify viewerTabStore when workspace changes so all viewer tabs are cleared.
+  // Notify viewerTabStore when the AppServer workspace identity changes so all viewer tabs are cleared.
   useEffect(() => {
-    useViewerTabStore.getState().onWorkspaceSwitched(workspacePath, {
+    useViewerTabStore.getState().onWorkspaceSwitched(protocolWorkspacePath || workspacePath, {
       onBrowserTabRemoved: (tab) => {
         void window.api.workspace.viewer.browser.destroy({ tabId: tab.id })
       },
@@ -873,7 +907,7 @@ export function App(): JSX.Element {
       }
     })
     useUIStore.getState().resetAutoShowReasons()
-  }, [workspacePath])
+  }, [protocolWorkspacePath, workspacePath])
 
   useEffect(() => {
     moduleConnectedSnapshotRef.current = new Map()
@@ -1883,6 +1917,7 @@ export function App(): JSX.Element {
 
       // Ctrl+P / Cmd+P: open Quick-Open file finder
       if (ctrl && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'p') {
+        if (remoteWorkspaceActiveRef.current) return
         const target = e.target as HTMLElement | null
         if (target?.closest('[role="dialog"], [aria-modal="true"]')) {
           return
@@ -1942,6 +1977,7 @@ export function App(): JSX.Element {
 
       // Ctrl+` : open a new terminal tab in the detail panel
       if (ctrl && !e.shiftKey && e.key === '`') {
+        if (remoteWorkspaceActiveRef.current) return
         const target = e.target as HTMLElement | null
         if (target?.closest('[role="dialog"], [aria-modal="true"]')) return
         e.preventDefault()
@@ -1955,6 +1991,7 @@ export function App(): JSX.Element {
 
       // Ctrl+Shift+G: open the Changes (Diff) tab
       if (ctrl && e.shiftKey && e.key === 'G') {
+        if (remoteWorkspaceActiveRef.current) return
         e.preventDefault()
         performAddTabAction('newChanges', {
           threadId: useThreadStore.getState().activeThreadId,
@@ -2312,7 +2349,7 @@ export function App(): JSX.Element {
           const pendingWelcome = useUIStore.getState().consumePendingWelcomeTurnIfMatch(requestedId)
           if (pendingWelcome != null) {
             const threadId = requestedId
-            const path = workspacePathRef.current
+            const path = protocolWorkspacePathRef.current
             const pendingText = pendingWelcome.text.trim()
             const pendingInputParts = pendingWelcome.inputParts
               ?? buildComposerInputParts({
@@ -2749,13 +2786,21 @@ export function App(): JSX.Element {
           sidebar={
             activeMainView === 'settings'
               ? <SettingsSidebar />
-              : <Sidebar workspaceName={workspaceName} workspacePath={workspacePath} />
+              : (
+                  <Sidebar
+                    workspaceName={workspaceName}
+                    workspacePath={workspaceStatus.remote?.workspaceDir?.trim() || workspacePath}
+                    localWorkspacePath={workspacePath}
+                    remoteWorkspace={remoteWorkspaceActive}
+                  />
+                )
           }
           conversation={
             <div data-testid={`view-${activeMainView}`} style={{ display: 'contents' }}>
               {activeMainView === 'settings' ? (
                 <SettingsView
                   workspacePath={workspacePath}
+                  identityWorkspacePath={protocolWorkspacePath || workspacePath}
                   onThreadListRefreshRequested={() => {
                     void reloadThreadList()
                   }}
@@ -2773,6 +2818,8 @@ export function App(): JSX.Element {
                 agentTeamsAvailable ? <TeamsView /> : capabilities?.pluginManagement === true ? <PluginsView /> : (
                   <ConversationPanel
                     workspacePath={workspacePath}
+                    identityWorkspacePath={protocolWorkspacePath || workspacePath}
+                    remoteWorkspace={remoteWorkspaceActive}
                     workspaceConfigChange={workspaceConfigChange}
                     workspaceConfigChangeSeq={workspaceConfigChangeSeq}
                   />
@@ -2780,13 +2827,15 @@ export function App(): JSX.Element {
               ) : (
                 <ConversationPanel
                   workspacePath={workspacePath}
+                  identityWorkspacePath={protocolWorkspacePath || workspacePath}
+                  remoteWorkspace={remoteWorkspaceActive}
                   workspaceConfigChange={workspaceConfigChange}
                   workspaceConfigChangeSeq={workspaceConfigChangeSeq}
                 />
               )}
             </div>
           }
-          detail={<DetailPanel workspacePath={workspacePath} />}
+          detail={<DetailPanel workspacePath={workspacePath} remoteWorkspace={remoteWorkspaceActive} />}
         />
       </>
     )

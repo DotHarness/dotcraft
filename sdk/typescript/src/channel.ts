@@ -30,6 +30,7 @@ export {
 } from "./channelRuntime.js";
 export type {
   ChannelAdapterMessageOptions,
+  ChannelSenderContext,
   ChannelMessageJob,
   ChannelMessageQueueOptions,
   CommandRouteBeforeQueueResult,

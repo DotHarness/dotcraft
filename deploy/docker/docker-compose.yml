@@ -11,18 +11,22 @@ services:
       DOTCRAFT_WORKSPACE: /workspace
       DOTCRAFT_NODE_BIN: /usr/local/bin/node
       DOTCRAFT_MODULES_DIR: /opt/dotcraft/modules
+      APPSERVER_LISTEN_HOST: ${APPSERVER_LISTEN_HOST:-0.0.0.0}
       APPSERVER_PORT: ${APPSERVER_PORT:-9100}
+      DASHBOARD_LISTEN_HOST: ${DASHBOARD_LISTEN_HOST:-0.0.0.0}
       DASHBOARD_PORT: ${DASHBOARD_PORT:-8080}
+      QQ_LISTEN_HOST: ${QQ_LISTEN_HOST:-0.0.0.0}
       QQ_PORT: ${QQ_PORT:-6700}
+      WECOM_LISTEN_HOST: ${WECOM_LISTEN_HOST:-0.0.0.0}
       WECOM_PORT: ${WECOM_PORT:-9000}
       SANDBOX_ENABLED: ${SANDBOX_ENABLED:-false}
     ports:
-      - "${APPSERVER_PORT:-9100}:${APPSERVER_PORT:-9100}"
-      - "${DASHBOARD_PORT:-8080}:${DASHBOARD_PORT:-8080}"
-      # QQ OneBot reverse WebSocket and WeCom callback ports are harmless when
-      # their channels are disabled, and make one-click channel enablement work.
-      - "${QQ_PORT:-6700}:${QQ_PORT:-6700}"
-      - "${WECOM_PORT:-9000}:${WECOM_PORT:-9000}"
+      - "${APPSERVER_PUBLISH_HOST:-127.0.0.1}:${APPSERVER_PORT:-9100}:${APPSERVER_PORT:-9100}"
+      - "${DASHBOARD_PUBLISH_HOST:-127.0.0.1}:${DASHBOARD_PORT:-8080}:${DASHBOARD_PORT:-8080}"
+      # Keep channel ports local by default. Set QQ_PUBLISH_HOST or
+      # WECOM_PUBLISH_HOST to 0.0.0.0 only when an external gateway must connect.
+      - "${QQ_PUBLISH_HOST:-127.0.0.1}:${QQ_PORT:-6700}:${QQ_PORT:-6700}"
+      - "${WECOM_PUBLISH_HOST:-127.0.0.1}:${WECOM_PORT:-9000}:${WECOM_PORT:-9000}"
     volumes:
       - ./workspace:/workspace
     restart: unless-stopped

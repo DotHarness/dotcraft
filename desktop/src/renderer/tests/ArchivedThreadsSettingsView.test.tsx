@@ -7,12 +7,22 @@ import { useThreadStore } from '../stores/threadStore'
 
 const settingsGet = vi.fn()
 const appServerSendRequest = vi.fn()
+const localWorkspaceFixture = 'C:\\Projects\\dotcraft-fixture'
 
 function renderView(): void {
   render(
     <LocaleProvider>
       <ConfirmDialogHost />
-      <ArchivedThreadsSettingsView workspacePath="E:\\Git\\dotcraft" />
+      <ArchivedThreadsSettingsView workspacePath={localWorkspaceFixture} />
+    </LocaleProvider>
+  )
+}
+
+function renderViewWithWorkspacePath(workspacePath: string): void {
+  render(
+    <LocaleProvider>
+      <ConfirmDialogHost />
+      <ArchivedThreadsSettingsView workspacePath={workspacePath} />
     </LocaleProvider>
   )
 }
@@ -138,5 +148,19 @@ describe('ArchivedThreadsSettingsView deletion actions', () => {
       const deleteCalls = appServerSendRequest.mock.calls.filter((call) => call[0] === 'thread/delete')
       expect(deleteCalls).toHaveLength(2)
     })
+  })
+
+  it('uses the provided protocol workspace path for archived thread listing', async () => {
+    renderViewWithWorkspacePath('/workspace')
+
+    await screen.findByText('Archived One')
+
+    const listCall = appServerSendRequest.mock.calls.find((call) => call[0] === 'thread/list')
+    expect(listCall?.[1]).toEqual(expect.objectContaining({
+      identity: expect.objectContaining({
+        channelContext: 'workspace:/workspace',
+        workspacePath: '/workspace'
+      })
+    }))
   })
 })

@@ -354,10 +354,22 @@ export interface GetOrCreateThreadOptions extends StartThreadOptions {
 
 export interface ListThreadOptions extends ThreadIdentityOptions {
   includeArchived?: boolean;
+  query?: string;
+  limit?: number;
+  cursor?: string;
 }
 
 export interface ReadThreadOptions {
   includeTurns?: boolean;
+  turnLimit?: number;
+  cursor?: string;
+}
+
+export interface ThreadListPage {
+  threads: Thread[];
+  nextCursor?: string | null;
+  totalMatched?: number | null;
+  raw: Record<string, unknown>;
 }
 
 export interface SubscribeOptions {
@@ -425,6 +437,7 @@ export interface ThreadManager {
   start(options?: StartThreadOptions): Promise<DotCraftThread>;
   resume(threadId: string, options?: ResumeThreadOptions): Promise<DotCraftThread>;
   list(options?: ListThreadOptions): Promise<Thread[]>;
+  listPage(options?: ListThreadOptions): Promise<ThreadListPage>;
   read(threadId: string, options?: ReadThreadOptions): Promise<Thread>;
 }
 
@@ -629,15 +642,26 @@ class ThreadManagerImpl implements ThreadManager {
   }
 
   async list(options: ListThreadOptions = {}): Promise<Thread[]> {
+    const page = await this.listPage(options);
+    return page.threads;
+  }
+
+  async listPage(options: ListThreadOptions = {}): Promise<ThreadListPage> {
     const identity = normalizeIdentity(options);
-    return await this.sdk.wire.threadList({
+    return await this.sdk.wire.threadListPage({
       ...identity,
       includeArchived: options.includeArchived ?? false,
+      query: options.query,
+      limit: options.limit,
+      cursor: options.cursor,
     });
   }
 
   async read(threadId: string, options: ReadThreadOptions = {}): Promise<Thread> {
-    return await this.sdk.wire.threadRead(threadId, options.includeTurns ?? false);
+    return await this.sdk.wire.threadRead(threadId, options.includeTurns ?? false, {
+      turnLimit: options.turnLimit,
+      cursor: options.cursor,
+    });
   }
 }
 

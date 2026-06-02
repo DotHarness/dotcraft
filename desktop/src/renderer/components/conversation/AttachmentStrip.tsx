@@ -53,10 +53,11 @@ export function AttachmentStrip({
 }: AttachmentStripProps): JSX.Element | null {
   const t = useT()
   const workspacePath = useConversationStore((s) => s.workspacePath)
+  const remoteWorkspaceActive = useConversationStore((s) => s.remoteWorkspaceActive)
   const activeThreadId = useThreadStore((s) => s.activeThreadId)
   if (images.length === 0 && files.length === 0) return null
 
-  const canOpenAttachment = workspacePath.length > 0 && !!activeThreadId
+  const canOpenAttachment = !remoteWorkspaceActive && workspacePath.length > 0 && !!activeThreadId
 
   return (
     <div

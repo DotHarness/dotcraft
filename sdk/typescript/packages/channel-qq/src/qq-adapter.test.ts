@@ -31,7 +31,7 @@ test("channelContextForQQEvent preserves native QQ session semantics", () => {
   assert.equal(channelContextForQQEvent(false, undefined, 456), "user:456");
 });
 
-test("QQAdapter passes real group id only for group messages", async () => {
+test("QQAdapter uses group thread identity and real sender context", async () => {
   const groupOpts = await captureHandleMessageOptions({
     post_type: "message",
     message_type: "group",
@@ -41,10 +41,33 @@ test("QQAdapter passes real group id only for group messages", async () => {
     message: [{ type: "text", data: { text: "hello" } }],
   });
 
-  assert.equal(groupOpts.userId, "456");
+  assert.equal(groupOpts.userId, "group:123");
   assert.equal(groupOpts.channelContext, "group:123");
-  assert.deepEqual(groupOpts.senderExtra, { senderRole: "admin", groupId: "123" });
+  assert.deepEqual(groupOpts.sender, {
+    senderId: "456",
+    senderName: "Alice",
+    senderRole: "admin",
+    groupId: "group:123",
+  });
   assert.equal(groupOpts.omitSenderGroupId, false);
+
+  const secondGroupOpts = await captureHandleMessageOptions({
+    post_type: "message",
+    message_type: "group",
+    user_id: 789,
+    group_id: 123,
+    sender: { card: "Bob" },
+    message: [{ type: "text", data: { text: "hello again" } }],
+  });
+
+  assert.equal(secondGroupOpts.userId, "group:123");
+  assert.equal(secondGroupOpts.channelContext, "group:123");
+  assert.deepEqual(secondGroupOpts.sender, {
+    senderId: "789",
+    senderName: "Bob",
+    senderRole: "admin",
+    groupId: "group:123",
+  });
 
   const privateOpts = await captureHandleMessageOptions({
     post_type: "message",
@@ -56,7 +79,11 @@ test("QQAdapter passes real group id only for group messages", async () => {
 
   assert.equal(privateOpts.userId, "456");
   assert.equal(privateOpts.channelContext, "user:456");
-  assert.deepEqual(privateOpts.senderExtra, { senderRole: "admin" });
+  assert.deepEqual(privateOpts.sender, {
+    senderId: "456",
+    senderName: "Alice",
+    senderRole: "admin",
+  });
   assert.equal(privateOpts.omitSenderGroupId, true);
 });
 
@@ -126,7 +153,7 @@ async function captureHandleMessageOptions(evt: OneBotMessageEvent): Promise<Rec
     handleOneBotMessage: (evt: OneBotMessageEvent) => Promise<void>;
   };
   let captured: Record<string, unknown> | null = null;
-  adapter.permission = new QQPermissionService({ adminUsers: [456] });
+  adapter.permission = new QQPermissionService({ adminUsers: [456, 789] });
   adapter.requireMentionInGroups = false;
   adapter.handleMessage = async (opts: Record<string, unknown>) => {
     captured = opts;

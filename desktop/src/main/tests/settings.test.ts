@@ -12,7 +12,7 @@ describe('settings normalization', () => {
   it('normalizes pinned thread ids by workspace path', () => {
     const normalized = normalizePinnedThreadIdsByWorkspace({
       pinnedThreadIdsByWorkspace: {
-        ' E:/Git/dotcraft/../dotcraft ': [
+        ' E:/examples/project/../workspace ': [
           ' thread-a ',
           'thread-b',
           'thread-a',
@@ -20,13 +20,13 @@ describe('settings normalization', () => {
           'bad\u0000id'
         ],
         '   ': ['thread-c'],
-        'E:/Git/empty': [],
-        'E:/Git/not-array': 'thread-c' as unknown as string[]
+        'E:/examples/empty': [],
+        'E:/examples/not-array': 'thread-c' as unknown as string[]
       }
     })
 
     expect(normalized).toEqual({
-      'E:\\Git\\dotcraft': ['thread-a', 'thread-b']
+      'E:\\examples\\workspace': ['thread-a', 'thread-b']
     })
   })
 

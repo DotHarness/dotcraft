@@ -1,4 +1,14 @@
 import type {
+  RemoteHost,
+  RemoteStack,
+  RemoteStackStatus,
+  RemoteStackAction,
+  SshTestResult,
+  OperationResult,
+  LocalSshConfigInfo,
+  DiscoveredStack
+} from '../shared/remoteServers'
+import type {
   MarketInstallResult,
   MarketDotCraftInstallPreparation,
   MarketSkillDetail,
@@ -44,6 +54,11 @@ export type EditorId =
 export interface NotificationPayload {
   method: string
   params: unknown
+}
+
+export interface PinnedThreadIdsChangedPayload {
+  workspacePath: string
+  threadIds: string[]
 }
 
 export interface BrowserEventPayload {
@@ -173,6 +188,18 @@ export interface WorkspaceStatusPayload {
   }
   providers: WorkspaceSetupProviderSummary[]
   bootstrapImportSources?: WorkspaceSetupBootstrapImportSource[]
+  remote?: RemoteWorkspaceStatusPayload
+}
+
+export interface RemoteWorkspaceStatusPayload {
+  hostId: string
+  stackId: string
+  serverName: string
+  stackName: string
+  workspaceDir: string
+  appServerWorkspacePath?: string
+  composeDir: string
+  projectName?: string
 }
 
 export interface WorkspaceSetupBootstrapImportSource {
@@ -636,6 +663,10 @@ declare global {
             url?: string
             token?: string
           }
+          activeRemoteStack?: {
+            hostId: string
+            stackId: string
+          }
           modulesDirectory?: string
           activeModuleVariants?: Record<string, string>
           theme?: 'dark' | 'light'
@@ -670,6 +701,10 @@ declare global {
               url?: string
               token?: string
             }
+            activeRemoteStack?: {
+              hostId: string
+              stackId: string
+            }
             modulesDirectory?: string
             activeModuleVariants?: Record<string, string>
             theme?: 'dark' | 'light'
@@ -692,6 +727,7 @@ declare global {
             pinnedThreadIdsByWorkspace?: Record<string, string[]>
           }
         ): Promise<void>
+        onPinnedThreadIdsChanged(callback: (payload: PinnedThreadIdsChangedPayload) => void): UnsubscribeFn
       }
       whatsNew: {
         getReleases(): Promise<WhatsNewRelease[]>
@@ -704,6 +740,41 @@ declare global {
         check(): Promise<AppUpdateState>
         downloadAndInstall(): Promise<AppUpdateState>
         onStateChanged(callback: (state: AppUpdateState) => void): UnsubscribeFn
+      }
+      remoteServers: {
+        list(): Promise<RemoteHost[]>
+        sshConfig(): Promise<LocalSshConfigInfo>
+        create(input: {
+          name: string
+          sshTarget: string
+          identityFile?: string
+          stacks?: RemoteStack[]
+        }): Promise<RemoteHost>
+        update(id: string, patch: Partial<Omit<RemoteHost, 'id'>>): Promise<RemoteHost>
+        delete(id: string): Promise<{ ok: boolean }>
+        test(input: {
+          id?: string
+          draft?: { name?: string; sshTarget?: string; identityFile?: string }
+        }): Promise<SshTestResult>
+        listStacks(hostId: string): Promise<RemoteStack[]>
+        discoverStacks(hostId: string): Promise<DiscoveredStack[]>
+        status(hostId: string, stackId: string): Promise<RemoteStackStatus>
+        logs(
+          hostId: string,
+          stackId: string,
+          options?: { service?: string; tail?: number }
+        ): Promise<{ text: string; service?: string; tail: number }>
+        action(
+          hostId: string,
+          stackId: string,
+          action: RemoteStackAction
+        ): Promise<OperationResult>
+        openInDesktop(
+          hostId: string,
+          stackId: string
+        ): Promise<{ ok: boolean; hostId: string; stackId: string; localPort: number }>
+        openDashboard(hostId: string, stackId: string): Promise<{ ok: boolean; localPort: number }>
+        disconnect(hostId: string, stackId: string): Promise<{ ok: boolean }>
       }
     }
   }

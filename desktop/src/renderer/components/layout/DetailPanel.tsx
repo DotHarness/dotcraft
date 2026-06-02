@@ -17,6 +17,7 @@ import { performAddTabAction } from '../../utils/detailTabActions'
 
 interface DetailPanelProps {
   workspacePath?: string
+  remoteWorkspace?: boolean
 }
 
 function browserTabIcon(faviconDataUrl?: string): JSX.Element {
@@ -40,7 +41,10 @@ function browserTabIcon(faviconDataUrl?: string): JSX.Element {
  * Tab bar layout:
  *   [changes] [plan] │ [viewer1] [viewer2] … │ [+] [flex] [×]
  */
-export function DetailPanel({ workspacePath = '' }: DetailPanelProps): JSX.Element {
+export function DetailPanel({
+  workspacePath = '',
+  remoteWorkspace = false
+}: DetailPanelProps): JSX.Element {
   const t = useT()
   const locale = useLocale()
   const {
@@ -108,6 +112,9 @@ export function DetailPanel({ workspacePath = '' }: DetailPanelProps): JSX.Eleme
 
   const handleAddTabAction = (action: AddTabMenuAction | null): void => {
     if (!action) return
+    if (remoteWorkspace && (action === 'openFile' || action === 'newTerminal' || action === 'newChanges')) {
+      return
+    }
     performAddTabAction(action, { threadId: activeThreadId, workspacePath, t })
   }
 
@@ -133,7 +140,7 @@ export function DetailPanel({ workspacePath = '' }: DetailPanelProps): JSX.Eleme
           action: 'openFile',
           label: t('detailPanel.addTabOpenFile'),
           shortcut: fmt(ACTION_SHORTCUTS.quickOpen),
-          enabled: true
+          enabled: !remoteWorkspace
         },
         {
           action: 'newBrowser',
@@ -145,7 +152,7 @@ export function DetailPanel({ workspacePath = '' }: DetailPanelProps): JSX.Eleme
           action: 'newTerminal',
           label: t('detailPanel.addTabNewTerminal'),
           shortcut: fmt(ACTION_SHORTCUTS.newTerminalTab),
-          enabled: canOpenWorkspaceTab
+          enabled: canOpenWorkspaceTab && !remoteWorkspace
         },
         // Diff / Progress are dropped from the menu once already open.
         ...(openSystemTabs.includes('changes')
@@ -154,7 +161,7 @@ export function DetailPanel({ workspacePath = '' }: DetailPanelProps): JSX.Eleme
               action: 'newChanges' as const,
               label: t('detailPanel.tabChanges'),
               shortcut: fmt(ACTION_SHORTCUTS.viewChanges),
-              enabled: true
+              enabled: !remoteWorkspace
             }]),
         ...(openSystemTabs.includes('plan')
           ? []
@@ -360,9 +367,10 @@ export function DetailPanel({ workspacePath = '' }: DetailPanelProps): JSX.Eleme
           <DetailPanelLauncher
             onAction={handleAddTabAction}
             canOpenWorkspaceTab={Boolean(activeThreadId && workspacePath)}
+            remoteWorkspace={remoteWorkspace}
           />
         )}
-        {activeDetailTab.kind === 'system' && activeDetailTab.id === 'changes' && (
+        {activeDetailTab.kind === 'system' && activeDetailTab.id === 'changes' && !remoteWorkspace && (
           <ChangesTab workspacePath={workspacePath} />
         )}
         {activeDetailTab.kind === 'system' && activeDetailTab.id === 'plan' && <PlanTab />}

@@ -45,7 +45,7 @@ dotcraft setup --provider-mode create \
   --profile developer
 ```
 
-这是第一次使用 DotCraft 最稳的路径。完成后，`.craft/` 包含工作区配置和 bootstrap 文件。如果你想长期运行服务器上的社交渠道机器人，请使用 [服务器部署](../developing/lifecycle/server-deployment) 中的 Docker 方式：
+这是第一次使用 DotCraft 最稳的路径。完成后，`.craft/` 包含工作区配置和 bootstrap 文件。如果你想长期运行服务器上的社交渠道机器人，请使用 [服务器部署](../features/self-hosted/server-deployment) 中的 Docker 方式：
 
 ```bash
 cd deploy/docker

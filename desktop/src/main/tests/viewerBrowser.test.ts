@@ -128,8 +128,8 @@ describe('classifyBrowserUrl', () => {
 
 describe('partitionForWorkspace', () => {
   it('creates deterministic partition ids', () => {
-    const p1 = partitionForWorkspace('F:/dotcraft')
-    const p2 = partitionForWorkspace('F:/dotcraft')
+    const p1 = partitionForWorkspace('F:/examples/workspace')
+    const p2 = partitionForWorkspace('F:/examples/workspace')
     expect(p1).toBe(p2)
     expect(p1.startsWith('persist:dotcraft-viewer:')).toBe(true)
   })

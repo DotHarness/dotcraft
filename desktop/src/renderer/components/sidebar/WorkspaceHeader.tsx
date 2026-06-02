@@ -23,6 +23,8 @@ interface RecentWorkspace {
 interface WorkspaceHeaderProps {
   workspaceName: string
   workspacePath: string
+  localWorkspacePath?: string
+  localActionsDisabled?: boolean
 }
 
 /**
@@ -31,7 +33,12 @@ interface WorkspaceHeaderProps {
  * the workspace menu (Open in Explorer, Switch Workspace, Recent Workspaces).
  * Spec §9.2.
  */
-export function WorkspaceHeader({ workspaceName, workspacePath }: WorkspaceHeaderProps): JSX.Element {
+export function WorkspaceHeader({
+  workspaceName,
+  workspacePath,
+  localWorkspacePath,
+  localActionsDisabled = false
+}: WorkspaceHeaderProps): JSX.Element {
   const t = useT()
   const confirm = useConfirmDialog()
   const [open, setOpen] = useState(false)
@@ -56,8 +63,9 @@ export function WorkspaceHeader({ workspaceName, workspacePath }: WorkspaceHeade
   }, [open, workspacePath])
 
   function openInExplorer(): void {
+    if (localActionsDisabled) return
     setOpen(false)
-    void window.api.shell.openPath(workspacePath)
+    void window.api.shell.openPath(localWorkspacePath || workspacePath)
   }
 
   async function switchWorkspace(): Promise<void> {
@@ -194,7 +202,11 @@ export function WorkspaceHeader({ workspaceName, workspacePath }: WorkspaceHeade
           >
             {workspacePath}
           </div>
-          <DropdownItem label={t('workspaceHeader.openInExplorer')} onClick={openInExplorer} />
+          <DropdownItem
+            label={t('workspaceHeader.openInExplorer')}
+            onClick={openInExplorer}
+            disabled={localActionsDisabled}
+          />
           <DropdownItem label={t('workspaceHeader.switchWorkspace')} onClick={() => { void switchWorkspace() }} />
           {/* Recent workspaces submenu */}
           <div

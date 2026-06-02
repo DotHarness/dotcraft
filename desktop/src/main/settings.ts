@@ -3,6 +3,7 @@ import { join, basename, normalize } from 'path'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { normalizeLocale, type AppLocale } from '../shared/locales'
 import { isValidAppVersion } from '../shared/whatsNew'
+import { normalizeRemoteHosts, type RemoteHost } from '../shared/remoteServers'
 
 export interface RecentWorkspace {
   path: string
@@ -35,6 +36,11 @@ export interface RemoteConnectionSettings {
   token?: string
 }
 
+export interface ActiveRemoteStackSettings {
+  hostId: string
+  stackId: string
+}
+
 export type BrowserUseApprovalMode = 'alwaysAsk' | 'askUnknown' | 'neverAsk'
 export type TaskCompletionNotificationMode = 'whenUnfocused' | 'always' | 'never'
 
@@ -63,6 +69,8 @@ export interface AppSettings {
   /** Legacy local AppServer port settings retained only for reading older settings files. */
   webSocket?: WebSocketConnectionSettings
   remote?: RemoteConnectionSettings
+  /** Persisted Servers-surface connection target; tunnels are rebuilt from this on startup. */
+  activeRemoteStack?: ActiveRemoteStackSettings
   /** UI theme; omitted or invalid values are treated as light by the renderer */
   theme?: UiTheme
   /** Display language (BCP 47); omitted or invalid values are treated as English */
@@ -81,6 +89,8 @@ export interface AppSettings {
   profile?: ProfileSettings
   /** Desktop-local pinned thread ids, keyed by normalized workspace path. */
   pinnedThreadIdsByWorkspace?: Record<string, string[]>
+  /** Desktop-local saved remote servers (SSH targets + DotCraft stacks). */
+  remoteHosts?: RemoteHost[]
 }
 
 const MAX_RECENT = 20
@@ -161,6 +171,10 @@ function normalizeTaskCompletionNotificationMode(value: unknown): TaskCompletion
   return value === 'always' || value === 'never' ? value : 'whenUnfocused'
 }
 
+export function resolveTaskCompletionNotificationMode(settings?: AppSettings): TaskCompletionNotificationMode {
+  return normalizeTaskCompletionNotificationMode(settings?.notifications?.taskCompletionMode)
+}
+
 function normalizeNotificationSettings(settings: AppSettings): NotificationSettings {
   const raw = settings.notifications
   const source: NotificationSettings = raw != null && typeof raw === 'object' && !Array.isArray(raw) ? raw : {}
@@ -210,6 +224,21 @@ function normalizeLastSeenWhatsNewVersion(settings: AppSettings): string | undef
   const raw = settings.lastSeenWhatsNewVersion
   if (!isValidAppVersion(raw)) return undefined
   return raw.trim()
+}
+
+export function normalizeRemoteHostsSetting(settings: AppSettings): RemoteHost[] | undefined {
+  const hosts = normalizeRemoteHosts(settings.remoteHosts)
+  return hosts.length > 0 ? hosts : undefined
+}
+
+function normalizeActiveRemoteStack(settings: AppSettings): ActiveRemoteStackSettings | undefined {
+  const raw = settings.activeRemoteStack
+  if (raw == null || typeof raw !== 'object' || Array.isArray(raw)) {
+    return undefined
+  }
+  const hostId = typeof raw.hostId === 'string' ? raw.hostId.trim() : ''
+  const stackId = typeof raw.stackId === 'string' ? raw.stackId.trim() : ''
+  return hostId && stackId ? { hostId, stackId } : undefined
 }
 
 export function normalizePinnedThreadIdsByWorkspace(settings: AppSettings): Record<string, string[]> | undefined {
@@ -264,6 +293,8 @@ export function loadSettings(): AppSettings {
       raw.lastSeenWhatsNewVersion = normalizeLastSeenWhatsNewVersion(raw)
       raw.profile = normalizeProfileSettings(raw)
       raw.pinnedThreadIdsByWorkspace = normalizePinnedThreadIdsByWorkspace(raw)
+      raw.remoteHosts = normalizeRemoteHostsSetting(raw)
+      raw.activeRemoteStack = normalizeActiveRemoteStack(raw)
       if (raw.locale !== undefined) {
         raw.locale = normalizeLocale(raw.locale)
       } else {
@@ -297,6 +328,8 @@ export function saveSettings(settings: AppSettings): void {
     settings.lastSeenWhatsNewVersion = normalizeLastSeenWhatsNewVersion(settings)
     settings.profile = normalizeProfileSettings(settings)
     settings.pinnedThreadIdsByWorkspace = normalizePinnedThreadIdsByWorkspace(settings)
+    settings.remoteHosts = normalizeRemoteHostsSetting(settings)
+    settings.activeRemoteStack = normalizeActiveRemoteStack(settings)
     writeFileSync(filePath, JSON.stringify(settings, null, 2), 'utf8')
   } catch {
     // Non-fatal

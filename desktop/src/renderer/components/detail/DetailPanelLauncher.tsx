@@ -22,6 +22,8 @@ interface DetailPanelLauncherProps {
   onAction: (action: AddTabMenuAction) => void
   /** Whether browser/terminal tabs can be created (needs an active thread + workspace). */
   canOpenWorkspaceTab: boolean
+  /** Remote stacks do not yet expose Desktop-local file, diff, or terminal IPC. */
+  remoteWorkspace?: boolean
 }
 
 interface LauncherCardSpec {
@@ -33,7 +35,11 @@ interface LauncherCardSpec {
   enabled: boolean
 }
 
-export function DetailPanelLauncher({ onAction, canOpenWorkspaceTab }: DetailPanelLauncherProps): JSX.Element {
+export function DetailPanelLauncher({
+  onAction,
+  canOpenWorkspaceTab,
+  remoteWorkspace = false
+}: DetailPanelLauncherProps): JSX.Element {
   const t = useT()
   const iconStyle: CSSProperties = { display: 'block' }
   const fmt = (spec: typeof ACTION_SHORTCUTS[keyof typeof ACTION_SHORTCUTS]): string =>
@@ -46,7 +52,7 @@ export function DetailPanelLauncher({ onAction, canOpenWorkspaceTab }: DetailPan
       description: t('detailPanel.launcherFilesDesc'),
       icon: <FolderOpen size={22} strokeWidth={1.75} aria-hidden style={iconStyle} />,
       shortcut: fmt(ACTION_SHORTCUTS.quickOpen),
-      enabled: true
+      enabled: !remoteWorkspace
     },
     {
       action: 'newBrowser',
@@ -62,7 +68,7 @@ export function DetailPanelLauncher({ onAction, canOpenWorkspaceTab }: DetailPan
       description: t('detailPanel.launcherReviewDesc'),
       icon: <FilePlus2 size={22} strokeWidth={1.75} aria-hidden style={iconStyle} />,
       shortcut: fmt(ACTION_SHORTCUTS.viewChanges),
-      enabled: true
+      enabled: !remoteWorkspace
     },
     {
       action: 'newPlan',
@@ -78,7 +84,7 @@ export function DetailPanelLauncher({ onAction, canOpenWorkspaceTab }: DetailPan
       description: t('detailPanel.launcherTerminalDesc'),
       icon: <SquareTerminal size={22} strokeWidth={1.75} aria-hidden style={iconStyle} />,
       shortcut: fmt(ACTION_SHORTCUTS.newTerminalTab),
-      enabled: canOpenWorkspaceTab
+      enabled: canOpenWorkspaceTab && !remoteWorkspace
     }
   ]
 

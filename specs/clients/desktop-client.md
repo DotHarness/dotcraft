@@ -24,6 +24,7 @@ Purpose: Define the stable user-experience behavior of **DotCraft Desktop** as a
 - [6.7 Settings Surface](#67-settings-surface)
 - [6.8 Channel Modules](#68-channel-modules)
 - [6.9 What's New](#69-whats-new)
+- [6.10 Remote Servers](#610-remote-servers)
 - [7. Keyboard Accessibility and Localization](#7-keyboard-accessibility-and-localization)
 - [8. Error Handling and Recovery](#8-error-handling-and-recovery)
 - [9. Non-Functional UX Requirements](#9-non-functional-ux-requirements)
@@ -90,6 +91,7 @@ Purpose: Define the stable user-experience behavior of **DotCraft Desktop** as a
 - Remote connection changes are applied with test-and-connect semantics: Desktop validates the draft `ws://` or `wss://` URL and token, completes a WebSocket `initialize` probe against that draft endpoint with a bounded timeout, then persists the settings and switches to the new connection only after the probe succeeds.
 - If the remote probe fails, Desktop leaves the persisted connection settings unchanged so the next launch is not trapped behind a newly saved bad endpoint.
 - When Desktop is launched with an explicit transient `--remote` endpoint, persistent connection-mode switching is unavailable. Settings must explain that the launch argument owns the current connection for that session.
+- Remote connections opened through the Servers surface (see [§6.10](#610-remote-servers) and [remote-server-management.md](../runtime/remote-server-management.md)) are a tunnel-fronted special case of Remote mode: Desktop connects to a `ws://127.0.0.1:<port>/ws` local tunnel endpoint and reuses this same test-and-connect path. Remote AppServer lifecycle remains owned by the remote environment; Desktop manages only the SSH tunnel and the deployment-level container lifecycle, never a remote AppServer process restart.
 
 ### 3.2 Connection States
 
@@ -381,18 +383,18 @@ Desktop may expose the AppServer Protocol's Desktop Thread Management Runtime To
 
 Required behavior:
 
-- Desktop-owned thread tools use the `desktop` namespace and DotCraft PascalCase tool names: `CreateThread`, `ListThreads`, `ReadThread`, `SendMessageToThread`, `SetThreadTitle`, and `SetThreadArchived`.
+- Desktop-owned thread tools use the `desktop` namespace and DotCraft PascalCase tool names: `CreateThread`, `ListThreads`, `ReadThread`, `SendMessageToThread`, `SetThreadTitle`, `SetThreadArchived`, and `SetThreadPinned`.
 - Desktop must not expose snake_case aliases as model-visible DotCraft tool names. Compatibility aliases, if needed for private integrations, must stay inside the Desktop tool handler and must not change the DotCraft tool surface.
 - Desktop declares these tools with `deferLoading = true` by default so they are discoverable on demand and do not expand the ordinary top-level tool list. Direct exposure is reserved for runtimes without deferred-tool discovery.
 - Desktop declares `additionalContext["desktop.threadCoordination"]` with `kind = "application"` whenever it declares the thread tools. The value is a concise App Context hint telling the agent to search for the relevant thread tool before background thread management.
 - Desktop declares these tools only when it can handle `item/tool/call` requests for them on the active AppServer transport.
-- Desktop implements the tools by calling ordinary AppServer methods. It must not mutate local thread state directly or bypass AppServer persistence.
-- `CreateThread` calls `thread/start` using the current workspace identity, then submits the initial prompt with `turn/start`. The created thread appears through normal `thread/started` synchronization, but Desktop does not switch the user's active conversation unless the user explicitly opens it.
-- `ListThreads` calls `thread/list` for the current workspace identity and may apply local `query` and `limit` filtering before returning a model-facing summary.
-- `ReadThread` calls `thread/read` and returns a compact payload-aware summary without resuming the thread, subscribing the UI to it, or making it active. The summary must bound turn history, extract useful message/tool previews from item payloads, and avoid raw media data or uncapped command/tool output.
-- `SendMessageToThread` sends a normal turn to the target thread without stealing focus. If the thread is running, waiting, or under blocking maintenance, Desktop uses `turn/enqueue` when available; otherwise the tool returns a structured busy failure.
+- Desktop implements lifecycle, history, and turn tools by calling ordinary AppServer methods. `SetThreadPinned` is the only Desktop-local state mutation in this profile and only updates Desktop settings.
+- `CreateThread` calls `thread/start` using the current workspace identity, then submits the initial prompt with `turn/start`. The created thread appears through normal `thread/started` synchronization, but Desktop does not switch the user's active conversation unless the user explicitly opens it. If `reasoningEffort` is supplied, Desktop maps it into persistent thread reasoning configuration before the first turn.
+- `ListThreads` calls `thread/list` with `query`, `limit`, `cursor`, and `includeArchived` when provided, then returns a model-facing page summary including `nextCursor` and `totalMatched`.
+- `ReadThread` calls `thread/read` with `turnLimit` and `cursor` when provided and returns a compact payload-aware summary without resuming the thread, subscribing the UI to it, or making it active. The summary must bound turn history, summarize queued inputs, extract useful message/tool previews from item payloads, and avoid raw media data or uncapped command/tool output.
+- `SendMessageToThread` sends a normal turn to the target thread without stealing focus. If `reasoningEffort` is supplied, Desktop first reads and updates the target thread configuration through `thread/config/update`; the update applies to queued and future turns. If the thread is running, waiting, or under blocking maintenance, Desktop uses `turn/enqueue` when available; otherwise the tool returns a structured busy failure.
 - `SetThreadTitle` and `SetThreadArchived` map to `thread/rename`, `thread/archive`, and `thread/unarchive`. Desktop waits for the RPC result and normal broadcasts to update visible state.
-- Pinned-thread tools remain unavailable until AppServer defines pinned-thread state. Desktop must not present a pinned-thread tool in this profile before that backing contract exists.
+- `SetThreadPinned` reads the target thread only when pinning, rejects archived or subagent child threads, updates `pinnedThreadIdsByWorkspace`, and emits a renderer settings sync so the sidebar updates immediately. Unpinning may remove the id without a successful thread read.
 - On reconnect, Desktop re-declares the same tool specs and runtime additional context when it resumes a thread and `capabilities.dynamicToolRebind = true`. If rebind is unavailable, pending calls fail through the normal Runtime Dynamic Tools unavailable path rather than silently routing to stale handlers.
 - Runtime thread-tool calls render as ordinary dynamic tool activity in the conversation. They are non-modal unless an underlying AppServer call triggers an existing approval or user-input flow.
 - If a background-created or background-updated thread changes while the user is viewing another thread, Desktop updates the sidebar/list indicators but must not force navigation.
@@ -483,7 +485,7 @@ Required behavior:
   - provider testing uses `provider/test` and must not perform hidden chat-completion requests;
   - unsupported model listing remains a recoverable setup state with manual model entry.
 - The legacy shared footer Save/Cancel pattern is retired. Settings actions are group-scoped (for example Apply, Restart, or Apply & Restart) based on the tier semantics of that group.
-- The Connection settings group distinguishes lifecycle ownership:
+- The Connections settings group distinguishes lifecycle ownership:
   - Local mode shows Hub-managed AppServer actions, including Apply & Restart when local process settings change.
   - Remote mode uses Apply & Connect for URL/token changes, validates before persisting, and hides or disables local-only AppServer binary and restart controls with explanatory copy.
 - Desktop exposes a workspace-level `Personalization` tab with an `Enable personalized welcome suggestions` toggle backed by workspace config rather than client-global preferences.
@@ -534,6 +536,7 @@ This section defines the user-visible workflow for Desktop-managed TypeScript ch
 - Module status is communicated through user-meaningful states, including at least not configured, connecting, connected, stopped, and error conditions.
 - Desktop may derive module status from both local runtime lifecycle and server-observed channel availability, but the user-facing status must remain coherent and actionable.
 - Module status is distinct from Desktop AppServer connection state. A connected AppServer session does not imply all enabled modules are connected.
+- In Remote mode, server-observed channel status is authoritative when available. Desktop must not let local module process state override a remote `channel/status` result, and local module Start/Stop controls should be hidden or disabled because they do not control remote adapters.
 
 #### 6.8.5 Interactive Setup and QR-like Flows
 
@@ -581,6 +584,20 @@ Desktop owns a versioned What's New surface for release highlights. It is a clie
 - Release highlights are grouped by version and may include short text plus optional media.
 - Missing or unloadable media must degrade to a stable text/icon presentation rather than showing broken image chrome.
 - Remote What's New media must remain small enough for first-run UX expectations; each manifest entry's declared size must stay within the agreed per-card animated-asset budget, and manifest entries declaring a larger size must be rejected at load time.
+
+### 6.10 Remote Servers
+
+Desktop owns a **Servers** surface for managing remote DotCraft Docker stacks over SSH. The full architecture, settings schema, API contract, SSH/Compose operations, and security model are defined in [remote-server-management.md](../runtime/remote-server-management.md); this section states the Desktop UX workflow contract.
+
+- The Servers surface is a dedicated Settings tab, separate from the Connections group, with **list → detail drill-in** navigation: a list of saved servers, a per-server detail view, and a back path. No new top-level navigation is added.
+- A **server (host)** is an SSH target; a **stack** is one DotCraft Compose deployment on that host. One host has many stacks. Host SSH-reachability and the active Desktop session are distinct signals and must not be conflated; reachability is shown per host, and an "active" marker indicates the host whose stack is the current session.
+- The server list exposes at most one primary action (Add server) and a first-run empty state explaining the feature and its prerequisites.
+- The detail view exposes Test SSH, an SSH summary, a stacks section (one card per stack), and a redacted recent-operations area. When SSH is unreachable, stack actions are disabled and a redacted error with a retry is shown.
+- Each stack card tiers its actions: **Open in Desktop** (the single primary; toggles to Disconnect when active) and secondary **Dashboard** / **Logs**, with **Update**, **Restart**, **Stop/Start**, **Edit**, and **Remove** in an overflow menu. Update-available is informational, not risk. Logs appear as an inline, bounded, redacted, monospace panel under the card.
+- Adding or editing a server uses a second-level Settings page, not a nested modal. The page collects name, SSH target, and an optional identity file override (key/agent only; no password entry or key storage), surfaces local SSH aliases/keys when available, and may offer one-click import of discovered stacks. Stack records never accept the AppServer token; token presence is shown as present/missing only.
+- "Open in Desktop" reads the remote `workspace/.craft/appserver.token`, opens a local SSH tunnel, and connects through the existing remote-mode test-and-connect path (§3.1.1) using a `ws://127.0.0.1:<port>/ws` URL. Desktop must not expose remote AppServer restart; stack lifecycle (start/stop/restart) is a deployment action distinct from AppServer process restart.
+- There is one source of truth for the active connection. While a Servers stack is the active session, the Connections group shows a read-only "Connected via Servers ▸ &lt;host&gt; / &lt;stack&gt;" banner linking back to Servers instead of an editable raw URL; the raw URL/token form remains for the manual/advanced case.
+- The visual treatment follows [Desktop Visual Design](desktop-visual-design.md): neutral-first surfaces, semantic color only for state and risk, and the neutral inverted primary for Open in Desktop.
 
 ---
 

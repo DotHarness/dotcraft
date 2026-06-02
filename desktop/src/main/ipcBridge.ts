@@ -7,10 +7,15 @@ import type { WireProtocolClient } from './WireProtocolClient'
 import type {
   AppSettings,
   RecentWorkspace,
-  BinarySource,
-  TaskCompletionNotificationMode
+  BinarySource
 } from './settings'
+import { resolveTaskCompletionNotificationMode } from './settings'
 import { resolveBinaryLocation } from './AppServerManager'
+import { RemoteServersManager } from './remoteServers/remoteServersManager'
+import {
+  registerRemoteServersHandlers,
+  REMOTE_SERVERS_CHANNELS
+} from './remoteServers/remoteServersIpc'
 import { checkWorkspaceLock } from './workspaceLock'
 import {
   TITLE_BAR_OVERLAY_BY_THEME,
@@ -58,6 +63,7 @@ import type {
   WorkspaceSetupModelListRequest,
   WorkspaceSetupModelListResult
 } from './workspaceSetup'
+import { normalizeRemoteHosts, type RemoteHost, type RemoteStack } from '../shared/remoteServers'
 import { translate, normalizeLocale, DEFAULT_LOCALE, type AppLocale } from '../shared/locales'
 import { parseJsonConfig, parseJsonObjectConfig } from '../shared/jsonConfig'
 import { detectEditors, launchEditor, type EditorId } from './externalEditors'
@@ -511,39 +517,67 @@ function readDefaultApprovalPolicy(record: Record<string, unknown>): 'default' |
   return raw === 'default' || raw === 'autoApprove' ? raw : null
 }
 
+function createEmptyCoreConfigSnapshot(): WorkspaceCoreConfigSnapshot {
+  return {
+    providerId: null,
+    model: null,
+    welcomeSuggestionsEnabled: null,
+    skillsSelfLearningEnabled: null,
+    memoryAutoConsolidateEnabled: null,
+    dreamsEnabled: null,
+    dreamsInterval: null,
+    dreamsThreadLookbackCount: null,
+    dreamsAutoApply: null,
+    defaultApprovalPolicy: null
+  }
+}
+
+function readCoreConfigSnapshotFromText(raw: string): WorkspaceCoreConfigSnapshot {
+  if (!raw.trim()) return createEmptyCoreConfigSnapshot()
+  const parsed = parseJsonObjectConfig(raw)
+  return {
+    providerId: normalizeOptionalStringValue(parsed.ProviderId ?? parsed.providerId),
+    model: normalizeOptionalStringValue(parsed.Model ?? parsed.model),
+    welcomeSuggestionsEnabled: readNestedBoolean(parsed, 'WelcomeSuggestions', 'Enabled'),
+    skillsSelfLearningEnabled: readSkillsSelfLearningEnabled(parsed),
+    memoryAutoConsolidateEnabled: readNestedBoolean(parsed, 'Memory', 'AutoConsolidateEnabled'),
+    dreamsEnabled: readNestedBoolean(parsed, 'Dreams', 'Enabled'),
+    dreamsInterval: readNestedString(parsed, 'Dreams', 'Interval'),
+    dreamsThreadLookbackCount: readNestedInteger(parsed, 'Dreams', 'ThreadLookbackCount'),
+    dreamsAutoApply: readNestedBoolean(parsed, 'Dreams', 'AutoApply'),
+    defaultApprovalPolicy: readDefaultApprovalPolicy(parsed)
+  }
+}
+
 async function readCoreConfigSnapshot(configPath: string): Promise<WorkspaceCoreConfigSnapshot> {
   try {
     const raw = await fs.readFile(configPath, 'utf8')
-    const parsed = parseJsonObjectConfig(raw)
-    return {
-      providerId: normalizeOptionalStringValue(parsed.ProviderId ?? parsed.providerId),
-      model: normalizeOptionalStringValue(parsed.Model ?? parsed.model),
-      welcomeSuggestionsEnabled: readNestedBoolean(parsed, 'WelcomeSuggestions', 'Enabled'),
-      skillsSelfLearningEnabled: readSkillsSelfLearningEnabled(parsed),
-      memoryAutoConsolidateEnabled: readNestedBoolean(parsed, 'Memory', 'AutoConsolidateEnabled'),
-      dreamsEnabled: readNestedBoolean(parsed, 'Dreams', 'Enabled'),
-      dreamsInterval: readNestedString(parsed, 'Dreams', 'Interval'),
-      dreamsThreadLookbackCount: readNestedInteger(parsed, 'Dreams', 'ThreadLookbackCount'),
-      dreamsAutoApply: readNestedBoolean(parsed, 'Dreams', 'AutoApply'),
-      defaultApprovalPolicy: readDefaultApprovalPolicy(parsed)
-    }
+    return readCoreConfigSnapshotFromText(raw)
   } catch (error) {
     const code = (error as NodeJS.ErrnoException | undefined)?.code
     if (code === 'ENOENT') {
-      return {
-        providerId: null,
-        model: null,
-        welcomeSuggestionsEnabled: null,
-        skillsSelfLearningEnabled: null,
-        memoryAutoConsolidateEnabled: null,
-        dreamsEnabled: null,
-        dreamsInterval: null,
-        dreamsThreadLookbackCount: null,
-        dreamsAutoApply: null,
-        defaultApprovalPolicy: null
-      }
+      return createEmptyCoreConfigSnapshot()
     }
     throw error
+  }
+}
+
+async function readActiveRemoteCoreConfigSnapshot(
+  callbacks?: IpcHandlerCallbacks
+): Promise<{ workspace: WorkspaceCoreConfigSnapshot; userDefaults: WorkspaceCoreConfigSnapshot } | null> {
+  const settings = callbacks?.getSettings()
+  if (!settings || settings.connectionMode !== 'remote') return null
+  const ref = settings.activeRemoteStack
+  if (!ref?.hostId || !ref.stackId) return null
+
+  const host = normalizeRemoteHosts(settings.remoteHosts).find((candidate) => candidate.id === ref.hostId)
+  const stack = host?.stacks.find((candidate) => candidate.id === ref.stackId)
+  if (!host || !stack) return null
+
+  const raw = await getRemoteServersManager().readCoreConfig(host, stack)
+  return {
+    workspace: readCoreConfigSnapshotFromText(raw.workspaceRaw),
+    userDefaults: readCoreConfigSnapshotFromText(raw.userDefaultsRaw)
   }
 }
 
@@ -558,6 +592,15 @@ function resolveModuleWsConfig(
 ): { wsUrl: string; token?: string } {
   const mode = resolveConnectionMode(settings)
   if (mode === 'remote') {
+    if (settings.activeRemoteStack) {
+      if (!runtime?.wsUrl?.trim()) {
+        throw new Error('Remote stack AppServer tunnel is not connected.')
+      }
+      return runtime.token?.trim()
+        ? { wsUrl: runtime.wsUrl.trim(), token: runtime.token.trim() }
+        : { wsUrl: runtime.wsUrl.trim() }
+    }
+
     const resolved = resolveRemoteWebSocketConfig(settings.remote)
     if (!resolved.ok) {
       throw new Error(resolved.message)
@@ -651,6 +694,10 @@ export interface IpcHandlerCallbacks {
   onRestartManagedAppServer: () => Promise<void>
   /** Applies connection settings and switches to the resulting AppServer connection. */
   onApplyConnectionSettings?: (draft: ConnectionSettingsDraft) => Promise<void>
+  /** Connects Desktop to a saved remote stack through a rebuilt SSH tunnel. */
+  onConnectRemoteStack?: (host: RemoteHost, stack: RemoteStack) => Promise<{ localPort?: number }>
+  /** Disconnects a saved remote stack; if active, Desktop should return to local mode. */
+  onDisconnectRemoteStack?: (hostId: string, stackId: string) => Promise<void>
   /** Returns the current settings object. */
   getSettings: () => AppSettings
   /** Returns the active AppServer WebSocket endpoint for Hub-managed local mode. */
@@ -714,6 +761,12 @@ function mainLocale(callbacks?: IpcHandlerCallbacks): AppLocale {
 let moduleProcessManager: ModuleProcessManager | null = null
 let ensureModulesScanned: (() => Promise<DiscoveredModule[]>) | null = null
 let getSettingsSnapshotForModules: (() => AppSettings) | null = null
+
+let remoteServersManager: RemoteServersManager | null = null
+export function getRemoteServersManager(): RemoteServersManager {
+  if (!remoteServersManager) remoteServersManager = new RemoteServersManager()
+  return remoteServersManager
+}
 const terminalCleanupHookedWindows = new Set<number>()
 
 function normalizeChannelName(channelName: string): string {
@@ -914,27 +967,21 @@ export function registerIpcHandlers(
   })
 
   handleSafe('workspace-config:get-core', async () => {
-    const workspacePath = callbacks?.getWorkspaceStatus().workspacePath?.trim()
-      if (!workspacePath) {
-        return {
-          workspace: {
-            providerId: null,
-            model: null,
-            welcomeSuggestionsEnabled: null,
-            skillsSelfLearningEnabled: null,
-            memoryAutoConsolidateEnabled: null,
-            dreamsEnabled: null,
-            dreamsInterval: null,
-            dreamsThreadLookbackCount: null,
-            dreamsAutoApply: null,
-            defaultApprovalPolicy: null
-          },
-          userDefaults: await readCoreConfigSnapshot(path.join(os.homedir(), '.craft', 'config.json'))
-        }
+    const remoteCore = await readActiveRemoteCoreConfigSnapshot(callbacks)
+    if (remoteCore) {
+      return remoteCore
+    }
+
+    const localWorkspacePath = workspacePath.trim()
+    if (!localWorkspacePath) {
+      return {
+        workspace: createEmptyCoreConfigSnapshot(),
+        userDefaults: await readCoreConfigSnapshot(path.join(os.homedir(), '.craft', 'config.json'))
       }
+    }
 
     return {
-      workspace: await readCoreConfigSnapshot(path.join(workspacePath, '.craft', 'config.json')),
+      workspace: await readCoreConfigSnapshot(path.join(localWorkspacePath, '.craft', 'config.json')),
       userDefaults: await readCoreConfigSnapshot(path.join(os.homedir(), '.craft', 'config.json'))
     }
   })
@@ -1593,6 +1640,15 @@ export function registerIpcHandlers(
     }
   )
 
+  registerRemoteServersHandlers({
+    handleSafe,
+    getSettings: () => callbacks?.getSettings() ?? {},
+    updateSettings: (partial) => callbacks?.updateSettings(partial),
+    connectRemoteStack: callbacks?.onConnectRemoteStack,
+    disconnectRemoteStack: callbacks?.onDisconnectRemoteStack,
+    manager: getRemoteServersManager()
+  })
+
   handleSafe('modules:list', async () => {
     if (cachedModules !== null) {
       return cachedModules
@@ -1886,11 +1942,6 @@ function stripMarkdownForNotify(text: string): string {
     .trim()
 }
 
-function resolveTaskCompletionNotificationMode(settings?: AppSettings): TaskCompletionNotificationMode {
-  const mode = settings?.notifications?.taskCompletionMode
-  return mode === 'always' || mode === 'never' ? mode : 'whenUnfocused'
-}
-
 export function shouldShowTaskCompletionNotification(win: BrowserWindow, settings?: AppSettings): boolean {
   const mode = resolveTaskCompletionNotificationMode(settings)
   if (mode === 'never') return false
@@ -1998,6 +2049,9 @@ export function broadcastServerRequest(
  * Removes all registered ipcMain handlers (call before re-registering on workspace switch).
  */
 export function unregisterIpcHandlers(): void {
+  for (const channel of REMOTE_SERVERS_CHANNELS) {
+    ipcMain.removeHandler(channel)
+  }
   ipcMain.removeHandler('appserver:send-request')
   ipcMain.removeHandler('appserver:model-list')
   ipcMain.removeHandler('appserver:workspace-config-schema')

@@ -301,12 +301,27 @@ public sealed class DotCraftThreadClient(DotCraftClient client)
     public async Task<DotCraftThreadReadResult> ReadAsync(
         string threadId,
         bool includeTurns = false,
+        int? turnLimit = null,
+        string? cursor = null,
         CancellationToken cancellationToken = default)
     {
-        var result = await client.RequestAsync("thread/read", new { threadId, includeTurns }, cancellationToken);
+        var payload = new Dictionary<string, object?>
+        {
+            ["threadId"] = threadId,
+            ["includeTurns"] = includeTurns
+        };
+        if (turnLimit.HasValue)
+            payload["turnLimit"] = turnLimit.Value;
+        if (!string.IsNullOrWhiteSpace(cursor))
+            payload["cursor"] = cursor;
+
+        var result = await client.RequestAsync("thread/read", payload, cancellationToken);
         var thread = result.TryGetProperty("thread", out var threadElement) ? threadElement : result;
+        JsonElement? turnPage = result.TryGetProperty("turnPage", out var turnPageElement)
+            ? turnPageElement.Clone()
+            : null;
         var id = JsonElementReaders.ReadString(thread, "id") ?? JsonElementReaders.ReadString(thread, "threadId") ?? threadId;
-        return new DotCraftThreadReadResult(id, thread.Clone());
+        return new DotCraftThreadReadResult(id, thread.Clone(), turnPage);
     }
 
     private static object ToIdentityPayload(SessionIdentity identity) => new

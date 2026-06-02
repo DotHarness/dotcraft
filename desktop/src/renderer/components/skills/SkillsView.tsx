@@ -4,6 +4,7 @@ import { useT } from '../../contexts/LocaleContext'
 import { useSkillsStore, type SkillEntry } from '../../stores/skillsStore'
 import { useSkillMarketStore, type SkillMarketProviderFilter } from '../../stores/skillMarketStore'
 import { useConnectionStore, type ServerCapabilities } from '../../stores/connectionStore'
+import { useConversationStore } from '../../stores/conversationStore'
 import { useThreadStore } from '../../stores/threadStore'
 import type { MarketDotCraftInstallPreparation, MarketSkillDetail, MarketSkillSummary } from '../../../shared/skillMarket'
 import { SkillAvatar } from './SkillAvatar'
@@ -61,6 +62,7 @@ export function SkillsView({ onManage }: SkillsViewProps = {}): JSX.Element {
   } = useSkillMarketStore()
   const connectionStatus = useConnectionStore((s) => s.status)
   const capabilities = useConnectionStore((s) => s.capabilities)
+  const remoteWorkspaceActive = useConversationStore((s) => s.remoteWorkspaceActive)
   const { addThread, setActiveThreadId } = useThreadStore()
 
   const [mode, setMode] = useState<ViewMode>('browse')
@@ -152,6 +154,10 @@ export function SkillsView({ onManage }: SkillsViewProps = {}): JSX.Element {
   }
 
   async function handleInstallMarketSkill(skill: MarketSkillDetail, overwrite = false): Promise<void> {
+    if (remoteWorkspaceActive) {
+      addToast(t('skillMarket.installUnavailableRemote'), 'warning')
+      return
+    }
     if ((skill.installed || skill.updateAvailable) && !overwrite) {
       const ok = await confirm({
         title: t('skillMarket.overwriteTitle'),
@@ -174,7 +180,13 @@ export function SkillsView({ onManage }: SkillsViewProps = {}): JSX.Element {
   }
 
   async function handleDotCraftInstallMarketSkill(skill: MarketSkillDetail): Promise<void> {
-    const disabledReason = dotCraftInstallDisabledReason(connectionStatus, capabilities, selfLearningEnabled, t)
+    const disabledReason = dotCraftInstallDisabledReason(
+      connectionStatus,
+      capabilities,
+      selfLearningEnabled,
+      remoteWorkspaceActive,
+      t
+    )
     if (disabledReason) {
       addToast(disabledReason, 'warning')
       return
@@ -242,8 +254,10 @@ export function SkillsView({ onManage }: SkillsViewProps = {}): JSX.Element {
     connectionStatus,
     capabilities,
     selfLearningEnabled,
+    remoteWorkspaceActive,
     t
   )
+  const installDisabledReason = remoteWorkspaceActive ? t('skillMarket.installUnavailableRemote') : null
 
   if (mode === 'manage') {
     return (
@@ -394,6 +408,7 @@ export function SkillsView({ onManage }: SkillsViewProps = {}): JSX.Element {
           installing={installSlug === selectedMarketSkill.slug}
           dotCraftInstalling={dotCraftInstallSlug === selectedMarketSkill.slug}
           dotCraftDisabledReason={dotCraftDisabledReason}
+          installDisabledReason={installDisabledReason}
           onClose={clearMarketSelection}
           onInstall={() => void handleInstallMarketSkill(selectedMarketSkill)}
           onDotCraftInstall={() => void handleDotCraftInstallMarketSkill(selectedMarketSkill)}
@@ -605,8 +620,10 @@ function dotCraftInstallDisabledReason(
   connectionStatus: string,
   capabilities: ServerCapabilities | null,
   selfLearningEnabled: boolean,
+  remoteWorkspaceActive: boolean,
   t: TranslateFn
 ): string | null {
+  if (remoteWorkspaceActive) return t('skillMarket.dotCraftInstallUnavailableRemote')
   if (connectionStatus !== 'connected') return t('skillMarket.dotCraftInstallUnavailableDisconnected')
   if (capabilities?.skillsManagement !== true) return t('skillMarket.dotCraftInstallUnavailableSkills')
   if (capabilities?.skillVariants !== true) return t('skillMarket.dotCraftInstallUnavailableVariants')
@@ -678,6 +695,7 @@ function MarketSkillDetailDialog({
   installing,
   dotCraftInstalling,
   dotCraftDisabledReason,
+  installDisabledReason,
   onClose,
   onInstall,
   onDotCraftInstall
@@ -687,6 +705,7 @@ function MarketSkillDetailDialog({
   installing: boolean
   dotCraftInstalling: boolean
   dotCraftDisabledReason: string | null
+  installDisabledReason: string | null
   onClose: () => void
   onInstall: () => void
   onDotCraftInstall: () => void
@@ -712,6 +731,7 @@ function MarketSkillDetailDialog({
       ? t('skillMarket.checkWithDotCraft')
       : t('skillMarket.installWithDotCraft')
   const dotCraftButtonDisabled = Boolean(dotCraftDisabledReason) || dotCraftInstalling || loading || installing
+  const installButtonDisabled = Boolean(installDisabledReason) || installing || loading
 
   return (
     <div role="presentation" style={modalScrim} onClick={onClose}>
@@ -752,10 +772,16 @@ function MarketSkillDetailDialog({
             <ExternalLink size={14} aria-hidden />
             {t('skillMarket.openSource')}
           </button>
-          <button type="button" onClick={onInstall} disabled={installing || loading} style={installing || loading ? disabledSecondaryBtn : secondaryBtn}>
-            <Download size={14} aria-hidden />
-            {installing ? t('skillMarket.installing') : installLabel}
-          </button>
+          <ActionTooltip
+            label={installLabel}
+            disabledReason={installDisabledReason ?? undefined}
+            placement="top"
+          >
+            <button type="button" onClick={onInstall} disabled={installButtonDisabled} style={installButtonDisabled ? disabledSecondaryBtn : secondaryBtn}>
+              <Download size={14} aria-hidden />
+              {installing ? t('skillMarket.installing') : installLabel}
+            </button>
+          </ActionTooltip>
           <ActionTooltip
             label={dotCraftInstallLabel}
             disabledReason={dotCraftDisabledReason ?? undefined}

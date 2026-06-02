@@ -146,7 +146,7 @@ public sealed record DotCraftThread(string Id, JsonElement Raw);
 /// <summary>
 /// AppServer thread/read result with raw thread JSON.
 /// </summary>
-public sealed record DotCraftThreadReadResult(string ThreadId, JsonElement Thread);
+public sealed record DotCraftThreadReadResult(string ThreadId, JsonElement Thread, JsonElement? TurnPage = null);
 
 /// <summary>
 /// One input part for turn/start and turn/enqueue.

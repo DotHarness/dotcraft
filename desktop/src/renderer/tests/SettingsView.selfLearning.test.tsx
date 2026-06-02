@@ -83,7 +83,7 @@ function renderView() {
       <PendingRestartHarness />
       <div style={{ display: 'flex', height: 800 }}>
         <SettingsSidebar />
-        <SettingsView workspacePath="E:\\Git\\dotcraft" />
+        <SettingsView workspacePath="C:\\sample\\workspace" />
       </div>
     </LocaleProvider>
   )
@@ -229,7 +229,7 @@ describe('SettingsView self-learning settings', () => {
           turnId: 'turn_dream_fake_2',
           turnIds: ['turn_dream_fake_1', 'turn_dream_fake_2'],
           trigger: 'manual',
-          inputManifestPath: 'E:\\Git\\dotcraft\\.craft\\dreams\\runs\\dream_20260511000000_test\\input\\MANIFEST.md',
+          inputManifestPath: 'C:\\sample\\workspace\\.craft\\dreams\\runs\\dream_20260511000000_test\\input\\MANIFEST.md',
           message: null
         }
         dreamsStatus.lastRun = run
@@ -848,6 +848,71 @@ describe('SettingsView self-learning settings', () => {
     expect(screen.queryByText('Changes require a service restart to take effect')).not.toBeInTheDocument()
   })
 
+  it('lets a remote workspace switch away from a provider missing on the remote AppServer', async () => {
+    settingsGet.mockResolvedValue({
+      locale: 'en',
+      connectionMode: 'remote',
+      activeRemoteStack: { hostId: 'host-1', stackId: 'stack-1' },
+      visibleChannels: []
+    })
+    workspaceConfigGetCore.mockResolvedValue({
+      workspace: {
+        providerId: 'codex',
+        model: 'gpt-5.5',
+        apiKey: null,
+        endPoint: null,
+        welcomeSuggestionsEnabled: null,
+        skillsSelfLearningEnabled: null,
+        memoryAutoConsolidateEnabled: null,
+        dreamsEnabled: null,
+        dreamsInterval: null,
+        dreamsThreadLookbackCount: null,
+        dreamsAutoApply: null,
+        defaultApprovalPolicy: null
+      },
+      userDefaults: {
+        providerId: null,
+        model: null,
+        apiKey: null,
+        endPoint: null,
+        welcomeSuggestionsEnabled: null,
+        skillsSelfLearningEnabled: null,
+        memoryAutoConsolidateEnabled: null,
+        dreamsEnabled: null,
+        dreamsInterval: null,
+        dreamsThreadLookbackCount: null,
+        dreamsAutoApply: null,
+        defaultApprovalPolicy: null
+      }
+    })
+    const defaultSendRequest = appServerSendRequest.getMockImplementation()
+    appServerSendRequest.mockImplementation(async (method: string, params?: Record<string, unknown>) => {
+      if (method === 'model/list' && params?.providerId === 'codex') {
+        return {
+          success: false,
+          errorMessage: "Model provider 'codex' is not configured."
+        }
+      }
+      return defaultSendRequest?.(method, params)
+    })
+    enableProviderManagement()
+    renderView()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Model Providers' }))
+    expect(await screen.findByText(/Workspace provider "codex" is not configured/)).toBeInTheDocument()
+    const providerSelect = await screen.findByRole('combobox', { name: 'Current provider' }) as HTMLButtonElement
+    appServerSendRequest.mockClear()
+
+    fireEvent.change(providerSelect, { target: { value: 'anthropic-main' } })
+
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith('workspace/config/update', {
+        providerId: 'anthropic-main',
+        model: 'claude-sonnet-4-5'
+      }, 20_000)
+    })
+  })
+
   it('auto-selects the first listed model when switching provider invalidates the workspace model', async () => {
     enableProviderManagement()
     renderView()
@@ -975,7 +1040,7 @@ describe('SettingsView self-learning settings', () => {
   it('applies remote connection edits through the global connect banner', async () => {
     renderView()
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Connection' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Connections' }))
     const modeSelect = await screen.findByRole('combobox', { name: 'Connection mode' }) as HTMLSelectElement
     fireEvent.change(modeSelect, { target: { value: 'remote' } })
     fireEvent.change(await screen.findByLabelText('Remote WebSocket URL'), {
@@ -996,11 +1061,29 @@ describe('SettingsView self-learning settings', () => {
     })
   })
 
+  it('shows active remote stack connections as Servers-managed settings', async () => {
+    settingsGet.mockResolvedValueOnce({
+      locale: 'en',
+      connectionMode: 'remote',
+      activeRemoteStack: { hostId: 'host-1', stackId: 'stack-1' },
+      visibleChannels: []
+    })
+    renderView()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Connections' }))
+
+    expect(await screen.findByText('Managed by Servers')).toBeInTheDocument()
+    expect(screen.getByText('This remote connection uses the saved server instance. Use Servers to disconnect or change it.')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Remote WebSocket URL')).not.toBeInTheDocument()
+    expect(screen.queryByText('Enter a remote WebSocket URL before applying Remote mode.')).not.toBeInTheDocument()
+    expect(screen.queryByText('Connection changes are staged. Apply them to connect to the remote AppServer.')).not.toBeInTheDocument()
+  })
+
   it('does not persist remote connection edits when connection apply fails', async () => {
     appServerApplyConnectionSettings.mockRejectedValueOnce(new Error('Remote AppServer did not respond within 10 seconds.'))
     renderView()
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Connection' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Connections' }))
     const modeSelect = await screen.findByRole('combobox', { name: 'Connection mode' }) as HTMLSelectElement
     fireEvent.change(modeSelect, { target: { value: 'remote' } })
     fireEvent.change(await screen.findByLabelText('Remote WebSocket URL'), {

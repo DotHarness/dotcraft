@@ -43,6 +43,10 @@ class FakeWire {
     return [];
   }
 
+  async threadListPage(): Promise<{ threads: Thread[]; nextCursor: string | null; totalMatched: number | null; raw: Record<string, unknown> }> {
+    return { threads: [], nextCursor: null, totalMatched: 0, raw: { data: [] } };
+  }
+
   async threadRead(threadId: string): Promise<Thread> {
     return new Thread(threadId, "active");
   }

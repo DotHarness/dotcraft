@@ -337,8 +337,8 @@ async function dispatchTurnCompletedWithAutoSend(
       identity: {
         channelName: 'dotcraft-desktop',
         userId: 'local',
-        channelContext: `workspace:${options.workspacePath ?? 'F:/dotcraft'}`,
-        workspacePath: options.workspacePath ?? 'F:/dotcraft'
+        channelContext: `workspace:${options.workspacePath ?? 'F:/examples/workspace'}`,
+        workspacePath: options.workspacePath ?? 'F:/examples/workspace'
       }
     })
   }

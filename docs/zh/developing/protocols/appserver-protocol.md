@@ -218,6 +218,10 @@ Server 还会广播 `thread/started`。多 client 场景下，发起请求的 cl
 | `thread/config/update` | 更新线程配置。 |
 | `thread/mode/set` | 切换 agent mode，例如 `plan` 或 `agent`。 |
 
+`thread/list` 接受可选的 `query`、`limit` 和 opaque `cursor` 参数。分页时 result 会包含 `nextCursor` 和 `totalMatched`；未传 `limit/cursor` 的调用保持兼容，继续返回完整列表。
+
+`thread/read` 接受可选的 `turnLimit` 和 opaque `cursor` 参数。分页读取先返回最新一页，但页内 turns 仍保持 oldest-first，并通过 `turnPage.nextCursor` 继续读取更早历史。`queuedInputs` 属于当前线程状态，不受 turn 历史分页影响。
+
 ### Runtime Dynamic Tools 与 App Context
 
 暴露 Runtime Dynamic Tools 的客户端，也可以在 `thread/start` 或 `thread/resume` 上附加精简的 app context。`additionalContext` 适合放简短的模型可见提示，帮助 agent 发现或使用客户端自有能力，尤其是 deferred tools。

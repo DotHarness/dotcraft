@@ -35,6 +35,7 @@ export function buildSettingsTabs(t: Translate, options: SettingsTabOptions): Se
     { id: 'general', label: t('settings.tab.general'), icon: SettingsIcon },
     { id: 'profile', label: t('settings.tab.profile'), icon: UserRound },
     { id: 'connection', label: t('settings.tab.connection'), icon: Cable },
+    { id: 'servers', label: t('settings.tab.servers'), icon: Server },
     { id: 'llmService', label: t('settings.tab.llmService'), icon: Cpu },
     { id: 'browserUse', label: t('settings.tab.browserUse'), icon: Globe2 },
     { id: 'computerControl', label: t('settings.tab.computerControl'), icon: Monitor },

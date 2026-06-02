@@ -77,7 +77,7 @@ The current v1 contract is based on the refactored Session Core, not on the earl
 | Bucket | V1 Items |
 |-------|----------|
 | **Guaranteed in v1** | Rich approval decisions (`accept`, `acceptForSession`, `acceptAlways`, `decline`, `cancel`), thread-scoped event subscription, accurate per-turn origin/initiator metadata, strict `historyMode` rules, separate wire DTO serialization with camelCase enums and lossless delta typing. Cron management methods (`cron/list`, `cron/remove`, `cron/enable`, `cron/run`) with the `cronManagement` server capability flag. Heartbeat trigger method (`heartbeat/trigger`) with the `heartbeatManagement` capability flag. Skills management methods (`skills/list`, `skills/read`, `skills/view`, `skills/restoreOriginal`, `skills/setEnabled`, `skills/uninstall`) with the `skillsManagement` / `skillVariants` capability flags. Command management methods (`command/list`, `command/execute`) with the `commandManagement` capability flag. Channel status method (`channel/status`) with the `channelStatus` capability flag. Provider management methods (`provider/list`, `provider/create`, `provider/update`, `provider/delete`, `provider/test`) with the `providerManagement` capability flag. Model catalog method (`model/list`) with the `modelCatalogManagement` capability flag. MCP management methods (`mcp/list`, `mcp/get`, `mcp/upsert`, `mcp/remove`, `mcp/status/list`, `mcp/test`) with the `mcpManagement` / `mcpStatus` capability flags. External channel management methods (`externalChannel/list`, `externalChannel/get`, `externalChannel/upsert`, `externalChannel/remove`) with the `externalChannelManagement` capability flag. SubAgent profile management methods (`subagent/profiles/list`, `subagent/settings/update`, `subagent/profiles/setEnabled`, `subagent/profiles/upsert`, `subagent/profiles/remove`) with the `subAgentManagement` capability flag. Session-backed SubAgent child-thread listing/close/resume with the `subAgentSessions` capability flag. Workspace config update method (`workspace/config/update`) with the `workspaceConfigManagement` capability flag. Dreams workspace memory methods (`dreams/status`, `dreams/run`, `dreams/create`, `dreams/get`, `dreams/list`, `dreams/cancel`, `dreams/apply`, `dreams/discard`, `dreams/archive`) with the `dreams` capability flag. |
-| **Guaranteed with narrowed semantics** | `thread/list` is deterministic but **not cursor-paginated** in v1; archived threads are excluded by default and included only via an explicit filter. |
+| **Guaranteed with narrowed semantics** | `thread/list` is deterministic and supports optional cursor pagination; archived threads are excluded by default and included only via an explicit filter. `thread/read` supports optional cursor pagination for turn history while preserving full-history reads for legacy clients. |
 | **Deferred from v1** | Structured extension capability registry beyond a flat namespace advertisement. Clients must treat extension namespaces as optional and discoverable, not required for core Session behavior. |
 
 **Multi-client thread lists**: In deployments with multiple concurrent connections, server-broadcast notifications in [Section 6.1](#61-thread-notifications) include `thread/started`, `thread/deleted`, `thread/renamed`, and `thread/runtimeChanged` so clients can keep both thread lists and per-thread activity indicators (running, waiting-on-approval, waiting-on-plan-confirmation) synchronized without polling or subscribing to every thread's event stream.
@@ -513,13 +513,14 @@ Standard tools:
 | Tool | Backing AppServer methods | Required arguments | Summary |
 |------|---------------------------|--------------------|---------|
 | `CreateThread` | `thread/start`, then `turn/start` for the initial prompt | `prompt` | Creates a server-managed thread in the current Desktop workspace/identity and starts the initial turn. |
-| `ListThreads` | `thread/list` | none | Returns recent thread summaries for the current Desktop workspace/identity. The handler may post-filter by `query` and truncate by `limit`. |
-| `ReadThread` | `thread/read` | `threadId` | Reads status and recent turn summaries for one thread without opening it in the Desktop UI. |
-| `SendMessageToThread` | `turn/start` or `turn/enqueue` | `threadId`, `prompt` | Sends a follow-up prompt to an existing thread without changing the user's active Desktop selection. |
+| `ListThreads` | `thread/list` | none | Returns a cursor-paged list of recent thread summaries for the current Desktop workspace/identity. |
+| `ReadThread` | `thread/read` | `threadId` | Reads status, queued input summaries, and cursor-paged recent turn summaries for one thread without opening it in the Desktop UI. |
+| `SendMessageToThread` | optional `thread/read` + `thread/config/update`, then `turn/start` or `turn/enqueue` | `threadId`, `prompt` | Sends a follow-up prompt to an existing thread without changing the user's active Desktop selection. |
 | `SetThreadTitle` | `thread/rename` | `threadId`, `title` | Renames a thread. |
 | `SetThreadArchived` | `thread/archive` or `thread/unarchive` | `threadId`, `archived` | Archives or restores a thread. |
+| `SetThreadPinned` | Desktop settings only | `threadId`, `pinned` | Pins or unpins a top-level non-archived thread in the current Desktop workspace. |
 
-`SetThreadPinned` is deferred until AppServer defines pinned-thread state and a backing management method. Desktop must not declare pinned-thread runtime tools until the backing protocol exists.
+Pinned-thread state is Desktop-local. AppServer does not define a pinned-thread JSON-RPC method or store pinned state in Session Core.
 
 #### 4.1.0.2 Runtime Additional Context
 
@@ -531,7 +532,7 @@ Wire shape:
 {
   "desktop.threadCoordination": {
     "kind": "application",
-    "value": "When the user asks to create, inspect, continue, archive, rename, or otherwise manage DotCraft threads in the background, search for the relevant thread tool first: CreateThread, ListThreads, ReadThread, SendMessageToThread, SetThreadTitle, SetThreadArchived."
+    "value": "When the user asks to create, inspect, continue, pin, archive, rename, or otherwise manage DotCraft threads in the background, search for the relevant thread tool first: CreateThread, ListThreads, ReadThread, SendMessageToThread, SetThreadTitle, SetThreadArchived, SetThreadPinned."
   }
 }
 ```
@@ -548,10 +549,13 @@ Argument conventions:
 
 - `CreateThread.prompt` and `SendMessageToThread.prompt` are plain user prompts encoded as `InputPart` text when calling `turn/start` or `turn/enqueue`.
 - `CreateThread.displayName` is optional and maps to `thread/start.displayName` when present.
+- `CreateThread.reasoningEffort` and `SendMessageToThread.reasoningEffort` are optional values in `low`, `medium`, `high`, or `extraHigh`. Desktop maps them to persistent thread reasoning configuration. When `SendMessageToThread` sets reasoning effort, the running turn is not changed; future and queued turns use the updated thread configuration.
 - `CreateThread.model` and `SendMessageToThread.model`, when supported by the client, map to thread configuration or a turn-scoped override only through explicit AppServer protocol support. A client that cannot apply the override must return `success = false` with `errorCode = "UnsupportedOption"` rather than silently ignoring it.
-- `ListThreads.query` and `ListThreads.limit` are optional client-side filtering controls. `query` is not a server-side search contract unless a future `thread/list` filter defines it.
-- `ReadThread.includeOutputs`, `ReadThread.maxOutputCharsPerItem`, and `ReadThread.turnLimit` are optional presentation controls for the client-produced summary. Pagination cursors are deferred until the AppServer read protocol defines cursor-based history access.
+- `ListThreads.query`, `ListThreads.limit`, `ListThreads.cursor`, and `ListThreads.includeArchived` map to `thread/list` filtering and cursor pagination. Desktop defaults `limit` to 20 and caps it at 100.
+- `ReadThread.includeOutputs` and `ReadThread.maxOutputCharsPerItem` are presentation controls for the client-produced summary. `ReadThread.turnLimit` and `ReadThread.cursor` map to `thread/read` turn pagination. Desktop defaults `turnLimit` to 10 and caps it at 50.
 - `ReadThread` summaries must be payload-aware: clients should extract model-useful previews from item `payload` / `payloadKind`, bound all text and output fields, and never dump raw media data, full tool results, or full command output unless explicitly requested through `includeOutputs` and still capped by `maxOutputCharsPerItem`.
+- `ReadThread` summaries must include a bounded `queuedInputs` summary with stable fields (`id`, `status`, `displayText`, `createdAt`, `sender`, `triggerLabel`, and `readyAfterTurnId`) plus `queuedInputCount`.
+- `SetThreadPinned` is a Desktop-only settings mutation. Pinning a thread must reject archived threads and subagent child threads; unpinning may remove a missing id from local settings without reading the thread.
 
 Result conventions:
 
@@ -736,6 +740,9 @@ List threads matching a given identity.
 | `includeInternal` | boolean | no | Default `false`. When `false`, DotCraft-owned helper threads marked with `dotcraft.internal` metadata or known internal origins are excluded. This should only be enabled by diagnostics. |
 | `crossChannelOrigins` | string[] \| null | no | When **omitted** or JSON `null`, no cross-channel origin list is applied. When present as an array (possibly empty), non-empty values additionally return threads whose `originChannel` is in the list with the same `workspacePath` and `userId` as `identity`, ignoring `channelContext`. See [Session Core §9.5](../core/session-core.md#95-cross-channel-resume-protocol). |
 | `channelName` | string | no | When set, post-filters results to threads whose persisted `originChannel` matches (case-insensitive). Same as existing filter. |
+| `query` | string | no | Optional case-insensitive text filter applied to thread id, display name, origin channel, status, and channel context before pagination. |
+| `limit` | number | no | Optional page size. Must be positive and at most 100. If omitted with `cursor`, the server uses 50. If both `limit` and `cursor` are omitted, the server returns the full compatible list. |
+| `cursor` | string | no | Opaque cursor returned by a previous `thread/list` call. Invalid cursors return `InvalidParams`. |
 
 **Result**:
 
@@ -755,11 +762,13 @@ List threads matching a given identity.
         "waitingOnPlanConfirmation": false
       }
     }
-  ]
+  ],
+  "nextCursor": "opaque_cursor_or_null",
+  "totalMatched": 42
 }
 ```
 
-Results are ordered by `lastActiveAt` descending. Cursor pagination is deferred from v1 because the current Core only guarantees deterministic full-list ordering.
+Results are ordered by `lastActiveAt` descending. Filtering is applied before pagination. `nextCursor` is `null` or omitted when no further page exists. `totalMatched` is the number of threads after all filters and before pagination. Cursors are opaque and clients must not parse them. Older clients that omit both `limit` and `cursor` keep receiving the complete list for compatibility.
 
 Each `ThreadSummary` may include an optional `runtime` snapshot with the same shape as `thread/runtimeChanged`. This snapshot is best-effort process-local state intended to hydrate thread-list activity indicators after reconnect. Clients should apply it as initial list state and continue to consume `thread/runtimeChanged` as the incremental source of truth. Older servers may omit `runtime`, and clients must treat omission as unknown rather than as an idle thread.
 
@@ -807,12 +816,30 @@ Read a thread by ID without resuming it. Optionally includes turn history.
 |-------|------|----------|-------------|
 | `threadId` | string | yes | Thread ID to read. |
 | `includeTurns` | boolean | no | If `true`, include the full `turns` array. Default `false`. |
+| `turnLimit` | number | no | Optional turn page size. Must be positive and at most 100. When present, `includeTurns` is treated as `true` and the first page contains the most recent turns. |
+| `cursor` | string | no | Opaque cursor returned by a previous paged `thread/read` call. Invalid cursors return `InvalidParams`. When present, `includeTurns` is treated as `true`. |
 
-**Result**: `{ "thread": Thread }` — the thread object, with `turns` populated if requested.
+**Result**: `{ "thread": Thread, "turnPage"?: TurnPage }` — the thread object, with `turns` populated if requested or paged.
+
+When `turnLimit` or `cursor` is supplied, `turnPage` has this shape:
+
+```json
+{
+  "order": "oldestFirst",
+  "limit": 10,
+  "totalTurns": 42,
+  "startOrdinal": 33,
+  "endOrdinal": 42,
+  "nextCursor": "opaque_cursor_or_null",
+  "hasMore": true
+}
+```
 
 **Semantics**: `thread/read` is a **read-only** operation. It does not by itself resume execution, start background services, or apply execution-time thread configuration.
 
 The `Thread` wire object includes `queuedInputs?: QueuedTurnInput[]`. This queue is returned regardless of `includeTurns`, because it is current thread state rather than historical turn detail.
+
+When paged, the first `thread/read` page returns the most recent `turnLimit` turns, but the returned page remains oldest-first within that page so clients can render it like ordinary history. `nextCursor` points to the next older page. When `includeTurns = true` is supplied without `turnLimit` or `cursor`, the server returns the full historical `turns` array and omits `turnPage` for compatibility.
 
 The `Thread` wire object may include `plan?: PlanSnapshot | null`. When present, it is the current persisted plan for that exact thread from `thread_plans`, using the same `title`, `overview`, `content`, and `todos` shape as `plan/updated`. Clients should use this field to restore plan/todo UI after switching threads.
 

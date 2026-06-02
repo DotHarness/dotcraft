@@ -17,7 +17,34 @@ The stack stores workspace state in `./workspace`. On first start, the entrypoin
 - `./workspace/.craft/<channel>.json` for enabled channels
 - `./workspace/.craft/appserver.token` when `APPSERVER_TOKEN` is empty
 
-The default AppServer endpoint is `ws://<server>:9100/ws`. Dashboard is exposed on port `8080`.
+By default, the main service endpoints are published only on the server's loopback
+interface:
+
+- AppServer: `ws://127.0.0.1:9100/ws`
+- Dashboard: `http://127.0.0.1:8080/dashboard`
+
+Use Desktop's remote server SSH tunnels, an SSH port forward, or a reverse proxy
+to reach AppServer and Dashboard remotely.
+
+## Connect from Desktop
+
+Desktop connects to this stack through your system SSH client and does not support SSH password entry or password storage. Make sure your local machine can SSH to the server non-interactively:
+
+```bash
+ssh-keygen -t ed25519 -C "dotcraft-remote"
+ssh-copy-id user@host
+ssh -o BatchMode=yes user@host "echo ok"
+```
+
+On Windows PowerShell, upload the public key with:
+
+```powershell
+type $env:USERPROFILE\.ssh\id_ed25519.pub | ssh user@host "mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
+```
+
+Then open Desktop **Settings -> Servers -> Add server**, set the SSH target to `user@host` or an SSH config alias, leave the identity override blank, test SSH, and add this Compose directory as the stack deployment folder.
+
+See the full guide in [Server Deployment](../../docs/features/self-hosted/server-deployment.md).
 
 ## Enable Channels
 
@@ -44,6 +71,15 @@ WECOM_ROBOT_AES_KEY=
 
 QQ listens on `${QQ_PORT:-6700}` for OneBot reverse WebSocket clients. WeCom listens on `${WECOM_PORT:-9000}` for callback requests.
 
+If NapCat, WeCom, or another gateway runs outside the server, explicitly publish
+the required channel port in `.env`, for example:
+
+```dotenv
+QQ_PUBLISH_HOST=0.0.0.0
+```
+
+Keep channel access tokens strong when publishing channel ports directly.
+
 Weixin requires interactive QR login. When enabled, watch `./workspace/.craft/tmp/channel-weixin-standard/qr.png`.
 
 ## Optional Sandbox
@@ -69,6 +105,7 @@ docker compose up -d
 
 ## Production Notes
 
-- Use a strong `APPSERVER_TOKEN` when exposing port `9100`.
+- The default Compose file does not expose AppServer or Dashboard beyond localhost; prefer Desktop SSH tunnels instead of publishing them directly to the public internet.
+- Use a strong `APPSERVER_TOKEN` and Dashboard username/password when exposing these services through a reverse proxy.
 - Terminate TLS with a reverse proxy; the embedded AppServer listener serves `ws://`, not `wss://`.
 - Current images are linux-x64. Arm64 requires a future release target.

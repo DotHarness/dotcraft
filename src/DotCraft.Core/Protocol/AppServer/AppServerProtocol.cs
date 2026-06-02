@@ -822,11 +822,33 @@ public sealed class ThreadListParams
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<string>? CrossChannelOrigins { get; set; }
+
+    /// <summary>
+    /// Optional case-insensitive filter applied before pagination.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Query { get; set; }
+
+    /// <summary>
+    /// Optional page size. When omitted with <see cref="Cursor"/>, the server default is used.
+    /// </summary>
+    public int? Limit { get; set; }
+
+    /// <summary>
+    /// Opaque cursor returned by a previous <c>thread/list</c> call.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Cursor { get; set; }
 }
 
 public sealed class ThreadListResult
 {
     public List<ThreadSummary> Data { get; set; } = [];
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? NextCursor { get; set; }
+
+    public int? TotalMatched { get; set; }
 }
 
 // ───── subagent/children/list ─────
@@ -867,6 +889,40 @@ public sealed class ThreadReadParams
     public string ThreadId { get; set; } = string.Empty;
 
     public bool? IncludeTurns { get; set; }
+
+    public int? TurnLimit { get; set; }
+
+    /// <summary>
+    /// Opaque cursor returned by a previous paged <c>thread/read</c> call.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Cursor { get; set; }
+}
+
+public sealed class ThreadReadResult
+{
+    public SessionWireThread Thread { get; set; } = new();
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ThreadReadTurnPage? TurnPage { get; set; }
+}
+
+public sealed class ThreadReadTurnPage
+{
+    public string Order { get; set; } = "oldestFirst";
+
+    public int Limit { get; set; }
+
+    public int TotalTurns { get; set; }
+
+    public int StartOrdinal { get; set; }
+
+    public int EndOrdinal { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? NextCursor { get; set; }
+
+    public bool HasMore { get; set; }
 }
 
 // ───── thread/goal/* ─────

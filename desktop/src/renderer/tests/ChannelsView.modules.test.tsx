@@ -49,7 +49,7 @@ function createWeComModule(): DiscoveredModule {
     },
     variant: 'standard',
     source: 'bundled',
-    absolutePath: 'F:\\dotcraft\\sdk\\typescript\\packages\\channel-wecom',
+    absolutePath: 'C:\\sample\\workspace\\sdk\\typescript\\packages\\channel-wecom',
     configDescriptors: [
       {
         key: 'wecom.callbackUrl',
@@ -192,6 +192,73 @@ describe('ChannelsView module channel display', () => {
       'aria-checked',
       'true'
     )
+  })
+
+  it('uses remote channel status for module cards instead of local module state', async () => {
+    settingsGet.mockResolvedValue({
+      locale: 'zh-Hans',
+      connectionMode: 'remote',
+      activeModuleVariants: {}
+    })
+    modulesRunning.mockResolvedValue({
+      'wecom-standard': {
+        processState: 'stopped',
+        connected: false,
+        restartCount: 0,
+        lastExitCode: null
+      }
+    })
+    useConnectionStore.getState().setStatus({
+      status: 'connected',
+      capabilities: {
+        channelStatus: true,
+        externalChannelManagement: true
+      }
+    })
+    appServerSendRequest.mockImplementation((method: string) => {
+      if (method === 'channel/status') {
+        return Promise.resolve({
+          channels: [
+            {
+              name: 'wecom',
+              category: 'external',
+              enabled: true,
+              running: true
+            }
+          ]
+        })
+      }
+      if (method === 'externalChannel/list') {
+        return Promise.resolve({
+          channels: [
+            {
+              name: 'wecom',
+              enabled: true,
+              transport: 'subprocess',
+              builtinModule: 'channel-wecom'
+            }
+          ]
+        })
+      }
+      return Promise.resolve({ channels: [] })
+    })
+
+    render(
+      <LocaleProvider>
+        <ChannelsView />
+      </LocaleProvider>
+    )
+
+    expect(await screen.findByText('已连接')).toBeInTheDocument()
+    expect(screen.queryByText('已停止')).not.toBeInTheDocument()
+
+    fireEvent.click(await screen.findByRole('button', { name: /企业微信/ }))
+
+    await waitFor(() => {
+      expect(modulesReadConfig).toHaveBeenCalledWith({ configFileName: 'wecom.json' })
+    })
+    expect(screen.queryByRole('switch', { name: '启用渠道' })).not.toBeInTheDocument()
+    expect(screen.queryByText('已停止')).not.toBeInTheDocument()
   })
 
   it('returns from module detail to the filtered catalog', async () => {

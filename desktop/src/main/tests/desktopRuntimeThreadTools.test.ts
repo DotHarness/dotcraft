@@ -72,8 +72,9 @@ describe('desktop runtime thread tools', () => {
   it('declares all Desktop thread tools as deferred', () => {
     const tools = buildDesktopThreadDynamicTools()
 
-    expect(tools).toHaveLength(6)
+    expect(tools).toHaveLength(7)
     expect(tools.every((tool) => tool.deferLoading === true)).toBe(true)
+    expect(tools.map((tool) => tool.name)).toContain('SetThreadPinned')
   })
 
   it('declares Desktop thread coordination as runtime additional context', () => {
@@ -148,9 +149,12 @@ describe('desktop runtime thread tools', () => {
       expect(params).toEqual(expect.objectContaining({
         identity: expect.objectContaining({
           channelName: 'dotcraft-desktop',
-          workspacePath: 'F:\\dotcraft'
+          workspacePath: 'F:\\examples\\workspace'
         }),
-        includeSubAgents: false
+        includeSubAgents: false,
+        includeArchived: false,
+        limit: 5,
+        query: 'login'
       }))
       return {
         data: [
@@ -162,7 +166,9 @@ describe('desktop runtime thread tools', () => {
             createdAt: '2026-06-01T00:00:00Z',
             lastActiveAt: '2026-06-01T00:01:00Z'
           }
-        ]
+        ],
+        nextCursor: 'cursor-2',
+        totalMatched: 2
       }
     })
 
@@ -170,12 +176,14 @@ describe('desktop runtime thread tools', () => {
       namespace: DESKTOP_THREAD_TOOL_NAMESPACE,
       tool: 'ListThreads',
       arguments: { query: 'login', limit: 5 }
-    }, 'F:\\dotcraft')
+    }, 'F:\\examples\\workspace')
 
     expect(result?.success).toBe(true)
     expect(result?.structuredResult).toEqual(expect.objectContaining({
       count: 1,
-      threads: [expect.objectContaining({ id: 'thread-1', displayName: 'Fix login' })]
+      threads: [expect.objectContaining({ id: 'thread-1', displayName: 'Fix login' })],
+      nextCursor: 'cursor-2',
+      totalMatched: 2
     }))
   })
 
@@ -184,9 +192,19 @@ describe('desktop runtime thread tools', () => {
       expect(method).toBe('thread/read')
       expect(params).toEqual({
         threadId: 'thread-1',
-        includeTurns: true
+        includeTurns: true,
+        turnLimit: 1
       })
       return {
+        turnPage: {
+          order: 'oldestFirst',
+          limit: 1,
+          totalTurns: 2,
+          startOrdinal: 2,
+          endOrdinal: 2,
+          nextCursor: 'older-cursor',
+          hasMore: true
+        },
         thread: {
           id: 'thread-1',
           displayName: 'Investigate renderer',
@@ -197,20 +215,6 @@ describe('desktop runtime thread tools', () => {
           runtime: { running: false, busy: false },
           queuedInputs: [{ id: 'queued-1' }],
           turns: [
-            {
-              id: 'turn-1',
-              status: 'completed',
-              startedAt: '2026-06-01T00:00:00Z',
-              completedAt: '2026-06-01T00:00:01Z',
-              items: [
-                {
-                  id: 'item-old',
-                  type: 'userMessage',
-                  status: 'completed',
-                  payload: { text: 'Older prompt' }
-                }
-              ]
-            },
             {
               id: 'turn-2',
               status: 'completed',
@@ -226,7 +230,7 @@ describe('desktop runtime thread tools', () => {
                     nativeInputParts: [
                       { type: 'text', text: 'Please inspect shell output' },
                       { type: 'localImage', fileName: 'screen.png', path: 'C:\\tmp\\screen.png', mimeType: 'image/png' },
-                      { type: 'fileRef', displayPath: 'src/main.ts', path: 'E:\\Git\\dotcraft\\src\\main.ts' }
+                      { type: 'fileRef', displayPath: 'src/main.ts', path: 'E:\\examples\\workspace\\src\\main.ts' }
                     ]
                   }
                 },
@@ -236,7 +240,7 @@ describe('desktop runtime thread tools', () => {
                   status: 'completed',
                   payload: {
                     command: 'dotnet test',
-                    workingDirectory: 'E:\\Git\\dotcraft',
+                    workingDirectory: 'E:\\examples\\workspace',
                     status: 'completed',
                     exitCode: 0,
                     durationMs: 123,
@@ -280,7 +284,7 @@ describe('desktop runtime thread tools', () => {
       namespace: DESKTOP_THREAD_TOOL_NAMESPACE,
       tool: 'ReadThread',
       arguments: { threadId: 'thread-1', turnLimit: 1 }
-    }, 'F:\\dotcraft')
+    }, 'F:\\examples\\workspace')
 
     expect(result?.success).toBe(true)
     const text = result?.contentItems?.[0]?.text ?? ''
@@ -303,7 +307,9 @@ describe('desktop runtime thread tools', () => {
     }
     expect(structured.thread.turnCount).toBe(2)
     expect(structured.thread.queuedInputCount).toBe(1)
+    expect(structured.thread.queuedInputs).toHaveLength(1)
     expect(structured.thread.page.hasMore).toBe(true)
+    expect(structured.thread.page.nextCursor).toBe('older-cursor')
     expect(structured.thread.turns).toHaveLength(1)
     expect(structured.thread.turns[0].id).toBe('turn-2')
     expect(structured.thread.turns[0].items[0]).toEqual(expect.objectContaining({
@@ -315,7 +321,7 @@ describe('desktop runtime thread tools', () => {
     }))
     expect(structured.thread.turns[0].items[1]).toEqual(expect.objectContaining({
       command: 'dotnet test',
-      workingDirectory: 'E:\\Git\\dotcraft',
+      workingDirectory: 'E:\\examples\\workspace',
       outputChars: 'SECRET_OUTPUT_SHOULD_NOT_APPEAR'.length
     }))
     expect(JSON.stringify(structured)).not.toContain('SECRET_RESULT_SHOULD_NOT_APPEAR')
@@ -384,7 +390,7 @@ describe('desktop runtime thread tools', () => {
         includeOutputs: true,
         maxOutputCharsPerItem: 12
       }
-    }, 'F:\\dotcraft')
+    }, 'F:\\examples\\workspace')
 
     const structured = result?.structuredResult as {
       thread: {
@@ -392,14 +398,14 @@ describe('desktop runtime thread tools', () => {
       }
     }
     expect(structured.thread.turns[0].items[0]).toEqual(expect.objectContaining({
-      output: 'abcdefghijkl...'
+      output: 'abcdefghi...'
     }))
     expect(structured.thread.turns[0].items[1]).toEqual(expect.objectContaining({
-      result: '0123456789ab...'
+      result: '012345678...'
     }))
     expect(structured.thread.turns[0].items[2]).toEqual(expect.objectContaining({
-      contentPreview: 'dynamic tool...',
-      structuredResultPreview: '{"value":"st...'
+      contentPreview: 'dynamic t...',
+      structuredResultPreview: '{"value":...'
     }))
   })
 
@@ -413,13 +419,20 @@ describe('desktop runtime thread tools', () => {
     const result = await handleDesktopRuntimeThreadToolCall(client, {
       namespace: DESKTOP_THREAD_TOOL_NAMESPACE,
       tool: 'CreateThread',
-      arguments: { prompt: 'start', displayName: 'Research', model: 'gpt-5' }
-    }, 'F:\\dotcraft')
+      arguments: { prompt: 'start', displayName: 'Research', model: 'gpt-5', reasoningEffort: 'high' }
+    }, 'F:\\examples\\workspace')
 
     expect(result?.success).toBe(true)
     expect(vi.mocked(client.sendRequest).mock.calls[0][1]).toEqual(expect.objectContaining({
       displayName: 'Research',
-      config: { model: 'gpt-5' }
+      config: {
+        model: 'gpt-5',
+        reasoning: {
+          enabled: true,
+          effort: 'high',
+          output: 'full'
+        }
+      }
     }))
   })
 
@@ -436,7 +449,7 @@ describe('desktop runtime thread tools', () => {
       namespace: DESKTOP_THREAD_TOOL_NAMESPACE,
       tool: 'SendMessageToThread',
       arguments: { threadId: 'thread-1', prompt: 'follow up' }
-    }, 'F:\\dotcraft', {
+    }, 'F:\\examples\\workspace', {
       supportsDynamicToolRebind: true
     })
 
@@ -454,6 +467,52 @@ describe('desktop runtime thread tools', () => {
     ])
   })
 
+  it('updates persistent reasoning effort before sending a message', async () => {
+    const client = createClient(async (method) => {
+      if (method === 'thread/read') {
+        return {
+          thread: {
+            id: 'thread-1',
+            status: 'active',
+            configuration: {
+              mode: 'agent',
+              model: 'gpt-5',
+              reasoning: { enabled: true, effort: 'medium', output: 'summary' }
+            }
+          }
+        }
+      }
+      if (method === 'thread/config/update') return {}
+      if (method === 'turn/start') return { turn: { id: 'turn-1' } }
+      throw new Error(`unexpected ${method}`)
+    })
+
+    const result = await handleDesktopRuntimeThreadToolCall(client, {
+      namespace: DESKTOP_THREAD_TOOL_NAMESPACE,
+      tool: 'SendMessageToThread',
+      arguments: { threadId: 'thread-1', prompt: 'follow up', reasoningEffort: 'extraHigh' }
+    }, 'F:\\examples\\workspace')
+
+    expect(result?.success).toBe(true)
+    expect(vi.mocked(client.sendRequest).mock.calls.map((call) => call[0])).toEqual([
+      'thread/read',
+      'thread/config/update',
+      'turn/start'
+    ])
+    expect(vi.mocked(client.sendRequest).mock.calls[1][1]).toEqual({
+      threadId: 'thread-1',
+      config: {
+        mode: 'agent',
+        model: 'gpt-5',
+        reasoning: {
+          enabled: true,
+          effort: 'extraHigh',
+          output: 'summary'
+        }
+      }
+    })
+  })
+
   it('returns UnsupportedOption for SendMessageToThread model overrides', async () => {
     const client = createClient(async () => {
       throw new Error('should not be called')
@@ -463,13 +522,114 @@ describe('desktop runtime thread tools', () => {
       namespace: DESKTOP_THREAD_TOOL_NAMESPACE,
       tool: 'SendMessageToThread',
       arguments: { threadId: 'thread-1', prompt: 'follow up', model: 'gpt-5' }
-    }, 'F:\\dotcraft')
+    }, 'F:\\examples\\workspace')
 
     expect(result).toEqual(expect.objectContaining({
       success: false,
       errorCode: 'UnsupportedOption'
     }))
     expect(client.sendRequest).not.toHaveBeenCalled()
+  })
+
+  it('pins a non-archived top-level thread through Desktop settings', async () => {
+    const client = createClient(async (method) => {
+      if (method === 'thread/read') {
+        return {
+          thread: {
+            id: 'thread-1',
+            status: 'active',
+            source: { kind: 'user' },
+            originChannel: 'dotcraft-desktop'
+          }
+        }
+      }
+      throw new Error(`unexpected ${method}`)
+    })
+    const settingsHost = {
+      getSettings: vi.fn(() => ({
+        pinnedThreadIdsByWorkspace: {
+          'F:\\examples\\workspace': ['thread-old']
+        }
+      })),
+      updateSettings: vi.fn(async () => {}),
+      onPinnedThreadIdsChanged: vi.fn()
+    }
+
+    const result = await handleDesktopRuntimeThreadToolCall(client, {
+      namespace: DESKTOP_THREAD_TOOL_NAMESPACE,
+      tool: 'SetThreadPinned',
+      arguments: { threadId: 'thread-1', pinned: true }
+    }, 'F:\\examples\\workspace', { settingsHost })
+
+    expect(result?.success).toBe(true)
+    expect(settingsHost.updateSettings).toHaveBeenCalledWith({
+      pinnedThreadIdsByWorkspace: {
+        'F:\\examples\\workspace': ['thread-1', 'thread-old']
+      }
+    })
+    expect(settingsHost.onPinnedThreadIdsChanged).toHaveBeenCalledWith('F:\\examples\\workspace', ['thread-1', 'thread-old'])
+  })
+
+  it('unpins without reading the target thread', async () => {
+    const client = createClient(async () => {
+      throw new Error('should not be called')
+    })
+    const settingsHost = {
+      getSettings: vi.fn(() => ({
+        pinnedThreadIdsByWorkspace: {
+          'F:\\examples\\workspace': ['thread-1', 'thread-old']
+        }
+      })),
+      updateSettings: vi.fn(async () => {}),
+      onPinnedThreadIdsChanged: vi.fn()
+    }
+
+    const result = await handleDesktopRuntimeThreadToolCall(client, {
+      namespace: DESKTOP_THREAD_TOOL_NAMESPACE,
+      tool: 'SetThreadPinned',
+      arguments: { threadId: 'thread-1', pinned: false }
+    }, 'F:\\examples\\workspace', { settingsHost })
+
+    expect(result?.success).toBe(true)
+    expect(client.sendRequest).not.toHaveBeenCalled()
+    expect(settingsHost.updateSettings).toHaveBeenCalledWith({
+      pinnedThreadIdsByWorkspace: {
+        'F:\\examples\\workspace': ['thread-old']
+      }
+    })
+  })
+
+  it('rejects subagent child threads when pinning', async () => {
+    const client = createClient(async (method) => {
+      if (method === 'thread/read') {
+        return {
+          thread: {
+            id: 'thread-child',
+            status: 'active',
+            source: { kind: 'subagent' },
+            originChannel: 'subagent'
+          }
+        }
+      }
+      throw new Error(`unexpected ${method}`)
+    })
+    const settingsHost = {
+      getSettings: vi.fn(() => ({})),
+      updateSettings: vi.fn(async () => {}),
+      onPinnedThreadIdsChanged: vi.fn()
+    }
+
+    const result = await handleDesktopRuntimeThreadToolCall(client, {
+      namespace: DESKTOP_THREAD_TOOL_NAMESPACE,
+      tool: 'SetThreadPinned',
+      arguments: { threadId: 'thread-child', pinned: true }
+    }, 'F:\\examples\\workspace', { settingsHost })
+
+    expect(result).toEqual(expect.objectContaining({
+      success: false,
+      errorCode: 'TargetUnsupported'
+    }))
+    expect(settingsHost.updateSettings).not.toHaveBeenCalled()
   })
 
   it('ignores dynamic tool calls outside the Desktop thread-tool namespace', async () => {
@@ -481,7 +641,7 @@ describe('desktop runtime thread tools', () => {
       namespace: 'other',
       tool: 'ListThreads',
       arguments: {}
-    }, 'F:\\dotcraft')
+    }, 'F:\\examples\\workspace')
 
     expect(result).toBeUndefined()
     expect(client.sendRequest).not.toHaveBeenCalled()
