@@ -14,7 +14,7 @@
  * causing ALL notifications to be silently dropped.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { useConversationStore } from '../stores/conversationStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useSkillsStore } from '../stores/skillsStore'
@@ -22,10 +22,44 @@ import { useSubAgentStore } from '../stores/subAgentStore'
 import { useAutomationsStore, type AutomationTask } from '../stores/automationsStore'
 import { useUIStore } from '../stores/uiStore'
 import type { ContextUsageSnapshotWire, ThreadSummary } from '../types/thread'
-import type { InputPart } from '../types/conversation'
+import type { ApprovalDecision, InputPart } from '../types/conversation'
 import type { SubAgentEntry } from '../types/toolCall'
 import { resolveWorkspaceConfigChangedPayload } from '../utils/workspaceConfigChanged'
 import { buildComposerInputParts } from '../utils/composeInputParts'
+
+function normalizeApprovalDecision(value: unknown): ApprovalDecision | null {
+  return value === 'accept' ||
+    value === 'acceptForSession' ||
+    value === 'acceptAlways' ||
+    value === 'decline' ||
+    value === 'cancel'
+    ? value
+    : null
+}
+
+function extractApprovalResolvedParams(params: Record<string, unknown>): {
+  threadId: string | null
+  turnId: string | null
+  requestId: string | null
+  decision: ApprovalDecision | null
+} {
+  const item = params.item && typeof params.item === 'object'
+    ? params.item as Record<string, unknown>
+    : {}
+  const payload = item.payload && typeof item.payload === 'object'
+    ? item.payload as Record<string, unknown>
+    : {}
+  return {
+    threadId: typeof params.threadId === 'string' ? params.threadId : null,
+    turnId: typeof params.turnId === 'string' ? params.turnId : null,
+    requestId: typeof payload.requestId === 'string'
+      ? payload.requestId
+      : typeof item.requestId === 'string'
+        ? item.requestId
+        : null,
+    decision: normalizeApprovalDecision(payload.decision ?? item.decision)
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Replay a notification payload through the same dispatch logic as App.tsx.
@@ -56,19 +90,36 @@ function dispatch(payload: { method: string; params: unknown }): void {
     case 'thread/runtimeChanged': {
       const threadId = (p.threadId as string | undefined) ?? ''
       if (!threadId) break
-      threads.applyRuntimeSnapshot(threadId, {
-        running: p.runtime != null && typeof p.runtime === 'object' && (p.runtime as Record<string, unknown>).running === true,
-        waitingOnApproval: p.runtime != null && typeof p.runtime === 'object' && (p.runtime as Record<string, unknown>).waitingOnApproval === true,
-        waitingOnPlanConfirmation: p.runtime != null && typeof p.runtime === 'object' && (p.runtime as Record<string, unknown>).waitingOnPlanConfirmation === true
-      }, {
+      const runtime = p.runtime != null && typeof p.runtime === 'object'
+        ? p.runtime as Record<string, unknown>
+        : {}
+      const runtimeSnapshot = {
+        running: runtime.running === true,
+        waitingOnApproval: runtime.waitingOnApproval === true,
+        waitingOnPlanConfirmation: runtime.waitingOnPlanConfirmation === true
+      }
+      threads.applyRuntimeSnapshot(threadId, runtimeSnapshot, {
         isActive: threads.activeThreadId === threadId,
         isDesktopOrigin: true
       })
-      useSubAgentStore.getState().updateChildRuntime(threadId, {
-        running: p.runtime != null && typeof p.runtime === 'object' && (p.runtime as Record<string, unknown>).running === true,
-        waitingOnApproval: p.runtime != null && typeof p.runtime === 'object' && (p.runtime as Record<string, unknown>).waitingOnApproval === true,
-        waitingOnPlanConfirmation: p.runtime != null && typeof p.runtime === 'object' && (p.runtime as Record<string, unknown>).waitingOnPlanConfirmation === true
-      })
+      useSubAgentStore.getState().updateChildRuntime(threadId, runtimeSnapshot)
+      if (threads.activeThreadId === threadId) {
+        const conversation = useConversationStore.getState()
+        const pendingApproval = conversation.pendingApproval
+        if (
+          !runtimeSnapshot.waitingOnApproval &&
+          pendingApproval != null &&
+          (pendingApproval.threadId == null || pendingApproval.threadId === threadId)
+        ) {
+          window.api?.appServer?.sendServerResponse?.(pendingApproval.bridgeId, { decision: 'decline' })
+          conversation.onApprovalNoLongerPending({
+            threadId,
+            turnId: pendingApproval.turnId,
+            requestId: pendingApproval.requestId,
+            nextTurnStatus: runtimeSnapshot.running ? 'running' : 'idle'
+          })
+        }
+      }
       break
     }
 
@@ -204,6 +255,14 @@ function dispatch(payload: { method: string; params: unknown }): void {
       if (!threadId || !shouldUpdateActiveConversation(threadId)) break
       conv.onPlanUpdated(p as Record<string, unknown>)
       useUIStore.getState().setActiveDetailTab('plan')
+      break
+    }
+
+    case 'item/approval/resolved': {
+      const resolved = extractApprovalResolvedParams(p)
+      if (shouldUpdateActiveConversation(resolved.threadId)) {
+        conv.onApprovalResolved(resolved)
+      }
       break
     }
 
@@ -548,6 +607,85 @@ describe('notification dispatch payload format', () => {
         runtime: expect.objectContaining({ running: false })
       })
     )
+  })
+
+  it('releases the active Desktop approval bridge when runtime shows remote approval resolved', () => {
+    const sendServerResponse = vi.fn()
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {
+        appServer: { sendServerResponse }
+      }
+    })
+
+    dispatch({ method: 'turn/started', params: { turn: makeTurnPayload('turn_approval') } })
+    s().onApprovalRequest('bridge-remote', {
+      threadId: 'thread-1',
+      turnId: 'turn_approval',
+      requestId: 'req-remote',
+      approvalType: 'shell',
+      operation: 'npm test',
+      target: 'F:/dotcraft',
+      reason: 'Run tests.'
+    })
+    expect(s().pendingApproval?.bridgeId).toBe('bridge-remote')
+    expect(s().turnStatus).toBe('waitingApproval')
+
+    dispatch({
+      method: 'thread/runtimeChanged',
+      params: {
+        threadId: 'thread-1',
+        runtime: { running: true, waitingOnApproval: false, waitingOnPlanConfirmation: false }
+      }
+    })
+
+    expect(sendServerResponse).toHaveBeenCalledWith('bridge-remote', { decision: 'decline' })
+    expect(s().pendingApproval).toBeNull()
+    expect(s().turnStatus).toBe('running')
+  })
+
+  it('applies approval resolved decisions only for the active thread', () => {
+    dispatch({ method: 'turn/started', params: { turn: makeTurnPayload('turn_approval') } })
+    s().onApprovalRequest('bridge-resolved', {
+      threadId: 'thread-1',
+      turnId: 'turn_approval',
+      requestId: 'req-resolved',
+      itemId: 'approval-item-1',
+      approvalType: 'shell',
+      operation: 'npm test',
+      target: 'F:/dotcraft',
+      reason: 'Run tests.'
+    })
+
+    dispatch({
+      method: 'item/approval/resolved',
+      params: {
+        threadId: 'thread-2',
+        turnId: 'turn_other',
+        item: {
+          type: 'approvalResponse',
+          payload: { requestId: 'req-other', decision: 'accept' }
+        }
+      }
+    })
+    expect(s().pendingApproval?.requestId).toBe('req-resolved')
+
+    dispatch({
+      method: 'item/approval/resolved',
+      params: {
+        threadId: 'thread-1',
+        turnId: 'turn_approval',
+        item: {
+          type: 'approvalResponse',
+          payload: { requestId: 'req-resolved', decision: 'acceptForSession' }
+        }
+      }
+    })
+
+    const approvalItem = s().turns[0].items.find((item) => item.type === 'approvalCard')
+    expect(approvalItem?.approvalState).toBe('acceptedForSession')
+    expect(s().pendingApproval).toBeNull()
+    expect(s().turnStatus).toBe('running')
   })
 
   it('refreshes subagent children and sidebar on graph changes', async () => {

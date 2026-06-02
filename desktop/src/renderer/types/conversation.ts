@@ -140,6 +140,7 @@ export interface ConversationItem {
   /** Elapsed seconds from createdAt to completedAt (reasoning indicator) */
   elapsedSeconds?: number
   /** Approval card fields for approvalCard items */
+  approvalRequestId?: string
   approvalType?: ApprovalType
   approvalOperation?: string
   approvalTarget?: string

@@ -13,6 +13,9 @@ const sendServerResponse = vi.fn()
 function pendingApproval(overrides: Partial<PendingApproval> = {}): PendingApproval {
   return {
     bridgeId: 'bridge-approval',
+    threadId: 'thread-approval',
+    turnId: 'turn-approval',
+    requestId: 'request-approval',
     itemId: 'approval-bridge-approval',
     approvalType: 'shell',
     operation: 'npm test',
