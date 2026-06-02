@@ -699,6 +699,9 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
         Assert.Contains("Channel: qq", modelInput);
         Assert.Contains("ChannelContext: group:123456", modelInput);
         Assert.Contains("SenderName: Alice", modelInput);
+        var systemInstructions = chatClient.LastOptions?.Instructions ?? string.Empty;
+        Assert.DoesNotContain("SenderName: Alice", systemInstructions);
+        Assert.DoesNotContain("SenderId: 10001", systemInstructions);
 
         var persistedThread = await svc.GetThreadAsync(thread.Id);
         var turn = Assert.Single(persistedThread.Turns);
@@ -1661,6 +1664,7 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
     private sealed class RecordingChatClient(string responseText) : IChatClient
     {
         public IReadOnlyList<ChatMessage> LastMessages { get; private set; } = [];
+        public ChatOptions? LastOptions { get; private set; }
 
         public Task<ChatResponse> GetResponseAsync(
             IEnumerable<ChatMessage> chatMessages,
@@ -1668,6 +1672,7 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
             CancellationToken cancellationToken = default)
         {
             LastMessages = chatMessages.ToList();
+            LastOptions = options;
             return Task.FromResult(new ChatResponse([new ChatMessage(ChatRole.Assistant, [new TextContent(responseText)])]));
         }
 
@@ -1677,6 +1682,7 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
             LastMessages = chatMessages.ToList();
+            LastOptions = options;
             yield return new ChatResponseUpdate(ChatRole.Assistant, [new TextContent(responseText)]);
             await Task.CompletedTask;
         }

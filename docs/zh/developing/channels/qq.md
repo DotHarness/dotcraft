@@ -8,7 +8,7 @@
 - 提供 OneBot v11 反向 WebSocket 服务
 - 支持 QQ 私聊和群聊
 - 群聊默认仅在 @机器人 时响应
-- 每个 QQ 私聊用户或群聊映射到独立 DotCraft thread
+- 每个 QQ 私聊用户或 QQ 群映射到独立 DotCraft thread
 - 支持 QQ 会话内审批
 - 提供语音、视频、文件相关 Runtime 工具
 
@@ -121,7 +121,7 @@ npm start -- --workspace F:\examples\workspace
 
 - 群聊默认只响应 @ 机器人的消息。
 - 私聊会进入对应用户的独立会话。
-- 每个 QQ 群或私聊用户映射到独立 DotCraft thread。
+- 每个 QQ 群共享一条 DotCraft thread，每条 turn 会记录真实发言人。
 - 管理员触发需要审批的操作时，适配器会在 QQ 会话里发送审批提示。
 - 回复 `同意`、`允许`、`yes`、`approve` 会通过审批；回复 `拒绝`、`no`、`reject`、`deny` 会拒绝审批。
 

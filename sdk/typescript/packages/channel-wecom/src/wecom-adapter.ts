@@ -374,14 +374,20 @@ export class WeComAdapter extends ModuleChannelAdapter<WeComConfig> {
   private async runInboundMessage(text: string, from: WeComFrom, pusher: WeComPusher, inputParts: Record<string, unknown>[]): Promise<void> {
     const chatId = pusher.getChatId();
     const channelContext = `chat:${chatId}`;
+    const senderName = from.name || from.alias || from.userId;
     this.lastSenderByContext.set(channelContext, from.userId);
     const role = this.permission.getUserRole(from.userId, chatId);
     await this.handleMessage({
-      userId: from.userId,
-      userName: from.name || from.alias || from.userId,
+      userId: channelContext,
+      userName: senderName,
       text,
       channelContext,
-      senderExtra: { senderRole: role, groupId: chatId },
+      sender: {
+        senderId: from.userId,
+        senderName,
+        senderRole: role,
+        groupId: channelContext,
+      },
       inputParts,
     });
   }

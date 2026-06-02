@@ -306,12 +306,18 @@ export class QQAdapter extends ModuleChannelAdapter<QQConfig> {
   private async handleOneBotMessage(evt: OneBotMessageEvent): Promise<void> {
     const isGroup = evt.message_type === "group";
     const groupId = evt.group_id;
-    const userId = String(evt.user_id);
+    if (isGroup && groupId === undefined) {
+      console.warn("[qq] group message missing group_id; ignored");
+      return;
+    }
+    const senderId = String(evt.user_id);
     const channelContext = channelContextForQQEvent(isGroup, groupId, evt.user_id);
+    const threadUserId = isGroup ? channelContext : senderId;
+    const senderName = getSenderName(evt);
     const rawText = getPlainText(evt.message).trim();
 
     const approvalDecision = parseQQApprovalDecision(rawText);
-    if (approvalDecision && this.resolvePendingApproval(approvalDecision, userId, channelContext)) {
+    if (approvalDecision && this.resolvePendingApproval(approvalDecision, senderId, channelContext)) {
       return;
     }
 
@@ -320,9 +326,9 @@ export class QQAdapter extends ModuleChannelAdapter<QQConfig> {
       return;
     }
 
-    const role = this.permission.getUserRole(userId, isGroup ? groupId : undefined);
+    const role = this.permission.getUserRole(senderId, isGroup ? groupId : undefined);
     if (role === "unauthorized") {
-      console.info(`[qq] unauthorized user ${userId} ignored`);
+      console.info(`[qq] unauthorized user ${senderId} ignored`);
       return;
     }
 
@@ -331,16 +337,18 @@ export class QQAdapter extends ModuleChannelAdapter<QQConfig> {
       return;
     }
 
-    this.lastSenderByContext.set(channelContext, userId);
+    this.lastSenderByContext.set(channelContext, senderId);
 
     await this.handleMessage({
-      userId,
-      userName: getSenderName(evt),
+      userId: threadUserId,
+      userName: senderName,
       text: rawText || "[image]",
       channelContext,
-      senderExtra: {
+      sender: {
+        senderId,
+        senderName,
         senderRole: role,
-        ...(isGroup && groupId !== undefined ? { groupId: String(groupId) } : {}),
+        ...(isGroup ? { groupId: channelContext } : {}),
       },
       omitSenderGroupId: !isGroup,
       inputParts: inputParts.length > 0 ? inputParts : undefined,

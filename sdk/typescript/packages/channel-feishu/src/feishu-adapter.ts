@@ -685,6 +685,11 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
       text: message.text,
       channelContext: message.channelContext,
       workspacePath: this.defaultWorkspacePath,
+      sender: {
+        senderId: message.userId,
+        senderName: message.userName,
+        ...(message.chatType === "group" ? { groupId: message.channelContext } : {}),
+      },
       inputParts: message.parts.length ? message.parts : undefined,
       omitSenderGroupId: message.chatType !== "group",
     });

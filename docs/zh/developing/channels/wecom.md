@@ -11,7 +11,7 @@
 - 支持 XML 消息推送 API 和 JSON 智能机器人 API 回调格式
 - 支持文本、图片、语音转文本、文件、附件、图文混排和事件消息
 - 图片和图文混排图片会下载为临时本地图片并作为多模态输入提交
-- 会话按 `userId + chatId` 隔离
+- 每个企业微信 ChatId 映射到一条 DotCraft thread
 - 支持企业微信会话内审批
 - 提供语音和文件 Runtime 工具
 
@@ -133,7 +133,8 @@ npm start -- --workspace F:\examples\workspace
 ## 使用说明
 
 - 文件和附件会回复诊断信息，不直接提交给 Agent。
-- 会话按 `userId + chatId` 隔离，`channelContext` 为 `chat:<ChatId>`。
+- 会话按 ChatId 隔离，`channelContext` 为 `chat:<ChatId>`。
+- 同一 ChatId 内的多个企业微信用户共享一条 DotCraft thread，每条 turn 会记录真实发言人。
 - 支持 `/new`、`/help`、Heartbeat、Cron 等通用命令和投递链路。
 - 审批关键词包括 `同意`、`同意全部`、`拒绝`、`yes`、`yes all`、`no`。
 

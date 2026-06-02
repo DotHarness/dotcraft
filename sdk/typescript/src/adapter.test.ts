@@ -121,7 +121,7 @@ test("ChannelAdapter flushes the current segment before plugin function calls", 
   );
 });
 
-test("ChannelAdapter lets senderExtra override groupId and omit implicit channel context groupId", async () => {
+test("ChannelAdapter lets explicit sender override thread identity and omit implicit channel context groupId", async () => {
   const adapter = new RecordingAdapter();
   const client = (adapter as unknown as { client: Record<string, unknown> }).client;
   const senders: unknown[] = [];
@@ -144,12 +144,13 @@ test("ChannelAdapter lets senderExtra override groupId and omit implicit channel
 
   await (adapter as unknown as {
     processMessage: (identityKey: string, opts: Record<string, unknown>) => Promise<void>;
-  }).processMessage("user-1:group:123", {
-    userId: "user-1",
-    userName: "Tester",
+  }).processMessage("group:123:group:123", {
+    userId: "group:123",
+    userName: "QQ Group 123",
     text: "hello",
     channelContext: "group:123",
-    senderExtra: { groupId: "123", senderRole: "admin" },
+    sender: { senderId: "user-1", senderName: "Tester", groupId: "group:123" },
+    senderExtra: { senderRole: "admin" },
   });
 
   await (adapter as unknown as {
@@ -165,7 +166,7 @@ test("ChannelAdapter lets senderExtra override groupId and omit implicit channel
   assert.deepEqual(senders[0], {
     senderId: "user-1",
     senderName: "Tester",
-    groupId: "123",
+    groupId: "group:123",
     senderRole: "admin",
   });
   assert.deepEqual(senders[1], {

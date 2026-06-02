@@ -11,7 +11,7 @@ Personal Weixin `@dotcraft/channel-weixin` and WeCom `@dotcraft/channel-wecom` a
 - Supports XML message push APIs and JSON smart bot callback format
 - Supports text, images, speech-to-text, files, attachments, mixed image/text messages, and events
 - Downloads image and mixed image/text message images as temporary local images for multimodal input
-- Isolates conversations by `userId + chatId`
+- Maps each WeCom ChatId to one DotCraft thread
 - Supports approval inside the WeCom conversation
 - Provides voice and file runtime tools
 
@@ -133,7 +133,8 @@ npm start -- --workspace F:\examples\workspace
 ## Usage
 
 - Files and attachments return diagnostic messages and are not submitted directly to the agent.
-- Conversations are isolated by `userId + chatId`; `channelContext` is `chat:<ChatId>`.
+- Conversations are isolated by ChatId; `channelContext` is `chat:<ChatId>`.
+- Multiple WeCom users in the same ChatId share one DotCraft thread, with the actual sender recorded on each turn.
 - `/new`, `/help`, Heartbeat, Cron, and common delivery flows are supported.
 - Approval keywords include `同意`, `同意全部`, `拒绝`, `yes`, `yes all`, and `no`.
 

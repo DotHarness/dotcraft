@@ -44,12 +44,20 @@ function isNodeErrno(error: unknown, code: string): boolean {
   );
 }
 
+export type ChannelSenderContext = Record<string, unknown> & {
+  senderId?: string;
+  senderName?: string;
+  senderRole?: string;
+  groupId?: string;
+};
+
 export type ChannelAdapterMessageOptions = {
   userId: string;
   userName: string;
   text: string;
   channelContext?: string;
   workspacePath?: string;
+  sender?: ChannelSenderContext;
   senderExtra?: Record<string, unknown>;
   skipCommand?: boolean;
   inputParts?: Record<string, unknown>[];
@@ -57,14 +65,13 @@ export type ChannelAdapterMessageOptions = {
 };
 
 export function buildChannelSender(
-  opts: Pick<ChannelAdapterMessageOptions, "userId" | "userName" | "senderExtra" | "omitSenderGroupId">,
+  opts: Pick<ChannelAdapterMessageOptions, "userId" | "userName" | "sender" | "senderExtra" | "omitSenderGroupId">,
   channelContext: string,
 ): Record<string, unknown> {
-  const sender: Record<string, unknown> = {
-    senderId: opts.userId,
-    senderName: opts.userName,
-    ...(opts.senderExtra ?? {}),
-  };
+  const sender: Record<string, unknown> = { ...(opts.sender ?? {}) };
+  if (sender.senderId === undefined) sender.senderId = opts.userId;
+  if (sender.senderName === undefined) sender.senderName = opts.userName;
+  Object.assign(sender, opts.senderExtra ?? {});
   if (channelContext && !opts.omitSenderGroupId && sender.groupId === undefined) {
     sender.groupId = channelContext;
   }

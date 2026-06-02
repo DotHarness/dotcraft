@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { FeishuAdapter } from "./feishu-adapter.js";
 import { createFeishuEventHandlers } from "./event-handler.js";
 import { FeishuClient } from "./feishu-client.js";
 import type {
@@ -147,6 +148,41 @@ test("Feishu client adds a reaction with the expected SDK payload", async () => 
         emoji_type: "GLANCE",
       },
     },
+  });
+});
+
+test("FeishuAdapter keeps group thread identity while forwarding real sender context", async () => {
+  const adapter = new FeishuAdapter() as unknown as {
+    handleMessage: (opts: Record<string, unknown>) => Promise<void>;
+    handleInboundMessage: (message: ParsedInboundMessage) => Promise<void>;
+  };
+  let captured: Record<string, unknown> | null = null;
+  adapter.handleMessage = async (opts) => {
+    captured = opts;
+  };
+
+  await adapter.handleInboundMessage({
+    kind: "text",
+    userId: "ou_user_123",
+    userName: "Alice",
+    threadUserId: "group:oc_group_1",
+    channelContext: "group:oc_group_1",
+    chatId: "oc_group_1",
+    chatType: "group",
+    text: "hello",
+    parts: [{ type: "text", text: "hello" }],
+    messageId: "om_group_1",
+    mentions: [],
+    sender: { openId: "ou_user_123", userId: "user_123", unionId: "union_123" },
+  });
+
+  assert.ok(captured);
+  assert.equal(captured["userId"], "group:oc_group_1");
+  assert.equal(captured["channelContext"], "group:oc_group_1");
+  assert.deepEqual(captured["sender"], {
+    senderId: "ou_user_123",
+    senderName: "Alice",
+    groupId: "group:oc_group_1",
   });
 });
 
