@@ -106,7 +106,7 @@ Desktop 会从打包资源中识别 `qq-standard` 外部渠道，可在渠道管
 ```bash
 cd sdk/typescript
 npm run build --workspace @dotcraft/channel-qq
-npx dotcraft-channel-qq --workspace F:\dotcraft
+npx dotcraft-channel-qq --workspace F:\examples\workspace
 ```
 
 也可以在包目录下运行：
@@ -114,7 +114,7 @@ npx dotcraft-channel-qq --workspace F:\dotcraft
 ```bash
 cd sdk/typescript/packages/channel-qq
 npm run build
-npm start -- --workspace F:\dotcraft
+npm start -- --workspace F:\examples\workspace
 ```
 
 ## 使用说明

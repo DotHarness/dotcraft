@@ -100,7 +100,7 @@ describe('trayManager notifications', () => {
     const event: HubEvent = {
       kind: 'notification.requested',
       at: new Date().toISOString(),
-      workspacePath: 'F:/dotcraft',
+      workspacePath: 'F:/examples/workspace',
       data: {
         title: 'Done',
         body: 'Finished',
@@ -110,7 +110,7 @@ describe('trayManager notifications', () => {
     }
 
     expect(parseHubNotificationPayload(event)).toMatchObject({
-      workspacePath: 'F:/dotcraft',
+      workspacePath: 'F:/examples/workspace',
       threadId: 'thread_1',
       title: 'Done',
       body: 'Finished',
@@ -123,7 +123,7 @@ describe('trayManager notifications', () => {
     const event: HubEvent = {
       kind: 'notification.requested',
       at: new Date().toISOString(),
-      workspacePath: 'F:/dotcraft',
+      workspacePath: 'F:/examples/workspace',
       data: {
         titleKey: 'hub.notification.turn_completed.title',
         fallbackTitle: 'DotCraft task completed',
@@ -144,7 +144,7 @@ describe('trayManager notifications', () => {
     const shown = showHubNotification({
       kind: 'notification.requested',
       at: new Date().toISOString(),
-      workspacePath: 'F:/dotcraft',
+      workspacePath: 'F:/examples/workspace',
       data: { title: 'Done', body: 'Finished' }
     })
 
@@ -162,7 +162,7 @@ describe('trayManager notifications', () => {
     showHubNotification({
       kind: 'notification.requested',
       at: new Date().toISOString(),
-      workspacePath: 'F:/dotcraft',
+      workspacePath: 'F:/examples/workspace',
       data: { title: 'Done', body: 'Finished', openDesktopOnClick: false }
     })
 
@@ -189,11 +189,11 @@ describe('trayManager notifications', () => {
     showHubNotification({
       kind: 'notification.requested',
       at: new Date().toISOString(),
-      workspacePath: 'F:/dotcraft',
+      workspacePath: 'F:/examples/workspace',
       data: {
         title: 'Done',
         body: 'Finished',
-        actionUrl: 'dotcraft://workspace/open?path=F%3A%2Fdotcraft&threadId=thread_1',
+        actionUrl: 'dotcraft://workspace/open?path=F%3A%2Fexamples%2Fworkspace&threadId=thread_1',
         openDesktopOnClick: true
       }
     })
@@ -204,7 +204,7 @@ describe('trayManager notifications', () => {
 
     expect(activationMocks.requestWorkspaceActivation).toHaveBeenCalledWith(
       expect.objectContaining({ port: 456, token: 'token' }),
-      { workspacePath: 'F:/dotcraft', threadId: 'thread_1' }
+      { workspacePath: 'F:/examples/workspace', threadId: 'thread_1' }
     )
     expect(childProcessMocks.spawn).not.toHaveBeenCalled()
   })
@@ -218,10 +218,10 @@ describe('trayManager process launches', () => {
   it('launches Desktop windows visibly with a workspace argument', async () => {
     const { spawnDesktopWindow } = await import('../trayManager')
 
-    spawnDesktopWindow('E:/Git/dotcraft')
+    spawnDesktopWindow('E:/examples/workspace')
 
     const [, args, options] = childProcessMocks.spawn.mock.calls[0]
-    expect(args).toEqual(expect.arrayContaining(['--workspace', 'E:/Git/dotcraft']))
+    expect(args).toEqual(expect.arrayContaining(['--workspace', 'E:/examples/workspace']))
     expect(args).not.toContain('--no-workspace')
     expect(options).toEqual({
       detached: true,
@@ -232,11 +232,11 @@ describe('trayManager process launches', () => {
   it('launches Desktop windows with a workspace deep link when a thread is provided', async () => {
     const { spawnDesktopWindow } = await import('../trayManager')
 
-    spawnDesktopWindow('E:/Git/dotcraft', 'thread 1')
+    spawnDesktopWindow('E:/examples/workspace', 'thread 1')
 
     const [, args, options] = childProcessMocks.spawn.mock.calls[0]
     expect(args).toEqual(expect.arrayContaining([
-      'dotcraft://workspace/open?path=E%3A%2FGit%2Fdotcraft&threadId=thread+1'
+      'dotcraft://workspace/open?path=E%3A%2Fexamples%2Fworkspace&threadId=thread+1'
     ]))
     expect(args).not.toContain('--no-workspace')
     expect(options).toEqual({
@@ -251,10 +251,10 @@ describe('trayManager process launches', () => {
     try {
       const { spawnDesktopWindow } = await import('../trayManager')
 
-      spawnDesktopWindow('E:/Git/dotcraft')
+      spawnDesktopWindow('E:/examples/workspace')
 
       const [, args] = childProcessMocks.spawn.mock.calls[0]
-      expect(args).toEqual(expect.arrayContaining(['--workspace', 'E:/Git/dotcraft']))
+      expect(args).toEqual(expect.arrayContaining(['--workspace', 'E:/examples/workspace']))
       expect(args).not.toContain('--no-workspace')
     } finally {
       process.argv = originalArgv

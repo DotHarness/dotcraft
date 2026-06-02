@@ -675,6 +675,103 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
     }
 
     [Fact]
+    public async Task ThreadList_WithLimitAndCursor_ReturnsPages()
+    {
+        await _h.Service.CreateThreadAsync(_h.Identity, displayName: "First");
+        await _h.Service.CreateThreadAsync(_h.Identity, displayName: "Second");
+        await _h.Service.CreateThreadAsync(_h.Identity, displayName: "Third");
+
+        var firstMsg = _h.BuildRequest(AppServerMethods.ThreadList, new
+        {
+            identity = new
+            {
+                channelName = _h.Identity.ChannelName,
+                userId = _h.Identity.UserId,
+                workspacePath = _h.Identity.WorkspacePath
+            },
+            limit = 2
+        });
+        await _h.ExecuteRequestAsync(firstMsg);
+
+        var firstDoc = await _h.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(firstDoc);
+        var firstResult = firstDoc.RootElement.GetProperty("result");
+        var firstData = firstResult.GetProperty("data");
+        Assert.Equal(2, firstData.GetArrayLength());
+        Assert.Equal(3, firstResult.GetProperty("totalMatched").GetInt32());
+        var cursor = firstResult.GetProperty("nextCursor").GetString();
+        Assert.False(string.IsNullOrWhiteSpace(cursor));
+
+        var secondMsg = _h.BuildRequest(AppServerMethods.ThreadList, new
+        {
+            identity = new
+            {
+                channelName = _h.Identity.ChannelName,
+                userId = _h.Identity.UserId,
+                workspacePath = _h.Identity.WorkspacePath
+            },
+            limit = 2,
+            cursor
+        });
+        await _h.ExecuteRequestAsync(secondMsg);
+
+        var secondDoc = await _h.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(secondDoc);
+        var secondResult = secondDoc.RootElement.GetProperty("result");
+        var secondData = secondResult.GetProperty("data");
+        var onlySecondPageId = Assert.Single(secondData.EnumerateArray()).GetProperty("id").GetString();
+        Assert.DoesNotContain(firstData.EnumerateArray(), item => item.GetProperty("id").GetString() == onlySecondPageId);
+        Assert.False(secondResult.TryGetProperty("nextCursor", out _));
+    }
+
+    [Fact]
+    public async Task ThreadList_QueryFiltersBeforePagination()
+    {
+        await _h.Service.CreateThreadAsync(_h.Identity, displayName: "Renderer Search");
+        await _h.Service.CreateThreadAsync(_h.Identity, displayName: "Backend Task");
+
+        var msg = _h.BuildRequest(AppServerMethods.ThreadList, new
+        {
+            identity = new
+            {
+                channelName = _h.Identity.ChannelName,
+                userId = _h.Identity.UserId,
+                workspacePath = _h.Identity.WorkspacePath
+            },
+            query = "renderer",
+            limit = 10
+        });
+        await _h.ExecuteRequestAsync(msg);
+
+        var doc = await _h.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(doc);
+        var result = doc.RootElement.GetProperty("result");
+        var only = Assert.Single(result.GetProperty("data").EnumerateArray());
+        Assert.Equal("Renderer Search", only.GetProperty("displayName").GetString());
+        Assert.Equal(1, result.GetProperty("totalMatched").GetInt32());
+    }
+
+    [Fact]
+    public async Task ThreadList_InvalidCursor_ReturnsInvalidParams()
+    {
+        var msg = _h.BuildRequest(AppServerMethods.ThreadList, new
+        {
+            identity = new
+            {
+                channelName = _h.Identity.ChannelName,
+                userId = _h.Identity.UserId,
+                workspacePath = _h.Identity.WorkspacePath
+            },
+            limit = 1,
+            cursor = "not-a-valid-cursor"
+        });
+        await _h.ExecuteRequestAsync(msg);
+
+        var doc = await _h.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsErrorResponse(doc, AppServerErrors.InvalidParamsCode);
+    }
+
+    [Fact]
     public async Task ThreadList_ExcludesInternalThreadsByDefault()
     {
         await _h.Service.CreateThreadAsync(_h.Identity);
@@ -823,6 +920,83 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
             .GetProperty("runtime");
         Assert.True(runtime.GetProperty("busy").GetBoolean());
         Assert.Equal("consolidating", runtime.GetProperty("maintenanceKind").GetString());
+    }
+
+    [Fact]
+    public async Task ThreadRead_WithTurnLimitAndCursor_ReturnsRecentThenOlderPages()
+    {
+        var thread = await _h.Service.CreateThreadAsync(_h.Identity);
+        AddCompletedTurn(thread, "turn_001", "first");
+        AddCompletedTurn(thread, "turn_002", "second");
+        AddCompletedTurn(thread, "turn_003", "third");
+        AddCompletedTurn(thread, "turn_004", "fourth");
+        AddCompletedTurn(thread, "turn_005", "fifth");
+
+        var firstMsg = _h.BuildRequest(AppServerMethods.ThreadRead, new
+        {
+            threadId = thread.Id,
+            includeTurns = true,
+            turnLimit = 2
+        });
+        await _h.ExecuteRequestAsync(firstMsg);
+
+        var firstDoc = await _h.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(firstDoc);
+        var firstResult = firstDoc.RootElement.GetProperty("result");
+        var firstTurns = firstResult.GetProperty("thread").GetProperty("turns");
+        Assert.Equal(["turn_004", "turn_005"], firstTurns.EnumerateArray().Select(t => t.GetProperty("id").GetString()).ToArray());
+        var firstPage = firstResult.GetProperty("turnPage");
+        Assert.Equal(5, firstPage.GetProperty("totalTurns").GetInt32());
+        Assert.Equal(4, firstPage.GetProperty("startOrdinal").GetInt32());
+        Assert.Equal(5, firstPage.GetProperty("endOrdinal").GetInt32());
+        Assert.True(firstPage.GetProperty("hasMore").GetBoolean());
+        var cursor = firstPage.GetProperty("nextCursor").GetString();
+
+        var secondMsg = _h.BuildRequest(AppServerMethods.ThreadRead, new
+        {
+            threadId = thread.Id,
+            includeTurns = true,
+            turnLimit = 2,
+            cursor
+        });
+        await _h.ExecuteRequestAsync(secondMsg);
+
+        var secondDoc = await _h.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(secondDoc);
+        var secondResult = secondDoc.RootElement.GetProperty("result");
+        var secondTurns = secondResult.GetProperty("thread").GetProperty("turns");
+        Assert.Equal(["turn_002", "turn_003"], secondTurns.EnumerateArray().Select(t => t.GetProperty("id").GetString()).ToArray());
+        Assert.Equal(2, secondResult.GetProperty("turnPage").GetProperty("startOrdinal").GetInt32());
+        Assert.Equal(3, secondResult.GetProperty("turnPage").GetProperty("endOrdinal").GetInt32());
+    }
+
+    [Fact]
+    public async Task ThreadRead_WithPagedTurns_StillReturnsQueuedInputs()
+    {
+        var thread = await _h.Service.CreateThreadAsync(_h.Identity);
+        AddCompletedTurn(thread, "turn_001", "first");
+        thread.QueuedInputs.Add(new QueuedTurnInput
+        {
+            Id = "queued_001",
+            ThreadId = thread.Id,
+            DisplayText = "queued follow-up",
+            Status = "queued",
+            CreatedAt = DateTimeOffset.UtcNow
+        });
+
+        var msg = _h.BuildRequest(AppServerMethods.ThreadRead, new
+        {
+            threadId = thread.Id,
+            includeTurns = true,
+            turnLimit = 1
+        });
+        await _h.ExecuteRequestAsync(msg);
+
+        var doc = await _h.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(doc);
+        var queued = doc.RootElement.GetProperty("result").GetProperty("thread").GetProperty("queuedInputs");
+        var only = Assert.Single(queued.EnumerateArray());
+        Assert.Equal("queued follow-up", only.GetProperty("displayText").GetString());
     }
 
     // -------------------------------------------------------------------------

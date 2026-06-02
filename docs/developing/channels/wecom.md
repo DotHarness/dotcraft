@@ -119,7 +119,7 @@ For development:
 ```bash
 cd sdk/typescript
 npm run build --workspace @dotcraft/channel-wecom
-npx dotcraft-channel-wecom --workspace F:\dotcraft
+npx dotcraft-channel-wecom --workspace F:\examples\workspace
 ```
 
 Or from the package directory:
@@ -127,7 +127,7 @@ Or from the package directory:
 ```bash
 cd sdk/typescript/packages/channel-wecom
 npm run build
-npm start -- --workspace F:\dotcraft
+npm start -- --workspace F:\examples\workspace
 ```
 
 ## Usage

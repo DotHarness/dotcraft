@@ -15,7 +15,7 @@ ensure an AppServer for the workspace, then performs the AppServer
 `initialize` / `initialized` handshake.
 
 ```csharp
-var workspacePath = @"E:\Git\my-workspace";
+var workspacePath = @"E:\examples\my-workspace";
 
 await using var client = await DotCraftClient.ConnectLocalAsync(
     workspacePath,

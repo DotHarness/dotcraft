@@ -317,6 +317,11 @@ export interface ModulesRescanSummaryPayload {
   changedRunningModuleIds: string[]
 }
 
+export interface PinnedThreadIdsChangedPayload {
+  workspacePath: string
+  threadIds: string[]
+}
+
 // ---------------------------------------------------------------------------
 // Single-listener dispatchers for notifications and connection status.
 //
@@ -426,6 +431,15 @@ let activeOpenThreadCallback: ((payload: OpenThreadPayload) => void) | null = nu
 ipcRenderer.on('app:open-thread', (_event: Electron.IpcRendererEvent, payload: OpenThreadPayload) => {
   activeOpenThreadCallback?.(payload)
 })
+
+let pinnedThreadIdsChangedToken = 0
+let activePinnedThreadIdsChangedCallback: ((payload: PinnedThreadIdsChangedPayload) => void) | null = null
+ipcRenderer.on(
+  'settings:pinned-thread-ids-changed',
+  (_event: Electron.IpcRendererEvent, payload: PinnedThreadIdsChangedPayload) => {
+    activePinnedThreadIdsChangedCallback?.(payload)
+  }
+)
 
 let maximizedChangeToken = 0
 let activeMaximizedChangeCallback: ((maximized: boolean) => void) | null = null
@@ -1283,6 +1297,14 @@ const api = {
       pinnedThreadIdsByWorkspace?: Record<string, string[]>
     }): Promise<void> {
       return ipcRenderer.invoke('settings:set', partial)
+    },
+
+    onPinnedThreadIdsChanged(callback: (payload: PinnedThreadIdsChangedPayload) => void): UnsubscribeFn {
+      const token = ++pinnedThreadIdsChangedToken
+      activePinnedThreadIdsChangedCallback = callback
+      return () => {
+        if (pinnedThreadIdsChangedToken === token) activePinnedThreadIdsChangedCallback = null
+      }
     }
   },
 

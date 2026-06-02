@@ -52,7 +52,7 @@ Repository-local package dependency:
 import { DotCraft } from "@dotcraft/sdk";
 
 const dotcraft = await DotCraft.local({
-  workspacePath: "E:/Git/dotcraft",
+  workspacePath: "E:/examples/workspace",
   approvalHandler: async (request) => {
     console.log("approval requested", request);
     return "decline";
@@ -161,6 +161,13 @@ await client.initialize({ clientName: "raw-client", clientVersion: "0.1.0" });
 
 const threads = await client.threadList({ channelName: "sdk", userId: "me" });
 const raw = await client.request("thread/read", { threadId: threads[0]?.id });
+```
+
+For paged thread management, use the page-shaped wrapper when you need the next cursor:
+
+```typescript
+const page = await client.threadListPage({ channelName: "sdk", userId: "me", limit: 20 });
+const older = await client.threadRead(page.threads[0].id, true, { turnLimit: 10, cursor: "opaque-cursor" });
 ```
 
 ## Channel Modules

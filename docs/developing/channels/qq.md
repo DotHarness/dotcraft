@@ -106,7 +106,7 @@ For development:
 ```bash
 cd sdk/typescript
 npm run build --workspace @dotcraft/channel-qq
-npx dotcraft-channel-qq --workspace F:\dotcraft
+npx dotcraft-channel-qq --workspace F:\examples\workspace
 ```
 
 Or from the package directory:
@@ -114,7 +114,7 @@ Or from the package directory:
 ```bash
 cd sdk/typescript/packages/channel-qq
 npm run build
-npm start -- --workspace F:\dotcraft
+npm start -- --workspace F:\examples\workspace
 ```
 
 ## Usage

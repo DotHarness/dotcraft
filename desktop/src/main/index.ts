@@ -187,7 +187,14 @@ async function handleServerRequestInMain(method: string, params: unknown): Promi
       return undefined
     }
     return handleDesktopRuntimeThreadToolCall(client, params, getProtocolWorkspacePath(), {
-      supportsDynamicToolRebind: lastConnectionStatus.capabilities?.dynamicToolRebind === true
+      supportsDynamicToolRebind: lastConnectionStatus.capabilities?.dynamicToolRebind === true,
+      settingsHost: {
+        getSettings: () => sharedSettings,
+        updateSettings: updateSharedSettings,
+        onPinnedThreadIdsChanged: (workspacePath, threadIds) => {
+          broadcastPinnedThreadIdsChanged({ workspacePath, threadIds })
+        }
+      }
     })
   }
 
@@ -253,6 +260,14 @@ function broadcastAppUpdateState(state: AppUpdateState): void {
   for (const win of BrowserWindow.getAllWindows()) {
     if (!win.isDestroyed()) {
       win.webContents.send('app:update-state-changed', state)
+    }
+  }
+}
+
+function broadcastPinnedThreadIdsChanged(payload: { workspacePath: string; threadIds: string[] }): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.isDestroyed()) {
+      win.webContents.send('settings:pinned-thread-ids-changed', payload)
     }
   }
 }

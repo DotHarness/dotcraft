@@ -83,7 +83,7 @@ async def test_process_message_reenqueue_sets_skip_command_true_after_expanded_p
             "user_name": "User",
             "text": "/summarize some text",
             "channel_context": "",
-            "workspace_path": "E:/Git/dotcraft",
+            "workspace_path": "E:/examples/workspace",
             "sender_extra": {},
             "skip_command": False,
             "input_parts": None,

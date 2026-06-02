@@ -693,14 +693,19 @@ Parameters:
 
 - `threadId`
 - `includeTurns`
+- `turnLimit`
+- `cursor`
 
 Result:
 
 ```csharp
-public sealed record DotCraftThreadReadResult(string ThreadId, JsonElement Thread);
+public sealed record DotCraftThreadReadResult(
+    string ThreadId,
+    JsonElement Thread,
+    JsonElement? TurnPage = null);
 ```
 
-The SDK preserves raw thread JSON instead of duplicating the full Thread DTO model.
+The SDK preserves raw thread JSON and optional `turnPage` JSON instead of duplicating the full Thread DTO model.
 
 ---
 

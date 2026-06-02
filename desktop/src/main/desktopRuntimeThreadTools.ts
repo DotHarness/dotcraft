@@ -7,8 +7,12 @@ const DEFAULT_READ_TURN_LIMIT = 10
 const MAX_READ_TURN_LIMIT = 50
 const DEFAULT_OUTPUT_CHARS_PER_ITEM = 2_000
 const MAX_OUTPUT_CHARS_PER_ITEM = 20_000
+const DEFAULT_READ_SUMMARY_CHARS = 30_000
+const MAX_QUEUED_INPUT_SUMMARIES = 10
+const REASONING_EFFORT_VALUES = new Set(['low', 'medium', 'high', 'extraHigh'])
 
 type JsonObject = Record<string, unknown>
+type ReasoningEffortValue = 'low' | 'medium' | 'high' | 'extraHigh'
 
 export interface RuntimeAdditionalContextEntry {
   kind: 'application'
@@ -34,6 +38,13 @@ export interface AppServerRequestClient {
 
 export interface DesktopAppServerRequestOptions {
   supportsDynamicToolRebind?: boolean
+  settingsHost?: DesktopThreadToolSettingsHost
+}
+
+export interface DesktopThreadToolSettingsHost {
+  getSettings(): { pinnedThreadIdsByWorkspace?: Record<string, string[]> }
+  updateSettings(partial: { pinnedThreadIdsByWorkspace: Record<string, string[]> }): Promise<void>
+  onPinnedThreadIdsChanged?(workspacePath: string, threadIds: string[]): void
 }
 
 export interface DynamicToolCallParams {
@@ -58,8 +69,11 @@ interface ThreadSummaryWire {
   displayName?: string | null
   status?: string
   originChannel?: string
+  channelContext?: string | null
   createdAt?: string
   lastActiveAt?: string
+  source?: Record<string, unknown> | null
+  metadata?: Record<string, unknown> | null
   runtime?: unknown
   goal?: unknown
 }
@@ -67,6 +81,7 @@ interface ThreadSummaryWire {
 interface ThreadWire extends ThreadSummaryWire {
   turns?: Array<Record<string, unknown>>
   queuedInputs?: unknown[]
+  configuration?: JsonObject | null
 }
 
 const TOOL_NAMES = new Set([
@@ -75,12 +90,13 @@ const TOOL_NAMES = new Set([
   'ReadThread',
   'SendMessageToThread',
   'SetThreadTitle',
-  'SetThreadArchived'
+  'SetThreadArchived',
+  'SetThreadPinned'
 ])
 
 const DESKTOP_THREAD_COORDINATION_CONTEXT: RuntimeAdditionalContextEntry = {
   kind: 'application',
-  value: 'When the user asks to create, inspect, continue, archive, rename, or otherwise manage DotCraft threads in the background, search for the relevant thread tool first: CreateThread, ListThreads, ReadThread, SendMessageToThread, SetThreadTitle, SetThreadArchived.'
+  value: 'When the user asks to create, inspect, continue, pin, archive, rename, or otherwise manage DotCraft threads in the background, search for the relevant thread tool first: CreateThread, ListThreads, ReadThread, SendMessageToThread, SetThreadTitle, SetThreadArchived, SetThreadPinned.'
 }
 
 // Bound-tool state is connection-local; reconnecting gives AppServer a new callback target.
@@ -103,7 +119,12 @@ export function buildDesktopThreadDynamicTools(): DynamicToolSpec[] {
         properties: {
           prompt: { type: 'string', description: 'Initial prompt for the new thread.' },
           displayName: { type: 'string', description: 'Optional display name for the created thread.' },
-          model: { type: 'string', description: 'Optional per-thread model override for the created thread.' }
+          model: { type: 'string', description: 'Optional per-thread model override for the created thread.' },
+          reasoningEffort: {
+            type: 'string',
+            enum: ['low', 'medium', 'high', 'extraHigh'],
+            description: 'Optional per-thread reasoning effort for the created thread.'
+          }
         },
         required: ['prompt'],
         additionalProperties: false
@@ -126,7 +147,9 @@ export function buildDesktopThreadDynamicTools(): DynamicToolSpec[] {
         type: 'object',
         properties: {
           query: { type: 'string', description: 'Optional local text filter for thread id, title, or origin.' },
-          limit: { type: 'integer', minimum: 1, maximum: MAX_LIST_THREADS_LIMIT }
+          limit: { type: 'integer', minimum: 1, maximum: MAX_LIST_THREADS_LIMIT },
+          cursor: { type: 'string', description: 'Opaque cursor from a previous ListThreads result.' },
+          includeArchived: { type: 'boolean', description: 'Include archived threads in the result page.' }
         },
         additionalProperties: false
       },
@@ -134,7 +157,9 @@ export function buildDesktopThreadDynamicTools(): DynamicToolSpec[] {
         type: 'object',
         properties: {
           threads: { type: 'array', items: { type: 'object' } },
-          count: { type: 'integer' }
+          count: { type: 'integer' },
+          nextCursor: { type: ['string', 'null'] },
+          totalMatched: { type: 'integer' }
         }
       },
       display: { title: 'List threads', subtitle: 'Desktop' }
@@ -149,7 +174,8 @@ export function buildDesktopThreadDynamicTools(): DynamicToolSpec[] {
           threadId: { type: 'string' },
           includeOutputs: { type: 'boolean' },
           maxOutputCharsPerItem: { type: 'integer', minimum: 1, maximum: MAX_OUTPUT_CHARS_PER_ITEM },
-          turnLimit: { type: 'integer', minimum: 1, maximum: MAX_READ_TURN_LIMIT }
+          turnLimit: { type: 'integer', minimum: 1, maximum: MAX_READ_TURN_LIMIT },
+          cursor: { type: 'string', description: 'Opaque cursor from a previous ReadThread result.' }
         },
         required: ['threadId'],
         additionalProperties: false
@@ -171,7 +197,12 @@ export function buildDesktopThreadDynamicTools(): DynamicToolSpec[] {
         properties: {
           threadId: { type: 'string' },
           prompt: { type: 'string' },
-          model: { type: 'string', description: 'Unsupported until AppServer exposes turn-scoped model override.' }
+          model: { type: 'string', description: 'Unsupported until AppServer exposes turn-scoped model override.' },
+          reasoningEffort: {
+            type: 'string',
+            enum: ['low', 'medium', 'high', 'extraHigh'],
+            description: 'Optional persistent reasoning effort for future turns in the target thread.'
+          }
         },
         required: ['threadId', 'prompt'],
         additionalProperties: false
@@ -230,6 +261,29 @@ export function buildDesktopThreadDynamicTools(): DynamicToolSpec[] {
         }
       },
       display: { title: 'Archive thread', subtitle: 'Desktop' }
+    },
+    {
+      namespace: DESKTOP_THREAD_TOOL_NAMESPACE,
+      name: 'SetThreadPinned',
+      description: 'Pin or unpin a top-level DotCraft thread in the current Desktop workspace.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          threadId: { type: 'string' },
+          pinned: { type: 'boolean' }
+        },
+        required: ['threadId', 'pinned'],
+        additionalProperties: false
+      },
+      outputSchema: {
+        type: 'object',
+        properties: {
+          threadId: { type: 'string' },
+          pinned: { type: 'boolean' },
+          pinnedThreadIds: { type: 'array', items: { type: 'string' } }
+        }
+      },
+      display: { title: 'Pin thread', subtitle: 'Desktop' }
     }
   ].map((tool) => ({ ...tool, deferLoading: true }))
 }
@@ -301,6 +355,8 @@ export async function handleDesktopRuntimeThreadToolCall(
         return await setThreadTitleTool(client, args)
       case 'SetThreadArchived':
         return await setThreadArchivedTool(client, args)
+      case 'SetThreadPinned':
+        return await setThreadPinnedTool(client, args, workspacePath, options.settingsHost)
       default:
         return fail('UnsupportedTool', `Desktop tool '${p.tool}' is not supported.`)
     }
@@ -321,6 +377,8 @@ async function createThreadTool(
   if (displayName?.ok === false) return displayName.error
   const model = optionalNonEmptyString(args, 'model')
   if (model?.ok === false) return model.error
+  const reasoningEffort = optionalReasoningEffort(args, 'reasoningEffort')
+  if (reasoningEffort?.ok === false) return reasoningEffort.error
   if (!workspacePath.trim()) {
     return fail('ThreadManagementUnavailable', 'No Desktop workspace is currently open.')
   }
@@ -332,8 +390,15 @@ async function createThreadTool(
   if (displayName?.value) {
     startParams.displayName = displayName.value
   }
+  const config: JsonObject = {}
   if (model?.value) {
-    startParams.config = { model: model.value }
+    config.model = model.value
+  }
+  if (reasoningEffort?.value) {
+    config.reasoning = buildReasoningConfig(reasoningEffort.value)
+  }
+  if (Object.keys(config).length > 0) {
+    startParams.config = config
   }
 
   const startResult = await sendDesktopAppServerRequest<{ thread?: ThreadSummaryWire }>(
@@ -349,17 +414,30 @@ async function createThreadTool(
     return fail('AppServerRequestFailed', 'thread/start did not return a thread id.')
   }
 
-  const turnResult = await sendDesktopAppServerRequest<{ turn?: JsonObject }>(
-    client,
-    'turn/start',
-    {
-      threadId,
-      input: [{ type: 'text', text: prompt.value }],
-      identity: desktopIdentity(workspacePath)
-    },
-    undefined,
-    options
-  )
+  let turnResult: { turn?: JsonObject }
+  try {
+    turnResult = await sendDesktopAppServerRequest<{ turn?: JsonObject }>(
+      client,
+      'turn/start',
+      {
+        threadId,
+        input: [{ type: 'text', text: prompt.value }],
+        identity: desktopIdentity(workspacePath)
+      },
+      undefined,
+      options
+    )
+  } catch (error) {
+    return fail(
+      'AppServerRequestFailed',
+      `Created thread ${formatThreadTitle(thread)} but failed to start its initial turn: ${requestErrorMessage(error)}`,
+      {
+        thread,
+        turn: null,
+        started: false
+      }
+    )
+  }
 
   return ok(
     `Created thread ${formatThreadTitle(thread)} and started its initial turn.`,
@@ -385,21 +463,36 @@ async function listThreadsTool(
   if (query?.ok === false) return query.error
   const limit = optionalInteger(args, 'limit', DEFAULT_LIST_THREADS_LIMIT, MAX_LIST_THREADS_LIMIT)
   if (limit.ok === false) return limit.error
+  const cursor = optionalString(args, 'cursor')
+  if (cursor?.ok === false) return cursor.error
+  const includeArchived = optionalBoolean(args, 'includeArchived', false)
+  if (includeArchived.ok === false) return includeArchived.error
 
-  const result = await client.sendRequest<{ data?: ThreadSummaryWire[] }>('thread/list', {
+  const request: JsonObject = {
     identity: desktopIdentity(workspacePath),
-    includeSubAgents: false
-  })
-  const filtered = filterThreads(result.data ?? [], query?.value)
-  const threads = filtered.slice(0, limit.value).map(summarizeThread)
+    includeSubAgents: false,
+    includeArchived: includeArchived.value,
+    limit: limit.value
+  }
+  if (query?.value) request.query = query.value
+  if (cursor?.value) request.cursor = cursor.value
+
+  const result = await client.sendRequest<{
+    data?: ThreadSummaryWire[]
+    nextCursor?: string | null
+    totalMatched?: number | null
+  }>('thread/list', request)
+  const threads = (result.data ?? []).map(summarizeThread)
+  const totalMatched = typeof result.totalMatched === 'number' ? result.totalMatched : threads.length
   const text = threads.length === 0
     ? 'No matching threads were found.'
-    : `Found ${threads.length} thread${threads.length === 1 ? '' : 's'}:\n${threads.map(formatThreadSummaryLine).join('\n')}`
+    : `Found ${threads.length} thread${threads.length === 1 ? '' : 's'}${result.nextCursor ? ' (more available)' : ''}:\n${threads.map(formatThreadSummaryLine).join('\n')}`
 
   return ok(text, {
     threads,
     count: threads.length,
-    totalMatched: filtered.length
+    totalMatched,
+    nextCursor: result.nextCursor ?? null
   })
 }
 
@@ -421,11 +514,17 @@ async function readThreadTool(
   if (maxOutputCharsPerItem.ok === false) return maxOutputCharsPerItem.error
   const turnLimit = optionalInteger(args, 'turnLimit', DEFAULT_READ_TURN_LIMIT, MAX_READ_TURN_LIMIT)
   if (turnLimit.ok === false) return turnLimit.error
+  const cursor = optionalString(args, 'cursor')
+  if (cursor?.ok === false) return cursor.error
 
-  const result = await client.sendRequest<{ thread?: ThreadWire }>('thread/read', {
+  const request: JsonObject = {
     threadId: threadId.value,
-    includeTurns: true
-  })
+    includeTurns: true,
+    turnLimit: turnLimit.value
+  }
+  if (cursor?.value) request.cursor = cursor.value
+
+  const result = await client.sendRequest<{ thread?: ThreadWire; turnPage?: JsonObject | null }>('thread/read', request)
   const thread = result.thread
   if (!thread) {
     return fail('ThreadNotFound', `Thread '${threadId.value}' was not found.`)
@@ -435,7 +534,8 @@ async function readThreadTool(
     thread,
     turnLimit.value,
     includeOutputs.value,
-    maxOutputCharsPerItem.value
+    maxOutputCharsPerItem.value,
+    result.turnPage ?? undefined
   )
   return ok(formatReadThreadText(summary), { thread: summary })
 }
@@ -451,6 +551,8 @@ async function sendMessageToThreadTool(
   if (prompt.ok === false) return prompt.error
   const model = optionalNonEmptyString(args, 'model')
   if (model?.ok === false) return model.error
+  const reasoningEffort = optionalReasoningEffort(args, 'reasoningEffort')
+  if (reasoningEffort?.ok === false) return reasoningEffort.error
   if (model?.value) {
     return fail('UnsupportedOption', 'SendMessageToThread.model is not supported by the current AppServer turn protocol.')
   }
@@ -463,6 +565,12 @@ async function sendMessageToThreadTool(
   }
   if (readResult.thread.status === 'archived') {
     return fail('ThreadArchived', `Thread '${threadId.value}' is archived.`)
+  }
+  if (reasoningEffort?.value) {
+    await client.sendRequest('thread/config/update', {
+      threadId: threadId.value,
+      config: buildConfigWithReasoningEffort(readResult.thread.configuration, reasoningEffort.value)
+    })
   }
 
   const input = [{ type: 'text', text: prompt.value }]
@@ -538,6 +646,60 @@ async function setThreadArchivedTool(
   return ok(`${archived.value ? 'Archived' : 'Restored'} thread ${threadId.value}.`, {
     threadId: threadId.value,
     archived: archived.value
+  })
+}
+
+async function setThreadPinnedTool(
+  client: AppServerRequestClient,
+  args: Record<string, unknown>,
+  workspacePath: string,
+  settingsHost: DesktopThreadToolSettingsHost | undefined
+): Promise<DynamicToolCallResult> {
+  const threadId = requiredNonEmptyString(args, 'threadId')
+  if (threadId.ok === false) return threadId.error
+  const pinned = requiredBoolean(args, 'pinned')
+  if (pinned.ok === false) return pinned.error
+  const workspace = workspacePath.trim()
+  if (!workspace) {
+    return fail('ThreadManagementUnavailable', 'No Desktop workspace is currently open.')
+  }
+  if (!settingsHost) {
+    return fail('ThreadManagementUnavailable', 'Desktop settings are not available.')
+  }
+
+  if (pinned.value) {
+    const readResult = await client.sendRequest<{ thread?: ThreadWire }>('thread/read', {
+      threadId: threadId.value
+    })
+    const thread = readResult.thread
+    if (!thread) {
+      return fail('ThreadNotFound', `Thread '${threadId.value}' was not found.`)
+    }
+    if (thread.status === 'archived') {
+      return fail('ThreadArchived', `Thread '${threadId.value}' is archived.`)
+    }
+    if (isSubAgentThreadWire(thread)) {
+      return fail('TargetUnsupported', `Thread '${threadId.value}' is a subagent child thread and cannot be pinned.`)
+    }
+  }
+
+  const settings = settingsHost.getSettings()
+  const current = resolvePinnedThreadIdsForWorkspace(settings.pinnedThreadIdsByWorkspace, workspace)
+  const next = pinned.value
+    ? normalizePinnedThreadIds([threadId.value, ...current])
+    : normalizePinnedThreadIds(current.filter((id) => id !== threadId.value))
+
+  await settingsHost.updateSettings({
+    pinnedThreadIdsByWorkspace: {
+      [workspace]: next
+    }
+  })
+  settingsHost.onPinnedThreadIdsChanged?.(workspace, next)
+
+  return ok(`${pinned.value ? 'Pinned' : 'Unpinned'} thread ${threadId.value}.`, {
+    threadId: threadId.value,
+    pinned: pinned.value,
+    pinnedThreadIds: next
   })
 }
 
@@ -619,11 +781,12 @@ function ok(text: string, structuredResult?: unknown): DynamicToolCallResult {
   }
 }
 
-function fail(errorCode: string, errorMessage: string): DynamicToolCallResult {
+function fail(errorCode: string, errorMessage: string, structuredResult?: unknown): DynamicToolCallResult {
   return {
     success: false,
     errorCode,
-    errorMessage
+    errorMessage,
+    ...(structuredResult === undefined ? {} : { structuredResult })
   }
 }
 
@@ -669,6 +832,21 @@ function optionalNonEmptyString(
     }
   }
   return { ok: true, value: value.trim() }
+}
+
+function optionalReasoningEffort(
+  args: Record<string, unknown>,
+  field: string
+): { ok: true; value: ReasoningEffortValue | undefined } | { ok: false; error: DynamicToolCallResult } | null {
+  if (!(field in args) || args[field] == null) return null
+  const value = args[field]
+  if (typeof value !== 'string' || !REASONING_EFFORT_VALUES.has(value)) {
+    return {
+      ok: false,
+      error: fail('InvalidArguments', `${field} must be one of low, medium, high, or extraHigh.`)
+    }
+  }
+  return { ok: true, value: value as ReasoningEffortValue }
 }
 
 function requiredBoolean(
@@ -718,18 +896,60 @@ function optionalInteger(
   return { ok: true, value }
 }
 
-function filterThreads(threads: ThreadSummaryWire[], query?: string): ThreadSummaryWire[] {
-  const normalized = query?.trim().toLowerCase()
-  if (!normalized) return threads
-  return threads.filter((thread) => {
-    const fields = [
-      thread.id,
-      thread.displayName,
-      thread.originChannel,
-      thread.status
-    ]
-    return fields.some((field) => typeof field === 'string' && field.toLowerCase().includes(normalized))
-  })
+function buildReasoningConfig(effort: ReasoningEffortValue, existing?: Record<string, unknown>): JsonObject {
+  return {
+    enabled: true,
+    effort,
+    output: firstString(existing?.output, existing?.Output) ?? 'full'
+  }
+}
+
+function buildConfigWithReasoningEffort(config: JsonObject | null | undefined, effort: ReasoningEffortValue): JsonObject {
+  const next = cloneJsonObject(config) ?? { mode: 'agent' }
+  const existingReasoning = isRecord(next.reasoning)
+    ? next.reasoning
+    : isRecord(next.Reasoning)
+      ? next.Reasoning
+      : undefined
+  delete next.Reasoning
+  next.reasoning = buildReasoningConfig(effort, existingReasoning)
+  return next
+}
+
+function cloneJsonObject(value: unknown): JsonObject | null {
+  if (!isRecord(value)) return null
+  try {
+    const cloned = JSON.parse(JSON.stringify(value)) as unknown
+    return isRecord(cloned) ? cloned : null
+  } catch {
+    return { ...value }
+  }
+}
+
+function resolvePinnedThreadIdsForWorkspace(
+  pinnedThreadIdsByWorkspace: Record<string, string[]> | undefined,
+  workspacePath: string
+): string[] {
+  return normalizePinnedThreadIds(pinnedThreadIdsByWorkspace?.[workspacePath] ?? [])
+}
+
+function normalizePinnedThreadIds(threadIds: Iterable<string>): string[] {
+  const seen = new Set<string>()
+  const normalized: string[] = []
+  for (const value of threadIds) {
+    const id = typeof value === 'string' ? value.trim() : ''
+    if (!id || seen.has(id)) continue
+    seen.add(id)
+    normalized.push(id)
+  }
+  return normalized
+}
+
+function isSubAgentThreadWire(thread: ThreadSummaryWire): boolean {
+  const source = isRecord(thread.source) ? thread.source : null
+  const kind = stringProperty(source, 'kind')
+  return kind?.toLowerCase() === 'subagent'
+    || thread.originChannel?.toLowerCase() === 'subagent'
 }
 
 function summarizeThread(thread: ThreadSummaryWire): JsonObject {
@@ -749,22 +969,125 @@ function summarizeThreadWithTurns(
   thread: ThreadWire,
   turnLimit: number,
   includeOutputs: boolean,
-  maxOutputCharsPerItem: number
+  maxOutputCharsPerItem: number,
+  turnPage?: JsonObject
 ): JsonObject {
   const turns = Array.isArray(thread.turns) ? thread.turns : []
-  const recentTurns = turns.slice(-turnLimit).map((turn) =>
+  const hasServerPage = isRecord(turnPage)
+  const recentTurns = (hasServerPage ? turns : turns.slice(-turnLimit)).map((turn) =>
     summarizeTurn(turn, includeOutputs, maxOutputCharsPerItem)
   )
-  return {
+  const totalTurns = hasServerPage
+    ? numberProperty(turnPage, 'totalTurns') ?? turns.length
+    : turns.length
+  const page = hasServerPage
+    ? {
+        order: stringProperty(turnPage, 'order') ?? 'oldestFirst',
+        limit: numberProperty(turnPage, 'limit') ?? turnLimit,
+        totalTurns,
+        startOrdinal: numberProperty(turnPage, 'startOrdinal') ?? 0,
+        endOrdinal: numberProperty(turnPage, 'endOrdinal') ?? 0,
+        nextCursor: stringProperty(turnPage, 'nextCursor') ?? null,
+        hasMore: booleanProperty(turnPage, 'hasMore') ?? false
+      }
+    : {
+        order: 'oldestFirst',
+        limit: turnLimit,
+        totalTurns,
+        startOrdinal: recentTurns.length === 0 ? 0 : Math.max(1, totalTurns - recentTurns.length + 1),
+        endOrdinal: recentTurns.length === 0 ? 0 : totalTurns,
+        nextCursor: null,
+        hasMore: totalTurns > recentTurns.length
+      }
+  const summary = {
     ...summarizeThread(thread),
     queuedInputCount: Array.isArray(thread.queuedInputs) ? thread.queuedInputs.length : 0,
-    turnCount: turns.length,
-    page: {
-      order: 'oldest_first',
-      limit: turnLimit,
-      hasMore: turns.length > recentTurns.length
-    },
+    queuedInputs: summarizeQueuedInputs(thread.queuedInputs),
+    turnCount: totalTurns,
+    page,
     turns: recentTurns
+  }
+  return enforceReadSummaryBudget(summary, DEFAULT_READ_SUMMARY_CHARS)
+}
+
+function summarizeQueuedInputs(queuedInputs: unknown): JsonObject[] {
+  const inputs = Array.isArray(queuedInputs) ? queuedInputs : []
+  return inputs.slice(0, MAX_QUEUED_INPUT_SUMMARIES).map((input) => {
+    if (!isRecord(input)) {
+      return { id: 'unknown', status: 'queued' }
+    }
+    const sender = isRecord(input.sender) ? input.sender : null
+    return {
+      id: stringProperty(input, 'id') ?? '',
+      status: stringProperty(input, 'status') ?? 'queued',
+      displayText: truncate(stringProperty(input, 'displayText') ?? '', 500),
+      createdAt: stringProperty(input, 'createdAt') ?? null,
+      sender: sender
+        ? {
+            displayName: stringProperty(sender, 'displayName') ?? null,
+            userId: stringProperty(sender, 'userId') ?? null,
+            channelName: stringProperty(sender, 'channelName') ?? null
+          }
+        : null,
+      triggerLabel: stringProperty(input, 'triggerLabel') ?? null,
+      readyAfterTurnId: stringProperty(input, 'readyAfterTurnId') ?? null
+    }
+  })
+}
+
+function enforceReadSummaryBudget(summary: JsonObject, maxChars: number): JsonObject {
+  if (jsonLength(summary) <= maxChars) return summary
+  summary.summaryTruncated = true
+  const turns = Array.isArray(summary.turns) ? summary.turns : []
+  for (let turnIndex = turns.length - 1; turnIndex >= 0; turnIndex--) {
+    const turn = turns[turnIndex]
+    if (!isRecord(turn)) continue
+    const items = Array.isArray(turn.items) ? turn.items : []
+    for (let itemIndex = items.length - 1; itemIndex >= 0; itemIndex--) {
+      const item = items[itemIndex]
+      if (!isRecord(item)) continue
+      shrinkStringFields(item, [
+        'output',
+        'result',
+        'contentPreview',
+        'structuredResultPreview',
+        'argumentsPreview',
+        'text',
+        'message',
+        'reason'
+      ], 200)
+      if (jsonLength(summary) <= maxChars) return summary
+    }
+    if (items.length > 4) {
+      turn.omittedItemCount = items.length - 4
+      turn.items = items.slice(0, 4)
+      if (jsonLength(summary) <= maxChars) return summary
+    }
+  }
+  if (turns.length > 3) {
+    summary.omittedTurnCount = turns.length - 3
+    summary.turns = turns.slice(-3)
+  }
+  if (jsonLength(summary) <= maxChars) return summary
+  summary.turns = []
+  summary.omittedTurnCount = turns.length
+  return summary
+}
+
+function shrinkStringFields(target: Record<string, unknown>, fields: string[], maxChars: number): void {
+  for (const field of fields) {
+    const value = target[field]
+    if (typeof value === 'string' && value.length > maxChars) {
+      target[field] = truncate(value, maxChars)
+    }
+  }
+}
+
+function jsonLength(value: unknown): number {
+  try {
+    return JSON.stringify(value).length
+  } catch {
+    return Number.POSITIVE_INFINITY
   }
 }
 
@@ -1121,15 +1444,16 @@ function formatReadThreadText(summary: JsonObject): string {
     : '(untitled)'
   const turnCount = numberProperty(summary, 'turnCount') ?? turns.length
   const queuedInputCount = numberProperty(summary, 'queuedInputCount') ?? 0
+  const queuedInputs = Array.isArray(summary.queuedInputs) ? summary.queuedInputs : []
   const page = isRecord(summary.page) ? summary.page : {}
   const hasMore = booleanProperty(page, 'hasMore') ?? false
-  const firstShown = turns.length === 0 ? 0 : Math.max(1, turnCount - turns.length + 1)
-  const lastShown = turns.length === 0 ? 0 : turnCount
+  const firstShown = numberProperty(page, 'startOrdinal') ?? (turns.length === 0 ? 0 : Math.max(1, turnCount - turns.length + 1))
+  const lastShown = numberProperty(page, 'endOrdinal') ?? (turns.length === 0 ? 0 : turnCount)
   const lines = [
     `Thread ${summary.id}: ${title}`,
     `Status: ${summary.status ?? 'unknown'}`,
     `Runtime: ${formatRuntimeSummary(summary.runtime)}`,
-    `Queued inputs: ${queuedInputCount}`,
+    `Queued inputs: ${queuedInputCount}${queuedInputs.length > 0 ? `; showing ${queuedInputs.length}` : ''}`,
     `Turns: ${turnCount} total; showing ${firstShown}-${lastShown}${hasMore ? ' (more older turns available)' : ''}`
   ]
 
@@ -1365,7 +1689,9 @@ function firstString(...values: unknown[]): string | null {
 }
 
 function truncate(value: string, maxChars: number): string {
-  return value.length <= maxChars ? value : `${value.slice(0, maxChars)}...`
+  if (value.length <= maxChars) return value
+  if (maxChars <= 3) return value.slice(0, maxChars)
+  return `${value.slice(0, maxChars - 3)}...`
 }
 
 function requestErrorMessage(error: unknown): string {

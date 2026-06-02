@@ -117,10 +117,10 @@ public sealed class HubTurnNotificationPolicyTests
     public void BuildDesktopOpenActionUrl_EncodesWorkspaceAndThread()
     {
         var url = HubTurnNotificationPolicy.BuildDesktopOpenActionUrl(
-            @"E:\Git\dotcraft",
+            @"E:\examples\workspace",
             "thread 1");
 
-        Assert.Equal("dotcraft://workspace/open?path=E%3A%5CGit%5Cdotcraft&threadId=thread%201", url);
+        Assert.Equal("dotcraft://workspace/open?path=E%3A%5Cexamples%5Cworkspace&threadId=thread%201", url);
     }
 
     private sealed class FakeSessionService(SessionThread? thread, bool throwOnGet = false) : ISessionService

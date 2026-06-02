@@ -218,6 +218,10 @@ Common thread methods:
 | `thread/config/update` | Update thread configuration. |
 | `thread/mode/set` | Switch agent mode, such as `plan` or `agent`. |
 
+`thread/list` accepts optional `query`, `limit`, and opaque `cursor` params. When paged, the result includes `nextCursor` and `totalMatched`; callers that omit both `limit` and `cursor` keep receiving the full compatible list.
+
+`thread/read` accepts optional `turnLimit` and opaque `cursor` params. Paged reads return the newest page first, keep turns oldest-first within the page, and include `turnPage` metadata with `nextCursor` for older history. `queuedInputs` remains current thread state and is returned independently of turn-history pagination.
+
 ### Runtime Dynamic Tools and App Context
 
 Clients that expose Runtime Dynamic Tools can also attach compact app context on `thread/start` or `thread/resume`. Use `additionalContext` for short model-visible guidance that helps the agent discover or use client-owned capabilities, especially deferred tools.

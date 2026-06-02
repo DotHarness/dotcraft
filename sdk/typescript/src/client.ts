@@ -167,7 +167,24 @@ export class DotCraftWireClient {
     workspacePath?: string;
     channelContext?: string;
     includeArchived?: boolean;
+    query?: string;
+    limit?: number;
+    cursor?: string;
   }): Promise<Thread[]> {
+    const page = await this.threadListPage(params);
+    return page.threads;
+  }
+
+  async threadListPage(params: {
+    channelName: string;
+    userId: string;
+    workspacePath?: string;
+    channelContext?: string;
+    includeArchived?: boolean;
+    query?: string;
+    limit?: number;
+    cursor?: string;
+  }): Promise<{ threads: Thread[]; nextCursor?: string | null; totalMatched?: number | null; raw: Record<string, unknown> }> {
     const identity: Record<string, unknown> = {
       channelName: params.channelName,
       userId: params.userId,
@@ -175,19 +192,36 @@ export class DotCraftWireClient {
     if (params.workspacePath) identity.workspacePath = params.workspacePath;
     if (params.channelContext) identity.channelContext = params.channelContext;
 
-    const result = (await this.request("thread/list", {
+    const payload: Record<string, unknown> = {
       identity,
       includeArchived: params.includeArchived ?? false,
-    })) as Record<string, unknown>;
+    };
+    if (params.query) payload.query = params.query;
+    if (params.limit != null) payload.limit = params.limit;
+    if (params.cursor) payload.cursor = params.cursor;
+
+    const result = (await this.request("thread/list", payload)) as Record<string, unknown>;
     const data = (result.data as Record<string, unknown>[]) ?? [];
-    return data.map((t) => Thread.fromWire(t));
+    return {
+      threads: data.map((t) => Thread.fromWire(t)),
+      nextCursor: typeof result.nextCursor === "string" ? result.nextCursor : null,
+      totalMatched: typeof result.totalMatched === "number" ? result.totalMatched : null,
+      raw: result,
+    };
   }
 
-  async threadRead(threadId: string, includeTurns = false): Promise<Thread> {
-    const result = (await this.request("thread/read", {
+  async threadRead(
+    threadId: string,
+    includeTurns = false,
+    params?: { turnLimit?: number; cursor?: string },
+  ): Promise<Thread> {
+    const payload: Record<string, unknown> = {
       threadId,
       includeTurns,
-    })) as Record<string, unknown>;
+    };
+    if (params?.turnLimit != null) payload.turnLimit = params.turnLimit;
+    if (params?.cursor) payload.cursor = params.cursor;
+    const result = (await this.request("thread/read", payload)) as Record<string, unknown>;
     return Thread.fromWire((result.thread as Record<string, unknown>) ?? {});
   }
 

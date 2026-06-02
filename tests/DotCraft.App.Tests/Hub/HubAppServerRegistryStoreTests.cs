@@ -14,8 +14,8 @@ public sealed class HubAppServerRegistryStoreTests : IDisposable
         var path = Path.Combine(_tempDir, "hub", "appservers.json");
         var store = new HubAppServerRegistryStore(path);
         var record = new HubAppServerRegistryRecord(
-            WorkspacePath: @"F:\dotcraft",
-            CanonicalWorkspacePath: @"F:\dotcraft",
+            WorkspacePath: @"F:\examples\workspace",
+            CanonicalWorkspacePath: @"F:\examples\workspace",
             DisplayName: "dotcraft",
             State: HubAppServerStates.Unhealthy,
             Pid: 123,

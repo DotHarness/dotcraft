@@ -474,7 +474,7 @@ Request:
 
 ```json
 {
-  "workspacePath": "F:/dotcraft",
+  "workspacePath": "F:/examples/workspace",
   "client": {
     "name": "my-app",
     "version": "0.1.0"

@@ -118,4 +118,58 @@ public sealed class WireClientTests
         Assert.True(response.RootElement.GetProperty("result").GetProperty("success").GetBoolean());
         Assert.Equal("Echo", response.RootElement.GetProperty("result").GetProperty("structuredResult").GetProperty("tool").GetString());
     }
+
+    [Fact]
+    public async Task DotCraftThreadClient_ReadAsync_SendsTurnPaginationParams()
+    {
+        await using var transport = new TestJsonRpcTransport();
+        var connectTask = DotCraftClient.ConnectAsync(transport, new DotCraftClientOptions
+        {
+            ClientName = "test",
+            ClientVersion = "0.1"
+        });
+
+        using var init = await transport.ReadOutboundAsync();
+        var initId = init.RootElement.GetProperty("id").GetInt64();
+        await transport.PushInboundAsync(new
+        {
+            jsonrpc = "2.0",
+            id = initId,
+            result = new
+            {
+                serverInfo = new { name = "dotcraft", version = "test", protocolVersion = "1" },
+                capabilities = new { threadManagement = true }
+            }
+        });
+        using var initialized = await transport.ReadOutboundAsync();
+        Assert.Equal("initialized", initialized.RootElement.GetProperty("method").GetString());
+
+        await using var client = await connectTask;
+        var readTask = client.Threads.ReadAsync("thread_1", includeTurns: true, turnLimit: 2, cursor: "cursor-1");
+
+        using var outbound = await transport.ReadOutboundAsync();
+        Assert.Equal("thread/read", outbound.RootElement.GetProperty("method").GetString());
+        var @params = outbound.RootElement.GetProperty("params");
+        Assert.Equal("thread_1", @params.GetProperty("threadId").GetString());
+        Assert.True(@params.GetProperty("includeTurns").GetBoolean());
+        Assert.Equal(2, @params.GetProperty("turnLimit").GetInt32());
+        Assert.Equal("cursor-1", @params.GetProperty("cursor").GetString());
+
+        var id = outbound.RootElement.GetProperty("id").GetInt64();
+        await transport.PushInboundAsync(new
+        {
+            jsonrpc = "2.0",
+            id,
+            result = new
+            {
+                thread = new { id = "thread_1", status = "active" },
+                turnPage = new { totalTurns = 4, nextCursor = "cursor-2" }
+            }
+        });
+
+        var result = await readTask;
+        Assert.Equal("thread_1", result.ThreadId);
+        Assert.NotNull(result.TurnPage);
+        Assert.Equal("cursor-2", result.TurnPage.Value.GetProperty("nextCursor").GetString());
+    }
 }

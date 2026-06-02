@@ -595,6 +595,15 @@ export function App(): JSX.Element {
     }
   }, [setThreadList, setLoading])
 
+  useEffect(() => {
+    const onPinnedThreadIdsChanged = window.api.settings.onPinnedThreadIdsChanged
+    if (typeof onPinnedThreadIdsChanged !== 'function') return undefined
+    return onPinnedThreadIdsChanged(({ workspacePath, threadIds }) => {
+      if (workspacePath !== protocolWorkspacePathRef.current) return
+      useThreadStore.getState().hydratePinnedThreadIds(workspacePath, threadIds)
+    })
+  }, [])
+
   // -------------------------------------------------------------------------
   // Bootstrap: workspace path + connection store
   // -------------------------------------------------------------------------

@@ -56,6 +56,11 @@ export interface NotificationPayload {
   params: unknown
 }
 
+export interface PinnedThreadIdsChangedPayload {
+  workspacePath: string
+  threadIds: string[]
+}
+
 export interface BrowserEventPayload {
   tabId: string
   threadId?: string
@@ -722,6 +727,7 @@ declare global {
             pinnedThreadIdsByWorkspace?: Record<string, string[]>
           }
         ): Promise<void>
+        onPinnedThreadIdsChanged(callback: (payload: PinnedThreadIdsChangedPayload) => void): UnsubscribeFn
       }
       whatsNew: {
         getReleases(): Promise<WhatsNewRelease[]>

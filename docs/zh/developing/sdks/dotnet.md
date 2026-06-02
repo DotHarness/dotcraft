@@ -22,7 +22,7 @@ SDK 目标框架是 `.NET 10`，序列化使用 `System.Text.Json` 的 camelCase
 `ConnectLocalAsync` 会发现或启动本机 Hub，要求 Hub 为工作区确保 AppServer，然后完成 AppServer `initialize` / `initialized` 握手。
 
 ```csharp
-var workspacePath = @"E:\Git\my-workspace";
+var workspacePath = @"E:\examples\my-workspace";
 
 await using var client = await DotCraftClient.ConnectLocalAsync(
     workspacePath,
@@ -228,6 +228,17 @@ var raw = await client.RequestAsync(
     "thread/read",
     new { threadId, includeTurns = true },
     ct);
+```
+
+typed thread read wrapper 也支持 turn 历史分页：
+
+```csharp
+var snapshot = await client.Threads.ReadAsync(
+    threadId,
+    includeTurns: true,
+    turnLimit: 10,
+    cursor: nextCursor,
+    cancellationToken: ct);
 ```
 
 测试或自定义 host 可以直接使用 `DotCraftWireClient` 和自定义 `IJsonRpcTransport`。
