@@ -1,6 +1,6 @@
 {
   "name": "@dotcraft/channel-weixin",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "type": "module",
   "description": "DotCraft external channel adapter for WeChat (iLink) using @dotcraft/sdk",
