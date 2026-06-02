@@ -1073,7 +1073,7 @@ describe('SettingsView self-learning settings', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Connections' }))
 
     expect(await screen.findByText('Managed by Servers')).toBeInTheDocument()
-    expect(screen.getByText('This remote connection uses the saved server stack. Use Servers to disconnect or change it.')).toBeInTheDocument()
+    expect(screen.getByText('This remote connection uses the saved server instance. Use Servers to disconnect or change it.')).toBeInTheDocument()
     expect(screen.queryByLabelText('Remote WebSocket URL')).not.toBeInTheDocument()
     expect(screen.queryByText('Enter a remote WebSocket URL before applying Remote mode.')).not.toBeInTheDocument()
     expect(screen.queryByText('Connection changes are staged. Apply them to connect to the remote AppServer.')).not.toBeInTheDocument()

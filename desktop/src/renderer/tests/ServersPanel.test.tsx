@@ -103,7 +103,7 @@ describe('ServersPanel', () => {
     })
   })
 
-  it('opens Add stack as a settings page instead of a modal', async () => {
+  it('opens Add instance as a settings page instead of a modal', async () => {
     useRemoteServersStore.setState({
       hosts: [
         {
@@ -119,7 +119,7 @@ describe('ServersPanel', () => {
 
     renderServersPanel()
 
-    fireEvent.click(screen.getAllByRole('button', { name: /add stack/i })[0])
+    fireEvent.click(screen.getAllByRole('button', { name: /add instance/i })[0])
 
     await waitFor(() => {
       expect(window.api.remoteServers.test).toHaveBeenCalledWith({ id: 'h_prod' })
@@ -177,7 +177,7 @@ describe('ServersPanel', () => {
     })
   })
 
-  it('discovers a remote DotCraft stack and fills the Add stack form', async () => {
+  it('discovers a remote DotCraft instance and fills the Add instance form', async () => {
     useRemoteServersStore.setState({
       hosts: [
         {
@@ -207,7 +207,7 @@ describe('ServersPanel', () => {
     await waitFor(() => {
       expect(window.api.remoteServers.test).toHaveBeenCalledWith({ id: 'h_prod' })
     })
-    fireEvent.click(screen.getAllByRole('button', { name: /add stack/i })[0])
+    fireEvent.click(screen.getAllByRole('button', { name: /add instance/i })[0])
     fireEvent.click(screen.getByRole('button', { name: /discover/i }))
 
     await waitFor(() => {
