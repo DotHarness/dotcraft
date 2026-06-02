@@ -46,6 +46,7 @@ import type { WorkspaceConfigChangedPayload } from '../../utils/workspaceConfigC
 interface ConversationWelcomeProps {
   workspacePath: string
   identityWorkspacePath?: string
+  remoteWorkspace?: boolean
   workspaceConfigChange?: WorkspaceConfigChangedPayload | null
   workspaceConfigChangeSeq?: number
 }
@@ -111,6 +112,7 @@ function sanitizeSuggestionTitle(raw: string): string {
 export function ConversationWelcome({
   workspacePath,
   identityWorkspacePath,
+  remoteWorkspace = false,
   workspaceConfigChange = null,
   workspaceConfigChangeSeq = 0
 }: ConversationWelcomeProps): JSX.Element {
@@ -185,13 +187,14 @@ export function ConversationWelcome({
 
   const isConnected = connectionStatus === 'connected'
   const busy = starting || !isConnected
-  const showMentionPopover = atQuery !== null && !mentionDismissed
+  const showMentionPopover = atQuery !== null && !mentionDismissed && !remoteWorkspace
   const canUseCommandPicker = capabilities?.commandManagement === true
   const canUseSkillPicker = capabilities?.skillsManagement === true
   const canUseThreadGoals = capabilities?.threadGoals === true
   const canUseAppBinding = capabilities?.appBinding === true
   const canUseSystemActions = true
   const canUseSlashPicker = canUseCommandPicker || canUseSkillPicker || canUseThreadGoals || canUseSystemActions
+  const remoteLocalFilesUnavailable = remoteWorkspace ? t('input.remoteLocalFilesUnavailable') : undefined
   const normalizedSlashQuery = slashQuery?.toLowerCase() ?? null
   const isExactSystemSlashQuery = normalizedSlashQuery === 'plan' || normalizedSlashQuery === 'agent'
   const showSlashPopover = slashQuery !== null && !slashDismissed && canUseSlashPicker && !isExactSystemSlashQuery
@@ -371,10 +374,11 @@ export function ConversationWelcome({
   }, [createAppBindingRequest, t, waitForThreadAppBinding, welcomeAppIds, welcomeApps])
 
   const readWorkspaceConfig = useCallback(async (): Promise<Record<string, unknown>> => {
+    if (remoteWorkspace) return {}
     if (!workspaceConfigPath) return {}
     const raw = await window.api.file.readFile(workspaceConfigPath)
     return parseJsonConfig<Record<string, unknown>>(raw, {})
-  }, [workspaceConfigPath])
+  }, [remoteWorkspace, workspaceConfigPath])
 
   const getCaseInsensitiveValue = useCallback((record: Record<string, unknown>, key: string): unknown => {
     const expected = key.toLowerCase()
@@ -586,9 +590,14 @@ export function ConversationWelcome({
   const displayedSuggestions = dynamicSuggestions ?? suggestions
 
   const handleAtQuery = useCallback((q: string | null): void => {
+    if (remoteWorkspace) {
+      setAtQuery(null)
+      setMentionDismissed(true)
+      return
+    }
     setAtQuery(q)
     if (q !== null) setMentionDismissed(false)
-  }, [])
+  }, [remoteWorkspace])
 
   const handleSlashQuery = useCallback((q: string | null): void => {
     setSlashQuery(q)
@@ -866,6 +875,10 @@ export function ConversationWelcome({
 
   const saveDataUrlAsTemp = useCallback(
     async (dataUrl: string, fileName: string, mimeType: string): Promise<void> => {
+      if (remoteWorkspace) {
+        addToast(t('input.remoteLocalFilesUnavailable'), 'warning')
+        return
+      }
       const baseLen = dataUrl.split(',')[1]?.length ?? 0
       const approxBytes = Math.floor((baseLen * 3) / 4)
       if (approxBytes > MAX_IMAGE_BYTES) {
@@ -887,7 +900,7 @@ export function ConversationWelcome({
         addToast(t('welcomeComposer.saveImageFailed', { error: msg }), 'error')
       }
     },
-    [images.length, t]
+    [images.length, remoteWorkspace, t]
   )
 
   const showGoalUnavailable = useCallback((): void => {
@@ -1015,6 +1028,10 @@ export function ConversationWelcome({
     ) {
       return
     }
+    if (remoteWorkspace && (images.length > 0 || files.length > 0)) {
+      addToast(t('input.remoteLocalFilesUnavailable'), 'warning')
+      return
+    }
 
     const systemCommand = parseWelcomeSystemSlashCommand(trimmed)
     if (systemCommand) {
@@ -1109,11 +1126,17 @@ export function ConversationWelcome({
     reasoningConfig,
     modelLoading,
     clearWelcomeDraft,
-    executeWelcomeGoalCommand
+    executeWelcomeGoalCommand,
+    remoteWorkspace,
+    t
   ])
 
   const onPasteImage = useCallback(
     (file: File): void => {
+      if (remoteWorkspace) {
+        addToast(t('input.remoteLocalFilesUnavailable'), 'warning')
+        return
+      }
       if (!isImageFile(file)) return
       const reader = new FileReader()
       reader.onload = () => {
@@ -1122,14 +1145,15 @@ export function ConversationWelcome({
       }
       reader.readAsDataURL(file)
     },
-    [saveDataUrlAsTemp]
+    [remoteWorkspace, saveDataUrlAsTemp, t]
   )
 
   const onDragOver = useCallback((e: React.DragEvent): void => {
     e.preventDefault()
     e.stopPropagation()
+    if (remoteWorkspace) return
     setDragOver(true)
-  }, [])
+  }, [remoteWorkspace])
 
   const addPickedFiles = useCallback((picked: Array<{ path: string; fileName: string }>): void => {
     if (picked.length === 0) return
@@ -1137,6 +1161,10 @@ export function ConversationWelcome({
   }, [])
 
   const pickFiles = useCallback(async (): Promise<void> => {
+    if (remoteWorkspace) {
+      addToast(t('input.remoteLocalFilesUnavailable'), 'warning')
+      return
+    }
     try {
       const picked = await window.api.workspace.pickFiles()
       addPickedFiles(picked)
@@ -1144,7 +1172,7 @@ export function ConversationWelcome({
       const msg = err instanceof Error ? err.message : String(err)
       addToast(t('input.pickFilesFailed', { error: msg }), 'error')
     }
-  }, [addPickedFiles, t])
+  }, [addPickedFiles, remoteWorkspace, t])
 
   const onDragLeave = useCallback((e: React.DragEvent): void => {
     e.preventDefault()
@@ -1153,16 +1181,24 @@ export function ConversationWelcome({
   }, [])
 
   const attachImages = useCallback((picked: File[]): void => {
+    if (remoteWorkspace) {
+      if (picked.length > 0) addToast(t('input.remoteLocalFilesUnavailable'), 'warning')
+      return
+    }
     for (const file of picked) {
       onPasteImage(file)
     }
-  }, [onPasteImage])
+  }, [onPasteImage, remoteWorkspace, t])
 
   const onDrop = useCallback(
     (e: React.DragEvent): void => {
       e.preventDefault()
       e.stopPropagation()
       setDragOver(false)
+      if (remoteWorkspace) {
+        addToast(t('input.remoteLocalFilesUnavailable'), 'warning')
+        return
+      }
       const { imageFiles, fileAttachments, skippedCount } = classifyDroppedComposerFiles(
         e.dataTransfer,
         window.api.workspace.getPathForFile
@@ -1175,7 +1211,7 @@ export function ConversationWelcome({
         addToast(t('input.dropItemsSkipped', { count: skippedCount }), 'warning')
       }
     },
-    [attachImages, t]
+    [attachImages, remoteWorkspace, t]
   )
 
   function fillSuggestion(prompt: string): void {
@@ -1377,7 +1413,7 @@ export function ConversationWelcome({
                       onSubmit={() => {
                         void sendFromWelcome()
                       }}
-                      onAtQuery={handleAtQuery}
+                      onAtQuery={remoteWorkspace ? undefined : handleAtQuery}
                       onSlashQuery={handleSlashQuery}
                       onSkillQuery={handleSkillQuery}
                       onContentChange={() => {
@@ -1424,6 +1460,7 @@ export function ConversationWelcome({
                     onTogglePlanMode={() => {
                       toggleWelcomeMode()
                     }}
+                    attachmentDisabledReason={remoteLocalFilesUnavailable}
                   />
 
                   <ApprovalPolicyPicker

@@ -1038,6 +1038,7 @@ export const MESSAGES_EN = {
   'input.nonImageRejected': 'Only image files can be attached ({{count}} file(s) skipped).',
   'input.dropItemsSkipped': 'Some dropped items could not be attached ({{count}} skipped).',
   'input.pickFilesFailed': 'Could not attach files: {{error}}',
+  'input.remoteLocalFilesUnavailable': 'Local file attachments are not available in remote workspaces yet.',
   'input.truncated': 'Input truncated to {{max}} characters',
   'composer.dropImage': 'Drop files to attach',
   'mascot.error.title': 'Something went wrong',
@@ -1100,6 +1101,7 @@ export const MESSAGES_EN = {
   'threadHeader.openWorkspaceTitle': 'Open workspace in explorer',
   'threadHeader.commitTitle': 'Commit file changes to git',
   'threadHeader.noCommitTitle': 'No changes to commit',
+  'threadHeader.remoteLocalGitUnavailable': 'Local git actions are not available in remote workspaces yet.',
   'threadHeader.renameAria': 'Rename thread',
   'threadHeader.renameTitle': 'Double-click to rename',
   'threadHeader.open': 'Open',
@@ -1326,6 +1328,8 @@ export const MESSAGES_EN = {
   'skillMarket.dotCraftInstallUnavailableSkills': 'This AppServer does not support skill management.',
   'skillMarket.dotCraftInstallUnavailableVariants': 'This AppServer does not support workspace skill adjustments.',
   'skillMarket.dotCraftInstallUnavailableSelfLearning': 'Enable self-learning and restart AppServer before using DotCraft install.',
+  'skillMarket.dotCraftInstallUnavailableRemote': 'DotCraft install is not available in remote workspaces yet.',
+  'skillMarket.installUnavailableRemote': 'Marketplace installs are not available in remote workspaces yet.',
   'skillMarket.dotCraftInstallPrompt':
     'Install and check "{{name}}" for this workspace.\n\n' +
     'Candidate: {{candidateDir}}\n' +
@@ -2190,6 +2194,7 @@ export const MESSAGES_EN = {
   'skillDetail.restoreOriginalSuccess': 'Restored original skill',
   'skillDetail.restoreOriginalNoop': 'This skill is already using its original source',
   'skillDetail.restoreOriginalUnavailable': 'Skill source restore is unavailable in the current runtime.',
+  'skillDetail.openFolderRemoteUnavailable': 'Opening skill folders is not available in remote workspaces.',
   'skillDetail.restoreOriginalFailed': 'Could not restore original skill: {{error}}',
   'skillDetail.tryInChat': 'Try in chat',
   'skillDetail.uninstall': 'Uninstall',

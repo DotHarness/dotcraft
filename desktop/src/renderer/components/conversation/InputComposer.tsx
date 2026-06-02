@@ -102,6 +102,7 @@ interface InputComposerProps {
   reasoningValue?: ReasoningQuickValue
   modelLoading?: boolean
   modelDisabled?: boolean
+  remoteWorkspace?: boolean
   /** When true, model/list reported that the upstream API does not support listing; show a read-only label. */
   modelListUnsupportedEndpoint?: boolean
   modelCatalogError?: boolean
@@ -124,6 +125,7 @@ export function InputComposer({
   reasoningValue = 'off',
   modelLoading = false,
   modelDisabled = false,
+  remoteWorkspace = false,
   modelListUnsupportedEndpoint = false,
   modelCatalogError = false,
   modelCatalogErrorMessage = null,
@@ -196,8 +198,9 @@ export function InputComposer({
   const canConsolidateCurrentThread = canUseManualMemoryConsolidation && turnsLength > 0 && turnStatus === 'idle' && !isMaintenanceActive
   const canUseSystemActions = true
   const canUseSlashPicker = canUseCommandPicker || canUseSkillPicker || canUseThreadGoals || canUseSystemActions
+  const remoteLocalFilesUnavailable = remoteWorkspace ? t('input.remoteLocalFilesUnavailable') : undefined
 
-  const showMentionPopover = atQuery !== null && !mentionDismissed
+  const showMentionPopover = atQuery !== null && !mentionDismissed && !remoteWorkspace
   const normalizedSlashQuery = slashQuery?.toLowerCase() ?? null
   const isExactSystemSlashQuery = normalizedSlashQuery === 'plan' || normalizedSlashQuery === 'agent' || normalizedSlashQuery === 'compact' || normalizedSlashQuery === 'consolidate'
   const showSlashPopover = slashQuery !== null && !slashDismissed && canUseSlashPicker && !isExactSystemSlashQuery
@@ -372,9 +375,14 @@ export function InputComposer({
   ])
 
   const handleAtQuery = useCallback((q: string | null): void => {
+    if (remoteWorkspace) {
+      setAtQuery(null)
+      setMentionDismissed(true)
+      return
+    }
     setAtQuery(q)
     if (q !== null) setMentionDismissed(false)
-  }, [])
+  }, [remoteWorkspace])
 
   const handleSlashQuery = useCallback((q: string | null): void => {
     setSlashQuery(q)
@@ -573,6 +581,10 @@ export function InputComposer({
 
   const saveDataUrlAsTemp = useCallback(
     async (dataUrl: string, fileName: string, mimeType: string): Promise<void> => {
+      if (remoteWorkspace) {
+        addToast(t('input.remoteLocalFilesUnavailable'), 'warning')
+        return
+      }
       const baseLen = dataUrl.split(',')[1]?.length ?? 0
       const approxBytes = Math.floor((baseLen * 3) / 4)
       if (approxBytes > MAX_IMAGE_BYTES) {
@@ -597,11 +609,15 @@ export function InputComposer({
         addToast(t('input.saveImageFailed', { error: msg }), 'error')
       }
     },
-    [images.length, t]
+    [images.length, remoteWorkspace, t]
   )
 
   const onPasteImage = useCallback(
     (file: File): void => {
+      if (remoteWorkspace) {
+        addToast(t('input.remoteLocalFilesUnavailable'), 'warning')
+        return
+      }
       if (!isImageFile(file)) {
         addToast(
           t('input.unsupportedImage', { ext: extForFile(file.name) || 'unknown' }),
@@ -616,14 +632,15 @@ export function InputComposer({
       }
       reader.readAsDataURL(file)
     },
-    [saveDataUrlAsTemp]
+    [remoteWorkspace, saveDataUrlAsTemp, t]
   )
 
   const onDragOver = useCallback((e: React.DragEvent): void => {
     e.preventDefault()
     e.stopPropagation()
+    if (remoteWorkspace) return
     setDragOver(true)
-  }, [])
+  }, [remoteWorkspace])
 
   const onDragLeave = useCallback((e: React.DragEvent): void => {
     e.preventDefault()
@@ -632,16 +649,24 @@ export function InputComposer({
   }, [])
 
   const attachImages = useCallback((picked: File[]): void => {
+    if (remoteWorkspace) {
+      if (picked.length > 0) addToast(t('input.remoteLocalFilesUnavailable'), 'warning')
+      return
+    }
     for (const file of picked) {
       onPasteImage(file)
     }
-  }, [onPasteImage])
+  }, [onPasteImage, remoteWorkspace, t])
 
   const onDrop = useCallback(
     (e: React.DragEvent): void => {
       e.preventDefault()
       e.stopPropagation()
       setDragOver(false)
+      if (remoteWorkspace) {
+        addToast(t('input.remoteLocalFilesUnavailable'), 'warning')
+        return
+      }
       const { imageFiles, fileAttachments, skippedCount } = classifyDroppedComposerFiles(
         e.dataTransfer,
         window.api.workspace.getPathForFile
@@ -654,7 +679,7 @@ export function InputComposer({
         addToast(t('input.dropItemsSkipped', { count: skippedCount }), 'warning')
       }
     },
-    [attachImages, t]
+    [attachImages, remoteWorkspace, t]
   )
 
   const sendMessage = useCallback(async () => {
@@ -664,6 +689,10 @@ export function InputComposer({
     if (!trimmed && images.length === 0 && files.length === 0) return
     if (isWaitingApproval || isWaitingInput) return
     if (modelLoading) return
+    if (remoteWorkspace && (images.length > 0 || files.length > 0)) {
+      addToast(t('input.remoteLocalFilesUnavailable'), 'warning')
+      return
+    }
 
     const systemCommand = parseSystemSlashCommand(trimmed)
     if (systemCommand) {
@@ -774,7 +803,7 @@ export function InputComposer({
     } finally {
       sendInFlightRef.current = false
     }
-  }, [compactThreadContext, consolidateThreadMemory, executeGoalCommand, files, images, isBusyForInput, isWaitingApproval, isWaitingInput, modelLoading, setComposerMode, threadId, workspacePath, t])
+  }, [compactThreadContext, consolidateThreadMemory, executeGoalCommand, files, images, isBusyForInput, isWaitingApproval, isWaitingInput, modelLoading, remoteWorkspace, setComposerMode, threadId, workspacePath, t])
 
   const removeQueuedInput = useCallback(async (queuedInputId: string): Promise<void> => {
     try {
@@ -1002,6 +1031,10 @@ export function InputComposer({
   }, [])
 
   const pickFiles = useCallback(async (): Promise<void> => {
+    if (remoteWorkspace) {
+      addToast(t('input.remoteLocalFilesUnavailable'), 'warning')
+      return
+    }
     try {
       const picked = await window.api.workspace.pickFiles()
       addPickedFiles(picked)
@@ -1009,7 +1042,7 @@ export function InputComposer({
       const msg = err instanceof Error ? err.message : String(err)
       addToast(t('input.pickFilesFailed', { error: msg }), 'error')
     }
-  }, [addPickedFiles, t])
+  }, [addPickedFiles, remoteWorkspace, t])
 
   const onSelectFile = useCallback(
     (relativePath: string): void => {
@@ -1161,7 +1194,7 @@ export function InputComposer({
                 onSubmit={() => {
                   void sendMessage()
                 }}
-                onAtQuery={handleAtQuery}
+                onAtQuery={remoteWorkspace ? undefined : handleAtQuery}
                 onSlashQuery={handleSlashQuery}
                 onSkillQuery={handleSkillQuery}
                 onContentChange={handleComposerContentChange}
@@ -1195,6 +1228,7 @@ export function InputComposer({
               onTogglePlanMode={() => {
                 void toggleMode()
               }}
+              attachmentDisabledReason={remoteLocalFilesUnavailable}
             />
 
             <ApprovalPolicyPicker threadId={threadId} disabled={isBusyForInput || isWaitingApproval || isWaitingInput} />

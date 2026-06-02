@@ -191,6 +191,8 @@ interface ConversationState {
   threadMode: ThreadMode
   /** Workspace root path (for cumulative diff disk reads) */
   workspacePath: string
+  /** True when the active AppServer represents a remote workspace. */
+  remoteWorkspaceActive: boolean
   /** File diffs accumulated for the active thread (cross-turn), keyed by filePath */
   changedFiles: Map<string, FileDiff>
   /** Per tool-call item incremental diff (Detail Panel uses cumulative changedFiles) */
@@ -337,6 +339,8 @@ interface ConversationActions {
   onUserInputResolved(): void
   /** Set workspace path for file read IPC (call from App when path is known) */
   setWorkspacePath(path: string): void
+  /** Set whether local file IPC must be disabled for the active conversation. */
+  setRemoteWorkspaceActive(active: boolean): void
   reset(): void
 }
 
@@ -368,6 +372,7 @@ const initialState: ConversationState = {
   queuedInputs: [],
   threadMode: 'agent',
   workspacePath: '',
+  remoteWorkspaceActive: false,
   changedFiles: new Map<string, FileDiff>(),
   itemDiffs: new Map<string, FileDiff>(),
   streamingItemDiffs: new Map<string, FileDiff>(),
@@ -1024,6 +1029,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
     // for WriteFile/EditFile calls.
     const rehydratedChangedFiles = new Map<string, FileDiff>()
     const rehydratedItemDiffs = new Map<string, FileDiff>()
+    const rehydrateLocalDiffs = !get().remoteWorkspaceActive
     const rehydratedTurns = converted.map((turn) => {
       // Build a callId -> toolResult lookup for this turn
       const resultByCallId = new Map<string, ConversationItem>()
@@ -1077,7 +1083,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
           : mergedWithToolExecution
 
         // Accumulate diffs for file-writing tools (same path may appear multiple times)
-        if (item.arguments && (item.toolName === 'WriteFile' || item.toolName === 'EditFile')) {
+        if (rehydrateLocalDiffs && item.arguments && (item.toolName === 'WriteFile' || item.toolName === 'EditFile')) {
           const fp =
             (item.arguments.path as string | undefined) ?? parseResultPath(resultText) ?? ''
           if (fp) {
@@ -1603,7 +1609,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
         } else {
           nextStreamingItemDiffs.delete(itemId)
         }
-        if (previewPath && !baseline && state.workspacePath) {
+        if (previewPath && !baseline && state.workspacePath && !state.remoteWorkspaceActive) {
           shouldLoadBaseline = true
           baselinePath = previewPath
           nextArgumentsPreviewForLoad = capturedPreview
@@ -1621,7 +1627,9 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
     })
 
     if (!shouldLoadBaseline || !baselinePath) return
-    const workspacePath = get().workspacePath
+    const state = get()
+    if (state.remoteWorkspaceActive) return
+    const workspacePath = state.workspacePath
     if (!workspacePath || typeof window === 'undefined' || !window.api?.file?.readFile) return
     const absPath = toAbsoluteWorkspacePath(workspacePath, baselinePath)
     void window.api.file.readFile(absPath)
@@ -2026,7 +2034,8 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
         ?.items.find((i) => i.type === 'toolCall' && i.toolCallId === callId)
       const toolName = matchedCallItem?.toolName ?? ''
       const args = matchedCallItem?.arguments
-      const wsPath = get().workspacePath
+      const afterToolState = get()
+      const wsPath = afterToolState.remoteWorkspaceActive ? '' : afterToolState.workspacePath
       if (args && (toolName === 'WriteFile' || toolName === 'EditFile')) {
         const fp = (args.path as string | undefined) ?? parseResultPath(resultText) ?? ''
         if (fp && matchedCallItem?.id) {
@@ -2288,6 +2297,9 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
   setWorkspacePath(path) {
     set({ workspacePath: path })
   },
+  setRemoteWorkspaceActive(active) {
+    set({ remoteWorkspaceActive: active })
+  },
 
   onApprovalRequest(bridgeId, params) {
     const state = get()
@@ -2456,6 +2468,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
     set((state) => ({
       ...initialState,
       workspacePath: state.workspacePath,
+      remoteWorkspaceActive: state.remoteWorkspaceActive,
       changedFiles: new Map<string, FileDiff>(),
       itemDiffs: new Map<string, FileDiff>(),
       streamingItemDiffs: new Map<string, FileDiff>(),

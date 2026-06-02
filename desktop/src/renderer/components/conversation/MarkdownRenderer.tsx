@@ -36,6 +36,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
 }: MarkdownRendererProps): JSX.Element {
   const t = useT()
   const workspacePath = useConversationStore((s) => s.workspacePath)
+  const remoteWorkspaceActive = useConversationStore((s) => s.remoteWorkspaceActive)
   const activeThreadId = useThreadStore((s) => s.activeThreadId)
 
   const customComponents = useMemo<Components>(() => ({
@@ -48,6 +49,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
         <InlineReferenceLink
           href={href}
           workspacePath={workspacePath}
+          remoteWorkspaceActive={remoteWorkspaceActive}
           activeThreadId={activeThreadId}
           linkMode={linkMode}
           t={t}
@@ -57,7 +59,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
         </InlineReferenceLink>
       )
     }
-  }), [activeThreadId, enableMermaid, linkMode, t, workspacePath])
+  }), [activeThreadId, enableMermaid, linkMode, remoteWorkspaceActive, t, workspacePath])
 
   return (
     <div
@@ -382,12 +384,14 @@ function InlineReferenceLink({
   href,
   children,
   workspacePath,
+  remoteWorkspaceActive,
   activeThreadId,
   linkMode,
   t,
   ...props
 }: React.AnchorHTMLAttributes<HTMLAnchorElement> & {
   workspacePath: string
+  remoteWorkspaceActive: boolean
   activeThreadId: string | null
   linkMode: 'conversation' | 'external'
   t: (key: string) => string
@@ -414,6 +418,7 @@ function InlineReferenceLink({
       return
     }
     if (!href || !workspacePath || !activeThreadId) return
+    if (remoteWorkspaceActive && presentation.kind === 'file') return
     await openConversationLink({
       target: href,
       workspacePath,
@@ -424,6 +429,7 @@ function InlineReferenceLink({
   }
 
   function handleContextMenu(event: React.MouseEvent<HTMLAnchorElement>): void {
+    if (remoteWorkspaceActive) return
     if (linkMode !== 'conversation' || !presentation.absolutePath) return
     event.preventDefault()
     event.stopPropagation()

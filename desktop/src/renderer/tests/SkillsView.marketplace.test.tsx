@@ -8,6 +8,7 @@ import { useSkillMarketStore } from '../stores/skillMarketStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
 import { useConnectionStore } from '../stores/connectionStore'
+import { useConversationStore } from '../stores/conversationStore'
 import { useToastStore } from '../stores/toastStore'
 
 const settingsGet = vi.fn()
@@ -61,6 +62,8 @@ describe('SkillsView marketplace browse and manage modes', () => {
       dotCraftInstallSlug: null
     })
     useConnectionStore.getState().reset()
+    useConversationStore.getState().reset()
+    useConversationStore.setState({ remoteWorkspaceActive: false })
     useConnectionStore.getState().setStatus({
       status: 'connected',
       capabilities: {
@@ -575,6 +578,22 @@ describe('SkillsView marketplace browse and manage modes', () => {
       type: 'text',
       text: expect.stringContaining('Do not rewrite the candidate bundle.')
     }))
+  })
+
+  it('disables local marketplace installs in remote workspaces', async () => {
+    useConversationStore.setState({ remoteWorkspaceActive: true })
+    renderView()
+
+    fireEvent.change(await screen.findByPlaceholderText('Search skills or install from Marketplace'), {
+      target: { value: 'git' }
+    })
+    fireEvent.click(await screen.findByText('Git Helper'))
+    const dialog = await screen.findByRole('dialog', { name: 'Git Helper' })
+
+    expect(within(dialog).getByRole('button', { name: 'Install' })).toBeDisabled()
+    expect(within(dialog).getByRole('button', { name: 'Install with DotCraft' })).toBeDisabled()
+    expect(skillMarketInstall).not.toHaveBeenCalled()
+    expect(skillMarketPrepareDotCraftInstall).not.toHaveBeenCalled()
   })
 
   it('disables DotCraft install when self-learning is disabled', async () => {

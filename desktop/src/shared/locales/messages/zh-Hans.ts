@@ -990,6 +990,7 @@ export const MESSAGES_ZH_HANS = {
   'input.nonImageRejected': '只能附加图片文件（已跳过 {{count}} 个文件）。',
   'input.dropItemsSkipped': '部分拖入项目无法附加（已跳过 {{count}} 个）。',
   'input.pickFilesFailed': '附加文件失败：{{error}}',
+  'input.remoteLocalFilesUnavailable': '远端工作区暂不支持本地文件附件。',
   'input.truncated': '输入已截断为 {{max}} 个字符',
   'composer.dropImage': '拖放文件以附加',
   'mascot.error.title': '出错了',
@@ -1051,6 +1052,7 @@ export const MESSAGES_ZH_HANS = {
   'threadHeader.openWorkspaceTitle': '在资源管理器中打开工作区',
   'threadHeader.commitTitle': '将文件变更提交到 git',
   'threadHeader.noCommitTitle': '没有可提交的更改',
+  'threadHeader.remoteLocalGitUnavailable': '远端工作区暂不支持本地 git 操作。',
   'threadHeader.renameAria': '重命名会话',
   'threadHeader.renameTitle': '双击重命名',
   'threadHeader.open': '打开',
@@ -1274,6 +1276,8 @@ export const MESSAGES_ZH_HANS = {
   'skillMarket.dotCraftInstallUnavailableSkills': '当前 AppServer 不支持技能管理。',
   'skillMarket.dotCraftInstallUnavailableVariants': '当前 AppServer 不支持工作区技能调整。',
   'skillMarket.dotCraftInstallUnavailableSelfLearning': '启用自我学习并重启 AppServer 后才能使用 DotCraft 安装。',
+  'skillMarket.dotCraftInstallUnavailableRemote': '远端工作区暂不支持让 DotCraft 安装技能。',
+  'skillMarket.installUnavailableRemote': '远端工作区暂不支持从市场安装技能。',
   'skillMarket.dotCraftInstallPrompt':
     '请为当前工作区安装并检查“{{name}}”。\n\n' +
     '候选目录：{{candidateDir}}\n' +
@@ -2106,6 +2110,7 @@ export const MESSAGES_ZH_HANS = {
   'skillDetail.restoreOriginalSuccess': '已恢复源文件',
   'skillDetail.restoreOriginalNoop': '当前已经在使用源文件',
   'skillDetail.restoreOriginalUnavailable': '当前运行时不可恢复技能源文件。',
+  'skillDetail.openFolderRemoteUnavailable': '远端工作区不能打开本地技能目录。',
   'skillDetail.restoreOriginalFailed': '无法恢复源文件：{{error}}',
   'skillDetail.tryInChat': '在对话中试用',
   'skillDetail.uninstall': '卸载',

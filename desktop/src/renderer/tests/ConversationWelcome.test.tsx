@@ -11,6 +11,7 @@ import { useUIStore } from '../stores/uiStore'
 import { useSkillsStore } from '../stores/skillsStore'
 import { useToastStore } from '../stores/toastStore'
 import { useAppBindingStore } from '../stores/appBindingStore'
+import { useConversationStore } from '../stores/conversationStore'
 import type { ThreadGoal } from '../types/thread'
 import type { WorkspaceConfigChangedPayload } from '../utils/workspaceConfigChanged'
 
@@ -157,6 +158,8 @@ describe('ConversationWelcome composer', () => {
 
     useConnectionStore.getState().reset()
     useThreadStore.getState().reset()
+    useConversationStore.getState().reset()
+    useConversationStore.setState({ remoteWorkspaceActive: false })
     useModelCatalogStore.getState().reset()
     useProvidersStore.getState().reset()
     useAppBindingStore.getState().reset()

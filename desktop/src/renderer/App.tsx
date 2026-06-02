@@ -889,10 +889,12 @@ export function App(): JSX.Element {
 
   // Keep conversation store on the local owner workspace path for file/viewer IPC.
   useEffect(() => {
+    const store = useConversationStore.getState()
+    store.setRemoteWorkspaceActive(remoteWorkspaceActive)
     if (workspacePath) {
-      useConversationStore.getState().setWorkspacePath(workspacePath)
+      store.setWorkspacePath(workspacePath)
     }
-  }, [workspacePath])
+  }, [remoteWorkspaceActive, workspacePath])
 
   // Notify viewerTabStore when the AppServer workspace identity changes so all viewer tabs are cleared.
   useEffect(() => {
@@ -2798,6 +2800,7 @@ export function App(): JSX.Element {
               {activeMainView === 'settings' ? (
                 <SettingsView
                   workspacePath={workspacePath}
+                  identityWorkspacePath={protocolWorkspacePath || workspacePath}
                   onThreadListRefreshRequested={() => {
                     void reloadThreadList()
                   }}
@@ -2816,6 +2819,7 @@ export function App(): JSX.Element {
                   <ConversationPanel
                     workspacePath={workspacePath}
                     identityWorkspacePath={protocolWorkspacePath || workspacePath}
+                    remoteWorkspace={remoteWorkspaceActive}
                     workspaceConfigChange={workspaceConfigChange}
                     workspaceConfigChangeSeq={workspaceConfigChangeSeq}
                   />
@@ -2824,6 +2828,7 @@ export function App(): JSX.Element {
                 <ConversationPanel
                   workspacePath={workspacePath}
                   identityWorkspacePath={protocolWorkspacePath || workspacePath}
+                  remoteWorkspace={remoteWorkspaceActive}
                   workspaceConfigChange={workspaceConfigChange}
                   workspaceConfigChangeSeq={workspaceConfigChangeSeq}
                 />

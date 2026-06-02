@@ -20,6 +20,7 @@ import type { WorkspaceConfigChangedPayload } from '../../utils/workspaceConfigC
 interface ConversationPanelProps {
   workspacePath?: string
   identityWorkspacePath?: string
+  remoteWorkspace?: boolean
   workspaceConfigChange?: WorkspaceConfigChangedPayload | null
   workspaceConfigChangeSeq?: number
 }
@@ -44,6 +45,7 @@ const DEFAULT_REASONING_CONFIG: ResolvedReasoningConfig = {
 export function ConversationPanel({
   workspacePath = '',
   identityWorkspacePath,
+  remoteWorkspace = false,
   workspaceConfigChange = null,
   workspaceConfigChangeSeq = 0
 }: ConversationPanelProps): JSX.Element {
@@ -94,10 +96,11 @@ export function ConversationPanel({
   }, [workspacePath])
 
   const readWorkspaceConfig = useCallback(async (): Promise<Record<string, unknown>> => {
+    if (remoteWorkspace) return {}
     if (!workspaceConfigPath) return {}
     const raw = await window.api.file.readFile(workspaceConfigPath)
     return parseJsonConfig<Record<string, unknown>>(raw, {})
-  }, [workspaceConfigPath])
+  }, [remoteWorkspace, workspaceConfigPath])
 
   const setCaseInsensitiveField = useCallback(
     (target: Record<string, unknown>, key: string, value: unknown): void => {
@@ -325,6 +328,7 @@ export function ConversationPanel({
       <ConversationWelcome
         workspacePath={workspacePath}
         identityWorkspacePath={protocolWorkspacePath}
+        remoteWorkspace={remoteWorkspace}
         workspaceConfigChange={workspaceConfigChange}
         workspaceConfigChangeSeq={workspaceConfigChangeSeq}
       />
@@ -345,7 +349,12 @@ export function ConversationPanel({
       }}
     >
       {/* Fixed header */}
-      <ThreadHeader threadName={threadName} threadId={activeThread.id} workspacePath={workspacePath} />
+      <ThreadHeader
+        threadName={threadName}
+        threadId={activeThread.id}
+        workspacePath={workspacePath}
+        remoteWorkspace={remoteWorkspace}
+      />
 
       {/* Reconnection banner */}
       {showReconnectionBanner && (
@@ -417,6 +426,7 @@ export function ConversationPanel({
         <InputComposer
           threadId={activeThread.id}
           workspacePath={protocolWorkspacePath}
+          remoteWorkspace={remoteWorkspace}
           modelName={modelName}
           modelOptions={modelOptions}
           modelCatalog={modelCatalog}

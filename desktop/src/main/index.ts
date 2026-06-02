@@ -377,7 +377,7 @@ function emitCurrentWorkspaceStatus(workspacePath: string): void {
 }
 
 function getProtocolWorkspacePath(): string {
-  return activeRemoteWorkspace?.workspaceDir || currentWorkspacePath
+  return activeRemoteWorkspace?.appServerWorkspacePath?.trim() || currentWorkspacePath
 }
 
 function clearActiveRemoteReconnectTimer(): void {
@@ -1222,7 +1222,9 @@ async function connectViaWebSocket(
       })
       flushPendingWorkspaceOpenThread(mainWindow)
     }
-    void autoStartEnabledModules()
+    if (!options.remoteDiagnostic && !activeRemoteWorkspace && resolveConnectionMode(sharedSettings) === 'local') {
+      void autoStartEnabledModules()
+    }
   }
   client.on('ready', (result: InitializeResult) => emitConnected(result))
   client.on('reconnected', (result: InitializeResult) => emitConnected(result))

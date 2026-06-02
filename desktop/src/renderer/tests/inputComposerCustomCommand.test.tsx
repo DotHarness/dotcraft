@@ -104,6 +104,7 @@ describe('InputComposer custom command expansion', () => {
     })
 
     useConversationStore.getState().reset()
+    useConversationStore.setState({ remoteWorkspaceActive: false })
     useConnectionStore.getState().reset()
     useThreadStore.getState().reset()
     useToastStore.setState({ toasts: [] })
@@ -277,6 +278,33 @@ describe('InputComposer custom command expansion', () => {
         })
       )
     })
+  })
+
+  it('does not open local file attachment pickers in remote mode', async () => {
+    pickFiles.mockResolvedValue([
+      { path: 'C:\\temp\\notes.txt', fileName: 'notes.txt' }
+    ])
+
+    renderWithLocale(
+      <InputComposer
+        threadId="thread-1"
+        workspacePath="/workspace"
+        remoteWorkspace
+      />
+    )
+
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith('command/list', {})
+      expect(appServerSendRequest).toHaveBeenCalledWith('skills/list', { includeUnavailable: true })
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add attachment' }))
+    const referenceItem = screen.getByRole('menuitem', { name: 'Reference file' })
+    expect(referenceItem).toBeDisabled()
+    fireEvent.click(referenceItem)
+
+    expect(pickFiles).not.toHaveBeenCalled()
+    expect(screen.queryByText('notes.txt')).not.toBeInTheDocument()
   })
 
   it('shows the Goal system action above commands when thread goals are supported', async () => {

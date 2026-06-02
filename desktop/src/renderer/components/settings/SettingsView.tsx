@@ -83,6 +83,7 @@ declare const __APP_VERSION__: string | undefined
 
 interface SettingsViewProps {
   workspacePath?: string
+  identityWorkspacePath?: string
   onThreadListRefreshRequested?: () => void
   workspaceConfigChange?: WorkspaceConfigChangedPayload | null
   workspaceConfigChangeSeq?: number
@@ -1335,6 +1336,7 @@ function maskAccountId(accountId: string): string {
 
 export function SettingsView({
   workspacePath,
+  identityWorkspacePath,
   onThreadListRefreshRequested,
   workspaceConfigChange = null,
   workspaceConfigChangeSeq = 0,
@@ -5239,7 +5241,7 @@ export function SettingsView({
 
             {activeSettingsTab === 'archivedThreads' && (
               <ArchivedThreadsSettingsView
-                workspacePath={workspacePath}
+                workspacePath={identityWorkspacePath || workspacePath}
                 onThreadListRefreshRequested={onThreadListRefreshRequested}
               />
             )}
