@@ -67,7 +67,7 @@ function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : 'Something went wrong.'
 }
 
-export const useRemoteServersStore = create<RemoteServersStore>((set) => ({
+export const useRemoteServersStore = create<RemoteServersStore>((set, get) => ({
   hosts: [],
   loaded: false,
   loading: false,
@@ -242,15 +242,20 @@ export const useRemoteServersStore = create<RemoteServersStore>((set) => ({
   },
 
   async disconnect(hostId, stackId) {
+    const previousActiveStack = get().activeStack
+    const disconnectingActiveStack =
+      previousActiveStack?.hostId === hostId && previousActiveStack.stackId === stackId
+    if (disconnectingActiveStack) {
+      set({ activeStack: null })
+    }
     try {
       await window.api.remoteServers.disconnect(hostId, stackId)
     } catch (error) {
-      set({ error: messageOf(error) })
-    } finally {
       set((state) => ({
+        error: messageOf(error),
         activeStack:
-          state.activeStack?.hostId === hostId && state.activeStack?.stackId === stackId
-            ? null
+          disconnectingActiveStack && state.activeStack == null
+            ? previousActiveStack
             : state.activeStack
       }))
     }

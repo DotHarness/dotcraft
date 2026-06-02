@@ -352,6 +352,8 @@ export const MESSAGES_KO = {
   'settings.llm.workspaceCurrentProvider': '현재 공급자',
   'settings.llm.workspaceNoProvider': '선택한 제공업체가 없습니다.',
   'settings.llm.workspaceNoProviderId': '제공업체 ID 없음',
+  'settings.llm.workspaceProviderMissing': '작업 공간 공급자 "{{providerId}}"이(가) 이 AppServer에 구성되어 있지 않습니다. 구성된 공급자를 선택하거나 아래에서 새로 만드세요.',
+  'settings.llm.providerMissingInList': '이 AppServer에 구성되지 않음',
   'settings.llm.workspaceModel': '모델',
   'settings.llm.workspaceModelPlaceholder': '예를 들어 클로드-소네트-4-5',
   'settings.llm.modelSelectPlaceholder': '모델을 선택하세요',

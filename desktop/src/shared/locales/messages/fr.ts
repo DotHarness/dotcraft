@@ -352,6 +352,8 @@ export const MESSAGES_FR = {
   'settings.llm.workspaceCurrentProvider': 'Fournisseur actuel',
   'settings.llm.workspaceNoProvider': 'Aucun fournisseur sélectionné',
   'settings.llm.workspaceNoProviderId': 'Aucun identifiant de fournisseur',
+  'settings.llm.workspaceProviderMissing': 'Le fournisseur d\'espace de travail "{{providerId}}" n\'est pas configuré sur cet AppServer. Choisissez un fournisseur configuré ou créez-en un ci-dessous.',
+  'settings.llm.providerMissingInList': 'Non configuré sur cet AppServer',
   'settings.llm.workspaceModel': 'Modèle',
   'settings.llm.workspaceModelPlaceholder': 'par ex. claude-sonnet-4-5',
   'settings.llm.modelSelectPlaceholder': 'Sélectionnez un modèle',

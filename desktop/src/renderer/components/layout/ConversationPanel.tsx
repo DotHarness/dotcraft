@@ -16,6 +16,7 @@ import type { ThreadConfigurationWire } from '../../types/thread'
 import type { ReasoningQuickValue } from '../conversation/ModelPicker'
 import { parseJsonConfig } from '../../../shared/jsonConfig'
 import type { WorkspaceConfigChangedPayload } from '../../utils/workspaceConfigChanged'
+import { configObjectFromWorkspaceCore, type WorkspaceCoreConfigLike } from '../../utils/workspaceCoreConfig'
 
 interface ConversationPanelProps {
   workspacePath?: string
@@ -96,7 +97,11 @@ export function ConversationPanel({
   }, [workspacePath])
 
   const readWorkspaceConfig = useCallback(async (): Promise<Record<string, unknown>> => {
-    if (remoteWorkspace) return {}
+    if (remoteWorkspace) {
+      const getCore = window.api.workspaceConfig?.getCore
+      if (typeof getCore !== 'function') return {}
+      return configObjectFromWorkspaceCore(await getCore() as WorkspaceCoreConfigLike)
+    }
     if (!workspaceConfigPath) return {}
     const raw = await window.api.file.readFile(workspaceConfigPath)
     return parseJsonConfig<Record<string, unknown>>(raw, {})

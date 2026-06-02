@@ -206,4 +206,20 @@ describe('ServersPanel', () => {
       expect(screen.getByDisplayValue('deploy')).toBeInTheDocument()
     })
   })
+
+  it('clears the active stack immediately while disconnect IPC is still running', async () => {
+    let resolveDisconnect!: () => void
+    window.api.remoteServers.disconnect = vi.fn(() => new Promise<void>((resolve) => {
+      resolveDisconnect = resolve
+    }))
+    useRemoteServersStore.setState({
+      activeStack: { hostId: 'h_prod', stackId: 'stack_1' }
+    })
+
+    const disconnectPromise = useRemoteServersStore.getState().disconnect('h_prod', 'stack_1')
+
+    expect(useRemoteServersStore.getState().activeStack).toBeNull()
+    resolveDisconnect()
+    await disconnectPromise
+  })
 })

@@ -848,6 +848,71 @@ describe('SettingsView self-learning settings', () => {
     expect(screen.queryByText('Changes require a service restart to take effect')).not.toBeInTheDocument()
   })
 
+  it('lets a remote workspace switch away from a provider missing on the remote AppServer', async () => {
+    settingsGet.mockResolvedValue({
+      locale: 'en',
+      connectionMode: 'remote',
+      activeRemoteStack: { hostId: 'host-1', stackId: 'stack-1' },
+      visibleChannels: []
+    })
+    workspaceConfigGetCore.mockResolvedValue({
+      workspace: {
+        providerId: 'codex',
+        model: 'gpt-5.5',
+        apiKey: null,
+        endPoint: null,
+        welcomeSuggestionsEnabled: null,
+        skillsSelfLearningEnabled: null,
+        memoryAutoConsolidateEnabled: null,
+        dreamsEnabled: null,
+        dreamsInterval: null,
+        dreamsThreadLookbackCount: null,
+        dreamsAutoApply: null,
+        defaultApprovalPolicy: null
+      },
+      userDefaults: {
+        providerId: null,
+        model: null,
+        apiKey: null,
+        endPoint: null,
+        welcomeSuggestionsEnabled: null,
+        skillsSelfLearningEnabled: null,
+        memoryAutoConsolidateEnabled: null,
+        dreamsEnabled: null,
+        dreamsInterval: null,
+        dreamsThreadLookbackCount: null,
+        dreamsAutoApply: null,
+        defaultApprovalPolicy: null
+      }
+    })
+    const defaultSendRequest = appServerSendRequest.getMockImplementation()
+    appServerSendRequest.mockImplementation(async (method: string, params?: Record<string, unknown>) => {
+      if (method === 'model/list' && params?.providerId === 'codex') {
+        return {
+          success: false,
+          errorMessage: "Model provider 'codex' is not configured."
+        }
+      }
+      return defaultSendRequest?.(method, params)
+    })
+    enableProviderManagement()
+    renderView()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Model Providers' }))
+    expect(await screen.findByText(/Workspace provider "codex" is not configured/)).toBeInTheDocument()
+    const providerSelect = await screen.findByRole('combobox', { name: 'Current provider' }) as HTMLButtonElement
+    appServerSendRequest.mockClear()
+
+    fireEvent.change(providerSelect, { target: { value: 'anthropic-main' } })
+
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith('workspace/config/update', {
+        providerId: 'anthropic-main',
+        model: 'claude-sonnet-4-5'
+      }, 20_000)
+    })
+  })
+
   it('auto-selects the first listed model when switching provider invalidates the workspace model', async () => {
     enableProviderManagement()
     renderView()

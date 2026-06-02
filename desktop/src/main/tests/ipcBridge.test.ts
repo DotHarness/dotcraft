@@ -814,6 +814,86 @@ describe('registerIpcHandlers', () => {
     })
   })
 
+  it('workspace-config:get-core reads the active remote stack config over SSH instead of local files', async () => {
+    const handlers = new Map<string, (...args: unknown[]) => unknown>()
+    vi.mocked(ipcMain.handle).mockImplementation((channel, handler) => {
+      handlers.set(channel, handler as (...args: unknown[]) => unknown)
+    })
+    const host = {
+      id: 'h1',
+      name: 'Remote Lab',
+      sshTarget: 'remote-test-host',
+      stacks: [{
+        id: 's1',
+        name: 'ChatOps',
+        composeDir: '/srv/dotcraft/chatops/deploy',
+        workspaceDir: '/srv/dotcraft/chatops/deploy/workspace',
+        appServerPort: 9100,
+        dashboardPort: 8080,
+        sandboxProfile: false
+      }]
+    }
+    const readCoreConfig = vi.spyOn(getRemoteServersManager(), 'readCoreConfig').mockResolvedValue({
+      workspaceRaw: JSON.stringify({
+        ProviderId: 'anthropic-main',
+        Model: 'claude-sonnet-4-5',
+        Permissions: { DefaultApprovalPolicy: 'autoApprove' }
+      }),
+      userDefaultsRaw: JSON.stringify({
+        ProviderId: 'openai',
+        Model: 'gpt-5'
+      })
+    })
+
+    try {
+      registerIpcHandlers(null, () => null, '/local/workspace', createIpcCallbacks({
+        getSettings: vi.fn(() => ({
+          locale: 'en',
+          connectionMode: 'remote',
+          activeRemoteStack: { hostId: 'h1', stackId: 's1' },
+          remoteHosts: [host]
+        })),
+        getWorkspaceStatus: vi.fn(() => ({
+          status: 'ready',
+          workspacePath: '/local/workspace',
+          hasUserConfig: true,
+          providers: [],
+          remote: {
+            hostId: 'h1',
+            stackId: 's1',
+            serverName: 'Remote Lab',
+            stackName: 'ChatOps',
+            workspaceDir: '/srv/dotcraft/chatops/deploy/workspace',
+            appServerWorkspacePath: '/workspace',
+            composeDir: '/srv/dotcraft/chatops/deploy',
+            projectName: 'deploy'
+          }
+        }))
+      }))
+
+      const result = await handlers.get('workspace-config:get-core')?.({})
+
+      expect(readCoreConfig).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'h1' }),
+        expect.objectContaining({ id: 's1' })
+      )
+      expect(fs.readFile).not.toHaveBeenCalled()
+      expect(result).toMatchObject({
+        workspace: {
+          providerId: 'anthropic-main',
+          model: 'claude-sonnet-4-5',
+          defaultApprovalPolicy: 'autoApprove'
+        },
+        userDefaults: {
+          providerId: 'openai',
+          model: 'gpt-5'
+        }
+      })
+    } finally {
+      readCoreConfig.mockRestore()
+    }
+  })
+
   it('registers workspace:list-setup-models and forwards to callback', async () => {
     const handlers = new Map<string, (...args: unknown[]) => unknown>()
     vi.mocked(ipcMain.handle).mockImplementation((channel, handler) => {

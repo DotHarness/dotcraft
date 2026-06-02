@@ -67,6 +67,14 @@ function route(cmd: string): SshRunResult {
   if (cmd.includes('SSH_OK')) return ok('SSH_OK\ndocker=ok\ncompose=ok')
   if (cmd.includes('DISCOVER_BEGIN')) return ok(DISCOVER_OK)
   if (cmd.includes('STATUS_BEGIN')) return ok(STATUS_OK)
+  if (cmd.includes('CONFIG_BEGIN')) {
+    return ok(
+      'CONFIG_BEGIN\n' +
+      `workspace=${Buffer.from('{"ProviderId":"anthropic-main","Model":"claude-sonnet-4-5"}').toString('base64')}\n` +
+      `userDefaults=${Buffer.from('{"ProviderId":"openai","Model":"gpt-5"}').toString('base64')}\n` +
+      'CONFIG_END'
+    )
+  }
   if (cmd.includes('BACKUP_OK')) return ok('BACKUP_OK .dotcraft-backups/20260601-120000')
   if (cmd.includes('--remove-orphans')) return ok('Recreating dotcraft ... done')
   if (cmd.includes(' pull')) return ok('dotcraft Pulling\ndownloaded newer image')
@@ -181,6 +189,19 @@ describe('RemoteServersManager', () => {
     const mgr = new RemoteServersManager({ runner })
     expect(await mgr.readToken(host, stack)).toBe('fixture-appserver-token')
     expect(opts[0]).toMatchObject({ timeoutMs: 30_000, connectTimeoutSec: 8 })
+  })
+
+  it('reads remote workspace core config snapshots without exposing arbitrary commands', async () => {
+    const { runner, calls, opts } = makeRunner(route)
+    const mgr = new RemoteServersManager({ runner })
+
+    const result = await mgr.readCoreConfig(host, stack)
+
+    expect(result.workspaceRaw).toBe('{"ProviderId":"anthropic-main","Model":"claude-sonnet-4-5"}')
+    expect(result.userDefaultsRaw).toBe('{"ProviderId":"openai","Model":"gpt-5"}')
+    expect(calls[0]).toContain('CONFIG_BEGIN')
+    expect(calls[0]).toContain('.craft/config.json')
+    expect(opts[0]).toMatchObject({ timeoutMs: 20_000, connectTimeoutSec: 8 })
   })
 
   it('fails token reads with a redacted command error', async () => {

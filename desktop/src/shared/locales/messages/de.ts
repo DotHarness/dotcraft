@@ -352,6 +352,8 @@ export const MESSAGES_DE = {
   'settings.llm.workspaceCurrentProvider': 'Aktueller Anbieter',
   'settings.llm.workspaceNoProvider': 'Kein Anbieter ausgewählt',
   'settings.llm.workspaceNoProviderId': 'Keine Anbieter-ID',
+  'settings.llm.workspaceProviderMissing': 'Der Arbeitsbereichsanbieter "{{providerId}}" ist auf diesem AppServer nicht konfiguriert. Wählen Sie einen konfigurierten Anbieter oder erstellen Sie unten einen neuen.',
+  'settings.llm.providerMissingInList': 'Auf diesem AppServer nicht konfiguriert',
   'settings.llm.workspaceModel': 'Modell',
   'settings.llm.workspaceModelPlaceholder': 'z.B. Claude-Sonett-4-5',
   'settings.llm.modelSelectPlaceholder': 'Wählen Sie ein Modell aus',

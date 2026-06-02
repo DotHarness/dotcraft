@@ -17,6 +17,7 @@ import {
   composePrefix,
   buildDiscoverStacksCommand,
   buildLogsCommand,
+  buildReadCoreConfigCommand,
   buildStatusCommand,
   buildUpCommand,
   parseStatusOutput,
@@ -181,6 +182,14 @@ describe('compose command builders', () => {
     expect(cmd).toContain('STATUS_BEGIN')
     expect(cmd).toContain('ps -a --format json')
     expect(cmd).toContain("~/'sample-stack/deploy/docker'")
+  })
+
+  it('core config read command only reads stack workspace and user config paths', () => {
+    const cmd = buildReadCoreConfigCommand({ ...stack, workspaceDir: '/srv/sample/workspace' })
+    expect(cmd).toContain('CONFIG_BEGIN')
+    expect(cmd).toContain("'/srv/sample/workspace/.craft/config.json'")
+    expect(cmd).toContain("~/'.craft/config.json'")
+    expect(cmd).toContain('base64')
   })
 
   it('discovery command uses Docker labels and inspect JSON only', () => {

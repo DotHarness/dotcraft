@@ -436,6 +436,19 @@ export function buildReadTokenCommand(stack: RemoteStack): string {
   return `cat ${tokenPath} 2>/dev/null`
 }
 
+/** Read only the config files needed for Desktop workspace-core settings. */
+export function buildReadCoreConfigCommand(stack: RemoteStack): string {
+  const workspaceConfigPath = quoteRemotePath(remoteChildPath(effectiveWorkspaceDir(stack), '.craft/config.json'))
+  const userConfigPath = quoteRemotePath('~/.craft/config.json')
+  return [
+    `read_cfg(){ if [ -f "$1" ]; then (base64 -w 0 "$1" 2>/dev/null || base64 "$1" 2>/dev/null | tr -d '\\n' || true); fi; };`,
+    `echo CONFIG_BEGIN;`,
+    `printf 'workspace='; read_cfg ${workspaceConfigPath}; echo;`,
+    `printf 'userDefaults='; read_cfg ${userConfigPath}; echo;`,
+    `echo CONFIG_END`
+  ].join(' ')
+}
+
 /** `docker compose [-p name] [--profile sandbox]` prefix for a stack. */
 export function composePrefix(stack: RemoteStack): string {
   const parts = ['docker', 'compose']

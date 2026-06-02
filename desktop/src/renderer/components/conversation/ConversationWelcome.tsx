@@ -42,6 +42,7 @@ import { ActionTooltip } from '../ui/ActionTooltip'
 import { PillSwitch } from '../ui/PillSwitch'
 import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
 import type { WorkspaceConfigChangedPayload } from '../../utils/workspaceConfigChanged'
+import { configObjectFromWorkspaceCore, type WorkspaceCoreConfigLike } from '../../utils/workspaceCoreConfig'
 
 interface ConversationWelcomeProps {
   workspacePath: string
@@ -374,7 +375,11 @@ export function ConversationWelcome({
   }, [createAppBindingRequest, t, waitForThreadAppBinding, welcomeAppIds, welcomeApps])
 
   const readWorkspaceConfig = useCallback(async (): Promise<Record<string, unknown>> => {
-    if (remoteWorkspace) return {}
+    if (remoteWorkspace) {
+      const getCore = window.api.workspaceConfig?.getCore
+      if (typeof getCore !== 'function') return {}
+      return configObjectFromWorkspaceCore(await getCore() as WorkspaceCoreConfigLike)
+    }
     if (!workspaceConfigPath) return {}
     const raw = await window.api.file.readFile(workspaceConfigPath)
     return parseJsonConfig<Record<string, unknown>>(raw, {})

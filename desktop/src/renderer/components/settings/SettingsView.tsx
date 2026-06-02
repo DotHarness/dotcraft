@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, 
 import {
   ListChecks,
   Plus,
-  Server,
   TestTube2
 } from 'lucide-react'
 import { addToast } from '../../stores/toastStore'
@@ -1524,6 +1523,38 @@ export function SettingsView({
     if (!current || normalized.includes(current)) return normalized
     return [current, ...normalized]
   }, [providerModelOptions, workspaceModel])
+  const selectedProviderMissing =
+    selectedProviderId.trim() !== '' &&
+    !providersLoading &&
+    providers.length > 0 &&
+    selectedProvider == null
+  const workspaceProviderMissingMessage = selectedProviderMissing
+    ? t('settings.llm.workspaceProviderMissing', { providerId: selectedProviderId })
+    : ''
+  const workspaceProviderOptions = useMemo(() => {
+    const options = []
+    const normalizedSelectedProviderId = selectedProviderId.trim()
+    if (!normalizedSelectedProviderId) {
+      options.push({
+        value: '',
+        label: t('settings.llm.workspaceNoProvider'),
+        disabled: true
+      })
+    } else if (selectedProviderMissing) {
+      options.push({
+        value: normalizedSelectedProviderId,
+        label: normalizedSelectedProviderId,
+        description: t('settings.llm.providerMissingInList'),
+        disabled: true
+      })
+    }
+    options.push(...providers.map((provider) => ({
+      value: provider.id,
+      label: provider.displayName,
+      description: provider.id
+    })))
+    return options
+  }, [providers, selectedProviderId, selectedProviderMissing, t])
   const providerModelSelectAvailable =
     !providerModelLoading &&
     providerModelError.trim() === '' &&
@@ -1642,12 +1673,24 @@ export function SettingsView({
       setProviderModelOptions([])
       return
     }
+    const normalizedProviderId = providerId.trim()
+    if (
+      providerManagementEnabled &&
+      !providersLoading &&
+      providers.length > 0 &&
+      normalizedProviderId &&
+      !providers.some((provider) => provider.id === normalizedProviderId)
+    ) {
+      setProviderModelOptions([])
+      setProviderModelError(t('settings.llm.workspaceProviderMissing', { providerId: normalizedProviderId }))
+      return
+    }
     setProviderModelLoading(true)
     setProviderModelError('')
     try {
       const result = await window.api.appServer.sendRequest(
         'model/list',
-        providerId.trim() ? { providerId: providerId.trim() } : {},
+        normalizedProviderId ? { providerId: normalizedProviderId } : {},
         20_000
       ) as {
         success?: boolean
@@ -1713,6 +1756,12 @@ export function SettingsView({
     if (!selectedProviderId) return
     void reloadProviderModels(selectedProviderId)
   }, [modelCatalogManagementEnabled, selectedProviderId])
+
+  useEffect(() => {
+    if (!selectedProviderMissing) return
+    setProviderModelOptions([])
+    setProviderModelError(workspaceProviderMissingMessage)
+  }, [selectedProviderMissing, workspaceProviderMissingMessage])
 
   function startCreateProvider(): void {
     setProviderEditorId('__new__')
@@ -3310,52 +3359,19 @@ export function SettingsView({
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                         <div style={{ ...providerFieldGridStyle(), alignItems: 'end' }}>
                           <div style={{ minWidth: 0 }}>
-                            <div style={sectionLabelStyle()}>{t('settings.llm.workspaceCurrentProvider')}</div>
-                            <div
-                              style={{
-                                minHeight: 35,
-                                boxSizing: 'border-box',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '10px',
-                                padding: '7px 10px',
-                                border: '1px solid var(--border-default)',
-                                borderRadius: '8px',
-                                background: 'var(--bg-primary)'
+                            <label htmlFor="settings-workspace-provider" style={sectionLabelStyle()}>
+                              {t('settings.llm.workspaceCurrentProvider')}
+                            </label>
+                            <SettingsSelect
+                              id="settings-workspace-provider"
+                              ariaLabel={t('settings.llm.workspaceCurrentProvider')}
+                              value={selectedProviderId}
+                              disabled={providersLoading || applyingWorkspaceProvider || providers.length === 0}
+                              onValueChange={(providerId) => {
+                                void handleWorkspaceProviderChange(providerId)
                               }}
-                            >
-                              <Server size={15} aria-hidden="true" style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
-                              <div
-                                style={{
-                                  flex: 1,
-                                  minWidth: 0,
-                                  fontSize: '13px',
-                                  fontWeight: 600,
-                                  color: 'var(--text-primary)',
-                                  overflow: 'hidden',
-                                  textOverflow: 'ellipsis',
-                                  whiteSpace: 'nowrap'
-                                }}
-                              >
-                                {selectedProvider?.displayName ?? (selectedProviderId || t('settings.llm.workspaceNoProvider'))}
-                              </div>
-                              <div
-                                title={selectedProviderId || t('settings.llm.workspaceNoProviderId')}
-                                style={{
-                                  minWidth: 0,
-                                  maxWidth: '45%',
-                                  flexShrink: 0,
-                                  fontSize: '11px',
-                                  color: 'var(--text-dimmed)',
-                                  fontFamily: 'var(--font-mono)',
-                                  overflow: 'hidden',
-                                  textOverflow: 'ellipsis',
-                                  whiteSpace: 'nowrap'
-                                }}
-                              >
-                                {selectedProviderId || t('settings.llm.workspaceNoProviderId')}
-                              </div>
-                            </div>
+                              options={workspaceProviderOptions}
+                            />
                           </div>
 
                           <div style={{ minWidth: 0 }}>

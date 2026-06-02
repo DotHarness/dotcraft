@@ -13,6 +13,7 @@ import {
   buildPullCommand,
   buildUpCommand,
   buildReadTokenCommand,
+  buildReadCoreConfigCommand,
   buildTunnelWsUrl,
   buildDashboardUrl,
   updateChangedFromOutput,
@@ -54,6 +55,11 @@ export interface AppServerTunnelResult {
 export interface DashboardTunnelResult {
   localPort: number
   url: string
+}
+
+export interface RemoteCoreConfigResult {
+  workspaceRaw: string
+  userDefaultsRaw: string
 }
 
 function firstLine(text: string): string {
@@ -208,6 +214,32 @@ export class RemoteServersManager {
       )
     }
     return token
+  }
+
+  async readCoreConfig(host: RemoteHost, stack: RemoteStack): Promise<RemoteCoreConfigResult> {
+    const res = await this.runner(host, buildReadCoreConfigCommand(stack), { timeoutMs: 20_000, connectTimeoutSec: 8 })
+    if (res.timedOut) {
+      throw new Error('Remote workspace config read timed out.')
+    }
+    if (res.code !== 0 || !/CONFIG_BEGIN/.test(res.stdout)) {
+      throw new Error(redactSecrets(firstLine(res.stderr) || 'Remote workspace config read failed.'))
+    }
+
+    const fields: Record<string, string> = {}
+    for (const line of res.stdout.split('\n')) {
+      const idx = line.indexOf('=')
+      if (idx <= 0) continue
+      const key = line.slice(0, idx).trim()
+      const value = line.slice(idx + 1).trim()
+      if (key === 'workspace' || key === 'userDefaults') {
+        fields[key] = value ? Buffer.from(value, 'base64').toString('utf8') : ''
+      }
+    }
+
+    return {
+      workspaceRaw: fields.workspace ?? '',
+      userDefaultsRaw: fields.userDefaults ?? ''
+    }
   }
 
   async openAppServerTunnel(

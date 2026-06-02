@@ -352,6 +352,8 @@ export const MESSAGES_JA = {
   'settings.llm.workspaceCurrentProvider': '現在のプロバイダー',
   'settings.llm.workspaceNoProvider': 'プロバイダーが選択されていません',
   'settings.llm.workspaceNoProviderId': 'プロバイダーIDがありません',
+  'settings.llm.workspaceProviderMissing': 'ワークスペースのプロバイダー "{{providerId}}" はこの AppServer で構成されていません。構成済みのプロバイダーを選択するか、下で作成してください。',
+  'settings.llm.providerMissingInList': 'この AppServer では未構成',
   'settings.llm.workspaceModel': 'モデル',
   'settings.llm.workspaceModelPlaceholder': '例えばクロード・ソネット-4-5',
   'settings.llm.modelSelectPlaceholder': 'モデルを選択してください',

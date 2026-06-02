@@ -273,6 +273,8 @@ export const MESSAGES_EN = {
   'settings.llm.workspaceCurrentProvider': 'Current provider',
   'settings.llm.workspaceNoProvider': 'No provider selected',
   'settings.llm.workspaceNoProviderId': 'No provider id',
+  'settings.llm.workspaceProviderMissing': 'Workspace provider "{{providerId}}" is not configured on this AppServer. Choose a configured provider or create one below.',
+  'settings.llm.providerMissingInList': 'Not configured on this AppServer',
   'settings.llm.workspaceModel': 'Model',
   'settings.llm.workspaceModelHint': 'Choose a listed model or type one manually.',
   'settings.llm.workspaceModelPlaceholder': 'e.g. claude-sonnet-4-5',

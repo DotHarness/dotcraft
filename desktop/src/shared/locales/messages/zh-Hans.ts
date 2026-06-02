@@ -394,6 +394,8 @@ export const MESSAGES_ZH_HANS = {
   'settings.llm.workspaceCurrentProvider': '当前提供商',
   'settings.llm.workspaceNoProvider': '未选择提供商',
   'settings.llm.workspaceNoProviderId': '无提供商 id',
+  'settings.llm.workspaceProviderMissing': '工作区提供商 "{{providerId}}" 未在此 AppServer 上配置。请选择已配置的提供商，或在下方新建一个。',
+  'settings.llm.providerMissingInList': '此 AppServer 未配置',
   'settings.llm.workspaceModel': '模型',
   'settings.llm.workspaceModelHint': '选择列表中的模型，或手动输入模型名。',
   'settings.llm.workspaceModelPlaceholder': '例如 claude-sonnet-4-5',

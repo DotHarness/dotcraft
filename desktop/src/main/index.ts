@@ -1122,7 +1122,9 @@ async function connectRemoteStackFromServers(
 }
 
 async function disconnectRemoteStackFromServers(hostId: string, stackId: string): Promise<void> {
-  getRemoteServersManager().closeStackTunnels(hostId, stackId)
+  clearActiveRemoteReconnectTimer()
+  const manager = getRemoteServersManager()
+  manager.closeStackTunnels(hostId, stackId)
   const active = sharedSettings.activeRemoteStack
   if (active?.hostId !== hostId || active.stackId !== stackId) {
     return
@@ -1135,7 +1137,17 @@ async function disconnectRemoteStackFromServers(hostId: string, stackId: string)
     activeRemoteStack: undefined
   })
   if (currentWorkspacePath) {
-    await connectToAppServer(currentWorkspacePath)
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      emitCurrentWorkspaceStatus(currentWorkspacePath)
+      emitConnectionStatus(mainWindow, { status: 'disconnected' })
+    }
+    const workspacePath = currentWorkspacePath
+    void connectToAppServer(workspacePath).catch((error) => {
+      const message = error instanceof Error ? error.message : String(error)
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        emitConnectionStatus(mainWindow, { status: 'error', errorMessage: message })
+      }
+    })
   } else if (mainWindow && !mainWindow.isDestroyed()) {
     emitCurrentWorkspaceStatus('')
     emitConnectionStatus(mainWindow, { status: 'disconnected' })

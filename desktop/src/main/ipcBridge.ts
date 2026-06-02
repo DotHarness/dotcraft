@@ -63,7 +63,7 @@ import type {
   WorkspaceSetupModelListRequest,
   WorkspaceSetupModelListResult
 } from './workspaceSetup'
-import type { RemoteHost, RemoteStack } from '../shared/remoteServers'
+import { normalizeRemoteHosts, type RemoteHost, type RemoteStack } from '../shared/remoteServers'
 import { translate, normalizeLocale, DEFAULT_LOCALE, type AppLocale } from '../shared/locales'
 import { parseJsonConfig, parseJsonObjectConfig } from '../shared/jsonConfig'
 import { detectEditors, launchEditor, type EditorId } from './externalEditors'
@@ -517,39 +517,67 @@ function readDefaultApprovalPolicy(record: Record<string, unknown>): 'default' |
   return raw === 'default' || raw === 'autoApprove' ? raw : null
 }
 
+function createEmptyCoreConfigSnapshot(): WorkspaceCoreConfigSnapshot {
+  return {
+    providerId: null,
+    model: null,
+    welcomeSuggestionsEnabled: null,
+    skillsSelfLearningEnabled: null,
+    memoryAutoConsolidateEnabled: null,
+    dreamsEnabled: null,
+    dreamsInterval: null,
+    dreamsThreadLookbackCount: null,
+    dreamsAutoApply: null,
+    defaultApprovalPolicy: null
+  }
+}
+
+function readCoreConfigSnapshotFromText(raw: string): WorkspaceCoreConfigSnapshot {
+  if (!raw.trim()) return createEmptyCoreConfigSnapshot()
+  const parsed = parseJsonObjectConfig(raw)
+  return {
+    providerId: normalizeOptionalStringValue(parsed.ProviderId ?? parsed.providerId),
+    model: normalizeOptionalStringValue(parsed.Model ?? parsed.model),
+    welcomeSuggestionsEnabled: readNestedBoolean(parsed, 'WelcomeSuggestions', 'Enabled'),
+    skillsSelfLearningEnabled: readSkillsSelfLearningEnabled(parsed),
+    memoryAutoConsolidateEnabled: readNestedBoolean(parsed, 'Memory', 'AutoConsolidateEnabled'),
+    dreamsEnabled: readNestedBoolean(parsed, 'Dreams', 'Enabled'),
+    dreamsInterval: readNestedString(parsed, 'Dreams', 'Interval'),
+    dreamsThreadLookbackCount: readNestedInteger(parsed, 'Dreams', 'ThreadLookbackCount'),
+    dreamsAutoApply: readNestedBoolean(parsed, 'Dreams', 'AutoApply'),
+    defaultApprovalPolicy: readDefaultApprovalPolicy(parsed)
+  }
+}
+
 async function readCoreConfigSnapshot(configPath: string): Promise<WorkspaceCoreConfigSnapshot> {
   try {
     const raw = await fs.readFile(configPath, 'utf8')
-    const parsed = parseJsonObjectConfig(raw)
-    return {
-      providerId: normalizeOptionalStringValue(parsed.ProviderId ?? parsed.providerId),
-      model: normalizeOptionalStringValue(parsed.Model ?? parsed.model),
-      welcomeSuggestionsEnabled: readNestedBoolean(parsed, 'WelcomeSuggestions', 'Enabled'),
-      skillsSelfLearningEnabled: readSkillsSelfLearningEnabled(parsed),
-      memoryAutoConsolidateEnabled: readNestedBoolean(parsed, 'Memory', 'AutoConsolidateEnabled'),
-      dreamsEnabled: readNestedBoolean(parsed, 'Dreams', 'Enabled'),
-      dreamsInterval: readNestedString(parsed, 'Dreams', 'Interval'),
-      dreamsThreadLookbackCount: readNestedInteger(parsed, 'Dreams', 'ThreadLookbackCount'),
-      dreamsAutoApply: readNestedBoolean(parsed, 'Dreams', 'AutoApply'),
-      defaultApprovalPolicy: readDefaultApprovalPolicy(parsed)
-    }
+    return readCoreConfigSnapshotFromText(raw)
   } catch (error) {
     const code = (error as NodeJS.ErrnoException | undefined)?.code
     if (code === 'ENOENT') {
-      return {
-        providerId: null,
-        model: null,
-        welcomeSuggestionsEnabled: null,
-        skillsSelfLearningEnabled: null,
-        memoryAutoConsolidateEnabled: null,
-        dreamsEnabled: null,
-        dreamsInterval: null,
-        dreamsThreadLookbackCount: null,
-        dreamsAutoApply: null,
-        defaultApprovalPolicy: null
-      }
+      return createEmptyCoreConfigSnapshot()
     }
     throw error
+  }
+}
+
+async function readActiveRemoteCoreConfigSnapshot(
+  callbacks?: IpcHandlerCallbacks
+): Promise<{ workspace: WorkspaceCoreConfigSnapshot; userDefaults: WorkspaceCoreConfigSnapshot } | null> {
+  const settings = callbacks?.getSettings()
+  if (!settings || settings.connectionMode !== 'remote') return null
+  const ref = settings.activeRemoteStack
+  if (!ref?.hostId || !ref.stackId) return null
+
+  const host = normalizeRemoteHosts(settings.remoteHosts).find((candidate) => candidate.id === ref.hostId)
+  const stack = host?.stacks.find((candidate) => candidate.id === ref.stackId)
+  if (!host || !stack) return null
+
+  const raw = await getRemoteServersManager().readCoreConfig(host, stack)
+  return {
+    workspace: readCoreConfigSnapshotFromText(raw.workspaceRaw),
+    userDefaults: readCoreConfigSnapshotFromText(raw.userDefaultsRaw)
   }
 }
 
@@ -939,21 +967,15 @@ export function registerIpcHandlers(
   })
 
   handleSafe('workspace-config:get-core', async () => {
+    const remoteCore = await readActiveRemoteCoreConfigSnapshot(callbacks)
+    if (remoteCore) {
+      return remoteCore
+    }
+
     const localWorkspacePath = workspacePath.trim()
     if (!localWorkspacePath) {
       return {
-        workspace: {
-          providerId: null,
-          model: null,
-          welcomeSuggestionsEnabled: null,
-          skillsSelfLearningEnabled: null,
-          memoryAutoConsolidateEnabled: null,
-          dreamsEnabled: null,
-          dreamsInterval: null,
-          dreamsThreadLookbackCount: null,
-          dreamsAutoApply: null,
-          defaultApprovalPolicy: null
-        },
+        workspace: createEmptyCoreConfigSnapshot(),
         userDefaults: await readCoreConfigSnapshot(path.join(os.homedir(), '.craft', 'config.json'))
       }
     }
