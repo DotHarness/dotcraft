@@ -1,13 +1,20 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type JSX } from 'react'
 import { createPortal } from 'react-dom'
-import { ArrowRightLeft, CheckCircle2, Circle, Loader2, X } from 'lucide-react'
+import { ArrowRightLeft, Check, CheckCircle2, Circle, Loader2, X } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useThreadStore } from '../../stores/threadStore'
 import { addToast } from '../../stores/toastStore'
 import type { Thread } from '../../types/thread'
 
 type HandoffMode = 'local' | 'worktree'
-type DialogPhase = 'confirm' | 'running' | 'error'
+type DialogPhase = 'confirm' | 'running' | 'success' | 'error'
+
+const HANDOFF_STEP_ADVANCE_MS = 520
+
+interface HandoffSuccessView {
+  title: string
+  description: string
+}
 
 interface WorktreeHandoffDialogProps {
   mode: HandoffMode
@@ -52,24 +59,31 @@ export function WorktreeHandoffDialog({
   const [phase, setPhase] = useState<DialogPhase>('confirm')
   const [branchDraft, setBranchDraft] = useState(defaultBranchName)
   const [errorText, setErrorText] = useState<string | null>(null)
+  const [successView, setSuccessView] = useState<HandoffSuccessView | null>(null)
   const [completedStepCount, setCompletedStepCount] = useState(0)
   const [dismissed, setDismissed] = useState(false)
+  const mountedRef = useRef(true)
   const dismissedRef = useRef(false)
+  const completedStepCountRef = useRef(0)
   const progressTimerRef = useRef<ReturnType<typeof window.setInterval> | null>(null)
   const closeTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null)
   const worktreeBranch = thread.worktree?.branchName?.trim() || baseRef || t('workspaceFooter.branchUnknown')
   const targetWorkspace = workspaceName(localWorkspacePath)
   const branchError = mode === 'worktree' ? branchNameError(branchDraft, t) : null
-  const title = mode === 'worktree'
-    ? (phase === 'running' ? t('workspaceFooter.handoffWorktreeRunningTitle') : t('workspaceFooter.handoffWorktreeTitle'))
-    : (phase === 'running' ? t('workspaceFooter.handoffLocalRunningTitle') : t('workspaceFooter.handoffLocalTitle'))
-  const description = mode === 'worktree'
-    ? (phase === 'running'
-        ? t('workspaceFooter.handoffWorktreeRunningDescription')
-        : t('workspaceFooter.handoffWorktreeDescription'))
-    : (phase === 'running'
-        ? t('workspaceFooter.handoffLocalRunningDescription')
-        : t('workspaceFooter.handoffLocalDescription'))
+  const title = phase === 'success'
+    ? successView?.title ?? t('workspaceFooter.handoffWorktreeSuccessTitle')
+    : mode === 'worktree'
+      ? (phase === 'running' ? t('workspaceFooter.handoffWorktreeRunningTitle') : t('workspaceFooter.handoffWorktreeTitle'))
+      : (phase === 'running' ? t('workspaceFooter.handoffLocalRunningTitle') : t('workspaceFooter.handoffLocalTitle'))
+  const description = phase === 'success'
+    ? successView?.description ?? ''
+    : mode === 'worktree'
+      ? (phase === 'running'
+          ? t('workspaceFooter.handoffWorktreeRunningDescription')
+          : t('workspaceFooter.handoffWorktreeDescription'))
+      : (phase === 'running'
+          ? t('workspaceFooter.handoffLocalRunningDescription')
+          : t('workspaceFooter.handoffLocalDescription'))
 
   const progressSteps = useMemo(() => {
     if (mode === 'worktree') {
@@ -97,6 +111,7 @@ export function WorktreeHandoffDialog({
 
   useEffect(() => {
     return () => {
+      mountedRef.current = false
       clearProgressTimer()
       if (closeTimerRef.current != null) window.clearTimeout(closeTimerRef.current)
     }
@@ -124,6 +139,36 @@ export function WorktreeHandoffDialog({
     }
   }
 
+  function updateCompletedStepCount(value: number): void {
+    completedStepCountRef.current = value
+    if (mountedRef.current) setCompletedStepCount(value)
+  }
+
+  function advanceCompletedStepCount(maximum: number): void {
+    setCompletedStepCount((count) => {
+      const next = Math.min(count + 1, maximum)
+      completedStepCountRef.current = next
+      return next
+    })
+  }
+
+  async function waitForProgressFrame(ms: number): Promise<void> {
+    await new Promise<void>((resolve) => {
+      closeTimerRef.current = window.setTimeout(() => {
+        closeTimerRef.current = null
+        resolve()
+      }, ms)
+    })
+  }
+
+  async function finishProgressSteps(stepCount: number): Promise<void> {
+    for (let next = Math.min(completedStepCountRef.current + 1, stepCount); next <= stepCount; next++) {
+      if (dismissedRef.current || !mountedRef.current) return
+      updateCompletedStepCount(next)
+      if (next < stepCount) await waitForProgressFrame(HANDOFF_STEP_ADVANCE_MS)
+    }
+  }
+
   function handleClose(): void {
     if (phase === 'running') {
       dismissedRef.current = true
@@ -132,6 +177,37 @@ export function WorktreeHandoffDialog({
     }
 
     onClose()
+  }
+
+  function normalizeThreadForCompletedMode(nextThread: Thread): Thread {
+    if (mode !== 'local') return nextThread
+    return {
+      ...nextThread,
+      effectiveWorkspacePath: nextThread.effectiveWorkspacePath || nextThread.workspacePath || localWorkspacePath,
+      worktree: null
+    }
+  }
+
+  function applyThreadUpdate(nextThread: Thread): Thread {
+    const normalizedThread = normalizeThreadForCompletedMode(nextThread)
+    useThreadStore.getState().upsertThreads([normalizedThread])
+    if (useThreadStore.getState().activeThreadId === normalizedThread.id) {
+      useThreadStore.getState().setActiveThread(normalizedThread)
+    }
+    return normalizedThread
+  }
+
+  async function readThreadMetadata(threadId: string): Promise<Thread | null> {
+    try {
+      const result = await window.api.appServer.sendRequest('thread/read', {
+        threadId,
+        includeTurns: false
+      }) as { thread?: Thread }
+      return result.thread ?? null
+    } catch (err) {
+      console.warn('thread/read after worktree handoff failed:', err)
+      return null
+    }
   }
 
   async function startHandoff(): Promise<void> {
@@ -144,13 +220,15 @@ export function WorktreeHandoffDialog({
     }
 
     setErrorText(null)
+    setSuccessView(null)
     setPhase('running')
-    setCompletedStepCount(0)
+    updateCompletedStepCount(0)
     onBusyChange?.(true)
     clearProgressTimer()
+    const stepCount = progressSteps.length
     progressTimerRef.current = window.setInterval(() => {
-      setCompletedStepCount((count) => Math.min(count + 1, Math.max(progressSteps.length - 1, 0)))
-    }, 1100)
+      advanceCompletedStepCount(Math.max(stepCount - 1, 0))
+    }, HANDOFF_STEP_ADVANCE_MS)
 
     try {
       const params = mode === 'worktree'
@@ -170,24 +248,44 @@ export function WorktreeHandoffDialog({
         params,
         180_000
       ) as { thread?: Thread }
+      const resultThread = result.thread
+      const normalizedResultThread = resultThread ? applyThreadUpdate(resultThread) : null
+      const refreshedThread = await readThreadMetadata(resultThread?.id ?? thread.id)
+      const normalizedRefreshedThread = refreshedThread ? applyThreadUpdate(refreshedThread) : null
+      const completedThread = normalizedRefreshedThread ?? normalizedResultThread
 
       clearProgressTimer()
-      setCompletedStepCount(progressSteps.length)
-      if (result.thread) {
-        useThreadStore.getState().upsertThreads([result.thread])
-        if (useThreadStore.getState().activeThreadId === result.thread.id) {
-          useThreadStore.getState().setActiveThread(result.thread)
-        }
-        await onComplete(result.thread)
+      if (completedThread) {
+        await onComplete(completedThread)
+      }
+      if (!dismissedRef.current) {
+        await finishProgressSteps(stepCount)
       }
 
-      addToast(
-        mode === 'worktree'
-          ? t('workspaceFooter.handoffToWorktreeSuccess')
-          : t('workspaceFooter.handoffToLocalSuccess'),
-        'success'
-      )
-      closeTimerRef.current = window.setTimeout(onClose, dismissedRef.current ? 0 : 360)
+      if (dismissedRef.current) {
+        addToast(
+          mode === 'worktree'
+            ? t('workspaceFooter.handoffToWorktreeSuccess')
+            : t('workspaceFooter.handoffToLocalSuccess'),
+          'success'
+        )
+        onClose()
+        return
+      }
+
+      const nextBranch = mode === 'worktree'
+        ? (completedThread?.worktree?.branchName?.trim() || branch || defaultBranchName)
+        : worktreeBranch
+      const nextBaseRef = completedThread?.worktree?.baseRef?.trim() || baseRef || t('workspaceFooter.branchUnknown')
+      setSuccessView({
+        title: mode === 'worktree'
+          ? t('workspaceFooter.handoffWorktreeSuccessTitle')
+          : t('workspaceFooter.handoffLocalSuccessTitle'),
+        description: mode === 'worktree'
+          ? t('workspaceFooter.handoffWorktreeSuccessDescription', { branch: nextBranch, baseRef: nextBaseRef })
+          : t('workspaceFooter.handoffLocalSuccessDescription', { branch: nextBranch })
+      })
+      setPhase('success')
     } catch (err) {
       clearProgressTimer()
       const message = err instanceof Error ? err.message : String(err)
@@ -221,13 +319,17 @@ export function WorktreeHandoffDialog({
         >
           <X size={17} strokeWidth={2} aria-hidden />
         </button>
-        <div style={iconShellStyle}>
-          <ArrowRightLeft size={24} strokeWidth={1.9} aria-hidden />
+        <div style={phase === 'success' ? successIconShellStyle : iconShellStyle}>
+          {phase === 'success' ? (
+            <Check size={28} strokeWidth={2.2} aria-hidden />
+          ) : (
+            <ArrowRightLeft size={24} strokeWidth={1.9} aria-hidden />
+          )}
         </div>
         <h2 style={titleStyle}>{title}</h2>
         <p style={descriptionStyle}>{description}</p>
 
-        {phase === 'running' ? (
+        {phase === 'success' ? null : phase === 'running' ? (
           <div style={stepsStyle}>
             {progressSteps.map((step, index) => (
               <ProgressStep
@@ -365,6 +467,12 @@ const iconShellStyle: CSSProperties = {
   alignItems: 'center',
   justifyContent: 'center',
   marginBottom: '18px'
+}
+
+const successIconShellStyle: CSSProperties = {
+  ...iconShellStyle,
+  background: 'color-mix(in srgb, var(--success) 24%, var(--bg-tertiary))',
+  color: 'var(--success)'
 }
 
 const titleStyle: CSSProperties = {

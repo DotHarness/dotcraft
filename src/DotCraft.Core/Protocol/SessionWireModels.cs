@@ -196,7 +196,7 @@ public sealed record SessionWireThread
 
     public bool Ephemeral { get; init; }
 
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public ThreadWorktreeInfo? Worktree { get; init; }
 
     public string? UserId { get; init; }

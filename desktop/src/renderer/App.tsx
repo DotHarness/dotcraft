@@ -95,6 +95,7 @@ const SETUP_PAGE_HANDOFF_PREP_MS = 260
 const SETUP_PAGE_HANDOFF_MOVE_MS = 420
 const WORKSPACE_LAUNCH_TRANSITION_MS = 620
 const WORKSPACE_LAUNCH_REVEAL_MS = 360
+const ACTIVE_THREAD_METADATA_REFRESH_INTERVAL_MS = 5_000
 const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0'
 
 type WorkspaceLaunchTarget = 'unknown' | 'setup' | 'main' | 'error'
@@ -286,6 +287,24 @@ function resolvePinnedThreadIdsForWorkspace(
     ([candidate]) => normalizeWorkspacePathForPinnedLookup(candidate) === normalizedWorkspacePath
   )
   return match?.[1] ?? []
+}
+
+function runtimeSnapshotFromThread(thread: Thread): ThreadRuntimeSnapshot {
+  const runtime = thread.runtime
+  const turns = thread.turns ?? []
+  return {
+    running: runtime?.running === true
+      || turns.some((turn) =>
+        turn.status === 'running' || turn.status === 'waitingApproval' || turn.status === 'waitingInput'
+      ),
+    busy: runtime?.busy === true,
+    waitingOnApproval: runtime?.waitingOnApproval === true
+      || turns.some((turn) => turn.status === 'waitingApproval'),
+    waitingOnInput: runtime?.waitingOnInput === true
+      || turns.some((turn) => turn.status === 'waitingInput'),
+    waitingOnPlanConfirmation: runtime?.waitingOnPlanConfirmation === true,
+    maintenanceKind: runtime?.maintenanceKind ?? null
+  }
 }
 
 function BrowserUseApprovalDialog({
@@ -2360,23 +2379,7 @@ export function App(): JSX.Element {
           const res = result as { thread: Thread }
           useThreadStore.getState().setActiveThread(res.thread)
           const runtime = res.thread.runtime
-          useThreadStore.getState().applyRuntimeSnapshot(requestedId, {
-            running: runtime?.running === true
-              || (res.thread.turns ?? []).some((turn) =>
-                turn.status === 'running' || turn.status === 'waitingApproval' || turn.status === 'waitingInput'
-              ),
-            busy: runtime?.busy === true,
-            waitingOnApproval: runtime?.waitingOnApproval === true
-              || (res.thread.turns ?? []).some((turn) =>
-                turn.status === 'waitingApproval'
-              ),
-            waitingOnInput: runtime?.waitingOnInput === true
-              || (res.thread.turns ?? []).some((turn) =>
-                turn.status === 'waitingInput'
-              ),
-            waitingOnPlanConfirmation: runtime?.waitingOnPlanConfirmation === true,
-            maintenanceKind: runtime?.maintenanceKind ?? null
-          }, {
+          useThreadStore.getState().applyRuntimeSnapshot(requestedId, runtimeSnapshotFromThread(res.thread), {
             isActive: true,
             isDesktopOrigin: res.thread.originChannel?.toLowerCase() === 'dotcraft-desktop'
           })
@@ -2598,6 +2601,54 @@ export function App(): JSX.Element {
     // the StrictMode guard above. Thread-switch unsubscription is handled by the
     // prev !== curr block. On window close the connection terminates anyway.
   }, [activeThreadId])
+
+  useEffect(() => {
+    if (!activeThreadId || status !== 'connected') return
+
+    let disposed = false
+    let refreshInFlight = false
+    const refreshActiveThreadMetadata = async (): Promise<void> => {
+      if (refreshInFlight) return
+      refreshInFlight = true
+      const requestedId = activeThreadId
+      try {
+        const result = await window.api.appServer.sendRequest('thread/read', {
+          threadId: requestedId,
+          includeTurns: false
+        })
+        if (disposed || useThreadStore.getState().activeThreadId !== requestedId) return
+        const res = result as { thread?: Thread }
+        if (!res.thread) return
+
+        const threadStore = useThreadStore.getState()
+        threadStore.upsertThreads([res.thread])
+        threadStore.setActiveThread(res.thread)
+        threadStore.applyRuntimeSnapshot(requestedId, runtimeSnapshotFromThread(res.thread), {
+          isActive: true,
+          isDesktopOrigin: res.thread.originChannel?.toLowerCase() === 'dotcraft-desktop'
+        })
+        useConversationStore.getState().setMaintenanceKind(res.thread.runtime?.maintenanceKind ?? null)
+        if (Object.prototype.hasOwnProperty.call(res.thread, 'queuedInputs')) {
+          useConversationStore.getState().setQueuedInputs(res.thread.queuedInputs ?? [])
+        }
+        if (Object.prototype.hasOwnProperty.call(res.thread, 'contextUsage')) {
+          useConversationStore.getState().setContextUsage(res.thread.contextUsage ?? null)
+        }
+      } catch {
+        // Best-effort metadata refresh. The existing subscription/read paths remain authoritative.
+      } finally {
+        refreshInFlight = false
+      }
+    }
+
+    const timer = window.setInterval(() => {
+      void refreshActiveThreadMetadata()
+    }, ACTIVE_THREAD_METADATA_REFRESH_INTERVAL_MS)
+    return () => {
+      disposed = true
+      window.clearInterval(timer)
+    }
+  }, [activeThreadId, status])
 
   // -------------------------------------------------------------------------
   // Render

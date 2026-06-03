@@ -66,9 +66,9 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps): JSX
       estimateMenuHeight(submenuItems ?? [], menuItemHeight, menuPadding)
     )
   const preferredSubmenuLeft = left + menuWidth - 4
-  const submenuLeft = preferredSubmenuLeft + menuWidth + 8 > window.innerWidth
-    ? clampMenuLeft(left - menuWidth + 4, menuWidth)
-    : preferredSubmenuLeft
+  const submenuOpensLeft = preferredSubmenuLeft + menuWidth + 8 > window.innerWidth
+  const submenuLeft = submenuOpensLeft ? -menuWidth + 4 : menuWidth - 4
+  const submenuTopOffset = submenuTop - top
 
   useEffect(() => {
     function handleMouseDown(e: MouseEvent): void {
@@ -130,7 +130,10 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps): JSX
             disabled={item.disabled}
             onClick={() => {
               if (!item.disabled) {
-                if (item.submenu) return
+                if (item.submenu) {
+                  setOpenSubmenuIndex(openSubmenuIndex === i ? null : i)
+                  return
+                }
                 item.onClick()
                 onClose()
               }
@@ -201,8 +204,8 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps): JSX
         <div
           role="menu"
           style={{
-            position: 'fixed',
-            top: submenuTop,
+            position: 'absolute',
+            top: submenuTopOffset,
             left: submenuLeft,
             width: menuWidth,
             background: 'var(--glass-surface-strong)',

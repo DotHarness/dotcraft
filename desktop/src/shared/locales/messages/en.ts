@@ -1713,6 +1713,7 @@ export const MESSAGES_EN = {
   'workspaceFooter.worktree': 'Worktree',
   'workspaceFooter.newWorktree': 'New worktree',
   'workspaceFooter.backToLocal': 'Back to local',
+  'workspaceFooter.handoffToBranch': 'Handoff to branch',
   'workspaceFooter.handoffToWorktree': 'Handoff to worktree',
   'workspaceFooter.handoffToWorktreeSuccess': 'Thread moved to a worktree',
   'workspaceFooter.handoffToLocalSuccess': 'Worktree changes moved back to local',
@@ -1722,11 +1723,16 @@ export const MESSAGES_EN = {
   'workspaceFooter.handoffWorktreeRunningTitle': 'Handing off to worktree',
   'workspaceFooter.handoffWorktreeRunningDescription':
     "Hang tight, this may take a few moments. You can close this modal, we'll let you know when the handoff is finished.",
+  'workspaceFooter.handoffWorktreeSuccessTitle': 'Handed-off to worktree',
+  'workspaceFooter.handoffWorktreeSuccessDescription':
+    'You are now working on {{branch}} in a new worktree. Branch {{baseRef}} was checked out locally.',
   'workspaceFooter.handoffLocalTitle': 'Hand off chat to local',
   'workspaceFooter.handoffLocalDescription': 'Check out the worktree branch locally, apply uncommitted changes, and detach this chat from its worktree.',
   'workspaceFooter.handoffLocalRunningTitle': 'Handing off to local',
   'workspaceFooter.handoffLocalRunningDescription':
     "Hang tight, this may take a few moments. You can close this modal, we'll let you know when the handoff is finished.",
+  'workspaceFooter.handoffLocalSuccessTitle': 'Handed-off to local',
+  'workspaceFooter.handoffLocalSuccessDescription': 'You are now working on {{branch}} locally.',
   'workspaceFooter.handoffLocalBranch': 'Branch',
   'workspaceFooter.handoffLocalWorkspace': 'Local workspace',
   'workspaceFooter.handOff': 'Hand off',

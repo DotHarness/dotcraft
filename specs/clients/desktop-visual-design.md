@@ -209,6 +209,16 @@ Every interactive control needs visible states:
 
 Focus-visible may use `--accent` because it is an accessibility affordance. Hover and active states should usually remain neutral.
 
+### 9.1 Borderless Selection Rows
+
+Compact selectors, menu items, picker options, sidebar thread rows, and other navigation or selection rows should share the same interaction language:
+
+- rest state is borderless unless the control belongs to a framed toolbar family;
+- hover, open, highlighted, and selected states use neutral background elevation (`--sidebar-control-hover`, `--sidebar-control-active`, `--bg-tertiary`, or `--bg-active`) and text emphasis;
+- do not add a visible border, inset ring, or outline for ordinary pointer hover, open, or selected states;
+- keep `focus-visible` rings for keyboard accessibility;
+- reserve borders, rings, or stronger outlines for inputs, drag/drop targets, validation, destructive confirmation, or other states where the boundary itself communicates meaning.
+
 ## 10. Agent Workflow for Desktop UI Changes
 
 Before changing Desktop UI styling, agents must:

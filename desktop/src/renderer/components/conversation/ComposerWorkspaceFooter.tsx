@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type JSX } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FocusEvent, type JSX, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { Check, ChevronDown, GitBranch, Laptop, Plus, Search, Shuffle } from 'lucide-react'
+import { ArrowRightLeft, Check, ChevronDown, FolderPlus, GitBranch, Laptop, Plus, Search } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { addToast } from '../../stores/toastStore'
@@ -31,6 +31,8 @@ interface ComposerWorkspaceFooterProps {
 type OpenMenu = 'workspace' | 'branch' | null
 type GitAvailability = 'checking' | 'available' | 'unavailable'
 
+const GIT_BRANCH_REFRESH_INTERVAL_MS = 5_000
+
 const footerStyle: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
@@ -54,7 +56,7 @@ const pillStyle: CSSProperties = {
   color: 'var(--composer-footer-text)',
   font: 'inherit',
   cursor: 'pointer',
-  outline: 'none'
+  transition: 'background 120ms ease, color 120ms ease, box-shadow 120ms ease, transform 120ms ease'
 }
 
 const menuStyle: CSSProperties = {
@@ -86,7 +88,8 @@ const menuButtonStyle: CSSProperties = {
   padding: '0 8px',
   font: 'inherit',
   cursor: 'pointer',
-  textAlign: 'left'
+  textAlign: 'left',
+  transition: 'background 120ms ease, color 120ms ease, box-shadow 120ms ease, transform 120ms ease'
 }
 
 function currentBranchLabel(branches: BranchListResult | null): string | null {
@@ -102,6 +105,93 @@ function branchNameError(value: string, t: ReturnType<typeof useT>): string | nu
   if (!branch) return t('workspaceFooter.branchRequired')
   if (branch.endsWith('/')) return t('workspaceFooter.branchCannotEndSlash')
   return null
+}
+
+interface InteractiveState {
+  hovered: boolean
+  pressed: boolean
+  focusVisible: boolean
+}
+
+function useInteractiveState(disabled = false): {
+  state: InteractiveState
+  eventHandlers: {
+    onPointerEnter: () => void
+    onPointerLeave: () => void
+    onPointerDown: () => void
+    onPointerUp: () => void
+    onPointerCancel: () => void
+    onFocus: (event: FocusEvent<HTMLButtonElement>) => void
+    onBlur: () => void
+  }
+} {
+  const [state, setState] = useState<InteractiveState>({
+    hovered: false,
+    pressed: false,
+    focusVisible: false
+  })
+
+  return {
+    state,
+    eventHandlers: {
+      onPointerEnter: () => {
+        if (!disabled) setState((current) => ({ ...current, hovered: true }))
+      },
+      onPointerLeave: () => {
+        setState((current) => ({ ...current, hovered: false, pressed: false }))
+      },
+      onPointerDown: () => {
+        if (!disabled) setState((current) => ({ ...current, pressed: true }))
+      },
+      onPointerUp: () => {
+        setState((current) => ({ ...current, pressed: false }))
+      },
+      onPointerCancel: () => {
+        setState((current) => ({ ...current, pressed: false }))
+      },
+      onFocus: (event) => {
+        if (!disabled && event.currentTarget.matches(':focus-visible')) {
+          setState((current) => ({ ...current, focusVisible: true }))
+        }
+      },
+      onBlur: () => {
+        setState((current) => ({ ...current, focusVisible: false, pressed: false }))
+      }
+    }
+  }
+}
+
+function interactiveStyle(
+  state: InteractiveState,
+  options: {
+    active?: boolean
+    disabled?: boolean
+  } = {}
+): CSSProperties {
+  if (options.disabled) {
+    return {
+      opacity: 0.45,
+      cursor: 'default',
+      transform: 'none',
+      boxShadow: 'none'
+    }
+  }
+
+  const highlighted = options.active === true || state.hovered || state.focusVisible
+  const background = state.pressed
+    ? 'var(--bg-active)'
+    : highlighted
+      ? 'var(--bg-tertiary)'
+      : 'transparent'
+
+  return {
+    background,
+    color: highlighted ? 'var(--text-primary)' : undefined,
+    boxShadow: state.focusVisible
+      ? '0 0 0 2px color-mix(in srgb, var(--accent) 55%, transparent)'
+      : 'none',
+    transform: state.pressed ? 'translateY(1px)' : 'none'
+  }
 }
 
 function workspaceSlug(path: string): string {
@@ -142,6 +232,7 @@ export function ComposerWorkspaceFooter({
   const [handoffMode, setHandoffMode] = useState<ComposerWorkspaceMode | null>(null)
   const [branchDraft, setBranchDraft] = useState('dotcraft/')
   const footerRef = useRef<HTMLDivElement>(null)
+  const branchActionPathRef = useRef('')
   const canUseWorktrees = capabilities?.gitWorktrees === true && !remoteWorkspace
   const isThread = variant === 'thread'
   const threadBusy = thread?.runtime?.busy === true
@@ -158,6 +249,11 @@ export function ComposerWorkspaceFooter({
   const locationLabel = variant === 'welcome'
     ? (mode === 'worktree' ? t('workspaceFooter.newWorktree') : t('workspaceFooter.workLocally'))
     : (mode === 'worktree' ? t('workspaceFooter.worktree') : t('workspaceFooter.local'))
+  const showBranchHandoffOnly = variant === 'thread' && mode === 'worktree'
+
+  useEffect(() => {
+    branchActionPathRef.current = branchActionPath
+  }, [branchActionPath])
 
   useEffect(() => {
     function closeOnOutsideClick(event: MouseEvent): void {
@@ -196,15 +292,18 @@ export function ComposerWorkspaceFooter({
       hideForUnavailableGit()
       return
     }
+    const requestedPath = branchActionPath
     try {
-      const next = await window.api.git.listBranches(branchActionPath)
+      const next = await window.api.git.listBranches(requestedPath)
+      if (branchActionPathRef.current !== requestedPath) return
       setBranches(next)
-      setLoadedBranchPath(branchActionPath)
+      setLoadedBranchPath(requestedPath)
       setGitAvailability('available')
       if (variant === 'welcome' && mode === 'worktree' && !baseRef) {
         onBaseRefChange?.(currentBranchLabel(next))
       }
     } catch {
+      if (branchActionPathRef.current !== requestedPath) return
       hideForUnavailableGit()
     }
   }, [baseRef, branchActionPath, hideForUnavailableGit, mode, onBaseRefChange, remoteWorkspace, variant])
@@ -212,6 +311,14 @@ export function ComposerWorkspaceFooter({
   useEffect(() => {
     void loadBranches()
   }, [loadBranches])
+
+  useEffect(() => {
+    if (remoteWorkspace || !branchActionPath || gitAvailability !== 'available') return
+    const timer = window.setInterval(() => {
+      void loadBranches()
+    }, GIT_BRANCH_REFRESH_INTERVAL_MS)
+    return () => window.clearInterval(timer)
+  }, [branchActionPath, gitAvailability, loadBranches, remoteWorkspace])
 
   const filteredBranches = useMemo(() => {
     const query = branchQuery.trim().toLowerCase()
@@ -266,62 +373,89 @@ export function ComposerWorkspaceFooter({
     }
   }
 
-  if (remoteWorkspace || gitAvailability !== 'available' || loadedBranchPath !== branchActionPath) return null
+  const handoffDialog = variant === 'thread' && handoffMode && thread ? (
+    <WorktreeHandoffDialog
+      key="handoff-dialog"
+      mode={handoffMode}
+      thread={thread}
+      baseRef={currentBranchLabel(branches)}
+      defaultBranchName={defaultWorktreeBranchName(localWorkspacePath)}
+      localWorkspacePath={localWorkspacePath}
+      onBusyChange={setBusy}
+      onClose={() => setHandoffMode(null)}
+      onComplete={() => { void loadBranches() }}
+    />
+  ) : null
+  const showFooterControls = !remoteWorkspace
+    && gitAvailability === 'available'
+    && loadedBranchPath === branchActionPath
 
   return (
-    <div ref={footerRef} style={footerStyle}>
+    <>
+    {showFooterControls && (
+      <div ref={footerRef} style={footerStyle}>
       <div style={{ position: 'relative' }}>
-        <button
-          type="button"
-          style={pillStyle}
+        <WorkspaceFooterPill
           disabled={busy || (isThread && threadBusy)}
+          open={openMenu === 'workspace'}
           onClick={() => setOpenMenu(openMenu === 'workspace' ? null : 'workspace')}
-          onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg-tertiary)' }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
         >
           <Laptop size={15} strokeWidth={1.8} aria-hidden />
           <span>{locationLabel}</span>
           <ChevronDown size={14} strokeWidth={1.8} aria-hidden />
-        </button>
+        </WorkspaceFooterPill>
         {openMenu === 'workspace' && (
           <div style={menuStyle}>
-            <WorkspaceMenuItem
-              label={variant === 'thread' && mode === 'worktree' ? t('workspaceFooter.backToLocal') : t('workspaceFooter.workLocally')}
-              checked={mode === 'local'}
-              disabled={busy || (isThread && threadBusy)}
-              onClick={() => {
-                if (variant === 'welcome') onWelcomeModeChange?.('local')
-                else if (mode !== 'local') setHandoffMode('local')
-                setOpenMenu(null)
-              }}
-            />
-            <WorkspaceMenuItem
-              label={variant === 'welcome' ? t('workspaceFooter.newWorktree') : t('workspaceFooter.handoffToWorktree')}
-              checked={mode === 'worktree'}
-              disabled={!canUseWorktrees || busy || (isThread && threadBusy)}
-              onClick={() => {
-                if (variant === 'welcome') onWelcomeModeChange?.('worktree')
-                else if (mode !== 'worktree') setHandoffMode('worktree')
-                setOpenMenu(null)
-              }}
-            />
+            {showBranchHandoffOnly ? (
+              <WorkspaceMenuItem
+                label={t('workspaceFooter.handoffToBranch')}
+                icon={<ArrowRightLeft size={14} strokeWidth={1.8} aria-hidden />}
+                checked={false}
+                disabled={busy || (isThread && threadBusy)}
+                onClick={() => {
+                  setHandoffMode('local')
+                  setOpenMenu(null)
+                }}
+              />
+            ) : (
+              <>
+                <WorkspaceMenuItem
+                  label={t('workspaceFooter.workLocally')}
+                  icon={<Laptop size={14} strokeWidth={1.8} aria-hidden />}
+                  checked={mode === 'local'}
+                  disabled={busy || (isThread && threadBusy)}
+                  onClick={() => {
+                    if (variant === 'welcome') onWelcomeModeChange?.('local')
+                    setOpenMenu(null)
+                  }}
+                />
+                <WorkspaceMenuItem
+                  label={variant === 'welcome' ? t('workspaceFooter.newWorktree') : t('workspaceFooter.handoffToWorktree')}
+                  icon={<FolderPlus size={14} strokeWidth={1.8} aria-hidden />}
+                  checked={mode === 'worktree'}
+                  disabled={!canUseWorktrees || busy || (isThread && threadBusy)}
+                  onClick={() => {
+                    if (variant === 'welcome') onWelcomeModeChange?.('worktree')
+                    else if (mode !== 'worktree') setHandoffMode('worktree')
+                    setOpenMenu(null)
+                  }}
+                />
+              </>
+            )}
           </div>
         )}
       </div>
 
       <div style={{ position: 'relative' }}>
-        <button
-          type="button"
-          style={pillStyle}
+        <WorkspaceFooterPill
           disabled={busy || !branchActionPath}
+          open={openMenu === 'branch'}
           onClick={() => setOpenMenu(openMenu === 'branch' ? null : 'branch')}
-          onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg-tertiary)' }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
         >
           <GitBranch size={15} strokeWidth={1.8} aria-hidden />
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{branchLabel}</span>
           <ChevronDown size={14} strokeWidth={1.8} aria-hidden />
-        </button>
+        </WorkspaceFooterPill>
         {openMenu === 'branch' && (
           <div style={{ ...menuStyle, width: '320px' }}>
             <div style={{
@@ -356,24 +490,24 @@ export function ComposerWorkspaceFooter({
                   ? selectedBaseRef === branch.name && !worktreeBranchName
                   : branch.current
                 return (
-                  <button
+                  <FooterMenuButton
                     key={branch.name}
-                    type="button"
-                    style={menuButtonStyle}
+                    icon={<GitBranch size={14} strokeWidth={1.8} aria-hidden />}
+                    checked={checked}
                     onClick={() => { void selectBranch(branch.name) }}
                   >
-                    <GitBranch size={14} strokeWidth={1.8} aria-hidden />
                     <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{branch.name}</span>
-                    {checked && <Check size={15} strokeWidth={1.8} aria-hidden />}
-                  </button>
+                  </FooterMenuButton>
                 )
               })}
             </div>
             <div style={{ height: '1px', background: 'var(--border-subtle)', margin: '4px 0' }} />
-            <button type="button" style={menuButtonStyle} onClick={() => setCreateOpen(true)}>
-              <Plus size={15} strokeWidth={1.8} aria-hidden />
+            <FooterMenuButton
+              icon={<Plus size={15} strokeWidth={1.8} aria-hidden />}
+              onClick={() => setCreateOpen(true)}
+            >
               <span>{variant === 'welcome' && mode === 'worktree' ? t('workspaceFooter.createWorktreeBranch') : t('workspaceFooter.createCheckoutBranch')}</span>
-            </button>
+            </FooterMenuButton>
           </div>
         )}
       </div>
@@ -394,48 +528,98 @@ export function ComposerWorkspaceFooter({
         />,
         document.body
       )}
-      {variant === 'thread' && handoffMode && thread && (
-        <WorktreeHandoffDialog
-          mode={handoffMode}
-          thread={thread}
-          baseRef={currentBranchLabel(branches)}
-          defaultBranchName={defaultWorktreeBranchName(localWorkspacePath)}
-          localWorkspacePath={localWorkspacePath}
-          onBusyChange={setBusy}
-          onClose={() => setHandoffMode(null)}
-          onComplete={() => { void loadBranches() }}
-        />
-      )}
-    </div>
+      </div>
+    )}
+    {handoffDialog}
+    </>
   )
 }
 
-function WorkspaceMenuItem({
-  label,
+function WorkspaceFooterPill({
+  children,
+  disabled,
+  open,
+  onClick
+}: {
+  children: ReactNode
+  disabled?: boolean
+  open?: boolean
+  onClick: () => void
+}): JSX.Element {
+  const { state, eventHandlers } = useInteractiveState(disabled)
+  return (
+    <button
+      type="button"
+      style={{
+        ...pillStyle,
+        ...interactiveStyle(state, {
+          active: open,
+          disabled
+        })
+      }}
+      disabled={disabled}
+      onClick={onClick}
+      {...eventHandlers}
+    >
+      {children}
+    </button>
+  )
+}
+
+function FooterMenuButton({
+  children,
+  icon,
   checked,
   disabled,
   onClick
 }: {
-  label: string
-  checked: boolean
+  children: ReactNode
+  icon: JSX.Element
+  checked?: boolean
   disabled?: boolean
   onClick: () => void
 }): JSX.Element {
+  const { state, eventHandlers } = useInteractiveState(disabled)
   return (
     <button
       type="button"
       style={{
         ...menuButtonStyle,
-        opacity: disabled ? 0.45 : 1,
-        cursor: disabled ? 'default' : 'pointer'
+        ...interactiveStyle(state, { disabled })
       }}
       disabled={disabled}
       onClick={onClick}
+      {...eventHandlers}
     >
-      <Shuffle size={14} strokeWidth={1.8} aria-hidden />
-      <span style={{ flex: 1 }}>{label}</span>
+      {icon}
+      {children}
       {checked && <Check size={15} strokeWidth={1.8} aria-hidden />}
     </button>
+  )
+}
+
+function WorkspaceMenuItem({
+  label,
+  icon,
+  checked,
+  disabled,
+  onClick
+}: {
+  label: string
+  icon: JSX.Element
+  checked: boolean
+  disabled?: boolean
+  onClick: () => void
+}): JSX.Element {
+  return (
+    <FooterMenuButton
+      icon={icon}
+      checked={checked}
+      disabled={disabled}
+      onClick={onClick}
+    >
+      <span style={{ flex: 1 }}>{label}</span>
+    </FooterMenuButton>
   )
 }
 

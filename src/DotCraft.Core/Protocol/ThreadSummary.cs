@@ -130,6 +130,7 @@ public sealed class ThreadSummary
 
     public bool Ephemeral { get; set; }
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public ThreadWorktreeInfo? Worktree { get; set; }
 
     public ThreadStatus Status { get; set; }

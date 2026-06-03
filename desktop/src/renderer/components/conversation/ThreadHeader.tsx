@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Archive, FolderPlus, GitFork, MoreHorizontal, Pencil, Pin, PanelRightOpen } from 'lucide-react'
+import { Archive, FolderPlus, GitFork, Laptop, MoreHorizontal, Pencil, Pin, PanelRightOpen } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useConnectionStore } from '../../stores/connectionStore'
@@ -58,7 +58,7 @@ export function ThreadHeader({
   const activeThreadIsSubAgent = activeThread ? isSubAgentThread(activeThread) : false
   const pinned = pinnedThreadIds.includes(threadId)
   const canFork = canForkThread(capabilities)
-  const canForkIntoWorktree = canForkWorktree(capabilities)
+  const canForkIntoWorktree = canForkWorktree(capabilities) && !remoteWorkspace
   const worktreeBranch = activeThread?.worktree?.branchName?.trim()
 
   // Keep rename input value in sync when threadName changes externally
@@ -400,19 +400,17 @@ export function ThreadHeader({
                   }
                 ]
               : []),
-            ...(!activeThreadIsSubAgent
+            ...(!activeThreadIsSubAgent && canFork
               ? [
                   { type: 'separator' as const },
                   {
                     label: t('fork.menu'),
                     icon: <GitFork size={14} aria-hidden />,
-                    disabled: !canFork,
-                    title: canFork ? undefined : t('fork.unavailable'),
                     onClick: () => {},
                     submenu: [
                       {
                         label: t('fork.intoLocal'),
-                        icon: <GitFork size={14} aria-hidden />,
+                        icon: <Laptop size={14} aria-hidden />,
                         onClick: () => forkThread('local')
                       },
                       ...(canForkIntoWorktree

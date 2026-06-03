@@ -924,7 +924,7 @@ public sealed class ThreadWorktreeHandoffResponse
 
     public string Mode { get; set; } = WorktreeHandoffModes.Local;
 
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public ThreadWorktreeInfo? Worktree { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

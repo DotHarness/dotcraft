@@ -10,7 +10,7 @@ import { ContextMenu } from '../ui/ContextMenu'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
 import { RunningSpinner } from '../ui/RunningSpinner'
 import { ChannelIconBadge } from '../ui/channelMeta'
-import { Archive, CornerDownRight, FolderPlus, GitFork, Pencil, Pin, Trash2 } from 'lucide-react'
+import { Archive, CornerDownRight, FolderPlus, Laptop, Pencil, Pin, Trash2 } from 'lucide-react'
 import { AUTOMATION_TASK_DRAG_MIME } from '../automations/TaskCard'
 import { useAutomationsStore } from '../../stores/automationsStore'
 import { useDragDropStore } from '../../stores/dragDropStore'
@@ -894,21 +894,25 @@ function ThreadEntryContextMenu({
                   await onArchive()
                 }
               },
-              { type: 'separator' as const },
-              {
-                label: t('fork.intoLocal'),
-                icon: <GitFork size={14} aria-hidden />,
-                disabled: !canFork,
-                title: canFork ? undefined : t('fork.unavailable'),
-                onClick: () => handleFork('local')
-              },
-              ...(canForkIntoWorktree
+              ...(canFork
                 ? [
                     {
-                      label: t('fork.intoWorktree'),
-                      icon: <FolderPlus size={14} aria-hidden />,
-                      onClick: () => handleFork('worktree')
-                    }
+                      type: 'separator' as const
+                    },
+                    {
+                      label: t('fork.intoLocal'),
+                      icon: <Laptop size={14} aria-hidden />,
+                      onClick: () => handleFork('local')
+                    },
+                    ...(canForkIntoWorktree
+                      ? [
+                          {
+                            label: t('fork.intoWorktree'),
+                            icon: <FolderPlus size={14} aria-hidden />,
+                            onClick: () => handleFork('worktree')
+                          }
+                        ]
+                      : [])
                   ]
                 : []),
               { type: 'separator' as const },
