@@ -1463,6 +1463,17 @@ kbd {
   }
 }
 
+/* ─── Skeleton loading shimmer ─── */
+/* Opacity-only pulse for skeleton placeholder blocks (no scale jitter). */
+@keyframes skeleton-pulse {
+  0%, 100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
 @keyframes shake {
   0%, 100% { transform: translateX(0); }
   15% { transform: translateX(-6px); }

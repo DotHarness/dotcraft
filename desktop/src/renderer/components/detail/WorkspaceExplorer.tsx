@@ -24,6 +24,7 @@ import { useViewerTabStore } from '../../stores/viewerTabStore'
 import { useUIStore } from '../../stores/uiStore'
 import { addToast } from '../../stores/toastStore'
 import { FileTypeIcon } from '../ui/FileTypeIcon'
+import { Skeleton } from '../ui/Skeleton'
 import { ReferencePathContextMenu } from '../conversation/ReferencePathContextMenu'
 import type { ContextMenuPosition } from '../ui/ContextMenu'
 import type { DirEntryWire } from '../../../shared/viewer/types'
@@ -158,7 +159,7 @@ export function WorkspaceExplorer(): JSX.Element {
     if (kids === undefined) {
       return errored.has(dirKey)
         ? <Placeholder depth={depth} text={t('viewer.explorerLoadFailed')} />
-        : <Placeholder depth={depth} text={t('quickOpen.loading')} />
+        : <TreeSkeleton depth={depth} ariaLabel={t('quickOpen.loading')} />
     }
     const visible = q
       ? kids.filter((k) => k.name.toLowerCase().includes(q) || (k.isDir && subtreeMatches(norm(k.absolutePath).replace(/\/+$/, ''), q)))
@@ -234,6 +235,24 @@ export function WorkspaceExplorer(): JSX.Element {
           onClose={() => setContextMenu(null)}
         />
       )}
+    </div>
+  )
+}
+
+function TreeSkeleton({ depth, ariaLabel }: { depth: number; ariaLabel: string }): JSX.Element {
+  return (
+    <div role="status" aria-busy="true" aria-label={ariaLabel}>
+      {[64, 48, 56].map((width, index) => (
+        <div
+          key={index}
+          aria-hidden="true"
+          style={{ ...rowStyle, cursor: 'default', paddingLeft: 8 + depth * 14 }}
+        >
+          <span style={chevronSlotStyle} />
+          <Skeleton width={15} height={15} radius={4} />
+          <Skeleton width={`${width}%`} height={11} />
+        </div>
+      ))}
     </div>
   )
 }

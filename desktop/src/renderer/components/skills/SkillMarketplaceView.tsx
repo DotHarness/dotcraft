@@ -9,6 +9,7 @@ import type { MarketSkillDetail, MarketSkillSummary, SkillMarketProviderId } fro
 import { addToast } from '../../stores/toastStore'
 import { MarkdownRenderer } from '../conversation/MarkdownRenderer'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
+import { Skeleton } from '../ui/Skeleton'
 
 interface SkillMarketplaceViewProps {
   onInstalled: () => Promise<void>
@@ -104,7 +105,7 @@ export function SkillMarketplaceView({ onInstalled }: SkillMarketplaceViewProps)
       {!query.trim() && (
         <p style={emptyText}>{t('skillMarket.emptyPrompt')}</p>
       )}
-      {loading && <p style={emptyText}>{t('skillMarket.loading')}</p>}
+      {loading && <MarketSkeletonGrid ariaLabel={t('skillMarket.loading')} />}
       {error && (
         <p style={{ ...emptyText, color: 'var(--error)' }} role="alert">
           {error}
@@ -161,6 +162,32 @@ function MarketSkillCard({ skill, onOpen }: { skill: MarketSkillSummary; onOpen:
         )}
       </div>
     </button>
+  )
+}
+
+function MarketSkeletonGrid({ ariaLabel }: { ariaLabel: string }): JSX.Element {
+  return (
+    <div role="status" aria-busy="true" aria-label={ariaLabel} style={resultGrid}>
+      {Array.from({ length: 6 }, (_, index) => (
+        <div key={index} style={{ ...cardBtn, cursor: 'default' }} aria-hidden="true">
+          <div style={cardHeader}>
+            <div style={{ minWidth: 0, flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <Skeleton width={index % 2 === 0 ? '62%' : '52%'} height={14} />
+              <Skeleton width="40%" height={11} />
+            </div>
+            <Skeleton width={56} height={18} radius={999} />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <Skeleton width="100%" height={11} />
+            <Skeleton width="82%" height={11} />
+          </div>
+          <div style={{ display: 'flex', gap: '12px', marginTop: 'auto' }}>
+            <Skeleton width={44} height={10} />
+            <Skeleton width={64} height={10} />
+          </div>
+        </div>
+      ))}
+    </div>
   )
 }
 

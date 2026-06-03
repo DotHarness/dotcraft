@@ -3,6 +3,7 @@ import { useT } from '../../../../contexts/LocaleContext'
 import type { MessageKey } from '../../../../../shared/locales'
 import { SettingsGroup } from '../../SettingsGroup'
 import { PillSwitch } from '../../../ui/PillSwitch'
+import { Skeleton } from '../../../ui/Skeleton'
 import { AgentIcon } from './AgentIcon'
 import { PRESET_PROFILE_NAMES, type SubAgentProfileEntryWire } from './wire'
 import { pillBadgeStyle, primaryButtonStyle } from './styles'
@@ -37,7 +38,23 @@ export function SubAgentList({
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           {loading && presetProfiles.length === 0 && (
-            <div style={emptyNoticeStyle()}>{t('settings.subAgents.loading')}</div>
+            <div
+              role="status"
+              aria-busy="true"
+              aria-label={t('settings.subAgents.loading')}
+              style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}
+            >
+              {Array.from({ length: 3 }, (_, index) => (
+                <div key={index} style={{ ...cardStyle(), cursor: 'default' }} aria-hidden="true">
+                  <Skeleton width={32} height={32} radius={8} />
+                  <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <Skeleton width={index % 2 === 0 ? '40%' : '52%'} height={14} />
+                    <Skeleton width="64%" height={12} />
+                  </div>
+                  <Skeleton width={36} height={20} radius={999} />
+                </div>
+              ))}
+            </div>
           )}
           {presetProfiles.map((profile) => (
             <ProfileCard

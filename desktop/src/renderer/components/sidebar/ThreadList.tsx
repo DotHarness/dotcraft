@@ -8,6 +8,7 @@ import type { ThreadGroup as ThreadGroupType } from '../../types/thread'
 import type { ThreadSummary } from '../../types/thread'
 import { THREAD_GROUP_ORDER } from '../../types/thread'
 import { getSubAgentParentThreadId, isSubAgentThread } from '../../utils/subAgentThreads'
+import { Skeleton } from '../ui/Skeleton'
 
 /**
  * Scrollable container for the grouped thread list.
@@ -27,12 +28,20 @@ export function ThreadList(): JSX.Element {
 
   if (loading) {
     return (
-      <div style={emptyStyle}>
-        <span style={{
-          color: 'var(--text-dimmed)',
-          fontSize: 'var(--type-ui-size)',
-          lineHeight: 'var(--type-ui-line-height)'
-        }}>{t('threadList.loading')}</span>
+      <div
+        role="status"
+        aria-busy="true"
+        aria-label={t('threadList.loading')}
+        style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: '2px' }}
+      >
+        {[72, 58, 80, 50, 66, 60, 74].map((width, row) => (
+          <div
+            key={row}
+            style={{ height: '28px', display: 'flex', alignItems: 'center', padding: '0 6px' }}
+          >
+            <Skeleton width={`${width}%`} height={12} />
+          </div>
+        ))}
       </div>
     )
   }

@@ -20,6 +20,7 @@ import { useConfirmDialog } from '../ui/ConfirmDialog'
 import { useUIStore } from '../../stores/uiStore'
 import type { ThreadSummary } from '../../types/thread'
 import { CatalogFilterMenu, CatalogSearchBox, styles as catalogStyles } from '../catalog/CatalogSurface'
+import { SkeletonCatalogGrid, SkeletonList } from '../ui/Skeleton'
 
 type ViewMode = 'browse' | 'manage'
 export type SourceFilter = 'all' | 'system' | 'personal' | 'market'
@@ -314,14 +315,14 @@ export function SkillsView({ onManage }: SkillsViewProps = {}): JSX.Element {
       </header>
 
       <main style={browseMain}>
-        {loading && <p style={emptyText}>{t('skills.loading')}</p>}
+        {loading && <SkeletonCatalogGrid ariaLabel={t('skills.loading')} />}
         {error && <p style={{ ...emptyText, color: 'var(--error)' }} role="alert">{error}</p>}
         {marketError && <p style={{ ...emptyText, color: 'var(--error)' }} role="alert">{marketError}</p>}
 
         {query.trim() && sourceFilter !== 'system' && sourceFilter !== 'personal' && (
           <SkillSection title={t('skills.section.marketResults')}>
             {marketLoading ? (
-              <p style={emptyText}>{t('skillMarket.loading')}</p>
+              <SkeletonCatalogGrid count={4} ariaLabel={t('skillMarket.loading')} />
             ) : marketResults.length > 0 ? (
               <CompactGrid>
                 {marketResults.map((skill) => (
@@ -540,7 +541,14 @@ export function SkillsManageList({
 
   return (
     <main style={manageMain}>
-      {loading && <p style={emptyText}>{t('skills.loading')}</p>}
+      {loading && (
+        <SkeletonList
+          count={5}
+          ariaLabel={t('skills.loading')}
+          rowProps={{ media: 38, mediaRadius: 8, lines: ['46%', '30%'] }}
+          rowStyle={{ maxWidth: '730px', margin: '0 auto', minHeight: '74px' }}
+        />
+      )}
       {error && <p style={{ ...emptyText, color: 'var(--error)' }} role="alert">{error}</p>}
       {!loading && !error && skills.map((skill) => (
         <div key={skill.name} style={manageRow}>

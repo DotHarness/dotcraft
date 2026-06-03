@@ -6,6 +6,7 @@ import { useConnectionStore } from '../../stores/connectionStore'
 import { useThreadStore } from '../../stores/threadStore'
 import { addToast } from '../../stores/toastStore'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
+import { Skeleton } from '../ui/Skeleton'
 import type { PluginEntry } from '../../stores/pluginStore'
 
 interface AppBindingPanelProps {
@@ -158,7 +159,27 @@ export function AppBindingPanel({ plugin }: AppBindingPanelProps): JSX.Element |
           <RefreshCw size={14} aria-hidden />
         </button>
       </div>
-      {appsLoading && <p style={mutedText}>{t('appBinding.loading')}</p>}
+      {appsLoading && (
+        <div role="status" aria-busy="true" aria-label={t('appBinding.loading')} style={appList}>
+          {Array.from({ length: 3 }, (_, index) => (
+            <div key={index} style={appRow} aria-hidden="true">
+              <div style={appMain}>
+                <Skeleton width={index % 2 === 0 ? '42%' : '34%'} height={13} />
+                <Skeleton width="92%" height={11} style={{ marginTop: 8 }} />
+                <Skeleton width="68%" height={11} style={{ marginTop: 6 }} />
+                <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
+                  <Skeleton width={64} height={20} radius={999} />
+                  <Skeleton width={52} height={20} radius={999} />
+                  <Skeleton width={72} height={20} radius={999} />
+                </div>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <Skeleton width={96} height={30} radius={8} />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
       {appsError && <p style={errorText}>{appsError}</p>}
       <div style={appList}>
         {pluginApps.map((app) => {
@@ -385,7 +406,6 @@ const baseButton: CSSProperties = { border: 'none', borderRadius: 8, padding: '7
 const primaryButton: CSSProperties = { ...baseButton, background: '#050505', color: '#fff' }
 const secondaryButton: CSSProperties = { ...baseButton, background: 'var(--bg-tertiary)', color: 'var(--text-primary)' }
 const iconButton: CSSProperties = { width: 30, height: 30, border: 'none', borderRadius: 8, background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }
-const mutedText: CSSProperties = { margin: 0, color: 'var(--text-secondary)', fontSize: 13 }
 const errorText: CSSProperties = { margin: 0, color: 'var(--error)', fontSize: 13 }
 
 function statePill(good: boolean): CSSProperties {

@@ -24,6 +24,7 @@ import { PluginCatalogItem, PluginIcon, pluginSourceLabel, pluginSubtitle, plugi
 import { PluginInstallDialog } from './PluginInstallDialog'
 import { AppBindingPanel } from './AppBindingPanel'
 import { getPluginDesktopExtensionContents } from '../../utils/pluginDesktopExtensions'
+import { SkeletonCatalogGrid, SkeletonList } from '../ui/Skeleton'
 
 type Surface = PluginCatalogSurface
 type PluginMode = 'browse' | 'manage'
@@ -345,7 +346,7 @@ export function PluginsView(): JSX.Element {
       </header>
       <main style={browseMain}>
         {!pluginManagement && <p style={emptyText}>{t('plugins.unavailable')}</p>}
-        {loading && <p style={emptyText}>{t('plugins.loading')}</p>}
+        {loading && <SkeletonCatalogGrid ariaLabel={t('plugins.loading')} />}
         {error && <p style={{ ...emptyText, color: 'var(--error)' }} role="alert">{error}</p>}
         <PluginDiagnosticsBanner diagnostics={visibleDiagnostics} />
         {sections.map((section) => (
@@ -521,7 +522,14 @@ function PluginsManageList({
   return (
     <main style={manageMain}>
       {!pluginManagement && <p style={emptyText}>{t('plugins.unavailable')}</p>}
-      {loading && <p style={emptyText}>{t('plugins.loading')}</p>}
+      {loading && (
+        <SkeletonList
+          count={5}
+          ariaLabel={t('plugins.loading')}
+          rowProps={{ media: 38, mediaRadius: 8, lines: ['46%', '30%'] }}
+          rowStyle={{ maxWidth: '730px', margin: '0 auto', minHeight: '74px' }}
+        />
+      )}
       {error && <p style={{ ...emptyText, color: 'var(--error)' }} role="alert">{error}</p>}
       <PluginDiagnosticsBanner diagnostics={diagnostics} />
       {plugins.map((plugin) => (

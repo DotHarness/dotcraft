@@ -19,6 +19,7 @@ import {
 } from '../catalog/CatalogSurface'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
+import { SkeletonCatalogGrid } from '../ui/Skeleton'
 import { StatusPill } from './FormShared'
 import { isPersistedEmbeddedModuleChannelEnabled } from '../../../shared/channelModulePersistence'
 import type {
@@ -1294,10 +1295,6 @@ export function ChannelsView(): JSX.Element {
       <div style={contentShell}>
         <div style={contentPane}>
           <main style={browseMain}>
-            {modulesLoading && selectedChannelKey === null && (
-              <p style={emptyText}>{t('channels.loading')}</p>
-            )}
-
             <CatalogSection title={t('channels.modules.group')}>
               {moduleItems.length > 0 ? (
                 <CatalogCompactGrid>
@@ -1305,8 +1302,10 @@ export function ChannelsView(): JSX.Element {
                     <ChannelCatalogItem key={key} {...item} />
                   ))}
                 </CatalogCompactGrid>
+              ) : modulesLoading ? (
+                <SkeletonCatalogGrid count={4} ariaLabel={t('channels.loading')} />
               ) : (
-                <p style={emptyText}>{modulesLoading ? t('channels.loading') : t('channels.modules.empty')}</p>
+                <p style={emptyText}>{t('channels.modules.empty')}</p>
               )}
             </CatalogSection>
 
@@ -1317,13 +1316,13 @@ export function ChannelsView(): JSX.Element {
                     <ChannelCatalogItem key={key} {...item} />
                   ))}
                 </CatalogCompactGrid>
+              ) : externalLoading ? (
+                <SkeletonCatalogGrid count={4} ariaLabel={t('channels.loading')} />
               ) : (
                 <p style={emptyText}>
-                  {externalLoading
-                    ? t('channels.loading')
-                    : externalManagementEnabled
-                      ? t('channels.external.empty')
-                      : t('channels.external.unavailable')}
+                  {externalManagementEnabled
+                    ? t('channels.external.empty')
+                    : t('channels.external.unavailable')}
                 </p>
               )}
             </CatalogSection>

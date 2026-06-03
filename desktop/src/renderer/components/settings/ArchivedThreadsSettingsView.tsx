@@ -12,6 +12,7 @@ import { useConfirmDialog } from '../ui/ConfirmDialog'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { SettingsGroup, SettingsRow } from './SettingsGroup'
 import { SettingsPanelShell } from './SettingsPanelShell'
+import { Skeleton } from '../ui/Skeleton'
 
 interface ArchivedThreadsSettingsViewProps {
   workspacePath?: string
@@ -212,11 +213,19 @@ export function ArchivedThreadsSettingsView({
         ) : undefined
       }
       >
-      {loading && (
-        <SettingsRow>
-          <div style={{ fontSize: '13px', color: 'var(--text-dimmed)' }}>{t('archivedThreads.loading')}</div>
-        </SettingsRow>
-      )}
+      {loading &&
+        ['58%', '44%', '64%', '50%'].map((labelWidth, index) => (
+          <SettingsRow
+            key={`skeleton-${index}`}
+            label={
+              <span role={index === 0 ? 'status' : undefined} aria-label={index === 0 ? t('archivedThreads.loading') : undefined}>
+                <Skeleton width={labelWidth} height={13} />
+              </span>
+            }
+            description={<Skeleton width="34%" height={11} />}
+            control={<Skeleton width={132} height={28} radius={6} />}
+          />
+        ))}
 
       {!loading && error && (
         <SettingsRow>
