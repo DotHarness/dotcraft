@@ -10,6 +10,9 @@
   /* OpenHuman-style: sidebar shares the page background for a frameless look */
   --vp-sidebar-bg-color: var(--vp-c-bg);
   --vp-nav-bg-color: var(--vp-c-bg);
+  /* Full-width canvas: rails pinned to the viewport edges up to 2560px wide.
+     See "Wider doc canvas" below. */
+  --vp-layout-max-width: 2560px;
   --vp-c-text-1: #1a1c1f;
   --vp-c-text-2: color-mix(in srgb, #1a1c1f 70%, #f9f9f9);
   --vp-c-text-3: color-mix(in srgb, #1a1c1f 50%, #f9f9f9);
@@ -149,7 +152,9 @@
    meets the content's left edge with no gap. */
 @media (min-width: 1440px) {
   .VPSidebar {
-    left: calc((100vw - var(--vp-layout-max-width)) / 2) !important;
+    /* Clamp the gutter to 0 so the sidebar never slides off-screen in the
+       1440–1700 transition zone (where raw (100vw − max)/2 goes negative). */
+    left: max(0px, calc((100vw - var(--vp-layout-max-width)) / 2)) !important;
     width: var(--vp-sidebar-width) !important;
     padding-left: 16px !important;
   }
@@ -159,6 +164,46 @@
   .VPSidebar .curtain {
     margin-left: -16px !important;
     margin-right: -16px !important;
+  }
+}
+
+/* =============================================================================
+ * Wider doc canvas — full-width rails, centered reading column.
+ *
+ * VitePress caps the layout at 1440px and the prose/code column at 688px, so on
+ * wide screens large empty gutters sit on both sides, the sidebar/aside float
+ * inward, and code blocks scroll horizontally instead of fitting. We pin the
+ * rails to the viewport edges and let the reading column breathe in between:
+ *   1. Edge-pinned rails. With --vp-layout-max-width at 2560px the
+ *      max(0px, (100vw − max)/2) gutter stays 0 up to 2560px, so the sidebar
+ *      sits flush-left and the page runs edge-to-edge (re-centering only past
+ *      2560px). The clamp also repairs the transition zone where the raw
+ *      (100vw − max)/2 math would otherwise go negative and overlap content.
+ *   2. Flush-right aside + centered column. With the container spanning the full
+ *      width, VitePress's own .content (width:100%) fills the space left of the
+ *      aside, so the "On this page" aside sits flush against the right edge; its
+ *      .content-container { margin:0 auto } then centers the bounded column in
+ *      that space, giving balanced breathing room on both sides.
+ *   3. Wider column: 688px → 900px (only ≥1536px, where the wider column clears
+ *      the flush-right aside without overflowing) so code and images breathe.
+ * ============================================================================= */
+@media (min-width: 1440px) {
+  .VPContent.has-sidebar {
+    padding-right: max(0px, calc((100vw - var(--vp-layout-max-width)) / 2)) !important;
+    padding-left: calc(max(0px, (100vw - var(--vp-layout-max-width)) / 2) + var(--vp-sidebar-width)) !important;
+  }
+
+  .VPNavBar.has-sidebar .content {
+    padding-right: calc(max(0px, (100vw - var(--vp-layout-max-width)) / 2) + 32px) !important;
+    padding-left: calc(max(0px, (100vw - var(--vp-layout-max-width)) / 2) + var(--vp-sidebar-width)) !important;
+  }
+}
+
+/* Reading/code column: 688px → 900px once there is room for it to clear the
+   flush-right aside without overflowing. */
+@media (min-width: 1536px) {
+  .VPDoc.has-aside .content-container {
+    max-width: 900px !important;
   }
 }
 
