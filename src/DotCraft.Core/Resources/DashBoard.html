@@ -3102,7 +3102,7 @@ function formatPromptCacheDiagnosticKind(kind) {
     case 'cacheHitStable': return 'cache hit stable';
     case 'cacheReadDrop': return 'cache read drop';
     case 'ttlPossible': return 'possible TTL';
-    case 'promptOrToolsChanged': return 'prompt/tools changed';
+    case 'promptOrToolsChanged': return 'cache key changed';
     case 'likelyServerSide': return 'likely server-side';
     default: return String(kind || 'diagnostic');
   }
@@ -3122,11 +3122,14 @@ function renderPromptCacheUsageDiagnosticDetail(event, md) {
   if (md.breakpointCount != null) {
     parts.push(`${formatNumber(md.breakpointCount)} breakpoints`);
   }
+  if (md.previousReasoningHash || md.reasoningHash) {
+    parts.push(`reasoning ${shortHash(md.previousReasoningHash)} -> ${shortHash(md.reasoningHash)}`);
+  }
   if (md.newSelectedCount != null || md.rememberedSelectedCount != null) {
     parts.push(`${formatNumber(md.newSelectedCount || 0)} new / ${formatNumber(md.rememberedSelectedCount || 0)} remembered`);
   }
-  if (md.promptChanged || md.toolsChanged) {
-    const changed = [md.promptChanged ? 'prompt' : '', md.toolsChanged ? 'tools' : ''].filter(Boolean).join('+');
+  if (md.promptChanged || md.toolsChanged || md.reasoningChanged) {
+    const changed = [md.promptChanged ? 'prompt' : '', md.toolsChanged ? 'tools' : '', md.reasoningChanged ? 'reasoning' : ''].filter(Boolean).join('+');
     parts.push(`${changed} changed`);
   }
   if (md.systemHash || md.toolSchemaHash) {

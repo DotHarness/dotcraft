@@ -5,6 +5,7 @@ using Anthropic;
 using AnthropicCacheControlEphemeral = Anthropic.Models.Messages.CacheControlEphemeral;
 using DotCraft.Agents;
 using DotCraft.Configuration;
+using DotCraft.Context;
 using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
 using System.ClientModel.Primitives;
@@ -290,6 +291,60 @@ public sealed class PromptCachingChatClientTests
         Assert.Contains(prepared.PendingCachePoints, p => p.Trace.Role == ChatRole.Tool.Value && p.Trace.Latest);
         Assert.Contains(prepared.PendingCachePoints, p => p.Trace.Remembered);
         Assert.Equal(2, prepared.LlmCallIndex);
+    }
+
+    [Fact]
+    public void Prepare_PromptCacheDiagnosticHashesReasoningAndFullToolSchema()
+    {
+        var client = CreateAnthropicNativeClient("claude-opus-4-1");
+        var readV1 = AIFunctionFactory.Create(
+            () => "ok",
+            name: "ReadFile",
+            description: "Read a file.");
+        var readV2 = AIFunctionFactory.Create(
+            () => "ok",
+            name: "ReadFile",
+            description: "Read a project file.");
+        var messages = new[] { new ChatMessage(ChatRole.User, "hello") };
+
+        var first = client.Prepare(messages, new ChatOptions
+        {
+            Tools = [readV1],
+            Reasoning = new ReasoningOptions
+            {
+                Effort = ReasoningEffort.High,
+                Output = ReasoningOutput.Full
+            }
+        });
+        var schemaChanged = client.Prepare(messages, new ChatOptions
+        {
+            Tools = [readV2],
+            Reasoning = new ReasoningOptions
+            {
+                Effort = ReasoningEffort.High,
+                Output = ReasoningOutput.Full
+            }
+        });
+        var reasoningChanged = client.Prepare(messages, new ChatOptions
+        {
+            Tools = [readV1],
+            Reasoning = new ReasoningOptions
+            {
+                Effort = ReasoningEffort.Low,
+                Output = ReasoningOutput.Full
+            }
+        });
+
+        Assert.NotNull(first.PromptCacheDiagnostic);
+        Assert.Equal(
+            PromptRequestFingerprints.ComputeToolFingerprint([readV1]),
+            first.PromptCacheDiagnostic.ToolSchemaHash);
+        Assert.NotEqual(
+            first.PromptCacheDiagnostic.ToolSchemaHash,
+            schemaChanged.PromptCacheDiagnostic?.ToolSchemaHash);
+        Assert.NotEqual(
+            first.PromptCacheDiagnostic.ReasoningHash,
+            reasoningChanged.PromptCacheDiagnostic?.ReasoningHash);
     }
 
     [Fact]

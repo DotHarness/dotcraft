@@ -167,6 +167,24 @@ public sealed class PromptCacheDiagnosticsTests
     }
 
     [Fact]
+    public void PromptCacheUsageDiagnostic_ReasoningChangeClassifiesPromptOrToolsChanged()
+    {
+        var store = new TraceStore();
+        var collector = new TraceCollector(store);
+
+        collector.RecordPromptCacheRequestSnapshot("session", Snapshot(llmCallIndex: 1, reasoningHash: "reasoning-a"));
+        collector.RecordTokenUsage("session", new TokenUsageSnapshot(12_000, 1, 10_000, 0));
+        collector.RecordPromptCacheRequestSnapshot("session", Snapshot(llmCallIndex: 2, reasoningHash: "reasoning-b"));
+        collector.RecordTokenUsage("session", new TokenUsageSnapshot(12_100, 1, 0, 0));
+
+        var diagnostic = Events(store, "session", TraceEventType.PromptCacheDiagnostic).Last();
+        Assert.Equal(PromptCacheDiagnosticKinds.PromptOrToolsChanged, diagnostic.PromptCacheEventKind);
+        Assert.NotNull(diagnostic.PromptCacheChangedFields);
+        Assert.Equal([PromptCacheChangedFields.Reasoning], diagnostic.PromptCacheChangedFields!);
+        Assert.Contains("\"reasoningChanged\":true", diagnostic.MetadataJson);
+    }
+
+    [Fact]
     public void PromptCacheUsageDiagnostic_NewLatestPrefixClassifiesWarmWrite()
     {
         var store = new TraceStore();
@@ -267,6 +285,7 @@ public sealed class PromptCacheDiagnosticsTests
         string? ttl = null,
         string systemHash = "system-hash",
         string toolSchemaHash = "tool-hash",
+        string? reasoningHash = null,
         string hashPrefix = "abc123def456",
         int newSelectedCount = 0,
         bool latestSelectedPointIsNew = false)
@@ -295,6 +314,7 @@ public sealed class PromptCacheDiagnosticsTests
             latestSelectedPointIsNew,
             systemHash,
             toolSchemaHash,
+            reasoningHash,
             2,
             selectedPoints,
             [new PromptCacheCandidateCountDiagnostic("system", "text", 1)]);

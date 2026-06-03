@@ -6,6 +6,7 @@ using System.Text.Json.Nodes;
 using AnthropicCacheControlEphemeral = Anthropic.Models.Messages.CacheControlEphemeral;
 using AnthropicTextBlockParam = Anthropic.Models.Messages.TextBlockParam;
 using DotCraft.Configuration;
+using DotCraft.Context;
 using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
 using OpenAIAssistantChatMessage = OpenAI.Chat.AssistantChatMessage;
@@ -495,6 +496,7 @@ public sealed class PromptCachingChatClient : DelegatingChatClient
             selected.Any(static point => point.Latest && !point.Remembered),
             ComputeSystemHash(messages),
             ComputeToolSchemaHash(options),
+            ComputeReasoningHash(options),
             options?.Tools?.Count ?? 0,
             selectedPoints,
             candidateCounts);
@@ -523,15 +525,19 @@ public sealed class PromptCachingChatClient : DelegatingChatClient
         if (options?.Tools is not { Count: > 0 } tools)
             return null;
 
-        var canonical = string.Join(
-            "\n",
-            tools
-                .Select(static tool => tool.Name ?? string.Empty)
-                .Where(static name => !string.IsNullOrWhiteSpace(name))
-                .OrderBy(static name => name, StringComparer.Ordinal));
-        if (string.IsNullOrWhiteSpace(canonical))
+        return PromptRequestFingerprints.ComputeToolFingerprint(tools);
+    }
+
+    private static string? ComputeReasoningHash(ChatOptions? options)
+    {
+        if (options?.Reasoning is not { } reasoning)
             return null;
 
+        var canonical = JsonSerializer.Serialize(new
+        {
+            Effort = reasoning.Effort?.ToString(),
+            Output = reasoning.Output.ToString()
+        });
         return ComputeHash(new StringBuilder(canonical));
     }
 

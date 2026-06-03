@@ -42,6 +42,7 @@ public static class PromptCacheChangedFields
 {
     public const string Prompt = "prompt";
     public const string Tools = "tools";
+    public const string Reasoning = "reasoning";
 }
 
 /// <summary>
@@ -170,6 +171,7 @@ internal sealed record PromptCacheRequestDiagnosticSnapshot(
     bool LatestSelectedPointIsNew,
     string? SystemHash,
     string? ToolSchemaHash,
+    string? ReasoningHash,
     int ToolCount,
     IReadOnlyList<PromptCacheSelectedPointDiagnostic> SelectedPoints,
     IReadOnlyList<PromptCacheCandidateCountDiagnostic> CandidateCounts);

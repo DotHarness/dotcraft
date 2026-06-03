@@ -480,6 +480,7 @@ public sealed class TraceCollector(TraceStore store)
             var previousUsageAt = state.PreviousUsageAt;
             var previousSystemHash = state.PreviousSystemHash;
             var previousToolSchemaHash = state.PreviousToolSchemaHash;
+            var previousReasoningHash = state.PreviousReasoningHash;
             var previousSelectedSignature = state.PreviousSelectedSignature;
             var classification = ClassifyPromptCacheUsage(
                 request,
@@ -489,6 +490,7 @@ public sealed class TraceCollector(TraceStore store)
                 timestamp,
                 previousSystemHash,
                 previousToolSchemaHash,
+                previousReasoningHash,
                 previousSelectedSignature);
 
             evt = CreatePromptCacheDiagnosticEvent(
@@ -503,12 +505,14 @@ public sealed class TraceCollector(TraceStore store)
                 previousUsageAt,
                 previousSystemHash,
                 previousToolSchemaHash,
+                previousReasoningHash,
                 previousSelectedSignature);
 
             state.PreviousCachedInputTokens = usage.CachedInputTokens;
             state.PreviousUsageAt = timestamp;
             state.PreviousSystemHash = request.SystemHash ?? state.PreviousSystemHash;
             state.PreviousToolSchemaHash = request.ToolSchemaHash ?? state.PreviousToolSchemaHash;
+            state.PreviousReasoningHash = request.ReasoningHash;
             state.PreviousSelectedSignature = BuildSelectedPointSignature(request);
         }
 
@@ -524,6 +528,7 @@ public sealed class TraceCollector(TraceStore store)
         DateTimeOffset timestamp,
         string? previousSystemHash,
         string? previousToolSchemaHash,
+        string? previousReasoningHash,
         string? previousSelectedSignature)
     {
         var ttlThreshold = ResolveTtlThreshold(request.Ttl);
@@ -542,11 +547,14 @@ public sealed class TraceCollector(TraceStore store)
 
         var promptChanged = HasChanged(previousSystemHash, request.SystemHash);
         var toolsChanged = HasChanged(previousToolSchemaHash, request.ToolSchemaHash);
-        var changedFields = new List<string>(capacity: 2);
+        var reasoningChanged = HasChanged(previousReasoningHash, request.ReasoningHash);
+        var changedFields = new List<string>(capacity: 3);
         if (promptChanged)
             changedFields.Add(PromptCacheChangedFields.Prompt);
         if (toolsChanged)
             changedFields.Add(PromptCacheChangedFields.Tools);
+        if (reasoningChanged)
+            changedFields.Add(PromptCacheChangedFields.Reasoning);
 
         var elapsed = previousUsageAt.HasValue
             ? timestamp - previousUsageAt.Value
@@ -599,6 +607,7 @@ public sealed class TraceCollector(TraceStore store)
         DateTimeOffset? previousUsageAt,
         string? previousSystemHash,
         string? previousToolSchemaHash,
+        string? previousReasoningHash,
         string? previousSelectedSignature)
     {
         var label = FormatPromptCacheClassificationLabel(classification.Kind);
@@ -614,6 +623,7 @@ public sealed class TraceCollector(TraceStore store)
             && !string.Equals(previousSelectedSignature, currentSelectedSignature, StringComparison.Ordinal);
         var promptChanged = HasChanged(previousSystemHash, request.SystemHash);
         var toolsChanged = HasChanged(previousToolSchemaHash, request.ToolSchemaHash);
+        var reasoningChanged = HasChanged(previousReasoningHash, request.ReasoningHash);
 
         return new TraceEvent
         {
@@ -663,6 +673,7 @@ public sealed class TraceCollector(TraceStore store)
                 ttlThresholdMs = classification.TtlThreshold.TotalMilliseconds,
                 promptChanged,
                 toolsChanged,
+                reasoningChanged,
                 selectedChanged,
                 previousSelectedSignature,
                 currentSelectedSignature,
@@ -670,6 +681,8 @@ public sealed class TraceCollector(TraceStore store)
                 previousSystemHash,
                 toolSchemaHash = request.ToolSchemaHash,
                 previousToolSchemaHash,
+                reasoningHash = request.ReasoningHash,
+                previousReasoningHash,
                 breakpointCount = request.BreakpointCount,
                 candidateCount = request.CandidateCount,
                 newSelectedCount = request.NewSelectedCount,
@@ -835,7 +848,7 @@ public sealed class TraceCollector(TraceStore store)
         PromptCacheDiagnosticKinds.CacheHitStable => "cache hit stable",
         PromptCacheDiagnosticKinds.CacheReadDrop => "cache read drop",
         PromptCacheDiagnosticKinds.TtlPossible => "possible TTL",
-        PromptCacheDiagnosticKinds.PromptOrToolsChanged => "prompt/tools changed",
+        PromptCacheDiagnosticKinds.PromptOrToolsChanged => "cache key changed",
         PromptCacheDiagnosticKinds.LikelyServerSide => "likely server-side",
         _ => kind
     };
@@ -962,6 +975,8 @@ public sealed class TraceCollector(TraceStore store)
         public string? PreviousSystemHash { get; set; }
 
         public string? PreviousToolSchemaHash { get; set; }
+
+        public string? PreviousReasoningHash { get; set; }
 
         public string? PreviousSelectedSignature { get; set; }
     }

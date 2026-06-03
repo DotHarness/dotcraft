@@ -142,9 +142,10 @@ These rules apply to every protocol unless the protocol contract above explicitl
 2. **Volatile content only at the tail.** Timestamps, runtime context, mode banners and any other request-local state must live in the user message of the current turn, never in system content, tools, or prior assistant turns.
 3. **Tool order is part of the prefix.** Tools must be enumerated in a stable order across requests on the same thread. Re-sorting tools (alphabetically, by category, etc.) between turns is a cache-break.
 4. **Reasoning items round-trip verbatim.** When a model emits a reasoning item with `encrypted_content`, the next request must pass that exact blob back. Decrypting and re-encrypting, dropping the field, or normalising whitespace inside it all break the cache.
-5. **Thread id is the cache identity.** Wherever a provider exposes a cache key (`prompt_cache_key`, `session-id`, `thread-id`, etc.), it MUST be populated from the active thread id. Different threads MUST NOT share a cache key, and the same thread MUST reuse the same key across maintenance forks, subagent turns, and reactive recovery paths.
-6. **One canonical body per request.** Wire bodies must not contain duplicate top-level JSON keys. Downstream policies and inspectors are allowed to assume the body parses cleanly into a flat object.
-7. **Internal cache state may be narrower than provider identity.** DotCraft may track remembered prompt-cache breakpoints under an internal state key such as `thread:<id>:maintenance:<kind>:<run>` so maintenance forks and the main conversation do not overwrite each other's breakpoint history. This internal state key MUST NOT replace provider-visible cache identity; Responses `prompt_cache_key`, OAuth `session-id` / `thread-id`, and trace session ownership still use the active thread id.
+5. **Reasoning configuration is part of the cache key.** Provider-visible thinking / reasoning settings must be treated as a cache-key dimension for diagnostics. A change in reasoning effort, reasoning output visibility, or provider thinking mode can explain a cache read drop even when messages and tools are unchanged.
+6. **Thread id is the cache identity.** Wherever a provider exposes a cache key (`prompt_cache_key`, `session-id`, `thread-id`, etc.), it MUST be populated from the active thread id. Different threads MUST NOT share a cache key, and the same thread MUST reuse the same key across maintenance forks, subagent turns, and reactive recovery paths.
+7. **One canonical body per request.** Wire bodies must not contain duplicate top-level JSON keys. Downstream policies and inspectors are allowed to assume the body parses cleanly into a flat object.
+8. **Internal cache state may be narrower than provider identity.** DotCraft may track remembered prompt-cache breakpoints under an internal state key such as `thread:<id>:maintenance:<kind>:<run>` so maintenance forks and the main conversation do not overwrite each other's breakpoint history. This internal state key MUST NOT replace provider-visible cache identity; Responses `prompt_cache_key`, OAuth `session-id` / `thread-id`, and trace session ownership still use the active thread id.
 
 ---
 
@@ -156,6 +157,7 @@ These rules apply to every protocol unless the protocol contract above explicitl
 | Duplicate top-level JSON keys in the wire body | Runtime MUST emit a canonical body. If the underlying serializer cannot be coerced, a pipeline-level deduplicator MUST run before transport |
 | Volatile content leaks into the cached prefix | Prompt construction MUST keep timestamps, runtime context, and any other request-local data confined to the latest user turn |
 | Reasoning encrypted content mutated between turns | Conversion layers MUST pass `encrypted_content` through unchanged; round-trip tests cover the case |
+| Cache-read drop after reasoning settings change | Prompt-cache diagnostics MUST include a reasoning/thinking fingerprint and classify the drop as a request-shape change instead of likely server-side routing |
 | Provider sticky-routing flap (ChatGPT OAuth) | Recognised as an upstream limitation. The runtime reports observed coverage faithfully and does not retry just to chase a higher hit rate |
 
 ---
