@@ -142,10 +142,12 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps): JSX
               display: 'flex',
               alignItems: 'center',
               gap: '8px',
-              width: '100%',
-              padding: '6px 14px',
+              width: 'calc(100% - 12px)',
+              margin: '0 6px',
+              padding: '6px 8px',
+              borderRadius: '6px',
               textAlign: 'left',
-              background: 'none',
+              background: 'transparent',
               border: 'none',
               fontSize: '13px',
               color: item.danger
@@ -159,7 +161,7 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps): JSX
             onMouseEnter={(e) => {
               setOpenSubmenuIndex(item.submenu && !item.disabled ? i : null)
               if (!item.disabled) {
-                ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--glass-surface-soft)'
+                ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--bg-tertiary)'
               }
             }}
             onMouseLeave={(e) => {
@@ -248,10 +250,12 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps): JSX
                   display: 'flex',
                   alignItems: 'center',
                   gap: '8px',
-                  width: '100%',
-                  padding: '6px 14px',
+                  width: 'calc(100% - 12px)',
+                  margin: '0 6px',
+                  padding: '6px 8px',
+                  borderRadius: '6px',
                   textAlign: 'left',
-                  background: 'none',
+                  background: 'transparent',
                   border: 'none',
                   fontSize: '13px',
                   color: item.danger
@@ -264,7 +268,7 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps): JSX
                 }}
                 onMouseEnter={(e) => {
                   if (!item.disabled) {
-                    ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--glass-surface-soft)'
+                    ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--bg-tertiary)'
                   }
                 }}
                 onMouseLeave={(e) => {

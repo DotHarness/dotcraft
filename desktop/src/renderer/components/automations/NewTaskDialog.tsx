@@ -1128,7 +1128,7 @@ function MenuItem({
         textAlign: 'left',
         cursor: 'pointer'
       }}
-      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--bg-secondary)')}
+      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)')}
       onMouseLeave={(e) =>
         (e.currentTarget.style.backgroundColor = active ? 'var(--bg-tertiary)' : 'transparent')
       }

@@ -241,7 +241,7 @@ function WindowControlButton({
         backgroundColor: hovered
           ? danger
             ? 'var(--error)'
-            : 'var(--glass-surface-soft)'
+            : 'var(--bg-tertiary)'
           : 'transparent'
       }}
     >

@@ -211,7 +211,7 @@ Focus-visible may use `--accent` because it is an accessibility affordance. Hove
 
 ### 9.1 Borderless Selection Rows
 
-Compact selectors, menu items, picker options, sidebar thread rows, and other navigation or selection rows should share the same interaction language:
+Compact selectors, menu items, picker options, sidebar thread rows, plugin/skill catalog rows, popover command rows, compact breadcrumb controls, and other navigation or selection rows should share the same interaction language:
 
 - rest state is borderless unless the control belongs to a framed toolbar family;
 - hover, open, highlighted, and selected states use neutral background elevation (`--sidebar-control-hover`, `--sidebar-control-active`, `--bg-tertiary`, or `--bg-active`) and text emphasis;

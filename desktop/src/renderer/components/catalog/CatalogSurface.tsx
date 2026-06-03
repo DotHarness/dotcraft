@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from 'react'
+import type { ButtonHTMLAttributes, CSSProperties, ReactNode } from 'react'
 import { ChevronDown, Search } from 'lucide-react'
 import { useState } from 'react'
 import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
@@ -6,6 +6,48 @@ import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
 export interface CatalogFilterOption<T extends string> {
   value: T
   label: string
+}
+
+interface CatalogHoverButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'style'> {
+  baseStyle: CSSProperties
+  hoverStyle?: CSSProperties
+}
+
+export function CatalogHoverButton({
+  baseStyle,
+  hoverStyle,
+  children,
+  onMouseEnter,
+  onMouseLeave,
+  onFocus,
+  onBlur,
+  ...props
+}: CatalogHoverButtonProps): JSX.Element {
+  const [active, setActive] = useState(false)
+  return (
+    <button
+      {...props}
+      onMouseEnter={(event) => {
+        setActive(true)
+        onMouseEnter?.(event)
+      }}
+      onMouseLeave={(event) => {
+        setActive(false)
+        onMouseLeave?.(event)
+      }}
+      onFocus={(event) => {
+        setActive(true)
+        onFocus?.(event)
+      }}
+      onBlur={(event) => {
+        setActive(false)
+        onBlur?.(event)
+      }}
+      style={catalogHoverButtonStyle(baseStyle, active, hoverStyle)}
+    >
+      {children}
+    </button>
+  )
 }
 
 export function CatalogTabs<T extends string>({
@@ -17,6 +59,8 @@ export function CatalogTabs<T extends string>({
   items: Array<{ value: T; label: string }>
   onChange: (value: T) => void
 }): JSX.Element {
+  const [hovered, setHovered] = useState<T | null>(null)
+
   return (
     <div style={styles.tabs}>
       {items.map((item) => (
@@ -24,7 +68,11 @@ export function CatalogTabs<T extends string>({
           key={item.value}
           type="button"
           onClick={() => onChange(item.value)}
-          style={value === item.value ? styles.tabActive : styles.tab}
+          onMouseEnter={() => setHovered(item.value)}
+          onMouseLeave={() => setHovered(null)}
+          onFocus={() => setHovered(item.value)}
+          onBlur={() => setHovered(null)}
+          style={catalogTabStyle(value === item.value, hovered === item.value)}
         >
           {item.label}
         </button>
@@ -70,6 +118,7 @@ export function CatalogFilterMenu<T extends string>({
   onChange: (value: T) => void
 }): JSX.Element {
   const [position, setPosition] = useState<ContextMenuPosition | null>(null)
+  const [hovered, setHovered] = useState(false)
   const selected = options.find((option) => option.value === value) ?? options[0]
 
   return (
@@ -83,7 +132,11 @@ export function CatalogFilterMenu<T extends string>({
           const rect = event.currentTarget.getBoundingClientRect()
           setPosition({ x: rect.left, y: rect.bottom + 6 })
         }}
-        style={styles.filterMenuButton}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        onFocus={() => setHovered(true)}
+        onBlur={() => setHovered(false)}
+        style={catalogFilterMenuButtonStyle(hovered || position != null)}
       >
         <span>{selected.label}</span>
         <ChevronDown size={14} aria-hidden />
@@ -100,6 +153,42 @@ export function CatalogFilterMenu<T extends string>({
       )}
     </>
   )
+}
+
+function catalogTabStyle(selected: boolean, active: boolean): CSSProperties {
+  const highlighted = selected || active
+  return {
+    ...styles.tab,
+    background: highlighted ? 'var(--bg-tertiary)' : 'transparent',
+    color: highlighted ? 'var(--text-primary)' : 'var(--text-secondary)'
+  }
+}
+
+function catalogFilterMenuButtonStyle(active: boolean): CSSProperties {
+  return {
+    ...styles.filterMenuButton,
+    backgroundColor: active ? 'var(--bg-tertiary)' : 'var(--bg-secondary)',
+    color: active ? 'var(--text-primary)' : styles.filterMenuButton.color,
+    transition: 'background-color 120ms ease, color 120ms ease'
+  }
+}
+
+function catalogHoverButtonStyle(
+  baseStyle: CSSProperties,
+  active: boolean,
+  hoverStyle?: CSSProperties
+): CSSProperties {
+  const transition = 'background-color 120ms ease, border-color 120ms ease, color 120ms ease'
+  if (!active) return { ...baseStyle, transition }
+  return {
+    ...baseStyle,
+    background: 'var(--bg-tertiary)',
+    backgroundColor: 'var(--bg-tertiary)',
+    borderColor: baseStyle.border || baseStyle.borderColor ? 'transparent' : baseStyle.borderColor,
+    color: 'var(--text-primary)',
+    transition,
+    ...hoverStyle
+  }
 }
 
 export function CatalogChip({ label, active = false }: { label: string; active?: boolean }): JSX.Element {
@@ -264,7 +353,8 @@ export const styles = {
     backgroundColor: 'transparent',
     color: 'var(--text-primary)',
     cursor: 'pointer',
-    textAlign: 'left'
+    textAlign: 'left',
+    transition: 'background-color 120ms ease, color 120ms ease'
   },
   rowTitle: {
     fontSize: '13px',

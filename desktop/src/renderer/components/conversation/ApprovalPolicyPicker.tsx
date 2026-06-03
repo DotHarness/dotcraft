@@ -53,6 +53,7 @@ export function ApprovalPolicyPicker({
   const [open, setOpen] = useState(false)
   const [highlight, setHighlight] = useState(0)
   const [saving, setSaving] = useState(false)
+  const [triggerActive, setTriggerActive] = useState(false)
   const [workspaceDefault, setWorkspaceDefault] = useState<VisibleApprovalPolicy>('default')
   const wrapRef = useRef<HTMLDivElement>(null)
   const listId = useId()
@@ -232,6 +233,12 @@ export function ApprovalPolicyPicker({
           aria-expanded={interactive ? open : undefined}
           aria-controls={interactive && open ? listId : undefined}
           disabled={!interactive}
+          onMouseEnter={() => setTriggerActive(true)}
+          onMouseLeave={() => setTriggerActive(false)}
+          onFocus={(event) => {
+            if (event.currentTarget.matches(':focus-visible')) setTriggerActive(true)
+          }}
+          onBlur={() => setTriggerActive(false)}
           onClick={() => {
             if (!interactive) return
             setOpen((current) => !current)
@@ -241,6 +248,7 @@ export function ApprovalPolicyPicker({
               value === 'autoApprove' ? 'var(--warning)' : 'var(--composer-footer-text)',
               !interactive
             ),
+            backgroundColor: interactive && (open || triggerActive) ? 'var(--bg-tertiary)' : 'transparent',
             cursor: interactive ? 'pointer' : 'default'
           }}
         >
@@ -382,7 +390,7 @@ function optionStyle(highlighted: boolean, selected: boolean): CSSProperties {
     border: 'none',
     borderRadius: '10px',
     padding: '8px 10px',
-    background: highlighted ? 'var(--glass-surface-soft)' : 'transparent',
+    background: highlighted ? 'var(--bg-tertiary)' : 'transparent',
     color: selected ? 'var(--text-primary)' : 'var(--text-secondary)',
     cursor: 'pointer',
     textAlign: 'left',

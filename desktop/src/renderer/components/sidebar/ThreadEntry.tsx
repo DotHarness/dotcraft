@@ -10,7 +10,7 @@ import { ContextMenu } from '../ui/ContextMenu'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
 import { RunningSpinner } from '../ui/RunningSpinner'
 import { ChannelIconBadge } from '../ui/channelMeta'
-import { Archive, CornerDownRight, FolderPlus, Laptop, Pencil, Pin, Trash2 } from 'lucide-react'
+import { Archive, ArrowRightLeft, CornerDownRight, Laptop, Pencil, Pin, Trash2 } from 'lucide-react'
 import { AUTOMATION_TASK_DRAG_MIME } from '../automations/TaskCard'
 import { useAutomationsStore } from '../../stores/automationsStore'
 import { useDragDropStore } from '../../stores/dragDropStore'
@@ -701,7 +701,7 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
                         zIndex: 2
                       }}
                       onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'
+                        e.currentTarget.style.backgroundColor = 'var(--sidebar-control-hover)'
                         e.currentTarget.style.color = 'var(--error)'
                       }}
                       onMouseLeave={(e) => {
@@ -908,7 +908,7 @@ function ThreadEntryContextMenu({
                       ? [
                           {
                             label: t('fork.intoWorktree'),
-                            icon: <FolderPlus size={14} aria-hidden />,
+                            icon: <ArrowRightLeft size={14} aria-hidden />,
                             onClick: () => handleFork('worktree')
                           }
                         ]

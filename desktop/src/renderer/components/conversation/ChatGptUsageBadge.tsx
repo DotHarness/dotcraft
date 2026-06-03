@@ -153,9 +153,7 @@ function badgeStyle(active: boolean): CSSProperties {
     height: '24px',
     width: '70px',
     borderRadius: '999px',
-    border: active
-      ? '1px solid var(--accent)'
-      : '1px solid transparent',
+    border: '1px solid transparent',
     background: active ? 'var(--bg-tertiary)' : 'transparent',
     color: 'var(--composer-footer-highlight, var(--text-primary))',
     fontSize: '12px',
@@ -164,7 +162,8 @@ function badgeStyle(active: boolean): CSSProperties {
     boxSizing: 'border-box',
     overflow: 'hidden',
     flexShrink: 0,
-    cursor: 'pointer'
+    cursor: 'pointer',
+    transition: 'background-color 120ms ease, color 120ms ease'
   }
 }
 

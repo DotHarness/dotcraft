@@ -205,7 +205,7 @@ export function FileSearchPopover({
             gap: '8px',
             padding: '6px 12px',
             border: 'none',
-            background: i === highlight ? 'var(--glass-surface-soft)' : 'transparent',
+            background: i === highlight ? 'var(--bg-tertiary)' : 'transparent',
             color: 'var(--text-primary)',
             cursor: 'pointer',
             textAlign: 'left',

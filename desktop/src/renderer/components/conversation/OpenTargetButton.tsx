@@ -252,7 +252,7 @@ export function OpenTargetButton({
                   border: 'none',
                   borderRadius: '8px',
                   padding: '8px 10px',
-                  background: highlighted ? 'var(--glass-surface-soft)' : 'transparent',
+                  background: highlighted ? 'var(--bg-tertiary)' : 'transparent',
                   color: selected ? 'var(--text-primary)' : 'var(--text-secondary)',
                   cursor: 'pointer',
                   textAlign: 'left',

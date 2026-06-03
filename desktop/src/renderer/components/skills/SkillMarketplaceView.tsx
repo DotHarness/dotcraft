@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Download, ExternalLink, Search } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import {
@@ -89,15 +89,12 @@ export function SkillMarketplaceView({ onInstalled }: SkillMarketplaceViewProps)
         </div>
         <div role="tablist" aria-label={t('skillMarket.provider')} style={providerTabs}>
           {(['all', 'skillhub', 'clawhub'] satisfies SkillMarketProviderFilter[]).map((id) => (
-            <button
+            <ProviderTab
               key={id}
-              type="button"
+              active={provider === id}
               onClick={() => setProvider(id)}
-              aria-pressed={provider === id}
-              style={provider === id ? providerTabActive : providerTab}
-            >
-              {id === 'all' ? t('skillMarket.provider.all') : providerLabel(id)}
-            </button>
+              label={id === 'all' ? t('skillMarket.provider.all') : providerLabel(id)}
+            />
           ))}
         </div>
       </form>
@@ -142,8 +139,17 @@ export function SkillMarketplaceView({ onInstalled }: SkillMarketplaceViewProps)
 
 function MarketSkillCard({ skill, onOpen }: { skill: MarketSkillSummary; onOpen: () => void }): JSX.Element {
   const t = useT()
+  const [active, setActive] = useState(false)
   return (
-    <button type="button" onClick={onOpen} style={cardBtn}>
+    <button
+      type="button"
+      onClick={onOpen}
+      onMouseEnter={() => setActive(true)}
+      onMouseLeave={() => setActive(false)}
+      onFocus={() => setActive(true)}
+      onBlur={() => setActive(false)}
+      style={marketSkillCardStyle(active)}
+    >
       <div style={cardHeader}>
         <div style={{ minWidth: 0 }}>
           <h3 style={cardTitle}>{skill.name}</h3>
@@ -161,6 +167,32 @@ function MarketSkillCard({ skill, onOpen }: { skill: MarketSkillSummary; onOpen:
           </span>
         )}
       </div>
+    </button>
+  )
+}
+
+function ProviderTab({
+  active,
+  label,
+  onClick
+}: {
+  active: boolean
+  label: string
+  onClick: () => void
+}): JSX.Element {
+  const [hovered, setHovered] = useState(false)
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onFocus={() => setHovered(true)}
+      onBlur={() => setHovered(false)}
+      style={providerTabStyle(active || hovered)}
+    >
+      {label}
     </button>
   )
 }
@@ -366,6 +398,10 @@ const providerTabActive: React.CSSProperties = {
   color: 'var(--text-primary)'
 }
 
+function providerTabStyle(active: boolean): React.CSSProperties {
+  return active ? providerTabActive : providerTab
+}
+
 const resultGrid: React.CSSProperties = {
   display: 'grid',
   gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
@@ -383,7 +419,15 @@ const cardBtn: React.CSSProperties = {
   cursor: 'pointer',
   display: 'flex',
   flexDirection: 'column',
-  gap: '10px'
+  gap: '10px',
+  transition: 'background-color 120ms ease, color 120ms ease'
+}
+
+function marketSkillCardStyle(active: boolean): React.CSSProperties {
+  return {
+    ...cardBtn,
+    backgroundColor: active ? 'var(--bg-tertiary)' : cardBtn.backgroundColor
+  }
 }
 
 const cardHeader: React.CSSProperties = {

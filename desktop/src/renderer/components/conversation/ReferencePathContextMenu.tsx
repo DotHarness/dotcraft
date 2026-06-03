@@ -244,7 +244,7 @@ function MenuButton({
       }}
       style={{
         ...menuItemStyle,
-        background: hovered ? 'var(--glass-surface-soft)' : 'transparent'
+        background: hovered ? 'var(--bg-tertiary)' : 'transparent'
       }}
     >
       <span style={menuItemIconStyle}>{icon}</span>

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Archive, FolderPlus, GitFork, Laptop, MoreHorizontal, Pencil, Pin, PanelRightOpen } from 'lucide-react'
+import { Archive, ArrowRightLeft, GitFork, Laptop, MoreHorizontal, Pencil, Pin, PanelRightOpen } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useConnectionStore } from '../../stores/connectionStore'
@@ -417,7 +417,7 @@ export function ThreadHeader({
                         ? [
                             {
                               label: t('fork.intoWorktree'),
-                              icon: <FolderPlus size={14} aria-hidden />,
+                              icon: <ArrowRightLeft size={14} aria-hidden />,
                               onClick: () => forkThread('worktree')
                             }
                           ]

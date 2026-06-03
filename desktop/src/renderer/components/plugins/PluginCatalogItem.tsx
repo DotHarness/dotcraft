@@ -38,7 +38,12 @@ export function PluginCatalogItem({
       onMouseLeave={() => setActive(false)}
       onFocus={() => setActive(true)}
       onBlur={() => setActive(false)}
-      style={{ ...catalogStyles.compactItem, ...style }}
+      style={{
+        ...catalogStyles.compactItem,
+        backgroundColor: active ? 'var(--bg-tertiary)' : 'transparent',
+        color: active ? 'var(--text-primary)' : catalogStyles.compactItem.color,
+        ...style
+      }}
     >
       <PluginIcon plugin={plugin} size={40} />
       <span style={pluginText}>

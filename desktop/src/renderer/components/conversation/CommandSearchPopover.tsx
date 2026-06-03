@@ -182,7 +182,7 @@ export function CommandSearchPopover({
                   gap: '8px',
                   padding: '7px 12px',
                   border: 'none',
-                  background: index === highlight ? 'var(--glass-surface-soft)' : 'transparent',
+                  background: index === highlight ? 'var(--bg-tertiary)' : 'transparent',
                   color: 'var(--text-primary)',
                   cursor: 'pointer',
                   textAlign: 'left'
@@ -247,7 +247,7 @@ export function CommandSearchPopover({
                   gap: '8px',
                   padding: '7px 12px',
                   border: 'none',
-                  background: index === highlight ? 'var(--glass-surface-soft)' : 'transparent',
+                  background: index === highlight ? 'var(--bg-tertiary)' : 'transparent',
                   color: 'var(--text-primary)',
                   cursor: 'pointer',
                   textAlign: 'left'
@@ -312,7 +312,7 @@ export function CommandSearchPopover({
                   gap: '8px',
                   padding: '7px 12px',
                   border: 'none',
-                  background: index === highlight ? 'var(--glass-surface-soft)' : 'transparent',
+                  background: index === highlight ? 'var(--bg-tertiary)' : 'transparent',
                   color: 'var(--text-primary)',
                   cursor: 'pointer',
                   textAlign: 'left'

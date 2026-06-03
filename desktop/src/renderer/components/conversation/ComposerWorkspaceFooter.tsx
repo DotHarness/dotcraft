@@ -431,7 +431,9 @@ export function ComposerWorkspaceFooter({
                 />
                 <WorkspaceMenuItem
                   label={variant === 'welcome' ? t('workspaceFooter.newWorktree') : t('workspaceFooter.handoffToWorktree')}
-                  icon={<FolderPlus size={14} strokeWidth={1.8} aria-hidden />}
+                  icon={variant === 'welcome'
+                    ? <FolderPlus size={14} strokeWidth={1.8} aria-hidden />
+                    : <ArrowRightLeft size={14} strokeWidth={1.8} aria-hidden />}
                   checked={mode === 'worktree'}
                   disabled={!canUseWorktrees || busy || (isThread && threadBusy)}
                   onClick={() => {

@@ -7,6 +7,7 @@ import { useThreadStore } from '../../stores/threadStore'
 import { addToast } from '../../stores/toastStore'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
 import { Skeleton } from '../ui/Skeleton'
+import { CatalogHoverButton } from '../catalog/CatalogSurface'
 import type { PluginEntry } from '../../stores/pluginStore'
 
 interface AppBindingPanelProps {
@@ -149,15 +150,15 @@ export function AppBindingPanel({ plugin }: AppBindingPanelProps): JSX.Element |
     <section style={section}>
       <div style={sectionHeader}>
         <h2 style={sectionTitle}>{t('appBinding.pluginTitle')}</h2>
-        <button
+        <CatalogHoverButton
           type="button"
-          style={iconButton}
+          baseStyle={iconButton}
           aria-label={t('appBinding.refresh')}
           title={t('appBinding.refresh')}
           onClick={() => { void runAction('setup:refresh', () => refreshPanel(true)) }}
         >
           <RefreshCw size={14} aria-hidden />
-        </button>
+        </CatalogHoverButton>
       </div>
       {appsLoading && (
         <div role="status" aria-busy="true" aria-label={t('appBinding.loading')} style={appList}>
@@ -405,7 +406,7 @@ const actions: CSSProperties = { display: 'flex', alignItems: 'flex-start', just
 const baseButton: CSSProperties = { border: 'none', borderRadius: 8, padding: '7px 10px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600 }
 const primaryButton: CSSProperties = { ...baseButton, background: '#050505', color: '#fff' }
 const secondaryButton: CSSProperties = { ...baseButton, background: 'var(--bg-tertiary)', color: 'var(--text-primary)' }
-const iconButton: CSSProperties = { width: 30, height: 30, border: 'none', borderRadius: 8, background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }
+const iconButton: CSSProperties = { width: 30, height: 30, border: 'none', borderRadius: 8, background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }
 const errorText: CSSProperties = { margin: 0, color: 'var(--error)', fontSize: 13 }
 
 function statePill(good: boolean): CSSProperties {

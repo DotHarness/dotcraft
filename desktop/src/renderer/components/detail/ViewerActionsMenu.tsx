@@ -146,7 +146,7 @@ function MenuItem({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onClick={onClick}
-      style={{ ...menuItemStyle, background: hovered ? 'var(--glass-surface-soft)' : 'transparent' }}
+      style={{ ...menuItemStyle, background: hovered ? 'var(--bg-tertiary)' : 'transparent' }}
     >
       <span style={menuItemIconStyle}>{icon}</span>
       <span style={menuItemLabelStyle}>{label}</span>

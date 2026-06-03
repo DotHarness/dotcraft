@@ -406,7 +406,8 @@ export function composerModelPillStyle(color: string, disabled = false): CSSProp
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     opacity: disabled ? 0.72 : 1,
-    boxShadow: 'none'
+    boxShadow: 'none',
+    transition: 'background-color 120ms ease, color 120ms ease'
   }
 }
 
