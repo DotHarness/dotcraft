@@ -94,6 +94,7 @@ public static class AppServerErrors
     public const int SubAgentProfileNotFoundCode = -32083;
     public const int SubAgentProfileValidationFailedCode = -32084;
     public const int SubAgentProfileProtectedCode = -32085;
+    public const int WorktreeHandoffConflictCode = -32090;
     // ── Automation-specific codes (-32050 to -32059) ──
 
     public const int TaskNotFoundCode = -32051;
@@ -156,6 +157,14 @@ public static class AppServerErrors
 
     public static AppServerException TurnNotRunning(string turnId) =>
         Create(TurnNotRunningCode, "TurnNotRunning", "errors.turnNotRunning", $"Turn is not running: {turnId}", new { turnId });
+
+    public static AppServerException WorktreeHandoffConflict(IReadOnlyList<string> conflictPaths) =>
+        Create(
+            WorktreeHandoffConflictCode,
+            "WorktreeHandoffConflict",
+            "errors.worktreeHandoffConflict",
+            "Local workspace has conflicting uncommitted changes.",
+            new { conflictPaths });
 
     public static AppServerException ApprovalTimeout() =>
         Create(ApprovalTimeoutCode, "ApprovalTimeout", "errors.approvalTimeout", "Approval request timed out");

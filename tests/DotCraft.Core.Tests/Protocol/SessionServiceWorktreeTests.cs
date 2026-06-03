@@ -151,6 +151,123 @@ public sealed class SessionServiceWorktreeTests : IDisposable
         Assert.Equal(Path.Combine(_tempDir, "skills"), seen.SkillsLoader.WorkspaceSkillsPath);
     }
 
+    [Fact]
+    public async Task CreateWorktreeAndStartAsync_StartsThreadInWorktreeWithoutMovingState()
+    {
+        await using var agentFactory = CreateAgentFactory();
+        var service = CreateService(agentFactory);
+
+        var result = await service.CreateWorktreeAndStartAsync(new WorktreeCreateAndStartOptions
+        {
+            Identity = MakeIdentity(),
+            DisplayName = "Worktree Start",
+            BranchName = "dotcraft/worktree-start",
+            CopyDirtyChanges = false
+        });
+
+        Assert.Equal(_tempDir, result.Thread.WorkspacePath);
+        Assert.Null(result.Thread.ForkedFromId);
+        Assert.Equal(result.Worktree.Path, result.Thread.Configuration?.ExecutionWorkspaceOverride);
+        Assert.Equal(result.Worktree, result.Thread.Worktree);
+        Assert.Empty(result.Thread.Turns);
+
+        var loaded = await _store.LoadThreadAsync(result.Thread.Id);
+        Assert.NotNull(loaded);
+        Assert.Equal(result.Worktree.Path, loaded!.Configuration?.ExecutionWorkspaceOverride);
+        Assert.Equal(result.Worktree.Path, loaded.Worktree?.Path);
+    }
+
+    [Fact]
+    public async Task HandoffThreadWorktreeAsync_MovesExistingThreadToWorktree()
+    {
+        await using var agentFactory = CreateAgentFactory();
+        var service = CreateService(agentFactory);
+        var thread = await service.CreateThreadAsync(MakeIdentity(), displayName: "Handoff");
+
+        var result = await service.HandoffThreadWorktreeAsync(new WorktreeHandoffOptions
+        {
+            ThreadId = thread.Id,
+            BranchName = "dotcraft/handoff-worktree",
+            CopyDirtyChanges = false
+        });
+
+        Assert.Equal(thread.Id, result.Thread.Id);
+        Assert.Equal(WorktreeHandoffModes.Worktree, result.Mode);
+        Assert.NotNull(result.Worktree);
+        Assert.Equal(result.Worktree!.Path, result.Thread.Configuration?.ExecutionWorkspaceOverride);
+        Assert.Equal(result.Worktree.Path, result.Thread.Worktree?.Path);
+
+        var loaded = await _store.LoadThreadAsync(thread.Id);
+        Assert.Equal(result.Worktree.Path, loaded?.Configuration?.ExecutionWorkspaceOverride);
+        Assert.Equal(result.Worktree.Path, loaded?.Worktree?.Path);
+    }
+
+    [Fact]
+    public async Task HandoffThreadWorktreeAsync_MovesDirtyChangesBackToLocalAndRemovesWorktree()
+    {
+        await using var agentFactory = CreateAgentFactory();
+        var service = CreateService(agentFactory);
+        var thread = await service.CreateThreadAsync(MakeIdentity(), displayName: "Back");
+        var worktreeResult = await service.HandoffThreadWorktreeAsync(new WorktreeHandoffOptions
+        {
+            ThreadId = thread.Id,
+            BranchName = "dotcraft/handoff-back",
+            CopyDirtyChanges = false
+        });
+        var worktreePath = worktreeResult.Worktree!.Path;
+
+        File.WriteAllText(Path.Combine(worktreePath, "README.md"), "from worktree" + Environment.NewLine);
+        File.WriteAllText(Path.Combine(worktreePath, "notes.txt"), "worktree note" + Environment.NewLine);
+        File.Delete(Path.Combine(worktreePath, "remove.txt"));
+
+        var localResult = await service.HandoffThreadWorktreeAsync(new WorktreeHandoffOptions
+        {
+            ThreadId = thread.Id,
+            Mode = WorktreeHandoffModes.Local
+        });
+
+        Assert.Equal(WorktreeHandoffModes.Local, localResult.Mode);
+        Assert.Null(localResult.Thread.Worktree);
+        Assert.Null(localResult.Thread.Configuration?.ExecutionWorkspaceOverride);
+        Assert.Equal("from worktree" + Environment.NewLine, File.ReadAllText(Path.Combine(_tempDir, "README.md")));
+        Assert.Equal("worktree note" + Environment.NewLine, File.ReadAllText(Path.Combine(_tempDir, "notes.txt")));
+        Assert.False(File.Exists(Path.Combine(_tempDir, "remove.txt")));
+        Assert.False(Directory.Exists(worktreePath));
+
+        var loaded = await _store.LoadThreadAsync(thread.Id);
+        Assert.Null(loaded?.Worktree);
+        Assert.Null(loaded?.Configuration?.ExecutionWorkspaceOverride);
+    }
+
+    [Fact]
+    public async Task HandoffThreadWorktreeAsync_RejectsCopyBackWhenLocalDirtyPathConflicts()
+    {
+        await using var agentFactory = CreateAgentFactory();
+        var service = CreateService(agentFactory);
+        var thread = await service.CreateThreadAsync(MakeIdentity(), displayName: "Conflict");
+        var worktreeResult = await service.HandoffThreadWorktreeAsync(new WorktreeHandoffOptions
+        {
+            ThreadId = thread.Id,
+            BranchName = "dotcraft/handoff-conflict",
+            CopyDirtyChanges = false
+        });
+        var worktreePath = worktreeResult.Worktree!.Path;
+
+        File.WriteAllText(Path.Combine(worktreePath, "README.md"), "from worktree" + Environment.NewLine);
+        File.WriteAllText(Path.Combine(_tempDir, "README.md"), "from local" + Environment.NewLine);
+
+        var ex = await Assert.ThrowsAsync<WorktreeHandoffConflictException>(() =>
+            service.HandoffThreadWorktreeAsync(new WorktreeHandoffOptions
+            {
+                ThreadId = thread.Id,
+                Mode = WorktreeHandoffModes.Local
+            }));
+
+        Assert.Contains("README.md", ex.ConflictPaths);
+        Assert.True(Directory.Exists(worktreePath));
+        Assert.Equal(worktreePath, (await _store.LoadThreadAsync(thread.Id))?.Worktree?.Path);
+    }
+
     private SessionService CreateService(AgentFactory agentFactory)
     {
         var defaultAgent = agentFactory.CreateAgentForMode(AgentMode.Agent);

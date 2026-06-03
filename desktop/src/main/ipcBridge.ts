@@ -131,6 +131,17 @@ interface GitCommandResult {
   exitCode: number
 }
 
+interface GitBranchEntry {
+  name: string
+  current: boolean
+}
+
+interface GitBranchListResult {
+  current: string | null
+  detachedHead: string | null
+  branches: GitBranchEntry[]
+}
+
 interface ExecFileError extends Error {
   code?: number | string
 }
@@ -252,6 +263,30 @@ function assertPathWithinWorkspace(
     )
   }
   return resolved
+}
+
+function assertGitWorkspacePath(
+  requestedPath: string,
+  workspacePath: string,
+  locale: AppLocale
+): string {
+  if (!workspacePath) {
+    throw new Error(translate(locale, 'ipc.noWorkspaceOpen'))
+  }
+  if (typeof requestedPath !== 'string' || requestedPath.trim() === '') {
+    throw new Error(translate(locale, 'ipc.workspacePathMismatch'))
+  }
+
+  const resolved = path.resolve(requestedPath)
+  const workspaceResolved = path.resolve(workspacePath)
+  if (resolved === workspaceResolved) return resolved
+
+  const worktreesRoot = path.resolve(workspaceResolved, '.craft', 'worktrees')
+  if (isSameOrInsidePath(resolved, worktreesRoot) && resolved !== worktreesRoot) {
+    return resolved
+  }
+
+  throw new Error(translate(locale, 'ipc.workspacePathMismatch'))
 }
 
 async function assertExistingLocalPath(targetPath: string): Promise<string> {
@@ -1211,24 +1246,19 @@ export function registerIpcHandlers(
     'git:commit',
     async (_event, wsPath: string, files: string[], message: string): Promise<string> => {
       const locale = mainLocale(callbacks)
-      if (!workspacePath) {
-        throw new Error(translate(locale, 'ipc.noWorkspaceOpen'))
-      }
-      if (path.resolve(wsPath) !== path.resolve(workspacePath)) {
-        throw new Error(translate(locale, 'ipc.workspacePathMismatch'))
-      }
+      const gitWorkspacePath = assertGitWorkspacePath(wsPath, workspacePath, locale)
       if (!Array.isArray(files)) {
         throw new Error(translate(locale, 'ipc.noGitChangesToCommit'))
       }
 
-      const commitFiles = await resolveCommitFilePaths(workspacePath, files, locale)
+      const commitFiles = await resolveCommitFilePaths(gitWorkspacePath, files, locale)
       if (commitFiles.length === 0) {
         throw new Error(translate(locale, 'ipc.noGitChangesToCommit'))
       }
 
-      await runGitCommand(workspacePath, ['add', '--', ...commitFiles])
+      await runGitCommand(gitWorkspacePath, ['add', '--', ...commitFiles])
       const stagedDiff = await runGitCommand(
-        workspacePath,
+        gitWorkspacePath,
         ['diff', '--cached', '--quiet', '--', ...commitFiles],
         [0, 1]
       )
@@ -1236,19 +1266,58 @@ export function registerIpcHandlers(
         throw new Error(translate(locale, 'ipc.noGitChangesToCommit'))
       }
 
-      const commit = await runGitCommand(workspacePath, ['commit', '-m', message, '--', ...commitFiles])
+      const commit = await runGitCommand(gitWorkspacePath, ['commit', '-m', message, '--', ...commitFiles])
       return commit.stdout.trim()
     }
   )
   handleSafe('git:branch', async (_event, wsPath: string): Promise<string | null> => {
-    const headPath = path.join(wsPath, '.git', 'HEAD')
+    const locale = mainLocale(callbacks)
+    const gitWorkspacePath = assertGitWorkspacePath(wsPath, workspacePath, locale)
     try {
-      const raw = (await fs.readFile(headPath, 'utf8')).trim()
-      if (raw.startsWith('ref: ')) return raw.slice(5).replace(/^refs\/heads\//, '')
-      return raw.slice(0, 7)
+      await runGitCommand(gitWorkspacePath, ['rev-parse', '--is-inside-work-tree'])
+      const branch = (await runGitCommand(gitWorkspacePath, ['branch', '--show-current'])).stdout.trim()
+      if (branch) return branch
+      const head = (await runGitCommand(gitWorkspacePath, ['rev-parse', '--short', 'HEAD'])).stdout.trim()
+      return head || null
     } catch {
       return null
     }
+  })
+  handleSafe('git:listBranches', async (_event, wsPath: string): Promise<GitBranchListResult> => {
+    const locale = mainLocale(callbacks)
+    const gitWorkspacePath = assertGitWorkspacePath(wsPath, workspacePath, locale)
+    await runGitCommand(gitWorkspacePath, ['rev-parse', '--is-inside-work-tree'])
+    const current = (await runGitCommand(gitWorkspacePath, ['branch', '--show-current'])).stdout.trim() || null
+    const detachedHead = current
+      ? null
+      : ((await runGitCommand(gitWorkspacePath, ['rev-parse', '--short', 'HEAD'])).stdout.trim() || null)
+    const refs = await runGitCommand(gitWorkspacePath, [
+      'for-each-ref',
+      '--sort=refname',
+      '--format=%(refname:short)',
+      'refs/heads'
+    ])
+    const branches = refs.stdout
+      .split(/\r?\n/)
+      .map((name) => name.trim())
+      .filter((name) => name.length > 0)
+      .map((name) => ({ name, current: current === name }))
+    return { current, detachedHead, branches }
+  })
+  handleSafe('git:checkoutBranch', async (_event, wsPath: string, branchName: string): Promise<void> => {
+    const locale = mainLocale(callbacks)
+    const gitWorkspacePath = assertGitWorkspacePath(wsPath, workspacePath, locale)
+    const branch = typeof branchName === 'string' ? branchName.trim() : ''
+    if (!branch) throw new Error('Branch name is required.')
+    await runGitCommand(gitWorkspacePath, ['switch', branch])
+  })
+  handleSafe('git:createAndCheckoutBranch', async (_event, wsPath: string, branchName: string): Promise<void> => {
+    const locale = mainLocale(callbacks)
+    const gitWorkspacePath = assertGitWorkspacePath(wsPath, workspacePath, locale)
+    const branch = typeof branchName === 'string' ? branchName.trim() : ''
+    if (!branch) throw new Error('Branch name is required.')
+    await runGitCommand(gitWorkspacePath, ['check-ref-format', '--branch', branch])
+    await runGitCommand(gitWorkspacePath, ['switch', '-c', branch])
   })
 
   // ─── Workspace management ──────────────────────────────────────────────────
@@ -2082,6 +2151,9 @@ export function unregisterIpcHandlers(): void {
   ipcMain.removeHandler('file:exists')
   ipcMain.removeHandler('git:commit')
   ipcMain.removeHandler('git:branch')
+  ipcMain.removeHandler('git:listBranches')
+  ipcMain.removeHandler('git:checkoutBranch')
+  ipcMain.removeHandler('git:createAndCheckoutBranch')
   ipcMain.removeHandler('workspace:pick-folder')
   ipcMain.removeHandler('workspace:pick-files')
   ipcMain.removeHandler('workspace:switch')

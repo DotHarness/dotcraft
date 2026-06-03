@@ -55,6 +55,7 @@ import {
   composerSendButtonStyle,
   composerModelPillStyle
 } from './ComposerShell'
+import { ComposerWorkspaceFooter } from './ComposerWorkspaceFooter'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
@@ -163,6 +164,7 @@ export function InputComposer({
   const historyDraftRef = useRef<ComposerDraftSnapshot | null>(null)
   const capabilities = useConnectionStore((s) => s.capabilities)
   const effectiveFileWorkspacePath = fileWorkspacePath ?? workspacePath
+  const activeThread = useThreadStore((s) => s.activeThread?.id === threadId ? s.activeThread : null)
 
   // Load providers once so the ChatGPT subscription badge can render in the composer footer.
   const reloadProviders = useProvidersStore((s) => s.reload)
@@ -1347,6 +1349,15 @@ export function InputComposer({
               )
             ) : null}
           </div>
+        }
+        belowFooter={
+          <ComposerWorkspaceFooter
+            workspacePath={effectiveFileWorkspacePath}
+            mode={activeThread?.worktree ? 'worktree' : 'local'}
+            variant="thread"
+            thread={activeThread}
+            remoteWorkspace={remoteWorkspace}
+          />
         }
       />
       </ConversationColumn>

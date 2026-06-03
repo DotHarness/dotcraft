@@ -190,6 +190,7 @@ public sealed class AppServerHost(
         _runtime.PlanUpdated += BroadcastPlanUpdated;
         _runtime.ThreadStarted += BroadcastThreadStarted;
         _runtime.ThreadRenamed += BroadcastThreadRenamed;
+        _runtime.ThreadUpdated += BroadcastThreadUpdated;
         _runtime.ThreadDeleted += BroadcastThreadDeleted;
         _runtime.ThreadStatusChanged += BroadcastThreadStatusChanged;
         _runtime.ThreadRuntimeSignal += OnThreadRuntimeSignal;
@@ -212,6 +213,7 @@ public sealed class AppServerHost(
         _runtime.PlanUpdated -= BroadcastPlanUpdated;
         _runtime.ThreadStarted -= BroadcastThreadStarted;
         _runtime.ThreadRenamed -= BroadcastThreadRenamed;
+        _runtime.ThreadUpdated -= BroadcastThreadUpdated;
         _runtime.ThreadDeleted -= BroadcastThreadDeleted;
         _runtime.ThreadStatusChanged -= BroadcastThreadStatusChanged;
         _runtime.ThreadRuntimeSignal -= OnThreadRuntimeSignal;
@@ -968,7 +970,8 @@ public sealed class AppServerHost(
         };
 
         var skipTransport = !IsSubAgentThread(thread)
-                            && string.Equals(AppServerRequestContext.CurrentMethod, AppServerMethods.ThreadStart, StringComparison.Ordinal)
+                            && (string.Equals(AppServerRequestContext.CurrentMethod, AppServerMethods.ThreadStart, StringComparison.Ordinal)
+                                || string.Equals(AppServerRequestContext.CurrentMethod, AppServerMethods.WorktreeCreateAndStart, StringComparison.Ordinal))
             ? AppServerRequestContext.CurrentTransport
             : null;
 
@@ -1101,6 +1104,51 @@ public sealed class AppServerHost(
         foreach (var (transport, connection) in _activeTransports)
         {
             if (!connection.ShouldSendNotification(AppServerMethods.ThreadRenamed))
+                continue;
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await transport.WriteMessageAsync(notification, CancellationToken.None);
+                }
+                catch
+                {
+                    _activeTransports.TryRemove(transport, out _);
+                }
+            });
+        }
+    }
+
+    private void BroadcastThreadUpdated(SessionThread thread)
+    {
+        if (ThreadVisibility.IsInternal(thread))
+            return;
+
+        var wire = thread.ToWire(includeTurns: false) with
+        {
+            Runtime = _runtime.SessionService.GetThreadRuntimeSnapshot(thread).ToWireRuntimeState()
+        };
+        var notification = new
+        {
+            jsonrpc = "2.0",
+            method = AppServerMethods.ThreadUpdated,
+            @params = new { thread = wire }
+        };
+
+        var skipTransport = string.Equals(
+            AppServerRequestContext.CurrentMethod,
+            AppServerMethods.ThreadWorktreeHandoff,
+            StringComparison.Ordinal)
+            ? AppServerRequestContext.CurrentTransport
+            : null;
+
+        foreach (var (transport, connection) in _activeTransports)
+        {
+            if (!connection.ShouldSendNotification(AppServerMethods.ThreadUpdated))
+                continue;
+
+            if (skipTransport != null && ReferenceEquals(transport, skipTransport))
                 continue;
 
             _ = Task.Run(async () =>

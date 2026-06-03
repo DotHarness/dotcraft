@@ -862,6 +862,75 @@ public sealed class WorktreeCreateAndForkResponse
     public ThreadWorktreeInfo Worktree { get; set; } = new();
 }
 
+public sealed class WorktreeCreateAndStartParams
+{
+    public SessionIdentity Identity { get; set; } = new();
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ThreadConfiguration? Config { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<DynamicToolSpec>? DynamicTools { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Dictionary<string, RuntimeAdditionalContextEntry>? AdditionalContext { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? HistoryMode { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? DisplayName { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? BranchName { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? BaseRef { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Path { get; set; }
+
+    public bool? CopyDirtyChanges { get; set; }
+}
+
+public sealed class WorktreeCreateAndStartResponse
+{
+    public SessionWireThread Thread { get; set; } = new();
+
+    public ThreadWorktreeInfo Worktree { get; set; } = new();
+}
+
+public sealed class ThreadWorktreeHandoffParams
+{
+    public string ThreadId { get; set; } = string.Empty;
+
+    public string Mode { get; set; } = WorktreeHandoffModes.Worktree;
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? BranchName { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? BaseRef { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Path { get; set; }
+
+    public bool? CopyDirtyChanges { get; set; }
+}
+
+public sealed class ThreadWorktreeHandoffResponse
+{
+    public SessionWireThread Thread { get; set; } = new();
+
+    public string Mode { get; set; } = WorktreeHandoffModes.Local;
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ThreadWorktreeInfo? Worktree { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ThreadWorktreeDirtyHandoffInfo? DirtyHandoff { get; set; }
+}
+
 public sealed class WorktreeListParams
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -3806,6 +3875,8 @@ public static class AppServerMethods
     public const string ThreadStart = "thread/start";
     public const string ThreadFork = "thread/fork";
     public const string WorktreeCreateAndFork = "worktree/createAndFork";
+    public const string WorktreeCreateAndStart = "worktree/createAndStart";
+    public const string ThreadWorktreeHandoff = "thread/worktree/handoff";
     public const string WorktreeList = "worktree/list";
     public const string WorktreeStatus = "worktree/status";
     public const string ThreadResume = "thread/resume";
@@ -3887,6 +3958,7 @@ public static class AppServerMethods
 
     // Server → Client notifications
     public const string ThreadStarted = "thread/started";
+    public const string ThreadUpdated = "thread/updated";
     public const string ThreadDeleted = "thread/deleted";
     public const string ThreadResumed = "thread/resumed";
     public const string ThreadStatusChanged = "thread/statusChanged";

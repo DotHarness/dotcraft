@@ -684,6 +684,9 @@ internal sealed class FakeSessionService : ISessionService
     public Action<SessionThread>? ThreadRenamedForBroadcast { get; set; }
 
     /// <inheritdoc />
+    public Action<SessionThread>? ThreadUpdatedForBroadcast { get; set; }
+
+    /// <inheritdoc />
     public Action<string, ThreadStatus, ThreadStatus>? ThreadStatusChangedForBroadcast { get; set; }
 
     /// <inheritdoc />

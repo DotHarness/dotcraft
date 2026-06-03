@@ -80,6 +80,79 @@ public sealed record WorktreeCreateAndForkResult
     public ThreadWorktreeInfo Worktree { get; init; } = new();
 }
 
+/// <summary>
+/// Options for creating a Git worktree and starting a new thread inside it.
+/// </summary>
+public sealed record WorktreeCreateAndStartOptions
+{
+    public SessionIdentity Identity { get; init; } = new();
+
+    public ThreadConfiguration? Config { get; init; }
+
+    public HistoryMode HistoryMode { get; init; } = HistoryMode.Server;
+
+    public string? DisplayName { get; init; }
+
+    public string? BranchName { get; init; }
+
+    public string? BaseRef { get; init; }
+
+    public string? Path { get; init; }
+
+    public bool CopyDirtyChanges { get; init; } = true;
+
+    public ThreadSource? Source { get; init; }
+}
+
+public sealed record WorktreeCreateAndStartResult
+{
+    public SessionThread Thread { get; init; } = new();
+
+    public ThreadWorktreeInfo Worktree { get; init; } = new();
+}
+
+public static class WorktreeHandoffModes
+{
+    public const string Local = "local";
+    public const string Worktree = "worktree";
+}
+
+/// <summary>
+/// Options for moving an existing thread between its local workspace and a managed worktree.
+/// </summary>
+public sealed record WorktreeHandoffOptions
+{
+    public string ThreadId { get; init; } = string.Empty;
+
+    public string Mode { get; init; } = WorktreeHandoffModes.Worktree;
+
+    public string? BranchName { get; init; }
+
+    public string? BaseRef { get; init; }
+
+    public string? Path { get; init; }
+
+    public bool CopyDirtyChanges { get; init; } = true;
+}
+
+public sealed record WorktreeHandoffResult
+{
+    public SessionThread Thread { get; init; } = new();
+
+    public string Mode { get; init; } = WorktreeHandoffModes.Local;
+
+    public ThreadWorktreeInfo? Worktree { get; init; }
+
+    public ThreadWorktreeDirtyHandoffInfo? DirtyHandoff { get; init; }
+}
+
+public sealed class WorktreeHandoffConflictException(
+    string message,
+    IReadOnlyList<string> conflictPaths) : InvalidOperationException(message)
+{
+    public IReadOnlyList<string> ConflictPaths { get; } = conflictPaths;
+}
+
 public sealed record ThreadWorktreeStatus
 {
     public string ThreadId { get; init; } = string.Empty;

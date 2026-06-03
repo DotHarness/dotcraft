@@ -16,13 +16,73 @@ internal static class ThreadWorktreeManager
         ILogger? logger,
         CancellationToken ct)
     {
+        return await CreateAsync(
+            sourceThread,
+            sourceExecutionWorkspace,
+            new WorktreeCreateRequest(
+                options.DisplayName,
+                options.BranchName,
+                options.BaseRef,
+                options.Path,
+                options.CopyDirtyChanges),
+            logger,
+            ct).ConfigureAwait(false);
+    }
+
+    public static async Task<ThreadWorktreeInfo> CreateAsync(
+        SessionThread sourceThread,
+        string sourceExecutionWorkspace,
+        WorktreeCreateAndStartOptions options,
+        ILogger? logger,
+        CancellationToken ct)
+    {
+        return await CreateAsync(
+            sourceThread,
+            sourceExecutionWorkspace,
+            new WorktreeCreateRequest(
+                options.DisplayName,
+                options.BranchName,
+                options.BaseRef,
+                options.Path,
+                options.CopyDirtyChanges),
+            logger,
+            ct).ConfigureAwait(false);
+    }
+
+    public static async Task<ThreadWorktreeInfo> CreateAsync(
+        SessionThread sourceThread,
+        string sourceExecutionWorkspace,
+        WorktreeHandoffOptions options,
+        ILogger? logger,
+        CancellationToken ct)
+    {
+        return await CreateAsync(
+            sourceThread,
+            sourceExecutionWorkspace,
+            new WorktreeCreateRequest(
+                sourceThread.DisplayName,
+                options.BranchName,
+                options.BaseRef,
+                options.Path,
+                options.CopyDirtyChanges),
+            logger,
+            ct).ConfigureAwait(false);
+    }
+
+    private static async Task<ThreadWorktreeInfo> CreateAsync(
+        SessionThread sourceThread,
+        string sourceExecutionWorkspace,
+        WorktreeCreateRequest request,
+        ILogger? logger,
+        CancellationToken ct)
+    {
         var stateWorkspace = NormalizeAbsolutePath(sourceThread.WorkspacePath, nameof(sourceThread.WorkspacePath));
         var sourceWorkspace = NormalizeAbsolutePath(sourceExecutionWorkspace, nameof(sourceExecutionWorkspace));
         var repositoryRoot = await ResolveRepositoryRootAsync(sourceWorkspace, ct, logger).ConfigureAwait(false);
-        var baseRef = string.IsNullOrWhiteSpace(options.BaseRef) ? "HEAD" : options.BaseRef.Trim();
+        var baseRef = string.IsNullOrWhiteSpace(request.BaseRef) ? "HEAD" : request.BaseRef.Trim();
         var head = await ResolveRefAsync(repositoryRoot, baseRef, ct, logger).ConfigureAwait(false);
-        var branchName = await ResolveBranchNameAsync(repositoryRoot, sourceThread, options, ct, logger).ConfigureAwait(false);
-        var worktreePath = ResolveWorktreePath(stateWorkspace, branchName, options.Path);
+        var branchName = await ResolveBranchNameAsync(repositoryRoot, sourceThread, request, ct, logger).ConfigureAwait(false);
+        var worktreePath = ResolveWorktreePath(stateWorkspace, branchName, request.Path);
 
         Directory.CreateDirectory(Path.GetDirectoryName(worktreePath)!);
 
@@ -35,7 +95,7 @@ internal static class ThreadWorktreeManager
         if (addResult.ExitCode != 0)
             throw new InvalidOperationException($"Failed to create git worktree: {TrimGitError(addResult)}");
 
-        var handoff = options.CopyDirtyChanges
+        var handoff = request.CopyDirtyChanges
             ? await CopyDirtyChangesAsync(repositoryRoot, worktreePath, ct, logger).ConfigureAwait(false)
             : new ThreadWorktreeDirtyHandoffInfo
             {
@@ -56,6 +116,50 @@ internal static class ThreadWorktreeManager
             CreatedAt = DateTimeOffset.UtcNow,
             DirtyHandoff = handoff
         };
+    }
+
+    public static async Task<ThreadWorktreeDirtyHandoffInfo> CopyDirtyChangesBackAndRemoveAsync(
+        ThreadWorktreeInfo worktree,
+        string targetWorkspace,
+        CancellationToken ct,
+        ILogger? logger = null)
+    {
+        ArgumentNullException.ThrowIfNull(worktree);
+        var worktreePath = EnsureManagedWorktreePath(worktree);
+        if (!Directory.Exists(worktreePath))
+        {
+            return new ThreadWorktreeDirtyHandoffInfo
+            {
+                Requested = true,
+                Status = WorktreeDirtyHandoffStatuses.Skipped
+            };
+        }
+
+        var targetRoot = await ResolveRepositoryRootAsync(
+            NormalizeAbsolutePath(targetWorkspace, nameof(targetWorkspace)),
+            ct,
+            logger).ConfigureAwait(false);
+        var sourceEntries = await ReadDirtyEntriesAsync(worktreePath, ct, logger).ConfigureAwait(false);
+        var targetEntries = await ReadDirtyEntriesAsync(targetRoot, ct, logger).ConfigureAwait(false);
+        var conflicts = DetectDirtyConflicts(sourceEntries, targetEntries);
+        if (conflicts.Count > 0)
+        {
+            throw new WorktreeHandoffConflictException(
+                "Cannot move worktree changes back to local because local has conflicting uncommitted changes.",
+                conflicts);
+        }
+
+        var handoff = await CopyDirtyChangesAsync(worktreePath, targetRoot, ct, logger).ConfigureAwait(false);
+        var removeResult = await GitProcessRunner.RunAsync(
+            targetRoot,
+            ["worktree", "remove", "--force", worktreePath],
+            GitWorktreeTimeout,
+            ct,
+            logger: logger).ConfigureAwait(false);
+        if (removeResult.ExitCode != 0)
+            throw new InvalidOperationException($"Failed to remove git worktree: {TrimGitError(removeResult)}");
+
+        return handoff;
     }
 
     public static async Task<ThreadWorktreeStatus> GetStatusAsync(
@@ -156,18 +260,18 @@ internal static class ThreadWorktreeManager
     private static async Task<string> ResolveBranchNameAsync(
         string repositoryRoot,
         SessionThread sourceThread,
-        WorktreeCreateAndForkOptions options,
+        WorktreeCreateRequest request,
         CancellationToken ct,
         ILogger? logger)
     {
-        if (!string.IsNullOrWhiteSpace(options.BranchName))
+        if (!string.IsNullOrWhiteSpace(request.BranchName))
         {
-            var requested = options.BranchName.Trim();
+            var requested = request.BranchName.Trim();
             await ValidateBranchNameAsync(repositoryRoot, requested, ct, logger).ConfigureAwait(false);
             return requested;
         }
 
-        var seed = options.DisplayName ?? sourceThread.DisplayName ?? sourceThread.Id;
+        var seed = request.DisplayName ?? sourceThread.DisplayName ?? sourceThread.Id;
         var slug = Slug(seed);
         for (var attempt = 0; attempt < 20; attempt++)
         {
@@ -243,18 +347,9 @@ internal static class ThreadWorktreeManager
         CancellationToken ct,
         ILogger? logger)
     {
-        var statusResult = await GitProcessRunner.RunAsync(
-            sourceRoot,
-            ["status", "--porcelain=v1", "-z", "--untracked-files=all"],
-            GitTimeout,
-            ct,
-            logger: logger).ConfigureAwait(false);
-        if (statusResult.ExitCode != 0)
-            throw new InvalidOperationException($"Failed to inspect source dirty changes: {TrimGitError(statusResult)}");
-
         var copied = 0;
         var deleted = 0;
-        foreach (var entry in ParseStatusEntries(statusResult.StdOut))
+        foreach (var entry in await ReadDirtyEntriesAsync(sourceRoot, ct, logger).ConfigureAwait(false))
         {
             ct.ThrowIfCancellationRequested();
             if (ShouldSkipDirtyPath(entry.Path))
@@ -285,6 +380,67 @@ internal static class ThreadWorktreeManager
             DeletedFileCount = deleted
         };
     }
+
+    private static async Task<IReadOnlyList<GitStatusEntry>> ReadDirtyEntriesAsync(
+        string root,
+        CancellationToken ct,
+        ILogger? logger)
+    {
+        var statusResult = await GitProcessRunner.RunAsync(
+            root,
+            ["status", "--porcelain=v1", "-z", "--untracked-files=all"],
+            GitTimeout,
+            ct,
+            logger: logger).ConfigureAwait(false);
+        if (statusResult.ExitCode != 0)
+            throw new InvalidOperationException($"Failed to inspect dirty changes: {TrimGitError(statusResult)}");
+
+        return ParseStatusEntries(statusResult.StdOut)
+            .Where(entry => !ShouldSkipDirtyPath(entry.Path))
+            .ToList();
+    }
+
+    private static IReadOnlyList<string> DetectDirtyConflicts(
+        IReadOnlyList<GitStatusEntry> sourceEntries,
+        IReadOnlyList<GitStatusEntry> targetEntries)
+    {
+        var targetPaths = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var target in targetEntries)
+        {
+            AddAffectedPath(targetPaths, target.Path);
+            if (target.OldPath != null)
+                AddAffectedPath(targetPaths, target.OldPath);
+        }
+
+        var conflicts = new SortedSet<string>(StringComparer.Ordinal);
+        foreach (var source in sourceEntries)
+        {
+            AddConflictIfDirty(targetPaths, conflicts, source.Path);
+            if (source.OldPath != null)
+                AddConflictIfDirty(targetPaths, conflicts, source.OldPath);
+        }
+
+        return conflicts.ToList();
+    }
+
+    private static void AddAffectedPath(ISet<string> paths, string path)
+    {
+        if (!ShouldSkipDirtyPath(path))
+            paths.Add(NormalizeGitRelativePath(path));
+    }
+
+    private static void AddConflictIfDirty(
+        IReadOnlySet<string> targetPaths,
+        ISet<string> conflicts,
+        string path)
+    {
+        var normalized = NormalizeGitRelativePath(path);
+        if (targetPaths.Contains(normalized))
+            conflicts.Add(normalized);
+    }
+
+    private static string NormalizeGitRelativePath(string path) =>
+        path.Replace('\\', '/').TrimStart('/');
 
     private static IEnumerable<GitStatusEntry> ParseStatusEntries(string output)
     {
@@ -420,6 +576,16 @@ internal static class ThreadWorktreeManager
                || fullPath.StartsWith(fullRoot + Path.AltDirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
     }
 
+    private static string EnsureManagedWorktreePath(ThreadWorktreeInfo worktree)
+    {
+        var stateWorkspace = NormalizeAbsolutePath(worktree.WorkspacePath, nameof(worktree.WorkspacePath));
+        var worktreesRoot = NormalizeAbsolutePath(Path.Combine(stateWorkspace, ".craft", "worktrees"), "worktreesRoot");
+        var worktreePath = NormalizeAbsolutePath(worktree.Path, nameof(worktree.Path));
+        if (!IsInsideDirectory(worktreePath, worktreesRoot) || string.Equals(worktreePath, worktreesRoot, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Worktree removal is allowed only for registered managed worktrees.");
+        return worktreePath;
+    }
+
     private static string Slug(string value)
     {
         var chars = new List<char>(value.Length);
@@ -455,6 +621,13 @@ internal static class ThreadWorktreeManager
         var value = string.IsNullOrWhiteSpace(result.StdErr) ? result.StdOut : result.StdErr;
         return value.Trim();
     }
+
+    private sealed record WorktreeCreateRequest(
+        string? DisplayName,
+        string? BranchName,
+        string? BaseRef,
+        string? Path,
+        bool CopyDirtyChanges);
 
     private sealed record GitStatusEntry(string Path, string? OldPath, bool Deleted);
 }

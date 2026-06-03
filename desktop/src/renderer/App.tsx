@@ -1323,6 +1323,17 @@ export function App(): JSX.Element {
             break
           }
 
+          case 'thread/updated': {
+            const pp = p as { thread?: Thread }
+            if (pp.thread) {
+              useThreadStore.getState().upsertThreads([pp.thread])
+              if (useThreadStore.getState().activeThreadId === pp.thread.id) {
+                useThreadStore.getState().setActiveThread(pp.thread)
+              }
+            }
+            break
+          }
+
           case 'thread/renamed': {
             const pp = p as { threadId: string; displayName: string }
             if (pp.displayName?.trim()) {

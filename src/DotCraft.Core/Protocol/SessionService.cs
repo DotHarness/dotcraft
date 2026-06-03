@@ -166,6 +166,9 @@ public sealed class SessionService(
     public Action<SessionThread>? ThreadRenamedForBroadcast { get; set; }
 
     /// <inheritdoc />
+    public Action<SessionThread>? ThreadUpdatedForBroadcast { get; set; }
+
+    /// <inheritdoc />
     public Action<string, ThreadStatus, ThreadStatus>? ThreadStatusChangedForBroadcast { get; set; }
 
     /// <inheritdoc />
@@ -1098,6 +1101,157 @@ Choose the next concrete action that advances the goal. Before doing substantial
     }
 
     /// <inheritdoc/>
+    public async Task<WorktreeCreateAndStartResult> CreateWorktreeAndStartAsync(
+        WorktreeCreateAndStartOptions options,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        var identity = options.Identity;
+        if (string.IsNullOrWhiteSpace(identity.WorkspacePath))
+            throw new ArgumentException("identity.workspacePath is required.");
+
+        var capturedConfig = CaptureThreadConfigurationForNewThread(options.Config);
+        var threadId = SessionIdGenerator.NewThreadId();
+        var now = DateTimeOffset.UtcNow;
+        var thread = new SessionThread
+        {
+            Id = threadId,
+            WorkspacePath = identity.WorkspacePath,
+            UserId = identity.UserId,
+            OriginChannel = identity.ChannelName,
+            ChannelContext = identity.ChannelContext,
+            Status = ThreadStatus.Active,
+            CreatedAt = now,
+            LastActiveAt = now,
+            HistoryMode = options.HistoryMode,
+            Configuration = capturedConfig,
+            DisplayName = options.DisplayName,
+            Source = options.Source ?? ThreadSource.User()
+        };
+
+        if (identity.ChannelContext != null)
+            thread.Metadata["channelContext"] = identity.ChannelContext;
+
+        var sourceExecutionWorkspace = ResolveLocalWorkspacePath(thread);
+        var worktree = await ThreadWorktreeManager.CreateAsync(
+            thread,
+            sourceExecutionWorkspace,
+            options,
+            logger,
+            ct);
+
+        capturedConfig.ExecutionWorkspaceOverride = worktree.Path;
+        thread.Worktree = worktree;
+
+        _threadsPendingPermanentDeletion.TryRemove(thread.Id, out _);
+        _threads[thread.Id] = thread;
+        var broker = GetOrCreateBroker(thread.Id);
+
+        using (await AcquireThreadAgentLockAsync(thread.Id, ct))
+            _threadAgents[thread.Id] = await BuildAgentForThreadAsync(thread, ct);
+
+        await PersistThreadWithMaterializationAsync(thread, ct);
+        await SaveContextUsageSnapshotAsync(thread.Id, 0, ct);
+
+        broker.PublishThreadEvent(SessionEventType.ThreadCreated, thread);
+        ThreadCreatedForBroadcast?.Invoke(thread);
+
+        return new WorktreeCreateAndStartResult
+        {
+            Thread = thread,
+            Worktree = worktree
+        };
+    }
+
+    /// <inheritdoc/>
+    public async Task<WorktreeHandoffResult> HandoffThreadWorktreeAsync(
+        WorktreeHandoffOptions options,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        var threadId = NormalizeRequiredThreadId(options.ThreadId);
+        var mode = NormalizeWorktreeHandoffMode(options.Mode);
+
+        using (await sessionGate.AcquireAsync(threadId, ct))
+        {
+            var thread = await GetOrLoadThreadAsync(threadId, ct);
+            ThrowIfThreadCannotHandoffWorktree(thread);
+            ThrowIfThreadMaintenanceActive(thread.Id);
+
+            if (string.Equals(mode, WorktreeHandoffModes.Worktree, StringComparison.Ordinal))
+            {
+                if (thread.Worktree != null)
+                {
+                    return new WorktreeHandoffResult
+                    {
+                        Thread = thread,
+                        Mode = WorktreeHandoffModes.Worktree,
+                        Worktree = thread.Worktree
+                    };
+                }
+
+                var sourceExecutionWorkspace = ResolveEffectiveWorkspacePath(thread);
+                var worktree = await ThreadWorktreeManager.CreateAsync(
+                    thread,
+                    sourceExecutionWorkspace,
+                    options,
+                    logger,
+                    ct);
+
+                thread.Configuration ??= CaptureThreadConfigurationForNewThread(null);
+                thread.Configuration.ExecutionWorkspaceOverride = worktree.Path;
+                thread.Worktree = worktree;
+                thread.LastActiveAt = DateTimeOffset.UtcNow;
+
+                await RebuildAgentAndPersistThreadAsync(thread, ct);
+                ThreadUpdatedForBroadcast?.Invoke(thread);
+                return new WorktreeHandoffResult
+                {
+                    Thread = thread,
+                    Mode = WorktreeHandoffModes.Worktree,
+                    Worktree = worktree,
+                    DirtyHandoff = worktree.DirtyHandoff
+                };
+            }
+
+            if (thread.Worktree == null)
+            {
+                thread.Configuration ??= CaptureThreadConfigurationForNewThread(null);
+                thread.Configuration.ExecutionWorkspaceOverride = null;
+                await RebuildAgentAndPersistThreadAsync(thread, ct);
+                ThreadUpdatedForBroadcast?.Invoke(thread);
+                return new WorktreeHandoffResult
+                {
+                    Thread = thread,
+                    Mode = WorktreeHandoffModes.Local
+                };
+            }
+
+            var currentWorktree = thread.Worktree;
+            var localWorkspace = ResolveLocalWorkspacePath(thread);
+            var dirtyHandoff = await ThreadWorktreeManager.CopyDirtyChangesBackAndRemoveAsync(
+                currentWorktree,
+                localWorkspace,
+                ct,
+                logger);
+
+            thread.Configuration ??= CaptureThreadConfigurationForNewThread(null);
+            thread.Configuration.ExecutionWorkspaceOverride = null;
+            thread.Worktree = null;
+            thread.LastActiveAt = DateTimeOffset.UtcNow;
+
+            await RebuildAgentAndPersistThreadAsync(thread, ct);
+            ThreadUpdatedForBroadcast?.Invoke(thread);
+            return new WorktreeHandoffResult
+            {
+                Thread = thread,
+                Mode = WorktreeHandoffModes.Local,
+                DirtyHandoff = dirtyHandoff
+            };
+        }
+    }
+
+    /// <inheritdoc/>
     public async Task<IReadOnlyList<ThreadWorktreeStatus>> ListWorktreesAsync(
         SessionIdentity? identity = null,
         CancellationToken ct = default)
@@ -1189,6 +1343,33 @@ Choose the next concrete action that advances the goal. Before doing substantial
 
         var workspaceOverride = thread.Configuration?.WorkspaceOverride;
         return string.IsNullOrWhiteSpace(workspaceOverride) ? thread.WorkspacePath : workspaceOverride;
+    }
+
+    private static string ResolveLocalWorkspacePath(SessionThread thread)
+    {
+        var workspaceOverride = thread.Configuration?.WorkspaceOverride;
+        return string.IsNullOrWhiteSpace(workspaceOverride) ? thread.WorkspacePath : workspaceOverride;
+    }
+
+    private static string NormalizeWorktreeHandoffMode(string? mode)
+    {
+        var normalized = string.IsNullOrWhiteSpace(mode)
+            ? WorktreeHandoffModes.Worktree
+            : mode.Trim();
+        return normalized switch
+        {
+            WorktreeHandoffModes.Local => WorktreeHandoffModes.Local,
+            WorktreeHandoffModes.Worktree => WorktreeHandoffModes.Worktree,
+            _ => throw new ArgumentException("'mode' must be 'local' or 'worktree'.")
+        };
+    }
+
+    private static void ThrowIfThreadCannotHandoffWorktree(SessionThread thread)
+    {
+        if (thread.Status != ThreadStatus.Active)
+            throw new InvalidOperationException($"Thread '{thread.Id}' is not Active (current status: {thread.Status}). Cannot handoff worktree.");
+        if (thread.Turns.Any(t => t.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput))
+            throw new InvalidOperationException($"Thread '{thread.Id}' has a running Turn. Wait for it to complete or cancel it first.");
     }
 
     private static List<SessionTurn> CloneForkTurns(
@@ -3998,6 +4179,16 @@ Choose the next concrete action that advances the goal. Before doing substantial
         var thread = await GetOrLoadThreadAsync(threadId, ct);
         using (await AcquireThreadAgentLockAsync(threadId, ct))
             _threadAgents[threadId] = await BuildAgentForThreadAsync(thread, ct);
+    }
+
+    private async Task RebuildAgentAndPersistThreadAsync(SessionThread thread, CancellationToken ct)
+    {
+        using (await AcquireThreadAgentLockAsync(thread.Id, ct))
+        {
+            _threadAgents[thread.Id] = await BuildAgentForThreadAsync(thread, ct);
+            ReleaseStableContextPages(thread.Id);
+            await PersistThreadWithMaterializationAsync(thread, ct);
+        }
     }
 
     /// <inheritdoc />

@@ -1611,6 +1611,7 @@ Workspace resolution is thread-aware:
 - `WorkspaceOverride`, when present, is the traditional alternate workspace root for a thread.
 - `ExecutionWorkspaceOverride`, when present, wins for tool execution and first-party file/Git surfaces while keeping state in `WorkspacePath`.
 - Git worktree handoff uses `ExecutionWorkspaceOverride`; it must not use `WorkspaceOverride` to move state into the worktree.
+- Existing-thread worktree handoff is a metadata/configuration change on the same Thread. It must be rejected while the Thread has running or waiting turn work, and it must rebuild the effective agent/tool context before the next turn.
 
 ### 16.3 Mode Switching
 

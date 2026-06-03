@@ -50,6 +50,7 @@ interface ComposerShellProps {
   editor: ReactNode
   footerLeading: ReactNode
   footerAction: ReactNode
+  belowFooter?: ReactNode
   onDragOver: DragEventHandler<HTMLDivElement>
   onDragLeave: DragEventHandler<HTMLDivElement>
   onDrop: DragEventHandler<HTMLDivElement>
@@ -196,6 +197,7 @@ export function ComposerShell({
   editor,
   footerLeading,
   footerAction,
+  belowFooter,
   onDragOver,
   onDragLeave,
   onDrop,
@@ -319,6 +321,17 @@ export function ComposerShell({
           {footerAction}
         </div>
       </div>
+      {belowFooter && (
+        <div
+          style={{
+            position: 'relative',
+            zIndex: 1,
+            marginTop: '6px'
+          }}
+        >
+          {belowFooter}
+        </div>
+      )}
     </div>
   )
 }

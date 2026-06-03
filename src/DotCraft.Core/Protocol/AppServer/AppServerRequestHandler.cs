@@ -292,6 +292,8 @@ public sealed class AppServerRequestHandler(
                 AppServerMethods.ThreadStart => HandleThreadStartAsync(msg, ct),
                 AppServerMethods.ThreadFork => HandleThreadForkAsync(msg, ct),
                 AppServerMethods.WorktreeCreateAndFork => HandleWorktreeCreateAndForkAsync(msg, ct),
+                AppServerMethods.WorktreeCreateAndStart => HandleWorktreeCreateAndStartAsync(msg, ct),
+                AppServerMethods.ThreadWorktreeHandoff => HandleThreadWorktreeHandoffAsync(msg, ct),
                 AppServerMethods.WorktreeList => HandleWorktreeListAsync(msg, ct),
                 AppServerMethods.WorktreeStatus => HandleWorktreeStatusAsync(msg, ct),
                 AppServerMethods.ThreadResume => HandleThreadResumeAsync(msg, ct),
@@ -374,6 +376,10 @@ public sealed class AppServerRequestHandler(
         {
             // Thread or turn not found in persistence or in-memory state
             throw AppServerErrors.ThreadNotFound(ExtractQuotedId(ex.Message));
+        }
+        catch (WorktreeHandoffConflictException ex)
+        {
+            throw AppServerErrors.WorktreeHandoffConflict(ex.ConflictPaths);
         }
         catch (InvalidOperationException ex)
         {
@@ -705,6 +711,123 @@ public sealed class AppServerRequestHandler(
             new WorktreeCreateAndForkResponse { Thread = responseWire, Worktree = result.Worktree },
             AppServerMethods.ThreadStarted,
             new { thread = notificationWire },
+            ct);
+
+        return null;
+    }
+
+    private async Task<object?> HandleWorktreeCreateAndStartAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    {
+        var p = GetParams<WorktreeCreateAndStartParams>(msg);
+        if (!WireDynamicToolProxy.TryValidateSpecs(p.DynamicTools, out var dynamicToolError))
+            throw AppServerErrors.InvalidParams(dynamicToolError);
+        if (!WireRuntimeAdditionalContextProvider.TryValidateAdditionalContext(p.AdditionalContext, out var additionalContextError))
+            throw AppServerErrors.InvalidParams(additionalContextError);
+        if (p.AdditionalContext != null && wireRuntimeAdditionalContextProvider == null)
+            throw AppServerErrors.InvalidParams("additionalContext is not supported by this AppServer host.");
+
+        if (p.Config?.Reasoning != null)
+        {
+            ValidateReasoningForRuntime(
+                appConfigMonitor?.Current ?? LoadCurrentMergedConfig(),
+                p.Config.ProviderId,
+                p.Config.Model,
+                p.Config.Reasoning);
+        }
+
+        var identity = NormalizeIdentityWorkspace(p.Identity);
+        var historyMode = p.HistoryMode?.ToLowerInvariant() == "client"
+            ? HistoryMode.Client
+            : HistoryMode.Server;
+        var result = await sessionService.CreateWorktreeAndStartAsync(
+            new WorktreeCreateAndStartOptions
+            {
+                Identity = identity,
+                Config = p.Config,
+                HistoryMode = historyMode,
+                DisplayName = p.DisplayName,
+                BranchName = p.BranchName,
+                BaseRef = p.BaseRef,
+                Path = p.Path,
+                CopyDirtyChanges = p.CopyDirtyChanges ?? true
+            },
+            ct);
+        var thread = result.Thread;
+
+        if (wireAcpExtensionProxy != null && connection.HasAcpExtensions)
+            wireAcpExtensionProxy.BindThread(thread.Id, transport, connection);
+        var shouldRefreshAgent = false;
+        if (wireNodeReplProxy != null && connection.HasNodeRepl && connection.HasBrowserUse)
+        {
+            wireNodeReplProxy.BindThread(thread.Id, transport, connection);
+            shouldRefreshAgent = true;
+        }
+
+        if (p.DynamicTools is { Count: > 0 } && wireDynamicToolProxy != null)
+        {
+            wireDynamicToolProxy.BindThread(thread.Id, transport, connection, p.DynamicTools);
+            shouldRefreshAgent = true;
+        }
+
+        if (wireRuntimeAdditionalContextProvider?.BindThread(thread.Id, transport, connection, p.AdditionalContext) == true)
+        {
+            contextPageManager?.ReleaseStablePage(thread.Id, ContextPageKeys.RuntimeAdditionalContext());
+            shouldRefreshAgent = true;
+        }
+
+        if (shouldRefreshAgent && sessionService is IThreadAgentRefreshService refreshService)
+            await refreshService.RefreshThreadAgentAsync(thread.Id, ct);
+
+        var startedWire = await EnrichThreadWireAsync(
+            WithRuntimeSnapshot(WithContextUsage(thread.ToWire(), thread.Id), thread),
+            thread,
+            ct);
+        await SendNotificationAfterResponseAsync(
+            msg.Id,
+            new WorktreeCreateAndStartResponse { Thread = startedWire, Worktree = result.Worktree },
+            AppServerMethods.ThreadStarted,
+            new { thread = startedWire },
+            ct);
+
+        return null;
+    }
+
+    private async Task<object?> HandleThreadWorktreeHandoffAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    {
+        var p = GetParams<ThreadWorktreeHandoffParams>(msg);
+        if (string.IsNullOrWhiteSpace(p.ThreadId))
+            throw AppServerErrors.InvalidParams("'threadId' is required.");
+
+        var result = await sessionService.HandoffThreadWorktreeAsync(
+            new WorktreeHandoffOptions
+            {
+                ThreadId = p.ThreadId,
+                Mode = p.Mode,
+                BranchName = p.BranchName,
+                BaseRef = p.BaseRef,
+                Path = p.Path,
+                CopyDirtyChanges = p.CopyDirtyChanges ?? true
+            },
+            ct);
+        var thread = result.Thread;
+        var wire = await EnrichThreadWireAsync(
+            WithRuntimeSnapshot(WithContextUsage(thread.ToWire(includeTurns: false), thread.Id), thread),
+            thread,
+            ct);
+
+        var response = new ThreadWorktreeHandoffResponse
+        {
+            Thread = wire,
+            Mode = result.Mode,
+            Worktree = result.Worktree,
+            DirtyHandoff = result.DirtyHandoff
+        };
+
+        await SendNotificationAfterResponseAsync(
+            msg.Id,
+            response,
+            AppServerMethods.ThreadUpdated,
+            new { thread = wire },
             ct);
 
         return null;

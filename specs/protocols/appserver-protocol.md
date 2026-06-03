@@ -383,7 +383,7 @@ Built-in channels do not negotiate these capabilities over `initialize`; they pr
 | `capabilities.manualMemoryConsolidation` | boolean | Server supports manual long-term memory consolidation with `thread/memory/consolidate/start`. |
 | `capabilities.dynamicToolRebind` | boolean | Server supports rebinding Runtime Dynamic Tools to the current client connection via `thread/resume.dynamicTools`. |
 | `capabilities.runtimeAdditionalContext` | boolean | Server supports thread-bound runtime context supplied by the AppServer client through `thread/start.additionalContext` and `thread/resume.additionalContext`. |
-| `capabilities.gitWorktrees` | boolean | Server supports DotCraft-managed Git worktree methods (`worktree/createAndFork`, `worktree/list`, `worktree/status`). |
+| `capabilities.gitWorktrees` | boolean | Server supports DotCraft-managed Git worktree methods (`worktree/createAndFork`, `worktree/createAndStart`, `thread/worktree/handoff`, `worktree/list`, `worktree/status`). |
 | `capabilities.appBinding` | boolean | Server supports App Binding methods (`app/*` and `thread/appBindings/*`). |
 | `capabilities.appContextBlocks` | boolean | Server supports App Binding context block methods (`app/binding/context/upsert`, `app/binding/context/remove`, and `thread/appContextBlocks/list`). |
 | `capabilities.appThreadInputEnqueue` | boolean | Server supports App Binding-safe app-triggered queued input via `app/threadInput/enqueue`. |
@@ -1169,7 +1169,7 @@ If no maintenance is active, the request succeeds as a no-op. If maintenance is 
 
 ### 4.19 Worktree Methods
 
-Worktree methods are advertised with `capabilities.gitWorktrees = true`. They create and inspect DotCraft-managed Git worktrees that are bound to forked threads. Thread state stays in the original workspace; the worktree is only the execution workspace.
+Worktree methods are advertised with `capabilities.gitWorktrees = true`. They create, inspect, and switch DotCraft-managed Git worktrees bound to threads. Thread state stays in the original workspace; the worktree is only the execution workspace.
 
 #### 4.19.1 `worktree/createAndFork`
 
@@ -1202,7 +1202,64 @@ Semantics:
 - The forked thread's rollout, memory, goals, plans, app bindings, and metadata remain in the original state workspace.
 - Dirty handoff failure is recoverable and must not switch the active thread in clients.
 
-#### 4.19.2 `worktree/list`
+#### 4.19.2 `worktree/createAndStart`
+
+Create a Git worktree, optionally copy dirty source changes, then start a new empty thread in that worktree.
+
+**Direction**: client -> server (request)
+
+**Params**:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `identity` | SessionIdentity | yes | New thread identity and state workspace. |
+| `config` | ThreadConfiguration | no | Thread configuration overrides. The server sets the execution workspace to the created worktree. |
+| `dynamicTools` | DynamicToolSpec[] | no | Same thread-scoped client tool binding as `thread/start`. |
+| `additionalContext` | object | no | Same runtime additional context binding as `thread/start`. |
+| `historyMode` | string | no | `"server"` or `"client"`. Defaults to `"server"`. |
+| `displayName` | string | no | Explicit display name for the new thread. |
+| `branchName` | string | no | Requested Git branch name for the created worktree. Omitted lets the server allocate one. |
+| `baseRef` | string | no | Git ref for worktree creation. Defaults to the source workspace `HEAD`. |
+| `path` | string | no | Explicit worktree path. It must resolve under `<workspace>/.craft/worktrees/`. |
+| `copyDirtyChanges` | boolean | no | Whether to copy tracked and non-ignored untracked source changes into the worktree. Defaults to true. |
+
+**Result**: `{ "thread": Thread, "worktree": ThreadWorktreeInfo }`
+
+Semantics:
+
+- The server creates the thread only after worktree creation and dirty handoff have succeeded.
+- The returned thread has `worktree` and an `effectiveWorkspacePath` pointing to the worktree path.
+- The thread's rollout, memory, goals, plans, app bindings, and metadata remain in the original state workspace.
+- After success, the server emits `thread/started` for the new thread.
+
+#### 4.19.3 `thread/worktree/handoff`
+
+Move an existing thread between its local workspace and a DotCraft-managed worktree without changing the thread ID.
+
+**Direction**: client -> server (request)
+
+**Params**:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `threadId` | string | yes | Thread to move. |
+| `mode` | string | yes | `"worktree"` moves local -> worktree; `"local"` moves worktree -> local. |
+| `branchName` | string | no | Requested branch name when creating a worktree. |
+| `baseRef` | string | no | Git ref for worktree creation. Defaults to the current execution workspace `HEAD`. |
+| `path` | string | no | Explicit worktree path under `<workspace>/.craft/worktrees/`. |
+| `copyDirtyChanges` | boolean | no | Whether to copy dirty source changes during local -> worktree. Defaults to true. |
+
+**Result**: `{ "thread": Thread, "mode": "local" | "worktree", "worktree"?: ThreadWorktreeInfo, "dirtyHandoff"?: ThreadWorktreeDirtyHandoffInfo }`
+
+Semantics:
+
+- The thread must be Active and must not have a running turn, waiting approval/input, or active blocking maintenance.
+- Local -> worktree creates a managed worktree, copies local dirty changes by default, sets `thread.worktree`, and sets `configuration.executionWorkspaceOverride`.
+- Worktree -> local checks local dirty conflicts first. If a local dirty path would be overwritten, the request fails with `WorktreeHandoffConflict` and `params.conflictPaths`.
+- When no conflict exists, worktree -> local copies modified, deleted, and non-ignored untracked worktree changes back to the local workspace, clears `thread.worktree`, clears `configuration.executionWorkspaceOverride`, and removes the registered managed worktree.
+- After success, the server emits `thread/updated` with the updated compact thread.
+
+#### 4.19.4 `worktree/list`
 
 List registered DotCraft-managed worktrees for the connected workspace.
 
@@ -1219,7 +1276,7 @@ List registered DotCraft-managed worktrees for the connected workspace.
 
 The list is scoped to registered worktrees under `.craft/worktrees`. Clients must not treat arbitrary external Git worktrees as managed DotCraft worktrees unless the server registers them.
 
-#### 4.19.3 `worktree/status`
+#### 4.19.5 `worktree/status`
 
 Return current Git status metadata for the worktree bound to a thread.
 
@@ -1554,6 +1611,14 @@ All notifications share the pattern:
 Emitted when a new thread is created. Sent to the initiating client after `thread/start` (see Section 4.1), and **broadcast to connected clients** when a thread is created by any other channel in the same process. When a thread is created as a side effect of another JSON-RPC request, such as a protocol extension request, the broadcast is also delivered to the connection that initiated that request. Session-backed SubAgent child thread creation is broadcast to the current connection too so sidebar/thread-list UIs can show the child immediately while the parent turn is still running.
 
 **Params**: `{ "thread": Thread }`
+
+#### `thread/updated`
+
+Emitted when a thread's compact metadata changes without creating, deleting, renaming, or changing lifecycle status. Typical triggers include successful `thread/worktree/handoff`.
+
+**Params**: `{ "thread": Thread }`
+
+The `thread` payload may omit full turn history. Clients should merge the compact metadata into existing active-thread state instead of treating omitted history as deleted history.
 
 #### `thread/renamed`
 

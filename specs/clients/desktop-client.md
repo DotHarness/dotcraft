@@ -378,6 +378,12 @@ Worktree execution:
 - Main-workspace file and Git surfaces hide `.craft/worktrees/**`; worktree-bound surfaces operate inside the selected worktree.
 - Git status and branch detection for worktree threads must use Git commands scoped to `effectiveWorkspacePath`; clients must not parse `.git/HEAD` directly because linked worktrees may use `.git` files.
 - Worktree indicators are compact status affordances. They should reveal branch/path details when useful without visually dominating the conversation.
+- The composer may expose worktree and branch controls in a compact footer below the input chrome. These controls are outside the editable composer body.
+- On the welcome screen, `Work locally` starts a normal local thread. `New worktree` calls `worktree/createAndStart`; its branch selector chooses the worktree `baseRef` and must not switch the local checkout.
+- On an existing local thread, the footer can call `thread/worktree/handoff` with `mode = "worktree"`. On an existing worktree thread, it can call the same method with `mode = "local"`.
+- Worktree -> local handoff brings the worktree's uncommitted changes back to the local workspace. If local dirty changes conflict, Desktop shows the server error and does not switch UI state.
+- Branch checkout and create-and-checkout controls operate on the current effective Git directory. Local mode operates on the main workspace; worktree mode operates on the selected thread's worktree path.
+- Desktop hides or disables worktree and branch controls for remote workspaces, missing capabilities, non-Git directories, and threads that are running, waiting for approval/input, or in blocking maintenance.
 
 ### 5.11 Manage Thread Goal
 

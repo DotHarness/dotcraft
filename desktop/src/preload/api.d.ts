@@ -477,6 +477,13 @@ declare global {
       git: {
         commit(workspacePath: string, files: string[], message: string): Promise<string>
         getBranch(workspacePath: string): Promise<string | null>
+        listBranches(workspacePath: string): Promise<{
+          current: string | null
+          detachedHead: string | null
+          branches: Array<{ name: string; current: boolean }>
+        }>
+        checkoutBranch(workspacePath: string, branchName: string): Promise<void>
+        createAndCheckoutBranch(workspacePath: string, branchName: string): Promise<void>
       }
       workspace: {
         pickFolder(): Promise<string | null>

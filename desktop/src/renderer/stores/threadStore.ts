@@ -484,13 +484,24 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
     // responses must not redirect which thread is selected.
     set((state) => {
       if (!thread) return { activeThread: thread }
+      const incomingTurns = Array.isArray(thread.turns) ? thread.turns : []
+      const activeThread = state.activeThread?.id === thread.id
+        && incomingTurns.length === 0
+        && state.activeThread.turns.length > 0
+        ? {
+            ...state.activeThread,
+            ...thread,
+            turns: state.activeThread.turns,
+            queuedInputs: thread.queuedInputs ?? state.activeThread.queuedInputs
+          }
+        : { ...thread, turns: incomingTurns }
       const goalSnapshots = new Map(state.goalSnapshots)
-      if (thread.goal === null) {
-        goalSnapshots.delete(thread.id)
-      } else if (thread.goal) {
-        goalSnapshots.set(thread.id, thread.goal)
+      if (activeThread.goal === null) {
+        goalSnapshots.delete(activeThread.id)
+      } else if (activeThread.goal) {
+        goalSnapshots.set(activeThread.id, activeThread.goal)
       }
-      return { activeThread: thread, goalSnapshots }
+      return { activeThread, goalSnapshots }
     })
   },
 

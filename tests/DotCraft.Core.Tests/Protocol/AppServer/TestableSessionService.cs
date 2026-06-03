@@ -49,6 +49,9 @@ internal sealed class TestableSessionService : ISessionService, IThreadAgentRefr
     public Action<SessionThread>? ThreadRenamedForBroadcast { get; set; }
 
     /// <inheritdoc />
+    public Action<SessionThread>? ThreadUpdatedForBroadcast { get; set; }
+
+    /// <inheritdoc />
     public Action<string, ThreadStatus, ThreadStatus>? ThreadStatusChangedForBroadcast { get; set; }
 
     /// <inheritdoc />
@@ -267,6 +270,90 @@ internal sealed class TestableSessionService : ISessionService, IThreadAgentRefr
         {
             Thread = thread,
             Worktree = worktree
+        };
+    }
+
+    public async Task<WorktreeCreateAndStartResult> CreateWorktreeAndStartAsync(
+        WorktreeCreateAndStartOptions options,
+        CancellationToken ct = default)
+    {
+        var thread = await CreateThreadAsync(
+            options.Identity,
+            options.Config,
+            options.HistoryMode,
+            displayName: options.DisplayName,
+            ct: ct,
+            source: options.Source);
+        var worktree = await ThreadWorktreeManager.CreateAsync(
+            thread,
+            ResolveEffectiveWorkspacePath(thread),
+            options,
+            logger: null,
+            ct);
+        thread.Configuration ??= new ThreadConfiguration();
+        thread.Configuration.ExecutionWorkspaceOverride = worktree.Path;
+        thread.Worktree = worktree;
+        _cache[thread.Id] = thread;
+        await _store.SaveThreadAsync(thread, ct);
+        return new WorktreeCreateAndStartResult
+        {
+            Thread = thread,
+            Worktree = worktree
+        };
+    }
+
+    public async Task<WorktreeHandoffResult> HandoffThreadWorktreeAsync(
+        WorktreeHandoffOptions options,
+        CancellationToken ct = default)
+    {
+        var thread = await GetOrLoadAsync(options.ThreadId, ct);
+        var mode = string.IsNullOrWhiteSpace(options.Mode) ? WorktreeHandoffModes.Worktree : options.Mode.Trim();
+        if (mode == WorktreeHandoffModes.Worktree)
+        {
+            var worktree = await ThreadWorktreeManager.CreateAsync(
+                thread,
+                ResolveEffectiveWorkspacePath(thread),
+                options,
+                logger: null,
+                ct);
+            thread.Configuration ??= new ThreadConfiguration();
+            thread.Configuration.ExecutionWorkspaceOverride = worktree.Path;
+            thread.Worktree = worktree;
+            _cache[thread.Id] = thread;
+            await _store.SaveThreadAsync(thread, ct);
+            ThreadUpdatedForBroadcast?.Invoke(thread);
+            return new WorktreeHandoffResult
+            {
+                Thread = thread,
+                Mode = WorktreeHandoffModes.Worktree,
+                Worktree = worktree,
+                DirtyHandoff = worktree.DirtyHandoff
+            };
+        }
+
+        if (mode != WorktreeHandoffModes.Local)
+            throw new ArgumentException("'mode' must be 'local' or 'worktree'.");
+
+        ThreadWorktreeDirtyHandoffInfo? dirtyHandoff = null;
+        if (thread.Worktree != null)
+        {
+            dirtyHandoff = await ThreadWorktreeManager.CopyDirtyChangesBackAndRemoveAsync(
+                thread.Worktree,
+                thread.Configuration?.WorkspaceOverride ?? thread.WorkspacePath,
+                ct);
+        }
+
+        thread.Configuration ??= new ThreadConfiguration();
+        thread.Configuration.ExecutionWorkspaceOverride = null;
+        thread.Worktree = null;
+        _cache[thread.Id] = thread;
+        await _store.SaveThreadAsync(thread, ct);
+        ThreadUpdatedForBroadcast?.Invoke(thread);
+        return new WorktreeHandoffResult
+        {
+            Thread = thread,
+            Mode = WorktreeHandoffModes.Local,
+            DirtyHandoff = dirtyHandoff
         };
     }
 

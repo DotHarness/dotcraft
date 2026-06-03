@@ -157,6 +157,67 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
             "Notification (with 'method') must arrive after the response");
     }
 
+    [Fact]
+    public async Task WorktreeCreateAndStart_ReturnsThreadAndEmitsStarted()
+    {
+        InitializeGitWorkspace(_h.Identity.WorkspacePath);
+        var msg = _h.BuildRequest(AppServerMethods.WorktreeCreateAndStart, new
+        {
+            identity = new { channelName = "appserver", userId = "test_user", workspacePath = _h.Identity.WorkspacePath },
+            branchName = "dotcraft/wire-start",
+            copyDirtyChanges = false
+        });
+
+        await _h.ExecuteRequestAsync(msg);
+
+        var response = await _h.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(response);
+        var result = response.RootElement.GetProperty("result");
+        var thread = result.GetProperty("thread");
+        var worktree = result.GetProperty("worktree");
+        Assert.Equal(worktree.GetProperty("path").GetString(), thread.GetProperty("effectiveWorkspacePath").GetString());
+        Assert.Equal("dotcraft/wire-start", worktree.GetProperty("branchName").GetString());
+
+        var notification = await _h.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsNotification(notification, AppServerMethods.ThreadStarted);
+        Assert.Equal(thread.GetProperty("id").GetString(), notification.RootElement.GetProperty("params").GetProperty("thread").GetProperty("id").GetString());
+    }
+
+    [Fact]
+    public async Task ThreadWorktreeHandoff_ReturnsThreadAndEmitsUpdated()
+    {
+        InitializeGitWorkspace(_h.Identity.WorkspacePath);
+        var start = _h.BuildRequest(AppServerMethods.ThreadStart, new
+        {
+            identity = new { channelName = "appserver", userId = "test_user", workspacePath = _h.Identity.WorkspacePath }
+        });
+        await _h.ExecuteRequestAsync(start);
+        var startResponse = await _h.Transport.ReadNextSentAsync();
+        _ = await _h.Transport.ReadNextSentAsync();
+        var threadId = startResponse.RootElement.GetProperty("result").GetProperty("thread").GetProperty("id").GetString()!;
+
+        var handoff = _h.BuildRequest(AppServerMethods.ThreadWorktreeHandoff, new
+        {
+            threadId,
+            mode = "worktree",
+            branchName = "dotcraft/wire-handoff",
+            copyDirtyChanges = false
+        });
+        await _h.ExecuteRequestAsync(handoff);
+
+        var response = await _h.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(response);
+        var result = response.RootElement.GetProperty("result");
+        Assert.Equal("worktree", result.GetProperty("mode").GetString());
+        var thread = result.GetProperty("thread");
+        Assert.Equal(threadId, thread.GetProperty("id").GetString());
+        Assert.Equal(result.GetProperty("worktree").GetProperty("path").GetString(), thread.GetProperty("effectiveWorkspacePath").GetString());
+
+        var notification = await _h.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsNotification(notification, AppServerMethods.ThreadUpdated);
+        Assert.Equal(threadId, notification.RootElement.GetProperty("params").GetProperty("thread").GetProperty("id").GetString());
+    }
+
     /// <summary>
     /// When <see cref="AppServerRequestContext.CurrentTransport"/> matches the client transport,
     /// a broadcast hook must skip that transport (mirrors <c>AppServerHost.BroadcastThreadStarted</c>)

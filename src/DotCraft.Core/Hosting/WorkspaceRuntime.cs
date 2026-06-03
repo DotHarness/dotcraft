@@ -173,6 +173,8 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
 
     public event Action<SessionThread>? ThreadRenamed;
 
+    public event Action<SessionThread>? ThreadUpdated;
+
     public event Action<string>? ThreadDeleted;
 
     public event Action<string, ThreadStatus, ThreadStatus>? ThreadStatusChanged;
@@ -287,6 +289,7 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                 sessionService.ThreadCreatedForBroadcast = thread => ThreadStarted?.Invoke(thread);
                 sessionService.ThreadDeletedForBroadcast = threadId => ThreadDeleted?.Invoke(threadId);
                 sessionService.ThreadRenamedForBroadcast = thread => ThreadRenamed?.Invoke(thread);
+                sessionService.ThreadUpdatedForBroadcast = thread => ThreadUpdated?.Invoke(thread);
                 sessionService.ThreadStatusChangedForBroadcast =
                     (threadId, previousStatus, newStatus) => ThreadStatusChanged?.Invoke(threadId, previousStatus, newStatus);
                 var runtimeSignalObservers = Services.GetServices<IThreadRuntimeSignalObserver>().ToArray();
@@ -597,6 +600,7 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                 started.SessionService.ThreadCreatedForBroadcast = null;
                 started.SessionService.ThreadDeletedForBroadcast = null;
                 started.SessionService.ThreadRenamedForBroadcast = null;
+                started.SessionService.ThreadUpdatedForBroadcast = null;
                 started.SessionService.ThreadStatusChangedForBroadcast = null;
                 started.SessionService.ThreadRuntimeSignalForBroadcast = null;
                 if (started.SessionService is SessionService sessionService)
