@@ -27,9 +27,9 @@ export type ItemType =
   | 'systemNotice'
 
 /**
- * Payload for systemNotice items. Known kinds include `compacted` and
- * `memoryConsolidated`; the optional fields below are populated for compaction
- * notices and mirror `SystemNoticePayload` on the wire.
+ * Payload for systemNotice items. Known kinds include `compacted`,
+ * `memoryConsolidated`, and `forked`; the optional fields below mirror
+ * `SystemNoticePayload` on the wire.
  */
 export interface SystemNoticeInfo {
   kind: string
@@ -39,6 +39,7 @@ export interface SystemNoticeInfo {
   tokensAfter?: number
   percentLeftAfter?: number
   clearedToolResults?: number
+  sourceThreadId?: string
 }
 
 export type ApprovalDecision =
@@ -525,7 +526,9 @@ function mapSystemNotice(
     percentLeftAfter:
       typeof payload.percentLeftAfter === 'number' ? payload.percentLeftAfter : undefined,
     clearedToolResults:
-      typeof payload.clearedToolResults === 'number' ? payload.clearedToolResults : undefined
+      typeof payload.clearedToolResults === 'number' ? payload.clearedToolResults : undefined,
+    sourceThreadId:
+      typeof payload.sourceThreadId === 'string' ? payload.sourceThreadId : undefined
   }
 }
 

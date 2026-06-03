@@ -1,3 +1,4 @@
+using System.Text.Json;
 using DotCraft.Protocol;
 using DotCraft.Agents;
 using Microsoft.Extensions.AI;
@@ -147,6 +148,158 @@ internal sealed class TestableSessionService : ISessionService, IThreadAgentRefr
 
         var thread = await CreateThreadAsync(identity, config, historyMode, displayName: displayName, ct: ct);
         return new ThreadResetResult { Thread = thread, ArchivedThreadIds = archived, CreatedLazily = true };
+    }
+
+    public async Task<SessionThread> ForkThreadAsync(
+        string threadId,
+        ThreadForkOptions? options = null,
+        CancellationToken ct = default)
+    {
+        options ??= new ThreadForkOptions();
+        var source = string.IsNullOrWhiteSpace(options.Path)
+            ? await GetOrLoadAsync(threadId, ct)
+            : await _store.LoadThreadFromPathAsync(options.Path, ct)
+                ?? throw new KeyNotFoundException($"Thread rollout path '{options.Path}' was not found.");
+        if (!string.Equals(source.Id, threadId, StringComparison.Ordinal))
+            throw new ArgumentException($"Thread rollout path belongs to '{source.Id}', not requested thread '{threadId}'.");
+
+        var identity = options.Identity ?? new SessionIdentity
+        {
+            ChannelName = source.OriginChannel,
+            UserId = source.UserId,
+            ChannelContext = source.ChannelContext,
+            WorkspacePath = source.WorkspacePath
+        };
+        if (string.IsNullOrWhiteSpace(identity.ChannelName) || string.IsNullOrWhiteSpace(identity.WorkspacePath))
+        {
+            identity = identity with
+            {
+                ChannelName = string.IsNullOrWhiteSpace(identity.ChannelName) ? source.OriginChannel : identity.ChannelName,
+                WorkspacePath = string.IsNullOrWhiteSpace(identity.WorkspacePath) ? source.WorkspacePath : identity.WorkspacePath
+            };
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        var forkTurns = CloneForkTurns(source, options.ForkPoint, now);
+        var fork = new SessionThread
+        {
+            Id = SessionIdGenerator.NewThreadId(),
+            WorkspacePath = identity.WorkspacePath,
+            UserId = identity.UserId ?? source.UserId,
+            OriginChannel = identity.ChannelName,
+            ChannelContext = identity.ChannelContext ?? source.ChannelContext,
+            Status = ThreadStatus.Active,
+            HistoryMode = source.HistoryMode,
+            CreatedAt = now,
+            LastActiveAt = now,
+            Configuration = options.Config ?? CloneThreadConfiguration(source.Configuration),
+            DisplayName = ResolveForkDisplayName(options.DisplayName, source, forkTurns),
+            Source = ThreadSource.User(),
+            ForkedFromId = source.Id,
+            Ephemeral = options.Ephemeral,
+            Worktree = options.Worktree,
+            Metadata = new Dictionary<string, string>(source.Metadata),
+            Turns = forkTurns,
+            QueuedInputs = []
+        };
+        foreach (var turn in fork.Turns)
+        {
+            turn.ThreadId = fork.Id;
+            foreach (var item in turn.Items)
+                item.TurnId = turn.Id;
+            turn.Input = ResolveTurnInput(turn);
+        }
+        AppendForkBoundaryNotice(fork.Turns, fork.Id, source.Id, now);
+
+        if (fork.ChannelContext == null)
+            fork.Metadata.Remove("channelContext");
+        else
+            fork.Metadata["channelContext"] = fork.ChannelContext;
+
+        _cache[fork.Id] = fork;
+        if (!fork.Ephemeral)
+            await _store.SaveThreadAsync(fork, ct);
+        ThreadCreatedForBroadcast?.Invoke(fork);
+        return fork;
+    }
+
+    public async Task<WorktreeCreateAndForkResult> CreateWorktreeAndForkAsync(
+        WorktreeCreateAndForkOptions options,
+        CancellationToken ct = default)
+    {
+        var source = await GetOrLoadAsync(options.SourceThreadId, ct);
+        if (options.Identity != null
+            && !string.IsNullOrWhiteSpace(options.Identity.WorkspacePath)
+            && !string.Equals(
+                Path.GetFullPath(options.Identity.WorkspacePath),
+                Path.GetFullPath(source.WorkspacePath),
+                StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ArgumentException("identity.workspacePath for worktree/createAndFork must match the source thread workspace.");
+        }
+
+        var worktree = await ThreadWorktreeManager.CreateAsync(
+            source,
+            ResolveEffectiveWorkspacePath(source),
+            options,
+            logger: null,
+            ct);
+        var config = options.Config != null
+            ? CloneThreadConfiguration(options.Config) ?? new ThreadConfiguration()
+            : CloneThreadConfiguration(source.Configuration) ?? new ThreadConfiguration();
+        config.ExecutionWorkspaceOverride = worktree.Path;
+        var identity = options.Identity == null
+            ? null
+            : options.Identity with { WorkspacePath = source.WorkspacePath };
+        var thread = await ForkThreadAsync(
+            source.Id,
+            new ThreadForkOptions
+            {
+                ForkPoint = options.ForkPoint,
+                Identity = identity,
+                Config = config,
+                DisplayName = options.DisplayName,
+                Worktree = worktree
+            },
+            ct);
+
+        return new WorktreeCreateAndForkResult
+        {
+            Thread = thread,
+            Worktree = worktree
+        };
+    }
+
+    public async Task<IReadOnlyList<ThreadWorktreeStatus>> ListWorktreesAsync(
+        SessionIdentity? identity = null,
+        CancellationToken ct = default)
+    {
+        var summaries = await _store.LoadIndexAsync(ct);
+        var statuses = new List<ThreadWorktreeStatus>();
+        foreach (var summary in summaries)
+        {
+            if (summary.Worktree == null)
+                continue;
+            if (identity != null
+                && !string.Equals(summary.WorkspacePath, identity.WorkspacePath, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            statuses.Add(await ThreadWorktreeManager.GetStatusAsync(summary.Id, summary.Worktree, ct));
+        }
+
+        return statuses;
+    }
+
+    public async Task<ThreadWorktreeStatus> GetWorktreeStatusAsync(
+        string threadId,
+        CancellationToken ct = default)
+    {
+        var thread = await GetOrLoadAsync(threadId, ct);
+        if (thread.Worktree == null)
+            throw new InvalidOperationException($"Thread '{thread.Id}' is not bound to a DotCraft worktree.");
+        return await ThreadWorktreeManager.GetStatusAsync(thread.Id, thread.Worktree, ct);
     }
 
     public async Task PauseThreadAsync(string threadId, CancellationToken ct = default)
@@ -663,6 +816,165 @@ internal sealed class TestableSessionService : ISessionService, IThreadAgentRefr
             ?? throw new KeyNotFoundException($"Thread '{threadId}' not found.");
         _cache[threadId] = loaded;
         return loaded;
+    }
+
+    private static ThreadConfiguration? CloneThreadConfiguration(ThreadConfiguration? source)
+    {
+        if (source == null)
+            return null;
+        var json = JsonSerializer.Serialize(source, SessionJsonOptions.Default);
+        return JsonSerializer.Deserialize<ThreadConfiguration>(json, SessionJsonOptions.Default);
+    }
+
+    private static string ResolveEffectiveWorkspacePath(SessionThread thread)
+    {
+        var executionOverride = thread.Configuration?.ExecutionWorkspaceOverride;
+        if (!string.IsNullOrWhiteSpace(executionOverride))
+            return executionOverride;
+
+        var workspaceOverride = thread.Configuration?.WorkspaceOverride;
+        return string.IsNullOrWhiteSpace(workspaceOverride) ? thread.WorkspacePath : workspaceOverride;
+    }
+
+    private static List<SessionTurn> CloneForkTurns(SessionThread source, ThreadForkPoint? forkPoint, DateTimeOffset now)
+    {
+        var json = JsonSerializer.Serialize(source.Turns, SessionJsonOptions.Default);
+        var turns = JsonSerializer.Deserialize<List<SessionTurn>>(json, SessionJsonOptions.Default) ?? [];
+        if (forkPoint == null)
+            return turns;
+
+        if (string.IsNullOrWhiteSpace(forkPoint.TurnId))
+            throw new ArgumentException("forkPoint.turnId is required when forkPoint is provided.");
+        var turnIndex = turns.FindIndex(turn => string.Equals(turn.Id, forkPoint.TurnId, StringComparison.Ordinal));
+        if (turnIndex < 0)
+            throw new ArgumentException($"forkPoint.turnId '{forkPoint.TurnId}' was not found.");
+        var includePoint = string.IsNullOrWhiteSpace(forkPoint.Position)
+            || string.Equals(forkPoint.Position, ThreadForkPositions.After, StringComparison.OrdinalIgnoreCase);
+        if (!includePoint && !string.Equals(forkPoint.Position, ThreadForkPositions.Before, StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentException("forkPoint.position must be 'before' or 'after'.");
+
+        if (string.IsNullOrWhiteSpace(forkPoint.ItemId))
+            return includePoint ? turns.Take(turnIndex + 1).ToList() : turns.Take(turnIndex).ToList();
+
+        var target = turns[turnIndex];
+        var itemIndex = target.Items.FindIndex(item => string.Equals(item.Id, forkPoint.ItemId, StringComparison.Ordinal));
+        if (itemIndex < 0)
+            throw new ArgumentException($"forkPoint.itemId '{forkPoint.ItemId}' was not found in turn '{forkPoint.TurnId}'.");
+        var itemCount = includePoint ? itemIndex + 1 : itemIndex;
+        var selected = turns.Take(turnIndex).ToList();
+        if (itemCount <= 0)
+            return selected;
+
+        var originalCount = target.Items.Count;
+        target.Items = target.Items.Take(itemCount).ToList();
+        target.Input = ResolveTurnInput(target);
+        if (itemCount < originalCount || target.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput)
+        {
+            target.Status = TurnStatus.Cancelled;
+            target.CompletedAt ??= now;
+            target.Error ??= "Forked from a partial source turn.";
+        }
+
+        selected.Add(target);
+        return selected;
+    }
+
+    private static string? ResolveForkDisplayName(
+        string? explicitDisplayName,
+        SessionThread source,
+        IReadOnlyList<SessionTurn> forkedTurns)
+    {
+        if (!string.IsNullOrWhiteSpace(explicitDisplayName))
+            return explicitDisplayName;
+
+        if (!string.IsNullOrWhiteSpace(source.DisplayName))
+            return source.DisplayName;
+
+        return FirstUserMessageDisplayName(forkedTurns);
+    }
+
+    private static string? FirstUserMessageDisplayName(IReadOnlyList<SessionTurn> turns)
+    {
+        foreach (var turn in turns)
+        {
+            var text = (turn.Input?.Payload as UserMessagePayload)?.Text;
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                text = turn.Items
+                    .Where(item => item.Type == ItemType.UserMessage)
+                    .Select(item => (item.Payload as UserMessagePayload)?.Text)
+                    .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
+            }
+
+            if (string.IsNullOrWhiteSpace(text))
+                continue;
+
+            var trimmed = text.Trim();
+            return trimmed.Length > 50 ? trimmed[..50] + "..." : trimmed;
+        }
+
+        return null;
+    }
+
+    private static void AppendForkBoundaryNotice(
+        List<SessionTurn> turns,
+        string forkedThreadId,
+        string sourceThreadId,
+        DateTimeOffset now)
+    {
+        if (turns.Count == 0)
+        {
+            var turn = new SessionTurn
+            {
+                Id = SessionIdGenerator.NewTurnId(1),
+                ThreadId = forkedThreadId,
+                Status = TurnStatus.Completed,
+                StartedAt = now,
+                CompletedAt = now,
+                Items = []
+            };
+            turn.Items.Add(CreateForkBoundaryNoticeItem(turn, 1, sourceThreadId, now));
+            turns.Add(turn);
+            return;
+        }
+
+        var targetTurn = turns[^1];
+        targetTurn.Items.Add(CreateForkBoundaryNoticeItem(
+            targetTurn,
+            targetTurn.Items.Count + 1,
+            sourceThreadId,
+            now));
+    }
+
+    private static SessionItem CreateForkBoundaryNoticeItem(
+        SessionTurn turn,
+        int seq,
+        string sourceThreadId,
+        DateTimeOffset now)
+    {
+        return new SessionItem
+        {
+            Id = SessionIdGenerator.NewItemId(seq),
+            TurnId = turn.Id,
+            Type = ItemType.SystemNotice,
+            Status = ItemStatus.Completed,
+            CreatedAt = now,
+            CompletedAt = now,
+            Payload = new SystemNoticePayload
+            {
+                Kind = "forked",
+                SourceThreadId = sourceThreadId
+            }
+        };
+    }
+
+    private static SessionItem? ResolveTurnInput(SessionTurn turn)
+    {
+        var inputId = turn.Input?.Id;
+        return !string.IsNullOrWhiteSpace(inputId)
+            ? turn.Items.FirstOrDefault(item => string.Equals(item.Id, inputId, StringComparison.Ordinal))
+                ?? turn.Items.FirstOrDefault(item => item.Type == ItemType.UserMessage)
+            : turn.Items.FirstOrDefault(item => item.Type == ItemType.UserMessage);
     }
 
     private async IAsyncEnumerable<SessionEvent> YieldEvents(

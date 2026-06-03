@@ -25,6 +25,8 @@ export function MessageCopyButton({
 }: MessageCopyButtonProps): JSX.Element | null {
   const t = useT()
   const [copied, setCopied] = useState(false)
+  const [buttonHovered, setButtonHovered] = useState(false)
+  const [buttonFocused, setButtonFocused] = useState(false)
 
   if (disabled) return null
 
@@ -42,6 +44,7 @@ export function MessageCopyButton({
   }
 
   const label = ariaLabel ?? t('conversation.copyMessage')
+  const buttonChromeVisible = buttonHovered || buttonFocused
   const defaultWrapperStyle: CSSProperties = {
     position: 'absolute',
     right: '8px',
@@ -63,18 +66,22 @@ export function MessageCopyButton({
           void handleCopy()
         }}
         aria-label={label}
+        onMouseEnter={() => setButtonHovered(true)}
+        onMouseLeave={() => setButtonHovered(false)}
+        onFocus={() => setButtonFocused(true)}
+        onBlur={() => setButtonFocused(false)}
         style={{
           width: '24px',
           height: '24px',
           borderRadius: '6px',
-          border: '1px solid var(--border-default)',
-          background: 'var(--bg-secondary)',
-          color: copied ? 'var(--success)' : 'var(--text-secondary)',
+          border: buttonChromeVisible ? '1px solid var(--border-default)' : '1px solid transparent',
+          background: buttonChromeVisible ? 'var(--bg-secondary)' : 'transparent',
+          color: copied ? 'var(--success)' : buttonChromeVisible ? 'var(--text-primary)' : 'var(--text-secondary)',
           display: 'inline-flex',
           alignItems: 'center',
           justifyContent: 'center',
           cursor: 'pointer',
-          transition: 'opacity 120ms ease, color 120ms ease'
+          transition: 'opacity 120ms ease, color 120ms ease, background 120ms ease, border-color 120ms ease'
         }}
       >
         {copied ? <Check size={14} aria-hidden /> : <Copy size={14} aria-hidden />}

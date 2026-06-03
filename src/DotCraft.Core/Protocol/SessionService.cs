@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Abstractions;
 using DotCraft.Agents;
@@ -458,6 +459,12 @@ public sealed class SessionService(
             throw new NotSupportedException("Thread goals are disabled by configuration.");
     }
 
+    private static void ThrowIfEphemeralThreadGoals(SessionThread thread)
+    {
+        if (thread.Ephemeral)
+            throw new NotSupportedException("Thread goals are not supported for ephemeral threads.");
+    }
+
     private bool IsPlanMode(SessionThread thread) =>
         thread.Configuration?.Mode?.Equals("plan", StringComparison.OrdinalIgnoreCase) == true;
 
@@ -866,6 +873,7 @@ Choose the next concrete action that advances the goal. Before doing substantial
         Model = source.Model,
         Reasoning = CloneNullableReasoningConfig(source.Reasoning),
         WorkspaceOverride = source.WorkspaceOverride,
+        ExecutionWorkspaceOverride = source.ExecutionWorkspaceOverride,
         ToolProfile = source.ToolProfile,
         UseToolProfileOnly = source.UseToolProfileOnly,
         AgentInstructions = source.AgentInstructions,
@@ -914,6 +922,483 @@ Choose the next concrete action that advances the goal. Before doing substantial
             ArchivedThreadIds = archivedIds,
             CreatedLazily = true
         };
+    }
+
+    /// <inheritdoc/>
+    public async Task<SessionThread> ForkThreadAsync(
+        string threadId,
+        ThreadForkOptions? options = null,
+        CancellationToken ct = default)
+    {
+        options ??= new ThreadForkOptions();
+        var normalizedThreadId = NormalizeRequiredThreadId(threadId);
+        var source = await LoadForkSourceThreadAsync(normalizedThreadId, options.Path, ct);
+        var identity = ResolveForkIdentity(source, options.Identity);
+        var now = DateTimeOffset.UtcNow;
+        var config = options.Config != null
+            ? CaptureThreadConfigurationForNewThread(options.Config)
+            : source.Configuration != null
+                ? CloneThreadConfiguration(source.Configuration)
+                : CaptureThreadConfigurationForNewThread(null);
+        var forkedThreadId = SessionIdGenerator.NewThreadId();
+        var forkedTurns = CloneForkTurns(source, options.ForkPoint, forkedThreadId, source.Id, now);
+        var forked = new SessionThread
+        {
+            Id = forkedThreadId,
+            WorkspacePath = identity.WorkspacePath,
+            UserId = identity.UserId,
+            OriginChannel = identity.ChannelName,
+            ChannelContext = identity.ChannelContext,
+            Status = ThreadStatus.Active,
+            CreatedAt = now,
+            LastActiveAt = now,
+            HistoryMode = source.HistoryMode,
+            Configuration = config,
+            DisplayName = ResolveForkDisplayName(options.DisplayName, source, forkedTurns),
+            Source = CloneThreadSourceForFork(source.Source),
+            ForkedFromId = source.Id,
+            Ephemeral = options.Ephemeral,
+            Worktree = options.Worktree,
+            Metadata = CopyForkMetadata(source, identity),
+            Turns = forkedTurns,
+            QueuedInputs = []
+        };
+
+        _threadsPendingPermanentDeletion.TryRemove(forked.Id, out _);
+        _threads[forked.Id] = forked;
+        var broker = GetOrCreateBroker(forked.Id);
+
+        var buildThreadAgentOnCreate = options.Config != null
+            || HasAgentShapingConfiguration(config)
+            || channelRuntimeToolProvider != null;
+        if (buildThreadAgentOnCreate)
+        {
+            using (await AcquireThreadAgentLockAsync(forked.Id, ct))
+                _threadAgents[forked.Id] = await BuildAgentForThreadAsync(forked, ct);
+        }
+
+        if (!forked.Ephemeral)
+        {
+            await PersistThreadWithMaterializationAsync(forked, ct);
+            await SaveContextUsageSnapshotAsync(forked.Id, 0, ct);
+        }
+
+        broker.PublishThreadEvent(SessionEventType.ThreadCreated, forked);
+        ThreadCreatedForBroadcast?.Invoke(forked);
+        return forked;
+    }
+
+    private async Task<SessionThread> LoadForkSourceThreadAsync(
+        string threadId,
+        string? rolloutPath,
+        CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(rolloutPath))
+            return await GetOrLoadThreadAsync(threadId, ct);
+
+        var source = await persistence.LoadThreadFromPathAsync(rolloutPath, ct)
+            ?? throw new KeyNotFoundException($"Thread rollout path '{rolloutPath}' was not found.");
+        if (!string.Equals(source.Id, threadId, StringComparison.Ordinal))
+            throw new ArgumentException(
+                $"Thread rollout path belongs to '{source.Id}', not requested thread '{threadId}'.",
+                nameof(rolloutPath));
+
+        return source;
+    }
+
+    private static SessionIdentity ResolveForkIdentity(SessionThread source, SessionIdentity? requested)
+    {
+        if (requested == null)
+        {
+            return new SessionIdentity
+            {
+                ChannelName = source.OriginChannel,
+                UserId = source.UserId,
+                ChannelContext = source.ChannelContext,
+                WorkspacePath = source.WorkspacePath
+            };
+        }
+
+        return requested with
+        {
+            ChannelName = string.IsNullOrWhiteSpace(requested.ChannelName) ? source.OriginChannel : requested.ChannelName,
+            UserId = requested.UserId ?? source.UserId,
+            ChannelContext = requested.ChannelContext ?? source.ChannelContext,
+            WorkspacePath = string.IsNullOrWhiteSpace(requested.WorkspacePath) ? source.WorkspacePath : requested.WorkspacePath
+        };
+    }
+
+    private static Dictionary<string, string> CopyForkMetadata(SessionThread source, SessionIdentity identity)
+    {
+        var metadata = new Dictionary<string, string>(source.Metadata, StringComparer.Ordinal);
+        foreach (var key in metadata.Keys
+            .Where(key =>
+                key.StartsWith("subagent.", StringComparison.OrdinalIgnoreCase)
+                || key.StartsWith("dotcraft.worktree", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(key, "dotcraft.internal", StringComparison.OrdinalIgnoreCase))
+            .ToList())
+        {
+            metadata.Remove(key);
+        }
+
+        if (identity.ChannelContext == null)
+            metadata.Remove("channelContext");
+        else
+            metadata["channelContext"] = identity.ChannelContext;
+
+        return metadata;
+    }
+
+    /// <inheritdoc/>
+    public async Task<WorktreeCreateAndForkResult> CreateWorktreeAndForkAsync(
+        WorktreeCreateAndForkOptions options,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        var sourceThreadId = NormalizeRequiredThreadId(options.SourceThreadId);
+        var source = await GetOrLoadThreadAsync(sourceThreadId, ct);
+        ThrowIfWorktreeIdentityMovesStateWorkspace(source, options.Identity);
+
+        var sourceExecutionWorkspace = ResolveEffectiveWorkspacePath(source);
+        var worktree = await ThreadWorktreeManager.CreateAsync(
+            source,
+            sourceExecutionWorkspace,
+            options,
+            logger,
+            ct);
+
+        var config = options.Config != null
+            ? CloneThreadConfiguration(options.Config)
+            : source.Configuration != null
+                ? CloneThreadConfiguration(source.Configuration)
+                : new ThreadConfiguration();
+        config.ExecutionWorkspaceOverride = worktree.Path;
+
+        var identity = options.Identity == null
+            ? null
+            : options.Identity with { WorkspacePath = source.WorkspacePath };
+
+        var thread = await ForkThreadAsync(
+            source.Id,
+            new ThreadForkOptions
+            {
+                ForkPoint = options.ForkPoint,
+                Identity = identity,
+                Config = config,
+                DisplayName = options.DisplayName,
+                Worktree = worktree
+            },
+            ct);
+
+        return new WorktreeCreateAndForkResult
+        {
+            Thread = thread,
+            Worktree = worktree
+        };
+    }
+
+    /// <inheritdoc/>
+    public async Task<IReadOnlyList<ThreadWorktreeStatus>> ListWorktreesAsync(
+        SessionIdentity? identity = null,
+        CancellationToken ct = default)
+    {
+        var summaries = await persistence.LoadIndexAsync(ct);
+        var byThreadId = new Dictionary<string, ThreadWorktreeInfo>(StringComparer.Ordinal);
+        foreach (var summary in summaries)
+        {
+            if (summary.Worktree == null)
+                continue;
+            if (identity != null
+                && !string.Equals(summary.WorkspacePath, identity.WorkspacePath, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            byThreadId[summary.Id] = summary.Worktree;
+        }
+
+        foreach (var thread in _threads.Values)
+        {
+            if (thread.Ephemeral || thread.Worktree == null)
+                continue;
+            if (identity != null
+                && !string.Equals(thread.WorkspacePath, identity.WorkspacePath, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            byThreadId[thread.Id] = thread.Worktree;
+        }
+
+        var statuses = new List<ThreadWorktreeStatus>(byThreadId.Count);
+        foreach (var (threadId, worktree) in byThreadId)
+        {
+            statuses.Add(await ThreadWorktreeManager.GetStatusAsync(threadId, worktree, ct, logger));
+        }
+
+        return statuses
+            .OrderByDescending(status => status.Worktree.CreatedAt)
+            .ToList();
+    }
+
+    /// <inheritdoc/>
+    public async Task<ThreadWorktreeStatus> GetWorktreeStatusAsync(
+        string threadId,
+        CancellationToken ct = default)
+    {
+        var thread = await GetOrLoadThreadAsync(NormalizeRequiredThreadId(threadId), ct);
+        if (thread.Worktree == null)
+            throw new InvalidOperationException($"Thread '{thread.Id}' is not bound to a DotCraft worktree.");
+
+        return await ThreadWorktreeManager.GetStatusAsync(thread.Id, thread.Worktree, ct, logger);
+    }
+
+    private static ThreadSource CloneThreadSourceForFork(ThreadSource source)
+    {
+        if (string.Equals(source.Kind, ThreadSourceKinds.SubAgent, StringComparison.OrdinalIgnoreCase)
+            || source.SubAgent != null)
+        {
+            return ThreadSource.User();
+        }
+
+        var json = JsonSerializer.Serialize(source, SessionJsonOptions.Default);
+        return JsonSerializer.Deserialize<ThreadSource>(json, SessionJsonOptions.Default) ?? ThreadSource.User();
+    }
+
+    private static void ThrowIfWorktreeIdentityMovesStateWorkspace(
+        SessionThread source,
+        SessionIdentity? identity)
+    {
+        if (identity == null || string.IsNullOrWhiteSpace(identity.WorkspacePath))
+            return;
+
+        var requestedWorkspace = Path.GetFullPath(identity.WorkspacePath);
+        var sourceWorkspace = Path.GetFullPath(source.WorkspacePath);
+        if (!string.Equals(requestedWorkspace, sourceWorkspace, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ArgumentException(
+                "identity.workspacePath for worktree/createAndFork must match the source thread workspace; use executionWorkspaceOverride for the worktree path.");
+        }
+    }
+
+    private static string ResolveEffectiveWorkspacePath(SessionThread thread)
+    {
+        var executionOverride = thread.Configuration?.ExecutionWorkspaceOverride;
+        if (!string.IsNullOrWhiteSpace(executionOverride))
+            return executionOverride;
+
+        var workspaceOverride = thread.Configuration?.WorkspaceOverride;
+        return string.IsNullOrWhiteSpace(workspaceOverride) ? thread.WorkspacePath : workspaceOverride;
+    }
+
+    private static List<SessionTurn> CloneForkTurns(
+        SessionThread source,
+        ThreadForkPoint? forkPoint,
+        string forkedThreadId,
+        string sourceThreadId,
+        DateTimeOffset now)
+    {
+        var cloned = DeepCloneTurns(source.Turns);
+        List<SessionTurn> selected;
+
+        if (forkPoint == null)
+        {
+            selected = cloned;
+        }
+        else
+        {
+            selected = SelectForkTurnPrefix(cloned, forkPoint, now);
+        }
+
+        foreach (var turn in selected.Where(IsActiveTurn))
+            MarkForkInterruptedTurn(turn, now, "Forked from an interrupted source turn.");
+
+        RetargetForkTurns(selected, forkedThreadId);
+        AppendForkBoundaryNotice(selected, forkedThreadId, sourceThreadId, now);
+        return selected;
+    }
+
+    private static string? ResolveForkDisplayName(
+        string? explicitDisplayName,
+        SessionThread source,
+        IReadOnlyList<SessionTurn> forkedTurns)
+    {
+        if (!string.IsNullOrWhiteSpace(explicitDisplayName))
+            return explicitDisplayName;
+
+        if (!string.IsNullOrWhiteSpace(source.DisplayName))
+            return source.DisplayName;
+
+        return FirstUserMessageDisplayName(forkedTurns);
+    }
+
+    private static string? FirstUserMessageDisplayName(IReadOnlyList<SessionTurn> turns)
+    {
+        foreach (var turn in turns)
+        {
+            var text = (turn.Input?.Payload as UserMessagePayload)?.Text;
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                text = turn.Items
+                    .Where(item => item.Type == ItemType.UserMessage)
+                    .Select(item => (item.Payload as UserMessagePayload)?.Text)
+                    .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
+            }
+
+            if (string.IsNullOrWhiteSpace(text))
+                continue;
+
+            var trimmed = text.Trim();
+            return trimmed.Length > 50 ? trimmed[..50] + "..." : trimmed;
+        }
+
+        return null;
+    }
+
+    private static void AppendForkBoundaryNotice(
+        List<SessionTurn> turns,
+        string forkedThreadId,
+        string sourceThreadId,
+        DateTimeOffset now)
+    {
+        if (turns.Count == 0)
+        {
+            var turn = new SessionTurn
+            {
+                Id = SessionIdGenerator.NewTurnId(1),
+                ThreadId = forkedThreadId,
+                Status = TurnStatus.Completed,
+                StartedAt = now,
+                CompletedAt = now,
+                Items = []
+            };
+            turn.Items.Add(CreateForkBoundaryNoticeItem(turn, 1, sourceThreadId, now));
+            turns.Add(turn);
+            return;
+        }
+
+        var targetTurn = turns[^1];
+        targetTurn.Items.Add(CreateForkBoundaryNoticeItem(
+            targetTurn,
+            targetTurn.Items.Count + 1,
+            sourceThreadId,
+            now));
+    }
+
+    private static SessionItem CreateForkBoundaryNoticeItem(
+        SessionTurn turn,
+        int seq,
+        string sourceThreadId,
+        DateTimeOffset now)
+    {
+        return new SessionItem
+        {
+            Id = SessionIdGenerator.NewItemId(seq),
+            TurnId = turn.Id,
+            Type = ItemType.SystemNotice,
+            Status = ItemStatus.Completed,
+            CreatedAt = now,
+            CompletedAt = now,
+            Payload = new SystemNoticePayload
+            {
+                Kind = "forked",
+                SourceThreadId = sourceThreadId
+            }
+        };
+    }
+
+    private static List<SessionTurn> DeepCloneTurns(IReadOnlyList<SessionTurn> turns)
+    {
+        var json = JsonSerializer.Serialize(turns, SessionJsonOptions.Default);
+        return JsonSerializer.Deserialize<List<SessionTurn>>(json, SessionJsonOptions.Default) ?? [];
+    }
+
+    private static List<SessionTurn> SelectForkTurnPrefix(
+        List<SessionTurn> turns,
+        ThreadForkPoint forkPoint,
+        DateTimeOffset now)
+    {
+        if (string.IsNullOrWhiteSpace(forkPoint.TurnId))
+            throw new ArgumentException("forkPoint.turnId is required when forkPoint is provided.", nameof(forkPoint));
+
+        var turnIndex = turns.FindIndex(turn => string.Equals(turn.Id, forkPoint.TurnId, StringComparison.Ordinal));
+        if (turnIndex < 0)
+            throw new ArgumentException($"forkPoint.turnId '{forkPoint.TurnId}' was not found.", nameof(forkPoint));
+
+        var includePoint = ResolveForkPosition(forkPoint.Position);
+        if (string.IsNullOrWhiteSpace(forkPoint.ItemId))
+            return includePoint ? turns.Take(turnIndex + 1).ToList() : turns.Take(turnIndex).ToList();
+
+        var targetTurn = turns[turnIndex];
+        var itemIndex = targetTurn.Items.FindIndex(item => string.Equals(item.Id, forkPoint.ItemId, StringComparison.Ordinal));
+        if (itemIndex < 0)
+            throw new ArgumentException($"forkPoint.itemId '{forkPoint.ItemId}' was not found in turn '{forkPoint.TurnId}'.", nameof(forkPoint));
+
+        var itemCount = includePoint ? itemIndex + 1 : itemIndex;
+        var selected = turns.Take(turnIndex).ToList();
+        if (itemCount <= 0)
+            return selected;
+
+        var originalItemCount = targetTurn.Items.Count;
+        targetTurn.Items = targetTurn.Items.Take(itemCount).ToList();
+        targetTurn.Input = ResolveTurnInput(targetTurn);
+        if (itemCount < originalItemCount || IsActiveTurn(targetTurn))
+            MarkForkInterruptedTurn(targetTurn, now, "Forked from a partial source turn.");
+        selected.Add(targetTurn);
+        return selected;
+    }
+
+    private static bool ResolveForkPosition(string? position)
+    {
+        if (string.IsNullOrWhiteSpace(position)
+            || string.Equals(position, ThreadForkPositions.After, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (string.Equals(position, ThreadForkPositions.Before, StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        throw new ArgumentException("forkPoint.position must be 'before' or 'after'.", nameof(position));
+    }
+
+    private static void RetargetForkTurns(List<SessionTurn> turns, string forkedThreadId)
+    {
+        foreach (var turn in turns)
+        {
+            turn.ThreadId = forkedThreadId;
+            foreach (var item in turn.Items)
+                item.TurnId = turn.Id;
+            turn.Input = ResolveTurnInput(turn);
+        }
+    }
+
+    private static SessionItem? ResolveTurnInput(SessionTurn turn)
+    {
+        var inputId = turn.Input?.Id;
+        if (!string.IsNullOrWhiteSpace(inputId))
+        {
+            var input = turn.Items.FirstOrDefault(item => string.Equals(item.Id, inputId, StringComparison.Ordinal));
+            if (input != null)
+                return input;
+        }
+
+        return turn.Items.FirstOrDefault(item => item.Type == ItemType.UserMessage);
+    }
+
+    private static bool IsActiveTurn(SessionTurn turn) =>
+        turn.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput;
+
+    private static void MarkForkInterruptedTurn(SessionTurn turn, DateTimeOffset now, string message)
+    {
+        turn.Status = TurnStatus.Cancelled;
+        turn.CompletedAt ??= now;
+        turn.Error ??= message;
+        foreach (var item in turn.Items.Where(item => item.Status != ItemStatus.Completed))
+        {
+            item.Status = ItemStatus.Completed;
+            item.CompletedAt ??= now;
+        }
     }
 
     /// <inheritdoc/>
@@ -979,7 +1464,8 @@ Choose the next concrete action that advances the goal. Before doing substantial
     {
         ThrowIfGoalsDisabled();
         var normalizedThreadId = NormalizeRequiredThreadId(threadId);
-        _ = await GetOrLoadThreadAsync(normalizedThreadId, ct);
+        var thread = await GetOrLoadThreadAsync(normalizedThreadId, ct);
+        ThrowIfEphemeralThreadGoals(thread);
         return await persistence.GetThreadGoalAsync(normalizedThreadId, ct);
     }
 
@@ -993,6 +1479,7 @@ Choose the next concrete action that advances the goal. Before doing substantial
         ThrowIfGoalsDisabled();
         var normalizedThreadId = NormalizeRequiredThreadId(threadId);
         var thread = await GetOrLoadThreadAsync(normalizedThreadId, ct);
+        ThrowIfEphemeralThreadGoals(thread);
         var existing = await persistence.GetThreadGoalAsync(normalizedThreadId, ct);
 
         var next = BuildThreadGoal(normalizedThreadId, existing, update, mode);
@@ -1008,7 +1495,8 @@ Choose the next concrete action that advances the goal. Before doing substantial
     {
         ThrowIfGoalsDisabled();
         var normalizedThreadId = NormalizeRequiredThreadId(threadId);
-        _ = await GetOrLoadThreadAsync(normalizedThreadId, ct);
+        var thread = await GetOrLoadThreadAsync(normalizedThreadId, ct);
+        ThrowIfEphemeralThreadGoals(thread);
         var cleared = await persistence.DeleteThreadGoalAsync(normalizedThreadId, ct);
         if (cleared)
             PublishGoalCleared(normalizedThreadId);
@@ -1083,6 +1571,9 @@ Choose the next concrete action that advances the goal. Before doing substantial
             mergedById[summary.Id] = summary;
         foreach (var thread in _threads.Values)
         {
+            if (thread.Ephemeral)
+                continue;
+
             var summary = ThreadSummary.FromThread(thread);
             summary.Runtime = GetThreadRuntimeSnapshot(thread);
             mergedById[thread.Id] = summary;
@@ -1417,8 +1908,10 @@ Choose the next concrete action that advances the goal. Before doing substantial
 
     private async Task DeleteThreadCoreAsync(string threadId, CancellationToken ct)
     {
+        var ephemeral = false;
         if (_threads.TryGetValue(threadId, out var thread))
         {
+            ephemeral = thread.Ephemeral;
             foreach (var turn in thread.Turns.Where(t => t.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput))
             {
                 var key = new TurnKey(threadId, turn.Id);
@@ -1429,7 +1922,8 @@ Choose the next concrete action that advances the goal. Before doing substantial
             }
         }
 
-        await persistence.DeleteThreadCascadeAsync(threadId, ct);
+        if (!ephemeral)
+            await persistence.DeleteThreadCascadeAsync(threadId, ct);
 
         _threads.TryRemove(threadId, out _);
         _threadAgents.TryRemove(threadId, out _);
@@ -3943,6 +4437,8 @@ Choose the next concrete action that advances the goal. Before doing substantial
             return true;
         if (!string.IsNullOrWhiteSpace(config.WorkspaceOverride))
             return true;
+        if (!string.IsNullOrWhiteSpace(config.ExecutionWorkspaceOverride))
+            return true;
         if (!string.IsNullOrWhiteSpace(config.ToolProfile))
             return true;
         if (config.UseToolProfileOnly)
@@ -4810,6 +5306,11 @@ Choose the next concrete action that advances the goal. Before doing substantial
     {
         if (IsPendingPermanentDeletion(thread.Id))
             return;
+        if (thread.Ephemeral)
+        {
+            _materializedThreads.TryRemove(thread.Id, out _);
+            return;
+        }
 
         await persistence.SaveThreadAsync(thread, ct);
         _materializedThreads[thread.Id] = 0;
@@ -5037,6 +5538,9 @@ Choose the next concrete action that advances the goal. Before doing substantial
         }
 
         var toolContext = scopedContext ?? threadBaseContext;
+        if (!string.IsNullOrWhiteSpace(config.ExecutionWorkspaceOverride))
+            toolContext = CloneContextWithExecutionWorkspace(toolContext, config.ExecutionWorkspaceOverride);
+
         if (config.McpServers is { Length: > 0 })
         {
             if (_threadMcpManagers.TryRemove(threadId, out var oldManager))
@@ -5209,6 +5713,52 @@ Choose the next concrete action that advances the goal. Before doing substantial
         };
         return cloned;
     }
+
+    private static ToolProviderContext CloneContextWithExecutionWorkspace(
+        ToolProviderContext source,
+        string executionWorkspacePath) =>
+        new()
+        {
+            Config = source.Config,
+            ChatClient = source.ChatClient,
+            ChatClientRegistry = source.ChatClientRegistry,
+            EffectiveProviderId = source.EffectiveProviderId,
+            EffectiveProviderProtocol = source.EffectiveProviderProtocol,
+            EffectiveMainModel = source.EffectiveMainModel,
+            EffectiveReasoning = CloneReasoningConfig(source.EffectiveReasoning),
+            WorkspacePath = executionWorkspacePath,
+            BotPath = source.BotPath,
+            MemoryStore = source.MemoryStore,
+            DreamStore = source.DreamStore,
+            SkillsLoader = source.SkillsLoader,
+            ContextPageManager = source.ContextPageManager,
+            ThreadSystemPromptContextProviders = source.ThreadSystemPromptContextProviders,
+            SkillMutationApplier = source.SkillMutationApplier,
+            ApprovalService = source.ApprovalService,
+            PathBlacklist = source.PathBlacklist,
+            BackgroundTerminalService = source.BackgroundTerminalService,
+            CronTools = source.CronTools,
+            McpClientManager = source.McpClientManager,
+            LspServerManager = source.LspServerManager,
+            TraceCollector = source.TraceCollector,
+            AcpExtensionProxy = source.AcpExtensionProxy,
+            NodeReplProxy = source.NodeReplProxy,
+            ExternalCliSessionStore = source.ExternalCliSessionStore,
+            AgentFileSystem = new HostAgentFileSystem(executionWorkspacePath),
+            AutomationTaskDirectory = source.AutomationTaskDirectory,
+            RequireApprovalOutsideWorkspace = source.RequireApprovalOutsideWorkspace,
+            DeferredToolRegistry = source.DeferredToolRegistry,
+            CurrentThreadId = source.CurrentThreadId,
+            CurrentThreadSource = source.CurrentThreadSource,
+            CurrentOriginChannel = source.CurrentOriginChannel,
+            CurrentChannelContext = source.CurrentChannelContext,
+            AgentControlToolAccess = source.AgentControlToolAccess,
+            AllowedAgentControlTools = source.AllowedAgentControlTools,
+            ToolAllowList = source.ToolAllowList,
+            ToolDenyList = source.ToolDenyList,
+            PromptProfile = source.PromptProfile,
+            RoleInstructions = source.RoleInstructions
+        };
 
     private static ToolProviderContext CloneContextWithMcpManager(
         ToolProviderContext source,

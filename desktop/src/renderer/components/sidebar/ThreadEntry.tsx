@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import type { ThreadSummary } from '../../types/thread'
 import { useThreadStore } from '../../stores/threadStore'
 import { useUIStore } from '../../stores/uiStore'
+import { useConnectionStore } from '../../stores/connectionStore'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { formatRelativeTime } from '../../utils/relativeTime'
 import type { ContextMenuPosition } from '../ui/ContextMenu'
@@ -9,13 +10,14 @@ import { ContextMenu } from '../ui/ContextMenu'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
 import { RunningSpinner } from '../ui/RunningSpinner'
 import { ChannelIconBadge } from '../ui/channelMeta'
-import { Archive, CornerDownRight } from 'lucide-react'
+import { Archive, CornerDownRight, FolderPlus, GitFork, Pencil, Pin, Trash2 } from 'lucide-react'
 import { AUTOMATION_TASK_DRAG_MIME } from '../automations/TaskCard'
 import { useAutomationsStore } from '../../stores/automationsStore'
 import { useDragDropStore } from '../../stores/dragDropStore'
 import { addToast } from '../../stores/toastStore'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { getSubAgentDepth, isSubAgentThread } from '../../utils/subAgentThreads'
+import { canForkThread, canForkWorktree, runThreadFork } from '../../utils/threadFork'
 
 interface ThreadEntryProps {
   thread: ThreadSummary
@@ -772,7 +774,7 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
           onClose={() => setContextMenu(null)}
           onRename={startRename}
           onArchive={archiveThreadWithDialog}
-          threadId={thread.id}
+          thread={thread}
           allowLifecycleActions={!isSubAgent}
         />
       )}
@@ -806,7 +808,7 @@ interface ThreadEntryContextMenuProps {
   onClose: () => void
   onRename: () => void
   onArchive: () => Promise<void>
-  threadId: string
+  thread: ThreadSummary
   allowLifecycleActions: boolean
 }
 
@@ -815,12 +817,23 @@ function ThreadEntryContextMenu({
   onClose,
   onRename,
   onArchive,
-  threadId,
+  thread,
   allowLifecycleActions
 }: ThreadEntryContextMenuProps): JSX.Element {
   const t = useT()
   const confirm = useConfirmDialog()
-  const { removeThreadTree, activeThreadId, setActiveThreadId } = useThreadStore()
+  const capabilities = useConnectionStore((s) => s.capabilities)
+  const canFork = canForkThread(capabilities)
+  const canForkIntoWorktree = canForkWorktree(capabilities)
+  const {
+    removeThreadTree,
+    activeThreadId,
+    setActiveThreadId,
+    pinnedThreadIds,
+    togglePinnedThread
+  } = useThreadStore()
+  const threadId = thread.id
+  const pinned = pinnedThreadIds.includes(threadId)
 
   async function handleDelete(): Promise<void> {
     onClose()
@@ -840,22 +853,71 @@ function ThreadEntryContextMenu({
     }
   }
 
+  function handleTogglePinned(): void {
+    togglePinnedThread(threadId)
+  }
+
+  function handleFork(mode: 'local' | 'worktree'): void {
+    void runThreadFork({
+      threadId,
+      mode,
+      t
+    })
+  }
+
   return (
     <ContextMenu
       position={position}
       onClose={onClose}
       items={[
-        { label: t('threadEntry.rename'), onClick: onRename },
+        ...(allowLifecycleActions
+          ? [
+              {
+                label: pinned ? t('threadEntry.unpin') : t('threadEntry.pin'),
+                icon: <Pin size={14} aria-hidden />,
+                onClick: handleTogglePinned
+              }
+            ]
+          : []),
+        {
+          label: t('threadEntry.rename'),
+          icon: <Pencil size={14} aria-hidden />,
+          onClick: onRename
+        },
         ...(allowLifecycleActions
           ? [
               {
                 label: t('threadEntry.archive'),
+                icon: <Archive size={14} aria-hidden />,
                 onClick: async () => {
                   onClose()
                   await onArchive()
                 }
               },
-              { label: t('threadEntry.delete'), onClick: handleDelete, danger: true }
+              { type: 'separator' as const },
+              {
+                label: t('fork.intoLocal'),
+                icon: <GitFork size={14} aria-hidden />,
+                disabled: !canFork,
+                title: canFork ? undefined : t('fork.unavailable'),
+                onClick: () => handleFork('local')
+              },
+              ...(canForkIntoWorktree
+                ? [
+                    {
+                      label: t('fork.intoWorktree'),
+                      icon: <FolderPlus size={14} aria-hidden />,
+                      onClick: () => handleFork('worktree')
+                    }
+                  ]
+                : []),
+              { type: 'separator' as const },
+              {
+                label: t('threadEntry.delete'),
+                icon: <Trash2 size={14} aria-hidden />,
+                onClick: handleDelete,
+                danger: true
+              }
             ]
           : [])
       ]}

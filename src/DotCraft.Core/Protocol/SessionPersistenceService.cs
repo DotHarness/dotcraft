@@ -38,6 +38,9 @@ public sealed class SessionPersistenceService(
     public Task<SessionThread?> LoadThreadAsync(string threadId, CancellationToken ct = default)
         => threadStore.LoadThreadAsync(threadId, ct);
 
+    public Task<SessionThread?> LoadThreadFromPathAsync(string path, CancellationToken ct = default)
+        => threadStore.LoadThreadFromPathAsync(path, ct);
+
     public Task<List<ThreadSummary>> LoadIndexAsync(CancellationToken ct = default)
         => threadStore.LoadIndexAsync(ct);
 

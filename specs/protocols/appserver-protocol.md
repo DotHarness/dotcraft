@@ -18,6 +18,7 @@ Purpose: Define a language-neutral JSON-RPC wire protocol that exposes Session C
 - [3. Initialization](#3-initialization)
 - [4. Thread Methods](#4-thread-methods)
   - [4.15 Thread Goal Methods](#415-thread-goal-methods)
+  - [4.19 Worktree Methods](#419-worktree-methods)
 - [5. Turn Methods](#5-turn-methods)
   - [5.4 `welcome/suggestions`](#54-welcomesuggestions)
 - [6. Event Notifications](#6-event-notifications)
@@ -339,6 +340,7 @@ Built-in channels do not negotiate these capabilities over `initialize`; they pr
   },
   "capabilities": {
     "threadManagement": true,
+    "threadFork": true,
     "threadSubscriptions": true,
     "approvalFlow": true,
     "requestUserInput": true,
@@ -350,6 +352,7 @@ Built-in channels do not negotiate these capabilities over `initialize`; they pr
     "pluginManagement": true,
     "skillVariants": true,
     "runtimeAdditionalContext": true,
+    "gitWorktrees": true,
     "appBinding": true,
     "appContextBlocks": true,
     "commandManagement": true,
@@ -373,12 +376,14 @@ Built-in channels do not negotiate these capabilities over `initialize`; they pr
 | `serverInfo.protocolVersion` | string | Wire protocol version. Currently `"1"`. |
 | `serverInfo.extensions` | string[] | Optional flat list of available extension namespaces. Structured extension capability metadata is deferred from v1. |
 | `capabilities.threadManagement` | boolean | Server supports thread CRUD operations. |
+| `capabilities.threadFork` | boolean | Server supports creating conversation branches with `thread/fork`. |
 | `capabilities.threadSubscriptions` | boolean | Server supports passive `thread/subscribe` observers independent from `turn/start`. |
 | `capabilities.threadGoals` | boolean | Server supports the complete thread goal runtime contract: `thread/goal/*` control methods, goal notifications, prompt-visible goal context, usage accounting, budget transitions, and model goal tools. Automatic idle continuation still depends on server config. |
 | `capabilities.manualCompaction` | boolean | Server supports manual context compaction with `thread/compact/start`. |
 | `capabilities.manualMemoryConsolidation` | boolean | Server supports manual long-term memory consolidation with `thread/memory/consolidate/start`. |
 | `capabilities.dynamicToolRebind` | boolean | Server supports rebinding Runtime Dynamic Tools to the current client connection via `thread/resume.dynamicTools`. |
 | `capabilities.runtimeAdditionalContext` | boolean | Server supports thread-bound runtime context supplied by the AppServer client through `thread/start.additionalContext` and `thread/resume.additionalContext`. |
+| `capabilities.gitWorktrees` | boolean | Server supports DotCraft-managed Git worktree methods (`worktree/createAndFork`, `worktree/list`, `worktree/status`). |
 | `capabilities.appBinding` | boolean | Server supports App Binding methods (`app/*` and `thread/appBindings/*`). |
 | `capabilities.appContextBlocks` | boolean | Server supports App Binding context block methods (`app/binding/context/upsert`, `app/binding/context/remove`, and `thread/appContextBlocks/list`). |
 | `capabilities.appThreadInputEnqueue` | boolean | Server supports App Binding-safe app-triggered queued input via `app/threadInput/enqueue`. |
@@ -586,6 +591,7 @@ Thread-management tools are dynamic client callbacks, while thread lifecycle, st
   "customTools": ["SomeTool"],
   "model": "gpt-4.1",
   "workspaceOverride": "/path/to/alt/workspace",
+  "executionWorkspaceOverride": "/path/to/runtime/workspace",
   "toolProfile": "commit-message",
   "useToolProfileOnly": false,
   "agentInstructions": "Focus on concise commit messages.",
@@ -610,6 +616,7 @@ Fields:
 | `customTools` | string[] | Optional extra tool names enabled for the thread. |
 | `model` | string | Optional per-thread model override. |
 | `workspaceOverride` | string | Optional alternate workspace root for the thread. |
+| `executionWorkspaceOverride` | string | Optional runtime execution root. It is used for worktree-bound execution and does not move thread state. |
 | `toolProfile` | string | Optional named tool profile. |
 | `useToolProfileOnly` | boolean | When `true`, use only the tools from `toolProfile`. |
 | `agentInstructions` | string | Optional additional system instructions. |
@@ -648,6 +655,10 @@ Approval semantics:
     "userId": "user-123",
     "originChannel": "vscode",
     "displayName": null,
+    "forkedFromId": null,
+    "ephemeral": false,
+    "worktree": null,
+    "effectiveWorkspacePath": "/path/to/project",
     "status": "active",
     "createdAt": "2026-03-16T10:00:00Z",
     "lastActiveAt": "2026-03-16T10:00:00Z",
@@ -658,6 +669,8 @@ Approval semantics:
 ```
 
 The server also emits a `thread/started` notification after the response.
+
+Thread objects may include `forkedFromId`, `ephemeral`, `worktree`, and `effectiveWorkspacePath`. `forkedFromId` is lineage metadata. `effectiveWorkspacePath` is the root clients should use for file, shell, Git, and editor surfaces for that thread.
 
 In a shared Session Core process (typical AppServer mode), when **any** channel creates a thread (not only via `thread/start` on this connection), the server **broadcasts** the same `thread/started` notification to connected clients. For ordinary `thread/start` RPCs, the initiating client may receive the post-response notification from the request handler instead of the shared broadcast and should dedupe by thread id. Session-backed SubAgent child threads are always broadcast to the current connection as well, because their creation happens inside a parent turn/tool call and has no direct `thread/start` response.
 
@@ -723,6 +736,37 @@ If the resumed thread contains an unresolved interactive request in a `waitingAp
     "thread": { "id": "thread_20260316_x7k2m4", "status": "active" }
 } }
 ```
+
+### 4.2.1 `thread/fork`
+
+Create a new thread from a source thread's persisted history. Clients must check `capabilities.threadFork` before offering this action.
+
+**Direction**: client -> server (request)
+
+**Params**:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `threadId` | string | yes | Source thread id. |
+| `path` | string | no | Restricted diagnostic source rollout path. When present, it must resolve under the workspace `.craft/threads` tree and match `threadId`. |
+| `forkPoint` | object | no | Optional history prefix selector with `turnId`, optional `itemId`, and optional `position` (`after` by default, or `before`). |
+| `identity` | SessionIdentity | no | Replacement identity for the forked thread. Omitted fields inherit from the source thread. |
+| `config` | ThreadConfiguration | no | Thread configuration overrides applied after copying the source configuration. |
+| `displayName` | string | no | Explicit display name for the forked thread. When omitted, the fork uses the source thread's visible display name, or the first retained user message when the source has no display name. |
+| `ephemeral` | boolean | no | When true, create a process-local fork omitted from default lists. Defaults to false. |
+| `excludeTurns` | boolean | no | When true, omit copied turns from the response; clients can call `thread/read` to load history. |
+
+**Result**: `{ "thread": Thread }`
+
+Semantics:
+
+- The source thread is not mutated.
+- The fork has a new thread id and `forkedFromId = threadId`.
+- The fork copies the selected source history prefix and retargets copied turns to the new thread id.
+- Copied active or partial turns are terminated with an interrupted boundary.
+- Forks do not inherit queued inputs, pending approvals, active user-input requests, app bindings, active goals, or durable plan state.
+- A persistent `systemNotice` item with `kind = "forked"` and `sourceThreadId` marks the copied-history boundary when turns are included.
+- After a successful persistent fork, the server emits `thread/started` for the new thread. The broadcast uses the compact thread shape and does not include copied turns.
 
 ### 4.3 `thread/list`
 
@@ -1122,6 +1166,74 @@ Servers advertise this method with `capabilities.manualMemoryConsolidation = tru
 Interrupts active thread-level maintenance such as manual compaction or memory consolidation. This method is advertised with `capabilities.threadMaintenanceInterrupt = true`.
 
 If no maintenance is active, the request succeeds as a no-op. If maintenance is active, the server signals its cancellation token and later emits the matching terminal `system/event` (`compactCancelled` or `consolidationCancelled`). Cancelling maintenance does not cancel any completed turn and does not remove queued inputs.
+
+### 4.19 Worktree Methods
+
+Worktree methods are advertised with `capabilities.gitWorktrees = true`. They create and inspect DotCraft-managed Git worktrees that are bound to forked threads. Thread state stays in the original workspace; the worktree is only the execution workspace.
+
+#### 4.19.1 `worktree/createAndFork`
+
+Create a Git worktree, optionally copy dirty source changes, then fork a source thread into that worktree.
+
+**Direction**: client -> server (request)
+
+**Params**:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `sourceThreadId` | string | yes | Source thread to fork. |
+| `forkPoint` | object | no | Same prefix selector as `thread/fork`. |
+| `identity` | SessionIdentity | no | Replacement identity for the forked thread. It must not move the state workspace away from the source workspace. |
+| `config` | ThreadConfiguration | no | Thread configuration overrides. The server sets the execution workspace to the created worktree. |
+| `displayName` | string | no | Explicit display name for the forked thread. When omitted, the fork uses the source thread's visible display name, or the first retained user message when the source has no display name. |
+| `branchName` | string | no | Requested Git branch name. Omitted lets the server allocate one. |
+| `baseRef` | string | no | Git ref for worktree creation. Defaults to the source execution workspace `HEAD`. |
+| `path` | string | no | Explicit worktree path. It must resolve under `<workspace>/.craft/worktrees/`. |
+| `copyDirtyChanges` | boolean | no | Whether to copy tracked and non-ignored untracked source changes into the worktree. Defaults to true. |
+| `excludeTurns` | boolean | no | When true, omit copied turns from the response thread. |
+
+**Result**: `{ "thread": Thread, "worktree": ThreadWorktreeInfo }`
+
+Semantics:
+
+- The source thread and source working tree are not mutated.
+- The server creates the thread only after worktree creation and dirty handoff have succeeded.
+- The returned thread has `forkedFromId`, `worktree`, and an `effectiveWorkspacePath` pointing to the worktree path.
+- The forked thread's rollout, memory, goals, plans, app bindings, and metadata remain in the original state workspace.
+- Dirty handoff failure is recoverable and must not switch the active thread in clients.
+
+#### 4.19.2 `worktree/list`
+
+List registered DotCraft-managed worktrees for the connected workspace.
+
+**Direction**: client -> server (request)
+
+**Params**:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `identity` | SessionIdentity | no | Optional workspace identity filter. |
+| `includeOrphans` | boolean | no | Whether to include recoverable worktree directories not bound to an active thread. |
+
+**Result**: `{ "data": ThreadWorktreeStatus[] }`
+
+The list is scoped to registered worktrees under `.craft/worktrees`. Clients must not treat arbitrary external Git worktrees as managed DotCraft worktrees unless the server registers them.
+
+#### 4.19.3 `worktree/status`
+
+Return current Git status metadata for the worktree bound to a thread.
+
+**Direction**: client -> server (request)
+
+**Params**:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `threadId` | string | yes | Thread bound to a DotCraft-managed worktree. |
+
+**Result**: `ThreadWorktreeStatus`
+
+This method is a lightweight refresh path for worktree indicators. Full file, diff, and commit UX remains a client concern using the thread's `effectiveWorkspacePath`.
 
 ---
 
@@ -2095,6 +2207,7 @@ Emitted when a system-level maintenance operation occurs during a Turn's post-pr
 - Clients that do not need system maintenance status can opt out via `optOutNotificationMethods: ["system/event"]` during `initialize`.
 - On a successful summary-producing `compacted` event (auto, reactive, or manual trigger with `mode = "partial"`), Session Core includes `contextUsage` when available and additionally persists a `SystemNotice` SessionItem (kind = `"compacted"`) into the current or latest completed turn, emitting the normal `item/started` + `item/completed` pair for it. This gives clients a persistent timeline marker that survives thread reload, alongside the transient `system/event` notification used to drive toast/status-line and context-ring UX. Cold-cache tool-result clearing that returns `outcome = "micro"` is transient, updates optimized session/context usage, and must not append a persistent notice. See [Session Core](../core/session-core.md#systemnotice) for the payload schema.
 - On a successful `consolidated` event, Session Core additionally persists a `SystemNotice` SessionItem (kind = `"memoryConsolidated"`) into the completed turn and emits the normal `item/started` + `item/completed` pair through the thread event broker. `consolidationSkipped` does not create a persistent notice.
+- Thread fork creation additionally places a persistent `SystemNotice` SessionItem (kind = `"forked"`, `sourceThreadId = <source thread id>`) at the end of the selected copied history in the forked thread. This marker is returned by `thread/fork`, `worktree/createAndFork`, and `thread/read` when turns are included. The `thread/started` broadcast keeps its normal compact shape and does not include turns.
 
 **Example sequence**:
 

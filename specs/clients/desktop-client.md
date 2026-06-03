@@ -347,6 +347,38 @@ Desktop must also tolerate the request being replayed by AppServer when the user
   - unsupported actions must be disabled rather than failing unexpectedly
   - read and resume behavior must follow server capabilities and thread status
 
+### 5.10.1 Thread Fork And Worktree Handoff
+
+Desktop exposes conversation branching as a normal thread action.
+
+Entry points:
+
+- The active thread header overflow menu exposes a `Fork` submenu.
+- The thread list context menu exposes direct fork actions for the selected row.
+- Assistant response footer actions expose a compact fork button for message-level branching.
+
+Behavior:
+
+- Local fork calls `thread/fork` and selects the returned thread after success.
+- New-worktree fork calls `worktree/createAndFork` and selects the returned thread after success.
+- Assistant response fork sends a `forkPoint` for the clicked turn or item and creates a local fork.
+- Failures show recoverable feedback and must not switch the active thread.
+- Capability absence disables unavailable modes instead of showing actions that fail immediately.
+
+Forked timeline:
+
+- When history includes `systemNotice.kind = "forked"`, Desktop renders a compact localized divider at that item position.
+- The divider marks where inherited source history ends and fork-specific work begins.
+- The marker is informational and must not become the primary way to navigate source history.
+
+Worktree execution:
+
+- Desktop treats `thread.effectiveWorkspacePath` as the active file, shell, editor, and Git root for the selected thread.
+- Thread list, provider settings, skill/plugin management, app bindings, memory, and workspace configuration remain scoped to the main workspace.
+- Main-workspace file and Git surfaces hide `.craft/worktrees/**`; worktree-bound surfaces operate inside the selected worktree.
+- Git status and branch detection for worktree threads must use Git commands scoped to `effectiveWorkspacePath`; clients must not parse `.git/HEAD` directly because linked worktrees may use `.git` files.
+- Worktree indicators are compact status affordances. They should reveal branch/path details when useful without visually dominating the conversation.
+
 ### 5.11 Manage Thread Goal
 
 Desktop goal behavior is defined by [Goal Design §11.7](../core/goal-design.md#117-desktop-ux-contract).

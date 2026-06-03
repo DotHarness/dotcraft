@@ -9,6 +9,7 @@ import { getFallbackThreadName } from './threadFallbackName'
 interface StartTurnParams {
   threadId: string
   workspacePath: string
+  identityWorkspacePath?: string
   text: string
   segments?: ComposerDraftSegment[]
   images?: ImageAttachment[]
@@ -28,6 +29,7 @@ interface StartTurnParams {
 export async function startTurnWithOptimisticUI({
   threadId,
   workspacePath,
+  identityWorkspacePath,
   text,
   segments,
   images = [],
@@ -89,14 +91,15 @@ export async function startTurnWithOptimisticUI({
   useConversationStore.getState().addOptimisticTurn(optimisticTurn)
 
   try {
+    const identityPath = identityWorkspacePath ?? workspacePath
     const result = await window.api.appServer.sendRequest('turn/start', {
       threadId,
       input: inputParts,
       identity: {
         channelName: 'dotcraft-desktop',
         userId: 'local',
-        channelContext: `workspace:${workspacePath}`,
-        workspacePath
+        channelContext: `workspace:${identityPath}`,
+        workspacePath: identityPath
       }
     })
     const res = result as { turn?: { id?: string } }

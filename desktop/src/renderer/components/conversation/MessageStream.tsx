@@ -189,6 +189,7 @@ export function MessageStream(): JSX.Element {
       await startTurnWithOptimisticUI({
         threadId: current.threadId,
         workspacePath: workspacePath || activeThread?.workspacePath || '',
+        identityWorkspacePath: activeThread?.workspacePath || workspacePath || '',
         text: draftText,
         fallbackThreadName: t('toast.imageMessage'),
         fileFallbackThreadName: t('toast.fileReferenceMessage'),

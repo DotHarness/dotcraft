@@ -206,6 +206,9 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
             <AgentMessage
               key={item.id}
               text={displayText}
+              threadId={turn.threadId}
+              turnId={turn.id}
+              itemId={item.id}
               streaming={isLiveStreaming}
               createdAt={item.createdAt}
               showFooter={item.id === footerAgentMessageId}

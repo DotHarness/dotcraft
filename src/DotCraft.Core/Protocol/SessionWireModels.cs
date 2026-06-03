@@ -179,7 +179,25 @@ public sealed record SessionWireThread
 {
     public string Id { get; init; } = string.Empty;
 
+    public string SessionId { get; init; } = string.Empty;
+
     public string WorkspacePath { get; init; } = string.Empty;
+
+    public string EffectiveWorkspacePath { get; init; } = string.Empty;
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Path { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ForkedFromId { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ParentThreadId { get; init; }
+
+    public bool Ephemeral { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ThreadWorktreeInfo? Worktree { get; init; }
 
     public string? UserId { get; init; }
 
@@ -437,7 +455,14 @@ public static class SessionWireMapper
         new()
         {
             Id = thread.Id,
+            SessionId = thread.Id,
             WorkspacePath = thread.WorkspacePath,
+            EffectiveWorkspacePath = ResolveEffectiveWorkspacePath(thread),
+            Path = ResolveThreadPath(thread),
+            ForkedFromId = thread.ForkedFromId,
+            ParentThreadId = thread.Source.SubAgent?.ParentThreadId,
+            Ephemeral = thread.Ephemeral,
+            Worktree = thread.Worktree,
             UserId = thread.UserId,
             OriginChannel = thread.OriginChannel,
             ChannelContext = thread.ChannelContext,
@@ -453,6 +478,24 @@ public static class SessionWireMapper
             QueuedInputs = thread.QueuedInputs.ToList(),
             Turns = includeTurns ? thread.Turns.Select(t => t.ToWire(includeItems: true)).ToList() : null
         };
+
+    private static string ResolveEffectiveWorkspacePath(SessionThread thread)
+    {
+        var overridePath = thread.Configuration?.ExecutionWorkspaceOverride;
+        if (string.IsNullOrWhiteSpace(overridePath))
+            overridePath = thread.Configuration?.WorkspaceOverride;
+        return string.IsNullOrWhiteSpace(overridePath) ? thread.WorkspacePath : overridePath;
+    }
+
+    private static string? ResolveThreadPath(SessionThread thread)
+    {
+        if (thread.Ephemeral || string.IsNullOrWhiteSpace(thread.WorkspacePath) || string.IsNullOrWhiteSpace(thread.Id))
+            return null;
+
+        var bucket = thread.Status == ThreadStatus.Archived ? "archived" : "active";
+        var safe = string.Concat(thread.Id.Split(Path.GetInvalidFileNameChars()));
+        return Path.Combine(thread.WorkspacePath, ".craft", "threads", bucket, $"{safe}.jsonl");
+    }
 
     /// <summary>
     /// Maps a protocol runtime snapshot into the AppServer wire runtime shape.

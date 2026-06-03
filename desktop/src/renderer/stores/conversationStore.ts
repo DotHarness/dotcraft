@@ -1884,7 +1884,8 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
         tokensBefore: itemPayload.tokensBefore as number | undefined,
         tokensAfter: itemPayload.tokensAfter as number | undefined,
         percentLeftAfter: itemPayload.percentLeftAfter as number | undefined,
-        clearedToolResults: itemPayload.clearedToolResults as number | undefined
+        clearedToolResults: itemPayload.clearedToolResults as number | undefined,
+        sourceThreadId: itemPayload.sourceThreadId as string | undefined
       }
       const newItem: ConversationItem = {
         id: itemId,

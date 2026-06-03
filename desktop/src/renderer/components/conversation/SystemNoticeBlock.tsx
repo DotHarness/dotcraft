@@ -1,4 +1,4 @@
-import { Archive, ChevronsDown } from 'lucide-react'
+import { Archive, ChevronsDown, GitFork } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useT } from '../../contexts/LocaleContext'
 import type { ConversationItem } from '../../types/conversation'
@@ -20,6 +20,16 @@ export function SystemNoticeBlock({ item }: SystemNoticeBlockProps): JSX.Element
   const t = useT()
   const notice = item.systemNotice
   if (!notice) return null
+
+  if (notice.kind === 'forked') {
+    return (
+      <NoticeDivider
+        ariaLabel={t('systemNotice.forked.title')}
+        icon={<GitFork size={12} aria-hidden />}
+        title={t('systemNotice.forked.title')}
+      />
+    )
+  }
 
   if (notice.kind === 'memoryConsolidated') {
     return (

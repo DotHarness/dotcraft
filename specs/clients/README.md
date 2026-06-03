@@ -11,4 +11,3 @@ domain semantics.
 | [tui-client.md](tui-client.md) | TUI architecture, connection modes, event mapping, interaction surface, and theming contract. |
 
 Related domains: [Protocols](../protocols/), [Runtime](../runtime/), [Extensions](../extensions/).
-

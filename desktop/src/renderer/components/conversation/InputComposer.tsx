@@ -95,7 +95,10 @@ function isRequestTimeoutError(err: unknown): boolean {
 
 interface InputComposerProps {
   threadId: string
+  /** Thread state/identity workspace path. Worktree threads still belong to this root. */
   workspacePath: string
+  /** File browsing and local attachment root. Worktree threads use effectiveWorkspacePath here. */
+  fileWorkspacePath?: string
   modelName?: string
   modelOptions?: string[]
   modelCatalog?: ModelCatalogItem[]
@@ -119,6 +122,7 @@ interface InputComposerProps {
 export function InputComposer({
   threadId,
   workspacePath,
+  fileWorkspacePath,
   modelName = 'Default',
   modelOptions = [],
   modelCatalog = [],
@@ -158,6 +162,7 @@ export function InputComposer({
   const applyingHistoryRef = useRef(false)
   const historyDraftRef = useRef<ComposerDraftSnapshot | null>(null)
   const capabilities = useConnectionStore((s) => s.capabilities)
+  const effectiveFileWorkspacePath = fileWorkspacePath ?? workspacePath
 
   // Load providers once so the ChatGPT subscription badge can render in the composer footer.
   const reloadProviders = useProvidersStore((s) => s.reload)
@@ -767,7 +772,8 @@ export function InputComposer({
       setFiles([])
       await startTurnWithOptimisticUI({
         threadId,
-        workspacePath,
+        workspacePath: effectiveFileWorkspacePath,
+        identityWorkspacePath: workspacePath,
         text: trimmed,
         segments,
         images: capturedImages,
@@ -803,7 +809,7 @@ export function InputComposer({
     } finally {
       sendInFlightRef.current = false
     }
-  }, [compactThreadContext, consolidateThreadMemory, executeGoalCommand, files, images, isBusyForInput, isWaitingApproval, isWaitingInput, modelLoading, remoteWorkspace, setComposerMode, threadId, workspacePath, t])
+  }, [compactThreadContext, consolidateThreadMemory, effectiveFileWorkspacePath, executeGoalCommand, files, images, isBusyForInput, isWaitingApproval, isWaitingInput, modelLoading, remoteWorkspace, setComposerMode, threadId, workspacePath, t])
 
   const removeQueuedInput = useCallback(async (queuedInputId: string): Promise<void> => {
     try {
@@ -1168,7 +1174,7 @@ export function InputComposer({
               <FileSearchPopover
                 query={atQuery ?? ''}
                 visible={showMentionPopover}
-                workspacePath={workspacePath}
+                workspacePath={effectiveFileWorkspacePath}
                 onSelect={onSelectFile}
                 onDismiss={() => {
                   setMentionDismissed(true)

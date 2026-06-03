@@ -516,16 +516,17 @@ public sealed record UserInputResponsePayload
 }
 
 /// <summary>
-/// Payload for SystemNotice items. Used to mark maintenance events such as
-/// context compaction and long-term memory consolidation so clients can render
-/// persistent dividers in the conversation timeline.
+/// Payload for SystemNotice items. Used to mark maintenance and lifecycle
+/// events such as context compaction, long-term memory consolidation, and
+/// fork boundaries so clients can render persistent dividers in the
+/// conversation timeline.
 /// </summary>
 public sealed record SystemNoticePayload
 {
     /// <summary>
-    /// Notice classifier. Known values include <c>"compacted"</c> and
-    /// <c>"memoryConsolidated"</c>. Leaving this as a string keeps future kinds
-    /// additive without rev'ing the wire protocol.
+    /// Notice classifier. Known values include <c>"compacted"</c>,
+    /// <c>"memoryConsolidated"</c>, and <c>"forked"</c>. Leaving this as a string
+    /// keeps future kinds additive without rev'ing the wire protocol.
     /// </summary>
     public string Kind { get; init; } = string.Empty;
 
@@ -561,6 +562,11 @@ public sealed record SystemNoticePayload
     /// the partial summary ran).
     /// </summary>
     public int ClearedToolResults { get; init; }
+
+    /// <summary>
+    /// Source thread id for fork boundary notices.
+    /// </summary>
+    public string? SourceThreadId { get; init; }
 }
 
 /// <summary>

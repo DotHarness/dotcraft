@@ -26,6 +26,20 @@ function compactedNotice(
   }
 }
 
+function forkedNotice(): ConversationItem {
+  return {
+    id: 'notice-forked',
+    type: 'systemNotice',
+    status: 'completed',
+    createdAt: new Date().toISOString(),
+    completedAt: new Date().toISOString(),
+    systemNotice: {
+      kind: 'forked',
+      sourceThreadId: 'thread-source'
+    }
+  }
+}
+
 function renderWithLocale(locale: AppLocale, item: ConversationItem = compactedNotice()): void {
   Object.defineProperty(window, 'api', {
     configurable: true,
@@ -83,6 +97,15 @@ describe('SystemNoticeBlock', () => {
     expect(screen.queryByText(/Context/i)).toBeNull()
   })
 
+  it('renders forked notices with English copy', () => {
+    renderWithLocale('en', forkedNotice())
+
+    expect(screen.getByText('Forked from conversation')).toBeInTheDocument()
+    expect(
+      screen.getByRole('separator', { name: 'Forked from conversation' })
+    ).toBeInTheDocument()
+  })
+
   it('renders manual compacted notices with Chinese copy', async () => {
     renderWithLocale('zh-Hans')
 
@@ -90,5 +113,14 @@ describe('SystemNoticeBlock', () => {
       expect(screen.getByText('上下文已压缩')).toBeInTheDocument()
     })
     expect(screen.queryByText(/释放|剩余|tokens|78%/i)).toBeNull()
+  })
+
+  it('renders forked notices with Chinese copy', async () => {
+    renderWithLocale('zh-Hans', forkedNotice())
+
+    await waitFor(() => {
+      expect(screen.getByText('从会话 Fork')).toBeInTheDocument()
+    })
+    expect(screen.getByRole('separator', { name: '从会话 Fork' })).toBeInTheDocument()
   })
 })

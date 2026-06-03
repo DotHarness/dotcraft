@@ -1,9 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { AgentResponseBlock } from '../components/conversation/AgentResponseBlock'
 import { useUIStore } from '../stores/uiStore'
 import { useConversationStore } from '../stores/conversationStore'
+import { useConnectionStore } from '../stores/connectionStore'
+import { useThreadStore } from '../stores/threadStore'
 import type { ConversationItem, ConversationTurn } from '../types/conversation'
 import type { FileDiff } from '../types/toolCall'
 import { getSubAgentAccent } from '../utils/subAgentPresentation'
@@ -110,11 +112,82 @@ function expectDisclosureInsideTitleGroup(container: HTMLElement): HTMLElement {
 
 beforeEach(() => {
   useConversationStore.getState().reset()
+  useConnectionStore.getState().reset()
+  useThreadStore.getState().reset()
   useUIStore.getState().setShowThinkingContent(true)
 })
 
 afterEach(() => {
   vi.useRealTimers()
+})
+
+describe('AgentResponseBlock fork footer', () => {
+  beforeEach(() => {
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {
+        settings: {
+          get: async () => ({ locale: 'en' })
+        },
+        appServer: {
+          sendRequest: vi.fn().mockResolvedValue({
+            thread: {
+              id: 'thread-fork',
+              displayName: 'Forked thread',
+              status: 'active',
+              originChannel: 'dotcraft-desktop',
+              createdAt: '2026-06-03T00:00:00.000Z',
+              lastActiveAt: '2026-06-03T00:00:00.000Z'
+            }
+          })
+        }
+      }
+    })
+  })
+
+  it('forks from the final assistant message item', async () => {
+    useConnectionStore.setState({ capabilities: { threadFork: true } })
+    const turn: ConversationTurn = {
+      id: 'turn-1',
+      threadId: 'thread-1',
+      status: 'completed',
+      startedAt: '2026-06-03T10:00:00.000Z',
+      completedAt: '2026-06-03T10:00:01.000Z',
+      items: [
+        {
+          id: 'assistant-final',
+          type: 'agentMessage',
+          status: 'completed',
+          text: 'final answer',
+          createdAt: '2026-06-03T10:00:01.000Z'
+        }
+      ]
+    }
+
+    render(
+      <LocaleProvider>
+        <AgentResponseBlock turn={turn} />
+      </LocaleProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Fork' }))
+
+    await waitFor(() => {
+      expect(window.api.appServer.sendRequest).toHaveBeenCalledWith(
+        'thread/fork',
+        {
+          threadId: 'thread-1',
+          forkPoint: {
+            turnId: 'turn-1',
+            itemId: 'assistant-final',
+            position: 'after'
+          }
+        },
+        undefined
+      )
+      expect(useThreadStore.getState().activeThreadId).toBe('thread-fork')
+    })
+  })
 })
 
 describe('AgentResponseBlock subagent transcript rendering', () => {

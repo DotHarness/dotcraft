@@ -48,6 +48,42 @@ public interface ISessionService
         CancellationToken ct = default);
 
     /// <summary>
+    /// Creates a sibling Thread by copying history from an existing thread up to an optional fork point.
+    /// When no explicit fork display name is supplied, the fork uses the source thread's visible display
+    /// name, falling back to the first retained user message.
+    /// </summary>
+    Task<SessionThread> ForkThreadAsync(
+        string threadId,
+        ThreadForkOptions? options = null,
+        CancellationToken ct = default) =>
+        throw new NotSupportedException("Thread fork is not supported by this session service.");
+
+    /// <summary>
+    /// Creates a Git worktree, copies dirty source changes when requested, then forks
+    /// the source thread with its execution workspace bound to the new worktree.
+    /// </summary>
+    Task<WorktreeCreateAndForkResult> CreateWorktreeAndForkAsync(
+        WorktreeCreateAndForkOptions options,
+        CancellationToken ct = default) =>
+        throw new NotSupportedException("Git worktree handoff is not supported by this session service.");
+
+    /// <summary>
+    /// Lists DotCraft-managed Git worktrees registered through thread metadata.
+    /// </summary>
+    Task<IReadOnlyList<ThreadWorktreeStatus>> ListWorktreesAsync(
+        SessionIdentity? identity = null,
+        CancellationToken ct = default) =>
+        Task.FromResult<IReadOnlyList<ThreadWorktreeStatus>>([]);
+
+    /// <summary>
+    /// Returns current Git status for the DotCraft-managed worktree bound to a thread.
+    /// </summary>
+    Task<ThreadWorktreeStatus> GetWorktreeStatusAsync(
+        string threadId,
+        CancellationToken ct = default) =>
+        throw new NotSupportedException("Git worktree status is not supported by this session service.");
+
+    /// <summary>
     /// Resumes a Paused or previously inactive Thread.
     /// Loads Thread state and reconstructs agent session from persistence.
     /// </summary>

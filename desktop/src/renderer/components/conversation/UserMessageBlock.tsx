@@ -74,6 +74,8 @@ export function UserMessageBlock({
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null)
   const [hovered, setHovered] = useState(false)
   const [focusedWithin, setFocusedWithin] = useState(false)
+  const [editButtonHovered, setEditButtonHovered] = useState(false)
+  const [editButtonFocused, setEditButtonFocused] = useState(false)
   const [hydratedImages, setHydratedImages] = useState<Array<{ url: string; absolutePath?: string }>>(
     (imageDataUrls ?? []).map((url) => ({ url }))
   )
@@ -91,6 +93,7 @@ export function UserMessageBlock({
   const textSegments = segments
   const sentTime = formatMessageTime(createdAt)
   const actionsVisible = hovered || focusedWithin
+  const editButtonChromeVisible = editButtonHovered || editButtonFocused
   const isGuidance = deliveryMode === 'guidance'
 
   useEffect(() => {
@@ -436,7 +439,7 @@ export function UserMessageBlock({
           <div
             style={{
               minHeight: '24px',
-              marginTop: '2px',
+              marginTop: '8px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'flex-end',
@@ -474,18 +477,22 @@ export function UserMessageBlock({
                   type="button"
                   onClick={onEdit}
                   aria-label={t('conversation.editMessage')}
+                  onMouseEnter={() => setEditButtonHovered(true)}
+                  onMouseLeave={() => setEditButtonHovered(false)}
+                  onFocus={() => setEditButtonFocused(true)}
+                  onBlur={() => setEditButtonFocused(false)}
                   style={{
                     width: '24px',
                     height: '24px',
                     borderRadius: '6px',
-                    border: '1px solid var(--border-default)',
-                    background: 'var(--bg-secondary)',
-                    color: 'var(--text-secondary)',
+                    border: editButtonChromeVisible ? '1px solid var(--border-default)' : '1px solid transparent',
+                    background: editButtonChromeVisible ? 'var(--bg-secondary)' : 'transparent',
+                    color: editButtonChromeVisible ? 'var(--text-primary)' : 'var(--text-secondary)',
                     display: 'inline-flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     cursor: 'pointer',
-                    transition: 'opacity 120ms ease, color 120ms ease'
+                    transition: 'opacity 120ms ease, color 120ms ease, background 120ms ease, border-color 120ms ease'
                   }}
                 >
                   <Pencil size={14} aria-hidden />

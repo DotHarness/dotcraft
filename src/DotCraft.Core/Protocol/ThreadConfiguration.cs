@@ -58,6 +58,14 @@ public sealed class ThreadConfiguration
     public string? WorkspaceOverride { get; set; }
 
     /// <summary>
+    /// When set, tools for this thread execute against this workspace path while
+    /// thread state, memory, skills, plans, goals, and app bindings remain rooted
+    /// at <see cref="SessionThread.WorkspacePath"/>.
+    /// Used for Git worktree handoff.
+    /// </summary>
+    public string? ExecutionWorkspaceOverride { get; set; }
+
+    /// <summary>
     /// When set, the agent uses the tool set registered under this profile name
     /// instead of the default tools for the thread's <see cref="Mode"/>.
     /// Requires the profile to be registered in <c>IToolProfileRegistry</c>.

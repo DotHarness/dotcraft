@@ -540,6 +540,7 @@ export function App(): JSX.Element {
   const activeDetailTab = useUIStore((s) => s.activeDetailTab)
   const detailPanelVisible = useUIStore((s) => s.detailPanelVisible)
   const quickOpenVisible = useUIStore((s) => s.quickOpenVisible)
+  const activeThreadEffectiveWorkspacePath = useThreadStore((s) => s.activeThread?.effectiveWorkspacePath ?? null)
   const plugins = usePluginStore((s) => s.plugins)
   const agentTeamsAvailable = isAgentTeamsPluginEnabled(plugins)
   const agentTeamsAvailableRef = useRef(agentTeamsAvailable)
@@ -922,14 +923,17 @@ export function App(): JSX.Element {
       .catch(() => {})
   }, [])
 
-  // Keep conversation store on the local owner workspace path for file/viewer IPC.
+  const activeConversationWorkspacePath =
+    activeThreadEffectiveWorkspacePath?.trim() || workspacePath
+
+  // Keep conversation store on the active file/viewer workspace path.
   useEffect(() => {
     const store = useConversationStore.getState()
     store.setRemoteWorkspaceActive(remoteWorkspaceActive)
-    if (workspacePath) {
-      store.setWorkspacePath(workspacePath)
+    if (activeConversationWorkspacePath) {
+      store.setWorkspacePath(activeConversationWorkspacePath)
     }
-  }, [remoteWorkspaceActive, workspacePath])
+  }, [activeConversationWorkspacePath, remoteWorkspaceActive])
 
   // Notify viewerTabStore when the AppServer workspace identity changes so all viewer tabs are cleared.
   useEffect(() => {
@@ -2893,7 +2897,7 @@ export function App(): JSX.Element {
               )}
             </div>
           }
-          detail={<DetailPanel workspacePath={workspacePath} remoteWorkspace={remoteWorkspaceActive} />}
+          detail={<DetailPanel workspacePath={activeConversationWorkspacePath} remoteWorkspace={remoteWorkspaceActive} />}
         />
       </>
     )

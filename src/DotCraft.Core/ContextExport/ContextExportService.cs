@@ -395,6 +395,8 @@ public sealed class ContextExportService
                 AppendMetadata(sb, "Kind", notice.Kind);
                 AppendMetadata(sb, "Trigger", notice.Trigger);
                 AppendMetadata(sb, "Mode", notice.Mode);
+                if (!string.IsNullOrWhiteSpace(notice.SourceThreadId))
+                    AppendMetadata(sb, "Source Thread", notice.SourceThreadId);
                 AppendMetadata(sb, "Tokens", $"{notice.TokensBefore}->{notice.TokensAfter}");
                 break;
 

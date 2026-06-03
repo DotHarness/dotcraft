@@ -1146,6 +1146,27 @@ describe('systemNotice items', () => {
     const notice = s().turns[0].items.find((i) => i.type === 'systemNotice')
     expect(notice?.systemNotice?.kind).toBe('memoryConsolidated')
   })
+
+  it('preserves fork source thread id on fork notices', () => {
+    s().onTurnStarted(makeTurn())
+    s().onItemCompleted({
+      turnId: 'turn-1',
+      item: {
+        id: 'notice-forked',
+        type: 'systemNotice',
+        createdAt: new Date().toISOString(),
+        completedAt: new Date().toISOString(),
+        payload: {
+          kind: 'forked',
+          sourceThreadId: 'thread-source'
+        }
+      }
+    })
+
+    const notice = s().turns[0].items.find((i) => i.type === 'systemNotice')
+    expect(notice?.systemNotice?.kind).toBe('forked')
+    expect(notice?.systemNotice?.sourceThreadId).toBe('thread-source')
+  })
 })
 
 describe('pending message', () => {
