@@ -117,6 +117,7 @@ const enSidebar: DefaultTheme.Sidebar = [
         collapsed: false,
         items: [
           { text: withIcon('plug', 'App Binding'), link: '/developing/integrations/app-binding' },
+          { text: withIcon('box', 'Build an App'), link: '/developing/integrations/build-an-app' },
           { text: withIcon('blocks', 'TypeScript Module'), link: '/developing/integrations/typescript-module' }
         ]
       },
@@ -251,6 +252,7 @@ const zhSidebar: DefaultTheme.Sidebar = [
         collapsed: false,
         items: [
           { text: withIcon('plug', 'App Binding'), link: '/zh/developing/integrations/app-binding' },
+          { text: withIcon('box', '构建应用'), link: '/zh/developing/integrations/build-an-app' },
           { text: withIcon('blocks', 'TypeScript Module'), link: '/zh/developing/integrations/typescript-module' }
         ]
       },
