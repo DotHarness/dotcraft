@@ -1,6 +1,11 @@
 import { useEffect, useId, useRef, useState, type CSSProperties, type JSX } from 'react'
 import { FileText, ImagePlus, ListChecks, Plus } from 'lucide-react'
-import { COMPOSER_FOOTER_CONTROL_HEIGHT, composerFooterControlBoxStyle } from './ComposerShell'
+import {
+  COMPOSER_FOOTER_CONTROL_HEIGHT,
+  composerFooterControlActiveBackground,
+  composerFooterControlBoxStyle,
+  composerFooterControlHoverBackground
+} from './ComposerShell'
 import { ActionTooltip } from '../ui/ActionTooltip'
 
 interface ComposerAttachmentMenuProps {
@@ -114,9 +119,15 @@ export function ComposerAttachmentMenu({
             width: COMPOSER_FOOTER_CONTROL_HEIGHT,
             height: COMPOSER_FOOTER_CONTROL_HEIGHT,
             padding: 0,
-            borderRadius: '8px',
+            borderRadius: '999px',
             border: 'none',
-            background: !disabled && (open || triggerActive) ? 'var(--bg-tertiary)' : 'transparent',
+            background: !disabled
+              ? open
+                ? composerFooterControlActiveBackground
+                : triggerActive
+                  ? composerFooterControlHoverBackground
+                  : 'transparent'
+              : 'transparent',
             color: disabled ? 'var(--composer-footer-muted)' : 'var(--composer-footer-text)',
             cursor: disabled ? 'default' : 'pointer',
             lineHeight: 1,

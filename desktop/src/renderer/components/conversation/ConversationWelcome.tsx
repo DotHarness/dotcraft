@@ -33,9 +33,9 @@ import { ChatGptUsageBadge } from './ChatGptUsageBadge'
 import { ApprovalPolicyPicker, type VisibleApprovalPolicy } from './ApprovalPolicyPicker'
 import {
   ComposerPlanModeLabel,
+  ComposerSendButton,
   ComposerShell,
   SendIcon,
-  composerSendButtonStyle,
   composerModelPillStyle
 } from './ComposerShell'
 import { ComposerWorkspaceFooter, type ComposerWorkspaceMode } from './ComposerWorkspaceFooter'
@@ -1542,15 +1542,14 @@ export function ConversationWelcome({
                     shortcut={canSend ? ACTION_SHORTCUTS.send : undefined}
                     placement="top"
                   >
-                    <button
-                      type="button"
+                    <ComposerSendButton
+                      tone={canSend ? 'enabled' : 'disabled'}
                       onClick={() => { void sendFromWelcome() }}
                       disabled={!canSend}
                       aria-label={t('welcome.sendAria')}
-                      style={composerSendButtonStyle(canSend ? 'enabled' : 'disabled')}
                     >
                       <SendIcon />
-                    </button>
+                    </ComposerSendButton>
                   </ActionTooltip>
                 </div>
               }

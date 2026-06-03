@@ -1,4 +1,11 @@
-import { useState, type CSSProperties, type DragEventHandler, type JSX, type ReactNode } from 'react'
+import {
+  useState,
+  type ButtonHTMLAttributes,
+  type CSSProperties,
+  type DragEventHandler,
+  type JSX,
+  type ReactNode
+} from 'react'
 import { ListChecks, Square, X } from 'lucide-react'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { MascotRobot, type MascotExpression, type MascotLight } from './MascotRobot'
@@ -34,6 +41,8 @@ export interface ComposerMascotInteraction {
 type ComposerActionButtonTone = 'enabled' | 'disabled'
 
 export const COMPOSER_FOOTER_CONTROL_HEIGHT = 24
+export const composerFooterControlHoverBackground = 'var(--sidebar-control-hover)'
+export const composerFooterControlActiveBackground = 'var(--sidebar-control-active)'
 
 export const composerFooterControlBoxStyle: CSSProperties = {
   display: 'inline-flex',
@@ -369,7 +378,7 @@ export function ComposerPlanModeLabel({
           padding: '0 6px',
           borderRadius: '999px',
           border: 'none',
-          background: active ? 'var(--bg-tertiary)' : 'transparent',
+          background: active ? composerFooterControlHoverBackground : 'transparent',
           color: 'var(--composer-footer-text)',
           cursor: 'pointer',
           fontSize: 'var(--type-secondary-size)',
@@ -425,15 +434,66 @@ export const composerActionButtonStyle: CSSProperties = {
   transition: 'background-color 100ms ease, transform 100ms ease'
 }
 
-export function composerSendButtonStyle(tone: ComposerActionButtonTone): CSSProperties {
+export function composerSendButtonStyle(tone: ComposerActionButtonTone, active = false): CSSProperties {
   const enabled = tone === 'enabled'
 
   return {
     ...composerActionButtonStyle,
-    backgroundColor: enabled ? '#f5f6f7' : 'color-mix(in srgb, var(--bg-primary) 92%, #ffffff 8%)',
+    backgroundColor: enabled
+      ? active
+        ? '#ffffff'
+        : '#f5f6f7'
+      : 'color-mix(in srgb, var(--bg-primary) 92%, #ffffff 8%)',
     color: enabled ? '#1f2328' : 'var(--text-dimmed)',
-    cursor: enabled ? 'pointer' : 'default'
+    cursor: enabled ? 'pointer' : 'default',
+    transform: enabled && active ? 'translateY(-1px)' : 'none'
   }
+}
+
+interface ComposerSendButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  tone: ComposerActionButtonTone
+}
+
+export function ComposerSendButton({
+  tone,
+  children,
+  onMouseEnter,
+  onMouseLeave,
+  onFocus,
+  onBlur,
+  ...props
+}: ComposerSendButtonProps): JSX.Element {
+  const [active, setActive] = useState(false)
+  const enabled = tone === 'enabled' && !props.disabled
+
+  return (
+    <button
+      {...props}
+      type={props.type ?? 'button'}
+      onMouseEnter={(event) => {
+        if (enabled) setActive(true)
+        onMouseEnter?.(event)
+      }}
+      onMouseLeave={(event) => {
+        setActive(false)
+        onMouseLeave?.(event)
+      }}
+      onFocus={(event) => {
+        if (enabled && event.currentTarget.matches(':focus-visible')) setActive(true)
+        onFocus?.(event)
+      }}
+      onBlur={(event) => {
+        setActive(false)
+        onBlur?.(event)
+      }}
+      style={{
+        ...composerSendButtonStyle(tone, active),
+        ...props.style
+      }}
+    >
+      {children}
+    </button>
+  )
 }
 
 export function SendIcon(): JSX.Element {

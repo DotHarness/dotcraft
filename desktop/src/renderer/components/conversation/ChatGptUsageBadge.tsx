@@ -16,6 +16,10 @@ import { formatPlanLabel } from '../../utils/chatgptPlan'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { ProviderMark } from '../ui/ProviderMark'
 import { ChatGptUsagePopover } from './ChatGptUsagePopover'
+import {
+  composerFooterControlActiveBackground,
+  composerFooterControlHoverBackground
+} from './ComposerShell'
 
 interface ChatGptUsageBadgeProps {
   /** Active OAuth provider; pass null/undefined to hide the badge. */
@@ -66,7 +70,7 @@ export function ChatGptUsageBadge({ provider }: ChatGptUsageBadgeProps): JSX.Ele
   const ariaParts = [t('composer.chatgptBadge.label'), planLabel]
   if (primaryRemaining != null) ariaParts.push(t('composer.chatgptBadge.aria.sessionLeft', { percent: primaryRemaining }))
   if (secondaryRemaining != null) ariaParts.push(t('composer.chatgptBadge.aria.weeklyLeft', { percent: secondaryRemaining }))
-  const active = open || hovered || focused
+  const active = hovered || focused
   const badgeButton = (
     <button
       type="button"
@@ -83,7 +87,7 @@ export function ChatGptUsageBadge({ provider }: ChatGptUsageBadgeProps): JSX.Ele
         if (event.currentTarget.matches(':focus-visible')) setFocused(true)
       }}
       onBlur={() => setFocused(false)}
-      style={badgeStyle(active)}
+      style={badgeStyle(open, active)}
     >
       <ProviderMark kind="openai" size={14} style={iconStyle()} />
       <span style={miniTrackStyle()} aria-hidden>
@@ -143,7 +147,7 @@ function colorForRemaining(remaining: number | null): string {
   return 'var(--success, #3fb950)'
 }
 
-function badgeStyle(active: boolean): CSSProperties {
+function badgeStyle(open: boolean, active: boolean): CSSProperties {
   return {
     display: 'inline-flex',
     alignItems: 'center',
@@ -153,8 +157,12 @@ function badgeStyle(active: boolean): CSSProperties {
     height: '24px',
     width: '70px',
     borderRadius: '999px',
-    border: '1px solid transparent',
-    background: active ? 'var(--bg-tertiary)' : 'transparent',
+    border: 'none',
+    background: open
+      ? composerFooterControlActiveBackground
+      : active
+        ? composerFooterControlHoverBackground
+        : 'transparent',
     color: 'var(--composer-footer-highlight, var(--text-primary))',
     fontSize: '12px',
     lineHeight: 1.0,

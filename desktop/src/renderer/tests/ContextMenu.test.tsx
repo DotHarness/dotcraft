@@ -49,7 +49,7 @@ describe('ContextMenu', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
-  it('positions a submenu inside the parent menu when opening near the right edge', () => {
+  it('opens a submenu to the left of its parent item near the right edge', () => {
     setViewport(1024, 768)
 
     render(
@@ -76,7 +76,40 @@ describe('ContextMenu', () => {
     const submenu = screen.getAllByRole('menu')[1]
     expect(submenu).toHaveStyle({
       position: 'absolute',
-      left: '-196px'
+      left: '-190px',
+      top: '8px'
+    })
+  })
+
+  it('opens a submenu to the right of its parent item when space is available', () => {
+    setViewport(1024, 768)
+
+    render(
+      <ContextMenu
+        position={{ x: 280, y: 16 }}
+        onClose={vi.fn()}
+        items={[
+          {
+            label: 'Fork',
+            onClick: vi.fn(),
+            submenu: [
+              {
+                label: 'Fork into local',
+                onClick: vi.fn()
+              }
+            ]
+          }
+        ]}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Fork' }))
+
+    const submenu = screen.getAllByRole('menu')[1]
+    expect(submenu).toHaveStyle({
+      position: 'absolute',
+      left: '190px',
+      top: '8px'
     })
   })
 })

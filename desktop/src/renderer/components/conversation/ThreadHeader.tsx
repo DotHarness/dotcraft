@@ -219,88 +219,102 @@ export function ThreadHeader({
             }}
           />
         ) : (
-          <ActionTooltip
-            label={t('threadHeader.renameTitle')}
-            placement="bottom"
-            wrapperStyle={{ flex: 1, minWidth: 0 }}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              flex: 1,
+              minWidth: 0
+            }}
           >
-            <h1
-              onDoubleClick={startRename}
-              style={{
-                margin: 0,
-                fontSize: '14px',
-                fontWeight: 600,
-                color: 'var(--text-primary)',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-                cursor: 'default',
-                userSelect: 'none'
-              }}
+            <ActionTooltip
+              label={t('threadHeader.renameTitle')}
+              placement="bottom"
+              wrapperStyle={{ flex: '0 1 auto', minWidth: 0, maxWidth: '100%' }}
             >
-              <span
+              <h1
+                onDoubleClick={startRename}
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '7px',
-                  minWidth: 0
+                  margin: 0,
+                  minWidth: 0,
+                  maxWidth: '100%',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  color: 'var(--text-primary)',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  cursor: 'default',
+                  userSelect: 'none'
                 }}
               >
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {threadName}
-                </span>
-                {worktreeBranch && (
-                  <span
-                    title={t('threadHeader.worktreeBadge', { branch: worktreeBranch })}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      maxWidth: '180px',
-                      minWidth: 0,
-                      height: '18px',
-                      padding: '0 6px',
-                      borderRadius: '999px',
-                      border: '1px solid var(--border-default)',
-                      color: 'var(--text-secondary)',
-                      backgroundColor: 'var(--bg-secondary)',
-                      fontSize: '11px',
-                      fontWeight: 500,
-                      lineHeight: 1,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                      flexShrink: 1
-                    }}
-                  >
-                    {worktreeBranch}
+                <span
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '7px',
+                    minWidth: 0,
+                    maxWidth: '100%',
+                    overflow: 'hidden'
+                  }}
+                >
+                  <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {threadName}
                   </span>
-                )}
-              </span>
-            </h1>
-          </ActionTooltip>
-        )}
+                  {worktreeBranch && (
+                    <span
+                      title={t('threadHeader.worktreeBadge', { branch: worktreeBranch })}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        maxWidth: '180px',
+                        minWidth: 0,
+                        height: '18px',
+                        padding: '0 6px',
+                        borderRadius: '999px',
+                        border: '1px solid var(--border-default)',
+                        color: 'var(--text-secondary)',
+                        backgroundColor: 'var(--bg-secondary)',
+                        fontSize: '11px',
+                        fontWeight: 500,
+                        lineHeight: 1,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        flexShrink: 1
+                      }}
+                    >
+                      {worktreeBranch}
+                    </span>
+                  )}
+                </span>
+              </h1>
+            </ActionTooltip>
 
-        <ActionTooltip label={t('threadHeader.moreActions')} placement="bottom">
-          <button
-            type="button"
-            aria-label={t('threadHeader.moreActions')}
-            onClick={(event) => {
-              const rect = event.currentTarget.getBoundingClientRect()
-              setMenuPosition({ x: rect.left, y: rect.bottom + 4 })
-            }}
-            style={iconButtonStyle}
-            onMouseEnter={(e) => {
-              ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--bg-tertiary)'
-              ;(e.currentTarget as HTMLButtonElement).style.color = 'var(--text-primary)'
-            }}
-            onMouseLeave={(e) => {
-              ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent'
-              ;(e.currentTarget as HTMLButtonElement).style.color = 'var(--text-secondary)'
-            }}
-          >
-            <MoreHorizontal size={16} aria-hidden />
-          </button>
-        </ActionTooltip>
+            <ActionTooltip label={t('threadHeader.moreActions')} placement="bottom">
+              <button
+                type="button"
+                aria-label={t('threadHeader.moreActions')}
+                onClick={(event) => {
+                  const rect = event.currentTarget.getBoundingClientRect()
+                  setMenuPosition({ x: rect.left, y: rect.bottom + 4 })
+                }}
+                style={iconButtonStyle}
+                onMouseEnter={(e) => {
+                  ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--bg-tertiary)'
+                  ;(e.currentTarget as HTMLButtonElement).style.color = 'var(--text-primary)'
+                }}
+                onMouseLeave={(e) => {
+                  ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent'
+                  ;(e.currentTarget as HTMLButtonElement).style.color = 'var(--text-secondary)'
+                }}
+              >
+                <MoreHorizontal size={16} aria-hidden />
+              </button>
+            </ActionTooltip>
+          </div>
+        )}
 
         {/* Open button */}
         {!remoteWorkspace && <OpenWorkspaceButton workspacePath={workspacePath} />}

@@ -49,10 +49,11 @@ import { BackgroundActivityDock } from './SubAgentDock'
 import {
   COMPOSER_FOOTER_CONTROL_HEIGHT,
   ComposerPlanModeLabel,
+  ComposerSendButton,
   ComposerShell,
   SendIcon,
   StopIcon,
-  composerSendButtonStyle,
+  composerFooterControlHoverBackground,
   composerModelPillStyle
 } from './ComposerShell'
 import { ComposerWorkspaceFooter } from './ComposerWorkspaceFooter'
@@ -148,6 +149,7 @@ export function InputComposer({
   const [skillQuery, setSkillQuery] = useState<string | null>(null)
   const [skillDismissed, setSkillDismissed] = useState(false)
   const [goalPopoverOpen, setGoalPopoverOpen] = useState(false)
+  const [goalPillActive, setGoalPillActive] = useState(false)
   const [goalBusy, setGoalBusy] = useState(false)
   const [compactBusy, setCompactBusy] = useState(false)
   const [consolidateBusy, setConsolidateBusy] = useState(false)
@@ -1259,8 +1261,14 @@ export function InputComposer({
                     setGoalPopoverOpen(true)
                     void ensureCurrentGoal().catch(() => {})
                   }}
+                  onMouseEnter={() => setGoalPillActive(true)}
+                  onMouseLeave={() => setGoalPillActive(false)}
+                  onFocus={(event) => {
+                    if (event.currentTarget.matches(':focus-visible')) setGoalPillActive(true)
+                  }}
+                  onBlur={() => setGoalPillActive(false)}
                   aria-label={t('goal.pill.aria', { status: t(`goal.status.${currentGoal.status}`) })}
-                  style={goalPillStyle(currentGoal.status)}
+                  style={goalPillStyle(currentGoal.status, goalPillActive)}
                 >
                   <Target size={13} aria-hidden />
                   <span>{t(`goal.pill.${currentGoal.status}`)}</span>
@@ -1301,16 +1309,15 @@ export function InputComposer({
               isBusyForInput ? (
                 canSend ? (
                   <ActionTooltip label={t('composer.queueSendTitle')} placement="top">
-                    <button
-                      type="button"
+                    <ComposerSendButton
+                      tone="enabled"
                       onClick={() => {
                         void sendMessage()
                       }}
                       aria-label={t('composer.queueSendAria')}
-                      style={composerSendButtonStyle('enabled')}
                     >
                       <SendIcon />
-                    </button>
+                    </ComposerSendButton>
                   </ActionTooltip>
                 ) : (
                   <ActionTooltip
@@ -1318,14 +1325,13 @@ export function InputComposer({
                     shortcut={ACTION_SHORTCUTS.cancel}
                     placement="top"
                   >
-                    <button
-                      type="button"
+                    <ComposerSendButton
+                      tone="enabled"
                       onClick={stopTurn}
                       aria-label={t('composer.stopAria')}
-                      style={composerSendButtonStyle('enabled')}
                     >
                       <StopIcon />
-                    </button>
+                    </ComposerSendButton>
                   </ActionTooltip>
                 )
               ) : (
@@ -1334,17 +1340,16 @@ export function InputComposer({
                   shortcut={canSend ? ACTION_SHORTCUTS.send : undefined}
                   placement="top"
                 >
-                  <button
-                    type="button"
+                  <ComposerSendButton
+                    tone={canSend ? 'enabled' : 'disabled'}
                     onClick={() => {
                       void sendMessage()
                     }}
                     disabled={!canSend}
                     aria-label={t('composer.sendAriaAlt')}
-                    style={composerSendButtonStyle(canSend ? 'enabled' : 'disabled')}
                   >
                     <SendIcon />
-                  </button>
+                  </ComposerSendButton>
                 </ActionTooltip>
               )
             ) : null}
@@ -1482,7 +1487,7 @@ function parseSystemSlashCommand(text: string): { kind: 'plan' | 'agent' | 'comp
   return null
 }
 
-function goalPillStyle(_status: ThreadGoal['status']): CSSProperties {
+function goalPillStyle(_status: ThreadGoal['status'], active = false): CSSProperties {
   const color = 'var(--composer-footer-text)'
   return {
     display: 'inline-flex',
@@ -1492,7 +1497,7 @@ function goalPillStyle(_status: ThreadGoal['status']): CSSProperties {
     minHeight: COMPOSER_FOOTER_CONTROL_HEIGHT,
     border: 'none',
     borderRadius: 8,
-    background: 'transparent',
+    background: active ? composerFooterControlHoverBackground : 'transparent',
     color,
     cursor: 'pointer',
     fontSize: 'var(--type-secondary-size)',
@@ -1500,7 +1505,8 @@ function goalPillStyle(_status: ThreadGoal['status']): CSSProperties {
     fontWeight: 'var(--type-ui-emphasis-weight)',
     padding: '2px 6px',
     overflow: 'hidden',
-    whiteSpace: 'nowrap'
+    whiteSpace: 'nowrap',
+    transition: 'background-color 120ms ease, color 120ms ease'
   }
 }
 

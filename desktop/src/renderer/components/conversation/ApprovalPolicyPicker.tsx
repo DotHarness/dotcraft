@@ -6,7 +6,12 @@ import { addToast } from '../../stores/toastStore'
 import type { ApprovalPolicyWire, ThreadConfigurationWire } from '../../types/thread'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
-import { composerFooterControlBoxStyle, composerModelPillStyle } from './ComposerShell'
+import {
+  composerFooterControlActiveBackground,
+  composerFooterControlBoxStyle,
+  composerFooterControlHoverBackground,
+  composerModelPillStyle
+} from './ComposerShell'
 
 export type VisibleApprovalPolicy = 'default' | 'autoApprove'
 
@@ -248,7 +253,13 @@ export function ApprovalPolicyPicker({
               value === 'autoApprove' ? 'var(--warning)' : 'var(--composer-footer-text)',
               !interactive
             ),
-            backgroundColor: interactive && (open || triggerActive) ? 'var(--bg-tertiary)' : 'transparent',
+            backgroundColor: interactive
+              ? open
+                ? composerFooterControlActiveBackground
+                : triggerActive
+                  ? composerFooterControlHoverBackground
+                  : 'transparent'
+              : 'transparent',
             cursor: interactive ? 'pointer' : 'default'
           }}
         >

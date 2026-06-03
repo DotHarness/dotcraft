@@ -3,7 +3,11 @@ import { useT } from '../../contexts/LocaleContext'
 import type { ModelCatalogItem, ReasoningEffortWire } from '../../stores/modelCatalogStore'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import type { ShortcutSpec } from '../ui/shortcutKeys'
-import { composerFooterControlBoxStyle } from './ComposerShell'
+import {
+  composerFooterControlActiveBackground,
+  composerFooterControlBoxStyle,
+  composerFooterControlHoverBackground
+} from './ComposerShell'
 
 export type ReasoningQuickValue = 'default' | 'off' | ReasoningEffortWire
 
@@ -255,7 +259,13 @@ export function ModelPicker({
           }}
           style={{
             ...triggerStyle,
-            backgroundColor: interactive && (open || triggerActive) ? 'var(--bg-tertiary)' : 'transparent',
+            backgroundColor: interactive
+              ? open
+                ? composerFooterControlActiveBackground
+                : triggerActive
+                  ? composerFooterControlHoverBackground
+                  : 'transparent'
+              : 'transparent',
             cursor: interactive ? 'pointer' : 'default'
           }}
         >

@@ -32,6 +32,12 @@ interface ContextMenuProps {
   onClose: () => void
 }
 
+interface SubmenuAnchor {
+  left: number
+  right: number
+  top: number
+}
+
 /**
  * Generic positioned context menu rendered via a portal.
  * Closes on outside click or Escape key.
@@ -40,6 +46,9 @@ interface ContextMenuProps {
 export function ContextMenu({ items, position, onClose }: ContextMenuProps): JSX.Element {
   const menuRef = useRef<HTMLDivElement>(null)
   const [openSubmenuIndex, setOpenSubmenuIndex] = useState<number | null>(null)
+  const [submenuAnchor, setSubmenuAnchor] = useState<SubmenuAnchor | null>(null)
+  const [hoveredItemIndex, setHoveredItemIndex] = useState<number | null>(null)
+  const [hoveredSubmenuItemIndex, setHoveredSubmenuItemIndex] = useState<number | null>(null)
 
   // Clamp to viewport on mount
   const menuWidth = 200
@@ -57,17 +66,13 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps): JSX
     openSubmenuItem && openSubmenuItem.type !== 'separator'
       ? openSubmenuItem.submenu ?? null
       : null
-  const submenuTop = openSubmenuIndex == null
-    ? top
-    : clampMenuTop(
-      top + menuPadding + items.slice(0, openSubmenuIndex).reduce((acc, item) => (
-        acc + (item.type === 'separator' ? 9 : menuItemHeight)
-      ), 0),
-      estimateMenuHeight(submenuItems ?? [], menuItemHeight, menuPadding)
-    )
-  const preferredSubmenuLeft = left + menuWidth - 4
-  const submenuOpensLeft = preferredSubmenuLeft + menuWidth + 8 > window.innerWidth
-  const submenuLeft = submenuOpensLeft ? -menuWidth + 4 : menuWidth - 4
+  const submenuEstimatedHeight = estimateMenuHeight(submenuItems ?? [], menuItemHeight, menuPadding)
+  const submenuPreferredLeft = (submenuAnchor?.right ?? left + menuWidth) - 4
+  const submenuFlippedLeft = (submenuAnchor?.left ?? left) - menuWidth + 4
+  const submenuOpensLeft = submenuPreferredLeft + menuWidth + 8 > window.innerWidth
+  const submenuLeft = clampMenuLeft(submenuOpensLeft ? submenuFlippedLeft : submenuPreferredLeft, menuWidth)
+  const submenuTop = clampMenuTop(submenuAnchor?.top ?? top, submenuEstimatedHeight)
+  const submenuLeftOffset = submenuLeft - left
   const submenuTopOffset = submenuTop - top
 
   useEffect(() => {
@@ -86,6 +91,17 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps): JSX
       document.removeEventListener('keydown', handleKeyDown)
     }
   }, [onClose])
+
+  function openSubmenu(index: number, element: HTMLElement): void {
+    setOpenSubmenuIndex(index)
+    setSubmenuAnchor(getSubmenuAnchor(element, index, left, top, items, menuWidth, menuPadding, menuItemHeight))
+  }
+
+  function closeSubmenu(): void {
+    setOpenSubmenuIndex(null)
+    setSubmenuAnchor(null)
+    setHoveredSubmenuItemIndex(null)
+  }
 
   const menu = (
     <div
@@ -122,16 +138,21 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps): JSX
           )
         }
 
+        const itemActive = !item.disabled && (hoveredItemIndex === i || openSubmenuIndex === i)
         const button = (
           <button
             role="menuitem"
             aria-haspopup={item.submenu ? 'menu' : undefined}
             aria-expanded={item.submenu ? openSubmenuIndex === i : undefined}
             disabled={item.disabled}
-            onClick={() => {
+            onClick={(event) => {
               if (!item.disabled) {
                 if (item.submenu) {
-                  setOpenSubmenuIndex(openSubmenuIndex === i ? null : i)
+                  if (openSubmenuIndex === i) {
+                    closeSubmenu()
+                  } else {
+                    openSubmenu(i, event.currentTarget)
+                  }
                   return
                 }
                 item.onClick()
@@ -147,7 +168,7 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps): JSX
               padding: '6px 8px',
               borderRadius: '6px',
               textAlign: 'left',
-              background: 'transparent',
+              background: itemActive ? 'var(--sidebar-control-hover)' : 'transparent',
               border: 'none',
               fontSize: '13px',
               color: item.danger
@@ -159,13 +180,16 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps): JSX
               transition: 'background-color 80ms ease'
             }}
             onMouseEnter={(e) => {
-              setOpenSubmenuIndex(item.submenu && !item.disabled ? i : null)
-              if (!item.disabled) {
-                ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--bg-tertiary)'
+              setHoveredItemIndex(i)
+              if (item.disabled) return
+              if (item.submenu) {
+                openSubmenu(i, e.currentTarget)
+              } else {
+                closeSubmenu()
               }
             }}
-            onMouseLeave={(e) => {
-              ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent'
+            onMouseLeave={() => {
+              setHoveredItemIndex((current) => current === i ? null : current)
             }}
           >
             {item.icon && (
@@ -208,7 +232,7 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps): JSX
           style={{
             position: 'absolute',
             top: submenuTopOffset,
-            left: submenuLeft,
+            left: submenuLeftOffset,
             width: menuWidth,
             background: 'var(--glass-surface-strong)',
             border: '1px solid var(--glass-border)',
@@ -235,6 +259,7 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps): JSX
                 />
               )
             }
+            const submenuItemActive = !item.disabled && hoveredSubmenuItemIndex === i
             return (
               <button
                 key={i}
@@ -255,7 +280,7 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps): JSX
                   padding: '6px 8px',
                   borderRadius: '6px',
                   textAlign: 'left',
-                  background: 'transparent',
+                  background: submenuItemActive ? 'var(--sidebar-control-hover)' : 'transparent',
                   border: 'none',
                   fontSize: '13px',
                   color: item.danger
@@ -266,13 +291,11 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps): JSX
                   cursor: item.disabled ? 'default' : 'pointer',
                   transition: 'background-color 80ms ease'
                 }}
-                onMouseEnter={(e) => {
-                  if (!item.disabled) {
-                    ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--bg-tertiary)'
-                  }
+                onMouseEnter={() => {
+                  setHoveredSubmenuItemIndex(i)
                 }}
-                onMouseLeave={(e) => {
-                  ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent'
+                onMouseLeave={() => {
+                  setHoveredSubmenuItemIndex((current) => current === i ? null : current)
                 }}
               >
                 {item.icon && (
@@ -300,6 +323,35 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps): JSX
   )
 
   return createPortal(menu, document.body) as JSX.Element
+}
+
+function getSubmenuAnchor(
+  element: HTMLElement,
+  index: number,
+  menuLeft: number,
+  menuTop: number,
+  items: ContextMenuEntry[],
+  menuWidth: number,
+  menuPadding: number,
+  menuItemHeight: number
+): SubmenuAnchor {
+  const rect = element.getBoundingClientRect()
+  if (rect.width > 0 || rect.height > 0 || rect.left !== 0 || rect.top !== 0) {
+    return {
+      left: rect.left,
+      right: rect.right,
+      top: rect.top
+    }
+  }
+
+  const offsetTop = menuPadding + items.slice(0, index).reduce((acc, item) => (
+    acc + (item.type === 'separator' ? 9 : menuItemHeight)
+  ), 0)
+  return {
+    left: menuLeft + 6,
+    right: menuLeft + menuWidth - 6,
+    top: menuTop + offsetTop
+  }
 }
 
 function estimateMenuHeight(

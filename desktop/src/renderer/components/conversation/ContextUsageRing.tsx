@@ -56,8 +56,6 @@ export function ContextUsageRing(): JSX.Element | null {
     ? Math.round((usage.autoCompactThreshold / usage.contextWindow) * 100)
     : 0
   const percentLeft = Math.round(usage.percentLeft * 100)
-  const active = hovered
-
   return (
     <div
       ref={anchorRef}
@@ -76,10 +74,10 @@ export function ContextUsageRing(): JSX.Element | null {
         width: COMPOSER_FOOTER_CONTROL_HEIGHT,
         height: COMPOSER_FOOTER_CONTROL_HEIGHT,
         borderRadius: '999px',
-        background: active ? 'var(--bg-tertiary)' : 'transparent',
+        background: 'transparent',
         cursor: 'help',
         outline: 'none',
-        transition: 'background-color 120ms ease'
+        transition: 'none'
       }}
     >
       <svg
