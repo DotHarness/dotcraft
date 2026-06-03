@@ -1,0 +1,7 @@
+interface:
+  display_name: "Cron"
+  short_description: "Schedule and manage DotCraft Cron jobs"
+  icon_small: "./assets/cron-small.svg"
+  icon_large: "./assets/cron.svg"
+  default_prompt: "Use $cron to schedule or manage DotCraft Cron jobs."
+

@@ -11,32 +11,24 @@ public sealed class CronTools(CronService cronService)
     private static readonly string[] ValidScheduleKinds = ["at", "every", "daily"];
 
     [Description(
-        "Manage scheduled tasks. " +
-        "The 'action' parameter must be one of: 'add', 'list', 'remove'. " +
-        "When action is 'add', 'scheduleKind' is required and must be one of: 'at', 'every', 'daily'. " +
-        "Examples: " +
-        "Cron(action: \"add\", scheduleKind: \"every\", message: \"Check server status\", everySeconds: 3600) — recurring every hour; " +
-        "Cron(action: \"add\", scheduleKind: \"every\", message: \"Ping\", everySeconds: 3600, delaySeconds: 600) — first run in 10 minutes, then every hour; " +
-        "Cron(action: \"add\", scheduleKind: \"daily\", message: \"Tea\", dailyTime: \"15:00\", timeZone: \"Asia/Shanghai\") — every day at 15:00 local; " +
-        "Cron(action: \"add\", scheduleKind: \"at\", message: \"Remind meeting\", delaySeconds: 120) — one-time after 2 minutes; " +
-        "Cron(action: \"list\") — show all jobs; " +
-        "Cron(action: \"remove\", jobId: \"abc123\") — delete a job.")]
+        "Manage Cron jobs. Use action 'add', 'list', or 'remove'. " +
+        "For add, set scheduleKind: 'at' uses delaySeconds, 'every' uses everySeconds with optional delaySeconds, and 'daily' uses dailyTime or dailyHour/dailyMinute.")]
     [Tool(Icon = "⏰", DisplayType = typeof(CronToolDisplays), DisplayMethod = nameof(CronToolDisplays.Cron))]
     public string Cron(
-        [Description("Must be one of: 'add' (create a job), 'list' (show all jobs), 'remove' (delete a job by id). This parameter is required.")] string action,
-        [Description("Schedule type when action is 'add'. Required for 'add'. Must be one of: 'at' (one-time delay), 'every' (recurring interval), 'daily' (fixed local time).")] string? scheduleKind = null,
-        [Description("The prompt/message for the agent to execute when the job triggers. Required when action is 'add'.")] string? message = null,
-        [Description("Interval in seconds for recurring jobs. Required when scheduleKind is 'every'.")] int? everySeconds = null,
-        [Description("Delay in seconds from now. Required when scheduleKind is 'at'; optional initial delay when scheduleKind is 'every'.")] long? delaySeconds = null,
-        [Description("Display name for the job. Optional, only used when action is 'add'.")] string? name = null,
-        [Description("The ID of the job to delete. Required when action is 'remove'. Use action 'list' first to get job IDs.")] string? jobId = null,
-        [Description("Whether to deliver results after the job runs. Defaults to true. Results are sent to the task creator unless 'channel' or 'toUser' overrides the target. Only used when action is 'add'.")] bool deliver = true,
-        [Description("The channel to deliver results to. Use 'qq' for QQ (group or private), 'wecom' for WeCom. Optional, auto-detected from current chat context when not specified.")] string? channel = null,
-        [Description("The delivery target within the channel. For QQ: 'group:<groupId>' for group chat, or a plain user ID for private chat. For WeCom: the ChatId of the target group. Optional, auto-detected from current chat context when not specified.")] string? toUser = null,
-        [Description("Local hour (0–23) for a daily job at a fixed clock time. Used when scheduleKind is 'daily'.")] int? dailyHour = null,
-        [Description("Local minute (0–59) for a daily job. Used when scheduleKind is 'daily'. Defaults to 0 if dailyHour is set without dailyTime.")] int? dailyMinute = null,
-        [Description("Local time of day as HH:mm (e.g. 15:30). Used when scheduleKind is 'daily'. Alternative to dailyHour/dailyMinute.")] string? dailyTime = null,
-        [Description("IANA time zone id for daily jobs (e.g. Asia/Shanghai, America/New_York). Defaults to UTC if omitted.")] string? timeZone = null)
+        [Description("Required: add, list, or remove.")] string action,
+        [Description("Required for add: at, every, or daily.")] string? scheduleKind = null,
+        [Description("Prompt to run when the job triggers. Required for add.")] string? message = null,
+        [Description("Seconds between recurring runs. Required for scheduleKind=every.")] int? everySeconds = null,
+        [Description("Seconds from now. Required for at; optional first-run delay for every.")] long? delaySeconds = null,
+        [Description("Optional job display name.")] string? name = null,
+        [Description("Job id for remove.")] string? jobId = null,
+        [Description("Deliver run results. Defaults to true.")] bool deliver = true,
+        [Description("Optional result delivery channel.")] string? channel = null,
+        [Description("Optional result delivery target.")] string? toUser = null,
+        [Description("Daily local hour, 0-23.")] int? dailyHour = null,
+        [Description("Daily local minute, 0-59. Defaults to 0.")] int? dailyMinute = null,
+        [Description("Daily local time, HH:mm.")] string? dailyTime = null,
+        [Description("Daily time zone id. Defaults to UTC.")] string? timeZone = null)
     {
         if (string.IsNullOrWhiteSpace(action))
             return JsonSerializer.Serialize(new { error = "Parameter 'action' is required. Must be one of: 'add', 'list', 'remove'." });
