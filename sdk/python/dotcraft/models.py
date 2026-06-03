@@ -156,6 +156,28 @@ class Turn:
 
 
 # ---------------------------------------------------------------------------
+# Model catalog
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class ModelInfo:
+    """A model catalog entry returned by ``model/list``."""
+
+    id: str
+    display_name: str
+    provider: str | None = None
+
+    @classmethod
+    def from_wire(cls, data: dict) -> ModelInfo:
+        return cls(
+            id=data.get("id") or data.get("modelId") or data.get("name") or "",
+            display_name=data.get("displayName") or data.get("name") or data.get("id") or "",
+            provider=data.get("provider"),
+        )
+
+
+# ---------------------------------------------------------------------------
 # Initialize result
 # ---------------------------------------------------------------------------
 
@@ -232,9 +254,36 @@ def image_url_part(url: str) -> dict:
     return {"type": "image", "url": url}
 
 
-def local_image_part(path: str) -> dict:
+def local_image_part(path: str, mime_type: str | None = None) -> dict:
     """Create a local image file input part."""
-    return {"type": "localImage", "path": path}
+    part: dict = {"type": "localImage", "path": path}
+    if mime_type:
+        part["mimeType"] = mime_type
+    return part
+
+
+def skill_ref_part(name: str) -> dict:
+    """Create a skill reference input part."""
+    return {"type": "skillRef", "name": name}
+
+
+def command_ref_part(raw_text: str) -> dict:
+    """Create a command reference input part from leading ``/command args`` text."""
+    stripped = raw_text.strip()
+    body = stripped[1:] if stripped.startswith("/") else stripped
+    name, _, args_text = body.partition(" ")
+    part: dict = {"type": "commandRef", "name": name, "rawText": raw_text}
+    if args_text:
+        part["argsText"] = args_text
+    return part
+
+
+def file_ref_part(path: str, display_path: str | None = None) -> dict:
+    """Create a file reference input part."""
+    part: dict = {"type": "fileRef", "path": path}
+    if display_path:
+        part["displayPath"] = display_path
+    return part
 
 
 # ---------------------------------------------------------------------------

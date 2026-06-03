@@ -63,5 +63,5 @@ App Binding works with any app that registers an OS protocol and speaks the AppS
 ## See Also
 
 - [Build an App](./build-an-app) — the builder's guide for plugin and native app authors.
-- [SDKs](../sdks/) and [.NET SDK](../sdks/dotnet) — client libraries and App Binding helpers.
+- [SDKs](../sdks/) — client libraries (.NET, TypeScript, Python), each with App Binding helpers.
 - [Plugins & Tools](../../features/agent-system/plugins-tools) — how plugins package apps.

@@ -5,7 +5,7 @@
 | **Version** | 0.1.0 |
 | **Status** | Living |
 | **Date** | 2026-05-19 |
-| **Related Specs** | [Unified SDK Specification](sdk.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Hub Architecture](../runtime/hub-architecture.md), [App Binding](../protocols/app-binding.md), [Session Core](../core/session-core.md), [TypeScript SDK Binding](typescript.md) |
+| **Related Specs** | [Unified SDK Specification](sdk.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Hub Architecture](../runtime/hub-architecture.md), [App Binding](../protocols/app-binding.md), [Session Core](../core/session-core.md), [TypeScript SDK Binding](typescript.md), [Python SDK Binding](python.md) |
 
 Purpose: Define the .NET binding, public API shape, AppServer method coverage, App Binding helper surface, testing expectations, and compatibility strategy for `DotCraft.Sdk`.
 
@@ -182,13 +182,16 @@ Current Hub features:
 | Workspace AppServer lookup | `GET /v1/appservers/by-workspace` | `HubClient.GetAppServerByWorkspaceAsync` |
 | Workspace AppServer ensure | `POST /v1/appservers/ensure` | `HubClient.EnsureAppServerAsync`, `DotCraftClient.ConnectLocalAsync` |
 
+Resolved by the Run profile parity work (SDK alignment M3):
+
+- `DotCraftThread.RunAsync` / `RunStreamedAsync` provide the high-level run abstraction that waits for terminal turn notifications and returns merged text.
+- `DotCraftRunEvent` plus `RunStreamedAsync` normalize streaming notifications; a delta/snapshot reducer merges agent text.
+- `DotCraftClientOptions.ApprovalHandler` and `UserInputHandler` provide typed approval and user-input callbacks (with auto-accept / empty-answer fallbacks).
+- Typed wrappers exist for `thread/list` (`Threads.ListAsync`), `thread/unsubscribe`, `thread/archive`, `thread/delete`, and `thread/mode/set` (on `DotCraftThread`).
+
 Current explicit gaps:
 
-- No high-level thread manager for `thread/list`, `thread/unsubscribe`, `thread/archive`, `thread/delete`, `thread/rename`, `thread/config/update`, `thread/mode/set`, goal methods, maintenance methods, or memory consolidation methods.
-- No high-level run abstraction that waits for terminal turn notifications and returns merged text.
-- No normalized streaming event reducer; notifications are exposed raw.
-- No typed approval handler for `item/approval/request`.
-- No typed user-input handler for `item/tool/requestUserInput`.
+- No typed wrappers for `thread/rename`, `thread/config/update`, goal methods, maintenance methods, or memory consolidation methods.
 - No typed wrappers for provider, workspace config, skills, plugins, commands, cron, heartbeat, MCP, external channel, subagent, memory, or Dreams methods.
 - No typed wrappers for `app/list`, `app/view`, `app/connection/start`, `app/connection/revoke`, `app/binding/request/create`, `app/binding/request/cancel`, `thread/appBindings/list`, `thread/appBindings/revoke`, or `thread/appBindings/refresh`.
 - No automatic reconnect or callback rebind policy.
@@ -1131,24 +1134,26 @@ Legend:
 | Threads | `thread/resume` | `threadManagement` | Typed | `Threads.ResumeAsync` |
 | Threads | `thread/read` | `threadManagement` | Typed | `Threads.ReadAsync` |
 | Threads | `thread/subscribe` | `threadSubscriptions` | Typed | `Threads.SubscribeAsync` |
-| Threads | `thread/list` | `threadManagement` | Raw | `RequestAsync` |
-| Threads | `thread/unsubscribe` | `threadSubscriptions` | Raw | `RequestAsync` |
+| Threads | `thread/list` | `threadManagement` | Typed | `Threads.ListAsync` |
+| Threads | `thread/unsubscribe` | `threadSubscriptions` | Typed | `DotCraftThread.UnsubscribeAsync` |
 | Threads | `thread/pause` | `threadManagement` | Raw | `RequestAsync` |
-| Threads | `thread/archive` | `threadManagement` | Raw | `RequestAsync` |
-| Threads | `thread/delete` | `threadManagement` | Raw | `RequestAsync` |
+| Threads | `thread/archive` | `threadManagement` | Typed | `DotCraftThread.ArchiveAsync` |
+| Threads | `thread/delete` | `threadManagement` | Typed | `DotCraftThread.DeleteAsync` |
 | Threads | `thread/rename` | `threadManagement` | Raw | `RequestAsync` |
 | Threads | `thread/rollback` | `threadManagement` | Raw | `RequestAsync` |
 | Thread config | `thread/config/update` | `configOverride` | Raw | `RequestAsync` |
-| Thread mode | `thread/mode/set` | `modeSwitch` | Raw | `RequestAsync` |
+| Thread mode | `thread/mode/set` | `modeSwitch` | Typed | `DotCraftThread.SetModeAsync` |
 | Thread goals | `thread/goal/*` | `threadGoals` | Raw | `RequestAsync` |
 | Thread maintenance | `thread/compact/start` | `manualCompaction` | Raw | `RequestAsync` |
 | Thread maintenance | `thread/memory/consolidate/start` | `manualMemoryConsolidation` | Raw | `RequestAsync` |
 | Turns | `turn/start` | required | Typed | `Turns.StartAsync` |
 | Turns | `turn/enqueue` | required | Typed | `Turns.EnqueueAsync` |
 | Turns | `turn/interrupt` | required | Typed | `Turns.InterruptAsync` |
-| Notifications | `thread/*`, `turn/*`, `item/*`, `system/*`, `plan/*`, `subagent/*`, `workspace/configChanged` | varies | Raw | `ReadNotificationsAsync` |
-| Approvals | `item/approval/request` | `approvalFlow` | Gap | `RegisterServerRequestHandler` manually |
-| User input | `item/tool/requestUserInput` | `requestUserInput` | Gap | `RegisterServerRequestHandler` manually |
+| Notifications | `thread/*`, `turn/*`, `item/*`, `system/*`, `plan/*`, `subagent/*`, `workspace/configChanged` | varies | Raw | `ReadNotificationsAsync`, `Wire.RegisterNotificationHandler` |
+| Run | `turn/start` + terminal turn notifications | required | Typed | `DotCraftThread.RunAsync` / `RunStreamedAsync` |
+| Run | normalized streaming events + text merge | required | Typed | `DotCraftRunEvent`, `RunStreamedAsync` |
+| Approvals | `item/approval/request` | `approvalFlow` | Callback | `DotCraftClientOptions.ApprovalHandler` |
+| User input | `item/tool/requestUserInput` | `requestUserInput` | Callback | `DotCraftClientOptions.UserInputHandler` |
 | Runtime Dynamic Tools | `thread/start.dynamicTools` | required | Typed | `DynamicToolSpec` |
 | Runtime Dynamic Tools | `thread/resume.dynamicTools` | `dynamicToolRebind` | Typed | `DotCraftThreadResumeRequest.DynamicTools` |
 | Runtime Dynamic Tools | `item/tool/call` | required for declared tools | Callback | `RegisterDynamicToolHandler` |
@@ -1206,21 +1211,21 @@ Legend:
 | Subagent sessions | `subagent/list` | `subAgentSessions` | Raw | `RequestAsync` |
 | Subagent sessions | `subagent/close` | `subAgentSessions` | Raw | `RequestAsync` |
 | Subagent sessions | `subagent/resume` | `subAgentSessions` | Raw | `RequestAsync` |
-| App discovery | `app/list` | `appBinding` | Raw | `RequestAsync` |
-| App discovery | `app/view` | `appBinding` | Raw | `RequestAsync` |
-| App connection | `app/connection/start` | `appBinding` | Raw | `RequestAsync` |
+| App discovery | `app/list` | `appBinding` | Typed | `AppBindings.ListAppsAsync` |
+| App discovery | `app/view` | `appBinding` | Typed | `AppBindings.ViewAppAsync` |
+| App connection | `app/connection/start` | `appBinding` | Typed | `AppBindings.StartConnectionAsync` |
 | App connection | `app/connection/request/get` | `appBinding` | Generic | `AppBindings.GetConnectionRequestAsync<T>` |
-| App connection | `app/connection/connect` | `appBinding` | Generic | `AppBindings.ConnectAsync<T>` |
-| App connection | `app/connection/status` | `appBinding` | Generic | `AppBindings.GetConnectionStatusAsync<T>` |
-| App connection | `app/connection/revoke` | `appBinding` | Raw | `RequestAsync` |
-| App binding | `app/binding/request/create` | `appBinding` | Raw | `RequestAsync` |
-| App binding | `app/binding/request/get` | `appBinding` | Generic | `AppBindings.GetBindingRequestAsync<T>` |
-| App binding | `app/binding/request/cancel` | `appBinding` | Raw | `RequestAsync` |
-| App binding | `app/binding/accept` | `appBinding` | Generic | `AppBindings.AcceptBindingAsync<T>` |
-| App binding | `app/binding/attachTools` | `appBinding` | Generic | `AppBindings.AttachToolsAsync<T>` |
-| Thread app bindings | `thread/appBindings/list` | `appBinding` | Raw | `RequestAsync` |
-| Thread app bindings | `thread/appBindings/revoke` | `appBinding` | Raw | `RequestAsync` |
-| Thread app bindings | `thread/appBindings/refresh` | `appBinding` | Raw | `RequestAsync` |
+| App connection | `app/connection/connect` | `appBinding` | Typed | `AppBindings.CompleteConnectionAsync` |
+| App connection | `app/connection/status` | `appBinding` | Typed | `AppBindings.GetConnectionStatusAsync` |
+| App connection | `app/connection/revoke` | `appBinding` | Typed | `AppBindings.RevokeConnectionAsync` |
+| App binding | `app/binding/request/create` | `appBinding` | Typed | `AppBindings.CreateBindingRequestAsync` |
+| App binding | `app/binding/request/get` | `appBinding` | Typed | `AppBindings.GetBindingRequestAsync` |
+| App binding | `app/binding/request/cancel` | `appBinding` | Typed | `AppBindings.CancelBindingRequestAsync` |
+| App binding | `app/binding/accept` | `appBinding` | Typed | `AppBindings.AcceptBindingAsync` |
+| App binding | `app/binding/attachTools` | `appBinding` | Typed | `AppBindings.AttachToolsAsync` |
+| Thread app bindings | `thread/appBindings/list` | `appBinding` | Typed | `AppBindings.ListThreadBindingsAsync` |
+| Thread app bindings | `thread/appBindings/revoke` | `appBinding` | Typed | `AppBindings.RevokeThreadBindingAsync` |
+| Thread app bindings | `thread/appBindings/refresh` | `appBinding` | Typed | `AppBindings.RefreshThreadBindingsAsync` |
 
 When a raw-only row gains a typed wrapper, this matrix must be updated in the same change.
 
@@ -1463,11 +1468,8 @@ Future amendments may cover:
 
 - package signing and stronger package provenance;
 - a stable SDK contract version constant;
-- approval and request-user-input typed handlers;
-- high-level `RunAsync` / `RunStreamingAsync` APIs;
-- normalized turn event reducers and final text merging;
 - automatic reconnect and dynamic tool rebind policy;
-- typed wrappers for thread list, archive, delete, rename, config, goals, and maintenance;
+- typed wrappers for thread rename, config, goals, and maintenance;
 - typed wrappers for provider, workspace config, skills, plugins, commands, cron, heartbeat, MCP, external channels, subagents, memory, and Dreams;
 - full typed App Binding DTOs and helpers for start, cancel, revoke, refresh, list, and view methods;
 - generated .NET protocol DTOs from a shared AppServer schema;

@@ -6,6 +6,7 @@ export {
   APP_BINDING_ERROR_CODES,
   appBindingToolError,
   appBindingUnavailableError,
+  parseAppBindingHandoff,
   DotCraft,
   DotCraftThread,
 } from "./dotcraft.js";
@@ -20,6 +21,7 @@ export type {
   AppConnectionStartResult,
   AppConnectionStatus,
   AppHandoff,
+  ParsedAppBindingHandoff,
   AppInfo,
   AppScopeDescriptor,
   AppToolCatalogEntry,
@@ -29,6 +31,8 @@ export type {
   DotCraftRunEvent,
   DotCraftRunEventBase,
   DotCraftRunResult,
+  ModelInfo,
+  ModelManager,
   DynamicToolBinding,
   DynamicToolCallRequest,
   DynamicToolCallResult,
@@ -80,5 +84,5 @@ export {
 } from "./models.js";
 export type { Unsubscribe } from "./client.js";
 
-export const version = "0.1.6";
+export const version = "0.2.1";
 export const sdkContractVersion = "1.0.0";

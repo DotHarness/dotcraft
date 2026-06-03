@@ -13,17 +13,23 @@ public sealed class DotCraftClient : IAsyncDisposable
 {
     private readonly ConcurrentDictionary<string, Func<DynamicToolCall, CancellationToken, Task<DynamicToolResult>>> _dynamicToolHandlers = new(StringComparer.Ordinal);
     private Func<DynamicToolCall, CancellationToken, Task<DynamicToolResult>>? _fallbackDynamicToolHandler;
+    private readonly ApprovalHandler? _approvalHandler;
+    private readonly UserInputHandler? _userInputHandler;
 
-    private DotCraftClient(DotCraftWireClient wire, AppServerInitializeResult initializeResult)
+    private DotCraftClient(DotCraftWireClient wire, AppServerInitializeResult initializeResult, DotCraftClientOptions options)
     {
         Wire = wire;
         ServerInfo = initializeResult.ServerInfo;
         Capabilities = initializeResult.Capabilities;
+        _approvalHandler = options.ApprovalHandler;
+        _userInputHandler = options.UserInputHandler;
         Threads = new DotCraftThreadClient(this);
         Turns = new DotCraftTurnClient(this);
         Models = new DotCraftModelClient(this);
         AppBindings = new DotCraftAppBindingClient(this);
         Wire.RegisterServerRequestHandler("item/tool/call", HandleDynamicToolCallAsync);
+        Wire.RegisterServerRequestHandler("item/approval/request", HandleApprovalRequestAsync);
+        Wire.RegisterServerRequestHandler("item/tool/requestUserInput", HandleUserInputRequestAsync);
     }
 
     /// <summary>
@@ -119,10 +125,16 @@ public sealed class DotCraftClient : IAsyncDisposable
         DotCraftClientOptions? options = null,
         CancellationToken cancellationToken = default)
     {
+        var effectiveOptions = options ?? new DotCraftClientOptions();
+        if (effectiveOptions.UserInputHandler is not null)
+        {
+            effectiveOptions.RequestUserInputSupport = true;
+        }
+
         var wire = new DotCraftWireClient(transport);
         wire.Start();
-        var initializeResult = await wire.InitializeAsync(options ?? new DotCraftClientOptions(), cancellationToken);
-        return new DotCraftClient(wire, initializeResult);
+        var initializeResult = await wire.InitializeAsync(effectiveOptions, cancellationToken);
+        return new DotCraftClient(wire, initializeResult, effectiveOptions);
     }
 
     /// <summary>
@@ -226,6 +238,37 @@ public sealed class DotCraftClient : IAsyncDisposable
         }
     }
 
+    private async Task<object?> HandleApprovalRequestAsync(ServerRequest request, CancellationToken cancellationToken)
+    {
+        if (_approvalHandler is null)
+        {
+            return new { decision = ApprovalDecision.Accept.Value };
+        }
+
+        var approval = new ApprovalRequest(
+            JsonElementReaders.ReadString(request.Params, "threadId") ?? string.Empty,
+            JsonElementReaders.ReadString(request.Params, "turnId"),
+            JsonElementReaders.ReadString(request.Params, "callId"),
+            request.Params);
+        var decision = await _approvalHandler(approval, cancellationToken);
+        return new { decision = decision.Value };
+    }
+
+    private async Task<object?> HandleUserInputRequestAsync(ServerRequest request, CancellationToken cancellationToken)
+    {
+        if (_userInputHandler is null)
+        {
+            return new { answers = new Dictionary<string, object?>() };
+        }
+
+        var input = new UserInputRequest(
+            JsonElementReaders.ReadString(request.Params, "threadId") ?? string.Empty,
+            JsonElementReaders.ReadString(request.Params, "turnId"),
+            request.Params);
+        var response = await _userInputHandler(input, cancellationToken);
+        return new { answers = response.Answers };
+    }
+
     private static string ToolKey(string threadId, string? @namespace, string toolName) =>
         $"{threadId}\u0000{@namespace ?? string.Empty}\u0000{toolName}";
 
@@ -268,7 +311,7 @@ public sealed class DotCraftThreadClient(DotCraftClient client)
                  ?? JsonElementReaders.ReadString(result, "threadId")
                  ?? JsonElementReaders.ReadNestedString(result, "thread", "id")
                  ?? throw new InvalidOperationException("DotCraft AppServer did not return a thread id.");
-        return new DotCraftThread(id, thread.Clone());
+        return new DotCraftThread(client, id, thread.Clone());
     }
 
     /// <summary>
@@ -286,7 +329,38 @@ public sealed class DotCraftThreadClient(DotCraftClient client)
         var id = JsonElementReaders.ReadString(thread, "id")
                  ?? JsonElementReaders.ReadString(thread, "threadId")
                  ?? request.ThreadId;
-        return new DotCraftThread(id, thread.Clone());
+        return new DotCraftThread(client, id, thread.Clone());
+    }
+
+    /// <summary>
+    /// Lists threads visible to the connected workspace.
+    /// </summary>
+    public async Task<IReadOnlyList<DotCraftThreadSummary>> ListAsync(bool includeArchived = false, CancellationToken cancellationToken = default)
+    {
+        var result = await client.RequestAsync("thread/list", new { includeArchived }, cancellationToken);
+        var array = result.TryGetProperty("threads", out var threads)
+            ? threads
+            : result.TryGetProperty("data", out var data)
+                ? data
+                : result.TryGetProperty("items", out var items)
+                    ? items
+                    : result;
+        if (array.ValueKind != JsonValueKind.Array)
+        {
+            return [];
+        }
+
+        return array.EnumerateArray()
+            .Where(thread => thread.ValueKind == JsonValueKind.Object)
+            .Select(thread => new DotCraftThreadSummary(
+                JsonElementReaders.ReadString(thread, "id")
+                ?? JsonElementReaders.ReadString(thread, "threadId")
+                ?? string.Empty,
+                JsonElementReaders.ReadString(thread, "status"),
+                JsonElementReaders.ReadString(thread, "displayName"),
+                thread.Clone()))
+            .Where(summary => summary.Id.Length > 0)
+            .ToArray();
     }
 
     /// <summary>

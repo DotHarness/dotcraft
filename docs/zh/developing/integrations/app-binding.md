@@ -63,5 +63,5 @@ App Binding 适用于任何注册了 OS 协议、并支持 AppServer 交接的�
 ## 参见
 
 - [构建应用](./build-an-app)——面向插件与原生应用构建者的开发指南。
-- [SDK](../sdks/) 与 [.NET SDK](../sdks/dotnet)——客户端库与 App Binding 辅助方法。
+- [SDK](../sdks/)——客户端库（.NET、TypeScript、Python），均带 App Binding 辅助方法。
 - [插件与工具](../../features/agent-system/plugins-tools)——插件如何打包应用。

@@ -2,7 +2,32 @@
 
 DotCraft SDKs are language bindings over the same AppServer protocol. They let applications, native apps, tools, and external channels connect to a workspace, reuse persistent threads, stream turn events, and participate in approvals without reimplementing Session Core.
 
-All SDKs share the same AppServer and Hub model. Language-specific pages describe package shape, runtime behavior, and available helpers.
+## Get started
+
+::: code-group
+
+```bash [TypeScript]
+npm install @dotcraft/sdk
+```
+
+```bash [.NET]
+dotnet add package DotCraft.Sdk
+```
+
+```bash [Python]
+pip install dotcraft
+```
+
+:::
+
+Then follow the [Quickstart](./quickstart) to connect, start a thread, and run your first turn.
+
+## Guide
+
+- [Quickstart](./quickstart) — install, connect, run a turn, stream events.
+- [Threads & runs](./runs) — thread lifecycle, run options, and the normalized event model.
+- [Tools & approvals](./tools) — runtime dynamic tools and approval / user-input callbacks.
+- [Channel adapters](./channels) — build external channels (TypeScript and Python).
 
 ## Common Model
 
@@ -13,9 +38,27 @@ All SDKs build on the same layers:
 | Hub bootstrap | Finds or starts the local Hub and ensures a workspace AppServer when using local mode. |
 | AppServer JSON-RPC | Carries `initialize`, thread and turn methods, notifications, server requests, and raw escape-hatch calls. |
 | Session Core | Provides the durable `Thread -> Turn -> Item` model, approvals, event ordering, and persisted history. |
-| SDK binding | Adds language-idiomatic clients, helpers, callbacks, stream reducers, and typed wrappers where available. |
+| SDK binding | Adds language-idiomatic clients, helpers, callbacks, stream reducers, and typed wrappers. |
 
-Use the SDK when you want a client library. Use [AppServer Protocol](../protocols/appserver-protocol) directly when you are implementing a new transport, debugging the wire protocol, or need complete control over JSON-RPC messages.
+Use the SDK when you want a client library. Use the [AppServer Protocol](../protocols/appserver-protocol) directly when you are implementing a new transport, debugging the wire protocol, or need complete control over JSON-RPC messages.
+
+## Capability Snapshot
+
+The [SDK specification](https://github.com/DotHarness/dotcraft/blob/master/specs/sdk/sdk.md) tracks the full cross-language parity matrix.
+
+| Capability | TypeScript | .NET | Python |
+|------------|------------|------|--------|
+| Local Hub-managed connection | `DotCraft.local()` | `DotCraftClient.ConnectLocalAsync()` | `DotCraft.connect_local()` |
+| Remote WebSocket connection | `DotCraft.remote()` | `DotCraftClient.ConnectRemoteAsync()` | `DotCraft.connect_remote()` |
+| Raw AppServer request | `request()` | `RequestAsync()` | `request()` |
+| High-level one-turn run | `thread.run()` / `runStreamed()` | `RunAsync()` / `RunStreamedAsync()` | `thread.run()` / `run_streamed()` |
+| Normalized streaming events | `DotCraftRunEvent` + raw | `DotCraftRunEvent` + raw | `RunEvent` + raw |
+| Approval & user-input callbacks | Typed handlers | Typed handlers | Typed handlers |
+| Runtime Dynamic Tools | Declaration + typed callbacks | Declaration + typed callbacks | Declaration + typed callbacks |
+| App Binding helpers | Typed/generic + handoff parse | Typed/generic + handoff parse | Typed/generic + handoff parse |
+| Channel adapter runtime | First-party TypeScript runtime | Not applicable | Channel adapter base class |
+
+SDKs should not duplicate server authority. AppServer remains the source of truth for thread state, queue behavior, approvals, model catalog resolution, and persistence.
 
 ## Event Topology
 
@@ -23,36 +66,17 @@ SDK clients consume AppServer notifications and sometimes answer server-initiate
 
 ![DotCraft SDK event topology](/sdk-event-topology.svg)
 
-TypeScript `runStreamed()` normalizes common wire notifications into `DotCraftRunEvent` values and keeps unknown notifications as `raw`. .NET currently exposes raw notifications, so applications implement their own reducer when they need final text merging or terminal-run handling.
+All three SDKs normalize common wire notifications into run events (`DotCraftRunEvent` in TypeScript and .NET, `RunEvent` in Python) and keep unknown notifications as `raw`, while still exposing the raw notification stream for advanced clients.
 
-## SDK Choices
+## Reference
 
-| SDK | Package | Best for | Notes |
-|-----|---------|----------|-------|
-| [TypeScript](./typescript) | `@dotcraft/sdk` | Node.js applications, first-party TypeScript channel modules, high-level run helpers. | Most complete high-level app surface today, including `run()` / `runStreamed()`, callback handlers, Hub helpers, and channel runtime components. |
-| [.NET](./dotnet) | `DotCraft.Sdk` | Native apps, App Binding integrations, C# tools, and typed AppServer clients. | Strong local/remote connection, thread/turn/model wrappers, runtime dynamic tools, App Binding helpers, and raw notification access. |
-| [Python](./python) | `dotcraft_wire` | Python external channel adapters and wire protocol clients. | Preserved as the Python adapter/wire SDK, including stdio/WebSocket transports, approvals, delivery, channel tools, and a Telegram reference adapter. |
+Per-language package details — identity, exports/namespaces, runtime baseline, version, and language-specific profiles:
 
-## Capability Snapshot
-
-| Capability | TypeScript | .NET |
-|------------|------------|------|
-| Local Hub-managed connection | Typed `DotCraft.local()` | Typed `DotCraftClient.ConnectLocalAsync()` |
-| Remote WebSocket connection | Typed `DotCraft.remote()` | Typed `DotCraftClient.ConnectRemoteAsync()` |
-| Raw AppServer request | `request()` / wire client | `RequestAsync()` / wire client |
-| Streaming notifications | Normalized run events plus raw messages | Raw `AppServerNotification` stream |
-| High-level one-turn run | `run()` / `runStreamed()` | Not yet available |
-| Runtime Dynamic Tools | Declaration plus typed callbacks | Declaration plus `RegisterDynamicToolHandler` |
-| Approval and user input callbacks | High-level handlers | Register low-level server request handlers today |
-| App Binding helpers | Typed/generic helpers | First-class native-app helper surface |
-| Channel adapter runtime | First-party TypeScript channel runtime | Not in .NET |
-
-SDKs should not duplicate server authority. AppServer remains the source of truth for thread state, queue behavior, approvals, model catalog resolution, and persistence.
+- [TypeScript](./typescript) — `@dotcraft/sdk`
+- [.NET](./dotnet) — `DotCraft.Sdk`
+- [Python](./python) — `dotcraft`
 
 ## Further Reading
 
-- [TypeScript SDK](./typescript)
-- [.NET SDK](./dotnet)
-- [Python SDK](./python)
 - [AppServer Protocol](../protocols/appserver-protocol)
 - [Hub Local Coordination](../lifecycle/hub)

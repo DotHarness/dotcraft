@@ -1,191 +1,41 @@
-# @dotcraft/sdk (TypeScript)
+# TypeScript SDK reference
 
-The DotCraft TypeScript SDK serves three audiences:
+Package identity and language-specific details for `@dotcraft/sdk`. For how-to, start with the [Quickstart](./quickstart).
 
-- Application developers: connect with `DotCraft.local()` / `DotCraft.remote()` and run threads.
-- Protocol clients: use `@dotcraft/sdk/wire` for raw AppServer JSON-RPC access.
-- Channel authors: use `@dotcraft/sdk/channel` to build external social channel modules.
+## Package
 
-The TypeScript SDK follows the shared AppServer and Hub model while providing TypeScript-specific packages and helpers. The Python SDK keeps its `dotcraft_wire` package name.
-
-## Packages and Entry Points
-
-```typescript
-import { DotCraft, textPart, skillRefPart } from "@dotcraft/sdk";
-import { DotCraftWireClient, WebSocketTransport } from "@dotcraft/sdk/wire";
-import { HubClient } from "@dotcraft/sdk/hub";
-import { ModuleChannelAdapter } from "@dotcraft/sdk/channel";
-import { runModuleConformanceSuite } from "@dotcraft/sdk/testing";
-```
-
-First-party channel packages:
-
-- `@dotcraft/channel-feishu`
-- `@dotcraft/channel-weixin`
-- `@dotcraft/channel-telegram`
-- `@dotcraft/channel-qq`
-- `@dotcraft/channel-wecom`
-
-## Install
+| | |
+|---|---|
+| Package | `@dotcraft/sdk` (npm) |
+| Module format | ESM (`"type": "module"`) |
+| Runtime baseline | Node.js 20+ |
+| Version | `version`, `sdkContractVersion` exported from the package |
 
 ```bash
-cd sdk/typescript
-npm install
-npm run build
+npm install @dotcraft/sdk
 ```
 
-Repository-local package dependency:
+## Entry points
 
-```json
-{
-  "dependencies": {
-    "@dotcraft/sdk": "*"
-  }
-}
-```
+The package is split into subpath exports so apps only pull in what they use:
 
-## Local Hub Quickstart
+| Entry point | Purpose |
+|-------------|---------|
+| `@dotcraft/sdk` | High-level application API (`DotCraft`, `DotCraftThread`, run, events). |
+| `@dotcraft/sdk/wire` | Low-level JSON-RPC client, transports, raw DTOs. |
+| `@dotcraft/sdk/hub` | Hub discovery, startup, and SSE helpers. |
+| `@dotcraft/sdk/channel` | Channel adapter and hosted module runtime. |
+| `@dotcraft/sdk/testing` | Conformance test helpers. |
 
-`DotCraft.local()` discovers or starts the local Hub, ensures the workspace AppServer, connects to its WebSocket endpoint, and performs `initialize` / `initialized`.
+## Top-level exports
 
-```typescript
-import { DotCraft } from "@dotcraft/sdk";
+`DotCraft`, `DotCraftThread`, `DotCraftRunResult`, `DotCraftRunEvent`, `DotCraftError`, the typed error classes (`TurnInProgressError`, `TurnFailedError`, …), input part builders (`textPart`, `imageUrlPart`, `localImagePart`, `skillRefPart`, `commandRefPart`, `fileRefPart`), App Binding helpers (`parseAppBindingHandoff`, `appBindingToolError`, `APP_BINDING_ERROR_CODES`), and the approval decision constants.
 
-const dotcraft = await DotCraft.local({
-  workspacePath: "E:/examples/workspace",
-  approvalHandler: async (request) => {
-    console.log("approval requested", request);
-    return "decline";
-  },
-});
+## Channel modules
 
-const thread = await dotcraft.threads.getOrCreate({ userId: "me" });
-const result = await thread.run("Summarize this workspace.");
+TypeScript owns the first-party hosted channel modules, each depending on `@dotcraft/sdk`:
 
-console.log(result.text);
-await dotcraft.close();
-```
-
-Production applications should always provide an explicit `approvalHandler`. If omitted, the SDK keeps the compatibility default and returns `accept`, which is useful for tests and non-interactive scripts but should not be treated as a production approval policy.
-
-## Remote WebSocket
-
-```typescript
-import { DotCraft } from "@dotcraft/sdk";
-
-const dotcraft = await DotCraft.remote({
-  url: "ws://127.0.0.1:9100/ws",
-  token: "",
-});
-```
-
-If the URL already includes a `token` query parameter, the SDK does not append another one.
-
-## Threads and Runs
-
-```typescript
-const thread = await dotcraft.threads.start({
-  userId: "alice",
-  displayName: "Build review",
-});
-
-for await (const event of thread.runStreamed("Review the current diff.")) {
-  if (event.type === "agent_message_delta") process.stdout.write(event.delta ?? "");
-  if (event.type === "completed") console.log(event.result?.text);
-}
-```
-
-`run()` returns merged final text. `runStreamed()` yields normalized events and preserves raw JSON-RPC messages. The SDK does not automatically parse `/command`, `$skill`, or `@file` text; callers should explicitly use `commandRefPart()`, `skillRefPart()`, `fileRefPart()`, or raw command APIs. For the shared SDK event topology, see [SDKs](./#event-topology).
-
-## Dynamic Tools
-
-Runtime dynamic tools are declared and bound together: each item includes both the wire descriptor and a local `handler`. The SDK registers handlers before `thread/start` or `thread/resume`, and strips handlers from the descriptor sent to the server.
-
-```typescript
-const thread = await dotcraft.threads.start({
-  userId: "alice",
-  dynamicTools: [
-    {
-      namespace: "local",
-      name: "Echo",
-      description: "Echo input.",
-      inputSchema: { type: "object" },
-      handler: async (request) => ({
-        success: true,
-        contentItems: [{ type: "text", text: JSON.stringify(request.arguments) }],
-      }),
-    },
-  ],
-});
-```
-
-Pair deferred tools with `additionalContext` when the model needs a short hint to search for the relevant tool first. The value is rendered as app context, not as a higher-priority instruction.
-
-```typescript
-const thread = await dotcraft.threads.start({
-  userId: "alice",
-  dynamicTools: [
-    {
-      namespace: "issues",
-      name: "ListIssues",
-      description: "List issues from the connected issue tracker.",
-      inputSchema: { type: "object" },
-      deferLoading: true,
-      handler: async () => ({
-        success: true,
-        contentItems: [{ type: "text", text: "No open issues." }],
-      }),
-    },
-  ],
-  additionalContext: {
-    "issues.threadGuidance": {
-      kind: "application",
-      value: "When the user asks about issues, search for the relevant issues tool first.",
-    },
-  },
-});
-
-await dotcraft.threads.resume(thread.id, { additionalContext: {} });
-```
-
-Check `capabilities.runtimeAdditionalContext` before using this field. On resume, omitting `additionalContext` keeps the current runtime context; `{}` clears it.
-
-## Raw Wire API
-
-```typescript
-import { DotCraftWireClient, WebSocketTransport } from "@dotcraft/sdk/wire";
-
-const client = new DotCraftWireClient(new WebSocketTransport({ url: "ws://127.0.0.1:9100/ws" }));
-await client.connect();
-await client.initialize({ clientName: "raw-client", clientVersion: "0.1.0" });
-
-const threads = await client.threadList({ channelName: "sdk", userId: "me" });
-const raw = await client.request("thread/read", { threadId: threads[0]?.id });
-```
-
-For paged thread management, use the page-shaped wrapper when you need the next cursor:
-
-```typescript
-const page = await client.threadListPage({ channelName: "sdk", userId: "me", limit: 20 });
-const older = await client.threadRead(page.threads[0].id, true, { turnLimit: 10, cursor: "opaque-cursor" });
-```
-
-## Channel Modules
-
-For host-side module loading and lifecycle integration, see [TypeScript Module Integration](../integrations/typescript-module). First-party channel packages depend on `@dotcraft/sdk` and import from subpaths:
-
-```typescript
-import { textPart } from "@dotcraft/sdk";
-import { WebSocketTransport } from "@dotcraft/sdk/wire";
-import { ModuleChannelAdapter } from "@dotcraft/sdk/channel";
-```
-
-`@dotcraft/sdk/channel` also exports stable channel runtime components: `ThreadResolver`, `ChannelMessageQueue`, `CommandRouter`, `TurnStreamReducer`, `DeliveryDispatcher`, `ChannelToolDispatcher`, `ApprovalDispatcher`, `ModuleConfigLoader`, and `ModuleLifecycleState`. First-party channel packages use them through `ChannelAdapter` by default; new channels can reach for them directly when they need custom thread resolution, command routing, segmented streaming, or module lifecycle behavior.
-
-## Debugging
-
-- Pass `debugStream: true` in `ChannelAdapter` options. Logs use `[dotcraft-sdk:adapter-stream]`.
-- Call `configureTextMergeDebug(true)`. Merge traces use `[dotcraft-sdk:text-merge]`.
+`@dotcraft/channel-feishu`, `@dotcraft/channel-weixin`, `@dotcraft/channel-telegram`, `@dotcraft/channel-qq`, `@dotcraft/channel-wecom`. See [Channel adapters](./channels).
 
 ## Validation
 
@@ -193,7 +43,9 @@ import { ModuleChannelAdapter } from "@dotcraft/sdk/channel";
 cd sdk/typescript
 npm run typecheck:all
 npm run test:all
-npm run pack:verify
 ```
 
-MIT
+## See also
+
+- [Quickstart](./quickstart) · [Threads & runs](./runs) · [Tools & approvals](./tools) · [Channel adapters](./channels)
+- TypeScript binding spec: `specs/sdk/typescript.md`

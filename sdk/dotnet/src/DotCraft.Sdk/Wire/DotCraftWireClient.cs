@@ -13,9 +13,12 @@ public sealed class DotCraftWireClient : IAsyncDisposable
     private readonly IJsonRpcTransport _transport;
     private readonly ConcurrentDictionary<long, TaskCompletionSource<JsonElement>> _pending = new();
     private readonly ConcurrentDictionary<string, Func<ServerRequest, CancellationToken, Task<object?>>> _serverRequestHandlers = new(StringComparer.Ordinal);
-    private readonly Channel<AppServerNotification> _notifications = Channel.CreateUnbounded<AppServerNotification>();
+    private readonly ConcurrentDictionary<long, Action<AppServerNotification>> _notificationHandlers = new();
+    private readonly Channel<AppServerNotification> _notifications = Channel.CreateBounded<AppServerNotification>(
+        new BoundedChannelOptions(1024) { FullMode = BoundedChannelFullMode.DropOldest, SingleWriter = true });
     private readonly CancellationTokenSource _disposeCts = new();
     private long _nextId;
+    private long _nextNotificationHandlerId;
     private Task? _readerTask;
     private bool _disposed;
 
@@ -45,6 +48,18 @@ public sealed class DotCraftWireClient : IAsyncDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(method);
         _serverRequestHandlers[method] = handler;
         return new DisposableAction(() => _serverRequestHandlers.TryRemove(method, out _));
+    }
+
+    /// <summary>
+    /// Registers a handler that receives every AppServer notification. Handlers must be fast and
+    /// non-blocking; they run on the wire read loop. Returns a disposable that unregisters the handler.
+    /// </summary>
+    public IDisposable RegisterNotificationHandler(Action<AppServerNotification> handler)
+    {
+        ArgumentNullException.ThrowIfNull(handler);
+        var id = Interlocked.Increment(ref _nextNotificationHandlerId);
+        _notificationHandlers[id] = handler;
+        return new DisposableAction(() => _notificationHandlers.TryRemove(id, out _));
     }
 
     /// <summary>
@@ -234,7 +249,20 @@ public sealed class DotCraftWireClient : IAsyncDisposable
                 return;
             }
 
-            _notifications.Writer.TryWrite(new AppServerNotification(method, parameters));
+            var notification = new AppServerNotification(method, parameters);
+            foreach (var handler in _notificationHandlers.Values)
+            {
+                try
+                {
+                    handler(notification);
+                }
+                catch
+                {
+                    // Notification handlers must not break the read loop.
+                }
+            }
+
+            _notifications.Writer.TryWrite(notification);
         }
     }
 

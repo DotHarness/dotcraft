@@ -106,6 +106,10 @@ const enSidebar: DefaultTheme.Sidebar = [
         collapsed: false,
         items: [
           { text: withIcon('package', 'Overview'), link: '/developing/sdks/' },
+          { text: withIcon('rocket', 'Quickstart'), link: '/developing/sdks/quickstart' },
+          { text: withIcon('workflow', 'Threads & Runs'), link: '/developing/sdks/runs' },
+          { text: withIcon('puzzle', 'Tools & Approvals'), link: '/developing/sdks/tools' },
+          { text: withIcon('satelliteDish', 'Channel Adapters'), link: '/developing/sdks/channels' },
           { text: withIcon('typescript', 'TypeScript'), link: '/developing/sdks/typescript' },
           { text: withIcon('fileCode', '.NET'), link: '/developing/sdks/dotnet' },
           { text: withIcon('python', 'Python'), link: '/developing/sdks/python' }
@@ -241,6 +245,10 @@ const zhSidebar: DefaultTheme.Sidebar = [
         collapsed: false,
         items: [
           { text: withIcon('package', '总览'), link: '/zh/developing/sdks/' },
+          { text: withIcon('rocket', '快速开始'), link: '/zh/developing/sdks/quickstart' },
+          { text: withIcon('workflow', '线程与运行'), link: '/zh/developing/sdks/runs' },
+          { text: withIcon('puzzle', '工具与审批'), link: '/zh/developing/sdks/tools' },
+          { text: withIcon('satelliteDish', '渠道适配器'), link: '/zh/developing/sdks/channels' },
           { text: withIcon('typescript', 'TypeScript'), link: '/zh/developing/sdks/typescript' },
           { text: withIcon('fileCode', '.NET'), link: '/zh/developing/sdks/dotnet' },
           { text: withIcon('python', 'Python'), link: '/zh/developing/sdks/python' }

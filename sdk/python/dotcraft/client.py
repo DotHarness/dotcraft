@@ -10,6 +10,7 @@ from typing import Any, AsyncIterator, Callable, Coroutine
 from .models import (
     InitializeResult,
     JsonRpcMessage,
+    ModelInfo,
     Thread,
     Turn,
 )
@@ -50,6 +51,9 @@ class DotCraftClient:
         self._handlers: dict[str, list[Handler]] = {}
         self._request_handlers: dict[str, RequestHandler] = {}
         self._approval_handler: RequestHandler | None = None
+        self._user_input_handler: RequestHandler | None = None
+        self._dynamic_tool_handlers: dict[str, Callable] = {}
+        self._fallback_dynamic_tool_handler: Callable | None = None
         self._reader_task: asyncio.Task | None = None
         self._initialized = False
 
@@ -88,11 +92,14 @@ class DotCraftClient:
         client_title: str | None = None,
         approval_support: bool = True,
         streaming_support: bool = True,
+        request_user_input_support: bool = False,
+        config_change: bool = False,
         opt_out_notifications: list[str] | None = None,
         channel_name: str | None = None,
         delivery_support: bool = True,
         delivery_capabilities: dict | None = None,
         channel_tools: list[dict] | None = None,
+        extra_capabilities: dict | None = None,
     ) -> InitializeResult:
         """
         Perform the initialize / initialized handshake.
@@ -107,6 +114,12 @@ class DotCraftClient:
             "approvalSupport": approval_support,
             "streamingSupport": streaming_support,
         }
+        if request_user_input_support:
+            capabilities["requestUserInputSupport"] = True
+        if config_change:
+            capabilities["configChange"] = True
+        if extra_capabilities:
+            capabilities.update(extra_capabilities)
         if opt_out_notifications:
             capabilities["optOutNotificationMethods"] = opt_out_notifications
         if channel_name:
@@ -149,6 +162,7 @@ class DotCraftClient:
         channel_context: str = "",
         display_name: str | None = None,
         history_mode: str = "server",
+        dynamic_tools: list[dict] | None = None,
     ) -> Thread:
         """Create a new thread."""
         identity: dict = {
@@ -166,13 +180,18 @@ class DotCraftClient:
         }
         if display_name is not None:
             params["displayName"] = display_name
+        if dynamic_tools:
+            params["dynamicTools"] = dynamic_tools
 
         result = await self._request("thread/start", params)
         return Thread.from_wire(result["thread"])
 
-    async def thread_resume(self, thread_id: str) -> Thread:
+    async def thread_resume(self, thread_id: str, dynamic_tools: list[dict] | None = None) -> Thread:
         """Resume a paused thread."""
-        result = await self._request("thread/resume", {"threadId": thread_id})
+        params: dict = {"threadId": thread_id}
+        if dynamic_tools:
+            params["dynamicTools"] = dynamic_tools
+        result = await self._request("thread/resume", params)
         return Thread.from_wire(result["thread"])
 
     async def thread_list(
@@ -277,12 +296,37 @@ class DotCraftClient:
         result = await self._request("turn/start", params)
         return Turn.from_wire(result["turn"])
 
+    async def turn_enqueue(
+        self,
+        thread_id: str,
+        input: list[dict],
+        sender: dict | None = None,
+    ) -> dict:
+        """Enqueue input to run after the active turn finishes."""
+        params: dict = {
+            "threadId": thread_id,
+            "input": input,
+        }
+        if sender:
+            params["sender"] = sender
+        return await self._request("turn/enqueue", params)
+
     async def turn_interrupt(self, thread_id: str, turn_id: str) -> None:
         """Request cancellation of an in-progress turn."""
         await self._request("turn/interrupt", {
             "threadId": thread_id,
             "turnId": turn_id,
         })
+
+    async def model_list(self) -> list[ModelInfo]:
+        """List available models from the connected AppServer (``model/list``)."""
+        result = await self._request("model/list", {})
+        items = None
+        if isinstance(result, dict):
+            items = result.get("models") or result.get("items")
+        elif isinstance(result, list):
+            items = result
+        return [ModelInfo.from_wire(m) for m in (items or []) if isinstance(m, dict)]
 
     async def command_list(self, language: str | None = None) -> list[dict]:
         """List commands exposed by the server command registry."""
@@ -437,6 +481,69 @@ class DotCraftClient:
                 self.unregister_handler(m, h)
 
     # ------------------------------------------------------------------
+    # Raw escape hatch
+    # ------------------------------------------------------------------
+
+    async def request(self, method: str, params: dict | None = None) -> Any:
+        """Send a raw JSON-RPC request and return the result. Public escape hatch."""
+        return await self._request(method, params)
+
+    async def notify(self, method: str, params: dict | None = None) -> None:
+        """Send a raw JSON-RPC notification."""
+        await self._notify(method, params or {})
+
+    # ------------------------------------------------------------------
+    # User-input and runtime dynamic tool callbacks
+    # ------------------------------------------------------------------
+
+    @property
+    def on_user_input_request(self) -> Callable:
+        """Decorator to register the user-input request handler.
+
+        The handler receives (request_id, params) and returns an answers dict.
+        """
+        def decorator(fn: RequestHandler) -> RequestHandler:
+            self._user_input_handler = fn
+            return fn
+        return decorator
+
+    def register_dynamic_tool_handler(
+        self,
+        handler: Callable,
+        thread_id: str | None = None,
+        namespace: str | None = None,
+        tool: str | None = None,
+    ) -> Callable[[], None]:
+        """Register a runtime dynamic tool handler.
+
+        With no thread_id/tool, registers a catch-all fallback. Returns an unregister callable.
+        The handler receives a call dict and returns a result dict
+        (``{"success": True, "contentItems": [...], "structuredResult": {...}}``
+        or ``{"success": False, "errorCode": "...", "errorMessage": "..."}``).
+        """
+        if thread_id is None and tool is None:
+            self._fallback_dynamic_tool_handler = handler
+
+            def _unregister_fallback() -> None:
+                if self._fallback_dynamic_tool_handler is handler:
+                    self._fallback_dynamic_tool_handler = None
+
+            return _unregister_fallback
+
+        key = self._tool_key(thread_id or "", namespace, tool or "")
+        self._dynamic_tool_handlers[key] = handler
+
+        def _unregister() -> None:
+            if self._dynamic_tool_handlers.get(key) is handler:
+                self._dynamic_tool_handlers.pop(key, None)
+
+        return _unregister
+
+    @staticmethod
+    def _tool_key(thread_id: str, namespace: str | None, tool: str) -> str:
+        return f"{thread_id}\x00{namespace or ''}\x00{tool}"
+
+    # ------------------------------------------------------------------
     # Internal: JSON-RPC primitives
     # ------------------------------------------------------------------
 
@@ -574,6 +681,25 @@ class DotCraftClient:
                 await self._send_response(request_id, {"decision": "cancel"})
             return
 
+        # User-input request (Plan Mode and tools)
+        if method == "item/tool/requestUserInput":
+            handler = self._user_input_handler
+            if handler is None:
+                await self._send_response(request_id, {"answers": {}})
+                return
+            try:
+                answers = await handler(request_id, params)
+                await self._send_response(request_id, {"answers": answers or {}})
+            except Exception as e:
+                logger.error("User-input handler error: %s", e)
+                await self._send_response(request_id, {"answers": {}})
+            return
+
+        # Runtime dynamic tool call
+        if method == "item/tool/call":
+            await self._send_response(request_id, await self._handle_dynamic_tool_call(params))
+            return
+
         # Heartbeat: always respond immediately
         if method == "ext/channel/heartbeat":
             await self._send_response(request_id, {})
@@ -592,3 +718,28 @@ class DotCraftClient:
         except Exception as e:
             logger.error("Server request handler error for %s: %s", method, e)
             await self._send_error_response(request_id, -32603, str(e))
+
+    async def _handle_dynamic_tool_call(self, params: dict) -> dict:
+        """Route a server-initiated item/tool/call to a registered dynamic tool handler."""
+        thread_id = params.get("threadId", "")
+        namespace = params.get("namespace")
+        tool = params.get("tool", "")
+        key = self._tool_key(thread_id, namespace, tool)
+        handler = self._dynamic_tool_handlers.get(key) or self._fallback_dynamic_tool_handler
+        if handler is None:
+            return {
+                "success": False,
+                "errorCode": "UnsupportedTool",
+                "errorMessage": "No handler registered for this runtime dynamic tool.",
+            }
+        try:
+            result = handler(params)
+            if asyncio.iscoroutine(result):
+                result = await result
+            return result
+        except Exception as e:
+            return {
+                "success": False,
+                "errorCode": "AdapterToolCallFailed",
+                "errorMessage": str(e),
+            }

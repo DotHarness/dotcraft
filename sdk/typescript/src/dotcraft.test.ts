@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   DotCraft,
+  parseAppBindingHandoff,
   type ApprovalDecision,
   type ApprovalHandler,
   type DynamicToolCallResult,
@@ -91,6 +92,15 @@ class FakeWire {
   async turnInterrupt(threadId: string, turnId: string): Promise<void> {
     this.interrupted = { threadId, turnId };
     this.releaseAfterInterrupt?.();
+  }
+
+  async request<T>(method: string): Promise<T> {
+    if (method === "model/list") {
+      return {
+        models: [{ id: "claude-opus-4-8", displayName: "Claude Opus 4.8", provider: "anthropic" }],
+      } as T;
+    }
+    return {} as T;
   }
 
   async turnEnqueue(_threadId: string, input: unknown, sender: unknown): Promise<Record<string, unknown>> {
@@ -274,4 +284,34 @@ test("DotCraftThread runStreamed interrupts the active turn on abort", async () 
 
   assert.deepEqual(seen, ["turn_started", "cancelled"]);
   assert.deepEqual(wire.interrupted, { threadId: "thread-1", turnId: "turn-1" });
+});
+
+test("parseAppBindingHandoff extracts fields and validates scheme and appId", () => {
+  const handoff = parseAppBindingHandoff(
+    "oratorio://dotcraft/connect?app=com.dotharness.oratorio&request=req_1&token=tok_1&endpoint=ws://127.0.0.1:1234/x",
+    { expectedScheme: "oratorio", expectedAppId: "com.dotharness.oratorio" },
+  );
+  assert.equal(handoff.operation, "connect");
+  assert.equal(handoff.appId, "com.dotharness.oratorio");
+  assert.equal(handoff.requestId, "req_1");
+  assert.equal(handoff.requestToken, "tok_1");
+  assert.equal(handoff.appServerUrl, "ws://127.0.0.1:1234/x");
+});
+
+test("parseAppBindingHandoff rejects an unexpected scheme", () => {
+  assert.throws(() =>
+    parseAppBindingHandoff("evil://dotcraft/connect?app=x&request=r&token=t", {
+      expectedScheme: "oratorio",
+    }),
+  );
+});
+
+test("DotCraft models.list returns typed model info", async () => {
+  const wire = new FakeWire();
+  const sdk = createSdk(wire);
+  const models = await sdk.models.list();
+  assert.equal(models.length, 1);
+  assert.equal(models[0].id, "claude-opus-4-8");
+  assert.equal(models[0].displayName, "Claude Opus 4.8");
+  assert.equal(models[0].provider, "anthropic");
 });

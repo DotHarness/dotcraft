@@ -91,7 +91,7 @@ Key rules:
 
 ### 2. Handle the Handoff in the Native App
 
-DotCraft launches your registered protocol (it never spawns an executable). The app parses the URL, inspects the request over the short-lived handoff endpoint, accepts it, and attaches tools. With the [.NET SDK](../sdks/dotnet):
+DotCraft launches your registered protocol (it never spawns an executable). The app parses the URL, inspects the request over the short-lived handoff endpoint, accepts it, and attaches tools. App Binding is a protocol, not a language — the [.NET](../sdks/dotnet), [TypeScript](../sdks/typescript), and [Python](../sdks/python) SDKs each parse the handoff into the same fields, and any language can speak it directly over the [AppServer Protocol](../protocols/appserver-protocol). The example below uses the .NET SDK:
 
 ```csharp
 var handoff = AppBindingHandoff.Parse(handoffUrl, expectedScheme: "oratorio", expectedAppId: "com.dotharness.oratorio");
@@ -115,7 +115,7 @@ await client.AppBindings.AcceptBindingAsync<JsonElement>(new {
 // Attach concrete tool specs, then keep the connection alive by draining notifications.
 ```
 
-The full RPC surface is in the [.NET SDK](../sdks/dotnet) and the [SDK overview](../sdks/). The same flow is available to any language over the [AppServer Protocol](../protocols/appserver-protocol).
+The same handoff parser exists in every SDK — TypeScript's `parseAppBindingHandoff(url)` and Python's `AppBindingHandoff.parse(url)` return the same `appId` / `requestId` / `requestToken` / `appServerUrl` fields — and each SDK exposes the App Binding RPC surface (`get binding request`, `accept`, `attach tools`). See the [SDK overview](../sdks/), or call the methods directly over the [AppServer Protocol](../protocols/appserver-protocol).
 
 ## Binding Flow
 
@@ -160,11 +160,11 @@ Servers advertise `capabilities.appBinding: true`. Check it before calling any `
 | Thread management | `thread/appBindings/{list,revoke,refresh}`, `thread/appContextBlocks/list` |
 | Notifications | `app/list/updated`, `app/connection/changed`, `thread/appBindings/changed` |
 
-For typed parameters and results, use the [.NET SDK](../sdks/dotnet) or the [AppServer Protocol](../protocols/appserver-protocol). Persisted App Binding state lives at `.craft/app-bindings/state.json`.
+For typed parameters and results, use any [DotCraft SDK](../sdks/) or the [AppServer Protocol](../protocols/appserver-protocol). Persisted App Binding state lives at `.craft/app-bindings/state.json`.
 
 ## See Also
 
 - [App Binding](./app-binding) — the user-facing overview.
-- [SDKs](../sdks/) and [.NET SDK](../sdks/dotnet) — client libraries and App Binding helpers.
+- [SDKs](../sdks/) — client libraries (.NET, TypeScript, Python), each with App Binding helpers.
 - [AppServer Protocol](../protocols/appserver-protocol) — the wire contract behind every SDK.
 - [Plugins & Tools](../../features/agent-system/plugins-tools) — how plugins package apps.

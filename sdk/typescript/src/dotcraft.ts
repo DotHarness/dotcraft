@@ -330,6 +330,58 @@ export function appBindingUnavailableError(
   );
 }
 
+/** A parsed App Binding deep-link handoff. Parallel to the .NET and Python SDK helpers. */
+export interface ParsedAppBindingHandoff {
+  scheme: string;
+  operation: string;
+  appId: string;
+  requestId: string;
+  requestToken: string;
+  appServerUrl?: string;
+}
+
+/**
+ * Parse an App Binding handoff URL such as
+ * `app://dotcraft/connect?app=...&request=...&token=...&endpoint=...`.
+ *
+ * Deep links are activation hints, not authorization: always inspect the request
+ * over AppServer before rendering confirmation or accepting.
+ */
+export function parseAppBindingHandoff(
+  url: string,
+  options?: { expectedScheme?: string; expectedAppId?: string },
+): ParsedAppBindingHandoff {
+  const parsed = new URL(url);
+  const scheme = parsed.protocol.replace(/:$/, "");
+  if (options?.expectedScheme && scheme !== options.expectedScheme) {
+    throw new Error(`Unexpected handoff scheme '${scheme}', expected '${options.expectedScheme}'.`);
+  }
+
+  const operation = parsed.pathname.replace(/^\//, "");
+  const query = parsed.searchParams;
+  const first = (...keys: string[]): string | undefined => {
+    for (const key of keys) {
+      const value = query.get(key);
+      if (value) return value;
+    }
+    return undefined;
+  };
+
+  const appId = first("app", "appId") ?? "";
+  if (options?.expectedAppId && appId !== options.expectedAppId) {
+    throw new Error(`Unexpected handoff appId '${appId}', expected '${options.expectedAppId}'.`);
+  }
+
+  return {
+    scheme,
+    operation,
+    appId,
+    requestId: first("request", "requestId") ?? "",
+    requestToken: first("token", "requestToken") ?? "",
+    appServerUrl: first("endpoint", "appServer"),
+  };
+}
+
 export interface StartThreadOptions extends ThreadIdentityOptions {
   displayName?: string | null;
   historyMode?: string;
@@ -807,9 +859,37 @@ class AppBindingManagerImpl implements AppBindingManager {
   }
 }
 
+export interface ModelInfo {
+  id: string;
+  displayName: string;
+  provider?: string | null;
+}
+
+export interface ModelManager {
+  list(): Promise<ModelInfo[]>;
+}
+
+class ModelManagerImpl implements ModelManager {
+  constructor(private readonly sdk: DotCraft) {}
+
+  async list(): Promise<ModelInfo[]> {
+    const result = await this.sdk.request<{ models?: unknown[]; items?: unknown[] }>("model/list", {});
+    const items = (result.models ?? result.items ?? []) as unknown[];
+    return items
+      .filter((m): m is Record<string, unknown> => typeof m === "object" && m !== null)
+      .map((m) => ({
+        id: String(m.id ?? m.modelId ?? m.name ?? ""),
+        displayName: String(m.displayName ?? m.name ?? m.id ?? ""),
+        provider: (m.provider as string | undefined) ?? null,
+      }))
+      .filter((m) => m.id.length > 0);
+  }
+}
+
 export class DotCraft {
   readonly threads: ThreadManager;
   readonly appBindings: AppBindingManager;
+  readonly models: ModelManager;
 
   private constructor(
     readonly wire: DotCraftWireClient,
@@ -820,6 +900,7 @@ export class DotCraft {
   ) {
     this.threads = new ThreadManagerImpl(this);
     this.appBindings = new AppBindingManagerImpl(this);
+    this.models = new ModelManagerImpl(this);
     this.installServerRequestHandlers();
   }
 
