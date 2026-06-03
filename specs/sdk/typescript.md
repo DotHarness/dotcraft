@@ -5,7 +5,7 @@
 | **Version** | 0.1.0 |
 | **Status** | Living |
 | **Date** | 2026-05-18 |
-| **Related Specs** | [Unified SDK Specification](sdk.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Hub Architecture](../runtime/hub-architecture.md), [External Channel Adapter](../protocols/external-channel-adapter.md), [Session Core](../core/session-core.md), [Plugin Architecture](../extensions/plugin-architecture.md) |
+| **Related Specs** | [Unified SDK Specification](sdk.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Hub Architecture](../runtime/hub-architecture.md), [External Channel Adapter](../protocols/external-channel-adapter.md), [Session Core](../core/session-core.md), [.NET SDK Binding](dotnet.md), [Python SDK Binding](python.md), [Plugin Architecture](../extensions/plugin-architecture.md) |
 
 Purpose: Define the TypeScript binding, package contract, Node.js runtime requirements, channel runtime, documentation model, and compatibility strategy for `@dotcraft/sdk`.
 
@@ -228,6 +228,8 @@ The top-level package exports:
 - `DotCraftError`
 - `HubClientError`
 - `TurnInProgressError`
+- `parseAppBindingHandoff`
+- `appBindingToolError`
 - `textPart`
 - `imageUrlPart`
 - `localImagePart`
@@ -1418,15 +1420,9 @@ A future implementation phase may evaluate whether Desktop should share the SDK 
 
 ### 22.3 Python SDK Relationship
 
-The Python SDK remains valid. The TypeScript SDK should preserve conceptual parity where it makes sense:
+The Python SDK is a full peer general-purpose SDK (see [Python SDK Binding](python.md)). The TypeScript and Python SDKs maintain parallel surfaces per [Unified SDK Specification §2.1](sdk.md#21-parallel-surface-idiomatic-casing), including connection, raw client, transports, Hub local bootstrap, the Run profile, approval and user-input handling, event streaming, App Binding helpers, and the channel adapter.
 
-- transports;
-- raw client;
-- channel adapter;
-- approval handling;
-- event streaming.
-
-The TypeScript SDK additionally owns Hub local bootstrap and first-party TypeScript channel module integration.
+TypeScript additionally owns the first-party **hosted** channel module runtime (manifests, module lifecycle, Desktop-managed startup), which remains a TypeScript-only sub-profile.
 
 ---
 

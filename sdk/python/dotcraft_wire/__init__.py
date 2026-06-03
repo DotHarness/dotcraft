@@ -1,14 +1,16 @@
 """
-dotcraft_wire — Python SDK for the DotCraft AppServer Wire Protocol.
+dotcraft_wire — compatibility alias for the DotCraft Python SDK.
 
-Public API::
-
-    from dotcraft_wire import DotCraftClient, StdioTransport, WebSocketTransport, ChannelAdapter
+The canonical package is now ``dotcraft``. This module re-exports the low-level
+wire client, transports, channel adapter, models, and constants so existing
+``from dotcraft_wire import ...`` imports keep working. New code should import
+from ``dotcraft``.
 """
 
-from .adapter import ChannelAdapter
-from .client import DotCraftClient, DotCraftError
-from .models import (
+from dotcraft import __version__
+from dotcraft.adapter import ChannelAdapter
+from dotcraft.client import DotCraftClient, DotCraftError
+from dotcraft.models import (
     DECISION_ACCEPT,
     DECISION_ACCEPT_ALWAYS,
     DECISION_ACCEPT_FOR_SESSION,
@@ -30,7 +32,7 @@ from .models import (
     local_image_part,
     text_part,
 )
-from .transport import (
+from dotcraft.transport import (
     StdioTransport,
     Transport,
     TransportClosed,
@@ -38,20 +40,28 @@ from .transport import (
     WebSocketTransport,
 )
 
-__version__ = "0.1.0"
+# Preserve `dotcraft_wire.<submodule>` import paths and attributes used by existing code.
+import sys as _sys  # noqa: E402
+from dotcraft import adapter, client, models, transport, turn_reply  # noqa: E402,F401
+
+for _alias, _module in {
+    "dotcraft_wire.adapter": adapter,
+    "dotcraft_wire.client": client,
+    "dotcraft_wire.models": models,
+    "dotcraft_wire.transport": transport,
+    "dotcraft_wire.turn_reply": turn_reply,
+}.items():
+    _sys.modules.setdefault(_alias, _module)
 
 __all__ = [
-    # Core classes
     "DotCraftClient",
     "DotCraftError",
     "ChannelAdapter",
-    # Transports
     "Transport",
     "StdioTransport",
     "WebSocketTransport",
     "TransportError",
     "TransportClosed",
-    # Models
     "JsonRpcMessage",
     "SessionIdentity",
     "Thread",
@@ -59,17 +69,14 @@ __all__ = [
     "InitializeResult",
     "ServerInfo",
     "ServerCapabilities",
-    # Input part helpers
     "text_part",
     "image_url_part",
     "local_image_part",
-    # Approval decisions
     "DECISION_ACCEPT",
     "DECISION_ACCEPT_FOR_SESSION",
     "DECISION_ACCEPT_ALWAYS",
     "DECISION_DECLINE",
     "DECISION_CANCEL",
-    # Error codes
     "ERR_THREAD_NOT_FOUND",
     "ERR_THREAD_NOT_ACTIVE",
     "ERR_TURN_IN_PROGRESS",

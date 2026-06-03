@@ -46,6 +46,17 @@ public class DotCraftClientOptions
     /// Additional client capability fields merged into the initialize request.
     /// </summary>
     public IReadOnlyDictionary<string, object?>? ExtraCapabilities { get; set; }
+
+    /// <summary>
+    /// Optional handler for server-initiated approval requests. When unset, approvals auto-accept.
+    /// </summary>
+    public ApprovalHandler? ApprovalHandler { get; set; }
+
+    /// <summary>
+    /// Optional handler for server-initiated user-input requests. When unset, the SDK returns empty answers.
+    /// Providing a handler also advertises <c>requestUserInputSupport</c>.
+    /// </summary>
+    public UserInputHandler? UserInputHandler { get; set; }
 }
 
 /// <summary>
@@ -137,11 +148,6 @@ public sealed record DotCraftThreadResumeRequest(
 public sealed record RuntimeAdditionalContextEntry(
     string Value,
     string Kind = "application");
-
-/// <summary>
-/// AppServer thread result with raw thread JSON.
-/// </summary>
-public sealed record DotCraftThread(string Id, JsonElement Raw);
 
 /// <summary>
 /// AppServer thread/read result with raw thread JSON.

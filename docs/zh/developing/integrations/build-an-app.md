@@ -91,7 +91,7 @@ App Binding 有四个明确的层级。把它们分开，正是访问从"默认�
 
 ### 2. 在原生应用中处理交接
 
-DotCraft 会拉起你注册的协议（它绝不直接 spawn 可执行文件）。应用解析 URL，通过短时的交接端点检视请求，接受请求并挂载工具。使用 [.NET SDK](../sdks/dotnet)：
+DotCraft 会拉起你注册的协议（它绝不直接 spawn 可执行文件）。应用解析 URL，通过短时的交接端点检视请求，接受请求并挂载工具。App Binding 是协议而非某种语言——[.NET](../sdks/dotnet)、[TypeScript](../sdks/typescript)、[Python](../sdks/python) 三个 SDK 都能把交接解析成相同字段，任意语言也可直接通过 [AppServer 协议](../protocols/appserver-protocol) 对接。下面以 .NET SDK 为例：
 
 ```csharp
 var handoff = AppBindingHandoff.Parse(handoffUrl, expectedScheme: "oratorio", expectedAppId: "com.dotharness.oratorio");
@@ -115,7 +115,7 @@ await client.AppBindings.AcceptBindingAsync<JsonElement>(new {
 // 挂载具体工具规格，然后持续消费通知以保持连接存活。
 ```
 
-完整 RPC 在 [.NET SDK](../sdks/dotnet) 与 [SDK 总览](../sdks/) 中。同样的流程可通过 [AppServer 协议](../protocols/appserver-protocol) 用任意语言实现。
+每个 SDK 都有同样的交接解析器——TypeScript 的 `parseAppBindingHandoff(url)` 与 Python 的 `AppBindingHandoff.parse(url)` 返回相同的 `appId` / `requestId` / `requestToken` / `appServerUrl` 字段——并各自提供 App Binding 的 RPC（检视绑定请求、接受、挂载工具）。详见 [SDK 总览](../sdks/)，或直接通过 [AppServer 协议](../protocols/appserver-protocol) 调用。
 
 ## 绑定流程
 
@@ -160,11 +160,11 @@ App Binding context blocks 使用 `app/binding/context/*`。它们是已接受�
 | 线程管理 | `thread/appBindings/{list,revoke,refresh}`、`thread/appContextBlocks/list` |
 | 通知 | `app/list/updated`、`app/connection/changed`、`thread/appBindings/changed` |
 
-类型化的参数与返回值见 [.NET SDK](../sdks/dotnet) 或 [AppServer 协议](../protocols/appserver-protocol)。持久化的 App Binding 状态位于 `.craft/app-bindings/state.json`。
+类型化的参数与返回值可使用任意 [DotCraft SDK](../sdks/) 或 [AppServer 协议](../protocols/appserver-protocol)。持久化的 App Binding 状态位于 `.craft/app-bindings/state.json`。
 
 ## 参见
 
 - [App Binding](./app-binding)——面向用户的概览。
-- [SDK](../sdks/) 与 [.NET SDK](../sdks/dotnet)——客户端库与 App Binding 辅助方法。
+- [SDK](../sdks/)——客户端库（.NET、TypeScript、Python），均带 App Binding 辅助方法。
 - [AppServer 协议](../protocols/appserver-protocol)——每个 SDK 背后的线协议契约。
 - [插件与工具](../../features/agent-system/plugins-tools)——插件如何打包应用。
