@@ -1229,7 +1229,7 @@ Choose the next concrete action that advances the goal. Before doing substantial
 
             var currentWorktree = thread.Worktree;
             var localWorkspace = ResolveLocalWorkspacePath(thread);
-            var dirtyHandoff = await ThreadWorktreeManager.CopyDirtyChangesBackAndRemoveAsync(
+            var dirtyHandoff = await ThreadWorktreeManager.MoveBranchBackToLocalAndRemoveAsync(
                 currentWorktree,
                 localWorkspace,
                 ct,

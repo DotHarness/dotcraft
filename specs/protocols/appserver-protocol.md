@@ -1256,7 +1256,7 @@ Semantics:
 - The thread must be Active and must not have a running turn, waiting approval/input, or active blocking maintenance.
 - Local -> worktree creates a managed worktree, copies local dirty changes by default, sets `thread.worktree`, and sets `configuration.executionWorkspaceOverride`.
 - Worktree -> local checks local dirty conflicts first. If a local dirty path would be overwritten, the request fails with `WorktreeHandoffConflict` and `params.conflictPaths`.
-- When no conflict exists, worktree -> local copies modified, deleted, and non-ignored untracked worktree changes back to the local workspace, clears `thread.worktree`, clears `configuration.executionWorkspaceOverride`, and removes the registered managed worktree.
+- When no conflict exists, worktree -> local stashes modified, deleted, and non-ignored untracked worktree changes, detaches the worktree from its branch, checks out the worktree branch in the local workspace, applies the stashed changes locally, clears `thread.worktree`, clears `configuration.executionWorkspaceOverride`, and removes the registered managed worktree.
 - After success, the server emits `thread/updated` with the updated compact thread.
 
 #### 4.19.4 `worktree/list`

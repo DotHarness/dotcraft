@@ -380,8 +380,10 @@ Worktree execution:
 - Worktree indicators are compact status affordances. They should reveal branch/path details when useful without visually dominating the conversation.
 - The composer may expose worktree and branch controls in a compact footer below the input chrome. These controls are outside the editable composer body.
 - On the welcome screen, `Work locally` starts a normal local thread. `New worktree` calls `worktree/createAndStart`; its branch selector chooses the worktree `baseRef` and must not switch the local checkout.
-- On an existing local thread, the footer can call `thread/worktree/handoff` with `mode = "worktree"`. On an existing worktree thread, it can call the same method with `mode = "local"`.
-- Worktree -> local handoff brings the worktree's uncommitted changes back to the local workspace. If local dirty changes conflict, Desktop shows the server error and does not switch UI state.
+- On an existing local thread, the footer opens a confirmation dialog before calling `thread/worktree/handoff` with `mode = "worktree"`. The branch field defaults to `dotcraft/<workspace-folder-slug>`, and the current branch is sent as `baseRef`.
+- On an existing worktree thread, the footer opens a confirmation dialog before calling `thread/worktree/handoff` with `mode = "local"`. The dialog presents the worktree branch and local workspace target.
+- Desktop may show a local progress checklist while a handoff request is pending. These checklist rows are presentation hints and are not protocol progress notifications.
+- Worktree -> local handoff checks out the worktree branch locally, applies the worktree's uncommitted changes back to the local workspace, and removes the managed worktree. If local dirty changes conflict, Desktop shows the server error and does not switch UI state.
 - Branch checkout and create-and-checkout controls operate on the current effective Git directory. Local mode operates on the main workspace; worktree mode operates on the selected thread's worktree path.
 - Desktop hides or disables worktree and branch controls for remote workspaces, missing capabilities, non-Git directories, and threads that are running, waiting for approval/input, or in blocking maintenance.
 

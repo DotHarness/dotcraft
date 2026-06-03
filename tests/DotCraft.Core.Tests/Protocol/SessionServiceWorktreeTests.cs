@@ -233,6 +233,7 @@ public sealed class SessionServiceWorktreeTests : IDisposable
         Assert.Equal("worktree note" + Environment.NewLine, File.ReadAllText(Path.Combine(_tempDir, "notes.txt")));
         Assert.False(File.Exists(Path.Combine(_tempDir, "remove.txt")));
         Assert.False(Directory.Exists(worktreePath));
+        Assert.Equal("dotcraft/handoff-back", RunGitCapture(_tempDir, "branch", "--show-current").Trim());
 
         var loaded = await _store.LoadThreadAsync(thread.Id);
         Assert.Null(loaded?.Worktree);

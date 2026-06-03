@@ -118,7 +118,7 @@ internal static class ThreadWorktreeManager
         };
     }
 
-    public static async Task<ThreadWorktreeDirtyHandoffInfo> CopyDirtyChangesBackAndRemoveAsync(
+    public static async Task<ThreadWorktreeDirtyHandoffInfo> MoveBranchBackToLocalAndRemoveAsync(
         ThreadWorktreeInfo worktree,
         string targetWorkspace,
         CancellationToken ct,
@@ -139,6 +139,9 @@ internal static class ThreadWorktreeManager
             NormalizeAbsolutePath(targetWorkspace, nameof(targetWorkspace)),
             ct,
             logger).ConfigureAwait(false);
+        var branchName = string.IsNullOrWhiteSpace(worktree.BranchName)
+            ? throw new InvalidOperationException("Worktree branch name is required for local handoff.")
+            : worktree.BranchName.Trim();
         var sourceEntries = await ReadDirtyEntriesAsync(worktreePath, ct, logger).ConfigureAwait(false);
         var targetEntries = await ReadDirtyEntriesAsync(targetRoot, ct, logger).ConfigureAwait(false);
         var conflicts = DetectDirtyConflicts(sourceEntries, targetEntries);
@@ -149,17 +152,88 @@ internal static class ThreadWorktreeManager
                 conflicts);
         }
 
-        var handoff = await CopyDirtyChangesAsync(worktreePath, targetRoot, ct, logger).ConfigureAwait(false);
-        var removeResult = await GitProcessRunner.RunAsync(
-            targetRoot,
-            ["worktree", "remove", "--force", worktreePath],
-            GitWorktreeTimeout,
-            ct,
-            logger: logger).ConfigureAwait(false);
-        if (removeResult.ExitCode != 0)
-            throw new InvalidOperationException($"Failed to remove git worktree: {TrimGitError(removeResult)}");
+        var stashRef = sourceEntries.Count > 0
+            ? await StashDirtyChangesAsync(worktreePath, worktree.Id, ct, logger).ConfigureAwait(false)
+            : null;
 
-        return handoff;
+        var detached = false;
+        var localSwitched = false;
+        var stashAppliedLocally = false;
+        var targetOriginalBranch = await GitReadAsync(
+            targetRoot,
+            ["branch", "--show-current"],
+            ct,
+            logger).ConfigureAwait(false);
+        var targetOriginalHead = string.IsNullOrWhiteSpace(targetOriginalBranch)
+            ? await GitReadAsync(targetRoot, ["rev-parse", "HEAD"], ct, logger).ConfigureAwait(false)
+            : string.Empty;
+        try
+        {
+            await RunGitRequiredAsync(
+                worktreePath,
+                ["switch", "--detach"],
+                GitTimeout,
+                "Failed to detach worktree branch",
+                ct,
+                logger).ConfigureAwait(false);
+            detached = true;
+
+            await RunGitRequiredAsync(
+                targetRoot,
+                ["switch", branchName],
+                GitTimeout,
+                $"Failed to check out branch '{branchName}' locally",
+                ct,
+                logger).ConfigureAwait(false);
+            localSwitched = true;
+
+            if (stashRef != null)
+            {
+                await RunGitRequiredAsync(
+                    targetRoot,
+                    ["stash", "apply", stashRef],
+                    GitTimeout,
+                    "Failed to apply worktree changes locally",
+                    ct,
+                    logger).ConfigureAwait(false);
+                stashAppliedLocally = true;
+                await TryRunGitAsync(
+                    targetRoot,
+                    ["stash", "drop", stashRef],
+                    ct,
+                    logger).ConfigureAwait(false);
+            }
+
+            await RunGitRequiredAsync(
+                targetRoot,
+                ["worktree", "remove", "--force", worktreePath],
+                GitWorktreeTimeout,
+                "Failed to remove git worktree",
+                ct,
+                logger).ConfigureAwait(false);
+        }
+        catch
+        {
+            if (localSwitched && !stashAppliedLocally)
+            {
+                if (!string.IsNullOrWhiteSpace(targetOriginalBranch))
+                    await TryRunGitAsync(targetRoot, ["switch", targetOriginalBranch], ct, logger).ConfigureAwait(false);
+                else if (!string.IsNullOrWhiteSpace(targetOriginalHead))
+                    await TryRunGitAsync(targetRoot, ["switch", "--detach", targetOriginalHead], ct, logger).ConfigureAwait(false);
+            }
+            if (detached && !stashAppliedLocally)
+            {
+                await TryRunGitAsync(worktreePath, ["switch", branchName], ct, logger).ConfigureAwait(false);
+                if (stashRef != null)
+                {
+                    await TryRunGitAsync(worktreePath, ["stash", "apply", stashRef], ct, logger).ConfigureAwait(false);
+                    await TryRunGitAsync(worktreePath, ["stash", "drop", stashRef], ct, logger).ConfigureAwait(false);
+                }
+            }
+            throw;
+        }
+
+        return BuildDirtyHandoffInfo(sourceEntries);
     }
 
     public static async Task<ThreadWorktreeStatus> GetStatusAsync(
@@ -381,6 +455,71 @@ internal static class ThreadWorktreeManager
         };
     }
 
+    private static ThreadWorktreeDirtyHandoffInfo BuildDirtyHandoffInfo(
+        IReadOnlyList<GitStatusEntry> entries)
+    {
+        var copied = 0;
+        var deleted = 0;
+        foreach (var entry in entries)
+        {
+            if (entry.Deleted)
+                deleted++;
+            else
+                copied++;
+        }
+
+        return new ThreadWorktreeDirtyHandoffInfo
+        {
+            Requested = true,
+            Status = WorktreeDirtyHandoffStatuses.Succeeded,
+            CopiedFileCount = copied,
+            DeletedFileCount = deleted
+        };
+    }
+
+    private static async Task<string> StashDirtyChangesAsync(
+        string worktreePath,
+        string worktreeId,
+        CancellationToken ct,
+        ILogger? logger)
+    {
+        var message = $"dotcraft-worktree-handoff:{worktreeId}:{Guid.NewGuid():N}";
+        await RunGitRequiredAsync(
+            worktreePath,
+            ["stash", "push", "--include-untracked", "--message", message],
+            GitTimeout,
+            "Failed to stash worktree changes",
+            ct,
+            logger).ConfigureAwait(false);
+
+        return await FindStashRefAsync(worktreePath, message, ct, logger).ConfigureAwait(false);
+    }
+
+    private static async Task<string> FindStashRefAsync(
+        string workingDirectory,
+        string message,
+        CancellationToken ct,
+        ILogger? logger)
+    {
+        var result = await GitProcessRunner.RunAsync(
+            workingDirectory,
+            ["stash", "list", "--format=%gd%x00%gs"],
+            GitTimeout,
+            ct,
+            logger: logger).ConfigureAwait(false);
+        if (result.ExitCode != 0)
+            throw new InvalidOperationException($"Failed to find worktree handoff stash: {TrimGitError(result)}");
+
+        foreach (var line in result.StdOut.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var parts = line.Split('\0', 2);
+            if (parts.Length == 2 && parts[1].Contains(message, StringComparison.Ordinal))
+                return parts[0].Trim();
+        }
+
+        throw new InvalidOperationException("Failed to find worktree handoff stash after creating it.");
+    }
+
     private static async Task<IReadOnlyList<GitStatusEntry>> ReadDirtyEntriesAsync(
         string root,
         CancellationToken ct,
@@ -558,6 +697,45 @@ internal static class ThreadWorktreeManager
             ct,
             logger: logger).ConfigureAwait(false);
         return result.ExitCode == 0 ? result.StdOut.Trim() : string.Empty;
+    }
+
+    private static async Task RunGitRequiredAsync(
+        string workingDirectory,
+        IReadOnlyList<string> args,
+        TimeSpan timeout,
+        string failurePrefix,
+        CancellationToken ct,
+        ILogger? logger)
+    {
+        var result = await GitProcessRunner.RunAsync(
+            workingDirectory,
+            args,
+            timeout,
+            ct,
+            logger: logger).ConfigureAwait(false);
+        if (result.ExitCode != 0)
+            throw new InvalidOperationException($"{failurePrefix}: {TrimGitError(result)}");
+    }
+
+    private static async Task TryRunGitAsync(
+        string workingDirectory,
+        IReadOnlyList<string> args,
+        CancellationToken ct,
+        ILogger? logger)
+    {
+        try
+        {
+            _ = await GitProcessRunner.RunAsync(
+                workingDirectory,
+                args,
+                GitTimeout,
+                ct,
+                logger: logger).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            logger?.LogWarning(ex, "Failed to run git cleanup command during worktree handoff.");
+        }
     }
 
     private static string NormalizeAbsolutePath(string path, string paramName)

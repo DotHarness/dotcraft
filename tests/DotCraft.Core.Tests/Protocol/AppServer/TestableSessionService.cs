@@ -337,7 +337,7 @@ internal sealed class TestableSessionService : ISessionService, IThreadAgentRefr
         ThreadWorktreeDirtyHandoffInfo? dirtyHandoff = null;
         if (thread.Worktree != null)
         {
-            dirtyHandoff = await ThreadWorktreeManager.CopyDirtyChangesBackAndRemoveAsync(
+            dirtyHandoff = await ThreadWorktreeManager.MoveBranchBackToLocalAndRemoveAsync(
                 thread.Worktree,
                 thread.Configuration?.WorkspaceOverride ?? thread.WorkspacePath,
                 ct);

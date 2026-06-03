@@ -3,9 +3,9 @@ import { createPortal } from 'react-dom'
 import { Check, ChevronDown, GitBranch, Laptop, Plus, Search, Shuffle } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useConnectionStore } from '../../stores/connectionStore'
-import { useThreadStore } from '../../stores/threadStore'
 import { addToast } from '../../stores/toastStore'
 import type { Thread } from '../../types/thread'
+import { WorktreeHandoffDialog } from './WorktreeHandoffDialog'
 
 export type ComposerWorkspaceMode = 'local' | 'worktree'
 
@@ -104,6 +104,20 @@ function branchNameError(value: string, t: ReturnType<typeof useT>): string | nu
   return null
 }
 
+function workspaceSlug(path: string): string {
+  const trimmed = path.trim().replace(/[\\/]+$/, '')
+  const leaf = trimmed.split(/[\\/]+/).filter(Boolean).pop() || 'worktree'
+  const slug = leaf
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+  return slug || 'worktree'
+}
+
+function defaultWorktreeBranchName(path: string): string {
+  return `dotcraft/${workspaceSlug(path)}`
+}
+
 export function ComposerWorkspaceFooter({
   workspacePath,
   mode,
@@ -125,6 +139,7 @@ export function ComposerWorkspaceFooter({
   const [branchQuery, setBranchQuery] = useState('')
   const [busy, setBusy] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
+  const [handoffMode, setHandoffMode] = useState<ComposerWorkspaceMode | null>(null)
   const [branchDraft, setBranchDraft] = useState('dotcraft/')
   const footerRef = useRef<HTMLDivElement>(null)
   const canUseWorktrees = capabilities?.gitWorktrees === true && !remoteWorkspace
@@ -135,6 +150,7 @@ export function ComposerWorkspaceFooter({
     || thread?.runtime?.waitingOnInput === true
     || Boolean(thread?.runtime?.maintenanceKind)
   const branchActionPath = workspacePath.trim()
+  const localWorkspacePath = thread?.worktree?.workspacePath || thread?.workspacePath || branchActionPath
   const selectedBaseRef = baseRef || currentBranchLabel(branches)
   const branchLabel = mode === 'worktree' && variant === 'welcome'
     ? (worktreeBranchName || selectedBaseRef || t('workspaceFooter.branchUnknown'))
@@ -203,36 +219,6 @@ export function ComposerWorkspaceFooter({
     if (!query) return values
     return values.filter((branch) => branch.name.toLowerCase().includes(query))
   }, [branchQuery, branches])
-
-  async function handoff(nextMode: ComposerWorkspaceMode): Promise<void> {
-    if (!thread || busy || threadBusy || !canUseWorktrees) return
-    setBusy(true)
-    setOpenMenu(null)
-    try {
-      const result = await window.api.appServer.sendRequest(
-        'thread/worktree/handoff',
-        { threadId: thread.id, mode: nextMode },
-        180_000
-      ) as { thread?: Thread }
-      if (result.thread) {
-        useThreadStore.getState().upsertThreads([result.thread])
-        if (useThreadStore.getState().activeThreadId === result.thread.id) {
-          useThreadStore.getState().setActiveThread(result.thread)
-        }
-      }
-      addToast(
-        nextMode === 'worktree'
-          ? t('workspaceFooter.handoffToWorktreeSuccess')
-          : t('workspaceFooter.handoffToLocalSuccess'),
-        'success'
-      )
-      await loadBranches()
-    } catch (err) {
-      addToast(t('workspaceFooter.handoffFailed', { error: err instanceof Error ? err.message : String(err) }), 'error')
-    } finally {
-      setBusy(false)
-    }
-  }
 
   async function selectBranch(branchName: string): Promise<void> {
     setOpenMenu(null)
@@ -305,7 +291,7 @@ export function ComposerWorkspaceFooter({
               disabled={busy || (isThread && threadBusy)}
               onClick={() => {
                 if (variant === 'welcome') onWelcomeModeChange?.('local')
-                else void handoff('local')
+                else if (mode !== 'local') setHandoffMode('local')
                 setOpenMenu(null)
               }}
             />
@@ -315,7 +301,7 @@ export function ComposerWorkspaceFooter({
               disabled={!canUseWorktrees || busy || (isThread && threadBusy)}
               onClick={() => {
                 if (variant === 'welcome') onWelcomeModeChange?.('worktree')
-                else void handoff('worktree')
+                else if (mode !== 'worktree') setHandoffMode('worktree')
                 setOpenMenu(null)
               }}
             />
@@ -407,6 +393,18 @@ export function ComposerWorkspaceFooter({
           onConfirm={() => { void createBranch() }}
         />,
         document.body
+      )}
+      {variant === 'thread' && handoffMode && thread && (
+        <WorktreeHandoffDialog
+          mode={handoffMode}
+          thread={thread}
+          baseRef={currentBranchLabel(branches)}
+          defaultBranchName={defaultWorktreeBranchName(localWorkspacePath)}
+          localWorkspacePath={localWorkspacePath}
+          onBusyChange={setBusy}
+          onClose={() => setHandoffMode(null)}
+          onComplete={() => { void loadBranches() }}
+        />
       )}
     </div>
   )
