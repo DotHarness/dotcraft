@@ -40,11 +40,43 @@ function tryGetLong(value: unknown): number | null {
   return null
 }
 
-function formatAddCollapsed(args: Record<string, unknown> | undefined, locale: AppLocale): string {
-  const name = getString(args, 'name')
-  const message = getString(args, 'message') ?? tr(locale, 'cron.add.taskDefault')
-  const label = name ?? (message.length > 40 ? `${message.slice(0, 40)}…` : message)
+function formatAtCollapsed(
+  args: Record<string, unknown> | undefined,
+  label: string,
+  locale: AppLocale
+): string {
+  const delaySec = tryGetLong(args?.delaySeconds)
+  if (delaySec != null && delaySec > 0) {
+    return tr(locale, 'cron.add.scheduleIn', { label, delay: formatDuration(delaySec) })
+  }
+  return tr(locale, 'cron.add.scheduleGeneric', { label })
+}
 
+function formatEveryCollapsed(
+  args: Record<string, unknown> | undefined,
+  label: string,
+  locale: AppLocale
+): string {
+  const everySec = tryGetLong(args?.everySeconds)
+  const delaySec = tryGetLong(args?.delaySeconds)
+  if (everySec != null && everySec > 0) {
+    if (delaySec != null && delaySec > 0) {
+      return tr(locale, 'cron.add.scheduleEveryIn', {
+        label,
+        delay: formatDuration(delaySec),
+        every: formatDuration(everySec)
+      })
+    }
+    return tr(locale, 'cron.add.scheduleEvery', { label, every: formatDuration(everySec) })
+  }
+  return tr(locale, 'cron.add.scheduleGeneric', { label })
+}
+
+function formatDailyCollapsed(
+  args: Record<string, unknown> | undefined,
+  label: string,
+  locale: AppLocale
+): string {
   const dailyTime = getString(args, 'dailyTime')
   const dailyHour = tryGetLong(args?.dailyHour)
   if (dailyTime != null && dailyTime !== '') {
@@ -58,21 +90,37 @@ function formatAddCollapsed(args: Record<string, unknown> | undefined, locale: A
     const mm = String(dm).padStart(2, '0')
     return tr(locale, 'cron.add.scheduleDailyHour', { label, hh, mm, tz })
   }
+  return tr(locale, 'cron.add.scheduleGeneric', { label })
+}
+
+function formatAddCollapsed(args: Record<string, unknown> | undefined, locale: AppLocale): string {
+  const name = getString(args, 'name')
+  const message = getString(args, 'message') ?? tr(locale, 'cron.add.taskDefault')
+  const label = name ?? (message.length > 40 ? `${message.slice(0, 40)}…` : message)
+  const scheduleKind = getString(args, 'scheduleKind')?.trim().toLowerCase()
+
+  switch (scheduleKind) {
+    case 'at':
+      return formatAtCollapsed(args, label, locale)
+    case 'every':
+      return formatEveryCollapsed(args, label, locale)
+    case 'daily':
+      return formatDailyCollapsed(args, label, locale)
+  }
+
+  const dailyTime = getString(args, 'dailyTime')
+  const dailyHour = tryGetLong(args?.dailyHour)
+  if ((dailyTime != null && dailyTime !== '') || dailyHour != null) {
+    return formatDailyCollapsed(args, label, locale)
+  }
 
   const everySec = tryGetLong(args?.everySeconds)
-  const delaySec = tryGetLong(args?.delaySeconds)
   if (everySec != null && everySec > 0) {
-    if (delaySec != null && delaySec > 0) {
-      return tr(locale, 'cron.add.scheduleEveryIn', {
-        label,
-        delay: formatDuration(delaySec),
-        every: formatDuration(everySec)
-      })
-    }
-    return tr(locale, 'cron.add.scheduleEvery', { label, every: formatDuration(everySec) })
+    return formatEveryCollapsed(args, label, locale)
   }
+  const delaySec = tryGetLong(args?.delaySeconds)
   if (delaySec != null && delaySec > 0) {
-    return tr(locale, 'cron.add.scheduleIn', { label, delay: formatDuration(delaySec) })
+    return formatAtCollapsed(args, label, locale)
   }
   return tr(locale, 'cron.add.scheduleGeneric', { label })
 }
