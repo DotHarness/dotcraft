@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type JSX } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type JSX } from 'react'
 import { createPortal } from 'react-dom'
 import { Check, ChevronDown, GitBranch, Laptop, Plus, Search, Shuffle } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
@@ -29,6 +29,7 @@ interface ComposerWorkspaceFooterProps {
 }
 
 type OpenMenu = 'workspace' | 'branch' | null
+type GitAvailability = 'checking' | 'available' | 'unavailable'
 
 const footerStyle: CSSProperties = {
   display: 'flex',
@@ -119,6 +120,8 @@ export function ComposerWorkspaceFooter({
   const capabilities = useConnectionStore((s) => s.capabilities)
   const [openMenu, setOpenMenu] = useState<OpenMenu>(null)
   const [branches, setBranches] = useState<BranchListResult | null>(null)
+  const [gitAvailability, setGitAvailability] = useState<GitAvailability>('checking')
+  const [loadedBranchPath, setLoadedBranchPath] = useState<string | null>(null)
   const [branchQuery, setBranchQuery] = useState('')
   const [busy, setBusy] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
@@ -148,21 +151,47 @@ export function ComposerWorkspaceFooter({
     return () => document.removeEventListener('mousedown', closeOnOutsideClick)
   }, [])
 
-  const loadBranches = useMemo(() => async () => {
+  useEffect(() => {
+    setGitAvailability(remoteWorkspace || !branchActionPath ? 'unavailable' : 'checking')
+  }, [branchActionPath, remoteWorkspace])
+
+  const hideForUnavailableGit = useCallback(() => {
+    setBranches(null)
+    setLoadedBranchPath(null)
+    setGitAvailability('unavailable')
+    setOpenMenu(null)
+    if (variant === 'welcome') {
+      if (mode !== 'local') onWelcomeModeChange?.('local')
+      if (baseRef !== null) onBaseRefChange?.(null)
+      if (worktreeBranchName !== null) onWorktreeBranchNameChange?.(null)
+    }
+  }, [
+    baseRef,
+    mode,
+    onBaseRefChange,
+    onWelcomeModeChange,
+    onWorktreeBranchNameChange,
+    variant,
+    worktreeBranchName
+  ])
+
+  const loadBranches = useCallback(async () => {
     if (remoteWorkspace || !branchActionPath) {
-      setBranches(null)
+      hideForUnavailableGit()
       return
     }
     try {
       const next = await window.api.git.listBranches(branchActionPath)
       setBranches(next)
+      setLoadedBranchPath(branchActionPath)
+      setGitAvailability('available')
       if (variant === 'welcome' && mode === 'worktree' && !baseRef) {
         onBaseRefChange?.(currentBranchLabel(next))
       }
     } catch {
-      setBranches(null)
+      hideForUnavailableGit()
     }
-  }, [baseRef, branchActionPath, mode, onBaseRefChange, remoteWorkspace, variant])
+  }, [baseRef, branchActionPath, hideForUnavailableGit, mode, onBaseRefChange, remoteWorkspace, variant])
 
   useEffect(() => {
     void loadBranches()
@@ -251,7 +280,7 @@ export function ComposerWorkspaceFooter({
     }
   }
 
-  if (remoteWorkspace) return null
+  if (remoteWorkspace || gitAvailability !== 'available' || loadedBranchPath !== branchActionPath) return null
 
   return (
     <div ref={footerRef} style={footerStyle}>

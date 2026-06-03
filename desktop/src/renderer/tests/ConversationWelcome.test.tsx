@@ -873,6 +873,40 @@ describe('ConversationWelcome composer', () => {
     expect(useUIStore.getState().pendingWelcomeTurn?.threadId).toBe('thread-worktree-start')
   })
 
+  it('hides the workspace footer for non-git workspaces and starts locally', async () => {
+    useConnectionStore.setState({
+      capabilities: {
+        commandManagement: true,
+        skillsManagement: true,
+        modelCatalogManagement: true,
+        workspaceConfigManagement: true,
+        gitWorktrees: true,
+        extensions: {
+          welcomeSuggestions: true
+        }
+      }
+    })
+    gitListBranches.mockRejectedValue(new Error('not a git repository'))
+
+    renderWelcome()
+
+    await waitFor(() => {
+      expect(gitListBranches).toHaveBeenCalled()
+    })
+    expect(screen.queryByRole('button', { name: /Work locally/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: /main/ })).toBeNull()
+
+    const textbox = await screen.findByRole('textbox')
+    textbox.textContent = 'Start from a plain folder'
+    fireEvent.input(textbox)
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+
+    await waitFor(() => {
+      expect(appServerSendRequest.mock.calls.some((entry) => entry[0] === 'thread/start')).toBe(true)
+    })
+    expect(appServerSendRequest.mock.calls.some((entry) => entry[0] === 'worktree/createAndStart')).toBe(false)
+  })
+
   it('waits for selected welcome app bindings before storing the first pending turn', async () => {
     useConnectionStore.setState({
       status: 'connected',
