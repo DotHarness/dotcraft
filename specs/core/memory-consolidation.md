@@ -62,7 +62,7 @@ If short-term compaction has already replaced older history with summaries, clea
 
 When consolidation is implemented as a same-model maintenance fork, DotCraft may preserve the full model-visible tool schema from the active agent request so provider prompt-cache shape remains stable. Tool-schema stability is not the security boundary. The execution layer must enforce a consolidation-specific policy that rejects all tool calls except scoped file reads, searches, writes, and edits for the memory files described below.
 
-Maintenance forks keep provider-facing cache identity attached to the active thread id, but they may use a fork-local internal prompt-cache state path. This lets a tool-executing consolidation fork reuse the main conversation's stable prefix while advancing its own task/tool-result tail breakpoints across continuation calls. The fork-local state path must not change `prompt_cache_key`, OAuth `session-id` / `thread-id`, or dashboard trace session ownership.
+Maintenance forks keep provider-facing cache identity attached to the active thread id, but they may use a fork-local internal prompt-cache state path. Tool-executing consolidation forks use the prompt-cache `writeThrough` mode so they can reuse the main conversation's stable prefix while advancing their own task/tool-result tail breakpoints across continuation calls. The one-shot `readOnlyPrefix` mode used by no-tool maintenance forks does not apply to consolidation forks that execute tools. The fork-local state path must not change `prompt_cache_key`, OAuth `session-id` / `thread-id`, or dashboard trace session ownership.
 
 ## 5. Persistence Contract
 

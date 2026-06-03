@@ -1188,6 +1188,91 @@ public sealed class PromptCachingChatClientTests
         Assert.Empty(store.GetEvents("thread_1:maintenance:memory_consolidation:turn_1"));
     }
 
+    [Fact]
+    public async Task UseCacheStateKey_ReadOnlyMaintenance_MarksSnapshotPrefixOnlyAndDoesNotCommit()
+    {
+        var capture = new CaptureChatClient();
+        var client = CreateClient(
+            "claude-opus-4-1",
+            capture: capture,
+            sessionKey: "thread_1");
+        const string cacheStateKey = "thread_1:maintenance:context_compaction:turn_1";
+
+        using (PromptCachingChatClient.UseCacheStateKey(
+                   cacheStateKey,
+                   traceSessionKey: "thread_1",
+                   new PromptCacheMaintenanceScope(2, PromptCacheMaintenanceWriteMode.ReadOnlyPrefix)))
+        {
+            await client.GetResponseAsync([
+                new ChatMessage(ChatRole.User, "stable prefix"),
+                new ChatMessage(ChatRole.Assistant, "stable assistant"),
+                new ChatMessage(ChatRole.User, "fork tail")
+            ]);
+        }
+
+        AssertNoCacheControl(AssertLastTextContent(capture.LastMessages![0]));
+        AssertCacheControl(AssertSingleTextContent(capture.LastMessages![1]), expectedTtl: null);
+        AssertNoCacheControl(AssertLastTextContent(capture.LastMessages![2]));
+
+        using (PromptCachingChatClient.UseCacheStateKey(
+                   cacheStateKey,
+                   traceSessionKey: "thread_1",
+                   new PromptCacheMaintenanceScope(2)))
+        {
+            var prepared = client.Prepare([
+                new ChatMessage(ChatRole.User, "stable prefix"),
+                new ChatMessage(ChatRole.Assistant, "stable assistant"),
+                new ChatMessage(ChatRole.User, "next fork tail")
+            ], null);
+
+            var snapshotPrefix = Assert.Single(
+                prepared.PendingCachePoints,
+                point => point.Trace.MessageIndex == 1);
+            Assert.False(snapshotPrefix.Trace.Remembered);
+        }
+    }
+
+    [Fact]
+    public async Task UseCacheStateKey_WriteThroughMaintenance_MarksTailAndCommitsForkState()
+    {
+        var capture = new CaptureChatClient();
+        var client = CreateClient(
+            "claude-opus-4-1",
+            capture: capture,
+            sessionKey: "thread_1");
+        const string cacheStateKey = "thread_1:maintenance:memory_consolidation:turn_1";
+
+        using (PromptCachingChatClient.UseCacheStateKey(
+                   cacheStateKey,
+                   traceSessionKey: "thread_1",
+                   new PromptCacheMaintenanceScope(2)))
+        {
+            await client.GetResponseAsync([
+                new ChatMessage(ChatRole.User, "stable prefix"),
+                new ChatMessage(ChatRole.Assistant, "stable assistant"),
+                new ChatMessage(ChatRole.User, "fork tail")
+            ]);
+        }
+
+        AssertCacheControl(AssertLastTextContent(capture.LastMessages![2]), expectedTtl: null);
+
+        using (PromptCachingChatClient.UseCacheStateKey(
+                   cacheStateKey,
+                   traceSessionKey: "thread_1",
+                   new PromptCacheMaintenanceScope(2)))
+        {
+            var prepared = client.Prepare([
+                new ChatMessage(ChatRole.User, "stable prefix"),
+                new ChatMessage(ChatRole.Assistant, "stable assistant"),
+                new ChatMessage(ChatRole.User, "next fork tail")
+            ], null);
+
+            Assert.Contains(
+                prepared.PendingCachePoints,
+                point => point.Trace.MessageIndex == 1 && point.Trace.Remembered);
+        }
+    }
+
     private static PromptCachingChatClient CreateClient(
         string model,
         string ttl = "",

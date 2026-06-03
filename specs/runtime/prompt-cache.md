@@ -126,7 +126,7 @@ Breakpoint placement contract:
 
 1. **System prompt** — marked at the end of the system message so the entire system prompt is cached as one segment.
 2. **Snapshot prefix** — marked at the last message of a captured snapshot so successive maintenance forks reuse the snapshot segment.
-3. **Maintenance fork tail** — when a maintenance fork performs multiple LLM calls, the fork keeps an internal cache-state path separate from the main conversation so tool-loop tails can advance their own remembered breakpoints without overwriting the main thread's remembered points.
+3. **Maintenance fork cache mode** — one-shot maintenance forks with no tool execution use `readOnlyPrefix`: they mark only the reusable system / snapshot prefix and do not mark the appended maintenance task tail. Tool-executing maintenance forks use `writeThrough`: they keep an internal cache-state path separate from the main conversation so tool-loop tails can advance their own remembered breakpoints without overwriting the main thread's remembered points.
 
 The cache write that produced a segment counts as `cache_write_input_tokens` on that call and as `cached_input_tokens` on subsequent calls; both fields surface in trace.
 
@@ -145,7 +145,7 @@ These rules apply to every protocol unless the protocol contract above explicitl
 5. **Reasoning configuration is part of the cache key.** Provider-visible thinking / reasoning settings must be treated as a cache-key dimension for diagnostics. A change in reasoning effort, reasoning output visibility, or provider thinking mode can explain a cache read drop even when messages and tools are unchanged.
 6. **Thread id is the cache identity.** Wherever a provider exposes a cache key (`prompt_cache_key`, `session-id`, `thread-id`, etc.), it MUST be populated from the active thread id. Different threads MUST NOT share a cache key, and the same thread MUST reuse the same key across maintenance forks, subagent turns, and reactive recovery paths.
 7. **One canonical body per request.** Wire bodies must not contain duplicate top-level JSON keys. Downstream policies and inspectors are allowed to assume the body parses cleanly into a flat object.
-8. **Internal cache state may be narrower than provider identity.** DotCraft may track remembered prompt-cache breakpoints under an internal state key such as `thread:<id>:maintenance:<kind>:<run>` so maintenance forks and the main conversation do not overwrite each other's breakpoint history. This internal state key MUST NOT replace provider-visible cache identity; Responses `prompt_cache_key`, OAuth `session-id` / `thread-id`, and trace session ownership still use the active thread id.
+8. **Internal cache state may be narrower than provider identity.** DotCraft may track remembered prompt-cache breakpoints under an internal state key such as `thread:<id>:maintenance:<kind>:<run>` so maintenance forks and the main conversation do not overwrite each other's breakpoint history. One-shot maintenance forks may use that state key in `readOnlyPrefix` mode without committing new remembered breakpoints. This internal state key MUST NOT replace provider-visible cache identity; Responses `prompt_cache_key`, OAuth `session-id` / `thread-id`, and trace session ownership still use the active thread id.
 
 ---
 
@@ -158,6 +158,7 @@ These rules apply to every protocol unless the protocol contract above explicitl
 | Volatile content leaks into the cached prefix | Prompt construction MUST keep timestamps, runtime context, and any other request-local data confined to the latest user turn |
 | Reasoning encrypted content mutated between turns | Conversion layers MUST pass `encrypted_content` through unchanged; round-trip tests cover the case |
 | Cache-read drop after reasoning settings change | Prompt-cache diagnostics MUST include a reasoning/thinking fingerprint and classify the drop as a request-shape change instead of likely server-side routing |
+| One-shot maintenance fork writes an unneeded tail breakpoint | Fork cache shaping MUST use `readOnlyPrefix` when no tool execution is enabled, mark only the reusable prefix, and skip committing fork-local remembered breakpoints |
 | Provider sticky-routing flap (ChatGPT OAuth) | Recognised as an upstream limitation. The runtime reports observed coverage faithfully and does not retry just to chase a higher hit rate |
 
 ---

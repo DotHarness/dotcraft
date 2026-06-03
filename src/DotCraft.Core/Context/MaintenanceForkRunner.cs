@@ -84,7 +84,10 @@ public sealed record MaintenanceForkCacheDiagnostics(
     bool? PromptCacheKeyPresent = null,
     string? CacheMarkerSource = null,
     string? CacheStateKeyKind = null,
-    string? CacheStateKeyHash = null)
+    string? CacheStateKeyHash = null,
+    string? CacheWriteMode = null,
+    bool? TailCacheWriteSkipped = null,
+    bool? ProviderImplicitCacheWrite = null)
 {
     public static MaintenanceForkCacheDiagnostics None { get; } = new(false);
 }
@@ -96,7 +99,8 @@ internal sealed record MaintenanceForkPromptCacheState(
     string Model,
     PromptCacheMarkerStrategy MarkerStrategy,
     string CacheShapeKind,
-    string CacheMarkerSource);
+    string CacheMarkerSource,
+    PromptCacheMaintenanceWriteMode CacheWriteMode);
 
 /// <summary>
 /// Runs provider-agnostic maintenance requests by reusing a captured prompt
@@ -155,13 +159,15 @@ public sealed class MaintenanceForkRunner(
         var options = BuildOptions(snapshot);
         var sessionKey = ResolveTraceSessionKey(snapshot);
         var maintenancePathKey = BuildMaintenancePathKey(snapshot, task, sessionKey);
-        var promptCacheState = CreatePromptCacheState(snapshot, maintenancePathKey);
+        var cacheWriteMode = ResolveCacheWriteMode(toolExecution);
+        var promptCacheState = CreatePromptCacheState(snapshot, maintenancePathKey, cacheWriteMode);
         var cacheDiagnostics = MaintenanceForkCacheShaper.Apply(
             snapshot,
             messages,
             options,
             cacheOptions,
-            promptCacheState);
+            promptCacheState,
+            cacheWriteMode);
         var taskPrompt = FormatTask(task);
         var estimatedInputTokens = EstimateInputTokens(snapshot, messages, options, messagesBeforeTask, task);
         traceCollector?.RecordMaintenanceForkRequest(
@@ -186,7 +192,10 @@ public sealed class MaintenanceForkRunner(
             promptCacheKeyPresent: cacheDiagnostics.PromptCacheKeyPresent,
             cacheMarkerSource: cacheDiagnostics.CacheMarkerSource,
             cacheStateKeyKind: cacheDiagnostics.CacheStateKeyKind,
-            cacheStateKeyHash: cacheDiagnostics.CacheStateKeyHash);
+            cacheStateKeyHash: cacheDiagnostics.CacheStateKeyHash,
+            cacheWriteMode: cacheDiagnostics.CacheWriteMode,
+            tailCacheWriteSkipped: cacheDiagnostics.TailCacheWriteSkipped,
+            providerImplicitCacheWrite: cacheDiagnostics.ProviderImplicitCacheWrite);
 
         try
         {
@@ -325,9 +334,15 @@ public sealed class MaintenanceForkRunner(
             : PromptCachingChatClient.UseCacheStateKey(
                 promptCacheState.StateKey,
                 sessionKey,
-                new PromptCacheMaintenanceScope(snapshot.Messages.Count));
+                new PromptCacheMaintenanceScope(snapshot.Messages.Count, promptCacheState.CacheWriteMode));
         return new MaintenanceRuntimeScope(previousSessionKey, callStateKey, callStateScope, promptCacheScope);
     }
+
+    private static PromptCacheMaintenanceWriteMode ResolveCacheWriteMode(
+        MaintenanceForkToolExecutionOptions? toolExecution) =>
+        toolExecution == null
+            ? PromptCacheMaintenanceWriteMode.ReadOnlyPrefix
+            : PromptCacheMaintenanceWriteMode.WriteThrough;
 
     private static string BuildMaintenancePathKey(
         PromptRequestSnapshot snapshot,
@@ -426,7 +441,8 @@ Task: {FormatKind(task.Kind)}
 
     private MaintenanceForkPromptCacheState? CreatePromptCacheState(
         PromptRequestSnapshot snapshot,
-        string maintenancePathKey)
+        string maintenancePathKey,
+        PromptCacheMaintenanceWriteMode cacheWriteMode)
     {
         if (cacheOptions?.PromptCaching == null)
             return null;
@@ -455,9 +471,20 @@ Task: {FormatKind(task.Kind)}
                 ? "anthropic-cache-control"
                 : "openai-compatible-cache-control",
             markerStrategy.Value == PromptCacheMarkerStrategy.AnthropicNative
-                ? "system+snapshot_prefix+fork_tail"
-                : "system+fork_tail");
+                ? CacheMarkerSourceForAnthropic(cacheWriteMode)
+                : CacheMarkerSourceForOpenAICompatible(cacheWriteMode),
+            cacheWriteMode);
     }
+
+    private static string CacheMarkerSourceForAnthropic(PromptCacheMaintenanceWriteMode cacheWriteMode) =>
+        cacheWriteMode == PromptCacheMaintenanceWriteMode.ReadOnlyPrefix
+            ? "system+snapshot_prefix"
+            : "system+snapshot_prefix+fork_tail";
+
+    private static string CacheMarkerSourceForOpenAICompatible(PromptCacheMaintenanceWriteMode cacheWriteMode) =>
+        cacheWriteMode == PromptCacheMaintenanceWriteMode.ReadOnlyPrefix
+            ? "system+snapshot_prefix"
+            : "system+snapshot_prefix+fork_tail";
 
     private static string ComputeCacheStateKeyHash(string cacheStateKey)
     {
@@ -530,7 +557,8 @@ internal static class MaintenanceForkCacheShaper
         List<ChatMessage> messages,
         ChatOptions options,
         MaintenanceForkCacheOptions? cacheOptions,
-        MaintenanceForkPromptCacheState? promptCacheState = null)
+        MaintenanceForkPromptCacheState? promptCacheState = null,
+        PromptCacheMaintenanceWriteMode cacheWriteMode = PromptCacheMaintenanceWriteMode.WriteThrough)
     {
         if (cacheOptions == null)
             return MaintenanceForkCacheDiagnostics.None;
@@ -539,7 +567,7 @@ internal static class MaintenanceForkCacheShaper
         return protocol switch
         {
             ModelProviderProtocols.Anthropic => ApplyAnthropic(promptCacheState),
-            ModelProviderProtocols.OpenAIResponses => ApplyOpenAIResponses(snapshot, options),
+            ModelProviderProtocols.OpenAIResponses => ApplyOpenAIResponses(snapshot, options, cacheWriteMode),
             ModelProviderProtocols.OpenAIChatCompletions => ApplyOpenAICompatible(promptCacheState),
             _ => MaintenanceForkCacheDiagnostics.None
         };
@@ -569,7 +597,10 @@ internal static class MaintenanceForkCacheShaper
             PromptCacheKeyPresent: false,
             CacheMarkerSource: promptCacheState.CacheMarkerSource,
             CacheStateKeyKind: "maintenanceFork",
-            CacheStateKeyHash: promptCacheState.StateKeyHash);
+            CacheStateKeyHash: promptCacheState.StateKeyHash,
+            CacheWriteMode: FormatCacheWriteMode(promptCacheState.CacheWriteMode),
+            TailCacheWriteSkipped: promptCacheState.CacheWriteMode == PromptCacheMaintenanceWriteMode.ReadOnlyPrefix,
+            ProviderImplicitCacheWrite: false);
     }
 
     private static MaintenanceForkCacheDiagnostics ApplyOpenAICompatible(
@@ -584,12 +615,16 @@ internal static class MaintenanceForkCacheShaper
             PromptCacheKeyPresent: null,
             CacheMarkerSource: promptCacheState.CacheMarkerSource,
             CacheStateKeyKind: "maintenanceFork",
-            CacheStateKeyHash: promptCacheState.StateKeyHash);
+            CacheStateKeyHash: promptCacheState.StateKeyHash,
+            CacheWriteMode: FormatCacheWriteMode(promptCacheState.CacheWriteMode),
+            TailCacheWriteSkipped: promptCacheState.CacheWriteMode == PromptCacheMaintenanceWriteMode.ReadOnlyPrefix,
+            ProviderImplicitCacheWrite: false);
     }
 
     private static MaintenanceForkCacheDiagnostics ApplyOpenAIResponses(
         PromptRequestSnapshot snapshot,
-        ChatOptions options)
+        ChatOptions options,
+        PromptCacheMaintenanceWriteMode cacheWriteMode)
     {
         var promptCacheKey = ResponsesToolSearchMapper.ResolvePromptCacheKey(
             options,
@@ -603,7 +638,15 @@ internal static class MaintenanceForkCacheShaper
             true,
             "openai-responses-prompt-cache-key",
             PromptCacheKeyPresent: true,
-            CacheMarkerSource: "thread");
+            CacheMarkerSource: "thread",
+            CacheWriteMode: "providerImplicit",
+            TailCacheWriteSkipped: null,
+            ProviderImplicitCacheWrite: true);
     }
+
+    private static string FormatCacheWriteMode(PromptCacheMaintenanceWriteMode cacheWriteMode) =>
+        cacheWriteMode == PromptCacheMaintenanceWriteMode.ReadOnlyPrefix
+            ? "readOnlyPrefix"
+            : "writeThrough";
 
 }

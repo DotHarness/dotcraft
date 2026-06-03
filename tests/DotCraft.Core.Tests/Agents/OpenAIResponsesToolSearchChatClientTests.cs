@@ -477,6 +477,9 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
         Assert.True(diagnostics.CacheShapeApplied);
         Assert.Equal("openai-responses-prompt-cache-key", diagnostics.CacheShapeKind);
         Assert.True(diagnostics.PromptCacheKeyPresent);
+        Assert.Equal("providerImplicit", diagnostics.CacheWriteMode);
+        Assert.Null(diagnostics.TailCacheWriteSkipped);
+        Assert.True(diagnostics.ProviderImplicitCacheWrite);
 
         var raw = Assert.IsType<CreateResponseOptions>(
             options.RawRepresentationFactory!(new FakeChatClient(new ChatResponse([

@@ -388,7 +388,7 @@ public sealed class MaintenanceForkRunnerTests
     }
 
     [Fact]
-    public async Task RunAsync_AnthropicCacheShapingMarksSystemSnapshotPrefixAndForkTail()
+    public async Task RunAsync_AnthropicCacheShapingMarksSystemSnapshotPrefixAndSkipsForkTail()
     {
         var store = new TraceStore();
         var collector = new TraceCollector(store);
@@ -425,7 +425,7 @@ public sealed class MaintenanceForkRunnerTests
         AssertNoAnthropicCacheControl(Assert.Single(chatClient.Messages[1].Contents));
         AssertAnthropicCacheControl(Assert.Single(chatClient.Messages[2].Contents));
         Assert.Contains("Maintenance Task", chatClient.Messages[3].Text);
-        AssertAnthropicCacheControl(Assert.Single(chatClient.Messages[3].Contents));
+        AssertNoAnthropicCacheControl(Assert.Single(chatClient.Messages[3].Contents));
         Assert.Null(chatClient.Options?.Instructions);
 
         var request = Assert.Single(
@@ -433,9 +433,12 @@ public sealed class MaintenanceForkRunnerTests
             e => e.Type == TraceEventType.MaintenanceForkRequest);
         Assert.Contains("\"cacheShapeApplied\":true", request.MetadataJson);
         Assert.Contains("\"cacheShapeKind\":\"anthropic-cache-control\"", request.MetadataJson);
-        Assert.Contains("\"cacheMarkerSource\":\"system+snapshot_prefix+fork_tail\"", request.MetadataJson);
+        Assert.Contains("\"cacheMarkerSource\":\"system+snapshot_prefix\"", request.MetadataJson);
         Assert.Contains("\"cacheStateKeyKind\":\"maintenanceFork\"", request.MetadataJson);
         Assert.Contains("\"cacheStateKeyHash\":", request.MetadataJson);
+        Assert.Contains("\"cacheWriteMode\":\"readOnlyPrefix\"", request.MetadataJson);
+        Assert.Contains("\"tailCacheWriteSkipped\":true", request.MetadataJson);
+        Assert.Contains("\"providerImplicitCacheWrite\":false", request.MetadataJson);
     }
 
     [Fact]
@@ -565,6 +568,13 @@ public sealed class MaintenanceForkRunnerTests
             .ToList();
         Assert.Equal(2, promptCachePoints.Count);
         Assert.Contains("\"Role\":\"tool\"", promptCachePoints[^1].MetadataJson);
+
+        var request = Assert.Single(
+            store.GetEvents("thread_1"),
+            e => e.Type == TraceEventType.MaintenanceForkRequest);
+        Assert.Contains("\"cacheWriteMode\":\"writeThrough\"", request.MetadataJson);
+        Assert.Contains("\"tailCacheWriteSkipped\":false", request.MetadataJson);
+        Assert.Contains("\"providerImplicitCacheWrite\":false", request.MetadataJson);
     }
 
     [Fact]

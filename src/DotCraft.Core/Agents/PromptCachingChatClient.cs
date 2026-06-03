@@ -148,6 +148,7 @@ public sealed class PromptCachingChatClient : DelegatingChatClient
         var candidates = BuildCachePointCandidates(preparedMessages);
         var selected = SelectCachePoints(state, candidates, keys.MaintenanceScope, insertedSystemMessage);
         ApplyCacheControl(preparedMessages, selected, cacheControl);
+        var commitCachePoints = keys.MaintenanceScope?.CacheWriteMode != PromptCacheMaintenanceWriteMode.ReadOnlyPrefix;
         var llmCallIndex = selected.Count == 0
             ? (int?)null
             : state.NextLlmCallIndex();
@@ -171,7 +172,7 @@ public sealed class PromptCachingChatClient : DelegatingChatClient
                 point.Candidate.Hash[..Math.Min(12, point.Candidate.Hash.Length)],
                 point.Remembered,
                 point.Latest,
-                point.Candidate.ContentKind))).ToArray(), keys.TraceSessionKey, keys.CacheStateKey, llmCallIndex, promptCacheDiagnostic);
+                point.Candidate.ContentKind))).ToArray(), keys.TraceSessionKey, commitCachePoints ? keys.CacheStateKey : null, llmCallIndex, promptCacheDiagnostic);
     }
 
     private CacheControlMarker CreateCacheControl()
@@ -253,6 +254,8 @@ public sealed class PromptCachingChatClient : DelegatingChatClient
 
         AddLatest(selected, candidates, remembered, ChatRole.System);
         AddLatestSnapshotPrefix(selected, candidates, remembered, insertedSystemMessage ? 1 : 0, maintenanceScope.SnapshotMessageCount);
+        if (maintenanceScope.CacheWriteMode == PromptCacheMaintenanceWriteMode.ReadOnlyPrefix)
+            return selected;
 
         var latestTail = FindLatestConversationTail(candidates);
         AddNearestRememberedBefore(
@@ -1136,7 +1139,15 @@ public sealed class PromptCachingChatClient : DelegatingChatClient
     }
 }
 
-internal sealed record PromptCacheMaintenanceScope(int SnapshotMessageCount);
+internal sealed record PromptCacheMaintenanceScope(
+    int SnapshotMessageCount,
+    PromptCacheMaintenanceWriteMode CacheWriteMode = PromptCacheMaintenanceWriteMode.WriteThrough);
+
+internal enum PromptCacheMaintenanceWriteMode
+{
+    WriteThrough,
+    ReadOnlyPrefix
+}
 
 internal enum PromptCacheMarkerStrategy
 {

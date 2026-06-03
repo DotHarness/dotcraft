@@ -336,7 +336,10 @@ public sealed class TraceCollector(TraceStore store)
         bool? promptCacheKeyPresent = null,
         string? cacheMarkerSource = null,
         string? cacheStateKeyKind = null,
-        string? cacheStateKeyHash = null)
+        string? cacheStateKeyHash = null,
+        string? cacheWriteMode = null,
+        bool? tailCacheWriteSkipped = null,
+        bool? providerImplicitCacheWrite = null)
     {
         var toolNames = NormalizeToolNames(tools?.Select(static tool => tool.Name ?? string.Empty));
         store.Record(new TraceEvent
@@ -369,7 +372,10 @@ public sealed class TraceCollector(TraceStore store)
                 promptCacheKeyPresent,
                 cacheMarkerSource,
                 cacheStateKeyKind,
-                cacheStateKeyHash
+                cacheStateKeyHash,
+                cacheWriteMode,
+                tailCacheWriteSkipped,
+                providerImplicitCacheWrite
             })
         });
     }
