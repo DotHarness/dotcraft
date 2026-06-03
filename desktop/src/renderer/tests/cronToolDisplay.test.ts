@@ -34,6 +34,22 @@ describe('formatCronCollapsedLabel', () => {
     ).toBe('Schedule "x" in 2m')
   })
 
+  it('summarizes scheduleKind at before auto-filled daily fields', () => {
+    expect(
+      formatCronCollapsedLabel(
+        {
+          action: 'add',
+          scheduleKind: 'at',
+          message: 'x',
+          delaySeconds: 120,
+          dailyHour: 0,
+          dailyMinute: 0
+        },
+        en
+      )
+    ).toBe('Schedule "x" in 2m')
+  })
+
   it('summarizes add with everySeconds and delaySeconds', () => {
     expect(
       formatCronCollapsedLabel(

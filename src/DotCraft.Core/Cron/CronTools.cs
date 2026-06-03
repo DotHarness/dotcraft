@@ -8,31 +8,34 @@ namespace DotCraft.Cron;
 public sealed class CronTools(CronService cronService)
 {
     private static readonly string[] ValidActions = ["add", "list", "remove"];
+    private static readonly string[] ValidScheduleKinds = ["at", "every", "daily"];
 
     [Description(
         "Manage scheduled tasks. " +
         "The 'action' parameter must be one of: 'add', 'list', 'remove'. " +
+        "When action is 'add', 'scheduleKind' is required and must be one of: 'at', 'every', 'daily'. " +
         "Examples: " +
-        "Cron(action: \"add\", message: \"Check server status\", everySeconds: 3600) — recurring every hour; " +
-        "Cron(action: \"add\", message: \"Ping\", everySeconds: 3600, delaySeconds: 600) — first run in 10 minutes, then every hour; " +
-        "Cron(action: \"add\", message: \"Tea\", dailyTime: \"15:00\", timeZone: \"Asia/Shanghai\") — every day at 15:00 local; " +
-        "Cron(action: \"add\", message: \"Remind meeting\", delaySeconds: 120) — one-time after 2 minutes; " +
+        "Cron(action: \"add\", scheduleKind: \"every\", message: \"Check server status\", everySeconds: 3600) — recurring every hour; " +
+        "Cron(action: \"add\", scheduleKind: \"every\", message: \"Ping\", everySeconds: 3600, delaySeconds: 600) — first run in 10 minutes, then every hour; " +
+        "Cron(action: \"add\", scheduleKind: \"daily\", message: \"Tea\", dailyTime: \"15:00\", timeZone: \"Asia/Shanghai\") — every day at 15:00 local; " +
+        "Cron(action: \"add\", scheduleKind: \"at\", message: \"Remind meeting\", delaySeconds: 120) — one-time after 2 minutes; " +
         "Cron(action: \"list\") — show all jobs; " +
         "Cron(action: \"remove\", jobId: \"abc123\") — delete a job.")]
     [Tool(Icon = "⏰", DisplayType = typeof(CronToolDisplays), DisplayMethod = nameof(CronToolDisplays.Cron))]
     public string Cron(
         [Description("Must be one of: 'add' (create a job), 'list' (show all jobs), 'remove' (delete a job by id). This parameter is required.")] string action,
+        [Description("Schedule type when action is 'add'. Required for 'add'. Must be one of: 'at' (one-time delay), 'every' (recurring interval), 'daily' (fixed local time).")] string? scheduleKind = null,
         [Description("The prompt/message for the agent to execute when the job triggers. Required when action is 'add'.")] string? message = null,
-        [Description("Interval in seconds for recurring jobs (e.g. 3600 = every hour). Used with action 'add' when not using daily schedule.")] int? everySeconds = null,
-        [Description("Delay in seconds from now: for one-time jobs only, or combined with everySeconds as the delay before the first recurring run.")] long? delaySeconds = null,
+        [Description("Interval in seconds for recurring jobs. Required when scheduleKind is 'every'.")] int? everySeconds = null,
+        [Description("Delay in seconds from now. Required when scheduleKind is 'at'; optional initial delay when scheduleKind is 'every'.")] long? delaySeconds = null,
         [Description("Display name for the job. Optional, only used when action is 'add'.")] string? name = null,
         [Description("The ID of the job to delete. Required when action is 'remove'. Use action 'list' first to get job IDs.")] string? jobId = null,
         [Description("Whether to deliver results after the job runs. Defaults to true. Results are sent to the task creator unless 'channel' or 'toUser' overrides the target. Only used when action is 'add'.")] bool deliver = true,
         [Description("The channel to deliver results to. Use 'qq' for QQ (group or private), 'wecom' for WeCom. Optional, auto-detected from current chat context when not specified.")] string? channel = null,
         [Description("The delivery target within the channel. For QQ: 'group:<groupId>' for group chat, or a plain user ID for private chat. For WeCom: the ChatId of the target group. Optional, auto-detected from current chat context when not specified.")] string? toUser = null,
-        [Description("Local hour (0–23) for a daily job at a fixed clock time. Use with dailyMinute or dailyTime. Mutually exclusive with everySeconds/delaySeconds.")] int? dailyHour = null,
-        [Description("Local minute (0–59) for a daily job. Defaults to 0 if dailyHour is set without dailyTime.")] int? dailyMinute = null,
-        [Description("Local time of day as HH:mm (e.g. 15:30). Alternative to dailyHour/dailyMinute for daily jobs.")] string? dailyTime = null,
+        [Description("Local hour (0–23) for a daily job at a fixed clock time. Used when scheduleKind is 'daily'.")] int? dailyHour = null,
+        [Description("Local minute (0–59) for a daily job. Used when scheduleKind is 'daily'. Defaults to 0 if dailyHour is set without dailyTime.")] int? dailyMinute = null,
+        [Description("Local time of day as HH:mm (e.g. 15:30). Used when scheduleKind is 'daily'. Alternative to dailyHour/dailyMinute.")] string? dailyTime = null,
         [Description("IANA time zone id for daily jobs (e.g. Asia/Shanghai, America/New_York). Defaults to UTC if omitted.")] string? timeZone = null)
     {
         if (string.IsNullOrWhiteSpace(action))
@@ -50,54 +53,66 @@ public sealed class CronTools(CronService cronService)
                 if (string.IsNullOrWhiteSpace(message))
                     return JsonSerializer.Serialize(new { error = "Parameter 'message' is required when action is 'add'. Provide the prompt for the agent to execute." });
 
-                var hasDaily = dailyHour.HasValue || dailyMinute.HasValue || !string.IsNullOrWhiteSpace(dailyTime);
-                if (hasDaily && (everySeconds.HasValue || delaySeconds.HasValue))
-                    return JsonSerializer.Serialize(new { error = "Daily schedule (dailyTime or dailyHour) cannot be combined with everySeconds or delaySeconds." });
+                if (string.IsNullOrWhiteSpace(scheduleKind))
+                    return JsonSerializer.Serialize(new { error = "Parameter 'scheduleKind' is required when action is 'add'. Must be one of: 'at', 'every', 'daily'." });
+
+                var normalizedScheduleKind = scheduleKind.Trim().ToLowerInvariant();
+                if (!ValidScheduleKinds.Contains(normalizedScheduleKind))
+                    return JsonSerializer.Serialize(new { error = $"Invalid parameter 'scheduleKind': '{scheduleKind}'. Must be one of: 'at', 'every', 'daily'." });
 
                 CronSchedule schedule;
-                if (hasDaily)
+                var deleteAfter = false;
+                switch (normalizedScheduleKind)
                 {
-                    if (!TryParseDailyClock(dailyTime, dailyHour, dailyMinute, out var h, out var m, out var parseErr))
-                        return JsonSerializer.Serialize(new { error = parseErr });
-                    schedule = new CronSchedule
+                    case "at":
                     {
-                        Kind = "daily",
-                        DailyHour = h,
-                        DailyMinute = m,
-                        Tz = string.IsNullOrWhiteSpace(timeZone) ? null : timeZone.Trim()
-                    };
-                }
-                else if (delaySeconds.HasValue && !everySeconds.HasValue)
-                {
-                    if (delaySeconds.Value <= 0)
-                        return JsonSerializer.Serialize(new { error = "Parameter 'delaySeconds' must be a positive integer." });
+                        if (!delaySeconds.HasValue || delaySeconds.Value <= 0)
+                            return JsonSerializer.Serialize(new { error = "Parameter 'delaySeconds' must be a positive integer when scheduleKind is 'at'." });
 
-                    var atMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() + delaySeconds.Value * 1000L;
-                    schedule = new CronSchedule { Kind = "at", AtMs = atMs };
-                }
-                else if (everySeconds.HasValue)
-                {
-                    if (everySeconds.Value <= 0)
-                        return JsonSerializer.Serialize(new { error = "Parameter 'everySeconds' must be a positive integer." });
-
-                    long? initialDelayMs = null;
-                    if (delaySeconds.HasValue)
-                    {
-                        if (delaySeconds.Value <= 0)
-                            return JsonSerializer.Serialize(new { error = "Parameter 'delaySeconds' must be positive when combined with everySeconds." });
-                        initialDelayMs = delaySeconds.Value * 1000L;
+                        var atMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() + delaySeconds.Value * 1000L;
+                        schedule = new CronSchedule { Kind = "at", AtMs = atMs };
+                        deleteAfter = true;
+                        break;
                     }
 
-                    schedule = new CronSchedule
+                    case "every":
                     {
-                        Kind = "every",
-                        EveryMs = everySeconds.Value * 1000L,
-                        InitialDelayMs = initialDelayMs
-                    };
-                }
-                else
-                {
-                    return JsonSerializer.Serialize(new { error = "When action is 'add', specify one of: dailyTime/dailyHour (daily job), delaySeconds only (one-time), or everySeconds (optionally with delaySeconds for first run)." });
+                        if (!everySeconds.HasValue || everySeconds.Value <= 0)
+                            return JsonSerializer.Serialize(new { error = "Parameter 'everySeconds' must be a positive integer when scheduleKind is 'every'." });
+
+                        long? initialDelayMs = null;
+                        if (delaySeconds.HasValue)
+                        {
+                            if (delaySeconds.Value <= 0)
+                                return JsonSerializer.Serialize(new { error = "Parameter 'delaySeconds' must be positive when scheduleKind is 'every'." });
+                            initialDelayMs = delaySeconds.Value * 1000L;
+                        }
+
+                        schedule = new CronSchedule
+                        {
+                            Kind = "every",
+                            EveryMs = everySeconds.Value * 1000L,
+                            InitialDelayMs = initialDelayMs
+                        };
+                        break;
+                    }
+
+                    case "daily":
+                    {
+                        if (!TryParseDailyClock(dailyTime, dailyHour, dailyMinute, out var h, out var m, out var parseErr))
+                            return JsonSerializer.Serialize(new { error = parseErr });
+                        schedule = new CronSchedule
+                        {
+                            Kind = "daily",
+                            DailyHour = h,
+                            DailyMinute = m,
+                            Tz = string.IsNullOrWhiteSpace(timeZone) ? null : timeZone.Trim()
+                        };
+                        break;
+                    }
+
+                    default:
+                        return JsonSerializer.Serialize(new { error = $"Invalid parameter 'scheduleKind': '{scheduleKind}'. Must be one of: 'at', 'every', 'daily'." });
                 }
 
                 var payload = new CronPayload { Message = message, Deliver = deliver, Channel = channel, To = toUser };
@@ -118,7 +133,6 @@ public sealed class CronTools(CronService cronService)
                     payload.CreatorSource = "api";
                 }
 
-                var deleteAfter = !hasDaily && delaySeconds.HasValue && !everySeconds.HasValue;
                 var job = cronService.AddJob(name ?? message[..Math.Min(message.Length, 30)], schedule, payload, deleteAfterRun: deleteAfter);
                 return JsonSerializer.Serialize(new
                 {
@@ -198,7 +212,7 @@ public sealed class CronTools(CronService cronService)
         }
         else
         {
-            error = "Daily schedule requires dailyTime (HH:mm) or dailyHour (and optionally dailyMinute).";
+            error = "scheduleKind 'daily' requires dailyTime (HH:mm) or dailyHour (and optionally dailyMinute).";
             return false;
         }
 

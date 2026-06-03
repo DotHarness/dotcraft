@@ -28,19 +28,41 @@ public static class CronToolDisplays
         var name = GetString(args, "name");
         var message = GetString(args, "message") ?? "task";
         var label = name ?? (message.Length > 40 ? message[..40] + "…" : message);
+        var scheduleKind = GetString(args, "scheduleKind")?.Trim().ToLowerInvariant();
 
-        if (args != null && (!string.IsNullOrEmpty(GetString(args, "dailyTime")) || args.ContainsKey("dailyHour")))
+        switch (scheduleKind)
         {
-            var dt = GetString(args, "dailyTime");
-            if (!string.IsNullOrEmpty(dt))
-                return $"Schedule \"{label}\" daily at {dt} ({GetString(args, "timeZone") ?? "UTC"})";
-            if (args.TryGetValue("dailyHour", out var ho) && TryGetLong(ho, out var dh))
-            {
-                var dm = args.TryGetValue("dailyMinute", out var mo) && TryGetLong(mo, out var dmin) ? dmin : 0L;
-                return $"Schedule \"{label}\" daily at {dh:D2}:{dm:D2} ({GetString(args, "timeZone") ?? "UTC"})";
-            }
+            case "at":
+                return FormatAt(args, label);
+            case "every":
+                return FormatEvery(args, label);
+            case "daily":
+                return FormatDaily(args, label);
         }
 
+        // Legacy/no-kind calls are still summarized from their schedule fields.
+        if (args != null && (!string.IsNullOrEmpty(GetString(args, "dailyTime")) || args.ContainsKey("dailyHour")))
+            return FormatDaily(args, label);
+
+        if (args != null && args.TryGetValue("everySeconds", out var everyObj) && TryGetLong(everyObj, out _))
+            return FormatEvery(args, label);
+
+        if (args != null && args.TryGetValue("delaySeconds", out var delayObj2) && TryGetLong(delayObj2, out _))
+            return FormatAt(args, label);
+
+        return $"Schedule \"{label}\"";
+    }
+
+    private static string FormatAt(IDictionary<string, object?>? args, string label)
+    {
+        if (args != null && args.TryGetValue("delaySeconds", out var delayObj) && TryGetLong(delayObj, out var delaySec))
+            return $"Schedule \"{label}\" in {FormatDuration(delaySec)}";
+
+        return $"Schedule \"{label}\"";
+    }
+
+    private static string FormatEvery(IDictionary<string, object?>? args, string label)
+    {
         if (args != null && args.TryGetValue("everySeconds", out var everyObj) && TryGetLong(everyObj, out var everySec))
         {
             if (args.TryGetValue("delaySeconds", out var delayObj) && TryGetLong(delayObj, out var delaySec))
@@ -48,8 +70,19 @@ public static class CronToolDisplays
             return $"Schedule \"{label}\" every {FormatDuration(everySec)}";
         }
 
-        if (args != null && args.TryGetValue("delaySeconds", out var delayObj2) && TryGetLong(delayObj2, out var delaySec2))
-            return $"Schedule \"{label}\" in {FormatDuration(delaySec2)}";
+        return $"Schedule \"{label}\"";
+    }
+
+    private static string FormatDaily(IDictionary<string, object?>? args, string label)
+    {
+        var dt = GetString(args, "dailyTime");
+        if (!string.IsNullOrEmpty(dt))
+            return $"Schedule \"{label}\" daily at {dt} ({GetString(args, "timeZone") ?? "UTC"})";
+        if (args != null && args.TryGetValue("dailyHour", out var ho) && TryGetLong(ho, out var dh))
+        {
+            var dm = args.TryGetValue("dailyMinute", out var mo) && TryGetLong(mo, out var dmin) ? dmin : 0L;
+            return $"Schedule \"{label}\" daily at {dh:D2}:{dm:D2} ({GetString(args, "timeZone") ?? "UTC"})";
+        }
 
         return $"Schedule \"{label}\"";
     }
