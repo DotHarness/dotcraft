@@ -2410,7 +2410,7 @@ export const MESSAGES_KO = {
   'threadActionCard.queuedSubtitle': '실행 중인 턴 뒤에 대기 중',
   'threadActionCard.openChat': '채팅 열기',
   'threadActionCard.openChatAria': '{{name}} 채팅 열기',
-  'thread.triggeredBy.badge': '다른 채팅에서',
+  'thread.triggeredBy.badge': 'DotCraft가 다른 채팅에서 보냄',
   'thread.triggeredBy.detail': '{{label}}에서 시작됨',
   'thread.triggeredBy.generic': '다른 채팅에서 시작됨',
   'changes.selectFileHint': '차이점을 보려면 파일을 선택하세요.',

@@ -2415,7 +2415,7 @@ export const MESSAGES_ES = {
   'threadActionCard.queuedSubtitle': 'En cola detrás del turno en ejecución',
   'threadActionCard.openChat': 'Abrir chat',
   'threadActionCard.openChatAria': 'Abrir chat {{name}}',
-  'thread.triggeredBy.badge': 'De otro chat',
+  'thread.triggeredBy.badge': 'Enviado por DotCraft desde otro chat',
   'thread.triggeredBy.detail': 'Iniciado desde {{label}}',
   'thread.triggeredBy.generic': 'Iniciado desde otro chat',
   'changes.selectFileHint': 'Seleccione un archivo para ver su diferencia',

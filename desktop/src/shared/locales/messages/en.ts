@@ -1932,7 +1932,7 @@ export const MESSAGES_EN = {
   'threadActionCard.queuedSubtitle': 'Queued behind the running turn',
   'threadActionCard.openChat': 'Open chat',
   'threadActionCard.openChatAria': 'Open chat {{name}}',
-  'thread.triggeredBy.badge': 'From another thread',
+  'thread.triggeredBy.badge': 'Sent by DotCraft from another thread',
   'thread.triggeredBy.detail': 'Started from {{label}}',
   'thread.triggeredBy.generic': 'Started from another thread',
   'changes.selectFileHint': 'Select a file to view its diff',

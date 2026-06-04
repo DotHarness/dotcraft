@@ -2416,7 +2416,7 @@ export const MESSAGES_FR = {
   'threadActionCard.queuedSubtitle': 'Mis en file derrière le tour en cours',
   'threadActionCard.openChat': 'Ouvrir le chat',
   'threadActionCard.openChatAria': 'Ouvrir le chat {{name}}',
-  'thread.triggeredBy.badge': 'Depuis un autre chat',
+  'thread.triggeredBy.badge': 'Envoyé par DotCraft depuis un autre chat',
   'thread.triggeredBy.detail': 'Démarré depuis {{label}}',
   'thread.triggeredBy.generic': 'Démarré depuis un autre chat',
   'changes.selectFileHint': 'Sélectionnez un fichier pour voir sa différence',

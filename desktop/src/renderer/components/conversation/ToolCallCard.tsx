@@ -1130,11 +1130,13 @@ function getSubAgentToolDisplay(
   const agentRole = getString(parsed, 'agentRole') ?? getString(args, 'agentRole')
   const agentPath = getString(parsed, 'agentPath')
     ?? getString(args, 'target')
-  const childThreadId = getString(parsed, 'childThreadId')
+  const explicitChildThreadId = getString(parsed, 'childThreadId')
     ?? getString(parsed, 'agentId')
     ?? getString(args, 'agentId')
     ?? getString(args, 'childThreadId')
     ?? agentPath
+  const childThreadId = explicitChildThreadId
+    ?? (toolName === 'WaitAgent' ? resolveImplicitWaitAgentChildThreadId(lookup) : null)
   const status = getString(parsed, 'status')?.toLowerCase()
   const error = getString(parsed, 'error') ?? getString(parsed, 'message')
   const message = toolName === 'WaitAgent'
@@ -1188,7 +1190,9 @@ function formatSubAgentRunningLabel(
   lookup: SubAgentLookupSources
 ): string | null {
   if (!isSubAgentToolName(toolName)) return null
-  const childThreadId = getString(args, 'childThreadId') ?? getString(args, 'agentId') ?? getString(args, 'target')
+  const explicitChildThreadId = getString(args, 'childThreadId') ?? getString(args, 'agentId') ?? getString(args, 'target')
+  const childThreadId = explicitChildThreadId
+    ?? (toolName === 'WaitAgent' ? resolveImplicitWaitAgentChildThreadId(lookup) : null)
   const label = resolveSubAgentDisplayName(undefined, args, childThreadId, locale, lookup)
   const key = toolName === 'SpawnAgent'
     ? 'toolCall.subAgent.starting'
@@ -1253,6 +1257,22 @@ function resolveSubAgentDisplayName(
   if (explicitName && !isThreadIdLike(explicitName, childThreadId)) return explicitName
 
   return translate(locale, 'toolCall.subAgent.agent')
+}
+
+function resolveImplicitWaitAgentChildThreadId(lookup: SubAgentLookupSources): string | null {
+  const activeParentId = lookup.activeThread?.id
+  if (activeParentId) {
+    const activeParentChild = getSingleSubAgentChild(lookup.childrenByParent.get(activeParentId) ?? [])
+    if (activeParentChild) return activeParentChild.childThreadId
+  }
+
+  const allChildren = Array.from(lookup.childrenByParent.values()).flat()
+  return getSingleSubAgentChild(allChildren)?.childThreadId ?? null
+}
+
+function getSingleSubAgentChild(children: SubAgentChild[]): SubAgentChild | null {
+  const candidates = children.filter((child) => child.childThreadId.trim().length > 0)
+  return candidates.length === 1 ? candidates[0] : null
 }
 
 function getAgentPathSegment(value: string | null | undefined): string | null {

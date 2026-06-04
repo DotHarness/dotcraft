@@ -2410,7 +2410,7 @@ export const MESSAGES_JA = {
   'threadActionCard.queuedSubtitle': '実行中のターンの後ろにキュー済み',
   'threadActionCard.openChat': 'チャットを開く',
   'threadActionCard.openChatAria': 'チャット {{name}} を開く',
-  'thread.triggeredBy.badge': '別のチャットから',
+  'thread.triggeredBy.badge': 'DotCraft が別のチャットから送信',
   'thread.triggeredBy.detail': '{{label}} から開始',
   'thread.triggeredBy.generic': '別のチャットから開始',
   'changes.selectFileHint': 'ファイルを選択してその差分を表示します',

@@ -2720,7 +2720,7 @@ export const MESSAGES_ZH_HANS = {
   'threadActionCard.queuedSubtitle': '已排在正在运行的回合之后',
   'threadActionCard.openChat': '打开会话',
   'threadActionCard.openChatAria': '打开会话 {{name}}',
-  'thread.triggeredBy.badge': '来自另一个会话',
+  'thread.triggeredBy.badge': 'DotCraft 从另一个会话发送',
   'thread.triggeredBy.detail': '由 {{label}} 启动',
   'thread.triggeredBy.generic': '由另一个会话启动',
 } satisfies Partial<Record<MessageId, string>>
