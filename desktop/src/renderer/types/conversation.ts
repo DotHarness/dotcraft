@@ -78,8 +78,8 @@ export interface ConversationItem {
   id: string
   type: ItemType
   status: ItemStatus
-  /** User message delivery mode: normal turn input, queued turn input, or mid-turn guidance. */
-  deliveryMode?: 'normal' | 'queued' | 'guidance'
+  /** User message delivery mode: normal turn input, queued turn input, mid-turn guidance, or an internal SubAgent mailbox notification. */
+  deliveryMode?: 'normal' | 'queued' | 'guidance' | 'subagentMailbox'
   /** Primary text content: userMessage text, agentMessage markdown, error message */
   text?: string
   /** Native user input parts used as the source of truth for history rendering. */
@@ -149,10 +149,23 @@ export interface ConversationItem {
   approvalState?: ApprovalState
   /**
    * When set on a userMessage item, indicates the message was synthesized by an
-   * automation, goal, app, or team mechanism (heartbeat, cron, automation, goal, app, team) rather
-   * than typed by a human. Mirrors UserMessagePayload.TriggerKind on the server.
+   * automation, goal, app, team, or SubAgent mechanism (heartbeat, cron, automation, goal,
+   * app, team, subagentFollowupTask, subagentMailbox, subagentInput) rather than typed by a
+   * human. Mirrors UserMessagePayload.TriggerKind on the server.
+   * The `thread` kind is synthesized client-side for the first user message of a
+   * thread that was spawned by another thread (see thread.source.spawnedFromThreadId).
    */
-  triggerKind?: 'heartbeat' | 'cron' | 'automation' | 'goal' | 'app' | 'team'
+  triggerKind?:
+    | 'heartbeat'
+    | 'cron'
+    | 'automation'
+    | 'goal'
+    | 'app'
+    | 'team'
+    | 'thread'
+    | 'subagentFollowupTask'
+    | 'subagentMailbox'
+    | 'subagentInput'
   /** Optional human-readable label for the automation source (e.g. cron job name). */
   triggerLabel?: string
   /** Optional routing id for client-side click-through (e.g. cron job id, task id). */
@@ -206,7 +219,7 @@ export interface QueuedTurnInput {
   status: string
   createdAt: string
   readyAfterTurnId?: string | null
-  triggerKind?: 'heartbeat' | 'cron' | 'automation' | 'goal' | 'app' | 'team'
+  triggerKind?: Exclude<ConversationItem['triggerKind'], 'thread'>
   triggerLabel?: string
   triggerRefId?: string
 }
@@ -534,9 +547,12 @@ function mapSystemNotice(
 
 function normalizeTriggerKind(
   value: unknown
-): 'heartbeat' | 'cron' | 'automation' | 'goal' | 'app' | 'team' | undefined {
+): Exclude<ConversationItem['triggerKind'], 'thread'> | undefined {
   if (typeof value !== 'string') return undefined
   const normalized = value.trim().toLowerCase()
+  if (normalized === 'subagentfollowuptask') return 'subagentFollowupTask'
+  if (normalized === 'subagentmailbox') return 'subagentMailbox'
+  if (normalized === 'subagentinput') return 'subagentInput'
   if (
     normalized === 'heartbeat' ||
     normalized === 'cron' ||
@@ -550,10 +566,15 @@ function normalizeTriggerKind(
   return undefined
 }
 
-function normalizeDeliveryMode(value: unknown): 'normal' | 'queued' | 'guidance' | undefined {
+function normalizeDeliveryMode(value: unknown): 'normal' | 'queued' | 'guidance' | 'subagentMailbox' | undefined {
   if (typeof value !== 'string') return undefined
   const normalized = value.trim()
-  if (normalized === 'normal' || normalized === 'queued' || normalized === 'guidance') {
+  if (
+    normalized === 'normal'
+    || normalized === 'queued'
+    || normalized === 'guidance'
+    || normalized === 'subagentMailbox'
+  ) {
     return normalized
   }
   return undefined

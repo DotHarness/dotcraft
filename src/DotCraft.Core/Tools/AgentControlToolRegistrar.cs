@@ -23,9 +23,10 @@ public static class AgentControlToolRegistrar
     {
         var agentTools = new AgentTools(subAgentCoordinator, subAgentRoles, maxSubAgentDepth, subAgentModel);
         AddIfAllowed(tools, context, nameof(AgentTools.SpawnAgent), () => AIFunctionFactory.Create(agentTools.SpawnAgent));
-        AddIfAllowed(tools, context, nameof(AgentTools.SendInput), () => AIFunctionFactory.Create(agentTools.SendInput));
+        AddIfAllowed(tools, context, nameof(AgentTools.SendMessage), () => AIFunctionFactory.Create(agentTools.SendMessage));
+        AddIfAllowed(tools, context, nameof(AgentTools.FollowupTask), () => AIFunctionFactory.Create(agentTools.FollowupTask));
         AddIfAllowed(tools, context, nameof(AgentTools.WaitAgent), () => AIFunctionFactory.Create(agentTools.WaitAgent));
-        AddIfAllowed(tools, context, nameof(AgentTools.ResumeAgent), () => AIFunctionFactory.Create(agentTools.ResumeAgent));
+        AddIfAllowed(tools, context, nameof(AgentTools.ListAgents), () => AIFunctionFactory.Create(agentTools.ListAgents));
         AddIfAllowed(tools, context, nameof(AgentTools.CloseAgent), () => AIFunctionFactory.Create(agentTools.CloseAgent));
     }
 

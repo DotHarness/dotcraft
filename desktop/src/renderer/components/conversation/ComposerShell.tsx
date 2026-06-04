@@ -231,24 +231,6 @@ export function ComposerShell({
         isolation: 'isolate'
       }}
     >
-      {(focused || hovered) && (
-        // Brand-gradient glow behind the composer. Breathes on focus; a calmer
-        // static halo on hover. Sits below the opaque card so only the rim shows.
-        <div
-          aria-hidden
-          className={focused ? 'composer-focus-glow' : undefined}
-          style={{
-            position: 'absolute',
-            inset: '-3px -3px 10px -3px',
-            borderRadius: '23px',
-            background: 'var(--composer-focus-glow)',
-            filter: 'blur(8px)',
-            opacity: focused ? 0.22 : 0.18,
-            zIndex: 0,
-            pointerEvents: 'none'
-          }}
-        />
-      )}
       {showMascot && !topAccessoryVisible && (
         <ComposerMascot
           focused={focused}
@@ -271,91 +253,115 @@ export function ComposerShell({
           {topAccessory}
         </div>
       )}
-      <div
-        style={{
-          position: 'relative',
-          zIndex: 1,
-          // Frameless at rest: raised fill + soft shadow separate it from the
-          // conversation. Focus adds a subtle brand-blue rim over the breathing
-          // glow behind; hover lifts the surface slightly.
-          border: focused
-            ? '1px solid var(--composer-focus-border)'
-            : '1px solid transparent',
-          borderRadius: '20px',
-          background: 'var(--composer-input-background)',
-          padding: '10px 10px 8px',
-          transform: hovered && !focused ? 'translateY(-1px)' : 'none',
-          transition:
-            'transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.3s ease, border-color 0.2s ease',
-          boxShadow:
-            hovered && !focused
-              ? '0 16px 34px -10px rgba(0, 0, 0, 0.32), var(--composer-input-shadow)'
-              : 'var(--composer-input-shadow)'
-        }}
-        onDragOver={onDragOver}
-        onDragLeave={onDragLeave}
-        onDrop={onDrop}
-      >
-        {showMascot && !topAccessoryVisible && (
-          // Contact shadow cast by the mascot's feet onto the composer rim, so the
-          // robot reads as standing on the surface rather than floating above it.
-          // Anchored under the mascot (right:40 + half width 29 − 1px border ≈ 68);
-          // translateX(50%) centers the blob on that point. Brand-asset rendering
-          // artifact (raw navy mirrors MascotRobot's shadows), not a themed color.
-          <div
-            aria-hidden
-            style={{
-              position: 'absolute',
-              right: '68px',
-              top: '1px',
-              width: '72px',
-              height: '24px',
-              transform: 'translateX(50%)',
-              borderRadius: '50%',
-              background:
-                'radial-gradient(50% 100% at 50% 0%, color-mix(in srgb, #0b3d62 10%, transparent) 0%, transparent 72%)',
-              filter: 'blur(2px)',
-              pointerEvents: 'none'
-            }}
-          />
-        )}
-        {dragOver && (
-          <div
-            style={{
-              position: 'absolute',
-              inset: 0,
-              zIndex: 20,
-              border: '2px dashed var(--accent)',
-              borderRadius: '18px',
-              background: 'rgba(124, 58, 237, 0.08)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              pointerEvents: 'none',
-              fontSize: 'var(--type-ui-size)',
-              lineHeight: 'var(--type-ui-line-height)',
-              color: 'var(--accent)'
-            }}
-          >
-            {dropLabel}
-          </div>
-        )}
-
-        {attachmentStrip}
-        {editor}
-
+      {/* Card-only wrapper: scopes the focus glow to the card (not the outer
+          container, which also holds the footer) so the halo hugs the card. */}
+      <div style={{ position: 'relative' }}>
+        {/* Brand-gradient glow behind the composer. Always mounted so it can ease
+            in and out on hover instead of popping the moment the pointer crosses
+            the edge; transparent at rest, a calmer static halo on hover, and it
+            breathes on focus. Sits behind the opaque card so only the rim shows.
+            Scoped to this card-only wrapper (NOT the outer container, which also
+            holds the Local/branch footer) so the halo hugs the card evenly on
+            every side instead of spreading down behind that footer below. */}
+        <div
+          aria-hidden
+          className={focused ? 'composer-focus-glow' : undefined}
+          style={{
+            position: 'absolute',
+            inset: '-3px',
+            borderRadius: '23px',
+            background: 'var(--composer-focus-glow)',
+            filter: 'blur(8px)',
+            opacity: focused ? 0.22 : hovered ? 0.18 : 0,
+            // Gentle, symmetric fade so the diffuse halo eases in and out rather
+            // than snapping. (While focused, the breathing animation drives
+            // opacity instead, so this transition only governs the hover halo.)
+            transition: 'opacity 420ms ease',
+            zIndex: -1,
+            pointerEvents: 'none'
+          }}
+        />
         <div
           style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '10px',
-            marginTop: '8px',
-            paddingTop: '6px'
+            position: 'relative',
+            zIndex: 1,
+            // Frameless at rest: raised fill + soft shadow separate it from the
+            // conversation. Focus adds a subtle brand-blue rim over the breathing
+            // glow behind. No position or shadow change on hover/focus.
+            border: focused
+              ? '1px solid var(--composer-focus-border)'
+              : '1px solid transparent',
+            borderRadius: '20px',
+            background: 'var(--composer-input-background)',
+            padding: '10px 10px 8px',
+            transition: 'border-color 0.2s ease',
+            boxShadow: 'var(--composer-input-shadow)'
           }}
+          onDragOver={onDragOver}
+          onDragLeave={onDragLeave}
+          onDrop={onDrop}
         >
-          {footerLeading}
-          {footerAction}
+          {showMascot && !topAccessoryVisible && (
+            // Contact shadow cast by the mascot's feet onto the composer rim, so the
+            // robot reads as standing on the surface rather than floating above it.
+            // Anchored under the mascot (right:40 + half width 29 − 1px border ≈ 68);
+            // translateX(50%) centers the blob on that point. Brand-asset rendering
+            // artifact (raw navy mirrors MascotRobot's shadows), not a themed color.
+            <div
+              aria-hidden
+              style={{
+                position: 'absolute',
+                right: '68px',
+                top: '1px',
+                width: '72px',
+                height: '24px',
+                transform: 'translateX(50%)',
+                borderRadius: '50%',
+                background:
+                  'radial-gradient(50% 100% at 50% 0%, color-mix(in srgb, #0b3d62 10%, transparent) 0%, transparent 72%)',
+                filter: 'blur(2px)',
+                pointerEvents: 'none'
+              }}
+            />
+          )}
+          {dragOver && (
+            <div
+              style={{
+                position: 'absolute',
+                inset: 0,
+                zIndex: 20,
+                border: '2px dashed var(--accent)',
+                borderRadius: '18px',
+                background: 'rgba(124, 58, 237, 0.08)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                pointerEvents: 'none',
+                fontSize: 'var(--type-ui-size)',
+                lineHeight: 'var(--type-ui-line-height)',
+                color: 'var(--accent)'
+              }}
+            >
+              {dropLabel}
+            </div>
+          )}
+
+          {attachmentStrip}
+          {editor}
+
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '10px',
+              marginTop: '8px',
+              paddingTop: '6px'
+            }}
+          >
+            {footerLeading}
+            {footerAction}
+          </div>
         </div>
       </div>
       {belowFooter && (

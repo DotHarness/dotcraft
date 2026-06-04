@@ -783,6 +783,14 @@ public sealed class ThreadStartParams
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? DisplayName { get; set; }
+
+    /// <summary>
+    /// Optional id of the thread that started this thread on the user's behalf (e.g. the
+    /// Desktop CreateThread tool called from another thread). Recorded as a non-subagent
+    /// origin on the new thread so its first user message can link back to the source.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? SpawnedFromThreadId { get; set; }
 }
 
 // ───── thread/fork ─────
@@ -1059,6 +1067,22 @@ public sealed class SubAgentThreadParams
     public string ParentThreadId { get; set; } = string.Empty;
 
     public string ChildThreadId { get; set; } = string.Empty;
+}
+
+public sealed class SubAgentTargetParams
+{
+    public string ParentThreadId { get; set; } = string.Empty;
+
+    public string Target { get; set; } = string.Empty;
+}
+
+public sealed class SubAgentTargetMessageParams
+{
+    public string ParentThreadId { get; set; } = string.Empty;
+
+    public string Target { get; set; } = string.Empty;
+
+    public string Message { get; set; } = string.Empty;
 }
 
 // ───── thread/read ─────
@@ -3948,8 +3972,9 @@ public static class AppServerMethods
     public const string SubAgentProfileUpsert = "subagent/profiles/upsert";
     public const string SubAgentProfileRemove = "subagent/profiles/remove";
     public const string SubAgentChildrenList = "subagent/children/list";
+    public const string SubAgentSendMessage = "subagent/sendMessage";
+    public const string SubAgentFollowupTask = "subagent/followupTask";
     public const string SubAgentClose = "subagent/close";
-    public const string SubAgentResume = "subagent/resume";
     public const string McpStatusList = "mcp/status/list";
     public const string McpTest = "mcp/test";
 

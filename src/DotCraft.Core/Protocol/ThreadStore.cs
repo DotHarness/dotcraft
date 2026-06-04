@@ -321,6 +321,34 @@ public sealed class ThreadStore
         return Task.FromResult<IReadOnlyList<ThreadSpawnEdge>>(_metadataStore.ListSubAgentChildren(parentThreadId, includeClosed));
     }
 
+    public Task AddSubAgentMailboxEntryAsync(SubAgentMailboxEntry entry, CancellationToken ct = default)
+    {
+        ct.ThrowIfCancellationRequested();
+        _metadataStore.AddSubAgentMailboxEntry(entry);
+        return Task.CompletedTask;
+    }
+
+    public Task<IReadOnlyList<SubAgentMailboxEntry>> ListPendingSubAgentMailboxAsync(
+        string rootThreadId,
+        string targetAgentPath,
+        CancellationToken ct = default)
+    {
+        ct.ThrowIfCancellationRequested();
+        return Task.FromResult<IReadOnlyList<SubAgentMailboxEntry>>(
+            _metadataStore.ListPendingSubAgentMailbox(rootThreadId, targetAgentPath));
+    }
+
+    public Task MarkSubAgentMailboxDeliveredAsync(
+        string rootThreadId,
+        IReadOnlyList<string> entryIds,
+        DateTimeOffset deliveredAt,
+        CancellationToken ct = default)
+    {
+        ct.ThrowIfCancellationRequested();
+        _metadataStore.MarkSubAgentMailboxDelivered(rootThreadId, entryIds, deliveredAt);
+        return Task.CompletedTask;
+    }
+
     private static SessionThread CloneThreadSnapshot(SessionThread thread)
     {
         var json = JsonSerializer.SerializeToUtf8Bytes(thread, SessionJsonOptions.Default);
@@ -501,11 +529,38 @@ public sealed class ThreadStore
         if (item.AsUserMessage is not { } user)
             return false;
 
+        if (string.Equals(user.DeliveryMode, SubAgentMailboxDelivery.DeliveryMode, StringComparison.Ordinal))
+            return TryBuildSubAgentMailboxMessage(user, out message);
+
         var parts =
             user.MaterializedInputParts is { Count: > 0 } materialized ? materialized :
             user.NativeInputParts is { Count: > 0 } native ? native :
             null;
 
+        if (parts is { Count: > 0 })
+        {
+            var contents = parts
+                .Select(p => p.ToAIContent())
+                .Where(c => c is not TextContent tc || !string.IsNullOrWhiteSpace(tc.Text))
+                .ToList();
+            if (contents.Count > 0)
+            {
+                message = new ChatMessage(ChatRole.User, (IList<AIContent>)contents);
+                return true;
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(user.Text))
+            return false;
+
+        message = new ChatMessage(ChatRole.User, user.Text.Trim());
+        return true;
+    }
+
+    private static bool TryBuildSubAgentMailboxMessage(UserMessagePayload user, out ChatMessage message)
+    {
+        message = new ChatMessage(ChatRole.User, string.Empty);
+        var parts = user.MaterializedInputParts is { Count: > 0 } materialized ? materialized : null;
         if (parts is { Count: > 0 })
         {
             var contents = parts

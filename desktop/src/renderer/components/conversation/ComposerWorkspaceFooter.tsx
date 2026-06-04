@@ -3,17 +3,12 @@ import { createPortal } from 'react-dom'
 import { ArrowRightLeft, Check, ChevronDown, FolderPlus, GitBranch, Laptop, Plus, Search } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useConnectionStore } from '../../stores/connectionStore'
+import { normalizeGitPathKey, useGitStore, type GitBranchListSnapshot } from '../../stores/gitStore'
 import { addToast } from '../../stores/toastStore'
 import type { Thread } from '../../types/thread'
 import { WorktreeHandoffDialog } from './WorktreeHandoffDialog'
 
 export type ComposerWorkspaceMode = 'local' | 'worktree'
-
-interface BranchListResult {
-  current: string | null
-  detachedHead: string | null
-  branches: Array<{ name: string; current: boolean }>
-}
 
 interface ComposerWorkspaceFooterProps {
   workspacePath: string
@@ -29,7 +24,6 @@ interface ComposerWorkspaceFooterProps {
 }
 
 type OpenMenu = 'workspace' | 'branch' | null
-type GitAvailability = 'checking' | 'available' | 'unavailable'
 
 const GIT_BRANCH_REFRESH_INTERVAL_MS = 5_000
 
@@ -92,7 +86,7 @@ const menuButtonStyle: CSSProperties = {
   transition: 'background 120ms ease, color 120ms ease, box-shadow 120ms ease, transform 120ms ease'
 }
 
-function currentBranchLabel(branches: BranchListResult | null): string | null {
+function currentBranchLabel(branches: GitBranchListSnapshot | null): string | null {
   return branches?.current || branches?.detachedHead || null
 }
 
@@ -223,17 +217,12 @@ export function ComposerWorkspaceFooter({
   const t = useT()
   const capabilities = useConnectionStore((s) => s.capabilities)
   const [openMenu, setOpenMenu] = useState<OpenMenu>(null)
-  const [branches, setBranches] = useState<BranchListResult | null>(null)
-  const [gitAvailability, setGitAvailability] = useState<GitAvailability>('checking')
-  const [loadedBranchPath, setLoadedBranchPath] = useState<string | null>(null)
   const [branchQuery, setBranchQuery] = useState('')
   const [busy, setBusy] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
   const [handoffMode, setHandoffMode] = useState<ComposerWorkspaceMode | null>(null)
   const [branchDraft, setBranchDraft] = useState('dotcraft/')
   const footerRef = useRef<HTMLDivElement>(null)
-  const branchActionPathRef = useRef('')
-  const canUseWorktrees = capabilities?.gitWorktrees === true && !remoteWorkspace
   const isThread = variant === 'thread'
   const threadBusy = thread?.runtime?.busy === true
     || thread?.runtime?.running === true
@@ -241,19 +230,30 @@ export function ComposerWorkspaceFooter({
     || thread?.runtime?.waitingOnInput === true
     || Boolean(thread?.runtime?.maintenanceKind)
   const branchActionPath = workspacePath.trim()
+  const branchActionPathKey = normalizeGitPathKey(branchActionPath)
+  const gitPathState = useGitStore((s) =>
+    branchActionPathKey ? s.branchesByPath[branchActionPathKey] : undefined
+  )
+  const gitAvailability = remoteWorkspace || !branchActionPath
+    ? 'unavailable'
+    : gitPathState?.status ?? 'checking'
+  const branches = gitPathState?.snapshot ?? null
+  const branchControlsReady = gitAvailability === 'available' && branches != null
+  const canUseWorktrees = capabilities?.gitWorktrees === true && !remoteWorkspace && branchControlsReady
   const localWorkspacePath = thread?.worktree?.workspacePath || thread?.workspacePath || branchActionPath
   const selectedBaseRef = baseRef || currentBranchLabel(branches)
+  const threadWorktreeBranchName = thread?.worktree?.branchName?.trim() || null
   const branchLabel = mode === 'worktree' && variant === 'welcome'
     ? (worktreeBranchName || selectedBaseRef || t('workspaceFooter.branchUnknown'))
-    : (currentBranchLabel(branches) || t('workspaceFooter.branchUnknown'))
+    : (
+        currentBranchLabel(branches) ||
+        (variant === 'thread' && mode === 'worktree' ? threadWorktreeBranchName : null) ||
+        t('workspaceFooter.branchUnknown')
+      )
   const locationLabel = variant === 'welcome'
     ? (mode === 'worktree' ? t('workspaceFooter.newWorktree') : t('workspaceFooter.workLocally'))
     : (mode === 'worktree' ? t('workspaceFooter.worktree') : t('workspaceFooter.local'))
   const showBranchHandoffOnly = variant === 'thread' && mode === 'worktree'
-
-  useEffect(() => {
-    branchActionPathRef.current = branchActionPath
-  }, [branchActionPath])
 
   useEffect(() => {
     function closeOnOutsideClick(event: MouseEvent): void {
@@ -263,14 +263,7 @@ export function ComposerWorkspaceFooter({
     return () => document.removeEventListener('mousedown', closeOnOutsideClick)
   }, [])
 
-  useEffect(() => {
-    setGitAvailability(remoteWorkspace || !branchActionPath ? 'unavailable' : 'checking')
-  }, [branchActionPath, remoteWorkspace])
-
   const hideForUnavailableGit = useCallback(() => {
-    setBranches(null)
-    setLoadedBranchPath(null)
-    setGitAvailability('unavailable')
     setOpenMenu(null)
     if (variant === 'welcome') {
       if (mode !== 'local') onWelcomeModeChange?.('local')
@@ -287,35 +280,36 @@ export function ComposerWorkspaceFooter({
     worktreeBranchName
   ])
 
-  const loadBranches = useCallback(async () => {
+  const loadBranches = useCallback(async (options: { force?: boolean } = {}) => {
     if (remoteWorkspace || !branchActionPath) {
       hideForUnavailableGit()
       return
     }
-    const requestedPath = branchActionPath
-    try {
-      const next = await window.api.git.listBranches(requestedPath)
-      if (branchActionPathRef.current !== requestedPath) return
-      setBranches(next)
-      setLoadedBranchPath(requestedPath)
-      setGitAvailability('available')
-      if (variant === 'welcome' && mode === 'worktree' && !baseRef) {
-        onBaseRefChange?.(currentBranchLabel(next))
-      }
-    } catch {
-      if (branchActionPathRef.current !== requestedPath) return
-      hideForUnavailableGit()
-    }
-  }, [baseRef, branchActionPath, hideForUnavailableGit, mode, onBaseRefChange, remoteWorkspace, variant])
+    await useGitStore.getState().ensureBranches(branchActionPath, { force: options.force })
+  }, [branchActionPath, hideForUnavailableGit, remoteWorkspace])
 
   useEffect(() => {
+    if (remoteWorkspace || !branchActionPath) {
+      hideForUnavailableGit()
+      return
+    }
     void loadBranches()
-  }, [loadBranches])
+  }, [branchActionPath, hideForUnavailableGit, loadBranches, remoteWorkspace])
+
+  useEffect(() => {
+    if (gitAvailability !== 'unavailable') return
+    hideForUnavailableGit()
+  }, [gitAvailability, hideForUnavailableGit])
+
+  useEffect(() => {
+    if (variant !== 'welcome' || mode !== 'worktree' || baseRef || !branches) return
+    onBaseRefChange?.(currentBranchLabel(branches))
+  }, [baseRef, branches, mode, onBaseRefChange, variant])
 
   useEffect(() => {
     if (remoteWorkspace || !branchActionPath || gitAvailability !== 'available') return
     const timer = window.setInterval(() => {
-      void loadBranches()
+      void loadBranches({ force: true })
     }, GIT_BRANCH_REFRESH_INTERVAL_MS)
     return () => window.clearInterval(timer)
   }, [branchActionPath, gitAvailability, loadBranches, remoteWorkspace])
@@ -338,7 +332,7 @@ export function ComposerWorkspaceFooter({
     setBusy(true)
     try {
       await window.api.git.checkoutBranch(branchActionPath, branchName)
-      await loadBranches()
+      await loadBranches({ force: true })
       addToast(t('workspaceFooter.branchCheckedOut', { branch: branchName }), 'success')
     } catch (err) {
       addToast(t('workspaceFooter.branchFailed', { error: err instanceof Error ? err.message : String(err) }), 'error')
@@ -362,7 +356,7 @@ export function ComposerWorkspaceFooter({
       }
 
       await window.api.git.createAndCheckoutBranch(branchActionPath, branch)
-      await loadBranches()
+      await loadBranches({ force: true })
       setCreateOpen(false)
       setOpenMenu(null)
       addToast(t('workspaceFooter.branchCreated', { branch }), 'success')
@@ -383,12 +377,10 @@ export function ComposerWorkspaceFooter({
       localWorkspacePath={localWorkspacePath}
       onBusyChange={setBusy}
       onClose={() => setHandoffMode(null)}
-      onComplete={() => { void loadBranches() }}
+      onComplete={() => { void loadBranches({ force: true }) }}
     />
   ) : null
-  const showFooterControls = !remoteWorkspace
-    && gitAvailability === 'available'
-    && loadedBranchPath === branchActionPath
+  const showFooterControls = !remoteWorkspace && Boolean(branchActionPath) && gitAvailability !== 'unavailable'
 
   return (
     <>
@@ -396,7 +388,7 @@ export function ComposerWorkspaceFooter({
       <div ref={footerRef} style={footerStyle}>
       <div style={{ position: 'relative' }}>
         <WorkspaceFooterPill
-          disabled={busy || (isThread && threadBusy)}
+          disabled={busy || !branchControlsReady || (isThread && threadBusy)}
           open={openMenu === 'workspace'}
           onClick={() => setOpenMenu(openMenu === 'workspace' ? null : 'workspace')}
         >
@@ -411,7 +403,7 @@ export function ComposerWorkspaceFooter({
                 label={t('workspaceFooter.handoffToBranch')}
                 icon={<ArrowRightLeft size={14} strokeWidth={1.8} aria-hidden />}
                 checked={false}
-                disabled={busy || (isThread && threadBusy)}
+                disabled={busy || !branchControlsReady || (isThread && threadBusy)}
                 onClick={() => {
                   setHandoffMode('local')
                   setOpenMenu(null)
@@ -423,7 +415,7 @@ export function ComposerWorkspaceFooter({
                   label={t('workspaceFooter.workLocally')}
                   icon={<Laptop size={14} strokeWidth={1.8} aria-hidden />}
                   checked={mode === 'local'}
-                  disabled={busy || (isThread && threadBusy)}
+                  disabled={busy || !branchControlsReady || (isThread && threadBusy)}
                   onClick={() => {
                     if (variant === 'welcome') onWelcomeModeChange?.('local')
                     setOpenMenu(null)
@@ -450,7 +442,7 @@ export function ComposerWorkspaceFooter({
 
       <div style={{ position: 'relative' }}>
         <WorkspaceFooterPill
-          disabled={busy || !branchActionPath}
+          disabled={busy || !branchActionPath || !branchControlsReady}
           open={openMenu === 'branch'}
           onClick={() => setOpenMenu(openMenu === 'branch' ? null : 'branch')}
         >

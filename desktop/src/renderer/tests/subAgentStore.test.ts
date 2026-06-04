@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { isSubAgentChildRunning, useSubAgentStore } from '../stores/subAgentStore'
+import { useConnectionStore } from '../stores/connectionStore'
 import { useThreadStore } from '../stores/threadStore'
 
 const appServerSendRequest = vi.fn()
@@ -8,12 +9,22 @@ describe('subAgentStore', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     useSubAgentStore.getState().reset()
+    useConnectionStore.getState().reset()
+    useConnectionStore.setState({ capabilities: { subAgentSessions: true } })
     useThreadStore.getState().reset()
     vi.stubGlobal('window', {
       api: {
         appServer: { sendRequest: appServerSendRequest }
       }
     })
+  })
+
+  it('does not request child sessions when the server capability is unavailable', async () => {
+    useConnectionStore.setState({ capabilities: { subAgentSessions: false } })
+
+    await useSubAgentStore.getState().fetchChildren('parent-1')
+
+    expect(appServerSendRequest).not.toHaveBeenCalled()
   })
 
   it('loads child thread capability metadata from subagent/children/list', async () => {
@@ -59,7 +70,7 @@ describe('subAgentStore', () => {
       expect.objectContaining({
         childThreadId: 'child-1',
         parentThreadId: 'parent-1',
-        nickname: 'Lovelace',
+        nickname: 'Create hatch pet',
         profileName: 'codex-cli',
         runtimeType: 'cli-oneshot',
         supportsSendInput: false,
@@ -67,6 +78,75 @@ describe('subAgentStore', () => {
         supportsClose: true,
         runtime: expect.objectContaining({ running: true })
       })
+    ])
+  })
+
+  it('falls back from displayName to nickname, taskName, agentPath segment, and childThreadId', async () => {
+    appServerSendRequest.mockResolvedValue({
+      data: [
+        {
+          edge: {
+            parentThreadId: 'parent-1',
+            childThreadId: 'child-display',
+            agentNickname: 'Nick',
+            taskName: 'task_one',
+            agentPath: '/root/task_one',
+            status: 'open'
+          },
+          thread: {
+            id: 'child-display',
+            displayName: 'Renamed child',
+            status: 'active',
+            originChannel: 'subagent',
+            createdAt: '2026-05-03T00:00:00.000Z',
+            lastActiveAt: '2026-05-03T00:01:00.000Z'
+          }
+        },
+        {
+          edge: {
+            parentThreadId: 'parent-1',
+            childThreadId: 'child-nick',
+            agentNickname: 'Nick only',
+            taskName: 'nick_only',
+            agentPath: '/root/nick_only',
+            status: 'open'
+          }
+        },
+        {
+          edge: {
+            parentThreadId: 'parent-1',
+            childThreadId: 'child-task',
+            taskName: 'task_only',
+            agentPath: '/root/task_only',
+            status: 'open'
+          }
+        },
+        {
+          edge: {
+            parentThreadId: 'parent-1',
+            childThreadId: 'child-path',
+            agentPath: '/root/path_only',
+            status: 'open'
+          }
+        },
+        {
+          edge: {
+            parentThreadId: 'parent-1',
+            childThreadId: 'child-id',
+            status: 'open'
+          }
+        }
+      ]
+    })
+
+    await useSubAgentStore.getState().fetchChildren('parent-1')
+
+    expect(useSubAgentStore.getState().childrenByParent.get('parent-1')?.map((child) => child.nickname)).toEqual([
+      'Renamed child',
+      'Nick only',
+      'task_only',
+      'path_only',
+      'child-id'
     ])
   })
 
@@ -354,7 +434,7 @@ describe('subAgentStore', () => {
     expect(useSubAgentStore.getState().childrenByParent.get('parent-1')).toEqual([
       expect.objectContaining({
         childThreadId: 'child-1',
-        nickname: 'Lovelace',
+        nickname: 'Create hatch pet',
         agentRole: 'explorer',
         lastToolDisplay: 'Reading sprite atlas',
         currentTool: 'ReadFile',

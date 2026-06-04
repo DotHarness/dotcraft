@@ -64,7 +64,8 @@ internal sealed class AppServerTestHarness : IDisposable
         OpenAIClientProvider? openAIClientProvider = null,
         TraceStore? traceStore = null,
         IReadOnlyList<string>? builtInPluginSourceRoots = null,
-        WireRuntimeAdditionalContextProvider? wireRuntimeAdditionalContextProvider = null)
+        WireRuntimeAdditionalContextProvider? wireRuntimeAdditionalContextProvider = null,
+        Func<SessionThread, SubAgentCoordinator?>? subAgentCoordinatorFactory = null)
     {
         _tempDir = Path.Combine(
             Path.GetTempPath(),
@@ -108,7 +109,8 @@ internal sealed class AppServerTestHarness : IDisposable
             openAIClientProvider: openAIClientProvider,
             traceStore: traceStore,
             builtInPluginSourceRoots: builtInPluginSourceRoots,
-            wireRuntimeAdditionalContextProvider: wireRuntimeAdditionalContextProvider);
+            wireRuntimeAdditionalContextProvider: wireRuntimeAdditionalContextProvider,
+            subAgentCoordinatorFactory: subAgentCoordinatorFactory);
 
         Identity = new SessionIdentity
         {

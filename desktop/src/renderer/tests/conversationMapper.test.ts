@@ -134,6 +134,30 @@ describe('wireItemToConversationItem — nested payload format (thread/read)', (
     expect(item.triggerRefId).toBe('goal-1')
   })
 
+  it('preserves SubAgent triggerKind values from userMessage payload', () => {
+    const triggerKinds = ['subagentFollowupTask', 'subagentMailbox', 'subagentInput'] as const
+
+    for (const triggerKind of triggerKinds) {
+      const item = wireItemToConversationItem({
+        id: `i2-${triggerKind}`,
+        type: 'userMessage',
+        status: 'completed',
+        payloadKind: 'userMessage',
+        payload: {
+          text: 'synthetic message',
+          triggerKind,
+          triggerLabel: 'Inspect',
+          triggerRefId: '/root/inspect'
+        },
+        createdAt: '2025-01-01T00:00:00Z'
+      })
+
+      expect(item.triggerKind).toBe(triggerKind)
+      expect(item.triggerLabel).toBe('Inspect')
+      expect(item.triggerRefId).toBe('/root/inspect')
+    }
+  })
+
   it('filters unknown triggerKind values from userMessage payload', () => {
     const item = wireItemToConversationItem({
       id: 'i2-unknown-trigger',

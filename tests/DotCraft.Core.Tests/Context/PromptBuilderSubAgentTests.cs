@@ -37,14 +37,15 @@ public sealed class PromptBuilderSubAgentTests : IDisposable
     public void MainPrompt_WhenSpawnAgentAvailable_IncludesLifecycleGuidance()
     {
         var prompt = CreateMainBuilder(
-                toolNames: ["SpawnAgent", "SendInput", "WaitAgent", "ResumeAgent", "CloseAgent"])
+                toolNames: ["SpawnAgent", "SendMessage", "FollowupTask", "WaitAgent", "ListAgents", "CloseAgent"])
             .BuildSystemPrompt();
 
         Assert.Contains("## SubAgent Lifecycle", prompt, StringComparison.Ordinal);
         Assert.Contains("Use `SpawnAgent` for concrete sidecar work", prompt, StringComparison.Ordinal);
-        Assert.Contains("Use `SendInput` to reuse an existing child thread", prompt, StringComparison.Ordinal);
-        Assert.Contains("Use `WaitAgent` sparingly", prompt, StringComparison.Ordinal);
-        Assert.Contains("Use `CloseAgent` when a child thread is no longer needed", prompt, StringComparison.Ordinal);
+        Assert.Contains("Use `SendMessage` for mailbox-only coordination", prompt, StringComparison.Ordinal);
+        Assert.Contains("Use `FollowupTask` to start or queue a target agent turn", prompt, StringComparison.Ordinal);
+        Assert.Contains("Use `WaitAgent` only when the parent is blocked", prompt, StringComparison.Ordinal);
+        Assert.Contains("Use `CloseAgent` with an `agentPath`", prompt, StringComparison.Ordinal);
         Assert.DoesNotContain("### Designing Child Tasks", prompt, StringComparison.Ordinal);
         Assert.DoesNotContain("When you are not confident you can find what you need in 1-2 tool calls", prompt, StringComparison.Ordinal);
     }
@@ -57,7 +58,7 @@ public sealed class PromptBuilderSubAgentTests : IDisposable
             .BuildSystemPrompt();
 
         Assert.DoesNotContain("## SubAgent Lifecycle", prompt, StringComparison.Ordinal);
-        Assert.DoesNotContain("Use `WaitAgent` sparingly", prompt, StringComparison.Ordinal);
+        Assert.DoesNotContain("Use `WaitAgent` only when the parent is blocked", prompt, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -113,13 +114,13 @@ public sealed class PromptBuilderSubAgentTests : IDisposable
     public void SubAgentLightPrompt_DoesNotIncludeParentLifecycleGuidance()
     {
         var prompt = CreateBuilder(
-                toolNames: ["SpawnAgent", "SendInput", "WaitAgent", "CloseAgent"],
+                toolNames: ["SpawnAgent", "SendMessage", "FollowupTask", "WaitAgent", "CloseAgent"],
                 roleInstructions: "Role-specific guidance.")
             .BuildSystemPrompt();
 
         Assert.Contains("## SubAgent Context", prompt, StringComparison.Ordinal);
         Assert.DoesNotContain("## SubAgent Lifecycle", prompt, StringComparison.Ordinal);
-        Assert.DoesNotContain("Use `WaitAgent` sparingly", prompt, StringComparison.Ordinal);
+        Assert.DoesNotContain("Use `WaitAgent` only when the parent is blocked", prompt, StringComparison.Ordinal);
         Assert.DoesNotContain("## RequestUserInput", prompt, StringComparison.Ordinal);
     }
 

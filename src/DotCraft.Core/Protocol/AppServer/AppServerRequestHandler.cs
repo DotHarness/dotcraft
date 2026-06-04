@@ -77,7 +77,8 @@ public sealed class AppServerRequestHandler(
     PlanStore? planStore = null,
     TraceStore? traceStore = null,
     IReadOnlyList<string>? builtInPluginSourceRoots = null,
-    WireRuntimeAdditionalContextProvider? wireRuntimeAdditionalContextProvider = null)
+    WireRuntimeAdditionalContextProvider? wireRuntimeAdditionalContextProvider = null,
+    Func<SessionThread, SubAgentCoordinator?>? subAgentCoordinatorFactory = null)
 {
     private const string AppBindingAppListUpdatedNotification = "app/list/updated";
     private const string AppBindingThreadBindingsChangedNotification = "thread/appBindings/changed";
@@ -223,8 +224,9 @@ public sealed class AppServerRequestHandler(
         AppServerMethods.SubAgentProfileUpsert,
         AppServerMethods.SubAgentProfileRemove,
         AppServerMethods.SubAgentChildrenList,
-        AppServerMethods.SubAgentClose,
-        AppServerMethods.SubAgentResume
+        AppServerMethods.SubAgentSendMessage,
+        AppServerMethods.SubAgentFollowupTask,
+        AppServerMethods.SubAgentClose
     ];
 
     // -------------------------------------------------------------------------
@@ -285,8 +287,9 @@ public sealed class AppServerRequestHandler(
                 AppServerMethods.SubAgentProfileUpsert => HandleSubAgentProfileUpsertAsync(msg, ct),
                 AppServerMethods.SubAgentProfileRemove => HandleSubAgentProfileRemoveAsync(msg, ct),
                 AppServerMethods.SubAgentChildrenList => HandleSubAgentChildrenListAsync(msg, ct),
+                AppServerMethods.SubAgentSendMessage => HandleSubAgentSendMessageAsync(msg, ct),
+                AppServerMethods.SubAgentFollowupTask => HandleSubAgentFollowupTaskAsync(msg, ct),
                 AppServerMethods.SubAgentClose => HandleSubAgentCloseAsync(msg, ct),
-                AppServerMethods.SubAgentResume => HandleSubAgentResumeAsync(msg, ct),
                 AppServerMethods.McpStatusList => HandleMcpStatusListAsync(msg, ct),
                 AppServerMethods.McpTest => HandleMcpTestAsync(msg, ct),
                 AppServerMethods.ThreadStart => HandleThreadStartAsync(msg, ct),
@@ -507,12 +510,17 @@ public sealed class AppServerRequestHandler(
                 p.Config.Reasoning);
         }
 
+        var spawnSource = !string.IsNullOrWhiteSpace(p.SpawnedFromThreadId)
+            ? ThreadSource.SpawnedFromThread(p.SpawnedFromThreadId.Trim())
+            : null;
+
         var thread = await sessionService.CreateThreadAsync(
             identity,
             p.Config,
             historyMode,
             displayName: p.DisplayName,
-            ct: ct);
+            ct: ct,
+            source: spawnSource);
 
         if (wireAcpExtensionProxy != null && connection.HasAcpExtensions)
             wireAcpExtensionProxy.BindThread(thread.Id, transport, connection);
@@ -1008,22 +1016,71 @@ public sealed class AppServerRequestHandler(
         return new SubAgentChildrenListResult { Data = data };
     }
 
-    private async Task<object?> HandleSubAgentCloseAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private async Task<object?> HandleSubAgentSendMessageAsync(AppServerIncomingMessage msg, CancellationToken ct)
     {
-        var p = GetParams<SubAgentThreadParams>(msg);
-        if (string.IsNullOrWhiteSpace(p.ParentThreadId) || string.IsNullOrWhiteSpace(p.ChildThreadId))
-            throw AppServerErrors.InvalidParams("'parentThreadId' and 'childThreadId' are required.");
+        var p = GetParams<SubAgentTargetMessageParams>(msg);
+        if (string.IsNullOrWhiteSpace(p.ParentThreadId) || string.IsNullOrWhiteSpace(p.Target) || string.IsNullOrWhiteSpace(p.Message))
+            throw AppServerErrors.InvalidParams("'parentThreadId', 'target', and 'message' are required.");
 
-        return await SubAgentSessionControl.CloseAgentAsync(sessionService, p.ChildThreadId.Trim(), ct);
+        var context = await BuildSubAgentControlContextAsync(p.ParentThreadId.Trim(), ct);
+        return await SubAgentSessionControl.SendMessageAsync(context, p.Target.Trim(), p.Message, ct);
     }
 
-    private async Task<object?> HandleSubAgentResumeAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private async Task<object?> HandleSubAgentFollowupTaskAsync(AppServerIncomingMessage msg, CancellationToken ct)
     {
-        var p = GetParams<SubAgentThreadParams>(msg);
-        if (string.IsNullOrWhiteSpace(p.ParentThreadId) || string.IsNullOrWhiteSpace(p.ChildThreadId))
-            throw AppServerErrors.InvalidParams("'parentThreadId' and 'childThreadId' are required.");
+        var p = GetParams<SubAgentTargetMessageParams>(msg);
+        if (string.IsNullOrWhiteSpace(p.ParentThreadId) || string.IsNullOrWhiteSpace(p.Target) || string.IsNullOrWhiteSpace(p.Message))
+            throw AppServerErrors.InvalidParams("'parentThreadId', 'target', and 'message' are required.");
 
-        return await SubAgentSessionControl.ResumeAgentAsync(sessionService, p.ChildThreadId.Trim(), ct);
+        var context = await BuildSubAgentControlContextAsync(p.ParentThreadId.Trim(), ct);
+        return await SubAgentSessionControl.FollowupTaskAsync(
+            context,
+            p.Target.Trim(),
+            p.Message,
+            CreateSubAgentCoordinator(context.ParentThread),
+            ct);
+    }
+
+    private async Task<object?> HandleSubAgentCloseAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    {
+        var p = GetParams<SubAgentTargetParams>(msg);
+        if (string.IsNullOrWhiteSpace(p.ParentThreadId) || string.IsNullOrWhiteSpace(p.Target))
+            throw AppServerErrors.InvalidParams("'parentThreadId' and 'target' are required.");
+
+        var context = await BuildSubAgentControlContextAsync(p.ParentThreadId.Trim(), ct);
+        return await SubAgentSessionControl.CloseAgentAsync(context, p.Target.Trim(), ct);
+    }
+
+    private async Task<SubAgentSessionContext> BuildSubAgentControlContextAsync(string parentThreadId, CancellationToken ct)
+    {
+        var parent = await sessionService.GetThreadAsync(parentThreadId, ct);
+        var source = parent.Source.SubAgent;
+        return new SubAgentSessionContext
+        {
+            SessionService = sessionService,
+            ParentThread = parent,
+            ParentTurnId = string.Empty,
+            RootThreadId = string.IsNullOrWhiteSpace(source?.RootThreadId) ? parent.Id : source.RootThreadId,
+            Depth = source?.Depth ?? 0
+        };
+    }
+
+    private SubAgentCoordinator? CreateSubAgentCoordinator(SessionThread thread)
+    {
+        if (subAgentCoordinatorFactory != null)
+            return subAgentCoordinatorFactory(thread);
+
+        var config = appConfigMonitor?.Current ?? new AppConfig();
+        var workspaceRoot = !string.IsNullOrWhiteSpace(thread.WorkspacePath)
+            ? thread.WorkspacePath
+            : _hostWorkspacePath ?? Environment.CurrentDirectory;
+        return new SubAgentCoordinator(
+            workspaceRoot,
+            [new CliOneshotRuntime()],
+            config.SubAgentProfiles,
+            disabledProfiles: config.SubAgent.DisabledProfiles,
+            externalCliSessionStore: new ThreadExternalCliSessionStore(thread),
+            enableExternalCliSessionResume: config.SubAgent.EnableExternalCliSessionResume);
     }
 
     private async Task BindNodeReplThreadAndRefreshAgentAsync(string threadId, CancellationToken ct)

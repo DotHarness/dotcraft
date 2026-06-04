@@ -155,9 +155,10 @@ interface StreamingFileBaseline {
 
 const SUB_AGENT_STREAMING_TOOLS = new Set([
   'SpawnAgent',
-  'SendInput',
+  'SendMessage',
+  'FollowupTask',
   'WaitAgent',
-  'ResumeAgent',
+  'ListAgents',
   'CloseAgent'
 ])
 

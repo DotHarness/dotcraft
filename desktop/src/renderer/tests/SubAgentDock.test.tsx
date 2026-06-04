@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { SubAgentDock } from '../components/conversation/SubAgentDock'
 import { useSubAgentStore } from '../stores/subAgentStore'
+import { useConnectionStore } from '../stores/connectionStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
 import { getSubAgentAccent } from '../utils/subAgentPresentation'
@@ -22,6 +23,8 @@ describe('SubAgentDock', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     settingsGet.mockResolvedValue({ locale: 'en' })
+    useConnectionStore.getState().reset()
+    useConnectionStore.setState({ capabilities: { subAgentSessions: true } })
     appServerSendRequest.mockImplementation(async (method: string, params?: Record<string, unknown>) => {
       if (method === 'subagent/children/list') {
         const parentThreadId = typeof params?.parentThreadId === 'string' ? params.parentThreadId : 'parent-1'
@@ -33,12 +36,16 @@ describe('SubAgentDock', () => {
               edge: {
                 parentThreadId,
                 childThreadId: child.childThreadId,
+                agentPath: child.agentPath,
+                taskName: child.taskName,
                 agentNickname: child.nickname,
                 agentRole: child.agentRole,
                 profileName: child.profileName,
                 runtimeType: child.runtimeType,
                 supportsSendInput: child.supportsSendInput,
                 supportsResume: child.supportsResume,
+                supportsSendMessage: child.supportsSendMessage,
+                supportsFollowupTask: child.supportsFollowupTask,
                 supportsClose: child.supportsClose,
                 status: child.status
               },
@@ -71,12 +78,16 @@ describe('SubAgentDock', () => {
       {
         childThreadId: 'child-1',
         parentThreadId: 'parent-1',
+        agentPath: '/root/lovelace',
+        taskName: 'lovelace',
         nickname: 'Lovelace',
         agentRole: 'explorer',
         profileName: 'codex-cli',
         runtimeType: 'cli-oneshot',
         supportsSendInput: false,
         supportsResume: true,
+        supportsSendMessage: true,
+        supportsFollowupTask: true,
         supportsClose: true,
         status: 'open',
         lastToolDisplay: 'Reading sprite atlas',
@@ -265,7 +276,7 @@ describe('SubAgentDock', () => {
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith('subagent/close', {
         parentThreadId: 'parent-1',
-        childThreadId: 'child-1'
+        target: '/root/lovelace'
       })
       expect(appServerSendRequest).toHaveBeenCalledWith('subagent/children/list', {
         parentThreadId: 'parent-1',
@@ -274,6 +285,147 @@ describe('SubAgentDock', () => {
       })
     })
     expect(useSubAgentStore.getState().collapsedByParent.get('parent-1')).not.toBe(true)
+  })
+
+  it('sends mailbox messages through subagent/sendMessage', async () => {
+    renderDock()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Send mailbox message to Lovelace' }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'Send mailbox message to Lovelace' }), {
+      target: { value: 'keep this in mind' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith('subagent/sendMessage', {
+        parentThreadId: 'parent-1',
+        target: '/root/lovelace',
+        message: 'keep this in mind'
+      })
+    })
+  })
+
+  it('starts follow-up tasks through subagent/followupTask', async () => {
+    useSubAgentStore.getState().setChildren('parent-1', [
+      {
+        childThreadId: 'child-1',
+        parentThreadId: 'parent-1',
+        agentPath: '/root/lovelace',
+        taskName: 'lovelace',
+        nickname: 'Lovelace',
+        agentRole: null,
+        profileName: 'native',
+        runtimeType: 'native',
+        supportsSendInput: false,
+        supportsResume: false,
+        supportsSendMessage: true,
+        supportsFollowupTask: true,
+        supportsClose: true,
+        status: 'open',
+        lastToolDisplay: null,
+        currentTool: null,
+        inputTokens: 0,
+        outputTokens: 0,
+        isCompleted: true,
+        runtime: {
+          running: false,
+          waitingOnApproval: false,
+          waitingOnPlanConfirmation: false
+        }
+      }
+    ])
+    renderDock()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start follow-up task for Lovelace' }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'Start follow-up task for Lovelace' }), {
+      target: { value: 'continue the review' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith('subagent/followupTask', {
+        parentThreadId: 'parent-1',
+        target: '/root/lovelace',
+        message: 'continue the review'
+      })
+    })
+  })
+
+  it('hides path control actions for closed, pathless, or unsupported children', () => {
+    useSubAgentStore.getState().setChildren('parent-1', [
+      {
+        childThreadId: 'closed-child',
+        parentThreadId: 'parent-1',
+        agentPath: '/root/closed_child',
+        taskName: 'closed_child',
+        nickname: 'Closed child',
+        agentRole: null,
+        profileName: 'native',
+        runtimeType: 'native',
+        supportsSendInput: false,
+        supportsResume: false,
+        supportsSendMessage: true,
+        supportsFollowupTask: true,
+        supportsClose: true,
+        status: 'closed',
+        lastToolDisplay: null,
+        currentTool: null,
+        inputTokens: 0,
+        outputTokens: 0,
+        isCompleted: true
+      },
+      {
+        childThreadId: 'pathless-child',
+        parentThreadId: 'parent-1',
+        agentPath: null,
+        taskName: null,
+        nickname: 'Pathless child',
+        agentRole: null,
+        profileName: 'native',
+        runtimeType: 'native',
+        supportsSendInput: false,
+        supportsResume: false,
+        supportsSendMessage: true,
+        supportsFollowupTask: true,
+        supportsClose: true,
+        status: 'open',
+        lastToolDisplay: null,
+        currentTool: null,
+        inputTokens: 0,
+        outputTokens: 0,
+        isCompleted: true
+      },
+      {
+        childThreadId: 'unsupported-child',
+        parentThreadId: 'parent-1',
+        agentPath: '/root/unsupported_child',
+        taskName: 'unsupported_child',
+        nickname: 'Unsupported child',
+        agentRole: null,
+        profileName: 'native',
+        runtimeType: 'native',
+        supportsSendInput: false,
+        supportsResume: false,
+        supportsSendMessage: false,
+        supportsFollowupTask: false,
+        supportsClose: true,
+        status: 'open',
+        lastToolDisplay: null,
+        currentTool: null,
+        inputTokens: 0,
+        outputTokens: 0,
+        isCompleted: true
+      }
+    ])
+
+    renderDock()
+
+    expect(screen.queryByRole('button', { name: 'Send mailbox message to Closed child' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Start follow-up task for Closed child' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Send mailbox message to Pathless child' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Start follow-up task for Pathless child' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Send mailbox message to Unsupported child' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Start follow-up task for Unsupported child' })).not.toBeInTheDocument()
   })
 
   it('keeps completed child rows visible as openable history entries', () => {

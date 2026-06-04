@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Abstractions;
@@ -815,6 +816,11 @@ Choose the next concrete action that advances the goal. Before doing substantial
             thread.ChannelContext = identity.ChannelContext;
             thread.Metadata["channelContext"] = identity.ChannelContext;
         }
+
+        // Mirror a non-subagent spawn origin into metadata so the client can durably
+        // render a "from another thread" affordance after restart (Source is not persisted).
+        if (!string.IsNullOrWhiteSpace(thread.Source.SpawnedFromThreadId))
+            thread.Metadata["spawnedFromThreadId"] = thread.Source.SpawnedFromThreadId!;
 
         _threadsPendingPermanentDeletion.TryRemove(thread.Id, out _);
         _threads[thread.Id] = thread;
@@ -1827,6 +1833,31 @@ Choose the next concrete action that advances the goal. Before doing substantial
         return persistence.ListSubAgentChildrenAsync(parentThreadId, includeClosed, ct);
     }
 
+    public async Task AddSubAgentMailboxEntryAsync(SubAgentMailboxEntry entry, CancellationToken ct = default)
+    {
+        ct.ThrowIfCancellationRequested();
+        await persistence.AddSubAgentMailboxEntryAsync(entry, ct);
+    }
+
+    public Task<IReadOnlyList<SubAgentMailboxEntry>> ListPendingSubAgentMailboxAsync(
+        string rootThreadId,
+        string targetAgentPath,
+        CancellationToken ct = default)
+    {
+        ct.ThrowIfCancellationRequested();
+        return persistence.ListPendingSubAgentMailboxAsync(rootThreadId, targetAgentPath, ct);
+    }
+
+    public async Task MarkSubAgentMailboxDeliveredAsync(
+        string rootThreadId,
+        IReadOnlyList<string> entryIds,
+        DateTimeOffset deliveredAt,
+        CancellationToken ct = default)
+    {
+        ct.ThrowIfCancellationRequested();
+        await persistence.MarkSubAgentMailboxDeliveredAsync(rootThreadId, entryIds, deliveredAt, ct);
+    }
+
     public async Task<SessionTurn> StartSubAgentSyntheticTurnAsync(
         string threadId,
         IList<AIContent> content,
@@ -1844,6 +1875,7 @@ Choose the next concrete action that advances the goal. Before doing substantial
         var channelInfo = ChannelSessionScope.Current;
         var turnOriginChannel = channelInfo?.Channel ?? thread.OriginChannel;
         var turnChannelContext = channelInfo?.DefaultDeliveryTarget ?? thread.ChannelContext;
+        var triggerInfo = TurnTriggerScope.Current;
         var text = string.Concat(content.OfType<TextContent>().Select(t => t.Text));
         var turn = new SessionTurn
         {
@@ -1874,7 +1906,10 @@ Choose the next concrete action that advances the goal. Before doing substantial
                 Text = text,
                 ChannelName = turnOriginChannel,
                 ChannelContext = turnChannelContext,
-                GroupId = channelInfo?.GroupId
+                GroupId = channelInfo?.GroupId,
+                TriggerKind = triggerInfo?.Kind,
+                TriggerLabel = triggerInfo?.Label,
+                TriggerRefId = triggerInfo?.RefId
             }
         };
 
@@ -2248,6 +2283,7 @@ Choose the next concrete action that advances the goal. Before doing substantial
         var text = inputSnapshot?.DisplayText
             ?? string.Concat(content.OfType<TextContent>().Select(t => t.Text));
         var images = ExtractUserMessageImages(content);
+        var currentSubAgentSource = thread.Source.SubAgent;
 
         var userItem = new SessionItem
         {
@@ -2410,6 +2446,81 @@ Choose the next concrete action that advances the goal. Before doing substantial
                     session,
                     checkpoint,
                     CancellationToken.None);
+            }
+
+            async Task<ChatMessage?> TryDrainTurnContextMessageAsync(CancellationToken drainCt)
+            {
+                var mailboxMessage = await TryDrainSubAgentMailboxMessageAsync(drainCt);
+                if (mailboxMessage != null)
+                    return mailboxMessage;
+
+                return await TryDrainGuidanceMessageAsync(drainCt);
+            }
+
+            async Task<ChatMessage?> TryDrainSubAgentMailboxMessageAsync(CancellationToken drainCt)
+            {
+                var rootThreadId = currentSubAgentSource?.RootThreadId;
+                if (string.IsNullOrWhiteSpace(rootThreadId))
+                    rootThreadId = thread.Id;
+
+                var currentPathValue = currentSubAgentSource?.AgentPath;
+                if (string.IsNullOrWhiteSpace(currentPathValue))
+                    currentPathValue = AgentPath.Root;
+                if (!AgentPath.TryParse(currentPathValue, out var currentPath))
+                    return null;
+
+                var pending = await ListPendingSubAgentMailboxAsync(
+                    rootThreadId,
+                    currentPath.Value,
+                    drainCt);
+                if (pending.Count == 0)
+                    return null;
+
+                var materializedText = BuildSubAgentMailboxModelText(pending);
+                if (string.IsNullOrWhiteSpace(materializedText))
+                    return null;
+
+                var displayText = BuildSubAgentMailboxDisplayText(pending);
+                var materializedPart = new SessionWireInputPart { Type = "text", Text = materializedText };
+                var nativePart = new SessionWireInputPart { Type = "text", Text = displayText };
+                var item = new SessionItem
+                {
+                    Id = SessionIdGenerator.NewItemId(NextItemSeq()),
+                    TurnId = turn.Id,
+                    Type = ItemType.UserMessage,
+                    Status = ItemStatus.Completed,
+                    CreatedAt = DateTimeOffset.UtcNow,
+                    CompletedAt = DateTimeOffset.UtcNow,
+                    Payload = new UserMessagePayload
+                    {
+                        Text = displayText,
+                        DeliveryMode = SubAgentMailboxDelivery.DeliveryMode,
+                        NativeInputParts = [nativePart],
+                        MaterializedInputParts = [materializedPart],
+                        ChannelName = turn.OriginChannel,
+                        ChannelContext = turn.Initiator?.ChannelContext,
+                        GroupId = turn.Initiator?.GroupId,
+                        TriggerKind = SubAgentMailboxDelivery.DeliveryMode,
+                        TriggerLabel = pending.Count == 1 ? pending[0].SenderAgentPath : $"{pending.Count} messages",
+                        TriggerRefId = currentPath.Value
+                    }
+                };
+
+                FinalizeStreamingAgentMessage();
+                FinalizeStreamingReasoning();
+
+                turn.Items.Add(item);
+                thread.LastActiveAt = DateTimeOffset.UtcNow;
+                await PersistThreadWithMaterializationAsync(thread, CancellationToken.None);
+                await MarkSubAgentMailboxDeliveredAsync(
+                    rootThreadId,
+                    pending.Select(entry => entry.Id).ToArray(),
+                    DateTimeOffset.UtcNow,
+                    CancellationToken.None);
+
+                eventChannel.EmitItemStarted(item);
+                eventChannel.EmitItemCompleted(item);
+                return new ChatMessage(ChatRole.User, (IList<AIContent>)[new TextContent(materializedText)]);
             }
 
             async Task<ChatMessage?> TryDrainGuidanceMessageAsync(CancellationToken drainCt)
@@ -2886,7 +2997,6 @@ Choose the next concrete action that advances the goal. Before doing substantial
                             return await userInputRequestService.RequestAsync(requestId, questions);
                         }))
                         : null;
-                var currentSubAgentSource = thread.Source.SubAgent;
                 using var subAgentSessionScope = SubAgentSessionScope.Set(new SubAgentSessionContext
                 {
                     SessionService = this,
@@ -2919,7 +3029,7 @@ Choose the next concrete action that advances the goal. Before doing substantial
                     {
                         ThreadId = threadId,
                         TurnId = turn.Id,
-                        TryDrainGuidanceMessageAsync = TryDrainGuidanceMessageAsync
+                        TryDrainGuidanceMessageAsync = TryDrainTurnContextMessageAsync
                     });
                     using var modelStreamRetryScope = ModelStreamRetryRuntimeScope.Set(
                         new ModelStreamRetryRuntimeContext
@@ -5414,6 +5524,44 @@ Choose the next concrete action that advances the goal. Before doing substantial
         if (runtimeContextIndex >= 0)
             normalized = normalized[..runtimeContextIndex].Trim();
         return normalized;
+    }
+
+    private static string BuildSubAgentMailboxModelText(IReadOnlyList<SubAgentMailboxEntry> entries)
+    {
+        var messages = entries
+            .Select(entry => entry.Message.Trim())
+            .Where(message => !string.IsNullOrWhiteSpace(message))
+            .ToArray();
+        if (messages.Length == 0)
+            return string.Empty;
+        if (messages.Length == 1)
+            return messages[0];
+
+        var sb = new StringBuilder();
+        sb.AppendLine("## SubAgent Mailbox");
+        sb.AppendLine();
+        foreach (var entry in entries)
+        {
+            var message = entry.Message.Trim();
+            if (string.IsNullOrWhiteSpace(message))
+                continue;
+
+            sb.Append("From ");
+            sb.Append(entry.SenderAgentPath);
+            sb.AppendLine(":");
+            sb.AppendLine(message);
+            sb.AppendLine();
+        }
+
+        return sb.ToString().Trim();
+    }
+
+    private static string BuildSubAgentMailboxDisplayText(IReadOnlyList<SubAgentMailboxEntry> entries)
+    {
+        if (entries.Count == 1)
+            return $"SubAgent message from {entries[0].SenderAgentPath}";
+
+        return $"{entries.Count} SubAgent messages";
     }
 
     private static string StripSystemReminderBlocks(string? text)

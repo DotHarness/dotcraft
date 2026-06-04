@@ -28,7 +28,7 @@ describe('workspace launch flow source', () => {
     expect(appSource).toContain("isInitialWorkspaceStatus && path && payload.status === 'ready'")
     expect(appSource).toContain("phase: 'connecting'")
     expect(appSource).not.toContain('function canRevealMainForWorkspaceLaunch')
-    expect(appSource).toContain("workspaceStatus.status === 'ready' && status === 'connected'")
+    expect(appSource).toContain("workspaceStatus.status === 'ready' && status === 'connected' && mainWorkspaceGitSettled")
     expect(appSource).toContain("phase: 'main-reveal'")
     expect(appSource).toContain("phase: 'error-reveal'")
     expect(appSource).toContain("phase: 'setup-complete-to-center'")

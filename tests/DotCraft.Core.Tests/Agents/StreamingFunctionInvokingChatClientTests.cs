@@ -45,6 +45,40 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
     }
 
     [Fact]
+    public async Task GetStreamingResponseAsync_DrainsMailboxTurnContextAsUserBeforeNextModelRequest()
+    {
+        var inner = new RoundTripFakeChatClient();
+        var tool = AIFunctionFactory.Create(() => "tool ok", name: "GetStatus");
+        var client = new StreamingFunctionInvokingChatClient(inner)
+        {
+            AdditionalTools = [tool]
+        };
+        var drained = false;
+        const string notification = "<subagent_notification>{\"agentPath\":\"/root/worker\",\"status\":{\"completed\":\"done\"}}</subagent_notification>";
+
+        using var scope = TurnGuidanceRuntimeScope.Set(new TurnGuidanceRuntimeContext
+        {
+            ThreadId = "thread_1",
+            TurnId = "turn_1",
+            TryDrainGuidanceMessageAsync = _ =>
+            {
+                if (drained)
+                    return Task.FromResult<ChatMessage?>(null);
+                drained = true;
+                return Task.FromResult<ChatMessage?>(new ChatMessage(ChatRole.User, notification));
+            }
+        });
+
+        await foreach (var _ in client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")]))
+        {
+        }
+
+        Assert.True(drained);
+        Assert.Equal(2, inner.Calls.Count);
+        Assert.Contains(inner.Calls[1], message => message.Role == ChatRole.User && message.Text == notification);
+    }
+
+    [Fact]
     public async Task GetStreamingResponseAsync_RunsPreSamplingCompactionBeforeModelRequest()
     {
         var inner = new SingleReplyFakeChatClient();

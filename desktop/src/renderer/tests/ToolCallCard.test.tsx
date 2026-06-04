@@ -337,6 +337,61 @@ describe('ToolCallCard subagent result rendering', () => {
     expect(screen.queryByText(/thread_child/)).toBeNull()
   })
 
+  it('uses the current parent single subagent name for WaitAgent results without a child id', () => {
+    useThreadStore.getState().setActiveThread({
+      id: 'parent-1',
+      userId: 'local',
+      workspacePath: '/workspace/project',
+      displayName: 'Parent thread',
+      status: 'active',
+      originChannel: 'dotcraft-desktop',
+      createdAt: '2026-05-03T10:00:00.000Z',
+      lastActiveAt: '2026-05-03T10:00:00.000Z',
+      metadata: {},
+      turns: []
+    })
+    useSubAgentStore.getState().setChildren('parent-1', [
+      {
+        childThreadId: 'thread_child',
+        parentThreadId: 'parent-1',
+        agentPath: '/root/frontend_complexity',
+        taskName: 'frontend_complexity',
+        nickname: 'Frontend complexity summary',
+        agentRole: 'explorer',
+        profileName: 'native',
+        runtimeType: 'native',
+        supportsSendInput: false,
+        supportsResume: false,
+        supportsClose: true,
+        status: 'completed',
+        lastToolDisplay: null,
+        currentTool: null,
+        inputTokens: 0,
+        outputTokens: 0,
+        isCompleted: true
+      }
+    ])
+    const item: ConversationItem = {
+      id: 'subagent-tool-implicit-wait-name',
+      type: 'toolCall',
+      status: 'completed',
+      toolName: 'WaitAgent',
+      toolCallId: 'call-implicit-wait-name',
+      arguments: {},
+      result: JSON.stringify({
+        status: 'changed',
+        timedOut: false
+      }),
+      success: true,
+      createdAt: '2026-05-03T10:00:00.000Z'
+    }
+
+    const { container } = renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
+
+    expect(container).toHaveTextContent('Received result from Frontend complexity summary')
+    expect(screen.queryByText('Received result from agent')).toBeNull()
+  })
+
   it('renders WaitAgent timeout as a wait timeout rather than a subagent failure', () => {
     const item: ConversationItem = {
       id: 'subagent-tool-timeout',

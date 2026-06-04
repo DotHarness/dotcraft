@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { ComposerWorkspaceFooter } from '../components/conversation/ComposerWorkspaceFooter'
 import { useConnectionStore } from '../stores/connectionStore'
+import { normalizeGitPathKey, useGitStore, type GitBranchListSnapshot } from '../stores/gitStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useToastStore } from '../stores/toastStore'
 import type { Thread } from '../types/thread'
@@ -12,6 +13,17 @@ const appServerSendRequest = vi.fn()
 const gitListBranches = vi.fn()
 const gitCheckoutBranch = vi.fn()
 const gitCreateAndCheckoutBranch = vi.fn()
+
+function branchSnapshot(current: string): GitBranchListSnapshot {
+  return {
+    current,
+    detachedHead: null,
+    branches: [
+      { name: 'main', current: current === 'main' },
+      { name: 'feat/example', current: current === 'feat/example' }
+    ]
+  }
+}
 
 function makeThread(overrides: Partial<Thread> = {}): Thread {
   return {
@@ -70,6 +82,7 @@ describe('ComposerWorkspaceFooter', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     useConnectionStore.getState().reset()
+    useGitStore.getState().reset()
     useThreadStore.getState().reset()
     useToastStore.setState({ toasts: [] })
     settingsGet.mockResolvedValue({ locale: 'en' })
@@ -139,6 +152,39 @@ describe('ComposerWorkspaceFooter', () => {
     })
   })
 
+  it('renders an available cached branch snapshot on the first frame', () => {
+    useGitStore.setState({
+      branchesByPath: {
+        [normalizeGitPathKey('fixtures\\sample-app')]: {
+          path: 'fixtures\\sample-app',
+          status: 'available',
+          snapshot: branchSnapshot('feat/example'),
+          refreshing: false,
+          errorMessage: null,
+          updatedAt: Date.now(),
+          requestId: 1
+        }
+      }
+    })
+
+    const localThread = makeThread()
+    renderFooter(localThread, 'local')
+
+    expect(screen.getByRole('button', { name: 'Local' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'feat/example' })).toBeInTheDocument()
+    expect(gitListBranches).not.toHaveBeenCalled()
+  })
+
+  it('keeps footer controls mounted but disabled while branch probing is pending', () => {
+    gitListBranches.mockReturnValue(new Promise(() => {}))
+
+    const worktreeThread = makeWorktreeThread()
+    renderFooter(worktreeThread, 'worktree')
+
+    expect(screen.getByRole('button', { name: 'Worktree' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'dotcraft/handoff' })).toBeDisabled()
+  })
+
   it('refreshes the current branch while the footer is mounted', async () => {
     vi.useFakeTimers()
     const localThread = makeThread()
@@ -173,6 +219,56 @@ describe('ComposerWorkspaceFooter', () => {
     })
 
     expect(screen.getByRole('button', { name: 'master' })).toBeInTheDocument()
+  })
+
+  it('refreshes the shared branch snapshot after checking out another branch', async () => {
+    const localThread = makeThread()
+    gitListBranches
+      .mockResolvedValueOnce(branchSnapshot('main'))
+      .mockResolvedValueOnce(branchSnapshot('feat/example'))
+
+    renderFooter(localThread, 'local')
+
+    fireEvent.click(await screen.findByRole('button', { name: 'main' }))
+    fireEvent.click(screen.getByText('feat/example'))
+
+    await waitFor(() => {
+      expect(gitCheckoutBranch).toHaveBeenCalledWith('fixtures\\sample-app', 'feat/example')
+    })
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'feat/example' })).toBeInTheDocument()
+    })
+  })
+
+  it('hides and resets welcome worktree choices after Git is confirmed unavailable', async () => {
+    gitListBranches.mockRejectedValue(new Error('not a git repository'))
+    const onWelcomeModeChange = vi.fn()
+    const onBaseRefChange = vi.fn()
+    const onWorktreeBranchNameChange = vi.fn()
+
+    render(
+      <LocaleProvider>
+        <ComposerWorkspaceFooter
+          workspacePath="fixtures\\sample-app"
+          mode="worktree"
+          variant="welcome"
+          baseRef="main"
+          worktreeBranchName="dotcraft/sample-app"
+          onWelcomeModeChange={onWelcomeModeChange}
+          onBaseRefChange={onBaseRefChange}
+          onWorktreeBranchNameChange={onWorktreeBranchNameChange}
+        />
+      </LocaleProvider>
+    )
+
+    expect(screen.getByRole('button', { name: 'New worktree' })).toBeInTheDocument()
+
+    await waitFor(() => {
+      expect(onWelcomeModeChange).toHaveBeenCalledWith('local')
+    })
+    expect(onBaseRefChange).toHaveBeenCalledWith(null)
+    expect(onWorktreeBranchNameChange).toHaveBeenCalledWith(null)
+    expect(screen.queryByRole('button', { name: 'New worktree' })).not.toBeInTheDocument()
   })
 
   it('opens the local to worktree handoff dialog and sends the default branch request', async () => {

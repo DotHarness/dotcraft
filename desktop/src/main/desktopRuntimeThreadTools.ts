@@ -344,7 +344,7 @@ export async function handleDesktopRuntimeThreadToolCall(
   try {
     switch (p.tool) {
       case 'CreateThread':
-        return await createThreadTool(client, args, workspacePath, options)
+        return await createThreadTool(client, args, workspacePath, options, p.threadId)
       case 'ListThreads':
         return await listThreadsTool(client, args, workspacePath, options)
       case 'ReadThread':
@@ -369,7 +369,8 @@ async function createThreadTool(
   client: AppServerRequestClient,
   args: Record<string, unknown>,
   workspacePath: string,
-  options: DesktopAppServerRequestOptions
+  options: DesktopAppServerRequestOptions,
+  callerThreadId?: string
 ): Promise<DynamicToolCallResult> {
   const prompt = requiredNonEmptyString(args, 'prompt')
   if (prompt.ok === false) return prompt.error
@@ -389,6 +390,11 @@ async function createThreadTool(
   }
   if (displayName?.value) {
     startParams.displayName = displayName.value
+  }
+  // Record which thread spawned this one so the new thread's first user message can
+  // link back to its source (the calling thread). Kept as a non-subagent origin.
+  if (callerThreadId && callerThreadId.trim()) {
+    startParams.spawnedFromThreadId = callerThreadId.trim()
   }
   const config: JsonObject = {}
   if (model?.value) {

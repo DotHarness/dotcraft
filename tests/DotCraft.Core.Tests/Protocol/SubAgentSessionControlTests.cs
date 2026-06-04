@@ -2,6 +2,7 @@ using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Protocol;
 using DotCraft.Tests.Sessions.Protocol.AppServer;
+using Microsoft.Extensions.AI;
 
 namespace DotCraft.Tests.Sessions.Protocol;
 
@@ -44,6 +45,7 @@ public sealed class SubAgentSessionControlTests : IDisposable
             new SubAgentSpawnOptions
             {
                 AgentPrompt = "inspect code",
+                TaskName = "inspect",
                 AgentNickname = "Inspect",
                 ProfileName = "cli-run"
             },
@@ -73,6 +75,9 @@ public sealed class SubAgentSessionControlTests : IDisposable
         Assert.False(edge.SupportsSendInput);
         Assert.Equal(TurnStatus.Completed, turn.Status);
         Assert.Equal("inspect code", turn.Input?.AsUserMessage?.Text);
+        Assert.Equal("subagentInput", turn.Input?.AsUserMessage?.TriggerKind);
+        Assert.Equal("Inspect", turn.Input?.AsUserMessage?.TriggerLabel);
+        Assert.Equal("/root/inspect", turn.Input?.AsUserMessage?.TriggerRefId);
         Assert.Equal("cli ok", turn.Items.Last().AsAgentMessage?.Text);
         Assert.Equal(3, turn.TokenUsage?.InputTokens);
         Assert.Equal(5, turn.TokenUsage?.OutputTokens);
@@ -90,6 +95,7 @@ public sealed class SubAgentSessionControlTests : IDisposable
             new SubAgentSpawnOptions
             {
                 AgentPrompt = "inspect code",
+                TaskName = "inspect",
                 AgentRole = "explorer",
                 ProfileName = "cli-run"
             },
@@ -111,7 +117,7 @@ public sealed class SubAgentSessionControlTests : IDisposable
         var context = await CreateContextAsync();
         var spawned = await SubAgentSessionControl.SpawnAgentAsync(
             context,
-            new SubAgentSpawnOptions { AgentPrompt = "inspect code", AgentNickname = "Inspect", ProfileName = "cli-run" },
+            new SubAgentSpawnOptions { AgentPrompt = "inspect code", TaskName = "inspect", AgentNickname = "Inspect", ProfileName = "cli-run" },
             waitForCompletion: true,
             coordinator,
             CancellationToken.None);
@@ -136,7 +142,7 @@ public sealed class SubAgentSessionControlTests : IDisposable
         var context = await CreateContextAsync();
         var spawned = await SubAgentSessionControl.SpawnAgentAsync(
             context,
-            new SubAgentSpawnOptions { AgentPrompt = "inspect code", AgentNickname = "Inspect", ProfileName = "cli-run" },
+            new SubAgentSpawnOptions { AgentPrompt = "inspect code", TaskName = "inspect", AgentNickname = "Inspect", ProfileName = "cli-run" },
             waitForCompletion: true,
             coordinator,
             CancellationToken.None);
@@ -162,6 +168,9 @@ public sealed class SubAgentSessionControlTests : IDisposable
         Assert.Equal(["sess-1", "sess-2"], store.RecordedSessionIds);
         Assert.Equal(2, child.Turns.Count);
         Assert.Equal("continue", child.Turns[1].Input?.AsUserMessage?.Text);
+        Assert.Equal("subagentInput", child.Turns[1].Input?.AsUserMessage?.TriggerKind);
+        Assert.Equal("Inspect", child.Turns[1].Input?.AsUserMessage?.TriggerLabel);
+        Assert.Equal("/root/inspect", child.Turns[1].Input?.AsUserMessage?.TriggerRefId);
     }
 
     [Fact]
@@ -175,7 +184,7 @@ public sealed class SubAgentSessionControlTests : IDisposable
         var context = await CreateContextAsync();
         var spawned = await SubAgentSessionControl.SpawnAgentAsync(
             context,
-            new SubAgentSpawnOptions { AgentPrompt = "inspect code", AgentNickname = "Inspect", ProfileName = "cli-run" },
+            new SubAgentSpawnOptions { AgentPrompt = "inspect code", TaskName = "inspect", AgentNickname = "Inspect", ProfileName = "cli-run" },
             waitForCompletion: false,
             coordinator,
             CancellationToken.None);
@@ -203,7 +212,7 @@ public sealed class SubAgentSessionControlTests : IDisposable
         var context = await CreateContextAsync();
         var spawned = await SubAgentSessionControl.SpawnAgentAsync(
             context,
-            new SubAgentSpawnOptions { AgentPrompt = "inspect code", AgentNickname = "Inspect", ProfileName = "cli-run" },
+            new SubAgentSpawnOptions { AgentPrompt = "inspect code", TaskName = "inspect", AgentNickname = "Inspect", ProfileName = "cli-run" },
             waitForCompletion: false,
             coordinator,
             CancellationToken.None);
@@ -233,6 +242,7 @@ public sealed class SubAgentSessionControlTests : IDisposable
             new SubAgentSpawnOptions
             {
                 AgentPrompt = "inspect code",
+                TaskName = "inspect",
                 MaxDepth = 1
             },
             waitForCompletion: false,
@@ -258,6 +268,7 @@ public sealed class SubAgentSessionControlTests : IDisposable
             new SubAgentSpawnOptions
             {
                 AgentPrompt = "inspect code",
+                TaskName = "inspect",
                 SubAgentModel = "subagent-model"
             },
             waitForCompletion: false,
@@ -279,6 +290,7 @@ public sealed class SubAgentSessionControlTests : IDisposable
             new SubAgentSpawnOptions
             {
                 AgentPrompt = "inspect code",
+                TaskName = "inspect",
                 RoleConfigs =
                 [
                     new SubAgentRoleConfig
@@ -308,6 +320,7 @@ public sealed class SubAgentSessionControlTests : IDisposable
             new SubAgentSpawnOptions
             {
                 AgentPrompt = "implement change",
+                TaskName = "worker",
                 AgentRole = "worker",
                 MaxDepth = 1
             },
@@ -333,6 +346,7 @@ public sealed class SubAgentSessionControlTests : IDisposable
             new SubAgentSpawnOptions
             {
                 AgentPrompt = "implement change",
+                TaskName = "worker",
                 AgentRole = "worker",
                 MaxDepth = 2
             },
@@ -356,6 +370,7 @@ public sealed class SubAgentSessionControlTests : IDisposable
             new SubAgentSpawnOptions
             {
                 AgentPrompt = "map the code",
+                TaskName = "explore",
                 AgentRole = "explorer"
             },
             waitForCompletion: false,
@@ -383,6 +398,7 @@ public sealed class SubAgentSessionControlTests : IDisposable
                 new SubAgentSpawnOptions
                 {
                     AgentPrompt = "inspect code",
+                    TaskName = "review",
                     AgentRole = "reviewer"
                 },
                 waitForCompletion: false,
@@ -404,6 +420,7 @@ public sealed class SubAgentSessionControlTests : IDisposable
                 new SubAgentSpawnOptions
                 {
                     AgentPrompt = "spawn deeper",
+                    TaskName = "deeper",
                     AgentRole = "worker",
                     MaxDepth = 1
                 },
@@ -412,6 +429,510 @@ public sealed class SubAgentSessionControlTests : IDisposable
                 CancellationToken.None));
 
         Assert.Contains("Subagent depth limit reached", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task SpawnAgent_WritesAgentPathAndRejectsDuplicateSiblingTaskName()
+    {
+        var context = await CreateContextAsync();
+
+        var result = await SubAgentSessionControl.SpawnAgentAsync(
+            context,
+            new SubAgentSpawnOptions
+            {
+                AgentPrompt = "inspect code",
+                TaskName = "inspect"
+            },
+            waitForCompletion: false,
+            coordinator: null,
+            CancellationToken.None);
+        var child = await _sessionService.GetThreadAsync(result.ChildThreadId);
+        var edge = Assert.Single(await _sessionService.ListSubAgentChildrenAsync(context.ParentThread.Id, includeClosed: true));
+
+        Assert.Equal("/root/inspect", result.AgentPath);
+        Assert.Equal("inspect", result.TaskName);
+        Assert.Equal("/root/inspect", child.Source.SubAgent?.AgentPath);
+        Assert.Equal("inspect", child.Source.SubAgent?.TaskName);
+        Assert.Equal("/root/inspect", edge.AgentPath);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            SubAgentSessionControl.SpawnAgentAsync(
+                context,
+                new SubAgentSpawnOptions
+                {
+                    AgentPrompt = "inspect again",
+                    TaskName = "inspect"
+                },
+                waitForCompletion: false,
+                coordinator: null,
+                CancellationToken.None));
+
+        Assert.Contains("already exists", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task SendMessage_WritesMailboxWithoutStartingTargetTurnAndWakesWaitAgent()
+    {
+        var context = await CreateContextAsync();
+        var spawned = await SubAgentSessionControl.SpawnAgentAsync(
+            context,
+            new SubAgentSpawnOptions
+            {
+                AgentPrompt = "inspect code",
+                TaskName = "inspect"
+            },
+            waitForCompletion: false,
+            coordinator: null,
+            CancellationToken.None);
+        var child = await _sessionService.GetThreadAsync(spawned.ChildThreadId);
+        var beforeTurnCount = child.Turns.Count;
+        var waitTask = SubAgentSessionControl.WaitAgentAsync(context, timeoutMs: 1000, CancellationToken.None);
+
+        var sent = await SubAgentSessionControl.SendMessageAsync(
+            context,
+            "/root/inspect",
+            "please note this",
+            CancellationToken.None);
+        var waited = await waitTask;
+        var pending = await _sessionService.ListPendingSubAgentMailboxAsync(context.RootThreadId, "/root/inspect");
+        child = await _sessionService.GetThreadAsync(spawned.ChildThreadId);
+
+        Assert.Equal("sent", sent.Status);
+        Assert.Equal("/root/inspect", sent.AgentPath);
+        Assert.Equal("changed", waited.Status);
+        Assert.False(waited.TimedOut);
+        var entry = Assert.Single(pending);
+        Assert.Equal(AgentPath.Root, entry.SenderAgentPath);
+        Assert.Equal("/root/inspect", entry.TargetAgentPath);
+        Assert.Equal("please note this", entry.Message);
+        Assert.Equal(beforeTurnCount, child.Turns.Count);
+    }
+
+    [Fact]
+    public async Task WaitAgent_WhenChildTurnCompletes_ReturnsChanged()
+    {
+        var runtime = new FakeRuntime(CliOneshotRuntime.RuntimeTypeName, "later")
+        {
+            PendingResult = new TaskCompletionSource<DotCraft.Agents.SubAgentRunResult>(
+                TaskCreationOptions.RunContinuationsAsynchronously)
+        };
+        var coordinator = CreateCoordinator(runtime, supportsResume: false, resumeEnabled: false);
+        var context = await CreateContextAsync();
+        await SubAgentSessionControl.SpawnAgentAsync(
+            context,
+            new SubAgentSpawnOptions
+            {
+                AgentPrompt = "inspect code",
+                TaskName = "inspect",
+                ProfileName = "cli-run"
+            },
+            waitForCompletion: false,
+            coordinator,
+            CancellationToken.None);
+        var waitTask = SubAgentSessionControl.WaitAgentAsync(context, timeoutMs: 1000, CancellationToken.None);
+
+        runtime.PendingResult.SetResult(new DotCraft.Agents.SubAgentRunResult { Text = "done" });
+        var waited = await waitTask;
+        var pending = await _sessionService.ListPendingSubAgentMailboxAsync(
+            context.RootThreadId,
+            AgentPath.Root);
+
+        Assert.Equal("changed", waited.Status);
+        Assert.False(waited.TimedOut);
+        var entry = Assert.Single(pending);
+        Assert.Equal("/root/inspect", entry.SenderAgentPath);
+        Assert.Equal(AgentPath.Root, entry.TargetAgentPath);
+        Assert.Contains("<subagent_notification>", entry.Message, StringComparison.Ordinal);
+        Assert.Contains("\"agentPath\":\"/root/inspect\"", entry.Message, StringComparison.Ordinal);
+        Assert.Contains("\"completed\":\"done\"", entry.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task WaitAgent_WhenMailboxAlreadyPending_ReturnsChanged()
+    {
+        var context = await CreateContextAsync();
+        await _sessionService.AddSubAgentMailboxEntryAsync(new SubAgentMailboxEntry
+        {
+            Id = "mailbox_existing",
+            RootThreadId = context.RootThreadId,
+            SenderAgentPath = "/root/inspect",
+            TargetAgentPath = AgentPath.Root,
+            Message = "ready",
+            Status = SubAgentMailboxStatus.Pending,
+            CreatedAt = DateTimeOffset.UtcNow
+        });
+
+        var waited = await SubAgentSessionControl.WaitAgentAsync(
+            context,
+            timeoutMs: 10_000,
+            CancellationToken.None);
+
+        Assert.Equal("changed", waited.Status);
+        Assert.False(waited.TimedOut);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public async Task WaitAgent_WhenTimeoutMsIsNotPositive_Throws(int timeoutMs)
+    {
+        var context = await CreateContextAsync();
+
+        var ex = await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
+            SubAgentSessionControl.WaitAgentAsync(context, timeoutMs, CancellationToken.None));
+
+        Assert.Equal("timeoutMs", ex.ParamName);
+    }
+
+    [Fact]
+    public async Task FollowupTask_DeliversMailboxAndStartsTargetTurn()
+    {
+        var runtime = new FakeRuntime(CliOneshotRuntime.RuntimeTypeName, "first", resultSessionId: "sess-1");
+        var coordinator = CreateCoordinator(runtime, supportsResume: false, resumeEnabled: false);
+        var context = await CreateContextAsync();
+        var spawned = await SubAgentSessionControl.SpawnAgentAsync(
+            context,
+            new SubAgentSpawnOptions
+            {
+                AgentPrompt = "inspect code",
+                TaskName = "inspect",
+                AgentNickname = "Inspect",
+                ProfileName = "cli-run"
+            },
+            waitForCompletion: true,
+            coordinator,
+            CancellationToken.None);
+
+        await SubAgentSessionControl.SendMessageAsync(context, "/root/inspect", "mailbox note", CancellationToken.None);
+        runtime.ResultText = "followed";
+        var followed = await SubAgentSessionControl.FollowupTaskAsync(
+            context,
+            "/root/inspect",
+            "continue work",
+            coordinator,
+            CancellationToken.None);
+        var waited = await SubAgentSessionControl.WaitAgentAsync(
+            _sessionService,
+            followed.ChildThreadId,
+            timeoutSeconds: 5,
+            CancellationToken.None);
+        var child = await _sessionService.GetThreadAsync(spawned.ChildThreadId);
+        var pending = await _sessionService.ListPendingSubAgentMailboxAsync(context.RootThreadId, "/root/inspect");
+
+        Assert.Equal("running", followed.Status);
+        Assert.Equal("followed", waited.Message);
+        Assert.Empty(pending);
+        Assert.Equal(2, child.Turns.Count);
+        Assert.Contains("mailbox note", child.Turns[1].Input?.AsUserMessage?.Text, StringComparison.Ordinal);
+        Assert.Contains("continue work", child.Turns[1].Input?.AsUserMessage?.Text, StringComparison.Ordinal);
+        Assert.Equal("subagentFollowupTask", child.Turns[1].Input?.AsUserMessage?.TriggerKind);
+        Assert.Equal("Inspect", child.Turns[1].Input?.AsUserMessage?.TriggerLabel);
+        Assert.Equal("/root/inspect", child.Turns[1].Input?.AsUserMessage?.TriggerRefId);
+        Assert.Contains("mailbox note", runtime.LastRequest?.Task, StringComparison.Ordinal);
+        Assert.Contains("continue work", runtime.LastRequest?.Task, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task FollowupTask_WhenTargetRunning_QueuesTurnInputAndMarksMailboxDelivered()
+    {
+        var context = await CreateContextAsync();
+        var child = await CreatePathSubAgentAsync(context);
+        AddActiveTurnWithUnstableItems(child, "active work");
+        await _store.SaveThreadAsync(child);
+
+        await SubAgentSessionControl.SendMessageAsync(context, "/root/inspect", "mailbox note", CancellationToken.None);
+        var followed = await SubAgentSessionControl.FollowupTaskAsync(
+            context,
+            "/root/inspect",
+            "continue work",
+            coordinator: null,
+            CancellationToken.None);
+        child = await _sessionService.GetThreadAsync(child.Id);
+        var pending = await _sessionService.ListPendingSubAgentMailboxAsync(context.RootThreadId, "/root/inspect");
+
+        Assert.Equal("queued", followed.Status);
+        Assert.Equal("/root/inspect", followed.AgentPath);
+        Assert.Empty(pending);
+        Assert.Single(child.Turns);
+        var queued = Assert.Single(child.QueuedInputs);
+        Assert.Equal("subagentFollowupTask", queued.TriggerKind);
+        Assert.Equal("Inspect", queued.TriggerLabel);
+        Assert.Equal("/root/inspect", queued.TriggerRefId);
+        Assert.Equal("continue work", queued.DisplayText);
+        var text = Assert.Single(queued.MaterializedInputParts).Text;
+        Assert.Contains("mailbox note", text, StringComparison.Ordinal);
+        Assert.Contains("continue work", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task FollowupTask_WhenQueuedTurnStarts_DeliversMaterializedPrompt()
+    {
+        var context = await CreateContextAsync();
+        var child = await CreatePathSubAgentAsync(context);
+        AddActiveTurnWithUnstableItems(child, "active work");
+        await _store.SaveThreadAsync(child);
+
+        await SubAgentSessionControl.SendMessageAsync(context, "/root/inspect", "mailbox note", CancellationToken.None);
+        await SubAgentSessionControl.FollowupTaskAsync(
+            context,
+            "/root/inspect",
+            "continue work",
+            coordinator: null,
+            CancellationToken.None);
+        child = await _sessionService.GetThreadAsync(child.Id);
+        var active = Assert.Single(child.Turns);
+        active.Status = TurnStatus.Completed;
+        active.CompletedAt = DateTimeOffset.UtcNow;
+        await _store.SaveThreadAsync(child);
+
+        await _sessionService.TryStartNextQueuedTurnAsync(child.Id, CancellationToken.None);
+
+        var submitted = Assert.IsType<TextContent>(Assert.Single(_sessionService.LastSubmittedContent)).Text;
+        Assert.Contains("mailbox note", submitted, StringComparison.Ordinal);
+        Assert.Contains("continue work", submitted, StringComparison.Ordinal);
+        child = await _sessionService.GetThreadAsync(child.Id);
+        Assert.Empty(child.QueuedInputs);
+        Assert.Equal("subagentFollowupTask", _sessionService.LastStartedQueuedInput?.TriggerKind);
+        Assert.Equal("Inspect", _sessionService.LastStartedQueuedInput?.TriggerLabel);
+        Assert.Equal("/root/inspect", _sessionService.LastStartedQueuedInput?.TriggerRefId);
+    }
+
+    [Fact]
+    public async Task FollowupTask_WhenExternalTargetRunning_RunsQueuedFollowupAfterActiveTurnCompletes()
+    {
+        var pendingRun = new TaskCompletionSource<DotCraft.Agents.SubAgentRunResult>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var runtime = new FakeRuntime(CliOneshotRuntime.RuntimeTypeName, "unused")
+        {
+            PendingResult = pendingRun
+        };
+        var coordinator = CreateCoordinator(runtime, supportsResume: false, resumeEnabled: false);
+        var context = await CreateContextAsync();
+        var spawned = await SubAgentSessionControl.SpawnAgentAsync(
+            context,
+            new SubAgentSpawnOptions
+            {
+                AgentPrompt = "inspect code",
+                TaskName = "inspect",
+                AgentNickname = "Inspect",
+                ProfileName = "cli-run"
+            },
+            waitForCompletion: false,
+            coordinator,
+            CancellationToken.None);
+
+        await SubAgentSessionControl.SendMessageAsync(context, "/root/inspect", "mailbox note", CancellationToken.None);
+        var followed = await SubAgentSessionControl.FollowupTaskAsync(
+            context,
+            "/root/inspect",
+            "continue work",
+            coordinator,
+            CancellationToken.None);
+        pendingRun.SetResult(new DotCraft.Agents.SubAgentRunResult { Text = "done" });
+        await SubAgentSessionControl.WaitAgentAsync(
+            _sessionService,
+            spawned.ChildThreadId,
+            timeoutSeconds: 5,
+            CancellationToken.None);
+
+        var child = await _sessionService.GetThreadAsync(spawned.ChildThreadId);
+        Assert.Equal("queued", followed.Status);
+        Assert.Empty(child.QueuedInputs);
+        Assert.Equal(2, child.Turns.Count);
+        Assert.Contains("mailbox note", child.Turns[1].Input?.AsUserMessage?.Text, StringComparison.Ordinal);
+        Assert.Contains("continue work", child.Turns[1].Input?.AsUserMessage?.Text, StringComparison.Ordinal);
+        Assert.Contains("mailbox note", runtime.LastRequest?.Task, StringComparison.Ordinal);
+        Assert.Contains("continue work", runtime.LastRequest?.Task, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ListAgents_ReturnsRootAndOpenPathAgentsOnly()
+    {
+        var context = await CreateContextAsync();
+        await SubAgentSessionControl.SpawnAgentAsync(
+            context,
+            new SubAgentSpawnOptions
+            {
+                AgentPrompt = "inspect code",
+                TaskName = "inspect"
+            },
+            waitForCompletion: false,
+            coordinator: null,
+            CancellationToken.None);
+        await SubAgentSessionControl.SpawnAgentAsync(
+            context,
+            new SubAgentSpawnOptions
+            {
+                AgentPrompt = "review code",
+                TaskName = "review"
+            },
+            waitForCompletion: false,
+            coordinator: null,
+            CancellationToken.None);
+        await SubAgentSessionControl.CloseAgentAsync(context, "/root/inspect", CancellationToken.None);
+        var legacyChild = await _sessionService.CreateThreadAsync(new SessionIdentity
+        {
+            WorkspacePath = _tempDir,
+            UserId = "user",
+            ChannelName = SubAgentThreadOrigin.ChannelName,
+            ChannelContext = context.ParentThread.Id
+        });
+        await _sessionService.UpsertThreadSpawnEdgeAsync(new ThreadSpawnEdge
+        {
+            ParentThreadId = context.ParentThread.Id,
+            ChildThreadId = legacyChild.Id,
+            ParentTurnId = "turn_legacy",
+            Depth = 1,
+            Status = ThreadSpawnEdgeStatus.Open
+        });
+
+        var listed = await SubAgentSessionControl.ListAgentsAsync(context, pathPrefix: null, CancellationToken.None);
+
+        Assert.Equal(["/root", "/root/review"], listed.Data.Select(item => item.AgentPath).ToArray());
+    }
+
+    [Fact]
+    public async Task ListAgents_ReportsCompletedChildFromLatestTurnStatus()
+    {
+        var runtime = new FakeRuntime(CliOneshotRuntime.RuntimeTypeName, "cli ok");
+        var coordinator = CreateCoordinator(runtime, supportsResume: false, resumeEnabled: false);
+        var context = await CreateContextAsync();
+
+        await SubAgentSessionControl.SpawnAgentAsync(
+            context,
+            new SubAgentSpawnOptions
+            {
+                AgentPrompt = "inspect code",
+                TaskName = "inspect",
+                ProfileName = "cli-run"
+            },
+            waitForCompletion: true,
+            coordinator,
+            CancellationToken.None);
+
+        var listed = await SubAgentSessionControl.ListAgentsAsync(context, pathPrefix: null, CancellationToken.None);
+
+        var child = Assert.Single(listed.Data, item => item.AgentPath == "/root/inspect");
+        Assert.Equal("completed", child.Status);
+    }
+
+    [Fact]
+    public async Task CloseAgent_UsesPathAndRejectsRootAndSelf()
+    {
+        var context = await CreateContextAsync();
+        var spawned = await SubAgentSessionControl.SpawnAgentAsync(
+            context,
+            new SubAgentSpawnOptions
+            {
+                AgentPrompt = "inspect code",
+                TaskName = "inspect"
+            },
+            waitForCompletion: false,
+            coordinator: null,
+            CancellationToken.None);
+        var child = await _sessionService.GetThreadAsync(spawned.ChildThreadId);
+        var childContext = new SubAgentSessionContext
+        {
+            SessionService = _sessionService,
+            ParentThread = child,
+            ParentTurnId = "turn_child",
+            RootThreadId = context.RootThreadId,
+            Depth = 1
+        };
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            SubAgentSessionControl.CloseAgentAsync(context, "/root", CancellationToken.None));
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            SubAgentSessionControl.CloseAgentAsync(childContext, "/root/inspect", CancellationToken.None));
+
+        var closed = await SubAgentSessionControl.CloseAgentAsync(context, "/root/inspect", CancellationToken.None);
+        var edge = Assert.Single(await _sessionService.ListSubAgentChildrenAsync(context.ParentThread.Id, includeClosed: true));
+
+        Assert.Equal(ThreadSpawnEdgeStatus.Closed, closed.Status);
+        Assert.Equal("/root/inspect", closed.AgentPath);
+        Assert.Equal(ThreadSpawnEdgeStatus.Closed, edge.Status);
+    }
+
+    [Fact]
+    public async Task SpawnAgent_ForkTurnsSelectsParentHistory()
+    {
+        var context = await CreateContextAsync();
+        AddCompletedTurn(context.ParentThread, "turn_001", "first");
+        AddCompletedTurn(context.ParentThread, "turn_002", "second");
+        AddCompletedTurn(context.ParentThread, "turn_003", "third");
+
+        var all = await SubAgentSessionControl.SpawnAgentAsync(
+            context,
+            new SubAgentSpawnOptions { AgentPrompt = "all history", TaskName = "all" },
+            waitForCompletion: false,
+            coordinator: null,
+            CancellationToken.None);
+        var none = await SubAgentSessionControl.SpawnAgentAsync(
+            context,
+            new SubAgentSpawnOptions { AgentPrompt = "no history", TaskName = "none", ForkTurns = "none" },
+            waitForCompletion: false,
+            coordinator: null,
+            CancellationToken.None);
+        var lastTwo = await SubAgentSessionControl.SpawnAgentAsync(
+            context,
+            new SubAgentSpawnOptions { AgentPrompt = "some history", TaskName = "last_two", ForkTurns = "2" },
+            waitForCompletion: false,
+            coordinator: null,
+            CancellationToken.None);
+
+        var allThread = await _sessionService.GetThreadAsync(all.ChildThreadId);
+        var noneThread = await _sessionService.GetThreadAsync(none.ChildThreadId);
+        var lastTwoThread = await _sessionService.GetThreadAsync(lastTwo.ChildThreadId);
+
+        Assert.Equal(["first", "second", "third"], allThread.Turns.Select(turn => turn.Input?.AsUserMessage?.Text ?? string.Empty).ToArray());
+        Assert.Empty(noneThread.Turns);
+        Assert.Equal(["second", "third"], lastTwoThread.Turns.Select(turn => turn.Input?.AsUserMessage?.Text ?? string.Empty).ToArray());
+    }
+
+    [Fact]
+    public async Task SpawnAgent_ForkTurnsKeepsOnlyStableActiveTurnInput()
+    {
+        var context = await CreateContextAsync();
+        AddActiveTurnWithUnstableItems(context.ParentThread, "current request");
+
+        var result = await SubAgentSessionControl.SpawnAgentAsync(
+            context,
+            new SubAgentSpawnOptions { AgentPrompt = "clean active", TaskName = "clean" },
+            waitForCompletion: false,
+            coordinator: null,
+            CancellationToken.None);
+        var child = await _sessionService.GetThreadAsync(result.ChildThreadId);
+        var forkedTurn = Assert.Single(child.Turns);
+
+        Assert.Equal(TurnStatus.Completed, forkedTurn.Status);
+        Assert.Equal("current request", forkedTurn.Input?.AsUserMessage?.Text);
+        Assert.Single(forkedTurn.Items);
+        Assert.Equal(ItemType.UserMessage, forkedTurn.Items.Single().Type);
+    }
+
+    [Fact]
+    public async Task SpawnAgent_ExternalProfileRendersForkContextIntoRuntimePrompt()
+    {
+        var runtime = new FakeRuntime(CliOneshotRuntime.RuntimeTypeName, "cli ok");
+        var coordinator = CreateCoordinator(runtime, supportsResume: false, resumeEnabled: false);
+        var context = await CreateContextAsync();
+        AddCompletedTurn(context.ParentThread, "turn_001", "parent context");
+
+        await SubAgentSessionControl.SpawnAgentAsync(
+            context,
+            new SubAgentSpawnOptions
+            {
+                AgentPrompt = "inspect code",
+                TaskName = "inspect",
+                ProfileName = "cli-run"
+            },
+            waitForCompletion: true,
+            coordinator,
+            CancellationToken.None);
+
+        Assert.Contains("## Parent Context", runtime.LastRequest?.Task, StringComparison.Ordinal);
+        Assert.Contains("parent context", runtime.LastRequest?.Task, StringComparison.Ordinal);
+        Assert.Contains("inspect code", runtime.LastRequest?.Task, StringComparison.Ordinal);
     }
 
     private async Task<SubAgentSessionContext> CreateContextAsync(ThreadConfiguration? config = null, int depth = 0)
@@ -431,6 +952,124 @@ public sealed class SubAgentSessionControlTests : IDisposable
             RootThreadId = parent.Id,
             Depth = depth
         };
+    }
+
+    private async Task<SessionThread> CreatePathSubAgentAsync(
+        SubAgentSessionContext context,
+        string runtimeType = NativeSubAgentRuntime.RuntimeTypeName,
+        string profileName = SubAgentCoordinator.DefaultProfileName)
+    {
+        var child = await _sessionService.CreateThreadAsync(
+            new SessionIdentity
+            {
+                WorkspacePath = _tempDir,
+                UserId = "user",
+                ChannelName = SubAgentThreadOrigin.ChannelName,
+                ChannelContext = context.ParentThread.Id
+            },
+            displayName: "Inspect",
+            source: ThreadSource.ForSubAgent(new SubAgentThreadSource
+            {
+                ParentThreadId = context.ParentThread.Id,
+                ParentTurnId = context.ParentTurnId,
+                RootThreadId = context.RootThreadId,
+                Depth = context.Depth + 1,
+                AgentPath = "/root/inspect",
+                TaskName = "inspect",
+                AgentNickname = "Inspect",
+                ProfileName = profileName,
+                RuntimeType = runtimeType,
+                SupportsSendMessage = true,
+                SupportsFollowupTask = true,
+                SupportsClose = true
+            }));
+        await _sessionService.UpsertThreadSpawnEdgeAsync(new ThreadSpawnEdge
+        {
+            ParentThreadId = context.ParentThread.Id,
+            ChildThreadId = child.Id,
+            ParentTurnId = context.ParentTurnId,
+            Depth = context.Depth + 1,
+            AgentPath = "/root/inspect",
+            TaskName = "inspect",
+            AgentNickname = "Inspect",
+            ProfileName = profileName,
+            RuntimeType = runtimeType,
+            SupportsSendMessage = true,
+            SupportsFollowupTask = true,
+            SupportsClose = true,
+            Status = ThreadSpawnEdgeStatus.Open
+        });
+
+        return child;
+    }
+
+    private static void AddCompletedTurn(SessionThread thread, string turnId, string text)
+    {
+        var now = DateTimeOffset.UtcNow.AddSeconds(thread.Turns.Count);
+        var turn = new SessionTurn
+        {
+            Id = turnId,
+            ThreadId = thread.Id,
+            Status = TurnStatus.Completed,
+            StartedAt = now,
+            CompletedAt = now
+        };
+        var userItem = new SessionItem
+        {
+            Id = $"{turnId}_user",
+            TurnId = turnId,
+            Type = ItemType.UserMessage,
+            Status = ItemStatus.Completed,
+            CreatedAt = now,
+            CompletedAt = now,
+            Payload = new UserMessagePayload { Text = text }
+        };
+        turn.Input = userItem;
+        turn.Items.Add(userItem);
+        thread.Turns.Add(turn);
+    }
+
+    private static void AddActiveTurnWithUnstableItems(SessionThread thread, string text)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var turn = new SessionTurn
+        {
+            Id = "turn_active",
+            ThreadId = thread.Id,
+            Status = TurnStatus.Running,
+            StartedAt = now
+        };
+        var userItem = new SessionItem
+        {
+            Id = "item_user",
+            TurnId = turn.Id,
+            Type = ItemType.UserMessage,
+            Status = ItemStatus.Completed,
+            CreatedAt = now,
+            CompletedAt = now,
+            Payload = new UserMessagePayload { Text = text }
+        };
+        turn.Input = userItem;
+        turn.Items.Add(userItem);
+        turn.Items.Add(new SessionItem
+        {
+            Id = "item_tool",
+            TurnId = turn.Id,
+            Type = ItemType.ToolCall,
+            Status = ItemStatus.Started,
+            CreatedAt = now,
+            Payload = new ToolCallPayload { CallId = "call_1", ToolName = "SpawnAgent" }
+        });
+        turn.Items.Add(new SessionItem
+        {
+            Id = "item_agent",
+            TurnId = turn.Id,
+            Type = ItemType.AgentMessage,
+            Status = ItemStatus.Started,
+            CreatedAt = now,
+            Payload = new AgentMessagePayload { Text = "partial" }
+        });
+        thread.Turns.Add(turn);
     }
 
     private SubAgentCoordinator CreateCoordinator(
@@ -474,6 +1113,8 @@ public sealed class SubAgentSessionControlTests : IDisposable
 
         public bool WaitForCancellation { get; init; }
 
+        public TaskCompletionSource<DotCraft.Agents.SubAgentRunResult>? PendingResult { get; init; }
+
         public SubAgentLaunchContext? LastLaunchContext { get; private set; }
 
         public SubAgentTaskRequest? LastRequest { get; private set; }
@@ -494,6 +1135,8 @@ public sealed class SubAgentSessionControlTests : IDisposable
             CancellationToken cancellationToken)
         {
             LastRequest = request;
+            if (PendingResult != null)
+                return PendingResult.Task.WaitAsync(cancellationToken);
             if (WaitForCancellation)
                 return WaitForCancellationAsync(cancellationToken);
 

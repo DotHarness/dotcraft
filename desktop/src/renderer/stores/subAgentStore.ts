@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { SubAgentEntry } from '../types/toolCall'
 import type { ThreadRuntimeSnapshot, ThreadSummary } from '../types/thread'
+import { useConnectionStore } from './connectionStore'
 import { useThreadStore } from './threadStore'
 
 export interface SubAgentEdgeWire {
@@ -8,6 +9,8 @@ export interface SubAgentEdgeWire {
   childThreadId?: string
   parentTurnId?: string | null
   depth?: number
+  agentPath?: string | null
+  taskName?: string | null
   agentNickname?: string | null
   agentRole?: string | null
   agentType?: string | null
@@ -17,6 +20,8 @@ export interface SubAgentEdgeWire {
   runtimeType?: string | null
   supportsSendInput?: boolean
   supportsResume?: boolean
+  supportsSendMessage?: boolean
+  supportsFollowupTask?: boolean
   supportsClose?: boolean
   status?: string
 }
@@ -29,12 +34,16 @@ interface SubAgentChildWire {
 export interface SubAgentChild {
   childThreadId: string
   parentThreadId: string
+  agentPath?: string | null
+  taskName?: string | null
   nickname: string
   agentRole: string | null
   profileName: string | null
   runtimeType: string | null
   supportsSendInput: boolean
   supportsResume: boolean
+  supportsSendMessage?: boolean
+  supportsFollowupTask?: boolean
   supportsClose: boolean
   status: string
   lastToolDisplay: string | null
@@ -77,6 +86,12 @@ function normalizeText(value: unknown): string | null {
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null
 }
 
+function lastAgentPathSegment(agentPath: string | null | undefined): string | null {
+  if (!agentPath) return null
+  const parts = agentPath.split('/').filter((part) => part.length > 0)
+  return parts.length > 0 ? parts[parts.length - 1] : null
+}
+
 function normalizeRole(source: {
   agentRole?: unknown
   agentType?: unknown
@@ -115,23 +130,31 @@ function childFromWire(parentThreadId: string, wire: SubAgentChildWire): SubAgen
   const source = threadSummary?.source?.subAgent
   const runtime = threadSummary?.runtime
   const status = normalizeText(edge.status) ?? 'open'
+  const agentPath = normalizeText(edge.agentPath) ?? normalizeText(source?.agentPath)
+  const taskName = normalizeText(edge.taskName) ?? normalizeText(source?.taskName)
   const isCompleted = runtime?.running === true
     ? false
     : runtime?.running === false || isTerminalSubAgentStatus(status)
   const nickname =
-    normalizeText(edge.agentNickname)
+    normalizeText(wire.thread?.displayName)
+    ?? normalizeText(edge.agentNickname)
     ?? normalizeText(source?.agentNickname)
-    ?? normalizeText(wire.thread?.displayName)
+    ?? taskName
+    ?? lastAgentPathSegment(agentPath)
     ?? childThreadId
   return {
     childThreadId,
     parentThreadId: normalizeText(edge.parentThreadId) ?? parentThreadId,
+    agentPath,
+    taskName,
     nickname,
     agentRole: normalizeRole(edge) ?? normalizeRole(source),
     profileName: normalizeText(edge.profileName) ?? normalizeText(source?.profileName),
     runtimeType: normalizeText(edge.runtimeType) ?? normalizeText(source?.runtimeType),
     supportsSendInput: edge.supportsSendInput ?? source?.supportsSendInput ?? true,
     supportsResume: edge.supportsResume ?? source?.supportsResume ?? true,
+    supportsSendMessage: edge.supportsSendMessage ?? source?.supportsSendMessage ?? false,
+    supportsFollowupTask: edge.supportsFollowupTask ?? source?.supportsFollowupTask ?? false,
     supportsClose: edge.supportsClose ?? source?.supportsClose ?? true,
     status,
     lastToolDisplay: null,
@@ -161,6 +184,8 @@ function mergeExistingProgress(next: SubAgentChild, existing: SubAgentChild | un
       : existing.isCompleted
   return {
     ...next,
+    agentPath: next.agentPath ?? existing.agentPath,
+    taskName: next.taskName ?? existing.taskName,
     agentRole: next.agentRole ?? existing.agentRole,
     profileName: next.profileName ?? existing.profileName,
     runtimeType: next.runtimeType ?? existing.runtimeType,
@@ -188,12 +213,16 @@ function createPlaceholderChild(
   return {
     childThreadId: `subagent-placeholder:${parentThreadId}:${index}:${label}`,
     parentThreadId,
+    agentPath: null,
+    taskName: null,
     nickname: label,
     agentRole: null,
     profileName: null,
     runtimeType: null,
     supportsSendInput: false,
     supportsResume: false,
+    supportsSendMessage: false,
+    supportsFollowupTask: false,
     supportsClose: false,
     status: isCompleted ? 'completed' : 'open',
     lastToolDisplay: display,
@@ -272,6 +301,7 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
 
   async fetchChildren(parentThreadId) {
     if (!parentThreadId) return
+    if (useConnectionStore.getState().capabilities?.subAgentSessions !== true) return
     set((state) => {
       const loadingParents = new Set(state.loadingParents)
       loadingParents.add(parentThreadId)

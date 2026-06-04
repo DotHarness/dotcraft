@@ -24,7 +24,24 @@ public sealed class ThreadSource
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public SubAgentThreadSource? SubAgent { get; set; }
 
+    /// <summary>
+    /// Set when a top-level (non-subagent) thread was started from another thread,
+    /// e.g. via the Desktop CreateThread tool. Holds the originating thread id while
+    /// <see cref="Kind"/> stays <see cref="ThreadSourceKinds.User"/>, so the thread
+    /// remains an ordinary sibling chat (not a subagent). Mirrored into thread
+    /// metadata (<c>spawnedFromThreadId</c>) for durable client display.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? SpawnedFromThreadId { get; set; }
+
     public static ThreadSource User() => new() { Kind = ThreadSourceKinds.User };
+
+    public static ThreadSource SpawnedFromThread(string parentThreadId) =>
+        new()
+        {
+            Kind = ThreadSourceKinds.User,
+            SpawnedFromThreadId = parentThreadId
+        };
 
     public static ThreadSource ForSubAgent(SubAgentThreadSource source) =>
         new()
@@ -49,6 +66,12 @@ public sealed class SubAgentThreadSource
     public int Depth { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? AgentPath { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? TaskName { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? AgentNickname { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -63,6 +86,10 @@ public sealed class SubAgentThreadSource
     public bool SupportsSendInput { get; set; }
 
     public bool SupportsResume { get; set; }
+
+    public bool SupportsSendMessage { get; set; }
+
+    public bool SupportsFollowupTask { get; set; }
 
     public bool SupportsClose { get; set; } = true;
 }
@@ -85,6 +112,12 @@ public sealed class ThreadSpawnEdge
     public int Depth { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? AgentPath { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? TaskName { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? AgentNickname { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -99,6 +132,10 @@ public sealed class ThreadSpawnEdge
     public bool SupportsSendInput { get; set; }
 
     public bool SupportsResume { get; set; }
+
+    public bool SupportsSendMessage { get; set; }
+
+    public bool SupportsFollowupTask { get; set; }
 
     public bool SupportsClose { get; set; } = true;
 

@@ -9,7 +9,18 @@ function escapeMustaches(value: string): string {
   return value.replaceAll('{{', '&#123;&#123;').replaceAll('}}', '&#125;&#125;')
 }
 
-const enSidebar: DefaultTheme.Sidebar = [
+function collapseSidebarGroups(items: DefaultTheme.SidebarItem[]): DefaultTheme.SidebarItem[] {
+  return items.map((item) => {
+    if (!item.items) return item
+    return {
+      ...item,
+      collapsed: true,
+      items: collapseSidebarGroups(item.items)
+    }
+  })
+}
+
+const enSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
   {
     text: 'Overview',
     items: [
@@ -24,7 +35,6 @@ const enSidebar: DefaultTheme.Sidebar = [
       {
         text: withIcon('cpu', 'Agent System'),
         link: '/features/agent-system/memory',
-        collapsed: false,
         items: [
           { text: withIcon('brain', 'Memory & Dreams'), link: '/features/agent-system/memory' },
           { text: withIcon('sparkles', 'Skills & Self-Learning'), link: '/features/agent-system/skills' },
@@ -37,7 +47,6 @@ const enSidebar: DefaultTheme.Sidebar = [
       {
         text: withIcon('grid', 'Entry Points'),
         link: '/features/entry-points/',
-        collapsed: false,
         items: [
           { text: withIcon('globe', 'Overview'), link: '/features/entry-points/' },
           { text: withIcon('monitor', 'Desktop'), link: '/features/entry-points/desktop' },
@@ -49,7 +58,6 @@ const enSidebar: DefaultTheme.Sidebar = [
       {
         text: withIcon('lockKeyhole', 'Self-hosted Control'),
         link: '/features/self-hosted/observability',
-        collapsed: false,
         items: [
           { text: withIcon('cloud', 'Server Deployment'), link: '/features/self-hosted/server-deployment' },
           { text: withIcon('activity', 'Observability'), link: '/features/self-hosted/observability' },
@@ -64,7 +72,6 @@ const enSidebar: DefaultTheme.Sidebar = [
       {
         text: withIcon('route', 'Workflow'),
         link: '/developing/workflow/spec-driven-development',
-        collapsed: false,
         items: [
           { text: withIcon('scrollText', 'Spec-Driven Development'), link: '/developing/workflow/spec-driven-development' },
           { text: withIcon('share', 'Workspace Handoff'), link: '/developing/workflow/workspace-handoff' }
@@ -73,7 +80,6 @@ const enSidebar: DefaultTheme.Sidebar = [
       {
         text: withIcon('waypoints', 'Architecture'),
         link: '/developing/architecture/overview',
-        collapsed: false,
         items: [
           { text: withIcon('branch', 'Overview'), link: '/developing/architecture/overview' },
           { text: withIcon('layers', 'Unified Session Core'), link: '/developing/architecture/session-core' }
@@ -83,7 +89,6 @@ const enSidebar: DefaultTheme.Sidebar = [
       {
         text: withIcon('repeat', 'Lifecycle'),
         link: '/developing/lifecycle/settings-lifecycle',
-        collapsed: false,
         items: [
           { text: withIcon('history', 'Settings Lifecycle'), link: '/developing/lifecycle/settings-lifecycle' },
           { text: withIcon('server', 'AppServer Mode'), link: '/developing/lifecycle/appserver' },
@@ -93,7 +98,6 @@ const enSidebar: DefaultTheme.Sidebar = [
       {
         text: withIcon('webhook', 'Protocols & APIs'),
         link: '/developing/protocols/appserver-protocol',
-        collapsed: false,
         items: [
           { text: withIcon('fileJson', 'AppServer Protocol'), link: '/developing/protocols/appserver-protocol' },
           { text: withIcon('antenna', 'Hub Protocol'), link: '/developing/protocols/hub-protocol' },
@@ -103,7 +107,6 @@ const enSidebar: DefaultTheme.Sidebar = [
       {
         text: withIcon('boxes', 'SDKs'),
         link: '/developing/sdks/',
-        collapsed: false,
         items: [
           { text: withIcon('package', 'Overview'), link: '/developing/sdks/' },
           { text: withIcon('rocket', 'Quickstart'), link: '/developing/sdks/quickstart' },
@@ -118,7 +121,6 @@ const enSidebar: DefaultTheme.Sidebar = [
       {
         text: withIcon('plugZap', 'Integrations'),
         link: '/developing/integrations/app-binding',
-        collapsed: false,
         items: [
           { text: withIcon('plug', 'App Binding'), link: '/developing/integrations/app-binding' },
           { text: withIcon('box', 'Build an App'), link: '/developing/integrations/build-an-app' },
@@ -127,7 +129,6 @@ const enSidebar: DefaultTheme.Sidebar = [
       },
       {
         text: withIcon('satelliteDish', 'Channels'),
-        collapsed: true,
         items: [
           { text: withIcon('messageSquare', 'QQ'), link: '/developing/channels/qq' },
           { text: withIcon('building', 'WeCom'), link: '/developing/channels/wecom' },
@@ -146,9 +147,9 @@ const enSidebar: DefaultTheme.Sidebar = [
       { text: withIcon('tag', 'GitHub Releases'), link: 'https://github.com/DotHarness/dotcraft/releases' }
     ]
   }
-]
+])
 
-const zhSidebar: DefaultTheme.Sidebar = [
+const zhSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
   {
     text: '总览',
     items: [
@@ -163,7 +164,6 @@ const zhSidebar: DefaultTheme.Sidebar = [
       {
         text: withIcon('cpu', 'Agent 系统'),
         link: '/zh/features/agent-system/memory',
-        collapsed: false,
         items: [
           { text: withIcon('brain', '长期记忆与 Dreams'), link: '/zh/features/agent-system/memory' },
           { text: withIcon('sparkles', 'Skills 与自学习'), link: '/zh/features/agent-system/skills' },
@@ -176,7 +176,6 @@ const zhSidebar: DefaultTheme.Sidebar = [
       {
         text: withIcon('grid', '入口'),
         link: '/zh/features/entry-points/',
-        collapsed: false,
         items: [
           { text: withIcon('globe', '入口总览'), link: '/zh/features/entry-points/' },
           { text: withIcon('monitor', 'Desktop'), link: '/zh/features/entry-points/desktop' },
@@ -188,7 +187,6 @@ const zhSidebar: DefaultTheme.Sidebar = [
       {
         text: withIcon('lockKeyhole', 'Self-hosted Control'),
         link: '/zh/features/self-hosted/observability',
-        collapsed: false,
         items: [
           { text: withIcon('cloud', '服务器部署'), link: '/zh/features/self-hosted/server-deployment' },
           { text: withIcon('activity', '可观测性'), link: '/zh/features/self-hosted/observability' },
@@ -203,7 +201,6 @@ const zhSidebar: DefaultTheme.Sidebar = [
       {
         text: withIcon('route', '工作流'),
         link: '/zh/developing/workflow/spec-driven-development',
-        collapsed: false,
         items: [
           { text: withIcon('scrollText', 'Spec-Driven Development'), link: '/zh/developing/workflow/spec-driven-development' },
           { text: withIcon('share', '外部 Agent 协作'), link: '/zh/developing/workflow/workspace-handoff' }
@@ -212,7 +209,6 @@ const zhSidebar: DefaultTheme.Sidebar = [
       {
         text: withIcon('waypoints', '架构'),
         link: '/zh/developing/architecture/overview',
-        collapsed: false,
         items: [
           { text: withIcon('branch', '架构总览'), link: '/zh/developing/architecture/overview' },
           { text: withIcon('layers', '统一会话核心'), link: '/zh/developing/architecture/session-core' }
@@ -222,7 +218,6 @@ const zhSidebar: DefaultTheme.Sidebar = [
       {
         text: withIcon('repeat', '生命周期'),
         link: '/zh/developing/lifecycle/settings-lifecycle',
-        collapsed: false,
         items: [
           { text: withIcon('history', '设置生效层级'), link: '/zh/developing/lifecycle/settings-lifecycle' },
           { text: withIcon('server', 'AppServer 模式'), link: '/zh/developing/lifecycle/appserver' },
@@ -232,7 +227,6 @@ const zhSidebar: DefaultTheme.Sidebar = [
       {
         text: withIcon('webhook', '协议与 API'),
         link: '/zh/developing/protocols/appserver-protocol',
-        collapsed: false,
         items: [
           { text: withIcon('fileJson', 'AppServer 协议'), link: '/zh/developing/protocols/appserver-protocol' },
           { text: withIcon('antenna', 'Hub 协议'), link: '/zh/developing/protocols/hub-protocol' },
@@ -242,7 +236,6 @@ const zhSidebar: DefaultTheme.Sidebar = [
       {
         text: withIcon('boxes', 'SDK'),
         link: '/zh/developing/sdks/',
-        collapsed: false,
         items: [
           { text: withIcon('package', '总览'), link: '/zh/developing/sdks/' },
           { text: withIcon('rocket', '快速开始'), link: '/zh/developing/sdks/quickstart' },
@@ -257,7 +250,6 @@ const zhSidebar: DefaultTheme.Sidebar = [
       {
         text: withIcon('plugZap', '集成'),
         link: '/zh/developing/integrations/app-binding',
-        collapsed: false,
         items: [
           { text: withIcon('plug', 'App Binding'), link: '/zh/developing/integrations/app-binding' },
           { text: withIcon('box', '构建应用'), link: '/zh/developing/integrations/build-an-app' },
@@ -266,7 +258,6 @@ const zhSidebar: DefaultTheme.Sidebar = [
       },
       {
         text: withIcon('satelliteDish', 'Channels'),
-        collapsed: true,
         items: [
           { text: withIcon('messageSquare', 'QQ'), link: '/zh/developing/channels/qq' },
           { text: withIcon('building', '企业微信'), link: '/zh/developing/channels/wecom' },
@@ -285,7 +276,7 @@ const zhSidebar: DefaultTheme.Sidebar = [
       { text: withIcon('tag', 'GitHub Releases'), link: 'https://github.com/DotHarness/dotcraft/releases' }
     ]
   }
-]
+])
 
 const enNav: DefaultTheme.NavItem[] = [
   { text: 'Overview', link: '/' },

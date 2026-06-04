@@ -9,6 +9,8 @@ import { ErrorBlock } from './ErrorBlock'
 import { CancelledNotice } from './CancelledNotice'
 import { TurnCompletionSummary } from './TurnCompletionSummary'
 import { TurnArtifacts } from './TurnArtifacts'
+import { TurnThreadActions } from './TurnThreadActions'
+import { isThreadActionToolItem, parseThreadToolAction } from '../../utils/threadToolDisplay'
 import { ApprovalCard } from './ApprovalCard'
 import { SystemNoticeBlock } from './SystemNoticeBlock'
 import { UserMessageBlock } from './UserMessageBlock'
@@ -504,6 +506,7 @@ function StreamRetryRow({ signal }: { signal: StreamRetrySignal }): JSX.Element 
 function TurnCompletionContent({ turnId }: { turnId: string }): JSX.Element {
   return (
     <>
+      <TurnThreadActions turnId={turnId} />
       <TurnArtifacts turnId={turnId} />
       <TurnCompletionSummary turnId={turnId} />
     </>
@@ -763,15 +766,19 @@ function getSpawnAgentGroupDisplay(
   const args = item.arguments
   const childThreadId = getString(parsed, 'childThreadId')
     ?? getString(parsed, 'agentId')
+    ?? getString(parsed, 'agentPath')
     ?? getString(args, 'childThreadId')
     ?? getString(args, 'agentId')
+    ?? getString(args, 'target')
   const name = getString(parsed, 'agentNickname')
     ?? getString(parsed, 'nickname')
+    ?? getString(parsed, 'taskName')
     ?? getString(args, 'agentNickname')
     ?? getString(args, 'nickname')
+    ?? getString(args, 'taskName')
     ?? translate(locale, 'toolCall.subAgent.agent')
-  const prompt = getString(args, 'agentPrompt')
-    ?? getString(args, 'message')
+  const prompt = getString(args, 'message')
+    ?? getString(args, 'agentPrompt')
     ?? getString(args, 'prompt')
     ?? ''
   const meta = formatSubAgentMeta({
@@ -900,6 +907,9 @@ function isGuidanceUserMessage(item: ConversationItem): boolean {
 }
 
 function isDefaultRenderableItem(item: ConversationItem): boolean {
+  // Successful CreateThread / SendMessageToThread calls render as a dedicated card
+  // before the agent footer (TurnThreadActions), so suppress their inline tool row.
+  if (isThreadActionToolItem(item) && parseThreadToolAction(item) != null) return false
   return (
     (item.type !== 'userMessage' || item.deliveryMode === 'guidance')
     && item.type !== 'toolResult'

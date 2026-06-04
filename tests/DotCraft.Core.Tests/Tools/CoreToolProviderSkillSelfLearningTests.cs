@@ -68,9 +68,10 @@ public sealed class CoreToolProviderSkillSelfLearningTests : IDisposable
         var toolNames = tools.Select(tool => tool.Name).ToHashSet(StringComparer.Ordinal);
 
         Assert.DoesNotContain("SpawnAgent", toolNames);
-        Assert.DoesNotContain("SendInput", toolNames);
+        Assert.DoesNotContain("SendMessage", toolNames);
+        Assert.DoesNotContain("FollowupTask", toolNames);
         Assert.Contains("WaitAgent", toolNames);
-        Assert.DoesNotContain("ResumeAgent", toolNames);
+        Assert.DoesNotContain("ListAgents", toolNames);
         Assert.Contains("CloseAgent", toolNames);
     }
 

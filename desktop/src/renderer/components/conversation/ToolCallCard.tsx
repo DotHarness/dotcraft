@@ -1128,10 +1128,15 @@ function getSubAgentToolDisplay(
   const profile = getString(parsed, 'profileName') ?? getString(args, 'profile')
   const runtimeType = getString(parsed, 'runtimeType')
   const agentRole = getString(parsed, 'agentRole') ?? getString(args, 'agentRole')
-  const childThreadId = getString(parsed, 'childThreadId')
+  const agentPath = getString(parsed, 'agentPath')
+    ?? getString(args, 'target')
+  const explicitChildThreadId = getString(parsed, 'childThreadId')
     ?? getString(parsed, 'agentId')
     ?? getString(args, 'agentId')
     ?? getString(args, 'childThreadId')
+    ?? agentPath
+  const childThreadId = explicitChildThreadId
+    ?? (toolName === 'WaitAgent' ? resolveImplicitWaitAgentChildThreadId(lookup) : null)
   const status = getString(parsed, 'status')?.toLowerCase()
   const error = getString(parsed, 'error') ?? getString(parsed, 'message')
   const message = toolName === 'WaitAgent'
@@ -1139,7 +1144,7 @@ function getSubAgentToolDisplay(
     : null
   const label = resolveSubAgentDisplayName(parsed, args, childThreadId, locale, lookup)
   const prompt = toolName === 'SpawnAgent'
-    ? getString(args, 'agentPrompt')
+    ? getString(args, 'message') ?? getString(args, 'agentPrompt')
     : null
   const isTimeout = toolName === 'WaitAgent'
     && (status === 'timeout' || isTimeoutMessage(error) || isTimeoutMessage(message))
@@ -1152,15 +1157,7 @@ function getSubAgentToolDisplay(
     ? 'toolCall.subAgent.timeout'
     : !success || status === 'failed'
       ? 'toolCall.subAgent.failed'
-      : toolName === 'SpawnAgent'
-        ? 'toolCall.subAgent.spawned'
-        : toolName === 'WaitAgent'
-          ? 'toolCall.subAgent.waited'
-          : toolName === 'SendInput'
-            ? 'toolCall.subAgent.sentInput'
-            : toolName === 'ResumeAgent'
-              ? 'toolCall.subAgent.resumed'
-              : 'toolCall.subAgent.closed'
+      : getSubAgentCompletedTitleKey(toolName)
   return {
     titleKey,
     name: label,
@@ -1193,18 +1190,36 @@ function formatSubAgentRunningLabel(
   lookup: SubAgentLookupSources
 ): string | null {
   if (!isSubAgentToolName(toolName)) return null
-  const childThreadId = getString(args, 'childThreadId') ?? getString(args, 'agentId')
+  const explicitChildThreadId = getString(args, 'childThreadId') ?? getString(args, 'agentId') ?? getString(args, 'target')
+  const childThreadId = explicitChildThreadId
+    ?? (toolName === 'WaitAgent' ? resolveImplicitWaitAgentChildThreadId(lookup) : null)
   const label = resolveSubAgentDisplayName(undefined, args, childThreadId, locale, lookup)
   const key = toolName === 'SpawnAgent'
     ? 'toolCall.subAgent.starting'
     : toolName === 'WaitAgent'
       ? 'toolCall.subAgent.waiting'
-      : toolName === 'SendInput'
-        ? 'toolCall.subAgent.sendingInput'
-        : toolName === 'ResumeAgent'
-          ? 'toolCall.subAgent.resuming'
-          : 'toolCall.subAgent.closing'
+      : getSubAgentRunningTitleKey(toolName)
   return translate(locale, key, { name: label })
+}
+
+function getSubAgentCompletedTitleKey(toolName: string): string {
+  if (toolName === 'SpawnAgent') return 'toolCall.subAgent.spawned'
+  if (toolName === 'WaitAgent') return 'toolCall.subAgent.waited'
+  if (toolName === 'SendMessage') return 'toolCall.subAgent.sentMessage'
+  if (toolName === 'FollowupTask') return 'toolCall.subAgent.followedUp'
+  if (toolName === 'ListAgents') return 'toolCall.subAgent.listed'
+  if (toolName === 'SendInput') return 'toolCall.subAgent.sentInput'
+  if (toolName === 'ResumeAgent') return 'toolCall.subAgent.resumed'
+  return 'toolCall.subAgent.closed'
+}
+
+function getSubAgentRunningTitleKey(toolName: string): string {
+  if (toolName === 'SendMessage') return 'toolCall.subAgent.sendingMessage'
+  if (toolName === 'FollowupTask') return 'toolCall.subAgent.followingUp'
+  if (toolName === 'ListAgents') return 'toolCall.subAgent.listing'
+  if (toolName === 'SendInput') return 'toolCall.subAgent.sendingInput'
+  if (toolName === 'ResumeAgent') return 'toolCall.subAgent.resuming'
+  return 'toolCall.subAgent.closing'
 }
 
 function resolveSubAgentDisplayName(
@@ -1214,11 +1229,8 @@ function resolveSubAgentDisplayName(
   locale: AppLocale,
   lookup: SubAgentLookupSources
 ): string {
-  const explicitName = getString(parsed, 'agentNickname')
-    ?? getString(parsed, 'nickname')
-    ?? getString(args, 'agentNickname')
-    ?? getString(args, 'nickname')
-  if (explicitName && !isThreadIdLike(explicitName, childThreadId)) return explicitName
+  const explicitDisplayName = getString(parsed, 'displayName') ?? getString(args, 'displayName')
+  if (explicitDisplayName && !isThreadIdLike(explicitDisplayName, childThreadId)) return explicitDisplayName
 
   if (childThreadId) {
     for (const children of lookup.childrenByParent.values()) {
@@ -1230,12 +1242,43 @@ function resolveSubAgentDisplayName(
 
     const threads = lookup.activeThread ? [lookup.activeThread, ...lookup.threadList] : lookup.threadList
     const thread = threads.find((entry) => entry.id === childThreadId)
+    if (thread?.displayName && !isThreadIdLike(thread.displayName, childThreadId)) return thread.displayName
     const sourceName = thread?.source?.subAgent?.agentNickname
     if (sourceName && !isThreadIdLike(sourceName, childThreadId)) return sourceName
-    if (thread?.displayName && !isThreadIdLike(thread.displayName, childThreadId)) return thread.displayName
   }
 
+  const explicitName = getString(parsed, 'agentNickname')
+    ?? getString(parsed, 'nickname')
+    ?? getString(args, 'agentNickname')
+    ?? getString(args, 'nickname')
+    ?? getString(parsed, 'taskName')
+    ?? getString(args, 'taskName')
+    ?? getAgentPathSegment(getString(parsed, 'agentPath') ?? getString(args, 'target') ?? childThreadId)
+  if (explicitName && !isThreadIdLike(explicitName, childThreadId)) return explicitName
+
   return translate(locale, 'toolCall.subAgent.agent')
+}
+
+function resolveImplicitWaitAgentChildThreadId(lookup: SubAgentLookupSources): string | null {
+  const activeParentId = lookup.activeThread?.id
+  if (activeParentId) {
+    const activeParentChild = getSingleSubAgentChild(lookup.childrenByParent.get(activeParentId) ?? [])
+    if (activeParentChild) return activeParentChild.childThreadId
+  }
+
+  const allChildren = Array.from(lookup.childrenByParent.values()).flat()
+  return getSingleSubAgentChild(allChildren)?.childThreadId ?? null
+}
+
+function getSingleSubAgentChild(children: SubAgentChild[]): SubAgentChild | null {
+  const candidates = children.filter((child) => child.childThreadId.trim().length > 0)
+  return candidates.length === 1 ? candidates[0] : null
+}
+
+function getAgentPathSegment(value: string | null | undefined): string | null {
+  if (!value?.startsWith('/root/')) return null
+  const parts = value.split('/').filter((part) => part.length > 0)
+  return parts.length > 0 ? parts[parts.length - 1] : null
 }
 
 function isThreadIdLike(value: string, childThreadId: string | null | undefined): boolean {
@@ -1255,7 +1298,10 @@ function isSubAgentToolName(toolName: string): boolean {
   return toolName === 'SpawnAgent'
     || toolName === 'WaitAgent'
     || toolName === 'SendInput'
+    || toolName === 'SendMessage'
+    || toolName === 'FollowupTask'
     || toolName === 'ResumeAgent'
+    || toolName === 'ListAgents'
     || toolName === 'CloseAgent'
 }
 

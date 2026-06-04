@@ -17,15 +17,16 @@ public sealed class AgentTools(
 {
     private static readonly JsonSerializerOptions ResultJsonOptions = new(JsonSerializerOptions.Web);
 
-    [Description("Spawn a subagent as a child thread. Use this for collaborative background work when the parent agent can continue while the child thread runs." +
-                 "Returned childThreadId can be passed to SendInput, WaitAgent, ResumeAgent, and CloseAgent.")]
+    [Description("Spawn a subagent as a child thread. Use this for collaborative background work when the parent agent can continue while the child thread runs.")]
     [Tool(Icon = "🐧", DisplayType = typeof(CoreToolDisplays), DisplayMethod = nameof(CoreToolDisplays.SpawnAgent))]
     public async Task<string> SpawnAgent(
-        [Description("Task prompt for the child agent thread.")] string agentPrompt,
+        [Description("Task prompt for the child agent thread.")] string message,
+        [Description("Lowercase task name using only letters, digits, and underscores for this child under the current agent path.")] string taskName,
         [Description("Optional short name shown in UI for this child agent.")] string? agentNickname = null,
         [Description("Optional role label. Built-in roles: default, worker, explorer. Defaults to default when omitted.")] string? agentRole = null,
         [Description("Optional named subagent profile. Defaults to native when omitted.")] string? profile = null,
         [Description("Optional working directory for the child thread. Defaults to the parent thread workspace.")] string? workingDirectory = null,
+        [Description("Parent history to fork into the child. Use all, none, or a positive integer string. Defaults to all.")] string? forkTurns = null,
         CancellationToken cancellationToken = default)
     {
         var sessionContext = SubAgentSessionScope.Current
@@ -35,14 +36,16 @@ public sealed class AgentTools(
             sessionContext,
             new SubAgentSpawnOptions
             {
-                AgentPrompt = agentPrompt,
+                AgentPrompt = message,
+                TaskName = taskName,
                 AgentNickname = agentNickname,
                 AgentRole = agentRole,
                 ProfileName = profile,
                 WorkingDirectory = workingDirectory,
                 RoleConfigs = subAgentRoles?.ToArray(),
                 SubAgentModel = subAgentModel,
-                MaxDepth = maxSubAgentDepth
+                MaxDepth = maxSubAgentDepth,
+                ForkTurns = forkTurns
             },
             waitForCompletion: false,
             subAgentManager,
@@ -50,72 +53,86 @@ public sealed class AgentTools(
         return SerializeResult(result);
     }
 
-    [Description("Send another user message to a session-backed child agent thread. " +
-                 "Work for native profiles and for external CLI profiles only when the profile supports resume and workspace resume is enabled.")]
+    [Description("Send a mailbox message to another agent path without starting a target turn.")]
     [Tool(Icon = "💬")]
-    public async Task<string> SendInput(
-        [Description("Child agent thread id returned by SpawnAgent.")] string childThreadId,
-        [Description("Message to send to the child agent.")] string message,
+    public async Task<string> SendMessage(
+        [Description("Agent path target. Relative targets resolve from the current agent path; absolute targets start with /root.")] string target,
+        [Description("Message to place in the target agent mailbox.")] string message,
         CancellationToken cancellationToken = default)
     {
         var sessionContext = SubAgentSessionScope.Current
-            ?? throw new InvalidOperationException("SendInput is available only inside a Session Core turn.");
-        var result = await SubAgentSessionControl.SendInputAsync(
-            sessionContext.SessionService,
-            childThreadId,
+            ?? throw new InvalidOperationException("SendMessage is available only inside a Session Core turn.");
+        var result = await SubAgentSessionControl.SendMessageAsync(
+            sessionContext,
+            target,
+            message,
+            cancellationToken);
+        return SerializeResult(result);
+    }
+
+    [Description("Start a follow-up turn for an agent path. Pending mailbox messages for the target are delivered as context.")]
+    [Tool(Icon = "🧭")]
+    public async Task<string> FollowupTask(
+        [Description("Agent path target. Relative targets resolve from the current agent path; absolute targets start with /root.")] string target,
+        [Description("Task prompt for the target agent turn.")] string message,
+        CancellationToken cancellationToken = default)
+    {
+        var sessionContext = SubAgentSessionScope.Current
+            ?? throw new InvalidOperationException("FollowupTask is available only inside a Session Core turn.");
+        var result = await SubAgentSessionControl.FollowupTaskAsync(
+            sessionContext,
+            target,
             message,
             subAgentManager,
             cancellationToken);
         return SerializeResult(result);
     }
 
-    [Description("Wait for a session-backed child agent thread to finish its current turn and return its final message.")]
+    [Description("Wait for a mailbox or SubAgent graph status change.")]
     [Tool(Icon = "⏱️")]
     public async Task<string> WaitAgent(
-        [Description("Child agent thread id returned by SpawnAgent.")] string childThreadId,
-        [Description("Optional timeout in seconds. Omit or pass 0 to wait without a timeout.")] int? timeoutSeconds = null,
+        [Description("Optional timeout in milliseconds. Defaults to 30000.")] int? timeoutMs = null,
         CancellationToken cancellationToken = default)
     {
         var sessionContext = SubAgentSessionScope.Current
             ?? throw new InvalidOperationException("WaitAgent is available only inside a Session Core turn.");
         var result = await SubAgentSessionControl.WaitAgentAsync(
-            sessionContext.SessionService,
-            childThreadId,
-            timeoutSeconds,
+            sessionContext,
+            timeoutMs,
             cancellationToken);
         return SerializeResult(result);
     }
 
-    [Description("Resume a paused or closed child agent thread and reopen its parent-child edge.")]
-    [Tool(Icon = "▶️")]
-    public async Task<string> ResumeAgent(
-        [Description("Child agent thread id returned by SpawnAgent.")] string childThreadId,
+    [Description("List root and available SubAgent paths.")]
+    [Tool(Icon = "📋")]
+    public async Task<string> ListAgents(
+        [Description("Optional path prefix. Relative prefixes resolve from the current agent path; absolute prefixes start with /root.")] string? pathPrefix = null,
         CancellationToken cancellationToken = default)
     {
         var sessionContext = SubAgentSessionScope.Current
-            ?? throw new InvalidOperationException("ResumeAgent is available only inside a Session Core turn.");
-        var result = await SubAgentSessionControl.ResumeAgentAsync(
-            sessionContext.SessionService,
-            childThreadId,
+            ?? throw new InvalidOperationException("ListAgents is available only inside a Session Core turn.");
+        var result = await SubAgentSessionControl.ListAgentsAsync(
+            sessionContext,
+            pathPrefix,
             cancellationToken);
         return SerializeResult(result);
     }
 
-    [Description("Close a child agent thread edge and cancel its active turn if one is running.")]
+    [Description("Close a SubAgent path and cancel its active turn if one is running.")]
     [Tool(Icon = "⏹️")]
     public async Task<string> CloseAgent(
-        [Description("Child agent thread id returned by SpawnAgent.")] string childThreadId,
+        [Description("Agent path target. Relative targets resolve from the current agent path; absolute targets start with /root.")] string target,
         CancellationToken cancellationToken = default)
     {
         var sessionContext = SubAgentSessionScope.Current
             ?? throw new InvalidOperationException("CloseAgent is available only inside a Session Core turn.");
         var result = await SubAgentSessionControl.CloseAgentAsync(
-            sessionContext.SessionService,
-            childThreadId,
+            sessionContext,
+            target,
             cancellationToken);
         return SerializeResult(result);
     }
 
-    private static string SerializeResult(SubAgentControlResult result) =>
+    private static string SerializeResult(object result) =>
         JsonSerializer.Serialize(result, ResultJsonOptions);
 }
