@@ -1142,6 +1142,7 @@ export const MESSAGES_EN = {
   'plugins.unavailable': 'This AppServer does not support plugin management.',
   'plugins.updateFailed': 'Failed to update plugin',
   'plugins.install': 'Install',
+  'plugins.detail.add': 'Add plugin',
   'plugins.installBrowserUse': 'Install Browser',
   'plugins.installing': 'Installing…',
   'plugins.installSuccess': 'Plugin installed',

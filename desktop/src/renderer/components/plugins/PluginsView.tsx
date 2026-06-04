@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { CSSProperties, MouseEvent } from 'react'
-import { Box, ChevronLeft, Code2, Ellipsis, ExternalLink, Link, MessageCircle, Server, Settings, Trash2, Wrench } from 'lucide-react'
+import { Box, ChevronLeft, Code2, Ellipsis, ExternalLink, Link, MessageCircle, Plus, Server, Settings, Trash2, Wrench } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import type { MessageKey } from '../../../shared/locales'
 import { usePluginStore, type PluginDiagnosticEntry, type PluginEntry } from '../../stores/pluginStore'
@@ -698,7 +698,7 @@ function PluginDetailView({
       </div>
       <header style={detailHeader}>
         <div style={detailIconRow}>
-          <PluginIcon plugin={plugin} size={48} />
+          <PluginIcon plugin={plugin} size={64} />
           <div style={{ flex: 1 }} />
           {saved && <span style={savedHint}>{t('settings.savedToast')}</span>}
           <a
@@ -723,7 +723,8 @@ function PluginDetailView({
             </button>
           ) : (
             <button type="button" style={tryButton} onClick={onInstall}>
-              {t('plugins.install')}
+              <Plus size={14} aria-hidden />
+              {t('plugins.detail.add')}
             </button>
           )}
         </div>
@@ -1142,12 +1143,12 @@ const detailBreadcrumbButton: CSSProperties = {
   borderRadius: '8px',
   lineHeight: 1.2
 }
-const detailIconRow: CSSProperties = { display: 'flex', alignItems: 'center', gap: 12 }
-const detailTitle: CSSProperties = { margin: '22px 0 6px', fontSize: 22, fontWeight: 600 }
+const detailIconRow: CSSProperties = { display: 'flex', alignItems: 'flex-start', gap: 12 }
+const detailTitle: CSSProperties = { margin: '20px 0 6px', fontSize: 28, fontWeight: 600 }
 const detailSubtitle: CSSProperties = { margin: 0, color: 'var(--text-secondary)', fontSize: 15 }
 const detailIconButton: CSSProperties = { width: 32, height: 32, borderRadius: 8, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', textDecoration: 'none' }
 const secondaryDetailButton: CSSProperties = { border: 'none', borderRadius: 8, background: 'var(--bg-tertiary)', color: 'var(--text-primary)', padding: '8px 12px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }
-const tryButton: CSSProperties = { border: 'none', borderRadius: 8, background: '#050505', color: '#fff', padding: '8px 12px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }
+const tryButton: CSSProperties = { border: 'none', borderRadius: 8, background: 'var(--text-primary)', color: 'var(--bg-primary)', fontWeight: 600, padding: '8px 12px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }
 const promptPreview: CSSProperties = { height: 132, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(120deg, #b6cdf5, #d9cef7 58%, #f3f0fb)' }
 const promptBubble: CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 7, maxWidth: '80%', border: '1px solid rgba(0,0,0,0.12)', borderRadius: 13, background: 'rgba(255,255,255,0.82)', color: '#111', padding: '8px 12px', fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }
 const longDescription: CSSProperties = { margin: '54px 8px 40px', lineHeight: 1.55, fontSize: 14, color: 'var(--text-primary)' }

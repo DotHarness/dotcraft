@@ -1092,6 +1092,7 @@ export const MESSAGES_ZH_HANS = {
   'plugins.unavailable': '当前 AppServer 不支持插件管理。',
   'plugins.updateFailed': '更新插件失败',
   'plugins.install': '安装',
+  'plugins.detail.add': '添加插件',
   'plugins.installBrowserUse': '安装 Browser',
   'plugins.installing': '正在安装…',
   'plugins.installSuccess': '插件已安装',

@@ -578,6 +578,7 @@ export const MESSAGES_ES = {
   'plugins.unavailable': 'Este AppServer no admite la administración de complementos.',
   'plugins.updateFailed': 'No se pudo actualizar el complemento',
   'plugins.install': 'Instalar',
+  'plugins.detail.add': 'Añadir complemento',
   'plugins.installSuccess': 'Complemento instalado',
   'plugins.installFailed': 'No se pudo instalar el complemento',
   'plugins.tryInChat': 'Prueba en el chat',

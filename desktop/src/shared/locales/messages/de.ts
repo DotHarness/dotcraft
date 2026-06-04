@@ -578,6 +578,7 @@ export const MESSAGES_DE = {
   'plugins.unavailable': 'Dieser AppServer unterstützt keine Plugin-Verwaltung.',
   'plugins.updateFailed': 'Plugin konnte nicht aktualisiert werden',
   'plugins.install': 'Installieren',
+  'plugins.detail.add': 'Plugin hinzufügen',
   'plugins.installSuccess': 'Plugin installiert',
   'plugins.installFailed': 'Plugin konnte nicht installiert werden',
   'plugins.tryInChat': 'Versuchen Sie es im Chat',
