@@ -9,13 +9,22 @@ function escapeMustaches(value: string): string {
   return value.replaceAll('{{', '&#123;&#123;').replaceAll('}}', '&#125;&#125;')
 }
 
-function collapseSidebarGroups(items: DefaultTheme.SidebarItem[]): DefaultTheme.SidebarItem[] {
+function collapseSidebarGroups(items: DefaultTheme.SidebarItem[], depth = 0): DefaultTheme.SidebarItem[] {
   return items.map((item) => {
     if (!item.items) return item
+
+    const collapsedItems = collapseSidebarGroups(item.items, depth + 1)
+    if (depth === 0) {
+      return {
+        ...item,
+        items: collapsedItems
+      }
+    }
+
     return {
       ...item,
       collapsed: true,
-      items: collapseSidebarGroups(item.items)
+      items: collapsedItems
     }
   })
 }
