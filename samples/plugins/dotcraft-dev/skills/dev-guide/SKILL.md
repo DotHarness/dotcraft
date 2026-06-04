@@ -49,6 +49,20 @@ A test is meaningful only when (applies to C# xUnit and TypeScript tests equally
 - It does not merely restate implementation details via excessive mocking; prefer state/output assertions unless interaction itself is the contract.
 - It is not written just to inflate coverage numbers.
 
+Desktop frontend tests:
+
+- Test behavior, not static styling. Cover user-visible output, accessibility names,
+  enabled/disabled state, navigation, store updates, IPC calls, serialization, and
+  data mapping.
+- Do not assert one-to-one visual implementation details such as CSS variables,
+  colors, borders, shadows, spacing, radii, widths/heights, token values, source
+  string snippets, or class names whose only purpose is styling.
+- Keep style-related assertions only when the style is the functional contract,
+  such as computed positions from a drag/drop or popover placement algorithm,
+  ANSI color parsing, virtualized geometry, or resize behavior.
+- Prefer short interaction tests over source/CSS guards. If a UI change is pure
+  polish, document it or verify it manually instead of adding test volume.
+
 DotCraft.Core C# xUnit tests:
 
 - Test observable behavior through public APIs, persisted state, wire payloads, or user-visible results; do not test private implementation shape.
