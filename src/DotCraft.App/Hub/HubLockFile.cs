@@ -26,7 +26,7 @@ public sealed class HubLockFile : IDisposable
     {
         Directory.CreateDirectory(paths.HubStatePath);
         existingInfo = TryRead(paths.LockFilePath);
-        if (existingInfo is not null && existingInfo.IsProcessAlive())
+        if (existingInfo is not null && existingInfo.IsOwnerProcessAlive())
         {
             lockFile = null;
             return false;
@@ -136,6 +136,7 @@ public sealed class HubLockFile : IDisposable
             // Best-effort stale guard cleanup only.
         }
     }
+
 }
 
 /// <summary>
@@ -163,4 +164,109 @@ public sealed record HubLockInfo(
             return false;
         }
     }
+
+    internal bool IsOwnerProcessAlive() => GetOwnerProcessStatus() == HubLockOwnerStatus.Alive;
+
+    internal HubLockOwnerStatus GetOwnerProcessStatus()
+    {
+        if (Pid <= 0)
+            return HubLockOwnerStatus.NotRunning;
+
+        try
+        {
+            using var process = Process.GetProcessById(Pid);
+            if (process.HasExited)
+                return HubLockOwnerStatus.NotRunning;
+
+            if (StartedAt != default && TryCheckProcessStartedAfterLock(process, out var pidReused))
+                return pidReused ? HubLockOwnerStatus.PidReused : HubLockOwnerStatus.Alive;
+
+            return MatchesRecordedBinary(process)
+                ? HubLockOwnerStatus.Alive
+                : HubLockOwnerStatus.PidReused;
+        }
+        catch
+        {
+            return HubLockOwnerStatus.NotRunning;
+        }
+    }
+
+    private bool MatchesRecordedBinary(Process process)
+    {
+        if (string.IsNullOrWhiteSpace(BinaryPath))
+            return true;
+
+        try
+        {
+            var actualPath = process.MainModule?.FileName;
+            if (!string.IsNullOrWhiteSpace(actualPath))
+            {
+                if (PathsEqual(actualPath, BinaryPath))
+                    return true;
+
+                if (IsDllPath(BinaryPath) && IsDotNetHostPath(actualPath))
+                    return true;
+
+                return false;
+            }
+        }
+        catch
+        {
+            // Some platforms/processes deny executable path inspection. Fall back to process-name matching.
+        }
+
+        if (IsDllPath(BinaryPath) && IsDotNetHostName(process.ProcessName))
+            return true;
+
+        var expectedName = Path.GetFileNameWithoutExtension(BinaryPath);
+        return !string.IsNullOrWhiteSpace(expectedName) &&
+               string.Equals(process.ProcessName, expectedName, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private bool TryCheckProcessStartedAfterLock(Process process, out bool startedAfterLock)
+    {
+        startedAfterLock = false;
+        try
+        {
+            var processStartedAt = new DateTimeOffset(process.StartTime.ToUniversalTime());
+            startedAfterLock = StartedAt.AddSeconds(1) < processStartedAt;
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool PathsEqual(string left, string right)
+    {
+        var comparison = OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+
+        try
+        {
+            return string.Equals(Path.GetFullPath(left), Path.GetFullPath(right), comparison);
+        }
+        catch
+        {
+            return string.Equals(left, right, comparison);
+        }
+    }
+
+    private static bool IsDllPath(string path)
+        => path.EndsWith(".dll", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsDotNetHostPath(string path)
+        => IsDotNetHostName(Path.GetFileNameWithoutExtension(path));
+
+    private static bool IsDotNetHostName(string? name)
+        => string.Equals(name, "dotnet", StringComparison.OrdinalIgnoreCase);
+}
+
+internal enum HubLockOwnerStatus
+{
+    Alive,
+    NotRunning,
+    PidReused
 }

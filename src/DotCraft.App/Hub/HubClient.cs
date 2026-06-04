@@ -76,7 +76,10 @@ public sealed class HubClient(string? dotcraftBin = null, HubPaths? paths = null
 
     private async Task<HubLockInfo> EnsureHubAsync(CancellationToken cancellationToken)
     {
-        if (await TryGetLiveHubAsync(cancellationToken) is { } live)
+        var lastStatus = "No hub.lock was found.";
+        var initialDiscovery = await TryGetLiveHubAsync(cancellationToken);
+        lastStatus = initialDiscovery.Status;
+        if (initialDiscovery.Info is { } live)
             return live;
 
         StartHubProcess();
@@ -85,30 +88,45 @@ public sealed class HubClient(string? dotcraftBin = null, HubPaths? paths = null
         while (DateTimeOffset.UtcNow < deadline)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (await TryGetLiveHubAsync(cancellationToken) is { } info)
+            var discovery = await TryGetLiveHubAsync(cancellationToken);
+            lastStatus = discovery.Status;
+            if (discovery.Info is { } info)
                 return info;
 
             await Task.Delay(PollInterval, cancellationToken);
         }
 
-        throw new HubClientException("hubUnavailable", "DotCraft Hub could not be started.");
+        throw new HubClientException(
+            "hubUnavailable",
+            $"DotCraft Hub could not be started within {DefaultStartupTimeout.TotalSeconds:N0}s. " +
+            $"Last status: {lastStatus} Hub lock: {_paths.LockFilePath}");
     }
 
-    private async Task<HubLockInfo?> TryGetLiveHubAsync(CancellationToken cancellationToken)
+    private async Task<HubDiscoveryResult> TryGetLiveHubAsync(CancellationToken cancellationToken)
     {
         var info = HubLockFile.TryRead(_paths.LockFilePath);
-        if (info is null || !info.IsProcessAlive())
-            return null;
+        if (info is null)
+            return new HubDiscoveryResult(null, "No hub.lock was found.");
+
+        var ownerStatus = info.GetOwnerProcessStatus();
+        if (ownerStatus != HubLockOwnerStatus.Alive)
+            return new HubDiscoveryResult(null, $"hub.lock owner is not live ({ownerStatus}, pid {info.Pid}).");
 
         try
         {
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(2) };
             using var response = await http.GetAsync($"{info.ApiBaseUrl}/v1/status", cancellationToken);
-            return response.IsSuccessStatusCode ? info : null;
+            return response.IsSuccessStatusCode
+                ? new HubDiscoveryResult(info, $"Hub status check succeeded at {info.ApiBaseUrl}.")
+                : new HubDiscoveryResult(null, $"Hub status check returned HTTP {(int)response.StatusCode} at {info.ApiBaseUrl}.");
         }
-        catch
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            return null;
+            throw;
+        }
+        catch (Exception ex)
+        {
+            return new HubDiscoveryResult(null, $"Hub status check failed at {info.ApiBaseUrl}: {ex.Message}");
         }
     }
 
@@ -188,6 +206,8 @@ public sealed class HubClient(string? dotcraftBin = null, HubPaths? paths = null
             : "hubRequestFailed";
         return new HubClientException(code, $"Hub request failed with HTTP {(int)response.StatusCode}.");
     }
+
+    private sealed record HubDiscoveryResult(HubLockInfo? Info, string Status);
 }
 
 /// <summary>
