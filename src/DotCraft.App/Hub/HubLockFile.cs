@@ -43,8 +43,6 @@ public sealed class HubLockFile : IDisposable
         }
 
         lockFile = new HubLockFile(paths.LockFilePath, fileLock!);
-        if (existingInfo is not null)
-            DeleteLockFile(paths.LockFilePath);
         return true;
     }
 
@@ -139,17 +137,6 @@ public sealed class HubLockFile : IDisposable
         }
     }
 
-    private static void DeleteLockFile(string lockFilePath)
-    {
-        try
-        {
-            File.Delete(lockFilePath);
-        }
-        catch
-        {
-            // Best-effort stale metadata cleanup only.
-        }
-    }
 }
 
 /// <summary>

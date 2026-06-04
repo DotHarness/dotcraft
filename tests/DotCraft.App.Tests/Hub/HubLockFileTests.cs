@@ -46,24 +46,32 @@ public sealed class HubLockFileTests : IDisposable
         var paths = HubPaths.Resolve(_userProfile);
         Directory.CreateDirectory(paths.HubStatePath);
         var guardPath = paths.LockFilePath + ".guard";
-        WriteLock(paths.LockFilePath, new HubLockInfo(
+        var staleInfo = new HubLockInfo(
             Pid: Environment.ProcessId,
             ApiBaseUrl: "http://127.0.0.1:43003",
             Token: "token",
             StartedAt: DateTimeOffset.UnixEpoch,
             Version: "old",
-            BinaryPath: CurrentProcessBinaryPath()));
+            BinaryPath: CurrentProcessBinaryPath());
+        WriteLock(paths.LockFilePath, staleInfo);
         File.WriteAllText(guardPath, "stale");
 
         Assert.True(HubLockFile.TryAcquire(paths, out var recovered, out var existingInfo));
         Assert.NotNull(recovered);
         Assert.NotNull(existingInfo);
         Assert.Equal(HubLockOwnerStatus.PidReused, existingInfo!.GetOwnerProcessStatus());
-        Assert.False(File.Exists(paths.LockFilePath));
+        Assert.Equal(staleInfo, HubLockFile.TryRead(paths.LockFilePath));
         Assert.True(File.Exists(guardPath));
         Assert.Equal(0, new FileInfo(guardPath).Length);
 
-        recovered!.DeleteAfterDispose();
+        recovered!.Publish(staleInfo with
+        {
+            Token = "replacement",
+            StartedAt = DateTimeOffset.UtcNow
+        });
+        Assert.Equal("replacement", HubLockFile.TryRead(paths.LockFilePath)?.Token);
+
+        recovered.DeleteAfterDispose();
     }
 
     [Fact]
