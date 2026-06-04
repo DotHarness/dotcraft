@@ -2516,7 +2516,7 @@ Choose the next concrete action that advances the goal. Before doing substantial
 
                 eventChannel.EmitItemStarted(item);
                 eventChannel.EmitItemCompleted(item);
-                return new ChatMessage(ChatRole.Assistant, (IList<AIContent>)[new TextContent(materializedText)]);
+                return new ChatMessage(ChatRole.User, (IList<AIContent>)[new TextContent(materializedText)]);
             }
 
             async Task<ChatMessage?> TryDrainGuidanceMessageAsync(CancellationToken drainCt)
