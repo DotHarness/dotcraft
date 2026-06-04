@@ -1,9 +1,9 @@
 {
   "name": "@dotcraft/channel-wecom",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "private": true,
   "type": "module",
-  "description": "DotCraft external channel adapter for WeCom enterprise bots using @dotcraft/sdk",
+  "description": "DotCraft channel adapter for WeCom",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
