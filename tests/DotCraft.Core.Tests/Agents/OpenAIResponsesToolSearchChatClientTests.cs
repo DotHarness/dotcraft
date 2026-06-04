@@ -354,6 +354,24 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
     }
 
     [Fact]
+    public void CreateResponseOptions_MapsExtraHighReasoningEffortToOpenAIToken()
+    {
+        using var document = JsonDocument.Parse(CreateRequestJson(
+            "gpt-test",
+            [new ChatMessage(ChatRole.User, "think hard")],
+            new ChatOptions
+            {
+                Tools = [new NativeToolSearchTool(new DeferredToolRegistry([]))],
+                Reasoning = new ReasoningOptions
+                {
+                    Effort = ReasoningEffort.ExtraHigh
+                }
+            }));
+
+        Assert.Equal("xhigh", document.RootElement.GetProperty("reasoning").GetProperty("effort").GetString());
+    }
+
+    [Fact]
     public void CreateResponseOptions_PrefersPromptCacheKeyFromAdditionalProperties()
     {
         var previous = TracingChatClient.CurrentSessionKey;
