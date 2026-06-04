@@ -341,7 +341,7 @@ describe('ToolCallCard subagent result rendering', () => {
     useThreadStore.getState().setActiveThread({
       id: 'parent-1',
       userId: 'local',
-      workspacePath: 'E:/Git/dotcraft',
+      workspacePath: '/workspace/project',
       displayName: 'Parent thread',
       status: 'active',
       originChannel: 'dotcraft-desktop',
