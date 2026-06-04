@@ -78,7 +78,7 @@ export function GoalControlPopover({
         padding: 14,
         borderRadius: 14,
         background: 'var(--glass-surface-strong)',
-        border: '1px solid var(--glass-border)',
+        border: 'none',
         boxShadow: 'var(--glass-shadow-soft)',
         backdropFilter: 'var(--glass-blur)',
         WebkitBackdropFilter: 'var(--glass-blur)',

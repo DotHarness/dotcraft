@@ -76,7 +76,7 @@ describe('ContextMenu', () => {
     const submenu = screen.getAllByRole('menu')[1]
     expect(submenu).toHaveStyle({
       position: 'absolute',
-      left: '-190px',
+      left: '-199px',
       top: '8px'
     })
   })
@@ -108,7 +108,7 @@ describe('ContextMenu', () => {
     const submenu = screen.getAllByRole('menu')[1]
     expect(submenu).toHaveStyle({
       position: 'absolute',
-      left: '190px',
+      left: '199px',
       top: '8px'
     })
   })

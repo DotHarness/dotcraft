@@ -159,7 +159,7 @@ export function FileSearchPopover({
         zIndex: 50,
         boxShadow: 'var(--glass-shadow-soft)',
         background: 'var(--glass-surface-strong)',
-        border: '1px solid var(--glass-border)',
+        border: 'none',
         borderRadius: '12px',
         backdropFilter: 'var(--glass-blur)',
         WebkitBackdropFilter: 'var(--glass-blur)',

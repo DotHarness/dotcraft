@@ -33,8 +33,6 @@ interface ContextMenuProps {
 }
 
 interface SubmenuAnchor {
-  left: number
-  right: number
   top: number
 }
 
@@ -54,6 +52,10 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps): JSX
   const menuWidth = 200
   const menuItemHeight = 30
   const menuPadding = 8
+  // The submenu meets the parent edge-to-edge (a ~1px seam, not an obvious overlap
+  // that covers the parent); that meeting edge takes a hairline — the only border on
+  // an ordinary overlay. See specs/clients/DESIGN.md.
+  const submenuOverlap = 1
   const visibleItemCount = items.filter((item) => item.type !== 'separator').length
   const separatorCount = items.length - visibleItemCount
   const estimatedHeight =
@@ -67,8 +69,8 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps): JSX
       ? openSubmenuItem.submenu ?? null
       : null
   const submenuEstimatedHeight = estimateMenuHeight(submenuItems ?? [], menuItemHeight, menuPadding)
-  const submenuPreferredLeft = (submenuAnchor?.right ?? left + menuWidth) - 4
-  const submenuFlippedLeft = (submenuAnchor?.left ?? left) - menuWidth + 4
+  const submenuPreferredLeft = left + menuWidth - submenuOverlap
+  const submenuFlippedLeft = left - menuWidth + submenuOverlap
   const submenuOpensLeft = submenuPreferredLeft + menuWidth + 8 > window.innerWidth
   const submenuLeft = clampMenuLeft(submenuOpensLeft ? submenuFlippedLeft : submenuPreferredLeft, menuWidth)
   const submenuTop = clampMenuTop(submenuAnchor?.top ?? top, submenuEstimatedHeight)
@@ -94,7 +96,7 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps): JSX
 
   function openSubmenu(index: number, element: HTMLElement): void {
     setOpenSubmenuIndex(index)
-    setSubmenuAnchor(getSubmenuAnchor(element, index, left, top, items, menuWidth, menuPadding, menuItemHeight))
+    setSubmenuAnchor(getSubmenuAnchor(element, index, top, items, menuPadding, menuItemHeight))
   }
 
   function closeSubmenu(): void {
@@ -113,7 +115,7 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps): JSX
         left,
         width: menuWidth,
         background: 'var(--glass-surface-strong)',
-        border: '1px solid var(--glass-border)',
+        border: 'none',
         borderRadius: '10px',
         boxShadow: 'var(--glass-shadow-soft)',
         backdropFilter: 'var(--glass-blur)',
@@ -235,7 +237,11 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps): JSX
             left: submenuLeftOffset,
             width: menuWidth,
             background: 'var(--glass-surface-strong)',
-            border: '1px solid var(--glass-border)',
+            borderTop: 'none',
+            borderBottom: 'none',
+            // Hairline on the overlapping edge only (faces the parent menu).
+            borderLeft: submenuOpensLeft ? 'none' : '1px solid var(--glass-border)',
+            borderRight: submenuOpensLeft ? '1px solid var(--glass-border)' : 'none',
             borderRadius: '10px',
             boxShadow: 'var(--glass-shadow-soft)',
             backdropFilter: 'var(--glass-blur)',
@@ -328,18 +334,14 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps): JSX
 function getSubmenuAnchor(
   element: HTMLElement,
   index: number,
-  menuLeft: number,
   menuTop: number,
   items: ContextMenuEntry[],
-  menuWidth: number,
   menuPadding: number,
   menuItemHeight: number
 ): SubmenuAnchor {
   const rect = element.getBoundingClientRect()
   if (rect.width > 0 || rect.height > 0 || rect.left !== 0 || rect.top !== 0) {
     return {
-      left: rect.left,
-      right: rect.right,
       top: rect.top
     }
   }
@@ -348,8 +350,6 @@ function getSubmenuAnchor(
     acc + (item.type === 'separator' ? 9 : menuItemHeight)
   ), 0)
   return {
-    left: menuLeft + 6,
-    right: menuLeft + menuWidth - 6,
     top: menuTop + offsetTop
   }
 }

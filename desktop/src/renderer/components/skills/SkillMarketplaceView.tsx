@@ -80,7 +80,7 @@ export function SkillMarketplaceView({ onInstalled }: SkillMarketplaceViewProps)
         <div style={searchWrap}>
           <Search size={15} aria-hidden="true" />
           <input
-            type="search"
+            type="text"
             placeholder={t('skillMarket.searchPlaceholder')}
             value={query}
             onChange={(event) => setQuery(event.target.value)}

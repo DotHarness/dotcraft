@@ -219,7 +219,7 @@ export function OpenTargetButton({
             right: 0,
             minWidth: '220px',
             maxWidth: '280px',
-            border: '1px solid var(--glass-border)',
+            border: 'none',
             borderRadius: '10px',
             background: 'var(--glass-surface-strong)',
             boxShadow: 'var(--glass-shadow-soft)',

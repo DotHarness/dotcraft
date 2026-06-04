@@ -501,8 +501,8 @@ const fieldStyle: CSSProperties = {
 const inputStyle: CSSProperties = {
   height: '46px',
   borderRadius: '8px',
-  border: '1px solid var(--border-default)',
-  background: 'var(--bg-primary)',
+  border: 'none',
+  background: 'var(--bg-tertiary)',
   color: 'var(--text-primary)',
   padding: '0 14px',
   font: 'inherit',

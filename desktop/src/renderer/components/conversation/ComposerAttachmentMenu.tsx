@@ -150,7 +150,7 @@ export function ComposerAttachmentMenu({
             bottom: 'calc(100% + 8px)',
             minWidth: '180px',
             zIndex: 70,
-            border: '1px solid var(--glass-border)',
+            border: 'none',
             borderRadius: '12px',
             background: 'var(--glass-surface-strong)',
             boxShadow: 'var(--glass-shadow-soft)',
@@ -189,8 +189,8 @@ export function ComposerAttachmentMenu({
                 aria-hidden
                 style={{
                   height: '1px',
-                  background: 'var(--glass-border)',
-                  margin: '6px 4px'
+                  background: 'color-mix(in srgb, var(--text-primary) 9%, transparent)',
+                  margin: '6px 10px'
                 }}
               />
               <ActionTooltip label={planModeToggleLabel ?? ''} placement="right" wrapperStyle={{ width: '100%' }}>

@@ -216,8 +216,11 @@ export function ComposerShell({
   mascotBounceSignal = 0,
   mascotInteraction
 }: ComposerShellProps): JSX.Element {
+  const [hovered, setHovered] = useState(false)
   return (
     <div
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       style={{
         position: 'relative',
         padding: '0 0 14px',
@@ -228,6 +231,24 @@ export function ComposerShell({
         isolation: 'isolate'
       }}
     >
+      {(focused || hovered) && (
+        // Brand-gradient glow behind the composer. Breathes on focus; a calmer
+        // static halo on hover. Sits below the opaque card so only the rim shows.
+        <div
+          aria-hidden
+          className={focused ? 'composer-focus-glow' : undefined}
+          style={{
+            position: 'absolute',
+            inset: '-3px -3px 10px -3px',
+            borderRadius: '23px',
+            background: 'var(--composer-focus-glow)',
+            filter: 'blur(8px)',
+            opacity: focused ? 0.22 : 0.18,
+            zIndex: 0,
+            pointerEvents: 'none'
+          }}
+        />
+      )}
       {showMascot && !topAccessoryVisible && (
         <ComposerMascot
           focused={focused}
@@ -254,15 +275,22 @@ export function ComposerShell({
         style={{
           position: 'relative',
           zIndex: 1,
+          // Frameless at rest: raised fill + soft shadow separate it from the
+          // conversation. Focus adds a subtle brand-blue rim over the breathing
+          // glow behind; hover lifts the surface slightly.
           border: focused
-            ? '1px solid var(--composer-input-border-focus)'
-            : '1px solid var(--composer-input-border)',
+            ? '1px solid var(--composer-focus-border)'
+            : '1px solid transparent',
           borderRadius: '20px',
           background: 'var(--composer-input-background)',
           padding: '10px 10px 8px',
-          boxShadow: focused
-            ? '0 0 0 1px color-mix(in srgb, var(--accent) 16%, transparent), var(--composer-input-shadow)'
-            : 'var(--composer-input-shadow)'
+          transform: hovered && !focused ? 'translateY(-1px)' : 'none',
+          transition:
+            'transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.3s ease, border-color 0.2s ease',
+          boxShadow:
+            hovered && !focused
+              ? '0 16px 34px -10px rgba(0, 0, 0, 0.32), var(--composer-input-shadow)'
+              : 'var(--composer-input-shadow)'
         }}
         onDragOver={onDragOver}
         onDragLeave={onDragLeave}

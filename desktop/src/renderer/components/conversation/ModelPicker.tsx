@@ -356,7 +356,7 @@ export function ModelPicker({
             maxHeight: '320px',
             overflowY: 'auto',
             zIndex: 70,
-            border: '1px solid var(--glass-border)',
+            border: 'none',
             borderRadius: '12px',
             background: 'var(--glass-surface-strong)',
             boxShadow: 'var(--glass-shadow-soft)',

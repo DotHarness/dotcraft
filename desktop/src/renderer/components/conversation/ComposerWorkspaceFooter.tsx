@@ -68,7 +68,7 @@ const menuStyle: CSSProperties = {
   padding: '8px',
   borderRadius: '10px',
   background: 'var(--glass-surface-strong)',
-  border: '1px solid var(--glass-border)',
+  border: 'none',
   boxShadow: 'var(--glass-shadow-soft)',
   backdropFilter: 'var(--glass-blur)',
   WebkitBackdropFilter: 'var(--glass-blur)',
@@ -503,7 +503,13 @@ export function ComposerWorkspaceFooter({
                 )
               })}
             </div>
-            <div style={{ height: '1px', background: 'var(--border-subtle)', margin: '4px 0' }} />
+            <div
+              style={{
+                height: '1px',
+                background: 'color-mix(in srgb, var(--text-primary) 9%, transparent)',
+                margin: '6px 8px'
+              }}
+            />
             <FooterMenuButton
               icon={<Plus size={15} strokeWidth={1.8} aria-hidden />}
               onClick={() => setCreateOpen(true)}
@@ -692,8 +698,8 @@ function CreateBranchDialog({
             style={{
               height: '42px',
               borderRadius: '8px',
-              border: '1px solid var(--border-default)',
-              background: 'var(--bg-primary)',
+              border: 'none',
+              background: 'var(--bg-tertiary)',
               color: 'var(--text-primary)',
               padding: '0 12px',
               font: 'inherit',

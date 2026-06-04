@@ -47,7 +47,7 @@ If the design repository does not exist, ask the user before creating it, or ask
 6. Handoff before production implementation.
    - Summarize the approved layout decisions, interaction behavior, tokens, and unresolved risks.
    - Only edit the DotCraft source repository after the user explicitly approves implementing the chosen design.
-   - Before production Desktop visual edits, read `specs/clients/desktop-visual-design.md` from the DotCraft source repository and follow the repository's normal development/test workflow.
+   - Before production Desktop visual edits, read `specs/clients/DESIGN.md` from the DotCraft source repository and follow the repository's normal development/test workflow.
 
 ## TSX Desktop Preview
 

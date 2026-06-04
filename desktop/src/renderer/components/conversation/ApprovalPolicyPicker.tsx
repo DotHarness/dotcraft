@@ -381,7 +381,7 @@ function popupStyle(): CSSProperties {
     minWidth: '220px',
     maxWidth: '280px',
     zIndex: 70,
-    border: '1px solid var(--glass-border)',
+    border: 'none',
     borderRadius: '12px',
     background: 'var(--glass-surface-strong)',
     boxShadow: 'var(--glass-shadow-soft)',

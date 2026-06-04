@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { GitBranch } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useConnectionStore } from '../../stores/connectionStore'
@@ -18,6 +18,7 @@ interface AgentMessageProps {
   streaming?: boolean
   createdAt?: string
   showFooter?: boolean
+  afterContent?: ReactNode
 }
 
 /**
@@ -31,7 +32,8 @@ export function AgentMessage({
   itemId,
   streaming = false,
   createdAt,
-  showFooter = true
+  showFooter = true,
+  afterContent
 }: AgentMessageProps): JSX.Element {
   const t = useT()
   const capabilities = useConnectionStore((s) => s.capabilities)
@@ -112,6 +114,7 @@ export function AgentMessage({
       onContextMenu={handleContextMenu}
     >
       <MarkdownRenderer content={displayText} />
+      {afterContent}
       {showFooter && (
         <div
           data-testid="agent-message-footer"

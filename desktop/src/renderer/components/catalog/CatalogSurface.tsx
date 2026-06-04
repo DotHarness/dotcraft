@@ -96,7 +96,7 @@ export function CatalogSearchBox({
     <div style={{ ...styles.searchBox, ...style }}>
       <Search size={15} aria-hidden />
       <input
-        type="search"
+        type="text"
         value={value}
         placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}

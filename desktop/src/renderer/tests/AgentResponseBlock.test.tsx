@@ -810,6 +810,46 @@ describe('AgentResponseBlock tail tool aggregation timing', () => {
     expect(footer.lastElementChild).toBe(screen.getByTestId('agent-message-time'))
   })
 
+  it('renders turn artifacts and file changes before the final agent footer', () => {
+    useConversationStore.setState({
+      workspacePath: 'F:/workspace',
+      changedFiles: new Map([
+        ['site/index.html', makeDiff('site/index.html', 'turn-agent-artifacts-before-footer')]
+      ])
+    })
+
+    const turn: ConversationTurn = {
+      id: 'turn-agent-artifacts-before-footer',
+      threadId: 'thread-1',
+      status: 'completed',
+      startedAt: '2026-04-18T10:04:00.000Z',
+      completedAt: '2026-04-18T10:05:00.000Z',
+      items: [
+        {
+          id: 'assistant-message-with-artifacts',
+          type: 'agentMessage',
+          status: 'completed',
+          text: 'Final answer with artifacts.',
+          createdAt: '2026-04-18T10:05:00.000Z'
+        }
+      ]
+    }
+
+    const { container } = render(
+      <LocaleProvider>
+        <AgentResponseBlock turn={turn} />
+      </LocaleProvider>
+    )
+
+    const artifactTitle = screen.getByText('index.html')
+    const fileChanges = screen.getByText('1 file changed')
+    const footer = container.querySelector('[data-testid="agent-message-footer"]') as HTMLElement
+
+    expect(footer).toBeTruthy()
+    expect(artifactTitle.compareDocumentPosition(footer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(fileChanges.compareDocumentPosition(footer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
   it('does not render agent message footers while the turn is still running', () => {
     const turn: ConversationTurn = {
       id: 'turn-running-agent-message-footer',

@@ -6,7 +6,7 @@
 | **Status** | Living |
 | **Date** | 2026-06-01 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
-| **Related Specs** | [Plugin Architecture](../extensions/plugin-architecture.md), [Tool Result Presentation](../protocols/tool-result-presentation.md), [Goal Design](../core/goal-design.md), [Desktop Visual Design](desktop-visual-design.md) |
+| **Related Specs** | [Plugin Architecture](../extensions/plugin-architecture.md), [Tool Result Presentation](../protocols/tool-result-presentation.md), [Goal Design](../core/goal-design.md), [Desktop DESIGN.md](DESIGN.md) |
 
 Purpose: Define the stable user-experience behavior of **DotCraft Desktop** as a protocol client for DotCraft AppServer. This document specifies user-visible flows, interaction rules, state transitions, and recovery behavior. It does not define frontend implementation details, visual design, or framework choices.
 
@@ -51,7 +51,7 @@ Purpose: Define the stable user-experience behavior of **DotCraft Desktop** as a
 - Wire protocol payloads, transport rules, or server semantics already defined in [appserver-protocol.md](../protocols/appserver-protocol.md).
 - TypeScript module contract details (manifest schema, package exports, launcher contract, and conformance rules) defined in [plugin-architecture.md](../extensions/plugin-architecture.md).
 - Frontend frameworks, component trees, IPC method signatures, process architecture, or state-store structure.
-- Layout geometry, colors, typography, icons, spacing, animation, or other visual design details. Stable Desktop visual decision rules are defined separately in [Desktop Visual Design](desktop-visual-design.md).
+- Layout geometry, colors, typography, icons, spacing, animation, or other visual design details. Stable Desktop visual decision rules are defined separately in [Desktop DESIGN.md](DESIGN.md).
 - Platform-specific implementation APIs for notifications, menus, file search, or file persistence.
 - Arbitrary third-party UI code execution for tool results.
 
@@ -638,7 +638,7 @@ Desktop owns a **Servers** surface for managing remote DotCraft Docker stacks ov
 - Adding or editing a server uses a second-level Settings page, not a nested modal. The page collects name, SSH target, and an optional identity file override (key/agent only; no password entry or key storage), surfaces local SSH aliases/keys when available, and may offer one-click import of discovered stacks. Stack records never accept the AppServer token; token presence is shown as present/missing only.
 - "Open in Desktop" reads the remote `workspace/.craft/appserver.token`, opens a local SSH tunnel, and connects through the existing remote-mode test-and-connect path (§3.1.1) using a `ws://127.0.0.1:<port>/ws` URL. Desktop must not expose remote AppServer restart; stack lifecycle (start/stop/restart) is a deployment action distinct from AppServer process restart.
 - There is one source of truth for the active connection. While a Servers stack is the active session, the Connections group shows a read-only "Connected via Servers ▸ &lt;host&gt; / &lt;stack&gt;" banner linking back to Servers instead of an editable raw URL; the raw URL/token form remains for the manual/advanced case.
-- The visual treatment follows [Desktop Visual Design](desktop-visual-design.md): neutral-first surfaces, semantic color only for state and risk, and the neutral inverted primary for Open in Desktop.
+- The visual treatment follows [Desktop DESIGN.md](DESIGN.md): neutral-first surfaces, semantic color only for state and risk, and the neutral inverted primary for Open in Desktop.
 
 ---
 
