@@ -334,23 +334,26 @@ Newly created or updated skills may not affect the current prompt immediately; t
 
     private static string GetSubAgentLifecyclePrompt(IReadOnlyList<string>? availableToolNames)
     {
-        var hasSendInput = IsToolAvailable(availableToolNames, "SendInput");
+        var hasSendMessage = IsToolAvailable(availableToolNames, "SendMessage");
+        var hasFollowupTask = IsToolAvailable(availableToolNames, "FollowupTask");
         var hasWaitAgent = IsToolAvailable(availableToolNames, "WaitAgent");
-        var hasResumeAgent = IsToolAvailable(availableToolNames, "ResumeAgent");
+        var hasListAgents = IsToolAvailable(availableToolNames, "ListAgents");
         var hasCloseAgent = IsToolAvailable(availableToolNames, "CloseAgent");
 
         var controls = new List<string>();
-        if (hasSendInput)
-            controls.Add("Use `SendInput` to reuse an existing child thread when the next ask depends on that child's context.");
+        if (hasListAgents)
+            controls.Add("Use `ListAgents` to inspect available `agentPath` targets before sending follow-up work.");
+        if (hasSendMessage)
+            controls.Add("Use `SendMessage` for mailbox-only coordination; it records a message for the target and does not start a turn.");
+        if (hasFollowupTask)
+            controls.Add("Use `FollowupTask` to start or queue a target agent turn; pending mailbox messages for that target are delivered with the task.");
         if (hasWaitAgent)
-            controls.Add("Use `WaitAgent` sparingly, only when the parent is blocked on the child result or needs to synthesize completed work.");
-        if (hasResumeAgent)
-            controls.Add("Use `ResumeAgent` only when a previously closed child thread is the right context to continue.");
+            controls.Add("Use `WaitAgent` only when the parent is blocked on mailbox or SubAgent graph changes.");
         if (hasCloseAgent)
-            controls.Add("Use `CloseAgent` when a child thread is no longer needed; do not keep idle child agents open indefinitely.");
+            controls.Add("Use `CloseAgent` with an `agentPath` when a child thread is no longer needed; do not keep idle child agents open indefinitely.");
 
         var controlsText = controls.Count == 0
-            ? "- Track spawned child thread ids and manage their results explicitly with the tools currently available."
+            ? "- Track spawned agent paths and manage their results explicitly with the tools currently available."
             : "- " + string.Join("\n- ", controls);
 
         return
@@ -361,7 +364,7 @@ Use `SpawnAgent` for concrete sidecar work that can run while the parent keeps t
 
 - Keep immediate blockers local; spawn parallel exploration, verification, or disjoint implementation work.
 - Make each child prompt specific and self-contained; use `agentRole: "explorer"` for read-only research and `agentRole: "worker"` for bounded execution.
-- Record each `childThreadId`, nickname, role/profile, and purpose.
+- Set a lowercase `taskName` using only letters, digits, and underscores; the child is addressed by `agentPath`, while `agentNickname` only controls display naming.
 {{controlsText}}
 - When a child finishes, review and integrate its result without redoing the same work.
 """;

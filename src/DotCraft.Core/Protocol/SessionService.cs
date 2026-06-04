@@ -1827,6 +1827,31 @@ Choose the next concrete action that advances the goal. Before doing substantial
         return persistence.ListSubAgentChildrenAsync(parentThreadId, includeClosed, ct);
     }
 
+    public async Task AddSubAgentMailboxEntryAsync(SubAgentMailboxEntry entry, CancellationToken ct = default)
+    {
+        ct.ThrowIfCancellationRequested();
+        await persistence.AddSubAgentMailboxEntryAsync(entry, ct);
+    }
+
+    public Task<IReadOnlyList<SubAgentMailboxEntry>> ListPendingSubAgentMailboxAsync(
+        string rootThreadId,
+        string targetAgentPath,
+        CancellationToken ct = default)
+    {
+        ct.ThrowIfCancellationRequested();
+        return persistence.ListPendingSubAgentMailboxAsync(rootThreadId, targetAgentPath, ct);
+    }
+
+    public async Task MarkSubAgentMailboxDeliveredAsync(
+        string rootThreadId,
+        IReadOnlyList<string> entryIds,
+        DateTimeOffset deliveredAt,
+        CancellationToken ct = default)
+    {
+        ct.ThrowIfCancellationRequested();
+        await persistence.MarkSubAgentMailboxDeliveredAsync(rootThreadId, entryIds, deliveredAt, ct);
+    }
+
     public async Task<SessionTurn> StartSubAgentSyntheticTurnAsync(
         string threadId,
         IList<AIContent> content,

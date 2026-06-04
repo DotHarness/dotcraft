@@ -321,6 +321,34 @@ public sealed class ThreadStore
         return Task.FromResult<IReadOnlyList<ThreadSpawnEdge>>(_metadataStore.ListSubAgentChildren(parentThreadId, includeClosed));
     }
 
+    public Task AddSubAgentMailboxEntryAsync(SubAgentMailboxEntry entry, CancellationToken ct = default)
+    {
+        ct.ThrowIfCancellationRequested();
+        _metadataStore.AddSubAgentMailboxEntry(entry);
+        return Task.CompletedTask;
+    }
+
+    public Task<IReadOnlyList<SubAgentMailboxEntry>> ListPendingSubAgentMailboxAsync(
+        string rootThreadId,
+        string targetAgentPath,
+        CancellationToken ct = default)
+    {
+        ct.ThrowIfCancellationRequested();
+        return Task.FromResult<IReadOnlyList<SubAgentMailboxEntry>>(
+            _metadataStore.ListPendingSubAgentMailbox(rootThreadId, targetAgentPath));
+    }
+
+    public Task MarkSubAgentMailboxDeliveredAsync(
+        string rootThreadId,
+        IReadOnlyList<string> entryIds,
+        DateTimeOffset deliveredAt,
+        CancellationToken ct = default)
+    {
+        ct.ThrowIfCancellationRequested();
+        _metadataStore.MarkSubAgentMailboxDelivered(rootThreadId, entryIds, deliveredAt);
+        return Task.CompletedTask;
+    }
+
     private static SessionThread CloneThreadSnapshot(SessionThread thread)
     {
         var json = JsonSerializer.SerializeToUtf8Bytes(thread, SessionJsonOptions.Default);

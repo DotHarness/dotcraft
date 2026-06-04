@@ -251,12 +251,16 @@ public sealed class StateRuntime
                     child_thread_id TEXT NOT NULL,
                     parent_turn_id TEXT,
                     depth INTEGER NOT NULL DEFAULT 1,
+                    agent_path TEXT,
+                    task_name TEXT,
                     agent_nickname TEXT,
                     agent_role TEXT,
                     profile_name TEXT,
                     runtime_type TEXT,
                     supports_send_input INTEGER NOT NULL DEFAULT 0,
                     supports_resume INTEGER NOT NULL DEFAULT 0,
+                    supports_send_message INTEGER NOT NULL DEFAULT 0,
+                    supports_followup_task INTEGER NOT NULL DEFAULT 0,
                     supports_close INTEGER NOT NULL DEFAULT 1,
                     status TEXT NOT NULL,
                     created_at TEXT NOT NULL,
@@ -270,6 +274,23 @@ public sealed class StateRuntime
                     ON thread_spawn_edges(parent_thread_id, status, updated_at DESC);
                 CREATE INDEX IF NOT EXISTS idx_thread_spawn_edges_child
                     ON thread_spawn_edges(child_thread_id);
+
+                CREATE TABLE IF NOT EXISTS subagent_mailbox_entries (
+                    id TEXT PRIMARY KEY,
+                    root_thread_id TEXT NOT NULL,
+                    sender_agent_path TEXT NOT NULL,
+                    target_agent_path TEXT NOT NULL,
+                    message TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    delivered_at TEXT,
+                    FOREIGN KEY(root_thread_id) REFERENCES threads(thread_id) ON DELETE CASCADE
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_subagent_mailbox_target
+                    ON subagent_mailbox_entries(root_thread_id, target_agent_path, status, created_at);
+                CREATE INDEX IF NOT EXISTS idx_subagent_mailbox_status
+                    ON subagent_mailbox_entries(root_thread_id, status, created_at);
 
                 CREATE TABLE IF NOT EXISTS trace_sessions (
                     session_key TEXT PRIMARY KEY,
@@ -388,12 +409,16 @@ public sealed class StateRuntime
                 """;
             command.ExecuteNonQuery();
             EnsureColumn(connection, "thread_spawn_edges", "runtime_type", "TEXT");
+            EnsureColumn(connection, "thread_spawn_edges", "agent_path", "TEXT");
+            EnsureColumn(connection, "thread_spawn_edges", "task_name", "TEXT");
             EnsureColumn(connection, "threads", "metadata_json", "TEXT");
             EnsureColumn(connection, "threads", "forked_from_id", "TEXT");
             EnsureColumn(connection, "threads", "ephemeral", "INTEGER NOT NULL DEFAULT 0");
             EnsureColumn(connection, "threads", "worktree_json", "TEXT");
             EnsureColumn(connection, "thread_spawn_edges", "supports_send_input", "INTEGER NOT NULL DEFAULT 0");
             EnsureColumn(connection, "thread_spawn_edges", "supports_resume", "INTEGER NOT NULL DEFAULT 0");
+            EnsureColumn(connection, "thread_spawn_edges", "supports_send_message", "INTEGER NOT NULL DEFAULT 0");
+            EnsureColumn(connection, "thread_spawn_edges", "supports_followup_task", "INTEGER NOT NULL DEFAULT 0");
             EnsureColumn(connection, "thread_spawn_edges", "supports_close", "INTEGER NOT NULL DEFAULT 1");
             EnsureColumn(connection, "trace_sessions", "total_cached_input_tokens", "INTEGER NOT NULL DEFAULT 0");
             EnsureColumn(connection, "trace_sessions", "token_usage_count", "INTEGER NOT NULL DEFAULT 0");

@@ -47,6 +47,8 @@ export interface SubAgentThreadSourceWire {
   spawnCallId?: string
   rootThreadId?: string
   depth?: number
+  agentPath?: string
+  taskName?: string
   agentNickname?: string
   agentRole?: string
   agentType?: string
@@ -56,6 +58,8 @@ export interface SubAgentThreadSourceWire {
   runtimeType?: string
   supportsSendInput?: boolean
   supportsResume?: boolean
+  supportsSendMessage?: boolean
+  supportsFollowupTask?: boolean
   supportsClose?: boolean
 }
 

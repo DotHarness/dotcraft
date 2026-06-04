@@ -49,6 +49,12 @@ public sealed class SubAgentThreadSource
     public int Depth { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? AgentPath { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? TaskName { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? AgentNickname { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -63,6 +69,10 @@ public sealed class SubAgentThreadSource
     public bool SupportsSendInput { get; set; }
 
     public bool SupportsResume { get; set; }
+
+    public bool SupportsSendMessage { get; set; }
+
+    public bool SupportsFollowupTask { get; set; }
 
     public bool SupportsClose { get; set; } = true;
 }
@@ -85,6 +95,12 @@ public sealed class ThreadSpawnEdge
     public int Depth { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? AgentPath { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? TaskName { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? AgentNickname { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -99,6 +115,10 @@ public sealed class ThreadSpawnEdge
     public bool SupportsSendInput { get; set; }
 
     public bool SupportsResume { get; set; }
+
+    public bool SupportsSendMessage { get; set; }
+
+    public bool SupportsFollowupTask { get; set; }
 
     public bool SupportsClose { get; set; } = true;
 

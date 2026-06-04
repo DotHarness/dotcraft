@@ -35,6 +35,7 @@ export interface ServerCapabilities {
   mcpStatus?: boolean
   usageTelemetry?: boolean
   threadGoals?: boolean
+  subAgentSessions?: boolean
   manualCompaction?: boolean
   manualMemoryConsolidation?: boolean
   appBinding?: boolean

@@ -4,7 +4,14 @@ const EXPLORE_TOOLS = new Set(['ReadFile', 'GrepFiles', 'FindFiles'])
 const WRITE_TOOLS = new Set(['WriteFile', 'EditFile'])
 const SHELL_TOOLS = new Set(['Exec', 'RunCommand', 'BashCommand'])
 const WEB_TOOLS = new Set(['WebSearch', 'WebFetch'])
-const SUB_AGENT_TOOLS = new Set(['SpawnAgent'])
+const SUB_AGENT_TOOLS = new Set([
+  'SpawnAgent',
+  'SendMessage',
+  'FollowupTask',
+  'WaitAgent',
+  'ListAgents',
+  'CloseAgent'
+])
 
 export type ToolGroupCategory = 'explore' | 'write' | 'shell' | 'web' | 'subagent'
 

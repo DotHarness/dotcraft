@@ -175,6 +175,22 @@ public interface ISessionService
         bool includeClosed = false,
         CancellationToken ct = default);
 
+    Task AddSubAgentMailboxEntryAsync(SubAgentMailboxEntry entry, CancellationToken ct = default) =>
+        throw new NotSupportedException("SubAgent mailbox is not supported by this session service.");
+
+    Task<IReadOnlyList<SubAgentMailboxEntry>> ListPendingSubAgentMailboxAsync(
+        string rootThreadId,
+        string targetAgentPath,
+        CancellationToken ct = default) =>
+        throw new NotSupportedException("SubAgent mailbox is not supported by this session service.");
+
+    Task MarkSubAgentMailboxDeliveredAsync(
+        string rootThreadId,
+        IReadOnlyList<string> entryIds,
+        DateTimeOffset deliveredAt,
+        CancellationToken ct = default) =>
+        throw new NotSupportedException("SubAgent mailbox is not supported by this session service.");
+
     /// <summary>
     /// Subscribes to thread-level events independently of turn execution.
     /// Multiple passive subscribers may observe the same thread concurrently.

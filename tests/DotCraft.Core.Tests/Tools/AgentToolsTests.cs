@@ -14,9 +14,10 @@ public sealed class AgentToolsTests
         var methods = new[]
         {
             nameof(AgentTools.SpawnAgent),
-            nameof(AgentTools.SendInput),
+            nameof(AgentTools.SendMessage),
+            nameof(AgentTools.FollowupTask),
             nameof(AgentTools.WaitAgent),
-            nameof(AgentTools.ResumeAgent),
+            nameof(AgentTools.ListAgents),
             nameof(AgentTools.CloseAgent)
         };
 
@@ -66,7 +67,8 @@ public sealed class AgentToolsTests
             });
 
             var resultJson = await new AgentTools().SpawnAgent(
-                "inspect code",
+                message: "inspect code",
+                taskName: "inspect",
                 agentNickname: "Inspect",
                 profile: "native",
                 cancellationToken: CancellationToken.None);
@@ -74,11 +76,15 @@ public sealed class AgentToolsTests
             using var doc = JsonDocument.Parse(resultJson);
             var root = doc.RootElement;
             Assert.Equal("running", root.GetProperty("status").GetString());
+            Assert.Equal("/root/inspect", root.GetProperty("agentPath").GetString());
+            Assert.Equal("inspect", root.GetProperty("taskName").GetString());
             Assert.Equal("Inspect", root.GetProperty("agentNickname").GetString());
             Assert.Equal("native", root.GetProperty("profileName").GetString());
             Assert.Equal("native", root.GetProperty("runtimeType").GetString());
-            Assert.True(root.GetProperty("supportsSendInput").GetBoolean());
-            Assert.False(string.IsNullOrWhiteSpace(root.GetProperty("childThreadId").GetString()));
+            Assert.True(root.GetProperty("supportsSendMessage").GetBoolean());
+            Assert.True(root.GetProperty("supportsFollowupTask").GetBoolean());
+            Assert.False(root.TryGetProperty("childThreadId", out _));
+            Assert.False(root.TryGetProperty("supportsSendInput", out _));
         }
         finally
         {

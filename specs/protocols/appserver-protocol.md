@@ -77,7 +77,7 @@ The current v1 contract is based on the refactored Session Core, not on the earl
 
 | Bucket | V1 Items |
 |-------|----------|
-| **Guaranteed in v1** | Rich approval decisions (`accept`, `acceptForSession`, `acceptAlways`, `decline`, `cancel`), thread-scoped event subscription, accurate per-turn origin/initiator metadata, strict `historyMode` rules, separate wire DTO serialization with camelCase enums and lossless delta typing. Cron management methods (`cron/list`, `cron/remove`, `cron/enable`, `cron/run`) with the `cronManagement` server capability flag. Heartbeat trigger method (`heartbeat/trigger`) with the `heartbeatManagement` capability flag. Skills management methods (`skills/list`, `skills/read`, `skills/view`, `skills/restoreOriginal`, `skills/setEnabled`, `skills/uninstall`) with the `skillsManagement` / `skillVariants` capability flags. Command management methods (`command/list`, `command/execute`) with the `commandManagement` capability flag. Channel status method (`channel/status`) with the `channelStatus` capability flag. Provider management methods (`provider/list`, `provider/create`, `provider/update`, `provider/delete`, `provider/test`) with the `providerManagement` capability flag. Model catalog method (`model/list`) with the `modelCatalogManagement` capability flag. MCP management methods (`mcp/list`, `mcp/get`, `mcp/upsert`, `mcp/remove`, `mcp/status/list`, `mcp/test`) with the `mcpManagement` / `mcpStatus` capability flags. External channel management methods (`externalChannel/list`, `externalChannel/get`, `externalChannel/upsert`, `externalChannel/remove`) with the `externalChannelManagement` capability flag. SubAgent profile management methods (`subagent/profiles/list`, `subagent/settings/update`, `subagent/profiles/setEnabled`, `subagent/profiles/upsert`, `subagent/profiles/remove`) with the `subAgentManagement` capability flag. Session-backed SubAgent child-thread listing/close/resume with the `subAgentSessions` capability flag. Workspace config update method (`workspace/config/update`) with the `workspaceConfigManagement` capability flag. Dreams workspace memory methods (`dreams/status`, `dreams/run`, `dreams/create`, `dreams/get`, `dreams/list`, `dreams/cancel`, `dreams/apply`, `dreams/discard`, `dreams/archive`) with the `dreams` capability flag. |
+| **Guaranteed in v1** | Rich approval decisions (`accept`, `acceptForSession`, `acceptAlways`, `decline`, `cancel`), thread-scoped event subscription, accurate per-turn origin/initiator metadata, strict `historyMode` rules, separate wire DTO serialization with camelCase enums and lossless delta typing. Cron management methods (`cron/list`, `cron/remove`, `cron/enable`, `cron/run`) with the `cronManagement` server capability flag. Heartbeat trigger method (`heartbeat/trigger`) with the `heartbeatManagement` capability flag. Skills management methods (`skills/list`, `skills/read`, `skills/view`, `skills/restoreOriginal`, `skills/setEnabled`, `skills/uninstall`) with the `skillsManagement` / `skillVariants` capability flags. Command management methods (`command/list`, `command/execute`) with the `commandManagement` capability flag. Channel status method (`channel/status`) with the `channelStatus` capability flag. Provider management methods (`provider/list`, `provider/create`, `provider/update`, `provider/delete`, `provider/test`) with the `providerManagement` capability flag. Model catalog method (`model/list`) with the `modelCatalogManagement` capability flag. MCP management methods (`mcp/list`, `mcp/get`, `mcp/upsert`, `mcp/remove`, `mcp/status/list`, `mcp/test`) with the `mcpManagement` / `mcpStatus` capability flags. External channel management methods (`externalChannel/list`, `externalChannel/get`, `externalChannel/upsert`, `externalChannel/remove`) with the `externalChannelManagement` capability flag. SubAgent profile management methods (`subagent/profiles/list`, `subagent/settings/update`, `subagent/profiles/setEnabled`, `subagent/profiles/upsert`, `subagent/profiles/remove`) with the `subAgentManagement` capability flag. Session-backed SubAgent child-thread listing, mailbox send, follow-up task, and close methods with the `subAgentSessions` capability flag. Workspace config update method (`workspace/config/update`) with the `workspaceConfigManagement` capability flag. Dreams workspace memory methods (`dreams/status`, `dreams/run`, `dreams/create`, `dreams/get`, `dreams/list`, `dreams/cancel`, `dreams/apply`, `dreams/discard`, `dreams/archive`) with the `dreams` capability flag. |
 | **Guaranteed with narrowed semantics** | `thread/list` is deterministic and supports optional cursor pagination; archived threads are excluded by default and included only via an explicit filter. `thread/read` supports optional cursor pagination for turn history while preserving full-history reads for legacy clients. |
 | **Deferred from v1** | Structured extension capability registry beyond a flat namespace advertisement. Clients must treat extension namespaces as optional and discoverable, not required for core Session behavior. |
 
@@ -2033,14 +2033,14 @@ This notification is a sideband signal — it may interleave with `item/*` and `
   "turnId": "turn_001",
   "entries": [
     {
-      "label": "code-explorer",
+      "label": "code_explorer",
       "currentTool": "ReadFile",
       "inputTokens": 4500,
       "outputTokens": 1200,
       "isCompleted": false
     },
     {
-      "label": "test-runner",
+      "label": "test_runner",
       "currentTool": null,
       "inputTokens": 2000,
       "outputTokens": 600,
@@ -2087,26 +2087,27 @@ Server                                          Client
   | item/started (notification)                   |
   |  item: { type: "toolCall",                    |
   |    toolName: "SpawnAgent",                    |
-  |    arguments: { agentPrompt: "inspect code",  |
-  |      agentNickname: "code-explorer" } }        |
+  |    arguments: { message: "inspect code",      |
+  |      taskName: "code_explorer",               |
+  |      agentNickname: "Code Explorer" } }        |
   |---------------------------------------------->|
   |                                               |
   | subagent/progress (notification)              |
-  |  entries: [{ label: "code-explorer",          |
+  |  entries: [{ label: "code_explorer",          |
   |    currentTool: "ReadFile",                   |
   |    inputTokens: 1200, outputTokens: 300,      |
   |    isCompleted: false }]                      |
   |<----------------------------------------------|
   |                                               |
   | subagent/progress (notification)  (~200ms)    |
-  |  entries: [{ label: "code-explorer",          |
+  |  entries: [{ label: "code_explorer",          |
   |    currentTool: "SearchContent",              |
   |    inputTokens: 3500, outputTokens: 900,      |
   |    isCompleted: false }]                      |
   |<----------------------------------------------|
   |                                               |
   | subagent/progress (notification)              |
-  |  entries: [{ label: "code-explorer",          |
+  |  entries: [{ label: "code_explorer",          |
   |    currentTool: null,                         |
   |    inputTokens: 4500, outputTokens: 1200,     |
   |    isCompleted: true }]                       |
@@ -3235,8 +3236,9 @@ Client                                          Server
   | item/started (notification)                   |
   |  item: { type: "toolCall",                    |
   |    toolName: "SpawnAgent",                    |
-  |    arguments: { agentPrompt: "analyze data",  |
-  |      agentNickname: "analyzer" } }             |
+  |    arguments: { message: "analyze data",      |
+  |      taskName: "analyzer",                    |
+  |      agentNickname: "Analyzer" } }             |
   |<----------------------------------------------|
   |                                               |
   | subagent/progress (notification)              |
@@ -5323,9 +5325,11 @@ Servers advertising `capabilities.subAgentSessions = true` expose profile-backed
 
 `agentRole` selects the child thread role. Built-in roles are `default`, `worker`, and `explorer`; workspace configuration may override or add roles. The resolved role determines the child thread's tool allow/deny policy, Agent control exposure, prompt profile, and role instructions. External CLI profiles receive role instructions as prompt context, but the server cannot enforce tool filtering inside a third-party CLI runtime.
 
+SubAgent control uses stable agent paths. The root agent path is `/root`; each spawned child adds its `taskName` as a path segment, such as `/root/researcher`. `taskName` segments must use lowercase ASCII letters, digits, and underscores, and the reserved segment values `root`, `.`, and `..` are invalid. Relative control targets append valid path segments to the current agent path; absolute control targets must begin with `/root`. `agentNickname` is display metadata. A child thread's `displayName` is initialized from `agentNickname` when present, otherwise from `taskName`; renaming a thread does not change its path.
+
 `thread/list` hides subagent child threads unless `includeSubAgents` is true. Children follow the parent lifecycle: parent archive/unarchive/delete recursively applies to descendants, and direct child archive/delete calls are invalid. Clients rendering a composer-adjacent background-agent widget should use `subagent/children/list` for the active parent thread, then call `thread/read` for a child when the user expands or jumps into it.
 
-When `includeThreads` is true, the returned child thread uses the same wire model as `thread/read` and may include a `runtime` snapshot derived from persisted turns. Clients should use `thread.runtime.running` to decide whether the child is actively executing. `edge.status: "open"` means the parent/child relationship remains available for resume/control and must not by itself be interpreted as a running child.
+When `includeThreads` is true, the returned child thread uses the same wire model as `thread/read` and may include a `runtime` snapshot derived from persisted turns. Clients should use `thread.runtime.running` to decide whether the child is actively executing. `edge.status: "open"` means the parent/child relationship remains available for path-based control and must not by itself be interpreted as a running child.
 
 #### `subagent/children/list`
 
@@ -5350,12 +5354,14 @@ Result:
         "childThreadId": "thread_child",
         "parentTurnId": "turn_1",
         "depth": 1,
+        "agentPath": "/root/worker",
+        "taskName": "worker",
         "agentNickname": "Worker",
         "agentRole": "worker",
         "profileName": "native",
         "runtimeType": "native",
-        "supportsSendInput": true,
-        "supportsResume": true,
+        "supportsSendMessage": true,
+        "supportsFollowupTask": true,
         "supportsClose": true,
         "status": "open"
       },
@@ -5370,18 +5376,48 @@ Result:
 }
 ```
 
-#### `subagent/close` and `subagent/resume`
+Edges without `agentPath` are returned without path fields and cannot be used as path-control targets.
 
-Both methods accept:
+#### `subagent/sendMessage`
+
+Params:
 
 ```json
 {
   "parentThreadId": "thread_parent",
-  "childThreadId": "thread_child"
+  "target": "worker",
+  "message": "Record this note for your current task."
 }
 ```
 
-`subagent/close` cancels any active child turn when the server still owns the running task, then marks the parent/child edge closed. `subagent/resume` resumes the child thread and marks the edge open; it does not automatically send input to the child.
+`target` is an absolute agent path or a relative reference resolved from the caller's agent path. `subagent/sendMessage` records an inter-agent message for the target and does not start a child turn by itself.
+
+#### `subagent/followupTask`
+
+Params:
+
+```json
+{
+  "parentThreadId": "thread_parent",
+  "target": "/root/worker",
+  "message": "Continue with the implementation pass."
+}
+```
+
+`subagent/followupTask` resolves `target` and starts a new child turn with `message` when the target is idle. When the target has an active turn, the task is appended to the target thread's FIFO queue. Pending mailbox messages for the target are delivered with the submitted or queued task.
+
+#### `subagent/close`
+
+Params:
+
+```json
+{
+  "parentThreadId": "thread_parent",
+  "target": "/root/worker"
+}
+```
+
+`subagent/close` resolves `target`, rejects `/root` and self-targets, cancels any active child turn when the server still owns the running task, and marks the parent/child edge closed.
 
 ## 25. Workspace Config Methods
 

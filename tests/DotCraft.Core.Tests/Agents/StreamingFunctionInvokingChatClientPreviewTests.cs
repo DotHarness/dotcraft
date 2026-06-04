@@ -285,9 +285,10 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
         var agentControlTools = new[]
         {
             AIFunctionFactory.Create(agentTools.SpawnAgent),
-            AIFunctionFactory.Create(agentTools.SendInput),
+            AIFunctionFactory.Create(agentTools.SendMessage),
+            AIFunctionFactory.Create(agentTools.FollowupTask),
             AIFunctionFactory.Create(agentTools.WaitAgent),
-            AIFunctionFactory.Create(agentTools.ResumeAgent),
+            AIFunctionFactory.Create(agentTools.ListAgents),
             AIFunctionFactory.Create(agentTools.CloseAgent)
         };
 

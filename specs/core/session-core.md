@@ -278,13 +278,21 @@ Profile-backed SubAgents are represented as ordinary `SessionThread` instances w
 
 SubAgent child threads use normal session tool construction with a role-resolved tool policy. `agentRole` is a role selector, not just display metadata. The built-in `default` role disables DotCraft SubAgent control tools, `explorer` exposes a read-only exploration surface, and `worker` may expose write/shell/web tools plus Agent control when the depth policy allows it. Workspace configuration may override or add roles.
 
+Each path-addressable SubAgent has a stable `agentPath`, such as `/root/researcher`. The root agent path is `/root`. Child path segments are `taskName` values and must contain only lowercase ASCII letters, digits, or underscores. The segment values `root`, `.`, and `..` are reserved. Relative targets append valid path segments to the current agent path; absolute targets must begin with `/root`. Sibling SubAgents under the same parent must not share a `taskName`.
+
+`agentPath` is the model-visible control identity and is immutable for the child relationship. `agentNickname` is optional display metadata provided at spawn time. `Thread.DisplayName` is initialized from `agentNickname` when present, otherwise from `taskName`; later thread rename operations may change `Thread.DisplayName` but must not change `agentPath` or `taskName`.
+
 `SubAgent.MaxDepth` defaults to `1`. The first child spawned by a root thread has depth `1`; by default, that child cannot call `SpawnAgent` again even when its role would otherwise allow Agent control. Raising `SubAgent.MaxDepth` is the advanced opt-in for recursive SubAgent orchestration.
 
-Session Core persists a `ThreadSpawnEdge` graph row for each parent/child relationship: `parentThreadId`, `childThreadId`, `parentTurnId`, `depth`, `agentNickname`, `agentRole`, `profileName`, `runtimeType`, `supportsSendInput`, `supportsResume`, `supportsClose`, `status` (`open` or `closed`), `createdAt`, and `updatedAt`.
+Session Core persists a `ThreadSpawnEdge` graph row for each parent/child relationship: `parentThreadId`, `childThreadId`, `parentTurnId`, `depth`, `agentPath`, `taskName`, `agentNickname`, `agentRole`, `profileName`, `runtimeType`, `supportsSendMessage`, `supportsFollowupTask`, `supportsClose`, `status` (`open` or `closed`), `createdAt`, and `updatedAt`.
+
+Session Core persists inter-agent mailbox entries with `id`, `rootThreadId`, `senderAgentPath`, `targetAgentPath`, `message`, `status`, `createdAt`, and `deliveredAt`. `SendMessage(target, message)` creates a pending mailbox entry and does not start a target turn. `FollowupTask(target, message)` starts a target turn when the target is idle; when the target has an active turn, it appends a FIFO queued input for the target thread. Pending mailbox messages for the target are delivered as pre-task context with the submitted or queued task, then marked delivered. `WaitAgent(timeoutMs?)` waits for mailbox or graph changes and returns status plus timeout state without returning child final text. When supplied, `timeoutMs` must be a positive integer in milliseconds; omitting it uses the default wait timeout.
+
+`ListAgents(pathPrefix?)` reports open path-addressable agents plus `/root`. Its `status` value reflects the execution lifecycle of the latest relevant turn: active turns report `running`, `waitingapproval`, or `waitinginput`; terminal turns report `completed`, `failed`, or `cancelled`; agents without turns report `idle`; closed edges report `closed`.
 
 Top-level thread discovery hides subagent threads by default. Callers that need a raw mixed list must request `includeSubAgents`; active lists still hide children whose parent is archived. Clients that render a background-agent widget should prefer the edge list for the active parent thread.
 
-SubAgent child thread lifecycle is owned by the parent thread. Archiving, restoring, or permanently deleting a parent recursively applies to all descendant child threads. Direct archive/delete calls against a child thread are invalid; clients should close/resume children through the SubAgent control APIs or manage the parent thread.
+SubAgent child thread lifecycle is owned by the parent thread. Archiving, restoring, or permanently deleting a parent recursively applies to all descendant child threads. Direct archive/delete calls against a child thread are invalid; clients should close children through the SubAgent control APIs or manage the parent thread.
 
 #### 4.1.2 Turn
 

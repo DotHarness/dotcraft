@@ -20,8 +20,9 @@ pub const BUILTIN_TOOLS: &[&str] = &[
     "WebFetch",
     "SpawnAgent",
     "WaitAgent",
-    "SendInput",
-    "ResumeAgent",
+    "SendMessage",
+    "FollowupTask",
+    "ListAgents",
     "CloseAgent",
     "LSP",
     "SearchTools",
@@ -344,7 +345,9 @@ fn format_web_fetch_running_label(args: &str) -> String {
 
 fn format_spawn_agent_running_label(args: &str) -> String {
     let label = extract_partial_json_string_value(args, "agentNickname").filter(|s| !s.is_empty());
-    let task = extract_partial_json_string_value(args, "agentPrompt").filter(|s| !s.is_empty());
+    let task = extract_partial_json_string_value(args, "message")
+        .or_else(|| extract_partial_json_string_value(args, "agentPrompt"))
+        .filter(|s| !s.is_empty());
     let profile = extract_partial_json_string_value(args, "profile").filter(|s| !s.is_empty());
     match (label, task, profile) {
         (Some(l), _, _) => {

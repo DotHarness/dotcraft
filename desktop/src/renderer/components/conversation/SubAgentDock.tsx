@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import {
   closestCenter,
@@ -15,7 +15,7 @@ import {
   verticalListSortingStrategy
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Bot, ChevronDown, CornerDownRight, ExternalLink, GripVertical, ListChecks, Square, Trash2 } from 'lucide-react'
+import { Bot, ChevronDown, CornerDownRight, ExternalLink, GripVertical, ListChecks, MessageSquare, Send, Square, Trash2, X } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import {
   isSubAgentChildRunning,
@@ -76,12 +76,12 @@ export function BackgroundActivityDock({
 
   const hasSubAgents = children.length > 0
   const hasQueue = queuedInputs.length > 0
-  const closeableRunning = runningChildren.filter((child) => child.supportsClose)
-  const contentMaxHeight = Math.min(children.length * 28 + 8, 180)
+  const closeableRunning = runningChildren.filter((child) => child.supportsClose && child.agentPath)
+  const contentMaxHeight = Math.min(children.length * 62 + 8, 260)
 
   const stopAll = async (): Promise<void> => {
     try {
-      await Promise.all(closeableRunning.map((child) => closeSubAgent(parentThreadId, child.childThreadId)))
+      await Promise.all(closeableRunning.map((child) => closeSubAgent(parentThreadId, child.agentPath!)))
       await fetchChildren(parentThreadId)
     } catch (err) {
       addToast(err instanceof Error ? err.message : String(err), 'error')
@@ -365,10 +365,16 @@ function SubAgentDockRow({
 }): JSX.Element {
   const t = useT()
   const running = isSubAgentChildRunning(child)
+  const [draftMode, setDraftMode] = useState<'message' | 'followup' | null>(null)
+  const [draft, setDraft] = useState('')
+  const [submitting, setSubmitting] = useState(false)
   const statusLabel = running
     ? child.lastToolDisplay?.trim() || t('subAgentDock.running')
     : formatSubAgentStatus(child, t)
   const canOpen = child.isPlaceholder !== true
+  const isClosed = child.status.trim().toLowerCase() === 'closed'
+  const canMessage = canOpen && !isClosed && Boolean(child.agentPath) && child.supportsSendMessage === true
+  const canFollowup = canOpen && !isClosed && !running && Boolean(child.agentPath) && child.supportsFollowupTask === true
   const roleMeta = formatDockAgentRole(child.agentRole)
 
   const openThread = (): void => {
@@ -377,56 +383,163 @@ function SubAgentDockRow({
   }
 
   const stop = async (): Promise<void> => {
+    if (!child.agentPath) return
     try {
-      await closeSubAgent(parentThreadId, child.childThreadId)
+      await closeSubAgent(parentThreadId, child.agentPath)
       onRefresh()
     } catch (err) {
       addToast(err instanceof Error ? err.message : String(err), 'error')
     }
   }
 
+  const startDraft = (mode: 'message' | 'followup'): void => {
+    setDraftMode(mode)
+    setDraft('')
+  }
+
+  const cancelDraft = (): void => {
+    setDraftMode(null)
+    setDraft('')
+  }
+
+  const submitDraft = async (): Promise<void> => {
+    const message = draft.trim()
+    if (!draftMode || !child.agentPath || message.length === 0) return
+    setSubmitting(true)
+    try {
+      await window.api.appServer.sendRequest(
+        draftMode === 'message' ? 'subagent/sendMessage' : 'subagent/followupTask',
+        {
+          parentThreadId,
+          target: child.agentPath,
+          message
+        }
+      )
+      cancelDraft()
+      onRefresh()
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : String(err), 'error')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   return (
-    <div style={rowStyle}>
-      <span style={statusSlotStyle}>
-        {running ? (
-          <RunningSpinner
-            title={t('subAgentDock.running')}
-            testId={`subagent-dock-running-${child.childThreadId}`}
-          />
-        ) : (
-          <span aria-hidden style={{ width: 6, height: 6, borderRadius: 999, background: 'var(--text-dimmed)', opacity: 0.58 }} />
-        )}
-      </span>
-      <span style={nameGroupStyle}>
-        <span style={{ ...nicknameStyle, color }} title={child.nickname}>{child.nickname}</span>
-        {roleMeta && <span style={metaStyle}>({roleMeta})</span>}
-      </span>
-      <span
-        className={running ? 'tool-running-gradient-text' : undefined}
-        style={descriptionStyle}
-        title={statusLabel}
-      >
-        {statusLabel}
-      </span>
-      {canOpen ? (
-        <button type="button" onClick={openThread} style={textButtonStyle}>
-          <ExternalLink size={12} aria-hidden="true" />
-          <span>{t('subAgentDock.open')}</span>
-        </button>
-      ) : (
-        <span aria-hidden style={{ width: 1 }} />
-      )}
-      {child.supportsClose && running && canOpen && (
-        <ActionTooltip label={t('subAgentDock.stop')} placement="top">
-          <button
-            type="button"
-            aria-label={t('subAgentDock.stopAria', { name: child.nickname })}
-            onClick={() => { void stop() }}
-            style={iconButtonStyle}
-          >
-            <Square size={11} fill="currentColor" aria-hidden="true" />
+    <div style={rowContainerStyle}>
+      <div style={rowStyle}>
+        <span style={statusSlotStyle}>
+          {running ? (
+            <RunningSpinner
+              title={t('subAgentDock.running')}
+              testId={`subagent-dock-running-${child.childThreadId}`}
+            />
+          ) : (
+            <span aria-hidden style={{ width: 6, height: 6, borderRadius: 999, background: 'var(--text-dimmed)', opacity: 0.58 }} />
+          )}
+        </span>
+        <span style={nameGroupStyle}>
+          <span style={{ ...nicknameStyle, color }} title={child.nickname}>{child.nickname}</span>
+          {roleMeta && <span style={metaStyle}>({roleMeta})</span>}
+        </span>
+        <span
+          className={running ? 'tool-running-gradient-text' : undefined}
+          style={descriptionStyle}
+          title={statusLabel}
+        >
+          {statusLabel}
+        </span>
+        {canOpen ? (
+          <button type="button" onClick={openThread} style={textButtonStyle}>
+            <ExternalLink size={12} aria-hidden="true" />
+            <span>{t('subAgentDock.open')}</span>
           </button>
-        </ActionTooltip>
+        ) : (
+          <span aria-hidden style={{ width: 1 }} />
+        )}
+        {canMessage && (
+          <ActionTooltip label={t('subAgentDock.message')} placement="top">
+            <button
+              type="button"
+              aria-label={t('subAgentDock.messageAria', { name: child.nickname })}
+              onClick={() => startDraft('message')}
+              style={iconButtonStyle}
+            >
+              <MessageSquare size={12} aria-hidden="true" />
+            </button>
+          </ActionTooltip>
+        )}
+        {canFollowup && (
+          <ActionTooltip label={t('subAgentDock.followup')} placement="top">
+            <button
+              type="button"
+              aria-label={t('subAgentDock.followupAria', { name: child.nickname })}
+              onClick={() => startDraft('followup')}
+              style={iconButtonStyle}
+            >
+              <CornerDownRight size={12} aria-hidden="true" />
+            </button>
+          </ActionTooltip>
+        )}
+        {child.supportsClose && child.agentPath && running && canOpen && (
+          <ActionTooltip label={t('subAgentDock.stop')} placement="top">
+            <button
+              type="button"
+              aria-label={t('subAgentDock.stopAria', { name: child.nickname })}
+              onClick={() => { void stop() }}
+              style={iconButtonStyle}
+            >
+              <Square size={11} fill="currentColor" aria-hidden="true" />
+            </button>
+          </ActionTooltip>
+        )}
+      </div>
+      {draftMode && (
+        <form
+          style={inlineControlStyle}
+          onSubmit={(event) => {
+            event.preventDefault()
+            void submitDraft()
+          }}
+        >
+          <input
+            autoFocus
+            aria-label={draftMode === 'message'
+              ? t('subAgentDock.messageAria', { name: child.nickname })
+              : t('subAgentDock.followupAria', { name: child.nickname })}
+            value={draft}
+            disabled={submitting}
+            placeholder={draftMode === 'message' ? t('subAgentDock.messagePlaceholder') : t('subAgentDock.followupPlaceholder')}
+            onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                event.preventDefault()
+                cancelDraft()
+              }
+            }}
+            style={inlineInputStyle}
+          />
+          <ActionTooltip label={t('subAgentDock.send')} placement="top">
+            <button
+              type="submit"
+              disabled={submitting || draft.trim().length === 0}
+              aria-label={t('subAgentDock.send')}
+              style={iconButtonStyle}
+            >
+              <Send size={12} aria-hidden="true" />
+            </button>
+          </ActionTooltip>
+          <ActionTooltip label={t('subAgentDock.cancel')} placement="top">
+            <button
+              type="button"
+              disabled={submitting}
+              aria-label={t('subAgentDock.cancel')}
+              onClick={cancelDraft}
+              style={iconButtonStyle}
+            >
+              <X size={12} aria-hidden="true" />
+            </button>
+          </ActionTooltip>
+        </form>
       )}
     </div>
   )
@@ -444,10 +557,10 @@ function formatSubAgentStatus(
   return t('subAgentDock.idle')
 }
 
-async function closeSubAgent(parentThreadId: string, childThreadId: string): Promise<void> {
+async function closeSubAgent(parentThreadId: string, target: string): Promise<void> {
   await window.api.appServer.sendRequest('subagent/close', {
     parentThreadId,
-    childThreadId
+    target
   })
 }
 
@@ -646,14 +759,21 @@ function rowsViewportStyle(collapsed: boolean, maxHeight: number): CSSProperties
 const rowsStyle: CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
-  gap: '3px',
+  gap: '5px',
   padding: '7px 10px'
+}
+
+const rowContainerStyle: CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '4px',
+  minWidth: 0
 }
 
 const rowStyle: CSSProperties = {
   minHeight: '24px',
   display: 'grid',
-  gridTemplateColumns: '16px minmax(0, max-content) minmax(0, 1fr) auto auto',
+  gridTemplateColumns: '16px minmax(0, max-content) minmax(0, 1fr) repeat(4, auto)',
   alignItems: 'center',
   gap: '6px',
   fontSize: '13px'
@@ -721,4 +841,24 @@ const textButtonStyle: CSSProperties = {
   padding: '2px 4px',
   fontSize: '12px',
   cursor: 'pointer'
+}
+
+const inlineControlStyle: CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'minmax(0, 1fr) auto auto',
+  alignItems: 'center',
+  gap: '6px',
+  paddingLeft: '22px'
+}
+
+const inlineInputStyle: CSSProperties = {
+  minWidth: 0,
+  height: '26px',
+  border: '1px solid var(--border-subtle)',
+  borderRadius: '6px',
+  background: 'var(--bg-primary)',
+  color: 'var(--text-primary)',
+  padding: '0 8px',
+  fontSize: '12px',
+  outline: 'none'
 }

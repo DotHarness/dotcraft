@@ -17,6 +17,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { useConversationStore } from '../stores/conversationStore'
 import { useThreadStore } from '../stores/threadStore'
+import { useConnectionStore } from '../stores/connectionStore'
 import { useSkillsStore } from '../stores/skillsStore'
 import { useSubAgentStore } from '../stores/subAgentStore'
 import { useAutomationsStore, type AutomationTask } from '../stores/automationsStore'
@@ -407,6 +408,8 @@ async function dispatchTurnCompletedWithAutoSend(
 
 beforeEach(() => {
   s().reset()
+  useConnectionStore.getState().reset()
+  useConnectionStore.setState({ capabilities: { subAgentSessions: true } })
   useThreadStore.getState().reset()
   useSubAgentStore.getState().reset()
   useUIStore.setState({

@@ -247,12 +247,16 @@ internal sealed class ThreadMetadataStore(StateRuntime stateRuntime)
                 child_thread_id,
                 parent_turn_id,
                 depth,
+                agent_path,
+                task_name,
                 agent_nickname,
                 agent_role,
                 profile_name,
                 runtime_type,
                 supports_send_input,
                 supports_resume,
+                supports_send_message,
+                supports_followup_task,
                 supports_close,
                 status,
                 created_at,
@@ -262,12 +266,16 @@ internal sealed class ThreadMetadataStore(StateRuntime stateRuntime)
                 $child_thread_id,
                 $parent_turn_id,
                 $depth,
+                $agent_path,
+                $task_name,
                 $agent_nickname,
                 $agent_role,
                 $profile_name,
                 $runtime_type,
                 $supports_send_input,
                 $supports_resume,
+                $supports_send_message,
+                $supports_followup_task,
                 $supports_close,
                 $status,
                 $created_at,
@@ -276,12 +284,16 @@ internal sealed class ThreadMetadataStore(StateRuntime stateRuntime)
             ON CONFLICT(parent_thread_id, child_thread_id) DO UPDATE SET
                 parent_turn_id = excluded.parent_turn_id,
                 depth = excluded.depth,
+                agent_path = excluded.agent_path,
+                task_name = excluded.task_name,
                 agent_nickname = excluded.agent_nickname,
                 agent_role = excluded.agent_role,
                 profile_name = excluded.profile_name,
                 runtime_type = excluded.runtime_type,
                 supports_send_input = excluded.supports_send_input,
                 supports_resume = excluded.supports_resume,
+                supports_send_message = excluded.supports_send_message,
+                supports_followup_task = excluded.supports_followup_task,
                 supports_close = excluded.supports_close,
                 status = excluded.status,
                 updated_at = excluded.updated_at
@@ -290,12 +302,16 @@ internal sealed class ThreadMetadataStore(StateRuntime stateRuntime)
         command.Parameters.AddWithValue("$child_thread_id", edge.ChildThreadId);
         command.Parameters.AddWithValue("$parent_turn_id", (object?)edge.ParentTurnId ?? DBNull.Value);
         command.Parameters.AddWithValue("$depth", edge.Depth);
+        command.Parameters.AddWithValue("$agent_path", (object?)edge.AgentPath ?? DBNull.Value);
+        command.Parameters.AddWithValue("$task_name", (object?)edge.TaskName ?? DBNull.Value);
         command.Parameters.AddWithValue("$agent_nickname", (object?)edge.AgentNickname ?? DBNull.Value);
         command.Parameters.AddWithValue("$agent_role", (object?)edge.AgentRole ?? DBNull.Value);
         command.Parameters.AddWithValue("$profile_name", (object?)edge.ProfileName ?? DBNull.Value);
         command.Parameters.AddWithValue("$runtime_type", (object?)edge.RuntimeType ?? DBNull.Value);
         command.Parameters.AddWithValue("$supports_send_input", edge.SupportsSendInput ? 1 : 0);
         command.Parameters.AddWithValue("$supports_resume", edge.SupportsResume ? 1 : 0);
+        command.Parameters.AddWithValue("$supports_send_message", edge.SupportsSendMessage ? 1 : 0);
+        command.Parameters.AddWithValue("$supports_followup_task", edge.SupportsFollowupTask ? 1 : 0);
         command.Parameters.AddWithValue("$supports_close", edge.SupportsClose ? 1 : 0);
         command.Parameters.AddWithValue("$status", edge.Status);
         command.Parameters.AddWithValue("$created_at", edge.CreatedAt.UtcDateTime.ToString("O"));
@@ -326,13 +342,13 @@ internal sealed class ThreadMetadataStore(StateRuntime stateRuntime)
         using var command = connection.CreateCommand();
         command.CommandText = includeClosed
             ? """
-              SELECT parent_thread_id, child_thread_id, parent_turn_id, depth, agent_nickname, agent_role, profile_name, runtime_type, supports_send_input, supports_resume, supports_close, status, created_at, updated_at
+              SELECT parent_thread_id, child_thread_id, parent_turn_id, depth, agent_path, task_name, agent_nickname, agent_role, profile_name, runtime_type, supports_send_input, supports_resume, supports_send_message, supports_followup_task, supports_close, status, created_at, updated_at
               FROM thread_spawn_edges
               WHERE parent_thread_id = $parent_thread_id
               ORDER BY updated_at DESC, child_thread_id DESC
               """
             : """
-              SELECT parent_thread_id, child_thread_id, parent_turn_id, depth, agent_nickname, agent_role, profile_name, runtime_type, supports_send_input, supports_resume, supports_close, status, created_at, updated_at
+              SELECT parent_thread_id, child_thread_id, parent_turn_id, depth, agent_path, task_name, agent_nickname, agent_role, profile_name, runtime_type, supports_send_input, supports_resume, supports_send_message, supports_followup_task, supports_close, status, created_at, updated_at
               FROM thread_spawn_edges
               WHERE parent_thread_id = $parent_thread_id AND status <> $closed
               ORDER BY updated_at DESC, child_thread_id DESC
@@ -350,21 +366,126 @@ internal sealed class ThreadMetadataStore(StateRuntime stateRuntime)
                 ChildThreadId = reader.GetString(1),
                 ParentTurnId = reader.IsDBNull(2) ? null : reader.GetString(2),
                 Depth = reader.GetInt32(3),
-                AgentNickname = reader.IsDBNull(4) ? null : reader.GetString(4),
-                AgentRole = reader.IsDBNull(5) ? null : reader.GetString(5),
-                ProfileName = reader.IsDBNull(6) ? null : reader.GetString(6),
-                RuntimeType = reader.IsDBNull(7) ? null : reader.GetString(7),
-                SupportsSendInput = !reader.IsDBNull(8) && reader.GetInt32(8) != 0,
-                SupportsResume = !reader.IsDBNull(9) && reader.GetInt32(9) != 0,
-                SupportsClose = reader.IsDBNull(10) || reader.GetInt32(10) != 0,
-                Status = reader.GetString(11),
-                CreatedAt = DateTimeOffset.Parse(reader.GetString(12)),
-                UpdatedAt = DateTimeOffset.Parse(reader.GetString(13))
+                AgentPath = reader.IsDBNull(4) ? null : reader.GetString(4),
+                TaskName = reader.IsDBNull(5) ? null : reader.GetString(5),
+                AgentNickname = reader.IsDBNull(6) ? null : reader.GetString(6),
+                AgentRole = reader.IsDBNull(7) ? null : reader.GetString(7),
+                ProfileName = reader.IsDBNull(8) ? null : reader.GetString(8),
+                RuntimeType = reader.IsDBNull(9) ? null : reader.GetString(9),
+                SupportsSendInput = !reader.IsDBNull(10) && reader.GetInt32(10) != 0,
+                SupportsResume = !reader.IsDBNull(11) && reader.GetInt32(11) != 0,
+                SupportsSendMessage = !reader.IsDBNull(12) && reader.GetInt32(12) != 0,
+                SupportsFollowupTask = !reader.IsDBNull(13) && reader.GetInt32(13) != 0,
+                SupportsClose = reader.IsDBNull(14) || reader.GetInt32(14) != 0,
+                Status = reader.GetString(15),
+                CreatedAt = DateTimeOffset.Parse(reader.GetString(16)),
+                UpdatedAt = DateTimeOffset.Parse(reader.GetString(17))
             });
         }
 
         return edges;
     }
+
+    public void AddSubAgentMailboxEntry(SubAgentMailboxEntry entry)
+    {
+        using var connection = stateRuntime.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            INSERT INTO subagent_mailbox_entries (
+                id,
+                root_thread_id,
+                sender_agent_path,
+                target_agent_path,
+                message,
+                status,
+                created_at,
+                delivered_at
+            ) VALUES (
+                $id,
+                $root_thread_id,
+                $sender_agent_path,
+                $target_agent_path,
+                $message,
+                $status,
+                $created_at,
+                $delivered_at
+            )
+            """;
+        command.Parameters.AddWithValue("$id", entry.Id);
+        command.Parameters.AddWithValue("$root_thread_id", entry.RootThreadId);
+        command.Parameters.AddWithValue("$sender_agent_path", entry.SenderAgentPath);
+        command.Parameters.AddWithValue("$target_agent_path", entry.TargetAgentPath);
+        command.Parameters.AddWithValue("$message", entry.Message);
+        command.Parameters.AddWithValue("$status", entry.Status);
+        command.Parameters.AddWithValue("$created_at", entry.CreatedAt.UtcDateTime.ToString("O"));
+        command.Parameters.AddWithValue("$delivered_at", entry.DeliveredAt?.UtcDateTime.ToString("O") ?? (object)DBNull.Value);
+        command.ExecuteNonQuery();
+    }
+
+    public List<SubAgentMailboxEntry> ListPendingSubAgentMailbox(string rootThreadId, string targetAgentPath)
+    {
+        var entries = new List<SubAgentMailboxEntry>();
+        using var connection = stateRuntime.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT id, root_thread_id, sender_agent_path, target_agent_path, message, status, created_at, delivered_at
+            FROM subagent_mailbox_entries
+            WHERE root_thread_id = $root_thread_id
+              AND target_agent_path = $target_agent_path
+              AND status = $status
+            ORDER BY created_at ASC, id ASC
+            """;
+        command.Parameters.AddWithValue("$root_thread_id", rootThreadId);
+        command.Parameters.AddWithValue("$target_agent_path", targetAgentPath);
+        command.Parameters.AddWithValue("$status", SubAgentMailboxStatus.Pending);
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+            entries.Add(ReadMailboxEntry(reader));
+
+        return entries;
+    }
+
+    public void MarkSubAgentMailboxDelivered(string rootThreadId, IReadOnlyList<string> entryIds, DateTimeOffset deliveredAt)
+    {
+        if (entryIds.Count == 0)
+            return;
+
+        using var connection = stateRuntime.OpenConnection();
+        using var transaction = connection.BeginTransaction();
+        foreach (var entryId in entryIds)
+        {
+            using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = """
+                UPDATE subagent_mailbox_entries
+                SET status = $status, delivered_at = $delivered_at
+                WHERE root_thread_id = $root_thread_id
+                  AND id = $id
+                  AND status = $pending
+                """;
+            command.Parameters.AddWithValue("$status", SubAgentMailboxStatus.Delivered);
+            command.Parameters.AddWithValue("$delivered_at", deliveredAt.UtcDateTime.ToString("O"));
+            command.Parameters.AddWithValue("$root_thread_id", rootThreadId);
+            command.Parameters.AddWithValue("$id", entryId);
+            command.Parameters.AddWithValue("$pending", SubAgentMailboxStatus.Pending);
+            command.ExecuteNonQuery();
+        }
+
+        transaction.Commit();
+    }
+
+    private static SubAgentMailboxEntry ReadMailboxEntry(Microsoft.Data.Sqlite.SqliteDataReader reader) =>
+        new()
+        {
+            Id = reader.GetString(0),
+            RootThreadId = reader.GetString(1),
+            SenderAgentPath = reader.GetString(2),
+            TargetAgentPath = reader.GetString(3),
+            Message = reader.GetString(4),
+            Status = reader.GetString(5),
+            CreatedAt = DateTimeOffset.Parse(reader.GetString(6)),
+            DeliveredAt = reader.IsDBNull(7) ? null : DateTimeOffset.Parse(reader.GetString(7))
+        };
 
     public void SaveSessionJson(string threadId, string sessionJson)
     {

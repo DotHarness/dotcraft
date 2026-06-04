@@ -211,6 +211,7 @@ describe('InputComposer layout', () => {
   })
 
   it('renders the SubAgent dock as a responsive attached accessory above the composer surface', () => {
+    useConnectionStore.setState({ capabilities: { subAgentSessions: true } })
     useSubAgentStore.getState().setChildren('thread-1', [
       {
         childThreadId: 'child-1',
@@ -335,6 +336,7 @@ describe('InputComposer layout', () => {
   })
 
   it('separates queued messages from background agents inside one dock', () => {
+    useConnectionStore.setState({ capabilities: { subAgentSessions: true } })
     useConversationStore.setState({
       queuedInputs: [
         {

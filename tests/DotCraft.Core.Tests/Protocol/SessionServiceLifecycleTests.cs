@@ -321,8 +321,13 @@ public sealed class SessionServiceLifecycleTests : IDisposable
             ChildThreadId = child.Id,
             ParentTurnId = "turn_1",
             Depth = 1,
+            AgentPath = "/root/worker",
+            TaskName = "worker",
             AgentNickname = "Worker",
             AgentRole = "worker",
+            SupportsSendMessage = true,
+            SupportsFollowupTask = true,
+            SupportsClose = true,
             Status = ThreadSpawnEdgeStatus.Open
         });
 
@@ -333,6 +338,10 @@ public sealed class SessionServiceLifecycleTests : IDisposable
 
         var edge = Assert.Single(open);
         Assert.Equal(child.Id, edge.ChildThreadId);
+        Assert.Equal("/root/worker", edge.AgentPath);
+        Assert.Equal("worker", edge.TaskName);
+        Assert.True(edge.SupportsSendMessage);
+        Assert.True(edge.SupportsFollowupTask);
         Assert.Empty(visibleAfterClose);
         Assert.Equal(ThreadSpawnEdgeStatus.Closed, Assert.Single(allAfterClose).Status);
     }

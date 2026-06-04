@@ -160,6 +160,21 @@ describe('aggregateToolCalls', () => {
     }
   })
 
+  it('groups consecutive settled SubAgent control calls', () => {
+    const items = [
+      makeItem('SendMessage', '1', { result: '{"status":"sent"}', success: true }),
+      makeItem('FollowupTask', '2', { result: '{"status":"running"}', success: true }),
+      makeItem('ListAgents', '3', { result: '{"data":[]}', success: true })
+    ]
+    const result = aggregateToolCalls(items)
+    expect(result).toHaveLength(1)
+    expect(result[0].kind).toBe('group')
+    if (result[0].kind === 'group') {
+      expect(result[0].category).toBe('subagent')
+      expect(result[0].items.map((item) => item.toolName)).toEqual(['SendMessage', 'FollowupTask', 'ListAgents'])
+    }
+  })
+
   it('keeps running SpawnAgent calls as individual cards', () => {
     const items = [
       makeItem('SpawnAgent', '1', { status: 'started' }),

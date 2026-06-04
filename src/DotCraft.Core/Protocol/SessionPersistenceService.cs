@@ -139,6 +139,22 @@ public sealed class SessionPersistenceService(
         CancellationToken ct = default)
         => threadStore.ListSubAgentChildrenAsync(parentThreadId, includeClosed, ct);
 
+    public Task AddSubAgentMailboxEntryAsync(SubAgentMailboxEntry entry, CancellationToken ct = default)
+        => threadStore.AddSubAgentMailboxEntryAsync(entry, ct);
+
+    public Task<IReadOnlyList<SubAgentMailboxEntry>> ListPendingSubAgentMailboxAsync(
+        string rootThreadId,
+        string targetAgentPath,
+        CancellationToken ct = default)
+        => threadStore.ListPendingSubAgentMailboxAsync(rootThreadId, targetAgentPath, ct);
+
+    public Task MarkSubAgentMailboxDeliveredAsync(
+        string rootThreadId,
+        IReadOnlyList<string> entryIds,
+        DateTimeOffset deliveredAt,
+        CancellationToken ct = default)
+        => threadStore.MarkSubAgentMailboxDeliveredAsync(rootThreadId, entryIds, deliveredAt, ct);
+
     public TraceSessionDeletionDescriptor DescribeSessionDeletion(string sessionKey)
         => _traceStore.DescribeSessionDeletion(sessionKey);
 

@@ -45,8 +45,9 @@ export const BUILTIN_TOOLS = new Set<string>([
   'WebFetch',
   'SpawnAgent',
   'WaitAgent',
-  'SendInput',
-  'ResumeAgent',
+  'SendMessage',
+  'FollowupTask',
+  'ListAgents',
   'CloseAgent',
   'LSP',
   'SearchTools',
@@ -548,7 +549,8 @@ export function getStreamingToolDisplay(
     }
     case 'SpawnAgent': {
       const label = extractPartialJsonStringValue(rawArgs, 'agentNickname')
-      const task = extractPartialJsonStringValue(rawArgs, 'agentPrompt')
+      const task = extractPartialJsonStringValue(rawArgs, 'message')
+        ?? extractPartialJsonStringValue(rawArgs, 'agentPrompt')
       const profile = extractPartialJsonStringValue(rawArgs, 'profile')
       if (label) {
         return {
@@ -580,18 +582,23 @@ export function getStreamingToolDisplay(
         })
       }
     }
-    case 'SendInput': {
+    case 'SendMessage': {
       return {
-        label: translate(locale, 'toolCall.subAgent.sendingInput', {
+        label: translate(locale, 'toolCall.subAgent.sendingMessage', {
           name: translate(locale, 'toolCall.subAgent.agent')
         })
       }
     }
-    case 'ResumeAgent': {
+    case 'FollowupTask': {
       return {
-        label: translate(locale, 'toolCall.subAgent.resuming', {
+        label: translate(locale, 'toolCall.subAgent.followingUp', {
           name: translate(locale, 'toolCall.subAgent.agent')
         })
+      }
+    }
+    case 'ListAgents': {
+      return {
+        label: translate(locale, 'toolCall.subAgent.listing')
       }
     }
     case 'CloseAgent': {

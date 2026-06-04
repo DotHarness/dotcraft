@@ -763,15 +763,19 @@ function getSpawnAgentGroupDisplay(
   const args = item.arguments
   const childThreadId = getString(parsed, 'childThreadId')
     ?? getString(parsed, 'agentId')
+    ?? getString(parsed, 'agentPath')
     ?? getString(args, 'childThreadId')
     ?? getString(args, 'agentId')
+    ?? getString(args, 'target')
   const name = getString(parsed, 'agentNickname')
     ?? getString(parsed, 'nickname')
+    ?? getString(parsed, 'taskName')
     ?? getString(args, 'agentNickname')
     ?? getString(args, 'nickname')
+    ?? getString(args, 'taskName')
     ?? translate(locale, 'toolCall.subAgent.agent')
-  const prompt = getString(args, 'agentPrompt')
-    ?? getString(args, 'message')
+  const prompt = getString(args, 'message')
+    ?? getString(args, 'agentPrompt')
     ?? getString(args, 'prompt')
     ?? ''
   const meta = formatSubAgentMeta({

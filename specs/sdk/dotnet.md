@@ -1208,9 +1208,10 @@ Legend:
 | Subagents | `subagent/profiles/setEnabled` | `subAgentManagement` | Raw | `RequestAsync` |
 | Subagents | `subagent/profiles/upsert` | `subAgentManagement` | Raw | `RequestAsync` |
 | Subagents | `subagent/profiles/remove` | `subAgentManagement` | Raw | `RequestAsync` |
-| Subagent sessions | `subagent/list` | `subAgentSessions` | Raw | `RequestAsync` |
+| Subagent sessions | `subagent/children/list` | `subAgentSessions` | Raw | `RequestAsync` |
+| Subagent sessions | `subagent/sendMessage` | `subAgentSessions` | Raw | `RequestAsync` |
+| Subagent sessions | `subagent/followupTask` | `subAgentSessions` | Raw | `RequestAsync` |
 | Subagent sessions | `subagent/close` | `subAgentSessions` | Raw | `RequestAsync` |
-| Subagent sessions | `subagent/resume` | `subAgentSessions` | Raw | `RequestAsync` |
 | App discovery | `app/list` | `appBinding` | Typed | `AppBindings.ListAppsAsync` |
 | App discovery | `app/view` | `appBinding` | Typed | `AppBindings.ViewAppAsync` |
 | App connection | `app/connection/start` | `appBinding` | Typed | `AppBindings.StartConnectionAsync` |

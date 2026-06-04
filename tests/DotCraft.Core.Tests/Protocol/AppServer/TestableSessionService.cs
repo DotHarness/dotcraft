@@ -498,6 +498,22 @@ internal sealed class TestableSessionService : ISessionService, IThreadAgentRefr
         CancellationToken ct = default) =>
         _store.ListSubAgentChildrenAsync(parentThreadId, includeClosed, ct);
 
+    public Task AddSubAgentMailboxEntryAsync(SubAgentMailboxEntry entry, CancellationToken ct = default) =>
+        _store.AddSubAgentMailboxEntryAsync(entry, ct);
+
+    public Task<IReadOnlyList<SubAgentMailboxEntry>> ListPendingSubAgentMailboxAsync(
+        string rootThreadId,
+        string targetAgentPath,
+        CancellationToken ct = default) =>
+        _store.ListPendingSubAgentMailboxAsync(rootThreadId, targetAgentPath, ct);
+
+    public Task MarkSubAgentMailboxDeliveredAsync(
+        string rootThreadId,
+        IReadOnlyList<string> entryIds,
+        DateTimeOffset deliveredAt,
+        CancellationToken ct = default) =>
+        _store.MarkSubAgentMailboxDeliveredAsync(rootThreadId, entryIds, deliveredAt, ct);
+
     public async Task<SessionThread> GetThreadAsync(string threadId, CancellationToken ct = default) =>
         await GetOrLoadAsync(threadId, ct);
 

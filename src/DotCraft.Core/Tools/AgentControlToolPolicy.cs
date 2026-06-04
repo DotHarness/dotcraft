@@ -13,9 +13,10 @@ public static class AgentControlToolPolicy
     public static IReadOnlyList<string> AllToolNames { get; } =
     [
         nameof(AgentTools.SpawnAgent),
-        nameof(AgentTools.SendInput),
+        nameof(AgentTools.SendMessage),
+        nameof(AgentTools.FollowupTask),
         nameof(AgentTools.WaitAgent),
-        nameof(AgentTools.ResumeAgent),
+        nameof(AgentTools.ListAgents),
         nameof(AgentTools.CloseAgent)
     ];
 
