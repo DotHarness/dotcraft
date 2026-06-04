@@ -4,6 +4,7 @@ import { LocaleProvider } from '../contexts/LocaleContext'
 import { ConversationWelcome } from '../components/conversation/ConversationWelcome'
 import { COMMAND_REF_CLASS, FILE_REF_CLASS, SKILL_REF_CLASS } from '../components/conversation/richInputConstants'
 import { useConnectionStore } from '../stores/connectionStore'
+import { useGitStore } from '../stores/gitStore'
 import { useModelCatalogStore } from '../stores/modelCatalogStore'
 import { useProvidersStore } from '../stores/providersStore'
 import { useThreadStore } from '../stores/threadStore'
@@ -164,6 +165,7 @@ describe('ConversationWelcome composer', () => {
     vi.clearAllMocks()
 
     useConnectionStore.getState().reset()
+    useGitStore.getState().reset()
     useThreadStore.getState().reset()
     useConversationStore.getState().reset()
     useConversationStore.setState({ remoteWorkspaceActive: false })

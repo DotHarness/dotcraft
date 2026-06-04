@@ -10,6 +10,7 @@ import { useSubAgentStore } from '../stores/subAgentStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useToastStore } from '../stores/toastStore'
 import { useUIStore } from '../stores/uiStore'
+import { useGitStore } from '../stores/gitStore'
 import type { ConversationTurn } from '../types/conversation'
 
 const settingsGet = vi.fn()
@@ -91,6 +92,7 @@ describe('InputComposer layout', () => {
     useProvidersStore.getState().reset()
     useSubAgentStore.getState().reset()
     useThreadStore.getState().reset()
+    useGitStore.getState().reset()
     useToastStore.setState({ toasts: [] })
     useUIStore.setState({
       activeMainView: 'conversation',
@@ -298,7 +300,7 @@ describe('InputComposer layout', () => {
     expect(shell?.getAttribute('style')).toContain('position: relative')
     expect(shell?.getAttribute('style')).toContain('isolation: isolate')
     expect(shell?.getAttribute('style')).toContain('gap: 0px')
-    expect(composerSurface?.previousElementSibling).toBe(overlay)
+    expect(composerSurface?.parentElement?.previousElementSibling).toBe(overlay)
     expect(dock.parentElement).toBe(overlay)
   })
 

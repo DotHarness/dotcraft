@@ -10,8 +10,6 @@ import {
 } from './sidebarNavRowStyles'
 import { SettingsIcon } from '../ui/AppIcons'
 import { ActionTooltip } from '../ui/ActionTooltip'
-import { ShortcutBadge } from '../ui/ShortcutBadge'
-import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
 
 const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0'
 
@@ -54,21 +52,17 @@ export function SidebarFooter(): JSX.Element {
               : 'transparent',
           color: settingsVisualActive ? 'var(--text-primary)' : 'var(--text-secondary)',
           cursor: 'pointer',
-          justifyContent: 'space-between',
           transition: 'background-color 120ms ease, color 120ms ease'
         }}
       >
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
-          <span style={SIDEBAR_NAV_ICON_SLOT}>
-            <span style={{ display: 'block', flexShrink: 0 }}>
-              <SettingsIcon />
-            </span>
-          </span>
-          <span style={{ ...SIDEBAR_NAV_LABEL, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {t('sidebarFooter.settings')}
+        <span style={SIDEBAR_NAV_ICON_SLOT}>
+          <span style={{ display: 'block', flexShrink: 0 }}>
+            <SettingsIcon />
           </span>
         </span>
-        {settingsRowActive && <ShortcutBadge shortcut={ACTION_SHORTCUTS.settings} />}
+        <span style={{ ...SIDEBAR_NAV_LABEL, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {t('sidebarFooter.settings')}
+        </span>
       </button>
 
       <div

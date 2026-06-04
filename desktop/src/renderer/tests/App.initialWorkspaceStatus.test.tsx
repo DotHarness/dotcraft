@@ -13,6 +13,7 @@ import { LocaleProvider } from '../contexts/LocaleContext'
 import { App } from '../App'
 import { useConnectionStore } from '../stores/connectionStore'
 import { useConversationStore } from '../stores/conversationStore'
+import { useGitStore, type GitBranchListSnapshot } from '../stores/gitStore'
 import { usePluginStore, type PluginEntry } from '../stores/pluginStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
@@ -209,6 +210,24 @@ function mediaStates(status: WhatsNewMediaState['status']): WhatsNewMediaState[]
   )
 }
 
+function createDeferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res
+    reject = rej
+  })
+  return { promise, resolve, reject }
+}
+
+function gitSnapshot(current = 'main'): GitBranchListSnapshot {
+  return {
+    current,
+    detachedHead: null,
+    branches: [{ name: current, current: true }]
+  }
+}
+
 function installApi(
   initialWorkspaceStatus: WorkspaceStatusPayload,
   overrides: {
@@ -221,6 +240,7 @@ function installApi(
     getReleases?: ReturnType<typeof vi.fn>
     getMediaStates?: ReturnType<typeof vi.fn>
     prefetchMedia?: ReturnType<typeof vi.fn>
+    gitListBranches?: ReturnType<typeof vi.fn>
   } = {}
 ): {
   settingsGet: ReturnType<typeof vi.fn>
@@ -239,6 +259,7 @@ function installApi(
   const getReleases = overrides.getReleases ?? vi.fn().mockResolvedValue(WHATS_NEW_TEST_RELEASES)
   const getMediaStates = overrides.getMediaStates ?? vi.fn().mockResolvedValue([])
   const prefetchMedia = overrides.prefetchMedia ?? vi.fn().mockResolvedValue([])
+  const gitListBranches = overrides.gitListBranches ?? vi.fn().mockResolvedValue(gitSnapshot())
   Object.defineProperty(window, 'api', {
     configurable: true,
     value: {
@@ -306,6 +327,9 @@ function installApi(
       file: {
         readFile: vi.fn().mockResolvedValue('')
       },
+      git: {
+        listBranches: gitListBranches
+      },
       menu: {
         popupAddTabMenu: vi.fn().mockResolvedValue(null)
       }
@@ -334,6 +358,7 @@ describe('App initial workspace status bootstrap', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     useConnectionStore.getState().reset()
+    useGitStore.getState().reset()
     useThreadStore.getState().reset()
     useConversationStore.getState().reset()
     usePluginStore.setState({
@@ -449,6 +474,52 @@ describe('App initial workspace status bootstrap', () => {
     expect(container.querySelector('.workspace-launch-transition--connecting')).toBeInTheDocument()
     expect(container.querySelector('.workspace-launch-transition--main-reveal')).not.toBeInTheDocument()
     expect(screen.queryByTestId('error-screen')).not.toBeInTheDocument()
+  })
+
+  it('waits for the local Git branch probe before revealing a connected restored workspace', async () => {
+    const gitProbe = createDeferred<GitBranchListSnapshot>()
+    const gitListBranches = vi.fn(() => gitProbe.promise)
+    installApi(readyWorkspaceStatus, { gitListBranches })
+    useConnectionStore.getState().setStatus({ status: 'connected' })
+
+    const { container } = renderApp()
+    await flushPromises()
+
+    expect(gitListBranches).toHaveBeenCalledWith('C:\\sample\\workspace')
+    expect(container.querySelector('.workspace-launch-transition--connecting')).toBeInTheDocument()
+    expect(container.querySelector('.workspace-launch-transition--main-reveal')).not.toBeInTheDocument()
+
+    gitProbe.resolve(gitSnapshot('main'))
+
+    await waitFor(() => {
+      expect(container.querySelector('.workspace-launch-transition--main-reveal')).toBeInTheDocument()
+    })
+  })
+
+  it('reveals a connected restored workspace after a local Git probe fails', async () => {
+    installApi(readyWorkspaceStatus, {
+      gitListBranches: vi.fn().mockRejectedValue(new Error('not a git repository'))
+    })
+    useConnectionStore.getState().setStatus({ status: 'connected' })
+
+    const { container } = renderApp()
+
+    await waitFor(() => {
+      expect(container.querySelector('.workspace-launch-transition--main-reveal')).toBeInTheDocument()
+    })
+  })
+
+  it('does not wait for Git probing on remote restored workspaces', async () => {
+    const gitListBranches = vi.fn(() => new Promise<never>(() => {}))
+    installApi(remoteReadyWorkspaceStatus, { gitListBranches })
+    useConnectionStore.getState().setStatus({ status: 'connected' })
+
+    const { container } = renderApp()
+
+    await waitFor(() => {
+      expect(container.querySelector('.workspace-launch-transition--main-reveal')).toBeInTheDocument()
+    })
+    expect(gitListBranches).not.toHaveBeenCalled()
   })
 
   it('does not auto-open What’s New before remote media is ready', async () => {

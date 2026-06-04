@@ -29,6 +29,7 @@ import { usePluginStore } from './stores/pluginStore'
 import { usePendingRestartStore } from './stores/pendingRestartStore'
 import { useSubAgentStore } from './stores/subAgentStore'
 import { useAppBindingStore } from './stores/appBindingStore'
+import { isGitBranchProbeSettled, normalizeGitPathKey, useGitStore } from './stores/gitStore'
 import { CustomMenuBar } from './components/layout/CustomMenuBar'
 import { Sidebar } from './components/layout/Sidebar'
 import { SettingsSidebar } from './components/layout/SettingsSidebar'
@@ -546,6 +547,18 @@ export function App(): JSX.Element {
   const capabilities = useConnectionStore((s) => s.capabilities)
   const showSlowConnectingHint = useSlowConnectingHint(status, workspacePath)
   const remoteWorkspaceActive = workspaceStatus.remote != null
+  const mainWorkspaceGitPathKey =
+    workspaceStatus.status === 'ready' && !remoteWorkspaceActive
+      ? normalizeGitPathKey(workspacePath)
+      : ''
+  const mainWorkspaceGitStatus = useGitStore((s) =>
+    mainWorkspaceGitPathKey ? s.branchesByPath[mainWorkspaceGitPathKey]?.status : undefined
+  )
+  const mainWorkspaceGitSettled =
+    remoteWorkspaceActive ||
+    workspaceStatus.status !== 'ready' ||
+    !workspacePath ||
+    isGitBranchProbeSettled(mainWorkspaceGitStatus)
   const remoteWorkspaceActiveRef = useRef(remoteWorkspaceActive)
   remoteWorkspaceActiveRef.current = remoteWorkspaceActive
   const [browserUseApprovalRequests, setBrowserUseApprovalRequests] = useState<BrowserUseApprovalRequestPayload[]>([])
@@ -665,8 +678,12 @@ export function App(): JSX.Element {
   const syncWorkspaceStatus = useCallback((payload: WorkspaceStatusPayload): void => {
     const path = payload.workspacePath ?? ''
     const protocolPath = resolveProtocolWorkspacePath(payload)
+    const previousPath = workspacePathRef.current
     const isInitialWorkspaceStatus = !workspaceStatusHydratedRef.current
     workspaceStatusHydratedRef.current = true
+    if (previousPath !== path) {
+      useGitStore.getState().reset()
+    }
     workspacePathRef.current = path
     protocolWorkspacePathRef.current = protocolPath
     if (payload.status === 'needs-setup') {
@@ -689,6 +706,12 @@ export function App(): JSX.Element {
       })
     }
   }, [])
+
+  useEffect(() => {
+    if (workspaceStatus.status !== 'ready') return
+    if (remoteWorkspaceActive || !workspacePath) return
+    void useGitStore.getState().ensureBranches(workspacePath)
+  }, [remoteWorkspaceActive, workspacePath, workspaceStatus.status])
 
   const handleOpenWorkspaceFromWelcome = useCallback(async (request: {
     path: string
@@ -1148,7 +1171,7 @@ export function App(): JSX.Element {
       workspaceLaunchTransition.phase !== 'preparing'
     ) return
 
-    if (workspaceStatus.status === 'ready' && status === 'connected') {
+    if (workspaceStatus.status === 'ready' && status === 'connected' && mainWorkspaceGitSettled) {
       const centerRect = centeredLaunchLogoRect()
       setWorkspaceLaunchTransition({
         ...workspaceLaunchTransition,
@@ -1158,7 +1181,13 @@ export function App(): JSX.Element {
         target: 'main'
       })
     }
-  }, [setupLogoAnchorNode, status, workspaceLaunchTransition, workspaceStatus.status])
+  }, [
+    mainWorkspaceGitSettled,
+    setupLogoAnchorNode,
+    status,
+    workspaceLaunchTransition,
+    workspaceStatus.status
+  ])
 
   useEffect(() => {
     if (!setupLogoHandoff) return
