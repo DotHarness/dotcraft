@@ -26,7 +26,7 @@ public sealed class HubLockFile : IDisposable
     {
         Directory.CreateDirectory(paths.HubStatePath);
         existingInfo = TryRead(paths.LockFilePath);
-        if (existingInfo is not null && existingInfo.IsProcessAlive())
+        if (existingInfo is not null && existingInfo.IsLiveHubProcess())
         {
             lockFile = null;
             return false;
@@ -162,5 +162,54 @@ public sealed record HubLockInfo(
         {
             return false;
         }
+    }
+
+    /// <summary>
+    /// Returns whether the recorded PID still appears to belong to the Hub process described by this lock.
+    /// </summary>
+    public bool IsLiveHubProcess()
+    {
+        try
+        {
+            using var process = Process.GetProcessById(Pid);
+            if (process.HasExited)
+                return false;
+
+            return MatchesRecordedBinary(process);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private bool MatchesRecordedBinary(Process process)
+    {
+        if (string.IsNullOrWhiteSpace(BinaryPath))
+            return true;
+
+        try
+        {
+            var actualPath = process.MainModule?.FileName;
+            if (!string.IsNullOrWhiteSpace(actualPath))
+                return PathsEqual(actualPath, BinaryPath);
+        }
+        catch
+        {
+            // Some platforms/processes deny executable path inspection. Fall back to process-name matching
+            // so a clearly unrelated PID reuse does not keep a stale hub.lock alive indefinitely.
+        }
+
+        var expectedName = Path.GetFileNameWithoutExtension(BinaryPath);
+        return !string.IsNullOrWhiteSpace(expectedName) &&
+               string.Equals(process.ProcessName, expectedName, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool PathsEqual(string left, string right)
+    {
+        var comparison = OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+        return string.Equals(Path.GetFullPath(left), Path.GetFullPath(right), comparison);
     }
 }

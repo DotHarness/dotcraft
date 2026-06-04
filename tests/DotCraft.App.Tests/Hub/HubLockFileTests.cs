@@ -17,13 +17,17 @@ public sealed class HubLockFileTests : IDisposable
         Assert.Null(initialInfo);
         Assert.NotNull(first);
 
+        using var currentProcess = System.Diagnostics.Process.GetCurrentProcess();
+        var currentBinaryPath = currentProcess.MainModule?.FileName;
+        Assert.False(string.IsNullOrWhiteSpace(currentBinaryPath));
+
         var info = new HubLockInfo(
             Pid: Environment.ProcessId,
             ApiBaseUrl: "http://127.0.0.1:43000",
             Token: "token",
             StartedAt: DateTimeOffset.UtcNow,
             Version: "test",
-            BinaryPath: "C:\\tools\\dotcraft.exe");
+            BinaryPath: currentBinaryPath);
         first!.Publish(info);
 
         Assert.False(HubLockFile.TryAcquire(paths, out var second, out var existingInfo));
@@ -31,9 +35,34 @@ public sealed class HubLockFileTests : IDisposable
         Assert.NotNull(existingInfo);
         Assert.Equal(Environment.ProcessId, existingInfo!.Pid);
         Assert.Equal("http://127.0.0.1:43000", existingInfo.ApiBaseUrl);
-        Assert.Equal("C:\\tools\\dotcraft.exe", existingInfo.BinaryPath);
+        Assert.Equal(currentBinaryPath, existingInfo.BinaryPath);
 
         first.DeleteAfterDispose();
+    }
+
+    [Fact]
+    public void TryAcquire_LivePidWithDifferentBinaryIsRecoverableStaleLock()
+    {
+        var paths = HubPaths.Resolve(_userProfile);
+        Directory.CreateDirectory(paths.HubStatePath);
+        File.WriteAllText(paths.LockFilePath, $$"""
+        {
+          "pid": {{Environment.ProcessId}},
+          "apiBaseUrl": "http://127.0.0.1:43003",
+          "token": "token",
+          "startedAt": "2026-05-16T00:00:00Z",
+          "version": "old",
+          "binaryPath": "C:\\unrelated\\WidgetService.exe"
+        }
+        """);
+
+        Assert.True(HubLockFile.TryAcquire(paths, out var recovered, out var existingInfo));
+        Assert.NotNull(recovered);
+        Assert.NotNull(existingInfo);
+        Assert.Equal(Environment.ProcessId, existingInfo!.Pid);
+        Assert.False(existingInfo.IsLiveHubProcess());
+
+        recovered!.DeleteAfterDispose();
     }
 
     [Fact]

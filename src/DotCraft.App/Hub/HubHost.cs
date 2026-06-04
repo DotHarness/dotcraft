@@ -50,7 +50,7 @@ public sealed class HubHost : IDotCraftHost
         if (lockFile is null)
             throw new InvalidOperationException("Hub lock acquisition returned no lock file.");
 
-        if (existingInfo is not null && !existingInfo.IsProcessAlive())
+        if (existingInfo is not null && !existingInfo.IsLiveHubProcess())
         {
             AnsiConsole.MarkupLine("[grey][[Hub]][/] Recovered stale hub.lock");
         }
