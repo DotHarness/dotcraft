@@ -689,7 +689,7 @@ function PluginDetailView({
     <div style={page}>
       <div style={detailBreadcrumbBar}>
         <div style={breadcrumb}>
-          <CatalogHoverButton type="button" onClick={onBack} baseStyle={breadcrumbButton}>
+          <CatalogHoverButton type="button" onClick={onBack} baseStyle={detailBreadcrumbButton}>
             {t('plugins.pageTitle')}
           </CatalogHoverButton>
           <span style={breadcrumbSep}>›</span>
@@ -1132,6 +1132,16 @@ const detailMain: CSSProperties = { flex: 1, minHeight: 0, overflow: 'auto', wid
 const detailContent: CSSProperties = { width: 'min(760px, calc(100% - 48px))', margin: '0 auto', padding: '0 0 48px' }
 const detailHeader: CSSProperties = { width: 'min(760px, calc(100% - 48px))', margin: '22px auto 28px' }
 const detailBreadcrumbBar: CSSProperties = { display: 'flex', alignItems: 'center', height: 40, padding: '8px 12px 4px', flexShrink: 0 }
+// Detail back-crumb mirrors a catalog tab's metrics: the bar shares the tab row's
+// padding/height, and matching the tab's inner padding + radius lands the leading
+// "Plugins" word at the same x and gives it the same rounded hover pill as the
+// Plugins/Skills tab on the list, so list → detail reads as one continuous control.
+const detailBreadcrumbButton: CSSProperties = {
+  ...catalogStyles.breadcrumbButton,
+  padding: '6px 10px',
+  borderRadius: '8px',
+  lineHeight: 1.2
+}
 const detailIconRow: CSSProperties = { display: 'flex', alignItems: 'center', gap: 12 }
 const detailTitle: CSSProperties = { margin: '22px 0 6px', fontSize: 22, fontWeight: 600 }
 const detailSubtitle: CSSProperties = { margin: 0, color: 'var(--text-secondary)', fontSize: 15 }

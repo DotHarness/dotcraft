@@ -45,7 +45,7 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
     }
 
     [Fact]
-    public async Task GetStreamingResponseAsync_DrainsAssistantTurnContextBeforeNextModelRequest()
+    public async Task GetStreamingResponseAsync_DrainsMailboxTurnContextAsUserBeforeNextModelRequest()
     {
         var inner = new RoundTripFakeChatClient();
         var tool = AIFunctionFactory.Create(() => "tool ok", name: "GetStatus");
@@ -65,7 +65,7 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
                 if (drained)
                     return Task.FromResult<ChatMessage?>(null);
                 drained = true;
-                return Task.FromResult<ChatMessage?>(new ChatMessage(ChatRole.Assistant, notification));
+                return Task.FromResult<ChatMessage?>(new ChatMessage(ChatRole.User, notification));
             }
         });
 
@@ -75,7 +75,7 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
 
         Assert.True(drained);
         Assert.Equal(2, inner.Calls.Count);
-        Assert.Contains(inner.Calls[1], message => message.Role == ChatRole.Assistant && message.Text == notification);
+        Assert.Contains(inner.Calls[1], message => message.Role == ChatRole.User && message.Text == notification);
     }
 
     [Fact]

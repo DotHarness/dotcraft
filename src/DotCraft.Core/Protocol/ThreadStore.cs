@@ -559,7 +559,7 @@ public sealed class ThreadStore
 
     private static bool TryBuildSubAgentMailboxMessage(UserMessagePayload user, out ChatMessage message)
     {
-        message = new ChatMessage(ChatRole.Assistant, string.Empty);
+        message = new ChatMessage(ChatRole.User, string.Empty);
         var parts = user.MaterializedInputParts is { Count: > 0 } materialized ? materialized : null;
         if (parts is { Count: > 0 })
         {
@@ -569,7 +569,7 @@ public sealed class ThreadStore
                 .ToList();
             if (contents.Count > 0)
             {
-                message = new ChatMessage(ChatRole.Assistant, (IList<AIContent>)contents);
+                message = new ChatMessage(ChatRole.User, (IList<AIContent>)contents);
                 return true;
             }
         }
@@ -577,7 +577,7 @@ public sealed class ThreadStore
         if (string.IsNullOrWhiteSpace(user.Text))
             return false;
 
-        message = new ChatMessage(ChatRole.Assistant, user.Text.Trim());
+        message = new ChatMessage(ChatRole.User, user.Text.Trim());
         return true;
     }
 

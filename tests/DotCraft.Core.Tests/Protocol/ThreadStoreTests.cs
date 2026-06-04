@@ -583,7 +583,7 @@ public sealed class ThreadStoreTests : IDisposable
     }
 
     [Fact]
-    public async Task RebuildAndSaveSessionFromThreadAsync_SubAgentMailboxUserItem_ReplaysAsAssistantMessage()
+    public async Task RebuildAndSaveSessionFromThreadAsync_SubAgentMailboxUserItem_ReplaysAsUserMessage()
     {
         var thread = CreateThread();
         AddTurnWithMessages(thread, "hello", "before mailbox", TurnStatus.Completed);
@@ -614,7 +614,7 @@ public sealed class ThreadStoreTests : IDisposable
             [
                 "user:hello",
                 "assistant:before mailbox",
-                $"assistant:{notification}"
+                $"user:{notification}"
             ],
             FormatHistoryWithContents(session));
     }

@@ -256,27 +256,31 @@ export function ComposerShell({
       {/* Card-only wrapper: scopes the focus glow to the card (not the outer
           container, which also holds the footer) so the halo hugs the card. */}
       <div style={{ position: 'relative' }}>
-        {(focused || hovered) && (
-          // Brand-gradient glow behind the composer. Breathes on focus; a calmer
-          // static halo on hover. Sits behind the opaque card so only the rim
-          // shows. Scoped to this card-only wrapper (NOT the outer container, which
-          // also holds the Local/branch footer) so the halo hugs the card evenly on
-          // every side instead of spreading down behind that footer below.
-          <div
-            aria-hidden
-            className={focused ? 'composer-focus-glow' : undefined}
-            style={{
-              position: 'absolute',
-              inset: '-3px',
-              borderRadius: '23px',
-              background: 'var(--composer-focus-glow)',
-              filter: 'blur(8px)',
-              opacity: focused ? 0.22 : 0.18,
-              zIndex: -1,
-              pointerEvents: 'none'
-            }}
-          />
-        )}
+        {/* Brand-gradient glow behind the composer. Always mounted so it can ease
+            in and out on hover instead of popping the moment the pointer crosses
+            the edge; transparent at rest, a calmer static halo on hover, and it
+            breathes on focus. Sits behind the opaque card so only the rim shows.
+            Scoped to this card-only wrapper (NOT the outer container, which also
+            holds the Local/branch footer) so the halo hugs the card evenly on
+            every side instead of spreading down behind that footer below. */}
+        <div
+          aria-hidden
+          className={focused ? 'composer-focus-glow' : undefined}
+          style={{
+            position: 'absolute',
+            inset: '-3px',
+            borderRadius: '23px',
+            background: 'var(--composer-focus-glow)',
+            filter: 'blur(8px)',
+            opacity: focused ? 0.22 : hovered ? 0.18 : 0,
+            // Gentle, symmetric fade so the diffuse halo eases in and out rather
+            // than snapping. (While focused, the breathing animation drives
+            // opacity instead, so this transition only governs the hover halo.)
+            transition: 'opacity 420ms ease',
+            zIndex: -1,
+            pointerEvents: 'none'
+          }}
+        />
         <div
           style={{
             position: 'relative',
