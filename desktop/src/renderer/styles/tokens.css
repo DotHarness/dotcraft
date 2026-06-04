@@ -30,8 +30,8 @@
   --color-border-active: color-mix(in srgb, #eeeeec 18%, transparent);
 
   /* Brand / semantic */
-  --color-accent: #4A7FA5;
-  --color-accent-hover: #5A9BC0;
+  --color-accent: #4566cc;
+  --color-accent-hover: #5b7ad6;
   --color-success: #22c55e;
   --color-warning: #eab308;
   --color-error: #ef4444;
@@ -106,8 +106,8 @@
   --border-active: color-mix(in srgb, var(--text-primary) 18%, transparent);
 
   /* Brand / semantic */
-  --accent: #4A7FA5;
-  --accent-hover: #5A9BC0;
+  --accent: #4566cc;
+  --accent-hover: #5b7ad6;
   --success: #22c55e;
   --warning: #eab308;
   --error: #ef4444;
@@ -344,9 +344,9 @@ html[data-theme="light"] {
   --color-border-default: color-mix(in srgb, #1a1c1f 8%, transparent);
   --color-border-active: color-mix(in srgb, #1a1c1f 12%, transparent);
 
-  /* brand: teal primary + sky hover; amber warning */
-  --color-accent: #4a7fa5;
-  --color-accent-hover: #5a9bc0;
+  /* brand: muted brand-blue primary + lighter hover; amber warning */
+  --color-accent: #4f6cce;
+  --color-accent-hover: #6580d6;
   --color-success: #16a34a;
   --color-warning: #c9a227;
   --color-error: #dc2626;
@@ -379,8 +379,8 @@ html[data-theme="light"] {
   --border-default: color-mix(in srgb, var(--text-primary) 8%, transparent);
   --border-active: color-mix(in srgb, var(--text-primary) 12%, transparent);
 
-  --accent: #4a7fa5;
-  --accent-hover: #5a9bc0;
+  --accent: #4f6cce;
+  --accent-hover: #6580d6;
   --success: #16a34a;
   --warning: #c9a227;
   --error: #dc2626;
