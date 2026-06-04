@@ -165,7 +165,7 @@ Common error codes include `unauthorized`, `workspaceNotFound`, `workspaceLocked
 - Hub version.
 - Optional binary path for the DotCraft executable that started the Hub.
 
-Clients must verify both process liveness and `/v1/status` before trusting it. Local development clients may also compare the optional binary path against the expected development build and restart Hub when it points at another executable.
+Clients must verify both process liveness and `/v1/status` before trusting it. A Hub lock is stale when the recorded PID no longer exists, or when the recorded PID appears to have been reused by an OS process that started after the lock was written. Local development clients may also compare the optional binary path against the expected development build and restart Hub when it points at another executable.
 
 ### Hub Registry
 
