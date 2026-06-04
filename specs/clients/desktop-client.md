@@ -403,7 +403,7 @@ At the Desktop UX level:
 - Goal replacement requires explicit confirmation when it would replace a different non-complete objective.
 - Desktop does not start automatic goal continuation turns. When an active goal continues, Desktop observes normal `turn/*` and `item/*` notifications from the server and updates goal UI from `thread/goal/updated` / `thread/goal/cleared`.
 - Goal continuation user messages with `triggerKind = "goal"` must render a visible source marker, such as "Goal auto-continue" / "目标自动推进", so users can distinguish server-initiated goal work from typed input.
-- SubAgent-sourced user messages with `triggerKind = "subagentFollowupTask"`, `"subagentMailbox"`, or `"subagentInput"` must render a visible source marker. Desktop uses the thread-source badge copy, such as "Sent by DotCraft from another thread" / "DotCraft 从另一个会话发送", and keeps action-specific wording in the tooltip/detail; `triggerRefId` is an agent path, not a thread id.
+- SubAgent-sourced user messages with `triggerKind = "subagentFollowupTask"` or `"subagentInput"` must render a visible source marker. Desktop uses the thread-source badge copy, such as "Sent by DotCraft from another thread" / "DotCraft 从另一个会话发送", and keeps action-specific wording in the tooltip/detail; `triggerRefId` is an agent path, not a thread id. Messages with `deliveryMode = "subagentMailbox"` or `triggerKind = "subagentMailbox"` are internal, model-visible mailbox notifications and must not render as user bubbles in the main conversation.
 
 ### 5.12 Composer System Actions
 

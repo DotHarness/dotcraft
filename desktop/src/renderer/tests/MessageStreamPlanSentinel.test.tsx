@@ -189,6 +189,108 @@ describe('MessageStream plan-accept sentinel filtering', () => {
     expect(screen.getByText('Executing accepted plan now.')).toBeInTheDocument()
   })
 
+  it('hides SubAgent mailbox messages from the main conversation bubbles', () => {
+    useConversationStore.setState({
+      turns: [{
+        id: 'turn-1',
+        threadId: 'thread-1',
+        status: 'completed',
+        startedAt: '2026-06-04T15:39:22.000Z',
+        completedAt: '2026-06-04T15:39:47.000Z',
+        items: [
+          {
+            id: 'u1',
+            type: 'userMessage',
+            status: 'completed',
+            text: 'Test subagent flow',
+            createdAt: '2026-06-04T15:39:22.000Z'
+          },
+          {
+            id: 'mailbox-1',
+            type: 'userMessage',
+            status: 'completed',
+            text: 'SubAgent message from /root/subagent_test',
+            deliveryMode: 'subagentMailbox',
+            triggerKind: 'subagentMailbox',
+            triggerLabel: '/root/subagent_test',
+            createdAt: '2026-06-04T15:39:36.000Z'
+          },
+          {
+            id: 'mailbox-2',
+            type: 'userMessage',
+            status: 'completed',
+            text: 'SubAgent message from /root/subagent_test',
+            deliveryMode: 'subagentMailbox',
+            triggerKind: 'subagentMailbox',
+            triggerLabel: '/root/subagent_test',
+            createdAt: '2026-06-04T15:39:44.000Z'
+          },
+          {
+            id: 'a1',
+            type: 'agentMessage',
+            status: 'completed',
+            text: 'Test complete: first reply received, follow-up result is 2.',
+            createdAt: '2026-06-04T15:39:47.000Z'
+          }
+        ]
+      }],
+      turnStatus: 'idle',
+      activeTurnId: null
+    })
+
+    renderWithLocale(<MessageStream />)
+
+    expect(screen.getByText('Test subagent flow')).toBeInTheDocument()
+    expect(screen.getByText('Test complete: first reply received, follow-up result is 2.')).toBeInTheDocument()
+    expect(screen.queryAllByText('SubAgent message from /root/subagent_test')).toHaveLength(0)
+    expect(screen.queryByText('Sent by DotCraft from another thread')).toBeNull()
+  })
+
+  it('hides SubAgent mailbox messages when only triggerKind or deliveryMode is present', () => {
+    useConversationStore.setState({
+      turns: [{
+        id: 'turn-1',
+        threadId: 'thread-1',
+        status: 'completed',
+        startedAt: '2026-06-04T15:39:22.000Z',
+        completedAt: '2026-06-04T15:39:47.000Z',
+        items: [
+          {
+            id: 'u1',
+            type: 'userMessage',
+            status: 'completed',
+            text: 'Visible request',
+            createdAt: '2026-06-04T15:39:22.000Z'
+          },
+          {
+            id: 'mailbox-trigger-only',
+            type: 'userMessage',
+            status: 'completed',
+            text: 'Mailbox trigger-only message',
+            triggerKind: 'subagentMailbox',
+            createdAt: '2026-06-04T15:39:36.000Z'
+          },
+          {
+            id: 'mailbox-delivery-only',
+            type: 'userMessage',
+            status: 'completed',
+            text: 'Mailbox delivery-only message',
+            deliveryMode: 'subagentMailbox',
+            createdAt: '2026-06-04T15:39:44.000Z'
+          }
+        ]
+      }],
+      turnStatus: 'idle',
+      activeTurnId: null
+    })
+
+    renderWithLocale(<MessageStream />)
+
+    expect(screen.getByText('Visible request')).toBeInTheDocument()
+    expect(screen.queryByText('Mailbox trigger-only message')).toBeNull()
+    expect(screen.queryByText('Mailbox delivery-only message')).toBeNull()
+  })
+
   it('marks the first user-authored objective message as sent as a goal', () => {
     const goalCreatedAt = '2026-04-16T08:00:00.000Z'
     useThreadStore.getState().setThreadGoal(makeGoal('thread-1', 'Build feature', goalCreatedAt))
@@ -789,6 +891,49 @@ describe('MessageStream plan-accept sentinel filtering', () => {
       'max-width: var(--conversation-reading-width)'
     )
     expect(screen.queryByText('Earlier message')).toBeInTheDocument()
+  })
+
+  it('edits the last visible user message when hidden SubAgent mailbox messages follow it', () => {
+    useConversationStore.setState({
+      turns: [
+        {
+          id: 'turn-1',
+          threadId: 'thread-1',
+          status: 'completed',
+          startedAt: '2026-06-04T15:39:22.000Z',
+          completedAt: '2026-06-04T15:39:47.000Z',
+          items: [
+            {
+              id: 'u1',
+              type: 'userMessage',
+              status: 'completed',
+              text: 'Retry visible request',
+              nativeInputParts: [{ type: 'text', text: 'Retry visible request' }],
+              createdAt: '2026-06-04T15:39:22.000Z'
+            },
+            {
+              id: 'mailbox-1',
+              type: 'userMessage',
+              status: 'completed',
+              text: 'SubAgent message from /root/subagent_test',
+              deliveryMode: 'subagentMailbox',
+              triggerKind: 'subagentMailbox',
+              createdAt: '2026-06-04T15:39:44.000Z'
+            }
+          ]
+        }
+      ],
+      turnStatus: 'idle',
+      activeTurnId: null
+    })
+
+    renderWithLocale(<MessageStream />)
+
+    expect(screen.queryByText('SubAgent message from /root/subagent_test')).toBeNull()
+    const buttons = screen.getAllByRole('button', { name: 'Edit message' })
+    expect(buttons).toHaveLength(1)
+    fireEvent.click(buttons[0])
+    expect(screen.getByRole('textbox', { name: 'Edit message text' })).toHaveValue('Retry visible request')
   })
 
   it('hides the edit affordance while the last turn is active', () => {

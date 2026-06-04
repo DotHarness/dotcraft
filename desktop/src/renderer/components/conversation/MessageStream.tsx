@@ -61,12 +61,7 @@ function editableUserText(item: ConversationItem): string {
 }
 
 function lastUserItem(turn: ConversationTurn): ConversationItem | undefined {
-  return [...turn.items].reverse().find(
-    (item) =>
-      item.type === 'userMessage' &&
-      item.deliveryMode !== 'guidance' &&
-      !isAcceptPlanSentinel(item.text ?? '')
-  )
+  return [...turn.items].reverse().find(isVisibleUserMessage)
 }
 
 function getSentAsGoalItemId(turns: ConversationTurn[], goal: ThreadGoal | null): string | null {
@@ -75,10 +70,8 @@ function getSentAsGoalItemId(turns: ConversationTurn[], goal: ThreadGoal | null)
 
   for (const turn of turns) {
     const firstUser = turn.items.find((item) =>
-      item.type === 'userMessage' &&
-      item.deliveryMode !== 'guidance' &&
-      !item.triggerKind &&
-      !isAcceptPlanSentinel(item.text ?? '')
+      isVisibleUserMessage(item) &&
+      !item.triggerKind
     )
     if (!firstUser) continue
     if ((firstUser.text ?? '').trim() !== objective) return null
@@ -87,6 +80,16 @@ function getSentAsGoalItemId(turns: ConversationTurn[], goal: ThreadGoal | null)
   }
 
   return null
+}
+
+function isVisibleUserMessage(item: ConversationItem): boolean {
+  return (
+    item.type === 'userMessage' &&
+    item.deliveryMode !== 'guidance' &&
+    item.deliveryMode !== 'subagentMailbox' &&
+    item.triggerKind !== 'subagentMailbox' &&
+    !isAcceptPlanSentinel(item.text ?? '')
+  )
 }
 
 function isNearGoalCreation(messageCreatedAt: string | undefined, goalCreatedAt: string): boolean {
@@ -489,10 +492,7 @@ function TurnBlock({
 }: TurnBlockProps): JSX.Element {
   // Separate user-input items from agent items
   const userItems = turn.items.filter(
-    (i: ConversationItem) =>
-      i.type === 'userMessage' &&
-      i.deliveryMode !== 'guidance' &&
-      !isAcceptPlanSentinel(i.text ?? '')
+    (i: ConversationItem) => isVisibleUserMessage(i)
   )
   const canEditUserMessage = isLastTurn && !isActiveTurn && userItems.length > 0
 
