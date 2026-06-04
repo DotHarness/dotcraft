@@ -75,6 +75,9 @@ public sealed class SubAgentSessionControlTests : IDisposable
         Assert.False(edge.SupportsSendInput);
         Assert.Equal(TurnStatus.Completed, turn.Status);
         Assert.Equal("inspect code", turn.Input?.AsUserMessage?.Text);
+        Assert.Equal("subagentInput", turn.Input?.AsUserMessage?.TriggerKind);
+        Assert.Equal("Inspect", turn.Input?.AsUserMessage?.TriggerLabel);
+        Assert.Equal("/root/inspect", turn.Input?.AsUserMessage?.TriggerRefId);
         Assert.Equal("cli ok", turn.Items.Last().AsAgentMessage?.Text);
         Assert.Equal(3, turn.TokenUsage?.InputTokens);
         Assert.Equal(5, turn.TokenUsage?.OutputTokens);
@@ -165,6 +168,9 @@ public sealed class SubAgentSessionControlTests : IDisposable
         Assert.Equal(["sess-1", "sess-2"], store.RecordedSessionIds);
         Assert.Equal(2, child.Turns.Count);
         Assert.Equal("continue", child.Turns[1].Input?.AsUserMessage?.Text);
+        Assert.Equal("subagentInput", child.Turns[1].Input?.AsUserMessage?.TriggerKind);
+        Assert.Equal("Inspect", child.Turns[1].Input?.AsUserMessage?.TriggerLabel);
+        Assert.Equal("/root/inspect", child.Turns[1].Input?.AsUserMessage?.TriggerRefId);
     }
 
     [Fact]
@@ -619,6 +625,9 @@ public sealed class SubAgentSessionControlTests : IDisposable
         Assert.Equal(2, child.Turns.Count);
         Assert.Contains("mailbox note", child.Turns[1].Input?.AsUserMessage?.Text, StringComparison.Ordinal);
         Assert.Contains("continue work", child.Turns[1].Input?.AsUserMessage?.Text, StringComparison.Ordinal);
+        Assert.Equal("subagentFollowupTask", child.Turns[1].Input?.AsUserMessage?.TriggerKind);
+        Assert.Equal("Inspect", child.Turns[1].Input?.AsUserMessage?.TriggerLabel);
+        Assert.Equal("/root/inspect", child.Turns[1].Input?.AsUserMessage?.TriggerRefId);
         Assert.Contains("mailbox note", runtime.LastRequest?.Task, StringComparison.Ordinal);
         Assert.Contains("continue work", runtime.LastRequest?.Task, StringComparison.Ordinal);
     }
@@ -683,6 +692,9 @@ public sealed class SubAgentSessionControlTests : IDisposable
         Assert.Contains("continue work", submitted, StringComparison.Ordinal);
         child = await _sessionService.GetThreadAsync(child.Id);
         Assert.Empty(child.QueuedInputs);
+        Assert.Equal("subagentFollowupTask", _sessionService.LastStartedQueuedInput?.TriggerKind);
+        Assert.Equal("Inspect", _sessionService.LastStartedQueuedInput?.TriggerLabel);
+        Assert.Equal("/root/inspect", _sessionService.LastStartedQueuedInput?.TriggerRefId);
     }
 
     [Fact]

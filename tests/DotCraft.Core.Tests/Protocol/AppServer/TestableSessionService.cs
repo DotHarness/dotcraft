@@ -635,6 +635,7 @@ internal sealed class TestableSessionService : ISessionService, IThreadAgentRefr
     {
         var thread = await GetOrLoadAsync(threadId, ct);
         var text = string.Concat(content.OfType<TextContent>().Select(c => c.Text));
+        var triggerInfo = TurnTriggerScope.Current;
         var turn = new SessionTurn
         {
             Id = SessionIdGenerator.NewTurnId(thread.Turns.Count + 1),
@@ -651,7 +652,13 @@ internal sealed class TestableSessionService : ISessionService, IThreadAgentRefr
             Status = ItemStatus.Completed,
             CreatedAt = DateTimeOffset.UtcNow,
             CompletedAt = DateTimeOffset.UtcNow,
-            Payload = new UserMessagePayload { Text = text }
+            Payload = new UserMessagePayload
+            {
+                Text = text,
+                TriggerKind = triggerInfo?.Kind,
+                TriggerLabel = triggerInfo?.Label,
+                TriggerRefId = triggerInfo?.RefId
+            }
         };
         turn.Input = userItem;
         turn.Items.Add(userItem);

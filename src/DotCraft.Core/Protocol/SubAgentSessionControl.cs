@@ -139,6 +139,7 @@ public static class SubAgentSessionControl
     private static readonly TimeSpan CloseAgentCancellationWait = TimeSpan.FromSeconds(5);
     private const int DefaultWaitAgentTimeoutMs = 30_000;
     private const string SubAgentFollowupTriggerKind = "subagentFollowupTask";
+    private const string SubAgentInputTriggerKind = "subagentInput";
 
     private sealed record RunningChild(
         string ParentThreadId,
@@ -284,9 +285,10 @@ public static class SubAgentSessionControl
         NotifyAgentChange();
 
         var childCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var initialTrigger = CreateSubAgentTrigger(SubAgentInputTriggerKind, nickname, agentPath.Value);
         var completion = string.Equals(runtimeType, NativeSubAgentRuntime.RuntimeTypeName, StringComparison.OrdinalIgnoreCase)
-            ? RunChildTurnAsync(context.SessionService, childThread.Id, prompt, childCts.Token)
-            : RunExternalChildTurnsAsync(context.SessionService, coordinator, prepared!, childThread.Id, prompt, childCts.Token);
+            ? RunChildTurnAsync(context.SessionService, childThread.Id, prompt, initialTrigger, childCts.Token)
+            : RunExternalChildTurnsAsync(context.SessionService, coordinator, prepared!, childThread.Id, prompt, initialTrigger, childCts.Token);
         RunningChildren[childThread.Id] = new RunningChild(context.ParentThread.Id, childCts, completion);
         _ = ObserveChildCompletionAsync(context.SessionService, childThread.Id, completion);
 
@@ -429,6 +431,7 @@ public static class SubAgentSessionControl
                 turnPrompt,
                 coordinator,
                 requireExternalResume: false,
+                CreateSubAgentTrigger(SubAgentFollowupTriggerKind, BuildFollowupTriggerLabel(resolved), resolved.Path.Value),
                 ct);
         }
 
@@ -523,6 +526,7 @@ public static class SubAgentSessionControl
             normalizedMessage,
             coordinator,
             requireExternalResume: true,
+            CreateSubAgentTrigger(SubAgentInputTriggerKind, BuildChildTriggerLabel(child), child.Source.SubAgent?.AgentPath),
             ct);
     }
 
@@ -532,6 +536,7 @@ public static class SubAgentSessionControl
         string message,
         SubAgentCoordinator? coordinator,
         bool requireExternalResume,
+        TurnTriggerInfo? triggerInfo,
         CancellationToken ct)
     {
         var childThreadId = child.Id;
@@ -548,7 +553,7 @@ public static class SubAgentSessionControl
         Task<SubAgentRunResult> completion;
         if (string.Equals(runtimeType, NativeSubAgentRuntime.RuntimeTypeName, StringComparison.OrdinalIgnoreCase))
         {
-            completion = RunChildTurnAsync(sessionService, childThreadId, message, childCts.Token);
+            completion = RunChildTurnAsync(sessionService, childThreadId, message, triggerInfo, childCts.Token);
         }
         else
         {
@@ -560,6 +565,7 @@ public static class SubAgentSessionControl
                 prepared.Run,
                 childThreadId,
                 message,
+                triggerInfo,
                 childCts.Token);
         }
 
@@ -818,11 +824,13 @@ public static class SubAgentSessionControl
         ISessionService sessionService,
         string childThreadId,
         string prompt,
+        TurnTriggerInfo? triggerInfo,
         CancellationToken ct)
     {
         try
         {
             SessionTurn? finalTurn = null;
+            using var triggerScope = triggerInfo == null ? null : TurnTriggerScope.Set(triggerInfo);
             await foreach (var ev in sessionService.SubmitInputAsync(
                                childThreadId,
                                [new TextContent(prompt)],
@@ -860,9 +868,10 @@ public static class SubAgentSessionControl
         SubAgentPreparedRun prepared,
         string childThreadId,
         string prompt,
+        TurnTriggerInfo? triggerInfo,
         CancellationToken ct)
     {
-        var result = await RunExternalChildTurnOnceAsync(sessionService, coordinator, prepared, childThreadId, prompt, ct);
+        var result = await RunExternalChildTurnOnceAsync(sessionService, coordinator, prepared, childThreadId, prompt, triggerInfo, ct);
 
         while (string.Equals(result.Status, "completed", StringComparison.OrdinalIgnoreCase))
         {
@@ -873,7 +882,14 @@ public static class SubAgentSessionControl
             prompt = BuildQueuedInputPrompt(queued);
             var child = await sessionService.GetThreadAsync(childThreadId, ct);
             prepared = PrepareExternalChildRun(child, prompt, coordinator, requireExternalResume: false).Run;
-            result = await RunExternalChildTurnOnceAsync(sessionService, coordinator, prepared, childThreadId, prompt, ct);
+            result = await RunExternalChildTurnOnceAsync(
+                sessionService,
+                coordinator,
+                prepared,
+                childThreadId,
+                prompt,
+                CreateSubAgentTrigger(queued.TriggerKind!, queued.TriggerLabel, queued.TriggerRefId),
+                ct);
         }
 
         return result;
@@ -885,6 +901,7 @@ public static class SubAgentSessionControl
         SubAgentPreparedRun prepared,
         string childThreadId,
         string prompt,
+        TurnTriggerInfo? triggerInfo,
         CancellationToken ct)
     {
         if (coordinator == null)
@@ -895,6 +912,7 @@ public static class SubAgentSessionControl
         SessionTurn? turn = null;
         try
         {
+            using var triggerScope = triggerInfo == null ? null : TurnTriggerScope.Set(triggerInfo);
             turn = await syntheticTurns.StartSubAgentSyntheticTurnAsync(
                 childThreadId,
                 [new TextContent(prompt)],
@@ -1130,6 +1148,20 @@ public static class SubAgentSessionControl
         ?? NormalizeOptional(resolved.Edge?.AgentNickname)
         ?? NormalizeOptional(resolved.Edge?.TaskName)
         ?? resolved.Path.TaskName;
+
+    private static string BuildChildTriggerLabel(SessionThread child) =>
+        NormalizeOptional(child.DisplayName)
+        ?? NormalizeOptional(child.Source.SubAgent?.AgentNickname)
+        ?? NormalizeOptional(child.Source.SubAgent?.TaskName)
+        ?? NormalizeOptional(child.Source.SubAgent?.AgentPath)
+        ?? child.Id;
+
+    private static TurnTriggerInfo CreateSubAgentTrigger(string kind, string? label, string? refId) => new()
+    {
+        Kind = kind,
+        Label = NormalizeOptional(label),
+        RefId = NormalizeOptional(refId)
+    };
 
     private static string? ExtractLastTaskMessage(SessionThread thread) =>
         thread.Turns

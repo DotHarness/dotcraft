@@ -1363,7 +1363,7 @@ Tag semantics:
 | `status` | string | `"queued"` or `"guidancePending"`. |
 | `createdAt` | string | UTC timestamp. |
 | `readyAfterTurnId` | string? | Active turn observed when the input was queued. |
-| `triggerKind` | string? | Present when the queued input was synthesized by a server/app mechanism rather than typed by a human. Examples include `"goal"`, `"heartbeat"`, `"cron"`, `"automation"`, `"app"`, or `"team"`. |
+| `triggerKind` | string? | Present when the queued input was synthesized by a server/app mechanism rather than typed by a human. Examples include `"goal"`, `"heartbeat"`, `"cron"`, `"automation"`, `"app"`, `"team"`, `"subagentFollowupTask"`, `"subagentMailbox"`, or `"subagentInput"`. |
 | `triggerLabel` | string? | Optional human-readable source label. |
 | `triggerRefId` | string? | Optional stable source id for client-side click-through or audit correlation. |
 
@@ -1822,7 +1822,7 @@ The canonical item payload schemas are defined in [Session Core, Section 4.2](..
 
 | `item.type` | Wire-specific notes |
 |-------------|---------------------|
-| `userMessage` | Payload shape matches Session Core; property names are camelCase and nullable fields are omitted when absent. `text` is a compatibility/display field derived from the native input parts, not the sole source of truth. When present, `nativeInputParts` is authoritative for history rendering and `materializedInputParts` captures the exact snapshot sent to the model. Optional `deliveryMode` (`"normal"` / `"queued"` / `"guidance"`) lets clients distinguish direct input, queued input that later became a Turn, and active-Turn guidance. Optional `triggerKind` (`"heartbeat"` / `"cron"` / `"automation"` / `"goal"` / future app-specific values such as `"app"` or `"team"`), `triggerLabel`, and `triggerRefId` are emitted when the turn was synthesized by an automation, goal continuation, or authorized app mechanism rather than typed by a human; clients may use these to render a source affordance and route click-through when the source has a client surface. |
+| `userMessage` | Payload shape matches Session Core; property names are camelCase and nullable fields are omitted when absent. `text` is a compatibility/display field derived from the native input parts, not the sole source of truth. When present, `nativeInputParts` is authoritative for history rendering and `materializedInputParts` captures the exact snapshot sent to the model. Optional `deliveryMode` (`"normal"` / `"queued"` / `"guidance"` / `"subagentMailbox"`) lets clients distinguish direct input, queued input that later became a Turn, active-Turn guidance, and internal SubAgent mailbox delivery. Optional `triggerKind` (`"heartbeat"` / `"cron"` / `"automation"` / `"goal"` / `"app"` / `"team"` / `"subagentFollowupTask"` / `"subagentMailbox"` / `"subagentInput"`), `triggerLabel`, and `triggerRefId` are emitted when the turn was synthesized by an automation, goal continuation, authorized app mechanism, team runner, or SubAgent coordination mechanism rather than typed by a human; clients may use these to render a source affordance and route click-through when the source has a client surface. SubAgent `triggerRefId` values are agent paths and should not be treated as thread ids. |
 | `agentMessage` | Text deltas stream through `item/agentMessage/delta`; snapshots still use the canonical payload schema. |
 | `reasoningContent` | Reasoning deltas stream through `item/reasoning/delta`; snapshots still use the canonical payload schema. |
 | `toolCall` | Tool invocation payload uses camelCase fields such as `toolName`, `arguments`, and `callId`. When argument construction is streamed, clients receive `item/toolCall/argumentsDelta` between `item/started` and `item/completed`. |
@@ -5394,7 +5394,7 @@ Params:
 
 `target` is an absolute agent path or a relative reference resolved from the caller's agent path. `subagent/sendMessage` records an inter-agent message for the target and does not start a child turn by itself.
 
-Path-addressable child turn completion writes a mailbox notification for the parent agent path. The notification is model-visible inside the parent turn at the next sampling boundary; AppServer child listing remains a graph/status surface and does not expose child final text.
+Path-addressable child turn completion writes a mailbox notification for the parent agent path. The notification is model-visible inside the parent turn at the next sampling boundary and is persisted as a `userMessage` with `deliveryMode = "subagentMailbox"` and `triggerKind = "subagentMailbox"`. AppServer child listing remains a graph/status surface and does not expose child final text.
 
 #### `subagent/followupTask`
 
@@ -5408,7 +5408,7 @@ Params:
 }
 ```
 
-`subagent/followupTask` resolves `target` and starts a new child turn with `message` when the target is idle. When the target has an active turn, the task is appended to the target thread's FIFO queue. Pending mailbox messages for the target are delivered with the submitted or queued task.
+`subagent/followupTask` resolves `target` and starts a new child turn with `message` when the target is idle. When the target has an active turn, the task is appended to the target thread's FIFO queue. Pending mailbox messages for the target are delivered with the submitted or queued task. Started or queued follow-up inputs carry `triggerKind = "subagentFollowupTask"` with `triggerLabel` set to the target's display label and `triggerRefId` set to the target agent path.
 
 #### `subagent/close`
 

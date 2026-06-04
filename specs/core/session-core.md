@@ -411,15 +411,15 @@ Each Item type has a specific payload structure:
       "fileName": string   // Optional original filename
     }
   ],
-  "triggerKind": string,   // Optional automation trigger marker: "heartbeat" | "cron" | "automation"
-  "triggerLabel": string,  // Optional human-readable source label (e.g. cron job name, task title)
-  "triggerRefId": string   // Optional routing id for click-through (e.g. cron job id, task id)
+  "triggerKind": string,   // Optional trigger marker: "heartbeat" | "cron" | "automation" | "goal" | "app" | "team" | "subagentFollowupTask" | "subagentMailbox" | "subagentInput"
+  "triggerLabel": string,  // Optional human-readable source label (e.g. cron job name, task title, agent label)
+  "triggerRefId": string   // Optional routing/audit id for click-through when supported (e.g. cron job id, task id, agent path)
 }
 ```
 
 `nativeInputParts` is authoritative for history rendering and editor rehydration when present. `materializedInputParts` captures the exact prompt/image snapshot that Session Core received after transport-side input materialization. `text` remains for compatibility and preview generation but is no longer the sole source of truth for user-message reconstruction.
 
-The optional `triggerKind` trio is populated by Session Core when a turn is submitted inside a `TurnTriggerScope` (see `DotCraft.Protocol.TurnTriggerScope`). The automation-side runners set the scope so that heartbeat / cron (`AgentRunner`) and Automations (`AutomationSessionClient.SubmitTurnAsync`) synthesized messages carry a stable marker that clients can use to render an "automation-sourced" affordance and route click-through to the originating job/task. Goal continuation turns use `triggerKind = "goal"`, `triggerLabel = "Goal continuation"`, and `triggerRefId = goalId`. Fields are absent when the turn originates from a real user input.
+The optional `triggerKind` trio is populated by Session Core when a turn is submitted inside a `TurnTriggerScope` (see `DotCraft.Protocol.TurnTriggerScope`). The automation-side runners set the scope so that heartbeat / cron (`AgentRunner`) and Automations (`AutomationSessionClient.SubmitTurnAsync`) synthesized messages carry a stable marker that clients can use to render an "automation-sourced" affordance and route click-through to the originating job/task. Goal continuation turns use `triggerKind = "goal"`, `triggerLabel = "Goal continuation"`, and `triggerRefId = goalId`. Session-backed SubAgent turns set `triggerKind = "subagentFollowupTask"` for follow-up task turns, `triggerKind = "subagentInput"` for direct/resumable external input, and mailbox drain items use `triggerKind = "subagentMailbox"`; their `triggerRefId` is an agent path for audit/display and is not necessarily a client-navigable thread id. Fields are absent when the turn originates from a real user input.
 
 #### AgentMessage
 

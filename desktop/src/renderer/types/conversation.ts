@@ -149,12 +149,23 @@ export interface ConversationItem {
   approvalState?: ApprovalState
   /**
    * When set on a userMessage item, indicates the message was synthesized by an
-   * automation, goal, app, or team mechanism (heartbeat, cron, automation, goal, app, team) rather
-   * than typed by a human. Mirrors UserMessagePayload.TriggerKind on the server.
+   * automation, goal, app, team, or SubAgent mechanism (heartbeat, cron, automation, goal,
+   * app, team, subagentFollowupTask, subagentMailbox, subagentInput) rather than typed by a
+   * human. Mirrors UserMessagePayload.TriggerKind on the server.
    * The `thread` kind is synthesized client-side for the first user message of a
    * thread that was spawned by another thread (see thread.source.spawnedFromThreadId).
    */
-  triggerKind?: 'heartbeat' | 'cron' | 'automation' | 'goal' | 'app' | 'team' | 'thread'
+  triggerKind?:
+    | 'heartbeat'
+    | 'cron'
+    | 'automation'
+    | 'goal'
+    | 'app'
+    | 'team'
+    | 'thread'
+    | 'subagentFollowupTask'
+    | 'subagentMailbox'
+    | 'subagentInput'
   /** Optional human-readable label for the automation source (e.g. cron job name). */
   triggerLabel?: string
   /** Optional routing id for client-side click-through (e.g. cron job id, task id). */
@@ -208,7 +219,7 @@ export interface QueuedTurnInput {
   status: string
   createdAt: string
   readyAfterTurnId?: string | null
-  triggerKind?: 'heartbeat' | 'cron' | 'automation' | 'goal' | 'app' | 'team'
+  triggerKind?: Exclude<ConversationItem['triggerKind'], 'thread'>
   triggerLabel?: string
   triggerRefId?: string
 }
@@ -536,9 +547,12 @@ function mapSystemNotice(
 
 function normalizeTriggerKind(
   value: unknown
-): 'heartbeat' | 'cron' | 'automation' | 'goal' | 'app' | 'team' | undefined {
+): Exclude<ConversationItem['triggerKind'], 'thread'> | undefined {
   if (typeof value !== 'string') return undefined
   const normalized = value.trim().toLowerCase()
+  if (normalized === 'subagentfollowuptask') return 'subagentFollowupTask'
+  if (normalized === 'subagentmailbox') return 'subagentMailbox'
+  if (normalized === 'subagentinput') return 'subagentInput'
   if (
     normalized === 'heartbeat' ||
     normalized === 'cron' ||

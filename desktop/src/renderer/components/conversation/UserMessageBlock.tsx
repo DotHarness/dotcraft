@@ -741,6 +741,10 @@ function TriggerSourcePill({
   const isTeam = kind === 'team'
   const isApp = kind === 'app'
   const isThread = kind === 'thread'
+  const isSubAgentFollowup = kind === 'subagentFollowupTask'
+  const isSubAgentMailbox = kind === 'subagentMailbox'
+  const isSubAgentInput = kind === 'subagentInput'
+  const isSubAgent = isSubAgentFollowup || isSubAgentMailbox || isSubAgentInput
   const badgeText = isGoal
     ? translate(locale, 'goal.triggeredBy.badge')
     : isTeam
@@ -749,7 +753,9 @@ function TriggerSourcePill({
         ? translate(locale, 'app.triggeredBy.badge')
         : isThread
           ? translate(locale, 'thread.triggeredBy.badge')
-          : translate(locale, 'automation.triggeredBy.badge')
+          : isSubAgent
+            ? translate(locale, 'subAgent.triggeredBy.badge')
+            : translate(locale, 'automation.triggeredBy.badge')
   const detailText = isGoal
     ? (label || translate(locale, 'goal.triggeredBy.generic'))
     : isTeam
@@ -760,21 +766,33 @@ function TriggerSourcePill({
         ? label
           ? translate(locale, 'app.triggeredBy.detail', { label })
           : translate(locale, 'app.triggeredBy.generic')
-        : isThread
+        : isSubAgent
           ? label
-            ? translate(locale, 'thread.triggeredBy.detail', { label })
-            : translate(locale, 'thread.triggeredBy.generic')
-          : label
             ? translate(
                 locale,
-                kind === 'heartbeat'
-                  ? 'automation.triggeredBy.heartbeat'
-                  : kind === 'cron'
-                    ? 'automation.triggeredBy.cron'
-                    : 'automation.triggeredBy.task',
+                isSubAgentFollowup
+                  ? 'subAgent.triggeredBy.followup'
+                  : isSubAgentMailbox
+                    ? 'subAgent.triggeredBy.mailbox'
+                    : 'subAgent.triggeredBy.input',
                 { label }
               )
-            : translate(locale, 'automation.triggeredBy.generic')
+            : translate(locale, 'subAgent.triggeredBy.generic')
+          : isThread
+            ? label
+              ? translate(locale, 'thread.triggeredBy.detail', { label })
+              : translate(locale, 'thread.triggeredBy.generic')
+            : label
+              ? translate(
+                  locale,
+                  kind === 'heartbeat'
+                    ? 'automation.triggeredBy.heartbeat'
+                    : kind === 'cron'
+                      ? 'automation.triggeredBy.cron'
+                      : 'automation.triggeredBy.task',
+                  { label }
+                )
+              : translate(locale, 'automation.triggeredBy.generic')
 
   const onClick = canNavigate
     ? () => {
@@ -828,7 +846,7 @@ function TriggerSourcePill({
         >
           {isTeam ? (
             <UsersRound size={11} strokeWidth={2.1} aria-hidden />
-          ) : isThread ? (
+          ) : isThread || isSubAgent ? (
             <MessagesSquare size={11} strokeWidth={2.1} aria-hidden />
           ) : (
             <Bot size={11} strokeWidth={2.1} aria-hidden />
@@ -845,7 +863,7 @@ function TriggerSourcePill({
         <Target size={11} strokeWidth={2.1} aria-hidden />
       ) : isTeam ? (
         <UsersRound size={11} strokeWidth={2.1} aria-hidden />
-      ) : isThread ? (
+      ) : isThread || isSubAgent ? (
         <MessagesSquare size={11} strokeWidth={2.1} aria-hidden />
       ) : (
         <Bot size={11} strokeWidth={2.1} aria-hidden />

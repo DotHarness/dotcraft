@@ -166,6 +166,50 @@ describe('UserMessageBlock trigger source pills', () => {
     expect(screen.getByRole('button', { name: 'Sent by Teams · Teams: Finalize mission: Ship Teams' })).toBeInTheDocument()
   })
 
+  it('renders SubAgent follow-up source pills with thread-style copy', () => {
+    renderWithLocale(
+      <UserMessageBlock
+        text="Continue work"
+        triggerKind="subagentFollowupTask"
+        triggerLabel="Inspect"
+        triggerRefId="/root/inspect"
+      />
+    )
+
+    expect(screen.getByText('Sent by DotCraft from another thread')).toBeInTheDocument()
+    expect(screen.getByTitle('Sent by DotCraft from another thread · Follow-up task · Inspect')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Sent by DotCraft from another thread · Follow-up task · Inspect' })).toBeNull()
+  })
+
+  it('renders SubAgent mailbox source detail', () => {
+    renderWithLocale(
+      <UserMessageBlock
+        text="Mailbox note"
+        triggerKind="subagentMailbox"
+        triggerLabel="/root/review"
+        triggerRefId="/root/inspect"
+      />
+    )
+
+    expect(screen.getByTitle('Sent by DotCraft from another thread · Mailbox message · /root/review')).toBeInTheDocument()
+  })
+
+  it('localizes SubAgent source pills in zh-Hans', async () => {
+    settingsGet.mockResolvedValue({ locale: 'zh-Hans' })
+
+    renderWithLocale(
+      <UserMessageBlock
+        text="继续"
+        triggerKind="subagentInput"
+        triggerLabel="Inspect"
+        triggerRefId="/root/inspect"
+      />
+    )
+
+    expect(await screen.findByText('DotCraft 从另一个会话发送')).toBeInTheDocument()
+    expect(screen.getByTitle('DotCraft 从另一个会话发送 · 直接输入 · Inspect')).toBeInTheDocument()
+  })
+
   it('renders guidance user messages with a steered conversation marker', () => {
     renderWithLocale(
       <UserMessageBlock

@@ -2723,4 +2723,9 @@ export const MESSAGES_ZH_HANS = {
   'thread.triggeredBy.badge': 'DotCraft 从另一个会话发送',
   'thread.triggeredBy.detail': '由 {{label}} 启动',
   'thread.triggeredBy.generic': '由另一个会话启动',
+  'subAgent.triggeredBy.badge': 'DotCraft 从另一个会话发送',
+  'subAgent.triggeredBy.followup': '后续任务 · {{label}}',
+  'subAgent.triggeredBy.input': '直接输入 · {{label}}',
+  'subAgent.triggeredBy.mailbox': '邮箱消息 · {{label}}',
+  'subAgent.triggeredBy.generic': 'SubAgent 协作输入',
 } satisfies Partial<Record<MessageId, string>>

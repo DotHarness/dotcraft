@@ -1875,6 +1875,7 @@ Choose the next concrete action that advances the goal. Before doing substantial
         var channelInfo = ChannelSessionScope.Current;
         var turnOriginChannel = channelInfo?.Channel ?? thread.OriginChannel;
         var turnChannelContext = channelInfo?.DefaultDeliveryTarget ?? thread.ChannelContext;
+        var triggerInfo = TurnTriggerScope.Current;
         var text = string.Concat(content.OfType<TextContent>().Select(t => t.Text));
         var turn = new SessionTurn
         {
@@ -1905,7 +1906,10 @@ Choose the next concrete action that advances the goal. Before doing substantial
                 Text = text,
                 ChannelName = turnOriginChannel,
                 ChannelContext = turnChannelContext,
-                GroupId = channelInfo?.GroupId
+                GroupId = channelInfo?.GroupId,
+                TriggerKind = triggerInfo?.Kind,
+                TriggerLabel = triggerInfo?.Label,
+                TriggerRefId = triggerInfo?.RefId
             }
         };
 
