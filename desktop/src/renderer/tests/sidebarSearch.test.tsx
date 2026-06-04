@@ -128,13 +128,17 @@ describe('SidebarFooter settings row', () => {
     resetStores()
   })
 
-  it('keeps Settings aligned as icon and label siblings without an inline shortcut badge', () => {
+  it('shows the Settings shortcut inline on hover', () => {
     renderWithLocale(<SidebarFooter />)
 
     const settingsButton = screen.getByRole('button', { name: 'Open settings' })
     expect(settingsButton).toHaveTextContent('Settings')
     expect(settingsButton).not.toHaveTextContent('Ctrl')
-    expect(settingsButton.children.length).toBe(2)
+
+    fireEvent.mouseEnter(settingsButton)
+
+    expect(settingsButton).toHaveTextContent('Ctrl')
+    expect(settingsButton).toHaveTextContent(',')
   })
 
   it("opens What's New from the sidebar version label", () => {
