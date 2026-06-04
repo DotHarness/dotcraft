@@ -115,6 +115,59 @@ function filterMapToThreadList<T>(current: Map<string, T>, ids: Set<string>): Ma
   return new Map([...current].filter(([id]) => ids.has(id)))
 }
 
+function normalizeComparableWorkspacePath(path: string | null | undefined): string {
+  return (path ?? '').trim().replace(/\\/g, '/').replace(/\/+$/u, '').toLowerCase()
+}
+
+function firstNonEmpty(...values: Array<string | null | undefined>): string | undefined {
+  for (const value of values) {
+    const trimmed = value?.trim()
+    if (trimmed) return trimmed
+  }
+  return undefined
+}
+
+function hasOwnWorktreeProperty(thread: ThreadSummary): boolean {
+  return Object.prototype.hasOwnProperty.call(thread, 'worktree')
+}
+
+function normalizeIncomingWorkspaceState<T extends ThreadSummary>(
+  incoming: T,
+  existing: ThreadSummary | null | undefined
+): T {
+  if (!existing?.worktree || hasOwnWorktreeProperty(incoming)) return incoming
+
+  const incomingWorkspacePath = firstNonEmpty(incoming.workspacePath)
+  const incomingEffectiveWorkspacePath = firstNonEmpty(incoming.effectiveWorkspacePath)
+  if (!incomingWorkspacePath && !incomingEffectiveWorkspacePath) return incoming
+
+  const localWorkspacePath = firstNonEmpty(
+    incomingWorkspacePath,
+    existing.worktree.workspacePath,
+    existing.worktree.sourceWorkspacePath,
+    existing.workspacePath
+  )
+  const effectiveWorkspacePath = firstNonEmpty(incomingEffectiveWorkspacePath, incomingWorkspacePath)
+  if (!localWorkspacePath || !effectiveWorkspacePath) return incoming
+
+  if (
+    normalizeComparableWorkspacePath(effectiveWorkspacePath) !==
+    normalizeComparableWorkspacePath(localWorkspacePath)
+  ) {
+    return incoming
+  }
+
+  return {
+    ...incoming,
+    effectiveWorkspacePath,
+    worktree: null
+  }
+}
+
+function mergeThreadSummary(existing: ThreadSummary, incoming: ThreadSummary): ThreadSummary {
+  return { ...existing, ...normalizeIncomingWorkspaceState(incoming, existing) }
+}
+
 function collectThreadTreeIds(threads: ThreadSummary[], rootThreadId: string): Set<string> {
   const ids = new Set<string>([rootThreadId])
   let changed = true
@@ -290,7 +343,7 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
         const next = incoming.get(thread.id)
         if (!next) return thread
         seen.add(thread.id)
-        return { ...thread, ...next }
+        return mergeThreadSummary(thread, next)
       })
       const missing = visibleThreads.filter((thread) => !seen.has(thread.id))
       const runtimeSnapshots = new Map(state.runtimeSnapshots)
@@ -484,13 +537,25 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
     // responses must not redirect which thread is selected.
     set((state) => {
       if (!thread) return { activeThread: thread }
+      const incomingTurns = Array.isArray(thread.turns) ? thread.turns : []
+      const normalizedThread = normalizeIncomingWorkspaceState(thread, state.activeThread)
+      const activeThread = state.activeThread?.id === thread.id
+        && incomingTurns.length === 0
+        && state.activeThread.turns.length > 0
+        ? {
+            ...state.activeThread,
+            ...normalizedThread,
+            turns: state.activeThread.turns,
+            queuedInputs: normalizedThread.queuedInputs ?? state.activeThread.queuedInputs
+          }
+        : { ...normalizedThread, turns: incomingTurns }
       const goalSnapshots = new Map(state.goalSnapshots)
-      if (thread.goal === null) {
-        goalSnapshots.delete(thread.id)
-      } else if (thread.goal) {
-        goalSnapshots.set(thread.id, thread.goal)
+      if (activeThread.goal === null) {
+        goalSnapshots.delete(activeThread.id)
+      } else if (activeThread.goal) {
+        goalSnapshots.set(activeThread.id, activeThread.goal)
       }
-      return { activeThread: thread, goalSnapshots }
+      return { activeThread, goalSnapshots }
     })
   },
 

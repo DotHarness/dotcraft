@@ -27,6 +27,25 @@ function makeThread(id: string, overrides: Partial<Thread> = {}): Thread {
   }
 }
 
+function makeWorktreeThread(id: string, overrides: Partial<Thread> = {}): Thread {
+  return makeThread(id, {
+    workspacePath: '/test/workspace',
+    effectiveWorkspacePath: '/test/workspace/.craft/worktrees/dotcraft-handoff',
+    worktree: {
+      id: 'worktree-1',
+      sourceThreadId: id,
+      workspacePath: '/test/workspace',
+      sourceWorkspacePath: '/test/workspace',
+      path: '/test/workspace/.craft/worktrees/dotcraft-handoff',
+      branchName: 'dotcraft/handoff',
+      baseRef: 'main',
+      head: 'abc123',
+      createdAt: '2026-01-01T00:00:00Z'
+    },
+    ...overrides
+  })
+}
+
 function makeGoal(threadId: string, overrides: Partial<ThreadGoal> = {}): ThreadGoal {
   return {
     threadId,
@@ -250,6 +269,20 @@ describe('threadStore.upsertThreads', () => {
     expect(useThreadStore.getState().threadList.map((thread) => thread.id)).toEqual(['visible'])
     expect(useThreadStore.getState().threadList[0].displayName).toBe('New')
   })
+
+  it('clears stale worktree metadata when a local snapshot omits worktree', () => {
+    const worktreeThread = makeWorktreeThread('t1')
+    const localThread = makeThreadSummary('t1', {
+      workspacePath: '/test/workspace',
+      effectiveWorkspacePath: '/test/workspace'
+    })
+
+    useThreadStore.getState().setThreadList([worktreeThread])
+    useThreadStore.getState().upsertThreads([localThread])
+
+    expect(useThreadStore.getState().threadList[0].worktree).toBeNull()
+    expect(useThreadStore.getState().threadList[0].effectiveWorkspacePath).toBe('/test/workspace')
+  })
 })
 
 describe('threadStore.updateThreadStatus', () => {
@@ -464,6 +497,24 @@ describe('threadStore.setActiveThread', () => {
     useThreadStore.getState().setActiveThread(threadB)
     expect(useThreadStore.getState().activeThreadId).toBe('A')
     expect(useThreadStore.getState().activeThread?.id).toBe('B')
+  })
+
+  it('preserves turns while clearing stale worktree metadata from local snapshots', () => {
+    const worktreeThread = makeWorktreeThread('t1', {
+      turns: [{ id: 'turn-1', status: 'completed', createdAt: '2026-01-01T00:00:00Z' }]
+    })
+    const localThread = makeThread('t1', {
+      workspacePath: '/test/workspace',
+      effectiveWorkspacePath: '/test/workspace',
+      turns: []
+    })
+
+    useThreadStore.getState().setActiveThread(worktreeThread)
+    useThreadStore.getState().setActiveThread(localThread)
+
+    expect(useThreadStore.getState().activeThread?.worktree).toBeNull()
+    expect(useThreadStore.getState().activeThread?.effectiveWorkspacePath).toBe('/test/workspace')
+    expect(useThreadStore.getState().activeThread?.turns).toHaveLength(1)
   })
 })
 

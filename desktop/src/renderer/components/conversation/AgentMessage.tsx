@@ -1,16 +1,24 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
+import { GitBranch } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
+import { useConnectionStore } from '../../stores/connectionStore'
 import { addToast } from '../../stores/toastStore'
 import { useTypewriterReveal } from '../../hooks/useTypewriterReveal'
 import { ContextMenu, type ContextMenuItem, type ContextMenuPosition } from '../ui/ContextMenu'
 import { MarkdownRenderer } from './MarkdownRenderer'
 import { MessageCopyButton } from './MessageCopyButton'
+import { ActionTooltip } from '../ui/ActionTooltip'
+import { canForkThread, runThreadFork } from '../../utils/threadFork'
 
 interface AgentMessageProps {
   text: string
+  threadId?: string
+  turnId?: string
+  itemId?: string
   streaming?: boolean
   createdAt?: string
   showFooter?: boolean
+  afterContent?: ReactNode
 }
 
 /**
@@ -19,16 +27,25 @@ interface AgentMessageProps {
  */
 export function AgentMessage({
   text,
+  threadId,
+  turnId,
+  itemId,
   streaming = false,
   createdAt,
-  showFooter = true
+  showFooter = true,
+  afterContent
 }: AgentMessageProps): JSX.Element {
   const t = useT()
+  const capabilities = useConnectionStore((s) => s.capabilities)
   const [hovered, setHovered] = useState(false)
   const [focusedWithin, setFocusedWithin] = useState(false)
+  const [forkButtonHovered, setForkButtonHovered] = useState(false)
+  const [forkButtonFocused, setForkButtonFocused] = useState(false)
   const [contextMenuPosition, setContextMenuPosition] = useState<ContextMenuPosition | null>(null)
   const [selectionText, setSelectionText] = useState('')
   const actionsVisible = hovered || focusedWithin
+  const forkButtonChromeVisible = forkButtonHovered || forkButtonFocused
+  const forkAvailable = canForkThread(capabilities) && Boolean(threadId && turnId)
   const sentTime = formatMessageTime(createdAt)
   // Steady-cadence typewriter reveal while streaming; full text once finalized.
   const displayText = useTypewriterReveal(text, streaming)
@@ -48,6 +65,20 @@ export function AgentMessage({
     const selected = window.getSelection()?.toString() ?? ''
     setSelectionText(selected)
     setContextMenuPosition({ x: event.clientX, y: event.clientY })
+  }
+
+  function forkMessage(): void {
+    if (!threadId || !turnId) return
+    void runThreadFork({
+      threadId,
+      mode: 'local',
+      forkPoint: {
+        turnId,
+        ...(itemId ? { itemId } : {}),
+        position: 'after'
+      },
+      t
+    })
   }
 
   const contextItems = useMemo<ContextMenuItem[]>(() => {
@@ -83,12 +114,13 @@ export function AgentMessage({
       onContextMenu={handleContextMenu}
     >
       <MarkdownRenderer content={displayText} />
+      {afterContent}
       {showFooter && (
         <div
           data-testid="agent-message-footer"
           style={{
             minHeight: '24px',
-            marginTop: '2px',
+            marginTop: '8px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'flex-start',
@@ -111,6 +143,47 @@ export function AgentMessage({
               transition: 'opacity 120ms ease'
             }}
           />
+          {forkAvailable && !streaming && (
+            <ActionTooltip
+              label={t('conversation.forkMessage')}
+              placement="top"
+              wrapperStyle={{
+                position: 'static',
+                display: 'inline-flex',
+                opacity: actionsVisible ? 1 : 0,
+                pointerEvents: actionsVisible ? 'auto' : 'none',
+                transition: 'opacity 120ms ease'
+              }}
+            >
+              <button
+                type="button"
+                aria-label={t('conversation.forkMessage')}
+                onMouseEnter={() => setForkButtonHovered(true)}
+                onMouseLeave={() => setForkButtonHovered(false)}
+                onFocus={() => setForkButtonFocused(true)}
+                onBlur={() => setForkButtonFocused(false)}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  forkMessage()
+                }}
+                style={{
+                  width: '24px',
+                  height: '24px',
+                  borderRadius: '6px',
+                  border: '1px solid transparent',
+                  background: forkButtonChromeVisible ? 'var(--bg-tertiary)' : 'transparent',
+                  color: forkButtonChromeVisible ? 'var(--text-primary)' : 'var(--text-secondary)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  transition: 'opacity 120ms ease, color 120ms ease, background 120ms ease, border-color 120ms ease'
+                }}
+              >
+                <GitBranch size={14} strokeWidth={2.1} aria-hidden />
+              </button>
+            </ActionTooltip>
+          )}
           {sentTime && (
             <span
               data-testid="agent-message-time"

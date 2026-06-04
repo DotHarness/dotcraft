@@ -826,6 +826,19 @@ const api = {
      */
     getBranch(workspacePath: string): Promise<string | null> {
       return ipcRenderer.invoke('git:branch', workspacePath)
+    },
+    listBranches(workspacePath: string): Promise<{
+      current: string | null
+      detachedHead: string | null
+      branches: Array<{ name: string; current: boolean }>
+    }> {
+      return ipcRenderer.invoke('git:listBranches', workspacePath)
+    },
+    checkoutBranch(workspacePath: string, branchName: string): Promise<void> {
+      return ipcRenderer.invoke('git:checkoutBranch', workspacePath, branchName)
+    },
+    createAndCheckoutBranch(workspacePath: string, branchName: string): Promise<void> {
+      return ipcRenderer.invoke('git:createAndCheckoutBranch', workspacePath, branchName)
     }
   },
 

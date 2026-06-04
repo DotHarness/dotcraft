@@ -79,10 +79,32 @@ export interface ThreadAppBindingSummaryWire {
   expiresAt?: string | null
 }
 
+export interface ThreadWorktreeInfoWire {
+  id: string
+  sourceThreadId: string
+  workspacePath: string
+  sourceWorkspacePath: string
+  path: string
+  branchName: string
+  baseRef: string
+  head: string
+  createdAt: string
+  dirtyHandoff?: {
+    requested: boolean
+    status: string
+    copiedFileCount: number
+    deletedFileCount: number
+  } | null
+}
+
 export interface ThreadSummary {
   id: string
   userId?: string | null
   workspacePath?: string
+  /** Workspace root used by file tools and Git for this thread. Worktree forks may differ from workspacePath. */
+  effectiveWorkspacePath?: string
+  forkedFromId?: string | null
+  worktree?: ThreadWorktreeInfoWire | null
   displayName: string | null
   status: ThreadStatus
   originChannel: string

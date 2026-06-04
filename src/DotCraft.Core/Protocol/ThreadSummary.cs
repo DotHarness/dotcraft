@@ -126,6 +126,13 @@ public sealed class ThreadSummary
 
     public ThreadSource Source { get; set; } = ThreadSource.User();
 
+    public string? ForkedFromId { get; set; }
+
+    public bool Ephemeral { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
+    public ThreadWorktreeInfo? Worktree { get; set; }
+
     public ThreadStatus Status { get; set; }
 
     public DateTimeOffset CreatedAt { get; set; }
@@ -173,6 +180,9 @@ public sealed class ThreadSummary
                 ?? (thread.Metadata.TryGetValue("channelContext", out var mc) ? mc : null),
             DisplayName = thread.DisplayName,
             Source = thread.Source,
+            ForkedFromId = thread.ForkedFromId,
+            Ephemeral = thread.Ephemeral,
+            Worktree = thread.Worktree,
             Status = thread.Status,
             CreatedAt = thread.CreatedAt,
             LastActiveAt = thread.LastActiveAt,

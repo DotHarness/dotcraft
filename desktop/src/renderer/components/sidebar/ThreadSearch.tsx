@@ -5,7 +5,6 @@ import { useT } from '../../contexts/LocaleContext'
 import { useThreadStore } from '../../stores/threadStore'
 import { useUIStore } from '../../stores/uiStore'
 import type { ThreadSummary } from '../../types/thread'
-import { ActionTooltip } from '../ui/ActionTooltip'
 import { ShortcutBadge } from '../ui/ShortcutBadge'
 import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
 import {
@@ -26,6 +25,7 @@ interface ThreadSearchProps {
 export function ThreadSearch({ workspaceName }: ThreadSearchProps): JSX.Element {
   const t = useT()
   const [open, setOpen] = useState(false)
+  const [active, setActive] = useState(false)
 
   useEffect(() => {
     const openSearch = (): void => setOpen(true)
@@ -38,38 +38,34 @@ export function ThreadSearch({ workspaceName }: ThreadSearchProps): JSX.Element 
   return (
     <>
       <div style={{ padding: '0 0 4px', flexShrink: 0 }}>
-        <ActionTooltip
-          label={t('threadSearch.open')}
-          shortcut={ACTION_SHORTCUTS.search}
-          wrapperStyle={{ display: 'block', width: '100%' }}
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          aria-label={t('threadSearch.open')}
+          onFocus={() => setActive(true)}
+          onBlur={() => setActive(false)}
+          onMouseEnter={() => setActive(true)}
+          onMouseLeave={() => setActive(false)}
+          style={{
+            ...SIDEBAR_NAV_ROW_OUTER,
+            ...SIDEBAR_NAV_BORDER_INACTIVE,
+            cursor: 'pointer',
+            color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
+            backgroundColor: active ? 'var(--sidebar-control-hover)' : 'transparent',
+            justifyContent: 'space-between',
+            transition: 'background-color 120ms ease, color 120ms ease'
+          }}
         >
-          <button
-            type="button"
-            onClick={() => setOpen(true)}
-            aria-label={t('threadSearch.open')}
-            style={{
-              ...SIDEBAR_NAV_ROW_OUTER,
-              ...SIDEBAR_NAV_BORDER_INACTIVE,
-              cursor: 'pointer',
-              color: 'var(--text-secondary)',
-              background: 'transparent',
-              transition: 'background-color 120ms ease, color 120ms ease'
-            }}
-            onMouseEnter={(e) => {
-              ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--sidebar-control-hover)'
-              ;(e.currentTarget as HTMLButtonElement).style.color = 'var(--text-primary)'
-            }}
-            onMouseLeave={(e) => {
-              ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent'
-              ;(e.currentTarget as HTMLButtonElement).style.color = 'var(--text-secondary)'
-            }}
-          >
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
             <span style={SIDEBAR_NAV_ICON_SLOT}>
               <Search size={16} strokeWidth={2} aria-hidden style={{ display: 'block' }} />
             </span>
-            <span style={SIDEBAR_NAV_LABEL}>{t('threadSearch.open')}</span>
-          </button>
-        </ActionTooltip>
+            <span style={{ ...SIDEBAR_NAV_LABEL, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {t('threadSearch.open')}
+            </span>
+          </span>
+          {active && <ShortcutBadge shortcut={ACTION_SHORTCUTS.search} />}
+        </button>
       </div>
 
       {open && (

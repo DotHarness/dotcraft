@@ -1,5 +1,5 @@
 /* DotCraft Design Tokens */
-/* Based on specs/clients/desktop-visual-design.md */
+/* Based on specs/clients/DESIGN.md */
 
 @import "tailwindcss";
 
@@ -175,12 +175,11 @@
       color-mix(in srgb, var(--bg-secondary) 74%, transparent),
       color-mix(in srgb, var(--bg-primary) 64%, transparent)
     );
-  --glass-surface-strong:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--bg-secondary) 88%, transparent),
-      color-mix(in srgb, var(--bg-primary) 78%, transparent)
-    );
+  /* Floating overlay surface: solid + opaque so menus, popovers, pickers, toasts,
+     and the workspace switcher render identically over any backdrop. A translucent
+     surface tints with whatever sits behind it, which made submenus and the
+     channels menu look inconsistent. See specs/clients/DESIGN.md. */
+  --glass-surface-strong: var(--bg-elevated);
   --glass-surface-soft: color-mix(in srgb, var(--bg-secondary) 58%, transparent);
   --glass-border: color-mix(in srgb, var(--text-primary) 10%, transparent);
   --glass-border-strong: color-mix(in srgb, var(--text-primary) 16%, transparent);
@@ -207,6 +206,12 @@
   --composer-input-border: color-mix(in srgb, var(--text-primary) 10%, transparent);
   --composer-input-border-focus: color-mix(in srgb, var(--text-primary) 16%, transparent);
   --composer-input-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+  /* Brand gradient (docs/public/dotcraft-logo.svg) — drives the composer focus glow. */
+  --brand-blue-1: #2458f7;
+  --brand-blue-2: #5f82f7;
+  --brand-blue-3: #8fa5ff;
+  --composer-focus-glow: linear-gradient(48deg, var(--brand-blue-1), var(--brand-blue-2) 46%, var(--brand-blue-3));
+  --composer-focus-border: color-mix(in srgb, var(--brand-blue-2) 34%, transparent);
   --composer-action-shadow: 0 4px 10px rgba(0, 0, 0, 0.16);
   --corner-radius-scale: 1;
   --control-radius-md-base: 0.5rem;
@@ -414,7 +419,7 @@ html[data-theme="light"] {
   --main-surface: #ffffff;
   --main-surface-muted: #ffffff;
   --glass-surface: color-mix(in srgb, #ffffff 82%, transparent);
-  --glass-surface-strong: color-mix(in srgb, #ffffff 92%, transparent);
+  --glass-surface-strong: var(--bg-elevated);
   --glass-surface-soft: color-mix(in srgb, var(--text-primary) 5%, transparent);
   --glass-border: color-mix(in srgb, var(--text-primary) 8%, transparent);
   --glass-border-strong: color-mix(in srgb, var(--text-primary) 12%, transparent);
@@ -610,6 +615,24 @@ kbd {
   animation: composer-mascot-breathe 4s ease-in-out infinite;
   transform-origin: bottom center;
   will-change: transform;
+}
+
+/* ─── Composer focus: brand-gradient glow that gently breathes ─── */
+@keyframes composer-focus-breathe {
+  0%,
+  100% {
+    opacity: 0.18;
+    filter: blur(7px);
+  }
+  50% {
+    opacity: 0.28;
+    filter: blur(9px);
+  }
+}
+
+.composer-focus-glow {
+  animation: composer-focus-breathe 3.4s ease-in-out infinite;
+  will-change: opacity, filter;
 }
 
 @keyframes composer-mascot-bounce {
@@ -1324,7 +1347,8 @@ kbd {
   .composer-mascot-breathe,
   .composer-mascot-bounce,
   .composer-mascot-bubble,
-  .composer-mascot-jelly:hover {
+  .composer-mascot-jelly:hover,
+  .composer-focus-glow {
     animation: none !important;
   }
 
@@ -1541,12 +1565,7 @@ kbd {
   padding: 7px 9px 7px 11px;
   border: 1px solid var(--border-default);
   border-radius: 8px;
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--bg-tertiary) 70%, transparent),
-      var(--bg-tertiary)
-    );
+  background: var(--bg-secondary);
   color: var(--text-primary);
   font-size: 13px;
   font-weight: 500;
@@ -1561,18 +1580,18 @@ kbd {
 }
 
 .dc-settings-select:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--border-active) 72%, var(--border-default));
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--bg-active) 72%, transparent),
-      var(--bg-active)
-    );
+  border-color: var(--border-active);
+  background: var(--bg-tertiary);
 }
 
 .dc-settings-select[data-open="true"] {
-  border-color: color-mix(in srgb, var(--border-active) 78%, var(--accent));
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent);
+  border-color: var(--border-active);
+  background: var(--bg-tertiary);
+}
+
+.dc-settings-select:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 72%, transparent);
+  outline-offset: 2px;
 }
 
 .dc-settings-select:disabled,
@@ -1604,15 +1623,12 @@ kbd {
   position: fixed;
   z-index: 10000;
   padding: 5px;
-  border: 1px solid color-mix(in srgb, var(--border-active) 58%, transparent);
+  border: none;
   border-radius: 10px;
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--bg-secondary) 96%, #ffffff 4%),
-      var(--bg-secondary)
-    );
-  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.45), 0 1px 0 rgba(255, 255, 255, 0.04) inset;
+  background: var(--glass-surface-strong);
+  box-shadow: var(--glass-shadow-soft);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   overflow-y: auto;
   overscroll-behavior: contain;
 }
@@ -1630,7 +1646,7 @@ kbd {
 }
 
 .dc-settings-select-option[data-active="true"] {
-  background: color-mix(in srgb, var(--bg-active) 76%, transparent);
+  background: var(--bg-tertiary);
 }
 
 .dc-settings-select-option[data-disabled="true"] {

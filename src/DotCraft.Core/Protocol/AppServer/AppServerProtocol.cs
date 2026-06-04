@@ -543,6 +543,18 @@ public sealed class AppServerServerCapabilities
     public bool ThreadGoals { get; set; }
 
     /// <summary>
+    /// Server supports creating a sibling thread from an existing thread via <c>thread/fork</c>.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool ThreadFork { get; set; }
+
+    /// <summary>
+    /// Server supports DotCraft-managed Git worktree handoff methods (<c>worktree/*</c>).
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool GitWorktrees { get; set; }
+
+    /// <summary>
     /// Server supports manual thread context compaction via <c>thread/compact/start</c>.
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -771,6 +783,173 @@ public sealed class ThreadStartParams
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? DisplayName { get; set; }
+}
+
+// ───── thread/fork ─────
+
+public sealed class ThreadForkParams
+{
+    public string ThreadId { get; set; } = string.Empty;
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Path { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ThreadForkPoint? ForkPoint { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public SessionIdentity? Identity { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ThreadConfiguration? Config { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<DynamicToolSpec>? DynamicTools { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Dictionary<string, RuntimeAdditionalContextEntry>? AdditionalContext { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? DisplayName { get; set; }
+
+    public bool? Ephemeral { get; set; }
+
+    public bool? ExcludeTurns { get; set; }
+}
+
+// ───── worktree/createAndFork ─────
+
+public sealed class WorktreeCreateAndForkParams
+{
+    public string SourceThreadId { get; set; } = string.Empty;
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ThreadForkPoint? ForkPoint { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public SessionIdentity? Identity { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ThreadConfiguration? Config { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<DynamicToolSpec>? DynamicTools { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Dictionary<string, RuntimeAdditionalContextEntry>? AdditionalContext { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? DisplayName { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? BranchName { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? BaseRef { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Path { get; set; }
+
+    public bool? CopyDirtyChanges { get; set; }
+
+    public bool? ExcludeTurns { get; set; }
+}
+
+public sealed class WorktreeCreateAndForkResponse
+{
+    public SessionWireThread Thread { get; set; } = new();
+
+    public ThreadWorktreeInfo Worktree { get; set; } = new();
+}
+
+public sealed class WorktreeCreateAndStartParams
+{
+    public SessionIdentity Identity { get; set; } = new();
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ThreadConfiguration? Config { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<DynamicToolSpec>? DynamicTools { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Dictionary<string, RuntimeAdditionalContextEntry>? AdditionalContext { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? HistoryMode { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? DisplayName { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? BranchName { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? BaseRef { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Path { get; set; }
+
+    public bool? CopyDirtyChanges { get; set; }
+}
+
+public sealed class WorktreeCreateAndStartResponse
+{
+    public SessionWireThread Thread { get; set; } = new();
+
+    public ThreadWorktreeInfo Worktree { get; set; } = new();
+}
+
+public sealed class ThreadWorktreeHandoffParams
+{
+    public string ThreadId { get; set; } = string.Empty;
+
+    public string Mode { get; set; } = WorktreeHandoffModes.Worktree;
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? BranchName { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? BaseRef { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Path { get; set; }
+
+    public bool? CopyDirtyChanges { get; set; }
+}
+
+public sealed class ThreadWorktreeHandoffResponse
+{
+    public SessionWireThread Thread { get; set; } = new();
+
+    public string Mode { get; set; } = WorktreeHandoffModes.Local;
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
+    public ThreadWorktreeInfo? Worktree { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ThreadWorktreeDirtyHandoffInfo? DirtyHandoff { get; set; }
+}
+
+public sealed class WorktreeListParams
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public SessionIdentity? Identity { get; set; }
+}
+
+public sealed class WorktreeListResult
+{
+    public List<ThreadWorktreeStatus> Data { get; set; } = [];
+}
+
+public sealed class WorktreeStatusParams
+{
+    public string ThreadId { get; set; } = string.Empty;
+}
+
+public sealed class WorktreeStatusResult
+{
+    public ThreadWorktreeStatus Status { get; set; } = new();
 }
 
 // ───── thread/resume ─────
@@ -3694,6 +3873,12 @@ public static class AppServerMethods
     public const string AuthOpenAiLogout = "auth/openai/logout";
     public const string AuthOpenAiUsage = "auth/openai/usage";
     public const string ThreadStart = "thread/start";
+    public const string ThreadFork = "thread/fork";
+    public const string WorktreeCreateAndFork = "worktree/createAndFork";
+    public const string WorktreeCreateAndStart = "worktree/createAndStart";
+    public const string ThreadWorktreeHandoff = "thread/worktree/handoff";
+    public const string WorktreeList = "worktree/list";
+    public const string WorktreeStatus = "worktree/status";
     public const string ThreadResume = "thread/resume";
     public const string ThreadList = "thread/list";
     public const string ThreadRead = "thread/read";
@@ -3773,6 +3958,7 @@ public static class AppServerMethods
 
     // Server → Client notifications
     public const string ThreadStarted = "thread/started";
+    public const string ThreadUpdated = "thread/updated";
     public const string ThreadDeleted = "thread/deleted";
     public const string ThreadResumed = "thread/resumed";
     public const string ThreadStatusChanged = "thread/statusChanged";

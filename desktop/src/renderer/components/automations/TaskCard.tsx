@@ -154,7 +154,7 @@ export function TaskCard({ task }: { task: AutomationTask }): JSX.Element {
         gap: '12px',
         padding: '10px 14px',
         borderRadius: '8px',
-        backgroundColor: hovered ? 'var(--bg-secondary)' : 'transparent',
+        backgroundColor: hovered ? 'var(--bg-tertiary)' : 'transparent',
         cursor: draggable ? (isDragging ? 'grabbing' : 'grab') : 'pointer',
         opacity: isDragging ? 0.55 : 1,
         transform: isDragging ? 'scale(0.98) rotate(-0.8deg)' : 'none',

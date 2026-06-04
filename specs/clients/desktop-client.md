@@ -6,7 +6,7 @@
 | **Status** | Living |
 | **Date** | 2026-06-01 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
-| **Related Specs** | [Plugin Architecture](../extensions/plugin-architecture.md), [Tool Result Presentation](../protocols/tool-result-presentation.md), [Goal Design](../core/goal-design.md), [Desktop Visual Design](desktop-visual-design.md) |
+| **Related Specs** | [Plugin Architecture](../extensions/plugin-architecture.md), [Tool Result Presentation](../protocols/tool-result-presentation.md), [Goal Design](../core/goal-design.md), [Desktop DESIGN.md](DESIGN.md) |
 
 Purpose: Define the stable user-experience behavior of **DotCraft Desktop** as a protocol client for DotCraft AppServer. This document specifies user-visible flows, interaction rules, state transitions, and recovery behavior. It does not define frontend implementation details, visual design, or framework choices.
 
@@ -51,7 +51,7 @@ Purpose: Define the stable user-experience behavior of **DotCraft Desktop** as a
 - Wire protocol payloads, transport rules, or server semantics already defined in [appserver-protocol.md](../protocols/appserver-protocol.md).
 - TypeScript module contract details (manifest schema, package exports, launcher contract, and conformance rules) defined in [plugin-architecture.md](../extensions/plugin-architecture.md).
 - Frontend frameworks, component trees, IPC method signatures, process architecture, or state-store structure.
-- Layout geometry, colors, typography, icons, spacing, animation, or other visual design details. Stable Desktop visual decision rules are defined separately in [Desktop Visual Design](desktop-visual-design.md).
+- Layout geometry, colors, typography, icons, spacing, animation, or other visual design details. Stable Desktop visual decision rules are defined separately in [Desktop DESIGN.md](DESIGN.md).
 - Platform-specific implementation APIs for notifications, menus, file search, or file persistence.
 - Arbitrary third-party UI code execution for tool results.
 
@@ -347,6 +347,46 @@ Desktop must also tolerate the request being replayed by AppServer when the user
   - unsupported actions must be disabled rather than failing unexpectedly
   - read and resume behavior must follow server capabilities and thread status
 
+### 5.10.1 Thread Fork And Worktree Handoff
+
+Desktop exposes conversation branching as a normal thread action.
+
+Entry points:
+
+- The active thread header overflow menu exposes a `Fork` submenu.
+- The thread list context menu exposes direct fork actions for the selected row.
+- Assistant response footer actions expose a compact fork button for message-level branching.
+
+Behavior:
+
+- Local fork calls `thread/fork` and selects the returned thread after success.
+- New-worktree fork calls `worktree/createAndFork` and selects the returned thread after success.
+- Assistant response fork sends a `forkPoint` for the clicked turn or item and creates a local fork.
+- Failures show recoverable feedback and must not switch the active thread.
+- Capability absence disables unavailable modes instead of showing actions that fail immediately.
+
+Forked timeline:
+
+- When history includes `systemNotice.kind = "forked"`, Desktop renders a compact localized divider at that item position.
+- The divider marks where inherited source history ends and fork-specific work begins.
+- The marker is informational and must not become the primary way to navigate source history.
+
+Worktree execution:
+
+- Desktop treats `thread.effectiveWorkspacePath` as the active file, shell, editor, and Git root for the selected thread.
+- Thread list, provider settings, skill/plugin management, app bindings, memory, and workspace configuration remain scoped to the main workspace.
+- Main-workspace file and Git surfaces hide `.craft/worktrees/**`; worktree-bound surfaces operate inside the selected worktree.
+- Git status and branch detection for worktree threads must use Git commands scoped to `effectiveWorkspacePath`; clients must not parse `.git/HEAD` directly because linked worktrees may use `.git` files.
+- Worktree indicators are compact status affordances. They should reveal branch/path details when useful without visually dominating the conversation.
+- The composer may expose worktree and branch controls in a compact footer below the input chrome. These controls are outside the editable composer body.
+- On the welcome screen, `Work locally` starts a normal local thread. `New worktree` calls `worktree/createAndStart`; its branch selector chooses the worktree `baseRef` and must not switch the local checkout.
+- On an existing local thread, the footer opens a confirmation dialog before calling `thread/worktree/handoff` with `mode = "worktree"`. The branch field defaults to `dotcraft/<workspace-folder-slug>`, and the current branch is sent as `baseRef`.
+- On an existing worktree thread, the footer opens a confirmation dialog before calling `thread/worktree/handoff` with `mode = "local"`. The dialog presents the worktree branch and local workspace target.
+- Desktop may show a local progress checklist while a handoff request is pending. These checklist rows are presentation hints and are not protocol progress notifications.
+- Worktree -> local handoff checks out the worktree branch locally, applies the worktree's uncommitted changes back to the local workspace, and removes the managed worktree. If local dirty changes conflict, Desktop shows the server error and does not switch UI state.
+- Branch checkout and create-and-checkout controls operate on the current effective Git directory. Local mode operates on the main workspace; worktree mode operates on the selected thread's worktree path.
+- Desktop hides or disables worktree and branch controls for remote workspaces, missing capabilities, non-Git directories, and threads that are running, waiting for approval/input, or in blocking maintenance.
+
 ### 5.11 Manage Thread Goal
 
 Desktop goal behavior is defined by [Goal Design §11.7](../core/goal-design.md#117-desktop-ux-contract).
@@ -598,7 +638,7 @@ Desktop owns a **Servers** surface for managing remote DotCraft Docker stacks ov
 - Adding or editing a server uses a second-level Settings page, not a nested modal. The page collects name, SSH target, and an optional identity file override (key/agent only; no password entry or key storage), surfaces local SSH aliases/keys when available, and may offer one-click import of discovered stacks. Stack records never accept the AppServer token; token presence is shown as present/missing only.
 - "Open in Desktop" reads the remote `workspace/.craft/appserver.token`, opens a local SSH tunnel, and connects through the existing remote-mode test-and-connect path (§3.1.1) using a `ws://127.0.0.1:<port>/ws` URL. Desktop must not expose remote AppServer restart; stack lifecycle (start/stop/restart) is a deployment action distinct from AppServer process restart.
 - There is one source of truth for the active connection. While a Servers stack is the active session, the Connections group shows a read-only "Connected via Servers ▸ &lt;host&gt; / &lt;stack&gt;" banner linking back to Servers instead of an editable raw URL; the raw URL/token form remains for the manual/advanced case.
-- The visual treatment follows [Desktop Visual Design](desktop-visual-design.md): neutral-first surfaces, semantic color only for state and risk, and the neutral inverted primary for Open in Desktop.
+- The visual treatment follows [Desktop DESIGN.md](DESIGN.md): neutral-first surfaces, semantic color only for state and risk, and the neutral inverted primary for Open in Desktop.
 
 ---
 

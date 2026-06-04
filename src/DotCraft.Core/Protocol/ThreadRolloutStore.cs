@@ -45,7 +45,11 @@ internal sealed class ThreadRolloutStore
     public async Task<SessionThread?> LoadThreadFromPathAsync(string path, CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
-        return await ReplayAsync(File.ReadLinesAsync(path, ct), ct);
+        if (!TryNormalizeAllowedPath(path, out var normalizedPath))
+            throw new ArgumentException("Thread path must resolve directly under .craft/threads/active or .craft/threads/archived.", nameof(path));
+        if (!File.Exists(normalizedPath))
+            return null;
+        return await ReplayAsync(File.ReadLinesAsync(normalizedPath, ct), ct);
     }
 
     public IEnumerable<SessionThread> LoadAllThreads()
@@ -242,7 +246,43 @@ internal sealed class ThreadRolloutStore
     }
 
     public bool IsArchivedPath(string path)
-        => path.StartsWith(_archivedDir, StringComparison.OrdinalIgnoreCase);
+        => TryNormalizeAllowedPath(path, out var normalizedPath)
+        && string.Equals(Path.GetDirectoryName(normalizedPath), Path.GetFullPath(_archivedDir), StringComparison.OrdinalIgnoreCase);
+
+    public bool TryNormalizeAllowedPath(string path, out string normalizedPath)
+    {
+        normalizedPath = string.Empty;
+        if (string.IsNullOrWhiteSpace(path))
+            return false;
+
+        string fullPath;
+        try
+        {
+            fullPath = Path.GetFullPath(path);
+        }
+        catch
+        {
+            return false;
+        }
+
+        if (!string.Equals(Path.GetExtension(fullPath), ".jsonl", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        var parent = Path.GetDirectoryName(fullPath);
+        if (parent == null)
+            return false;
+
+        var active = Path.GetFullPath(_activeDir);
+        var archived = Path.GetFullPath(_archivedDir);
+        if (!string.Equals(parent, active, StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(parent, archived, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        normalizedPath = fullPath;
+        return true;
+    }
 
     private IEnumerable<string> EnumerateCandidatePaths(string threadId)
     {
@@ -386,6 +426,12 @@ internal sealed class ThreadRolloutStore
             return true;
         if (previous.HistoryMode != current.HistoryMode)
             return true;
+        if (!string.Equals(previous.ForkedFromId, current.ForkedFromId, StringComparison.Ordinal))
+            return true;
+        if (previous.Ephemeral != current.Ephemeral)
+            return true;
+        if (!JsonEquals(previous.Worktree, current.Worktree))
+            return true;
         if (!JsonEquals(previous.Configuration, current.Configuration))
             return true;
         return !JsonEquals(previous.Metadata, current.Metadata);
@@ -414,6 +460,9 @@ internal sealed class ThreadRolloutStore
                 UserId = thread.UserId,
                 OriginChannel = thread.OriginChannel,
                 ChannelContext = thread.ChannelContext,
+                ForkedFromId = thread.ForkedFromId,
+                Ephemeral = thread.Ephemeral,
+                Worktree = thread.Worktree,
                 CreatedAt = thread.CreatedAt,
                 LastActiveAt = thread.LastActiveAt,
                 Metadata = new Dictionary<string, string>(thread.Metadata),
@@ -534,6 +583,9 @@ internal sealed class ThreadRolloutStore
                     _thread.UserId = record.ThreadOpened.UserId;
                     _thread.OriginChannel = record.ThreadOpened.OriginChannel;
                     _thread.ChannelContext = record.ThreadOpened.ChannelContext;
+                    _thread.ForkedFromId = record.ThreadOpened.ForkedFromId;
+                    _thread.Ephemeral = record.ThreadOpened.Ephemeral;
+                    _thread.Worktree = record.ThreadOpened.Worktree;
                     _thread.CreatedAt = record.ThreadOpened.CreatedAt;
                     _thread.LastActiveAt = record.ThreadOpened.LastActiveAt;
                     _thread.Metadata = new Dictionary<string, string>(record.ThreadOpened.Metadata);
@@ -699,6 +751,12 @@ internal sealed class ThreadOpenedPayload
     public string OriginChannel { get; init; } = string.Empty;
 
     public string? ChannelContext { get; init; }
+
+    public string? ForkedFromId { get; init; }
+
+    public bool Ephemeral { get; init; }
+
+    public ThreadWorktreeInfo? Worktree { get; init; }
 
     public DateTimeOffset CreatedAt { get; init; }
 

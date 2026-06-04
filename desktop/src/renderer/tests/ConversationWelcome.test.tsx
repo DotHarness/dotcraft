@@ -24,6 +24,9 @@ const getPathForFile = vi.fn((file: File) => file.name === 'notes.txt' ? 'C:\\te
 const settingsGet = vi.fn()
 const shellOpenExternal = vi.fn()
 const shellGetProtocolHandlerName = vi.fn()
+const gitListBranches = vi.fn()
+const gitCheckoutBranch = vi.fn()
+const gitCreateAndCheckoutBranch = vi.fn()
 
 function createDeferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void
@@ -232,6 +235,13 @@ describe('ConversationWelcome composer', () => {
     settingsGet.mockResolvedValue({ locale: 'en' })
     shellOpenExternal.mockResolvedValue(undefined)
     shellGetProtocolHandlerName.mockResolvedValue('Oratorio')
+    gitListBranches.mockResolvedValue({
+      current: 'main',
+      detachedHead: null,
+      branches: [{ name: 'main', current: true }]
+    })
+    gitCheckoutBranch.mockResolvedValue(undefined)
+    gitCreateAndCheckoutBranch.mockResolvedValue(undefined)
     getPathForFile.mockImplementation((file: File) => file.name === 'notes.txt' ? 'C:\\temp\\notes.txt' : '')
     appServerSendRequest.mockImplementation(async (method: string) => {
       if (method === 'command/list') {
@@ -297,6 +307,11 @@ describe('ConversationWelcome composer', () => {
         },
         file: {
           readFile: fileReadFile
+        },
+        git: {
+          listBranches: gitListBranches,
+          checkoutBranch: gitCheckoutBranch,
+          createAndCheckoutBranch: gitCreateAndCheckoutBranch
         },
         workspace: {
           saveImageToTemp,
@@ -793,6 +808,103 @@ describe('ConversationWelcome composer', () => {
       expect(useThreadStore.getState().activeThreadId).toBe('thread-welcome')
       expect(useUIStore.getState().welcomeDraft).toBeNull()
     })
+  })
+
+  it('creates the first welcome thread in a new worktree when selected from the footer', async () => {
+    useConnectionStore.setState({
+      capabilities: {
+        commandManagement: true,
+        skillsManagement: true,
+        modelCatalogManagement: true,
+        workspaceConfigManagement: true,
+        gitWorktrees: true,
+        extensions: {
+          welcomeSuggestions: true
+        }
+      }
+    })
+    appServerSendRequest.mockImplementation(async (method: string) => {
+      if (method === 'command/list') return { commands: [] }
+      if (method === 'skills/list') return { skills: [] }
+      if (method === 'welcome/suggestions') return { source: 'none', items: [], fingerprint: 'none' }
+      if (method === 'worktree/createAndStart') {
+        return {
+          thread: {
+            id: 'thread-worktree-start',
+            displayName: 'Worktree thread',
+            status: 'active',
+            originChannel: 'dotcraft-desktop',
+            workspacePath: 'F:\\dotcraft',
+            effectiveWorkspacePath: 'F:\\dotcraft\\.craft\\worktrees\\dotcraft-worktree-start',
+            worktree: {
+              id: 'worktree-1',
+              sourceThreadId: 'thread-worktree-start',
+              workspacePath: 'F:\\dotcraft',
+              sourceWorkspacePath: 'F:\\dotcraft',
+              path: 'F:\\dotcraft\\.craft\\worktrees\\dotcraft-worktree-start',
+              branchName: 'dotcraft/worktree-start',
+              baseRef: 'main',
+              head: 'abc123',
+              createdAt: '2026-04-16T08:00:00.000Z'
+            },
+            createdAt: '2026-04-16T08:00:00.000Z',
+            lastActiveAt: '2026-04-16T08:00:00.000Z'
+          }
+        }
+      }
+      return {}
+    })
+
+    renderWelcome()
+
+    fireEvent.click(await screen.findByRole('button', { name: /Work locally/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'New worktree' }))
+    const textbox = await screen.findByRole('textbox')
+    textbox.textContent = 'Build this in isolation'
+    fireEvent.input(textbox)
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+
+    await waitFor(() => {
+      const call = appServerSendRequest.mock.calls.find((entry) => entry[0] === 'worktree/createAndStart')
+      expect(call?.[0]).toBe('worktree/createAndStart')
+      expect((call?.[1] as { baseRef?: string }).baseRef).toBe('main')
+      expect(appServerSendRequest.mock.calls.some((entry) => entry[0] === 'thread/start')).toBe(false)
+    })
+    expect(useUIStore.getState().pendingWelcomeTurn?.threadId).toBe('thread-worktree-start')
+  })
+
+  it('hides the workspace footer for non-git workspaces and starts locally', async () => {
+    useConnectionStore.setState({
+      capabilities: {
+        commandManagement: true,
+        skillsManagement: true,
+        modelCatalogManagement: true,
+        workspaceConfigManagement: true,
+        gitWorktrees: true,
+        extensions: {
+          welcomeSuggestions: true
+        }
+      }
+    })
+    gitListBranches.mockRejectedValue(new Error('not a git repository'))
+
+    renderWelcome()
+
+    await waitFor(() => {
+      expect(gitListBranches).toHaveBeenCalled()
+    })
+    expect(screen.queryByRole('button', { name: /Work locally/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: /main/ })).toBeNull()
+
+    const textbox = await screen.findByRole('textbox')
+    textbox.textContent = 'Start from a plain folder'
+    fireEvent.input(textbox)
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+
+    await waitFor(() => {
+      expect(appServerSendRequest.mock.calls.some((entry) => entry[0] === 'thread/start')).toBe(true)
+    })
+    expect(appServerSendRequest.mock.calls.some((entry) => entry[0] === 'worktree/createAndStart')).toBe(false)
   })
 
   it('waits for selected welcome app bindings before storing the first pending turn', async () => {

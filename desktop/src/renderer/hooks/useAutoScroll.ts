@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 const AT_BOTTOM_THRESHOLD = 20 // px from bottom to be considered "at bottom"
 
@@ -18,16 +18,27 @@ interface UseAutoScrollResult {
  */
 export function useAutoScroll(contentLength: number): UseAutoScrollResult {
   const scrollRef = useRef<HTMLDivElement | null>(null)
+  const isAtBottomRef = useRef(true)
   const [isAtBottom, setIsAtBottom] = useState(true)
+
+  const updateAtBottom = useCallback((next: boolean) => {
+    isAtBottomRef.current = next
+    setIsAtBottom((current) => current === next ? current : next)
+  }, [])
 
   const scrollToBottom = useCallback(() => {
     const el = scrollRef.current
     if (!el) return
-    if (el.scrollTop !== el.scrollHeight) {
-      el.scrollTop = el.scrollHeight
+    const nextScrollTop = Math.max(0, el.scrollHeight - el.clientHeight)
+    if (Math.abs(el.scrollTop - nextScrollTop) > 1) {
+      el.scrollTop = nextScrollTop
     }
-    setIsAtBottom((current) => current ? current : true)
-  }, [])
+    updateAtBottom(true)
+  }, [updateAtBottom])
+
+  const syncAtBottomFromElement = useCallback((el: HTMLDivElement) => {
+    updateAtBottom(el.scrollTop + el.clientHeight >= el.scrollHeight - AT_BOTTOM_THRESHOLD)
+  }, [updateAtBottom])
 
   // Check scroll position on user scroll
   useEffect(() => {
@@ -36,20 +47,35 @@ export function useAutoScroll(contentLength: number): UseAutoScrollResult {
 
     function handleScroll(): void {
       if (!el) return
-      const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - AT_BOTTOM_THRESHOLD
-      setIsAtBottom((current) => current === atBottom ? current : atBottom)
+      syncAtBottomFromElement(el)
     }
 
     el.addEventListener('scroll', handleScroll, { passive: true })
     return () => el.removeEventListener('scroll', handleScroll)
-  }, [])
+  }, [syncAtBottomFromElement])
 
   // Auto-scroll to bottom when content grows, if already at bottom
-  useEffect(() => {
-    if (isAtBottom) {
+  useLayoutEffect(() => {
+    if (isAtBottomRef.current) {
       scrollToBottom()
     }
-  }, [contentLength, isAtBottom, scrollToBottom])
+  }, [contentLength, scrollToBottom])
+
+  // Typewriter text, image loads, and expanded cards can change rendered height
+  // without changing the coarse contentLength signal.
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+
+    const target = el.firstElementChild ?? el
+    const observer = new ResizeObserver(() => {
+      if (isAtBottomRef.current) {
+        scrollToBottom()
+      }
+    })
+    observer.observe(target)
+    return () => observer.disconnect()
+  }, [scrollToBottom])
 
   return {
     scrollRef,

@@ -56,7 +56,6 @@ export function ContextUsageRing(): JSX.Element | null {
     ? Math.round((usage.autoCompactThreshold / usage.contextWindow) * 100)
     : 0
   const percentLeft = Math.round(usage.percentLeft * 100)
-
   return (
     <div
       ref={anchorRef}
@@ -74,8 +73,11 @@ export function ContextUsageRing(): JSX.Element | null {
         justifyContent: 'center',
         width: COMPOSER_FOOTER_CONTROL_HEIGHT,
         height: COMPOSER_FOOTER_CONTROL_HEIGHT,
+        borderRadius: '999px',
+        background: 'transparent',
         cursor: 'help',
-        outline: 'none'
+        outline: 'none',
+        transition: 'none'
       }}
     >
       <svg

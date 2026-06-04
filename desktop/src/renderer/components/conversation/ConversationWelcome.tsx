@@ -33,11 +33,12 @@ import { ChatGptUsageBadge } from './ChatGptUsageBadge'
 import { ApprovalPolicyPicker, type VisibleApprovalPolicy } from './ApprovalPolicyPicker'
 import {
   ComposerPlanModeLabel,
+  ComposerSendButton,
   ComposerShell,
   SendIcon,
-  composerSendButtonStyle,
   composerModelPillStyle
 } from './ComposerShell'
+import { ComposerWorkspaceFooter, type ComposerWorkspaceMode } from './ComposerWorkspaceFooter'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { PillSwitch } from '../ui/PillSwitch'
 import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
@@ -139,6 +140,9 @@ export function ConversationWelcome({
   const [goalBusy, setGoalBusy] = useState(false)
   /** Agent/plan before a thread exists; applied when the first thread is created. */
   const [welcomeMode, setWelcomeMode] = useState<ThreadMode>('agent')
+  const [welcomeWorkspaceMode, setWelcomeWorkspaceMode] = useState<ComposerWorkspaceMode>('local')
+  const [welcomeBaseRef, setWelcomeBaseRef] = useState<string | null>(null)
+  const [welcomeWorktreeBranchName, setWelcomeWorktreeBranchName] = useState<string | null>(null)
   const [welcomeApprovalPolicy, setWelcomeApprovalPolicy] = useState<VisibleApprovalPolicy>('default')
   const [modelName, setModelName] = useState<string>('Default')
   const [reasoningConfig, setReasoningConfig] = useState<ResolvedReasoningConfig>(DEFAULT_REASONING_CONFIG)
@@ -912,6 +916,31 @@ export function ConversationWelcome({
     addToast(t('goal.toast.unsupported'), 'warning')
   }, [t])
 
+  const startWelcomeThread = useCallback(async (): Promise<ThreadSummary> => {
+    const identity = {
+      channelName: 'dotcraft-desktop',
+      userId: 'local',
+      channelContext: `workspace:${identityPath}`,
+      workspacePath: identityPath
+    }
+
+    if (welcomeWorkspaceMode === 'worktree') {
+      const res = await window.api.appServer.sendRequest('worktree/createAndStart', {
+        identity,
+        historyMode: 'server',
+        baseRef: welcomeBaseRef || undefined,
+        branchName: welcomeWorktreeBranchName || undefined
+      }, 180_000) as { thread: ThreadSummary }
+      return res.thread
+    }
+
+    const res = await window.api.appServer.sendRequest('thread/start', {
+      identity,
+      historyMode: 'server'
+    }) as { thread: ThreadSummary }
+    return res.thread
+  }, [identityPath, welcomeBaseRef, welcomeWorkspaceMode, welcomeWorktreeBranchName])
+
   const createGoalBackedThread = useCallback(async (objective: string): Promise<boolean> => {
     if (!canUseThreadGoals) {
       showGoalUnavailable()
@@ -936,24 +965,16 @@ export function ConversationWelcome({
     const capturedReasoning = reasoningConfig
     let createdThreadId: string | null = null
     try {
-      const res = await window.api.appServer.sendRequest('thread/start', {
-        identity: {
-          channelName: 'dotcraft-desktop',
-          userId: 'local',
-          channelContext: `workspace:${identityPath}`,
-          workspacePath: identityPath
-        },
-        historyMode: 'server'
-      }) as { thread: ThreadSummary }
-      createdThreadId = res.thread.id
+      const thread = await startWelcomeThread()
+      createdThreadId = thread.id
 
       const goalResult = await window.api.appServer.sendRequest('thread/goal/set', {
-        threadId: res.thread.id,
+        threadId: thread.id,
         objective: trimmedObjective,
         mode: 'upsertOrUpdate'
       })
       const goal = extractGoal(goalResult)
-      await startWelcomeAppBindings(res.thread.id)
+      await startWelcomeAppBindings(thread.id)
       const { inputParts } = buildComposerInputParts({ text: trimmedObjective })
 
       skipDraftPersistRef.current = true
@@ -965,12 +986,12 @@ export function ConversationWelcome({
       setImages([])
       setFiles([])
 
-      addThread(goal ? { ...res.thread, goal } : res.thread)
+      addThread(goal ? { ...thread, goal } : thread)
       if (goal) {
         useThreadStore.getState().setThreadGoal(goal)
       }
       useUIStore.getState().setPendingWelcomeTurn({
-        threadId: res.thread.id,
+        threadId: thread.id,
         text: trimmedObjective,
         inputParts,
         mode: capturedMode,
@@ -978,7 +999,7 @@ export function ConversationWelcome({
         model: capturedModel,
         reasoning: capturedReasoning
       })
-      setActiveThreadId(res.thread.id)
+      setActiveThreadId(thread.id)
       useUIStore.getState().setActiveMainView('conversation')
       return true
     } catch (err) {
@@ -999,12 +1020,12 @@ export function ConversationWelcome({
     setActiveThreadId,
     showGoalUnavailable,
     startWelcomeAppBindings,
+    startWelcomeThread,
     t,
     welcomeApprovalPolicy,
     welcomeMode,
     modelName,
     reasoningConfig,
-    identityPath
   ])
 
   const executeWelcomeGoalCommand = useCallback(async (command: GoalSlashCommand): Promise<boolean> => {
@@ -1069,17 +1090,9 @@ export function ConversationWelcome({
     const capturedReasoning = reasoningConfig
     let createdThreadId: string | null = null
     try {
-      const res = await window.api.appServer.sendRequest('thread/start', {
-        identity: {
-          channelName: 'dotcraft-desktop',
-          userId: 'local',
-          channelContext: `workspace:${identityPath}`,
-          workspacePath: identityPath
-        },
-        historyMode: 'server'
-      }) as { thread: ThreadSummary }
-      createdThreadId = res.thread.id
-      await startWelcomeAppBindings(res.thread.id)
+      const thread = await startWelcomeThread()
+      createdThreadId = thread.id
+      await startWelcomeAppBindings(thread.id)
 
       skipDraftPersistRef.current = true
       latestDraftTextRef.current = ''
@@ -1093,7 +1106,7 @@ export function ConversationWelcome({
         images: capturedImages
       })
       useUIStore.getState().setPendingWelcomeTurn({
-        threadId: res.thread.id,
+        threadId: thread.id,
         text: trimmed,
         inputParts,
         images: capturedImages.length > 0 ? capturedImages : undefined,
@@ -1103,8 +1116,8 @@ export function ConversationWelcome({
         model: capturedModel,
         reasoning: capturedReasoning
       })
-      addThread(res.thread)
-      setActiveThreadId(res.thread.id)
+      addThread(thread)
+      setActiveThreadId(thread.id)
       useUIStore.getState().setActiveMainView('conversation')
       richRef.current?.clear()
       setImages([])
@@ -1121,10 +1134,10 @@ export function ConversationWelcome({
     files,
     images,
     connectionStatus,
-    identityPath,
     addThread,
     setActiveThreadId,
     startWelcomeAppBindings,
+    startWelcomeThread,
     welcomeApprovalPolicy,
     welcomeMode,
     modelName,
@@ -1529,17 +1542,34 @@ export function ConversationWelcome({
                     shortcut={canSend ? ACTION_SHORTCUTS.send : undefined}
                     placement="top"
                   >
-                    <button
-                      type="button"
+                    <ComposerSendButton
+                      tone={canSend ? 'enabled' : 'disabled'}
                       onClick={() => { void sendFromWelcome() }}
                       disabled={!canSend}
                       aria-label={t('welcome.sendAria')}
-                      style={composerSendButtonStyle(canSend ? 'enabled' : 'disabled')}
                     >
                       <SendIcon />
-                    </button>
+                    </ComposerSendButton>
                   </ActionTooltip>
                 </div>
+              }
+              belowFooter={
+                <ComposerWorkspaceFooter
+                  workspacePath={workspacePath}
+                  mode={welcomeWorkspaceMode}
+                  variant="welcome"
+                  remoteWorkspace={remoteWorkspace}
+                  baseRef={welcomeBaseRef}
+                  worktreeBranchName={welcomeWorktreeBranchName}
+                  onWelcomeModeChange={(nextMode) => {
+                    setWelcomeWorkspaceMode(nextMode)
+                    if (nextMode === 'local') {
+                      setWelcomeWorktreeBranchName(null)
+                    }
+                  }}
+                  onBaseRefChange={setWelcomeBaseRef}
+                  onWorktreeBranchNameChange={setWelcomeWorktreeBranchName}
+                />
               }
             />
           </div>

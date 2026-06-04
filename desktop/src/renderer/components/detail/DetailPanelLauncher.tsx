@@ -121,7 +121,7 @@ function LauncherCardButton({
       }}
       onMouseEnter={(e) => {
         if (!card.enabled) return
-        ;(e.currentTarget as HTMLButtonElement).style.background = 'var(--bg-secondary)'
+        ;(e.currentTarget as HTMLButtonElement).style.background = 'var(--bg-tertiary)'
         ;(e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--glass-border-strong)'
       }}
       onMouseLeave={(e) => {

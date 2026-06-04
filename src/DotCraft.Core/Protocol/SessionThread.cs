@@ -44,6 +44,24 @@ public sealed class SessionThread
     /// </summary>
     public ThreadSource Source { get; set; } = ThreadSource.User();
 
+    /// <summary>
+    /// Source thread id when this thread was created by forking another thread.
+    /// Null for ordinary top-level threads and subagent child threads.
+    /// </summary>
+    public string? ForkedFromId { get; set; }
+
+    /// <summary>
+    /// True when the thread is process-local and must not be persisted or indexed.
+    /// Used for transient handoff flows that have not been promoted to durable state.
+    /// </summary>
+    public bool Ephemeral { get; set; }
+
+    /// <summary>
+    /// Metadata for a Git worktree managed by DotCraft and bound to this thread.
+    /// Null for ordinary local-workspace threads.
+    /// </summary>
+    public ThreadWorktreeInfo? Worktree { get; set; }
+
     public ThreadStatus Status { get; set; }
 
     public DateTimeOffset CreatedAt { get; set; }

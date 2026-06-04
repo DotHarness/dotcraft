@@ -166,6 +166,9 @@ public sealed class StateRuntime
                     user_id TEXT,
                     origin_channel TEXT NOT NULL,
                     channel_context TEXT,
+                    forked_from_id TEXT,
+                    ephemeral INTEGER NOT NULL DEFAULT 0,
+                    worktree_json TEXT,
                     display_name TEXT,
                     status TEXT NOT NULL,
                     created_at TEXT NOT NULL,
@@ -386,6 +389,9 @@ public sealed class StateRuntime
             command.ExecuteNonQuery();
             EnsureColumn(connection, "thread_spawn_edges", "runtime_type", "TEXT");
             EnsureColumn(connection, "threads", "metadata_json", "TEXT");
+            EnsureColumn(connection, "threads", "forked_from_id", "TEXT");
+            EnsureColumn(connection, "threads", "ephemeral", "INTEGER NOT NULL DEFAULT 0");
+            EnsureColumn(connection, "threads", "worktree_json", "TEXT");
             EnsureColumn(connection, "thread_spawn_edges", "supports_send_input", "INTEGER NOT NULL DEFAULT 0");
             EnsureColumn(connection, "thread_spawn_edges", "supports_resume", "INTEGER NOT NULL DEFAULT 0");
             EnsureColumn(connection, "thread_spawn_edges", "supports_close", "INTEGER NOT NULL DEFAULT 1");

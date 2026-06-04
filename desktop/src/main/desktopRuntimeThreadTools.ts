@@ -1333,7 +1333,7 @@ function summarizeUserInputRequest(summary: JsonObject, payload: Record<string, 
 }
 
 function summarizeSystemNotice(summary: JsonObject, payload: Record<string, unknown>): JsonObject {
-  copyOptionalStringFields(summary, payload, ['kind', 'trigger', 'mode'])
+  copyOptionalStringFields(summary, payload, ['kind', 'trigger', 'mode', 'sourceThreadId'])
   copyOptionalNumberFields(summary, payload, ['tokensBefore', 'tokensAfter', 'percentLeftAfter', 'clearedToolResults'])
   return summary
 }

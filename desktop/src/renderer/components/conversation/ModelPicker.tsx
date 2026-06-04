@@ -3,7 +3,11 @@ import { useT } from '../../contexts/LocaleContext'
 import type { ModelCatalogItem, ReasoningEffortWire } from '../../stores/modelCatalogStore'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import type { ShortcutSpec } from '../ui/shortcutKeys'
-import { composerFooterControlBoxStyle } from './ComposerShell'
+import {
+  composerFooterControlActiveBackground,
+  composerFooterControlBoxStyle,
+  composerFooterControlHoverBackground
+} from './ComposerShell'
 
 export type ReasoningQuickValue = 'default' | 'off' | ReasoningEffortWire
 
@@ -48,6 +52,7 @@ export function ModelPicker({
   const t = useT()
   const [open, setOpen] = useState(false)
   const [highlight, setHighlight] = useState(0)
+  const [triggerActive, setTriggerActive] = useState(false)
   const wrapRef = useRef<HTMLDivElement>(null)
   const listId = useId()
 
@@ -242,12 +247,25 @@ export function ModelPicker({
           aria-expanded={interactive ? open : undefined}
           aria-controls={interactive && open ? listId : undefined}
           disabled={!interactive}
+          onMouseEnter={() => setTriggerActive(true)}
+          onMouseLeave={() => setTriggerActive(false)}
+          onFocus={(event) => {
+            if (event.currentTarget.matches(':focus-visible')) setTriggerActive(true)
+          }}
+          onBlur={() => setTriggerActive(false)}
           onClick={() => {
             if (!interactive) return
             setOpen((current) => !current)
           }}
           style={{
             ...triggerStyle,
+            backgroundColor: interactive
+              ? open
+                ? composerFooterControlActiveBackground
+                : triggerActive
+                  ? composerFooterControlHoverBackground
+                  : 'transparent'
+              : 'transparent',
             cursor: interactive ? 'pointer' : 'default'
           }}
         >
@@ -338,7 +356,7 @@ export function ModelPicker({
             maxHeight: '320px',
             overflowY: 'auto',
             zIndex: 70,
-            border: '1px solid var(--glass-border)',
+            border: 'none',
             borderRadius: '12px',
             background: 'var(--glass-surface-strong)',
             boxShadow: 'var(--glass-shadow-soft)',
@@ -434,7 +452,7 @@ export function ModelPicker({
                   border: 'none',
                   borderRadius: '10px',
                   padding: '8px 10px',
-                  background: highlighted ? 'var(--glass-surface-soft)' : 'transparent',
+                  background: highlighted ? 'var(--bg-tertiary)' : 'transparent',
                   color: row.disabled
                     ? 'var(--text-dimmed)'
                     : selected ? 'var(--text-primary)' : 'var(--text-secondary)',

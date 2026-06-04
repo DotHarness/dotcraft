@@ -184,9 +184,16 @@ Fields:
   - Informational only; does not restrict which channels can resume the Thread.
 - `DisplayName` (string, nullable)
   - Human-readable label. Defaults to the first user message text (truncated). Can be set explicitly.
+  - Forked threads use an explicit fork `displayName` when supplied. Otherwise they use the source thread's visible `DisplayName`, falling back to the first retained user message when the source has no display name.
 - `Source` (ThreadSource)
   - Describes why this thread exists. `kind: "user"` is the default top-level conversation.
   - `kind: "subagent"` marks a child thread spawned from another thread turn and carries parent thread, parent turn, root thread, depth, nickname, role, profile, and runtime metadata.
+- `ForkedFromId` (string, nullable)
+  - Source thread id when this thread was created by forking another conversation. Null for ordinary starts.
+- `Ephemeral` (boolean)
+  - True when the thread is process-local and is not persisted or listed by default.
+- `Worktree` (ThreadWorktreeInfo, nullable)
+  - DotCraft-managed Git worktree metadata bound to this thread. Null for ordinary local-workspace threads.
 - `Status` (enum: `Active`, `Paused`, `Archived`)
   - See Section 5.1 for lifecycle rules.
 - `CreatedAt` (UTC timestamp)
@@ -205,23 +212,37 @@ Fields:
   - When a running Turn completes successfully and no blocking thread maintenance is active, Session Core dequeues at most one queued input and starts it as the next Turn. Failed or cancelled Turns do not automatically consume queued inputs.
   - When blocking thread maintenance completes, skips, fails, or is cancelled, Session Core dequeues at most one queued input and starts it as the next Turn if the thread is otherwise idle.
 
-#### 4.1.1.1 QueuedTurnInput
+#### 4.1.1.1 Thread Forks
+
+A thread fork creates a new conversation branch from a source thread while leaving the source unchanged.
+
+Fork contract:
+
+- A persistent fork receives a new thread id, persists its own rollout, and sets `ForkedFromId` to the source thread id.
+- An ephemeral fork receives a new thread id and `ForkedFromId`, but stays process-local and is omitted from default thread lists.
+- Fork history is copied, not linked. Future edits, archive/delete actions, rollback, or compaction on the source must not rewrite the fork.
+- The fork copies the selected source turn/item prefix. A `forkPoint` may target a whole turn or an item boundary, with `"after"` including the target and `"before"` excluding it.
+- A copied active or partial source turn must end at an explicit interrupted boundary so clients and model-history reconstruction do not treat partial output as a naturally completed response.
+- Forks do not inherit queued inputs, pending approvals, active user-input requests, app bindings, active goals, or durable plan state. Transcript items already copied remain visible as history.
+- Forks copy thread configuration, then apply request-level overrides.
+- Forked threads include a persisted `SystemNotice` item with `kind = "forked"` and `sourceThreadId` at the boundary between inherited source history and fork-specific work. This marker is client-visible but not model-visible.
+
+#### 4.1.1.2 Worktree Handoff
+
+A worktree handoff composes Git worktree creation with thread fork.
+
+Ownership rules:
+
+- `WorkspacePath` remains the state workspace. It owns `.craft/threads`, `.craft/state.db`, memory, goals, plans, app bindings, skills, plugins, and thread metadata.
+- The worktree path is the execution workspace for the forked thread. File tools, shell tools, Git operations, LSP, and first-party file surfaces use that execution root.
+- `effectiveWorkspacePath = ExecutionWorkspaceOverride ?? WorkspaceOverride ?? WorkspacePath`.
+- `ExecutionWorkspaceOverride` changes runtime execution location only. It must not relocate rollout, memory, goals, plans, app bindings, or workspace configuration.
+- Registered worktree roots under `.craft/worktrees` are allowed execution roots for their bound threads even though ordinary main-workspace browsing hides `.craft/worktrees/**`.
+- Worktree handoff must not mutate the source thread or the source working tree. Dirty change handoff copies uncommitted source changes into the new worktree when requested.
+
+#### 4.1.1.3 QueuedTurnInput
 
 A QueuedTurnInput is a durable snapshot of user input waiting to become a future Turn.
-
-#### 4.1.1.2 SubAgent Child Threads
-
-Profile-backed SubAgents are represented as ordinary `SessionThread` instances with `Source.kind = "subagent"` and `OriginChannel = "subagent"`. Native profiles use the same turn, item, approval, persistence, and resume path as main agent threads. External CLI profiles persist synthetic turns containing the submitted prompt, final output or error, and token metadata when available.
-
-SubAgent child threads use normal session tool construction with a role-resolved tool policy. `agentRole` is a role selector, not just display metadata. The built-in `default` role disables DotCraft SubAgent control tools, `explorer` exposes a read-only exploration surface, and `worker` may expose write/shell/web tools plus Agent control when the depth policy allows it. Workspace configuration may override or add roles.
-
-`SubAgent.MaxDepth` defaults to `1`. The first child spawned by a root thread has depth `1`; by default, that child cannot call `SpawnAgent` again even when its role would otherwise allow Agent control. Raising `SubAgent.MaxDepth` is the advanced opt-in for recursive SubAgent orchestration.
-
-Session Core persists a `ThreadSpawnEdge` graph row for each parent/child relationship: `parentThreadId`, `childThreadId`, `parentTurnId`, `depth`, `agentNickname`, `agentRole`, `profileName`, `runtimeType`, `supportsSendInput`, `supportsResume`, `supportsClose`, `status` (`open` or `closed`), `createdAt`, and `updatedAt`.
-
-Top-level thread discovery hides subagent threads by default. Callers that need a raw mixed list must request `includeSubAgents`; active lists still hide children whose parent is archived. Clients that render a background-agent widget should prefer the edge list for the active parent thread.
-
-SubAgent child thread lifecycle is owned by the parent thread. Archiving, restoring, or permanently deleting a parent recursively applies to all descendant child threads. Direct archive/delete calls against a child thread are invalid; clients should close/resume children through the SubAgent control APIs or manage the parent thread.
 
 Fields:
 
@@ -250,6 +271,20 @@ Fields:
   - Optional stable source id for client-side click-through or audit correlation.
 
 When a queued input starts a future Turn, Session Core must copy trigger metadata into the persisted `UserMessagePayload`. When a queued input is promoted into current-turn guidance, the guidance `UserMessage` item must preserve the same trigger metadata.
+
+#### 4.1.1.4 SubAgent Child Threads
+
+Profile-backed SubAgents are represented as ordinary `SessionThread` instances with `Source.kind = "subagent"` and `OriginChannel = "subagent"`. Native profiles use the same turn, item, approval, persistence, and resume path as main agent threads. External CLI profiles persist synthetic turns containing the submitted prompt, final output or error, and token metadata when available.
+
+SubAgent child threads use normal session tool construction with a role-resolved tool policy. `agentRole` is a role selector, not just display metadata. The built-in `default` role disables DotCraft SubAgent control tools, `explorer` exposes a read-only exploration surface, and `worker` may expose write/shell/web tools plus Agent control when the depth policy allows it. Workspace configuration may override or add roles.
+
+`SubAgent.MaxDepth` defaults to `1`. The first child spawned by a root thread has depth `1`; by default, that child cannot call `SpawnAgent` again even when its role would otherwise allow Agent control. Raising `SubAgent.MaxDepth` is the advanced opt-in for recursive SubAgent orchestration.
+
+Session Core persists a `ThreadSpawnEdge` graph row for each parent/child relationship: `parentThreadId`, `childThreadId`, `parentTurnId`, `depth`, `agentNickname`, `agentRole`, `profileName`, `runtimeType`, `supportsSendInput`, `supportsResume`, `supportsClose`, `status` (`open` or `closed`), `createdAt`, and `updatedAt`.
+
+Top-level thread discovery hides subagent threads by default. Callers that need a raw mixed list must request `includeSubAgents`; active lists still hide children whose parent is archived. Clients that render a background-agent widget should prefer the edge list for the active parent thread.
+
+SubAgent child thread lifecycle is owned by the parent thread. Archiving, restoring, or permanently deleting a parent recursively applies to all descendant child threads. Direct archive/delete calls against a child thread are invalid; clients should close/resume children through the SubAgent control APIs or manage the parent thread.
 
 #### 4.1.2 Turn
 
@@ -586,13 +621,14 @@ summary and compatibility projection; clients that consume both paths merge by
 
 ```
 {
-  "kind": string,              // Notice classifier. Known values: "compacted", "memoryConsolidated".
+  "kind": string,              // Notice classifier. Known values: "compacted", "memoryConsolidated", "forked".
   "trigger": string,           // For kind="compacted": "auto" | "reactive" | "manual"
   "mode": string,              // For kind="compacted": "partial"; legacy persisted notices may contain "micro"
   "tokensBefore": number,      // Approximate input tokens right before compaction ran
   "tokensAfter": number,       // Approximate input tokens after compaction ran
   "percentLeftAfter": number,  // Fraction of EffectiveContextWindow still available (0.0 - 1.0)
-  "clearedToolResults": number // Count of tool results cleared before summary (0 for partial-only compaction)
+  "clearedToolResults": number,// Count of tool results cleared before summary (0 for partial-only compaction)
+  "sourceThreadId": string     // For kind="forked": source thread id
 }
 ```
 
@@ -605,6 +641,9 @@ transient `system/event` needed to refresh context usage; it must not create a
 persistent timeline divider. Clients may encounter older `mode = "micro"`
 compacted notices from previous releases and should hide them.
 `memoryConsolidated` notices have no compaction-specific token fields.
+`forked` notices mark the boundary between copied source history and new
+fork-specific work. They carry `sourceThreadId`, are not model-visible, and
+must not mutate the source thread.
 
 ### 4.3 Stable Identifiers and Normalization Rules
 
@@ -1538,6 +1577,7 @@ ThreadConfiguration
 ├── CustomTools: string[]?                       // Additional tool names to enable
 ├── Model: string?                               // Per-thread model; defaults to the effective workspace model at thread creation
 ├── WorkspaceOverride: string?                   // Alternate workspace root for this thread
+├── ExecutionWorkspaceOverride: string?          // Runtime execution root, typically a registered worktree
 ├── ToolProfile: string?                         // Named tool profile to inject
 ├── UseToolProfileOnly: bool                     // Use only the profile tools when true
 ├── AgentInstructions: string?                   // Optional extra system instructions
@@ -1564,6 +1604,14 @@ Model resolution is thread-aware:
 - DotCraft-managed native SubAgents use workspace `AppConfig.SubAgent.Model` when set
 - when `AppConfig.SubAgent.Model` is empty, native SubAgents inherit the thread's effective MainAgent model
 - workspace `model`, `apiKey`, `endpoint`, and `subagent` configuration changes invalidate cached thread agents so the next turn uses freshly resolved clients; existing threads keep their captured model unless their thread configuration is explicitly changed, and an already-running turn is not switched mid-flight
+
+Workspace resolution is thread-aware:
+
+- `WorkspacePath` is the state workspace for thread persistence and workspace-owned state.
+- `WorkspaceOverride`, when present, is the traditional alternate workspace root for a thread.
+- `ExecutionWorkspaceOverride`, when present, wins for tool execution and first-party file/Git surfaces while keeping state in `WorkspacePath`.
+- Git worktree handoff uses `ExecutionWorkspaceOverride`; it must not use `WorkspaceOverride` to move state into the worktree.
+- Existing-thread worktree handoff is a metadata/configuration change on the same Thread. It must be rejected while the Thread has running or waiting turn work, and it must rebuild the effective agent/tool context before the next turn.
 
 ### 16.3 Mode Switching
 

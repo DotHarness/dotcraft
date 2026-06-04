@@ -22,6 +22,9 @@ internal sealed class ThreadMetadataStore(StateRuntime stateRuntime)
                 user_id,
                 origin_channel,
                 channel_context,
+                forked_from_id,
+                ephemeral,
+                worktree_json,
                 display_name,
                 status,
                 created_at,
@@ -38,6 +41,9 @@ internal sealed class ThreadMetadataStore(StateRuntime stateRuntime)
                 $user_id,
                 $origin_channel,
                 $channel_context,
+                $forked_from_id,
+                $ephemeral,
+                $worktree_json,
                 $display_name,
                 $status,
                 $created_at,
@@ -54,6 +60,9 @@ internal sealed class ThreadMetadataStore(StateRuntime stateRuntime)
                 user_id = excluded.user_id,
                 origin_channel = excluded.origin_channel,
                 channel_context = excluded.channel_context,
+                forked_from_id = excluded.forked_from_id,
+                ephemeral = excluded.ephemeral,
+                worktree_json = excluded.worktree_json,
                 display_name = excluded.display_name,
                 status = excluded.status,
                 created_at = excluded.created_at,
@@ -70,6 +79,13 @@ internal sealed class ThreadMetadataStore(StateRuntime stateRuntime)
         command.Parameters.AddWithValue("$user_id", (object?)summary.UserId ?? DBNull.Value);
         command.Parameters.AddWithValue("$origin_channel", summary.OriginChannel);
         command.Parameters.AddWithValue("$channel_context", (object?)summary.ChannelContext ?? DBNull.Value);
+        command.Parameters.AddWithValue("$forked_from_id", (object?)summary.ForkedFromId ?? DBNull.Value);
+        command.Parameters.AddWithValue("$ephemeral", summary.Ephemeral ? 1 : 0);
+        command.Parameters.AddWithValue(
+            "$worktree_json",
+            summary.Worktree == null
+                ? DBNull.Value
+                : JsonSerializer.Serialize(summary.Worktree));
         command.Parameters.AddWithValue("$display_name", (object?)summary.DisplayName ?? DBNull.Value);
         command.Parameters.AddWithValue("$status", summary.Status.ToString());
         command.Parameters.AddWithValue("$created_at", summary.CreatedAt.UtcDateTime.ToString("O"));
@@ -99,7 +115,10 @@ internal sealed class ThreadMetadataStore(StateRuntime stateRuntime)
                 created_at,
                 updated_at,
                 turn_count,
-                metadata_json
+                metadata_json,
+                forked_from_id,
+                ephemeral,
+                worktree_json
             FROM threads
             ORDER BY updated_at DESC, thread_id DESC
             """;
@@ -124,11 +143,29 @@ internal sealed class ThreadMetadataStore(StateRuntime stateRuntime)
                 TurnCount = reader.GetInt32(9),
                 Metadata = reader.IsDBNull(10)
                     ? []
-                    : ParseMetadata(reader.GetString(10))
+                    : ParseMetadata(reader.GetString(10)),
+                ForkedFromId = reader.IsDBNull(11) ? null : reader.GetString(11),
+                Ephemeral = !reader.IsDBNull(12) && reader.GetInt32(12) != 0,
+                Worktree = reader.IsDBNull(13) ? null : ParseWorktree(reader.GetString(13))
             });
         }
 
         return list;
+    }
+
+    private static ThreadWorktreeInfo? ParseWorktree(string json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+            return null;
+
+        try
+        {
+            return JsonSerializer.Deserialize<ThreadWorktreeInfo>(json);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     private static Dictionary<string, string> ParseMetadata(string json)

@@ -1,9 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { AgentResponseBlock } from '../components/conversation/AgentResponseBlock'
 import { useUIStore } from '../stores/uiStore'
 import { useConversationStore } from '../stores/conversationStore'
+import { useConnectionStore } from '../stores/connectionStore'
+import { useThreadStore } from '../stores/threadStore'
 import type { ConversationItem, ConversationTurn } from '../types/conversation'
 import type { FileDiff } from '../types/toolCall'
 import { getSubAgentAccent } from '../utils/subAgentPresentation'
@@ -110,11 +112,82 @@ function expectDisclosureInsideTitleGroup(container: HTMLElement): HTMLElement {
 
 beforeEach(() => {
   useConversationStore.getState().reset()
+  useConnectionStore.getState().reset()
+  useThreadStore.getState().reset()
   useUIStore.getState().setShowThinkingContent(true)
 })
 
 afterEach(() => {
   vi.useRealTimers()
+})
+
+describe('AgentResponseBlock fork footer', () => {
+  beforeEach(() => {
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {
+        settings: {
+          get: async () => ({ locale: 'en' })
+        },
+        appServer: {
+          sendRequest: vi.fn().mockResolvedValue({
+            thread: {
+              id: 'thread-fork',
+              displayName: 'Forked thread',
+              status: 'active',
+              originChannel: 'dotcraft-desktop',
+              createdAt: '2026-06-03T00:00:00.000Z',
+              lastActiveAt: '2026-06-03T00:00:00.000Z'
+            }
+          })
+        }
+      }
+    })
+  })
+
+  it('forks from the final assistant message item', async () => {
+    useConnectionStore.setState({ capabilities: { threadFork: true } })
+    const turn: ConversationTurn = {
+      id: 'turn-1',
+      threadId: 'thread-1',
+      status: 'completed',
+      startedAt: '2026-06-03T10:00:00.000Z',
+      completedAt: '2026-06-03T10:00:01.000Z',
+      items: [
+        {
+          id: 'assistant-final',
+          type: 'agentMessage',
+          status: 'completed',
+          text: 'final answer',
+          createdAt: '2026-06-03T10:00:01.000Z'
+        }
+      ]
+    }
+
+    render(
+      <LocaleProvider>
+        <AgentResponseBlock turn={turn} />
+      </LocaleProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Fork' }))
+
+    await waitFor(() => {
+      expect(window.api.appServer.sendRequest).toHaveBeenCalledWith(
+        'thread/fork',
+        {
+          threadId: 'thread-1',
+          forkPoint: {
+            turnId: 'turn-1',
+            itemId: 'assistant-final',
+            position: 'after'
+          }
+        },
+        undefined
+      )
+      expect(useThreadStore.getState().activeThreadId).toBe('thread-fork')
+    })
+  })
 })
 
 describe('AgentResponseBlock subagent transcript rendering', () => {
@@ -735,6 +808,46 @@ describe('AgentResponseBlock tail tool aggregation timing', () => {
     expect(footer).toContainElement(copyButton)
     expect(footer.firstElementChild).toBe(copyButton.parentElement)
     expect(footer.lastElementChild).toBe(screen.getByTestId('agent-message-time'))
+  })
+
+  it('renders turn artifacts and file changes before the final agent footer', () => {
+    useConversationStore.setState({
+      workspacePath: 'F:/workspace',
+      changedFiles: new Map([
+        ['site/index.html', makeDiff('site/index.html', 'turn-agent-artifacts-before-footer')]
+      ])
+    })
+
+    const turn: ConversationTurn = {
+      id: 'turn-agent-artifacts-before-footer',
+      threadId: 'thread-1',
+      status: 'completed',
+      startedAt: '2026-04-18T10:04:00.000Z',
+      completedAt: '2026-04-18T10:05:00.000Z',
+      items: [
+        {
+          id: 'assistant-message-with-artifacts',
+          type: 'agentMessage',
+          status: 'completed',
+          text: 'Final answer with artifacts.',
+          createdAt: '2026-04-18T10:05:00.000Z'
+        }
+      ]
+    }
+
+    const { container } = render(
+      <LocaleProvider>
+        <AgentResponseBlock turn={turn} />
+      </LocaleProvider>
+    )
+
+    const artifactTitle = screen.getByText('index.html')
+    const fileChanges = screen.getByText('1 file changed')
+    const footer = container.querySelector('[data-testid="agent-message-footer"]') as HTMLElement
+
+    expect(footer).toBeTruthy()
+    expect(artifactTitle.compareDocumentPosition(footer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(fileChanges.compareDocumentPosition(footer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('does not render agent message footers while the turn is still running', () => {

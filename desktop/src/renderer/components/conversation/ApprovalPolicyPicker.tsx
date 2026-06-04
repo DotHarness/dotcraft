@@ -6,7 +6,12 @@ import { addToast } from '../../stores/toastStore'
 import type { ApprovalPolicyWire, ThreadConfigurationWire } from '../../types/thread'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
-import { composerFooterControlBoxStyle, composerModelPillStyle } from './ComposerShell'
+import {
+  composerFooterControlActiveBackground,
+  composerFooterControlBoxStyle,
+  composerFooterControlHoverBackground,
+  composerModelPillStyle
+} from './ComposerShell'
 
 export type VisibleApprovalPolicy = 'default' | 'autoApprove'
 
@@ -53,6 +58,7 @@ export function ApprovalPolicyPicker({
   const [open, setOpen] = useState(false)
   const [highlight, setHighlight] = useState(0)
   const [saving, setSaving] = useState(false)
+  const [triggerActive, setTriggerActive] = useState(false)
   const [workspaceDefault, setWorkspaceDefault] = useState<VisibleApprovalPolicy>('default')
   const wrapRef = useRef<HTMLDivElement>(null)
   const listId = useId()
@@ -232,6 +238,12 @@ export function ApprovalPolicyPicker({
           aria-expanded={interactive ? open : undefined}
           aria-controls={interactive && open ? listId : undefined}
           disabled={!interactive}
+          onMouseEnter={() => setTriggerActive(true)}
+          onMouseLeave={() => setTriggerActive(false)}
+          onFocus={(event) => {
+            if (event.currentTarget.matches(':focus-visible')) setTriggerActive(true)
+          }}
+          onBlur={() => setTriggerActive(false)}
           onClick={() => {
             if (!interactive) return
             setOpen((current) => !current)
@@ -241,6 +253,13 @@ export function ApprovalPolicyPicker({
               value === 'autoApprove' ? 'var(--warning)' : 'var(--composer-footer-text)',
               !interactive
             ),
+            backgroundColor: interactive
+              ? open
+                ? composerFooterControlActiveBackground
+                : triggerActive
+                  ? composerFooterControlHoverBackground
+                  : 'transparent'
+              : 'transparent',
             cursor: interactive ? 'pointer' : 'default'
           }}
         >
@@ -362,7 +381,7 @@ function popupStyle(): CSSProperties {
     minWidth: '220px',
     maxWidth: '280px',
     zIndex: 70,
-    border: '1px solid var(--glass-border)',
+    border: 'none',
     borderRadius: '12px',
     background: 'var(--glass-surface-strong)',
     boxShadow: 'var(--glass-shadow-soft)',
@@ -382,7 +401,7 @@ function optionStyle(highlighted: boolean, selected: boolean): CSSProperties {
     border: 'none',
     borderRadius: '10px',
     padding: '8px 10px',
-    background: highlighted ? 'var(--glass-surface-soft)' : 'transparent',
+    background: highlighted ? 'var(--bg-tertiary)' : 'transparent',
     color: selected ? 'var(--text-primary)' : 'var(--text-secondary)',
     cursor: 'pointer',
     textAlign: 'left',

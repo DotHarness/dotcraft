@@ -109,6 +109,19 @@ public sealed class ThreadStore
     }
 
     /// <summary>
+    /// Loads a thread from a restricted rollout path under threads/active or threads/archived.
+    /// </summary>
+    public async Task<SessionThread?> LoadThreadFromPathAsync(string path, CancellationToken ct = default)
+    {
+        var thread = await _rolloutStore.LoadThreadFromPathAsync(path, ct);
+        if (thread == null)
+            return null;
+
+        _threadSnapshotCache[thread.Id] = CloneThreadSnapshot(thread);
+        return thread;
+    }
+
+    /// <summary>
     /// Deletes a thread JSONL history and metadata row.
     /// </summary>
     public void DeleteThread(string threadId)

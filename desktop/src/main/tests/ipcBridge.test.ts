@@ -431,6 +431,85 @@ describe('registerIpcHandlers', () => {
     expect(commitCall?.[1]).not.toContain('src/already-staged.ts')
   })
 
+  it('git:branch reads linked worktree branch through git commands', async () => {
+    mockGitCommands((args) => {
+      if (args[0] === 'rev-parse' && args[1] === '--is-inside-work-tree') return { stdout: 'true\n' }
+      if (args[0] === 'branch' && args[1] === '--show-current') return { stdout: 'feat/worktree\n' }
+      throw new Error(`Unexpected git command: ${args.join(' ')}`)
+    })
+    const handlers = registerHandlersForTest()
+    const getBranch = handlers.get('git:branch')!
+
+    const branch = await getBranch({}, '/workspace/.craft/worktrees/feat-worktree')
+
+    expect(branch).toBe('feat/worktree')
+    expect(fs.readFile).not.toHaveBeenCalled()
+  })
+
+  it('git:listBranches returns current branch and local branch list', async () => {
+    mockGitCommands((args) => {
+      if (args[0] === 'rev-parse' && args[1] === '--is-inside-work-tree') return { stdout: 'true\n' }
+      if (args[0] === 'branch' && args[1] === '--show-current') return { stdout: 'feat/worktree\n' }
+      if (args[0] === 'for-each-ref') return { stdout: 'main\nfeat/worktree\n' }
+      throw new Error(`Unexpected git command: ${args.join(' ')}`)
+    })
+    const handlers = registerHandlersForTest()
+    const listBranches = handlers.get('git:listBranches')!
+
+    await expect(listBranches({}, '/workspace')).resolves.toEqual({
+      current: 'feat/worktree',
+      detachedHead: null,
+      branches: [
+        { name: 'main', current: false },
+        { name: 'feat/worktree', current: true }
+      ]
+    })
+  })
+
+  it('git:checkoutBranch switches the requested branch in the provided git workspace', async () => {
+    mockGitCommands((args) => {
+      if (args[0] === 'switch') return { stdout: '' }
+      throw new Error(`Unexpected git command: ${args.join(' ')}`)
+    })
+    const handlers = registerHandlersForTest()
+    const checkout = handlers.get('git:checkoutBranch')!
+
+    await checkout({}, '/workspace/.craft/worktrees/feat-worktree', 'main')
+
+    expect(execFileMock).toHaveBeenCalledWith(
+      'git',
+      ['switch', 'main'],
+      expect.objectContaining({ cwd: path.resolve('/workspace/.craft/worktrees/feat-worktree') }),
+      expect.any(Function)
+    )
+  })
+
+  it('git:createAndCheckoutBranch validates then creates the requested branch', async () => {
+    mockGitCommands((args) => {
+      if (args[0] === 'check-ref-format') return { stdout: 'dotcraft/new-branch\n' }
+      if (args[0] === 'switch') return { stdout: '' }
+      throw new Error(`Unexpected git command: ${args.join(' ')}`)
+    })
+    const handlers = registerHandlersForTest()
+    const createAndCheckout = handlers.get('git:createAndCheckoutBranch')!
+
+    await createAndCheckout({}, '/workspace', 'dotcraft/new-branch')
+
+    const gitCalls = execFileMock.mock.calls.map(([, args]) => args as string[])
+    expect(gitCalls).toEqual([
+      ['check-ref-format', '--branch', 'dotcraft/new-branch'],
+      ['switch', '-c', 'dotcraft/new-branch']
+    ])
+  })
+
+  it('git:checkoutBranch rejects paths outside the workspace and managed worktrees', async () => {
+    const handlers = registerHandlersForTest()
+    const checkout = handlers.get('git:checkoutBranch')!
+
+    await expect(checkout({}, '/outside/worktree', 'main')).rejects.toThrow('Workspace path mismatch')
+    expect(execFileMock).not.toHaveBeenCalled()
+  })
+
   it('workspace:search-files returns empty when no workspace is active', async () => {
     const handlers = registerHandlersForTest('')
     const searchFiles = handlers.get('workspace:search-files')!

@@ -426,7 +426,7 @@ function TemplateCard({
           onClick={onSelect}
           style={{
             ...templateButton,
-            backgroundColor: hovered ? 'var(--bg-secondary)' : 'transparent'
+            backgroundColor: hovered ? 'var(--bg-tertiary)' : 'transparent'
           }}
         >
           <span style={templateIcon}>{template.icon ?? <Play size={17} aria-hidden />}</span>

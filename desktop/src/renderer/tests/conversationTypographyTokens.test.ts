@@ -143,9 +143,13 @@ describe('conversation typography tokens', () => {
     expect(tokensCss).toContain('--composer-input-border-focus:')
     expect(tokensCss).toContain('--composer-input-shadow:')
 
+    expect(tokensCss).toContain('--composer-focus-glow:')
+
     expect(composerShellSource).toContain('var(--composer-input-background)')
-    expect(composerShellSource).toContain('var(--composer-input-border)')
-    expect(composerShellSource).toContain('var(--composer-input-border-focus)')
+    // Composer is frameless at rest (transparent border); focus shows a brand
+    // gradient glow that breathes (--composer-focus-glow). See specs/clients/DESIGN.md.
+    expect(composerShellSource).toContain("'1px solid transparent'")
+    expect(composerShellSource).toContain('var(--composer-focus-glow)')
     expect(composerShellSource).toContain('var(--composer-input-shadow)')
     expect(composerShellSource).not.toContain('var(--glass-surface)')
     expect(composerShellSource).not.toContain('var(--glass-surface-strong)')

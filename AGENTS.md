@@ -49,5 +49,5 @@ Prerequisite: .NET 10 SDK (preview).
 - Development norms: `dev-guide` skill
 - Large feature workflow: `feature-workflow` skill
 - Protocol specs: `specs/core/session-core.md`, `specs/protocols/appserver-protocol.md`, `specs/protocols/external-channel-adapter.md`
-- Desktop visual design: `specs/clients/desktop-visual-design.md` (read before changing Desktop colors, buttons, inputs, cards, modals, or view styling)
+- Desktop visual design: `specs/clients/DESIGN.md` (read before changing Desktop colors, buttons, inputs, cards, modals, menus, or view styling)
 - Client docs: `tui/README.md`, `desktop/README.md`

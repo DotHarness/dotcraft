@@ -177,11 +177,14 @@ export function WorkspaceHeader({
             top: '100%',
             left: '8px',
             right: '8px',
-            backgroundColor: 'var(--bg-secondary)',
-            border: '1px solid var(--border-default)',
-            borderRadius: '6px',
-            boxShadow: 'var(--shadow-level-2)',
+            backgroundColor: 'var(--glass-surface-strong)',
+            border: 'none',
+            borderRadius: '10px',
+            boxShadow: 'var(--glass-shadow-soft)',
+            backdropFilter: 'var(--glass-blur)',
+            WebkitBackdropFilter: 'var(--glass-blur)',
             zIndex: 100,
+            padding: '6px',
             overflow: 'visible'
           }}
           onClick={(e) => e.stopPropagation()}
@@ -189,11 +192,13 @@ export function WorkspaceHeader({
           {/* Workspace path shown in menu header */}
           <div
             style={{
-              padding: '6px 14px',
+              padding: '7px 10px',
               fontSize: 'var(--type-secondary-size)',
               lineHeight: 'var(--type-secondary-line-height)',
               color: 'var(--text-dimmed)',
-              borderBottom: '1px solid var(--border-default)',
+              background: 'var(--bg-tertiary)',
+              borderRadius: '8px',
+              marginBottom: '6px',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap'
@@ -225,11 +230,14 @@ export function WorkspaceHeader({
                   position: 'absolute',
                   top: 0,
                   left: '100%',
-                  backgroundColor: 'var(--bg-secondary)',
-                  border: '1px solid var(--border-default)',
-                  borderRadius: '6px',
-                  boxShadow: 'var(--shadow-level-2)',
+                  backgroundColor: 'var(--glass-surface-strong)',
+                  border: 'none',
+                  borderRadius: '10px',
+                  boxShadow: 'var(--glass-shadow-soft)',
+                  backdropFilter: 'var(--glass-blur)',
+                  WebkitBackdropFilter: 'var(--glass-blur)',
                   zIndex: 101,
+                  padding: '6px',
                   minWidth: '220px',
                   maxWidth: '320px',
                   maxHeight: '300px',
@@ -285,8 +293,8 @@ export function WorkspaceHeader({
                 <div
                   style={{
                     height: '1px',
-                    backgroundColor: 'var(--border-default)',
-                    margin: '4px 0'
+                    backgroundColor: 'color-mix(in srgb, var(--text-primary) 9%, transparent)',
+                    margin: '6px 8px'
                   }}
                 />
                 <button

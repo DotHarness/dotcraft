@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { PanelRightOpen } from 'lucide-react'
+import { Archive, ArrowRightLeft, GitFork, Laptop, MoreHorizontal, Pencil, Pin, PanelRightOpen } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useConnectionStore } from '../../stores/connectionStore'
@@ -12,6 +12,10 @@ import { OpenWorkspaceButton } from './OpenWorkspaceButton'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
 import { ThreadAppBindingsButton } from './ThreadAppBindingsButton'
+import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
+import { useConfirmDialog } from '../ui/ConfirmDialog'
+import { isSubAgentThread } from '../../utils/subAgentThreads'
+import { canForkThread, canForkWorktree, runThreadFork } from '../../utils/threadFork'
 
 interface ThreadHeaderProps {
   threadName: string
@@ -33,15 +37,29 @@ export function ThreadHeader({
 }: ThreadHeaderProps): JSX.Element {
   const t = useT()
   const [commitOpen, setCommitOpen] = useState(false)
+  const [menuPosition, setMenuPosition] = useState<ContextMenuPosition | null>(null)
   const [renaming, setRenaming] = useState(false)
   const [renameValue, setRenameValue] = useState(threadName)
   const renameInputRef = useRef<HTMLInputElement>(null)
   const changedFiles = useConversationStore((s) => s.changedFiles)
   const detailPanelPreferredVisible = useUIStore((s) => s.detailPanelPreferredVisible)
   const toggleDetailPanel = useUIStore((s) => s.toggleDetailPanel)
+  const activeThread = useThreadStore((s) => s.activeThread)
+  const pinnedThreadIds = useThreadStore((s) => s.pinnedThreadIds)
+  const togglePinnedThread = useThreadStore((s) => s.togglePinnedThread)
+  const activeThreadId = useThreadStore((s) => s.activeThreadId)
+  const setActiveThreadId = useThreadStore((s) => s.setActiveThreadId)
+  const removeThreadTree = useThreadStore((s) => s.removeThreadTree)
+  const capabilities = useConnectionStore((s) => s.capabilities)
+  const confirm = useConfirmDialog()
 
   const writtenFiles = Array.from(changedFiles.values()).filter((f) => f.status === 'written')
   const hasWrittenFiles = writtenFiles.length > 0
+  const activeThreadIsSubAgent = activeThread ? isSubAgentThread(activeThread) : false
+  const pinned = pinnedThreadIds.includes(threadId)
+  const canFork = canForkThread(capabilities)
+  const canForkIntoWorktree = canForkWorktree(capabilities) && !remoteWorkspace
+  const worktreeBranch = activeThread?.worktree?.branchName?.trim()
 
   // Keep rename input value in sync when threadName changes externally
   useEffect(() => {
@@ -57,6 +75,7 @@ export function ThreadHeader({
   }, [renaming])
 
   function startRename(): void {
+    setMenuPosition(null)
     setRenameValue(threadName)
     setRenaming(true)
   }
@@ -85,6 +104,29 @@ export function ThreadHeader({
   function handleRenameKeyDown(e: React.KeyboardEvent<HTMLInputElement>): void {
     if (e.key === 'Enter') { e.preventDefault(); void commitRename() }
     if (e.key === 'Escape') { e.preventDefault(); cancelRename() }
+  }
+
+  async function archiveThread(): Promise<void> {
+    setMenuPosition(null)
+    const ok = await confirm({
+      title: t('threadEntry.archiveTitle'),
+      message: t('threadEntry.archiveMessage'),
+      confirmLabel: t('threadEntry.archiveConfirm')
+    })
+    if (!ok) return
+
+    try {
+      await window.api.appServer.sendRequest('thread/archive', { threadId })
+    } catch {
+      return
+    }
+    if (activeThreadId === threadId) setActiveThreadId(null)
+    removeThreadTree(threadId)
+  }
+
+  function forkThread(mode: 'local' | 'worktree'): void {
+    setMenuPosition(null)
+    void runThreadFork({ threadId, mode, t })
   }
 
   /**
@@ -177,28 +219,101 @@ export function ThreadHeader({
             }}
           />
         ) : (
-          <ActionTooltip
-            label={t('threadHeader.renameTitle')}
-            placement="bottom"
-            wrapperStyle={{ flex: 1, minWidth: 0 }}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              flex: 1,
+              minWidth: 0
+            }}
           >
-            <h1
-              onDoubleClick={startRename}
-              style={{
-                margin: 0,
-                fontSize: '14px',
-                fontWeight: 600,
-                color: 'var(--text-primary)',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-                cursor: 'default',
-                userSelect: 'none'
-              }}
+            <ActionTooltip
+              label={t('threadHeader.renameTitle')}
+              placement="bottom"
+              wrapperStyle={{ flex: '0 1 auto', minWidth: 0, maxWidth: '100%' }}
             >
-              {threadName}
-            </h1>
-          </ActionTooltip>
+              <h1
+                onDoubleClick={startRename}
+                style={{
+                  margin: 0,
+                  minWidth: 0,
+                  maxWidth: '100%',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  color: 'var(--text-primary)',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  cursor: 'default',
+                  userSelect: 'none'
+                }}
+              >
+                <span
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '7px',
+                    minWidth: 0,
+                    maxWidth: '100%',
+                    overflow: 'hidden'
+                  }}
+                >
+                  <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {threadName}
+                  </span>
+                  {worktreeBranch && (
+                    <span
+                      title={t('threadHeader.worktreeBadge', { branch: worktreeBranch })}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        maxWidth: '180px',
+                        minWidth: 0,
+                        height: '18px',
+                        padding: '0 6px',
+                        borderRadius: '999px',
+                        border: '1px solid var(--border-default)',
+                        color: 'var(--text-secondary)',
+                        backgroundColor: 'var(--bg-secondary)',
+                        fontSize: '11px',
+                        fontWeight: 500,
+                        lineHeight: 1,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        flexShrink: 1
+                      }}
+                    >
+                      {worktreeBranch}
+                    </span>
+                  )}
+                </span>
+              </h1>
+            </ActionTooltip>
+
+            <ActionTooltip label={t('threadHeader.moreActions')} placement="bottom">
+              <button
+                type="button"
+                aria-label={t('threadHeader.moreActions')}
+                onClick={(event) => {
+                  const rect = event.currentTarget.getBoundingClientRect()
+                  setMenuPosition({ x: rect.left, y: rect.bottom + 4 })
+                }}
+                style={iconButtonStyle}
+                onMouseEnter={(e) => {
+                  ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--bg-tertiary)'
+                  ;(e.currentTarget as HTMLButtonElement).style.color = 'var(--text-primary)'
+                }}
+                onMouseLeave={(e) => {
+                  ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent'
+                  ;(e.currentTarget as HTMLButtonElement).style.color = 'var(--text-secondary)'
+                }}
+              >
+                <MoreHorizontal size={16} aria-hidden />
+              </button>
+            </ActionTooltip>
+          </div>
         )}
 
         {/* Open button */}
@@ -267,6 +382,65 @@ export function ThreadHeader({
             void runCommit(message)
           }}
           onClose={() => setCommitOpen(false)}
+        />
+      )}
+      {menuPosition && (
+        <ContextMenu
+          position={menuPosition}
+          onClose={() => setMenuPosition(null)}
+          items={[
+            ...(!activeThreadIsSubAgent
+              ? [
+                  {
+                    label: pinned ? t('threadEntry.unpin') : t('threadEntry.pin'),
+                    icon: <Pin size={14} aria-hidden />,
+                    onClick: () => togglePinnedThread(threadId)
+                  }
+                ]
+              : []),
+            {
+              label: t('threadEntry.rename'),
+              icon: <Pencil size={14} aria-hidden />,
+              onClick: startRename
+            },
+            ...(!activeThreadIsSubAgent
+              ? [
+                  {
+                    label: t('threadEntry.archive'),
+                    icon: <Archive size={14} aria-hidden />,
+                    onClick: () => {
+                      void archiveThread()
+                    }
+                  }
+                ]
+              : []),
+            ...(!activeThreadIsSubAgent && canFork
+              ? [
+                  { type: 'separator' as const },
+                  {
+                    label: t('fork.menu'),
+                    icon: <GitFork size={14} aria-hidden />,
+                    onClick: () => {},
+                    submenu: [
+                      {
+                        label: t('fork.intoLocal'),
+                        icon: <Laptop size={14} aria-hidden />,
+                        onClick: () => forkThread('local')
+                      },
+                      ...(canForkIntoWorktree
+                        ? [
+                            {
+                              label: t('fork.intoWorktree'),
+                              icon: <ArrowRightLeft size={14} aria-hidden />,
+                              onClick: () => forkThread('worktree')
+                            }
+                          ]
+                        : [])
+                    ]
+                  }
+                ]
+              : [])
+          ]}
         />
       )}
     </>

@@ -244,7 +244,7 @@ function MenuButton({
       }}
       style={{
         ...menuItemStyle,
-        background: hovered ? 'var(--glass-surface-soft)' : 'transparent'
+        background: hovered ? 'var(--bg-tertiary)' : 'transparent'
       }}
     >
       <span style={menuItemIconStyle}>{icon}</span>
@@ -260,7 +260,7 @@ function clamp(value: number, min: number, max: number): number {
 
 const menuStyle: CSSProperties = {
   position: 'fixed',
-  border: '1px solid var(--glass-border)',
+  border: 'none',
   borderRadius: '10px',
   background: 'var(--glass-surface-strong)',
   boxShadow: 'var(--glass-shadow-soft)',

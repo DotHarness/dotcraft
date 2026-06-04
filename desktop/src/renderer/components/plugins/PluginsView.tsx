@@ -12,6 +12,7 @@ import { PillSwitch } from '../ui/PillSwitch'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
 import { SkillsManageList, SkillsView, filterLocalSkills } from '../skills/SkillsView'
 import {
+  CatalogHoverButton,
   CatalogFilterMenu,
   CatalogSearchBox,
   CatalogTabs,
@@ -168,10 +169,6 @@ export function PluginsView(): JSX.Element {
           loading={detailLoading}
           saved={savedPluginId === selectedPlugin.id}
           onBack={() => clearSelection()}
-          onSurfaceChange={(next) => {
-            clearSelection()
-            setSurface(next)
-          }}
           onInstall={() => setInstallTarget(selectedPlugin)}
           onRemove={async () => {
             const pluginName = pluginTitle(selectedPlugin)
@@ -235,10 +232,10 @@ export function PluginsView(): JSX.Element {
         <div style={page}>
           <header style={manageHeader}>
             <div style={breadcrumb}>
-              <button type="button" onClick={() => setMode('browse')} style={breadcrumbButton}>
+              <CatalogHoverButton type="button" onClick={() => setMode('browse')} baseStyle={breadcrumbButton}>
                 <ChevronLeft size={14} aria-hidden />
                 {surface === 'plugins' ? t('plugins.pageTitle') : t('skills.pageTitle')}
-              </button>
+              </CatalogHoverButton>
               <span style={breadcrumbSep}>›</span>
               <span style={breadcrumbCurrent}>{t('plugins.manage')}</span>
             </div>
@@ -309,19 +306,19 @@ export function PluginsView(): JSX.Element {
       <SurfaceTabs value={surface} onChange={setSurface} />
       <header style={browseHeader}>
         <div style={topActions}>
-          <button type="button" onClick={() => setMode('manage')} style={manageButton}>
+          <CatalogHoverButton type="button" onClick={() => setMode('manage')} baseStyle={manageButton}>
             <Settings size={14} aria-hidden />
             <span style={manageButtonLabel}>{t('plugins.manage')}</span>
-          </button>
+          </CatalogHoverButton>
           <ActionTooltip label={t('plugins.moreActions')} placement="bottom">
-            <button
+            <CatalogHoverButton
               type="button"
               aria-label={t('plugins.moreActions')}
               onClick={(event) => setMenuPosition({ x: event.clientX, y: event.clientY })}
-              style={iconButton}
+              baseStyle={iconButton}
             >
               <Ellipsis size={16} aria-hidden />
-            </button>
+            </CatalogHoverButton>
           </ActionTooltip>
         </div>
         <h1 style={heroTitle}>{t('plugins.heroTitle')}</h1>
@@ -485,16 +482,35 @@ function ManageSurfaceTabs({
   return (
     <div style={manageSurfaceTabs}>
       {items.map((item) => (
-        <button
+        <ManageSurfaceTab
           key={item.value}
-          type="button"
+          label={item.label}
+          active={value === item.value}
           onClick={() => onChange(item.value)}
-          style={value === item.value ? manageSurfaceTabActive : manageSurfaceTab}
-        >
-          {item.label}
-        </button>
+        />
       ))}
     </div>
+  )
+}
+
+function ManageSurfaceTab({
+  label,
+  active,
+  onClick
+}: {
+  label: string
+  active: boolean
+  onClick: () => void
+}): JSX.Element {
+  return (
+    <CatalogHoverButton
+      type="button"
+      onClick={onClick}
+      baseStyle={active ? manageSurfaceTabActive : manageSurfaceTab}
+      hoverStyle={{ borderColor: 'transparent' }}
+    >
+      {label}
+    </CatalogHoverButton>
   )
 }
 
@@ -571,8 +587,15 @@ function PluginManageItem({
   onToggle: (enabled: boolean) => void
 }): JSX.Element {
   const t = useT()
+  const [active, setActive] = useState(false)
   return (
-    <div style={manageRow}>
+    <div
+      style={interactiveManageRow(active)}
+      onMouseEnter={() => setActive(true)}
+      onMouseLeave={() => setActive(false)}
+      onFocus={() => setActive(true)}
+      onBlur={() => setActive(false)}
+    >
       <button type="button" onClick={onOpen} style={manageItemMain}>
         <PluginIcon plugin={plugin} size={38} />
         <span style={pluginText}>
@@ -584,7 +607,7 @@ function PluginManageItem({
       {plugin.installed ? (
         <PillSwitch checked={plugin.enabled} onChange={onToggle} size="sm" aria-label={`${pluginTitle(plugin)} enabled`} />
       ) : (
-        <button type="button" onClick={onInstall} style={installMiniButton}>{t('plugins.install')}</button>
+        <button type="button" onClick={onInstall} style={installMiniButton(active)}>{t('plugins.install')}</button>
       )}
     </div>
   )
@@ -595,7 +618,6 @@ function PluginDetailView({
   loading,
   saved,
   onBack,
-  onSurfaceChange,
   onInstall,
   onRemove,
   onToggle,
@@ -607,7 +629,6 @@ function PluginDetailView({
   loading: boolean
   saved: boolean
   onBack: () => void
-  onSurfaceChange: (surface: Surface) => void
   onInstall: () => void
   onRemove: () => void
   onToggle: (enabled: boolean) => void
@@ -666,13 +687,18 @@ function PluginDetailView({
   ]
   return (
     <div style={page}>
-      <SurfaceTabs value="plugins" onChange={onSurfaceChange} />
-      <header style={detailHeader}>
-        <div style={detailTopRow}>
-          <button type="button" onClick={onBack} style={breadcrumbButton}>
-            <ChevronLeft size={14} aria-hidden />
+      <div style={detailBreadcrumbBar}>
+        <div style={breadcrumb}>
+          <CatalogHoverButton type="button" onClick={onBack} baseStyle={breadcrumbButton}>
             {t('plugins.pageTitle')}
-          </button>
+          </CatalogHoverButton>
+          <span style={breadcrumbSep}>›</span>
+          <span style={breadcrumbCurrent}>{pluginTitle(plugin)}</span>
+        </div>
+      </div>
+      <header style={detailHeader}>
+        <div style={detailIconRow}>
+          <PluginIcon plugin={plugin} size={48} />
           <div style={{ flex: 1 }} />
           {saved && <span style={savedHint}>{t('settings.savedToast')}</span>}
           <a
@@ -701,7 +727,6 @@ function PluginDetailView({
             </button>
           )}
         </div>
-        <PluginIcon plugin={plugin} size={48} />
         <h1 style={detailTitle}>{pluginTitle(plugin)}</h1>
         <p style={detailSubtitle}>{pluginSubtitle(plugin)}</p>
       </header>
@@ -1074,14 +1099,40 @@ const savedHint: CSSProperties = catalogStyles.savedHint
 const manageMain: CSSProperties = catalogStyles.manageMain
 const manageRow: CSSProperties = catalogStyles.manageRow
 const emptyText: CSSProperties = catalogStyles.emptyText
+
+function interactiveManageRow(active: boolean): CSSProperties {
+  return {
+    ...manageRow,
+    borderRadius: '8px',
+    padding: '0 8px',
+    boxSizing: 'border-box',
+    backgroundColor: active ? 'var(--bg-tertiary)' : 'transparent',
+    transition: 'background-color 120ms ease, color 120ms ease'
+  }
+}
+
 const manageItemMain: CSSProperties = { ...compactItem, flex: 1, padding: 0, height: 'auto' }
 const manageSource: CSSProperties = { width: '86px', color: 'var(--text-secondary)', fontSize: '13px', textAlign: 'left' }
-const installMiniButton: CSSProperties = { border: 'none', borderRadius: 999, background: 'var(--bg-tertiary)', color: 'var(--text-primary)', padding: '6px 11px', fontSize: 12, cursor: 'pointer' }
+function installMiniButton(rowActive: boolean): CSSProperties {
+  return {
+    border: 'none',
+    borderRadius: 999,
+    background: rowActive
+      ? 'color-mix(in srgb, var(--text-primary) 9%, var(--bg-tertiary))'
+      : 'var(--bg-tertiary)',
+    color: 'var(--text-primary)',
+    padding: '6px 11px',
+    fontSize: 12,
+    cursor: 'pointer',
+    transition: 'background-color 120ms ease'
+  }
+}
 const pluginText: CSSProperties = { display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }
 const detailMain: CSSProperties = { flex: 1, minHeight: 0, overflow: 'auto', width: '100%' }
 const detailContent: CSSProperties = { width: 'min(760px, calc(100% - 48px))', margin: '0 auto', padding: '0 0 48px' }
 const detailHeader: CSSProperties = { width: 'min(760px, calc(100% - 48px))', margin: '22px auto 28px' }
-const detailTopRow: CSSProperties = { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 28 }
+const detailBreadcrumbBar: CSSProperties = { display: 'flex', alignItems: 'center', height: 40, padding: '8px 12px 4px', flexShrink: 0 }
+const detailIconRow: CSSProperties = { display: 'flex', alignItems: 'center', gap: 12 }
 const detailTitle: CSSProperties = { margin: '22px 0 6px', fontSize: 22, fontWeight: 600 }
 const detailSubtitle: CSSProperties = { margin: 0, color: 'var(--text-secondary)', fontSize: 15 }
 const detailIconButton: CSSProperties = { width: 32, height: 32, borderRadius: 8, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', textDecoration: 'none' }

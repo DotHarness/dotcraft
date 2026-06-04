@@ -38,7 +38,12 @@ export function PluginCatalogItem({
       onMouseLeave={() => setActive(false)}
       onFocus={() => setActive(true)}
       onBlur={() => setActive(false)}
-      style={{ ...catalogStyles.compactItem, ...style }}
+      style={{
+        ...catalogStyles.compactItem,
+        backgroundColor: active ? 'var(--bg-tertiary)' : 'transparent',
+        color: active ? 'var(--text-primary)' : catalogStyles.compactItem.color,
+        ...style
+      }}
     >
       <PluginIcon plugin={plugin} size={40} />
       <span style={pluginText}>
@@ -55,7 +60,7 @@ export function PluginCatalogItem({
               event.stopPropagation()
               onTryInChat?.()
             }}
-            style={tryAction}
+            style={tryAction(active)}
           >
             <MessageCircle size={14} aria-hidden />
             <span>{tryLabel}</span>
@@ -67,14 +72,16 @@ export function PluginCatalogItem({
               event.stopPropagation()
               onInstall?.()
             }}
-            style={installAction}
+            style={installAction(active)}
           >
             {installLabel}
           </button>
         ) : plugin.installed && plugin.enabled ? (
           <Check size={16} aria-hidden />
         ) : (
-          <Plus size={16} aria-hidden />
+          <span style={iconAction(active)}>
+            <Plus size={16} aria-hidden />
+          </span>
         )}
       </span>
     </div>
@@ -114,32 +121,59 @@ const iconShell: CSSProperties = {
   fontWeight: 700,
   flex: '0 0 auto'
 }
-const tryAction: CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: 5,
-  height: 28,
-  padding: '0 9px',
-  border: 'none',
-  borderRadius: 8,
-  backgroundColor: 'var(--bg-tertiary)',
-  color: 'var(--text-primary)',
-  fontSize: 12,
-  lineHeight: 1,
-  whiteSpace: 'nowrap',
-  cursor: 'pointer'
+function actionBackground(rowActive: boolean): string {
+  return rowActive
+    ? 'color-mix(in srgb, var(--text-primary) 9%, var(--bg-tertiary))'
+    : 'var(--bg-tertiary)'
 }
-const installAction: CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  height: 28,
-  padding: '0 10px',
-  border: 'none',
-  borderRadius: 999,
-  backgroundColor: 'var(--bg-tertiary)',
-  color: 'var(--text-primary)',
-  fontSize: 12,
-  lineHeight: 1,
-  whiteSpace: 'nowrap',
-  cursor: 'pointer'
+
+function tryAction(rowActive: boolean): CSSProperties {
+  return {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 5,
+    height: 28,
+    padding: '0 9px',
+    border: 'none',
+    borderRadius: 8,
+    backgroundColor: actionBackground(rowActive),
+    color: 'var(--text-primary)',
+    fontSize: 12,
+    lineHeight: 1,
+    whiteSpace: 'nowrap',
+    cursor: 'pointer',
+    transition: 'background-color 120ms ease'
+  }
+}
+
+function installAction(rowActive: boolean): CSSProperties {
+  return {
+    display: 'inline-flex',
+    alignItems: 'center',
+    height: 28,
+    padding: '0 10px',
+    border: 'none',
+    borderRadius: 999,
+    backgroundColor: actionBackground(rowActive),
+    color: 'var(--text-primary)',
+    fontSize: 12,
+    lineHeight: 1,
+    whiteSpace: 'nowrap',
+    cursor: 'pointer',
+    transition: 'background-color 120ms ease'
+  }
+}
+
+function iconAction(rowActive: boolean): CSSProperties {
+  return {
+    width: 30,
+    height: 30,
+    borderRadius: 999,
+    backgroundColor: actionBackground(rowActive),
+    color: 'var(--text-primary)',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    transition: 'background-color 120ms ease'
+  }
 }

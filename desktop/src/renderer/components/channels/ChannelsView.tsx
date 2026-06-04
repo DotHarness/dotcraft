@@ -1398,7 +1398,7 @@ function ChannelCatalogItem({
       onBlur={() => setHovered(false)}
       style={{
         ...compactItem,
-        backgroundColor: active ? 'var(--bg-tertiary)' : hovered ? 'var(--bg-secondary)' : 'transparent'
+        backgroundColor: active || hovered ? 'var(--bg-tertiary)' : 'transparent'
       }}
     >
       <ChannelIcon logoPath={logoPath} title={title} />

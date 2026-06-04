@@ -135,7 +135,7 @@ export function CommandSearchPopover({
         zIndex: 50,
         boxShadow: 'var(--glass-shadow-soft)',
         background: 'var(--glass-surface-strong)',
-        border: '1px solid var(--glass-border)',
+        border: 'none',
         borderRadius: '12px',
         backdropFilter: 'var(--glass-blur)',
         WebkitBackdropFilter: 'var(--glass-blur)',
@@ -182,7 +182,7 @@ export function CommandSearchPopover({
                   gap: '8px',
                   padding: '7px 12px',
                   border: 'none',
-                  background: index === highlight ? 'var(--glass-surface-soft)' : 'transparent',
+                  background: index === highlight ? 'var(--bg-tertiary)' : 'transparent',
                   color: 'var(--text-primary)',
                   cursor: 'pointer',
                   textAlign: 'left'
@@ -247,7 +247,7 @@ export function CommandSearchPopover({
                   gap: '8px',
                   padding: '7px 12px',
                   border: 'none',
-                  background: index === highlight ? 'var(--glass-surface-soft)' : 'transparent',
+                  background: index === highlight ? 'var(--bg-tertiary)' : 'transparent',
                   color: 'var(--text-primary)',
                   cursor: 'pointer',
                   textAlign: 'left'
@@ -312,7 +312,7 @@ export function CommandSearchPopover({
                   gap: '8px',
                   padding: '7px 12px',
                   border: 'none',
-                  background: index === highlight ? 'var(--glass-surface-soft)' : 'transparent',
+                  background: index === highlight ? 'var(--bg-tertiary)' : 'transparent',
                   color: 'var(--text-primary)',
                   cursor: 'pointer',
                   textAlign: 'left'

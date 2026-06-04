@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Abstractions;
 using DotCraft.Configuration;
@@ -155,6 +157,67 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
             "Notification (with 'method') must arrive after the response");
     }
 
+    [Fact]
+    public async Task WorktreeCreateAndStart_ReturnsThreadAndEmitsStarted()
+    {
+        InitializeGitWorkspace(_h.Identity.WorkspacePath);
+        var msg = _h.BuildRequest(AppServerMethods.WorktreeCreateAndStart, new
+        {
+            identity = new { channelName = "appserver", userId = "test_user", workspacePath = _h.Identity.WorkspacePath },
+            branchName = "dotcraft/wire-start",
+            copyDirtyChanges = false
+        });
+
+        await _h.ExecuteRequestAsync(msg);
+
+        var response = await _h.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(response);
+        var result = response.RootElement.GetProperty("result");
+        var thread = result.GetProperty("thread");
+        var worktree = result.GetProperty("worktree");
+        Assert.Equal(worktree.GetProperty("path").GetString(), thread.GetProperty("effectiveWorkspacePath").GetString());
+        Assert.Equal("dotcraft/wire-start", worktree.GetProperty("branchName").GetString());
+
+        var notification = await _h.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsNotification(notification, AppServerMethods.ThreadStarted);
+        Assert.Equal(thread.GetProperty("id").GetString(), notification.RootElement.GetProperty("params").GetProperty("thread").GetProperty("id").GetString());
+    }
+
+    [Fact]
+    public async Task ThreadWorktreeHandoff_ReturnsThreadAndEmitsUpdated()
+    {
+        InitializeGitWorkspace(_h.Identity.WorkspacePath);
+        var start = _h.BuildRequest(AppServerMethods.ThreadStart, new
+        {
+            identity = new { channelName = "appserver", userId = "test_user", workspacePath = _h.Identity.WorkspacePath }
+        });
+        await _h.ExecuteRequestAsync(start);
+        var startResponse = await _h.Transport.ReadNextSentAsync();
+        _ = await _h.Transport.ReadNextSentAsync();
+        var threadId = startResponse.RootElement.GetProperty("result").GetProperty("thread").GetProperty("id").GetString()!;
+
+        var handoff = _h.BuildRequest(AppServerMethods.ThreadWorktreeHandoff, new
+        {
+            threadId,
+            mode = "worktree",
+            branchName = "dotcraft/wire-handoff",
+            copyDirtyChanges = false
+        });
+        await _h.ExecuteRequestAsync(handoff);
+
+        var response = await _h.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(response);
+        var result = response.RootElement.GetProperty("result");
+        Assert.Equal("worktree", result.GetProperty("mode").GetString());
+        var thread = result.GetProperty("thread");
+        Assert.Equal(threadId, thread.GetProperty("id").GetString());
+        Assert.Equal(result.GetProperty("worktree").GetProperty("path").GetString(), thread.GetProperty("effectiveWorkspacePath").GetString());
+
+        var notification = await _h.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsNotification(notification, AppServerMethods.ThreadUpdated);
+        Assert.Equal(threadId, notification.RootElement.GetProperty("params").GetProperty("thread").GetProperty("id").GetString());
+    }
+
     /// <summary>
     /// When <see cref="AppServerRequestContext.CurrentTransport"/> matches the client transport,
     /// a broadcast hook must skip that transport (mirrors <c>AppServerHost.BroadcastThreadStarted</c>)
@@ -262,6 +325,165 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         await _h.Transport.ReadNextSentAsync(); // drain notification
         var thread = response.RootElement.GetProperty("result").GetProperty("thread");
         Assert.Equal("client", thread.GetProperty("historyMode").GetString());
+    }
+
+    // -------------------------------------------------------------------------
+    // thread/fork
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task Initialize_AdvertisesThreadForkCapability()
+    {
+        using var harness = new AppServerTestHarness();
+        var init = await harness.InitializeAsync();
+
+        var capabilities = init.RootElement.GetProperty("result").GetProperty("capabilities");
+        Assert.True(capabilities.GetProperty("threadFork").GetBoolean());
+        Assert.True(capabilities.GetProperty("gitWorktrees").GetBoolean());
+    }
+
+    [Fact]
+    public async Task ThreadFork_ReturnsForkedThreadAndThreadStartedNotification()
+    {
+        var source = await _h.Service.CreateThreadAsync(_h.Identity, displayName: "Source");
+        AddCompletedTurn(source, "turn_001", "first");
+        AddCompletedTurn(source, "turn_002", "second");
+
+        var msg = _h.BuildRequest(AppServerMethods.ThreadFork, new
+        {
+            threadId = source.Id,
+            displayName = "Branch"
+        });
+        await _h.ExecuteRequestAsync(msg);
+
+        var response = await _h.Transport.ReadNextSentAsync();
+        var notification = await _h.Transport.ReadNextSentAsync();
+
+        AppServerTestHarness.AssertIsSuccessResponse(response);
+        var thread = response.RootElement.GetProperty("result").GetProperty("thread");
+        var forkId = thread.GetProperty("id").GetString()!;
+        Assert.NotEqual(source.Id, forkId);
+        Assert.Equal(forkId, thread.GetProperty("sessionId").GetString());
+        Assert.Equal(source.Id, thread.GetProperty("forkedFromId").GetString());
+        Assert.Equal("Branch", thread.GetProperty("displayName").GetString());
+        Assert.Equal(_h.Identity.WorkspacePath, thread.GetProperty("effectiveWorkspacePath").GetString());
+        Assert.False(thread.GetProperty("ephemeral").GetBoolean());
+        Assert.Contains(".craft", thread.GetProperty("path").GetString(), StringComparison.OrdinalIgnoreCase);
+        var turns = thread.GetProperty("turns").EnumerateArray().ToList();
+        Assert.Equal(2, turns.Count);
+        Assert.Equal(forkId, turns[0].GetProperty("threadId").GetString());
+        AssertForkBoundaryNotice(turns[^1], source.Id);
+
+        AppServerTestHarness.AssertIsNotification(notification, AppServerMethods.ThreadStarted);
+        var notifiedThread = notification.RootElement.GetProperty("params").GetProperty("thread");
+        Assert.Equal(forkId, notifiedThread.GetProperty("id").GetString());
+        Assert.Equal(source.Id, notifiedThread.GetProperty("forkedFromId").GetString());
+        Assert.False(notifiedThread.TryGetProperty("turns", out _));
+    }
+
+    [Fact]
+    public async Task ThreadFork_DefaultDisplayNameUsesSourceDisplayName()
+    {
+        var source = await _h.Service.CreateThreadAsync(_h.Identity, displayName: "Research worktree handoff");
+        AddCompletedTurn(source, "turn_001", "first");
+
+        var msg = _h.BuildRequest(AppServerMethods.ThreadFork, new
+        {
+            threadId = source.Id
+        });
+        await _h.ExecuteRequestAsync(msg);
+
+        var response = await _h.Transport.ReadNextSentAsync();
+        _ = await _h.Transport.ReadNextSentAsync();
+
+        AppServerTestHarness.AssertIsSuccessResponse(response);
+        var thread = response.RootElement.GetProperty("result").GetProperty("thread");
+        Assert.Equal("Research worktree handoff", thread.GetProperty("displayName").GetString());
+    }
+
+    [Fact]
+    public async Task ThreadFork_EphemeralExcludeTurns_OmitsPathAndTurns()
+    {
+        var source = await _h.Service.CreateThreadAsync(_h.Identity);
+        AddCompletedTurn(source, "turn_001", "first");
+
+        var msg = _h.BuildRequest(AppServerMethods.ThreadFork, new
+        {
+            threadId = source.Id,
+            ephemeral = true,
+            excludeTurns = true
+        });
+        await _h.ExecuteRequestAsync(msg);
+
+        var response = await _h.Transport.ReadNextSentAsync();
+        _ = await _h.Transport.ReadNextSentAsync();
+
+        AppServerTestHarness.AssertIsSuccessResponse(response);
+        var thread = response.RootElement.GetProperty("result").GetProperty("thread");
+        Assert.True(thread.GetProperty("ephemeral").GetBoolean());
+        Assert.False(thread.TryGetProperty("path", out _));
+        Assert.False(thread.TryGetProperty("turns", out _));
+    }
+
+    [Fact]
+    public async Task WorktreeCreateAndFork_ReturnsWorktreeThreadAndStatus()
+    {
+        InitializeGitWorkspace(_h.Identity.WorkspacePath);
+        var source = await _h.Service.CreateThreadAsync(_h.Identity, displayName: "Source");
+        AddCompletedTurn(source, "turn_001", "first");
+
+        var msg = _h.BuildRequest(AppServerMethods.WorktreeCreateAndFork, new
+        {
+            sourceThreadId = source.Id,
+            branchName = "dotcraft/appserver-worktree",
+            displayName = "Worktree Branch"
+        });
+        await _h.ExecuteRequestAsync(msg);
+
+        var response = await _h.Transport.ReadNextSentAsync();
+        var notification = await _h.Transport.ReadNextSentAsync();
+
+        AppServerTestHarness.AssertIsSuccessResponse(response);
+        var result = response.RootElement.GetProperty("result");
+        var thread = result.GetProperty("thread");
+        var worktree = result.GetProperty("worktree");
+        var forkId = thread.GetProperty("id").GetString()!;
+        var worktreePath = worktree.GetProperty("path").GetString()!;
+
+        Assert.NotEqual(source.Id, forkId);
+        Assert.Equal(source.Id, thread.GetProperty("forkedFromId").GetString());
+        Assert.Equal(_h.Identity.WorkspacePath, thread.GetProperty("workspacePath").GetString());
+        Assert.Equal(worktreePath, thread.GetProperty("effectiveWorkspacePath").GetString());
+        Assert.Equal(worktreePath, thread.GetProperty("configuration").GetProperty("executionWorkspaceOverride").GetString());
+        Assert.Equal(worktreePath, thread.GetProperty("worktree").GetProperty("path").GetString());
+        Assert.Equal("dotcraft/appserver-worktree", worktree.GetProperty("branchName").GetString());
+        Assert.True(File.Exists(Path.Combine(worktreePath, ".git")) || Directory.Exists(Path.Combine(worktreePath, ".git")));
+        var turns = thread.GetProperty("turns").EnumerateArray().ToList();
+        var turn = Assert.Single(turns);
+        AssertForkBoundaryNotice(turn, source.Id);
+
+        AppServerTestHarness.AssertIsNotification(notification, AppServerMethods.ThreadStarted);
+        var notifiedThread = notification.RootElement.GetProperty("params").GetProperty("thread");
+        Assert.Equal(forkId, notifiedThread.GetProperty("id").GetString());
+        Assert.Equal(worktreePath, notifiedThread.GetProperty("effectiveWorkspacePath").GetString());
+        Assert.False(notifiedThread.TryGetProperty("turns", out _));
+
+        var listMsg = _h.BuildRequest(AppServerMethods.WorktreeList, new
+        {
+            identity = new { channelName = "appserver", userId = "test_user", workspacePath = _h.Identity.WorkspacePath }
+        });
+        await _h.ExecuteRequestAsync(listMsg);
+        var listResponse = await _h.Transport.ReadNextSentAsync();
+        var listed = Assert.Single(listResponse.RootElement.GetProperty("result").GetProperty("data").EnumerateArray());
+        Assert.Equal(forkId, listed.GetProperty("threadId").GetString());
+
+        var statusMsg = _h.BuildRequest(AppServerMethods.WorktreeStatus, new { threadId = forkId });
+        await _h.ExecuteRequestAsync(statusMsg);
+        var statusResponse = await _h.Transport.ReadNextSentAsync();
+        var status = statusResponse.RootElement.GetProperty("result").GetProperty("status");
+        Assert.True(status.GetProperty("exists").GetBoolean());
+        Assert.True(status.GetProperty("isGitWorktree").GetBoolean());
+        Assert.Equal("dotcraft/appserver-worktree", status.GetProperty("branchName").GetString());
     }
 
     // -------------------------------------------------------------------------
@@ -1097,6 +1319,55 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         turn.Input = userItem;
         turn.Items.Add(userItem);
         thread.Turns.Add(turn);
+    }
+
+    private static void AssertForkBoundaryNotice(JsonElement turn, string sourceThreadId)
+    {
+        var items = turn.GetProperty("items").EnumerateArray().ToList();
+        var marker = Assert.Single(items, item => item.GetProperty("type").GetString() == "systemNotice");
+        var payload = marker.GetProperty("payload");
+        Assert.Equal("forked", payload.GetProperty("kind").GetString());
+        Assert.Equal(sourceThreadId, payload.GetProperty("sourceThreadId").GetString());
+    }
+
+    private static void InitializeGitWorkspace(string workspacePath)
+    {
+        RunGit(workspacePath, "init");
+        RunGit(workspacePath, "config", "user.email", "test@example.com");
+        RunGit(workspacePath, "config", "user.name", "Test User");
+        File.WriteAllText(Path.Combine(workspacePath, ".gitignore"), ".craft/" + Environment.NewLine);
+        File.WriteAllText(Path.Combine(workspacePath, "README.md"), "initial" + Environment.NewLine);
+        RunGit(workspacePath, "add", ".gitignore", "README.md");
+        RunGit(workspacePath, "commit", "-m", "init");
+    }
+
+    private static void RunGit(string workingDirectory, params string[] args)
+    {
+        var psi = new ProcessStartInfo
+        {
+            FileName = "git",
+            WorkingDirectory = workingDirectory,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            RedirectStandardInput = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+        foreach (var arg in args)
+            psi.ArgumentList.Add(arg);
+
+        using var process = Process.Start(psi)
+            ?? throw new InvalidOperationException("Failed to start git setup command.");
+        process.StandardInput.Close();
+        if (!process.WaitForExit(30_000))
+        {
+            process.Kill(entireProcessTree: true);
+            throw new TimeoutException($"git {string.Join(" ", args)} timed out.");
+        }
+
+        var stderr = process.StandardError.ReadToEnd();
+        if (process.ExitCode != 0)
+            throw new InvalidOperationException($"git {string.Join(" ", args)} failed: {stderr}");
     }
 
     private static DynamicToolSpec CreateReviewToolSpec()

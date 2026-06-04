@@ -206,9 +206,13 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
             <AgentMessage
               key={item.id}
               text={displayText}
+              threadId={turn.threadId}
+              turnId={turn.id}
+              itemId={item.id}
               streaming={isLiveStreaming}
               createdAt={item.createdAt}
               showFooter={item.id === footerAgentMessageId}
+              afterContent={item.id === footerAgentMessageId ? turnCompletionContent : undefined}
             />
           )
         })
@@ -293,10 +297,14 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
       : -1
   const lastAgentMessageIndex =
     !isRunning && turn.status === 'completed'
-      ? findLastAgentMessageIndex(renderableItems)
+      ? findLastVisibleAgentMessageIndex(renderableItems)
       : -1
   const footerAgentMessageId =
     lastAgentMessageIndex >= 0 ? renderableItems[lastAgentMessageIndex]?.id : null
+  const turnCompletionContent =
+    !trimHistoricalToolContent && turn.status === 'completed'
+      ? <TurnCompletionContent turnId={turn.id} />
+      : null
   const shouldCollapseIntermediate = lastFinalAgentMessageIndex > 0
   const renderNodes: ConversationRenderNode[] = []
   const streamingMessageStalled = useStreamingMessageStall({
@@ -418,13 +426,8 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
         <CancelledNotice reason={turn.cancelReason} />
       )}
 
-      {/* Turn completion artifacts and file changes */}
-      {!trimHistoricalToolContent && turn.status === 'completed' && (
-        <>
-          <TurnArtifacts turnId={turn.id} />
-          <TurnCompletionSummary turnId={turn.id} />
-        </>
-      )}
+      {/* Fallback for completed turns that have file changes but no visible final message footer. */}
+      {turnCompletionContent && !footerAgentMessageId && turnCompletionContent}
     </div>
   )
 })
@@ -495,6 +498,15 @@ function StreamRetryRow({ signal }: { signal: StreamRetrySignal }): JSX.Element 
       <Info size={15} strokeWidth={1.8} aria-hidden="true" style={streamRetryIconStyle} />
       <span style={streamRetryLabelStyle}>{label}</span>
     </div>
+  )
+}
+
+function TurnCompletionContent({ turnId }: { turnId: string }): JSX.Element {
+  return (
+    <>
+      <TurnArtifacts turnId={turnId} />
+      <TurnCompletionSummary turnId={turnId} />
+    </>
   )
 }
 
@@ -851,6 +863,16 @@ function isGroupedItemFailed(item: ConversationItem): boolean {
 function findLastAgentMessageIndex(items: ConversationItem[]): number {
   for (let i = items.length - 1; i >= 0; i--) {
     if (items[i].type === 'agentMessage') {
+      return i
+    }
+  }
+  return -1
+}
+
+function findLastVisibleAgentMessageIndex(items: ConversationItem[]): number {
+  for (let i = items.length - 1; i >= 0; i--) {
+    const item = items[i]
+    if (item.type === 'agentMessage' && (item.text ?? '').trim().length > 0) {
       return i
     }
   }

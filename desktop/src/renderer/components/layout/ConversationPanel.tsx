@@ -72,6 +72,9 @@ export function ConversationPanel({
   const modelCatalogErrorMessage = useModelCatalogStore((s) => s.errorMessage)
   const loadModels = useModelCatalogStore((s) => s.loadIfNeeded)
   const protocolWorkspacePath = identityWorkspacePath || workspacePath
+  const threadStateWorkspacePath = activeThread?.workspacePath || protocolWorkspacePath
+  const activeEffectiveWorkspacePath =
+    activeThread?.effectiveWorkspacePath?.trim() || threadStateWorkspacePath
   const [modelName, setModelName] = useState<string>('Default')
   const [reasoningConfig, setReasoningConfig] = useState<ResolvedReasoningConfig>(DEFAULT_REASONING_CONFIG)
   const [modelApplying, setModelApplying] = useState(false)
@@ -357,7 +360,7 @@ export function ConversationPanel({
       <ThreadHeader
         threadName={threadName}
         threadId={activeThread.id}
-        workspacePath={workspacePath}
+        workspacePath={activeEffectiveWorkspacePath}
         remoteWorkspace={remoteWorkspace}
       />
 
@@ -430,7 +433,8 @@ export function ConversationPanel({
       ) : (
         <InputComposer
           threadId={activeThread.id}
-          workspacePath={protocolWorkspacePath}
+          workspacePath={threadStateWorkspacePath}
+          fileWorkspacePath={activeEffectiveWorkspacePath}
           remoteWorkspace={remoteWorkspace}
           modelName={modelName}
           modelOptions={modelOptions}

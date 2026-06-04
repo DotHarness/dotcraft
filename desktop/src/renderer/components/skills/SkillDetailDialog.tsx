@@ -9,6 +9,7 @@ import { MarkdownRenderer } from '../conversation/MarkdownRenderer'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
 import { PillSwitch } from '../ui/PillSwitch'
+import { CatalogHoverButton } from '../catalog/CatalogSurface'
 import { SkillAvatar } from './SkillAvatar'
 import { VariantBadge } from './VariantBadge'
 
@@ -62,9 +63,9 @@ export function SkillDetailDialog({
         onClick={(event) => event.stopPropagation()}
       >
         <ActionTooltip label={t('common.close')}>
-          <button type="button" aria-label={t('common.close')} style={closeButton} onClick={onClose}>
+          <CatalogHoverButton type="button" aria-label={t('common.close')} baseStyle={closeButton} onClick={onClose}>
             <X size={16} strokeWidth={2} />
-          </button>
+          </CatalogHoverButton>
         </ActionTooltip>
 
         <header style={header}>
@@ -93,17 +94,17 @@ export function SkillDetailDialog({
               />
             ) : null}
             <ActionTooltip label={t('skillDetail.moreActions')}>
-              <button
+              <CatalogHoverButton
                 type="button"
                 aria-label={t('skillDetail.moreActions')}
-                style={iconButton}
+                baseStyle={iconButton}
                 onClick={(event) => {
                   const rect = event.currentTarget.getBoundingClientRect()
                   setMenuPosition({ x: rect.right - 160, y: rect.bottom + 6 })
                 }}
               >
                 <Ellipsis size={16} strokeWidth={2} />
-              </button>
+              </CatalogHoverButton>
             </ActionTooltip>
           </div>
         </header>
@@ -182,7 +183,7 @@ const modalPanel: React.CSSProperties = {
   gap: 16,
   padding: '30px 20px 20px',
   borderRadius: 18,
-  border: '1px solid var(--border-primary)',
+  border: '1px solid transparent',
   background: 'var(--bg-secondary)',
   boxShadow: '0 24px 80px rgba(0, 0, 0, 0.48)',
   color: 'var(--text-primary)',
@@ -262,7 +263,7 @@ const iconButton: React.CSSProperties = {
   display: 'inline-flex',
   alignItems: 'center',
   justifyContent: 'center',
-  background: 'var(--bg-tertiary)',
+  background: 'transparent',
   color: 'var(--text-secondary)',
   cursor: 'pointer',
 }

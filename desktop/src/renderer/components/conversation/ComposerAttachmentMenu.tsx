@@ -1,6 +1,11 @@
 import { useEffect, useId, useRef, useState, type CSSProperties, type JSX } from 'react'
 import { FileText, ImagePlus, ListChecks, Plus } from 'lucide-react'
-import { COMPOSER_FOOTER_CONTROL_HEIGHT, composerFooterControlBoxStyle } from './ComposerShell'
+import {
+  COMPOSER_FOOTER_CONTROL_HEIGHT,
+  composerFooterControlActiveBackground,
+  composerFooterControlBoxStyle,
+  composerFooterControlHoverBackground
+} from './ComposerShell'
 import { ActionTooltip } from '../ui/ActionTooltip'
 
 interface ComposerAttachmentMenuProps {
@@ -33,6 +38,7 @@ export function ComposerAttachmentMenu({
   disabled = false
 }: ComposerAttachmentMenuProps): JSX.Element {
   const [open, setOpen] = useState(false)
+  const [triggerActive, setTriggerActive] = useState(false)
   const wrapRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const menuId = useId()
@@ -96,6 +102,12 @@ export function ComposerAttachmentMenu({
           aria-expanded={open}
           aria-controls={open ? menuId : undefined}
           disabled={disabled}
+          onMouseEnter={() => setTriggerActive(true)}
+          onMouseLeave={() => setTriggerActive(false)}
+          onFocus={(event) => {
+            if (event.currentTarget.matches(':focus-visible')) setTriggerActive(true)
+          }}
+          onBlur={() => setTriggerActive(false)}
           onClick={() => {
             if (disabled) return
             setOpen((current) => !current)
@@ -107,13 +119,20 @@ export function ComposerAttachmentMenu({
             width: COMPOSER_FOOTER_CONTROL_HEIGHT,
             height: COMPOSER_FOOTER_CONTROL_HEIGHT,
             padding: 0,
-            borderRadius: '8px',
+            borderRadius: '999px',
             border: 'none',
-            background: 'transparent',
+            background: !disabled
+              ? open
+                ? composerFooterControlActiveBackground
+                : triggerActive
+                  ? composerFooterControlHoverBackground
+                  : 'transparent'
+              : 'transparent',
             color: disabled ? 'var(--composer-footer-muted)' : 'var(--composer-footer-text)',
             cursor: disabled ? 'default' : 'pointer',
             lineHeight: 1,
-            boxSizing: 'border-box'
+            boxSizing: 'border-box',
+            transition: 'background-color 120ms ease, color 120ms ease'
           }}
       >
           <Plus size={16} strokeWidth={2} aria-hidden />
@@ -131,7 +150,7 @@ export function ComposerAttachmentMenu({
             bottom: 'calc(100% + 8px)',
             minWidth: '180px',
             zIndex: 70,
-            border: '1px solid var(--glass-border)',
+            border: 'none',
             borderRadius: '12px',
             background: 'var(--glass-surface-strong)',
             boxShadow: 'var(--glass-shadow-soft)',
@@ -140,64 +159,55 @@ export function ComposerAttachmentMenu({
             padding: '6px'
           }}
         >
-          <button
-            type="button"
+          <ComposerAttachmentMenuItem
             role="menuitem"
             disabled={attachmentsDisabled}
             title={attachmentDisabledReason}
+            icon={<ImagePlus size={14} aria-hidden />}
+            label={attachImageLabel}
             onClick={() => {
               if (attachmentsDisabled) return
               setOpen(false)
               fileInputRef.current?.click()
             }}
-            style={attachmentsDisabled ? disabledMenuItemStyle : menuItemStyle}
-          >
-            <ImagePlus size={14} aria-hidden />
-            <span>{attachImageLabel}</span>
-          </button>
-          <button
-            type="button"
+          />
+          <ComposerAttachmentMenuItem
             role="menuitem"
             disabled={attachmentsDisabled}
             title={attachmentDisabledReason}
+            icon={<FileText size={14} aria-hidden />}
+            label={referenceFileLabel}
             onClick={() => {
               if (attachmentsDisabled) return
               setOpen(false)
               onReferenceFiles()
             }}
-            style={attachmentsDisabled ? disabledMenuItemStyle : menuItemStyle}
-          >
-            <FileText size={14} aria-hidden />
-            <span>{referenceFileLabel}</span>
-          </button>
+          />
           {showPlanModeToggle && (
             <>
               <div
                 aria-hidden
                 style={{
                   height: '1px',
-                  background: 'var(--glass-border)',
-                  margin: '6px 4px'
+                  background: 'color-mix(in srgb, var(--text-primary) 9%, transparent)',
+                  margin: '6px 10px'
                 }}
               />
               <ActionTooltip label={planModeToggleLabel ?? ''} placement="right" wrapperStyle={{ width: '100%' }}>
-                <button
-                  type="button"
+                <ComposerAttachmentMenuItem
                   role="menuitemcheckbox"
-                  aria-checked={planModeEnabled}
+                  checked={planModeEnabled}
+                  icon={<ListChecks size={14} aria-hidden />}
+                  label={planModeLabel ?? ''}
+                  trailing={(
+                    <span aria-hidden style={switchTrackStyle(planModeEnabled)}>
+                      <span style={switchThumbStyle(planModeEnabled)} />
+                    </span>
+                  )}
                   onClick={() => {
                     onTogglePlanMode?.()
                   }}
-                  style={planModeMenuItemStyle}
-                >
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
-                    <ListChecks size={14} aria-hidden />
-                    <span>{planModeLabel}</span>
-                  </span>
-                  <span aria-hidden style={switchTrackStyle(planModeEnabled)}>
-                    <span style={switchThumbStyle(planModeEnabled)} />
-                  </span>
-                </button>
+                />
               </ActionTooltip>
             </>
           )}
@@ -207,32 +217,69 @@ export function ComposerAttachmentMenu({
   )
 }
 
-const menuItemStyle = {
+function ComposerAttachmentMenuItem({
+  role,
+  checked,
+  disabled = false,
+  title,
+  icon,
+  label,
+  trailing,
+  onClick
+}: {
+  role: 'menuitem' | 'menuitemcheckbox'
+  checked?: boolean
+  disabled?: boolean
+  title?: string
+  icon: JSX.Element
+  label: string
+  trailing?: JSX.Element
+  onClick: () => void
+}): JSX.Element {
+  const [active, setActive] = useState(false)
+
+  return (
+    <button
+      type="button"
+      role={role}
+      aria-checked={role === 'menuitemcheckbox' ? checked : undefined}
+      disabled={disabled}
+      title={title}
+      onMouseEnter={() => setActive(true)}
+      onMouseLeave={() => setActive(false)}
+      onFocus={() => setActive(true)}
+      onBlur={() => setActive(false)}
+      onClick={onClick}
+      style={menuItemStyle(active, disabled, trailing != null)}
+    >
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+        {icon}
+        <span>{label}</span>
+      </span>
+      {trailing}
+    </button>
+  )
+}
+
+function menuItemStyle(active: boolean, disabled: boolean, hasTrailing: boolean): CSSProperties {
+  return {
   width: '100%',
   display: 'flex',
   alignItems: 'center',
+  justifyContent: hasTrailing ? 'space-between' : 'flex-start',
   gap: '8px',
   border: 'none',
   borderRadius: '10px',
   padding: '8px 10px',
-  background: 'transparent',
-  color: 'var(--text-secondary)',
-  cursor: 'pointer',
+  background: active && !disabled ? 'var(--bg-tertiary)' : 'transparent',
+  color: disabled ? 'var(--text-dimmed)' : active ? 'var(--text-primary)' : 'var(--text-secondary)',
+  cursor: disabled ? 'default' : 'pointer',
   textAlign: 'left',
   fontSize: 'var(--type-secondary-size)',
-  lineHeight: 'var(--type-secondary-line-height)'
-} as const
-
-const disabledMenuItemStyle = {
-  ...menuItemStyle,
-  color: 'var(--text-dimmed)',
-  cursor: 'default'
-} as const
-
-const planModeMenuItemStyle: CSSProperties = {
-  ...menuItemStyle,
-  justifyContent: 'space-between',
-  minWidth: 0
+  lineHeight: 'var(--type-secondary-line-height)',
+  minWidth: 0,
+  transition: 'background-color 120ms ease, color 120ms ease'
+  }
 }
 
 function switchTrackStyle(enabled: boolean): CSSProperties {

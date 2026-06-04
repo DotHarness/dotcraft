@@ -19,7 +19,7 @@ import { MarkdownRenderer } from '../conversation/MarkdownRenderer'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
 import { useUIStore } from '../../stores/uiStore'
 import type { ThreadSummary } from '../../types/thread'
-import { CatalogFilterMenu, CatalogSearchBox, styles as catalogStyles } from '../catalog/CatalogSurface'
+import { CatalogFilterMenu, CatalogHoverButton, CatalogSearchBox, styles as catalogStyles } from '../catalog/CatalogSurface'
 import { SkeletonCatalogGrid, SkeletonList } from '../ui/Skeleton'
 
 type ViewMode = 'browse' | 'manage'
@@ -287,19 +287,19 @@ export function SkillsView({ onManage }: SkillsViewProps = {}): JSX.Element {
     <div style={page}>
       <header style={browseHeader}>
         <div style={topActions}>
-          <button type="button" onClick={() => onManage ? onManage() : setMode('manage')} style={manageButton}>
+          <CatalogHoverButton type="button" onClick={() => onManage ? onManage() : setMode('manage')} baseStyle={manageButton}>
             <Settings size={14} aria-hidden />
             <span style={manageButtonLabel}>{t('skills.manage')}</span>
-          </button>
+          </CatalogHoverButton>
           <ActionTooltip label={t('skills.moreActions')} placement="bottom">
-            <button
+            <CatalogHoverButton
               type="button"
               aria-label={t('skills.moreActions')}
               onClick={(event) => setMenuPosition({ x: event.clientX, y: event.clientY })}
-              style={iconButton}
+              baseStyle={iconButton}
             >
               <Ellipsis size={16} aria-hidden />
-            </button>
+            </CatalogHoverButton>
           </ActionTooltip>
         </div>
 
@@ -469,10 +469,10 @@ function SkillsManageView({
     <div style={page}>
       <header style={manageHeader}>
         <div style={breadcrumb}>
-          <button type="button" onClick={onBack} style={breadcrumbButton}>
+          <CatalogHoverButton type="button" onClick={onBack} baseStyle={breadcrumbButton}>
             <ChevronLeft size={14} aria-hidden />
             {t('skills.pageTitle')}
-          </button>
+          </CatalogHoverButton>
           <span style={breadcrumbSep}>›</span>
           <span style={breadcrumbCurrent}>{t('skills.manage')}</span>
         </div>
@@ -551,37 +551,71 @@ export function SkillsManageList({
       )}
       {error && <p style={{ ...emptyText, color: 'var(--error)' }} role="alert">{error}</p>}
       {!loading && !error && skills.map((skill) => (
-        <div key={skill.name} style={manageRow}>
-          <SkillAvatar
-            name={skill.name}
-            displayName={skillTitle(skill)}
-            size={38}
-            iconDataUrl={skill.iconSmallDataUrl}
-          />
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={rowTitleLine}>
-              <div style={rowTitle}>{skillTitle(skill)}</div>
-              {skill.hasVariant ? <VariantBadge compact /> : null}
-            </div>
-            <div style={rowDesc}>{skillSubtitle(skill, t)}</div>
-          </div>
-          <span style={manageSource}>{sourceLabel(skill, t)}</span>
-          <PillSwitch
-            checked={skill.enabled}
-            onChange={(enabled) => onToggleEnabled(skill, enabled)}
-            size="sm"
-            aria-label={skill.enabled ? t('skillCard.toggleDisable') : t('skillCard.toggleEnable')}
-          />
-        </div>
+        <SkillManageItem
+          key={skill.name}
+          skill={skill}
+          onToggleEnabled={onToggleEnabled}
+        />
       ))}
     </main>
   )
 }
 
+function SkillManageItem({
+  skill,
+  onToggleEnabled
+}: {
+  skill: SkillEntry
+  onToggleEnabled: (skill: SkillEntry, enabled: boolean) => void
+}): JSX.Element {
+  const t = useT()
+  const [active, setActive] = useState(false)
+
+  return (
+    <div
+      style={interactiveManageRow(active)}
+      onMouseEnter={() => setActive(true)}
+      onMouseLeave={() => setActive(false)}
+      onFocus={() => setActive(true)}
+      onBlur={() => setActive(false)}
+    >
+      <SkillAvatar
+        name={skill.name}
+        displayName={skillTitle(skill)}
+        size={38}
+        iconDataUrl={skill.iconSmallDataUrl}
+      />
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div style={rowTitleLine}>
+          <div style={rowTitle}>{skillTitle(skill)}</div>
+          {skill.hasVariant ? <VariantBadge compact /> : null}
+        </div>
+        <div style={rowDesc}>{skillSubtitle(skill, t)}</div>
+      </div>
+      <span style={manageSource}>{sourceLabel(skill, t)}</span>
+      <PillSwitch
+        checked={skill.enabled}
+        onChange={(enabled) => onToggleEnabled(skill, enabled)}
+        size="sm"
+        aria-label={skill.enabled ? t('skillCard.toggleDisable') : t('skillCard.toggleEnable')}
+      />
+    </div>
+  )
+}
+
 function LocalSkillItem({ skill, onOpen }: { skill: SkillEntry; onOpen: () => void }): JSX.Element {
   const t = useT()
+  const [active, setActive] = useState(false)
   return (
-    <button type="button" onClick={onOpen} style={compactItem}>
+    <button
+      type="button"
+      onClick={onOpen}
+      onMouseEnter={() => setActive(true)}
+      onMouseLeave={() => setActive(false)}
+      onFocus={() => setActive(true)}
+      onBlur={() => setActive(false)}
+      style={interactiveCompactItem(active)}
+    >
       <SkillAvatar
         name={skill.name}
         displayName={skillTitle(skill)}
@@ -604,14 +638,23 @@ function LocalSkillItem({ skill, onOpen }: { skill: SkillEntry; onOpen: () => vo
 
 function MarketSkillItem({ skill, onOpen }: { skill: MarketSkillSummary; onOpen: () => void }): JSX.Element {
   const t = useT()
+  const [active, setActive] = useState(false)
   return (
-    <button type="button" onClick={onOpen} style={compactItem}>
+    <button
+      type="button"
+      onClick={onOpen}
+      onMouseEnter={() => setActive(true)}
+      onMouseLeave={() => setActive(false)}
+      onFocus={() => setActive(true)}
+      onBlur={() => setActive(false)}
+      style={interactiveCompactItem(active)}
+    >
       <SkillAvatar name={skill.name} size={40} />
       <div style={{ minWidth: 0, flex: 1 }}>
         <div style={rowTitle}>{skill.name}</div>
         <div style={rowDesc}>{skill.description || skill.slug}</div>
       </div>
-      <span style={marketAction(skill)}>
+      <span style={marketAction(skill, active)}>
         {skill.updateAvailable
           ? t('skillMarket.updateAvailable')
           : skill.installed
@@ -898,10 +941,33 @@ const rowTitleLine: React.CSSProperties = catalogStyles.rowTitleLine
 const rowDesc: React.CSSProperties = catalogStyles.rowDesc
 const statusIcon: React.CSSProperties = catalogStyles.statusIcon
 
-function marketAction(skill: MarketSkillSummary): React.CSSProperties {
+function marketAction(skill: MarketSkillSummary, rowActive: boolean): React.CSSProperties {
+  if (!skill.installed && !skill.updateAvailable) {
+    return {
+      ...statusIcon,
+      width: 30,
+      height: 30,
+      minWidth: 30,
+      alignItems: 'center',
+      borderRadius: 999,
+      background: rowActive
+        ? 'color-mix(in srgb, var(--text-primary) 9%, var(--bg-tertiary))'
+        : 'var(--bg-tertiary)',
+      color: 'var(--text-primary)',
+      transition: 'background-color 120ms ease'
+    }
+  }
+
   return {
     ...statusIcon,
-    color: skill.updateAvailable ? 'var(--warning)' : skill.installed ? 'var(--success)' : 'var(--text-primary)'
+    minHeight: 28,
+    padding: '0 10px',
+    borderRadius: 999,
+    background: rowActive
+      ? 'color-mix(in srgb, var(--text-primary) 9%, var(--bg-tertiary))'
+      : 'var(--bg-tertiary)',
+    color: skill.updateAvailable ? 'var(--warning)' : 'var(--success)',
+    transition: 'background-color 120ms ease'
   }
 }
 
@@ -922,6 +988,25 @@ const chipActive: React.CSSProperties = catalogStyles.chipActive
 const savedHint: React.CSSProperties = catalogStyles.savedHint
 const manageMain: React.CSSProperties = catalogStyles.manageMain
 const manageRow: React.CSSProperties = catalogStyles.manageRow
+
+function interactiveCompactItem(active: boolean): React.CSSProperties {
+  return {
+    ...compactItem,
+    backgroundColor: active ? 'var(--bg-tertiary)' : 'transparent',
+    color: active ? 'var(--text-primary)' : compactItem.color
+  }
+}
+
+function interactiveManageRow(active: boolean): React.CSSProperties {
+  return {
+    ...manageRow,
+    borderRadius: '8px',
+    padding: '0 8px',
+    boxSizing: 'border-box',
+    backgroundColor: active ? 'var(--bg-tertiary)' : 'transparent',
+    transition: 'background-color 120ms ease, color 120ms ease'
+  }
+}
 
 const manageSource: React.CSSProperties = {
   width: '72px',

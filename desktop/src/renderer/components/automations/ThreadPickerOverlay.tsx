@@ -111,7 +111,7 @@ export function ThreadPickerOverlay({ onSelect, onClose }: Props): JSX.Element {
                 cursor: 'pointer',
                 textAlign: 'left'
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--bg-secondary)')}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)')}
               onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
             >
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>

@@ -4,6 +4,7 @@ import { ThreadEntry } from '../components/sidebar/ThreadEntry'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { ConfirmDialogHost } from '../components/ui/ConfirmDialog'
 import { useThreadStore } from '../stores/threadStore'
+import { useConnectionStore } from '../stores/connectionStore'
 import type { ThreadSummary } from '../types/thread'
 
 const settingsGet = vi.fn()
@@ -41,6 +42,7 @@ describe('ThreadEntry', () => {
     appServerSendRequest.mockResolvedValue({})
 
     useThreadStore.getState().reset()
+    useConnectionStore.getState().reset()
     useThreadStore.setState({
       threadList: [],
       activeThreadId: null,
@@ -299,6 +301,68 @@ describe('ThreadEntry', () => {
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith('thread/archive', { threadId: 'thread-1' })
       expect(useThreadStore.getState().threadList).toEqual([])
+    })
+  })
+
+  it('forks a thread into local from the context menu and selects the result', async () => {
+    const thread = makeThread()
+    const forked = makeThread({ id: 'thread-fork', displayName: 'Forked thread' })
+    useConnectionStore.setState({ capabilities: { threadFork: true, gitWorktrees: true } })
+    useThreadStore.setState({ threadList: [thread] })
+    appServerSendRequest.mockResolvedValueOnce({ thread: forked })
+    renderThreadEntry(thread)
+
+    fireEvent.contextMenu(await screen.findByTestId('thread-entry-thread-1'), {
+      clientX: 20,
+      clientY: 20
+    })
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Fork into local' }))
+
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith('thread/fork', { threadId: 'thread-1' }, undefined)
+      expect(useThreadStore.getState().activeThreadId).toBe('thread-fork')
+      expect(useThreadStore.getState().threadList[0].id).toBe('thread-fork')
+    })
+  })
+
+  it('forks a thread into a new worktree from the context menu', async () => {
+    const thread = makeThread()
+    const workspacePath = 'C:\\Workspaces\\sample-app'
+    const worktreePath = `${workspacePath}\\.craft\\worktrees\\dotcraft-thread-worktree`
+    const forked = makeThread({
+      id: 'thread-worktree',
+      displayName: 'Worktree fork',
+      effectiveWorkspacePath: worktreePath,
+      worktree: {
+        id: 'wt-1',
+        sourceThreadId: 'thread-1',
+        workspacePath,
+        sourceWorkspacePath: workspacePath,
+        path: worktreePath,
+        branchName: 'dotcraft/thread-worktree',
+        baseRef: 'HEAD',
+        head: 'abc123',
+        createdAt: '2026-06-03T00:00:00.000Z'
+      }
+    })
+    useConnectionStore.setState({ capabilities: { threadFork: true, gitWorktrees: true } })
+    useThreadStore.setState({ threadList: [thread] })
+    appServerSendRequest.mockResolvedValueOnce({ thread: forked })
+    renderThreadEntry(thread)
+
+    fireEvent.contextMenu(await screen.findByTestId('thread-entry-thread-1'), {
+      clientX: 20,
+      clientY: 20
+    })
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Fork into new worktree' }))
+
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith(
+        'worktree/createAndFork',
+        { sourceThreadId: 'thread-1', copyDirtyChanges: true },
+        180000
+      )
+      expect(useThreadStore.getState().activeThreadId).toBe('thread-worktree')
     })
   })
 

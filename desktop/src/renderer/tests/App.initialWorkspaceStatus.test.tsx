@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ReactNode } from 'react'
 
 vi.hoisted(() => {
@@ -22,6 +22,7 @@ import {
   type WhatsNewMediaState
 } from '../../shared/whatsNew'
 import { WHATS_NEW_TEST_RELEASES } from './whatsNewFixtures'
+import type { Thread } from '../types/thread'
 
 vi.mock('../components/layout/CustomMenuBar', () => ({
   CustomMenuBar: () => <div data-testid="custom-menu-bar" />
@@ -321,6 +322,14 @@ function renderApp() {
   )
 }
 
+async function flushPromises(): Promise<void> {
+  await act(async () => {
+    await Promise.resolve()
+    await Promise.resolve()
+    await Promise.resolve()
+  })
+}
+
 describe('App initial workspace status bootstrap', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -343,6 +352,10 @@ describe('App initial workspace status bootstrap', () => {
 
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1200 })
     Object.defineProperty(window, 'innerHeight', { configurable: true, value: 800 })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it('uses the welcome surface while the no-workspace welcome screen is visible', () => {
@@ -550,6 +563,75 @@ describe('App initial workspace status bootstrap', () => {
     const params = threadListCall?.[1] as { identity?: { channelContext?: string; workspacePath?: string } } | undefined
     expect(params?.identity?.workspacePath).toBe('/workspace')
     expect(params?.identity?.channelContext).toBe('workspace:/workspace')
+  })
+
+  it('refreshes active thread metadata without reloading turns', async () => {
+    vi.useFakeTimers()
+    const worktreeThread: Thread = {
+      id: 'thread-1',
+      userId: 'local',
+      workspacePath: 'C:\\sample\\workspace',
+      effectiveWorkspacePath: 'C:\\sample\\workspace\\.craft\\worktrees\\dotcraft-handoff',
+      displayName: 'Thread',
+      status: 'active',
+      originChannel: 'dotcraft-desktop',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      lastActiveAt: '2026-01-01T00:00:00.000Z',
+      metadata: {},
+      turns: [],
+      worktree: {
+        id: 'worktree-1',
+        sourceThreadId: 'thread-1',
+        workspacePath: 'C:\\sample\\workspace',
+        sourceWorkspacePath: 'C:\\sample\\workspace',
+        path: 'C:\\sample\\workspace\\.craft\\worktrees\\dotcraft-handoff',
+        branchName: 'dotcraft/handoff',
+        baseRef: 'main',
+        head: 'abc123',
+        createdAt: '2026-01-01T00:00:00.000Z'
+      }
+    }
+    const localThread: Thread = {
+      ...worktreeThread,
+      effectiveWorkspacePath: 'C:\\sample\\workspace'
+    }
+    delete localThread.worktree
+    const appServerSendRequest = vi.fn(async (method: string, params?: { includeTurns?: boolean }) => {
+      if (method === 'thread/list') return { data: [worktreeThread] }
+      if (method === 'thread/read') {
+        return { thread: params?.includeTurns === false ? localThread : worktreeThread }
+      }
+      return {}
+    })
+    installApi(readyWorkspaceStatus, {
+      appServerSendRequest,
+      modulesList: vi.fn().mockResolvedValue([]),
+      modulesRunning: vi.fn().mockResolvedValue({}),
+      settingsGet: vi.fn().mockResolvedValue({})
+    })
+    useConnectionStore.getState().setStatus({ status: 'connected' })
+
+    renderApp()
+    act(() => {
+      useThreadStore.getState().setActiveThreadId('thread-1')
+    })
+    await flushPromises()
+
+    expect(useThreadStore.getState().activeThread?.worktree?.branchName).toBe('dotcraft/handoff')
+
+    appServerSendRequest.mockClear()
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_000)
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(useThreadStore.getState().activeThread?.worktree).toBeNull()
+    expect(useThreadStore.getState().activeThread?.effectiveWorkspacePath).toBe('C:\\sample\\workspace')
+    expect(appServerSendRequest).toHaveBeenCalledWith('thread/read', {
+      threadId: 'thread-1',
+      includeTurns: false
+    })
   })
 
   it('keeps the Team surface behind the installed and enabled agent-teams plugin', async () => {
