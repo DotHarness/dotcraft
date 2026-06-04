@@ -332,7 +332,7 @@ internal static class ResponsesToolSearchMapper
         var hasValue = false;
         if (reasoning.Effort is { } effort)
         {
-            options.ReasoningEffortLevel = new ResponseReasoningEffortLevel(NormalizeEnumToken(effort.ToString()));
+            options.ReasoningEffortLevel = new ResponseReasoningEffortLevel(NormalizeReasoningEffortToken(effort));
             hasValue = true;
         }
 
@@ -957,6 +957,12 @@ internal static class ResponsesToolSearchMapper
         TryGetProperty(element, name, out var value) && value.ValueKind == JsonValueKind.String
             ? value.GetString()
             : null;
+
+    private static string NormalizeReasoningEffortToken(ReasoningEffort effort) => effort switch
+    {
+        ReasoningEffort.ExtraHigh => "xhigh",
+        _ => NormalizeEnumToken(effort.ToString())
+    };
 
     private static string NormalizeEnumToken(string value)
     {
