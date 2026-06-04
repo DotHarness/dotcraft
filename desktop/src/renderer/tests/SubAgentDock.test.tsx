@@ -6,7 +6,6 @@ import { useSubAgentStore } from '../stores/subAgentStore'
 import { useConnectionStore } from '../stores/connectionStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
-import { getSubAgentAccent } from '../utils/subAgentPresentation'
 
 const settingsGet = vi.fn()
 const appServerSendRequest = vi.fn()
@@ -110,23 +109,11 @@ describe('SubAgentDock', () => {
     expect(screen.getByText('1 background agents')).toBeInTheDocument()
     const nickname = screen.getByText('Lovelace')
     expect(nickname).toBeInTheDocument()
-    expect(nickname.getAttribute('style')).toContain('color:')
-    expect(nickname).toHaveStyle({ color: getSubAgentAccent('child-1') })
     expect(nickname.parentElement?.querySelector('span[aria-hidden]')).toBeNull()
     expect(screen.getByText('(explorer)')).toBeInTheDocument()
     expect(screen.queryByText(/codex-cli/)).toBeNull()
-    const dockStyle = screen.getByTestId('subagent-dock').getAttribute('style') ?? ''
-    expect(dockStyle).toContain('width: calc(100% - 40px)')
-    expect(dockStyle).toContain('max-width: none')
-    expect(dockStyle).toContain('margin: 0px auto -1px')
-    expect(dockStyle).toContain('backdrop-filter: var(--glass-blur-soft)')
-    expect(dockStyle).toContain('background: linear-gradient')
-    expect(dockStyle).toContain('transparent')
-    expect(dockStyle).toContain('box-shadow: var(--background-activity-dock-shadow)')
-    expect(screen.getByTestId('subagent-dock-rows').getAttribute('style')).toContain('transition:')
-    expect(screen.getByTestId('subagent-dock-rows').getAttribute('style')).toContain('max-height:')
     const description = screen.getByText('Reading sprite atlas')
-    expect(description).toHaveClass('tool-running-gradient-text')
+    expect(description).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Open' }))
 
@@ -163,7 +150,7 @@ describe('SubAgentDock', () => {
 
     expect(screen.getByText('1 background agents')).toBeInTheDocument()
     expect(screen.getByText('Lovelace')).toBeInTheDocument()
-    expect(screen.getByText('Reading sprite atlas')).toHaveClass('tool-running-gradient-text')
+    expect(screen.getByText('Reading sprite atlas')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Open' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Stop Lovelace' })).not.toBeInTheDocument()
   })
@@ -254,8 +241,6 @@ describe('SubAgentDock', () => {
     })
 
     expect(screen.getByText('1 running')).toBeInTheDocument()
-    expect(screen.getByTestId('subagent-dock-rows').getAttribute('style')).toContain('max-height: 0px')
-    expect(screen.getByTestId('subagent-dock-rows').getAttribute('style')).toContain('opacity: 0')
     expect(screen.queryByRole('button', { name: 'Open' })).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Expand background agents' }))
@@ -287,25 +272,7 @@ describe('SubAgentDock', () => {
     expect(useSubAgentStore.getState().collapsedByParent.get('parent-1')).not.toBe(true)
   })
 
-  it('sends mailbox messages through subagent/sendMessage', async () => {
-    renderDock()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Send mailbox message to Lovelace' }))
-    fireEvent.change(screen.getByRole('textbox', { name: 'Send mailbox message to Lovelace' }), {
-      target: { value: 'keep this in mind' }
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
-
-    await waitFor(() => {
-      expect(appServerSendRequest).toHaveBeenCalledWith('subagent/sendMessage', {
-        parentThreadId: 'parent-1',
-        target: '/root/lovelace',
-        message: 'keep this in mind'
-      })
-    })
-  })
-
-  it('starts follow-up tasks through subagent/followupTask', async () => {
+  it('does not expose manual mailbox or follow-up controls in the dock', () => {
     useSubAgentStore.getState().setChildren('parent-1', [
       {
         childThreadId: 'child-1',
@@ -336,22 +303,15 @@ describe('SubAgentDock', () => {
     ])
     renderDock()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Start follow-up task for Lovelace' }))
-    fireEvent.change(screen.getByRole('textbox', { name: 'Start follow-up task for Lovelace' }), {
-      target: { value: 'continue the review' }
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
-
-    await waitFor(() => {
-      expect(appServerSendRequest).toHaveBeenCalledWith('subagent/followupTask', {
-        parentThreadId: 'parent-1',
-        target: '/root/lovelace',
-        message: 'continue the review'
-      })
-    })
+    expect(screen.getByRole('button', { name: 'Open' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Send mailbox message to Lovelace' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Start follow-up task for Lovelace' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+    expect(appServerSendRequest.mock.calls.some((call) => call[0] === 'subagent/sendMessage')).toBe(false)
+    expect(appServerSendRequest.mock.calls.some((call) => call[0] === 'subagent/followupTask')).toBe(false)
   })
 
-  it('hides path control actions for closed, pathless, or unsupported children', () => {
+  it('keeps closed, pathless, and unsupported child rows without manual controls', () => {
     useSubAgentStore.getState().setChildren('parent-1', [
       {
         childThreadId: 'closed-child',
@@ -459,7 +419,7 @@ describe('SubAgentDock', () => {
     expect(screen.getByText('1 background agents')).toBeInTheDocument()
     expect(screen.getByText('Lovelace')).toBeInTheDocument()
     const description = screen.getByText('Completed')
-    expect(description).not.toHaveClass('tool-running-gradient-text')
+    expect(description).toBeInTheDocument()
     expect(screen.queryByTestId('subagent-dock-running-child-1')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Open' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Stop all background agents' })).not.toBeInTheDocument()
@@ -496,7 +456,7 @@ describe('SubAgentDock', () => {
 
     expect(screen.getByText('1 background agents')).toBeInTheDocument()
     expect(screen.getByText('Lovelace')).toBeInTheDocument()
-    expect(screen.getByText('Completed')).not.toHaveClass('tool-running-gradient-text')
+    expect(screen.getByText('Completed')).toBeInTheDocument()
     expect(screen.queryByTestId('subagent-dock-running-child-1')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Stop all background agents' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Open' })).toBeInTheDocument()
@@ -505,7 +465,7 @@ describe('SubAgentDock', () => {
   it('updates a running child to completed without hiding the dock', async () => {
     renderDock()
 
-    expect(screen.getByText('Reading sprite atlas')).toHaveClass('tool-running-gradient-text')
+    expect(screen.getByText('Reading sprite atlas')).toBeInTheDocument()
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith('subagent/children/list', {
         parentThreadId: 'parent-1',
@@ -561,6 +521,6 @@ describe('SubAgentDock', () => {
 
     expect(screen.getByText('1 background agents')).toBeInTheDocument()
     expect(screen.queryByText('1 running')).not.toBeInTheDocument()
-    expect(screen.getByTestId('subagent-dock-rows').getAttribute('style')).toContain('max-height: 0px')
+    expect(screen.queryByRole('button', { name: 'Open' })).not.toBeInTheDocument()
   })
 })

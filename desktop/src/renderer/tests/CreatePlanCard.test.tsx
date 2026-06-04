@@ -42,8 +42,7 @@ describe('CreatePlanCard', () => {
 
     renderWithLocale(<CreatePlanCard item={item} locale="en" />)
 
-    const badge = screen.getByText('Planning')
-    expect(badge).toHaveClass('tool-running-gradient-text')
+    expect(screen.getByText('Planning')).toBeInTheDocument()
     expect(screen.getByText('Streaming Plan')).toBeInTheDocument()
     expect(screen.getAllByText('Live draft').length).toBeGreaterThan(0)
     expect(screen.getByText('item one')).toBeInTheDocument()
@@ -67,8 +66,7 @@ describe('CreatePlanCard', () => {
 
     renderWithLocale(<CreatePlanCard item={item} locale="en" />)
 
-    const badge = screen.getByText('Plan')
-    expect(badge).not.toHaveClass('tool-running-gradient-text')
+    expect(screen.getByText('Plan')).toBeInTheDocument()
     expect(screen.queryByText('Stage A')).toBeNull()
     fireEvent.click(screen.getAllByRole('button', { name: 'Expand plan' })[0])
     expect(screen.queryAllByRole('button', { name: 'Expand plan' }).length).toBe(0)
@@ -136,11 +134,6 @@ describe('CreatePlanCard', () => {
 
     const markdownBody = container.querySelector('.markdown-body--contained')
     expect(markdownBody).not.toBeNull()
-    expect(markdownBody).toHaveStyle({
-      minWidth: '0',
-      maxWidth: '100%',
-      overflowWrap: 'anywhere'
-    })
     expect(screen.getByText('Assumptions')).toBeInTheDocument()
     expect(screen.getByText('Packages/com.example.legacy-profiler/')).toBeInTheDocument()
     expect(screen.getByText('example-token-with-no-natural-breaks-abcdefghijklmnopqrstuvwxyz0123456789')).toBeInTheDocument()

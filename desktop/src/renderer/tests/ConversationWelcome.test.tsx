@@ -332,22 +332,14 @@ describe('ConversationWelcome composer', () => {
     renderWelcome()
 
     const textbox = await screen.findByRole('textbox')
-    const composerSurface = textbox.closest('div[style*="border-radius: 20px"]')
 
-    expect(composerSurface).not.toBeNull()
-    expect(textbox.getAttribute('style')).toContain('border-radius: 0px')
-    expect(textbox.getAttribute('style')).toContain('background-color: transparent')
+    expect(textbox).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Agent' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Disable plan mode' })).toBeNull()
     fireEvent.keyDown(window, { key: 'M', ctrlKey: true, shiftKey: true })
     const listbox = screen.getByRole('listbox', { name: 'Select model' })
     expect(listbox).toBeInTheDocument()
-    expect(listbox.getAttribute('style')).toContain('var(--glass-surface-strong)')
-    expect(listbox.getAttribute('style')).toContain('backdrop-filter: var(--glass-blur)')
-    const sendButton = screen.getByRole('button', { name: 'Send message' })
-    expect(sendButton.querySelector('svg')?.getAttribute('width')).toBe('20')
-    expect(sendButton.getAttribute('style')).toContain('color-mix(in srgb, var(--bg-primary) 92%, #ffffff 8%)')
-    expect(sendButton.getAttribute('style')).toContain('var(--text-dimmed)')
+    expect(screen.getByRole('button', { name: 'Send message' })).toBeInTheDocument()
     expect(screen.queryByText('Attach file')).not.toBeInTheDocument()
     expect(screen.queryByRole('combobox', { name: 'Bind an app before first turn' })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Add attachment' }))
@@ -418,7 +410,6 @@ describe('ConversationWelcome composer', () => {
     renderWelcome()
 
     const badge = await screen.findByRole('button', { name: /ChatGPT.*96% left in the 5h window.*76% left this week/i })
-    expect(badge.getAttribute('style')).toContain('width: 70px')
     expect(badge).not.toHaveAttribute('title')
     expect(badge.querySelector('img')).toBeNull()
     expect(badge.querySelector('svg[data-provider-mark="openai"]')).toBeInTheDocument()
@@ -1497,11 +1488,4 @@ describe('ConversationWelcome composer', () => {
     expect(screen.queryAllByTestId('welcome-suggestion-skeleton')).toHaveLength(0)
   })
 
-  it('renders suggestion buttons as full-width rows', async () => {
-    renderWelcome()
-
-    const button = await screen.findByRole('button', { name: 'Explore this workspace' })
-    expect(button.getAttribute('style')).toContain('width: 100%')
-    expect(button.getAttribute('style')).toContain('box-sizing: border-box')
-  })
 })

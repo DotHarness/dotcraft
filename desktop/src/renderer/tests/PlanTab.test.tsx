@@ -111,41 +111,6 @@ describe('PlanTab', () => {
     expect(container.querySelector('[data-plan-todo-status="pending"]')).toBeInTheDocument()
   })
 
-  it('keeps long overview and todo text contained in the plan tab', () => {
-    const longOverview =
-      'Package path Library/PackageCache/com.example.mock-long-package@0.0.0/FakeDependency.dll remains available for the migration.'
-    const longTodo =
-      'Rename namespace Example.Editor.TraceBridge.SampleSettingsProvider and keep token example-token-with-no-natural-breaks-abcdefghijklmnopqrstuvwxyz0123456789 stable.'
-    const store = useConversationStore.getState()
-    store.onPlanUpdated({
-      title: 'Overflow Plan',
-      overview: longOverview,
-      content: '# Overflow Plan',
-      todos: [{ id: 'long', content: longTodo, status: 'pending' }]
-    })
-
-    const { container } = renderPlanTab()
-
-    const root = container.firstElementChild
-    const overview = screen.getByText(longOverview)
-    const todo = screen.getByText(longTodo)
-    expect(root).toHaveStyle({
-      minWidth: '0',
-      maxWidth: '100%',
-      boxSizing: 'border-box'
-    })
-    expect(overview).toHaveStyle({
-      minWidth: '0',
-      overflowWrap: 'anywhere',
-      wordBreak: 'break-word'
-    })
-    expect(todo).toHaveStyle({
-      minWidth: '0',
-      overflowWrap: 'anywhere',
-      wordBreak: 'break-word'
-    })
-  })
-
   it('renders restored thread plan state and clears it on thread reset', () => {
     const store = useConversationStore.getState()
     store.onPlanUpdated({

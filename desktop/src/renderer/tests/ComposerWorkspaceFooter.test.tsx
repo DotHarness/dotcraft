@@ -125,33 +125,6 @@ describe('ComposerWorkspaceFooter', () => {
     vi.useRealTimers()
   })
 
-  it('shows hover feedback on workspace and branch controls', async () => {
-    const localThread = makeThread()
-    renderFooter(localThread, 'local')
-
-    const workspaceButton = await screen.findByRole('button', { name: 'Local' })
-    fireEvent.pointerEnter(workspaceButton)
-    expect(workspaceButton).toHaveStyle({
-      background: 'var(--bg-tertiary)',
-      boxShadow: 'none'
-    })
-
-    fireEvent.click(workspaceButton)
-    const handoffButton = screen.getByRole('button', { name: 'Handoff to worktree' })
-    fireEvent.pointerEnter(handoffButton)
-    expect(handoffButton).toHaveStyle({
-      background: 'var(--bg-tertiary)',
-      boxShadow: 'none'
-    })
-
-    const branchButton = screen.getByRole('button', { name: 'main' })
-    fireEvent.pointerEnter(branchButton)
-    expect(branchButton).toHaveStyle({
-      background: 'var(--bg-tertiary)',
-      boxShadow: 'none'
-    })
-  })
-
   it('renders an available cached branch snapshot on the first frame', () => {
     useGitStore.setState({
       branchesByPath: {

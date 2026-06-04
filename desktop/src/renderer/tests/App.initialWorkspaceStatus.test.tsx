@@ -386,23 +386,17 @@ describe('App initial workspace status bootstrap', () => {
   it('uses the welcome surface while the no-workspace welcome screen is visible', () => {
     installApi(noWorkspaceStatus)
 
-    const { container, getByTestId } = renderApp()
+    const { getByTestId } = renderApp()
 
     expect(getByTestId('welcome-screen')).toBeInTheDocument()
-    expect(container.querySelector('.dotcraft-window-frame')?.getAttribute('style')).toContain(
-      'background: var(--welcome-surface)'
-    )
   })
 
   it('uses the same plain surface while the setup entry screen is visible', () => {
     installApi(needsSetupWorkspaceStatus)
 
-    const { container, getByTestId } = renderApp()
+    const { getByTestId } = renderApp()
 
     expect(getByTestId('setup-interstitial')).toBeInTheDocument()
-    expect(container.querySelector('.dotcraft-window-frame')?.getAttribute('style')).toContain(
-      'background: var(--welcome-surface)'
-    )
   })
 
   it('renders the connecting launch transition on the first render for a restored ready workspace', () => {

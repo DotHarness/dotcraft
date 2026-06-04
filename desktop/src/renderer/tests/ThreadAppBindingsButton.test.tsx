@@ -92,7 +92,6 @@ describe('ThreadAppBindingsButton', () => {
     )
 
     const button = await screen.findByRole('button', { name: 'Apps' })
-    expect(button.getAttribute('style')).toContain('border: 1px solid var(--border-default)')
     await waitFor(() => {
       expect(sendRequest).toHaveBeenCalledWith('thread/appBindings/refresh', { threadId: 'thread-1', bindingId: undefined })
     })

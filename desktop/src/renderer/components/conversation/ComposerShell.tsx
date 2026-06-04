@@ -285,17 +285,18 @@ export function ComposerShell({
           style={{
             position: 'relative',
             zIndex: 1,
-            // Frameless at rest: raised fill + soft shadow separate it from the
-            // conversation. Focus adds a subtle brand-blue rim over the breathing
-            // glow behind. No position or shadow change on hover/focus.
+            // Tokenized rest border keeps light theme legible while dark theme
+            // stays effectively frameless. Focus adds a subtle brand-blue rim.
             border: focused
               ? '1px solid var(--composer-focus-border)'
-              : '1px solid transparent',
+              : '1px solid var(--composer-input-rest-border)',
             borderRadius: '20px',
             background: 'var(--composer-input-background)',
             padding: '10px 10px 8px',
             transition: 'border-color 0.2s ease',
-            boxShadow: 'var(--composer-input-shadow)'
+            boxShadow: topAccessoryVisible
+              ? 'var(--composer-input-shadow), inset 0 1px 0 var(--composer-top-accessory-separator)'
+              : 'var(--composer-input-shadow)'
           }}
           onDragOver={onDragOver}
           onDragLeave={onDragLeave}

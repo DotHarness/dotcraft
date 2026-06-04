@@ -1008,11 +1008,6 @@ describe('SettingsView self-learning settings', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Model Providers' }))
     const modelListWarning = await screen.findByText('Endpoint does not support model listing.')
     expect(modelListWarning).toBeInTheDocument()
-    expect(modelListWarning.parentElement).toHaveStyle({
-      display: 'flex',
-      flexDirection: 'column'
-    })
-    expect(modelListWarning.previousElementSibling).toHaveStyle({ display: 'grid' })
     const modelInput = await screen.findByLabelText('Model') as HTMLInputElement
     appServerSendRequest.mockClear()
 

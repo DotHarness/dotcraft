@@ -22,6 +22,9 @@ colors:
   error: "var(--error)"
   info: "var(--info)"
   glass-surface-strong: "var(--glass-surface-strong)"
+  background-activity-dock-background: "var(--background-activity-dock-background)"
+  composer-top-accessory-separator: "var(--composer-top-accessory-separator)"
+  composer-input-rest-border: "var(--composer-input-rest-border)"
 typography:
   ui:
     fontFamily: "var(--font-ui)"
@@ -305,10 +308,18 @@ Text inputs, textareas, selects, search boxes, and picker triggers stay neutral:
 
 - use `--bg-primary`, `--bg-secondary`, or dedicated input tokens such as
   `--composer-input-background`;
-- use `--border-default` for rest state; the primary message composer is an
-  exception — it is frameless at rest (its raised fill plus a soft shadow separate
-  it from the conversation), shows a soft brand-gradient glow that gently breathes
-  on focus (`--composer-focus-glow`), and lifts slightly on hover;
+- composer-adjacent activity docks use `--background-activity-dock-background`,
+  which stays visually close to `--composer-input-background` while preserving
+  soft glass translucency; when attached to the composer, they keep their top and
+  side frame but omit the bottom border on the shared edge;
+- when a composer-adjacent dock overlaps the composer, the composer draws a
+  `--composer-top-accessory-separator` hairline on the shared edge so the two
+  surfaces remain distinct in both light and dark themes;
+- use `--border-default` for rest state; the primary message composer uses
+  `--composer-input-rest-border` so the light theme has a subtle frame while the
+  dark theme can remain effectively frameless, shows a soft brand-gradient glow
+  that gently breathes on focus (`--composer-focus-glow`), and lifts slightly on
+  hover;
 - use `--accent` only for subtle focus-visible or focus ring affordances;
 - use `--text-primary` for values and secondary/dimmed tokens for placeholders;
 - do not use brand or semantic fills for ordinary input backgrounds.

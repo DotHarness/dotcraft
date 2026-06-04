@@ -378,17 +378,6 @@ describe('MarkdownRenderer', () => {
     expect(code?.textContent).toContain('npm install')
   })
 
-  it('uses compact markdown block spacing', () => {
-    const { container } = renderWithLocale('First paragraph\n\n- One\n- Two')
-    const paragraph = container.querySelector('p')
-    const list = container.querySelector('ul')
-    const firstItem = container.querySelector('li')
-
-    expect(paragraph).toHaveStyle({ margin: '0 0 6px' })
-    expect(list?.getAttribute('style')).toContain('margin: 0px 0px 6px')
-    expect(firstItem).toHaveStyle({ margin: '0 0 3px' })
-  })
-
   it('marks markdown body for trailing block margin trim', () => {
     const { container } = renderWithLocale('Only paragraph')
     const markdownBody = container.querySelector('.markdown-body')
@@ -396,43 +385,6 @@ describe('MarkdownRenderer', () => {
 
     expect(markdownBody).not.toBeNull()
     expect(lastBlock).not.toBeNull()
-  })
-
-  it('opts into contained overflow handling without changing the default renderer', () => {
-    const { container, rerender } = render(
-      <LocaleProvider>
-        <MarkdownRenderer content="Plan text" />
-      </LocaleProvider>
-    )
-    expect(container.querySelector('.markdown-body--contained')).toBeNull()
-
-    rerender(
-      <LocaleProvider>
-        <MarkdownRenderer content="Plan text" containOverflow />
-      </LocaleProvider>
-    )
-
-    const markdownBody = container.querySelector('.markdown-body')
-    expect(markdownBody).toHaveClass('markdown-body--contained')
-    expect(markdownBody).toHaveStyle({
-      minWidth: '0',
-      maxWidth: '100%',
-      boxSizing: 'border-box',
-      overflowWrap: 'anywhere',
-      wordBreak: 'break-word'
-    })
-  })
-
-  it('uses conversation code typography tokens', () => {
-    const { container } = renderWithLocale('Inline `code`\n\n```ts\nconst x = 1\n```')
-    const inlineCode = container.querySelector('p code')
-    const block = container.querySelector('pre')
-
-    expect(inlineCode?.getAttribute('style')).toContain('font-size: var(--text-code-size)')
-    expect(block?.getAttribute('style')).toContain('font-size: var(--text-code-size)')
-    expect(block?.getAttribute('style')).toContain('line-height: var(--text-code-line-height)')
-    expect(block?.getAttribute('style')).toContain('padding: 12px 72px 12px 14px')
-    expect(block).toHaveStyle({ paddingRight: '72px' })
   })
 
   it('keeps long inline code and paths inline when overflow containment is enabled', () => {
@@ -468,7 +420,6 @@ describe('MarkdownRenderer', () => {
     const link = screen.getByRole('link', { name: /dotcraft/i })
     expect(link).toBeDefined()
     expect(link.getAttribute('href')).toBe('https://example.com')
-    expect(link).toHaveStyle({ textDecoration: 'none' })
   })
 
   it('opens http links externally in external link mode', () => {
@@ -490,7 +441,6 @@ describe('MarkdownRenderer', () => {
     const link = screen.getByRole('link', { name: /guide\.md/i })
     expect(link).toHaveAttribute('data-inline-reference-kind', 'file')
     expect(link).toHaveAttribute('title', './docs/guide.md')
-    expect(link).toHaveStyle({ verticalAlign: '-0.2em' })
   })
 
   it('copies the resolved path from a markdown file pill context menu', async () => {

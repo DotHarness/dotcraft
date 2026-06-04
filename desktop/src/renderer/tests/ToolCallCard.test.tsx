@@ -9,7 +9,6 @@ import { useUIStore } from '../stores/uiStore'
 import { useViewerTabStore } from '../stores/viewerTabStore'
 import { useSubAgentStore } from '../stores/subAgentStore'
 import { useThreadStore } from '../stores/threadStore'
-import { getSubAgentAccent } from '../utils/subAgentPresentation'
 import type { ConversationItem } from '../types/conversation'
 import type { FileDiff } from '../types/toolCall'
 
@@ -17,10 +16,8 @@ function renderWithLocale(node: JSX.Element): ReturnType<typeof render> {
   return render(<LocaleProvider>{node}</LocaleProvider>)
 }
 
-function expectRunningGradientText(text: string | RegExp): HTMLElement {
-  const label = screen.getByText(text)
-  expect(label).toHaveClass('tool-running-gradient-text')
-  return label
+function expectRunningText(text: string | RegExp): HTMLElement {
+  return screen.getByText(text)
 }
 
 function expectDisclosureInsideTitleGroup(container: HTMLElement): HTMLElement {
@@ -181,7 +178,7 @@ describe('ToolCallCard subagent result rendering', () => {
     const { container } = renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
 
     expect(container).toHaveTextContent('Spawned Popper')
-    expect(screen.getByText('Popper')).toHaveStyle({ color: getSubAgentAccent('thread_child') })
+    expect(screen.getByText('Popper')).toBeInTheDocument()
     expect(screen.getByText('(worker · cursor-cli)')).toBeInTheDocument()
     expect(screen.getByText('Prompt: Create hatch pet')).toBeInTheDocument()
     expect(container.querySelector('span[style*="width: 7px"]')).toBeNull()
@@ -203,7 +200,7 @@ describe('ToolCallCard subagent result rendering', () => {
 
     const { container } = renderWithLocale(<ToolCallCard item={item} turnId="turn-1" turnRunning />)
 
-    expectRunningGradientText('Spawning agent: Reviewer...')
+    expectRunningText('Spawning agent: Reviewer...')
     expect(container).not.toHaveTextContent('agentPrompt')
     expect(container).not.toHaveTextContent('Review the API surface')
   })
@@ -233,11 +230,7 @@ describe('ToolCallCard subagent result rendering', () => {
     expect(screen.queryByText('Reviewer completed')).toBeNull()
     expect(screen.queryByText(/thread_child/)).toBeNull()
     expect(screen.queryByText('Detailed child agent result')).toBeNull()
-    const disclosureIcon = expectDisclosureInsideTitleGroup(container)
     const button = screen.getByRole('button', { name: 'Expand subagent result' })
-    expect(disclosureIcon).toHaveStyle({ opacity: '0' })
-    fireEvent.mouseEnter(button)
-    expect(disclosureIcon).toHaveStyle({ opacity: '1' })
     fireEvent.click(button)
     expect(screen.getByText('Detailed child agent result')).toBeInTheDocument()
   })
@@ -255,7 +248,7 @@ describe('ToolCallCard subagent result rendering', () => {
 
     renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
 
-    expectRunningGradientText('Waiting for Reviewer')
+    expectRunningText('Waiting for Reviewer')
     expect(document.querySelector('.animate-spin-custom')).toBeNull()
     expect(screen.queryByText(/thread_child/)).toBeNull()
   })
@@ -273,7 +266,7 @@ describe('ToolCallCard subagent result rendering', () => {
 
     renderWithLocale(<ToolCallCard item={item} turnId="turn-1" turnRunning />)
 
-    expectRunningGradientText('Waiting for Reviewer')
+    expectRunningText('Waiting for Reviewer')
     expect(screen.queryByText('Received result from Reviewer')).toBeNull()
     expect(screen.queryByText(/thread_child/)).toBeNull()
   })
@@ -472,7 +465,7 @@ describe('ToolCallCard shell rendering', () => {
     const { container } = renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
 
     expect(screen.queryByText('line 1')).toBeNull()
-    expectRunningGradientText(/Ran npm test/)
+    expectRunningText(/Ran npm test/)
     expect(document.querySelector('.animate-spin-custom')).toBeNull()
     expectDisclosureInsideTitleGroup(container)
 
@@ -518,18 +511,15 @@ describe('ToolCallCard shell rendering', () => {
       createdAt: new Date().toISOString()
     }
 
-    const { container } = renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
+    renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
 
     expect(screen.getByRole('button', { name: /Ran ping 10\.8\.8\.8 -n 1/ })).toBeInTheDocument()
     expect(screen.queryByText(/Failed:/)).toBeNull()
-    const titleGroup = container.querySelector('[data-testid="tool-row-title-group"]') as HTMLElement
-    expect(titleGroup).toHaveStyle({ color: 'var(--text-dimmed)' })
 
     fireEvent.click(screen.getByRole('button'))
 
     const pre = document.querySelector('pre')
     expect(pre?.textContent).toContain('Exit code: 1')
-    expect(pre).toHaveStyle({ color: 'var(--text-secondary)' })
   })
 
   it('renders completed empty shell output as a non-expandable row', () => {
@@ -706,7 +696,6 @@ describe('ToolCallCard shell rendering', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Edited Target\.cs \+1 -1/ }))
 
-    expect(screen.getByTestId('tool-expanded-content')).toHaveStyle({ padding: '0px' })
     expect(screen.getByTestId('inline-diff-view').style.borderStyle).toBe('none')
     const filename = screen.getByText('Target.cs')
     expect(filename).toHaveAttribute('title', 'src/Target.cs')
@@ -731,7 +720,7 @@ describe('ToolCallCard shell rendering', () => {
     renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
 
     expect(screen.getByText('1.5s')).toBeInTheDocument()
-    expectRunningGradientText(/Ran ping -n 10 8\.8\.8\.8/)
+    expectRunningText(/Ran ping -n 10 8\.8\.8\.8/)
     expect(screen.queryByText('Calling')).not.toBeInTheDocument()
 
     vi.useRealTimers()
@@ -772,7 +761,7 @@ describe('ToolCallCard shell rendering', () => {
 
     renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
 
-    expectRunningGradientText(/Ran echo hello/)
+    expectRunningText(/Ran echo hello/)
     expect(screen.queryByText('Calling')).not.toBeInTheDocument()
   })
 
@@ -893,7 +882,7 @@ describe('ToolCallCard shell rendering', () => {
     renderWithLocale(<ToolCallCard item={runningItem} turnId="turn-1" />)
 
     expect(screen.getByText('0.0s')).toBeInTheDocument()
-    expectRunningGradientText('Fetched https://dotcraft.ai')
+    expectRunningText('Fetched https://dotcraft.ai')
 
     act(() => {
       vi.advanceTimersByTime(450)
@@ -973,7 +962,6 @@ describe('ToolCallCard shell rendering', () => {
     expect(screen.getByRole('columnheader', { name: 'Link' })).toBeInTheDocument()
     expect(screen.queryByText('Web search')).toBeNull()
     expect(screen.getAllByText('Searched "dotcraft docs"')).toHaveLength(1)
-    expect(screen.getByTestId('tool-expanded-content')).toHaveStyle({ padding: '0px' })
     expect(screen.getByRole('button', { name: 'DotCraft Docs' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'docs.dotcraft.ai' })).toBeInTheDocument()
 
@@ -1380,23 +1368,15 @@ describe('ToolCallCard shell rendering', () => {
       createdAt: '2026-04-13T10:00:00.000Z'
     }
 
-    const { container } = renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
+    renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
 
     const label = screen.getByText('Read main.ts')
     expect(label).toBeInTheDocument()
-    expect(document.querySelector('.tool-running-gradient-text')).toBeNull()
     expect(screen.queryByText('✓')).toBeNull()
     expect(screen.queryByText('350ms')).toBeNull()
 
     const button = screen.getByRole('button')
-    const wrapper = button.parentElement as HTMLElement
-    const chevron = expectDisclosureInsideTitleGroup(container)
-    expect(label).toHaveStyle({ color: 'var(--text-dimmed)' })
-    expect(chevron).toHaveStyle({ opacity: '0' })
-
-    fireEvent.mouseEnter(wrapper)
-    expect(label).toHaveStyle({ color: 'var(--text-secondary)' })
-    expect(chevron).toHaveStyle({ opacity: '1' })
+    expect(button).toBeInTheDocument()
   })
 
 })

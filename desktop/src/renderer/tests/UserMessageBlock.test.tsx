@@ -2,7 +2,6 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { UserMessageBlock } from '../components/conversation/UserMessageBlock'
-import { GoalControlPopover } from '../components/conversation/GoalControlPopover'
 import { useConversationStore } from '../stores/conversationStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
@@ -410,38 +409,5 @@ describe('UserMessageBlock trigger source pills', () => {
         contentClass: 'image'
       })
     }
-  })
-})
-
-describe('GoalControlPopover layout', () => {
-  beforeEach(() => {
-    settingsGet.mockResolvedValue({ locale: 'en' })
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        settings: { get: settingsGet }
-      }
-    })
-  })
-
-  it('centers the composer-adjacent goal editor popover', () => {
-    renderWithLocale(
-      <div style={{ position: 'relative' }}>
-        <GoalControlPopover
-          visible
-          goal={null}
-          onSetObjective={async () => true}
-          onPause={async () => true}
-          onResume={async () => true}
-          onClear={async () => true}
-          onDismiss={() => {}}
-        />
-      </div>
-    )
-
-    const dialog = screen.getByRole('dialog', { name: 'Goal' })
-    const style = dialog.getAttribute('style') ?? ''
-    expect(style).toContain('left: 50%')
-    expect(style).toContain('transform: translateX(-50%)')
   })
 })

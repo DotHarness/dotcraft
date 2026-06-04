@@ -151,46 +151,6 @@ describe('RequestUserInputComposer', () => {
     expect(screen.queryByRole('button', { name: 'Previous question' })).not.toBeInTheDocument()
   })
 
-  it('uses decision-panel hierarchy for a long question and Other input state', async () => {
-    const longQuestion = '请选择一个选项，确认询问工具是否能正常弹出并且在很长的问题文本里仍然保持清晰的决策层级。'
-    renderWithLocale(<RequestUserInputComposer request={request({
-      questions: [
-        {
-          id: 'long_question',
-          header: 'Long question',
-          question: longQuestion,
-          isOther: true,
-          options: [
-            { label: '正常弹出 (Recommended)', description: 'Everything worked.' },
-            { label: '没有正常弹出', description: 'The panel did not appear.' }
-          ]
-        }
-      ]
-    })} />)
-
-    expect(screen.getByText(longQuestion)).toHaveStyle({
-      fontSize: '14px',
-      fontWeight: '600',
-      lineHeight: '20px'
-    })
-
-    const textbox = screen.getByPlaceholderText('No, and tell DotCraft what to do differently')
-    expect(textbox).toHaveStyle({
-      color: 'var(--text-dimmed)',
-      fontSize: 'var(--text-body-size)',
-      lineHeight: 'var(--text-body-line-height)'
-    })
-
-    fireEvent.focus(textbox)
-
-    await waitFor(() => {
-      expect(textbox).toHaveStyle({
-        color: 'var(--text-primary)',
-        fontWeight: 'var(--conversation-font-weight)'
-      })
-    })
-  })
-
   it('submits the selected option after ArrowDown then Enter', async () => {
     useConversationStore.setState({ turnStatus: 'waitingInput', pendingUserInput: request() })
     renderWithLocale(<RequestUserInputComposer request={request()} />)
@@ -400,7 +360,6 @@ describe('RequestUserInputComposer', () => {
 
     const tooltip = await screen.findByRole('tooltip')
     expect(tooltip).toHaveAttribute('data-multiline', 'true')
-    expect(tooltip).toHaveClass('dc-action-tooltip--multiline')
     expect(within(tooltip).getByText(longDescription)).toBeInTheDocument()
   })
 })

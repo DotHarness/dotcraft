@@ -203,6 +203,14 @@
   --glass-blur: blur(18px) saturate(1.08);
   --glass-blur-soft: blur(12px) saturate(1.05);
   --composer-input-background: #2b2b2b;
+  --background-activity-dock-background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--composer-input-background) 86%, transparent),
+      color-mix(in srgb, var(--composer-input-background) 76%, transparent)
+    );
+  --composer-top-accessory-separator: color-mix(in srgb, var(--text-primary) 9%, transparent);
+  --composer-input-rest-border: transparent;
   --composer-input-border: color-mix(in srgb, var(--text-primary) 10%, transparent);
   --composer-input-border-focus: color-mix(in srgb, var(--text-primary) 16%, transparent);
   --composer-input-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
@@ -442,6 +450,14 @@ html[data-theme="light"] {
   --glass-blur: blur(18px) saturate(1.05);
   --glass-blur-soft: blur(12px) saturate(1.03);
   --composer-input-background: #ffffff;
+  --background-activity-dock-background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--composer-input-background) 94%, transparent),
+      color-mix(in srgb, var(--composer-input-background) 86%, transparent)
+    );
+  --composer-top-accessory-separator: transparent;
+  --composer-input-rest-border: color-mix(in srgb, var(--text-primary) 8%, transparent);
   --composer-input-border: color-mix(in srgb, var(--text-primary) 8%, transparent);
   --composer-input-border-focus: color-mix(in srgb, var(--text-primary) 14%, transparent);
   --composer-input-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.08);

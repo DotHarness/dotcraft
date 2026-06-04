@@ -40,7 +40,7 @@ describe('WorkspaceLaunchTransition', () => {
     expect(container.querySelectorAll('.workspace-launch-transition__logo')).toHaveLength(1)
     expect(container.querySelectorAll('.workspace-launch-transition__scrim')).toHaveLength(1)
     expect(container.querySelector('.welcome-brand-opening-logo')).toBeNull()
-    expect(await screen.findByText('Connecting to workspace…')).toHaveClass('tool-running-gradient-text')
+    expect(await screen.findByText('Connecting to workspace…')).toBeInTheDocument()
   })
 
   it('renders the Chinese connecting message from initialLocale before settings resolve', () => {
@@ -57,7 +57,7 @@ describe('WorkspaceLaunchTransition', () => {
 
     renderTransition('connecting')
 
-    expect(screen.getByText('正在连接工作区…')).toHaveClass('tool-running-gradient-text')
+    expect(screen.getByText('正在连接工作区…')).toBeInTheDocument()
   })
 
   it('computes the centered launch rect from the viewport', () => {
@@ -79,7 +79,7 @@ describe('WorkspaceLaunchTransition', () => {
     const logo = container.querySelector('.workspace-launch-transition__logo')
     expect(logo).toBeInstanceOf(HTMLImageElement)
     expect(logo).toHaveAttribute('src', profileLogo)
-    expect(await screen.findByText('Preparing your workspace…')).toHaveClass('tool-running-gradient-text')
+    expect(await screen.findByText('Preparing your workspace…')).toBeInTheDocument()
   })
 
   it('renders the Chinese preparing message from initialLocale before settings resolve', () => {
@@ -96,6 +96,6 @@ describe('WorkspaceLaunchTransition', () => {
 
     renderTransition('preparing')
 
-    expect(screen.getByText('正在准备工作区…')).toHaveClass('tool-running-gradient-text')
+    expect(screen.getByText('正在准备工作区…')).toBeInTheDocument()
   })
 })

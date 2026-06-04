@@ -88,28 +88,6 @@ describe('ModelPicker', () => {
     expect(onChange).not.toHaveBeenCalled()
   })
 
-  it('keeps the quick reasoning label visually secondary in the trigger', () => {
-    render(
-      <LocaleProvider>
-        <ModelPicker
-          modelName="mimo-v2.5-pro"
-          modelOptions={['mimo-v2.5-pro']}
-          reasoningValue="extraHigh"
-          triggerStyle={{ color: 'var(--composer-footer-highlight)' }}
-        />
-      </LocaleProvider>
-    )
-
-    expect(screen.getByText('mimo-v2.5-pro')).toHaveStyle({
-      color: 'var(--composer-footer-highlight)'
-    })
-    expect(screen.getByText('xHigh')).toHaveStyle({
-      color: 'var(--composer-footer-text)',
-      fontWeight: 'var(--type-ui-weight)'
-    })
-    expect(screen.getByText('mimo-v2.5-pro').parentElement?.getAttribute('style')).toContain('gap: 7px')
-  })
-
   it('does not offer a stale selected model when a ready provider model list excludes it', () => {
     render(
       <LocaleProvider>

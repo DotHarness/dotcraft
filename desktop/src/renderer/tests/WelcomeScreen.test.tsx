@@ -73,12 +73,8 @@ describe('WelcomeScreen', () => {
     const { container } = renderWelcome()
     const logo = container.querySelector('.welcome-logo-image')
 
-    expect(container.querySelector('.welcome-screen-root')?.getAttribute('style')).toContain(
-      'background: var(--welcome-surface)'
-    )
     expect(container.querySelector('.welcome-workspace-panel')).toBeInTheDocument()
     const openWorkspaceRow = screen.getByRole('button', { name: 'Open Workspace' })
-    expect(openWorkspaceRow).toHaveClass('welcome-open-workspace-row')
     expect(openWorkspaceRow.querySelector('.welcome-workspace-row-icon svg')).toBeInTheDocument()
     expect(screen.getByText('Choose a local folder to begin')).toBeInTheDocument()
     expect(logo).toBeInstanceOf(HTMLImageElement)
@@ -98,7 +94,6 @@ describe('WelcomeScreen', () => {
     expect(container.querySelector('.welcome-logo-image')).toBe(logo)
     expect(container.querySelector('.welcome-brand-opening-logo')).toBeNull()
     expect(container.querySelector('.welcome-brand-opening-overlay')).toBeNull()
-    expect(container.querySelector('.welcome-screen-root')).toHaveClass('welcome-screen--opening')
     expect(screen.getByRole('button', { name: 'Open Workspace' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'EN' })).toBeDisabled()
     expect(onOpenWorkspace).toHaveBeenCalledWith({

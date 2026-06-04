@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import {
   closestCenter,
@@ -15,7 +15,7 @@ import {
   verticalListSortingStrategy
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Bot, ChevronDown, CornerDownRight, ExternalLink, GripVertical, ListChecks, MessageSquare, Send, Square, Trash2, X } from 'lucide-react'
+import { Bot, ChevronDown, CornerDownRight, ExternalLink, GripVertical, ListChecks, Square, Trash2 } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import {
   isSubAgentChildRunning,
@@ -365,16 +365,10 @@ function SubAgentDockRow({
 }): JSX.Element {
   const t = useT()
   const running = isSubAgentChildRunning(child)
-  const [draftMode, setDraftMode] = useState<'message' | 'followup' | null>(null)
-  const [draft, setDraft] = useState('')
-  const [submitting, setSubmitting] = useState(false)
   const statusLabel = running
     ? child.lastToolDisplay?.trim() || t('subAgentDock.running')
     : formatSubAgentStatus(child, t)
   const canOpen = child.isPlaceholder !== true
-  const isClosed = child.status.trim().toLowerCase() === 'closed'
-  const canMessage = canOpen && !isClosed && Boolean(child.agentPath) && child.supportsSendMessage === true
-  const canFollowup = canOpen && !isClosed && !running && Boolean(child.agentPath) && child.supportsFollowupTask === true
   const roleMeta = formatDockAgentRole(child.agentRole)
 
   const openThread = (): void => {
@@ -389,38 +383,6 @@ function SubAgentDockRow({
       onRefresh()
     } catch (err) {
       addToast(err instanceof Error ? err.message : String(err), 'error')
-    }
-  }
-
-  const startDraft = (mode: 'message' | 'followup'): void => {
-    setDraftMode(mode)
-    setDraft('')
-  }
-
-  const cancelDraft = (): void => {
-    setDraftMode(null)
-    setDraft('')
-  }
-
-  const submitDraft = async (): Promise<void> => {
-    const message = draft.trim()
-    if (!draftMode || !child.agentPath || message.length === 0) return
-    setSubmitting(true)
-    try {
-      await window.api.appServer.sendRequest(
-        draftMode === 'message' ? 'subagent/sendMessage' : 'subagent/followupTask',
-        {
-          parentThreadId,
-          target: child.agentPath,
-          message
-        }
-      )
-      cancelDraft()
-      onRefresh()
-    } catch (err) {
-      addToast(err instanceof Error ? err.message : String(err), 'error')
-    } finally {
-      setSubmitting(false)
     }
   }
 
@@ -456,30 +418,6 @@ function SubAgentDockRow({
         ) : (
           <span aria-hidden style={{ width: 1 }} />
         )}
-        {canMessage && (
-          <ActionTooltip label={t('subAgentDock.message')} placement="top">
-            <button
-              type="button"
-              aria-label={t('subAgentDock.messageAria', { name: child.nickname })}
-              onClick={() => startDraft('message')}
-              style={iconButtonStyle}
-            >
-              <MessageSquare size={12} aria-hidden="true" />
-            </button>
-          </ActionTooltip>
-        )}
-        {canFollowup && (
-          <ActionTooltip label={t('subAgentDock.followup')} placement="top">
-            <button
-              type="button"
-              aria-label={t('subAgentDock.followupAria', { name: child.nickname })}
-              onClick={() => startDraft('followup')}
-              style={iconButtonStyle}
-            >
-              <CornerDownRight size={12} aria-hidden="true" />
-            </button>
-          </ActionTooltip>
-        )}
         {child.supportsClose && child.agentPath && running && canOpen && (
           <ActionTooltip label={t('subAgentDock.stop')} placement="top">
             <button
@@ -493,54 +431,6 @@ function SubAgentDockRow({
           </ActionTooltip>
         )}
       </div>
-      {draftMode && (
-        <form
-          style={inlineControlStyle}
-          onSubmit={(event) => {
-            event.preventDefault()
-            void submitDraft()
-          }}
-        >
-          <input
-            autoFocus
-            aria-label={draftMode === 'message'
-              ? t('subAgentDock.messageAria', { name: child.nickname })
-              : t('subAgentDock.followupAria', { name: child.nickname })}
-            value={draft}
-            disabled={submitting}
-            placeholder={draftMode === 'message' ? t('subAgentDock.messagePlaceholder') : t('subAgentDock.followupPlaceholder')}
-            onChange={(event) => setDraft(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Escape') {
-                event.preventDefault()
-                cancelDraft()
-              }
-            }}
-            style={inlineInputStyle}
-          />
-          <ActionTooltip label={t('subAgentDock.send')} placement="top">
-            <button
-              type="submit"
-              disabled={submitting || draft.trim().length === 0}
-              aria-label={t('subAgentDock.send')}
-              style={iconButtonStyle}
-            >
-              <Send size={12} aria-hidden="true" />
-            </button>
-          </ActionTooltip>
-          <ActionTooltip label={t('subAgentDock.cancel')} placement="top">
-            <button
-              type="button"
-              disabled={submitting}
-              aria-label={t('subAgentDock.cancel')}
-              onClick={cancelDraft}
-              style={iconButtonStyle}
-            >
-              <X size={12} aria-hidden="true" />
-            </button>
-          </ActionTooltip>
-        </form>
-      )}
     </div>
   )
 }
@@ -587,9 +477,12 @@ const dockFrameStyle: CSSProperties = {
   width: 'calc(100% - 40px)',
   maxWidth: 'none',
   margin: '0 auto -1px',
-  border: '1px solid var(--glass-border)',
+  borderTop: '1px solid var(--composer-input-border)',
+  borderRight: '1px solid var(--composer-input-border)',
+  borderBottom: '0 solid transparent',
+  borderLeft: '1px solid var(--composer-input-border)',
   borderRadius: '16px 16px 0 0',
-  background: 'linear-gradient(180deg, color-mix(in srgb, var(--bg-secondary) 54%, transparent), color-mix(in srgb, var(--bg-primary) 46%, transparent))',
+  background: 'var(--background-activity-dock-background)',
   backdropFilter: 'var(--glass-blur-soft)',
   WebkitBackdropFilter: 'var(--glass-blur-soft)',
   boxShadow: 'var(--background-activity-dock-shadow)',
@@ -773,7 +666,7 @@ const rowContainerStyle: CSSProperties = {
 const rowStyle: CSSProperties = {
   minHeight: '24px',
   display: 'grid',
-  gridTemplateColumns: '16px minmax(0, max-content) minmax(0, 1fr) repeat(4, auto)',
+  gridTemplateColumns: '16px minmax(0, max-content) minmax(0, 1fr) auto auto',
   alignItems: 'center',
   gap: '6px',
   fontSize: '13px'
@@ -841,24 +734,4 @@ const textButtonStyle: CSSProperties = {
   padding: '2px 4px',
   fontSize: '12px',
   cursor: 'pointer'
-}
-
-const inlineControlStyle: CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'minmax(0, 1fr) auto auto',
-  alignItems: 'center',
-  gap: '6px',
-  paddingLeft: '22px'
-}
-
-const inlineInputStyle: CSSProperties = {
-  minWidth: 0,
-  height: '26px',
-  border: '1px solid var(--border-subtle)',
-  borderRadius: '6px',
-  background: 'var(--bg-primary)',
-  color: 'var(--text-primary)',
-  padding: '0 8px',
-  fontSize: '12px',
-  outline: 'none'
 }

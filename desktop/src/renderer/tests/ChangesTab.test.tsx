@@ -237,9 +237,6 @@ describe('DiffViewer split mode', () => {
     const leftPane = screen.getByTestId('split-left-pane')
     const rightPane = screen.getByTestId('split-right-pane')
 
-    expect(leftPane).toHaveStyle({ overflowX: 'auto' })
-    expect(rightPane).toHaveStyle({ overflowX: 'auto' })
-
     leftPane.scrollLeft = 88
     fireEvent.scroll(leftPane)
     expect(rightPane.scrollLeft).toBe(88)

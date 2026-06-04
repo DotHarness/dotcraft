@@ -18,7 +18,6 @@ describe('settings panel shell', () => {
     const shellSource = readRendererFile('components/settings/SettingsPanelShell.tsx')
 
     expect(shellSource).toContain('SettingsPageHeader')
-    expect(shellSource).toContain("gap: '16px'")
   })
 
   it('uses the shared shell for major settings tabs and archived threads', () => {

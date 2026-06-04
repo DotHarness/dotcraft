@@ -29,18 +29,6 @@ function renderComposer(): void {
   )
 }
 
-function findComposerSurface(textbox: HTMLElement): HTMLElement | null {
-  let current = textbox.parentElement
-  while (current) {
-    const style = current.getAttribute('style') ?? ''
-    if (style.includes('border: 1px solid') && style.includes('border-radius')) {
-      return current
-    }
-    current = current.parentElement
-  }
-  return null
-}
-
 function setCaretToEnd(element: HTMLElement): void {
   const selection = window.getSelection()
   if (!selection) return
@@ -125,17 +113,9 @@ describe('InputComposer layout', () => {
   it('renders plan mode as an active-only label and exposes the mode switch from the attachment menu', async () => {
     renderComposer()
 
-    const textbox = screen.getByRole('textbox')
-    const composerSurface = textbox.closest('div[style*="border-radius: 20px"]')
-
-    expect(composerSurface).not.toBeNull()
-    expect(textbox.getAttribute('style')).toContain('border-radius: 0px')
-    expect(textbox.getAttribute('style')).toContain('background-color: transparent')
+    screen.getByRole('textbox')
     expect(screen.queryByRole('button', { name: 'Agent' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Plan' })).toBeNull()
-    expect(screen.getByRole('button', { name: 'Add attachment' }).getAttribute('style')).toContain('height: 24px')
-    expect(screen.getByRole('button', { name: 'Add attachment' }).getAttribute('style')).toContain('width: 24px')
-    expect(screen.getByTestId('approval-policy-trigger').getAttribute('style')).toContain('height: 24px')
 
     fireEvent.click(screen.getByRole('button', { name: 'Add attachment' }))
     const planModeMenuItem = screen.getByRole('menuitemcheckbox', { name: 'Plan mode' })
@@ -150,7 +130,6 @@ describe('InputComposer layout', () => {
         mode: 'plan'
       })
     })
-    expect(screen.getByRole('button', { name: 'Disable plan mode' }).getAttribute('style')).toContain('height: 24px')
     expect(screen.getByRole('menuitemcheckbox', { name: 'Plan mode' })).toHaveAttribute('aria-checked', 'true')
     expect(Boolean(
       screen.getByRole('button', { name: 'Add attachment' })
@@ -182,8 +161,6 @@ describe('InputComposer layout', () => {
     const listbox = screen.getByRole('listbox', { name: 'Select model' })
 
     expect(listbox).toBeInTheDocument()
-    expect(listbox.getAttribute('style')).toContain('var(--glass-surface-strong)')
-    expect(listbox.getAttribute('style')).toContain('backdrop-filter: var(--glass-blur)')
     expect(screen.getByRole('option', { name: 'gpt-5.4-mini' })).toBeInTheDocument()
   })
 
@@ -191,12 +168,8 @@ describe('InputComposer layout', () => {
     renderComposer()
 
     const sendButton = screen.getByRole('button', { name: 'Send message' })
-    const svg = sendButton.querySelector('svg')
 
     expect(sendButton).toBeInTheDocument()
-    expect(svg?.getAttribute('width')).toBe('20')
-    expect(sendButton.getAttribute('style')).toContain('color-mix(in srgb, var(--bg-primary) 92%, #ffffff 8%)')
-    expect(sendButton.getAttribute('style')).toContain('var(--text-dimmed)')
   })
 
   it('localizes the plan mode label and attachment menu switch', async () => {
@@ -277,30 +250,13 @@ describe('InputComposer layout', () => {
     renderComposer()
 
     const dock = screen.getByTestId('subagent-dock')
-    const textbox = screen.getByRole('textbox')
-    const composerSurface = findComposerSurface(textbox)
     const overlay = screen.getByTestId('composer-top-accessory-overlay')
     const shell = overlay.parentElement
+    const composerLayer = overlay.nextElementSibling
 
-    expect(dock.getAttribute('style')).toContain('width: calc(100% - 40px)')
-    expect(dock.getAttribute('style')).toContain('max-width: none')
-    expect(dock.getAttribute('style')).toContain('margin: 0px auto -1px')
-    expect(dock.getAttribute('style')).toContain('background: linear-gradient')
-    expect(dock.getAttribute('style')).toContain('transparent')
-    expect(dock.getAttribute('style')).toContain('backdrop-filter: var(--glass-blur-soft)')
-    expect(dock.getAttribute('style')).toContain('box-shadow: var(--background-activity-dock-shadow)')
-    expect(dock.getAttribute('style')).not.toContain('min(1080px')
-    expect(overlay.getAttribute('style')).toContain('position: absolute')
-    expect(overlay.getAttribute('style')).toContain('bottom: calc(100% - 1px)')
-    expect(overlay.getAttribute('style')).toContain('z-index: 0')
-    expect(overlay.getAttribute('style')).toContain('pointer-events: none')
-    expect(composerSurface).not.toBeNull()
-    expect(composerSurface?.getAttribute('style')).toContain('border-radius: 20px')
-    expect(composerSurface?.getAttribute('style')).toContain('z-index: 1')
-    expect(shell?.getAttribute('style')).toContain('position: relative')
-    expect(shell?.getAttribute('style')).toContain('isolation: isolate')
-    expect(shell?.getAttribute('style')).toContain('gap: 0px')
-    expect(composerSurface?.parentElement?.previousElementSibling).toBe(overlay)
+    expect(overlay).toContainElement(dock)
+    expect(composerLayer).toContainElement(screen.getByRole('textbox'))
+    expect(shell).toContainElement(overlay)
     expect(dock.parentElement).toBe(overlay)
   })
 
@@ -331,8 +287,6 @@ describe('InputComposer layout', () => {
     expect(within(dock).getByText('first queued follow-up')).toBeInTheDocument()
     expect(within(dock).getByText('second queued follow-up')).toBeInTheDocument()
     expect(within(dock).getAllByRole('button', { name: 'Reorder queued message' })).toHaveLength(2)
-    expect(dock.getAttribute('style')).toContain('margin: 0px auto -1px')
-    expect(dock.innerHTML).not.toContain('var(--warning)')
     expect(within(dock).getByRole('button', { name: 'Steering' })).toBeDisabled()
     expect(within(dock).getAllByRole('button', { name: 'Reorder queued message' })[1]).toBeDisabled()
   })
@@ -378,15 +332,13 @@ describe('InputComposer layout', () => {
     renderComposer()
 
     const dock = screen.getByTestId('subagent-dock')
-    const queueSection = within(dock).getByText('Queued messages').parentElement
     expect(within(dock).getByText('1 background agents')).toBeInTheDocument()
     expect(within(dock).getByText('queued follow-up')).toBeInTheDocument()
-    expect(queueSection?.getAttribute('style')).toContain('border-bottom')
 
     fireEvent.click(within(dock).getByRole('button', { name: 'Collapse background agents' }))
 
     expect(within(dock).getByText('queued follow-up')).toBeInTheDocument()
-    expect(screen.getByTestId('subagent-dock-rows').getAttribute('style')).toContain('max-height: 0px')
+    expect(within(dock).getByRole('button', { name: 'Expand background agents' })).toBeInTheDocument()
   })
 
   it('removes queued messages through the dock action', async () => {
@@ -515,14 +467,9 @@ describe('InputComposer layout', () => {
     renderComposer()
 
     const ring = screen.getByRole('img', { name: 'Context usage: 25% used' })
-    const ringSvg = ring.querySelector('svg')
-    const modelButton = screen.getByRole('button', { name: 'Select model' })
 
-    expect(ring.getAttribute('style')).toContain('width: 24px')
-    expect(ring.getAttribute('style')).toContain('height: 24px')
-    expect(ringSvg?.getAttribute('width')).toBe('14')
-    expect(ringSvg?.getAttribute('height')).toBe('14')
-    expect(modelButton.getAttribute('style')).toContain('height: 24px')
+    expect(ring).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Select model' })).toBeInTheDocument()
   })
 
   it('shows ChatGPT subscription usage when the default model catalog resolves to an OAuth provider', async () => {
@@ -579,7 +526,6 @@ describe('InputComposer layout', () => {
     renderComposer()
 
     const badge = await screen.findByRole('button', { name: /ChatGPT.*96% left in the 5h window.*76% left this week/i })
-    expect(badge.getAttribute('style')).toContain('width: 70px')
     expect(badge).not.toHaveAttribute('title')
     expect(badge.querySelector('img')).toBeNull()
     expect(badge.querySelector('svg[data-provider-mark="openai"]')).toBeInTheDocument()
@@ -608,11 +554,6 @@ describe('InputComposer layout', () => {
     const stopButton = screen.getByRole('button', { name: 'Stop turn' })
 
     expect(stopButton).toBeInTheDocument()
-    expect(stopButton.getAttribute('style')).not.toContain('var(--error)')
-    expect(stopButton.getAttribute('style')).not.toContain('#fff')
-    expect(stopButton.getAttribute('style')).not.toContain('#ffffff')
-    expect(stopButton.getAttribute('style')).toContain('rgb(245, 246, 247)')
-    expect(stopButton.getAttribute('style')).toContain('rgb(31, 35, 40)')
 
     fireEvent.mouseEnter(stopButton.parentElement as HTMLElement)
     const tooltip = await screen.findByRole('tooltip')

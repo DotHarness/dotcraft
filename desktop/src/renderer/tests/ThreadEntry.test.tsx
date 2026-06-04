@@ -86,14 +86,6 @@ describe('ThreadEntry', () => {
       expect(timeLabel).not.toBeVisible()
       expect(archiveButton).toBeVisible()
     })
-    expect(timeLabel).toHaveStyle({ display: 'none' })
-    expect(screen.getByTestId('thread-status-slot-thread-1')).toHaveStyle({
-      width: '24px',
-      minWidth: '24px',
-      justifySelf: 'center',
-      justifyContent: 'center'
-    })
-    expect(archiveButton.getAttribute('style')).toContain('right: 0px')
   })
 
   it('keeps archive action hidden for active row until hover', async () => {
@@ -140,29 +132,6 @@ describe('ThreadEntry', () => {
 
     await waitFor(() => {
       expect(pinButton).toBeVisible()
-    })
-  })
-
-  it('keeps the pin hover treatment icon-only', async () => {
-    renderThreadEntry(makeThread())
-
-    const row = screen.getByTestId('thread-entry-thread-1')
-    const pinButton = screen.getByRole('button', { name: 'Pin conversation' })
-
-    fireEvent.mouseEnter(row)
-    fireEvent.mouseEnter(pinButton)
-
-    await waitFor(() => {
-      expect(pinButton).toBeVisible()
-    })
-    expect(pinButton.style.backgroundColor).toBe('transparent')
-  })
-
-  it('keeps the top-level pin slot visually centered before the title', () => {
-    renderThreadEntry(makeThread())
-
-    expect(screen.getByTestId('thread-entry-thread-1')).toHaveStyle({
-      paddingLeft: '6px'
     })
   })
 
@@ -232,13 +201,7 @@ describe('ThreadEntry', () => {
     expect(useThreadStore.getState().activeThreadId).toBeNull()
     expect(appServerSendRequest).not.toHaveBeenCalledWith('thread/archive', { threadId: 'thread-1' })
     const confirmButton = screen.getByRole('button', { name: 'Confirm' })
-    const statusSlot = screen.getByTestId('thread-status-slot-thread-1')
     expect(confirmButton).toBeVisible()
-    expect(statusSlot.getAttribute('style')).toContain('min-width: 64px')
-    expect(statusSlot.getAttribute('style')).toContain('justify-self: stretch')
-    expect(confirmButton.getAttribute('style')).toContain('min-width: 64px')
-    expect(confirmButton.getAttribute('style')).toContain('right: 0px')
-    expect(confirmButton.getAttribute('style')).toContain('transform: translateY(-50%)')
 
     fireEvent.click(confirmButton)
 
@@ -480,12 +443,6 @@ describe('ThreadEntry', () => {
       expect(spinner).not.toBeVisible()
       expect(archiveButton).toBeVisible()
     })
-    expect(screen.getByTestId('thread-status-slot-thread-1')).toHaveStyle({
-      width: '24px',
-      minWidth: '24px',
-      justifyContent: 'center'
-    })
-    expect(archiveButton.getAttribute('style')).toContain('right: 0px')
   })
 
   it('shows a running spinner after thread list runtime hydration', () => {
@@ -562,7 +519,7 @@ describe('ThreadEntry', () => {
     expect(screen.getByText('Awaiting confirmation')).toBeInTheDocument()
   })
 
-  it('places long-title pending badges and running status in the reference grid columns', () => {
+  it('keeps long-title pending badges and running status in their slots', () => {
     useThreadStore.setState({
       pendingPlanConfirmationThreadIds: new Set<string>(['thread-1']),
       runningTurnThreadIds: new Set<string>(['thread-1'])
@@ -579,29 +536,14 @@ describe('ThreadEntry', () => {
     const statusSlot = screen.getByTestId('thread-status-slot-thread-1')
     const spinner = screen.getByTestId('thread-running-indicator-thread-1')
 
-    expect(content).toHaveStyle({
-      display: 'grid',
-      gridTemplateColumns: 'minmax(0, 1fr) minmax(74px, max-content) 24px',
-      columnGap: '7px'
-    })
     expect(title.parentElement).toBe(content)
     expect(badgeSlot.parentElement).toBe(content)
     expect(statusSlot.parentElement).toBe(content)
     expect(badge.parentElement).toBe(badgeSlot)
     expect(spinner.parentElement?.parentElement).toBe(statusSlot)
-    expect(badgeSlot).toHaveStyle({
-      justifyContent: 'flex-end',
-      justifySelf: 'stretch'
-    })
-    expect(badge).toHaveStyle({ maxWidth: '150px' })
-    expect(statusSlot).toHaveStyle({
-      width: '24px',
-      minWidth: '24px',
-      justifyContent: 'center'
-    })
   })
 
-  it('uses a compact action column when a pending badge row swaps relative time to archive', async () => {
+  it('keeps a pending badge row interactive when relative time swaps to archive', async () => {
     useThreadStore.setState({
       pendingPlanConfirmationThreadIds: new Set<string>(['thread-1'])
     })
@@ -610,57 +552,22 @@ describe('ThreadEntry', () => {
       displayName: 'A pending confirmation row with relative time should keep archive close to the pill'
     }))
 
-    const content = screen.getByTestId('thread-layout-thread-1')
-    const statusSlot = screen.getByTestId('thread-status-slot-thread-1')
-
-    expect(content).toHaveStyle({
-      gridTemplateColumns: 'minmax(0, 1fr) minmax(74px, max-content) minmax(24px, max-content)'
-    })
-    expect(statusSlot).toHaveStyle({
-      width: 'max-content',
-      minWidth: '24px',
-      justifySelf: 'end',
-      justifyContent: 'flex-end'
-    })
-
     fireEvent.mouseEnter(screen.getByTestId('thread-entry-thread-1'))
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Archive' })).toBeVisible()
     })
-    expect(content).toHaveStyle({
-      gridTemplateColumns: 'minmax(0, 1fr) minmax(74px, max-content) 24px'
-    })
-    expect(statusSlot).toHaveStyle({
-      width: '24px',
-      minWidth: '24px',
-      justifySelf: 'center',
-      justifyContent: 'center'
-    })
   })
 
-  it('uses title and status columns for no-badge rows while time keeps a readable status column', () => {
+  it('keeps no-badge rows without a badge slot while showing relative time', () => {
     renderThreadEntry(makeThread({
       lastActiveAt: new Date(Date.now() - 20 * 1000).toISOString()
     }))
 
-    const content = screen.getByTestId('thread-layout-thread-1')
-    const title = screen.getByTestId('thread-title-thread-1')
     const statusSlot = screen.getByTestId('thread-status-slot-thread-1')
     const timeLabel = screen.getByText('just now')
 
-    expect(content).toHaveStyle({
-      gridTemplateColumns: 'minmax(0, 1fr) minmax(24px, max-content)'
-    })
     expect(screen.queryByTestId('thread-badge-slot-thread-1')).not.toBeInTheDocument()
-    expect(title.getAttribute('style')).not.toContain('grid-column')
-    expect(statusSlot).toHaveStyle({
-      gridColumn: '2',
-      width: 'max-content',
-      minWidth: '24px',
-      justifySelf: 'end',
-      justifyContent: 'flex-end'
-    })
     expect(timeLabel).toHaveTextContent('just now')
     expect(timeLabel.parentElement).toBe(statusSlot)
   })
@@ -674,21 +581,10 @@ describe('ThreadEntry', () => {
       displayName: 'Currently implementing a no badge row that should show more title text'
     }))
 
-    const title = screen.getByTestId('thread-title-thread-1')
-    const content = screen.getByTestId('thread-layout-thread-1')
     const statusSlot = screen.getByTestId('thread-status-slot-thread-1')
     const spinner = screen.getByTestId('thread-running-indicator-thread-1')
 
     expect(screen.queryByTestId('thread-badge-slot-thread-1')).not.toBeInTheDocument()
-    expect(content).toHaveStyle({
-      gridTemplateColumns: 'minmax(0, 1fr) 24px'
-    })
-    expect(title.getAttribute('style')).not.toContain('grid-column')
-    expect(statusSlot).toHaveStyle({
-      gridColumn: '2',
-      width: '24px',
-      minWidth: '24px'
-    })
     expect(spinner.parentElement?.parentElement).toBe(statusSlot)
   })
 

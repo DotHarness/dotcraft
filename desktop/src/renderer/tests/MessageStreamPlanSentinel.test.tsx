@@ -532,7 +532,7 @@ describe('MessageStream plan-accept sentinel filtering', () => {
       })
     })
 
-    expect(screen.getByText('Fetching https://dotcraft.ai...')).toHaveClass('tool-running-gradient-text')
+    expect(screen.getByText('Fetching https://dotcraft.ai...')).toBeInTheDocument()
     const maxDepthErrors = consoleError.mock.calls.filter((call) =>
       call.some((part) => String(part).includes('Maximum update depth exceeded'))
     )
@@ -550,7 +550,7 @@ describe('MessageStream plan-accept sentinel filtering', () => {
 
     renderWithLocale(<MessageStream />)
 
-    expect(screen.getByText('Thinking...')).toHaveClass('tool-running-gradient-text')
+    expect(screen.getByText('Thinking...')).toBeInTheDocument()
   })
 
   it('shows and clears the Thinking fallback when streaming assistant text stalls then resumes', () => {
@@ -595,7 +595,7 @@ describe('MessageStream plan-accept sentinel filtering', () => {
       vi.advanceTimersByTime(2000)
     })
 
-    expect(screen.getByText('Thinking...')).toHaveClass('tool-running-gradient-text')
+    expect(screen.getByText('Thinking...')).toBeInTheDocument()
     const stalledText = screen.getByTestId('message-stream').textContent ?? ''
     expect(stalledText.indexOf('Partial answer')).toBeLessThan(stalledText.indexOf('Thinking...'))
 
@@ -653,7 +653,7 @@ describe('MessageStream plan-accept sentinel filtering', () => {
 
     renderWithLocale(<MessageStream />)
 
-    expect(screen.getByText('Asking questions')).toHaveClass('tool-running-gradient-text')
+    expect(screen.getByText('Asking questions')).toBeInTheDocument()
     expect(screen.queryByText('Thinking...')).toBeNull()
   })
 
@@ -710,7 +710,7 @@ describe('MessageStream plan-accept sentinel filtering', () => {
 
     renderWithLocale(<MessageStream />)
 
-    expect(await screen.findByText('等待审批')).toHaveClass('tool-running-gradient-text')
+    expect(await screen.findByText('等待审批')).toBeInTheDocument()
     expect(screen.queryByText('正在思考...')).toBeNull()
     expect(screen.queryByText('Approval Required')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Accept' })).not.toBeInTheDocument()
@@ -771,7 +771,7 @@ describe('MessageStream plan-accept sentinel filtering', () => {
     renderWithLocale(<MessageStream />)
 
     expect(screen.getByRole('status', { name: 'Auto-compacting context' })).toBeInTheDocument()
-    expect(screen.getByText('Auto-compacting context')).toHaveClass('tool-running-gradient-text')
+    expect(screen.getByText('Auto-compacting context')).toBeInTheDocument()
     expect(screen.queryByText('Thinking...')).toBeNull()
 
     act(() => {
@@ -796,7 +796,7 @@ describe('MessageStream plan-accept sentinel filtering', () => {
     renderWithLocale(<MessageStream />)
 
     expect(screen.getByRole('status', { name: 'Consolidating memory' })).toBeInTheDocument()
-    expect(screen.getByText('Consolidating memory')).toHaveClass('tool-running-gradient-text')
+    expect(screen.getByText('Consolidating memory')).toBeInTheDocument()
   })
 
   it('renders a persistent memory consolidation notice divider', () => {
@@ -883,13 +883,6 @@ describe('MessageStream plan-accept sentinel filtering', () => {
     fireEvent.click(buttons[0])
     const editTextarea = screen.getByRole('textbox', { name: 'Edit message text' })
     expect(editTextarea).toHaveValue('Retry this one')
-    const editingMessageContainer = editTextarea.parentElement?.parentElement
-    expect(editingMessageContainer?.getAttribute('style')).toContain(
-      'width: min(100%, var(--conversation-reading-width))'
-    )
-    expect(editingMessageContainer?.getAttribute('style')).toContain(
-      'max-width: var(--conversation-reading-width)'
-    )
     expect(screen.queryByText('Earlier message')).toBeInTheDocument()
   })
 

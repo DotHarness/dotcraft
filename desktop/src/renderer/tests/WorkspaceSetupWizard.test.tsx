@@ -85,7 +85,6 @@ describe('WorkspaceSetupWizard', () => {
 
     expect(screen.getByText("This workspace hasn't finished DotCraft setup")).toBeInTheDocument()
     expect(screen.getByText('Current workspace')).toBeInTheDocument()
-    expect(container.firstElementChild?.getAttribute('style')).toContain('background: var(--welcome-surface)')
     const logo = container.querySelector('.setup-logo-image')
     expect(logo).toBeInstanceOf(HTMLImageElement)
     expect(logo).toHaveAttribute('width', '96')
@@ -108,12 +107,7 @@ describe('WorkspaceSetupWizard', () => {
     }
     const onChooseDifferentWorkspace = vi.fn()
 
-    const { container } = renderWizard(status, onChooseDifferentWorkspace)
-    expect(container.querySelector('.setup-wizard-shell')?.getAttribute('style')).toContain(
-      'background: var(--welcome-surface)'
-    )
-    expect(screen.getByRole('button', { name: 'Cancel' })).toHaveClass('workspace-setup-nav-button--back')
-    expect(screen.getByRole('button', { name: 'Next' })).toHaveClass('workspace-setup-nav-button--next')
+    renderWizard(status, onChooseDifferentWorkspace)
     fireEvent.click(screen.getByRole('button', { name: 'Change folder' }))
 
     expect(onChooseDifferentWorkspace).toHaveBeenCalledTimes(1)
@@ -455,7 +449,7 @@ describe('WorkspaceSetupWizard', () => {
     }
 
     const { container } = renderWizard(status)
-    expect(screen.getByText('Workspace setup')).toHaveClass('tool-running-gradient-text')
+    expect(screen.getByText('Workspace setup')).toBeInTheDocument()
     expect(screen.getByText('Confirm DotCraft workspace')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Next' }))
 

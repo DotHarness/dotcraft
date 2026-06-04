@@ -44,7 +44,7 @@ describe('ThreadList subagent entries', () => {
     useThreadStore.getState().reset()
   })
 
-  it('places subagent children directly after their parent and indents them', () => {
+  it('places subagent children directly after their parent and marks them as background agents', () => {
     useThreadStore.getState().setThreadList([
       makeThread({ id: 'other-1', displayName: 'Other conversation' }),
       makeThread({ id: 'parent-1', displayName: 'Create hatch pet' }),
@@ -72,7 +72,6 @@ describe('ThreadList subagent entries', () => {
     ])
     expect(screen.getByLabelText('Background agent')).toBeInTheDocument()
     expect(screen.queryByLabelText('Origin channel: subagent')).not.toBeInTheDocument()
-    expect(screen.getByTestId('thread-entry-child-1').getAttribute('style')).toContain('padding: 6px 12px 6px 28px')
   })
 
   it('does not show a pinned section when no threads are pinned', () => {

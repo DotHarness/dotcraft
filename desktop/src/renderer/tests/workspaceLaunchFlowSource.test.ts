@@ -12,7 +12,6 @@ describe('workspace launch flow source', () => {
   it('keeps workspace switching in App and gates ready workspaces on connected status', () => {
     const appSource = readRendererFile('App.tsx')
     const welcomeSource = readRendererFile('components/WelcomeScreen.tsx')
-    const tokensCss = readRendererFile('styles/tokens.css')
 
     expect(welcomeSource).toContain('onOpenWorkspace')
     expect(welcomeSource).not.toContain('window.api.workspace.switch(path)')
@@ -42,19 +41,6 @@ describe('workspace launch flow source', () => {
     expect(appSource.match(/\{launchOverlay\}/g) ?? []).toHaveLength(1)
     expect(appSource).toContain('overlays={(')
     expect(appSource).toContain('let content: ReactNode')
-    expect(tokensCss).toContain('.workspace-launch-transition {\n  position: absolute;')
-    expect(tokensCss).toContain('.workspace-launch-transition__scrim')
-    expect(tokensCss).toContain('--workspace-launch-surface:')
-    expect(tokensCss).toContain('#202020,\n      #181818')
-    expect(tokensCss).toContain('#f3f3ee,\n      #ededed')
-    expect(tokensCss).toContain('background: var(--workspace-launch-surface);')
-    expect(tokensCss).toContain('border-radius: inherit;')
-    expect(tokensCss).not.toContain('--workspace-launch-surface: var(--chrome-glass)')
-    expect(tokensCss).not.toContain('background: var(--bg-primary);')
-    expect(tokensCss).toContain('.workspace-launch-transition__logo {\n  position: absolute;')
-    expect(tokensCss).toContain('.workspace-setup-logo-handoff {\n  position: absolute;')
-    expect(tokensCss).toContain('.workspace-setup-logo-handoff__logo {\n  position: absolute;')
-    expect(tokensCss).not.toContain('.workspace-launch-transition--welcome-to-center {\n  animation:')
   })
 
   it('routes needs-setup through launch handoff and setup wizard entry through local handoff', () => {

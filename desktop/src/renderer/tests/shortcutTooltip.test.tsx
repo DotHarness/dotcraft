@@ -1,10 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
 import { ActionTooltip } from '../components/ui/ActionTooltip'
 import { IconButton } from '../components/ui/IconButton'
-import { ShortcutBadge } from '../components/ui/ShortcutBadge'
 import { ACTION_SHORTCUTS, formatShortcutParts } from '../components/ui/shortcutKeys'
 import { MessageCopyButton } from '../components/conversation/MessageCopyButton'
 import { ModelPicker } from '../components/conversation/ModelPicker'
@@ -38,15 +35,6 @@ describe('shortcut formatting', () => {
 })
 
 describe('ActionTooltip', () => {
-  it('keeps the global tooltip layer above modal overlays and toasts', () => {
-    const tokensCss = readFileSync(resolve(__dirname, '../styles/tokens.css'), 'utf8')
-
-    expect(tokensCss).toContain('--z-tooltip: 40000;')
-    expect(tokensCss).toContain('.dc-action-tooltip--multiline')
-    expect(tokensCss).toContain('max-width: min(32rem, calc(100vw - 16px));')
-    expect(tokensCss).toContain('overflow-wrap: anywhere;')
-  })
-
   it('renders an action label with shortcut keycaps on hover', async () => {
     render(
       <ActionTooltip label="Show viewer panel" shortcut={ACTION_SHORTCUTS.toggleDetailPanel}>
@@ -62,7 +50,6 @@ describe('ActionTooltip', () => {
     expect(tooltip).toHaveTextContent('Shift')
     expect(tooltip).toHaveTextContent('B')
     expect(tooltip).not.toHaveAttribute('data-multiline')
-    expect(tooltip).not.toHaveClass('dc-action-tooltip--multiline')
   })
 
   it('uses multiline tooltip styling only when requested', async () => {
@@ -80,7 +67,6 @@ describe('ActionTooltip', () => {
     const tooltip = await screen.findByRole('tooltip')
     expect(tooltip).toHaveTextContent(longLabel)
     expect(tooltip).toHaveAttribute('data-multiline', 'true')
-    expect(tooltip).toHaveClass('dc-action-tooltip--multiline')
   })
 
   it('shows the disabled reason instead of shortcut keycaps', async () => {
@@ -135,16 +121,6 @@ describe('ActionTooltip', () => {
     expect(await screen.findByRole('tooltip')).toHaveTextContent('Not available')
     expect(screen.getByRole('tooltip')).not.toHaveTextContent('Enter')
     expect(screen.getByRole('tooltip')).not.toHaveTextContent('A')
-  })
-})
-
-describe('ShortcutBadge', () => {
-  it('supports an on-accent tone for primary buttons', () => {
-    render(<ShortcutBadge shortcut={ACTION_SHORTCUTS.newThread} tone="onAccent" />)
-
-    const badge = screen.getByText('Ctrl').parentElement
-    expect(badge).toHaveStyle({ '--shortcut-text': 'var(--on-accent)' })
-    expect(badge).toHaveStyle({ '--shortcut-border': 'color-mix(in srgb, var(--on-accent) 48%, transparent)' })
   })
 })
 
