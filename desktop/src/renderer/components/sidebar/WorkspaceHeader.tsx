@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, MoreHorizontal } from 'lucide-react'
 import { stripWorkspaceLockedIpcPrefix } from '../../../shared/workspaceSwitchErrors'
 import { useT } from '../../contexts/LocaleContext'
 import { ActionTooltip } from '../ui/ActionTooltip'
@@ -29,8 +29,8 @@ interface WorkspaceHeaderProps {
 
 /**
  * Compact workspace identity row shown below the LogoHeader.
- * Displays the workspace name with a subtle "···" overflow button that opens
- * the workspace menu (Open in Explorer, Switch Workspace, Recent Workspaces).
+ * Displays the workspace name with a subtle overflow (more-actions) button that
+ * opens the workspace menu (Open in Explorer, Switch Workspace, Recent Workspaces).
  * Spec §9.2.
  */
 export function WorkspaceHeader({
@@ -165,7 +165,7 @@ export function WorkspaceHeader({
           ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent'
         }}
       >
-        ···
+        <MoreHorizontal size={16} aria-hidden />
       </button>
       </ActionTooltip>
 
