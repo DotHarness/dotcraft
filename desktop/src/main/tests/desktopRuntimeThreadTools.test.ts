@@ -436,6 +436,42 @@ describe('desktop runtime thread tools', () => {
     }))
   })
 
+  it('records the calling thread as spawnedFromThreadId on CreateThread', async () => {
+    const client = createClient(async (method) => {
+      if (method === 'thread/start') return { thread: { id: 'thread-child', displayName: 'Research' } }
+      if (method === 'turn/start') return { turn: { id: 'turn-1' } }
+      throw new Error(`unexpected ${method}`)
+    })
+
+    const result = await handleDesktopRuntimeThreadToolCall(client, {
+      namespace: DESKTOP_THREAD_TOOL_NAMESPACE,
+      tool: 'CreateThread',
+      threadId: 'thread-parent',
+      arguments: { prompt: 'start' }
+    }, 'F:\\examples\\workspace')
+
+    expect(result?.success).toBe(true)
+    const startCall = vi.mocked(client.sendRequest).mock.calls.find((call) => call[0] === 'thread/start')
+    expect(startCall?.[1]).toEqual(expect.objectContaining({ spawnedFromThreadId: 'thread-parent' }))
+  })
+
+  it('omits spawnedFromThreadId when CreateThread has no calling thread', async () => {
+    const client = createClient(async (method) => {
+      if (method === 'thread/start') return { thread: { id: 'thread-child' } }
+      if (method === 'turn/start') return { turn: { id: 'turn-1' } }
+      throw new Error(`unexpected ${method}`)
+    })
+
+    await handleDesktopRuntimeThreadToolCall(client, {
+      namespace: DESKTOP_THREAD_TOOL_NAMESPACE,
+      tool: 'CreateThread',
+      arguments: { prompt: 'start' }
+    }, 'F:\\examples\\workspace')
+
+    const startCall = vi.mocked(client.sendRequest).mock.calls.find((call) => call[0] === 'thread/start')
+    expect(startCall?.[1]).not.toHaveProperty('spawnedFromThreadId')
+  })
+
   it('queues SendMessageToThread when the target thread is busy', async () => {
     const client = createClient(async (method) => {
       if (method === 'thread/read') return { thread: { id: 'thread-1', status: 'active' } }

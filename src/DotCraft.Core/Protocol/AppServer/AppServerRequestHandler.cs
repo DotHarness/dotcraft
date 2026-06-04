@@ -510,12 +510,17 @@ public sealed class AppServerRequestHandler(
                 p.Config.Reasoning);
         }
 
+        var spawnSource = !string.IsNullOrWhiteSpace(p.SpawnedFromThreadId)
+            ? ThreadSource.SpawnedFromThread(p.SpawnedFromThreadId.Trim())
+            : null;
+
         var thread = await sessionService.CreateThreadAsync(
             identity,
             p.Config,
             historyMode,
             displayName: p.DisplayName,
-            ct: ct);
+            ct: ct,
+            source: spawnSource);
 
         if (wireAcpExtensionProxy != null && connection.HasAcpExtensions)
             wireAcpExtensionProxy.BindThread(thread.Id, transport, connection);

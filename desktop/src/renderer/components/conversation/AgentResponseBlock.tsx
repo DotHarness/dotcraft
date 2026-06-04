@@ -9,6 +9,8 @@ import { ErrorBlock } from './ErrorBlock'
 import { CancelledNotice } from './CancelledNotice'
 import { TurnCompletionSummary } from './TurnCompletionSummary'
 import { TurnArtifacts } from './TurnArtifacts'
+import { TurnThreadActions } from './TurnThreadActions'
+import { isThreadActionToolItem, parseThreadToolAction } from '../../utils/threadToolDisplay'
 import { ApprovalCard } from './ApprovalCard'
 import { SystemNoticeBlock } from './SystemNoticeBlock'
 import { UserMessageBlock } from './UserMessageBlock'
@@ -504,6 +506,7 @@ function StreamRetryRow({ signal }: { signal: StreamRetrySignal }): JSX.Element 
 function TurnCompletionContent({ turnId }: { turnId: string }): JSX.Element {
   return (
     <>
+      <TurnThreadActions turnId={turnId} />
       <TurnArtifacts turnId={turnId} />
       <TurnCompletionSummary turnId={turnId} />
     </>
@@ -904,6 +907,9 @@ function isGuidanceUserMessage(item: ConversationItem): boolean {
 }
 
 function isDefaultRenderableItem(item: ConversationItem): boolean {
+  // Successful CreateThread / SendMessageToThread calls render as a dedicated card
+  // before the agent footer (TurnThreadActions), so suppress their inline tool row.
+  if (isThreadActionToolItem(item) && parseThreadToolAction(item) != null) return false
   return (
     (item.type !== 'userMessage' || item.deliveryMode === 'guidance')
     && item.type !== 'toolResult'

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useConversationStore, type StreamRetrySignal } from '../../stores/conversationStore'
 import { useThreadStore } from '../../stores/threadStore'
 import { useUIStore } from '../../stores/uiStore'
@@ -14,6 +14,7 @@ import { wireTurnToConversationTurn } from '../../types/conversation'
 import type { ConversationItem, ConversationTurn } from '../../types/conversation'
 import type { ContextUsageSnapshotWire, Thread, ThreadGoal } from '../../types/thread'
 import { isAcceptPlanSentinel } from '../../utils/planAcceptSentinel'
+import { getSpawnedFromThreadId } from '../../utils/subAgentThreads'
 import { startTurnWithOptimisticUI } from '../../utils/startTurn'
 import { estimateBackgroundActivityDockHeightPx } from './backgroundActivityDockLayout'
 
@@ -116,6 +117,16 @@ export function MessageStream(): JSX.Element {
   const showThinkingContent = useUIStore((s) => s.showThinkingContent)
   const activeThreadId = useThreadStore((s) => s.activeThreadId)
   const activeThread = useThreadStore((s) => s.activeThread)
+  const threadList = useThreadStore((s) => s.threadList)
+  // Origin of a thread spawned by another thread (Desktop CreateThread). Drives the
+  // "From another thread" pill on the first user message; null for normal threads.
+  const threadOrigin = useMemo(() => {
+    const self = threadList.find((t) => t.id === activeThreadId)
+    const parentId = self ? getSpawnedFromThreadId(self) : null
+    if (!parentId) return null
+    const parent = threadList.find((t) => t.id === parentId)
+    return { refId: parentId, label: parent?.displayName?.trim() || undefined }
+  }, [threadList, activeThreadId])
   const currentGoal = useThreadStore((s) =>
     activeThreadId
       ? s.goalSnapshots.get(activeThreadId)
@@ -293,6 +304,8 @@ export function MessageStream(): JSX.Element {
               }
               isActiveTurn={turn.id === activeTurnId}
               isLastTurn={idx === turns.length - 1}
+              isFirstTurn={idx === 0}
+              threadOrigin={threadOrigin}
               isIdle={turnStatus === 'idle'}
               editing={editing}
               onStartEdit={(item) => {
@@ -442,6 +455,8 @@ interface TurnBlockProps {
   showIdleThinkingFallback: boolean
   isActiveTurn: boolean
   isLastTurn: boolean
+  isFirstTurn: boolean
+  threadOrigin: { refId: string; label?: string } | null
   isIdle: boolean
   editing: InlineEditState | null
   onStartEdit: (item: ConversationItem) => void
@@ -462,6 +477,8 @@ function TurnBlock({
   showIdleThinkingFallback,
   isActiveTurn,
   isLastTurn,
+  isFirstTurn,
+  threadOrigin,
   isIdle,
   editing,
   onStartEdit,
@@ -482,7 +499,11 @@ function TurnBlock({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--conversation-block-gap)' }}>
       {/* User messages */}
-      {userItems.map((item: ConversationItem, idx) => (
+      {userItems.map((item: ConversationItem, idx) => {
+        // The first user message of a thread spawned by another thread shows a
+        // "From another thread" pill that jumps back to the originating thread.
+        const showOrigin = isFirstTurn && idx === 0 && threadOrigin != null && !item.triggerKind
+        return (
         <UserMessageBlock
           key={item.id}
           text={item.text ?? ''}
@@ -491,9 +512,9 @@ function TurnBlock({
           images={item.images}
           createdAt={item.createdAt}
           deliveryMode={item.deliveryMode}
-          triggerKind={item.triggerKind}
-          triggerLabel={item.triggerLabel}
-          triggerRefId={item.triggerRefId}
+          triggerKind={showOrigin ? 'thread' : item.triggerKind}
+          triggerLabel={showOrigin ? threadOrigin?.label : item.triggerLabel}
+          triggerRefId={showOrigin ? threadOrigin?.refId : item.triggerRefId}
           sentAsGoal={item.id === sentAsGoalItemId}
           editable={canEditUserMessage && idx === userItems.length - 1 && isIdle && isTextOnlyEditableUserMessage(item)}
           onEdit={() => onStartEdit(item)}
@@ -510,7 +531,8 @@ function TurnBlock({
           onCancelEdit={onCancelEdit}
           onSubmitEdit={onSubmitEdit}
         />
-      ))}
+        )
+      })}
 
       {/* Agent response */}
       <AgentResponseBlock

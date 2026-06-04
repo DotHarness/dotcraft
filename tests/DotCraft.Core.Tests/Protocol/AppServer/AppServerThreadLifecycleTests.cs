@@ -329,6 +329,24 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         Assert.Equal("client", thread.GetProperty("historyMode").GetString());
     }
 
+    [Fact]
+    public async Task ThreadStart_WithSpawnedFromThreadId_RecordsNonSubagentOrigin()
+    {
+        var msg = _h.BuildRequest(AppServerMethods.ThreadStart, new
+        {
+            identity = new { channelName = "appserver", userId = "test_user", workspacePath = _h.Identity.WorkspacePath },
+            spawnedFromThreadId = "thread_parent"
+        });
+        await _h.ExecuteRequestAsync(msg);
+
+        var response = await _h.Transport.ReadNextSentAsync();
+        await _h.Transport.ReadNextSentAsync(); // drain notification
+        var source = response.RootElement.GetProperty("result").GetProperty("thread").GetProperty("source");
+        // Recorded as the originating thread, but kept as an ordinary (non-subagent) thread.
+        Assert.Equal("thread_parent", source.GetProperty("spawnedFromThreadId").GetString());
+        Assert.Equal(ThreadSourceKinds.User, source.GetProperty("kind").GetString());
+    }
+
     // -------------------------------------------------------------------------
     // thread/fork
     // -------------------------------------------------------------------------

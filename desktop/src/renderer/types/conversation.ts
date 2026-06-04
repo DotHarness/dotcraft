@@ -151,8 +151,10 @@ export interface ConversationItem {
    * When set on a userMessage item, indicates the message was synthesized by an
    * automation, goal, app, or team mechanism (heartbeat, cron, automation, goal, app, team) rather
    * than typed by a human. Mirrors UserMessagePayload.TriggerKind on the server.
+   * The `thread` kind is synthesized client-side for the first user message of a
+   * thread that was spawned by another thread (see thread.source.spawnedFromThreadId).
    */
-  triggerKind?: 'heartbeat' | 'cron' | 'automation' | 'goal' | 'app' | 'team'
+  triggerKind?: 'heartbeat' | 'cron' | 'automation' | 'goal' | 'app' | 'team' | 'thread'
   /** Optional human-readable label for the automation source (e.g. cron job name). */
   triggerLabel?: string
   /** Optional routing id for client-side click-through (e.g. cron job id, task id). */

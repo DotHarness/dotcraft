@@ -817,6 +817,11 @@ Choose the next concrete action that advances the goal. Before doing substantial
             thread.Metadata["channelContext"] = identity.ChannelContext;
         }
 
+        // Mirror a non-subagent spawn origin into metadata so the client can durably
+        // render a "from another thread" affordance after restart (Source is not persisted).
+        if (!string.IsNullOrWhiteSpace(thread.Source.SpawnedFromThreadId))
+            thread.Metadata["spawnedFromThreadId"] = thread.Source.SpawnedFromThreadId!;
+
         _threadsPendingPermanentDeletion.TryRemove(thread.Id, out _);
         _threads[thread.Id] = thread;
         var broker = GetOrCreateBroker(thread.Id);

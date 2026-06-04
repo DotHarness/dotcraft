@@ -24,7 +24,24 @@ public sealed class ThreadSource
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public SubAgentThreadSource? SubAgent { get; set; }
 
+    /// <summary>
+    /// Set when a top-level (non-subagent) thread was started from another thread,
+    /// e.g. via the Desktop CreateThread tool. Holds the originating thread id while
+    /// <see cref="Kind"/> stays <see cref="ThreadSourceKinds.User"/>, so the thread
+    /// remains an ordinary sibling chat (not a subagent). Mirrored into thread
+    /// metadata (<c>spawnedFromThreadId</c>) for durable client display.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? SpawnedFromThreadId { get; set; }
+
     public static ThreadSource User() => new() { Kind = ThreadSourceKinds.User };
+
+    public static ThreadSource SpawnedFromThread(string parentThreadId) =>
+        new()
+        {
+            Kind = ThreadSourceKinds.User,
+            SpawnedFromThreadId = parentThreadId
+        };
 
     public static ThreadSource ForSubAgent(SubAgentThreadSource source) =>
         new()

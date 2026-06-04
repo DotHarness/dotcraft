@@ -440,6 +440,7 @@ Create a new thread. The server generates a Thread ID and persists initial state
 | `additionalContext` | RuntimeAdditionalContext | no | Thread-bound runtime context supplied by the AppServer client. Requires `capabilities.runtimeAdditionalContext`. |
 | `historyMode` | string | no | `"server"` (default) or `"client"`. |
 | `displayName` | string | no | Explicit thread display name. |
+| `spawnedFromThreadId` | string | no | Id of the thread that started this thread on the user's behalf (e.g. the Desktop `CreateThread` tool invoked from another thread). The server records it as a non-subagent origin on the new thread's `ThreadSource` (`kind` stays `"user"`) and mirrors it into thread metadata as `spawnedFromThreadId`, so the new thread stays an ordinary sibling thread (it does not become a subagent and does not enter the SubAgent dock) while its first user message can link back to the source thread. Self-references are ignored. |
 
 #### 4.1.0 Runtime Dynamic Tools
 
@@ -554,6 +555,7 @@ Argument conventions:
 
 - `CreateThread.prompt` and `SendMessageToThread.prompt` are plain user prompts encoded as `InputPart` text when calling `turn/start` or `turn/enqueue`.
 - `CreateThread.displayName` is optional and maps to `thread/start.displayName` when present.
+- When `CreateThread` is invoked from within a thread (the tool call carries the originating `threadId`), Desktop sets `thread/start.spawnedFromThreadId` to that originating thread id. The created thread stays a normal sibling thread; its origin is recorded only as a non-subagent `ThreadSource`/metadata marker so the client can show a "from another thread" affordance on the new thread's first user message. This must not turn the created thread into a subagent.
 - `CreateThread.reasoningEffort` and `SendMessageToThread.reasoningEffort` are optional values in `low`, `medium`, `high`, or `extraHigh`. Desktop maps them to persistent thread reasoning configuration. When `SendMessageToThread` sets reasoning effort, the running turn is not changed; future and queued turns use the updated thread configuration.
 - `CreateThread.model` and `SendMessageToThread.model`, when supported by the client, map to thread configuration or a turn-scoped override only through explicit AppServer protocol support. A client that cannot apply the override must return `success = false` with `errorCode = "UnsupportedOption"` rather than silently ignoring it.
 - `ListThreads.query`, `ListThreads.limit`, `ListThreads.cursor`, and `ListThreads.includeArchived` map to `thread/list` filtering and cursor pagination. Desktop defaults `limit` to 20 and caps it at 100.

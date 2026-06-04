@@ -783,6 +783,14 @@ public sealed class ThreadStartParams
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? DisplayName { get; set; }
+
+    /// <summary>
+    /// Optional id of the thread that started this thread on the user's behalf (e.g. the
+    /// Desktop CreateThread tool called from another thread). Recorded as a non-subagent
+    /// origin on the new thread so its first user message can link back to the source.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? SpawnedFromThreadId { get; set; }
 }
 
 // ───── thread/fork ─────
