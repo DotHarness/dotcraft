@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using DotCraft.Agents;
 using DotCraft.Configuration;
@@ -287,16 +288,7 @@ public static class SubAgentSessionControl
             ? RunChildTurnAsync(context.SessionService, childThread.Id, prompt, childCts.Token)
             : RunExternalChildTurnsAsync(context.SessionService, coordinator, prepared!, childThread.Id, prompt, childCts.Token);
         RunningChildren[childThread.Id] = new RunningChild(context.ParentThread.Id, childCts, completion);
-        _ = completion.ContinueWith(
-            task =>
-            {
-                RunningChildren.TryRemove(childThread.Id, out var running);
-                running?.Cancellation.Dispose();
-                NotifyAgentChange();
-            },
-            CancellationToken.None,
-            TaskContinuationOptions.ExecuteSynchronously,
-            TaskScheduler.Default);
+        _ = ObserveChildCompletionAsync(context.SessionService, childThread.Id, completion);
 
         if (!waitForCompletion)
         {
@@ -492,12 +484,19 @@ public static class SubAgentSessionControl
         int? timeoutMs,
         CancellationToken ct)
     {
-        _ = context;
         var effectiveTimeoutMs = timeoutMs ?? DefaultWaitAgentTimeoutMs;
         if (effectiveTimeoutMs <= 0)
             throw new ArgumentOutOfRangeException(nameof(timeoutMs), "timeoutMs must be greater than zero.");
 
         var waitTask = CaptureChangeSignal();
+        var currentPath = GetCurrentAgentPath(context.ParentThread);
+        var pending = await context.SessionService.ListPendingSubAgentMailboxAsync(
+            context.RootThreadId,
+            currentPath.Value,
+            ct);
+        if (pending.Count > 0)
+            return new SubAgentWaitResult { Status = "changed", TimedOut = false };
+
         try
         {
             await waitTask.WaitAsync(TimeSpan.FromMilliseconds(effectiveTimeoutMs), ct);
@@ -565,16 +564,7 @@ public static class SubAgentSessionControl
         }
 
         RunningChildren[childThreadId] = new RunningChild(parentThreadId, childCts, completion);
-        _ = completion.ContinueWith(
-            task =>
-            {
-                RunningChildren.TryRemove(childThreadId, out var active);
-                active?.Cancellation.Dispose();
-                NotifyAgentChange();
-            },
-            CancellationToken.None,
-            TaskContinuationOptions.ExecuteSynchronously,
-            TaskScheduler.Default);
+        _ = ObserveChildCompletionAsync(sessionService, childThreadId, completion);
 
         return new SubAgentControlResult
         {
@@ -873,7 +863,6 @@ public static class SubAgentSessionControl
         CancellationToken ct)
     {
         var result = await RunExternalChildTurnOnceAsync(sessionService, coordinator, prepared, childThreadId, prompt, ct);
-        NotifyAgentChange();
 
         while (string.Equals(result.Status, "completed", StringComparison.OrdinalIgnoreCase))
         {
@@ -885,7 +874,6 @@ public static class SubAgentSessionControl
             var child = await sessionService.GetThreadAsync(childThreadId, ct);
             prepared = PrepareExternalChildRun(child, prompt, coordinator, requireExternalResume: false).Run;
             result = await RunExternalChildTurnOnceAsync(sessionService, coordinator, prepared, childThreadId, prompt, ct);
-            NotifyAgentChange();
         }
 
         return result;
@@ -1318,6 +1306,118 @@ $$"""
 
 {{rolePrompt}}
 """;
+    }
+
+    private static async Task ObserveChildCompletionAsync(
+        ISessionService sessionService,
+        string childThreadId,
+        Task<SubAgentRunResult> completion)
+    {
+        SubAgentRunResult result;
+        try
+        {
+            result = await completion.ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            result = new SubAgentRunResult
+            {
+                ThreadId = childThreadId,
+                Status = "cancelled",
+                Message = "Subagent was cancelled."
+            };
+        }
+        catch (Exception ex)
+        {
+            result = new SubAgentRunResult
+            {
+                ThreadId = childThreadId,
+                Status = "failed",
+                Message = ex.Message
+            };
+        }
+
+        try
+        {
+            await AddSubAgentCompletionNotificationAsync(
+                sessionService,
+                childThreadId,
+                result,
+                CancellationToken.None).ConfigureAwait(false);
+        }
+        catch
+        {
+            // Completion cleanup and graph wakeups must still run if persistence is unavailable.
+        }
+        finally
+        {
+            RunningChildren.TryRemove(childThreadId, out var active);
+            active?.Cancellation.Dispose();
+            NotifyAgentChange();
+        }
+    }
+
+    private static async Task AddSubAgentCompletionNotificationAsync(
+        ISessionService sessionService,
+        string childThreadId,
+        SubAgentRunResult result,
+        CancellationToken ct)
+    {
+        var status = NormalizeCompletionNotificationStatus(result.Status);
+        if (status == null)
+            return;
+
+        var child = await sessionService.GetThreadAsync(childThreadId, ct).ConfigureAwait(false);
+        var source = child.Source.SubAgent;
+        if (source == null
+            || string.IsNullOrWhiteSpace(source.RootThreadId)
+            || !AgentPath.TryParse(source.AgentPath, out var childPath)
+            || string.IsNullOrWhiteSpace(childPath.ParentValue))
+        {
+            return;
+        }
+
+        await sessionService.AddSubAgentMailboxEntryAsync(new SubAgentMailboxEntry
+        {
+            Id = NewMailboxEntryId(),
+            RootThreadId = source.RootThreadId,
+            SenderAgentPath = childPath.Value,
+            TargetAgentPath = childPath.ParentValue!,
+            Message = BuildSubAgentCompletionNotification(childPath.Value, status, result.Message),
+            Status = SubAgentMailboxStatus.Pending,
+            CreatedAt = DateTimeOffset.UtcNow
+        }, ct).ConfigureAwait(false);
+    }
+
+    private static string? NormalizeCompletionNotificationStatus(string? status)
+    {
+        var normalized = NormalizeOptional(status)?.ToLowerInvariant();
+        return normalized switch
+        {
+            "completed" => "completed",
+            "failed" => "failed",
+            "cancelled" => "cancelled",
+            _ => null
+        };
+    }
+
+    private static string BuildSubAgentCompletionNotification(
+        string agentPath,
+        string status,
+        string? message)
+    {
+        var payload = new JsonObject
+        {
+            ["agentPath"] = agentPath,
+            ["status"] = new JsonObject
+            {
+                [status] = message ?? string.Empty
+            }
+        };
+        return
+            SubAgentMailboxDelivery.NotificationStartTag
+            + payload.ToJsonString()
+            + SubAgentMailboxDelivery.NotificationEndTag;
     }
 
     private static string NewMailboxEntryId() => $"mailbox_{Guid.NewGuid():N}";

@@ -583,6 +583,43 @@ public sealed class ThreadStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task RebuildAndSaveSessionFromThreadAsync_SubAgentMailboxUserItem_ReplaysAsAssistantMessage()
+    {
+        var thread = CreateThread();
+        AddTurnWithMessages(thread, "hello", "before mailbox", TurnStatus.Completed);
+        var turn = thread.Turns[0];
+        const string notification = "<subagent_notification>{\"agentPath\":\"/root/inspect\",\"status\":{\"completed\":\"done\"}}</subagent_notification>";
+        turn.Items.Add(new SessionItem
+        {
+            Id = SessionIdGenerator.NewItemId(3),
+            TurnId = turn.Id,
+            Type = ItemType.UserMessage,
+            Status = ItemStatus.Completed,
+            CreatedAt = DateTimeOffset.UtcNow,
+            CompletedAt = DateTimeOffset.UtcNow,
+            Payload = new UserMessagePayload
+            {
+                Text = "SubAgent message from /root/inspect",
+                DeliveryMode = SubAgentMailboxDelivery.DeliveryMode,
+                MaterializedInputParts = [new SessionWireInputPart { Type = "text", Text = notification }]
+            }
+        });
+        await _store.SaveThreadAsync(thread);
+
+        var agent = CreateAgent();
+        await _store.RebuildAndSaveSessionFromThreadAsync(agent, thread.Id);
+        var session = await _store.LoadOrCreateSessionAsync(agent, thread.Id);
+
+        Assert.Equal(
+            [
+                "user:hello",
+                "assistant:before mailbox",
+                $"assistant:{notification}"
+            ],
+            FormatHistoryWithContents(session));
+    }
+
+    [Fact]
     public async Task RebuildAndSaveSessionFromThreadAsync_EmptyToolArgumentsBecomeEmptyDictionary()
     {
         var thread = CreateThread();

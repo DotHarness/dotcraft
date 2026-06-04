@@ -2714,4 +2714,13 @@ export const MESSAGES_ZH_HANS = {
   'turnArtifacts.openInViewerAria': '在 DotCraft 内置文件浏览器中打开 {{file}}',
   'turnArtifacts.openTitle': '打开文件：{{path}}',
   'turnArtifacts.openMenuAria': '选择打开文件的方式',
+  'threadActionCard.createdTitle': '已创建会话',
+  'threadActionCard.messagedTitle': '消息已发送',
+  'threadActionCard.untitled': '新会话',
+  'threadActionCard.queuedSubtitle': '已排在正在运行的回合之后',
+  'threadActionCard.openChat': '打开会话',
+  'threadActionCard.openChatAria': '打开会话 {{name}}',
+  'thread.triggeredBy.badge': '来自另一个会话',
+  'thread.triggeredBy.detail': '由 {{label}} 启动',
+  'thread.triggeredBy.generic': '由另一个会话启动',
 } satisfies Partial<Record<MessageId, string>>

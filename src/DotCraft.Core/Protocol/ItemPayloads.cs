@@ -32,8 +32,8 @@ public sealed record UserMessagePayload
     public string Text { get; init; } = string.Empty;
 
     /// <summary>
-    /// How this user message entered the turn: normal, queued follow-up, or
-    /// same-turn guidance.
+    /// How this user message entered the turn: normal input, queued input,
+    /// same-turn guidance, or an internal SubAgent mailbox notification.
     /// </summary>
     public string? DeliveryMode { get; init; }
 

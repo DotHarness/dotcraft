@@ -78,8 +78,8 @@ export interface ConversationItem {
   id: string
   type: ItemType
   status: ItemStatus
-  /** User message delivery mode: normal turn input, queued turn input, or mid-turn guidance. */
-  deliveryMode?: 'normal' | 'queued' | 'guidance'
+  /** User message delivery mode: normal turn input, queued turn input, mid-turn guidance, or an internal SubAgent mailbox notification. */
+  deliveryMode?: 'normal' | 'queued' | 'guidance' | 'subagentMailbox'
   /** Primary text content: userMessage text, agentMessage markdown, error message */
   text?: string
   /** Native user input parts used as the source of truth for history rendering. */
@@ -550,10 +550,15 @@ function normalizeTriggerKind(
   return undefined
 }
 
-function normalizeDeliveryMode(value: unknown): 'normal' | 'queued' | 'guidance' | undefined {
+function normalizeDeliveryMode(value: unknown): 'normal' | 'queued' | 'guidance' | 'subagentMailbox' | undefined {
   if (typeof value !== 'string') return undefined
   const normalized = value.trim()
-  if (normalized === 'normal' || normalized === 'queued' || normalized === 'guidance') {
+  if (
+    normalized === 'normal'
+    || normalized === 'queued'
+    || normalized === 'guidance'
+    || normalized === 'subagentMailbox'
+  ) {
     return normalized
   }
   return undefined

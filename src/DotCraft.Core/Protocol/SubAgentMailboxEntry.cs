@@ -8,6 +8,18 @@ public static class SubAgentMailboxStatus
     public const string Delivered = "delivered";
 }
 
+public static class SubAgentMailboxDelivery
+{
+    /// <summary>Delivery mode used for internal SubAgent mailbox context messages.</summary>
+    public const string DeliveryMode = "subagentMailbox";
+
+    /// <summary>Start tag for serialized SubAgent completion notifications.</summary>
+    public const string NotificationStartTag = "<subagent_notification>";
+
+    /// <summary>End tag for serialized SubAgent completion notifications.</summary>
+    public const string NotificationEndTag = "</subagent_notification>";
+}
+
 public sealed class SubAgentMailboxEntry
 {
     public string Id { get; set; } = string.Empty;

@@ -527,6 +527,39 @@ public sealed class SubAgentSessionControlTests : IDisposable
 
         runtime.PendingResult.SetResult(new DotCraft.Agents.SubAgentRunResult { Text = "done" });
         var waited = await waitTask;
+        var pending = await _sessionService.ListPendingSubAgentMailboxAsync(
+            context.RootThreadId,
+            AgentPath.Root);
+
+        Assert.Equal("changed", waited.Status);
+        Assert.False(waited.TimedOut);
+        var entry = Assert.Single(pending);
+        Assert.Equal("/root/inspect", entry.SenderAgentPath);
+        Assert.Equal(AgentPath.Root, entry.TargetAgentPath);
+        Assert.Contains("<subagent_notification>", entry.Message, StringComparison.Ordinal);
+        Assert.Contains("\"agentPath\":\"/root/inspect\"", entry.Message, StringComparison.Ordinal);
+        Assert.Contains("\"completed\":\"done\"", entry.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task WaitAgent_WhenMailboxAlreadyPending_ReturnsChanged()
+    {
+        var context = await CreateContextAsync();
+        await _sessionService.AddSubAgentMailboxEntryAsync(new SubAgentMailboxEntry
+        {
+            Id = "mailbox_existing",
+            RootThreadId = context.RootThreadId,
+            SenderAgentPath = "/root/inspect",
+            TargetAgentPath = AgentPath.Root,
+            Message = "ready",
+            Status = SubAgentMailboxStatus.Pending,
+            CreatedAt = DateTimeOffset.UtcNow
+        });
+
+        var waited = await SubAgentSessionControl.WaitAgentAsync(
+            context,
+            timeoutMs: 10_000,
+            CancellationToken.None);
 
         Assert.Equal("changed", waited.Status);
         Assert.False(waited.TimedOut);

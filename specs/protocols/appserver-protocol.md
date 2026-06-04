@@ -5392,6 +5392,8 @@ Params:
 
 `target` is an absolute agent path or a relative reference resolved from the caller's agent path. `subagent/sendMessage` records an inter-agent message for the target and does not start a child turn by itself.
 
+Path-addressable child turn completion writes a mailbox notification for the parent agent path. The notification is model-visible inside the parent turn at the next sampling boundary; AppServer child listing remains a graph/status surface and does not expose child final text.
+
 #### `subagent/followupTask`
 
 Params:

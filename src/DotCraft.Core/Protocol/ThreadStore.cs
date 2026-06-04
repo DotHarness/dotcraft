@@ -529,6 +529,9 @@ public sealed class ThreadStore
         if (item.AsUserMessage is not { } user)
             return false;
 
+        if (string.Equals(user.DeliveryMode, SubAgentMailboxDelivery.DeliveryMode, StringComparison.Ordinal))
+            return TryBuildSubAgentMailboxMessage(user, out message);
+
         var parts =
             user.MaterializedInputParts is { Count: > 0 } materialized ? materialized :
             user.NativeInputParts is { Count: > 0 } native ? native :
@@ -551,6 +554,30 @@ public sealed class ThreadStore
             return false;
 
         message = new ChatMessage(ChatRole.User, user.Text.Trim());
+        return true;
+    }
+
+    private static bool TryBuildSubAgentMailboxMessage(UserMessagePayload user, out ChatMessage message)
+    {
+        message = new ChatMessage(ChatRole.Assistant, string.Empty);
+        var parts = user.MaterializedInputParts is { Count: > 0 } materialized ? materialized : null;
+        if (parts is { Count: > 0 })
+        {
+            var contents = parts
+                .Select(p => p.ToAIContent())
+                .Where(c => c is not TextContent tc || !string.IsNullOrWhiteSpace(tc.Text))
+                .ToList();
+            if (contents.Count > 0)
+            {
+                message = new ChatMessage(ChatRole.Assistant, (IList<AIContent>)contents);
+                return true;
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(user.Text))
+            return false;
+
+        message = new ChatMessage(ChatRole.Assistant, user.Text.Trim());
         return true;
     }
 
