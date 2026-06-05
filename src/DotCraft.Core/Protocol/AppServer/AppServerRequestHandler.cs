@@ -5251,7 +5251,6 @@ public sealed class AppServerRequestHandler(
                 Description = extension.Description,
                 Entry = extension.Entry,
                 Styles = extension.Styles.ToList(),
-                Permissions = extension.Permissions.ToList(),
                 RequiredAppIds = extension.RequiredAppIds.ToList(),
                 ConnectOrigins = extension.ConnectOrigins.ToList(),
                 Surfaces = extension.Surfaces

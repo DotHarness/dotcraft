@@ -743,6 +743,23 @@ public sealed class AppBindingProtocolTests : IDisposable
         Assert.False(metadata.TryGetProperty("ignored", out _));
         Assert.False(metadata.GetProperty("surfaceEndpoints").TryGetProperty("unsafeUrl", out _));
         Assert.False(statusResponse.RootElement.GetProperty("result").TryGetProperty("connectionProof", out _));
+
+        using var revokeResponse = await ExecuteAndReadResponseAsync(
+            harness,
+            AppConnectionRevoke,
+            new { appId = "com.dotharness.oratorio", reason = "disconnect" },
+            expectedNotificationMethod: "app/connection/changed");
+        AppServerTestHarness.AssertIsSuccessResponse(revokeResponse);
+        Assert.Equal("notConnected", revokeResponse.RootElement.GetProperty("result").GetProperty("state").GetString());
+        Assert.False(revokeResponse.RootElement.GetProperty("result").TryGetProperty("publicMetadata", out _));
+
+        using var revokedStatusResponse = await ExecuteAndReadResponseAsync(
+            harness,
+            AppConnectionStatus,
+            new { appId = "com.dotharness.oratorio" });
+        AppServerTestHarness.AssertIsSuccessResponse(revokedStatusResponse);
+        Assert.Equal("notConnected", revokedStatusResponse.RootElement.GetProperty("result").GetProperty("state").GetString());
+        Assert.False(revokedStatusResponse.RootElement.GetProperty("result").TryGetProperty("publicMetadata", out _));
     }
 
     [Fact]

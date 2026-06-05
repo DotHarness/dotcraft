@@ -84,7 +84,6 @@ export interface PluginDesktopExtensionInfo {
   entry: string
   styles: string[]
   surfaces: PluginDesktopExtensionSurface[]
-  permissions: string[]
   requiredAppIds: string[]
   connectOrigins: string[]
 }
@@ -279,7 +278,6 @@ function normalizePlugin(plugin: PluginEntry): PluginEntry {
       ...extension,
       styles: extension.styles ?? [],
       surfaces: extension.surfaces ?? [],
-      permissions: extension.permissions ?? [],
       requiredAppIds: extension.requiredAppIds ?? [],
       connectOrigins: extension.connectOrigins ?? []
     })),

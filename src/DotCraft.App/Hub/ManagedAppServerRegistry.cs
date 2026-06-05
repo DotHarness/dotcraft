@@ -74,9 +74,9 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
             if (entry.Process is { IsRunning: true } && entry.State == HubAppServerStates.Running)
             {
                 var effectiveRuntimeTools = MergeRuntimeTools(request.RuntimeTools);
-                var runtimeRestartReason = GetTypeScriptRuntimeRestartReason(entry, effectiveRuntimeTools);
+                var runtimeRestartReason = GetRuntimeToolsRestartReason(entry, effectiveRuntimeTools);
                 if (runtimeRestartReason is not null)
-                    ApplyTypeScriptRuntimeRestartRequiredStatus(entry, effectiveRuntimeTools, runtimeRestartReason);
+                    ApplyRuntimeToolsRestartRequiredStatus(entry, effectiveRuntimeTools, runtimeRestartReason);
 
                 entry.LastSeenAt = DateTimeOffset.UtcNow;
                 Persist(entry);
@@ -137,6 +137,8 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
                 entry.TypeScriptNodeBin = plan.TypeScriptNodeBin;
                 entry.TypeScriptNodeRunAsNode = plan.TypeScriptNodeRunAsNode;
                 entry.TypeScriptModulesDir = plan.TypeScriptModulesDir;
+                entry.BuiltInPluginRoots = plan.BuiltInPluginRoots;
+                entry.BuiltInPluginCatalogs = plan.BuiltInPluginCatalogs;
                 entry.RecentStderr = process.RecentStderr;
                 entry.LastStartedAt = DateTimeOffset.UtcNow;
                 entry.LastSeenAt = DateTimeOffset.UtcNow;
@@ -408,7 +410,9 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
             wsToken,
             NormalizeOptionalPath(runtimeTools?.NodeBin),
             runtimeTools?.NodeRunAsNode == true,
-            NormalizeOptionalPath(runtimeTools?.ModulesDir));
+            NormalizeOptionalPath(runtimeTools?.ModulesDir),
+            NormalizeOptionalValue(runtimeTools?.BuiltInPluginRoots),
+            NormalizeOptionalValue(runtimeTools?.BuiltInPluginCatalogs));
     }
 
     internal static void AddRuntimeTools(
@@ -602,32 +606,44 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
         return _runtimeToolsStore.MergeAndSave(runtimeTools);
     }
 
-    private static string? GetTypeScriptRuntimeRestartReason(
+    private static string? GetRuntimeToolsRestartReason(
         ManagedEntry entry,
         HubRuntimeToolsRequest runtimeTools)
     {
         var nodeBin = NormalizeOptionalPath(runtimeTools.NodeBin);
         var modulesDir = NormalizeOptionalPath(runtimeTools.ModulesDir);
+        var builtInPluginRoots = NormalizeOptionalValue(runtimeTools.BuiltInPluginRoots);
+        var builtInPluginCatalogs = NormalizeOptionalValue(runtimeTools.BuiltInPluginCatalogs);
         if (!string.Equals(entry.TypeScriptNodeBin, nodeBin, StringComparison.OrdinalIgnoreCase))
             return "TypeScript channel Node runtime changed; restart the AppServer to apply it.";
         if (entry.TypeScriptNodeRunAsNode != (runtimeTools.NodeRunAsNode == true))
             return "TypeScript channel Node launch mode changed; restart the AppServer to apply it.";
         if (!string.Equals(entry.TypeScriptModulesDir, modulesDir, StringComparison.OrdinalIgnoreCase))
             return "TypeScript channel modules directory changed; restart the AppServer to apply it.";
+        if (!string.Equals(entry.BuiltInPluginRoots, builtInPluginRoots, StringComparison.OrdinalIgnoreCase))
+            return "Built-in plugin roots changed; restart the AppServer to apply them.";
+        if (!string.Equals(entry.BuiltInPluginCatalogs, builtInPluginCatalogs, StringComparison.OrdinalIgnoreCase))
+            return "Built-in plugin catalogs changed; restart the AppServer to apply them.";
         return null;
     }
 
-    private static void ApplyTypeScriptRuntimeRestartRequiredStatus(
+    private static void ApplyRuntimeToolsRestartRequiredStatus(
         ManagedEntry entry,
         HubRuntimeToolsRequest runtimeTools,
         string reason)
     {
+        var statusKey = reason.StartsWith("TypeScript", StringComparison.Ordinal)
+            ? "typescriptRuntime"
+            : "builtInPlugins";
+        var url = statusKey == "typescriptRuntime"
+            ? NormalizeOptionalPath(runtimeTools.ModulesDir)
+            : NormalizeOptionalValue(runtimeTools.BuiltInPluginCatalogs) ?? NormalizeOptionalValue(runtimeTools.BuiltInPluginRoots);
         entry.ServiceStatus = WithServiceStatus(
             entry.ServiceStatus,
-            "typescriptRuntime",
+            statusKey,
             new HubServiceStatus(
                 "restartRequired",
-                Url: NormalizeOptionalPath(runtimeTools.ModulesDir),
+                Url: url,
                 Reason: reason));
     }
 
@@ -647,6 +663,9 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
 
     private static string? NormalizeOptionalPath(string? path)
         => string.IsNullOrWhiteSpace(path) ? null : Path.GetFullPath(path.Trim());
+
+    private static string? NormalizeOptionalValue(string? value)
+        => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private static IReadOnlyDictionary<string, HubServiceStatus> WithServiceStatus(
         IReadOnlyDictionary<string, HubServiceStatus> current,
@@ -927,7 +946,9 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
         string WebSocketToken,
         string? TypeScriptNodeBin,
         bool TypeScriptNodeRunAsNode,
-        string? TypeScriptModulesDir);
+        string? TypeScriptModulesDir,
+        string? BuiltInPluginRoots,
+        string? BuiltInPluginCatalogs);
 
     private sealed class ManagedEntry
     {
@@ -954,6 +975,10 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
         public bool TypeScriptNodeRunAsNode { get; set; }
 
         public string? TypeScriptModulesDir { get; set; }
+
+        public string? BuiltInPluginRoots { get; set; }
+
+        public string? BuiltInPluginCatalogs { get; set; }
 
         public int? Pid { get; set; }
 

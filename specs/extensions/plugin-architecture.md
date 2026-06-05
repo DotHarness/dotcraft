@@ -120,7 +120,6 @@ Example MCP plugin:
           "description": "Adds the Team board to Desktop."
         }
       ],
-      "permissions": ["appServer:teams/*", "navigation", "toast"],
       "requiredAppIds": []
     }
   ]

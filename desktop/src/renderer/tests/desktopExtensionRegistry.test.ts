@@ -52,7 +52,6 @@ function plugin(id: string, installed: boolean, enabled: boolean): PluginEntry {
         displayName: 'Board',
         entry: 'Z:/__dotcraft_fixture__/workspace/.craft/plugins/demo/desktop/board.mjs',
         styles: [],
-        permissions: [],
         requiredAppIds: [],
         connectOrigins: [],
         surfaces: [

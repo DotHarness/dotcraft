@@ -479,7 +479,7 @@ Required behavior:
 - If the current view belongs to a plugin that is disabled, removed, or no longer declares that view, Desktop moves the user to a safe built-in fallback view.
 - Plugin detail pages list declared Desktop extension content alongside skills, apps, and tool integrations.
 - Extension bundles load from local installed plugin files only. Desktop must not execute JavaScript directly from remote URLs.
-- Extension code receives a constrained Host SDK instead of direct renderer or preload access. Host SDK calls are limited by descriptor permissions.
+- Extension code runs as trusted local renderer code.
 - Failed extension loads show a localized error state for that extension surface without breaking core conversation workflows.
 
 ### 6.2 Automations

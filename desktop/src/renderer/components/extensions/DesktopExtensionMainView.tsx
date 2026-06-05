@@ -81,9 +81,6 @@ export function DesktopExtensionMainView({ entry }: DesktopExtensionMainViewProp
     },
     appServer: {
       sendRequest(method, params, timeoutMs) {
-        if (!isAppServerMethodAllowed(entry.extension.permissions, method)) {
-          return Promise.reject(new Error(`Desktop extension '${entry.extension.id}' is not allowed to call '${method}'.`))
-        }
         return window.api.appServer.sendRequest(method, params, timeoutMs)
       }
     },
@@ -222,17 +219,4 @@ function ExtensionStatus({ title, message }: { title: string; message: string })
       </div>
     </div>
   )
-}
-
-function isAppServerMethodAllowed(permissions: string[], method: string): boolean {
-  return permissions.some((permission) => {
-    if (!permission.startsWith('appServer:')) return false
-    const pattern = permission.slice('appServer:'.length)
-    if (pattern === method || pattern === '*') return true
-    if (pattern.endsWith('/*')) {
-      const prefix = pattern.slice(0, -1)
-      return method.startsWith(prefix)
-    }
-    return false
-  })
 }

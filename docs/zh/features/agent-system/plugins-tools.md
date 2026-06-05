@@ -129,8 +129,7 @@ descriptor 指向插件内的 ESM bundle，并声明它贡献的 Desktop surface
           "placement": "sidebar",
           "order": 80
         }
-      ],
-      "permissions": ["navigation"]
+      ]
     }
   ]
 }
@@ -160,7 +159,7 @@ descriptor 指向插件内的 ESM bundle，并声明它贡献的 Desktop surface
 安装插件会把新的 tools 和 skills 加入工作区能力范围。启用带 `process` backend 的插件后，DotCraft 可以启动插件 manifest 中声明的本地 stdio 进程来执行 dynamic tools。**只安装和启用你信任来源、代码和依赖的插件**。
 
 - 插件 tool 调用仍会经过 DotCraft 的会话、审批和工具调用记录。
-- Desktop extension bundle 会作为受信任本地 UI 代码运行在 Desktop renderer 中，只能调用 descriptor 允许的 Host SDK 能力。
+- Desktop extension bundle 会作为受信任本地 UI 代码运行在 Desktop renderer 中。
 - 插件详情中的网站、隐私政策和服务条款链接用于帮助你确认插件来源和行为边界。
 - 黑名单、工作区边界、沙箱等限制对插件 tools 同样生效。详见 [安全与沙箱](../self-hosted/security)。
 

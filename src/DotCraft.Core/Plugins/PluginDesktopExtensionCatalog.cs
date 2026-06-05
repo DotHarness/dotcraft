@@ -42,6 +42,7 @@ public static class PluginDesktopExtensionCatalog
         var extensionIds = new HashSet<string>(StringComparer.Ordinal);
         foreach (var descriptor in document.Extensions)
         {
+            NormalizeDescriptorCollections(descriptor);
             var descriptorDiagnostics = ValidateDescriptor(plugin, descriptor, extensionIds);
             diagnostics.AddRange(descriptorDiagnostics);
             if (descriptorDiagnostics.Any(d => d.Severity == PluginDiagnosticSeverity.Error))
@@ -193,6 +194,14 @@ public static class PluginDesktopExtensionCatalog
         return diagnostics;
     }
 
+    private static void NormalizeDescriptorCollections(PluginDesktopExtensionDescriptor descriptor)
+    {
+        descriptor.Styles ??= [];
+        descriptor.Surfaces ??= [];
+        descriptor.RequiredAppIds ??= [];
+        descriptor.ConnectOrigins ??= [];
+    }
+
     private static PluginDesktopExtensionDescriptor CloneDescriptorWithResolvedPaths(
         DiscoveredPlugin plugin,
         PluginDesktopExtensionDescriptor source)
@@ -200,6 +209,7 @@ public static class PluginDesktopExtensionCatalog
         var clone = JsonSerializer.Deserialize<PluginDesktopExtensionDescriptor>(
             JsonSerializer.Serialize(source, JsonOptions),
             JsonOptions) ?? new PluginDesktopExtensionDescriptor();
+        NormalizeDescriptorCollections(clone);
         clone.Entry = ResolveOptionalPluginPath(plugin.Manifest.RootPath, clone.Entry) ?? clone.Entry;
         clone.Styles = clone.Styles
             .Select(style => ResolveOptionalPluginPath(plugin.Manifest.RootPath, style) ?? style)
@@ -253,8 +263,6 @@ public sealed class PluginDesktopExtensionDescriptor
     public List<string> Styles { get; set; } = [];
 
     public List<PluginDesktopExtensionSurfaceDescriptor> Surfaces { get; set; } = [];
-
-    public List<string> Permissions { get; set; } = [];
 
     public List<string> RequiredAppIds { get; set; } = [];
 

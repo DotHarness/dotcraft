@@ -20,7 +20,6 @@
           "description": "Unlocks the card board for Agent Team."
         }
       ],
-      "permissions": ["appServer:teams/*", "navigation"],
       "requiredAppIds": [],
       "connectOrigins": []
     }

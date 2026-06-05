@@ -132,6 +132,57 @@ public sealed class PluginDiscoveryTests
     }
 
     [Fact]
+    public void PluginDesktopExtensionCatalog_CoalescesNullDescriptorCollections()
+    {
+        var root = NewTempDir();
+        var pluginRoot = Path.Combine(root, "demo");
+        WriteDesktopExtensionOnlyPlugin(pluginRoot, id: "demo-plugin");
+        File.WriteAllText(
+            Path.Combine(pluginRoot, "desktop-extensions.json"),
+            """
+{
+  "extensions": [
+    {
+      "id": "valid-view",
+      "displayName": "Valid view",
+      "entry": "./desktop/demo.mjs",
+      "styles": null,
+      "surfaces": [
+        { "type": "mainView", "viewId": "valid", "label": "Valid" }
+      ],
+      "requiredAppIds": null,
+      "connectOrigins": null
+    },
+    {
+      "id": "missing-surfaces",
+      "displayName": "Missing surfaces",
+      "entry": "./desktop/demo.mjs",
+      "styles": null,
+      "surfaces": null
+    }
+  ]
+}
+""");
+        var parse = PluginManifestParser.Load(pluginRoot);
+        Assert.NotNull(parse.Manifest);
+        var plugin = new DiscoveredPlugin(
+            parse.Manifest!,
+            PluginDiscoverySourceKind.Workspace,
+            pluginRoot,
+            Enabled: true);
+        var diagnostics = new List<PluginDiagnostic>();
+
+        var extensions = PluginDesktopExtensionCatalog.LoadPluginDesktopExtensions(plugin, diagnostics);
+
+        var extension = Assert.Single(extensions);
+        Assert.Equal("valid-view", extension.Id);
+        Assert.Empty(extension.Styles);
+        Assert.Empty(extension.RequiredAppIds);
+        Assert.Empty(extension.ConnectOrigins);
+        Assert.Contains(diagnostics, d => d.Code == "MissingDesktopExtensionSurfaces");
+    }
+
+    [Fact]
     public void ManifestParser_IgnoresLegacyNativeToolFieldsWhenSupportedCapabilityExists()
     {
         var root = NewTempDir();
@@ -683,6 +734,58 @@ public sealed class PluginDiscoveryTests
     }
 
     [Fact]
+    public void BuiltInPluginCatalog_CoalescesNullRemoteCatalogCapabilities()
+    {
+        var root = NewTempDir();
+        var emptyBuiltInRoot = Path.Combine(root, "builtins");
+        Directory.CreateDirectory(emptyBuiltInRoot);
+        var catalogPath = Path.Combine(root, "catalog.json");
+        File.WriteAllText(
+            catalogPath,
+            """
+{
+  "plugins": [
+    {
+      "id": "remote-demo",
+      "version": "1.0.0",
+      "displayName": "Remote Demo",
+      "description": "Remote demo plugin.",
+      "capabilities": null,
+      "interface": {
+        "displayName": "Remote Demo",
+        "capabilities": null
+      },
+      "package": {
+        "kind": "githubRelease",
+        "url": "https://github.com/DotHarness/dotcraft/releases/download/v1.0.0/remote-demo.zip",
+        "version": "1.0.0",
+        "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      }
+    }
+  ]
+}
+""");
+        var previousCatalogs = Environment.GetEnvironmentVariable("DOTCRAFT_BUILTIN_PLUGIN_CATALOGS");
+        try
+        {
+            Environment.SetEnvironmentVariable("DOTCRAFT_BUILTIN_PLUGIN_CATALOGS", catalogPath);
+
+            var result = new BuiltInPluginCatalog([emptyBuiltInRoot]).Discover();
+
+            Assert.DoesNotContain(result.Diagnostics, d => d.Severity == PluginDiagnosticSeverity.Error);
+            var plugin = Assert.Single(result.Plugins);
+            Assert.Equal("remote-demo", plugin.Manifest.Id);
+            Assert.Empty(plugin.Manifest.Capabilities);
+            Assert.NotNull(plugin.Manifest.Interface);
+            Assert.Empty(plugin.Manifest.Interface!.Capabilities);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("DOTCRAFT_BUILTIN_PLUGIN_CATALOGS", previousCatalogs);
+        }
+    }
+
+    [Fact]
     public void BuiltInPluginDeployer_MarkerIncludesResourceFingerprint()
     {
         var root = NewTempDir();
@@ -1012,8 +1115,7 @@ public sealed class PluginDiscoveryTests
       "entry": "./desktop/demo.mjs",
       "surfaces": [
         { "type": "mainView", "viewId": "demo", "label": "Demo" }
-      ],
-      "permissions": []
+      ]
     }
   ]
 }

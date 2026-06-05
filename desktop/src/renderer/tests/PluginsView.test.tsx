@@ -118,7 +118,6 @@ const agentTeamsPlugin: PluginEntry = {
       description: 'Adds the Agent Teams card board to DotCraft Desktop.',
       entry: 'Z:\\__dotcraft_fixture__\\plugins\\agent-teams\\desktop\\team-card-board.mjs',
       styles: [],
-      permissions: ['appServer:teams/*', 'navigation'],
       requiredAppIds: [],
       connectOrigins: [],
       surfaces: [

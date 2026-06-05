@@ -127,7 +127,6 @@ def build_desktop_extensions(plugin_id: str) -> dict[str, Any]:
                         "description": "Adds a Desktop surface for this plugin.",
                     },
                 ],
-                "permissions": ["navigation"],
                 "requiredAppIds": [],
                 "connectOrigins": [],
             }

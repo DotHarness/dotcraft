@@ -302,6 +302,7 @@ public sealed class AppBindingService
             {
                 connection.State = AppConnectionStates.NotConnected;
                 connection.Diagnostic = p.Reason;
+                connection.PublicMetadata = null;
             }
 
             foreach (var binding in state.Bindings.Where(b =>
@@ -2061,7 +2062,9 @@ public sealed class AppBindingService
             ExpiresAt = connection.ExpiresAt,
             AccountLabel = connection.AccountLabel,
             Diagnostic = connection.Diagnostic,
-            PublicMetadata = connection.PublicMetadata?.DeepClone() as JsonObject
+            PublicMetadata = state == AppConnectionStates.Connected
+                ? connection.PublicMetadata?.DeepClone() as JsonObject
+                : null
         };
     }
 

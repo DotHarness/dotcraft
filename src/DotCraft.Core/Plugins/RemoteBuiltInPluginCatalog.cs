@@ -158,7 +158,7 @@ internal static class RemoteBuiltInPluginCatalog
             Version = NormalizeOptional(entry.Version) ?? packageVersion,
             DisplayName = displayName,
             Description = NormalizeOptional(entry.Description),
-            Capabilities = entry.Capabilities
+            Capabilities = (entry.Capabilities ?? [])
                 .Where(capability => !string.IsNullOrWhiteSpace(capability))
                 .Select(capability => capability.Trim())
                 .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -171,7 +171,7 @@ internal static class RemoteBuiltInPluginCatalog
                 LongDescription = NormalizeOptional(entry.Interface.LongDescription),
                 DeveloperName = NormalizeOptional(entry.Interface.DeveloperName),
                 Category = NormalizeOptional(entry.Interface.Category),
-                Capabilities = entry.Interface.Capabilities
+                Capabilities = (entry.Interface.Capabilities ?? [])
                     .Where(capability => !string.IsNullOrWhiteSpace(capability))
                     .Select(capability => capability.Trim())
                     .Distinct(StringComparer.OrdinalIgnoreCase)

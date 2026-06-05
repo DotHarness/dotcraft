@@ -129,8 +129,7 @@ The descriptor points to plugin-contained ESM and declares the surfaces it contr
           "placement": "sidebar",
           "order": 80
         }
-      ],
-      "permissions": ["navigation"]
+      ]
     }
   ]
 }
@@ -160,7 +159,7 @@ Beyond built-in tools and plugin dynamic tools, DotCraft also speaks MCP. MCP se
 Installing a plugin adds new tools and skills to the workspace's capability surface. Plugins with a `process` backend may launch a local stdio process declared in the manifest to execute dynamic tools. **Only install and enable plugins whose source, code, and dependencies you trust**.
 
 - Plugin tool calls still pass through DotCraft's session, approvals, and tool-call records.
-- Desktop extension bundles run inside the Desktop renderer as trusted local UI code and can call only the Host SDK capabilities allowed by their descriptor.
+- Desktop extension bundles run inside the Desktop renderer as trusted local UI code.
 - Plugin detail pages link to website, privacy policy, and ToS for source verification.
 - Blacklists, workspace boundary, sandbox, and other restrictions also apply to plugin tools. See [Security & Sandbox](../self-hosted/security).
 

@@ -134,7 +134,6 @@ Matching `desktop-extensions.json`:
           "description": "Adds a Desktop surface for this plugin."
         }
       ],
-      "permissions": ["navigation"],
       "requiredAppIds": [],
       "connectOrigins": []
     }
@@ -151,5 +150,5 @@ Matching `desktop-extensions.json`:
 - Plugin-bundled MCP servers use the same schema as workspace `McpServers`.
 - If `mcpServers` is omitted, DotCraft looks for `.mcp.json` in the plugin root.
 - Manifest paths must start with `./`, must not contain `..`, and must stay inside the plugin root. This includes `desktopExtensions`, Desktop extension `entry`, and Desktop extension `styles`.
-- Desktop extension bundles are trusted local ESM loaded by Desktop after the plugin is installed and enabled. Declare only the AppServer methods and navigation features the bundle needs in `permissions`.
+- Desktop extension bundles are trusted local ESM loaded by Desktop after the plugin is installed and enabled.
 - `tools`, `functions`, and `processes` are unsupported legacy native tool fields; new plugins must not use them.
