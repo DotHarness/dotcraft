@@ -292,10 +292,10 @@ function FileDiffSection({
   }
 
   async function openParentFolder(): Promise<void> {
-    const target = parentDirectory(resolveAbsolutePath(file.filePath, workspacePath))
+    const target = resolveAbsolutePath(file.filePath, workspacePath)
     if (!target) return
     try {
-      await window.api.shell.launchEditor('explorer', target)
+      await window.api.shell.showItemInFolder(target)
     } catch (err) {
       console.error('Open folder failed:', err)
     }
@@ -485,18 +485,12 @@ function toRelativePath(filePath: string, workspacePath: string): string {
 function resolveAbsolutePath(filePath: string, workspacePath: string): string {
   if (isAbsolutePath(filePath) || !workspacePath) return filePath
   const separator = workspacePath.includes('\\') ? '\\' : '/'
-  return `${workspacePath.replace(/[\\/]$/, '')}${separator}${filePath.replace(/^[\\/]/, '')}`
+  const rel = filePath.replace(/^[\\/]/, '').replace(/[\\/]/g, separator)
+  return `${workspacePath.replace(/[\\/]$/, '')}${separator}${rel}`
 }
 
 function isAbsolutePath(filePath: string): boolean {
   return /^[A-Za-z]:[\\/]/.test(filePath) || filePath.startsWith('/') || filePath.startsWith('\\\\')
-}
-
-function parentDirectory(filePath: string): string {
-  const trimmed = filePath.replace(/[\\/]$/, '')
-  const idx = Math.max(trimmed.lastIndexOf('/'), trimmed.lastIndexOf('\\'))
-  if (idx <= 0) return trimmed
-  return trimmed.slice(0, idx)
 }
 
 const summaryHeaderStyle: CSSProperties = {

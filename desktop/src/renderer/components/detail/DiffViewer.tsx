@@ -455,8 +455,7 @@ const lineNumberStyle: CSSProperties = {
 const splitPaneStyle: CSSProperties = {
   minWidth: 0,
   overflowX: 'auto',
-  overflowY: 'hidden',
-  scrollbarWidth: 'thin'
+  overflowY: 'hidden'
 }
 
 /** Applied to the content cell when word wrap is on so long lines flow. */
