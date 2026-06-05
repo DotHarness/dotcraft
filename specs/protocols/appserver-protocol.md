@@ -3049,7 +3049,7 @@ The ACP (Agent Client Protocol) integration allows the agent's tools to access t
 
 The browser integrations expose agent tools through a **server -> client** Node REPL backend. The server only sends these requests to a thread-bound client that declared both `capabilities.nodeRepl` and `capabilities.browserUse` during `initialize`.
 
-Clients may back the runtime with Desktop embedded browser tabs, a Chrome extension connected through Native Messaging, or another compatible backend declared in `capabilities.browserUse.backends`. Backend-specific setup and user-consent rules are owned by the contributing plugin skill, but all backends share the same `ext/nodeRepl/*` transport. Chrome-specific browser session lifecycle, tab ownership, timeout, diagnostics, and migration goals are defined in [Chrome Browser Runtime](../runtime/chrome-browser-runtime.md).
+Clients may back the runtime with Desktop embedded browser tabs, a Chrome extension connected through Native Messaging, or another compatible backend declared in `capabilities.browserUse.backends`. Backend-specific setup and user-consent rules are owned by the contributing plugin skill, but all backends share the same `ext/nodeRepl/*` transport. Desktop in-app browser lifecycle, transport, diagnostics, and browser-use compatibility are defined in [Desktop In-App Browser Runtime](../runtime/desktop-inapp-browser.md). Chrome-specific browser session lifecycle, tab ownership, timeout, diagnostics, and migration goals are defined in [Chrome Browser Runtime](../runtime/chrome-browser-runtime.md).
 
 #### `ext/nodeRepl/evaluate`
 
@@ -3062,7 +3062,7 @@ Clients may back the runtime with Desktop embedded browser tabs, a Chrome extens
 | `threadId` | string | yes | Thread ID whose Desktop runtime owns the persistent REPL. |
 | `turnId` | string | no | Current turn ID when the server can resolve one from tool execution scope. |
 | `evaluationId` | string | yes | Unique ID for this evaluation, used for cancellation and late-result suppression. |
-| `browserSession` | object | no | Browser session identity forwarded to embedded browser and Chrome backends. See [Chrome Browser Runtime](../runtime/chrome-browser-runtime.md). |
+| `browserSession` | object | no | Browser session identity forwarded to embedded browser and Chrome backends. See [Desktop In-App Browser Runtime](../runtime/desktop-inapp-browser.md) and [Chrome Browser Runtime](../runtime/chrome-browser-runtime.md). |
 | `code` | string | yes | JavaScript source to evaluate in the thread-bound persistent Node REPL. |
 | `timeoutMs` | number | no | Requested overall timeout in milliseconds. Client may clamp to its supported range. |
 

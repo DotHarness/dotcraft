@@ -1,8 +1,12 @@
 import { BrowserWindow, app } from 'electron'
 import { existsSync } from 'fs'
-import { join } from 'path'
+import { createConnection, type Socket } from 'net'
+import { tmpdir } from 'os'
+import { join, resolve } from 'path'
+import nodeProcess from 'node:process'
 import { pathToFileURL, URL as NodeUrl } from 'url'
 import { createContext, Script, type Context } from 'vm'
+import { isAllowedBrowserUsePipePath } from './browserUseBackendServer'
 import { browserUseManager, type BrowserUseImageResult, type BrowserUseManager } from './browserUseManager'
 import { checkChromeSetup, resolveChromePluginRoot, runChromeSetupScript } from './chromeSetup'
 
@@ -37,6 +41,7 @@ interface NodeReplThreadRuntime {
   context: Context
   globals: Record<string, unknown>
   logs: string[]
+  responseMeta: Record<string, unknown>
   activeEvaluationId?: string
   activeAbortController?: AbortController
   chromeCancelEvaluation?: (evaluationId: string, reason: string) => Promise<void> | void
@@ -79,25 +84,64 @@ class NodeReplEvaluationCancelledError extends Error {
 }
 
 function resolveBrowserClientPath(): string {
-  const resourcesPath = process.resourcesPath
+  const dev = join(app.getAppPath(), 'resources', 'browser', 'scripts', 'browser-client.mjs')
+  if (existsSync(dev)) return pathToFileURL(dev).href
+  const legacyDev = join(app.getAppPath(), 'resources', 'browser', 'browser-client.mjs')
+  if (existsSync(legacyDev)) return pathToFileURL(legacyDev).href
+  const cwdDev = join(nodeProcess.cwd(), 'resources', 'browser', 'scripts', 'browser-client.mjs')
+  if (existsSync(cwdDev)) return pathToFileURL(cwdDev).href
+  const legacyCwdDev = join(nodeProcess.cwd(), 'resources', 'browser', 'browser-client.mjs')
+  if (existsSync(legacyCwdDev)) return pathToFileURL(legacyCwdDev).href
+
+  const resourcesPath = nodeProcess.resourcesPath
   if (resourcesPath) {
-    const packaged = join(resourcesPath, 'browser', 'browser-client.mjs')
+    const packaged = join(resourcesPath, 'browser', 'scripts', 'browser-client.mjs')
     if (existsSync(packaged)) return pathToFileURL(packaged).href
+    const legacyPackaged = join(resourcesPath, 'browser', 'browser-client.mjs')
+    if (existsSync(legacyPackaged)) return pathToFileURL(legacyPackaged).href
   }
 
-  const dev = join(app.getAppPath(), 'resources', 'browser', 'browser-client.mjs')
   return pathToFileURL(dev).href
 }
 
 function resolveChromeBrowserClientPath(): string {
-  const resourcesPath = process.resourcesPath
+  const dev = join(app.getAppPath(), 'resources', 'chrome', 'browser-client.mjs')
+  if (existsSync(dev)) return pathToFileURL(dev).href
+  const cwdDev = join(nodeProcess.cwd(), 'resources', 'chrome', 'browser-client.mjs')
+  if (existsSync(cwdDev)) return pathToFileURL(cwdDev).href
+
+  const resourcesPath = nodeProcess.resourcesPath
   if (resourcesPath) {
     const packaged = join(resourcesPath, 'chrome', 'browser-client.mjs')
     if (existsSync(packaged)) return pathToFileURL(packaged).href
   }
 
-  const dev = join(app.getAppPath(), 'resources', 'chrome', 'browser-client.mjs')
   return pathToFileURL(dev).href
+}
+
+async function createBrowserUseNativePipeConnection(path: unknown): Promise<Socket> {
+  const pipePath = typeof path === 'string' ? path : ''
+  if (!pipePath || !isAllowedBrowserUsePipePath(pipePath)) {
+    throw new Error('Refusing to connect to a non-DotCraft browser-use native pipe.')
+  }
+
+  return await new Promise<Socket>((resolveConnection, rejectConnection) => {
+    const socket = createConnection(pipePath)
+    const onError = (error: Error) => {
+      cleanup()
+      rejectConnection(error)
+    }
+    const onConnect = () => {
+      cleanup()
+      resolveConnection(socket)
+    }
+    const cleanup = () => {
+      socket.off('error', onError)
+      socket.off('connect', onConnect)
+    }
+    socket.once('error', onError)
+    socket.once('connect', onConnect)
+  })
 }
 
 function createChromeSetupApi(workspacePath?: string): Record<string, unknown> {
@@ -123,6 +167,7 @@ function createReplRuntime(): NodeReplThreadRuntime {
     globals,
     context: createContext(globals, { codeGeneration: { strings: false, wasm: false } }),
     logs: [],
+    responseMeta: {},
     phase: 'idle'
   }
 }
@@ -138,7 +183,7 @@ function stringField(value: unknown): string | undefined {
 function normalizeBrowserSession(params: NodeReplEvaluateParams, evaluationId: string): BrowserSessionMetadata {
   const raw = params.browserSession ?? {}
   const sessionId = stringField(raw.sessionId) ?? params.threadId
-  const turnId = params.turnId ?? stringField(raw.turnId)
+  const turnId = params.turnId ?? stringField(raw.turnId) ?? evaluationId
   return {
     ...raw,
     protocolVersion: 1,
@@ -201,14 +246,14 @@ export class NodeReplManager {
     runtime.activeAbortController = abortController
     runtime.logs = []
     runtime.phase = 'prepare'
-    const browserRuntime = this.browserManager.prepareNodeRepl(owner, {
+    const browserRuntime = await this.browserManager.prepareNodeRepl(owner, {
       threadId: params.threadId,
       workspacePath: params.workspacePath,
       evaluationId,
       signal: abortController.signal,
       browserSession
     })
-    this.refreshContext(runtime, browserRuntime, evaluationId, abortController.signal, params.workspacePath, browserSession)
+    this.refreshContext(runtime, browserRuntime, params.threadId, evaluationId, abortController.signal, params.workspacePath, browserSession)
 
     const timeoutMs = Math.max(1_000, Math.min(params.timeoutMs ?? 30_000, 120_000))
     try {
@@ -248,6 +293,7 @@ export class NodeReplManager {
         logs: [...runtime.logs, ...collected.logs]
       }
     } finally {
+      ;(globalThis as Record<string, unknown>).process = nodeProcess
       if (runtime.activeEvaluationId === evaluationId) {
         runtime.activeEvaluationId = undefined
         runtime.activeAbortController = undefined
@@ -298,6 +344,7 @@ export class NodeReplManager {
   private refreshContext(
     runtime: NodeReplThreadRuntime,
     browserRuntime: BrowserRuntimeBindings,
+    threadId: string,
     evaluationId: string,
     signal: AbortSignal,
     workspacePath?: string,
@@ -324,9 +371,41 @@ export class NodeReplManager {
       ensureActive()
       await browserRuntime.display(imageLike)
     }
+    const nodeReplEnv = Object.freeze({
+      BROWSER_USE_AVAILABLE_BACKENDS: 'iab',
+      BROWSER_USE_DISABLE_AMBIENT_NETWORK: '1',
+      BROWSER_USE_SECURITY_MODE: 'disabled-for-local-testing'
+    })
+    const browserTurnMetadata = Object.freeze({
+      session_id: browserSession?.sessionId,
+      thread_id: browserSession?.threadId,
+      turn_id: browserSession?.turnId,
+      evaluation_id: browserSession?.evaluationId,
+      backend_id: browserSession?.backendId ?? 'iab'
+    })
+    const requestMeta = Object.freeze({
+      'x-dotcraft-turn-metadata': browserTurnMetadata
+    })
+    const setResponseMeta = (metaOrKey: unknown, value?: unknown) => {
+      if (typeof metaOrKey === 'string') {
+        runtime.responseMeta[metaOrKey] = value
+        return
+      }
+      if (metaOrKey && typeof metaOrKey === 'object' && !Array.isArray(metaOrKey)) {
+        Object.assign(runtime.responseMeta, metaOrKey)
+      }
+    }
     const nodeReplApi = Object.freeze({
       emitImage: display,
-      setResponseMeta: () => undefined
+      setResponseMeta,
+      createElicitation: async (request: unknown) => await this.browserManager.handleBrowserUseElicitation(threadId, request),
+      env: nodeReplEnv,
+      fetch: typeof fetch === 'function' ? fetch.bind(globalThis) : undefined,
+      nativePipe: Object.freeze({
+        createConnection: createBrowserUseNativePipeConnection
+      }),
+      requestMeta,
+      tmpDir: tmpdir()
     })
     globals.agent = browserRuntime.agent
     globals.display = display
@@ -347,6 +426,9 @@ export class NodeReplManager {
       chrome: createChromeSetupApi(workspacePath)
     })
     globals.dotcraft = dotcraftApi
+    ;(globalThis as Record<string, unknown>).process = nodeProcess
+    ;(globalThis as Record<string, unknown>).nodeRepl = nodeReplApi
+    ;(globalThis as Record<string, unknown>).dotcraft = dotcraftApi
     globals.URL = NodeUrl
     globals.__dotcraftDynamicImport = async (specifier: unknown) => import(String(specifier))
     globals.__dotcraftSetChromeCancelHook = (hook: unknown) => {

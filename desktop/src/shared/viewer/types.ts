@@ -266,6 +266,11 @@ export interface BrowserEventPayload {
   canGoBack?: boolean
   canGoForward?: boolean
   message?: string
+  errorCode?: number
+  errorDescription?: string
+  validatedURL?: string
+  finalURL?: string
+  isMainFrame?: boolean
   automationActive?: boolean
   sessionName?: string
   action?: string

@@ -5,6 +5,12 @@ import { tmpdir } from 'node:os'
 import { basename, dirname, extname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { BrowserWindow } from 'electron'
+import {
+  BrowserUseBackendError,
+  BrowserUseBackendServer,
+  type BrowserUseBackendCommandContext,
+  type BrowserUseBackendRequestHandler
+} from './browserUseBackendServer'
 import { viewerBrowserManager } from './viewerBrowser'
 import type { AppSettings } from './settings'
 import {
@@ -42,6 +48,8 @@ const BROWSER_USE_BLANK_TAB_READY_TIMEOUT_MS = 5_000
 const BROWSER_USE_NETWORK_IDLE_QUIET_MS = 500
 const BROWSER_USE_DEFAULT_VIEWPORT_WIDTH = 1280
 const BROWSER_USE_DEFAULT_VIEWPORT_HEIGHT = 720
+const BROWSER_USE_MAX_RESULT_BYTES = 1024 * 1024
+const BROWSER_USE_DISPLAY_TRUNCATE_MAX_CHARS = 100_000
 const BROWSER_USE_BROWSER_CAPABILITIES = [
   {
     id: 'viewport',
@@ -59,6 +67,11 @@ const BROWSER_USE_TAB_CAPABILITIES = [
     id: 'pageAssets',
     description: 'Inventory and bundle file assets observed in the current rendered page state.',
     docs: 'docs/capabilities/tab/pageAssets.md'
+  },
+  {
+    id: 'webmcp',
+    description: 'List and invoke WebMCP tools explicitly exposed by the current page through navigator.modelContext.',
+    docs: 'docs/capabilities/tab/webmcp.md'
   }
 ]
 const BROWSER_USE_PAGE_ASSET_BUNDLE_KINDS = new Set(['font', 'image', 'stylesheet', 'video'])
@@ -145,13 +158,42 @@ interface BrowserUseTabRuntime {
   id: string
   owner: BrowserWindow
   logs: BrowserUseLogEntry[]
+  clipboardItems: BrowserUseClipboardItem[]
   adopted?: boolean
+  userOwned?: boolean
   keptStatus?: BrowserFinalizeKeepStatus
+  closed?: boolean
   cdpAttached?: boolean
+  targetSessions: Map<string, string>
+  backendQueue?: Promise<void>
+  debuggerMessageHandler?: (...args: unknown[]) => void
+  debuggerDetachHandler?: (...args: unknown[]) => void
+  webContentsFailLoadHandler?: (...args: unknown[]) => void
+  lastNavigationFailure?: BrowserUseNavigationFailure
   snapshotRefs: Map<string, BrowserUseElementMatch>
   domCuaNodes: Map<string, BrowserUseElementMatch>
   pageAssetInventories: Map<string, BrowserUsePageAssetInventory>
   snapshotGeneration: number
+}
+
+interface BrowserUseClipboardEntry {
+  mime_type: string
+  text?: string
+  base64?: string
+}
+
+interface BrowserUseClipboardItem {
+  entries: BrowserUseClipboardEntry[]
+  presentation_style?: 'unspecified' | 'inline' | 'attachment'
+}
+
+interface BrowserUseNavigationFailure {
+  errorCode?: number
+  errorDescription: string
+  validatedURL: string
+  finalURL: string
+  isMainFrame: boolean
+  timestamp: number
 }
 
 type BrowserUsePageAssetKind = 'script' | 'font' | 'image' | 'stylesheet' | 'video' | 'other'
@@ -217,8 +259,16 @@ interface BrowserUseLogEntry {
   url?: string
 }
 
+interface BrowserUseBackendPendingCommand {
+  abortController: AbortController
+  evaluationId?: string
+  operation: string
+  tabId?: string
+}
+
 interface BrowserUseThreadRuntime {
   threadId: string
+  owner: BrowserWindow
   workspacePath: string
   sessionName?: string
   agent?: Record<string, unknown>
@@ -231,7 +281,11 @@ interface BrowserUseThreadRuntime {
   activeEvaluationId?: string
   activeAbortSignal?: AbortSignal
   browserSession?: BrowserSessionMetadata
+  backendTabIds: Map<string, number>
+  backendTabs: Map<number, BrowserUseTabRuntime>
+  recentUserBackendTabIds: Set<number>
   recentOpenTabIds: Set<string>
+  pendingBackendCommands: Map<unknown, BrowserUseBackendPendingCommand>
   activeOperation?: BrowserUseOperationTrace
   operationHistory: BrowserUseOperationTrace[]
   viewportWidth: number
@@ -245,7 +299,21 @@ interface BrowserUseOperationTimeouts {
   blankTabReadyMs?: number
 }
 
-type BrowserUseLocatorKind = 'css' | 'text' | 'role' | 'label' | 'placeholder' | 'testId' | 'ref'
+type BrowserUseLocatorKind = 'css' | 'text' | 'role' | 'label' | 'placeholder' | 'testId' | 'ref' | 'and' | 'or'
+
+interface BrowserUseLocatorTextMatcher {
+  value?: string
+  pattern?: string
+  flags?: string
+  exact?: boolean
+}
+
+interface BrowserUseLocatorFilter {
+  kind: 'hasText' | 'hasNotText' | 'visible' | 'has' | 'hasNot'
+  value?: boolean
+  matcher?: BrowserUseLocatorTextMatcher
+  descriptor?: BrowserUseLocatorDescriptor
+}
 
 interface BrowserUseLocatorDescriptor {
   kind: BrowserUseLocatorKind
@@ -253,6 +321,9 @@ interface BrowserUseLocatorDescriptor {
   exact?: boolean
   name?: string
   index?: number
+  filters?: BrowserUseLocatorFilter[]
+  left?: BrowserUseLocatorDescriptor
+  right?: BrowserUseLocatorDescriptor
 }
 
 interface BrowserUseElementMatch {
@@ -319,15 +390,26 @@ function sanitizeThreadId(threadId: string): string {
   return threadId.replace(/[^a-zA-Z0-9_-]/g, '_')
 }
 
-export class BrowserUseManager {
+function isChromiumErrorPageUrl(url: string): boolean {
+  return /^chrome-error:\/\//i.test(url)
+}
+
+export class BrowserUseManager implements BrowserUseBackendRequestHandler {
   private readonly runtimes = new Map<string, BrowserUseThreadRuntime>()
+  private readonly runtimesBySessionId = new Map<string, BrowserUseThreadRuntime>()
   private readonly pendingApprovals = new Map<string, {
     resolve: (action: BrowserUseApprovalResponseAction) => void
     timer: ReturnType<typeof setTimeout>
     onClosed: () => void
     owner: BrowserWindow
   }>()
+  private readonly closedTabIdsByOwner = new WeakMap<BrowserWindow, Set<string>>()
+  private readonly backendServer = new BrowserUseBackendServer({
+    handleBrowserUseBackendRequest: (method, params, context) =>
+      this.handleBrowserUseBackendRequest(method, params, context)
+  })
   private nextTabId = 1
+  private nextBackendTabId = 1
   private nextApprovalId = 1
   private policyHost: BrowserUsePolicyHost | null = null
 
@@ -362,18 +444,20 @@ export class BrowserUseManager {
     return true
   }
 
-  prepareNodeRepl(owner: BrowserWindow, params: {
+  async prepareNodeRepl(owner: BrowserWindow, params: {
     threadId: string
     workspacePath?: string
     evaluationId?: string
     signal?: AbortSignal
     browserSession?: BrowserSessionMetadata
-  }): {
+  }): Promise<{
     agent: Record<string, unknown>
     display: (imageLike: unknown) => Promise<void>
     collect: () => { images: BrowserUseImageResult[]; logs: string[] }
-  } {
+  }> {
+    await this.backendServer.ensureStarted()
     const runtime = this.getOrCreateRuntime(owner, params.threadId, params.workspacePath)
+    runtime.owner = owner
     runtime.logs = []
     runtime.images = []
     runtime.operationHistory = []
@@ -382,8 +466,13 @@ export class BrowserUseManager {
     runtime.activeAbortSignal = params.signal
     runtime.browserSession = {
       ...(params.browserSession ?? {}),
+      sessionId: params.browserSession?.sessionId ?? params.threadId,
+      turnId: params.browserSession?.turnId ?? params.evaluationId,
+      evaluationId: params.browserSession?.evaluationId ?? params.evaluationId,
       backendId: 'iab'
     }
+    const sessionId = runtime.browserSession.sessionId
+    if (sessionId) this.runtimesBySessionId.set(sessionId, runtime)
     return {
       agent: runtime.agent!,
       display: runtime.display!,
@@ -405,6 +494,12 @@ export class BrowserUseManager {
     this.recordActiveOperation(runtime, 'cancelled')
     runtime.activeOperation = undefined
     this.appendOperationDiagnostics(runtime, 'Browser evaluation aborted.')
+    for (const [key, pending] of runtime.pendingBackendCommands) {
+      if (!evaluationId || !pending.evaluationId || pending.evaluationId === evaluationId) {
+        pending.abortController.abort()
+        runtime.pendingBackendCommands.delete(key)
+      }
+    }
     for (const tab of runtime.tabs.values()) {
       try {
         this.webContentsFor(tab.owner, tab.id).stop()
@@ -421,13 +516,22 @@ export class BrowserUseManager {
     if (!runtime) return { ok: false }
     for (const tab of [...runtime.tabs.values()]) {
       this.detachDebugger(tab)
-      if (tab.adopted) {
+      if (tab.adopted || tab.userOwned) {
         this.setAutomationState(runtime, tab, false)
+        tab.adopted = false
+        tab.userOwned = false
       } else {
         this.viewerHost.destroyTab(tab.owner, tab.id)
       }
     }
+    runtime.backendTabIds.clear()
+    runtime.backendTabs.clear()
+    runtime.recentUserBackendTabIds.clear()
+    runtime.pendingBackendCommands.clear()
     this.runtimes.delete(threadId)
+    if (runtime.browserSession?.sessionId) {
+      this.runtimesBySessionId.delete(runtime.browserSession.sessionId)
+    }
     return { ok: true }
   }
 
@@ -442,13 +546,18 @@ export class BrowserUseManager {
     const resolvedWorkspace = workspacePath || ''
     const runtime: BrowserUseThreadRuntime = {
       threadId,
+      owner,
       workspacePath: resolvedWorkspace,
       tabs: new Map<string, BrowserUseTabRuntime>(),
       selectedTabId: null,
       logs: [],
       images: [],
       hasFocusedFirstTab: false,
+      backendTabIds: new Map<string, number>(),
+      backendTabs: new Map<number, BrowserUseTabRuntime>(),
+      recentUserBackendTabIds: new Set<number>(),
       recentOpenTabIds: new Set<string>(),
+      pendingBackendCommands: new Map<unknown, BrowserUseBackendPendingCommand>(),
       operationHistory: [],
       viewportWidth: BROWSER_USE_DEFAULT_VIEWPORT_WIDTH,
       viewportHeight: BROWSER_USE_DEFAULT_VIEWPORT_HEIGHT,
@@ -505,6 +614,1560 @@ export class BrowserUseManager {
     }
   }
 
+  async handleBrowserUseBackendRequest(
+    method: string,
+    params: Record<string, unknown>,
+    context?: BrowserUseBackendCommandContext
+  ): Promise<unknown> {
+    if (method === 'ping') return 'pong'
+    const runtime = this.runtimeForBackendParams(params)
+    return await this.withBackendCommand(runtime, method, params, context ?? this.standaloneBackendContext(method), async (signal) => {
+      switch (method) {
+        case 'getInfo':
+          return this.backendInfo(runtime)
+        case 'getTabs':
+          return this.backendTabList(runtime)
+        case 'getUserTabs':
+          return this.backendUserTabList(runtime)
+        case 'getUserHistory':
+          throw BrowserUseBackendError.unsupportedApi('browser.user.history is not supported by Desktop IAB')
+        case 'claimUserTab':
+          return this.backendClaimUserTab(runtime, params)
+        case 'createTab':
+          return await this.backendCreateTab(runtime, params)
+        case 'finalizeTabs':
+          return await this.backendFinalizeTabs(runtime, params)
+        case 'nameSession':
+          return this.backendNameSession(runtime, params)
+        case 'attach':
+          return await this.backendAttach(runtime, params)
+        case 'detach':
+          return this.backendDetach(runtime, params)
+        case 'executeCdp':
+          return await this.backendExecuteCdp(runtime, params, signal)
+        case 'moveMouse':
+          return await this.backendMoveMouse(runtime, params)
+        case 'attachTarget':
+          return await this.backendAttachTarget(runtime, params, signal)
+        case 'detachTarget':
+          return await this.backendDetachTarget(runtime, params, signal)
+        case 'executeUnhandledCommand':
+          return await this.backendExecuteUnhandledCommand(runtime, params, signal)
+        default:
+          throw BrowserUseBackendError.methodNotFound(method)
+      }
+    })
+  }
+
+  async closeBackendForTests(): Promise<void> {
+    await this.backendServer.close()
+  }
+
+  private standaloneBackendContext(method: string): BrowserUseBackendCommandContext {
+    const abortController = new AbortController()
+    return {
+      requestId: Symbol(method),
+      hasResponse: true,
+      signal: abortController.signal,
+      cancel: () => abortController.abort()
+    }
+  }
+
+  async handleBrowserUseElicitation(threadId: string, request: unknown): Promise<Record<string, unknown>> {
+    const payload = request && typeof request === 'object' && !Array.isArray(request)
+      ? request as Record<string, unknown>
+      : {}
+    const meta = this.elicitationMeta(payload)
+    const fileTransfer = typeof meta.file_transfer === 'string' ? meta.file_transfer : undefined
+    if (fileTransfer === 'download') {
+      return {
+        action: 'accept',
+        meta: {
+          persist: 'session',
+          threadId
+        }
+      }
+    }
+    if (fileTransfer === 'upload') {
+      return {
+        action: 'decline',
+        meta: { reason: 'UnsupportedApi: ordinary file upload is not supported by Desktop IAB' }
+      }
+    }
+    if (meta.sensitive_data === 'browsing_history') {
+      return {
+        action: 'decline',
+        meta: { reason: 'UnsupportedApi: browser.user.history is not supported by Desktop IAB' }
+      }
+    }
+    return {
+      action: 'decline',
+      meta: { reason: 'UnsupportedApi: unsupported Browser Use elicitation in Desktop IAB' }
+    }
+  }
+
+  private elicitationMeta(payload: Record<string, unknown>): Record<string, unknown> {
+    for (const key of ['meta', '_meta', 'content']) {
+      const value = payload[key]
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
+        return value as Record<string, unknown>
+      }
+    }
+    return {}
+  }
+
+  private async withBackendCommand<T>(
+    runtime: BrowserUseThreadRuntime,
+    operation: string,
+    params: Record<string, unknown>,
+    context: BrowserUseBackendCommandContext,
+    run: (signal: AbortSignal) => Promise<T> | T
+  ): Promise<T> {
+    const requestKey = context.requestId ?? Symbol(operation)
+    const abortController = new AbortController()
+    const timeoutMs = this.backendCommandTimeoutMs(params)
+    const evaluationId = runtime.browserSession?.evaluationId ?? runtime.activeEvaluationId
+    const activeSignal = runtime.activeAbortSignal
+    runtime.pendingBackendCommands.set(requestKey, {
+      abortController,
+      evaluationId,
+      operation
+    })
+
+    if (activeSignal?.aborted) {
+      runtime.pendingBackendCommands.delete(requestKey)
+      throw BrowserUseBackendError.commandCancelled(`Browser backend command ${operation} was cancelled before it started.`)
+    }
+
+    let commandPromise: Promise<T>
+    try {
+      commandPromise = Promise.resolve(run(abortController.signal))
+    } catch (error) {
+      runtime.pendingBackendCommands.delete(requestKey)
+      throw error
+    }
+    commandPromise.catch(() => {})
+
+    return await new Promise<T>((resolve, reject) => {
+      let settled = false
+      const cleanup = () => {
+        clearTimeout(timeout)
+        activeSignal?.removeEventListener('abort', onAbort)
+        abortController.signal.removeEventListener('abort', onAbort)
+        runtime.pendingBackendCommands.delete(requestKey)
+      }
+      const finish = (callback: () => void) => {
+        if (settled) return
+        settled = true
+        cleanup()
+        callback()
+      }
+      const onAbort = () => {
+        if (!abortController.signal.aborted) abortController.abort()
+        finish(() => reject(BrowserUseBackendError.commandCancelled(
+          `Browser backend command ${operation} was cancelled.`
+        )))
+      }
+      const timeout = setTimeout(() => {
+        finish(() => {
+          abortController.abort()
+          reject(BrowserUseBackendError.commandTimeout(
+            `Browser backend command ${operation} timed out after ${timeoutMs}ms.`
+          ))
+        })
+      }, timeoutMs)
+
+      activeSignal?.addEventListener('abort', onAbort, { once: true })
+      abortController.signal.addEventListener('abort', onAbort, { once: true })
+      commandPromise.then(
+        (value) => finish(() => {
+          try {
+            if (!this.isBackendResultCapExempt(operation, params)) {
+              this.assertBackendResultWithinLimit(operation, value)
+            }
+            resolve(value)
+          } catch (error) {
+            reject(error)
+          }
+        }),
+        (error) => finish(() => reject(this.normalizeBackendError(error, operation)))
+      )
+    })
+  }
+
+  private backendCommandTimeoutMs(params: Record<string, unknown>): number {
+    const raw = params.timeoutMs ?? params.timeout_ms ?? params.timeout
+    const numeric = Number(raw)
+    const requested = Number.isFinite(numeric) && numeric > 0 ? numeric : this.operationTimeoutMs()
+    return Math.max(1, Math.min(Math.floor(requested), 120_000))
+  }
+
+  private isBackendResultCapExempt(operation: string, params: Record<string, unknown>): boolean {
+    if (operation === 'executeCdp' && this.stringParam(params, 'method') === 'Page.captureScreenshot') return true
+    return operation === 'executeUnhandledCommand' &&
+      (this.stringParam(params, 'type') === 'playwright_element_screenshot' ||
+        this.stringParam(params, 'type') === 'tab_screenshot')
+  }
+
+  private assertBackendResultWithinLimit(operation: string, value: unknown): void {
+    let byteLength = 0
+    try {
+      byteLength = Buffer.byteLength(JSON.stringify(value) ?? '', 'utf8')
+    } catch {
+      byteLength = Buffer.byteLength(String(value), 'utf8')
+    }
+    if (byteLength > BROWSER_USE_MAX_RESULT_BYTES) {
+      throw BrowserUseBackendError.resultTooLarge(
+        `${operation} result exceeded ${BROWSER_USE_MAX_RESULT_BYTES} bytes.`,
+        { byteLength, maxBytes: BROWSER_USE_MAX_RESULT_BYTES }
+      )
+    }
+  }
+
+  private normalizeBackendError(error: unknown, operation: string): unknown {
+    if (error instanceof BrowserUseBackendError) return error
+    if (error instanceof Error) {
+      if (/Browser tab is no longer available|Browser backend tab not found/i.test(error.message)) {
+        return BrowserUseBackendError.pageClosed(operation)
+      }
+      return error
+    }
+    return new BrowserUseBackendError(String(error))
+  }
+
+  private async queueBackendTabCommand<T>(
+    tab: BrowserUseTabRuntime,
+    run: () => Promise<T> | T,
+    signal?: AbortSignal
+  ): Promise<T> {
+    const previous = tab.backendQueue ?? Promise.resolve()
+    let release!: () => void
+    const current = new Promise<void>((resolveCurrent) => {
+      release = resolveCurrent
+    })
+    tab.backendQueue = previous.catch(() => {}).then(() => current)
+    await previous.catch(() => {})
+    let released = false
+    const releaseQueue = () => {
+      if (released) return
+      released = true
+      release()
+    }
+    signal?.addEventListener('abort', releaseQueue, { once: true })
+    try {
+      return await run()
+    } finally {
+      signal?.removeEventListener('abort', releaseQueue)
+      releaseQueue()
+    }
+  }
+
+  private runtimeForBackendParams(params: Record<string, unknown>): BrowserUseThreadRuntime {
+    const sessionId = this.stringParam(params, 'session_id') ?? this.stringParam(params, 'sessionId')
+    const turnId = this.stringParam(params, 'turn_id') ?? this.stringParam(params, 'turnId')
+    if (!sessionId) {
+      throw new BrowserUseBackendError('SessionMetadataMissing: missing session_id.', -32002)
+    }
+    if (!turnId) {
+      throw new BrowserUseBackendError('SessionMetadataMissing: missing turn_id.', -32002)
+    }
+    const runtime = this.runtimesBySessionId.get(sessionId)
+    if (!runtime) {
+      throw new BrowserUseBackendError('SessionMetadataMissing: no active Desktop IAB runtime for session.', -32002)
+    }
+    return runtime
+  }
+
+  private backendInfo(runtime: BrowserUseThreadRuntime): Record<string, unknown> {
+    return {
+      id: 'iab',
+      name: 'DotCraft In-App Browser',
+      type: 'iab',
+      protocolVersion: 2,
+      supportsCommandCancel: true,
+      supportsTypedFinalize: true,
+      maxBrowserResultBytes: BROWSER_USE_MAX_RESULT_BYTES,
+      capabilities: {
+        browser: BROWSER_USE_BROWSER_CAPABILITIES.map((capability) => ({ ...capability })),
+        tab: BROWSER_USE_TAB_CAPABILITIES.map((capability) => ({ ...capability })),
+        docs: {
+          supported: [
+            'tabs',
+            'browserCapabilities',
+            'basicNavigation',
+            'cdp',
+            'playwrightCommonSubset',
+            'domCua',
+            'pageAssets',
+            'webmcp'
+          ],
+          unsupported: [
+            'browser.user.history',
+            'ordinaryDownloads',
+            'fileUpload',
+            'fileChooser',
+            'tab_content_export'
+          ],
+          notes: [
+            'pageAssets.bundle is supported through Desktop file-transfer approval and temp output.',
+            'Text and JSON browser results are capped at 1MB; screenshots are exempt.'
+          ]
+        }
+      },
+      metadata: {
+        dotcraftSessionId: runtime.browserSession?.sessionId ?? runtime.threadId
+      },
+      tabCount: runtime.tabs.size
+    }
+  }
+
+  private backendTabList(runtime: BrowserUseThreadRuntime): Record<string, unknown>[] {
+    return [...runtime.tabs.values()].map((tab) => this.backendTabSnapshot(runtime, tab))
+  }
+
+  private backendUserTabList(runtime: BrowserUseThreadRuntime): Record<string, unknown>[] {
+    const candidate = this.viewerHost.getAutomationTargetTab?.(runtime.owner, runtime.threadId)
+    if (candidate && !runtime.tabs.has(candidate.tabId)) {
+      this.registerTab(runtime.owner, runtime, candidate.tabId, false, true)
+    }
+    const tabs = this.backendTabList(runtime)
+    runtime.recentUserBackendTabIds = new Set(tabs.map((tab) => Number(tab.id)).filter((id) => Number.isInteger(id)))
+    return tabs
+  }
+
+  private backendClaimUserTab(runtime: BrowserUseThreadRuntime, params: Record<string, unknown>): Record<string, unknown> {
+    const tab = this.backendTabForParams(runtime, params)
+    const backendTabId = this.backendTabIdFor(runtime, tab)
+    if (runtime.recentUserBackendTabIds.size > 0 && !runtime.recentUserBackendTabIds.has(backendTabId)) {
+      throw new Error('Cannot claim browser tab: pass a tab id from the current session latest getUserTabs result.')
+    }
+    tab.adopted = true
+    runtime.selectedTabId = tab.id
+    this.setAutomationState(runtime, tab, true, 'claim')
+    return this.backendTabSnapshot(runtime, tab)
+  }
+
+  private async backendCreateTab(
+    runtime: BrowserUseThreadRuntime,
+    params: Record<string, unknown>
+  ): Promise<Record<string, unknown>> {
+    const initialUrl = this.stringParam(params, 'url')
+    const tab = await this.createTab(runtime.owner, runtime, initialUrl)
+    runtime.selectedTabId = tab.id
+    return this.backendTabSnapshot(runtime, tab)
+  }
+
+  private async backendFinalizeTabs(
+    runtime: BrowserUseThreadRuntime,
+    params: Record<string, unknown>
+  ): Promise<Record<string, unknown>> {
+    const keep = this.parseBackendFinalizeKeep(params.keep)
+    const kept: number[] = []
+    const closed: number[] = []
+    const released: number[] = []
+    for (const tab of [...runtime.tabs.values()]) {
+      const backendTabId = this.backendTabIdFor(runtime, tab)
+      const keptStatus = keep.get(backendTabId)
+      if (keptStatus) {
+        tab.keptStatus = keptStatus
+        kept.push(backendTabId)
+        this.setAutomationState(runtime, tab, true, keptStatus)
+        continue
+      }
+      if (tab.adopted || tab.userOwned) {
+        this.setAutomationState(runtime, tab, false)
+        tab.adopted = false
+        tab.userOwned = false
+        released.push(backendTabId)
+        continue
+      }
+      this.closeTab(tab)
+      closed.push(backendTabId)
+    }
+    return { ok: true, kept, closed, released }
+  }
+
+  private backendNameSession(runtime: BrowserUseThreadRuntime, params: Record<string, unknown>): Record<string, unknown> {
+    runtime.sessionName = String(params.name ?? '').trim()
+    for (const tab of runtime.tabs.values()) {
+      this.setAutomationState(runtime, tab, true, 'session')
+    }
+    return { ok: true, name: runtime.sessionName }
+  }
+
+  private async backendAttach(
+    runtime: BrowserUseThreadRuntime,
+    params: Record<string, unknown>
+  ): Promise<Record<string, unknown>> {
+    const tab = this.backendTabForParams(runtime, params)
+    await this.ensureDebuggerAttached(tab)
+    return { ok: true, tabId: this.backendTabIdFor(runtime, tab) }
+  }
+
+  private backendDetach(runtime: BrowserUseThreadRuntime, params: Record<string, unknown>): Record<string, unknown> {
+    const tab = this.backendTabForParams(runtime, params)
+    this.detachDebugger(tab)
+    return { ok: true, tabId: this.backendTabIdFor(runtime, tab) }
+  }
+
+  private async backendAttachTarget(
+    runtime: BrowserUseThreadRuntime,
+    params: Record<string, unknown>,
+    signal?: AbortSignal
+  ): Promise<Record<string, unknown>> {
+    const tab = this.backendTabForParams(runtime, params)
+    const targetId = this.stringParam(params, 'targetId') ?? this.stringParam(params, 'target_id')
+    if (!targetId) throw BrowserUseBackendError.unsupportedApi('attachTarget without targetId')
+    return await this.queueBackendTabCommand(tab, async () => {
+      try {
+        const result = await this.cdpCommand<{ sessionId?: string }>(tab, 'Target.attachToTarget', {
+          targetId,
+          flatten: true
+        })
+        if (!result.sessionId) throw BrowserUseBackendError.unsupportedApi(`attachTarget(${targetId})`)
+        tab.targetSessions.set(targetId, result.sessionId)
+        return { ok: true, sessionId: result.sessionId }
+      } catch (error) {
+        if (error instanceof BrowserUseBackendError) throw error
+        throw BrowserUseBackendError.unsupportedApi(`attachTarget(${targetId})`)
+      }
+    }, signal)
+  }
+
+  private async backendDetachTarget(
+    runtime: BrowserUseThreadRuntime,
+    params: Record<string, unknown>,
+    signal?: AbortSignal
+  ): Promise<Record<string, unknown>> {
+    const tab = this.backendTabForParams(runtime, params)
+    const targetId = this.stringParam(params, 'targetId') ?? this.stringParam(params, 'target_id')
+    if (!targetId) return { ok: true }
+    const sessionId = tab.targetSessions.get(targetId)
+    if (!sessionId) return { ok: true }
+    return await this.queueBackendTabCommand(tab, async () => {
+      await this.cdpCommand(tab, 'Target.detachFromTarget', { sessionId })
+      tab.targetSessions.delete(targetId)
+      return { ok: true }
+    }, signal)
+  }
+
+  private async backendExecuteCdp(
+    runtime: BrowserUseThreadRuntime,
+    params: Record<string, unknown>,
+    signal?: AbortSignal
+  ): Promise<unknown> {
+    const method = this.stringParam(params, 'method')
+    if (!method) throw BrowserUseBackendError.invalidArgument('executeCdp requires a method.')
+    const target = this.objectParam(params, 'target')
+    const tab = this.backendTabForTarget(runtime, target ?? params)
+    const commandParams = this.objectParam(params, 'commandParams') ?? this.objectParam(params, 'params') ?? {}
+    const sessionId = this.backendTargetSessionId(tab, target)
+    return await this.queueBackendTabCommand(tab, async () => {
+      try {
+        if (method === 'Page.navigate') {
+          return await this.backendCdpNavigate(runtime, tab, commandParams, sessionId)
+        }
+        if (method === 'Page.reload') {
+          this.markAutomation(tab, 'reload')
+          this.clearNavigationFailure(tab)
+          this.invalidatePageScopedCaches(tab)
+        }
+        if (method === 'Page.close' || method === 'Target.closeTarget') {
+          this.closeTab(tab)
+          return {}
+        }
+        return await this.cdpCommand(tab, method, commandParams, sessionId)
+      } catch (error) {
+        if (this.isCdpNodeStaleError(method, commandParams, error)) {
+          throw BrowserUseBackendError.nodeStale(
+            commandParams.backendNodeId ?? commandParams.nodeId ?? commandParams.objectId ?? method
+          )
+        }
+        throw error
+      }
+    }, signal)
+  }
+
+  private isCdpNodeStaleError(
+    method: string,
+    commandParams: Record<string, unknown>,
+    error: unknown
+  ): boolean {
+    if (!method.startsWith('DOM.')) return false
+    if (
+      commandParams.backendNodeId == null &&
+      commandParams.nodeId == null &&
+      commandParams.objectId == null
+    ) {
+      return false
+    }
+    const message = error instanceof Error ? error.message : String(error)
+    return /no node with given id|could not find node|node.*not found|cannot find context with specified id/i.test(message)
+  }
+
+  private async backendCdpNavigate(
+    runtime: BrowserUseThreadRuntime,
+    tab: BrowserUseTabRuntime,
+    commandParams: Record<string, unknown>,
+    sessionId?: string
+  ): Promise<unknown> {
+    const url = typeof commandParams.url === 'string' ? commandParams.url : ''
+    const normalized = normalizeBrowserUseUrl(url)
+    if (!normalized) throw BrowserUseBackendError.invalidArgument(`Invalid browser URL: ${url}`)
+    this.markAutomation(tab, 'navigate')
+    this.clearNavigationFailure(tab)
+    this.invalidatePageScopedCaches(tab)
+    await this.ensureNavigationAllowed(tab.owner, runtime, tab.id, normalized)
+    const result = await this.cdpCommand<{ errorText?: string }>(tab, 'Page.navigate', {
+      ...commandParams,
+      url: normalized
+    }, sessionId)
+    if (result.errorText) {
+      const failure: BrowserUseNavigationFailure = {
+        errorDescription: result.errorText,
+        validatedURL: normalized,
+        finalURL: this.operationUrl(tab),
+        isMainFrame: true,
+        timestamp: Date.now()
+      }
+      this.recordNavigationFailure(tab, failure)
+      throw this.navigationFailureError(failure)
+    }
+    const chromiumFailure = this.chromiumErrorPageFailure(tab, normalized)
+    if (chromiumFailure) {
+      this.recordNavigationFailure(tab, chromiumFailure)
+      throw this.navigationFailureError(chromiumFailure)
+    }
+    return result
+  }
+
+  private async backendMoveMouse(
+    runtime: BrowserUseThreadRuntime,
+    params: Record<string, unknown>
+  ): Promise<Record<string, unknown>> {
+    const tab = this.backendTabForParams(runtime, params)
+    const point = this.objectParam(params, 'point')
+    const x = Number(point?.x ?? params.x)
+    const y = Number(point?.y ?? params.y)
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      throw BrowserUseBackendError.invalidArgument('moveMouse requires finite x and y coordinates.')
+    }
+    await this.viewerHost.moveMouse(tab.owner, {
+      tabId: tab.id,
+      x,
+      y,
+      waitForArrival: params.waitForArrival !== false
+    })
+    return { ok: true }
+  }
+
+  private async backendExecuteUnhandledCommand(
+    runtime: BrowserUseThreadRuntime,
+    params: Record<string, unknown>,
+    signal?: AbortSignal
+  ): Promise<unknown> {
+    const type = this.stringParam(params, 'type')
+    if (!type) throw BrowserUseBackendError.invalidArgument('executeUnhandledCommand requires a type.')
+    switch (type) {
+      case 'runtime_config':
+        return {
+          display_truncate_max_chars: BROWSER_USE_DISPLAY_TRUNCATE_MAX_CHARS,
+          max_browser_result_bytes: BROWSER_USE_MAX_RESULT_BYTES
+        }
+      case 'browser_visibility_get':
+        return { visible: runtime.browserVisible }
+      case 'browser_visibility_set':
+        return this.backendBrowserVisibilitySet(runtime, params)
+      case 'browser_viewport_set':
+        return this.backendBrowserViewportSet(runtime, params)
+      case 'browser_viewport_reset':
+        return this.backendBrowserViewportReset(runtime)
+      case 'browser_user_open_tabs':
+        return { tabs: this.backendUserTabList(runtime).map((tab) => this.stringifyBackendTabId(tab)) }
+      case 'browser_user_claim_tab':
+        return this.stringifyBackendTabId(this.backendClaimUserTab(runtime, params))
+      case 'browser_user_history':
+        throw BrowserUseBackendError.unsupportedApi('browser.user.history is not supported by Desktop IAB')
+      case 'name_session':
+        return this.backendNameSession(runtime, params)
+      case 'tabs_content':
+        return await this.backendTabsContent(runtime, params)
+      case 'tab_dev_logs':
+        return this.backendTabDevLogs(runtime, params)
+      case 'tab_screenshot':
+        return await this.backendTabScreenshot(runtime, params)
+      case 'tab_clipboard_read_text':
+        return await this.backendClipboardReadText(runtime, params)
+      case 'tab_clipboard_write_text':
+        await this.backendClipboardWriteText(runtime, params)
+        return {}
+      case 'tab_clipboard_read':
+        return await this.backendClipboardRead(runtime, params)
+      case 'tab_clipboard_write':
+        await this.backendClipboardWrite(runtime, params)
+        return {}
+      case 'playwright_element_info':
+        return await this.backendPlaywrightElementInfo(runtime, params, signal)
+      case 'playwright_element_screenshot':
+        return await this.backendPlaywrightElementScreenshot(runtime, params, signal)
+      case 'playwright_evaluate':
+        return await this.backendPlaywrightEvaluate(runtime, params)
+      case 'playwright_dom_snapshot':
+        return await this.backendPlaywrightDomSnapshot(runtime, params)
+      case 'playwright_wait_for_timeout':
+        return await this.backendPlaywrightWaitForTimeout(params)
+      case 'playwright_wait_for_url':
+        return await this.backendPlaywrightWaitForUrl(runtime, params)
+      case 'playwright_wait_for_load_state':
+        return await this.backendPlaywrightWaitForLoadState(runtime, params)
+      case 'playwright_locator_click':
+        return await this.backendPlaywrightLocatorAction(runtime, params, signal, 'click')
+      case 'playwright_locator_dblclick':
+        return await this.backendPlaywrightLocatorAction(runtime, params, signal, 'dblclick')
+      case 'playwright_locator_fill':
+        return await this.backendPlaywrightLocatorAction(runtime, params, signal, 'fill')
+      case 'playwright_locator_press':
+        return await this.backendPlaywrightLocatorAction(runtime, params, signal, 'press')
+      case 'playwright_locator_wait_for':
+        return await this.backendPlaywrightLocatorWaitFor(runtime, params)
+      case 'playwright_locator_count':
+        return await this.backendPlaywrightLocatorCount(runtime, params)
+      case 'playwright_locator_select_option':
+        return await this.backendPlaywrightLocatorAction(runtime, params, signal, 'selectOption')
+      case 'playwright_locator_set_checked':
+        return await this.backendPlaywrightLocatorAction(runtime, params, signal, 'setChecked')
+      case 'playwright_locator_is_visible':
+        return await this.backendPlaywrightLocatorIsVisible(runtime, params)
+      case 'playwright_locator_is_enabled':
+        return await this.backendPlaywrightLocatorIsEnabled(runtime, params)
+      case 'playwright_locator_all_text_contents':
+        return await this.backendPlaywrightLocatorAllTextContents(runtime, params)
+      case 'playwright_locator_text_content':
+        return await this.backendPlaywrightLocatorTextContent(runtime, params)
+      case 'playwright_locator_inner_text':
+        return await this.backendPlaywrightLocatorInnerText(runtime, params)
+      case 'playwright_locator_get_attribute':
+        return await this.backendPlaywrightLocatorGetAttribute(runtime, params)
+      case 'playwright_locator_read_all':
+        return await this.backendPlaywrightLocatorReadAll(runtime, params)
+      case 'cua_move':
+        return await this.backendCuaAction(runtime, params, signal, 'move')
+      case 'cua_click':
+        return await this.backendCuaAction(runtime, params, signal, 'click')
+      case 'cua_double_click':
+        return await this.backendCuaAction(runtime, params, signal, 'double_click')
+      case 'cua_drag':
+        return await this.backendCuaAction(runtime, params, signal, 'drag')
+      case 'cua_keypress':
+        return await this.backendCuaAction(runtime, params, signal, 'keypress')
+      case 'cua_scroll':
+        return await this.backendCuaAction(runtime, params, signal, 'scroll')
+      case 'cua_type':
+        return await this.backendCuaAction(runtime, params, signal, 'type')
+      case 'dom_cua_get_visible_dom':
+        return await this.domCuaVisibleDom(this.backendTabForCommand(runtime, params))
+      case 'dom_cua_click':
+        return await this.backendDomCuaAction(runtime, params, signal, 'click')
+      case 'dom_cua_double_click':
+        return await this.backendDomCuaAction(runtime, params, signal, 'double_click')
+      case 'dom_cua_keypress':
+        return await this.backendDomCuaAction(runtime, params, signal, 'keypress')
+      case 'dom_cua_scroll':
+        return await this.backendDomCuaAction(runtime, params, signal, 'scroll')
+      case 'dom_cua_type':
+        return await this.backendDomCuaAction(runtime, params, signal, 'type')
+      case 'tab_page_assets_list':
+        return await this.listPageAssets(this.backendTabForCommand(runtime, params))
+      case 'tab_page_assets_bundle':
+        return await this.backendPageAssetsBundle(runtime, params)
+      case 'webmcp_list_tools':
+        return await this.backendWebMcpListTools(runtime, params)
+      case 'webmcp_invoke_tool':
+        return await this.backendWebMcpInvokeTool(runtime, params)
+      case 'tab_content_export':
+        throw BrowserUseBackendError.unsupportedApi('tab_content_export')
+      case 'tab_content_export_gsuite':
+        throw BrowserUseBackendError.unsupportedApi('tab_content_export_gsuite')
+      case 'playwright_wait_for_download':
+      case 'playwright_download_path':
+      case 'playwright_locator_download_media':
+      case 'cua_download_media':
+      case 'dom_cua_download_media':
+        throw BrowserUseBackendError.unsupportedApi('ordinary downloads are not supported by Desktop IAB')
+      case 'playwright_wait_for_file_chooser':
+      case 'playwright_file_chooser_set_files':
+        throw BrowserUseBackendError.unsupportedApi('ordinary file upload is not supported by Desktop IAB')
+      case 'selected_tab': {
+        const tab = await this.getOrAdoptSelectedTab(runtime.owner, runtime)
+        return this.stringifyBackendTabId(this.backendTabSnapshot(runtime, tab))
+      }
+      case 'list_tabs':
+        return { tabs: this.backendTabList(runtime).map((tab) => this.stringifyBackendTabId(tab)) }
+      case 'create_tab': {
+        const tab = await this.createTab(runtime.owner, runtime)
+        runtime.selectedTabId = tab.id
+        return { id: String(this.backendTabIdFor(runtime, tab)) }
+      }
+      case 'close_tab': {
+        const tab = this.backendTabForCommand(runtime, params)
+        this.closeTab(tab)
+        return {}
+      }
+      case 'navigate_tab_url': {
+        const tab = this.backendTabForCommand(runtime, params)
+        const url = this.stringParam(params, 'url')
+        if (!url) throw BrowserUseBackendError.invalidArgument('navigate_tab_url requires a url.')
+        await this.navigate(tab, url)
+        return {}
+      }
+      case 'navigate_tab_back':
+        await this.goBack(this.backendTabForCommand(runtime, params))
+        return {}
+      case 'navigate_tab_forward':
+        await this.goForward(this.backendTabForCommand(runtime, params))
+        return {}
+      case 'navigate_tab_reload':
+        await this.reload(this.backendTabForCommand(runtime, params))
+        return {}
+      case 'tab_id': {
+        const tab = this.backendTabForCommand(runtime, params)
+        return { id: String(this.backendTabIdFor(runtime, tab)) }
+      }
+      default:
+        throw BrowserUseBackendError.unsupportedApi(`executeUnhandledCommand(${type})`)
+    }
+  }
+
+  private async backendTabScreenshot(
+    runtime: BrowserUseThreadRuntime,
+    params: Record<string, unknown>
+  ): Promise<Record<string, unknown>> {
+    const tab = this.backendTabForCommand(runtime, params)
+    const clip = this.backendScreenshotClip(params)
+    const image = await this.screenshot(tab, {
+      fullPage: params.fullPage === true,
+      ...(clip ? { clip } : {})
+    })
+    return { data: image.dataBase64 }
+  }
+
+  private backendScreenshotClip(params: Record<string, unknown>): Electron.Rectangle | undefined {
+    const cropX = Number(params.cropX)
+    const cropY = Number(params.cropY)
+    const cropWidth = Number(params.cropWidth)
+    const cropHeight = Number(params.cropHeight)
+    if (![cropX, cropY, cropWidth, cropHeight].some(Number.isFinite)) return undefined
+    if (![cropX, cropY, cropWidth, cropHeight].every(Number.isFinite)) {
+      throw BrowserUseBackendError.invalidArgument('tab_screenshot crop fields must all be finite numbers.')
+    }
+    return {
+      x: Math.max(0, cropX),
+      y: Math.max(0, cropY),
+      width: Math.max(1, cropWidth),
+      height: Math.max(1, cropHeight)
+    }
+  }
+
+  private async backendPlaywrightEvaluate(
+    runtime: BrowserUseThreadRuntime,
+    params: Record<string, unknown>
+  ): Promise<Record<string, unknown>> {
+    const tab = this.backendTabForCommand(runtime, params)
+    const script = this.stringParam(params, 'script')
+    if (!script) throw BrowserUseBackendError.invalidArgument('playwright_evaluate requires script.')
+    const options = this.objectParam(params, 'options')
+    const hasArg = Object.prototype.hasOwnProperty.call(params, 'arg')
+    const source = hasArg
+      ? `((fn, arg) => fn(arg))(${script}, ${this.evaluateArgSource(params.arg)})`
+      : script
+    return {
+      value: await this.evaluateSourceInPage(tab, source, {
+        timeoutMs: this.numberParam(options, 'timeoutMs') ??
+          this.numberParam(options, 'timeout') ??
+          this.numberParam(params, 'timeout_ms') ??
+          this.numberParam(params, 'timeoutMs')
+      })
+    }
+  }
+
+  private async backendPlaywrightDomSnapshot(
+    runtime: BrowserUseThreadRuntime,
+    params: Record<string, unknown>
+  ): Promise<Record<string, unknown>> {
+    const tab = this.backendTabForCommand(runtime, params)
+    return { dom_snapshot: await this.domSnapshot(tab) }
+  }
+
+  private async backendPlaywrightWaitForTimeout(params: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const timeoutMs = Math.max(0, Math.min(Math.floor(Number(params.timeout_ms ?? params.timeoutMs ?? 0) || 0), 120_000))
+    await new Promise((resolve) => setTimeout(resolve, timeoutMs))
+    return {}
+  }
+
+  private async backendPlaywrightWaitForUrl(
+    runtime: BrowserUseThreadRuntime,
+    params: Record<string, unknown>
+  ): Promise<Record<string, unknown>> {
+    const tab = this.backendTabForCommand(runtime, params)
+    const url = this.stringParam(params, 'url')
+    if (!url) throw BrowserUseBackendError.invalidArgument('playwright_wait_for_url requires url.')
+    await this.waitForUrl(tab, url, this.backendCommandTimeoutMs(params))
+    return { url: this.operationUrl(tab) }
+  }
+
+  private async backendPlaywrightWaitForLoadState(
+    runtime: BrowserUseThreadRuntime,
+    params: Record<string, unknown>
+  ): Promise<Record<string, unknown>> {
+    const tab = this.backendTabForCommand(runtime, params)
+    await this.waitForLoad(tab, this.stringParam(params, 'state') ?? 'load', this.backendCommandTimeoutMs(params))
+    return {}
+  }
+
+  private backendLocatorDescriptor(params: Record<string, unknown>): BrowserUseLocatorDescriptor {
+    const selector = this.stringParam(params, 'selector')
+    if (!selector) throw BrowserUseBackendError.invalidArgument('Playwright locator command requires selector.')
+    return { kind: 'css', value: selector }
+  }
+
+  private async backendPlaywrightLocatorAction(
+    runtime: BrowserUseThreadRuntime,
+    params: Record<string, unknown>,
+    signal: AbortSignal | undefined,
+    action: 'click' | 'dblclick' | 'fill' | 'press' | 'selectOption' | 'setChecked'
+  ): Promise<Record<string, unknown>> {
+    const tab = this.backendTabForCommand(runtime, params)
+    const descriptor = this.backendLocatorDescriptor(params)
+    return await this.queueBackendTabCommand(tab, async () => {
+      if (action === 'click') await this.locatorClick(tab, descriptor)
+      else if (action === 'dblclick') await this.locatorDoubleClick(tab, descriptor)
+      else if (action === 'fill') {
+        const value = String(params.value ?? '')
+        if (params.replace === false) await this.locatorType(tab, descriptor, value)
+        else await this.locatorFill(tab, descriptor, value)
+      } else if (action === 'press') {
+        await this.locatorPress(tab, descriptor, String(params.value ?? ''))
+      } else if (action === 'selectOption') {
+        await this.locatorSelectOption(tab, descriptor, Array.isArray(params.selections) ? params.selections : [])
+      } else {
+        await this.locatorSetChecked(tab, descriptor, params.checked === true)
+      }
+      return {}
+    }, signal)
+  }
+
+  private async backendPlaywrightLocatorWaitFor(
+    runtime: BrowserUseThreadRuntime,
+    params: Record<string, unknown>
+  ): Promise<Record<string, unknown>> {
+    const tab = this.backendTabForCommand(runtime, params)
+    await this.locatorWaitFor(tab, this.backendLocatorDescriptor(params), {
+      state: this.stringParam(params, 'state') ?? 'visible',
+      timeoutMs: this.backendCommandTimeoutMs(params)
+    })
+    return {}
+  }
+
+  private async backendPlaywrightLocatorCount(
+    runtime: BrowserUseThreadRuntime,
+    params: Record<string, unknown>
+  ): Promise<Record<string, unknown>> {
+    const tab = this.backendTabForCommand(runtime, params)
+    return { count: (await this.resolveLocator(tab, this.backendLocatorDescriptor(params))).length }
+  }
+
+  private async backendPlaywrightLocatorIsVisible(
+    runtime: BrowserUseThreadRuntime,
+    params: Record<string, unknown>
+  ): Promise<Record<string, unknown>> {
+    const tab = this.backendTabForCommand(runtime, params)
+    return { value: (await this.resolveLocator(tab, this.backendLocatorDescriptor(params))).some((match) => match.visible) }
+  }
+
+  private async backendPlaywrightLocatorIsEnabled(
+    runtime: BrowserUseThreadRuntime,
+    params: Record<string, unknown>
+  ): Promise<Record<string, unknown>> {
+    const tab = this.backendTabForCommand(runtime, params)
+    return { value: Boolean(await this.locatorEvaluate(tab, this.backendLocatorDescriptor(params), 'isEnabled')) }
+  }
+
+  private async backendPlaywrightLocatorAllTextContents(
+    runtime: BrowserUseThreadRuntime,
+    params: Record<string, unknown>
+  ): Promise<Record<string, unknown>> {
+    const tab = this.backendTabForCommand(runtime, params)
+    const values = (await this.resolveLocator(tab, this.backendLocatorDescriptor(params)))
+      .map((match) => match.text || match.visibleText || '')
+    return { values }
+  }
+
+  private async backendPlaywrightLocatorTextContent(
+    runtime: BrowserUseThreadRuntime,
+    params: Record<string, unknown>
+  ): Promise<Record<string, unknown>> {
+    const tab = this.backendTabForCommand(runtime, params)
+    return { value: await this.locatorEvaluate(tab, this.backendLocatorDescriptor(params), 'textContent') }
+  }
+
+  private async backendPlaywrightLocatorInnerText(
+    runtime: BrowserUseThreadRuntime,
+    params: Record<string, unknown>
+  ): Promise<Record<string, unknown>> {
+    const tab = this.backendTabForCommand(runtime, params)
+    return { value: (await this.strictLocator(tab, this.backendLocatorDescriptor(params))).visibleText }
+  }
+
+  private async backendPlaywrightLocatorGetAttribute(
+    runtime: BrowserUseThreadRuntime,
+    params: Record<string, unknown>
+  ): Promise<Record<string, unknown>> {
+    const tab = this.backendTabForCommand(runtime, params)
+    const name = this.stringParam(params, 'name')
+    if (!name) throw BrowserUseBackendError.invalidArgument('playwright_locator_get_attribute requires name.')
+    return { value: await this.locatorEvaluate(tab, this.backendLocatorDescriptor(params), 'getAttribute', name) }
+  }
+
+  private async backendPlaywrightLocatorReadAll(
+    runtime: BrowserUseThreadRuntime,
+    params: Record<string, unknown>
+  ): Promise<Record<string, unknown>> {
+    const tab = this.backendTabForCommand(runtime, params)
+    let descriptor = this.backendLocatorDescriptor(params)
+    const relativeSelector = this.stringParam(params, 'relative_selector')
+    if (relativeSelector) {
+      descriptor = this.scopedLocatorDescriptor(tab, descriptor, { kind: 'css', value: relativeSelector })
+    }
+    const values = (await this.resolveLocator(tab, descriptor)).map((match) => ({
+      attributes: {},
+      inner_text: match.visibleText || match.text || '',
+      text_content: match.text || match.visibleText || null
+    }))
+    return { values }
+  }
+
+  private async backendCuaAction(
+    runtime: BrowserUseThreadRuntime,
+    params: Record<string, unknown>,
+    signal: AbortSignal | undefined,
+    action: 'move' | 'click' | 'double_click' | 'drag' | 'keypress' | 'scroll' | 'type'
+  ): Promise<Record<string, unknown>> {
+    const tab = this.backendTabForCommand(runtime, params)
+    return await this.queueBackendTabCommand(tab, async () => {
+      if (action === 'move') {
+        await this.cuaMove(tab, {
+          x: this.finiteNumberParam(params, 'x'),
+          y: this.finiteNumberParam(params, 'y'),
+          waitForArrival: params.waitForArrival !== false
+        })
+      } else if (action === 'click') {
+        await this.cuaClick(tab, {
+          x: this.finiteNumberParam(params, 'x'),
+          y: this.finiteNumberParam(params, 'y'),
+          button: params.button as number | string | undefined
+        })
+      } else if (action === 'double_click') {
+        await this.cuaDoubleClick(tab, {
+          x: this.finiteNumberParam(params, 'x'),
+          y: this.finiteNumberParam(params, 'y'),
+          button: params.button as number | string | undefined
+        })
+      } else if (action === 'drag') {
+        await this.cuaDrag(tab, { path: this.normalizePointPath(params.path) })
+      } else if (action === 'keypress') {
+        await this.cuaKeypress(tab, { keys: this.stringArrayFromUnknown(params.keys) })
+      } else if (action === 'scroll') {
+        await this.cuaScroll(tab, {
+          x: this.finiteNumberParam(params, 'x'),
+          y: this.finiteNumberParam(params, 'y'),
+          scrollX: this.finiteNumberFromUnknown(params.scroll_x ?? params.scrollX ?? params.delta_x ?? params.deltaX ?? 0, 'scroll_x'),
+          scrollY: this.finiteNumberFromUnknown(params.scroll_y ?? params.scrollY ?? params.delta_y ?? params.deltaY ?? 0, 'scroll_y')
+        })
+      } else {
+        await this.cuaType(tab, { text: String(params.text ?? '') })
+      }
+      return {}
+    }, signal)
+  }
+
+  private async backendDomCuaAction(
+    runtime: BrowserUseThreadRuntime,
+    params: Record<string, unknown>,
+    signal: AbortSignal | undefined,
+    action: 'click' | 'double_click' | 'keypress' | 'scroll' | 'type'
+  ): Promise<Record<string, unknown>> {
+    const tab = this.backendTabForCommand(runtime, params)
+    return await this.queueBackendTabCommand(tab, async () => {
+      if (action === 'click') await this.domCuaClick(tab, { node_id: this.stringParam(params, 'node_id') }, false)
+      else if (action === 'double_click') await this.domCuaClick(tab, { node_id: this.stringParam(params, 'node_id') }, true)
+      else if (action === 'keypress') await this.domCuaKeypress(tab, { keys: this.stringArrayFromUnknown(params.keys) })
+      else if (action === 'scroll') {
+        await this.domCuaScroll(tab, {
+          node_id: this.stringParam(params, 'node_id'),
+          x: this.finiteOptionalNumber(params.x, 'x'),
+          y: this.finiteOptionalNumber(params.y, 'y'),
+          scrollX: this.finiteOptionalNumber(params.scroll_x ?? params.scrollX, 'scroll_x'),
+          scrollY: this.finiteOptionalNumber(params.scroll_y ?? params.scrollY, 'scroll_y'),
+          deltaX: this.finiteOptionalNumber(params.delta_x ?? params.deltaX, 'delta_x'),
+          deltaY: this.finiteOptionalNumber(params.delta_y ?? params.deltaY, 'delta_y')
+        })
+      } else {
+        await this.domCuaType(tab, { text: String(params.text ?? '') })
+      }
+      return {}
+    }, signal)
+  }
+
+  private async backendPageAssetsBundle(
+    runtime: BrowserUseThreadRuntime,
+    params: Record<string, unknown>
+  ): Promise<Record<string, unknown>> {
+    const tab = this.backendTabForCommand(runtime, params)
+    return await this.bundlePageAssets(tab, {
+      inventoryId: this.stringParam(params, 'inventoryId') ?? this.stringParam(params, 'inventory_id'),
+      assetIds: this.stringArrayFromUnknown(params.assetIds ?? params.asset_ids),
+      kinds: this.stringArrayFromUnknown(params.kinds)
+    })
+  }
+
+  private async backendWebMcpListTools(
+    runtime: BrowserUseThreadRuntime,
+    params: Record<string, unknown>
+  ): Promise<Record<string, unknown>> {
+    const tab = this.backendTabForCommand(runtime, params)
+    const tools = (await this.listWebMcpTools(tab)).map((tool) => {
+      const { invoke: _invoke, ...serializable } = tool
+      return {
+        ...serializable,
+        input_schema: serializable.input_schema ?? serializable.inputSchema ?? {}
+      }
+    })
+    return { tools }
+  }
+
+  private async backendWebMcpInvokeTool(
+    runtime: BrowserUseThreadRuntime,
+    params: Record<string, unknown>
+  ): Promise<Record<string, unknown>> {
+    const tab = this.backendTabForCommand(runtime, params)
+    const toolName = this.stringParam(params, 'tool_name') ?? this.stringParam(params, 'toolName')
+    return {
+      result: await this.invokeWebMcpTool(tab, {
+        toolName,
+        input: params.input,
+        timeoutMs: Number(params.timeout_ms ?? params.timeoutMs)
+      })
+    }
+  }
+
+  private finiteNumberParam(params: Record<string, unknown>, key: string): number {
+    return this.finiteNumberFromUnknown(params[key], key)
+  }
+
+  private finiteNumberOrDefault(value: unknown, name: string, fallback: number): number {
+    return value == null ? fallback : this.finiteNumberFromUnknown(value, name)
+  }
+
+  private finiteOptionalNumber(value: unknown, name: string): number | undefined {
+    return value == null ? undefined : this.finiteNumberFromUnknown(value, name)
+  }
+
+  private finiteNumberFromUnknown(value: unknown, name: string): number {
+    const numeric = Number(value)
+    if (!Number.isFinite(numeric)) {
+      throw BrowserUseBackendError.invalidArgument(`${name} must be a finite number.`)
+    }
+    return numeric
+  }
+
+  private normalizePointPath(value: unknown): Array<{ x: number; y: number }> {
+    if (!Array.isArray(value)) throw BrowserUseBackendError.invalidArgument('cua_drag requires path.')
+    return value.map((point, index) => {
+      const raw = point && typeof point === 'object' && !Array.isArray(point)
+        ? point as Record<string, unknown>
+        : {}
+      return {
+        x: this.finiteNumberFromUnknown(raw.x, `path[${index}].x`),
+        y: this.finiteNumberFromUnknown(raw.y, `path[${index}].y`)
+      }
+    })
+  }
+
+  private stringArrayFromUnknown(value: unknown): string[] {
+    return Array.isArray(value)
+      ? value.map((item) => String(item))
+      : []
+  }
+
+  private async backendTabsContent(
+    runtime: BrowserUseThreadRuntime,
+    params: Record<string, unknown>
+  ): Promise<Record<string, unknown>> {
+    const rawUrls = params.urls
+    if (!Array.isArray(rawUrls)) throw BrowserUseBackendError.invalidArgument('tabs_content requires urls.')
+    const contentType = this.stringParam(params, 'content_type') ?? this.stringParam(params, 'contentType') ?? 'text'
+    if (contentType !== 'html' && contentType !== 'text' && contentType !== 'domSnapshot') {
+      throw BrowserUseBackendError.invalidArgument(`Unsupported tabs_content content_type: ${contentType}`)
+    }
+    const results: Array<{ url: string; title: string | null; content: string | null }> = []
+    for (const rawUrl of rawUrls) {
+      const url = typeof rawUrl === 'string' ? rawUrl : ''
+      if (!url) {
+        results.push({ url: '', title: null, content: null })
+        continue
+      }
+      let tab: BrowserUseTabRuntime | null = null
+      try {
+        tab = await this.createTab(runtime.owner, runtime, url)
+        const content = contentType === 'domSnapshot'
+          ? await this.domSnapshot(tab)
+          : await this.evaluatePageContent(tab, contentType)
+        results.push({
+          url: this.operationUrl(tab),
+          title: this.safeTabTitle(tab),
+          content
+        })
+      } catch {
+        results.push({ url, title: null, content: null })
+      } finally {
+        if (tab) this.closeTab(tab)
+      }
+    }
+    return { results }
+  }
+
+  private backendTabDevLogs(
+    runtime: BrowserUseThreadRuntime,
+    params: Record<string, unknown>
+  ): Record<string, unknown> {
+    const tab = this.backendTabForCommand(runtime, params)
+    const levels = Array.isArray(params.levels)
+      ? params.levels.filter((level): level is string => typeof level === 'string')
+      : undefined
+    const limit = typeof params.limit === 'number' && Number.isFinite(params.limit)
+      ? Math.max(1, Math.floor(params.limit))
+      : undefined
+    return {
+      logs: this.devLogs(tab, {
+        filter: this.stringParam(params, 'filter'),
+        levels,
+        limit
+      })
+    }
+  }
+
+  private async backendClipboardReadText(
+    runtime: BrowserUseThreadRuntime,
+    params: Record<string, unknown>
+  ): Promise<Record<string, unknown>> {
+    const tab = this.backendTabForCommand(runtime, params)
+    return { text: await this.readVirtualClipboardText(tab) }
+  }
+
+  private async backendClipboardWriteText(
+    runtime: BrowserUseThreadRuntime,
+    params: Record<string, unknown>
+  ): Promise<void> {
+    const tab = this.backendTabForCommand(runtime, params)
+    if (typeof params.text !== 'string') {
+      throw BrowserUseBackendError.invalidArgument('tab_clipboard_write_text requires text.')
+    }
+    await this.writeVirtualClipboardText(tab, params.text)
+  }
+
+  private async backendClipboardRead(
+    runtime: BrowserUseThreadRuntime,
+    params: Record<string, unknown>
+  ): Promise<Record<string, unknown>> {
+    const tab = this.backendTabForCommand(runtime, params)
+    return { items: await this.readVirtualClipboard(tab) }
+  }
+
+  private async backendClipboardWrite(
+    runtime: BrowserUseThreadRuntime,
+    params: Record<string, unknown>
+  ): Promise<void> {
+    const tab = this.backendTabForCommand(runtime, params)
+    await this.writeVirtualClipboard(tab, params.items)
+  }
+
+  private async readVirtualClipboardText(tab: BrowserUseTabRuntime): Promise<string> {
+    const text = this.virtualClipboardPlainText(tab)
+    if (text != null) return text
+    return await this.executeJavaScript<string>(tab, `(() => {
+      if (navigator.clipboard?.readText == null) return "";
+      return navigator.clipboard.readText();
+    })()`, 'clipboard.readText').then(
+      (value) => typeof value === 'string' ? value : String(value ?? ''),
+      () => ''
+    )
+  }
+
+  private async writeVirtualClipboardText(tab: BrowserUseTabRuntime, text: string): Promise<void> {
+    const value = String(text ?? '')
+    tab.clipboardItems = [{
+      entries: [{ mime_type: 'text/plain', text: value }],
+      presentation_style: 'unspecified'
+    }]
+    await this.executeJavaScript(tab, `(() => {
+      if (navigator.clipboard?.writeText == null) return false;
+      return navigator.clipboard.writeText(${JSON.stringify(value)}).then(() => true, () => false);
+    })()`, 'clipboard.writeText').catch(() => false)
+  }
+
+  private async readVirtualClipboard(tab: BrowserUseTabRuntime): Promise<BrowserUseClipboardItem[]> {
+    if (tab.clipboardItems.length > 0) return tab.clipboardItems.map((item) => ({
+      entries: item.entries.map((entry) => ({ ...entry })),
+      presentation_style: item.presentation_style
+    }))
+    const text = await this.readVirtualClipboardText(tab)
+    return text
+      ? [{
+          entries: [{ mime_type: 'text/plain', text }],
+          presentation_style: 'unspecified'
+        }]
+      : []
+  }
+
+  private async writeVirtualClipboard(tab: BrowserUseTabRuntime, items: unknown): Promise<void> {
+    tab.clipboardItems = this.normalizeClipboardItems(items)
+    const text = this.virtualClipboardPlainText(tab)
+    if (text != null) {
+      await this.executeJavaScript(tab, `(() => {
+        if (navigator.clipboard?.writeText == null) return false;
+        return navigator.clipboard.writeText(${JSON.stringify(text)}).then(() => true, () => false);
+      })()`, 'clipboard.write').catch(() => false)
+    }
+  }
+
+  private virtualClipboardPlainText(tab: BrowserUseTabRuntime): string | null {
+    for (const item of tab.clipboardItems) {
+      for (const entry of item.entries) {
+        if (entry.mime_type === 'text/plain' && typeof entry.text === 'string') return entry.text
+      }
+    }
+    return null
+  }
+
+  private normalizeClipboardItems(items: unknown): BrowserUseClipboardItem[] {
+    if (!Array.isArray(items)) throw BrowserUseBackendError.invalidArgument('tab_clipboard_write requires items.')
+    return items.map((item) => {
+      const rawItem = item && typeof item === 'object' && !Array.isArray(item)
+        ? item as Record<string, unknown>
+        : {}
+      const entries = Array.isArray(rawItem.entries)
+        ? rawItem.entries.map((entry) => this.normalizeClipboardEntry(entry))
+        : []
+      if (entries.length === 0) {
+        throw BrowserUseBackendError.invalidArgument('tab_clipboard_write items require at least one entry.')
+      }
+      const rawStyle = rawItem.presentation_style ?? rawItem.presentationStyle
+      const presentationStyle = rawStyle === 'inline' || rawStyle === 'attachment' || rawStyle === 'unspecified'
+        ? rawStyle
+        : 'unspecified'
+      return {
+        entries,
+        presentation_style: presentationStyle
+      }
+    })
+  }
+
+  private normalizeClipboardEntry(entry: unknown): BrowserUseClipboardEntry {
+    const rawEntry = entry && typeof entry === 'object' && !Array.isArray(entry)
+      ? entry as Record<string, unknown>
+      : {}
+    const mimeType = this.stringValue(rawEntry.mime_type ?? rawEntry.mimeType).trim()
+    if (!mimeType) throw BrowserUseBackendError.invalidArgument('clipboard entry requires mime_type.')
+    const text = typeof rawEntry.text === 'string' ? rawEntry.text : undefined
+    const base64 = typeof rawEntry.base64 === 'string' ? rawEntry.base64 : undefined
+    if ((text == null && base64 == null) || (text != null && base64 != null)) {
+      throw BrowserUseBackendError.invalidArgument('clipboard entry must include exactly one of text or base64.')
+    }
+    return {
+      mime_type: mimeType,
+      ...(text == null ? {} : { text }),
+      ...(base64 == null ? {} : { base64 })
+    }
+  }
+
+  private backendBrowserVisibilitySet(
+    runtime: BrowserUseThreadRuntime,
+    params: Record<string, unknown>
+  ): Record<string, unknown> {
+    if (typeof params.visible !== 'boolean') {
+      throw BrowserUseBackendError.invalidArgument('browser_visibility_set requires visible.')
+    }
+    runtime.browserVisible = params.visible
+    for (const tab of runtime.tabs.values()) {
+      this.viewerHost.setVisible?.(tab.owner, { tabId: tab.id, visible: runtime.browserVisible })
+    }
+    if (runtime.browserVisible) this.presentVisibleTabs(runtime)
+    return {}
+  }
+
+  private backendBrowserViewportSet(
+    runtime: BrowserUseThreadRuntime,
+    params: Record<string, unknown>
+  ): Record<string, unknown> {
+    runtime.viewportWidth = this.normalizeViewportDimension(params.width, 'width')
+    runtime.viewportHeight = this.normalizeViewportDimension(params.height, 'height')
+    this.applyViewport(runtime)
+    return {}
+  }
+
+  private backendBrowserViewportReset(runtime: BrowserUseThreadRuntime): Record<string, unknown> {
+    runtime.viewportWidth = BROWSER_USE_DEFAULT_VIEWPORT_WIDTH
+    runtime.viewportHeight = BROWSER_USE_DEFAULT_VIEWPORT_HEIGHT
+    this.applyViewport(runtime)
+    return {}
+  }
+
+  private async evaluatePageContent(tab: BrowserUseTabRuntime, contentType: 'html' | 'text'): Promise<string> {
+    const expression = contentType === 'html'
+      ? 'document.documentElement ? document.documentElement.outerHTML : ""'
+      : 'document.body ? document.body.innerText : (document.documentElement ? document.documentElement.innerText : "")'
+    return await this.executeJavaScript<string>(tab, expression, `tabs_content.${contentType}`, false)
+  }
+
+  private async backendPlaywrightElementInfo(
+    runtime: BrowserUseThreadRuntime,
+    params: Record<string, unknown>,
+    signal?: AbortSignal
+  ): Promise<unknown> {
+    const tab = this.backendTabForCommand(runtime, params)
+    const x = Number(params.x)
+    const y = Number(params.y)
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      throw BrowserUseBackendError.invalidArgument('playwright_element_info requires numeric x and y.')
+    }
+    return await this.queueBackendTabCommand(tab, async () => await this.evaluateCdpExpression(tab, `(() => {
+      const x = ${JSON.stringify(x)};
+      const y = ${JSON.stringify(y)};
+      const element = document.elementFromPoint(x, y);
+      if (!element) return [];
+      const rect = element.getBoundingClientRect();
+      const tagName = element.tagName.toLowerCase();
+      const text = (element.innerText || element.textContent || "").trim().slice(0, 500);
+      const id = element.id || "";
+      const testId = element.getAttribute("data-testid") || element.getAttribute("data-test-id") || "";
+      const role = element.getAttribute("role") || "";
+      const ariaName = element.getAttribute("aria-label") || element.getAttribute("title") || text;
+      const selectors = [];
+      if (id) selectors.push("#" + CSS.escape(id));
+      if (testId) selectors.push("[data-testid=\\"" + CSS.escape(testId) + "\\"]");
+      selectors.push(tagName);
+      return [{
+        nodeId: null,
+        tagName,
+        role: role || null,
+        visibleText: text || null,
+        ariaName: ariaName || null,
+        testId: testId || null,
+        selector: {
+          primary: selectors[0] || null,
+          candidates: selectors
+        },
+        boundingBox: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+        preview: "<" + tagName + ">" + (text ? " " + text : "")
+      }];
+    })()`), signal)
+  }
+
+  private async backendPlaywrightElementScreenshot(
+    runtime: BrowserUseThreadRuntime,
+    params: Record<string, unknown>,
+    signal?: AbortSignal
+  ): Promise<Record<string, unknown>> {
+    const tab = this.backendTabForCommand(runtime, params)
+    const info = await this.backendPlaywrightElementInfo(runtime, params, signal) as
+      Array<{ boundingBox?: { x?: number; y?: number; width?: number; height?: number } }>
+    const box = info[0]?.boundingBox
+    if (!box) throw BrowserUseBackendError.invalidArgument('playwright_element_screenshot did not hit an element.')
+    const clip = {
+      x: Math.max(0, Number(box.x) || 0),
+      y: Math.max(0, Number(box.y) || 0),
+      width: Math.max(1, Number(box.width) || 1),
+      height: Math.max(1, Number(box.height) || 1),
+      scale: 1
+    }
+    return await this.queueBackendTabCommand(tab, async () => await this.cdpCommand<Record<string, unknown>>(
+      tab,
+      'Page.captureScreenshot',
+      {
+        format: 'png',
+        fromSurface: true,
+        captureBeyondViewport: true,
+        clip
+      }), signal)
+  }
+
+  private async evaluateCdpExpression<T = unknown>(
+    tab: BrowserUseTabRuntime,
+    expression: string
+  ): Promise<T> {
+    const result = await this.cdpCommand<{
+      result?: { value?: T; unserializableValue?: string }
+      exceptionDetails?: { text?: string; exception?: { description?: string; value?: unknown } }
+    }>(tab, 'Runtime.evaluate', {
+      expression,
+      awaitPromise: true,
+      returnByValue: true
+    })
+    if (result.exceptionDetails) {
+      throw new Error(
+        result.exceptionDetails.exception?.description ??
+        result.exceptionDetails.text ??
+        'Runtime.evaluate failed.')
+    }
+    return (result.result?.value ?? result.result?.unserializableValue) as T
+  }
+
+  private backendTabIdFor(runtime: BrowserUseThreadRuntime, tab: BrowserUseTabRuntime): number {
+    const existing = runtime.backendTabIds.get(tab.id)
+    if (existing) return existing
+    const id = this.nextBackendTabId++
+    runtime.backendTabIds.set(tab.id, id)
+    runtime.backendTabs.set(id, tab)
+    return id
+  }
+
+  private forgetBackendTab(runtime: BrowserUseThreadRuntime, tab: BrowserUseTabRuntime): void {
+    const backendId = runtime.backendTabIds.get(tab.id)
+    if (backendId) runtime.backendTabs.delete(backendId)
+    runtime.backendTabIds.delete(tab.id)
+    runtime.recentUserBackendTabIds.delete(backendId ?? -1)
+  }
+
+  private backendTabSnapshot(runtime: BrowserUseThreadRuntime, tab: BrowserUseTabRuntime): Record<string, unknown> {
+    const id = this.backendTabIdFor(runtime, tab)
+    const snapshot = this.tabSnapshot(tab)
+    return {
+      id,
+      tabId: id,
+      url: snapshot.url,
+      title: snapshot.title,
+      loading: snapshot.loading,
+      active: runtime.selectedTabId === tab.id
+    }
+  }
+
+  private stringifyBackendTabId(tab: Record<string, unknown>): Record<string, unknown> {
+    return {
+      ...tab,
+      id: String(tab.id),
+      tabId: String(tab.tabId)
+    }
+  }
+
+  private backendTabForParams(runtime: BrowserUseThreadRuntime, params: Record<string, unknown>): BrowserUseTabRuntime {
+    const id = this.positiveIntegerParam(params, 'tabId') ?? this.positiveIntegerParam(params, 'tab_id')
+    if (!id) throw BrowserUseBackendError.invalidArgument('Browser backend command requires a positive integer tabId.')
+    return this.backendTabForId(runtime, id)
+  }
+
+  private backendTabForCommand(runtime: BrowserUseThreadRuntime, params: Record<string, unknown>): BrowserUseTabRuntime {
+    const id = this.positiveIntegerParam(params, 'tab_id') ?? this.positiveIntegerParam(params, 'tabId')
+    if (!id) throw BrowserUseBackendError.invalidArgument('Browser command requires a positive integer tab_id.')
+    return this.backendTabForId(runtime, id)
+  }
+
+  private backendTabForTarget(
+    runtime: BrowserUseThreadRuntime,
+    targetOrParams: Record<string, unknown> | null
+  ): BrowserUseTabRuntime {
+    const source = targetOrParams ?? {}
+    const id = this.positiveIntegerParam(source, 'tabId') ??
+      this.positiveIntegerParam(source, 'tab_id')
+    if (!id) throw BrowserUseBackendError.invalidArgument('CDP target requires a positive integer tabId.')
+    return this.backendTabForId(runtime, id)
+  }
+
+  private backendTabForId(runtime: BrowserUseThreadRuntime, id: number): BrowserUseTabRuntime {
+    const tab = runtime.backendTabs.get(id)
+    if (!tab) throw BrowserUseBackendError.tabStale(id)
+    return tab
+  }
+
+  private backendTargetSessionId(
+    tab: BrowserUseTabRuntime,
+    target: Record<string, unknown> | null
+  ): string | undefined {
+    const explicit = typeof target?.sessionId === 'string' ? target.sessionId : undefined
+    if (explicit) return explicit
+    const targetId = typeof target?.targetId === 'string' ? target.targetId : undefined
+    if (!targetId) return undefined
+    const sessionId = tab.targetSessions.get(targetId)
+    if (!sessionId) throw BrowserUseBackendError.unsupportedApi(`target session ${targetId}`)
+    return sessionId
+  }
+
+  private parseBackendFinalizeKeep(value: unknown): Map<number, BrowserFinalizeKeepStatus> {
+    if (value == null) return new Map()
+    if (!Array.isArray(value)) throw new Error('finalizeTabs keep must be an array of { tabId, status: "deliverable"|"handoff" } entries.')
+    const keep = new Map<number, BrowserFinalizeKeepStatus>()
+    for (const item of value) {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) {
+        throw new Error('finalizeTabs keep entries must be objects shaped like { tabId, status: "deliverable"|"handoff" }.')
+      }
+      const entry = item as Record<string, unknown>
+      const id = this.positiveIntegerFromUnknown(entry.tabId ?? entry.tab_id ?? entry.id)
+      const status = entry.status
+      if (!id) throw new Error('finalizeTabs keep entries require a positive integer tabId; use { tabId, status: "deliverable"|"handoff" }.')
+      if (status !== 'handoff' && status !== 'deliverable') {
+        throw new Error('finalizeTabs keep entries must include status "handoff" or "deliverable"; use { tabId, status: "deliverable"|"handoff" }.')
+      }
+      keep.set(id, status)
+    }
+    return keep
+  }
+
+  private stringParam(params: Record<string, unknown>, key: string): string | undefined {
+    const value = params[key]
+    return typeof value === 'string' && value.trim() ? value.trim() : undefined
+  }
+
+  private objectParam(params: Record<string, unknown>, key: string): Record<string, unknown> | null {
+    const value = params[key]
+    return value && typeof value === 'object' && !Array.isArray(value)
+      ? value as Record<string, unknown>
+      : null
+  }
+
+  private numberParam(params: Record<string, unknown> | null, key: string): number | undefined {
+    const value = params?.[key]
+    const numeric = Number(value)
+    return Number.isFinite(numeric) ? numeric : undefined
+  }
+
+  private positiveIntegerParam(params: Record<string, unknown>, key: string): number | null {
+    return this.positiveIntegerFromUnknown(params[key])
+  }
+
+  private positiveIntegerFromUnknown(value: unknown): number | null {
+    const numeric = Number(value)
+    return Number.isInteger(numeric) && numeric > 0 ? numeric : null
+  }
+
+  private emitCdpEvent(
+    tab: BrowserUseTabRuntime,
+    method: string,
+    params: Record<string, unknown> = {},
+    sessionId?: string
+  ): void {
+    let backendTabId: number
+    try {
+      backendTabId = this.backendTabIdFor(this.getRuntimeForTab(tab), tab)
+    } catch {
+      return
+    }
+    const source = sessionId ? { tabId: backendTabId, sessionId } : { tabId: backendTabId }
+    this.backendServer.sendNotification('onCDPEvent', {
+      source,
+      method,
+      params
+    })
+  }
+
   private createBrowserApi(owner: BrowserWindow, runtime: BrowserUseThreadRuntime): Record<string, unknown> {
     const tabs = this.createTabsApi(owner, runtime)
     return {
@@ -539,7 +2202,7 @@ export class BrowserUseManager {
         'tabs.new(url?)',
         'tabs.selected()',
         'tabs.get(id)',
-        'tabs.finalize({ keep })',
+        'tabs.finalize({ keep: [{ tab, status: "deliverable"|"handoff" }] })',
         'user.openTabs()',
         'user.claimTab(tabOrId)',
         'capabilities.list()',
@@ -566,7 +2229,7 @@ export class BrowserUseManager {
         return this.createTabApi(tab)
       },
       finalize: async (options?: { keep?: unknown[] }) => this.finalizeTabs(runtime, options),
-      describeApi: () => ['list()', 'new(url?)', 'selected()', 'get(id)', 'finalize({ keep })']
+      describeApi: () => ['list()', 'new(url?)', 'selected()', 'get(id)', 'finalize({ keep: [{ tab, status: "deliverable"|"handoff" }] })']
     }
   }
 
@@ -670,9 +2333,10 @@ export class BrowserUseManager {
         this.setAutomationState(runtime, tab, true, keptStatus)
         continue
       }
-      if (tab.adopted) {
+      if (tab.adopted || tab.userOwned) {
         this.setAutomationState(runtime, tab, false)
         tab.adopted = false
+        tab.userOwned = false
         released.push(tab.id)
         continue
       }
@@ -690,21 +2354,21 @@ export class BrowserUseManager {
   private parseFinalizeKeep(options?: { keep?: unknown[] }): Map<string, BrowserFinalizeKeepStatus> {
     const keep = options?.keep ?? []
     if (!Array.isArray(keep)) {
-      throw new Error('browser.tabs.finalize requires keep to be an array of { tab, status } entries.')
+      throw new Error('browser.tabs.finalize requires keep to be an array of { tab, status: "deliverable"|"handoff" } entries.')
     }
     const result = new Map<string, BrowserFinalizeKeepStatus>()
     for (const item of keep) {
       if (!item || typeof item !== 'object' || Array.isArray(item)) {
-        throw new Error('browser.tabs.finalize keep entries must be objects shaped like { tab, status }.')
+        throw new Error('browser.tabs.finalize keep entries must be objects shaped like { tab, status: "deliverable"|"handoff" }.')
       }
       const entry = item as Record<string, unknown>
       const status = entry.status
       if (status !== 'handoff' && status !== 'deliverable') {
-        throw new Error('browser.tabs.finalize keep status must be "handoff" or "deliverable".')
+        throw new Error('browser.tabs.finalize keep entries must include status "handoff" or "deliverable"; use { tab, status: "deliverable"|"handoff" }.')
       }
       const id = this.tabIdFromReference(entry.tab)
       if (!id) {
-        throw new Error('browser.tabs.finalize keep entries must include a tab reference.')
+        throw new Error('browser.tabs.finalize keep entries must include a tab reference; use { tab, status: "deliverable"|"handoff" }.')
       }
       result.set(id, status)
     }
@@ -793,15 +2457,32 @@ export class BrowserUseManager {
     if (runtime.tabs.size > 0) runtime.hasFocusedFirstTab = true
   }
 
+  private tabForId(owner: BrowserWindow, tabId: string): BrowserUseTabRuntime | null {
+    for (const runtime of this.runtimes.values()) {
+      if (runtime.owner !== owner) continue
+      const tab = runtime.tabs.get(tabId)
+      if (tab) return tab
+    }
+    return null
+  }
+
   private webContentsFor(owner: BrowserWindow, tabId: string): Electron.WebContents {
+    if (this.closedTabIdsByOwner.get(owner)?.has(tabId)) {
+      throw BrowserUseBackendError.pageClosed(tabId)
+    }
+    const tab = this.tabForId(owner, tabId)
+    if (tab?.closed) throw BrowserUseBackendError.pageClosed(tabId)
     const wc = this.viewerHost.getTabWebContents(owner, tabId)
-    if (!wc || wc.isDestroyed()) throw new Error(`Browser tab is no longer available: ${tabId}`)
+    if (!wc || wc.isDestroyed()) throw BrowserUseBackendError.pageClosed(tabId)
     return wc
   }
 
   private async ensureDebuggerAttached(tab: BrowserUseTabRuntime): Promise<void> {
     const wc = this.webContentsFor(tab.owner, tab.id)
-    const debuggerApi = wc.debugger
+    const debuggerApi = wc.debugger as Electron.Debugger & {
+      on?(event: 'message' | 'detach', listener: (...args: unknown[]) => void): void
+      off?(event: 'message' | 'detach', listener: (...args: unknown[]) => void): void
+    }
     if (!debuggerApi) {
       throw new Error(`Browser tab ${tab.id} does not expose Electron debugger/CDP.`)
     }
@@ -809,26 +2490,92 @@ export class BrowserUseManager {
       debuggerApi.attach('1.3')
       tab.cdpAttached = true
     }
+    if (!tab.debuggerMessageHandler && typeof debuggerApi.on === 'function') {
+      tab.debuggerMessageHandler = (...args: unknown[]) => this.handleDebuggerMessage(tab, args)
+      debuggerApi.on('message', tab.debuggerMessageHandler)
+    }
+    if (!tab.debuggerDetachHandler && typeof debuggerApi.on === 'function') {
+      tab.debuggerDetachHandler = (...args: unknown[]) => {
+        tab.cdpAttached = false
+        tab.targetSessions.clear()
+        this.emitCdpEvent(tab, 'Inspector.detached', {
+          reason: this.stringFromDebuggerArgs(args) ?? 'detached'
+        })
+      }
+      debuggerApi.on('detach', tab.debuggerDetachHandler)
+    }
+    if (!tab.webContentsFailLoadHandler && typeof wc.on === 'function') {
+      tab.webContentsFailLoadHandler = (...args: unknown[]) => {
+        const failure = this.navigationFailureFromWebContentsArgs(tab, args)
+        if (failure) this.recordNavigationFailure(tab, failure)
+      }
+      wc.on('did-fail-load', tab.webContentsFailLoadHandler)
+    }
   }
 
   private detachDebugger(tab: BrowserUseTabRuntime): void {
     try {
-      const debuggerApi = this.webContentsFor(tab.owner, tab.id).debugger
+      const wc = this.webContentsFor(tab.owner, tab.id)
+      const debuggerApi = wc.debugger as Electron.Debugger & {
+        off?(event: 'message' | 'detach', listener: (...args: unknown[]) => void): void
+      }
+      if (tab.debuggerMessageHandler && typeof debuggerApi?.off === 'function') {
+        debuggerApi.off('message', tab.debuggerMessageHandler)
+      }
+      if (tab.debuggerDetachHandler && typeof debuggerApi?.off === 'function') {
+        debuggerApi.off('detach', tab.debuggerDetachHandler)
+      }
+      if (tab.webContentsFailLoadHandler && typeof wc.off === 'function') {
+        wc.off('did-fail-load', tab.webContentsFailLoadHandler)
+      }
       if (debuggerApi?.isAttached()) debuggerApi.detach()
     } catch {
       // Best effort only. Browser tab teardown should not be blocked by debugger cleanup.
     } finally {
       tab.cdpAttached = false
+      tab.debuggerMessageHandler = undefined
+      tab.debuggerDetachHandler = undefined
+      tab.webContentsFailLoadHandler = undefined
+      tab.targetSessions.clear()
     }
+  }
+
+  private handleDebuggerMessage(tab: BrowserUseTabRuntime, args: unknown[]): void {
+    const eventOffset = typeof args[1] === 'string' ? 1 : 0
+    const method = typeof args[eventOffset] === 'string' ? args[eventOffset] : ''
+    if (!method) return
+    const rawParams = args[eventOffset + 1]
+    const params = rawParams && typeof rawParams === 'object' && !Array.isArray(rawParams)
+      ? rawParams as Record<string, unknown>
+      : {}
+    const sessionId = typeof args[eventOffset + 2] === 'string' ? args[eventOffset + 2] : undefined
+    if (method === 'Target.detachedFromTarget') {
+      const targetId = typeof params.targetId === 'string' ? params.targetId : undefined
+      if (targetId) tab.targetSessions.delete(targetId)
+    }
+    this.emitCdpEvent(tab, method, params, sessionId)
+  }
+
+  private stringFromDebuggerArgs(args: unknown[]): string | undefined {
+    for (const value of args) {
+      if (typeof value === 'string' && value.trim()) return value
+    }
+    return undefined
   }
 
   private async cdpCommand<T = unknown>(
     tab: BrowserUseTabRuntime,
     method: string,
-    params?: Record<string, unknown>
+    params?: Record<string, unknown>,
+    sessionId?: string
   ): Promise<T> {
     await this.ensureDebuggerAttached(tab)
-    return await this.webContentsFor(tab.owner, tab.id).debugger.sendCommand(method, params) as T
+    const debuggerApi = this.webContentsFor(tab.owner, tab.id).debugger as Electron.Debugger & {
+      sendCommand(method: string, params?: Record<string, unknown>, sessionId?: string): Promise<unknown>
+    }
+    return await (sessionId
+      ? debuggerApi.sendCommand(method, params, sessionId)
+      : debuggerApi.sendCommand(method, params)) as T
   }
 
   private operationUrl(tab: BrowserUseTabRuntime): string {
@@ -836,6 +2583,98 @@ export class BrowserUseManager {
       return this.webContentsFor(tab.owner, tab.id).getURL() || 'about:blank'
     } catch {
       return 'unknown'
+    }
+  }
+
+  private clearNavigationFailure(tab: BrowserUseTabRuntime): void {
+    tab.lastNavigationFailure = undefined
+  }
+
+  private navigationFailureData(failure: BrowserUseNavigationFailure): Record<string, unknown> {
+    return {
+      errorCode: failure.errorCode,
+      errorDescription: failure.errorDescription,
+      validatedURL: failure.validatedURL,
+      finalURL: failure.finalURL,
+      isMainFrame: failure.isMainFrame
+    }
+  }
+
+  private navigationFailureError(failure: BrowserUseNavigationFailure): BrowserUseBackendError {
+    return BrowserUseBackendError.navigationFailed(
+      failure.errorDescription || `Navigation failed${failure.errorCode == null ? '' : ` (${failure.errorCode})`}`,
+      this.navigationFailureData(failure)
+    )
+  }
+
+  private recordNavigationFailure(tab: BrowserUseTabRuntime, failure: BrowserUseNavigationFailure): void {
+    const previous = tab.lastNavigationFailure
+    const duplicate = previous &&
+      previous.errorCode === failure.errorCode &&
+      previous.errorDescription === failure.errorDescription &&
+      previous.validatedURL === failure.validatedURL &&
+      previous.finalURL === failure.finalURL &&
+      Date.now() - previous.timestamp < 250
+    tab.lastNavigationFailure = failure
+    if (duplicate) return
+    this.emitCdpEvent(tab, 'Page.navigationBlocked', this.navigationFailureData(failure))
+  }
+
+  private navigationFailureFromWebContentsArgs(
+    tab: BrowserUseTabRuntime,
+    args: unknown[]
+  ): BrowserUseNavigationFailure | null {
+    const rawCode = Number(args[1])
+    const errorCode = Number.isFinite(rawCode) ? rawCode : undefined
+    const errorDescription = typeof args[2] === 'string' && args[2].trim()
+      ? args[2].trim()
+      : 'Navigation failed'
+    const validatedURL = typeof args[3] === 'string' && args[3].trim()
+      ? args[3].trim()
+      : this.operationUrl(tab)
+    const isMainFrame = args[4] !== false
+    if (!isMainFrame || errorCode === -3) return null
+    return {
+      errorCode,
+      errorDescription,
+      validatedURL,
+      finalURL: this.operationUrl(tab),
+      isMainFrame,
+      timestamp: Date.now()
+    }
+  }
+
+  private chromiumErrorPageFailure(
+    tab: BrowserUseTabRuntime,
+    validatedURL?: string
+  ): BrowserUseNavigationFailure | null {
+    const finalURL = this.operationUrl(tab)
+    if (!isChromiumErrorPageUrl(finalURL)) return null
+    return {
+      errorDescription: 'Chromium error page after navigation.',
+      validatedURL: validatedURL || finalURL,
+      finalURL,
+      isMainFrame: true,
+      timestamp: Date.now()
+    }
+  }
+
+  private throwIfNavigationFailed(tab: BrowserUseTabRuntime): void {
+    if (tab.lastNavigationFailure) {
+      throw this.navigationFailureError(tab.lastNavigationFailure)
+    }
+    const chromiumFailure = this.chromiumErrorPageFailure(tab)
+    if (chromiumFailure) {
+      this.recordNavigationFailure(tab, chromiumFailure)
+      throw this.navigationFailureError(chromiumFailure)
+    }
+  }
+
+  private safeTabTitle(tab: BrowserUseTabRuntime): string {
+    try {
+      return this.webContentsFor(tab.owner, tab.id).getTitle() || ''
+    } catch {
+      return ''
     }
   }
 
@@ -990,11 +2829,32 @@ export class BrowserUseManager {
     timeoutMs = this.navigationTimeoutMs(),
     operation = 'navigate'
   ): Promise<void> {
-    await this.withBrowserOperation(
-      tab,
-      operation,
-      () => this.viewerHost.loadAutomationUrl(tab.owner, { tabId: tab.id, url }),
-      timeoutMs)
+    try {
+      await this.withBrowserOperation(
+        tab,
+        operation,
+        () => this.viewerHost.loadAutomationUrl(tab.owner, { tabId: tab.id, url }),
+        timeoutMs)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      if (message.startsWith('NavigationFailed:')) {
+        const failure = tab.lastNavigationFailure ?? {
+          errorDescription: message.replace(/^NavigationFailed:\s*/, '') || 'Navigation failed',
+          validatedURL: url,
+          finalURL: this.operationUrl(tab),
+          isMainFrame: true,
+          timestamp: Date.now()
+        }
+        this.recordNavigationFailure(tab, failure)
+        throw this.navigationFailureError(failure)
+      }
+      throw error
+    }
+    const chromiumFailure = this.chromiumErrorPageFailure(tab, url)
+    if (chromiumFailure) {
+      this.recordNavigationFailure(tab, chromiumFailure)
+      throw this.navigationFailureError(chromiumFailure)
+    }
   }
 
   private async waitForScriptReady(
@@ -1023,7 +2883,8 @@ export class BrowserUseManager {
     tab: BrowserUseTabRuntime,
     source: string,
     operation: string,
-    userGesture = true
+    userGesture = true,
+    timeoutMs?: number
   ): Promise<T> {
     return this.withBrowserOperation(
       tab,
@@ -1053,35 +2914,36 @@ export class BrowserUseManager {
           return result.result.unserializableValue as T
         }
         return result.result?.value as T
-      })
+      },
+      timeoutMs)
   }
 
   private async waitForPageReady(
     tab: BrowserUseTabRuntime,
     options: { operation: string; requireContent: boolean; timeoutMs: number }
   ): Promise<void> {
+    this.throwIfNavigationFailed(tab)
     await this.waitForScriptReady(tab, Math.min(options.timeoutMs, this.blankTabReadyTimeoutMs()))
     const deadline = Date.now() + Math.max(1, Math.min(options.timeoutMs, 120_000))
     for (;;) {
+      this.throwIfNavigationFailed(tab)
       const signal = this.getRuntimeForTab(tab).activeAbortSignal
       if (signal?.aborted) throw new Error(`Browser operation '${options.operation}' was cancelled for tab ${tab.id}.`)
       const rawState = await this.executeJavaScript<unknown>(tab, `
-        new Promise((resolve) => {
-          const sample = () => {
-            const bodyText = (document.body?.innerText || '').trim();
-            const interactive = document.querySelectorAll('a,button,input,textarea,select,summary,[role="button"],[role="link"]').length;
-            const appRoot = document.querySelector('#app, #root, [data-v-app], main, nav, header');
-            resolve({
-              url: location.href,
-              title: document.title,
-              readyState: document.readyState,
-              bodyTextLength: bodyText.length,
-              interactiveCount: interactive,
-              appRootTextLength: (appRoot?.textContent || '').trim().length
-            });
+        (() => {
+          const bodyText = (document.body?.innerText || '').trim();
+          const interactive = document.querySelectorAll('a,button,input,textarea,select,summary,[role="button"],[role="link"]').length;
+          const appRoot = document.querySelector('#app, #root, [data-v-app], main, nav, header');
+          return {
+            url: location.href,
+            title: document.title,
+            readyState: document.readyState,
+            hasBody: Boolean(document.body),
+            bodyTextLength: bodyText.length,
+            interactiveCount: interactive,
+            appRootTextLength: (appRoot?.textContent || '').trim().length
           };
-          requestAnimationFrame(() => requestAnimationFrame(sample));
-        })
+        })()
       `, options.operation)
       const state = this.normalizeReadinessState(rawState)
       if (!state) {
@@ -1098,7 +2960,11 @@ export class BrowserUseManager {
         state.interactiveCount > 0 ||
         state.appRootTextLength > 0 ||
         state.title.trim().length > 0
-      if (documentReady && (blank || !options.requireContent || hasUsefulContent)) return
+      const hasRequiredContent = hasUsefulContent || (
+        state.hasBody &&
+        (options.operation === 'domSnapshot.ready' || options.operation === 'waitForLoadState.domcontentloaded')
+      )
+      if (documentReady && (blank || !options.requireContent || hasRequiredContent)) return
       if (Date.now() >= deadline) {
         throw new Error(
           `Browser operation '${options.operation}' timed out after ${Math.max(1, Math.min(options.timeoutMs, 120_000))}ms for tab ${tab.id} at ${state.url || this.webContentsFor(tab.owner, tab.id).getURL() || 'about:blank'}.`)
@@ -1111,6 +2977,7 @@ export class BrowserUseManager {
         url: string
         title: string
         readyState: string
+        hasBody: boolean
         bodyTextLength: number
         interactiveCount: number
         appRootTextLength: number
@@ -1129,6 +2996,7 @@ export class BrowserUseManager {
       url: typeof state.url === 'string' ? state.url : '',
       title: typeof state.title === 'string' ? state.title : '',
       readyState: typeof state.readyState === 'string' ? state.readyState : '',
+      hasBody: state.hasBody === true,
       bodyTextLength: typeof state.bodyTextLength === 'number' ? state.bodyTextLength : 0,
       interactiveCount: typeof state.interactiveCount === 'number' ? state.interactiveCount : 0,
       appRootTextLength: typeof state.appRootTextLength === 'number' ? state.appRootTextLength : 0
@@ -1171,7 +3039,7 @@ export class BrowserUseManager {
 
     const candidate = this.viewerHost.getAutomationTargetTab?.(owner, runtime.threadId)
     if (candidate) {
-      const adopted = this.registerTab(owner, runtime, candidate.tabId, true)
+      const adopted = this.registerTab(owner, runtime, candidate.tabId, true, true)
       runtime.selectedTabId = adopted.id
       return adopted
     }
@@ -1188,16 +3056,25 @@ export class BrowserUseManager {
     owner: BrowserWindow,
     runtime: BrowserUseThreadRuntime,
     id: string,
-    adopted: boolean
+    adopted: boolean,
+    userOwned = adopted
   ): BrowserUseTabRuntime {
     const existing = runtime.tabs.get(id)
-    if (existing) return existing
+    if (existing) {
+      if (adopted) existing.adopted = true
+      if (userOwned) existing.userOwned = true
+      return existing
+    }
     const wc = this.webContentsFor(owner, id)
+    this.closedTabIdsByOwner.get(owner)?.delete(id)
     const tab: BrowserUseTabRuntime = {
       id,
       owner,
       logs: [],
+      clipboardItems: [],
       adopted,
+      userOwned,
+      targetSessions: new Map(),
       snapshotRefs: new Map(),
       domCuaNodes: new Map(),
       pageAssetInventories: new Map(),
@@ -1206,7 +3083,7 @@ export class BrowserUseManager {
     runtime.tabs.set(id, tab)
 
     wc.on('console-message', (_event, level, message) => {
-      const levelNames = ['verbose', 'info', 'warning', 'error'] as const
+      const levelNames = ['debug', 'info', 'warn', 'error'] as const
       tab.logs.push({
         level: levelNames[level as number] ?? String(level ?? 'log'),
         message,
@@ -1217,6 +3094,7 @@ export class BrowserUseManager {
     wc.once('destroyed', () => {
       this.detachDebugger(tab)
       runtime.tabs.delete(id)
+      this.forgetBackendTab(runtime, tab)
       if (runtime.selectedTabId === id) runtime.selectedTabId = null
     })
     return tab
@@ -1235,7 +3113,11 @@ export class BrowserUseManager {
       title: async () => this.webContentsFor(tab.owner, tab.id).getTitle(),
       screenshot: async (options?: { fullPage?: boolean; clip?: Electron.Rectangle }) => this.screenshot(tab, options),
       domSnapshot: async () => this.domSnapshot(tab),
-      evaluate: async (expressionOrFunction: string | (() => unknown)) => this.evaluateInPage(tab, expressionOrFunction),
+      evaluate: async (
+        expressionOrFunction: string | ((arg?: unknown) => unknown),
+        arg?: unknown,
+        options?: { timeoutMs?: number; timeout?: number }
+      ) => this.evaluateInPage(tab, expressionOrFunction, arg, options),
       click: async (selector: string) => this.click(tab, selector),
       clickRef: async (ref: string) => this.locatorClick(tab, { kind: 'ref', value: String(ref) }),
       fillRef: async (ref: string, value: string) => this.locatorFill(tab, { kind: 'ref', value: String(ref) }, value),
@@ -1253,14 +3135,11 @@ export class BrowserUseManager {
         describeApi: () => ['logs({ filter?, levels?, limit? })']
       },
       clipboard: {
-        read: async () => this.unsupported('tab.clipboard.read() rich clipboard items'),
-        readText: async () => this.executeJavaScript(tab, 'navigator.clipboard.readText()', 'clipboard.readText'),
-        write: async () => this.unsupported('tab.clipboard.write() rich clipboard items'),
-        writeText: async (text: string) => this.executeJavaScript(
-          tab,
-          `navigator.clipboard.writeText(${JSON.stringify(String(text ?? ''))})`,
-          'clipboard.writeText'),
-        describeApi: () => ['readText()', 'writeText(text)', 'read() unsupported', 'write(items) unsupported']
+        read: async () => this.readVirtualClipboard(tab),
+        readText: async () => this.readVirtualClipboardText(tab),
+        write: async (items: unknown) => this.writeVirtualClipboard(tab, items),
+        writeText: async (text: string) => this.writeVirtualClipboardText(tab, text),
+        describeApi: () => ['readText()', 'writeText(text)', 'read()', 'write(items)']
       },
       describeApi: () => [
         'goto(url)',
@@ -1272,12 +3151,13 @@ export class BrowserUseManager {
         'title()',
         'domSnapshot()',
         'screenshot(options?)',
-        'evaluate(expressionOrFunction)',
+        'evaluate(expressionOrFunction, arg?, options?)',
         'playwright.*',
         'cua.*',
         'dom_cua.*',
         'capabilities.list()',
-        'capabilities.get("pageAssets")'
+        'capabilities.get("pageAssets")',
+        'capabilities.get("webmcp")'
       ]
     }
   }
@@ -1288,9 +3168,10 @@ export class BrowserUseManager {
       list: async () => available,
       get: async (id: string) => {
         if (id === 'pageAssets') return this.createPageAssetsCapability(tab)
-        throw new Error(`Tab capability not found: ${id}. Available capabilities: pageAssets.`)
+        if (id === 'webmcp') return this.createWebMcpCapability(tab)
+        throw new Error(`Tab capability not found: ${id}. Available capabilities: pageAssets, webmcp.`)
       },
-      describeApi: () => ['list()', 'get("pageAssets")']
+      describeApi: () => ['list()', 'get("pageAssets")', 'get("webmcp")']
     }
   }
 
@@ -1300,6 +3181,88 @@ export class BrowserUseManager {
       bundle: async (options: { assetIds?: string[]; inventoryId?: string; kinds?: string[] }) => this.bundlePageAssets(tab, options),
       describeApi: () => ['list()', 'bundle({ inventoryId, kinds?, assetIds? })']
     }
+  }
+
+  private createWebMcpCapability(tab: BrowserUseTabRuntime): Record<string, unknown> {
+    return {
+      listTools: async () => this.listWebMcpTools(tab),
+      invokeTool: async (options: { toolName?: string; input?: unknown; timeoutMs?: number }) => this.invokeWebMcpTool(tab, options),
+      describeApi: () => ['listTools()', 'invokeTool({ toolName, input?, timeoutMs? })']
+    }
+  }
+
+  private async listWebMcpTools(tab: BrowserUseTabRuntime): Promise<Array<Record<string, unknown>>> {
+    this.markAutomation(tab, 'webmcp.listTools')
+    await this.waitForPageReady(tab, {
+      operation: 'webmcp.ready',
+      requireContent: false,
+      timeoutMs: this.operationTimeoutMs()
+    })
+    const tools = await this.executeJavaScript<Array<Record<string, unknown>>>(tab, `(() => {
+      const modelContext = navigator.modelContext;
+      if (!modelContext || typeof modelContext.getTools !== "function") {
+        throw new Error("WebMCP modelContext is unavailable in the current page.");
+      }
+      return Promise.resolve(modelContext.getTools()).then((tools) => tools.map((tool) => ({
+        name: String(tool.name || ""),
+        title: tool.title,
+        description: tool.description,
+        inputSchema: tool.inputSchema == null ? null : (
+          typeof tool.inputSchema === "string" ? JSON.parse(tool.inputSchema) : tool.inputSchema
+        ),
+        annotations: tool.annotations,
+        origin: tool.origin,
+        pageUrl: tool.pageUrl
+      })));
+    })()`, 'webmcp.listTools')
+    if (!Array.isArray(tools)) throw new Error('WebMCP listTools failed: no result returned.')
+    return tools.map((tool) => ({
+      ...tool,
+      invoke: async (input: unknown, options?: { timeoutMs?: number }) => this.invokeWebMcpTool(tab, {
+        toolName: typeof tool.name === 'string' ? tool.name : '',
+        input,
+        timeoutMs: options?.timeoutMs
+      })
+    }))
+  }
+
+  private async invokeWebMcpTool(
+    tab: BrowserUseTabRuntime,
+    options: { toolName?: string; input?: unknown; timeoutMs?: number }
+  ): Promise<unknown> {
+    const toolName = String(options?.toolName ?? '').trim()
+    if (!toolName) throw new Error('tab.capabilities.webmcp.invokeTool requires a toolName')
+    const timeoutMs = this.normalizeWebMcpTimeout(options?.timeoutMs)
+    this.markAutomation(tab, 'webmcp.invokeTool')
+    await this.waitForPageReady(tab, {
+      operation: 'webmcp.ready',
+      requireContent: false,
+      timeoutMs
+    })
+    return await this.executeJavaScript(tab, `(() => {
+      const modelContext = navigator.modelContext;
+      if (!modelContext || typeof modelContext.getTools !== "function" || typeof modelContext.executeTool !== "function") {
+        throw new Error("WebMCP modelContext is unavailable in the current page.");
+      }
+      return Promise.resolve(modelContext.getTools()).then((tools) => {
+        const tool = tools.find((candidate) => candidate.name === ${JSON.stringify(toolName)});
+        if (!tool) throw new Error(${JSON.stringify(`WebMCP tool not found: ${toolName}`)});
+        return modelContext.executeTool(tool, ${JSON.stringify(JSON.stringify(options?.input ?? null))});
+      }).then((result) => {
+        if (result == null) return null;
+        try {
+          return JSON.parse(result);
+        } catch {
+          return result;
+        }
+      });
+    })()`, 'webmcp.invokeTool')
+  }
+
+  private normalizeWebMcpTimeout(timeoutMs?: number): number {
+    const numeric = Number(timeoutMs)
+    const requested = Number.isFinite(numeric) && numeric > 0 ? numeric : this.operationTimeoutMs()
+    return Math.max(1, Math.min(Math.floor(requested), 120_000))
   }
 
   private async listPageAssets(tab: BrowserUseTabRuntime): Promise<BrowserUsePageAssetInventory> {
@@ -1647,7 +3610,7 @@ export class BrowserUseManager {
       keypress: async (options: { node_id?: string; key?: string; keys?: string[] } | string | string[]) => this.domCuaKeypress(tab, options),
       scroll: async (options: { node_id?: string; x?: number; y?: number; scrollX?: number; scrollY?: number; deltaX?: number; deltaY?: number }) => this.domCuaScroll(tab, options),
       download_media: async () => this.unsupported('tab.dom_cua.download_media()'),
-      describeApi: () => ['get_visible_dom()', 'click({ node_id })', 'double_click({ node_id })', 'type({ node_id?, text })', 'keypress({ node_id?, key|keys })', 'scroll({ node_id?, deltaX?, deltaY? })', 'download_media() unsupported']
+      describeApi: () => ['get_visible_dom()', 'click({ node_id })', 'double_click({ node_id })', 'type({ node_id?, text })', 'keypress({ node_id?, key|keys })', 'scroll({ node_id?, x?, y?, scrollX?, scrollY?, deltaX?, deltaY? })', 'download_media() unsupported']
     }
   }
 
@@ -1660,10 +3623,24 @@ export class BrowserUseManager {
     deltaY?: number
   } = {}): { x: number; y: number; scrollX: number; scrollY: number } {
     return {
-      x: Number(options.x ?? 0),
-      y: Number(options.y ?? 0),
-      scrollX: Number(options.scrollX ?? options.deltaX ?? 0),
-      scrollY: Number(options.scrollY ?? options.deltaY ?? 0)
+      x: this.finiteNumberOrDefault(options.x, 'x', 0),
+      y: this.finiteNumberOrDefault(options.y, 'y', 0),
+      scrollX: this.finiteNumberOrDefault(options.scrollX ?? options.deltaX, 'scrollX', 0),
+      scrollY: this.finiteNumberOrDefault(options.scrollY ?? options.deltaY, 'scrollY', 0)
+    }
+  }
+
+  private normalizeDomCuaScrollDistance(options: {
+    x?: number
+    y?: number
+    scrollX?: number
+    scrollY?: number
+    deltaX?: number
+    deltaY?: number
+  } = {}): { scrollX: number; scrollY: number } {
+    return {
+      scrollX: this.finiteNumberOrDefault(options.scrollX ?? options.deltaX ?? options.x, 'scrollX', 0),
+      scrollY: this.finiteNumberOrDefault(options.scrollY ?? options.deltaY ?? options.y, 'scrollY', 0)
     }
   }
 
@@ -1707,7 +3684,8 @@ export class BrowserUseManager {
 
   private domCuaTarget(tab: BrowserUseTabRuntime, options: { node_id?: string } = {}): BrowserUseElementMatch {
     const nodeId = String(options.node_id ?? '')
-    if (!nodeId) throw new Error('DOM CUA action requires node_id from get_visible_dom().')
+    if (tab.closed) throw BrowserUseBackendError.pageClosed(tab.id)
+    if (!nodeId) throw BrowserUseBackendError.invalidArgument('DOM CUA action requires node_id from get_visible_dom().')
     const current = tab.snapshotRefs.get(nodeId)
     if (current) return current
     const cached = tab.domCuaNodes.get(nodeId)
@@ -1718,7 +3696,7 @@ export class BrowserUseManager {
       const match = [...tab.snapshotRefs.values()].find((item) => item.index === index)
       if (match) return match
     }
-    throw new Error(`DOM CUA node is no longer available: ${nodeId}. Take a fresh get_visible_dom() snapshot.`)
+    throw BrowserUseBackendError.nodeStale(nodeId)
   }
 
   private async domCuaClick(
@@ -1762,20 +3740,33 @@ export class BrowserUseManager {
     tab: BrowserUseTabRuntime,
     options: { node_id?: string; x?: number; y?: number; scrollX?: number; scrollY?: number; deltaX?: number; deltaY?: number } = {}
   ): Promise<void> {
-    const scroll = this.normalizeScrollOptions(options)
+    const scroll = this.normalizeDomCuaScrollDistance(options)
     if (options.node_id) {
       const target = this.domCuaTarget(tab, options)
       const point = this.actionPoint(target)
       await this.cuaScroll(tab, { ...scroll, ...point })
       return
     }
-    await this.cuaScroll(tab, scroll)
+    await this.cuaScroll(tab, { ...this.viewportCenter(tab), ...scroll })
+  }
+
+  private viewportCenter(tab: BrowserUseTabRuntime): { x: number; y: number } {
+    const runtime = this.getRuntimeForTab(tab)
+    return {
+      x: Math.max(0, Math.round(runtime.viewportWidth / 2)),
+      y: Math.max(0, Math.round(runtime.viewportHeight / 2))
+    }
   }
 
   private createPlaywrightApi(tab: BrowserUseTabRuntime): Record<string, unknown> {
     return {
       domSnapshot: async () => this.domSnapshot(tab),
       screenshot: async (options?: { fullPage?: boolean; clip?: Electron.Rectangle }) => this.screenshot(tab, options),
+      evaluate: async (
+        expressionOrFunction: string | ((arg?: unknown) => unknown),
+        arg?: unknown,
+        options?: { timeoutMs?: number; timeout?: number }
+      ) => this.evaluateInPage(tab, expressionOrFunction, arg, options),
       waitForLoadState: async (stateOrOptions?: string | { state?: string; timeoutMs?: number }, timeoutMs?: number) => {
         const state = typeof stateOrOptions === 'string' ? stateOrOptions : stateOrOptions?.state
         const timeout = typeof stateOrOptions === 'object' ? stateOrOptions.timeoutMs : timeoutMs
@@ -1801,7 +3792,7 @@ export class BrowserUseManager {
       clickRef: async (ref: string) => this.locatorClick(tab, { kind: 'ref', value: String(ref) }),
       fillRef: async (ref: string, value: string) => this.locatorFill(tab, { kind: 'ref', value: String(ref) }, value),
       pressRef: async (ref: string, key: string) => this.locatorPress(tab, { kind: 'ref', value: String(ref) }, key),
-      locator: (selector: string) => this.createLocatorApi(tab, { kind: 'css', value: String(selector) }),
+      locator: (selector: string, options?: Record<string, unknown>) => this.createLocatorApi(tab, this.withLocatorOptions({ kind: 'css', value: String(selector) }, options)),
       getByTestId: (testId: string) => this.createLocatorApi(tab, { kind: 'testId', value: String(testId) }),
       getByText: (text: string, options?: { exact?: boolean }) => this.createLocatorApi(tab, {
         kind: 'text',
@@ -1824,19 +3815,63 @@ export class BrowserUseManager {
         exact: options?.exact === true,
         name: options?.name == null ? undefined : String(options.name)
       }),
-      frameLocator: () => {
-        throw new Error('Browser frameLocator is not supported in this Desktop runtime yet.')
-      },
-      describeApi: () => ['domSnapshot()', 'screenshot(options?)', 'waitForLoadState(stateOrOptions?, timeoutMs?)', 'waitForURL(url, options?)', 'waitForTimeout(ms)', 'expectNavigation(action, options?)', 'locator(selector)', 'getByRole(role, options?)', 'getByText(text, options?)', 'getByLabel(text, options?)', 'getByPlaceholder(text, options?)', 'getByTestId(testId)', 'waitForEvent(event) unsupported', 'frameLocator(selector) unsupported']
+      frameLocator: (selector: string) => this.createFrameLocatorApi(tab, String(selector)),
+      describeApi: () => ['evaluate(fnOrExpression, arg?, options?)', 'domSnapshot()', 'screenshot(options?)', 'waitForLoadState(stateOrOptions?, timeoutMs?)', 'waitForURL(url, options?)', 'waitForTimeout(ms)', 'expectNavigation(action, options?)', 'locator(selector, options?)', 'getByRole(role, options?)', 'getByText(text, options?)', 'getByLabel(text, options?)', 'getByPlaceholder(text, options?)', 'getByTestId(testId)', 'waitForEvent(event) unsupported', 'frameLocator(selector)']
+    }
+  }
+
+  private createFrameLocatorApi(tab: BrowserUseTabRuntime, frameSelector: string): Record<string, unknown> {
+    const frame = String(frameSelector ?? '').trim()
+    if (!frame) throw new Error('playwright.frameLocator requires a selector.')
+    const inFrame = (selector: string) => `${frame} >> internal:control=enter-frame >> ${selector}`
+    return {
+      locator: (selector: string, options?: Record<string, unknown>) => this.createLocatorApi(tab, this.withLocatorOptions({ kind: 'css', value: inFrame(String(selector)) }, options)),
+      getByTestId: (testId: string) => this.createLocatorApi(tab, { kind: 'css', value: inFrame(this.playwrightSelectorFor({ kind: 'testId', value: String(testId) })) }),
+      getByText: (text: string, options?: { exact?: boolean }) => this.createLocatorApi(tab, {
+        kind: 'css',
+        value: inFrame(this.playwrightSelectorFor({
+          kind: 'text',
+          value: String(text),
+          exact: options?.exact === true
+        }))
+      }),
+      getByLabel: (text: string, options?: { exact?: boolean }) => this.createLocatorApi(tab, {
+        kind: 'css',
+        value: inFrame(this.playwrightSelectorFor({
+          kind: 'label',
+          value: String(text),
+          exact: options?.exact === true
+        }))
+      }),
+      getByPlaceholder: (text: string, options?: { exact?: boolean }) => this.createLocatorApi(tab, {
+        kind: 'css',
+        value: inFrame(this.playwrightSelectorFor({
+          kind: 'placeholder',
+          value: String(text),
+          exact: options?.exact === true
+        }))
+      }),
+      getByRole: (role: string, options?: { exact?: boolean; name?: string }) => this.createLocatorApi(tab, {
+        kind: 'css',
+        value: inFrame(this.playwrightSelectorFor({
+          kind: 'role',
+          value: String(role),
+          exact: options?.exact === true,
+          name: options?.name == null ? undefined : String(options.name)
+        }))
+      }),
+      frameLocator: (selector: string) => this.createFrameLocatorApi(tab, inFrame(String(selector))),
+      describeApi: () => ['locator(selector, options?)', 'getByRole(role, options?)', 'getByText(text, options?)', 'getByLabel(text, options?)', 'getByPlaceholder(text, options?)', 'getByTestId(testId)', 'frameLocator(selector)']
     }
   }
 
   private createLocatorApi(tab: BrowserUseTabRuntime, descriptor: BrowserUseLocatorDescriptor): Record<string, unknown> {
     return {
+      __dotcraftLocatorDescriptor: descriptor,
       count: async () => (await this.resolveLocator(tab, descriptor)).length,
       all: async () => {
         const matches = await this.resolveLocator(tab, descriptor)
-        return matches.map((match) => this.createLocatorApi(tab, { ...descriptor, index: match.index }))
+        return matches.map((_match, index) => this.createLocatorApi(tab, { ...descriptor, index }))
       },
       click: async (_options?: unknown) => this.locatorClick(tab, descriptor),
       dblclick: async (_options?: unknown) => this.locatorDoubleClick(tab, descriptor),
@@ -1880,12 +3915,79 @@ export class BrowserUseManager {
         exact: options?.exact === true
       })),
       getByTestId: (testId: string) => this.createLocatorApi(tab, this.scopedLocatorDescriptor(tab, descriptor, { kind: 'testId', value: String(testId) })),
-      locator: (selector: string) => this.createLocatorApi(tab, this.scopedLocatorDescriptor(tab, descriptor, { kind: 'css', value: String(selector) })),
+      locator: (selector: string, options?: Record<string, unknown>) => this.createLocatorApi(tab, this.withLocatorOptions(
+        this.scopedLocatorDescriptor(tab, descriptor, { kind: 'css', value: String(selector) }),
+        options
+      )),
+      filter: (options?: Record<string, unknown>) => this.createLocatorApi(tab, this.withLocatorOptions(descriptor, options)),
+      and: (other: unknown) => this.createLocatorApi(tab, {
+        kind: 'and',
+        value: '',
+        left: descriptor,
+        right: this.locatorDescriptorFromApi(other, 'locator.and')
+      }),
+      or: (other: unknown) => this.createLocatorApi(tab, {
+        kind: 'or',
+        value: '',
+        left: descriptor,
+        right: this.locatorDescriptorFromApi(other, 'locator.or')
+      }),
       first: () => this.createLocatorApi(tab, { ...descriptor, index: 0 }),
       last: () => this.createLocatorApi(tab, { ...descriptor, index: -1 }),
       nth: (index: number) => this.createLocatorApi(tab, { ...descriptor, index: Math.trunc(Number(index)) }),
-      describeApi: () => ['count()', 'all()', 'click(options?)', 'dblclick(options?)', 'fill(value, options?)', 'type(value, options?)', 'press(key, options?)', 'innerText(options?)', 'textContent(options?)', 'getAttribute(name, options?)', 'isVisible()', 'isEnabled()', 'waitFor({ state, timeoutMs })', 'allTextContents(options?)', 'check(options?)', 'uncheck(options?)', 'setChecked(checked, options?)', 'selectOption(value, options?)', 'getByRole(role, options?)', 'getByText(text, options?)', 'getByLabel(text, options?)', 'getByPlaceholder(text, options?)', 'getByTestId(testId)', 'locator(selector)', 'first()', 'last()', 'nth(index)']
+      describeApi: () => ['count()', 'all()', 'filter(options)', 'and(locator)', 'or(locator)', 'click(options?)', 'dblclick(options?)', 'fill(value, options?)', 'type(value, options?)', 'press(key, options?)', 'innerText(options?)', 'textContent(options?)', 'getAttribute(name, options?)', 'isVisible()', 'isEnabled()', 'waitFor({ state, timeoutMs })', 'allTextContents(options?)', 'check(options?)', 'uncheck(options?)', 'setChecked(checked, options?)', 'selectOption(value, options?)', 'getByRole(role, options?)', 'getByText(text, options?)', 'getByLabel(text, options?)', 'getByPlaceholder(text, options?)', 'getByTestId(testId)', 'locator(selector, options?)', 'first()', 'last()', 'nth(index)']
     }
+  }
+
+  private withLocatorOptions(
+    descriptor: BrowserUseLocatorDescriptor,
+    options?: Record<string, unknown>
+  ): BrowserUseLocatorDescriptor {
+    const filters = this.locatorFiltersFromOptions(options)
+    if (filters.length === 0) return descriptor
+    return {
+      ...descriptor,
+      filters: [...(descriptor.filters ?? []), ...filters]
+    }
+  }
+
+  private locatorFiltersFromOptions(options?: Record<string, unknown>): BrowserUseLocatorFilter[] {
+    if (!options || typeof options !== 'object' || Array.isArray(options)) return []
+    const filters: BrowserUseLocatorFilter[] = []
+    if ('hasText' in options && options.hasText != null) {
+      filters.push({ kind: 'hasText', matcher: this.locatorTextMatcher(options.hasText, options) })
+    }
+    if ('hasNotText' in options && options.hasNotText != null) {
+      filters.push({ kind: 'hasNotText', matcher: this.locatorTextMatcher(options.hasNotText, options) })
+    }
+    if ('visible' in options && typeof options.visible === 'boolean') {
+      filters.push({ kind: 'visible', value: options.visible })
+    }
+    if (options.has != null) {
+      filters.push({ kind: 'has', descriptor: this.locatorDescriptorFromApi(options.has, 'locator.filter({ has })') })
+    }
+    if (options.hasNot != null) {
+      filters.push({ kind: 'hasNot', descriptor: this.locatorDescriptorFromApi(options.hasNot, 'locator.filter({ hasNot })') })
+    }
+    return filters
+  }
+
+  private locatorTextMatcher(value: unknown, options?: Record<string, unknown>): BrowserUseLocatorTextMatcher {
+    if (value instanceof RegExp) return { pattern: value.source, flags: value.flags }
+    return {
+      value: String(value ?? ''),
+      exact: options?.exact === true
+    }
+  }
+
+  private locatorDescriptorFromApi(value: unknown, operation: string): BrowserUseLocatorDescriptor {
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      const descriptor = (value as Record<string, unknown>).__dotcraftLocatorDescriptor
+      if (descriptor && typeof descriptor === 'object' && !Array.isArray(descriptor)) {
+        return descriptor as BrowserUseLocatorDescriptor
+      }
+    }
+    throw new Error(`InvalidArgument: ${operation} requires another DotCraft locator.`)
   }
 
   private scopedLocatorDescriptor(
@@ -1945,36 +4047,58 @@ export class BrowserUseManager {
 
   private async goBack(tab: BrowserUseTabRuntime): Promise<Record<string, unknown>> {
     this.markAutomation(tab, 'back')
-    this.invalidateSnapshotRefs(tab)
+    this.clearNavigationFailure(tab)
+    this.invalidatePageScopedCaches(tab)
     const wc = this.webContentsFor(tab.owner, tab.id)
     if (wc.navigationHistory.canGoBack()) wc.navigationHistory.goBack()
-    await this.waitForLoad(tab, 'load', 30_000).catch(() => {})
+    await this.waitForLoad(tab, 'load', 30_000).catch((error) => {
+      if (error instanceof BrowserUseBackendError && error.message.startsWith('NavigationFailed:')) throw error
+    })
+    this.throwIfNavigationFailed(tab)
     return this.tabSnapshot(tab)
   }
 
   private async goForward(tab: BrowserUseTabRuntime): Promise<Record<string, unknown>> {
     this.markAutomation(tab, 'forward')
-    this.invalidateSnapshotRefs(tab)
+    this.clearNavigationFailure(tab)
+    this.invalidatePageScopedCaches(tab)
     const wc = this.webContentsFor(tab.owner, tab.id)
     if (wc.navigationHistory.canGoForward()) wc.navigationHistory.goForward()
-    await this.waitForLoad(tab, 'load', 30_000).catch(() => {})
+    await this.waitForLoad(tab, 'load', 30_000).catch((error) => {
+      if (error instanceof BrowserUseBackendError && error.message.startsWith('NavigationFailed:')) throw error
+    })
+    this.throwIfNavigationFailed(tab)
     return this.tabSnapshot(tab)
   }
 
   private async reload(tab: BrowserUseTabRuntime): Promise<Record<string, unknown>> {
     this.markAutomation(tab, 'reload')
-    this.invalidateSnapshotRefs(tab)
+    this.clearNavigationFailure(tab)
+    this.invalidatePageScopedCaches(tab)
     this.webContentsFor(tab.owner, tab.id).reload()
-    await this.waitForLoad(tab, 'load', 30_000).catch(() => {})
+    await this.waitForLoad(tab, 'load', 30_000).catch((error) => {
+      if (error instanceof BrowserUseBackendError && error.message.startsWith('NavigationFailed:')) throw error
+    })
+    this.throwIfNavigationFailed(tab)
     return this.tabSnapshot(tab)
   }
 
   private closeTab(tab: BrowserUseTabRuntime): void {
+    if (tab.closed) return
     this.markAutomation(tab, 'close')
     const runtime = this.getRuntimeForTab(tab)
     this.detachDebugger(tab)
+    this.invalidatePageScopedCaches(tab)
+    this.forgetBackendTab(runtime, tab)
     this.viewerHost.destroyTab(tab.owner, tab.id)
     runtime.tabs.delete(tab.id)
+    tab.closed = true
+    let closedTabIds = this.closedTabIdsByOwner.get(tab.owner)
+    if (!closedTabIds) {
+      closedTabIds = new Set()
+      this.closedTabIdsByOwner.set(tab.owner, closedTabIds)
+    }
+    closedTabIds.add(tab.id)
     if (runtime.selectedTabId === tab.id) runtime.selectedTabId = null
   }
 
@@ -1986,7 +4110,8 @@ export class BrowserUseManager {
     const normalized = normalizeBrowserUseUrl(url)
     if (!normalized) throw new Error(`Invalid browser URL: ${url}`)
     this.markAutomation(tab, 'navigate')
-    this.invalidateSnapshotRefs(tab)
+    this.clearNavigationFailure(tab)
+    this.invalidatePageScopedCaches(tab)
     if (options.skipPolicyCheck !== true) {
       const runtime = this.getRuntimeForTab(tab)
       await this.ensureNavigationAllowed(tab.owner, runtime, tab.id, normalized)
@@ -2000,11 +4125,17 @@ export class BrowserUseManager {
     tab.snapshotGeneration += 1
   }
 
+  private invalidatePageScopedCaches(tab: BrowserUseTabRuntime): void {
+    this.invalidateSnapshotRefs(tab)
+    tab.domCuaNodes.clear()
+    tab.pageAssetInventories.clear()
+  }
+
   private getRuntimeForTab(tab: BrowserUseTabRuntime): BrowserUseThreadRuntime {
     for (const runtime of this.runtimes.values()) {
       if (runtime.tabs.get(tab.id) === tab) return runtime
     }
-    throw new Error(`Browser tab is no longer attached to a runtime: ${tab.id}`)
+    throw BrowserUseBackendError.pageClosed(tab.id)
   }
 
   private async ensureNavigationAllowed(
@@ -2167,7 +4298,9 @@ export class BrowserUseManager {
     const elements = this.assignSnapshotRefs(tab, snapshot.elements)
     const accessibilitySnapshot = this.formatAccessibilitySnapshot(elements)
     return JSON.stringify({
-      ...snapshot,
+      title: snapshot.title,
+      url: snapshot.url,
+      bodyText: snapshot.bodyText,
       accessibilitySnapshot,
       elements
     }, null, 2)
@@ -2438,16 +4571,49 @@ export class BrowserUseManager {
     `, 'playwright.inject')
   }
 
-  private async evaluateInPage(tab: BrowserUseTabRuntime, expressionOrFunction: string | (() => unknown)): Promise<unknown> {
+  private async evaluateInPage(
+    tab: BrowserUseTabRuntime,
+    expressionOrFunction: string | ((arg?: unknown) => unknown),
+    arg?: unknown,
+    options?: { timeoutMs?: number; timeout?: number }
+  ): Promise<unknown> {
     const source = typeof expressionOrFunction === 'function'
-      ? `(${expressionOrFunction.toString()})()`
+      ? `((fn, arg) => fn(arg))(${expressionOrFunction.toString()}, ${this.evaluateArgSource(arg)})`
       : String(expressionOrFunction)
+    return this.evaluateSourceInPage(tab, source, options)
+  }
+
+  private async evaluateSourceInPage(
+    tab: BrowserUseTabRuntime,
+    source: string,
+    options?: { timeoutMs?: number; timeout?: number }
+  ): Promise<unknown> {
+    const timeoutMs = this.normalizeEvaluateTimeout(options)
     await this.waitForPageReady(tab, {
       operation: 'evaluate.ready',
       requireContent: false,
-      timeoutMs: this.operationTimeoutMs()
+      timeoutMs
     })
-    return this.executeJavaScript(tab, source, 'evaluate')
+    return this.executeJavaScript(tab, source, 'evaluate', true, timeoutMs)
+  }
+
+  private normalizeEvaluateTimeout(options?: { timeoutMs?: number; timeout?: number }): number {
+    const raw = options?.timeoutMs ?? options?.timeout
+    const timeoutMs = typeof raw === 'number' && Number.isFinite(raw)
+      ? raw
+      : this.operationTimeoutMs()
+    return Math.max(1, Math.min(Math.floor(timeoutMs), 120_000))
+  }
+
+  private evaluateArgSource(arg: unknown): string {
+    if (arg === undefined) return 'undefined'
+    try {
+      const serialized = JSON.stringify(arg)
+      if (serialized === undefined) return 'undefined'
+      return serialized
+    } catch {
+      throw new Error('playwright.evaluate arg must be JSON-serializable.')
+    }
   }
 
   private async click(tab: BrowserUseTabRuntime, selector: string): Promise<void> {
@@ -2505,13 +4671,43 @@ export class BrowserUseManager {
 
   private async cuaScroll(tab: BrowserUseTabRuntime, options: { x: number; y: number; scrollX: number; scrollY: number }): Promise<void> {
     this.markAutomation(tab, 'scroll')
-    await this.withBrowserOperation(tab, 'cua.scroll', () => this.viewerHost.scrollMouse(tab.owner, {
-      tabId: tab.id,
-      x: Number(options.x),
-      y: Number(options.y),
-      scrollX: Number(options.scrollX ?? 0),
-      scrollY: Number(options.scrollY ?? 0)
-    }))
+    const x = Number(options.x)
+    const y = Number(options.y)
+    const scrollX = Number(options.scrollX ?? 0)
+    const scrollY = Number(options.scrollY ?? 0)
+    if (scrollX === 0 && scrollY === 0) {
+      throw BrowserUseBackendError.invalidArgument('Scroll requires a non-zero distance. For CUA use scrollX/scrollY or deltaX/deltaY; for DOM-CUA page scroll use { y: 700 }.')
+    }
+    await this.withBrowserOperation(tab, 'cua.scroll', async () => {
+      await this.viewerHost.moveMouse(tab.owner, { tabId: tab.id, x, y })
+      try {
+        await this.cdpCommand(tab, 'Input.synthesizeScrollGesture', {
+          x,
+          y,
+          xDistance: -scrollX,
+          yDistance: -scrollY,
+          gestureSourceType: 'mouse',
+          preventFling: true,
+          speed: 8000
+        })
+      } catch (error) {
+        if (!this.isCdpUnavailableError(error)) throw error
+        await this.viewerHost.scrollMouse(tab.owner, {
+          tabId: tab.id,
+          x,
+          y,
+          scrollX,
+          scrollY
+        })
+      }
+    })
+  }
+
+  private isCdpUnavailableError(error: unknown): boolean {
+    const message = error instanceof Error ? error.message : String(error)
+    if (message.includes('does not expose Electron debugger/CDP')) return true
+    return message.includes('Input.synthesizeScrollGesture') &&
+      /unknown method|not found|not available|unsupported/i.test(message)
   }
 
   private async cuaType(tab: BrowserUseTabRuntime, options: { text: string }): Promise<void> {
@@ -2749,6 +4945,9 @@ export class BrowserUseManager {
     tab: BrowserUseTabRuntime,
     descriptor: BrowserUseLocatorDescriptor
   ): Promise<BrowserUseElementMatch[]> {
+    if (descriptor.kind === 'and' || descriptor.kind === 'or') {
+      return await this.resolveCompositeLocator(tab, descriptor)
+    }
     const snapshotRef = descriptor.kind === 'ref'
       ? this.snapshotRef(tab, descriptor.value)
       : null
@@ -2768,7 +4967,105 @@ export class BrowserUseManager {
       .filter((match) => this.matchesSnapshotRef(match, snapshotRef))
       .map((match) => ({ ...match, ref: snapshotRef.ref }))
       : normalized
-    return this.applyLocatorIndex(filtered, descriptor)
+    return this.applyLocatorIndex(await this.applyLocatorFilters(tab, filtered, descriptor), descriptor)
+  }
+
+  private async resolveCompositeLocator(
+    tab: BrowserUseTabRuntime,
+    descriptor: BrowserUseLocatorDescriptor
+  ): Promise<BrowserUseElementMatch[]> {
+    if (!descriptor.left || !descriptor.right) {
+      throw new Error(`Unsupported browser locator: ${this.describeLocator(descriptor)}`)
+    }
+    const left = await this.resolveLocator(tab, descriptor.left)
+    const right = await this.resolveLocator(tab, descriptor.right)
+    const rightKeys = new Set(right.map((match) => this.locatorMatchKey(match)))
+    const combined = descriptor.kind === 'and'
+      ? left.filter((match) => rightKeys.has(this.locatorMatchKey(match)))
+      : this.uniqueLocatorMatches([...left, ...right])
+    return this.applyLocatorIndex(await this.applyLocatorFilters(tab, combined, descriptor), descriptor)
+  }
+
+  private uniqueLocatorMatches(matches: BrowserUseElementMatch[]): BrowserUseElementMatch[] {
+    const seen = new Set<string>()
+    const result: BrowserUseElementMatch[] = []
+    for (const match of matches) {
+      const key = this.locatorMatchKey(match)
+      if (seen.has(key)) continue
+      seen.add(key)
+      result.push(match)
+    }
+    return result
+  }
+
+  private locatorMatchKey(match: BrowserUseElementMatch): string {
+    return [
+      match.ref ?? '',
+      match.selector,
+      match.href ?? '',
+      match.testId ?? '',
+      match.role,
+      match.name || match.text || match.visibleText,
+      match.index
+    ].join('\u0000')
+  }
+
+  private async applyLocatorFilters(
+    tab: BrowserUseTabRuntime,
+    matches: BrowserUseElementMatch[],
+    descriptor: BrowserUseLocatorDescriptor
+  ): Promise<BrowserUseElementMatch[]> {
+    const filters = descriptor.filters ?? []
+    if (filters.length === 0) return matches
+    const result: BrowserUseElementMatch[] = []
+    for (const match of matches) {
+      let include = true
+      for (const filter of filters) {
+        if (!await this.locatorFilterMatches(tab, match, filter)) {
+          include = false
+          break
+        }
+      }
+      if (include) result.push(match)
+    }
+    return result
+  }
+
+  private async locatorFilterMatches(
+    tab: BrowserUseTabRuntime,
+    match: BrowserUseElementMatch,
+    filter: BrowserUseLocatorFilter
+  ): Promise<boolean> {
+    if (filter.kind === 'hasText') return this.matchesLocatorText(match.visibleText || match.text || match.name, filter.matcher)
+    if (filter.kind === 'hasNotText') return !this.matchesLocatorText(match.visibleText || match.text || match.name, filter.matcher)
+    if (filter.kind === 'visible') return match.visible === (filter.value !== false)
+    if (filter.kind === 'has' || filter.kind === 'hasNot') {
+      if (!filter.descriptor || !match.selector) return filter.kind === 'hasNot'
+      const childDescriptor = this.scopedLocatorDescriptor(tab, { kind: 'css', value: match.selector }, filter.descriptor)
+      const count = (await this.resolveLocator(tab, childDescriptor)).length
+      return filter.kind === 'has' ? count > 0 : count === 0
+    }
+    return true
+  }
+
+  private matchesLocatorText(value: string, matcher?: BrowserUseLocatorTextMatcher): boolean {
+    const actual = this.normalizeLocatorText(value)
+    if (!matcher) return actual.length > 0
+    if (matcher.pattern != null) {
+      try {
+        return new RegExp(matcher.pattern, matcher.flags ?? '').test(actual)
+      } catch (error) {
+        throw new Error(`InvalidArgument: invalid locator text matcher RegExp: ${error instanceof Error ? error.message : String(error)}`)
+      }
+    }
+    const expected = this.normalizeLocatorText(matcher.value ?? '')
+    return matcher.exact === true
+      ? actual === expected
+      : actual.toLowerCase().includes(expected.toLowerCase())
+  }
+
+  private normalizeLocatorText(value: string): string {
+    return String(value ?? '').replace(/\s+/g, ' ').trim()
   }
 
   private applyLocatorIndex(
@@ -3013,6 +5310,7 @@ export class BrowserUseManager {
     const wc = this.webContentsFor(tab.owner, tab.id)
     const expectedDescription = this.describeExpectedUrl(expectedUrl)
     const matches = (url: string) => this.urlMatches(url, expectedUrl)
+    this.throwIfNavigationFailed(tab)
     if (matches(wc.getURL())) return Promise.resolve()
     return new Promise((resolve, reject) => {
       const signal = this.getRuntimeForTab(tab).activeAbortSignal
@@ -3026,9 +5324,23 @@ export class BrowserUseManager {
         reject(new Error(`Browser operation 'waitForURL' timed out after ${effectiveTimeoutMs}ms for tab ${tab.id}: ${expectedDescription}; current=${wc.getURL() || 'about:blank'}`))
       }, effectiveTimeoutMs)
       const done = () => {
+        try {
+          this.throwIfNavigationFailed(tab)
+        } catch (error) {
+          cleanup()
+          reject(error)
+          return
+        }
         if (!matches(wc.getURL())) return
         cleanup()
         resolve()
+      }
+      const onFailLoad = (...args: unknown[]) => {
+        const failure = this.navigationFailureFromWebContentsArgs(tab, args)
+        if (!failure) return
+        this.recordNavigationFailure(tab, failure)
+        cleanup()
+        reject(this.navigationFailureError(failure))
       }
       const poll = setInterval(done, 100)
       const onAbort = () => {
@@ -3041,12 +5353,14 @@ export class BrowserUseManager {
         wc.off('did-navigate', done)
         wc.off('did-navigate-in-page', done)
         wc.off('did-stop-loading', done)
+        wc.off('did-fail-load', onFailLoad)
         signal?.removeEventListener('abort', onAbort)
       }
       signal?.addEventListener('abort', onAbort, { once: true })
       wc.on('did-navigate', done)
       wc.on('did-navigate-in-page', done)
       wc.on('did-stop-loading', done)
+      wc.on('did-fail-load', onFailLoad)
       done()
     })
   }
@@ -3085,7 +5399,11 @@ export class BrowserUseManager {
 
   private describeLocator(descriptor: BrowserUseLocatorDescriptor): string {
     const index = descriptor.index === undefined ? '' : `[${descriptor.index}]`
-    return `${descriptor.kind}=${descriptor.name ?? descriptor.value}${index}`
+    if (descriptor.kind === 'and' || descriptor.kind === 'or') {
+      return `${descriptor.kind}(${descriptor.left ? this.describeLocator(descriptor.left) : '?'}, ${descriptor.right ? this.describeLocator(descriptor.right) : '?'})${index}`
+    }
+    const filters = descriptor.filters?.length ? `.filter(${descriptor.filters.map((filter) => filter.kind).join(',')})` : ''
+    return `${descriptor.kind}=${descriptor.name ?? descriptor.value}${filters}${index}`
   }
 
   private normalizeLoadState(state: string): BrowserUseLoadState {
@@ -3128,6 +5446,7 @@ export class BrowserUseManager {
 
   private waitForCommit(tab: BrowserUseTabRuntime, timeoutMs: number): Promise<void> {
     const wc = this.webContentsFor(tab.owner, tab.id)
+    this.throwIfNavigationFailed(tab)
     if (wc.getURL()) return Promise.resolve()
     return new Promise((resolve, reject) => {
       const signal = this.getRuntimeForTab(tab).activeAbortSignal
@@ -3140,8 +5459,22 @@ export class BrowserUseManager {
         reject(new Error(`Browser operation 'waitForLoadState.commit' timed out after ${timeoutMs}ms for tab ${tab.id}.`))
       }, timeoutMs)
       const done = () => {
+        try {
+          this.throwIfNavigationFailed(tab)
+        } catch (error) {
+          cleanup()
+          reject(error)
+          return
+        }
         cleanup()
         resolve()
+      }
+      const onFailLoad = (...args: unknown[]) => {
+        const failure = this.navigationFailureFromWebContentsArgs(tab, args)
+        if (!failure) return
+        this.recordNavigationFailure(tab, failure)
+        cleanup()
+        reject(this.navigationFailureError(failure))
       }
       const onAbort = () => {
         cleanup()
@@ -3151,16 +5484,19 @@ export class BrowserUseManager {
         clearTimeout(timeout)
         wc.off('did-start-loading', done)
         wc.off('did-navigate', done)
+        wc.off('did-fail-load', onFailLoad)
         signal?.removeEventListener('abort', onAbort)
       }
       signal?.addEventListener('abort', onAbort, { once: true })
       wc.once('did-start-loading', done)
       wc.once('did-navigate', done)
+      wc.once('did-fail-load', onFailLoad)
     })
   }
 
   private waitForLoadEvent(tab: BrowserUseTabRuntime, timeoutMs: number): Promise<void> {
     const wc = this.webContentsFor(tab.owner, tab.id)
+    this.throwIfNavigationFailed(tab)
     if (!wc.isLoading()) return Promise.resolve()
     return new Promise((resolve, reject) => {
       const signal = this.getRuntimeForTab(tab).activeAbortSignal
@@ -3173,8 +5509,22 @@ export class BrowserUseManager {
         reject(new Error(`Browser operation 'waitForLoadState' timed out after ${Math.max(1_000, Math.min(timeoutMs, 120_000))}ms for tab ${tab.id}.`))
       }, Math.max(1_000, Math.min(timeoutMs, 120_000)))
       const done = () => {
+        try {
+          this.throwIfNavigationFailed(tab)
+        } catch (error) {
+          cleanup()
+          reject(error)
+          return
+        }
         cleanup()
         resolve()
+      }
+      const onFailLoad = (...args: unknown[]) => {
+        const failure = this.navigationFailureFromWebContentsArgs(tab, args)
+        if (!failure) return
+        this.recordNavigationFailure(tab, failure)
+        cleanup()
+        reject(this.navigationFailureError(failure))
       }
       const onAbort = () => {
         cleanup()
@@ -3184,11 +5534,13 @@ export class BrowserUseManager {
         clearTimeout(timeout)
         wc.off('did-finish-load', done)
         wc.off('did-stop-loading', done)
+        wc.off('did-fail-load', onFailLoad)
         signal?.removeEventListener('abort', onAbort)
       }
       signal?.addEventListener('abort', onAbort, { once: true })
       wc.once('did-finish-load', done)
       wc.once('did-stop-loading', done)
+      wc.once('did-fail-load', onFailLoad)
     })
   }
 
@@ -3196,6 +5548,7 @@ export class BrowserUseManager {
     const wc = this.webContentsFor(tab.owner, tab.id)
     const deadline = Date.now() + timeoutMs
     for (;;) {
+      this.throwIfNavigationFailed(tab)
       if (Date.now() >= deadline) {
         throw new Error(`Browser operation 'waitForLoadState.networkidle' timed out after ${timeoutMs}ms for tab ${tab.id} at ${wc.getURL() || 'about:blank'}.`)
       }
@@ -3212,6 +5565,13 @@ export class BrowserUseManager {
           reject(new Error(`Browser operation 'waitForLoadState.networkidle' timed out after ${timeoutMs}ms for tab ${tab.id} at ${wc.getURL() || 'about:blank'}.`))
         }, Math.max(1, deadline - Date.now()))
         const finish = () => {
+          try {
+            this.throwIfNavigationFailed(tab)
+          } catch (error) {
+            cleanup()
+            reject(error)
+            return
+          }
           cleanup()
           resolve()
         }
@@ -3223,16 +5583,25 @@ export class BrowserUseManager {
           cleanup()
           reject(new Error(`Browser operation 'waitForLoadState.networkidle' was cancelled for tab ${tab.id}.`))
         }
+        const onFailLoad = (...args: unknown[]) => {
+          const failure = this.navigationFailureFromWebContentsArgs(tab, args)
+          if (!failure) return
+          this.recordNavigationFailure(tab, failure)
+          cleanup()
+          reject(this.navigationFailureError(failure))
+        }
         const cleanup = () => {
           clearTimeout(quietTimer)
           clearTimeout(hardTimer)
           wc.off('did-start-loading', restart)
           wc.off('did-stop-loading', restart)
+          wc.off('did-fail-load', onFailLoad)
           signal?.removeEventListener('abort', onAbort)
         }
         signal?.addEventListener('abort', onAbort, { once: true })
         wc.on('did-start-loading', restart)
         wc.on('did-stop-loading', restart)
+        wc.on('did-fail-load', onFailLoad)
         restart()
       })
       if (!wc.isLoading()) return

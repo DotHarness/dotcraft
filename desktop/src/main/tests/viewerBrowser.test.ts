@@ -162,7 +162,15 @@ describe('ViewerBrowserManager partition configuration', () => {
 
 describe('loadOrReport', () => {
   it('emits did-fail-load and did-stop-loading when load rejects', async () => {
-    const events: Array<{ type: string; message?: string; url?: string }> = []
+    const events: Array<{
+      type: string
+      message?: string
+      url?: string
+      errorDescription?: string
+      validatedURL?: string
+      finalURL?: string
+      isMainFrame?: boolean
+    }> = []
     await expect(loadOrReport({
       tabId: 'tab-1',
       url: 'https://example.com/',
@@ -171,7 +179,11 @@ describe('loadOrReport', () => {
         events.push({
           type: payload.type,
           message: 'message' in payload ? payload.message : undefined,
-          url: 'url' in payload ? payload.url : undefined
+          url: 'url' in payload ? payload.url : undefined,
+          errorDescription: payload.errorDescription,
+          validatedURL: payload.validatedURL,
+          finalURL: payload.finalURL,
+          isMainFrame: payload.isMainFrame
         })
       }
     })).resolves.toBeUndefined()
@@ -180,12 +192,20 @@ describe('loadOrReport', () => {
     expect(events[0]).toEqual({
       type: 'did-fail-load',
       message: 'load failed',
-      url: 'https://example.com/'
+      url: 'https://example.com/',
+      errorDescription: 'load failed',
+      validatedURL: 'https://example.com/',
+      finalURL: 'https://example.com/',
+      isMainFrame: true
     })
     expect(events[1]).toEqual({
       type: 'did-stop-loading',
       message: undefined,
-      url: 'https://example.com/'
+      url: 'https://example.com/',
+      errorDescription: undefined,
+      validatedURL: undefined,
+      finalURL: undefined,
+      isMainFrame: undefined
     })
   })
 
@@ -225,7 +245,7 @@ describe('ViewerBrowserManager tab creation', () => {
 
     manager.createTab(createFakeWindow(), {
       tabId: 'tab-regular',
-      workspacePath: 'F:/workspace',
+      workspacePath: '/workspace/test-root',
       initialUrl: 'about:blank'
     })
 
@@ -238,7 +258,7 @@ describe('ViewerBrowserManager tab creation', () => {
 
     manager.createAutomationTab(createFakeWindow(), {
       tabId: 'tab-automation',
-      workspacePath: 'F:/workspace',
+      workspacePath: '/workspace/test-root',
       initialUrl: 'about:blank'
     })
 
@@ -285,7 +305,7 @@ describe('ViewerBrowserManager automation input', () => {
       activeTabId: null,
       tabs: new Map([['tab-1', {
         tabId: 'tab-1',
-        workspacePath: 'F:/workspace',
+        workspacePath: '/workspace/test-root',
         view: { webContents, setBounds },
         desiredVisible: true,
         visible: true,
@@ -315,7 +335,7 @@ describe('ViewerBrowserManager automation input', () => {
 
     manager.createAutomationTab(win, {
       tabId: 'tab-center',
-      workspacePath: 'F:/workspace',
+      workspacePath: '/workspace/test-root',
       width: 1280,
       height: 900
     })
@@ -441,7 +461,7 @@ describe('ViewerBrowserManager automation input', () => {
         ['tab-other', {
           tabId: 'tab-other',
           threadId: 'thread-other',
-          workspacePath: 'F:/workspace',
+          workspacePath: '/workspace/test-root',
           view: { webContents },
           desiredVisible: true,
           visible: true,
@@ -452,7 +472,7 @@ describe('ViewerBrowserManager automation input', () => {
         ['tab-current', {
           tabId: 'tab-current',
           threadId: 'thread-a',
-          workspacePath: 'F:/workspace',
+          workspacePath: '/workspace/test-root',
           view: { webContents },
           desiredVisible: true,
           visible: true,

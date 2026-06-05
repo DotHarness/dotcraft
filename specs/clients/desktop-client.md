@@ -778,6 +778,7 @@ User input request delivery follows the same reliability expectation: if the dia
 
 - When Desktop declares the browser capability, embedded browser tabs may be controlled by the active agent through the thread-bound browser runtime.
 - Desktop must declare `browserUse.backend` and may also declare `browserUse.backends` when it supports more than one browser automation backend. `desktop-iab` identifies the embedded browser backend; `chrome-extension` identifies the user's Chrome backend.
+- The Desktop embedded browser runtime contract is defined in [Desktop In-App Browser Runtime](../runtime/desktop-inapp-browser.md).
 - Agent-controlled browser tabs remain regular viewer tabs: opening a browser tab may focus it on first open, but subsequent automation updates must not steal focus from the user's current thread or active tab.
 - While an agent is actively operating a browser tab, Desktop must surface an automation state on the tab chrome, including the session name when available and a concise last-action hint when useful.
 - Coordinate and locator-driven browser actions should render a virtual cursor inside the page whenever the page can accept the injected overlay. Failure to render the overlay must not block the underlying browser action.

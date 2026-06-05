@@ -310,18 +310,30 @@ export async function loadOrReport(params: {
   url: string
   load: () => Promise<unknown>
   emit: (payload: BrowserEventPayload) => void
+  throwOnFailure?: boolean
 }): Promise<void> {
   try {
     await params.load()
   } catch (error: unknown) {
     if (isNavigationAbortError(error)) return
     const message = error instanceof Error ? error.message : String(error)
+    const details = error && typeof error === 'object' ? error as { code?: unknown; errno?: unknown } : {}
+    const numericCode = typeof details.code === 'number'
+      ? details.code
+      : typeof details.errno === 'number'
+        ? details.errno
+        : undefined
     params.emit({
       tabId: params.tabId,
       threadId: params.threadId,
       type: 'did-fail-load',
       url: params.url,
-      message
+      message,
+      errorCode: numericCode,
+      errorDescription: message,
+      validatedURL: params.url,
+      finalURL: params.url,
+      isMainFrame: true
     })
     params.emit({
       tabId: params.tabId,
@@ -329,6 +341,9 @@ export async function loadOrReport(params: {
       type: 'did-stop-loading',
       url: params.url
     })
+    if (params.throwOnFailure) {
+      throw new Error(`NavigationFailed: ${message}`)
+    }
   }
 }
 
@@ -498,7 +513,8 @@ export class ViewerBrowserManager {
       threadId: tab.threadId,
       url: params.url,
       load: () => tab.view.webContents.loadURL(params.url),
-      emit: (payload) => emitBrowserEvent(win, payload)
+      emit: (payload) => emitBrowserEvent(win, payload),
+      throwOnFailure: true
     })
   }
 
@@ -977,7 +993,12 @@ export class ViewerBrowserManager {
         threadId: tab.threadId,
         type: 'did-fail-load',
         url: validatedURL,
-        message: errorDescription
+        message: errorDescription,
+        errorCode,
+        errorDescription,
+        validatedURL,
+        finalURL: tab.view.webContents.getURL(),
+        isMainFrame
       })
     })
     wc.on('page-title-updated', (event, title) => {
