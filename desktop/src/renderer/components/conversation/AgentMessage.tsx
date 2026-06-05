@@ -8,7 +8,8 @@ import { ContextMenu, type ContextMenuItem, type ContextMenuPosition } from '../
 import { MarkdownRenderer } from './MarkdownRenderer'
 import { MessageCopyButton } from './MessageCopyButton'
 import { ActionTooltip } from '../ui/ActionTooltip'
-import { canForkThread, runThreadFork } from '../../utils/threadFork'
+import { canForkThread, canForkWorktree, runThreadFork, type ThreadForkMode } from '../../utils/threadFork'
+import { ForkChoiceDialog } from './ForkChoiceDialog'
 
 interface AgentMessageProps {
   text: string
@@ -18,6 +19,8 @@ interface AgentMessageProps {
   streaming?: boolean
   createdAt?: string
   showFooter?: boolean
+  /** Whether this message belongs to the latest turn (forks straight to local). */
+  isLastTurn?: boolean
   afterContent?: ReactNode
 }
 
@@ -33,6 +36,7 @@ export function AgentMessage({
   streaming = false,
   createdAt,
   showFooter = true,
+  isLastTurn = false,
   afterContent
 }: AgentMessageProps): JSX.Element {
   const t = useT()
@@ -41,11 +45,13 @@ export function AgentMessage({
   const [focusedWithin, setFocusedWithin] = useState(false)
   const [forkButtonHovered, setForkButtonHovered] = useState(false)
   const [forkButtonFocused, setForkButtonFocused] = useState(false)
+  const [forkChoiceOpen, setForkChoiceOpen] = useState(false)
   const [contextMenuPosition, setContextMenuPosition] = useState<ContextMenuPosition | null>(null)
   const [selectionText, setSelectionText] = useState('')
   const actionsVisible = hovered || focusedWithin
   const forkButtonChromeVisible = forkButtonHovered || forkButtonFocused
   const forkAvailable = canForkThread(capabilities) && Boolean(threadId && turnId)
+  const worktreeForkAvailable = canForkWorktree(capabilities)
   const sentTime = formatMessageTime(createdAt)
   // Steady-cadence typewriter reveal while streaming; full text once finalized.
   const displayText = useTypewriterReveal(text, streaming)
@@ -67,11 +73,11 @@ export function AgentMessage({
     setContextMenuPosition({ x: event.clientX, y: event.clientY })
   }
 
-  function forkMessage(): void {
+  function forkInto(mode: ThreadForkMode): void {
     if (!threadId || !turnId) return
     void runThreadFork({
       threadId,
-      mode: 'local',
+      mode,
       forkPoint: {
         turnId,
         ...(itemId ? { itemId } : {}),
@@ -79,6 +85,19 @@ export function AgentMessage({
       },
       t
     })
+  }
+
+  // Last turn: fork straight into a local chat (matches the existing one-click
+  // behavior). Earlier turns are ambiguous about the working-tree state, so let
+  // the user choose local vs. worktree — unless worktree forks aren't available,
+  // in which case there's only one destination and the prompt adds nothing.
+  function handleForkClick(): void {
+    if (!threadId || !turnId) return
+    if (isLastTurn || !worktreeForkAvailable) {
+      forkInto('local')
+      return
+    }
+    setForkChoiceOpen(true)
   }
 
   const contextItems = useMemo<ContextMenuItem[]>(() => {
@@ -164,7 +183,7 @@ export function AgentMessage({
                 onBlur={() => setForkButtonFocused(false)}
                 onClick={(event) => {
                   event.stopPropagation()
-                  forkMessage()
+                  handleForkClick()
                 }}
                 style={{
                   width: '24px',
@@ -206,6 +225,15 @@ export function AgentMessage({
           onClose={() => {
             setContextMenuPosition(null)
           }}
+        />
+      )}
+      {forkChoiceOpen && (
+        <ForkChoiceDialog
+          onChoose={(mode) => {
+            setForkChoiceOpen(false)
+            forkInto(mode)
+          }}
+          onCancel={() => setForkChoiceOpen(false)}
         />
       )}
     </div>

@@ -95,6 +95,7 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
   isRunning = false,
   streamRetrySignals = [],
   isActiveTurn = false,
+  isLastTurn = false,
   showIdleThinkingFallback = false,
   activeItemIdOverride,
   historicalToolContentMode = 'full'
@@ -213,6 +214,7 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
               itemId={item.id}
               streaming={isLiveStreaming}
               createdAt={item.createdAt}
+              isLastTurn={isLastTurn}
               showFooter={item.id === footerAgentMessageId}
               afterContent={item.id === footerAgentMessageId ? turnCompletionContent : undefined}
             />
