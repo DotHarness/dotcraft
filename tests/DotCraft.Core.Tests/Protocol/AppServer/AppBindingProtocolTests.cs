@@ -684,6 +684,68 @@ public sealed class AppBindingProtocolTests : IDisposable
     }
 
     [Fact]
+    public async Task ConnectionConnect_ExposesOnlySafePublicMetadata()
+    {
+        WriteOratorioPlugin();
+        var service = new AppBindingService();
+        using var harness = CreateHarness(service);
+        await harness.InitializeAsync();
+
+        using var startResponse = await ExecuteAndReadResponseAsync(
+            harness,
+            AppConnectionStart,
+            new { appId = "com.dotharness.oratorio" },
+            expectedNotificationMethod: "app/connection/changed");
+        var connectionRequestId = startResponse.RootElement.GetProperty("result").GetProperty("connectionRequestId").GetString()!;
+        var token = ExtractToken(startResponse.RootElement
+            .GetProperty("result")
+            .GetProperty("handoff")
+            .GetProperty("uri")
+            .GetString()!);
+
+        using var connectResponse = await ExecuteAndReadResponseAsync(
+            harness,
+            AppConnectionConnect,
+            new
+            {
+                connectionRequestId,
+                requestToken = token,
+                appId = "com.dotharness.oratorio",
+                accountLabel = "local-oratorio",
+                connectionProof = new
+                {
+                    secret = "not returned"
+                },
+                publicMetadata = new
+                {
+                    displayName = "Oratorio Local",
+                    ignored = "not returned",
+                    surfaceEndpoints = new
+                    {
+                        boardApiBaseUrl = "http://127.0.0.1:5087/api/v1",
+                        unsafeUrl = "https://example.com/private"
+                    }
+                }
+            },
+            expectedNotificationMethod: "app/connection/changed");
+        AppServerTestHarness.AssertIsSuccessResponse(connectResponse);
+
+        using var statusResponse = await ExecuteAndReadResponseAsync(
+            harness,
+            AppConnectionStatus,
+            new { appId = "com.dotharness.oratorio" });
+        AppServerTestHarness.AssertIsSuccessResponse(statusResponse);
+        var metadata = statusResponse.RootElement.GetProperty("result").GetProperty("publicMetadata");
+        Assert.Equal("Oratorio Local", metadata.GetProperty("displayName").GetString());
+        Assert.Equal(
+            "http://127.0.0.1:5087/api/v1",
+            metadata.GetProperty("surfaceEndpoints").GetProperty("boardApiBaseUrl").GetString());
+        Assert.False(metadata.TryGetProperty("ignored", out _));
+        Assert.False(metadata.GetProperty("surfaceEndpoints").TryGetProperty("unsafeUrl", out _));
+        Assert.False(statusResponse.RootElement.GetProperty("result").TryGetProperty("connectionProof", out _));
+    }
+
+    [Fact]
     public async Task ConnectionStart_StatusAndAppListReportConnecting()
     {
         WriteOratorioPlugin();

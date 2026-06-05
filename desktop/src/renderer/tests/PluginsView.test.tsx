@@ -110,7 +110,33 @@ const agentTeamsPlugin: PluginEntry = {
   skills: [],
   apps: [],
   mcpServers: [],
-  lspServers: []
+  lspServers: [],
+  desktopExtensions: [
+    {
+      id: 'team-card-board',
+      displayName: 'Team card board',
+      description: 'Adds the Agent Teams card board to DotCraft Desktop.',
+      entry: 'Z:\\__dotcraft_fixture__\\plugins\\agent-teams\\desktop\\team-card-board.mjs',
+      styles: [],
+      permissions: ['appServer:teams/*', 'navigation'],
+      requiredAppIds: [],
+      connectOrigins: [],
+      surfaces: [
+        {
+          type: 'mainView',
+          viewId: 'teams',
+          label: 'Team',
+          placement: 'sidebar',
+          order: 40
+        },
+        {
+          type: 'pluginDetail',
+          title: 'Team Board',
+          description: 'Unlocks the Team card board surface for robot teammates, missions, planning, and task dispatch.'
+        }
+      ]
+    }
+  ]
 }
 
 function oratorioAppInfo({

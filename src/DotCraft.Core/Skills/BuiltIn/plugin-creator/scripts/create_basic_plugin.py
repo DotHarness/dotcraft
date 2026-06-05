@@ -40,6 +40,7 @@ def build_manifest(
     skill_name: str | None,
     with_mcp: bool,
     with_assets: bool,
+    with_desktop_extension: bool,
 ) -> dict[str, Any]:
     display_name = display_name_from_id(plugin_id)
     capabilities = []
@@ -50,6 +51,9 @@ def build_manifest(
     if with_mcp:
         capabilities.append("mcp")
         interface_capabilities.append("MCP")
+    if with_desktop_extension:
+        capabilities.append("desktopExtension")
+        interface_capabilities.append("Desktop")
     if not capabilities:
         capabilities.append("metadata")
         interface_capabilities.append("Metadata")
@@ -77,6 +81,8 @@ def build_manifest(
         manifest["skills"] = "./skills/"
     if with_mcp:
         manifest["mcpServers"] = "./.mcp.json"
+    if with_desktop_extension:
+        manifest["desktopExtensions"] = "./desktop-extensions.json"
     if with_assets:
         manifest["interface"]["composerIcon"] = "./assets/plugin-icon.svg"
         manifest["interface"]["logo"] = "./assets/plugin-logo.svg"
@@ -94,6 +100,38 @@ def build_mcp_config() -> dict[str, Any]:
                 "cwd": "./",
             }
         }
+    }
+
+
+def build_desktop_extensions(plugin_id: str) -> dict[str, Any]:
+    display_name = display_name_from_id(plugin_id)
+    return {
+        "extensions": [
+            {
+                "id": "desktop",
+                "displayName": f"{display_name} Desktop",
+                "description": "[TODO: Describe the Desktop surface this plugin adds.]",
+                "entry": "./desktop/main-view.mjs",
+                "styles": [],
+                "surfaces": [
+                    {
+                        "type": "mainView",
+                        "viewId": "main",
+                        "label": display_name,
+                        "placement": "sidebar",
+                        "order": 80,
+                    },
+                    {
+                        "type": "pluginDetail",
+                        "title": f"{display_name} Desktop",
+                        "description": "Adds a Desktop surface for this plugin.",
+                    },
+                ],
+                "permissions": ["navigation"],
+                "requiredAppIds": [],
+                "connectOrigins": [],
+            }
+        ]
     }
 
 
@@ -140,6 +178,62 @@ def build_icon_svg(label: str, color: str) -> str:
 """
 
 
+def build_desktop_main_view_js(plugin_id: str) -> str:
+    display_name = display_name_from_id(plugin_id)
+    return f"""export function activate(host) {{
+  const React = host.react
+
+  function MainView() {{
+    return React.createElement('div', {{
+      style: {{
+        height: '100%',
+        display: 'grid',
+        placeItems: 'center',
+        padding: 24,
+        background: 'var(--bg-primary)',
+        color: 'var(--text-secondary)'
+      }}
+    }}, React.createElement('section', {{
+      style: {{
+        width: 'min(720px, 100%)',
+        border: '1px solid var(--border)',
+        borderRadius: 8,
+        padding: 20,
+        display: 'grid',
+        gap: 10,
+        background: 'var(--bg-secondary)'
+      }}
+    }}, [
+      React.createElement('h2', {{
+        key: 'title',
+        style: {{
+          margin: 0,
+          color: 'var(--text-primary)',
+          fontSize: 'var(--type-title-size)',
+          lineHeight: 'var(--type-title-line-height)',
+          fontWeight: 'var(--type-ui-emphasis-weight)'
+        }}
+      }}, '{display_name}'),
+      React.createElement('p', {{
+        key: 'body',
+        style: {{
+          margin: 0,
+          fontSize: 'var(--type-body-size)',
+          lineHeight: 'var(--type-body-line-height)'
+        }}
+      }}, 'Replace desktop/main-view.mjs with this plugin\\'s Desktop UI.')
+    ]))
+  }}
+
+  return {{
+    mainViews: {{
+      main: MainView
+    }}
+  }}
+}}
+"""
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Create a DotCraft plugin scaffold.")
     parser.add_argument("plugin_id", help="Plugin title or id. It will be normalized to lowercase hyphen-case.")
@@ -167,6 +261,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Create a plugin-bundled .mcp.json placeholder.",
     )
+    parser.add_argument(
+        "--with-desktop-extension",
+        action="store_true",
+        help="Create a trusted Desktop extension descriptor and placeholder main view.",
+    )
     parser.add_argument("--with-assets", action="store_true", help="Create plugin-level SVG icon/logo placeholders.")
     parser.add_argument("--force", action="store_true", help="Overwrite generated files that already exist.")
     return parser.parse_args()
@@ -190,7 +289,7 @@ def main() -> None:
 
     write_json(
         manifest_path,
-        build_manifest(plugin_id, skill_name, args.with_mcp, args.with_assets),
+        build_manifest(plugin_id, skill_name, args.with_mcp, args.with_assets, args.with_desktop_extension),
         args.force,
     )
 
@@ -198,6 +297,9 @@ def main() -> None:
         write_text(plugin_root / "skills" / skill_name / "SKILL.md", build_skill_md(skill_name), args.force)
     if args.with_mcp:
         write_json(plugin_root / ".mcp.json", build_mcp_config(), args.force)
+    if args.with_desktop_extension:
+        write_json(plugin_root / "desktop-extensions.json", build_desktop_extensions(plugin_id), args.force)
+        write_text(plugin_root / "desktop" / "main-view.mjs", build_desktop_main_view_js(plugin_id), args.force)
     if args.with_assets:
         write_text(plugin_root / "assets" / "plugin-icon.svg", build_icon_svg(plugin_id, "#2563EB"), args.force)
         write_text(plugin_root / "assets" / "plugin-logo.svg", build_icon_svg(plugin_id, "#0F766E"), args.force)
@@ -208,6 +310,8 @@ def main() -> None:
         print(f"Plugin skill: {plugin_root / 'skills' / skill_name / 'SKILL.md'}")
     if args.with_mcp:
         print(f"Plugin MCP config: {plugin_root / '.mcp.json'}")
+    if args.with_desktop_extension:
+        print(f"Plugin Desktop extensions: {plugin_root / 'desktop-extensions.json'}")
 
 
 if __name__ == "__main__":

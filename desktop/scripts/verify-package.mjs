@@ -70,6 +70,10 @@ function verifyResourcesDir(target) {
   }
 
   const requiredResourceFiles = [
+    path.join(resourcesDir, 'plugins', 'dotcraft-bundled', 'catalog.json'),
+    path.join(resourcesDir, 'plugins', 'dotcraft-bundled', 'plugins', 'agent-teams', '.craft-plugin', 'plugin.json'),
+    path.join(resourcesDir, 'plugins', 'dotcraft-bundled', 'plugins', 'agent-teams', 'desktop-extensions.json'),
+    path.join(resourcesDir, 'plugins', 'dotcraft-bundled', 'plugins', 'agent-teams', 'desktop', 'team-card-board.mjs'),
     path.join(resourcesDir, 'plugins', 'dotcraft-bundled', 'plugins', 'browser', '.craft-plugin', 'plugin.json'),
     path.join(resourcesDir, 'plugins', 'dotcraft-bundled', 'plugins', 'chrome', '.craft-plugin', 'plugin.json'),
     path.join(resourcesDir, 'plugins', 'dotcraft-bundled', 'plugins', 'chrome', 'scripts', 'extension-id.json'),

@@ -4,6 +4,10 @@ import {
   installViewerProtocolHandler,
   setViewerWorkspaceRoot
 } from './viewerFileProtocol'
+import {
+  registerPluginFileScheme,
+  installPluginFileProtocolHandler
+} from './pluginFileProtocol'
 import { viewerBrowserManager } from './viewerBrowser'
 import { browserUseManager } from './browserUseManager'
 import { nodeReplManager } from './nodeReplManager'
@@ -11,6 +15,7 @@ import { getGitHubIdentity } from './githubProfile'
 
 // Register the custom viewer scheme as privileged BEFORE app.whenReady().
 registerViewerScheme()
+registerPluginFileScheme()
 import type { IpcMainEvent, MenuItemConstructorOptions } from 'electron'
 import { join, basename, resolve as resolvePath } from 'path'
 import { existsSync } from 'fs'
@@ -1838,6 +1843,7 @@ app.whenReady().then(async () => {
   startChromeSettingsDeepLinkServer()
 
   installViewerProtocolHandler()
+  installPluginFileProtocolHandler()
   registerMenuPopupIpc()
   sharedSettings = loadSettings()
   refreshAppMenu()
@@ -1853,7 +1859,7 @@ app.whenReady().then(async () => {
         responseHeaders: {
           ...details.responseHeaders,
           'Content-Security-Policy': [
-            "default-src 'self' dotcraft-viewer:; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: file: dotcraft-viewer:; font-src 'self' data:; connect-src 'self' dotcraft-viewer:"
+            "default-src 'self' dotcraft-viewer: dotcraft-plugin:; script-src 'self' dotcraft-plugin:; style-src 'self' 'unsafe-inline' dotcraft-plugin:; img-src 'self' data: blob: file: dotcraft-viewer: dotcraft-plugin:; font-src 'self' data: dotcraft-plugin:; connect-src 'self' dotcraft-viewer:"
           ]
         }
       })

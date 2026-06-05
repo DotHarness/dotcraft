@@ -37,6 +37,7 @@ import {
   listDirectory
 } from './viewerIpc'
 import { authorizeViewerFile, buildViewerUrl } from './viewerFileProtocol'
+import { authorizePluginRoot, buildPluginFileUrl, clearAuthorizedPluginRoots } from './pluginFileProtocol'
 import { partitionForWorkspace, viewerBrowserManager } from './viewerBrowser'
 import { viewerTerminalManager } from './viewerTerminal'
 import { browserUseManager, type BrowserUseApprovalResponsePayload } from './browserUseManager'
@@ -1545,6 +1546,25 @@ export function registerIpcHandlers(
     }
   )
 
+  handleSafe(
+    'desktop-extension:authorize-plugin-root',
+    async (_event, params: { pluginId: string; rootPath: string }): Promise<{ ok: boolean }> => {
+      await authorizePluginRoot(params.pluginId, params.rootPath)
+      return { ok: true }
+    }
+  )
+
+  handleSafe(
+    'desktop-extension:to-plugin-url',
+    async (_event, params: { pluginId: string; absolutePath: string }): Promise<{ url: string }> => {
+      if (!path.isAbsolute(params.absolutePath)) {
+        throw new Error('Plugin file path must be absolute')
+      }
+      const resolved = path.resolve(params.absolutePath)
+      return { url: buildPluginFileUrl(params.pluginId, resolved) }
+    }
+  )
+
   // Renderer -> Main: browser tab lifecycle / navigation
   handleSafe(
     'viewer:browser:create',
@@ -2173,6 +2193,10 @@ export function unregisterIpcHandlers(): void {
   ipcMain.removeHandler('workspace:viewer:classify')
   ipcMain.removeHandler('workspace:viewer:read-text')
   ipcMain.removeHandler('workspace:viewer:authorize-file')
+  ipcMain.removeHandler('workspace:viewer:to-viewer-url')
+  ipcMain.removeHandler('desktop-extension:authorize-plugin-root')
+  ipcMain.removeHandler('desktop-extension:to-plugin-url')
+  clearAuthorizedPluginRoots()
   ipcMain.removeHandler('viewer:browser:create')
   ipcMain.removeHandler('viewer:browser:destroy')
   ipcMain.removeHandler('viewer:browser:navigate')

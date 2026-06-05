@@ -102,6 +102,8 @@ internal sealed class AppConnectionRecord
 
     public JsonObject? ConnectionProof { get; set; }
 
+    public JsonObject? PublicMetadata { get; set; }
+
     public string? Diagnostic { get; set; }
 }
 

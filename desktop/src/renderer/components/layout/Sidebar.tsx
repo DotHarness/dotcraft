@@ -4,7 +4,7 @@ import { useUIStore } from '../../stores/uiStore'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { useThreadStore } from '../../stores/threadStore'
 import { usePluginStore } from '../../stores/pluginStore'
-import { isAgentTeamsPluginEnabled } from '../../utils/agentTeamsPlugin'
+import { getDesktopMainViewExtensions } from '../../utils/desktopExtensionRegistry'
 import { WorkspaceHeader } from '../sidebar/WorkspaceHeader'
 import { NewThreadButton } from '../sidebar/NewThreadButton'
 import { ThreadSearch } from '../sidebar/ThreadSearch'
@@ -52,12 +52,12 @@ export function Sidebar({
   const { sidebarCollapsed, activeMainView, setActiveMainView } = useUIStore()
   const capabilities = useConnectionStore((s) => s.capabilities)
   const plugins = usePluginStore((s) => s.plugins)
+  const desktopMainViews = getDesktopMainViewExtensions(plugins)
 
   const automationsAvailable =
     capabilities?.automations === true || capabilities?.cronManagement === true
   const automationsDisabledTitle =
     !automationsAvailable ? t('sidebar.automationsDisabled') : undefined
-  const agentTeamsAvailable = isAgentTeamsPluginEnabled(plugins)
   if (sidebarCollapsed) {
     return <CollapsedSidebar />
   }
@@ -102,15 +102,16 @@ export function Sidebar({
           icon={<ChannelsIcon />}
           testId="nav-channels"
         />
-        {agentTeamsAvailable && (
+        {desktopMainViews.map((entry) => (
           <SidebarNavRow
-            label={t('sidebar.team')}
-            active={activeMainView === 'teams'}
-            onClick={() => setActiveMainView('teams')}
-            icon={<TeamIcon />}
-            testId="nav-teams"
+            key={entry.viewKey}
+            label={entry.label}
+            active={activeMainView === entry.viewKey}
+            onClick={() => setActiveMainView(entry.viewKey)}
+            icon={<ExtensionIcon />}
+            testId={`nav-extension-${entry.plugin.id}-${entry.extension.id}-${entry.viewId}`}
           />
-        )}
+        ))}
         <SidebarNavRow
           label={t('sidebar.automations')}
           active={activeMainView === 'automations'}
@@ -206,7 +207,7 @@ function ChannelsIcon(): JSX.Element {
   return <MessageSquare size={16} strokeWidth={2} aria-hidden style={{ display: 'block' }} />
 }
 
-function TeamIcon(): JSX.Element {
+function ExtensionIcon(): JSX.Element {
   return <UsersRound size={16} strokeWidth={2} aria-hidden style={{ display: 'block' }} />
 }
 
@@ -241,9 +242,9 @@ function CollapsedSidebar(): JSX.Element {
   const { threadList, setActiveThreadId } = useThreadStore()
   const { activeMainView, setActiveMainView, goToNewChat } = useUIStore()
   const plugins = usePluginStore((s) => s.plugins)
+  const desktopMainViews = getDesktopMainViewExtensions(plugins)
   const collapsedAutomationsAvailable =
     collapsedCaps?.automations === true || collapsedCaps?.cronManagement === true
-  const agentTeamsAvailable = isAgentTeamsPluginEnabled(plugins)
 
   const colorMap: Record<string, string> = {
     connecting: 'var(--warning)',
@@ -348,22 +349,22 @@ function CollapsedSidebar(): JSX.Element {
           <ChannelsIcon />
         </button>
       </CollapsedNavTooltip>
-      {agentTeamsAvailable && (
-        <CollapsedNavTooltip label={t('sidebar.team')}>
+      {desktopMainViews.map((entry) => (
+        <CollapsedNavTooltip key={entry.viewKey} label={entry.label}>
           <button
             type="button"
-            onClick={() => setActiveMainView('teams')}
+            onClick={() => setActiveMainView(entry.viewKey)}
             style={{
               ...iconButtonStyle,
-              backgroundColor: activeMainView === 'teams' ? 'var(--sidebar-control-active)' : 'transparent',
-              color: activeMainView === 'teams' ? 'var(--accent)' : 'var(--text-secondary)'
+              backgroundColor: activeMainView === entry.viewKey ? 'var(--sidebar-control-active)' : 'transparent',
+              color: activeMainView === entry.viewKey ? 'var(--accent)' : 'var(--text-secondary)'
             }}
-            aria-label={t('sidebar.team')}
+            aria-label={entry.label}
           >
-            <TeamIcon />
+            <ExtensionIcon />
           </button>
         </CollapsedNavTooltip>
-      )}
+      ))}
       <CollapsedNavTooltip
         label={t('sidebar.automations')}
         disabledReason={!collapsedAutomationsAvailable ? t('sidebar.automationsDisabled') : undefined}

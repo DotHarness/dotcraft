@@ -429,6 +429,8 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
             environment["DOTCRAFT_MODULES_DIR"] = modulesDir;
         if (!string.IsNullOrWhiteSpace(runtimeTools?.BuiltInPluginRoots))
             environment["DOTCRAFT_BUILTIN_PLUGIN_ROOTS"] = runtimeTools.BuiltInPluginRoots.Trim();
+        if (!string.IsNullOrWhiteSpace(runtimeTools?.BuiltInPluginCatalogs))
+            environment["DOTCRAFT_BUILTIN_PLUGIN_CATALOGS"] = runtimeTools.BuiltInPluginCatalogs.Trim();
 
         if (status != null)
         {

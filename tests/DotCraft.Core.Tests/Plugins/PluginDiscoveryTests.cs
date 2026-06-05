@@ -118,6 +118,20 @@ public sealed class PluginDiscoveryTests
     }
 
     [Fact]
+    public void ManifestParser_AcceptsDesktopExtensionOnlyManifest()
+    {
+        var root = NewTempDir();
+        var pluginRoot = Path.Combine(root, "demo");
+        WriteDesktopExtensionOnlyPlugin(pluginRoot, id: "demo-plugin");
+
+        var result = PluginManifestParser.Load(pluginRoot);
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Severity == PluginDiagnosticSeverity.Error);
+        Assert.NotNull(result.Manifest);
+        Assert.Equal(Path.Combine(pluginRoot, "desktop-extensions.json"), result.Manifest!.DesktopExtensionsPath);
+    }
+
+    [Fact]
     public void ManifestParser_IgnoresLegacyNativeToolFieldsWhenSupportedCapabilityExists()
     {
         var root = NewTempDir();
@@ -978,6 +992,43 @@ public sealed class PluginDiscoveryTests
     "defaultPrompt": "Try demo",
     "brandColor": "#2563EB"
   }{{extra}}
+}
+""");
+    }
+
+    private static void WriteDesktopExtensionOnlyPlugin(string pluginRoot, string id)
+    {
+        Directory.CreateDirectory(Path.Combine(pluginRoot, ".craft-plugin"));
+        Directory.CreateDirectory(Path.Combine(pluginRoot, "desktop"));
+        File.WriteAllText(Path.Combine(pluginRoot, "desktop", "demo.mjs"), "export default function Demo() {}");
+        File.WriteAllText(
+            Path.Combine(pluginRoot, "desktop-extensions.json"),
+            """
+{
+  "extensions": [
+    {
+      "id": "demo-view",
+      "displayName": "Demo view",
+      "entry": "./desktop/demo.mjs",
+      "surfaces": [
+        { "type": "mainView", "viewId": "demo", "label": "Demo" }
+      ],
+      "permissions": []
+    }
+  ]
+}
+""");
+        File.WriteAllText(
+            Path.Combine(pluginRoot, ".craft-plugin", "plugin.json"),
+            $$"""
+{
+  "schemaVersion": 1,
+  "id": "{{id}}",
+  "version": "1.0.0",
+  "displayName": "Demo Plugin",
+  "description": "Demo desktop extension plugin.",
+  "capabilities": ["desktopExtension"],
+  "desktopExtensions": "./desktop-extensions.json"
 }
 """);
     }

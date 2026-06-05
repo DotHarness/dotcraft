@@ -86,13 +86,70 @@ Matching `.mcp.json`:
 }
 ```
 
+## Desktop extension plugin
+
+```json
+{
+  "schemaVersion": 1,
+  "id": "project-board",
+  "version": "0.1.0",
+  "displayName": "Project Board",
+  "description": "Adds a Desktop board surface.",
+  "capabilities": ["desktopExtension"],
+  "desktopExtensions": "./desktop-extensions.json",
+  "interface": {
+    "displayName": "Project Board",
+    "shortDescription": "Desktop board for project state.",
+    "developerName": "DotCraft",
+    "category": "Productivity",
+    "capabilities": ["Desktop"],
+    "defaultPrompt": "Open the project board.",
+    "brandColor": "#2563EB"
+  }
+}
+```
+
+Matching `desktop-extensions.json`:
+
+```json
+{
+  "extensions": [
+    {
+      "id": "desktop",
+      "displayName": "Project Board Desktop",
+      "description": "Adds a trusted Desktop main view.",
+      "entry": "./desktop/main-view.mjs",
+      "styles": [],
+      "surfaces": [
+        {
+          "type": "mainView",
+          "viewId": "main",
+          "label": "Project Board",
+          "placement": "sidebar",
+          "order": 80
+        },
+        {
+          "type": "pluginDetail",
+          "title": "Project Board Desktop",
+          "description": "Adds a Desktop surface for this plugin."
+        }
+      ],
+      "permissions": ["navigation"],
+      "requiredAppIds": [],
+      "connectOrigins": []
+    }
+  ]
+}
+```
+
 ## Rules
 
 - `schemaVersion` must be `1`.
 - `id` must contain only ASCII letters, digits, `.`, `_`, `-`, or `:`.
 - `displayName` is required.
-- At least one supported contribution is required: `skills`, `mcpServers` or default root `.mcp.json`, or `interface`.
+- At least one supported contribution is required: `skills`, `mcpServers` or default root `.mcp.json`, `desktopExtensions`, or `interface`.
 - Plugin-bundled MCP servers use the same schema as workspace `McpServers`.
 - If `mcpServers` is omitted, DotCraft looks for `.mcp.json` in the plugin root.
-- Manifest paths must start with `./`, must not contain `..`, and must stay inside the plugin root.
+- Manifest paths must start with `./`, must not contain `..`, and must stay inside the plugin root. This includes `desktopExtensions`, Desktop extension `entry`, and Desktop extension `styles`.
+- Desktop extension bundles are trusted local ESM loaded by Desktop after the plugin is installed and enabled. Declare only the AppServer methods and navigation features the bundle needs in `permissions`.
 - `tools`, `functions`, and `processes` are unsupported legacy native tool fields; new plugins must not use them.

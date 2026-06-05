@@ -143,6 +143,28 @@ public sealed class AppServerPluginManagementTests : IDisposable
     }
 
     [Fact]
+    public async Task PluginList_ReturnsDesktopExtensionDescriptors()
+    {
+        using var harness = CreateHarness();
+        await harness.InitializeAsync();
+
+        var msg = harness.BuildRequest(AppServerMethods.PluginList, new { includeDisabled = true });
+        await harness.ExecuteRequestAsync(msg);
+
+        using var response = await harness.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(response);
+        var plugins = response.RootElement.GetProperty("result").GetProperty("plugins").EnumerateArray().ToArray();
+        var teams = Assert.Single(plugins, item => item.GetProperty("id").GetString() == PluginIds.AgentTeams);
+        var teamsExtension = Assert.Single(teams.GetProperty("desktopExtensions").EnumerateArray());
+        Assert.Equal("team-card-board", teamsExtension.GetProperty("id").GetString());
+        Assert.EndsWith("team-card-board.mjs", teamsExtension.GetProperty("entry").GetString(), StringComparison.Ordinal);
+        Assert.Contains(
+            teamsExtension.GetProperty("surfaces").EnumerateArray(),
+            surface => surface.GetProperty("type").GetString() == "mainView"
+                       && surface.GetProperty("viewId").GetString() == "teams");
+    }
+
+    [Fact]
     public async Task PluginList_ReturnsSkillOnlyPluginWithEmptyFunctions()
     {
         WriteSkillOnlyPlugin(Path.Combine(_workspaceCraftPath, "plugins", "demo-plugin"));

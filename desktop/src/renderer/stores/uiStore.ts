@@ -53,7 +53,9 @@ interface DetailRevealOptions {
 }
 
 /** Main content area: conversation vs auxiliary surfaces (Skills, Automations, Settings). */
-export type ActiveMainView = 'conversation' | 'skills' | 'automations' | 'settings' | 'channels' | 'teams'
+export type BuiltInMainView = 'conversation' | 'skills' | 'automations' | 'settings' | 'channels' | 'teams'
+export type ExtensionMainView = `extension:${string}`
+export type ActiveMainView = BuiltInMainView | ExtensionMainView
 
 /** Secondary surface inside the plugin/skill catalog view. */
 export type PluginCatalogSurface = 'plugins' | 'skills'

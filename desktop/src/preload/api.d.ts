@@ -485,6 +485,10 @@ declare global {
         checkoutBranch(workspacePath: string, branchName: string): Promise<void>
         createAndCheckoutBranch(workspacePath: string, branchName: string): Promise<void>
       }
+      desktopExtensions: {
+        authorizePluginRoot(pluginId: string, rootPath: string): Promise<{ ok: boolean }>
+        toPluginUrl(pluginId: string, absolutePath: string): Promise<{ url: string }>
+      }
       workspace: {
         pickFolder(): Promise<string | null>
         /** Opens the native file picker and returns selected local file paths, including files outside the workspace. */

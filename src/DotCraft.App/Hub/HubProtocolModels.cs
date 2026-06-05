@@ -46,6 +46,8 @@ public sealed class HubRuntimeToolsRequest
     public string? ModulesDir { get; set; }
 
     public string? BuiltInPluginRoots { get; set; }
+
+    public string? BuiltInPluginCatalogs { get; set; }
 }
 
 public sealed class HubNotificationRequest

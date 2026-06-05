@@ -256,6 +256,7 @@ public sealed class AppBindingService
             connection.ExpiresAt = p.ExpiresAt;
             connection.AccountLabel = p.AccountLabel;
             connection.ConnectionProof = p.ConnectionProof?.DeepClone() as JsonObject;
+            connection.PublicMetadata = SanitizePublicConnectionMetadata(p.PublicMetadata);
             connection.Diagnostic = null;
             AddAudit(state, "connection.connected", null, null, p.AppId, request.UserId, p.AccountLabel);
 
@@ -2059,8 +2060,69 @@ public sealed class AppBindingService
             ConnectedAt = connection.ConnectedAt,
             ExpiresAt = connection.ExpiresAt,
             AccountLabel = connection.AccountLabel,
-            Diagnostic = connection.Diagnostic
+            Diagnostic = connection.Diagnostic,
+            PublicMetadata = connection.PublicMetadata?.DeepClone() as JsonObject
         };
+    }
+
+    private static JsonObject? SanitizePublicConnectionMetadata(JsonObject? metadata)
+    {
+        if (metadata == null)
+            return null;
+
+        var result = new JsonObject();
+        CopyStringProperty(metadata, result, "displayName", 160);
+        CopyStringProperty(metadata, result, "message", 320);
+        CopyLoopbackSurfaceEndpoints(metadata, result);
+        return result.Count == 0 ? null : result;
+    }
+
+    private static void CopyStringProperty(JsonObject source, JsonObject target, string name, int maxLength)
+    {
+        if (source[name] is not JsonValue value || !value.TryGetValue<string>(out var text))
+            return;
+
+        var trimmed = text.Trim();
+        if (trimmed.Length == 0)
+            return;
+
+        target[name] = trimmed.Length <= maxLength ? trimmed : trimmed[..maxLength];
+    }
+
+    private static void CopyLoopbackSurfaceEndpoints(JsonObject source, JsonObject target)
+    {
+        if (source["surfaceEndpoints"] is not JsonObject endpoints)
+            return;
+
+        var accepted = new JsonObject();
+        foreach (var (key, node) in endpoints.Take(32))
+        {
+            if (string.IsNullOrWhiteSpace(key)
+                || node is not JsonValue value
+                || !value.TryGetValue<string>(out var url)
+                || !IsSafeLoopbackEndpoint(url))
+            {
+                continue;
+            }
+
+            accepted[key] = url.Trim();
+        }
+
+        if (accepted.Count > 0)
+            target["surfaceEndpoints"] = accepted;
+    }
+
+    private static bool IsSafeLoopbackEndpoint(string value)
+    {
+        if (!Uri.TryCreate(value.Trim(), UriKind.Absolute, out var uri))
+            return false;
+
+        if (uri.Scheme is not ("http" or "https" or "ws" or "wss"))
+            return false;
+
+        return string.Equals(uri.Host, "localhost", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(uri.Host, "127.0.0.1", StringComparison.Ordinal)
+               || string.Equals(uri.Host, "::1", StringComparison.Ordinal);
     }
 
     private static AppConnectionStatusWire MapConnectionStatus(

@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.3.9 |
+| **Version** | 0.4.0 |
 | **Status** | Living |
 | **Date** | 2026-06-01 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
@@ -41,6 +41,7 @@ Purpose: Define the stable user-experience behavior of **DotCraft Desktop** as a
 - How protocol events change user-visible state.
 - How secondary surfaces such as Skills and Automations behave from the user's perspective.
 - How users discover, configure, enable, and recover Desktop-managed channel modules.
+- How trusted plugin-contributed Desktop extensions appear in Desktop surfaces.
 - How supported tool-result presentation payloads become safe conversation cards.
 - How Desktop-owned Runtime Dynamic Tools can manage background threads through AppServer.
 - How the client communicates failure, recovery, and availability constraints.
@@ -54,6 +55,7 @@ Purpose: Define the stable user-experience behavior of **DotCraft Desktop** as a
 - Layout geometry, colors, typography, icons, spacing, animation, or other visual design details. Stable Desktop visual decision rules are defined separately in [Desktop DESIGN.md](DESIGN.md).
 - Platform-specific implementation APIs for notifications, menus, file search, or file persistence.
 - Arbitrary third-party UI code execution for tool results.
+- Untrusted third-party plugin sandboxing. Desktop extension v1 is limited to installed, trusted plugins.
 
 ---
 
@@ -466,6 +468,19 @@ Required behavior:
 - Skills with source `plugin` are managed through the owning plugin lifecycle and do not expose a standalone skill uninstall action.
 - If a skill is unavailable because server-side requirements are unmet, the client explains that the skill exists but is currently unusable.
 - If plugin or skills capability is absent, the corresponding tab or action is hidden or disabled with a clear reason.
+
+### 6.1.1 Desktop Extensions
+
+Installed and enabled plugins may contribute trusted Desktop extensions through plugin metadata. Desktop must derive extension entry points from AppServer plugin discovery results instead of hardcoding plugin ids in the client.
+
+Required behavior:
+
+- Extension-provided main views appear in the sidebar only while the owning plugin is installed and enabled.
+- If the current view belongs to a plugin that is disabled, removed, or no longer declares that view, Desktop moves the user to a safe built-in fallback view.
+- Plugin detail pages list declared Desktop extension content alongside skills, apps, and tool integrations.
+- Extension bundles load from local installed plugin files only. Desktop must not execute JavaScript directly from remote URLs.
+- Extension code receives a constrained Host SDK instead of direct renderer or preload access. Host SDK calls are limited by descriptor permissions.
+- Failed extension loads show a localized error state for that extension surface without breaking core conversation workflows.
 
 ### 6.2 Automations
 

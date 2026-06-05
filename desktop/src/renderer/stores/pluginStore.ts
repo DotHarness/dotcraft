@@ -63,6 +63,32 @@ export interface PluginAppInfo {
   dynamicToolCatalog?: PluginAppDynamicToolCatalog | null
 }
 
+export interface PluginDesktopExtensionSurface {
+  type: string
+  viewId?: string | null
+  label?: string | null
+  placement?: string | null
+  order?: number | null
+  title?: string | null
+  description?: string | null
+  slot?: string | null
+  rendererId?: string | null
+  actionId?: string | null
+  settingsId?: string | null
+}
+
+export interface PluginDesktopExtensionInfo {
+  id: string
+  displayName: string
+  description?: string | null
+  entry: string
+  styles: string[]
+  surfaces: PluginDesktopExtensionSurface[]
+  permissions: string[]
+  requiredAppIds: string[]
+  connectOrigins: string[]
+}
+
 export interface PluginMcpServerInfo {
   name: string
   runtimeName: string
@@ -97,6 +123,7 @@ export interface PluginEntry {
   functions: PluginFunctionInfo[]
   skills: PluginSkillInfo[]
   apps?: PluginAppInfo[]
+  desktopExtensions?: PluginDesktopExtensionInfo[]
   mcpServers: PluginMcpServerInfo[]
   lspServers: PluginLspServerInfo[]
   diagnostics?: Array<{ severity: string; code: string; message: string; pluginId?: string; path?: string }>
@@ -247,6 +274,14 @@ function normalizePlugin(plugin: PluginEntry): PluginEntry {
       ...app,
       toolCatalog: app.toolCatalog ?? [],
       dynamicToolCatalog: app.dynamicToolCatalog ?? { enabled: false }
+    })),
+    desktopExtensions: (plugin.desktopExtensions ?? []).map((extension) => ({
+      ...extension,
+      styles: extension.styles ?? [],
+      surfaces: extension.surfaces ?? [],
+      permissions: extension.permissions ?? [],
+      requiredAppIds: extension.requiredAppIds ?? [],
+      connectOrigins: extension.connectOrigins ?? []
     })),
     mcpServers: plugin.mcpServers ?? [],
     lspServers: (plugin.lspServers ?? []).map((server) => ({
