@@ -488,6 +488,8 @@ declare global {
       desktopExtensions: {
         authorizePluginRoot(pluginId: string, rootPath: string): Promise<{ ok: boolean }>
         toPluginUrl(pluginId: string, absolutePath: string): Promise<{ url: string }>
+        fetchJson(params: { url: string; connectOrigins: string[]; timeoutMs?: number }): Promise<unknown>
+        postJson(params: { url: string; connectOrigins: string[]; body?: unknown; timeoutMs?: number }): Promise<unknown>
       }
       workspace: {
         pickFolder(): Promise<string | null>

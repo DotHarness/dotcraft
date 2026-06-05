@@ -2141,6 +2141,8 @@ public sealed class PluginDesktopExtensionInfoWire
     public List<string> RequiredAppIds { get; set; } = [];
 
     public List<string> ConnectOrigins { get; set; } = [];
+
+    public List<string> SurfaceWriteScopes { get; set; } = [];
 }
 
 public sealed class PluginDesktopExtensionSurfaceWire

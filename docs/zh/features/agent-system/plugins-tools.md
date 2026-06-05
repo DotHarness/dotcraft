@@ -137,6 +137,21 @@ descriptor 指向插件内的 ESM bundle，并声明它贡献的 Desktop surface
 
 需要最小脚手架时可使用 `plugin-creator --with-desktop-extension`。
 
+#### 读取与写入 App 数据
+
+Desktop 扩展可以通过 loopback 网络桥读取——并在获得授权时写入——其 App 的本地数据：
+
+- `connectOrigins` 列出 bundle 可访问的 loopback origin。该桥默认只读：`host.network.getJson(url)` 发起 `GET` 获取展示数据。
+- `surfaceWriteScopes` 让 bundle 选择启用受控写。当它列出扩展所用的 App Binding mutate 作用域（例如 `board.manage`）时，Desktop 还会暴露 `host.network.postJson(url, body)`。每次写入由已连接 App 的 loopback surface 用其签发的连接凭证授权；Desktop 强制校验声明的 origin，且不逐次弹审批——因为用户在连接 App 时已授权。只读扩展保持 `surfaceWriteScopes` 为空（默认）即可。
+
+```json
+{
+  "requiredAppIds": ["com.example.board"],
+  "connectOrigins": ["http://127.0.0.1:*"],
+  "surfaceWriteScopes": ["board.manage"]
+}
+```
+
 一般不需要手写完整 manifest。建议让 `plugin-creator` 生成结构，再把生成的 manifest 作为排查或分发时的高级参考。
 
 ### 高级参考

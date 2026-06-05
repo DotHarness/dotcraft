@@ -4,9 +4,10 @@
   "version": "0.1.1",
   "displayName": "Oratorio",
   "description": "Connect Oratorio boards and agent-work workflows to selected DotCraft threads.",
-  "capabilities": ["skill", "app"],
+  "capabilities": ["skill", "app", "desktopExtension"],
   "skills": "./skills/",
   "apps": "./apps.json",
+  "desktopExtensions": "./desktop-extensions.json",
   "interface": {
     "displayName": "Oratorio",
     "shortDescription": "Manage Oratorio boards from selected DotCraft threads",

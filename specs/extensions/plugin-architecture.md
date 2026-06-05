@@ -120,13 +120,27 @@ Example MCP plugin:
           "description": "Adds the Team board to Desktop."
         }
       ],
-      "requiredAppIds": []
+      "requiredAppIds": [],
+      "connectOrigins": []
     }
   ]
 }
 ```
 
 Desktop extension path fields use the same manifest-relative path rules as other plugin paths. The supported surface `type` values are `mainView`, `pluginDetail`, `detailPanel`, `composerAction`, `conversationRenderer`, and `settingsPanel`. Unknown surface types are diagnostics and are ignored by clients.
+
+`connectOrigins` declares the loopback origins a trusted Desktop extension may access through Desktop's extension network bridge. Origins must be absolute `http`, `https`, `ws`, or `wss` loopback origins without path, query, or fragment; dynamic local app ports may be declared with a wildcard port such as `http://127.0.0.1:*`. Desktop must reject renderer-initiated extension network requests whose target origin is not listed by the descriptor. By itself `connectOrigins` permits local presentation data transport (read), not app mutation authority; mutation over a declared origin is allowed only through the scoped write transport below.
+
+### Extension surface write transport
+
+The Desktop extension network bridge is read-only by default: it issues HTTP `GET` JSON requests to a declared `connectOrigins` target for presentation, exposed to the bundle as `host.network.getJson(url)`.
+
+An extension may additionally issue scoped mutating requests (HTTP `POST` with a JSON body, exposed as `host.network.postJson(url, body)`) to an app's published loopback surface endpoint only when all of the following hold:
+
+- the target origin is declared in the extension's `connectOrigins`;
+- the extension descriptor declares a non-empty `surfaceWriteScopes` — the App Binding mutate scope ids (drawn from a required app's descriptor) the extension exercises over its surface endpoints (optional, defaults to empty = read-only).
+
+Desktop must reject a renderer-initiated mutating extension request when the target origin is not declared or `surfaceWriteScopes` is empty. `surfaceWriteScopes` is the extension's declared write intent: it is surfaced when the plugin is installed and the app is connected, and it gates whether Desktop exposes `postJson` at all. Per-request authorization is enforced by the app's loopback surface using the connection credential it issued, not re-checked by Desktop — App Binding scopes are granted per thread binding rather than per connection, so the surface endpoint (not Desktop) is the authority for an un-bound, workspace-level surface write. The extension should issue writes only while a required app is connected; Desktop does not prompt per write, because the user authorized the app connection and its published surface. The app's loopback surface must validate every request and may reject it. This is the explicit mutation grant anticipated by [App Binding](../protocols/app-binding.md) `publicMetadata.surfaceEndpoints`; agent-invoked and externally-visible writes still go through App Binding tools and app-owned approval.
 
 DotCraft discovers plugin roots from:
 

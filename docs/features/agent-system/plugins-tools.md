@@ -137,6 +137,21 @@ The descriptor points to plugin-contained ESM and declares the surfaces it contr
 
 Use `plugin-creator --with-desktop-extension` for a minimal scaffold.
 
+#### Reading and writing app data
+
+A Desktop extension can read — and, when authorized, write — its app's local data over a loopback network bridge:
+
+- `connectOrigins` lists the loopback origins the bundle may reach. The bridge is read-only by default: `host.network.getJson(url)` issues a `GET` for presentation data.
+- `surfaceWriteScopes` opts the bundle into scoped writes. When it lists the App Binding mutate scopes the extension exercises (for example `board.manage`), Desktop also exposes `host.network.postJson(url, body)`. The connected app's loopback surface authorizes every write with the connection credential it issued; Desktop enforces the declared origins and does not prompt per write, because the user already authorized the app connection. Leave `surfaceWriteScopes` empty (the default) for read-only extensions.
+
+```json
+{
+  "requiredAppIds": ["com.example.board"],
+  "connectOrigins": ["http://127.0.0.1:*"],
+  "surfaceWriteScopes": ["board.manage"]
+}
+```
+
 You usually do not write the full manifest by hand. Let `plugin-creator` scaffold the plugin, then use the generated manifest as the advanced reference for troubleshooting or distribution.
 
 ### Advanced Reference

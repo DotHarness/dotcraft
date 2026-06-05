@@ -200,6 +200,7 @@ public static class PluginDesktopExtensionCatalog
         descriptor.Surfaces ??= [];
         descriptor.RequiredAppIds ??= [];
         descriptor.ConnectOrigins ??= [];
+        descriptor.SurfaceWriteScopes ??= [];
     }
 
     private static PluginDesktopExtensionDescriptor CloneDescriptorWithResolvedPaths(
@@ -267,6 +268,12 @@ public sealed class PluginDesktopExtensionDescriptor
     public List<string> RequiredAppIds { get; set; } = [];
 
     public List<string> ConnectOrigins { get; set; } = [];
+
+    /// <summary>
+    /// App Binding mutate scope ids this extension may exercise through the scoped
+    /// write transport (<c>host.network.postJson</c>). Empty means read-only.
+    /// </summary>
+    public List<string> SurfaceWriteScopes { get; set; } = [];
 }
 
 public sealed class PluginDesktopExtensionSurfaceDescriptor

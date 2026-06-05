@@ -1,6 +1,7 @@
 import * as React from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import type { DesktopMainViewExtension } from '../../utils/desktopExtensionRegistry'
+import type { PluginAppInfo } from '../../stores/pluginStore'
 import type { ActiveMainView } from '../../stores/uiStore'
 import { useUIStore } from '../../stores/uiStore'
 import { useThreadStore } from '../../stores/threadStore'
@@ -27,6 +28,15 @@ interface DesktopExtensionHost {
   appServer: {
     sendRequest(method: string, params?: unknown, timeoutMs?: number): Promise<unknown>
   }
+  appBindings: {
+    getConnectionStatus(appId: string): Promise<AppConnectionStatus>
+    startConnection(appId: string): Promise<AppConnectionStartResult>
+    openApp(appId: string, url: string): Promise<void>
+  }
+  network: {
+    getJson(url: string, timeoutMs?: number): Promise<unknown>
+    postJson(url: string, body: unknown, timeoutMs?: number): Promise<unknown>
+  }
   navigation: {
     setActiveMainView(view: ActiveMainView): void
     openThread(threadId: string): void
@@ -34,6 +44,33 @@ interface DesktopExtensionHost {
   components: {
     TeamsView: React.ComponentType
   }
+}
+
+interface AppHandoff {
+  mode: string
+  uri?: string | null
+}
+
+interface AppConnectionStartResult {
+  connectionRequestId: string
+  appId: string
+  state: string
+  expiresAt: string
+  handoff: AppHandoff
+}
+
+interface AppConnectionStatus {
+  appId: string
+  state: string
+  connectedAt?: string | null
+  expiresAt?: string | null
+  accountLabel?: string | null
+  diagnostic?: string | null
+  publicMetadata?: {
+    displayName?: string | null
+    message?: string | null
+    surfaceEndpoints?: Record<string, string>
+  } | null
 }
 
 interface DesktopExtensionActivation {
@@ -84,6 +121,53 @@ export function DesktopExtensionMainView({ entry }: DesktopExtensionMainViewProp
         return window.api.appServer.sendRequest(method, params, timeoutMs)
       }
     },
+    appBindings: {
+      getConnectionStatus(appId) {
+        if (!isAppIdAllowed(entry.extension.requiredAppIds, appId)) {
+          return Promise.reject(new Error(`Desktop extension '${entry.extension.id}' is not allowed to inspect app '${appId}'.`))
+        }
+        return window.api.appServer.sendRequest('app/connection/status', { appId }) as Promise<AppConnectionStatus>
+      },
+      startConnection(appId) {
+        if (!isAppIdAllowed(entry.extension.requiredAppIds, appId)) {
+          return Promise.reject(new Error(`Desktop extension '${entry.extension.id}' is not allowed to connect app '${appId}'.`))
+        }
+        return window.api.appServer.sendRequest('app/connection/start', { appId }) as Promise<AppConnectionStartResult>
+      },
+      openApp(appId, url) {
+        if (!isAppIdAllowed(entry.extension.requiredAppIds, appId)) {
+          return Promise.reject(new Error(`Desktop extension '${entry.extension.id}' is not allowed to open app '${appId}'.`))
+        }
+        if (!isAppUrlAllowed(entry.plugin.apps ?? [], appId, url)) {
+          return Promise.reject(new Error(`Desktop extension '${entry.extension.id}' is not allowed to open this app URL.`))
+        }
+        return (window.api.shell.openAppHandoff ?? window.api.shell.openExternal)(url)
+      }
+    },
+    network: {
+      getJson(url, timeoutMs) {
+        return window.api.desktopExtensions.fetchJson({
+          url,
+          connectOrigins: entry.extension.connectOrigins,
+          timeoutMs
+        })
+      },
+      postJson(url, body, timeoutMs) {
+        // Scoped write transport: only extensions that declared surfaceWriteScopes
+        // may mutate. Loopback origin is enforced in the main process; per-request
+        // authorization is enforced by the app's surface. See
+        // specs/extensions/plugin-architecture.md.
+        if ((entry.extension.surfaceWriteScopes ?? []).length === 0) {
+          return Promise.reject(new Error(`Desktop extension '${entry.extension.id}' did not declare surfaceWriteScopes and cannot write.`))
+        }
+        return window.api.desktopExtensions.postJson({
+          url,
+          connectOrigins: entry.extension.connectOrigins,
+          body,
+          timeoutMs
+        })
+      }
+    },
     navigation: {
       setActiveMainView,
       openThread(threadId) {
@@ -94,7 +178,7 @@ export function DesktopExtensionMainView({ entry }: DesktopExtensionMainViewProp
     components: {
       TeamsView
     }
-  }), [entry.extension.displayName, entry.extension.id, entry.plugin.displayName, entry.plugin.id, entry.plugin.rootPath, setActiveMainView, setActiveThreadId])
+  }), [entry, setActiveMainView, setActiveThreadId])
 
   useEffect(() => {
     let cancelled = false
@@ -219,4 +303,21 @@ function ExtensionStatus({ title, message }: { title: string; message: string })
       </div>
     </div>
   )
+}
+
+function isAppIdAllowed(requiredAppIds: string[], appId: string): boolean {
+  return requiredAppIds.some((candidate) => candidate === appId)
+}
+
+function isAppUrlAllowed(apps: PluginAppInfo[], appId: string, url: string): boolean {
+  const app = apps.find((candidate) => candidate.appId === appId)
+  const protocol = app?.nativeApplication?.protocol?.trim().replace(/:$/, '').toLowerCase()
+  if (!protocol) return false
+
+  try {
+    const parsed = new URL(url)
+    return parsed.protocol.toLowerCase() === `${protocol}:`
+  } catch {
+    return false
+  }
 }

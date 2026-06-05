@@ -848,6 +848,12 @@ const api = {
     },
     toPluginUrl(pluginId: string, absolutePath: string): Promise<{ url: string }> {
       return ipcRenderer.invoke('desktop-extension:to-plugin-url', { pluginId, absolutePath })
+    },
+    fetchJson(params: { url: string; connectOrigins: string[]; timeoutMs?: number }): Promise<unknown> {
+      return ipcRenderer.invoke('desktop-extension:fetch-json', params)
+    },
+    postJson(params: { url: string; connectOrigins: string[]; body?: unknown; timeoutMs?: number }): Promise<unknown> {
+      return ipcRenderer.invoke('desktop-extension:post-json', params)
     }
   },
 

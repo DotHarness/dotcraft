@@ -110,6 +110,8 @@ DotCraft validation is intentionally not a substitute for app-side authorization
 
 Connected apps may publish a small `publicMetadata` object when completing or refreshing an App Binding connection. DotCraft may expose this metadata through connection status only after validating that it is safe for Desktop clients. v1 public metadata is limited to redacted display values and loopback surface endpoints such as local HTTP or WebSocket URLs used by a trusted Desktop extension. Secret tokens, account credentials, raw grants, and app-private proof material must remain in `connectionProof` and must never be echoed to clients.
 
+Trusted Desktop extensions may use `publicMetadata.surfaceEndpoints` only as a discovery layer for app-owned local surfaces. The extension must still declare the expected loopback origins in its Desktop extension descriptor, and Desktop must enforce those origins before issuing renderer-initiated HTTP requests. Surface endpoints are read-only presentation endpoints by default. A trusted Desktop extension that declares `surfaceWriteScopes` may issue scoped mutating requests to a surface endpoint while its required app is connected, as defined by the extension surface write transport in [Plugin Architecture](../extensions/plugin-architecture.md). The app's loopback surface authorizes each write with the connection credential it issued and remains authoritative; App Binding tools and app-owned approval remain the path for agent-invoked and externally-visible writes.
+
 ---
 
 ## 5. App Descriptor Contributions

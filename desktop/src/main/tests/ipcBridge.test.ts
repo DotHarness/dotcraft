@@ -123,6 +123,8 @@ import {
   openExternalUrl,
   openExternalHttpUrl,
   openAppHandoffUrl,
+  fetchDesktopExtensionJson,
+  postDesktopExtensionJson,
   getProtocolHandlerName,
   broadcastNotification,
   broadcastServerRequest,
@@ -307,6 +309,76 @@ describe('openAppHandoffUrl', () => {
     await openAppHandoffUrl('oratorio://dotcraft/bind?request=req_1')
 
     expect(shell.openExternal).toHaveBeenCalledWith('oratorio://dotcraft/bind?request=req_1')
+  })
+})
+
+describe('fetchDesktopExtensionJson', () => {
+  it('allows declared wildcard loopback origins', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: vi.fn().mockResolvedValue('{"items":[]}')
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(fetchDesktopExtensionJson(
+      'http://127.0.0.1:5087/api/v1/items',
+      ['http://127.0.0.1:*']
+    )).resolves.toEqual({ items: [] })
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    vi.unstubAllGlobals()
+  })
+
+  it('rejects undeclared origins before fetching', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(fetchDesktopExtensionJson(
+      'http://127.0.0.1:5087/api/v1/items',
+      ['http://localhost:*']
+    )).rejects.toThrow('not allowed')
+
+    expect(fetchMock).not.toHaveBeenCalled()
+    vi.unstubAllGlobals()
+  })
+})
+
+describe('postDesktopExtensionJson', () => {
+  it('issues a POST with a JSON body to a declared loopback origin', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: vi.fn().mockResolvedValue('{"ok":true}')
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(postDesktopExtensionJson(
+      'http://127.0.0.1:5087/api/v1/items/abc/dispatch',
+      ['http://127.0.0.1:*'],
+      { reason: 'manual' }
+    )).resolves.toEqual({ ok: true })
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const init = fetchMock.mock.calls[0]![1] as { method: string; headers: Record<string, string>; body: string }
+    expect(init.method).toBe('POST')
+    expect(init.headers).toMatchObject({ 'Content-Type': 'application/json' })
+    expect(JSON.parse(init.body)).toEqual({ reason: 'manual' })
+    vi.unstubAllGlobals()
+  })
+
+  it('rejects undeclared origins before posting', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(postDesktopExtensionJson(
+      'http://127.0.0.1:5087/api/v1/items/abc/dispatch',
+      ['http://localhost:*'],
+      { reason: 'manual' }
+    )).rejects.toThrow('not allowed')
+
+    expect(fetchMock).not.toHaveBeenCalled()
+    vi.unstubAllGlobals()
   })
 })
 

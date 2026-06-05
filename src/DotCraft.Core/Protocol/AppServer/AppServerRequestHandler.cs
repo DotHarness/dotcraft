@@ -5295,6 +5295,7 @@ public sealed class AppServerRequestHandler(
                 Styles = extension.Styles.ToList(),
                 RequiredAppIds = extension.RequiredAppIds.ToList(),
                 ConnectOrigins = extension.ConnectOrigins.ToList(),
+                SurfaceWriteScopes = extension.SurfaceWriteScopes.ToList(),
                 Surfaces = extension.Surfaces
                     .Select(surface => new PluginDesktopExtensionSurfaceWire
                     {
