@@ -1198,7 +1198,7 @@ export const MESSAGES_EN = {
   'plugins.content.app': 'App',
   'plugins.content.desktopExtension': 'Desktop Extension',
   'plugins.content.agentTeams.teamCardBoard.title': 'Team Board',
-  'plugins.content.agentTeams.teamCardBoard.description': 'Unlocks the Team card board surface for robot teammates, missions, planning, and task dispatch.',
+  'plugins.content.agentTeams.teamCardBoard.description': 'Unlocks the card board for Agent Team.',
   'plugins.content.skill': 'Skill',
   'plugins.content.tool': 'Tool',
   'plugins.content.mcpServer': 'MCP server',

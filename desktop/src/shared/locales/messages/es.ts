@@ -1894,7 +1894,7 @@ export const MESSAGES_ES = {
   'plugins.source.plugin': 'Complemento',
   'plugins.content.desktopExtension': 'Extensión de escritorio',
   'plugins.content.agentTeams.teamCardBoard.title': 'Junta de equipo',
-  'plugins.content.agentTeams.teamCardBoard.description': 'Desbloquea la superficie del tablero de cartas del equipo para compañeros de equipo robóticos, misiones, planificación y envío de tareas.',
+  'plugins.content.agentTeams.teamCardBoard.description': 'Desbloquea el tablero de cartas para Agent Team.',
   'appBinding.threadButton': 'Aplicaciones',
   'appBinding.threadBindings': 'Aplicaciones',
   'appBinding.threadEmpty': 'No hay aplicaciones vinculadas',

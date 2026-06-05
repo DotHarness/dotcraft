@@ -1148,7 +1148,7 @@ export const MESSAGES_ZH_HANS = {
   'plugins.content.app': '应用',
   'plugins.content.desktopExtension': '桌面扩展',
   'plugins.content.agentTeams.teamCardBoard.title': 'Team 工作台',
-  'plugins.content.agentTeams.teamCardBoard.description': '解锁 Team 工作台界面，用于机器人队友、任务规划和子任务分派。',
+  'plugins.content.agentTeams.teamCardBoard.description': '解锁 Agent Team 的卡牌看板。',
   'plugins.content.skill': '技能',
   'plugins.content.tool': '工具',
   'plugins.content.mcpServer': 'MCP 服务器',

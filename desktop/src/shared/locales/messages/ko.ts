@@ -1889,7 +1889,7 @@ export const MESSAGES_KO = {
   'plugins.source.plugin': '플러그인',
   'plugins.content.desktopExtension': '데스크탑 확장',
   'plugins.content.agentTeams.teamCardBoard.title': '팀보드',
-  'plugins.content.agentTeams.teamCardBoard.description': '로봇 팀원, 임무, 계획 및 작업 파견을 위한 팀 카드 보드 표면의 잠금을 해제합니다.',
+  'plugins.content.agentTeams.teamCardBoard.description': 'Agent Team용 카드 보드를 잠금 해제합니다.',
   'appBinding.threadButton': '앱',
   'appBinding.threadBindings': '앱',
   'appBinding.threadEmpty': '바인딩된 앱 없음',

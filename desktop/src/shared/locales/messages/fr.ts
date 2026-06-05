@@ -1895,7 +1895,7 @@ export const MESSAGES_FR = {
   'plugins.source.plugin': 'Plugin',
   'plugins.content.desktopExtension': 'Extension de bureau',
   'plugins.content.agentTeams.teamCardBoard.title': 'Tableau d\'équipe',
-  'plugins.content.agentTeams.teamCardBoard.description': 'Déverrouille la surface du tableau de bord Team Card pour les coéquipiers du robot, les missions, la planification et la répartition des tâches.',
+  'plugins.content.agentTeams.teamCardBoard.description': 'Déverrouille le tableau de cartes pour Agent Team.',
   'appBinding.threadButton': 'Applications',
   'appBinding.threadBindings': 'Applications',
   'appBinding.threadEmpty': 'Aucune application liée',

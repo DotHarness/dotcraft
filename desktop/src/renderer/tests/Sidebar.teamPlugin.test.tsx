@@ -50,7 +50,7 @@ const agentTeamsPlugin: PluginEntry = {
         {
           type: 'pluginDetail',
           title: 'Team Board',
-          description: 'Unlocks the Team card board surface for robot teammates, missions, planning, and task dispatch.'
+          description: 'Unlocks the card board for Agent Team.'
         }
       ]
     }

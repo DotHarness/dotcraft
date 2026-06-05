@@ -1889,7 +1889,7 @@ export const MESSAGES_JA = {
   'plugins.source.plugin': 'プラグイン',
   'plugins.content.desktopExtension': 'デスクトップ拡張',
   'plugins.content.agentTeams.teamCardBoard.title': 'チームボード',
-  'plugins.content.agentTeams.teamCardBoard.description': 'ロボットのチームメイト、ミッション、計画、タスクのディスパッチのためのチーム カード ボード表面のロックを解除します。',
+  'plugins.content.agentTeams.teamCardBoard.description': 'Agent Team 用のカードボードをアンロックします。',
   'appBinding.threadButton': 'アプリ',
   'appBinding.threadBindings': 'アプリ',
   'appBinding.threadEmpty': 'バインドされたアプリはありません',

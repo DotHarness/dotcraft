@@ -1896,7 +1896,7 @@ export const MESSAGES_DE = {
   'plugins.source.plugin': 'Plugin',
   'plugins.content.desktopExtension': 'Desktop-Erweiterung',
   'plugins.content.agentTeams.teamCardBoard.title': 'Teamvorstand',
-  'plugins.content.agentTeams.teamCardBoard.description': 'Schaltet die Teamkartenoberfläche für Roboter-Teamkollegen, Missionen, Planung und Aufgabenverteilung frei.',
+  'plugins.content.agentTeams.teamCardBoard.description': 'Schaltet das Kartenbrett für Agent Team frei.',
   'appBinding.threadButton': 'Apps',
   'appBinding.threadBindings': 'Apps',
   'appBinding.threadEmpty': 'Keine Apps gebunden',
