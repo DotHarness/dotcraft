@@ -137,6 +137,8 @@ export interface UIState {
   selectedChangedFile: string | null
   /** Per-thread display mode for the Changes diff stream. */
   changesDiffModeByThread: Record<string, ChangesDiffMode>
+  /** Whether long diff lines wrap instead of scrolling horizontally. */
+  changesWordWrap: boolean
   /**
    * Tracks the turn ID for which the detail panel was auto-shown.
    * Prevents re-triggering after the user manually hides the panel.
@@ -230,6 +232,8 @@ interface UIStore extends UIState {
   selectChangedFile(filePath: string | null): void
   getChangesDiffMode(threadId: string | null): ChangesDiffMode
   setChangesDiffMode(threadId: string | null, mode: ChangesDiffMode): void
+  /** Toggle word wrap for the Changes diff stream. */
+  toggleChangesWordWrap(): void
   /** Open detail panel, switch to Changes tab, select the given file */
   showChangesForFile(filePath: string): void
   /** Mark auto-show as triggered for a given turn (prevents re-trigger) */
@@ -342,6 +346,7 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
   explorerRevealPath: null,
   selectedChangedFile: null,
   changesDiffModeByThread: {},
+  changesWordWrap: false,
   autoShowTriggeredForTurn: null,
   autoShowPlanForItem: null,
   autoShowReasons: new Set<string>(),
@@ -581,6 +586,10 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
         [threadId]: mode
       }
     }))
+  },
+
+  toggleChangesWordWrap() {
+    set((state) => ({ changesWordWrap: !state.changesWordWrap }))
   },
 
   showChangesForFile(filePath) {

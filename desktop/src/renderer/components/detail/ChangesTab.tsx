@@ -1,14 +1,17 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react'
-import { ChevronDown, ChevronUp, Columns2, FolderOpen, Rows2, Undo2 } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react'
+import { ChevronDown, ChevronUp, Columns2, Folder, FolderOpen, Rows2, Undo2 } from 'lucide-react'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useThreadStore } from '../../stores/threadStore'
 import { useUIStore, type ChangesDiffMode } from '../../stores/uiStore'
 import { useFileChangeActions } from '../../hooks/useFileChangeActions'
-import { useConfirmDialog } from '../ui/ConfirmDialog'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import type { FileDiff } from '../../types/toolCall'
 import { DiffViewer } from './DiffViewer'
+import { ChangesActionsMenu } from './ChangesActionsMenu'
+import { ChangesFileList } from './ChangesFileList'
+import { JumpToFileButton } from './JumpToFileButton'
+import { DragHandle } from '../layout/DragHandle'
 
 interface ChangesTabProps {
   workspacePath: string
@@ -27,14 +30,29 @@ export function ChangesTab({ workspacePath }: ChangesTabProps): JSX.Element {
   const activeThreadId = useThreadStore((s) => s.activeThreadId)
   const mode = useUIStore((s) => s.getChangesDiffMode(activeThreadId))
   const setMode = useUIStore((s) => s.setChangesDiffMode)
-  const confirm = useConfirmDialog()
+  const wordWrap = useUIStore((s) => s.changesWordWrap)
+  const toggleWordWrap = useUIStore((s) => s.toggleChangesWordWrap)
+  const explorerVisible = useUIStore((s) => s.explorerVisible)
+  const toggleExplorer = useUIStore((s) => s.toggleExplorer)
+  const explorerWidth = useUIStore((s) => s.explorerWidth)
+  const selectChangedFile = useUIStore((s) => s.selectChangedFile)
   const { revertFileDiff, reapplyFileDiff } = useFileChangeActions(workspacePath)
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set())
   const initialExpansionAppliedRef = useRef(false)
   const appliedSelectedFileRef = useRef<string | null>(null)
+  const sectionRefs = useRef<Map<string, HTMLElement>>(new Map())
+
+  const registerSection = useCallback((filePath: string, node: HTMLElement | null) => {
+    if (node) sectionRefs.current.set(filePath, node)
+    else sectionRefs.current.delete(filePath)
+  }, [])
+
+  const handleExplorerDrag = useCallback((delta: number) => {
+    const state = useUIStore.getState()
+    state.setExplorerWidth(state.explorerWidth - delta)
+  }, [])
 
   const files = useMemo(() => Array.from(changedFiles.values()), [changedFiles])
-  const writtenFiles = files.filter((f) => f.status === 'written')
   const totalAdd = files.reduce((s, f) => s + f.additions, 0)
   const totalDel = files.reduce((s, f) => s + f.deletions, 0)
 
@@ -83,31 +101,30 @@ export function ChangesTab({ workspacePath }: ChangesTabProps): JSX.Element {
     }
   }
 
-  async function handleRevertAll(): Promise<void> {
-    const count = writtenFiles.length
-    if (count === 0) return
-    const enPlural = locale === 'zh-Hans' ? '' : count === 1 ? '' : 's'
-    const confirmed = await confirm({
-      title: t('changes.revertAllTitle'),
-      message: t('changes.revertAllMessage', {
-        count,
-        plural: enPlural
-      }),
-      confirmLabel: t('changes.revertAllConfirm'),
-      danger: true
-    })
-    if (!confirmed) return
-    for (const diff of writtenFiles) {
-      await handleRevert(diff)
-    }
-  }
-
   function toggleFile(filePath: string): void {
     setExpanded((current) => {
       const next = new Set(current)
       if (next.has(filePath)) next.delete(filePath)
       else next.add(filePath)
       return next
+    })
+  }
+
+  function expandAll(): void {
+    setExpanded(new Set(files.map((file) => file.filePath)))
+  }
+
+  function collapseAll(): void {
+    setExpanded(new Set())
+  }
+
+  // Explorer row click: expand the file, mark it selected, and scroll its diff
+  // section into view (re-scrolls on every click, even if already expanded).
+  function handleSelectFromExplorer(filePath: string): void {
+    setExpanded((current) => current.has(filePath) ? current : new Set(current).add(filePath))
+    selectChangedFile(filePath)
+    requestAnimationFrame(() => {
+      sectionRefs.current.get(filePath)?.scrollIntoView({ block: 'start' })
     })
   }
 
@@ -148,44 +165,91 @@ export function ChangesTab({ workspacePath }: ChangesTabProps): JSX.Element {
         </span>
         <FileStats additions={totalAdd} deletions={totalDel} />
         <span style={{ flex: 1 }} />
-        <DiffModeToggle
-          mode={mode}
-          onChange={(next) => setMode(activeThreadId, next)}
-        />
-        {writtenFiles.length > 0 && (
-          <ActionTooltip label={t('changes.revertAllTitle')} placement="bottom">
+        <div style={actionsClusterStyle}>
+          <ChangesActionsMenu
+            wordWrap={wordWrap}
+            onToggleWordWrap={toggleWordWrap}
+            onExpandAll={expandAll}
+            onCollapseAll={collapseAll}
+          />
+          <JumpToFileButton />
+          <DiffModeToggle
+            mode={mode}
+            onChange={(next) => setMode(activeThreadId, next)}
+          />
+          <ActionTooltip
+            label={explorerVisible ? t('viewer.closeExplorer') : t('viewer.openExplorer')}
+            placement="bottom"
+          >
             <button
               type="button"
-              onClick={handleRevertAll}
-              style={ghostButtonStyle}
+              aria-label={explorerVisible ? t('viewer.closeExplorer') : t('viewer.openExplorer')}
+              aria-pressed={explorerVisible}
+              onClick={toggleExplorer}
+              style={{
+                ...headerIconButtonStyle,
+                color: explorerVisible ? 'var(--text-primary)' : 'var(--text-secondary)',
+                background: explorerVisible ? 'var(--bg-tertiary)' : 'transparent'
+              }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--bg-tertiary)' }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = explorerVisible ? 'var(--bg-tertiary)' : 'transparent' }}
             >
-              <Undo2 size={13} strokeWidth={1.8} aria-hidden />
-              <span>{t('changes.revertAllButton')}</span>
+              {explorerVisible
+                ? <FolderOpen size={16} aria-hidden style={{ display: 'block' }} />
+                : <Folder size={16} aria-hidden style={{ display: 'block' }} />}
             </button>
           </ActionTooltip>
-        )}
+        </div>
       </div>
 
-      <div
-        style={{
-          flex: 1,
-          overflow: 'auto',
-          padding: '4px 0 12px'
-        }}
-      >
-        {files.map((file, index) => (
-          <FileDiffSection
-            key={file.filePath}
-            file={file}
-            workspacePath={workspacePath}
-            mode={mode}
-            expanded={expanded.has(file.filePath)}
-            first={index === 0}
-            onToggle={() => toggleFile(file.filePath)}
-            onRevert={() => { void handleRevert(file) }}
-            onReapply={() => { void handleReapply(file) }}
-          />
-        ))}
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'row' }}>
+        <div
+          style={{
+            flex: '1 1 0',
+            minWidth: 160,
+            overflow: 'auto',
+            padding: '4px 0 12px'
+          }}
+        >
+          {files.map((file, index) => (
+            <FileDiffSection
+              key={file.filePath}
+              file={file}
+              workspacePath={workspacePath}
+              mode={mode}
+              wordWrap={wordWrap}
+              expanded={expanded.has(file.filePath)}
+              first={index === 0}
+              registerSection={registerSection}
+              onToggle={() => toggleFile(file.filePath)}
+              onRevert={() => { void handleRevert(file) }}
+              onReapply={() => { void handleReapply(file) }}
+            />
+          ))}
+        </div>
+
+        {explorerVisible && (
+          <>
+            <DragHandle onDrag={handleExplorerDrag} />
+            <div
+              style={{
+                flex: `0 1 ${explorerWidth}px`,
+                minWidth: 140,
+                overflow: 'hidden',
+                display: 'flex',
+                flexDirection: 'column',
+                borderLeft: '1px solid var(--glass-border)'
+              }}
+            >
+              <ChangesFileList
+                files={files}
+                workspacePath={workspacePath}
+                selectedPath={selectedFile}
+                onSelect={handleSelectFromExplorer}
+              />
+            </div>
+          </>
+        )}
       </div>
     </div>
   )
@@ -195,8 +259,10 @@ interface FileDiffSectionProps {
   file: FileDiff
   workspacePath: string
   mode: ChangesDiffMode
+  wordWrap: boolean
   expanded: boolean
   first: boolean
+  registerSection: (filePath: string, node: HTMLElement | null) => void
   onToggle: () => void
   onRevert: () => void
   onReapply: () => void
@@ -206,8 +272,10 @@ function FileDiffSection({
   file,
   workspacePath,
   mode,
+  wordWrap,
   expanded,
   first,
+  registerSection,
   onToggle,
   onRevert,
   onReapply
@@ -235,6 +303,7 @@ function FileDiffSection({
 
   return (
     <section
+      ref={(node) => registerSection(file.filePath, node)}
       style={{
         borderTop: first ? 'none' : '1px solid var(--border-default)'
       }}
@@ -327,13 +396,18 @@ function FileDiffSection({
       </div>
       {expanded && (
         <div style={{ background: 'var(--bg-primary)' }}>
-          <DiffViewer diff={file} workspacePath={workspacePath} mode={mode} />
+          <DiffViewer diff={file} workspacePath={workspacePath} mode={mode} wordWrap={wordWrap} />
         </div>
       )}
     </section>
   )
 }
 
+/**
+ * A single borderless button that toggles between unified and split diff. The
+ * icon advertises the *other* mode (what a click switches to), matching its
+ * tooltip — so the control reads as one action, not a two-state segmented pair.
+ */
 function DiffModeToggle({
   mode,
   onChange
@@ -342,31 +416,23 @@ function DiffModeToggle({
   onChange: (mode: ChangesDiffMode) => void
 }): JSX.Element {
   const t = useT()
+  const next: ChangesDiffMode = mode === 'inline' ? 'split' : 'inline'
+  const label = next === 'split' ? t('diffViewer.splitMode') : t('diffViewer.inlineMode')
   return (
-    <div style={segmentedStyle}>
-      <ActionTooltip label={t('diffViewer.inlineMode')} placement="bottom">
-        <button
-          type="button"
-          aria-label={t('diffViewer.inlineMode')}
-          aria-pressed={mode === 'inline'}
-          onClick={() => onChange('inline')}
-          style={segmentButtonStyle(mode === 'inline', true)}
-        >
-          <Rows2 size={14} strokeWidth={1.8} aria-hidden />
-        </button>
-      </ActionTooltip>
-      <ActionTooltip label={t('diffViewer.splitMode')} placement="bottom">
-        <button
-          type="button"
-          aria-label={t('diffViewer.splitMode')}
-          aria-pressed={mode === 'split'}
-          onClick={() => onChange('split')}
-          style={segmentButtonStyle(mode === 'split', false)}
-        >
-          <Columns2 size={14} strokeWidth={1.8} aria-hidden />
-        </button>
-      </ActionTooltip>
-    </div>
+    <ActionTooltip label={label} placement="bottom">
+      <button
+        type="button"
+        aria-label={label}
+        onClick={() => onChange(next)}
+        style={headerIconButtonStyle}
+        onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--bg-tertiary)' }}
+        onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
+      >
+        {next === 'split'
+          ? <Columns2 size={16} strokeWidth={1.8} aria-hidden style={{ display: 'block' }} />
+          : <Rows2 size={16} strokeWidth={1.8} aria-hidden style={{ display: 'block' }} />}
+      </button>
+    </ActionTooltip>
   )
 }
 
@@ -437,26 +503,20 @@ const summaryHeaderStyle: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   gap: '8px',
-  minHeight: '34px',
-  padding: '4px 8px 4px 10px',
-  borderBottom: '1px solid var(--border-default)',
+  height: '38px',
+  boxSizing: 'border-box',
+  padding: '0 8px 0 12px',
+  borderBottom: '1px solid var(--glass-border)',
   flexShrink: 0,
   fontSize: '12px',
   color: 'var(--text-secondary)'
 }
 
-const ghostButtonStyle: CSSProperties = {
-  display: 'inline-flex',
+const actionsClusterStyle: CSSProperties = {
+  display: 'flex',
   alignItems: 'center',
-  gap: '5px',
-  minHeight: '24px',
-  padding: '2px 7px',
-  fontSize: '11px',
-  borderRadius: '5px',
-  border: '1px solid var(--border-default)',
-  background: 'transparent',
-  color: 'var(--text-secondary)',
-  cursor: 'pointer'
+  gap: '4px',
+  flexShrink: 0
 }
 
 const iconButtonStyle: CSSProperties = {
@@ -475,26 +535,19 @@ const iconButtonStyle: CSSProperties = {
   transition: 'opacity 100ms ease, background-color 100ms ease, color 100ms ease'
 }
 
-const segmentedStyle: CSSProperties = {
+/** Borderless 28×28 header action button, matching `ViewerHeader`. */
+const headerIconButtonStyle: CSSProperties = {
   display: 'inline-flex',
-  overflow: 'hidden',
-  border: '1px solid var(--border-default)',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: '28px',
+  height: '28px',
+  padding: 0,
+  border: 'none',
   borderRadius: '6px',
-  flexShrink: 0
-}
-
-function segmentButtonStyle(active: boolean, divider: boolean): CSSProperties {
-  return {
-    width: '26px',
-    height: '24px',
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 0,
-    border: 'none',
-    borderRight: divider ? '1px solid var(--border-default)' : 'none',
-    background: active ? 'var(--bg-tertiary)' : 'transparent',
-    color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
-    cursor: 'pointer'
-  }
+  background: 'transparent',
+  color: 'var(--text-secondary)',
+  cursor: 'pointer',
+  flexShrink: 0,
+  transition: 'background-color 100ms ease, color 100ms ease'
 }

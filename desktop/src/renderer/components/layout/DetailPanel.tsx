@@ -416,12 +416,11 @@ function DetailPanelTab({
   maxWidth?: number
 }): JSX.Element {
   const [hovered, setHovered] = useState(false)
-  return (
+  const tab = (
     <div
       className={className}
       role="tab"
       aria-selected={active}
-      title={title}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onClick={onActivate}
@@ -456,7 +455,6 @@ function DetailPanelTab({
           <button
             type="button"
             aria-label={closeLabel}
-            title={closeLabel}
             onClick={(e) => {
               e.stopPropagation()
               onClose()
@@ -498,6 +496,13 @@ function DetailPanelTab({
         </span>
       )}
     </div>
+  )
+
+  if (!title) return tab
+  return (
+    <ActionTooltip label={title} placement="bottom" wrapperStyle={{ height: '100%' }}>
+      {tab}
+    </ActionTooltip>
   )
 }
 

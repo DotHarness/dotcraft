@@ -182,15 +182,6 @@ describe('ChangesTab diff stream', () => {
     })
   })
 
-  it('renders Revert All with a single icon-only glyph source', async () => {
-    cs().upsertChangedFile(makeDiff({ filePath: 'src/a.ts' }))
-
-    render(<Harness />)
-
-    const button = await screen.findByRole('button', { name: /^Revert All$/ })
-    expect(button).toHaveTextContent('Revert All')
-    expect(button).not.toHaveTextContent('↺')
-  })
 })
 
 describe('DiffViewer split mode', () => {
