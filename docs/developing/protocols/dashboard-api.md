@@ -32,6 +32,7 @@ Read-only mode only exposes trace, session listing, token usage, tools, runtime 
 | `Thinking` | Model thinking content segment |
 | `PromptCachePoint` | Prompt cache breakpoint summary |
 | `PromptCacheDiagnostic` | Prompt cache hit/break diagnostic |
+| `PromptCacheRequestShape` | OpenAI Responses request shape hashes for prompt-cache prefix diagnostics |
 | `MaintenanceForkRequest` | Maintenance fork request |
 | `MaintenanceForkResponse` | Maintenance fork response |
 
@@ -40,6 +41,8 @@ Dashboard `Thinking` and `Response` trace events are recorded by contiguous stre
 Maintenance requests such as context compaction and memory consolidation also record `MaintenanceForkRequest` / `MaintenanceForkResponse` events. These events preserve snapshot/cache metadata, raw model text, tool-call-only responses, empty responses, and fallback reasons so Dashboard can diagnose issues such as `summary_unavailable`.
 
 `DeferredToolLoading` is used for Responses native deferred tool loading. It records the tools newly activated by `tool_search`, the configured strategy, the effective mode, and the provider protocol; it does not mean top-level `tools` were injected and it is not marked as a prompt-cache tool extension.
+
+`PromptCacheRequestShape` records SHA-256 hashes and counts for OpenAI Responses request components so adjacent requests can be compared for prefix stability.
 
 ## Endpoints
 

@@ -1,5 +1,6 @@
 using System.ClientModel.Primitives;
 using System.Runtime.CompilerServices;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -17,7 +18,14 @@ internal static class ResponsesToolSearchMapper
     internal const string FunctionCallNamespaceMetadataKey = "openai.responses.function_call.namespace";
     internal const string PromptCacheKeyAdditionalProperty = "prompt_cache_key";
 
+    private const int PromptCacheRequestShapeSchemaVersion = 1;
+    private const string OpenAIResponsesProtocolName = "openai-responses";
+
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+
+    internal sealed record OpenAIResponsesRequest(
+        CreateResponseOptions Options,
+        PromptCacheRequestShapeSnapshot Shape);
 
     public static bool HasNativeToolSearch(ChatOptions? options) =>
         options?.Tools?.Any(static tool =>
@@ -56,6 +64,13 @@ internal static class ResponsesToolSearchMapper
         string model,
         IEnumerable<ChatMessage> chatMessages,
         ChatOptions? options,
+        bool includeReasoning = true) =>
+        CreateResponseRequest(model, chatMessages, options, includeReasoning).Options;
+
+    internal static OpenAIResponsesRequest CreateResponseRequest(
+        string model,
+        IEnumerable<ChatMessage> chatMessages,
+        ChatOptions? options,
         bool includeReasoning = true)
     {
         var messages = chatMessages as IReadOnlyList<ChatMessage> ?? chatMessages.ToList();
@@ -71,10 +86,14 @@ internal static class ResponsesToolSearchMapper
         if (!string.IsNullOrWhiteSpace(instructions))
             responseOptions.Instructions = instructions;
 
+        var input = BuildInput(messages, callNames, options);
+        var tools = BuildTools(options);
+
         if (options?.AllowMultipleToolCalls is { } allowMultiple)
             responseOptions.ParallelToolCallsEnabled = allowMultiple;
         if (options?.MaxOutputTokens is { } maxOutputTokens)
             responseOptions.MaxOutputTokenCount = maxOutputTokens;
+        ResponseReasoningOptions? reasoningOptions = null;
         if (includeReasoning)
         {
             // Always emit include=reasoning.encrypted_content so reasoning items round-trip across
@@ -83,38 +102,55 @@ internal static class ResponsesToolSearchMapper
             // same path or the wire body ends up with duplicate keys that downstream JSON parsers
             // (e.g. JsonNode.Parse in the ChatGPT metadata pipeline policy) reject.
             responseOptions.IncludedProperties.Add(IncludedResponseProperty.ReasoningEncryptedContent);
-            if (CreateReasoningOptions(options?.Reasoning) is { } reasoning)
+            reasoningOptions = CreateReasoningOptions(options?.Reasoning);
+            if (reasoningOptions is { } reasoning)
                 responseOptions.ReasoningOptions = reasoning;
         }
 
 #pragma warning disable SCME0001
         responseOptions.Patch.Set(
             "$.input"u8,
-            BinaryData.FromString(BuildInput(messages, callNames, options).ToJsonString(JsonOptions)));
+            BinaryData.FromString(input.ToJsonString(JsonOptions)));
         responseOptions.Patch.Set(
             "$.tools"u8,
-            BinaryData.FromString(BuildTools(options).ToJsonString(JsonOptions)));
+            BinaryData.FromString(tools.ToJsonString(JsonOptions)));
 #pragma warning restore SCME0001
 
-        var promptCacheKey = ResolvePromptCacheKey(options);
-        if (!string.IsNullOrWhiteSpace(promptCacheKey))
-            PatchResponsePromptCacheKey(responseOptions, promptCacheKey);
+        var promptCacheKey = ResolvePromptCacheKeyWithSource(options);
+        if (!string.IsNullOrWhiteSpace(promptCacheKey.Value))
+            PatchResponsePromptCacheKey(responseOptions, promptCacheKey.Value!);
 
-        return responseOptions;
+        return new OpenAIResponsesRequest(
+            responseOptions,
+            CreatePromptCacheRequestShapeSnapshot(
+                model,
+                promptCacheKey,
+                instructions,
+                input,
+                tools,
+                includeReasoning,
+                reasoningOptions));
     }
 
     internal static string? ResolvePromptCacheKey(
         ChatOptions? options,
+        string? preferredPromptCacheKey = null) =>
+        ResolvePromptCacheKeyWithSource(options, preferredPromptCacheKey).Value;
+
+    private static PromptCacheKeyResolution ResolvePromptCacheKeyWithSource(
+        ChatOptions? options,
         string? preferredPromptCacheKey = null)
     {
         if (TryReadString(options?.AdditionalProperties, PromptCacheKeyAdditionalProperty, out var configured))
-            return configured?.Trim();
+            return new PromptCacheKeyResolution(configured?.Trim(), "additionalProperties");
 
         if (!string.IsNullOrWhiteSpace(preferredPromptCacheKey))
-            return preferredPromptCacheKey.Trim();
+            return new PromptCacheKeyResolution(preferredPromptCacheKey.Trim(), "preferred");
 
         var active = TracingChatClient.CurrentSessionKey ?? TracingChatClient.GetActiveSessionKey();
-        return string.IsNullOrWhiteSpace(active) ? null : active!.Trim();
+        return string.IsNullOrWhiteSpace(active)
+            ? new PromptCacheKeyResolution(null, null)
+            : new PromptCacheKeyResolution(active!.Trim(), "activeSession");
     }
 
     internal static void PatchOpenAIResponsesRawRepresentationFactory(ChatOptions options, string promptCacheKey)
@@ -346,6 +382,74 @@ internal static class ResponsesToolSearchMapper
 
         return hasValue ? options : null;
     }
+
+    private static PromptCacheRequestShapeSnapshot CreatePromptCacheRequestShapeSnapshot(
+        string model,
+        PromptCacheKeyResolution promptCacheKey,
+        string? instructions,
+        JsonArray input,
+        JsonArray tools,
+        bool includeReasoning,
+        ResponseReasoningOptions? reasoningOptions)
+    {
+        var inputItemHashes = input
+            .Select(static item => item == null ? HashUtf8String("null") : HashJsonNode(item))
+            .ToArray();
+
+        return new PromptCacheRequestShapeSnapshot(
+            PromptCacheRequestShapeSchemaVersion,
+            OpenAIResponsesProtocolName,
+            model,
+            string.IsNullOrWhiteSpace(promptCacheKey.Value) ? null : HashUtf8String(promptCacheKey.Value!),
+            promptCacheKey.Source,
+            HashJsonStringValue(instructions),
+            HashJsonNode(tools),
+            HashReasoningShape(includeReasoning, reasoningOptions),
+            HashJsonNode(input),
+            input.Count,
+            inputItemHashes);
+    }
+
+    private static string? HashReasoningShape(
+        bool includeReasoning,
+        ResponseReasoningOptions? reasoningOptions)
+    {
+        if (!includeReasoning && reasoningOptions == null)
+            return null;
+
+        var shape = new JsonObject
+        {
+            ["includeReasoningEncryptedContent"] = includeReasoning
+        };
+        if (reasoningOptions != null && SerializeSdkModelToJsonNode(reasoningOptions) is { } reasoning)
+            shape["reasoning"] = reasoning;
+
+        return HashJsonNode(shape);
+    }
+
+    private static JsonNode? SerializeSdkModelToJsonNode(object value)
+    {
+        try
+        {
+            return JsonNode.Parse(ModelReaderWriter.Write(value).ToString());
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or NotSupportedException or JsonException or ArgumentException)
+        {
+            return JsonSerializer.SerializeToNode(value, JsonOptions);
+        }
+    }
+
+    private static string HashJsonNode(JsonNode node) =>
+        HashUtf8String(node.ToJsonString(JsonOptions));
+
+    private static string? HashJsonStringValue(string? value) =>
+        value == null ? null : HashUtf8Bytes(JsonSerializer.SerializeToUtf8Bytes(value, JsonOptions));
+
+    private static string HashUtf8String(string value) =>
+        HashUtf8Bytes(Encoding.UTF8.GetBytes(value));
+
+    private static string HashUtf8Bytes(byte[] bytes) =>
+        "sha256:" + Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
 
     private static JsonObject CreateMessageItem(ChatRole role, string text)
     {
@@ -969,4 +1073,6 @@ internal static class ResponsesToolSearchMapper
         var chars = value.Where(static ch => ch is not '-' and not '_' and not ' ').ToArray();
         return new string(chars).ToLowerInvariant();
     }
+
+    private sealed record PromptCacheKeyResolution(string? Value, string? Source);
 }

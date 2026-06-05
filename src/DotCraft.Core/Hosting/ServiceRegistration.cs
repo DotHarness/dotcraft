@@ -224,7 +224,11 @@ public static class ServiceRegistration
         foreach (var note in hiddenBuiltInNotes)
             AnsiConsole.MarkupLine($"[grey][[Config]] Note: {Markup.Escape(note)}[/]");
 
-        return isValid;
+        var waitAgentTimeoutErrors = SubAgentWaitAgentTimeoutOptions.Validate(config.SubAgent);
+        foreach (var error in waitAgentTimeoutErrors)
+            AnsiConsole.MarkupLine($"[red][[Config]] Error: {Markup.Escape(error)}[/]");
+
+        return isValid && waitAgentTimeoutErrors.Count == 0;
     }
 }
 

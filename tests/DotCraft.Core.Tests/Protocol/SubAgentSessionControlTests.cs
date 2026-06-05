@@ -11,6 +11,10 @@ public sealed class SubAgentSessionControlTests : IDisposable
     private readonly string _tempDir;
     private readonly ThreadStore _store;
     private readonly TestableSessionService _sessionService;
+    private static readonly SubAgentWaitAgentTimeoutOptions FastWaitTimeouts = new(
+        MinTimeoutMs: 1,
+        DefaultTimeoutMs: 50,
+        MaxTimeoutMs: 10_000);
 
     public SubAgentSessionControlTests()
     {
@@ -486,7 +490,11 @@ public sealed class SubAgentSessionControlTests : IDisposable
             CancellationToken.None);
         var child = await _sessionService.GetThreadAsync(spawned.ChildThreadId);
         var beforeTurnCount = child.Turns.Count;
-        var waitTask = SubAgentSessionControl.WaitAgentAsync(context, timeoutMs: 1000, CancellationToken.None);
+        var waitTask = SubAgentSessionControl.WaitAgentAsync(
+            context,
+            timeoutMs: 1000,
+            CancellationToken.None,
+            FastWaitTimeouts);
 
         var sent = await SubAgentSessionControl.SendMessageAsync(
             context,
@@ -529,7 +537,11 @@ public sealed class SubAgentSessionControlTests : IDisposable
             waitForCompletion: false,
             coordinator,
             CancellationToken.None);
-        var waitTask = SubAgentSessionControl.WaitAgentAsync(context, timeoutMs: 1000, CancellationToken.None);
+        var waitTask = SubAgentSessionControl.WaitAgentAsync(
+            context,
+            timeoutMs: 1000,
+            CancellationToken.None,
+            FastWaitTimeouts);
 
         runtime.PendingResult.SetResult(new DotCraft.Agents.SubAgentRunResult { Text = "done" });
         var waited = await waitTask;
@@ -565,7 +577,8 @@ public sealed class SubAgentSessionControlTests : IDisposable
         var waited = await SubAgentSessionControl.WaitAgentAsync(
             context,
             timeoutMs: 10_000,
-            CancellationToken.None);
+            CancellationToken.None,
+            FastWaitTimeouts);
 
         Assert.Equal("changed", waited.Status);
         Assert.False(waited.TimedOut);
@@ -574,7 +587,8 @@ public sealed class SubAgentSessionControlTests : IDisposable
     [Theory]
     [InlineData(0)]
     [InlineData(-1)]
-    public async Task WaitAgent_WhenTimeoutMsIsNotPositive_Throws(int timeoutMs)
+    [InlineData(14_999)]
+    public async Task WaitAgent_WhenTimeoutMsIsBelowConfiguredMin_Throws(int timeoutMs)
     {
         var context = await CreateContextAsync();
 
@@ -582,6 +596,65 @@ public sealed class SubAgentSessionControlTests : IDisposable
             SubAgentSessionControl.WaitAgentAsync(context, timeoutMs, CancellationToken.None));
 
         Assert.Equal("timeoutMs", ex.ParamName);
+        Assert.Contains("at least 15000", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task WaitAgent_WhenTimeoutMsIsAboveConfiguredMax_Throws()
+    {
+        var context = await CreateContextAsync();
+        var options = new SubAgentWaitAgentTimeoutOptions(
+            MinTimeoutMs: 1,
+            DefaultTimeoutMs: 50,
+            MaxTimeoutMs: 100);
+
+        var ex = await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
+            SubAgentSessionControl.WaitAgentAsync(
+                context,
+                timeoutMs: 101,
+                CancellationToken.None,
+                options));
+
+        Assert.Equal("timeoutMs", ex.ParamName);
+        Assert.Contains("at most 100", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task WaitAgent_WhenTimeoutMsIsOmitted_UsesConfiguredDefault()
+    {
+        var context = await CreateContextAsync();
+        var options = new SubAgentWaitAgentTimeoutOptions(
+            MinTimeoutMs: 1,
+            DefaultTimeoutMs: 1,
+            MaxTimeoutMs: 100);
+
+        var waited = await SubAgentSessionControl.WaitAgentAsync(
+            context,
+            timeoutMs: null,
+            CancellationToken.None,
+            options);
+
+        Assert.Equal("timeout", waited.Status);
+        Assert.True(waited.TimedOut);
+    }
+
+    [Fact]
+    public async Task WaitAgent_WhenZeroTimeoutIsConfiguredAndRequested_ReturnsTimeout()
+    {
+        var context = await CreateContextAsync();
+        var options = new SubAgentWaitAgentTimeoutOptions(
+            MinTimeoutMs: 0,
+            DefaultTimeoutMs: 0,
+            MaxTimeoutMs: 0);
+
+        var waited = await SubAgentSessionControl.WaitAgentAsync(
+            context,
+            timeoutMs: 0,
+            CancellationToken.None,
+            options);
+
+        Assert.Equal("timeout", waited.Status);
+        Assert.True(waited.TimedOut);
     }
 
     [Fact]
@@ -662,6 +735,114 @@ public sealed class SubAgentSessionControlTests : IDisposable
         var text = Assert.Single(queued.MaterializedInputParts).Text;
         Assert.Contains("mailbox note", text, StringComparison.Ordinal);
         Assert.Contains("continue work", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task FollowupTask_WhenNativeTargetRunningAndDeliveryModeSteer_PromotesQueuedInputToGuidance()
+    {
+        var context = await CreateContextAsync();
+        var child = await CreatePathSubAgentAsync(context);
+        AddActiveTurnWithUnstableItems(child, "active work");
+        await _store.SaveThreadAsync(child);
+
+        await SubAgentSessionControl.SendMessageAsync(context, "/root/inspect", "mailbox note", CancellationToken.None);
+        var followed = await SubAgentSessionControl.FollowupTaskAsync(
+            context,
+            "/root/inspect",
+            "continue work",
+            coordinator: null,
+            CancellationToken.None,
+            deliveryMode: SubAgentFollowupDeliveryMode.Steer);
+        child = await _sessionService.GetThreadAsync(child.Id);
+        var pending = await _sessionService.ListPendingSubAgentMailboxAsync(context.RootThreadId, "/root/inspect");
+
+        Assert.Equal("guidancePending", followed.Status);
+        Assert.Equal("/root/inspect", followed.AgentPath);
+        Assert.Empty(pending);
+        Assert.Single(child.Turns);
+        var queued = Assert.Single(child.QueuedInputs);
+        Assert.Equal("guidancePending", queued.Status);
+        Assert.Equal("turn_active", queued.ReadyAfterTurnId);
+        Assert.Equal("subagentFollowupTask", queued.TriggerKind);
+        Assert.Equal("Inspect", queued.TriggerLabel);
+        Assert.Equal("/root/inspect", queued.TriggerRefId);
+        Assert.Equal("continue work", queued.DisplayText);
+        var text = Assert.Single(queued.MaterializedInputParts).Text;
+        Assert.Contains("mailbox note", text, StringComparison.Ordinal);
+        Assert.Contains("continue work", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task FollowupTask_WhenTargetIdleAndDeliveryModeSteer_StartsTargetTurn()
+    {
+        var runtime = new FakeRuntime(CliOneshotRuntime.RuntimeTypeName, "first", resultSessionId: "sess-1");
+        var coordinator = CreateCoordinator(runtime, supportsResume: false, resumeEnabled: false);
+        var context = await CreateContextAsync();
+        var spawned = await SubAgentSessionControl.SpawnAgentAsync(
+            context,
+            new SubAgentSpawnOptions
+            {
+                AgentPrompt = "inspect code",
+                TaskName = "inspect",
+                AgentNickname = "Inspect",
+                ProfileName = "cli-run"
+            },
+            waitForCompletion: true,
+            coordinator,
+            CancellationToken.None);
+
+        await SubAgentSessionControl.SendMessageAsync(context, "/root/inspect", "mailbox note", CancellationToken.None);
+        runtime.ResultText = "followed";
+        var followed = await SubAgentSessionControl.FollowupTaskAsync(
+            context,
+            "/root/inspect",
+            "continue work",
+            coordinator,
+            CancellationToken.None,
+            deliveryMode: SubAgentFollowupDeliveryMode.Steer);
+        var waited = await SubAgentSessionControl.WaitAgentAsync(
+            _sessionService,
+            followed.ChildThreadId,
+            timeoutSeconds: 5,
+            CancellationToken.None);
+        var child = await _sessionService.GetThreadAsync(spawned.ChildThreadId);
+
+        Assert.Equal("running", followed.Status);
+        Assert.Equal("followed", waited.Message);
+        Assert.Empty(child.QueuedInputs);
+        Assert.Equal(2, child.Turns.Count);
+        Assert.Contains("mailbox note", child.Turns[1].Input?.AsUserMessage?.Text, StringComparison.Ordinal);
+        Assert.Contains("continue work", child.Turns[1].Input?.AsUserMessage?.Text, StringComparison.Ordinal);
+        Assert.Equal("subagentFollowupTask", child.Turns[1].Input?.AsUserMessage?.TriggerKind);
+    }
+
+    [Fact]
+    public async Task FollowupTask_WhenExternalTargetRunningAndDeliveryModeSteer_RejectsWithoutQueueingOrDeliveringMailbox()
+    {
+        var context = await CreateContextAsync();
+        var child = await CreatePathSubAgentAsync(
+            context,
+            runtimeType: CliOneshotRuntime.RuntimeTypeName,
+            profileName: "cli-run");
+        AddActiveTurnWithUnstableItems(child, "active work");
+        await _store.SaveThreadAsync(child);
+
+        await SubAgentSessionControl.SendMessageAsync(context, "/root/inspect", "mailbox note", CancellationToken.None);
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            SubAgentSessionControl.FollowupTaskAsync(
+                context,
+                "/root/inspect",
+                "continue work",
+                coordinator: null,
+                CancellationToken.None,
+                deliveryMode: SubAgentFollowupDeliveryMode.Steer));
+        child = await _sessionService.GetThreadAsync(child.Id);
+        var pending = await _sessionService.ListPendingSubAgentMailboxAsync(context.RootThreadId, "/root/inspect");
+
+        Assert.Contains("running native SubAgents", ex.Message, StringComparison.Ordinal);
+        Assert.Empty(child.QueuedInputs);
+        var entry = Assert.Single(pending);
+        Assert.Equal("mailbox note", entry.Message);
     }
 
     [Fact]

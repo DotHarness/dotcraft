@@ -27,6 +27,7 @@ public sealed class PromptBuilder(
     string? roleInstructions = null,
     IContextPageManager? contextPageManager = null,
     DreamStore? dreamStore = null,
+    SubAgentWaitAgentTimeoutOptions? subAgentWaitAgentTimeoutOptions = null,
     IReadOnlyList<IThreadSystemPromptContextProvider>? threadSystemPromptContextProviders = null)
 {
     private readonly string _craftPath = Path.GetFullPath(craftPath);
@@ -65,7 +66,7 @@ public sealed class PromptBuilder(
             parts.Add(subAgentProfilesSection);
 
         if (!subAgentLight && IsToolAvailable(availableToolNames, "SpawnAgent"))
-            parts.Add(GetSubAgentLifecyclePrompt(availableToolNames));
+            parts.Add(GetSubAgentLifecyclePrompt(availableToolNames, subAgentWaitAgentTimeoutOptions));
 
         parts.Add(GetWorkingStylePrompt());
         parts.Add(GetResponseStylePrompt());
@@ -332,8 +333,11 @@ Newly created or updated skills may not affect the current prompt immediately; t
 """;
     }
 
-    private static string GetSubAgentLifecyclePrompt(IReadOnlyList<string>? availableToolNames)
+    private static string GetSubAgentLifecyclePrompt(
+        IReadOnlyList<string>? availableToolNames,
+        SubAgentWaitAgentTimeoutOptions? waitAgentTimeoutOptions)
     {
+        var timeoutOptions = waitAgentTimeoutOptions ?? SubAgentWaitAgentTimeoutOptions.Defaults;
         var hasSendMessage = IsToolAvailable(availableToolNames, "SendMessage");
         var hasFollowupTask = IsToolAvailable(availableToolNames, "FollowupTask");
         var hasWaitAgent = IsToolAvailable(availableToolNames, "WaitAgent");
@@ -346,9 +350,9 @@ Newly created or updated skills may not affect the current prompt immediately; t
         if (hasSendMessage)
             controls.Add("Use `SendMessage` for mailbox-only coordination; it records a message for the target and does not start a turn.");
         if (hasFollowupTask)
-            controls.Add("Use `FollowupTask` to start or queue a target agent turn; pending mailbox messages for that target are delivered with the task.");
+            controls.Add("Use `FollowupTask` to start or queue a target agent turn; set `deliveryMode` to `steer` only when a running native target should receive same-turn guidance, otherwise keep the default `queue`. Pending mailbox messages for that target are delivered with the task.");
         if (hasWaitAgent)
-            controls.Add("Use `WaitAgent` only when the parent is blocked on mailbox or SubAgent graph changes.");
+            controls.Add($"Use `WaitAgent` only when the parent is blocked on mailbox or SubAgent graph changes; `timeoutMs` is milliseconds, defaults to {timeoutOptions.DefaultTimeoutMs}, and must be between {timeoutOptions.MinTimeoutMs} and {timeoutOptions.MaxTimeoutMs}.");
         if (hasCloseAgent)
             controls.Add("Use `CloseAgent` with an `agentPath` when a child thread is no longer needed; do not keep idle child agents open indefinitely.");
 

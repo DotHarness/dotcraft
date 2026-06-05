@@ -1,5 +1,6 @@
 using DotCraft.Abstractions;
 using DotCraft.Commands.Custom;
+using DotCraft.Configuration;
 using DotCraft.Tracing;
 using DotCraft.Memory;
 using DotCraft.Dreams;
@@ -28,6 +29,7 @@ public sealed class MemoryContextProvider(
     string? roleInstructions = null,
     IContextPageManager? contextPageManager = null,
     DreamStore? dreamStore = null,
+    SubAgentWaitAgentTimeoutOptions? subAgentWaitAgentTimeoutOptions = null,
     string? threadId = null,
     IReadOnlyList<IThreadSystemPromptContextProvider>? threadSystemPromptContextProviders = null)
     : AIContextProvider
@@ -48,6 +50,7 @@ public sealed class MemoryContextProvider(
         roleInstructions,
         contextPageManager,
         dreamStore,
+        subAgentWaitAgentTimeoutOptions,
         threadSystemPromptContextProviders);
 
     protected override ValueTask<AIContext> ProvideAIContextAsync(InvokingContext context, CancellationToken cancellationToken = default)

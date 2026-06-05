@@ -121,6 +121,32 @@ public class SubAgentProfileConfigTests
     }
 
     [Fact]
+    public void AppConfig_SubAgentWaitAgentTimeouts_UseCodexV2StyleDefaults()
+    {
+        var config = new AppConfig();
+
+        Assert.Equal(15_000, config.SubAgent.MinWaitTimeoutMs);
+        Assert.Equal(60_000, config.SubAgent.DefaultWaitTimeoutMs);
+        Assert.Equal(3_600_000, config.SubAgent.MaxWaitTimeoutMs);
+        Assert.Empty(SubAgentWaitAgentTimeoutOptions.Validate(config.SubAgent));
+    }
+
+    [Fact]
+    public void SubAgentWaitAgentTimeoutOptions_ValidatesConfiguredRange()
+    {
+        var config = new AppConfig.SubAgentConfig
+        {
+            MinWaitTimeoutMs = 2_000,
+            DefaultWaitTimeoutMs = 1_000,
+            MaxWaitTimeoutMs = 3_000
+        };
+
+        var errors = SubAgentWaitAgentTimeoutOptions.Validate(config);
+
+        Assert.Contains(errors, error => error.Contains("DefaultWaitTimeoutMs must be at least", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void AppConfig_Serializes_SubAgentProfiles_AsObjectMap_KeyedByName()
     {
         var config = new AppConfig

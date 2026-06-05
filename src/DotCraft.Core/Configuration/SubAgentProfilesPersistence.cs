@@ -20,6 +20,7 @@ public static class SubAgentProfilesPersistence
                 .ToArray(),
             config.SubAgent.EnableExternalCliSessionResume,
             config.SubAgent.Model,
+            SubAgentWaitAgentTimeoutOptions.FromConfig(config.SubAgent),
             config.SubAgentProfiles
                 .Where(profile => !string.IsNullOrWhiteSpace(profile.Name))
                 .Select(profile => profile.Clone())
@@ -31,6 +32,7 @@ public static class SubAgentProfilesPersistence
         IReadOnlyCollection<string> disabledProfiles,
         bool enableExternalCliSessionResume,
         string? model,
+        SubAgentWaitAgentTimeoutOptions waitAgentTimeouts,
         IReadOnlyCollection<SubAgentProfile> profiles)
     {
         var configPath = Path.Combine(craftPath, "config.json");
@@ -40,6 +42,7 @@ public static class SubAgentProfilesPersistence
         WriteDisabledProfiles(root, disabledProfiles);
         WriteEnableExternalCliSessionResume(root, enableExternalCliSessionResume);
         WriteModel(root, model);
+        WriteWaitAgentTimeouts(root, waitAgentTimeouts);
         WriteProfiles(root, profiles);
 
         var json = root.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
@@ -109,6 +112,51 @@ public static class SubAgentProfilesPersistence
         }
 
         section[key ?? "Model"] = normalized;
+    }
+
+    private static void WriteWaitAgentTimeouts(JsonObject root, SubAgentWaitAgentTimeoutOptions waitAgentTimeouts)
+    {
+        var errors = SubAgentWaitAgentTimeoutOptions.Validate(waitAgentTimeouts);
+        if (errors.Count > 0)
+            throw new InvalidOperationException(string.Join(" ", errors));
+
+        var shouldWrite =
+            waitAgentTimeouts.MinTimeoutMs != SubAgentWaitAgentTimeoutOptions.BuiltInMinTimeoutMs
+            || waitAgentTimeouts.DefaultTimeoutMs != SubAgentWaitAgentTimeoutOptions.BuiltInDefaultTimeoutMs
+            || waitAgentTimeouts.MaxTimeoutMs != SubAgentWaitAgentTimeoutOptions.BuiltInMaxTimeoutMs;
+        var section = GetOrCreateConfigSection(root, "SubAgent", createIfMissing: shouldWrite);
+        if (section == null)
+            return;
+
+        UpsertOrRemoveDefaultInt(
+            section,
+            "MinWaitTimeoutMs",
+            waitAgentTimeouts.MinTimeoutMs,
+            SubAgentWaitAgentTimeoutOptions.BuiltInMinTimeoutMs);
+        UpsertOrRemoveDefaultInt(
+            section,
+            "DefaultWaitTimeoutMs",
+            waitAgentTimeouts.DefaultTimeoutMs,
+            SubAgentWaitAgentTimeoutOptions.BuiltInDefaultTimeoutMs);
+        UpsertOrRemoveDefaultInt(
+            section,
+            "MaxWaitTimeoutMs",
+            waitAgentTimeouts.MaxTimeoutMs,
+            SubAgentWaitAgentTimeoutOptions.BuiltInMaxTimeoutMs);
+        RemoveConfigSectionIfEmpty(root, "SubAgent");
+    }
+
+    private static void UpsertOrRemoveDefaultInt(JsonObject section, string canonicalKey, int value, int defaultValue)
+    {
+        var key = FindCaseInsensitiveKey(section, canonicalKey);
+        if (value == defaultValue)
+        {
+            if (key != null)
+                section.Remove(key);
+            return;
+        }
+
+        section[key ?? canonicalKey] = value;
     }
 
     private static void WriteProfiles(JsonObject root, IReadOnlyCollection<SubAgentProfile> profiles)
@@ -202,4 +250,5 @@ public sealed record SubAgentWorkspaceState(
     IReadOnlyList<string> DisabledProfiles,
     bool EnableExternalCliSessionResume,
     string Model,
+    SubAgentWaitAgentTimeoutOptions WaitAgentTimeouts,
     IReadOnlyList<SubAgentProfile> Profiles);

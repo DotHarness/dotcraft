@@ -19,6 +19,7 @@ public enum TraceEventType
     Thinking,
     PromptCachePoint,
     PromptCacheDiagnostic,
+    PromptCacheRequestShape,
     MaintenanceForkRequest,
     MaintenanceForkResponse,
     ThreadRollback,
@@ -175,6 +176,19 @@ internal sealed record PromptCacheRequestDiagnosticSnapshot(
     int ToolCount,
     IReadOnlyList<PromptCacheSelectedPointDiagnostic> SelectedPoints,
     IReadOnlyList<PromptCacheCandidateCountDiagnostic> CandidateCounts);
+
+internal sealed record PromptCacheRequestShapeSnapshot(
+    int SchemaVersion,
+    string Protocol,
+    string Model,
+    string? PromptCacheKeyHash,
+    string? PromptCacheKeySource,
+    string? InstructionsHash,
+    string ToolsHash,
+    string? ReasoningHash,
+    string InputHash,
+    int InputItemCount,
+    IReadOnlyList<string> InputItemHashes);
 
 internal sealed record PromptCacheSelectedPointDiagnostic(
     string Role,

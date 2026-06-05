@@ -1044,6 +1044,24 @@ public sealed class AppConfig
         public string Model { get; set; } = string.Empty;
 
         /// <summary>
+        /// Minimum accepted <c>WaitAgent.timeoutMs</c> value in milliseconds.
+        /// </summary>
+        [ConfigField(Min = SubAgentWaitAgentTimeoutOptions.HardMinTimeoutMs, Max = SubAgentWaitAgentTimeoutOptions.HardMaxTimeoutMs, Hint = "Minimum WaitAgent timeout in milliseconds.", Reload = ReloadBehavior.Hot, HasReload = true)]
+        public int MinWaitTimeoutMs { get; set; } = SubAgentWaitAgentTimeoutOptions.BuiltInMinTimeoutMs;
+
+        /// <summary>
+        /// Default <c>WaitAgent.timeoutMs</c> value used when omitted.
+        /// </summary>
+        [ConfigField(Min = SubAgentWaitAgentTimeoutOptions.HardMinTimeoutMs, Max = SubAgentWaitAgentTimeoutOptions.HardMaxTimeoutMs, Hint = "Default WaitAgent timeout in milliseconds.", Reload = ReloadBehavior.Hot, HasReload = true)]
+        public int DefaultWaitTimeoutMs { get; set; } = SubAgentWaitAgentTimeoutOptions.BuiltInDefaultTimeoutMs;
+
+        /// <summary>
+        /// Maximum accepted <c>WaitAgent.timeoutMs</c> value in milliseconds.
+        /// </summary>
+        [ConfigField(Min = SubAgentWaitAgentTimeoutOptions.HardMinTimeoutMs, Max = SubAgentWaitAgentTimeoutOptions.HardMaxTimeoutMs, Hint = "Maximum WaitAgent timeout in milliseconds.", Reload = ReloadBehavior.Hot, HasReload = true)]
+        public int MaxWaitTimeoutMs { get; set; } = SubAgentWaitAgentTimeoutOptions.BuiltInMaxTimeoutMs;
+
+        /// <summary>
         /// Maximum allowed depth for session-backed SubAgent spawning. The first child has depth 1.
         /// </summary>
         [ConfigField(Min = 1, Hint = "Maximum SubAgent spawn depth. Default 1 allows root -> SubAgent only.", Reload = ReloadBehavior.Hot, HasReload = true)]

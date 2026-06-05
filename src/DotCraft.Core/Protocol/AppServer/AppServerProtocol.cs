@@ -1083,6 +1083,8 @@ public sealed class SubAgentTargetMessageParams
     public string Target { get; set; } = string.Empty;
 
     public string Message { get; set; } = string.Empty;
+
+    public SubAgentFollowupDeliveryMode DeliveryMode { get; set; } = SubAgentFollowupDeliveryMode.Queue;
 }
 
 // ───── thread/read ─────
@@ -3878,6 +3880,12 @@ public sealed class SubAgentSettingsWire
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Model { get; set; }
+
+    public int MinWaitTimeoutMs { get; set; } = SubAgentWaitAgentTimeoutOptions.BuiltInMinTimeoutMs;
+
+    public int DefaultWaitTimeoutMs { get; set; } = SubAgentWaitAgentTimeoutOptions.BuiltInDefaultTimeoutMs;
+
+    public int MaxWaitTimeoutMs { get; set; } = SubAgentWaitAgentTimeoutOptions.BuiltInMaxTimeoutMs;
 }
 
 public sealed class SubAgentSettingsUpdateParams
@@ -3885,6 +3893,12 @@ public sealed class SubAgentSettingsUpdateParams
     public bool? ExternalCliSessionResumeEnabled { get; set; }
 
     public string? Model { get; set; }
+
+    public int? MinWaitTimeoutMs { get; set; }
+
+    public int? DefaultWaitTimeoutMs { get; set; }
+
+    public int? MaxWaitTimeoutMs { get; set; }
 }
 
 public sealed class SubAgentSettingsUpdateResult

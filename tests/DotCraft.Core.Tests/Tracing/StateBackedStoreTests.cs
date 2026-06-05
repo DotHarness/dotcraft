@@ -265,6 +265,38 @@ public sealed class StateBackedStoreTests : IDisposable
     }
 
     [Fact]
+    public void TraceStore_RoundTrips_PromptCacheRequestShape_Via_StateDb()
+    {
+        var writer = new TraceStore(_tracingPath, 5000, true, _stateRuntime);
+        writer.Record(new TraceEvent
+        {
+            SessionKey = "prompt-cache-shape-session",
+            Type = TraceEventType.PromptCacheRequestShape,
+            ModelId = "gpt-test",
+            RequestIndex = 2,
+            MetadataJson = JsonSerializer.Serialize(new
+            {
+                schemaVersion = 1,
+                protocol = "openai-responses",
+                inputHash = "sha256:input",
+                inputItemHashes = new[] { "sha256:item" }
+            })
+        });
+
+        var reader = new TraceStore(_tracingPath, 5000, false, _stateRuntime);
+        reader.LoadFromDisk();
+
+        var evt = Assert.Single(reader.GetEvents("prompt-cache-shape-session"));
+        Assert.Equal(TraceEventType.PromptCacheRequestShape, evt.Type);
+        Assert.Equal("gpt-test", evt.ModelId);
+        Assert.Equal(2, evt.RequestIndex);
+        Assert.Contains("sha256:item", evt.MetadataJson);
+
+        var page = reader.GetEventPage("prompt-cache-shape-session", limit: 1000, filter: "PromptCacheRequestShape");
+        Assert.Single(page.Events);
+    }
+
+    [Fact]
     public void TraceStore_RefreshFromDisk_Rebuilds_From_Shared_StateDb()
     {
         var reader = new TraceStore(_tracingPath, 5000, false, _stateRuntime);

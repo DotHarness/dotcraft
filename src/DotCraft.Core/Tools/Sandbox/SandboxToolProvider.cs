@@ -1,5 +1,6 @@
 using DotCraft.Abstractions;
 using DotCraft.Agents;
+using DotCraft.Configuration;
 using DotCraft.Skills;
 using Microsoft.Extensions.AI;
 
@@ -95,7 +96,8 @@ public sealed class SandboxToolProvider : IAgentToolProvider
                 subAgentCoordinator,
                 context.Config.SubAgent.Roles,
                 context.Config.SubAgent.MaxDepth,
-                context.Config.SubAgent.Model);
+                context.Config.SubAgent.Model,
+                SubAgentWaitAgentTimeoutOptions.FromConfig(context.Config.SubAgent));
         }
 
         // Web tools — no isolation needed, reuse as-is

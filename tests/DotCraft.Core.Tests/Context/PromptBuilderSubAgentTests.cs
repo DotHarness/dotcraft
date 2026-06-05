@@ -44,7 +44,10 @@ public sealed class PromptBuilderSubAgentTests : IDisposable
         Assert.Contains("Use `SpawnAgent` for concrete sidecar work", prompt, StringComparison.Ordinal);
         Assert.Contains("Use `SendMessage` for mailbox-only coordination", prompt, StringComparison.Ordinal);
         Assert.Contains("Use `FollowupTask` to start or queue a target agent turn", prompt, StringComparison.Ordinal);
+        Assert.Contains("set `deliveryMode` to `steer` only when a running native target should receive same-turn guidance", prompt, StringComparison.Ordinal);
         Assert.Contains("Use `WaitAgent` only when the parent is blocked", prompt, StringComparison.Ordinal);
+        Assert.Contains("defaults to 60000", prompt, StringComparison.Ordinal);
+        Assert.Contains("between 15000 and 3600000", prompt, StringComparison.Ordinal);
         Assert.Contains("Use `CloseAgent` with an `agentPath`", prompt, StringComparison.Ordinal);
         Assert.DoesNotContain("### Designing Child Tasks", prompt, StringComparison.Ordinal);
         Assert.DoesNotContain("When you are not confident you can find what you need in 1-2 tool calls", prompt, StringComparison.Ordinal);

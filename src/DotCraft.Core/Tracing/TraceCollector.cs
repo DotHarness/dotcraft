@@ -314,6 +314,41 @@ public sealed class TraceCollector(TraceStore store)
         }
     }
 
+    internal void RecordPromptCacheRequestShape(
+        string sessionKey,
+        PromptCacheRequestShapeSnapshot snapshot,
+        int? requestIndex = null,
+        DateTimeOffset? timestamp = null)
+    {
+        if (string.IsNullOrWhiteSpace(sessionKey))
+            return;
+
+        store.Record(new TraceEvent
+        {
+            Type = TraceEventType.PromptCacheRequestShape,
+            SessionKey = sessionKey,
+            Timestamp = timestamp ?? DateTimeOffset.UtcNow,
+            Content = $"{snapshot.Protocol} request shape",
+            ModelId = snapshot.Model,
+            RequestIndex = requestIndex,
+            MetadataJson = SerializeMetadata(new
+            {
+                schemaVersion = snapshot.SchemaVersion,
+                protocol = snapshot.Protocol,
+                model = snapshot.Model,
+                requestIndex,
+                promptCacheKeyHash = snapshot.PromptCacheKeyHash,
+                promptCacheKeySource = snapshot.PromptCacheKeySource,
+                instructionsHash = snapshot.InstructionsHash,
+                toolsHash = snapshot.ToolsHash,
+                reasoningHash = snapshot.ReasoningHash,
+                inputHash = snapshot.InputHash,
+                inputItemCount = snapshot.InputItemCount,
+                inputItemHashes = snapshot.InputItemHashes
+            })
+        });
+    }
+
     public void RecordMaintenanceForkRequest(
         string sessionKey,
         MaintenanceForkTaskKind taskKind,

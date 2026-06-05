@@ -202,6 +202,73 @@ public sealed class SubAgentProfileManagementTests : IDisposable
         Assert.False(root.TryGetPropertyValue("SubAgent", out _));
     }
 
+    [Fact]
+    public async Task SettingsUpdate_WaitTimeouts_PersistsWorkspaceSettings_AndListReflectsSetting()
+    {
+        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
+        await harness.InitializeAsync();
+
+        var updateReq = harness.BuildRequest(AppServerMethods.SubAgentSettingsUpdate, new
+        {
+            minWaitTimeoutMs = 500,
+            defaultWaitTimeoutMs = 1000,
+            maxWaitTimeoutMs = 2000
+        });
+        await harness.ExecuteRequestAsync(updateReq);
+
+        var sent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
+        AppServerTestHarness.AssertIsSuccessResponse(sent[0]);
+        var settings = sent[0].RootElement.GetProperty("result").GetProperty("settings");
+        Assert.Equal(500, settings.GetProperty("minWaitTimeoutMs").GetInt32());
+        Assert.Equal(1000, settings.GetProperty("defaultWaitTimeoutMs").GetInt32());
+        Assert.Equal(2000, settings.GetProperty("maxWaitTimeoutMs").GetInt32());
+
+        var configPath = Path.Combine(_workspaceCraftPath, "config.json");
+        var json = await File.ReadAllTextAsync(configPath);
+        var root = JsonNode.Parse(json)!.AsObject();
+        Assert.Equal(500, root["SubAgent"]!["MinWaitTimeoutMs"]!.GetValue<int>());
+        Assert.Equal(1000, root["SubAgent"]!["DefaultWaitTimeoutMs"]!.GetValue<int>());
+        Assert.Equal(2000, root["SubAgent"]!["MaxWaitTimeoutMs"]!.GetValue<int>());
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.SubAgentProfileSetEnabled, new
+        {
+            name = "codex-cli",
+            enabled = false
+        }));
+        await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
+        json = await File.ReadAllTextAsync(configPath);
+        root = JsonNode.Parse(json)!.AsObject();
+        Assert.Equal(500, root["SubAgent"]!["MinWaitTimeoutMs"]!.GetValue<int>());
+        Assert.Equal(1000, root["SubAgent"]!["DefaultWaitTimeoutMs"]!.GetValue<int>());
+        Assert.Equal(2000, root["SubAgent"]!["MaxWaitTimeoutMs"]!.GetValue<int>());
+
+        var listReq = harness.BuildRequest(AppServerMethods.SubAgentProfileList, new { });
+        await harness.ExecuteRequestAsync(listReq);
+        var listSent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
+        var listedSettings = listSent[0].RootElement.GetProperty("result").GetProperty("settings");
+        Assert.Equal(500, listedSettings.GetProperty("minWaitTimeoutMs").GetInt32());
+        Assert.Equal(1000, listedSettings.GetProperty("defaultWaitTimeoutMs").GetInt32());
+        Assert.Equal(2000, listedSettings.GetProperty("maxWaitTimeoutMs").GetInt32());
+    }
+
+    [Fact]
+    public async Task SettingsUpdate_WaitTimeoutsRejectsInvalidRange()
+    {
+        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
+        await harness.InitializeAsync();
+
+        var updateReq = harness.BuildRequest(AppServerMethods.SubAgentSettingsUpdate, new
+        {
+            minWaitTimeoutMs = 2000,
+            defaultWaitTimeoutMs = 1000,
+            maxWaitTimeoutMs = 3000
+        });
+        await harness.ExecuteRequestAsync(updateReq);
+
+        var sent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
+        AppServerTestHarness.AssertIsErrorResponse(sent[0], AppServerErrors.InvalidParamsCode);
+    }
+
     private static AppServerIncomingMessage BuildUpsertRequest(
         AppServerTestHarness harness,
         string name,

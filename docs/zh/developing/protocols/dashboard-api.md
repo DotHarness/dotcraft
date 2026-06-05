@@ -32,6 +32,7 @@ dotcraft dashboard --workspace /path/to/workspace --host 127.0.0.1 --port 8081
 | `Thinking` | 模型思考内容段 |
 | `PromptCachePoint` | prompt cache 断点摘要 |
 | `PromptCacheDiagnostic` | prompt cache 命中/断裂诊断 |
+| `PromptCacheRequestShape` | 用于 prompt-cache 前缀诊断的 OpenAI Responses 请求形状哈希 |
 | `MaintenanceForkRequest` | 维护型 fork 请求 |
 | `MaintenanceForkResponse` | 维护型 fork 响应 |
 
@@ -40,6 +41,8 @@ Dashboard 的 `Thinking` 和 `Response` trace 事件按连续 streaming 内容�
 上下文压缩和记忆整理等维护请求会额外记录 `MaintenanceForkRequest` / `MaintenanceForkResponse`。这些事件保留维护请求的 snapshot/cache 元数据、模型原始文本、tool-call-only 响应、空响应和 fallback reason，便于从 Dashboard 诊断 `summary_unavailable` 一类问题。
 
 `DeferredToolLoading` 用于 Responses native 延迟工具加载。它记录本次由 `tool_search` 新激活的工具、配置策略、实际生效模式和 provider protocol；该事件不代表顶层 `tools` 被注入，也不会标记为 prompt-cache tool extension。
+
+`PromptCacheRequestShape` 记录 OpenAI Responses 请求组件的 SHA-256 哈希和计数，用于比较相邻请求的前缀稳定性。
 
 ## 端点
 

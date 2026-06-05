@@ -158,6 +158,7 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
             Dictionary<ChatResponseUpdate, IReadOnlyList<ToolCallArgumentsDeltaContent>>? previewContentsByUpdate = null;
             var requestMarked = false;
 
+            using var promptCacheRequestIndexScope = PromptCacheRequestShapeTraceScope.UseRequestIndex(iteration + 1);
             await foreach (var update in base.GetStreamingResponseAsync(samplingMessages, options, cancellationToken))
             {
                 if (!requestMarked)

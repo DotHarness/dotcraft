@@ -134,10 +134,21 @@ public sealed class SubAgentRunResult
     public string Message { get; init; } = string.Empty;
 }
 
+/// <summary>
+/// Controls how <see cref="SubAgentSessionControl.FollowupTaskAsync"/> handles a target that already has an active turn.
+/// </summary>
+public enum SubAgentFollowupDeliveryMode
+{
+    /// <summary>Append the task to the target thread's FIFO queue.</summary>
+    Queue,
+
+    /// <summary>Promote the task into same-turn guidance for a running native SubAgent.</summary>
+    Steer
+}
+
 public static class SubAgentSessionControl
 {
     private static readonly TimeSpan CloseAgentCancellationWait = TimeSpan.FromSeconds(5);
-    private const int DefaultWaitAgentTimeoutMs = 30_000;
     private const string SubAgentFollowupTriggerKind = "subagentFollowupTask";
     private const string SubAgentInputTriggerKind = "subagentInput";
 
@@ -155,6 +166,10 @@ public static class SubAgentSessionControl
         AgentPath Path,
         SessionThread Thread,
         ThreadSpawnEdge? Edge);
+
+    private sealed record QueuedFollowupTaskResult(
+        SubAgentControlResult Result,
+        QueuedTurnInput QueuedInput);
 
     public static async Task<SubAgentControlResult> SpawnAgentAsync(
         SubAgentSessionContext context,
@@ -383,7 +398,8 @@ public static class SubAgentSessionControl
         string target,
         string message,
         SubAgentCoordinator? coordinator,
-        CancellationToken ct)
+        CancellationToken ct,
+        SubAgentFollowupDeliveryMode deliveryMode = SubAgentFollowupDeliveryMode.Queue)
     {
         var normalizedMessage = NormalizeRequired(message, nameof(message));
         var resolved = await ResolveAgentTargetAsync(
@@ -405,23 +421,36 @@ public static class SubAgentSessionControl
             resolved.Path.Value,
             ct);
         var turnPrompt = BuildFollowupPrompt(pending, normalizedMessage);
-        if (!string.Equals(
-                resolved.Thread.Source.SubAgent?.RuntimeType,
-                NativeSubAgentRuntime.RuntimeTypeName,
-                StringComparison.OrdinalIgnoreCase))
+        if (!IsNativeRuntime(resolved.Thread))
         {
             turnPrompt = BuildExternalThreadContextPrompt(resolved.Thread, turnPrompt);
         }
 
         SubAgentControlResult result;
-        if (HasActiveTurn(resolved.Thread))
+        var activeTurn = GetActiveTurn(resolved.Thread);
+        if (activeTurn != null)
         {
-            result = await QueueFollowupTaskAsync(
+            if (deliveryMode == SubAgentFollowupDeliveryMode.Steer && !IsNativeRuntime(resolved.Thread))
+                throw new InvalidOperationException(
+                    "FollowupTask deliveryMode 'steer' is supported only for running native SubAgents. Use deliveryMode 'queue' for external SubAgents.");
+
+            var queued = await QueueFollowupTaskAsync(
                 context.SessionService,
                 resolved,
                 turnPrompt,
                 normalizedMessage,
                 ct);
+            result = queued.Result;
+            if (deliveryMode == SubAgentFollowupDeliveryMode.Steer)
+            {
+                result = await SteerQueuedFollowupTaskAsync(
+                    context.SessionService,
+                    resolved,
+                    activeTurn.Id,
+                    queued.QueuedInput,
+                    result,
+                    ct);
+            }
         }
         else
         {
@@ -485,11 +514,11 @@ public static class SubAgentSessionControl
     public static async Task<SubAgentWaitResult> WaitAgentAsync(
         SubAgentSessionContext context,
         int? timeoutMs,
-        CancellationToken ct)
+        CancellationToken ct,
+        SubAgentWaitAgentTimeoutOptions? timeoutOptions = null)
     {
-        var effectiveTimeoutMs = timeoutMs ?? DefaultWaitAgentTimeoutMs;
-        if (effectiveTimeoutMs <= 0)
-            throw new ArgumentOutOfRangeException(nameof(timeoutMs), "timeoutMs must be greater than zero.");
+        var effectiveTimeoutMs = (timeoutOptions ?? SubAgentWaitAgentTimeoutOptions.Defaults)
+            .ResolveTimeoutMs(timeoutMs);
 
         var waitTask = CaptureChangeSignal();
         var currentPath = GetCurrentAgentPath(context.ParentThread);
@@ -590,7 +619,7 @@ public static class SubAgentSessionControl
         };
     }
 
-    private static async Task<SubAgentControlResult> QueueFollowupTaskAsync(
+    private static async Task<QueuedFollowupTaskResult> QueueFollowupTaskAsync(
         ISessionService sessionService,
         ResolvedAgentTarget resolved,
         string turnPrompt,
@@ -606,7 +635,7 @@ public static class SubAgentSessionControl
             RefId = resolved.Path.Value
         });
 
-        await sessionService.EnqueueTurnInputAsync(
+        var queued = await sessionService.EnqueueTurnInputAsync(
             resolved.ThreadId,
             [new TextContent(turnPrompt)],
             sender: null,
@@ -618,7 +647,7 @@ public static class SubAgentSessionControl
                 DisplayText = displayText
             });
 
-        return new SubAgentControlResult
+        var result = new SubAgentControlResult
         {
             ChildThreadId = resolved.ThreadId,
             AgentPath = resolved.Path.Value,
@@ -632,6 +661,38 @@ public static class SubAgentSessionControl
             SupportsFollowupTask = resolved.Edge?.SupportsFollowupTask ?? true,
             SupportsClose = resolved.Edge?.SupportsClose ?? true
         };
+        return new QueuedFollowupTaskResult(result, queued);
+    }
+
+    private static async Task<SubAgentControlResult> SteerQueuedFollowupTaskAsync(
+        ISessionService sessionService,
+        ResolvedAgentTarget resolved,
+        string activeTurnId,
+        QueuedTurnInput queued,
+        SubAgentControlResult result,
+        CancellationToken ct)
+    {
+        try
+        {
+            await sessionService.SteerTurnAsync(resolved.ThreadId, activeTurnId, queued.Id, ct);
+            result.Status = "guidancePending";
+            return result;
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or KeyNotFoundException)
+        {
+            try
+            {
+                await sessionService.RemoveQueuedTurnInputAsync(resolved.ThreadId, queued.Id, CancellationToken.None);
+            }
+            catch
+            {
+                // Best-effort cleanup; surface the steering failure.
+            }
+
+            throw new InvalidOperationException(
+                "FollowupTask deliveryMode 'steer' could not promote the task into current-turn guidance because the target active turn changed or ended. Retry with deliveryMode 'queue' or refresh the target status.",
+                ex);
+        }
     }
 
     public static async Task<SubAgentControlResult> WaitAgentAsync(
@@ -1142,6 +1203,15 @@ public static class SubAgentSessionControl
 
     private static bool HasActiveTurn(SessionThread thread) =>
         thread.Turns.Any(turn => turn.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput);
+
+    private static SessionTurn? GetActiveTurn(SessionThread thread) =>
+        thread.Turns.LastOrDefault(turn => turn.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput);
+
+    private static bool IsNativeRuntime(SessionThread thread) =>
+        string.Equals(
+            thread.Source.SubAgent?.RuntimeType ?? NativeSubAgentRuntime.RuntimeTypeName,
+            NativeSubAgentRuntime.RuntimeTypeName,
+            StringComparison.OrdinalIgnoreCase);
 
     private static string BuildFollowupTriggerLabel(ResolvedAgentTarget resolved) =>
         NormalizeOptional(resolved.Thread.DisplayName)

@@ -633,6 +633,97 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
     }
 
     [Fact]
+    public async Task SubAgentFollowupTask_WhenNativeChildRunningAndDeliveryModeSteer_PromotesTaskToGuidance()
+    {
+        var (parent, child) = await CreatePathSubAgentAsync();
+        await _h.Service.StartSubAgentSyntheticTurnAsync(
+            child.Id,
+            [new TextContent("active work")],
+            NativeSubAgentRuntime.RuntimeTypeName,
+            SubAgentCoordinator.DefaultProfileName);
+        await _h.Service.AddSubAgentMailboxEntryAsync(new SubAgentMailboxEntry
+        {
+            Id = $"mailbox_{Guid.NewGuid():N}",
+            RootThreadId = parent.Id,
+            SenderAgentPath = AgentPath.Root,
+            TargetAgentPath = "/root/worker",
+            Message = "mailbox note",
+            Status = SubAgentMailboxStatus.Pending,
+            CreatedAt = DateTimeOffset.UtcNow
+        });
+
+        var msg = _h.BuildRequest(AppServerMethods.SubAgentFollowupTask, new
+        {
+            parentThreadId = parent.Id,
+            target = "/root/worker",
+            message = "continue work",
+            deliveryMode = "steer"
+        });
+        await _h.ExecuteRequestAsync(msg);
+
+        var response = await _h.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(response);
+        var result = response.RootElement.GetProperty("result");
+        Assert.Equal("guidancePending", result.GetProperty("status").GetString());
+        Assert.Equal("/root/worker", result.GetProperty("agentPath").GetString());
+        Assert.False(result.TryGetProperty("childThreadId", out _));
+        child = await _h.Service.GetThreadAsync(child.Id);
+        var queued = Assert.Single(child.QueuedInputs);
+        Assert.Equal("guidancePending", queued.Status);
+        Assert.Equal("turn_001", queued.ReadyAfterTurnId);
+        Assert.Equal("subagentFollowupTask", queued.TriggerKind);
+        Assert.Equal("/root/worker", queued.TriggerRefId);
+        Assert.Contains("mailbox note", Assert.Single(queued.MaterializedInputParts).Text, StringComparison.Ordinal);
+        Assert.Contains("continue work", Assert.Single(queued.MaterializedInputParts).Text, StringComparison.Ordinal);
+        Assert.Empty(await _h.Service.ListPendingSubAgentMailboxAsync(parent.Id, "/root/worker"));
+    }
+
+    [Fact]
+    public async Task SubAgentFollowupTask_WhenExternalChildRunningAndDeliveryModeSteer_ReturnsInvalidParams()
+    {
+        var runtime = new FakeSubAgentRuntime(CliOneshotRuntime.RuntimeTypeName, "followed");
+        using var harness = new AppServerTestHarness(
+            subAgentCoordinatorFactory: thread => CreateCoordinator(thread.WorkspacePath, runtime));
+        await harness.InitializeAsync();
+        var (parent, child) = await CreatePathSubAgentAsync(
+            harness,
+            runtimeType: CliOneshotRuntime.RuntimeTypeName,
+            profileName: "cli-run");
+        await harness.Service.StartSubAgentSyntheticTurnAsync(
+            child.Id,
+            [new TextContent("active work")],
+            CliOneshotRuntime.RuntimeTypeName,
+            "cli-run");
+        await harness.Service.AddSubAgentMailboxEntryAsync(new SubAgentMailboxEntry
+        {
+            Id = $"mailbox_{Guid.NewGuid():N}",
+            RootThreadId = parent.Id,
+            SenderAgentPath = AgentPath.Root,
+            TargetAgentPath = "/root/worker",
+            Message = "mailbox note",
+            Status = SubAgentMailboxStatus.Pending,
+            CreatedAt = DateTimeOffset.UtcNow
+        });
+
+        var msg = harness.BuildRequest(AppServerMethods.SubAgentFollowupTask, new
+        {
+            parentThreadId = parent.Id,
+            target = "/root/worker",
+            message = "continue work",
+            deliveryMode = "steer"
+        });
+        await harness.ExecuteRequestAsync(msg);
+
+        var response = await harness.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
+        child = await harness.Service.GetThreadAsync(child.Id);
+        Assert.Empty(child.QueuedInputs);
+        var pending = await harness.Service.ListPendingSubAgentMailboxAsync(parent.Id, "/root/worker");
+        Assert.Single(pending);
+        Assert.Null(runtime.LastRequest);
+    }
+
+    [Fact]
     public async Task SubAgentClose_UsesAgentPathAndClosesEdge()
     {
         var (parent, child) = await CreatePathSubAgentAsync();

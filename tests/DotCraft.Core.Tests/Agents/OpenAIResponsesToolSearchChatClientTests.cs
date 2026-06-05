@@ -402,6 +402,149 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
     }
 
     [Fact]
+    public void CreateResponseRequestShape_RecordsOrderedByteHashesForPrefixComparison()
+    {
+        var options = new ChatOptions
+        {
+            Tools = [new NativeToolSearchTool(new DeferredToolRegistry([]))],
+            Reasoning = new ReasoningOptions
+            {
+                Effort = ReasoningEffort.High
+            },
+            AdditionalProperties = new AdditionalPropertiesDictionary
+            {
+                [ResponsesToolSearchMapper.PromptCacheKeyAdditionalProperty] = "thread-secret-cache-key"
+            }
+        };
+        var first = ResponsesToolSearchMapper.CreateResponseRequest(
+            "gpt-test",
+            [
+                new ChatMessage(ChatRole.System, "secret stable system"),
+                new ChatMessage(ChatRole.User, "secret stable user prompt")
+            ],
+            options).Shape;
+        var appended = ResponsesToolSearchMapper.CreateResponseRequest(
+            "gpt-test",
+            [
+                new ChatMessage(ChatRole.System, "secret stable system"),
+                new ChatMessage(ChatRole.User, "secret stable user prompt"),
+                new ChatMessage(ChatRole.Assistant, "secret assistant tail")
+            ],
+            options).Shape;
+        var changed = ResponsesToolSearchMapper.CreateResponseRequest(
+            "gpt-test",
+            [
+                new ChatMessage(ChatRole.System, "secret stable system"),
+                new ChatMessage(ChatRole.User, "secret changed user prompt")
+            ],
+            options).Shape;
+
+        Assert.Equal(first.InputItemHashes, appended.InputItemHashes.Take(first.InputItemCount).ToArray());
+        Assert.NotEqual(first.InputItemHashes[0], changed.InputItemHashes[0]);
+        Assert.All(appended.InputItemHashes, hash => Assert.StartsWith("sha256:", hash, StringComparison.Ordinal));
+        Assert.StartsWith("sha256:", appended.InputHash, StringComparison.Ordinal);
+        Assert.StartsWith("sha256:", appended.ToolsHash, StringComparison.Ordinal);
+        Assert.StartsWith("sha256:", appended.ReasoningHash, StringComparison.Ordinal);
+        Assert.StartsWith("sha256:", appended.PromptCacheKeyHash, StringComparison.Ordinal);
+
+        var shapeJson = JsonSerializer.Serialize(appended, JsonOptions);
+        Assert.DoesNotContain("secret stable user prompt", shapeJson, StringComparison.Ordinal);
+        Assert.DoesNotContain("secret assistant tail", shapeJson, StringComparison.Ordinal);
+        Assert.DoesNotContain("secret stable system", shapeJson, StringComparison.Ordinal);
+        Assert.DoesNotContain("thread-secret-cache-key", shapeJson, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task StreamingFunctionLoop_RecordsPromptCacheRequestShapeTraceForEachRequest()
+    {
+        const string sessionKey = "responses-request-shape-trace";
+        var previous = TracingChatClient.CurrentSessionKey;
+        var store = new TraceStore();
+        var collector = new TraceCollector(store);
+        var inner = new FakeChatClient(new ChatResponse([new ChatMessage(ChatRole.Assistant, "inner response")]));
+        var transport = new FakeToolSearchTransport([
+            [
+                CreateOutputItemDone(CreateUnknownToolSearchCallItem(
+                    "search-call",
+                    new { query = "no matching tools" }))
+            ],
+            [
+                new StreamingResponseCompletedUpdate
+                {
+                    SequenceNumber = 2,
+                    Response = new ResponseResult
+                    {
+                        Usage = new ResponseTokenUsage
+                        {
+                            InputTokenCount = 10,
+                            OutputTokenCount = 1
+                        }
+                    }
+                }
+            ]
+        ]);
+        using var responsesClient = CreateClient(inner, transport);
+        using var shapeTracingClient = new PromptCacheRequestShapeTracingChatClient(
+            responsesClient,
+            collector,
+            "gpt-test");
+        using var client = new TracingChatClient(
+            new StreamingFunctionInvokingChatClient(shapeTracingClient),
+            collector);
+
+        try
+        {
+            TracingChatClient.ResetCallState(sessionKey);
+            TracingChatClient.CurrentSessionKey = sessionKey;
+
+            _ = await CollectStreamingAsync(client.GetStreamingResponseAsync(
+                [
+                    new ChatMessage(ChatRole.System, "secret stable system"),
+                    new ChatMessage(ChatRole.User, "secret user prompt")
+                ],
+                new ChatOptions
+                {
+                    Tools = [new NativeToolSearchTool(new DeferredToolRegistry([]))],
+                    AdditionalProperties = new AdditionalPropertiesDictionary
+                    {
+                        [ResponsesToolSearchMapper.PromptCacheKeyAdditionalProperty] = "thread-secret-cache-key"
+                    }
+                }));
+        }
+        finally
+        {
+            TracingChatClient.ResetCallState(sessionKey);
+            TracingChatClient.CurrentSessionKey = previous;
+        }
+
+        var shapeEvents = store.GetEvents(sessionKey)
+            .Where(e => e.Type == TraceEventType.PromptCacheRequestShape)
+            .ToArray();
+        Assert.Equal([1, 2], shapeEvents.Select(static e => e.RequestIndex).ToArray());
+
+        var evt = shapeEvents[0];
+        Assert.Equal(1, evt.RequestIndex);
+        Assert.Equal("gpt-test", evt.ModelId);
+        Assert.NotNull(evt.MetadataJson);
+        Assert.DoesNotContain("secret user prompt", evt.MetadataJson, StringComparison.Ordinal);
+        Assert.DoesNotContain("secret stable system", evt.MetadataJson, StringComparison.Ordinal);
+        Assert.DoesNotContain("thread-secret-cache-key", evt.MetadataJson, StringComparison.Ordinal);
+
+        using var metadata = JsonDocument.Parse(evt.MetadataJson);
+        var root = metadata.RootElement;
+        Assert.Equal(1, root.GetProperty("requestIndex").GetInt32());
+        Assert.Equal("openai-responses", root.GetProperty("protocol").GetString());
+        Assert.Equal("gpt-test", root.GetProperty("model").GetString());
+        Assert.Equal(1, root.GetProperty("inputItemCount").GetInt32());
+        Assert.StartsWith("sha256:", root.GetProperty("inputHash").GetString(), StringComparison.Ordinal);
+        Assert.StartsWith("sha256:", root.GetProperty("inputItemHashes")[0].GetString(), StringComparison.Ordinal);
+        Assert.StartsWith("sha256:", root.GetProperty("promptCacheKeyHash").GetString(), StringComparison.Ordinal);
+
+        using var secondMetadata = JsonDocument.Parse(shapeEvents[1].MetadataJson!);
+        Assert.True(secondMetadata.RootElement.GetProperty("inputItemCount").GetInt32() > 1);
+    }
+
+    [Fact]
     public async Task GetResponseAsync_WithoutNativeToolSearchAddsPromptCacheKeyFromActiveThread()
     {
         var previous = TracingChatClient.CurrentSessionKey;

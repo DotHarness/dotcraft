@@ -13,7 +13,8 @@ public sealed class AgentTools(
     SubAgentCoordinator? subAgentManager = null,
     IEnumerable<SubAgentRoleConfig>? subAgentRoles = null,
     int maxSubAgentDepth = 1,
-    string? subAgentModel = null)
+    string? subAgentModel = null,
+    SubAgentWaitAgentTimeoutOptions? waitAgentTimeoutOptions = null)
 {
     private static readonly JsonSerializerOptions ResultJsonOptions = new(JsonSerializerOptions.Web);
 
@@ -70,11 +71,12 @@ public sealed class AgentTools(
         return SerializeResult(result);
     }
 
-    [Description("Start a follow-up turn for an agent path. Pending mailbox messages for the target are delivered as context.")]
+    [Description("Start a follow-up task for an agent path. Pending mailbox messages for the target are delivered as context.")]
     [Tool(Icon = "🧭")]
     public async Task<string> FollowupTask(
         [Description("Agent path target. Relative targets resolve from the current agent path; absolute targets start with /root.")] string target,
         [Description("Task prompt for the target agent turn.")] string message,
+        [Description("How to handle a target that is already running: queue starts the task after the active turn, steer injects same-turn guidance for running native SubAgents. Defaults to queue.")] SubAgentFollowupDeliveryMode deliveryMode = SubAgentFollowupDeliveryMode.Queue,
         CancellationToken cancellationToken = default)
     {
         var sessionContext = SubAgentSessionScope.Current
@@ -84,14 +86,15 @@ public sealed class AgentTools(
             target,
             message,
             subAgentManager,
-            cancellationToken);
+            cancellationToken,
+            deliveryMode);
         return SerializeResult(result);
     }
 
     [Description("Wait for a mailbox or SubAgent graph status change.")]
     [Tool(Icon = "⏱️")]
     public async Task<string> WaitAgent(
-        [Description("Optional timeout in milliseconds. Defaults to 30000.")] int? timeoutMs = null,
+        [Description("Optional timeout in milliseconds. Uses the configured default and must be within the configured range.")] int? timeoutMs = null,
         CancellationToken cancellationToken = default)
     {
         var sessionContext = SubAgentSessionScope.Current
@@ -99,7 +102,8 @@ public sealed class AgentTools(
         var result = await SubAgentSessionControl.WaitAgentAsync(
             sessionContext,
             timeoutMs,
-            cancellationToken);
+            cancellationToken,
+            waitAgentTimeoutOptions);
         return SerializeResult(result);
     }
 

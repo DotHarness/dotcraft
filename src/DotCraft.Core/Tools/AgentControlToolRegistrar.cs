@@ -19,9 +19,10 @@ public static class AgentControlToolRegistrar
         SubAgentCoordinator subAgentCoordinator,
         IEnumerable<SubAgentRoleConfig>? subAgentRoles = null,
         int maxSubAgentDepth = 1,
-        string? subAgentModel = null)
+        string? subAgentModel = null,
+        SubAgentWaitAgentTimeoutOptions? waitAgentTimeoutOptions = null)
     {
-        var agentTools = new AgentTools(subAgentCoordinator, subAgentRoles, maxSubAgentDepth, subAgentModel);
+        var agentTools = new AgentTools(subAgentCoordinator, subAgentRoles, maxSubAgentDepth, subAgentModel, waitAgentTimeoutOptions);
         AddIfAllowed(tools, context, nameof(AgentTools.SpawnAgent), () => AIFunctionFactory.Create(agentTools.SpawnAgent));
         AddIfAllowed(tools, context, nameof(AgentTools.SendMessage), () => AIFunctionFactory.Create(agentTools.SendMessage));
         AddIfAllowed(tools, context, nameof(AgentTools.FollowupTask), () => AIFunctionFactory.Create(agentTools.FollowupTask));

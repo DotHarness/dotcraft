@@ -63,6 +63,7 @@ internal static class ProviderChatClientAdapters
         bool includePromptCaching = true,
         bool useDefaultReasoning = true)
     {
+        var normalizedProtocol = NormalizeProtocolOrNull(protocol);
         if (includePromptCaching)
             UsePromptCaching(builder, protocol, model, promptCaching, traceCollector);
 
@@ -75,6 +76,8 @@ internal static class ProviderChatClientAdapters
             maxOutputTokens,
             reasoningConfig,
             useDefaultReasoning);
+
+        UsePromptCacheRequestShapeTracing(builder, normalizedProtocol, model, traceCollector);
     }
 
     private static void UsePromptCaching(
@@ -142,6 +145,26 @@ internal static class ProviderChatClientAdapters
                 reasoningConfig,
                 useDefaultReasoning));
         }
+    }
+
+    private static void UsePromptCacheRequestShapeTracing(
+        ChatClientBuilder builder,
+        string? normalizedProtocol,
+        string? model,
+        TraceCollector? traceCollector)
+    {
+        if (traceCollector == null)
+            return;
+        if (normalizedProtocol is null)
+            return;
+        if (!ModelProviderProtocols.IsOpenAIResponses(normalizedProtocol))
+            return;
+
+        var modelId = model ?? string.Empty;
+        builder.Use(innerClient => new PromptCacheRequestShapeTracingChatClient(
+            innerClient,
+            traceCollector,
+            modelId));
     }
 
     private static string? NormalizeProtocolOrNull(string? protocol)

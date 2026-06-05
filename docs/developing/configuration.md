@@ -471,6 +471,9 @@ For the beginner path, read [SubAgents](../features/agent-system/subagents).
 |-------|-------------|---------|
 | `SubAgent.MaxDepth` | Maximum session-backed SubAgent spawn depth; the first child is depth `1` | `1` |
 | `SubAgent.Model` | Model used by DotCraft native SubAgents; empty inherits the current thread's effective main model | Empty |
+| `SubAgent.MinWaitTimeoutMs` | Minimum accepted `WaitAgent.timeoutMs` value in milliseconds | `15000` |
+| `SubAgent.DefaultWaitTimeoutMs` | `WaitAgent.timeoutMs` used when the tool call omits a timeout | `60000` |
+| `SubAgent.MaxWaitTimeoutMs` | Maximum accepted `WaitAgent.timeoutMs` value in milliseconds | `3600000` |
 | `SubAgent.EnableExternalCliSessionResume` | Allows external CLI profiles that support resume to reuse saved external sessions | `false` |
 | `SubAgent.DisabledProfiles` | SubAgent profile names hidden and disabled for this workspace | `[]` |
 | `SubAgent.Roles` | Workspace-defined SubAgent roles; entries with built-in names override built-in roles | `[]` |

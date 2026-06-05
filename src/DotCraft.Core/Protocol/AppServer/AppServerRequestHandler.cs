@@ -1038,7 +1038,8 @@ public sealed class AppServerRequestHandler(
             p.Target.Trim(),
             p.Message,
             CreateSubAgentCoordinator(context.ParentThread),
-            ct);
+            ct,
+            p.DeliveryMode);
     }
 
     private async Task<object?> HandleSubAgentCloseAsync(AppServerIncomingMessage msg, CancellationToken ct)
@@ -1947,22 +1948,49 @@ public sealed class AppServerRequestHandler(
         EnsureSubAgentManagementAvailable();
         var p = GetParams<SubAgentSettingsUpdateParams>(msg);
         JsonElement modelEl = default;
+        JsonElement minWaitTimeoutMsEl = default;
+        JsonElement defaultWaitTimeoutMsEl = default;
+        JsonElement maxWaitTimeoutMsEl = default;
         var hasModel = msg.Params.HasValue
             && msg.Params.Value.ValueKind == JsonValueKind.Object
             && TryGetCaseInsensitiveProperty(msg.Params.Value, "model", out modelEl);
-        if (!p.ExternalCliSessionResumeEnabled.HasValue && !hasModel)
-            throw AppServerErrors.InvalidParams("At least one of 'externalCliSessionResumeEnabled' or 'model' is required.");
+        var hasMinWaitTimeoutMs = msg.Params.HasValue
+            && msg.Params.Value.ValueKind == JsonValueKind.Object
+            && TryGetCaseInsensitiveProperty(msg.Params.Value, "minWaitTimeoutMs", out minWaitTimeoutMsEl);
+        var hasDefaultWaitTimeoutMs = msg.Params.HasValue
+            && msg.Params.Value.ValueKind == JsonValueKind.Object
+            && TryGetCaseInsensitiveProperty(msg.Params.Value, "defaultWaitTimeoutMs", out defaultWaitTimeoutMsEl);
+        var hasMaxWaitTimeoutMs = msg.Params.HasValue
+            && msg.Params.Value.ValueKind == JsonValueKind.Object
+            && TryGetCaseInsensitiveProperty(msg.Params.Value, "maxWaitTimeoutMs", out maxWaitTimeoutMsEl);
+        if (!p.ExternalCliSessionResumeEnabled.HasValue
+            && !hasModel
+            && !hasMinWaitTimeoutMs
+            && !hasDefaultWaitTimeoutMs
+            && !hasMaxWaitTimeoutMs)
+        {
+            throw AppServerErrors.InvalidParams("At least one of 'externalCliSessionResumeEnabled', 'model', 'minWaitTimeoutMs', 'defaultWaitTimeoutMs', or 'maxWaitTimeoutMs' is required.");
+        }
 
         var state = SubAgentProfilesPersistence.LoadWorkspaceState(workspaceCraftPath!);
         var nextResumeEnabled = p.ExternalCliSessionResumeEnabled ?? state.EnableExternalCliSessionResume;
         var nextModel = hasModel
             ? NormalizeOptionalString(ParseNullableString(modelEl, "model")) ?? string.Empty
             : state.Model;
+        var nextWaitAgentTimeouts = new SubAgentWaitAgentTimeoutOptions(
+            hasMinWaitTimeoutMs ? ParseInteger(minWaitTimeoutMsEl, "minWaitTimeoutMs") : state.WaitAgentTimeouts.MinTimeoutMs,
+            hasDefaultWaitTimeoutMs ? ParseInteger(defaultWaitTimeoutMsEl, "defaultWaitTimeoutMs") : state.WaitAgentTimeouts.DefaultTimeoutMs,
+            hasMaxWaitTimeoutMs ? ParseInteger(maxWaitTimeoutMsEl, "maxWaitTimeoutMs") : state.WaitAgentTimeouts.MaxTimeoutMs);
+        var waitAgentTimeoutErrors = SubAgentWaitAgentTimeoutOptions.Validate(nextWaitAgentTimeouts);
+        if (waitAgentTimeoutErrors.Count > 0)
+            throw AppServerErrors.InvalidParams(string.Join(" ", waitAgentTimeoutErrors));
+
         SubAgentProfilesPersistence.SaveWorkspaceState(
             workspaceCraftPath!,
             state.DisabledProfiles,
             nextResumeEnabled,
             nextModel,
+            nextWaitAgentTimeouts,
             state.Profiles);
         RefreshCurrentSubAgentConfig();
         InvalidateThreadAgents();
@@ -1975,7 +2003,10 @@ public sealed class AppServerRequestHandler(
             Settings = new SubAgentSettingsWire
             {
                 ExternalCliSessionResumeEnabled = nextResumeEnabled,
-                Model = string.IsNullOrWhiteSpace(nextModel) ? null : nextModel
+                Model = string.IsNullOrWhiteSpace(nextModel) ? null : nextModel,
+                MinWaitTimeoutMs = nextWaitAgentTimeouts.MinTimeoutMs,
+                DefaultWaitTimeoutMs = nextWaitAgentTimeouts.DefaultTimeoutMs,
+                MaxWaitTimeoutMs = nextWaitAgentTimeouts.MaxTimeoutMs
             }
         });
     }
@@ -2012,6 +2043,7 @@ public sealed class AppServerRequestHandler(
             disabled,
             state.EnableExternalCliSessionResume,
             state.Model,
+            state.WaitAgentTimeouts,
             state.Profiles);
         RefreshCurrentSubAgentConfig();
         InvalidateThreadAgents();
@@ -2048,6 +2080,7 @@ public sealed class AppServerRequestHandler(
             state.DisabledProfiles,
             state.EnableExternalCliSessionResume,
             state.Model,
+            state.WaitAgentTimeouts,
             profiles);
         RefreshCurrentSubAgentConfig();
         InvalidateThreadAgents();
@@ -2086,6 +2119,7 @@ public sealed class AppServerRequestHandler(
             disabled,
             state.EnableExternalCliSessionResume,
             state.Model,
+            state.WaitAgentTimeouts,
             workspaceProfiles);
         RefreshCurrentSubAgentConfig();
         InvalidateThreadAgents();
@@ -3647,7 +3681,10 @@ public sealed class AppServerRequestHandler(
             Settings = new SubAgentSettingsWire
             {
                 ExternalCliSessionResumeEnabled = state.EnableExternalCliSessionResume,
-                Model = string.IsNullOrWhiteSpace(state.Model) ? null : state.Model
+                Model = string.IsNullOrWhiteSpace(state.Model) ? null : state.Model,
+                MinWaitTimeoutMs = state.WaitAgentTimeouts.MinTimeoutMs,
+                DefaultWaitTimeoutMs = state.WaitAgentTimeouts.DefaultTimeoutMs,
+                MaxWaitTimeoutMs = state.WaitAgentTimeouts.MaxTimeoutMs
             }
         };
     }
@@ -3723,7 +3760,12 @@ public sealed class AppServerRequestHandler(
         {
             DisabledProfiles = [.. mergedConfig.SubAgent.DisabledProfiles],
             EnableExternalCliSessionResume = mergedConfig.SubAgent.EnableExternalCliSessionResume,
-            Model = mergedConfig.SubAgent.Model
+            Model = mergedConfig.SubAgent.Model,
+            MinWaitTimeoutMs = mergedConfig.SubAgent.MinWaitTimeoutMs,
+            DefaultWaitTimeoutMs = mergedConfig.SubAgent.DefaultWaitTimeoutMs,
+            MaxWaitTimeoutMs = mergedConfig.SubAgent.MaxWaitTimeoutMs,
+            MaxDepth = mergedConfig.SubAgent.MaxDepth,
+            Roles = [.. mergedConfig.SubAgent.Roles.Select(role => role.Clone())]
         };
         appConfigMonitor.Current.SubAgentProfiles = mergedConfig.SubAgentProfiles
             .Where(profile => !string.IsNullOrWhiteSpace(profile.Name))
@@ -5874,6 +5916,7 @@ public sealed class AppServerRequestHandler(
         if (msg.Contains("client-managed history")
             || msg.Contains("server-managed history")
             || msg.Contains("SubAgent child thread")
+            || msg.Contains("deliveryMode")
             || msg.Contains("has no goal")
             || msg.Contains("already has a goal")
             || msg.Contains("has no history")
@@ -6382,6 +6425,15 @@ public sealed class AppServerRequestHandler(
             JsonValueKind.Null => null,
             JsonValueKind.Number when element.TryGetInt32(out var value) => value,
             _ => throw AppServerErrors.InvalidParams($"'{fieldName}' must be an integer or null.")
+        };
+    }
+
+    private static int ParseInteger(JsonElement element, string fieldName)
+    {
+        return element.ValueKind switch
+        {
+            JsonValueKind.Number when element.TryGetInt32(out var value) => value,
+            _ => throw AppServerErrors.InvalidParams($"'{fieldName}' must be an integer.")
         };
     }
 
