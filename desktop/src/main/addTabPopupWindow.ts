@@ -39,6 +39,25 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max)
 }
 
+/**
+ * Park the popup window: fully transparent and click-through, but still shown.
+ * We toggle opacity instead of hide()/show() so reopening never replays the OS
+ * window-open animation — the menu appears instantly like the in-app portals.
+ */
+function setPopupIdle(popup: BrowserWindow): void {
+  if (popup.isDestroyed()) return
+  popup.setOpacity(0)
+  popup.setIgnoreMouseEvents(true)
+}
+
+/** Reveal the parked popup window without a show animation. */
+function setPopupActive(popup: BrowserWindow): void {
+  if (popup.isDestroyed()) return
+  if (!popup.isVisible()) popup.showInactive()
+  popup.setIgnoreMouseEvents(false)
+  popup.setOpacity(1)
+}
+
 function estimatedMenuHeight(payload: AddTabMenuRequest): number {
   return payload.items.length * PopupItemHeight + PopupVerticalPadding
 }
@@ -85,7 +104,11 @@ function normalizeAction(
   return item?.enabled === true ? normalized : null
 }
 
-function finishPopup(runtime: AddTabPopupRuntime, action: AddTabMenuAction | null): void {
+function finishPopup(
+  runtime: AddTabPopupRuntime,
+  action: AddTabMenuAction | null,
+  returnFocus = false
+): void {
   if (runtime.blurTimer) {
     clearTimeout(runtime.blurTimer)
     runtime.blurTimer = null
@@ -99,8 +122,12 @@ function finishPopup(runtime: AddTabPopupRuntime, action: AddTabMenuAction | nul
   }
   const resolve = runtime.pendingResolve
   runtime.pendingResolve = null
-  if (!runtime.popup.isDestroyed() && runtime.popup.isVisible()) {
-    runtime.popup.hide()
+  setPopupIdle(runtime.popup)
+  // Dismissals the user drove (pick / Escape / backdrop) should hand keyboard
+  // focus back to the panel; blur/move/resize-driven closes leave it where it
+  // already went.
+  if (returnFocus && !runtime.parent.isDestroyed()) {
+    runtime.parent.focus()
   }
   resolve?.(action)
 }
@@ -194,7 +221,15 @@ function createPopupRuntime(
     ? popup.loadURL(`${options.rendererDevUrl}/add-tab-popup.html`)
     : popup.loadFile(options.rendererPopupIndexPath)
   runtime.ready = load
-    .then(() => true)
+    .then(() => {
+      // Pre-show once while fully transparent and click-through so the OS
+      // window-open animation happens here (unseen) rather than on every open.
+      if (!popup.isDestroyed()) {
+        setPopupIdle(popup)
+        if (!popup.isVisible()) popup.showInactive()
+      }
+      return true
+    })
     .catch(() => {
       destroyRuntime(runtime)
       return false
@@ -279,7 +314,7 @@ export async function popupAddTabMenuWindow(
     runtime.pendingResolve = resolve
     activeRuntime = runtime
     attachActiveCloseHandlers(runtime)
-    runtime.popup.show()
+    setPopupActive(runtime.popup)
     runtime.popup.focus()
     runtime.blurTimer = setTimeout(() => {
       runtime.closeOnBlur = true
@@ -301,6 +336,6 @@ export function registerAddTabPopupWindowIpc(): void {
     if (!runtime || runtime.popup.webContents.id !== event.sender.id || !runtime.payload) {
       return
     }
-    finishPopup(runtime, normalizeAction(runtime.payload, action))
+    finishPopup(runtime, normalizeAction(runtime.payload, action), true)
   })
 }
