@@ -53,8 +53,8 @@ The runtime is registered by the first-party `DotCraft.Teams` module, but produc
 
 - Desktop exposes the Team sidebar entry only when the `agent-teams` plugin is installed and enabled.
 - Team RPCs reject direct calls when the `agent-teams` plugin is absent or disabled.
-- The plugin is interface-only; it does not contribute skills, MCP, LSP, or external App Binding descriptors.
-- In Desktop plugin details, Agent Teams is presented as a `Desktop Extension` included content item. This is a renderer presentation concept and must not create an `apps` descriptor or App Binding setup flow.
+- The plugin contributes interface metadata and a Desktop extension descriptor; it does not contribute skills, MCP, LSP, or external App Binding descriptors.
+- Desktop derives the Team sidebar entry and plugin-detail included content from the plugin's Desktop extension descriptor. Teams must not rely on Desktop hardcoding the `agent-teams` plugin id to create these surfaces.
 - Installing or enabling the plugin does not delete or migrate existing Team state. Disabling it hides the entry point and blocks new Team operations.
 
 DotCraft Core owns:

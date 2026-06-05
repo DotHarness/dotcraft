@@ -2112,11 +2112,68 @@ public sealed class PluginInfoWire
 
     public List<PluginAppInfoWire> Apps { get; set; } = [];
 
+    public List<PluginDesktopExtensionInfoWire> DesktopExtensions { get; set; } = [];
+
     public List<PluginMcpServerInfoWire> McpServers { get; set; } = [];
 
     public List<PluginLspServerInfoWire> LspServers { get; set; } = [];
 
     public List<PluginDiagnosticWire> Diagnostics { get; set; } = [];
+}
+
+public sealed class PluginDesktopExtensionInfoWire
+{
+    public string Id { get; set; } = string.Empty;
+
+    public string DisplayName { get; set; } = string.Empty;
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Description { get; set; }
+
+    public string Entry { get; set; } = string.Empty;
+
+    public List<string> Styles { get; set; } = [];
+
+    public List<PluginDesktopExtensionSurfaceWire> Surfaces { get; set; } = [];
+
+    public List<string> RequiredAppIds { get; set; } = [];
+
+    public List<string> ConnectOrigins { get; set; } = [];
+}
+
+public sealed class PluginDesktopExtensionSurfaceWire
+{
+    public string Type { get; set; } = string.Empty;
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ViewId { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Label { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Placement { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? Order { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Title { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Description { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Slot { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? RendererId { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ActionId { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? SettingsId { get; set; }
 }
 
 public sealed class PluginAppInfoWire

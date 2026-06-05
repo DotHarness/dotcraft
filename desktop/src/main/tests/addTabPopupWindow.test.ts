@@ -41,6 +41,7 @@ const electronMock = vi.hoisted(() => {
       ...emitter,
       id: nextWindowId++,
       getContentBounds: vi.fn(() => bounds),
+      focus: vi.fn(),
       isDestroyed: vi.fn(() => false)
     }
   }
@@ -58,9 +59,14 @@ const electronMock = vi.hoisted(() => {
       show: vi.fn(() => {
         visible = true
       }),
+      showInactive: vi.fn(() => {
+        visible = true
+      }),
       hide: vi.fn(() => {
         visible = false
       }),
+      setOpacity: vi.fn(),
+      setIgnoreMouseEvents: vi.fn(),
       focus: vi.fn(),
       isDestroyed: vi.fn(() => destroyed),
       isVisible: vi.fn(() => visible),
@@ -212,7 +218,8 @@ describe('popupAddTabMenuWindow', () => {
     const choose = electronMock.handlers.get('menu:add-tab-popup-result')!
     await choose({ sender: { id: popup.webContents.id } }, 'openFile')
     await expect(result).resolves.toBe('openFile')
-    expect(popup.hide).toHaveBeenCalled()
+    expect(popup.setOpacity).toHaveBeenCalledWith(0)
+    expect(popup.hide).not.toHaveBeenCalled()
     expect(popup.destroy).not.toHaveBeenCalled()
   })
 
@@ -248,7 +255,7 @@ describe('popupAddTabMenuWindow', () => {
     parent.emit('resize')
 
     await expect(result).resolves.toBeNull()
-    expect(electronMock.createdPopup.hide).toHaveBeenCalled()
+    expect(electronMock.createdPopup.setOpacity).toHaveBeenCalledWith(0)
     expect(electronMock.createdPopup.destroy).not.toHaveBeenCalled()
   })
 

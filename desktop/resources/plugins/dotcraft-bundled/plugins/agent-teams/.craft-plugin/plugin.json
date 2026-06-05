@@ -4,7 +4,8 @@
   "version": "0.1.0",
   "displayName": "Agent Teams",
   "description": "Unlock the DotCraft Team card board with robot teammates, missions, planning, and task dispatch.",
-  "capabilities": ["metadata", "team", "card-board"],
+  "capabilities": ["metadata", "desktopExtension", "team", "card-board"],
+  "desktopExtensions": "./desktop-extensions.json",
   "interface": {
     "displayName": "Agent Teams",
     "shortDescription": "Run missions with a small robot team",

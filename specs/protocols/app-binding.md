@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.2.1 |
+| **Version** | 0.3.0 |
 | **Status** | Living |
 | **Date** | 2026-05-19 |
 | **Related Specs** | [AppServer Protocol](appserver-protocol.md), [Tool Result Presentation](tool-result-presentation.md), [Plugin Architecture](../extensions/plugin-architecture.md), [Session Core](../core/session-core.md), [Desktop Client](../clients/desktop-client.md), [SDK](../sdk/sdk.md), [TypeScript SDK Binding](../sdk/typescript.md) |
@@ -23,6 +23,7 @@ This specification defines:
 - App-owned connection and binding consent flows.
 - AppServer RPCs and notifications for discovery, connection, binding, and tool attachment.
 - Runtime tool exposure rules for app-bound Dynamic Tools and future app-bound MCP tools.
+- Safe app-published connection metadata for Desktop extensions.
 - Optional declarative tool-result presentation contracts for app-bound tools.
 - Security, approval, lifecycle, audit, Desktop UX, and SDK requirements.
 - Oratorio-specific validation guidance.
@@ -106,6 +107,8 @@ The app owns:
 - Native app lifecycle and any app-owned local services needed to serve tools.
 
 DotCraft validation is intentionally not a substitute for app-side authorization.
+
+Connected apps may publish a small `publicMetadata` object when completing or refreshing an App Binding connection. DotCraft may expose this metadata through connection status only after validating that it is safe for Desktop clients. v1 public metadata is limited to redacted display values and loopback surface endpoints such as local HTTP or WebSocket URLs used by a trusted Desktop extension. Secret tokens, account credentials, raw grants, and app-private proof material must remain in `connectionProof` and must never be echoed to clients.
 
 ---
 

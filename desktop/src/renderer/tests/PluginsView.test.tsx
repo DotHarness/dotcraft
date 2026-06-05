@@ -110,7 +110,32 @@ const agentTeamsPlugin: PluginEntry = {
   skills: [],
   apps: [],
   mcpServers: [],
-  lspServers: []
+  lspServers: [],
+  desktopExtensions: [
+    {
+      id: 'team-card-board',
+      displayName: 'Team card board',
+      description: 'Adds the Agent Teams card board to DotCraft Desktop.',
+      entry: 'Z:\\__dotcraft_fixture__\\plugins\\agent-teams\\desktop\\team-card-board.mjs',
+      styles: [],
+      requiredAppIds: [],
+      connectOrigins: [],
+      surfaces: [
+        {
+          type: 'mainView',
+          viewId: 'teams',
+          label: 'Team',
+          placement: 'sidebar',
+          order: 40
+        },
+        {
+          type: 'pluginDetail',
+          title: 'Team Board',
+          description: 'Unlocks the card board for Agent Team.'
+        }
+      ]
+    }
+  ]
 }
 
 function oratorioAppInfo({
@@ -647,7 +672,7 @@ describe('PluginsView local plugin visibility', () => {
 
     expect(await screen.findByText('Team Board')).toBeInTheDocument()
     expect(screen.getByText('Desktop Extension')).toBeInTheDocument()
-    expect(screen.getByText('Unlocks the Team card board surface for robot teammates, missions, planning, and task dispatch.')).toBeInTheDocument()
+    expect(screen.getByText('Unlocks the card board for Agent Team.')).toBeInTheDocument()
   })
 
   it('shows ordinary plugin install first for app plugins', async () => {

@@ -842,6 +842,15 @@ const api = {
     }
   },
 
+  desktopExtensions: {
+    authorizePluginRoot(pluginId: string, rootPath: string): Promise<{ ok: boolean }> {
+      return ipcRenderer.invoke('desktop-extension:authorize-plugin-root', { pluginId, rootPath })
+    },
+    toPluginUrl(pluginId: string, absolutePath: string): Promise<{ url: string }> {
+      return ipcRenderer.invoke('desktop-extension:to-plugin-url', { pluginId, absolutePath })
+    }
+  },
+
   workspace: {
     /**
      * Opens the native folder picker dialog.

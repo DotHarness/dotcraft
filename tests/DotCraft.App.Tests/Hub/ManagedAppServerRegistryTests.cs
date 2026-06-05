@@ -239,6 +239,19 @@ public sealed class ManagedAppServerRegistryTests : IDisposable
         Assert.Equal(roots, env["DOTCRAFT_BUILTIN_PLUGIN_ROOTS"]);
     }
 
+    [Fact]
+    public void AddRuntimeTools_ForwardsBuiltInPluginCatalogsAsEnvironmentOverride()
+    {
+        var env = new Dictionary<string, string?>(StringComparer.Ordinal);
+        var catalog = Path.Combine(_tempDir, "resources", "plugins", "dotcraft-bundled", "catalog.json");
+
+        ManagedAppServerRegistry.AddRuntimeTools(
+            new HubRuntimeToolsRequest { BuiltInPluginCatalogs = $" {catalog} " },
+            env);
+
+        Assert.Equal(catalog, env["DOTCRAFT_BUILTIN_PLUGIN_CATALOGS"]);
+    }
+
     private string CreateWorkspace(string name)
     {
         var path = Path.Combine(_tempDir, name);

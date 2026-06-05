@@ -28,9 +28,11 @@ DotCraft 插件用来把可复用的工作区能力打包成可安装扩展，�
 |---|---|
 | Dynamic tool | Agent 可调用的工具，可由本地 stdio 进程执行 |
 | Skill | 随插件分发的 plugin-contained skill，启用时进入 skill 列表 |
+| Desktop extension | 受信任的本地 UI bundle，可向 Desktop 增加 sidebar main view 等界面 |
 | 元数据 | 名称、描述、开发者、分类、图标、默认 prompt、相关链接 |
 
 插件内置的 skill 跟随插件生命周期：启用插件时可用，禁用或移除插件后不再进入 Agent 上下文。
+Desktop extension 也跟随插件生命周期：只有插件安装并启用后，Desktop 才会加载它的本地 bundle。
 
 ### 在 Desktop 中安装
 
@@ -91,7 +93,7 @@ $plugin-creator 创建一个名为 External Process Echo 的插件，包含一�
 $plugin-creator 创建一个本地插件，用 Python 进程提供 EchoText dynamic tool，并生成安装验证说明。
 ```
 
-`plugin-creator` 会生成 DotCraft 插件目录、`.craft-plugin/plugin.json`、plugin-contained skill 以及可选的 process-backed dynamic tool scaffold。生成后通常只需要：
+`plugin-creator` 会生成 DotCraft 插件目录、`.craft-plugin/plugin.json`、plugin-contained skill、可选 MCP 配置，以及可选 Desktop extension descriptor。生成后通常只需要：
 
 1. 替换 TODO 和示例文案
 2. 实现或调整 tool 进程逻辑
@@ -99,7 +101,41 @@ $plugin-creator 创建一个本地插件，用 Python 进程提供 EchoText dyna
 
 ### 插件结构
 
-DotCraft 使用 `.craft-plugin/plugin.json` 作为插件入口。插件可以贡献 skills 和 Agent 可调用的 dynamic tools，dynamic tools 也可以由本地 stdio 进程执行。
+DotCraft 使用 `.craft-plugin/plugin.json` 作为插件入口。插件可以贡献 skills、通过 MCP 暴露 Agent 可调用工具，也可以贡献 Desktop UI surface。
+
+Desktop UI surface 通过 `desktopExtensions` 声明：
+
+```json
+{
+  "capabilities": ["desktopExtension"],
+  "desktopExtensions": "./desktop-extensions.json"
+}
+```
+
+descriptor 指向插件内的 ESM bundle，并声明它贡献的 Desktop surface。当前已经落地的第一类 surface 是 `mainView`，插件安装并启用后会出现在 Desktop sidebar：
+
+```json
+{
+  "extensions": [
+    {
+      "id": "desktop",
+      "displayName": "Project Board Desktop",
+      "entry": "./desktop/main-view.mjs",
+      "surfaces": [
+        {
+          "type": "mainView",
+          "viewId": "main",
+          "label": "Project Board",
+          "placement": "sidebar",
+          "order": 80
+        }
+      ]
+    }
+  ]
+}
+```
+
+需要最小脚手架时可使用 `plugin-creator --with-desktop-extension`。
 
 一般不需要手写完整 manifest。建议让 `plugin-creator` 生成结构，再把生成的 manifest 作为排查或分发时的高级参考。
 
@@ -123,6 +159,7 @@ DotCraft 使用 `.craft-plugin/plugin.json` 作为插件入口。插件可以贡
 安装插件会把新的 tools 和 skills 加入工作区能力范围。启用带 `process` backend 的插件后，DotCraft 可以启动插件 manifest 中声明的本地 stdio 进程来执行 dynamic tools。**只安装和启用你信任来源、代码和依赖的插件**。
 
 - 插件 tool 调用仍会经过 DotCraft 的会话、审批和工具调用记录。
+- Desktop extension bundle 会作为受信任本地 UI 代码运行在 Desktop renderer 中。
 - 插件详情中的网站、隐私政策和服务条款链接用于帮助你确认插件来源和行为边界。
 - 黑名单、工作区边界、沙箱等限制对插件 tools 同样生效。详见 [安全与沙箱](../self-hosted/security)。
 

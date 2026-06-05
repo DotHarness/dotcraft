@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { translate, type AppLocale } from '../shared/locales'
 import { useLocale } from './contexts/LocaleContext'
@@ -52,7 +52,7 @@ import { ConfirmDialogHost } from './components/ui/ConfirmDialog'
 import { ToastContainer } from './components/ui/ToastContainer'
 import { SettingsView } from './components/settings/SettingsView'
 import { ChannelsView } from './components/channels/ChannelsView'
-import { TeamsView } from './components/teams/TeamsView'
+import { DesktopExtensionMainView } from './components/extensions/DesktopExtensionMainView'
 import { WhatsNewDialog } from './components/whats-new/WhatsNewDialog'
 import { addJobResultToast, addToast } from './stores/toastStore'
 import type { ContextUsageSnapshotWire, SessionIdentity, Thread, ThreadGoal, ThreadSummary } from './types/thread'
@@ -69,6 +69,11 @@ import { performAddTabAction } from './utils/detailTabActions'
 import { getSubAgentParentThreadId, isSubAgentThread } from './utils/subAgentThreads'
 import { isFatalConnectionError, useSlowConnectingHint } from './utils/connectionUi'
 import { isAgentTeamsPluginEnabled } from './utils/agentTeamsPlugin'
+import {
+  findDesktopMainViewExtension,
+  getDesktopMainViewExtensions,
+  isExtensionMainView
+} from './utils/desktopExtensionRegistry'
 import {
   resolveWorkspaceConfigChangedPayload,
   type WorkspaceConfigChangedPayload
@@ -574,6 +579,10 @@ export function App(): JSX.Element {
   const quickOpenVisible = useUIStore((s) => s.quickOpenVisible)
   const activeThreadEffectiveWorkspacePath = useThreadStore((s) => s.activeThread?.effectiveWorkspacePath ?? null)
   const plugins = usePluginStore((s) => s.plugins)
+  const activeDesktopExtensionView = useMemo(
+    () => findDesktopMainViewExtension(plugins, activeMainView),
+    [activeMainView, plugins]
+  )
   const agentTeamsAvailable = isAgentTeamsPluginEnabled(plugins)
   const agentTeamsAvailableRef = useRef(agentTeamsAvailable)
   agentTeamsAvailableRef.current = agentTeamsAvailable
@@ -1314,7 +1323,14 @@ export function App(): JSX.Element {
   }, [agentTeamsAvailable, reloadThreadList, status])
 
   useEffect(() => {
-    if (activeMainView !== 'teams' || agentTeamsAvailable) return
+    if (activeMainView !== 'teams') return
+    const teamsView = getDesktopMainViewExtensions(plugins).find((entry) =>
+      entry.plugin.id === 'agent-teams' && entry.viewId === 'teams'
+    )
+    if (teamsView) {
+      useUIStore.getState().setActiveMainView(teamsView.viewKey)
+      return
+    }
     const ui = useUIStore.getState()
     if (capabilities?.pluginManagement === true) {
       ui.setPluginCatalogSurface('plugins')
@@ -1322,7 +1338,18 @@ export function App(): JSX.Element {
       return
     }
     ui.setActiveMainView('conversation')
-  }, [activeMainView, agentTeamsAvailable, capabilities?.pluginManagement])
+  }, [activeMainView, capabilities?.pluginManagement, plugins])
+
+  useEffect(() => {
+    if (!isExtensionMainView(activeMainView) || activeDesktopExtensionView) return
+    const ui = useUIStore.getState()
+    if (capabilities?.pluginManagement === true) {
+      ui.setPluginCatalogSurface('plugins')
+      ui.setActiveMainView('skills')
+      return
+    }
+    ui.setActiveMainView('conversation')
+  }, [activeDesktopExtensionView, activeMainView, capabilities?.pluginManagement])
 
   useEffect(() => {
     if (status === 'connected' && capabilities?.modelCatalogManagement === true) {
@@ -2967,16 +2994,10 @@ export function App(): JSX.Element {
                 <PluginsView />
               ) : activeMainView === 'automations' ? (
                 <AutomationsView />
-              ) : activeMainView === 'teams' ? (
-                agentTeamsAvailable ? <TeamsView /> : capabilities?.pluginManagement === true ? <PluginsView /> : (
-                  <ConversationPanel
-                    workspacePath={workspacePath}
-                    identityWorkspacePath={protocolWorkspacePath || workspacePath}
-                    remoteWorkspace={remoteWorkspaceActive}
-                    workspaceConfigChange={workspaceConfigChange}
-                    workspaceConfigChangeSeq={workspaceConfigChangeSeq}
-                  />
-                )
+              ) : activeDesktopExtensionView ? (
+                <DesktopExtensionMainView entry={activeDesktopExtensionView} />
+              ) : activeMainView === 'teams' && capabilities?.pluginManagement === true ? (
+                <PluginsView />
               ) : (
                 <ConversationPanel
                   workspacePath={workspacePath}

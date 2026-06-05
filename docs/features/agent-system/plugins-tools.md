@@ -28,9 +28,11 @@ A DotCraft plugin packages reusable workspace capabilities into an installable e
 |---|---|
 | Dynamic tool | Agent-callable tool, optionally executed by a local stdio process |
 | Skill | Plugin-contained skill that joins the skill list when the plugin is enabled |
+| Desktop extension | Trusted local UI bundle that contributes Desktop surfaces such as a sidebar main view |
 | Metadata | Name, description, developer, category, icon, default prompt, related links |
 
 Plugin-bundled skills follow plugin lifecycle: available when the plugin is enabled, hidden when disabled or removed.
+Desktop extensions follow the same lifecycle: Desktop loads their local bundles only after the plugin is installed and enabled.
 
 ### Install in Desktop
 
@@ -91,7 +93,7 @@ Or specify runtime, language, and validation:
 $plugin-creator Create a local plugin that exposes an EchoText dynamic tool via a Python process, and produce install validation steps.
 ```
 
-`plugin-creator` generates the plugin directory, `.craft-plugin/plugin.json`, plugin-contained skill, and (optionally) a process-backed dynamic tool scaffold. After generation, usually three things remain:
+`plugin-creator` generates the plugin directory, `.craft-plugin/plugin.json`, plugin-contained skill, optional MCP config, and optional Desktop extension descriptor. After generation, usually three things remain:
 
 1. Replace TODOs and sample copy
 2. Implement or adjust the tool process logic
@@ -99,7 +101,41 @@ $plugin-creator Create a local plugin that exposes an EchoText dynamic tool via 
 
 ### Plugin Structure
 
-DotCraft uses `.craft-plugin/plugin.json` as the plugin entry. A plugin can contribute skills and agent-callable dynamic tools, optionally backed by a local stdio process.
+DotCraft uses `.craft-plugin/plugin.json` as the plugin entry. A plugin can contribute skills, agent-callable dynamic tools through MCP, and Desktop UI surfaces.
+
+Desktop UI surfaces are declared by `desktopExtensions`:
+
+```json
+{
+  "capabilities": ["desktopExtension"],
+  "desktopExtensions": "./desktop-extensions.json"
+}
+```
+
+The descriptor points to plugin-contained ESM and declares the surfaces it contributes. The first implemented Desktop surface is `mainView`, which appears in the sidebar when the plugin is installed and enabled:
+
+```json
+{
+  "extensions": [
+    {
+      "id": "desktop",
+      "displayName": "Project Board Desktop",
+      "entry": "./desktop/main-view.mjs",
+      "surfaces": [
+        {
+          "type": "mainView",
+          "viewId": "main",
+          "label": "Project Board",
+          "placement": "sidebar",
+          "order": 80
+        }
+      ]
+    }
+  ]
+}
+```
+
+Use `plugin-creator --with-desktop-extension` for a minimal scaffold.
 
 You usually do not write the full manifest by hand. Let `plugin-creator` scaffold the plugin, then use the generated manifest as the advanced reference for troubleshooting or distribution.
 
@@ -123,6 +159,7 @@ Beyond built-in tools and plugin dynamic tools, DotCraft also speaks MCP. MCP se
 Installing a plugin adds new tools and skills to the workspace's capability surface. Plugins with a `process` backend may launch a local stdio process declared in the manifest to execute dynamic tools. **Only install and enable plugins whose source, code, and dependencies you trust**.
 
 - Plugin tool calls still pass through DotCraft's session, approvals, and tool-call records.
+- Desktop extension bundles run inside the Desktop renderer as trusted local UI code.
 - Plugin detail pages link to website, privacy policy, and ToS for source verification.
 - Blacklists, workspace boundary, sandbox, and other restrictions also apply to plugin tools. See [Security & Sandbox](../self-hosted/security).
 

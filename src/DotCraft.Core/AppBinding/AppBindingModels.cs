@@ -403,6 +403,9 @@ public sealed class AppConnectionConnectParams
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public JsonObject? ConnectionProof { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonObject? PublicMetadata { get; set; }
 }
 
 public sealed class AppConnectionStatusParams
@@ -453,6 +456,9 @@ public sealed class AppConnectionStatusWire
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Diagnostic { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonObject? PublicMetadata { get; set; }
 }
 
 public sealed class AppConnectionRevokeParams

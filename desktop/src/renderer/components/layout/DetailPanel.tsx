@@ -214,7 +214,8 @@ export function DetailPanel({
           scrollbarWidth: 'none'
         }}
       >
-        {/* System tabs (Diff / Progress) — icon-only; the icon slot becomes the close button on hover. */}
+        {/* System tabs (Changes / Checks) — icon + label, so the label stays a
+            click target; the icon slot becomes the close button on hover. */}
         {openSystemTabs.map((id) => {
           const meta = systemTabMeta[id]
           return (
@@ -223,6 +224,7 @@ export function DetailPanel({
               active={activeSystemId === id}
               title={meta.label}
               icon={meta.icon}
+              label={meta.label}
               badge={meta.badge}
               closeLabel={`${t('viewer.close')} ${meta.label}`}
               onActivate={() => setActiveDetailTab(id)}
@@ -416,12 +418,11 @@ function DetailPanelTab({
   maxWidth?: number
 }): JSX.Element {
   const [hovered, setHovered] = useState(false)
-  return (
+  const tab = (
     <div
       className={className}
       role="tab"
       aria-selected={active}
-      title={title}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onClick={onActivate}
@@ -456,7 +457,6 @@ function DetailPanelTab({
           <button
             type="button"
             aria-label={closeLabel}
-            title={closeLabel}
             onClick={(e) => {
               e.stopPropagation()
               onClose()
@@ -498,6 +498,13 @@ function DetailPanelTab({
         </span>
       )}
     </div>
+  )
+
+  if (!title) return tab
+  return (
+    <ActionTooltip label={title} placement="bottom" wrapperStyle={{ height: '100%' }}>
+      {tab}
+    </ActionTooltip>
   )
 }
 

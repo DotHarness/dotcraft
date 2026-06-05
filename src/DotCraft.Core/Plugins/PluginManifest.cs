@@ -35,6 +35,8 @@ public sealed record PluginManifest
 
     public string? AppsPath { get; init; }
 
+    public string? DesktopExtensionsPath { get; init; }
+
     public required string RootPath { get; init; }
 
     public required string ManifestPath { get; init; }
@@ -188,6 +190,13 @@ public static partial class PluginManifestParser
             raw.Id,
             manifestPath,
             diagnostics);
+        var desktopExtensionsPath = ResolveOptionalManifestPath(
+            pluginRoot,
+            raw.DesktopExtensions,
+            "desktopExtensions",
+            raw.Id,
+            manifestPath,
+            diagnostics);
         var interfaceMetadata = ParseInterface(
             pluginRoot,
             raw.Interface,
@@ -199,11 +208,12 @@ public static partial class PluginManifestParser
             && mcpServersPath == null
             && lspServersPath == null
             && appsPath == null
+            && desktopExtensionsPath == null
             && interfaceMetadata == null)
         {
             diagnostics.Add(PluginDiagnostic.Error(
                 "MissingPluginCapabilities",
-                "Plugin manifest must declare skills, mcpServers, lspServers, apps, or interface metadata.",
+                "Plugin manifest must declare skills, mcpServers, lspServers, apps, desktopExtensions, or interface metadata.",
                 raw.Id,
                 path: manifestPath));
         }
@@ -229,6 +239,7 @@ public static partial class PluginManifestParser
             McpServersPath = mcpServersPath,
             LspServersPath = lspServersPath,
             AppsPath = appsPath,
+            DesktopExtensionsPath = desktopExtensionsPath,
             RootPath = Path.GetFullPath(pluginRoot),
             ManifestPath = Path.GetFullPath(manifestPath)
         };
@@ -488,6 +499,8 @@ public static partial class PluginManifestParser
         public string? LspServers { get; set; }
 
         public string? Apps { get; set; }
+
+        public string? DesktopExtensions { get; set; }
 
         [JsonPropertyName("interface")]
         public RawPluginInterface? Interface { get; set; }

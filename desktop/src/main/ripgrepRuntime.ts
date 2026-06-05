@@ -4,6 +4,7 @@ import * as path from 'path'
 
 export const DOTCRAFT_RG_PATH_ENV = 'DOTCRAFT_RG_PATH'
 export const DOTCRAFT_BUILTIN_PLUGIN_ROOTS_ENV = 'DOTCRAFT_BUILTIN_PLUGIN_ROOTS'
+export const DOTCRAFT_BUILTIN_PLUGIN_CATALOGS_ENV = 'DOTCRAFT_BUILTIN_PLUGIN_CATALOGS'
 
 export interface DotCraftRuntimeTools {
   ripgrepPath?: string
@@ -11,6 +12,7 @@ export interface DotCraftRuntimeTools {
   nodeRunAsNode?: boolean
   modulesDir?: string
   builtInPluginRoots?: string
+  builtInPluginCatalogs?: string
 }
 
 export function resolveBundledRipgrepPath(): string {
@@ -23,14 +25,16 @@ export function resolveDotCraftRuntimeTools(): DotCraftRuntimeTools {
     nodeBin: resolveBundledNodePath(),
     nodeRunAsNode: true,
     modulesDir: resolveBundledModulesDir(),
-    builtInPluginRoots: resolveBundledBuiltInPluginRoot()
+    builtInPluginRoots: resolveBundledBuiltInPluginRoot(),
+    builtInPluginCatalogs: resolveBundledBuiltInPluginCatalog()
   }
 }
 
 export function buildDotCraftRuntimeEnv(): NodeJS.ProcessEnv {
   return {
     [DOTCRAFT_RG_PATH_ENV]: resolveBundledRipgrepPath(),
-    [DOTCRAFT_BUILTIN_PLUGIN_ROOTS_ENV]: resolveBundledBuiltInPluginRoot()
+    [DOTCRAFT_BUILTIN_PLUGIN_ROOTS_ENV]: resolveBundledBuiltInPluginRoot(),
+    [DOTCRAFT_BUILTIN_PLUGIN_CATALOGS_ENV]: resolveBundledBuiltInPluginCatalog()
   }
 }
 
@@ -50,4 +54,11 @@ export function resolveBundledBuiltInPluginRoot(): string {
     return path.join(process.resourcesPath, 'plugins', 'dotcraft-bundled', 'plugins')
   }
   return path.join(app.getAppPath(), 'resources', 'plugins', 'dotcraft-bundled', 'plugins')
+}
+
+export function resolveBundledBuiltInPluginCatalog(): string {
+  if (app.isPackaged) {
+    return path.join(process.resourcesPath, 'plugins', 'dotcraft-bundled', 'catalog.json')
+  }
+  return path.join(app.getAppPath(), 'resources', 'plugins', 'dotcraft-bundled', 'catalog.json')
 }

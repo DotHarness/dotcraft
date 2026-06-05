@@ -3,6 +3,7 @@
   --team-card-line: #1d1d1d;
   --team-card-paper: #fff5cf;
   --team-card-paper-soft: #fffbe8;
+  --team-card-chip-paper: #fffdf0;
   --team-card-task: #eef7ff;
   --team-card-done: #e9f8dc;
   --team-board-frame: rgba(129, 180, 235, .42);
@@ -821,13 +822,14 @@ html[data-theme="light"] .teams-card-game {
   padding: 0 7px;
   border: 2px solid color-mix(in srgb, var(--team-card-line) 70%, transparent);
   border-radius: 999px;
-  background: var(--team-rail-field);
+  background: var(--team-card-chip-paper);
   color: var(--team-card-ink);
   font-size: 14px;
   line-height: 1;
   font-weight: 900;
   box-shadow: 0 5px 10px rgba(0,0,0,.1);
   pointer-events: none;
+  z-index: 2;
 }
 
 .teams-discard-pile {
@@ -966,7 +968,7 @@ html[data-theme="light"] .teams-card-game {
   padding: 5px 9px;
   border: 2px solid var(--team-card-line);
   border-radius: 5px;
-  background: var(--team-rail-field);
+  background: var(--team-card-chip-paper);
   color: var(--team-card-ink);
   font-size: 12px;
   line-height: 1;

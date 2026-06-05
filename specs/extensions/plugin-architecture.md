@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 1.2.1 |
+| **Version** | 1.3.0 |
 | **Status** | Living |
 | **Date** | 2026-05-19 |
 | **Related Specs** | [AppServer Protocol](../protocols/appserver-protocol.md), [Tool Result Presentation](../protocols/tool-result-presentation.md), [Session Core](../core/session-core.md), [External Channel Adapter](../protocols/external-channel-adapter.md), [Desktop Client](../clients/desktop-client.md) |
@@ -20,7 +20,8 @@ The plugin contribution model is:
 1. **Skills**: plugin-contained DotCraft-compatible `SKILL.md` directories.
 2. **MCP Servers**: plugin-contained MCP server declarations loaded into DotCraft's MCP runtime.
 3. **App Descriptors**: plugin-contained App Binding descriptors that make app connection and thread binding flows visible.
-4. **Interface Metadata**: optional client-facing plugin metadata.
+4. **Desktop Extensions**: optional trusted Desktop UI bundles that contribute client surfaces.
+5. **Interface Metadata**: optional client-facing plugin metadata.
 
 Plugin manifests do not declare model-callable native tools. Legacy manifest fields `tools`, `functions`, and `processes` are unsupported and ignored with diagnostics. External reusable services should use MCP. Thread-scoped client callback tools should use Runtime Dynamic Tools (`thread/start.dynamicTools`, `thread/resume.dynamicTools`, and `item/tool/call`) defined in [AppServer Protocol](../protocols/appserver-protocol.md).
 
@@ -49,9 +50,10 @@ Manifest metadata includes:
 - `mcpServers`
 - `lspServers`
 - `apps`
+- `desktopExtensions`
 - `paths`
 
-Plugins must declare at least one supported contribution: a plugin-contained `skills` path, plugin-bundled MCP servers, App Binding descriptors, LSP server descriptors, or interface metadata. Skill-only, MCP-only, app-only, and interface-only plugins are valid.
+Plugins must declare at least one supported contribution: a plugin-contained `skills` path, plugin-bundled MCP servers, App Binding descriptors, LSP server descriptors, Desktop extensions, or interface metadata. Skill-only, MCP-only, app-only, desktop-extension-only, and interface-only plugins are valid.
 
 `mcpServers` is an optional manifest-relative path to a plugin-contained MCP configuration file. If omitted, DotCraft looks for `./.mcp.json` in the plugin root. The MCP file may use either `{ "mcpServers": { ... } }` or a direct server map. Plugin MCP config should use canonical DotCraft fields such as `arguments`, `environmentVariables`, and `headers`; for compatibility with common MCP config files, DotCraft also accepts `args`, `env`, and `httpHeaders` as read aliases. Plugin-bundled MCP servers use the same runtime as workspace `McpServers`; relative MCP `cwd` values resolve under the plugin root. At runtime, contributed server names are prefixed as `{pluginId}:{serverName}` to avoid collisions with workspace MCP servers and other plugins.
 
@@ -93,6 +95,39 @@ Example MCP plugin:
 
 `apps` points to a plugin-contained App Binding descriptor document, for example `"./apps.json"`. Apps contributed by installed and enabled plugins become eligible for App Binding connection and thread binding. Catalog-visible built-in plugins may expose app metadata before installation, but connection and binding are blocked until the owning plugin is installed and enabled.
 
+`desktopExtensions` points to a plugin-contained Desktop extension descriptor document, for example `"./desktop-extensions.json"`. Desktop extensions are trusted client UI bundles loaded only after the plugin is installed and enabled. The descriptor contains one or more ESM bundle entries and the Desktop surfaces they contribute:
+
+```json
+{
+  "extensions": [
+    {
+      "id": "team-card-board",
+      "displayName": "Team card board",
+      "description": "Team collaboration board.",
+      "entry": "./desktop/team-card-board.mjs",
+      "styles": ["./desktop/team-card-board.css"],
+      "surfaces": [
+        {
+          "type": "mainView",
+          "viewId": "teams",
+          "label": "Team",
+          "placement": "sidebar",
+          "order": 40
+        },
+        {
+          "type": "pluginDetail",
+          "title": "Team card board",
+          "description": "Adds the Team board to Desktop."
+        }
+      ],
+      "requiredAppIds": []
+    }
+  ]
+}
+```
+
+Desktop extension path fields use the same manifest-relative path rules as other plugin paths. The supported surface `type` values are `mainView`, `pluginDetail`, `detailPanel`, `composerAction`, `conversationRenderer`, and `settingsPanel`. Unknown surface types are diagnostics and are ignored by clients.
+
 DotCraft discovers plugin roots from:
 
 1. Workspace-local root: `<workspace>/.craft/plugins`
@@ -115,7 +150,7 @@ Manifest-relative paths must:
 - Not contain `..`.
 - Resolve to a path that stays inside the plugin root.
 
-These rules apply to `skills`, `mcpServers`, `paths`, and interface asset paths.
+These rules apply to `skills`, `mcpServers`, `desktopExtensions`, `paths`, interface asset paths, and path fields inside Desktop extension descriptors.
 
 ---
 
@@ -125,7 +160,7 @@ Plugin loading has three responsibilities:
 
 1. The manifest parser reads `.craft-plugin/plugin.json`, validates supported fields, normalizes paths, and returns metadata plus diagnostics.
 2. The discovery service scans roots, resolves duplicate plugin ids, applies plugin enablement config, and produces plugin records.
-3. Enabled plugins contribute skill sources, plugin-bundled MCP server declarations, and app descriptors to the workspace runtime.
+3. Enabled plugins contribute skill sources, plugin-bundled MCP server declarations, app descriptors, and Desktop extension descriptors to the workspace runtime/client metadata.
 
 Diagnostics are non-fatal and available to logs and UI surfaces. They cover invalid JSON, missing fields, missing supported plugin capabilities, invalid ids, invalid manifest-relative paths, unsupported legacy native tool fields, duplicate plugin ids, disabled plugins, invalid MCP declarations, and missing roots.
 
@@ -201,6 +236,8 @@ Installed built-ins carry a `.builtin` marker:
 - Directories without `.builtin` are treated as user-owned and are not overwritten or removed by DotCraft.
 
 `plugin/remove` deletes only managed built-in directories that still carry the `.builtin` marker. Removing a plugin is distinct from disabling it: removed built-ins are absent from runtime discovery but remain visible in the installable catalog when desktop-bundled roots are configured, while disabled installed plugins remain on disk and can be re-enabled.
+
+Built-in catalog entries may also be remote release entries instead of bundled source directories. A remote entry supplies plugin metadata plus a GitHub Release ZIP URL, a fixed version, and a SHA-256 checksum. `plugin/install` downloads the ZIP, verifies the checksum, rejects path traversal or manifest-id mismatches, then installs the extracted plugin into `.craft/plugins/<pluginId>` with a managed marker. DotCraft never executes code directly from a remote URL; Desktop loads only the locally installed extension bundle.
 
 ---
 

@@ -5205,8 +5205,11 @@ public sealed class AppServerRequestHandler(
         var manifest = plugin.Manifest;
         var appDiagnostics = new List<PluginDiagnostic>();
         var apps = MapPluginAppsToWire(plugin, appDiagnostics);
+        var desktopExtensionDiagnostics = new List<PluginDiagnostic>();
+        var desktopExtensions = MapPluginDesktopExtensionsToWire(plugin, desktopExtensionDiagnostics);
         var pluginDiagnostics = diagnostics
             .Concat(appDiagnostics)
+            .Concat(desktopExtensionDiagnostics)
             .Where(d => string.Equals(d.PluginId, manifest.Id, StringComparison.OrdinalIgnoreCase))
             .Select(MapPluginDiagnosticToWire)
             .ToList();
@@ -5226,6 +5229,7 @@ public sealed class AppServerRequestHandler(
             Functions = [],
             Skills = MapPluginSkillsToWire(plugin),
             Apps = apps,
+            DesktopExtensions = desktopExtensions,
             McpServers = mcpSummaries.TryGetValue(manifest.Id, out var servers)
                 ? servers.Select(MapPluginMcpServerToWire).ToList()
                 : [],
@@ -5235,6 +5239,38 @@ public sealed class AppServerRequestHandler(
             Diagnostics = pluginDiagnostics
         };
     }
+
+    private static List<PluginDesktopExtensionInfoWire> MapPluginDesktopExtensionsToWire(
+        DiscoveredPlugin plugin,
+        List<PluginDiagnostic> diagnostics) =>
+        PluginDesktopExtensionCatalog.LoadPluginDesktopExtensions(plugin, diagnostics)
+            .Select(extension => new PluginDesktopExtensionInfoWire
+            {
+                Id = extension.Id,
+                DisplayName = extension.DisplayName,
+                Description = extension.Description,
+                Entry = extension.Entry,
+                Styles = extension.Styles.ToList(),
+                RequiredAppIds = extension.RequiredAppIds.ToList(),
+                ConnectOrigins = extension.ConnectOrigins.ToList(),
+                Surfaces = extension.Surfaces
+                    .Select(surface => new PluginDesktopExtensionSurfaceWire
+                    {
+                        Type = surface.Type,
+                        ViewId = surface.ViewId,
+                        Label = surface.Label,
+                        Placement = surface.Placement,
+                        Order = surface.Order,
+                        Title = surface.Title,
+                        Description = surface.Description,
+                        Slot = surface.Slot,
+                        RendererId = surface.RendererId,
+                        ActionId = surface.ActionId,
+                        SettingsId = surface.SettingsId
+                    })
+                    .ToList()
+            })
+            .ToList();
 
     private static List<PluginAppInfoWire> MapPluginAppsToWire(
         DiscoveredPlugin plugin,

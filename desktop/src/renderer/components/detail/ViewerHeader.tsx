@@ -1,14 +1,14 @@
 /**
  * Header bar shown above file viewers (text / markdown / image / pdf /
  * unsupported):
- *   [type-icon] path / breadcrumb …            [explorer] [⋯] [Open ▾]
+ *   [type-icon] path / breadcrumb …            [⋯] [Open ▾] [explorer]
  *
  * Browser and terminal tabs keep their own chrome and never render this header.
  * Chrome stays neutral per the desktop visual-design spec; the only color is
  * the small file-type identity icon.
  */
 import { useEffect, useRef, type CSSProperties } from 'react'
-import { ChevronRight, PanelRight, PanelRightClose } from 'lucide-react'
+import { ChevronRight, Folder, FolderOpen } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useUIStore } from '../../stores/uiStore'
 import { FileTypeIcon } from '../ui/FileTypeIcon'
@@ -92,6 +92,20 @@ export function ViewerHeader({
       </div>
 
       <div style={actionsStyle}>
+        <ViewerActionsMenu
+          absolutePath={absolutePath}
+          isText={isText}
+          wordWrap={wordWrap}
+          onToggleWordWrap={onToggleWordWrap}
+        />
+
+        <OpenTargetButton
+          targetPath={absolutePath}
+          tooltipLabel={t('detailPanel.openFileTitle', { path: relativePath })}
+          menuAriaLabel={t('detailPanel.openFileMenuAria')}
+          showPrimaryLabel
+        />
+
         <ActionTooltip
           label={explorerVisible ? t('viewer.closeExplorer') : t('viewer.openExplorer')}
           placement="bottom"
@@ -110,24 +124,10 @@ export function ViewerHeader({
             onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = explorerVisible ? 'var(--bg-tertiary)' : 'transparent' }}
           >
             {explorerVisible
-              ? <PanelRightClose size={16} aria-hidden style={{ display: 'block' }} />
-              : <PanelRight size={16} aria-hidden style={{ display: 'block' }} />}
+              ? <FolderOpen size={16} aria-hidden style={{ display: 'block' }} />
+              : <Folder size={16} aria-hidden style={{ display: 'block' }} />}
           </button>
         </ActionTooltip>
-
-        <ViewerActionsMenu
-          absolutePath={absolutePath}
-          isText={isText}
-          wordWrap={wordWrap}
-          onToggleWordWrap={onToggleWordWrap}
-        />
-
-        <OpenTargetButton
-          targetPath={absolutePath}
-          tooltipLabel={t('detailPanel.openFileTitle', { path: relativePath })}
-          menuAriaLabel={t('detailPanel.openFileMenuAria')}
-          showPrimaryLabel
-        />
       </div>
     </div>
   )

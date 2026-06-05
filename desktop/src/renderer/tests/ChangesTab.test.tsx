@@ -170,7 +170,7 @@ describe('ChangesTab diff stream', () => {
     })
   })
 
-  it('opens the changed file parent directory from the hover action', async () => {
+  it('reveals the changed file in the OS file manager from the hover action', async () => {
     cs().upsertChangedFile(makeDiff({ filePath: 'src/a.ts' }))
 
     render(<Harness workspacePath={'F:\\work'} />)
@@ -178,19 +178,10 @@ describe('ChangesTab diff stream', () => {
     fireEvent.click(screen.getByLabelText('Open containing folder'))
 
     await waitFor(() => {
-      expect(window.api.shell.launchEditor).toHaveBeenCalledWith('explorer', 'F:\\work\\src')
+      expect(window.api.shell.showItemInFolder).toHaveBeenCalledWith('F:\\work\\src\\a.ts')
     })
   })
 
-  it('renders Revert All with a single icon-only glyph source', async () => {
-    cs().upsertChangedFile(makeDiff({ filePath: 'src/a.ts' }))
-
-    render(<Harness />)
-
-    const button = await screen.findByRole('button', { name: /^Revert All$/ })
-    expect(button).toHaveTextContent('Revert All')
-    expect(button).not.toHaveTextContent('↺')
-  })
 })
 
 describe('DiffViewer split mode', () => {

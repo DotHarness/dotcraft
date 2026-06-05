@@ -17,6 +17,7 @@ import { useGitStore, type GitBranchListSnapshot } from '../stores/gitStore'
 import { usePluginStore, type PluginEntry } from '../stores/pluginStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
+import { buildExtensionMainViewKey } from '../utils/desktopExtensionRegistry'
 import type { WorkspaceStatusPayload } from '../../preload/api'
 import {
   getWhatsNewMediaStateKey,
@@ -118,6 +119,10 @@ vi.mock('../components/teams/TeamsView', () => ({
   TeamsView: () => <div data-testid="teams-view" />
 }))
 
+vi.mock('../components/extensions/DesktopExtensionMainView', () => ({
+  DesktopExtensionMainView: () => <div data-testid="desktop-extension-main-view" />
+}))
+
 vi.mock('../components/detail/QuickOpenDialog', () => ({
   QuickOpenDialog: () => <div data-testid="quick-open-dialog" />
 }))
@@ -192,7 +197,32 @@ const agentTeamsPlugin: PluginEntry = {
   skills: [],
   apps: [],
   mcpServers: [],
-  lspServers: []
+  lspServers: [],
+  desktopExtensions: [
+    {
+      id: 'team-card-board',
+      displayName: 'Team card board',
+      description: 'Adds the Agent Teams card board to DotCraft Desktop.',
+      entry: 'E:\\dotcraft\\plugins\\agent-teams\\desktop\\team-card-board.mjs',
+      styles: [],
+      requiredAppIds: [],
+      connectOrigins: [],
+      surfaces: [
+        {
+          type: 'mainView',
+          viewId: 'teams',
+          label: 'Team',
+          placement: 'sidebar',
+          order: 40
+        },
+        {
+          type: 'pluginDetail',
+          title: 'Team Board',
+          description: 'Unlocks the card board for Agent Team.'
+        }
+      ]
+    }
+  ]
 }
 
 function mediaStates(status: WhatsNewMediaState['status']): WhatsNewMediaState[] {
@@ -713,23 +743,33 @@ describe('App initial workspace status bootstrap', () => {
     await waitFor(() => {
       expect(useUIStore.getState().activeMainView).toBe('skills')
     })
+    expect(screen.queryByTestId('desktop-extension-main-view')).not.toBeInTheDocument()
     expect(screen.queryByTestId('teams-view')).not.toBeInTheDocument()
   })
 
-  it('renders Team when the agent-teams plugin is installed and enabled', async () => {
-    installApi(readyWorkspaceStatus)
+  it('migrates legacy Team view to the Agent Teams desktop extension when installed and enabled', async () => {
+    const appServerSendRequest = vi.fn(async (method: string) => {
+      if (method === 'plugin/list') {
+        return { plugins: [agentTeamsPlugin], diagnostics: [] }
+      }
+      return {}
+    })
+    installApi(readyWorkspaceStatus, { appServerSendRequest })
     useConnectionStore.getState().setStatus({
       status: 'connected',
       capabilities: { pluginManagement: true }
     })
     usePluginStore.setState({ plugins: [agentTeamsPlugin] })
     useUIStore.setState({ activeMainView: 'teams' })
+    const extensionView = buildExtensionMainViewKey('agent-teams', 'team-card-board', 'teams')
 
     renderApp()
 
     await waitFor(() => {
-      expect(screen.getByTestId('teams-view')).toBeInTheDocument()
+      expect(useUIStore.getState().activeMainView).toBe(extensionView)
     })
+    expect(screen.getByTestId('desktop-extension-main-view')).toBeInTheDocument()
+    expect(screen.queryByTestId('teams-view')).not.toBeInTheDocument()
   })
 
   it('reloads thread list with teams origin after the Agent Teams plugin becomes available', async () => {

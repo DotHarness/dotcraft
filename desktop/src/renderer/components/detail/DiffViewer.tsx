@@ -35,6 +35,8 @@ interface DiffViewerProps {
   diff: FileDiff
   workspacePath: string
   mode?: DiffDisplayMode
+  /** Wrap long lines instead of scrolling horizontally. */
+  wordWrap?: boolean
 }
 
 interface NumberedLine {
@@ -52,7 +54,7 @@ type SplitRenderRow =
   | { kind: 'divider'; count: number }
   | { kind: 'line'; left: NumberedLine; right: NumberedLine }
 
-export function DiffViewer({ diff, workspacePath, mode = 'inline' }: DiffViewerProps): JSX.Element {
+export function DiffViewer({ diff, workspacePath, mode = 'inline', wordWrap = false }: DiffViewerProps): JSX.Element {
   const relativePath = toRelativePath(diff.filePath, workspacePath)
   const language = detectLanguage(diff.filePath)
 
@@ -60,6 +62,7 @@ export function DiffViewer({ diff, workspacePath, mode = 'inline' }: DiffViewerP
     <div
       data-testid="diff-viewer"
       data-mode={mode}
+      data-wrap={wordWrap ? 'true' : undefined}
       style={{
         fontFamily: 'var(--font-mono)',
         fontSize: '12px',
@@ -68,8 +71,8 @@ export function DiffViewer({ diff, workspacePath, mode = 'inline' }: DiffViewerP
       }}
     >
       {mode === 'split'
-        ? <SplitDiffBody diff={diff} relativePath={relativePath} language={language} />
-        : <UnifiedDiffBody diff={diff} relativePath={relativePath} language={language} />}
+        ? <SplitDiffBody diff={diff} relativePath={relativePath} language={language} wordWrap={wordWrap} />
+        : <UnifiedDiffBody diff={diff} relativePath={relativePath} language={language} wordWrap={wordWrap} />}
     </div>
   )
 }
@@ -77,11 +80,13 @@ export function DiffViewer({ diff, workspacePath, mode = 'inline' }: DiffViewerP
 export function UnifiedDiffBody({
   diff,
   relativePath,
-  language = 'plaintext'
+  language = 'plaintext',
+  wordWrap = false
 }: {
   diff: FileDiff
   relativePath?: string
   language?: string
+  wordWrap?: boolean
 }): JSX.Element {
   if (diff.diffHunks.length === 0) {
     return <EmptyDiffMessage />
@@ -91,7 +96,7 @@ export function UnifiedDiffBody({
   let previousNewEnd = 1
 
   return (
-    <div data-testid="unified-diff-body" style={{ overflowX: 'auto' }}>
+    <div data-testid="unified-diff-body" style={{ overflowX: wordWrap ? 'hidden' : 'auto' }}>
       {diff.diffHunks.map((hunk, hunkIdx) => {
         let oldLineNum = hunk.oldStart
         let newLineNum = hunk.newStart
@@ -100,7 +105,7 @@ export function UnifiedDiffBody({
         previousNewEnd = hunk.newStart + hunk.newLines
 
         return (
-          <div key={hunkIdx} style={{ minWidth: 'max-content' }}>
+          <div key={hunkIdx} style={{ minWidth: wordWrap ? undefined : 'max-content' }}>
             {unchanged > 0 && <UnchangedDivider count={unchanged} />}
             {hunk.lines.map((line, lineIdx) => {
               const oldNum = line.type === 'add' ? '' : String(oldLineNum)
@@ -112,9 +117,9 @@ export function UnifiedDiffBody({
                   key={lineIdx}
                   style={{
                     display: 'flex',
-                    minWidth: 'max-content',
+                    minWidth: wordWrap ? undefined : 'max-content',
                     background: diffLineBackground(line.type),
-                    whiteSpace: 'pre'
+                    whiteSpace: wordWrap ? 'pre-wrap' : 'pre'
                   }}
                 >
                   <span style={lineNumberStyle}>{oldNum}</span>
@@ -126,7 +131,8 @@ export function UnifiedDiffBody({
                     title={relativePath}
                     style={{
                       padding: '0 10px 0 4px',
-                      color: line.type === 'remove' ? 'var(--text-secondary)' : 'var(--text-primary)'
+                      color: line.type === 'remove' ? 'var(--text-secondary)' : 'var(--text-primary)',
+                      ...(wordWrap ? wrapContentStyle : null)
                     }}
                   >
                     <HighlightedLine content={line.content} language={language} />
@@ -144,11 +150,13 @@ export function UnifiedDiffBody({
 export function SplitDiffBody({
   diff,
   relativePath,
-  language = 'plaintext'
+  language = 'plaintext',
+  wordWrap = false
 }: {
   diff: FileDiff
   relativePath?: string
   language?: string
+  wordWrap?: boolean
 }): JSX.Element {
   const leftPaneRef = useRef<HTMLDivElement>(null)
   const rightPaneRef = useRef<HTMLDivElement>(null)
@@ -159,12 +167,17 @@ export function SplitDiffBody({
   }
 
   function syncScroll(source: 'left' | 'right'): void {
+    if (wordWrap) return
     const sourcePane = source === 'left' ? leftPaneRef.current : rightPaneRef.current
     const targetPane = source === 'left' ? rightPaneRef.current : leftPaneRef.current
     if (!sourcePane || !targetPane) return
     if (targetPane.scrollLeft === sourcePane.scrollLeft) return
     targetPane.scrollLeft = sourcePane.scrollLeft
   }
+
+  const paneStyle: CSSProperties = wordWrap
+    ? { minWidth: 0, overflow: 'hidden' }
+    : splitPaneStyle
 
   return (
     <div
@@ -181,19 +194,19 @@ export function SplitDiffBody({
         data-testid="split-left-pane"
         onScroll={() => syncScroll('left')}
         style={{
-          ...splitPaneStyle,
+          ...paneStyle,
           borderRight: '1px solid var(--border-default)'
         }}
       >
-        <SplitPaneRows rows={rows} side="left" title={relativePath} language={language} />
+        <SplitPaneRows rows={rows} side="left" title={relativePath} language={language} wordWrap={wordWrap} />
       </div>
       <div
         ref={rightPaneRef}
         data-testid="split-right-pane"
         onScroll={() => syncScroll('right')}
-        style={splitPaneStyle}
+        style={paneStyle}
       >
-        <SplitPaneRows rows={rows} side="right" title={relativePath} language={language} />
+        <SplitPaneRows rows={rows} side="right" title={relativePath} language={language} wordWrap={wordWrap} />
       </div>
     </div>
   )
@@ -203,15 +216,17 @@ function SplitPaneRows({
   rows,
   side,
   title,
-  language
+  language,
+  wordWrap
 }: {
   rows: SplitRenderRow[]
   side: 'left' | 'right'
   title?: string
   language: string
+  wordWrap: boolean
 }): JSX.Element {
   return (
-    <div style={{ minWidth: 'max-content' }}>
+    <div style={{ minWidth: wordWrap ? undefined : 'max-content' }}>
       {rows.map((row, index) => {
         if (row.kind === 'divider') {
           return <UnchangedDivider key={`divider-${index}`} count={row.count} />
@@ -222,6 +237,7 @@ function SplitPaneRows({
             line={side === 'left' ? row.left : row.right}
             title={title}
             language={language}
+            wordWrap={wordWrap}
           />
         )
       })}
@@ -232,21 +248,23 @@ function SplitPaneRows({
 function SplitCell({
   line,
   title,
-  language
+  language,
+  wordWrap
 }: {
   line: NumberedLine
   title?: string
   language: string
+  wordWrap: boolean
 }): JSX.Element {
   const isBlank = line.type === 'blank'
   return (
     <div
       style={{
         display: 'flex',
-        width: 'max-content',
+        width: wordWrap ? '100%' : 'max-content',
         minWidth: '100%',
         background: isBlank ? 'var(--bg-primary)' : diffLineBackground(line.type),
-        whiteSpace: 'pre'
+        whiteSpace: wordWrap ? 'pre-wrap' : 'pre'
       }}
     >
       <span style={lineNumberStyle}>{line.num}</span>
@@ -256,7 +274,8 @@ function SplitCell({
         style={{
           minWidth: 0,
           padding: '0 10px 0 4px',
-          color: isBlank ? 'transparent' : line.type === 'remove' ? 'var(--text-secondary)' : 'var(--text-primary)'
+          color: isBlank ? 'transparent' : line.type === 'remove' ? 'var(--text-secondary)' : 'var(--text-primary)',
+          ...(wordWrap ? wrapContentStyle : null)
         }}
       >
         {isBlank ? ' ' : <HighlightedLine content={line.content} language={language} />}
@@ -436,8 +455,16 @@ const lineNumberStyle: CSSProperties = {
 const splitPaneStyle: CSSProperties = {
   minWidth: 0,
   overflowX: 'auto',
-  overflowY: 'hidden',
-  scrollbarWidth: 'thin'
+  overflowY: 'hidden'
+}
+
+/** Applied to the content cell when word wrap is on so long lines flow. */
+const wrapContentStyle: CSSProperties = {
+  flex: 1,
+  minWidth: 0,
+  whiteSpace: 'pre-wrap',
+  overflowWrap: 'anywhere',
+  wordBreak: 'break-word'
 }
 
 function toRelativePath(filePath: string, workspacePath: string): string {

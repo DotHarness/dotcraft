@@ -136,7 +136,6 @@ export function PluginsView(): JSX.Element {
           await fetchSkills()
           await fetchPlugins()
           await selectPlugin(installTarget.id)
-          setSavedPluginId(installTarget.id)
           setInstallTarget(keepOpenForAppSetup
             ? { ...installTarget, installed: true, enabled: true, installable: false }
             : null)
@@ -188,7 +187,6 @@ export function PluginsView(): JSX.Element {
               await removePlugin(selectedPlugin.id)
               await fetchPlugins()
               await fetchSkills()
-              setSavedPluginId(selectedPlugin.id)
               addToast(t('plugins.removeSuccess'), 'success')
             } catch {
               addToast(t('plugins.removeFailed'), 'error')
