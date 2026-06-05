@@ -19,6 +19,10 @@ interface UseAutoScrollResult {
 export function useAutoScroll(contentLength: number): UseAutoScrollResult {
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const isAtBottomRef = useRef(true)
+  // Set just before we programmatically move scrollTop. The browser fires the
+  // resulting `scroll` event asynchronously, so it must be told apart from a
+  // genuine user scroll — see handleScroll.
+  const programmaticScrollRef = useRef(false)
   const [isAtBottom, setIsAtBottom] = useState(true)
 
   const updateAtBottom = useCallback((next: boolean) => {
@@ -31,6 +35,11 @@ export function useAutoScroll(contentLength: number): UseAutoScrollResult {
     if (!el) return
     const nextScrollTop = Math.max(0, el.scrollHeight - el.clientHeight)
     if (Math.abs(el.scrollTop - nextScrollTop) > 1) {
+      // Mark this write so its echoed `scroll` event doesn't get mistaken for the
+      // user leaving the bottom. By the time the event arrives, streaming may have
+      // grown scrollHeight further, making the position look "not at bottom" — and
+      // acting on that would permanently disable auto-scroll mid-stream.
+      programmaticScrollRef.current = true
       el.scrollTop = nextScrollTop
     }
     updateAtBottom(true)
@@ -47,6 +56,12 @@ export function useAutoScroll(contentLength: number): UseAutoScrollResult {
 
     function handleScroll(): void {
       if (!el) return
+      // Ignore the echo from our own scrollToBottom write — only genuine user
+      // scrolls should be able to turn auto-scroll off.
+      if (programmaticScrollRef.current) {
+        programmaticScrollRef.current = false
+        return
+      }
       syncAtBottomFromElement(el)
     }
 

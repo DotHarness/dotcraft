@@ -66,4 +66,55 @@ describe('useAutoScroll', () => {
 
     expect(container.scrollTop).toBe(220)
   })
+
+  it('keeps following the bottom when a stale scroll event arrives after content grew', () => {
+    render(<AutoScrollHarness contentLength={1} />)
+
+    const container = screen.getByTestId('scroll-container')
+
+    // Start pinned to the bottom.
+    setScrollMetrics(container, 100, 200)
+    container.scrollTop = 100
+    act(() => {
+      fireEvent.scroll(container)
+    })
+    expect(screen.queryByRole('button', { name: 'Scroll to bottom' })).toBeNull()
+
+    // Content grows; auto-scroll catches the new bottom programmatically.
+    setScrollMetrics(container, 100, 400)
+    act(() => {
+      resizeObserverCallback?.([], {} as ResizeObserver)
+    })
+    expect(container.scrollTop).toBe(300)
+
+    // More content streams in before the programmatic scroll's echoed `scroll`
+    // event is delivered, so scrollTop now trails a taller scrollHeight.
+    setScrollMetrics(container, 100, 600)
+    act(() => {
+      fireEvent.scroll(container)
+    })
+
+    // That stale echo must NOT disable auto-scroll.
+    expect(screen.queryByRole('button', { name: 'Scroll to bottom' })).toBeNull()
+  })
+
+  it('disables auto-scroll when the user genuinely scrolls up', () => {
+    render(<AutoScrollHarness contentLength={1} />)
+
+    const container = screen.getByTestId('scroll-container')
+
+    setScrollMetrics(container, 100, 500)
+    container.scrollTop = 400
+    act(() => {
+      fireEvent.scroll(container)
+    })
+    expect(screen.queryByRole('button', { name: 'Scroll to bottom' })).toBeNull()
+
+    // User drags the scrollbar up, away from the bottom.
+    container.scrollTop = 100
+    act(() => {
+      fireEvent.scroll(container)
+    })
+    expect(screen.getByRole('button', { name: 'Scroll to bottom' })).not.toBeNull()
+  })
 })
