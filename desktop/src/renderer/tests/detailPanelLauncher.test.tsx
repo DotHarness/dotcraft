@@ -38,7 +38,7 @@ describe('DetailPanelLauncher', () => {
     expect(screen.getByRole('button', { name: 'Files' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Browser' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Changes' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Plan' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Checks' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Terminal' })).toBeInTheDocument()
   })
 
@@ -52,7 +52,7 @@ describe('DetailPanelLauncher', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Changes' }))
     expect(onAction).toHaveBeenCalledWith('newChanges')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Plan' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Checks' }))
     expect(onAction).toHaveBeenCalledWith('newPlan')
   })
 
@@ -62,7 +62,7 @@ describe('DetailPanelLauncher', () => {
     expect(screen.getByRole('button', { name: 'Terminal' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Files' })).not.toBeDisabled()
     expect(screen.getByRole('button', { name: 'Changes' })).not.toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Plan' })).not.toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Checks' })).not.toBeDisabled()
   })
 
   it('shows keyboard shortcuts on the cards that have them', () => {

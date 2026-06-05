@@ -214,7 +214,8 @@ export function DetailPanel({
           scrollbarWidth: 'none'
         }}
       >
-        {/* System tabs (Diff / Progress) — icon-only; the icon slot becomes the close button on hover. */}
+        {/* System tabs (Changes / Checks) — icon + label, so the label stays a
+            click target; the icon slot becomes the close button on hover. */}
         {openSystemTabs.map((id) => {
           const meta = systemTabMeta[id]
           return (
@@ -223,6 +224,7 @@ export function DetailPanel({
               active={activeSystemId === id}
               title={meta.label}
               icon={meta.icon}
+              label={meta.label}
               badge={meta.badge}
               closeLabel={`${t('viewer.close')} ${meta.label}`}
               onActivate={() => setActiveDetailTab(id)}
