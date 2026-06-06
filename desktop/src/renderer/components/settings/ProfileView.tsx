@@ -8,6 +8,8 @@ import { ActionTooltip } from '../ui/ActionTooltip'
 import { RunningSpinner } from '../ui/RunningSpinner'
 import { SettingsPageHeader } from './SettingsPageHeader'
 import { TokenActivityHeatmap, type HeatmapMode } from './profile/TokenActivityHeatmap'
+import { ActivityInsights } from './profile/ActivityInsights'
+import { MostUsedSkills } from './profile/MostUsedSkills'
 
 type TFn = (key: MessageKey | string, vars?: Record<string, string | number>) => string
 
@@ -37,6 +39,10 @@ export function ProfileView(): JSX.Element {
   const fetchTimeseries = useProfileStore((s) => s.fetchTimeseries)
   const loadIdentity = useProfileStore((s) => s.loadIdentity)
 
+  const insights = useProfileStore((s) => s.insights)
+  const insightsLoadedOnce = useProfileStore((s) => s.insightsLoadedOnce)
+  const fetchInsights = useProfileStore((s) => s.fetchInsights)
+
   const [mode, setMode] = useState<HeatmapMode>('daily')
   const [editing, setEditing] = useState(false)
 
@@ -45,8 +51,11 @@ export function ProfileView(): JSX.Element {
   }, [loadIdentity])
 
   useEffect(() => {
-    if (capable) void fetchTimeseries()
-  }, [capable, fetchTimeseries])
+    if (capable) {
+      void fetchTimeseries()
+      void fetchInsights()
+    }
+  }, [capable, fetchTimeseries, fetchInsights])
 
   const editAction = editing ? undefined : (
     <button type="button" style={editActionStyle} onClick={() => setEditing(true)}>
@@ -67,6 +76,13 @@ export function ProfileView(): JSX.Element {
         <ProfileHeader editing={editing} onClose={() => setEditing(false)} t={t} />
 
         {capable && loadedOnce && <StatStrip days={days} longestTaskMs={longestTaskMs} t={t} />}
+
+        {capable && insightsLoadedOnce && insights && (
+          <section style={insightsGridStyle}>
+            <ActivityInsights insights={insights} t={t} />
+            <MostUsedSkills skills={insights.skills} t={t} />
+          </section>
+        )}
 
         <section style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           <header style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -489,6 +505,13 @@ function formatDuration(ms: number): string {
   const hours = Math.floor(totalMinutes / 60)
   const minutes = totalMinutes % 60
   return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`
+}
+
+const insightsGridStyle: CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: '1fr 1fr',
+  gap: '40px',
+  alignItems: 'start'
 }
 
 const dimmedTextStyle: CSSProperties = {

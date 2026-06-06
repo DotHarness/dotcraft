@@ -180,6 +180,7 @@ public sealed class AppServerRequestHandler(
         AppServerMethods.MemoryReset,
         AppServerMethods.UsageSummary,
         AppServerMethods.UsageTimeseries,
+        AppServerMethods.ProfileInsights,
         AppServerMethods.CronList,
         AppServerMethods.CronRemove,
         AppServerMethods.CronEnable,
@@ -372,6 +373,7 @@ public sealed class AppServerRequestHandler(
                 AppServerMethods.MemoryReset => HandleMemoryResetAsync(msg, ct),
                 AppServerMethods.UsageSummary => HandleUsageSummaryAsync(msg, ct),
                 AppServerMethods.UsageTimeseries => HandleUsageTimeseriesAsync(msg, ct),
+                AppServerMethods.ProfileInsights => HandleProfileInsightsAsync(msg, ct),
                 _ => TryHandleExtensionAsync(method, msg, ct)
             });
         }
@@ -2818,6 +2820,35 @@ public sealed class AppServerRequestHandler(
     // turn/* methods (spec Section 5)
     // -------------------------------------------------------------------------
 
+    /// <summary>
+    /// Records a forward-only <see cref="TraceEventType.SkillReferenced"/> event for each skill
+    /// (<c>$name</c>) referenced in a turn's input, keyed by the thread's trace session
+    /// (the trace session key equals the threadId for main turns). Powers the Profile skill
+    /// metrics (spec §27A.5). Best-effort: a no-op when tracing is disabled.
+    /// </summary>
+    private void RecordSkillReferences(string threadId, IReadOnlyList<SessionWireInputPart> nativeParts)
+    {
+        if (traceStore == null || string.IsNullOrWhiteSpace(threadId))
+            return;
+
+        foreach (var part in nativeParts)
+        {
+            if (!string.Equals(part.Type, "skillRef", StringComparison.Ordinal))
+                continue;
+
+            var name = part.Name?.Trim().TrimStart('/', '$').Trim();
+            if (string.IsNullOrWhiteSpace(name))
+                continue;
+
+            traceStore.Record(new TraceEvent
+            {
+                Type = TraceEventType.SkillReferenced,
+                SessionKey = threadId,
+                ToolName = name
+            });
+        }
+    }
+
     private async Task<object?> HandleTurnStartAsync(AppServerIncomingMessage msg, CancellationToken ct)
     {
         var p = GetParams<TurnStartParams>(msg);
@@ -2835,6 +2866,7 @@ public sealed class AppServerRequestHandler(
 
         var materializedInput = inputMaterialization.MaterializeNormalized(normalizedInput);
         var content = await ResolveInputPartsAsync(materializedInput.MaterializedInputParts.ToList(), ct);
+        RecordSkillReferences(p.ThreadId, materializedInput.NativeInputParts);
 
         // Set ChannelSessionScope so that SessionService.ResolveApprovalSource returns the correct
         // channel name for approval routing, and CronTools captures the right delivery target.
@@ -3067,6 +3099,7 @@ public sealed class AppServerRequestHandler(
     {
         var p = GetParams<TurnEnqueueParams>(msg);
         var materializedInput = await PrepareTurnInputAsync(p.Input, ct);
+        RecordSkillReferences(p.ThreadId, materializedInput.NativeInputParts);
 
         using var channelScope = CreateChannelScope(p.Sender);
         await sessionService.EnsureThreadLoadedAsync(p.ThreadId, ct);
@@ -4572,6 +4605,49 @@ public sealed class AppServerRequestHandler(
                 .ToList()
         });
     }
+
+    // ── profile/insights (spec Section 27A.5) ────────────────────────────────
+
+    private async Task<object?> HandleProfileInsightsAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    {
+        if (traceStore == null) throw AppServerErrors.MethodNotFound(AppServerMethods.ProfileInsights);
+        var p = GetParams<ProfileInsightsParams>(msg);
+        var topSkills = Math.Clamp(p.TopSkills ?? 5, 1, 20);
+
+        var insights = traceStore.GetProfileInsights(topSkills);
+
+        var identity = NormalizeIdentityWorkspace(new SessionIdentity());
+        var threads = await sessionService.FindThreadsAsync(identity, includeArchived: true, null, ct);
+        var totalThreads = threads.Count(t => !ThreadVisibility.IsInternal(t));
+
+        return new ProfileInsightsResult
+        {
+            TopModel = ToRankedMetric(insights.TopModel),
+            TopReasoning = ToRankedMetric(insights.TopReasoning),
+            SkillsExplored = insights.DistinctSkillCount,
+            TotalSkillsUsed = insights.TotalSkillCount,
+            TotalThreads = totalThreads,
+            Skills = insights.TopSkills.Select(MapSkillUsage).ToList()
+        };
+    }
+
+    /// <summary>Maps an aggregated skill bucket to wire form, attaching live plugin attribution.</summary>
+    private SkillUsageWire MapSkillUsage(SkillUsageBucket bucket)
+    {
+        var wire = new SkillUsageWire { Name = bucket.Name, Count = bucket.Count };
+        var info = skillsLoader?.ResolveSkillInfo(bucket.Name);
+        if (info != null && !string.IsNullOrWhiteSpace(info.PluginId))
+        {
+            wire.PluginId = info.PluginId;
+            wire.PluginDisplayName = info.PluginDisplayName;
+        }
+        return wire;
+    }
+
+    private static RankedMetric? ToRankedMetric(RankedUsage? usage) =>
+        usage == null
+            ? null
+            : new RankedMetric { Key = usage.Key, Count = usage.Count, Total = usage.Total };
 
     private static DateOnly? ParseUsageDate(string? value, string field)
     {

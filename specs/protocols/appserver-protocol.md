@@ -5972,10 +5972,80 @@ When there are no traced sessions in range, `days` is `[]`.
 | `-32601` | Tracing is disabled on this server (no trace store available). |
 | `-32602` | `from` or `to` is present but not a valid `YYYY-MM-DD` date. |
 
-### 27A.4 Capability Advertisement
+### 27A.4 `profile/insights`
 
-Clients must check `capabilities.usageTelemetry` before calling `usage/summary` or
-`usage/timeseries`.
+Return aggregate "activity insights" for the workspace, used by the Desktop Profile page:
+the most-used model and reasoning effort, how many skills the user has explored / used, the
+total thread count, and a ranked list of the most-used skills.
+
+Two semantics apply because the underlying data has different availability:
+
+- **Model usage** is derived from the model id already recorded on every LLM `Response`
+  trace event, so it reflects the full persisted history. Models are keyed by **model id
+  only** (provider is not distinguished).
+- **Reasoning effort and skill references** are **forward-only**: they are recorded from the
+  point this feature shipped. They may be empty/zero until new activity accrues, even on a
+  workspace with prior history. A skill "use" is counted when a skill is exercised either way:
+  a `$name` skill tag in turn input, or an agent loading the skill via the SkillView tool.
+  Skills injected by other means (e.g. `always: true`) are not counted.
+
+**Direction**: client → server (request)
+
+**Params**:
+
+```json
+{ "topSkills": 5 }
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `topSkills` | int? | Max number of skills to return in `skills`. Defaults to `5`, clamped to `[1, 20]`. |
+
+**Result**:
+
+```json
+{
+  "topModel": { "key": "example-model", "count": 240, "total": 600 },
+  "topReasoning": { "key": "high", "count": 90, "total": 150 },
+  "skillsExplored": 6,
+  "totalSkillsUsed": 42,
+  "totalThreads": 137,
+  "skills": [
+    { "name": "code-review", "count": 12, "pluginId": "example-plugin", "pluginDisplayName": "Example Plugin" },
+    { "name": "release-draft", "count": 5 }
+  ]
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `topModel` | object? | Most-used model by `Response`-event count, or omitted/null when none recorded. |
+| `topModel.key` | string | The model id. |
+| `topModel.count` | long | Responses attributed to this model. |
+| `topModel.total` | long | All responses with a known model; `count / total` is the share. |
+| `topReasoning` | object? | Most-used reasoning effort (e.g. `"low"`/`"medium"`/`"high"`/`"extrahigh"`), or omitted/null when reasoning was never used. Same `key`/`count`/`total` shape as `topModel`. |
+| `skillsExplored` | int | Distinct skills referenced at least once. |
+| `totalSkillsUsed` | long | Total skill references across all turns. |
+| `totalThreads` | int | Non-internal threads in this workspace (active + archived). |
+| `skills` | array | Most-referenced skills, descending by `count`, then by `name`. |
+| `skills[].name` | string | Skill name (without the `$` prefix). |
+| `skills[].count` | long | Times this skill was referenced. |
+| `skills[].pluginId` | string? | Owning plugin id, present only when the skill currently resolves to a plugin source. |
+| `skills[].pluginDisplayName` | string? | Human-readable plugin name for a badge, when from a plugin. |
+
+Plugin attribution is resolved live at read time against the current skill registry, so a
+skill whose plugin was later uninstalled simply returns without plugin fields.
+
+**Errors**:
+
+| Code | When |
+|------|------|
+| `-32601` | Tracing is disabled on this server (no trace store available). |
+
+### 27A.5 Capability Advertisement
+
+Clients must check `capabilities.usageTelemetry` before calling `usage/summary`,
+`usage/timeseries`, or `profile/insights`.
 
 ---
 

@@ -23,7 +23,8 @@ public enum TraceEventType
     MaintenanceForkRequest,
     MaintenanceForkResponse,
     ThreadRollback,
-    TurnCompleted
+    TurnCompleted,
+    SkillReferenced
 }
 
 /// <summary>
@@ -97,6 +98,13 @@ public sealed class TraceEvent
     public string? MessageId { get; init; }
 
     public string? ModelId { get; init; }
+
+    /// <summary>
+    /// Resolved reasoning effort for this LLM call (e.g. "low"/"medium"/"high"/"extrahigh"),
+    /// or null when reasoning was disabled or unknown. Recorded on Response events to power
+    /// the Profile "most used reasoning" metric (spec §27A.5).
+    /// </summary>
+    public string? ReasoningEffort { get; init; }
 
     public string? FinishReason { get; init; }
 

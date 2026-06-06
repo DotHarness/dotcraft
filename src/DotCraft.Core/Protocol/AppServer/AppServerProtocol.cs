@@ -1778,6 +1778,72 @@ public sealed class UsageTimeseriesDay
     public int SessionCount { get; set; }
 }
 
+// ───── profile/insights (spec Section 27A.5) ─────
+
+/// <summary>Params for <c>profile/insights</c>. All fields optional.</summary>
+public sealed class ProfileInsightsParams
+{
+    /// <summary>Max number of skills to return in <see cref="ProfileInsightsResult.Skills"/> (default 5, clamped 1..20).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? TopSkills { get; set; }
+}
+
+/// <summary>
+/// Profile "activity insights" for the current workspace (spec Section 27A.5). Model usage
+/// reflects all persisted history; reasoning and skill metrics are forward-only and may be
+/// empty until new activity accrues. <see cref="TopModel"/>/<see cref="TopReasoning"/> are
+/// null when no data exists.
+/// </summary>
+public sealed class ProfileInsightsResult
+{
+    /// <summary>Most-used model id (ranked by LLM-response count), or null when none recorded.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public RankedMetric? TopModel { get; set; }
+
+    /// <summary>Most-used reasoning effort (e.g. "high"), or null when reasoning was never used.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public RankedMetric? TopReasoning { get; set; }
+
+    /// <summary>Distinct skills referenced at least once ("skills explored").</summary>
+    public int SkillsExplored { get; set; }
+
+    /// <summary>Total skill references across all turns ("total skills used").</summary>
+    public long TotalSkillsUsed { get; set; }
+
+    /// <summary>Total non-internal threads in this workspace (active + archived).</summary>
+    public int TotalThreads { get; set; }
+
+    /// <summary>Top referenced skills, descending by run count.</summary>
+    public List<SkillUsageWire> Skills { get; set; } = [];
+}
+
+/// <summary>A leading value with its observation count and the total it was drawn from (for share%).</summary>
+public sealed class RankedMetric
+{
+    public string Key { get; set; } = string.Empty;
+
+    public long Count { get; set; }
+
+    /// <summary>Total observations the leader was drawn from; <c>Count / Total</c> yields the share.</summary>
+    public long Total { get; set; }
+}
+
+/// <summary>One referenced skill, its run count, and (when it came from a plugin) its plugin attribution.</summary>
+public sealed class SkillUsageWire
+{
+    public string Name { get; set; } = string.Empty;
+
+    public long Count { get; set; }
+
+    /// <summary>Owning plugin id when the skill currently resolves to a plugin source; otherwise null.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? PluginId { get; set; }
+
+    /// <summary>Human-readable plugin name for the badge, when from a plugin; otherwise null.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? PluginDisplayName { get; set; }
+}
+
 // ───── heartbeat/trigger (spec Section 17.2) ─────
 
 public sealed class HeartbeatTriggerResult
@@ -4035,6 +4101,9 @@ public static class AppServerMethods
 
     /// <summary>Per-day token usage for activity charts (spec Section 27A.3). Available when tracing is enabled.</summary>
     public const string UsageTimeseries = "usage/timeseries";
+
+    /// <summary>Profile activity insights: most-used model/reasoning, skill counts, thread count (spec Section 27A.5). Available when tracing is enabled.</summary>
+    public const string ProfileInsights = "profile/insights";
 
     public const string McpList = "mcp/list";
     public const string McpGet = "mcp/get";

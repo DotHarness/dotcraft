@@ -116,7 +116,8 @@ public sealed class TraceCollector(TraceStore store)
         string? modelId,
         string? finishReason,
         object? metadata = null,
-        DateTimeOffset? timestamp = null)
+        DateTimeOffset? timestamp = null,
+        string? reasoningEffort = null)
     {
         store.Record(new TraceEvent
         {
@@ -127,8 +128,28 @@ public sealed class TraceCollector(TraceStore store)
             ResponseId = responseId,
             MessageId = messageId,
             ModelId = modelId,
+            ReasoningEffort = reasoningEffort,
             FinishReason = finishReason,
             MetadataJson = SerializeMetadata(metadata)
+        });
+    }
+
+    /// <summary>
+    /// Records that a skill was exercised — either referenced as a <c>$name</c> tag in turn
+    /// input or loaded by the agent via the SkillView tool — powering the Profile skill
+    /// metrics (spec §27A.5). One event per use; the canonical skill name is stored in
+    /// <see cref="TraceEvent.ToolName"/> for `GROUP BY` aggregation.
+    /// </summary>
+    public void RecordSkillReferenced(string sessionKey, string skillName)
+    {
+        if (string.IsNullOrWhiteSpace(sessionKey) || string.IsNullOrWhiteSpace(skillName))
+            return;
+
+        store.Record(new TraceEvent
+        {
+            Type = TraceEventType.SkillReferenced,
+            SessionKey = sessionKey,
+            ToolName = skillName.Trim()
         });
     }
 

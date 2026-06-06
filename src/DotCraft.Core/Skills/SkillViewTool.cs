@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using DotCraft.Tracing;
 
 namespace DotCraft.Skills;
 
@@ -8,7 +9,8 @@ namespace DotCraft.Skills;
 public sealed class SkillViewTool(
     SkillsLoader skillsLoader,
     bool variantModeEnabled,
-    SkillVariantTarget target)
+    SkillVariantTarget target,
+    TraceCollector? traceCollector = null)
 {
     private const string SkillViewDescription =
         """
@@ -29,6 +31,15 @@ public sealed class SkillViewTool(
             return "Skill name is required.";
 
         var effective = skillsLoader.LoadEffectiveSkill(name.Trim(), variantModeEnabled, target);
-        return effective?.Content ?? $"Skill '{name}' not found.";
+        if (effective == null)
+            return $"Skill '{name}' not found.";
+
+        // An agent loading a skill counts as a skill use for the Profile metrics (spec §27A.5),
+        // alongside user-typed `$name` references. Keyed by the trace session (the active thread).
+        var sessionKey = TracingChatClient.CurrentSessionKey ?? TracingChatClient.GetActiveSessionKey();
+        if (!string.IsNullOrEmpty(sessionKey))
+            traceCollector?.RecordSkillReferenced(sessionKey!, effective.Name);
+
+        return effective.Content;
     }
 }
