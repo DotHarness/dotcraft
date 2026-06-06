@@ -12,7 +12,7 @@ vi.mock('electron', () => ({
   BrowserWindow: vi.fn()
 }))
 
-function createFakeBrowserManager(options: { staleDomNodesAfterNavigation?: boolean } = {}) {
+function createFakeBrowserManager(options: { staleDomNodesAfterNavigation?: boolean; webMcpAvailable?: boolean } = {}) {
   const images: Array<{ mediaType: string; dataBase64: string }> = []
   const logs: string[] = []
   const cdpCommands: Array<{ method: string; target: unknown; commandParams: unknown }> = []
@@ -205,10 +205,13 @@ function createFakeBrowserManager(options: { staleDomNodesAfterNavigation?: bool
     if (expression.includes('performance.getEntriesByType("resource")')) {
       return [{ initiatorType: 'css', name: `${tab.url.replace(/\/$/, '')}/site.css` }]
     }
-    if (expression.includes('navigator.modelContext') && expression.includes('modelContext.executeTool')) {
+    if (expression.includes('__dotcraftWebMcpAvailabilityProbe')) return options.webMcpAvailable === true
+    if (expression.includes('navigator.modelContext') && expression.includes('modelContext.executeTool(tool')) {
+      if (options.webMcpAvailable !== true) throw new Error('Capability is not available: webmcp')
       return { tool: 'summarize', ok: true, input: { topic: 'iab' } }
     }
     if (expression.includes('navigator.modelContext') && expression.includes('modelContext.getTools')) {
+      if (options.webMcpAvailable !== true) throw new Error('Capability is not available: webmcp')
       return [{
         name: 'summarize',
         title: 'Summarize',
@@ -321,8 +324,7 @@ function createFakeBrowserManager(options: { staleDomNodesAfterNavigation?: bool
               { id: 'viewport', description: 'Set or reset the browser viewport.' }
             ],
             tab: [
-              { id: 'pageAssets', description: 'List and bundle page assets.' },
-              { id: 'webmcp', description: 'List and invoke page-defined WebMCP tools.' }
+              { id: 'pageAssets', description: 'List and bundle page assets.' }
             ]
           },
           metadata: { dotcraftSessionId: params.session_id }
@@ -669,6 +671,40 @@ describe('NodeReplManager', () => {
     manager.reset('thread-1')
   })
 
+  it('only exposes WebMCP through the browser client when the current page provides page tools', async () => {
+    const browserManager = createFakeBrowserManager()
+    const manager = createManager(browserManager)
+    const owner = {} as Electron.BrowserWindow
+
+    const result = await manager.evaluate(owner, {
+      threadId: 'thread-webmcp-availability',
+      code: `
+        const { setupBrowserRuntime } = await import(dotcraft.browserClientPath)
+        await setupBrowserRuntime({ globals: globalThis, backend: "iab" })
+        const browser = await agent.browsers.get("iab")
+        const tab = await browser.tabs.new("http://localhost:3000/")
+        const capabilities = await tab.capabilities.list()
+        let webmcpError = ""
+        try {
+          await tab.capabilities.get("webmcp")
+        } catch (error) {
+          webmcpError = error && typeof error === "object" && "message" in error ? error.message : String(error)
+        }
+        return JSON.stringify({
+          ids: capabilities.map((capability) => capability.id),
+          webmcpError
+        })
+      `
+    })
+
+    expect(result.error).toBeUndefined()
+    expect(JSON.parse(result.resultText ?? '{}')).toEqual({
+      ids: ['pageAssets'],
+      webmcpError: 'Capability is not available: webmcp'
+    })
+    manager.reset('thread-webmcp-availability')
+  })
+
   it('lets the DotCraft browser client create, list, select, and finalize IAB tabs', async () => {
     const browserManager = createFakeBrowserManager()
     const manager = createManager(browserManager)
@@ -703,7 +739,7 @@ describe('NodeReplManager', () => {
   })
 
   it('drives common Playwright, DOM-CUA, and pageAssets APIs through the DotCraft IAB client', async () => {
-    const browserManager = createFakeBrowserManager()
+    const browserManager = createFakeBrowserManager({ webMcpAvailable: true })
     const manager = createManager(browserManager)
     const owner = {} as Electron.BrowserWindow
 
@@ -807,7 +843,9 @@ describe('NodeReplManager', () => {
         await tab.dom_cua.scroll({ node_id: "42", y: 120 })
         const pageAssets = await tab.capabilities.get("pageAssets")
         const inventory = await pageAssets.list()
-        const directInventory = await tab.capabilities.get("pageAssets").list()
+        const directPageAssets = await tab.capabilities.get("pageAssets")
+        const directInventory = await directPageAssets.list()
+        const tabCapabilities = await tab.capabilities.list()
         const bundle = await pageAssets.bundle({ inventoryId: inventory.id, kinds: ["stylesheet"] })
         const webmcp = await tab.capabilities.get("webmcp")
         const tools = await webmcp.listTools()
@@ -854,6 +892,7 @@ describe('NodeReplManager', () => {
           devLogMessage: devLogs[0]?.message,
           assetCount: inventory.assets.length,
           directAssetCount: directInventory.assets.length,
+          tabCapabilityIds: tabCapabilities.map((capability) => capability.id),
           inlineSvgCount: inventory.inlineSvgs.length,
           bundleDownloaded: bundle.summary.downloadedCount,
           webMcpToolName: tools[0]?.name,
@@ -905,6 +944,7 @@ describe('NodeReplManager', () => {
       devLogMessage: 'reference warning',
       assetCount: 1,
       directAssetCount: 1,
+      tabCapabilityIds: ['pageAssets', 'webmcp'],
       inlineSvgCount: 1,
       bundleDownloaded: 1,
       webMcpToolName: 'summarize',

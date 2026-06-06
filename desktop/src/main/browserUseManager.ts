@@ -40,6 +40,7 @@ const {
 }
 
 const BROWSER_USE_OPEN_CHANNEL = 'viewer:browser:open'
+const BROWSER_USE_CLOSE_CHANNEL = 'viewer:browser:close'
 const BROWSER_USE_APPROVAL_REQUEST_CHANNEL = 'viewer:browser:approval-request'
 const BROWSER_USE_APPROVAL_TIMEOUT_MS = 120_000
 const BROWSER_USE_OPERATION_TIMEOUT_MS = 10_000
@@ -68,13 +69,14 @@ const BROWSER_USE_TAB_CAPABILITIES = [
     id: 'pageAssets',
     description: 'Inventory and bundle file assets observed in the current rendered page state.',
     docs: 'docs/capabilities/tab/pageAssets.md'
-  },
-  {
-    id: 'webmcp',
-    description: 'List and invoke WebMCP tools explicitly exposed by the current page through navigator.modelContext.',
-    docs: 'docs/capabilities/tab/webmcp.md'
   }
 ]
+const BROWSER_USE_WEBMCP_CAPABILITY = {
+  id: 'webmcp',
+  description: 'List and invoke WebMCP tools explicitly exposed by the current page through navigator.modelContext.',
+  docs: 'docs/capabilities/tab/webmcp.md'
+}
+const BROWSER_USE_WEBMCP_UNAVAILABLE = 'Capability is not available: webmcp'
 const BROWSER_USE_PAGE_ASSET_BUNDLE_KINDS = new Set(['font', 'image', 'stylesheet', 'video'])
 
 type BrowserUseLoadState = 'commit' | 'domcontentloaded' | 'load' | 'networkidle'
@@ -248,6 +250,11 @@ export interface BrowserUseOpenPayload {
   focusMode: 'first-open' | 'none'
 }
 
+export interface BrowserUseClosePayload {
+  threadId: string
+  tabId: string
+}
+
 export type BrowserUseApprovalResponseAction = 'allowOnce' | 'allowDomain' | 'blockDomain' | 'deny'
 
 export interface BrowserUseApprovalRequestPayload {
@@ -320,6 +327,7 @@ interface BrowserUseTabRuntime {
   userOwned?: boolean
   keptStatus?: BrowserFinalizeKeepStatus
   closed?: boolean
+  exposedToRenderer?: boolean
   cdpAttached?: boolean
   targetSessions: Map<string, string>
   backendQueue?: Promise<void>
@@ -331,6 +339,12 @@ interface BrowserUseTabRuntime {
   domCuaNodes: Map<string, BrowserUseElementMatch>
   pageAssetInventories: Map<string, BrowserUsePageAssetInventory>
   snapshotGeneration: number
+}
+
+interface BrowserUseCreateTabOptions {
+  exposeToRenderer?: boolean
+  visible?: boolean
+  purpose?: 'normal' | 'temporary-content'
 }
 
 interface BrowserUseClipboardEntry {
@@ -678,7 +692,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
         tab.adopted = false
         tab.userOwned = false
       } else {
-        this.viewerHost.destroyTab(tab.owner, tab.id)
+        this.closeTab(tab)
       }
     }
     runtime.backendTabIds.clear()
@@ -1079,7 +1093,11 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
   }
 
   private backendTabList(runtime: BrowserUseThreadRuntime): Record<string, unknown>[] {
-    return [...runtime.tabs.values()].map((tab) => this.backendTabSnapshot(runtime, tab))
+    return this.modelFacingTabs(runtime).map((tab) => this.backendTabSnapshot(runtime, tab))
+  }
+
+  private modelFacingTabs(runtime: BrowserUseThreadRuntime): BrowserUseTabRuntime[] {
+    return [...runtime.tabs.values()].filter((tab) => tab.exposedToRenderer !== false)
   }
 
   private backendUserTabList(runtime: BrowserUseThreadRuntime): Record<string, unknown>[] {
@@ -1875,7 +1893,11 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
       }
       let tab: BrowserUseTabRuntime | null = null
       try {
-        tab = await this.createTab(runtime.owner, runtime, url)
+        tab = await this.createTab(runtime.owner, runtime, url, {
+          exposeToRenderer: false,
+          visible: false,
+          purpose: 'temporary-content'
+        })
         const content = contentType === 'domSnapshot'
           ? await this.domSnapshot(tab)
           : await this.evaluatePageContent(tab, contentType)
@@ -2344,7 +2366,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
       tabs,
       user: {
         openTabs: async () => {
-          const tabs = [...runtime.tabs.values()].map((tab) => this.tabSnapshot(tab))
+          const tabs = this.modelFacingTabs(runtime).map((tab) => this.tabSnapshot(tab))
           runtime.recentOpenTabIds = new Set(tabs.map((tab) => String(tab.id)))
           return tabs
         },
@@ -2371,7 +2393,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
 
   private createTabsApi(owner: BrowserWindow, runtime: BrowserUseThreadRuntime): Record<string, unknown> {
     return {
-      list: async () => [...runtime.tabs.values()].map((tab) => this.tabSnapshot(tab)),
+      list: async () => this.modelFacingTabs(runtime).map((tab) => this.tabSnapshot(tab)),
       new: async (url?: string) => {
         const tab = await this.createTab(owner, runtime, url)
         runtime.selectedTabId = tab.id
@@ -2556,8 +2578,11 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
   private async createTab(
     owner: BrowserWindow,
     runtime: BrowserUseThreadRuntime,
-    initialUrl?: string
+    initialUrl?: string,
+    options: BrowserUseCreateTabOptions = {}
   ): Promise<BrowserUseTabRuntime> {
+    const exposeToRenderer = options.exposeToRenderer !== false
+    const visible = options.visible ?? runtime.browserVisible
     const normalizedInitial = initialUrl ? normalizeBrowserUseUrl(initialUrl) : null
     if (initialUrl && !normalizedInitial) throw new Error(`Invalid browser URL: ${initialUrl}`)
     const id = `browser-${sanitizeThreadId(runtime.threadId)}-${this.nextTabId++}`
@@ -2576,19 +2601,22 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     })
 
     const tab = this.registerTab(owner, runtime, id, false)
-    if (!runtime.browserVisible) {
+    tab.exposedToRenderer = exposeToRenderer
+    if (!visible) {
       this.viewerHost.setVisible?.(owner, { tabId: tab.id, visible: false })
     }
 
-    const focusMode = runtime.browserVisible && !runtime.hasFocusedFirstTab ? 'first-open' : 'none'
-    if (focusMode === 'first-open') runtime.hasFocusedFirstTab = true
-    this.emitOpen(owner, {
-      threadId: runtime.threadId,
-      tabId: id,
-      initialUrl: normalizedInitial ?? 'about:blank',
-      title: runtime.sessionName?.trim() || 'Browser',
-      focusMode
-    })
+    if (exposeToRenderer) {
+      const focusMode = visible && !runtime.hasFocusedFirstTab ? 'first-open' : 'none'
+      if (focusMode === 'first-open') runtime.hasFocusedFirstTab = true
+      this.emitOpen(owner, {
+        threadId: runtime.threadId,
+        tabId: id,
+        initialUrl: normalizedInitial ?? 'about:blank',
+        title: runtime.sessionName?.trim() || 'Browser',
+        focusMode
+      })
+    }
 
     if (normalizedInitial) {
       await this.navigate(tab, normalizedInitial, { skipPolicyCheck: true })
@@ -2608,9 +2636,15 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     owner.webContents.send(BROWSER_USE_OPEN_CHANNEL, payload)
   }
 
+  private emitClose(owner: BrowserWindow, payload: BrowserUseClosePayload): void {
+    if (owner.isDestroyed() || owner.webContents.isDestroyed()) return
+    owner.webContents.send(BROWSER_USE_CLOSE_CHANNEL, payload)
+  }
+
   private presentVisibleTabs(runtime: BrowserUseThreadRuntime): void {
     let focusNext = !runtime.hasFocusedFirstTab
     for (const tab of runtime.tabs.values()) {
+      if (tab.exposedToRenderer !== true) continue
       this.emitOpen(tab.owner, {
         threadId: runtime.threadId,
         tabId: tab.id,
@@ -3229,6 +3263,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     if (existing) {
       if (adopted) existing.adopted = true
       if (userOwned) existing.userOwned = true
+      if (userOwned) existing.exposedToRenderer = true
       return existing
     }
     const wc = this.webContentsFor(owner, id)
@@ -3240,6 +3275,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
       clipboardItems: [],
       adopted,
       userOwned,
+      exposedToRenderer: userOwned,
       targetSessions: new Map(),
       snapshotRefs: new Map(),
       domCuaNodes: new Map(),
@@ -3329,16 +3365,25 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
   }
 
   private createTabCapabilitiesApi(tab: BrowserUseTabRuntime): Record<string, unknown> {
-    const available = BROWSER_USE_TAB_CAPABILITIES.map((capability) => ({ ...capability }))
     return {
-      list: async () => available,
-      get: (id: string) => {
+      list: async () => this.listTabCapabilities(tab),
+      get: async (id: string) => {
         if (id === 'pageAssets') return this.createPageAssetsCapability(tab)
-        if (id === 'webmcp') return this.createWebMcpCapability(tab)
-        throw new Error(`Tab capability not found: ${id}. Available capabilities: pageAssets, webmcp.`)
+        if (id === 'webmcp') {
+          if (await this.isWebMcpAvailable(tab)) return this.createWebMcpCapability(tab)
+          throw new Error(BROWSER_USE_WEBMCP_UNAVAILABLE)
+        }
+        const available = (await this.listTabCapabilities(tab)).map((capability) => capability.id).join(', ')
+        throw new Error(`Tab capability not found: ${id}. Available capabilities: ${available}.`)
       },
       describeApi: () => ['list()', 'get("pageAssets")', 'get("webmcp")']
     }
+  }
+
+  private async listTabCapabilities(tab: BrowserUseTabRuntime): Promise<Array<Record<string, unknown>>> {
+    const available = BROWSER_USE_TAB_CAPABILITIES.map((capability) => ({ ...capability }))
+    if (await this.isWebMcpAvailable(tab)) available.push({ ...BROWSER_USE_WEBMCP_CAPABILITY })
+    return available
   }
 
   private createPageAssetsCapability(tab: BrowserUseTabRuntime): Record<string, unknown> {
@@ -3357,17 +3402,35 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     }
   }
 
+  private async isWebMcpAvailable(tab: BrowserUseTabRuntime): Promise<boolean> {
+    try {
+      const available = await this.executeJavaScript<unknown>(tab, `(() => {
+        const __dotcraftWebMcpAvailabilityProbe = true;
+        const modelContext = typeof navigator !== "undefined" ? navigator.modelContext : undefined;
+        return !!modelContext &&
+          typeof modelContext.getTools === "function" &&
+          typeof modelContext.executeTool === "function";
+      })()`, 'webmcp.available')
+      return available === true
+    } catch {
+      return false
+    }
+  }
+
   private async listWebMcpTools(tab: BrowserUseTabRuntime): Promise<Array<Record<string, unknown>>> {
     this.markAutomation(tab, 'webmcp.listTools')
+    if (!await this.isWebMcpAvailable(tab)) {
+      throw new Error(BROWSER_USE_WEBMCP_UNAVAILABLE)
+    }
     await this.waitForPageReady(tab, {
       operation: 'webmcp.ready',
       requireContent: false,
       timeoutMs: this.operationTimeoutMs()
     })
     const tools = await this.executeJavaScript<Array<Record<string, unknown>>>(tab, `(() => {
-      const modelContext = navigator.modelContext;
-      if (!modelContext || typeof modelContext.getTools !== "function") {
-        throw new Error("WebMCP modelContext is unavailable in the current page.");
+      const modelContext = typeof navigator !== "undefined" ? navigator.modelContext : undefined;
+      if (!modelContext || typeof modelContext.getTools !== "function" || typeof modelContext.executeTool !== "function") {
+        throw new Error(${JSON.stringify(BROWSER_USE_WEBMCP_UNAVAILABLE)});
       }
       return Promise.resolve(modelContext.getTools()).then((tools) => tools.map((tool) => ({
         name: String(tool.name || ""),
@@ -3400,15 +3463,18 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     if (!toolName) throw new Error('tab.capabilities.webmcp.invokeTool requires a toolName')
     const timeoutMs = this.normalizeWebMcpTimeout(options?.timeoutMs)
     this.markAutomation(tab, 'webmcp.invokeTool')
+    if (!await this.isWebMcpAvailable(tab)) {
+      throw new Error(BROWSER_USE_WEBMCP_UNAVAILABLE)
+    }
     await this.waitForPageReady(tab, {
       operation: 'webmcp.ready',
       requireContent: false,
       timeoutMs
     })
     return await this.executeJavaScript(tab, `(() => {
-      const modelContext = navigator.modelContext;
+      const modelContext = typeof navigator !== "undefined" ? navigator.modelContext : undefined;
       if (!modelContext || typeof modelContext.getTools !== "function" || typeof modelContext.executeTool !== "function") {
-        throw new Error("WebMCP modelContext is unavailable in the current page.");
+        throw new Error(${JSON.stringify(BROWSER_USE_WEBMCP_UNAVAILABLE)});
       }
       return Promise.resolve(modelContext.getTools()).then((tools) => {
         const tool = tools.find((candidate) => candidate.name === ${JSON.stringify(toolName)});
@@ -4253,10 +4319,17 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     if (tab.closed) return
     this.markAutomation(tab, 'close')
     const runtime = this.getRuntimeForTab(tab)
+    const shouldNotifyRenderer = tab.exposedToRenderer === true
     this.detachDebugger(tab)
     this.invalidatePageScopedCaches(tab)
     this.forgetBackendTab(runtime, tab)
     this.viewerHost.destroyTab(tab.owner, tab.id)
+    if (shouldNotifyRenderer) {
+      this.emitClose(tab.owner, {
+        threadId: runtime.threadId,
+        tabId: tab.id
+      })
+    }
     runtime.tabs.delete(tab.id)
     tab.closed = true
     let closedTabIds = this.closedTabIdsByOwner.get(tab.owner)
@@ -5777,4 +5850,4 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
 }
 
 export const browserUseManager = new BrowserUseManager()
-export { BROWSER_USE_OPEN_CHANNEL }
+export { BROWSER_USE_OPEN_CHANNEL, BROWSER_USE_CLOSE_CHANNEL }

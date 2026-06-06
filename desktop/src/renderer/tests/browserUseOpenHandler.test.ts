@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from 'vitest'
-import { handleBrowserUseOpen } from '../utils/browserUseOpenHandler'
+import { handleBrowserUseClose, handleBrowserUseOpen } from '../utils/browserUseOpenHandler'
 import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
 import { useViewerTabStore } from '../stores/viewerTabStore'
@@ -78,5 +78,50 @@ describe('handleBrowserUseOpen', () => {
     if (tab?.kind === 'browser') {
       expect(tab.currentUrl).toBe('http://localhost:3001/')
     }
+  })
+
+  it('removes browser-use tabs on close events', () => {
+    handleBrowserUseOpen({
+      threadId: 'thread-a',
+      tabId: 'browser-thread-a-1',
+      initialUrl: 'http://localhost:3000/',
+      title: 'First',
+      focusMode: 'first-open'
+    })
+    handleBrowserUseOpen({
+      threadId: 'thread-a',
+      tabId: 'browser-thread-a-2',
+      initialUrl: 'http://localhost:3001/',
+      title: 'Second',
+      focusMode: 'none'
+    })
+
+    handleBrowserUseClose({
+      threadId: 'thread-a',
+      tabId: 'browser-thread-a-1'
+    })
+
+    const viewerState = useViewerTabStore.getState().getThreadState('thread-a')
+    expect(viewerState.tabs.map((tab) => tab.id)).toEqual(['browser-thread-a-2'])
+    expect(viewerState.activeTabId).toBe('browser-thread-a-2')
+  })
+
+  it('ignores close events for unknown browser-use tabs', () => {
+    handleBrowserUseOpen({
+      threadId: 'thread-a',
+      tabId: 'browser-thread-a-1',
+      initialUrl: 'http://localhost:3000/',
+      title: 'Browser',
+      focusMode: 'first-open'
+    })
+
+    handleBrowserUseClose({
+      threadId: 'thread-a',
+      tabId: 'missing-tab'
+    })
+
+    const viewerState = useViewerTabStore.getState().getThreadState('thread-a')
+    expect(viewerState.tabs).toHaveLength(1)
+    expect(viewerState.activeTabId).toBe('browser-thread-a-1')
   })
 })

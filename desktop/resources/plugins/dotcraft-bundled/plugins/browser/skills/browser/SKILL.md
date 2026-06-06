@@ -91,7 +91,8 @@ await nodeRepl.emitImage(await tab.screenshot({ fullPage: false }));
 - When the user refers to the current or already-open browser page, inspect `await browser.user.openTabs()` and claim the matching visible tab with `await browser.user.claimTab(tabOrId)` instead of opening duplicates or re-navigating.
 - Before opening a new tab, check `await tab.url()` or `await browser.tabs.list()` and reuse an existing tab when it already fits the task.
 - If a tab is already on the intended URL, do not call `goto()` with the same URL. This reloads the page and may lose in-progress state. Use `tab.reload()` only when a reload is intentional.
-- For read-only fetches from one or more URLs, prefer `await browser.tabs.content({ urls, contentType })` instead of opening visible tabs.
+- For read-only fetches from one or more URLs, prefer `await browser.tabs.content({ urls, contentType })` instead of opening visible tabs. This is a hidden background fetch; do not use it to show the user a page or demonstrate browsing.
+- For smoke tests, use one durable `tab` for the main flow. Open a second durable tab only when the user explicitly asks to keep two pages visible or when comparing two live pages is the task.
 - If you create a temporary tab, close it in `finally` unless it is part of the deliverable:
   ```js
   const tempTab = await browser.tabs.new(url);
@@ -295,7 +296,7 @@ Confirmation hygiene:
 - Playwright helpers: read-only `evaluate(fnOrExpression, arg?, options?)`, `domSnapshot`, `waitForURL`, real `waitForLoadState`, `waitForTimeout`, `expectNavigation`, `locator`, same-origin `frameLocator`, `getByRole`, `getByText`, `getByLabel`, `getByPlaceholder`, `getByTestId`, `count`, `all`, cached locator reads, `filter`, `and`, `or`, scoped locators, `allTextContents`, `textContent`, `innerText`, `getAttribute`, `isVisible`, `isEnabled`, `click`, `dblclick`, `fill`, `type`, `press`, `check`, `uncheck`, `setChecked`, `selectOption`, and `waitFor`.
 - DOM-CUA and CUA: visible DOM discovery, click, double click, type, keypress, scroll, drag, and coordinate pointer movement using object-shaped coordinates.
 - Page assets: `pageAssets.list()` and `pageAssets.bundle()` are supported; bundles are written to safe temporary output after the Desktop IAB file-transfer approval path.
-- WebMCP: `await tab.capabilities.get("webmcp")` can list and invoke tools explicitly exposed by the current page through `navigator.modelContext`; pages without `modelContext` simply have no page-defined tools.
+- WebMCP: call `await tab.capabilities.list()` first. If the list contains `webmcp`, `await tab.capabilities.get("webmcp")` can list and invoke tools explicitly exposed by the current page through `navigator.modelContext`. If `webmcp` is absent, the current page has no page-defined tools; do not call WebMCP methods.
 
 ## Unsupported IAB APIs
 
@@ -477,7 +478,7 @@ interface DomCUAAPI {
 interface TabCapabilityCollection {
   list(): Promise<Array<CapabilityInfo>>;
   get(id: "pageAssets"): Promise<PageAssetsTabCapability>;
-  get(id: "webmcp"): Promise<WebMcpTabCapability>;
+  get(id: "webmcp"): Promise<WebMcpTabCapability>; // Available only when the latest list() includes webmcp for the current page.
   describeApi(): string[];
 }
 

@@ -980,6 +980,10 @@ describe('BrowserUseManager IAB backend', () => {
 
     expect(manager.reset('thread-1')).toEqual({ ok: true })
     expect(host.destroyTab).toHaveBeenCalledWith(owner, expect.stringMatching(/^browser-thread-1-/))
+    expect(owner.webContents.send).toHaveBeenCalledWith('viewer:browser:close', {
+      threadId: 'thread-1',
+      tabId: expect.stringMatching(/^browser-thread-1-/)
+    })
   })
 
   it('opens external URLs when approval is disabled', async () => {
@@ -1203,6 +1207,10 @@ describe('BrowserUseManager IAB backend', () => {
     expect(payload.finalized.closed).toEqual([payload.createdId])
     expect(host.destroyTab).toHaveBeenCalledWith(owner, payload.createdId)
     expect(host.destroyTab).not.toHaveBeenCalledWith(owner, 'existing-tab')
+    expect(owner.webContents.send).toHaveBeenCalledWith('viewer:browser:close', {
+      threadId: 'thread-1',
+      tabId: payload.createdId
+    })
     expect(host.setBounds).toHaveBeenCalledWith(owner, expect.objectContaining({
       tabId: 'existing-tab',
       width: 800,
@@ -1231,7 +1239,8 @@ describe('BrowserUseManager IAB backend', () => {
           inlineSvgs: []
         }
       }
-      if (script.includes('navigator.modelContext') && script.includes('modelContext.executeTool')) {
+      if (script.includes('__dotcraftWebMcpAvailabilityProbe')) return true
+      if (script.includes('navigator.modelContext') && script.includes('modelContext.executeTool(tool')) {
         return { ok: true, topic: 'backend' }
       }
       if (script.includes('navigator.modelContext') && script.includes('modelContext.getTools')) {
@@ -1457,6 +1466,67 @@ describe('BrowserUseManager IAB backend', () => {
     expect(manifest.summary.downloadedCount).toBe(1)
   })
 
+  it('omits WebMCP from tab capabilities on pages without page tools', async () => {
+    const host = createFakeHost()
+    const manager = new BrowserUseManager(host)
+    const owner = createFakeOwner()
+
+    const result = await runBrowserUse(manager, owner, {
+      threadId: 'thread-webmcp-unavailable',
+      code: `
+        const tab = await agent.browser.tabs.new("localhost:3000");
+        const capabilities = await tab.capabilities.list();
+        let getError = "";
+        try {
+          await tab.capabilities.get("webmcp");
+        } catch (error) {
+          getError = error instanceof Error ? error.message : String(error);
+        }
+        return JSON.stringify({
+          ids: capabilities.map((capability) => capability.id),
+          getError
+        });
+      `
+    })
+
+    expect(result.error).toBeUndefined()
+    expect(JSON.parse(result.resultText ?? '{}')).toEqual({
+      ids: ['pageAssets'],
+      getError: 'Capability is not available: webmcp'
+    })
+  })
+
+  it('returns a stable unavailable error for direct backend WebMCP commands on ordinary pages', async () => {
+    const host = createFakeHost()
+    const manager = new BrowserUseManager(host)
+    const owner = createFakeOwner()
+    const session = { session_id: 'session-webmcp-unavailable', turn_id: 'turn-webmcp-unavailable' }
+
+    await manager.prepareNodeRepl(owner, {
+      threadId: 'thread-webmcp-unavailable-backend',
+      browserSession: {
+        sessionId: session.session_id,
+        turnId: session.turn_id
+      }
+    })
+    const created = await manager.handleBrowserUseBackendRequest('createTab', {
+      ...session,
+      url: 'localhost:3000'
+    }) as Record<string, unknown>
+    const execute = async (type: string, extra: Record<string, unknown> = {}) =>
+      await manager.handleBrowserUseBackendRequest('executeUnhandledCommand', {
+        ...session,
+        browser_id: 'iab',
+        tab_id: Number(created.id),
+        type,
+        ...extra
+      })
+
+    await expect(execute('webmcp_list_tools')).rejects.toThrow('Capability is not available: webmcp')
+    await expect(execute('webmcp_invoke_tool', { tool_name: 'summarize', input: { topic: 'iab' } }))
+      .rejects.toThrow('Capability is not available: webmcp')
+  })
+
   it('lists and invokes page-defined WebMCP tools through the tab capability', async () => {
     const wc = createFakeWebContents()
     ;(wc.executeJavaScript as ReturnType<typeof vi.fn>).mockImplementation(async (script: string) => {
@@ -1470,7 +1540,8 @@ describe('BrowserUseManager IAB backend', () => {
           appRootTextLength: 12
         }
       }
-      if (script.includes('navigator.modelContext') && script.includes('modelContext.executeTool')) {
+      if (script.includes('__dotcraftWebMcpAvailabilityProbe')) return true
+      if (script.includes('navigator.modelContext') && script.includes('modelContext.executeTool(tool')) {
         return { ok: true, echo: { topic: 'iab' } }
       }
       if (script.includes('navigator.modelContext') && script.includes('modelContext.getTools')) {
@@ -1494,11 +1565,13 @@ describe('BrowserUseManager IAB backend', () => {
       threadId: 'thread-webmcp',
       code: `
         const tab = await agent.browser.tabs.new("localhost:3000");
+        const capabilities = await tab.capabilities.list();
         const webmcp = await tab.capabilities.get("webmcp");
         const tools = await webmcp.listTools();
         const direct = await webmcp.invokeTool({ toolName: "summarize", input: { topic: "iab" }, timeoutMs: 1000 });
         const viaTool = await tools[0].invoke({ topic: "iab" }, { timeoutMs: 1000 });
         return JSON.stringify({
+          capabilityIds: capabilities.map((capability) => capability.id),
           name: tools[0].name,
           inputType: tools[0].inputSchema.type,
           readOnlyHint: tools[0].annotations.readOnlyHint,
@@ -1510,11 +1583,71 @@ describe('BrowserUseManager IAB backend', () => {
 
     expect(result.error).toBeUndefined()
     expect(JSON.parse(result.resultText ?? '{}')).toEqual({
+      capabilityIds: ['pageAssets', 'webmcp'],
       name: 'summarize',
       inputType: 'object',
       readOnlyHint: true,
       direct: { ok: true, echo: { topic: 'iab' } },
       viaTool: { ok: true, echo: { topic: 'iab' } }
+    })
+  })
+
+  it('refreshes WebMCP tab capability availability after navigation', async () => {
+    const wc = createFakeWebContents()
+    const defaultExecuteJavaScript = (wc.executeJavaScript as ReturnType<typeof vi.fn>).getMockImplementation()
+    const hasWebMcp = () => !String(wc.getURL()).includes('/plain')
+    ;(wc.executeJavaScript as ReturnType<typeof vi.fn>).mockImplementation(async (script: string) => {
+      if (isReadinessProbe(script)) {
+        return {
+          url: wc.getURL(),
+          title: 'WebMCP Availability Page',
+          readyState: 'complete',
+          bodyTextLength: 12,
+          interactiveCount: 1,
+          appRootTextLength: 12
+        }
+      }
+      if (script.includes('__dotcraftWebMcpAvailabilityProbe')) return hasWebMcp()
+      if (script.includes('navigator.modelContext') && script.includes('modelContext.getTools') && hasWebMcp()) {
+        return [{
+          name: 'summarize',
+          title: 'Summarize',
+          description: 'Summarize the current page.',
+          inputSchema: { type: 'object' }
+        }]
+      }
+      return defaultExecuteJavaScript?.(script)
+    })
+    const host = createFakeHost(wc)
+    const manager = new BrowserUseManager(host)
+    const owner = createFakeOwner()
+
+    const result = await runBrowserUse(manager, owner, {
+      threadId: 'thread-webmcp-navigation',
+      code: `
+        const tab = await agent.browser.tabs.new("localhost:3000");
+        const before = await tab.capabilities.list();
+        await tab.goto("http://localhost:3000/plain");
+        const after = await tab.capabilities.list();
+        let getAfterError = "";
+        try {
+          await tab.capabilities.get("webmcp");
+        } catch (error) {
+          getAfterError = error instanceof Error ? error.message : String(error);
+        }
+        return JSON.stringify({
+          before: before.map((capability) => capability.id),
+          after: after.map((capability) => capability.id),
+          getAfterError
+        });
+      `
+    })
+
+    expect(result.error).toBeUndefined()
+    expect(JSON.parse(result.resultText ?? '{}')).toEqual({
+      before: ['pageAssets', 'webmcp'],
+      after: ['pageAssets'],
+      getAfterError: 'Capability is not available: webmcp'
     })
   })
 
@@ -2223,6 +2356,31 @@ describe('BrowserUseManager IAB backend', () => {
     expect(finalized).toMatchObject({ ok: true, kept: [tabId], closed: [], released: [] })
   })
 
+  it('notifies the renderer when backend close_tab closes a visible automation tab', async () => {
+    const host = createFakeHost()
+    const manager = new BrowserUseManager(host)
+    activeManagers.add(manager)
+    const owner = createFakeOwner()
+    await manager.prepareNodeRepl(owner, {
+      threadId: 'thread-backend-close',
+      evaluationId: 'eval-1',
+      browserSession: { sessionId: 'session-backend-close', turnId: 'eval-1' }
+    })
+    const session = { session_id: 'session-backend-close', turn_id: 'eval-1' }
+    const created = await manager.handleBrowserUseBackendRequest('createTab', session) as Record<string, unknown>
+
+    await manager.handleBrowserUseBackendRequest('executeUnhandledCommand', {
+      ...session,
+      type: 'close_tab',
+      tab_id: Number(created.id)
+    })
+
+    expect(owner.webContents.send).toHaveBeenCalledWith('viewer:browser:close', {
+      threadId: 'thread-backend-close',
+      tabId: expect.stringMatching(/^browser-thread-backend-close-/)
+    })
+  })
+
   it('advertises M3 backend metadata and rejects hidden browser history', async () => {
     const host = createFakeHost()
     const manager = new BrowserUseManager(host)
@@ -2343,7 +2501,7 @@ describe('BrowserUseManager IAB backend', () => {
     const text = await manager.handleBrowserUseBackendRequest('executeUnhandledCommand', {
       ...session,
       type: 'tabs_content',
-      urls: ['http://127.0.0.1:5173/text'],
+      urls: ['http://127.0.0.1:5173/text', 'http://127.0.0.1:5173/text-2'],
       content_type: 'text'
     }) as { results: Array<{ url: string; title: string | null; content: string | null }> }
     const html = await manager.handleBrowserUseBackendRequest('executeUnhandledCommand', {
@@ -2364,13 +2522,20 @@ describe('BrowserUseManager IAB backend', () => {
       title: 'Test Page',
       content: 'Save\nTest Link'
     })
+    expect(text.results[1]).toMatchObject({
+      url: 'http://127.0.0.1:5173/text-2',
+      title: 'Test Page',
+      content: 'Save\nTest Link'
+    })
     expect(html.results[0]).toMatchObject({
       url: 'http://127.0.0.1:5173/html',
       title: 'Test Page'
     })
     expect(html.results[0].content).toContain('<button>Save</button>')
     expect(domSnapshot.results[0].content).toContain('Test Link')
-    expect(host.destroyTab).toHaveBeenCalledTimes(3)
+    expect(host.destroyTab).toHaveBeenCalledTimes(4)
+    expect(owner.webContents.send).not.toHaveBeenCalledWith('viewer:browser:open', expect.anything())
+    expect(owner.webContents.send).not.toHaveBeenCalledWith('viewer:browser:close', expect.anything())
   })
 
   it('supports text clipboard through the IAB backend fallback', async () => {

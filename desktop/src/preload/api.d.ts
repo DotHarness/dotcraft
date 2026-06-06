@@ -102,6 +102,11 @@ export interface BrowserUseOpenPayload {
   focusMode: 'first-open' | 'none'
 }
 
+export interface BrowserUseClosePayload {
+  threadId: string
+  tabId: string
+}
+
 export interface BrowserUseApprovalRequestPayload {
   requestId: string
   threadId: string
@@ -604,6 +609,7 @@ declare global {
             }
             browserUse: {
               onOpen(callback: (event: BrowserUseOpenPayload) => void): UnsubscribeFn
+              onClose(callback: (event: BrowserUseClosePayload) => void): UnsubscribeFn
               onApprovalRequest(callback: (event: BrowserUseApprovalRequestPayload) => void): UnsubscribeFn
               sendApprovalResponse(params: {
                 requestId: string

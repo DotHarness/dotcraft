@@ -10,6 +10,12 @@ const REQUEST_META_KEY = 'x-dotcraft-turn-metadata'
 const PIPE_DIR_NAME = 'dotcraft-browser-use'
 const WINDOWS_PIPE_PREFIX = '\\\\.\\pipe\\dotcraft-browser-use'
 const READONLY_EVALUATE_ERROR = 'ReadonlyEvaluateViolation'
+const WEBMCP_UNAVAILABLE_ERROR = 'Capability is not available: webmcp'
+const WEBMCP_CAPABILITY = {
+  id: 'webmcp',
+  description: 'List and invoke WebMCP tools explicitly exposed by the current page through navigator.modelContext.',
+  docs: 'docs/capabilities/tab/webmcp.md'
+}
 const READONLY_EVALUATE_DENY_PATTERNS = [
   { pattern: /\b(?:window\.)?(?:scrollTo|scrollBy|open|close|stop|print)\s*\(/, label: 'window mutation or viewport side effect' },
   { pattern: /\b(?:window\.)?location(?:\s*=|\.[A-Za-z_$][\w$]*\s*=|\.(?:assign|replace|reload)\s*\()/, label: 'navigation mutation' },
@@ -1039,13 +1045,37 @@ class TabHandle {
   getByPlaceholder(text, options) { return this.playwright.getByPlaceholder(text, options) }
   getByTestId(testId) { return this.playwright.getByTestId(testId) }
 
+  async isWebMcpAvailable() {
+    try {
+      const available = await this.eval(`(() => {
+        const __dotcraftWebMcpAvailabilityProbe = true;
+        const modelContext = typeof navigator !== "undefined" ? navigator.modelContext : undefined;
+        return !!modelContext &&
+          typeof modelContext.getTools === "function" &&
+          typeof modelContext.executeTool === "function";
+      })()`)
+      return available === true
+    } catch {
+      return false
+    }
+  }
+
   createCapabilitiesApi() {
     return {
-      list: async () => this.browser.info.capabilities.tab,
-      get: (id) => {
+      list: async () => {
+        const available = asArray(this.browser.info.capabilities.tab)
+          .filter((capability) => asObject(capability).id !== 'webmcp')
+        if (await this.isWebMcpAvailable()) available.push({ ...WEBMCP_CAPABILITY })
+        return available
+      },
+      get: async (id) => {
         if (id === 'pageAssets') return new PageAssetsCapability(this)
-        if (id === 'webmcp') return new WebMcpCapability(this)
-        throw new Error(`Tab capability not found: ${id}. Available capabilities: pageAssets, webmcp.`)
+        if (id === 'webmcp') {
+          if (await this.isWebMcpAvailable()) return new WebMcpCapability(this)
+          throw new Error(WEBMCP_UNAVAILABLE_ERROR)
+        }
+        const available = (await this.capabilities.list()).map((capability) => asObject(capability).id).join(', ')
+        throw new Error(`Tab capability not found: ${id}. Available capabilities: ${available}.`)
       },
       describeApi: () => ['list()', 'get("pageAssets")', 'get("webmcp")']
     }
@@ -1649,8 +1679,12 @@ function sanitizeFileName(value) {
 class WebMcpCapability {
   constructor(tab) { this.tab = tab }
   async listTools() {
+    if (!await this.tab.isWebMcpAvailable()) throw new Error(WEBMCP_UNAVAILABLE_ERROR)
     const tools = asArray(await this.tab.eval(`(() => {
-      const modelContext = navigator.modelContext;
+      const modelContext = typeof navigator !== "undefined" ? navigator.modelContext : undefined;
+      if (!modelContext || typeof modelContext.getTools !== "function" || typeof modelContext.executeTool !== "function") {
+        throw new Error(${jsString(WEBMCP_UNAVAILABLE_ERROR)});
+      }
       return Promise.resolve(modelContext.getTools()).then((tools) => tools);
     })()`))
     return tools.map((tool) => {
@@ -1671,11 +1705,12 @@ class WebMcpCapability {
   async invokeTool(options = {}) {
     const toolName = String(options.toolName ?? '').trim()
     if (!toolName) throw new Error('tab.capabilities.webmcp.invokeTool requires a toolName')
+    if (!await this.tab.isWebMcpAvailable()) throw new Error(WEBMCP_UNAVAILABLE_ERROR)
     const inputJson = JSON.stringify(options.input ?? null)
     return await this.tab.eval(`(() => {
-      const modelContext = navigator.modelContext;
+      const modelContext = typeof navigator !== "undefined" ? navigator.modelContext : undefined;
       if (!modelContext || typeof modelContext.getTools !== "function" || typeof modelContext.executeTool !== "function") {
-        throw new Error("WebMCP modelContext is unavailable in the current page.");
+        throw new Error(${jsString(WEBMCP_UNAVAILABLE_ERROR)});
       }
       return Promise.resolve(modelContext.getTools()).then((tools) => {
         const tool = Array.from(tools || []).find((candidate) => candidate && candidate.name === ${jsString(toolName)});

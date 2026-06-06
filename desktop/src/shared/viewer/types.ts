@@ -286,6 +286,11 @@ export interface BrowserUseOpenPayload {
   focusMode: 'first-open' | 'none'
 }
 
+export interface BrowserUseClosePayload {
+  threadId: string
+  tabId: string
+}
+
 export type BrowserUseApprovalResponseAction = 'allowOnce' | 'allowDomain' | 'blockDomain' | 'deny'
 
 export interface BrowserUseApprovalRequestPayload {
