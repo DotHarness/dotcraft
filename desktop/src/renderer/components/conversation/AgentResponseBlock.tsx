@@ -1,6 +1,6 @@
 import { memo, useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { Info } from 'lucide-react'
-import type { ConversationItem, ConversationTurn } from '../../types/conversation'
+import type { ConversationItem, ConversationTurn, PluginFunctionContentItem } from '../../types/conversation'
 import { isToolLikeItemType } from '../../types/conversation'
 import { ThinkingIndicator } from './ThinkingIndicator'
 import { renderSubAgentTitle, ToolCallCard } from './ToolCallCard'
@@ -70,6 +70,12 @@ const STREAMING_MESSAGE_STALL_MS = 2000
 interface ConversationRenderNode {
   kind: ConversationNodeKind
   node: ReactNode
+}
+
+interface ToolOutputImageItem {
+  id: string
+  mediaType: string
+  dataBase64: string
 }
 
 /**
@@ -545,30 +551,119 @@ function renderAggregatedEntry(
   keyPrefix = ''
 ): React.ReactNode {
   if (entry.kind === 'single') {
+    const images = getToolOutputImages([entry.item])
     return (
-      <ToolCallCard
+      <ToolEntryWithOutputs
         key={entry.item.id}
-        item={entry.item}
+        images={images}
+      >
+        <ToolCallCard
+          item={entry.item}
+          turnId={turnId}
+          turnRunning={turnRunning}
+        />
+      </ToolEntryWithOutputs>
+    )
+  }
+  const images = getToolOutputImages(entry.items)
+  return (
+    <ToolEntryWithOutputs
+      key={`group-${keyPrefix}-${turnId}-${offset}`}
+      images={images}
+    >
+      <GroupedToolCallRow
+        category={entry.category}
+        items={entry.items}
         turnId={turnId}
         turnRunning={turnRunning}
       />
-    )
-  }
-  return (
-    <GroupedToolCallRow
-      key={`group-${keyPrefix}-${turnId}-${offset}`}
-      category={entry.category}
-      items={entry.items}
-      turnId={turnId}
-      turnRunning={turnRunning}
-    />
+    </ToolEntryWithOutputs>
   )
+}
+
+function ToolEntryWithOutputs({
+  children,
+  images
+}: {
+  children: ReactNode
+  images: ToolOutputImageItem[]
+}): JSX.Element {
+  if (images.length === 0) return <>{children}</>
+
+  return (
+    <div style={toolEntryWithOutputsStyle}>
+      {children}
+      <ToolOutputImageGallery images={images} />
+    </div>
+  )
+}
+
+function ToolOutputImageGallery({ images }: { images: ToolOutputImageItem[] }): JSX.Element {
+  return (
+    <div data-testid="tool-output-image-gallery" style={toolOutputImageGalleryStyle}>
+      {images.map((image, index) => (
+        <img
+          key={image.id}
+          data-testid="tool-output-image"
+          src={`data:${image.mediaType};base64,${image.dataBase64}`}
+          alt={`Tool output image ${index + 1}`}
+          style={toolOutputImageStyle}
+        />
+      ))}
+    </div>
+  )
+}
+
+function getToolOutputImages(items: ConversationItem[]): ToolOutputImageItem[] {
+  return items.flatMap((item) =>
+    (item.contentItems ?? [])
+      .map((contentItem, index) => toToolOutputImage(item.id, contentItem, index))
+      .filter((image): image is ToolOutputImageItem => image != null)
+  )
+}
+
+function toToolOutputImage(
+  itemId: string,
+  contentItem: PluginFunctionContentItem,
+  index: number
+): ToolOutputImageItem | null {
+  const dataBase64 = contentItem.dataBase64?.trim()
+  if (contentItem.type !== 'image' || !dataBase64) return null
+  return {
+    id: `${itemId}-image-${index}`,
+    mediaType: contentItem.mediaType?.trim() || 'image/png',
+    dataBase64
+  }
 }
 
 const toolRunStackStyle: CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   gap: 'var(--conversation-tool-run-gap)'
+}
+
+const toolEntryWithOutputsStyle: CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '6px'
+}
+
+const toolOutputImageGalleryStyle: CSSProperties = {
+  display: 'flex',
+  flexWrap: 'wrap',
+  alignItems: 'flex-start',
+  gap: '8px',
+  padding: '0 6px'
+}
+
+const toolOutputImageStyle: CSSProperties = {
+  display: 'block',
+  maxWidth: '240px',
+  maxHeight: '180px',
+  objectFit: 'contain',
+  border: '1px solid var(--border-default)',
+  borderRadius: '4px',
+  background: 'var(--bg-primary)'
 }
 
 const streamRetryRowStyle: CSSProperties = {

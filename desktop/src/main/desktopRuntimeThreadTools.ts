@@ -56,9 +56,13 @@ export interface DynamicToolCallParams {
   arguments?: unknown
 }
 
+export type DynamicToolContentItem =
+  | { type: 'text'; text: string }
+  | { type: 'image'; mediaType?: string; dataBase64: string }
+
 export interface DynamicToolCallResult {
   success: boolean
-  contentItems?: Array<{ type: 'text'; text: string }>
+  contentItems?: DynamicToolContentItem[]
   structuredResult?: unknown
   errorCode?: string
   errorMessage?: string

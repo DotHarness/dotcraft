@@ -49,7 +49,7 @@ describe('ToolCallCard plugin function rendering', () => {
     })
   })
 
-  it('renders plugin text and image content when expanded', () => {
+  it('renders plugin text but not image content when expanded', () => {
     const item: ConversationItem = {
       id: 'plugin-tool-1',
       type: 'pluginFunctionCall',
@@ -70,8 +70,7 @@ describe('ToolCallCard plugin function rendering', () => {
     fireEvent.click(screen.getByRole('button'))
 
     expect(screen.getByText((content) => content.includes('rendered'))).toBeInTheDocument()
-    const image = screen.getByRole('img', { name: 'Plugin output 1' })
-    expect(image).toHaveAttribute('src', 'data:image/png;base64,abc123')
+    expect(screen.queryByRole('img')).not.toBeInTheDocument()
   })
 })
 
