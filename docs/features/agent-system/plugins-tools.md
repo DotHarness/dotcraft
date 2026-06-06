@@ -158,6 +158,10 @@ A Desktop extension can read — and, when authorized, write — its app's local
 
 You usually do not write the full manifest by hand. Let `plugin-creator` scaffold the plugin, then use the generated manifest as the advanced reference for troubleshooting or distribution.
 
+#### Showing notifications
+
+Desktop extensions surface notifications through DotCraft's native toast stack rather than building their own. The host exposes `host.ui.showToast({ message, type, durationMs, action, onExpire })`: `action` renders an inline button (for example an Undo), and `onExpire` fires if the toast auto-dismisses or is closed without the action being taken — useful for an undo window that commits a deferred change when it elapses. It returns a function that dismisses the toast.
+
 ### Advanced Reference
 
 When you need details on:

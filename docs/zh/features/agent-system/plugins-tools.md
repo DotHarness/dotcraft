@@ -158,6 +158,10 @@ Desktop 扩展可以通过 loopback 网络桥读取——并在获得授权时�
 
 一般不需要手写完整 manifest。建议让 `plugin-creator` 生成结构，再把生成的 manifest 作为排查或分发时的高级参考。
 
+#### 显示通知
+
+Desktop 扩展通过 DotCraft 原生的 toast 通知栈来提示，而不是自建一套。宿主提供 `host.ui.showToast({ message, type, durationMs, action, onExpire })`：`action` 会渲染一个内联按钮（例如 Undo），`onExpire` 在 toast 自动消失或被关闭、且未触发动作时回调——可用于「撤销窗口」结束时提交延迟变更。返回一个用于关闭该 toast 的函数。
+
 ### 高级参考
 
 需要处理这些高级内容时：

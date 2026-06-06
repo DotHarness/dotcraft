@@ -516,41 +516,8 @@ html[data-theme="light"] .oratorio-board .oratorio-drawer { box-shadow: -12px 0 
 .oratorio-preset:hover { background: var(--bg-tertiary); color: var(--text-primary); border-color: var(--border-active); }
 .oratorio-modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 2px; }
 
-/* ── Toasts ── */
-.oratorio-undo-toast {
-  position: absolute; left: 50%; bottom: 20px; z-index: 50;
-  min-width: 300px; max-width: min(460px, calc(100% - 40px));
-  transform: translate(-50%, 16px); opacity: 0; pointer-events: none;
-  display: flex; align-items: center; gap: 12px;
-  border: 1px solid var(--border-default); border-radius: 10px;
-  background: var(--bg-elevated); box-shadow: var(--shadow-lg);
-  color: var(--text-primary); padding: 11px 12px 13px; overflow: hidden;
-  transition: opacity 150ms ease, transform 150ms ease;
-}
-.oratorio-undo-toast.is-visible { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
-.oratorio-undo-toast .msg { flex: 1; min-width: 0; font-size: 12.5px; }
-.oratorio-undo-toast .msg .ic { width: 15px; height: 15px; vertical-align: -3px; margin-right: 7px; color: var(--text-secondary); }
-.oratorio-undo-btn {
-  flex: 0 0 auto; height: 26px; padding: 0 11px;
-  border: 1px solid var(--border-active); border-radius: 7px;
-  background: transparent; color: var(--text-primary); font: inherit; font-weight: 600; cursor: pointer;
-  display: inline-flex; align-items: center; gap: 6px;
-}
-.oratorio-undo-btn:hover { background: var(--bg-tertiary); }
-.oratorio-undo-btn .ic { width: 14px; height: 14px; }
-.oratorio-undo-progress { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; transform-origin: left center; background: var(--accent); }
-
-.oratorio-info-toast {
-  position: absolute; left: 50%; bottom: 20px; z-index: 48;
-  transform: translate(-50%, 16px); opacity: 0; pointer-events: none;
-  min-width: 240px; max-width: min(440px, calc(100% - 40px));
-  border: 1px solid var(--border-default); border-radius: 10px;
-  background: var(--bg-elevated); box-shadow: var(--shadow-lg);
-  color: var(--text-primary); padding: 10px 14px; text-align: center; font-size: 12.5px;
-  transition: opacity 150ms ease, transform 150ms ease;
-}
-.oratorio-info-toast.is-visible { opacity: 1; transform: translate(-50%, 0); }
-.oratorio-info-toast.is-error { border-color: color-mix(in srgb, var(--error) 40%, var(--border-default)); }
+/* Approve/dispatch undo + status notices use DotCraft's native toast stack
+   (host.ui.showToast), so the board no longer ships its own toast UI. */
 
 /* ── Celebration burst ── */
 .oratorio-burst { position: absolute; z-index: 45; pointer-events: none; }
@@ -559,7 +526,6 @@ html[data-theme="light"] .oratorio-board .oratorio-drawer { box-shadow: -12px 0 
   animation: oratorio-burst-pop 900ms cubic-bezier(.16, 1, .3, 1) forwards;
 }
 
-@keyframes oratorio-undo-shrink { from { transform: scaleX(1); } to { transform: scaleX(0); } }
 @keyframes oratorio-pulse { 0%,100% { opacity: .45; transform: scale(.9); } 50% { opacity: 1; transform: scale(1.12); } }
 @keyframes oratorio-spin { to { transform: rotate(360deg); } }
 @keyframes oratorio-shimmer { to { background-position: -200% 0; } }

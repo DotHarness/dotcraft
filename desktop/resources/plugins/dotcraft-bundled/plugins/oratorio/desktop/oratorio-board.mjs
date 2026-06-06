@@ -39,7 +39,6 @@ const ICONS = {
   'user-round': '<circle cx="12" cy="8" r="4"/><path d="M5 21a7 7 0 0 1 14 0"/>',
   'external-link': '<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/>',
   'x': '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
-  'undo': '<path d="M3 7v6h6"/><path d="M3.5 13a9 9 0 1 0 2.3-9.3L3 7"/>',
   'folder': '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/>',
   'git-pull-request': '<circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><path d="M6 8.5v7"/><path d="M18 9.5v6"/><circle cx="18" cy="6.5" r="2.5"/><path d="M13 6.5h2.2a2.3 2.3 0 0 1 2.3 2.3"/>',
   'circle-dot': '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.6" fill="currentColor" stroke="none"/>',
@@ -129,11 +128,8 @@ export default function OratorioBoardView({ host }) {
   const [drawerOpen, setDrawerOpen] = useState(false)
 
   const [modal, setModal] = useState(null) // 'task' | 'cancel' | 'changes'
-  const [undo, setUndo] = useState(null) // { message, ms }
-  const [info, setInfo] = useState(null) // { message, error }
 
-  const pendingRef = useRef(null) // deferred-commit write
-  const infoTimerRef = useRef(null)
+  const pendingRef = useRef(null) // deferred-commit write (blocks refresh until committed/undone)
   const shellRef = useRef(null)
   const dragRef = useRef(null)
   const [draggingId, setDraggingId] = useState(null)
@@ -229,12 +225,10 @@ export default function OratorioBoardView({ host }) {
     if (drawerOpen && selectedId && !visible.some((it) => it.id === selectedId)) setDrawerOpen(false)
   }, [drawerOpen, selectedId, visible])
 
-  // ── Toasts ────────────────────────────────────────────────────────────────
+  // ── Toasts (DotCraft's native toast stack; the board does not roll its own) ──
   const showInfo = useCallback((message, isError) => {
-    if (infoTimerRef.current) window.clearTimeout(infoTimerRef.current)
-    setInfo({ message, error: !!isError })
-    infoTimerRef.current = window.setTimeout(() => setInfo(null), 2400)
-  }, [])
+    host.ui.showToast({ message, type: isError ? 'error' : 'info' })
+  }, [host])
 
   // ── Handoffs / navigation ──────────────────────────────────────────────────
   const openOratorio = useCallback((path) => {
@@ -261,12 +255,11 @@ export default function OratorioBoardView({ host }) {
   // ── Writes ──────────────────────────────────────────────────────────────────
   const post = useCallback((path, body) => host.network.postJson(apiBase + path, body || {}, 15000), [host, apiBase])
 
-  const clearPending = () => {
-    if (pendingRef.current?.timer) window.clearTimeout(pendingRef.current.timer)
-    pendingRef.current = null
-  }
+  const clearPending = () => { pendingRef.current = null }
 
-  // dispatch / approve: optimistic move + commit after the undo window
+  // dispatch / approve: optimistic move now; commit when the undo window elapses,
+  // or revert if the user clicks Undo. The undo window + action live in the host
+  // toast (onExpire = commit, action = undo), so the board owns no toast timer.
   const deferredWrite = useCallback((item, kind) => {
     const cfg = {
       dispatch: { to: 'in_progress', ms: 8000, verb: 'Dispatching', patch: { state: 'dispatching', check: 'pending' }, path: '/dispatch' },
@@ -274,24 +267,25 @@ export default function OratorioBoardView({ host }) {
     }[kind]
     const snapshot = items
     setItems((cur) => moveLocally(cur, item.id, cfg.to, cfg.patch))
-    setUndo({ message: cfg.verb + ' “' + item.title + '”.', ms: cfg.ms })
     if (kind === 'approve') celebrate(shellRef.current)
-    const timer = window.setTimeout(() => {
-      clearPending()
-      setUndo(null)
-      post('/items/id/' + encodeURIComponent(item.itemId) + cfg.path, {})
-        .then(() => refresh())
-        .catch((err) => { setItems(snapshot); showInfo(messageOf(err), true) })
-    }, cfg.ms)
-    pendingRef.current = { timer, snapshot }
-  }, [items, post, refresh, showInfo])
-
-  const undoPending = useCallback(() => {
-    if (pendingRef.current) setItems(pendingRef.current.snapshot)
-    clearPending()
-    setUndo(null)
-    showInfo('Move undone.')
-  }, [showInfo])
+    pendingRef.current = { snapshot }
+    host.ui.showToast({
+      message: cfg.verb + ' “' + item.title + '”.',
+      type: kind === 'approve' ? 'success' : 'info',
+      durationMs: cfg.ms,
+      action: {
+        label: 'Undo',
+        icon: 'undo',
+        onClick: () => { setItems(snapshot); clearPending(); showInfo('Move undone.') }
+      },
+      onExpire: () => {
+        clearPending()
+        post('/items/id/' + encodeURIComponent(item.itemId) + cfg.path, {})
+          .then(() => refresh())
+          .catch((err) => { setItems(snapshot); showInfo(messageOf(err), true) })
+      }
+    })
+  }, [items, host, post, refresh, showInfo])
 
   const decide = useCallback((item, kind) => {
     if (!item) return
@@ -419,12 +413,6 @@ export default function OratorioBoardView({ host }) {
       h('aside', { className: 'oratorio-drawer' + (drawerOpen ? ' is-open' : ''), 'aria-label': 'Task quick view' },
         drawerOpen && selected ? renderDrawer() : null
       ),
-      undo && h('div', { className: 'oratorio-undo-toast is-visible', role: 'status', key: undo.message },
-        h('span', { className: 'msg' }, ic('check'), undo.message),
-        h('button', { type: 'button', className: 'oratorio-undo-btn', onClick: undoPending }, ic('undo'), 'Undo'),
-        h('span', { className: 'oratorio-undo-progress', style: { animation: 'oratorio-undo-shrink ' + undo.ms + 'ms linear forwards' } })
-      ),
-      info && h('div', { className: 'oratorio-info-toast is-visible' + (info.error ? ' is-error' : '') }, info.message),
       modal === 'task' && h(TaskModal, { host, onClose: () => setModal(null), onSubmit: submitCreate }),
       modal === 'cancel' && h(ReasonModal, { host, kind: 'cancel', name: selected?.title || 'this task', onClose: () => setModal(null), onSubmit: submitCancel }),
       modal === 'changes' && h(ReasonModal, { host, kind: 'changes', name: selected?.title || 'this task', onClose: () => setModal(null), onSubmit: submitChanges })
