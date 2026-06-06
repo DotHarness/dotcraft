@@ -406,7 +406,9 @@ Rules:
 - The skill must document Node REPL output rules, including using `console.log` for text and `nodeRepl.emitImage` for images.
 - The skill must preserve DotCraft-specific bootstrap through `dotcraft.browserClientPath`, the `NodeReplJs` tool, Browser client mismatch checks, and the `iab` browser id; it must state that `agent` is installed by the bundled browser client. Plugin-root imports from other runtimes, alternate browser-control fallback wording, ordinary downloads, file chooser, upload, raw CDP capability, and hidden browser history must not be documented as Desktop IAB capabilities.
 - The skill must document model-facing operating discipline for visibility, user-facing progress wording, persistent JavaScript bindings, tab reuse, temporary-tab cleanup, search/URL fallback limits, and stopping repeated verification once an authoritative page signal is present.
-- The skill must document locator discipline, strict locator failures, CUA object-shaped coordinates, DOM-CUA behavior, screenshot output, bounded evaluate limits, and the supported Playwright-compatible subset.
+- The skill must state that `tab.playwright` is a supported subset, not a full Playwright page object. It must not encourage methods absent from the bundled API reference, such as `locator.evaluate()` or `locator.evaluateAll()`.
+- The skill must document locator discipline, strict locator failures, search-result narrowing, CUA object-shaped coordinates, DOM-CUA behavior, screenshot output, bounded evaluate limits, and the supported Playwright-compatible subset.
+- The skill must guide noisy result pages toward one snapshot or screenshot followed by scoped locators, not broad per-link text/href loops.
 - The skill must document browser-only safety and confirmation rules for data transmission, account/permission changes, uploads, messages, purchases, browser permission prompts, downloads, and actions that require user hand-off.
 - The skill must include a DotCraft IAB API reference that matches the bundled browser client and backend subset.
 - The skill must not describe APIs that are missing from the bundled browser client or unsupported by the IAB backend.

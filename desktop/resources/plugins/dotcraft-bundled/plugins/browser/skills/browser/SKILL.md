@@ -8,6 +8,8 @@ tools: NodeReplJs
 
 Use `NodeReplJs` for DotCraft in-app browser work. The browser runtime is thread-bound and JavaScript globals survive between calls. Prefer this skill for DotCraft in-app browser tasks before looking for unrelated browser-control mechanisms.
 
+`tab.playwright` is a supported Playwright-compatible subset, not a full Playwright page object. Use only methods listed in this skill's API Reference or returned by `describeApi()`. Do not invent Playwright methods such as `locator.evaluate()` or `locator.evaluateAll()`.
+
 ## Visibility
 
 Keep browser work in the background by default.
@@ -95,7 +97,6 @@ await nodeRepl.emitImage(await tab.screenshot({ fullPage: false }));
 - Before opening a new tab, check `await tab.url()` or `await browser.tabs.list()` and reuse an existing tab when it already fits the task.
 - If a tab is already on the intended URL, do not call `goto()` with the same URL. This reloads the page and may lose in-progress state. Use `tab.reload()` only when a reload is intentional.
 - For read-only fetches from one or more URLs, prefer `await browser.tabs.content({ urls, contentType })` instead of opening visible tabs. This is a hidden background fetch; do not use it to show the user a page or demonstrate browsing.
-- For smoke tests, use one durable `tab` for the main flow. Open a second durable tab only when the user explicitly asks to keep two pages visible or when comparing two live pages is the task.
 - If you create a temporary tab, close it in `finally` unless it is part of the deliverable:
   ```js
   const tempTab = await browser.tabs.new(url);
@@ -115,9 +116,11 @@ await nodeRepl.emitImage(await tab.screenshot({ fullPage: false }));
 - If a guessed URL, search query, or candidate page fails, try at most one new approach. After that, switch to visible page navigation, the site's own search UI, or give the best current answer with uncertainty.
 - If you use a search engine fallback, run one focused query, inspect the strongest results, and open the best candidate. Do not keep rewriting the query in loops.
 - Do not brute-force undocumented search URLs, query-parameter variants, search engine query grids, or candidate URL arrays unless the user explicitly asks for exhaustive coverage.
+- On noisy search/result pages, take one `domSnapshot()` or screenshot to identify the visible result area, then build a scoped locator for the specific result card or result title. Do not use `locator("a")` with `nth()` to loop through many links and read each text/href.
+- Ignore obvious non-results such as ads/sponsored links, top navigation tabs, search settings, internal search refinements, repeated hrefs, and long redirect URLs unless the user explicitly asks about those entries.
 - Once you have one strong candidate page, verify it directly instead of collecting more candidates.
 - If `NavigationFailed` occurs, inspect the error details such as `error.code`, `error.data.validatedURL`, and `error.data.finalURL` when available. Do not refresh, screenshot, or scrape DOM from the failed candidate as if it loaded successfully.
-- When a remote site repeatedly fails with a connection or TLS error, try at most one evidence-backed alternate URL. If that also fails, report the remote network/site failure and use a local or known-reachable page only for browser capability smoke tests.
+- When a remote site repeatedly fails with a connection or TLS error, try at most one evidence-backed alternate URL. If that also fails, report the remote network/site failure.
 - `browser.tabs.new(url)` is supported. During navigation failure diagnosis, prefer separating creation from navigation with `const tab = await browser.tabs.new(); await tab.goto(url);` so tab creation and URL loading failures are easy to distinguish.
 - When testing a local app after code or build changes, call `tab.reload()` before verification if hot reload is unavailable or unreliable. After reloading, take a fresh snapshot or screenshot.
 - When the page exposes an authoritative signal, such as selected state, checked state, success toast, modal content, basket line item, selected sort option, or URL parameter, treat that as the answer unless another signal directly contradicts it.
@@ -206,6 +209,7 @@ If two locator attempts fail on the same target, stop escalating complexity on r
 - Use `expectNavigation(action, options)` when the next action is expected to navigate and you need to bind the action and wait together.
 - Use `evaluate(fnOrExpression, arg?, { timeoutMs? })` only for small read-only page computations. Pass inputs through `arg` and set a timeout when the page might be busy.
 - Do not use `evaluate` for scrolling, clicking, form mutation, storage mutation, network requests, broad page dumps, or interaction side effects. Prefer locators, CUA, DOM-CUA, navigation, or wait helpers.
+- Locator handles do not provide `evaluate()` or `evaluateAll()` in Desktop IAB. Use supported locator reads, `domSnapshot()`, or bounded page-level `evaluate()` for small read-only computations.
 - Do not add explicit `timeoutMs` to routine `click`, `fill`, `check`, or `setChecked` calls unless you have a concrete reason the target is slow. Reserve explicit timeouts for navigation, state transitions, or known slow operations.
 
 ## CUA and DOM-CUA
