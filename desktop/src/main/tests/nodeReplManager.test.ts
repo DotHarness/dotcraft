@@ -426,9 +426,20 @@ function createFakeBrowserManager(options: { staleDomNodesAfterNavigation?: bool
   const browser = {
     nameSession: vi.fn(async (name: string) => ({ ok: true, name })),
     tabs: {
-      describeApi: () => ['selected()', 'new(url?)', 'finalize({ keep: [{ tab, status: "deliverable"|"handoff" }] })']
+      content: vi.fn(async (options?: { urls?: unknown[]; contentType?: string; content_type?: string }) => {
+        const urls = Array.isArray(options?.urls) ? options.urls : []
+        const contentType = options?.content_type ?? options?.contentType ?? 'text'
+        return urls.map((url) => ({
+          url: String(url),
+          title: 'Test Page',
+          content: contentType === 'html'
+            ? '<html><body><button>Save</button></body></html>'
+            : 'Save\nCancel'
+        }))
+      }),
+      describeApi: () => ['selected()', 'new(url?)', 'content({ urls, contentType })', 'finalize({ keep: [{ tab, status: "deliverable"|"handoff" }] })']
     },
-    describeApi: () => ['nameSession(name)', 'tabs.finalize({ keep: [{ tab, status: "deliverable"|"handoff" }] })']
+    describeApi: () => ['nameSession(name)', 'tabs.content({ urls, contentType })', 'tabs.finalize({ keep: [{ tab, status: "deliverable"|"handoff" }] })']
   }
   return {
     prepareNodeRepl: vi.fn(async () => {
@@ -563,7 +574,8 @@ describe('NodeReplManager', () => {
         const browser = await agent.browsers.get("iab")
         return JSON.stringify({
           list: await agent.browsers.list(),
-          browserNameSession: typeof browser.nameSession
+          browserNameSession: typeof browser.nameSession,
+          tabsContent: typeof browser.tabs.content
         })
       `
     })
@@ -572,6 +584,7 @@ describe('NodeReplManager', () => {
     const payload = JSON.parse(result.resultText ?? '{}')
     expect(payload.list[0]).toMatchObject({ name: 'DotCraft Browser', type: 'iab' })
     expect(payload.browserNameSession).toBe('function')
+    expect(payload.tabsContent).toBe('function')
     manager.reset('thread-1')
   })
 

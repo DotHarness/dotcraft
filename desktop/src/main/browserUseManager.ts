@@ -2359,6 +2359,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
         'tabs.new(url?)',
         'tabs.selected()',
         'tabs.get(id)',
+        'tabs.content({ urls, contentType })',
         'tabs.finalize({ keep: [{ tab, status: "deliverable"|"handoff" }] })',
         'user.openTabs()',
         'user.claimTab(tabOrId)',
@@ -2385,8 +2386,16 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
         if (!tab) throw new Error(`Browser tab not found: ${id}`)
         return this.createTabApi(tab)
       },
+      content: async (options?: { urls?: unknown; contentType?: unknown; content_type?: unknown; timeoutMs?: unknown }) => {
+        const result = await this.backendTabsContent(runtime, {
+          urls: Array.isArray(options?.urls) ? options.urls : [],
+          content_type: options?.content_type ?? options?.contentType ?? 'text',
+          timeoutMs: options?.timeoutMs
+        })
+        return Array.isArray(result.results) ? result.results : []
+      },
       finalize: async (options?: { keep?: unknown[] }) => this.finalizeTabs(runtime, options),
-      describeApi: () => ['list()', 'new(url?)', 'selected()', 'get(id)', 'finalize({ keep: [{ tab, status: "deliverable"|"handoff" }] })']
+      describeApi: () => ['list()', 'new(url?)', 'selected()', 'get(id)', 'content({ urls, contentType })', 'finalize({ keep: [{ tab, status: "deliverable"|"handoff" }] })']
     }
   }
 

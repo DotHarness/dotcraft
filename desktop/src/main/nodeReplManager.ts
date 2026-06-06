@@ -86,19 +86,13 @@ class NodeReplEvaluationCancelledError extends Error {
 function resolveBrowserClientPath(): string {
   const dev = join(app.getAppPath(), 'resources', 'browser', 'scripts', 'browser-client.mjs')
   if (existsSync(dev)) return pathToFileURL(dev).href
-  const legacyDev = join(app.getAppPath(), 'resources', 'browser', 'browser-client.mjs')
-  if (existsSync(legacyDev)) return pathToFileURL(legacyDev).href
   const cwdDev = join(nodeProcess.cwd(), 'resources', 'browser', 'scripts', 'browser-client.mjs')
   if (existsSync(cwdDev)) return pathToFileURL(cwdDev).href
-  const legacyCwdDev = join(nodeProcess.cwd(), 'resources', 'browser', 'browser-client.mjs')
-  if (existsSync(legacyCwdDev)) return pathToFileURL(legacyCwdDev).href
 
   const resourcesPath = nodeProcess.resourcesPath
   if (resourcesPath) {
     const packaged = join(resourcesPath, 'browser', 'scripts', 'browser-client.mjs')
     if (existsSync(packaged)) return pathToFileURL(packaged).href
-    const legacyPackaged = join(resourcesPath, 'browser', 'browser-client.mjs')
-    if (existsSync(legacyPackaged)) return pathToFileURL(legacyPackaged).href
   }
 
   return pathToFileURL(dev).href
