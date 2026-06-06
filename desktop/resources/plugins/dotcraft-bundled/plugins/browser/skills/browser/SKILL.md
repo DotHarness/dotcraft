@@ -108,10 +108,14 @@ await nodeRepl.emitImage(await tab.screenshot({ fullPage: false }));
 ## Navigation and Search Efficiency
 
 - Use direct `goto(url)` when the destination URL is already known. Use clicks for workflows that depend on current page state or user-visible interaction.
+- Prefer explicit URLs from the user, visible page links, search results, or repository/documentation links over guessed URL patterns.
 - If a guessed URL, search query, or candidate page fails, try at most one new approach. After that, switch to visible page navigation, the site's own search UI, or give the best current answer with uncertainty.
 - If you use a search engine fallback, run one focused query, inspect the strongest results, and open the best candidate. Do not keep rewriting the query in loops.
 - Do not brute-force undocumented search URLs, query-parameter variants, search engine query grids, or candidate URL arrays unless the user explicitly asks for exhaustive coverage.
 - Once you have one strong candidate page, verify it directly instead of collecting more candidates.
+- If `NavigationFailed` occurs, inspect the error details such as `error.code`, `error.data.validatedURL`, and `error.data.finalURL` when available. Do not refresh, screenshot, or scrape DOM from the failed candidate as if it loaded successfully.
+- When a remote site repeatedly fails with a connection or TLS error, try at most one evidence-backed alternate URL. If that also fails, report the remote network/site failure and use a local or known-reachable page only for browser capability smoke tests.
+- `browser.tabs.new(url)` is supported. During navigation failure diagnosis, prefer separating creation from navigation with `const tab = await browser.tabs.new(); await tab.goto(url);` so tab creation and URL loading failures are easy to distinguish.
 - When testing a local app after code or build changes, call `tab.reload()` before verification if hot reload is unavailable or unreliable. After reloading, take a fresh snapshot or screenshot.
 - When the page exposes an authoritative signal, such as selected state, checked state, success toast, modal content, basket line item, selected sort option, or URL parameter, treat that as the answer unless another signal directly contradicts it.
 - Do not keep re-verifying the same fact through header badges, alternate surfaces, or repeated full-page snapshots once an authoritative signal is present.

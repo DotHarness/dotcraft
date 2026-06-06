@@ -513,7 +513,6 @@ export class ViewerBrowserManager {
   async loadAutomationUrl(win: BrowserWindow, params: { tabId: string; url: string }): Promise<void> {
     const tab = this.getTab(win, params.tabId)
     if (!tab) return
-    tab.currentUrl = params.url
     await loadOrReport({
       tabId: params.tabId,
       threadId: tab.threadId,
@@ -522,6 +521,7 @@ export class ViewerBrowserManager {
       emit: (payload) => emitBrowserEvent(win, payload),
       throwOnFailure: true
     })
+    tab.currentUrl = tab.view.webContents.getURL() || tab.currentUrl
   }
 
   async navigate(win: BrowserWindow, params: { tabId: string; url: string }): Promise<void> {
@@ -546,7 +546,6 @@ export class ViewerBrowserManager {
       return
     }
 
-    tab.currentUrl = normalized
     await loadOrReport({
       tabId: params.tabId,
       threadId: tab.threadId,
@@ -554,6 +553,7 @@ export class ViewerBrowserManager {
       load: () => tab.view.webContents.loadURL(normalized),
       emit: (payload) => emitBrowserEvent(win, payload)
     })
+    tab.currentUrl = tab.view.webContents.getURL() || tab.currentUrl
   }
 
   goBack(win: BrowserWindow, tabId: string): void {

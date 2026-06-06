@@ -12,10 +12,15 @@ vi.mock('electron', () => ({
   BrowserWindow: vi.fn()
 }))
 
-function createFakeBrowserManager(options: { staleDomNodesAfterNavigation?: boolean; webMcpAvailable?: boolean } = {}) {
+function createFakeBrowserManager(options: {
+  staleDomNodesAfterNavigation?: boolean
+  webMcpAvailable?: boolean
+  navigationFailure?: { errorDescription: string; validatedURL: string; finalURL: string; errorCode?: number }
+} = {}) {
   const images: Array<{ mediaType: string; dataBase64: string }> = []
   const logs: string[] = []
   const cdpCommands: Array<{ method: string; target: unknown; commandParams: unknown }> = []
+  const createTabRequests: Array<Record<string, unknown>> = []
   const unhandledCommands: Array<Record<string, unknown>> = []
   const moveMouseCalls: Array<Record<string, unknown>> = []
   const pendingActions: Array<() => void> = []
@@ -275,6 +280,12 @@ function createFakeBrowserManager(options: { staleDomNodesAfterNavigation?: bool
       case 'Page.getLayoutMetrics':
         return layoutMetrics()
       case 'Page.navigate':
+        if (options.navigationFailure) {
+          throw BrowserUseBackendError.navigationFailed(options.navigationFailure.errorDescription, {
+            ...options.navigationFailure,
+            isMainFrame: true
+          })
+        }
         tab.url = String(commandParams.url ?? tab.url)
         if (options.staleDomNodesAfterNavigation) staleDomNodeIds.add(42)
         emitNavigationEvents(tab)
@@ -335,6 +346,7 @@ function createFakeBrowserManager(options: { staleDomNodesAfterNavigation?: bool
         throw BrowserUseBackendError.unsupportedApi('browser.user.history is not supported by Desktop IAB')
       }
       if (method === 'createTab') {
+        createTabRequests.push({ ...params })
         const tab = { id: nextTabId++, url: 'about:blank', title: 'Test Page', loading: false, active: true }
         backendTabs.forEach((item) => { item.active = false })
         backendTabs.push(tab)
@@ -491,6 +503,7 @@ function createFakeBrowserManager(options: { staleDomNodesAfterNavigation?: bool
       while (pendingActions.length) pendingActions.shift()?.()
     },
     cdpCommands,
+    createTabRequests,
     unhandledCommands,
     moveMouseCalls,
     closeBackendForTests: async () => {
@@ -703,6 +716,81 @@ describe('NodeReplManager', () => {
       webmcpError: 'Capability is not available: webmcp'
     })
     manager.reset('thread-webmcp-availability')
+  })
+
+  it('creates a URL tab through the browser client without a second client-side navigation', async () => {
+    const browserManager = createFakeBrowserManager()
+    const manager = createManager(browserManager)
+    const owner = {} as Electron.BrowserWindow
+
+    const result = await manager.evaluate(owner, {
+      threadId: 'thread-new-url-single-navigation',
+      code: `
+        const { setupBrowserRuntime } = await import(dotcraft.browserClientPath)
+        await setupBrowserRuntime({ globals: globalThis, backend: "iab" })
+        const browser = await agent.browsers.get("iab")
+        const tab = await browser.tabs.new("http://localhost:3000/")
+        return await tab.url()
+      `
+    })
+
+    expect(result.error).toBeUndefined()
+    expect(browserManager.createTabRequests).toHaveLength(1)
+    expect(browserManager.createTabRequests[0]).toMatchObject({ url: 'http://localhost:3000/' })
+    expect(browserManager.cdpCommands.filter((command) => command.method === 'Page.navigate')).toHaveLength(0)
+    manager.reset('thread-new-url-single-navigation')
+  })
+
+  it('preserves structured backend navigation errors in the browser client', async () => {
+    const browserManager = createFakeBrowserManager({
+      navigationFailure: {
+        errorCode: -100,
+        errorDescription: 'ERR_CONNECTION_CLOSED',
+        validatedURL: 'https://bad.example/',
+        finalURL: 'about:blank'
+      }
+    })
+    const manager = createManager(browserManager)
+    const owner = {} as Electron.BrowserWindow
+
+    const result = await manager.evaluate(owner, {
+      threadId: 'thread-navigation-error-data',
+      code: `
+        const { setupBrowserRuntime } = await import(dotcraft.browserClientPath)
+        await setupBrowserRuntime({ globals: globalThis, backend: "iab" })
+        const browser = await agent.browsers.get("iab")
+        const tab = await browser.tabs.new()
+        try {
+          await tab.goto("https://bad.example/")
+          return "resolved"
+        } catch (error) {
+          return JSON.stringify({
+            name: error.name,
+            category: error.category,
+            code: error.code,
+            data: error.data,
+            message: error.message
+          })
+        }
+      `
+    })
+
+    expect(result.error).toBeUndefined()
+    const payload = JSON.parse(result.resultText ?? '{}')
+    expect(payload).toMatchObject({
+      name: 'BrowserClientError',
+      category: 'NavigationFailed',
+      code: -32012,
+      message: 'NavigationFailed: ERR_CONNECTION_CLOSED',
+      data: {
+        errorCode: -100,
+        errorDescription: 'ERR_CONNECTION_CLOSED',
+        validatedURL: 'https://bad.example/',
+        finalURL: 'about:blank',
+        isMainFrame: true
+      }
+    })
+    manager.reset('thread-navigation-error-data')
   })
 
   it('lets the DotCraft browser client create, list, select, and finalize IAB tabs', async () => {

@@ -216,6 +216,21 @@ class FrameDecoder {
   }
 }
 
+class BrowserClientError extends Error {
+  constructor(error) {
+    const details = asObject(error)
+    const message = typeof details.message === 'string' && details.message
+      ? details.message
+      : String(error)
+    super(message)
+    this.name = 'BrowserClientError'
+    if (details.code != null) this.code = details.code
+    if (details.data != null) this.data = details.data
+    const category = /^([A-Za-z][A-Za-z0-9_]*):/.exec(message)?.[1]
+    if (category) this.category = category
+  }
+}
+
 class RpcTransport {
   constructor(socket) {
     this.socket = socket
@@ -276,7 +291,7 @@ class RpcTransport {
       if (!pending) return
       this.pending.delete(message.id)
       if (message.error) {
-        pending.reject(new Error(message.error.message ?? String(message.error)))
+        pending.reject(new BrowserClientError(message.error))
       } else {
         pending.resolve(message.result)
       }
@@ -871,7 +886,7 @@ class BrowserHandle {
       list: async () => (await this.api.getTabs()).map((tab) => new TabHandle(this, normalizeTabInfo(tab))),
       new: async (url) => {
         const tab = new TabHandle(this, normalizeTabInfo(await this.api.createTab(url ? { url: String(url) } : {})))
-        if (url) await tab.goto(String(url))
+        if (url) await tab.refresh()
         return tab
       },
       selected: async () => {

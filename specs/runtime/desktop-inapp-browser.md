@@ -256,6 +256,7 @@ Rules:
 - Local development hosts such as `localhost:3000`, `127.0.0.1:5173`, and `[::1]:8080` default to `http://` when no scheme is supplied.
 - Navigation remains subject to Desktop browser policy, including external-domain approval, allowed domains, and blocked domains.
 - Main-frame `did-fail-load` must become a structured navigation failure containing safe error code, safe description, requested URL summary, and final URL summary when available.
+- Failed navigation must not make tab snapshots report the failed target URL as a successfully loaded page. Snapshots should prefer the actual `webContents` URL or an explicit error-page URL, with safe navigation-failure diagnostics when available.
 - Chromium error pages such as `chrome-error://chromewebdata/` must not be reported as successful navigation to the requested site.
 - Screenshots may run on empty, loading, or error pages and must not require useful body text.
 - DOM, locator, and accessibility commands use their own readiness and wait behavior.
@@ -275,6 +276,7 @@ Requirements:
 - Capability lookup examples must use the explicit handle shape: `const visibility = await browser.capabilities.get("visibility"); await visibility.set(true);`. Do not document chained `browser.capabilities.get(...).set(...)` or `tab.capabilities.get(...).list()` usage even though Desktop may tolerate it for compatibility.
 - Unsupported APIs fail with `UnsupportedApi` and a stable English fallback message instead of being absent, hanging, or silently ignored.
 - The supported reference-client subset includes `tabs.new/selected/list/get/content/finalize`, `browser.user.openTabs/claimTab`, browser `visibility` and `viewport` capabilities, `tab.goto/back/forward/reload/title/url`, screenshots, virtual clipboard `readText/writeText/read/write`, `playwright.evaluate(fnOrExpression, arg?, options?)`, `domSnapshot`, `waitForURL`, real `waitForLoadState`, `waitForTimeout`, `expectNavigation`, common locator reads and actions, `locator.all()` cached reads, `locator.filter()`, `locator.and()`, `locator.or()`, scoped `locator(selector, options)` filters, `getByRole/Text/Label/Placeholder/TestId`, same-origin `frameLocator`, coordinate CUA actions, DOM-CUA visible-node actions, `pageAssets.list/bundle`, and page-defined WebMCP tools through `tab.capabilities.get("webmcp")` only when the current page advertises them.
+- `tabs.new(url?)` is a Desktop IAB compatibility extension. When a URL is supplied, it must trigger at most one backend navigation and must not be followed by a second client-side `goto(url)`.
 - `executeUnhandledCommand` accepts browser-use compatible command aliases for BrowserUser, navigation, screenshots, Playwright evaluate/DOM/locator operations, CUA, DOM-CUA, pageAssets, WebMCP, viewport, visibility, tabs content, clipboard, and dev logs. Aliases must normalize snake_case and camelCase fields to the same Desktop IAB runtime methods.
 - Playwright-compatible helpers exposed by the browser client must be backed by CDP primitives where practical, including locator actions, `getBy*` helpers, title, URL, and read-only evaluate helpers.
 - `playwright.evaluate(fnOrExpression, arg?, options?)` is model-facing read-only page evaluation. It may read page state and compute bounded results, but must reject common navigation, DOM mutation, storage mutation, network-send, scroll, click, focus, and form side effects. Interaction side effects belong to locators, CUA, DOM-CUA, navigation, or wait helpers.
@@ -374,6 +376,8 @@ Client-visible errors must provide:
 - safe structured params when useful;
 - no sensitive diagnostic fields listed in [Section 13](#13-security-privacy-and-policy).
 
+Native-pipe browser clients must preserve backend error `code` and safe `data` on the JavaScript `Error` object so callers can inspect fields such as navigation `validatedURL`, `finalURL`, and safe error descriptions.
+
 Agent recovery guidance:
 
 - `IabBackendUnavailable`: retry browser runtime setup in the current REPL context; if it repeats, ask the user to restart Desktop.
@@ -397,6 +401,7 @@ Rules:
 - The skill must preserve DotCraft-specific bootstrap through `dotcraft.browserClientPath`, the `NodeReplJs` tool, Browser client mismatch checks, and the `iab` browser id; it must state that `agent` is installed by the bundled browser client. Plugin-root imports from other runtimes, alternate browser-control fallback wording, ordinary downloads, file chooser, upload, raw CDP capability, and hidden browser history must not be documented as Desktop IAB capabilities.
 - The skill must document model-facing operating discipline for visibility, user-facing progress wording, persistent JavaScript bindings, tab reuse, temporary-tab cleanup, search/URL fallback limits, and stopping repeated verification once an authoritative page signal is present.
 - The skill must document locator discipline, strict locator failures, CUA object-shaped coordinates, DOM-CUA behavior, screenshot output, read-only evaluate limits, and the supported Playwright-compatible subset.
+- The skill must discourage guessed domain construction and require evidence-backed URL selection from user input, visible links, search results, repository README links, or documentation links.
 - The skill must document browser-only safety and confirmation rules for data transmission, account/permission changes, uploads, messages, purchases, browser permission prompts, downloads, and actions that require user hand-off.
 - The skill must include a DotCraft IAB API reference that matches the bundled browser client and backend subset.
 - The skill must not describe APIs that are missing from the bundled browser client or unsupported by the IAB backend.

@@ -736,6 +736,44 @@ describe('BrowserUseManager IAB backend', () => {
     expect(result.resultText).toContain('NavigationFailed: ERR_NAME_NOT_RESOLVED')
   })
 
+  it('does not report a failed initial navigation URL as the loaded tab URL', async () => {
+    const wc = createFakeWebContents()
+    const host = createFakeHost(wc)
+    host.loadAutomationUrl.mockImplementation(async () => {
+      throw new Error('NavigationFailed: ERR_CONNECTION_CLOSED')
+    })
+    const manager = new BrowserUseManager(host)
+    const owner = createFakeOwner()
+
+    const result = await runBrowserUse(manager, owner, {
+      threadId: 'thread-failed-initial-url',
+      workspacePath: '/workspace/test-root',
+      code: `
+        let message = "";
+        try {
+          await agent.browser.tabs.new("127.0.0.1:5173/missing");
+        } catch (error) {
+          message = error instanceof Error ? error.message : String(error);
+        }
+        return { message, tabs: await agent.browser.tabs.list() };
+      `
+    })
+
+    expect(result.error).toBeUndefined()
+    const payload = JSON.parse(result.resultText ?? '{}')
+    expect(payload.message).toContain('NavigationFailed: ERR_CONNECTION_CLOSED')
+    expect(payload.tabs[0]).toMatchObject({
+      url: 'about:blank',
+      navigationFailure: {
+        errorDescription: 'ERR_CONNECTION_CLOSED',
+        validatedURL: 'http://127.0.0.1:5173/missing',
+        finalURL: 'about:blank',
+        isMainFrame: true
+      }
+    })
+    expect(payload.tabs[0].url).not.toBe('http://127.0.0.1:5173/missing')
+  })
+
   it('returns a readable timeout when screenshot capture hangs', async () => {
     const wc = createFakeWebContents()
     let releaseCapture: (() => void) | undefined
@@ -2892,7 +2930,16 @@ describe('BrowserUseManager IAB backend', () => {
       target: { tabId: created.id },
       method: 'Page.navigate',
       commandParams: { url: 'http://127.0.0.1:5173/missing' }
-    })).rejects.toThrow('NavigationFailed: net::ERR_NAME_NOT_RESOLVED')
+    })).rejects.toMatchObject({
+      code: -32012,
+      message: 'NavigationFailed: net::ERR_NAME_NOT_RESOLVED',
+      data: {
+        errorDescription: 'net::ERR_NAME_NOT_RESOLVED',
+        validatedURL: 'http://127.0.0.1:5173/missing',
+        finalURL: 'about:blank',
+        isMainFrame: true
+      }
+    })
 
     expect(notifySpy).toHaveBeenCalledWith('onCDPEvent', {
       source: { tabId: Number(created.id) },

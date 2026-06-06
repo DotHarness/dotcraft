@@ -4241,12 +4241,16 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
 
   private tabSnapshot(tab: BrowserUseTabRuntime): Record<string, unknown> {
     const snapshot = this.viewerHost.snapshotState(tab.owner, tab.id)
+    const navigationFailure = tab.lastNavigationFailure
+      ? { navigationFailure: this.navigationFailureData(tab.lastNavigationFailure) }
+      : {}
     if (snapshot) {
       return {
         id: tab.id,
         url: snapshot.currentUrl,
         title: snapshot.title,
-        loading: snapshot.loading
+        loading: snapshot.loading,
+        ...navigationFailure
       }
     }
     const wc = this.webContentsFor(tab.owner, tab.id)
@@ -4254,7 +4258,8 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
       id: tab.id,
       url: wc.getURL(),
       title: wc.getTitle(),
-      loading: wc.isLoading()
+      loading: wc.isLoading(),
+      ...navigationFailure
     }
   }
 
