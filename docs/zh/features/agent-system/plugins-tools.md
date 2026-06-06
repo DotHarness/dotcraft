@@ -145,8 +145,8 @@ descriptor 指向插件内的 ESM bundle，并声明它贡献的 Desktop surface
 
 Desktop 扩展可以通过 loopback 网络桥读取——并在获得授权时写入——其 App 的本地数据：
 
-- `connectOrigins` 列出 bundle 可访问的 loopback origin。该桥默认只读：`host.network.getJson(url)` 发起 `GET` 获取展示数据。
-- `surfaceWriteScopes` 让 bundle 选择启用受控写。当它列出扩展所用的 App Binding mutate 作用域（例如 `board.manage`）时，Desktop 还会暴露 `host.network.postJson(url, body)`。每次写入由已连接 App 的 loopback surface 用其签发的连接凭证授权；Desktop 强制校验声明的 origin，且不逐次弹审批——因为用户在连接 App 时已授权。只读扩展保持 `surfaceWriteScopes` 为空（默认）即可。
+- `connectOrigins` 列出 bundle 可访问的 loopback origin。该桥默认只读：`host.network.getJson(url)` 发起 `GET` 获取展示数据。Desktop 会在 main process 中根据已安装插件的 descriptor 强制校验 origin，而不是信任 renderer 传入的值。
+- `surfaceWriteScopes` 让 bundle 选择启用受控写。当它列出扩展所用的 App Binding mutate 作用域（例如 `board.manage`）时，Desktop 还会暴露 `host.network.postJson(url, body)`。每次写入由已连接 App 的 loopback surface 用其签发的连接凭证授权；Desktop 强制校验声明的 origin 和非空写入意图，且不逐次弹审批——因为用户在连接 App 时已授权。只读扩展保持 `surfaceWriteScopes` 为空（默认）即可。
 
 ```json
 {
@@ -178,7 +178,7 @@ Desktop 扩展可以通过 loopback 网络桥读取——并在获得授权时�
 安装插件会把新的 tools 和 skills 加入工作区能力范围。启用带 `process` backend 的插件后，DotCraft 可以启动插件 manifest 中声明的本地 stdio 进程来执行 dynamic tools。**只安装和启用你信任来源、代码和依赖的插件**。
 
 - 插件 tool 调用仍会经过 DotCraft 的会话、审批和工具调用记录。
-- Desktop extension bundle 会作为受信任本地 UI 代码运行在 Desktop renderer 中。
+- Desktop extension bundle 会作为受信任本地 UI 代码运行在 Desktop renderer 中。Descriptor 声明的 host 能力仍由 Desktop main process 强制执行；extension v1 不是不可信代码沙箱。
 - 插件详情中的网站、隐私政策和服务条款链接用于帮助你确认插件来源和行为边界。
 - 黑名单、工作区边界、沙箱等限制对插件 tools 同样生效。详见 [安全与沙箱](../self-hosted/security)。
 

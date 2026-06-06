@@ -364,9 +364,13 @@ export default function OratorioBoardView({ host }) {
     if (outcome.kind === 'invalid') { showInfo(outcome.message, true); return }
     if (outcome.kind === 'reorder') {
       // Within-column ordering (boardSortOrder) is owned by Oratorio. Reflect the
-      // drag locally for immediate feedback; it reconciles on the next refresh.
+      // drag locally for immediate feedback, then persist the new relative order.
       const beforeId = beforeItemIdFor(colId, placeholder?.index, drag.id, byCol)
+      const snapshot = items
       setItems((cur) => reorderLocally(cur, drag.id, beforeId))
+      post('/items/id/' + encodeURIComponent(item.itemId) + '/reorder', { beforeItemId: beforeId })
+        .then(() => refresh())
+        .catch((err) => { setItems(snapshot); showInfo(messageOf(err), true) })
       return
     }
     decide(item, outcome.kind)

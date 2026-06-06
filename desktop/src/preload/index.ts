@@ -843,17 +843,29 @@ const api = {
   },
 
   desktopExtensions: {
-    authorizePluginRoot(pluginId: string, rootPath: string): Promise<{ ok: boolean }> {
-      return ipcRenderer.invoke('desktop-extension:authorize-plugin-root', { pluginId, rootPath })
+    authorizeExtension(params: { pluginId: string; rootPath: string; extensionId: string }): Promise<{ grantId: string }> {
+      return ipcRenderer.invoke('desktop-extension:authorize-extension', params)
+    },
+    revokeExtension(params: { grantId: string }): Promise<{ ok: boolean }> {
+      return ipcRenderer.invoke('desktop-extension:revoke-extension', params)
     },
     toPluginUrl(pluginId: string, absolutePath: string): Promise<{ url: string }> {
       return ipcRenderer.invoke('desktop-extension:to-plugin-url', { pluginId, absolutePath })
     },
-    fetchJson(params: { url: string; connectOrigins: string[]; timeoutMs?: number }): Promise<unknown> {
+    fetchJson(params: { grantId: string; url: string; timeoutMs?: number }): Promise<unknown> {
       return ipcRenderer.invoke('desktop-extension:fetch-json', params)
     },
-    postJson(params: { url: string; connectOrigins: string[]; body?: unknown; timeoutMs?: number }): Promise<unknown> {
+    postJson(params: { grantId: string; url: string; body?: unknown; timeoutMs?: number }): Promise<unknown> {
       return ipcRenderer.invoke('desktop-extension:post-json', params)
+    },
+    getAppConnectionStatus(params: { grantId: string; appId: string }): Promise<unknown> {
+      return ipcRenderer.invoke('desktop-extension:app-connection-status', params)
+    },
+    startAppConnection(params: { grantId: string; appId: string }): Promise<unknown> {
+      return ipcRenderer.invoke('desktop-extension:app-connection-start', params)
+    },
+    openApp(params: { grantId: string; appId: string; url: string }): Promise<void> {
+      return ipcRenderer.invoke('desktop-extension:app-open', params)
     }
   },
 

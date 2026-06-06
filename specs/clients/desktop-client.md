@@ -480,7 +480,8 @@ Required behavior:
 - Plugin detail pages list declared Desktop extension content alongside skills, apps, and tool integrations.
 - Extension bundles load from local installed plugin files only. Desktop must not execute JavaScript directly from remote URLs.
 - Extension code runs as trusted local renderer code.
-- Extension host APIs expose only the declared app and network surfaces for that extension. App Binding status/connection helpers are scoped by `requiredAppIds`, and local HTTP reads are scoped by `connectOrigins`.
+- Extension host APIs expose only the declared app and network surfaces for that extension. App Binding status/connection/open helpers are scoped by `requiredAppIds`, local HTTP reads are scoped by `connectOrigins`, and local HTTP writes additionally require `surfaceWriteScopes`.
+- Desktop must enforce descriptor-bound extension host capabilities in the main process from a verified plugin descriptor. Renderer-provided policy values are not an authorization source.
 - Extension network reads must go through Desktop's host bridge so the main process can validate loopback origins before issuing the request. Extension bundles must not rely on broad renderer `connect-src` access for app-owned local surfaces.
 - Failed extension loads show a localized error state for that extension surface without breaking core conversation workflows.
 

@@ -145,8 +145,8 @@ Use `plugin-creator --with-desktop-extension` for a minimal scaffold.
 
 A Desktop extension can read — and, when authorized, write — its app's local data over a loopback network bridge:
 
-- `connectOrigins` lists the loopback origins the bundle may reach. The bridge is read-only by default: `host.network.getJson(url)` issues a `GET` for presentation data.
-- `surfaceWriteScopes` opts the bundle into scoped writes. When it lists the App Binding mutate scopes the extension exercises (for example `board.manage`), Desktop also exposes `host.network.postJson(url, body)`. The connected app's loopback surface authorizes every write with the connection credential it issued; Desktop enforces the declared origins and does not prompt per write, because the user already authorized the app connection. Leave `surfaceWriteScopes` empty (the default) for read-only extensions.
+- `connectOrigins` lists the loopback origins the bundle may reach. The bridge is read-only by default: `host.network.getJson(url)` issues a `GET` for presentation data. Desktop enforces origins in the main process from the installed plugin descriptor, not from renderer-provided values.
+- `surfaceWriteScopes` opts the bundle into scoped writes. When it lists the App Binding mutate scopes the extension exercises (for example `board.manage`), Desktop also exposes `host.network.postJson(url, body)`. The connected app's loopback surface authorizes every write with the connection credential it issued; Desktop enforces the declared origins and non-empty write intent and does not prompt per write, because the user already authorized the app connection. Leave `surfaceWriteScopes` empty (the default) for read-only extensions.
 
 ```json
 {
@@ -178,7 +178,7 @@ Beyond built-in tools and plugin dynamic tools, DotCraft also speaks MCP. MCP se
 Installing a plugin adds new tools and skills to the workspace's capability surface. Plugins with a `process` backend may launch a local stdio process declared in the manifest to execute dynamic tools. **Only install and enable plugins whose source, code, and dependencies you trust**.
 
 - Plugin tool calls still pass through DotCraft's session, approvals, and tool-call records.
-- Desktop extension bundles run inside the Desktop renderer as trusted local UI code.
+- Desktop extension bundles run inside the Desktop renderer as trusted local UI code. Descriptor-bound host capabilities are still enforced by Desktop's main process; extension v1 is not an untrusted code sandbox.
 - Plugin detail pages link to website, privacy policy, and ToS for source verification.
 - Blacklists, workspace boundary, sandbox, and other restrictions also apply to plugin tools. See [Security & Sandbox](../self-hosted/security).
 

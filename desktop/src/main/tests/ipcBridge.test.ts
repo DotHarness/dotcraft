@@ -29,6 +29,7 @@ vi.mock('fs', () => ({
     readFile: vi.fn(),
     writeFile: vi.fn(),
     stat: vi.fn(),
+    realpath: vi.fn(),
     mkdir: vi.fn(),
     rm: vi.fn(),
     rename: vi.fn(),
@@ -156,12 +157,16 @@ function createIpcCallbacks(overrides: Partial<IpcCallbacks> = {}): IpcCallbacks
   }
 }
 
-function registerHandlersForTest(workspacePath = '/workspace'): Map<string, (...args: unknown[]) => unknown> {
+function registerHandlersForTest(
+  workspacePath = '/workspace',
+  getWireClient: Parameters<typeof registerIpcHandlers>[1] = () => null,
+  callbacks: IpcCallbacks = createIpcCallbacks()
+): Map<string, (...args: unknown[]) => unknown> {
   const handlers = new Map<string, (...args: unknown[]) => unknown>()
   vi.mocked(ipcMain.handle).mockImplementation((channel, handler) => {
     handlers.set(channel, handler as (...args: unknown[]) => unknown)
   })
-  registerIpcHandlers(null, () => null, workspacePath, createIpcCallbacks())
+  registerIpcHandlers(null, getWireClient, workspacePath, callbacks)
   return handlers
 }
 
@@ -177,6 +182,61 @@ function mockGitCommands(
     callback(result.error ?? null, result.stdout ?? '', result.stderr ?? '')
     return null
   })
+}
+
+function mockDesktopExtensionPluginFixture(options: {
+  rootPath?: string
+  extension?: Record<string, unknown>
+  apps?: unknown[]
+} = {}): string {
+  const rootPath = path.resolve(options.rootPath ?? '/plugins/oratorio')
+  const manifestPath = path.join(rootPath, '.craft-plugin', 'plugin.json')
+  const desktopExtensionsPath = path.join(rootPath, 'desktop-extensions.json')
+  const appsPath = path.join(rootPath, 'apps.json')
+  const files = new Map<string, string>([
+    [manifestPath, JSON.stringify({
+      schemaVersion: 1,
+      id: 'oratorio',
+      desktopExtensions: './desktop-extensions.json',
+      apps: './apps.json'
+    })],
+    [desktopExtensionsPath, JSON.stringify({
+      extensions: [
+        {
+          id: 'oratorio-board',
+          entry: './desktop/oratorio-board.mjs',
+          requiredAppIds: ['com.dotharness.oratorio'],
+          connectOrigins: ['http://127.0.0.1:*'],
+          surfaceWriteScopes: ['board.manage'],
+          ...(options.extension ?? {})
+        }
+      ]
+    })],
+    [appsPath, JSON.stringify({
+      apps: options.apps ?? [
+        {
+          appId: 'com.dotharness.oratorio',
+          nativeApplication: {
+            protocol: 'oratorio',
+            platforms: {
+              windows: { protocol: 'oratorio' }
+            }
+          }
+        }
+      ]
+    })]
+  ])
+
+  vi.mocked(fs.realpath).mockImplementation(async (target) => path.resolve(String(target)))
+  vi.mocked(fs.stat).mockResolvedValue({ isFile: () => true } as Awaited<ReturnType<typeof fs.stat>>)
+  vi.mocked(fs.readFile).mockImplementation(async (target) => {
+    const content = files.get(path.resolve(String(target)))
+    if (content == null) {
+      throw Object.assign(new Error(`ENOENT: ${target}`), { code: 'ENOENT' })
+    }
+    return content
+  })
+  return rootPath
 }
 
 // ---------------------------------------------------------------------------
@@ -323,10 +383,11 @@ describe('fetchDesktopExtensionJson', () => {
 
     await expect(fetchDesktopExtensionJson(
       'http://127.0.0.1:5087/api/v1/items',
-      ['http://127.0.0.1:*']
+      { connectOrigins: ['http://127.0.0.1:*'] }
     )).resolves.toEqual({ items: [] })
 
     expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect((fetchMock.mock.calls[0]![1] as { redirect: string }).redirect).toBe('error')
     vi.unstubAllGlobals()
   })
 
@@ -336,7 +397,7 @@ describe('fetchDesktopExtensionJson', () => {
 
     await expect(fetchDesktopExtensionJson(
       'http://127.0.0.1:5087/api/v1/items',
-      ['http://localhost:*']
+      { connectOrigins: ['http://localhost:*'] }
     )).rejects.toThrow('not allowed')
 
     expect(fetchMock).not.toHaveBeenCalled()
@@ -355,13 +416,14 @@ describe('postDesktopExtensionJson', () => {
 
     await expect(postDesktopExtensionJson(
       'http://127.0.0.1:5087/api/v1/items/abc/dispatch',
-      ['http://127.0.0.1:*'],
+      { connectOrigins: ['http://127.0.0.1:*'], surfaceWriteScopes: ['board.manage'] },
       { reason: 'manual' }
     )).resolves.toEqual({ ok: true })
 
     expect(fetchMock).toHaveBeenCalledTimes(1)
     const init = fetchMock.mock.calls[0]![1] as { method: string; headers: Record<string, string>; body: string }
     expect(init.method).toBe('POST')
+    expect((init as { redirect: string }).redirect).toBe('error')
     expect(init.headers).toMatchObject({ 'Content-Type': 'application/json' })
     expect(JSON.parse(init.body)).toEqual({ reason: 'manual' })
     vi.unstubAllGlobals()
@@ -373,9 +435,23 @@ describe('postDesktopExtensionJson', () => {
 
     await expect(postDesktopExtensionJson(
       'http://127.0.0.1:5087/api/v1/items/abc/dispatch',
-      ['http://localhost:*'],
+      { connectOrigins: ['http://localhost:*'], surfaceWriteScopes: ['board.manage'] },
       { reason: 'manual' }
     )).rejects.toThrow('not allowed')
+
+    expect(fetchMock).not.toHaveBeenCalled()
+    vi.unstubAllGlobals()
+  })
+
+  it('rejects writes when the extension did not declare surfaceWriteScopes', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(postDesktopExtensionJson(
+      'http://127.0.0.1:5087/api/v1/items/abc/dispatch',
+      { connectOrigins: ['http://127.0.0.1:*'] },
+      { reason: 'manual' }
+    )).rejects.toThrow('surfaceWriteScopes')
 
     expect(fetchMock).not.toHaveBeenCalled()
     vi.unstubAllGlobals()
@@ -405,6 +481,152 @@ describe('registerIpcHandlers', () => {
       stale: false
     })
     existsSyncMock.mockReturnValue(true)
+  })
+
+  it('desktop extension network requests use the main-side descriptor grant policy', async () => {
+    const rootPath = mockDesktopExtensionPluginFixture()
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: vi.fn().mockResolvedValue('{"items":[]}')
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const handlers = registerHandlersForTest()
+
+    const grant = await handlers.get('desktop-extension:authorize-extension')?.({}, {
+      pluginId: 'oratorio',
+      rootPath,
+      extensionId: 'oratorio-board'
+    }) as { grantId: string }
+
+    await expect(handlers.get('desktop-extension:fetch-json')?.({}, {
+      grantId: grant.grantId,
+      url: 'http://127.0.0.1:5087/api/v1/items',
+      connectOrigins: ['http://localhost:*']
+    })).resolves.toEqual({ items: [] })
+
+    await expect(handlers.get('desktop-extension:fetch-json')?.({}, {
+      grantId: grant.grantId,
+      url: 'http://localhost:5087/api/v1/items',
+      connectOrigins: ['http://localhost:*']
+    })).rejects.toThrow('not allowed')
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect((fetchMock.mock.calls[0]![1] as { redirect: string }).redirect).toBe('error')
+    vi.unstubAllGlobals()
+  })
+
+  it('desktop extension POST requires descriptor surfaceWriteScopes', async () => {
+    const rootPath = mockDesktopExtensionPluginFixture({
+      extension: { surfaceWriteScopes: [] }
+    })
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    const handlers = registerHandlersForTest()
+
+    const grant = await handlers.get('desktop-extension:authorize-extension')?.({}, {
+      pluginId: 'oratorio',
+      rootPath,
+      extensionId: 'oratorio-board'
+    }) as { grantId: string }
+
+    await expect(handlers.get('desktop-extension:post-json')?.({}, {
+      grantId: grant.grantId,
+      url: 'http://127.0.0.1:5087/api/v1/items',
+      body: {}
+    })).rejects.toThrow('surfaceWriteScopes')
+
+    expect(fetchMock).not.toHaveBeenCalled()
+    vi.unstubAllGlobals()
+  })
+
+  it('desktop extension app binding IPC is scoped by requiredAppIds', async () => {
+    const rootPath = mockDesktopExtensionPluginFixture()
+    const sendRequest = vi.fn().mockResolvedValue({ appId: 'com.dotharness.oratorio', state: 'connected' })
+    const handlers = registerHandlersForTest('/workspace', () => ({ sendRequest } as never))
+
+    const grant = await handlers.get('desktop-extension:authorize-extension')?.({}, {
+      pluginId: 'oratorio',
+      rootPath,
+      extensionId: 'oratorio-board'
+    }) as { grantId: string }
+
+    await expect(handlers.get('desktop-extension:app-connection-status')?.({}, {
+      grantId: grant.grantId,
+      appId: 'com.dotharness.oratorio'
+    })).resolves.toEqual({ appId: 'com.dotharness.oratorio', state: 'connected' })
+
+    await expect(handlers.get('desktop-extension:app-connection-start')?.({}, {
+      grantId: grant.grantId,
+      appId: 'com.example.other'
+    })).rejects.toThrow('not allowed')
+
+    expect(sendRequest).toHaveBeenCalledWith(
+      'app/connection/status',
+      { appId: 'com.dotharness.oratorio' },
+      20_000
+    )
+  })
+
+  it('desktop extension app-open requires the owning app native protocol', async () => {
+    const rootPath = mockDesktopExtensionPluginFixture()
+    const handlers = registerHandlersForTest()
+
+    const grant = await handlers.get('desktop-extension:authorize-extension')?.({}, {
+      pluginId: 'oratorio',
+      rootPath,
+      extensionId: 'oratorio-board'
+    }) as { grantId: string }
+
+    await expect(handlers.get('desktop-extension:app-open')?.({}, {
+      grantId: grant.grantId,
+      appId: 'com.dotharness.oratorio',
+      url: 'https://example.com/open'
+    })).rejects.toThrow('not allowed')
+
+    await handlers.get('desktop-extension:app-open')?.({}, {
+      grantId: grant.grantId,
+      appId: 'com.dotharness.oratorio',
+      url: 'oratorio://open/board'
+    })
+
+    expect(shell.openExternal).toHaveBeenCalledWith('oratorio://open/board')
+  })
+
+  it('desktop extension grants are invalidated when IPC handlers unregister', async () => {
+    const rootPath = mockDesktopExtensionPluginFixture()
+    const handlers = registerHandlersForTest()
+    const grant = await handlers.get('desktop-extension:authorize-extension')?.({}, {
+      pluginId: 'oratorio',
+      rootPath,
+      extensionId: 'oratorio-board'
+    }) as { grantId: string }
+
+    unregisterIpcHandlers()
+
+    await expect(handlers.get('desktop-extension:fetch-json')?.({}, {
+      grantId: grant.grantId,
+      url: 'http://127.0.0.1:5087/api/v1/items'
+    })).rejects.toThrow('grant')
+  })
+
+  it('desktop extension grants can be explicitly revoked', async () => {
+    const rootPath = mockDesktopExtensionPluginFixture()
+    const handlers = registerHandlersForTest()
+    const grant = await handlers.get('desktop-extension:authorize-extension')?.({}, {
+      pluginId: 'oratorio',
+      rootPath,
+      extensionId: 'oratorio-board'
+    }) as { grantId: string }
+
+    await expect(handlers.get('desktop-extension:revoke-extension')?.({}, {
+      grantId: grant.grantId
+    })).resolves.toEqual({ ok: true })
+
+    await expect(handlers.get('desktop-extension:fetch-json')?.({}, {
+      grantId: grant.grantId,
+      url: 'http://127.0.0.1:5087/api/v1/items'
+    })).rejects.toThrow('grant')
   })
 
   it('git:commit filters missing and ignored paths before staging and committing', async () => {
