@@ -3,12 +3,12 @@
 
 @import "tailwindcss";
 
-@keyframes dotcraft-automation-tab-flow {
+@keyframes dotcraft-automation-tab-shimmer {
   0% {
-    background-position: 0 50%;
+    transform: translate(60%);
   }
   100% {
-    background-position: 96px 50%;
+    transform: translate(-60%);
   }
 }
 
@@ -112,6 +112,12 @@
   --warning: #eab308;
   --error: #ef4444;
   --info: #3b82f6;
+
+  /* Running-tool shimmer: dim resting base + a white core tinted with brand accent.
+     Defined per theme so the highlight stays white-anchored (never inverts to a dark
+     streak in light mode); see html[data-theme="light"] for the light values. */
+  --shimmer-base: color-mix(in srgb, var(--text-primary) 50%, var(--bg-primary));
+  --shimmer-peak: color-mix(in srgb, var(--accent) 28%, color-mix(in srgb, white 22%, var(--text-primary)));
 
   /* Message backgrounds (neutral surface, one step above bg-primary) */
   --user-message-bg: #2a2a2a;
@@ -393,6 +399,11 @@ html[data-theme="light"] {
   --warning: #c9a227;
   --error: #dc2626;
   --info: #2563eb;
+
+  /* Light theme: base stays dark ink so the white-anchored core reads as a highlight
+     sweeping over readable text, not a dark streak. */
+  --shimmer-base: color-mix(in srgb, var(--text-primary) 84%, var(--bg-primary));
+  --shimmer-peak: color-mix(in srgb, var(--accent) 28%, color-mix(in srgb, white 80%, var(--text-primary)));
 
   --user-message-bg: #f0f0f0;
 
@@ -730,15 +741,14 @@ kbd {
 
 .tool-running-gradient-text {
   color: var(--text-primary);
+  /* Single clean band swept on a slant: dim base + one white-core/brand-tinted highlight. */
   background-image: linear-gradient(
-    90deg,
-    var(--text-dimmed) 0%,
-    var(--text-secondary) 22%,
-    var(--text-primary) 44%,
-    var(--accent) 50%,
-    var(--text-primary) 56%,
-    var(--text-secondary) 78%,
-    var(--text-dimmed) 100%
+    115deg,
+    var(--shimmer-base) 0%,
+    var(--shimmer-base) calc(50% - 22px),
+    var(--shimmer-peak) 50%,
+    var(--shimmer-base) calc(50% + 22px),
+    var(--shimmer-base) 100%
   );
   background-size: 240px 100%;
   background-position: 0 50%;
@@ -746,7 +756,42 @@ kbd {
   -webkit-background-clip: text;
   color: transparent;
   -webkit-text-fill-color: transparent;
-  animation: tool-running-gradient 4.8s linear infinite;
+  animation: tool-running-gradient 3s linear infinite;
+}
+
+/* ─── Browser/viewer tab actively driven by automation ─── */
+/* A wide, soft brand-blue band translates across the tab via GPU transform
+   (no background-position tiling → smooth, no banding). The band sits behind
+   the tab content (isolation + z-index:-1). background-color is !important to
+   override the tab's inline transparent. */
+.dotcraft-automation-viewer-tab {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-radius: 6px;
+  background-color: color-mix(in srgb, var(--accent) 10%, var(--bg-primary)) !important;
+}
+
+.dotcraft-automation-viewer-tab::before {
+  content: "";
+  position: absolute;
+  inset: 0 -60%;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  background-image: linear-gradient(
+    118deg,
+    transparent 0%,
+    transparent 14%,
+    color-mix(in srgb, var(--accent) 8%, var(--bg-primary)) 28%,
+    color-mix(in srgb, var(--accent) 22%, var(--bg-primary)) 47%,
+    color-mix(in srgb, var(--accent) 8%, var(--bg-primary)) 66%,
+    transparent 86%,
+    transparent 100%
+  );
+  will-change: transform;
+  transform: translate(60%);
+  animation: dotcraft-automation-tab-shimmer 2.1s linear infinite;
 }
 
 .workspace-setup-nav-button:hover:not(:disabled) {
@@ -978,7 +1023,7 @@ kbd {
 .setup-wizard-kicker.tool-running-gradient-text {
   animation:
     setup-wizard-enter 360ms ease-out 60ms both,
-    tool-running-gradient 4.8s linear infinite;
+    tool-running-gradient 3s linear infinite;
 }
 
 .setup-stepper-row {
@@ -1356,8 +1401,9 @@ kbd {
     transition: none !important;
   }
 
-  .dotcraft-automation-viewer-tab {
+  .dotcraft-automation-viewer-tab::before {
     animation: none !important;
+    opacity: 0;
   }
 
   .composer-mascot-breathe,
@@ -1394,14 +1440,12 @@ kbd {
 
   .setup-wizard-kicker.tool-running-gradient-text {
     background-image: linear-gradient(
-      90deg,
-      var(--text-dimmed) 0%,
-      var(--text-secondary) 22%,
-      var(--text-primary) 44%,
-      var(--accent) 50%,
-      var(--text-primary) 56%,
-      var(--text-secondary) 78%,
-      var(--text-dimmed) 100%
+      115deg,
+      var(--shimmer-base) 0%,
+      var(--shimmer-base) calc(50% - 22px),
+      var(--shimmer-peak) 50%,
+      var(--shimmer-base) calc(50% + 22px),
+      var(--shimmer-base) 100%
     );
     background-size: 240px 100%;
     background-position: 0 50%;
@@ -1409,7 +1453,7 @@ kbd {
     -webkit-background-clip: text;
     color: transparent;
     -webkit-text-fill-color: transparent;
-    animation: tool-running-gradient 4.8s linear infinite;
+    animation: tool-running-gradient 3s linear infinite;
   }
 
   .welcome-screen--opening .welcome-language-switcher,
