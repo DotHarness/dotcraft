@@ -987,6 +987,8 @@ export const MESSAGES_EN = {
   'conversation.thinking.expandTooltip': 'Click to expand reasoning',
   'conversation.thinking.statusTooltip': 'DotCraft is thinking...',
   'conversation.copyMessage': 'Copy message',
+  'conversation.selectAll': 'Select All',
+  'conversation.copyImage': 'Copy Image',
   'conversation.forkMessage': 'Fork',
   'conversation.editMessage': 'Edit message',
   'conversation.editTextarea': 'Edit message text',

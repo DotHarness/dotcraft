@@ -943,6 +943,8 @@ export const MESSAGES_ZH_HANS = {
   'conversation.thinking.expandTooltip': '点击展开思考内容',
   'conversation.thinking.statusTooltip': 'DotCraft 正在思考...',
   'conversation.copyMessage': '复制消息',
+  'conversation.selectAll': '全选',
+  'conversation.copyImage': '复制图片',
   'conversation.forkMessage': 'Fork',
   'conversation.editMessage': '编辑消息',
   'conversation.editTextarea': '编辑消息文本',

@@ -222,6 +222,8 @@ export const MESSAGES_DE = {
   'toast.threadArchived': 'Diese Unterhaltung wurde von einem anderen Client archiviert',
   'toast.copied': 'In die Zwischenablage kopiert',
   'conversation.copyMessage': 'Nachricht kopieren',
+  'conversation.selectAll': 'Alles auswählen',
+  'conversation.copyImage': 'Bild kopieren',
   'conversation.forkMessage': 'Fork',
   'conversation.editMessage': 'Nachricht bearbeiten',
   'conversation.editSend': 'Senden',

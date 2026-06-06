@@ -222,6 +222,8 @@ export const MESSAGES_JA = {
   'toast.threadArchived': 'この会話は別のクライアントでアーカイブされました',
   'toast.copied': 'クリップボードにコピーしました',
   'conversation.copyMessage': 'メッセージをコピー',
+  'conversation.selectAll': 'すべて選択',
+  'conversation.copyImage': '画像をコピー',
   'conversation.forkMessage': 'Fork',
   'conversation.editMessage': 'メッセージを編集',
   'conversation.editSend': '送信',

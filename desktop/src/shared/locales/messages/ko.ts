@@ -222,6 +222,8 @@ export const MESSAGES_KO = {
   'toast.threadArchived': '이 대화는 다른 클라이언트에서 보관되었습니다',
   'toast.copied': '클립보드에 복사됨',
   'conversation.copyMessage': '메시지 복사',
+  'conversation.selectAll': '모두 선택',
+  'conversation.copyImage': '이미지 복사',
   'conversation.forkMessage': 'Fork',
   'conversation.editMessage': '메시지 편집',
   'conversation.editSend': '보내기',

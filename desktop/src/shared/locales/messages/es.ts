@@ -222,6 +222,8 @@ export const MESSAGES_ES = {
   'toast.threadArchived': 'Esta conversación fue archivada por otro cliente',
   'toast.copied': 'Copiado al portapapeles',
   'conversation.copyMessage': 'Copiar mensaje',
+  'conversation.selectAll': 'Seleccionar todo',
+  'conversation.copyImage': 'Copiar imagen',
   'conversation.forkMessage': 'Fork',
   'conversation.editMessage': 'Editar mensaje',
   'conversation.editSend': 'Enviar',
