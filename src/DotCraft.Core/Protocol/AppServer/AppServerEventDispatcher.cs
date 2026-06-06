@@ -30,6 +30,14 @@ public sealed class AppServerEventDispatcher
     /// </summary>
     private readonly Func<SessionWireTurn, Task>? _onTurnStarted;
 
+    /// <summary>
+    /// Optional enricher applied to full thread wires before they are sent as <c>thread/started</c>
+    /// (ThreadCreated) and <c>thread/resumed</c> notifications, so server-originated threads (e.g.
+    /// created by a managed runtime such as Teams) carry the same App Binding / origin-app attribution
+    /// as <c>thread/list</c>. Without it, event-delivered threads fall back to the generic channel icon.
+    /// </summary>
+    private readonly Func<SessionWireThread, SessionWireThread>? _enrichThreadWire;
+
     /// <param name="events">Event stream to consume.</param>
     /// <param name="connection">Connection state for opt-out filtering and capability checks.</param>
     /// <param name="transport">Transport for sending notifications and approval requests.</param>
@@ -51,13 +59,15 @@ public sealed class AppServerEventDispatcher
         ISessionService sessionService,
         Func<SessionWireTurn, Task>? onTurnStarted = null,
         SessionApprovalDecision defaultApprovalDecision = SessionApprovalDecision.Reject,
-        SessionStreamDebugLogger? streamDebugLogger = null)
+        SessionStreamDebugLogger? streamDebugLogger = null,
+        Func<SessionWireThread, SessionWireThread>? enrichThreadWire = null)
     {
         _events = events;
         _connection = connection;
         _transport = transport;
         _onTurnStarted = onTurnStarted;
         _streamDebugLogger = streamDebugLogger;
+        _enrichThreadWire = enrichThreadWire;
         _interactiveRequests = new AppServerInteractiveRequestSender(
             connection,
             transport,
@@ -146,16 +156,19 @@ public sealed class AppServerEventDispatcher
     // This method maps SessionEvent → the correct params object.
     // -------------------------------------------------------------------------
 
+    private SessionWireThread? EnrichThreadWire(SessionWireThread? wire) =>
+        wire is null || _enrichThreadWire is null ? wire : _enrichThreadWire(wire);
+
     private object? BuildParams(SessionEvent evt) => evt.EventType switch
     {
         // Thread notifications (spec Section 6.1)
         SessionEventType.ThreadCreated => new
         {
-            thread = evt.ThreadPayload?.ToWire()
+            thread = EnrichThreadWire(evt.ThreadPayload?.ToWire())
         },
         SessionEventType.ThreadResumed => new
         {
-            thread = evt.ThreadPayload?.ToWire(),
+            thread = EnrichThreadWire(evt.ThreadPayload?.ToWire()),
             resumedBy = evt.ResumedPayload?.ResumedBy
         },
         SessionEventType.ThreadStatusChanged => new

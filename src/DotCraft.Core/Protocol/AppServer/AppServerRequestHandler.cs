@@ -2321,7 +2321,7 @@ public sealed class AppServerRequestHandler(
         return new ThreadRollbackResponse
         {
             Thread = await HydrateThreadGoalAsync(
-                WithAppBindingSummaries(
+                WithAppBindingAttribution(
                     WithRuntimeSnapshot(
                         WithContextUsage(FilterToolExecutionItemsForConnection(thread.ToWire(includeTurns: true)), thread.Id),
                         thread),
@@ -2367,26 +2367,45 @@ public sealed class AppServerRequestHandler(
         SessionWireThread wire,
         SessionThread thread,
         CancellationToken ct) =>
-        await HydrateThreadGoalAsync(WithAppBindingSummaries(wire, thread.Id, thread.WorkspacePath), ct);
+        await HydrateThreadGoalAsync(WithAppBindingAttribution(wire, thread.Id, thread.WorkspacePath), ct);
 
-    private SessionWireThread WithAppBindingSummaries(
+    /// <summary>
+    /// Attaches App Binding attribution to a thread wire: lightweight app-binding summaries plus, when the
+    /// thread's origin channel matches an installed app's declared origin channel, the origin-app branding
+    /// badge. Discovers the workspace catalog once so <c>thread/started</c>, <c>thread/updated</c>,
+    /// <c>thread/fork</c>, <c>thread/read</c>, and <c>thread/rollback</c> carry the same attribution as
+    /// <c>thread/list</c> — without it, event-delivered threads fall back to the generic channel icon.
+    /// </summary>
+    private SessionWireThread WithAppBindingAttribution(
         SessionWireThread wire,
         string threadId,
         string workspacePath)
     {
-        var appBindings = TryGetAppBindingSummaries(threadId, workspacePath);
-        return appBindings.Count == 0 ? wire : wire with { AppBindings = appBindings };
-    }
-
-    private List<ThreadAppBindingSummaryWire> TryGetAppBindingSummaries(string threadId, string workspacePath)
-    {
-        if (string.IsNullOrWhiteSpace(threadId))
-            return [];
+        if (appBindingService is null || string.IsNullOrWhiteSpace(threadId))
+            return wire;
         var catalog = TryGetAppCatalog(workspacePath);
         if (catalog is null)
-            return [];
-        return appBindingService!.ListThreadBindingSummaries(catalog, Path.Combine(workspacePath, ".craft"), threadId);
+            return wire;
+        var appBindings = appBindingService.ListThreadBindingSummaries(
+            catalog, Path.Combine(workspacePath, ".craft"), threadId);
+        var originApp = appBindingService.ResolveOriginApp(catalog, wire.OriginChannel, wire.ChannelContext);
+        if (appBindings.Count == 0 && originApp is null)
+            return wire;
+        return wire with
+        {
+            AppBindings = appBindings.Count > 0 ? appBindings : wire.AppBindings,
+            OriginApp = originApp ?? wire.OriginApp
+        };
     }
+
+    /// <summary>
+    /// Synchronous thread-wire enricher handed to <see cref="AppServerEventDispatcher"/> so
+    /// <c>thread/started</c> (ThreadCreated) and <c>thread/resumed</c> notifications carry the same
+    /// App Binding / origin-app attribution as <c>thread/list</c>. Used for server-originated threads
+    /// (e.g. Teams mission member threads) that reach the client only via the event stream.
+    /// </summary>
+    private SessionWireThread EnrichThreadWireForNotification(SessionWireThread wire) =>
+        WithAppBindingAttribution(wire, wire.Id, wire.WorkspacePath);
 
     /// <summary>
     /// Discovers the App Binding catalog for a workspace, or null when App Binding is unavailable or
@@ -2511,7 +2530,8 @@ public sealed class AppServerRequestHandler(
         var dispatcher = new AppServerEventDispatcher(
             events, connection, transport, sessionService,
             defaultApprovalDecision: _defaultApprovalDecision,
-            streamDebugLogger: streamDebugLogger);
+            streamDebugLogger: streamDebugLogger,
+            enrichThreadWire: EnrichThreadWireForNotification);
         _ = dispatcher.RunAsync(subCts.Token)
             .ContinueWith(t =>
             {
@@ -2949,7 +2969,8 @@ public sealed class AppServerRequestHandler(
         var dispatcher = new AppServerEventDispatcher(
             events, connection, transport, sessionService, OnTurnStarted,
             defaultApprovalDecision: _defaultApprovalDecision,
-            streamDebugLogger: streamDebugLogger);
+            streamDebugLogger: streamDebugLogger,
+            enrichThreadWire: EnrichThreadWireForNotification);
 
         var dispatchTask = dispatcher.RunAsync(CancellationToken.None);
 

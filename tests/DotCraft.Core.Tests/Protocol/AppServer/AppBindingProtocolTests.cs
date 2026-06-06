@@ -1052,6 +1052,32 @@ public sealed class AppBindingProtocolTests : IDisposable
         Assert.Null(origin.MemberId);
     }
 
+    // Reproduces the live Teams setup: managed TeamsService runtime + agent-teams plugin assets,
+    // mission member threads stamped channelContext="{missionId}:{memberId}".
+    [Theory]
+    [InlineData("leader", "Team Leader")]
+    [InlineData("explorer", "Explorer")]
+    [InlineData("builder", "Builder")]
+    [InlineData("reviewer", "Reviewer")]
+    [InlineData("operator", "Operator")]
+    public void ResolveOriginApp_ManagedTeamsRuntime_BrandsEveryMemberRole(string memberId, string expectedDisplayName)
+    {
+        WriteAgentTeamsPlugin();
+        var service = new AppBindingService(new IManagedAppBindingRuntime[] { new DotCraft.Teams.TeamsService() });
+        var catalog = service.DiscoverCatalog(new AppConfig(), _tempRoot, _workspaceCraftPath);
+
+        var origin = service.ResolveOriginApp(
+            catalog,
+            "teams",
+            $"mission_76e5319b02454d37a6cd5c9cf8435133:{memberId}");
+
+        Assert.NotNull(origin);
+        Assert.Equal(memberId, origin!.MemberId);
+        Assert.Equal(expectedDisplayName, origin.DisplayName);
+        Assert.NotNull(origin.Icon);
+        Assert.StartsWith("data:image/svg+xml;base64,", origin.Icon!);
+    }
+
     [Fact]
     public async Task PluginLifecycle_ForAppPluginEmitsAppListUpdated()
     {
@@ -2024,6 +2050,39 @@ public sealed class AppBindingProtocolTests : IDisposable
                     Path.Combine(pluginRoot, $"{name}.svg"),
                     $"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="{fill}"/></svg>""");
             }
+        }
+    }
+
+    private void WriteAgentTeamsPlugin()
+    {
+        var pluginRoot = Path.Combine(_workspaceCraftPath, "plugins", "agent-teams");
+        Directory.CreateDirectory(Path.Combine(pluginRoot, ".craft-plugin"));
+        Directory.CreateDirectory(Path.Combine(pluginRoot, "assets"));
+        File.WriteAllText(
+            Path.Combine(pluginRoot, ".craft-plugin", "plugin.json"),
+            """
+{
+  "schemaVersion": 1,
+  "id": "agent-teams",
+  "version": "0.1.0",
+  "displayName": "Agent Teams",
+  "description": "Unlock the DotCraft Team card board with robot teammates.",
+  "capabilities": ["metadata", "team"],
+  "interface": {
+    "displayName": "Agent Teams",
+    "shortDescription": "Run missions with a small robot team",
+    "developerName": "DotHarness",
+    "category": "Productivity",
+    "composerIcon": "./assets/agent-teams.svg",
+    "logo": "./assets/agent-teams.svg"
+  }
+}
+""");
+        foreach (var role in new[] { "leader", "explorer", "builder", "reviewer", "operator", "agent-teams" })
+        {
+            File.WriteAllText(
+                Path.Combine(pluginRoot, "assets", $"team-{role}.svg".Replace("team-agent-teams", "agent-teams")),
+                """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#4F7CF6"/></svg>""");
         }
     }
 
