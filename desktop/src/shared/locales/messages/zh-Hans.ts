@@ -1657,6 +1657,8 @@ export const MESSAGES_ZH_HANS = {
   'threadEntry.unreadCompleted': '有新结果',
   'threadEntry.subAgent': '后台智能体',
   'threadEntry.originChannel': '来源渠道：{{channel}}',
+  'threadEntry.originApp': '来源应用：{{app}}',
+  'threadEntry.originMember': '来源：{{name}}',
   'fork.menu': 'Fork',
   'fork.intoLocal': 'Fork 到本地',
   'fork.intoWorktree': 'Fork 到新 worktree',

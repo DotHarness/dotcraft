@@ -1051,6 +1051,8 @@ export const MESSAGES_JA = {
   'threadEntry.unreadCompleted': '新しい結果',
   'threadEntry.subAgent': 'バックグラウンドエージェント',
   'threadEntry.originChannel': '元のチャンネル: {{channel}}',
+  'threadEntry.originApp': '元のアプリ: {{app}}',
+  'threadEntry.originMember': '元: {{name}}',
   'fork.menu': 'Fork',
   'fork.intoLocal': 'ローカルに Fork',
   'fork.intoWorktree': '新しい worktree に Fork',

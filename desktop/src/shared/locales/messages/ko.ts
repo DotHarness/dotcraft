@@ -1051,6 +1051,8 @@ export const MESSAGES_KO = {
   'threadEntry.unreadCompleted': '새로운 결과',
   'threadEntry.subAgent': '백그라운드 에이전트',
   'threadEntry.originChannel': '원본 채널: {{channel}}',
+  'threadEntry.originApp': '원본 앱: {{app}}',
+  'threadEntry.originMember': '원본: {{name}}',
   'fork.menu': 'Fork',
   'fork.intoLocal': '로컬로 Fork',
   'fork.intoWorktree': '새 worktree로 Fork',

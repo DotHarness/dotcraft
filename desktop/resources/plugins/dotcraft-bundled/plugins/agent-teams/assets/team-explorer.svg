@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 1024 1024" fill="none" role="img" aria-labelledby="title desc">
+  <title id="title">DotCraft Explorer</title>
+  <desc id="desc">A DotCraft robot with a sky body, curious symbol face, and magnifying glass.</desc>
+  <defs>
+    <linearGradient id="role-body" x1="279" y1="766" x2="736" y2="334" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0284c7"/>
+      <stop offset=".5" stop-color="#0ea5e9"/>
+      <stop offset="1" stop-color="#38bdf8"/>
+    </linearGradient>
+    <linearGradient id="role-mark" x1="366" y1="694" x2="658" y2="560" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0369a1"/>
+      <stop offset="1" stop-color="#22d3ee"/>
+    </linearGradient>
+    <linearGradient id="yellow" x1="481" y1="174" x2="617" y2="713" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffcf11"/>
+      <stop offset="1" stop-color="#f6b500"/>
+    </linearGradient>
+    <filter id="soft-shadow" x="-12%" y="-12%" width="124%" height="124%">
+      <feDropShadow dx="0" dy="18" stdDeviation="24" flood-color="#075985" flood-opacity=".16"/>
+    </filter>
+    <filter id="inner-lift" x="-8%" y="-8%" width="116%" height="116%">
+      <feDropShadow dx="0" dy="10" stdDeviation="16" flood-color="#075985" flood-opacity=".1"/>
+    </filter>
+    <filter id="accessory-lift" x="-18%" y="-18%" width="136%" height="136%">
+      <feDropShadow dx="0" dy="14" stdDeviation="14" flood-color="#020617" flood-opacity=".18"/>
+    </filter>
+  </defs>
+
+  <g transform="translate(512 528) scale(1.3) translate(-512 -512)">
+    <g filter="url(#soft-shadow)">
+      <rect x="201" y="365" width="622" height="513" rx="151" fill="#fff"/>
+      <rect x="145" y="472" width="136" height="256" rx="58" fill="#fff"/>
+      <rect x="743" y="472" width="136" height="256" rx="58" fill="#fff"/>
+      <rect x="438" y="270" width="148" height="182" rx="2" fill="#fff"/>
+      <circle cx="512" cy="229" r="116" fill="#fff"/>
+    </g>
+
+    <g filter="url(#inner-lift)">
+      <rect x="243" y="408" width="538" height="426" rx="113" fill="url(#role-body)"/>
+      <rect x="188" y="514" width="90" height="171" rx="19" fill="url(#role-body)"/>
+      <rect x="746" y="514" width="90" height="171" rx="19" fill="url(#role-body)"/>
+      <rect x="479" y="337" width="66" height="119" rx="6" fill="url(#role-body)"/>
+    </g>
+
+    <rect x="295" y="464" width="434" height="315" rx="78" fill="#fff"/>
+    <circle cx="512" cy="229" r="73" fill="url(#yellow)"/>
+
+    <path d="M389 612h58" stroke="url(#role-mark)" stroke-width="30" stroke-linecap="round"/>
+    <path d="M577 612h58" stroke="url(#role-mark)" stroke-width="30" stroke-linecap="round"/>
+    <path d="M493 700h42" stroke="url(#role-mark)" stroke-width="20" stroke-linecap="round"/>
+  </g>
+
+  <g filter="url(#accessory-lift)">
+    <g transform="translate(22 -22) rotate(28 862 646)">
+      <path d="M862 646v112" stroke="#fff" stroke-width="48" stroke-linecap="round"/>
+      <path d="M862 646v112" stroke="url(#role-mark)" stroke-width="28" stroke-linecap="round"/>
+      <circle cx="862" cy="562" r="82" fill="#fff" stroke="#fff" stroke-width="30"/>
+      <circle cx="862" cy="562" r="82" fill="#fff" fill-opacity=".72" stroke="url(#role-mark)" stroke-width="18"/>
+      <path d="M828 534c21-22 54-30 82-19" stroke="#fff" stroke-width="12" stroke-linecap="round" opacity=".9"/>
+    </g>
+  </g>
+</svg>

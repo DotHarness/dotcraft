@@ -973,12 +973,23 @@ public sealed class AppServerRequestHandler(
             : null;
 
         var data = new List<ThreadSummary>();
+        var catalogByWorkspace = new Dictionary<string, AppCatalogSnapshot?>(StringComparer.Ordinal);
         foreach (var summary in page)
         {
             summary.Goal = await TryGetGoalSnapshotAsync(summary.Id, ct);
-            var appBindings = TryGetAppBindingSummaries(summary.Id, summary.WorkspacePath);
-            if (appBindings.Count > 0)
-                summary.AppBindings = appBindings;
+            if (!catalogByWorkspace.TryGetValue(summary.WorkspacePath, out var catalog))
+            {
+                catalog = TryGetAppCatalog(summary.WorkspacePath);
+                catalogByWorkspace[summary.WorkspacePath] = catalog;
+            }
+            if (catalog is not null)
+            {
+                var appBindings = appBindingService!.ListThreadBindingSummaries(
+                    catalog, Path.Combine(summary.WorkspacePath, ".craft"), summary.Id);
+                if (appBindings.Count > 0)
+                    summary.AppBindings = appBindings;
+                summary.OriginApp = appBindingService.ResolveOriginApp(catalog, summary.OriginChannel, summary.ChannelContext);
+            }
             data.Add(summary);
         }
 
@@ -2369,20 +2380,32 @@ public sealed class AppServerRequestHandler(
 
     private List<ThreadAppBindingSummaryWire> TryGetAppBindingSummaries(string threadId, string workspacePath)
     {
-        if (appBindingService == null || string.IsNullOrWhiteSpace(threadId) || string.IsNullOrWhiteSpace(workspacePath))
+        if (string.IsNullOrWhiteSpace(threadId))
             return [];
+        var catalog = TryGetAppCatalog(workspacePath);
+        if (catalog is null)
+            return [];
+        return appBindingService!.ListThreadBindingSummaries(catalog, Path.Combine(workspacePath, ".craft"), threadId);
+    }
 
+    /// <summary>
+    /// Discovers the App Binding catalog for a workspace, or null when App Binding is unavailable or
+    /// the workspace has no <c>.craft</c> directory. Shared by thread-summary enrichment (app bindings
+    /// + origin-app attribution) so a single <c>thread/list</c> projection discovers each workspace once.
+    /// </summary>
+    private AppCatalogSnapshot? TryGetAppCatalog(string workspacePath)
+    {
+        if (appBindingService == null || string.IsNullOrWhiteSpace(workspacePath))
+            return null;
         var craftPath = Path.Combine(workspacePath, ".craft");
         if (!Directory.Exists(craftPath))
-            return [];
-
-        var catalog = appBindingService.DiscoverCatalog(
+            return null;
+        return appBindingService.DiscoverCatalog(
             appConfigMonitor?.Current ?? LoadCurrentMergedConfig(),
             workspacePath,
             craftPath,
             skillsLoader,
             builtInPluginSourceRoots);
-        return appBindingService.ListThreadBindingSummaries(catalog, craftPath, threadId);
     }
 
     private void RevokeAppBindingsForDeletedThread(SessionThread thread)

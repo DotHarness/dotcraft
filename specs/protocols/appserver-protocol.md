@@ -806,6 +806,11 @@ List threads matching a given identity.
         "running": true,
         "waitingOnApproval": false,
         "waitingOnPlanConfirmation": false
+      },
+      "originApp": {
+        "appId": "com.dotharness.oratorio",
+        "displayName": "Oratorio",
+        "icon": "data:image/svg+xml;base64,..."
       }
     }
   ],
@@ -817,6 +822,8 @@ List threads matching a given identity.
 Results are ordered by `lastActiveAt` descending. Filtering is applied before pagination. `nextCursor` is `null` or omitted when no further page exists. `totalMatched` is the number of threads after all filters and before pagination. Cursors are opaque and clients must not parse them. Older clients that omit both `limit` and `cursor` keep receiving the complete list for compatibility.
 
 Each `ThreadSummary` may include an optional `runtime` snapshot with the same shape as `thread/runtimeChanged`. This snapshot is best-effort process-local state intended to hydrate thread-list activity indicators after reconnect. Clients should apply it as initial list state and continue to consume `thread/runtimeChanged` as the incremental source of truth. Older servers may omit `runtime`, and clients must treat omission as unknown rather than as an idle thread.
+
+Each `ThreadSummary` may also include an optional `originApp` object `{ appId, displayName, icon?, memberId? }`. The server populates it only when the summary's `originChannel` matches the declared `originChannel` of an installed App Binding app (see [App Binding] §5.1), attributing the thread's origin to that app so clients can render the app's icon + name as the origin badge. When the app also declares `originMembers` and the summary's `channelContext` matches one, `displayName`/`icon` carry the matched member's branding and `memberId` is set (the matched key) so clients can present it as a per-member origin; `appId` still identifies the owning app. `icon` is an optional data URL or safe URL (same contract as app icons). Clients must fall back to the generic origin-channel badge when `originApp` is absent or its `icon` is missing.
 
 ### 4.3.1 `channel/list`
 

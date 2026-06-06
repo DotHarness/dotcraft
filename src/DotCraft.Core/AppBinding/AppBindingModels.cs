@@ -35,6 +35,23 @@ public sealed class AppDescriptor
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Icon { get; set; }
 
+    /// <summary>
+    /// Optional <see cref="DotCraft.Sdk"/> <c>SessionIdentity.ChannelName</c> this app stamps on
+    /// threads it originates. When a thread's <c>OriginChannel</c> matches, the host attributes the
+    /// thread to this app and renders the app icon + display name as the thread origin badge. Opt-in;
+    /// there is no implicit <see cref="ToolNamespace"/> matching.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? OriginChannel { get; set; }
+
+    /// <summary>
+    /// Optional finer-grained per-member branding for an app that originates threads for distinct
+    /// members/roles. Requires <see cref="OriginChannel"/>. When a thread matches and its
+    /// <c>channelContext</c> matches a member, the host renders that member's icon + display name.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<AppOriginMemberDescriptor>? OriginMembers { get; set; }
+
     public AppConnectionDescriptor Connection { get; set; } = new();
 
     public AppNativeApplicationDescriptor NativeApplication { get; set; } = new();
@@ -56,6 +73,20 @@ public sealed class AppDescriptor
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? DownloadUrl { get; set; }
+}
+
+/// <summary>
+/// A per-member origin-branding entry: when a thread's <c>channelContext</c> contains
+/// <see cref="Match"/> (case-insensitive substring), the host renders this member's icon + name.
+/// </summary>
+public sealed class AppOriginMemberDescriptor
+{
+    public string Match { get; set; } = string.Empty;
+
+    public string DisplayName { get; set; } = string.Empty;
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Icon { get; set; }
 }
 
 public sealed class AppConnectionDescriptor

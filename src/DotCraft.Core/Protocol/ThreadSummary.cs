@@ -161,6 +161,14 @@ public sealed class ThreadSummary
     public List<ThreadAppBindingSummaryWire>? AppBindings { get; set; }
 
     /// <summary>
+    /// Optional origin-app attribution: set at projection time when the thread's
+    /// <see cref="OriginChannel"/> matches an installed app's declared origin channel, so clients
+    /// can render the app's icon + name as the thread origin badge.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ThreadOriginAppWire? OriginApp { get; set; }
+
+    /// <summary>
     /// Channel-specific metadata copied from the Thread.
     /// </summary>
     public Dictionary<string, string> Metadata { get; set; } = [];
@@ -190,4 +198,26 @@ public sealed class ThreadSummary
             Runtime = ThreadSummaryRuntime.FromThread(thread),
             Metadata = new Dictionary<string, string>(thread.Metadata)
         };
+}
+
+/// <summary>
+/// Origin-app attribution for a thread summary: the installed App Binding app whose declared
+/// <c>originChannel</c> matches the thread's <c>OriginChannel</c>. Used by clients to render an
+/// app-branded origin badge instead of the generic channel fallback.
+/// </summary>
+public sealed class ThreadOriginAppWire
+{
+    public string AppId { get; set; } = string.Empty;
+
+    public string DisplayName { get; set; } = string.Empty;
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Icon { get; set; }
+
+    /// <summary>
+    /// Set when <see cref="DisplayName"/>/<see cref="Icon"/> carry a matched origin member's branding
+    /// (the matched key), so clients can present a per-member rather than app-level origin.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? MemberId { get; set; }
 }

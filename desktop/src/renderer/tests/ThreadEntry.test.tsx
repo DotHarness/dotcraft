@@ -633,4 +633,50 @@ describe('ThreadEntry', () => {
     expect(screen.getByRole('button', { name: 'Confirm' })).toBeVisible()
     expect(screen.getByLabelText('Origin channel: qq')).toBeVisible()
   })
+
+  it('renders the app-origin badge (icon + name) when originApp is set', async () => {
+    const icon = 'data:image/svg+xml;base64,PHN2Zz48L3N2Zz4='
+    renderThreadEntry(
+      makeThread({
+        originChannel: 'oratorio',
+        originApp: { appId: 'com.dotharness.oratorio', displayName: 'Oratorio', icon }
+      })
+    )
+
+    const badge = await screen.findByLabelText('Origin app: Oratorio')
+    expect(badge).toBeInTheDocument()
+    const img = badge.querySelector('img')
+    expect(img?.getAttribute('src')).toBe(icon)
+  })
+
+  it('falls back to the channel badge when originApp is absent', () => {
+    renderThreadEntry(makeThread({ originChannel: 'oratorio' }))
+
+    expect(screen.getByLabelText('Origin channel: oratorio')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Origin app: Oratorio')).not.toBeInTheDocument()
+  })
+
+  it('renders the app-origin badge by name even when its icon is missing', async () => {
+    renderThreadEntry(
+      makeThread({
+        originChannel: 'oratorio',
+        originApp: { appId: 'com.dotharness.oratorio', displayName: 'Oratorio', icon: null }
+      })
+    )
+
+    expect(await screen.findByLabelText('Origin app: Oratorio')).toBeInTheDocument()
+  })
+
+  it('uses the per-member tooltip when originApp carries a memberId', async () => {
+    const icon = 'data:image/svg+xml;base64,PHN2Zz48L3N2Zz4='
+    renderThreadEntry(
+      makeThread({
+        originChannel: 'teams',
+        originApp: { appId: 'com.dotharness.dotcraft-teams', displayName: 'Explorer', icon, memberId: 'explorer' }
+      })
+    )
+
+    expect(await screen.findByLabelText('Origin: Explorer')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Origin app: Explorer')).not.toBeInTheDocument()
+  })
 })

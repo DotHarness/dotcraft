@@ -238,6 +238,8 @@ The app descriptor document contains one or more descriptors:
 | `description` | string | yes | User-visible description. |
 | `category` | string | no | UI category. |
 | `icon` | string | no | Manifest-relative icon path. AppServer exposes accepted icons to Desktop as a data URL or safe URL. |
+| `originChannel` | string | no | The `SessionIdentity.ChannelName` this app stamps on threads it originates. When a thread's `originChannel` matches, the host attributes the thread to this app and renders the app's icon + `displayName` as the thread origin badge (see [AppServer Protocol] `thread/list` `originApp`). Opt-in; there is no implicit `toolNamespace` matching. Must exactly match the channel name the app uses at thread create/fork/resume. |
+| `originMembers` | AppOriginMemberDescriptor[] | no | Finer-grained per-member branding for an app that originates threads for distinct members/roles (for example team roles). Requires `originChannel`. When a thread matches the app and its `channelContext` matches a member, the host renders that member's icon + `displayName` instead of the app-level visual. Each entry is `{ match: string, displayName: string, icon?: string }`: `match` is a case-insensitive substring matched against the thread's `channelContext`; `icon` is a manifest-relative path resolved the same way as the app `icon`. |
 | `releasePage` | string | no | Human-readable release page. |
 | `nativeApplication` | object | yes | OS app identity and install metadata. |
 | `connection` | object | yes | Connection and handoff metadata. |
@@ -263,6 +265,19 @@ The app descriptor document contains one or more descriptors:
 - Must be unique across the effective app catalog.
 - Must not collide with a built-in tool namespace that DotCraft reserves.
 - Must not include dots, slashes, whitespace, or display-only punctuation.
+
+`originChannel` rules:
+
+- Optional and free-form (it mirrors a `ChannelName`, not a `toolNamespace`).
+- Should be unique across the effective app catalog. If two installed apps declare the same `originChannel`, the host resolves attribution deterministically (lowest `appId` ordinal) and may surface a diagnostic; this is a configuration error, not a hard failure — thread listing is unaffected.
+- Attribution is opt-in: a thread is branded only when its `originChannel` equals a declared `originChannel`. A mismatch (or an uninstalled app) silently falls back to the generic channel badge.
+
+`originMembers` rules:
+
+- Requires `originChannel`; ignored without it.
+- `match` is matched as a case-insensitive substring of the thread's `channelContext`. The app must choose `match` values that are unambiguous within its own `channelContext` format. Members are evaluated in declared order; the first match wins.
+- When no member matches (or the thread has no `channelContext`), the host falls back to the app-level `originChannel` visual.
+- `icon` resolution and safety are identical to the app `icon` (host exposes it to clients as a data URL or safe URL).
 
 ### 5.3 Native App Requirement
 

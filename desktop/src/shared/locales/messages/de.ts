@@ -1057,6 +1057,8 @@ export const MESSAGES_DE = {
   'threadEntry.unreadCompleted': 'Neues Ergebnis',
   'threadEntry.subAgent': 'Hintergrundagent',
   'threadEntry.originChannel': 'Ursprungskanal: {{channel}}',
+  'threadEntry.originApp': 'Ursprungs-App: {{app}}',
+  'threadEntry.originMember': 'Ursprung: {{name}}',
   'fork.menu': 'Fork',
   'fork.intoLocal': 'Fork in lokal',
   'fork.intoWorktree': 'Fork in neuen Worktree',

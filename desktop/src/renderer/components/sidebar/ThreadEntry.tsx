@@ -439,12 +439,27 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
               flexShrink: 0
             }}
           >
-            <ChannelIconBadge
-              channelName={thread.originChannel}
-              tooltip={t('threadEntry.originChannel', { channel: thread.originChannel })}
-              muted={!isActive}
-              size={18}
-            />
+            {thread.originApp ? (
+              <ChannelIconBadge
+                channelName={thread.originChannel}
+                iconSrc={thread.originApp.icon ?? undefined}
+                label={thread.originApp.displayName}
+                tooltip={
+                  thread.originApp.memberId
+                    ? t('threadEntry.originMember', { name: thread.originApp.displayName })
+                    : t('threadEntry.originApp', { app: thread.originApp.displayName })
+                }
+                muted={!isActive}
+                size={18}
+              />
+            ) : (
+              <ChannelIconBadge
+                channelName={thread.originChannel}
+                tooltip={t('threadEntry.originChannel', { channel: thread.originChannel })}
+                muted={!isActive}
+                size={18}
+              />
+            )}
           </span>
         )}
 

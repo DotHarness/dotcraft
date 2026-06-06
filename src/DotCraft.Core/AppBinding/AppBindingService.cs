@@ -1977,6 +1977,95 @@ public sealed class AppBindingService
         };
     }
 
+    /// <summary>
+    /// Resolves a thread's <paramref name="originChannel"/> to the installed app that declared it as
+    /// its <c>originChannel</c>, returning branding (icon + display name) for the thread origin badge.
+    /// When the app also declares <c>originMembers</c> and <paramref name="channelContext"/> matches one,
+    /// the matched member's branding is returned instead of the app-level visual. Opt-in (declared
+    /// origin channels only); returns null when nothing matches, the app is not installed, or the
+    /// channel is blank — so callers fall back to the generic badge.
+    /// </summary>
+    public ThreadOriginAppWire? ResolveOriginApp(AppCatalogSnapshot catalog, string? originChannel, string? channelContext = null)
+    {
+        if (string.IsNullOrWhiteSpace(originChannel))
+            return null;
+
+        var entry = catalog.Entries
+            .Where(candidate => candidate.Plugin.Installed
+                                && !string.IsNullOrWhiteSpace(candidate.Descriptor.OriginChannel)
+                                && string.Equals(candidate.Descriptor.OriginChannel, originChannel, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(candidate => candidate.Descriptor.AppId, StringComparer.Ordinal)
+            .FirstOrDefault();
+        if (entry is null)
+            return null;
+
+        var member = ResolveOriginMember(entry.Descriptor, channelContext);
+        if (member is not null)
+        {
+            return new ThreadOriginAppWire
+            {
+                AppId = entry.Descriptor.AppId,
+                DisplayName = member.DisplayName,
+                Icon = ResolvePluginRelativeIconForWire(entry, member.Icon),
+                MemberId = member.Match
+            };
+        }
+
+        return new ThreadOriginAppWire
+        {
+            AppId = entry.Descriptor.AppId,
+            DisplayName = entry.Descriptor.DisplayName,
+            Icon = ResolveIconForWire(entry.Descriptor.Icon)
+                   ?? ResolvePluginInterfaceIconForWire(entry.Plugin.Manifest)
+        };
+    }
+
+    private static AppOriginMemberDescriptor? ResolveOriginMember(AppDescriptor descriptor, string? channelContext)
+    {
+        if (descriptor.OriginMembers is not { Count: > 0 } members || string.IsNullOrWhiteSpace(channelContext))
+            return null;
+
+        return members.FirstOrDefault(member =>
+            !string.IsNullOrWhiteSpace(member.Match)
+            && channelContext.Contains(member.Match, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// Resolves an icon path declared in a descriptor that has not been path-absolutized by catalog
+    /// discovery (managed-runtime descriptors, and origin-member icons), relative to the owning
+    /// plugin root, then delegates to <see cref="ResolveIconForWire"/>. Refuses paths that escape the
+    /// plugin root.
+    /// </summary>
+    private static string? ResolvePluginRelativeIconForWire(AppCatalogEntry entry, string? icon)
+    {
+        if (string.IsNullOrWhiteSpace(icon))
+            return null;
+        if (icon.StartsWith("data:", StringComparison.OrdinalIgnoreCase)
+            || icon.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+            || icon.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
+            || Path.IsPathFullyQualified(icon))
+        {
+            return ResolveIconForWire(icon);
+        }
+
+        try
+        {
+            var root = Path.GetFullPath(entry.Plugin.Manifest.RootPath);
+            var full = Path.GetFullPath(Path.Combine(root, icon));
+            if (!full.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(full, root, StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            return ResolveIconForWire(full);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     private ThreadAppBindingWire MapBinding(
         AppBindingRecord binding,
         AppDescriptor? descriptor,
