@@ -400,8 +400,7 @@ describe('BrowserUseManager IAB backend', () => {
     const result = await runBrowserUse(manager, owner, {
       threadId: 'thread-1',
       code: `
-        const visibility = await agent.browser.capabilities.get("visibility");
-        await visibility.set(true);
+        await agent.browser.capabilities.get("visibility").set(true);
         await agent.browser.tabs.new("localhost:3000");
       `
     })

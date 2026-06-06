@@ -911,7 +911,7 @@ class BrowserHandle {
   createCapabilitiesApi() {
     return {
       list: async () => this.info.capabilities.browser,
-      get: async (id) => {
+      get: (id) => {
         if (id === 'visibility') {
           return {
             get: async () => asObject(await this.api.executeUnhandledCommand({ type: 'browser_visibility_get' })).visible === true,
@@ -1024,10 +1024,25 @@ class TabHandle {
     return await this.playwright.evaluate(expressionOrFunction, arg, options)
   }
 
+  async waitForLoadState(stateOrOptions, timeoutMs) {
+    return await this.playwright.waitForLoadState(stateOrOptions, timeoutMs)
+  }
+
+  async waitForURL(url, options) {
+    return await this.playwright.waitForURL(url, options)
+  }
+
+  locator(selector, options) { return this.playwright.locator(selector, options) }
+  getByRole(role, options) { return this.playwright.getByRole(role, options) }
+  getByText(text, options) { return this.playwright.getByText(text, options) }
+  getByLabel(text, options) { return this.playwright.getByLabel(text, options) }
+  getByPlaceholder(text, options) { return this.playwright.getByPlaceholder(text, options) }
+  getByTestId(testId) { return this.playwright.getByTestId(testId) }
+
   createCapabilitiesApi() {
     return {
       list: async () => this.browser.info.capabilities.tab,
-      get: async (id) => {
+      get: (id) => {
         if (id === 'pageAssets') return new PageAssetsCapability(this)
         if (id === 'webmcp') return new WebMcpCapability(this)
         throw new Error(`Tab capability not found: ${id}. Available capabilities: pageAssets, webmcp.`)

@@ -53,8 +53,9 @@ The runtime has five layers:
 
 2. **Desktop Node REPL manager**
    - Owns one persistent JavaScript context per bound thread while the Desktop connection remains active.
-   - Injects `nodeRepl`, `dotcraft`, `display`, and `agent`.
+   - Injects `nodeRepl`, `dotcraft`, and `display`.
    - Exposes `dotcraft.browserClientPath` and active `dotcraft.browserSession` so the browser client can initialize in the current turn.
+   - Must not pre-install browser `agent`, `agent.browser`, or `agent.browsers` globals; the bundled browser client owns those model-facing APIs.
    - Preserves REPL state across recoverable browser command errors.
 
 3. **DotCraft browser client**
@@ -125,6 +126,8 @@ Desktop must provide the browser client with the following globals:
 | `nodeRepl.fetch` | May be provided for browser-client compatibility, but ambient network checks should be disabled unless explicitly required. |
 | `dotcraft.browserClientPath` | Absolute path to the bundled browser client entrypoint. |
 | `dotcraft.browserSession` | Active browser session metadata for the current evaluation. |
+
+`globalThis.agent` is intentionally absent in a fresh Node REPL browser cell. It is installed only after `setupBrowserRuntime({ globals })` runs from the bundled browser client.
 
 Default browser-client environment:
 
@@ -266,7 +269,8 @@ The model-visible Browser API is defined by the bundled browser client and the b
 
 Requirements:
 
-- Capabilities returned by `browser.capabilities.get(...)` and `tab.capabilities.get(...)` are asynchronous when the browser client defines them as asynchronous; skill examples must use the matching `await` shape.
+- `agent.browsers`, browser handles, tab handles, locators, CUA, DOM-CUA, capabilities, and helper APIs are model-facing only after the bundled browser client installs them through `setupBrowserRuntime({ globals })`.
+- Capability lookup examples must use the explicit handle shape: `const visibility = await browser.capabilities.get("visibility"); await visibility.set(true);`. Do not document chained `browser.capabilities.get(...).set(...)` or `tab.capabilities.get(...).list()` usage even though Desktop may tolerate it for compatibility.
 - Unsupported APIs fail with `UnsupportedApi` and a stable English fallback message instead of being absent, hanging, or silently ignored.
 - The supported reference-client subset includes `tabs.new/selected/list/get/content/finalize`, `browser.user.openTabs/claimTab`, browser `visibility` and `viewport` capabilities, `tab.goto/back/forward/reload/title/url`, screenshots, virtual clipboard `readText/writeText/read/write`, `playwright.evaluate(fnOrExpression, arg?, options?)`, `domSnapshot`, `waitForURL`, real `waitForLoadState`, `waitForTimeout`, `expectNavigation`, common locator reads and actions, `locator.all()` cached reads, `locator.filter()`, `locator.and()`, `locator.or()`, scoped `locator(selector, options)` filters, `getByRole/Text/Label/Placeholder/TestId`, same-origin `frameLocator`, coordinate CUA actions, DOM-CUA visible-node actions, `pageAssets.list/bundle`, and page-defined WebMCP tools through `tab.capabilities.get("webmcp")`.
 - `executeUnhandledCommand` accepts browser-use compatible command aliases for BrowserUser, navigation, screenshots, Playwright evaluate/DOM/locator operations, CUA, DOM-CUA, pageAssets, WebMCP, viewport, visibility, tabs content, clipboard, and dev logs. Aliases must normalize snake_case and camelCase fields to the same Desktop IAB runtime methods.
@@ -388,7 +392,11 @@ Rules:
 - The bundled plugin resource is the source of truth for Browser skill text; workspace-installed copies are derived artifacts.
 - Skill examples must match the actual asynchronous API shape.
 - The skill must document Node REPL output rules, including using `console.log` for text and `nodeRepl.emitImage` for images.
-- The skill must document locator discipline, strict locator failures, CUA object-shaped coordinates, DOM-CUA behavior, screenshot output, and the supported Playwright-compatible subset.
+- The skill must preserve DotCraft-specific bootstrap through `dotcraft.browserClientPath`, the `NodeReplJs` tool, Browser client mismatch checks, and the `iab` browser id; it must state that `agent` is installed by the bundled browser client. Plugin-root imports from other runtimes, alternate browser-control fallback wording, ordinary downloads, file chooser, upload, raw CDP capability, and hidden browser history must not be documented as Desktop IAB capabilities.
+- The skill must document model-facing operating discipline for visibility, user-facing progress wording, persistent JavaScript bindings, tab reuse, temporary-tab cleanup, search/URL fallback limits, and stopping repeated verification once an authoritative page signal is present.
+- The skill must document locator discipline, strict locator failures, CUA object-shaped coordinates, DOM-CUA behavior, screenshot output, read-only evaluate limits, and the supported Playwright-compatible subset.
+- The skill must document browser-only safety and confirmation rules for data transmission, account/permission changes, uploads, messages, purchases, browser permission prompts, downloads, and actions that require user hand-off.
+- The skill must include a DotCraft IAB API reference that matches the bundled browser client and backend subset.
 - The skill must not describe APIs that are missing from the bundled browser client or unsupported by the IAB backend.
 
 ---
@@ -397,6 +405,7 @@ Rules:
 
 - Desktop declares `desktop-iab` to AppServer and exposes an internal browser-use backend id `iab` in Node REPL.
 - The DotCraft browser client can initialize through `setupBrowserRuntime({ globals })`, discover the IAB backend through native pipe discovery, and install `agent.browsers`.
+- A fresh Node REPL browser cell does not expose browser `agent` globals before browser-client setup.
 - `metadata.dotcraftSessionId` binds discovered IAB backends to the active DotCraft thread/session.
 - Browser commands carry session and evaluation metadata and can be cancelled independently of the outer REPL request.
 - A command timeout or navigation failure rejects only the current browser promise and preserves reusable REPL globals.

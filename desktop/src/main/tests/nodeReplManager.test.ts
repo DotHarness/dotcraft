@@ -173,6 +173,9 @@ function createFakeBrowserManager(options: { staleDomNodesAfterNavigation?: bool
     return [save]
   }
   const evaluateExpression = (expression: string, tab: { url: string; title: string }) => {
+    if (expression.includes('__dotcraftChromeCommandTimeoutSentinel')) {
+      throw new Error('Chrome bridge request timed out: tab.evaluate')
+    }
     if (expression.includes('fn(arg)') && expression.includes('=> value + 1') && expression.includes(', 41')) return 42
     if (expression.includes('__dotcraftBrowserUseClientLocator')) {
       if (expression.includes('"resolve"')) return clientLocatorMatches(expression)
@@ -561,6 +564,38 @@ describe('NodeReplManager', () => {
     manager.reset('thread-1')
   })
 
+  it('does not expose browser agent globals before browser-client setup', async () => {
+    const browserManager = createFakeBrowserManager()
+    const manager = createManager(browserManager)
+    const owner = {} as Electron.BrowserWindow
+
+    const result = await manager.evaluate(owner, {
+      threadId: 'thread-fresh-browser-client',
+      code: `
+        return JSON.stringify({
+          agentType: typeof agent,
+          legacySetupType: typeof __dotcraftSetupBrowserRuntime,
+          browserClientPath: typeof dotcraft.browserClientPath,
+          browserSession: typeof dotcraft.browserSession,
+          nativePipe: typeof nodeRepl.nativePipe.createConnection,
+          emitImage: typeof nodeRepl.emitImage
+        })
+      `
+    })
+
+    expect(result.error).toBeUndefined()
+    const payload = JSON.parse(result.resultText ?? '{}')
+    expect(payload).toEqual({
+      agentType: 'undefined',
+      legacySetupType: 'undefined',
+      browserClientPath: 'string',
+      browserSession: 'object',
+      nativePipe: 'function',
+      emitImage: 'function'
+    })
+    manager.reset('thread-fresh-browser-client')
+  })
+
   it('loads browser-client.mjs and initializes IAB globals', async () => {
     const browserManager = createFakeBrowserManager()
     const manager = createManager(browserManager)
@@ -681,8 +716,12 @@ describe('NodeReplManager', () => {
         const visibility = await browser.capabilities.get("visibility")
         await visibility.set(true)
         const browserVisible = await visibility.get()
+        await browser.capabilities.get("visibility").set(false)
+        const browserVisibleAfterDirectSet = await browser.capabilities.get("visibility").get()
+        await browser.capabilities.get("visibility").set(true)
         const viewport = await browser.capabilities.get("viewport")
         await viewport.set({ width: 900, height: 640 })
+        await browser.capabilities.get("viewport").set({ width: 901, height: 641 })
         await viewport.reset()
         const tab = await browser.tabs.new()
         await tab.goto("http://localhost:3000/")
@@ -768,6 +807,7 @@ describe('NodeReplManager', () => {
         await tab.dom_cua.scroll({ node_id: "42", y: 120 })
         const pageAssets = await tab.capabilities.get("pageAssets")
         const inventory = await pageAssets.list()
+        const directInventory = await tab.capabilities.get("pageAssets").list()
         const bundle = await pageAssets.bundle({ inventoryId: inventory.id, kinds: ["stylesheet"] })
         const webmcp = await tab.capabilities.get("webmcp")
         const tools = await webmcp.listTools()
@@ -783,6 +823,7 @@ describe('NodeReplManager', () => {
           tabsContent: tabsContent[0]?.content,
           readonlyScroll,
           browserVisible,
+          browserVisibleAfterDirectSet,
           snapshot,
           count,
           texts,
@@ -812,6 +853,7 @@ describe('NodeReplManager', () => {
           devLogLevel: devLogs[0]?.level,
           devLogMessage: devLogs[0]?.message,
           assetCount: inventory.assets.length,
+          directAssetCount: directInventory.assets.length,
           inlineSvgCount: inventory.inlineSvgs.length,
           bundleDownloaded: bundle.summary.downloadedCount,
           webMcpToolName: tools[0]?.name,
@@ -834,6 +876,7 @@ describe('NodeReplManager', () => {
       tabsContent: 'Save\nCancel',
       readonlyScroll: expect.stringContaining('ReadonlyEvaluateViolation'),
       browserVisible: true,
+      browserVisibleAfterDirectSet: false,
       count: 2,
       texts: ['Save', 'Cancel'],
       filteredCount: 1,
@@ -861,6 +904,7 @@ describe('NodeReplManager', () => {
       devLogLevel: 'warn',
       devLogMessage: 'reference warning',
       assetCount: 1,
+      directAssetCount: 1,
       inlineSvgCount: 1,
       bundleDownloaded: 1,
       webMcpToolName: 'summarize',
@@ -1025,6 +1069,10 @@ describe('NodeReplManager', () => {
     const result = await manager.evaluate(owner, {
       threadId: 'thread-1',
       code: `
+        if (!globalThis.agent) {
+          const { setupBrowserRuntime: setupIabRuntime } = await import(dotcraft.browserClientPath)
+          await setupIabRuntime({ globals: globalThis, backend: "iab" })
+        }
         let chromeBackendReady = false
         try {
           chromeBackendReady = (await agent.browsers.list()).some((item) => item?.id === "extension")
@@ -1040,7 +1088,12 @@ describe('NodeReplManager', () => {
     })
 
     expect(result.error).toBeUndefined()
-    expect(JSON.parse(result.resultText ?? '[]')).toEqual([
+    const backends = JSON.parse(result.resultText ?? '[]').map((item: Record<string, unknown>) => ({
+      id: item.id,
+      name: item.name,
+      type: item.type
+    }))
+    expect(backends).toEqual([
       { id: 'iab', name: 'DotCraft Browser', type: 'iab' },
       { id: 'extension', name: 'DotCraft Chrome', type: 'extension' }
     ])
@@ -1318,11 +1371,14 @@ describe('NodeReplManager', () => {
     await manager.evaluate(owner, { threadId: 'thread-1', code: 'globalThis.count = 1' })
     const pending = manager.evaluate(owner, {
       threadId: 'thread-1',
-      code: 'await agent.hang()',
+      code: `
+        const { setupBrowserRuntime } = await import(dotcraft.browserClientPath)
+        await setupBrowserRuntime({ globals: globalThis, backend: "iab" })
+        await new Promise(() => {})
+      `,
       timeoutMs: 1
     })
     const timedOut = await pending
-    browserManager.releasePending()
 
     expect(timedOut.error).toContain('timed out')
     expect(timedOut.logs.join('\n')).toContain('Recent browser operations')
@@ -1345,11 +1401,12 @@ describe('NodeReplManager', () => {
         __dotcraftSetChromeCancelHook(async (evaluationId, reason) => {
           console.warn("chrome-cancel", evaluationId, reason.includes("timed out"))
         })
-        await agent.hang()
+        const { setupBrowserRuntime } = await import(dotcraft.browserClientPath)
+        await setupBrowserRuntime({ globals: globalThis, backend: "iab" })
+        await new Promise(() => {})
       `,
       timeoutMs: 1
     })
-    browserManager.releasePending()
 
     expect(timedOut.error).toContain('timed out')
     expect(timedOut.logs.join('\n')).toContain('chrome-cancel eval-timeout true')
@@ -1369,7 +1426,13 @@ describe('NodeReplManager', () => {
     await manager.evaluate(owner, { threadId: 'thread-1', code: 'globalThis.count = 1' })
     const failed = await manager.evaluate(owner, {
       threadId: 'thread-1',
-      code: 'await agent.chromeCommandTimeout()',
+      code: `
+        const { setupBrowserRuntime } = await import(dotcraft.browserClientPath)
+        await setupBrowserRuntime({ globals: globalThis, backend: "iab" })
+        const browser = await agent.browsers.get("iab")
+        const tab = await browser.tabs.new()
+        await tab.playwright.evaluate(() => window.__dotcraftChromeCommandTimeoutSentinel, undefined, { timeoutMs: 1000 })
+      `,
       timeoutMs: 5_000
     })
     const result = await manager.evaluate(owner, { threadId: 'thread-1', code: 'globalThis.count' })
@@ -1389,12 +1452,15 @@ describe('NodeReplManager', () => {
     const pending = manager.evaluate(owner, {
       threadId: 'thread-1',
       evaluationId: 'eval-1',
-      code: 'await agent.hang()',
+      code: `
+        const { setupBrowserRuntime } = await import(dotcraft.browserClientPath)
+        await setupBrowserRuntime({ globals: globalThis, backend: "iab" })
+        await new Promise(() => {})
+      `,
       timeoutMs: 120_000
     })
     const cancel = manager.cancel('thread-1', 'eval-1')
     const cancelled = await pending
-    browserManager.releasePending()
 
     expect(cancel).toEqual({ ok: true })
     expect(cancelled.error).toContain('cancelled')

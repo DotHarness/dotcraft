@@ -2403,7 +2403,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     const available = BROWSER_USE_BROWSER_CAPABILITIES.map((capability) => ({ ...capability }))
     return {
       list: async () => available,
-      get: async (id: string) => {
+      get: (id: string) => {
         if (id === 'viewport') return this.createViewportCapability(runtime)
         if (id === 'visibility') return this.createVisibilityCapability(runtime)
         throw new Error(`Browser capability not found: ${id}. Available capabilities: viewport, visibility.`)
@@ -3332,7 +3332,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     const available = BROWSER_USE_TAB_CAPABILITIES.map((capability) => ({ ...capability }))
     return {
       list: async () => available,
-      get: async (id: string) => {
+      get: (id: string) => {
         if (id === 'pageAssets') return this.createPageAssetsCapability(tab)
         if (id === 'webmcp') return this.createWebMcpCapability(tab)
         throw new Error(`Tab capability not found: ${id}. Available capabilities: pageAssets, webmcp.`)

@@ -49,7 +49,6 @@ interface NodeReplThreadRuntime {
 }
 
 interface BrowserRuntimeBindings {
-  agent: Record<string, unknown>
   display: (imageLike: unknown) => Promise<void>
 }
 
@@ -401,7 +400,6 @@ export class NodeReplManager {
       requestMeta,
       tmpDir: tmpdir()
     })
-    globals.agent = browserRuntime.agent
     globals.display = display
     globals.nodeRepl = nodeReplApi
     globals.console = consoleApi
@@ -433,18 +431,6 @@ export class NodeReplManager {
     globals.__dotcraftClearChromeCancelHook = () => {
       runtime.chromeCancelEvaluation = undefined
     }
-    const setupBrowserRuntime = async (
-      options?: { globals?: Record<string, unknown>; backend?: string }
-    ) => {
-      ensureActive()
-      const targetGlobals = options?.globals ?? globals
-      targetGlobals.agent = browserRuntime.agent
-      targetGlobals.display = display
-      targetGlobals.nodeRepl = nodeReplApi
-      targetGlobals.dotcraft = globals.dotcraft
-      return { backend: options?.backend ?? 'iab' }
-    }
-    globals.__dotcraftSetupBrowserRuntime = setupBrowserRuntime
   }
 
   private disposeReplRuntime(threadId: string, runtime: NodeReplThreadRuntime): void {
