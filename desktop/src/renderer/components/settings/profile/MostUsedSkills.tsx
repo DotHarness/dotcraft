@@ -6,7 +6,7 @@ type TFn = (key: MessageKey | string, vars?: Record<string, string | number>) =>
 
 /**
  * Right "Most used skills" column of the Profile page (spec §27A.5): skills ranked by run
- * count, each shown as `$name` with a plugin badge when the skill comes from a plugin.
+ * count, each shown by name with a plugin badge when the skill comes from a plugin.
  * Forward-only, so the list is empty until skills are referenced after the feature ships.
  */
 export function MostUsedSkills({
@@ -26,7 +26,7 @@ export function MostUsedSkills({
           {skills.map((skill) => (
             <div key={skill.name} style={rowStyle}>
               <span style={nameWrapStyle}>
-                <span title={`$${skill.name}`} style={nameStyle}>{`$${skill.name}`}</span>
+                <span title={skill.name} style={nameStyle}>{skill.name}</span>
                 {skill.pluginDisplayName ? (
                   <span title={skill.pluginDisplayName} style={badgeStyle}>
                     {skill.pluginDisplayName}

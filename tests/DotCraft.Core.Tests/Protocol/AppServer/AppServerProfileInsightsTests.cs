@@ -131,6 +131,25 @@ public sealed class AppServerProfileInsightsTests
         Assert.Equal(2, result.GetProperty("skills").GetArrayLength());
     }
 
+    [Fact]
+    public async Task ProfileInsights_CountsWorkspaceThreads_RegardlessOfChannelContext()
+    {
+        var traceStore = new TraceStore();
+        using var h = new AppServerTestHarness(traceStore: traceStore);
+        await h.InitializeAsync();
+
+        // Reproduces the Desktop scoping: threads carry a non-null channelContext. A
+        // workspace-scoped count must still include them (an identity-scoped query would not).
+        await h.Service.CreateThreadAsync(h.Identity with { ChannelContext = "workspace:ws" });
+
+        var msg = h.BuildRequest(AppServerMethods.ProfileInsights, new { });
+        await h.ExecuteRequestAsync(msg);
+        var resp = h.Transport.TryReadSent()!;
+
+        AppServerTestHarness.AssertIsSuccessResponse(resp);
+        Assert.Equal(1, resp.RootElement.GetProperty("result").GetProperty("totalThreads").GetInt32());
+    }
+
     private static void RecordResponse(TraceStore store, string sessionKey, string? model, string? reasoning)
     {
         store.Record(new TraceEvent

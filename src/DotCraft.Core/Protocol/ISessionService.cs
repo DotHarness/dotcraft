@@ -162,6 +162,13 @@ public interface ISessionService
         CancellationToken ct = default,
         bool includeSubAgents = false);
 
+    /// <summary>
+    /// Counts non-internal, top-level (non-sub-agent) threads in <paramref name="workspacePath"/>,
+    /// across all users and channels and including archived threads. Used for workspace-scoped
+    /// metrics (e.g. the Profile page) where identity/channel scoping is not desired.
+    /// </summary>
+    Task<int> CountWorkspaceThreadsAsync(string workspacePath, CancellationToken ct = default);
+
     Task UpsertThreadSpawnEdgeAsync(ThreadSpawnEdge edge, CancellationToken ct = default);
 
     Task SetThreadSpawnEdgeStatusAsync(

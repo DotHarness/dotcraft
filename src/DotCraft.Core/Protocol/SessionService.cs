@@ -1806,6 +1806,28 @@ Choose the next concrete action that advances the goal. Before doing substantial
             .ToList();
     }
 
+    public async Task<int> CountWorkspaceThreadsAsync(string workspacePath, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(workspacePath))
+            return 0;
+
+        var all = await persistence.LoadIndexAsync(ct);
+        var mergedById = new Dictionary<string, ThreadSummary>(StringComparer.OrdinalIgnoreCase);
+        foreach (var summary in all)
+            mergedById[summary.Id] = summary;
+        foreach (var thread in _threads.Values)
+        {
+            if (thread.Ephemeral)
+                continue;
+            mergedById[thread.Id] = ThreadSummary.FromThread(thread);
+        }
+
+        return mergedById.Values.Count(s =>
+            string.Equals(s.WorkspacePath, workspacePath, StringComparison.OrdinalIgnoreCase)
+            && !ThreadVisibility.IsInternal(s)
+            && !IsSubAgentSummary(s));
+    }
+
     public async Task UpsertThreadSpawnEdgeAsync(ThreadSpawnEdge edge, CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();

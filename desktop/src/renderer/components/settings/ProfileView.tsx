@@ -77,13 +77,6 @@ export function ProfileView(): JSX.Element {
 
         {capable && loadedOnce && <StatStrip days={days} longestTaskMs={longestTaskMs} t={t} />}
 
-        {capable && insightsLoadedOnce && insights && (
-          <section style={insightsGridStyle}>
-            <ActivityInsights insights={insights} t={t} />
-            <MostUsedSkills skills={insights.skills} t={t} />
-          </section>
-        )}
-
         <section style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           <header style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
             <div style={{ flex: 1, minWidth: 0, fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)' }}>
@@ -103,6 +96,13 @@ export function ProfileView(): JSX.Element {
             t={t}
           />
         </section>
+
+        {capable && insightsLoadedOnce && insights && (
+          <section style={insightsGridStyle}>
+            <ActivityInsights insights={insights} t={t} />
+            <MostUsedSkills skills={insights.skills} t={t} />
+          </section>
+        )}
       </div>
     </div>
   )

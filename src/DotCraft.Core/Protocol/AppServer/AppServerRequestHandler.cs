@@ -4616,9 +4616,10 @@ public sealed class AppServerRequestHandler(
 
         var insights = traceStore.GetProfileInsights(topSkills);
 
-        var identity = NormalizeIdentityWorkspace(new SessionIdentity());
-        var threads = await sessionService.FindThreadsAsync(identity, includeArchived: true, null, ct);
-        var totalThreads = threads.Count(t => !ThreadVisibility.IsInternal(t));
+        // Workspace-scoped count (not identity-scoped): the Profile page reflects all threads in
+        // this workspace, regardless of which channel/user (e.g. channelContext) created them.
+        var workspacePath = NormalizeIdentityWorkspace(new SessionIdentity()).WorkspacePath;
+        var totalThreads = await sessionService.CountWorkspaceThreadsAsync(workspacePath, ct);
 
         return new ProfileInsightsResult
         {

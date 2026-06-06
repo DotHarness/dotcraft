@@ -822,6 +822,9 @@ internal sealed class FakeSessionService : ISessionService
             ThreadRenamedForBroadcast?.Invoke(thread);
     }
 
+    public Task<int> CountWorkspaceThreadsAsync(string workspacePath, CancellationToken ct = default) =>
+        throw new NotImplementedException();
+
     public async Task<IReadOnlyList<ThreadSummary>> FindThreadsAsync(
         SessionIdentity identity,
         bool includeArchived = false,
