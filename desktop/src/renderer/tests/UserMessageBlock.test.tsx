@@ -94,7 +94,7 @@ describe('UserMessageBlock trigger source pills', () => {
     })
   })
 
-  it('renders goal continuation user messages with a goal source pill', () => {
+  it('renders goal continuation user messages with a goal source pill', async () => {
     renderWithLocale(
       <UserMessageBlock
         text="Continue working toward the active thread goal"
@@ -104,8 +104,10 @@ describe('UserMessageBlock trigger source pills', () => {
       />
     )
 
-    expect(screen.getByText('Goal auto-continue')).toBeInTheDocument()
-    expect(screen.getByTitle('Goal auto-continue · Goal continuation')).toBeInTheDocument()
+    const pill = screen.getByText('Goal auto-continue')
+    expect(pill).toBeInTheDocument()
+    fireEvent.mouseEnter(pill.parentElement?.parentElement as HTMLElement)
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Goal auto-continue · Goal continuation')
   })
 
   it('renders user-authored goal submissions with a distinct goal sent pill', () => {
@@ -165,7 +167,7 @@ describe('UserMessageBlock trigger source pills', () => {
     expect(screen.getByRole('button', { name: 'Sent by Teams · Teams: Finalize mission: Ship Teams' })).toBeInTheDocument()
   })
 
-  it('renders SubAgent follow-up source pills with thread-style copy', () => {
+  it('renders SubAgent follow-up source pills with thread-style copy', async () => {
     renderWithLocale(
       <UserMessageBlock
         text="Continue work"
@@ -175,12 +177,14 @@ describe('UserMessageBlock trigger source pills', () => {
       />
     )
 
-    expect(screen.getByText('Sent by DotCraft from another thread')).toBeInTheDocument()
-    expect(screen.getByTitle('Sent by DotCraft from another thread · Follow-up task · Inspect')).toBeInTheDocument()
+    const pill = screen.getByText('Sent by DotCraft from another thread')
+    expect(pill).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Sent by DotCraft from another thread · Follow-up task · Inspect' })).toBeNull()
+    fireEvent.mouseEnter(pill.parentElement?.parentElement as HTMLElement)
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Sent by DotCraft from another thread · Follow-up task · Inspect')
   })
 
-  it('renders SubAgent mailbox source detail', () => {
+  it('renders SubAgent mailbox source detail', async () => {
     renderWithLocale(
       <UserMessageBlock
         text="Mailbox note"
@@ -190,7 +194,9 @@ describe('UserMessageBlock trigger source pills', () => {
       />
     )
 
-    expect(screen.getByTitle('Sent by DotCraft from another thread · Mailbox message · /root/review')).toBeInTheDocument()
+    const pill = screen.getByText('Sent by DotCraft from another thread')
+    fireEvent.mouseEnter(pill.parentElement?.parentElement as HTMLElement)
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Sent by DotCraft from another thread · Mailbox message · /root/review')
   })
 
   it('localizes SubAgent source pills in zh-Hans', async () => {
@@ -205,8 +211,10 @@ describe('UserMessageBlock trigger source pills', () => {
       />
     )
 
-    expect(await screen.findByText('DotCraft 从另一个会话发送')).toBeInTheDocument()
-    expect(screen.getByTitle('DotCraft 从另一个会话发送 · 直接输入 · Inspect')).toBeInTheDocument()
+    const pill = await screen.findByText('DotCraft 从另一个会话发送')
+    expect(pill).toBeInTheDocument()
+    fireEvent.mouseEnter(pill.parentElement?.parentElement as HTMLElement)
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('DotCraft 从另一个会话发送 · 直接输入 · Inspect')
   })
 
   it('renders guidance user messages with a steered conversation marker', () => {
@@ -218,7 +226,6 @@ describe('UserMessageBlock trigger source pills', () => {
     )
 
     expect(screen.getByText('Steered conversation')).toBeInTheDocument()
-    expect(screen.getByTitle('Steered conversation')).toBeInTheDocument()
   })
 
   it('does not render the steered conversation marker for normal or queued user messages', () => {

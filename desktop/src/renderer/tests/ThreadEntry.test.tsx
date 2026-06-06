@@ -540,7 +540,7 @@ describe('ThreadEntry', () => {
     expect(badgeSlot.parentElement).toBe(content)
     expect(statusSlot.parentElement).toBe(content)
     expect(badge.parentElement).toBe(badgeSlot)
-    expect(spinner.parentElement?.parentElement).toBe(statusSlot)
+    expect(spinner.parentElement?.parentElement?.parentElement).toBe(statusSlot)
   })
 
   it('keeps a pending badge row interactive when relative time swaps to archive', async () => {
@@ -585,7 +585,7 @@ describe('ThreadEntry', () => {
     const spinner = screen.getByTestId('thread-running-indicator-thread-1')
 
     expect(screen.queryByTestId('thread-badge-slot-thread-1')).not.toBeInTheDocument()
-    expect(spinner.parentElement?.parentElement).toBe(statusSlot)
+    expect(spinner.parentElement?.parentElement?.parentElement).toBe(statusSlot)
   })
 
   it('shows pending user input badge when an inactive thread needs an answer', () => {

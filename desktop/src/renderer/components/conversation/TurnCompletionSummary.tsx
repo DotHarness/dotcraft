@@ -7,6 +7,7 @@ import { useFileChangeActions } from '../../hooks/useFileChangeActions'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
 import type { FileDiff } from '../../types/toolCall'
 import { InlineDiffView } from './InlineDiffView'
+import { ActionTooltip } from '../ui/ActionTooltip'
 
 interface TurnCompletionSummaryProps {
   turnId: string
@@ -203,12 +204,13 @@ function FilePathLink({ filePath }: FilePathLinkProps): JSX.Element {
 
 function NewFileDot({ label }: { label: string }): JSX.Element {
   return (
-    <span
-      role="img"
-      aria-label={label}
-      title={label}
-      style={newFileDotStyle}
-    />
+    <ActionTooltip label={label}>
+      <span
+        role="img"
+        aria-label={label}
+        style={newFileDotStyle}
+      />
+    </ActionTooltip>
   )
 }
 

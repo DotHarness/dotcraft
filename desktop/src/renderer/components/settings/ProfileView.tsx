@@ -322,12 +322,24 @@ function StatStrip({
             textAlign: 'center'
           }}
         >
-          <div
-            title={card.full}
-            style={{ fontSize: '17px', fontWeight: 600, lineHeight: 1.2, color: 'var(--text-primary)' }}
-          >
-            {card.value}
-          </div>
+          {card.full ? (
+            <ActionTooltip
+              label={card.full}
+              wrapperStyle={{ display: 'block', minWidth: 0, overflow: 'hidden', flexShrink: 1 }}
+            >
+              <div
+                style={{ fontSize: '17px', fontWeight: 600, lineHeight: 1.2, color: 'var(--text-primary)', display: 'block' }}
+              >
+                {card.value}
+              </div>
+            </ActionTooltip>
+          ) : (
+            <div
+              style={{ fontSize: '17px', fontWeight: 600, lineHeight: 1.2, color: 'var(--text-primary)' }}
+            >
+              {card.value}
+            </div>
+          )}
           <div style={{ fontSize: '11px', color: 'var(--text-dimmed)' }}>{t(card.label)}</div>
         </div>
       ))}

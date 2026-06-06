@@ -414,21 +414,22 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
           </span>
         )}
         {isSubAgent && (
-          <span
-            title={t('threadEntry.subAgent')}
-            style={{
-              width: '16px',
-              minWidth: '16px',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'var(--text-dimmed)',
-              flexShrink: 0
-            }}
-            aria-label={t('threadEntry.subAgent')}
-          >
-            <CornerDownRight size={12} strokeWidth={2} aria-hidden="true" />
-          </span>
+          <ActionTooltip label={t('threadEntry.subAgent')}>
+            <span
+              style={{
+                width: '16px',
+                minWidth: '16px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--text-dimmed)',
+                flexShrink: 0
+              }}
+              aria-label={t('threadEntry.subAgent')}
+            >
+              <CornerDownRight size={12} strokeWidth={2} aria-hidden="true" />
+            </span>
+          </ActionTooltip>
         )}
         {showOriginBadge && (
           <span
@@ -654,30 +655,32 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
               >
                 {hasRunningTurn ? (
                   <RunningSpinner
-                    title={t('threadEntry.turnRunning')}
+                    label={t('threadEntry.turnRunning')}
                     testId={`thread-running-indicator-${thread.id}`}
                   />
                 ) : showUnreadCompletedDot ? (
-                  <span
-                    aria-label={t('threadEntry.unreadCompleted')}
-                    title={t('threadEntry.unreadCompleted')}
-                    data-testid={`thread-unread-completed-${thread.id}`}
-                    style={{
-                      width: '6px',
-                      height: '6px',
-                      borderRadius: '999px',
-                      backgroundColor: 'var(--success)',
-                      display: 'inline-block'
-                    }}
-                  />
+                  <ActionTooltip label={t('threadEntry.unreadCompleted')}>
+                    <span
+                      aria-label={t('threadEntry.unreadCompleted')}
+                      data-testid={`thread-unread-completed-${thread.id}`}
+                      style={{
+                        width: '6px',
+                        height: '6px',
+                        borderRadius: '999px',
+                        backgroundColor: 'var(--success)',
+                        display: 'inline-block'
+                      }}
+                    />
+                  </ActionTooltip>
                 ) : showStatusIcon ? (
-                  <span
-                    title={thread.status}
-                    style={{ fontSize: '10px', color: 'var(--text-dimmed)', flexShrink: 0 }}
-                    aria-label={thread.status}
-                  >
-                    {thread.status === 'paused' ? '⏸' : '🗄'}
-                  </span>
+                  <ActionTooltip label={thread.status}>
+                    <span
+                      style={{ fontSize: '10px', color: 'var(--text-dimmed)', flexShrink: 0 }}
+                      aria-label={thread.status}
+                    >
+                      {thread.status === 'paused' ? '⏸' : '🗄'}
+                    </span>
+                  </ActionTooltip>
                 ) : (
                   relativeTime
                 )}

@@ -1109,7 +1109,7 @@ describe('AgentResponseBlock tail tool aggregation timing', () => {
     expect(footer).toContainElement(screen.getByTestId('agent-message-time'))
     expect(footer).toContainElement(copyButton)
     expect(footer.firstElementChild).toBe(copyButton.parentElement)
-    expect(footer.lastElementChild).toBe(screen.getByTestId('agent-message-time'))
+    expect(footer.lastElementChild).toContainElement(screen.getByTestId('agent-message-time'))
   })
 
   it('renders turn artifacts and file changes before the final agent footer', () => {

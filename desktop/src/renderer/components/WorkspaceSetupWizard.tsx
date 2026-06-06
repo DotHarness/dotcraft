@@ -1150,20 +1150,24 @@ function BootstrapImportStep({
                     file: source.fileName
                   })}
                 </div>
-                <div
-                  style={{
-                    marginTop: '8px',
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: '12px',
-                    color: 'var(--text-dimmed)',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap'
-                  }}
-                  title={source.path}
+                <ActionTooltip
+                  label={source.path}
+                  wrapperStyle={{ display: 'block', minWidth: 0, overflow: 'hidden', flexShrink: 1, marginTop: '8px' }}
                 >
-                  {source.relativePath}
-                </div>
+                  <div
+                    style={{
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: '12px',
+                      color: 'var(--text-dimmed)',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      display: 'block'
+                    }}
+                  >
+                    {source.relativePath}
+                  </div>
+                </ActionTooltip>
               </div>
             </button>
           )

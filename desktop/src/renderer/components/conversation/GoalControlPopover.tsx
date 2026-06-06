@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { CheckCircle2, Pause, Play, RotateCcw, Target, Trash2, X } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
+import { ActionTooltip } from '../ui/ActionTooltip'
 import type { ThreadGoal } from '../../types/thread'
 import { formatGoalUsage } from '../../utils/threadGoal'
 
@@ -108,8 +109,8 @@ export function GoalControlPopover({
               </span>
             )}
           </div>
+          <ActionTooltip label={goal.objective} wrapperStyle={{ display: 'block', minWidth: 0, overflow: 'hidden', flexShrink: 1 }}>
           <div
-            title={goal.objective}
             style={{
               fontSize: 13,
               lineHeight: 1.45,
@@ -117,11 +118,13 @@ export function GoalControlPopover({
               marginBottom: 14,
               maxHeight: 72,
               overflow: 'auto',
-              overflowWrap: 'anywhere'
+              overflowWrap: 'anywhere',
+              display: 'block'
             }}
           >
             {goal.objective}
           </div>
+          </ActionTooltip>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {goal.status === 'active' && (
               <GoalButton icon={<Pause size={13} aria-hidden />} label={t('goal.action.pause')} disabled={busy} onClick={onPause} />

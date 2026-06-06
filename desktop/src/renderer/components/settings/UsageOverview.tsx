@@ -3,6 +3,7 @@ import type { MessageKey } from '../../../shared/locales'
 import { useT } from '../../contexts/LocaleContext'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { useUsageStore, type UsageSummaryWire } from '../../stores/usageStore'
+import { ActionTooltip } from '../ui/ActionTooltip'
 import { RefreshIcon } from '../ui/AppIcons'
 import { IconButton } from '../ui/IconButton'
 import { RunningSpinner } from '../ui/RunningSpinner'
@@ -121,17 +122,22 @@ function StatGrid({ summary, t }: { summary: UsageSummaryWire; t: TFn }): JSX.El
     >
       {stats.map((stat) => (
         <div key={stat.label} style={{ display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0 }}>
-          <div
-            title={stat.full.toLocaleString()}
-            style={{
-              fontSize: '20px',
-              fontWeight: 600,
-              lineHeight: 1.2,
-              color: stat.danger ? 'var(--error)' : 'var(--text-primary)'
-            }}
+          <ActionTooltip
+            label={stat.full.toLocaleString()}
+            wrapperStyle={{ display: 'block', minWidth: 0, overflow: 'hidden', flexShrink: 1 }}
           >
-            {stat.value}
-          </div>
+            <div
+              style={{
+                fontSize: '20px',
+                fontWeight: 600,
+                lineHeight: 1.2,
+                color: stat.danger ? 'var(--error)' : 'var(--text-primary)',
+                display: 'block'
+              }}
+            >
+              {stat.value}
+            </div>
+          </ActionTooltip>
           <div style={{ fontSize: '11px', color: 'var(--text-dimmed)' }}>{t(stat.label)}</div>
         </div>
       ))}
@@ -167,11 +173,15 @@ function TokenBreakdown({ summary, t }: { summary: UsageSummaryWire; t: TFn }): 
         }}
       >
         {segments.map((seg) => (
-          <div
+          <ActionTooltip
             key={seg.label}
-            title={`${t(seg.label)}: ${seg.value.toLocaleString()}`}
-            style={{ width: `${(seg.value / total) * 100}%`, background: seg.color }}
-          />
+            label={`${t(seg.label)}: ${seg.value.toLocaleString()}`}
+            wrapperStyle={{ width: `${(seg.value / total) * 100}%` }}
+          >
+            <div
+              style={{ width: '100%', background: seg.color }}
+            />
+          </ActionTooltip>
         ))}
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px 16px' }}>

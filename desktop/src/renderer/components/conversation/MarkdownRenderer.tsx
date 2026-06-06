@@ -451,9 +451,8 @@ function InlineReferenceLink({
         ? 'color-mix(in srgb, var(--accent) 18%, var(--bg-secondary))'
         : 'color-mix(in srgb, var(--accent) 12%, transparent)')
 
-  return (
-    <>
-      <a
+  const anchor = (
+    <a
         href={href}
         onClick={(event) => { void handleClick(event) }}
         onContextMenu={handleContextMenu}
@@ -461,7 +460,6 @@ function InlineReferenceLink({
         onMouseLeave={() => setHovered(false)}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
-        title={presentation.title}
         data-inline-reference-kind={presentation.kind}
         style={{
           display: 'inline-flex',
@@ -499,6 +497,15 @@ function InlineReferenceLink({
           {presentation.label}
         </span>
       </a>
+  )
+
+  return (
+    <>
+      {presentation.title ? (
+        <ActionTooltip label={presentation.title}>{anchor}</ActionTooltip>
+      ) : (
+        anchor
+      )}
       {contextMenu && (
         <ReferencePathContextMenu
           position={contextMenu.position}

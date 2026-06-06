@@ -11,6 +11,7 @@ import { AgentResponseBlock } from '../conversation/AgentResponseBlock'
 import type { SubAgentEntry } from '../../types/toolCall'
 import { ThreadPickerOverlay } from './ThreadPickerOverlay'
 import { addToast } from '../../stores/toastStore'
+import { ActionTooltip } from '../ui/ActionTooltip'
 
 function ApprovalPolicyBadge({
   policy,
@@ -24,21 +25,22 @@ function ApprovalPolicyBadge({
   const label = fullAuto ? t('auto.review.fullAuto') : t('auto.review.workspaceScope')
   const title = fullAuto ? t('auto.review.policyFullAuto') : t('auto.review.policyWorkspace')
   return (
-    <span
-      title={title}
-      style={{
-        display: 'inline-block',
-        padding: '1px 6px',
-        borderRadius: '8px',
-        backgroundColor: 'var(--bg-tertiary)',
-        color: fullAuto ? 'var(--accent)' : 'var(--text-secondary)',
-        fontSize: '11px',
-        fontWeight: 500,
-        lineHeight: '16px'
-      }}
-    >
-      {label}
-    </span>
+    <ActionTooltip label={title}>
+      <span
+        style={{
+          display: 'inline-block',
+          padding: '1px 6px',
+          borderRadius: '8px',
+          backgroundColor: 'var(--bg-tertiary)',
+          color: fullAuto ? 'var(--accent)' : 'var(--text-secondary)',
+          fontSize: '11px',
+          fontWeight: 500,
+          lineHeight: '16px'
+        }}
+      >
+        {label}
+      </span>
+    </ActionTooltip>
   )
 }
 

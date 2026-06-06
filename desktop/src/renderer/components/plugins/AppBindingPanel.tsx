@@ -5,6 +5,7 @@ import { useAppBindingStore, type AppHandoff, type AppInfo } from '../../stores/
 import { useConnectionStore } from '../../stores/connectionStore'
 import { useThreadStore } from '../../stores/threadStore'
 import { addToast } from '../../stores/toastStore'
+import { ActionTooltip } from '../ui/ActionTooltip'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
 import { Skeleton } from '../ui/Skeleton'
 import { CatalogHoverButton } from '../catalog/CatalogSurface'
@@ -150,15 +151,16 @@ export function AppBindingPanel({ plugin }: AppBindingPanelProps): JSX.Element |
     <section style={section}>
       <div style={sectionHeader}>
         <h2 style={sectionTitle}>{t('appBinding.pluginTitle')}</h2>
-        <CatalogHoverButton
-          type="button"
-          baseStyle={iconButton}
-          aria-label={t('appBinding.refresh')}
-          title={t('appBinding.refresh')}
-          onClick={() => { void runAction('setup:refresh', () => refreshPanel(true)) }}
-        >
-          <RefreshCw size={14} aria-hidden />
-        </CatalogHoverButton>
+        <ActionTooltip label={t('appBinding.refresh')}>
+          <CatalogHoverButton
+            type="button"
+            baseStyle={iconButton}
+            aria-label={t('appBinding.refresh')}
+            onClick={() => { void runAction('setup:refresh', () => refreshPanel(true)) }}
+          >
+            <RefreshCw size={14} aria-hidden />
+          </CatalogHoverButton>
+        </ActionTooltip>
       </div>
       {appsLoading && (
         <div role="status" aria-busy="true" aria-label={t('appBinding.loading')} style={appList}>
@@ -338,9 +340,14 @@ function HandoffHint({
   if (!value) return null
 
   return (
-    <div style={handoffBox} title={value}>
-      <div style={handoffHint}>{t('appBinding.handoffOpening')}</div>
-    </div>
+    <ActionTooltip
+      label={value}
+      wrapperStyle={{ display: 'block', minWidth: 0, overflow: 'hidden', flexShrink: 1 }}
+    >
+      <div style={{ ...handoffBox, display: 'block' }}>
+        <div style={handoffHint}>{t('appBinding.handoffOpening')}</div>
+      </div>
+    </ActionTooltip>
   )
 }
 

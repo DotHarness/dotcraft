@@ -238,13 +238,12 @@ function ComposerAttachmentMenuItem({
 }): JSX.Element {
   const [active, setActive] = useState(false)
 
-  return (
+  const item = (
     <button
       type="button"
       role={role}
       aria-checked={role === 'menuitemcheckbox' ? checked : undefined}
       disabled={disabled}
-      title={title}
       onMouseEnter={() => setActive(true)}
       onMouseLeave={() => setActive(false)}
       onFocus={() => setActive(true)}
@@ -258,6 +257,14 @@ function ComposerAttachmentMenuItem({
       </span>
       {trailing}
     </button>
+  )
+
+  if (!title) return item
+
+  return (
+    <ActionTooltip label={title} wrapperStyle={{ display: 'block', width: '100%' }}>
+      {item}
+    </ActionTooltip>
   )
 }
 

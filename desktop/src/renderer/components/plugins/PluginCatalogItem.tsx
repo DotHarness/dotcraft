@@ -2,6 +2,7 @@ import { useState, type CSSProperties } from 'react'
 import { Check, MessageCircle, Plus } from 'lucide-react'
 import type { PluginEntry } from '../../stores/pluginStore'
 import { styles as catalogStyles } from '../catalog/CatalogSurface'
+import { ActionTooltip } from '../ui/ActionTooltip'
 
 export function PluginCatalogItem({
   plugin,
@@ -52,19 +53,20 @@ export function PluginCatalogItem({
       </span>
       <span style={catalogStyles.statusIcon}>
         {showTry ? (
-          <button
-            type="button"
-            aria-label={tryLabel}
-            title={tryLabel}
-            onClick={(event) => {
-              event.stopPropagation()
-              onTryInChat?.()
-            }}
-            style={tryAction(active)}
-          >
-            <MessageCircle size={14} aria-hidden />
-            <span>{tryLabel}</span>
-          </button>
+          <ActionTooltip label={tryLabel}>
+            <button
+              type="button"
+              aria-label={tryLabel}
+              onClick={(event) => {
+                event.stopPropagation()
+                onTryInChat?.()
+              }}
+              style={tryAction(active)}
+            >
+              <MessageCircle size={14} aria-hidden />
+              <span>{tryLabel}</span>
+            </button>
+          </ActionTooltip>
         ) : showInstall ? (
           <button
             type="button"

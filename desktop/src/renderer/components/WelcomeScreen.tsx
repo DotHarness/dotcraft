@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, type CSSProperties } from 'react'
 import { isWorkspaceLockedSwitchError } from '../../shared/workspaceSwitchErrors'
 import type { AppLocale } from '../../shared/locales'
 import { useLocale, useSetUiLocale, useT } from '../contexts/LocaleContext'
+import { ActionTooltip } from './ui/ActionTooltip'
 import { DotCraftFullLogo } from './ui/DotCraftLogo'
 import { elementToLaunchLogoRect, type LaunchLogoRect } from './WorkspaceLaunchTransition'
 import { ChevronRight, FolderOpen } from 'lucide-react'
@@ -246,9 +247,14 @@ export function WelcomeScreen({ onOpenWorkspace }: WelcomeScreenProps): JSX.Elem
               >
                 <span className="welcome-workspace-row-body">
                   <span className="welcome-workspace-row-title">{r.name}</span>
-                  <span className="welcome-workspace-row-path" title={r.path}>
-                    {r.path}
-                  </span>
+                  <ActionTooltip
+                    label={r.path}
+                    wrapperStyle={{ display: 'block', minWidth: 0, overflow: 'hidden', flexShrink: 1 }}
+                  >
+                    <span className="welcome-workspace-row-path" style={{ display: 'block' }}>
+                      {r.path}
+                    </span>
+                  </ActionTooltip>
                   {isLocked && (
                     <span className="welcome-workspace-row-warning">
                       {t('welcome.alreadyOpen')}

@@ -16,6 +16,7 @@ import { ApprovalCard } from './ApprovalCard'
 import { SystemNoticeBlock } from './SystemNoticeBlock'
 import { UserMessageBlock } from './UserMessageBlock'
 import { ContextMenu, type ContextMenuEntry, type ContextMenuPosition } from '../ui/ContextMenu'
+import { ActionTooltip } from '../ui/ActionTooltip'
 import { planToolRunRender } from '../../utils/toolCallAggregation'
 import type { AggregatedToolCall } from '../../utils/toolCallAggregation'
 import type { ToolGroupCategory } from '../../utils/toolCallAggregation'
@@ -927,9 +928,11 @@ function SpawnAgentGroupItems({
             {renderGroupedSubAgentTitle(locale, display)}
           </div>
           {display.prompt && (
-            <div style={spawnAgentPromptPreviewStyle} title={display.prompt}>
+            <ActionTooltip label={display.prompt} wrapperStyle={{ display: 'block', minWidth: 0, overflow: 'hidden', flexShrink: 1 }}>
+            <div style={{ ...spawnAgentPromptPreviewStyle, display: 'block' }}>
               {display.prompt}
             </div>
+            </ActionTooltip>
           )}
         </div>
       ))}

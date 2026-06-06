@@ -699,15 +699,16 @@ function PluginDetailView({
           <PluginIcon plugin={plugin} size={64} />
           <div style={{ flex: 1 }} />
           {saved && <span style={savedHint}>{t('settings.savedToast')}</span>}
-          <a
-            href={resolvePluginExternalUrl(info?.websiteUrl) ?? DOTCRAFT_PLUGIN_FALLBACK_URL}
-            style={detailIconButton}
-            aria-label={t('plugins.detail.website')}
-            title={t('plugins.detail.website')}
-            onClick={(event) => handlePluginExternalLinkClick(event, info?.websiteUrl)}
-          >
-            <Link size={15} aria-hidden />
-          </a>
+          <ActionTooltip label={t('plugins.detail.website')}>
+            <a
+              href={resolvePluginExternalUrl(info?.websiteUrl) ?? DOTCRAFT_PLUGIN_FALLBACK_URL}
+              style={detailIconButton}
+              aria-label={t('plugins.detail.website')}
+              onClick={(event) => handlePluginExternalLinkClick(event, info?.websiteUrl)}
+            >
+              <Link size={15} aria-hidden />
+            </a>
+          </ActionTooltip>
           {plugin.installed && plugin.removable && (
             <button type="button" style={secondaryDetailButton} onClick={onRemove}>
               <Trash2 size={14} aria-hidden />
@@ -819,15 +820,16 @@ function InfoLinkRow({ label, href }: { label: string; href?: string | null }): 
     <div style={infoRow}>
       <span style={infoLabel}>{label}</span>
       <span style={infoValue}>
-        <a
-          href={resolvedHref}
-          style={plainLink}
-          aria-label={label}
-          title={label}
-          onClick={(event) => handlePluginExternalLinkClick(event, href)}
-        >
-          <ExternalLink size={14} aria-hidden />
-        </a>
+        <ActionTooltip label={label}>
+          <a
+            href={resolvedHref}
+            style={plainLink}
+            aria-label={label}
+            onClick={(event) => handlePluginExternalLinkClick(event, href)}
+          >
+            <ExternalLink size={14} aria-hidden />
+          </a>
+        </ActionTooltip>
       </span>
     </div>
   )

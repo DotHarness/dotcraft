@@ -21,6 +21,7 @@ import {
   type WebSearchResultRow
 } from '../../utils/webToolDisplay'
 import { InlineDiffView } from './InlineDiffView'
+import { ActionTooltip } from '../ui/ActionTooltip'
 import { isShellToolName } from '../../utils/shellTools'
 import {
   FILE_WRITE_TOOLS,
@@ -858,9 +859,9 @@ function WebSearchResultCell({
 }): JSX.Element {
   return (
     <td style={{ padding: 0, minWidth: 0 }}>
+      <ActionTooltip label={title} wrapperStyle={{ display: 'block', width: '100%', minWidth: 0, overflow: 'hidden' }}>
       <button
         type="button"
-        title={title}
         onClick={onClick}
         style={{
           width: '100%',
@@ -888,6 +889,7 @@ function WebSearchResultCell({
       >
         {label}
       </button>
+      </ActionTooltip>
     </td>
   )
 }
@@ -981,9 +983,11 @@ function SubAgentToolResultCard({
           <span style={subAgentResultContentStyle}>
             {rowContent}
             {hasPrompt && (
-              <span style={subAgentPromptStyle} title={display.prompt ?? undefined}>
-                {translate(locale, 'toolCall.subAgent.prompt', { prompt: display.prompt ?? '' })}
-              </span>
+              <ActionTooltip label={display.prompt ?? ''} wrapperStyle={{ display: 'block', minWidth: 0, overflow: 'hidden' }}>
+                <span style={{ ...subAgentPromptStyle, display: 'block' }}>
+                  {translate(locale, 'toolCall.subAgent.prompt', { prompt: display.prompt ?? '' })}
+                </span>
+              </ActionTooltip>
             )}
           </span>
         </button>
@@ -996,9 +1000,11 @@ function SubAgentToolResultCard({
           <span style={subAgentResultContentStyle}>
             {rowContent}
             {hasPrompt && (
-              <span style={subAgentPromptStyle} title={display.prompt ?? undefined}>
-                {translate(locale, 'toolCall.subAgent.prompt', { prompt: display.prompt ?? '' })}
-              </span>
+              <ActionTooltip label={display.prompt ?? ''} wrapperStyle={{ display: 'block', minWidth: 0, overflow: 'hidden' }}>
+                <span style={{ ...subAgentPromptStyle, display: 'block' }}>
+                  {translate(locale, 'toolCall.subAgent.prompt', { prompt: display.prompt ?? '' })}
+                </span>
+              </ActionTooltip>
             )}
           </span>
         </div>

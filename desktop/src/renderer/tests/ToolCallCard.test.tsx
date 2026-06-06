@@ -542,7 +542,7 @@ describe('ToolCallCard shell rendering', () => {
     expect(screen.queryByTestId('tool-expanded-content')).toBeNull()
   })
 
-  it('renders streaming InlineDiffView for running WriteFile tool calls', () => {
+  it('renders streaming InlineDiffView for running WriteFile tool calls', async () => {
     const item: ConversationItem = {
       id: 'tool-write-streaming',
       type: 'toolCall',
@@ -581,11 +581,14 @@ describe('ToolCallCard shell rendering', () => {
 
     const filename = screen.getByText('live.ts')
     expect(filename).toBeInTheDocument()
-    expect(filename).toHaveAttribute('title', 'src/live.ts')
+    expect(filename).not.toHaveAttribute('title')
     expect(screen.getByText(/Created live\.ts \+1/)).toBeInTheDocument()
     expect(screen.queryByText('src/live.ts')).toBeNull()
     expect(screen.queryByText('streaming')).toBeNull()
     expect(screen.queryByText('Waiting for content...')).toBeNull()
+
+    fireEvent.mouseEnter(filename.parentElement as HTMLElement)
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('src/live.ts')
   })
 
   it('keeps running WriteFile without streamed content non-expandable', () => {
@@ -652,7 +655,7 @@ describe('ToolCallCard shell rendering', () => {
     expect(screen.queryByText('Waiting for content...')).toBeNull()
   })
 
-  it('renders completed file diffs embedded with compact filename and stats', () => {
+  it('renders completed file diffs embedded with compact filename and stats', async () => {
     const item: ConversationItem = {
       id: 'tool-edit-completed',
       type: 'toolCall',
@@ -697,8 +700,11 @@ describe('ToolCallCard shell rendering', () => {
 
     expect(screen.getByTestId('inline-diff-view').style.borderStyle).toBe('none')
     const filename = screen.getByText('Target.cs')
-    expect(filename).toHaveAttribute('title', 'src/Target.cs')
+    expect(filename).not.toHaveAttribute('title')
     expect(screen.queryByText('src/Target.cs')).toBeNull()
+
+    fireEvent.mouseEnter(filename.parentElement as HTMLElement)
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('src/Target.cs')
   })
 
   it('keeps showing the running timer for Exec after the toolCall item is completed but command execution is still in progress', () => {
@@ -1130,7 +1136,7 @@ describe('ToolCallCard shell rendering', () => {
     expect(sendRequest).toHaveBeenCalledWith('skills/view', { name: 'demo-skill' })
   })
 
-  it('renders successful SkillManage patch as a skill card with an embedded diff', () => {
+  it('renders successful SkillManage patch as a skill card with an embedded diff', async () => {
     const item: ConversationItem = {
       id: 'skill-patch-1',
       type: 'toolCall',
@@ -1170,10 +1176,13 @@ describe('ToolCallCard shell rendering', () => {
     expect(screen.getByText('Variant')).toBeInTheDocument()
     expect(container.querySelector('img')).toBeNull()
     const filename = screen.getByText('SKILL.md')
-    expect(filename).toHaveAttribute('title', 'demo-skill/SKILL.md')
+    expect(filename).not.toHaveAttribute('title')
     expect(screen.getByText('Follow these steps.')).toBeInTheDocument()
     expect(screen.getByText('Follow these updated steps.')).toBeInTheDocument()
     expect(screen.queryByText(/"replacementCount"/)).toBeNull()
+
+    fireEvent.mouseEnter(filename.parentElement as HTMLElement)
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('demo-skill/SKILL.md')
   })
 
   it('renders successful SkillManage delete as a non-expandable title row', () => {

@@ -186,7 +186,6 @@ export function UserMessageBlock({
       >
         {!editing && isGuidance && (
           <div
-            title={t('conversation.steeredConversation')}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -362,8 +361,8 @@ export function UserMessageBlock({
             {failedImages.map((imageItem, idx) => {
               const label = imageItem.fileName || basename(imageItem.path)
               return (
+                <ActionTooltip key={`failed-image-${imageItem.path}-${idx}`} label={imageItem.path}>
                 <button
-                  key={`failed-image-${imageItem.path}-${idx}`}
                   type="button"
                   onClick={() => {
                     if (remoteWorkspaceActive || !workspacePath || !activeThreadId) return
@@ -376,7 +375,6 @@ export function UserMessageBlock({
                   }}
                   disabled={remoteWorkspaceActive || !workspacePath || !activeThreadId}
                   aria-label={t('conversation.openImageAttachmentAria', { file: label })}
-                  title={imageItem.path}
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
@@ -398,6 +396,7 @@ export function UserMessageBlock({
                     {label}
                   </span>
                 </button>
+                </ActionTooltip>
               )
             })}
           </div>
@@ -451,16 +450,17 @@ export function UserMessageBlock({
             }}
           >
             {sentTime && (
-              <span
-                title={sentTime.title}
-                style={{
-                  padding: '0 2px',
-                  opacity: actionsVisible ? 1 : 0,
-                  transition: 'opacity 120ms ease'
-                }}
-              >
-                {sentTime.label}
-              </span>
+              <ActionTooltip label={sentTime.title}>
+                <span
+                  style={{
+                    padding: '0 2px',
+                    opacity: actionsVisible ? 1 : 0,
+                    transition: 'opacity 120ms ease'
+                  }}
+                >
+                  {sentTime.label}
+                </span>
+              </ActionTooltip>
             )}
             {editable && onEdit && (
               <ActionTooltip
@@ -571,8 +571,8 @@ function SkillRefChip({ skillName }: { skillName: string }): JSX.Element {
 
   return (
     <>
+      <ActionTooltip label={`$${skillName}`}>
       <span
-        title={`$${skillName}`}
         onContextMenu={(event) => { void handleContextMenu(event) }}
         style={{
           display: 'inline-flex',
@@ -596,6 +596,7 @@ function SkillRefChip({ skillName }: { skillName: string }): JSX.Element {
         <Sparkle size={12} strokeWidth={2.25} aria-hidden />
         <span>{skillName}</span>
       </span>
+      </ActionTooltip>
       {contextMenu && (
         <ReferencePathContextMenu
           position={contextMenu.position}
@@ -610,8 +611,8 @@ function SkillRefChip({ skillName }: { skillName: string }): JSX.Element {
 function CommandRefChip({ commandText }: { commandText: string }): JSX.Element {
   const label = commandText.startsWith('/') ? commandText.slice(1) : commandText
   return (
+    <ActionTooltip label={commandText}>
     <span
-      title={commandText}
         style={{
           display: 'inline-flex',
           alignItems: 'center',
@@ -634,6 +635,7 @@ function CommandRefChip({ commandText }: { commandText: string }): JSX.Element {
       <Terminal size={12} strokeWidth={2.25} aria-hidden />
       <span>{label}</span>
     </span>
+    </ActionTooltip>
   )
 }
 
@@ -659,9 +661,9 @@ function FileRefChip({
 
   return (
     <>
+      <ActionTooltip label={title}>
       <button
         type="button"
-        title={title}
         aria-label={t('conversation.openFileRefAria', { file: fileName })}
         disabled={!canOpen}
         onContextMenu={(event) => {
@@ -705,6 +707,7 @@ function FileRefChip({
         <FileTypeIcon path={displayPath} size={12} />
         <span>{fileName}</span>
       </button>
+      </ActionTooltip>
       {contextMenu && (
         <ReferencePathContextMenu
           position={contextMenu.position}
@@ -858,7 +861,8 @@ function TriggerSourcePill({
   }
 
   return (
-    <span title={title} style={commonStyle}>
+    <ActionTooltip label={title} wrapperStyle={{ display: 'inline-flex' }}>
+    <span style={commonStyle}>
       {isGoal ? (
         <Target size={11} strokeWidth={2.1} aria-hidden />
       ) : isTeam ? (
@@ -870,6 +874,7 @@ function TriggerSourcePill({
       )}
       <span>{badgeText}</span>
     </span>
+    </ActionTooltip>
   )
 }
 
@@ -879,7 +884,6 @@ function SentAsGoalPill(): JSX.Element {
 
   return (
     <span
-      title={label}
       style={{
         display: 'inline-flex',
         alignItems: 'center',

@@ -263,30 +263,34 @@ export function ThreadHeader({
                     {threadName}
                   </span>
                   {worktreeBranch && (
-                    <span
-                      title={t('threadHeader.worktreeBadge', { branch: worktreeBranch })}
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        maxWidth: '180px',
-                        minWidth: 0,
-                        height: '18px',
-                        padding: '0 6px',
-                        borderRadius: '999px',
-                        border: '1px solid var(--border-default)',
-                        color: 'var(--text-secondary)',
-                        backgroundColor: 'var(--bg-secondary)',
-                        fontSize: '11px',
-                        fontWeight: 500,
-                        lineHeight: 1,
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                        flexShrink: 1
-                      }}
+                    <ActionTooltip
+                      label={t('threadHeader.worktreeBadge', { branch: worktreeBranch })}
+                      wrapperStyle={{ display: 'block', minWidth: 0, overflow: 'hidden', flexShrink: 1 }}
                     >
-                      {worktreeBranch}
-                    </span>
+                      <span
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          maxWidth: '180px',
+                          minWidth: 0,
+                          height: '18px',
+                          padding: '0 6px',
+                          borderRadius: '999px',
+                          border: '1px solid var(--border-default)',
+                          color: 'var(--text-secondary)',
+                          backgroundColor: 'var(--bg-secondary)',
+                          fontSize: '11px',
+                          fontWeight: 500,
+                          lineHeight: 1,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                          flexShrink: 1
+                        }}
+                      >
+                        {worktreeBranch}
+                      </span>
+                    </ActionTooltip>
                   )}
                 </span>
               </h1>

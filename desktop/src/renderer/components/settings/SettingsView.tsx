@@ -31,6 +31,7 @@ import { usePendingRestartStore } from '../../stores/pendingRestartStore'
 import { useSettingsWorkspaceConfigChangeEffects } from '../../hooks/useSettingsWorkspaceConfigChangeEffects'
 import { SecretInput } from '../channels/FormShared'
 import { ArchivedThreadsSettingsView } from './ArchivedThreadsSettingsView'
+import { ActionTooltip } from '../ui/ActionTooltip'
 import { FolderIcon, OpenInBrowserIcon, RefreshIcon } from '../ui/AppIcons'
 import { IconButton } from '../ui/IconButton'
 import { InputWithAction } from '../ui/InputWithAction'
@@ -3875,12 +3876,17 @@ export function SettingsView({
                                   error: providerTestResult.errorMessage ?? providerTestResult.errorCode ?? t('settings.llm.unknownError')
                                 })
                           return (
-                            <div role="status" aria-live="polite" title={message} style={providerInlineStatusStyle(tone)}>
-                              <span style={providerInlineStatusDotStyle(tone)} />
-                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {message}
-                              </span>
-                            </div>
+                            <ActionTooltip
+                              label={message}
+                              wrapperStyle={{ display: 'block', minWidth: 0, overflow: 'hidden', flexShrink: 1 }}
+                            >
+                              <div role="status" aria-live="polite" style={providerInlineStatusStyle(tone)}>
+                                <span style={providerInlineStatusDotStyle(tone)} />
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {message}
+                                </span>
+                              </div>
+                            </ActionTooltip>
                           )
                         })()}
                       </div>
@@ -4249,15 +4255,18 @@ export function SettingsView({
                               )}
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                              <button
-                                type="button"
-                                disabled={!dashboardUrl}
-                                onClick={() => void openDreamReview(run.id)}
-                                style={secondaryButtonStyle(!dashboardUrl)}
-                                title={dashboardUrl ? t('settings.dreams.openReview') : t('settings.dreams.dashboardUnavailable')}
+                              <ActionTooltip
+                                label={dashboardUrl ? t('settings.dreams.openReview') : t('settings.dreams.dashboardUnavailable')}
                               >
-                                {t('settings.dreams.openReview')}
-                              </button>
+                                <button
+                                  type="button"
+                                  disabled={!dashboardUrl}
+                                  onClick={() => void openDreamReview(run.id)}
+                                  style={secondaryButtonStyle(!dashboardUrl)}
+                                >
+                                  {t('settings.dreams.openReview')}
+                                </button>
+                              </ActionTooltip>
                             </div>
                           </div>
                         )

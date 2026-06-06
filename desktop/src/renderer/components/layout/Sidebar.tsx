@@ -435,21 +435,24 @@ function CollapsedSidebar(): JSX.Element {
       </ActionTooltip>
 
       {/* Connection status dot */}
-      <div
-        style={{
-          width: '8px',
-          height: '8px',
-          borderRadius: '50%',
-          backgroundColor: colorMap[status] ?? 'var(--text-dimmed)',
-          marginBottom: '8px'
-        }}
-        title={t('connection.statusTitle', {
+      <ActionTooltip
+        label={t('connection.statusTitle', {
           status: connectionStatusLabel(status, errorMessage, t)
         })}
-        aria-label={t('connection.statusTitle', {
-          status: connectionStatusLabel(status, errorMessage, t)
-        })}
-      />
+      >
+        <div
+          style={{
+            width: '8px',
+            height: '8px',
+            borderRadius: '50%',
+            backgroundColor: colorMap[status] ?? 'var(--text-dimmed)',
+            marginBottom: '8px'
+          }}
+          aria-label={t('connection.statusTitle', {
+            status: connectionStatusLabel(status, errorMessage, t)
+          })}
+        />
+      </ActionTooltip>
     </div>
   )
 }

@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react'
 import type { FileDiff } from '../../types/toolCall'
+import { ActionTooltip } from '../ui/ActionTooltip'
 
 interface InlineDiffViewProps {
   diff: FileDiff
@@ -52,18 +53,20 @@ export function InlineDiffView({
           fontSize: '11px'
         }}
       >
+        <ActionTooltip label={diff.filePath} wrapperStyle={{ display: 'block', minWidth: 0, overflow: 'hidden', flexShrink: 1 }}>
         <span
-          title={diff.filePath}
           style={{
             color: 'var(--text-primary)',
             fontWeight: 500,
             overflow: 'hidden',
             textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap'
+            whiteSpace: 'nowrap',
+            display: 'block'
           }}
         >
           {displayPath}
         </span>
+        </ActionTooltip>
         {headerMode === 'full' && diff.isNewFile && (
           <span style={{ color: 'var(--text-dimmed)', flexShrink: 0 }}>(new file)</span>
         )}

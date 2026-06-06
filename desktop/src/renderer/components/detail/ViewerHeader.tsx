@@ -67,24 +67,27 @@ export function ViewerHeader({
           const isLast = index === segments.length - 1
           if (isLast) {
             return (
-              <span key={index} style={crumbFileStyle} title={relativePath}>
+              <ActionTooltip key={index} label={relativePath}>
+              <span style={crumbFileStyle}>
                 {segment}
               </span>
+              </ActionTooltip>
             )
           }
           const segAbs = rootFwd + segments.slice(0, index + 1).join('/')
           return (
             <span key={index} style={crumbGroupStyle}>
+              <ActionTooltip label={segment}>
               <button
                 type="button"
                 style={crumbFolderStyle}
-                title={segment}
                 onClick={() => { if (segAbs) revealInExplorer(segAbs) }}
                 onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-primary)' }}
                 onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-secondary)' }}
               >
                 {segment}
               </button>
+              </ActionTooltip>
               <ChevronRight size={13} aria-hidden style={{ color: 'var(--text-tertiary, var(--text-secondary))', flexShrink: 0, opacity: 0.7 }} />
             </span>
           )
