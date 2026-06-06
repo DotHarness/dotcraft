@@ -76,8 +76,10 @@ Pre-commit: run the relevant full suites for touched areas (`dotnet test` for C#
 ### Language Preference
 
 - **Code comments**: English
+- **Desktop UI strings**: Desktop owns UI localization. Localize for all supported app locales — `en`, `zh-Hans`, `ja`, `ko`, `es`, `fr`, `de` (the source of truth is `desktop/src/shared/locales/types.ts`). This applies to message catalogs and to data-driven UI text such as plugin/extension descriptor `localizedLabel`; provide every supported locale, missing ones fall back to the base string.
 - **C# runtime/UI-adjacent messages**: Do not add UI localization state or server-side translation catalogs. C# should emit stable machine-readable keys/codes plus English fallback text (`FallbackText` for CLI/server fallback copy). Desktop owns UI localization.
 - **Protocol-visible system messages**: New client-visible notifications and errors must provide a stable key/code, structured params where useful, and an English fallback. User text, model output, and raw tool output must pass through unchanged.
+- **Docs vs UI**: Documentation (`docs/`) is bilingual (English + Chinese) only; UI strings cover all supported locales above.
 
 ## Documentation Guidelines
 

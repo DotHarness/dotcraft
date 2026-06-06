@@ -66,21 +66,40 @@ const GITHUB_GLYPH = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .
 const GITLAB_GLYPH = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m23.6 9.6-.03-.09L20.42.7a.83.83 0 0 0-1.55.05L16.74 7.2H7.27L5.13.75a.82.82 0 0 0-.78-.56.83.83 0 0 0-.78.56L.43 9.5l-.03.1a5.85 5.85 0 0 0 2.13 6.78l.01.01.03.02 5.27 3.94 2.61 1.97 1.58 1.2a.97.97 0 0 0 1.18 0l1.58-1.2 2.6-1.97 5.32-3.96.02-.02a5.86 5.86 0 0 0 2.12-6.77Z"/></svg>'
 
 const ORATORIO_LOGO =
-  '<svg viewBox="225 190 640 640" aria-hidden="true">'
+  '<svg viewBox="225 190 640 640" fill="none" aria-hidden="true">'
   + '<defs>'
   + '<linearGradient id="ob-logo-blue" x1="279" y1="766" x2="736" y2="334" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#1357ff"/><stop offset=".48" stop-color="#3f6cff"/><stop offset="1" stop-color="#7f99ff"/></linearGradient>'
   + '<linearGradient id="ob-logo-mark" x1="380" y1="696" x2="492" y2="557" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#085cf6"/><stop offset=".55" stop-color="#1d6cff"/><stop offset="1" stop-color="#6f8dff"/></linearGradient>'
   + '<linearGradient id="ob-logo-yellow" x1="481" y1="174" x2="617" y2="713" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#ffd51a"/><stop offset="1" stop-color="#f4ae00"/></linearGradient>'
+  + '<filter id="ob-soft-shadow" x="-12%" y="-12%" width="124%" height="124%"><feDropShadow dx="0" dy="18" stdDeviation="24" flood-color="#001026" flood-opacity=".42"/></filter>'
+  + '<filter id="ob-inner-lift" x="-8%" y="-8%" width="116%" height="116%"><feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#0b2f88" flood-opacity=".16"/></filter>'
   + '</defs>'
-  + '<g transform="translate(178 173) scale(.68)">'
-  + '<g><rect x="201" y="365" width="622" height="513" rx="151" fill="#fff"/><rect x="145" y="472" width="136" height="256" rx="58" fill="#fff"/><rect x="743" y="472" width="136" height="256" rx="58" fill="#fff"/><rect x="438" y="270" width="148" height="182" rx="2" fill="#fff"/><circle cx="512" cy="229" r="116" fill="#fff"/></g>'
-  + '<g><rect x="243" y="408" width="538" height="426" rx="113" fill="url(#ob-logo-blue)"/><rect x="188" y="514" width="90" height="171" rx="19" fill="url(#ob-logo-blue)"/><rect x="746" y="514" width="90" height="171" rx="19" fill="url(#ob-logo-blue)"/><rect x="479" y="337" width="66" height="119" rx="6" fill="url(#ob-logo-blue)"/></g>'
+  + '<g transform="translate(128 128) scale(.75)">'
+  + '<g filter="url(#ob-soft-shadow)"><rect x="201" y="365" width="622" height="513" rx="151" fill="#fff"/><rect x="145" y="472" width="136" height="256" rx="58" fill="#fff"/><rect x="743" y="472" width="136" height="256" rx="58" fill="#fff"/><rect x="438" y="270" width="148" height="182" rx="2" fill="#fff"/><circle cx="512" cy="229" r="116" fill="#fff"/></g>'
+  + '<g filter="url(#ob-inner-lift)"><rect x="243" y="408" width="538" height="426" rx="113" fill="url(#ob-logo-blue)"/><rect x="188" y="514" width="90" height="171" rx="19" fill="url(#ob-logo-blue)"/><rect x="746" y="514" width="90" height="171" rx="19" fill="url(#ob-logo-blue)"/><rect x="479" y="337" width="66" height="119" rx="6" fill="url(#ob-logo-blue)"/></g>'
   + '<g><path d="M808 606 896 294" stroke="#fff" stroke-width="64" stroke-linecap="round"/><circle cx="896" cy="294" r="58" fill="#fff"/><path d="M808 606 896 294" stroke="#f7b500" stroke-width="30" stroke-linecap="round"/><circle cx="896" cy="294" r="32" fill="#f7b500"/></g>'
   + '<rect x="295" y="464" width="434" height="315" rx="78" fill="#fff"/>'
   + '<path d="M512 787 447 757a24 24 0 0 0-34 22v55a24 24 0 0 0 34 22l65-30 65 30a24 24 0 0 0 34-22v-55a24 24 0 0 0-34-22Z" fill="#05060a"/>'
   + '<circle cx="512" cy="229" r="73" fill="url(#ob-logo-yellow)"/>'
   + '<path d="M387 568 477 634 387 700" stroke="url(#ob-logo-mark)" stroke-width="38" stroke-linecap="round" stroke-linejoin="round"/>'
   + '<path d="M531 696h116" stroke="url(#ob-logo-yellow)" stroke-width="27" stroke-linecap="round"/>'
+  + '</g></svg>'
+
+// Animated wand glow overlaying the logo's wand tip (matches Oratorio's
+// board-wand-overlay). Same base coords + transform as ORATORIO_LOGO so the
+// pulsing core/halo/sparks register exactly over the static wand.
+const ORATORIO_WAND =
+  '<svg class="oratorio-wand-overlay" viewBox="225 190 640 640" aria-hidden="true" focusable="false">'
+  + '<g transform="translate(128 128) scale(.75)">'
+  + '<path class="oratorio-wand-aura" d="M808 606 896 294"/>'
+  + '<ellipse class="oratorio-wand-orbit-halo" cx="852" cy="450" rx="106" ry="35" transform="rotate(-74 852 450)"/>'
+  + '<circle class="oratorio-wand-expanding-halo" cx="896" cy="294" r="48"/>'
+  + '<circle class="oratorio-wand-expanding-halo secondary" cx="896" cy="294" r="40"/>'
+  + '<path class="oratorio-wand-body-halo" d="M808 606 896 294"/>'
+  + '<path class="oratorio-wand-core" d="M808 606 896 294"/>'
+  + '<circle class="oratorio-wand-tip-glow" cx="896" cy="294" r="42"/>'
+  + '<g class="oratorio-wand-spark"><path d="M896 214v48"/><path d="M872 238h48"/></g>'
+  + '<g class="oratorio-wand-spark secondary"><path d="M942 260v34"/><path d="M925 277h34"/></g>'
   + '</g></svg>'
 
 export default function OratorioBoardView({ host }) {
@@ -371,7 +390,10 @@ export default function OratorioBoardView({ host }) {
   return h('main', { className: 'oratorio-board' },
     h('header', { className: 'oratorio-board-header' },
       h('div', { className: 'oratorio-brand' },
-        raw(ORATORIO_LOGO, { className: 'oratorio-brand-logo', 'aria-hidden': true }),
+        h('span', { className: 'oratorio-brand-mark' },
+          raw(ORATORIO_LOGO, { className: 'oratorio-brand-logo', 'aria-hidden': true }),
+          raw(ORATORIO_WAND, { className: 'oratorio-brand-wand', 'aria-hidden': true })
+        ),
         h('span', { className: 'oratorio-brand-name' }, 'Oratorio')
       )
     ),
@@ -732,8 +754,11 @@ function sourceChip(h, ic, raw, it) {
   return h('span', { className: 'oratorio-chip chip-source' + local }, icon, h('span', null, label))
 }
 function kindChip(h, ic, it) {
-  if (it.kind === 'pullRequest') return h('span', { className: 'oratorio-chip chip-kind' }, ic('git-pull-request'), h('span', null, it.number ? '#' + it.number : 'PR'))
-  if (it.kind === 'issue') return h('span', { className: 'oratorio-chip chip-kind' }, ic('circle-dot'), h('span', null, it.number ? '#' + it.number : 'Issue'))
+  const num = it.number || ''
+  const looksLikeNumber = /^#?\d+$/.test(num)
+  const withHash = num.charAt(0) === '#' ? num : '#' + num
+  if (it.kind === 'pullRequest') return h('span', { className: 'oratorio-chip chip-kind' }, ic('git-pull-request'), h('span', null, looksLikeNumber ? withHash : 'PR'))
+  if (it.kind === 'issue') return h('span', { className: 'oratorio-chip chip-kind' }, ic('circle-dot'), h('span', null, looksLikeNumber ? withHash : 'Issue'))
   return h('span', { className: 'oratorio-chip chip-kind' }, ic('file-text'), h('span', null, 'Task'))
 }
 function microDotClass(it) {
@@ -804,9 +829,9 @@ function toCard(item) {
     source: item.source || 'local',
     repo: item.repository || null,
     kind: item.kind || 'localTask',
-    number: item.externalId || null,
+    number: externalNumber(item.externalId),
     title: item.title || 'Untitled task',
-    summary: item.latestSummary || '',
+    summary: item.latestSummary || 'No agent summary is available yet.',
     state: item.state || 'discovered',
     col: normalizeTaskStatus(item.taskStatus, item.state),
     check: item.checkState || 'notConfigured',
@@ -820,26 +845,44 @@ function toCard(item) {
     meta: metaLabel(item)
   }
 }
+// Card meta line, matching Oratorio: "<source meta> · updated <when>".
 function metaLabel(item) {
-  const parts = []
-  if (item.sourceState === 'merged') parts.push('Merged')
-  else if (item.sourceState === 'closed') parts.push('Closed')
-  if (item.headSha) parts.push(String(item.headSha).slice(0, 7))
-  else if (Array.isArray(item.labels) && item.labels.length) parts.push(item.labels.length + (item.labels.length === 1 ? ' label' : ' labels'))
-  const when = relativeTime(item.updatedAt || item.sourceUpdatedAt)
-  if (when) parts.push('updated ' + when)
-  return parts.join(' · ')
+  const meta = sourceMetaLabel(item)
+  const updated = relativeTime(item.updatedAt || item.sourceUpdatedAt)
+  return updated ? meta + ' · updated ' + updated : meta
+}
+// Mirrors Oratorio sourceMetaLabel: local → label count; remote → lifecycle +
+// draft + short sha + synced timestamp. Keeps the embedded board 1:1 with Oratorio.
+function sourceMetaLabel(item) {
+  const source = item.source || 'local'
+  if (source === 'local') {
+    const n = Array.isArray(item.labels) ? item.labels.length : 0
+    return n ? n + (n === 1 ? ' label' : ' labels') : 'local task'
+  }
+  const lifecycle = item.sourceState === 'merged' ? 'Merged · ' : item.sourceState === 'closed' ? 'Closed · ' : ''
+  const draft = item.isDraft ? 'Draft · ' : ''
+  const sha = item.headSha ? shortSha(item.headSha) + ' · ' : ''
+  const synced = item.lastSourceSyncAt ? 'synced ' + relativeTime(item.lastSourceSyncAt) : 'not synced'
+  return lifecycle + draft + sha + synced
+}
+function shortSha(value) { return value && value.length > 7 ? value.slice(0, 7) : (value || '') }
+// Trailing-digit issue/PR number ("issue:owner/repo#31" -> "#31"); else the raw id.
+function externalNumber(externalId) {
+  if (!externalId) return ''
+  const m = String(externalId).match(/(\d+)$/)
+  return m ? '#' + m[1] : String(externalId)
 }
 function relativeTime(iso) {
   if (!iso) return ''
   const t = Date.parse(iso)
   if (!t) return ''
-  const mins = Math.max(0, Math.round((Date.now() - t) / 60000))
-  if (mins < 1) return 'just now'
+  const secs = Math.max(0, Math.round((Date.now() - t) / 1000))
+  if (secs < 60) return 'just now'
+  const mins = Math.round(secs / 60)
   if (mins < 60) return mins + ' min ago'
   const hrs = Math.round(mins / 60)
-  if (hrs < 48) return hrs + ' hr ago'
-  return Math.round(hrs / 24) + ' d ago'
+  if (hrs < 24) return hrs + ' hr ago'
+  return new Date(t).toLocaleDateString()
 }
 function normalizeTaskStatus(taskStatus, state) {
   if (taskStatus === 'todo' || taskStatus === 'in_progress' || taskStatus === 'in_review' || taskStatus === 'done') return taskStatus
@@ -928,4 +971,21 @@ function celebrate(shell) {
 function normalizeApiBase(value) {
   return typeof value === 'string' && value.trim() ? value.trim().replace(/\/+$/, '') : ''
 }
-function messageOf(err) { return err instanceof Error ? err.message : String(err) }
+function messageOf(err) {
+  const raw = (err instanceof Error ? err.message : String(err == null ? '' : err)).trim()
+  // Electron reports IPC failures as "Error invoking remote method '<channel>': <Type>: <msg>".
+  // Strip that wrapper (and a leading error-type) so the user sees the cause, not the plumbing.
+  const cleaned = raw
+    .replace(/^Error invoking remote method '[^']*':\s*/i, '')
+    .replace(/^[A-Za-z]+Error:\s*/, '')
+    .trim()
+  const low = cleaned.toLowerCase()
+  if (cleaned === '' || low === 'fetch failed' || low.includes('econnrefused')
+    || low.includes('failed to fetch') || low.includes('network request failed')) {
+    return "Oratorio isn't responding. Make sure the Oratorio app is running, then try again."
+  }
+  if (low.includes('abort') || low.includes('timed out') || low.includes('timeout')) {
+    return 'Oratorio took too long to respond. Try again in a moment.'
+  }
+  return cleaned
+}

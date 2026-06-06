@@ -11,6 +11,8 @@
           "type": "mainView",
           "viewId": "board",
           "label": "Board",
+          "localizedLabel": { "en": "Board", "zh-Hans": "看板", "ja": "ボード", "ko": "보드", "es": "Tablero", "fr": "Tableau", "de": "Board" },
+          "icon": "kanban",
           "placement": "sidebar",
           "order": 55
         },

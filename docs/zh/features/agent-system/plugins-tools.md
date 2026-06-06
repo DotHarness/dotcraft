@@ -126,6 +126,8 @@ descriptor 指向插件内的 ESM bundle，并声明它贡献的 Desktop surface
           "type": "mainView",
           "viewId": "main",
           "label": "Project Board",
+          "localizedLabel": { "en": "Project Board", "zh-Hans": "项目看板" },
+          "icon": "kanban",
           "placement": "sidebar",
           "order": 80
         }
@@ -134,6 +136,8 @@ descriptor 指向插件内的 ESM bundle，并声明它贡献的 Desktop surface
   ]
 }
 ```
+
+`mainView` sidebar 入口可设置 `icon`（宿主解析的图标名，未识别时回落到通用扩展图标）与 `localizedLabel`（按应用语言键入的逐语言覆盖，缺失时回落到 `label`）。译文由扩展自带，不会写入应用的消息目录。建议为每个受支持的应用语言都提供（`en`、`zh-Hans`、`ja`、`ko`、`es`、`fr`、`de`）；缺失的语言回落到 `label`。
 
 需要最小脚手架时可使用 `plugin-creator --with-desktop-extension`。
 

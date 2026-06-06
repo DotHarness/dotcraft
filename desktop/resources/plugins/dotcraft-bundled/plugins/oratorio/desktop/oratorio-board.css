@@ -61,10 +61,59 @@ html[data-theme="light"] .oratorio-board {
   align-items: center;
   padding: 0 22px;
 }
-.oratorio-brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.oratorio-brand-logo { display: inline-flex; width: 24px; height: 24px; flex: 0 0 auto; }
+.oratorio-brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.oratorio-brand-mark {
+  position: relative;
+  isolation: isolate;
+  z-index: 0;
+  display: inline-flex;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  overflow: visible;
+  animation: oratorio-logo-breathe 2.8s ease-in-out infinite;
+}
+.oratorio-brand-mark::before {
+  position: absolute;
+  inset: -7px -8px -8px;
+  border-radius: 999px;
+  background: radial-gradient(circle at 48% 44%,
+    color-mix(in srgb, var(--accent) 26%, transparent) 0%,
+    color-mix(in srgb, var(--accent) 14%, transparent) 42%,
+    color-mix(in srgb, var(--warning) 11%, transparent) 68%,
+    transparent 100%);
+  content: "";
+  filter: blur(7px);
+  opacity: 0.34;
+  pointer-events: none;
+  transform: scale(0.96);
+  z-index: -1;
+  animation: oratorio-logo-halo 2.8s ease-in-out infinite;
+}
+.oratorio-brand-logo { position: relative; z-index: 1; display: block; width: 36px; height: 36px; }
 .oratorio-brand-logo svg { display: block; width: 100%; height: 100%; }
+.oratorio-brand-wand { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
+.oratorio-wand-overlay { position: absolute; inset: 0; display: block; width: 36px; height: 36px; overflow: visible; pointer-events: none; }
+.oratorio-wand-aura { stroke: #f8c95d; stroke-width: 72; stroke-linecap: round; opacity: 0.36; filter: blur(20px); animation: oratorio-wand-aura-pulse 1.9s ease-in-out infinite; }
+.oratorio-wand-orbit-halo { fill: none; stroke: rgba(255, 222, 96, 0.78); stroke-width: 26; filter: blur(3px) drop-shadow(0 0 18px rgba(255, 214, 82, 0.9)) drop-shadow(0 0 10px rgba(47, 115, 217, 0.56)); opacity: 0; animation: oratorio-wand-orbit-expand 1.9s ease-out infinite; }
+.oratorio-wand-expanding-halo { fill: none; stroke: rgba(255, 238, 149, 0.86); stroke-width: 24; filter: blur(2px) drop-shadow(0 0 20px rgba(255, 218, 82, 0.96)) drop-shadow(0 0 12px rgba(47, 115, 217, 0.62)); opacity: 0; transform-box: fill-box; transform-origin: center; animation: oratorio-wand-ring-expand 1.9s ease-out infinite; }
+.oratorio-wand-expanding-halo.secondary { stroke: rgba(111, 164, 255, 0.68); stroke-width: 18; animation-delay: 0.52s; }
+.oratorio-wand-body-halo { stroke: #ffd85e; stroke-width: 34; stroke-linecap: round; filter: drop-shadow(0 0 18px rgba(255, 218, 82, 0.92)) drop-shadow(0 0 10px rgba(47, 115, 217, 0.48)); opacity: 0.72; animation: oratorio-wand-body-halo-pulse 1.9s ease-in-out infinite; }
+.oratorio-wand-core { stroke: rgba(255, 253, 231, 0.96); stroke-width: 12; stroke-linecap: round; filter: drop-shadow(0 0 8px rgba(255, 249, 202, 0.98)) drop-shadow(0 0 14px rgba(255, 207, 58, 0.86)); opacity: 0.92; animation: oratorio-wand-core-pulse 1.9s ease-in-out infinite; }
+.oratorio-wand-tip-glow { fill: #fff6bd; filter: drop-shadow(0 0 26px rgba(255, 220, 80, 1)) drop-shadow(0 0 13px rgba(47, 115, 217, 0.72)); opacity: 0.84; transform-origin: 896px 294px; animation: oratorio-wand-tip-pulse 1.9s ease-in-out infinite; }
+.oratorio-wand-spark { stroke: #fff4b8; stroke-width: 14; stroke-linecap: round; filter: drop-shadow(0 0 7px rgba(255, 221, 90, 0.96)); opacity: 0; transform-box: fill-box; transform-origin: center; animation: oratorio-wand-spark-pop 1.9s ease-in-out infinite; }
+.oratorio-wand-spark.secondary { animation-delay: 0.42s; }
 .oratorio-brand-name { font-size: 18px; font-weight: 650; color: var(--text-primary); letter-spacing: -0.01em; }
+
+@keyframes oratorio-logo-breathe { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
+@keyframes oratorio-logo-halo { 0%, 100% { opacity: 0.26; transform: scale(0.94); } 50% { opacity: 0.42; transform: scale(1.04); } }
+@keyframes oratorio-wand-aura-pulse { 0%, 100% { opacity: 0.18; stroke-width: 58; } 50% { opacity: 0.48; stroke-width: 82; } }
+@keyframes oratorio-wand-orbit-expand { 0% { opacity: 0; stroke-width: 8; } 26% { opacity: 0.72; } 100% { opacity: 0; stroke-width: 42; } }
+@keyframes oratorio-wand-ring-expand { 0% { opacity: 0; transform: scale(0.46); } 24% { opacity: 0.74; } 100% { opacity: 0; transform: scale(1.64); } }
+@keyframes oratorio-wand-body-halo-pulse { 0%, 100% { opacity: 0.5; stroke-width: 27; } 50% { opacity: 0.92; stroke-width: 40; } }
+@keyframes oratorio-wand-core-pulse { 0%, 100% { opacity: 0.7; stroke-width: 9; } 50% { opacity: 1; stroke-width: 13; } }
+@keyframes oratorio-wand-tip-pulse { 0%, 100% { opacity: 0.52; transform: scale(0.82); } 50% { opacity: 0.98; transform: scale(1.28); } }
+@keyframes oratorio-wand-spark-pop { 0%, 35%, 100% { opacity: 0; transform: scale(0.5) rotate(0deg); } 50% { opacity: 0.92; transform: scale(1) rotate(12deg); } 68% { opacity: 0; transform: scale(1.2) rotate(24deg); } }
 
 /* ── Toolbar ── */
 .oratorio-toolbar {
@@ -522,6 +571,12 @@ html[data-theme="light"] .oratorio-board .oratorio-drawer { box-shadow: -12px 0 
 
 @media (prefers-reduced-motion: reduce) {
   .oratorio-dot.running, .oratorio-spinner .ic, .oratorio-skeleton, .oratorio-burst i { animation: none !important; }
+  .oratorio-brand-mark { animation: none; transform: none; }
+  .oratorio-brand-mark::before { opacity: 0.24; transform: scale(0.98); animation: none; }
+  .oratorio-wand-aura { opacity: 0.32; animation: none; }
+  .oratorio-wand-orbit-halo, .oratorio-wand-expanding-halo { opacity: 0.34; animation: none; }
+  .oratorio-wand-body-halo, .oratorio-wand-core, .oratorio-wand-tip-glow { opacity: 0.62; animation: none; }
+  .oratorio-wand-spark { opacity: 0; animation: none; }
 }
 
 @media (max-width: 1180px) {

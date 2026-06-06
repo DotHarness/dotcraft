@@ -284,6 +284,20 @@ public sealed class PluginDesktopExtensionSurfaceDescriptor
 
     public string? Label { get; set; }
 
+    /// <summary>
+    /// Optional per-locale overrides for <see cref="Label"/>, keyed by app locale
+    /// (for example <c>en</c>, <c>zh-Hans</c>). The Desktop client resolves the
+    /// active locale and falls back to <see cref="Label"/> when a locale is absent.
+    /// </summary>
+    public Dictionary<string, string>? LocalizedLabel { get; set; }
+
+    /// <summary>
+    /// Optional named glyph the host renders for this surface (for example a sidebar
+    /// nav entry). Resolved by the Desktop client to a built-in icon; unknown or
+    /// omitted values fall back to the generic extension icon.
+    /// </summary>
+    public string? Icon { get; set; }
+
     public string? Placement { get; set; }
 
     public int? Order { get; set; }

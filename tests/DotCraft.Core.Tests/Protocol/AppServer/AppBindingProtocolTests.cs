@@ -21,6 +21,7 @@ public sealed class AppBindingProtocolTests : IDisposable
     private const string AppConnectionRequestGet = "app/connection/request/get";
     private const string AppConnectionConnect = "app/connection/connect";
     private const string AppConnectionStatus = "app/connection/status";
+    private const string AppConnectionRefreshMetadata = "app/connection/refreshMetadata";
     private const string AppConnectionRevoke = "app/connection/revoke";
     private const string AppBindingRequestCreate = "app/binding/request/create";
     private const string AppBindingRequestGet = "app/binding/request/get";
@@ -760,6 +761,110 @@ public sealed class AppBindingProtocolTests : IDisposable
         AppServerTestHarness.AssertIsSuccessResponse(revokedStatusResponse);
         Assert.Equal("notConnected", revokedStatusResponse.RootElement.GetProperty("result").GetProperty("state").GetString());
         Assert.False(revokedStatusResponse.RootElement.GetProperty("result").TryGetProperty("publicMetadata", out _));
+    }
+
+    [Fact]
+    public async Task ConnectionRefreshMetadata_UpdatesLoopbackEndpointWithMatchingProof()
+    {
+        WriteOratorioPlugin();
+        var service = new AppBindingService();
+        using var harness = CreateHarness(service);
+        await harness.InitializeAsync();
+
+        object Proof() => new { appId = "com.dotharness.oratorio", workspaceLabel = "ws", mode = "deepLink" };
+
+        using var startResponse = await ExecuteAndReadResponseAsync(
+            harness,
+            AppConnectionStart,
+            new { appId = "com.dotharness.oratorio" },
+            expectedNotificationMethod: "app/connection/changed");
+        var connectionRequestId = startResponse.RootElement.GetProperty("result").GetProperty("connectionRequestId").GetString()!;
+        var token = ExtractToken(startResponse.RootElement
+            .GetProperty("result").GetProperty("handoff").GetProperty("uri").GetString()!);
+
+        using var connectResponse = await ExecuteAndReadResponseAsync(
+            harness,
+            AppConnectionConnect,
+            new
+            {
+                connectionRequestId,
+                requestToken = token,
+                appId = "com.dotharness.oratorio",
+                accountLabel = "local-oratorio",
+                connectionProof = Proof(),
+                publicMetadata = new { surfaceEndpoints = new { apiBase = "http://127.0.0.1:5087/api/v1" } }
+            },
+            expectedNotificationMethod: "app/connection/changed");
+        AppServerTestHarness.AssertIsSuccessResponse(connectResponse);
+
+        // Re-announce a new dynamic loopback port using the same app-owned proof.
+        using var refreshResponse = await ExecuteAndReadResponseAsync(
+            harness,
+            AppConnectionRefreshMetadata,
+            new
+            {
+                appId = "com.dotharness.oratorio",
+                connectionProof = Proof(),
+                publicMetadata = new
+                {
+                    surfaceEndpoints = new
+                    {
+                        apiBase = "http://127.0.0.1:49555/api/v1",
+                        unsafeUrl = "https://example.com/private"
+                    }
+                }
+            });
+        AppServerTestHarness.AssertIsSuccessResponse(refreshResponse);
+        Assert.Equal("connected", refreshResponse.RootElement.GetProperty("result").GetProperty("state").GetString());
+
+        using var statusResponse = await ExecuteAndReadResponseAsync(
+            harness,
+            AppConnectionStatus,
+            new { appId = "com.dotharness.oratorio" });
+        var endpoints = statusResponse.RootElement.GetProperty("result").GetProperty("publicMetadata").GetProperty("surfaceEndpoints");
+        Assert.Equal("http://127.0.0.1:49555/api/v1", endpoints.GetProperty("apiBase").GetString());
+        Assert.False(endpoints.TryGetProperty("unsafeUrl", out _));
+
+        // A mismatched proof must be rejected and must not mutate stored metadata.
+        using var wrongProofResponse = await ExecuteAndReadResponseAsync(
+            harness,
+            AppConnectionRefreshMetadata,
+            new
+            {
+                appId = "com.dotharness.oratorio",
+                connectionProof = new { appId = "com.dotharness.oratorio", workspaceLabel = "ws", mode = "forged" },
+                publicMetadata = new { surfaceEndpoints = new { apiBase = "http://127.0.0.1:60000/api/v1" } }
+            });
+        AppServerTestHarness.AssertIsErrorResponse(wrongProofResponse, AppServerErrors.InvalidParamsCode);
+
+        using var unchangedStatus = await ExecuteAndReadResponseAsync(
+            harness,
+            AppConnectionStatus,
+            new { appId = "com.dotharness.oratorio" });
+        Assert.Equal(
+            "http://127.0.0.1:49555/api/v1",
+            unchangedStatus.RootElement.GetProperty("result").GetProperty("publicMetadata")
+                .GetProperty("surfaceEndpoints").GetProperty("apiBase").GetString());
+    }
+
+    [Fact]
+    public async Task ConnectionRefreshMetadata_RejectsWhenNotConnected()
+    {
+        WriteOratorioPlugin();
+        var service = new AppBindingService();
+        using var harness = CreateHarness(service);
+        await harness.InitializeAsync();
+
+        using var response = await ExecuteAndReadResponseAsync(
+            harness,
+            AppConnectionRefreshMetadata,
+            new
+            {
+                appId = "com.dotharness.oratorio",
+                connectionProof = new { appId = "com.dotharness.oratorio" },
+                publicMetadata = new { surfaceEndpoints = new { apiBase = "http://127.0.0.1:5087/api/v1" } }
+            });
+        AppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
     }
 
     [Fact]

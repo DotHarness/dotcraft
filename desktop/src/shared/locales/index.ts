@@ -2,3 +2,4 @@ export type { AppLocale, EnglishRequiredLocalizedText, LocalizedTextMap, TopLeve
 export { DEFAULT_LOCALE, SUPPORTED_LOCALES, SUPPORTED_LOCALE_VALUES, TOP_LEVEL_MENU_IDS } from './types'
 export { normalizeLocale, localeToHtmlLang } from './normalize'
 export { translate, type MessageKey } from './catalog'
+export { resolveLocalizedText } from './localizedText'

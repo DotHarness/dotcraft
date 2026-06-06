@@ -126,6 +126,8 @@ The descriptor points to plugin-contained ESM and declares the surfaces it contr
           "type": "mainView",
           "viewId": "main",
           "label": "Project Board",
+          "localizedLabel": { "en": "Project Board", "zh-Hans": "项目看板" },
+          "icon": "kanban",
           "placement": "sidebar",
           "order": 80
         }
@@ -134,6 +136,8 @@ The descriptor points to plugin-contained ESM and declares the surfaces it contr
   ]
 }
 ```
+
+A `mainView` sidebar entry can set `icon` (a host-resolved glyph name; unknown names fall back to a generic extension icon) and `localizedLabel` (per-locale overrides keyed by app locale, falling back to `label`). The extension ships its own translations — they are not added to the app's message catalog. Provide an entry for every supported app locale (`en`, `zh-Hans`, `ja`, `ko`, `es`, `fr`, `de`); any missing locale falls back to `label`.
 
 Use `plugin-creator --with-desktop-extension` for a minimal scaffold.
 

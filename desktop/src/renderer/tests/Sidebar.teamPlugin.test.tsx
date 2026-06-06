@@ -43,6 +43,7 @@ const agentTeamsPlugin: PluginEntry = {
           type: 'mainView',
           viewId: 'teams',
           label: 'Team',
+          localizedLabel: { en: 'Team', 'zh-Hans': '团队', ja: 'チーム', ko: '팀', es: 'Equipo', fr: 'Équipe', de: 'Team' },
           placement: 'sidebar',
           order: 40
         },
@@ -120,6 +121,28 @@ describe('Sidebar Team plugin gate', () => {
     renderSidebar()
 
     expect(screen.getByRole('button', { name: 'Team' })).toBeInTheDocument()
+  })
+
+  it('renders the extension nav label localized for the active locale', async () => {
+    settingsGet.mockResolvedValue({ locale: 'zh-Hans' })
+    usePluginStore.setState({ plugins: [agentTeamsPlugin] })
+
+    renderSidebar()
+
+    // LocaleProvider resolves the persisted locale asynchronously, then the
+    // surface's localizedLabel overrides the base English label.
+    expect(await screen.findByRole('button', { name: '团队' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Team' })).not.toBeInTheDocument()
+  })
+
+  it('resolves a non-Chinese locale from localizedLabel', async () => {
+    settingsGet.mockResolvedValue({ locale: 'ja' })
+    usePluginStore.setState({ plugins: [agentTeamsPlugin] })
+
+    renderSidebar()
+
+    expect(await screen.findByRole('button', { name: 'チーム' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Team' })).not.toBeInTheDocument()
   })
 
   it('hides Team when the installed plugin is disabled, including collapsed mode', () => {

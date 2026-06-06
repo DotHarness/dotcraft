@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.3.0 |
+| **Version** | 0.4.0 |
 | **Status** | Living |
-| **Date** | 2026-05-19 |
+| **Date** | 2026-06-06 |
 | **Related Specs** | [AppServer Protocol](appserver-protocol.md), [Tool Result Presentation](tool-result-presentation.md), [Plugin Architecture](../extensions/plugin-architecture.md), [Session Core](../core/session-core.md), [Desktop Client](../clients/desktop-client.md), [SDK](../sdk/sdk.md), [TypeScript SDK Binding](../sdk/typescript.md) |
 
 Purpose: define the product-grade App Binding architecture for DotCraft. App Binding lets a user connect an installed native application and grant one specific DotCraft thread access to app-owned tools, while keeping app authority, account consent, and high-risk operations under the app's control.
@@ -109,6 +109,8 @@ The app owns:
 DotCraft validation is intentionally not a substitute for app-side authorization.
 
 Connected apps may publish a small `publicMetadata` object when completing or refreshing an App Binding connection. DotCraft may expose this metadata through connection status only after validating that it is safe for Desktop clients. v1 public metadata is limited to redacted display values and loopback surface endpoints such as local HTTP or WebSocket URLs used by a trusted Desktop extension. Secret tokens, account credentials, raw grants, and app-private proof material must remain in `connectionProof` and must never be echoed to clients.
+
+A connected app may refresh its own `publicMetadata` after the initial connect — without a new user grant, handoff, or dialog — through `app/connection/refreshMetadata` (§9.6). This is a transport-only update: it lets an app that reopened on a new dynamic loopback port re-publish its current surface endpoints so durable Desktop surfaces keep working across app restarts. The refresh is authorized solely by the existing connection (matching `appId` plus the app-owned `connectionProof`) over the loopback app-server, mutates only `publicMetadata` (re-validated by the same loopback sanitizer), and never widens scope or changes grants — it is maintenance of an existing consent, analogous to renewing a lease, not a new authorization.
 
 Trusted Desktop extensions may use `publicMetadata.surfaceEndpoints` only as a discovery layer for app-owned local surfaces. The extension must still declare the expected loopback origins in its Desktop extension descriptor, and Desktop must enforce those origins before issuing renderer-initiated HTTP requests. Surface endpoints are read-only presentation endpoints by default. A trusted Desktop extension that declares `surfaceWriteScopes` may issue scoped mutating requests to a surface endpoint while its required app is connected, as defined by the extension surface write transport in [Plugin Architecture](../extensions/plugin-architecture.md). The app's loopback surface authorizes each write with the connection credential it issued and remains authoritative; App Binding tools and app-owned approval remain the path for agent-invoked and externally-visible writes.
 
@@ -627,6 +629,30 @@ Revokes the app connection credential for the current workspace, user, and app.
 **Result**: `{ "appId": string, "state": "notConnected" }`
 
 Revoking a connection does not delete historical binding records. Active bindings for that app become `offline` unless the app also reports grant revocation.
+
+### 9.6 `app/connection/refreshMetadata`
+
+Refreshes only the `publicMetadata` of an existing connected connection (for example to re-publish a loopback surface endpoint after the app reopened on a new dynamic port). This does not create connections, does not consume a handoff token, and does not require a `connectionRequestId` or user dialog.
+
+**Direction**: app -> server
+
+**Params**:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `appId` | string | yes | App id. |
+| `connectionProof` | object | yes | The app-owned proof presented at connect; must match the stored proof. |
+| `publicMetadata` | object | yes | New public metadata; re-validated by the same loopback sanitizer used by `app/connection/connect`. |
+
+**Result**: the connection status object (same shape as `app/connection/status`), reflecting the refreshed `publicMetadata`.
+
+Rules:
+
+- The target connection must already exist and be `connected`. The method never creates a connection.
+- The connection is located by `appId` and an exact match of the stored app-owned `connectionProof` — the refresh is initiated by the app over its own loopback app-server connection, which does not share the Desktop initiator's user id, so authority is the proof, not the caller's user.
+- Only `publicMetadata` is updated; `state`, `connectedAt`, `expiresAt`, `accountLabel`, and `connectionProof` are unchanged.
+- `publicMetadata` is re-validated by the same loopback-only sanitizer as connect; non-loopback surface endpoints are dropped.
+- The refresh is loopback-only and grants no new authority. Desktop surfaces observe the new endpoint on their next `app/connection/status` read.
 
 ---
 
@@ -1238,6 +1264,7 @@ A future explicit inheritance or delegation feature must define user confirmatio
 
 - App disconnect moves active bindings to `offline` unless the app also revokes grants.
 - App reconnect may refresh or reattach existing non-revoked bindings if app-owned grant proof is still valid.
+- Reopening the native app may silently refresh its published loopback surface endpoints via `app/connection/refreshMetadata` (§9.6) so durable Desktop surfaces keep working across app restarts and dynamic-port reallocation, without re-prompting the user.
 - Connection credentials are scoped to workspace + user + appId and only permit App Binding methods.
 
 ---
@@ -1413,6 +1440,7 @@ Product validation requires:
 - Oratorio Desktop calls AppServer to inspect, accept, and attach tools after connection confirmation or binding authorization.
 - Oratorio Desktop keeps the app-bound tool channel alive while the app is running.
 - Closing Oratorio makes active bindings become `offline` in DotCraft until the app reconnects.
+- Oratorio persists its DotCraft binding (resolved app-server endpoint, appId, and the app-owned connection proof) and, on startup, re-announces its current loopback `apiBase` via `app/connection/refreshMetadata` (§9.6). Because Oratorio Desktop allocates a dynamic loopback port per launch, this lets the embedded board reconnect after a restart with no manual re-bind. Oratorio Desktop should also reuse a stable loopback port across restarts when available to minimize churn.
 
 Initial Oratorio manager tools:
 

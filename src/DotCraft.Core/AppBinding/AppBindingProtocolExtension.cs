@@ -23,6 +23,7 @@ public sealed class AppBindingProtocolExtension(
     private const string AppConnectionRequestGet = "app/connection/request/get";
     private const string AppConnectionConnect = "app/connection/connect";
     private const string AppConnectionStatus = "app/connection/status";
+    private const string AppConnectionRefreshMetadata = "app/connection/refreshMetadata";
     private const string AppConnectionRevoke = "app/connection/revoke";
     private const string AppBindingRequestCreate = "app/binding/request/create";
     private const string AppBindingRequestGet = "app/binding/request/get";
@@ -49,6 +50,7 @@ public sealed class AppBindingProtocolExtension(
         AppConnectionRequestGet,
         AppConnectionConnect,
         AppConnectionStatus,
+        AppConnectionRefreshMetadata,
         AppConnectionRevoke,
         AppBindingRequestCreate,
         AppBindingRequestGet,
@@ -156,6 +158,17 @@ public sealed class AppBindingProtocolExtension(
                 if (string.IsNullOrWhiteSpace(p.AppId))
                     throw AppServerErrors.InvalidParams("'appId' is required.");
                 return service.GetConnectionStatus(catalog, workspaceCraftPath, userId, p.AppId);
+            }
+
+            case AppConnectionRefreshMetadata:
+            {
+                var p = GetParams<AppConnectionMetadataRefreshParams>(msg);
+                if (string.IsNullOrWhiteSpace(p.AppId))
+                    throw AppServerErrors.InvalidParams("'appId' is required.");
+                // Authorized by the app-owned connection proof (see RefreshConnectionMetadata),
+                // not the caller's user. Desktop surfaces observe the new endpoint on their next
+                // app/connection/status read, so no cross-client notification is emitted here.
+                return service.RefreshConnectionMetadata(catalog, workspaceCraftPath, p);
             }
 
             case AppConnectionRevoke:

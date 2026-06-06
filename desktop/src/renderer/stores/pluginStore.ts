@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import type { LocalizedTextMap } from '../../shared/locales'
 
 export interface PluginInterface {
   displayName?: string | null
@@ -67,6 +68,8 @@ export interface PluginDesktopExtensionSurface {
   type: string
   viewId?: string | null
   label?: string | null
+  localizedLabel?: LocalizedTextMap | null
+  icon?: string | null
   placement?: string | null
   order?: number | null
   title?: string | null

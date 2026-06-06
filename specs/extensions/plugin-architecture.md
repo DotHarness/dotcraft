@@ -111,6 +111,8 @@ Example MCP plugin:
           "type": "mainView",
           "viewId": "teams",
           "label": "Team",
+          "localizedLabel": { "en": "Team", "zh-Hans": "团队" },
+          "icon": "kanban",
           "placement": "sidebar",
           "order": 40
         },
@@ -129,7 +131,13 @@ Example MCP plugin:
 
 Desktop extension path fields use the same manifest-relative path rules as other plugin paths. The supported surface `type` values are `mainView`, `pluginDetail`, `detailPanel`, `composerAction`, `conversationRenderer`, and `settingsPanel`. Unknown surface types are diagnostics and are ignored by clients.
 
+A `mainView` surface may declare an optional `icon`, a host-resolved named glyph for its sidebar nav entry. The client maps known names to built-in icons; an omitted or unrecognized name falls back to the generic extension icon. Extensions do not ship raster assets for nav entries.
+
+Surface display text is localized by the extension, not the host catalog. `label` is the required base (English) string; an optional `localizedLabel` object carries per-locale overrides keyed by app locale (for example `"zh-Hans"`). The client resolves the active locale and falls back to `label` when a locale is absent, so extensions ship their own translations and unknown locales degrade gracefully.
+
 `connectOrigins` declares the loopback origins a trusted Desktop extension may access through Desktop's extension network bridge. Origins must be absolute `http`, `https`, `ws`, or `wss` loopback origins without path, query, or fragment; dynamic local app ports may be declared with a wildcard port such as `http://127.0.0.1:*`. Desktop must reject renderer-initiated extension network requests whose target origin is not listed by the descriptor. By itself `connectOrigins` permits local presentation data transport (read), not app mutation authority; mutation over a declared origin is allowed only through the scoped write transport below.
+
+The concrete surface endpoint (host and port) the extension talks to is discovered at runtime from the connected app's `publicMetadata.surfaceEndpoints`, not hard-coded. A native app that reopens on a new dynamic loopback port may refresh that endpoint without a new user grant via the App Binding connection metadata refresh (see [App Binding](../protocols/app-binding.md) §9.6), so a wildcard-port `connectOrigins` keeps working across app restarts.
 
 ### Extension surface write transport
 

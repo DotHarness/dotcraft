@@ -44,6 +44,12 @@ Prerequisite: .NET 10 SDK (preview).
 - SDKs and clients: `sdk/`, `tui/`, `desktop/`
 - Docs and examples: `docs/` (English root, Chinese under `docs/zh/`), `samples/`
 
+## Localization
+
+- **UI strings** (Desktop, incl. plugin/extension `localizedLabel` and message catalogs): localize for all supported app locales — `en`, `zh-Hans`, `ja`, `ko`, `es`, `fr`, `de` (see `desktop/src/shared/locales/types.ts`).
+- **Docs** (`docs/`): English root + Chinese under `docs/zh/` only.
+- **C# runtime/protocol messages**: stable key/code + English fallback; Desktop owns UI localization (no server-side translation catalogs).
+
 ## Go Deeper
 
 - Development norms: `dev-guide` skill

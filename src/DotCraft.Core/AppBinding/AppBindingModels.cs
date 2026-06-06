@@ -413,6 +413,22 @@ public sealed class AppConnectionStatusParams
     public string AppId { get; set; } = string.Empty;
 }
 
+/// <summary>
+/// Params for <c>app/connection/refreshMetadata</c>: an already-connected app
+/// re-publishes only its <see cref="PublicMetadata"/> (for example a new dynamic
+/// loopback port), authorized by replaying its app-owned <see cref="ConnectionProof"/>.
+/// </summary>
+public sealed class AppConnectionMetadataRefreshParams
+{
+    public string AppId { get; set; } = string.Empty;
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonObject? ConnectionProof { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonObject? PublicMetadata { get; set; }
+}
+
 public sealed class AppConnectionRequestGetParams
 {
     public string AppId { get; set; } = string.Empty;

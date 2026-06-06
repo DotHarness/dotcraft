@@ -11,6 +11,7 @@
           "type": "mainView",
           "viewId": "teams",
           "label": "Team",
+          "localizedLabel": { "en": "Team", "zh-Hans": "团队", "ja": "チーム", "ko": "팀", "es": "Equipo", "fr": "Équipe", "de": "Team" },
           "placement": "sidebar",
           "order": 40
         },

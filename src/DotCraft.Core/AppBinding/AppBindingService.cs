@@ -275,6 +275,47 @@ public sealed class AppBindingService
         return MapConnectionStatus(state, userId, appId);
     }
 
+    /// <summary>
+    /// Refreshes only the <c>publicMetadata</c> of an existing connected connection
+    /// (for example a new dynamic loopback surface port). The refresh is initiated by
+    /// the app over its own loopback app-server connection, which does not share the
+    /// Desktop initiator's user id; authority is therefore the app-owned connection
+    /// proof, not the caller's user. Never creates a connection or changes scope.
+    /// </summary>
+    public AppConnectionStatusWire RefreshConnectionMetadata(
+        AppCatalogSnapshot catalog,
+        string workspaceCraftPath,
+        AppConnectionMetadataRefreshParams p)
+    {
+        if (string.IsNullOrWhiteSpace(p.AppId))
+            throw AppServerErrors.InvalidParams("'appId' is required.");
+        if (p.ConnectionProof == null)
+            throw AppServerErrors.InvalidParams("'connectionProof' is required.");
+
+        _ = FindEnabledApp(catalog, p.AppId);
+
+        return GetStore(workspaceCraftPath).Update(state =>
+        {
+            var connection = state.Connections.FirstOrDefault(candidate =>
+                string.Equals(candidate.AppId, p.AppId, StringComparison.Ordinal)
+                && candidate.State == AppConnectionStates.Connected
+                && ConnectionProofMatches(candidate.ConnectionProof, p.ConnectionProof));
+            if (connection == null)
+            {
+                throw AppServerErrors.InvalidParams(
+                    $"No connected '{p.AppId}' connection matches the supplied connection proof.");
+            }
+
+            connection.PublicMetadata = SanitizePublicConnectionMetadata(p.PublicMetadata);
+            AddAudit(state, "connection.metadata.refreshed", null, null, p.AppId, connection.UserId, null);
+
+            return MapConnectionStatus(connection);
+        });
+    }
+
+    private static bool ConnectionProofMatches(JsonObject? stored, JsonObject? presented) =>
+        stored != null && presented != null && JsonNode.DeepEquals(stored, presented);
+
     public AppConnectionStatusWire RevokeConnection(
         AppCatalogSnapshot catalog,
         string workspaceCraftPath,
