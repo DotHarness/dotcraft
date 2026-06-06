@@ -2860,7 +2860,14 @@ describe('BrowserUseManager IAB backend', () => {
       method: 'Runtime.getProperties',
       commandParams: {},
       timeoutMs: 1
-    })).rejects.toThrow('CommandTimeout:')
+    })).rejects.toMatchObject({
+      code: -32010,
+      data: {
+        operation: 'executeCdp',
+        cdpMethod: 'Runtime.getProperties',
+        tabId: String(created.id)
+      }
+    })
 
     ;(wc.debugger.sendCommand as ReturnType<typeof vi.fn>).mockImplementation(async (method: string) => {
       if (method === 'Page.captureScreenshot') return { data: 'AQID' }

@@ -54,13 +54,14 @@ if (missingBrowserApis.length) {
 }
 await browser.nameSession("local app check");
 if (typeof tab === "undefined") {
-  globalThis.tab = await browser.tabs.selected();
+  const selected = await browser.tabs.selected();
+  globalThis.tab = selected ?? await browser.tabs.new();
 }
 ```
 
 `agent` is installed by the bundled browser client. Do not use or document browser objects that were preinstalled by the REPL or manager layer.
 
-`browser.tabs.selected()` may be unavailable when there is no selected tab. If there may be no selected tab, create one instead:
+`browser.tabs.selected()` returns the active automation tab when one exists. If there is no selected tab, it returns `undefined`; create a new tab before acting.
 
 ```js
 if (typeof tab === "undefined") {
@@ -83,11 +84,13 @@ await nodeRepl.emitImage(await tab.screenshot({ fullPage: false }));
 - After a reset, stale handle, or lost `tab` binding, recover current-session tabs with `await browser.tabs.list()` and `await browser.tabs.get(tab.id)`.
 - Do not alternate between `tab = ...`, `let tab = ...`, `const tab = ...`, and `globalThis.tab = ...` across retries.
 - Do not redeclare an existing `tab` with `const tab = ...`; it can fail in the persistent JavaScript context.
+- Issue browser cells for the same thread sequentially. Desktop serializes accidental overlap, but dependent browser actions should live in one ordered cell or in clearly ordered follow-up cells.
 - If you intentionally switch the main tab, assign `globalThis.tab = await browser.tabs.get(id)` or keep a separately named handle such as `detailsTab`.
 - If a previous cell failed before creating `tab`, define it before using it. There is no automatic `tab` variable.
 
 ## Existing and Temporary Tabs
 
+- `browser.tabs.list()` and `browser.user.openTabs()` return serializable tab info, not live tab handles. Use `await browser.tabs.get(info.id)` or `await browser.user.claimTab(info)` before calling `goto`, `click`, `screenshot`, or other tab methods.
 - When the user refers to the current or already-open browser page, inspect `await browser.user.openTabs()` and claim the matching visible tab with `await browser.user.claimTab(tabOrId)` instead of opening duplicates or re-navigating.
 - Before opening a new tab, check `await tab.url()` or `await browser.tabs.list()` and reuse an existing tab when it already fits the task.
 - If a tab is already on the intended URL, do not call `goto()` with the same URL. This reloads the page and may lose in-progress state. Use `tab.reload()` only when a reload is intentional.
@@ -297,7 +300,7 @@ Confirmation hygiene:
 - Browser user: `browser.user.openTabs()` and `browser.user.claimTab(tabOrId)` for visible/open tabs.
 - Browser capabilities: `visibility.get/set` and `viewport.set/reset`.
 - Clipboard: virtual clipboard `tab.clipboard.readText()`, `tab.clipboard.writeText(text)`, `tab.clipboard.read()`, and `tab.clipboard.write(items)`.
-- Playwright helpers: read-only `evaluate(fnOrExpression, arg?, options?)`, `domSnapshot`, `waitForURL`, real `waitForLoadState`, `waitForTimeout`, `expectNavigation`, `locator`, same-origin `frameLocator`, `getByRole`, `getByText`, `getByLabel`, `getByPlaceholder`, `getByTestId`, `count`, `all`, cached locator reads, `filter`, `and`, `or`, scoped locators, `allTextContents`, `textContent`, `innerText`, `getAttribute`, `isVisible`, `isEnabled`, `click`, `dblclick`, `fill`, `type`, `press`, `check`, `uncheck`, `setChecked`, `selectOption`, and `waitFor`.
+- Playwright helpers: bounded `evaluate(fnOrExpression, arg?, options?)`, `domSnapshot`, `waitForURL`, real `waitForLoadState`, `waitForTimeout`, `expectNavigation`, `locator`, same-origin `frameLocator`, `getByRole`, `getByText`, `getByLabel`, `getByPlaceholder`, `getByTestId`, `count`, `all`, cached locator reads, `filter`, `and`, `or`, scoped locators, `allTextContents`, `textContent`, `innerText`, `getAttribute`, `isVisible`, `isEnabled`, `click`, `dblclick`, `fill`, `type`, `press`, `check`, `uncheck`, `setChecked`, `selectOption`, and `waitFor`.
 - DOM-CUA and CUA: visible DOM discovery, click, double click, type, keypress, scroll, drag, and coordinate pointer movement using object-shaped coordinates.
 - Page assets: `pageAssets.list()` and `pageAssets.bundle()` are supported; bundles are written to safe temporary output after the Desktop IAB file-transfer approval path.
 - WebMCP: call `await tab.capabilities.list()` first. If the list contains `webmcp`, `await tab.capabilities.get("webmcp")` can list and invoke tools explicitly exposed by the current page through `navigator.modelContext`. If `webmcp` is absent, the current page has no page-defined tools; do not call WebMCP methods.
@@ -346,7 +349,7 @@ interface BrowserUser {
 interface Tabs {
   list(): Promise<Array<TabInfo>>;
   new(url?: string): Promise<Tab>;
-  selected(): Promise<Tab>;
+  selected(): Promise<Tab | undefined>;
   get(id: string | number): Promise<Tab>;
   content(options: TabsContentOptions): Promise<Array<TabsContentResult>>;
   finalize(options: FinalizeTabsOptions): Promise<unknown>;

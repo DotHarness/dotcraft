@@ -414,6 +414,7 @@ function createFakeBrowserManager(options: {
             }]
           }
         }
+        if (params.type === 'tab_screenshot') return { data: 'AQID' }
         if (params.type === 'playwright_wait_for_load_state') return {}
         if (params.type === 'tab_clipboard_read_text') return { text: clipboardPlainText() }
         if (params.type === 'tab_clipboard_write_text') {
@@ -557,6 +558,68 @@ describe('NodeReplManager', () => {
     expect(second.error).toBeUndefined()
     expect(second.resultText).toBe('2')
     manager.reset('thread-1')
+  })
+
+  it('serializes concurrent evaluations for the same thread', async () => {
+    const browserManager = createFakeBrowserManager()
+    const manager = createManager(browserManager)
+    const owner = {} as Electron.BrowserWindow
+
+    const first = manager.evaluate(owner, {
+      threadId: 'thread-queue',
+      evaluationId: 'eval-first',
+      code: `
+        await new Promise((resolve) => setTimeout(resolve, 25))
+        globalThis.queueOrder = ["first"]
+        return "first"
+      `
+    })
+    const second = manager.evaluate(owner, {
+      threadId: 'thread-queue',
+      evaluationId: 'eval-second',
+      code: `
+        globalThis.queueOrder.push("second")
+        return JSON.stringify(globalThis.queueOrder)
+      `
+    })
+
+    const [firstResult, secondResult] = await Promise.all([first, second])
+
+    expect(firstResult.error).toBeUndefined()
+    expect(firstResult.resultText).toBe('first')
+    expect(secondResult.error).toBeUndefined()
+    expect(JSON.parse(secondResult.resultText ?? '[]')).toEqual(['first', 'second'])
+    manager.reset('thread-queue')
+  })
+
+  it('cancels a queued evaluation before it starts', async () => {
+    const browserManager = createFakeBrowserManager()
+    const manager = createManager(browserManager)
+    const owner = {} as Electron.BrowserWindow
+
+    const first = manager.evaluate(owner, {
+      threadId: 'thread-queue-cancel',
+      evaluationId: 'eval-first',
+      code: `
+        await new Promise((resolve) => setTimeout(resolve, 25))
+        return "first"
+      `
+    })
+    const second = manager.evaluate(owner, {
+      threadId: 'thread-queue-cancel',
+      evaluationId: 'eval-second',
+      code: 'return "second"'
+    })
+    const cancel = manager.cancel('thread-queue-cancel', 'eval-second')
+
+    const [firstResult, secondResult] = await Promise.all([first, second])
+
+    expect(cancel).toEqual({ ok: true })
+    expect(firstResult.error).toBeUndefined()
+    expect(firstResult.resultText).toBe('first')
+    expect(secondResult.error).toContain('cancelled before it started')
+    expect(browserManager.abortEvaluation).not.toHaveBeenCalledWith('thread-queue-cancel', 'eval-second')
+    manager.reset('thread-queue-cancel')
   })
 
   it('returns console logs and displayed images', async () => {
@@ -807,11 +870,25 @@ describe('NodeReplManager', () => {
         const tab = await browser.tabs.new()
         const selected = await browser.tabs.selected()
         const list = await browser.tabs.list()
+        const openTabs = await browser.user.openTabs()
+        const missingClaim = await browser.user.claimTab("999")
+        const listJson = JSON.stringify({ list })
+        const openTabsJson = JSON.stringify({ openTabs })
+        const tabJson = JSON.stringify({ tab })
         await browser.tabs.finalize({ keep: [{ tab, status: "handoff" }] })
         return JSON.stringify({
           tabId: tab.id,
           selectedId: selected?.id,
           listIds: list.map((item) => item.id),
+          openTabIds: openTabs.map((item) => item.id),
+          listJson,
+          openTabsJson,
+          tabJson,
+          listItemGotoType: typeof list[0]?.goto,
+          openTabsItemGotoType: typeof openTabs[0]?.goto,
+          missingClaimIsNull: missingClaim === null,
+          listItemTitle: list[0]?.title,
+          listItemUrl: list[0]?.url,
           tabsApi: browser.tabs.describeApi().join(',')
         })
       `
@@ -822,8 +899,45 @@ describe('NodeReplManager', () => {
     expect(payload.tabId).toMatch(/^[1-9]\d*$/)
     expect(payload.selectedId).toBe(payload.tabId)
     expect(payload.listIds).toEqual([payload.tabId])
+    expect(payload.openTabIds).toEqual([payload.tabId])
+    expect(payload.listJson).toContain('"id"')
+    expect(payload.openTabsJson).toContain('"id"')
+    expect(payload.tabJson).toContain('"id"')
+    expect(payload.listItemGotoType).toBe('undefined')
+    expect(payload.openTabsItemGotoType).toBe('undefined')
+    expect(payload.missingClaimIsNull).toBe(true)
+    expect(payload.listItemTitle).toBe('Test Page')
+    expect(payload.listItemUrl).toBe('about:blank')
     expect(payload.tabsApi).toContain('finalize({ keep: [{ tab, status: "deliverable"|"handoff" }] })')
     manager.reset('thread-reference-tabs')
+  })
+
+  it('returns undefined for selected IAB tab when no active tab exists', async () => {
+    const browserManager = createFakeBrowserManager()
+    const manager = createManager(browserManager)
+    const owner = {} as Electron.BrowserWindow
+
+    const result = await manager.evaluate(owner, {
+      threadId: 'thread-reference-no-selected',
+      code: `
+        const { setupBrowserRuntime } = await import(dotcraft.browserClientPath)
+        await setupBrowserRuntime({ globals: globalThis, backend: "iab" })
+        const browser = await agent.browsers.get("iab")
+        const selected = await browser.tabs.selected()
+        const list = await browser.tabs.list()
+        return JSON.stringify({
+          selectedType: typeof selected,
+          listLength: list.length
+        })
+      `
+    })
+
+    expect(result.error).toBeUndefined()
+    expect(JSON.parse(result.resultText ?? '{}')).toEqual({
+      selectedType: 'undefined',
+      listLength: 0
+    })
+    manager.reset('thread-reference-no-selected')
   })
 
   it('drives common Playwright, DOM-CUA, and pageAssets APIs through the DotCraft IAB client', async () => {
@@ -1045,7 +1159,6 @@ describe('NodeReplManager', () => {
     expect(browserManager.cdpCommands.map((command) => command.method)).toEqual(expect.arrayContaining([
       'Page.navigate',
       'Runtime.evaluate',
-      'Page.captureScreenshot',
       'DOM.getDocument',
       'DOMSnapshot.captureSnapshot',
       'Page.getResourceContent',
@@ -1089,6 +1202,10 @@ describe('NodeReplManager', () => {
       type: 'playwright_wait_for_load_state',
       state: 'load',
       timeout_ms: 1000
+    }))
+    expect(browserManager.unhandledCommands).toContainEqual(expect.objectContaining({
+      type: 'tab_screenshot',
+      tab_id: expect.any(Number)
     }))
     expect(browserManager.moveMouseCalls).toContainEqual(expect.objectContaining({
       x: 12,
@@ -1587,6 +1704,7 @@ describe('NodeReplManager', () => {
       `,
       timeoutMs: 120_000
     })
+    await new Promise((resolve) => setTimeout(resolve, 0))
     const cancel = manager.cancel('thread-1', 'eval-1')
     const cancelled = await pending
 

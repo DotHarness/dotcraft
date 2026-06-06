@@ -46,8 +46,8 @@ export class BrowserUseBackendError extends Error {
     return new BrowserUseBackendError(`InvalidArgument: ${message}`, -32602)
   }
 
-  static commandTimeout(message: string): BrowserUseBackendError {
-    return new BrowserUseBackendError(`CommandTimeout: ${message}`, -32010)
+  static commandTimeout(message: string, data?: unknown): BrowserUseBackendError {
+    return new BrowserUseBackendError(`CommandTimeout: ${message}`, -32010, data)
   }
 
   static commandCancelled(message: string): BrowserUseBackendError {

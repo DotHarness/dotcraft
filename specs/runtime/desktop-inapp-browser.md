@@ -129,6 +129,8 @@ Desktop must provide the browser client with the following globals:
 
 `globalThis.agent` is intentionally absent in a fresh Node REPL browser cell. It is installed only after `setupBrowserRuntime({ globals })` runs from the bundled browser client.
 
+Node REPL evaluations for the same thread must be serialized by Desktop. Accidental overlapping browser cells should queue behind the active cell instead of failing with an "already running" error. Cancelling or resetting an active evaluation should also cancel queued evaluations that were waiting on the same stale browser state.
+
 Default browser-client environment:
 
 - `BROWSER_USE_AVAILABLE_BACKENDS=iab`
@@ -275,11 +277,14 @@ Requirements:
 - `agent.browsers`, browser handles, tab handles, locators, CUA, DOM-CUA, capabilities, and helper APIs are model-facing only after the bundled browser client installs them through `setupBrowserRuntime({ globals })`.
 - Capability lookup examples must use the explicit handle shape: `const visibility = await browser.capabilities.get("visibility"); await visibility.set(true);`. Do not document chained `browser.capabilities.get(...).set(...)` or `tab.capabilities.get(...).list()` usage even though Desktop may tolerate it for compatibility.
 - Unsupported APIs fail with `UnsupportedApi` and a stable English fallback message instead of being absent, hanging, or silently ignored.
+- `browser.tabs.list()` and `browser.user.openTabs()` must return serializable `TabInfo` objects, not live tab handles. Callers must use `browser.tabs.get(info.id)` or `browser.user.claimTab(info)` before invoking tab methods.
+- `browser.tabs.selected()` returns the active automation tab handle when one exists, and `undefined` when no tab is selected. It must not implicitly create a new tab.
 - The supported reference-client subset includes `tabs.new/selected/list/get/content/finalize`, `browser.user.openTabs/claimTab`, browser `visibility` and `viewport` capabilities, `tab.goto/back/forward/reload/title/url`, screenshots, virtual clipboard `readText/writeText/read/write`, `playwright.evaluate(fnOrExpression, arg?, options?)`, `domSnapshot`, `waitForURL`, real `waitForLoadState`, `waitForTimeout`, `expectNavigation`, common locator reads and actions, `locator.all()` cached reads, `locator.filter()`, `locator.and()`, `locator.or()`, scoped `locator(selector, options)` filters, `getByRole/Text/Label/Placeholder/TestId`, same-origin `frameLocator`, coordinate CUA actions, DOM-CUA visible-node actions, `pageAssets.list/bundle`, and page-defined WebMCP tools through `tab.capabilities.get("webmcp")` only when the current page advertises them.
 - `tabs.new(url?)` is a Desktop IAB compatibility extension. When a URL is supplied, it must trigger at most one backend navigation and must not be followed by a second client-side `goto(url)`.
+- `tab.screenshot()` must use the dedicated backend screenshot command so screenshot failures have browser operation context. Generic `executeCdp(Page.captureScreenshot)` remains available only as a low-level backend primitive.
 - `executeUnhandledCommand` accepts browser-use compatible command aliases for BrowserUser, navigation, screenshots, Playwright evaluate/DOM/locator operations, CUA, DOM-CUA, pageAssets, WebMCP, viewport, visibility, tabs content, clipboard, and dev logs. Aliases must normalize snake_case and camelCase fields to the same Desktop IAB runtime methods.
-- Playwright-compatible helpers exposed by the browser client must be backed by CDP primitives where practical, including locator actions, `getBy*` helpers, title, URL, and read-only evaluate helpers.
-- `playwright.evaluate(fnOrExpression, arg?, options?)` is model-facing read-only page evaluation. It may read page state and compute bounded results, but must reject common navigation, DOM mutation, storage mutation, network-send, scroll, click, focus, and form side effects. Interaction side effects belong to locators, CUA, DOM-CUA, navigation, or wait helpers.
+- Playwright-compatible helpers exposed by the browser client must be backed by CDP primitives where practical, including locator actions, `getBy*` helpers, title, URL, and bounded evaluate helpers.
+- `playwright.evaluate(fnOrExpression, arg?, options?)` is model-facing bounded page evaluation. It may read page state and compute bounded results, but must reject common navigation, DOM mutation, storage mutation, network-send, scroll, click, focus, and form side effects. Interaction side effects belong to locators, CUA, DOM-CUA, navigation, or wait helpers.
 - When a Playwright-compatible helper cannot be implemented safely in IAB, the Browser skill must not claim it as supported.
 - Ordinary page downloads, `waitForEvent("download")`, file chooser APIs, file upload, CUA media download, `browser.user.history()`, and complex content exports such as `tab_content_export` are not Desktop IAB capabilities and must fail with `UnsupportedApi` or the browser-use compatible unsupported behavior.
 - `pageAssets.bundle()` is the only file-transfer download exception in M3. It uses the browser client's file-transfer prompt, Desktop IAB approval handling, and safe temp output; it does not expose ordinary browser downloads.
@@ -325,6 +330,7 @@ Rules:
 
 - Browser commands carry a command id and the active `sessionId`, `turnId`, and `evaluationId`.
 - Command timeouts are clamped to `1..120000` ms.
+- `CommandTimeout` errors should include safe structured data such as operation, command type, CDP method, tab id, and current URL summary when available.
 - Each tab has an ordered command queue for operations that cannot safely overlap on the same `webContents` or CDP session.
 - `ext/nodeRepl/cancel` and outer evaluation timeout first cancel pending backend commands for the matching `evaluationId`.
 - Late results for cancelled commands are ignored.
@@ -400,8 +406,7 @@ Rules:
 - The skill must document Node REPL output rules, including using `console.log` for text and `nodeRepl.emitImage` for images.
 - The skill must preserve DotCraft-specific bootstrap through `dotcraft.browserClientPath`, the `NodeReplJs` tool, Browser client mismatch checks, and the `iab` browser id; it must state that `agent` is installed by the bundled browser client. Plugin-root imports from other runtimes, alternate browser-control fallback wording, ordinary downloads, file chooser, upload, raw CDP capability, and hidden browser history must not be documented as Desktop IAB capabilities.
 - The skill must document model-facing operating discipline for visibility, user-facing progress wording, persistent JavaScript bindings, tab reuse, temporary-tab cleanup, search/URL fallback limits, and stopping repeated verification once an authoritative page signal is present.
-- The skill must document locator discipline, strict locator failures, CUA object-shaped coordinates, DOM-CUA behavior, screenshot output, read-only evaluate limits, and the supported Playwright-compatible subset.
-- The skill must discourage guessed domain construction and require evidence-backed URL selection from user input, visible links, search results, repository README links, or documentation links.
+- The skill must document locator discipline, strict locator failures, CUA object-shaped coordinates, DOM-CUA behavior, screenshot output, bounded evaluate limits, and the supported Playwright-compatible subset.
 - The skill must document browser-only safety and confirmation rules for data transmission, account/permission changes, uploads, messages, purchases, browser permission prompts, downloads, and actions that require user hand-off.
 - The skill must include a DotCraft IAB API reference that matches the bundled browser client and backend subset.
 - The skill must not describe APIs that are missing from the bundled browser client or unsupported by the IAB backend.

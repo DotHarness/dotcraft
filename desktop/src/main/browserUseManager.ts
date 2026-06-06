@@ -943,7 +943,8 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
         finish(() => {
           abortController.abort()
           reject(BrowserUseBackendError.commandTimeout(
-            `Browser backend command ${operation} timed out after ${timeoutMs}ms.`
+            `Browser backend command ${operation} timed out after ${timeoutMs}ms.`,
+            this.backendCommandTimeoutData(runtime, operation, params)
           ))
         })
       }, timeoutMs)
@@ -971,6 +972,29 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     const numeric = Number(raw)
     const requested = Number.isFinite(numeric) && numeric > 0 ? numeric : this.operationTimeoutMs()
     return Math.max(1, Math.min(Math.floor(requested), 120_000))
+  }
+
+  private backendCommandTimeoutData(
+    runtime: BrowserUseThreadRuntime,
+    operation: string,
+    params: Record<string, unknown>
+  ): Record<string, unknown> {
+    const data: Record<string, unknown> = { operation }
+    const commandType = this.stringParam(params, 'type')
+    const cdpMethod = this.stringParam(params, 'method')
+    if (commandType) data.commandType = commandType
+    if (cdpMethod) data.cdpMethod = cdpMethod
+    const target = this.objectParam(params, 'target')
+    const tabId = this.positiveIntegerParam(params, 'tab_id') ??
+      this.positiveIntegerParam(params, 'tabId') ??
+      this.positiveIntegerParam(target ?? {}, 'tab_id') ??
+      this.positiveIntegerParam(target ?? {}, 'tabId')
+    if (tabId) {
+      data.tabId = String(tabId)
+      const tab = runtime.backendTabs.get(tabId)
+      if (tab) data.url = this.operationUrl(tab)
+    }
+    return data
   }
 
   private isBackendResultCapExempt(operation: string, params: Record<string, unknown>): boolean {
@@ -3001,7 +3025,11 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
           const message = `Browser operation '${operation}' timed out after ${effectiveTimeoutMs}ms for tab ${tab.id} at ${currentUrl()}.`
           this.finishOperation(runtime, trace, 'timeout', message)
           this.appendOperationDiagnostics(runtime, message)
-          reject(new Error(message))
+          reject(BrowserUseBackendError.commandTimeout(message, {
+            operation,
+            tabId: tab.id,
+            url: currentUrl()
+          }))
         })
       }, effectiveTimeoutMs)
 

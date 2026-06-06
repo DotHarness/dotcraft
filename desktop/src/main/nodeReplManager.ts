@@ -48,6 +48,18 @@ interface NodeReplThreadRuntime {
   phase?: string
 }
 
+interface NodeReplQueueState {
+  tail: Promise<void>
+  generation: number
+  pending: number
+}
+
+interface NodeReplEvaluationSlot {
+  generation: number
+  ready: Promise<void>
+  release(): void
+}
+
 interface BrowserRuntimeBindings {
   display: (imageLike: unknown) => Promise<void>
 }
@@ -219,6 +231,8 @@ function compileCell(code: string): { script: Script; kind: 'expression' | 'stat
 
 export class NodeReplManager {
   private readonly runtimes = new Map<string, NodeReplThreadRuntime>()
+  private readonly evaluationQueues = new Map<string, NodeReplQueueState>()
+  private readonly cancelledEvaluations = new Map<string, Set<string>>()
 
   constructor(private readonly browserManager: BrowserUseManager = browserUseManager) {}
 
@@ -227,12 +241,30 @@ export class NodeReplManager {
       return { error: 'Invalid Node REPL evaluate request.', images: [], logs: [] }
     }
 
+    const evaluationId = params.evaluationId?.trim() || newEvaluationId()
+    const slot = this.enqueueEvaluation(params.threadId)
+    try {
+      await slot.ready
+      if (this.isQueueGenerationStale(params.threadId, slot.generation) ||
+        this.consumeCancelledEvaluation(params.threadId, evaluationId)) {
+        return { error: 'NodeReplJs cancelled before it started.', images: [], logs: [] }
+      }
+      return await this.evaluateNow(owner, params, evaluationId)
+    } finally {
+      slot.release()
+    }
+  }
+
+  private async evaluateNow(
+    owner: BrowserWindow,
+    params: NodeReplEvaluateParams,
+    evaluationId: string
+  ): Promise<NodeReplEvaluateResult> {
     const runtime = this.getOrCreateRuntime(params.threadId)
     if (runtime.activeEvaluationId) {
       return { error: `NodeReplJs is already running for this thread: ${runtime.activeEvaluationId}`, images: [], logs: [] }
     }
 
-    const evaluationId = params.evaluationId?.trim() || newEvaluationId()
     const browserSession = normalizeBrowserSession(params, evaluationId)
     const abortController = new AbortController()
     runtime.activeEvaluationId = evaluationId
@@ -295,9 +327,76 @@ export class NodeReplManager {
     }
   }
 
+  private enqueueEvaluation(threadId: string): NodeReplEvaluationSlot {
+    const state = this.getOrCreateQueueState(threadId)
+    const generation = state.generation
+    const previous = state.tail.catch(() => {})
+    let release!: () => void
+    const current = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    state.pending += 1
+    state.tail = previous.then(() => current)
+    let released = false
+    return {
+      generation,
+      ready: previous,
+      release: () => {
+        if (released) return
+        released = true
+        state.pending = Math.max(0, state.pending - 1)
+        release()
+        if (state.pending === 0 && this.evaluationQueues.get(threadId) === state) {
+          this.evaluationQueues.delete(threadId)
+        }
+      }
+    }
+  }
+
+  private getOrCreateQueueState(threadId: string): NodeReplQueueState {
+    const existing = this.evaluationQueues.get(threadId)
+    if (existing) return existing
+    const created: NodeReplQueueState = {
+      tail: Promise.resolve(),
+      generation: 0,
+      pending: 0
+    }
+    this.evaluationQueues.set(threadId, created)
+    return created
+  }
+
+  private isQueueGenerationStale(threadId: string, generation: number): boolean {
+    const state = this.evaluationQueues.get(threadId)
+    return Boolean(state && state.generation !== generation)
+  }
+
+  private consumeCancelledEvaluation(threadId: string, evaluationId: string): boolean {
+    const cancelled = this.cancelledEvaluations.get(threadId)
+    if (!cancelled?.delete(evaluationId)) return false
+    if (cancelled.size === 0) this.cancelledEvaluations.delete(threadId)
+    return true
+  }
+
+  private cancelQueuedEvaluations(threadId: string): void {
+    const state = this.evaluationQueues.get(threadId)
+    if (!state) return
+    state.generation += 1
+  }
+
   cancel(threadId: string, evaluationId: string): { ok: boolean } {
     const runtime = this.runtimes.get(threadId)
-    if (!runtime || runtime.activeEvaluationId !== evaluationId) return { ok: false }
+    if (!runtime || runtime.activeEvaluationId !== evaluationId) {
+      const queue = this.evaluationQueues.get(threadId)
+      if (!queue) return { ok: false }
+      let cancelled = this.cancelledEvaluations.get(threadId)
+      if (!cancelled) {
+        cancelled = new Set<string>()
+        this.cancelledEvaluations.set(threadId, cancelled)
+      }
+      cancelled.add(evaluationId)
+      return { ok: true }
+    }
+    this.cancelQueuedEvaluations(threadId)
     void this.cancelChromeCommands(runtime, evaluationId, 'cancelled')
     runtime.activeAbortController?.abort(new NodeReplEvaluationCancelledError(runtime.phase))
     this.browserManager.abortEvaluation(threadId, evaluationId)
@@ -306,6 +405,8 @@ export class NodeReplManager {
   }
 
   reset(threadId: string): { ok: boolean } {
+    this.cancelQueuedEvaluations(threadId)
+    this.cancelledEvaluations.delete(threadId)
     const runtime = this.runtimes.get(threadId)
     if (runtime) {
       runtime.activeAbortController?.abort(new Error('NodeReplJs reset.'))
@@ -323,6 +424,8 @@ export class NodeReplManager {
     for (const [threadId, runtime] of [...this.runtimes]) {
       this.disposeReplRuntime(threadId, runtime)
     }
+    this.evaluationQueues.clear()
+    this.cancelledEvaluations.clear()
   }
 
   private getOrCreateRuntime(threadId: string): NodeReplThreadRuntime {

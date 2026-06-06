@@ -473,6 +473,18 @@ function normalizeTabInfo(raw) {
   }
 }
 
+function plainTabInfo(raw) {
+  const info = normalizeTabInfo(raw)
+  return {
+    id: String(info.id),
+    tabId: String(info.tabId),
+    title: info.title,
+    url: info.url,
+    loading: info.loading,
+    active: info.active
+  }
+}
+
 function imageResult(dataBase64, mediaType = 'image/png') {
   const length = Buffer.from(String(dataBase64 ?? ''), 'base64').byteLength
   return { mediaType, dataBase64: String(dataBase64 ?? ''), length }
@@ -876,14 +888,14 @@ class BrowserHandle {
   }
 
   async goto(url) {
-    const tab = await this.tabs.selected()
+    const tab = await this.tabs.selected() ?? await this.tabs.new()
     await tab.goto(url)
     return tab
   }
 
   createTabsApi() {
     return {
-      list: async () => (await this.api.getTabs()).map((tab) => new TabHandle(this, normalizeTabInfo(tab))),
+      list: async () => (await this.api.getTabs()).map(plainTabInfo),
       new: async (url) => {
         const tab = new TabHandle(this, normalizeTabInfo(await this.api.createTab(url ? { url: String(url) } : {})))
         if (url) await tab.refresh()
@@ -891,8 +903,8 @@ class BrowserHandle {
       },
       selected: async () => {
         const tabs = (await this.api.getTabs()).map(normalizeTabInfo)
-        const selected = tabs.find((tab) => tab.active) ?? tabs.at(-1)
-        return selected ? new TabHandle(this, selected) : await this.tabs.new()
+        const selected = tabs.find((tab) => tab.active)
+        return selected ? new TabHandle(this, selected) : undefined
       },
       get: async (id) => {
         const numeric = tabIdOf(id)
@@ -916,16 +928,19 @@ class BrowserHandle {
         })
         return await this.api.finalizeTabs(keep)
       },
-      describeApi: () => ['list()', 'new(url?)', 'selected()', 'get(id)', 'content({ urls, contentType })', 'finalize({ keep: [{ tab, status: "deliverable"|"handoff" }] })']
+      describeApi: () => ['list() -> TabInfo[]', 'new(url?) -> Tab', 'selected() -> Tab|undefined', 'get(id) -> Tab', 'content({ urls, contentType })', 'finalize({ keep: [{ tab, status: "deliverable"|"handoff" }] })']
     }
   }
 
   createUserApi() {
     return {
-      openTabs: async () => (await this.api.getUserTabs()).map((tab) => new TabHandle(this, normalizeTabInfo(tab))),
-      claimTab: async (tab) => new TabHandle(this, normalizeTabInfo(await this.api.claimUserTab(tabIdOf(tab)))),
+      openTabs: async () => (await this.api.getUserTabs()).map(plainTabInfo),
+      claimTab: async (tab) => {
+        const claimed = await this.api.claimUserTab(tabIdOf(tab))
+        return claimed ? new TabHandle(this, normalizeTabInfo(claimed)) : null
+      },
       history: async (options) => await this.api.getUserHistory(options ?? {}),
-      describeApi: () => ['openTabs()', 'claimTab(tabOrId)', 'history(options) unsupported']
+      describeApi: () => ['openTabs() -> TabInfo[]', 'claimTab(tabOrId) -> Tab|null', 'history(options) unsupported']
     }
   }
 
@@ -1028,11 +1043,19 @@ class TabHandle {
   async title() { return (await this.refresh()).title }
 
   async screenshot(options = {}) {
-    const result = asObject(await this.cdp('Page.captureScreenshot', {
-      format: 'png',
-      fromSurface: true,
-      captureBeyondViewport: options.fullPage === true,
-      ...(options.clip ? { clip: options.clip } : {})
+    const clip = asObject(options.clip)
+    const result = asObject(await this.api.executeUnhandledCommand({
+      type: 'tab_screenshot',
+      tab_id: this.numericId,
+      fullPage: options.fullPage === true,
+      ...(clip.width != null || clip.height != null
+        ? {
+            cropX: Number(clip.x ?? 0),
+            cropY: Number(clip.y ?? 0),
+            cropWidth: Number(clip.width),
+            cropHeight: Number(clip.height)
+          }
+        : {})
     }))
     return imageResult(result.data ?? '')
   }
@@ -1098,6 +1121,10 @@ class TabHandle {
 
   describeApi() {
     return ['goto(url)', 'reload()', 'back()', 'forward()', 'close()', 'url()', 'title()', 'screenshot(options?)', 'playwright.*', 'cua.*', 'dom_cua.*', 'capabilities.*']
+  }
+
+  toJSON() {
+    return plainTabInfo(this.info)
   }
 }
 
