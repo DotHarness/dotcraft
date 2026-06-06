@@ -38,6 +38,15 @@ import {
 } from './viewerIpc'
 import { authorizeViewerFile, buildViewerUrl } from './viewerFileProtocol'
 import { authorizePluginRoot, buildPluginFileUrl, clearAuthorizedPluginRoots } from './pluginFileProtocol'
+import {
+  authorizeDesktopExtensionGrant,
+  clearDesktopExtensionGrants,
+  ensureDesktopExtensionAppAllowed,
+  ensureDesktopExtensionAppUrlAllowed,
+  requireDesktopExtensionGrant,
+  revokeDesktopExtensionGrant,
+  type DesktopExtensionGrant
+} from './desktopExtensionGrants'
 import { partitionForWorkspace, viewerBrowserManager } from './viewerBrowser'
 import { viewerTerminalManager } from './viewerTerminal'
 import { browserUseManager, type BrowserUseApprovalResponsePayload } from './browserUseManager'
@@ -403,6 +412,147 @@ function isLoopbackHostname(hostname: string): boolean {
     || normalized === '::1'
     || normalized === '[::1]'
     || /^127(?:\.\d{1,3}){3}$/.test(normalized)
+}
+
+interface DesktopExtensionConnectOriginPattern {
+  protocol: string
+  hostname: string
+  port: string | '*'
+}
+
+function normalizeDesktopExtensionConnectOrigin(value: unknown): DesktopExtensionConnectOriginPattern | null {
+  if (typeof value !== 'string' || value.trim() === '') return null
+  const trimmed = value.trim()
+  const wildcardPort = trimmed.endsWith(':*')
+  const parseTarget = wildcardPort ? `${trimmed.slice(0, -2)}:1` : trimmed
+  let parsed: URL
+  try {
+    parsed = new URL(parseTarget)
+  } catch {
+    return null
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null
+  if (!isLoopbackHostname(parsed.hostname)) return null
+  if ((parsed.pathname && parsed.pathname !== '/') || parsed.search || parsed.hash) return null
+  return {
+    protocol: parsed.protocol,
+    hostname: parsed.hostname.toLowerCase(),
+    port: wildcardPort ? '*' : parsed.port || defaultPortForProtocol(parsed.protocol)
+  }
+}
+
+function defaultPortForProtocol(protocol: string): string {
+  return protocol === 'https:' ? '443' : '80'
+}
+
+function desktopExtensionOriginAllowed(
+  parsed: URL,
+  allowedOrigins: readonly DesktopExtensionConnectOriginPattern[]
+): boolean {
+  const targetPort = parsed.port || defaultPortForProtocol(parsed.protocol)
+  const targetHostname = parsed.hostname.toLowerCase()
+  return allowedOrigins.some((allowed) =>
+    allowed.protocol === parsed.protocol
+    && allowed.hostname === targetHostname
+    && (allowed.port === '*' || allowed.port === targetPort))
+}
+
+/**
+ * Validates a Desktop extension network target: http(s), loopback only, and an
+ * origin the extension declared in `connectOrigins`. Returns the sanitized URL.
+ * Shared by the read (`GET`) and scoped write (`POST`) transports.
+ */
+function validateDesktopExtensionTarget(url: string, connectOrigins: readonly unknown[]): string {
+  if (typeof url !== 'string' || url.trim() === '') {
+    throw new Error('Invalid URL')
+  }
+  if (url.trim().length > MAX_EXTERNAL_URL_LENGTH) {
+    throw new Error('URL too long')
+  }
+
+  const safe = sanitizeHttpOrHttpsUrl(url)
+  if (safe == null) {
+    throw new Error('Only http(s) URLs are allowed')
+  }
+
+  const parsed = new URL(safe)
+  if (!isLoopbackHostname(parsed.hostname)) {
+    throw new Error('Only loopback URLs are allowed')
+  }
+
+  const allowedOrigins = connectOrigins
+    .map(normalizeDesktopExtensionConnectOrigin)
+    .filter((origin): origin is DesktopExtensionConnectOriginPattern => origin != null)
+  if (!desktopExtensionOriginAllowed(parsed, allowedOrigins)) {
+    throw new Error(`Desktop extension is not allowed to connect to ${parsed.origin}`)
+  }
+
+  return safe
+}
+
+interface DesktopExtensionNetworkPolicy {
+  connectOrigins: readonly unknown[]
+  surfaceWriteScopes?: readonly unknown[]
+}
+
+async function readDesktopExtensionResponse(response: Response): Promise<unknown> {
+  if (!response.ok) {
+    throw new Error(`Request failed with HTTP ${response.status}`)
+  }
+  const text = await response.text()
+  if (text.length > 1_000_000) {
+    throw new Error('Response is too large')
+  }
+  return text.trim() === '' ? null : JSON.parse(text)
+}
+
+export async function fetchDesktopExtensionJson(url: string, policy: DesktopExtensionNetworkPolicy, timeoutMs?: number): Promise<unknown> {
+  const safe = validateDesktopExtensionTarget(url, policy.connectOrigins)
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), Math.min(Math.max(timeoutMs ?? 10000, 1000), 30000))
+  try {
+    const response = await fetch(safe, {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      redirect: 'error',
+      signal: controller.signal
+    })
+    return await readDesktopExtensionResponse(response)
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
+/**
+ * Scoped write transport for trusted Desktop extensions. Same loopback + origin
+ * enforcement as the read path, but issues a `POST` with a JSON body to an
+ * app-owned surface endpoint. Descriptor policy is resolved in the main process
+ * from the extension grant; renderer-supplied policy is not trusted.
+ */
+export async function postDesktopExtensionJson(
+  url: string,
+  policy: DesktopExtensionNetworkPolicy,
+  body: unknown,
+  timeoutMs?: number
+): Promise<unknown> {
+  if ((policy.surfaceWriteScopes ?? []).length === 0) {
+    throw new Error('Desktop extension did not declare surfaceWriteScopes and cannot write.')
+  }
+  const safe = validateDesktopExtensionTarget(url, policy.connectOrigins)
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), Math.min(Math.max(timeoutMs ?? 10000, 1000), 30000))
+  try {
+    const response = await fetch(safe, {
+      method: 'POST',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify(body ?? {}),
+      redirect: 'error',
+      signal: controller.signal
+    })
+    return await readDesktopExtensionResponse(response)
+  } finally {
+    clearTimeout(timeout)
+  }
 }
 
 async function invokeLoopbackHandoff(url: string): Promise<void> {
@@ -1546,10 +1696,40 @@ export function registerIpcHandlers(
     }
   )
 
+  const sendExtensionAppBindingRequest = async (
+    grantId: unknown,
+    appId: string,
+    method: string
+  ): Promise<unknown> => {
+    const grant = requireDesktopExtensionGrant(grantId)
+    ensureDesktopExtensionAppAllowed(grant, appId)
+    const client = getWireClient()
+    if (!client) {
+      throw new Error(translate(mainLocale(callbacks), 'ipc.appServerNotConnected'))
+    }
+    return sendDesktopAppServerRequest(client, method, { appId }, 20_000, {
+      supportsDynamicToolRebind: callbacks?.getConnectionStatus().capabilities?.dynamicToolRebind === true
+    })
+  }
+
   handleSafe(
-    'desktop-extension:authorize-plugin-root',
-    async (_event, params: { pluginId: string; rootPath: string }): Promise<{ ok: boolean }> => {
-      await authorizePluginRoot(params.pluginId, params.rootPath)
+    'desktop-extension:authorize-extension',
+    async (_event, params: { pluginId: string; rootPath: string; extensionId: string }): Promise<{ grantId: string }> => {
+      const grant = await authorizeDesktopExtensionGrant(params)
+      try {
+        await authorizePluginRoot(params.pluginId, params.rootPath)
+      } catch (error) {
+        revokeDesktopExtensionGrant(grant.grantId)
+        throw error
+      }
+      return grant
+    }
+  )
+
+  handleSafe(
+    'desktop-extension:revoke-extension',
+    async (_event, params: { grantId: string }): Promise<{ ok: boolean }> => {
+      revokeDesktopExtensionGrant(params.grantId)
       return { ok: true }
     }
   )
@@ -1562,6 +1742,45 @@ export function registerIpcHandlers(
       }
       const resolved = path.resolve(params.absolutePath)
       return { url: buildPluginFileUrl(params.pluginId, resolved) }
+    }
+  )
+
+  handleSafe(
+    'desktop-extension:fetch-json',
+    async (_event, params: { grantId: string; url: string; timeoutMs?: number }): Promise<unknown> => {
+      const grant = requireDesktopExtensionGrant(params.grantId)
+      return fetchDesktopExtensionJson(params.url, grant, params.timeoutMs)
+    }
+  )
+
+  handleSafe(
+    'desktop-extension:post-json',
+    async (_event, params: { grantId: string; url: string; body?: unknown; timeoutMs?: number }): Promise<unknown> => {
+      const grant = requireDesktopExtensionGrant(params.grantId)
+      return postDesktopExtensionJson(params.url, grant, params.body, params.timeoutMs)
+    }
+  )
+
+  handleSafe(
+    'desktop-extension:app-connection-status',
+    async (_event, params: { grantId: string; appId: string }): Promise<unknown> => {
+      return sendExtensionAppBindingRequest(params.grantId, params.appId, 'app/connection/status')
+    }
+  )
+
+  handleSafe(
+    'desktop-extension:app-connection-start',
+    async (_event, params: { grantId: string; appId: string }): Promise<unknown> => {
+      return sendExtensionAppBindingRequest(params.grantId, params.appId, 'app/connection/start')
+    }
+  )
+
+  handleSafe(
+    'desktop-extension:app-open',
+    async (_event, params: { grantId: string; appId: string; url: string }): Promise<void> => {
+      const grant: DesktopExtensionGrant = requireDesktopExtensionGrant(params.grantId)
+      ensureDesktopExtensionAppUrlAllowed(grant, params.appId, params.url)
+      await openAppHandoffUrl(params.url)
     }
   )
 
@@ -2194,8 +2413,15 @@ export function unregisterIpcHandlers(): void {
   ipcMain.removeHandler('workspace:viewer:read-text')
   ipcMain.removeHandler('workspace:viewer:authorize-file')
   ipcMain.removeHandler('workspace:viewer:to-viewer-url')
-  ipcMain.removeHandler('desktop-extension:authorize-plugin-root')
+  ipcMain.removeHandler('desktop-extension:authorize-extension')
+  ipcMain.removeHandler('desktop-extension:revoke-extension')
   ipcMain.removeHandler('desktop-extension:to-plugin-url')
+  ipcMain.removeHandler('desktop-extension:fetch-json')
+  ipcMain.removeHandler('desktop-extension:post-json')
+  ipcMain.removeHandler('desktop-extension:app-connection-status')
+  ipcMain.removeHandler('desktop-extension:app-connection-start')
+  ipcMain.removeHandler('desktop-extension:app-open')
+  clearDesktopExtensionGrants()
   clearAuthorizedPluginRoots()
   ipcMain.removeHandler('viewer:browser:create')
   ipcMain.removeHandler('viewer:browser:destroy')

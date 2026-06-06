@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import type { LocalizedTextMap } from '../../shared/locales'
 
 export interface PluginInterface {
   displayName?: string | null
@@ -67,6 +68,8 @@ export interface PluginDesktopExtensionSurface {
   type: string
   viewId?: string | null
   label?: string | null
+  localizedLabel?: LocalizedTextMap | null
+  icon?: string | null
   placement?: string | null
   order?: number | null
   title?: string | null
@@ -86,6 +89,7 @@ export interface PluginDesktopExtensionInfo {
   surfaces: PluginDesktopExtensionSurface[]
   requiredAppIds: string[]
   connectOrigins: string[]
+  surfaceWriteScopes?: string[]
 }
 
 export interface PluginMcpServerInfo {
@@ -279,7 +283,8 @@ function normalizePlugin(plugin: PluginEntry): PluginEntry {
       styles: extension.styles ?? [],
       surfaces: extension.surfaces ?? [],
       requiredAppIds: extension.requiredAppIds ?? [],
-      connectOrigins: extension.connectOrigins ?? []
+      connectOrigins: extension.connectOrigins ?? [],
+      surfaceWriteScopes: extension.surfaceWriteScopes ?? []
     })),
     mcpServers: plugin.mcpServers ?? [],
     lspServers: (plugin.lspServers ?? []).map((server) => ({

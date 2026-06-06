@@ -486,8 +486,14 @@ declare global {
         createAndCheckoutBranch(workspacePath: string, branchName: string): Promise<void>
       }
       desktopExtensions: {
-        authorizePluginRoot(pluginId: string, rootPath: string): Promise<{ ok: boolean }>
+        authorizeExtension(params: { pluginId: string; rootPath: string; extensionId: string }): Promise<{ grantId: string }>
+        revokeExtension(params: { grantId: string }): Promise<{ ok: boolean }>
         toPluginUrl(pluginId: string, absolutePath: string): Promise<{ url: string }>
+        fetchJson(params: { grantId: string; url: string; timeoutMs?: number }): Promise<unknown>
+        postJson(params: { grantId: string; url: string; body?: unknown; timeoutMs?: number }): Promise<unknown>
+        getAppConnectionStatus(params: { grantId: string; appId: string }): Promise<unknown>
+        startAppConnection(params: { grantId: string; appId: string }): Promise<unknown>
+        openApp(params: { grantId: string; appId: string; url: string }): Promise<void>
       }
       workspace: {
         pickFolder(): Promise<string | null>

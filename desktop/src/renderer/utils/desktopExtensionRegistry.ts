@@ -4,6 +4,7 @@ import type {
   PluginEntry
 } from '../stores/pluginStore'
 import type { ActiveMainView, ExtensionMainView } from '../stores/uiStore'
+import type { LocalizedTextMap } from '../../shared/locales'
 
 export interface DesktopMainViewExtension {
   viewKey: ExtensionMainView
@@ -11,7 +12,11 @@ export interface DesktopMainViewExtension {
   extension: PluginDesktopExtensionInfo
   surface: PluginDesktopExtensionSurface
   viewId: string
+  /** Base (English) label; resolve per-locale display with `localizedLabel`. */
   label: string
+  /** Optional per-locale overrides for `label`, resolved by the host at render. */
+  localizedLabel: LocalizedTextMap | null
+  icon: string | null
   order: number
 }
 
@@ -51,6 +56,8 @@ export function getDesktopMainViewExtensions(plugins: PluginEntry[]): DesktopMai
         if (surface.type !== 'mainView') continue
         const viewId = surface.viewId?.trim() || extension.id
         const label = surface.label?.trim() || extension.displayName || plugin.displayName
+        const localizedLabel = surface.localizedLabel ?? null
+        const icon = surface.icon?.trim() || null
         result.push({
           viewKey: buildExtensionMainViewKey(plugin.id, extension.id, viewId),
           plugin,
@@ -58,6 +65,8 @@ export function getDesktopMainViewExtensions(plugins: PluginEntry[]): DesktopMai
           surface,
           viewId,
           label,
+          localizedLabel,
+          icon,
           order: surface.order ?? 100
         })
       }

@@ -200,6 +200,7 @@ public static class PluginDesktopExtensionCatalog
         descriptor.Surfaces ??= [];
         descriptor.RequiredAppIds ??= [];
         descriptor.ConnectOrigins ??= [];
+        descriptor.SurfaceWriteScopes ??= [];
     }
 
     private static PluginDesktopExtensionDescriptor CloneDescriptorWithResolvedPaths(
@@ -267,6 +268,12 @@ public sealed class PluginDesktopExtensionDescriptor
     public List<string> RequiredAppIds { get; set; } = [];
 
     public List<string> ConnectOrigins { get; set; } = [];
+
+    /// <summary>
+    /// App Binding mutate scope ids this extension may exercise through the scoped
+    /// write transport (<c>host.network.postJson</c>). Empty means read-only.
+    /// </summary>
+    public List<string> SurfaceWriteScopes { get; set; } = [];
 }
 
 public sealed class PluginDesktopExtensionSurfaceDescriptor
@@ -276,6 +283,20 @@ public sealed class PluginDesktopExtensionSurfaceDescriptor
     public string? ViewId { get; set; }
 
     public string? Label { get; set; }
+
+    /// <summary>
+    /// Optional per-locale overrides for <see cref="Label"/>, keyed by app locale
+    /// (for example <c>en</c>, <c>zh-Hans</c>). The Desktop client resolves the
+    /// active locale and falls back to <see cref="Label"/> when a locale is absent.
+    /// </summary>
+    public Dictionary<string, string>? LocalizedLabel { get; set; }
+
+    /// <summary>
+    /// Optional named glyph the host renders for this surface (for example a sidebar
+    /// nav entry). Resolved by the Desktop client to a built-in icon; unknown or
+    /// omitted values fall back to the generic extension icon.
+    /// </summary>
+    public string? Icon { get; set; }
 
     public string? Placement { get; set; }
 

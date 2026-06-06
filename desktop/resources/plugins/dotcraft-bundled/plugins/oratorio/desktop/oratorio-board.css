@@ -1,0 +1,586 @@
+/*
+ * Oratorio board desktop extension.
+ *
+ * Rendered inside DotCraft Desktop's main view. All colors resolve from DotCraft
+ * tokens (specs/clients/DESIGN.md), so the board follows the host light/dark theme.
+ * Every selector is scoped under `.oratorio-board` to avoid colliding with host
+ * styles; the filter dropdowns intentionally reuse the host `.dc-settings-select*`
+ * classes so they look native.
+ */
+
+.oratorio-board {
+  position: relative;
+  height: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 1.35;
+
+  /* Scrollbars mirror Oratorio: hidden thumb at rest, revealed on hover/drag. */
+  --ob-scrollbar-size: 8px;
+  --ob-scrollbar-rgb: 102 102 102;
+  --ob-scrollbar-thumb-hidden: rgb(var(--ob-scrollbar-rgb) / 0);
+  --ob-scrollbar-thumb: rgb(var(--ob-scrollbar-rgb) / 0.58);
+  --ob-scrollbar-thumb-hover: rgb(160 160 160 / 0.64);
+  --ob-accent-bar-running: var(--info);
+  --ob-accent-bar-awaiting: var(--warning);
+  --ob-accent-bar-failed: var(--error);
+}
+
+html[data-theme="light"] .oratorio-board {
+  --ob-scrollbar-rgb: 148 163 184;
+  --ob-scrollbar-thumb: rgb(148 163 184 / 0.62);
+  --ob-scrollbar-thumb-hover: rgb(71 85 105 / 0.7);
+}
+
+.oratorio-board *,
+.oratorio-board *::before,
+.oratorio-board *::after { box-sizing: border-box; }
+
+.oratorio-board .ic {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.oratorio-board .brand-glyph { display: inline-flex; }
+.oratorio-board .brand-glyph svg { width: 14px; height: 14px; fill: currentColor; }
+
+/* ── Header (Oratorio brand lockup) ── */
+.oratorio-board-header {
+  flex: 0 0 auto;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  padding: 0 22px;
+}
+.oratorio-brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.oratorio-brand-mark {
+  position: relative;
+  isolation: isolate;
+  z-index: 0;
+  display: inline-flex;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  overflow: visible;
+  animation: oratorio-logo-breathe 2.8s ease-in-out infinite;
+}
+.oratorio-brand-mark::before {
+  position: absolute;
+  inset: -7px -8px -8px;
+  border-radius: 999px;
+  background: radial-gradient(circle at 48% 44%,
+    color-mix(in srgb, var(--accent) 26%, transparent) 0%,
+    color-mix(in srgb, var(--accent) 14%, transparent) 42%,
+    color-mix(in srgb, var(--warning) 11%, transparent) 68%,
+    transparent 100%);
+  content: "";
+  filter: blur(7px);
+  opacity: 0.34;
+  pointer-events: none;
+  transform: scale(0.96);
+  z-index: -1;
+  animation: oratorio-logo-halo 2.8s ease-in-out infinite;
+}
+.oratorio-brand-logo { position: relative; z-index: 1; display: block; width: 36px; height: 36px; }
+.oratorio-brand-logo svg { display: block; width: 100%; height: 100%; }
+.oratorio-brand-wand { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
+.oratorio-wand-overlay { position: absolute; inset: 0; display: block; width: 36px; height: 36px; overflow: visible; pointer-events: none; }
+.oratorio-wand-aura { stroke: #f8c95d; stroke-width: 72; stroke-linecap: round; opacity: 0.36; filter: blur(20px); animation: oratorio-wand-aura-pulse 1.9s ease-in-out infinite; }
+.oratorio-wand-orbit-halo { fill: none; stroke: rgba(255, 222, 96, 0.78); stroke-width: 26; filter: blur(3px) drop-shadow(0 0 18px rgba(255, 214, 82, 0.9)) drop-shadow(0 0 10px rgba(47, 115, 217, 0.56)); opacity: 0; animation: oratorio-wand-orbit-expand 1.9s ease-out infinite; }
+.oratorio-wand-expanding-halo { fill: none; stroke: rgba(255, 238, 149, 0.86); stroke-width: 24; filter: blur(2px) drop-shadow(0 0 20px rgba(255, 218, 82, 0.96)) drop-shadow(0 0 12px rgba(47, 115, 217, 0.62)); opacity: 0; transform-box: fill-box; transform-origin: center; animation: oratorio-wand-ring-expand 1.9s ease-out infinite; }
+.oratorio-wand-expanding-halo.secondary { stroke: rgba(111, 164, 255, 0.68); stroke-width: 18; animation-delay: 0.52s; }
+.oratorio-wand-body-halo { stroke: #ffd85e; stroke-width: 34; stroke-linecap: round; filter: drop-shadow(0 0 18px rgba(255, 218, 82, 0.92)) drop-shadow(0 0 10px rgba(47, 115, 217, 0.48)); opacity: 0.72; animation: oratorio-wand-body-halo-pulse 1.9s ease-in-out infinite; }
+.oratorio-wand-core { stroke: rgba(255, 253, 231, 0.96); stroke-width: 12; stroke-linecap: round; filter: drop-shadow(0 0 8px rgba(255, 249, 202, 0.98)) drop-shadow(0 0 14px rgba(255, 207, 58, 0.86)); opacity: 0.92; animation: oratorio-wand-core-pulse 1.9s ease-in-out infinite; }
+.oratorio-wand-tip-glow { fill: #fff6bd; filter: drop-shadow(0 0 26px rgba(255, 220, 80, 1)) drop-shadow(0 0 13px rgba(47, 115, 217, 0.72)); opacity: 0.84; transform-origin: 896px 294px; animation: oratorio-wand-tip-pulse 1.9s ease-in-out infinite; }
+.oratorio-wand-spark { stroke: #fff4b8; stroke-width: 14; stroke-linecap: round; filter: drop-shadow(0 0 7px rgba(255, 221, 90, 0.96)); opacity: 0; transform-box: fill-box; transform-origin: center; animation: oratorio-wand-spark-pop 1.9s ease-in-out infinite; }
+.oratorio-wand-spark.secondary { animation-delay: 0.42s; }
+.oratorio-brand-name { font-size: 18px; font-weight: 650; color: var(--text-primary); letter-spacing: -0.01em; }
+
+@keyframes oratorio-logo-breathe { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
+@keyframes oratorio-logo-halo { 0%, 100% { opacity: 0.26; transform: scale(0.94); } 50% { opacity: 0.42; transform: scale(1.04); } }
+@keyframes oratorio-wand-aura-pulse { 0%, 100% { opacity: 0.18; stroke-width: 58; } 50% { opacity: 0.48; stroke-width: 82; } }
+@keyframes oratorio-wand-orbit-expand { 0% { opacity: 0; stroke-width: 8; } 26% { opacity: 0.72; } 100% { opacity: 0; stroke-width: 42; } }
+@keyframes oratorio-wand-ring-expand { 0% { opacity: 0; transform: scale(0.46); } 24% { opacity: 0.74; } 100% { opacity: 0; transform: scale(1.64); } }
+@keyframes oratorio-wand-body-halo-pulse { 0%, 100% { opacity: 0.5; stroke-width: 27; } 50% { opacity: 0.92; stroke-width: 40; } }
+@keyframes oratorio-wand-core-pulse { 0%, 100% { opacity: 0.7; stroke-width: 9; } 50% { opacity: 1; stroke-width: 13; } }
+@keyframes oratorio-wand-tip-pulse { 0%, 100% { opacity: 0.52; transform: scale(0.82); } 50% { opacity: 0.98; transform: scale(1.28); } }
+@keyframes oratorio-wand-spark-pop { 0%, 35%, 100% { opacity: 0; transform: scale(0.5) rotate(0deg); } 50% { opacity: 0.92; transform: scale(1) rotate(12deg); } 68% { opacity: 0; transform: scale(1.2) rotate(24deg); } }
+
+/* ── Toolbar ── */
+.oratorio-toolbar {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: minmax(200px, 1fr) minmax(140px, 200px) minmax(130px, 180px) max-content;
+  gap: 10px;
+  align-items: center;
+  padding: 2px 22px 14px;
+}
+.oratorio-toolbar .dc-settings-select { min-height: 34px; }
+.oratorio-toolbar-actions { display: flex; align-items: center; gap: 8px; justify-self: end; }
+
+.oratorio-search {
+  height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  padding: 0 10px;
+  min-width: 0;
+}
+.oratorio-search:focus-within { border-color: var(--border-active); }
+.oratorio-search .ic { width: 15px; height: 15px; color: var(--text-dimmed); }
+.oratorio-search input {
+  width: 100%; min-width: 0; border: 0; outline: 0;
+  background: transparent; color: var(--text-primary); font: inherit;
+}
+.oratorio-search input::placeholder { color: var(--text-dimmed); }
+
+/* ── Buttons ── */
+.oratorio-btn,
+.oratorio-btn-primary {
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border-radius: 8px;
+  padding: 0 12px;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.oratorio-btn {
+  border: 1px solid var(--border-default);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-weight: 550;
+}
+.oratorio-btn:hover:not(:disabled) { background: var(--bg-tertiary); border-color: var(--border-active); }
+/* Primary action = neutral inversion (DESIGN.md), not accent blue. */
+.oratorio-btn-primary {
+  border: 1px solid var(--text-primary);
+  background: var(--text-primary);
+  color: var(--bg-primary);
+}
+.oratorio-btn-primary:hover:not(:disabled) { background: color-mix(in srgb, var(--text-primary) 88%, var(--bg-primary)); }
+.oratorio-btn:disabled, .oratorio-btn-primary:disabled { cursor: default; opacity: 0.45; }
+
+.oratorio-icon-btn {
+  width: 32px; height: 32px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid transparent; border-radius: 8px;
+  background: transparent; color: var(--text-secondary); cursor: pointer;
+}
+.oratorio-icon-btn:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+
+/* ── Board shell + columns ── */
+.oratorio-shell {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  padding: 0 22px 20px;
+  overflow: hidden;
+}
+.oratorio-columns {
+  height: 100%;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  overflow: hidden;
+  scrollbar-color: var(--ob-scrollbar-thumb-hidden) transparent;
+}
+
+.oratorio-column {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border-default);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--bg-secondary) 80%, transparent);
+  overflow: hidden;
+}
+.oratorio-column-head {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  gap: 8px;
+  align-items: start;
+  padding: 13px 14px 10px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border-default) 64%, transparent);
+}
+.oratorio-column-title { color: var(--text-primary); font-size: 13px; font-weight: 750; line-height: 1.2; }
+.oratorio-column-desc { margin-top: 4px; color: var(--text-dimmed); font-size: 11px; line-height: 1.35; }
+.oratorio-count {
+  min-width: 26px; height: 24px;
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0 7px; border-radius: 999px;
+  background: var(--bg-tertiary); color: var(--text-primary);
+  font-size: 12px; font-weight: 750;
+}
+.oratorio-count.is-charged { background: color-mix(in srgb, var(--accent) 16%, var(--bg-tertiary)); }
+
+.oratorio-stack {
+  flex: 1 1 auto;
+  min-height: 60px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 12px 16px;
+  overflow-y: auto;
+  scrollbar-color: var(--ob-scrollbar-thumb-hidden) transparent;
+  transition: background-color 140ms ease, scrollbar-color 180ms ease;
+}
+.oratorio-stack.is-drag-over { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.oratorio-columns:hover, .oratorio-columns:focus-within,
+.oratorio-stack:hover, .oratorio-stack:focus-within, .oratorio-stack.is-drag-over {
+  scrollbar-color: var(--ob-scrollbar-thumb) transparent;
+}
+.oratorio-board ::-webkit-scrollbar { width: var(--ob-scrollbar-size); height: var(--ob-scrollbar-size); }
+.oratorio-board ::-webkit-scrollbar-track,
+.oratorio-board ::-webkit-scrollbar-corner { background: transparent; }
+.oratorio-board ::-webkit-scrollbar-thumb {
+  border: 2px solid transparent; border-radius: 999px;
+  background-color: var(--ob-scrollbar-thumb); background-clip: padding-box;
+  transition: background-color 180ms ease;
+}
+.oratorio-columns::-webkit-scrollbar-thumb,
+.oratorio-stack::-webkit-scrollbar-thumb { background-color: var(--ob-scrollbar-thumb-hidden); }
+.oratorio-columns:hover::-webkit-scrollbar-thumb,
+.oratorio-stack:hover::-webkit-scrollbar-thumb,
+.oratorio-stack.is-drag-over::-webkit-scrollbar-thumb { background-color: var(--ob-scrollbar-thumb); }
+.oratorio-board ::-webkit-scrollbar-thumb:hover { background-color: var(--ob-scrollbar-thumb-hover); }
+
+.oratorio-col-empty { color: var(--text-dimmed); font-size: 12px; padding: 4px 2px; }
+.oratorio-drop-placeholder {
+  height: 64px; flex: 0 0 auto;
+  border: 1px dashed color-mix(in srgb, var(--accent) 52%, var(--border-default));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+/* ── Card ── */
+.oratorio-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 150px;
+  flex: 0 0 auto;
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: color-mix(in srgb, var(--bg-primary) 78%, transparent);
+  color: inherit;
+  text-align: left;
+  cursor: grab;
+  user-select: none;
+  overflow: hidden;
+  transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+}
+.oratorio-card:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--border-default)); box-shadow: var(--shadow-sm); transform: translateY(-1px); }
+.oratorio-card.is-selected { border-color: var(--accent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent); }
+.oratorio-card.is-dragging { border-color: color-mix(in srgb, var(--accent) 64%, var(--border-default)); cursor: grabbing; box-shadow: var(--shadow-md); transform: rotate(0.4deg); opacity: 0.96; }
+.oratorio-card:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 74%, transparent); outline-offset: 2px; }
+
+.oratorio-card::before {
+  content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: transparent;
+}
+.oratorio-card.accent-running::before { background: var(--ob-accent-bar-running); }
+.oratorio-card.accent-awaiting::before { background: var(--ob-accent-bar-awaiting); }
+.oratorio-card.accent-failed::before { background: var(--ob-accent-bar-failed); }
+
+.oratorio-card.is-locked { cursor: default; opacity: 0.82; }
+.oratorio-card.is-locked:hover { box-shadow: none; transform: none; border-color: var(--border-default); }
+.oratorio-lock-tag {
+  position: absolute; top: 11px; right: 12px;
+  display: inline-flex; align-items: center; gap: 4px;
+  color: var(--text-dimmed); font-size: 10.5px; font-weight: 700;
+}
+.oratorio-lock-tag .ic { width: 12px; height: 12px; }
+
+.oratorio-topline { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.oratorio-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  height: 22px; padding: 0 8px; border-radius: 999px;
+  background: var(--bg-tertiary); color: var(--text-secondary);
+  font-size: 11px; font-weight: 700; flex: 0 0 auto; min-width: 0; max-width: 100%;
+}
+.oratorio-chip > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 14ch; }
+.oratorio-chip.chip-source { color: var(--text-primary); }
+.oratorio-chip.chip-source.is-local { color: var(--text-secondary); }
+.oratorio-chip.chip-kind { color: var(--text-secondary); }
+.oratorio-chip .ic { width: 14px; height: 14px; }
+
+.oratorio-title-line { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.oratorio-title-line .oratorio-title { flex: 1; min-width: 0; color: var(--text-primary); font-size: 13.5px; font-weight: 700; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.oratorio-dot { width: 8px; height: 8px; min-width: 8px; border-radius: 999px; background: var(--text-dimmed); }
+.oratorio-dot.running { background: var(--info); animation: oratorio-pulse 1.25s ease-in-out infinite; }
+.oratorio-dot.awaiting { background: var(--warning); }
+.oratorio-dot.failed { background: var(--error); }
+.oratorio-dot.approved { background: var(--success); }
+
+.oratorio-preview {
+  color: var(--text-secondary); font-size: 12.5px; line-height: 1.45;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.oratorio-meta { color: var(--text-dimmed); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.oratorio-footer { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: auto; padding-top: 3px; }
+
+/* ── Pills (state / check / lifecycle / labels) ── */
+.oratorio-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  min-height: 22px; padding: 0 8px;
+  border: 1px solid var(--border-default); border-radius: 999px;
+  font-size: 11px; font-weight: 650; max-width: 100%; overflow: hidden;
+}
+.oratorio-pill > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.oratorio-pill .ic { width: 13px; height: 13px; }
+.oratorio-pill.state-awaiting, .oratorio-pill.state-rejected {
+  color: color-mix(in srgb, var(--warning) 86%, var(--text-primary));
+  border-color: color-mix(in srgb, var(--warning) 35%, var(--border-default));
+  background: color-mix(in srgb, var(--warning) 12%, var(--bg-primary));
+}
+.oratorio-pill.state-dispatching, .oratorio-pill.state-running {
+  color: color-mix(in srgb, var(--info) 82%, var(--text-primary));
+  border-color: color-mix(in srgb, var(--info) 32%, var(--border-default));
+  background: color-mix(in srgb, var(--info) 11%, var(--bg-primary));
+}
+.oratorio-pill.state-failed {
+  color: color-mix(in srgb, var(--error) 86%, var(--text-primary));
+  border-color: color-mix(in srgb, var(--error) 38%, var(--border-default));
+  background: color-mix(in srgb, var(--error) 10%, var(--bg-primary));
+}
+.oratorio-pill.state-archived {
+  color: var(--text-secondary); border-color: var(--border-default);
+  background: color-mix(in srgb, var(--bg-tertiary) 72%, var(--bg-primary));
+}
+.oratorio-pill.check-passing {
+  color: color-mix(in srgb, var(--success) 30%, #04210f);
+  border-color: color-mix(in srgb, var(--success) 72%, transparent);
+  background: color-mix(in srgb, var(--success) 72%, transparent);
+  font-weight: 720;
+}
+html[data-theme="light"] .oratorio-board .oratorio-pill.check-passing { color: #04240f; }
+.oratorio-pill.check-attention {
+  color: color-mix(in srgb, var(--warning) 86%, var(--text-primary));
+  border-color: color-mix(in srgb, var(--warning) 28%, var(--border-default));
+  background: color-mix(in srgb, var(--warning) 9%, var(--bg-primary));
+}
+.oratorio-pill.check-pending {
+  color: color-mix(in srgb, var(--info) 80%, var(--text-primary));
+  border-color: color-mix(in srgb, var(--info) 24%, var(--border-default));
+  background: color-mix(in srgb, var(--info) 8%, var(--bg-primary));
+}
+.oratorio-pill.lifecycle { color: var(--text-secondary); background: color-mix(in srgb, var(--bg-tertiary) 70%, transparent); border-color: var(--border-default); }
+.oratorio-pill.lifecycle.merged { color: color-mix(in srgb, var(--accent) 70%, var(--text-primary)); }
+
+.oratorio-label-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  min-height: 22px; max-width: 88px; padding: 0 7px;
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border-default));
+  border-radius: 999px;
+  color: color-mix(in srgb, var(--accent) 78%, var(--text-primary));
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  font-size: 11px; font-weight: 600;
+}
+.oratorio-label-chip > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.oratorio-label-chip .ic { width: 11px; height: 11px; }
+.oratorio-label-more {
+  display: inline-flex; align-items: center; min-height: 22px; padding: 0 7px;
+  border: 1px solid var(--border-default); border-radius: 999px;
+  color: var(--text-secondary); font-size: 11px; font-weight: 600;
+}
+.oratorio-spinner { display: inline-flex; align-items: center; color: color-mix(in srgb, var(--info) 82%, var(--text-primary)); }
+.oratorio-spinner .ic { width: 14px; height: 14px; animation: oratorio-spin 1s linear infinite; }
+
+/* ── Drawer (slide-in overlay) ── */
+.oratorio-drawer {
+  position: absolute; top: 0; right: 0; bottom: 0;
+  width: 384px; max-width: calc(100% - 32px);
+  z-index: 25;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  border-left: 1px solid var(--border-default);
+  border-radius: 14px 0 0 14px;
+  background: var(--bg-elevated);
+  box-shadow: -16px 0 44px rgba(0, 0, 0, 0.36);
+  transform: translateX(calc(100% + 32px));
+  transition: transform 240ms cubic-bezier(.2, .8, .2, 1);
+  pointer-events: none;
+  overflow: hidden;
+}
+html[data-theme="light"] .oratorio-board .oratorio-drawer { box-shadow: -12px 0 36px rgba(15, 23, 42, 0.16); }
+.oratorio-drawer.is-open { transform: translateX(0); pointer-events: auto; }
+
+.oratorio-drawer-head { display: grid; gap: 9px; padding: 15px 16px 13px; border-bottom: 1px solid var(--border-default); }
+.oratorio-drawer-kicker-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.oratorio-kicker { color: var(--text-dimmed); font-size: 11px; font-weight: 750; text-transform: uppercase; letter-spacing: .02em; }
+.oratorio-drawer-title { margin: 0; color: var(--text-primary); font-size: 15.5px; font-weight: 760; line-height: 1.3; }
+.oratorio-drawer-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.oratorio-drawer-body { min-height: 0; display: grid; align-content: start; gap: 12px; overflow: auto; padding: 14px 16px; }
+.oratorio-drawer-summary { margin: 0; color: var(--text-secondary); font-size: 12.5px; line-height: 1.5; }
+.oratorio-facts { display: grid; gap: 9px; padding: 12px; border: 1px solid var(--border-default); border-radius: 10px; background: color-mix(in srgb, var(--bg-secondary) 60%, transparent); }
+.oratorio-fact { display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: 10px; align-items: center; color: var(--text-secondary); font-size: 12px; }
+.oratorio-fact strong { color: var(--text-primary); font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.oratorio-counts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.oratorio-counts span { display: grid; gap: 2px; border: 1px solid var(--border-default); border-radius: 8px; padding: 9px 8px; background: var(--bg-secondary); color: var(--text-dimmed); font-size: 11px; }
+.oratorio-counts strong { color: var(--text-primary); font-size: 16px; line-height: 1; }
+.oratorio-drawer-actions { display: grid; gap: 8px; padding: 13px 16px; border-top: 1px solid var(--border-default); background: color-mix(in srgb, var(--bg-secondary) 40%, transparent); }
+.oratorio-drawer-actions .oratorio-btn, .oratorio-drawer-actions .oratorio-btn-primary { width: 100%; }
+
+/* ── Surface states ── */
+.oratorio-surface-state {
+  grid-column: 1 / -1;
+  min-height: 100%;
+  display: grid; place-items: center;
+  border: 1px solid var(--border-default); border-radius: 14px;
+  background: color-mix(in srgb, var(--bg-secondary) 80%, transparent);
+  padding: 28px; text-align: center;
+}
+.oratorio-surface-inner { max-width: 520px; display: grid; justify-items: center; gap: 12px; }
+.oratorio-surface-glyph {
+  width: 52px; height: 52px; display: grid; place-items: center;
+  border-radius: 14px; color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.oratorio-surface-glyph .ic { width: 26px; height: 26px; }
+.oratorio-surface-state h2 { margin: 0; color: var(--text-primary); font-size: 18px; line-height: 1.25; }
+.oratorio-surface-state p { margin: 0; color: var(--text-secondary); font-size: 13px; line-height: 1.55; }
+.oratorio-surface-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 4px; }
+.oratorio-skeleton {
+  height: 116px; border-radius: 12px; border: 1px solid var(--border-default);
+  background: linear-gradient(90deg, var(--bg-secondary), var(--bg-tertiary), var(--bg-secondary));
+  background-size: 200% 100%; animation: oratorio-shimmer 1.25s linear infinite;
+}
+
+/* ── Modals ── */
+.oratorio-modal-backdrop {
+  position: absolute; inset: 0; z-index: 40;
+  display: none; align-items: center; justify-content: center;
+  background: var(--overlay-scrim, rgba(0,0,0,.5));
+}
+.oratorio-modal-backdrop.is-open { display: flex; }
+.oratorio-modal {
+  width: 420px; max-width: calc(100% - 32px);
+  max-height: calc(100% - 32px); overflow: auto;
+  display: grid; gap: 13px;
+  border: 1px solid var(--border-default); border-radius: 12px;
+  background: var(--bg-elevated); box-shadow: var(--shadow-lg); padding: 18px;
+}
+.oratorio-modal.modal-wide { width: 524px; }
+.oratorio-modal-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.oratorio-modal-eyebrow { display: block; color: var(--text-dimmed); font-size: 11px; font-weight: 750; text-transform: uppercase; letter-spacing: .02em; margin-bottom: 2px; }
+.oratorio-modal h2 { margin: 0; font-size: 16px; color: var(--text-primary); }
+.oratorio-modal p { margin: 0; color: var(--text-secondary); font-size: 12.5px; line-height: 1.5; }
+.oratorio-modal label { display: grid; gap: 6px; color: var(--text-secondary); font-size: 12px; font-weight: 600; }
+.oratorio-modal input, .oratorio-modal textarea {
+  width: 100%; min-height: 36px;
+  border: 1px solid var(--border-default); border-radius: 8px;
+  background: var(--bg-secondary); color: var(--text-primary);
+  padding: 9px 10px; resize: vertical; font: inherit;
+}
+.oratorio-modal input:focus, .oratorio-modal textarea:focus { outline: none; border-color: var(--border-active); }
+.oratorio-form { display: grid; grid-template-columns: 1fr 1fr; gap: 13px 14px; align-items: start; }
+.oratorio-field { display: grid; gap: 6px; align-content: start; min-width: 0; }
+.oratorio-field.full { grid-column: 1 / -1; }
+.oratorio-field > span { color: var(--text-secondary); font-size: 12px; font-weight: 600; }
+.oratorio-field-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.oratorio-field-head small { color: var(--text-dimmed); font-weight: 400; font-size: 11px; }
+.oratorio-routing { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }
+.oratorio-chip-picker { display: flex; flex-wrap: wrap; gap: 6px; }
+.oratorio-chip-picker.full { grid-column: 1 / -1; }
+.oratorio-preset {
+  display: inline-flex; align-items: center; gap: 5px;
+  height: 25px; padding: 0 9px; border: 1px solid var(--border-default); border-radius: 999px;
+  background: var(--bg-secondary); color: var(--text-secondary);
+  font: inherit; font-size: 11px; font-weight: 600; cursor: pointer;
+}
+.oratorio-preset .ic { width: 11px; height: 11px; }
+.oratorio-preset:hover { background: var(--bg-tertiary); color: var(--text-primary); border-color: var(--border-active); }
+.oratorio-modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 2px; }
+
+/* ── Toasts ── */
+.oratorio-undo-toast {
+  position: absolute; left: 50%; bottom: 20px; z-index: 50;
+  min-width: 300px; max-width: min(460px, calc(100% - 40px));
+  transform: translate(-50%, 16px); opacity: 0; pointer-events: none;
+  display: flex; align-items: center; gap: 12px;
+  border: 1px solid var(--border-default); border-radius: 10px;
+  background: var(--bg-elevated); box-shadow: var(--shadow-lg);
+  color: var(--text-primary); padding: 11px 12px 13px; overflow: hidden;
+  transition: opacity 150ms ease, transform 150ms ease;
+}
+.oratorio-undo-toast.is-visible { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+.oratorio-undo-toast .msg { flex: 1; min-width: 0; font-size: 12.5px; }
+.oratorio-undo-toast .msg .ic { width: 15px; height: 15px; vertical-align: -3px; margin-right: 7px; color: var(--text-secondary); }
+.oratorio-undo-btn {
+  flex: 0 0 auto; height: 26px; padding: 0 11px;
+  border: 1px solid var(--border-active); border-radius: 7px;
+  background: transparent; color: var(--text-primary); font: inherit; font-weight: 600; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.oratorio-undo-btn:hover { background: var(--bg-tertiary); }
+.oratorio-undo-btn .ic { width: 14px; height: 14px; }
+.oratorio-undo-progress { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; transform-origin: left center; background: var(--accent); }
+
+.oratorio-info-toast {
+  position: absolute; left: 50%; bottom: 20px; z-index: 48;
+  transform: translate(-50%, 16px); opacity: 0; pointer-events: none;
+  min-width: 240px; max-width: min(440px, calc(100% - 40px));
+  border: 1px solid var(--border-default); border-radius: 10px;
+  background: var(--bg-elevated); box-shadow: var(--shadow-lg);
+  color: var(--text-primary); padding: 10px 14px; text-align: center; font-size: 12.5px;
+  transition: opacity 150ms ease, transform 150ms ease;
+}
+.oratorio-info-toast.is-visible { opacity: 1; transform: translate(-50%, 0); }
+.oratorio-info-toast.is-error { border-color: color-mix(in srgb, var(--error) 40%, var(--border-default)); }
+
+/* ── Celebration burst ── */
+.oratorio-burst { position: absolute; z-index: 45; pointer-events: none; }
+.oratorio-burst i {
+  position: absolute; width: 7px; height: 7px; border-radius: 999px; background: var(--success);
+  animation: oratorio-burst-pop 900ms cubic-bezier(.16, 1, .3, 1) forwards;
+}
+
+@keyframes oratorio-undo-shrink { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+@keyframes oratorio-pulse { 0%,100% { opacity: .45; transform: scale(.9); } 50% { opacity: 1; transform: scale(1.12); } }
+@keyframes oratorio-spin { to { transform: rotate(360deg); } }
+@keyframes oratorio-shimmer { to { background-position: -200% 0; } }
+@keyframes oratorio-burst-pop {
+  0% { opacity: 0; transform: translate(0,0) scale(.5); }
+  14% { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--bx), var(--by)) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .oratorio-dot.running, .oratorio-spinner .ic, .oratorio-skeleton, .oratorio-burst i { animation: none !important; }
+  .oratorio-brand-mark { animation: none; transform: none; }
+  .oratorio-brand-mark::before { opacity: 0.24; transform: scale(0.98); animation: none; }
+  .oratorio-wand-aura { opacity: 0.32; animation: none; }
+  .oratorio-wand-orbit-halo, .oratorio-wand-expanding-halo { opacity: 0.34; animation: none; }
+  .oratorio-wand-body-halo, .oratorio-wand-core, .oratorio-wand-tip-glow { opacity: 0.62; animation: none; }
+  .oratorio-wand-spark { opacity: 0; animation: none; }
+}
+
+@media (max-width: 1180px) {
+  .oratorio-toolbar { grid-template-columns: minmax(180px, 1fr) max-content; }
+  .oratorio-toolbar .dc-settings-select { display: none; }
+  .oratorio-columns { grid-template-columns: repeat(4, minmax(232px, 1fr)); overflow-x: auto; padding-bottom: 4px; }
+}

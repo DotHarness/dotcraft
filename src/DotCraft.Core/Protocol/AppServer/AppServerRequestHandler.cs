@@ -5295,12 +5295,17 @@ public sealed class AppServerRequestHandler(
                 Styles = extension.Styles.ToList(),
                 RequiredAppIds = extension.RequiredAppIds.ToList(),
                 ConnectOrigins = extension.ConnectOrigins.ToList(),
+                SurfaceWriteScopes = extension.SurfaceWriteScopes.ToList(),
                 Surfaces = extension.Surfaces
                     .Select(surface => new PluginDesktopExtensionSurfaceWire
                     {
                         Type = surface.Type,
                         ViewId = surface.ViewId,
                         Label = surface.Label,
+                        LocalizedLabel = surface.LocalizedLabel is { Count: > 0 }
+                            ? new Dictionary<string, string>(surface.LocalizedLabel)
+                            : null,
+                        Icon = surface.Icon,
                         Placement = surface.Placement,
                         Order = surface.Order,
                         Title = surface.Title,

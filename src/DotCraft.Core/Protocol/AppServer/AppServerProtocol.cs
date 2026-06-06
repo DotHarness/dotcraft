@@ -2141,6 +2141,8 @@ public sealed class PluginDesktopExtensionInfoWire
     public List<string> RequiredAppIds { get; set; } = [];
 
     public List<string> ConnectOrigins { get; set; } = [];
+
+    public List<string> SurfaceWriteScopes { get; set; } = [];
 }
 
 public sealed class PluginDesktopExtensionSurfaceWire
@@ -2152,6 +2154,12 @@ public sealed class PluginDesktopExtensionSurfaceWire
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Label { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Dictionary<string, string>? LocalizedLabel { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Icon { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Placement { get; set; }

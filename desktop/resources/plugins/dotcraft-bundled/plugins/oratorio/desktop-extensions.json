@@ -1,0 +1,30 @@
+{
+  "extensions": [
+    {
+      "id": "oratorio-board",
+      "displayName": "Oratorio Board",
+      "description": "Embeds the Oratorio board inside DotCraft Desktop for a quick glance and common decisions.",
+      "entry": "./desktop/oratorio-board.mjs",
+      "styles": ["./desktop/oratorio-board.css"],
+      "surfaces": [
+        {
+          "type": "mainView",
+          "viewId": "board",
+          "label": "Board",
+          "localizedLabel": { "en": "Board", "zh-Hans": "看板", "ja": "ボード", "ko": "보드", "es": "Tablero", "fr": "Tableau", "de": "Board" },
+          "icon": "kanban",
+          "placement": "sidebar",
+          "order": 55
+        },
+        {
+          "type": "pluginDetail",
+          "title": "Oratorio Board",
+          "description": "Shows the Oratorio board in DotCraft Desktop with quick dispatch, review, and task actions."
+        }
+      ],
+      "requiredAppIds": ["com.dotharness.oratorio"],
+      "connectOrigins": ["http://127.0.0.1:*", "http://localhost:*"],
+      "surfaceWriteScopes": ["board.manage"]
+    }
+  ]
+}

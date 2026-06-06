@@ -1,4 +1,5 @@
-import { useT } from '../../contexts/LocaleContext'
+import { useLocale, useT } from '../../contexts/LocaleContext'
+import { resolveLocalizedText } from '../../../shared/locales'
 import { connectionStatusLabel } from '../../utils/connectionStatusLabel'
 import { useUIStore } from '../../stores/uiStore'
 import { useConnectionStore } from '../../stores/connectionStore'
@@ -17,7 +18,7 @@ import {
   SIDEBAR_NAV_ROW_OUTER
 } from '../sidebar/sidebarNavRowStyles'
 import { SettingsIcon } from '../ui/AppIcons'
-import { MessageSquare, Puzzle, SquarePen, UsersRound } from 'lucide-react'
+import { MessageSquare, Puzzle, SquareKanban, SquarePen, UsersRound } from 'lucide-react'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
 
@@ -49,6 +50,7 @@ export function Sidebar({
   remoteWorkspace = false
 }: SidebarProps): JSX.Element {
   const t = useT()
+  const locale = useLocale()
   const { sidebarCollapsed, activeMainView, setActiveMainView } = useUIStore()
   const capabilities = useConnectionStore((s) => s.capabilities)
   const plugins = usePluginStore((s) => s.plugins)
@@ -105,10 +107,10 @@ export function Sidebar({
         {desktopMainViews.map((entry) => (
           <SidebarNavRow
             key={entry.viewKey}
-            label={entry.label}
+            label={resolveLocalizedText(entry.localizedLabel, entry.label, locale) ?? entry.label}
             active={activeMainView === entry.viewKey}
             onClick={() => setActiveMainView(entry.viewKey)}
-            icon={<ExtensionIcon />}
+            icon={<ExtensionIcon icon={entry.icon} />}
             testId={`nav-extension-${entry.plugin.id}-${entry.extension.id}-${entry.viewId}`}
           />
         ))}
@@ -207,8 +209,22 @@ function ChannelsIcon(): JSX.Element {
   return <MessageSquare size={16} strokeWidth={2} aria-hidden style={{ display: 'block' }} />
 }
 
-function ExtensionIcon(): JSX.Element {
-  return <UsersRound size={16} strokeWidth={2} aria-hidden style={{ display: 'block' }} />
+function ExtensionIcon({ icon }: { icon?: string | null }): JSX.Element {
+  const Glyph = resolveExtensionIcon(icon)
+  return <Glyph size={16} strokeWidth={2} aria-hidden style={{ display: 'block' }} />
+}
+
+// Maps the optional `icon` a desktop-extension surface declares to a built-in
+// glyph. Unknown or omitted names fall back to the generic extension icon, so
+// extensions never need to ship raster assets for a sidebar nav entry.
+function resolveExtensionIcon(icon?: string | null): typeof UsersRound {
+  switch (icon) {
+    case 'board':
+    case 'kanban':
+      return SquareKanban
+    default:
+      return UsersRound
+  }
 }
 
 function AutomationsIcon(): JSX.Element {
@@ -238,6 +254,7 @@ function AutomationsIcon(): JSX.Element {
 
 function CollapsedSidebar(): JSX.Element {
   const t = useT()
+  const locale = useLocale()
   const { status, errorMessage, capabilities: collapsedCaps } = useConnectionStore()
   const { threadList, setActiveThreadId } = useThreadStore()
   const { activeMainView, setActiveMainView, goToNewChat } = useUIStore()
@@ -349,8 +366,10 @@ function CollapsedSidebar(): JSX.Element {
           <ChannelsIcon />
         </button>
       </CollapsedNavTooltip>
-      {desktopMainViews.map((entry) => (
-        <CollapsedNavTooltip key={entry.viewKey} label={entry.label}>
+      {desktopMainViews.map((entry) => {
+        const label = resolveLocalizedText(entry.localizedLabel, entry.label, locale) ?? entry.label
+        return (
+        <CollapsedNavTooltip key={entry.viewKey} label={label}>
           <button
             type="button"
             onClick={() => setActiveMainView(entry.viewKey)}
@@ -359,12 +378,13 @@ function CollapsedSidebar(): JSX.Element {
               backgroundColor: activeMainView === entry.viewKey ? 'var(--sidebar-control-active)' : 'transparent',
               color: activeMainView === entry.viewKey ? 'var(--accent)' : 'var(--text-secondary)'
             }}
-            aria-label={entry.label}
+            aria-label={label}
           >
-            <ExtensionIcon />
+            <ExtensionIcon icon={entry.icon} />
           </button>
         </CollapsedNavTooltip>
-      ))}
+        )
+      })}
       <CollapsedNavTooltip
         label={t('sidebar.automations')}
         disabledReason={!collapsedAutomationsAvailable ? t('sidebar.automationsDisabled') : undefined}
