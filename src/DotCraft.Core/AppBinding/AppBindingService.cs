@@ -1978,12 +1978,19 @@ public sealed class AppBindingService
     }
 
     /// <summary>
-    /// Resolves a thread's <paramref name="originChannel"/> to the installed app that declared it as
-    /// its <c>originChannel</c>, returning branding (icon + display name) for the thread origin badge.
+    /// Resolves a thread's <paramref name="originChannel"/> to the app that declared it as its
+    /// <c>originChannel</c>, returning branding (icon + display name) for the thread origin badge.
     /// When the app also declares <c>originMembers</c> and <paramref name="channelContext"/> matches one,
     /// the matched member's branding is returned instead of the app-level visual. Opt-in (declared
-    /// origin channels only); returns null when nothing matches, the app is not installed, or the
-    /// channel is blank — so callers fall back to the generic badge.
+    /// origin channels only); returns null when nothing matches or the channel is blank — so callers
+    /// fall back to the generic badge.
+    /// <para>
+    /// Matches both workspace-installed and bundled built-in (installable) apps. Origin branding is
+    /// purely cosmetic and does not grant tools, so it must not depend on whether the declaring app has
+    /// been deployed into the thread's specific workspace. This matters for threads that run in
+    /// workspaces without the app deployed — e.g. an app's own git worktrees — which would otherwise
+    /// see only the generic channel icon.
+    /// </para>
     /// </summary>
     public ThreadOriginAppWire? ResolveOriginApp(AppCatalogSnapshot catalog, string? originChannel, string? channelContext = null)
     {
@@ -1991,7 +1998,7 @@ public sealed class AppBindingService
             return null;
 
         var entry = catalog.Entries
-            .Where(candidate => candidate.Plugin.Installed
+            .Where(candidate => (candidate.Plugin.Installed || candidate.Plugin.Installable)
                                 && !string.IsNullOrWhiteSpace(candidate.Descriptor.OriginChannel)
                                 && string.Equals(candidate.Descriptor.OriginChannel, originChannel, StringComparison.OrdinalIgnoreCase))
             .OrderBy(candidate => candidate.Descriptor.AppId, StringComparer.Ordinal)

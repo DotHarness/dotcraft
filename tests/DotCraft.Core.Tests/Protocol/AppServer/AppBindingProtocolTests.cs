@@ -1052,6 +1052,32 @@ public sealed class AppBindingProtocolTests : IDisposable
         Assert.Null(origin.MemberId);
     }
 
+    // Reproduces the oratorio-bridge worktree case: the declaring app is a bundled built-in
+    // (installable, not workspace-installed in that thread's workspace). Origin branding is cosmetic and
+    // must still resolve, otherwise such threads fall back to the generic channel icon.
+    [Fact]
+    public void ResolveOriginApp_AttributesBundledBuiltInApp_NotJustWorkspaceInstalled()
+    {
+        var builtInRoot = Path.Combine(_tempRoot, "builtin");
+        WriteOratorioPlugin(originChannel: "oratorio", containerRoot: builtInRoot);
+        var service = new AppBindingService();
+        var catalog = AppBindingCatalog.Discover(
+            new AppConfig(), _tempRoot, _workspaceCraftPath, builtInPluginSourceRoots: [builtInRoot]);
+
+        var entry = catalog.Entries.FirstOrDefault(e => e.Descriptor.AppId == "com.dotharness.oratorio");
+        Assert.NotNull(entry);
+        Assert.False(entry!.Plugin.Installed);
+        Assert.True(entry.Plugin.Installable);
+
+        var origin = service.ResolveOriginApp(catalog, "oratorio");
+
+        Assert.NotNull(origin);
+        Assert.Equal("com.dotharness.oratorio", origin!.AppId);
+        Assert.Equal("Oratorio", origin.DisplayName);
+        Assert.NotNull(origin.Icon);
+        Assert.StartsWith("data:image/svg+xml;base64,", origin.Icon!);
+    }
+
     // Reproduces the live Teams setup: managed TeamsService runtime + agent-teams plugin assets,
     // mission member threads stamped channelContext="{missionId}:{memberId}".
     [Theory]
@@ -1960,7 +1986,8 @@ public sealed class AppBindingProtocolTests : IDisposable
         string toolNamespace = "oratorio",
         string rootName = "oratorio",
         string? originChannel = "oratorio",
-        bool withOriginMembers = false)
+        bool withOriginMembers = false,
+        string? containerRoot = null)
     {
         var originChannelJson = string.IsNullOrEmpty(originChannel)
             ? ""
@@ -1970,7 +1997,7 @@ public sealed class AppBindingProtocolTests : IDisposable
               + "{ \"match\": \"alpha\", \"displayName\": \"Alpha\", \"icon\": \"./member-alpha.svg\" },"
               + "{ \"match\": \"beta\", \"displayName\": \"Beta\", \"icon\": \"./member-beta.svg\" }],\n"
             : "";
-        var pluginRoot = Path.Combine(_workspaceCraftPath, "plugins", rootName);
+        var pluginRoot = Path.Combine(containerRoot ?? Path.Combine(_workspaceCraftPath, "plugins"), rootName);
         Directory.CreateDirectory(Path.Combine(pluginRoot, ".craft-plugin"));
         File.WriteAllText(
             Path.Combine(pluginRoot, ".craft-plugin", "plugin.json"),
