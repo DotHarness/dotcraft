@@ -1289,6 +1289,8 @@ describe('BrowserUseManager IAB backend', () => {
     const screenshot = await exec('tab_screenshot')
     const evaluated = await exec('playwright_evaluate', { script: 'document.body ? document.body.innerText : ""' })
     const evaluatedWithArg = await exec('playwright_evaluate', { script: '(value) => value + 1', arg: 41, timeout_ms: 1000 })
+    await expect(exec('playwright_evaluate', { script: 'window.scrollTo(0, 10)' })).rejects.toThrow('ReadonlyEvaluateViolation')
+    await expect(exec('playwright_evaluate', { script: 'document.body.appendChild(document.createElement("div"))' })).rejects.toThrow('ReadonlyEvaluateViolation')
     const domSnapshot = await exec('playwright_dom_snapshot')
     await exec('playwright_wait_for_timeout', { timeout_ms: 0 })
     await exec('playwright_wait_for_load_state', { state: 'load', timeout_ms: 1000 })

@@ -690,6 +690,12 @@ describe('NodeReplManager', () => {
           contentType: "text",
           timeoutMs: 1000
         })
+        let readonlyScroll = ""
+        try {
+          await tab.playwright.evaluate(() => window.scrollTo(0, 10), undefined, { timeoutMs: 1000 })
+        } catch (error) {
+          readonlyScroll = error instanceof Error ? error.message : String(error)
+        }
         const title = await tab.playwright.evaluate(() => document.title)
         const evalWithArg = await tab.playwright.evaluate((value) => value + 1, 41, { timeoutMs: 1000 })
         const snapshot = await tab.playwright.domSnapshot()
@@ -759,8 +765,10 @@ describe('NodeReplManager', () => {
           evalWithArg,
           tabTitle,
           tabUrl,
+          tabsContentApi: typeof browser.tabs.content,
           tabByIdTitle,
           tabsContent: tabsContent[0]?.content,
+          readonlyScroll,
           browserVisible,
           snapshot,
           count,
@@ -808,8 +816,10 @@ describe('NodeReplManager', () => {
       evalWithArg: 42,
       tabTitle: 'Test Page',
       tabUrl: 'http://localhost:3000/',
+      tabsContentApi: 'function',
       tabByIdTitle: 'Test Page',
       tabsContent: 'Save\nCancel',
+      readonlyScroll: expect.stringContaining('ReadonlyEvaluateViolation'),
       browserVisible: true,
       count: 2,
       texts: ['Save', 'Cancel'],

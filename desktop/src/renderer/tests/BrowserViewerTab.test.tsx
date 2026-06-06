@@ -4,6 +4,7 @@ import { render, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { useConversationStore } from '../stores/conversationStore'
 import { useViewerTabStore } from '../stores/viewerTabStore'
+import { useUIStore } from '../stores/uiStore'
 import { BrowserViewerTab } from '../components/detail/viewers/BrowserViewerTab'
 
 const THREAD_ID = 'thread-a'
@@ -70,6 +71,12 @@ beforeEach(() => {
   useConversationStore.setState({
     workspacePath: WORKSPACE_PATH
   })
+  useUIStore.setState({
+    activeMainView: 'conversation',
+    activeDetailTab: { kind: 'launcher' },
+    detailPanelVisible: true,
+    quickOpenVisible: false
+  })
   useViewerTabStore.getState().openBrowser({
     threadId: THREAD_ID,
     tabId: TAB_ID,
@@ -96,5 +103,75 @@ describe('BrowserViewerTab', () => {
       })
     })
     expect(browserApi.onEvent).not.toHaveBeenCalled()
+  })
+
+  it('pushes native browser bounds only for the active visible viewer tab', async () => {
+    useUIStore.setState({
+      activeDetailTab: { kind: 'viewer', id: TAB_ID }
+    })
+    const rect = {
+      x: 420,
+      y: 80,
+      left: 420,
+      top: 80,
+      right: 1020,
+      bottom: 680,
+      width: 600,
+      height: 600,
+      toJSON: () => ({})
+    } as DOMRect
+    const rectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(rect)
+    Object.defineProperty(window, 'requestAnimationFrame', {
+      value: (callback: FrameRequestCallback) => {
+        callback(0)
+        return 1
+      },
+      configurable: true
+    })
+    Object.defineProperty(window, 'cancelAnimationFrame', {
+      value: vi.fn(),
+      configurable: true
+    })
+
+    render(
+      <LocaleProvider>
+        <BrowserViewerTab tabId={TAB_ID} />
+      </LocaleProvider>
+    )
+
+    await waitFor(() => {
+      expect(browserApi.setBounds).toHaveBeenCalledWith({
+        tabId: TAB_ID,
+        x: 420,
+        y: 80,
+        width: 600,
+        height: 600
+      })
+    })
+    expect(browserApi.setActive).toHaveBeenCalledWith({ tabId: TAB_ID })
+
+    rectSpy.mockRestore()
+  })
+
+  it('hides the native view and skips bounds while quick open covers the active tab', async () => {
+    useUIStore.setState({
+      activeDetailTab: { kind: 'viewer', id: TAB_ID },
+      quickOpenVisible: true
+    })
+    const rectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+
+    render(
+      <LocaleProvider>
+        <BrowserViewerTab tabId={TAB_ID} />
+      </LocaleProvider>
+    )
+
+    await waitFor(() => {
+      expect(browserApi.setVisible).toHaveBeenCalledWith({ tabId: TAB_ID, visible: false })
+    })
+    expect(browserApi.setBounds).not.toHaveBeenCalled()
+    expect(rectSpy).not.toHaveBeenCalled()
+
+    rectSpy.mockRestore()
   })
 })

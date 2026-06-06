@@ -10,6 +10,7 @@ import {
 import { useT } from '../../../contexts/LocaleContext'
 import { useViewerTabStore } from '../../../stores/viewerTabStore'
 import { useConversationStore } from '../../../stores/conversationStore'
+import { useUIStore } from '../../../stores/uiStore'
 import { ActionTooltip } from '../../ui/ActionTooltip'
 
 interface BrowserViewerTabProps {
@@ -47,6 +48,10 @@ export function BrowserViewerTab({ tabId }: BrowserViewerTabProps): JSX.Element 
   const lastAutomationAction = useViewerTabStore((s) => findBrowserTab(s, currentThreadId, tabId)?.lastAutomationAction ?? '')
   const workspacePath = useConversationStore((s) => s.workspacePath)
   const updateBrowserTab = useViewerTabStore((s) => s.updateBrowserTab)
+  const activeMainView = useUIStore((s) => s.activeMainView)
+  const activeDetailTab = useUIStore((s) => s.activeDetailTab)
+  const detailPanelVisible = useUIStore((s) => s.detailPanelVisible)
+  const quickOpenVisible = useUIStore((s) => s.quickOpenVisible)
 
   const [urlInput, setUrlInput] = useState('')
   const [editingAddress, setEditingAddress] = useState(false)
@@ -56,6 +61,13 @@ export function BrowserViewerTab({ tabId }: BrowserViewerTabProps): JSX.Element 
   // page). Treat those as "no page": empty address bar + a themed empty state,
   // matching the reference design rather than leaking the start-page URL.
   const isBlank = !currentUrl || currentUrl === 'about:blank' || currentUrl.startsWith('data:')
+  const isActiveBrowserSurface = existsTab &&
+    activeMainView === 'conversation' &&
+    detailPanelVisible &&
+    !quickOpenVisible &&
+    activeDetailTab.kind === 'viewer' &&
+    activeDetailTab.id === tabId
+  const nativeViewVisible = isActiveBrowserSurface && !isBlank
 
   useEffect(() => {
     if (editingAddress) return
@@ -89,18 +101,21 @@ export function BrowserViewerTab({ tabId }: BrowserViewerTabProps): JSX.Element 
     if (!existsTab) return
     // Keep the native view hidden on the start page so the themed empty state
     // below is visible instead of a blank/white web page.
-    const visible = !isBlank
-    void window.api.workspace.viewer.browser.setVisible({ tabId, visible })
+    const visible = nativeViewVisible
     if (visible) void window.api.workspace.viewer.browser.setActive({ tabId })
+    void window.api.workspace.viewer.browser.setVisible({ tabId, visible })
     return () => {
       void window.api.workspace.viewer.browser.setVisible({ tabId, visible: false })
     }
-  }, [existsTab, tabId, isBlank])
+  }, [existsTab, tabId, nativeViewVisible])
 
   const pushBounds = useCallback(() => {
+    if (!nativeViewVisible) return
     if (!bodyRef.current) return
+    if (!bodyRef.current.isConnected) return
     const rect = bodyRef.current.getBoundingClientRect()
     if (rect.width <= 1 || rect.height <= 1) return
+    if (rect.right <= 0 || rect.bottom <= 0 || rect.left >= window.innerWidth || rect.top >= window.innerHeight) return
     void window.api.workspace.viewer.browser.setBounds({
       tabId,
       x: Math.round(rect.left),
@@ -108,27 +123,45 @@ export function BrowserViewerTab({ tabId }: BrowserViewerTabProps): JSX.Element 
       width: Math.round(rect.width),
       height: Math.round(rect.height)
     })
-  }, [tabId])
+  }, [nativeViewVisible, tabId])
+
+  const scheduleBounds = useCallback(() => {
+    if (!nativeViewVisible) return () => {}
+    const requestFrame = typeof window.requestAnimationFrame === 'function'
+      ? window.requestAnimationFrame.bind(window)
+      : (callback: FrameRequestCallback) => window.setTimeout(() => callback(performance.now()), 0)
+    const cancelFrame = typeof window.cancelAnimationFrame === 'function'
+      ? window.cancelAnimationFrame.bind(window)
+      : (handle: number) => window.clearTimeout(handle)
+    const frame = requestFrame(() => pushBounds())
+    return () => cancelFrame(frame)
+  }, [nativeViewVisible, pushBounds])
 
   useEffect(() => {
-    if (!existsTab) return
-    pushBounds()
+    if (!existsTab || !nativeViewVisible) return
+    let cancelPendingBounds: (() => void) | null = null
+    const queueBounds = () => {
+      cancelPendingBounds?.()
+      cancelPendingBounds = scheduleBounds()
+    }
+    queueBounds()
     const resizeObserver = new ResizeObserver(() => {
-      pushBounds()
+      queueBounds()
     })
     if (bodyRef.current) {
       resizeObserver.observe(bodyRef.current)
     }
-    const onResize = () => pushBounds()
-    const onScroll = () => pushBounds()
+    const onResize = () => queueBounds()
+    const onScroll = () => queueBounds()
     window.addEventListener('resize', onResize)
     window.addEventListener('scroll', onScroll, true)
     return () => {
+      cancelPendingBounds?.()
       resizeObserver.disconnect()
       window.removeEventListener('resize', onResize)
       window.removeEventListener('scroll', onScroll, true)
     }
-  }, [existsTab, pushBounds, tabId])
+  }, [existsTab, nativeViewVisible, scheduleBounds])
 
   const toolbarDisabled = !existsTab
   const title = useMemo(() => {

@@ -229,6 +229,7 @@ describe('ViewerBrowserManager tab creation', () => {
     return {
       id: 1,
       isDestroyed: () => false,
+      getContentBounds: () => ({ x: 0, y: 0, width: 1600, height: 900 }),
       webContents: {
         isDestroyed: () => false,
         send: vi.fn()
@@ -263,6 +264,51 @@ describe('ViewerBrowserManager tab creation', () => {
     })
 
     expect(electronMock.loadURL).not.toHaveBeenCalled()
+    expect(electronMock.setBounds).toHaveBeenCalledWith({
+      x: -10000,
+      y: -10000,
+      width: 1280,
+      height: 720
+    })
+  })
+
+  it('does not attach a visible browser view before validated bounds arrive', () => {
+    const manager = new ViewerBrowserManager()
+    const win = createFakeWindow() as Electron.BrowserWindow & {
+      contentView: { addChildView: ReturnType<typeof vi.fn> }
+    }
+
+    manager.createTab(win, {
+      tabId: 'tab-regular',
+      workspacePath: '/workspace/test-root',
+      initialUrl: 'https://example.com'
+    })
+    manager.setVisible(win, { tabId: 'tab-regular', visible: true })
+
+    expect(win.contentView.addChildView).not.toHaveBeenCalled()
+
+    manager.setBounds(win, { tabId: 'tab-regular', x: 960, y: 80, width: 560, height: 720 })
+
+    expect(electronMock.setBounds).toHaveBeenCalledWith({ x: 960, y: 80, width: 560, height: 720 })
+    expect(win.contentView.addChildView).toHaveBeenCalledTimes(1)
+  })
+
+  it('rejects suspicious top-left partial browser bounds', () => {
+    const manager = new ViewerBrowserManager()
+    const win = createFakeWindow() as Electron.BrowserWindow & {
+      contentView: { addChildView: ReturnType<typeof vi.fn> }
+    }
+
+    manager.createTab(win, {
+      tabId: 'tab-regular',
+      workspacePath: '/workspace/test-root',
+      initialUrl: 'https://example.com'
+    })
+    manager.setVisible(win, { tabId: 'tab-regular', visible: true })
+    manager.setBounds(win, { tabId: 'tab-regular', x: 0, y: 0, width: 900, height: 700 })
+
+    expect(win.contentView.addChildView).not.toHaveBeenCalled()
+    expect(electronMock.setBounds).not.toHaveBeenCalledWith({ x: 0, y: 0, width: 900, height: 700 })
     expect(electronMock.setBounds).toHaveBeenCalledWith({
       x: -10000,
       y: -10000,

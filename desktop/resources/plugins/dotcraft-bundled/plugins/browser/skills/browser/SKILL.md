@@ -20,6 +20,15 @@ if (!globalThis.agent) {
 if (!globalThis.browser) {
   globalThis.browser = await agent.browsers.get("iab");
 }
+const missingBrowserApis = [
+  ["browser.tabs.content", browser?.tabs?.content],
+  ["browser.tabs.finalize", browser?.tabs?.finalize],
+  ["browser.user.openTabs", browser?.user?.openTabs],
+  ["browser.user.claimTab", browser?.user?.claimTab]
+].filter(([, value]) => typeof value !== "function").map(([name]) => name);
+if (missingBrowserApis.length) {
+  throw new Error(`BrowserClientMismatch: missing ${missingBrowserApis.join(", ")}. Reload the bundled Browser plugin/client before continuing.`);
+}
 await browser.nameSession("local app check");
 if (typeof tab === "undefined") {
   globalThis.tab = await browser.tabs.selected();
@@ -86,7 +95,7 @@ Use `await nodeRepl.emitImage(await tab.screenshot({ fullPage: false }))` when t
 
 - After navigation, click, modal, reload, or other state change, observe with `domSnapshot()`, a targeted locator wait, URL/title, or a screenshot before acting again.
 - Prefer `waitForLoadState()`, `waitForURL()`, locator waits, or concrete page state over fixed sleeps.
-- Use `evaluate(fnOrExpression, arg?, { timeoutMs? })` for small bounded read-like page computations. Pass inputs through `arg` and set a timeout when the page might be busy.
+- Use `evaluate(fnOrExpression, arg?, { timeoutMs? })` only for small read-only page computations. Pass inputs through `arg` and set a timeout when the page might be busy.
 - Do not use `evaluate` for scrolling, clicking, form mutation, broad page dumps, or interaction side effects. Prefer locators, CUA, DOM-CUA, or wait helpers.
 
 ## Scroll
@@ -107,10 +116,10 @@ Use `await nodeRepl.emitImage(await tab.screenshot({ fullPage: false }))` when t
 - Browser user: `browser.user.openTabs()` and `browser.user.claimTab(tabOrId)` for visible/open tabs; `browser.user.history()` is unsupported.
 - Browser capabilities: `visibility.get/set` and `viewport.set/reset`.
 - Clipboard: virtual clipboard `tab.clipboard.readText()`, `tab.clipboard.writeText(text)`, `tab.clipboard.read()`, and `tab.clipboard.write(items)`.
-- Playwright helpers: `evaluate(fnOrExpression, arg?, options?)`, `domSnapshot`, `waitForURL`, real `waitForLoadState`, `waitForTimeout`, `expectNavigation`, `locator`, `frameLocator` for same-origin frames, `getByRole`, `getByText`, `getByLabel`, `getByPlaceholder`, `getByTestId`, `count`, `all`, cached locator reads, `allTextContents`, `textContent`, `innerText`, `getAttribute`, `isVisible`, `isEnabled`, `click`, `dblclick`, `fill`, `type`, `press`, `check`, `uncheck`, `setChecked`, `selectOption`, and `waitFor`.
+- Playwright helpers: read-only `evaluate(fnOrExpression, arg?, options?)`, `domSnapshot`, `waitForURL`, real `waitForLoadState`, `waitForTimeout`, `expectNavigation`, `locator`, `frameLocator` for same-origin frames, `getByRole`, `getByText`, `getByLabel`, `getByPlaceholder`, `getByTestId`, `count`, `all`, cached locator reads, `allTextContents`, `textContent`, `innerText`, `getAttribute`, `isVisible`, `isEnabled`, `click`, `dblclick`, `fill`, `type`, `press`, `check`, `uncheck`, `setChecked`, `selectOption`, and `waitFor`.
 - DOM-CUA and CUA: visible DOM discovery, click, double click, type, keypress, scroll, drag, and coordinate pointer movement using object-shaped coordinates.
 - Page assets: `pageAssets.list()` and `pageAssets.bundle()` are supported; bundles are written to a safe temporary output after the Desktop IAB file-transfer approval path.
-- WebMCP: `await tab.capabilities.get("webmcp")` can list and invoke tools explicitly exposed by the current page through `navigator.modelContext`.
+- WebMCP: `await tab.capabilities.get("webmcp")` can list and invoke tools explicitly exposed by the current page through `navigator.modelContext`; pages without `modelContext` simply have no page-defined tools.
 
 ## Unsupported IAB APIs
 

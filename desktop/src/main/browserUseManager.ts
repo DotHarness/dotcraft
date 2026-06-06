@@ -50,6 +50,7 @@ const BROWSER_USE_DEFAULT_VIEWPORT_WIDTH = 1280
 const BROWSER_USE_DEFAULT_VIEWPORT_HEIGHT = 720
 const BROWSER_USE_MAX_RESULT_BYTES = 1024 * 1024
 const BROWSER_USE_DISPLAY_TRUNCATE_MAX_CHARS = 100_000
+const READONLY_EVALUATE_ERROR = 'ReadonlyEvaluateViolation'
 const BROWSER_USE_BROWSER_CAPABILITIES = [
   {
     id: 'viewport',
@@ -77,6 +78,162 @@ const BROWSER_USE_TAB_CAPABILITIES = [
 const BROWSER_USE_PAGE_ASSET_BUNDLE_KINDS = new Set(['font', 'image', 'stylesheet', 'video'])
 
 type BrowserUseLoadState = 'commit' | 'domcontentloaded' | 'load' | 'networkidle'
+
+const READONLY_EVALUATE_DENY_PATTERNS: Array<{ pattern: RegExp; label: string }> = [
+  { pattern: /\b(?:window\.)?(?:scrollTo|scrollBy|open|close|stop|print)\s*\(/, label: 'window mutation or viewport side effect' },
+  { pattern: /\b(?:window\.)?location(?:\s*=|\.[A-Za-z_$][\w$]*\s*=|\.(?:assign|replace|reload)\s*\()/, label: 'navigation mutation' },
+  { pattern: /\bhistory\.(?:pushState|replaceState|go|back|forward)\s*\(/, label: 'history mutation' },
+  { pattern: /\bdocument\.(?:write|writeln|open|close)\s*\(/, label: 'document mutation' },
+  { pattern: /\bdocument\.cookie\s*=/, label: 'cookie write' },
+  { pattern: /\b(?:localStorage|sessionStorage)\.(?:setItem|removeItem|clear)\s*\(/, label: 'storage mutation' },
+  { pattern: /\bnavigator\.sendBeacon\s*\(/, label: 'network side effect' },
+  { pattern: /\b(?:fetch|XMLHttpRequest)\s*\(/, label: 'network request' },
+  { pattern: /\bnew\s+XMLHttpRequest\s*\(/, label: 'network request' },
+  { pattern: /\.(?:appendChild|removeChild|replaceChild|insertBefore|insertAdjacentHTML|insertAdjacentElement|setAttribute|removeAttribute|toggleAttribute|click|focus|blur|submit|requestSubmit|dispatchEvent)\s*\(/, label: 'DOM or interaction mutation' },
+  { pattern: /\.classList\.(?:add|remove|toggle|replace)\s*\(/, label: 'classList mutation' },
+  { pattern: /\.(?:innerHTML|outerHTML|textContent|innerText|value|checked|disabled|selected|selectedIndex|style)\s*=/, label: 'DOM property mutation' },
+  { pattern: /\.style\.[A-Za-z_$][\w$]*\s*=/, label: 'style mutation' },
+  { pattern: /\b(?:eval|Function)\s*\(/, label: 'dynamic code execution' },
+  { pattern: /\bnew\s+Function\s*\(/, label: 'dynamic code execution' }
+]
+
+function maskJavaScriptLiteralsAndComments(source: string): string {
+  let output = ''
+  let index = 0
+  let state: 'code' | 'single' | 'double' | 'template' | 'lineComment' | 'blockComment' = 'code'
+  while (index < source.length) {
+    const char = source[index] ?? ''
+    const next = source[index + 1] ?? ''
+    if (state === 'code') {
+      if (char === "'" || char === '"' || char === '`') {
+        state = char === "'" ? 'single' : char === '"' ? 'double' : 'template'
+        output += ' '
+        index += 1
+        continue
+      }
+      if (char === '/' && next === '/') {
+        state = 'lineComment'
+        output += '  '
+        index += 2
+        continue
+      }
+      if (char === '/' && next === '*') {
+        state = 'blockComment'
+        output += '  '
+        index += 2
+        continue
+      }
+      output += char
+      index += 1
+      continue
+    }
+    if (state === 'lineComment') {
+      output += char === '\n' ? '\n' : ' '
+      if (char === '\n') state = 'code'
+      index += 1
+      continue
+    }
+    if (state === 'blockComment') {
+      output += char === '\n' ? '\n' : ' '
+      if (char === '*' && next === '/') {
+        output += ' '
+        index += 2
+        state = 'code'
+      } else {
+        index += 1
+      }
+      continue
+    }
+    output += char === '\n' ? '\n' : ' '
+    if (char === '\\') {
+      output += next === '\n' ? '\n' : ' '
+      index += 2
+      continue
+    }
+    if ((state === 'single' && char === "'") || (state === 'double' && char === '"') || (state === 'template' && char === '`')) {
+      state = 'code'
+    }
+    index += 1
+  }
+  return output
+}
+
+function readonlyEvaluateViolation(label: string): Error {
+  return new Error(`${READONLY_EVALUATE_ERROR}: ${label} is not allowed in tab.playwright.evaluate. Use locators, CUA, DOM-CUA, navigation helpers, or wait helpers for page side effects.`)
+}
+
+function assertReadOnlyEvaluateSource(source: string): void {
+  const stripped = maskJavaScriptLiteralsAndComments(source)
+  for (const { pattern, label } of READONLY_EVALUATE_DENY_PATTERNS) {
+    if (pattern.test(stripped)) throw readonlyEvaluateViolation(label)
+  }
+}
+
+function readOnlyEvaluateSource(source: string): string {
+  assertReadOnlyEvaluateSource(source)
+  return `(() => {
+    const __dotcraftSource = ${JSON.stringify(source)};
+    const __dotcraftRestore = [];
+    const __dotcraftThrow = (name) => {
+      throw new Error(${JSON.stringify(READONLY_EVALUATE_ERROR)} + ': ' + name + ' is not allowed in tab.playwright.evaluate. Use locators, CUA, DOM-CUA, navigation helpers, or wait helpers for page side effects.');
+    };
+    const __dotcraftPatch = (target, key, label) => {
+      try {
+        if (!target) return;
+        const original = target[key];
+        if (typeof original !== 'function') return;
+        target[key] = function readonlyEvaluateBlocked() { __dotcraftThrow(label); };
+        __dotcraftRestore.push(() => {
+          try { target[key] = original; } catch (_) {}
+        });
+      } catch (_) {}
+    };
+    __dotcraftPatch(globalThis, 'fetch', 'fetch');
+    __dotcraftPatch(globalThis, 'XMLHttpRequest', 'XMLHttpRequest');
+    __dotcraftPatch(globalThis, 'open', 'window.open');
+    __dotcraftPatch(globalThis, 'scrollTo', 'window.scrollTo');
+    __dotcraftPatch(globalThis, 'scrollBy', 'window.scrollBy');
+    __dotcraftPatch(globalThis.navigator, 'sendBeacon', 'navigator.sendBeacon');
+    __dotcraftPatch(globalThis.history, 'pushState', 'history.pushState');
+    __dotcraftPatch(globalThis.history, 'replaceState', 'history.replaceState');
+    __dotcraftPatch(globalThis.history, 'go', 'history.go');
+    __dotcraftPatch(globalThis.history, 'back', 'history.back');
+    __dotcraftPatch(globalThis.history, 'forward', 'history.forward');
+    __dotcraftPatch(globalThis.location, 'assign', 'location.assign');
+    __dotcraftPatch(globalThis.location, 'replace', 'location.replace');
+    __dotcraftPatch(globalThis.location, 'reload', 'location.reload');
+    __dotcraftPatch(globalThis.localStorage, 'setItem', 'localStorage.setItem');
+    __dotcraftPatch(globalThis.localStorage, 'removeItem', 'localStorage.removeItem');
+    __dotcraftPatch(globalThis.localStorage, 'clear', 'localStorage.clear');
+    __dotcraftPatch(globalThis.sessionStorage, 'setItem', 'sessionStorage.setItem');
+    __dotcraftPatch(globalThis.sessionStorage, 'removeItem', 'sessionStorage.removeItem');
+    __dotcraftPatch(globalThis.sessionStorage, 'clear', 'sessionStorage.clear');
+    __dotcraftPatch(globalThis.Document?.prototype, 'write', 'document.write');
+    __dotcraftPatch(globalThis.Document?.prototype, 'writeln', 'document.writeln');
+    __dotcraftPatch(globalThis.Node?.prototype, 'appendChild', 'Node.appendChild');
+    __dotcraftPatch(globalThis.Node?.prototype, 'removeChild', 'Node.removeChild');
+    __dotcraftPatch(globalThis.Node?.prototype, 'replaceChild', 'Node.replaceChild');
+    __dotcraftPatch(globalThis.Node?.prototype, 'insertBefore', 'Node.insertBefore');
+    __dotcraftPatch(globalThis.Element?.prototype, 'setAttribute', 'Element.setAttribute');
+    __dotcraftPatch(globalThis.Element?.prototype, 'removeAttribute', 'Element.removeAttribute');
+    __dotcraftPatch(globalThis.Element?.prototype, 'toggleAttribute', 'Element.toggleAttribute');
+    __dotcraftPatch(globalThis.Element?.prototype, 'insertAdjacentHTML', 'Element.insertAdjacentHTML');
+    __dotcraftPatch(globalThis.Element?.prototype, 'insertAdjacentElement', 'Element.insertAdjacentElement');
+    __dotcraftPatch(globalThis.EventTarget?.prototype, 'dispatchEvent', 'EventTarget.dispatchEvent');
+    __dotcraftPatch(globalThis.HTMLElement?.prototype, 'click', 'HTMLElement.click');
+    __dotcraftPatch(globalThis.HTMLElement?.prototype, 'focus', 'HTMLElement.focus');
+    __dotcraftPatch(globalThis.HTMLElement?.prototype, 'blur', 'HTMLElement.blur');
+    __dotcraftPatch(globalThis.HTMLFormElement?.prototype, 'submit', 'HTMLFormElement.submit');
+    __dotcraftPatch(globalThis.HTMLFormElement?.prototype, 'requestSubmit', 'HTMLFormElement.requestSubmit');
+    return (async () => {
+      try {
+        return await (0, eval)(__dotcraftSource);
+      } finally {
+        for (let i = __dotcraftRestore.length - 1; i >= 0; i -= 1) __dotcraftRestore[i]();
+      }
+    })();
+  })()`
+}
 
 export interface BrowserUseImageResult {
   mediaType: string
@@ -3151,7 +3308,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
         'title()',
         'domSnapshot()',
         'screenshot(options?)',
-        'evaluate(expressionOrFunction, arg?, options?)',
+        'evaluate(expressionOrFunction, arg?, options?) read-only',
         'playwright.*',
         'cua.*',
         'dom_cua.*',
@@ -3816,7 +3973,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
         name: options?.name == null ? undefined : String(options.name)
       }),
       frameLocator: (selector: string) => this.createFrameLocatorApi(tab, String(selector)),
-      describeApi: () => ['evaluate(fnOrExpression, arg?, options?)', 'domSnapshot()', 'screenshot(options?)', 'waitForLoadState(stateOrOptions?, timeoutMs?)', 'waitForURL(url, options?)', 'waitForTimeout(ms)', 'expectNavigation(action, options?)', 'locator(selector, options?)', 'getByRole(role, options?)', 'getByText(text, options?)', 'getByLabel(text, options?)', 'getByPlaceholder(text, options?)', 'getByTestId(testId)', 'waitForEvent(event) unsupported', 'frameLocator(selector)']
+      describeApi: () => ['evaluate(fnOrExpression, arg?, options?) read-only', 'domSnapshot()', 'screenshot(options?)', 'waitForLoadState(stateOrOptions?, timeoutMs?)', 'waitForURL(url, options?)', 'waitForTimeout(ms)', 'expectNavigation(action, options?)', 'locator(selector, options?)', 'getByRole(role, options?)', 'getByText(text, options?)', 'getByLabel(text, options?)', 'getByPlaceholder(text, options?)', 'getByTestId(testId)', 'waitForEvent(event) unsupported', 'frameLocator(selector)']
     }
   }
 
@@ -4594,7 +4751,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
       requireContent: false,
       timeoutMs
     })
-    return this.executeJavaScript(tab, source, 'evaluate', true, timeoutMs)
+    return this.executeJavaScript(tab, readOnlyEvaluateSource(source), 'evaluate', false, timeoutMs)
   }
 
   private normalizeEvaluateTimeout(options?: { timeoutMs?: number; timeout?: number }): number {
