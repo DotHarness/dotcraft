@@ -84,7 +84,9 @@ export function ChannelIconBadge({
   active = false,
   muted = false,
   size = 30,
-  framed = true
+  framed = true,
+  iconSrc,
+  label
 }: {
   channelName: string
   tooltip?: string
@@ -92,8 +94,22 @@ export function ChannelIconBadge({
   muted?: boolean
   size?: number
   framed?: boolean
+  /** Explicit branded icon (data URL / safe URL), e.g. an app-origin badge — bypasses the static channel map. */
+  iconSrc?: string
+  /** Display label/tooltip fallback when using an explicit iconSrc. */
+  label?: string
 }): JSX.Element {
-  const meta = getChannelVisualMeta(channelName, tooltip)
+  const meta: ChannelVisualMeta = iconSrc
+    ? {
+        id: channelName.trim().toLowerCase() || 'app',
+        label: label ?? channelName,
+        tooltip: tooltip ?? label ?? channelName,
+        kind: 'brand',
+        iconSrc,
+        iconScale: 1,
+        needsBackdrop: false
+      }
+    : getChannelVisualMeta(channelName, tooltip)
   const brandMaskSize = meta.needsBackdrop
     ? framed
       ? Math.max(18, size - 8)

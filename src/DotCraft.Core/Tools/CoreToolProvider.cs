@@ -138,7 +138,7 @@ public sealed class CoreToolProvider : IAgentToolProvider
         var variantModeEnabled = string.Equals(selfLearning.VariantMode, "enabled", StringComparison.OrdinalIgnoreCase);
 
         // Effective skill loading is always available; SkillManage remains opt-in.
-        var skillViewTool = new SkillViewTool(context.SkillsLoader, variantModeEnabled, target);
+        var skillViewTool = new SkillViewTool(context.SkillsLoader, variantModeEnabled, target, context.TraceCollector);
         tools.Add(AIFunctionFactory.Create(skillViewTool.SkillView));
 
         // Skill self-learning mutation tools are opt-in and hidden from the model unless enabled.

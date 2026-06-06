@@ -214,7 +214,7 @@ export function ApprovalPolicyPicker({
   const label = getPolicyLabel(t, value)
   const tooltipLabel = t('composer.approval.selectTitle')
 
-  return (
+  const pickerBody = (
     <div
       ref={wrapRef}
       style={{
@@ -222,7 +222,6 @@ export function ApprovalPolicyPicker({
         position: 'relative',
         minWidth: 0
       }}
-      title={workspaceDefaultHint}
     >
       <ActionTooltip
         label={tooltipLabel}
@@ -307,6 +306,12 @@ export function ApprovalPolicyPicker({
         </div>
       )}
     </div>
+  )
+
+  return workspaceDefaultHint ? (
+    <ActionTooltip label={workspaceDefaultHint}>{pickerBody}</ActionTooltip>
+  ) : (
+    pickerBody
   )
 }
 

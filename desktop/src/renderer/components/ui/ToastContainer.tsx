@@ -8,7 +8,7 @@ import {
   type MouseEvent
 } from 'react'
 import { createPortal } from 'react-dom'
-import { X, CheckCircle2, Info, TriangleAlert, XCircle } from 'lucide-react'
+import { X, CheckCircle2, Info, TriangleAlert, Undo2, XCircle } from 'lucide-react'
 import { useToastStore, type Toast, type ToastType } from '../../stores/toastStore'
 import { MarkdownRenderer } from '../conversation/MarkdownRenderer'
 import { useT } from '../../contexts/LocaleContext'
@@ -163,6 +163,19 @@ function ToastItem({
   const onDismissRef = useRef(onDismiss)
   onDismissRef.current = onDismiss
 
+  // An interactive toast settles exactly once: either the action (e.g. Undo) is
+  // taken, or it expires (timeout/close) and the commit callback fires — never both.
+  const settledRef = useRef(false)
+  const toastRef = useRef(toast)
+  toastRef.current = toast
+  const settle = useCallback((viaAction: boolean) => {
+    if (settledRef.current) return
+    settledRef.current = true
+    const current = toastRef.current
+    if (viaAction) current.action?.onClick()
+    else current.onExpire?.()
+  }, [])
+
   useEffect(() => {
     if (toast.duration <= 0) return
     if (leaving) return
@@ -182,6 +195,7 @@ function ToastItem({
     }
     startedAtRef.current = Date.now()
     timerRef.current = window.setTimeout(() => {
+      settle(false)
       onDismissRef.current()
     }, remainingRef.current)
     return () => {
@@ -214,6 +228,18 @@ function ToastItem({
 
   function handleDismiss(e?: MouseEvent<HTMLButtonElement>): void {
     e?.stopPropagation()
+    settle(false)
+    if (reduceMotion) {
+      onDismiss()
+      return
+    }
+    setLeaving(true)
+    window.setTimeout(onDismiss, 220)
+  }
+
+  function handleAction(e: MouseEvent<HTMLButtonElement>): void {
+    e.stopPropagation()
+    settle(true)
     if (reduceMotion) {
       onDismiss()
       return
@@ -247,7 +273,7 @@ function ToastItem({
   const surfaceStyle: CSSProperties = {
     position: 'relative',
     display: 'grid',
-    gridTemplateColumns: 'auto minmax(0, 1fr) auto',
+    gridTemplateColumns: toast.action ? 'auto minmax(0, 1fr) auto auto' : 'auto minmax(0, 1fr) auto',
     alignItems: 'flex-start',
     columnGap: '10px',
     padding: '12px',
@@ -313,6 +339,40 @@ function ToastItem({
             </p>
           )}
         </div>
+        {toast.action ? (
+          <button
+            type="button"
+            onClick={handleAction}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              height: 26,
+              marginTop: 1,
+              padding: '0 10px',
+              border: '1px solid var(--glass-border-strong)',
+              borderRadius: 7,
+              background: 'transparent',
+              color: 'var(--text-primary)',
+              font: 'inherit',
+              fontSize: '12.5px',
+              fontWeight: 600,
+              whiteSpace: 'nowrap',
+              cursor: 'pointer',
+              flexShrink: 0,
+              transition: 'background-color 120ms ease'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'color-mix(in srgb, var(--text-primary) 8%, transparent)'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent'
+            }}
+          >
+            <ToastActionIcon name={toast.action.icon} />
+            <span>{toast.action.label}</span>
+          </button>
+        ) : null}
         <button
           type="button"
           aria-label={t('common.close')}
@@ -402,6 +462,12 @@ function ToastIcon({ type }: { type: ToastType }): JSX.Element {
   if (type === 'warning') return <TriangleAlert size={16} strokeWidth={2.2} aria-hidden />
   if (type === 'error') return <XCircle size={16} strokeWidth={2.2} aria-hidden />
   return <Info size={16} strokeWidth={2.2} aria-hidden />
+}
+
+/** Resolves a toast action's named glyph; unknown/omitted names render no icon. */
+function ToastActionIcon({ name }: { name?: string }): JSX.Element | null {
+  if (name === 'undo') return <Undo2 size={14} aria-hidden />
+  return null
 }
 
 function typeToSemanticColor(type: ToastType): string {

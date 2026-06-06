@@ -1,8 +1,12 @@
 import { BrowserWindow, app } from 'electron'
 import { existsSync } from 'fs'
-import { join } from 'path'
+import { createConnection, type Socket } from 'net'
+import { tmpdir } from 'os'
+import { join, resolve } from 'path'
+import nodeProcess from 'node:process'
 import { pathToFileURL, URL as NodeUrl } from 'url'
 import { createContext, Script, type Context } from 'vm'
+import { isAllowedBrowserUsePipePath } from './browserUseBackendServer'
 import { browserUseManager, type BrowserUseImageResult, type BrowserUseManager } from './browserUseManager'
 import { checkChromeSetup, resolveChromePluginRoot, runChromeSetupScript } from './chromeSetup'
 
@@ -37,14 +41,26 @@ interface NodeReplThreadRuntime {
   context: Context
   globals: Record<string, unknown>
   logs: string[]
+  responseMeta: Record<string, unknown>
   activeEvaluationId?: string
   activeAbortController?: AbortController
   chromeCancelEvaluation?: (evaluationId: string, reason: string) => Promise<void> | void
   phase?: string
 }
 
+interface NodeReplQueueState {
+  tail: Promise<void>
+  generation: number
+  pending: number
+}
+
+interface NodeReplEvaluationSlot {
+  generation: number
+  ready: Promise<void>
+  release(): void
+}
+
 interface BrowserRuntimeBindings {
-  agent: Record<string, unknown>
   display: (imageLike: unknown) => Promise<void>
 }
 
@@ -79,25 +95,58 @@ class NodeReplEvaluationCancelledError extends Error {
 }
 
 function resolveBrowserClientPath(): string {
-  const resourcesPath = process.resourcesPath
+  const dev = join(app.getAppPath(), 'resources', 'browser', 'scripts', 'browser-client.mjs')
+  if (existsSync(dev)) return pathToFileURL(dev).href
+  const cwdDev = join(nodeProcess.cwd(), 'resources', 'browser', 'scripts', 'browser-client.mjs')
+  if (existsSync(cwdDev)) return pathToFileURL(cwdDev).href
+
+  const resourcesPath = nodeProcess.resourcesPath
   if (resourcesPath) {
-    const packaged = join(resourcesPath, 'browser', 'browser-client.mjs')
+    const packaged = join(resourcesPath, 'browser', 'scripts', 'browser-client.mjs')
     if (existsSync(packaged)) return pathToFileURL(packaged).href
   }
 
-  const dev = join(app.getAppPath(), 'resources', 'browser', 'browser-client.mjs')
   return pathToFileURL(dev).href
 }
 
 function resolveChromeBrowserClientPath(): string {
-  const resourcesPath = process.resourcesPath
+  const dev = join(app.getAppPath(), 'resources', 'chrome', 'browser-client.mjs')
+  if (existsSync(dev)) return pathToFileURL(dev).href
+  const cwdDev = join(nodeProcess.cwd(), 'resources', 'chrome', 'browser-client.mjs')
+  if (existsSync(cwdDev)) return pathToFileURL(cwdDev).href
+
+  const resourcesPath = nodeProcess.resourcesPath
   if (resourcesPath) {
     const packaged = join(resourcesPath, 'chrome', 'browser-client.mjs')
     if (existsSync(packaged)) return pathToFileURL(packaged).href
   }
 
-  const dev = join(app.getAppPath(), 'resources', 'chrome', 'browser-client.mjs')
   return pathToFileURL(dev).href
+}
+
+async function createBrowserUseNativePipeConnection(path: unknown): Promise<Socket> {
+  const pipePath = typeof path === 'string' ? path : ''
+  if (!pipePath || !isAllowedBrowserUsePipePath(pipePath)) {
+    throw new Error('Refusing to connect to a non-DotCraft browser-use native pipe.')
+  }
+
+  return await new Promise<Socket>((resolveConnection, rejectConnection) => {
+    const socket = createConnection(pipePath)
+    const onError = (error: Error) => {
+      cleanup()
+      rejectConnection(error)
+    }
+    const onConnect = () => {
+      cleanup()
+      resolveConnection(socket)
+    }
+    const cleanup = () => {
+      socket.off('error', onError)
+      socket.off('connect', onConnect)
+    }
+    socket.once('error', onError)
+    socket.once('connect', onConnect)
+  })
 }
 
 function createChromeSetupApi(workspacePath?: string): Record<string, unknown> {
@@ -123,6 +172,7 @@ function createReplRuntime(): NodeReplThreadRuntime {
     globals,
     context: createContext(globals, { codeGeneration: { strings: false, wasm: false } }),
     logs: [],
+    responseMeta: {},
     phase: 'idle'
   }
 }
@@ -138,7 +188,7 @@ function stringField(value: unknown): string | undefined {
 function normalizeBrowserSession(params: NodeReplEvaluateParams, evaluationId: string): BrowserSessionMetadata {
   const raw = params.browserSession ?? {}
   const sessionId = stringField(raw.sessionId) ?? params.threadId
-  const turnId = params.turnId ?? stringField(raw.turnId)
+  const turnId = params.turnId ?? stringField(raw.turnId) ?? evaluationId
   return {
     ...raw,
     protocolVersion: 1,
@@ -181,6 +231,8 @@ function compileCell(code: string): { script: Script; kind: 'expression' | 'stat
 
 export class NodeReplManager {
   private readonly runtimes = new Map<string, NodeReplThreadRuntime>()
+  private readonly evaluationQueues = new Map<string, NodeReplQueueState>()
+  private readonly cancelledEvaluations = new Map<string, Set<string>>()
 
   constructor(private readonly browserManager: BrowserUseManager = browserUseManager) {}
 
@@ -189,26 +241,44 @@ export class NodeReplManager {
       return { error: 'Invalid Node REPL evaluate request.', images: [], logs: [] }
     }
 
+    const evaluationId = params.evaluationId?.trim() || newEvaluationId()
+    const slot = this.enqueueEvaluation(params.threadId)
+    try {
+      await slot.ready
+      if (this.isQueueGenerationStale(params.threadId, slot.generation) ||
+        this.consumeCancelledEvaluation(params.threadId, evaluationId)) {
+        return { error: 'NodeReplJs cancelled before it started.', images: [], logs: [] }
+      }
+      return await this.evaluateNow(owner, params, evaluationId)
+    } finally {
+      slot.release()
+    }
+  }
+
+  private async evaluateNow(
+    owner: BrowserWindow,
+    params: NodeReplEvaluateParams,
+    evaluationId: string
+  ): Promise<NodeReplEvaluateResult> {
     const runtime = this.getOrCreateRuntime(params.threadId)
     if (runtime.activeEvaluationId) {
       return { error: `NodeReplJs is already running for this thread: ${runtime.activeEvaluationId}`, images: [], logs: [] }
     }
 
-    const evaluationId = params.evaluationId?.trim() || newEvaluationId()
     const browserSession = normalizeBrowserSession(params, evaluationId)
     const abortController = new AbortController()
     runtime.activeEvaluationId = evaluationId
     runtime.activeAbortController = abortController
     runtime.logs = []
     runtime.phase = 'prepare'
-    const browserRuntime = this.browserManager.prepareNodeRepl(owner, {
+    const browserRuntime = await this.browserManager.prepareNodeRepl(owner, {
       threadId: params.threadId,
       workspacePath: params.workspacePath,
       evaluationId,
       signal: abortController.signal,
       browserSession
     })
-    this.refreshContext(runtime, browserRuntime, evaluationId, abortController.signal, params.workspacePath, browserSession)
+    this.refreshContext(runtime, browserRuntime, params.threadId, evaluationId, abortController.signal, params.workspacePath, browserSession)
 
     const timeoutMs = Math.max(1_000, Math.min(params.timeoutMs ?? 30_000, 120_000))
     try {
@@ -248,6 +318,7 @@ export class NodeReplManager {
         logs: [...runtime.logs, ...collected.logs]
       }
     } finally {
+      ;(globalThis as Record<string, unknown>).process = nodeProcess
       if (runtime.activeEvaluationId === evaluationId) {
         runtime.activeEvaluationId = undefined
         runtime.activeAbortController = undefined
@@ -256,9 +327,76 @@ export class NodeReplManager {
     }
   }
 
+  private enqueueEvaluation(threadId: string): NodeReplEvaluationSlot {
+    const state = this.getOrCreateQueueState(threadId)
+    const generation = state.generation
+    const previous = state.tail.catch(() => {})
+    let release!: () => void
+    const current = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    state.pending += 1
+    state.tail = previous.then(() => current)
+    let released = false
+    return {
+      generation,
+      ready: previous,
+      release: () => {
+        if (released) return
+        released = true
+        state.pending = Math.max(0, state.pending - 1)
+        release()
+        if (state.pending === 0 && this.evaluationQueues.get(threadId) === state) {
+          this.evaluationQueues.delete(threadId)
+        }
+      }
+    }
+  }
+
+  private getOrCreateQueueState(threadId: string): NodeReplQueueState {
+    const existing = this.evaluationQueues.get(threadId)
+    if (existing) return existing
+    const created: NodeReplQueueState = {
+      tail: Promise.resolve(),
+      generation: 0,
+      pending: 0
+    }
+    this.evaluationQueues.set(threadId, created)
+    return created
+  }
+
+  private isQueueGenerationStale(threadId: string, generation: number): boolean {
+    const state = this.evaluationQueues.get(threadId)
+    return Boolean(state && state.generation !== generation)
+  }
+
+  private consumeCancelledEvaluation(threadId: string, evaluationId: string): boolean {
+    const cancelled = this.cancelledEvaluations.get(threadId)
+    if (!cancelled?.delete(evaluationId)) return false
+    if (cancelled.size === 0) this.cancelledEvaluations.delete(threadId)
+    return true
+  }
+
+  private cancelQueuedEvaluations(threadId: string): void {
+    const state = this.evaluationQueues.get(threadId)
+    if (!state) return
+    state.generation += 1
+  }
+
   cancel(threadId: string, evaluationId: string): { ok: boolean } {
     const runtime = this.runtimes.get(threadId)
-    if (!runtime || runtime.activeEvaluationId !== evaluationId) return { ok: false }
+    if (!runtime || runtime.activeEvaluationId !== evaluationId) {
+      const queue = this.evaluationQueues.get(threadId)
+      if (!queue) return { ok: false }
+      let cancelled = this.cancelledEvaluations.get(threadId)
+      if (!cancelled) {
+        cancelled = new Set<string>()
+        this.cancelledEvaluations.set(threadId, cancelled)
+      }
+      cancelled.add(evaluationId)
+      return { ok: true }
+    }
+    this.cancelQueuedEvaluations(threadId)
     void this.cancelChromeCommands(runtime, evaluationId, 'cancelled')
     runtime.activeAbortController?.abort(new NodeReplEvaluationCancelledError(runtime.phase))
     this.browserManager.abortEvaluation(threadId, evaluationId)
@@ -267,6 +405,8 @@ export class NodeReplManager {
   }
 
   reset(threadId: string): { ok: boolean } {
+    this.cancelQueuedEvaluations(threadId)
+    this.cancelledEvaluations.delete(threadId)
     const runtime = this.runtimes.get(threadId)
     if (runtime) {
       runtime.activeAbortController?.abort(new Error('NodeReplJs reset.'))
@@ -284,6 +424,8 @@ export class NodeReplManager {
     for (const [threadId, runtime] of [...this.runtimes]) {
       this.disposeReplRuntime(threadId, runtime)
     }
+    this.evaluationQueues.clear()
+    this.cancelledEvaluations.clear()
   }
 
   private getOrCreateRuntime(threadId: string): NodeReplThreadRuntime {
@@ -298,6 +440,7 @@ export class NodeReplManager {
   private refreshContext(
     runtime: NodeReplThreadRuntime,
     browserRuntime: BrowserRuntimeBindings,
+    threadId: string,
     evaluationId: string,
     signal: AbortSignal,
     workspacePath?: string,
@@ -324,11 +467,42 @@ export class NodeReplManager {
       ensureActive()
       await browserRuntime.display(imageLike)
     }
+    const nodeReplEnv = Object.freeze({
+      BROWSER_USE_AVAILABLE_BACKENDS: 'iab',
+      BROWSER_USE_DISABLE_AMBIENT_NETWORK: '1',
+      BROWSER_USE_SECURITY_MODE: 'disabled-for-local-testing'
+    })
+    const browserTurnMetadata = Object.freeze({
+      session_id: browserSession?.sessionId,
+      thread_id: browserSession?.threadId,
+      turn_id: browserSession?.turnId,
+      evaluation_id: browserSession?.evaluationId,
+      backend_id: browserSession?.backendId ?? 'iab'
+    })
+    const requestMeta = Object.freeze({
+      'x-dotcraft-turn-metadata': browserTurnMetadata
+    })
+    const setResponseMeta = (metaOrKey: unknown, value?: unknown) => {
+      if (typeof metaOrKey === 'string') {
+        runtime.responseMeta[metaOrKey] = value
+        return
+      }
+      if (metaOrKey && typeof metaOrKey === 'object' && !Array.isArray(metaOrKey)) {
+        Object.assign(runtime.responseMeta, metaOrKey)
+      }
+    }
     const nodeReplApi = Object.freeze({
       emitImage: display,
-      setResponseMeta: () => undefined
+      setResponseMeta,
+      createElicitation: async (request: unknown) => await this.browserManager.handleBrowserUseElicitation(threadId, request),
+      env: nodeReplEnv,
+      fetch: typeof fetch === 'function' ? fetch.bind(globalThis) : undefined,
+      nativePipe: Object.freeze({
+        createConnection: createBrowserUseNativePipeConnection
+      }),
+      requestMeta,
+      tmpDir: tmpdir()
     })
-    globals.agent = browserRuntime.agent
     globals.display = display
     globals.nodeRepl = nodeReplApi
     globals.console = consoleApi
@@ -347,6 +521,9 @@ export class NodeReplManager {
       chrome: createChromeSetupApi(workspacePath)
     })
     globals.dotcraft = dotcraftApi
+    ;(globalThis as Record<string, unknown>).process = nodeProcess
+    ;(globalThis as Record<string, unknown>).nodeRepl = nodeReplApi
+    ;(globalThis as Record<string, unknown>).dotcraft = dotcraftApi
     globals.URL = NodeUrl
     globals.__dotcraftDynamicImport = async (specifier: unknown) => import(String(specifier))
     globals.__dotcraftSetChromeCancelHook = (hook: unknown) => {
@@ -357,18 +534,6 @@ export class NodeReplManager {
     globals.__dotcraftClearChromeCancelHook = () => {
       runtime.chromeCancelEvaluation = undefined
     }
-    const setupBrowserRuntime = async (
-      options?: { globals?: Record<string, unknown>; backend?: string }
-    ) => {
-      ensureActive()
-      const targetGlobals = options?.globals ?? globals
-      targetGlobals.agent = browserRuntime.agent
-      targetGlobals.display = display
-      targetGlobals.nodeRepl = nodeReplApi
-      targetGlobals.dotcraft = globals.dotcraft
-      return { backend: options?.backend ?? 'iab' }
-    }
-    globals.__dotcraftSetupBrowserRuntime = setupBrowserRuntime
   }
 
   private disposeReplRuntime(threadId: string, runtime: NodeReplThreadRuntime): void {

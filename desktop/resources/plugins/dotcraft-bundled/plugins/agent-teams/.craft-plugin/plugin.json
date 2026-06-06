@@ -8,7 +8,7 @@
   "desktopExtensions": "./desktop-extensions.json",
   "interface": {
     "displayName": "Agent Teams",
-    "shortDescription": "Run missions with a small robot team",
+    "shortDescription": "Delegate work with an agent team",
     "longDescription": "Agent Teams opens a DotCraft Team card board where robot teammates plan missions, split work into tasks, and keep progress visible as stackable cards.",
     "developerName": "DotHarness",
     "category": "Productivity",

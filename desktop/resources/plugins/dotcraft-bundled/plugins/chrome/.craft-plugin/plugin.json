@@ -19,7 +19,7 @@
   },
   "interface": {
     "displayName": "Chrome",
-    "shortDescription": "Use your existing Chrome tabs and signed-in sites with DotCraft",
+    "shortDescription": "Connect your existing Chrome browser",
     "longDescription": "Chrome lets DotCraft connect to the browser you already use through a Chrome extension and a local Native Messaging host. DotCraft can inspect and operate approved tabs while preserving explicit user control over tab claiming, navigation, and cleanup.",
     "developerName": "DotHarness",
     "category": "Coding",

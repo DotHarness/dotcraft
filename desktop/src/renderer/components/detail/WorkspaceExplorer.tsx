@@ -25,6 +25,7 @@ import { useUIStore } from '../../stores/uiStore'
 import { addToast } from '../../stores/toastStore'
 import { FileTypeIcon } from '../ui/FileTypeIcon'
 import { Skeleton } from '../ui/Skeleton'
+import { ActionTooltip } from '../ui/ActionTooltip'
 import { ReferencePathContextMenu } from '../conversation/ReferencePathContextMenu'
 import type { ContextMenuPosition } from '../ui/ContextMenu'
 import type { DirEntryWire } from '../../../shared/viewer/types'
@@ -176,11 +177,11 @@ export function WorkspaceExplorer(): JSX.Element {
     const isScrollTarget = scrollTargetKey === key
     return (
       <Fragment key={key}>
+        <ActionTooltip label={entry.relativePath} wrapperStyle={{ display: 'block', minWidth: 0, flexShrink: 1 }}>
         <div
           ref={isScrollTarget ? scrollRowRef : undefined}
           role="treeitem"
           aria-expanded={entry.isDir ? isOpen : undefined}
-          title={entry.relativePath}
           onClick={() => { entry.isDir ? toggleDir(entry.absolutePath) : void openFileEntry(entry) }}
           onContextMenu={(event) => {
             event.preventDefault()
@@ -201,6 +202,7 @@ export function WorkspaceExplorer(): JSX.Element {
           <FileTypeIcon path={entry.name} size={15} dir={entry.isDir} expanded={isOpen} />
           <span style={rowLabelStyle}>{entry.name}</span>
         </div>
+        </ActionTooltip>
         {isOpen && renderChildren(key, depth + 1)}
       </Fragment>
     )

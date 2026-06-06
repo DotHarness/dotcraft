@@ -1,6 +1,6 @@
 import { memo, useEffect, useRef, useState, type CSSProperties } from 'react'
 import { translate, type AppLocale } from '../../../shared/locales'
-import type { ConversationItem, PluginFunctionContentItem } from '../../types/conversation'
+import type { ConversationItem } from '../../types/conversation'
 import { useLocale } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
 import {
@@ -21,6 +21,7 @@ import {
   type WebSearchResultRow
 } from '../../utils/webToolDisplay'
 import { InlineDiffView } from './InlineDiffView'
+import { ActionTooltip } from '../ui/ActionTooltip'
 import { isShellToolName } from '../../utils/shellTools'
 import {
   FILE_WRITE_TOOLS,
@@ -136,10 +137,6 @@ function hasRenderableDiff(diff: FileDiff | undefined): boolean {
   return (diff?.diffHunks.length ?? 0) > 0
 }
 
-function hasImageContent(contentItems: PluginFunctionContentItem[] | undefined): boolean {
-  return contentItems?.some((item) => item.type === 'image' && !!item.dataBase64?.trim()) ?? false
-}
-
 export const ToolCallCard = memo(function ToolCallCard({
   item,
   turnId,
@@ -222,7 +219,7 @@ export const ToolCallCard = memo(function ToolCallCard({
     ? hasVisibleText(shellOutput)
     : FILE_WRITE_TOOLS.has(toolName)
       ? !!renderableFileDiff || hasVisibleText(item.result)
-      : hasVisibleText(item.result) || hasImageContent(item.contentItems)
+      : hasVisibleText(item.result)
   const canExpandWhileRunning =
     !isWebFetchTool
     && !isSkillManageTool
@@ -449,7 +446,6 @@ export const ToolCallCard = memo(function ToolCallCard({
                 result={shellOutput}
                 success
                 fileDiff={undefined}
-                contentItems={item.contentItems}
                 locale={locale}
                 planTodos={planTodos}
               />
@@ -572,7 +568,6 @@ export const ToolCallCard = memo(function ToolCallCard({
               result={isShellTool ? shellOutput : item.result}
               success={success}
               fileDiff={renderableFileDiff ? { diff: renderableFileDiff } : undefined}
-              contentItems={item.contentItems}
               locale={locale}
               planTodos={planTodos}
             />
@@ -590,7 +585,6 @@ interface ExpandedContentProps {
   result: string | undefined
   success: boolean
   fileDiff: { diff: FileDiff } | undefined
-  contentItems?: PluginFunctionContentItem[]
   locale: AppLocale
   planTodos?: Array<{ id: string; content: string }>
 }
@@ -602,7 +596,6 @@ function ExpandedContent({
   result,
   success,
   fileDiff,
-  contentItems,
   locale,
   planTodos
 }: ExpandedContentProps): JSX.Element {
@@ -720,7 +713,6 @@ function ExpandedContent({
 
   const resultText = result ?? ''
   const invocation = formatExpandedInvocation(toolName, args, locale, { planTodos })
-  const imageItems = contentItems?.filter((item) => item.type === 'image' && item.dataBase64) ?? []
 
   return (
     <div className="selectable" style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', lineHeight: '1.5' }}>
@@ -737,7 +729,6 @@ function ExpandedContent({
           colorWhenNoSgr={success ? 'var(--text-secondary)' : 'var(--error)'}
         />
       )}
-      {imageItems.length > 0 && <PluginFunctionImages items={imageItems} />}
     </div>
   )
 }
@@ -760,39 +751,6 @@ function RequestUserInputResultList({ lines }: { lines: RequestUserInputResultLi
           <span>{line.answer}</span>
         </div>
       ))}
-    </div>
-  )
-}
-
-function PluginFunctionImages({ items }: { items: PluginFunctionContentItem[] }): JSX.Element {
-  return (
-    <div
-      style={{
-        display: 'grid',
-        gap: '8px',
-        marginTop: '8px'
-      }}
-    >
-      {items.map((item, index) => {
-        const mediaType = item.mediaType?.trim() || 'image/png'
-        const src = `data:${mediaType};base64,${item.dataBase64}`
-        return (
-          <img
-            key={`${mediaType}-${index}`}
-            src={src}
-            alt={`Plugin output ${index + 1}`}
-            style={{
-              display: 'block',
-              maxWidth: '100%',
-              maxHeight: '320px',
-              objectFit: 'contain',
-              border: '1px solid var(--border-default)',
-              borderRadius: '4px',
-              background: 'var(--bg-primary)'
-            }}
-          />
-        )
-      })}
     </div>
   )
 }
@@ -901,9 +859,9 @@ function WebSearchResultCell({
 }): JSX.Element {
   return (
     <td style={{ padding: 0, minWidth: 0 }}>
+      <ActionTooltip label={title} wrapperStyle={{ display: 'block', width: '100%', minWidth: 0, overflow: 'hidden' }}>
       <button
         type="button"
-        title={title}
         onClick={onClick}
         style={{
           width: '100%',
@@ -931,6 +889,7 @@ function WebSearchResultCell({
       >
         {label}
       </button>
+      </ActionTooltip>
     </td>
   )
 }
@@ -1024,9 +983,11 @@ function SubAgentToolResultCard({
           <span style={subAgentResultContentStyle}>
             {rowContent}
             {hasPrompt && (
-              <span style={subAgentPromptStyle} title={display.prompt ?? undefined}>
-                {translate(locale, 'toolCall.subAgent.prompt', { prompt: display.prompt ?? '' })}
-              </span>
+              <ActionTooltip label={display.prompt ?? ''} wrapperStyle={{ display: 'block', minWidth: 0, overflow: 'hidden' }}>
+                <span style={{ ...subAgentPromptStyle, display: 'block' }}>
+                  {translate(locale, 'toolCall.subAgent.prompt', { prompt: display.prompt ?? '' })}
+                </span>
+              </ActionTooltip>
             )}
           </span>
         </button>
@@ -1039,9 +1000,11 @@ function SubAgentToolResultCard({
           <span style={subAgentResultContentStyle}>
             {rowContent}
             {hasPrompt && (
-              <span style={subAgentPromptStyle} title={display.prompt ?? undefined}>
-                {translate(locale, 'toolCall.subAgent.prompt', { prompt: display.prompt ?? '' })}
-              </span>
+              <ActionTooltip label={display.prompt ?? ''} wrapperStyle={{ display: 'block', minWidth: 0, overflow: 'hidden' }}>
+                <span style={{ ...subAgentPromptStyle, display: 'block' }}>
+                  {translate(locale, 'toolCall.subAgent.prompt', { prompt: display.prompt ?? '' })}
+                </span>
+              </ActionTooltip>
             )}
           </span>
         </div>

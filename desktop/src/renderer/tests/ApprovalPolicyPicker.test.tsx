@@ -63,9 +63,10 @@ describe('ApprovalPolicyPicker', () => {
     expect(trigger).toHaveTextContent('Default permissions')
     expect(screen.getByTestId('approval-policy-icon-default')).toBeInTheDocument()
 
-    await waitFor(() => {
-      expect(trigger.closest('div')).toHaveAttribute('title', 'Workspace default: Full access')
-    })
+    const pickerBody = trigger.closest('div') as HTMLElement
+    expect(pickerBody).not.toHaveAttribute('title')
+    fireEvent.mouseEnter(pickerBody.parentElement as HTMLElement)
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Workspace default: Full access')
   })
 
   it('warns before enabling full access and merges thread config update', async () => {

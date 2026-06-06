@@ -344,6 +344,7 @@ function installApi(
           },
           browserUse: {
             onOpen: vi.fn(() => vi.fn()),
+            onClose: vi.fn(() => vi.fn()),
             onApprovalRequest: vi.fn(() => vi.fn()),
             sendApprovalResponse: vi.fn().mockResolvedValue(undefined)
           }

@@ -51,17 +51,19 @@ export function ImageStrip({ images, onRemove }: ImageStripProps): JSX.Element |
               flexShrink: 0
             }}
           />
+          <ActionTooltip label={img.fileName} wrapperStyle={{ display: 'block', minWidth: 0, overflow: 'hidden', flexShrink: 1 }}>
           <span
             style={{
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
-              maxWidth: '140px'
+              maxWidth: '140px',
+              display: 'block'
             }}
-            title={img.fileName}
           >
             {img.fileName}
           </span>
+          </ActionTooltip>
           <ActionTooltip label="Remove" placement="top">
           <button
             type="button"

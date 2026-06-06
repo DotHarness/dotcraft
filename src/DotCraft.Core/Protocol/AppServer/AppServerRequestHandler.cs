@@ -180,6 +180,7 @@ public sealed class AppServerRequestHandler(
         AppServerMethods.MemoryReset,
         AppServerMethods.UsageSummary,
         AppServerMethods.UsageTimeseries,
+        AppServerMethods.ProfileInsights,
         AppServerMethods.CronList,
         AppServerMethods.CronRemove,
         AppServerMethods.CronEnable,
@@ -372,6 +373,7 @@ public sealed class AppServerRequestHandler(
                 AppServerMethods.MemoryReset => HandleMemoryResetAsync(msg, ct),
                 AppServerMethods.UsageSummary => HandleUsageSummaryAsync(msg, ct),
                 AppServerMethods.UsageTimeseries => HandleUsageTimeseriesAsync(msg, ct),
+                AppServerMethods.ProfileInsights => HandleProfileInsightsAsync(msg, ct),
                 _ => TryHandleExtensionAsync(method, msg, ct)
             });
         }
@@ -973,12 +975,23 @@ public sealed class AppServerRequestHandler(
             : null;
 
         var data = new List<ThreadSummary>();
+        var catalogByWorkspace = new Dictionary<string, AppCatalogSnapshot?>(StringComparer.Ordinal);
         foreach (var summary in page)
         {
             summary.Goal = await TryGetGoalSnapshotAsync(summary.Id, ct);
-            var appBindings = TryGetAppBindingSummaries(summary.Id, summary.WorkspacePath);
-            if (appBindings.Count > 0)
-                summary.AppBindings = appBindings;
+            if (!catalogByWorkspace.TryGetValue(summary.WorkspacePath, out var catalog))
+            {
+                catalog = TryGetAppCatalog(summary.WorkspacePath);
+                catalogByWorkspace[summary.WorkspacePath] = catalog;
+            }
+            if (catalog is not null)
+            {
+                var appBindings = appBindingService!.ListThreadBindingSummaries(
+                    catalog, Path.Combine(summary.WorkspacePath, ".craft"), summary.Id);
+                if (appBindings.Count > 0)
+                    summary.AppBindings = appBindings;
+                summary.OriginApp = appBindingService.ResolveOriginApp(catalog, summary.OriginChannel, summary.ChannelContext);
+            }
             data.Add(summary);
         }
 
@@ -2310,7 +2323,7 @@ public sealed class AppServerRequestHandler(
         return new ThreadRollbackResponse
         {
             Thread = await HydrateThreadGoalAsync(
-                WithAppBindingSummaries(
+                WithAppBindingAttribution(
                     WithRuntimeSnapshot(
                         WithContextUsage(FilterToolExecutionItemsForConnection(thread.ToWire(includeTurns: true)), thread.Id),
                         thread),
@@ -2356,33 +2369,64 @@ public sealed class AppServerRequestHandler(
         SessionWireThread wire,
         SessionThread thread,
         CancellationToken ct) =>
-        await HydrateThreadGoalAsync(WithAppBindingSummaries(wire, thread.Id, thread.WorkspacePath), ct);
+        await HydrateThreadGoalAsync(WithAppBindingAttribution(wire, thread.Id, thread.WorkspacePath), ct);
 
-    private SessionWireThread WithAppBindingSummaries(
+    /// <summary>
+    /// Attaches App Binding attribution to a thread wire: lightweight app-binding summaries plus, when the
+    /// thread's origin channel matches an installed app's declared origin channel, the origin-app branding
+    /// badge. Discovers the workspace catalog once so <c>thread/started</c>, <c>thread/updated</c>,
+    /// <c>thread/fork</c>, <c>thread/read</c>, and <c>thread/rollback</c> carry the same attribution as
+    /// <c>thread/list</c> — without it, event-delivered threads fall back to the generic channel icon.
+    /// </summary>
+    private SessionWireThread WithAppBindingAttribution(
         SessionWireThread wire,
         string threadId,
         string workspacePath)
     {
-        var appBindings = TryGetAppBindingSummaries(threadId, workspacePath);
-        return appBindings.Count == 0 ? wire : wire with { AppBindings = appBindings };
+        if (appBindingService is null || string.IsNullOrWhiteSpace(threadId))
+            return wire;
+        var catalog = TryGetAppCatalog(workspacePath);
+        if (catalog is null)
+            return wire;
+        var appBindings = appBindingService.ListThreadBindingSummaries(
+            catalog, Path.Combine(workspacePath, ".craft"), threadId);
+        var originApp = appBindingService.ResolveOriginApp(catalog, wire.OriginChannel, wire.ChannelContext);
+        if (appBindings.Count == 0 && originApp is null)
+            return wire;
+        return wire with
+        {
+            AppBindings = appBindings.Count > 0 ? appBindings : wire.AppBindings,
+            OriginApp = originApp ?? wire.OriginApp
+        };
     }
 
-    private List<ThreadAppBindingSummaryWire> TryGetAppBindingSummaries(string threadId, string workspacePath)
-    {
-        if (appBindingService == null || string.IsNullOrWhiteSpace(threadId) || string.IsNullOrWhiteSpace(workspacePath))
-            return [];
+    /// <summary>
+    /// Synchronous thread-wire enricher handed to <see cref="AppServerEventDispatcher"/> so
+    /// <c>thread/started</c> (ThreadCreated) and <c>thread/resumed</c> notifications carry the same
+    /// App Binding / origin-app attribution as <c>thread/list</c>. Used for server-originated threads
+    /// (e.g. Teams mission member threads) that reach the client only via the event stream.
+    /// </summary>
+    private SessionWireThread EnrichThreadWireForNotification(SessionWireThread wire) =>
+        WithAppBindingAttribution(wire, wire.Id, wire.WorkspacePath);
 
+    /// <summary>
+    /// Discovers the App Binding catalog for a workspace, or null when App Binding is unavailable or
+    /// the workspace has no <c>.craft</c> directory. Shared by thread-summary enrichment (app bindings
+    /// + origin-app attribution) so a single <c>thread/list</c> projection discovers each workspace once.
+    /// </summary>
+    private AppCatalogSnapshot? TryGetAppCatalog(string workspacePath)
+    {
+        if (appBindingService == null || string.IsNullOrWhiteSpace(workspacePath))
+            return null;
         var craftPath = Path.Combine(workspacePath, ".craft");
         if (!Directory.Exists(craftPath))
-            return [];
-
-        var catalog = appBindingService.DiscoverCatalog(
+            return null;
+        return appBindingService.DiscoverCatalog(
             appConfigMonitor?.Current ?? LoadCurrentMergedConfig(),
             workspacePath,
             craftPath,
             skillsLoader,
             builtInPluginSourceRoots);
-        return appBindingService.ListThreadBindingSummaries(catalog, craftPath, threadId);
     }
 
     private void RevokeAppBindingsForDeletedThread(SessionThread thread)
@@ -2488,7 +2532,8 @@ public sealed class AppServerRequestHandler(
         var dispatcher = new AppServerEventDispatcher(
             events, connection, transport, sessionService,
             defaultApprovalDecision: _defaultApprovalDecision,
-            streamDebugLogger: streamDebugLogger);
+            streamDebugLogger: streamDebugLogger,
+            enrichThreadWire: EnrichThreadWireForNotification);
         _ = dispatcher.RunAsync(subCts.Token)
             .ContinueWith(t =>
             {
@@ -2775,6 +2820,35 @@ public sealed class AppServerRequestHandler(
     // turn/* methods (spec Section 5)
     // -------------------------------------------------------------------------
 
+    /// <summary>
+    /// Records a forward-only <see cref="TraceEventType.SkillReferenced"/> event for each skill
+    /// (<c>$name</c>) referenced in a turn's input, keyed by the thread's trace session
+    /// (the trace session key equals the threadId for main turns). Powers the Profile skill
+    /// metrics (spec §27A.5). Best-effort: a no-op when tracing is disabled.
+    /// </summary>
+    private void RecordSkillReferences(string threadId, IReadOnlyList<SessionWireInputPart> nativeParts)
+    {
+        if (traceStore == null || string.IsNullOrWhiteSpace(threadId))
+            return;
+
+        foreach (var part in nativeParts)
+        {
+            if (!string.Equals(part.Type, "skillRef", StringComparison.Ordinal))
+                continue;
+
+            var name = part.Name?.Trim().TrimStart('/', '$').Trim();
+            if (string.IsNullOrWhiteSpace(name))
+                continue;
+
+            traceStore.Record(new TraceEvent
+            {
+                Type = TraceEventType.SkillReferenced,
+                SessionKey = threadId,
+                ToolName = name
+            });
+        }
+    }
+
     private async Task<object?> HandleTurnStartAsync(AppServerIncomingMessage msg, CancellationToken ct)
     {
         var p = GetParams<TurnStartParams>(msg);
@@ -2792,6 +2866,7 @@ public sealed class AppServerRequestHandler(
 
         var materializedInput = inputMaterialization.MaterializeNormalized(normalizedInput);
         var content = await ResolveInputPartsAsync(materializedInput.MaterializedInputParts.ToList(), ct);
+        RecordSkillReferences(p.ThreadId, materializedInput.NativeInputParts);
 
         // Set ChannelSessionScope so that SessionService.ResolveApprovalSource returns the correct
         // channel name for approval routing, and CronTools captures the right delivery target.
@@ -2926,7 +3001,8 @@ public sealed class AppServerRequestHandler(
         var dispatcher = new AppServerEventDispatcher(
             events, connection, transport, sessionService, OnTurnStarted,
             defaultApprovalDecision: _defaultApprovalDecision,
-            streamDebugLogger: streamDebugLogger);
+            streamDebugLogger: streamDebugLogger,
+            enrichThreadWire: EnrichThreadWireForNotification);
 
         var dispatchTask = dispatcher.RunAsync(CancellationToken.None);
 
@@ -3023,6 +3099,7 @@ public sealed class AppServerRequestHandler(
     {
         var p = GetParams<TurnEnqueueParams>(msg);
         var materializedInput = await PrepareTurnInputAsync(p.Input, ct);
+        RecordSkillReferences(p.ThreadId, materializedInput.NativeInputParts);
 
         using var channelScope = CreateChannelScope(p.Sender);
         await sessionService.EnsureThreadLoadedAsync(p.ThreadId, ct);
@@ -4528,6 +4605,50 @@ public sealed class AppServerRequestHandler(
                 .ToList()
         });
     }
+
+    // ── profile/insights (spec Section 27A.5) ────────────────────────────────
+
+    private async Task<object?> HandleProfileInsightsAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    {
+        if (traceStore == null) throw AppServerErrors.MethodNotFound(AppServerMethods.ProfileInsights);
+        var p = GetParams<ProfileInsightsParams>(msg);
+        var topSkills = Math.Clamp(p.TopSkills ?? 5, 1, 20);
+
+        var insights = traceStore.GetProfileInsights(topSkills);
+
+        // Workspace-scoped count (not identity-scoped): the Profile page reflects all threads in
+        // this workspace, regardless of which channel/user (e.g. channelContext) created them.
+        var workspacePath = NormalizeIdentityWorkspace(new SessionIdentity()).WorkspacePath;
+        var totalThreads = await sessionService.CountWorkspaceThreadsAsync(workspacePath, ct);
+
+        return new ProfileInsightsResult
+        {
+            TopModel = ToRankedMetric(insights.TopModel),
+            TopReasoning = ToRankedMetric(insights.TopReasoning),
+            SkillsExplored = insights.DistinctSkillCount,
+            TotalSkillsUsed = insights.TotalSkillCount,
+            TotalThreads = totalThreads,
+            Skills = insights.TopSkills.Select(MapSkillUsage).ToList()
+        };
+    }
+
+    /// <summary>Maps an aggregated skill bucket to wire form, attaching live plugin attribution.</summary>
+    private SkillUsageWire MapSkillUsage(SkillUsageBucket bucket)
+    {
+        var wire = new SkillUsageWire { Name = bucket.Name, Count = bucket.Count };
+        var info = skillsLoader?.ResolveSkillInfo(bucket.Name);
+        if (info != null && !string.IsNullOrWhiteSpace(info.PluginId))
+        {
+            wire.PluginId = info.PluginId;
+            wire.PluginDisplayName = info.PluginDisplayName;
+        }
+        return wire;
+    }
+
+    private static RankedMetric? ToRankedMetric(RankedUsage? usage) =>
+        usage == null
+            ? null
+            : new RankedMetric { Key = usage.Key, Count = usage.Count, Total = usage.Total };
 
     private static DateOnly? ParseUsageDate(string? value, string field)
     {

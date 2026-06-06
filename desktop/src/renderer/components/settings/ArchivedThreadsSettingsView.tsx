@@ -259,17 +259,21 @@ export function ArchivedThreadsSettingsView({
                 })
               }}
               label={
-                <span
-                  style={{
-                    display: 'block',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap'
-                  }}
-                  title={displayName}
+                <ActionTooltip
+                  label={displayName}
+                  wrapperStyle={{ display: 'block', minWidth: 0, overflow: 'hidden', flexShrink: 1 }}
                 >
-                  {displayName}
-                </span>
+                  <span
+                    style={{
+                      display: 'block',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    {displayName}
+                  </span>
+                </ActionTooltip>
               }
               description={
                 <>

@@ -258,15 +258,6 @@ export function DetailPanel({
             : tab.kind === 'terminal'
               ? <SquareTerminal size={14} strokeWidth={2} aria-hidden style={{ display: 'block' }} />
               : <FileTypeIcon path={tab.relativePath} size={14} />
-          const automationStyle: CSSProperties = automationActive
-            ? {
-                backgroundColor: 'rgba(47, 138, 245, 0.10)',
-                backgroundImage: 'repeating-linear-gradient(90deg, rgba(47,138,245,0.05) 0px, rgba(47,138,245,0.18) 24px, rgba(47,138,245,0.05) 48px, rgba(47,138,245,0.05) 96px)',
-                backgroundSize: '96px 100%',
-                animation: 'dotcraft-automation-tab-flow 1.8s linear infinite',
-                borderRadius: '6px'
-              }
-            : {}
           return (
             <DetailPanelTab
               key={tab.id}
@@ -279,7 +270,6 @@ export function DetailPanel({
               onActivate={() => setActiveViewerTab(tab.id)}
               onClose={() => handleCloseViewerTab(tab.id)}
               maxWidth={160}
-              style={automationStyle}
             />
           )
         })}

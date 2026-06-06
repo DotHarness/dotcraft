@@ -83,6 +83,15 @@ export interface ThreadAppBindingSummaryWire {
   expiresAt?: string | null
 }
 
+export interface ThreadOriginApp {
+  appId: string
+  displayName: string
+  /** Data URL or safe URL for the app icon; optional — clients fall back to the channel badge. */
+  icon?: string | null
+  /** Set when displayName/icon carry a matched origin member (per-member origin) rather than the app. */
+  memberId?: string | null
+}
+
 export interface ThreadWorktreeInfoWire {
   id: string
   sourceThreadId: string
@@ -123,6 +132,8 @@ export interface ThreadSummary {
   goal?: ThreadGoal | null
   /** Lightweight app binding summaries from thread/list or thread/read. */
   appBindings?: ThreadAppBindingSummaryWire[]
+  /** Server-resolved origin-app branding when originChannel matches an installed app's declared origin channel. */
+  originApp?: ThreadOriginApp | null
 }
 
 /**

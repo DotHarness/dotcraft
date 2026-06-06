@@ -436,11 +436,14 @@ describe('MarkdownRenderer', () => {
     expect(openExternal).not.toHaveBeenCalled()
   })
 
-  it('renders file links as inline reference pills', () => {
+  it('renders file links as inline reference pills', async () => {
     renderWithLocale('[./docs/guide.md](./docs/guide.md)')
     const link = screen.getByRole('link', { name: /guide\.md/i })
     expect(link).toHaveAttribute('data-inline-reference-kind', 'file')
-    expect(link).toHaveAttribute('title', './docs/guide.md')
+    expect(link).not.toHaveAttribute('title')
+
+    fireEvent.mouseEnter(link.parentElement as HTMLElement)
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('./docs/guide.md')
   })
 
   it('copies the resolved path from a markdown file pill context menu', async () => {

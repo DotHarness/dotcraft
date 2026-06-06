@@ -121,6 +121,7 @@ public sealed class TracingChatClient(IChatClient innerClient, TraceCollector co
         CancellationToken cancellationToken = default)
     {
         var sessionKey = ResolveSessionKeyForCurrentCall();
+        var reasoningEffort = options?.Reasoning?.Effort?.ToString()?.ToLowerInvariant();
         var messages = chatMessages as IList<ChatMessage> ?? chatMessages.ToList();
         var state = GetOrCreateState(ResolveCallStateKeyForCurrentCall(sessionKey));
 
@@ -152,7 +153,8 @@ public sealed class TracingChatClient(IChatClient innerClient, TraceCollector co
                 null,
                 response.ModelId,
                 response.FinishReason.ToString(),
-                response.AdditionalProperties);
+                response.AdditionalProperties,
+                reasoningEffort: reasoningEffort);
         }
 
         if (response.Usage != null)
@@ -171,6 +173,7 @@ public sealed class TracingChatClient(IChatClient innerClient, TraceCollector co
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         var sessionKey = ResolveSessionKeyForCurrentCall();
+        var reasoningEffort = options?.Reasoning?.Effort?.ToString()?.ToLowerInvariant();
         var messages = chatMessages as IList<ChatMessage> ?? chatMessages.ToList();
         var state = GetOrCreateState(ResolveCallStateKeyForCurrentCall(sessionKey));
 
@@ -245,7 +248,8 @@ public sealed class TracingChatClient(IChatClient innerClient, TraceCollector co
                 segmentUpdate?.ModelId ?? finalUpdate?.ModelId,
                 includeFinishReason ? (finalUpdate?.FinishReason ?? segmentUpdate?.FinishReason)?.ToString() : null,
                 segmentUpdate?.AdditionalProperties ?? finalUpdate?.AdditionalProperties,
-                responseStartedAt);
+                responseStartedAt,
+                reasoningEffort);
             responseBuffer.Clear();
             responseStartedAt = null;
             responseLastUpdate = null;

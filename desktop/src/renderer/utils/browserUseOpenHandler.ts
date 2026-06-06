@@ -1,4 +1,4 @@
-import type { BrowserUseOpenPayload } from '../../shared/viewer/types'
+import type { BrowserUseClosePayload, BrowserUseOpenPayload } from '../../shared/viewer/types'
 import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
 import { useViewerTabStore } from '../stores/viewerTabStore'
@@ -27,4 +27,9 @@ export function handleBrowserUseOpen(payload: BrowserUseOpenPayload): void {
   useUIStore.getState().setActiveMainView('conversation')
   viewerStore.setActiveTab(payload.threadId, tabId)
   useUIStore.getState().setActiveViewerTab(tabId)
+}
+
+export function handleBrowserUseClose(payload: BrowserUseClosePayload): void {
+  if (!payload.threadId || !payload.tabId) return
+  useViewerTabStore.getState().closeTab(payload.threadId, payload.tabId)
 }

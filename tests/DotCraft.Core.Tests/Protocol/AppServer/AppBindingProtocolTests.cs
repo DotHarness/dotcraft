@@ -983,6 +983,102 @@ public sealed class AppBindingProtocolTests : IDisposable
     }
 
     [Fact]
+    public void ResolveOriginApp_AttributesThreadByDeclaredOriginChannel()
+    {
+        WriteOratorioPlugin(originChannel: "oratorio");
+        var service = new AppBindingService();
+        var catalog = AppBindingCatalog.Discover(new AppConfig(), _tempRoot, _workspaceCraftPath);
+
+        var origin = service.ResolveOriginApp(catalog, "oratorio");
+
+        Assert.NotNull(origin);
+        Assert.Equal("com.dotharness.oratorio", origin!.AppId);
+        Assert.Equal("Oratorio", origin.DisplayName);
+        Assert.NotNull(origin.Icon);
+        Assert.StartsWith("data:image/svg+xml;base64,", origin.Icon!);
+    }
+
+    [Fact]
+    public void ResolveOriginApp_ReturnsNullForUnmatchedOrBlankChannel()
+    {
+        WriteOratorioPlugin(originChannel: "oratorio");
+        var service = new AppBindingService();
+        var catalog = AppBindingCatalog.Discover(new AppConfig(), _tempRoot, _workspaceCraftPath);
+
+        Assert.Null(service.ResolveOriginApp(catalog, "dotcraft-desktop"));
+        Assert.Null(service.ResolveOriginApp(catalog, ""));
+        Assert.Null(service.ResolveOriginApp(catalog, null));
+    }
+
+    [Fact]
+    public void ResolveOriginApp_IsOptInAndDoesNotMatchToolNamespace()
+    {
+        // App is installed but does not declare originChannel: no implicit toolNamespace match.
+        WriteOratorioPlugin(originChannel: null);
+        var service = new AppBindingService();
+        var catalog = AppBindingCatalog.Discover(new AppConfig(), _tempRoot, _workspaceCraftPath);
+
+        Assert.Null(service.ResolveOriginApp(catalog, "oratorio"));
+    }
+
+    [Fact]
+    public void ResolveOriginApp_AttributesMemberWhenChannelContextMatches()
+    {
+        WriteOratorioPlugin(originChannel: "oratorio", withOriginMembers: true);
+        var service = new AppBindingService();
+        var catalog = AppBindingCatalog.Discover(new AppConfig(), _tempRoot, _workspaceCraftPath);
+
+        var origin = service.ResolveOriginApp(catalog, "oratorio", "mission_x:alpha");
+
+        Assert.NotNull(origin);
+        Assert.Equal("com.dotharness.oratorio", origin!.AppId);
+        Assert.Equal("Alpha", origin.DisplayName);
+        Assert.Equal("alpha", origin.MemberId);
+        Assert.NotNull(origin.Icon);
+        Assert.StartsWith("data:image/svg+xml;base64,", origin.Icon!);
+    }
+
+    [Fact]
+    public void ResolveOriginApp_FallsBackToAppWhenNoMemberMatches()
+    {
+        WriteOratorioPlugin(originChannel: "oratorio", withOriginMembers: true);
+        var service = new AppBindingService();
+        var catalog = AppBindingCatalog.Discover(new AppConfig(), _tempRoot, _workspaceCraftPath);
+
+        var origin = service.ResolveOriginApp(catalog, "oratorio", "mission_x:gamma");
+
+        Assert.NotNull(origin);
+        Assert.Equal("Oratorio", origin!.DisplayName);
+        Assert.Null(origin.MemberId);
+    }
+
+    // Reproduces the live Teams setup: managed TeamsService runtime + agent-teams plugin assets,
+    // mission member threads stamped channelContext="{missionId}:{memberId}".
+    [Theory]
+    [InlineData("leader", "Team Leader")]
+    [InlineData("explorer", "Explorer")]
+    [InlineData("builder", "Builder")]
+    [InlineData("reviewer", "Reviewer")]
+    [InlineData("operator", "Operator")]
+    public void ResolveOriginApp_ManagedTeamsRuntime_BrandsEveryMemberRole(string memberId, string expectedDisplayName)
+    {
+        WriteAgentTeamsPlugin();
+        var service = new AppBindingService(new IManagedAppBindingRuntime[] { new DotCraft.Teams.TeamsService() });
+        var catalog = service.DiscoverCatalog(new AppConfig(), _tempRoot, _workspaceCraftPath);
+
+        var origin = service.ResolveOriginApp(
+            catalog,
+            "teams",
+            $"mission_76e5319b02454d37a6cd5c9cf8435133:{memberId}");
+
+        Assert.NotNull(origin);
+        Assert.Equal(memberId, origin!.MemberId);
+        Assert.Equal(expectedDisplayName, origin.DisplayName);
+        Assert.NotNull(origin.Icon);
+        Assert.StartsWith("data:image/svg+xml;base64,", origin.Icon!);
+    }
+
+    [Fact]
     public async Task PluginLifecycle_ForAppPluginEmitsAppListUpdated()
     {
         WriteOratorioPlugin();
@@ -1862,8 +1958,18 @@ public sealed class AppBindingProtocolTests : IDisposable
         string pluginId = "oratorio",
         string appId = "com.dotharness.oratorio",
         string toolNamespace = "oratorio",
-        string rootName = "oratorio")
+        string rootName = "oratorio",
+        string? originChannel = "oratorio",
+        bool withOriginMembers = false)
     {
+        var originChannelJson = string.IsNullOrEmpty(originChannel)
+            ? ""
+            : $"      \"originChannel\": \"{originChannel}\",\n";
+        var originMembersJson = withOriginMembers
+            ? "      \"originMembers\": ["
+              + "{ \"match\": \"alpha\", \"displayName\": \"Alpha\", \"icon\": \"./member-alpha.svg\" },"
+              + "{ \"match\": \"beta\", \"displayName\": \"Beta\", \"icon\": \"./member-beta.svg\" }],\n"
+            : "";
         var pluginRoot = Path.Combine(_workspaceCraftPath, "plugins", rootName);
         Directory.CreateDirectory(Path.Combine(pluginRoot, ".craft-plugin"));
         File.WriteAllText(
@@ -1892,7 +1998,7 @@ public sealed class AppBindingProtocolTests : IDisposable
       "description": "Manage Oratorio boards from selected DotCraft threads.",
       "category": "Productivity",
       "icon": "./oratorio.svg",
-      "nativeApplication": {
+{{originChannelJson}}{{originMembersJson}}      "nativeApplication": {
         "displayName": "Oratorio",
         "protocol": "oratorio",
         "installUrl": "https://github.com/DotHarness/oratorio/releases"
@@ -1936,6 +2042,48 @@ public sealed class AppBindingProtocolTests : IDisposable
         File.WriteAllText(
             Path.Combine(pluginRoot, "oratorio.svg"),
             """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect width="24" height="24" rx="6" fill="#5865f2"/></svg>""");
+        if (withOriginMembers)
+        {
+            foreach (var (name, fill) in new[] { ("member-alpha", "#10b981"), ("member-beta", "#f59e0b") })
+            {
+                File.WriteAllText(
+                    Path.Combine(pluginRoot, $"{name}.svg"),
+                    $"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="{fill}"/></svg>""");
+            }
+        }
+    }
+
+    private void WriteAgentTeamsPlugin()
+    {
+        var pluginRoot = Path.Combine(_workspaceCraftPath, "plugins", "agent-teams");
+        Directory.CreateDirectory(Path.Combine(pluginRoot, ".craft-plugin"));
+        Directory.CreateDirectory(Path.Combine(pluginRoot, "assets"));
+        File.WriteAllText(
+            Path.Combine(pluginRoot, ".craft-plugin", "plugin.json"),
+            """
+{
+  "schemaVersion": 1,
+  "id": "agent-teams",
+  "version": "0.1.0",
+  "displayName": "Agent Teams",
+  "description": "Unlock the DotCraft Team card board with robot teammates.",
+  "capabilities": ["metadata", "team"],
+  "interface": {
+    "displayName": "Agent Teams",
+    "shortDescription": "Run missions with a small robot team",
+    "developerName": "DotHarness",
+    "category": "Productivity",
+    "composerIcon": "./assets/agent-teams.svg",
+    "logo": "./assets/agent-teams.svg"
+  }
+}
+""");
+        foreach (var role in new[] { "leader", "explorer", "builder", "reviewer", "operator", "agent-teams" })
+        {
+            File.WriteAllText(
+                Path.Combine(pluginRoot, "assets", $"team-{role}.svg".Replace("team-agent-teams", "agent-teams")),
+                """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#4F7CF6"/></svg>""");
+        }
     }
 
     private void WriteUnityDynamicPlugin()

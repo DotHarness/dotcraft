@@ -315,9 +315,9 @@ function QueuedInputDockRow({
           <GripVertical size={14} strokeWidth={1.8} aria-hidden />
         </button>
       </ActionTooltip>
-      <span title={label} style={queueLabelStyle}>
-        {label}
-      </span>
+      <ActionTooltip label={label} wrapperStyle={{ display: 'block', minWidth: 0, overflow: 'hidden', flexShrink: 1 }}>
+        <span style={{ ...queueLabelStyle, display: 'block' }}>{label}</span>
+      </ActionTooltip>
       <ActionTooltip
         label={isGuidancePending ? t('composer.queueGuidancePending') : t('composer.queueGuide')}
         placement="top"
@@ -392,7 +392,7 @@ function SubAgentDockRow({
         <span style={statusSlotStyle}>
           {running ? (
             <RunningSpinner
-              title={t('subAgentDock.running')}
+              label={t('subAgentDock.running')}
               testId={`subagent-dock-running-${child.childThreadId}`}
             />
           ) : (
@@ -400,16 +400,19 @@ function SubAgentDockRow({
           )}
         </span>
         <span style={nameGroupStyle}>
-          <span style={{ ...nicknameStyle, color }} title={child.nickname}>{child.nickname}</span>
+          <ActionTooltip label={child.nickname} wrapperStyle={{ display: 'block', minWidth: 0, overflow: 'hidden', flexShrink: 1 }}>
+            <span style={{ ...nicknameStyle, color, display: 'block' }}>{child.nickname}</span>
+          </ActionTooltip>
           {roleMeta && <span style={metaStyle}>({roleMeta})</span>}
         </span>
-        <span
-          className={running ? 'tool-running-gradient-text' : undefined}
-          style={descriptionStyle}
-          title={statusLabel}
-        >
-          {statusLabel}
-        </span>
+        <ActionTooltip label={statusLabel} wrapperStyle={{ display: 'block', minWidth: 0, overflow: 'hidden' }}>
+          <span
+            className={running ? 'tool-running-gradient-text' : undefined}
+            style={{ ...descriptionStyle, display: 'block' }}
+          >
+            {statusLabel}
+          </span>
+        </ActionTooltip>
         {canOpen ? (
           <button type="button" onClick={openThread} style={textButtonStyle}>
             <ExternalLink size={12} aria-hidden="true" />

@@ -806,6 +806,11 @@ List threads matching a given identity.
         "running": true,
         "waitingOnApproval": false,
         "waitingOnPlanConfirmation": false
+      },
+      "originApp": {
+        "appId": "com.dotharness.oratorio",
+        "displayName": "Oratorio",
+        "icon": "data:image/svg+xml;base64,..."
       }
     }
   ],
@@ -817,6 +822,8 @@ List threads matching a given identity.
 Results are ordered by `lastActiveAt` descending. Filtering is applied before pagination. `nextCursor` is `null` or omitted when no further page exists. `totalMatched` is the number of threads after all filters and before pagination. Cursors are opaque and clients must not parse them. Older clients that omit both `limit` and `cursor` keep receiving the complete list for compatibility.
 
 Each `ThreadSummary` may include an optional `runtime` snapshot with the same shape as `thread/runtimeChanged`. This snapshot is best-effort process-local state intended to hydrate thread-list activity indicators after reconnect. Clients should apply it as initial list state and continue to consume `thread/runtimeChanged` as the incremental source of truth. Older servers may omit `runtime`, and clients must treat omission as unknown rather than as an idle thread.
+
+Each `ThreadSummary` may also include an optional `originApp` object `{ appId, displayName, icon?, memberId? }`. The server populates it only when the summary's `originChannel` matches the declared `originChannel` of an installed App Binding app (see [App Binding] §5.1), attributing the thread's origin to that app so clients can render the app's icon + name as the origin badge. When the app also declares `originMembers` and the summary's `channelContext` matches one, `displayName`/`icon` carry the matched member's branding and `memberId` is set (the matched key) so clients can present it as a per-member origin; `appId` still identifies the owning app. `icon` is an optional data URL or safe URL (same contract as app icons). Clients must fall back to the generic origin-channel badge when `originApp` is absent or its `icon` is missing. The same `originApp` attribution (identical shape and contract) is attached to the full thread object delivered by the thread lifecycle methods — `thread/read`, `thread/started`, `thread/updated`, `thread/resumed`, and `thread/rollback` — so threads that reach the client only through the event stream (e.g. threads created server-side by a managed runtime) carry the same origin badge without waiting for a `thread/list` refresh.
 
 ### 4.3.1 `channel/list`
 
@@ -3049,7 +3056,7 @@ The ACP (Agent Client Protocol) integration allows the agent's tools to access t
 
 The browser integrations expose agent tools through a **server -> client** Node REPL backend. The server only sends these requests to a thread-bound client that declared both `capabilities.nodeRepl` and `capabilities.browserUse` during `initialize`.
 
-Clients may back the runtime with Desktop embedded browser tabs, a Chrome extension connected through Native Messaging, or another compatible backend declared in `capabilities.browserUse.backends`. Backend-specific setup and user-consent rules are owned by the contributing plugin skill, but all backends share the same `ext/nodeRepl/*` transport. Chrome-specific browser session lifecycle, tab ownership, timeout, diagnostics, and migration goals are defined in [Chrome Browser Runtime](../runtime/chrome-browser-runtime.md).
+Clients may back the runtime with Desktop embedded browser tabs, a Chrome extension connected through Native Messaging, or another compatible backend declared in `capabilities.browserUse.backends`. Backend-specific setup and user-consent rules are owned by the contributing plugin skill, but all backends share the same `ext/nodeRepl/*` transport. Desktop in-app browser lifecycle, transport, diagnostics, and browser-use compatibility are defined in [Desktop In-App Browser Runtime](../runtime/desktop-inapp-browser.md). Chrome-specific browser session lifecycle, tab ownership, timeout, diagnostics, and migration goals are defined in [Chrome Browser Runtime](../runtime/chrome-browser-runtime.md).
 
 #### `ext/nodeRepl/evaluate`
 
@@ -3062,7 +3069,7 @@ Clients may back the runtime with Desktop embedded browser tabs, a Chrome extens
 | `threadId` | string | yes | Thread ID whose Desktop runtime owns the persistent REPL. |
 | `turnId` | string | no | Current turn ID when the server can resolve one from tool execution scope. |
 | `evaluationId` | string | yes | Unique ID for this evaluation, used for cancellation and late-result suppression. |
-| `browserSession` | object | no | Browser session identity forwarded to embedded browser and Chrome backends. See [Chrome Browser Runtime](../runtime/chrome-browser-runtime.md). |
+| `browserSession` | object | no | Browser session identity forwarded to embedded browser and Chrome backends. See [Desktop In-App Browser Runtime](../runtime/desktop-inapp-browser.md) and [Chrome Browser Runtime](../runtime/chrome-browser-runtime.md). |
 | `code` | string | yes | JavaScript source to evaluate in the thread-bound persistent Node REPL. |
 | `timeoutMs` | number | no | Requested overall timeout in milliseconds. Client may clamp to its supported range. |
 
@@ -5965,10 +5972,80 @@ When there are no traced sessions in range, `days` is `[]`.
 | `-32601` | Tracing is disabled on this server (no trace store available). |
 | `-32602` | `from` or `to` is present but not a valid `YYYY-MM-DD` date. |
 
-### 27A.4 Capability Advertisement
+### 27A.4 `profile/insights`
 
-Clients must check `capabilities.usageTelemetry` before calling `usage/summary` or
-`usage/timeseries`.
+Return aggregate "activity insights" for the workspace, used by the Desktop Profile page:
+the most-used model and reasoning effort, how many skills the user has explored / used, the
+total thread count, and a ranked list of the most-used skills.
+
+Two semantics apply because the underlying data has different availability:
+
+- **Model usage** is derived from the model id already recorded on every LLM `Response`
+  trace event, so it reflects the full persisted history. Models are keyed by **model id
+  only** (provider is not distinguished).
+- **Reasoning effort and skill references** are **forward-only**: they are recorded from the
+  point this feature shipped. They may be empty/zero until new activity accrues, even on a
+  workspace with prior history. A skill "use" is counted when a skill is exercised either way:
+  a `$name` skill tag in turn input, or an agent loading the skill via the SkillView tool.
+  Skills injected by other means (e.g. `always: true`) are not counted.
+
+**Direction**: client → server (request)
+
+**Params**:
+
+```json
+{ "topSkills": 5 }
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `topSkills` | int? | Max number of skills to return in `skills`. Defaults to `5`, clamped to `[1, 20]`. |
+
+**Result**:
+
+```json
+{
+  "topModel": { "key": "example-model", "count": 240, "total": 600 },
+  "topReasoning": { "key": "high", "count": 90, "total": 150 },
+  "skillsExplored": 6,
+  "totalSkillsUsed": 42,
+  "totalThreads": 137,
+  "skills": [
+    { "name": "code-review", "count": 12, "pluginId": "example-plugin", "pluginDisplayName": "Example Plugin" },
+    { "name": "release-draft", "count": 5 }
+  ]
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `topModel` | object? | Most-used model by `Response`-event count, or omitted/null when none recorded. |
+| `topModel.key` | string | The model id. |
+| `topModel.count` | long | Responses attributed to this model. |
+| `topModel.total` | long | All responses with a known model; `count / total` is the share. |
+| `topReasoning` | object? | Most-used reasoning effort (e.g. `"low"`/`"medium"`/`"high"`/`"extrahigh"`), or omitted/null when reasoning was never used. Same `key`/`count`/`total` shape as `topModel`. |
+| `skillsExplored` | int | Distinct skills referenced at least once. |
+| `totalSkillsUsed` | long | Total skill references across all turns. |
+| `totalThreads` | int | Non-internal threads in this workspace (active + archived). |
+| `skills` | array | Most-referenced skills, descending by `count`, then by `name`. |
+| `skills[].name` | string | Skill name (without the `$` prefix). |
+| `skills[].count` | long | Times this skill was referenced. |
+| `skills[].pluginId` | string? | Owning plugin id, present only when the skill currently resolves to a plugin source. |
+| `skills[].pluginDisplayName` | string? | Human-readable plugin name for a badge, when from a plugin. |
+
+Plugin attribution is resolved live at read time against the current skill registry, so a
+skill whose plugin was later uninstalled simply returns without plugin fields.
+
+**Errors**:
+
+| Code | When |
+|------|------|
+| `-32601` | Tracing is disabled on this server (no trace store available). |
+
+### 27A.5 Capability Advertisement
+
+Clients must check `capabilities.usageTelemetry` before calling `usage/summary`,
+`usage/timeseries`, or `profile/insights`.
 
 ---
 

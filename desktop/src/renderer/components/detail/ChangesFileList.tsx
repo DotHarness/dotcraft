@@ -10,6 +10,7 @@ import { useMemo, useState, type CSSProperties } from 'react'
 import { Search } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { FileTypeIcon } from '../ui/FileTypeIcon'
+import { ActionTooltip } from '../ui/ActionTooltip'
 import { ReferencePathContextMenu } from '../conversation/ReferencePathContextMenu'
 import type { ContextMenuPosition } from '../ui/ContextMenu'
 import type { FileDiff } from '../../types/toolCall'
@@ -71,10 +72,9 @@ export function ChangesFileList({
               const isReverted = row.diff.status === 'reverted'
               const selected = selectedPath === row.diff.filePath
               return (
+                <ActionTooltip key={row.diff.filePath} label={row.relativePath} wrapperStyle={{ display: 'block', minWidth: 0, flexShrink: 1 }}>
                 <div
-                  key={row.diff.filePath}
                   role="listitem"
-                  title={row.relativePath}
                   onClick={() => onSelect(row.diff.filePath)}
                   onContextMenu={(event) => {
                     event.preventDefault()
@@ -91,6 +91,7 @@ export function ChangesFileList({
                   </span>
                   <RowStats additions={row.diff.additions} deletions={row.diff.deletions} dim={isReverted} />
                 </div>
+                </ActionTooltip>
               )
             })}
       </div>

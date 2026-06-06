@@ -266,6 +266,11 @@ export interface BrowserEventPayload {
   canGoBack?: boolean
   canGoForward?: boolean
   message?: string
+  errorCode?: number
+  errorDescription?: string
+  validatedURL?: string
+  finalURL?: string
+  isMainFrame?: boolean
   automationActive?: boolean
   sessionName?: string
   action?: string
@@ -279,6 +284,11 @@ export interface BrowserUseOpenPayload {
   initialUrl: string
   title?: string
   focusMode: 'first-open' | 'none'
+}
+
+export interface BrowserUseClosePayload {
+  threadId: string
+  tabId: string
 }
 
 export type BrowserUseApprovalResponseAction = 'allowOnce' | 'allowDomain' | 'blockDomain' | 'deny'

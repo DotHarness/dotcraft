@@ -8,8 +8,8 @@
   "apps": "./apps.json",
   "interface": {
     "displayName": "dotcraft-unity",
-    "shortDescription": "Use Unity Editor tools from selected DotCraft threads",
-    "longDescription": "dotcraft-unity connects running Unity Editor projects to DotCraft threads so agents can inspect scenes, read project state, and invoke explicitly enabled Unity runtime tools.",
+    "shortDescription": "Connect Unity Editor for game projects",
+    "longDescription": "dotcraft-unity connects running Unity Editor projects to DotCraft threads so agents can invoke Unity tools.",
     "developerName": "DotHarness",
     "category": "Engineering",
     "capabilities": ["App", "Unity", "Read", "Write"],

@@ -115,17 +115,19 @@ export function AttachmentStrip({
             />
           </button>
           </ActionTooltip>
+          <ActionTooltip label={img.fileName} wrapperStyle={{ display: 'block', minWidth: 0, overflow: 'hidden', flexShrink: 1 }}>
           <span
             style={{
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
-              maxWidth: '140px'
+              maxWidth: '140px',
+              display: 'block'
             }}
-            title={img.fileName}
           >
             {img.fileName}
           </span>
+          </ActionTooltip>
           <ActionTooltip label={removeImageLabel} placement="top">
           <button
             type="button"
@@ -140,13 +142,12 @@ export function AttachmentStrip({
       ))}
 
       {files.map((file, idx) => (
+        <ActionTooltip key={`file-${file.path}-${idx}`} label={file.path}>
         <div
-          key={`file-${file.path}-${idx}`}
           style={{
             ...chipStyle,
             background: 'var(--glass-surface-soft)'
           }}
-          title={file.path}
         >
           <button
             type="button"
@@ -199,6 +200,7 @@ export function AttachmentStrip({
           </button>
           </ActionTooltip>
         </div>
+        </ActionTooltip>
       ))}
     </div>
   )

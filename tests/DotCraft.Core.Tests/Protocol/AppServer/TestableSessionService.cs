@@ -482,6 +482,19 @@ internal sealed class TestableSessionService : ISessionService, IThreadAgentRefr
             .ToList();
     }
 
+    public async Task<int> CountWorkspaceThreadsAsync(string workspacePath, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(workspacePath))
+            return 0;
+
+        var index = await _store.LoadIndexAsync(ct);
+        return index.Count(s =>
+            string.Equals(s.WorkspacePath, workspacePath, StringComparison.OrdinalIgnoreCase)
+            && !ThreadVisibility.IsInternal(s)
+            && !(string.Equals(s.Source.Kind, ThreadSourceKinds.SubAgent, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(s.OriginChannel, SubAgentThreadOrigin.ChannelName, StringComparison.OrdinalIgnoreCase)));
+    }
+
     public Task UpsertThreadSpawnEdgeAsync(ThreadSpawnEdge edge, CancellationToken ct = default) =>
         _store.UpsertThreadSpawnEdgeAsync(edge, ct);
 

@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { InlineDiffView } from '../components/conversation/InlineDiffView'
 import type { FileDiff } from '../types/toolCall'
@@ -48,7 +48,7 @@ describe('InlineDiffView', () => {
     expect(view.style.borderRadius).toBe('0px')
   })
 
-  it('renders compact headers with basename and full path tooltip', () => {
+  it('renders compact headers with basename and full path tooltip', async () => {
     render(
       <InlineDiffView
         diff={baseDiff}
@@ -58,8 +58,11 @@ describe('InlineDiffView', () => {
     )
 
     const filename = screen.getByText('AgentTools.cs')
-    expect(filename).toHaveAttribute('title', 'src/deep/AgentTools.cs')
+    expect(filename).not.toHaveAttribute('title')
     expect(screen.queryByText('src/deep/AgentTools.cs')).toBeNull()
+
+    fireEvent.mouseEnter(filename.parentElement as HTMLElement)
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('src/deep/AgentTools.cs')
   })
 
   it('can hide the streaming text while keeping the live cursor', () => {

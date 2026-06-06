@@ -204,17 +204,18 @@ export function AgentMessage({
             </ActionTooltip>
           )}
           {sentTime && (
-            <span
-              data-testid="agent-message-time"
-              title={sentTime.title}
-              style={{
-                padding: '0 2px',
-                opacity: actionsVisible ? 1 : 0,
-                transition: 'opacity 120ms ease'
-              }}
-            >
-              {sentTime.label}
-            </span>
+            <ActionTooltip label={sentTime.title}>
+              <span
+                data-testid="agent-message-time"
+                style={{
+                  padding: '0 2px',
+                  opacity: actionsVisible ? 1 : 0,
+                  transition: 'opacity 120ms ease'
+                }}
+              >
+                {sentTime.label}
+              </span>
+            </ActionTooltip>
           )}
         </div>
       )}

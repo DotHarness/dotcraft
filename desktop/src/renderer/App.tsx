@@ -64,7 +64,7 @@ import { resolveDefaultCrossChannelOrigins } from './utils/visibleChannelsDefaul
 import { buildComposerInputParts } from './utils/composeInputParts'
 import { getFallbackThreadName } from './utils/threadFallbackName'
 import { handleBrowserEvent } from './utils/browserEventHandler'
-import { handleBrowserUseOpen } from './utils/browserUseOpenHandler'
+import { handleBrowserUseClose, handleBrowserUseOpen } from './utils/browserUseOpenHandler'
 import { performAddTabAction } from './utils/detailTabActions'
 import { getSubAgentParentThreadId, isSubAgentThread } from './utils/subAgentThreads'
 import { isFatalConnectionError, useSlowConnectingHint } from './utils/connectionUi'
@@ -2199,9 +2199,11 @@ export function App(): JSX.Element {
   const { activeThreadId } = useThreadStore()
 
   useEffect(() => {
-    const unsubscribe = window.api.workspace.viewer.browserUse.onOpen(handleBrowserUseOpen)
+    const unsubscribeOpen = window.api.workspace.viewer.browserUse.onOpen(handleBrowserUseOpen)
+    const unsubscribeClose = window.api.workspace.viewer.browserUse.onClose(handleBrowserUseClose)
     return () => {
-      unsubscribe()
+      unsubscribeOpen()
+      unsubscribeClose()
     }
   }, [])
 

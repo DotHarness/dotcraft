@@ -1,23 +1,27 @@
+import { ActionTooltip } from './ActionTooltip'
+
 interface RunningSpinnerProps {
   size?: number
   borderWidth?: number
-  title?: string
+  /** Accessible name and custom tooltip label. When set, the spinner shows an ActionTooltip on hover. */
+  label?: string
   testId?: string
 }
 
 /**
  * Shared compact running-state spinner for thread and turn activity indicators.
+ * When `label` is provided it exposes an accessible name and a custom ActionTooltip
+ * (never the browser's native tooltip).
  */
 export function RunningSpinner({
   size = 12,
   borderWidth = 2,
-  title,
+  label,
   testId
 }: RunningSpinnerProps): JSX.Element {
-  return (
+  const spinner = (
     <span
-      aria-label={title}
-      title={title}
+      aria-label={label}
       data-testid={testId}
       style={{
         display: 'inline-block',
@@ -32,4 +36,8 @@ export function RunningSpinner({
       }}
     />
   )
+
+  if (!label) return spinner
+
+  return <ActionTooltip label={label}>{spinner}</ActionTooltip>
 }

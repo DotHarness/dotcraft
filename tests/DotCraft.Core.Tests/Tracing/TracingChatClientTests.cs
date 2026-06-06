@@ -58,6 +58,36 @@ public sealed class TracingChatClientTests
     }
 
     [Fact]
+    public async Task StreamingResponse_RecordsResolvedReasoningEffort()
+    {
+        var store = await RunStreamingAsync(
+            [
+                new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("answer")]) { ModelId = "model-a" }
+            ],
+            "trace-effort",
+            options: new ChatOptions
+            {
+                Reasoning = new ReasoningOptions { Effort = ReasoningEffort.High }
+            });
+
+        var evt = Assert.Single(EventsOfType(store, "trace-effort", TraceEventType.Response));
+        Assert.Equal("high", evt.ReasoningEffort);
+    }
+
+    [Fact]
+    public async Task StreamingResponse_OmitsReasoningEffort_WhenReasoningDisabled()
+    {
+        var store = await RunStreamingAsync(
+            [
+                new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("answer")]) { ModelId = "model-a" }
+            ],
+            "trace-no-effort");
+
+        var evt = Assert.Single(EventsOfType(store, "trace-no-effort", TraceEventType.Response));
+        Assert.Null(evt.ReasoningEffort);
+    }
+
+    [Fact]
     public async Task StreamingAlternatesThinkingAndResponse_RecordsOrderedSegments()
     {
         var store = await RunStreamingAsync([
@@ -366,7 +396,8 @@ public sealed class TracingChatClientTests
         ChatResponseUpdate[] updates,
         string sessionKey,
         Exception? throwAfterUpdates = null,
-        TraceStore? store = null)
+        TraceStore? store = null,
+        ChatOptions? options = null)
     {
         store ??= new TraceStore();
         var collector = new TraceCollector(store);
@@ -379,7 +410,7 @@ public sealed class TracingChatClientTests
         {
             if (throwAfterUpdates == null)
             {
-                await foreach (var _ in client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "hi")]))
+                await foreach (var _ in client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "hi")], options))
                 {
                 }
             }
@@ -387,7 +418,7 @@ public sealed class TracingChatClientTests
             {
                 await Assert.ThrowsAsync(throwAfterUpdates.GetType(), async () =>
                 {
-                    await foreach (var _ in client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "hi")]))
+                    await foreach (var _ in client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "hi")], options))
                     {
                     }
                 });

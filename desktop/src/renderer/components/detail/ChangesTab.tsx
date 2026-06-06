@@ -316,13 +316,13 @@ function FileDiffSection({
         }
       }}
     >
+      <ActionTooltip label={relativePath} wrapperStyle={{ display: 'block' }}>
       <div
         role="button"
         tabIndex={0}
         aria-expanded={expanded}
         onClick={onToggle}
         onKeyDown={handleHeaderKeyDown}
-        title={relativePath}
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -394,6 +394,7 @@ function FileDiffSection({
           {expanded ? <ChevronUp size={15} strokeWidth={1.8} /> : <ChevronDown size={15} strokeWidth={1.8} />}
         </span>
       </div>
+      </ActionTooltip>
       {expanded && (
         <div style={{ background: 'var(--bg-primary)' }}>
           <DiffViewer diff={file} workspacePath={workspacePath} mode={mode} wordWrap={wordWrap} />
@@ -455,12 +456,13 @@ function FileStats({
 
 function NewFileDot({ label }: { label: string }): JSX.Element {
   return (
-    <span
-      role="img"
-      aria-label={label}
-      title={label}
-      style={newFileDotStyle}
-    />
+    <ActionTooltip label={label}>
+      <span
+        role="img"
+        aria-label={label}
+        style={newFileDotStyle}
+      />
+    </ActionTooltip>
   )
 }
 

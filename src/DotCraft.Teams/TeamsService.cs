@@ -3619,6 +3619,18 @@ public sealed class TeamsService(IAppConfigMonitor? appConfigMonitor = null) : I
             DeveloperName = "DotHarness",
             Description = "Run a DotCraft Team with robot teammates, missions, task dispatch, progress digests, and artifacts.",
             Category = "Productivity",
+            // Per-role origin branding: each mission member thread stamps ChannelName="teams" and
+            // ChannelContext="{missionId}:{memberId}", so the host shows each role's avatar in the
+            // thread-list origin badge. Avatars live in the agent-teams plugin assets.
+            OriginChannel = TeamsConstants.ChannelName,
+            OriginMembers =
+            [
+                new AppOriginMemberDescriptor { Match = "leader", DisplayName = "Team Leader", Icon = "./assets/team-leader.svg" },
+                new AppOriginMemberDescriptor { Match = "explorer", DisplayName = "Explorer", Icon = "./assets/team-explorer.svg" },
+                new AppOriginMemberDescriptor { Match = "builder", DisplayName = "Builder", Icon = "./assets/team-builder.svg" },
+                new AppOriginMemberDescriptor { Match = "reviewer", DisplayName = "Reviewer", Icon = "./assets/team-reviewer.svg" },
+                new AppOriginMemberDescriptor { Match = "operator", DisplayName = "Operator", Icon = "./assets/team-operator.svg" }
+            ],
             Connection = new AppConnectionDescriptor
             {
                 HandoffModes =

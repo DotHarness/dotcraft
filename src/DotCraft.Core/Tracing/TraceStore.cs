@@ -446,6 +446,137 @@ public sealed class TraceStore
         return max;
     }
 
+    /// <summary>
+    /// Aggregates Profile "activity insights" metrics (spec §27A.5): the most-used model and
+    /// reasoning effort (ranked by Response-event count), the distinct/total count of skill
+    /// references, and the top-N referenced skills. Model usage reflects all persisted history
+    /// (model id is recorded on every Response event); reasoning and skill metrics are
+    /// forward-only (recorded from when tracking shipped, so they may be empty initially).
+    /// Uses SQL aggregation when DB-backed; otherwise aggregates the in-memory event log.
+    /// </summary>
+    public ProfileInsights GetProfileInsights(int topSkills = 5)
+    {
+        var limit = Math.Clamp(topSkills, 1, 50);
+        return _stateRuntime != null
+            ? GetProfileInsightsFromDb(limit)
+            : GetProfileInsightsFromMemory(limit);
+    }
+
+    private ProfileInsights GetProfileInsightsFromDb(int topSkills)
+    {
+        using var connection = _stateRuntime!.OpenConnection();
+
+        var topModel = QueryTopRanked(
+            connection,
+            "SELECT model_id, COUNT(*) FROM trace_events WHERE type = 'Response' AND model_id IS NOT NULL AND model_id <> '' GROUP BY model_id ORDER BY COUNT(*) DESC, model_id ASC LIMIT 1",
+            "SELECT COUNT(*) FROM trace_events WHERE type = 'Response' AND model_id IS NOT NULL AND model_id <> ''");
+
+        var topReasoning = QueryTopRanked(
+            connection,
+            "SELECT reasoning_effort, COUNT(*) FROM trace_events WHERE type = 'Response' AND reasoning_effort IS NOT NULL AND reasoning_effort <> '' GROUP BY reasoning_effort ORDER BY COUNT(*) DESC, reasoning_effort ASC LIMIT 1",
+            "SELECT COUNT(*) FROM trace_events WHERE type = 'Response' AND reasoning_effort IS NOT NULL AND reasoning_effort <> ''");
+
+        long distinctSkills = 0;
+        long totalSkills = 0;
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "SELECT COUNT(DISTINCT tool_name), COUNT(*) FROM trace_events WHERE type = 'SkillReferenced' AND tool_name IS NOT NULL AND tool_name <> ''";
+            using var reader = command.ExecuteReader();
+            if (reader.Read())
+            {
+                distinctSkills = reader.GetInt64(0);
+                totalSkills = reader.GetInt64(1);
+            }
+        }
+
+        var skills = new List<SkillUsageBucket>();
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "SELECT tool_name, COUNT(*) FROM trace_events WHERE type = 'SkillReferenced' AND tool_name IS NOT NULL AND tool_name <> '' GROUP BY tool_name ORDER BY COUNT(*) DESC, tool_name ASC LIMIT $limit";
+            command.Parameters.AddWithValue("$limit", topSkills);
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+                skills.Add(new SkillUsageBucket(reader.GetString(0), reader.GetInt64(1)));
+        }
+
+        return new ProfileInsights(topModel, topReasoning, (int)distinctSkills, totalSkills, skills);
+    }
+
+    private static RankedUsage? QueryTopRanked(
+        Microsoft.Data.Sqlite.SqliteConnection connection,
+        string topSql,
+        string totalSql)
+    {
+        string? key = null;
+        long count = 0;
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = topSql;
+            using var reader = command.ExecuteReader();
+            if (reader.Read())
+            {
+                key = reader.GetString(0);
+                count = reader.GetInt64(1);
+            }
+        }
+
+        if (string.IsNullOrEmpty(key))
+            return null;
+
+        using var totalCommand = connection.CreateCommand();
+        totalCommand.CommandText = totalSql;
+        var total = Convert.ToInt64(totalCommand.ExecuteScalar() ?? 0L);
+        return new RankedUsage(key, count, total);
+    }
+
+    private ProfileInsights GetProfileInsightsFromMemory(int topSkills)
+    {
+        var events = _sessions.Values.SelectMany(static session => session.Events).ToList();
+
+        var topModel = TopRankedFromMemory(events
+            .Where(e => e.Type == TraceEventType.Response && !string.IsNullOrWhiteSpace(e.ModelId))
+            .Select(e => e.ModelId!));
+
+        var topReasoning = TopRankedFromMemory(events
+            .Where(e => e.Type == TraceEventType.Response && !string.IsNullOrWhiteSpace(e.ReasoningEffort))
+            .Select(e => e.ReasoningEffort!));
+
+        var skillNames = events
+            .Where(e => e.Type == TraceEventType.SkillReferenced && !string.IsNullOrWhiteSpace(e.ToolName))
+            .Select(e => e.ToolName!)
+            .ToList();
+
+        var grouped = skillNames
+            .GroupBy(name => name, StringComparer.Ordinal)
+            .Select(g => new SkillUsageBucket(g.Key, g.LongCount()))
+            .OrderByDescending(b => b.Count)
+            .ThenBy(b => b.Name, StringComparer.Ordinal)
+            .ToList();
+
+        return new ProfileInsights(
+            topModel,
+            topReasoning,
+            grouped.Count,
+            skillNames.Count,
+            grouped.Take(topSkills).ToList());
+    }
+
+    private static RankedUsage? TopRankedFromMemory(IEnumerable<string> keys)
+    {
+        var list = keys.ToList();
+        if (list.Count == 0)
+            return null;
+
+        var top = list
+            .GroupBy(key => key, StringComparer.Ordinal)
+            .Select(g => new { g.Key, Count = g.LongCount() })
+            .OrderByDescending(x => x.Count)
+            .ThenBy(x => x.Key, StringComparer.Ordinal)
+            .First();
+
+        return new RankedUsage(top.Key, top.Count, list.Count);
+    }
+
     public void LoadFromDisk()
     {
         if (_stateRuntime != null)
@@ -656,6 +787,7 @@ public sealed class TraceStore
                     response_id,
                     message_id,
                     model_id,
+                    reasoning_effort,
                     finish_reason,
                     duration_ms,
                     event_json
@@ -669,6 +801,7 @@ public sealed class TraceStore
                     $response_id,
                     $message_id,
                     $model_id,
+                    $reasoning_effort,
                     $finish_reason,
                     $duration_ms,
                     $event_json
@@ -683,6 +816,7 @@ public sealed class TraceStore
             insert.Parameters.AddWithValue("$response_id", (object?)evt.ResponseId ?? DBNull.Value);
             insert.Parameters.AddWithValue("$message_id", (object?)evt.MessageId ?? DBNull.Value);
             insert.Parameters.AddWithValue("$model_id", (object?)evt.ModelId ?? DBNull.Value);
+            insert.Parameters.AddWithValue("$reasoning_effort", (object?)evt.ReasoningEffort ?? DBNull.Value);
             insert.Parameters.AddWithValue("$finish_reason", (object?)evt.FinishReason ?? DBNull.Value);
             insert.Parameters.AddWithValue("$duration_ms", evt.DurationMs ?? (object)DBNull.Value);
             insert.Parameters.AddWithValue("$event_json", JsonSerializer.Serialize(evt, PersistJsonOptions));
@@ -1196,3 +1330,20 @@ public sealed class DailyUsageBucket
 
     public long TotalTokens => InputTokens + OutputTokens;
 }
+
+/// <summary>
+/// Profile "activity insights" aggregate produced by <see cref="TraceStore.GetProfileInsights"/>
+/// (spec §27A.5). <see cref="TopModel"/>/<see cref="TopReasoning"/> are null when no data exists.
+/// </summary>
+public sealed record ProfileInsights(
+    RankedUsage? TopModel,
+    RankedUsage? TopReasoning,
+    int DistinctSkillCount,
+    long TotalSkillCount,
+    IReadOnlyList<SkillUsageBucket> TopSkills);
+
+/// <summary>A leading value and its count out of <see cref="Total"/> observations (for share%).</summary>
+public sealed record RankedUsage(string Key, long Count, long Total);
+
+/// <summary>One referenced skill and how many times it was invoked.</summary>
+public sealed record SkillUsageBucket(string Name, long Count);

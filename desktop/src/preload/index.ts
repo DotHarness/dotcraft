@@ -21,6 +21,7 @@ import type { TopLevelMenuId } from '../shared/locales/types'
 import type { AddTabMenuAction, AddTabMenuRequest, AddTabPopupPayload } from '../shared/addTabMenu'
 import type {
   BrowserUseApprovalRequestPayload,
+  BrowserUseClosePayload,
   BrowserUseOpenPayload,
   BrowserEventPayload,
   TerminalDataEventPayload,
@@ -1110,6 +1111,11 @@ const api = {
             const wrapped = (_evt: Electron.IpcRendererEvent, payload: BrowserUseOpenPayload) => listener(payload)
             ipcRenderer.on('viewer:browser:open', wrapped)
             return () => ipcRenderer.removeListener('viewer:browser:open', wrapped)
+          },
+          onClose(listener: (event: BrowserUseClosePayload) => void): UnsubscribeFn {
+            const wrapped = (_evt: Electron.IpcRendererEvent, payload: BrowserUseClosePayload) => listener(payload)
+            ipcRenderer.on('viewer:browser:close', wrapped)
+            return () => ipcRenderer.removeListener('viewer:browser:close', wrapped)
           },
           onApprovalRequest(listener: (event: BrowserUseApprovalRequestPayload) => void): UnsubscribeFn {
             const wrapped = (_evt: Electron.IpcRendererEvent, payload: BrowserUseApprovalRequestPayload) => listener(payload)

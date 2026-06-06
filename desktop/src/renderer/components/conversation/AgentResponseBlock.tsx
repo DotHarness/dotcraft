@@ -1,6 +1,6 @@
 import { memo, useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { Info } from 'lucide-react'
-import type { ConversationItem, ConversationTurn } from '../../types/conversation'
+import type { ConversationItem, ConversationTurn, PluginFunctionContentItem } from '../../types/conversation'
 import { isToolLikeItemType } from '../../types/conversation'
 import { ThinkingIndicator } from './ThinkingIndicator'
 import { renderSubAgentTitle, ToolCallCard } from './ToolCallCard'
@@ -10,16 +10,20 @@ import { CancelledNotice } from './CancelledNotice'
 import { TurnCompletionSummary } from './TurnCompletionSummary'
 import { TurnArtifacts } from './TurnArtifacts'
 import { TurnThreadActions } from './TurnThreadActions'
+import { ImageLightbox } from './ImageLightbox'
 import { isThreadActionToolItem, parseThreadToolAction } from '../../utils/threadToolDisplay'
 import { ApprovalCard } from './ApprovalCard'
 import { SystemNoticeBlock } from './SystemNoticeBlock'
 import { UserMessageBlock } from './UserMessageBlock'
+import { ContextMenu, type ContextMenuEntry, type ContextMenuPosition } from '../ui/ContextMenu'
+import { ActionTooltip } from '../ui/ActionTooltip'
 import { planToolRunRender } from '../../utils/toolCallAggregation'
 import type { AggregatedToolCall } from '../../utils/toolCallAggregation'
 import type { ToolGroupCategory } from '../../utils/toolCallAggregation'
 import { isToolItemLive } from '../../utils/toolCallAggregation'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useUIStore } from '../../stores/uiStore'
+import { addToast } from '../../stores/toastStore'
 import { ToolCollapseChevron } from './ToolCollapseChevron'
 import { useLocale } from '../../contexts/LocaleContext'
 import { formatToolGroupLabel } from '../../utils/toolGroupLabel'
@@ -70,6 +74,12 @@ const STREAMING_MESSAGE_STALL_MS = 2000
 interface ConversationRenderNode {
   kind: ConversationNodeKind
   node: ReactNode
+}
+
+interface ToolOutputImageItem {
+  id: string
+  mediaType: string
+  dataBase64: string
 }
 
 /**
@@ -545,30 +555,233 @@ function renderAggregatedEntry(
   keyPrefix = ''
 ): React.ReactNode {
   if (entry.kind === 'single') {
+    const images = getToolOutputImages([entry.item])
     return (
-      <ToolCallCard
+      <ToolEntryWithOutputs
         key={entry.item.id}
-        item={entry.item}
+        images={images}
+      >
+        <ToolCallCard
+          item={entry.item}
+          turnId={turnId}
+          turnRunning={turnRunning}
+        />
+      </ToolEntryWithOutputs>
+    )
+  }
+  const images = getToolOutputImages(entry.items)
+  return (
+    <ToolEntryWithOutputs
+      key={`group-${keyPrefix}-${turnId}-${offset}`}
+      images={images}
+    >
+      <GroupedToolCallRow
+        category={entry.category}
+        items={entry.items}
         turnId={turnId}
         turnRunning={turnRunning}
       />
-    )
-  }
-  return (
-    <GroupedToolCallRow
-      key={`group-${keyPrefix}-${turnId}-${offset}`}
-      category={entry.category}
-      items={entry.items}
-      turnId={turnId}
-      turnRunning={turnRunning}
-    />
+    </ToolEntryWithOutputs>
   )
+}
+
+function ToolEntryWithOutputs({
+  children,
+  images
+}: {
+  children: ReactNode
+  images: ToolOutputImageItem[]
+}): JSX.Element {
+  if (images.length === 0) return <>{children}</>
+
+  return (
+    <div style={toolEntryWithOutputsStyle}>
+      {children}
+      <ToolOutputImageGallery images={images} />
+    </div>
+  )
+}
+
+function ToolOutputImageGallery({ images }: { images: ToolOutputImageItem[] }): JSX.Element {
+  const locale = useLocale()
+  const [lightboxImage, setLightboxImage] = useState<ToolOutputImageItem | null>(null)
+  const [contextMenu, setContextMenu] = useState<{ position: ContextMenuPosition; image: ToolOutputImageItem } | null>(null)
+  const contextItems: ContextMenuEntry[] = contextMenu
+    ? [
+        {
+          label: translate(locale, 'conversation.selectAll'),
+          onClick: () => {
+            try {
+              document.execCommand('selectAll')
+            } catch {
+              // Ignore selection command failures in read-only output.
+            }
+          }
+        },
+        { type: 'separator' },
+        {
+          label: translate(locale, 'conversation.copyImage'),
+          onClick: () => {
+            void copyToolOutputImage(contextMenu.image, locale)
+          }
+        }
+      ]
+    : []
+
+  return (
+    <>
+      <div data-testid="tool-output-image-gallery" style={toolOutputImageGalleryStyle}>
+        {images.map((image, index) => {
+          const dataUrl = toolOutputImageDataUrl(image)
+          return (
+            <button
+              key={image.id}
+              type="button"
+              aria-label={`Preview tool output image ${index + 1}`}
+              onClick={() => setLightboxImage(image)}
+              onContextMenu={(event) => {
+                event.preventDefault()
+                event.stopPropagation()
+                setContextMenu({
+                  position: { x: event.clientX, y: event.clientY },
+                  image
+                })
+              }}
+              style={toolOutputImageButtonStyle}
+            >
+              <img
+                data-testid="tool-output-image"
+                src={dataUrl}
+                alt={`Tool output image ${index + 1}`}
+                style={toolOutputImageStyle}
+              />
+            </button>
+          )
+        })}
+      </div>
+      {lightboxImage && (
+        <ImageLightbox
+          src={toolOutputImageDataUrl(lightboxImage)}
+          alt="Tool output image"
+          onClose={() => setLightboxImage(null)}
+        />
+      )}
+      {contextMenu && (
+        <ContextMenu
+          items={contextItems}
+          position={contextMenu.position}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
+    </>
+  )
+}
+
+function getToolOutputImages(items: ConversationItem[]): ToolOutputImageItem[] {
+  return items.flatMap((item) =>
+    (item.contentItems ?? [])
+      .map((contentItem, index) => toToolOutputImage(item.id, contentItem, index))
+      .filter((image): image is ToolOutputImageItem => image != null)
+  )
+}
+
+function toToolOutputImage(
+  itemId: string,
+  contentItem: PluginFunctionContentItem,
+  index: number
+): ToolOutputImageItem | null {
+  const dataBase64 = contentItem.dataBase64?.trim()
+  if (contentItem.type !== 'image' || !dataBase64) return null
+  return {
+    id: `${itemId}-image-${index}`,
+    mediaType: contentItem.mediaType?.trim() || 'image/png',
+    dataBase64
+  }
+}
+
+function toolOutputImageDataUrl(image: ToolOutputImageItem): string {
+  return `data:${image.mediaType};base64,${image.dataBase64}`
+}
+
+async function copyToolOutputImage(image: ToolOutputImageItem, locale: AppLocale): Promise<void> {
+  const dataUrl = toolOutputImageDataUrl(image)
+  const clipboard = navigator.clipboard as (Clipboard & {
+    write?: (items: ClipboardItem[]) => Promise<void>
+    writeText?: (text: string) => Promise<void>
+  }) | undefined
+  const ClipboardItemCtor = (globalThis as typeof globalThis & {
+    ClipboardItem?: new (items: Record<string, Blob>) => ClipboardItem
+  }).ClipboardItem
+
+  if (clipboard?.write && ClipboardItemCtor) {
+    try {
+      await clipboard.write([
+        new ClipboardItemCtor({
+          [image.mediaType]: base64ToBlob(image.dataBase64, image.mediaType)
+        })
+      ])
+      addToast(translate(locale, 'toast.copied'), 'success', 2000)
+      return
+    } catch {
+      // Fall back to copying the data URL text when binary image clipboard fails.
+    }
+  }
+
+  try {
+    await clipboard?.writeText?.(dataUrl)
+    addToast(translate(locale, 'toast.copied'), 'success', 2000)
+  } catch {
+    // Clipboard failures should not block image preview interactions.
+  }
+}
+
+function base64ToBlob(dataBase64: string, mediaType: string): Blob {
+  const binary = atob(dataBase64)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i)
+  }
+  return new Blob([bytes], { type: mediaType })
 }
 
 const toolRunStackStyle: CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   gap: 'var(--conversation-tool-run-gap)'
+}
+
+const toolEntryWithOutputsStyle: CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '6px'
+}
+
+const toolOutputImageGalleryStyle: CSSProperties = {
+  display: 'flex',
+  flexWrap: 'wrap',
+  alignItems: 'flex-start',
+  gap: '8px',
+  padding: '0 6px'
+}
+
+const toolOutputImageButtonStyle: CSSProperties = {
+  display: 'block',
+  padding: 0,
+  border: 'none',
+  borderRadius: '4px',
+  background: 'transparent',
+  lineHeight: 0,
+  cursor: 'zoom-in'
+}
+
+const toolOutputImageStyle: CSSProperties = {
+  display: 'block',
+  maxWidth: '240px',
+  maxHeight: '180px',
+  objectFit: 'contain',
+  border: '1px solid var(--border-default)',
+  borderRadius: '4px',
+  background: 'var(--bg-primary)'
 }
 
 const streamRetryRowStyle: CSSProperties = {
@@ -715,9 +928,11 @@ function SpawnAgentGroupItems({
             {renderGroupedSubAgentTitle(locale, display)}
           </div>
           {display.prompt && (
-            <div style={spawnAgentPromptPreviewStyle} title={display.prompt}>
+            <ActionTooltip label={display.prompt} wrapperStyle={{ display: 'block', minWidth: 0, overflow: 'hidden', flexShrink: 1 }}>
+            <div style={{ ...spawnAgentPromptPreviewStyle, display: 'block' }}>
               {display.prompt}
             </div>
+            </ActionTooltip>
           )}
         </div>
       ))}

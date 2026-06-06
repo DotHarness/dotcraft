@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using System.Text.Json;
 using DotCraft.Protocol;
 using DotCraft.Protocol.AppServer;
 
@@ -28,6 +29,55 @@ public sealed class AppServerEventDispatcherDisconnectTests
 
         Assert.Equal(events.Select(e => e.EventType), consumed);
         Assert.Equal(failOnWriteAttempt, transport.WriteAttempts);
+    }
+
+    // Regression: server-originated threads (e.g. Teams mission members) reach the client only via the
+    // ThreadCreated event stream. The dispatcher must apply the thread-wire enricher so the notification
+    // carries origin-app branding — otherwise the desktop falls back to the generic channel icon.
+    [Fact]
+    public async Task RunAsync_ThreadCreated_AppliesThreadWireEnricherToNotification()
+    {
+        using var harness = new AppServerTestHarness();
+        var thread = await harness.Service.CreateThreadAsync(harness.Identity);
+        var createdEvent = new SessionEvent
+        {
+            EventId = "e_created",
+            EventType = SessionEventType.ThreadCreated,
+            ThreadId = thread.Id,
+            Timestamp = DateTimeOffset.UtcNow,
+            Payload = thread
+        };
+        var transport = new CapturingTransport();
+        SessionWireThread? enricherInput = null;
+
+        var dispatcher = new AppServerEventDispatcher(
+            TrackEvents([createdEvent], []),
+            CreateReadyConnection(),
+            transport,
+            harness.Service,
+            enrichThreadWire: wire =>
+            {
+                enricherInput = wire;
+                return wire with
+                {
+                    OriginApp = new ThreadOriginAppWire
+                    {
+                        AppId = "com.dotharness.dotcraft-teams",
+                        DisplayName = "Explorer",
+                        Icon = "data:image/svg+xml;base64,SENTINEL_EXPLORER",
+                        MemberId = "explorer"
+                    }
+                };
+            });
+
+        await dispatcher.RunAsync();
+
+        Assert.NotNull(enricherInput);
+        Assert.Equal(thread.Id, enricherInput!.Id);
+        var sent = Assert.Single(transport.Sent);
+        var json = JsonSerializer.Serialize(sent, sent.GetType());
+        Assert.Contains("SENTINEL_EXPLORER", json);
+        Assert.Contains("explorer", json);
     }
 
     [Fact]
@@ -405,6 +455,29 @@ public sealed class AppServerEventDispatcherDisconnectTests
         }
 
         await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+    }
+
+    private sealed class CapturingTransport : IAppServerTransport
+    {
+        public List<object> Sent { get; } = [];
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
+        public Task<AppServerIncomingMessage?> ReadMessageAsync(CancellationToken ct = default) =>
+            Task.FromResult<AppServerIncomingMessage?>(null);
+
+        public Task WriteMessageAsync(object message, CancellationToken ct = default)
+        {
+            Sent.Add(message);
+            return Task.CompletedTask;
+        }
+
+        public Task<AppServerIncomingMessage> SendClientRequestAsync(
+            string method,
+            object? @params,
+            CancellationToken ct = default,
+            TimeSpan? timeout = null) =>
+            Task.FromResult(InMemoryTransport.BuildClientResponse(1, new { }));
     }
 
     private sealed class FailingTransport(

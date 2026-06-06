@@ -8,7 +8,7 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "DotCraft Doctor",
-    "shortDescription": "Diagnose failures and draft a developer report",
+    "shortDescription": "Diagnose DotCraft errors and report issues",
     "longDescription": "DotCraft Doctor inspects a failed turn from local .craft evidence to explain what went wrong, then helps turn the findings into a clear issue report for the DotCraft developers. It is the plugin the composer mascot installs when you ask it to look into an error.",
     "developerName": "DotHarness",
     "category": "Engineering",

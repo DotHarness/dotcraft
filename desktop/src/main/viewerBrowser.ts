@@ -139,6 +139,12 @@ function clampViewportCoordinate(value: number): number {
   return Math.max(0, Math.round(value))
 }
 
+function roundedPositiveDimension(value: number): number | null {
+  if (!Number.isFinite(value)) return null
+  const rounded = Math.round(value)
+  return rounded > 1 ? rounded : null
+}
+
 function mouseButton(button?: BrowserAutomationMouseButton): BrowserAutomationMouseButton {
   return button === 'right' || button === 'middle' ? button : 'left'
 }
@@ -310,18 +316,30 @@ export async function loadOrReport(params: {
   url: string
   load: () => Promise<unknown>
   emit: (payload: BrowserEventPayload) => void
+  throwOnFailure?: boolean
 }): Promise<void> {
   try {
     await params.load()
   } catch (error: unknown) {
     if (isNavigationAbortError(error)) return
     const message = error instanceof Error ? error.message : String(error)
+    const details = error && typeof error === 'object' ? error as { code?: unknown; errno?: unknown } : {}
+    const numericCode = typeof details.code === 'number'
+      ? details.code
+      : typeof details.errno === 'number'
+        ? details.errno
+        : undefined
     params.emit({
       tabId: params.tabId,
       threadId: params.threadId,
       type: 'did-fail-load',
       url: params.url,
-      message
+      message,
+      errorCode: numericCode,
+      errorDescription: message,
+      validatedURL: params.url,
+      finalURL: params.url,
+      isMainFrame: true
     })
     params.emit({
       tabId: params.tabId,
@@ -329,6 +347,9 @@ export async function loadOrReport(params: {
       type: 'did-stop-loading',
       url: params.url
     })
+    if (params.throwOnFailure) {
+      throw new Error(`NavigationFailed: ${message}`)
+    }
   }
 }
 
@@ -492,14 +513,15 @@ export class ViewerBrowserManager {
   async loadAutomationUrl(win: BrowserWindow, params: { tabId: string; url: string }): Promise<void> {
     const tab = this.getTab(win, params.tabId)
     if (!tab) return
-    tab.currentUrl = params.url
     await loadOrReport({
       tabId: params.tabId,
       threadId: tab.threadId,
       url: params.url,
       load: () => tab.view.webContents.loadURL(params.url),
-      emit: (payload) => emitBrowserEvent(win, payload)
+      emit: (payload) => emitBrowserEvent(win, payload),
+      throwOnFailure: true
     })
+    tab.currentUrl = tab.view.webContents.getURL() || tab.currentUrl
   }
 
   async navigate(win: BrowserWindow, params: { tabId: string; url: string }): Promise<void> {
@@ -524,7 +546,6 @@ export class ViewerBrowserManager {
       return
     }
 
-    tab.currentUrl = normalized
     await loadOrReport({
       tabId: params.tabId,
       threadId: tab.threadId,
@@ -532,6 +553,7 @@ export class ViewerBrowserManager {
       load: () => tab.view.webContents.loadURL(normalized),
       emit: (payload) => emitBrowserEvent(win, payload)
     })
+    tab.currentUrl = tab.view.webContents.getURL() || tab.currentUrl
   }
 
   goBack(win: BrowserWindow, tabId: string): void {
@@ -563,16 +585,15 @@ export class ViewerBrowserManager {
   setBounds(win: BrowserWindow, params: { tabId: string; x: number; y: number; width: number; height: number }): void {
     const tab = this.getTab(win, params.tabId)
     if (!tab) return
-    const width = Math.max(1, Math.round(params.width))
-    const height = Math.max(1, Math.round(params.height))
-    tab.viewportWidth = width
-    tab.viewportHeight = height
-    tab.view.setBounds({
-      x: Math.round(params.x),
-      y: Math.round(params.y),
-      width,
-      height
-    })
+    const bounds = this.validatedBounds(win, tab, params)
+    if (!bounds) {
+      tab.boundsInitialized = false
+      this.detachView(win, tab)
+      return
+    }
+    tab.viewportWidth = bounds.width
+    tab.viewportHeight = bounds.height
+    tab.view.setBounds(bounds)
     tab.boundsInitialized = true
     if (tab.desiredVisible && !tab.visible) {
       this.attachView(win, tab)
@@ -606,6 +627,37 @@ export class ViewerBrowserManager {
     const active = runtime.tabs.get(tabId)
     if (!active) return
     this.emitHistoryFlags(win, active)
+  }
+
+  private validatedBounds(
+    win: BrowserWindow,
+    tab: BrowserTabRuntime,
+    params: { x: number; y: number; width: number; height: number }
+  ): Electron.Rectangle | null {
+    const x = Math.round(Number(params.x))
+    const y = Math.round(Number(params.y))
+    const width = roundedPositiveDimension(Number(params.width))
+    const height = roundedPositiveDimension(Number(params.height))
+    if (!Number.isFinite(x) || !Number.isFinite(y) || width == null || height == null) return null
+    if (x < 0 || y < 0) return null
+    const contentBounds = typeof win.getContentBounds === 'function'
+      ? win.getContentBounds()
+      : null
+    if (contentBounds) {
+      const contentWidth = Math.max(1, Math.round(contentBounds.width))
+      const contentHeight = Math.max(1, Math.round(contentBounds.height))
+      const tolerance = 8
+      if (x >= contentWidth || y >= contentHeight) return null
+      if (x + width > contentWidth + tolerance || y + height > contentHeight + tolerance) return null
+      const suspiciousTopLeftPartial =
+        x === 0 &&
+        y === 0 &&
+        width < contentWidth - 24 &&
+        height < contentHeight - 24 &&
+        !tab.automationEnabled
+      if (suspiciousTopLeftPartial) return null
+    }
+    return { x, y, width, height }
   }
 
   async openInOsBrowser(win: BrowserWindow, tabId: string): Promise<void> {
@@ -977,7 +1029,12 @@ export class ViewerBrowserManager {
         threadId: tab.threadId,
         type: 'did-fail-load',
         url: validatedURL,
-        message: errorDescription
+        message: errorDescription,
+        errorCode,
+        errorDescription,
+        validatedURL,
+        finalURL: tab.view.webContents.getURL(),
+        isMainFrame
       })
     })
     wc.on('page-title-updated', (event, title) => {
@@ -1108,24 +1165,40 @@ export class ViewerBrowserManager {
   }
 
   private detachView(win: BrowserWindow, tab: BrowserTabRuntime): void {
-    if (!tab.visible) return
     if (tab.view.webContents.isDestroyed()) {
       tab.visible = false
       return
     }
-    try {
-      win.contentView.removeChildView(tab.view)
-    } catch {
-      // Ignore removal races when window is tearing down.
+    if (tab.visible) {
+      try {
+        win.contentView.removeChildView(tab.view)
+      } catch {
+        // Ignore removal races when window is tearing down.
+      }
     }
+    this.moveViewOffscreen(tab)
     tab.visible = false
   }
 
   private attachView(win: BrowserWindow, tab: BrowserTabRuntime): void {
     if (tab.visible) return
     if (tab.view.webContents.isDestroyed()) return
+    if (!tab.boundsInitialized) return
+    const runtime = this.byWindowId.get(win.id)
+    if (runtime?.activeTabId && runtime.activeTabId !== tab.tabId) return
     win.contentView.addChildView(tab.view)
     tab.visible = true
+  }
+
+  private moveViewOffscreen(tab: BrowserTabRuntime): void {
+    if (tab.view.webContents.isDestroyed()) return
+    const width = Math.max(1, Math.round(tab.viewportWidth ?? 1))
+    const height = Math.max(1, Math.round(tab.viewportHeight ?? 1))
+    try {
+      tab.view.setBounds({ x: -10000, y: -10000, width, height })
+    } catch {
+      // Ignore teardown races.
+    }
   }
 }
 

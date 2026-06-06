@@ -119,6 +119,7 @@ export function WorkspaceHeader({
       }}
     >
       {/* Workspace name */}
+      <ActionTooltip label={workspacePath} wrapperStyle={{ display: 'block', minWidth: 0, overflow: 'hidden', flexShrink: 1 }}>
       <span
         style={{
           flex: 1,
@@ -128,12 +129,13 @@ export function WorkspaceHeader({
           color: 'var(--text-secondary)',
           overflow: 'hidden',
           textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap'
+          whiteSpace: 'nowrap',
+          display: 'block'
         }}
-        title={workspacePath}
       >
         {workspaceName || 'DotCraft'}
       </span>
+      </ActionTooltip>
 
       {/* Overflow menu trigger */}
       <ActionTooltip label={t('workspaceHeader.optionsAria')} placement="bottom">
@@ -190,6 +192,7 @@ export function WorkspaceHeader({
           onClick={(e) => e.stopPropagation()}
         >
           {/* Workspace path shown in menu header */}
+          <ActionTooltip label={workspacePath} wrapperStyle={{ display: 'block', minWidth: 0, overflow: 'hidden', flexShrink: 1 }}>
           <div
             style={{
               padding: '7px 10px',
@@ -201,12 +204,13 @@ export function WorkspaceHeader({
               marginBottom: '6px',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap'
+              whiteSpace: 'nowrap',
+              display: 'block'
             }}
-            title={workspacePath}
           >
             {workspacePath}
           </div>
+          </ActionTooltip>
           <DropdownItem
             label={t('workspaceHeader.openInExplorer')}
             onClick={openInExplorer}

@@ -8,6 +8,8 @@ import { ActionTooltip } from '../ui/ActionTooltip'
 import { RunningSpinner } from '../ui/RunningSpinner'
 import { SettingsPageHeader } from './SettingsPageHeader'
 import { TokenActivityHeatmap, type HeatmapMode } from './profile/TokenActivityHeatmap'
+import { ActivityInsights } from './profile/ActivityInsights'
+import { MostUsedSkills } from './profile/MostUsedSkills'
 
 type TFn = (key: MessageKey | string, vars?: Record<string, string | number>) => string
 
@@ -37,6 +39,10 @@ export function ProfileView(): JSX.Element {
   const fetchTimeseries = useProfileStore((s) => s.fetchTimeseries)
   const loadIdentity = useProfileStore((s) => s.loadIdentity)
 
+  const insights = useProfileStore((s) => s.insights)
+  const insightsLoadedOnce = useProfileStore((s) => s.insightsLoadedOnce)
+  const fetchInsights = useProfileStore((s) => s.fetchInsights)
+
   const [mode, setMode] = useState<HeatmapMode>('daily')
   const [editing, setEditing] = useState(false)
 
@@ -45,8 +51,11 @@ export function ProfileView(): JSX.Element {
   }, [loadIdentity])
 
   useEffect(() => {
-    if (capable) void fetchTimeseries()
-  }, [capable, fetchTimeseries])
+    if (capable) {
+      void fetchTimeseries()
+      void fetchInsights()
+    }
+  }, [capable, fetchTimeseries, fetchInsights])
 
   const editAction = editing ? undefined : (
     <button type="button" style={editActionStyle} onClick={() => setEditing(true)}>
@@ -87,6 +96,13 @@ export function ProfileView(): JSX.Element {
             t={t}
           />
         </section>
+
+        {capable && insightsLoadedOnce && insights && (
+          <section style={insightsGridStyle}>
+            <ActivityInsights insights={insights} t={t} />
+            <MostUsedSkills skills={insights.skills} t={t} />
+          </section>
+        )}
       </div>
     </div>
   )
@@ -322,12 +338,24 @@ function StatStrip({
             textAlign: 'center'
           }}
         >
-          <div
-            title={card.full}
-            style={{ fontSize: '17px', fontWeight: 600, lineHeight: 1.2, color: 'var(--text-primary)' }}
-          >
-            {card.value}
-          </div>
+          {card.full ? (
+            <ActionTooltip
+              label={card.full}
+              wrapperStyle={{ display: 'block', minWidth: 0, overflow: 'hidden', flexShrink: 1 }}
+            >
+              <div
+                style={{ fontSize: '17px', fontWeight: 600, lineHeight: 1.2, color: 'var(--text-primary)', display: 'block' }}
+              >
+                {card.value}
+              </div>
+            </ActionTooltip>
+          ) : (
+            <div
+              style={{ fontSize: '17px', fontWeight: 600, lineHeight: 1.2, color: 'var(--text-primary)' }}
+            >
+              {card.value}
+            </div>
+          )}
           <div style={{ fontSize: '11px', color: 'var(--text-dimmed)' }}>{t(card.label)}</div>
         </div>
       ))}
@@ -477,6 +505,13 @@ function formatDuration(ms: number): string {
   const hours = Math.floor(totalMinutes / 60)
   const minutes = totalMinutes % 60
   return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`
+}
+
+const insightsGridStyle: CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: '1fr 1fr',
+  gap: '40px',
+  alignItems: 'start'
 }
 
 const dimmedTextStyle: CSSProperties = {

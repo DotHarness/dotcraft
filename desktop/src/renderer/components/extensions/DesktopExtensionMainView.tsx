@@ -5,6 +5,7 @@ import type { PluginAppInfo } from '../../stores/pluginStore'
 import type { ActiveMainView } from '../../stores/uiStore'
 import { useUIStore } from '../../stores/uiStore'
 import { useThreadStore } from '../../stores/threadStore'
+import { removeToast, showToast, type ToastType } from '../../stores/toastStore'
 import { TeamsView } from '../teams/TeamsView'
 
 type ExtensionComponent = React.ComponentType<DesktopExtensionComponentProps>
@@ -38,9 +39,26 @@ interface DesktopExtensionHost {
     setActiveMainView(view: ActiveMainView): void
     openThread(threadId: string): void
   }
+  ui: {
+    /**
+     * Shows a host toast in DotCraft's native notification stack. Supports an
+     * optional inline action (e.g. Undo) and an `onExpire` callback that fires
+     * if the toast auto-dismisses or is closed without the action being taken
+     * (use it to commit a deferred change). Returns a function that dismisses it.
+     */
+    showToast(options: ExtensionToastOptions): () => void
+  }
   components: {
     TeamsView: React.ComponentType
   }
+}
+
+interface ExtensionToastOptions {
+  message: string
+  type?: ToastType
+  durationMs?: number
+  action?: { label: string; icon?: string; onClick: () => void }
+  onExpire?: () => void
 }
 
 interface AppHandoff {
@@ -230,6 +248,18 @@ function createDesktopExtensionHost(
       openThread(threadId) {
         setActiveThreadId(threadId)
         setActiveMainView('conversation')
+      }
+    },
+    ui: {
+      showToast(options) {
+        const id = showToast({
+          message: options.message,
+          type: options.type,
+          durationMs: options.durationMs,
+          action: options.action,
+          onExpire: options.onExpire
+        })
+        return () => removeToast(id)
       }
     },
     components: {

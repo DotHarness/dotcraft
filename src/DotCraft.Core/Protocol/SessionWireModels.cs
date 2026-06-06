@@ -243,6 +243,16 @@ public sealed record SessionWireThread
     public List<ThreadAppBindingSummaryWire>? AppBindings { get; init; }
 
     /// <summary>
+    /// Server-resolved origin-app branding when <see cref="OriginChannel"/> matches an installed app's
+    /// declared origin channel. Mirrors <c>ThreadSummary.OriginApp</c> so threads delivered via
+    /// <c>thread/started</c>, <c>thread/updated</c>, <c>thread/fork</c>, and <c>thread/read</c> carry the
+    /// same origin badge as <c>thread/list</c> (without it, event-delivered threads fall back to the
+    /// generic channel icon).
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ThreadOriginAppWire? OriginApp { get; init; }
+
+    /// <summary>
     /// Turn summaries. Populated only when the caller requests turn history (e.g. thread/read with includeTurns = true).
     /// </summary>
     public List<SessionWireTurn>? Turns { get; init; }

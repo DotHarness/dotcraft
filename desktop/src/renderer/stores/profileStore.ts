@@ -16,6 +16,31 @@ interface UsageTimeseriesWire {
   days: UsageDayWire[]
 }
 
+/** A leading value with its count out of a total, for share% display. Matches RankedMetric. */
+export interface RankedMetricWire {
+  key: string
+  count: number
+  total: number
+}
+
+/** One referenced skill with run count and optional plugin attribution. Matches SkillUsageWire. */
+export interface SkillUsageWire {
+  name: string
+  count: number
+  pluginId?: string | null
+  pluginDisplayName?: string | null
+}
+
+/** Matches AppServer ProfileInsightsResult wire DTO (spec §27A.5). */
+export interface ProfileInsightsWire {
+  topModel: RankedMetricWire | null
+  topReasoning: RankedMetricWire | null
+  skillsExplored: number
+  totalSkillsUsed: number
+  totalThreads: number
+  skills: SkillUsageWire[]
+}
+
 /** Public GitHub profile fields used by the Profile header. */
 export interface GitHubProfile {
   login: string
@@ -33,11 +58,18 @@ interface ProfileStoreState {
   loadedOnce: boolean
   error: string | null
 
+  /** Activity insights + most-used skills (spec §27A.5). Null until first fetch. */
+  insights: ProfileInsightsWire | null
+  insightsLoading: boolean
+  insightsLoadedOnce: boolean
+  insightsError: string | null
+
   githubUsername: string | null
   githubProfile: GitHubProfile | null
   identityLoaded: boolean
 
   fetchTimeseries(options?: { silent?: boolean }): Promise<void>
+  fetchInsights(options?: { silent?: boolean }): Promise<void>
   loadIdentity(): Promise<void>
   setGithubUsername(username: string | null): Promise<void>
   reset(): void
@@ -71,6 +103,11 @@ export const useProfileStore = create<ProfileStoreState>((set, get) => ({
   loadedOnce: false,
   error: null,
 
+  insights: null,
+  insightsLoading: false,
+  insightsLoadedOnce: false,
+  insightsError: null,
+
   githubUsername: null,
   githubProfile: null,
   identityLoaded: false,
@@ -90,6 +127,33 @@ export const useProfileStore = create<ProfileStoreState>((set, get) => ({
       const msg = e instanceof Error ? e.message : String(e)
       if (!silent) set({ error: msg, loading: false })
       else set({ loading: false })
+    }
+  },
+
+  async fetchInsights(options?: { silent?: boolean }) {
+    const silent = options?.silent === true
+    if (!silent && !get().insightsLoadedOnce) set({ insightsLoading: true, insightsError: null })
+    else set({ insightsError: null })
+    try {
+      const result = (await window.api.appServer.sendRequest('profile/insights', {
+        topSkills: 5
+      })) as ProfileInsightsWire
+      set({
+        insights: {
+          topModel: result?.topModel ?? null,
+          topReasoning: result?.topReasoning ?? null,
+          skillsExplored: typeof result?.skillsExplored === 'number' ? result.skillsExplored : 0,
+          totalSkillsUsed: typeof result?.totalSkillsUsed === 'number' ? result.totalSkillsUsed : 0,
+          totalThreads: typeof result?.totalThreads === 'number' ? result.totalThreads : 0,
+          skills: Array.isArray(result?.skills) ? result.skills : []
+        },
+        insightsLoading: false,
+        insightsLoadedOnce: true
+      })
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e)
+      if (!silent) set({ insightsError: msg, insightsLoading: false })
+      else set({ insightsLoading: false })
     }
   },
 
@@ -121,6 +185,16 @@ export const useProfileStore = create<ProfileStoreState>((set, get) => ({
   },
 
   reset() {
-    set({ days: [], longestTaskMs: 0, loading: false, loadedOnce: false, error: null })
+    set({
+      days: [],
+      longestTaskMs: 0,
+      loading: false,
+      loadedOnce: false,
+      error: null,
+      insights: null,
+      insightsLoading: false,
+      insightsLoadedOnce: false,
+      insightsError: null
+    })
   }
 }))
