@@ -387,8 +387,11 @@ div.VPSidebarItem.is-active > .item {
 
 .VPSidebarItem:is(.level-1, .level-2, .level-3, .level-4, .level-5):is(.is-active, .has-active) > .item .text,
 .VPSidebarItem:is(.level-1, .level-2, .level-3, .level-4, .level-5):is(.is-active, .has-active) > .item .link > .text {
+  /* Color only — no weight change. CJK system fonts (e.g. Microsoft YaHei)
+     ship only 400/700, so bumping the weight maps the glyphs to the 700 face
+     and the selected label reads as a different typeface. Keep the inactive
+     weight so selected/unselected render identically in every language. */
   color: var(--dc-accent) !important;
-  font-weight: 600 !important;
 }
 
 /* Section group labels (level-0): uppercase, dimmed, narrow */
