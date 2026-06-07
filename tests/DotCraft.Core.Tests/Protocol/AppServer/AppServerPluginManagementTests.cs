@@ -70,6 +70,40 @@ public sealed class AppServerPluginManagementTests : IDisposable
     }
 
     [Fact]
+    public async Task PluginList_ReturnsInstallableDoctorSkillDisplayMetadata()
+    {
+        using var harness = CreateHarness();
+        await harness.InitializeAsync();
+
+        var msg = harness.BuildRequest(AppServerMethods.PluginList, new { includeDisabled = true });
+        await harness.ExecuteRequestAsync(msg);
+
+        using var response = await harness.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(response);
+        var plugin = Assert.Single(
+            response.RootElement.GetProperty("result").GetProperty("plugins").EnumerateArray(),
+            item => item.GetProperty("id").GetString() == "dotcraft-doctor");
+        Assert.False(plugin.GetProperty("installed").GetBoolean());
+        Assert.True(plugin.GetProperty("installable").GetBoolean());
+
+        var skills = plugin.GetProperty("skills").EnumerateArray()
+            .ToDictionary(item => item.GetProperty("name").GetString()!);
+        Assert.Equal(3, skills.Count);
+        Assert.Equal("Context Handoff", skills["context-handoff"].GetProperty("displayName").GetString());
+        Assert.Equal(
+            "Find failed sessions and export a clean Markdown handoff",
+            skills["context-handoff"].GetProperty("shortDescription").GetString());
+        Assert.Equal("Error Diagnosis", skills["error-diagnosis"].GetProperty("displayName").GetString());
+        Assert.Equal(
+            "Trace DotCraft failures through thread rollout and state DB evidence",
+            skills["error-diagnosis"].GetProperty("shortDescription").GetString());
+        Assert.Equal("Report Issue", skills["report-issue"].GetProperty("displayName").GetString());
+        Assert.Equal(
+            "Draft a public-safe GitHub issue from a diagnosis or bug report",
+            skills["report-issue"].GetProperty("shortDescription").GetString());
+    }
+
+    [Fact]
     public async Task PluginList_WithoutBundledRootsDoesNotExposeUninstalledBuiltIns()
     {
         using var harness = CreateHarness(includeBundledRoots: false);

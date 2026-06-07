@@ -1,0 +1,4 @@
+interface:
+  display_name: "Report Issue"
+  short_description: "Draft a public-safe GitHub issue from a diagnosis or bug report"
+  default_prompt: "Use $report-issue to draft a public-safe GitHub issue from a DotCraft diagnosis or bug report."

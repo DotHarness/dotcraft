@@ -5555,13 +5555,17 @@ public sealed class AppServerRequestHandler(
             .Select(dir =>
             {
                 var name = Path.GetFileName(dir);
+                var skillFile = Path.Combine(dir, "SKILL.md");
                 var skill = allSkills.FirstOrDefault(candidate =>
                     string.Equals(candidate.Name, name, StringComparison.OrdinalIgnoreCase));
-                var interfaceInfo = skillsLoader?.GetSkillInterface(name);
+                var interfaceInfo = SkillsLoader.GetSkillInterfaceFromFile(skillFile)
+                                    ?? skillsLoader?.GetSkillInterface(name);
                 return new PluginSkillInfoWire
                 {
                     Name = name,
-                    Description = skillsLoader?.GetSkillDescription(name) ?? name,
+                    Description = SkillsLoader.GetSkillDescriptionFromFile(skillFile)
+                                  ?? skillsLoader?.GetSkillDescription(name)
+                                  ?? name,
                     DisplayName = interfaceInfo?.DisplayName,
                     ShortDescription = interfaceInfo?.ShortDescription,
                     Enabled = plugin.Installed

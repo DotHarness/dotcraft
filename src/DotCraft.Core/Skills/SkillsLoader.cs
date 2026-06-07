@@ -285,6 +285,15 @@ public sealed class SkillsLoader(string workspaceRoot, string? userSkillsPath = 
         if (skillFile == null)
             return null;
 
+        return GetSkillInterfaceFromFile(skillFile);
+    }
+
+    /// <summary>
+    /// Reads optional display metadata from <c>agents/openai.yaml</c> beside a specific skill file.
+    /// Missing or invalid interface metadata is treated as absent.
+    /// </summary>
+    public static SkillInterfaceInfo? GetSkillInterfaceFromFile(string skillFile)
+    {
         var skillDir = Path.GetDirectoryName(skillFile);
         if (string.IsNullOrEmpty(skillDir))
             return null;
@@ -591,7 +600,10 @@ public sealed class SkillsLoader(string workspaceRoot, string? userSkillsPath = 
         return GetSkillMetadataFromFile(skillFile);
     }
 
-    private static Dictionary<string, string>? GetSkillMetadataFromFile(string skillFile)
+    /// <summary>
+    /// Reads frontmatter metadata from a specific <c>SKILL.md</c> file.
+    /// </summary>
+    public static Dictionary<string, string>? GetSkillMetadataFromFile(string skillFile)
     {
         var content = File.ReadAllText(skillFile, Encoding.UTF8);
         if (content == null || !content.StartsWith("---"))
@@ -752,6 +764,15 @@ public sealed class SkillsLoader(string workspaceRoot, string? userSkillsPath = 
     {
         var metadata = GetSkillMetadata(name);
         return metadata?.GetValueOrDefault("description", name) ?? name;
+    }
+
+    /// <summary>
+    /// Reads the human-readable description from a specific <c>SKILL.md</c> file, or returns null.
+    /// </summary>
+    public static string? GetSkillDescriptionFromFile(string skillFile)
+    {
+        var metadata = GetSkillMetadataFromFile(skillFile);
+        return metadata?.GetValueOrDefault("description");
     }
 
     public static string StripFrontmatter(string content)
