@@ -273,6 +273,15 @@ function makeThreadSummary(id: string, workspacePath: string, displayName = id):
   }
 }
 
+function makeThread(id: string, workspacePath: string, displayName = id): Thread {
+  return {
+    ...makeThreadSummary(id, workspacePath, displayName),
+    userId: 'local',
+    metadata: {},
+    turns: []
+  }
+}
+
 function projectsPayloadFor(path: string, name = path): WorkspaceProjectsPayload {
   return {
     foregroundWorkspacePath: path,
@@ -467,6 +476,7 @@ describe('App initial workspace status bootstrap', () => {
     })
     useUIStore.setState({
       activeMainView: 'conversation',
+      pendingProjectThreadOpen: null,
       whatsNewOpenRequestSeq: 0
     })
 
@@ -877,6 +887,128 @@ describe('App initial workspace status bootstrap', () => {
     const state = useThreadStore.getState()
     expect(state.threadList.map((thread) => thread.id)).toEqual(['thread-b'])
     expect(state.threadListProjectKey).toBe('c:/sample/workspace-b')
+  })
+
+  it('opens a queued background project thread after its workspace becomes foreground', async () => {
+    const workspaceBStatus: WorkspaceStatusPayload = {
+      ...readyWorkspaceStatus,
+      workspacePath: 'C:\\sample\\workspace-b'
+    }
+    let emitStatus: ((payload: WorkspaceStatusPayload) => void) | null = null
+    let emitProjects: ((payload: WorkspaceProjectsPayload) => void) | null = null
+    const appServerSendRequest = vi.fn(async (method: string, params?: { identity?: { workspacePath?: string }; threadId?: string }) => {
+      if (method === 'thread/list') {
+        if (params?.identity?.workspacePath === workspaceBStatus.workspacePath) {
+          return { data: [makeThreadSummary('thread-b', workspaceBStatus.workspacePath, 'B thread')] }
+        }
+        return { data: [makeThreadSummary('thread-a', readyWorkspaceStatus.workspacePath, 'A thread')] }
+      }
+      if (method === 'thread/read') {
+        return { thread: makeThread(params?.threadId ?? 'thread-b', workspaceBStatus.workspacePath, 'B thread') }
+      }
+      return {}
+    })
+    installApi(readyWorkspaceStatus, {
+      appServerSendRequest,
+      modulesList: vi.fn().mockResolvedValue([]),
+      modulesRunning: vi.fn().mockResolvedValue({}),
+      settingsGet: vi.fn().mockResolvedValue({}),
+      onWorkspaceStatusChange: vi.fn((callback: (payload: WorkspaceStatusPayload) => void) => {
+        emitStatus = callback
+        return vi.fn()
+      }),
+      onProjectsChange: vi.fn((callback: (payload: WorkspaceProjectsPayload) => void) => {
+        emitProjects = callback
+        return vi.fn()
+      }),
+      workspaceGetProjects: vi.fn().mockResolvedValue(projectsPayloadFor(readyWorkspaceStatus.workspacePath, 'A'))
+    })
+    useConnectionStore.getState().setStatus({ status: 'connected' })
+
+    renderApp()
+    await waitFor(() => {
+      expect(useThreadStore.getState().threadList.map((thread) => thread.id)).toEqual(['thread-a'])
+    })
+
+    act(() => {
+      useUIStore.getState().setPendingProjectThreadOpen({
+        projectKey: workspaceBStatus.workspacePath,
+        workspacePath: workspaceBStatus.workspacePath,
+        threadId: 'thread-b'
+      })
+      emitStatus?.(workspaceBStatus)
+      emitProjects?.(projectsPayloadFor(workspaceBStatus.workspacePath, 'B'))
+    })
+
+    await waitFor(() => {
+      expect(useThreadStore.getState().threadList.map((thread) => thread.id)).toEqual(['thread-b'])
+      expect(useThreadStore.getState().activeThreadId).toBe('thread-b')
+      expect(useUIStore.getState().pendingProjectThreadOpen).toBeNull()
+    })
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith('thread/read', {
+        threadId: 'thread-b',
+        includeTurns: true
+      })
+    })
+  })
+
+  it('clears a queued background project thread when the promoted list does not contain it', async () => {
+    const workspaceBStatus: WorkspaceStatusPayload = {
+      ...readyWorkspaceStatus,
+      workspacePath: 'C:\\sample\\workspace-b'
+    }
+    let emitStatus: ((payload: WorkspaceStatusPayload) => void) | null = null
+    let emitProjects: ((payload: WorkspaceProjectsPayload) => void) | null = null
+    const appServerSendRequest = vi.fn(async (method: string, params?: { identity?: { workspacePath?: string } }) => {
+      if (method === 'thread/list') {
+        if (params?.identity?.workspacePath === workspaceBStatus.workspacePath) {
+          return { data: [makeThreadSummary('other-thread', workspaceBStatus.workspacePath, 'Other thread')] }
+        }
+        return { data: [makeThreadSummary('thread-a', readyWorkspaceStatus.workspacePath, 'A thread')] }
+      }
+      return {}
+    })
+    installApi(readyWorkspaceStatus, {
+      appServerSendRequest,
+      modulesList: vi.fn().mockResolvedValue([]),
+      modulesRunning: vi.fn().mockResolvedValue({}),
+      settingsGet: vi.fn().mockResolvedValue({}),
+      onWorkspaceStatusChange: vi.fn((callback: (payload: WorkspaceStatusPayload) => void) => {
+        emitStatus = callback
+        return vi.fn()
+      }),
+      onProjectsChange: vi.fn((callback: (payload: WorkspaceProjectsPayload) => void) => {
+        emitProjects = callback
+        return vi.fn()
+      }),
+      workspaceGetProjects: vi.fn().mockResolvedValue(projectsPayloadFor(readyWorkspaceStatus.workspacePath, 'A'))
+    })
+    useConnectionStore.getState().setStatus({ status: 'connected' })
+
+    renderApp()
+    await waitFor(() => {
+      expect(useThreadStore.getState().threadList.map((thread) => thread.id)).toEqual(['thread-a'])
+    })
+
+    act(() => {
+      useUIStore.getState().setPendingProjectThreadOpen({
+        projectKey: workspaceBStatus.workspacePath,
+        workspacePath: workspaceBStatus.workspacePath,
+        threadId: 'missing-thread'
+      })
+      emitStatus?.(workspaceBStatus)
+      emitProjects?.(projectsPayloadFor(workspaceBStatus.workspacePath, 'B'))
+    })
+
+    await waitFor(() => {
+      expect(useThreadStore.getState().threadList.map((thread) => thread.id)).toEqual(['other-thread'])
+      expect(useUIStore.getState().pendingProjectThreadOpen).toBeNull()
+    })
+    expect(useThreadStore.getState().activeThreadId).toBeNull()
+    expect(appServerSendRequest.mock.calls.some((call) => {
+      return call[0] === 'thread/read' && (call[1] as { threadId?: string } | undefined)?.threadId === 'missing-thread'
+    })).toBe(false)
   })
 
   it('refreshes active thread metadata without reloading turns', async () => {

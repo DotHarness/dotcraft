@@ -1609,6 +1609,22 @@ kbd {
 }
 
 /* ─── Settings grouped card ─── */
+.dc-settings-sidebar-button {
+  --settings-sidebar-row-bg: transparent;
+  --settings-sidebar-row-color: var(--text-secondary);
+}
+
+.dc-settings-sidebar-button:hover:not(:disabled),
+.dc-settings-sidebar-button:focus-visible {
+  --settings-sidebar-row-bg: var(--sidebar-control-hover);
+  --settings-sidebar-row-color: var(--text-primary);
+}
+
+.dc-settings-sidebar-button[data-active="true"] {
+  --settings-sidebar-row-bg: var(--sidebar-control-active);
+  --settings-sidebar-row-color: var(--text-primary);
+}
+
 .dc-settings-group__body > .dc-settings-row + .dc-settings-row {
   border-top: 1px solid var(--border-default);
 }

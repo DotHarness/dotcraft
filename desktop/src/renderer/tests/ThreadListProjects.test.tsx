@@ -48,6 +48,7 @@ function resetStores(): void {
   useWorkspaceProjectsStore.getState().reset()
   useUIStore.setState({
     activeMainView: 'conversation',
+    pendingProjectThreadOpen: null,
     welcomeDraft: null,
     welcomeDraftsByWorkspace: {},
     welcomeDraftWorkspacePath: null
@@ -155,7 +156,12 @@ describe('ThreadList project-first layout', () => {
     fireEvent.click(screen.getByText('Pinned B'))
     await waitFor(() => {
       expect(workspaceSwitch).toHaveBeenCalledWith('/workspace/b')
-      expect(useThreadStore.getState().activeThreadId).toBe('pinned-b')
+    })
+    expect(useThreadStore.getState().activeThreadId).toBeNull()
+    expect(useUIStore.getState().pendingProjectThreadOpen).toEqual({
+      projectKey: '/workspace/b',
+      workspacePath: '/workspace/b',
+      threadId: 'pinned-b'
     })
   })
 
@@ -254,7 +260,51 @@ describe('ThreadList project-first layout', () => {
     expect(screen.queryByText('No chats')).not.toBeInTheDocument()
   })
 
-  it('clicking a background thread promotes its workspace before selecting the thread', async () => {
+  it('renders background running rows with the shared leading and status slots', () => {
+    const runningThread: ThreadSummary = {
+      ...makeThread('thread-b', 'Thread B'),
+      runtime: {
+        running: true,
+        busy: true,
+        waitingOnApproval: false,
+        waitingOnInput: false,
+        waitingOnPlanConfirmation: false,
+        maintenanceKind: null
+      }
+    }
+    useWorkspaceProjectsStore.getState().setPayload({
+      foregroundWorkspacePath: '/workspace/a',
+      secondaryLimit: 8,
+      projects: [
+        {
+          path: '/workspace/b',
+          name: 'b',
+          state: 'secondary',
+          running: true,
+          loaded: true,
+          threadCount: 1,
+          threads: [runningThread],
+          pinnedThreadIds: []
+        }
+      ]
+    })
+
+    renderList()
+
+    const row = screen.getByTestId('project-thread-entry-/workspace/b-thread-b')
+    const leading = screen.getByTestId('project-thread-leading-/workspace/b-thread-b')
+    const layout = screen.getByTestId('project-thread-layout-/workspace/b-thread-b')
+    const status = screen.getByTestId('project-thread-status-/workspace/b-thread-b')
+    const spinner = screen.getByTestId('project-thread-running-indicator-/workspace/b-thread-b')
+
+    expect(leading.parentElement).toBe(row)
+    expect(layout.parentElement).toBe(row)
+    expect(status.parentElement).toBe(layout)
+    expect(spinner.parentElement?.parentElement?.parentElement).toBe(status)
+    expect(screen.queryByTestId('project-thread-pinned-/workspace/b-thread-b')).not.toBeInTheDocument()
+  })
+
+  it('clicking a background thread queues it before promoting its workspace', async () => {
     useWorkspaceProjectsStore.getState().setPayload({
       foregroundWorkspacePath: '/workspace/a',
       secondaryLimit: 8,
@@ -277,7 +327,12 @@ describe('ThreadList project-first layout', () => {
 
     await waitFor(() => {
       expect(workspaceSwitch).toHaveBeenCalledWith('/workspace/b')
-      expect(useThreadStore.getState().activeThreadId).toBe('thread-b')
+    })
+    expect(useThreadStore.getState().activeThreadId).toBeNull()
+    expect(useUIStore.getState().pendingProjectThreadOpen).toEqual({
+      projectKey: '/workspace/b',
+      workspacePath: '/workspace/b',
+      threadId: 'thread-b'
     })
   })
 

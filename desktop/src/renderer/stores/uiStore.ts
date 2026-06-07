@@ -5,6 +5,7 @@ import type { ApprovalPolicyWire } from '../types/thread'
 import type { ReasoningEffortWire, ReasoningOutputWire } from './modelCatalogStore'
 import type { SettingsTab } from '../types/settings'
 import { useThreadStore } from './threadStore'
+import { normalizeWorkspaceProjectKey } from '../../shared/workspaceProjectKey'
 
 const SIDEBAR_DEFAULT_WIDTH = 240
 const SIDEBAR_MIN_WIDTH = 200
@@ -79,6 +80,12 @@ export interface WelcomeDraft {
   }
   approvalPolicy?: Extract<ApprovalPolicyWire, 'default' | 'autoApprove'>
   updatedAt: number
+}
+
+export interface PendingProjectThreadOpen {
+  projectKey: string
+  workspacePath: string
+  threadId: string
 }
 
 export interface UIState {
@@ -177,6 +184,8 @@ export interface UIState {
     approvalPolicy?: Extract<ApprovalPolicyWire, 'default' | 'autoApprove'>
     createdAt: number
   } | null
+  /** Background project thread click waiting for the target workspace's foreground thread list. */
+  pendingProjectThreadOpen: PendingProjectThreadOpen | null
   /** Unsent draft on ConversationWelcome, preserved across thread navigation. */
   welcomeDraft: WelcomeDraft | null
   /** Unsent welcome drafts keyed by normalized workspace path. */
@@ -289,6 +298,9 @@ interface UIStore extends UIState {
   } | null
   /** Clear pending welcome turn when it targets the given thread (e.g. thread/read failed). */
   cancelPendingWelcomeTurnForThread(threadId: string): void
+  setPendingProjectThreadOpen(payload: PendingProjectThreadOpen | null): void
+  consumePendingProjectThreadOpen(projectKey: string, threadIds: Iterable<string>): PendingProjectThreadOpen | null
+  clearPendingProjectThreadOpen(projectKey?: string, threadId?: string): void
   setWelcomeDraft(draft: Omit<WelcomeDraft, 'updatedAt'> | null, workspacePath?: string): void
   clearWelcomeDraft(workspacePath?: string): void
   setWelcomeDraftWorkspace(workspacePath: string): void
@@ -371,6 +383,7 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
   autoShowReasons: new Set<string>(),
   composerPrefill: null,
   pendingWelcomeTurn: null,
+  pendingProjectThreadOpen: null,
   welcomeDraft: null,
   welcomeDraftsByWorkspace: {},
   welcomeDraftWorkspacePath: null,
@@ -736,6 +749,53 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
       }
       set({ pendingWelcomeTurn: null, _pendingWelcomeTimer: null })
     }
+  },
+
+  setPendingProjectThreadOpen(payload) {
+    if (payload == null) {
+      set({ pendingProjectThreadOpen: null })
+      return
+    }
+
+    const projectKey = normalizeWorkspaceProjectKey(payload.projectKey || payload.workspacePath)
+    const threadId = payload.threadId.trim()
+    if (!projectKey || !threadId) {
+      set({ pendingProjectThreadOpen: null })
+      return
+    }
+
+    set({
+      pendingProjectThreadOpen: {
+        projectKey,
+        workspacePath: payload.workspacePath,
+        threadId
+      }
+    })
+  },
+
+  consumePendingProjectThreadOpen(projectKey, threadIds) {
+    const pending = get().pendingProjectThreadOpen
+    if (!pending) return null
+    if (normalizeWorkspaceProjectKey(projectKey) !== normalizeWorkspaceProjectKey(pending.projectKey)) {
+      return null
+    }
+
+    set({ pendingProjectThreadOpen: null })
+    const matchingThreadId = [...threadIds].some((id) => id === pending.threadId)
+    return matchingThreadId ? pending : null
+  },
+
+  clearPendingProjectThreadOpen(projectKey, threadId) {
+    const pending = get().pendingProjectThreadOpen
+    if (!pending) return
+    if (
+      projectKey != null &&
+      normalizeWorkspaceProjectKey(projectKey) !== normalizeWorkspaceProjectKey(pending.projectKey)
+    ) {
+      return
+    }
+    if (threadId != null && pending.threadId !== threadId) return
+    set({ pendingProjectThreadOpen: null })
   },
 
   setWelcomeDraft(draft, workspacePath) {

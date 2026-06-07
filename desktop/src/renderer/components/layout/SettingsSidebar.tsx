@@ -30,10 +30,11 @@ export function SettingsSidebar(): JSX.Element {
       <div style={collapsedContainerStyle}>
         <ActionTooltip label={t('common.backToApp')} placement="right">
           <button
+            className="dc-settings-sidebar-button dotcraft-sidebar-control-radius"
             type="button"
             onClick={requestCloseSettings}
             aria-label={t('common.backToApp')}
-            style={collapsedButtonStyle(false)}
+            style={collapsedButtonStyle}
           >
             <ArrowLeft size={18} strokeWidth={2} aria-hidden="true" />
           </button>
@@ -45,10 +46,12 @@ export function SettingsSidebar(): JSX.Element {
           return (
             <ActionTooltip key={tab.id} label={tab.label} placement="right">
               <button
+                className="dc-settings-sidebar-button dotcraft-sidebar-control-radius"
                 type="button"
                 onClick={() => setActiveSettingsTab(tab.id)}
                 aria-label={tab.label}
-                style={collapsedButtonStyle(active)}
+                data-active={active ? 'true' : undefined}
+                style={collapsedButtonStyle}
               >
                 <TabIcon size={17} strokeWidth={1.9} aria-hidden="true" />
               </button>
@@ -62,6 +65,7 @@ export function SettingsSidebar(): JSX.Element {
   return (
     <div style={expandedContainerStyle}>
       <button
+        className="dc-settings-sidebar-button dotcraft-sidebar-control-radius"
         type="button"
         onClick={requestCloseSettings}
         style={backRowStyle}
@@ -77,11 +81,13 @@ export function SettingsSidebar(): JSX.Element {
           const TabIcon = tab.icon
           return (
             <button
+              className="dc-settings-sidebar-button dotcraft-sidebar-control-radius"
               key={tab.id}
               type="button"
               onClick={() => setActiveSettingsTab(tab.id)}
               style={expandedTabStyle(active)}
               aria-current={active ? 'page' : undefined}
+              data-active={active ? 'true' : undefined}
             >
               <span style={iconSlotStyle}>
                 <TabIcon size={17} strokeWidth={1.9} aria-hidden="true" />
@@ -132,12 +138,13 @@ const backRowStyle: CSSProperties = {
   gap: '8px',
   border: 'none',
   borderRadius: 6,
-  background: 'transparent',
-  color: 'var(--text-secondary)',
+  background: 'var(--settings-sidebar-row-bg, transparent)',
+  color: 'var(--settings-sidebar-row-color, var(--text-secondary))',
   fontSize: 'var(--type-ui-size)',
   lineHeight: 'var(--type-ui-line-height)',
   cursor: 'pointer',
-  textAlign: 'left'
+  textAlign: 'left',
+  transition: 'background-color 120ms ease, color 120ms ease'
 }
 
 function expandedTabStyle(active: boolean): CSSProperties {
@@ -150,30 +157,30 @@ function expandedTabStyle(active: boolean): CSSProperties {
     gap: '8px',
     border: 'none',
     borderRadius: 6,
-    background: active ? 'var(--bg-tertiary)' : 'transparent',
-    color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
+    background: 'var(--settings-sidebar-row-bg, transparent)',
+    color: 'var(--settings-sidebar-row-color, var(--text-secondary))',
     fontSize: 'var(--type-ui-size)',
     lineHeight: 'var(--type-ui-line-height)',
     fontWeight: active ? 600 : 500,
     cursor: 'pointer',
-    textAlign: 'left'
+    textAlign: 'left',
+    transition: 'background-color 120ms ease, color 120ms ease'
   }
 }
 
-function collapsedButtonStyle(active: boolean): CSSProperties {
-  return {
-    width: 32,
-    height: 32,
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    border: 'none',
-    borderRadius: 6,
-    background: active ? 'var(--bg-tertiary)' : 'transparent',
-    color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
-    cursor: 'pointer',
-    padding: 0
-  }
+const collapsedButtonStyle: CSSProperties = {
+  width: 32,
+  height: 32,
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  border: 'none',
+  borderRadius: 6,
+  background: 'var(--settings-sidebar-row-bg, transparent)',
+  color: 'var(--settings-sidebar-row-color, var(--text-secondary))',
+  cursor: 'pointer',
+  padding: 0,
+  transition: 'background-color 120ms ease, color 120ms ease'
 }
 
 const iconSlotStyle: CSSProperties = {

@@ -746,6 +746,14 @@ export function App(): JSX.Element {
         resolvePinnedThreadIdsForWorkspace(settings.pinnedThreadIdsByWorkspace, projectKey)
       )
       threadStore.prunePinnedThreadIds()
+      const pendingProjectThreadOpen = useUIStore.getState().consumePendingProjectThreadOpen(
+        projectKey,
+        useThreadStore.getState().threadList.map((thread) => thread.id)
+      )
+      if (pendingProjectThreadOpen) {
+        useUIStore.getState().setActiveMainView('conversation')
+        useThreadStore.getState().setActiveThreadId(pendingProjectThreadOpen.threadId)
+      }
     } catch (err: unknown) {
       if (!isCurrentRequest()) return
       console.error('Failed to load thread list:', err)

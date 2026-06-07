@@ -752,8 +752,8 @@ function ProjectHeader({
           />
           {cold && (
             <CircleDashed
-              size={8}
-              strokeWidth={2.2}
+              size={9}
+              strokeWidth={2.35}
               aria-hidden
               style={projectColdBadgeStyle}
             />
@@ -984,8 +984,7 @@ function ProjectHint({ label }: { label: string }): JSX.Element {
 function ReadonlyThreadRow({
   thread,
   project,
-  pinned = false,
-  variant = 'project'
+  pinned = false
 }: {
   thread: ThreadSummary
   project: WorkspaceProjectSummary
@@ -995,15 +994,36 @@ function ReadonlyThreadRow({
   const locale = useLocale()
   const t = useT()
   const setActiveMainView = useUIStore((s) => s.setActiveMainView)
+  const setPendingProjectThreadOpen = useUIStore((s) => s.setPendingProjectThreadOpen)
   const running = isThreadRunning(thread)
   const waiting = isThreadWaiting(thread)
   const displayName = thread.displayName ?? t('sidebar.newConversation')
   const relativeTime = formatRelativeTime(thread.lastActiveAt, new Date(), locale)
-  const pinnedVariant = variant === 'pinned'
+  const rowProjectKey = projectIdentity(project)
+  const statusColumn = running
+    ? '24px'
+    : waiting
+      ? 'minmax(74px, max-content)'
+      : 'minmax(24px, max-content)'
+  const statusSlotWidth = running ? '24px' : 'max-content'
+  const statusSlotJustify = running ? 'center' : 'end'
 
   async function openThread(): Promise<void> {
     if (!isRemoteProject(project)) {
-      await window.api.workspace.switch(project.path)
+      if (project.state !== 'foreground') {
+        setPendingProjectThreadOpen({
+          projectKey: rowProjectKey,
+          workspacePath: project.path,
+          threadId: thread.id
+        })
+        try {
+          await window.api.workspace.switch(project.path)
+        } catch (err) {
+          useUIStore.getState().clearPendingProjectThreadOpen(rowProjectKey, thread.id)
+          console.error('Failed to switch workspace for project thread:', err)
+        }
+        return
+      }
     }
     setActiveMainView('conversation')
     useThreadStore.getState().setActiveThreadId(thread.id)
@@ -1016,14 +1036,12 @@ function ReadonlyThreadRow({
         onClick={() => void openThread()}
         data-testid={`project-thread-entry-${projectIdentity(project)}-${thread.id}`}
         style={{
-          display: pinnedVariant ? 'flex' : 'grid',
-          gridTemplateColumns: pinnedVariant ? undefined : 'minmax(0, 1fr) minmax(24px, max-content)',
+          display: 'flex',
           alignItems: 'center',
-          columnGap: pinnedVariant ? undefined : '7px',
-          gap: pinnedVariant ? '6px' : undefined,
-          width: pinnedVariant ? 'calc(100% - 20px)' : 'calc(100% - 32px)',
-          margin: pinnedVariant ? '2px 10px' : '2px 10px 2px 22px',
-          padding: pinnedVariant ? '6px 12px 6px 6px' : '6px 12px',
+          gap: '6px',
+          width: 'calc(100% - 20px)',
+          margin: '2px 10px',
+          padding: '6px 12px 6px 6px',
           border: 'none',
           borderRadius: 'var(--sidebar-control-radius)',
           backgroundColor: 'transparent',
@@ -1038,32 +1056,30 @@ function ReadonlyThreadRow({
           e.currentTarget.style.backgroundColor = 'transparent'
         }}
       >
-        {pinned && pinnedVariant && (
-          <ReadonlyPinnedIcon
-            label={t('threadGroup.pinned')}
-            testId={`project-thread-pinned-${projectIdentity(project)}-${thread.id}`}
-          />
-        )}
         <span
+          data-testid={`project-thread-leading-${rowProjectKey}-${thread.id}`}
+          style={readonlyLeadingSlotStyle}
+        >
+          {pinned && (
+            <ReadonlyPinnedIcon
+              label={t('threadGroup.pinned')}
+              testId={`project-thread-pinned-${rowProjectKey}-${thread.id}`}
+            />
+          )}
+        </span>
+        <span
+          data-testid={`project-thread-layout-${rowProjectKey}-${thread.id}`}
           style={{
+            flex: 1,
             minWidth: 0,
-            display: pinnedVariant ? 'block' : 'flex',
+            display: 'grid',
+            gridTemplateColumns: `minmax(0, 1fr) ${statusColumn}`,
+            columnGap: '7px',
             alignItems: 'center',
-            gap: '6px',
-            flex: pinnedVariant ? '1 1 auto' : undefined,
-            overflow: pinnedVariant ? 'hidden' : undefined,
-            textOverflow: pinnedVariant ? 'ellipsis' : undefined,
-            whiteSpace: pinnedVariant ? 'nowrap' : undefined,
             fontSize: 'var(--type-ui-size)',
             lineHeight: 'var(--type-ui-line-height)'
           }}
         >
-          {pinned && !pinnedVariant && (
-            <ReadonlyPinnedIcon
-              label={t('threadGroup.pinned')}
-              testId={`project-thread-pinned-${projectIdentity(project)}-${thread.id}`}
-            />
-          )}
           <span
             style={{
               minWidth: 0,
@@ -1074,30 +1090,60 @@ function ReadonlyThreadRow({
           >
             {displayName}
           </span>
-        </span>
-        <span
-          style={{
-            color: 'var(--text-dimmed)',
-            fontSize: 'var(--type-secondary-size)',
-            lineHeight: 'var(--type-secondary-line-height)',
-            marginLeft: pinnedVariant ? 'auto' : undefined,
-            flexShrink: pinnedVariant ? 0 : undefined,
-            whiteSpace: 'nowrap'
-          }}
-        >
-          {running ? (
-            <RunningSpinner label={t('threadEntry.turnRunning')} />
-          ) : waiting ? (
-            <span style={readonlyWaitingBadgeStyle}>
-              {t('projectsRail.awaitingResponse')}
+          <span
+            data-testid={`project-thread-status-${rowProjectKey}-${thread.id}`}
+            style={{
+              width: statusSlotWidth,
+              minWidth: '24px',
+              justifySelf: statusSlotJustify,
+              height: '24px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: statusSlotJustify,
+              color: 'var(--text-dimmed)',
+              fontSize: 'var(--type-secondary-size)',
+              lineHeight: 'var(--type-secondary-line-height)',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: statusSlotJustify,
+                width: running ? '100%' : 'auto',
+                overflow: 'hidden',
+                textOverflow: 'clip'
+              }}
+            >
+              {running ? (
+                <RunningSpinner
+                  label={t('threadEntry.turnRunning')}
+                  testId={`project-thread-running-indicator-${rowProjectKey}-${thread.id}`}
+                />
+              ) : waiting ? (
+                <span style={readonlyWaitingBadgeStyle}>
+                  {t('projectsRail.awaitingResponse')}
+                </span>
+              ) : (
+                relativeTime
+              )}
             </span>
-          ) : (
-            relativeTime
-          )}
+          </span>
         </span>
       </button>
     </ActionTooltip>
   )
+}
+
+const readonlyLeadingSlotStyle: CSSProperties = {
+  width: '18px',
+  minWidth: '18px',
+  height: '24px',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  flexShrink: 0
 }
 
 function ReadonlyPinnedIcon({
@@ -1235,11 +1281,15 @@ const projectIconSlotStyle: CSSProperties = {
 
 const projectColdBadgeStyle: CSSProperties = {
   position: 'absolute',
-  right: '1px',
-  bottom: '1px',
-  color: 'var(--text-tertiary)',
+  right: 0,
+  bottom: 0,
+  color: 'color-mix(in srgb, var(--text-primary) 62%, var(--bg-primary))',
   backgroundColor: 'var(--bg-secondary)',
-  borderRadius: '999px'
+  borderRadius: '999px',
+  boxShadow: [
+    '0 0 0 1px var(--bg-secondary)',
+    '0 0 0 2px color-mix(in srgb, var(--text-primary) 18%, transparent)'
+  ].join(', ')
 }
 
 const projectMenuStyle: CSSProperties = {

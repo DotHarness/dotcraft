@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, 
 import {
   ListChecks,
   Plus,
-  TestTube2
+  TestTube2,
+  Trash2
 } from 'lucide-react'
 import { addToast } from '../../stores/toastStore'
 import { applyTheme, resolveTheme, type ThemeMode } from '../../utils/theme'
@@ -830,6 +831,22 @@ function secondaryActionButtonStyle(disabled = false): CSSProperties {
     opacity: disabled ? 0.7 : 1,
     whiteSpace: 'nowrap',
     flexShrink: 0
+  }
+}
+
+function destructiveIconButtonStyle(disabled = false): CSSProperties {
+  return {
+    width: '28px',
+    height: '28px',
+    borderRadius: '6px',
+    border: '1px solid color-mix(in srgb, var(--error) 46%, transparent)',
+    background: 'transparent',
+    color: 'var(--error)',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    cursor: disabled ? 'default' : 'pointer',
+    opacity: disabled ? 0.7 : 1
   }
 }
 
@@ -4547,9 +4564,16 @@ export function SettingsView({
                           key={domain}
                           label={domain}
                           control={
-                            <button type="button" onClick={() => void handleRemoveBrowserUseDomain('blocked', domain)} style={secondaryButtonStyle(false)}>
-                              {t('settings.browserUse.remove')}
-                            </button>
+                            <ActionTooltip label={t('settings.browserUse.remove')} placement="top">
+                              <button
+                                type="button"
+                                onClick={() => void handleRemoveBrowserUseDomain('blocked', domain)}
+                                aria-label={t('settings.browserUse.remove')}
+                                style={destructiveIconButtonStyle(false)}
+                              >
+                                <Trash2 size={14} strokeWidth={2} aria-hidden />
+                              </button>
+                            </ActionTooltip>
                           }
                         />
                       ))}
@@ -4575,9 +4599,16 @@ export function SettingsView({
                           key={domain}
                           label={domain}
                           control={
-                            <button type="button" onClick={() => void handleRemoveBrowserUseDomain('allowed', domain)} style={secondaryButtonStyle(false)}>
-                              {t('settings.browserUse.remove')}
-                            </button>
+                            <ActionTooltip label={t('settings.browserUse.remove')} placement="top">
+                              <button
+                                type="button"
+                                onClick={() => void handleRemoveBrowserUseDomain('allowed', domain)}
+                                aria-label={t('settings.browserUse.remove')}
+                                style={destructiveIconButtonStyle(false)}
+                              >
+                                <Trash2 size={14} strokeWidth={2} aria-hidden />
+                              </button>
+                            </ActionTooltip>
                           }
                         />
                       ))}
