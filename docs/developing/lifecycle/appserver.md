@@ -1,6 +1,6 @@
 # AppServer Mode
 
-AppServer is DotCraft's wire protocol server. It exposes Agent capabilities (session management, tool invocation, approval flows) to external clients via JSON-RPC. TUI, Desktop, ACP, external channel adapters, and custom integrations can all connect to the same AppServer.
+This page targets integrators and contributors who manage AppServer directly. AppServer is DotCraft's wire protocol server. It exposes Agent capabilities (session management, tool invocation, approval flows) to external clients via JSON-RPC. TUI, Desktop, ACP, external channel adapters, and custom integrations can all connect to the same AppServer.
 
 Use cases:
 
@@ -24,6 +24,8 @@ dotcraft app-server --listen ws://127.0.0.1:9100
 # stdio + WebSocket dual mode
 dotcraft app-server --listen ws+stdio://127.0.0.1:9100
 ```
+
+The server listens on the bare `ws://host:port` (or `wss://host:port`) address; clients append the `/ws` path to connect, for example `ws://host:port/ws`. The examples below follow this rule.
 
 ## Connecting from the Command Line
 
@@ -113,7 +115,7 @@ dotcraft app-server --listen ws://0.0.0.0:9100 --token my-secret
 dotcraft exec --remote ws://server:9100/ws --token my-secret "Check status"
 ```
 
-The token is passed via the WebSocket query: `ws://host:port/ws?token=<value>`.
+The token is passed via the WebSocket query: `ws://host:port/ws?token=<value>`. Once the server sets `--token`, every client — TUI, Desktop, ACP, `dotcraft exec`, and custom clients — must send the same token; an empty token is rejected.
 
 > [!CAUTION]
 > Binding to `0.0.0.0` without a token leaves AppServer fully open.
@@ -183,16 +185,6 @@ Suitable for fixed deployments. `ExternalChannels` tells DotCraft how to launch 
 | Share one backend across Desktop / TUI / ACP | `dotcraft app-server --listen ws://127.0.0.1:9100` |
 | Connect to a remote workspace | Listen with WebSocket; clients connect to `/ws` |
 | Build a custom client | Speak JSON-RPC 2.0 over stdio or WebSocket |
-
-## Troubleshooting
-
-### WebSocket clients cannot connect
-
-Confirm the server was started with `--listen ws://...` or `ws+stdio://...`, and the client URL includes `/ws`.
-
-### Authentication fails
-
-When the server sets `--token`, all clients (TUI, Desktop, ACP, `dotcraft exec`, custom) must send the same token. Do not use an empty token for remote deployments.
 
 ## Related
 

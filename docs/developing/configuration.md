@@ -572,3 +572,9 @@ Vendor headless notes:
 ## Custom Commands
 
 `CustomCommands` stores reusable prompts or workflows as commands. Command content usually lives under workspace `.craft/commands/` or the corresponding configuration entry, then can be reused from CLI, Desktop, and other entry points.
+
+## Related docs
+
+- [Project Workspace](../features/project-first) — first-time setup and the `.craft/` layout
+- [AppServer Mode](./lifecycle/appserver) — `AppServer.*` / `CLI.*` fields in context
+- [Settings Lifecycle](./lifecycle/settings-lifecycle) — when a changed field takes effect

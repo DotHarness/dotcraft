@@ -1,6 +1,6 @@
 # Hub 本地协调
 
-Hub 是 DotCraft 的本地运行时协调器。它在你的电脑上按用户运行，负责发现、启动、复用和停止每个工作区对应的 AppServer。Desktop / TUI 默认通过 Hub 工作，普通用户**不需要直接接触 Hub**。
+本页面向集成方与贡献者；大多数用户从不直接接触 Hub。Hub 是 DotCraft 的本地运行时协调器。它在你的电脑上按用户运行，负责发现、启动、复用和停止每个工作区对应的 AppServer。Desktop / TUI 默认通过 Hub 工作。
 
 > [!NOTE]
 > 远程、CI、机器人或显式调试 AppServer 的场景请走 [AppServer 模式](./appserver)。
@@ -23,7 +23,7 @@ Hub 是 DotCraft 的本地运行时协调器。它在你的电脑上按用户运
 dotcraft hub
 ```
 
-启动后 Hub 在本机回环地址提供本地管理 API，并把发现信息写入 `~/.craft/hub/hub.lock`。
+启动后 Hub 在本机回环地址提供本地管理 API，并把发现信息写入 `~/.craft/hub/hub.lock`。Hub 自动分配本地端口；如果启动因端口被占用、权限受限或安全软件阻止本地回环而失败，重启 Hub 或 Desktop 即可重新分配。
 
 ## 本地状态
 
@@ -41,7 +41,7 @@ dotcraft hub
 
 它表示该工作区当前由哪个 AppServer 进程拥有，防止同一个工作区被多个本地 AppServer 同时占用。
 
-当 Hub 或 AppServer 发现 `appserver.lock` 是已退出进程留下的 stale lock 时，会自动移除并继续启动。如果锁指向的 AppServer 仍在运行且 WebSocket 端点健康，Hub 会直接复用该端点，而不是启动重复进程。
+当 Hub 或 AppServer 发现 `appserver.lock` 是已退出进程留下的 stale lock 时，会自动移除并继续启动。如果锁指向的 AppServer 仍在运行且 WebSocket 端点健康，Hub 会直接复用该端点，而不是启动重复进程。如果锁指向一个 Hub 无法安全复用的存活 AppServer，关闭占用该工作区的 Desktop / TUI / CLI，或在托盘里停止对应工作区运行时，然后重新打开。
 
 ## Desktop 与托盘
 
@@ -55,19 +55,7 @@ Desktop 提供 Hub 的可视化层，Hub 自身是无界面的后台协调器。
 
 托盘退出时，Desktop 可以请求 Hub 停止它托管的工作区 AppServer。
 
-## 故障排查
-
-### Desktop 无法打开工作区
-
-确认 `dotcraft` / `dotcraft.exe` 在 `PATH` 中，或在 Desktop 设置里配置 AppServer 可执行文件路径。
-
-### 工作区被占用
-
-`<workspace>/.craft/appserver.lock` 指向另一个仍然存活、且 Hub 无法安全复用的 AppServer。关闭占用工作区的 Desktop / TUI / CLI，或在托盘里停止对应工作区运行时后重试。已退出进程留下的锁会自动恢复。
-
-### 本地端口冲突
-
-Hub 自动分配端口。失败通常是端口被占用、权限受限或安全软件阻止本地回环连接。重启 Hub 或 Desktop 通常会重新分配端口。
+要让 Desktop 能打开工作区，`dotcraft` / `dotcraft.exe` 必须在 `PATH` 中，或在 Desktop 设置里配置 AppServer 可执行文件路径。
 
 ## 实现客户端
 

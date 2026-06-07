@@ -401,7 +401,7 @@ Clients should check `capabilities.skillsManagement` before calling `skills/*`, 
 
 Plugin lifecycle separates installation from enablement:
 
-- `plugin/install`: installs a Desktop-bundled built-in plugin into the current workspace at `.craft/plugins/<id>/`, writes a `.builtin` marker, and enables it by default. Uninstalled built-ins are visible only when AppServer was launched with `DOTCRAFT_BUILTIN_PLUGIN_ROOTS`.
+- `plugin/install`: installs a Desktop-bundled built-in plugin into the current workspace at `.craft/plugins/<id>/`, writes a `.builtin` marker, and enables it by default.
 - `plugin/setEnabled`: only controls whether an installed plugin enters the Agent context. It does not install or delete plugin files.
 - `plugin/remove`: removes only DotCraft-managed built-in plugin directories that carry a `.builtin` marker. It does not delete user-owned local plugin directories.
 
@@ -520,3 +520,10 @@ Recommended handling:
 - Support server-initiated approval requests, or explicitly declare that you do not.
 - Use `capabilities` for feature discovery instead of assuming all management APIs exist.
 - Stay compatible with unknown notifications, item types, and capabilities.
+
+## Related docs
+
+- [Hub Protocol](./hub-protocol)
+- [Dashboard API](./dashboard-api)
+- [AppServer Mode](../lifecycle/appserver)
+- [Plugins & Tools](../../features/agent-system/plugins-tools)

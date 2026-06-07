@@ -1,6 +1,6 @@
 # TypeScript Module Integration
 
-This guide describes how a host (Desktop, CLI tool, or any supervisor process) integrates TypeScript external channel modules using the `@dotcraft/sdk/channel` module contract.
+This guide is for developers embedding TypeScript external channel modules into a host — Desktop, a CLI tool, or any supervisor process — through the `@dotcraft/sdk/channel` module contract. It assumes you have the `@dotcraft/sdk` package and a channel module package (such as `@dotcraft/channel-feishu`) installed.
 
 ## 1. Overview
 
@@ -10,9 +10,9 @@ The module contract gives hosts a stable boundary:
 - Create a runnable instance through `createModule(context)`
 - Observe machine-readable lifecycle and errors
 - Render config UX from `configDescriptors`
-- Support module variant substitution by `moduleId` while keeping runtime channel identity by `channelName`
+- Substitute module variants by `moduleId` while keeping runtime channel identity by `channelName`
 
-Hosts should not import package-internal files or infer behavior from source layout.
+Import only from the package root. Don't import package-internal files or infer behavior from the source layout.
 
 ## 2. Loading A Module
 
@@ -61,11 +61,11 @@ const instance: ModuleInstance = createModule(context);
 await instance.start();
 ```
 
-The host controls startup inputs. Modules should not depend on current working directory as the only startup source.
+The host controls startup inputs. Pass the workspace context explicitly — a module does not rely on the current working directory to locate the workspace.
 
 ## 5. Observing Lifecycle
 
-Hosts should register status handlers before calling `start()`.
+Register status handlers before calling `start()` so no early transition is missed.
 
 ```typescript
 import type { LifecycleStatus, ModuleError, ModuleInstance } from "@dotcraft/sdk/channel";
@@ -133,7 +133,7 @@ const fields = configDescriptors.map(toFormField);
 console.log(fields);
 ```
 
-Host UI should respect:
+Have the host UI respect:
 
 - `required` for validation
 - `masked` and `dataKind: "secret"` for protected input display
@@ -209,3 +209,9 @@ Checklist for new module packages:
 5. Include package tests and conformance tests.
 
 This keeps first-party, enterprise, and partner modules interchangeable at the host boundary.
+
+## Related docs
+
+- [Channel adapters](../sdks/channels) — the adapter base class the modules build on.
+- [TypeScript SDK](../sdks/typescript) — the `@dotcraft/sdk` client used inside a module.
+- [Feishu Channel Adapter](../channels/feishu) — a complete module that implements this contract.

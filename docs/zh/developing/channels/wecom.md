@@ -153,4 +153,10 @@ npm start -- --workspace F:\examples\workspace
 |-----------|------|----------|----------|
 | `"wecom"` | `"chat:<ChatId>"` 或 `"<ChatId>"` | 企业微信会话 | 该 ChatId 已有消息进入，适配器缓存了 webhook |
 
-建议在企业微信会话中创建 Cron 任务，让任务自动关联当前 ChatId。若目标 chatId 尚未建立 webhook 缓存，投递会失败并返回 `No WeCom webhook is available for target ...`。
+在企业微信会话中创建 Cron 任务，任务会自动关联当前 ChatId。若目标 ChatId 尚未建立 webhook 缓存，投递会失败并返回 `No WeCom webhook is available for target ...`。
+
+## 相关文档
+
+- [Channels & Bots](../../features/entry-points/channels)——所有聊天渠道的总览。
+- [Channel adapters](../sdks/channels)——适配器基类与线协议契约。
+- [微信渠道适配器](./weixin)——独立的个人微信渠道。

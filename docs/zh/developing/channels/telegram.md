@@ -117,3 +117,9 @@ await instance.start();
   - `npm run test --workspace @dotcraft/channel-telegram`
 - 预览打包内容：
   - `cd sdk/typescript/packages/channel-telegram && npm pack --dry-run`
+
+## 相关文档
+
+- [Channels & Bots](../../features/entry-points/channels)——所有聊天渠道的总览。
+- [TypeScript 模块集成](../integrations/typescript-module)——本模块实现的宿主契约。
+- [Telegram 适配器（Python）](./python-telegram)——Python 参考实现。

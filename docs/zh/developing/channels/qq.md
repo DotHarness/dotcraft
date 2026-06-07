@@ -139,3 +139,9 @@ QQ 渠道提供以下工具，供 Agent 执行显式跨目标投递：
 | `QQUploadPrivateFile` | QQ 用户 | 本地绝对路径 |
 
 这些工具由适配器通过 external channel capabilities 暴露。工具名保持 PascalCase。
+
+## 相关文档
+
+- [Channels & Bots](../../features/entry-points/channels)——所有聊天渠道的总览。
+- [Channel adapters](../sdks/channels)——适配器基类与线协议契约。
+- [企业微信渠道适配器](./wecom)——另一个基于回调的 TypeScript 渠道。

@@ -62,7 +62,7 @@ dotcraft
 
 ### 3. 配置模型
 
-DotCraft 使用 Provider 注册表管理模型服务。常见方式包括：
+在 Desktop 中，初始化向导会全程引导你完成：选择提供商、填入 API Key、选择模型，无需手动编辑文件。DotCraft 支持三种常见方式：
 
 | 方式 | 适合场景 |
 |------|----------|
@@ -70,7 +70,9 @@ DotCraft 使用 Provider 注册表管理模型服务。常见方式包括：
 | OpenAI / OpenAI-compatible | 使用 OpenAI API、OpenRouter、DeepSeek、MiMo 等兼容接口 |
 | ChatGPT 订阅 | 直接复用 ChatGPT Plus / Pro / Team / Business / Enterprise 订阅，无需单独 API Key |
 
-最小配置通常只需要一个 `Providers` 注册表，以及当前选择的 `ProviderId` 和 `Model`：
+已有 ChatGPT Plus / Pro / Team / Business / Enterprise 订阅时，可在向导的 OpenAI 模板里选「使用 ChatGPT 登录」，或在初始化后运行 `dotcraft auth openai login`，无需 API Key 即可复用订阅。
+
+更喜欢直接编辑配置？最小配置就是一份提供商清单，加上当前选择的 `ProviderId` 和 `Model`：
 
 ```json
 {
@@ -92,11 +94,7 @@ DotCraft 使用 Provider 注册表管理模型服务。常见方式包括：
 }
 ```
 
-`Protocol: "anthropic"` 使用 Anthropic 原生接口，省略 `EndPoint` 时默认连接 `https://api.anthropic.com`。OpenAI-compatible Chat Completions 服务使用 `Protocol: "openai-chat-completions"`，第三方兼容端点通常需要填写以 `/v1` 结尾的 `EndPoint`。支持 OpenAI Responses API 的端点使用 `openai-responses`。DeepSeek V4 与 MiMo V2.5 在两种 OpenAI 协议下开箱可用，并自动启用思考控制。
-
-已有 ChatGPT Plus / Pro / Team / Business / Enterprise 订阅时，可在初始化向导的 OpenAI 模板里选「使用 ChatGPT 登录」，或在终端运行 `dotcraft auth openai login`，无需 API Key 即可复用订阅。
-
-敏感信息和端点放在全局 `~/.craft/config.json` 的 `Providers` 中；工作区通常只保存 `ProviderId` 和 `Model` 覆盖。需要手动编辑文件时，对应路径是全局 `~/.craft/config.json` 和工作区 `<workspace>/.craft/config.json`。完整字段见 [配置参考](./developing/configuration)。
+API Key 和端点放在全局文件 `~/.craft/config.json`；工作区通常只覆盖 `ProviderId` 和 `Model`。协议、端点，以及 OpenAI 兼容服务的 `/v1` 规则等完整字段，见 [配置参考](./developing/configuration)。
 
 ### 4. 第一次运行
 
@@ -112,24 +110,15 @@ DotCraft 使用 Provider 注册表管理模型服务。常见方式包括：
 dotcraft exec "请阅读这个仓库的 README 和 docs/index.md，告诉我这个项目怎么启动。"
 ```
 
-已经初始化的工作区中，`dotcraft` 不会进入交互式聊天；终端里的交互体验请使用 TUI。
+直接运行 `dotcraft` 只负责首次初始化——在已经有 `.craft/` 的工作区里，它不会进入交互式聊天。需要终端会话，请继续阅读 [TUI 指南](./features/entry-points/tui)。
 
-如果你想使用终端富界面，请继续阅读 [TUI 指南](./features/entry-points/tui)。
+## 一个工作区，连接所有入口
 
-## 理解入口模型
-
-DotCraft 围绕 **统一会话核心（Unified Session Core）** 组织不同入口：命令行、Desktop、IDE、机器人与自动化并不是各自维护一套 agent 流程，而是复用同一个执行引擎与会话模型。
-
-| 维度 | Gateway | Unified Session Core |
-|------|---------|----------------------|
-| 客户端定制 | 消息总线丢失难以定制 | 灵活自由的客户端 |
-| 审批 / HITL | 无法表达平台原生的审批交互 | 以平台原生 UI 呈现 |
-| 跨渠道恢复 | 不支持 | 会话可跨渠道恢复 |
-| 工作区持久化 | 不支持 | 围绕工作区设计 |
+DotCraft 把 Desktop、终端、IDE、机器人与自动化都连接到同一个项目工作区。在一个入口开始的对话，可以在另一个入口继续，共享同一份会话、记忆和工具。
 
 ![统一入口模型](https://github.com/DotHarness/resources/raw/master/dotcraft/entry.png)
 
-DotCraft 将不同入口连接到同一个项目级工作空间，由统一会话核心负责承接执行、状态与编排。
+想了解一个引擎如何支撑所有入口？见 [架构总览](./developing/architecture/overview)。
 
 ## 配置
 
@@ -188,17 +177,3 @@ Dashboard 是 DotCraft 的可视化观察与配置入口，用于查看会话、
 - 使用 [安全与沙箱](./features/self-hosted/security) 限制文件、Shell 和网络能力。
 - 使用 [示例与模板](./resources/samples) 验证完整工作区模板。
 - 想从架构角度了解，跳到 [架构总览](./developing/architecture/overview)。
-
-## 故障排查
-
-### Desktop 找不到 `dotcraft`
-
-确认 DotCraft CLI 已在 `PATH` 中，或在 Desktop 设置中手动指定 AppServer / `dotcraft` 二进制路径。源码构建用户可先运行仓库根目录的 `build.bat`。
-
-### 模型请求失败
-
-检查当前 `ProviderId` 是否指向一个已配置的 `Providers[id]`，并确认该 Provider 的 `Protocol`、`ApiKey`、`EndPoint` 和 `Model` 匹配同一个服务。`Protocol: "openai-chat-completions"` 的兼容端点通常以 `/v1` 结尾；`Protocol: "anthropic"` 省略 `EndPoint` 时使用 Anthropic 官方默认地址。
-
-### 工作区配置没有生效
-
-确认配置写在当前工作区的 `.craft/config.json`，并重启 Desktop 或相关 Host。部分 AppServer 和入口配置只在启动时读取。

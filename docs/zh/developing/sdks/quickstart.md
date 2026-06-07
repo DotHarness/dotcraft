@@ -1,6 +1,6 @@
 # SDK 快速开始
 
-DotCraft 为 **TypeScript**、**.NET**、**Python** 提供 SDK。
+用 DotCraft SDK 连接工作区并运行第一轮对话。本教程覆盖三个 SDK——**TypeScript**、**.NET**、**Python**——带你从安装走到流式回复。在每个标签页里选择你的语言。
 
 ## 安装
 
@@ -22,7 +22,7 @@ pip install dotcraft
 
 ## 1. 连接
 
-`local` 会发现或启动本地 Hub，并为你的工作区确保一个 AppServer。若要连接已知的 AppServer WebSocket，则用 `remote`。
+`local` 会发现或启动本地 [Hub](../lifecycle/hub)，并为你的工作区确保一个 [AppServer](../protocols/appserver-protocol)——传入工作区路径。当工作区运行在别处时，改用 `remote` 连接已知的 AppServer WebSocket URL（`ws://host:port/...`）。
 
 ::: code-group
 

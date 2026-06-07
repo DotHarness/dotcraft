@@ -11,98 +11,56 @@ DotCraft 给 Agent 两种"不用你一轮轮盯着也能干活"的方式：
 
 ## Automations
 
-DotCraft 原生 Automations 仅覆盖本地任务。它从当前工作区的 `.craft/tasks/` 读取任务文件，按计划或手动触发 Agent，支持线程绑定、模板、重试、活动展示和 `CompleteLocalTask` 完成路径。
+Automations 在你的工作区里运行本地任务——可以定时，也可以随时手动触发。它适合那些你本来要自己记着去做的例行活儿：周报、夜间巡检、清理。
 
-### 创建本地任务
+### 创建任务
 
-一个本地任务位于 `.craft/tasks/<task-id>/`：
+在 Desktop 的 Automations 面板里创建和管理任务。每个任务由一段简短的说明（做什么、什么时候做）和一段工作流提示词（怎么做）组成。任务随项目保存在 `.craft/tasks/` 下，会跟着仓库走。
 
-```text
-.craft/
-  tasks/
-    weekly-report/
-      task.md
-      workflow.md
-```
-
-`task.md` 描述任务标题、正文、调度和线程绑定；`workflow.md` 描述 Agent 要执行的工作流提示词。
-
-### 常用能力
+### 任务能做什么
 
 | 能力 | 说明 |
 |---|---|
-| 手动运行 | Desktop Automations 面板或 AppServer `automation/task/run` |
-| 定时运行 | 在任务文件中配置 `schedule` |
-| 线程绑定 | 把任务绑定到已有线程，后续运行提交到该线程 |
-| 模板 | 在 `.craft/automations/templates/` 保存可复用任务模板 |
-| 完成工具 | Agent 调用 `CompleteLocalTask` 写入完成摘要 |
-| 删除任务 | 删除任务文件夹，可同时删除关联线程 |
+| 手动运行 | 在 Desktop 中按需触发任务 |
+| 定时运行 | 给任务设置计划，让它自己跑 |
+| 线程绑定 | 把任务绑定到已有对话，后续运行继续在该对话进行 |
+| 模板 | 把任务保存为可复用模板 |
+| 完成摘要 | 工作完成后，Agent 写一段简短摘要 |
+| 删除 | 删除任务，可同时删除其关联对话 |
 
-### Workflow 模板变量
-
-| 变量 | 说明 |
-|---|---|
-| `task.id` | 任务 id |
-| `task.title` | 任务标题 |
-| `task.description` | `task.md` 正文 |
-| `task.thread_id` | 绑定线程 id |
-
-AppServer 方法和 Automations 配置字段见 [Automations、Goals 与 Hooks](../../developing/configuration#automations-goals-与-hooks)。
-
-### `CompleteLocalTask` 工具
-
-| 参数 | 说明 |
-|---|---|
-| `summary` | 简短完成说明 |
-
-Agent 完成工作后调用，任务记录完成摘要并进入完成路径。
-
-### 目录结构
-
-```text
-<workspace>/
-  .craft/
-    tasks/
-      <task-id>/
-        task.md
-        workflow.md
-    automations/
-      templates/
-        <template-id>/
-          template.md
-```
+调度格式、工作流变量和完整的任务字段见 [Automations、Goals 与 Hooks](../../developing/configuration#automations-goals-与-hooks)。
 
 ---
 
 ## Goals
 
-Goals 是挂在单个 Thread 上的长期目标。用户显式设置目标后，DotCraft 会把目标写入会话核心，后续 Turn 都能看到这个目标；当 Thread 空闲且自动继续开启时，系统可以继续推进目标，直到完成、暂停、清除或触达预算限制。
+Goal 把一个长期目标钉在某一段对话上。设置之后，目标就跟着这段对话；每当这段对话空闲（且自动继续开启），DotCraft 就继续推进它——直到完成、暂停、清除，或被 token 预算叫停。
 
 ### 适合的任务
 
 - 需要多轮推进的重构、文档整理、迁移或排查任务。
-- 需要用户随时暂停、恢复、替换或清除目标的长期工作。
-- 需要把 token 用量、耗时和完成状态跟 Thread 一起持久化的工作。
+- 需要你随时暂停、恢复、替换或清除目标的长期工作。
+- 需要把进度、耗时和完成状态跟对话一起留存的工作。
 
 ### 生命周期
 
 | 状态 | 含义 |
 |---|---|
-| `active` | 目标正在生效；Thread 空闲时可自动继续 |
-| `paused` | 目标保留但不自动继续 |
-| `budgetLimited` | 达到 token 预算，等待用户处理 |
-| `complete` | Agent 审核后标记完成 |
+| `active` | 正在生效；对话空闲时可自动继续 |
+| `paused` | 保留，但不自动继续 |
+| `budgetLimited` | token 预算用尽，等待你处理 |
+| `complete` | Agent 审核完工作并标记完成 |
 
-### 常用入口
+### 如何管理目标
 
-| 操作 | 入口 |
+| 操作 | 在哪里 |
 |---|---|
-| 设置 / 替换目标 | Desktop 输入框的 Goal 控件、支持 `threadGoals` 的客户端、AppServer `thread/goal/set` |
-| 暂停 / 恢复目标 | Desktop Goal 控件或 AppServer `thread/goal/set` 更新状态 |
-| 清除目标 | Desktop Goal 控件或 AppServer `thread/goal/clear` |
-| 读取目标状态 | Thread 列表、Thread 详情、AppServer `thread/goal/get` |
+| 设置或替换目标 | Desktop 的 Goal 控件 |
+| 暂停或恢复目标 | Desktop 的 Goal 控件 |
+| 清除目标 | Desktop 的 Goal 控件 |
+| 查看目标状态 | 对话列表与详情视图 |
 
-Goals 配置字段和 AppServer goal 方法见 [Automations、Goals 与 Hooks](../../developing/configuration#automations-goals-与-hooks)。
+目标字段以及这些控件背后的 AppServer 方法见 [Automations、Goals 与 Hooks](../../developing/configuration#automations-goals-与-hooks)。
 
 ### Goals × Automations
 
@@ -113,7 +71,7 @@ Automations 适合"按时间或手动触发一次任务"，Goals 适合"让同�
 | 场景 | 推荐 |
 |---|---|
 | 周报、日报、定时巡检 | Automations 定时触发 |
-| 自动跑测试套件并把摘要写入线程 | Automations + `CompleteLocalTask` |
+| 自动跑测试套件并把摘要写入对话 | Automations，带完成摘要 |
 | 持续推进一项重构或文档整理 | Goals |
 | 让定时任务沿着同一长期目标推进 | Automations + Goals |
 | 文件写入后自动 lint/format | [Hooks](../self-hosted/security#hooks) `AfterToolCall` |

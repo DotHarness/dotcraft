@@ -139,3 +139,9 @@ await instance.start();
 ## Credits
 
 [@tencent-weixin/openclaw-weixin](https://www.npmjs.com/package/@tencent-weixin/openclaw-weixin)
+
+## Related docs
+
+- [Channels & Bots](../../features/entry-points/channels) — overview of every chat channel.
+- [TypeScript Module Integration](../integrations/typescript-module) — the host contract this module implements.
+- [WeCom Channel Adapter](./wecom) — the separate WeCom (enterprise) channel.

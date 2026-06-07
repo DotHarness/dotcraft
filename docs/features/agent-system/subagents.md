@@ -28,26 +28,11 @@ Full role and profile configuration fields are in [SubAgent and External CLI Pro
 
 `worker` has the capability model for recursive delegation, but recursion remains an explicit opt-in through configuration.
 
-## The Lightweight Prompt
+## The lightweight prompt
 
-`subagent-light` is the default prompt profile for native session-backed SubAgents. It keeps:
+By default, a native SubAgent starts from a trimmed prompt (`subagent-light`). It carries what the helper needs to do its job — workspace and environment context, its role and tool limits, and your `.craft/AGENTS.md` — but leaves out the heavier context the main conversation accumulates, such as full long-term memory.
 
-- DotCraft base identity
-- Current workspace and environment info
-- Role instructions
-- Tool capabilities and limits
-- `.craft/AGENTS.md`
-- Necessary file references and working style
-
-It skips by default:
-
-- Full Memory context
-- Long Skill self-learning instructions
-- Custom commands summary
-- Deferred MCP discovery instructions
-- Plan / Todo injection
-
-This makes short-task SubAgents start faster and avoids copying the main thread's long-term context to the child.
+That keeps short-task SubAgents fast to start and stops the parent thread's long-term context from being copied into every child. To tune exactly what the prompt includes, see [SubAgent and External CLI Profiles](../../developing/configuration#subagent-and-external-cli-profiles).
 
 ## Profile: Choosing a Runtime
 

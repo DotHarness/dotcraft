@@ -1,6 +1,6 @@
 # DotCraft 设置生效层级指南
 
-本文档说明 Desktop 设置中的三层生效模型，以及如何判断配置是已生效还是待生效。
+本页面向集成方与贡献者。它说明 Desktop 设置中的三层生效模型，以及如何判断配置是已生效还是待生效。
 
 ## 1. 三层生效模型
 
@@ -31,6 +31,7 @@ Desktop 将设置项按生效方式划分为三类：
 说明：
 
 - Desktop 的模型设置页管理 Provider 注册表；凭证与端点只属于 `Providers[id]`。
+- 修改 `Model` 会通过 Provider 管理接口刷新新会话默认值；已存在的线程会保留创建时记录的模型，除非客户端显式为该线程设置新模型。
 - 工作区只保存当前 `ProviderId` 和 `Model` 覆盖，不再保存根级 `ApiKey` / `EndPoint`。
 - Remote AppServer 的生命周期由用户或远端环境管理。Desktop 只测试连接并切换，不提供 remote restart。
 - 如果 Desktop 通过 `--remote` 启动，本次会话的连接由启动参数控制，Settings 中的持久化连接切换不可用。
@@ -43,11 +44,10 @@ Desktop 将设置项按生效方式划分为三类：
 - **待生效**：出现需要重启的提示，表示配置已落盘但运行态尚未切换。
 - **Remote 连接待应用**：远端 URL/token 变更尚未写入默认连接；点击“应用并连接”后，Desktop 先探测草稿连接，成功才保存。探测失败时不保存，避免下次启动被坏配置困住。
 - **按分组脏状态**：仅变更了某一分组时，只需要处理该分组对应动作，不必全局保存。
-- **已有坏 Remote 配置**：如果启动时发现已持久化的 Remote URL 无效，错误页主操作应进入 Settings > Connection 并解除阻塞覆盖层，让用户修正 URL/token 或切回 Local。
+- **已有坏 Remote 配置**：如果启动时发现已保存的 Remote 连接无效，错误页会提供「打开连接设置」，进入 Settings > Connection 并解除阻塞覆盖层，让你修正 URL/token 或切回 Local。
 
-## 常见问题
+## 相关入口
 
-**问：我改了 Model，为什么没有立即生效？**  
-答：Desktop 模型 Provider 页面会通过 AppServer 接口刷新新会话默认值；已经存在的线程通常保留创建时记录的模型，除非客户端显式为该线程设置新的模型。
-
-客户端事件细节请参阅 [AppServer Protocol](../protocols/appserver-protocol) 的 `workspace/configChanged` 说明。
+- [AppServer 协议](../protocols/appserver-protocol) — `workspace/configChanged` 客户端事件
+- [配置参考](../configuration) — 这些层级涉及的全部字段
+- [AppServer 模式](./appserver) — 远程 / 多客户端连接

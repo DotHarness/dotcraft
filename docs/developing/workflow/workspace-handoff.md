@@ -2,6 +2,8 @@
 
 DotCraft workspaces are designed to cooperate with other coding agents. The `.craft/` directory keeps the project rules, memory, session history, trace metadata, and tool evidence close to the repository, so you can hand off useful context without asking another agent to guess from chat fragments.
 
+This page is for integrators and contributors who move a DotCraft thread into another coding agent. It covers finding the right thread, exporting it as a Markdown handoff, and what that export contains.
+
 There are two collaboration modes:
 
 | Mode | Use when | Interface |

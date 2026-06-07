@@ -36,7 +36,7 @@ When in doubt: **put providers globally and let the workspace override only the 
 
 ## Bootstrap Trio
 
-The three Markdown files under `.craft/` decide "who this agent is in this project and what rules it follows":
+Three Markdown files under `.craft/` define the agent's identity and rules for this project:
 
 - `AGENTS.md` — role responsibilities, behavior boundaries, answer rules
 - `SOUL.md` — personality, tone, expression style

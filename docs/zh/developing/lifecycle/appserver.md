@@ -1,6 +1,6 @@
 # AppServer 模式
 
-AppServer 是 DotCraft 的 wire protocol 服务器。它把 Agent 能力（会话管理、工具调用、审批流）以 JSON-RPC 协议暴露给外部客户端，TUI、Desktop、ACP、外部渠道适配器和自定义集成都可以连接同一个 AppServer。
+本页面向直接管理 AppServer 的集成方与贡献者。AppServer 是 DotCraft 的 wire protocol 服务器。它把 Agent 能力（会话管理、工具调用、审批流）以 JSON-RPC 协议暴露给外部客户端，TUI、Desktop、ACP、外部渠道适配器和自定义集成都可以连接同一个 AppServer。
 
 适用场景：
 
@@ -24,6 +24,8 @@ dotcraft app-server --listen ws://127.0.0.1:9100
 # stdio + WebSocket 双模式
 dotcraft app-server --listen ws+stdio://127.0.0.1:9100
 ```
+
+服务端监听的是不带路径的 `ws://host:port`（或 `wss://host:port`）地址；客户端连接时需要追加 `/ws` 路径，例如 `ws://host:port/ws`。下面的示例都遵循这条规则。
 
 ## 命令行连接远程 AppServer
 
@@ -113,7 +115,7 @@ dotcraft app-server --listen ws://0.0.0.0:9100 --token my-secret
 dotcraft exec --remote ws://server:9100/ws --token my-secret "检查状态"
 ```
 
-Token 通过 WebSocket 连接 URL 的查询参数传递：`ws://host:port/ws?token=<value>`。
+Token 通过 WebSocket 连接 URL 的查询参数传递：`ws://host:port/ws?token=<value>`。服务端一旦设置 `--token`，所有客户端——TUI、Desktop、ACP、`dotcraft exec` 和自定义客户端——都必须携带同一个 Token，空 Token 会被拒绝。
 
 > [!CAUTION]
 > 绑定到 `0.0.0.0` 时不设置 Token 等于把 AppServer 完全开放。
@@ -179,20 +181,10 @@ dotcraft app-server --listen ws://127.0.0.1:9100 --token my-secret
 
 | 场景 | 做法 |
 |---|---|
-| 命令行一次性任务 | `dotcraft exec "..."` 自动连接后端 |
-| 远程开发 | 远端 `dotcraft app-server --listen ws://...`，本地客户端连接 WebSocket |
-| 多客户端共享工作区 | 启动 WebSocket 模式，多个客户端各自连接 |
-| 自定义客户端 | 启动 AppServer，用任意语言通过 JSON-RPC 通信 |
-
-## 故障排查
-
-### WebSocket 客户端连接失败
-
-确认服务端使用 `--listen ws://...` 或 `ws+stdio://...` 启动，并且客户端 URL 包含 `/ws` 路径。
-
-### 认证失败
-
-服务端设置 `--token` 后，TUI、Desktop、ACP、`dotcraft exec` 或自定义客户端必须携带同一个 token。远程部署时不要使用空 token。
+| 用脚本运行一次性任务 | `dotcraft exec "..."` |
+| 在 Desktop / TUI / ACP 之间共享一个后端 | `dotcraft app-server --listen ws://127.0.0.1:9100` |
+| 连接到远程工作区 | 用 WebSocket 监听，客户端连接 `/ws` |
+| 构建自定义客户端 | 通过 stdio 或 WebSocket 收发 JSON-RPC 2.0 |
 
 ## 相关入口
 

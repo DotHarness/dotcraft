@@ -215,7 +215,7 @@ lastUpdated: false
       <div class="dc-section__header">
         <h2>Protocols and SDKs for developers</h2>
         <p class="dc-section__text">
-          AppServer projects the Unified Session Core via JSON-RPC over stdio/WebSocket, so any language can build a client, deploy remotely, or wire up bots and automations.
+          AppServer exposes DotCraft over JSON-RPC, so any language can build a client, deploy remotely, or wire up bots and automations.
         </p>
       </div>
       <div class="dc-grid">

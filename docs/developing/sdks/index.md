@@ -58,7 +58,7 @@ The [SDK specification](https://github.com/DotHarness/dotcraft/blob/master/specs
 | App Binding helpers | Typed/generic + handoff parse | Typed/generic + handoff parse | Typed/generic + handoff parse |
 | Channel adapter runtime | First-party TypeScript runtime | Not applicable | Channel adapter base class |
 
-SDKs should not duplicate server authority. AppServer remains the source of truth for thread state, queue behavior, approvals, model catalog resolution, and persistence.
+AppServer remains the source of truth for thread state, queue behavior, approvals, model catalog resolution, and persistence; the SDK is a client over it, not a second authority.
 
 ## Event Topology
 

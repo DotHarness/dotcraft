@@ -215,7 +215,7 @@ lastUpdated: false
       <div class="dc-section__header">
         <h2>给开发者的协议与 SDK</h2>
         <p class="dc-section__text">
-          AppServer 通过 JSON-RPC over stdio/WebSocket 投影统一会话核心，任何语言都能写客户端、做远程部署、构建机器人或自动化。
+          AppServer 通过 JSON-RPC 对外开放 DotCraft，任何语言都能写客户端、做远程部署、构建机器人或自动化。
         </p>
       </div>
       <div class="dc-grid">

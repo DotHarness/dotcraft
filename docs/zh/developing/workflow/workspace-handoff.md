@@ -2,6 +2,8 @@
 
 DotCraft 的 workspace 天然适合和其他 coding agent 协作。`.craft/` 目录把项目规则、长期记忆、会话历史、trace 元数据和工具调用证据放在仓库旁边，因此你可以把有用上下文交给外部 agent，而不需要让它从零散聊天记录里猜。
 
+本页面向需要把 DotCraft thread 交接给其他 coding agent 的集成方与贡献者，讲解如何找到目标 thread、把它导出成 Markdown 交接文档，以及导出内容包含什么。
+
 DotCraft 支持两种协作方式：
 
 | 方式 | 适用场景 | 接口 |

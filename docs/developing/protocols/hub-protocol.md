@@ -327,3 +327,9 @@ Common error codes:
 - Render `appserver.unhealthy` and `appserver.exited` as actionable UI states, such as "restart workspace runtime."
 - Do not log Hub tokens or AppServer tokens.
 - Keep unknown endpoints, service statuses, and event kinds forward-compatible.
+
+## Related docs
+
+- [AppServer Protocol](./appserver-protocol)
+- [Hub Local Coordination](../lifecycle/hub)
+- [AppServer Mode](../lifecycle/appserver)

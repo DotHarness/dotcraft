@@ -26,9 +26,15 @@ Blacklist behavior:
 
 ## Workspace Boundary
 
-DotCraft analyzes paths before executing shell commands, covering Unix absolute paths, home-directory paths, environment variables, Windows drive-letter paths, UNC paths, and common security device paths.
+Before running a shell command, DotCraft resolves every path it references — including these forms:
 
-If a command resolves outside the workspace, DotCraft either denies it or asks the active interaction source for approval, depending on the workspace policy. File tools use the same expansion rules so file and shell behavior stay consistent.
+- Unix absolute paths
+- Home-directory paths (`~`)
+- Environment variables
+- Windows drive-letter paths
+- UNC paths (`\\server\share`)
+
+If a command resolves outside the workspace, DotCraft either denies it or asks the active interaction source for approval, depending on the workspace policy. File tools use the same expansion rules, so file and shell behavior stay consistent.
 
 ## Tool Capability Switches
 

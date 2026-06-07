@@ -93,85 +93,21 @@ $plugin-creator 创建一个名为 External Process Echo 的插件，包含一�
 $plugin-creator 创建一个本地插件，用 Python 进程提供 EchoText dynamic tool，并生成安装验证说明。
 ```
 
-`plugin-creator` 会生成 DotCraft 插件目录、`.craft-plugin/plugin.json`、plugin-contained skill、可选 MCP 配置，以及可选 Desktop extension descriptor。生成后通常只需要：
+`plugin-creator` 会生成插件目录和 manifest、plugin-contained skill、可选 MCP 配置，以及可选 Desktop extension。生成后通常只需要：
 
-1. 替换 TODO 和示例文案
+1. 替换占位文案和示例内容
 2. 实现或调整 tool 进程逻辑
 3. 把插件安装到本地并在 Plugins 页面刷新验证
 
-### 插件结构
+### 一个插件能贡献什么
 
-DotCraft 使用 `.craft-plugin/plugin.json` 作为插件入口。插件可以贡献 skills、通过 MCP 暴露 Agent 可调用工具，也可以贡献 Desktop UI surface。
+一个插件可以打包以下三类内容的任意组合，全部由一份 manifest 驱动：
 
-Desktop UI surface 通过 `desktopExtensions` 声明：
+- **Dynamic tools** —— Agent 可调用的工具，可选由本地进程支撑。
+- **Skills** —— 插件启用时即加入 skill 列表。
+- **Desktop extension** —— 本地 UI bundle，向 Desktop 添加自己的界面（例如 sidebar 视图），并可通过受控的宿主桥读取（在获得授权时写入）其 App 的数据。
 
-```json
-{
-  "capabilities": ["desktopExtension"],
-  "desktopExtensions": "./desktop-extensions.json"
-}
-```
-
-descriptor 指向插件内的 ESM bundle，并声明它贡献的 Desktop surface。当前已经落地的第一类 surface 是 `mainView`，插件安装并启用后会出现在 Desktop sidebar：
-
-```json
-{
-  "extensions": [
-    {
-      "id": "desktop",
-      "displayName": "Project Board Desktop",
-      "entry": "./desktop/main-view.mjs",
-      "surfaces": [
-        {
-          "type": "mainView",
-          "viewId": "main",
-          "label": "Project Board",
-          "localizedLabel": { "en": "Project Board", "zh-Hans": "项目看板" },
-          "icon": "kanban",
-          "placement": "sidebar",
-          "order": 80
-        }
-      ]
-    }
-  ]
-}
-```
-
-`mainView` sidebar 入口可设置 `icon`（宿主解析的图标名，未识别时回落到通用扩展图标）与 `localizedLabel`（按应用语言键入的逐语言覆盖，缺失时回落到 `label`）。译文由扩展自带，不会写入应用的消息目录。建议为每个受支持的应用语言都提供（`en`、`zh-Hans`、`ja`、`ko`、`es`、`fr`、`de`）；缺失的语言回落到 `label`。
-
-需要最小脚手架时可使用 `plugin-creator --with-desktop-extension`。
-
-#### 读取与写入 App 数据
-
-Desktop 扩展可以通过 loopback 网络桥读取——并在获得授权时写入——其 App 的本地数据：
-
-- `connectOrigins` 列出 bundle 可访问的 loopback origin。该桥默认只读：`host.network.getJson(url)` 发起 `GET` 获取展示数据。Desktop 会在 main process 中根据已安装插件的 descriptor 强制校验 origin，而不是信任 renderer 传入的值。
-- `surfaceWriteScopes` 让 bundle 选择启用受控写。当它列出扩展所用的 App Binding mutate 作用域（例如 `board.manage`）时，Desktop 还会暴露 `host.network.postJson(url, body)`。每次写入由已连接 App 的 loopback surface 用其签发的连接凭证授权；Desktop 强制校验声明的 origin 和非空写入意图，且不逐次弹审批——因为用户在连接 App 时已授权。只读扩展保持 `surfaceWriteScopes` 为空（默认）即可。
-
-```json
-{
-  "requiredAppIds": ["com.example.board"],
-  "connectOrigins": ["http://127.0.0.1:*"],
-  "surfaceWriteScopes": ["board.manage"]
-}
-```
-
-一般不需要手写完整 manifest。建议让 `plugin-creator` 生成结构，再把生成的 manifest 作为排查或分发时的高级参考。
-
-#### 显示通知
-
-Desktop 扩展通过 DotCraft 原生的 toast 通知栈来提示，而不是自建一套。宿主提供 `host.ui.showToast({ message, type, durationMs, action, onExpire })`：`action` 会渲染一个内联按钮（例如 Undo），`onExpire` 在 toast 自动消失或被关闭、且未触发动作时回调——可用于「撤销窗口」结束时提交延迟变更。返回一个用于关闭该 toast 的函数。
-
-### 高级参考
-
-需要处理这些高级内容时：
-
-- process-backed dynamic tool 的 JSON-RPC 协议
-- tool 的 `approval` 元数据
-- manifest 路径规则
-- 完整字段和 schema
-
-建议先使用 `plugin-creator` 生成 manifest，再按业务修改生成的文件。
+让 `plugin-creator` 生成 manifest 和配套文件；生成的 manifest 就是你后续调整或分发时的工作参考。Dynamic tool 与 Desktop extension 背后的底层契约——manifest 字段、tool schema、宿主桥、写入授权——见 [构建 App](../../developing/integrations/build-an-app) 与 [App Binding](../../developing/integrations/app-binding)。
 
 ## MCP Servers
 
@@ -189,5 +125,6 @@ Desktop 扩展通过 DotCraft 原生的 toast 通知栈来提示，而不是自�
 ## 相关文档
 
 - [Skills 与自学习](./skills) — Skill 与 Plugin 的关系
+- [构建 App](../../developing/integrations/build-an-app) — manifest 字段、tool schema 与 Desktop extension 开发
 - [可观测性](../self-hosted/observability) — 在 Dashboard 看插件 tool 调用与审批
 - [安全与沙箱](../self-hosted/security) — 工具能力的全局约束

@@ -36,7 +36,7 @@ Read-only mode only exposes trace, session listing, token usage, tools, runtime 
 | `MaintenanceForkRequest` | Maintenance fork request |
 | `MaintenanceForkResponse` | Maintenance fork response |
 
-Dashboard `Thinking` and `Response` trace events are recorded by contiguous streaming content segment. They are not recorded per chunk, and a full turn is not forced into a single event. `ThinkingCount` and `ResponseCount` therefore represent segment counts. The realtime event stream sends a segment event after that segment ends and is recorded; historical traces are not migrated, so older data may still use the previous granularity.
+Dashboard records `Thinking` and `Response` trace events by contiguous streaming content segment, not per chunk, and does not collapse a full turn into one event. `ThinkingCount` and `ResponseCount` therefore count segments. The realtime event stream emits a segment event once that segment ends and is recorded.
 
 Maintenance requests such as context compaction and memory consolidation also record `MaintenanceForkRequest` / `MaintenanceForkResponse` events. These events preserve snapshot/cache metadata, raw model text, tool-call-only responses, empty responses, and fallback reasons so Dashboard can diagnose issues such as `summary_unavailable`.
 
@@ -117,3 +117,9 @@ Returns the event stream used by Dashboard.
 - In standalone read-only mode, disabled feature and mutation endpoints return 404 or 405 because those routes are not registered.
 - Prefer binding to `127.0.0.1` for local debugging.
 - Do not expose an unprotected Dashboard in production or shared networks.
+
+## Related docs
+
+- [Observability](../../features/self-hosted/observability)
+- [AppServer Protocol](./appserver-protocol)
+- [Hub Protocol](./hub-protocol)

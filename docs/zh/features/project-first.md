@@ -36,7 +36,7 @@ DotCraft 用两层配置叠加：
 
 ## Bootstrap 三件套
 
-`.craft/` 下面这三个 Markdown 决定了"这个项目里的 Agent 是谁、要遵守什么":
+`.craft/` 下的三个 Markdown 文件定义了 Agent 在这个项目里的身份与规则：
 
 - `AGENTS.md` — 角色职责、行为边界、回答规则
 - `SOUL.md` — 个性、语气、表达风格
@@ -56,9 +56,9 @@ DotCraft 用两层配置叠加：
 
 ## 相关文档
 
-- [快速开始](../getting-started) — 第一次安装、配置、运行
-- [外部 Agent 协作](../developing/workflow/workspace-handoff) — 把 workspace 中的会话、记忆和 trace 整理成交接材料
-- [长期记忆与 Dreams](./agent-system/memory) — `MEMORY.md` / `HISTORY.md` 怎么自动维护
-- [统一会话核心](../developing/architecture/session-core) — 跨入口共享的 Thread/Turn/Item 模型
-- [安全与沙箱](./self-hosted/security) — 工作区边界、黑名单、OpenSandbox
-- [配置完整参考](../developing/configuration) — 所有字段
+- [快速开始](../getting-started)
+- [外部 Agent 协作](../developing/workflow/workspace-handoff)
+- [长期记忆与 Dreams](./agent-system/memory)
+- [统一会话核心](../developing/architecture/session-core)
+- [安全与沙箱](./self-hosted/security)
+- [配置完整参考](../developing/configuration)

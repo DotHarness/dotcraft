@@ -139,3 +139,9 @@ The QQ channel provides these tools for explicit cross-target delivery:
 | `QQUploadPrivateFile` | QQ user | Local absolute path |
 
 These tools are exposed by the adapter through external channel capabilities. Tool names stay PascalCase.
+
+## Related docs
+
+- [Channels & Bots](../../features/entry-points/channels) — overview of every chat channel.
+- [Channel adapters](../sdks/channels) — the adapter base class and wire contract.
+- [WeCom Channel Adapter](./wecom) — another callback-based TypeScript channel.

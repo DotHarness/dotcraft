@@ -93,85 +93,21 @@ Or specify runtime, language, and validation:
 $plugin-creator Create a local plugin that exposes an EchoText dynamic tool via a Python process, and produce install validation steps.
 ```
 
-`plugin-creator` generates the plugin directory, `.craft-plugin/plugin.json`, plugin-contained skill, optional MCP config, and optional Desktop extension descriptor. After generation, usually three things remain:
+`plugin-creator` generates the plugin directory and manifest, a plugin-contained skill, optional MCP config, and an optional Desktop extension. After generation, usually three things remain:
 
-1. Replace TODOs and sample copy
+1. Replace the placeholder text and sample copy
 2. Implement or adjust the tool process logic
 3. Install the plugin locally and verify via Plugins **Refresh**
 
-### Plugin Structure
+### What a plugin can contribute
 
-DotCraft uses `.craft-plugin/plugin.json` as the plugin entry. A plugin can contribute skills, agent-callable dynamic tools through MCP, and Desktop UI surfaces.
+A single plugin can ship any mix of three things, all driven by one manifest:
 
-Desktop UI surfaces are declared by `desktopExtensions`:
+- **Dynamic tools** the agent can call, optionally backed by a local process.
+- **Skills** that join the skill list whenever the plugin is enabled.
+- **Desktop extensions** — local UI bundles that add their own surfaces to Desktop, such as a sidebar view, and can read (and, when authorized, write) their app's data through a sandboxed host bridge.
 
-```json
-{
-  "capabilities": ["desktopExtension"],
-  "desktopExtensions": "./desktop-extensions.json"
-}
-```
-
-The descriptor points to plugin-contained ESM and declares the surfaces it contributes. The first implemented Desktop surface is `mainView`, which appears in the sidebar when the plugin is installed and enabled:
-
-```json
-{
-  "extensions": [
-    {
-      "id": "desktop",
-      "displayName": "Project Board Desktop",
-      "entry": "./desktop/main-view.mjs",
-      "surfaces": [
-        {
-          "type": "mainView",
-          "viewId": "main",
-          "label": "Project Board",
-          "localizedLabel": { "en": "Project Board", "zh-Hans": "项目看板" },
-          "icon": "kanban",
-          "placement": "sidebar",
-          "order": 80
-        }
-      ]
-    }
-  ]
-}
-```
-
-A `mainView` sidebar entry can set `icon` (a host-resolved glyph name; unknown names fall back to a generic extension icon) and `localizedLabel` (per-locale overrides keyed by app locale, falling back to `label`). The extension ships its own translations — they are not added to the app's message catalog. Provide an entry for every supported app locale (`en`, `zh-Hans`, `ja`, `ko`, `es`, `fr`, `de`); any missing locale falls back to `label`.
-
-Use `plugin-creator --with-desktop-extension` for a minimal scaffold.
-
-#### Reading and writing app data
-
-A Desktop extension can read — and, when authorized, write — its app's local data over a loopback network bridge:
-
-- `connectOrigins` lists the loopback origins the bundle may reach. The bridge is read-only by default: `host.network.getJson(url)` issues a `GET` for presentation data. Desktop enforces origins in the main process from the installed plugin descriptor, not from renderer-provided values.
-- `surfaceWriteScopes` opts the bundle into scoped writes. When it lists the App Binding mutate scopes the extension exercises (for example `board.manage`), Desktop also exposes `host.network.postJson(url, body)`. The connected app's loopback surface authorizes every write with the connection credential it issued; Desktop enforces the declared origins and non-empty write intent and does not prompt per write, because the user already authorized the app connection. Leave `surfaceWriteScopes` empty (the default) for read-only extensions.
-
-```json
-{
-  "requiredAppIds": ["com.example.board"],
-  "connectOrigins": ["http://127.0.0.1:*"],
-  "surfaceWriteScopes": ["board.manage"]
-}
-```
-
-You usually do not write the full manifest by hand. Let `plugin-creator` scaffold the plugin, then use the generated manifest as the advanced reference for troubleshooting or distribution.
-
-#### Showing notifications
-
-Desktop extensions surface notifications through DotCraft's native toast stack rather than building their own. The host exposes `host.ui.showToast({ message, type, durationMs, action, onExpire })`: `action` renders an inline button (for example an Undo), and `onExpire` fires if the toast auto-dismisses or is closed without the action being taken — useful for an undo window that commits a deferred change when it elapses. It returns a function that dismisses the toast.
-
-### Advanced Reference
-
-When you need details on:
-
-- the JSON-RPC protocol for process-backed dynamic tools
-- `approval` metadata on tools
-- manifest path rules
-- full fields and schema
-
-use `plugin-creator` to scaffold a manifest and adjust the generated files as needed.
+Let `plugin-creator` scaffold the manifest and the matching files; the generated manifest is your working reference when you tune or distribute the plugin. For the wire-level contract behind dynamic tools and Desktop extensions — manifest fields, tool schemas, the host bridge, and write authorization — see [Build an App](../../developing/integrations/build-an-app) and [App Binding](../../developing/integrations/app-binding).
 
 ## MCP Servers
 
@@ -189,5 +125,6 @@ Installing a plugin adds new tools and skills to the workspace's capability surf
 ## Related docs
 
 - [Skills & Self-Learning](./skills) — relationship between skills and plugins
+- [Build an App](../../developing/integrations/build-an-app) — manifest fields, tool schemas, and Desktop extension authoring
 - [Observability](../self-hosted/observability) — view plugin tool calls and approvals in Dashboard
 - [Security & Sandbox](../self-hosted/security) — global constraints on tool capabilities

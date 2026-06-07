@@ -572,3 +572,9 @@ Role 示例：
 ## 自定义命令
 
 `CustomCommands` 可把常用提示词或工作流保存为命令。命令内容通常放在工作区 `.craft/commands/` 或对应配置项中，供 CLI、Desktop 或其他入口复用。
+
+## 相关入口
+
+- [项目级工作区](../features/project-first) — 首次配置与 `.craft/` 目录结构
+- [AppServer 模式](./lifecycle/appserver) — 结合场景理解 `AppServer.*` / `CLI.*` 字段
+- [设置生效层级](./lifecycle/settings-lifecycle) — 字段变更何时生效
