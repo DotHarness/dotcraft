@@ -44,7 +44,10 @@ export interface WireProtocolClientOptions {
   defaultTimeoutMs?: number
   autoInitializeOnTransportOpen?: boolean
   initializeTimeoutMs?: number | null
+  initializeProfile?: InitializeProfile
 }
+
+export type InitializeProfile = 'foreground' | 'secondary'
 
 interface PendingRequest {
   resolve: (value: unknown) => void
@@ -289,6 +292,7 @@ export class WireProtocolClient extends EventEmitter {
   private defaultTimeoutMs: number
   private initializeTimeoutMs: number | null
   private autoInitializeOnTransportOpen: boolean
+  private initializeProfile: InitializeProfile
   private hasInitializedWebSocket = false
   private websocketInitializeInFlight = false
 
@@ -304,6 +308,7 @@ export class WireProtocolClient extends EventEmitter {
         ? INITIALIZE_REQUEST_TIMEOUT_MS
         : options.initializeTimeoutMs
     this.autoInitializeOnTransportOpen = options.autoInitializeOnTransportOpen ?? false
+    this.initializeProfile = options.initializeProfile ?? 'foreground'
 
     // Accept either a raw stdio pair or a pre-built Transport object
     if (stdoutOrTransport instanceof Readable && stdinOrUndefined) {
@@ -395,7 +400,10 @@ export class WireProtocolClient extends EventEmitter {
     this.serverRequestHandler = handler
   }
 
-  async initialize(clientVersion = '0.1.0'): Promise<InitializeResult> {
+  async initialize(
+    clientVersion = '0.1.0',
+    profile: InitializeProfile = this.initializeProfile
+  ): Promise<InitializeResult> {
     const result = await this.sendRequest<{
       serverInfo: ServerInfo
       capabilities: ServerCapabilities
@@ -408,29 +416,7 @@ export class WireProtocolClient extends EventEmitter {
           title: 'DotCraft',
           version: clientVersion
         },
-        capabilities: {
-          approvalSupport: true,
-          requestUserInputSupport: true,
-          streamingSupport: true,
-          commandExecutionStreaming: true,
-          toolExecutionLifecycle: true,
-          backgroundTerminals: true,
-          configChange: true,
-          optOutNotificationMethods: [],
-          nodeRepl: {
-            backend: 'desktop-node'
-          },
-          browserUse: {
-            backend: 'desktop-iab',
-            backends: ['desktop-iab'],
-            protocolVersion: 2,
-            supportsCancel: true,
-            browserSessionProtocolVersion: 1,
-            defaultCommandTimeoutMs: 10000,
-            maxCommandTimeoutMs: 120000,
-            supportsTypedFinalize: true
-          }
-        }
+        capabilities: buildInitializeCapabilities(profile)
       },
       this.initializeTimeoutMs
     )
@@ -441,7 +427,7 @@ export class WireProtocolClient extends EventEmitter {
   }
 
   async reInitialize(clientVersion = '0.1.0'): Promise<InitializeResult> {
-    const result = await this.initialize(clientVersion)
+    const result = await this.initialize(clientVersion, this.initializeProfile)
     this.emit('reconnected', result)
     return result
   }
@@ -532,7 +518,7 @@ export class WireProtocolClient extends EventEmitter {
       if (isReconnect) {
         await this.reInitialize()
       } else {
-        const result = await this.initialize()
+        const result = await this.initialize(undefined, this.initializeProfile)
         this.hasInitializedWebSocket = true
         this.emit('ready', result)
       }
@@ -550,5 +536,34 @@ export class WireProtocolClient extends EventEmitter {
       pending.reject(reason)
     }
     this.pending.clear()
+  }
+}
+
+function buildInitializeCapabilities(_profile: InitializeProfile): Record<string, unknown> {
+  // Secondary Desktop connections intentionally keep the same protocol capability
+  // declaration as foreground connections so they can be promoted without a new
+  // initialize handshake. Main-process routing keeps secondary behavior lean.
+  return {
+          approvalSupport: true,
+          requestUserInputSupport: true,
+          streamingSupport: true,
+          commandExecutionStreaming: true,
+          toolExecutionLifecycle: true,
+          backgroundTerminals: true,
+          configChange: true,
+          optOutNotificationMethods: [],
+          nodeRepl: {
+            backend: 'desktop-node'
+          },
+          browserUse: {
+            backend: 'desktop-iab',
+            backends: ['desktop-iab'],
+            protocolVersion: 2,
+            supportsCancel: true,
+            browserSessionProtocolVersion: 1,
+            defaultCommandTimeoutMs: 10000,
+            maxCommandTimeoutMs: 120000,
+            supportsTypedFinalize: true
+          }
   }
 }

@@ -8,12 +8,12 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "DotCraft Dev",
-    "shortDescription": "DotCraft development guidance, workflows, UI prototyping, and SVG support.",
-    "longDescription": "A DotCraft development plugin for contributors working on DotCraft itself. It bundles repository guidance, feature workflow planning, Desktop UI prototyping, and SVG asset design skills under one shared DotCraft Developer logo.",
+    "shortDescription": "DotCraft development guidance, workflows, docs standards, UI prototyping, and SVG support.",
+    "longDescription": "A DotCraft development plugin for contributors working on DotCraft itself. It bundles repository guidance, feature workflow planning, documentation writing standards, Desktop UI prototyping, and SVG asset design skills under one shared DotCraft Developer logo.",
     "developerName": "DotHarness",
     "category": "Engineering",
     "capabilities": ["Skill"],
-    "defaultPrompt": "Use the bundled DotCraft development skills for repository guidance, feature workflow planning, Desktop UI prototyping, or SVG asset design.",
+    "defaultPrompt": "Use the bundled DotCraft development skills for repository guidance, feature workflow planning, documentation writing, Desktop UI prototyping, or SVG asset design.",
     "brandColor": "#2458F7",
     "composerIcon": "./assets/dotcraft-developer.svg",
     "logo": "./assets/dotcraft-developer.svg"

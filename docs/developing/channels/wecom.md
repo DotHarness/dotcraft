@@ -153,4 +153,10 @@ These tools are exposed by the adapter through external channel capabilities. To
 |-----------|------|-----------------|--------------|
 | `"wecom"` | `"chat:<ChatId>"` or `"<ChatId>"` | WeCom conversation | That ChatId has received a message and the adapter has cached its webhook |
 
-It is recommended to create Cron tasks from inside the WeCom conversation so the task automatically binds to the current ChatId. If the target chatId has no cached webhook yet, delivery fails with `No WeCom webhook is available for target ...`.
+Create Cron tasks from inside the WeCom conversation so the task binds to the current ChatId automatically. If the target ChatId has no cached webhook yet, delivery fails with `No WeCom webhook is available for target ...`.
+
+## Related docs
+
+- [Channels & Bots](../../features/entry-points/channels) — overview of every chat channel.
+- [Channel adapters](../sdks/channels) — the adapter base class and wire contract.
+- [Weixin Channel Adapter](./weixin) — the separate personal WeChat channel.

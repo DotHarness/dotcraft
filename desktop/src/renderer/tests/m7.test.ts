@@ -3,7 +3,7 @@ import { useToastStore } from '../stores/toastStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useConversationStore } from '../stores/conversationStore'
 import { useConnectionStore } from '../stores/connectionStore'
-import { addRecentWorkspace, clearRecentWorkspaces, getRecentWorkspaces } from '../../main/settings'
+import { addRecentWorkspace, clearRecentWorkspaces, getRecentWorkspaces, removeRecentWorkspace } from '../../main/settings'
 import type { AppSettings } from '../../main/settings'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -162,6 +162,21 @@ describe('recent workspaces LRU', () => {
     clearRecentWorkspaces(settings)
 
     expect(getRecentWorkspaces(settings)).toEqual([])
+  })
+
+  it('removes one recent workspace without touching the rest of settings', () => {
+    const settings: AppSettings = {
+      modulesDirectory: '/modules',
+      locale: 'en'
+    }
+    addRecentWorkspace(settings, '/path/a')
+    addRecentWorkspace(settings, '/path/b')
+
+    removeRecentWorkspace(settings, '/path/a')
+
+    expect(getRecentWorkspaces(settings).map((entry) => entry.path)).toEqual(['/path/b'])
+    expect(settings.modulesDirectory).toBe('/modules')
+    expect(settings.locale).toBe('en')
   })
 })
 

@@ -33,6 +33,8 @@ DOTCRAFT_BIN=/usr/local/bin/dotcraft dotcraft-tui
 
 ### 远程模式
 
+AppServer 监听的是裸地址 `ws://host:port`，客户端连接时一律在末尾追加 `/ws` 路径。
+
 ```bash
 dotcraft app-server --listen ws://127.0.0.1:9100
 dotcraft-tui --remote ws://127.0.0.1:9100/ws
@@ -72,6 +74,6 @@ dotcraft-tui --remote ws://server:9100/ws --token my-secret
 
 ## 相关文档
 
-- [Desktop](./desktop) — 图形界面入口
-- [AppServer 模式](../../developing/lifecycle/appserver) — 远程 / 多客户端
+- [Desktop](./desktop)
+- [AppServer 模式](../../developing/lifecycle/appserver)
 - [设置生效层级](../../developing/lifecycle/settings-lifecycle)

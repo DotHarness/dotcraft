@@ -116,12 +116,11 @@ Create `.craft/feishu.json` inside your target workspace:
 
 Notes:
 
-- `feishu.debug.adapterStream`: verbose `ChannelAdapter` stream traces to stderr (`[dotcraft-sdk:adapter-stream]`), only when `true`
-- `feishu.debug.textMerge`: traces merge decisions, only when `true`
 - `feishu.cardTitle`: brand text used in reply/progress/transcript card headers and approval prompt text; defaults to `DotCraft`
 - `ackReactionEmoji` must be a Feishu official `emoji_type` such as `GLANCE`, `SMILE`, `OnIt`
 - `downloadDir` is used for temporary image files before forwarding to DotCraft
-- `feishu.tools.docs.enabled`: registers Feishu docx + wiki channel tools as one group; changing it requires restarting the module because channel tools are declared during initialize
+- `feishu.tools.docs.enabled`: registers Feishu docx + wiki channel tools as one group. Restart the module after changing it, because channel tools are declared during initialization
+- `feishu.debug.adapterStream` / `feishu.debug.textMerge`: set either to `true` only when diagnosing adapter behavior; both stay `false` in normal use
 
 ## 4. Install and Build
 
@@ -154,13 +153,12 @@ npx dotcraft-channel-feishu --workspace /path/to/workspace --config /custom/feis
 - Commands: `/new` archives the current thread and starts a new one
 - Approvals: rendered as interactive cards
 - Replies: sent as static interactive cards after the turn finishes
-- Docx tools (`documentIdOrUrl`) accept a raw docx token, a docx URL (`/docx/<token>`), or a wiki node URL/token that points to a docx-backed node
-- New docx block primitives: `FeishuListDocxBlocks`, `FeishuGetDocxBlock`, `FeishuInsertDocxBlocks`, `FeishuUpdateDocxBlocks`, `FeishuDeleteDocxBlocks`
-- New high-level edit tool `FeishuUpdateDocxContent` supports `append`, `overwrite`, `replaceRange`, `replaceAll`, `insertBefore`, `insertAfter`, `deleteRange`, with optional `newTitle`
-- New media tool `FeishuEmbedDocxMedia` uploads a local image/file and inserts it into a docx block flow (with rollback on downstream failure)
-- New title tools: `FeishuUpdateDocxTitle` and wiki node rename `FeishuRenameWikiNode`
-- New docx comment tools: `FeishuListDocxComments`, `FeishuBatchQueryDocxComments`, `FeishuListDocxCommentReplies`, `FeishuAddDocxComment`, `FeishuAddDocxCommentReply`, `FeishuResolveDocxComment`
-- Use `/docx/<token>` URLs for docx documents; if you copy a link from Feishu, make sure it points to a docx document.
+- Docx tools (`documentIdOrUrl`) accept a raw docx token, a docx URL (`/docx/<token>`), or a wiki node URL/token that points to a docx-backed node. When you copy a link from Feishu, make sure it points to a docx document
+- Docx block primitives: `FeishuListDocxBlocks`, `FeishuGetDocxBlock`, `FeishuInsertDocxBlocks`, `FeishuUpdateDocxBlocks`, `FeishuDeleteDocxBlocks`
+- High-level edit tool `FeishuUpdateDocxContent` supports `append`, `overwrite`, `replaceRange`, `replaceAll`, `insertBefore`, `insertAfter`, `deleteRange`, with optional `newTitle`
+- Media tool `FeishuEmbedDocxMedia` uploads a local image/file and inserts it into a docx block flow, rolling back on downstream failure
+- Title tools: `FeishuUpdateDocxTitle` and wiki node rename `FeishuRenameWikiNode`
+- Docx comment tools: `FeishuListDocxComments`, `FeishuBatchQueryDocxComments`, `FeishuListDocxCommentReplies`, `FeishuAddDocxComment`, `FeishuAddDocxCommentReply`, `FeishuResolveDocxComment`
 - Wiki tools (`spaceIdOrUrl`) accept a numeric `space_id`, a wiki settings URL (`/wiki/settings/<space_id>`), or a wiki node URL/token; node URLs/tokens are auto-resolved by calling `getWikiNode` and default that node as parent when parent is omitted
 - `FeishuMoveDocxToWiki` aligns with the official Lark CLI: when the API returns a `task_id` (async path), the tool polls `GET /open-apis/wiki/v2/tasks/{task_id}?task_type=move` up to 30 times at 2 s intervals (~60 s window). On success it returns `ready=true` with the resolved `wikiToken`; on timeout it returns `ready=false, timedOut=true, taskId` so the caller can re-query later. Pass `waitForCompletion: false` to skip polling and get the raw `taskId` immediately.
 - `FeishuMoveWikiNode` moves an existing wiki node inside or across wiki spaces. Provide `nodeTokenOrUrl` plus at least one of `targetParentTokenOrUrl` / `targetSpaceIdOrUrl`; when both targets are given, the tool verifies they belong to the same space and otherwise raises `InconsistentWikiTarget`.
@@ -168,7 +166,6 @@ npx dotcraft-channel-feishu --workspace /path/to/workspace --config /custom/feis
 - `FeishuGetWikiSpace` returns metadata (name, visibility, space type) for a single wiki space; accepts the same `spaceIdOrUrl` formats as other wiki tools.
 - `FeishuGetWikiNodeInfo` supports reverse lookup: pass `objType` (`docx` / `sheet` / `bitable` / `mindnote` / `file` / `slides`) together with the object token (or object URL) to find the wiki node that hosts it. Without `objType` (or with `objType="wiki"`) the tool keeps its previous wiki-node-token behavior.
 - `FeishuCreateWikiNode` creates a wiki node directly under a wiki space or parent node. It supports `objType` (`docx` / `sheet` / `bitable` / `mindnote` / `slides` / `file`), `nodeType` (`origin` or `shortcut`), and an optional `title`. For `docx` nodes the title is applied via a follow-up `update_title` call (the docx create API ignores body titles); for other types the title is sent inline.
-- Sample URLs in docs and tests use `example.feishu.cn` as a neutral placeholder domain.
 
 ## Capability Permission Matrix
 
@@ -199,7 +196,6 @@ npx dotcraft-channel-feishu --workspace /path/to/workspace --config /custom/feis
 | Move docx to wiki `moveDocxToWiki` | `POST /open-apis/wiki/v2/spaces/{space_id}/nodes/move_docs_to_wiki` | `wiki:wiki` (+ source docx edit permission) | No |
 | Wiki move task status `getWikiMoveTask` | `GET /open-apis/wiki/v2/tasks/{task_id}?task_type=move` | `wiki:wiki` or `wiki:wiki:readonly` | No |
 | Move wiki node `moveWikiNode` | `POST /open-apis/wiki/v2/spaces/{space_id}/nodes/{node_token}/move` | `wiki:wiki` (+ edit permission on source & target parent nodes) | No |
-| Future template copy | `POST /open-apis/drive/v1/files/{file_token}/copy` | `docs:document:copy` or `drive:drive` | No |
 
 Notes:
 
@@ -207,23 +203,8 @@ Notes:
 - Feishu tenant policy and app publication state can still block a capability even when the API wrapper exists.
 - History read support depends on the tenant granting the required read scope; this package only wraps the API.
 - Feishu doc APIs also require the target document or folder resource to be shared with the app. Missing resource-level authorization commonly returns `403` even when the scope itself is present.
-- Wiki APIs also require the app to have edit/read access to the target wiki space or parent node. If `space_id` and scopes are correct but the node is not shared to the app, Feishu commonly returns `131006/131008` style permission errors.
+- Wiki APIs need resource-level access on top of scopes: add the app's bot as a member of the target wiki space (or parent node) with an **edit/manage** role. With the scope present but the node unshared, Feishu returns `131006/131008` permission errors. Add the bot at the space level for space-wide write access, or at a single node to scope the grant to one subtree. For `moveDocxToWiki`, also make the bot a collaborator on the source docx.
 - If you pass wiki node URLs/tokens into `spaceIdOrUrl`, each call performs one extra `GET /open-apis/wiki/v2/spaces/get_node` lookup; ensure the app has `wiki:wiki` or at least `wiki:wiki:readonly` for this lookup path.
-
-## Troubleshooting: `code=131006 tenant needs edit permission`
-
-Symptoms: wiki tools (`FeishuCreateDocxAndShareToCurrentChat` targeting a wiki space, `FeishuCreateWikiNode`, `FeishuMoveDocxToWiki`, `FeishuMoveWikiNode`, etc.) fail with a `FeishuApiError` whose payload carries `code=131006` and a message such as `permission denied: no destination parent node permission` or `tenant needs edit permission`.
-
-Root cause: this is a **resource-level** permission check, not an API scope check. The app's OpenAPI scopes (e.g. `wiki:wiki`, `wiki:node:create`) are satisfied, but the bot user has not been added to the target wiki space (or target parent node) with edit/manage rights. Feishu enforces this independently of scope grants.
-
-Fix:
-
-1. In the Feishu web UI, open the target wiki space (or the specific parent node) → **Members** / **成员管理**.
-2. Add the current app's bot (search by the app name) with **Can edit** / **Can manage** / **可编辑 / 可管理** role. For space-wide write access, add at the space level; to scope the grant to one subtree, add at the node level.
-3. For `FeishuMoveDocxToWiki`, the source docx also needs to be readable/editable by the bot — make sure the bot is a collaborator on that docx as well.
-4. Re-run the tool; `code=131006` should disappear. If it changes to `99991672`, revisit the OpenAPI scope list (see the permission matrix above). If it changes to `131008`, the node exists but is locked/archived — verify node status in the Feishu UI.
-
-Reference: [Feishu wiki.spaces.get_node documentation](https://open.feishu.cn/document/server-docs/docs/wiki-v2/space-node/get_node).
 
 ## Auth / Login Model
 
@@ -239,3 +220,9 @@ The adapter obtains a tenant access token from `appId` + `appSecret` and uses it
 ## Credits
 
 [larksuite/openclaw-lark](https://github.com/larksuite/openclaw-lark)
+
+## Related docs
+
+- [Channels & Bots](../../features/entry-points/channels) — overview of every chat channel.
+- [Channel adapters](../sdks/channels) — the adapter base class and wire contract.
+- [TypeScript Module Integration](../integrations/typescript-module) — the host contract these modules implement.

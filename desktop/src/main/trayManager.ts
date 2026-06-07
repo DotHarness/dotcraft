@@ -154,7 +154,7 @@ export async function openDesktopWindow(workspacePath?: string | null, threadId?
   const path = workspacePath?.trim()
   if (path) {
     const lock = checkWorkspaceLock(path)
-    if (lock.locked && lock.activation) {
+    if (lock.activation) {
       const activated = await requestWorkspaceActivation(lock.activation, {
         workspacePath: path,
         threadId: threadId ?? null
@@ -349,7 +349,7 @@ async function shouldShowTurnResultNotification(
   if (!workspacePath) return true
 
   const lock = checkWorkspaceLock(workspacePath)
-  if (!lock.locked || !lock.activation) return true
+  if (!lock.activation) return true
 
   const state = await requestWorkspaceWindowState(lock.activation, workspacePath)
   return state?.focused !== true

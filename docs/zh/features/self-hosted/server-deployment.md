@@ -117,9 +117,9 @@ ssh -o BatchMode=yes dotcraft-prod "echo ok"
 ENABLED_CHANNELS=telegram,feishu
 ```
 
-支持值：`telegram`、`feishu`、`qq`、`wecom`、`weixin`。`all` 会启用 `telegram,feishu,qq,wecom`；微信因为需要扫码登录，故意不包含在 `all` 里。
+支持值：`telegram`、`feishu`、`qq`、`wecom`、`weixin`。`all` 会启用 `telegram,feishu,qq,wecom`；微信因为需要扫码登录，不包含在 `all` 里。
 
-渲染器会写入 `transport: "managedWebsocket"` 和 `builtinModule: "channel-<name>"` 的 `ExternalChannels` 条目。随后 AppServer 会启动 Node 适配器，并自动注入 WebSocket URL/token。
+AppServer 会为每个启用的渠道启动对应的 Node 适配器，并自动完成它们之间的连接——端口和 token 都不需要你手动配置。
 
 环境变量只配置必填凭据：
 
@@ -153,6 +153,11 @@ SANDBOX_ENABLED=true docker compose --profile sandbox up -d
 - 默认 Compose 文件不会把 AppServer 或 Dashboard 暴露到 localhost 之外。不要把它们直接发布到公网；优先使用 Desktop SSH tunnel，或使用带 TLS 和认证的反向代理。
 - 如果通过反向代理暴露这些服务，请使用强 `APPSERVER_TOKEN`，并配置 Dashboard 用户名/密码。
 - TLS 建议由反向代理终止。内置 AppServer 监听 `ws://`，不是 `wss://`。
-- 当前服务器 Docker 镜像只提供 x64。Arm64 Linux 主机在 arm64 服务器镜像可用前，请使用 Docker 模拟或从源码构建。
+- 服务器 Docker 镜像只提供 x64。在 arm64 Linux 主机上，请用 Docker 模拟运行，或从源码构建。
 
-相关文档：[Channels 与 Bots](../entry-points/channels)、[安全与沙箱](./security)，以及 `deploy/docker/README_ZH.md`。
+## 相关文档
+
+- [Channels 与 Bots](../entry-points/channels)
+- [安全与沙箱](./security)
+- [可观测性](./observability)
+- Docker 快速开始见 `deploy/docker/README_ZH.md`

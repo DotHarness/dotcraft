@@ -58,7 +58,7 @@ pip install dotcraft
 | App Binding helper | typed/generic + 交接解析 | typed/generic + 交接解析 | typed/generic + 交接解析 |
 | Channel adapter runtime | 一方 TypeScript runtime | 不适用 | channel adapter 基类 |
 
-SDK 不应该复制服务端权威逻辑。线程状态、队列行为、审批、模型目录解析和持久化仍由 AppServer 负责。
+线程状态、队列行为、审批、模型目录解析和持久化都以 AppServer 为准；SDK 是它之上的客户端，而非第二份权威。
 
 ## 事件拓扑
 

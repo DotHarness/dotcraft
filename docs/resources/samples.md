@@ -78,7 +78,7 @@ chmod +x hooks/*.sh
 ```
 
 > [!WARNING]
-> Creating or editing Hooks requires restarting DotCraft to take effect.
+> Creating or editing Hooks requires restarting DotCraft to take effect. Startup-level fields don't hot-reload — restart the relevant host after copying any sample config. See [Settings Lifecycle](../developing/lifecycle/settings-lifecycle) for which fields apply immediately.
 
 If you do not want to write hook config by hand, describe the need in chat and let the built-in `create-hooks` skill scaffold it.
 
@@ -91,22 +91,9 @@ If you do not want to write hook config by hand, describe the need in chat and l
 
 Keep the structure after copying and gradually replace placeholders with project-specific terminology, paths, and acceptance criteria.
 
-## Troubleshooting
-
-### Sample config does not take effect
-
-Confirm the config is in the current workspace's `.craft/config.json`, then restart the relevant host. Startup-level fields do not hot-reload — see [Settings Lifecycle](../developing/lifecycle/settings-lifecycle).
-
-### Cannot find sample source files
-
-Confirm you are at the repository root. Source samples live under `samples/`; doc pages live under `docs/`.
-
-### Not sure which sample to run first
-
-Follow [Getting Started](../getting-started) for Desktop + model config, then pick a sample matching your goal.
-
-## Related
+## Related docs
 
 - [Getting Started](../getting-started)
 - [Plugins & Tools](../features/agent-system/plugins-tools)
+- [Settings Lifecycle](../developing/lifecycle/settings-lifecycle)
 - [Configuration Reference](../developing/configuration)

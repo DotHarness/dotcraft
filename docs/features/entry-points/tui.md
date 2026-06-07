@@ -33,6 +33,8 @@ DOTCRAFT_BIN=/usr/local/bin/dotcraft dotcraft-tui
 
 ### Remote Mode
 
+The AppServer listens on a bare `ws://host:port` address; the client always appends the `/ws` path to connect.
+
 ```bash
 dotcraft app-server --listen ws://127.0.0.1:9100
 dotcraft-tui --remote ws://127.0.0.1:9100/ws

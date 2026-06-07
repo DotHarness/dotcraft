@@ -112,7 +112,7 @@ DotCraft 是一个 .NET 10 / C# Agent Harness。它围绕真实项目目录组�
 
 dotcraft 相关技术博客.
 
-[AI Agent 如何省钱：Prompt Cache 优化实践](https://zhuanlan.zhihu.com/p/2044201072466588522)
+[为什么你的 Agent 这么贵：Prompt Cache 命中率为 0 的排查记录](https://zhuanlan.zhihu.com/p/2044201072466588522)
 
 ## License
 

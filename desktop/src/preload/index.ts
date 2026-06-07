@@ -42,6 +42,7 @@ import type {
 import type { WhatsNewMediaState, WhatsNewRelease } from '../shared/whatsNew'
 import type { AppUpdateState } from '../shared/appUpdate'
 import type { ConnectionSettingsDraft } from '../shared/remoteConnection'
+import type { WorkspaceProjectsPayload } from '../shared/workspaceProjects'
 import { TokenMulticastDispatcher } from './notificationDispatcher'
 
 export type UnsubscribeFn = () => void
@@ -107,6 +108,8 @@ if (typeof document !== 'undefined') {
 export interface NotificationPayload {
   method: string
   params: unknown
+  workspacePath?: string
+  foreground?: boolean
 }
 
 export interface ConnectionStatusPayload {
@@ -190,13 +193,17 @@ export interface WorkspaceStatusPayload {
 }
 
 export interface RemoteWorkspaceStatusPayload {
-  hostId: string
-  stackId: string
-  serverName: string
-  stackName: string
-  workspaceDir: string
+  source?: 'servers' | 'manual' | 'cli'
+  projectId?: string
+  displayName?: string
+  endpoint?: string
+  hostId?: string
+  stackId?: string
+  serverName?: string
+  stackName?: string
+  workspaceDir?: string
   appServerWorkspacePath?: string
-  composeDir: string
+  composeDir?: string
   projectName?: string
 }
 
@@ -373,6 +380,15 @@ ipcRenderer.on(
   'workspace:status-changed',
   (_event: Electron.IpcRendererEvent, status: WorkspaceStatusPayload) => {
     activeWorkspaceStatusCallback?.(status)
+  }
+)
+
+let workspaceProjectsToken = 0
+let activeWorkspaceProjectsCallback: ((payload: WorkspaceProjectsPayload) => void) | null = null
+ipcRenderer.on(
+  'workspace:projects-changed',
+  (_event: Electron.IpcRendererEvent, payload: WorkspaceProjectsPayload) => {
+    activeWorkspaceProjectsCallback?.(payload)
   }
 )
 
@@ -908,6 +924,26 @@ const api = {
      */
     getRecent(): Promise<Array<{ path: string; name: string; lastOpenedAt: string }>> {
       return ipcRenderer.invoke('workspace:get-recent')
+    },
+
+    getProjects(): Promise<WorkspaceProjectsPayload> {
+      return ipcRenderer.invoke('workspace:get-projects')
+    },
+
+    removeRecent(path: string): Promise<void> {
+      return ipcRenderer.invoke('workspace:remove-recent', path)
+    },
+
+    disconnectRemote(): Promise<void> {
+      return ipcRenderer.invoke('workspace:disconnect-remote')
+    },
+
+    onProjectsChange(callback: (payload: WorkspaceProjectsPayload) => void): UnsubscribeFn {
+      const token = ++workspaceProjectsToken
+      activeWorkspaceProjectsCallback = callback
+      return () => {
+        if (workspaceProjectsToken === token) activeWorkspaceProjectsCallback = null
+      }
     },
 
     clearRecent(): Promise<void> {

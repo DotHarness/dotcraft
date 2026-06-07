@@ -1,6 +1,6 @@
 # Hub Local Coordination
 
-Hub is DotCraft's local runtime coordinator. It runs per OS user and discovers, starts, reuses, and stops the AppServer process for each workspace. Desktop / TUI use Hub by default — most users **do not interact with Hub directly**.
+This page targets integrators and contributors; most users never touch Hub directly. Hub is DotCraft's local runtime coordinator. It runs per OS user and discovers, starts, reuses, and stops the AppServer process for each workspace. Desktop / TUI use Hub by default.
 
 > [!NOTE]
 > Remote, CI, bots, or explicit AppServer protocol debugging go through [AppServer Mode](./appserver).
@@ -23,7 +23,7 @@ You usually do not need to run `dotcraft hub` manually. For coordination debuggi
 dotcraft hub
 ```
 
-Hub starts a loopback management API and writes discovery metadata to `~/.craft/hub/hub.lock`.
+Hub starts a loopback management API and writes discovery metadata to `~/.craft/hub/hub.lock`. It allocates local ports automatically; if startup fails because a port is busy, a permission is denied, or security software blocks loopback, restart Hub or Desktop to reallocate.
 
 ## Local State
 
@@ -41,7 +41,7 @@ Each workspace also has:
 
 It records which AppServer process owns the workspace and prevents multiple local AppServers from running against the same workspace.
 
-When Hub or AppServer finds a stale `appserver.lock` left by a dead process, it removes the lock and continues. If the lock points to a still-running AppServer with a healthy WebSocket endpoint, Hub reuses that endpoint instead of starting a duplicate process.
+When Hub or AppServer finds a stale `appserver.lock` left by a dead process, it removes the lock and continues. If the lock points to a still-running AppServer with a healthy WebSocket endpoint, Hub reuses that endpoint instead of starting a duplicate process. When the lock points to a live AppServer that Hub cannot safely reuse, close the Desktop / TUI / CLI holding that workspace, or stop the workspace runtime from the tray, then reopen it.
 
 ## Desktop and the Tray
 
@@ -55,19 +55,7 @@ Desktop is the visual layer; Hub itself is a headless background coordinator. De
 
 When the tray exits, Desktop can ask Hub to stop the workspace AppServers Hub manages.
 
-## Troubleshooting
-
-### Desktop cannot open a workspace
-
-Make sure `dotcraft` / `dotcraft.exe` is on `PATH`, or configure the AppServer executable path in Desktop settings.
-
-### The workspace is locked
-
-`<workspace>/.craft/appserver.lock` points to another live AppServer that Hub could not safely reuse. Close the Desktop / TUI / CLI using that workspace, or stop the workspace runtime from the tray, then try again. Locks left by dead processes are recovered automatically.
-
-### Local port conflicts
-
-Hub allocates local ports automatically. Failure is usually a busy port, permission issue, or security software blocking loopback. Restarting Hub or Desktop normally reallocates ports.
+For Desktop to open a workspace, `dotcraft` / `dotcraft.exe` must be on `PATH`, or the AppServer executable path must be set in Desktop settings.
 
 ## Building a Client
 

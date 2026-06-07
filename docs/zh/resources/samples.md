@@ -78,7 +78,7 @@ chmod +x hooks/*.sh
 ```
 
 > [!WARNING]
-> 创建或修改 Hooks 后，需要重启 DotCraft 才能生效。
+> 创建或修改 Hooks 后，需要重启 DotCraft 才能生效。启动级字段不会热更新——复制任何示例配置后，请重启相关 Host。哪些字段会立即生效，见 [设置生效层级](../developing/lifecycle/settings-lifecycle)。
 
 不想手写时，可在对话中描述需求，让内置 `create-hooks` skill 帮你生成。
 
@@ -91,22 +91,9 @@ chmod +x hooks/*.sh
 
 复制后保留结构，逐步用项目自己的术语、路径和验收标准替换。
 
-## 故障排查
-
-### 示例配置复制后不生效
-
-确认配置在当前工作区 `.craft/config.json`，并重启相关 Host。启动级字段不会自动热更新，详见 [设置生效层级](../developing/lifecycle/settings-lifecycle)。
-
-### 找不到示例源码文件
-
-确认你在 DotCraft 仓库根目录。示例源码位于 `samples/`，文档站页面位于 `docs/`。
-
-### 不知道先跑哪个示例
-
-先按照 [快速开始](../getting-started) 完成 Desktop + 模型配置，再按需要选择本页对应的示例。
-
-## 相关入口
+## 相关文档
 
 - [快速开始](../getting-started)
 - [Plugins 与工具](../features/agent-system/plugins-tools)
+- [设置生效层级](../developing/lifecycle/settings-lifecycle)
 - [配置完整参考](../developing/configuration)

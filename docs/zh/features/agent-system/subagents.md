@@ -30,24 +30,9 @@ SubAgent 让主 Agent 把一段独立任务交给一个专注的"帮手"：它�
 
 ## 轻量提示词
 
-`subagent-light` 是原生 session-backed SubAgent 的默认提示词 profile。它保留：
+默认情况下，原生 SubAgent 从一份精简的提示词（`subagent-light`）启动。它带上帮手干活所需的内容——workspace 和环境上下文、它的角色与工具限制，以及你的 `.craft/AGENTS.md`——但省去主对话累积的较重上下文，例如完整的长期记忆。
 
-- DotCraft 基础身份
-- 当前 workspace 和环境信息
-- Role instructions
-- 工具能力与限制
-- `.craft/AGENTS.md`
-- 必要文件引用和工作方式
-
-它默认跳过：
-
-- 完整 Memory 上下文
-- 较长的 Skill 自学习说明
-- 自定义命令摘要
-- 延迟加载 MCP 的发现说明
-- Plan / Todo 注入
-
-这能让短任务 SubAgent 更快启动，也避免把主线程的长期上下文全部复制给子线程。
+这能让短任务 SubAgent 启动更快，也避免把主线程的长期上下文复制进每个子线程。想精确调整提示词包含哪些内容，见 [SubAgent 与 External CLI Profiles](../../developing/configuration#subagent-与-external-cli-profiles)。
 
 ## Profile：选择运行时
 

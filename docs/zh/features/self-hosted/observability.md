@@ -27,7 +27,7 @@ dotcraft gateway
 | Trace Timeline | 按时间线检查 Agent、工具和错误事件 |
 | Settings | 查看配置 schema、全局配置、工作区配置和合并结果 |
 | Automations | 查看本地任务、Cron 和活动状态（需 Gateway） |
-| Dreams | 审阅、应用、丢弃后台整理出的 Dream store |
+| Dreams | 审阅、应用、丢弃后台生成的 Dreams |
 | Approvals | 历史审批记录 |
 
 ## 三种典型用法
@@ -68,7 +68,10 @@ dotcraft gateway
 | 本地 Dashboard | 单工作区调试 |
 | Gateway Dashboard | 与 Automations 和外部渠道共用后台 |
 
-将 `Host` 设为 `0.0.0.0` 会允许外部网络访问 Dashboard，**注意**：Dashboard 可能展示 prompt、工具参数和工具结果。把它暴露到公网前请先确认网络边界与认证策略。
+将 `Host` 设为 `0.0.0.0` 会允许外部网络访问 Dashboard。
+
+> [!CAUTION]
+> Dashboard 可能展示 prompt、工具参数和工具结果。把它暴露到公网前，请先确认网络边界与认证策略。
 
 ## 审批审计
 

@@ -68,7 +68,10 @@ The **Settings** page renders the global `~/.craft/config.json` and workspace `.
 | Local Dashboard | Single-workspace debugging |
 | Gateway Dashboard | Shared backend with Automations and external channels |
 
-Setting `Host` to `0.0.0.0` exposes Dashboard to your network. **Note**: Dashboard may show prompts, tool arguments, and tool results. Confirm network boundary and authentication before exposing it publicly.
+Setting `Host` to `0.0.0.0` exposes Dashboard to your network.
+
+> [!CAUTION]
+> Dashboard can show prompts, tool arguments, and tool results. Confirm your network boundary and authentication before exposing it publicly.
 
 ## Approval Audit
 

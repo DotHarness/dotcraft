@@ -62,7 +62,7 @@ When Desktop finds an existing project-level `AGENTS.md` or `CLAUDE.md` during f
 
 ### 3. Configure a Model
 
-DotCraft uses a provider registry for model services. Common paths include:
+In Desktop, the setup wizard handles this end to end: choose a provider, paste an API key, and pick a model — no files to edit. DotCraft works with three common paths:
 
 | Path | Best for |
 |------|----------|
@@ -70,7 +70,9 @@ DotCraft uses a provider registry for model services. Common paths include:
 | OpenAI / OpenAI-compatible | OpenAI API, OpenRouter, DeepSeek, MiMo, and compatible providers |
 | ChatGPT subscription | Reuse an existing ChatGPT Plus / Pro / Team / Business / Enterprise plan — no separate API key |
 
-The minimal configuration usually contains a `Providers` registry plus the selected `ProviderId` and `Model`:
+Already paying for ChatGPT Plus / Pro / Team / Business / Enterprise? Pick **Sign in with ChatGPT** in the wizard's OpenAI template, or run `dotcraft auth openai login` after setup, to reuse that subscription instead of an API key.
+
+Prefer to edit configuration directly? The minimal config is a list of providers plus the selected `ProviderId` and `Model`:
 
 ```json
 {
@@ -92,11 +94,7 @@ The minimal configuration usually contains a `Providers` registry plus the selec
 }
 ```
 
-`Protocol: "anthropic"` uses the native Anthropic interface and defaults to `https://api.anthropic.com` when `EndPoint` is omitted. OpenAI-compatible Chat Completions services use `Protocol: "openai-chat-completions"`; third-party compatible endpoints usually need an `EndPoint` ending in `/v1`. Use `openai-responses` for endpoints that support the OpenAI Responses API. DeepSeek V4 and MiMo V2.5 work out of the box on either OpenAI protocol with native reasoning controls.
-
-Already paying for ChatGPT Plus / Pro / Team / Business / Enterprise? Pick **Sign in with ChatGPT** in the setup wizard's OpenAI template, or run `dotcraft auth openai login` after setup, to reuse that subscription instead of an API key.
-
-Put secrets and endpoints in the global `Providers` registry under `~/.craft/config.json`; workspaces usually save only `ProviderId` and `Model` overrides. If you need to edit files directly, the paths are global `~/.craft/config.json` and workspace `<workspace>/.craft/config.json`. See [Configuration Reference](./developing/configuration) for the full field list.
+Keep API keys and endpoints in the global file at `~/.craft/config.json`; a workspace usually overrides only `ProviderId` and `Model`. For every field — protocols, endpoints, and the `/v1` rule for OpenAI-compatible services — see the [Configuration Reference](./developing/configuration).
 
 ### 4. Run the First Session
 
@@ -112,24 +110,15 @@ If you prefer a script-friendly command-line entry, run a one-shot task from the
 dotcraft exec "Read this repository's README and docs/index.md, then tell me how to start the project."
 ```
 
-In an initialized workspace, `dotcraft` does not enter an interactive chat. Use the TUI for terminal interaction.
+Running plain `dotcraft` only handles first-time setup — in a workspace that already has `.craft/`, it won't open an interactive chat. For a terminal session, continue with the [TUI guide](./features/entry-points/tui).
 
-For a richer terminal UI, continue with the [TUI guide](./features/entry-points/tui).
+## One workspace, every entry point
 
-## Understand the Entry Model
-
-DotCraft organizes its entry points around the **Unified Session Core**: command-line runs, Desktop, IDEs, bots, and automations do not each maintain their own agent loop, but reuse the same execution engine and session model.
-
-| Dimension | Gateway | Unified Session Core |
-|-----------|---------|----------------------|
-| Client customization | Hard to customize once everything is flattened into a message bus | Flexible, native client experiences |
-| Approval / HITL | Cannot express platform-native approval flows | Rendered with native platform UI |
-| Cross-channel resume | Not supported | Conversations can resume across channels |
-| Workspace persistence | Not supported | Designed around the workspace |
+DotCraft connects Desktop, the terminal, IDEs, bots, and automations to the same project workspace. A conversation you start in one place can continue in another, with the same sessions, memory, and tools.
 
 ![Unified entry model](https://github.com/DotHarness/resources/raw/master/dotcraft/entry.png)
 
-DotCraft connects different entry points to the same project-scoped workspace, while the Unified Session Core handles execution, state, and orchestration.
+Curious how one engine powers every entry point? See [Architecture Overview](./developing/architecture/overview).
 
 ## Configuration
 
@@ -188,17 +177,3 @@ Dashboard is DotCraft's visual inspection and configuration surface for sessions
 - Use [Security & Sandbox](./features/self-hosted/security) to constrain file, shell, and network access.
 - Use [Samples & Templates](./resources/samples) to validate a complete workspace template.
 - For an architectural view, jump to [Architecture Overview](./developing/architecture/overview).
-
-## Troubleshooting
-
-### Desktop cannot find `dotcraft`
-
-Make sure the DotCraft CLI is on `PATH`, or set the AppServer / `dotcraft` binary path in Desktop settings. Source-build users can run `build.bat` from the repository root first.
-
-### Model requests fail
-
-Check that the current `ProviderId` points to a configured `Providers[id]`, and that the provider `Protocol`, `ApiKey`, `EndPoint`, and `Model` belong to the same service. `Protocol: "openai-chat-completions"` compatible endpoints usually end with `/v1`; `Protocol: "anthropic"` uses Anthropic's official default endpoint when `EndPoint` is omitted.
-
-### Workspace configuration does not apply
-
-Confirm the config is in the current workspace's `.craft/config.json`, then restart Desktop or the relevant host. Some AppServer and entry-point settings are read only at startup.

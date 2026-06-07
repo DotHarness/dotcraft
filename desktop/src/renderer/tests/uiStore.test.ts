@@ -51,6 +51,8 @@ describe('uiStore goToNewChat', () => {
     useUIStore.setState({
       activeMainView: 'settings',
       welcomeDraft: null,
+      welcomeDraftsByWorkspace: {},
+      welcomeDraftWorkspacePath: null,
       sidebarPreferredCollapsed: false,
       sidebarCollapsed: false,
       detailPanelWidth: DETAIL_DEFAULT_WIDTH,
@@ -68,6 +70,33 @@ describe('uiStore goToNewChat', () => {
 
     expect(useThreadStore.getState().activeThreadId).toBeNull()
     expect(useUIStore.getState().activeMainView).toBe('conversation')
+  })
+
+  it('keeps welcome drafts scoped by workspace', () => {
+    useUIStore.getState().setWelcomeDraft({
+      text: 'Draft A',
+      images: [],
+      files: [],
+      mode: 'agent',
+      model: 'Default'
+    }, '/workspace/a')
+    useUIStore.getState().setWelcomeDraft({
+      text: 'Draft B',
+      images: [],
+      files: [],
+      mode: 'plan',
+      model: 'gpt-test'
+    }, '/workspace/b')
+
+    useUIStore.getState().setWelcomeDraftWorkspace('/workspace/a')
+    expect(useUIStore.getState().welcomeDraft?.text).toBe('Draft A')
+
+    useUIStore.getState().setWelcomeDraftWorkspace('/workspace/b')
+    expect(useUIStore.getState().welcomeDraft?.text).toBe('Draft B')
+
+    useUIStore.getState().clearWelcomeDraft('/workspace/b')
+    expect(useUIStore.getState().getWelcomeDraftForWorkspace('/workspace/a')?.text).toBe('Draft A')
+    expect(useUIStore.getState().getWelcomeDraftForWorkspace('/workspace/b')).toBeNull()
   })
 })
 

@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FocusEvent, type JSX, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { ArrowRightLeft, Check, ChevronDown, FolderPlus, GitBranch, Laptop, Plus, Search } from 'lucide-react'
+import { ArrowRightLeft, Check, ChevronDown, Cloud, Folder, FolderPlus, GitBranch, Laptop, Plus, Search, Server } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { normalizeGitPathKey, useGitStore, type GitBranchListSnapshot } from '../../stores/gitStore'
+import { useWorkspaceProjectsStore } from '../../stores/workspaceProjectsStore'
 import { addToast } from '../../stores/toastStore'
 import type { Thread } from '../../types/thread'
+import type { WorkspaceProjectSummary } from '../../../shared/workspaceProjects'
+import { normalizeWorkspaceProjectKey } from '../../../shared/workspaceProjectKey'
 import { WorktreeHandoffDialog } from './WorktreeHandoffDialog'
 
 export type ComposerWorkspaceMode = 'local' | 'worktree'
@@ -21,9 +24,10 @@ interface ComposerWorkspaceFooterProps {
   onWelcomeModeChange?: (mode: ComposerWorkspaceMode) => void
   onBaseRefChange?: (baseRef: string | null) => void
   onWorktreeBranchNameChange?: (branchName: string | null) => void
+  onWelcomeWorkspaceChange?: (workspacePath: string) => Promise<void> | void
 }
 
-type OpenMenu = 'workspace' | 'branch' | null
+type OpenMenu = 'project' | 'workspace' | 'branch' | null
 
 const GIT_BRANCH_REFRESH_INTERVAL_MS = 5_000
 
@@ -198,6 +202,19 @@ function workspaceSlug(path: string): string {
   return slug || 'worktree'
 }
 
+function projectIdentity(project: WorkspaceProjectSummary): string {
+  return project.projectId?.trim() || normalizeWorkspaceProjectKey(project.path)
+}
+
+function projectIcon(project: WorkspaceProjectSummary): ReactNode {
+  if (project.kind !== 'remote') {
+    return <Folder size={14} strokeWidth={1.8} aria-hidden />
+  }
+  return project.remote?.source === 'servers'
+    ? <Server size={14} strokeWidth={1.8} aria-hidden />
+    : <Cloud size={14} strokeWidth={1.8} aria-hidden />
+}
+
 function defaultWorktreeBranchName(path: string): string {
   return `dotcraft/${workspaceSlug(path)}`
 }
@@ -212,10 +229,13 @@ export function ComposerWorkspaceFooter({
   worktreeBranchName = null,
   onWelcomeModeChange,
   onBaseRefChange,
-  onWorktreeBranchNameChange
+  onWorktreeBranchNameChange,
+  onWelcomeWorkspaceChange
 }: ComposerWorkspaceFooterProps): JSX.Element | null {
   const t = useT()
   const capabilities = useConnectionStore((s) => s.capabilities)
+  const projects = useWorkspaceProjectsStore((s) => s.projects)
+  const foregroundProjectId = useWorkspaceProjectsStore((s) => s.foregroundProjectId)
   const [openMenu, setOpenMenu] = useState<OpenMenu>(null)
   const [branchQuery, setBranchQuery] = useState('')
   const [busy, setBusy] = useState(false)
@@ -254,6 +274,33 @@ export function ComposerWorkspaceFooter({
     ? (mode === 'worktree' ? t('workspaceFooter.newWorktree') : t('workspaceFooter.workLocally'))
     : (mode === 'worktree' ? t('workspaceFooter.worktree') : t('workspaceFooter.local'))
   const showBranchHandoffOnly = variant === 'thread' && mode === 'worktree'
+  const projectOptions = useMemo(() => {
+    if (variant !== 'welcome') return []
+    const activeProjectId = foregroundProjectId || normalizeWorkspaceProjectKey(workspacePath)
+    if (projects.some((project) => projectIdentity(project) === activeProjectId)) {
+      return projects
+    }
+    return [
+      {
+        projectId: activeProjectId,
+        kind: 'local' as const,
+        path: workspacePath,
+        identityWorkspacePath: workspacePath,
+        name: workspaceSlug(workspacePath),
+        state: 'foreground' as const,
+        running: true,
+        loaded: true,
+        threadCount: 0,
+        threads: []
+      },
+      ...projects
+    ].filter((project) => project.path.trim().length > 0)
+  }, [foregroundProjectId, projects, variant, workspacePath])
+  const selectedProjectId = foregroundProjectId || normalizeWorkspaceProjectKey(workspacePath)
+  const selectedProject = projectOptions.find((project) =>
+    projectIdentity(project) === selectedProjectId
+  )
+  const showProjectSelector = variant === 'welcome' && projectOptions.length > 0
 
   useEffect(() => {
     function closeOnOutsideClick(event: MouseEvent): void {
@@ -341,6 +388,13 @@ export function ComposerWorkspaceFooter({
     }
   }
 
+  async function selectWelcomeProject(project: WorkspaceProjectSummary): Promise<void> {
+    setOpenMenu(null)
+    if (projectIdentity(project) === selectedProjectId) return
+    if (project.kind === 'remote') return
+    await onWelcomeWorkspaceChange?.(project.path)
+  }
+
   async function createBranch(): Promise<void> {
     const error = branchNameError(branchDraft, t)
     if (error) return
@@ -384,8 +438,45 @@ export function ComposerWorkspaceFooter({
 
   return (
     <>
-    {showFooterControls && (
+    {(showProjectSelector || showFooterControls) && (
       <div ref={footerRef} style={footerStyle}>
+      {showProjectSelector && (
+        <div style={{ position: 'relative' }}>
+          <WorkspaceFooterPill
+            disabled={busy}
+            open={openMenu === 'project'}
+            onClick={() => setOpenMenu(openMenu === 'project' ? null : 'project')}
+          >
+            {selectedProject ? projectIcon(selectedProject) : <Folder size={15} strokeWidth={1.8} aria-hidden />}
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {selectedProject?.name || workspaceSlug(workspacePath)}
+            </span>
+            <ChevronDown size={14} strokeWidth={1.8} aria-hidden />
+          </WorkspaceFooterPill>
+          {openMenu === 'project' && (
+            <div style={menuStyle}>
+              {projectOptions.map((project) => {
+                const checked = projectIdentity(project) === selectedProjectId
+                return (
+                  <FooterMenuButton
+                    key={projectIdentity(project)}
+                    icon={projectIcon(project)}
+                    checked={checked}
+                    disabled={busy || (project.kind === 'remote' && !checked)}
+                    onClick={() => { void selectWelcomeProject(project) }}
+                  >
+                    <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {project.name || workspaceSlug(project.path)}
+                    </span>
+                  </FooterMenuButton>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+      {showFooterControls && (
+        <>
       <div style={{ position: 'relative' }}>
         <WorkspaceFooterPill
           disabled={busy || !branchControlsReady || (isThread && threadBusy)}
@@ -527,6 +618,8 @@ export function ComposerWorkspaceFooter({
           onConfirm={() => { void createBranch() }}
         />,
         document.body
+      )}
+        </>
       )}
       </div>
     )}

@@ -516,6 +516,52 @@ describe('registerIpcHandlers', () => {
     vi.unstubAllGlobals()
   })
 
+  it('forwards workspace:remove-recent to the main callback', async () => {
+    const removeRecentWorkspace = vi.fn()
+    const handlers = registerHandlersForTest('/workspace', () => null, createIpcCallbacks({
+      removeRecentWorkspace
+    }))
+
+    await handlers.get('workspace:remove-recent')?.({}, '/workspace/other')
+
+    expect(removeRecentWorkspace).toHaveBeenCalledWith('/workspace/other')
+  })
+
+  it('forwards workspace:disconnect-remote to the main callback', async () => {
+    const onDisconnectRemoteProject = vi.fn().mockResolvedValue(undefined)
+    const handlers = registerHandlersForTest('/workspace', () => null, createIpcCallbacks({
+      onDisconnectRemoteProject
+    }))
+
+    await handlers.get('workspace:disconnect-remote')?.({})
+
+    expect(onDisconnectRemoteProject).toHaveBeenCalledTimes(1)
+  })
+
+  it('observes successful AppServer requests after forwarding them', async () => {
+    const result = { subscribed: true }
+    const client = {
+      sendRequest: vi.fn().mockResolvedValue(result)
+    }
+    const onAppServerRequestCompleted = vi.fn()
+    const handlers = registerHandlersForTest('/workspace', () => client as never, createIpcCallbacks({
+      onAppServerRequestCompleted
+    }))
+    const params = { threadId: 'thread_1' }
+
+    await expect(
+      handlers.get('appserver:send-request')?.({}, 'thread/subscribe', params, 20_000)
+    ).resolves.toBe(result)
+
+    expect(client.sendRequest).toHaveBeenCalledWith('thread/subscribe', params, 20_000)
+    expect(onAppServerRequestCompleted).toHaveBeenCalledWith(
+      client,
+      'thread/subscribe',
+      params,
+      result
+    )
+  })
+
   it('desktop extension POST requires descriptor surfaceWriteScopes', async () => {
     const rootPath = mockDesktopExtensionPluginFixture({
       extension: { surfaceWriteScopes: [] }
@@ -1561,6 +1607,43 @@ describe('task completion notifications', () => {
     })
   })
 
+  it('tags forwarded renderer notifications with a workspace path when provided', () => {
+    const win = createWindow(false)
+
+    broadcastNotification(win, 'thread/runtimeChanged', {
+      threadId: 'thread_1',
+      runtime: { running: true }
+    }, undefined, 'F:/workspace-b')
+
+    expect(win.webContents.send).toHaveBeenCalledWith('appserver:notification', {
+      method: 'thread/runtimeChanged',
+      params: {
+        threadId: 'thread_1',
+        runtime: { running: true }
+      },
+      workspacePath: 'F:/workspace-b'
+    })
+  })
+
+  it('tags forwarded renderer notifications with foreground state when provided', () => {
+    const win = createWindow(false)
+
+    broadcastNotification(win, 'thread/runtimeChanged', {
+      threadId: 'thread_1',
+      runtime: { running: true }
+    }, undefined, 'F:/workspace-b', false)
+
+    expect(win.webContents.send).toHaveBeenCalledWith('appserver:notification', {
+      method: 'thread/runtimeChanged',
+      params: {
+        threadId: 'thread_1',
+        runtime: { running: true }
+      },
+      workspacePath: 'F:/workspace-b',
+      foreground: false
+    })
+  })
+
   it('shows native user input request notifications when unfocused', () => {
     const win = createWindow(false)
     const payload = {
@@ -1628,13 +1711,19 @@ describe('unregisterIpcHandlers', () => {
     vi.clearAllMocks()
   })
 
-  it('removes workspace-config:get-core and workspace:clear-recent handlers during teardown', () => {
+  it('removes workspace-config:get-core and workspace recent-project handlers during teardown', () => {
     unregisterIpcHandlers()
 
     const removedChannels = vi.mocked(ipcMain.removeHandler).mock.calls.map(([channel]) => channel)
     expect(removedChannels).toContain('workspace-config:get-core')
+    expect(removedChannels).toContain('workspace:get-projects')
+    expect(removedChannels).toContain('workspace:remove-recent')
+    expect(removedChannels).toContain('workspace:disconnect-remote')
     expect(removedChannels).toContain('workspace:clear-recent')
     expect(removedChannels.filter((channel) => channel === 'workspace-config:get-core')).toHaveLength(1)
+    expect(removedChannels.filter((channel) => channel === 'workspace:get-projects')).toHaveLength(1)
+    expect(removedChannels.filter((channel) => channel === 'workspace:remove-recent')).toHaveLength(1)
+    expect(removedChannels.filter((channel) => channel === 'workspace:disconnect-remote')).toHaveLength(1)
     expect(removedChannels.filter((channel) => channel === 'workspace:clear-recent')).toHaveLength(1)
   })
 
@@ -1671,6 +1760,9 @@ describe('unregisterIpcHandlers', () => {
     unregisterIpcHandlers()
 
     expect(ipcMain.removeHandler).toHaveBeenCalledWith('workspace-config:get-core')
+    expect(ipcMain.removeHandler).toHaveBeenCalledWith('workspace:get-projects')
+    expect(ipcMain.removeHandler).toHaveBeenCalledWith('workspace:remove-recent')
+    expect(ipcMain.removeHandler).toHaveBeenCalledWith('workspace:disconnect-remote')
     expect(ipcMain.removeHandler).toHaveBeenCalledWith('workspace:clear-recent')
   })
 })

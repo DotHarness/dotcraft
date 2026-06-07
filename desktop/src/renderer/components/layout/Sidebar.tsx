@@ -27,6 +27,7 @@ interface SidebarProps {
   workspacePath: string
   localWorkspacePath?: string
   remoteWorkspace?: boolean
+  workspaceOpening?: boolean
 }
 
 /**
@@ -47,7 +48,8 @@ export function Sidebar({
   workspaceName,
   workspacePath,
   localWorkspacePath,
-  remoteWorkspace = false
+  remoteWorkspace = false,
+  workspaceOpening = false
 }: SidebarProps): JSX.Element {
   const t = useT()
   const locale = useLocale()
@@ -77,8 +79,6 @@ export function Sidebar({
       <WorkspaceHeader
         workspaceName={workspaceName}
         workspacePath={workspacePath}
-        localWorkspacePath={localWorkspacePath ?? workspacePath}
-        localActionsDisabled={remoteWorkspace}
       />
 
       <NewThreadButton />
@@ -86,7 +86,13 @@ export function Sidebar({
       <ThreadSearch workspaceName={workspaceName} />
 
       {/* Thread list -- fills remaining space */}
-      <ThreadList />
+      <ThreadList
+        workspacePath={workspacePath}
+        localWorkspacePath={localWorkspacePath ?? workspacePath}
+        localActionsDisabled={remoteWorkspace}
+        foregroundOpening={workspaceOpening}
+        openingWorkspacePath={workspaceOpening ? workspacePath : undefined}
+      />
 
       {/* Phase 2 nav: Automations, Skills — spacing instead of a divider line */}
       <div

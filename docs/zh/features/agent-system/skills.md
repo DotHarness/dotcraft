@@ -89,7 +89,7 @@ Skills 页面右上角 **管理** 是批量启用/禁用入口：
 
 ## 内置工作流 skill：`skill-authoring`
 
-启用自学习后，DotCraft 会注入 `skill-authoring` 作为按需参考——告诉 Agent `SKILL.md` frontmatter 要求、action 选择、supporting file 目录约束、常见坑和验证方法。`skill-authoring` 的 `tools: SkillManage` 决定了：自学习关闭时它也不会列入可用 skill 清单。
+启用自学习后，DotCraft 会给 Agent 一份按需的 `skill-authoring` 参考：如何组织 skill 的 frontmatter、supporting file 该放在哪里、常见坑，以及如何验证结果。关闭自学习，这份参考也会随之消失。
 
 ## 安全与信任
 
@@ -104,7 +104,7 @@ Skills 页面右上角 **管理** 是批量启用/禁用入口：
 | 项目内固定流程（"提交 PR 前必跑 lint+test"） | 工作区 skill，可手写也可让 Agent 创建 |
 | 跨项目通用偏好（自己的代码风格） | 个人 skill |
 | 受控分发的能力包（含工具 + 多 skill） | 创建 [Plugin](./plugins-tools) |
-| 想让 Agent 把刚解决的问题沉淀下来 | 启用自学习，让它调用 `SkillManage create` |
+| 想让 Agent 把刚解决的问题沉淀下来 | 启用自学习，让 Agent 自己保存 |
 | 想用社区已有方案 | Skills 页面市场搜索 + Install with DotCraft |
 
 ## 相关文档

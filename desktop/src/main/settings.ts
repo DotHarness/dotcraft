@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { normalizeLocale, type AppLocale } from '../shared/locales'
 import { isValidAppVersion } from '../shared/whatsNew'
 import { normalizeRemoteHosts, type RemoteHost } from '../shared/remoteServers'
+import { normalizeWorkspaceProjectKey, sameWorkspaceProjectKey } from '../shared/workspaceProjectKey'
 
 export interface RecentWorkspace {
   path: string
@@ -251,11 +252,11 @@ export function normalizePinnedThreadIdsByWorkspace(settings: AppSettings): Reco
   for (const [workspacePath, threadIds] of Object.entries(raw)) {
     const trimmedWorkspacePath = workspacePath.trim()
     if (!trimmedWorkspacePath || !Array.isArray(threadIds)) continue
-    const normalizedWorkspacePath = normalize(trimmedWorkspacePath)
+    const normalizedWorkspacePath = normalizeWorkspaceProjectKey(trimmedWorkspacePath)
     if (!normalizedWorkspacePath) continue
 
-    const seen = new Set<string>()
-    const ids: string[] = []
+    const seen = new Set(normalized[normalizedWorkspacePath] ?? [])
+    const ids: string[] = normalized[normalizedWorkspacePath] ? [...normalized[normalizedWorkspacePath]] : []
     for (const value of threadIds) {
       if (typeof value !== 'string') continue
       const id = value.trim()
@@ -349,7 +350,7 @@ export function addRecentWorkspace(settings: AppSettings, workspacePath: string)
   }
   const existing = settings.recentWorkspaces ?? []
   // Remove duplicate if present, then prepend
-  const filtered = existing.filter((r) => r.path !== workspacePath)
+  const filtered = existing.filter((r) => !sameWorkspaceProjectKey(r.path, workspacePath))
   settings.recentWorkspaces = [entry, ...filtered].slice(0, MAX_RECENT)
   settings.lastWorkspacePath = workspacePath
   return settings
@@ -357,6 +358,17 @@ export function addRecentWorkspace(settings: AppSettings, workspacePath: string)
 
 export function getRecentWorkspaces(settings: AppSettings): RecentWorkspace[] {
   return settings.recentWorkspaces ?? []
+}
+
+/**
+ * Removes a workspace from the recent list.
+ * Mutates and returns the settings object.
+ */
+export function removeRecentWorkspace(settings: AppSettings, workspacePath: string): AppSettings {
+  settings.recentWorkspaces = (settings.recentWorkspaces ?? []).filter((recent) =>
+    !sameWorkspaceProjectKey(recent.path, workspacePath)
+  )
+  return settings
 }
 
 /**

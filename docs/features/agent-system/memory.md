@@ -4,13 +4,13 @@ DotCraft gives the agent a real memory of your project. As you work, it writes d
 
 ## Three Layers of Memory
 
-| Layer | Storage | Written by | Purpose |
-|---|---|---|---|
-| **Session history** | `.craft/threads/` | Engine, automatically | Full Thread / Turn / Item timeline of each session |
-| **Long-term memory & history** | `.craft/memory/MEMORY.md`, `HISTORY.md` | Agent maintains after successful turns | Project context, user preferences, recent decisions, recurring issues |
-| **Dreams** | `.craft/dreams/` | Background consolidation loop | Low-authority passive context (focus topics, open questions, low-signal noise to avoid) |
+| Layer | Written by | What it holds |
+|---|---|---|
+| **Session history** | The engine, automatically | A complete record of every session — every message, action, and result |
+| **Long-term memory** | The agent, after successful work | Project context, your preferences, recent decisions, recurring issues |
+| **Dreams** | A background loop | Low-authority hunches — focus topics, open questions, noise to avoid |
 
-Session history is the audit baseline. Long-term memory is the agent-maintained, high-authority notebook. Dreams is the low-authority background scratchpad. The three roles do not overlap.
+Session history is the audit baseline you can always trace back to. Long-term memory is the agent's high-authority notebook. Dreams is a low-authority background scratchpad. The three roles don't overlap. To see exactly how sessions are stored on disk, see [Unified Session Core](../../developing/architecture/session-core).
 
 ## MEMORY.md / HISTORY.md — Agent Maintains, You Review
 

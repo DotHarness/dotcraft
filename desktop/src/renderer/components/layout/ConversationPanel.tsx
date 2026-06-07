@@ -21,6 +21,7 @@ import { configObjectFromWorkspaceCore, type WorkspaceCoreConfigLike } from '../
 interface ConversationPanelProps {
   workspacePath?: string
   identityWorkspacePath?: string
+  projectKey?: string
   remoteWorkspace?: boolean
   workspaceConfigChange?: WorkspaceConfigChangedPayload | null
   workspaceConfigChangeSeq?: number
@@ -46,6 +47,7 @@ const DEFAULT_REASONING_CONFIG: ResolvedReasoningConfig = {
 export function ConversationPanel({
   workspacePath = '',
   identityWorkspacePath,
+  projectKey,
   remoteWorkspace = false,
   workspaceConfigChange = null,
   workspaceConfigChangeSeq = 0
@@ -336,6 +338,7 @@ export function ConversationPanel({
       <ConversationWelcome
         workspacePath={workspacePath}
         identityWorkspacePath={protocolWorkspacePath}
+        projectKey={projectKey}
         remoteWorkspace={remoteWorkspace}
         workspaceConfigChange={workspaceConfigChange}
         workspaceConfigChangeSeq={workspaceConfigChangeSeq}

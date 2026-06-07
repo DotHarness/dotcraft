@@ -1,6 +1,6 @@
 # SDK Quickstart
 
-DotCraft ships SDKs for **TypeScript**, **.NET**, and **Python**.
+Connect to a workspace and run your first turn with the DotCraft SDK. This tutorial covers all three SDKs — **TypeScript**, **.NET**, and **Python** — and takes you from install to a streamed reply. Pick your language in each tab.
 
 ## Install
 
@@ -22,7 +22,7 @@ pip install dotcraft
 
 ## 1. Connect
 
-`local` discovers or starts the local Hub and ensures an AppServer for your workspace. Use `remote` to connect to a known AppServer WebSocket instead.
+`local` discovers or starts the local [Hub](../lifecycle/hub) and ensures an [AppServer](../protocols/appserver-protocol) for your workspace — pass the workspace path. Use `remote` instead to connect to a known AppServer WebSocket URL (`ws://host:port/...`) when the workspace runs elsewhere.
 
 ::: code-group
 

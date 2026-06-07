@@ -2,7 +2,7 @@
 
 DotCraft 可以直接在你的编辑器里当编码助手用——JetBrains、Obsidian、Unity 等等——不用云订阅、不用专有插件、不绑定任何厂商。它靠的是 [Agent Client Protocol（ACP）](https://agentclientprotocol.com/)：一个把编码代理接进编辑器的开放标准（思路类似 LSP，只是对象换成了 AI 代理）。任何兼容 ACP 的编辑器都能接任意兼容 ACP 的代理，而 DotCraft 原生就支持 ACP。
 
-从编辑器角度来看，通信方式仍基于 **stdio（标准输入/输出）与 JSON-RPC 2.0**：编辑器将 DotCraft 作为子进程启动，通过标准流双向交换消息。在内部，DotCraft ACP 进程充当**协议桥接层**，将编辑器（ACP 协议）与 AppServer 实例（Wire Protocol）连接起来。所有会话状态、Agent 执行和工具调用均由 AppServer 处理，并与 TUI、Desktop、外部渠道等客户端共用同一套后端。桥接层会自动启动本地 AppServer 子进程，也可连接到你指定的远程 AppServer。
+编辑器启动 DotCraft 并与它对话，DotCraft 再把这段对话桥接到自己的 [AppServer](../../developing/lifecycle/appserver)，由 AppServer 运行 Agent。因此一个 ACP 会话与 TUI、Desktop、渠道共用同一个工作区、会话、记忆和工具——编辑器只是面向同一个 Agent 的另一扇窗口。默认情况下 DotCraft 会替你启动一个本地 AppServer；需要时再让它连接远程 AppServer。
 
 ## 支持的编辑器
 
@@ -43,13 +43,13 @@ DotCraft 以 `-acp` 标志启动时会自动激活 ACP 模式，无需修改任�
 
 ### 3. 远程工作区（可选）
 
-如果你已有正在运行的 DotCraft AppServer（例如通过 `dotcraft app-server` 或桌面应用启动），可以让 ACP 桥接层连接到该实例，而不是重新启动子进程：
+如果你已有正在运行的 DotCraft AppServer（例如通过 `dotcraft app-server` 或桌面应用启动），可以让 ACP 桥接层连接到该实例，而不是重新启动一个：
 
 ```text
 dotcraft -acp --remote ws://<host>:<port>/ws
 ```
 
-如果 AppServer 需要认证，可附加 `--token <token>`。连接远程 AppServer 后，通过编辑器创建的会话对所有已连接的客户端实时可见。
+AppServer 监听的是裸地址 `ws://host:port`，客户端连接时一律在末尾追加 `/ws` 路径（如上所示）。AppServer 需要认证时再附加 `--token <token>`。连接远程 AppServer 后，你在编辑器中创建的会话对所有已连接的客户端实时可见。
 
 ---
 
@@ -93,50 +93,27 @@ DotCraft 本体仍然是 Unity 客户端通过 ACP 启动的 agent harness。请
 https://github.com/DotHarness/dotcraft-unity.git
 ```
 
-Unity 场景、选中对象、控制台和项目信息工具由 `dotcraft-unity` 在 ACP 初始化时声明为运行时 dynamic tools。`_unity/*` 是 Unity 客户端内部的 ACP 扩展方法，由客户端插件负责实现和维护。
+连接之后，Agent 可以查询 Unity 场景、选中对象、控制台和项目信息——这些工具由 `dotcraft-unity` 插件提供并维护。
 
-## 工作原理
+## 在编辑器里你能得到什么
 
-编辑器以 ACP 模式启动 DotCraft 后，交互流程如下：
+在编辑器里运行，让 DotCraft 拥有普通 CLI Agent 给不了的能力：
 
-1. **初始化** — 编辑器与 ACP 桥接层交换协议版本和能力声明（`initialize`）；桥接层随后连接 AppServer（若未指定 `--remote` 则自动启动本地子进程），并将握手信息通过 Wire Protocol 转发给 AppServer。支持 DotCraft 扩展的客户端还可以在 `_meta.dotcraft.runtimeTools` 中声明由客户端实现的运行时工具。
-2. **创建会话** — 编辑器发送创建会话请求（`session/new`）；桥接层将请求转发给 AppServer，由 AppServer 创建会话，再将响应（可用斜杠命令、配置选项等）中继回编辑器 UI。客户端声明的运行时工具会作为 AppServer `dynamicTools` 绑定到当前会话连接。
-3. **提示交互** — 编辑器发送用户消息（`session/prompt`）；AppServer 运行 Agent 并流式返回可见回复、思考内容、工具调用状态和执行结果，桥接层将可见回复作为 `agent_message_chunk`、思考内容作为 `agent_thought_chunk`，并通过 `session/update` 通知转发给编辑器。
-4. **配置切换** — DotCraft 通过 ACP `configOptions` 暴露模式和模型选择器。支持该能力的客户端调用 `session/set_config_option` 切换模型，桥接层会同步更新当前线程和工作区默认模型。
-5. **权限请求** — 执行文件写入或 Shell 命令前，AppServer 通过 Wire Protocol 下发审批请求；桥接层将其转换为 `requestPermission` ACP 消息，由编辑器向用户展示审批/拒绝提示。
-6. **文件与终端访问** — 当 AppServer 需要编辑器原生的文件或终端访问能力时，请求通过桥接层转发回编辑器（`fs/readTextFile`、`fs/writeTextFile`、`terminal/*`），所有操作均通过编辑器自身的 API 路由。
-7. **客户端运行时工具** — Unity 等客户端可以声明场景查询、选中对象读取、控制台日志读取等客户端拥有的工具。DotCraft 只负责校验和桥接工具描述符，具体实现仍留在客户端插件内。
+- **读取未保存的缓冲区** — Agent 看到的是你当前的编辑内容，而不只是磁盘上的版本。
+- **应用前先看内联 diff** — 在编辑器自己的 diff 视图里逐项审阅并批准每处改动。
+- **编辑器托管的终端** — 命令在编辑器拥有的终端里运行，沿用它的工作目录和环境。
+- **原生审批** — 写文件或执行 Shell 命令前，编辑器会弹出批准/拒绝提示。
+- **斜杠命令与模型切换** — 你的 `.craft/commands/` 会出现在编辑器的命令选择器里，也可以直接在编辑器里切换模型。
 
-这意味着 DotCraft 能够读取编辑器缓冲区中尚未保存的内容、在应用变更前展示内联 diff、并在编辑器管理的终端中执行命令——这些能力超出了普通 CLI 代理所能提供的范畴。与此同时，所有 Agent 状态均由 AppServer 统一管理，会话持久存储并可在其他客户端中访问，即使编辑器关闭后依然保留。
+由于 Agent 在 AppServer 中运行，你的工作不会随编辑器关闭而消失：会话持久保存，关闭编辑器后另一个客户端仍能接管同一个线程。
 
-## 支持的协议功能
+DotCraft 实现的完整 ACP 方法清单，以及桥接层如何把它们映射到 AppServer，见 [AppServer 协议](../../developing/protocols/appserver-protocol)。
 
-| 功能 | 说明 |
-|---|---|
-| `initialize` | 协议版本协商和能力交换 |
-| `session/new` | 创建新会话 |
-| `session/load` | 加载已有会话并回放历史 |
-| `session/list` | 列出所有 ACP 会话 |
-| `session/prompt` | 发送提示并流式接收回复 |
-| `session/update` | DotCraft 向编辑器推送可见消息块、思考消息块和工具调用状态 |
-| `session/set_config_option` | 切换会话配置选项，例如模式和模型 |
-| `session/cancel` | 取消正在进行的操作 |
-| `requestPermission` | DotCraft 就敏感操作向编辑器请求执行权限 |
-| `fs/readTextFile` | 通过编辑器读取文件（含未保存内容） |
-| `fs/writeTextFile` | 通过编辑器写入文件（可预览 diff） |
-| `terminal/*` | 通过编辑器创建和管理终端 |
-| Runtime Dynamic Tools | 客户端通过 `_meta.dotcraft.runtimeTools` 声明线程级工具，桥接层通过 AppServer `item/tool/call` 调回客户端 |
-| Slash Commands | `.craft/commands/` 中的自定义命令自动广播到编辑器命令选择器 |
-| Config Options | 将可选配置（模式、模型等）暴露到编辑器 UI，模型选择器使用 ACP `category: "model"` |
+## 会话在多个客户端间共享
 
-## 会话与工作区行为
+一个 ACP 会话就是一个完整的工作区会话——它和你的 TUI、Desktop、Bot 会话存在同一套存储里，并共享同一份长期记忆。在 ACP 会话中获取的知识，在同一工作区的 TUI、Desktop 或 QQ 机器人会话中同样可以访问，反之亦然。
 
-ACP 作为完整的 AppServer 客户端工作。通过编辑器创建的会话会写入同一套会话存储：
-
-- **会话 ID 格式**：`acp_{sessionId}`（会话 ID 由编辑器分配后转发给 AppServer）
-- **会话存储**：存储于 `<workspace>/.craft/sessions/`，与 TUI、Desktop、Bot 等渠道的会话并列存放
-- **共享记忆**：`memory/MEMORY.md` 和 `memory/HISTORY.md` 在同一工作区的所有 Channel 之间共享——在 ACP 会话中获取的知识，在 TUI、Desktop 或 QQ 机器人会话中同样可以访问，反之亦然
-- **多客户端并发**：使用 `--remote` 时，多个客户端可同时连接同一个 AppServer。在 Obsidian 中开启的 ACP 会话，可以在桌面应用中实时查看或继续
+使用 `--remote` 时，多个客户端可同时连接同一个 AppServer。你在 Obsidian 中开启的会话，可以在桌面应用中实时查看或继续。背后的模型见 [统一会话核心](../../developing/architecture/session-core)。
 
 ## 使用示例
 
@@ -145,7 +122,7 @@ ACP 作为完整的 AppServer 客户端工作。通过编辑器创建的会话�
 | 本地 IDE 直接使用 | 配置编辑器启动 `dotcraft -acp` |
 | 远程工作区 | 先启动 AppServer WebSocket，再在 ACP 参数中使用 `--remote` |
 | 与 Desktop 共享会话 | 连接同一个 workspace / AppServer |
-| 让编辑器负责文件和终端能力 | 使用支持 `fs/*` 和 `terminal/*` 的 ACP 客户端 |
+| 让编辑器负责文件和终端能力 | 使用能原生处理文件与终端请求的 ACP 客户端 |
 
 ## 相关文档
 

@@ -3,6 +3,7 @@ import type { ThreadSummary, Thread, ThreadStatus, ThreadRuntimeSnapshot, Thread
 import { useViewerTabStore } from './viewerTabStore'
 import { getSubAgentParentThreadId, isSubAgentThread } from '../utils/subAgentThreads'
 import { isInternalThread } from '../utils/internalThreads'
+import { normalizeWorkspaceProjectKey } from '../../shared/workspaceProjectKey'
 export type { ThreadRuntimeSnapshot } from '../types/thread'
 
 export interface ParkedApproval {
@@ -24,6 +25,7 @@ interface ApplyRuntimeSnapshotOptions {
 
 interface ThreadStoreState {
   threadList: ThreadSummary[]
+  threadListProjectKey: string | null
   activeThreadId: string | null
   activeThread: Thread | null
   searchQuery: string
@@ -50,7 +52,7 @@ interface ThreadStoreState {
 }
 
 interface ThreadStoreActions {
-  setThreadList(threads: ThreadSummary[]): void
+  setThreadList(threads: ThreadSummary[], projectKey?: string | null): void
   /** Prepend a new thread to the list (newest first). No-op if the same id already exists. */
   addThread(thread: ThreadSummary): void
   /** Insert or refresh thread summaries without replacing the whole list. */
@@ -90,6 +92,7 @@ export interface ThreadStore extends ThreadStoreState, ThreadStoreActions {}
 
 const initialState: ThreadStoreState = {
   threadList: [],
+  threadListProjectKey: null,
   activeThreadId: null,
   activeThread: null,
   searchQuery: '',
@@ -116,7 +119,7 @@ function filterMapToThreadList<T>(current: Map<string, T>, ids: Set<string>): Ma
 }
 
 function normalizeComparableWorkspacePath(path: string | null | undefined): string {
-  return (path ?? '').trim().replace(/\\/g, '/').replace(/\/+$/u, '').toLowerCase()
+  return normalizeWorkspaceProjectKey(path)
 }
 
 function firstNonEmpty(...values: Array<string | null | undefined>): string | undefined {
@@ -208,9 +211,11 @@ function getPinnableThreadIds(threads: ThreadSummary[]): Set<string> {
 function persistPinnedThreadIds(workspacePath: string | null, threadIds: string[]): void {
   const workspace = workspacePath?.trim()
   if (!workspace || typeof window === 'undefined') return
+  const workspaceKey = normalizeWorkspaceProjectKey(workspace)
+  if (!workspaceKey) return
 
   void window.api?.settings
-    ?.set({ pinnedThreadIdsByWorkspace: { [workspace]: threadIds } })
+    ?.set({ pinnedThreadIdsByWorkspace: { [workspaceKey]: threadIds } })
     .catch((err: unknown) => console.error('settings:set pinnedThreadIdsByWorkspace failed:', err))
 }
 
@@ -228,9 +233,10 @@ function disposeViewerTabsForThread(threadId: string): void {
 export const useThreadStore = create<ThreadStore>((set, _get) => ({
   ...initialState,
 
-  setThreadList(threads) {
+  setThreadList(threads, projectKey = null) {
     set((state) => {
       const visibleThreads = threads.filter((thread) => !isInternalThread(thread))
+      const threadListProjectKey = normalizeWorkspaceProjectKey(projectKey)
       const threadIds = new Set(visibleThreads.map((thread) => thread.id))
       const runtimeSnapshots = filterMapToThreadList(state.runtimeSnapshots, threadIds)
       const parkedApprovals = filterMapToThreadList(state.parkedApprovals, threadIds)
@@ -306,6 +312,7 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
 
       return {
         threadList: visibleThreads,
+        threadListProjectKey: threadListProjectKey || null,
         runtimeSnapshots,
         runningTurnThreadIds,
         parkedApprovals,

@@ -160,3 +160,9 @@ examples/telegram/
   README_ZH.md          本文件
 ```
 
+## 相关文档
+
+- [Python SDK](../sdks/python)——`dotcraft_wire` SDK 概览与 API 参考。
+- [Channels & Bots](../../features/entry-points/channels)——所有聊天渠道的总览。
+- [Telegram 渠道适配器](./telegram)——同一平台的 TypeScript 适配器。
+

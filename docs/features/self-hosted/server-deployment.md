@@ -117,9 +117,9 @@ Set `ENABLED_CHANNELS` in `.env`:
 ENABLED_CHANNELS=telegram,feishu
 ```
 
-Supported values are `telegram`, `feishu`, `qq`, `wecom`, and `weixin`. `all` enables `telegram,feishu,qq,wecom`; Weixin is intentionally excluded from `all` because it needs QR login.
+Supported values are `telegram`, `feishu`, `qq`, `wecom`, and `weixin`. `all` enables `telegram,feishu,qq,wecom`; Weixin is excluded from `all` because it needs QR login.
 
-The renderer writes `ExternalChannels` entries with `transport: "managedWebsocket"` and `builtinModule: "channel-<name>"`. AppServer then spawns the Node adapters and injects the WebSocket URL/token automatically.
+AppServer starts the Node adapter for each enabled channel and wires up its connection automatically — you don't configure ports or tokens between them by hand.
 
 Only required credentials are configured from environment variables:
 
@@ -153,6 +153,11 @@ This starts a second service from the same image and mounts `/var/run/docker.soc
 - The default Compose file does not expose AppServer or Dashboard beyond localhost. Do not publish them directly to the public internet; prefer Desktop SSH tunnels or a TLS reverse proxy with authentication.
 - Use a strong `APPSERVER_TOKEN` and Dashboard username/password when exposing these services through a reverse proxy.
 - Terminate TLS with a reverse proxy. The embedded AppServer listener serves `ws://`, not `wss://`.
-- Current server Docker images are x64-only. Arm64 Linux hosts should use Docker emulation or build from source until arm64 server images are available.
+- Server Docker images are x64-only. On an arm64 Linux host, run them under Docker emulation or build from source.
 
-See also: [Channels & Bots](../entry-points/channels), [Security & Sandbox](./security), and the Docker quickstart in `deploy/docker/README.md`.
+## Related docs
+
+- [Channels & Bots](../entry-points/channels)
+- [Security & Sandbox](./security)
+- [Observability](./observability)
+- Docker quickstart in `deploy/docker/README.md`

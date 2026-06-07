@@ -41,6 +41,7 @@ import {
 import { ComposerWorkspaceFooter, type ComposerWorkspaceMode } from './ComposerWorkspaceFooter'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { PillSwitch } from '../ui/PillSwitch'
+import { Skeleton } from '../ui/Skeleton'
 import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
 import type { WorkspaceConfigChangedPayload } from '../../utils/workspaceConfigChanged'
 import { configObjectFromWorkspaceCore, type WorkspaceCoreConfigLike } from '../../utils/workspaceCoreConfig'
@@ -48,6 +49,7 @@ import { configObjectFromWorkspaceCore, type WorkspaceCoreConfigLike } from '../
 interface ConversationWelcomeProps {
   workspacePath: string
   identityWorkspacePath?: string
+  projectKey?: string
   remoteWorkspace?: boolean
   workspaceConfigChange?: WorkspaceConfigChangedPayload | null
   workspaceConfigChangeSeq?: number
@@ -114,12 +116,14 @@ function sanitizeSuggestionTitle(raw: string): string {
 export function ConversationWelcome({
   workspacePath,
   identityWorkspacePath,
+  projectKey,
   remoteWorkspace = false,
   workspaceConfigChange = null,
   workspaceConfigChangeSeq = 0
 }: ConversationWelcomeProps): JSX.Element {
   const t = useT()
   const identityPath = identityWorkspacePath || workspacePath
+  const draftProjectKey = projectKey || workspacePath
   const [contentRevision, setContentRevision] = useState(0)
   const [images, setImages] = useState<ImageAttachment[]>([])
   const [files, setFiles] = useState<ComposerFileAttachment[]>([])
@@ -158,7 +162,7 @@ export function ConversationWelcome({
   const latestDraftTextRef = useRef('')
   const latestDraftSegmentsRef = useRef<ComposerDraftSegment[]>([])
   const latestDraftSelectionRef = useRef<{ start: number; end: number } | null>(null)
-  const initialWelcomeDraftRef = useRef(useUIStore.getState().welcomeDraft)
+  const initialWelcomeDraftRef = useRef(useUIStore.getState().getWelcomeDraftForWorkspace(draftProjectKey))
   const workspaceLlmConfigChangedRef = useRef(false)
   const workspaceModelFromConfigRef = useRef<string | null>(null)
   const suggestionFingerprintRef = useRef<string | null>(null)
@@ -180,6 +184,7 @@ export function ConversationWelcome({
   const { addThread, setActiveThreadId } = useThreadStore()
   const setWelcomeDraft = useUIStore((s) => s.setWelcomeDraft)
   const clearWelcomeDraft = useUIStore((s) => s.clearWelcomeDraft)
+  const setWelcomeDraftWorkspace = useUIStore((s) => s.setWelcomeDraftWorkspace)
   const appBindingApps = useAppBindingStore((s) => s.apps)
   const fetchAppBindings = useAppBindingStore((s) => s.fetchApps)
   const startAppConnection = useAppBindingStore((s) => s.startConnection)
@@ -191,6 +196,7 @@ export function ConversationWelcome({
   const [welcomeAppBusyId, setWelcomeAppBusyId] = useState<string | null>(null)
 
   const isConnected = connectionStatus === 'connected'
+  const openingWorkspace = connectionStatus === 'connecting'
   const busy = starting || !isConnected
   const showMentionPopover = atQuery !== null && !mentionDismissed && !remoteWorkspace
   const canUseCommandPicker = capabilities?.commandManagement === true
@@ -222,6 +228,10 @@ export function ConversationWelcome({
         .sort((a, b) => a.name.localeCompare(b.name)),
     [skills]
   )
+
+  useEffect(() => {
+    setWelcomeDraftWorkspace(draftProjectKey)
+  }, [draftProjectKey, setWelcomeDraftWorkspace])
   const richRefCatalog = useMemo(
     () => ({
       commands: customCommands,
@@ -804,7 +814,7 @@ export function ConversationWelcome({
     const fallbackCaret = text.length
 
     if (!hasText && !hasImages && !hasFiles && !hasCustomSettings) {
-      clearWelcomeDraft()
+      clearWelcomeDraft(draftProjectKey)
       return
     }
 
@@ -819,8 +829,8 @@ export function ConversationWelcome({
       model,
       reasoning: reasoningConfig,
       approvalPolicy: welcomeApprovalPolicy
-    })
-  }, [clearWelcomeDraft, files, images, modelName, reasoningConfig, setWelcomeDraft, welcomeApprovalPolicy, welcomeMode])
+    }, draftProjectKey)
+  }, [clearWelcomeDraft, draftProjectKey, files, images, modelName, reasoningConfig, setWelcomeDraft, welcomeApprovalPolicy, welcomeMode])
 
   useEffect(() => {
     if (!draftHydratedRef.current) return
@@ -838,6 +848,13 @@ export function ConversationWelcome({
       flushWelcomeDraft()
     }
   }, [flushWelcomeDraft])
+
+  const switchWelcomeWorkspace = useCallback(async (nextWorkspacePath: string): Promise<void> => {
+    if (nextWorkspacePath === workspacePath) return
+    flushWelcomeDraft()
+    await window.api.workspace.switch(nextWorkspacePath)
+    useUIStore.getState().setWelcomeDraftWorkspace(nextWorkspacePath)
+  }, [flushWelcomeDraft, workspacePath])
 
   const handleModelChange = useCallback(
     async (nextModel: string): Promise<void> => {
@@ -981,7 +998,7 @@ export function ConversationWelcome({
       latestDraftTextRef.current = ''
       latestDraftSegmentsRef.current = []
       latestDraftSelectionRef.current = null
-      clearWelcomeDraft()
+      clearWelcomeDraft(draftProjectKey)
       richRef.current?.clear()
       setImages([])
       setFiles([])
@@ -1016,6 +1033,7 @@ export function ConversationWelcome({
     canUseThreadGoals,
     clearWelcomeDraft,
     connectionStatus,
+    draftProjectKey,
     modelLoading,
     setActiveThreadId,
     showGoalUnavailable,
@@ -1025,7 +1043,7 @@ export function ConversationWelcome({
     welcomeApprovalPolicy,
     welcomeMode,
     modelName,
-    reasoningConfig,
+    reasoningConfig
   ])
 
   const executeWelcomeGoalCommand = useCallback(async (command: GoalSlashCommand): Promise<boolean> => {
@@ -1098,7 +1116,7 @@ export function ConversationWelcome({
       latestDraftTextRef.current = ''
       latestDraftSegmentsRef.current = []
       latestDraftSelectionRef.current = null
-      clearWelcomeDraft()
+      clearWelcomeDraft(draftProjectKey)
       const { inputParts } = buildComposerInputParts({
         text: trimmed,
         segments,
@@ -1144,6 +1162,7 @@ export function ConversationWelcome({
     reasoningConfig,
     modelLoading,
     clearWelcomeDraft,
+    draftProjectKey,
     executeWelcomeGoalCommand,
     remoteWorkspace,
     t
@@ -1325,7 +1344,9 @@ export function ConversationWelcome({
               color: 'var(--text-secondary)',
               margin: 0,
               textAlign: 'center',
-              maxWidth: '520px'
+              width: 'min(520px, 100%)',
+              maxWidth: '520px',
+              minHeight: '20px'
             }}>
               {isConnected
                 ? t('welcomeComposer.hint.select')
@@ -1554,22 +1575,27 @@ export function ConversationWelcome({
                 </div>
               }
               belowFooter={
-                <ComposerWorkspaceFooter
-                  workspacePath={workspacePath}
-                  mode={welcomeWorkspaceMode}
-                  variant="welcome"
-                  remoteWorkspace={remoteWorkspace}
-                  baseRef={welcomeBaseRef}
-                  worktreeBranchName={welcomeWorktreeBranchName}
-                  onWelcomeModeChange={(nextMode) => {
-                    setWelcomeWorkspaceMode(nextMode)
-                    if (nextMode === 'local') {
-                      setWelcomeWorktreeBranchName(null)
-                    }
-                  }}
-                  onBaseRefChange={setWelcomeBaseRef}
-                  onWorktreeBranchNameChange={setWelcomeWorktreeBranchName}
-                />
+                openingWorkspace ? (
+                  <WelcomeFooterSkeleton />
+                ) : (
+                  <ComposerWorkspaceFooter
+                    workspacePath={workspacePath}
+                    mode={welcomeWorkspaceMode}
+                    variant="welcome"
+                    remoteWorkspace={remoteWorkspace}
+                    baseRef={welcomeBaseRef}
+                    worktreeBranchName={welcomeWorktreeBranchName}
+                    onWelcomeModeChange={(nextMode) => {
+                      setWelcomeWorkspaceMode(nextMode)
+                      if (nextMode === 'local') {
+                        setWelcomeWorktreeBranchName(null)
+                      }
+                    }}
+                    onBaseRefChange={setWelcomeBaseRef}
+                    onWorktreeBranchNameChange={setWelcomeWorktreeBranchName}
+                    onWelcomeWorkspaceChange={switchWelcomeWorkspace}
+                  />
+                )
               }
             />
           </div>
@@ -1583,7 +1609,9 @@ export function ConversationWelcome({
               gap: '4px'
             }}
           >
-            {displayedSuggestions.map((s, idx) => {
+            {openingWorkspace ? (
+              <WelcomeSuggestionSkeletonList />
+            ) : displayedSuggestions.map((s, idx) => {
               const Icon = s.icon
               return (
                 <button
@@ -1639,6 +1667,66 @@ export function ConversationWelcome({
           </div>
         </div>
       </div>
+    </div>
+  )
+}
+
+function WelcomeFooterSkeleton(): JSX.Element {
+  const t = useT()
+  return (
+    <div
+      role="status"
+      aria-busy="true"
+      aria-label={t('threadList.loading')}
+      data-testid="welcome-footer-skeleton"
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+        minHeight: '28px',
+        minWidth: 0,
+        flexWrap: 'wrap'
+      }}
+    >
+      <Skeleton width={104} height={18} radius={999} />
+      <Skeleton width={112} height={18} radius={999} />
+      <Skeleton width={168} height={18} radius={999} />
+    </div>
+  )
+}
+
+function WelcomeSuggestionSkeletonList(): JSX.Element {
+  const t = useT()
+  const rows = ['58%', '44%', '52%', '48%']
+  return (
+    <div
+      role="status"
+      aria-busy="true"
+      aria-label={t('threadList.loading')}
+      style={{
+        width: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '4px'
+      }}
+    >
+      {rows.map((width, index) => (
+        <div
+          key={index}
+          data-testid="welcome-suggestion-skeleton"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            minHeight: '34px',
+            padding: '6px 10px',
+            boxSizing: 'border-box'
+          }}
+        >
+          <Skeleton width={16} height={16} radius={4} />
+          <Skeleton width={width} height={12} />
+        </div>
+      ))}
     </div>
   )
 }

@@ -160,7 +160,8 @@ examples/telegram/
   README_ZH.md          Chinese version
 ```
 
-## Further Reading
+## Related docs
 
 - [Python SDK](../sdks/python) — `dotcraft_wire` SDK overview and API reference.
-- [SDK Architecture](https://github.com/DotHarness/dotcraft/blob/master/sdk/python/ARCHITECTURE.md) — How the SDK works internally.
+- [Channels & Bots](../../features/entry-points/channels) — overview of every chat channel.
+- [Telegram Channel Adapter](./telegram) — the TypeScript adapter for the same platform.

@@ -2,6 +2,8 @@
 
 DotCraft does not maintain a separate agent loop per client. The **Unified Session Core** consolidates execution, state, approvals, and observability into a single engine. CLI, Desktop, TUI, ACP, QQ bots, and automations all connect to the same core.
 
+This page targets integrators and contributors. It explains the session model and the cross-entry boundaries that matter when you build a client or debug shared sessions.
+
 ## Model: Thread → Turn → Item
 
 ![DotCraft session core topology](/session-core-topology.svg)

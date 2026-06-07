@@ -283,7 +283,9 @@ Notification flow:
 3. Desktop tray receives the event and displays the OS notification with the DotCraft app icon.
 4. Clicking the notification opens the related action URL. Desktop workspace links may activate an existing workspace window before starting a new one.
 
-Desktop task-completion notification settings apply to AppServer-managed turn result notifications (`turnCompleted` and `turnFailed`). `never` suppresses the OS notification, `always` displays it, and `whenUnfocused` displays it only when the related workspace window is not focused. Because tray runs in a separate process, it checks the owning Desktop workspace process through the workspace activation endpoint using a read-only window-state query; if the window state cannot be queried, the notification is treated as unfocused and remains visible.
+Desktop task-completion notification settings apply to AppServer-managed turn result notifications (`turnCompleted` and `turnFailed`). `never` suppresses the OS notification, `always` displays it, and `whenUnfocused` displays it only when no focused Desktop window has the related workspace as its foreground workspace. Because tray runs in a separate process, it checks a Desktop workspace activation endpoint using a read-only window-state query; if the window state cannot be queried, the notification is treated as unfocused and remains visible.
+
+Desktop may connect one window to multiple Hub-managed local AppServers at once. These secondary connections are client connections only: Hub continues to own one AppServer runtime per workspace, and Desktop must not start stopped recent workspaces merely to populate the multi-workspace UI.
 
 Turn-related OS notifications are for user-visible work. AppServer-managed turn notifications must suppress internal-only helper threads, such as threads marked with `dotcraft.internal` metadata or known internal origins used for welcome suggestions and commit-message suggestions. User-visible copy should use the thread display name instead of the internal thread ID.
 
@@ -345,7 +347,7 @@ ACP itself remains an AppServer client bridge: it translates editor ACP stdio tr
 The implemented Hub design still leaves several product and hardening areas for future work:
 
 - Optional ACP local bootstrap alignment: ACP's protocol bridge is already AppServer-based; only its default local subprocess startup would need Hub if IDE integrations should share the same managed AppServer as Desktop/TUI/CLI.
-- More complete Desktop multi-workspace management UI beyond tray menus.
+- More complete Desktop multi-workspace management UI beyond recent local workspace secondary connections.
 - Notification preferences such as quiet hours, per-workspace mute, and frequency control.
 - Better recovery or explicit cleanup flow for live AppServers left behind after Hub restart.
 - Optional named pipe or Unix socket transport for stronger local API ergonomics.

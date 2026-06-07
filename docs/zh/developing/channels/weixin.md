@@ -139,3 +139,9 @@ await instance.start();
 ## 致谢
 
 [@tencent-weixin/openclaw-weixin](https://www.npmjs.com/package/@tencent-weixin/openclaw-weixin)
+
+## 相关文档
+
+- [Channels & Bots](../../features/entry-points/channels)——所有聊天渠道的总览。
+- [TypeScript 模块集成](../integrations/typescript-module)——本模块实现的宿主契约。
+- [企业微信渠道适配器](./wecom)——独立的企业微信渠道。

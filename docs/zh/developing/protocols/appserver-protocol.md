@@ -401,7 +401,7 @@ Client 在调用 `skills/*` 前应检查 `capabilities.skillsManagement`，调�
 
 插件生命周期把安装状态和启用状态分开：
 
-- `plugin/install`：把 Desktop 绑定分发的内置插件安装到当前工作区 `.craft/plugins/<id>/`，写入 `.builtin` marker，并默认启用。未安装的内置插件只有在 AppServer 启动时设置了 `DOTCRAFT_BUILTIN_PLUGIN_ROOTS` 才会出现在 catalog 中。
+- `plugin/install`：把 Desktop 绑定分发的内置插件安装到当前工作区 `.craft/plugins/<id>/`，写入 `.builtin` marker，并默认启用。
 - `plugin/setEnabled`：只切换已安装插件是否进入 Agent 上下文，不安装也不删除目录。
 - `plugin/remove`：只移除带 `.builtin` marker 的 DotCraft 管理内置插件目录；不会删除用户维护的本地插件目录。
 
@@ -520,3 +520,10 @@ JSON-RPC 错误响应使用标准 `error` 字段：
 - 支持 server-initiated approval request，或明确声明不支持。
 - 使用 `capabilities` 做功能发现，不要假设所有管理 API 都存在。
 - 对未知 notification、item 类型和 capability 保持兼容。
+
+## 相关文档
+
+- [Hub Protocol](./hub-protocol)
+- [Dashboard API](./dashboard-api)
+- [AppServer Mode](../lifecycle/appserver)
+- [插件与工具](../../features/agent-system/plugins-tools)

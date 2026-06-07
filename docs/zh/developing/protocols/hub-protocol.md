@@ -327,3 +327,9 @@ data: {"kind":"appserver.running","at":"2026-04-30T06:31:00Z","workspacePath":"/
 - 对 `appserver.unhealthy` 和 `appserver.exited` 事件显示可操作状态，例如“重启工作区运行时”。
 - 不要把 Hub 令牌或 AppServer 令牌写入日志。
 - 对未知端点、服务状态和事件类型保持兼容。
+
+## 相关文档
+
+- [AppServer Protocol](./appserver-protocol)
+- [Hub Local Coordination](../lifecycle/hub)
+- [AppServer Mode](../lifecycle/appserver)

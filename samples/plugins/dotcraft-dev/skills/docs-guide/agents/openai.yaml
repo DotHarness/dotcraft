@@ -1,0 +1,4 @@
+interface:
+  display_name: "DotCraft Docs Guide"
+  short_description: "Standards for writing DotCraft's bilingual docs by audience and purpose"
+  default_prompt: "Use $dotcraft-docs-guide to write or revise DotCraft documentation with the right tone and structure for end users vs developers."

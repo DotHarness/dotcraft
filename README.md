@@ -112,7 +112,7 @@ Special thanks to:
 
 Technical articles related to dotcraft.
 
-[How to Save Money with AI Agents: Prompt Cache Optimization Practices](https://zhuanlan.zhihu.com/p/2044201072466588522)
+[Why is your agent so expensive: Troubleshooting records of a 0% Prompt Cache hit rate.](https://zhuanlan.zhihu.com/p/2044201072466588522)
 
 ## License
 

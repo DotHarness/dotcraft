@@ -41,13 +41,17 @@ export interface WorkspaceUserConfigDefaults {
 }
 
 export interface RemoteWorkspaceStatusPayload {
-  hostId: string
-  stackId: string
-  serverName: string
-  stackName: string
-  workspaceDir: string
+  source?: 'servers' | 'manual' | 'cli'
+  projectId?: string
+  displayName?: string
+  endpoint?: string
+  hostId?: string
+  stackId?: string
+  serverName?: string
+  stackName?: string
+  workspaceDir?: string
   appServerWorkspacePath?: string
-  composeDir: string
+  composeDir?: string
   projectName?: string
 }
 

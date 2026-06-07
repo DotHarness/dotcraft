@@ -15,7 +15,7 @@ interface LockFileData {
 }
 
 export type WorkspaceLockStatus =
-  | { locked: false }
+  | { locked: false; pid?: number; activation?: WorkspaceActivationEndpoint }
   | { locked: true; pid: number; activation?: WorkspaceActivationEndpoint }
 
 function getLockPath(workspacePath: string): string {
@@ -34,8 +34,9 @@ function isProcessAlive(pid: number): boolean {
 
 /**
  * Reads the lock file for a workspace without writing anything.
- * Returns { locked: true, pid } if another live process holds the lock,
- * or { locked: false } if the workspace is available.
+ * Returns best-effort activation metadata for a live Desktop process when
+ * present. The Desktop lock is no longer a connection-exclusive gate; callers
+ * should treat `locked` as non-blocking for workspace opens.
  */
 function normalizeActivationEndpoint(value: unknown): WorkspaceActivationEndpoint | undefined {
   if (!value || typeof value !== 'object') return undefined
@@ -65,13 +66,9 @@ export function checkWorkspaceLock(workspacePath: string): WorkspaceLockStatus {
   }
   try {
     const data = JSON.parse(readFileSync(lockPath, 'utf-8')) as LockFileData
-    if (data.pid === process.pid) {
-      // This process already owns the lock
-      return { locked: false }
-    }
     if (isProcessAlive(data.pid)) {
       return {
-        locked: true,
+        locked: false,
         pid: data.pid,
         activation: normalizeActivationEndpoint(data.activation)
       }
@@ -85,13 +82,11 @@ export function checkWorkspaceLock(workspacePath: string): WorkspaceLockStatus {
 }
 
 /**
- * Attempts to acquire an exclusive lock on the workspace.
+ * Writes best-effort activation metadata for this Desktop process.
  *
- * Returns `{ ok: true }` if the lock was acquired (workspace is now owned
- * by this process).
- *
- * Returns `{ ok: false, pid }` if another live process holds the lock.
- * In that case nothing is written and the caller should report an error.
+ * This is intentionally non-exclusive. AppServer multi-client support owns
+ * protocol safety, while this file remains a discovery hint for tray/deep-link
+ * activation.
  */
 export function acquireWorkspaceLock(
   workspacePath: string,
@@ -100,25 +95,7 @@ export function acquireWorkspaceLock(
   const craftDir = join(workspacePath, '.craft')
   const lockPath = getLockPath(workspacePath)
 
-  // Read existing lock if present
-  if (existsSync(lockPath)) {
-    try {
-      const data = JSON.parse(readFileSync(lockPath, 'utf-8')) as LockFileData
-      if (data.pid !== process.pid && isProcessAlive(data.pid)) {
-        // Another live process holds the lock
-        return {
-          ok: false,
-          pid: data.pid,
-          activation: normalizeActivationEndpoint(data.activation)
-        }
-      }
-      // Stale lock or owned by this process — fall through to overwrite
-    } catch {
-      // Corrupt lock — fall through to overwrite
-    }
-  }
-
-  // Write (or overwrite) the lock with this process's PID
+  // Write (or overwrite) the activation hint with this process's PID.
   try {
     if (!existsSync(craftDir)) {
       mkdirSync(craftDir, { recursive: true })
@@ -168,7 +145,7 @@ export function updateWorkspaceLockActivation(
     }
     writeFileSync(lockPath, JSON.stringify(data, null, 2), 'utf-8')
   } catch {
-    // Best-effort activation metadata; the workspace lock remains the authority.
+    // Best-effort activation metadata; stale or missing hints must not block opens.
   }
 }
 

@@ -84,6 +84,7 @@ Pre-commit: run the relevant full suites for touched areas (`dotnet test` for C#
 ## Documentation Guidelines
 
 DotCraft documentation lives under `docs/` as a VitePress documentation site.
+For the full documentation writing standard — audience/purpose routing, per-archetype page templates, voice rules, and the bilingual style guide — use the `dotcraft-docs-guide` skill. The essentials:
 
 When creating or updating documentation:
 

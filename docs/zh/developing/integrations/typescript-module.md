@@ -1,6 +1,6 @@
 # TypeScript 模块集成
 
-本文档说明宿主进程（Desktop、CLI 工具或其他调度进程）如何基于 `@dotcraft/sdk/channel` 模块契约集成 TypeScript 外部社交渠道模块。
+本文档面向把 TypeScript 外部社交渠道模块嵌入宿主（Desktop、CLI 工具或其他调度进程）的开发者，基于 `@dotcraft/sdk/channel` 模块契约。前提：已安装 `@dotcraft/sdk` 包以及某个渠道模块包（如 `@dotcraft/channel-feishu`）。
 
 ## 1. 概览
 
@@ -10,9 +10,9 @@
 - 通过 `createModule(context)` 创建可运行实例
 - 以机器可读方式观察生命周期状态与错误
 - 基于 `configDescriptors` 渲染配置界面
-- 通过 `moduleId` 做变体切换，同时保持 `channelName` 作为运行时逻辑身份
+- 通过 `moduleId` 切换变体，同时保持 `channelName` 作为运行时逻辑身份
 
-宿主不应依赖包内私有路径，也不应通过源码目录结构推断行为。
+只从包根导入，不要依赖包内私有路径，也不要通过源码目录结构推断行为。
 
 ## 2. 加载模块
 
@@ -61,11 +61,11 @@ const instance: ModuleInstance = createModule(context);
 await instance.start();
 ```
 
-启动输入由宿主明确提供，模块不应仅依赖当前工作目录来发现工作区信息。
+启动输入由宿主明确传入；模块不依赖当前工作目录来定位工作区。
 
 ## 5. 生命周期观察
 
-建议宿主在 `start()` 之前注册状态回调。
+在调用 `start()` 之前注册状态回调，以免漏掉早期状态切换。
 
 ```typescript
 import type { LifecycleStatus, ModuleError, ModuleInstance } from "@dotcraft/sdk/channel";
@@ -133,7 +133,7 @@ const fields = configDescriptors.map(toFormField);
 console.log(fields);
 ```
 
-宿主 UI 应重点遵循：
+让宿主 UI 遵循：
 
 - `required`：必填校验
 - `masked` 与 `dataKind: "secret"`：敏感字段掩码展示
@@ -209,3 +209,9 @@ function attachInteractiveSetupHandlers(instance: ModuleInstance): void {
 5. 提供包级测试与一致性测试。
 
 这样可保证一方、企业版与第三方模块都能在同一宿主边界下热插拔与替换。
+
+## 相关文档
+
+- [Channel adapters](../sdks/channels)——模块所基于的适配器基类。
+- [TypeScript SDK](../sdks/typescript)——模块内部使用的 `@dotcraft/sdk` 客户端。
+- [飞书渠道适配器](../channels/feishu)——实现本契约的完整模块示例。

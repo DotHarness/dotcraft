@@ -117,3 +117,9 @@ await instance.start();
   - `npm run test --workspace @dotcraft/channel-telegram`
 - Dry-run package contents:
   - `cd sdk/typescript/packages/channel-telegram && npm pack --dry-run`
+
+## Related docs
+
+- [Channels & Bots](../../features/entry-points/channels) — overview of every chat channel.
+- [TypeScript Module Integration](../integrations/typescript-module) — the host contract this module implements.
+- [Telegram Adapter (Python)](./python-telegram) — the Python reference implementation.

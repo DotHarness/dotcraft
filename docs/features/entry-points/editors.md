@@ -2,7 +2,7 @@
 
 DotCraft can run right inside your editor as a coding assistant — JetBrains, Obsidian, Unity, and more — with no cloud subscription, no proprietary plugin, and no vendor lock-in. It does this by speaking [Agent Client Protocol (ACP)](https://agentclientprotocol.com/), an open standard for connecting coding agents to editors (think LSP, but for AI agents). Any ACP-compatible editor can talk to any ACP-compatible agent, and DotCraft speaks ACP natively.
 
-From the editor's view, communication is **stdio plus JSON-RPC 2.0**: the editor launches DotCraft as a subprocess and exchanges messages over standard streams. Internally, the DotCraft ACP process is a **protocol bridge** that connects the editor (ACP) to an AppServer instance (Wire Protocol). All session state, agent execution, and tool calls are handled by AppServer and shared with TUI, Desktop, and external channels. The bridge auto-launches a local AppServer subprocess or connects to a remote AppServer you specify.
+The editor launches DotCraft and talks to it; DotCraft bridges that conversation to its [AppServer](../../developing/lifecycle/appserver), which runs the agent. So an ACP session shares the same workspace, sessions, memory, and tools as TUI, Desktop, and channels — the editor is just another window onto the same agent. By default DotCraft starts a local AppServer for you; point it at a remote one when you need to.
 
 ## Supported Editors
 
@@ -43,13 +43,13 @@ DotCraft activates ACP mode automatically when launched with `-acp` — no confi
 
 ### 3. Remote Workspace (optional)
 
-If a DotCraft AppServer is already running (via `dotcraft app-server` or the desktop app), point the ACP bridge at it instead of starting a new subprocess:
+If a DotCraft AppServer is already running (via `dotcraft app-server` or the desktop app), point the ACP bridge at it instead of starting a new one:
 
 ```text
 dotcraft -acp --remote ws://<host>:<port>/ws
 ```
 
-Append `--token <token>` if the AppServer requires authentication. With a remote AppServer, sessions created in the editor are visible in real time to every connected client.
+The AppServer listens on a bare `ws://host:port` address; clients always append the `/ws` path, as shown above. Add `--token <token>` if the AppServer requires authentication. With a remote AppServer, sessions you create in the editor are visible in real time to every connected client.
 
 ---
 
@@ -93,50 +93,27 @@ DotCraft itself is the agent harness Unity launches via ACP. Install and configu
 https://github.com/DotHarness/dotcraft-unity.git
 ```
 
-Unity scene, selected-object, console, and project-info tools are declared by `dotcraft-unity` as runtime dynamic tools during ACP initialize. `_unity/*` are Unity client-internal ACP extension methods, implemented and maintained by the client plugin.
+Once connected, the agent can query the Unity scene, the selected object, the console, and project info — those tools are provided and maintained by the `dotcraft-unity` plugin.
 
-## How It Works
+## What you get in the editor
 
-When the editor launches DotCraft in ACP mode:
+Running inside the editor gives DotCraft abilities a plain CLI agent cannot offer:
 
-1. **Initialize** — The editor and ACP bridge exchange protocol versions and capabilities (`initialize`). The bridge connects to AppServer (or auto-launches a local subprocess if `--remote` is not set) and forwards the handshake over Wire Protocol. Clients with DotCraft extensions may declare client-implemented runtime tools in `_meta.dotcraft.runtimeTools`.
-2. **Create session** — The editor sends `session/new`. The bridge forwards it; AppServer creates the session and relays the response (slash commands, config options, etc.) back to the editor UI. Client-declared runtime tools are bound to the connection as AppServer `dynamicTools`.
-3. **Prompt interaction** — The editor sends `session/prompt`. AppServer runs the agent and streams back visible replies, thinking, tool-call state, and tool results. The bridge forwards them via `session/update` notifications as `agent_message_chunk` for visible content and `agent_thought_chunk` for thinking.
-4. **Config switching** — DotCraft exposes mode and model selectors through ACP `configOptions`. Capable clients call `session/set_config_option` to switch models; the bridge updates the active thread and workspace default in lockstep.
-5. **Permission requests** — Before file writes or shell commands, AppServer raises an approval over Wire Protocol. The bridge translates it to an ACP `requestPermission`, and the editor renders an approve/deny prompt.
-6. **File and terminal access** — When AppServer wants editor-native file or terminal access, the request flows back to the editor (`fs/readTextFile`, `fs/writeTextFile`, `terminal/*`) and uses the editor's own APIs.
-7. **Client runtime tools** — Clients like Unity can declare scene queries, selected-object reads, console logs, etc. DotCraft only validates and bridges the tool descriptors; implementations stay in the client plugin.
+- **Read unsaved buffers** — the agent sees your current edits, not just what's on disk.
+- **Inline diffs before applying** — review and approve each change in the editor's own diff view.
+- **Editor-managed terminal** — commands run in a terminal the editor owns, with its working directory and environment.
+- **Native approvals** — before a file write or shell command, the editor shows an approve/deny prompt.
+- **Slash commands and model switching** — your `.craft/commands/` show up in the editor's command picker, and you can switch model right from the editor.
 
-The result: DotCraft can read unsaved buffer content, render inline diffs before applying changes, and run commands inside the editor-managed terminal — capabilities a plain CLI agent cannot offer. Meanwhile, all agent state lives in AppServer, sessions persist, and other clients can pick up the same thread even after the editor closes.
+Because the agent runs in AppServer, your work outlives the editor: sessions persist, and another client can pick up the same thread after you close the editor.
 
-## Supported Protocol Features
+For the full list of ACP methods DotCraft implements and how the bridge maps them to AppServer, see the [AppServer Protocol](../../developing/protocols/appserver-protocol).
 
-| Feature | Description |
-|---|---|
-| `initialize` | Protocol version negotiation and capability exchange |
-| `session/new` | Create a new session |
-| `session/load` | Load an existing session and replay history |
-| `session/list` | List all ACP sessions |
-| `session/prompt` | Send a prompt and stream the reply |
-| `session/update` | DotCraft pushes visible chunks, thought chunks, and tool-call state |
-| `session/set_config_option` | Switch session config such as mode and model |
-| `session/cancel` | Cancel an in-progress operation |
-| `requestPermission` | DotCraft asks for permission on sensitive operations |
-| `fs/readTextFile` | Read files (including unsaved buffers) through the editor |
-| `fs/writeTextFile` | Write files (with diff preview) through the editor |
-| `terminal/*` | Create and manage terminals through the editor |
-| Runtime Dynamic Tools | Clients declare thread-scoped tools via `_meta.dotcraft.runtimeTools`; the bridge calls back via AppServer `item/tool/call` |
-| Slash Commands | Custom commands in `.craft/commands/` are broadcast to the editor's command picker |
-| Config Options | Optional configs (mode, model) exposed in the editor UI; model selector uses ACP `category: "model"` |
+## Sessions shared across clients
 
-## Sessions & Workspace Behavior
+An ACP session is a full workspace session — it lives in the same store as your TUI, Desktop, and bot sessions, and they all share the same long-term memory. Knowledge captured in an ACP session is available in a TUI, Desktop, or QQ bot session in the same workspace, and vice versa.
 
-ACP works as a full AppServer client. Sessions created in the editor land in the same session store:
-
-- **Session ID format**: `acp_{sessionId}` (id allocated by the editor and forwarded to AppServer)
-- **Session storage**: `<workspace>/.craft/sessions/` next to TUI, Desktop, and bot sessions
-- **Shared memory**: `memory/MEMORY.md` and `memory/HISTORY.md` are shared across every channel in the same workspace — knowledge captured in an ACP session is available in TUI, Desktop, or QQ bot sessions, and vice versa
-- **Multi-client concurrency**: with `--remote`, multiple clients connect to the same AppServer. An ACP session opened in Obsidian is visible / continuable in the desktop app in real time
+With `--remote`, several clients connect to one AppServer at once. A session you open in Obsidian is visible and continuable in the desktop app in real time. See [Unified Session Core](../../developing/architecture/session-core) for the model behind this.
 
 ## Usage Examples
 
@@ -145,7 +122,7 @@ ACP works as a full AppServer client. Sessions created in the editor land in the
 | Local IDE | Configure the editor to launch `dotcraft -acp` |
 | Remote workspace | Start AppServer WebSocket first, then add `--remote` to the ACP arguments |
 | Share sessions with Desktop | Point at the same workspace / AppServer |
-| Let the editor own file and terminal access | Use an ACP client that supports `fs/*` and `terminal/*` |
+| Let the editor own file and terminal access | Use an ACP client that handles file and terminal requests natively |
 
 ## Related docs
 

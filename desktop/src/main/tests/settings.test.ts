@@ -19,6 +19,11 @@ describe('settings normalization', () => {
           '',
           'bad\u0000id'
         ],
+        ' remote:servers:host-1:stack-1 ': [
+          ' remote-thread ',
+          'remote-thread',
+          'remote-thread-2'
+        ],
         '   ': ['thread-c'],
         'E:/examples/empty': [],
         'E:/examples/not-array': 'thread-c' as unknown as string[]
@@ -26,7 +31,21 @@ describe('settings normalization', () => {
     })
 
     expect(normalized).toEqual({
-      'E:\\examples\\workspace': ['thread-a', 'thread-b']
+      'e:/examples/workspace': ['thread-a', 'thread-b'],
+      'remote:servers:host-1:stack-1': ['remote-thread', 'remote-thread-2']
+    })
+  })
+
+  it('merges pinned thread ids from legacy path key variants', () => {
+    const normalized = normalizePinnedThreadIdsByWorkspace({
+      pinnedThreadIdsByWorkspace: {
+        'F:\\Git\\dotcraft': ['thread-a', 'thread-b'],
+        'f:/git/dotcraft/': ['thread-b', 'thread-c']
+      }
+    })
+
+    expect(normalized).toEqual({
+      'f:/git/dotcraft': ['thread-a', 'thread-b', 'thread-c']
     })
   })
 

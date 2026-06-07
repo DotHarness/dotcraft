@@ -2,11 +2,11 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.4.0 |
+| **Version** | 0.5.0 |
 | **Status** | Living |
-| **Date** | 2026-06-01 |
+| **Date** | 2026-06-07 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
-| **Related Specs** | [Plugin Architecture](../extensions/plugin-architecture.md), [Tool Result Presentation](../protocols/tool-result-presentation.md), [Goal Design](../core/goal-design.md), [Desktop DESIGN.md](DESIGN.md) |
+| **Related Specs** | [Plugin Architecture](../extensions/plugin-architecture.md), [Tool Result Presentation](../protocols/tool-result-presentation.md), [Goal Design](../core/goal-design.md), [Remote Server Management](../runtime/remote-server-management.md), [Desktop DESIGN.md](DESIGN.md) |
 
 Purpose: Define the stable user-experience behavior of **DotCraft Desktop** as a protocol client for DotCraft AppServer. This document specifies user-visible flows, interaction rules, state transitions, and recovery behavior. It does not define frontend implementation details, visual design, or framework choices.
 
@@ -38,6 +38,7 @@ Purpose: Define the stable user-experience behavior of **DotCraft Desktop** as a
 
 - The user-visible behavior of the Desktop client while connected to DotCraft AppServer.
 - How users open workspaces, connect, browse threads, send turns, review results, and respond to approvals.
+- How users navigate pinned threads, local projects, and the active remote project from the sidebar.
 - How protocol events change user-visible state.
 - How secondary surfaces such as Skills and Automations behave from the user's perspective.
 - How users discover, configure, enable, and recover Desktop-managed channel modules.
@@ -65,9 +66,10 @@ Purpose: Define the stable user-experience behavior of **DotCraft Desktop** as a
 
 1. Expose the AppServer protocol as a desktop workflow optimized for persistent threads and long-running agent work.
 2. Support multi-thread productivity, including switching between threads while background work continues.
-3. Preserve a clear review loop for approvals, file changes, plans, tool output, and automation runs.
-4. Make connection state and recovery paths understandable without requiring users to understand protocol internals.
-5. Keep workspace behavior predictable across reconnects, restarts, and concurrent clients.
+3. Support project-first navigation across recent local workspaces while preserving one foreground workspace owner for interactive work.
+4. Preserve a clear review loop for approvals, file changes, plans, tool output, and automation runs.
+5. Make connection state and recovery paths understandable without requiring users to understand protocol internals.
+6. Keep workspace behavior predictable across reconnects, restarts, and concurrent clients.
 
 ### 2.2 Non-Goals
 
@@ -75,6 +77,7 @@ Purpose: Define the stable user-experience behavior of **DotCraft Desktop** as a
 - Acting as a full IDE, terminal emulator, or general-purpose file browser.
 - Freezing a specific visual layout or frontend architecture.
 - Defining remote plugin UI, mobile UX, or future task-board behavior in detail.
+- Aggregating multiple remote workspaces in the background. Remote projects are foreground-only in this version.
 
 ---
 
@@ -82,9 +85,11 @@ Purpose: Define the stable user-experience behavior of **DotCraft Desktop** as a
 
 ### 3.1 Workspace Entry
 
-- The Desktop client is workspace-centric. A user opens one workspace at a time in one window.
-- Opening a workspace starts a connection attempt to an AppServer instance for that workspace.
-- The client may support multiple connection modes, but the UX contract is the same: the user selects or opens a workspace, the client connects, and thread operations remain unavailable until initialization succeeds.
+- The Desktop client is workspace-centric and may show multiple known workspaces in one window.
+- Exactly one workspace is the foreground workspace at any time. Foreground workspace state owns the composer, active conversation, settings, capabilities, model/provider selection, workspace tools, and server-initiated interactive requests.
+- Additional local workspaces may be connected as secondary workspaces. Secondary workspaces may contribute thread-list rows and lightweight runtime indicators, but they do not own workspace-scoped panels or interactive protocol surfaces until promoted to foreground.
+- Opening or selecting a stopped workspace starts a connection attempt to an AppServer instance for that workspace, then promotes it to foreground after initialization succeeds.
+- The client may support multiple connection modes, but the foreground UX contract is the same: the user selects or opens a workspace, the client connects, and thread operations remain unavailable until initialization succeeds.
 
 ### 3.1.1 Local and Remote AppServer Ownership
 
@@ -94,6 +99,8 @@ Purpose: Define the stable user-experience behavior of **DotCraft Desktop** as a
 - If the remote probe fails, Desktop leaves the persisted connection settings unchanged so the next launch is not trapped behind a newly saved bad endpoint.
 - When Desktop is launched with an explicit transient `--remote` endpoint, persistent connection-mode switching is unavailable. Settings must explain that the launch argument owns the current connection for that session.
 - Remote connections opened through the Servers surface (see [§6.10](#610-remote-servers) and [remote-server-management.md](../runtime/remote-server-management.md)) are a tunnel-fronted special case of Remote mode: Desktop connects to a `ws://127.0.0.1:<port>/ws` local tunnel endpoint and reuses this same test-and-connect path. Remote AppServer lifecycle remains owned by the remote environment; Desktop manages only the SSH tunnel and the deployment-level container lifecycle, never a remote AppServer process restart.
+- A Remote-mode session is represented as a distinct foreground project identity, separate from the local workspace that initiated the connection. Servers-managed, manual URL, and transient command-line remote sessions each keep local threads, pinned state, and welcome drafts isolated from the remote foreground project.
+- Connecting to a remote project records the previous local foreground workspace when one exists. Disconnecting the remote project or selecting a local project closes the remote client/tunnel and returns Desktop to local mode, restoring the previous local foreground when possible.
 
 ### 3.2 Connection States
 
@@ -127,15 +134,31 @@ The client exposes four user-visible connection states:
 
 ### 3.5 Workspace Switching
 
-- Switching workspace is treated as leaving one session context and entering another.
+- Switching workspace is treated as promoting one workspace to foreground and demoting the previous foreground workspace when it can remain connected as a secondary workspace.
 - The previous workspace window state may be remembered, but protocol state must not leak across workspaces.
 - A switch resets the active thread selection unless the new workspace has a valid equivalent remembered locally.
+- Workspace-scoped panels and capabilities must be rehydrated from the new foreground AppServer. Secondary workspace state must not drive these surfaces.
 
 ### 3.6 Multiple Windows
 
-- Each window is scoped to one workspace.
-- Multiple windows may be open concurrently for different workspaces.
-- User actions in one window must not implicitly change thread selection or visible state in another window.
+- Each window owns its own foreground workspace selection and may show multiple local recent workspaces.
+- Multiple windows may be open concurrently, including windows whose recent workspace lists overlap.
+- The same workspace may be connected by more than one Desktop process. AppServer multi-client semantics own protocol safety; Desktop must not rely on a process-exclusive workspace lock to prevent concurrent viewing.
+- User actions in one window must not implicitly change thread selection or visible state in another window, except that workspace-level AppServer broadcasts may update shared thread summaries in all connected windows.
+
+### 3.7 Projects Rail, Thread Navigation, and Secondary Connections
+
+- The sidebar thread list is project-first. It shows a top-level **Pinned** section followed by a **Projects** section; time-group headings such as Today, Yesterday, and Previous 7 Days are not shown in the main sidebar thread list.
+- Pinned rows are project-scoped. A pinned thread appears in the top section only after its owning project has loaded enough thread summary data, and it is not repeated in that project's ordinary thread rows.
+- The Projects section is sourced from recent local workspaces plus the active remote foreground project when one exists. Running local recent workspaces may contribute loaded thread rows; stopped recent local workspaces appear without being started eagerly.
+- Local project rows use local workspace identity. Remote project rows use remote identity and distinct local-vs-remote visual treatment so remote threads do not appear under the local workspace that initiated the remote connection.
+- A project row expands or collapses the project group. It does not promote the project by itself. Clicking a background thread first promotes the owning local workspace, then opens the selected thread on the foreground connection.
+- Foreground workspace state owns the composer, settings, capabilities, tools, active thread subscription, and server-initiated interactive requests. Secondary workspace state may update thread summaries and compact runtime indicators only.
+- For local Hub-managed recent workspaces already running, Desktop may open secondary AppServer WebSocket connections. The v1 secondary connection cap is 8 workspaces per window; excess workspaces remain cold until selected or until LRU capacity becomes available.
+- Secondary connections initialize, load thread summaries, and consume only thread-list and runtime notifications. They do not subscribe to every thread and do not receive turn, item, job, configuration, MCP, or server-request streams for inactive workspaces.
+- Remote projects are not opened as background secondary connections in this version. At most one remote project is active, and it is foreground-only. Disconnecting it removes the remote project from the rail rather than adding it to recent local history.
+- The global New Chat action starts in the current foreground project. A project-level New Chat action first promotes or starts the target local project, then opens the welcome composer; new thread creation always uses the foreground AppServer. The welcome composer project selector preserves a separate draft for each project identity and reloads capabilities, skills, plugins, and model state after promotion.
+- Project actions are scoped to the project kind. Local projects may expose local opening, path copying, and removal from Projects when they are not foreground. Remote projects expose only remote-appropriate actions such as disconnecting and copying a remote endpoint or path; they must not expose local filesystem actions such as opening the path in the system file explorer.
 
 ---
 
@@ -152,6 +175,11 @@ This section defines how protocol messages affect user-visible behavior. It inte
 | `thread/deleted` | The thread is removed from navigation and from any active context. If currently open, the user is moved to a safe fallback state. |
 | `thread/statusChanged` | Thread availability updates immediately. Actions that are no longer valid must be disabled or blocked. |
 | `thread/resumed` | The thread returns to an active, turn-capable state. |
+| `thread/runtimeChanged` | Thread activity indicators update immediately in the owning workspace's thread navigation area, including secondary workspace groups. |
+
+Clients that display multiple workspaces in one process must route each AppServer notification with the workspace identity of the connection that received it. A notification without a workspace identity is interpreted as belonging only to the foreground connection for backward compatibility.
+
+For secondary connections, only thread-list and runtime notifications update background project groups. Notifications that affect conversation content, workspace configuration, tools, MCP, jobs, approvals, user-input requests, or other interactive surfaces are foreground-only.
 
 ### 4.2 Turn Events
 
@@ -439,7 +467,7 @@ Required behavior:
 - `ReadThread` calls `thread/read` with `turnLimit` and `cursor` when provided and returns a compact payload-aware summary without resuming the thread, subscribing the UI to it, or making it active. The summary must bound turn history, summarize queued inputs, extract useful message/tool previews from item payloads, and avoid raw media data or uncapped command/tool output.
 - `SendMessageToThread` sends a normal turn to the target thread without stealing focus. If `reasoningEffort` is supplied, Desktop first reads and updates the target thread configuration through `thread/config/update`; the update applies to queued and future turns. If the thread is running, waiting, or under blocking maintenance, Desktop uses `turn/enqueue` when available; otherwise the tool returns a structured busy failure.
 - `SetThreadTitle` and `SetThreadArchived` map to `thread/rename`, `thread/archive`, and `thread/unarchive`. Desktop waits for the RPC result and normal broadcasts to update visible state.
-- `SetThreadPinned` reads the target thread only when pinning, rejects archived or subagent child threads, updates `pinnedThreadIdsByWorkspace`, and emits a renderer settings sync so the sidebar updates immediately. Unpinning may remove the id without a successful thread read.
+- `SetThreadPinned` reads the target thread only when pinning, rejects archived or subagent child threads, updates project-scoped pinned-thread preferences, and emits a renderer settings sync so the sidebar updates immediately. Unpinning may remove the id without a successful thread read.
 - On reconnect, Desktop re-declares the same tool specs and runtime additional context when it resumes a thread and `capabilities.dynamicToolRebind = true`. If rebind is unavailable, pending calls fail through the normal Runtime Dynamic Tools unavailable path rather than silently routing to stale handlers.
 - Runtime thread-tool calls render as ordinary dynamic tool activity in the conversation. They are non-modal unless an underlying AppServer call triggers an existing approval or user-input flow.
 - If a background-created or background-updated thread changes while the user is viewing another thread, Desktop updates the sidebar/list indicators but must not force navigation.
@@ -658,6 +686,7 @@ Desktop owns a **Servers** surface for managing remote DotCraft Docker stacks ov
 - The stack card version slot shows only a real DotCraft AppServer/runtime version when status can read one; mutable Docker tags such as `latest` are not displayed as versions.
 - Adding or editing a server uses a second-level Settings page, not a nested modal. The page collects name, SSH target, and an optional identity file override (key/agent only; no password entry or key storage), surfaces local SSH aliases/keys when available, and may offer one-click import of discovered stacks. Stack records never accept the AppServer token; token presence is shown as present/missing only.
 - "Open in Desktop" reads the remote `workspace/.craft/appserver.token`, opens a local SSH tunnel, and connects through the existing remote-mode test-and-connect path (§3.1.1) using a `ws://127.0.0.1:<port>/ws` URL. Desktop must not expose remote AppServer restart; stack lifecycle (start/stop/restart) is a deployment action distinct from AppServer process restart.
+- A Servers-opened stack appears in the Projects rail as a distinct remote foreground project. Its thread list, pinned threads, and welcome draft are isolated from the local workspace used before the remote connection. Disconnecting the remote project closes the tunnel/client and returns Desktop to local mode when a local workspace is available.
 - There is one source of truth for the active connection. While a Servers stack is the active session, the Connections group shows a read-only "Connected via Servers ▸ &lt;host&gt; / &lt;stack&gt;" banner linking back to Servers instead of an editable raw URL; the raw URL/token form remains for the manual/advanced case.
 - The visual treatment follows [Desktop DESIGN.md](DESIGN.md): neutral-first surfaces, semantic color only for state and risk, and the neutral inverted primary for Open in Desktop.
 
@@ -699,6 +728,7 @@ Desktop owns a **Servers** surface for managing remote DotCraft Docker stacks ov
 
 - If connection fails before initialization, the user sees a startup failure state with retry.
 - If startup fails because persisted Remote mode settings contain an invalid WebSocket URL, the error type is `remote-config-invalid`. The primary action opens Settings > Connection and clears the blocking error overlay so the user can fix the URL/token or switch back to Local. Retry alone must not be the only recovery path.
+- If a represented remote project fails during connect or reconnect, the user must be able to distinguish the remote project failure from the previous local workspace. Switching to a local project or choosing a remote disconnect action returns Desktop to local mode.
 - If connection drops after initialization, the user sees a disconnected state and automatic recovery begins.
 - The client must not silently discard active context during reconnection.
 

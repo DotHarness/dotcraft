@@ -1,3 +1,5 @@
+import { normalizeWorkspaceProjectKey } from '../shared/workspaceProjectKey'
+
 export const DESKTOP_THREAD_TOOL_NAMESPACE = 'desktop'
 export const DESKTOP_THREAD_COORDINATION_CONTEXT_KEY = 'desktop.threadCoordination'
 
@@ -669,7 +671,7 @@ async function setThreadPinnedTool(
   if (threadId.ok === false) return threadId.error
   const pinned = requiredBoolean(args, 'pinned')
   if (pinned.ok === false) return pinned.error
-  const workspace = workspacePath.trim()
+  const workspace = normalizeWorkspaceProjectKey(workspacePath)
   if (!workspace) {
     return fail('ThreadManagementUnavailable', 'No Desktop workspace is currently open.')
   }
@@ -940,7 +942,14 @@ function resolvePinnedThreadIdsForWorkspace(
   pinnedThreadIdsByWorkspace: Record<string, string[]> | undefined,
   workspacePath: string
 ): string[] {
-  return normalizePinnedThreadIds(pinnedThreadIdsByWorkspace?.[workspacePath] ?? [])
+  const workspaceKey = normalizeWorkspaceProjectKey(workspacePath)
+  if (!workspaceKey || !pinnedThreadIdsByWorkspace) return []
+  const exact = pinnedThreadIdsByWorkspace[workspaceKey]
+  if (Array.isArray(exact)) return normalizePinnedThreadIds(exact)
+  const match = Object.entries(pinnedThreadIdsByWorkspace).find(
+    ([candidate]) => normalizeWorkspaceProjectKey(candidate) === workspaceKey
+  )
+  return normalizePinnedThreadIds(match?.[1] ?? [])
 }
 
 function normalizePinnedThreadIds(threadIds: Iterable<string>): string[] {

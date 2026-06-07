@@ -11,98 +11,56 @@ DotCraft gives the agent two ways to keep working without you driving every turn
 
 ## Automations
 
-DotCraft native Automations covers local tasks only. It reads task files from `.craft/tasks/` in the current workspace, runs Agents manually or on a schedule, and supports thread binding, templates, retries, activity display, and the `CompleteLocalTask` completion path.
+Automations run local work in your workspace — on a schedule or whenever you trigger them. Use them for the routine jobs you'd otherwise remember to do yourself: a weekly report, a nightly check, a cleanup pass.
 
-### Create a Local Task
+### Create a task
 
-A local task lives under `.craft/tasks/<task-id>/`:
+Create and manage tasks from the Desktop Automations panel. Each task pairs a short brief (what to do, and when) with a workflow prompt that tells the agent how to do it. Tasks live with your project under `.craft/tasks/`, so they travel with the repository.
 
-```text
-.craft/
-  tasks/
-    weekly-report/
-      task.md
-      workflow.md
-```
-
-`task.md` describes the title, body, schedule, and thread binding. `workflow.md` describes the Agent workflow prompt.
-
-### Common Capabilities
+### What you can do with a task
 
 | Capability | Description |
 |---|---|
-| Manual run | Desktop Automations panel or AppServer `automation/task/run` |
-| Scheduled run | Configure `schedule` in the task file |
-| Thread binding | Bind a task to an existing thread so future runs submit there |
-| Templates | Save reusable task templates under `.craft/automations/templates/` |
-| Completion tool | Agent calls `CompleteLocalTask` with a summary |
-| Delete task | Delete the task folder, optionally with the linked thread |
+| Manual run | Trigger a task on demand from Desktop |
+| Scheduled run | Give the task a schedule so it runs on its own |
+| Thread binding | Bind a task to an existing conversation so future runs continue there |
+| Templates | Save a task as a reusable template |
+| Completion summary | The agent writes a short summary when the work is done |
+| Delete | Remove the task, optionally with its linked conversation |
 
-### Workflow Template Variables
-
-| Variable | Description |
-|---|---|
-| `task.id` | Task id |
-| `task.title` | Task title |
-| `task.description` | `task.md` body |
-| `task.thread_id` | Bound thread id |
-
-AppServer methods and automation configuration fields are listed in [Automations, Goals, and Hooks](../../developing/configuration#automations-goals-and-hooks).
-
-### `CompleteLocalTask` Tool
-
-| Parameter | Description |
-|---|---|
-| `summary` | Short completion summary |
-
-The agent calls it after finishing the work so the task can record its summary and complete.
-
-### Directory Layout
-
-```text
-<workspace>/
-  .craft/
-    tasks/
-      <task-id>/
-        task.md
-        workflow.md
-    automations/
-      templates/
-        <template-id>/
-          template.md
-```
+Schedule formats, workflow variables, and the full set of task fields are in [Automations, Goals, and Hooks](../../developing/configuration#automations-goals-and-hooks).
 
 ---
 
 ## Goals
 
-Goals are long-running objectives attached to a single Thread. After a user explicitly sets a goal, DotCraft stores it in Session Core so future Turns can see it. When the Thread is idle and auto-continue is enabled, the system can keep advancing the goal until it is completed, paused, cleared, or budget-limited.
+A Goal pins a long-running objective to one conversation. Once you set it, the goal stays with that conversation, and whenever the conversation goes idle (with auto-continue on) DotCraft keeps advancing it — until it's complete, paused, cleared, or stopped by its token budget.
 
-### Good Fits
+### Good fits
 
-- Refactors, documentation passes, migrations, or investigations that need multiple turns.
-- Long-running work that users may pause, resume, replace, or clear at any time.
-- Work where token usage, elapsed time, and completion state should persist with the Thread.
+- Refactors, documentation passes, migrations, or investigations that span many turns.
+- Long-running work you may pause, resume, replace, or clear at any time.
+- Work whose progress, time spent, and completion state should stay with the conversation.
 
 ### Lifecycle
 
 | Status | Meaning |
 |---|---|
-| `active` | The goal is in effect; idle Threads may auto-continue |
-| `paused` | The goal is retained but does not auto-continue |
-| `budgetLimited` | Token budget was reached; user action is required |
-| `complete` | The agent audited the work and marked the goal complete |
+| `active` | In effect; an idle conversation may auto-continue |
+| `paused` | Kept, but won't auto-continue |
+| `budgetLimited` | The token budget ran out; it's waiting on you |
+| `complete` | The agent reviewed the work and marked the goal done |
 
-### Common Entry Points
+### How to manage a goal
 
-| Action | Entry point |
+| Action | Where |
 |---|---|
-| Set / replace a goal | Desktop Goal control, clients with `threadGoals`, AppServer `thread/goal/set` |
-| Pause / resume a goal | Desktop Goal control or AppServer `thread/goal/set` status update |
-| Clear a goal | Desktop Goal control or AppServer `thread/goal/clear` |
-| Read goal state | Thread lists, Thread detail, AppServer `thread/goal/get` |
+| Set or replace a goal | Desktop Goal control |
+| Pause or resume a goal | Desktop Goal control |
+| Clear a goal | Desktop Goal control |
+| Check goal state | Conversation list and detail view |
 
-Goal configuration fields and AppServer goal methods are listed in [Automations, Goals, and Hooks](../../developing/configuration#automations-goals-and-hooks).
+Goal fields and the AppServer methods behind these controls are listed in [Automations, Goals, and Hooks](../../developing/configuration#automations-goals-and-hooks).
 
 ### Goals × Automations
 
@@ -113,7 +71,7 @@ Automations are best for "run this task on a schedule or on demand." Goals are b
 | Scenario | Recommendation |
 |---|---|
 | Weekly / daily reports, scheduled checks | Automations on a schedule |
-| Run a test suite and write the summary to a thread | Automations + `CompleteLocalTask` |
+| Run a test suite and write the summary to a conversation | Automations with a completion summary |
 | Keep advancing a refactor or documentation pass | Goals |
 | Make scheduled work follow the same long-running objective | Automations + Goals |
 | Auto-lint / format after file writes | [Hooks](../self-hosted/security#hooks) `AfterToolCall` |

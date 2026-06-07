@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, type CSSProperties } from 'react'
+import { createPortal } from 'react-dom'
 import { ChevronRight, MoreHorizontal } from 'lucide-react'
 import { stripWorkspaceLockedIpcPrefix } from '../../../shared/workspaceSwitchErrors'
 import { useT } from '../../contexts/LocaleContext'
@@ -23,53 +24,123 @@ interface RecentWorkspace {
 interface WorkspaceHeaderProps {
   workspaceName: string
   workspacePath: string
-  localWorkspacePath?: string
-  localActionsDisabled?: boolean
 }
 
 /**
  * Compact workspace identity row shown below the LogoHeader.
- * Displays the workspace name with a subtle overflow (more-actions) button that
- * opens the workspace menu (Open in Explorer, Switch Workspace, Recent Workspaces).
  * Spec §9.2.
  */
 export function WorkspaceHeader({
   workspaceName,
+  workspacePath
+}: WorkspaceHeaderProps): JSX.Element {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        padding: '5px 8px 5px 14px',
+        flexShrink: 0,
+        minHeight: '32px'
+      }}
+    >
+      <ActionTooltip label={workspacePath} wrapperStyle={{ display: 'block', minWidth: 0, overflow: 'hidden', flex: 1 }}>
+        <span
+          style={{
+            flex: 1,
+            fontSize: 'var(--type-secondary-size)',
+            lineHeight: 'var(--type-secondary-line-height)',
+            fontWeight: 'var(--type-ui-emphasis-weight)',
+            color: 'var(--text-secondary)',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            display: 'block'
+          }}
+        >
+          {workspaceName || 'DotCraft'}
+        </span>
+      </ActionTooltip>
+    </div>
+  )
+}
+
+interface WorkspaceOptionsMenuProps {
+  workspacePath: string
+  localWorkspacePath?: string
+  localActionsDisabled?: boolean
+  buttonStyle?: CSSProperties
+  onOpenChange?: (open: boolean) => void
+}
+
+export function WorkspaceOptionsMenu({
   workspacePath,
   localWorkspacePath,
-  localActionsDisabled = false
-}: WorkspaceHeaderProps): JSX.Element {
+  localActionsDisabled = false,
+  buttonStyle,
+  onOpenChange
+}: WorkspaceOptionsMenuProps): JSX.Element {
   const t = useT()
   const confirm = useConfirmDialog()
   const [open, setOpen] = useState(false)
   const [recents, setRecents] = useState<RecentWorkspace[]>([])
   const [showRecents, setShowRecents] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number; width: number } | null>(null)
+
+  function updateOpen(next: boolean): void {
+    setOpen(next)
+    onOpenChange?.(next)
+  }
+
+  function updateMenuPosition(): void {
+    const rect = ref.current?.getBoundingClientRect()
+    if (!rect) return
+    const viewportWidth = window.innerWidth || 320
+    const menuWidth = Math.min(320, Math.max(220, rect.right - 8))
+    const left = Math.max(8, Math.min(rect.right - menuWidth, viewportWidth - menuWidth - 8))
+    setMenuPosition({
+      top: rect.bottom + 4,
+      left,
+      width: menuWidth
+    })
+  }
 
   useEffect(() => {
     if (!open) return
     window.api.workspace.getRecent().then((list) => {
       setRecents(list.filter((r) => r.path !== workspacePath))
     }).catch(() => {})
+    updateMenuPosition()
 
     function handleClick(e: MouseEvent): void {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false)
-        setShowRecents(false)
-      }
+      const target = e.target as Node
+      if (ref.current?.contains(target) || menuRef.current?.contains(target)) return
+      updateOpen(false)
+      setShowRecents(false)
+    }
+    function handlePositionChange(): void {
+      updateMenuPosition()
     }
     document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
+    window.addEventListener('resize', handlePositionChange)
+    window.addEventListener('scroll', handlePositionChange, true)
+    return () => {
+      document.removeEventListener('mousedown', handleClick)
+      window.removeEventListener('resize', handlePositionChange)
+      window.removeEventListener('scroll', handlePositionChange, true)
+    }
   }, [open, workspacePath])
 
   function openInExplorer(): void {
     if (localActionsDisabled) return
-    setOpen(false)
+    updateOpen(false)
     void window.api.shell.openPath(localWorkspacePath || workspacePath)
   }
 
   async function switchWorkspace(): Promise<void> {
-    setOpen(false)
+    updateOpen(false)
     try {
       await window.api.workspace.clearSelection()
     } catch (err) {
@@ -78,7 +149,7 @@ export function WorkspaceHeader({
   }
 
   async function switchToRecent(path: string): Promise<void> {
-    setOpen(false)
+    updateOpen(false)
     setShowRecents(false)
     try {
       await window.api.workspace.switch(path)
@@ -110,51 +181,23 @@ export function WorkspaceHeader({
       ref={ref}
       style={{
         position: 'relative',
-        display: 'flex',
-        alignItems: 'center',
-        padding: '5px 8px 5px 14px',
-        flexShrink: 0,
-        gap: '4px',
-        minHeight: '32px'
+        display: 'inline-flex',
+        alignItems: 'center'
       }}
     >
-      {/* Workspace name */}
-      <ActionTooltip label={workspacePath} wrapperStyle={{ display: 'block', minWidth: 0, overflow: 'hidden', flexShrink: 1 }}>
-      <span
-        style={{
-          flex: 1,
-          fontSize: 'var(--type-secondary-size)',
-          lineHeight: 'var(--type-secondary-line-height)',
-          fontWeight: 'var(--type-ui-emphasis-weight)',
-          color: 'var(--text-secondary)',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-          display: 'block'
-        }}
-      >
-        {workspaceName || 'DotCraft'}
-      </span>
-      </ActionTooltip>
-
-      {/* Overflow menu trigger */}
       <ActionTooltip label={t('workspaceHeader.optionsAria')} placement="bottom">
       <button
-        onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); if (open) setShowRecents(false) }}
+        onClick={(e) => {
+          e.stopPropagation()
+          if (!open) updateMenuPosition()
+          updateOpen(!open)
+          if (open) setShowRecents(false)
+        }}
         aria-label={t('workspaceHeader.optionsAria')}
         style={{
-          flexShrink: 0,
-          background: 'transparent',
-          border: 'none',
-          color: open ? 'var(--text-primary)' : 'var(--text-dimmed)',
-          cursor: 'pointer',
-          padding: '2px 4px',
-          borderRadius: '4px',
-          fontSize: 'var(--type-ui-size)',
-          lineHeight: 'var(--type-ui-line-height)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center'
+          ...workspaceOptionsButtonStyle,
+          ...buttonStyle,
+          color: open ? 'var(--text-primary)' : (buttonStyle?.color ?? 'var(--text-dimmed)')
         }}
         onMouseEnter={(e) => {
           ;(e.currentTarget as HTMLButtonElement).style.color = 'var(--text-primary)'
@@ -171,21 +214,21 @@ export function WorkspaceHeader({
       </button>
       </ActionTooltip>
 
-      {/* Dropdown */}
-      {open && (
+      {open && menuPosition && typeof document !== 'undefined' && createPortal(
         <div
+          ref={menuRef}
           style={{
-            position: 'absolute',
-            top: '100%',
-            left: '8px',
-            right: '8px',
+            position: 'fixed',
+            top: menuPosition.top,
+            left: menuPosition.left,
+            width: menuPosition.width,
             backgroundColor: 'var(--glass-surface-strong)',
             border: 'none',
             borderRadius: '10px',
             boxShadow: 'var(--glass-shadow-soft)',
             backdropFilter: 'var(--glass-blur)',
             WebkitBackdropFilter: 'var(--glass-blur)',
-            zIndex: 100,
+            zIndex: 1000,
             padding: '6px',
             overflow: 'visible'
           }}
@@ -240,7 +283,7 @@ export function WorkspaceHeader({
                   boxShadow: 'var(--glass-shadow-soft)',
                   backdropFilter: 'var(--glass-blur)',
                   WebkitBackdropFilter: 'var(--glass-blur)',
-                  zIndex: 101,
+                  zIndex: 1001,
                   padding: '6px',
                   minWidth: '220px',
                   maxWidth: '320px',
@@ -327,9 +370,25 @@ export function WorkspaceHeader({
             )}
           </div>
         </div>
+        , document.body
       )}
     </div>
   )
+}
+
+const workspaceOptionsButtonStyle: CSSProperties = {
+  flexShrink: 0,
+  background: 'transparent',
+  border: 'none',
+  color: 'var(--text-dimmed)',
+  cursor: 'pointer',
+  padding: '2px 4px',
+  borderRadius: '4px',
+  fontSize: 'var(--type-ui-size)',
+  lineHeight: 'var(--type-ui-line-height)',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center'
 }
 
 interface DropdownItemProps {

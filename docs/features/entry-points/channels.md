@@ -21,13 +21,13 @@ TypeScript channel modules follow the [TypeScript Module integration contract](.
 
 ![DotCraft channel adapter topology](/channel-adapter-topology.svg)
 
-Two integration shapes:
+Three integration shapes:
 
-- **Embedded in Desktop**: Desktop launches the channel as a subprocess via `transport: "subprocess"` and `builtinModule`. Use the Desktop **Channels** page to fill in platform tokens, callbacks, allowlists, or QR-code auth, then enable in one click.
-- **Server Compose deployment**: Use [Server Deployment](../self-hosted/server-deployment) to run AppServer, bundled TypeScript channels, and optional OpenSandbox from Docker Compose.
-- **Standalone adapter**: An external process connects to AppServer over WebSocket via `transport: "websocket"`. Best when you need to operate a custom adapter process yourself.
+- **Embedded in Desktop**: Desktop launches the channel for you. Open the Desktop **Channels** page, fill in platform tokens, callbacks, allowlists, or QR-code auth, then enable in one click.
+- **Server Compose deployment**: Use [Server Deployment](../self-hosted/server-deployment) to run AppServer, the bundled TypeScript channels, and optional OpenSandbox from Docker Compose.
+- **Standalone adapter**: Run the channel as your own process and connect it to AppServer over WebSocket. Best when you need to operate a custom adapter yourself.
 
-AppServer and channel registration fields live in [Entry Points and Services](../../developing/configuration#entry-points-and-services). Platform-specific connection, permission allowlists, and approval timeouts live in adapter-specific files like `.craft/qq.json` and `.craft/wecom.json`.
+For the channel registration and transport fields behind these shapes, see [Entry Points and Services](../../developing/configuration#entry-points-and-services). Each platform's connection, permission allowlists, and approval timeouts are set in the [Configuration Reference](../../developing/configuration).
 
 ## Channels and Unified Session Core
 

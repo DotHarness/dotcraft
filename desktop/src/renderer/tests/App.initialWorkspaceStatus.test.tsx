@@ -17,14 +17,16 @@ import { useGitStore, type GitBranchListSnapshot } from '../stores/gitStore'
 import { usePluginStore, type PluginEntry } from '../stores/pluginStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
+import { useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
 import { buildExtensionMainViewKey } from '../utils/desktopExtensionRegistry'
 import type { WorkspaceStatusPayload } from '../../preload/api'
 import {
   getWhatsNewMediaStateKey,
   type WhatsNewMediaState
 } from '../../shared/whatsNew'
+import type { WorkspaceProjectsPayload } from '../../shared/workspaceProjects'
 import { WHATS_NEW_TEST_RELEASES } from './whatsNewFixtures'
-import type { Thread } from '../types/thread'
+import type { Thread, ThreadSummary } from '../types/thread'
 
 vi.mock('../components/layout/CustomMenuBar', () => ({
   CustomMenuBar: () => <div data-testid="custom-menu-bar" />
@@ -258,6 +260,41 @@ function gitSnapshot(current = 'main'): GitBranchListSnapshot {
   }
 }
 
+function makeThreadSummary(id: string, workspacePath: string, displayName = id): ThreadSummary {
+  return {
+    id,
+    displayName,
+    status: 'active',
+    originChannel: 'dotcraft-desktop',
+    workspacePath,
+    effectiveWorkspacePath: workspacePath,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    lastActiveAt: '2026-01-01T00:00:00.000Z'
+  }
+}
+
+function projectsPayloadFor(path: string, name = path): WorkspaceProjectsPayload {
+  return {
+    foregroundWorkspacePath: path,
+    foregroundProjectId: path,
+    secondaryLimit: 8,
+    projects: [
+      {
+        kind: 'local',
+        path,
+        identityWorkspacePath: path,
+        name,
+        state: 'foreground',
+        running: true,
+        loaded: true,
+        threadCount: 0,
+        threads: [],
+        pinnedThreadIds: []
+      }
+    ]
+  }
+}
+
 function installApi(
   initialWorkspaceStatus: WorkspaceStatusPayload,
   overrides: {
@@ -271,6 +308,10 @@ function installApi(
     getMediaStates?: ReturnType<typeof vi.fn>
     prefetchMedia?: ReturnType<typeof vi.fn>
     gitListBranches?: ReturnType<typeof vi.fn>
+    workspaceGetStatus?: ReturnType<typeof vi.fn>
+    onWorkspaceStatusChange?: ReturnType<typeof vi.fn>
+    workspaceGetProjects?: ReturnType<typeof vi.fn>
+    onProjectsChange?: ReturnType<typeof vi.fn>
   } = {}
 ): {
   settingsGet: ReturnType<typeof vi.fn>
@@ -278,6 +319,11 @@ function installApi(
   getReleases: ReturnType<typeof vi.fn>
   getMediaStates: ReturnType<typeof vi.fn>
   prefetchMedia: ReturnType<typeof vi.fn>
+  appServerSendRequest: ReturnType<typeof vi.fn>
+  workspaceGetStatus: ReturnType<typeof vi.fn>
+  onWorkspaceStatusChange: ReturnType<typeof vi.fn>
+  workspaceGetProjects: ReturnType<typeof vi.fn>
+  onProjectsChange: ReturnType<typeof vi.fn>
 } {
   const pending = new Promise<never>(() => {})
   const settingsGet = overrides.settingsGet ?? vi.fn(() => pending)
@@ -290,6 +336,10 @@ function installApi(
   const getMediaStates = overrides.getMediaStates ?? vi.fn().mockResolvedValue([])
   const prefetchMedia = overrides.prefetchMedia ?? vi.fn().mockResolvedValue([])
   const gitListBranches = overrides.gitListBranches ?? vi.fn().mockResolvedValue(gitSnapshot())
+  const workspaceGetStatus = overrides.workspaceGetStatus ?? vi.fn(() => pending)
+  const onWorkspaceStatusChange = overrides.onWorkspaceStatusChange ?? vi.fn(() => vi.fn())
+  const workspaceGetProjects = overrides.workspaceGetProjects ?? vi.fn(() => pending)
+  const onProjectsChange = overrides.onProjectsChange ?? vi.fn(() => vi.fn())
   Object.defineProperty(window, 'api', {
     configurable: true,
     value: {
@@ -326,8 +376,10 @@ function installApi(
         sendServerResponse: vi.fn()
       },
       workspace: {
-        getStatus: vi.fn(() => pending),
-        onStatusChange: vi.fn(() => vi.fn()),
+        getStatus: workspaceGetStatus,
+        onStatusChange: onWorkspaceStatusChange,
+        getProjects: workspaceGetProjects,
+        onProjectsChange,
         switch: vi.fn().mockResolvedValue(undefined),
         runSetup: vi.fn().mockResolvedValue(undefined),
         clearSelection: vi.fn().mockResolvedValue(undefined),
@@ -366,7 +418,18 @@ function installApi(
       }
     }
   })
-  return { settingsGet, settingsSet, getReleases, getMediaStates, prefetchMedia }
+  return {
+    settingsGet,
+    settingsSet,
+    getReleases,
+    getMediaStates,
+    prefetchMedia,
+    appServerSendRequest,
+    workspaceGetStatus,
+    onWorkspaceStatusChange,
+    workspaceGetProjects,
+    onProjectsChange
+  }
 }
 
 function renderApp() {
@@ -392,6 +455,7 @@ describe('App initial workspace status bootstrap', () => {
     useGitStore.getState().reset()
     useThreadStore.getState().reset()
     useConversationStore.getState().reset()
+    useWorkspaceProjectsStore.getState().reset()
     usePluginStore.setState({
       plugins: [],
       diagnostics: [],
@@ -661,6 +725,160 @@ describe('App initial workspace status bootstrap', () => {
     expect(params?.identity?.channelContext).toBe('workspace:/workspace')
   })
 
+  it('reloads the foreground thread list when the workspace identity changes while connected', async () => {
+    const workspaceBStatus: WorkspaceStatusPayload = {
+      ...readyWorkspaceStatus,
+      workspacePath: 'C:\\sample\\workspace-b'
+    }
+    let emitStatus: ((payload: WorkspaceStatusPayload) => void) | null = null
+    let emitProjects: ((payload: WorkspaceProjectsPayload) => void) | null = null
+    const workspaceBThreads = createDeferred<{ data: ThreadSummary[] }>()
+    const appServerSendRequest = vi.fn((method: string, params?: { identity?: { workspacePath?: string } }) => {
+      if (method === 'thread/list') {
+        if (params?.identity?.workspacePath === workspaceBStatus.workspacePath) {
+          return workspaceBThreads.promise
+        }
+        return Promise.resolve({
+          data: [makeThreadSummary('thread-a', readyWorkspaceStatus.workspacePath, 'A thread')]
+        })
+      }
+      return Promise.resolve({})
+    })
+    const onWorkspaceStatusChange = vi.fn((callback: (payload: WorkspaceStatusPayload) => void) => {
+      emitStatus = callback
+      return vi.fn()
+    })
+    const onProjectsChange = vi.fn((callback: (payload: WorkspaceProjectsPayload) => void) => {
+      emitProjects = callback
+      return vi.fn()
+    })
+    installApi(readyWorkspaceStatus, {
+      appServerSendRequest,
+      modulesList: vi.fn().mockResolvedValue([]),
+      modulesRunning: vi.fn().mockResolvedValue({}),
+      settingsGet: vi.fn().mockResolvedValue({}),
+      onWorkspaceStatusChange,
+      onProjectsChange,
+      workspaceGetProjects: vi.fn().mockResolvedValue(projectsPayloadFor(readyWorkspaceStatus.workspacePath, 'A'))
+    })
+    useConnectionStore.getState().setStatus({ status: 'connected' })
+
+    renderApp()
+
+    await waitFor(() => {
+      expect(useThreadStore.getState().threadList.map((thread) => thread.id)).toEqual(['thread-a'])
+    })
+
+    const callsAfterInitialLoad = appServerSendRequest.mock.calls.length
+    act(() => {
+      emitProjects?.(projectsPayloadFor(workspaceBStatus.workspacePath, 'B'))
+    })
+    await flushPromises()
+    expect(appServerSendRequest.mock.calls.slice(callsAfterInitialLoad)).toHaveLength(0)
+
+    act(() => {
+      emitStatus?.(workspaceBStatus)
+    })
+
+    await waitFor(() => {
+      expect(useThreadStore.getState().threadList).toEqual([])
+      expect(useThreadStore.getState().threadListProjectKey).toBeNull()
+    })
+    await waitFor(() => {
+      expect(appServerSendRequest.mock.calls.some((call) => {
+        const params = call[1] as { identity?: { workspacePath?: string } } | undefined
+        return call[0] === 'thread/list' && params?.identity?.workspacePath === workspaceBStatus.workspacePath
+      })).toBe(true)
+    })
+
+    workspaceBThreads.resolve({
+      data: [makeThreadSummary('thread-b', workspaceBStatus.workspacePath, 'B thread')]
+    })
+
+    await waitFor(() => {
+      const state = useThreadStore.getState()
+      expect(state.threadList.map((thread) => thread.id)).toEqual(['thread-b'])
+      expect(state.threadListProjectKey).toBe('c:/sample/workspace-b')
+    })
+  })
+
+  it('ignores a stale thread list response from the previous foreground workspace', async () => {
+    const workspaceBStatus: WorkspaceStatusPayload = {
+      ...readyWorkspaceStatus,
+      workspacePath: 'C:\\sample\\workspace-b'
+    }
+    let emitStatus: ((payload: WorkspaceStatusPayload) => void) | null = null
+    let emitProjects: ((payload: WorkspaceProjectsPayload) => void) | null = null
+    const workspaceAThreads = createDeferred<{ data: ThreadSummary[] }>()
+    const workspaceBThreads = createDeferred<{ data: ThreadSummary[] }>()
+    const appServerSendRequest = vi.fn((method: string, params?: { identity?: { workspacePath?: string } }) => {
+      if (method !== 'thread/list') return Promise.resolve({})
+      if (params?.identity?.workspacePath === workspaceBStatus.workspacePath) {
+        return workspaceBThreads.promise
+      }
+      return workspaceAThreads.promise
+    })
+    const onWorkspaceStatusChange = vi.fn((callback: (payload: WorkspaceStatusPayload) => void) => {
+      emitStatus = callback
+      return vi.fn()
+    })
+    const onProjectsChange = vi.fn((callback: (payload: WorkspaceProjectsPayload) => void) => {
+      emitProjects = callback
+      return vi.fn()
+    })
+    installApi(readyWorkspaceStatus, {
+      appServerSendRequest,
+      modulesList: vi.fn().mockResolvedValue([]),
+      modulesRunning: vi.fn().mockResolvedValue({}),
+      settingsGet: vi.fn().mockResolvedValue({}),
+      onWorkspaceStatusChange,
+      onProjectsChange,
+      workspaceGetProjects: vi.fn().mockResolvedValue(projectsPayloadFor(readyWorkspaceStatus.workspacePath, 'A'))
+    })
+    useConnectionStore.getState().setStatus({ status: 'connected' })
+
+    renderApp()
+    await waitFor(() => {
+      expect(appServerSendRequest.mock.calls.some((call) => {
+        const params = call[1] as { identity?: { workspacePath?: string } } | undefined
+        return call[0] === 'thread/list' && params?.identity?.workspacePath === readyWorkspaceStatus.workspacePath
+      })).toBe(true)
+    })
+    act(() => {
+      useThreadStore.getState().setThreadList([
+        makeThreadSummary('thread-a', readyWorkspaceStatus.workspacePath, 'A thread')
+      ], readyWorkspaceStatus.workspacePath)
+    })
+
+    act(() => {
+      emitStatus?.(workspaceBStatus)
+      emitProjects?.(projectsPayloadFor(workspaceBStatus.workspacePath, 'B'))
+    })
+
+    await waitFor(() => {
+      expect(appServerSendRequest.mock.calls.some((call) => {
+        const params = call[1] as { identity?: { workspacePath?: string } } | undefined
+        return call[0] === 'thread/list' && params?.identity?.workspacePath === workspaceBStatus.workspacePath
+      })).toBe(true)
+    })
+    workspaceBThreads.resolve({
+      data: [makeThreadSummary('thread-b', workspaceBStatus.workspacePath, 'B thread')]
+    })
+
+    await waitFor(() => {
+      expect(useThreadStore.getState().threadList.map((thread) => thread.id)).toEqual(['thread-b'])
+    })
+
+    workspaceAThreads.resolve({
+      data: [makeThreadSummary('thread-a-late', readyWorkspaceStatus.workspacePath, 'Late A thread')]
+    })
+    await flushPromises()
+
+    const state = useThreadStore.getState()
+    expect(state.threadList.map((thread) => thread.id)).toEqual(['thread-b'])
+    expect(state.threadListProjectKey).toBe('c:/sample/workspace-b')
+  })
+
   it('refreshes active thread metadata without reloading turns', async () => {
     vi.useFakeTimers()
     const worktreeThread: Thread = {
@@ -877,5 +1095,95 @@ describe('App initial workspace status bootstrap', () => {
         return params?.crossChannelOrigins?.includes('teams') === true
       })).toBe(true)
     })
+  })
+
+  it('accepts foreground notifications even when the workspace path differs', async () => {
+    let notificationHandler: ((payload: {
+      method: string
+      params?: unknown
+      workspacePath?: string
+      foreground?: boolean
+    }) => void) | undefined
+    const onNotification = vi.fn((handler: typeof notificationHandler) => {
+      notificationHandler = handler
+      return vi.fn()
+    })
+    installApi(readyWorkspaceStatus, {
+      onNotification,
+      settingsGet: vi.fn().mockResolvedValue({}),
+      modulesList: vi.fn().mockResolvedValue([]),
+      modulesRunning: vi.fn().mockResolvedValue({}),
+      appServerSendRequest: vi.fn(async (method: string) => method === 'thread/list' ? { data: [] } : {})
+    })
+
+    renderApp()
+    await waitFor(() => {
+      expect(onNotification).toHaveBeenCalled()
+    })
+
+    await act(async () => {
+      notificationHandler?.({
+        method: 'thread/started',
+        workspacePath: 'F:/different/workspace',
+        foreground: true,
+        params: {
+          thread: {
+            id: 'thread-foreground',
+            displayName: 'Foreground thread',
+            status: 'active',
+            originChannel: 'dotcraft-desktop',
+            createdAt: '2026-06-07T00:00:00.000Z',
+            lastActiveAt: '2026-06-07T00:00:00.000Z'
+          }
+        }
+      })
+    })
+
+    expect(useThreadStore.getState().threadList.map((thread) => thread.id)).toContain('thread-foreground')
+  })
+
+  it('ignores secondary notifications even if their workspace path matches after normalization', async () => {
+    let notificationHandler: ((payload: {
+      method: string
+      params?: unknown
+      workspacePath?: string
+      foreground?: boolean
+    }) => void) | undefined
+    const onNotification = vi.fn((handler: typeof notificationHandler) => {
+      notificationHandler = handler
+      return vi.fn()
+    })
+    installApi(readyWorkspaceStatus, {
+      onNotification,
+      settingsGet: vi.fn().mockResolvedValue({}),
+      modulesList: vi.fn().mockResolvedValue([]),
+      modulesRunning: vi.fn().mockResolvedValue({}),
+      appServerSendRequest: vi.fn(async (method: string) => method === 'thread/list' ? { data: [] } : {})
+    })
+
+    renderApp()
+    await waitFor(() => {
+      expect(onNotification).toHaveBeenCalled()
+    })
+
+    await act(async () => {
+      notificationHandler?.({
+        method: 'thread/started',
+        workspacePath: 'F:\\examples\\workspace\\',
+        foreground: false,
+        params: {
+          thread: {
+            id: 'thread-secondary',
+            displayName: 'Secondary thread',
+            status: 'active',
+            originChannel: 'dotcraft-desktop',
+            createdAt: '2026-06-07T00:00:00.000Z',
+            lastActiveAt: '2026-06-07T00:00:00.000Z'
+          }
+        }
+      })
+    })
+
+    expect(useThreadStore.getState().threadList.map((thread) => thread.id)).not.toContain('thread-secondary')
   })
 })

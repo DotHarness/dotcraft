@@ -98,6 +98,7 @@ import {
   type ConnectionSettingsDraft
 } from '../shared/remoteConnection'
 import { sendDesktopAppServerRequest } from './desktopRuntimeThreadTools'
+import type { WorkspaceProjectsPayload } from '../shared/workspaceProjects'
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'error'
 
@@ -884,6 +885,8 @@ export interface IpcHandlerCallbacks {
   onConnectRemoteStack?: (host: RemoteHost, stack: RemoteStack) => Promise<{ localPort?: number }>
   /** Disconnects a saved remote stack; if active, Desktop should return to local mode. */
   onDisconnectRemoteStack?: (hostId: string, stackId: string) => Promise<void>
+  /** Disconnects the active Desktop remote foreground project, if any. */
+  onDisconnectRemoteProject?: () => Promise<void>
   /** Returns the current settings object. */
   getSettings: () => AppSettings
   /** Returns the active AppServer WebSocket endpoint for Hub-managed local mode. */
@@ -892,12 +895,23 @@ export interface IpcHandlerCallbacks {
   updateSettings: (partial: Partial<AppSettings>) => void | Promise<void>
   /** Returns the recent workspaces list. */
   getRecentWorkspaces: () => RecentWorkspace[]
+  /** Returns the recent workspace project rail snapshot. */
+  getWorkspaceProjects?: () => WorkspaceProjectsPayload
+  /** Removes a non-foreground workspace from the recent projects list. */
+  removeRecentWorkspace?: (workspacePath: string) => void
   /** Clears and persists the recent workspaces list. */
   clearRecentWorkspaces?: () => void
   /** Returns the latest known connection status snapshot. */
   getConnectionStatus: () => ConnectionStatusPayload
   /** Returns the latest known workspace selection/setup snapshot. */
   getWorkspaceStatus: () => WorkspaceStatusPayload
+  /** Observes successful renderer AppServer requests for Desktop-local routing state. */
+  onAppServerRequestCompleted?: (
+    client: WireProtocolClient,
+    method: string,
+    params: unknown,
+    result: unknown
+  ) => void
 }
 
 /**
@@ -1121,9 +1135,11 @@ export function registerIpcHandlers(
       if (!client) {
         throw new Error(translate(mainLocale(callbacks), 'ipc.appServerNotConnected'))
       }
-      return sendDesktopAppServerRequest(client, method, params, timeoutMs, {
+      const result = await sendDesktopAppServerRequest(client, method, params, timeoutMs, {
         supportsDynamicToolRebind: callbacks?.getConnectionStatus().capabilities?.dynamicToolRebind === true
       })
+      callbacks?.onAppServerRequestCompleted?.(client, method, params, result)
+      return result
     }
   )
 
@@ -1520,6 +1536,23 @@ export function registerIpcHandlers(
   // Renderer -> Main: get recent workspaces
   handleSafe('workspace:get-recent', () => {
     return callbacks?.getRecentWorkspaces() ?? []
+  })
+
+  handleSafe('workspace:get-projects', () => {
+    return callbacks?.getWorkspaceProjects?.() ?? {
+      foregroundWorkspacePath: '',
+      foregroundProjectId: '',
+      secondaryLimit: 8,
+      projects: []
+    }
+  })
+
+  handleSafe('workspace:remove-recent', (_event, workspacePath: string) => {
+    callbacks?.removeRecentWorkspace?.(workspacePath)
+  })
+
+  handleSafe('workspace:disconnect-remote', async () => {
+    await callbacks?.onDisconnectRemoteProject?.()
   })
 
   handleSafe('workspace:clear-recent', () => {
@@ -2265,7 +2298,9 @@ export function broadcastNotification(
   win: BrowserWindow,
   method: string,
   params: unknown,
-  settings?: AppSettings
+  settings?: AppSettings,
+  workspacePath?: string,
+  foreground?: boolean
 ): void {
   if (
     method === 'system/jobResult' &&
@@ -2287,7 +2322,12 @@ export function broadcastNotification(
     }
   }
   if (!win.isDestroyed()) {
-    win.webContents.send('appserver:notification', { method, params })
+    win.webContents.send('appserver:notification', {
+      method,
+      params,
+      ...(workspacePath !== undefined ? { workspacePath } : {}),
+      ...(foreground !== undefined ? { foreground } : {})
+    })
   }
 }
 
@@ -2398,6 +2438,9 @@ export function unregisterIpcHandlers(): void {
   ipcMain.removeHandler('workspace:switch')
   ipcMain.removeHandler('workspace:clear-selection')
   ipcMain.removeHandler('workspace:get-recent')
+  ipcMain.removeHandler('workspace:get-projects')
+  ipcMain.removeHandler('workspace:remove-recent')
+  ipcMain.removeHandler('workspace:disconnect-remote')
   ipcMain.removeHandler('workspace:clear-recent')
   ipcMain.removeHandler('workspace:get-status')
   ipcMain.removeHandler('workspace:run-setup')

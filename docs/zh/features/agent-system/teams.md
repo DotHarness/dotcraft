@@ -7,7 +7,7 @@ Teams 通过内置插件 `agent-teams` 提供。在插件目录启用后，Deskt
 ![DotCraft Teams](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/teams.gif)
 
 > [!NOTE]
-> Teams 是构建在 Session Core 上的 Managed App Binding 运行时。每位队友的 Mission 线程都是一条普通的 DotCraft 顶层 Thread，拥有独立的上下文、工具、历史与审计。
+> 每位队友都在自己的对话里工作，拥有独立的上下文、工具、历史与审计记录——你可以打开任意队友的线程，完整跟踪它做了什么。
 
 ## 何时使用 Teams
 
@@ -32,7 +32,7 @@ Teams 通过内置插件 `agent-teams` 提供。在插件目录启用后，Deskt
 | **Reviewer** | 检查质量、风险与正确性。 |
 | **Operator** | 处理 App / 计算机相关的操作型任务。 |
 
-按角色自定义（Skills、MCP server、插件、提示词、权限模式、工具表面）在路线图中。动态创建团队 / 成员不在本里程碑范围内。
+成员是固定的：你不需要创建或移除成员。每位成员已经带着适配自己那部分工作的专注角色和工具集。
 
 ## Mission 生命周期
 
@@ -40,50 +40,44 @@ Mission 是用户视角的交付单元，包含一块任务板、邮箱事件与
 
 | 状态 | 含义 |
 |---|---|
-| `planning` | Mission 已创建；Leader 输入已入队或正在运行。 |
-| `active` | Leader 已记录计划或派发至少一个任务。 |
-| `awaitingLeaderReview` | 所有必需任务和审核门完成；Leader 需要写入 `finalResponse`。 |
-| `done` | Leader 已通过 `finalResponse` 完成 Mission。 |
-| `cancelled` | 用户取消 Mission；未完成的任务一并取消。 |
+| `planning` | Mission 已创建；Leader 正在制定计划。 |
+| `active` | Leader 已有计划，并派发了至少一个任务。 |
+| `awaitingLeaderReview` | 所有任务和审核都已完成；Leader 正在撰写最终答复。 |
+| `done` | Leader 已交付最终答复。 |
+| `cancelled` | 你取消了 Mission；其未完成的任务也一并取消。 |
 
-只有终止状态（`done` / `cancelled`）的 Mission 可以归档。归档保留状态，不会删除 Mission 或其队友线程。
+只有已结束（`done` / `cancelled`）的 Mission 可以归档。归档保留记录，不会删除 Mission 或其队友线程。
 
 > [!TIP]
 > Desktop 里取消和归档都是卡片动作：把 Mission 卡片拖入"丢弃堆"并确认。丢弃堆不是可点击按钮——拖拽本身就是有意的确认动作。
 
 ## 任务板
 
-任务（`TeamTask`）构成 Mission 范围内的共享任务板，每条任务都有显式的执行人、状态、依赖、阻塞、输出摘要与元数据。
+每个 Mission 都有一块共享任务板。板上每条任务都带着执行人、状态、依赖、阻塞和输出摘要，让你一眼就能看清谁在做什么、卡在哪里。
 
 | 状态 | 含义 |
 |---|---|
-| `pending` | 已创建，等待调度评估。 |
+| `pending` | 已创建，等待调度。 |
 | `waitingDependencies` | 受上游任务阻塞。 |
-| `ready` | 可以执行，但执行人线程尚未就绪。 |
-| `running` | 已入队或正在执行人 Mission 线程中运行。 |
-| `blocked` | 执行人报告阻塞，需要其他动作。 |
-| `review` | 工作完成；尚未通过审核门。 |
-| `done` | 已被 Mission 完成所采纳。 |
-| `failed` | 没有 Mission 级介入无法继续。 |
-| `cancelled` | 随 Mission 取消或被显式取消。 |
+| `ready` | 已具备执行条件，但执行人还没空出来。 |
+| `running` | 正在执行人的线程中运行。 |
+| `blocked` | 执行人遇到阻塞，需要其他地方先处理。 |
+| `review` | 工作已完成，但尚未通过审核。 |
+| `done` | 已被采纳，计入 Mission 最终答复。 |
+| `failed` | 需要 Leader 介入才能继续。 |
+| `cancelled` | 随 Mission 取消，或被显式取消。 |
 
-任务之间用 Mission 内短别名（`t1`、`t2`）引用，工件同理（`a1`、`a2`）；规范 id（`task_...`、`artifact_...`）仍然存储，用于兼容。
-
-### 依赖与 Leader 综合
-
-- Leader 在派发任务时用 `dependsOnTaskIds` 记录显式依赖。
-- 当下游任务需要 Leader 解读上游结果再派发时，可以把任务标记为 `requiresLeaderSynthesis`——调度器在上游完成后唤醒 Leader，并在 Leader 给出综合指令前不向队友派发。
-- 审核是任务属性（`kind = "review"`），不是硬编码的角色规则。任何成员都可以被指派为审核执行人。
+Leader 在派发任务时会设置任务之间的依赖，也可以先审阅上游结果再放行下游工作。审核本身也是一条任务——任何成员都可以被指派去审核别人的工作。
 
 ## 协作回路
 
-队友之间通过以下机制协作：
+队友之间通过三种方式协作：
 
-- **邮箱消息**（`SendMessage`）—— 轻量的 Mission 内事件，可发给某位成员或 Leader。它们不是任何线程里的 Turn；调度器会将它们合批，并在消息可执行时唤醒接收方。
-- **工件**（`PublishArtifact`）—— 显式的交接记录，包含标题、路径或 URI 与摘要。发布工件不会完成任务；队友仍需调用 `MarkTaskDone` 或 `ReportProgress(status: "blocked")`。
-- **进度**（`ReportProgress`）—— 中途进度或阻塞更新，不是完成信号。
+- **消息** —— 成员之间或发给 Leader 的轻量便条，用来提示某件事或请求输入。
+- **工件** —— 显式交接：一份命名的结果，附上它的位置和简短摘要，让接手的队友清楚自己拿到的是什么。
+- **进度更新** —— 中途状态或抛出的阻塞，让任务板保持最新。
 
-Leader 不轮询。派发工作或发送消息后，Leader 结束当前回合；调度器会在任务结果、阻塞、队友消息、综合需求或最终审核需要时唤醒它。
+Leader 不会一直轮询。它派发工作后就退到一旁；只有当结果产出、出现阻塞、队友需要答复，或 Mission 进入最终审核时，它才会被重新唤起。
 
 ## Desktop UI
 
@@ -98,16 +92,9 @@ Team 面板是一块"卡牌协作桌"：
 
 ## 配置
 
-Teams 由内置插件 `agent-teams` 控制。状态持久化在：
+Teams 由内置插件 `agent-teams` 控制。它的 Mission、任务和交接文件都存放在工作区内，因此会随项目走，并在各入口之间保持可用。每个 Mission 都为队友提供一块共享草稿区，用于存放可复用的交接物。
 
-```text
-.craft/teams/state.json
-.craft/teams/missions/{missionId}/
-```
-
-Mission 的 scratchpad / 工件工作区路径会以 App Context Block 形式挂入每位队友的 Mission 线程，告诉队友把可复用的交接物放在哪里。
-
-运行时字段在 `teams` 配置段中。可用键见 [配置完整参考](../../developing/configuration)。
+运行时设置在 `teams` 配置段中。可用键见 [配置完整参考](../../developing/configuration)，Mission 线程的存储方式见 [统一会话核心](../../developing/architecture/session-core)。
 
 ## 相关文档
 

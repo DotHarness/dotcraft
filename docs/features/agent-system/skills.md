@@ -89,7 +89,7 @@ The management page does not query SkillHub / ClawHub. Disabled skills do not en
 
 ## The Built-in `skill-authoring` Skill
 
-When self-learning is on, DotCraft injects `skill-authoring` as an on-demand reference: it tells the agent the `SKILL.md` frontmatter rules, action selection, supporting-file path constraints, common pitfalls, and validation steps. Because `skill-authoring` declares `tools: SkillManage`, it disappears when self-learning is off.
+When self-learning is on, DotCraft gives the agent an on-demand `skill-authoring` reference: how to structure a skill's frontmatter, where supporting files may live, common pitfalls, and how to validate the result. Turn self-learning off and this reference goes away with it.
 
 ## Safety & Trust
 
@@ -104,7 +104,7 @@ When self-learning is on, DotCraft injects `skill-authoring` as an on-demand ref
 | Project-fixed flow ("run lint+test before any PR") | Workspace skill (hand-authored or agent-created) |
 | Cross-project preference (your code style) | Personal skill |
 | Distributable capability bundle (skills + tools) | Build a [Plugin](./plugins-tools) |
-| Capture a freshly solved problem | Enable self-learning, let `SkillManage create` |
+| Capture a freshly solved problem | Enable self-learning and let the agent save it |
 | Reuse a community solution | Skills page → market search → Install with DotCraft |
 
 ## Related docs

@@ -89,4 +89,40 @@ describe('desktop activation protocol', () => {
       handle.close()
     }
   })
+
+  it('can activate a secondary workspace but reports it as unfocused until foreground', async () => {
+    const onActivate = vi.fn()
+    const foreground = workspacePath('dotcraft-activation-foreground')
+    const secondary = workspacePath('dotcraft-activation-secondary')
+    const handle = await startWorkspaceActivationServer({
+      workspacePath: foreground,
+      getWindow: () => createWindowState({
+        focused: () => true,
+        visible: () => true,
+        minimized: () => false
+      }),
+      canActivateWorkspace: (workspace) => workspace === secondary,
+      isForegroundWorkspace: (workspace) => workspace === foreground,
+      onActivate
+    })
+
+    try {
+      await expect(requestWorkspaceWindowState(handle.endpoint, secondary)).resolves.toEqual({
+        ok: true,
+        focused: false,
+        visible: true,
+        minimized: false
+      })
+      await expect(requestWorkspaceActivation(handle.endpoint, {
+        workspacePath: secondary,
+        threadId: 'thread_2'
+      })).resolves.toBe(true)
+      expect(onActivate).toHaveBeenCalledWith({
+        workspacePath: secondary,
+        threadId: 'thread_2'
+      })
+    } finally {
+      handle.close()
+    }
+  })
 })

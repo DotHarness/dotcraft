@@ -90,8 +90,8 @@ On startup, DotCraft checks [GitHub Releases](https://github.com/DotHarness/dotc
 
 ## Advanced
 
-- Desktop consumes the AppServer Wire Protocol, so it shares the same session core with TUI, ACP, and external channels.
-- Image attachments live under `.craft/attachments/images/` and survive restart.
+- Desktop is an AppServer client, so it shares the same [session core](../../developing/architecture/session-core) with TUI, ACP, and external channels — a thread you start here continues in any of them.
+- Image attachments survive a restart; reopen a session and its thumbnails are still there.
 - Markdown surfaces render fenced `mermaid` / `mmd` code blocks as Mermaid diagrams. If a diagram cannot be rendered, Desktop falls back to the source block.
 
 ## Related docs

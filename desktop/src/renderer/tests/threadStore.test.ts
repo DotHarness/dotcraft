@@ -93,6 +93,18 @@ describe('threadStore.setThreadList', () => {
     expect(useThreadStore.getState().threadList).toEqual(threads)
   })
 
+  it('records the canonical project key for the thread list', () => {
+    const threads = [makeThreadSummary('a')]
+    useThreadStore.getState().setThreadList(threads, 'F:\\Git\\dotcraft\\')
+    expect(useThreadStore.getState().threadListProjectKey).toBe('f:/git/dotcraft')
+  })
+
+  it('clears the thread list project key on reset', () => {
+    useThreadStore.getState().setThreadList([makeThreadSummary('a')], '/workspace/a')
+    useThreadStore.getState().reset()
+    expect(useThreadStore.getState().threadListProjectKey).toBeNull()
+  })
+
   it('filters internal helper threads from the thread list', () => {
     useThreadStore.getState().setThreadList([
       makeThreadSummary('visible'),
@@ -373,6 +385,19 @@ describe('threadStore pinned threads', () => {
     expect(settingsSet).toHaveBeenCalledWith({
       pinnedThreadIdsByWorkspace: {
         '/workspace': ['thread-b', 'thread-a']
+      }
+    })
+  })
+
+  it('persists pinned ids under the canonical workspace project key', () => {
+    useThreadStore.getState().setThreadList([makeThreadSummary('thread-a')])
+    useThreadStore.getState().hydratePinnedThreadIds('F:\\Git\\dotcraft\\', [])
+
+    useThreadStore.getState().togglePinnedThread('thread-a')
+
+    expect(settingsSet).toHaveBeenCalledWith({
+      pinnedThreadIdsByWorkspace: {
+        'f:/git/dotcraft': ['thread-a']
       }
     })
   })
