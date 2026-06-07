@@ -185,7 +185,7 @@ describe('ThreadList project-first layout', () => {
     expect(screen.queryByText('Thread B')).not.toBeInTheDocument()
   })
 
-  it('keeps cold projects collapsed without rendering an empty chat message', () => {
+  it('keeps cold projects collapsed and starts them only on double click', () => {
     useWorkspaceProjectsStore.getState().setPayload({
       foregroundWorkspacePath: '/workspace/a',
       secondaryLimit: 8,
@@ -206,14 +206,17 @@ describe('ThreadList project-first layout', () => {
     renderList()
     const projectRow = screen.getByRole('button', { name: 'cold' })
 
-    expect(projectRow).toHaveAttribute('aria-expanded', 'false')
+    expect(projectRow).not.toHaveAttribute('aria-expanded')
     expect(screen.queryByText('No chats')).not.toBeInTheDocument()
 
     fireEvent.click(projectRow)
 
-    expect(projectRow).toHaveAttribute('aria-expanded', 'false')
     expect(workspaceSwitch).not.toHaveBeenCalled()
     expect(screen.queryByText('No chats')).not.toBeInTheDocument()
+
+    fireEvent.doubleClick(projectRow)
+
+    expect(workspaceSwitch).toHaveBeenCalledWith('/workspace/cold')
   })
 
   it('does not repeat empty chat copy for loaded empty projects', () => {

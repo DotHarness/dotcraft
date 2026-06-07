@@ -1,4 +1,5 @@
-import { useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { useShallow } from 'zustand/react/shallow'
 import {
   AlertCircle,
@@ -617,6 +618,8 @@ function ProjectHeader({
   const [hovered, setHovered] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const rowRef = useRef<HTMLDivElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number; width: number } | null>(null)
   const setActiveMainView = useUIStore((s) => s.setActiveMainView)
   const label = project.name || project.path
   const showActions = hovered || menuOpen
@@ -625,6 +628,45 @@ function ProjectHeader({
     : (collapsed ? Folder : FolderOpen)
   const detailLabel = project.remote?.displayPath || project.remote?.endpoint || project.identityWorkspacePath || project.path
   const iconLabel = cold ? t('projectsRail.notRunning') : detailLabel
+
+  function updateProjectMenuPosition(): void {
+    const rect = rowRef.current?.getBoundingClientRect()
+    if (!rect) return
+    const viewportWidth = window.innerWidth || 320
+    const viewportHeight = window.innerHeight || 480
+    const menuWidth = 220
+    const estimatedMenuHeight = isRemoteProject(project) ? 144 : 176
+    const left = Math.max(8, Math.min(rect.right - menuWidth, viewportWidth - menuWidth - 8))
+    const belowTop = rect.bottom + 4
+    const top = belowTop + estimatedMenuHeight > viewportHeight - 8
+      ? Math.max(8, rect.top - estimatedMenuHeight - 4)
+      : belowTop
+    setMenuPosition({ top, left, width: menuWidth })
+  }
+
+  useEffect(() => {
+    if (!menuOpen) return
+    updateProjectMenuPosition()
+
+    function handleClick(event: MouseEvent): void {
+      const target = event.target as Node
+      if (rowRef.current?.contains(target) || menuRef.current?.contains(target)) return
+      setMenuOpen(false)
+    }
+
+    function handlePositionChange(): void {
+      updateProjectMenuPosition()
+    }
+
+    document.addEventListener('mousedown', handleClick)
+    window.addEventListener('resize', handlePositionChange)
+    window.addEventListener('scroll', handlePositionChange, true)
+    return () => {
+      document.removeEventListener('mousedown', handleClick)
+      window.removeEventListener('resize', handlePositionChange)
+      window.removeEventListener('scroll', handlePositionChange, true)
+    }
+  }, [menuOpen, project])
 
   async function openProject(): Promise<void> {
     if (active) return
@@ -656,10 +698,21 @@ function ProjectHeader({
     await window.api.workspace.disconnectRemote()
   }
 
+  function handlePrimaryAction(): void {
+    if (cold) return
+    onToggle()
+  }
+
+  function handleDoubleClick(): void {
+    if (!cold) return
+    void openProject()
+  }
+
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
     if (event.key !== 'Enter' && event.key !== ' ') return
     event.preventDefault()
-    onToggle()
+    if (cold) void openProject()
+    else onToggle()
   }
 
   return (
@@ -667,9 +720,10 @@ function ProjectHeader({
       ref={rowRef}
       role="button"
       tabIndex={0}
-      aria-expanded={!collapsed}
+      aria-expanded={cold ? undefined : !collapsed}
       aria-label={label}
-      onClick={onToggle}
+      onClick={handlePrimaryAction}
+      onDoubleClick={handleDoubleClick}
       onKeyDown={handleKeyDown}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -749,7 +803,10 @@ function ProjectHeader({
               <button
                 type="button"
                 aria-label={t('projectsRail.moreActions')}
-                onClick={() => setMenuOpen((open) => !open)}
+                onClick={() => {
+                  if (!menuOpen) updateProjectMenuPosition()
+                  setMenuOpen((open) => !open)
+                }}
                 style={projectIconButtonStyle}
               >
                 <MoreHorizontal size={15} aria-hidden />
@@ -766,11 +823,17 @@ function ProjectHeader({
           <span style={projectWaitingDotStyle} aria-label={t('projectsRail.awaitingResponse')} />
         ) : null}
       </div>
-      {menuOpen && (
+      {menuOpen && menuPosition && typeof document !== 'undefined' && createPortal(
         <div
+          ref={menuRef}
           role="menu"
           aria-label={t('projectsRail.moreActions')}
-          style={projectMenuStyle}
+          style={{
+            ...projectMenuStyle,
+            top: menuPosition.top,
+            left: menuPosition.left,
+            width: menuPosition.width
+          }}
           onClick={(event) => event.stopPropagation()}
         >
           {!isRemoteProject(project) && (
@@ -796,7 +859,8 @@ function ProjectHeader({
               onClick={() => { setMenuOpen(false); void removeProject() }}
             />
           )}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )
@@ -1179,11 +1243,8 @@ const projectColdBadgeStyle: CSSProperties = {
 }
 
 const projectMenuStyle: CSSProperties = {
-  position: 'absolute',
-  right: '6px',
-  top: 'calc(100% + 4px)',
-  zIndex: 30,
-  minWidth: '220px',
+  position: 'fixed',
+  zIndex: 1000,
   maxWidth: '320px',
   padding: '6px',
   borderRadius: '10px',
