@@ -9,6 +9,35 @@
  * only in brand moments — the hero wordmark, the logo-style glow, accent links,
  * focus rings, and small identity accents — never as a button fill or a wash.
  * ============================================================================= */
+
+/* Brand display face — self-hosted Sora (Latin subset), used ONLY for the home
+ * hero wordmark/tagline and the large marketing headings. Body/doc text stays
+ * on the system stack (see --vp-font-family-base). Self-hosted rather than a
+ * Google Fonts CDN link so it loads in regions where that CDN is blocked and to
+ * keep the docs free of third-party requests. Files live next to this stylesheet
+ * so Vite fingerprints them and applies the deploy base path automatically. */
+@font-face {
+  font-family: "Sora";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./fonts/sora-latin-600-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Sora";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./fonts/sora-latin-700-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Sora";
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url("./fonts/sora-latin-800-normal.woff2") format("woff2");
+}
+
 :root {
   --vp-c-brand-1: #2d5cf0;
   --vp-c-brand-2: #5f82f7;
@@ -33,6 +62,8 @@
   /* System-first font stack — matches Desktop tokens (no bundled web fonts). */
   --vp-font-family-base: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans CJK SC", "Source Han Sans SC", sans-serif;
   --vp-font-family-mono: ui-monospace, "SFMono-Regular", "SF Mono", "Cascadia Code", "JetBrains Mono", Menlo, Consolas, monospace;
+  /* Brand display face — hero wordmark + large marketing headings only. */
+  --dc-display: "Sora", var(--vp-font-family-base);
 
   /* Brand: vivid logo blue + gold spark (from dotcraft.svg) */
   --dc-accent: #2d5cf0;
@@ -617,14 +648,17 @@
  * The whole band is decorative (aria-hidden) and collapses < 1100px.
  * ============================================================================= */
 
-/* Band stretches edge-to-edge of the hero (negative horizontal margins cancel
- * the hero's 24px horizontal padding) so the walking line spans full width
- * and replaces the hero's previous border-bottom. */
+/* The stage overlays the TOP rim of the preview image (inside .dc-hero__media),
+ * so the mascots are visible on first paint instead of below the fold. Its width
+ * equals the image, which clamps the walk range to the preview. Feet sit 3px into
+ * the rim; bodies + bubbles rise into the gap above (the media's top margin). */
 .dc-hero__stage {
-  position: relative;
-  margin: 16px -24px 0;
-  height: 130px;
-  overflow: hidden;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% - 3px);
+  height: 60px;
+  z-index: 3;
 }
 
 /* =============================================================================
@@ -644,19 +678,16 @@
 
 .dc-stage-mascot {
   position: absolute;
-  bottom: 4px;           /* feet sit on the ground line at bottom 4px */
+  bottom: 0;             /* feet sit on the image's top rim */
   left: 0;
   width: 60px;
   height: 60px;
   cursor: pointer;
-  will-change: transform;
-}
-
-.dc-stage-mascot {
-  /* Single shared walk keyframe; each mascot's --start/--p1/--p2/--p3/--end
-   * inline CSS vars define its own unique pause set, so no two mascots ever
-   * sit at the exact same X during a pause. */
-  animation: dc-stage-walk var(--duration, 28s) linear var(--delay, 0s) infinite;
+  will-change: left;
+  /* Shared ping-pong walk: each mascot paces the FULL image width and back at a
+   * constant pace; different --duration/--delay keep them spread and let them
+   * cross. The walk stays strictly inside the image (0 → 100% − width). */
+  animation: dc-stage-walk var(--duration, 40s) linear var(--delay, 0s) infinite;
 }
 
 .dc-stage-mascot__body {
@@ -686,10 +717,9 @@
   width: 100%;
   height: 100%;
   z-index: 1;
-}
-
-.dc-stage-mascot[data-dir="rtl"] .dc-stage-mascot__sprite {
-  transform: scaleX(-1);
+  /* Hop-turn: the facing flips INSTANTLY at the apex of a light hop, so the turn
+   * reads as a quick bounce — never a flat scaleX-through-0 "paper" pivot. */
+  animation: dc-stage-face var(--duration, 40s) linear var(--delay, 0s) infinite;
 }
 
 .dc-stage-mascot img {
@@ -707,7 +737,7 @@
 .dc-stage-bubble {
   position: absolute;
   left: 50%;
-  bottom: calc(100% + 14px);
+  bottom: calc(100% + 8px);
   padding: 6px 11px;
   border: 1.5px solid var(--bubble-tint, color-mix(in srgb, var(--dc-accent) 60%, var(--dc-line-strong)));
   border-radius: 12px;
@@ -731,9 +761,12 @@
   animation-delay: calc(var(--delay, 0s) - var(--duration, 28s) * var(--phase-offset, 0));
 }
 
-.dc-stage-bubble[data-phrase="0"] { --phase-offset: 0; }
-.dc-stage-bubble[data-phrase="1"] { --phase-offset: 0.28; }
-.dc-stage-bubble[data-phrase="2"] { --phase-offset: 0.56; }
+/* Phase offsets chosen so each phrase's visible window (24–31% of the bubble's
+   timeline) lands while the mascot is mid-travel — never at the left/right edge
+   where a long bubble would clip the image side. */
+.dc-stage-bubble[data-phrase="0"] { --phase-offset: 0.12; }
+.dc-stage-bubble[data-phrase="1"] { --phase-offset: 0.92; }
+.dc-stage-bubble[data-phrase="2"] { --phase-offset: 0.54; }
 
 .dc-stage-bubble::after {
   position: absolute;
@@ -763,6 +796,7 @@
 .dc-stage-mascot:hover,
 .dc-stage-mascot:hover .dc-stage-mascot__body,
 .dc-stage-mascot:hover .dc-stage-mascot__body::before,
+.dc-stage-mascot:hover .dc-stage-mascot__sprite,
 .dc-stage-mascot:hover .dc-stage-bubble {
   animation-play-state: paused;
 }
@@ -770,27 +804,35 @@
 /* =============================================================================
  * Keyframes
  *
- * One shared walk keyframe reads per-mascot CSS vars for start, pauses, end.
- * Each mascot defines a unique pause set so no two mascots ever sit at the
- * exact same X coordinate during a pause. Walking velocity stays roughly
- * constant (~2 vw per % of cycle) within each mascot's path.
+ * dc-stage-walk: constant-speed ping-pong STRICTLY inside the image — left 0 →
+ * (100% − 60px mascot) → 0, with a short 2% dwell at each end for the hop-turn.
+ * Never exceeds the image, never disappears. Mascots cross each other because
+ * each runs a different --duration/--delay (so they're at different phases).
  *
- *   0%  walk      22%  PAUSE  34%  walk  50%  PAUSE  62%  walk  78%  PAUSE  90%  walk 100%
- *  --start        --p1         --p1     --p2          --p2      --p3        --p3     --end
- *
- * RTL mascots simply set --start > --end and pauses in descending order; the
- * keyframe interpolation handles the direction automatically.
+ * dc-stage-face: the hop-turn. A light, quick jump (translateY ~−5px) whose apex
+ * hides an INSTANT facing flip (scaleX 1↔−1 via steps(1) — no scaleX-through-0,
+ * so no flat "paper" pivot). Right-facing on the rightward leg, left on the way
+ * back; the flips land in the walk's end-dwells so the turn happens in place.
  * ============================================================================= */
 
 @keyframes dc-stage-walk {
-  0%   { transform: translateX(var(--start, -15vw)); }
-  22%  { transform: translateX(var(--p1, 30vw)); }
-  34%  { transform: translateX(var(--p1, 30vw)); }
-  50%  { transform: translateX(var(--p2, 62vw)); }
-  62%  { transform: translateX(var(--p2, 62vw)); }
-  78%  { transform: translateX(var(--p3, 94vw)); }
-  90%  { transform: translateX(var(--p3, 94vw)); }
-  100% { transform: translateX(var(--end, 115vw)); }
+  0%   { left: 0; }
+  48%  { left: calc(100% - 60px); }   /* walk right, constant speed */
+  50%  { left: calc(100% - 60px); }   /* brief dwell — hop-turn */
+  98%  { left: 0; }                   /* walk back, constant speed */
+  100% { left: 0; }                   /* brief dwell — hop-turn */
+}
+
+@keyframes dc-stage-face {
+  0%, 48.5% { transform: translateY(0) scaleX(1); }
+  49%       { transform: translateY(-5px) scaleX(1); animation-timing-function: steps(1, end); }
+  49.2%     { transform: translateY(-5px) scaleX(-1); }   /* instant flip at apex */
+  49.7%     { transform: translateY(0) scaleX(-1); }       /* land facing left */
+  98.5%     { transform: translateY(0) scaleX(-1); }
+  99%       { transform: translateY(-5px) scaleX(-1); animation-timing-function: steps(1, end); }
+  99.2%     { transform: translateY(-5px) scaleX(1); }     /* instant flip at apex */
+  99.7%     { transform: translateY(0) scaleX(1); }         /* land facing right */
+  100%      { transform: translateY(0) scaleX(1); }
 }
 
 @keyframes dc-stage-gait {
@@ -818,6 +860,7 @@
   .dc-stage-mascot,
   .dc-stage-mascot__body,
   .dc-stage-mascot__body::before,
+  .dc-stage-mascot__sprite,
   .dc-stage-bubble {
     animation: none;
   }
@@ -839,24 +882,34 @@
   }
 }
 
+/* Centered hero (the dominant 2025 dev-tool pattern): headline column centered,
+   the product shot sits below it at near-full width so it reads large instead of
+   marooned in a half-width right rail. */
 .dc-hero__inner {
   position: relative;
   z-index: 1;
-  width: min(1280px, 100%);
+  width: min(900px, 100%);
   margin: 0 auto;
-  display: grid;
-  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
-  gap: 56px;
+  display: flex;
+  flex-direction: column;
   align-items: center;
+  text-align: center;
 }
 
 .dc-hero__content {
   padding: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .dc-hero__media {
   position: relative;
-  margin: 0;
+  z-index: 1;
+  width: min(1180px, 100%);
+  /* Top margin doubles as the walking band: the mascot stage is anchored to the
+     image's top rim and its bodies + bubbles rise into this gap. */
+  margin: 100px auto 0;
   isolation: isolate;
 }
 
@@ -876,7 +929,10 @@
   pointer-events: none;
 }
 
-.dc-hero__media img {
+/* Direct child only — the preview shot. The mascot sprites also live inside
+   .dc-hero__media (in the stage), so this must NOT cascade onto them or each
+   robot picks up the card's white background, border, and shadow. */
+.dc-hero__media > img {
   display: block;
   width: 100%;
   height: auto;
@@ -905,10 +961,10 @@
 }
 
 .dc-hero h1 {
-  max-width: 760px;
+  max-width: 14ch;
   margin: 0;
-  font-family: var(--vp-font-family-base);
-  font-size: 84px;
+  font-family: var(--dc-display);
+  font-size: clamp(64px, 8vw, 108px);
   font-weight: 800;
   line-height: 0.94;
   letter-spacing: -0.025em;
@@ -922,18 +978,18 @@
 }
 
 .dc-hero__tagline {
-  max-width: 620px;
-  margin: 20px 0 0;
+  max-width: 22ch;
+  margin: 22px 0 0;
   color: var(--dc-text);
-  font-family: var(--vp-font-family-base);
-  font-size: 28px;
-  font-weight: 650;
-  line-height: 1.18;
+  font-family: var(--dc-display);
+  font-size: clamp(26px, 3vw, 34px);
+  font-weight: 600;
+  line-height: 1.16;
   letter-spacing: -0.01em;
 }
 
 .dc-hero__lead {
-  max-width: 560px;
+  max-width: 60ch;
   margin: 22px 0 0;
   color: var(--dc-muted);
   font-size: 16.5px;
@@ -951,9 +1007,15 @@
 .dc-route-list {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: 8px;
   max-width: 560px;
   margin-top: 26px;
+}
+
+/* Hero CTAs center under the headline; showcase/section actions stay left. */
+.dc-hero .dc-actions {
+  justify-content: center;
 }
 
 .dc-route-list span {
@@ -1053,9 +1115,9 @@
 
 .dc-section h2 {
   margin: 0;
-  font-family: var(--vp-font-family-base);
+  font-family: var(--dc-display);
   font-size: 42px;
-  font-weight: 760;
+  font-weight: 700;
   line-height: 1.1;
   letter-spacing: -0.015em;
 }
@@ -1284,9 +1346,9 @@
 
 .dc-cta h2 {
   margin: 0;
-  font-family: var(--vp-font-family-base);
+  font-family: var(--dc-display);
   font-size: 42px;
-  font-weight: 760;
+  font-weight: 700;
   line-height: 1.1;
   letter-spacing: -0.015em;
 }
@@ -1304,16 +1366,6 @@
   margin-top: 30px;
 }
 
-@media (max-width: 1100px) {
-  .dc-hero__inner {
-    gap: 40px;
-  }
-
-  .dc-hero h1 {
-    font-size: 72px;
-  }
-}
-
 @media (max-width: 860px) {
   .dc-home {
     width: 100%;
@@ -1324,26 +1376,12 @@
     padding: 56px 20px 64px;
   }
 
-  .dc-hero__inner {
-    grid-template-columns: 1fr;
-    gap: 36px;
+  .dc-hero__media {
+    margin-top: 44px;
   }
 
   .dc-hero h1 {
-    max-width: 100%;
-    font-size: 56px;
     line-height: 0.98;
-  }
-
-  .dc-hero__tagline {
-    max-width: 100%;
-    font-size: 24px;
-    line-height: 1.2;
-  }
-
-  .dc-hero__lead {
-    max-width: 100%;
-    font-size: 16px;
   }
 
   .dc-button {

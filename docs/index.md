@@ -31,62 +31,62 @@ lastUpdated: false
           <a class="dc-button" href="https://github.com/DotHarness/dotcraft">GitHub</a>
         </div>
       </div>
-      <figure class="dc-hero__media">
-        <img src="https://github.com/DotHarness/resources/raw/master/dotcraft/desktop_banner.png" alt="DotCraft Desktop preview" />
-      </figure>
     </div>
-    <div class="dc-hero__stage">
-      <div class="dc-stage-mascot" data-mascot="leader" data-dir="ltr" style="--duration: 32s; --delay: -2s; --start: -15vw; --p1: 30vw; --p2: 62vw; --p3: 94vw; --end: 115vw;">
-        <div class="dc-stage-mascot__body">
-          <div class="dc-stage-mascot__sprite">
-            <img src="/team-leader.svg" alt="Leader" />
+    <figure class="dc-hero__media">
+      <img src="https://github.com/DotHarness/resources/raw/master/dotcraft/desktop_banner.png" alt="DotCraft Desktop preview" />
+      <div class="dc-hero__stage" aria-hidden="true">
+        <div class="dc-stage-mascot" data-mascot="leader" style="--duration: 42s; --delay: -3s;">
+          <div class="dc-stage-mascot__body">
+            <div class="dc-stage-mascot__sprite">
+              <img src="/team-leader.svg" alt="Leader" />
+            </div>
+            <div class="dc-stage-bubble" data-phrase="0">Let's plan this round.</div>
+            <div class="dc-stage-bubble" data-phrase="1">Cards, anyone?</div>
+            <div class="dc-stage-bubble" data-phrase="2">Mission posted.</div>
           </div>
-          <div class="dc-stage-bubble" data-phrase="0">Let's plan this round.</div>
-          <div class="dc-stage-bubble" data-phrase="1">Cards, anyone?</div>
-          <div class="dc-stage-bubble" data-phrase="2">Mission posted.</div>
+        </div>
+        <div class="dc-stage-mascot" data-mascot="explorer" style="--duration: 46s; --delay: -28s;">
+          <div class="dc-stage-mascot__body">
+            <div class="dc-stage-mascot__sprite">
+              <img src="/team-explorer.svg" alt="Explorer" />
+            </div>
+            <div class="dc-stage-bubble" data-phrase="0">Reading the repo.</div>
+            <div class="dc-stage-bubble" data-phrase="1">Found it.</div>
+            <div class="dc-stage-bubble" data-phrase="2">Let me dig deeper.</div>
+          </div>
+        </div>
+        <div class="dc-stage-mascot" data-mascot="builder" style="--duration: 38s; --delay: -15s;">
+          <div class="dc-stage-mascot__body">
+            <div class="dc-stage-mascot__sprite">
+              <img src="/team-builder.svg" alt="Builder" />
+            </div>
+            <div class="dc-stage-bubble" data-phrase="0">On it.</div>
+            <div class="dc-stage-bubble" data-phrase="1">Refactoring.</div>
+            <div class="dc-stage-bubble" data-phrase="2">Shipping a fix.</div>
+          </div>
+        </div>
+        <div class="dc-stage-mascot" data-mascot="reviewer" style="--duration: 44s; --delay: -9s;">
+          <div class="dc-stage-mascot__body">
+            <div class="dc-stage-mascot__sprite">
+              <img src="/team-reviewer.svg" alt="Reviewer" />
+            </div>
+            <div class="dc-stage-bubble" data-phrase="0">Diff looks good.</div>
+            <div class="dc-stage-bubble" data-phrase="1">Two nits.</div>
+            <div class="dc-stage-bubble" data-phrase="2">Approved.</div>
+          </div>
+        </div>
+        <div class="dc-stage-mascot" data-mascot="operator" style="--duration: 40s; --delay: -33s;">
+          <div class="dc-stage-mascot__body">
+            <div class="dc-stage-mascot__sprite">
+              <img src="/team-operator.svg" alt="Operator" />
+            </div>
+            <div class="dc-stage-bubble" data-phrase="0">Running tests.</div>
+            <div class="dc-stage-bubble" data-phrase="1">Queue's clear.</div>
+            <div class="dc-stage-bubble" data-phrase="2">Status: green.</div>
+          </div>
         </div>
       </div>
-      <div class="dc-stage-mascot" data-mascot="explorer" data-dir="rtl" style="--duration: 28s; --delay: -10s; --start: 125vw; --p1: 80vw; --p2: 48vw; --p3: 16vw; --end: -5vw;">
-        <div class="dc-stage-mascot__body">
-          <div class="dc-stage-mascot__sprite">
-            <img src="/team-explorer.svg" alt="Explorer" />
-          </div>
-          <div class="dc-stage-bubble" data-phrase="0">Reading the repo.</div>
-          <div class="dc-stage-bubble" data-phrase="1">Found it.</div>
-          <div class="dc-stage-bubble" data-phrase="2">Let me dig deeper.</div>
-        </div>
-      </div>
-      <div class="dc-stage-mascot" data-mascot="builder" data-dir="ltr" style="--duration: 30s; --delay: -18s; --start: -25vw; --p1: 20vw; --p2: 52vw; --p3: 84vw; --end: 105vw;">
-        <div class="dc-stage-mascot__body">
-          <div class="dc-stage-mascot__sprite">
-            <img src="/team-builder.svg" alt="Builder" />
-          </div>
-          <div class="dc-stage-bubble" data-phrase="0">On it.</div>
-          <div class="dc-stage-bubble" data-phrase="1">Refactoring.</div>
-          <div class="dc-stage-bubble" data-phrase="2">Shipping a fix.</div>
-        </div>
-      </div>
-      <div class="dc-stage-mascot" data-mascot="reviewer" data-dir="rtl" style="--duration: 24s; --delay: -7s; --start: 115vw; --p1: 70vw; --p2: 38vw; --p3: 6vw; --end: -15vw;">
-        <div class="dc-stage-mascot__body">
-          <div class="dc-stage-mascot__sprite">
-            <img src="/team-reviewer.svg" alt="Reviewer" />
-          </div>
-          <div class="dc-stage-bubble" data-phrase="0">Diff looks good.</div>
-          <div class="dc-stage-bubble" data-phrase="1">Two nits.</div>
-          <div class="dc-stage-bubble" data-phrase="2">Approved.</div>
-        </div>
-      </div>
-      <div class="dc-stage-mascot" data-mascot="operator" data-dir="ltr" style="--duration: 26s; --delay: -14s; --start: -35vw; --p1: 10vw; --p2: 42vw; --p3: 74vw; --end: 95vw;">
-        <div class="dc-stage-mascot__body">
-          <div class="dc-stage-mascot__sprite">
-            <img src="/team-operator.svg" alt="Operator" />
-          </div>
-          <div class="dc-stage-bubble" data-phrase="0">Running tests.</div>
-          <div class="dc-stage-bubble" data-phrase="1">Queue's clear.</div>
-          <div class="dc-stage-bubble" data-phrase="2">Status: green.</div>
-        </div>
-      </div>
-    </div>
+    </figure>
   </section>
 
   <section class="dc-section dc-section--quiet dc-section--reel">
