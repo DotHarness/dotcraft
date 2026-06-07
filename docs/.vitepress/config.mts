@@ -205,7 +205,7 @@ const zhSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
     ]
   },
   {
-    text: '开发者',
+    text: '开发',
     items: [
       {
         text: withIcon('route', '工作流'),
@@ -299,7 +299,7 @@ const zhNav: DefaultTheme.NavItem[] = [
   { text: '总览', link: '/zh/' },
   { text: '快速开始', link: '/zh/getting-started' },
   { text: '功能', link: '/zh/features/project-first' },
-  { text: '开发者', link: '/zh/developing/workflow/spec-driven-development' },
+  { text: '开发', link: '/zh/developing/workflow/spec-driven-development' },
   { text: '示例', link: '/zh/resources/samples' }
 ]
 

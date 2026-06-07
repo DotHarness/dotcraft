@@ -381,6 +381,25 @@
   font-weight: 600 !important;
 }
 
+/* When any child is the active page, light up the parent group too — VitePress
+   only flags the parent `is-active` when its own link happens to equal the open
+   page (e.g. a group that links to its first child). `has-active` covers the
+   general case: the group, or any descendant, is active. Scope to nested groups
+   (level-1+) so the uppercase level-0 section labels never go permanently blue. */
+.VPSidebarItem:is(.level-1, .level-2, .level-3, .level-4, .level-5).has-active > .item {
+  background: color-mix(in srgb, var(--dc-accent) 14%, transparent);
+}
+
+.VPSidebarItem:is(.level-1, .level-2, .level-3, .level-4, .level-5).has-active > .item .dc-side-icon {
+  color: var(--dc-accent);
+}
+
+.VPSidebarItem:is(.level-1, .level-2, .level-3, .level-4, .level-5).has-active > .item .text,
+.VPSidebarItem:is(.level-1, .level-2, .level-3, .level-4, .level-5).has-active > .item .link > .text {
+  color: var(--dc-accent) !important;
+  font-weight: 600 !important;
+}
+
 /* Section group labels (level-0): uppercase, dimmed, narrow */
 .VPSidebarItem.level-0 {
   padding-bottom: 14px !important;
