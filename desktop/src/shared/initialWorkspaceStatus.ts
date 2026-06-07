@@ -32,13 +32,17 @@ export interface InitialWorkspaceStatusPayload {
 }
 
 export interface InitialRemoteWorkspaceStatusPayload {
-  hostId: string
-  stackId: string
-  serverName: string
-  stackName: string
-  workspaceDir: string
+  source?: 'servers' | 'manual' | 'cli'
+  projectId?: string
+  displayName?: string
+  endpoint?: string
+  hostId?: string
+  stackId?: string
+  serverName?: string
+  stackName?: string
+  workspaceDir?: string
   appServerWorkspacePath?: string
-  composeDir: string
+  composeDir?: string
   projectName?: string
 }
 
@@ -121,6 +125,12 @@ function normalizeRemoteWorkspaceStatus(value: unknown): InitialRemoteWorkspaceS
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null
 
   const raw = value as Record<string, unknown>
+  const source = raw.source === 'manual' || raw.source === 'cli' || raw.source === 'servers'
+    ? raw.source
+    : undefined
+  const projectId = typeof raw.projectId === 'string' ? raw.projectId.trim() : ''
+  const displayName = typeof raw.displayName === 'string' ? raw.displayName.trim() : ''
+  const endpoint = typeof raw.endpoint === 'string' ? raw.endpoint.trim() : ''
   const hostId = typeof raw.hostId === 'string' ? raw.hostId.trim() : ''
   const stackId = typeof raw.stackId === 'string' ? raw.stackId.trim() : ''
   const serverName = typeof raw.serverName === 'string' ? raw.serverName.trim() : ''
@@ -129,19 +139,25 @@ function normalizeRemoteWorkspaceStatus(value: unknown): InitialRemoteWorkspaceS
   const appServerWorkspacePath =
     typeof raw.appServerWorkspacePath === 'string' ? raw.appServerWorkspacePath.trim() : ''
   const composeDir = typeof raw.composeDir === 'string' ? raw.composeDir.trim() : ''
-  if (!hostId || !stackId || !serverName || !stackName || !workspaceDir || !composeDir) {
+  if (source === 'manual' || source === 'cli') {
+    if (!projectId || !displayName || !endpoint) return null
+  } else if (!hostId || !stackId || !serverName || !stackName || !workspaceDir || !composeDir) {
     return null
   }
 
   const projectName = typeof raw.projectName === 'string' ? raw.projectName.trim() : ''
   return {
-    hostId,
-    stackId,
-    serverName,
-    stackName,
-    workspaceDir,
+    ...(source ? { source } : {}),
+    ...(projectId ? { projectId } : {}),
+    ...(displayName ? { displayName } : {}),
+    ...(endpoint ? { endpoint } : {}),
+    ...(hostId ? { hostId } : {}),
+    ...(stackId ? { stackId } : {}),
+    ...(serverName ? { serverName } : {}),
+    ...(stackName ? { stackName } : {}),
+    ...(workspaceDir ? { workspaceDir } : {}),
     ...(appServerWorkspacePath ? { appServerWorkspacePath } : {}),
-    composeDir,
+    ...(composeDir ? { composeDir } : {}),
     ...(projectName ? { projectName } : {})
   }
 }

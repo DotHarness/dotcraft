@@ -6,6 +6,7 @@ import { useConnectionStore } from '../stores/connectionStore'
 import { normalizeGitPathKey, useGitStore, type GitBranchListSnapshot } from '../stores/gitStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useToastStore } from '../stores/toastStore'
+import { useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
 import type { Thread } from '../types/thread'
 
 const settingsGet = vi.fn()
@@ -84,6 +85,7 @@ describe('ComposerWorkspaceFooter', () => {
     useConnectionStore.getState().reset()
     useGitStore.getState().reset()
     useThreadStore.getState().reset()
+    useWorkspaceProjectsStore.getState().reset()
     useToastStore.setState({ toasts: [] })
     settingsGet.mockResolvedValue({ locale: 'en' })
     gitListBranches.mockResolvedValue({
@@ -146,6 +148,54 @@ describe('ComposerWorkspaceFooter', () => {
     expect(screen.getByRole('button', { name: 'Local' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'feat/example' })).toBeInTheDocument()
     expect(gitListBranches).not.toHaveBeenCalled()
+  })
+
+  it('lets the welcome composer choose another project from the footer', async () => {
+    const onWelcomeWorkspaceChange = vi.fn().mockResolvedValue(undefined)
+    useWorkspaceProjectsStore.getState().setPayload({
+      foregroundWorkspacePath: '/workspace/a',
+      secondaryLimit: 8,
+      projects: [
+        {
+          path: '/workspace/a',
+          name: 'a',
+          state: 'foreground',
+          running: true,
+          loaded: true,
+          threadCount: 0,
+          threads: [],
+          pinnedThreadIds: []
+        },
+        {
+          path: '/workspace/b',
+          name: 'b',
+          state: 'secondary',
+          running: true,
+          loaded: true,
+          threadCount: 0,
+          threads: [],
+          pinnedThreadIds: []
+        }
+      ]
+    })
+
+    render(
+      <LocaleProvider>
+        <ComposerWorkspaceFooter
+          workspacePath="/workspace/a"
+          mode="local"
+          variant="welcome"
+          onWelcomeWorkspaceChange={onWelcomeWorkspaceChange}
+        />
+      </LocaleProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'a' }))
+    fireEvent.click(screen.getByRole('button', { name: 'b' }))
+
+    await waitFor(() => {
+      expect(onWelcomeWorkspaceChange).toHaveBeenCalledWith('/workspace/b')
+    })
   })
 
   it('keeps footer controls mounted but disabled while branch probing is pending', () => {

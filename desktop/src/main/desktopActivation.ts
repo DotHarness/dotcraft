@@ -46,10 +46,10 @@ function writeJsonLine(socket: net.Socket, payload: unknown): void {
   socket.write(JSON.stringify(payload) + '\n', 'utf8')
 }
 
-function readWindowState(win: BrowserWindow): WorkspaceWindowState {
+function readWindowState(win: BrowserWindow, foreground: boolean): WorkspaceWindowState {
   return {
     ok: true,
-    focused: win.isFocused(),
+    focused: foreground && win.isFocused(),
     visible: win.isVisible(),
     minimized: win.isMinimized()
   }
@@ -58,6 +58,8 @@ function readWindowState(win: BrowserWindow): WorkspaceWindowState {
 export async function startWorkspaceActivationServer(options: {
   workspacePath: string
   getWindow: () => BrowserWindow | null
+  canActivateWorkspace?: (workspacePath: string) => boolean
+  isForegroundWorkspace?: (workspacePath: string) => boolean
   onActivate: (request: WorkspaceActivationRequest) => void
 }): Promise<WorkspaceActivationHandle> {
   const token = randomBytes(24).toString('base64url')
@@ -79,7 +81,13 @@ export async function startWorkspaceActivationServer(options: {
             if (message.token !== token) {
               throw new Error('Invalid activation token.')
             }
-            if (typeof message.workspacePath !== 'string' || !sameWorkspace(message.workspacePath, options.workspacePath)) {
+            if (typeof message.workspacePath !== 'string') {
+              throw new Error('Activation workspace does not match this process.')
+            }
+            const requestedWorkspacePath = message.workspacePath
+            const canActivate = sameWorkspace(requestedWorkspacePath, options.workspacePath) ||
+              options.canActivateWorkspace?.(requestedWorkspacePath) === true
+            if (!canActivate) {
               throw new Error('Activation workspace does not match this process.')
             }
 
@@ -89,12 +97,19 @@ export async function startWorkspaceActivationServer(options: {
             }
 
             if (message.type === 'windowState') {
-              writeJsonLine(socket, readWindowState(win))
+              writeJsonLine(
+                socket,
+                readWindowState(
+                  win,
+                  options.isForegroundWorkspace?.(requestedWorkspacePath) ??
+                    sameWorkspace(requestedWorkspacePath, options.workspacePath)
+                )
+              )
               continue
             }
 
             options.onActivate({
-              workspacePath: options.workspacePath,
+              workspacePath: requestedWorkspacePath,
               threadId: typeof message.threadId === 'string' ? message.threadId : null
             })
             writeJsonLine(socket, { ok: true })

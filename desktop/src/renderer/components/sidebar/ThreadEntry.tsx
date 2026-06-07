@@ -800,7 +800,7 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
   )
 }
 
-function PinIcon({ filled }: { filled: boolean }): JSX.Element {
+export function PinIcon({ filled }: { filled: boolean }): JSX.Element {
   return (
     <svg
       width="14"

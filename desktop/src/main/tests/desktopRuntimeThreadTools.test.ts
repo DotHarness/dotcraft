@@ -600,10 +600,10 @@ describe('desktop runtime thread tools', () => {
     expect(result?.success).toBe(true)
     expect(settingsHost.updateSettings).toHaveBeenCalledWith({
       pinnedThreadIdsByWorkspace: {
-        'F:\\examples\\workspace': ['thread-1', 'thread-old']
+        'f:/examples/workspace': ['thread-1', 'thread-old']
       }
     })
-    expect(settingsHost.onPinnedThreadIdsChanged).toHaveBeenCalledWith('F:\\examples\\workspace', ['thread-1', 'thread-old'])
+    expect(settingsHost.onPinnedThreadIdsChanged).toHaveBeenCalledWith('f:/examples/workspace', ['thread-1', 'thread-old'])
   })
 
   it('unpins without reading the target thread', async () => {
@@ -630,7 +630,7 @@ describe('desktop runtime thread tools', () => {
     expect(client.sendRequest).not.toHaveBeenCalled()
     expect(settingsHost.updateSettings).toHaveBeenCalledWith({
       pinnedThreadIdsByWorkspace: {
-        'F:\\examples\\workspace': ['thread-old']
+        'f:/examples/workspace': ['thread-old']
       }
     })
   })

@@ -173,7 +173,7 @@ describe('ThreadEntry', () => {
       expect(useThreadStore.getState().pinnedThreadIds).toEqual(['thread-1'])
       expect(settingsSet).toHaveBeenCalledWith({
         pinnedThreadIdsByWorkspace: {
-          'E:\\Git\\dotcraft': ['thread-1']
+          'e:/git/dotcraft': ['thread-1']
         }
       })
     })
@@ -184,7 +184,7 @@ describe('ThreadEntry', () => {
       expect(useThreadStore.getState().pinnedThreadIds).toEqual([])
       expect(settingsSet).toHaveBeenLastCalledWith({
         pinnedThreadIdsByWorkspace: {
-          'E:\\Git\\dotcraft': []
+          'e:/git/dotcraft': []
         }
       })
     })

@@ -17,7 +17,7 @@ import { getGitHubIdentity } from './githubProfile'
 registerViewerScheme()
 registerPluginFileScheme()
 import type { IpcMainEvent, MenuItemConstructorOptions } from 'electron'
-import { join, basename, resolve as resolvePath } from 'path'
+import { join, basename } from 'path'
 import { existsSync } from 'fs'
 import { promises as fs } from 'fs'
 import { spawn } from 'child_process'
@@ -52,6 +52,7 @@ import {
   addRecentWorkspace,
   clearRecentWorkspaces,
   getRecentWorkspaces,
+  removeRecentWorkspace,
   type AppSettings,
   type BinarySource,
   type ConnectionMode
@@ -64,7 +65,6 @@ import {
   type WorkspaceActivationEndpoint
 } from './workspaceLock'
 import {
-  requestWorkspaceActivation,
   startWorkspaceActivationServer,
   type WorkspaceActivationHandle
 } from './desktopActivation'
@@ -92,7 +92,6 @@ import {
   type AddTabPopupWindowOptions
 } from './addTabPopupWindow'
 import { resolveInitialTheme, resolveWindowBackdropOptions } from './windowTheme'
-import { WORKSPACE_LOCKED_IPC_PREFIX } from '../shared/workspaceSwitchErrors'
 import {
   normalizeLocale,
   translate,
@@ -118,6 +117,18 @@ import {
   type RemoteHost,
   type RemoteStack
 } from '../shared/remoteServers'
+import type {
+  WorkspaceProjectKind,
+  WorkspaceRemoteProjectMetadata,
+  WorkspaceRemoteProjectSource,
+  WorkspaceProjectSummary,
+  WorkspaceProjectsPayload,
+  WorkspaceProjectState
+} from '../shared/workspaceProjects'
+import {
+  normalizeWorkspaceProjectKey,
+  sameWorkspaceProjectKey
+} from '../shared/workspaceProjectKey'
 
 // ─── Single-process state ─────────────────────────────────────────────────────
 // Each Electron process owns exactly one window and one AppServer connection.
@@ -139,8 +150,54 @@ let lastWorkspaceStatus: WorkspaceStatusPayload = {
   providers: []
 }
 let activeRemoteWorkspace: WorkspaceStatusPayload['remote'] | null = null
+let activeRemoteProject: ActiveRemoteProject | null = null
+let previousLocalForegroundWorkspacePath: string | null = null
 let lastRemoteStackLocalPort: number | null = null
 let connectionGeneration = 0
+const SECONDARY_WORKSPACE_CONNECTION_LIMIT = 8
+const SECONDARY_THREAD_NOTIFICATION_METHODS = new Set([
+  'thread/started',
+  'thread/renamed',
+  'thread/deleted',
+  'thread/statusChanged',
+  'thread/runtimeChanged'
+])
+
+type WorkspaceConnectionRole = 'foreground' | 'secondary'
+
+interface WorkspaceConnectionEntry {
+  key: string
+  projectId: string
+  kind: WorkspaceProjectKind
+  workspacePath: string
+  localWorkspacePath?: string
+  displayPath?: string
+  remote?: WorkspaceRemoteProjectMetadata
+  wsUrl: string
+  client: WireProtocolClient
+  role: WorkspaceConnectionRole
+  connected: boolean
+  connecting: boolean
+  lastUsedAt: number
+  initializeResult?: InitializeResult
+  threads: unknown[]
+  subscribedThreadId?: string
+  errorMessage?: string
+}
+
+interface ActiveRemoteProject {
+  projectId: string
+  source: WorkspaceRemoteProjectSource
+  name: string
+  identityWorkspacePath: string
+  displayPath: string
+  endpoint?: string
+  localWorkspacePath: string
+  remote: WorkspaceRemoteProjectMetadata
+  status: NonNullable<WorkspaceStatusPayload['remote']>
+}
+
+const workspaceConnections = new Map<string, WorkspaceConnectionEntry>()
 let activeRemoteReconnectTimer: ReturnType<typeof setTimeout> | null = null
 let activeRemoteReconnectAttempt = 0
 let isAppQuitting = false
@@ -148,6 +205,7 @@ let ipcHandlersRegistered = false
 let finalQuitCleanupDone = false
 let finalQuitCleanupRunning = false
 let hubEventAbortController: AbortController | null = null
+let secondaryRefreshTimer: ReturnType<typeof setTimeout> | null = null
 let pendingChromeSettingsDeepLink = process.argv.some(isChromeSettingsDeepLink)
 let pendingWorkspaceOpenThreadId = findWorkspaceOpenDeepLink(process.argv)?.threadId ?? null
 let chromeSettingsDeepLinkServer: net.Server | null = null
@@ -164,6 +222,301 @@ const isTrayMode = process.argv.includes('--tray')
 const CHROME_SETTINGS_DEEP_LINK_PORT = Number.parseInt(process.env.DOTCRAFT_DESKTOP_DEEPLINK_PORT || '32178', 10)
 
 configureAppIdentity()
+
+function normalizeWorkspaceConnectionKey(workspacePath: string): string {
+  return normalizeWorkspaceProjectKey(workspacePath)
+}
+
+function localProjectId(workspacePath: string): string {
+  return normalizeWorkspaceConnectionKey(workspacePath)
+}
+
+function normalizeRemoteEndpointForProjectId(endpoint: string): string {
+  const trimmed = endpoint.trim()
+  try {
+    const parsed = new URL(trimmed)
+    parsed.username = ''
+    parsed.password = ''
+    parsed.search = ''
+    parsed.hash = ''
+    return parsed.toString().replace(/\/$/u, '').toLowerCase()
+  } catch {
+    return trimmed.replace(/[?#].*$/u, '').replace(/\/$/u, '').toLowerCase()
+  }
+}
+
+function remoteEndpointDisplay(endpoint: string): string {
+  const trimmed = endpoint.trim()
+  try {
+    const parsed = new URL(trimmed)
+    parsed.username = ''
+    parsed.password = ''
+    parsed.search = ''
+    parsed.hash = ''
+    return parsed.toString().replace(/\/$/u, '')
+  } catch {
+    return trimmed.replace(/[?#].*$/u, '').replace(/\/$/u, '')
+  }
+}
+
+function remoteProjectId(source: WorkspaceRemoteProjectSource, endpoint: string): string {
+  return `remote:${source}:${normalizeRemoteEndpointForProjectId(endpoint)}`
+}
+
+function remoteProjectNameFromEndpoint(endpoint: string): string {
+  try {
+    const parsed = new URL(endpoint)
+    return parsed.host || parsed.hostname || 'Remote'
+  } catch {
+    return endpoint.trim() || 'Remote'
+  }
+}
+
+function pinnedSettingsKey(key: string): string {
+  return normalizeWorkspaceProjectKey(key)
+}
+
+function getWorkspaceConnection(workspacePath: string): WorkspaceConnectionEntry | undefined {
+  return workspaceConnections.get(normalizeWorkspaceConnectionKey(workspacePath))
+}
+
+function isWorkspaceForeground(workspacePath: string): boolean {
+  return !activeRemoteProject && Boolean(currentWorkspacePath && isSameWorkspacePath(currentWorkspacePath, workspacePath))
+}
+
+function getPinnedThreadIdsForProject(keyOrPath: string): string[] {
+  const key = pinnedSettingsKey(keyOrPath)
+  if (!key || !sharedSettings.pinnedThreadIdsByWorkspace) return []
+  const exact = sharedSettings.pinnedThreadIdsByWorkspace[key]
+  if (Array.isArray(exact)) return exact
+  const match = Object.entries(sharedSettings.pinnedThreadIdsByWorkspace).find(
+    ([candidate]) => normalizeWorkspaceProjectKey(candidate) === key
+  )
+  return match?.[1] ?? []
+}
+
+function getPinnedThreadIdsForWorkspace(workspacePath: string): string[] {
+  return getPinnedThreadIdsForProject(workspacePath)
+}
+
+function findWorkspaceConnectionByClient(client: WireProtocolClient): WorkspaceConnectionEntry | undefined {
+  return [...workspaceConnections.values()].find((entry) => entry.client === client)
+}
+
+function threadIdFromRequestParams(params: unknown): string | null {
+  if (!params || typeof params !== 'object') return null
+  const threadId = (params as { threadId?: unknown }).threadId
+  return typeof threadId === 'string' && threadId.trim() ? threadId.trim() : null
+}
+
+function releaseConnectionThreadSubscription(entry: WorkspaceConnectionEntry, reason: string): void {
+  const threadId = entry.subscribedThreadId
+  if (!threadId) return
+  entry.subscribedThreadId = undefined
+  entry.client.sendRequest('thread/unsubscribe', { threadId })
+    .catch((error: unknown) => {
+      if (!isAppQuitting) {
+        console.warn(`[desktop] failed to unsubscribe ${threadId} during ${reason}`, error)
+      }
+    })
+}
+
+function observeAppServerRequestCompletion(
+  client: WireProtocolClient,
+  method: string,
+  params: unknown
+): void {
+  if (method !== 'thread/subscribe' && method !== 'thread/unsubscribe') return
+  const entry = findWorkspaceConnectionByClient(client)
+  if (!entry) return
+  const threadId = threadIdFromRequestParams(params)
+  if (!threadId) return
+
+  if (method === 'thread/subscribe') {
+    entry.subscribedThreadId = threadId
+    if (entry.role !== 'foreground' || wireClient !== client) {
+      releaseConnectionThreadSubscription(entry, 'late secondary subscribe')
+    }
+    return
+  }
+
+  if (entry.subscribedThreadId === threadId) {
+    entry.subscribedThreadId = undefined
+  }
+}
+
+function makeThreadListIdentity(workspacePath: string): Record<string, unknown> {
+  return {
+    channelName: 'dotcraft-desktop',
+    userId: 'local',
+    channelContext: `workspace:${workspacePath}`,
+    workspacePath
+  }
+}
+
+function isRunningHubAppServer(entry: HubAppServerResponse | undefined): boolean {
+  const state = entry?.state?.toLowerCase()
+  return state === 'running' || state === 'healthy' || state === 'ready'
+}
+
+function emitWorkspaceProjects(): void {
+  const win = mainWindow
+  if (!win || win.isDestroyed()) return
+  win.webContents.send('workspace:projects-changed', getWorkspaceProjectsPayload())
+}
+
+function getWorkspaceProjectsPayload(): WorkspaceProjectsPayload {
+  const recents = getRecentWorkspaces(sharedSettings)
+  const projects = recents.map((recent): WorkspaceProjectSummary => {
+    const entry = getWorkspaceConnection(recent.path)
+    let state: WorkspaceProjectState = 'cold'
+    if (isWorkspaceForeground(recent.path)) state = 'foreground'
+    else if (entry?.connecting) state = 'connecting'
+    else if (entry?.errorMessage) state = 'error'
+    else if (entry?.connected) state = 'secondary'
+    const projectId = localProjectId(recent.path)
+    return {
+      projectId,
+      kind: 'local',
+      path: recent.path,
+      identityWorkspacePath: recent.path,
+      name: recent.name || basename(recent.path),
+      lastOpenedAt: recent.lastOpenedAt,
+      state,
+      running: Boolean(entry?.connected || entry?.connecting || state === 'foreground'),
+      loaded: Boolean(entry?.connected),
+      threadCount: entry?.threads.length ?? 0,
+      threads: entry?.threads ?? [],
+      pinnedThreadIds: getPinnedThreadIdsForWorkspace(recent.path),
+      ...(entry?.errorMessage ? { errorMessage: entry.errorMessage } : {})
+    }
+  })
+  if (activeRemoteProject) {
+    const entry = workspaceConnections.get(activeRemoteProject.projectId)
+    const state: WorkspaceProjectState = entry?.errorMessage
+      ? 'error'
+      : entry?.connecting
+        ? 'connecting'
+        : 'foreground'
+    projects.unshift({
+      projectId: activeRemoteProject.projectId,
+      kind: 'remote',
+      path: activeRemoteProject.displayPath,
+      identityWorkspacePath: activeRemoteProject.identityWorkspacePath,
+      name: activeRemoteProject.name,
+      state,
+      running: Boolean(entry?.connected || entry?.connecting || state === 'foreground'),
+      loaded: Boolean(entry?.connected),
+      threadCount: entry?.threads.length ?? 0,
+      threads: entry?.threads ?? [],
+      pinnedThreadIds: getPinnedThreadIdsForProject(activeRemoteProject.projectId),
+      remote: activeRemoteProject.remote,
+      ...(entry?.errorMessage ? { errorMessage: entry.errorMessage } : {})
+    })
+  }
+  return {
+    foregroundWorkspacePath: currentWorkspacePath,
+    foregroundProjectId: activeRemoteProject?.projectId ?? (currentWorkspacePath ? localProjectId(currentWorkspacePath) : ''),
+    secondaryLimit: SECONDARY_WORKSPACE_CONNECTION_LIMIT,
+    projects
+  }
+}
+
+async function refreshConnectionThreadList(entry: WorkspaceConnectionEntry): Promise<void> {
+  if (!entry.connected) return
+  try {
+    const result = await entry.client.sendRequest<{ data?: unknown[] }>('thread/list', {
+      identity: makeThreadListIdentity(entry.workspacePath),
+      includeSubAgents: true
+    })
+    entry.threads = Array.isArray(result.data) ? result.data : []
+    emitWorkspaceProjects()
+  } catch (error) {
+    entry.errorMessage = error instanceof Error ? error.message : String(error)
+    emitWorkspaceProjects()
+  }
+}
+
+function upsertWorkspaceThread(entry: WorkspaceConnectionEntry, thread: unknown): void {
+  if (!thread || typeof thread !== 'object') return
+  const id = (thread as { id?: unknown }).id
+  if (typeof id !== 'string' || !id) return
+  const existing = entry.threads.findIndex((candidate) =>
+    candidate != null && typeof candidate === 'object' && (candidate as { id?: unknown }).id === id
+  )
+  if (existing >= 0) {
+    entry.threads[existing] = {
+      ...(entry.threads[existing] as Record<string, unknown>),
+      ...(thread as Record<string, unknown>)
+    }
+  } else {
+    entry.threads = [thread, ...entry.threads]
+  }
+}
+
+function applyWorkspaceThreadNotification(entry: WorkspaceConnectionEntry, method: string, params: unknown): void {
+  const p = (params ?? {}) as Record<string, unknown>
+  if (method === 'thread/started' && p.thread) {
+    upsertWorkspaceThread(entry, p.thread)
+  } else if (method === 'thread/renamed') {
+    const threadId = typeof p.threadId === 'string' ? p.threadId : ''
+    const displayName = typeof p.displayName === 'string' ? p.displayName : ''
+    entry.threads = entry.threads.map((thread) =>
+      thread != null &&
+      typeof thread === 'object' &&
+      (thread as { id?: unknown }).id === threadId
+        ? { ...(thread as Record<string, unknown>), displayName }
+        : thread
+    )
+  } else if (method === 'thread/deleted') {
+    const threadId = typeof p.threadId === 'string' ? p.threadId : ''
+    entry.threads = entry.threads.filter((thread) =>
+      !(thread != null && typeof thread === 'object' && (thread as { id?: unknown }).id === threadId)
+    )
+  } else if (method === 'thread/statusChanged') {
+    const threadId = typeof p.threadId === 'string' ? p.threadId : ''
+    const newStatus = typeof p.newStatus === 'string' ? p.newStatus : ''
+    entry.threads = entry.threads.map((thread) =>
+      thread != null &&
+      typeof thread === 'object' &&
+      (thread as { id?: unknown }).id === threadId
+        ? { ...(thread as Record<string, unknown>), status: newStatus }
+        : thread
+    )
+  } else if (method === 'thread/runtimeChanged') {
+    const threadId = typeof p.threadId === 'string' ? p.threadId : ''
+    const runtime = p.runtime
+    entry.threads = entry.threads.map((thread) =>
+      thread != null &&
+      typeof thread === 'object' &&
+      (thread as { id?: unknown }).id === threadId
+        ? { ...(thread as Record<string, unknown>), runtime }
+        : thread
+    )
+  }
+  emitWorkspaceProjects()
+}
+
+function disposeWorkspaceConnection(entry: WorkspaceConnectionEntry): void {
+  if (wireClient === entry.client) {
+    wireClient = null
+  }
+  entry.subscribedThreadId = undefined
+  entry.client.dispose()
+  workspaceConnections.delete(entry.key)
+  releaseWorkspaceLock(entry.workspacePath)
+  emitWorkspaceProjects()
+}
+
+function canActivateWorkspaceInThisWindow(workspacePath: string): boolean {
+  return !activeRemoteProject && Boolean(currentWorkspacePath && isSameWorkspacePath(currentWorkspacePath, workspacePath))
+}
+
+function publishWorkspaceActivation(endpoint: WorkspaceActivationEndpoint): void {
+  if (currentWorkspacePath && !activeRemoteProject) {
+    updateWorkspaceLockActivation(currentWorkspacePath, endpoint)
+  }
+}
 
 function buildAddTabPopupWindowOptions(): AddTabPopupWindowOptions {
   return {
@@ -348,7 +701,12 @@ function buildRemoteWorkspaceStatus(
   host: RemoteHost,
   stack: RemoteStack
 ): WorkspaceStatusPayload['remote'] {
+  const projectId = `remote:servers:${host.id}:${stack.id}`
+  const displayName = stack.projectName?.trim() || stack.name
   return {
+    source: 'servers',
+    projectId,
+    displayName,
     hostId: host.id,
     stackId: stack.id,
     serverName: host.name,
@@ -358,6 +716,115 @@ function buildRemoteWorkspaceStatus(
     composeDir: stack.composeDir,
     ...(stack.projectName ? { projectName: stack.projectName } : {})
   }
+}
+
+function buildServersRemoteProject(
+  host: RemoteHost,
+  stack: RemoteStack,
+  endpoint?: string,
+  localWorkspacePath: string = currentWorkspacePath
+): ActiveRemoteProject {
+  const status = buildRemoteWorkspaceStatus(host, stack)
+  const identityWorkspacePath = status.appServerWorkspacePath?.trim() || status.workspaceDir?.trim() || currentWorkspacePath
+  const displayPath = status.workspaceDir?.trim() || identityWorkspacePath
+  const projectId = status.projectId || `remote:servers:${host.id}:${stack.id}`
+  const remote: WorkspaceRemoteProjectMetadata = {
+    source: 'servers',
+    displayPath,
+    ...(endpoint ? { endpoint } : {}),
+    hostId: host.id,
+    stackId: stack.id,
+    serverName: host.name,
+    stackName: stack.name,
+    workspaceDir: effectiveWorkspaceDir(stack),
+    appServerWorkspacePath: effectiveAppServerWorkspacePath(stack),
+    composeDir: stack.composeDir,
+    ...(stack.projectName ? { projectName: stack.projectName } : {})
+  }
+  return {
+    projectId,
+    source: 'servers',
+    name: status.displayName || stack.name,
+    identityWorkspacePath,
+    displayPath,
+    ...(endpoint ? { endpoint } : {}),
+    localWorkspacePath,
+    remote,
+    status: {
+      ...status,
+      projectId,
+      displayName: status.displayName || stack.name,
+      ...(endpoint ? { endpoint } : {})
+    }
+  }
+}
+
+function buildEndpointRemoteProject(
+  source: 'manual' | 'cli',
+  endpoint: string,
+  localWorkspacePath: string
+): ActiveRemoteProject {
+  const projectId = remoteProjectId(source, endpoint)
+  const name = remoteProjectNameFromEndpoint(endpoint)
+  const safeEndpoint = remoteEndpointDisplay(endpoint)
+  const identityWorkspacePath = localWorkspacePath || name
+  const remote: WorkspaceRemoteProjectMetadata = {
+    source,
+    displayPath: safeEndpoint,
+    endpoint: safeEndpoint
+  }
+  return {
+    projectId,
+    source,
+    name,
+    identityWorkspacePath,
+    displayPath: safeEndpoint,
+    endpoint: safeEndpoint,
+    localWorkspacePath,
+    remote,
+    status: {
+      source,
+      projectId,
+      displayName: name,
+      endpoint: safeEndpoint,
+      workspaceDir: localWorkspacePath,
+      appServerWorkspacePath: identityWorkspacePath
+    }
+  }
+}
+
+function setActiveRemoteProject(project: ActiveRemoteProject | null): void {
+  activeRemoteProject = project
+  activeRemoteWorkspace = project?.status ?? null
+}
+
+function disposeActiveRemoteConnection(): void {
+  if (!activeRemoteProject) return
+  const entry = workspaceConnections.get(activeRemoteProject.projectId)
+  if (entry) {
+    entry.client.dispose()
+    workspaceConnections.delete(entry.key)
+  }
+  if (wireClient === entry?.client) {
+    wireClient = null
+  }
+}
+
+function prepareRemoteForeground(project: ActiveRemoteProject): void {
+  if (!previousLocalForegroundWorkspacePath && project.localWorkspacePath) {
+    previousLocalForegroundWorkspacePath = project.localWorkspacePath
+  }
+  const previousLocal = project.localWorkspacePath
+    ? getWorkspaceConnection(project.localWorkspacePath)
+    : undefined
+  if (previousLocal?.role === 'foreground') {
+    previousLocal.role = 'secondary'
+    previousLocal.lastUsedAt = Date.now()
+  }
+  if (activeRemoteProject?.projectId !== project.projectId) {
+    disposeActiveRemoteConnection()
+  }
+  setActiveRemoteProject(project)
 }
 
 function resolveActiveRemoteStack(
@@ -382,7 +849,7 @@ function emitCurrentWorkspaceStatus(workspacePath: string): void {
 }
 
 function getProtocolWorkspacePath(): string {
-  return activeRemoteWorkspace?.appServerWorkspacePath?.trim() || currentWorkspacePath
+  return activeRemoteProject?.identityWorkspacePath || activeRemoteWorkspace?.appServerWorkspacePath?.trim() || currentWorkspacePath
 }
 
 function clearActiveRemoteReconnectTimer(): void {
@@ -515,10 +982,22 @@ async function teardownRuntime(
   }
   hubEventAbortController?.abort()
   hubEventAbortController = null
+  if (secondaryRefreshTimer) {
+    clearTimeout(secondaryRefreshTimer)
+    secondaryRefreshTimer = null
+  }
   clearActiveRemoteReconnectTimer()
   connectionGeneration += 1
+  for (const entry of [...workspaceConnections.values()]) {
+    entry.subscribedThreadId = undefined
+    releaseWorkspaceLock(entry.workspacePath)
+    entry.client.dispose()
+  }
+  workspaceConnections.clear()
   wireClient?.dispose()
   wireClient = null
+  setActiveRemoteProject(null)
+  previousLocalForegroundWorkspacePath = null
   lastAppServerWsUrl = null
   let releasedWorkspaceLock = false
   if (options?.releaseWorkspaceLock) {
@@ -552,7 +1031,7 @@ function showWindowSafely(win: BrowserWindow): void {
 }
 
 function isSameWorkspacePath(a: string, b: string): boolean {
-  return resolvePath(a) === resolvePath(b)
+  return sameWorkspaceProjectKey(a, b)
 }
 
 function isChromeSettingsDeepLink(value: string): boolean {
@@ -643,7 +1122,7 @@ function ensureWorkspaceActivation(workspacePath: string): void {
   const win = mainWindow
   if (!workspacePath || !win || win.isDestroyed()) return
   if (workspaceActivation?.workspacePath === workspacePath) {
-    updateWorkspaceLockActivation(workspacePath, workspaceActivation.handle.endpoint)
+    publishWorkspaceActivation(workspaceActivation.handle.endpoint)
     return
   }
   if (workspaceActivationStartingFor === workspacePath) return
@@ -654,8 +1133,19 @@ function ensureWorkspaceActivation(workspacePath: string): void {
   void startWorkspaceActivationServer({
     workspacePath,
     getWindow: () => mainWindow,
+    canActivateWorkspace: canActivateWorkspaceInThisWindow,
+    isForegroundWorkspace: (candidate) =>
+      Boolean(currentWorkspacePath && isSameWorkspacePath(currentWorkspacePath, candidate)),
     onActivate: (request) => {
-      openCurrentWorkspaceThread(request.threadId)
+      if (currentWorkspacePath && isSameWorkspacePath(currentWorkspacePath, request.workspacePath)) {
+        openCurrentWorkspaceThread(request.threadId)
+        return
+      }
+      void connectToAppServer(request.workspacePath)
+        .then(() => openCurrentWorkspaceThread(request.threadId))
+        .catch((error) => {
+          console.warn('[desktop] failed to activate requested workspace', error)
+        })
     }
   }).then((handle) => {
     if (generation !== workspaceActivationGeneration || currentWorkspacePath !== workspacePath || isAppQuitting) {
@@ -663,7 +1153,7 @@ function ensureWorkspaceActivation(workspacePath: string): void {
       return
     }
     workspaceActivation = { workspacePath, handle }
-    updateWorkspaceLockActivation(workspacePath, handle.endpoint)
+    publishWorkspaceActivation(handle.endpoint)
   }).catch((error) => {
     console.warn('[desktop] failed to start workspace activation server', error)
   }).finally(() => {
@@ -673,21 +1163,17 @@ function ensureWorkspaceActivation(workspacePath: string): void {
   })
 }
 
-async function activateExistingWorkspace(
-  workspacePath: string,
-  threadId: string | null | undefined,
-  activation: WorkspaceActivationEndpoint | undefined
-): Promise<boolean> {
-  if (!activation) return false
-  return await requestWorkspaceActivation(activation, {
-    workspacePath,
-    threadId: threadId ?? null
-  })
-}
-
 function handleWorkspaceOpenDeepLink(link: WorkspaceOpenDeepLink): void {
-  if (currentWorkspacePath && isSameWorkspacePath(currentWorkspacePath, link.workspacePath)) {
-    openCurrentWorkspaceThread(link.threadId)
+  if (canActivateWorkspaceInThisWindow(link.workspacePath)) {
+    if (currentWorkspacePath && isSameWorkspacePath(currentWorkspacePath, link.workspacePath)) {
+      openCurrentWorkspaceThread(link.threadId)
+    } else {
+      void connectToAppServer(link.workspacePath)
+        .then(() => openCurrentWorkspaceThread(link.threadId))
+        .catch((error) => {
+          console.warn('[desktop] failed to open workspace deep link in current window', error)
+        })
+    }
     return
   }
 
@@ -928,6 +1414,11 @@ interface ConnectViaWebSocketOptions {
   initializeTimeoutMs?: number | null
   initialDisconnectIsError?: boolean
   remoteDiagnostic?: RemoteConnectionDiagnostic
+  projectId?: string
+  projectKind?: WorkspaceProjectKind
+  identityWorkspacePath?: string
+  displayPath?: string
+  remote?: WorkspaceRemoteProjectMetadata
 }
 
 function formatRemoteConnectionError(
@@ -1076,8 +1567,42 @@ function closeActiveRemoteStackTunnels(settings: AppSettings = sharedSettings): 
   if (ref?.hostId && ref.stackId) {
     getRemoteServersManager().closeStackTunnels(ref.hostId, ref.stackId)
   }
-  activeRemoteWorkspace = null
+  disposeActiveRemoteConnection()
+  setActiveRemoteProject(null)
   lastRemoteStackLocalPort = null
+}
+
+async function disconnectActiveRemoteProject(options: {
+  restorePreviousLocal?: boolean
+  targetWorkspacePath?: string
+} = {}): Promise<void> {
+  const project = activeRemoteProject
+  clearActiveRemoteReconnectTimer()
+  activeRemoteReconnectAttempt = 0
+  if (project?.source === 'servers' && project.remote.hostId && project.remote.stackId) {
+    getRemoteServersManager().closeStackTunnels(project.remote.hostId, project.remote.stackId)
+  }
+  disposeActiveRemoteConnection()
+  setActiveRemoteProject(null)
+  lastRemoteStackLocalPort = null
+
+  const restorePath =
+    options.targetWorkspacePath?.trim() ||
+    (options.restorePreviousLocal === false ? '' : previousLocalForegroundWorkspacePath || currentWorkspacePath)
+  previousLocalForegroundWorkspacePath = null
+
+  await updateSharedSettings({
+    connectionMode: 'local',
+    activeRemoteStack: undefined
+  })
+  emitWorkspaceProjects()
+
+  if (restorePath) {
+    await connectToAppServer(restorePath)
+  } else if (mainWindow && !mainWindow.isDestroyed()) {
+    emitCurrentWorkspaceStatus(currentWorkspacePath)
+    emitConnectionStatus(mainWindow, { status: 'disconnected' })
+  }
 }
 
 async function connectRemoteStackFromServers(
@@ -1127,36 +1652,13 @@ async function connectRemoteStackFromServers(
 }
 
 async function disconnectRemoteStackFromServers(hostId: string, stackId: string): Promise<void> {
-  clearActiveRemoteReconnectTimer()
-  const manager = getRemoteServersManager()
-  manager.closeStackTunnels(hostId, stackId)
   const active = sharedSettings.activeRemoteStack
   if (active?.hostId !== hostId || active.stackId !== stackId) {
+    getRemoteServersManager().closeStackTunnels(hostId, stackId)
     return
   }
 
-  activeRemoteWorkspace = null
-  lastRemoteStackLocalPort = null
-  await updateSharedSettings({
-    connectionMode: 'local',
-    activeRemoteStack: undefined
-  })
-  if (currentWorkspacePath) {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      emitCurrentWorkspaceStatus(currentWorkspacePath)
-      emitConnectionStatus(mainWindow, { status: 'disconnected' })
-    }
-    const workspacePath = currentWorkspacePath
-    void connectToAppServer(workspacePath).catch((error) => {
-      const message = error instanceof Error ? error.message : String(error)
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        emitConnectionStatus(mainWindow, { status: 'error', errorMessage: message })
-      }
-    })
-  } else if (mainWindow && !mainWindow.isDestroyed()) {
-    emitCurrentWorkspaceStatus('')
-    emitConnectionStatus(mainWindow, { status: 'disconnected' })
-  }
+  await disconnectActiveRemoteProject({ restorePreviousLocal: true })
 }
 
 async function connectViaWebSocket(
@@ -1178,6 +1680,30 @@ async function connectViaWebSocket(
     autoReconnect: options.autoReconnect,
     initializeTimeoutMs: options.initializeTimeoutMs
   })
+  const projectId = options.projectId ?? localProjectId(workspacePath)
+  const connectionKey = projectId
+  const identityWorkspacePath = options.identityWorkspacePath ?? workspacePath
+  const previousEntry = workspaceConnections.get(connectionKey)
+  if (previousEntry && previousEntry.client !== client) {
+    previousEntry.client.dispose()
+  }
+  const entry: WorkspaceConnectionEntry = {
+    key: connectionKey,
+    projectId,
+    kind: options.projectKind ?? 'local',
+    workspacePath: identityWorkspacePath,
+    localWorkspacePath: workspacePath,
+    displayPath: options.displayPath ?? workspacePath,
+    remote: options.remote,
+    wsUrl,
+    client,
+    role: 'foreground',
+    connected: false,
+    connecting: true,
+    lastUsedAt: Date.now(),
+    threads: []
+  }
+  workspaceConnections.set(connectionKey, entry)
   wireClient = client
   const isCurrentClient = (): boolean =>
     !isAppQuitting &&
@@ -1187,8 +1713,18 @@ async function connectViaWebSocket(
     !win.isDestroyed()
 
   client.onNotification((method, params) => {
+    if (entry.role === 'secondary') {
+      if (SECONDARY_THREAD_NOTIFICATION_METHODS.has(method)) {
+        applyWorkspaceThreadNotification(entry, method, params)
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          broadcastNotification(mainWindow, method, params, sharedSettings, entry.workspacePath, false)
+        }
+      }
+      return
+    }
     if (isCurrentClient() && mainWindow && !mainWindow.isDestroyed()) {
-      broadcastNotification(mainWindow, method, params, sharedSettings)
+      applyWorkspaceThreadNotification(entry, method, params)
+      broadcastNotification(mainWindow, method, params, sharedSettings, entry.workspacePath, true)
     }
   })
 
@@ -1222,9 +1758,25 @@ async function connectViaWebSocket(
       wireClient = null
       lastAppServerWsUrl = null
     }
+    entry.connected = false
+    entry.connecting = false
+    entry.errorMessage = message
+    emitWorkspaceProjects()
     client.dispose()
   }
   const emitConnected = (result: InitializeResult): void => {
+    entry.connected = true
+    entry.connecting = false
+    entry.errorMessage = undefined
+    entry.initializeResult = result
+    entry.lastUsedAt = Date.now()
+    if (workspaceActivation) {
+      publishWorkspaceActivation(workspaceActivation.handle.endpoint)
+    }
+    void refreshConnectionThreadList(entry)
+    if (entry.role === 'secondary') {
+      return
+    }
     if (!isCurrentClient()) return
     connectedOnce = true
     clearActiveRemoteReconnectTimer()
@@ -1238,6 +1790,7 @@ async function connectViaWebSocket(
         dashboardUrl: result.dashboardUrl
       })
       flushPendingWorkspaceOpenThread(mainWindow)
+      emitWorkspaceProjects()
     }
     if (!options.remoteDiagnostic && !activeRemoteWorkspace && resolveConnectionMode(sharedSettings) === 'local') {
       void autoStartEnabledModules()
@@ -1246,6 +1799,10 @@ async function connectViaWebSocket(
   client.on('ready', (result: InitializeResult) => emitConnected(result))
   client.on('reconnected', (result: InitializeResult) => emitConnected(result))
   client.on('close', () => {
+    entry.connected = false
+    entry.connecting = false
+    emitWorkspaceProjects()
+    if (entry.role === 'secondary') return
     if (!isCurrentClient()) return
     resetDesktopThreadToolBindings()
     if (!connectedOnce && options.initialDisconnectIsError) {
@@ -1268,6 +1825,10 @@ async function connectViaWebSocket(
     scheduleActiveRemoteStackReconnect('websocket closed')
   })
   client.on('reconnect-error', (err) => {
+    entry.errorMessage = err instanceof Error ? err.message : String(err)
+    entry.connecting = false
+    emitWorkspaceProjects()
+    if (entry.role === 'secondary') return
     if (!isCurrentClient()) return
     const message = err instanceof Error ? err.message : String(err)
     if (!connectedOnce && options.initialDisconnectIsError) {
@@ -1294,7 +1855,30 @@ function getManagedAppServerEndpoint(response: HubAppServerResponse): string {
 
 function isCurrentWorkspaceEvent(event: HubEvent, workspacePath: string): boolean {
   if (!event.workspacePath) return false
-  return resolvePath(event.workspacePath) === resolvePath(workspacePath)
+  return isSameWorkspacePath(event.workspacePath, workspacePath)
+}
+
+function isHubAppServerLifecycleEvent(event: HubEvent): boolean {
+  return event.kind.startsWith('appserver.')
+}
+
+function isRecentSecondaryWorkspaceEvent(event: HubEvent): boolean {
+  const workspacePath = event.workspacePath?.trim()
+  if (!workspacePath || activeRemoteWorkspace || resolveConnectionMode(sharedSettings) !== 'local') {
+    return false
+  }
+  if (isWorkspaceForeground(workspacePath)) return false
+  return getRecentWorkspaces(sharedSettings).some((recent) => isSameWorkspacePath(recent.path, workspacePath))
+}
+
+function scheduleSecondaryWorkspaceRefresh(): void {
+  if (secondaryRefreshTimer) {
+    clearTimeout(secondaryRefreshTimer)
+  }
+  secondaryRefreshTimer = setTimeout(() => {
+    secondaryRefreshTimer = null
+    void refreshSecondaryWorkspaceConnections()
+  }, 150)
 }
 
 function startHubEventSubscription(workspacePath: string, hubClient: HubClient): void {
@@ -1303,6 +1887,10 @@ function startHubEventSubscription(workspacePath: string, hubClient: HubClient):
   hubEventAbortController = controller
 
   void hubClient.subscribeEvents((event) => {
+    if (isHubAppServerLifecycleEvent(event) && isRecentSecondaryWorkspaceEvent(event)) {
+      scheduleSecondaryWorkspaceRefresh()
+    }
+
     if (!isCurrentWorkspaceEvent(event, workspacePath)) return
 
     if (event.kind === 'appserver.exited') {
@@ -1328,7 +1916,13 @@ function startHubEventSubscription(workspacePath: string, hubClient: HubClient):
 
     if (event.kind === 'notification.requested' && mainWindow && !mainWindow.isDestroyed()) {
       const data = event.data as { kind?: string; title?: string; body?: string } | null
-      broadcastNotification(mainWindow, data?.kind ?? 'hub/notification', data ?? {}, sharedSettings)
+      broadcastNotification(
+        mainWindow,
+        data?.kind ?? 'hub/notification',
+        data ?? {},
+        sharedSettings,
+        event.workspacePath ?? workspacePath
+      )
     }
   }, controller.signal).catch((error) => {
     if (!controller.signal.aborted) {
@@ -1337,17 +1931,205 @@ function startHubEventSubscription(workspacePath: string, hubClient: HubClient):
   })
 }
 
+function promoteWorkspaceConnection(entry: WorkspaceConnectionEntry): void {
+  const previous = currentWorkspacePath ? getWorkspaceConnection(currentWorkspacePath) : undefined
+  if (previous && previous.client !== entry.client) {
+    previous.role = 'secondary'
+    previous.lastUsedAt = Date.now()
+    releaseConnectionThreadSubscription(previous, 'workspace demote')
+    releaseWorkspaceLock(previous.workspacePath)
+  }
+
+  entry.role = 'foreground'
+  entry.lastUsedAt = Date.now()
+  wireClient = entry.client
+  currentWorkspacePath = entry.workspacePath
+  lastAppServerWsUrl = entry.wsUrl
+  lastDashboardUrl = entry.initializeResult?.dashboardUrl ?? null
+  setActiveRemoteProject(null)
+  previousLocalForegroundWorkspacePath = null
+  lastRemoteStackLocalPort = null
+  resetDesktopThreadToolBindings()
+  reregisterIpcForWorkspace(entry.workspacePath)
+  ensureWorkspaceActivation(entry.workspacePath)
+  emitCurrentWorkspaceStatus(entry.workspacePath)
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    if (entry.initializeResult) {
+      emitConnectionStatus(mainWindow, {
+        status: 'connected',
+        serverInfo: entry.initializeResult.serverInfo,
+        capabilities: entry.initializeResult.capabilities as Record<string, unknown>,
+        dashboardUrl: entry.initializeResult.dashboardUrl
+      })
+    } else {
+      emitConnectionStatus(mainWindow, { status: entry.connected ? 'connected' : 'connecting' })
+    }
+    const loc = normalizeLocale(sharedSettings.locale)
+    mainWindow.setTitle(
+      translate(loc, 'app.titleWithWorkspace', { name: basename(entry.workspacePath) })
+    )
+  }
+  startHubEventSubscription(entry.workspacePath, createHubClient(sharedSettings))
+  emitWorkspaceProjects()
+}
+
+function createSecondaryWorkspaceConnection(
+  workspacePath: string,
+  wsUrl: string
+): WorkspaceConnectionEntry {
+  const key = normalizeWorkspaceConnectionKey(workspacePath)
+  const existing = workspaceConnections.get(key)
+  if (existing) {
+    existing.lastUsedAt = Date.now()
+    return existing
+  }
+
+  const client = WireProtocolClient.fromWebSocket(wsUrl, {
+    initializeProfile: 'secondary'
+  })
+  const entry: WorkspaceConnectionEntry = {
+    key,
+    projectId: localProjectId(workspacePath),
+    kind: 'local',
+    workspacePath,
+    localWorkspacePath: workspacePath,
+    displayPath: workspacePath,
+    wsUrl,
+    client,
+    role: 'secondary',
+    connected: false,
+    connecting: true,
+    lastUsedAt: Date.now(),
+    threads: []
+  }
+  workspaceConnections.set(key, entry)
+  emitWorkspaceProjects()
+
+  client.onNotification((method, params) => {
+    const foreground = entry.role === 'foreground' && wireClient === client
+    if (!foreground && !SECONDARY_THREAD_NOTIFICATION_METHODS.has(method)) {
+      return
+    }
+    applyWorkspaceThreadNotification(entry, method, params)
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      broadcastNotification(mainWindow, method, params, sharedSettings, workspacePath, foreground)
+    }
+  })
+
+  client.onServerRequest(async (method, params) => {
+    if (entry.role !== 'foreground' || wireClient !== client) return undefined
+    const handledInMain = await handleServerRequestInMain(method, params)
+    if (handledInMain !== undefined) return handledInMain
+    const win = mainWindow
+    if (!win || win.isDestroyed()) return undefined
+    const { bridgeId, promise } = createServerRequestBridge()
+    broadcastServerRequest(win, { bridgeId, method, params }, sharedSettings)
+    return promise
+  })
+
+  const onReady = (result: InitializeResult): void => {
+    entry.connected = true
+    entry.connecting = false
+    entry.errorMessage = undefined
+    entry.initializeResult = result
+    if (workspaceActivation) {
+      publishWorkspaceActivation(workspaceActivation.handle.endpoint)
+    }
+    void refreshConnectionThreadList(entry)
+  }
+  client.on('ready', onReady)
+  client.on('reconnected', onReady)
+  client.on('close', () => {
+    entry.connected = false
+    entry.connecting = false
+    emitWorkspaceProjects()
+    if (entry.role === 'foreground' && mainWindow && !mainWindow.isDestroyed()) {
+      const loc = normalizeLocale(sharedSettings.locale)
+      emitConnectionStatus(mainWindow, {
+        status: 'disconnected',
+        errorMessage: translate(loc, 'main.status.reconnecting')
+      })
+    }
+  })
+  client.on('reconnect-error', (error) => {
+    entry.errorMessage = error instanceof Error ? error.message : String(error)
+    entry.connecting = false
+    emitWorkspaceProjects()
+    if (entry.role === 'foreground' && mainWindow && !mainWindow.isDestroyed()) {
+      emitConnectionStatus(mainWindow, { status: 'error', errorMessage: entry.errorMessage })
+    }
+  })
+
+  return entry
+}
+
+async function refreshSecondaryWorkspaceConnections(): Promise<void> {
+  if (isAppQuitting || activeRemoteWorkspace || resolveConnectionMode(sharedSettings) !== 'local') {
+    return
+  }
+  const recents = getRecentWorkspaces(sharedSettings)
+    .filter((recent) => recent.path && !isWorkspaceForeground(recent.path))
+  if (recents.length === 0) {
+    emitWorkspaceProjects()
+    return
+  }
+
+  let liveAppServers: HubAppServerResponse[] = []
+  try {
+    liveAppServers = await createHubClient(sharedSettings).listAppServers()
+  } catch (error) {
+    console.warn('[desktop] failed to list Hub appservers for secondary workspaces', error)
+    emitWorkspaceProjects()
+    return
+  }
+
+  const liveByKey = new Map<string, HubAppServerResponse>()
+  for (const appServer of liveAppServers) {
+    if (!isRunningHubAppServer(appServer)) continue
+    const workspacePath = appServer.workspacePath || appServer.canonicalWorkspacePath
+    if (!workspacePath) continue
+    liveByKey.set(normalizeWorkspaceConnectionKey(workspacePath), appServer)
+    if (appServer.canonicalWorkspacePath) {
+      liveByKey.set(normalizeWorkspaceConnectionKey(appServer.canonicalWorkspacePath), appServer)
+    }
+  }
+
+  const allowedKeys = new Set<string>()
+  for (const recent of recents) {
+    if (allowedKeys.size >= SECONDARY_WORKSPACE_CONNECTION_LIMIT) break
+    const key = normalizeWorkspaceConnectionKey(recent.path)
+    const live = liveByKey.get(key)
+    const endpoint = live?.endpoints?.appServerWebSocket
+    if (endpoint?.trim()) {
+      allowedKeys.add(key)
+      createSecondaryWorkspaceConnection(recent.path, endpoint)
+    }
+  }
+
+  for (const entry of [...workspaceConnections.values()]) {
+    if (entry.role !== 'secondary') continue
+    if (!allowedKeys.has(entry.key)) {
+      disposeWorkspaceConnection(entry)
+    }
+  }
+  emitWorkspaceProjects()
+}
+
 // ─── AppServer connection ─────────────────────────────────────────────────────
 
 function buildCallbacks(): IpcHandlerCallbacks {
   return {
     onSwitchWorkspace: async (newPath: string) => {
+      if (activeRemoteProject) {
+        await disconnectActiveRemoteProject({ restorePreviousLocal: false })
+      }
       if (mainWindow && !mainWindow.isDestroyed()) {
         viewerBrowserManager.destroyAllTabs(mainWindow)
       }
       setViewerWorkspaceRoot(newPath)
       addRecentWorkspace(sharedSettings, newPath)
       saveSettings(sharedSettings)
+      emitWorkspaceProjects()
       const workspaceStatus = getWorkspaceStatus(newPath)
       if (workspaceStatus.status === 'needs-setup') {
         await openWorkspaceWithoutConnection(newPath)
@@ -1397,15 +2179,33 @@ function buildCallbacks(): IpcHandlerCallbacks {
     onApplyConnectionSettings: applyConnectionSettings,
     onConnectRemoteStack: connectRemoteStackFromServers,
     onDisconnectRemoteStack: disconnectRemoteStackFromServers,
+    onDisconnectRemoteProject: () => disconnectActiveRemoteProject({ restorePreviousLocal: true }),
     getSettings: () => sharedSettings,
     updateSettings: async (partial) => {
       await updateSharedSettings(partial)
     },
     getAppServerWsConfig: () => lastAppServerWsUrl ? { wsUrl: lastAppServerWsUrl } : null,
     getRecentWorkspaces: () => getRecentWorkspaces(sharedSettings),
+    getWorkspaceProjects: getWorkspaceProjectsPayload,
+    removeRecentWorkspace: (workspacePath: string) => {
+      if (isWorkspaceForeground(workspacePath)) {
+        throw new Error('Cannot remove the foreground project from Projects.')
+      }
+      const entry = getWorkspaceConnection(workspacePath)
+      if (entry?.role === 'secondary') {
+        disposeWorkspaceConnection(entry)
+      }
+      removeRecentWorkspace(sharedSettings, workspacePath)
+      saveSettings(sharedSettings)
+      emitWorkspaceProjects()
+    },
     clearRecentWorkspaces: () => {
       clearRecentWorkspaces(sharedSettings)
       saveSettings(sharedSettings)
+      emitWorkspaceProjects()
+    },
+    onAppServerRequestCompleted: (client, method, params) => {
+      observeAppServerRequestCompletion(client, method, params)
     },
     getConnectionStatus: () => lastConnectionStatus,
     getWorkspaceStatus: () => getWorkspaceStatusForRenderer(currentWorkspacePath)
@@ -1422,14 +2222,7 @@ async function openWorkspaceWithoutConnection(workspacePath: string): Promise<vo
     return
   }
 
-  const lockResult = acquireWorkspaceLock(workspacePath)
-  if (!lockResult.ok) {
-    const loc = normalizeLocale(sharedSettings.locale)
-    throw new Error(
-      WORKSPACE_LOCKED_IPC_PREFIX +
-        translate(loc, 'main.error.workspaceLocked', { pid: lockResult.pid ?? 0 })
-    )
-  }
+  acquireWorkspaceLock(workspacePath)
 
   if (currentWorkspacePath && currentWorkspacePath !== workspacePath) {
     stopWorkspaceActivation()
@@ -1481,49 +2274,82 @@ async function connectToAppServer(workspacePath: string): Promise<void> {
   if (isAppQuitting) {
     return
   }
-  // Acquire the lock BEFORE tearing anything down so a failure leaves the
-  // current connection intact and propagates as an exception to the caller
-  // (e.g. the renderer's workspace:switch IPC).
-  const lockResult = acquireWorkspaceLock(workspacePath)
-  if (!lockResult.ok) {
-    const loc = normalizeLocale(sharedSettings.locale)
-    throw new Error(
-      WORKSPACE_LOCKED_IPC_PREFIX +
-        translate(loc, 'main.error.workspaceLocked', { pid: lockResult.pid ?? 0 })
-    )
-  }
-
-  // Release lock on previous workspace after the new lock is secured
-  if (currentWorkspacePath && currentWorkspacePath !== workspacePath) {
-    stopWorkspaceActivation()
-    releaseWorkspaceLock(currentWorkspacePath)
-  }
-
-  // Tear down previous connection
-  await teardownRuntime('switch/reconnect before new connect')
-
-  currentWorkspacePath = workspacePath
-  ensureWorkspaceActivation(workspacePath)
-
   const remoteIdx = process.argv.indexOf('--remote')
   const launchedWithRemoteUrl = remoteIdx !== -1 && Boolean(process.argv[remoteIdx + 1])
   const connectionMode = resolveConnectionMode(sharedSettings)
+  const usingRemoteConnection = launchedWithRemoteUrl || connectionMode === 'remote'
+  const preserveLocalConnections = !usingRemoteConnection && connectionMode === 'local'
+
+  if (!usingRemoteConnection) {
+    acquireWorkspaceLock(workspacePath)
+  }
+
+  if (usingRemoteConnection) {
+    if (!previousLocalForegroundWorkspacePath && workspacePath) {
+      previousLocalForegroundWorkspacePath = workspacePath
+    }
+    stopWorkspaceActivation()
+    releaseWorkspaceLock(workspacePath)
+    const previous = getWorkspaceConnection(workspacePath)
+    if (previous?.role === 'foreground') {
+      previous.role = 'secondary'
+      previous.lastUsedAt = Date.now()
+      releaseConnectionThreadSubscription(previous, 'remote foreground connect')
+      releaseWorkspaceLock(previous.workspacePath)
+    }
+  } else if (preserveLocalConnections) {
+    const existingConnection = getWorkspaceConnection(workspacePath)
+    if (existingConnection?.connected) {
+      promoteWorkspaceConnection(existingConnection)
+      void refreshSecondaryWorkspaceConnections()
+      return
+    }
+    if (currentWorkspacePath && currentWorkspacePath !== workspacePath) {
+      const previous = getWorkspaceConnection(currentWorkspacePath)
+      if (previous) {
+        previous.role = 'secondary'
+        previous.lastUsedAt = Date.now()
+        releaseConnectionThreadSubscription(previous, 'workspace demote')
+        releaseWorkspaceLock(previous.workspacePath)
+      }
+      stopWorkspaceActivation()
+    } else if (currentWorkspacePath === workspacePath) {
+      await teardownRuntime('reconnect current local workspace before new connect')
+    }
+  } else {
+    if (currentWorkspacePath && currentWorkspacePath !== workspacePath) {
+      stopWorkspaceActivation()
+      releaseWorkspaceLock(currentWorkspacePath)
+    }
+    await teardownRuntime('switch/reconnect before new connect')
+  }
+
+  currentWorkspacePath = workspacePath
+  if (!usingRemoteConnection) {
+    ensureWorkspaceActivation(workspacePath)
+  }
+
   const activeStack =
     !launchedWithRemoteUrl && connectionMode === 'remote'
       ? resolveActiveRemoteStack(sharedSettings)
       : null
-  activeRemoteWorkspace = activeStack ? buildRemoteWorkspaceStatus(activeStack.host, activeStack.stack) : null
   lastRemoteStackLocalPort = null
-  emitCurrentWorkspaceStatus(workspacePath)
 
   // --remote ws://host:port/ws?token=xxx  → skip AppServerManager, connect via WebSocket
   if (launchedWithRemoteUrl) {
-    activeRemoteWorkspace = null
+    const endpoint = process.argv[remoteIdx + 1]
+    const project = buildEndpointRemoteProject('cli', endpoint, workspacePath)
+    prepareRemoteForeground(project)
     emitCurrentWorkspaceStatus(workspacePath)
-    await connectViaWebSocket(workspacePath, process.argv[remoteIdx + 1], {
+    await connectViaWebSocket(workspacePath, endpoint, {
       initializeTimeoutMs: REMOTE_INITIALIZE_TIMEOUT_MS,
       initialDisconnectIsError: true,
-      remoteDiagnostic: { stage: 'cli-remote' }
+      remoteDiagnostic: { stage: 'cli-remote' },
+      projectId: project.projectId,
+      projectKind: 'remote',
+      identityWorkspacePath: project.identityWorkspacePath,
+      displayPath: project.displayPath,
+      remote: project.remote
     })
     return
   }
@@ -1539,10 +2365,19 @@ async function connectToAppServer(workspacePath: string): Promise<void> {
           { forceNew: true }
         )
         lastRemoteStackLocalPort = result.localPort
+        const tunnelEndpoint = `ws://127.0.0.1:${result.localPort}/ws`
+        const project = buildServersRemoteProject(activeStack.host, activeStack.stack, tunnelEndpoint, workspacePath)
+        prepareRemoteForeground(project)
+        emitCurrentWorkspaceStatus(workspacePath)
         await connectViaWebSocket(workspacePath, result.wsUrl, {
           autoReconnect: false,
           initializeTimeoutMs: REMOTE_INITIALIZE_TIMEOUT_MS,
           initialDisconnectIsError: true,
+          projectId: project.projectId,
+          projectKind: 'remote',
+          identityWorkspacePath: project.identityWorkspacePath,
+          displayPath: project.displayPath,
+          remote: project.remote,
           remoteDiagnostic: {
             stage: 'active-remote-stack',
             hostName: activeStack.host.name,
@@ -1578,8 +2413,6 @@ async function connectToAppServer(workspacePath: string): Promise<void> {
       return
     }
 
-    activeRemoteWorkspace = null
-    emitCurrentWorkspaceStatus(workspacePath)
     const remoteConfig = resolveRemoteWebSocketConfig(sharedSettings.remote)
     if (!remoteConfig.ok) {
       const win = mainWindow!
@@ -1590,14 +2423,24 @@ async function connectToAppServer(workspacePath: string): Promise<void> {
       })
       return
     }
+    const project = buildEndpointRemoteProject('manual', remoteConfig.connectUrl, workspacePath)
+    prepareRemoteForeground(project)
+    emitCurrentWorkspaceStatus(workspacePath)
     await connectViaWebSocket(workspacePath, remoteConfig.connectUrl, {
       initializeTimeoutMs: REMOTE_INITIALIZE_TIMEOUT_MS,
       initialDisconnectIsError: true,
-      remoteDiagnostic: { stage: 'manual-remote' }
+      remoteDiagnostic: { stage: 'manual-remote' },
+      projectId: project.projectId,
+      projectKind: 'remote',
+      identityWorkspacePath: project.identityWorkspacePath,
+      displayPath: project.displayPath,
+      remote: project.remote
     })
     return
   }
 
+  setActiveRemoteProject(null)
+  emitCurrentWorkspaceStatus(workspacePath)
   const win = mainWindow!
   emitConnectionStatus(win, { status: 'connecting' })
 
@@ -1611,6 +2454,7 @@ async function connectToAppServer(workspacePath: string): Promise<void> {
 
     startHubEventSubscription(workspacePath, hubClient)
     await connectViaWebSocket(workspacePath, getManagedAppServerEndpoint(ensured))
+    void refreshSecondaryWorkspaceConnections()
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     const isBinaryError =
@@ -1866,42 +2710,31 @@ app.whenReady().then(async () => {
     })
   }
 
-  const initialWorkspaceOpenDeepLink = findWorkspaceOpenDeepLink(process.argv)
   let workspacePath = resolveWorkspacePath(sharedSettings)
-
-  // If another process is already using this workspace, start without one
-  // so the user sees the welcome screen and can pick a different workspace.
-  if (workspacePath) {
-    const lockCheck = acquireWorkspaceLock(workspacePath)
-    if (!lockCheck.ok) {
-      if (
-        initialWorkspaceOpenDeepLink &&
-        isSameWorkspacePath(initialWorkspaceOpenDeepLink.workspacePath, workspacePath) &&
-        await activateExistingWorkspace(workspacePath, initialWorkspaceOpenDeepLink.threadId, lockCheck.activation)
-      ) {
-        app.quit()
-        return
-      }
-      workspacePath = null
-    } else {
-      addRecentWorkspace(sharedSettings, workspacePath)
-      saveSettings(sharedSettings)
-    }
-  }
 
   const initialActiveStack =
     workspacePath && resolveConnectionMode(sharedSettings) === 'remote'
       ? resolveActiveRemoteStack(sharedSettings)
       : null
-  activeRemoteWorkspace = initialActiveStack
-    ? buildRemoteWorkspaceStatus(initialActiveStack.host, initialActiveStack.stack)
-    : null
+
+  // Publish best-effort activation metadata only for a local foreground project.
+  // This is not an exclusive workspace gate; AppServer supports multiple Desktop clients.
+  if (workspacePath) {
+    if (!initialActiveStack) {
+      acquireWorkspaceLock(workspacePath)
+    }
+    addRecentWorkspace(sharedSettings, workspacePath)
+    saveSettings(sharedSettings)
+  }
+  setActiveRemoteProject(initialActiveStack
+    ? buildServersRemoteProject(initialActiveStack.host, initialActiveStack.stack, undefined, workspacePath ?? '')
+    : null)
   const initialWorkspaceStatus = getWorkspaceStatusForRenderer(workspacePath)
   lastWorkspaceStatus = initialWorkspaceStatus
   const win = createWindow(workspacePath, initialWorkspaceStatus)
   mainWindow = win
   currentWorkspacePath = workspacePath ?? ''
-  if (workspacePath) {
+  if (workspacePath && !initialActiveStack) {
     ensureWorkspaceActivation(workspacePath)
   }
   setViewerWorkspaceRoot(workspacePath ?? '')
@@ -1937,28 +2770,26 @@ app.whenReady().then(async () => {
     if (windows.length === 0) {
       sharedSettings = loadSettings()
       let wsPath = resolveWorkspacePath(sharedSettings)
-      if (wsPath) {
-        const lockCheck = acquireWorkspaceLock(wsPath)
-        if (!lockCheck.ok) {
-          wsPath = null
-        } else {
-          addRecentWorkspace(sharedSettings, wsPath)
-          saveSettings(sharedSettings)
-        }
-      }
       const activeStack =
         wsPath && resolveConnectionMode(sharedSettings) === 'remote'
           ? resolveActiveRemoteStack(sharedSettings)
           : null
-      activeRemoteWorkspace = activeStack
-        ? buildRemoteWorkspaceStatus(activeStack.host, activeStack.stack)
-        : null
+      if (wsPath) {
+        if (!activeStack) {
+          acquireWorkspaceLock(wsPath)
+        }
+        addRecentWorkspace(sharedSettings, wsPath)
+        saveSettings(sharedSettings)
+      }
+      setActiveRemoteProject(activeStack
+        ? buildServersRemoteProject(activeStack.host, activeStack.stack, undefined, wsPath ?? '')
+        : null)
       const workspaceStatus = getWorkspaceStatusForRenderer(wsPath)
       lastWorkspaceStatus = workspaceStatus
       const newWin = createWindow(wsPath, workspaceStatus)
       mainWindow = newWin
       currentWorkspacePath = wsPath ?? ''
-      if (wsPath) {
+      if (wsPath && !activeStack) {
         ensureWorkspaceActivation(wsPath)
       }
 

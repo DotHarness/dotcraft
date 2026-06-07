@@ -77,8 +77,6 @@ export function Sidebar({
       <WorkspaceHeader
         workspaceName={workspaceName}
         workspacePath={workspacePath}
-        localWorkspacePath={localWorkspacePath ?? workspacePath}
-        localActionsDisabled={remoteWorkspace}
       />
 
       <NewThreadButton />
@@ -86,7 +84,11 @@ export function Sidebar({
       <ThreadSearch workspaceName={workspaceName} />
 
       {/* Thread list -- fills remaining space */}
-      <ThreadList />
+      <ThreadList
+        workspacePath={workspacePath}
+        localWorkspacePath={localWorkspacePath ?? workspacePath}
+        localActionsDisabled={remoteWorkspace}
+      />
 
       {/* Phase 2 nav: Automations, Skills — spacing instead of a divider line */}
       <div

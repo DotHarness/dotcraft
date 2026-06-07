@@ -179,6 +179,10 @@ export interface UIState {
   } | null
   /** Unsent draft on ConversationWelcome, preserved across thread navigation. */
   welcomeDraft: WelcomeDraft | null
+  /** Unsent welcome drafts keyed by normalized workspace path. */
+  welcomeDraftsByWorkspace: Record<string, WelcomeDraft>
+  /** Workspace path currently mirrored in `welcomeDraft`. */
+  welcomeDraftWorkspacePath: string | null
   /** Per-turn dismissal marker for the plan approval composer. */
   planApprovalDismissed: Record<string, boolean>
   /** User preference for rendering reasoning text in the conversation. */
@@ -189,7 +193,7 @@ interface UIStore extends UIState {
   setActiveMainView(view: ActiveMainView): void
   setPluginCatalogSurface(surface: PluginCatalogSurface): void
   /** Deselect current thread and open Welcome composer in conversation view. */
-  goToNewChat(): void
+  goToNewChat(options?: { workspacePath?: string; clearDraft?: boolean }): void
   setAutomationsTab(tab: AutomationsTab): void
   setActiveSettingsTab(tab: SettingsTab): void
   requestCloseSettings(): void
@@ -285,8 +289,10 @@ interface UIStore extends UIState {
   } | null
   /** Clear pending welcome turn when it targets the given thread (e.g. thread/read failed). */
   cancelPendingWelcomeTurnForThread(threadId: string): void
-  setWelcomeDraft(draft: Omit<WelcomeDraft, 'updatedAt'> | null): void
-  clearWelcomeDraft(): void
+  setWelcomeDraft(draft: Omit<WelcomeDraft, 'updatedAt'> | null, workspacePath?: string): void
+  clearWelcomeDraft(workspacePath?: string): void
+  setWelcomeDraftWorkspace(workspacePath: string): void
+  getWelcomeDraftForWorkspace(workspacePath: string): WelcomeDraft | null
   dismissPlanApproval(turnId: string): void
   setShowThinkingContent(visible: boolean): void
   resetPlanApprovalDismissed(): void
@@ -322,6 +328,19 @@ export function resolveResponsivePanels(
   }
 }
 
+function normalizeWorkspaceDraftKey(path: string | null | undefined): string {
+  return (path ?? '').trim().replace(/\\/g, '/').replace(/\/+$/u, '').toLowerCase()
+}
+
+function cloneWelcomeDraft(draft: WelcomeDraft): WelcomeDraft {
+  return {
+    ...draft,
+    images: [...draft.images],
+    files: draft.files ? [...draft.files] : [],
+    segments: draft.segments ? [...draft.segments] : undefined
+  }
+}
+
 export const useUIStore = create<UIStore & InternalState>((set, get) => ({
   activeMainView: 'conversation',
   pluginCatalogSurface: 'plugins',
@@ -353,6 +372,8 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
   composerPrefill: null,
   pendingWelcomeTurn: null,
   welcomeDraft: null,
+  welcomeDraftsByWorkspace: {},
+  welcomeDraftWorkspacePath: null,
   planApprovalDismissed: {},
   showThinkingContent: false,
 
@@ -364,8 +385,14 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
     set({ pluginCatalogSurface: surface })
   },
 
-  goToNewChat() {
+  goToNewChat(options) {
     useThreadStore.getState().setActiveThreadId(null)
+    if (options?.clearDraft) {
+      get().clearWelcomeDraft(options.workspacePath)
+    }
+    if (options?.workspacePath) {
+      get().setWelcomeDraftWorkspace(options.workspacePath)
+    }
     set({ activeMainView: 'conversation', planApprovalDismissed: {} })
   },
 
@@ -711,26 +738,58 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
     }
   },
 
-  setWelcomeDraft(draft) {
+  setWelcomeDraft(draft, workspacePath) {
+    const current = get()
+    const rawPath = workspacePath ?? current.welcomeDraftWorkspacePath ?? ''
+    const key = normalizeWorkspaceDraftKey(rawPath)
     if (draft == null) {
-      set({ welcomeDraft: null })
+      set((state) => {
+        const drafts = { ...state.welcomeDraftsByWorkspace }
+        delete drafts[key]
+        const mirrorsCurrent = normalizeWorkspaceDraftKey(state.welcomeDraftWorkspacePath) === key
+        return {
+          welcomeDraftsByWorkspace: drafts,
+          ...(mirrorsCurrent ? { welcomeDraft: null } : {})
+        }
+      })
       return
     }
+    const nextDraft: WelcomeDraft = {
+      ...draft,
+      images: [...draft.images],
+      files: draft.files ? [...draft.files] : [],
+      segments: draft.segments ? [...draft.segments] : undefined,
+      selectionStart: draft.selectionStart,
+      selectionEnd: draft.selectionEnd,
+      updatedAt: Date.now()
+    }
     set({
-      welcomeDraft: {
-        ...draft,
-        images: [...draft.images],
-        files: draft.files ? [...draft.files] : [],
-        segments: draft.segments ? [...draft.segments] : undefined,
-        selectionStart: draft.selectionStart,
-        selectionEnd: draft.selectionEnd,
-        updatedAt: Date.now()
+      welcomeDraft: nextDraft,
+      welcomeDraftWorkspacePath: rawPath,
+      welcomeDraftsByWorkspace: {
+        ...get().welcomeDraftsByWorkspace,
+        [key]: nextDraft
       }
     })
   },
 
-  clearWelcomeDraft() {
-    set({ welcomeDraft: null })
+  clearWelcomeDraft(workspacePath) {
+    get().setWelcomeDraft(null, workspacePath)
+  },
+
+  setWelcomeDraftWorkspace(workspacePath) {
+    const key = normalizeWorkspaceDraftKey(workspacePath)
+    const draft = get().welcomeDraftsByWorkspace[key] ?? null
+    set({
+      welcomeDraftWorkspacePath: workspacePath,
+      welcomeDraft: draft ? cloneWelcomeDraft(draft) : null
+    })
+  },
+
+  getWelcomeDraftForWorkspace(workspacePath) {
+    const key = normalizeWorkspaceDraftKey(workspacePath)
+    const draft = get().welcomeDraftsByWorkspace[key] ?? null
+    return draft ? cloneWelcomeDraft(draft) : null
   },
 
   dismissPlanApproval(turnId) {

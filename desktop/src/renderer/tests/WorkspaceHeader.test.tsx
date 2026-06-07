@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
-import { WorkspaceHeader } from '../components/sidebar/WorkspaceHeader'
+import { WorkspaceHeader, WorkspaceOptionsMenu } from '../components/sidebar/WorkspaceHeader'
 import { ConfirmDialogHost } from '../components/ui/ConfirmDialog'
 
 const settingsGet = vi.fn()
@@ -15,8 +15,16 @@ const shellOpenPath = vi.fn()
 function renderHeader(): void {
   render(
     <LocaleProvider>
-      <ConfirmDialogHost />
       <WorkspaceHeader workspaceName='dotcraft' workspacePath='F:\\dotcraft' />
+    </LocaleProvider>
+  )
+}
+
+function renderOptionsMenu(): void {
+  render(
+    <LocaleProvider>
+      <ConfirmDialogHost />
+      <WorkspaceOptionsMenu workspacePath='F:\\dotcraft' />
     </LocaleProvider>
   )
 }
@@ -69,8 +77,15 @@ describe('WorkspaceHeader', () => {
     })
   })
 
-  it('shows a clear recent action in the recent workspace submenu', async () => {
+  it('renders workspace identity without a persistent options button', () => {
     renderHeader()
+
+    expect(screen.getByText('dotcraft')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Workspace options' })).not.toBeInTheDocument()
+  })
+
+  it('shows a clear recent action in the recent workspace submenu', async () => {
+    renderOptionsMenu()
 
     openWorkspaceMenu()
     await waitFor(() => {
@@ -83,7 +98,7 @@ describe('WorkspaceHeader', () => {
   })
 
   it('returns to the welcome screen from the switch workspace menu item', async () => {
-    renderHeader()
+    renderOptionsMenu()
 
     openWorkspaceMenu()
     await waitFor(() => {
@@ -100,7 +115,7 @@ describe('WorkspaceHeader', () => {
   })
 
   it('keeps recent workspace entries as direct switches', async () => {
-    renderHeader()
+    renderOptionsMenu()
 
     openWorkspaceMenu()
     await waitFor(() => {
@@ -118,7 +133,7 @@ describe('WorkspaceHeader', () => {
   })
 
   it('does not clear recents when confirmation is cancelled', async () => {
-    renderHeader()
+    renderOptionsMenu()
 
     openWorkspaceMenu()
     await waitFor(() => {
@@ -137,7 +152,7 @@ describe('WorkspaceHeader', () => {
   })
 
   it('clears recents after confirmation and updates the submenu', async () => {
-    renderHeader()
+    renderOptionsMenu()
 
     openWorkspaceMenu()
     await waitFor(() => {
@@ -159,7 +174,7 @@ describe('WorkspaceHeader', () => {
 
   it('does not show the clear action when there are no recents', async () => {
     workspaceGetRecent.mockResolvedValue([])
-    renderHeader()
+    renderOptionsMenu()
 
     openWorkspaceMenu()
     await waitFor(() => {

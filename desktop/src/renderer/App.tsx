@@ -30,6 +30,7 @@ import { usePendingRestartStore } from './stores/pendingRestartStore'
 import { useSubAgentStore } from './stores/subAgentStore'
 import { useAppBindingStore } from './stores/appBindingStore'
 import { isGitBranchProbeSettled, normalizeGitPathKey, useGitStore } from './stores/gitStore'
+import { useWorkspaceProjectsStore } from './stores/workspaceProjectsStore'
 import { CustomMenuBar } from './components/layout/CustomMenuBar'
 import { Sidebar } from './components/layout/Sidebar'
 import { SettingsSidebar } from './components/layout/SettingsSidebar'
@@ -87,6 +88,7 @@ import {
   type WhatsNewMediaState,
   type WhatsNewRelease
 } from '../shared/whatsNew'
+import { normalizeWorkspaceProjectKey } from '../shared/workspaceProjectKey'
 import type {
   BrowserUseApprovalRequestPayload,
   BrowserUseApprovalResponseAction,
@@ -138,6 +140,8 @@ function resolveProtocolWorkspacePath(status: WorkspaceStatusPayload): string {
 }
 
 function resolveWorkspaceDisplayName(status: WorkspaceStatusPayload): string {
+  const remoteDisplayName = status.remote?.displayName?.trim()
+  if (remoteDisplayName) return remoteDisplayName
   const remoteName = status.remote?.stackName?.trim()
   if (remoteName) return remoteName
   const path = status.workspacePath ?? ''
@@ -277,7 +281,7 @@ function waitForWorkspaceLaunchMotion(ms: number): Promise<void> {
 }
 
 function normalizeWorkspacePathForPinnedLookup(path: string): string {
-  return path.trim().replace(/\\/g, '/').replace(/\/+$/u, '').toLowerCase()
+  return normalizeWorkspaceProjectKey(path)
 }
 
 function resolvePinnedThreadIdsForWorkspace(
@@ -293,6 +297,60 @@ function resolvePinnedThreadIdsForWorkspace(
     ([candidate]) => normalizeWorkspacePathForPinnedLookup(candidate) === normalizedWorkspacePath
   )
   return match?.[1] ?? []
+}
+
+function currentForegroundThreadListKey(
+  activeProjectKey: string | null | undefined,
+  protocolWorkspacePath: string | null | undefined
+): string {
+  return normalizeWorkspaceProjectKey(activeProjectKey || protocolWorkspacePath || '')
+}
+
+function currentForegroundThreadListIdentityKey(
+  activeProjectKey: string | null | undefined,
+  protocolWorkspacePath: string | null | undefined,
+  workspacePath: string | null | undefined
+): string {
+  const projectKey = currentForegroundThreadListKey(activeProjectKey, protocolWorkspacePath || workspacePath)
+  const protocolKey = normalizeWorkspaceProjectKey(protocolWorkspacePath || workspacePath || '')
+  return `${projectKey}\u0000${protocolKey}`
+}
+
+function canReloadForegroundThreadList(
+  activeProjectKey: string | null | undefined,
+  protocolWorkspacePath: string | null | undefined
+): boolean {
+  const protocolKey = normalizeWorkspaceProjectKey(protocolWorkspacePath)
+  if (!protocolKey) return false
+  const projectKey = normalizeWorkspaceProjectKey(activeProjectKey)
+  if (!projectKey || projectKey.startsWith('remote:')) return true
+  return projectKey === protocolKey
+}
+
+function resetWorkspaceScopedRendererState(): void {
+  useThreadStore.getState().reset()
+  useConversationStore.getState().reset()
+  useModelCatalogStore.getState().reset()
+  useProvidersStore.getState().reset()
+  useMcpStore.getState().reset()
+  usePluginStore.setState({
+    plugins: [],
+    diagnostics: [],
+    selectedPluginId: null,
+    selectedPlugin: null,
+    loading: false,
+    error: null,
+    detailLoading: false
+  })
+  useCronStore.getState().reset()
+  useAutomationsStore.getState().selectTask(null)
+  useSubAgentStore.getState().reset()
+  useUIStore.getState().setAutomationsTab('tasks')
+  useUIStore.getState().resetDetailTabs()
+  if (useUIStore.getState().activeMainView !== 'settings') {
+    useUIStore.getState().setActiveMainView('conversation')
+  }
+  useUIStore.getState().setPendingWelcomeTurn(null)
 }
 
 function runtimeSnapshotFromThread(thread: Thread): ThreadRuntimeSnapshot {
@@ -550,8 +608,18 @@ export function App(): JSX.Element {
   const { status, errorType, errorMessage } = useConnectionStore()
   const isExpectedRestart = useConnectionStore((s) => s.isExpectedRestart)
   const capabilities = useConnectionStore((s) => s.capabilities)
+  const foregroundProjectId = useWorkspaceProjectsStore((s) => s.foregroundProjectId)
   const showSlowConnectingHint = useSlowConnectingHint(status, workspacePath)
   const remoteWorkspaceActive = workspaceStatus.remote != null
+  const activeProjectKey = foregroundProjectId || workspaceStatus.remote?.projectId || protocolWorkspacePath || workspacePath
+  const foregroundThreadListKey = activeProjectKey || protocolWorkspacePath || workspacePath
+  const foregroundThreadListIdentityKey = currentForegroundThreadListIdentityKey(
+    activeProjectKey,
+    protocolWorkspacePath,
+    workspacePath
+  )
+  const activeProjectKeyRef = useRef(activeProjectKey)
+  activeProjectKeyRef.current = activeProjectKey
   const mainWorkspaceGitPathKey =
     workspaceStatus.status === 'ready' && !remoteWorkspaceActive
       ? normalizeGitPathKey(workspacePath)
@@ -614,6 +682,7 @@ export function App(): JSX.Element {
   const whatsNewMediaStatesRef = useRef<Record<string, WhatsNewMediaState>>({})
   const whatsNewDialogOpenRef = useRef(false)
   const showMainWorkspaceUiRef = useRef(false)
+  const threadListReloadGenerationRef = useRef(0)
   const pendingAutoWhatsNewRef = useRef<{
     releases: WhatsNewRelease[]
     markSeenVersion?: string
@@ -641,7 +710,17 @@ export function App(): JSX.Element {
   }, [])
 
   const reloadThreadList = useCallback(async (options?: { includeTeams?: boolean }) => {
+    const requestGeneration = ++threadListReloadGenerationRef.current
     const path = protocolWorkspacePathRef.current
+    if (!canReloadForegroundThreadList(activeProjectKeyRef.current, path)) {
+      return
+    }
+    const requestProtocolWorkspaceKey = normalizeWorkspaceProjectKey(path)
+    const projectKey = currentForegroundThreadListKey(activeProjectKeyRef.current, path)
+    const isCurrentRequest = (): boolean =>
+      requestGeneration === threadListReloadGenerationRef.current &&
+      projectKey === currentForegroundThreadListKey(activeProjectKeyRef.current, protocolWorkspacePathRef.current) &&
+      requestProtocolWorkspaceKey === normalizeWorkspaceProjectKey(protocolWorkspacePathRef.current)
     const identity: SessionIdentity = {
       channelName: 'dotcraft-desktop',
       userId: 'local',
@@ -651,24 +730,30 @@ export function App(): JSX.Element {
     setLoading(true)
     try {
       const settings = await window.api.settings.get()
+      if (!isCurrentRequest()) return
       const crossChannelOrigins = await resolveDefaultCrossChannelOrigins({
         includeTeams: options?.includeTeams ?? agentTeamsAvailableRef.current
       })
+      if (!isCurrentRequest()) return
       const params = { identity, crossChannelOrigins, includeSubAgents: true }
       const result = await window.api.appServer.sendRequest('thread/list', params)
+      if (!isCurrentRequest()) return
       const res = result as { data: ThreadSummary[] }
       const threadStore = useThreadStore.getState()
-      threadStore.setThreadList(res.data ?? [])
+      threadStore.setThreadList(res.data ?? [], projectKey)
       threadStore.hydratePinnedThreadIds(
-        path,
-        resolvePinnedThreadIdsForWorkspace(settings.pinnedThreadIdsByWorkspace, path)
+        projectKey,
+        resolvePinnedThreadIdsForWorkspace(settings.pinnedThreadIdsByWorkspace, projectKey)
       )
       threadStore.prunePinnedThreadIds()
     } catch (err: unknown) {
+      if (!isCurrentRequest()) return
       console.error('Failed to load thread list:', err)
-      setThreadList([])
+      setThreadList([], projectKey)
     } finally {
-      setLoading(false)
+      if (isCurrentRequest()) {
+        setLoading(false)
+      }
     }
   }, [setThreadList, setLoading])
 
@@ -676,8 +761,15 @@ export function App(): JSX.Element {
     const onPinnedThreadIdsChanged = window.api.settings.onPinnedThreadIdsChanged
     if (typeof onPinnedThreadIdsChanged !== 'function') return undefined
     return onPinnedThreadIdsChanged(({ workspacePath, threadIds }) => {
-      if (workspacePath !== protocolWorkspacePathRef.current) return
-      useThreadStore.getState().hydratePinnedThreadIds(workspacePath, threadIds)
+      const activeKey = activeProjectKeyRef.current || protocolWorkspacePathRef.current
+      if (
+        workspacePath !== activeKey &&
+        normalizeWorkspacePathForPinnedLookup(workspacePath) !==
+          normalizeWorkspacePathForPinnedLookup(protocolWorkspacePathRef.current)
+      ) {
+        return
+      }
+      useThreadStore.getState().hydratePinnedThreadIds(activeKey || workspacePath, threadIds)
     })
   }, [])
 
@@ -921,6 +1013,20 @@ export function App(): JSX.Element {
       unsubscribe()
     }
   }, [syncWorkspaceStatus])
+
+  useEffect(() => {
+    void window.api.workspace.getProjects?.()
+      .then((payload) => {
+        if (payload) useWorkspaceProjectsStore.getState().setPayload(payload)
+      })
+      .catch(() => {})
+    const unsubscribe = window.api.workspace.onProjectsChange?.((payload) => {
+      useWorkspaceProjectsStore.getState().setPayload(payload)
+    })
+    return () => {
+      unsubscribe?.()
+    }
+  }, [])
 
   useEffect(() => {
     if (workspacePath) {
@@ -1248,6 +1354,26 @@ export function App(): JSX.Element {
   // -------------------------------------------------------------------------
   const prevStatusRef = useRef<string>('')
   const prevAgentTeamsAvailableRef = useRef(agentTeamsAvailable)
+  const prevForegroundThreadListIdentityKeyRef = useRef(foregroundThreadListIdentityKey)
+
+  useEffect(() => {
+    const nextIdentityKey = foregroundThreadListIdentityKey
+    const nextKey = normalizeWorkspaceProjectKey(foregroundThreadListKey)
+    const previousIdentityKey = prevForegroundThreadListIdentityKeyRef.current
+    if (nextIdentityKey === previousIdentityKey) return
+
+    prevForegroundThreadListIdentityKeyRef.current = nextIdentityKey
+    threadListReloadGenerationRef.current += 1
+    resetWorkspaceScopedRendererState()
+    if (
+      status === 'connected' &&
+      nextKey &&
+      canReloadForegroundThreadList(activeProjectKey, protocolWorkspacePath)
+    ) {
+      void reloadThreadList()
+    }
+  }, [activeProjectKey, foregroundThreadListIdentityKey, foregroundThreadListKey, protocolWorkspacePath, reloadThreadList, status])
+
   useEffect(() => {
     if (status === 'connected' && prevStatusRef.current !== 'connected') {
       performance.mark('app:connected')
@@ -1280,29 +1406,8 @@ export function App(): JSX.Element {
     }
     // Reset all stores when disconnecting (e.g. workspace switch)
     if (status === 'disconnected' || status === 'error') {
-      useThreadStore.getState().reset()
-      useConversationStore.getState().reset()
-      useModelCatalogStore.getState().reset()
-      useProvidersStore.getState().reset()
-      useMcpStore.getState().reset()
-      usePluginStore.setState({
-        plugins: [],
-        diagnostics: [],
-        selectedPluginId: null,
-        selectedPlugin: null,
-        loading: false,
-        error: null,
-        detailLoading: false
-      })
-      useCronStore.getState().reset()
-      useAutomationsStore.getState().selectTask(null)
-      useSubAgentStore.getState().reset()
-      useUIStore.getState().setAutomationsTab('tasks')
-      useUIStore.getState().resetDetailTabs()
-      if (useUIStore.getState().activeMainView !== 'settings') {
-        useUIStore.getState().setActiveMainView('conversation')
-      }
-      useUIStore.getState().setPendingWelcomeTurn(null)
+      threadListReloadGenerationRef.current += 1
+      resetWorkspaceScopedRendererState()
     }
 
     prevStatusRef.current = status
@@ -1369,7 +1474,21 @@ export function App(): JSX.Element {
     // up on unmount. Store actions are accessed via .getState() to avoid closure
     // stale-reference issues and to prevent re-subscription on state changes.
     const unsubscribe = window.api.appServer.onNotification(
-      (payload: { method: string; params: unknown }) => {
+      (payload: { method: string; params: unknown; workspacePath?: string; foreground?: boolean }) => {
+        if (payload.foreground === false) {
+          return
+        }
+        const notificationWorkspacePath = payload.workspacePath?.trim()
+        const foregroundWorkspacePath = protocolWorkspacePathRef.current || workspacePathRef.current
+        if (
+          payload.foreground !== true &&
+          notificationWorkspacePath &&
+          foregroundWorkspacePath &&
+          normalizeWorkspacePathForPinnedLookup(notificationWorkspacePath) !==
+            normalizeWorkspacePathForPinnedLookup(foregroundWorkspacePath)
+        ) {
+          return
+        }
         const method = payload.method
         const p = (payload.params ?? {}) as Record<string, unknown>
         const conv = useConversationStore.getState()
@@ -3004,6 +3123,7 @@ export function App(): JSX.Element {
                 <ConversationPanel
                   workspacePath={workspacePath}
                   identityWorkspacePath={protocolWorkspacePath || workspacePath}
+                  projectKey={activeProjectKey}
                   remoteWorkspace={remoteWorkspaceActive}
                   workspaceConfigChange={workspaceConfigChange}
                   workspaceConfigChangeSeq={workspaceConfigChangeSeq}

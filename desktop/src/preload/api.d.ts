@@ -26,6 +26,7 @@ import type { DesktopProviderProtocol } from '../shared/providerProtocols'
 import type { ConnectionSettingsDraft } from '../shared/remoteConnection'
 import type { AppLocale } from '../shared/locales'
 import type { AddTabMenuAction, AddTabMenuRequest, AddTabPopupPayload } from '../shared/addTabMenu'
+import type { WorkspaceProjectsPayload } from '../shared/workspaceProjects'
 
 export type UnsubscribeFn = () => void
 export type ConnectionMode = 'local' | 'remote'
@@ -54,6 +55,8 @@ export type EditorId =
 export interface NotificationPayload {
   method: string
   params: unknown
+  workspacePath?: string
+  foreground?: boolean
 }
 
 export interface PinnedThreadIdsChangedPayload {
@@ -197,13 +200,17 @@ export interface WorkspaceStatusPayload {
 }
 
 export interface RemoteWorkspaceStatusPayload {
-  hostId: string
-  stackId: string
-  serverName: string
-  stackName: string
-  workspaceDir: string
+  source?: 'servers' | 'manual' | 'cli'
+  projectId?: string
+  displayName?: string
+  endpoint?: string
+  hostId?: string
+  stackId?: string
+  serverName?: string
+  stackName?: string
+  workspaceDir?: string
   appServerWorkspacePath?: string
-  composeDir: string
+  composeDir?: string
   projectName?: string
 }
 
@@ -509,6 +516,10 @@ declare global {
         switch(newPath: string): Promise<void>
         clearSelection(): Promise<void>
         getRecent(): Promise<Array<{ path: string; name: string; lastOpenedAt: string }>>
+        getProjects(): Promise<WorkspaceProjectsPayload>
+        removeRecent(path: string): Promise<void>
+        disconnectRemote(): Promise<void>
+        onProjectsChange(callback: (payload: WorkspaceProjectsPayload) => void): UnsubscribeFn
         clearRecent(): Promise<void>
         getStatus(): Promise<WorkspaceStatusPayload>
         onStatusChange(

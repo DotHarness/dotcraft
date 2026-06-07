@@ -48,6 +48,7 @@ import { configObjectFromWorkspaceCore, type WorkspaceCoreConfigLike } from '../
 interface ConversationWelcomeProps {
   workspacePath: string
   identityWorkspacePath?: string
+  projectKey?: string
   remoteWorkspace?: boolean
   workspaceConfigChange?: WorkspaceConfigChangedPayload | null
   workspaceConfigChangeSeq?: number
@@ -114,12 +115,14 @@ function sanitizeSuggestionTitle(raw: string): string {
 export function ConversationWelcome({
   workspacePath,
   identityWorkspacePath,
+  projectKey,
   remoteWorkspace = false,
   workspaceConfigChange = null,
   workspaceConfigChangeSeq = 0
 }: ConversationWelcomeProps): JSX.Element {
   const t = useT()
   const identityPath = identityWorkspacePath || workspacePath
+  const draftProjectKey = projectKey || workspacePath
   const [contentRevision, setContentRevision] = useState(0)
   const [images, setImages] = useState<ImageAttachment[]>([])
   const [files, setFiles] = useState<ComposerFileAttachment[]>([])
@@ -158,7 +161,7 @@ export function ConversationWelcome({
   const latestDraftTextRef = useRef('')
   const latestDraftSegmentsRef = useRef<ComposerDraftSegment[]>([])
   const latestDraftSelectionRef = useRef<{ start: number; end: number } | null>(null)
-  const initialWelcomeDraftRef = useRef(useUIStore.getState().welcomeDraft)
+  const initialWelcomeDraftRef = useRef(useUIStore.getState().getWelcomeDraftForWorkspace(draftProjectKey))
   const workspaceLlmConfigChangedRef = useRef(false)
   const workspaceModelFromConfigRef = useRef<string | null>(null)
   const suggestionFingerprintRef = useRef<string | null>(null)
@@ -180,6 +183,7 @@ export function ConversationWelcome({
   const { addThread, setActiveThreadId } = useThreadStore()
   const setWelcomeDraft = useUIStore((s) => s.setWelcomeDraft)
   const clearWelcomeDraft = useUIStore((s) => s.clearWelcomeDraft)
+  const setWelcomeDraftWorkspace = useUIStore((s) => s.setWelcomeDraftWorkspace)
   const appBindingApps = useAppBindingStore((s) => s.apps)
   const fetchAppBindings = useAppBindingStore((s) => s.fetchApps)
   const startAppConnection = useAppBindingStore((s) => s.startConnection)
@@ -222,6 +226,10 @@ export function ConversationWelcome({
         .sort((a, b) => a.name.localeCompare(b.name)),
     [skills]
   )
+
+  useEffect(() => {
+    setWelcomeDraftWorkspace(draftProjectKey)
+  }, [draftProjectKey, setWelcomeDraftWorkspace])
   const richRefCatalog = useMemo(
     () => ({
       commands: customCommands,
@@ -804,7 +812,7 @@ export function ConversationWelcome({
     const fallbackCaret = text.length
 
     if (!hasText && !hasImages && !hasFiles && !hasCustomSettings) {
-      clearWelcomeDraft()
+      clearWelcomeDraft(draftProjectKey)
       return
     }
 
@@ -819,8 +827,8 @@ export function ConversationWelcome({
       model,
       reasoning: reasoningConfig,
       approvalPolicy: welcomeApprovalPolicy
-    })
-  }, [clearWelcomeDraft, files, images, modelName, reasoningConfig, setWelcomeDraft, welcomeApprovalPolicy, welcomeMode])
+    }, draftProjectKey)
+  }, [clearWelcomeDraft, draftProjectKey, files, images, modelName, reasoningConfig, setWelcomeDraft, welcomeApprovalPolicy, welcomeMode])
 
   useEffect(() => {
     if (!draftHydratedRef.current) return
@@ -838,6 +846,13 @@ export function ConversationWelcome({
       flushWelcomeDraft()
     }
   }, [flushWelcomeDraft])
+
+  const switchWelcomeWorkspace = useCallback(async (nextWorkspacePath: string): Promise<void> => {
+    if (nextWorkspacePath === workspacePath) return
+    flushWelcomeDraft()
+    await window.api.workspace.switch(nextWorkspacePath)
+    useUIStore.getState().setWelcomeDraftWorkspace(nextWorkspacePath)
+  }, [flushWelcomeDraft, workspacePath])
 
   const handleModelChange = useCallback(
     async (nextModel: string): Promise<void> => {
@@ -981,7 +996,7 @@ export function ConversationWelcome({
       latestDraftTextRef.current = ''
       latestDraftSegmentsRef.current = []
       latestDraftSelectionRef.current = null
-      clearWelcomeDraft()
+      clearWelcomeDraft(draftProjectKey)
       richRef.current?.clear()
       setImages([])
       setFiles([])
@@ -1016,6 +1031,7 @@ export function ConversationWelcome({
     canUseThreadGoals,
     clearWelcomeDraft,
     connectionStatus,
+    draftProjectKey,
     modelLoading,
     setActiveThreadId,
     showGoalUnavailable,
@@ -1025,7 +1041,7 @@ export function ConversationWelcome({
     welcomeApprovalPolicy,
     welcomeMode,
     modelName,
-    reasoningConfig,
+    reasoningConfig
   ])
 
   const executeWelcomeGoalCommand = useCallback(async (command: GoalSlashCommand): Promise<boolean> => {
@@ -1098,7 +1114,7 @@ export function ConversationWelcome({
       latestDraftTextRef.current = ''
       latestDraftSegmentsRef.current = []
       latestDraftSelectionRef.current = null
-      clearWelcomeDraft()
+      clearWelcomeDraft(draftProjectKey)
       const { inputParts } = buildComposerInputParts({
         text: trimmed,
         segments,
@@ -1144,6 +1160,7 @@ export function ConversationWelcome({
     reasoningConfig,
     modelLoading,
     clearWelcomeDraft,
+    draftProjectKey,
     executeWelcomeGoalCommand,
     remoteWorkspace,
     t
@@ -1569,6 +1586,7 @@ export function ConversationWelcome({
                   }}
                   onBaseRefChange={setWelcomeBaseRef}
                   onWorktreeBranchNameChange={setWelcomeWorktreeBranchName}
+                  onWelcomeWorkspaceChange={switchWelcomeWorkspace}
                 />
               }
             />

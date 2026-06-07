@@ -105,9 +105,8 @@ describe('ThreadList subagent entries', () => {
 
     renderList()
 
-    const pinnedHeading = screen.getByText('Pinned')
-    const todayHeading = screen.getByText('Today')
-    expect(pinnedHeading.compareDocumentPosition(todayHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.getByText('Pinned')).toBeInTheDocument()
+    expect(screen.queryByText('Today')).not.toBeInTheDocument()
 
     const rows = screen.getAllByTestId(/thread-entry-/)
     expect(rows.map((row) => row.getAttribute('data-testid'))).toEqual([
