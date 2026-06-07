@@ -33,6 +33,7 @@ function renderList(props: {
   workspacePath?: string
   localWorkspacePath?: string
   localActionsDisabled?: boolean
+  foregroundOpening?: boolean
 } = {}): void {
   render(
     <LocaleProvider>
@@ -102,7 +103,7 @@ describe('ThreadList project-first layout', () => {
     expect(screen.getByText('Patch project rail')).toBeInTheDocument()
   })
 
-  it('renders pinned rows above Projects and does not duplicate pinned threads inside projects', () => {
+  it('renders pinned rows above Projects and does not duplicate pinned threads inside projects', async () => {
     const pinnedA = makeThread('pinned-a', 'Pinned A', 3)
     const normalA = makeThread('normal-a', 'Normal A', 8)
     const pinnedB = makeThread('pinned-b', 'Pinned B', 5)
@@ -149,6 +150,12 @@ describe('ThreadList project-first layout', () => {
     expect(screen.queryByTestId('project-thread-pinned-/workspace/b-normal-b')).not.toBeInTheDocument()
     expect(screen.getByText('Normal A')).toBeInTheDocument()
     expect(screen.getByText('Normal B')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('Pinned B'))
+    await waitFor(() => {
+      expect(workspaceSwitch).toHaveBeenCalledWith('/workspace/b')
+      expect(useThreadStore.getState().activeThreadId).toBe('pinned-b')
+    })
   })
 
   it('clicking a project row collapses it without switching workspace', () => {
@@ -416,6 +423,38 @@ describe('ThreadList project-first layout', () => {
     renderList()
 
     expect(screen.getByRole('button', { name: 'b' })).toBeInTheDocument()
+    expect(screen.queryByText('Thread from A')).not.toBeInTheDocument()
+  })
+
+  it('renders skeleton rows inside the foreground project while it is opening', () => {
+    useThreadStore.getState().setThreadList([
+      makeThread('thread-a', 'Thread from A')
+    ], '/workspace/a')
+    useWorkspaceProjectsStore.getState().setPayload({
+      foregroundWorkspacePath: '/workspace/b',
+      foregroundProjectId: '/workspace/b',
+      secondaryLimit: 8,
+      projects: [
+        {
+          kind: 'local',
+          path: '/workspace/b',
+          identityWorkspacePath: '/workspace/b',
+          name: 'b',
+          state: 'foreground',
+          running: true,
+          loaded: false,
+          threadCount: 0,
+          threads: [],
+          pinnedThreadIds: []
+        }
+      ]
+    })
+
+    renderList({ foregroundOpening: true })
+
+    expect(screen.getByRole('button', { name: 'b' })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getAllByTestId('project-thread-skeleton-row')).toHaveLength(4)
+    expect(screen.queryByLabelText('Connecting')).not.toBeInTheDocument()
     expect(screen.queryByText('Thread from A')).not.toBeInTheDocument()
   })
 

@@ -3093,6 +3093,7 @@ export function App(): JSX.Element {
                     workspacePath={workspaceStatus.remote?.workspaceDir?.trim() || workspacePath}
                     localWorkspacePath={workspacePath}
                     remoteWorkspace={remoteWorkspaceActive}
+                    workspaceOpening={status === 'connecting'}
                   />
                 )
           }

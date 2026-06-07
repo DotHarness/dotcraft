@@ -41,6 +41,7 @@ import {
 import { ComposerWorkspaceFooter, type ComposerWorkspaceMode } from './ComposerWorkspaceFooter'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { PillSwitch } from '../ui/PillSwitch'
+import { Skeleton } from '../ui/Skeleton'
 import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
 import type { WorkspaceConfigChangedPayload } from '../../utils/workspaceConfigChanged'
 import { configObjectFromWorkspaceCore, type WorkspaceCoreConfigLike } from '../../utils/workspaceCoreConfig'
@@ -195,6 +196,7 @@ export function ConversationWelcome({
   const [welcomeAppBusyId, setWelcomeAppBusyId] = useState<string | null>(null)
 
   const isConnected = connectionStatus === 'connected'
+  const openingWorkspace = connectionStatus === 'connecting'
   const busy = starting || !isConnected
   const showMentionPopover = atQuery !== null && !mentionDismissed && !remoteWorkspace
   const canUseCommandPicker = capabilities?.commandManagement === true
@@ -1342,9 +1344,15 @@ export function ConversationWelcome({
               color: 'var(--text-secondary)',
               margin: 0,
               textAlign: 'center',
-              maxWidth: '520px'
+              width: 'min(520px, 100%)',
+              maxWidth: '520px',
+              minHeight: '20px'
             }}>
-              {isConnected
+              {openingWorkspace ? (
+                <span data-testid="welcome-hint-skeleton" style={{ display: 'block', width: '100%' }}>
+                  <Skeleton width="84%" height={14} radius={4} style={{ margin: '3px auto' }} />
+                </span>
+              ) : isConnected
                 ? t('welcomeComposer.hint.select')
                 : t('welcomeComposer.hint.connecting')}
             </p>
@@ -1571,23 +1579,27 @@ export function ConversationWelcome({
                 </div>
               }
               belowFooter={
-                <ComposerWorkspaceFooter
-                  workspacePath={workspacePath}
-                  mode={welcomeWorkspaceMode}
-                  variant="welcome"
-                  remoteWorkspace={remoteWorkspace}
-                  baseRef={welcomeBaseRef}
-                  worktreeBranchName={welcomeWorktreeBranchName}
-                  onWelcomeModeChange={(nextMode) => {
-                    setWelcomeWorkspaceMode(nextMode)
-                    if (nextMode === 'local') {
-                      setWelcomeWorktreeBranchName(null)
-                    }
-                  }}
-                  onBaseRefChange={setWelcomeBaseRef}
-                  onWorktreeBranchNameChange={setWelcomeWorktreeBranchName}
-                  onWelcomeWorkspaceChange={switchWelcomeWorkspace}
-                />
+                openingWorkspace ? (
+                  <WelcomeFooterSkeleton />
+                ) : (
+                  <ComposerWorkspaceFooter
+                    workspacePath={workspacePath}
+                    mode={welcomeWorkspaceMode}
+                    variant="welcome"
+                    remoteWorkspace={remoteWorkspace}
+                    baseRef={welcomeBaseRef}
+                    worktreeBranchName={welcomeWorktreeBranchName}
+                    onWelcomeModeChange={(nextMode) => {
+                      setWelcomeWorkspaceMode(nextMode)
+                      if (nextMode === 'local') {
+                        setWelcomeWorktreeBranchName(null)
+                      }
+                    }}
+                    onBaseRefChange={setWelcomeBaseRef}
+                    onWorktreeBranchNameChange={setWelcomeWorktreeBranchName}
+                    onWelcomeWorkspaceChange={switchWelcomeWorkspace}
+                  />
+                )
               }
             />
           </div>
@@ -1601,7 +1613,9 @@ export function ConversationWelcome({
               gap: '4px'
             }}
           >
-            {displayedSuggestions.map((s, idx) => {
+            {openingWorkspace ? (
+              <WelcomeSuggestionSkeletonList />
+            ) : displayedSuggestions.map((s, idx) => {
               const Icon = s.icon
               return (
                 <button
@@ -1657,6 +1671,66 @@ export function ConversationWelcome({
           </div>
         </div>
       </div>
+    </div>
+  )
+}
+
+function WelcomeFooterSkeleton(): JSX.Element {
+  const t = useT()
+  return (
+    <div
+      role="status"
+      aria-busy="true"
+      aria-label={t('threadList.loading')}
+      data-testid="welcome-footer-skeleton"
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+        minHeight: '28px',
+        minWidth: 0,
+        flexWrap: 'wrap'
+      }}
+    >
+      <Skeleton width={104} height={18} radius={999} />
+      <Skeleton width={112} height={18} radius={999} />
+      <Skeleton width={168} height={18} radius={999} />
+    </div>
+  )
+}
+
+function WelcomeSuggestionSkeletonList(): JSX.Element {
+  const t = useT()
+  const rows = ['58%', '44%', '52%', '48%']
+  return (
+    <div
+      role="status"
+      aria-busy="true"
+      aria-label={t('threadList.loading')}
+      style={{
+        width: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '4px'
+      }}
+    >
+      {rows.map((width, index) => (
+        <div
+          key={index}
+          data-testid="welcome-suggestion-skeleton"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            minHeight: '34px',
+            padding: '6px 10px',
+            boxSizing: 'border-box'
+          }}
+        >
+          <Skeleton width={16} height={16} radius={4} />
+          <Skeleton width={width} height={12} />
+        </div>
+      ))}
     </div>
   )
 }

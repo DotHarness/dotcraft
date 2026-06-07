@@ -47,12 +47,14 @@ interface ThreadListProps {
   workspacePath?: string
   localWorkspacePath?: string
   localActionsDisabled?: boolean
+  foregroundOpening?: boolean
 }
 
 export function ThreadList({
   workspacePath,
   localWorkspacePath,
-  localActionsDisabled = false
+  localActionsDisabled = false,
+  foregroundOpening = false
 }: ThreadListProps = {}): JSX.Element {
   const t = useT()
   const { threadList, threadListProjectKey, searchQuery, loading, pinnedThreadIds } = useThreadStore()
@@ -189,15 +191,23 @@ export function ThreadList({
         {projectsForRender.map((project) => {
           const projectKey = projectIdentity(project)
           const isForeground = isProjectForeground(project, foregroundProjectId, foregroundWorkspacePath)
-          const cold = isColdProject(project)
-          const collapsed = cold || collapsedProjects.has(projectKey)
           const cachedProjectThreads = orderSubAgentsAfterParents(filterProjectThreads(project, searchQuery))
           const foregroundListMatchesProject =
             isForeground && isForegroundThreadListForProject(threadListProjectKey, projectKey)
+          const openingProject = isForeground && (
+            foregroundOpening ||
+            project.state === 'connecting' ||
+            (loading && !foregroundListMatchesProject)
+          )
+          const cold = isColdProject(project) && !openingProject
+          const collapsed = cold || (!openingProject && collapsedProjects.has(projectKey))
           const rawProjectThreads = foregroundListMatchesProject ? orderedThreads : cachedProjectThreads
           const projectPinnedIds = foregroundListMatchesProject ? pinnedThreadIds : (project.pinnedThreadIds ?? [])
           const projectThreads = excludePinnedThreadTrees(rawProjectThreads, projectPinnedIds)
           const activity = getProjectActivity(rawProjectThreads)
+          const showProjectThreadSkeleton =
+            openingProject &&
+            (foregroundOpening || project.state === 'connecting' || projectThreads.length === 0)
           return (
             <div key={projectKey} style={{ marginBottom: '6px' }}>
               <ProjectHeader
@@ -219,16 +229,22 @@ export function ThreadList({
               />
               {!collapsed && (
                 <>
-                  {projectThreads.length === 0 && project.loaded && searchQuery && (
-                    <ProjectHint label={t('threadList.noSearchResults')} />
+                  {showProjectThreadSkeleton ? (
+                    <ProjectThreadSkeletonList />
+                  ) : (
+                    <>
+                      {projectThreads.length === 0 && project.loaded && searchQuery && (
+                        <ProjectHint label={t('threadList.noSearchResults')} />
+                      )}
+                      {projectThreads.map((thread) => (
+                        isForeground ? (
+                          <ThreadEntryWrapper key={thread.id} thread={thread} />
+                        ) : (
+                          <ReadonlyThreadRow key={thread.id} thread={thread} project={project} />
+                        )
+                      ))}
+                    </>
                   )}
-                  {projectThreads.map((thread) => (
-                    isForeground ? (
-                      <ThreadEntryWrapper key={thread.id} thread={thread} />
-                    ) : (
-                      <ReadonlyThreadRow key={thread.id} thread={thread} project={project} />
-                    )
-                  ))}
                 </>
               )}
             </div>
@@ -523,7 +539,13 @@ function PinnedProjectSection({ rows }: { rows: PinnedProjectRow[] }): JSX.Eleme
         interactiveForeground ? (
           <ThreadEntry key={`${projectIdentity(project)}:${thread.id}`} thread={thread} />
         ) : (
-          <ReadonlyThreadRow key={`${projectIdentity(project)}:${thread.id}`} thread={thread} project={project} pinned />
+          <ReadonlyThreadRow
+            key={`${projectIdentity(project)}:${thread.id}`}
+            thread={thread}
+            project={project}
+            pinned
+            variant="pinned"
+          />
         )
       ))}
     </div>
@@ -573,11 +595,7 @@ function ProjectHeader({
     ? (project.remote?.source === 'servers' ? Server : Cloud)
     : (collapsed ? Folder : FolderOpen)
   const detailLabel = project.remote?.displayPath || project.remote?.endpoint || project.identityWorkspacePath || project.path
-  const iconLabel = cold
-    ? t('projectsRail.notRunning')
-    : project.state === 'connecting'
-      ? t('projectsRail.connecting')
-      : detailLabel
+  const iconLabel = cold ? t('projectsRail.notRunning') : detailLabel
 
   async function openProject(): Promise<void> {
     if (active) return
@@ -713,8 +731,6 @@ function ProjectHeader({
           <ActionTooltip label={project.errorMessage || t('projectsRail.error')}>
             <AlertCircle size={14} aria-hidden style={{ color: 'var(--error)' }} />
           </ActionTooltip>
-        ) : project.state === 'connecting' ? (
-          <RunningSpinner label={t('projectsRail.connecting')} />
         ) : collapsed && activity === 'running' ? (
           <RunningSpinner label={t('threadEntry.turnRunning')} />
         ) : collapsed && activity === 'waiting' ? (
@@ -753,6 +769,52 @@ function ProjectHeader({
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+function ProjectThreadSkeletonList(): JSX.Element {
+  const t = useT()
+  const rows = [
+    { title: '68%', time: 30 },
+    { title: '54%', time: 38 },
+    { title: '74%', time: 24 },
+    { title: '46%', time: 34 }
+  ]
+
+  return (
+    <div
+      role="status"
+      aria-busy="true"
+      aria-label={t('threadList.loading')}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '2px',
+        paddingTop: '2px',
+        paddingBottom: '4px'
+      }}
+    >
+      {rows.map((row, index) => (
+        <div
+          key={index}
+          data-testid="project-thread-skeleton-row"
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'minmax(0, 1fr) minmax(24px, max-content)',
+            alignItems: 'center',
+            columnGap: '7px',
+            width: 'calc(100% - 32px)',
+            minHeight: '30px',
+            margin: '2px 10px 2px 22px',
+            padding: '6px 12px',
+            boxSizing: 'border-box'
+          }}
+        >
+          <Skeleton width={row.title} height={12} />
+          <Skeleton width={row.time} height={10} />
+        </div>
+      ))}
     </div>
   )
 }
@@ -829,11 +891,13 @@ function ProjectHint({ label }: { label: string }): JSX.Element {
 function ReadonlyThreadRow({
   thread,
   project,
-  pinned = false
+  pinned = false,
+  variant = 'project'
 }: {
   thread: ThreadSummary
   project: WorkspaceProjectSummary
   pinned?: boolean
+  variant?: 'project' | 'pinned'
 }): JSX.Element {
   const locale = useLocale()
   const t = useT()
@@ -842,6 +906,7 @@ function ReadonlyThreadRow({
   const waiting = isThreadWaiting(thread)
   const displayName = thread.displayName ?? t('sidebar.newConversation')
   const relativeTime = formatRelativeTime(thread.lastActiveAt, new Date(), locale)
+  const pinnedVariant = variant === 'pinned'
 
   async function openThread(): Promise<void> {
     if (!isRemoteProject(project)) {
@@ -858,13 +923,14 @@ function ReadonlyThreadRow({
         onClick={() => void openThread()}
         data-testid={`project-thread-entry-${projectIdentity(project)}-${thread.id}`}
         style={{
-          display: 'grid',
-          gridTemplateColumns: 'minmax(0, 1fr) minmax(24px, max-content)',
+          display: pinnedVariant ? 'flex' : 'grid',
+          gridTemplateColumns: pinnedVariant ? undefined : 'minmax(0, 1fr) minmax(24px, max-content)',
           alignItems: 'center',
-          columnGap: '7px',
-          width: 'calc(100% - 32px)',
-          margin: '2px 10px 2px 22px',
-          padding: '6px 12px',
+          columnGap: pinnedVariant ? undefined : '7px',
+          gap: pinnedVariant ? '6px' : undefined,
+          width: pinnedVariant ? 'calc(100% - 20px)' : 'calc(100% - 32px)',
+          margin: pinnedVariant ? '2px 10px' : '2px 10px 2px 22px',
+          padding: pinnedVariant ? '6px 12px 6px 6px' : '6px 12px',
           border: 'none',
           borderRadius: 'var(--sidebar-control-radius)',
           backgroundColor: 'transparent',
@@ -879,34 +945,31 @@ function ReadonlyThreadRow({
           e.currentTarget.style.backgroundColor = 'transparent'
         }}
       >
+        {pinned && pinnedVariant && (
+          <ReadonlyPinnedIcon
+            label={t('threadGroup.pinned')}
+            testId={`project-thread-pinned-${projectIdentity(project)}-${thread.id}`}
+          />
+        )}
         <span
           style={{
             minWidth: 0,
-            display: 'flex',
+            display: pinnedVariant ? 'block' : 'flex',
             alignItems: 'center',
             gap: '6px',
+            flex: pinnedVariant ? '1 1 auto' : undefined,
+            overflow: pinnedVariant ? 'hidden' : undefined,
+            textOverflow: pinnedVariant ? 'ellipsis' : undefined,
+            whiteSpace: pinnedVariant ? 'nowrap' : undefined,
             fontSize: 'var(--type-ui-size)',
             lineHeight: 'var(--type-ui-line-height)'
           }}
         >
-          {pinned && (
-            <ActionTooltip label={t('threadGroup.pinned')} placement="right">
-              <span
-                aria-label={t('threadGroup.pinned')}
-                data-testid={`project-thread-pinned-${projectIdentity(project)}-${thread.id}`}
-                style={{
-                  width: '18px',
-                  minWidth: '18px',
-                  height: '20px',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: 'var(--text-secondary)'
-                }}
-              >
-                <PinIcon filled />
-              </span>
-            </ActionTooltip>
+          {pinned && !pinnedVariant && (
+            <ReadonlyPinnedIcon
+              label={t('threadGroup.pinned')}
+              testId={`project-thread-pinned-${projectIdentity(project)}-${thread.id}`}
+            />
           )}
           <span
             style={{
@@ -924,6 +987,8 @@ function ReadonlyThreadRow({
             color: 'var(--text-dimmed)',
             fontSize: 'var(--type-secondary-size)',
             lineHeight: 'var(--type-secondary-line-height)',
+            marginLeft: pinnedVariant ? 'auto' : undefined,
+            flexShrink: pinnedVariant ? 0 : undefined,
             whiteSpace: 'nowrap'
           }}
         >
@@ -938,6 +1003,35 @@ function ReadonlyThreadRow({
           )}
         </span>
       </button>
+    </ActionTooltip>
+  )
+}
+
+function ReadonlyPinnedIcon({
+  label,
+  testId
+}: {
+  label: string
+  testId: string
+}): JSX.Element {
+  return (
+    <ActionTooltip label={label} placement="right">
+      <span
+        aria-label={label}
+        data-testid={testId}
+        style={{
+          width: '18px',
+          minWidth: '18px',
+          height: '24px',
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: 'var(--text-secondary)',
+          flexShrink: 0
+        }}
+      >
+        <PinIcon filled />
+      </span>
     </ActionTooltip>
   )
 }

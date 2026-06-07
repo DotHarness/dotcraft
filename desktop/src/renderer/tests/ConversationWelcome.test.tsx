@@ -1351,6 +1351,27 @@ describe('ConversationWelcome composer', () => {
     expect(screen.queryAllByTestId('welcome-suggestion-skeleton')).toHaveLength(0)
   })
 
+  it('renders opening skeletons for welcome hint, workspace footer, and quick starts while connecting', async () => {
+    useConnectionStore.setState({
+      status: 'connecting',
+      serverInfo: null,
+      dashboardUrl: null,
+      errorMessage: null,
+      errorType: null,
+      binarySource: null,
+      capabilities: null
+    })
+
+    renderWelcome()
+
+    await waitFor(() => {
+      expect(screen.getByTestId('welcome-hint-skeleton')).toBeInTheDocument()
+      expect(screen.getByTestId('welcome-footer-skeleton')).toBeInTheDocument()
+      expect(screen.getAllByTestId('welcome-suggestion-skeleton')).toHaveLength(4)
+    })
+    expect(screen.queryByRole('button', { name: 'Explore this workspace' })).not.toBeInTheDocument()
+  })
+
   it('does not request welcome suggestions when the workspace config disables them', async () => {
     fileReadFile.mockResolvedValue(
       JSON.stringify({
