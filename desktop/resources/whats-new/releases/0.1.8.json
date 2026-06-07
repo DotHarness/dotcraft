@@ -3,7 +3,6 @@
   "cards": [
     {
       "id": "agent-teams",
-      "icon": "teams",
       "title": {
         "en": "Agent Teams",
         "zh-Hans": "智能体团队"
@@ -21,7 +20,6 @@
     },
     {
       "id": "app-integrations",
-      "icon": "app",
       "title": {
         "en": "App Integrations",
         "zh-Hans": "应用集成"
@@ -39,7 +37,6 @@
     },
     {
       "id": "chatgpt-plan-reuse",
-      "icon": "subscription",
       "title": {
         "en": "Reuse Your ChatGPT Plan",
         "zh-Hans": "复用 ChatGPT 订阅"

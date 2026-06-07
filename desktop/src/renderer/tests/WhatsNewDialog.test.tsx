@@ -58,7 +58,7 @@ describe('WhatsNewDialog', () => {
     installApi()
   })
 
-  it('renders the active release cards with icon fallback media', () => {
+  it('renders the active release cards with skeleton fallback media', () => {
     renderDialog()
 
     expect(screen.getByRole('dialog', { name: "What's New in DotCraft" })).toBeInTheDocument()
@@ -69,7 +69,7 @@ describe('WhatsNewDialog', () => {
     expect(screen.getAllByRole('img', { name: 'Downloading preview...' })).toHaveLength(3)
   })
 
-  it('swaps ready cached media in and falls back from failed images', () => {
+  it('swaps ready cached media in and falls back to a skeleton from failed images', () => {
     renderDialog({ mediaStates: readyMediaStates() })
 
     const images = document.body.querySelectorAll('img')
@@ -78,7 +78,7 @@ describe('WhatsNewDialog', () => {
     fireEvent.error(images[0])
 
     expect(document.body.querySelectorAll('img')).toHaveLength(2)
-    expect(screen.getAllByRole('img', { name: 'Preview unavailable' })).toHaveLength(1)
+    expect(screen.getAllByRole('img', { name: 'Downloading preview...' })).toHaveLength(1)
   })
 
   it('closes from the primary action', () => {

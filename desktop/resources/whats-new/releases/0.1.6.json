@@ -3,7 +3,6 @@
   "cards": [
     {
       "id": "connect-im",
-      "icon": "message",
       "title": {
         "en": "Background Channels",
         "zh-Hans": "后台渠道"
@@ -21,7 +20,6 @@
     },
     {
       "id": "dreams",
-      "icon": "dreams",
       "title": {
         "en": "Dreams",
         "zh-Hans": "梦境"
@@ -39,7 +37,6 @@
     },
     {
       "id": "goal",
-      "icon": "goal",
       "title": {
         "en": "Goal",
         "zh-Hans": "目标"

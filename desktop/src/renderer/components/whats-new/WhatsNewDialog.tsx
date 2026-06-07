@@ -1,14 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 import {
-  Blocks,
   ChevronLeft,
   ChevronRight,
-  KeyRound,
-  MessageCircle,
-  Moon,
-  Target,
-  Users,
   X,
   Sparkles,
   ExternalLink
@@ -19,34 +13,16 @@ import {
   getLocalizedWhatsNewText,
   getWhatsNewMediaStateKey,
   type WhatsNewCard,
-  type WhatsNewIcon,
   type WhatsNewMediaState,
   type WhatsNewRelease
 } from '../../../shared/whatsNew'
 import { useLocale, useT } from '../../contexts/LocaleContext'
+import { Skeleton } from '../ui/Skeleton'
 
 interface WhatsNewDialogProps {
   releases: WhatsNewRelease[]
   mediaStates: Record<string, WhatsNewMediaState>
   onClose: () => void
-}
-
-const ICONS: Record<WhatsNewIcon, typeof MessageCircle> = {
-  message: MessageCircle,
-  dreams: Moon,
-  goal: Target,
-  teams: Users,
-  app: Blocks,
-  subscription: KeyRound
-}
-
-const ICON_COLORS: Record<WhatsNewIcon, string> = {
-  message: '#38bdf8',
-  dreams: '#a78bfa',
-  goal: '#34d399',
-  teams: '#f472b6',
-  app: '#fb923c',
-  subscription: '#22d3ee'
 }
 
 export function WhatsNewDialog({
@@ -237,47 +213,29 @@ function WhatsNewCardView({
   onMediaFailed: () => void
 }): JSX.Element {
   const t = useT()
-  const Icon = ICONS[card.icon]
-  const color = ICON_COLORS[card.icon]
   const title = getLocalizedWhatsNewText(card.title, locale)
   const summary = getLocalizedWhatsNewText(card.summary, locale)
   const mediaUrl = card.media && mediaState?.status === 'ready'
     ? mediaState.cachedUrl ?? null
     : null
-  const mediaPlaceholderLabel = card.media
-    ? (mediaState?.status === 'failed' || mediaFailed
-        ? t('whatsNew.mediaUnavailable')
-        : t('whatsNew.mediaLoading'))
-    : null
-  const fallbackLabel = mediaPlaceholderLabel ?? t('whatsNew.mediaFallback')
+  const showPreview = Boolean(mediaUrl) && !mediaFailed
 
   return (
     <article style={cardStyle}>
-      <div style={mediaFrameStyle}>
-        {mediaUrl && !mediaFailed ? (
+      <div
+        style={mediaFrameStyle}
+        {...(showPreview ? {} : { role: 'img', 'aria-label': t('whatsNew.mediaLoading') })}
+      >
+        {showPreview ? (
           <img
-            src={mediaUrl}
+            src={mediaUrl as string}
             alt=""
             loading="lazy"
             onError={onMediaFailed}
             style={mediaImageStyle}
           />
         ) : (
-          <div
-            role="img"
-            aria-label={fallbackLabel}
-            style={{
-              ...mediaFallbackStyle,
-              color
-            }}
-          >
-            <Icon size={36} strokeWidth={1.8} aria-hidden="true" />
-            {mediaPlaceholderLabel && (
-              <span style={mediaPlaceholderTextStyle}>
-                {mediaPlaceholderLabel}
-              </span>
-            )}
-          </div>
+          <Skeleton width="100%" height="100%" radius={0} style={{ display: 'block' }} />
         )}
       </div>
       <div style={cardBodyStyle}>
@@ -392,7 +350,8 @@ const mediaFrameStyle: CSSProperties = {
   aspectRatio: '16 / 9',
   overflow: 'hidden',
   borderBottom: '1px solid var(--border-subtle)',
-  background: 'var(--bg-tertiary)'
+  // Lighter than the skeleton's --bg-tertiary so the loading pulse stays visible.
+  background: 'var(--bg-secondary)'
 }
 
 const mediaImageStyle: CSSProperties = {
@@ -400,27 +359,6 @@ const mediaImageStyle: CSSProperties = {
   height: '100%',
   objectFit: 'cover',
   display: 'block'
-}
-
-const mediaFallbackStyle: CSSProperties = {
-  width: '100%',
-  height: '100%',
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: 8,
-  background:
-    'linear-gradient(135deg, rgba(56, 189, 248, 0.12), rgba(52, 211, 153, 0.10) 55%, rgba(245, 158, 11, 0.10))'
-}
-
-const mediaPlaceholderTextStyle: CSSProperties = {
-  maxWidth: '80%',
-  color: 'var(--text-secondary)',
-  fontSize: 12,
-  lineHeight: '16px',
-  textAlign: 'center',
-  overflowWrap: 'anywhere'
 }
 
 const cardBodyStyle: CSSProperties = {

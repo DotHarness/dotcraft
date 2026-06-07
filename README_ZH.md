@@ -20,6 +20,22 @@ DotCraft 是一个 .NET 10 / C# Agent Harness。它围绕真实项目目录组�
 
 ## 亮点功能
 
+### 多工作区 — 每个项目都有自己的 Agent
+
+![DotCraft 多工作区](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/multi-workspace.gif)
+
+多数 Agent 把一个工作区摊到所有项目上；DotCraft 反过来：每个项目都是独立工作区，有自己的 `.craft/` 记忆、技能、配置与模型选择。Desktop 可同时打开多个项目并瞬间切换——每个都从你离开时的状态继续，迁移、交接或备份其中一个，都会带走它完整的 Agent。
+
+[了解更多 →](https://dotharness.github.io/dotcraft/zh/features/project-first)
+
+### Desktop 扩展 — 插件在 Desktop 内提供完整界面
+
+![DotCraft Desktop 扩展](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/desktop-extensions.gif)
+
+插件现在可以直接在 Desktop 内渲染自己的界面，而不只是添加工具。Oratorio 看板是首个：把它连到一个会话，看板就作为完整视图打开，读取条目、排布工作，并和其他工具一样走同一套审批与审计链路。
+
+[了解更多 →](https://dotharness.github.io/dotcraft/zh/developing/integrations/desktop-extensions)
+
 ### Goal — 持久化的会话目标
 
 ![DotCraft Goals](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/goal.gif)

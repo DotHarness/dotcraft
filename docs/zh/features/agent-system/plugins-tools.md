@@ -34,6 +34,14 @@ DotCraft 插件用来把可复用的工作区能力打包成可安装扩展，�
 插件内置的 skill 跟随插件生命周期：启用插件时可用，禁用或移除插件后不再进入 Agent 上下文。
 Desktop extension 也跟随插件生命周期：只有插件安装并启用后，Desktop 才会加载它的本地 bundle。
 
+### Desktop 扩展
+
+有些插件还会带一个 **Desktop 扩展**——一个直接在 Desktop 内打开的面板，而不只是添加工具。比如 Oratorio 插件，就把它的看板作为一个完整视图嵌进来，可从侧边栏打开。
+
+![Oratorio Desktop 扩展](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/desktop-extensions.gif)
+
+扩展能做什么、如何开发，见 [Desktop 扩展](../../developing/integrations/desktop-extensions)。
+
 ### 在 Desktop 中安装
 
 ![Plugin page](https://github.com/DotHarness/resources/raw/master/dotcraft/plugins.png)
@@ -125,6 +133,7 @@ $plugin-creator 创建一个本地插件，用 Python 进程提供 EchoText dyna
 ## 相关文档
 
 - [Skills 与自学习](./skills) — Skill 与 Plugin 的关系
+- [Desktop 扩展](../../developing/integrations/desktop-extensions) — 在 Desktop 内嵌入自有界面的插件
 - [构建 App](../../developing/integrations/build-an-app) — manifest 字段、tool schema 与 Desktop extension 开发
 - [可观测性](../self-hosted/observability) — 在 Dashboard 看插件 tool 调用与审批
 - [安全与沙箱](../self-hosted/security) — 工具能力的全局约束

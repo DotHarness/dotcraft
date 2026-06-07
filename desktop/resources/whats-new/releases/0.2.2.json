@@ -3,7 +3,6 @@
   "cards": [
     {
       "id": "conversation-assistant",
-      "icon": "message",
       "title": {
         "en": "Conversation Assistant",
         "zh-Hans": "对话助手"
@@ -21,7 +20,6 @@
     },
     {
       "id": "thread-tools",
-      "icon": "teams",
       "title": {
         "en": "Thread Tools",
         "zh-Hans": "会话工具"
@@ -39,7 +37,6 @@
     },
     {
       "id": "remote-servers",
-      "icon": "app",
       "title": {
         "en": "Remote Servers",
         "zh-Hans": "远程服务器"

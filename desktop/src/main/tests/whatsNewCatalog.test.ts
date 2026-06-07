@@ -34,7 +34,6 @@ function makeRelease(version: string): Record<string, unknown> {
     cards: [
       {
         id: 'demo',
-        icon: 'message',
         title: {
           en: 'Demo',
           'zh-Hans': 'Demo'
@@ -86,7 +85,6 @@ describe('WhatsNewCatalog', () => {
       cards: [
         {
           id: 'demo',
-          icon: 'message',
           title: { en: 'Demo' },
           summary: { en: 'Demo summary.' }
         }

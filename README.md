@@ -20,6 +20,22 @@ DotCraft is a .NET 10 / C# Agent Harness. It organizes AI workflows around a rea
 
 ## Highlights
 
+### Multi-Workspace — Every Project Gets Its Own Agent
+
+![DotCraft multi-workspace](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/multi-workspace.gif)
+
+Most agents stretch one workspace across every project. DotCraft does the opposite: every project is its own workspace, with its own `.craft/` memory, skills, config, and model choices. Desktop keeps several open at once and switches between them instantly — each project resumes right where you left it, and moving, handing off, or backing one up carries its whole agent along.
+
+[Learn more →](https://dotharness.github.io/dotcraft/features/project-first)
+
+### Desktop Extensions — Plugins with a Full View Inside Desktop
+
+![DotCraft Desktop extensions](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/desktop-extensions.gif)
+
+Plugins can now render their own UI right inside Desktop, not just add tools. The Oratorio board is the first: connect it to a thread and its board opens as a full view, reading items and queuing work through the same approvals and audit trail as any tool.
+
+[Learn more →](https://dotharness.github.io/dotcraft/developing/integrations/desktop-extensions)
+
 ### Goal — Persistent Conversation Objectives
 
 ![DotCraft Goals](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/goal.gif)

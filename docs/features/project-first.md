@@ -2,6 +2,10 @@
 
 In DotCraft, the workspace is your project folder. Everything the agent builds up there — sessions, long-term memory, skills, automations, plugins, and model choices — lives in one `.craft/` folder at the project root. It travels with the project: commit it alongside your code, back it up, sync it to another machine, or hand it to a teammate, and they open the same agent you do.
 
+## One Workspace per Project
+
+Many agents share a single workspace across every project; DotCraft gives each project its own. A project's `.craft/` holds only that project's memory, skills, automations, and model choices, so each project stays independently configured and isolated from the rest. Desktop can keep several of these workspaces open at once and switch between them in place.
+
 ## Key Concepts
 
 | Concept | Meaning |

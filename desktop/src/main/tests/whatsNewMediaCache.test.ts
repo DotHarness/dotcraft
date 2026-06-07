@@ -97,7 +97,6 @@ describe('WhatsNewMediaCache', () => {
       cards: [
         {
           id: asset.cardId,
-          icon: 'message',
           title: {
             en: 'Demo',
             'zh-Hans': 'Demo'

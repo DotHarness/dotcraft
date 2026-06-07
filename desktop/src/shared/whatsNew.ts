@@ -1,15 +1,5 @@
 import { SUPPORTED_LOCALE_VALUES, type AppLocale, type EnglishRequiredLocalizedText } from './locales'
 
-export type WhatsNewIcon = 'message' | 'dreams' | 'goal' | 'teams' | 'app' | 'subscription'
-export const WHATS_NEW_ICONS: readonly WhatsNewIcon[] = [
-  'message',
-  'dreams',
-  'goal',
-  'teams',
-  'app',
-  'subscription'
-]
-
 export type LocalizedWhatsNewText = EnglishRequiredLocalizedText
 
 export interface WhatsNewMedia {
@@ -21,7 +11,6 @@ export interface WhatsNewMedia {
 
 export interface WhatsNewCard {
   id: string
-  icon: WhatsNewIcon
   title: LocalizedWhatsNewText
   summary: LocalizedWhatsNewText
   media?: WhatsNewMedia
@@ -55,10 +44,6 @@ export function isValidAppVersion(version: unknown): version is string {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-export function isWhatsNewIcon(value: unknown): value is WhatsNewIcon {
-  return typeof value === 'string' && WHATS_NEW_ICONS.includes(value as WhatsNewIcon)
 }
 
 const SUPPORTED_LOCALE_SET = new Set<string>(SUPPORTED_LOCALE_VALUES)
@@ -103,11 +88,10 @@ function parseWhatsNewMedia(value: unknown): WhatsNewMedia | null {
 function parseWhatsNewCard(value: unknown): WhatsNewCard | null {
   if (!isRecord(value)) return null
   const id = value.id
-  const icon = value.icon
   const title = parseLocalizedWhatsNewText(value.title)
   const summary = parseLocalizedWhatsNewText(value.summary)
   if (typeof id !== 'string' || id.trim().length === 0) return null
-  if (!isWhatsNewIcon(icon) || !title || !summary) return null
+  if (!title || !summary) return null
 
   const media = value.media === undefined ? undefined : parseWhatsNewMedia(value.media)
   if (value.media !== undefined && !media) return null
@@ -116,7 +100,6 @@ function parseWhatsNewCard(value: unknown): WhatsNewCard | null {
 
   return {
     id: id.trim(),
-    icon,
     title,
     summary,
     ...(media ? { media } : {}),

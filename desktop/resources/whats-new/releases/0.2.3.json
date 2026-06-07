@@ -1,0 +1,41 @@
+{
+  "version": "0.2.3",
+  "cards": [
+    {
+      "id": "multi-workspace",
+      "title": {
+        "en": "Multiple Workspaces",
+        "zh-Hans": "多工作区"
+      },
+      "summary": {
+        "en": "Open several projects in one window.",
+        "zh-Hans": "在一个窗口里打开多个项目。"
+      },
+      "media": {
+        "fileName": "multi-workspace.gif",
+        "url": "https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/multi-workspace.gif",
+        "sizeBytes": 3333659,
+        "sha256": "7E81F89786A9A220ECEE6AFC419AAF98C8646953AA1BD3ACAB326F19EBBEF050"
+      },
+      "docsUrl": "https://dotharness.github.io/dotcraft/features/project-first"
+    },
+    {
+      "id": "desktop-extensions",
+      "title": {
+        "en": "Desktop Extensions",
+        "zh-Hans": "Desktop 扩展"
+      },
+      "summary": {
+        "en": "Plugins can embed a full view inside Desktop.",
+        "zh-Hans": "插件可以在 Desktop 内嵌入完整界面。"
+      },
+      "media": {
+        "fileName": "desktop-extensions.gif",
+        "url": "https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/desktop-extensions.gif",
+        "sizeBytes": 3314816,
+        "sha256": "4D29120B68F5936BDD1204C7699C2F9305DDC36F716422A4C2618699050D9A59"
+      },
+      "docsUrl": "https://dotharness.github.io/dotcraft/developing/integrations/desktop-extensions"
+    }
+  ]
+}

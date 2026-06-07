@@ -34,6 +34,14 @@ A DotCraft plugin packages reusable workspace capabilities into an installable e
 Plugin-bundled skills follow plugin lifecycle: available when the plugin is enabled, hidden when disabled or removed.
 Desktop extensions follow the same lifecycle: Desktop loads their local bundles only after the plugin is installed and enabled.
 
+### Desktop Extensions
+
+Some plugins ship a **Desktop extension** — a panel that opens right inside Desktop instead of only adding tools. The Oratorio plugin, for example, embeds its board as a full view you can open from the sidebar.
+
+![Oratorio Desktop extension](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/desktop-extensions.gif)
+
+For what an extension can do and how to build one, see [Desktop Extensions](../../developing/integrations/desktop-extensions).
+
 ### Install in Desktop
 
 ![Plugin page](https://github.com/DotHarness/resources/raw/master/dotcraft/plugins.png)
@@ -125,6 +133,7 @@ Installing a plugin adds new tools and skills to the workspace's capability surf
 ## Related docs
 
 - [Skills & Self-Learning](./skills) — relationship between skills and plugins
+- [Desktop Extensions](../../developing/integrations/desktop-extensions) — plugins that embed their own view inside Desktop
 - [Build an App](../../developing/integrations/build-an-app) — manifest fields, tool schemas, and Desktop extension authoring
 - [Observability](../self-hosted/observability) — view plugin tool calls and approvals in Dashboard
 - [Security & Sandbox](../self-hosted/security) — global constraints on tool capabilities

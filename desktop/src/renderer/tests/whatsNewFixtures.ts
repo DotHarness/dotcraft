@@ -8,7 +8,6 @@ export const WHATS_NEW_TEST_RELEASE_0_1_7: WhatsNewRelease = {
   cards: [
     {
       id: 'agent-teams',
-      icon: 'teams',
       title: {
         en: 'Agent Teams',
         'zh-Hans': 'Agent Teams'
@@ -33,7 +32,6 @@ export const WHATS_NEW_TEST_RELEASES: WhatsNewRelease[] = [
     cards: [
       {
         id: 'connect-im',
-        icon: 'message',
         title: {
           en: 'Background Channels',
           'zh-Hans': 'Background Channels'
@@ -51,7 +49,6 @@ export const WHATS_NEW_TEST_RELEASES: WhatsNewRelease[] = [
       },
       {
         id: 'dreams',
-        icon: 'dreams',
         title: {
           en: 'Dreams',
           'zh-Hans': 'Dreams'
@@ -69,7 +66,6 @@ export const WHATS_NEW_TEST_RELEASES: WhatsNewRelease[] = [
       },
       {
         id: 'goal',
-        icon: 'goal',
         title: {
           en: 'Goal',
           'zh-Hans': 'Goal'
