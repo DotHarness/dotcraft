@@ -123,7 +123,7 @@ $skillSources = @(
 )
 $cursorSkillsPath = Join-Path $repoRoot ".cursor\skills"
 $codexSkillsPath = Join-Path $env:USERPROFILE ".codex\skills"
-$claudeSkillsPath = Join-Path $repoRoot ".claude\skills"
+$claudeSkillsPath = Join-Path $env:USERPROFILE ".claude\skills"
 
 Write-Section -Text "DotCraft Skills Linker"
 Write-Host "Repository root: $repoRoot" -ForegroundColor Gray
@@ -148,7 +148,7 @@ $skillDestinations = @(
         Path = $codexSkillsPath
     },
     @{
-        Name = ".claude\skills"
+        Name = "~\.claude\skills"
         Path = $claudeSkillsPath
     }
 )
