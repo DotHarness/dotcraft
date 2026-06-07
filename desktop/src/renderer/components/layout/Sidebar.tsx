@@ -91,6 +91,7 @@ export function Sidebar({
         localWorkspacePath={localWorkspacePath ?? workspacePath}
         localActionsDisabled={remoteWorkspace}
         foregroundOpening={workspaceOpening}
+        openingWorkspacePath={workspaceOpening ? workspacePath : undefined}
       />
 
       {/* Phase 2 nav: Automations, Skills — spacing instead of a divider line */}

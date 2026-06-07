@@ -48,13 +48,15 @@ interface ThreadListProps {
   localWorkspacePath?: string
   localActionsDisabled?: boolean
   foregroundOpening?: boolean
+  openingWorkspacePath?: string
 }
 
 export function ThreadList({
   workspacePath,
   localWorkspacePath,
   localActionsDisabled = false,
-  foregroundOpening = false
+  foregroundOpening = false,
+  openingWorkspacePath
 }: ThreadListProps = {}): JSX.Element {
   const t = useT()
   const { threadList, threadListProjectKey, searchQuery, loading, pinnedThreadIds } = useThreadStore()
@@ -130,7 +132,12 @@ export function ThreadList({
   )
 
   if (showProjects) {
-    const foregroundRenderKey = foregroundProjectId || foregroundWorkspacePath
+    const openingProjectKey = foregroundOpening
+      ? normalizeWorkspacePath(openingWorkspacePath || workspacePath || '')
+      : ''
+    const effectiveForegroundProjectId = openingProjectKey || foregroundProjectId
+    const effectiveForegroundWorkspacePath = openingProjectKey || foregroundWorkspacePath
+    const foregroundRenderKey = effectiveForegroundProjectId || effectiveForegroundWorkspacePath
     const foregroundThreadListMatches = isForegroundThreadListForProject(
       threadListProjectKey,
       foregroundRenderKey
@@ -138,17 +145,21 @@ export function ThreadList({
     const foregroundStoreThreads = foregroundThreadListMatches ? orderedThreads : []
     const foregroundStorePinnedThreadIds = foregroundThreadListMatches ? pinnedThreadIds : []
     const foregroundProject = projects.find((project) =>
-      isProjectForeground(project, foregroundProjectId, foregroundWorkspacePath)
+      isProjectForeground(project, effectiveForegroundProjectId, effectiveForegroundWorkspacePath)
     )
     const projectsForRender = foregroundProject
-      ? projects
+      ? orderProjectsWithForegroundFirst(
+          projects,
+          effectiveForegroundProjectId,
+          effectiveForegroundWorkspacePath
+        )
       : [
           {
-            projectId: foregroundProjectId || foregroundWorkspacePath,
+            projectId: effectiveForegroundProjectId || effectiveForegroundWorkspacePath,
             kind: 'local',
-            path: foregroundWorkspacePath,
-            identityWorkspacePath: foregroundWorkspacePath,
-            name: foregroundWorkspacePath,
+            path: effectiveForegroundWorkspacePath,
+            identityWorkspacePath: effectiveForegroundWorkspacePath,
+            name: effectiveForegroundWorkspacePath,
             state: 'foreground',
             running: true,
             loaded: true,
@@ -160,8 +171,8 @@ export function ThreadList({
         ].filter((project) => project.path.trim().length > 0)
     const pinnedProjectRows = collectPinnedProjectRows(
       projectsForRender,
-      foregroundProjectId,
-      foregroundWorkspacePath,
+      effectiveForegroundProjectId,
+      effectiveForegroundWorkspacePath,
       threadListProjectKey,
       orderedThreads,
       pinnedThreadIds,
@@ -190,7 +201,7 @@ export function ThreadList({
         />
         {projectsForRender.map((project) => {
           const projectKey = projectIdentity(project)
-          const isForeground = isProjectForeground(project, foregroundProjectId, foregroundWorkspacePath)
+          const isForeground = isProjectForeground(project, effectiveForegroundProjectId, effectiveForegroundWorkspacePath)
           const cachedProjectThreads = orderSubAgentsAfterParents(filterProjectThreads(project, searchQuery))
           const foregroundListMatchesProject =
             isForeground && isForegroundThreadListForProject(threadListProjectKey, projectKey)
@@ -361,6 +372,24 @@ function isProjectForeground(
     return false
   }
   return sameWorkspacePath(project.path, foregroundWorkspacePath)
+}
+
+function orderProjectsWithForegroundFirst(
+  projects: WorkspaceProjectSummary[],
+  foregroundProjectId: string,
+  foregroundWorkspacePath: string
+): WorkspaceProjectSummary[] {
+  const foregroundIndex = projects.findIndex((project) =>
+    isProjectForeground(project, foregroundProjectId, foregroundWorkspacePath)
+  )
+  if (foregroundIndex <= 0) return projects
+
+  const foregroundProject = projects[foregroundIndex]
+  return [
+    foregroundProject,
+    ...projects.slice(0, foregroundIndex),
+    ...projects.slice(foregroundIndex + 1)
+  ]
 }
 
 function normalizeWorkspacePath(path: string): string {

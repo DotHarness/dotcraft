@@ -34,6 +34,7 @@ function renderList(props: {
   localWorkspacePath?: string
   localActionsDisabled?: boolean
   foregroundOpening?: boolean
+  openingWorkspacePath?: string
 } = {}): void {
   render(
     <LocaleProvider>
@@ -456,6 +457,57 @@ describe('ThreadList project-first layout', () => {
     expect(screen.getAllByTestId('project-thread-skeleton-row')).toHaveLength(4)
     expect(screen.queryByLabelText('Connecting')).not.toBeInTheDocument()
     expect(screen.queryByText('Thread from A')).not.toBeInTheDocument()
+  })
+
+  it('moves the opening project to the top before the projects payload foreground catches up', () => {
+    useThreadStore.getState().setThreadList([
+      makeThread('thread-a', 'Thread from A')
+    ], '/workspace/a')
+    useWorkspaceProjectsStore.getState().setPayload({
+      foregroundWorkspacePath: '/workspace/a',
+      foregroundProjectId: '/workspace/a',
+      secondaryLimit: 8,
+      projects: [
+        {
+          kind: 'local',
+          path: '/workspace/a',
+          identityWorkspacePath: '/workspace/a',
+          name: 'a',
+          state: 'foreground',
+          running: true,
+          loaded: true,
+          threadCount: 1,
+          threads: [makeThread('thread-a', 'Thread from A')],
+          pinnedThreadIds: []
+        },
+        {
+          kind: 'local',
+          path: '/workspace/b',
+          identityWorkspacePath: '/workspace/b',
+          name: 'b',
+          state: 'secondary',
+          running: true,
+          loaded: false,
+          threadCount: 0,
+          threads: [],
+          pinnedThreadIds: []
+        }
+      ]
+    })
+
+    renderList({
+      workspacePath: '/workspace/b',
+      foregroundOpening: true,
+      openingWorkspacePath: '/workspace/b'
+    })
+
+    const bRow = screen.getByRole('button', { name: 'b' })
+    const aRow = screen.getByRole('button', { name: 'a' })
+    const firstSkeleton = screen.getAllByTestId('project-thread-skeleton-row')[0]
+
+    expect(bRow.compareDocumentPosition(firstSkeleton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(firstSkeleton.compareDocumentPosition(aRow) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.queryByLabelText('Connecting')).not.toBeInTheDocument()
   })
 
   it('renders cached foreground project rows while the global thread-store rows belong elsewhere', () => {

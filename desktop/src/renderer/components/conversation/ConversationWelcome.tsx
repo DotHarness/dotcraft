@@ -1348,11 +1348,7 @@ export function ConversationWelcome({
               maxWidth: '520px',
               minHeight: '20px'
             }}>
-              {openingWorkspace ? (
-                <span data-testid="welcome-hint-skeleton" style={{ display: 'block', width: '100%' }}>
-                  <Skeleton width="84%" height={14} radius={4} style={{ margin: '3px auto' }} />
-                </span>
-              ) : isConnected
+              {isConnected
                 ? t('welcomeComposer.hint.select')
                 : t('welcomeComposer.hint.connecting')}
             </p>
