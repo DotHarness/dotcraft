@@ -165,6 +165,63 @@ describe('ThreadList project-first layout', () => {
     })
   })
 
+  it('marks the project header as current when one of its threads is the active conversation', () => {
+    const t1 = makeThread('t1', 'Thread One', 5)
+    const t2 = makeThread('t2', 'Thread Two', 10)
+    useThreadStore.getState().setThreadList([t1, t2], '/workspace/a')
+    useWorkspaceProjectsStore.getState().setPayload({
+      foregroundWorkspacePath: '/workspace/a',
+      foregroundProjectId: '/workspace/a',
+      secondaryLimit: 8,
+      projects: [
+        {
+          path: '/workspace/a',
+          name: 'a',
+          state: 'foreground',
+          running: true,
+          loaded: true,
+          threadCount: 2,
+          threads: [],
+          pinnedThreadIds: []
+        }
+      ]
+    })
+    useUIStore.setState({ activeMainView: 'conversation' })
+    useThreadStore.setState({ activeThreadId: 't1' })
+
+    renderList()
+
+    expect(screen.getByRole('button', { name: 'a' })).toHaveAttribute('aria-current', 'true')
+  })
+
+  it('does not mark the project header as current when no thread is selected', () => {
+    const t1 = makeThread('t1', 'Thread One', 5)
+    useThreadStore.getState().setThreadList([t1], '/workspace/a')
+    useWorkspaceProjectsStore.getState().setPayload({
+      foregroundWorkspacePath: '/workspace/a',
+      foregroundProjectId: '/workspace/a',
+      secondaryLimit: 8,
+      projects: [
+        {
+          path: '/workspace/a',
+          name: 'a',
+          state: 'foreground',
+          running: true,
+          loaded: true,
+          threadCount: 1,
+          threads: [],
+          pinnedThreadIds: []
+        }
+      ]
+    })
+    useUIStore.setState({ activeMainView: 'conversation' })
+    useThreadStore.setState({ activeThreadId: null })
+
+    renderList()
+
+    expect(screen.getByRole('button', { name: 'a' })).not.toHaveAttribute('aria-current')
+  })
+
   it('clicking a project row collapses it without switching workspace', () => {
     useWorkspaceProjectsStore.getState().setPayload({
       foregroundWorkspacePath: '/workspace/a',

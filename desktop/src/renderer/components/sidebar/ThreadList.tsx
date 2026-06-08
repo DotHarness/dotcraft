@@ -61,7 +61,8 @@ export function ThreadList({
   openingWorkspacePath
 }: ThreadListProps = {}): JSX.Element {
   const t = useT()
-  const { threadList, threadListProjectKey, searchQuery, loading, pinnedThreadIds } = useThreadStore()
+  const { threadList, threadListProjectKey, searchQuery, loading, pinnedThreadIds, activeThreadId } = useThreadStore()
+  const activeMainView = useUIStore((s) => s.activeMainView)
   const projects = useWorkspaceProjectsStore((s) => s.projects)
   const foregroundWorkspacePath = useWorkspaceProjectsStore((s) => s.foregroundWorkspacePath)
   const foregroundProjectId = useWorkspaceProjectsStore((s) => s.foregroundProjectId)
@@ -217,6 +218,10 @@ export function ThreadList({
           const rawProjectThreads = foregroundListMatchesProject ? orderedThreads : cachedProjectThreads
           const projectPinnedIds = foregroundListMatchesProject ? pinnedThreadIds : (project.pinnedThreadIds ?? [])
           const projectThreads = excludePinnedThreadTrees(rawProjectThreads, projectPinnedIds)
+          const hasSelectedThread =
+            activeMainView === 'conversation' &&
+            activeThreadId != null &&
+            rawProjectThreads.some((thread) => thread.id === activeThreadId)
           const activity = getProjectActivity(rawProjectThreads)
           const showProjectThreadSkeleton =
             openingProject &&
@@ -227,6 +232,7 @@ export function ThreadList({
                 project={project}
                 projectKey={projectKey}
                 active={isForeground}
+                selected={hasSelectedThread}
                 collapsed={collapsed}
                 activity={activity}
                 cold={cold}
@@ -658,6 +664,7 @@ function ProjectHeader({
   project,
   projectKey,
   active,
+  selected = false,
   collapsed,
   activity,
   cold,
@@ -666,6 +673,8 @@ function ProjectHeader({
   project: WorkspaceProjectSummary
   projectKey: string
   active: boolean
+  /** A thread under this project is the currently selected/open conversation. */
+  selected?: boolean
   collapsed: boolean
   activity: ProjectActivity
   cold: boolean
@@ -778,6 +787,7 @@ function ProjectHeader({
       role="button"
       tabIndex={0}
       aria-expanded={cold ? undefined : !collapsed}
+      aria-current={selected ? 'true' : undefined}
       aria-label={label}
       onClick={handlePrimaryAction}
       onDoubleClick={handleDoubleClick}
@@ -794,7 +804,7 @@ function ProjectHeader({
         margin: '2px 8px',
         padding: '2px 6px',
         borderRadius: 'var(--sidebar-control-radius)',
-        backgroundColor: active ? 'var(--sidebar-control-active)' : hovered ? 'var(--sidebar-control-hover)' : 'transparent',
+        backgroundColor: active || selected ? 'var(--sidebar-control-active)' : hovered ? 'var(--sidebar-control-hover)' : 'transparent',
         cursor: 'pointer',
         userSelect: 'none'
       }}
@@ -821,7 +831,7 @@ function ProjectHeader({
         <span
           style={{
             minWidth: 0,
-            color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
+            color: active || selected ? 'var(--text-primary)' : 'var(--text-secondary)',
             fontSize: 'var(--type-ui-size)',
             lineHeight: 'var(--type-ui-line-height)',
             fontWeight: 'var(--type-ui-emphasis-weight)',
