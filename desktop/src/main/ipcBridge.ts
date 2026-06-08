@@ -1,5 +1,5 @@
 import { app, ipcMain, BrowserWindow, dialog, Notification, shell, session } from 'electron'
-import { promises as fs } from 'fs'
+import { promises as fs, existsSync } from 'fs'
 import { execFile } from 'child_process'
 import * as os from 'os'
 import * as path from 'path'
@@ -196,6 +196,22 @@ function runGitCommand(
 function isSameOrInsidePath(candidatePath: string, parentPath: string): boolean {
   const relativePath = path.relative(parentPath, candidatePath)
   return relativePath === '' || (!relativePath.startsWith('..') && !path.isAbsolute(relativePath))
+}
+
+/**
+ * Turns a user-entered project name into a safe single-segment folder name:
+ * strips characters that are invalid in Windows paths, collapses whitespace, and
+ * drops trailing dots/spaces. Falls back to "New project" when nothing remains.
+ */
+function sanitizeProjectFolderName(name: string): string {
+  const cleaned = Array.from(name)
+    .map((ch) => (ch.charCodeAt(0) < 0x20 || '<>:"/\\|?*'.includes(ch) ? ' ' : ch))
+    .join('')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/[. ]+$/g, '')
+    .trim()
+  return cleaned || 'New project'
 }
 
 function toGitRelativeWorkspacePath(
@@ -1503,6 +1519,28 @@ export function registerIpcHandlers(
     return result.filePaths[0]
   })
 
+  // Renderer -> Main: create a brand-new local project folder under the user's
+  // Documents directory and initialize it as a git repository, so it can be
+  // opened and run through the normal workspace setup wizard. Returns the created
+  // absolute path; the renderer then switches to it.
+  handleSafe('workspace:create-local-project', async (_event, params: { name?: string }) => {
+    const folderName = sanitizeProjectFolderName(typeof params?.name === 'string' ? params.name : '')
+    const baseDir = app.getPath('documents')
+    let target = path.join(baseDir, folderName)
+    for (let suffix = 2; existsSync(target); suffix++) {
+      target = path.join(baseDir, `${folderName} ${suffix}`)
+    }
+    await fs.mkdir(target, { recursive: true })
+    let gitInitialized = true
+    try {
+      await runGitCommand(target, ['init'])
+    } catch {
+      // git is unavailable or failed; the folder is still usable as a workspace.
+      gitInitialized = false
+    }
+    return { path: target, gitInitialized }
+  })
+
   // Renderer -> Main: open native file picker; selected files may be outside the workspace.
   handleSafe('workspace:pick-files', async () => {
     const focusedWin = BrowserWindow.getFocusedWindow()
@@ -2434,6 +2472,7 @@ export function unregisterIpcHandlers(): void {
   ipcMain.removeHandler('git:checkoutBranch')
   ipcMain.removeHandler('git:createAndCheckoutBranch')
   ipcMain.removeHandler('workspace:pick-folder')
+  ipcMain.removeHandler('workspace:create-local-project')
   ipcMain.removeHandler('workspace:pick-files')
   ipcMain.removeHandler('workspace:switch')
   ipcMain.removeHandler('workspace:clear-selection')

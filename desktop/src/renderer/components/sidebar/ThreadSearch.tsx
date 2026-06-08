@@ -37,7 +37,7 @@ export function ThreadSearch({ workspaceName }: ThreadSearchProps): JSX.Element 
 
   return (
     <>
-      <div style={{ padding: '0 0 4px', flexShrink: 0 }}>
+      <div style={{ flexShrink: 0 }}>
         <button
           type="button"
           onClick={() => setOpen(true)}

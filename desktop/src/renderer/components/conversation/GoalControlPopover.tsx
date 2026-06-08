@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { CSSProperties } from 'react'
 import { CheckCircle2, Pause, Play, RotateCcw, Target, Trash2, X } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
@@ -65,30 +66,38 @@ export function GoalControlPopover({
     }
   }
 
-  return (
+  return createPortal(
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 10000,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'var(--overlay-scrim)'
+      }}
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onDismiss()
+      }}
+    >
     <div
       role="dialog"
+      aria-modal="true"
       aria-label={t('goal.panel.title')}
+      onMouseDown={(event) => event.stopPropagation()}
       style={{
-        position: 'absolute',
-        bottom: 'calc(100% + 8px)',
-        left: '50%',
-        transform: 'translateX(-50%)',
         width: 'min(520px, calc(100vw - 48px))',
-        zIndex: 70,
-        padding: 14,
-        borderRadius: 14,
-        background: 'var(--glass-surface-strong)',
-        border: 'none',
-        boxShadow: 'var(--glass-shadow-soft)',
-        backdropFilter: 'var(--glass-blur)',
-        WebkitBackdropFilter: 'var(--glass-blur)',
+        padding: 22,
+        borderRadius: 10,
+        background: 'var(--bg-secondary)',
+        boxShadow: 'var(--shadow-level-3)',
         color: 'var(--text-primary)'
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
         <Target size={16} aria-hidden />
-        <div style={{ fontSize: 13, fontWeight: 650, flex: 1 }}>
+        <div style={{ fontSize: 15, fontWeight: 600, flex: 1 }}>
           {t('goal.panel.title')}
         </div>
         <button type="button" onClick={onDismiss} aria-label={t('goal.action.dismiss')} style={iconButtonStyle}>
@@ -160,8 +169,8 @@ export function GoalControlPopover({
               minHeight: 74,
               maxHeight: 160,
               borderRadius: 8,
-              border: '1px solid var(--glass-border)',
-              background: 'var(--glass-surface-soft)',
+              border: '1px solid var(--border-default)',
+              background: 'var(--bg-tertiary)',
               color: 'var(--text-primary)',
               padding: '9px 10px',
               font: 'inherit',
@@ -192,6 +201,8 @@ export function GoalControlPopover({
         </div>
       )}
     </div>
+    </div>,
+    document.body
   )
 }
 
@@ -217,9 +228,9 @@ function GoalButton({
         display: 'inline-flex',
         alignItems: 'center',
         gap: 6,
-        border: '1px solid var(--glass-border)',
-        borderRadius: 7,
-        background: 'var(--glass-surface-soft)',
+        border: '1px solid var(--border-default)',
+        borderRadius: 8,
+        background: 'var(--bg-tertiary)',
         color: danger ? 'var(--error)' : 'var(--text-secondary)',
         cursor: disabled ? 'default' : 'pointer',
         opacity: disabled ? 0.55 : 1,
@@ -264,22 +275,22 @@ const iconButtonStyle: CSSProperties = {
 }
 
 const secondaryButtonStyle: CSSProperties = {
-  border: '1px solid var(--glass-border)',
-  borderRadius: 7,
-  background: 'var(--glass-surface-soft)',
-  color: 'var(--text-secondary)',
+  border: 'none',
+  borderRadius: 8,
+  background: 'var(--bg-tertiary)',
+  color: 'var(--text-primary)',
   cursor: 'pointer',
-  fontSize: 12,
-  padding: '6px 10px'
+  fontSize: 13,
+  padding: '7px 12px'
 }
 
 const primaryButtonStyle: CSSProperties = {
   border: '1px solid var(--text-primary)',
-  borderRadius: 7,
+  borderRadius: 8,
   background: 'var(--text-primary)',
   color: 'var(--bg-primary)',
   cursor: 'pointer',
-  fontSize: 12,
+  fontSize: 13,
   fontWeight: 600,
-  padding: '6px 10px'
+  padding: '7px 12px'
 }

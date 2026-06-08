@@ -896,6 +896,15 @@ const api = {
     },
 
     /**
+     * Creates a brand-new local project folder under the user's Documents
+     * directory, initializes it as a git repository, and returns its absolute
+     * path. The renderer then switches to it, which runs the setup wizard.
+     */
+    createLocalProject(params: { name: string }): Promise<{ path: string; gitInitialized: boolean }> {
+      return ipcRenderer.invoke('workspace:create-local-project', params)
+    },
+
+    /**
      * Opens the native file picker and returns selected local file paths,
      * including files outside the workspace.
      */

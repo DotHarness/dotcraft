@@ -367,7 +367,7 @@ describe('ThreadList project-first layout', () => {
     })
   })
 
-  it('Add project picks a folder and switches to it', async () => {
+  it('Add project → Use an existing folder picks a folder and switches to it', async () => {
     workspacePickFolder.mockResolvedValue('/workspace/new')
     useWorkspaceProjectsStore.getState().setPayload({
       foregroundWorkspacePath: '/workspace/a',
@@ -389,8 +389,10 @@ describe('ThreadList project-first layout', () => {
     renderList()
     fireEvent.mouseEnter(screen.getByText('Projects').parentElement as HTMLElement)
     fireEvent.click(screen.getByRole('button', { name: 'Add project' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Use an existing folder' }))
 
     await waitFor(() => {
+      expect(workspacePickFolder).toHaveBeenCalled()
       expect(workspaceSwitch).toHaveBeenCalledWith('/workspace/new')
     })
   })

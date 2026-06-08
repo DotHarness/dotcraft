@@ -33,6 +33,7 @@ import type { WorkspaceProjectSummary } from '../../../shared/workspaceProjects'
 import { addToast } from '../../stores/toastStore'
 import { PinIcon, ThreadEntry } from './ThreadEntry'
 import { WorkspaceOptionsMenu } from './WorkspaceHeader'
+import { AddProjectMenuOptions, useAddProjectFlow } from '../projects/AddProject'
 import {
   isRemoteProjectKey,
   normalizeWorkspaceProjectKey,
@@ -487,13 +488,44 @@ function ProjectsSectionHeader({
   const [hovered, setHovered] = useState(false)
   const [focused, setFocused] = useState(false)
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false)
-  const showActions = hovered || focused || workspaceMenuOpen
+  const [addMenuOpen, setAddMenuOpen] = useState(false)
+  const [addMenuPosition, setAddMenuPosition] = useState<{ top: number; left: number; width: number } | null>(null)
+  const addButtonRef = useRef<HTMLButtonElement>(null)
+  const addMenuRef = useRef<HTMLDivElement>(null)
+  const addProject = useAddProjectFlow()
+  const showActions = hovered || focused || workspaceMenuOpen || addMenuOpen
 
-  async function addProject(): Promise<void> {
-    const path = await window.api.workspace.pickFolder()
-    if (!path) return
-    await window.api.workspace.switch(path)
+  function updateAddMenuPosition(): void {
+    const rect = addButtonRef.current?.getBoundingClientRect()
+    if (!rect) return
+    const viewportWidth = window.innerWidth || 320
+    const menuWidth = 220
+    const left = Math.max(8, Math.min(rect.right - menuWidth, viewportWidth - menuWidth - 8))
+    setAddMenuPosition({ top: rect.bottom + 4, left, width: menuWidth })
   }
+
+  useEffect(() => {
+    if (!addMenuOpen) return
+    updateAddMenuPosition()
+
+    function handleClick(event: MouseEvent): void {
+      const target = event.target as Node
+      if (addButtonRef.current?.contains(target) || addMenuRef.current?.contains(target)) return
+      setAddMenuOpen(false)
+    }
+    function handlePositionChange(): void {
+      updateAddMenuPosition()
+    }
+
+    document.addEventListener('mousedown', handleClick)
+    window.addEventListener('resize', handlePositionChange)
+    window.addEventListener('scroll', handlePositionChange, true)
+    return () => {
+      document.removeEventListener('mousedown', handleClick)
+      window.removeEventListener('resize', handlePositionChange)
+      window.removeEventListener('scroll', handlePositionChange, true)
+    }
+  }, [addMenuOpen])
 
   return (
     <div
@@ -547,15 +579,40 @@ function ProjectsSectionHeader({
         )}
         <ActionTooltip label={t('projectsRail.addProject')}>
           <button
+            ref={addButtonRef}
             type="button"
             aria-label={t('projectsRail.addProject')}
-            onClick={() => { void addProject() }}
+            aria-haspopup="menu"
+            aria-expanded={addMenuOpen}
+            onClick={() => setAddMenuOpen((open) => !open)}
             style={projectIconButtonStyle}
           >
             <FolderPlus size={15} aria-hidden />
           </button>
         </ActionTooltip>
       </div>
+      {addMenuOpen && addMenuPosition && typeof document !== 'undefined' && createPortal(
+        <div
+          ref={addMenuRef}
+          role="menu"
+          aria-label={t('projectsRail.addProject')}
+          style={{
+            ...projectMenuStyle,
+            top: addMenuPosition.top,
+            left: addMenuPosition.left,
+            width: addMenuPosition.width
+          }}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <AddProjectMenuOptions
+            disabled={addProject.busy}
+            onStartFromScratch={() => { setAddMenuOpen(false); addProject.beginScratch() }}
+            onUseExistingFolder={() => { setAddMenuOpen(false); void addProject.chooseExistingFolder() }}
+          />
+        </div>,
+        document.body
+      )}
+      {addProject.dialog}
     </div>
   )
 }

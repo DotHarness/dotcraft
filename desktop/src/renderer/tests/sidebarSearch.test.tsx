@@ -5,6 +5,7 @@ import { ThreadSearch } from '../components/sidebar/ThreadSearch'
 import { SidebarFooter } from '../components/sidebar/SidebarFooter'
 import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
+import { useConnectionStore } from '../stores/connectionStore'
 import type { ThreadSummary } from '../types/thread'
 
 const settingsGet = vi.fn()
@@ -141,11 +142,12 @@ describe('SidebarFooter settings row', () => {
     expect(settingsButton).toHaveTextContent(',')
   })
 
-  it("opens What's New from the sidebar version label", () => {
+  it('shows an ambient connection-status dot and no longer shows version or What\'s New', () => {
+    useConnectionStore.setState({ status: 'connected', errorMessage: null })
     renderWithLocale(<SidebarFooter />)
 
-    fireEvent.click(screen.getByRole('button', { name: "What's New" }))
-
-    expect(useUIStore.getState().whatsNewOpenRequestSeq).toBe(1)
+    expect(screen.getByRole('img', { name: 'Connected' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: "What's New" })).not.toBeInTheDocument()
+    expect(screen.queryByText(/^v\d+\./)).not.toBeInTheDocument()
   })
 })

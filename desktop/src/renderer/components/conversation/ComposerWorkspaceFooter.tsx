@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FocusEvent, type JSX, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { ArrowRightLeft, Check, ChevronDown, Cloud, Folder, FolderPlus, GitBranch, Laptop, Plus, Search, Server } from 'lucide-react'
+import { ArrowRightLeft, Check, ChevronDown, ChevronRight, Cloud, Folder, FolderPlus, GitBranch, Laptop, Plus, Search, Server } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { normalizeGitPathKey, useGitStore, type GitBranchListSnapshot } from '../../stores/gitStore'
@@ -10,6 +10,7 @@ import type { Thread } from '../../types/thread'
 import type { WorkspaceProjectSummary } from '../../../shared/workspaceProjects'
 import { normalizeWorkspaceProjectKey } from '../../../shared/workspaceProjectKey'
 import { WorktreeHandoffDialog } from './WorktreeHandoffDialog'
+import { AddProjectMenuOptions, useAddProjectFlow } from '../projects/AddProject'
 
 export type ComposerWorkspaceMode = 'local' | 'worktree'
 
@@ -63,6 +64,22 @@ const menuStyle: CSSProperties = {
   bottom: 'calc(100% + 6px)',
   zIndex: 100,
   width: '280px',
+  padding: '8px',
+  borderRadius: '10px',
+  background: 'var(--glass-surface-strong)',
+  border: 'none',
+  boxShadow: 'var(--glass-shadow-soft)',
+  backdropFilter: 'var(--glass-blur)',
+  WebkitBackdropFilter: 'var(--glass-blur)',
+  color: 'var(--text-primary)'
+}
+
+const addProjectSubmenuStyle: CSSProperties = {
+  position: 'absolute',
+  left: 'calc(100% + 6px)',
+  bottom: 0,
+  zIndex: 101,
+  width: '220px',
   padding: '8px',
   borderRadius: '10px',
   background: 'var(--glass-surface-strong)',
@@ -238,6 +255,10 @@ export function ComposerWorkspaceFooter({
   const foregroundProjectId = useWorkspaceProjectsStore((s) => s.foregroundProjectId)
   const [openMenu, setOpenMenu] = useState<OpenMenu>(null)
   const [branchQuery, setBranchQuery] = useState('')
+  const [projectQuery, setProjectQuery] = useState('')
+  const [addMenuOpen, setAddMenuOpen] = useState(false)
+  const addMenuCloseTimer = useRef<number | null>(null)
+  const addProject = useAddProjectFlow()
   const [busy, setBusy] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
   const [handoffMode, setHandoffMode] = useState<ComposerWorkspaceMode | null>(null)
@@ -301,6 +322,14 @@ export function ComposerWorkspaceFooter({
     projectIdentity(project) === selectedProjectId
   )
   const showProjectSelector = variant === 'welcome' && projectOptions.length > 0
+  const filteredProjects = useMemo(() => {
+    const query = projectQuery.trim().toLowerCase()
+    if (!query) return projectOptions
+    return projectOptions.filter((project) =>
+      (project.name || workspaceSlug(project.path)).toLowerCase().includes(query) ||
+      project.path.toLowerCase().includes(query)
+    )
+  }, [projectOptions, projectQuery])
 
   useEffect(() => {
     function closeOnOutsideClick(event: MouseEvent): void {
@@ -309,6 +338,38 @@ export function ComposerWorkspaceFooter({
     document.addEventListener('mousedown', closeOnOutsideClick)
     return () => document.removeEventListener('mousedown', closeOnOutsideClick)
   }, [])
+
+  const cancelAddMenuClose = useCallback(() => {
+    if (addMenuCloseTimer.current != null) {
+      window.clearTimeout(addMenuCloseTimer.current)
+      addMenuCloseTimer.current = null
+    }
+  }, [])
+
+  const openAddMenu = useCallback(() => {
+    cancelAddMenuClose()
+    setAddMenuOpen(true)
+  }, [cancelAddMenuClose])
+
+  // Close on a short delay so the pointer can travel across the gap between the
+  // "Add new project" row and its flyout without the submenu collapsing.
+  const scheduleCloseAddMenu = useCallback(() => {
+    cancelAddMenuClose()
+    addMenuCloseTimer.current = window.setTimeout(() => {
+      setAddMenuOpen(false)
+      addMenuCloseTimer.current = null
+    }, 160)
+  }, [cancelAddMenuClose])
+
+  useEffect(() => () => cancelAddMenuClose(), [cancelAddMenuClose])
+
+  useEffect(() => {
+    if (openMenu !== 'project') {
+      setProjectQuery('')
+      setAddMenuOpen(false)
+      cancelAddMenuClose()
+    }
+  }, [openMenu, cancelAddMenuClose])
 
   const hideForUnavailableGit = useCallback(() => {
     setOpenMenu(null)
@@ -455,24 +516,83 @@ export function ComposerWorkspaceFooter({
           </WorkspaceFooterPill>
           {openMenu === 'project' && (
             <div style={menuStyle}>
-              {projectOptions.map((project) => {
-                const checked = projectIdentity(project) === selectedProjectId
-                return (
-                  <FooterMenuButton
-                    key={projectIdentity(project)}
-                    icon={projectIcon(project)}
-                    checked={checked}
-                    disabled={busy || (project.kind === 'remote' && !checked)}
-                    onClick={() => { void selectWelcomeProject(project) }}
-                  >
-                    <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {project.name || workspaceSlug(project.path)}
-                    </span>
-                  </FooterMenuButton>
-                )
-              })}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                height: '32px',
+                padding: '0 8px',
+                color: 'var(--text-dimmed)'
+              }}>
+                <Search size={14} strokeWidth={1.8} aria-hidden />
+                <input
+                  value={projectQuery}
+                  onChange={(e) => setProjectQuery(e.target.value)}
+                  placeholder={t('workspaceFooter.searchProjects')}
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    border: 'none',
+                    outline: 'none',
+                    background: 'transparent',
+                    color: 'var(--text-primary)',
+                    font: 'inherit'
+                  }}
+                />
+              </div>
+              <div style={{ maxHeight: '220px', overflowY: 'auto', padding: '4px 0' }}>
+                {filteredProjects.length === 0 ? (
+                  <div style={{ padding: '8px', color: 'var(--text-dimmed)' }}>{t('workspaceFooter.noProjects')}</div>
+                ) : filteredProjects.map((project) => {
+                  const checked = projectIdentity(project) === selectedProjectId
+                  return (
+                    <FooterMenuButton
+                      key={projectIdentity(project)}
+                      icon={projectIcon(project)}
+                      checked={checked}
+                      disabled={busy || (project.kind === 'remote' && !checked)}
+                      onClick={() => { void selectWelcomeProject(project) }}
+                    >
+                      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {project.name || workspaceSlug(project.path)}
+                      </span>
+                    </FooterMenuButton>
+                  )
+                })}
+              </div>
+              <div
+                style={{
+                  height: '1px',
+                  background: 'color-mix(in srgb, var(--text-primary) 9%, transparent)',
+                  margin: '6px 8px'
+                }}
+              />
+              <div
+                style={{ position: 'relative' }}
+                onMouseEnter={openAddMenu}
+                onMouseLeave={scheduleCloseAddMenu}
+              >
+                <FooterMenuButton
+                  icon={<FolderPlus size={15} strokeWidth={1.8} aria-hidden />}
+                  active={addMenuOpen}
+                  onClick={openAddMenu}
+                >
+                  <span style={{ flex: 1 }}>{t('addProject.addNew')}</span>
+                  <ChevronRight size={14} strokeWidth={1.8} aria-hidden />
+                </FooterMenuButton>
+                {addMenuOpen && (
+                  <div style={addProjectSubmenuStyle}>
+                    <AddProjectMenuOptions
+                      disabled={addProject.busy}
+                      onStartFromScratch={() => { setOpenMenu(null); addProject.beginScratch() }}
+                      onUseExistingFolder={() => { setOpenMenu(null); void addProject.chooseExistingFolder() }}
+                    />
+                  </div>
+                )}
+              </div>
             </div>
           )}
+          {addProject.dialog}
         </div>
       )}
       {showFooterControls && (
@@ -663,12 +783,14 @@ function FooterMenuButton({
   children,
   icon,
   checked,
+  active,
   disabled,
   onClick
 }: {
   children: ReactNode
   icon: JSX.Element
   checked?: boolean
+  active?: boolean
   disabled?: boolean
   onClick: () => void
 }): JSX.Element {
@@ -678,7 +800,7 @@ function FooterMenuButton({
       type="button"
       style={{
         ...menuButtonStyle,
-        ...interactiveStyle(state, { disabled })
+        ...interactiveStyle(state, { active, disabled })
       }}
       disabled={disabled}
       onClick={onClick}

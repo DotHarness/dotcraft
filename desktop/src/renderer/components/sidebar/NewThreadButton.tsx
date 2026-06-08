@@ -32,7 +32,7 @@ export function NewThreadButton(): JSX.Element {
   }
 
   return (
-    <div style={{ padding: '8px 0 4px', flexShrink: 0 }}>
+    <div style={{ padding: '8px 0 0', flexShrink: 0 }}>
       <button
         className="dotcraft-sidebar-control-radius"
         onClick={handleClick}
