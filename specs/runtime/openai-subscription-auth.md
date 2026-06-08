@@ -81,14 +81,25 @@ preserves the installation id.
 | Auth method | Base URL | Path | Auth header | Extra headers |
 |---|---|---|---|---|
 | API key (existing) | `https://api.openai.com/v1` | `/responses`, `/chat/completions`, `/models` | `Authorization: Bearer <api-key>` | — |
-| ChatGPT OAuth | `https://chatgpt.com/backend-api/codex` | `/responses`, `/models` | `Authorization: Bearer <access_token>` | `chatgpt-account-id: <account_id>`, `originator: codex_cli_rs`, `x-codex-installation-id: <uuid>`, `session-id: <thread_id>`, `thread-id: <thread_id>` |
+| ChatGPT OAuth | `https://chatgpt.com/backend-api/codex` | `/responses` | `Authorization: Bearer <access_token>` | `chatgpt-account-id: <account_id>`, `originator: codex_cli_rs`, `x-codex-installation-id: <uuid>`, `session-id: <thread_id>`, `thread-id: <thread_id>`, `session_id: <thread_id>`, `conversation_id: <thread_id>` |
+| ChatGPT OAuth | `https://chatgpt.com/backend-api/codex` | `/models` | `Authorization: Bearer <access_token>` | `chatgpt-account-id: <account_id>`, `originator: codex_cli_rs` |
 
-`session-id` and `thread-id` are both populated per-request from the active
-`TracingChatClient.CurrentSessionKey` (the DotCraft thread id). They are secondary sticky-routing
-hints for the ChatGPT backend's prompt-cache shards, giving the load balancer a finer-grained
-anchor than `chatgpt-account-id` alone so that requests on the same thread tend to land on the
-cache node that already has the prefix warm. Sending both header spellings the backend recognises
-costs nothing and avoids depending on which one the LB happens to read on a given route.
+For HTTP Responses, the official Codex client baseline is the hyphenated
+`session-id` / `thread-id` pair plus the body-level `prompt_cache_key`. DotCraft populates those
+headers per request from the active `TracingChatClient.CurrentSessionKey` (the DotCraft thread id).
+It also emits `session_id` and `conversation_id` as compatibility sticky-routing hints for gateways
+and clients that key on the snake_case spellings; these are DotCraft compatibility headers, not
+documented as official Codex-required headers.
+
+Each thread/session header gives the ChatGPT backend's prompt-cache shards a finer-grained anchor
+than `chatgpt-account-id` alone so that requests on the same thread tend to land on the cache node
+that already has the prefix warm. If there is no active thread id, DotCraft sends the request
+without these thread-scoped hints and logs the degraded sticky-routing shape once for diagnosis.
+
+`chatgpt-account-id` is resolved per request from the signed-in token/account store via
+`IOpenAIAuthService.GetAccountId()`, then falls back to the runtime/config value. If the runtime
+value is stale and differs from the signed-in token account, DotCraft logs a warning once and uses
+the token/account-store value for request routing.
 
 On the ChatGPT OAuth path, outgoing `/responses` request bodies are additionally augmented with
 a `client_metadata` map carrying the same installation id:
@@ -100,8 +111,29 @@ a `client_metadata` map carrying the same installation id:
 ```
 
 The augmentation is performed by `OpenAIResponsesClientMetadataPipelinePolicy` and only fires for
-URIs whose path ends in `/responses`; pre-existing `client_metadata.x-codex-installation-id`
-values placed by the caller are never overwritten.
+URIs whose path ends in `/responses`. Other caller-provided `client_metadata` entries are
+preserved, but the local `~/.craft/installation_id` value is authoritative for
+`client_metadata.x-codex-installation-id`: matching values are left untouched, while mismatched
+values are overwritten with a warning so the header and body do not split sticky-routing identity.
+
+### Experimental ChatGPT OAuth compatibility switches
+
+DotCraft defaults to its normal `DotCraft/<version>` User-Agent and does not send `OpenAI-Beta`.
+Two opt-in environment variables allow controlled A/B testing against the ChatGPT OAuth path:
+
+| Variable | Effect |
+|---|---|
+| `DOTCRAFT_CHATGPT_OAUTH_UA_PROFILE=codex` | Use a Codex-shaped User-Agent (`codex_cli_rs/<version> (<os>; <arch>) dotcraft`) on OAuth-bound SDK requests |
+| `DOTCRAFT_CHATGPT_OAUTH_OPENAI_BETA=<value>` | Send `OpenAI-Beta: <value>` on OAuth `/responses` requests |
+
+These switches are intentionally not enabled by default because their backend effects are not part
+of a public contract and must be evaluated with live token A/B data (`cached_input_tokens`,
+401/403 rate, first-token latency, and rate-limit headers).
+
+DotCraft does not generate `x-codex-turn-metadata` or `x-codex-turn-state` in the HTTP pipeline.
+The Codex client treats those as turn/session lifecycle fields; in particular, turn state must be
+captured from response headers and replayed only within the same turn. A generic policy cannot
+soundly invent them.
 
 When `AuthMethod = chatgptOAuth`, `Protocol` is normalized to `openai-responses`. The Endpoint and
 ApiKey fields configured on the provider are ignored at runtime in favour of the values above. The
@@ -143,8 +175,8 @@ should not edit them by hand.
 | Auth manager | `src/DotCraft.Core/Auth/OpenAI/OpenAIAuthManager.cs` | Login, refresh, logout, status; thread-safe; raises `LoggedIn` / `LoggedOut` events |
 | Token store | `src/DotCraft.Core/Auth/OpenAI/OpenAITokenStore.cs` | Reads/writes `auth.json` with locked-down permissions |
 | Installation id provider | `src/DotCraft.Core/Auth/OpenAI/OpenAIInstallationIdProvider.cs` | Resolves and persists the `~/.craft/installation_id` UUID v4 |
-| Auth pipeline policy | `src/DotCraft.Core/Agents/OpenAIOAuthPipelinePolicy.cs` | Sets `Authorization`, `chatgpt-account-id`, `originator`, `x-codex-installation-id` per request; refreshes on HTTP 401 |
-| Responses metadata policy | `src/DotCraft.Core/Agents/OpenAIResponsesClientMetadataPipelinePolicy.cs` | Adds `client_metadata.x-codex-installation-id` into outgoing `/responses` request bodies on OAuth clients |
+| Auth pipeline policy | `src/DotCraft.Core/Agents/OpenAIOAuthPipelinePolicy.cs` | Sets OAuth auth headers, resolves account id from auth service before config, adds Responses sticky headers, applies opt-in experimental headers, refreshes on HTTP 401 |
+| Responses metadata policy | `src/DotCraft.Core/Agents/OpenAIResponsesClientMetadataPipelinePolicy.cs` | Adds/normalizes `client_metadata.x-codex-installation-id` into outgoing `/responses` request bodies on OAuth clients |
 | Provider resolver | `src/DotCraft.Core/Configuration/ModelProviderRuntime.cs` | Forces `chatgpt.com/backend-api/codex` endpoint + `openai-responses` protocol in OAuth mode |
 | Binding helper | `src/DotCraft.Core/Auth/OpenAI/OpenAIAuthBindingPersistence.cs` | Shared CLI/AppServer helper that writes `AuthMethod` / `ChatGptAccountId` into the global config |
 | Usage client | `src/DotCraft.Core/Auth/OpenAI/OpenAIUsageClient.cs` | One-shot `GET wham/usage`; reuses the same headers; 401 → force-refresh + retry once |

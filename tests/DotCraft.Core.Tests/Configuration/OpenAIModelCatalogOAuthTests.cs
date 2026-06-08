@@ -46,6 +46,28 @@ public sealed class OpenAIModelCatalogOAuthTests : IDisposable
     }
 
     [Fact]
+    public async Task ChatGptOAuthFetchesRemoteCatalogUsesAuthServiceAccountWhenRuntimeIsStale()
+    {
+        var handler = new RecordingHandler((HttpStatusCode.OK, """
+            {
+              "models": [
+                { "slug": "remote-model", "visibility": "list", "priority": 1, "minimal_client_version": "0.98.0" }
+              ]
+            }
+            """));
+        var provider = new OpenAIClientProvider(new FakeOpenAIAuthService("acct_token"), handler);
+
+        var result = await OpenAIModelCatalog.FetchAsync(
+            Config(),
+            Runtime(accountId: "acct_config_stale"),
+            openAIClientProvider: provider);
+
+        Assert.True(result.Success);
+        var request = Assert.Single(handler.Requests);
+        Assert.Equal("acct_token", request.Headers[OpenAIAuthConstants.AccountIdHeader]);
+    }
+
+    [Fact]
     public async Task ChatGptOAuthRefreshesTokenOnceOnUnauthorized()
     {
         var auth = new FakeOpenAIAuthService();
@@ -134,7 +156,7 @@ public sealed class OpenAIModelCatalogOAuthTests : IDisposable
         WorkspaceConfigPath = Path.Combine(_tempRoot, ".craft", "config.json")
     };
 
-    private static EffectiveModelRuntime Runtime() => new(
+    private static EffectiveModelRuntime Runtime(string? accountId = "acct_test") => new(
         ProviderId: "openai",
         Model: ModelProviderDefaults.DefaultChatGptCodexModel,
         Protocol: ModelProviderProtocols.OpenAIResponses,
@@ -146,9 +168,9 @@ public sealed class OpenAIModelCatalogOAuthTests : IDisposable
         IsImplicit: false,
         Capabilities: ModelProviderCapabilities.ForProtocol(ModelProviderProtocols.OpenAIResponses),
         AuthMethod: ModelProviderAuthMethods.ChatGptOAuth,
-        ChatGptAccountId: "acct_test");
+        ChatGptAccountId: accountId);
 
-    private sealed class FakeOpenAIAuthService : IOpenAIAuthService
+    private sealed class FakeOpenAIAuthService(string accountId = "acct_test") : IOpenAIAuthService
     {
         public List<bool> ForceRefreshCalls { get; } = [];
 
@@ -168,7 +190,7 @@ public sealed class OpenAIModelCatalogOAuthTests : IDisposable
 
         public OpenAIAuthStatus GetStatus() => new(
             true,
-            "acct_test",
+            accountId,
             "pro",
             "test@example.com",
             DateTimeOffset.UtcNow,
@@ -188,7 +210,7 @@ public sealed class OpenAIModelCatalogOAuthTests : IDisposable
             return Task.FromResult(forceRefresh ? "refreshed-token" : "access-token");
         }
 
-        public string? GetAccountId() => "acct_test";
+        public string? GetAccountId() => accountId;
     }
 
     private sealed class RecordingHandler(params (HttpStatusCode Status, string Body)[] responses) : HttpMessageHandler

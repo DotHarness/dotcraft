@@ -5,6 +5,7 @@ using System.Net.Http.Headers;
 using DotCraft.Auth.OpenAI;
 using DotCraft.Configuration;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Logging;
 using OpenAI;
 using OpenAI.Chat;
 using OpenAI.Responses;
@@ -27,12 +28,15 @@ public sealed class OpenAIClientProvider
     private readonly IOpenAIAuthService? _openAIAuthService;
     private readonly OpenAIInstallationIdProvider? _installationIdProvider;
     private readonly HttpClient _chatGptHttpClient;
+    private readonly ILogger<OpenAIClientProvider>? _logger;
+    private int _accountMismatchWarningLogged;
 
     /// <summary>Default constructor for DI; OAuth-mode providers require an auth service.</summary>
     public OpenAIClientProvider(
         IOpenAIAuthService? openAIAuthService = null,
-        OpenAIInstallationIdProvider? installationIdProvider = null)
-        : this(openAIAuthService, installationIdProvider, chatGptHttpMessageHandler: null)
+        OpenAIInstallationIdProvider? installationIdProvider = null,
+        ILogger<OpenAIClientProvider>? logger = null)
+        : this(openAIAuthService, installationIdProvider, chatGptHttpMessageHandler: null, logger)
     {
     }
 
@@ -45,11 +49,21 @@ public sealed class OpenAIClientProvider
 
     internal OpenAIClientProvider(
         IOpenAIAuthService? openAIAuthService,
+        HttpMessageHandler? chatGptHttpMessageHandler,
+        ILogger<OpenAIClientProvider>? logger)
+        : this(openAIAuthService, installationIdProvider: null, chatGptHttpMessageHandler, logger)
+    {
+    }
+
+    internal OpenAIClientProvider(
+        IOpenAIAuthService? openAIAuthService,
         OpenAIInstallationIdProvider? installationIdProvider,
-        HttpMessageHandler? chatGptHttpMessageHandler)
+        HttpMessageHandler? chatGptHttpMessageHandler,
+        ILogger<OpenAIClientProvider>? logger = null)
     {
         _openAIAuthService = openAIAuthService;
         _installationIdProvider = installationIdProvider;
+        _logger = logger;
         _chatGptHttpClient = chatGptHttpMessageHandler is null
             ? SharedChatGptHttpClient
             : new HttpClient(chatGptHttpMessageHandler, disposeHandler: false);
@@ -115,9 +129,24 @@ public sealed class OpenAIClientProvider
     internal string? ResolveChatGptAccountId(EffectiveModelRuntime runtime)
     {
         ArgumentNullException.ThrowIfNull(runtime);
-        if (!string.IsNullOrWhiteSpace(runtime.ChatGptAccountId))
-            return runtime.ChatGptAccountId.Trim();
-        return _openAIAuthService?.GetAccountId();
+        var tokenAccountId = NormalizeOptional(_openAIAuthService?.GetAccountId());
+        var configuredAccountId = NormalizeOptional(runtime.ChatGptAccountId);
+        if (!string.IsNullOrEmpty(tokenAccountId))
+        {
+            if (!string.IsNullOrEmpty(configuredAccountId) &&
+                !string.Equals(configuredAccountId, tokenAccountId, StringComparison.Ordinal) &&
+                Interlocked.Exchange(ref _accountMismatchWarningLogged, 1) == 0)
+            {
+                _logger?.LogWarning(
+                    "ChatGPT OAuth account id from config ({ConfiguredAccountId}) differs from the signed-in token account ({TokenAccountId}); using the token account for request routing.",
+                    configuredAccountId,
+                    tokenAccountId);
+            }
+
+            return tokenAccountId;
+        }
+
+        return configuredAccountId;
     }
 
     internal async Task<ChatGptCodexModelsHttpResponse> FetchChatGptCodexModelsAsync(
@@ -172,12 +201,13 @@ public sealed class OpenAIClientProvider
                     new OpenAIOAuthPipelinePolicy(
                         provider._openAIAuthService,
                         clientKey.AccountId,
-                        installationId),
+                        installationId,
+                        provider._logger),
                     PipelinePosition.BeforeTransport);
                 if (!string.IsNullOrWhiteSpace(installationId))
                 {
                     options.AddPolicy(
-                        new OpenAIResponsesClientMetadataPipelinePolicy(installationId),
+                        new OpenAIResponsesClientMetadataPipelinePolicy(installationId, provider._logger),
                         PipelinePosition.PerCall);
                 }
 
@@ -286,6 +316,12 @@ public sealed class OpenAIClientProvider
     }
 
     private static int NormalizeNetworkTimeoutSeconds(int seconds) => Math.Max(1, seconds);
+
+    private static string? NormalizeOptional(string? value)
+    {
+        var trimmed = value?.Trim();
+        return string.IsNullOrWhiteSpace(trimmed) ? null : trimmed;
+    }
 }
 
 internal sealed record ChatGptCodexModelsHttpResponse(

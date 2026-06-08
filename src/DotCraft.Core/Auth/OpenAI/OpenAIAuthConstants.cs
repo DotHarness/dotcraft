@@ -65,6 +65,17 @@ public static class OpenAIAuthConstants
     /// </summary>
     public const string ThreadIdHeader = "thread-id";
 
+    /// <summary>
+    /// Compatibility spelling used by some Codex-adjacent gateways for the same value as
+    /// <see cref="SessionIdHeader"/>. DotCraft sends it only as an additional sticky-routing hint.
+    /// </summary>
+    public const string SessionIdCompatHeader = "session_id";
+
+    /// <summary>
+    /// Compatibility spelling used by some Codex-adjacent gateways for the active thread id.
+    /// </summary>
+    public const string ConversationIdHeader = "conversation_id";
+
     /// <summary>Background refresh cadence for OAuth access tokens.</summary>
     public static readonly TimeSpan RefreshInterval = TimeSpan.FromHours(8);
 
