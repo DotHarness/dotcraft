@@ -268,6 +268,16 @@ function dispatch(payload: { method: string; params: unknown }): void {
       break
     }
 
+    case 'item/tool/requestUserInput/resolved': {
+      const threadId = (p.threadId as string | undefined) ?? ''
+      if (shouldUpdateActiveConversation(threadId)) {
+        conv.onUserInputResolved()
+      } else if (threadId) {
+        useThreadStore.getState().clearParkedUserInput(threadId)
+      }
+      break
+    }
+
     case 'subagent/progress': {
       const entries = (p.entries as SubAgentEntry[]) ?? []
       const threadId = (p.threadId as string | undefined) ?? ''
@@ -743,6 +753,55 @@ describe('notification dispatch payload format', () => {
     const approvalItem = s().turns[0].items.find((item) => item.type === 'approvalCard')
     expect(approvalItem?.approvalState).toBe('acceptedForSession')
     expect(s().pendingApproval).toBeNull()
+    expect(s().turnStatus).toBe('running')
+  })
+
+  it('clears pending user input only for the active thread', () => {
+    s().onUserInputRequest('bridge-input', {
+      threadId: 'thread-1',
+      turnId: 'turn_input',
+      requestId: 'req-input',
+      questions: [
+        {
+          id: 'scope',
+          header: 'Scope',
+          question: 'Which scope should DotCraft use?',
+          options: [
+            { label: 'Current thread', description: 'Answer in the active thread.' },
+            { label: 'Workspace', description: 'Apply to the workspace.' }
+          ]
+        }
+      ]
+    })
+    expect(s().pendingUserInput?.requestId).toBe('req-input')
+    expect(s().turnStatus).toBe('waitingInput')
+
+    dispatch({
+      method: 'item/tool/requestUserInput/resolved',
+      params: {
+        threadId: 'thread-2',
+        turnId: 'turn_other',
+        item: {
+          type: 'userInputResponse',
+          payload: { requestId: 'req-other', response: { answers: {} } }
+        }
+      }
+    })
+    expect(s().pendingUserInput?.requestId).toBe('req-input')
+    expect(s().turnStatus).toBe('waitingInput')
+
+    dispatch({
+      method: 'item/tool/requestUserInput/resolved',
+      params: {
+        threadId: 'thread-1',
+        turnId: 'turn_input',
+        item: {
+          type: 'userInputResponse',
+          payload: { requestId: 'req-input', response: { answers: {} } }
+        }
+      }
+    })
+    expect(s().pendingUserInput).toBeNull()
     expect(s().turnStatus).toBe('running')
   })
 

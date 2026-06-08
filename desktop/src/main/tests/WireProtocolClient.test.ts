@@ -248,6 +248,42 @@ describe('WireProtocolClient', () => {
     })
   })
 
+  it('sends an error response when a server-initiated request handler returns undefined', async () => {
+    const responseLines: string[] = []
+    toServer.on('data', (chunk: Buffer) => {
+      chunk
+        .toString('utf8')
+        .split('\n')
+        .filter(Boolean)
+        .forEach((line) => responseLines.push(line))
+    })
+
+    client.onServerRequest(async () => undefined)
+
+    fromServer.push(
+      JSON.stringify({
+        jsonrpc: '2.0',
+        id: 100,
+        method: 'item/tool/requestUserInput',
+        params: { threadId: 'thread-a' }
+      }) + '\n'
+    )
+
+    await new Promise((r) => setTimeout(r, 20))
+
+    expect(responseLines).toHaveLength(1)
+    const response = JSON.parse(responseLines[0])
+    expect(response).toMatchObject({
+      jsonrpc: '2.0',
+      id: 100,
+      error: {
+        code: -32603,
+        message: 'Server request item/tool/requestUserInput was not handled'
+      }
+    })
+    expect(response).not.toHaveProperty('result')
+  })
+
   // ─── Timeout ─────────────────────────────────────────────────────────────────
 
   it('rejects with a timeout error when no response is received in time', async () => {

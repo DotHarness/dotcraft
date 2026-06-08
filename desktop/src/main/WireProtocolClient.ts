@@ -479,11 +479,16 @@ export class WireProtocolClient extends EventEmitter {
       const params = msg.params
 
       Promise.resolve(this.serverRequestHandler(method, params))
-        .then((result) =>
-          this.transport.writeLine(
-            JSON.stringify({ jsonrpc: '2.0', id: reqId, result })
-          )
-        )
+        .then((result) => {
+          const response = result === undefined
+            ? {
+                jsonrpc: '2.0',
+                id: reqId,
+                error: { code: -32603, message: `Server request ${method} was not handled` }
+              }
+            : { jsonrpc: '2.0', id: reqId, result }
+          return this.transport.writeLine(JSON.stringify(response))
+        })
         .catch(() => {
           this.transport.writeLine(
             JSON.stringify({

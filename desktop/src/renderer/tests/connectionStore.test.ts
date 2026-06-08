@@ -18,6 +18,7 @@ describe('connectionStore', () => {
     expect(state.capabilities).toBeNull()
     expect(state.errorMessage).toBeNull()
     expect(state.dashboardUrl).toBeNull()
+    expect(state.connectionEpoch).toBe(0)
   })
 
   it('transitions to "connected" with serverInfo and capabilities', () => {
@@ -33,6 +34,16 @@ describe('connectionStore', () => {
     expect(state.serverInfo?.version).toBe('0.2.0')
     expect(state.capabilities?.threadManagement).toBe(true)
     expect(state.dashboardUrl).toBeNull()
+    expect(state.connectionEpoch).toBe(1)
+  })
+
+  it('increments connectionEpoch for repeated status events', () => {
+    const store = useConnectionStore.getState()
+
+    store.setStatus({ status: 'connected' })
+    store.setStatus({ status: 'connected' })
+
+    expect(useConnectionStore.getState().connectionEpoch).toBe(2)
   })
 
   it('stores dashboardUrl when connected and payload includes it', () => {
