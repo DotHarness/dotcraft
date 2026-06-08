@@ -61,6 +61,12 @@ public sealed class CompactSmokeTests
     }
 
     [Fact]
+    public void Scenarios_DoNotIncludePromptCacheBaseline()
+    {
+        Assert.DoesNotContain("prompt-cache-baseline", CompactSmokeScenarios.All);
+    }
+
+    [Fact]
     public void CliOptions_DefaultsToUserSmokeRunRootAndReport()
     {
         var path = Path.Combine(Path.GetTempPath(), "compact-smoke-" + Guid.NewGuid().ToString("N") + ".json");

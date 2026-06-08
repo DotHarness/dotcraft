@@ -182,10 +182,14 @@ These rules apply to every protocol unless the protocol contract above explicitl
 
 ## 5. Measurement contract
 
-Every prompt-cache-relevant change MUST be validated against the `prompt-cache-baseline` smoke scenario:
+Every prompt-cache-relevant change MUST be validated with AppServerTestClient's
+`prompt-cache-smoke` command, which runs the `prompt-cache-baseline` scenario with
+context compaction disabled:
 
 - Workload: a deterministic large file (~30k characters) read three times by the agent.
 - Reporting: aggregate hit rate (cached_input_tokens / input_tokens) plus per-call breakdown.
+- Guardrail: any `ContextCompaction` trace event fails the baseline run because compaction
+  rewrites the provider-visible prefix and contaminates cache-hit comparisons.
 - Pass criterion: no regression below the empirical envelope listed in §2 for the affected protocol.
 
 Each protocol's envelope is a calibration baseline, not a contract. Provider routing instability can swing any single call by tens of percentage points; multi-run trends matter more than single numbers.

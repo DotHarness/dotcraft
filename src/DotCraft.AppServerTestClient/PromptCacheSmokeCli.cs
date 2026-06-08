@@ -2,11 +2,11 @@ using System.Text.Json;
 
 namespace DotCraft.AppServerTestClient;
 
-internal static class CompactSmokeCli
+internal static class PromptCacheSmokeCli
 {
     public static async Task<int> RunAsync(string dotcraftBin, IReadOnlyList<string> args)
     {
-        if (!CompactSmokeCliOptions.TryParse(args, out var options, out var error))
+        if (!PromptCacheSmokeCliOptions.TryParse(args, out var options, out var error))
         {
             Console.Error.WriteLine($"Error: {error}");
             PrintUsage();
@@ -16,8 +16,8 @@ internal static class CompactSmokeCli
         Directory.CreateDirectory(options.WorkRoot);
         CopyMatrixForRepro(options.MatrixPath, options.WorkRoot);
 
-        var matrix = CompactSmokeMatrix.Load(options.MatrixPath);
-        var runner = new CompactSmokeRunner(dotcraftBin, options);
+        var matrix = PromptCacheSmokeMatrix.Load(options.MatrixPath);
+        var runner = new PromptCacheSmokeRunner(dotcraftBin, options);
         var report = await runner.RunAsync(matrix);
 
         var reportDirectory = Path.GetDirectoryName(Path.GetFullPath(options.ReportPath));
@@ -26,12 +26,12 @@ internal static class CompactSmokeCli
 
         await File.WriteAllTextAsync(
             options.ReportPath,
-            JsonSerializer.Serialize(report, CompactSmokeJson.Options));
+            JsonSerializer.Serialize(report, PromptCacheSmokeJson.Options));
 
         Console.Error.WriteLine(
-            $"[compact-smoke] total={report.Summary.Total} passed={report.Summary.Passed} failed={report.Summary.Failed} skipped={report.Summary.Skipped}");
-        Console.Error.WriteLine($"[compact-smoke] run-root={Path.GetFullPath(options.WorkRoot)}");
-        Console.Error.WriteLine($"[compact-smoke] report={Path.GetFullPath(options.ReportPath)}");
+            $"[prompt-cache-smoke] total={report.Summary.Total} passed={report.Summary.Passed} failed={report.Summary.Failed} skipped={report.Summary.Skipped}");
+        Console.Error.WriteLine($"[prompt-cache-smoke] run-root={Path.GetFullPath(options.WorkRoot)}");
+        Console.Error.WriteLine($"[prompt-cache-smoke] report={Path.GetFullPath(options.ReportPath)}");
         return report.ExitCode;
     }
 
@@ -53,14 +53,11 @@ internal static class CompactSmokeCli
     {
         Console.Error.WriteLine("""
             Usage:
-              dotcraft-test-client --dotcraft-bin <path> compact-smoke --matrix <compact-smoke.json>
-                  [--report <report.json>] [--work-root <dir>] [--scenarios <name1,name2,...>]
-                  [--timeout-minutes <n>]
+              dotcraft-test-client --dotcraft-bin <path> prompt-cache-smoke --matrix <prompt-cache-smoke.json> [--report <report.json>] [--work-root <dir>] [--timeout-minutes <n>]
 
-            Scenarios (default: all):
-              manual-snapshot-partial   Compact pipeline: manual compaction with snapshot-aware fork.
-              manual-legacy-partial     Compact pipeline: manual compaction via legacy path.
-              auto-snapshot-fork        Compact pipeline: auto-triggered snapshot fork under pressure.
+            Scenario:
+              prompt-cache-baseline     Fast cache observability: 3 agent turns, compaction disabled.
+                                        Reports aggregate prompt-cache hit ratio per provider.
 
             Matrix:
               {
@@ -74,23 +71,21 @@ internal static class CompactSmokeCli
     }
 }
 
-internal sealed record CompactSmokeCliOptions(
+internal sealed record PromptCacheSmokeCliOptions(
     string MatrixPath,
     string ReportPath,
     string WorkRoot,
-    TimeSpan TurnTimeout,
-    IReadOnlyList<string> ScenarioFilter)
+    TimeSpan TurnTimeout)
 {
     public static bool TryParse(
         IReadOnlyList<string> args,
-        out CompactSmokeCliOptions options,
+        out PromptCacheSmokeCliOptions options,
         out string error)
     {
         string? matrixPath = null;
         string? reportPath = null;
         string? workRoot = null;
         var turnTimeout = TimeSpan.FromMinutes(10);
-        IReadOnlyList<string> scenarioFilter = Array.Empty<string>();
 
         for (var i = 0; i < args.Count; i++)
         {
@@ -105,21 +100,6 @@ internal sealed record CompactSmokeCliOptions(
                 case "--work-root" when i + 1 < args.Count:
                     workRoot = args[++i];
                     break;
-                case "--scenarios" when i + 1 < args.Count:
-                    var scenarios = args[++i]
-                        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                        .ToArray();
-                    foreach (var scenario in scenarios)
-                    {
-                        if (!CompactSmokeScenarios.All.Contains(scenario, StringComparer.Ordinal))
-                        {
-                            options = default!;
-                            error = $"unknown scenario '{scenario}'. Known: {string.Join(',', CompactSmokeScenarios.All)}";
-                            return false;
-                        }
-                    }
-                    scenarioFilter = scenarios;
-                    break;
                 case "--timeout-minutes" when i + 1 < args.Count:
                     if (!double.TryParse(args[++i], out var minutes) || minutes <= 0)
                     {
@@ -131,7 +111,7 @@ internal sealed record CompactSmokeCliOptions(
                     break;
                 default:
                     options = default!;
-                    error = $"unknown compact-smoke argument '{args[i]}'.";
+                    error = $"unknown prompt-cache-smoke argument '{args[i]}'.";
                     return false;
             }
         }
@@ -153,12 +133,11 @@ internal sealed record CompactSmokeCliOptions(
         workRoot ??= CreateDefaultRunRoot();
         reportPath ??= Path.Combine(workRoot, "report.json");
 
-        options = new CompactSmokeCliOptions(
+        options = new PromptCacheSmokeCliOptions(
             Path.GetFullPath(matrixPath),
             Path.GetFullPath(reportPath),
             Path.GetFullPath(workRoot),
-            turnTimeout,
-            scenarioFilter);
+            turnTimeout);
         error = string.Empty;
         return true;
     }

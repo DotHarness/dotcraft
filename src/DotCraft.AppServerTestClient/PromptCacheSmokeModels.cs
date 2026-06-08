@@ -4,40 +4,31 @@ using DotCraft.Configuration;
 
 namespace DotCraft.AppServerTestClient;
 
-internal static class CompactSmokeScenarios
+internal static class PromptCacheSmokeScenarios
 {
-    public const string ManualSnapshotPartial = "manual-snapshot-partial";
-    public const string ManualLegacyPartial = "manual-legacy-partial";
-    public const string AutoSnapshotFork = "auto-snapshot-fork";
-
-    public static readonly string[] All =
-    [
-        ManualSnapshotPartial,
-        ManualLegacyPartial,
-        AutoSnapshotFork
-    ];
+    public const string PromptCacheBaseline = "prompt-cache-baseline";
 }
 
-internal static class CompactSmokeStatuses
+internal static class PromptCacheSmokeStatuses
 {
     public const string Passed = "passed";
     public const string Failed = "failed";
     public const string Skipped = "skipped";
 }
 
-internal sealed class CompactSmokeMatrix
+internal sealed class PromptCacheSmokeMatrix
 {
-    public List<CompactSmokeProviderCase> Providers { get; set; } = [];
+    public List<PromptCacheSmokeProviderCase> Providers { get; set; } = [];
 
-    public static CompactSmokeMatrix Load(string path)
+    public static PromptCacheSmokeMatrix Load(string path)
     {
         using var stream = File.OpenRead(path);
-        return JsonSerializer.Deserialize<CompactSmokeMatrix>(stream, CompactSmokeJson.Options)
-               ?? new CompactSmokeMatrix();
+        return JsonSerializer.Deserialize<PromptCacheSmokeMatrix>(stream, PromptCacheSmokeJson.Options)
+               ?? new PromptCacheSmokeMatrix();
     }
 }
 
-internal sealed class CompactSmokeProviderCase
+internal sealed class PromptCacheSmokeProviderCase
 {
     public string Protocol { get; set; } = string.Empty;
 
@@ -46,7 +37,7 @@ internal sealed class CompactSmokeProviderCase
     public string Model { get; set; } = string.Empty;
 }
 
-internal sealed class CompactSmokeReport
+internal sealed class PromptCacheSmokeReport
 {
     public DateTimeOffset StartedAt { get; set; } = DateTimeOffset.UtcNow;
 
@@ -54,9 +45,9 @@ internal sealed class CompactSmokeReport
 
     public string WorkRoot { get; set; } = string.Empty;
 
-    public List<CompactSmokeCaseReport> Cases { get; set; } = [];
+    public List<PromptCacheSmokeCaseReport> Cases { get; set; } = [];
 
-    public CompactSmokeSummary Summary { get; set; } = new();
+    public PromptCacheSmokeSummary Summary { get; set; } = new();
 
     [JsonIgnore]
     public int ExitCode => Summary.Failed > 0
@@ -68,11 +59,11 @@ internal sealed class CompactSmokeReport
     public void FinalizeSummary(DateTimeOffset finishedAt)
     {
         FinishedAt = finishedAt;
-        Summary = CompactSmokeSummary.FromCases(Cases);
+        Summary = PromptCacheSmokeSummary.FromCases(Cases);
     }
 }
 
-internal sealed class CompactSmokeSummary
+internal sealed class PromptCacheSmokeSummary
 {
     public int Total { get; set; }
 
@@ -86,14 +77,14 @@ internal sealed class CompactSmokeSummary
 
     public int ExitCode { get; set; }
 
-    public static CompactSmokeSummary FromCases(IReadOnlyList<CompactSmokeCaseReport> cases)
+    public static PromptCacheSmokeSummary FromCases(IReadOnlyList<PromptCacheSmokeCaseReport> cases)
     {
-        var summary = new CompactSmokeSummary
+        var summary = new PromptCacheSmokeSummary
         {
             Total = cases.Count,
-            Passed = cases.Count(static c => c.Status == CompactSmokeStatuses.Passed),
-            Failed = cases.Count(static c => c.Status == CompactSmokeStatuses.Failed),
-            Skipped = cases.Count(static c => c.Status == CompactSmokeStatuses.Skipped)
+            Passed = cases.Count(static c => c.Status == PromptCacheSmokeStatuses.Passed),
+            Failed = cases.Count(static c => c.Status == PromptCacheSmokeStatuses.Failed),
+            Skipped = cases.Count(static c => c.Status == PromptCacheSmokeStatuses.Skipped)
         };
         summary.Runnable = summary.Passed + summary.Failed;
         summary.ExitCode = summary.Failed > 0
@@ -105,7 +96,7 @@ internal sealed class CompactSmokeSummary
     }
 }
 
-internal sealed class CompactSmokeCaseReport
+internal sealed class PromptCacheSmokeCaseReport
 {
     public string Protocol { get; set; } = string.Empty;
 
@@ -113,9 +104,9 @@ internal sealed class CompactSmokeCaseReport
 
     public string Model { get; set; } = string.Empty;
 
-    public string Scenario { get; set; } = string.Empty;
+    public string Scenario { get; set; } = PromptCacheSmokeScenarios.PromptCacheBaseline;
 
-    public string Status { get; set; } = CompactSmokeStatuses.Skipped;
+    public string Status { get; set; } = PromptCacheSmokeStatuses.Skipped;
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? ThreadId { get; set; }
@@ -130,31 +121,10 @@ internal sealed class CompactSmokeCaseReport
     public string? Message { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? FallbackReason { get; set; }
-
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? SnapshotSource { get; set; }
-
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? SnapshotInvalidReason { get; set; }
-
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public bool? CacheHitRequired { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public bool? CacheHit { get; set; }
-
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public bool? CacheShapeApplied { get; set; }
-
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? CacheShapeKind { get; set; }
-
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public bool? PromptCacheKeyPresent { get; set; }
-
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? CacheMarkerSource { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public long? InputTokens { get; set; }
@@ -169,34 +139,35 @@ internal sealed class CompactSmokeCaseReport
     public double? CacheHitRate { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? ContextCompactionCount { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? ErrorMessage { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public long? DurationMs { get; set; }
 
-    public static CompactSmokeCaseReport Skipped(
+    public static PromptCacheSmokeCaseReport Skipped(
         string protocol,
         string providerId,
         string model,
-        string scenario,
         string reason) =>
         new()
         {
             Protocol = protocol,
             ProviderId = providerId,
             Model = model,
-            Scenario = scenario,
-            Status = CompactSmokeStatuses.Skipped,
+            Status = PromptCacheSmokeStatuses.Skipped,
             Message = reason
         };
 }
 
-internal sealed record CompactSmokeProviderSelection(
+internal sealed record PromptCacheSmokeProviderSelection(
     string Protocol,
     string ProviderId,
     string Model);
 
-internal static class CompactSmokeJson
+internal static class PromptCacheSmokeJson
 {
     public static readonly JsonSerializerOptions Options = new(JsonSerializerOptions.Web)
     {
