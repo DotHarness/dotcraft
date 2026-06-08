@@ -5,10 +5,19 @@ import { useUIStore } from '../../stores/uiStore'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { useThreadStore } from '../../stores/threadStore'
 import { usePluginStore } from '../../stores/pluginStore'
+import { useWorkspaceProjectsStore } from '../../stores/workspaceProjectsStore'
 import { getDesktopMainViewExtensions } from '../../utils/desktopExtensionRegistry'
+import type { WorkspaceProjectSummary } from '../../../shared/workspaceProjects'
 import { NewThreadButton } from '../sidebar/NewThreadButton'
 import { ThreadSearch } from '../sidebar/ThreadSearch'
-import { ThreadList } from '../sidebar/ThreadList'
+import {
+  ThreadList,
+  ProjectGlyph,
+  isColdProject,
+  isProjectForeground,
+  isRemoteProject,
+  projectIdentity
+} from '../sidebar/ThreadList'
 import { SidebarFooter } from '../sidebar/SidebarFooter'
 import {
   SIDEBAR_NAV_BORDER_INACTIVE,
@@ -259,6 +268,9 @@ function CollapsedSidebar(): JSX.Element {
   const { activeMainView, setActiveMainView, goToNewChat } = useUIStore()
   const plugins = usePluginStore((s) => s.plugins)
   const desktopMainViews = getDesktopMainViewExtensions(plugins)
+  const projects = useWorkspaceProjectsStore((s) => s.projects)
+  const foregroundProjectId = useWorkspaceProjectsStore((s) => s.foregroundProjectId)
+  const foregroundWorkspacePath = useWorkspaceProjectsStore((s) => s.foregroundWorkspacePath)
   const collapsedAutomationsAvailable =
     collapsedCaps?.automations === true || collapsedCaps?.cronManagement === true
 
@@ -269,12 +281,31 @@ function CollapsedSidebar(): JSX.Element {
     error: 'var(--error)'
   }
 
-  // Show up to 5 recent thread dots in collapsed mode
+  // Mirror the expanded Projects rail with one folder icon per project. Fall back
+  // to recent-thread dots while the projects rail has not been populated yet.
+  const showProjects = projects.length > 0
   const recentThreads = threadList.slice(0, 5)
 
   function handleNewThread(): void {
     if (status !== 'connected') return
     goToNewChat()
+  }
+
+  async function handleProjectClick(
+    project: WorkspaceProjectSummary,
+    isForeground: boolean
+  ): Promise<void> {
+    // Promote a background local project to foreground; remote projects are
+    // foreground-only and never switched. Then surface the conversation view.
+    if (!isForeground && !isRemoteProject(project)) {
+      try {
+        await window.api.workspace.switch(project.path)
+      } catch (err) {
+        console.error('Failed to switch workspace from collapsed sidebar:', err)
+        return
+      }
+    }
+    setActiveMainView('conversation')
   }
 
   return (
@@ -319,37 +350,81 @@ function CollapsedSidebar(): JSX.Element {
         </button>
       </ActionTooltip>
 
-      {/* Thread dots: first letter of each recent thread */}
-      {recentThreads.map((thread) => {
-        const letter = (thread.displayName ?? 'N')[0].toUpperCase()
-        return (
-          <ActionTooltip
-            key={thread.id}
-            label={thread.displayName ?? t('sidebar.newConversation')}
-            placement="right"
-          >
-            <button
-              onClick={() => {
-                setActiveThreadId(thread.id)
-                setActiveMainView('conversation')
-              }}
-              style={{
-                ...iconButtonStyle,
-                fontSize: 'var(--type-secondary-size)',
-                lineHeight: 'var(--type-secondary-line-height)',
-                fontWeight: 'var(--type-ui-emphasis-weight)',
-                backgroundColor: 'var(--sidebar-control-active)'
-              }}
-              aria-label={thread.displayName ?? t('sidebar.newConversation')}
-            >
-              {letter}
-            </button>
-          </ActionTooltip>
-        )
-      })}
-
-      {/* Spacer */}
-      <div style={{ flex: 1 }} />
+      {/* Projects rail (folder icons) — one per project, foreground marked with an
+          accent ring; falls back to recent-thread dots. Scrolls when crowded and
+          fills the gap between New chat and the nav destinations below. */}
+      <div
+        style={{
+          flex: 1,
+          minHeight: 0,
+          width: '100%',
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          scrollbarWidth: 'none',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '6px'
+        }}
+      >
+        {showProjects
+          ? projects.map((project) => {
+              const isForeground = isProjectForeground(
+                project,
+                foregroundProjectId,
+                foregroundWorkspacePath
+              )
+              const label = project.name || project.path
+              return (
+                <ActionTooltip key={projectIdentity(project)} label={label} placement="right">
+                  <button
+                    type="button"
+                    onClick={() => void handleProjectClick(project, isForeground)}
+                    aria-label={label}
+                    aria-current={isForeground ? 'true' : undefined}
+                    style={{
+                      ...iconButtonStyle,
+                      backgroundColor: isForeground ? 'var(--sidebar-control-active)' : 'transparent'
+                    }}
+                  >
+                    <ProjectGlyph
+                      project={project}
+                      collapsed={!isForeground}
+                      cold={isColdProject(project)}
+                      active={isForeground}
+                    />
+                  </button>
+                </ActionTooltip>
+              )
+            })
+          : recentThreads.map((thread) => {
+              const letter = (thread.displayName ?? 'N')[0].toUpperCase()
+              return (
+                <ActionTooltip
+                  key={thread.id}
+                  label={thread.displayName ?? t('sidebar.newConversation')}
+                  placement="right"
+                >
+                  <button
+                    onClick={() => {
+                      setActiveThreadId(thread.id)
+                      setActiveMainView('conversation')
+                    }}
+                    style={{
+                      ...iconButtonStyle,
+                      fontSize: 'var(--type-secondary-size)',
+                      lineHeight: 'var(--type-secondary-line-height)',
+                      fontWeight: 'var(--type-ui-emphasis-weight)',
+                      backgroundColor: 'var(--sidebar-control-active)'
+                    }}
+                    aria-label={thread.displayName ?? t('sidebar.newConversation')}
+                  >
+                    {letter}
+                  </button>
+                </ActionTooltip>
+              )
+            })}
+      </div>
 
       <CollapsedNavTooltip label={t('sidebar.channels')}>
         <button
@@ -433,25 +508,28 @@ function CollapsedSidebar(): JSX.Element {
         </button>
       </ActionTooltip>
 
-      {/* Connection status dot */}
-      <ActionTooltip
-        label={t('connection.statusTitle', {
-          status: connectionStatusLabel(status, errorMessage, t)
-        })}
-      >
-        <div
-          style={{
-            width: '8px',
-            height: '8px',
-            borderRadius: '50%',
-            backgroundColor: colorMap[status] ?? 'var(--text-dimmed)',
-            marginBottom: '8px'
-          }}
-          aria-label={t('connection.statusTitle', {
+      {/* Connection status dot — only when the projects rail (which carries its own
+          per-project status dots) is not shown. */}
+      {!showProjects && (
+        <ActionTooltip
+          label={t('connection.statusTitle', {
             status: connectionStatusLabel(status, errorMessage, t)
           })}
-        />
-      </ActionTooltip>
+        >
+          <div
+            style={{
+              width: '8px',
+              height: '8px',
+              borderRadius: '50%',
+              backgroundColor: colorMap[status] ?? 'var(--text-dimmed)',
+              marginBottom: '8px'
+            }}
+            aria-label={t('connection.statusTitle', {
+              status: connectionStatusLabel(status, errorMessage, t)
+            })}
+          />
+        </ActionTooltip>
+      )}
     </div>
   )
 }

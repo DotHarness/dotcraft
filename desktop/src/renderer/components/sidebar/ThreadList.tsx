@@ -334,7 +334,7 @@ function sameWorkspacePath(left: string, right: string): boolean {
   return sameWorkspaceProjectKey(left, right)
 }
 
-function projectIdentity(project: WorkspaceProjectSummary): string {
+export function projectIdentity(project: WorkspaceProjectSummary): string {
   return project.projectId?.trim() || normalizeWorkspacePath(project.path)
 }
 
@@ -349,15 +349,15 @@ function isForegroundThreadListForProject(
   return sameWorkspaceProjectKey(threadListProjectKey, projectKey)
 }
 
-function isRemoteProject(project: WorkspaceProjectSummary): boolean {
+export function isRemoteProject(project: WorkspaceProjectSummary): boolean {
   return project.kind === 'remote'
 }
 
-function isColdProject(project: WorkspaceProjectSummary): boolean {
+export function isColdProject(project: WorkspaceProjectSummary): boolean {
   return project.state === 'cold'
 }
 
-function isProjectForeground(
+export function isProjectForeground(
   project: WorkspaceProjectSummary,
   foregroundProjectId: string,
   foregroundWorkspacePath: string
@@ -636,6 +636,61 @@ function FlatSectionTitle({ label }: { label: string }): JSX.Element {
   )
 }
 
+/**
+ * Folder/cloud/server icon for a project plus its status badge: a small colored
+ * dot (running/connecting/error) for live projects, a dashed circle for cold
+ * ones, and an accent ring when the project is the foreground workspace. Shared
+ * by the expanded Projects rail (ProjectHeader) and the collapsed sidebar so both
+ * render the project's identity and status identically.
+ */
+export function ProjectGlyph({
+  project,
+  collapsed,
+  cold,
+  active
+}: {
+  project: WorkspaceProjectSummary
+  /** Folder icon variant: closed when collapsed, open when expanded/foreground. */
+  collapsed: boolean
+  cold: boolean
+  /** Foreground (currently open) workspace — gets an accent ring on its dot. */
+  active: boolean
+}): JSX.Element {
+  const ProjectIcon = isRemoteProject(project)
+    ? (project.remote?.source === 'servers' ? Server : Cloud)
+    : (collapsed ? Folder : FolderOpen)
+  return (
+    <span style={projectIconSlotStyle}>
+      <ProjectIcon
+        size={15}
+        strokeWidth={1.7}
+        aria-hidden
+        style={{ color: cold ? 'var(--text-tertiary)' : 'var(--text-dimmed)' }}
+      />
+      {cold ? (
+        <CircleDashed
+          size={9}
+          strokeWidth={2.35}
+          aria-hidden
+          style={projectColdBadgeStyle}
+        />
+      ) : (
+        <span
+          aria-hidden
+          style={{
+            ...projectStatusBadgeStyle,
+            backgroundColor: projectStatusDotColor(project.state),
+            // Foreground (current) workspace: accent ring around its status dot.
+            boxShadow: active
+              ? '0 0 0 1.5px var(--bg-primary), 0 0 0 3px color-mix(in srgb, var(--accent) 85%, transparent)'
+              : projectStatusBadgeStyle.boxShadow
+          }}
+        />
+      )}
+    </span>
+  )
+}
+
 function ProjectHeader({
   project,
   projectKey,
@@ -663,9 +718,6 @@ function ProjectHeader({
   const setActiveMainView = useUIStore((s) => s.setActiveMainView)
   const label = project.name || project.path
   const showActions = hovered || menuOpen
-  const ProjectIcon = isRemoteProject(project)
-    ? (project.remote?.source === 'servers' ? Server : Cloud)
-    : (collapsed ? Folder : FolderOpen)
   const detailLabel = project.remote?.displayPath || project.remote?.endpoint || project.identityWorkspacePath || project.path
   const iconLabel = cold ? t('projectsRail.notRunning') : detailLabel
 
@@ -785,34 +837,7 @@ function ProjectHeader({
       }}
     >
       <ActionTooltip label={iconLabel} placement="right">
-        <span style={projectIconSlotStyle}>
-          <ProjectIcon
-            size={15}
-            strokeWidth={1.7}
-            aria-hidden
-            style={{ color: cold ? 'var(--text-tertiary)' : 'var(--text-dimmed)' }}
-          />
-          {cold ? (
-            <CircleDashed
-              size={9}
-              strokeWidth={2.35}
-              aria-hidden
-              style={projectColdBadgeStyle}
-            />
-          ) : (
-            <span
-              aria-hidden
-              style={{
-                ...projectStatusBadgeStyle,
-                backgroundColor: projectStatusDotColor(project.state),
-                // Foreground (current) workspace: accent ring around its status dot.
-                boxShadow: active
-                  ? '0 0 0 1.5px var(--bg-primary), 0 0 0 3px color-mix(in srgb, var(--accent) 85%, transparent)'
-                  : projectStatusBadgeStyle.boxShadow
-              }}
-            />
-          )}
-        </span>
+        <ProjectGlyph project={project} collapsed={collapsed} cold={cold} active={active} />
       </ActionTooltip>
       <ActionTooltip label={detailLabel} wrapperStyle={{ minWidth: 0 }}>
         <span
