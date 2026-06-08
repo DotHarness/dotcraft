@@ -9,19 +9,19 @@ import {
   SIDEBAR_NAV_ROW_OUTER
 } from './sidebarNavRowStyles'
 import { SettingsIcon } from '../ui/AppIcons'
-import { ActionTooltip } from '../ui/ActionTooltip'
 import { ShortcutBadge } from '../ui/ShortcutBadge'
 import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
 
-const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0'
-
 /**
- * Sidebar footer showing settings button, connection status and app version.
+ * Sidebar footer: a single Settings row with an ambient connection-status dot at
+ * the right. The dot stays quiet while connected and turns colored/pulsing when
+ * connecting, disconnected, or in error. App version and the "What's New" entry
+ * live under Settings → General.
  * Spec §9.6
  */
 export function SidebarFooter(): JSX.Element {
   const t = useT()
-  const { activeMainView, setActiveMainView, requestOpenWhatsNew } = useUIStore()
+  const { activeMainView, setActiveMainView } = useUIStore()
   const settingsActive = activeMainView === 'settings'
   const [settingsRowActive, setSettingsRowActive] = useState(false)
   const settingsVisualActive = settingsActive || settingsRowActive
@@ -30,10 +30,7 @@ export function SidebarFooter(): JSX.Element {
       style={{
         marginTop: '8px',
         padding: '8px 0',
-        flexShrink: 0,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '2px'
+        flexShrink: 0
       }}
     >
       <button
@@ -68,49 +65,11 @@ export function SidebarFooter(): JSX.Element {
             {t('sidebarFooter.settings')}
           </span>
         </span>
-        {settingsRowActive && <ShortcutBadge shortcut={ACTION_SHORTCUTS.settings} />}
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+          {settingsRowActive && <ShortcutBadge shortcut={ACTION_SHORTCUTS.settings} />}
+          <ConnectionStatusIndicator variant="dot" />
+        </span>
       </button>
-
-      <div
-        style={{
-          ...SIDEBAR_NAV_ROW_OUTER,
-          ...SIDEBAR_NAV_BORDER_INACTIVE,
-          backgroundColor: 'transparent',
-          cursor: 'default',
-          justifyContent: 'space-between',
-          gap: '8px'
-        }}
-      >
-        <ConnectionStatusIndicator />
-        <ActionTooltip label={t('whatsNew.open')} placement="top">
-          <button
-            type="button"
-            onClick={requestOpenWhatsNew}
-            aria-label={t('whatsNew.open')}
-            style={{
-              border: 'none',
-              borderRadius: 4,
-              background: 'transparent',
-              color: 'var(--text-dimmed)',
-              cursor: 'pointer',
-              flexShrink: 0,
-              fontSize: 'var(--type-secondary-size)',
-              lineHeight: 'var(--type-secondary-line-height)',
-              padding: '2px 4px'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = 'var(--sidebar-control-hover)'
-              e.currentTarget.style.color = 'var(--text-primary)'
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = 'transparent'
-              e.currentTarget.style.color = 'var(--text-dimmed)'
-            }}
-          >
-            v{APP_VERSION}
-          </button>
-        </ActionTooltip>
-      </div>
     </div>
   )
 }

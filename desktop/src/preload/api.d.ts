@@ -509,6 +509,8 @@ declare global {
       }
       workspace: {
         pickFolder(): Promise<string | null>
+        /** Creates a new local project folder under Documents, git-inits it, and returns its absolute path. */
+        createLocalProject(params: { name: string }): Promise<{ path: string; gitInitialized: boolean }>
         /** Opens the native file picker and returns selected local file paths, including files outside the workspace. */
         pickFiles(): Promise<Array<{ path: string; fileName: string }>>
         /** Returns the absolute local path for a dragged or picked Electron-backed File. */

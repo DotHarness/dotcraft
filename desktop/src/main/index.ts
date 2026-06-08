@@ -129,6 +129,14 @@ import {
   normalizeWorkspaceProjectKey,
   sameWorkspaceProjectKey
 } from '../shared/workspaceProjectKey'
+import {
+  canBridgeRendererInteractiveServerRequest,
+  getWorkspaceNotificationForeground,
+  isCurrentForegroundWorkspaceConnection,
+  isRendererInteractiveServerRequest,
+  shouldBridgeWorkspaceServerRequest,
+  type WorkspaceConnectionRole
+} from './workspaceConnectionRouting'
 
 // ─── Single-process state ─────────────────────────────────────────────────────
 // Each Electron process owns exactly one window and one AppServer connection.
@@ -155,15 +163,6 @@ let previousLocalForegroundWorkspacePath: string | null = null
 let lastRemoteStackLocalPort: number | null = null
 let connectionGeneration = 0
 const SECONDARY_WORKSPACE_CONNECTION_LIMIT = 8
-const SECONDARY_THREAD_NOTIFICATION_METHODS = new Set([
-  'thread/started',
-  'thread/renamed',
-  'thread/deleted',
-  'thread/statusChanged',
-  'thread/runtimeChanged'
-])
-
-type WorkspaceConnectionRole = 'foreground' | 'secondary'
 
 interface WorkspaceConnectionEntry {
   key: string
@@ -587,6 +586,40 @@ async function handleServerRequestInMain(method: string, params: unknown): Promi
   }
 
   return undefined
+}
+
+async function bridgeServerRequestToRenderer(method: string, params: unknown): Promise<unknown> {
+  const win = mainWindow
+  if (!win || win.isDestroyed()) {
+    throw new Error('Window is not available to handle server request')
+  }
+  const { bridgeId, promise } = createServerRequestBridge()
+  broadcastServerRequest(win, { bridgeId, method, params }, sharedSettings)
+  return promise
+}
+
+async function handleWorkspaceServerRequest(
+  method: string,
+  params: unknown,
+  canUseForegroundMainHandlers: boolean,
+  canBridgeInteractiveToRenderer: boolean
+): Promise<unknown> {
+  const isInteractive = isRendererInteractiveServerRequest(method)
+
+  if (!canUseForegroundMainHandlers && !isInteractive) {
+    throw new Error(`Server request ${method} is not routed to the current foreground workspace connection.`)
+  }
+
+  if (canUseForegroundMainHandlers) {
+    const handledInMain = await handleServerRequestInMain(method, params)
+    if (handledInMain !== undefined) return handledInMain
+  }
+
+  if (!canUseForegroundMainHandlers && !canBridgeInteractiveToRenderer) {
+    throw new Error('Window is not available to handle interactive server request.')
+  }
+
+  return bridgeServerRequestToRenderer(method, params)
 }
 
 /** PNG shipped via `build.extraResources` (prod) or repo `resources/` (dev). macOS uses bundle icon. */
@@ -1705,37 +1738,54 @@ async function connectViaWebSocket(
   }
   workspaceConnections.set(connectionKey, entry)
   wireClient = client
-  const isCurrentClient = (): boolean =>
+  const isCurrentConnectAttempt = (): boolean =>
     !isAppQuitting &&
     wireClient === client &&
     connectionGeneration === generation &&
     mainWindow === win &&
     !win.isDestroyed()
+  const isCurrentForegroundClient = (): boolean =>
+    isCurrentForegroundWorkspaceConnection({
+      appQuitting: isAppQuitting,
+      mainWindow,
+      window: win,
+      wireClient,
+      client,
+      role: entry.role
+    })
 
   client.onNotification((method, params) => {
-    if (entry.role === 'secondary') {
-      if (SECONDARY_THREAD_NOTIFICATION_METHODS.has(method)) {
-        applyWorkspaceThreadNotification(entry, method, params)
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          broadcastNotification(mainWindow, method, params, sharedSettings, entry.workspacePath, false)
-        }
-      }
-      return
-    }
-    if (isCurrentClient() && mainWindow && !mainWindow.isDestroyed()) {
+    const foreground = getWorkspaceNotificationForeground(method, {
+      appQuitting: isAppQuitting,
+      mainWindow,
+      window: win,
+      wireClient,
+      client,
+      role: entry.role
+    })
+    if (foreground == null) return
+
+    if (mainWindow && !mainWindow.isDestroyed()) {
       applyWorkspaceThreadNotification(entry, method, params)
-      broadcastNotification(mainWindow, method, params, sharedSettings, entry.workspacePath, true)
+      broadcastNotification(mainWindow, method, params, sharedSettings, entry.workspacePath, foreground)
     }
   })
 
   client.onServerRequest(async (method, params) => {
-    if (!isCurrentClient()) return undefined
-    const handledInMain = await handleServerRequestInMain(method, params)
-    if (handledInMain !== undefined) return handledInMain
-    const win = mainWindow!
-    const { bridgeId, promise } = createServerRequestBridge()
-    broadcastServerRequest(win, { bridgeId, method, params }, sharedSettings)
-    return promise
+    const routingState = {
+      appQuitting: isAppQuitting,
+      mainWindow,
+      window: win,
+      wireClient,
+      client,
+      role: entry.role
+    }
+    return handleWorkspaceServerRequest(
+      method,
+      params,
+      shouldBridgeWorkspaceServerRequest(routingState),
+      canBridgeRendererInteractiveServerRequest(routingState)
+    )
   })
   let connectedOnce = false
   let initialFailureEmitted = false
@@ -1744,7 +1794,7 @@ async function connectViaWebSocket(
     errorType: ConnectionErrorType,
     stage: string
   ): void => {
-    if (initialFailureEmitted || !isCurrentClient()) return
+    if (initialFailureEmitted || !isCurrentConnectAttempt()) return
     initialFailureEmitted = true
     resetDesktopThreadToolBindings()
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -1777,7 +1827,7 @@ async function connectViaWebSocket(
     if (entry.role === 'secondary') {
       return
     }
-    if (!isCurrentClient()) return
+    if (!isCurrentForegroundClient()) return
     connectedOnce = true
     clearActiveRemoteReconnectTimer()
     activeRemoteReconnectAttempt = 0
@@ -1803,7 +1853,7 @@ async function connectViaWebSocket(
     entry.connecting = false
     emitWorkspaceProjects()
     if (entry.role === 'secondary') return
-    if (!isCurrentClient()) return
+    if (!isCurrentForegroundClient()) return
     resetDesktopThreadToolBindings()
     if (!connectedOnce && options.initialDisconnectIsError) {
       if (!initialFailureEmitted) {
@@ -1829,7 +1879,7 @@ async function connectViaWebSocket(
     entry.connecting = false
     emitWorkspaceProjects()
     if (entry.role === 'secondary') return
-    if (!isCurrentClient()) return
+    if (!isCurrentForegroundClient()) return
     const message = err instanceof Error ? err.message : String(err)
     if (!connectedOnce && options.initialDisconnectIsError) {
       emitInitialConnectionFailure(
@@ -2006,10 +2056,15 @@ function createSecondaryWorkspaceConnection(
   emitWorkspaceProjects()
 
   client.onNotification((method, params) => {
-    const foreground = entry.role === 'foreground' && wireClient === client
-    if (!foreground && !SECONDARY_THREAD_NOTIFICATION_METHODS.has(method)) {
-      return
-    }
+    const foreground = getWorkspaceNotificationForeground(method, {
+      appQuitting: isAppQuitting,
+      mainWindow,
+      wireClient,
+      client,
+      role: entry.role
+    })
+    if (foreground == null) return
+
     applyWorkspaceThreadNotification(entry, method, params)
     if (mainWindow && !mainWindow.isDestroyed()) {
       broadcastNotification(mainWindow, method, params, sharedSettings, workspacePath, foreground)
@@ -2017,14 +2072,19 @@ function createSecondaryWorkspaceConnection(
   })
 
   client.onServerRequest(async (method, params) => {
-    if (entry.role !== 'foreground' || wireClient !== client) return undefined
-    const handledInMain = await handleServerRequestInMain(method, params)
-    if (handledInMain !== undefined) return handledInMain
-    const win = mainWindow
-    if (!win || win.isDestroyed()) return undefined
-    const { bridgeId, promise } = createServerRequestBridge()
-    broadcastServerRequest(win, { bridgeId, method, params }, sharedSettings)
-    return promise
+    const routingState = {
+      appQuitting: isAppQuitting,
+      mainWindow,
+      wireClient,
+      client,
+      role: entry.role
+    }
+    return handleWorkspaceServerRequest(
+      method,
+      params,
+      shouldBridgeWorkspaceServerRequest(routingState),
+      canBridgeRendererInteractiveServerRequest(routingState)
+    )
   })
 
   const onReady = (result: InitializeResult): void => {

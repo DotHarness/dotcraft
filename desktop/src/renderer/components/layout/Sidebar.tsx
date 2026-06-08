@@ -37,9 +37,9 @@ interface SidebarProps {
  * 1. WorkspaceHeader (name, path, dropdown)
  * 2. NewThreadButton (Ctrl+N, disabled when disconnected)
  * 3. ThreadSearch (Ctrl+K, debounced)
- * 4. ThreadList (grouped, scrollable)
- * 5. Reserved nav items (Channels, Automations, Skills)
- * 6. SidebarFooter (connection status, version)
+ * 4. Nav destinations (Channels, Automations, Skills, plugin views)
+ * 5. ThreadList (grouped, scrollable, fills remaining space)
+ * 6. SidebarFooter (Settings row with an ambient connection-status dot)
  *
  * Collapsed mode (48px): shows first-letter dots for recent threads.
  * Spec §9.8
@@ -85,21 +85,12 @@ export function Sidebar({
 
       <ThreadSearch workspaceName={workspaceName} />
 
-      {/* Thread list -- fills remaining space */}
-      <ThreadList
-        workspacePath={workspacePath}
-        localWorkspacePath={localWorkspacePath ?? workspacePath}
-        localActionsDisabled={remoteWorkspace}
-        foregroundOpening={workspaceOpening}
-        openingWorkspacePath={workspaceOpening ? workspacePath : undefined}
-      />
-
-      {/* Phase 2 nav: Automations, Skills — spacing instead of a divider line */}
+      {/* Primary nav destinations — sit directly under search, above the thread list.
+          No top padding: rows rely on their shared 2px row margin so New chat,
+          Search, and these nav items keep one uniform vertical rhythm. */}
       <div
         style={{
-          marginTop: '8px',
-          paddingTop: '8px',
-          paddingBottom: '4px',
+          paddingBottom: '6px',
           flexShrink: 0
         }}
       >
@@ -137,6 +128,15 @@ export function Sidebar({
           testId="nav-skills"
         />
       </div>
+
+      {/* Thread list -- fills remaining space */}
+      <ThreadList
+        workspacePath={workspacePath}
+        localWorkspacePath={localWorkspacePath ?? workspacePath}
+        localActionsDisabled={remoteWorkspace}
+        foregroundOpening={workspaceOpening}
+        openingWorkspacePath={workspaceOpening ? workspacePath : undefined}
+      />
 
       <SidebarFooter />
     </div>

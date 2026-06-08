@@ -53,6 +53,8 @@ export interface ConnectionState {
   errorType: ConnectionErrorType | null
   binarySource: BinarySource | null
   isExpectedRestart: boolean
+  /** Increments for every Main Process connection status event, including connected -> connected promotions. */
+  connectionEpoch: number
 }
 
 interface ConnectionStore extends ConnectionState {
@@ -69,7 +71,8 @@ const initialState: ConnectionState = {
   errorMessage: null,
   errorType: null,
   binarySource: null,
-  isExpectedRestart: false
+  isExpectedRestart: false,
+  connectionEpoch: 0
 }
 
 export const useConnectionStore = create<ConnectionStore>((set) => ({
@@ -85,7 +88,8 @@ export const useConnectionStore = create<ConnectionStore>((set) => ({
       errorMessage: payload.errorMessage ?? null,
       errorType: (payload.errorType as ConnectionErrorType) ?? null,
       binarySource: payload.binarySource ?? null,
-      isExpectedRestart: connected ? false : state.isExpectedRestart
+      isExpectedRestart: connected ? false : state.isExpectedRestart,
+      connectionEpoch: state.connectionEpoch + 1
     }))
   },
 

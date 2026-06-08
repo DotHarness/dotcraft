@@ -1011,6 +1011,59 @@ describe('App initial workspace status bootstrap', () => {
     })).toBe(false)
   })
 
+  it('restores the active thread subscription when the foreground connection is refreshed', async () => {
+    const appServerSendRequest = vi.fn(async (method: string, params?: { threadId?: string }) => {
+      if (method === 'thread/list') {
+        return { data: [makeThreadSummary('thread-pinned', readyWorkspaceStatus.workspacePath, 'Pinned thread')] }
+      }
+      if (method === 'thread/read') {
+        return { thread: makeThread(params?.threadId ?? 'thread-pinned', readyWorkspaceStatus.workspacePath, 'Pinned thread') }
+      }
+      return {}
+    })
+    installApi(readyWorkspaceStatus, {
+      appServerSendRequest,
+      modulesList: vi.fn().mockResolvedValue([]),
+      modulesRunning: vi.fn().mockResolvedValue({}),
+      settingsGet: vi.fn().mockResolvedValue({}),
+      workspaceGetProjects: vi.fn().mockResolvedValue({
+        ...projectsPayloadFor(readyWorkspaceStatus.workspacePath, 'A'),
+        projects: [
+          {
+            ...projectsPayloadFor(readyWorkspaceStatus.workspacePath, 'A').projects[0],
+            pinnedThreadIds: ['thread-pinned']
+          }
+        ]
+      })
+    })
+    useConnectionStore.getState().setStatus({ status: 'connected' })
+
+    renderApp()
+    act(() => {
+      useThreadStore.getState().setActiveThreadId('thread-pinned')
+    })
+
+    await waitFor(() => {
+      expect(appServerSendRequest.mock.calls.some((call) => (
+        call[0] === 'thread/subscribe' &&
+        (call[1] as { threadId?: string; replayRecent?: boolean } | undefined)?.threadId === 'thread-pinned' &&
+        (call[1] as { replayRecent?: boolean } | undefined)?.replayRecent !== true
+      ))).toBe(true)
+    })
+
+    appServerSendRequest.mockClear()
+    act(() => {
+      useConnectionStore.getState().setStatus({ status: 'connected' })
+    })
+
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith('thread/subscribe', {
+        threadId: 'thread-pinned',
+        replayRecent: true
+      })
+    })
+  })
+
   it('refreshes active thread metadata without reloading turns', async () => {
     vi.useFakeTimers()
     const worktreeThread: Thread = {

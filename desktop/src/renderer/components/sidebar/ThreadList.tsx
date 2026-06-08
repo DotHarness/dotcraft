@@ -33,6 +33,7 @@ import type { WorkspaceProjectSummary } from '../../../shared/workspaceProjects'
 import { addToast } from '../../stores/toastStore'
 import { PinIcon, ThreadEntry } from './ThreadEntry'
 import { WorkspaceOptionsMenu } from './WorkspaceHeader'
+import { AddProjectMenuOptions, useAddProjectFlow } from '../projects/AddProject'
 import {
   isRemoteProjectKey,
   normalizeWorkspaceProjectKey,
@@ -60,7 +61,8 @@ export function ThreadList({
   openingWorkspacePath
 }: ThreadListProps = {}): JSX.Element {
   const t = useT()
-  const { threadList, threadListProjectKey, searchQuery, loading, pinnedThreadIds } = useThreadStore()
+  const { threadList, threadListProjectKey, searchQuery, loading, pinnedThreadIds, activeThreadId } = useThreadStore()
+  const activeMainView = useUIStore((s) => s.activeMainView)
   const projects = useWorkspaceProjectsStore((s) => s.projects)
   const foregroundWorkspacePath = useWorkspaceProjectsStore((s) => s.foregroundWorkspacePath)
   const foregroundProjectId = useWorkspaceProjectsStore((s) => s.foregroundProjectId)
@@ -216,6 +218,10 @@ export function ThreadList({
           const rawProjectThreads = foregroundListMatchesProject ? orderedThreads : cachedProjectThreads
           const projectPinnedIds = foregroundListMatchesProject ? pinnedThreadIds : (project.pinnedThreadIds ?? [])
           const projectThreads = excludePinnedThreadTrees(rawProjectThreads, projectPinnedIds)
+          const hasSelectedThread =
+            activeMainView === 'conversation' &&
+            activeThreadId != null &&
+            rawProjectThreads.some((thread) => thread.id === activeThreadId)
           const activity = getProjectActivity(rawProjectThreads)
           const showProjectThreadSkeleton =
             openingProject &&
@@ -226,6 +232,7 @@ export function ThreadList({
                 project={project}
                 projectKey={projectKey}
                 active={isForeground}
+                selected={hasSelectedThread}
                 collapsed={collapsed}
                 activity={activity}
                 cold={cold}
@@ -487,13 +494,44 @@ function ProjectsSectionHeader({
   const [hovered, setHovered] = useState(false)
   const [focused, setFocused] = useState(false)
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false)
-  const showActions = hovered || focused || workspaceMenuOpen
+  const [addMenuOpen, setAddMenuOpen] = useState(false)
+  const [addMenuPosition, setAddMenuPosition] = useState<{ top: number; left: number; width: number } | null>(null)
+  const addButtonRef = useRef<HTMLButtonElement>(null)
+  const addMenuRef = useRef<HTMLDivElement>(null)
+  const addProject = useAddProjectFlow()
+  const showActions = hovered || focused || workspaceMenuOpen || addMenuOpen
 
-  async function addProject(): Promise<void> {
-    const path = await window.api.workspace.pickFolder()
-    if (!path) return
-    await window.api.workspace.switch(path)
+  function updateAddMenuPosition(): void {
+    const rect = addButtonRef.current?.getBoundingClientRect()
+    if (!rect) return
+    const viewportWidth = window.innerWidth || 320
+    const menuWidth = 220
+    const left = Math.max(8, Math.min(rect.right - menuWidth, viewportWidth - menuWidth - 8))
+    setAddMenuPosition({ top: rect.bottom + 4, left, width: menuWidth })
   }
+
+  useEffect(() => {
+    if (!addMenuOpen) return
+    updateAddMenuPosition()
+
+    function handleClick(event: MouseEvent): void {
+      const target = event.target as Node
+      if (addButtonRef.current?.contains(target) || addMenuRef.current?.contains(target)) return
+      setAddMenuOpen(false)
+    }
+    function handlePositionChange(): void {
+      updateAddMenuPosition()
+    }
+
+    document.addEventListener('mousedown', handleClick)
+    window.addEventListener('resize', handlePositionChange)
+    window.addEventListener('scroll', handlePositionChange, true)
+    return () => {
+      document.removeEventListener('mousedown', handleClick)
+      window.removeEventListener('resize', handlePositionChange)
+      window.removeEventListener('scroll', handlePositionChange, true)
+    }
+  }, [addMenuOpen])
 
   return (
     <div
@@ -547,15 +585,40 @@ function ProjectsSectionHeader({
         )}
         <ActionTooltip label={t('projectsRail.addProject')}>
           <button
+            ref={addButtonRef}
             type="button"
             aria-label={t('projectsRail.addProject')}
-            onClick={() => { void addProject() }}
+            aria-haspopup="menu"
+            aria-expanded={addMenuOpen}
+            onClick={() => setAddMenuOpen((open) => !open)}
             style={projectIconButtonStyle}
           >
             <FolderPlus size={15} aria-hidden />
           </button>
         </ActionTooltip>
       </div>
+      {addMenuOpen && addMenuPosition && typeof document !== 'undefined' && createPortal(
+        <div
+          ref={addMenuRef}
+          role="menu"
+          aria-label={t('projectsRail.addProject')}
+          style={{
+            ...projectMenuStyle,
+            top: addMenuPosition.top,
+            left: addMenuPosition.left,
+            width: addMenuPosition.width
+          }}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <AddProjectMenuOptions
+            disabled={addProject.busy}
+            onStartFromScratch={() => { setAddMenuOpen(false); addProject.beginScratch() }}
+            onUseExistingFolder={() => { setAddMenuOpen(false); void addProject.chooseExistingFolder() }}
+          />
+        </div>,
+        document.body
+      )}
+      {addProject.dialog}
     </div>
   )
 }
@@ -601,6 +664,7 @@ function ProjectHeader({
   project,
   projectKey,
   active,
+  selected = false,
   collapsed,
   activity,
   cold,
@@ -609,6 +673,8 @@ function ProjectHeader({
   project: WorkspaceProjectSummary
   projectKey: string
   active: boolean
+  /** A thread under this project is the currently selected/open conversation. */
+  selected?: boolean
   collapsed: boolean
   activity: ProjectActivity
   cold: boolean
@@ -721,6 +787,7 @@ function ProjectHeader({
       role="button"
       tabIndex={0}
       aria-expanded={cold ? undefined : !collapsed}
+      aria-current={selected ? 'true' : undefined}
       aria-label={label}
       onClick={handlePrimaryAction}
       onDoubleClick={handleDoubleClick}
@@ -737,7 +804,7 @@ function ProjectHeader({
         margin: '2px 8px',
         padding: '2px 6px',
         borderRadius: 'var(--sidebar-control-radius)',
-        backgroundColor: active ? 'var(--sidebar-control-active)' : hovered ? 'var(--sidebar-control-hover)' : 'transparent',
+        backgroundColor: active || selected ? 'var(--sidebar-control-active)' : hovered ? 'var(--sidebar-control-hover)' : 'transparent',
         cursor: 'pointer',
         userSelect: 'none'
       }}
@@ -764,7 +831,7 @@ function ProjectHeader({
         <span
           style={{
             minWidth: 0,
-            color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
+            color: active || selected ? 'var(--text-primary)' : 'var(--text-secondary)',
             fontSize: 'var(--type-ui-size)',
             lineHeight: 'var(--type-ui-line-height)',
             fontWeight: 'var(--type-ui-emphasis-weight)',

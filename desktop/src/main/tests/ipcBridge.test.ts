@@ -842,6 +842,52 @@ describe('registerIpcHandlers', () => {
     ])
   })
 
+  it('workspace:create-local-project creates a Documents project, git-inits it, and returns the path', async () => {
+    existsSyncMock.mockReturnValue(false)
+    mockGitCommands((args) => {
+      if (args[0] === 'init') return { stdout: '' }
+      throw new Error(`Unexpected git command: ${args.join(' ')}`)
+    })
+    const handlers = registerHandlersForTest()
+    const create = handlers.get('workspace:create-local-project')!
+
+    const result = await create({}, { name: 'My App' }) as { path: string; gitInitialized: boolean }
+
+    const expected = path.join('C:\\Users\\tester', 'My App')
+    expect(result).toEqual({ path: expected, gitInitialized: true })
+    expect(fs.mkdir).toHaveBeenCalledWith(expected, { recursive: true })
+    expect(execFileMock).toHaveBeenCalledWith(
+      'git',
+      ['init'],
+      expect.objectContaining({ cwd: expected }),
+      expect.any(Function)
+    )
+  })
+
+  it('workspace:create-local-project disambiguates an existing folder name', async () => {
+    const taken = path.join('C:\\Users\\tester', 'My App')
+    existsSyncMock.mockImplementation((candidate: string) => String(candidate) === taken)
+    mockGitCommands(() => ({ stdout: '' }))
+    const handlers = registerHandlersForTest()
+    const create = handlers.get('workspace:create-local-project')!
+
+    const result = await create({}, { name: 'My App' }) as { path: string }
+
+    expect(result.path).toBe(path.join('C:\\Users\\tester', 'My App 2'))
+  })
+
+  it('workspace:create-local-project still returns a path when git is unavailable', async () => {
+    existsSyncMock.mockReturnValue(false)
+    mockGitCommands(() => ({ error: gitError(1, 'git not found') }))
+    const handlers = registerHandlersForTest()
+    const create = handlers.get('workspace:create-local-project')!
+
+    const result = await create({}, { name: 'My App' }) as { path: string; gitInitialized: boolean }
+
+    expect(result.gitInitialized).toBe(false)
+    expect(result.path).toBe(path.join('C:\\Users\\tester', 'My App'))
+  })
+
   it('git:checkoutBranch rejects paths outside the workspace and managed worktrees', async () => {
     const handlers = registerHandlersForTest()
     const checkout = handlers.get('git:checkoutBranch')!
