@@ -52,14 +52,13 @@ public sealed class OpenAIResponsesClientMetadataPipelinePolicyTests
     }
 
     [Fact]
-    public void DoesNotOverwriteExistingInstallationId()
+    public void DoesNotRewriteWhenExistingInstallationIdMatches()
     {
-        var existingId = "22222222-2222-4222-8222-222222222222";
         var original = JsonSerializer.Serialize(new
         {
             client_metadata = new Dictionary<string, string>
             {
-                ["x-codex-installation-id"] = existingId
+                ["x-codex-installation-id"] = InstallationId
             }
         });
 
@@ -71,9 +70,32 @@ public sealed class OpenAIResponsesClientMetadataPipelinePolicyTests
     }
 
     [Fact]
-    public void DoesNotOverwriteExistingInstallationIdButCanonicalizesDuplicateTopLevelKeys()
+    public void OverwritesMismatchedExistingInstallationId()
     {
         var existingId = "22222222-2222-4222-8222-222222222222";
+        var original = JsonSerializer.Serialize(new
+        {
+            client_metadata = new Dictionary<string, string>
+            {
+                ["caller-tag"] = "dotcraft",
+                ["x-codex-installation-id"] = existingId
+            }
+        });
+
+        var rewritten = OpenAIResponsesClientMetadataPipelinePolicy.AddInstallationIdMetadata(
+            original,
+            InstallationId);
+
+        Assert.NotNull(rewritten);
+        var node = JsonNode.Parse(rewritten!);
+        Assert.NotNull(node);
+        Assert.Equal("dotcraft", node!["client_metadata"]!["caller-tag"]!.GetValue<string>());
+        Assert.Equal(InstallationId, node!["client_metadata"]!["x-codex-installation-id"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public void OverwritesMismatchedExistingInstallationIdAndCanonicalizesDuplicateTopLevelKeys()
+    {
         var original = """
             {
               "model": "gpt-test",
@@ -104,7 +126,7 @@ public sealed class OpenAIResponsesClientMetadataPipelinePolicyTests
         using var document = JsonDocument.Parse(rewritten!);
         Assert.Equal(1, document.RootElement.EnumerateObject().Count(prop => prop.Name == "input"));
         Assert.Equal(
-            existingId,
+            InstallationId,
             document.RootElement
                 .GetProperty("client_metadata")
                 .GetProperty("x-codex-installation-id")

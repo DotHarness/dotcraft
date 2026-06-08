@@ -216,13 +216,6 @@ internal static class CompactSmokeTraceValidator
         CompactSmokeProviderSelection provider,
         IReadOnlyList<CompactSmokeTraceEvent> events)
     {
-        // The prompt-cache-baseline scenario never invokes maintenance compaction, so it has its
-        // own validator that aggregates TokenUsage events across the thread and reports the
-        // observed cache hit ratio. It is informational (always passes when usage data is
-        // present); the absolute numbers are what callers compare across providers.
-        if (string.Equals(scenario, CompactSmokeScenarios.PromptCacheBaseline, StringComparison.Ordinal))
-            return ValidatePromptCacheBaseline(events);
-
         var requests = events
             .Where(static e => e.Type == "MaintenanceForkRequest")
             .ToArray();
@@ -265,66 +258,6 @@ internal static class CompactSmokeTraceValidator
                 expectedSnapshotSource: "captured"),
             _ => CompactSmokeValidationResult.Fail($"unknown_scenario:{scenario}")
         };
-    }
-
-    private static CompactSmokeValidationResult ValidatePromptCacheBaseline(
-        IReadOnlyList<CompactSmokeTraceEvent> events)
-    {
-        var tokenUsage = events.Where(static e => e.Type == "TokenUsage").ToArray();
-        if (tokenUsage.Length == 0)
-            return CompactSmokeValidationResult.Fail("trace_missing_token_usage");
-
-        long totalInput = 0;
-        long totalCached = 0;
-        long totalCacheWrite = 0;
-        var sawCacheHit = false;
-
-        foreach (var evt in tokenUsage)
-        {
-            var input = ReadTokenUsageInt64(evt.EventJson, "InputTokens");
-            var cached = ReadTokenUsageInt64(evt.EventJson, "CachedInputTokens");
-            var cacheWrite = ReadTokenUsageInt64(evt.EventJson, "CacheWriteInputTokens");
-
-            if (input.HasValue) totalInput += input.Value;
-            if (cached.HasValue) totalCached += cached.Value;
-            if (cacheWrite.HasValue) totalCacheWrite += cacheWrite.Value;
-            if (cached is > 0) sawCacheHit = true;
-        }
-
-        if (totalInput <= 0)
-        {
-            return CompactSmokeValidationResult.Fail(
-                "prompt_cache_baseline_no_input_tokens",
-                cacheHit: false,
-                inputTokens: totalInput,
-                cachedInputTokens: totalCached,
-                cacheWriteInputTokens: totalCacheWrite,
-                cacheHitRate: 0);
-        }
-
-        var rate = totalCached / (double)totalInput;
-        return CompactSmokeValidationResult.Pass(
-            cacheHitRequired: false,
-            cacheHit: sawCacheHit,
-            inputTokens: totalInput,
-            cachedInputTokens: totalCached,
-            cacheWriteInputTokens: totalCacheWrite,
-            cacheHitRate: rate);
-    }
-
-    private static long? ReadTokenUsageInt64(string eventJson, string propertyName)
-    {
-        try
-        {
-            using var doc = JsonDocument.Parse(eventJson);
-            if (!doc.RootElement.TryGetProperty(propertyName, out var value))
-                return null;
-            return value.TryGetInt64(out var result) ? result : null;
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
     }
 
     private static IReadOnlyList<MaintenanceForkTracePair> PairMaintenanceForks(

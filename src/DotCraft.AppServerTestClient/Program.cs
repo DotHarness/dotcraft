@@ -18,6 +18,8 @@ using DotCraft.Protocol.AppServer;
 //                                     auto-accepts all approvals and logs them
 //    compact-smoke --matrix <json> [--report <json>]
 //                                  -- Run real-provider compaction smoke scenarios
+//    prompt-cache-smoke --matrix <json> [--report <json>]
+//                                  -- Run real-provider prompt cache baseline smoke
 //    stream-retry-smoke --matrix <json> [--report <json>]
 //                                  -- Run real-provider stream retry smoke scenarios
 // ─────────────────────────────────────────────────────────────────────────────
@@ -57,6 +59,10 @@ static void Usage()
           compact-smoke --matrix <compact-smoke.json> [--report <report.json>] [--work-root <dir>]
               Run real-provider compact smoke scenarios against providers from the
               user's normal config.json. The matrix supplies providerId/model per protocol.
+
+          prompt-cache-smoke --matrix <prompt-cache-smoke.json> [--report <report.json>] [--work-root <dir>]
+              Run real-provider prompt cache baseline scenarios with compaction disabled.
+              The matrix supplies providerId/model per protocol.
 
           stream-retry-smoke --matrix <stream-retry-smoke.json> [--report <report.json>] [--work-root <dir>]
               Run real-provider stream retry smoke scenarios. Each case starts a local
@@ -124,6 +130,7 @@ try
         "watch" => await RunWatchAsync(dotcraftBin, workspace),
         "trigger-approval" => await RunTriggerApprovalAsync(dotcraftBin, workspace, commandArgs.FirstOrDefault()),
         "compact-smoke" => await CompactSmokeCli.RunAsync(dotcraftBin, commandArgs),
+        "prompt-cache-smoke" => await PromptCacheSmokeCli.RunAsync(dotcraftBin, commandArgs),
         "stream-retry-smoke" => await StreamRetrySmokeCli.RunAsync(dotcraftBin, commandArgs),
         _ => PrintUnknownCommand(command)
     };

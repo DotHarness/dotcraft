@@ -80,25 +80,35 @@ Invariants the runtime must uphold:
 
 ### 2.3 `openai-responses` — ChatGPT OAuth path
 
-Same wire body as 2.2, **plus** the routing hints required by `chatgpt.com/backend-api/codex/responses`:
+Same wire body as 2.2. The official Codex HTTP Responses baseline uses the body-level
+`prompt_cache_key` together with the hyphenated `session-id` / `thread-id` headers. DotCraft sends
+those baseline hints and a small set of additional sticky-routing hints for the
+`chatgpt.com/backend-api/codex/responses` path:
 
 | Hint | Location | Value |
 |------|----------|-------|
 | `Authorization: Bearer <access_token>` | HTTP header | OAuth access token |
-| `chatgpt-account-id` | HTTP header | ChatGPT account id (from id_token claims) |
+| `chatgpt-account-id` | HTTP header | ChatGPT account id, resolved from the signed-in token/account store before runtime config |
 | `originator` | HTTP header | Fixed identifier the backend recognises (see [openai-subscription-auth](openai-subscription-auth.md)) |
 | `x-codex-installation-id` | HTTP header **and** request body `client_metadata` | Per-machine UUID v4, stable across processes and accounts |
-| `session-id` | HTTP header | Active thread id |
-| `thread-id` | HTTP header | Active thread id |
+| `session-id` | HTTP header | Active thread id; Codex HTTP baseline |
+| `thread-id` | HTTP header | Active thread id; Codex HTTP baseline |
+| `session_id` | HTTP header | Active thread id; DotCraft compatibility header for gateways/clients that key on snake_case |
+| `conversation_id` | HTTP header | Active thread id; DotCraft compatibility header for gateways/clients that key on snake_case |
 
 Each header is a stickiness signal at a different granularity:
 
 ```
-chatgpt-account-id  ⊂  x-codex-installation-id  ⊂  session-id / thread-id
+chatgpt-account-id  ⊂  x-codex-installation-id  ⊂  session/thread headers
     account                install / machine             thread / conversation
 ```
 
 Finer-grained signals let the load balancer park thread-scoped traffic on the cache shard that already holds the prefix. Coarser signals fall back when the LB cannot honour the finer one. All hints are sent on every request because each costs nothing.
+
+If the request carries caller-provided `client_metadata`, DotCraft preserves unrelated keys but
+treats `client_metadata.x-codex-installation-id` as authoritative local state. A mismatched value is
+overwritten to match the `x-codex-installation-id` header; otherwise the header/body pair could
+route the same request under two different installation identities.
 
 Backend-specific thresholds — the public OpenAI thresholds do **not** apply here:
 
@@ -111,8 +121,9 @@ Backend-specific thresholds — the public OpenAI thresholds do **not** apply he
 | Configuration | Aggregate hit rate |
 |---------------|-------------------|
 | `prompt_cache_key` only | ~14% |
-| `prompt_cache_key` + `session_id` | ~38% |
-| `prompt_cache_key` + `session-id` + `thread-id` + installation id (current) | ~49% |
+| `prompt_cache_key` + `session_id` | ~38% (legacy isolated experiment) |
+| `prompt_cache_key` + `session-id` + `thread-id` + installation id | ~49% (pre-compat baseline) |
+| Current default: pre-compat baseline + `session_id` + `conversation_id` | Pending live-token A/B |
 
 ### 2.4 `anthropic`
 
@@ -149,9 +160,9 @@ These rules apply to every protocol unless the protocol contract above explicitl
 3. **Tool order is part of the prefix.** Tools must be enumerated in a stable order across requests on the same thread. Re-sorting tools (alphabetically, by category, etc.) between turns is a cache-break.
 4. **Reasoning items round-trip verbatim.** When a model emits a reasoning item with `encrypted_content`, the next request must pass that exact blob back. Decrypting and re-encrypting, dropping the field, or normalising whitespace inside it all break the cache.
 5. **Reasoning configuration is part of the cache key.** Provider-visible thinking / reasoning settings must be treated as a cache-key dimension for diagnostics. A change in reasoning effort, reasoning output visibility, or provider thinking mode can explain a cache read drop even when messages and tools are unchanged.
-6. **Thread id is the cache identity.** Wherever a provider exposes a cache key (`prompt_cache_key`, `session-id`, `thread-id`, etc.), it MUST be populated from the active thread id. Different threads MUST NOT share a cache key, and the same thread MUST reuse the same key across maintenance forks, subagent turns, and reactive recovery paths.
+6. **Thread id is the cache identity.** Wherever a provider exposes a cache key (`prompt_cache_key`, `session-id`, `thread-id`, `session_id`, `conversation_id`, etc.), it MUST be populated from the active thread id. Different threads MUST NOT share a cache key, and the same thread MUST reuse the same key across maintenance forks, subagent turns, and reactive recovery paths.
 7. **One canonical body per request.** Wire bodies must not contain duplicate top-level JSON keys. Downstream policies and inspectors are allowed to assume the body parses cleanly into a flat object.
-8. **Internal cache state may be narrower than provider identity.** DotCraft may track remembered prompt-cache breakpoints under an internal state key such as `thread:<id>:maintenance:<kind>:<run>` so maintenance forks and the main conversation do not overwrite each other's breakpoint history. One-shot maintenance forks may use that state key in `readOnlyPrefix` mode without committing new remembered breakpoints. This internal state key MUST NOT replace provider-visible cache identity; Responses `prompt_cache_key`, OAuth `session-id` / `thread-id`, and trace session ownership still use the active thread id.
+8. **Internal cache state may be narrower than provider identity.** DotCraft may track remembered prompt-cache breakpoints under an internal state key such as `thread:<id>:maintenance:<kind>:<run>` so maintenance forks and the main conversation do not overwrite each other's breakpoint history. One-shot maintenance forks may use that state key in `readOnlyPrefix` mode without committing new remembered breakpoints. This internal state key MUST NOT replace provider-visible cache identity; Responses `prompt_cache_key`, OAuth session/thread headers, and trace session ownership still use the active thread id.
 
 ---
 
@@ -171,11 +182,19 @@ These rules apply to every protocol unless the protocol contract above explicitl
 
 ## 5. Measurement contract
 
-Every prompt-cache-relevant change MUST be validated against the `prompt-cache-baseline` smoke scenario:
+Every prompt-cache-relevant change MUST be validated with AppServerTestClient's
+`prompt-cache-smoke` command, which runs the `prompt-cache-baseline` scenario with
+context compaction disabled:
 
 - Workload: a deterministic large file (~30k characters) read three times by the agent.
-- Reporting: aggregate hit rate (cached_input_tokens / input_tokens) plus per-call breakdown.
-- Pass criterion: no regression below the empirical envelope listed in §2 for the affected protocol.
+- Reporting: aggregate hit rate (cached_input_tokens / input_tokens), the enforced
+  `minimumCacheHitRate`, and per-call breakdown.
+- Guardrail: any `ContextCompaction` trace event fails the baseline run because compaction
+  rewrites the provider-visible prefix and contaminates cache-hit comparisons.
+- Pass criterion: the aggregate hit rate MUST stay above the configured floor. Matrix rows MAY
+  set `minimumCacheHitRate`; otherwise AppServerTestClient uses conservative defaults below the
+  empirical envelopes in §2: `openai-chat-completions` 0.50, `openai-responses` 0.30,
+  ChatGPT OAuth Responses 0.35, and `anthropic` 0.50.
 
 Each protocol's envelope is a calibration baseline, not a contract. Provider routing instability can swing any single call by tens of percentage points; multi-run trends matter more than single numbers.
 
@@ -183,6 +202,7 @@ Each protocol's envelope is a calibration baseline, not a contract. Provider rou
 
 ## 6. Future work
 
-- Verify each routing header in isolation against the ChatGPT backend to learn which of installation id / session-id / thread-id carries the most weight. Today they are all sent because each costs nothing.
+- Verify each routing header in isolation against the ChatGPT backend to learn which of installation id / `session-id` / `thread-id` / `session_id` / `conversation_id` carries the most weight. Today they are all sent because each costs little and none requires turn-state fabrication.
+- Run opt-in A/B profiles for Codex-shaped User-Agent and explicit `OpenAI-Beta` values, measuring cache coverage, 401/403 rate, first-token latency, and rate-limit headers before considering any default change.
 - Surface per-call cache coverage in the desktop dashboard so drift from the expected pattern is visible without trace-database inspection.
 - Audit cache-marker placement on the anthropic protocol: the current marks cover system prompt and snapshot prefix; additional marks on large stable tool definitions or the first user instruction block may raise the envelope.

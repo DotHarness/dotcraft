@@ -43,8 +43,12 @@ internal static class OpenAIResponsesRequestBodyCanonicalizer
         if (body.TryGetRawValue(ClientMetadataField, out var rawMetadata) &&
             TryParseTopLevelObject(rawMetadata, out var metadata))
         {
-            if (metadata.TryGetRawValue(installationIdHeader, out _))
+            if (metadata.TryGetRawValue(installationIdHeader, out var existingRaw) &&
+                TryReadString(existingRaw, out var existing) &&
+                string.Equals(existing, installationId, StringComparison.Ordinal))
+            {
                 return changed ? body.ToJsonString() : null;
+            }
 
             metadata.SetRawValue(installationIdHeader, JsonSerializer.Serialize(installationId));
             body.SetRawValue(ClientMetadataField, metadata.ToJsonString());
@@ -105,6 +109,24 @@ internal static class OpenAIResponsesRequestBodyCanonicalizer
         }
 
         return Encoding.UTF8.GetString(buffer.WrittenSpan);
+    }
+
+    private static bool TryReadString(string rawJson, out string? value)
+    {
+        value = null;
+        try
+        {
+            using var document = JsonDocument.Parse(rawJson);
+            if (document.RootElement.ValueKind != JsonValueKind.String)
+                return false;
+
+            value = document.RootElement.GetString();
+            return true;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
     }
 
     private sealed class CanonicalTopLevelJsonObject(

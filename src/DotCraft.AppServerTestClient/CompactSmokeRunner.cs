@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Text;
 using System.Text.Json;
 using DotCraft.Auth.OpenAI;
 using DotCraft.Configuration;
@@ -199,7 +198,6 @@ internal sealed class CompactSmokeRunner(string dotcraftBin, CompactSmokeCliOpti
                 CompactSmokeScenarios.ManualSnapshotPartial => await RunManualSnapshotPartialAsync(provider, workspacePath),
                 CompactSmokeScenarios.ManualLegacyPartial => await RunManualLegacyPartialAsync(provider, workspacePath),
                 CompactSmokeScenarios.AutoSnapshotFork => await RunAutoSnapshotForkAsync(provider, workspacePath),
-                CompactSmokeScenarios.PromptCacheBaseline => await RunPromptCacheBaselineAsync(provider, workspacePath),
                 _ => throw new InvalidOperationException($"Unknown compact-smoke scenario '{scenario}'.")
             };
 
@@ -280,62 +278,6 @@ internal sealed class CompactSmokeRunner(string dotcraftBin, CompactSmokeCliOpti
         EnsureCompactSucceeded(compactResponse);
         await compactClient.StopAsync();
         return threadId;
-    }
-
-    private async Task<string> RunPromptCacheBaselineAsync(
-        CompactSmokeProviderSelection provider,
-        string workspacePath)
-    {
-        // Drop a sizeable deterministic file the agent will read on each turn. The repeated tool
-        // call grows the conversation history by several thousand tokens each round, giving the
-        // provider a stable, monotonically-growing prefix to cache against. The file is intentionally
-        // large (~30k characters / ~7.5k tokens) so the per-call input crosses ChatGPT's
-        // backend prompt-cache threshold (~30k tokens single-call input observed empirically) by
-        // the second or third turn.
-        var sourcePath = Path.Combine(workspacePath, "notes.txt");
-        await File.WriteAllTextAsync(sourcePath, BuildPromptCacheBaselineNotes());
-
-        await using var client = await AppServerClient.SpawnAsync(dotcraftBin, workspacePath);
-        await client.InitializeAsync();
-        var threadId = await StartThreadAsync(client, workspacePath, provider, "prompt cache baseline");
-
-        await RunTurnAsync(client, threadId, "Use ReadFile on notes.txt and reply with exactly: read-one.");
-        await Task.Delay(CacheWarmupDelay);
-        await RunTurnAsync(client, threadId, "Use ReadFile on notes.txt again and reply with exactly: read-two.");
-        await Task.Delay(CacheWarmupDelay);
-        await RunTurnAsync(client, threadId, "Use ReadFile on notes.txt once more and reply with exactly: read-three.");
-
-        await client.StopAsync();
-        return threadId;
-    }
-
-    private static string BuildPromptCacheBaselineNotes()
-    {
-        const int targetChars = 30_000;
-        var header =
-            "DotCraft prompt cache baseline notes.\n" +
-            "These lines exist purely to inflate the ReadFile tool result so the agent's\n" +
-            "cumulative context crosses provider-specific prompt-cache thresholds.\n" +
-            "Stable phrases below repeat verbatim across turns to keep the prefix bytes\n" +
-            "byte-identical between requests, the canonical condition for cache hits.\n";
-        var lines = new[]
-        {
-            "Line A: hot cake mango papaya quartz vivid amber breeze cinder dawn ember frost.\n",
-            "Line B: glade harbor ivory jonquil kindle lumen marsh nectar opal prism quill rune.\n",
-            "Line C: silver tundra umber vista willow xeric yam zither cobalt dune ember fjord.\n",
-            "Line D: arctic boreal coastal delta estuary forest gulf highland island junction.\n",
-            "Line E: knoll lagoon meadow oasis prairie reef savanna terrace upland valley wetland.\n"
-        };
-        var builder = new StringBuilder(targetChars + 256);
-        builder.Append(header);
-        var index = 0;
-        while (builder.Length < targetChars)
-        {
-            builder.Append(lines[index % lines.Length]);
-            index++;
-        }
-        builder.Append("End.\n");
-        return builder.ToString();
     }
 
     private async Task<string> RunAutoSnapshotForkAsync(
