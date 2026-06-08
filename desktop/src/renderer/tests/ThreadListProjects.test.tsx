@@ -165,10 +165,7 @@ describe('ThreadList project-first layout', () => {
     })
   })
 
-  it('marks the project header as current when one of its threads is the active conversation', () => {
-    const t1 = makeThread('t1', 'Thread One', 5)
-    const t2 = makeThread('t2', 'Thread Two', 10)
-    useThreadStore.getState().setThreadList([t1, t2], '/workspace/a')
+  it('marks only the foreground (current) workspace header with aria-current', () => {
     useWorkspaceProjectsStore.getState().setPayload({
       foregroundWorkspacePath: '/workspace/a',
       foregroundProjectId: '/workspace/a',
@@ -180,46 +177,28 @@ describe('ThreadList project-first layout', () => {
           state: 'foreground',
           running: true,
           loaded: true,
-          threadCount: 2,
+          threadCount: 0,
+          threads: [],
+          pinnedThreadIds: []
+        },
+        {
+          path: '/workspace/b',
+          name: 'b',
+          state: 'secondary',
+          running: true,
+          loaded: true,
+          threadCount: 0,
           threads: [],
           pinnedThreadIds: []
         }
       ]
     })
-    useUIStore.setState({ activeMainView: 'conversation' })
-    useThreadStore.setState({ activeThreadId: 't1' })
 
     renderList()
 
+    // The current workspace is marked regardless of whether a thread is open.
     expect(screen.getByRole('button', { name: 'a' })).toHaveAttribute('aria-current', 'true')
-  })
-
-  it('does not mark the project header as current when no thread is selected', () => {
-    const t1 = makeThread('t1', 'Thread One', 5)
-    useThreadStore.getState().setThreadList([t1], '/workspace/a')
-    useWorkspaceProjectsStore.getState().setPayload({
-      foregroundWorkspacePath: '/workspace/a',
-      foregroundProjectId: '/workspace/a',
-      secondaryLimit: 8,
-      projects: [
-        {
-          path: '/workspace/a',
-          name: 'a',
-          state: 'foreground',
-          running: true,
-          loaded: true,
-          threadCount: 1,
-          threads: [],
-          pinnedThreadIds: []
-        }
-      ]
-    })
-    useUIStore.setState({ activeMainView: 'conversation' })
-    useThreadStore.setState({ activeThreadId: null })
-
-    renderList()
-
-    expect(screen.getByRole('button', { name: 'a' })).not.toHaveAttribute('aria-current')
+    expect(screen.getByRole('button', { name: 'b' })).not.toHaveAttribute('aria-current')
   })
 
   it('clicking a project row collapses it without switching workspace', () => {
@@ -576,7 +555,7 @@ describe('ThreadList project-first layout', () => {
     expect(screen.queryByText('Thread from A')).not.toBeInTheDocument()
   })
 
-  it('moves the opening project to the top before the projects payload foreground catches up', () => {
+  it('keeps the project order stable while the opening project loads', () => {
     useThreadStore.getState().setThreadList([
       makeThread('thread-a', 'Thread from A')
     ], '/workspace/a')
@@ -622,8 +601,10 @@ describe('ThreadList project-first layout', () => {
     const aRow = screen.getByRole('button', { name: 'a' })
     const firstSkeleton = screen.getAllByTestId('project-thread-skeleton-row')[0]
 
+    // Order stays as provided (a, then b); the opening project is not hoisted.
+    expect(aRow.compareDocumentPosition(bRow) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    // The opening project (b) still shows its loading skeleton in place.
     expect(bRow.compareDocumentPosition(firstSkeleton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(firstSkeleton.compareDocumentPosition(aRow) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(screen.queryByLabelText('Connecting')).not.toBeInTheDocument()
   })
 

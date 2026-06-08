@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useT } from '../../contexts/LocaleContext'
 import { useUIStore } from '../../stores/uiStore'
-import { ConnectionStatusIndicator } from '../ConnectionStatusIndicator'
 import {
   SIDEBAR_NAV_BORDER_INACTIVE,
   SIDEBAR_NAV_ICON_SLOT,
@@ -13,10 +12,10 @@ import { ShortcutBadge } from '../ui/ShortcutBadge'
 import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
 
 /**
- * Sidebar footer: a single Settings row with an ambient connection-status dot at
- * the right. The dot stays quiet while connected and turns colored/pulsing when
- * connecting, disconnected, or in error. App version and the "What's New" entry
- * live under Settings → General.
+ * Sidebar footer: a single Settings row. Per-project connection/run status is
+ * shown as a dot on each project's folder icon (see ThreadList), so the footer
+ * itself carries no status dot. App version and the "What's New" entry live under
+ * Settings → General.
  * Spec §9.6
  */
 export function SidebarFooter(): JSX.Element {
@@ -65,10 +64,7 @@ export function SidebarFooter(): JSX.Element {
             {t('sidebarFooter.settings')}
           </span>
         </span>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-          {settingsRowActive && <ShortcutBadge shortcut={ACTION_SHORTCUTS.settings} />}
-          <ConnectionStatusIndicator variant="dot" />
-        </span>
+        {settingsRowActive && <ShortcutBadge shortcut={ACTION_SHORTCUTS.settings} />}
       </button>
     </div>
   )

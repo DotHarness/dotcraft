@@ -142,11 +142,13 @@ describe('SidebarFooter settings row', () => {
     expect(settingsButton).toHaveTextContent(',')
   })
 
-  it('shows an ambient connection-status dot and no longer shows version or What\'s New', () => {
+  it('shows only the Settings row — no status dot, version, or What\'s New', () => {
     useConnectionStore.setState({ status: 'connected', errorMessage: null })
     renderWithLocale(<SidebarFooter />)
 
-    expect(screen.getByRole('img', { name: 'Connected' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Open settings' })).toBeInTheDocument()
+    // Connection/run status now lives on each project's folder icon, not the footer.
+    expect(screen.queryByRole('img', { name: 'Connected' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: "What's New" })).not.toBeInTheDocument()
     expect(screen.queryByText(/^v\d+\./)).not.toBeInTheDocument()
   })

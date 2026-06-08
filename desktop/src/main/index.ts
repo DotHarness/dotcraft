@@ -365,7 +365,11 @@ function emitWorkspaceProjects(): void {
 }
 
 function getWorkspaceProjectsPayload(): WorkspaceProjectsPayload {
-  const recents = getRecentWorkspaces(sharedSettings)
+  // Order projects by when they were first added (stable), not by most-recently
+  // opened, so switching the active project never reshuffles the sidebar list.
+  const recents = [...getRecentWorkspaces(sharedSettings)].sort((a, b) =>
+    (a.firstOpenedAt ?? a.lastOpenedAt).localeCompare(b.firstOpenedAt ?? b.lastOpenedAt)
+  )
   const projects = recents.map((recent): WorkspaceProjectSummary => {
     const entry = getWorkspaceConnection(recent.path)
     let state: WorkspaceProjectState = 'cold'

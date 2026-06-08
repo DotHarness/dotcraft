@@ -1,10 +1,18 @@
 import type { CSSProperties } from 'react'
 
-/** Shared geometry for Automations, Skills, Settings, and connection row (sidebar bottom). */
+/**
+ * Shared row height for the sidebar "button" rows — New chat, Search, the nav
+ * destinations (Channels/Automations/Skills), Settings, and project headers — so
+ * they all line up. Thread rows are intentionally a little taller (content rows).
+ */
+export const SIDEBAR_ROW_MIN_HEIGHT = '30px'
+
+/** Shared geometry for New chat, Search, Automations, Skills, Settings, and project header rows. */
 export const SIDEBAR_NAV_ROW_OUTER: CSSProperties = {
   width: 'calc(100% - 8px)',
   margin: '2px 4px',
-  padding: '8px 12px',
+  minHeight: SIDEBAR_ROW_MIN_HEIGHT,
+  padding: '0 12px',
   borderRadius: 'var(--sidebar-control-radius)',
   border: 'none',
   fontSize: 'var(--type-ui-size)',

@@ -6,7 +6,6 @@ import { useConnectionStore } from '../../stores/connectionStore'
 import { useThreadStore } from '../../stores/threadStore'
 import { usePluginStore } from '../../stores/pluginStore'
 import { getDesktopMainViewExtensions } from '../../utils/desktopExtensionRegistry'
-import { WorkspaceHeader } from '../sidebar/WorkspaceHeader'
 import { NewThreadButton } from '../sidebar/NewThreadButton'
 import { ThreadSearch } from '../sidebar/ThreadSearch'
 import { ThreadList } from '../sidebar/ThreadList'
@@ -34,12 +33,11 @@ interface SidebarProps {
  * Main sidebar panel with the thread list.
  *
  * Structure:
- * 1. WorkspaceHeader (name, path, dropdown)
- * 2. NewThreadButton (Ctrl+N, disabled when disconnected)
- * 3. ThreadSearch (Ctrl+K, debounced)
- * 4. Nav destinations (Channels, Automations, Skills, plugin views)
- * 5. ThreadList (grouped, scrollable, fills remaining space)
- * 6. SidebarFooter (Settings row with an ambient connection-status dot)
+ * 1. NewThreadButton (Ctrl+N, disabled when disconnected)
+ * 2. ThreadSearch (Ctrl+K, debounced)
+ * 3. Nav destinations (Channels, Automations, Skills, plugin views)
+ * 4. ThreadList (grouped, scrollable, fills remaining space)
+ * 5. SidebarFooter (Settings row with an ambient connection-status dot)
  *
  * Collapsed mode (48px): shows first-letter dots for recent threads.
  * Spec §9.8
@@ -76,11 +74,6 @@ export function Sidebar({
         position: 'relative'
       }}
     >
-      <WorkspaceHeader
-        workspaceName={workspaceName}
-        workspacePath={workspacePath}
-      />
-
       <NewThreadButton />
 
       <ThreadSearch workspaceName={workspaceName} />

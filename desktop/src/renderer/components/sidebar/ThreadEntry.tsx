@@ -9,6 +9,7 @@ import type { ContextMenuPosition } from '../ui/ContextMenu'
 import { ContextMenu } from '../ui/ContextMenu'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
 import { RunningSpinner } from '../ui/RunningSpinner'
+import { SIDEBAR_ROW_MIN_HEIGHT } from './sidebarNavRowStyles'
 import { ChannelIconBadge } from '../ui/channelMeta'
 import { Archive, ArrowRightLeft, CornerDownRight, Laptop, Pencil, Pin, Trash2 } from 'lucide-react'
 import { AUTOMATION_TASK_DRAG_MIME } from '../automations/TaskCard'
@@ -143,7 +144,10 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
       ? compactStatusColumn
       : compactStatusColumn
   const statusSlotJustifySelf = showArchiveConfirm ? 'stretch' : usesRelativeTimeColumn ? 'end' : 'center'
-  const statusContentJustify = showRelativeTimeSlot ? 'flex-end' : 'center'
+  // Center the relative time within its (>=24px) slot so it shares the same
+  // horizontal center as the spinner / archive / status icons that replace it,
+  // instead of hugging the right edge and sitting ~4px off from them.
+  const statusContentJustify = 'center'
 
   const performArchiveThread = useCallback(async (): Promise<void> => {
     try {
@@ -311,8 +315,9 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
           alignItems: 'center',
           position: 'relative',
           width: 'calc(100% - 20px)',
+          minHeight: SIDEBAR_ROW_MIN_HEIGHT,
           margin: '2px 10px',
-          padding: `6px 12px 6px ${rowPaddingLeft}px`,
+          padding: `3px 12px 3px ${rowPaddingLeft}px`,
           cursor: dimmedTarget ? 'not-allowed' : 'pointer',
           boxSizing: 'border-box',
           borderRadius: 'var(--sidebar-control-radius)',

@@ -10,6 +10,12 @@ export interface RecentWorkspace {
   path: string
   name: string
   lastOpenedAt: string
+  /**
+   * When this workspace was first added. Stable across re-opens; used to keep a
+   * fixed project order in the sidebar (the recents array itself stays MRU for
+   * the "Recent Workspaces" menu).
+   */
+  firstOpenedAt?: string
 }
 
 export type UiTheme = 'dark' | 'light'
@@ -343,13 +349,18 @@ export function saveSettings(settings: AppSettings): void {
  */
 export function addRecentWorkspace(settings: AppSettings, workspacePath: string): AppSettings {
   const name = basename(workspacePath)
+  const now = new Date().toISOString()
+  const existing = settings.recentWorkspaces ?? []
+  const prior = existing.find((r) => sameWorkspaceProjectKey(r.path, workspacePath))
   const entry: RecentWorkspace = {
     path: workspacePath,
     name,
-    lastOpenedAt: new Date().toISOString()
+    lastOpenedAt: now,
+    // Preserve the original add time so the sidebar order stays stable; backfill
+    // legacy entries from their last-opened time.
+    firstOpenedAt: prior?.firstOpenedAt ?? prior?.lastOpenedAt ?? now
   }
-  const existing = settings.recentWorkspaces ?? []
-  // Remove duplicate if present, then prepend
+  // Remove duplicate if present, then prepend (recents array stays MRU).
   const filtered = existing.filter((r) => !sameWorkspaceProjectKey(r.path, workspacePath))
   settings.recentWorkspaces = [entry, ...filtered].slice(0, MAX_RECENT)
   settings.lastWorkspacePath = workspacePath

@@ -22,18 +22,20 @@ import { useThreadStore, selectFilteredThreads } from '../../stores/threadStore'
 import { useWorkspaceProjectsStore } from '../../stores/workspaceProjectsStore'
 import { useUIStore } from '../../stores/uiStore'
 import type { ThreadSummary } from '../../types/thread'
-import { getSubAgentParentThreadId, isSubAgentThread } from '../../utils/subAgentThreads'
+import { getSubAgentDepth, getSubAgentParentThreadId, isSubAgentThread } from '../../utils/subAgentThreads'
+import { ThreadRowLayout } from './ThreadRowLayout'
 import { isInternalThread } from '../../utils/internalThreads'
 import { Skeleton } from '../ui/Skeleton'
 import { RunningSpinner } from '../ui/RunningSpinner'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { useLocale } from '../../contexts/LocaleContext'
 import { formatRelativeTime } from '../../utils/relativeTime'
-import type { WorkspaceProjectSummary } from '../../../shared/workspaceProjects'
+import type { WorkspaceProjectSummary, WorkspaceProjectState } from '../../../shared/workspaceProjects'
 import { addToast } from '../../stores/toastStore'
 import { PinIcon, ThreadEntry } from './ThreadEntry'
 import { WorkspaceOptionsMenu } from './WorkspaceHeader'
 import { AddProjectMenuOptions, useAddProjectFlow } from '../projects/AddProject'
+import { SIDEBAR_ROW_MIN_HEIGHT } from './sidebarNavRowStyles'
 import {
   isRemoteProjectKey,
   normalizeWorkspaceProjectKey,
@@ -61,8 +63,7 @@ export function ThreadList({
   openingWorkspacePath
 }: ThreadListProps = {}): JSX.Element {
   const t = useT()
-  const { threadList, threadListProjectKey, searchQuery, loading, pinnedThreadIds, activeThreadId } = useThreadStore()
-  const activeMainView = useUIStore((s) => s.activeMainView)
+  const { threadList, threadListProjectKey, searchQuery, loading, pinnedThreadIds } = useThreadStore()
   const projects = useWorkspaceProjectsStore((s) => s.projects)
   const foregroundWorkspacePath = useWorkspaceProjectsStore((s) => s.foregroundWorkspacePath)
   const foregroundProjectId = useWorkspaceProjectsStore((s) => s.foregroundProjectId)
@@ -150,12 +151,10 @@ export function ThreadList({
     const foregroundProject = projects.find((project) =>
       isProjectForeground(project, effectiveForegroundProjectId, effectiveForegroundWorkspacePath)
     )
+    // Keep the project order stable (store order); the active project is marked
+    // with a badge on its folder icon rather than being hoisted to the top.
     const projectsForRender = foregroundProject
-      ? orderProjectsWithForegroundFirst(
-          projects,
-          effectiveForegroundProjectId,
-          effectiveForegroundWorkspacePath
-        )
+      ? projects
       : [
           {
             projectId: effectiveForegroundProjectId || effectiveForegroundWorkspacePath,
@@ -218,10 +217,6 @@ export function ThreadList({
           const rawProjectThreads = foregroundListMatchesProject ? orderedThreads : cachedProjectThreads
           const projectPinnedIds = foregroundListMatchesProject ? pinnedThreadIds : (project.pinnedThreadIds ?? [])
           const projectThreads = excludePinnedThreadTrees(rawProjectThreads, projectPinnedIds)
-          const hasSelectedThread =
-            activeMainView === 'conversation' &&
-            activeThreadId != null &&
-            rawProjectThreads.some((thread) => thread.id === activeThreadId)
           const activity = getProjectActivity(rawProjectThreads)
           const showProjectThreadSkeleton =
             openingProject &&
@@ -232,7 +227,6 @@ export function ThreadList({
                 project={project}
                 projectKey={projectKey}
                 active={isForeground}
-                selected={hasSelectedThread}
                 collapsed={collapsed}
                 activity={activity}
                 cold={cold}
@@ -380,24 +374,6 @@ function isProjectForeground(
     return false
   }
   return sameWorkspacePath(project.path, foregroundWorkspacePath)
-}
-
-function orderProjectsWithForegroundFirst(
-  projects: WorkspaceProjectSummary[],
-  foregroundProjectId: string,
-  foregroundWorkspacePath: string
-): WorkspaceProjectSummary[] {
-  const foregroundIndex = projects.findIndex((project) =>
-    isProjectForeground(project, foregroundProjectId, foregroundWorkspacePath)
-  )
-  if (foregroundIndex <= 0) return projects
-
-  const foregroundProject = projects[foregroundIndex]
-  return [
-    foregroundProject,
-    ...projects.slice(0, foregroundIndex),
-    ...projects.slice(foregroundIndex + 1)
-  ]
 }
 
 function normalizeWorkspacePath(path: string): string {
@@ -664,7 +640,6 @@ function ProjectHeader({
   project,
   projectKey,
   active,
-  selected = false,
   collapsed,
   activity,
   cold,
@@ -672,9 +647,8 @@ function ProjectHeader({
 }: {
   project: WorkspaceProjectSummary
   projectKey: string
+  /** This is the foreground (currently open) workspace. */
   active: boolean
-  /** A thread under this project is the currently selected/open conversation. */
-  selected?: boolean
   collapsed: boolean
   activity: ProjectActivity
   cold: boolean
@@ -784,10 +758,11 @@ function ProjectHeader({
   return (
     <div
       ref={rowRef}
+      className="dotcraft-sidebar-control-radius"
       role="button"
       tabIndex={0}
       aria-expanded={cold ? undefined : !collapsed}
-      aria-current={selected ? 'true' : undefined}
+      aria-current={active ? 'true' : undefined}
       aria-label={label}
       onClick={handlePrimaryAction}
       onDoubleClick={handleDoubleClick}
@@ -800,11 +775,11 @@ function ProjectHeader({
         gridTemplateColumns: '20px minmax(0, 1fr) 60px',
         alignItems: 'center',
         gap: '6px',
-        minHeight: '30px',
+        minHeight: SIDEBAR_ROW_MIN_HEIGHT,
         margin: '2px 8px',
         padding: '2px 6px',
         borderRadius: 'var(--sidebar-control-radius)',
-        backgroundColor: active || selected ? 'var(--sidebar-control-active)' : hovered ? 'var(--sidebar-control-hover)' : 'transparent',
+        backgroundColor: hovered ? 'var(--sidebar-control-hover)' : 'transparent',
         cursor: 'pointer',
         userSelect: 'none'
       }}
@@ -817,12 +792,24 @@ function ProjectHeader({
             aria-hidden
             style={{ color: cold ? 'var(--text-tertiary)' : 'var(--text-dimmed)' }}
           />
-          {cold && (
+          {cold ? (
             <CircleDashed
               size={9}
               strokeWidth={2.35}
               aria-hidden
               style={projectColdBadgeStyle}
+            />
+          ) : (
+            <span
+              aria-hidden
+              style={{
+                ...projectStatusBadgeStyle,
+                backgroundColor: projectStatusDotColor(project.state),
+                // Foreground (current) workspace: accent ring around its status dot.
+                boxShadow: active
+                  ? '0 0 0 1.5px var(--bg-primary), 0 0 0 3px color-mix(in srgb, var(--accent) 85%, transparent)'
+                  : projectStatusBadgeStyle.boxShadow
+              }}
             />
           )}
         </span>
@@ -831,7 +818,7 @@ function ProjectHeader({
         <span
           style={{
             minWidth: 0,
-            color: active || selected ? 'var(--text-primary)' : 'var(--text-secondary)',
+            color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
             fontSize: 'var(--type-ui-size)',
             lineHeight: 'var(--type-ui-line-height)',
             fontWeight: 'var(--type-ui-emphasis-weight)',
@@ -1067,13 +1054,18 @@ function ReadonlyThreadRow({
   const displayName = thread.displayName ?? t('sidebar.newConversation')
   const relativeTime = formatRelativeTime(thread.lastActiveAt, new Date(), locale)
   const rowProjectKey = projectIdentity(project)
+  const subAgent = isSubAgentThread(thread)
+  const subAgentDepth = getSubAgentDepth(thread)
   const statusColumn = running
     ? '24px'
     : waiting
       ? 'minmax(74px, max-content)'
       : 'minmax(24px, max-content)'
   const statusSlotWidth = running ? '24px' : 'max-content'
-  const statusSlotJustify = running ? 'center' : 'end'
+  const statusSlotJustifySelf = running ? 'center' : 'end'
+  // Center the time/badge within its (>=24px) slot so secondary-project rows line
+  // up with the foreground ThreadEntry's centered status slot.
+  const statusContentJustify = 'center'
 
   async function openThread(): Promise<void> {
     if (!isRemoteProject(project)) {
@@ -1096,109 +1088,77 @@ function ReadonlyThreadRow({
     useThreadStore.getState().setActiveThreadId(thread.id)
   }
 
+  const statusContent = (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: statusContentJustify,
+        width: running ? '100%' : 'auto',
+        color: 'var(--text-dimmed)',
+        fontSize: 'var(--type-secondary-size)',
+        lineHeight: 'var(--type-secondary-line-height)',
+        whiteSpace: 'nowrap',
+        overflow: 'hidden',
+        textOverflow: 'clip'
+      }}
+    >
+      {running ? (
+        <RunningSpinner
+          label={t('threadEntry.turnRunning')}
+          testId={`project-thread-running-indicator-${rowProjectKey}-${thread.id}`}
+        />
+      ) : waiting ? (
+        <span style={readonlyWaitingBadgeStyle}>{t('projectsRail.awaitingResponse')}</span>
+      ) : (
+        relativeTime
+      )}
+    </span>
+  )
+
   return (
     <ActionTooltip label={displayName} wrapperStyle={{ display: 'block', width: '100%' }}>
-      <button
-        type="button"
-        onClick={() => void openThread()}
-        data-testid={`project-thread-entry-${projectIdentity(project)}-${thread.id}`}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '6px',
-          width: 'calc(100% - 20px)',
-          margin: '2px 10px',
-          padding: '6px 12px 6px 6px',
-          border: 'none',
-          borderRadius: 'var(--sidebar-control-radius)',
-          backgroundColor: 'transparent',
-          color: 'var(--text-primary)',
-          cursor: 'pointer',
-          textAlign: 'left'
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.backgroundColor = 'var(--sidebar-control-hover)'
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.backgroundColor = 'transparent'
-        }}
-      >
-        <span
-          data-testid={`project-thread-leading-${rowProjectKey}-${thread.id}`}
-          style={readonlyLeadingSlotStyle}
-        >
-          {pinned && (
-            <ReadonlyPinnedIcon
-              label={t('threadGroup.pinned')}
-              testId={`project-thread-pinned-${rowProjectKey}-${thread.id}`}
-            />
-          )}
-        </span>
-        <span
-          data-testid={`project-thread-layout-${rowProjectKey}-${thread.id}`}
-          style={{
-            flex: 1,
-            minWidth: 0,
-            display: 'grid',
-            gridTemplateColumns: `minmax(0, 1fr) ${statusColumn}`,
-            columnGap: '7px',
-            alignItems: 'center',
-            fontSize: 'var(--type-ui-size)',
-            lineHeight: 'var(--type-ui-line-height)'
-          }}
-        >
-          <span
-            style={{
-              minWidth: 0,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap'
-            }}
-          >
-            {displayName}
-          </span>
-          <span
-            data-testid={`project-thread-status-${rowProjectKey}-${thread.id}`}
-            style={{
-              width: statusSlotWidth,
-              minWidth: '24px',
-              justifySelf: statusSlotJustify,
-              height: '24px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: statusSlotJustify,
-              color: 'var(--text-dimmed)',
-              fontSize: 'var(--type-secondary-size)',
-              lineHeight: 'var(--type-secondary-line-height)',
-              whiteSpace: 'nowrap'
-            }}
-          >
+      <ThreadRowLayout
+        isSubAgent={subAgent}
+        subAgentDepth={subAgentDepth}
+        canPin={!subAgent}
+        subAgentLabel={t('threadEntry.subAgent')}
+        rowTestId={`project-thread-entry-${rowProjectKey}-${thread.id}`}
+        gridTestId={`project-thread-layout-${rowProjectKey}-${thread.id}`}
+        statusTestId={`project-thread-status-${rowProjectKey}-${thread.id}`}
+        leading={
+          subAgent ? undefined : (
             <span
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: statusSlotJustify,
-                width: running ? '100%' : 'auto',
-                overflow: 'hidden',
-                textOverflow: 'clip'
-              }}
+              data-testid={`project-thread-leading-${rowProjectKey}-${thread.id}`}
+              style={readonlyLeadingSlotStyle}
             >
-              {running ? (
-                <RunningSpinner
-                  label={t('threadEntry.turnRunning')}
-                  testId={`project-thread-running-indicator-${rowProjectKey}-${thread.id}`}
+              {pinned && (
+                <ReadonlyPinnedIcon
+                  label={t('threadGroup.pinned')}
+                  testId={`project-thread-pinned-${rowProjectKey}-${thread.id}`}
                 />
-              ) : waiting ? (
-                <span style={readonlyWaitingBadgeStyle}>
-                  {t('projectsRail.awaitingResponse')}
-                </span>
-              ) : (
-                relativeTime
               )}
             </span>
-          </span>
-        </span>
-      </button>
+          )
+        }
+        name={displayName}
+        nameStyle={{ fontWeight: 'var(--type-ui-weight)' }}
+        statusColumn={statusColumn}
+        statusSlotWidth={statusSlotWidth}
+        statusJustifySelf={statusSlotJustifySelf}
+        status={statusContent}
+        containerStyle={{ cursor: 'pointer', textAlign: 'left' }}
+        containerProps={{
+          onClick: () => void openThread(),
+          onMouseEnter: (e) => {
+            ;(e.currentTarget as HTMLDivElement).style.backgroundColor =
+              'var(--sidebar-control-hover)'
+          },
+          onMouseLeave: (e) => {
+            ;(e.currentTarget as HTMLDivElement).style.backgroundColor = 'transparent'
+          }
+        }}
+      />
     </ActionTooltip>
   )
 }
@@ -1357,6 +1317,27 @@ const projectColdBadgeStyle: CSSProperties = {
     '0 0 0 1px var(--bg-secondary)',
     '0 0 0 2px color-mix(in srgb, var(--text-primary) 18%, transparent)'
   ].join(', ')
+}
+
+/**
+ * Small dot at the folder icon's bottom-right marking a running project's status
+ * (green = running, yellow = connecting, red = error). Cold/stopped projects use
+ * the dashed-circle badge instead. The backgroundColor is set per-project.
+ */
+const projectStatusBadgeStyle: CSSProperties = {
+  position: 'absolute',
+  right: 0,
+  bottom: 0,
+  width: '7px',
+  height: '7px',
+  borderRadius: '999px',
+  boxShadow: '0 0 0 1.5px var(--bg-primary)'
+}
+
+function projectStatusDotColor(state: WorkspaceProjectState): string {
+  if (state === 'error') return 'var(--error)'
+  if (state === 'connecting') return 'var(--warning)'
+  return 'var(--success)'
 }
 
 const projectMenuStyle: CSSProperties = {
