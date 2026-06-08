@@ -9,9 +9,9 @@ import type { ContextMenuPosition } from '../ui/ContextMenu'
 import { ContextMenu } from '../ui/ContextMenu'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
 import { RunningSpinner } from '../ui/RunningSpinner'
-import { SIDEBAR_ROW_MIN_HEIGHT } from './sidebarNavRowStyles'
+import { ThreadRowLayout } from './ThreadRowLayout'
 import { ChannelIconBadge } from '../ui/channelMeta'
-import { Archive, ArrowRightLeft, CornerDownRight, Laptop, Pencil, Pin, Trash2 } from 'lucide-react'
+import { Archive, ArrowRightLeft, Laptop, Pencil, Pin, Trash2 } from 'lucide-react'
 import { AUTOMATION_TASK_DRAG_MIME } from '../automations/TaskCard'
 import { useAutomationsStore } from '../../stores/automationsStore'
 import { useDragDropStore } from '../../stores/dragDropStore'
@@ -117,7 +117,6 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
     && !isSubAgent
     && thread.status === 'active'
     && hasUnreadCompleted
-  const rowPaddingLeft = canPin ? 6 : 14 + subAgentDepth * 14
   const showRelativeTimeStatus = !hasRunningTurn && !showUnreadCompletedDot && !showStatusIcon
   const compactStatusColumn = '24px'
   const relativeTimeStatusColumn = 'minmax(24px, max-content)'
@@ -129,10 +128,6 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
     : usesRelativeTimeColumn
       ? relativeTimeStatusColumn
       : compactStatusColumn
-  const layoutColumns = hasBadgeContent
-    ? `minmax(0, 1fr) minmax(74px, max-content) ${statusColumn}`
-    : `minmax(0, 1fr) ${statusColumn}`
-  const statusGridColumn = hasBadgeContent ? '3' : '2'
   const statusSlotWidth = showArchiveConfirm
     ? '100%'
     : usesRelativeTimeColumn
@@ -302,30 +297,40 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
   return (
     <>
       <ActionTooltip label={rowTooltipLabel} wrapperStyle={{ display: 'block', width: '100%' }}>
-      <div
-        className="dotcraft-sidebar-control-radius"
-        onClick={handleClick}
-        onContextMenu={handleContextMenu}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={(e) => void handleDrop(e)}
-        data-testid={`thread-entry-${thread.id}`}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          position: 'relative',
-          width: 'calc(100% - 20px)',
-          minHeight: SIDEBAR_ROW_MIN_HEIGHT,
-          margin: '2px 10px',
-          padding: `3px 12px 3px ${rowPaddingLeft}px`,
+      <ThreadRowLayout
+        isSubAgent={isSubAgent}
+        subAgentDepth={subAgentDepth}
+        canPin={canPin}
+        subAgentLabel={t('threadEntry.subAgent')}
+        rowTestId={`thread-entry-${thread.id}`}
+        gridTestId={`thread-layout-${thread.id}`}
+        nameTestId={`thread-title-${thread.id}`}
+        badgeTestId={`thread-badge-slot-${thread.id}`}
+        statusTestId={`thread-status-slot-${thread.id}`}
+        name={displayName}
+        nameStyle={{ fontWeight: 'var(--type-ui-weight)' }}
+        statusColumn={statusColumn}
+        statusSlotWidth={statusSlotWidth}
+        statusSlotMinWidth={statusSlotMinWidth}
+        statusJustifySelf={statusSlotJustifySelf}
+        statusContentJustify={statusContentJustify}
+        statusSlotRef={actionSlotRef}
+        statusSlotProps={{
+          onBlurCapture: (e) => {
+            const nextTarget = e.relatedTarget as Node | null
+            if (nextTarget && actionSlotRef.current?.contains(nextTarget)) return
+            resetArchiveActionState()
+          }
+        }}
+        containerStyle={{
           cursor: dimmedTarget ? 'not-allowed' : 'pointer',
-          boxSizing: 'border-box',
-          borderRadius: 'var(--sidebar-control-radius)',
           backgroundColor: dropActive
             ? 'color-mix(in srgb, var(--accent) 14%, transparent)'
             : isActive
               ? 'var(--sidebar-control-active)'
-              : 'transparent',
+              : hovered && !alreadyBound && !dragKind
+                ? 'var(--sidebar-control-hover)'
+                : 'transparent',
           // Single-effect drop/target ring replaces the older 3-effect combo
           // (left-border + tinted-bg + dashed-outline). dropActive = hovered
           // valid target; alreadyBound = inset outline marking the existing
@@ -339,8 +344,6 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
           opacity: dimmedTarget ? 0.42 : 1,
           filter: dimmedTarget ? 'saturate(0.7)' : 'none',
           pointerEvents: dimmedTarget ? 'none' : 'auto',
-          gap: '6px',
-          userSelect: 'none',
           transition:
             'background-color 100ms ease, box-shadow 140ms ease, transform 140ms ease, opacity 140ms ease',
           animation:
@@ -350,445 +353,372 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
                 ? 'shake 320ms cubic-bezier(0.3, 0.7, 0.4, 1)'
                 : undefined
         }}
-        onMouseEnter={(e) => {
-          setHovered(true)
-          if (!isActive && !dropActive && !alreadyBound && !dragKind) {
-            ;(e.currentTarget as HTMLDivElement).style.backgroundColor = 'var(--sidebar-control-hover)'
+        containerProps={{
+          onClick: handleClick,
+          onContextMenu: handleContextMenu,
+          onDragOver: handleDragOver,
+          onDragLeave: handleDragLeave,
+          onDrop: (e) => void handleDrop(e),
+          onMouseEnter: () => setHovered(true),
+          onMouseLeave: () => {
+            setHovered(false)
+            setArchiveConfirming(false)
           }
         }}
-        onMouseLeave={(e) => {
-          setHovered(false)
-          setArchiveConfirming(false)
-          if (!isActive && !dropActive && !alreadyBound && !dragKind) {
-            ;(e.currentTarget as HTMLDivElement).style.backgroundColor = 'transparent'
-          }
-        }}
-      >
-        {canPin && (
-          <span
-            style={{
-              width: '18px',
-              minWidth: '18px',
-              height: '24px',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0
-            }}
-          >
-            <ActionTooltip
-              label={isPinned ? t('threadEntry.unpin') : t('threadEntry.pin')}
-              placement="right"
-            >
-              <button
-                type="button"
-                aria-label={isPinned ? t('threadEntry.unpin') : t('threadEntry.pin')}
-                aria-pressed={isPinned}
-                data-testid={`thread-pin-${thread.id}`}
-                onClick={handleTogglePinned}
-                onFocus={() => setPinButtonFocused(true)}
-                onBlur={() => setPinButtonFocused(false)}
+        leading={
+          <>
+            {canPin && (
+              <span
                 style={{
-                  width: '22px',
-                  height: '22px',
-                  padding: 0,
-                  border: 'none',
-                  backgroundColor: 'transparent',
-                  color: isPinned ? 'var(--text-secondary)' : 'var(--text-dimmed)',
+                  width: '18px',
+                  minWidth: '18px',
+                  height: '24px',
                   display: 'inline-flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  cursor: showPinAction ? 'pointer' : 'default',
-                  opacity: showPinAction ? 1 : 0,
-                  pointerEvents: showPinAction ? 'auto' : 'none',
-                  transition:
-                    'opacity 120ms ease, color 120ms ease'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.color = 'var(--text-primary)'
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.color = isPinned
-                    ? 'var(--text-secondary)'
-                    : 'var(--text-dimmed)'
+                  flexShrink: 0
                 }}
               >
-                <PinIcon filled={isPinned} />
-              </button>
-            </ActionTooltip>
-          </span>
-        )}
-        {isSubAgent && (
-          <ActionTooltip label={t('threadEntry.subAgent')}>
-            <span
-              style={{
-                width: '16px',
-                minWidth: '16px',
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'var(--text-dimmed)',
-                flexShrink: 0
-              }}
-              aria-label={t('threadEntry.subAgent')}
-            >
-              <CornerDownRight size={12} strokeWidth={2} aria-hidden="true" />
-            </span>
-          </ActionTooltip>
-        )}
-        {showOriginBadge && (
-          <span
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              marginRight: '2px',
-              flexShrink: 0
-            }}
-          >
-            {thread.originApp ? (
-              <ChannelIconBadge
-                channelName={thread.originChannel}
-                iconSrc={thread.originApp.icon ?? undefined}
-                label={thread.originApp.displayName}
-                tooltip={
-                  thread.originApp.memberId
-                    ? t('threadEntry.originMember', { name: thread.originApp.displayName })
-                    : t('threadEntry.originApp', { app: thread.originApp.displayName })
-                }
-                muted={!isActive}
-                size={18}
-              />
-            ) : (
-              <ChannelIconBadge
-                channelName={thread.originChannel}
-                tooltip={t('threadEntry.originChannel', { channel: thread.originChannel })}
-                muted={!isActive}
-                size={18}
-              />
+                <ActionTooltip
+                  label={isPinned ? t('threadEntry.unpin') : t('threadEntry.pin')}
+                  placement="right"
+                >
+                  <button
+                    type="button"
+                    aria-label={isPinned ? t('threadEntry.unpin') : t('threadEntry.pin')}
+                    aria-pressed={isPinned}
+                    data-testid={`thread-pin-${thread.id}`}
+                    onClick={handleTogglePinned}
+                    onFocus={() => setPinButtonFocused(true)}
+                    onBlur={() => setPinButtonFocused(false)}
+                    style={{
+                      width: '22px',
+                      height: '22px',
+                      padding: 0,
+                      border: 'none',
+                      backgroundColor: 'transparent',
+                      color: isPinned ? 'var(--text-secondary)' : 'var(--text-dimmed)',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: showPinAction ? 'pointer' : 'default',
+                      opacity: showPinAction ? 1 : 0,
+                      pointerEvents: showPinAction ? 'auto' : 'none',
+                      transition: 'opacity 120ms ease, color 120ms ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.color = 'var(--text-primary)'
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.color = isPinned
+                        ? 'var(--text-secondary)'
+                        : 'var(--text-dimmed)'
+                    }}
+                  >
+                    <PinIcon filled={isPinned} />
+                  </button>
+                </ActionTooltip>
+              </span>
             )}
-          </span>
-        )}
-
-        {renaming ? (
-          <input
-            ref={renameInputRef}
-            value={renameValue}
-            onChange={(e) => setRenameValue(e.target.value)}
-            onKeyDown={handleRenameKeyDown}
-            onBlur={commitRename}
-            autoFocus
-            style={{
-              flex: 1,
-              fontSize: 'var(--type-ui-size)',
-              lineHeight: 'var(--type-ui-line-height)',
-              color: 'var(--text-primary)',
-              backgroundColor: 'var(--sidebar-control-active)',
-              border: '1px solid var(--border-active)',
-              borderRadius: '4px',
-              padding: '1px 4px',
-              outline: 'none',
-              minWidth: 0
-            }}
-            onClick={(e) => e.stopPropagation()}
-          />
-        ) : (
-          <div
-            data-testid={`thread-layout-${thread.id}`}
-            style={{
-              flex: 1,
-              minWidth: 0,
-              display: 'grid',
-              gridTemplateColumns: layoutColumns,
-              columnGap: '7px',
-              alignItems: 'center'
-            }}
-          >
-            <span
-              data-testid={`thread-title-${thread.id}`}
-              style={{
-                fontSize: 'var(--type-ui-size)',
-                lineHeight: 'var(--type-ui-line-height)',
-                fontWeight: 'var(--type-ui-weight)',
-                color: 'var(--text-primary)',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-                minWidth: 0
-              }}
-            >
-              {displayName}
-            </span>
-            {hasBadgeContent && (
+            {showOriginBadge && (
               <span
-                data-testid={`thread-badge-slot-${thread.id}`}
                 style={{
-                  minWidth: 0,
                   display: 'inline-flex',
                   alignItems: 'center',
-                  justifyContent: 'flex-end',
-                  justifySelf: 'stretch'
+                  marginRight: '2px',
+                  flexShrink: 0
                 }}
               >
-                {(dropActive || alreadyBound) ? (
-                  <span
-                    data-testid={
-                      dropActive
-                        ? `thread-drop-hint-${thread.id}`
-                        : `thread-already-bound-${thread.id}`
+                {thread.originApp ? (
+                  <ChannelIconBadge
+                    channelName={thread.originChannel}
+                    iconSrc={thread.originApp.icon ?? undefined}
+                    label={thread.originApp.displayName}
+                    tooltip={
+                      thread.originApp.memberId
+                        ? t('threadEntry.originMember', { name: thread.originApp.displayName })
+                        : t('threadEntry.originApp', { app: thread.originApp.displayName })
                     }
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      maxWidth: '150px',
-                      minWidth: 0,
-                      height: '18px',
-                      padding: '2px 8px',
-                      borderRadius: '999px',
-                      border:
-                        '1px solid color-mix(in srgb, var(--accent) 40%, transparent)',
-                      backgroundColor: dropActive
-                        ? 'color-mix(in srgb, var(--accent) 22%, transparent)'
-                        : 'color-mix(in srgb, var(--accent) 10%, transparent)',
-                      color: 'var(--accent)',
-                      fontSize: 'var(--type-secondary-size)',
-                      lineHeight: 'var(--type-secondary-line-height)',
-                      fontWeight: 'var(--type-ui-emphasis-weight)',
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      flexShrink: 1
-                    }}
-                  >
-                    {dropActive
-                      ? t('auto.dnd.dropHere')
-                      : t('auto.dnd.alreadyBoundBadge')}
-                  </span>
-                ) : showPendingBadge ? (
-                  <span
-                    data-testid={
-                      showPendingApprovalBadge
-                        ? `thread-pending-approval-${thread.id}`
-                        : showPendingUserInputBadge
-                          ? `thread-pending-input-${thread.id}`
-                        : `thread-pending-confirmation-${thread.id}`
-                    }
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      maxWidth: '150px',
-                      minWidth: 0,
-                      height: '18px',
-                      padding: '2px 8px',
-                      borderRadius: '999px',
-                      border: showPendingApprovalBadge || showPendingUserInputBadge
-                        ? '1px solid color-mix(in srgb, #d4a33b 45%, transparent)'
-                        : '1px solid color-mix(in srgb, var(--accent) 40%, transparent)',
-                      backgroundColor: showPendingApprovalBadge || showPendingUserInputBadge
-                        ? 'color-mix(in srgb, #d4a33b 18%, transparent)'
-                        : 'color-mix(in srgb, var(--accent) 12%, transparent)',
-                      color: showPendingApprovalBadge || showPendingUserInputBadge ? '#d4a33b' : 'var(--accent)',
-                      fontSize: 'var(--type-secondary-size)',
-                      lineHeight: 'var(--type-secondary-line-height)',
-                      fontWeight: 'var(--type-ui-emphasis-weight)',
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      flexShrink: 1
-                    }}
-                  >
-                    {showPendingApprovalBadge
-                      ? t('threadEntry.pendingApproval')
-                      : showPendingUserInputBadge
-                        ? t('threadEntry.pendingUserInput')
-                      : t('threadEntry.pendingPlanConfirmation')}
-                  </span>
+                    muted={!isActive}
+                    size={18}
+                  />
                 ) : (
-                  <span
-                    aria-hidden="true"
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: 'var(--type-ui-size)',
-                      lineHeight: 'var(--type-ui-line-height)',
-                      color: 'var(--accent)',
-                      animation: 'slideInBadge 450ms ease-out'
-                    }}
-                  >
-                    💬
-                  </span>
+                  <ChannelIconBadge
+                    channelName={thread.originChannel}
+                    tooltip={t('threadEntry.originChannel', { channel: thread.originChannel })}
+                    muted={!isActive}
+                    size={18}
+                  />
                 )}
               </span>
             )}
-            <div
-              ref={actionSlotRef}
-              data-testid={`thread-status-slot-${thread.id}`}
+          </>
+        }
+        mainOverride={
+          renaming ? (
+            <input
+              ref={renameInputRef}
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              onKeyDown={handleRenameKeyDown}
+              onBlur={commitRename}
+              autoFocus
               style={{
-                gridColumn: statusGridColumn,
-                width: statusSlotWidth,
-                minWidth: statusSlotMinWidth,
-                justifySelf: statusSlotJustifySelf,
-                height: '24px',
-                position: 'relative',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: statusContentJustify
+                flex: 1,
+                fontSize: 'var(--type-ui-size)',
+                lineHeight: 'var(--type-ui-line-height)',
+                color: 'var(--text-primary)',
+                backgroundColor: 'var(--sidebar-control-active)',
+                border: '1px solid var(--border-active)',
+                borderRadius: '4px',
+                padding: '1px 4px',
+                outline: 'none',
+                minWidth: 0
               }}
-              onBlurCapture={(e) => {
-                const nextTarget = e.relatedTarget as Node | null
-                if (nextTarget && actionSlotRef.current?.contains(nextTarget)) return
-                resetArchiveActionState()
-              }}
-            >
+              onClick={(e) => e.stopPropagation()}
+            />
+          ) : undefined
+        }
+        badge={
+          hasBadgeContent ? (
+            dropActive || alreadyBound ? (
               <span
-                aria-hidden={showArchiveAction}
+                data-testid={
+                  dropActive
+                    ? `thread-drop-hint-${thread.id}`
+                    : `thread-already-bound-${thread.id}`
+                }
                 style={{
-                  fontSize: 'var(--type-secondary-size)',
-                  color: 'var(--text-dimmed)',
-                  lineHeight: 'var(--type-secondary-line-height)',
-                  whiteSpace: 'nowrap',
-                  display: showArchiveAction ? 'none' : 'inline-flex',
+                  display: 'inline-flex',
                   alignItems: 'center',
-                  justifyContent: statusContentJustify,
-                  width: '100%',
+                  justifyContent: 'center',
+                  maxWidth: '150px',
+                  minWidth: 0,
+                  height: '18px',
+                  padding: '2px 8px',
+                  borderRadius: '999px',
+                  border: '1px solid color-mix(in srgb, var(--accent) 40%, transparent)',
+                  backgroundColor: dropActive
+                    ? 'color-mix(in srgb, var(--accent) 22%, transparent)'
+                    : 'color-mix(in srgb, var(--accent) 10%, transparent)',
+                  color: 'var(--accent)',
+                  fontSize: 'var(--type-secondary-size)',
+                  lineHeight: 'var(--type-secondary-line-height)',
+                  fontWeight: 'var(--type-ui-emphasis-weight)',
+                  whiteSpace: 'nowrap',
                   overflow: 'hidden',
-                  textOverflow: 'clip',
-                  opacity: showArchiveAction ? 0 : 1
+                  textOverflow: 'ellipsis',
+                  flexShrink: 1
                 }}
               >
-                {hasRunningTurn ? (
-                  <RunningSpinner
-                    label={t('threadEntry.turnRunning')}
-                    testId={`thread-running-indicator-${thread.id}`}
-                  />
-                ) : showUnreadCompletedDot ? (
-                  <ActionTooltip label={t('threadEntry.unreadCompleted')}>
-                    <span
-                      aria-label={t('threadEntry.unreadCompleted')}
-                      data-testid={`thread-unread-completed-${thread.id}`}
-                      style={{
-                        width: '6px',
-                        height: '6px',
-                        borderRadius: '999px',
-                        backgroundColor: 'var(--success)',
-                        display: 'inline-block'
-                      }}
-                    />
-                  </ActionTooltip>
-                ) : showStatusIcon ? (
-                  <ActionTooltip label={thread.status}>
-                    <span
-                      style={{ fontSize: '10px', color: 'var(--text-dimmed)', flexShrink: 0 }}
-                      aria-label={thread.status}
-                    >
-                      {thread.status === 'paused' ? '⏸' : '🗄'}
-                    </span>
-                  </ActionTooltip>
-                ) : (
-                  relativeTime
-                )}
+                {dropActive ? t('auto.dnd.dropHere') : t('auto.dnd.alreadyBoundBadge')}
               </span>
-              {!isSubAgent && (
-                <>
-                  <ActionTooltip label={t('threadEntry.archive')} placement="right">
-                    <button
-                      className="dotcraft-sidebar-control-radius"
-                      type="button"
-                      aria-label={t('threadEntry.archive')}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        beginInlineArchiveConfirm()
-                      }}
-                      onFocus={() => setArchiveButtonFocused(true)}
-                      style={{
-                        width: '24px',
-                        height: '24px',
-                        padding: 0,
-                        border: 'none',
-                        borderRadius: 'var(--sidebar-icon-control-radius)',
-                        backgroundColor: 'transparent',
-                        color: isActive ? 'var(--text-secondary)' : 'var(--text-dimmed)',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        cursor: showArchiveAction && !showArchiveConfirm ? 'pointer' : 'default',
-                        position: 'absolute',
-                        right: 0,
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        opacity: showArchiveAction && !showArchiveConfirm ? 1 : 0,
-                        pointerEvents: showArchiveAction && !showArchiveConfirm ? 'auto' : 'none',
-                        transition: 'opacity 120ms ease, background-color 120ms ease, color 120ms ease',
-                        zIndex: 2
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = 'var(--sidebar-control-hover)'
-                        e.currentTarget.style.color = 'var(--error)'
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = 'transparent'
-                        e.currentTarget.style.color = isActive
-                          ? 'var(--text-secondary)'
-                          : 'var(--text-dimmed)'
-                      }}
-                    >
-                      <Archive size={14} strokeWidth={2} aria-hidden="true" />
-                    </button>
-                  </ActionTooltip>
-                  <ActionTooltip label={t('threadEntry.archiveConfirm')} placement="right">
-                    <button
-                      type="button"
-                      tabIndex={showArchiveConfirm ? 0 : -1}
-                      aria-label={t('threadEntry.archiveConfirm')}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        void performArchiveThread()
-                      }}
-                      onFocus={() => setArchiveButtonFocused(true)}
-                      style={{
-                        height: '24px',
-                        padding: '0 8px',
-                        minWidth: '64px',
-                        border: '1px solid color-mix(in srgb, var(--error) 42%, transparent)',
-                        borderRadius: '999px',
-                        backgroundColor: 'color-mix(in srgb, var(--error) 12%, transparent)',
-                        color: 'var(--error)',
-                        fontSize: 'var(--type-secondary-size)',
-                        lineHeight: 'var(--type-secondary-line-height)',
-                        fontWeight: 'var(--type-ui-emphasis-weight)',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        cursor: showArchiveConfirm ? 'pointer' : 'default',
-                        position: 'absolute',
-                        right: 0,
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        opacity: showArchiveConfirm ? 1 : 0,
-                        pointerEvents: showArchiveConfirm ? 'auto' : 'none',
-                        transition: 'opacity 120ms ease, background-color 120ms ease',
-                        zIndex: 2
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor =
-                          'color-mix(in srgb, var(--error) 18%, transparent)'
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor =
-                          'color-mix(in srgb, var(--error) 12%, transparent)'
-                      }}
-                    >
-                      {t('threadEntry.archiveConfirm')}
-                    </button>
-                  </ActionTooltip>
-                </>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
+            ) : showPendingBadge ? (
+              <span
+                data-testid={
+                  showPendingApprovalBadge
+                    ? `thread-pending-approval-${thread.id}`
+                    : showPendingUserInputBadge
+                      ? `thread-pending-input-${thread.id}`
+                      : `thread-pending-confirmation-${thread.id}`
+                }
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  maxWidth: '150px',
+                  minWidth: 0,
+                  height: '18px',
+                  padding: '2px 8px',
+                  borderRadius: '999px',
+                  border: showPendingApprovalBadge || showPendingUserInputBadge
+                    ? '1px solid color-mix(in srgb, #d4a33b 45%, transparent)'
+                    : '1px solid color-mix(in srgb, var(--accent) 40%, transparent)',
+                  backgroundColor: showPendingApprovalBadge || showPendingUserInputBadge
+                    ? 'color-mix(in srgb, #d4a33b 18%, transparent)'
+                    : 'color-mix(in srgb, var(--accent) 12%, transparent)',
+                  color: showPendingApprovalBadge || showPendingUserInputBadge ? '#d4a33b' : 'var(--accent)',
+                  fontSize: 'var(--type-secondary-size)',
+                  lineHeight: 'var(--type-secondary-line-height)',
+                  fontWeight: 'var(--type-ui-emphasis-weight)',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  flexShrink: 1
+                }}
+              >
+                {showPendingApprovalBadge
+                  ? t('threadEntry.pendingApproval')
+                  : showPendingUserInputBadge
+                    ? t('threadEntry.pendingUserInput')
+                    : t('threadEntry.pendingPlanConfirmation')}
+              </span>
+            ) : (
+              <span
+                aria-hidden="true"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 'var(--type-ui-size)',
+                  lineHeight: 'var(--type-ui-line-height)',
+                  color: 'var(--accent)',
+                  animation: 'slideInBadge 450ms ease-out'
+                }}
+              >
+                💬
+              </span>
+            )
+          ) : undefined
+        }
+        status={
+          <span
+            aria-hidden={showArchiveAction}
+            style={{
+              fontSize: 'var(--type-secondary-size)',
+              color: 'var(--text-dimmed)',
+              lineHeight: 'var(--type-secondary-line-height)',
+              whiteSpace: 'nowrap',
+              display: showArchiveAction ? 'none' : 'inline-flex',
+              alignItems: 'center',
+              justifyContent: statusContentJustify,
+              width: '100%',
+              overflow: 'hidden',
+              textOverflow: 'clip',
+              opacity: showArchiveAction ? 0 : 1
+            }}
+          >
+            {hasRunningTurn ? (
+              <RunningSpinner
+                label={t('threadEntry.turnRunning')}
+                testId={`thread-running-indicator-${thread.id}`}
+              />
+            ) : showUnreadCompletedDot ? (
+              <ActionTooltip label={t('threadEntry.unreadCompleted')}>
+                <span
+                  aria-label={t('threadEntry.unreadCompleted')}
+                  data-testid={`thread-unread-completed-${thread.id}`}
+                  style={{
+                    width: '6px',
+                    height: '6px',
+                    borderRadius: '999px',
+                    backgroundColor: 'var(--success)',
+                    display: 'inline-block'
+                  }}
+                />
+              </ActionTooltip>
+            ) : showStatusIcon ? (
+              <ActionTooltip label={thread.status}>
+                <span
+                  style={{ fontSize: '10px', color: 'var(--text-dimmed)', flexShrink: 0 }}
+                  aria-label={thread.status}
+                >
+                  {thread.status === 'paused' ? '⏸' : '🗄'}
+                </span>
+              </ActionTooltip>
+            ) : (
+              relativeTime
+            )}
+          </span>
+        }
+        statusExtra={
+          !isSubAgent ? (
+            <>
+              <ActionTooltip label={t('threadEntry.archive')} placement="right">
+                <button
+                  className="dotcraft-sidebar-control-radius"
+                  type="button"
+                  aria-label={t('threadEntry.archive')}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    beginInlineArchiveConfirm()
+                  }}
+                  onFocus={() => setArchiveButtonFocused(true)}
+                  style={{
+                    width: '24px',
+                    height: '24px',
+                    padding: 0,
+                    border: 'none',
+                    borderRadius: 'var(--sidebar-icon-control-radius)',
+                    backgroundColor: 'transparent',
+                    color: isActive ? 'var(--text-secondary)' : 'var(--text-dimmed)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: showArchiveAction && !showArchiveConfirm ? 'pointer' : 'default',
+                    position: 'absolute',
+                    right: 0,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    opacity: showArchiveAction && !showArchiveConfirm ? 1 : 0,
+                    pointerEvents: showArchiveAction && !showArchiveConfirm ? 'auto' : 'none',
+                    transition: 'opacity 120ms ease, background-color 120ms ease, color 120ms ease',
+                    zIndex: 2
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = 'var(--sidebar-control-hover)'
+                    e.currentTarget.style.color = 'var(--error)'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'transparent'
+                    e.currentTarget.style.color = isActive
+                      ? 'var(--text-secondary)'
+                      : 'var(--text-dimmed)'
+                  }}
+                >
+                  <Archive size={14} strokeWidth={2} aria-hidden="true" />
+                </button>
+              </ActionTooltip>
+              <ActionTooltip label={t('threadEntry.archiveConfirm')} placement="right">
+                <button
+                  type="button"
+                  tabIndex={showArchiveConfirm ? 0 : -1}
+                  aria-label={t('threadEntry.archiveConfirm')}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    void performArchiveThread()
+                  }}
+                  onFocus={() => setArchiveButtonFocused(true)}
+                  style={{
+                    height: '24px',
+                    padding: '0 8px',
+                    minWidth: '64px',
+                    border: '1px solid color-mix(in srgb, var(--error) 42%, transparent)',
+                    borderRadius: '999px',
+                    backgroundColor: 'color-mix(in srgb, var(--error) 12%, transparent)',
+                    color: 'var(--error)',
+                    fontSize: 'var(--type-secondary-size)',
+                    lineHeight: 'var(--type-secondary-line-height)',
+                    fontWeight: 'var(--type-ui-emphasis-weight)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: showArchiveConfirm ? 'pointer' : 'default',
+                    position: 'absolute',
+                    right: 0,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    opacity: showArchiveConfirm ? 1 : 0,
+                    pointerEvents: showArchiveConfirm ? 'auto' : 'none',
+                    transition: 'opacity 120ms ease, background-color 120ms ease',
+                    zIndex: 2
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor =
+                      'color-mix(in srgb, var(--error) 18%, transparent)'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor =
+                      'color-mix(in srgb, var(--error) 12%, transparent)'
+                  }}
+                >
+                  {t('threadEntry.archiveConfirm')}
+                </button>
+              </ActionTooltip>
+            </>
+          ) : undefined
+        }
+      />
       </ActionTooltip>
 
       {contextMenu && (
