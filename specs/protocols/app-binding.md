@@ -193,13 +193,8 @@ The app descriptor document contains one or more descriptors:
             "subtitle": "Oratorio"
           },
           "presentation": {
-            "renderers": [
-              {
-                "id": "dotcraft.kanban-list.v1",
-                "placement": ["conversationCard"],
-                "actions": ["openApp", "copy", "startTurn"]
-              }
-            ]
+            "version": "dotcraft.card.v1",
+            "actions": ["app.open", "copy", "app.request", "thread.enqueueInput"]
           }
         },
         {
@@ -212,13 +207,8 @@ The app descriptor document contains one or more descriptors:
             "subtitle": "Oratorio"
           },
           "presentation": {
-            "renderers": [
-              {
-                "id": "dotcraft.summary-card.v1",
-                "placement": ["conversationCard"],
-                "actions": ["openApp", "copy"]
-              }
-            ]
+            "version": "dotcraft.card.v1",
+            "actions": ["app.open", "copy"]
           }
         }
       ]
@@ -246,6 +236,7 @@ The app descriptor document contains one or more descriptors:
 | `scopes` | AppScopeDescriptor[] | yes | Required scope catalog. Must not be empty. |
 | `toolCatalog` | AppToolCatalogEntry[] | yes | Required static tool catalog. May be empty only when `dynamicToolCatalog.enabled` is true. |
 | `dynamicToolCatalog` | AppDynamicToolCatalogDescriptor | no | Allows the app to attach a runtime tool catalog during binding attachment. Defaults to disabled. |
+| `cardSurfaceRoutes` | AppCardSurfaceRoute[] | no | Loopback API routes a Dynamic Tool Card `app.request` action may call, each mapped to a required scope and method. See §5.5.1 and [Tool Result Presentation](tool-result-presentation.md). |
 | `privacyUrl` | string | no | Optional privacy URL. |
 | `termsUrl` | string | no | Optional terms URL. |
 
@@ -327,9 +318,28 @@ Risk categories:
 | `defaultExposure` | `"direct" \| "deferred"` | yes | Default loading group. |
 | `description` | string | no | Optional catalog description. The runtime `DynamicToolSpec.description` remains authoritative for the model. |
 | `display` | object | no | Optional user-facing display metadata for clients. See [Tool Result Presentation](tool-result-presentation.md#51-display). |
-| `presentation` | object | no | Optional declaration of result renderers and actions this tool may return. See [Tool Result Presentation](tool-result-presentation.md#52-presentation). |
+| `presentation` | object | no | Optional card contract: card version, allowed action kinds, and an optional declared card template bound to the tool's output. See [Tool Result Presentation](tool-result-presentation.md#52-presentation). |
 
 The catalog is not the executable tool schema. It is a coarse declaration used for discovery, user consent, DotCraft validation, and optional client rendering. Concrete tool schemas are attached later by `app/binding/attachTools`.
+
+### 5.5.1 Card-Callable Surface Routes
+
+`cardSurfaceRoutes` declares the loopback API routes a Dynamic Tool Card may call through an `app.request` action (see [Tool Result Presentation](tool-result-presentation.md)). It is the authority boundary for human-initiated card calls: a card cannot reach a route that is not declared here, and cannot use a method beyond what the declared scope's risk permits.
+
+`AppCardSurfaceRoute`:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `method` | `"GET" \| "POST" \| "PATCH" \| "DELETE"` | yes | Allowed HTTP method for this route. |
+| `path` | string | yes | Route path or path prefix under the connection's published `apiBase` (the `publicMetadata` loopback surface endpoint). |
+| `scope` | string | yes | Scope id (from `scopes`) required to call the route. The route's effective risk is that scope's `risk`. |
+
+Rules:
+
+- DotCraft mediates every `app.request`: it validates that the binding is `active`, the `scope` is granted, the requested `method`+`path` match a declared route, and the method is permitted for the scope's risk. `read`/`GET` is the only method group enabled in the first milestone; `mutate`/`externalWrite` writes are deferred behind explicit user approval. DotCraft then issues the call against the runtime `apiBase` using the workspace+user+app connection credential and records it on the audit trail.
+- Routes resolve relative to the runtime `apiBase` from `publicMetadata`, not a hard-coded host/port; a refreshed endpoint (§9.6) keeps declared routes working across app restarts.
+- A card's claimed `scope`/`risk` are display hints only; authority is always re-derived from this declaration and the binding's granted scopes.
+- `GET` routes correspond to read access (analogous to a Desktop Extension's `connectOrigins`); write methods correspond to mutate/externalWrite scopes (analogous to `surfaceWriteScopes`).
 
 ### 5.6 Dynamic Tool Catalog Descriptor
 
@@ -879,7 +889,7 @@ Rules:
 - Every tool name must exist in the descriptor `toolCatalog` or in this attachment's `toolCatalog` when `dynamicToolCatalog.enabled` is true.
 - Runtime catalog entries may only reference descriptor-declared scopes and must not declare lower risk than their scope.
 - Runtime catalog entries may declare `display` and `presentation`, but those declarations are bounded by the same scope, risk, namespace, and validation rules as static catalog entries.
-- Attached `DynamicToolSpec.presentation` declarations may narrow the accepted catalog presentation contract but must not expand renderer ids or action kinds beyond it.
+- Attached `DynamicToolSpec.presentation` declarations may narrow the accepted catalog card contract but must not expand the allowed action kinds or callable surface routes beyond it.
 - Granted scopes must cover each tool's declared catalog scope.
 - `mutate` and `externalWrite` tools default to deferred exposure unless DotCraft policy explicitly allows direct exposure.
 - In Responses native deferred-loading mode, app-bound deferred tools are advertised through `tool_search` as namespace loadable tool specs. They are not injected into the top-level model tool list after discovery.
@@ -1188,7 +1198,7 @@ For every attached tool, DotCraft must validate:
 - Tool name exists in the descriptor `toolCatalog` or in an accepted attachment-time catalog for a dynamic catalog app.
 - Granted scopes cover the tool's declared catalog scope.
 - Tool risk and exposure are compatible with descriptor defaults and DotCraft policy.
-- Tool result presentation renderer ids and action kinds, when declared, are compatible with the accepted App Binding catalog entry and the [Tool Result Presentation](tool-result-presentation.md) contract.
+- Tool result card action kinds and callable surface routes, when declared, are compatible with the accepted App Binding catalog entry and the [Tool Result Presentation](tool-result-presentation.md) contract.
 
 ### 13.3 Direct and Deferred Groups
 
@@ -1384,7 +1394,7 @@ Required behavior:
 - Show safe error display for `offline`, `expired`, `revoked`, and `error` states.
 - When an app-bound `dynamicToolCall` includes a supported Tool Result Presentation payload, render the client-owned presentation instead of making raw JSON the primary visible result.
 - If the presentation is unsupported, invalid, or references a disallowed action target, fall back to the generic tool card and safe text/structured output.
-- Presentation actions must be explicit user actions. `openApp` may launch only the bound app's declared protocol, and `startTurn` must route through the normal turn lifecycle.
+- Card actions must be explicit user actions. `app.open` may launch only the bound app's declared protocol, `thread.enqueueInput` must route through the normal turn lifecycle, and `app.request` is DotCraft-mediated and gated by the binding's granted scopes and declared card-callable routes (§5.5.1).
 - In the Welcome flow, selected apps must finish app-side binding authorization and attach tools before Desktop submits the first user turn. If any selected app binding is cancelled, errors, or times out, Desktop must keep the draft and must not start the turn.
 - Desktop should expose Welcome app selection from the same top-level app binding affordance used by thread headers, not as a Composer footer selector.
 - Never let an agent-created suggestion skip user selection or app authorization.
@@ -1439,11 +1449,11 @@ App Binding covers Oratorio manager-thread board tools. These are tools a user m
 
 Oratorio board tools should validate Tool Result Presentation with these first-version expectations:
 
-- `ListBoardItems` may return `dotcraft.kanban-list.v1` or `dotcraft.entity-list.v1` for board summaries.
-- `GetBoardItem` may return `dotcraft.summary-card.v1` and optional `dotcraft.timeline.v1` data for one item.
+- `ListBoardItems` may return a `List` card (a declared template bound to its output) for board summaries.
+- `GetBoardItem` may return a summary card (`KeyValue` plus `List`/`Diff`) for one item.
 - `CreateBoardTask` should return a summary card with the created task id, title, state, and explicit open/copy actions.
-- `QueueReviewRound` should return a summary or timeline card with the queued round and target board item.
-- Card actions should prefer `openApp`, `copy`, and `startTurn`; they must not directly invoke another app-bound tool from the card.
+- `QueueReviewRound` should return a summary or `externalWrite.proposal` card with the queued round and target board item.
+- Card actions should prefer `app.open`, `copy`, read-only `app.request`, and `thread.enqueueInput`; cards must not invoke agent/dynamic tools (`tool.call` is not an action kind). Human-initiated writes go through `app.request` to the app API.
 
 Product validation requires:
 

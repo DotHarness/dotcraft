@@ -472,13 +472,8 @@ Dynamic tool spec:
     "subtitle": "Oratorio"
   },
   "presentation": {
-    "renderers": [
-      {
-        "id": "dotcraft.summary-card.v1",
-        "placement": ["conversationCard"],
-        "actions": ["openApp", "copy"]
-      }
-    ]
+    "version": "dotcraft.card.v1",
+    "actions": ["app.open", "copy"]
   },
   "approval": {
     "kind": "remoteResource",
@@ -496,7 +491,7 @@ Rules:
 - `inputSchema` is required and must be a valid JSON Schema object.
 - `outputSchema`, when present, describes the structured result returned by the tool.
 - `display`, when present, is optional user-facing metadata for clients that render tool activity.
-- `presentation`, when present, declares allowed client-rendered result presentation contracts. See [Tool Result Presentation](tool-result-presentation.md).
+- `presentation`, when present, declares the presentation version and the action kinds the tool's results may use. See [Tool Result Presentation](tool-result-presentation.md).
 - `display` and `presentation` are client-facing metadata and MUST NOT be included in the model-visible tool description.
 - `(namespace, name)` pairs must be unique within a `thread/start` request.
 - `approval`, when present, uses the same descriptive approval metadata as channel tools: `file`, `shell`, or `remoteResource`. DotCraft evaluates approval before dispatching `item/tool/call`.
@@ -2980,12 +2975,21 @@ Runtime dynamic tool invocation for client-declared `thread/start.dynamicTools`.
     "draftId": "draft_123"
   },
   "presentation": {
-    "schemaVersion": 1,
-    "renderer": "dotcraft.summary-card.v1",
+    "schemaVersion": "dotcraft.card.v1",
+    "kind": "tool.result",
+    "cardId": "oratorio.submitReviewDraft.result",
+    "tool": { "namespace": "oratorio", "name": "SubmitReviewDraft", "callId": "call_123", "bindingId": "binding_abc" },
+    "risk": "mutate",
+    "status": "succeeded",
     "title": "Review draft recorded",
-    "data": {
-      "id": "draft_123"
-    },
+    "body": [
+      {
+        "type": "KeyValue",
+        "facts": [
+          { "label": "Draft id", "value": "draft_123", "mono": true }
+        ]
+      }
+    ],
     "actions": [
       {
         "id": "copy-draft-id",
