@@ -350,9 +350,76 @@ function CollapsedSidebar(): JSX.Element {
         </button>
       </ActionTooltip>
 
+      <CollapsedNavTooltip label={t('sidebar.channels')}>
+        <button
+          type="button"
+          onClick={() => setActiveMainView('channels')}
+          style={{
+            ...iconButtonStyle,
+            backgroundColor: activeMainView === 'channels' ? 'var(--sidebar-control-active)' : 'transparent',
+            color: activeMainView === 'channels' ? 'var(--accent)' : 'var(--text-secondary)'
+          }}
+          aria-label={t('sidebar.channels')}
+        >
+          <ChannelsIcon />
+        </button>
+      </CollapsedNavTooltip>
+      {desktopMainViews.map((entry) => {
+        const label = resolveLocalizedText(entry.localizedLabel, entry.label, locale) ?? entry.label
+        return (
+        <CollapsedNavTooltip key={entry.viewKey} label={label}>
+          <button
+            type="button"
+            onClick={() => setActiveMainView(entry.viewKey)}
+            style={{
+              ...iconButtonStyle,
+              backgroundColor: activeMainView === entry.viewKey ? 'var(--sidebar-control-active)' : 'transparent',
+              color: activeMainView === entry.viewKey ? 'var(--accent)' : 'var(--text-secondary)'
+            }}
+            aria-label={label}
+          >
+            <ExtensionIcon icon={entry.icon} />
+          </button>
+        </CollapsedNavTooltip>
+        )
+      })}
+      <CollapsedNavTooltip
+        label={t('sidebar.automations')}
+        disabledReason={!collapsedAutomationsAvailable ? t('sidebar.automationsDisabled') : undefined}
+      >
+        <button
+          type="button"
+          onClick={collapsedAutomationsAvailable ? () => setActiveMainView('automations') : undefined}
+          disabled={!collapsedAutomationsAvailable}
+          style={{
+            ...iconButtonStyle,
+            backgroundColor: activeMainView === 'automations' ? 'var(--sidebar-control-active)' : 'transparent',
+            color: activeMainView === 'automations' ? 'var(--accent)' : 'var(--text-secondary)',
+            opacity: collapsedAutomationsAvailable ? 1 : 0.4
+          }}
+          aria-label={t('sidebar.automations')}
+        >
+          <AutomationsIcon />
+        </button>
+      </CollapsedNavTooltip>
+      <CollapsedNavTooltip label={t('sidebar.skills')}>
+        <button
+          type="button"
+          onClick={() => setActiveMainView('skills')}
+          style={{
+            ...iconButtonStyle,
+            backgroundColor: activeMainView === 'skills' ? 'var(--sidebar-control-active)' : 'transparent',
+            color: activeMainView === 'skills' ? 'var(--accent)' : 'var(--text-secondary)'
+          }}
+          aria-label={t('sidebar.skills')}
+        >
+          <SkillsIcon />
+        </button>
+      </CollapsedNavTooltip>
+
       {/* Projects rail (folder icons) — one per project, foreground marked with an
           accent ring; falls back to recent-thread dots. Scrolls when crowded and
-          fills the gap between New chat and the nav destinations below. */}
+          fills the gap between the nav destinations above and Settings below. */}
       <div
         style={{
           flex: 1,
@@ -425,73 +492,6 @@ function CollapsedSidebar(): JSX.Element {
               )
             })}
       </div>
-
-      <CollapsedNavTooltip label={t('sidebar.channels')}>
-        <button
-          type="button"
-          onClick={() => setActiveMainView('channels')}
-          style={{
-            ...iconButtonStyle,
-            backgroundColor: activeMainView === 'channels' ? 'var(--sidebar-control-active)' : 'transparent',
-            color: activeMainView === 'channels' ? 'var(--accent)' : 'var(--text-secondary)'
-          }}
-          aria-label={t('sidebar.channels')}
-        >
-          <ChannelsIcon />
-        </button>
-      </CollapsedNavTooltip>
-      {desktopMainViews.map((entry) => {
-        const label = resolveLocalizedText(entry.localizedLabel, entry.label, locale) ?? entry.label
-        return (
-        <CollapsedNavTooltip key={entry.viewKey} label={label}>
-          <button
-            type="button"
-            onClick={() => setActiveMainView(entry.viewKey)}
-            style={{
-              ...iconButtonStyle,
-              backgroundColor: activeMainView === entry.viewKey ? 'var(--sidebar-control-active)' : 'transparent',
-              color: activeMainView === entry.viewKey ? 'var(--accent)' : 'var(--text-secondary)'
-            }}
-            aria-label={label}
-          >
-            <ExtensionIcon icon={entry.icon} />
-          </button>
-        </CollapsedNavTooltip>
-        )
-      })}
-      <CollapsedNavTooltip
-        label={t('sidebar.automations')}
-        disabledReason={!collapsedAutomationsAvailable ? t('sidebar.automationsDisabled') : undefined}
-      >
-        <button
-          type="button"
-          onClick={collapsedAutomationsAvailable ? () => setActiveMainView('automations') : undefined}
-          disabled={!collapsedAutomationsAvailable}
-          style={{
-            ...iconButtonStyle,
-            backgroundColor: activeMainView === 'automations' ? 'var(--sidebar-control-active)' : 'transparent',
-            color: activeMainView === 'automations' ? 'var(--accent)' : 'var(--text-secondary)',
-            opacity: collapsedAutomationsAvailable ? 1 : 0.4
-          }}
-          aria-label={t('sidebar.automations')}
-        >
-          <AutomationsIcon />
-        </button>
-      </CollapsedNavTooltip>
-      <CollapsedNavTooltip label={t('sidebar.skills')}>
-        <button
-          type="button"
-          onClick={() => setActiveMainView('skills')}
-          style={{
-            ...iconButtonStyle,
-            backgroundColor: activeMainView === 'skills' ? 'var(--sidebar-control-active)' : 'transparent',
-            color: activeMainView === 'skills' ? 'var(--accent)' : 'var(--text-secondary)'
-          }}
-          aria-label={t('sidebar.skills')}
-        >
-          <SkillsIcon />
-        </button>
-      </CollapsedNavTooltip>
 
       {/* Settings icon button */}
       <ActionTooltip label={t('sidebar.openSettingsAria')} shortcut={ACTION_SHORTCUTS.settings} placement="right">

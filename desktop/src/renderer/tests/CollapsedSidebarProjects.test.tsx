@@ -120,6 +120,25 @@ describe('CollapsedSidebar projects rail', () => {
     expect(switchWorkspace).not.toHaveBeenCalled()
   })
 
+  it('orders nav destinations above the projects rail, with Settings pinned last', () => {
+    useWorkspaceProjectsStore.getState().setPayload({
+      foregroundWorkspacePath: 'F:\\alpha',
+      foregroundProjectId: 'F:\\alpha',
+      secondaryLimit: 8,
+      projects: [project({ projectId: 'F:\\alpha', path: 'F:\\alpha', name: 'Alpha', state: 'foreground' })]
+    })
+
+    renderCollapsedSidebar()
+
+    const channels = screen.getByRole('button', { name: 'Channels' })
+    const projectIcon = screen.getByRole('button', { name: 'Alpha' })
+    const settings = screen.getByRole('button', { name: 'Open settings' })
+
+    // Channels (a nav destination) sits above the project rail, which sits above Settings.
+    expect(channels.compareDocumentPosition(projectIcon) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(projectIcon.compareDocumentPosition(settings) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
   it('falls back to recent-thread dots when no projects are present', () => {
     useThreadStore.setState({
       threadList: [
