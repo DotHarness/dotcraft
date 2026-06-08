@@ -62,9 +62,9 @@ internal static class PromptCacheSmokeCli
             Matrix:
               {
                 "providers": [
-                  { "protocol": "openai-chat-completions", "providerId": "openai-chat", "model": "..." },
-                  { "protocol": "openai-responses", "providerId": "openai-responses", "model": "..." },
-                  { "protocol": "anthropic", "providerId": "anthropic", "model": "..." }
+                  { "protocol": "openai-chat-completions", "providerId": "openai-chat", "model": "...", "minimumCacheHitRate": 0.5 },
+                  { "protocol": "openai-responses", "providerId": "openai-responses", "model": "...", "minimumCacheHitRate": 0.3 },
+                  { "protocol": "anthropic", "providerId": "anthropic", "model": "...", "minimumCacheHitRate": 0.5 }
                 ]
               }
             """);

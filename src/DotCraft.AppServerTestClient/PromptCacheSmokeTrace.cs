@@ -51,7 +51,8 @@ internal static class PromptCacheSmokeTraceReader
 internal static class PromptCacheSmokeTraceValidator
 {
     public static PromptCacheSmokeValidationResult Validate(
-        IReadOnlyList<PromptCacheSmokeTraceEvent> events)
+        IReadOnlyList<PromptCacheSmokeTraceEvent> events,
+        double minimumCacheHitRate)
     {
         var contextCompactionCount = events.Count(static e => e.Type == "ContextCompaction");
         var tokenUsage = events.Where(static e => e.Type == "TokenUsage").ToArray();
@@ -83,6 +84,7 @@ internal static class PromptCacheSmokeTraceValidator
                 "prompt_cache_baseline_compaction_detected",
                 cacheHitRequired: false,
                 cacheHit: sawCacheHit,
+                minimumCacheHitRate: minimumCacheHitRate,
                 inputTokens: totalInput,
                 cachedInputTokens: totalCached,
                 cacheWriteInputTokens: totalCacheWrite,
@@ -94,6 +96,7 @@ internal static class PromptCacheSmokeTraceValidator
         {
             return PromptCacheSmokeValidationResult.Fail(
                 "trace_missing_token_usage",
+                minimumCacheHitRate: minimumCacheHitRate,
                 contextCompactionCount: contextCompactionCount);
         }
 
@@ -103,6 +106,7 @@ internal static class PromptCacheSmokeTraceValidator
                 "prompt_cache_baseline_no_input_tokens",
                 cacheHitRequired: false,
                 cacheHit: false,
+                minimumCacheHitRate: minimumCacheHitRate,
                 inputTokens: totalInput,
                 cachedInputTokens: totalCached,
                 cacheWriteInputTokens: totalCacheWrite,
@@ -110,9 +114,24 @@ internal static class PromptCacheSmokeTraceValidator
                 contextCompactionCount: contextCompactionCount);
         }
 
+        if (cacheHitRate < minimumCacheHitRate)
+        {
+            return PromptCacheSmokeValidationResult.Fail(
+                "prompt_cache_baseline_cache_hit_rate_below_floor",
+                cacheHitRequired: true,
+                cacheHit: sawCacheHit,
+                minimumCacheHitRate: minimumCacheHitRate,
+                inputTokens: totalInput,
+                cachedInputTokens: totalCached,
+                cacheWriteInputTokens: totalCacheWrite,
+                cacheHitRate: cacheHitRate,
+                contextCompactionCount: contextCompactionCount);
+        }
+
         return PromptCacheSmokeValidationResult.Pass(
-            cacheHitRequired: false,
+            cacheHitRequired: true,
             cacheHit: sawCacheHit,
+            minimumCacheHitRate: minimumCacheHitRate,
             inputTokens: totalInput,
             cachedInputTokens: totalCached,
             cacheWriteInputTokens: totalCacheWrite,
@@ -141,6 +160,7 @@ internal sealed record PromptCacheSmokeValidationResult(
     string? Message = null,
     bool? CacheHitRequired = null,
     bool? CacheHit = null,
+    double? MinimumCacheHitRate = null,
     long? InputTokens = null,
     long? CachedInputTokens = null,
     long? CacheWriteInputTokens = null,
@@ -150,6 +170,7 @@ internal sealed record PromptCacheSmokeValidationResult(
     public static PromptCacheSmokeValidationResult Pass(
         bool? cacheHitRequired = null,
         bool? cacheHit = null,
+        double? minimumCacheHitRate = null,
         long? inputTokens = null,
         long? cachedInputTokens = null,
         long? cacheWriteInputTokens = null,
@@ -159,6 +180,7 @@ internal sealed record PromptCacheSmokeValidationResult(
             true,
             CacheHitRequired: cacheHitRequired,
             CacheHit: cacheHit,
+            MinimumCacheHitRate: minimumCacheHitRate,
             InputTokens: inputTokens,
             CachedInputTokens: cachedInputTokens,
             CacheWriteInputTokens: cacheWriteInputTokens,
@@ -169,6 +191,7 @@ internal sealed record PromptCacheSmokeValidationResult(
         string message,
         bool? cacheHitRequired = null,
         bool? cacheHit = null,
+        double? minimumCacheHitRate = null,
         long? inputTokens = null,
         long? cachedInputTokens = null,
         long? cacheWriteInputTokens = null,
@@ -179,6 +202,7 @@ internal sealed record PromptCacheSmokeValidationResult(
             message,
             CacheHitRequired: cacheHitRequired,
             CacheHit: cacheHit,
+            MinimumCacheHitRate: minimumCacheHitRate,
             InputTokens: inputTokens,
             CachedInputTokens: cachedInputTokens,
             CacheWriteInputTokens: cacheWriteInputTokens,

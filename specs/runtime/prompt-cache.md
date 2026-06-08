@@ -187,10 +187,14 @@ Every prompt-cache-relevant change MUST be validated with AppServerTestClient's
 context compaction disabled:
 
 - Workload: a deterministic large file (~30k characters) read three times by the agent.
-- Reporting: aggregate hit rate (cached_input_tokens / input_tokens) plus per-call breakdown.
+- Reporting: aggregate hit rate (cached_input_tokens / input_tokens), the enforced
+  `minimumCacheHitRate`, and per-call breakdown.
 - Guardrail: any `ContextCompaction` trace event fails the baseline run because compaction
   rewrites the provider-visible prefix and contaminates cache-hit comparisons.
-- Pass criterion: no regression below the empirical envelope listed in §2 for the affected protocol.
+- Pass criterion: the aggregate hit rate MUST stay above the configured floor. Matrix rows MAY
+  set `minimumCacheHitRate`; otherwise AppServerTestClient uses conservative defaults below the
+  empirical envelopes in §2: `openai-chat-completions` 0.50, `openai-responses` 0.30,
+  ChatGPT OAuth Responses 0.35, and `anthropic` 0.50.
 
 Each protocol's envelope is a calibration baseline, not a contract. Provider routing instability can swing any single call by tens of percentage points; multi-run trends matter more than single numbers.
 

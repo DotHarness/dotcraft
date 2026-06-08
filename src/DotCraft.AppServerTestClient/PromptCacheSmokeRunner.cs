@@ -39,8 +39,9 @@ internal sealed class PromptCacheSmokeRunner(string dotcraftBin, PromptCacheSmok
             var selection = new PromptCacheSmokeProviderSelection(
                 protocol,
                 providerCase.ProviderId.Trim(),
-                providerCase.Model.Trim());
-            var skipReason = ValidateSelection(selection);
+                providerCase.Model.Trim(),
+                0);
+            var skipReason = ValidateSelection(providerCase, selection, out var validatedSelection);
             if (skipReason is not null)
             {
                 report.Cases.Add(PromptCacheSmokeCaseReport.Skipped(
@@ -51,10 +52,10 @@ internal sealed class PromptCacheSmokeRunner(string dotcraftBin, PromptCacheSmok
                 continue;
             }
 
-            var caseReport = await RunProviderAsync(selection);
+            var caseReport = await RunProviderAsync(validatedSelection);
             report.Cases.Add(caseReport);
             Console.Error.WriteLine(
-                $"[prompt-cache-smoke] {selection.Protocol}/{PromptCacheSmokeScenarios.PromptCacheBaseline}: {caseReport.Status} {caseReport.Message ?? caseReport.ErrorMessage}");
+                $"[prompt-cache-smoke] {validatedSelection.Protocol}/{PromptCacheSmokeScenarios.PromptCacheBaseline}: {caseReport.Status} {caseReport.Message ?? caseReport.ErrorMessage}");
         }
 
         report.FinalizeSummary(DateTimeOffset.UtcNow);
@@ -98,12 +99,18 @@ internal sealed class PromptCacheSmokeRunner(string dotcraftBin, PromptCacheSmok
         }
     }
 
-    private static string? ValidateSelection(PromptCacheSmokeProviderSelection selection)
+    private static string? ValidateSelection(
+        PromptCacheSmokeProviderCase providerCase,
+        PromptCacheSmokeProviderSelection selection,
+        out PromptCacheSmokeProviderSelection validatedSelection)
     {
+        validatedSelection = selection;
         if (string.IsNullOrWhiteSpace(selection.ProviderId))
             return "missing_provider_id";
         if (string.IsNullOrWhiteSpace(selection.Model))
             return "missing_model";
+        if (providerCase.MinimumCacheHitRate is < 0 or > 1 || double.IsNaN(providerCase.MinimumCacheHitRate ?? 0))
+            return "invalid_minimum_cache_hit_rate";
 
         var tempConfigPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"), ".craft", "config.json");
         Directory.CreateDirectory(Path.GetDirectoryName(tempConfigPath)!);
@@ -127,6 +134,9 @@ internal sealed class PromptCacheSmokeRunner(string dotcraftBin, PromptCacheSmok
                 return "provider_protocol_mismatch";
 
             var authMethod = ModelProviderAuthMethods.Normalize(provider.AuthMethod);
+            var minimumCacheHitRate = providerCase.MinimumCacheHitRate
+                                      ?? ResolveDefaultMinimumCacheHitRate(selection.Protocol, authMethod);
+            validatedSelection = selection with { MinimumCacheHitRate = minimumCacheHitRate };
             if (string.Equals(authMethod, ModelProviderAuthMethods.ChatGptOAuth, StringComparison.Ordinal))
             {
                 if (new OpenAITokenStore().Load() is null)
@@ -149,6 +159,19 @@ internal sealed class PromptCacheSmokeRunner(string dotcraftBin, PromptCacheSmok
         }
     }
 
+    private static double ResolveDefaultMinimumCacheHitRate(string protocol, string authMethod)
+    {
+        return protocol switch
+        {
+            ModelProviderProtocols.OpenAIChatCompletions => 0.50,
+            ModelProviderProtocols.OpenAIResponses
+                when string.Equals(authMethod, ModelProviderAuthMethods.ChatGptOAuth, StringComparison.Ordinal) => 0.35,
+            ModelProviderProtocols.OpenAIResponses => 0.30,
+            ModelProviderProtocols.Anthropic => 0.50,
+            _ => 0.01
+        };
+    }
+
     private async Task<PromptCacheSmokeCaseReport> RunProviderAsync(
         PromptCacheSmokeProviderSelection provider)
     {
@@ -160,6 +183,7 @@ internal sealed class PromptCacheSmokeRunner(string dotcraftBin, PromptCacheSmok
             Protocol = provider.Protocol,
             ProviderId = provider.ProviderId,
             Model = provider.Model,
+            MinimumCacheHitRate = provider.MinimumCacheHitRate,
             WorkspacePath = workspacePath,
             TraceDbPath = traceDbPath
         };
@@ -169,11 +193,12 @@ internal sealed class PromptCacheSmokeRunner(string dotcraftBin, PromptCacheSmok
             var threadId = await RunPromptCacheBaselineAsync(provider, workspacePath);
             caseReport.ThreadId = threadId;
             var events = PromptCacheSmokeTraceReader.ReadThreadEvents(traceDbPath, threadId);
-            var validation = PromptCacheSmokeTraceValidator.Validate(events);
+            var validation = PromptCacheSmokeTraceValidator.Validate(events, provider.MinimumCacheHitRate);
             caseReport.Status = validation.Success ? PromptCacheSmokeStatuses.Passed : PromptCacheSmokeStatuses.Failed;
             caseReport.Message = validation.Message;
             caseReport.CacheHitRequired = validation.CacheHitRequired;
             caseReport.CacheHit = validation.CacheHit;
+            caseReport.MinimumCacheHitRate = validation.MinimumCacheHitRate;
             caseReport.InputTokens = validation.InputTokens;
             caseReport.CachedInputTokens = validation.CachedInputTokens;
             caseReport.CacheWriteInputTokens = validation.CacheWriteInputTokens;

@@ -18,7 +18,8 @@ public sealed class PromptCacheSmokeTests
                     {
                       "protocol": "openai-responses",
                       "providerId": "openai",
-                      "model": "gpt-test"
+                      "model": "gpt-test",
+                      "minimumCacheHitRate": 0.35
                     }
                   ]
                 }
@@ -30,6 +31,7 @@ public sealed class PromptCacheSmokeTests
             Assert.Equal(ModelProviderProtocols.OpenAIResponses, provider.Protocol);
             Assert.Equal("openai", provider.ProviderId);
             Assert.Equal("gpt-test", provider.Model);
+            Assert.Equal(0.35, provider.MinimumCacheHitRate);
         }
         finally
         {
@@ -69,11 +71,12 @@ public sealed class PromptCacheSmokeTests
             Event("TokenUsage", inputTokens: 3000, cachedInputTokens: 750, cacheWriteInputTokens: 20)
         };
 
-        var result = PromptCacheSmokeTraceValidator.Validate(events);
+        var result = PromptCacheSmokeTraceValidator.Validate(events, minimumCacheHitRate: 0.2);
 
         Assert.True(result.Success);
-        Assert.False(result.CacheHitRequired);
+        Assert.True(result.CacheHitRequired);
         Assert.True(result.CacheHit);
+        Assert.Equal(0.2, result.MinimumCacheHitRate);
         Assert.Equal(4000, result.InputTokens);
         Assert.Equal(1000, result.CachedInputTokens);
         Assert.Equal(30, result.CacheWriteInputTokens);
@@ -84,10 +87,11 @@ public sealed class PromptCacheSmokeTests
     [Fact]
     public void TraceValidator_RejectsMissingTokenUsage()
     {
-        var result = PromptCacheSmokeTraceValidator.Validate([]);
+        var result = PromptCacheSmokeTraceValidator.Validate([], minimumCacheHitRate: 0.2);
 
         Assert.False(result.Success);
         Assert.Equal("trace_missing_token_usage", result.Message);
+        Assert.Equal(0.2, result.MinimumCacheHitRate);
         Assert.Equal(0, result.ContextCompactionCount);
     }
 
@@ -101,14 +105,37 @@ public sealed class PromptCacheSmokeTests
             Event("ContextCompaction")
         };
 
-        var result = PromptCacheSmokeTraceValidator.Validate(events);
+        var result = PromptCacheSmokeTraceValidator.Validate(events, minimumCacheHitRate: 0.2);
 
         Assert.False(result.Success);
         Assert.Equal("prompt_cache_baseline_compaction_detected", result.Message);
         Assert.Equal(2, result.ContextCompactionCount);
+        Assert.Equal(0.2, result.MinimumCacheHitRate);
         Assert.Equal(1000, result.InputTokens);
         Assert.Equal(250, result.CachedInputTokens);
         Assert.Equal(0.25, result.CacheHitRate);
+    }
+
+    [Fact]
+    public void TraceValidator_RejectsCacheHitRateBelowFloor()
+    {
+        var events = new[]
+        {
+            Event("TokenUsage", inputTokens: 1000, cachedInputTokens: 0, cacheWriteInputTokens: 0),
+            Event("TokenUsage", inputTokens: 3000, cachedInputTokens: 300, cacheWriteInputTokens: 0)
+        };
+
+        var result = PromptCacheSmokeTraceValidator.Validate(events, minimumCacheHitRate: 0.2);
+
+        Assert.False(result.Success);
+        Assert.Equal("prompt_cache_baseline_cache_hit_rate_below_floor", result.Message);
+        Assert.True(result.CacheHitRequired);
+        Assert.True(result.CacheHit);
+        Assert.Equal(0.2, result.MinimumCacheHitRate);
+        Assert.Equal(4000, result.InputTokens);
+        Assert.Equal(300, result.CachedInputTokens);
+        Assert.Equal(0.075, result.CacheHitRate);
+        Assert.Equal(0, result.ContextCompactionCount);
     }
 
     [Fact]

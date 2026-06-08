@@ -35,6 +35,8 @@ internal sealed class PromptCacheSmokeProviderCase
     public string ProviderId { get; set; } = string.Empty;
 
     public string Model { get; set; } = string.Empty;
+
+    public double? MinimumCacheHitRate { get; set; }
 }
 
 internal sealed class PromptCacheSmokeReport
@@ -127,6 +129,9 @@ internal sealed class PromptCacheSmokeCaseReport
     public bool? CacheHit { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? MinimumCacheHitRate { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public long? InputTokens { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -165,7 +170,8 @@ internal sealed class PromptCacheSmokeCaseReport
 internal sealed record PromptCacheSmokeProviderSelection(
     string Protocol,
     string ProviderId,
-    string Model);
+    string Model,
+    double MinimumCacheHitRate);
 
 internal static class PromptCacheSmokeJson
 {
