@@ -1,17 +1,40 @@
-# DotCraft Workspace - Sensitive data should not be committed
+# DotCraft workspace - generated artifacts only
+# To keep the whole workspace private, ignore `.craft/` in the repository root.
 
-# Session files (contain conversation history)
-sessions/
+# Runtime databases and SQLite sidecars
+/state.db
+/state.db-*
+/*.db
+/*.db-*
+/*.sqlite
+/*.sqlite-*
+/*.sqlite3
+/*.sqlite3-*
 
-# Memory files (may contain sensitive information)
-memory/
+# Runtime locks
+/appserver.lock
+/appserver.lock.guard
 
-# Approval records (contain user authorization records)
-security/
-
-# Log files
+# Logs, traces, caches, and tool captures
+/logs/
+/tracing/
+/cache/
+/terminals/
+/tool-results/
 *.log
 
 # Temporary files
+/tmp/
+/temp/
 *.tmp
 *.temp
+
+# Binary attachment payloads
+/attachments/
+
+# Dreams run intermediates
+/dreams/runs/
+
+# Managed worktrees
+/worktrees/
+/oratorio/worktrees/

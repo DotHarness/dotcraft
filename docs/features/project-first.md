@@ -27,6 +27,8 @@ Every entry point reads the workspace **before doing anything**. That means:
 - Restoring on another machine costs nothing: sync the project directory.
 - Teams share one baseline: commit the shareable parts of `.craft/` (skills, commands, AGENTS.md) and every teammate's Desktop boots with the same agent constraints.
 
+The generated `.craft/.gitignore` filters generated artifacts such as logs, caches, terminal captures, Dreams run snapshots, databases, and managed worktrees. It is not a privacy boundary. If a project's `.craft/` should stay private, ignore `.craft/` from the repository root.
+
 ## Global vs Workspace Config
 
 DotCraft layers two configuration files:

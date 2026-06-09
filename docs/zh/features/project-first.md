@@ -27,6 +27,8 @@
 - 跨设备恢复零成本：把整个项目目录同步到另一台机器即可。
 - 团队协作有共同基线：把 `.craft/` 的可分享部分（skills、commands、AGENTS.md 等）提交到仓库，团队成员一开 Desktop 就拿到同一份 Agent 行为约束。
 
+自动生成的 `.craft/.gitignore` 只过滤日志、缓存、terminal 捕获、Dreams run 快照、数据库和托管 worktree 等生成产物。它不是隐私边界。如果一个项目的 `.craft/` 应当保持私有，请在仓库根目录的 `.gitignore` 中忽略 `.craft/`。
+
 ## 全局 vs 工作区配置
 
 DotCraft 用两层配置叠加：
