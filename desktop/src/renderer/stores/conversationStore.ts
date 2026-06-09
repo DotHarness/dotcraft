@@ -127,11 +127,11 @@ export interface PendingApproval {
   target: string
   reason: string
   /**
-   * Approval source. `'tool'` (default, omitted) routes the decision to AppServer
-   * (`sendServerResponse`); `'browserUse'` routes it to the browser-use IPC channel and is shown
-   * via the generic-approval slot (decoupled from any turn). M-v reuses this for UI tool calls.
+   * Approval source (informational; routing is driven by `submit`). `'tool'` (default) responds to
+   * AppServer; `'browserUse'` and `'uiTool'` are turn-less approvals shown via the generic-approval
+   * slot — the browser-use IPC channel and a decoupled `ui/tool/call`, respectively.
    */
-  source?: 'tool' | 'browserUse'
+  source?: 'tool' | 'browserUse' | 'uiTool'
   /** Custom decision options; when omitted the composer uses the default tool options. */
   options?: ApprovalOptionSpec[]
   /** Custom detail rows; when omitted the composer derives them from type/operation/target/reason. */

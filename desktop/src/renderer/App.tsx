@@ -373,6 +373,48 @@ function runtimeSnapshotFromThread(thread: Thread): ThreadRuntimeSnapshot {
 }
 
 /**
+ * Builds a generic PendingApproval for a decoupled UI tool call's mutate-approval (M-v). Shown in
+ * the shared ApprovalDecisionComposer; the accept/decline decision is sent back as the response to
+ * the originating `ui/tool/approval/request` server request, then the slot is cleared.
+ */
+function buildUiToolApproval(
+  p: Record<string, unknown>,
+  bridgeId: string,
+  locale: AppLocale
+): PendingApproval {
+  return {
+    bridgeId,
+    threadId: typeof p.threadId === 'string' ? p.threadId : null,
+    turnId: null,
+    requestId: typeof p.approvalId === 'string' ? p.approvalId : '',
+    locallySubmittedDecision: null,
+    itemId: '',
+    approvalType: (typeof p.approvalType === 'string' ? p.approvalType : 'remoteResource') as PendingApproval['approvalType'],
+    operation: typeof p.operation === 'string' ? p.operation : '',
+    target: typeof p.target === 'string' ? p.target : '',
+    reason: '',
+    source: 'uiTool',
+    declineValue: 'decline',
+    options: [
+      {
+        value: 'accept',
+        label: translate(locale, 'approval.option.accept.label'),
+        description: translate(locale, 'approval.option.accept.description')
+      },
+      {
+        value: 'decline',
+        label: translate(locale, 'approval.option.decline.label'),
+        description: translate(locale, 'approval.option.decline.description')
+      }
+    ],
+    submit: async (value: string): Promise<void> => {
+      await window.api.appServer.sendServerResponse(bridgeId, { decision: value })
+      useConversationStore.getState().setGenericApproval(null)
+    }
+  }
+}
+
+/**
  * Builds a generic PendingApproval for a browser-use navigation request so it renders in the shared
  * ApprovalDecisionComposer (bottom dock) instead of a separate modal. The decision routes back to
  * the browser-use IPC channel and clears the generic-approval slot.
@@ -2045,6 +2087,12 @@ export function App(): JSX.Element {
           return
         }
         useConversationStore.getState().onUserInputRequest(bridgeId, p)
+        return
+      }
+      if (method === 'ui/tool/approval/request') {
+        // Decoupled mutate-approval for a UI tool call (M-v): show it in the shared approval
+        // composer (generic-approval slot), independent of any turn.
+        useConversationStore.getState().setGenericApproval(buildUiToolApproval(p, bridgeId, localeRef.current))
         return
       }
         // Unknown server requests: respond with null to unblock AppServer

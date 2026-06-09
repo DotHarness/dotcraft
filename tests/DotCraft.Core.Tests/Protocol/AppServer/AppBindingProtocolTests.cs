@@ -1813,6 +1813,7 @@ public sealed class AppBindingProtocolTests : IDisposable
             sourceCallId: "dyntool_1",
             userId: "test_user",
             sessionService: harness.Service,
+            approvalGate: null,
             default);
 
         Assert.True(result.Success);
@@ -1847,6 +1848,7 @@ public sealed class AppBindingProtocolTests : IDisposable
             sourceCallId: null,
             userId: "test_user",
             sessionService: harness.Service,
+            approvalGate: null,
             default);
 
         Assert.False(result.Success);
@@ -1854,7 +1856,7 @@ public sealed class AppBindingProtocolTests : IDisposable
     }
 
     [Fact]
-    public async Task UiToolCall_RejectsMutatingToolReadOnlyInThisRelease()
+    public async Task UiToolCall_RejectsMutatingToolWithoutApprovalGate()
     {
         WriteOratorioPlugin();
         var service = new AppBindingService();
@@ -1863,6 +1865,53 @@ public sealed class AppBindingProtocolTests : IDisposable
         await ConnectAppAsync(harness);
         var thread = await harness.Service.CreateThreadAsync(CreateIdentity());
         await CreateAcceptAndAttachUiToolAsync(harness, thread.Id, withApproval: true);
+
+        // No approval gate (e.g. a non-Desktop client that cannot prompt) → reject the mutating call.
+        var result = await service.InvokeUiToolAsync(
+            _workspaceCraftPath,
+            thread.Id,
+            "oratorio",
+            "CreateCard",
+            new JsonObject { ["title"] = "From UI" },
+            sourceCallId: "dyntool_1",
+            userId: "test_user",
+            sessionService: harness.Service,
+            approvalGate: null,
+            default);
+
+        Assert.False(result.Success);
+        Assert.Equal(AppBindingErrorCodes.ApprovalRequired, result.ErrorCode);
+        Assert.Empty((await harness.Service.GetThreadAsync(thread.Id, default)).Turns);
+    }
+
+    [Fact]
+    public async Task UiToolCall_MutatingToolDispatchesWhenApproved()
+    {
+        WriteOratorioPlugin();
+        var service = new AppBindingService();
+        using var harness = CreateHarness(service);
+        await harness.InitializeAsync();
+        await ConnectAppAsync(harness);
+        var thread = await harness.Service.CreateThreadAsync(CreateIdentity());
+        await CreateAcceptAndAttachUiToolAsync(harness, thread.Id, withApproval: true);
+
+        harness.Transport.DrainSent();
+        harness.Transport.ApprovalHandler = (method, _) =>
+        {
+            Assert.Equal(AppServerMethods.ItemToolCall, method);
+            return InMemoryTransport.BuildClientResponse(1, new DynamicToolCallResult
+            {
+                Success = true,
+                StructuredResult = JsonNode.Parse("""{"queued":true}""")
+            });
+        };
+
+        UiToolApprovalInfo? seen = null;
+        UiToolApprovalGate gate = (info, _) =>
+        {
+            seen = info;
+            return new ValueTask<bool>(true);
+        };
 
         var result = await service.InvokeUiToolAsync(
             _workspaceCraftPath,
@@ -1873,13 +1922,48 @@ public sealed class AppBindingProtocolTests : IDisposable
             sourceCallId: "dyntool_1",
             userId: "test_user",
             sessionService: harness.Service,
+            approvalGate: gate,
+            default);
+
+        Assert.True(result.Success);
+        Assert.True(result.StructuredResult?["queued"]?.GetValue<bool>());
+        // The approval prompt derived operation/target from the descriptor + arguments.
+        Assert.NotNull(seen);
+        Assert.Equal("create", seen!.Operation);
+        Assert.Equal("From UI", seen.Target);
+        Assert.Empty((await harness.Service.GetThreadAsync(thread.Id, default)).Turns);
+        AssertAppBindingAuditContains("binding.uiToolApproval.accepted");
+    }
+
+    [Fact]
+    public async Task UiToolCall_MutatingToolRejectedWhenDeclined()
+    {
+        WriteOratorioPlugin();
+        var service = new AppBindingService();
+        using var harness = CreateHarness(service);
+        await harness.InitializeAsync();
+        await ConnectAppAsync(harness);
+        var thread = await harness.Service.CreateThreadAsync(CreateIdentity());
+        await CreateAcceptAndAttachUiToolAsync(harness, thread.Id, withApproval: true);
+
+        UiToolApprovalGate decline = (_, _) => new ValueTask<bool>(false);
+
+        var result = await service.InvokeUiToolAsync(
+            _workspaceCraftPath,
+            thread.Id,
+            "oratorio",
+            "CreateCard",
+            new JsonObject { ["title"] = "From UI" },
+            sourceCallId: "dyntool_1",
+            userId: "test_user",
+            sessionService: harness.Service,
+            approvalGate: decline,
             default);
 
         Assert.False(result.Success);
-        Assert.Equal(AppBindingErrorCodes.ApprovalRequired, result.ErrorCode);
-
-        // Rejected before dispatch: no conversation turn/item.
+        Assert.Equal(AppBindingErrorCodes.ApprovalDeclined, result.ErrorCode);
         Assert.Empty((await harness.Service.GetThreadAsync(thread.Id, default)).Turns);
+        AssertAppBindingAuditContains("binding.uiToolApproval.declined");
     }
 
     [Fact]

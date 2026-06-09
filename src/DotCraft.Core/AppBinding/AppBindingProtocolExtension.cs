@@ -41,6 +41,7 @@ public sealed class AppBindingProtocolExtension(
     private const string UiToolCall = "ui/tool/call";
     private const string UiOpenLink = "ui/open-link";
     private const string UiUpdateModelContext = "ui/update-model-context";
+    private const string UiToolApprovalRequest = "ui/tool/approval/request";
 
     private const string AppConnectionChanged = "app/connection/changed";
     private const string ThreadAppBindingsChanged = "thread/appBindings/changed";
@@ -415,6 +416,7 @@ public sealed class AppBindingProtocolExtension(
                     p.SourceCallId,
                     userId,
                     context.SessionService,
+                    BuildUiToolApprovalGate(context, p.ThreadId, p.Namespace, p.Tool),
                     ct);
             }
 
@@ -702,6 +704,74 @@ public sealed class AppBindingProtocolExtension(
         catch (JsonException ex)
         {
             throw AppServerErrors.InvalidParams($"Failed to deserialize params: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Builds the decoupled mutate‑approval gate for a UI‑initiated <c>ui/tool/call</c> (M‑v): it
+    /// sends a <c>ui/tool/approval/request</c> to the Desktop host (which surfaces it in the shared
+    /// approval composer) and awaits the decision. Returns null when the client cannot prompt
+    /// (no approval capability), so the service rejects the mutating call instead.
+    /// </summary>
+    private static UiToolApprovalGate? BuildUiToolApprovalGate(
+        AppServerExtensionContext context,
+        string threadId,
+        string? @namespace,
+        string tool)
+    {
+        var connection = context.Connection;
+        var transport = context.Transport;
+        if (!connection.SupportsApproval)
+            return null;
+
+        return async (info, gateCt) =>
+        {
+            AppServerIncomingMessage response;
+            try
+            {
+                response = await transport.SendClientRequestAsync(
+                    UiToolApprovalRequest,
+                    new UiToolApprovalRequestParams
+                    {
+                        ThreadId = threadId,
+                        ApprovalId = $"uiapproval_{Guid.NewGuid():N}",
+                        Namespace = @namespace,
+                        Tool = tool,
+                        ApprovalType = info.ApprovalType,
+                        Operation = info.Operation,
+                        Target = info.Target
+                    },
+                    gateCt,
+                    TimeSpan.FromSeconds(120));
+            }
+            catch (OperationCanceledException) when (gateCt.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception)
+            {
+                // Transport failure / timeout / client dropped → treat as not approved.
+                return false;
+            }
+
+            return IsApprovalAccepted(response);
+        };
+    }
+
+    private static bool IsApprovalAccepted(AppServerIncomingMessage response)
+    {
+        if (!response.Result.HasValue)
+            return false;
+        try
+        {
+            var result = JsonSerializer.Deserialize<AppServerApprovalResponseResult>(
+                response.Result.Value.GetRawText(),
+                SessionWireJsonOptions.Default);
+            return result?.Decision is "accept" or "acceptForSession" or "acceptAlways";
+        }
+        catch
+        {
+            return false;
         }
     }
 }

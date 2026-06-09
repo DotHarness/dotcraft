@@ -7,6 +7,24 @@ DotCraft Desktop renders that HTML in a sandboxed `dotcraft-app://` iframe and d
 postMessage bridge (`ui/initialize` → `ui/notifications/tool-result`). See
 `specs/protocols/tool-result-presentation.md`.
 
+## App-author rules (M-v)
+
+- **Always return a text result.** Every UI-bearing tool MUST return model- and human-usable text via
+  `contentItems` (and/or `structuredResult`) — the interactive UI is an enhancement, never required for
+  correctness. Non-Desktop clients (TUI, chat channels) render that text; UI-only fields (`_meta`,
+  `widgetState`, `ui`) are filtered out and never shown to the model or non-Desktop clients.
+- **Serve a folder of `ui://` resources with one call.** For an app with several tool UIs, use the SDK
+  helper instead of per-URI `RegisterResourceHandler` + inline HTML:
+
+  ```csharp
+  // Each file under ./ui is served as ui://oratorio/<relative-path> (board.html, item.html, …),
+  // read on demand with the right MIME. Point each tool's _meta.ui.resourceUri at the matching URI.
+  client.ServeStaticUiResources("ui://oratorio", Path.Combine(appDir, "ui"));
+  ```
+
+  This sample keeps a single inline HTML card for self-containedness; real/multi-tool apps should prefer
+  `ServeStaticUiResources`.
+
 ## What it exercises (M-ii + M-iii + M-iv)
 
 - `_meta.ui` declaration on an attached dynamic tool → `dynamicToolCall` item carries the `ui` descriptor.

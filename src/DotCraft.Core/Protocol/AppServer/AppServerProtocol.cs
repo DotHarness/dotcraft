@@ -487,6 +487,44 @@ public sealed class UiToolCallParams
     public string? SourceCallId { get; set; }
 }
 
+/// <summary>Mutating‑tool approval info passed to a <see cref="UiToolApprovalGate"/> (M‑v).</summary>
+public sealed record UiToolApprovalInfo(string ApprovalType, string Operation, string Target);
+
+/// <summary>
+/// Host‑provided gate that prompts the user to approve a mutating UI‑initiated tool call and returns
+/// whether it was approved. Decoupled from the conversation (no turn/item). M‑v.
+/// </summary>
+public delegate System.Threading.Tasks.ValueTask<bool> UiToolApprovalGate(
+    UiToolApprovalInfo info,
+    System.Threading.CancellationToken ct);
+
+/// <summary>
+/// Params for <c>ui/tool/approval/request</c> (server → host, M‑v): prompt the user to approve a
+/// mutating UI‑initiated tool call. The host surfaces it in the shared approval composer and replies
+/// with an <see cref="AppServerApprovalResponseResult"/> decision. Decoupled — no turn/item.
+/// </summary>
+public sealed class UiToolApprovalRequestParams
+{
+    public string ThreadId { get; set; } = string.Empty;
+
+    /// <summary>Correlates this approval; opaque to the host.</summary>
+    public string ApprovalId { get; set; } = string.Empty;
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Namespace { get; set; }
+
+    public string Tool { get; set; } = string.Empty;
+
+    /// <summary>Approval category (<c>file</c> / <c>shell</c> / <c>remoteResource</c>).</summary>
+    public string ApprovalType { get; set; } = string.Empty;
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Operation { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Target { get; set; }
+}
+
 /// <summary>
 /// Params for <c>ui/open-link</c> (host → server, M‑iii): a UI‑initiated request to open an
 /// external link. The host enforces a fixed scheme policy (<c>https:</c>/<c>mailto:</c> only) and

@@ -1583,6 +1583,7 @@ public sealed class AppBindingService
         string? sourceCallId,
         string userId,
         ISessionService? sessionService,
+        UiToolApprovalGate? approvalGate,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(tool))
@@ -1609,15 +1610,6 @@ public sealed class AppBindingService
                 AppBindingErrorCodes.ToolUnavailable,
                 $"Tool '{tool}' is not exposed to its UI (requires _meta.ui.visibility to include \"app\").");
 
-        // M‑iii: UI‑initiated tool calls are read‑only. A mutating tool (one that declares an approval
-        // descriptor) cannot be approved here — a decoupled ui/tool/call has no turn/item on which to
-        // host the approval flow — so it is rejected. The decoupled mutate‑approval UX ships in M‑v.
-        // See specs/protocols/tool-result-presentation-m3.md §3, §9.
-        if (spec.Approval != null)
-            return Failed(
-                AppBindingErrorCodes.ApprovalRequired,
-                $"Tool '{tool}' requires approval and cannot be invoked from its UI yet (read‑only in this release).");
-
         var inputSchema = spec.InputSchema ?? new JsonObject { ["type"] = "object" };
         if (!PluginFunctionSchemaValidator.TryValidateArguments(inputSchema, arguments, out var validationError))
             return Failed("InvalidArguments", validationError);
@@ -1625,6 +1617,30 @@ public sealed class AppBindingService
         var runtimeState = GetRuntimeBindingState(binding);
         if (runtimeState != AppBindingStates.Active)
             return Failed(AppBindingErrorCodes.Offline, $"The app binding for tool '{tool}' is {runtimeState}.");
+
+        // M‑v: a mutating UI tool call (one that declares an approval descriptor) requires user
+        // approval. A decoupled ui/tool/call has no turn/item, so the host raises the approval via
+        // the gate and awaits it. No gate (e.g. a non‑Desktop client that cannot prompt) → reject.
+        // See specs/protocols/tool-result-presentation-m5.md §3, §9.
+        if (spec.Approval != null)
+        {
+            if (approvalGate == null)
+                return Failed(
+                    AppBindingErrorCodes.ApprovalRequired,
+                    $"Tool '{tool}' requires approval, which this client cannot prompt for.");
+
+            var approved = await approvalGate(BuildUiToolApprovalInfo(spec, arguments), cancellationToken);
+            AddAuditWithSave(
+                workspaceCraftPath,
+                approved ? "binding.uiToolApproval.accepted" : "binding.uiToolApproval.declined",
+                threadId,
+                binding.BindingId,
+                binding.AppId,
+                userId,
+                $"tool={tool}");
+            if (!approved)
+                return Failed(AppBindingErrorCodes.ApprovalDeclined, $"The user declined to run '{tool}'.");
+        }
 
         var callId = $"uitool_{Guid.NewGuid():N}";
         AddAuditWithSave(
@@ -1647,6 +1663,30 @@ public sealed class AppBindingService
             callId,
             arguments,
             cancellationToken);
+    }
+
+    /// <summary>
+    /// Derives the approval prompt's <c>operation</c> / <c>target</c> from a mutating tool's approval
+    /// descriptor and the call arguments (M‑v decoupled approval).
+    /// </summary>
+    private static UiToolApprovalInfo BuildUiToolApprovalInfo(DynamicToolSpec spec, JsonObject arguments)
+    {
+        var approval = spec.Approval!;
+        string operation;
+        if (!string.IsNullOrWhiteSpace(approval.Operation))
+            operation = approval.Operation!;
+        else if (!string.IsNullOrWhiteSpace(approval.OperationArgument)
+                 && arguments.TryGetPropertyValue(approval.OperationArgument!, out var op) && op != null)
+            operation = op.ToString();
+        else
+            operation = spec.Name;
+
+        var target = !string.IsNullOrWhiteSpace(approval.TargetArgument)
+                     && arguments.TryGetPropertyValue(approval.TargetArgument, out var tgt) && tgt != null
+            ? tgt.ToString()
+            : string.Empty;
+
+        return new UiToolApprovalInfo(approval.Kind, operation, target);
     }
 
     /// <summary>

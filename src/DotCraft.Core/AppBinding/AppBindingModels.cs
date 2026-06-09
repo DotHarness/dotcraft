@@ -279,10 +279,13 @@ public static class AppBindingErrorCodes
     public const string ProtocolViolation = "AppBindingProtocolViolation";
 
     /// <summary>
-    /// A UI‑initiated tool call targeted a tool that requires approval. M‑iii UI tool calls are
-    /// read‑only; the decoupled mutate‑approval UX ships in M‑v.
+    /// A UI‑initiated tool call targeted a tool that requires approval, but the calling client
+    /// cannot prompt for it (no approval gate, e.g. non‑Desktop).
     /// </summary>
     public const string ApprovalRequired = "AppBindingApprovalRequired";
+
+    /// <summary>The user declined a UI‑initiated mutating tool call at the approval prompt (M‑v).</summary>
+    public const string ApprovalDeclined = "AppBindingApprovalDeclined";
 }
 
 public sealed record ManagedAppBindingCatalogMetadata(

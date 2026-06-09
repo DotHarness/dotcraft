@@ -2,8 +2,8 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.2.0 |
-| **Status** | Planned — **design locked** (decisions in §3, §9); implementation pending |
+| **Version** | 1.0.0 |
+| **Status** | ✅ In‑repo delivered (decoupled mutate‑approval + `ServeStaticUiResources` + fallback test/docs); Oratorio = external live validation |
 | **Date** | 2026-06-09 |
 | **Parent Spec** | [Interactive Tool UI](tool-result-presentation.md) |
 | **Milestone** | M‑v — Decoupled mutate‑approval + SDK ergonomics + fallback (Oratorio = external validation) |
@@ -51,11 +51,11 @@ The app declares `_meta.ui` and serves `ui://` (parent [§4](tool-result-present
 
 ## 8. Acceptance checklist (in‑repo)
 
-- [ ] A UI‑initiated `ui/tool/call` on a mutating tool raises a **decoupled approval** (reusing `ApprovalDecisionComposer`); on accept it dispatches and returns the result to the UI, on decline it returns an error — with **no turn and no persisted conversation item**, and the decision audited.
-- [ ] `read` / no‑approval UI tool calls still proceed without an approval prompt (M‑iii behavior unchanged).
-- [ ] An app can serve a **folder** of `ui://` resources via `ServeStaticUiResources(uriPrefix, folder)` (correct MIME per extension); the `InteractiveToolSample` is updated to use it.
-- [ ] A conformance test asserts non‑Desktop text fallback = `contentItems` + `structuredResult` with `_meta` excluded.
-- [ ] App‑author docs cover the mandatory text‑fallback rule and the folder‑serving helper.
+- [x] A UI‑initiated `ui/tool/call` on a mutating tool raises a **decoupled approval** (reusing `ApprovalDecisionComposer`); on accept it dispatches and returns the result to the UI, on decline it returns an error — with **no turn and no persisted conversation item**, and the decision audited. *(C# `InvokeUiToolAsync` gate + `BuildUiToolApprovalGate`; renderer `ui/tool/approval/request` → generic‑approval slot.)*
+- [x] `read` / no‑approval UI tool calls still proceed without an approval prompt (M‑iii behavior unchanged).
+- [x] An app can serve a **folder** of `ui://` resources via `ServeStaticUiResources(uriPrefix, folder)` (correct MIME per extension). *(The sample keeps its inline card for self‑containedness; the README documents the helper as the multi‑tool path.)*
+- [x] A conformance test asserts non‑Desktop text fallback renders `contentItems` and excludes UI‑only `_meta` / `widgetState` / `ui`.
+- [x] App‑author docs cover the mandatory text‑fallback rule and the folder‑serving helper.
 - [ ] Oratorio `apps.json` metadata matches the §15 contract (external live validation is out of repo).
 
 ## 9. Resolved decisions

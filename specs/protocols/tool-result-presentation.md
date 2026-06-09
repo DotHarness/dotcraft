@@ -276,11 +276,11 @@ This spec ships in milestones; each has a dedicated behavior‑contract spec. Im
 | **M‑i** | C# protocol: `_meta.ui` + `visibility`, `ui/resource/read`, `ui/tool/call` | ✅ Delivered | this spec §4–§5, §10; [AppServer §11.3.1–§11.3.2](appserver-protocol.md) |
 | **M‑ii** | Desktop iframe host (read‑only): `dotcraft-app://` scheme + per‑resource CSP, sandboxed iframe, bridge handshake + tool‑input/result push | ✅ Delivered | this spec §6–§8 |
 | **M‑iii** | Bridge actions: `ui/tool/call` (read‑only), `ui/open-link`, `ui/message`, `ui/update-model-context`, data‑path‑B CSP widening | ✅ Delivered | [M‑iii](tool-result-presentation-m3.md) |
-| **M‑iv** | Host context push, `widgetState` persistence, display mode | Planned | [M‑iv](tool-result-presentation-m4.md) |
-| **M‑v** | First real app (Oratorio) + SDK ergonomics (incl. loopback‑CORS helper) + decoupled mutate‑approval + non‑Desktop fallback | Planned | [M‑v](tool-result-presentation-m5.md) |
-| **M‑vi** | Capability negotiation, security & acceptance hardening | Planned | [M‑vi](tool-result-presentation-m6.md) |
+| **M‑iv** | Live host‑context push, `widgetState` persistence, display mode (pip + fullscreen overlay) | ✅ Delivered | [M‑iv](tool-result-presentation-m4.md) |
+| **M‑v** | Decoupled mutate‑approval + SDK folder‑serving (`ServeStaticUiResources`) + non‑Desktop fallback test (Oratorio = external validation) | ✅ In‑repo delivered | [M‑v](tool-result-presentation-m5.md) |
+| **M‑vi** | Capability negotiation, security & acceptance hardening | Planned (not designed) | [M‑vi](tool-result-presentation-m6.md) |
 
-M‑i and M‑ii are verified end‑to‑end (the `sdk/dotnet/samples/InteractiveToolSample` app renders an interactive card in Desktop). M‑iii is implementation‑complete and conformance‑tested (C# protocol gating + Desktop bridge unit tests); the sample is wired to exercise `ui/open-link` and `ui/update-model-context` for a live Desktop pass. M‑iv–M‑vi are hand‑off contracts.
+M‑i–M‑iv are implementation‑complete and conformance‑tested (C# protocol gating + Desktop bridge/store unit tests; the `InteractiveToolSample` app exercises `ui/open-link`, `ui/update-model-context`, `widgetState`, and `ui/request-display-mode`). M‑v is design‑locked (its decoupled‑approval UI is de‑risked — the Desktop approval composer was generalized for reuse). M‑vi is not yet designed.
 
 ## 18. Implementation Landmarks (as built: M‑i, M‑ii, M‑iii)
 
