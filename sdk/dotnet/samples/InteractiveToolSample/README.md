@@ -7,11 +7,30 @@ DotCraft Desktop renders that HTML in a sandboxed `dotcraft-app://` iframe and d
 postMessage bridge (`ui/initialize` → `ui/notifications/tool-result`). See
 `specs/protocols/tool-result-presentation.md`.
 
-## What it exercises (M-ii)
+## What it exercises (M-ii + M-iii + M-iv)
 
 - `_meta.ui` declaration on an attached dynamic tool → `dynamicToolCall` item carries the `ui` descriptor.
 - `dotcraft-app://` scheme handler brokers `ui/resource/read` and serves the HTML with its own CSP.
-- Sandboxed iframe + read-only host bridge (host context handshake + tool-result push).
+- Sandboxed iframe + host bridge (host context handshake + tool-result push).
+- **M-iii bridge actions** (live): the `Open in Sample` button issues `ui/open-link` (gated to `https:`/`mailto:` by host policy), and `Tell the model` issues `ui/update-model-context` (pushes the card's UI state into the model's next turn with no visible conversation item). `tools/call` and `ui/message` are also serviced by the host (the sample doesn't wire buttons for them).
+- **M-iv** (live): the `note` input persists `widgetState` via `ui/set-widget-state` (a UI-only blob stored server-side, keyed to the item) and is restored from the `ui/initialize` result — type a note, reload the thread or restart Desktop, and it returns. The card re-themes live (`ui/notifications/host-context-changed`) when you toggle Desktop light/dark. The `Expand` button issues `ui/request-display-mode` (`fullscreen`); the host renders the card in a portal overlay (or a floating window for `pip`) and returns the granted mode — and because the iframe re-mounts in the expanded surface, the `widgetState` note survives the expand.
+
+## Data path B (direct `fetch` to your loopback backend)
+
+M-iii widens the iframe CSP from `_meta.ui.csp` so a UI can `fetch` its own backend directly
+(`connectDomains` → `connect-src`). The CSP is built host-side from your **server-validated**
+descriptor — never from the iframe — and stays network-denied when you declare no `connectDomains`.
+
+Because the iframe is sandboxed **without** `allow-same-origin`, its requests carry an **opaque
+(`null`) origin**. Your loopback backend must therefore answer CORS for that origin:
+
+- Respond with **`Access-Control-Allow-Origin: *`** (an opaque origin cannot be matched by a
+  specific allow-list, and `*` is safe here only because the surface is loopback-bound).
+- Do **not** rely on credentials (`Access-Control-Allow-Credentials` cannot combine with `*`); keep
+  the loopback surface unauthenticated or token-in-body.
+- Bind the backend to **loopback only** (`127.0.0.1`) and list its exact origin in `_meta.ui.csp.connectDomains`.
+
+(An SDK helper that pre-configures this CORS posture ships in M-v.)
 
 ## Run it
 
@@ -52,5 +71,6 @@ postMessage bridge (`ui/initialize` → `ui/notifications/tool-result`). See
 > affordance, or DevTools (Ctrl+Shift+I) → the `handoff.uri` in the
 > `app/connection/start` / `app/binding/request/create` response.
 
-> The `Open in Sample` button is wired for `ui/open-link`, which the read-only M-ii host
-> ignores; it becomes active in M-iii (bridge actions).
+> The `Open in Sample` and `Tell the model` buttons exercise the M-iii bridge actions
+> (`ui/open-link` and `ui/update-model-context`). After clicking `Tell the model`, the card's
+> state reaches the agent on its next turn — ask the agent what the sample card shows to confirm.

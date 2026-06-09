@@ -1853,7 +1853,107 @@ public sealed class AppBindingProtocolTests : IDisposable
         Assert.Equal(AppBindingErrorCodes.ToolUnavailable, result.ErrorCode);
     }
 
-    private async Task<string> CreateAcceptAndAttachUiToolAsync(AppServerTestHarness harness, string threadId)
+    [Fact]
+    public async Task UiToolCall_RejectsMutatingToolReadOnlyInThisRelease()
+    {
+        WriteOratorioPlugin();
+        var service = new AppBindingService();
+        using var harness = CreateHarness(service);
+        await harness.InitializeAsync();
+        await ConnectAppAsync(harness);
+        var thread = await harness.Service.CreateThreadAsync(CreateIdentity());
+        await CreateAcceptAndAttachUiToolAsync(harness, thread.Id, withApproval: true);
+
+        var result = await service.InvokeUiToolAsync(
+            _workspaceCraftPath,
+            thread.Id,
+            "oratorio",
+            "CreateCard",
+            new JsonObject { ["title"] = "From UI" },
+            sourceCallId: "dyntool_1",
+            userId: "test_user",
+            sessionService: harness.Service,
+            default);
+
+        Assert.False(result.Success);
+        Assert.Equal(AppBindingErrorCodes.ApprovalRequired, result.ErrorCode);
+
+        // Rejected before dispatch: no conversation turn/item.
+        Assert.Empty((await harness.Service.GetThreadAsync(thread.Id, default)).Turns);
+    }
+
+    [Fact]
+    public async Task UiOpenLink_AllowsHttpsAndMailtoRejectsDangerousSchemes()
+    {
+        WriteOratorioPlugin();
+        var service = new AppBindingService();
+        using var harness = CreateHarness(service);
+        await harness.InitializeAsync();
+        await ConnectAppAsync(harness);
+        var thread = await harness.Service.CreateThreadAsync(CreateIdentity());
+        await CreateAcceptAndAttachUiToolAsync(harness, thread.Id);
+
+        var https = service.OpenLink(
+            _workspaceCraftPath, thread.Id, "oratorio", "https://oratorio.example/board/1", "dyntool_1", "test_user");
+        Assert.Equal("https://oratorio.example/board/1", https.Url);
+
+        var mailto = service.OpenLink(
+            _workspaceCraftPath, thread.Id, "oratorio", "mailto:team@example.com", null, "test_user");
+        Assert.Equal("mailto:team@example.com", mailto.Url);
+
+        Assert.Throws<AppServerException>(() =>
+            service.OpenLink(_workspaceCraftPath, thread.Id, "oratorio", "javascript:alert(1)", null, "test_user"));
+        Assert.Throws<AppServerException>(() =>
+            service.OpenLink(_workspaceCraftPath, thread.Id, "oratorio", "file:///etc/passwd", null, "test_user"));
+
+        AssertAppBindingAuditContains("binding.uiOpenLink");
+        AssertAppBindingAuditContains("binding.uiOpenLink.blocked");
+        Assert.Empty((await harness.Service.GetThreadAsync(thread.Id, default)).Turns);
+    }
+
+    [Fact]
+    public async Task UiUpdateModelContext_UpsertsModelVisibleBlockThenClearsOnEmpty()
+    {
+        WriteOratorioPlugin();
+        var service = new AppBindingService();
+        using var harness = CreateHarness(service);
+        await harness.InitializeAsync();
+        await ConnectAppAsync(harness);
+        var thread = await harness.Service.CreateThreadAsync(CreateIdentity());
+        await CreateAcceptAndAttachUiToolAsync(harness, thread.Id);
+
+        var upsert = service.UpdateModelContext(
+            _workspaceCraftPath, thread.Id, "oratorio", "dyntool_1", "Selected card", "The user selected card-7.", "test_user");
+        Assert.False(upsert.Cleared);
+        Assert.Equal("ui:dyntool_1", upsert.BlockId);
+
+        var block = Assert.Single(service.ListThreadContextBlocks(_workspaceCraftPath, thread.Id, includeInactive: false).Blocks);
+        Assert.Equal("ui:dyntool_1", block.BlockId);
+        Assert.Equal("uiModelContext", block.Kind);
+        Assert.Equal("model", block.Visibility);
+        Assert.Equal("The user selected card-7.", block.Content);
+
+        var section = service.BuildAppContextPromptSection(_workspaceCraftPath, thread.Id);
+        Assert.NotNull(section);
+        Assert.Contains("The user selected card-7.", section!, StringComparison.Ordinal);
+
+        // Decoupled: no conversation turn/item.
+        Assert.Empty((await harness.Service.GetThreadAsync(thread.Id, default)).Turns);
+
+        // Last-write-wins clear (e.g. on teardown): empty content removes the block.
+        var cleared = service.UpdateModelContext(
+            _workspaceCraftPath, thread.Id, "oratorio", "dyntool_1", null, "", "test_user");
+        Assert.True(cleared.Cleared);
+        Assert.Empty(service.ListThreadContextBlocks(_workspaceCraftPath, thread.Id, includeInactive: true).Blocks);
+
+        AssertAppBindingAuditContains("binding.uiModelContext.upsert");
+        AssertAppBindingAuditContains("binding.uiModelContext.clear");
+    }
+
+    private async Task<string> CreateAcceptAndAttachUiToolAsync(
+        AppServerTestHarness harness,
+        string threadId,
+        bool withApproval = false)
     {
         var request = await CreateBindingRequestAsync(harness, threadId);
         var bindingId = await AcceptBindingAsync(harness, request.BindingRequestId, request.Token);
@@ -1874,6 +1974,16 @@ public sealed class AppBindingProtocolTests : IDisposable
                         Name = "CreateCard",
                         Description = "Create a card",
                         InputSchema = CreateCardSchema(),
+                        // A tool that declares an approval descriptor is mutating; the M-iii UI path
+                        // must reject it (read-only).
+                        Approval = withApproval
+                            ? new ChannelToolApprovalDescriptor
+                            {
+                                Kind = "remoteResource",
+                                TargetArgument = "title",
+                                Operation = "create"
+                            }
+                            : null,
                         Meta = new DynamicToolMeta
                         {
                             Ui = new UiToolMeta

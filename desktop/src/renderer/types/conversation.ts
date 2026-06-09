@@ -128,6 +128,8 @@ export interface ConversationItem {
   meta?: Record<string, unknown>
   /** The tool's declared Interactive Tool UI descriptor (`_meta.ui`); present → render a sandboxed iframe. */
   toolUi?: ToolUiDescriptor
+  /** UI-only Interactive Tool UI widgetState (M-iv), surfaced on thread/read for iframe restore. */
+  widgetState?: unknown
   /** Error code returned by pluginFunctionCall/dynamicToolCall items */
   errorCode?: string
   /** Error message returned by pluginFunctionCall/dynamicToolCall items */
@@ -462,6 +464,10 @@ export function wireItemToConversationItem(raw: Record<string, unknown>): Conver
   const invocationToolUi = isStructuredInvocation
     ? normalizeToolUiDescriptor((raw.ui as unknown) ?? (payload.ui as unknown))
     : undefined
+  // M-iv: UI-only widgetState surfaced on thread/read for iframe restore (never reaches the model).
+  const invocationWidgetState = isStructuredInvocation
+    ? ((raw.widgetState as unknown) ?? (payload.widgetState as unknown))
+    : undefined
   const invocationErrorMessage = isStructuredInvocation
     ? ((raw.errorMessage as string | undefined) ?? (payload.errorMessage as string | undefined))
     : undefined
@@ -555,6 +561,7 @@ export function wireItemToConversationItem(raw: Record<string, unknown>): Conver
     structuredResult: invocationStructuredResult,
     meta: invocationMeta,
     toolUi: invocationToolUi,
+    widgetState: invocationWidgetState,
     errorCode: (raw.errorCode as string | undefined)
       ?? (payload.errorCode as string | undefined),
     errorMessage: invocationErrorMessage,

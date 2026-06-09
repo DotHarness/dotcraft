@@ -106,6 +106,15 @@ public sealed class SessionPersistenceService(
     public Task SaveContextUsageAnchorAsync(string threadId, ContextUsageAnchor anchor, CancellationToken ct = default)
         => threadStore.SaveContextUsageAnchorAsync(threadId, anchor, ct);
 
+    public IReadOnlyDictionary<string, string> GetItemWidgetStates(string threadId)
+        => threadStore.LoadItemWidgetStates(threadId);
+
+    public void SaveItemWidgetState(string threadId, string callId, string widgetStateJson)
+        => threadStore.SaveItemWidgetState(threadId, callId, widgetStateJson);
+
+    public void DeleteItemWidgetState(string threadId, string callId)
+        => threadStore.DeleteItemWidgetState(threadId, callId);
+
     public Task<ThreadGoal?> GetThreadGoalAsync(string threadId, CancellationToken ct = default)
         => threadStore.GetThreadGoalAsync(threadId, ct);
 

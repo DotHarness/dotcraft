@@ -2,11 +2,11 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.1.0 |
-| **Status** | Planned |
+| **Version** | 0.2.0 |
+| **Status** | Planned — **design locked** (decisions in §3, §9); implementation pending |
 | **Date** | 2026-06-09 |
 | **Parent Spec** | [Interactive Tool UI](tool-result-presentation.md) |
-| **Milestone** | M‑v — First real app (Oratorio) + SDK ergonomics + non‑Desktop fallback |
+| **Milestone** | M‑v — Decoupled mutate‑approval + SDK ergonomics + fallback (Oratorio = external validation) |
 | **Depends on** | M‑iii, M‑iv |
 
 ## 1. Overview
@@ -17,11 +17,16 @@ With the host complete (M‑ii–iv), prove the model end‑to‑end with a **re
 
 A real app presents interactive UIs for its tools (validating the whole stack); app authors can add an interactive UI with minimal boilerplate; TUI and channels render readable text for the same tool results.
 
-## 3. Scope
+> **Scope note (grounded).** Two facts reshape what M‑v builds **in this repo**:
+> 1. **Oratorio is an external native app** — only its App Binding metadata (`apps.json`, plugin manifest under `desktop/resources/plugins/dotcraft-bundled/plugins/oratorio/`) lives here; its tools run in the external process. So Oratorio is the *external* validator; `sdk/dotnet/samples/InteractiveToolSample` is the in‑repo end‑to‑end vehicle.
+> 2. **Non‑Desktop fallback already works** — the TUI (`tui/src/app/event_mapper.rs` `structured_invocation_result_text`) and the channel adapter (`src/DotCraft.App/CLI/Rendering/StreamAdapter.cs` `FormatStructuredInvocationResult`) already render `contentItems` / `structuredResult` / `errorMessage` as text and filter `_meta`. It needs a **conformance test + the documented "always return text" rule**, not new rendering code.
+>
+> **In‑repo M‑v deliverables:** (1) **decoupled mutate‑approval** for `ui/tool/call` (the M‑iii deferral); (2) **SDK ergonomics** — folder/prefix `ui://` static serving; (3) **fallback conformance test** + author docs. Oratorio = external validation (metadata + contract docs).
 
-- **SDK ergonomics**: a clean, documented way to (a) declare `_meta.ui` on catalog tools and (b) ship/serve `ui://` resources (e.g. bundle a folder of HTML/JS served by URI prefix, or register per‑URI). M‑i added the raw resource responder + models; M‑v makes authoring ergonomic.
-- **Oratorio UIs** per parent [§15](tool-result-presentation.md): `ListBoardItems`→`ui://oratorio/board` (interactive board; "Open in Oratorio" via `ui/open-link`; refresh via loopback `fetch`), `GetBoardItem`→`ui://oratorio/item`, `QueueReviewRound`→`ui://oratorio/review` (queue via `tools/call`, `externalWrite` → approval).
-- **Non‑Desktop fallback**: TUI and channels render `structuredResult` / `contentItems` as text (parent [§12](tool-result-presentation.md)); every UI‑bearing tool MUST also return a model‑ and human‑usable text result.
+- **Decoupled mutate‑approval** (the M‑iii deferral, [m3 §9](tool-result-presentation-m3.md)): a UI‑initiated `ui/tool/call` on a tool with an approval descriptor (`mutate`/`externalWrite`) is no longer rejected — the host raises a **decoupled approval** and the `ui/tool/call` **awaits** it, then dispatches or rejects. It **reuses Desktop's existing approval surface** (`ApprovalDecisionComposer` + the accept/acceptForSession/acceptAlways/decline options) via a **transient `PendingApproval`** and the existing server→client approval request/response transport (`AppServerInteractiveRequestSender` + `sendServerResponse`). **Decoupling preserved:** no turn is created and **no persisted `approvalCard` conversation item** — the prompt is transient host UI keyed by `threadId + approvalId`; every decision is audited. `read`/no‑approval calls still proceed without prompting.
+- **SDK ergonomics**: a **folder/prefix static `ui://` server** — e.g. `ServeStaticUiResources(uriPrefix, folderPath)` registers every file in a folder under a `ui://` prefix (so `ui://app/index.html`, `ui://app/app.js`, … serve from disk with the right MIME), replacing per‑URI `RegisterResourceHandler` + inline HTML. (CSP‑builder and loopback‑CORS helpers are **out of scope** for this milestone.)
+- **Non‑Desktop fallback**: **already implemented** (TUI + channel render text, `_meta` filtered). M‑v adds a **conformance test** asserting the model‑/human‑visible text equals `contentItems`/`structuredResult` with `_meta` excluded, and documents the **mandatory text‑fallback rule** for app authors.
+- **Oratorio (external validation):** keep the `apps.json` metadata correct and document the [§15](tool-result-presentation.md) contract; the live board/item/review validation happens with the real external Oratorio app, out of this repo.
 
 ## 4. Non‑goals
 
@@ -44,16 +49,18 @@ The app declares `_meta.ui` and serves `ui://` (parent [§4](tool-result-present
 - Oratorio's loopback backend serves its UI bundle and allows the iframe's opaque origin (CORS) for data path B.
 - App UI bundles must satisfy the per‑resource CSP (no disallowed network/origins).
 
-## 8. Acceptance checklist
+## 8. Acceptance checklist (in‑repo)
 
-- [ ] Oratorio board / item / review tools render interactive UIs in Desktop with working actions per §15.
-- [ ] The same tools render readable text in TUI and at least one channel.
-- [ ] An app can declare + serve an interactive UI via documented, minimal SDK steps (sample app is the reference).
-- [ ] Every UI‑bearing tool returns a usable non‑UI fallback.
-- [ ] Conformance/integration coverage for declare → serve → render → fallback.
+- [ ] A UI‑initiated `ui/tool/call` on a mutating tool raises a **decoupled approval** (reusing `ApprovalDecisionComposer`); on accept it dispatches and returns the result to the UI, on decline it returns an error — with **no turn and no persisted conversation item**, and the decision audited.
+- [ ] `read` / no‑approval UI tool calls still proceed without an approval prompt (M‑iii behavior unchanged).
+- [ ] An app can serve a **folder** of `ui://` resources via `ServeStaticUiResources(uriPrefix, folder)` (correct MIME per extension); the `InteractiveToolSample` is updated to use it.
+- [ ] A conformance test asserts non‑Desktop text fallback = `contentItems` + `structuredResult` with `_meta` excluded.
+- [ ] App‑author docs cover the mandatory text‑fallback rule and the folder‑serving helper.
+- [ ] Oratorio `apps.json` metadata matches the §15 contract (external live validation is out of repo).
 
-## 9. Open questions
+## 9. Resolved decisions
 
-- SDK resource bundling shape: folder served by URI prefix vs per‑URI registration vs embedded resources.
-- Whether Oratorio is the first validator, or a smaller internal app validates first.
-- Channel fallback fidelity: how much of `structuredResult` to render as text.
+- **Decoupled mutate‑approval mechanism** → **reuse** Desktop's `ApprovalDecisionComposer` and its decision options (accept / acceptForSession / acceptAlways / decline / cancel). The decoupled `ui/tool/call` path raises the approval over the **existing** server→client approval request/response transport, surfaced as a **transient `PendingApproval`** (no persisted `approvalCard` item, no turn — decoupling intact), keyed by `threadId + approvalId`, audited. The tool's `Approval` descriptor (`Kind` ∈ file/shell/remoteResource) maps to the composer's `approvalType`; `operation`/`target` derive from the descriptor + call arguments.
+- **SDK resource bundling shape** → a **folder/prefix static server** (`ServeStaticUiResources(uriPrefix, folder)`); not per‑URI registration or embedded resources. Inline/per‑URI handlers remain for advanced cases.
+- **First validator** → **Oratorio validates externally** (it is an out‑of‑repo native app); the in‑repo `InteractiveToolSample` is the end‑to‑end vehicle and SDK reference. No separate smaller internal app is introduced.
+- **Channel fallback fidelity** → **already implemented and kept** — render `contentItems` text + `structuredResult` as pretty JSON + `errorMessage`, with `_meta` excluded. M‑v pins this with a conformance test rather than changing fidelity.

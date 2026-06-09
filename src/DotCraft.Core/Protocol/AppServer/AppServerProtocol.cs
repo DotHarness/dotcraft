@@ -441,6 +441,15 @@ public sealed class UiResourceReadParams
 public sealed class UiResourceReadResult
 {
     public List<UiResourceContent> Contents { get; set; } = [];
+
+    /// <summary>
+    /// The owning tool's resolved <c>_meta.ui.csp</c> (host‑populated, M‑iii). Lets the host build the
+    /// per‑resource iframe CSP (data path B widening) from the server‑validated descriptor — never from
+    /// the iframe. Absent =&gt; restrictive default (network‑denied). The brokered app response does not
+    /// set this; the host fills it from the attached tool's descriptor before returning to the renderer.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public UiToolCsp? Csp { get; set; }
 }
 
 /// <summary>
@@ -476,6 +485,88 @@ public sealed class UiToolCallParams
     /// <summary>The <c>callId</c> of the <c>dynamicToolCall</c> whose UI initiated this call (provenance).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? SourceCallId { get; set; }
+}
+
+/// <summary>
+/// Params for <c>ui/open-link</c> (host → server, M‑iii): a UI‑initiated request to open an
+/// external link. The host enforces a fixed scheme policy (<c>https:</c>/<c>mailto:</c> only) and
+/// records the open on the App Binding audit trail; the actual navigation happens in the Desktop
+/// host. Decoupled — no turn/item. See tool-result-presentation-m3.md §3.
+/// </summary>
+public sealed class UiOpenLinkParams
+{
+    public string ThreadId { get; set; } = string.Empty;
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Namespace { get; set; }
+
+    public string Url { get; set; } = string.Empty;
+
+    /// <summary>The <c>callId</c> of the <c>dynamicToolCall</c> whose UI initiated this open (provenance).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? SourceCallId { get; set; }
+}
+
+/// <summary>Result of <c>ui/open-link</c>: the validated URL the host is cleared to open.</summary>
+public sealed class UiOpenLinkResult
+{
+    public string Url { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Params for <c>ui/update-model-context</c> (host → server, M‑iii): the UI pushes UI‑derived state
+/// for the model's next turn. Recorded as an App Binding context block keyed to the originating
+/// <c>dynamicToolCall</c> item (last‑write‑wins); empty/absent <see cref="Content"/> clears it.
+/// Decoupled — no turn/item. See tool-result-presentation-m3.md §3.
+/// </summary>
+public sealed class UiUpdateModelContextParams
+{
+    public string ThreadId { get; set; } = string.Empty;
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Namespace { get; set; }
+
+    /// <summary>The originating <c>dynamicToolCall</c> <c>callId</c>; the context block is keyed to it.</summary>
+    public string SourceCallId { get; set; } = string.Empty;
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Title { get; set; }
+
+    /// <summary>Model‑visible text. Empty/absent removes the block (last‑write‑wins clear).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Content { get; set; }
+}
+
+/// <summary>Result of <c>ui/update-model-context</c>.</summary>
+public sealed class UiUpdateModelContextResult
+{
+    public string BlockId { get; set; } = string.Empty;
+
+    /// <summary>True when the block was removed (empty content) rather than upserted.</summary>
+    public bool Cleared { get; set; }
+}
+
+/// <summary>
+/// Params for <c>item/widget-state/set</c> (host → server, M-iv): the host persists an Interactive
+/// Tool UI item's UI-only <c>widgetState</c>, keyed by <see cref="CallId"/>. Decoupled — no
+/// turn/item. Null/absent <see cref="WidgetState"/> clears it. UI-only; never reaches the model.
+/// </summary>
+public sealed class ItemWidgetStateSetParams
+{
+    public string ThreadId { get; set; } = string.Empty;
+
+    /// <summary>The <c>callId</c> of the originating <c>dynamicToolCall</c> item.</summary>
+    public string CallId { get; set; } = string.Empty;
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonNode? WidgetState { get; set; }
+}
+
+/// <summary>Result of <c>item/widget-state/set</c>.</summary>
+public sealed class ItemWidgetStateSetResult
+{
+    /// <summary>True when the stored state was removed (empty) rather than upserted.</summary>
+    public bool Cleared { get; set; }
 }
 
 public sealed class ChannelToolDisplay
@@ -4215,6 +4306,7 @@ public static class AppServerMethods
     public const string ThreadRead = "thread/read";
     public const string ThreadGoalGet = "thread/goal/get";
     public const string ThreadGoalSet = "thread/goal/set";
+    public const string ItemWidgetStateSet = "item/widget-state/set";
     public const string ThreadGoalClear = "thread/goal/clear";
     public const string ThreadCompactStart = "thread/compact/start";
     public const string ThreadMemoryConsolidateStart = "thread/memory/consolidate/start";

@@ -6,6 +6,7 @@ import { useModelCatalogStore, type ReasoningEffortWire, type ReasoningOutputWir
 import { addToast } from '../../stores/toastStore'
 import { useUIStore } from '../../stores/uiStore'
 import { ThreadHeader } from '../conversation/ThreadHeader'
+import { InteractiveToolOverlay } from '../conversation/InteractiveToolView'
 import { MessageStream } from '../conversation/MessageStream'
 import { InputComposer } from '../conversation/InputComposer'
 import { PlanApprovalComposer } from '../conversation/PlanApprovalComposer'
@@ -59,6 +60,9 @@ export function ConversationPanel({
   const turnStatus = useConversationStore((s) => s.turnStatus)
   const threadMode = useConversationStore((s) => s.threadMode)
   const pendingApproval = useConversationStore((s) => s.pendingApproval)
+  const genericApproval = useConversationStore((s) => s.genericApproval)
+  // Tool approvals (turn-bound) take priority over turn-less approvals (e.g. browser-use).
+  const composerApproval = pendingApproval ?? genericApproval
   const pendingUserInput = useConversationStore((s) => s.pendingUserInput)
   const latestCreatePlanTurnId = useConversationStore(selectLatestCreatePlanTurnId)
   const connectionStatus = useConnectionStore((s) => s.status)
@@ -90,7 +94,7 @@ export function ConversationPanel({
   const modelLoading = modelApiAvailable && modelCatalogStatus === 'loading'
   const showPlanApproval = threadMode === 'plan'
     && turnStatus === 'idle'
-    && pendingApproval == null
+    && composerApproval == null
     && latestCreatePlanTurnId != null
     && planApprovalDismissed[latestCreatePlanTurnId] !== true
 
@@ -359,6 +363,9 @@ export function ConversationPanel({
         overflow: 'hidden'
       }}
     >
+      {/* Interactive Tool UI expanded surface (pip/fullscreen) — portals to body when a card is expanded. */}
+      <InteractiveToolOverlay />
+
       {/* Fixed header */}
       <ThreadHeader
         threadName={threadName}
@@ -423,8 +430,8 @@ export function ConversationPanel({
       )}
 
       {/* Input composer */}
-      {pendingApproval ? (
-        <ApprovalDecisionComposer request={pendingApproval} />
+      {composerApproval ? (
+        <ApprovalDecisionComposer request={composerApproval} />
       ) : pendingUserInput ? (
         <RequestUserInputComposer request={pendingUserInput} />
       ) : showPlanApproval && latestCreatePlanTurnId ? (

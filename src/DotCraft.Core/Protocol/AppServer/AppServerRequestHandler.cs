@@ -85,6 +85,7 @@ public sealed class AppServerRequestHandler(
     private const int ThreadListDefaultPageLimit = 50;
     private const int ThreadListMaxPageLimit = 100;
     private const int ThreadReadMaxPageLimit = 100;
+    private const int MaxWidgetStateBytes = 8 * 1024;
     private const string ThreadListCursorKind = "thread-list";
     private const string ThreadReadCursorKind = "thread-read";
 
@@ -143,6 +144,7 @@ public sealed class AppServerRequestHandler(
         AppServerMethods.ThreadGoalGet,
         AppServerMethods.ThreadGoalSet,
         AppServerMethods.ThreadGoalClear,
+        AppServerMethods.ItemWidgetStateSet,
         AppServerMethods.ThreadRollback,
         AppServerMethods.ThreadSubscribe,
         AppServerMethods.ThreadUnsubscribe,
@@ -306,6 +308,7 @@ public sealed class AppServerRequestHandler(
                 AppServerMethods.ThreadGoalGet => HandleThreadGoalGetAsync(msg, ct),
                 AppServerMethods.ThreadGoalSet => HandleThreadGoalSetAsync(msg, ct),
                 AppServerMethods.ThreadGoalClear => HandleThreadGoalClearAsync(msg, ct),
+                AppServerMethods.ItemWidgetStateSet => HandleItemWidgetStateSetAsync(msg, ct),
                 AppServerMethods.ThreadCompactStart => HandleThreadCompactStartAsync(msg, ct),
                 AppServerMethods.ThreadMemoryConsolidateStart => HandleThreadMemoryConsolidateStartAsync(msg, ct),
                 AppServerMethods.ThreadMaintenanceInterrupt => HandleThreadMaintenanceInterruptAsync(msg, ct),
@@ -2207,13 +2210,72 @@ public sealed class AppServerRequestHandler(
         }
 
         var wire = await WithPlanAsync(WithRuntimeSnapshot(
-            WithContextUsage(FilterToolExecutionItemsForConnection(baseWire), thread.Id),
+            WithWidgetState(WithContextUsage(FilterToolExecutionItemsForConnection(baseWire), thread.Id), thread.Id),
             thread), thread.Id, ct);
         return new ThreadReadResult
         {
             Thread = await EnrichThreadWireAsync(wire, thread, ct),
             TurnPage = turnPage
         };
+    }
+
+    /// <summary>
+    /// Surfaces the UI-only Interactive Tool UI <c>widgetState</c> (M-iv) onto each
+    /// <c>dynamicToolCall</c> wire item from the mutable side store, so the host can restore the
+    /// iframe's persisted state on <c>thread/read</c>. Never reaches the model.
+    /// </summary>
+    private SessionWireThread WithWidgetState(SessionWireThread wire, string threadId)
+    {
+        if (wire.Turns is not { Count: > 0 } turns)
+            return wire;
+        var states = sessionService.GetItemWidgetStates(threadId);
+        if (states.Count == 0)
+            return wire;
+
+        foreach (var turn in turns)
+        {
+            if (turn.Items is not { Count: > 0 } items)
+                continue;
+            for (var i = 0; i < items.Count; i++)
+            {
+                if (items[i].Payload is not DynamicToolCallPayload payload
+                    || string.IsNullOrEmpty(payload.CallId)
+                    || !states.TryGetValue(payload.CallId, out var json))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    if (System.Text.Json.Nodes.JsonNode.Parse(json) is { } node)
+                        items[i] = items[i] with { Payload = payload with { WidgetState = node } };
+                }
+                catch (System.Text.Json.JsonException)
+                {
+                    // Skip a corrupt stored state rather than failing the whole read.
+                }
+            }
+        }
+
+        return wire;
+    }
+
+    private Task<object?> HandleItemWidgetStateSetAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    {
+        _ = ct;
+        var p = GetParams<ItemWidgetStateSetParams>(msg);
+        if (string.IsNullOrWhiteSpace(p.ThreadId))
+            throw AppServerErrors.InvalidParams("'threadId' is required.");
+        if (string.IsNullOrWhiteSpace(p.CallId))
+            throw AppServerErrors.InvalidParams("'callId' is required.");
+
+        var json = p.WidgetState?.ToJsonString();
+        var cleared = string.IsNullOrEmpty(json);
+        if (!cleared && System.Text.Encoding.UTF8.GetByteCount(json!) > MaxWidgetStateBytes)
+            throw AppServerErrors.InvalidParams($"widgetState exceeds the {MaxWidgetStateBytes}-byte limit.");
+
+        sessionService.SetItemWidgetState(p.ThreadId, p.CallId, cleared ? null : json);
+        return Task.FromResult<object?>(new ItemWidgetStateSetResult { Cleared = cleared });
     }
 
     private async Task<object?> HandleThreadGoalGetAsync(AppServerIncomingMessage msg, CancellationToken ct)

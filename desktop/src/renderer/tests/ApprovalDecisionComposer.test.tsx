@@ -166,6 +166,46 @@ describe('ApprovalDecisionComposer', () => {
     })
   })
 
+  it('renders a browser-use (generic) approval and routes the decision to its submit handler', async () => {
+    const submit = vi.fn().mockResolvedValue(undefined)
+    const request: PendingApproval = {
+      bridgeId: '',
+      threadId: null,
+      turnId: null,
+      requestId: 'browser-req-1',
+      locallySubmittedDecision: null,
+      itemId: '',
+      approvalType: 'remoteResource',
+      operation: '',
+      target: '',
+      reason: '',
+      source: 'browserUse',
+      question: 'The agent wants to open example.com.',
+      detailRows: [{ label: 'Address', value: 'https://example.com', mono: true }],
+      declineValue: 'deny',
+      options: [
+        { value: 'allowDomain', label: 'Always allow', description: '' },
+        { value: 'allowOnce', label: 'Allow once', description: '' },
+        { value: 'blockDomain', label: 'Block domain', description: '' },
+        { value: 'deny', label: 'Cancel', description: '' }
+      ],
+      submit
+    }
+    renderWithLocale(<ApprovalDecisionComposer request={request} />)
+
+    expect(screen.getByText('The agent wants to open example.com.')).toBeInTheDocument()
+    expect(screen.getByText('https://example.com')).toBeInTheDocument()
+
+    // Select the third option (Block domain) and submit it.
+    fireEvent.keyDown(window, { key: '3' })
+    fireEvent.keyDown(window, { key: 'Enter' })
+
+    await waitFor(() => {
+      expect(submit).toHaveBeenCalledWith('blockDomain')
+    })
+    expect(sendServerResponse).not.toHaveBeenCalled()
+  })
+
   it('updates the primary button label with the current option', () => {
     const pending = pendingApproval()
     setPendingApproval(pending)

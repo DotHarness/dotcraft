@@ -67,6 +67,29 @@ describe('buildInteractiveToolCsp', () => {
     expect(csp).toContain("style-src 'unsafe-inline'")
     expect(csp).not.toContain('connect-src')
   })
+
+  it('widens connect/frame/resource sources from the descriptor csp (data path B)', () => {
+    const csp = buildInteractiveToolCsp({
+      connectDomains: ['https://127.0.0.1:5087'],
+      resourceDomains: ['https://cdn.example.com'],
+      frameDomains: ['https://embed.example.com']
+    })
+    expect(csp).toContain('connect-src https://127.0.0.1:5087')
+    expect(csp).toContain('frame-src https://embed.example.com')
+    expect(csp).toContain('img-src data: blob: https://cdn.example.com')
+    // script-src is never widened — external scripts stay blocked regardless of resourceDomains.
+    expect(csp).toContain("script-src 'unsafe-inline'")
+    expect(csp).not.toContain('script-src https://cdn.example.com')
+  })
+
+  it('drops malformed origins so a resource cannot inject CSP directives', () => {
+    const csp = buildInteractiveToolCsp({
+      connectDomains: ["https://ok.example.com", "https://evil; script-src *", 'not-a-url']
+    })
+    expect(csp).toContain('connect-src https://ok.example.com')
+    expect(csp).not.toContain('script-src *')
+    expect(csp).not.toContain('not-a-url')
+  })
 })
 
 describe('handleDotCraftAppRequest', () => {

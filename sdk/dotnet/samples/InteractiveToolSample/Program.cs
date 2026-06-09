@@ -272,6 +272,9 @@ static class CardResource
     <div class="value" id="value">Waiting for tool result…</div>
     <div class="meta" id="meta"></div>
     <button id="open">Open in Sample</button>
+    <button id="tell">Tell the model</button>
+    <button id="expand">Expand</button>
+    <input id="note" placeholder="A note that persists across reloads (widgetState)" />
   </div>
 <script>
   const pending = {};
@@ -285,10 +288,12 @@ static class CardResource
     });
   }
   function applyContext(ctx) { if (ctx && ctx.theme) document.documentElement.dataset.theme = ctx.theme; }
+  let lastValue = "";
   function renderResult(p) {
     const sc = (p && p.structuredContent) || {};
+    lastValue = sc.value != null ? String(sc.value) : "";
     document.getElementById("title").textContent = sc.title || "Sample Card";
-    document.getElementById("value").textContent = sc.value != null ? String(sc.value) : "";
+    document.getElementById("value").textContent = lastValue;
     document.getElementById("meta").textContent = sc.ts ? ("Updated " + sc.ts) : "";
   }
   window.addEventListener("message", (event) => {
@@ -296,14 +301,32 @@ static class CardResource
     if (!m || typeof m !== "object") return;
     if (m.id !== undefined && pending[m.id]) { const r = pending[m.id]; delete pending[m.id]; r(m.result); return; }
     if (m.method === "ui/notifications/tool-result") renderResult(m.params);
+    // M-iv: live host-context push — re-theme without reload when Desktop theme changes.
+    if (m.method === "ui/notifications/host-context-changed") applyContext(m.params);
   });
+  // M-iii: ui/open-link is a request the host gates by scheme policy (https/mailto only).
   document.getElementById("open").addEventListener("click", () => {
-    // M-iii will route this through ui/open-link; the read-only M-ii host ignores it.
-    notify("ui/open-link", { url: "https://github.com/DotHarness/dotcraft" });
+    request("ui/open-link", { url: "https://github.com/DotHarness/dotcraft" });
+  });
+  // M-iii: push the card's UI state to the model's next turn (no visible conversation item).
+  document.getElementById("tell").addEventListener("click", () => {
+    request("ui/update-model-context", { title: "Sample card", content: "The sample card currently shows: " + lastValue });
+  });
+  // M-iv: persist UI-only widgetState (the note) — survives reload / thread switch / app restart.
+  document.getElementById("note").addEventListener("change", (e) => {
+    request("ui/set-widget-state", { widgetState: { note: e.target.value } });
+  });
+  // M-iv: request a larger display mode; the host arbitrates and returns the granted mode.
+  document.getElementById("expand").addEventListener("click", async () => {
+    const r = await request("ui/request-display-mode", { mode: "fullscreen" });
+    if (r && r.mode) document.getElementById("expand").textContent = "Mode: " + r.mode;
   });
   (async () => {
     const result = await request("ui/initialize", { app: { name: "dotcraft-sample-ui", version: "0.1.0" } });
     applyContext(result && result.hostContext);
+    // M-iv: restore persisted widgetState delivered in the ui/initialize result.
+    if (result && result.widgetState && typeof result.widgetState.note === "string")
+      document.getElementById("note").value = result.widgetState.note;
   })();
 </script>
 </body>

@@ -396,6 +396,16 @@ public sealed record DynamicToolCallPayload
     /// </summary>
     [JsonPropertyName("ui")]
     public JsonNode? Ui { get; init; }
+
+    /// <summary>
+    /// UI-only Interactive Tool UI <c>widgetState</c> (M-iv), surfaced onto the item on
+    /// <c>thread/read</c> so the host can restore the iframe's persisted state. Not part of the
+    /// canonical rollout — populated from the mutable per-thread side store at read time. Never
+    /// surfaced to the model.
+    /// </summary>
+    [JsonPropertyName("widgetState")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonNode? WidgetState { get; init; }
 }
 
 /// <summary>

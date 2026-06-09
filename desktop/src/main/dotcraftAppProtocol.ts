@@ -31,8 +31,29 @@ const RESOURCE_READ_TIMEOUT_MS = 30_000
 let handlerInstalled = false
 let resolveClient: (() => WireProtocolClient | null) | null = null
 
+/** `_meta.ui.csp` echoed by `ui/resource/read` — the server-validated descriptor (M-iii data path B). */
+interface UiToolCsp {
+  connectDomains?: string[]
+  resourceDomains?: string[]
+  frameDomains?: string[]
+}
+
 interface UiResourceReadResult {
   contents?: Array<{ uri?: string; mimeType?: string; text?: string }>
+  csp?: UiToolCsp | null
+}
+
+/**
+ * Only well-formed http(s)/ws(s) origins are accepted into the CSP, and any entry containing CSP
+ * delimiters is dropped — a UI resource must not be able to inject directives.
+ */
+const CSP_ORIGIN_PATTERN = /^(https?|wss?):\/\/[^\s;,'"]+$/i
+
+function sanitizeCspDomains(domains: string[] | undefined): string[] {
+  if (!Array.isArray(domains)) return []
+  return domains
+    .map((d) => (typeof d === 'string' ? d.trim() : ''))
+    .filter((d) => CSP_ORIGIN_PATTERN.test(d))
 }
 
 /** Must be called before `app.whenReady()` to mark the scheme as privileged. */
@@ -82,20 +103,33 @@ export function buildDotCraftAppUrl(
  * Restrictive CSP for the interactive tool iframe document. The iframe is the
  * app's own (trusted, locally-installed) HTML running sandboxed with an opaque
  * origin and no Node; inline script/style are permitted there because the
- * sandbox — not the CSP — is the isolation boundary. M-ii is bridge-only (no
- * network); `connect-src`/`frame-src` are widened from `_meta.ui.csp` in M-iii.
+ * sandbox — not the CSP — is the isolation boundary.
+ *
+ * M-iii (data path B): `connect-src` / `frame-src` and the passive resource
+ * sources (`img`/`style`/`font`/`media`) are widened from the server-validated
+ * `_meta.ui.csp` (passed here, never sourced from the iframe). With no csp the
+ * default is network-denied (M-ii baseline). `script-src` is never widened —
+ * external scripts stay disallowed regardless of `resourceDomains`.
  */
-export function buildInteractiveToolCsp(): string {
-  return [
+export function buildInteractiveToolCsp(csp?: UiToolCsp | null): string {
+  const connect = sanitizeCspDomains(csp?.connectDomains)
+  const resource = sanitizeCspDomains(csp?.resourceDomains)
+  const frame = sanitizeCspDomains(csp?.frameDomains)
+  const resourceSuffix = resource.length ? ` ${resource.join(' ')}` : ''
+
+  const directives = [
     "default-src 'none'",
     "script-src 'unsafe-inline'",
-    "style-src 'unsafe-inline'",
-    "img-src data: blob:",
-    "font-src data:",
-    "media-src data: blob:",
+    `style-src 'unsafe-inline'${resourceSuffix}`,
+    `img-src data: blob:${resourceSuffix}`,
+    `font-src data:${resourceSuffix}`,
+    `media-src data: blob:${resourceSuffix}`,
     "base-uri 'none'",
     "form-action 'none'"
-  ].join('; ')
+  ]
+  if (connect.length) directives.push(`connect-src ${connect.join(' ')}`)
+  if (frame.length) directives.push(`frame-src ${frame.join(' ')}`)
+  return directives.join('; ')
 }
 
 export async function handleDotCraftAppRequest(request: Request): Promise<Response> {
@@ -131,7 +165,7 @@ export async function handleDotCraftAppRequest(request: Request): Promise<Respon
       status: 200,
       headers: {
         'Content-Type': 'text/html; charset=utf-8',
-        'Content-Security-Policy': buildInteractiveToolCsp(),
+        'Content-Security-Policy': buildInteractiveToolCsp(result?.csp),
         'X-Content-Type-Options': 'nosniff'
       }
     })

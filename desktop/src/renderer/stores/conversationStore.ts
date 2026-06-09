@@ -99,6 +99,20 @@ interface ContextUsageSnapshotInput {
 // State interface
 // ---------------------------------------------------------------------------
 
+/** One selectable decision in the approval composer (resolved labels). */
+export interface ApprovalOptionSpec {
+  value: string
+  label: string
+  description: string
+}
+
+/** One label/value row in the approval composer's detail panel. */
+export interface ApprovalDetailRowSpec {
+  label: string
+  value: string
+  mono?: boolean
+}
+
 export interface PendingApproval {
   /** Bridge ID needed to respond via IPC */
   bridgeId: string
@@ -112,6 +126,25 @@ export interface PendingApproval {
   operation: string
   target: string
   reason: string
+  /**
+   * Approval source. `'tool'` (default, omitted) routes the decision to AppServer
+   * (`sendServerResponse`); `'browserUse'` routes it to the browser-use IPC channel and is shown
+   * via the generic-approval slot (decoupled from any turn). M-v reuses this for UI tool calls.
+   */
+  source?: 'tool' | 'browserUse'
+  /** Custom decision options; when omitted the composer uses the default tool options. */
+  options?: ApprovalOptionSpec[]
+  /** Custom detail rows; when omitted the composer derives them from type/operation/target/reason. */
+  detailRows?: ApprovalDetailRowSpec[]
+  /** Custom prompt; when omitted the composer derives it from `approvalType`. */
+  question?: string
+  /**
+   * Custom decision handler. When set (non-tool sources), the composer calls this with the chosen
+   * option value instead of the AppServer `sendServerResponse` path. Transient UI state only.
+   */
+  submit?: (value: string) => Promise<void>
+  /** Option value used for Esc / the footer reject button (default `'decline'`). */
+  declineValue?: string
 }
 
 interface ApprovalResolvedParams {
@@ -218,6 +251,8 @@ interface ConversationState {
   activeTurnId: string | null
   /** Non-null when turnStatus === 'waitingApproval' */
   pendingApproval: PendingApproval | null
+  /** A turn-less approval (e.g. browser-use) shown in the same composer; independent of turnStatus. */
+  genericApproval: PendingApproval | null
   /** Non-null when turnStatus === 'waitingInput' */
   pendingUserInput: PendingUserInputRequest | null
   /** Currently streaming agent message text */
@@ -379,6 +414,8 @@ interface ConversationActions {
    * Adds an approvalCard item to the current turn and sets waitingApproval state.
    */
   onApprovalRequest(bridgeId: string, params: Record<string, unknown>): void
+  /** Shows or clears a turn-less approval (e.g. browser-use) in the shared approval composer. */
+  setGenericApproval(approval: PendingApproval | null): void
   /**
    * Marks the active approval as already submitted by this Desktop connection.
    * Prevents runtime snapshots from sending a synthetic fallback response.
@@ -425,6 +462,7 @@ const initialState: ConversationState = {
   turns: [],
   turnStatus: 'idle',
   activeTurnId: null,
+  genericApproval: null,
   pendingApproval: null,
   pendingUserInput: null,
   streamingMessage: '',
@@ -2382,6 +2420,10 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
   },
   setRemoteWorkspaceActive(active) {
     set({ remoteWorkspaceActive: active })
+  },
+
+  setGenericApproval(approval) {
+    set({ genericApproval: approval })
   },
 
   onApprovalRequest(bridgeId, params) {

@@ -39,6 +39,8 @@ public sealed class AppBindingProtocolExtension(
     private const string ThreadAppContextBlocksList = "thread/appContextBlocks/list";
     private const string UiResourceRead = "ui/resource/read";
     private const string UiToolCall = "ui/tool/call";
+    private const string UiOpenLink = "ui/open-link";
+    private const string UiUpdateModelContext = "ui/update-model-context";
 
     private const string AppConnectionChanged = "app/connection/changed";
     private const string ThreadAppBindingsChanged = "thread/appBindings/changed";
@@ -67,7 +69,9 @@ public sealed class AppBindingProtocolExtension(
         ThreadAppBindingsRefresh,
         ThreadAppContextBlocksList,
         UiResourceRead,
-        UiToolCall
+        UiToolCall,
+        UiOpenLink,
+        UiUpdateModelContext
     ];
 
     public void ContributeCapabilities(AppServerCapabilityBuilder builder)
@@ -412,6 +416,29 @@ public sealed class AppBindingProtocolExtension(
                     userId,
                     context.SessionService,
                     ct);
+            }
+
+            case UiOpenLink:
+            {
+                var p = GetParams<UiOpenLinkParams>(msg);
+                await EnsureThreadAsync(context, p.ThreadId, ct);
+                return service.OpenLink(workspaceCraftPath, p.ThreadId, p.Namespace, p.Url, p.SourceCallId, userId);
+            }
+
+            case UiUpdateModelContext:
+            {
+                var p = GetParams<UiUpdateModelContextParams>(msg);
+                await EnsureThreadAsync(context, p.ThreadId, ct);
+                var result = service.UpdateModelContext(
+                    workspaceCraftPath,
+                    p.ThreadId,
+                    p.Namespace,
+                    p.SourceCallId,
+                    p.Title,
+                    p.Content,
+                    userId);
+                ReleaseAppContextPage(context, p.ThreadId);
+                return result;
             }
 
             case ThreadAppBindingsRevoke:

@@ -228,6 +228,15 @@ public sealed class StateRuntime
                     FOREIGN KEY(thread_id) REFERENCES threads(thread_id) ON DELETE CASCADE
                 );
 
+                CREATE TABLE IF NOT EXISTS item_widget_state (
+                    thread_id TEXT NOT NULL,
+                    call_id TEXT NOT NULL,
+                    widget_state_json TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    PRIMARY KEY(thread_id, call_id),
+                    FOREIGN KEY(thread_id) REFERENCES threads(thread_id) ON DELETE CASCADE
+                );
+
                 CREATE TABLE IF NOT EXISTS thread_attachments (
                     ref_id TEXT PRIMARY KEY,
                     path TEXT NOT NULL,

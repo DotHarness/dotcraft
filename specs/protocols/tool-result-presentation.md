@@ -140,8 +140,8 @@ The UI and host communicate via **JSON‑RPC 2.0 over `window.postMessage`** —
 | Request | Use | DotCraft handling |
 |---------|-----|-------------------|
 | `tools/call` | Invoke an app‑bound dynamic tool (MCP Apps `callTool`) | Host forwards to AppServer as `ui/tool/call` ([AppServer Protocol](appserver-protocol.md) §11.3.2): gated by App Binding (§10), dispatched via `item/tool/call`, **decoupled from the conversation** (no turn/item) and audited; result returned to the UI. The model learns of UI state only via `ui/update-model-context` or `ui/message`. |
-| `ui/open-link` | Open an `https:` URL or app deep link | **No tool call.** Scheme allow‑list (§11). How "Open in Oratorio" works. |
-| `ui/message` | Send a follow‑up user message → triggers a model turn | Routed through `turn/start` / `turn/enqueue`. Shape: `{ role:"user", content:[{type:"text",text}] }`. |
+| `ui/open-link` | Open an `https:` / `mailto:` URL | **No tool call.** Host‑owned scheme policy (§11); apps do not declare custom schemes. |
+| `ui/message` | Send a follow‑up user message → triggers a model turn | Routed through `turn/start` / `turn/enqueue`. Shape: `{ role:"user", content:[{type:"text",text}] }`. Added as a **visible** user message, **rate‑limited**; host MAY request consent. The iframe gesture is not host‑verifiable, so it is not verified (aligns with MCP Apps `ui/message`). |
 | `ui/update-model-context` | Feed UI state to the model's next turn (silent, deferred, last‑write‑wins) | Recorded as an App Binding context block; no Turn/Item. |
 | `ui/request-display-mode` | Request `inline`/`pip`/`fullscreen` | Host returns the **granted** mode (may differ; §8). Must be user‑initiated. |
 
@@ -180,7 +180,7 @@ The host pushes a context object to the UI at `ui/initialize` and on change via 
 UI‑initiated `tools/call` carries no authority of its own; DotCraft re‑derives and enforces it:
 
 - The target tool MUST be app‑bound to the current thread, `app`‑visible (§7/§11 visibility), and within the binding's granted scope.
-- Risk gating reuses App Binding ([app-binding.md §5.4](app-binding.md)): `read` may proceed (consent per `readOnlyHint`); `mutate`/`externalWrite` require explicit user approval through the existing approval flow; `externalWrite` prefers propose→record→approve→app‑writes.
+- Risk gating reuses App Binding ([app-binding.md §5.4](app-binding.md)): `read` may proceed (consent per `readOnlyHint`); `mutate`/`externalWrite` require explicit user approval through the existing approval flow; `externalWrite` prefers propose→record→approve→app‑writes. **Phased delivery:** M‑iii ships UI tool calls **read‑only** (mutating calls rejected, since a decoupled call has no turn/item to host the approval); the decoupled mutate‑approval UX lands in M‑v ([M‑iii §9](tool-result-presentation-m3.md)).
 - DotCraft MUST reject cross‑binding / cross‑app tool calls from a UI.
 - Every UI‑initiated `tools/call`, approval, and `ui/open-link` is recorded on the App Binding audit trail.
 - `ui/message` and `ui/update-model-context` inherit normal turn / context‑block semantics.
@@ -194,7 +194,7 @@ The UI's access to its **own app backend** (direct `fetch`) is governed by CSP `
 - **Visibility** (`_meta.ui.visibility`, default `["model","app"]`): `["app"]` = UI‑only (callable from the UI, hidden from the model); `["model"]` = model‑only. AppServer enforces visibility when building the model tool list and validating UI `tools/call`.
 - **Sandbox & CSP:** mandatory iframe sandbox; restrictive default CSP, widened by `_meta.ui.csp` — `connectDomains`→`connect-src`, `resourceDomains`→`img/script/style/font/media-src`, `frameDomains`→`frame-src`, `baseUriDomains`→`base-uri`.
 - **Permissions:** `_meta.ui.permissions` (`camera`, `microphone`, `geolocation`, `clipboardWrite`) → Permissions‑Policy.
-- **Links:** `ui/open-link` allows `https:` and the bound app's declared deep‑link protocols only; `javascript:`/`data:`/`file:` forbidden.
+- **Links:** `ui/open-link` is governed by a **host‑owned scheme policy** — `https:` and `mailto:` only; `javascript:`/`data:`/`file:` and every other scheme forbidden. Apps do **not** declare custom schemes (consistent with MCP Apps / OpenAI Apps SDK, which leave scheme handling to the host); app deep‑links route through the app‑handoff mechanism, not `ui/open-link`.
 - **Auditable + inspectable:** all UI→host traffic is JSON‑RPC (loggable); predeclared `ui://` resources are inspectable before render. The host SHOULD bound resource size, iframe count, and message rate.
 
 ---
@@ -275,16 +275,24 @@ This spec ships in milestones; each has a dedicated behavior‑contract spec. Im
 |-----------|-------|--------|------|
 | **M‑i** | C# protocol: `_meta.ui` + `visibility`, `ui/resource/read`, `ui/tool/call` | ✅ Delivered | this spec §4–§5, §10; [AppServer §11.3.1–§11.3.2](appserver-protocol.md) |
 | **M‑ii** | Desktop iframe host (read‑only): `dotcraft-app://` scheme + per‑resource CSP, sandboxed iframe, bridge handshake + tool‑input/result push | ✅ Delivered | this spec §6–§8 |
-| **M‑iii** | Bridge actions: `ui/tool/call`, `ui/open-link`, `ui/message`, `ui/update-model-context`, data‑path‑B CSP widening | Planned | [M‑iii](tool-result-presentation-m3.md) |
+| **M‑iii** | Bridge actions: `ui/tool/call` (read‑only), `ui/open-link`, `ui/message`, `ui/update-model-context`, data‑path‑B CSP widening | ✅ Delivered | [M‑iii](tool-result-presentation-m3.md) |
 | **M‑iv** | Host context push, `widgetState` persistence, display mode | Planned | [M‑iv](tool-result-presentation-m4.md) |
-| **M‑v** | First real app (Oratorio) + SDK ergonomics + non‑Desktop fallback | Planned | [M‑v](tool-result-presentation-m5.md) |
+| **M‑v** | First real app (Oratorio) + SDK ergonomics (incl. loopback‑CORS helper) + decoupled mutate‑approval + non‑Desktop fallback | Planned | [M‑v](tool-result-presentation-m5.md) |
 | **M‑vi** | Capability negotiation, security & acceptance hardening | Planned | [M‑vi](tool-result-presentation-m6.md) |
 
-M‑i and M‑ii are verified end‑to‑end (the `sdk/dotnet/samples/InteractiveToolSample` app renders an interactive card in Desktop). M‑iii–M‑vi are hand‑off contracts.
+M‑i and M‑ii are verified end‑to‑end (the `sdk/dotnet/samples/InteractiveToolSample` app renders an interactive card in Desktop). M‑iii is implementation‑complete and conformance‑tested (C# protocol gating + Desktop bridge unit tests); the sample is wired to exercise `ui/open-link` and `ui/update-model-context` for a live Desktop pass. M‑iv–M‑vi are hand‑off contracts.
 
-## 18. Implementation Landmarks (as built: M‑i, M‑ii)
+## 18. Implementation Landmarks (as built: M‑i, M‑ii, M‑iii)
 
-Where the delivered M‑i/M‑ii code lives, so M‑iii+ extends the right places.
+Where the delivered M‑i/M‑ii/M‑iii code lives, so M‑iv+ extends the right places.
+
+**M‑iii additions (bridge actions)**
+- New host→server wire types `UiOpenLinkParams`/`UiOpenLinkResult`, `UiUpdateModelContextParams`/`UiUpdateModelContextResult`, and `UiResourceReadResult.Csp` (host‑populated descriptor CSP): `src/DotCraft.Core/Protocol/AppServer/AppServerProtocol.cs`.
+- `OpenLink` (https/mailto scheme policy + audit), `UpdateModelContext` (context block keyed `ui:<callId>`, kind `uiModelContext`, last‑write‑wins, cleared on teardown), the read‑only gate in `InvokeUiToolAsync` (`spec.Approval != null` ⇒ `AppBindingApprovalRequired`), and CSP fill in `ReadUiResourceAsync`: `src/DotCraft.Core/AppBinding/AppBindingService.cs`. New kind `AppContextBlockKinds.UiModelContext` + error `AppBindingErrorCodes.ApprovalRequired`: `AppBindingModels.cs`. Method routes `ui/open-link` / `ui/update-model-context`: `AppBindingProtocolExtension.cs`.
+- Desktop main: per‑resource CSP widening from `result.csp` (`buildInteractiveToolCsp(csp)` + `sanitizeCspDomains`): `desktop/src/main/dotcraftAppProtocol.ts`.
+- Desktop renderer: live bridge peer (`tools/call`, `ui/open-link`, `ui/update-model-context`, `ui/message` with rate‑limit, teardown clear, `hostCapabilities` flipped on): `components/conversation/InteractiveToolView.tsx`. `ui/message` reuses `utils/startTurn.ts`; tool calls/links go through `window.api.appServer.sendRequest` / `window.api.shell.openExternal`.
+
+**M‑i / M‑ii (read‑only host)**
 
 **AppServer / core (C#)**
 - `_meta.ui` model (`UiToolMeta`, `UiToolCsp`, `UiToolVisibility`), result `_meta`, wire types (`UiResourceReadParams`/`UiResourceReadResult`/`UiResourceContent`, `UiToolCallParams`), and the server→app `item/resource/read` constant: `src/DotCraft.Core/Protocol/AppServer/AppServerProtocol.cs`.
