@@ -266,3 +266,18 @@ Oratorio is the first validating app. It ships UI resources in its bundle and de
 - Sandbox + CSP + permissions enforced; `ui/open-link` scheme allow‑list enforced.
 - Host context (theme/displayMode/locale) is pushed and updated; `widgetState` persists + restores per item.
 - The interactive UI is never required for correctness; text fallback always present.
+
+## 17. Delivery Milestones
+
+This spec ships in milestones; each has a dedicated behavior‑contract spec. Implement one milestone at a time and validate against its acceptance checklist.
+
+| Milestone | Scope | Status | Spec |
+|-----------|-------|--------|------|
+| **M‑i** | C# protocol: `_meta.ui` + `visibility`, `ui/resource/read`, `ui/tool/call` | ✅ Delivered | this spec §4–§5, §10; [AppServer §11.3.1–§11.3.2](appserver-protocol.md) |
+| **M‑ii** | Desktop iframe host (read‑only): `dotcraft-app://` scheme + per‑resource CSP, sandboxed iframe, bridge handshake + tool‑input/result push | ✅ Delivered | this spec §6–§8 |
+| **M‑iii** | Bridge actions: `ui/tool/call`, `ui/open-link`, `ui/message`, `ui/update-model-context`, data‑path‑B CSP widening | Planned | [M‑iii](tool-result-presentation-m3.md) |
+| **M‑iv** | Host context push, `widgetState` persistence, display mode | Planned | [M‑iv](tool-result-presentation-m4.md) |
+| **M‑v** | First real app (Oratorio) + SDK ergonomics + non‑Desktop fallback | Planned | [M‑v](tool-result-presentation-m5.md) |
+| **M‑vi** | Capability negotiation, security & acceptance hardening | Planned | [M‑vi](tool-result-presentation-m6.md) |
+
+M‑i and M‑ii are verified end‑to‑end (the `sdk/dotnet/samples/InteractiveToolSample` app renders an interactive card in Desktop). M‑iii–M‑vi are hand‑off contracts.
