@@ -1204,6 +1204,9 @@ export const MESSAGES_DE = {
   'common.close': 'Schließen',
 
   // Welcome composer coverage
+  'interactiveTool.loading': 'App-Ansicht wird geladen…',
+  'interactiveTool.error': 'App-Ansicht konnte nicht geladen werden.',
+  'interactiveTool.unavailable': 'App-Ansicht nicht verfügbar',
   'appBinding.title': 'Apps',
   'appBinding.bindingStarted': 'App-Bindungsanfrage gestartet',
   'appBinding.handoffReady': 'App öffnen, um fortzufahren',

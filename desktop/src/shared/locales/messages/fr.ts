@@ -1203,6 +1203,9 @@ export const MESSAGES_FR = {
   'common.close': 'Fermer',
 
   // Welcome composer coverage
+  'interactiveTool.loading': "Chargement de la vue de l'app…",
+  'interactiveTool.error': "Impossible de charger la vue de l'app.",
+  'interactiveTool.unavailable': "Vue de l'app indisponible",
   'appBinding.title': 'Applications',
   'appBinding.bindingStarted': 'Demande de liaison d\'application lancée',
   'appBinding.handoffReady': 'Ouvrez l\'application pour continuer',

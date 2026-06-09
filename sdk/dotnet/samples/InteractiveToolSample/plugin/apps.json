@@ -1,0 +1,44 @@
+{
+  "apps": [
+    {
+      "appId": "com.dotcraft.sample-ui",
+      "toolNamespace": "sample",
+      "displayName": "Sample Interactive UI",
+      "developerName": "DotCraft",
+      "description": "Renders a sample MCP-Apps Interactive Tool UI card.",
+      "category": "Developer",
+      "icon": "./dotcraft-sample-ui.svg",
+      "originChannel": "dotcraftsample",
+      "nativeApplication": {
+        "displayName": "Sample Interactive UI",
+        "protocol": "dotcraftsample"
+      },
+      "connection": {
+        "handoffModes": [
+          {
+            "mode": "customProtocol",
+            "uriTemplate": "dotcraftsample://dotcraft/{operation}?app={appId}&request={requestId}&token={requestToken}&endpoint={endpoint}"
+          }
+        ]
+      },
+      "scopes": [
+        {
+          "id": "card.read",
+          "displayName": "Show cards",
+          "description": "Render sample interactive cards.",
+          "risk": "read",
+          "defaultSelected": true
+        }
+      ],
+      "toolCatalog": [
+        {
+          "name": "ShowCard",
+          "scope": "card.read",
+          "risk": "read",
+          "defaultExposure": "direct",
+          "description": "Show a sample interactive card."
+        }
+      ]
+    }
+  ]
+}

@@ -1742,6 +1742,155 @@ public sealed class AppBindingProtocolTests : IDisposable
             builtInPluginSourceRoots: [BundledPluginSourceRoot()]);
     }
 
+    [Fact]
+    public async Task UiResourceRead_BrokersDeclaredResourceToAppAndRejectsUndeclaredUri()
+    {
+        WriteOratorioPlugin();
+        var service = new AppBindingService();
+        using var harness = CreateHarness(service);
+        await harness.InitializeAsync();
+        await ConnectAppAsync(harness);
+        var thread = await harness.Service.CreateThreadAsync(CreateIdentity());
+        await CreateAcceptAndAttachUiToolAsync(harness, thread.Id);
+
+        harness.Transport.DrainSent();
+        harness.Transport.ApprovalHandler = (method, _) =>
+        {
+            Assert.Equal(AppServerMethods.ItemResourceRead, method);
+            return InMemoryTransport.BuildClientResponse(1, new UiResourceReadResult
+            {
+                Contents =
+                [
+                    new UiResourceContent
+                    {
+                        Uri = "ui://oratorio/board",
+                        MimeType = "text/html;profile=mcp-app",
+                        Text = "<!doctype html><body>board</body>"
+                    }
+                ]
+            });
+        };
+
+        var result = await service.ReadUiResourceAsync(_workspaceCraftPath, thread.Id, "oratorio", "ui://oratorio/board", default);
+        var content = Assert.Single(result.Contents);
+        Assert.Equal("ui://oratorio/board", content.Uri);
+        Assert.Equal("text/html;profile=mcp-app", content.MimeType);
+        Assert.Contains("board", content.Text);
+
+        await Assert.ThrowsAsync<AppServerException>(() =>
+            service.ReadUiResourceAsync(_workspaceCraftPath, thread.Id, "oratorio", "ui://oratorio/missing", default).AsTask());
+    }
+
+    [Fact]
+    public async Task UiToolCall_DispatchesAppVisibleToolDecoupledFromConversation()
+    {
+        WriteOratorioPlugin();
+        var service = new AppBindingService();
+        using var harness = CreateHarness(service);
+        await harness.InitializeAsync();
+        await ConnectAppAsync(harness);
+        var thread = await harness.Service.CreateThreadAsync(CreateIdentity());
+        await CreateAcceptAndAttachUiToolAsync(harness, thread.Id);
+
+        harness.Transport.DrainSent();
+        harness.Transport.ApprovalHandler = (method, _) =>
+        {
+            Assert.Equal(AppServerMethods.ItemToolCall, method);
+            return InMemoryTransport.BuildClientResponse(1, new DynamicToolCallResult
+            {
+                Success = true,
+                StructuredResult = JsonNode.Parse("""{"cardId":"card-9"}"""),
+                Meta = JsonNode.Parse("""{"ui":{"open":true}}""")
+            });
+        };
+
+        var result = await service.InvokeUiToolAsync(
+            _workspaceCraftPath,
+            thread.Id,
+            "oratorio",
+            "CreateCard",
+            new JsonObject { ["title"] = "From UI" },
+            sourceCallId: "dyntool_1",
+            userId: "test_user",
+            sessionService: harness.Service,
+            default);
+
+        Assert.True(result.Success);
+        Assert.Equal("card-9", result.StructuredResult?["cardId"]?.GetValue<string>());
+        Assert.True(result.Meta?["ui"]?["open"]?.GetValue<bool>());
+
+        // Decoupled: no conversation turn/item is created for a UI-initiated tool call.
+        var reread = await harness.Service.GetThreadAsync(thread.Id, default);
+        Assert.Empty(reread.Turns);
+
+        // …but it is recorded on the audit trail.
+        AssertAppBindingAuditContains("binding.uiToolCall");
+    }
+
+    [Fact]
+    public async Task UiToolCall_RejectsToolNotExposedToUi()
+    {
+        WriteOratorioPlugin();
+        var service = new AppBindingService();
+        using var harness = CreateHarness(service);
+        await harness.InitializeAsync();
+        await ConnectAppAsync(harness);
+        var thread = await harness.Service.CreateThreadAsync(CreateIdentity());
+        await CreateAcceptAndAttachAsync(harness, thread.Id); // CreateCard attached without _meta.ui
+
+        var result = await service.InvokeUiToolAsync(
+            _workspaceCraftPath,
+            thread.Id,
+            "oratorio",
+            "CreateCard",
+            new JsonObject { ["title"] = "From UI" },
+            sourceCallId: null,
+            userId: "test_user",
+            sessionService: harness.Service,
+            default);
+
+        Assert.False(result.Success);
+        Assert.Equal(AppBindingErrorCodes.ToolUnavailable, result.ErrorCode);
+    }
+
+    private async Task<string> CreateAcceptAndAttachUiToolAsync(AppServerTestHarness harness, string threadId)
+    {
+        var request = await CreateBindingRequestAsync(harness, threadId);
+        var bindingId = await AcceptBindingAsync(harness, request.BindingRequestId, request.Token);
+        using var attachResponse = await ExecuteAndReadResponseAsync(
+            harness,
+            AppBindingAttachTools,
+            new
+            {
+                bindingId,
+                threadId,
+                appId = "com.dotharness.oratorio",
+                grantId = "grant-1",
+                tools = new[]
+                {
+                    new DynamicToolSpec
+                    {
+                        Namespace = "oratorio",
+                        Name = "CreateCard",
+                        Description = "Create a card",
+                        InputSchema = CreateCardSchema(),
+                        Meta = new DynamicToolMeta
+                        {
+                            Ui = new UiToolMeta
+                            {
+                                ResourceUri = "ui://oratorio/board",
+                                Visibility = ["model", "app"]
+                            }
+                        }
+                    }
+                }
+            },
+            expectedNotificationMethod: "thread/appBindings/changed");
+        AppServerTestHarness.AssertIsSuccessResponse(attachResponse);
+        Assert.Equal(1, attachResponse.RootElement.GetProperty("result").GetProperty("acceptedToolCount").GetInt32());
+        return bindingId;
+    }
+
     private void AssertAppBindingAuditContains(string eventName)
     {
         var statePath = Path.Combine(_workspaceCraftPath, "app-bindings", "state.json");

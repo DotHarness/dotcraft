@@ -210,6 +210,91 @@ public sealed class WireDynamicToolProxyTests
     }
 
     [Fact]
+    public async Task RuntimeDynamicTool_CarriesUiMetaToPayloadButHidesItFromModel()
+    {
+        var proxy = new WireDynamicToolProxy();
+        var thread = CreateThread();
+        var turn = CreateTurn(thread.Id);
+        var transport = new RecordingTransport(new DynamicToolCallResult
+        {
+            Success = true,
+            StructuredResult = JsonNode.Parse("""{"reviewId":"r1"}"""),
+            Meta = JsonNode.Parse("""{"ui":{"badge":"secret-ui-only"}}""")
+        });
+        var connection = new AppServerConnection();
+        var spec = CreateReviewToolSpec();
+
+        proxy.BindThread(thread.Id, transport, connection, [spec]);
+        var tool = Assert.IsAssignableFrom<AIFunction>(Assert.Single(proxy.CreateToolsForThread(thread, EmptyReservedNames())));
+
+        var seq = 0;
+        using var scope = PluginFunctionExecutionScope.Set(new PluginFunctionExecutionContext
+        {
+            ThreadId = thread.Id,
+            TurnId = turn.Id,
+            OriginChannel = "appserver",
+            WorkspacePath = Environment.CurrentDirectory,
+            RequireApprovalOutsideWorkspace = false,
+            ApprovalService = new AutoApproveApprovalService(),
+            Turn = turn,
+            NextItemSequence = () => ++seq,
+            EmitItemStarted = _ => { },
+            EmitItemCompleted = _ => { }
+        });
+
+        var modelValue = await tool.InvokeAsync(new AIFunctionArguments(new Dictionary<string, object?>
+        {
+            ["body"] = "Looks good."
+        }));
+
+        // _meta is carried on the stored item (host/UI surface)…
+        var payload = Assert.IsType<DynamicToolCallPayload>(Assert.Single(turn.Items).Payload);
+        Assert.Equal("secret-ui-only", payload.Meta?["ui"]?["badge"]?.GetValue<string>());
+
+        // …but never leaks into the model-visible value.
+        var modelJson = JsonSerializer.Serialize(modelValue, SessionWireJsonOptions.Default);
+        Assert.DoesNotContain("secret-ui-only", modelJson, StringComparison.Ordinal);
+        Assert.DoesNotContain("_meta", modelJson, StringComparison.Ordinal);
+        Assert.Contains("r1", modelJson, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CreateToolsForThread_ExcludesAppOnlyTools()
+    {
+        var proxy = new WireDynamicToolProxy();
+        var thread = CreateThread();
+        var modelTool = CreateReviewToolSpec();
+        modelTool.Meta = new DynamicToolMeta
+        {
+            Ui = new UiToolMeta
+            {
+                ResourceUri = "ui://oratorio/board",
+                Visibility = ["model", "app"]
+            }
+        };
+        var appOnlyTool = new DynamicToolSpec
+        {
+            Name = "RefreshBoard",
+            Description = "Refresh the board (UI-only)",
+            InputSchema = new JsonObject { ["type"] = "object" },
+            Meta = new DynamicToolMeta
+            {
+                Ui = new UiToolMeta
+                {
+                    ResourceUri = "ui://oratorio/board",
+                    Visibility = ["app"]
+                }
+            }
+        };
+
+        proxy.BindThread(thread.Id, new RecordingTransport(new DynamicToolCallResult { Success = true }), new AppServerConnection(), [modelTool, appOnlyTool]);
+
+        var tools = proxy.CreateToolsForThread(thread, EmptyReservedNames());
+        var tool = Assert.IsAssignableFrom<AIFunction>(Assert.Single(tools));
+        Assert.Equal("SubmitReviewDraft", tool.Name);
+    }
+
+    [Fact]
     public void TryValidateSpecs_RejectsInvalidApprovalMetadata()
     {
         var spec = CreateReviewToolSpec(new ChannelToolApprovalDescriptor

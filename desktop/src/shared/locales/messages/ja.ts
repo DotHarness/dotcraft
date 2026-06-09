@@ -1197,6 +1197,9 @@ export const MESSAGES_JA = {
   'common.close': '閉じる',
 
   // Welcome composer coverage
+  'interactiveTool.loading': 'アプリビューを読み込み中…',
+  'interactiveTool.error': 'アプリビューを読み込めませんでした。',
+  'interactiveTool.unavailable': 'アプリビューを利用できません',
   'appBinding.title': 'アプリ',
   'appBinding.bindingStarted': 'アプリ連携リクエストを開始しました',
   'appBinding.handoffReady': 'アプリを開いて続行',

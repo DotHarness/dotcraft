@@ -1,5 +1,5 @@
 ---
-version: "0.3.0"
+version: "0.4.0"
 name: "DotCraft Desktop"
 description: "Quiet operational desktop UI for repeated agent work."
 sourceTokens: "desktop/src/renderer/styles/tokens.css"
@@ -342,6 +342,22 @@ the same interaction language:
 - stronger outlines are reserved for inputs, drag/drop targets, validation,
   destructive confirmation, or focus-visible accessibility.
 
+### Interactive Tool UI
+
+App-bound tools may render an interactive UI in a sandboxed iframe (see
+[Interactive Tool UI](../protocols/tool-result-presentation.md), aligned with MCP Apps).
+The app owns the inner UI; Desktop owns only the host frame around it.
+
+- The host frame is a single neutral surface (`--bg-secondary`, `--border-default`,
+  8–10px radius) with a quiet header (tool title / app attribution) and the iframe
+  below. Do not add decorative chrome around the iframe.
+- The iframe content is the app's own HTML/CSS; Desktop does not restyle it. Hand the
+  theme (light/dark) and accent to the UI via host context (`ui/initialize` /
+  host-config) so apps can match the desktop; apps choose whether to honor it.
+- Keep the frame compact by default; honor `ui/request-display-mode` for expand.
+- Non-Desktop clients do not render the iframe; they show the tool result's text. Do not
+  design flows that require the interactive UI.
+
 ## Do's and Don'ts
 
 Do:
@@ -377,6 +393,9 @@ Review checklist:
 - Each surface has at most one immediate primary action.
 - Semantic colors are used only for status, risk, or validation.
 - Provider/channel colors remain small identity accents.
+- Interactive tool UI renders in a sandboxed iframe with a neutral host frame; Desktop
+  does not restyle the app's inner UI, and hands theme/accent to it via host context.
+- Non-Desktop clients fall back to tool-result text; no flow requires the iframe.
 - Inputs and pickers remain neutral.
 - Ordinary menu overlays are borderless and share the solid opaque surface; the
   only border is a single hairline on a submenu/stacked overlay's overlapping edge.

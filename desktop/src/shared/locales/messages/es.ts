@@ -1202,6 +1202,9 @@ export const MESSAGES_ES = {
   'common.close': 'Cerrar',
 
   // Welcome composer coverage
+  'interactiveTool.loading': 'Cargando la vista de la app…',
+  'interactiveTool.error': 'No se pudo cargar la vista de la app.',
+  'interactiveTool.unavailable': 'Vista de la app no disponible',
   'appBinding.title': 'Aplicaciones',
   'appBinding.bindingStarted': 'Solicitud de vinculación de app iniciada',
   'appBinding.handoffReady': 'Abre la app para continuar',

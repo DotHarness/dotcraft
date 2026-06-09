@@ -1197,6 +1197,9 @@ export const MESSAGES_KO = {
   'common.close': '닫기',
 
   // Welcome composer coverage
+  'interactiveTool.loading': '앱 뷰를 불러오는 중…',
+  'interactiveTool.error': '앱 뷰를 불러오지 못했습니다.',
+  'interactiveTool.unavailable': '앱 뷰를 사용할 수 없습니다',
   'appBinding.title': '앱',
   'appBinding.bindingStarted': '앱 바인딩 요청이 시작되었습니다',
   'appBinding.handoffReady': '계속하려면 앱을 여세요',

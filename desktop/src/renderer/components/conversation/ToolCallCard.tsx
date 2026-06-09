@@ -34,6 +34,7 @@ import { CreatePlanCard, hasCreatePlanDisplayData } from './CreatePlanCard'
 import { CronCreatedCard } from './CronCreatedCard'
 import { SkillManageCard } from './SkillManageCard'
 import { SkillViewCard } from './SkillViewCard'
+import { InteractiveToolView, hasInteractiveToolUi } from './InteractiveToolView'
 import { ToolCollapseChevron } from './ToolCollapseChevron'
 import { CollapsibleContent } from './CollapsibleContent'
 import { AnsiPre } from './AnsiPre'
@@ -143,6 +144,7 @@ export const ToolCallCard = memo(function ToolCallCard({
   turnRunning = false
 }: ToolCallCardProps): JSX.Element {
   const locale = useLocale()
+  const threadId = useThreadStore((state) => state.activeThreadId)
   const [hovered, setHovered] = useState(false)
   const [expanded, setExpanded] = useState(false)
   const [renderExpanded, setRenderExpanded] = useState(false)
@@ -362,6 +364,11 @@ export const ToolCallCard = memo(function ToolCallCard({
     : null
   if (subAgentDisplay) {
     return <SubAgentToolResultCard display={subAgentDisplay} locale={locale} />
+  }
+
+  // App Binding tools that declare an Interactive Tool UI render in a sandboxed iframe (Desktop only).
+  if (!isRunning && hasInteractiveToolUi(item)) {
+    return <InteractiveToolView item={item} threadId={threadId} locale={locale} />
   }
 
   if (isRunning) {

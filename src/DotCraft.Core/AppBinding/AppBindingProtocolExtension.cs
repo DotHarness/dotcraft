@@ -37,6 +37,8 @@ public sealed class AppBindingProtocolExtension(
     private const string ThreadAppBindingsRevoke = "thread/appBindings/revoke";
     private const string ThreadAppBindingsRefresh = "thread/appBindings/refresh";
     private const string ThreadAppContextBlocksList = "thread/appContextBlocks/list";
+    private const string UiResourceRead = "ui/resource/read";
+    private const string UiToolCall = "ui/tool/call";
 
     private const string AppConnectionChanged = "app/connection/changed";
     private const string ThreadAppBindingsChanged = "thread/appBindings/changed";
@@ -63,7 +65,9 @@ public sealed class AppBindingProtocolExtension(
         ThreadAppBindingsList,
         ThreadAppBindingsRevoke,
         ThreadAppBindingsRefresh,
-        ThreadAppContextBlocksList
+        ThreadAppContextBlocksList,
+        UiResourceRead,
+        UiToolCall
     ];
 
     public void ContributeCapabilities(AppServerCapabilityBuilder builder)
@@ -385,6 +389,29 @@ public sealed class AppBindingProtocolExtension(
                 var p = GetParams<ThreadAppContextBlocksListParams>(msg);
                 await EnsureThreadAsync(context, p.ThreadId, ct);
                 return service.ListThreadContextBlocks(workspaceCraftPath, p.ThreadId, p.IncludeInactive == true);
+            }
+
+            case UiResourceRead:
+            {
+                var p = GetParams<UiResourceReadParams>(msg);
+                await EnsureThreadAsync(context, p.ThreadId, ct);
+                return await service.ReadUiResourceAsync(workspaceCraftPath, p.ThreadId, p.Namespace, p.Uri, ct);
+            }
+
+            case UiToolCall:
+            {
+                var p = GetParams<UiToolCallParams>(msg);
+                await EnsureThreadAsync(context, p.ThreadId, ct);
+                return await service.InvokeUiToolAsync(
+                    workspaceCraftPath,
+                    p.ThreadId,
+                    p.Namespace,
+                    p.Tool,
+                    p.Arguments,
+                    p.SourceCallId,
+                    userId,
+                    context.SessionService,
+                    ct);
             }
 
             case ThreadAppBindingsRevoke:

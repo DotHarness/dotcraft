@@ -14,6 +14,7 @@ import {
   derivePluginFunctionResultText,
   isToolLikeItemType,
   normalizePluginFunctionContentItems,
+  normalizeToolUiDescriptor,
   wireItemToConversationItem,
   wireTurnToConversationTurn
 } from '../types/conversation'
@@ -720,6 +721,13 @@ function buildToolLikeItem(
   const invocationResult = hasStructuredInvocationResult
     ? derivePluginFunctionResultText(contentItems, structuredResult, errorMessage)
     : undefined
+  const meta = hasStructuredInvocationResult
+    ? ((item._meta as Record<string, unknown> | undefined)
+      ?? (payload._meta as Record<string, unknown> | undefined))
+    : undefined
+  const toolUi = hasStructuredInvocationResult
+    ? normalizeToolUiDescriptor((item.ui as unknown) ?? (payload.ui as unknown))
+    : undefined
 
   return {
     id: (item.id as string) ?? '',
@@ -749,6 +757,8 @@ function buildToolLikeItem(
       ?? (payload.functionName as string | undefined),
     contentItems,
     structuredResult,
+    meta,
+    toolUi,
     errorCode: (item.errorCode as string | undefined)
       ?? (payload.errorCode as string | undefined),
     errorMessage,
@@ -2044,6 +2054,8 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
                       functionName: completedItem.functionName ?? i.functionName,
                       contentItems: completedItem.contentItems ?? i.contentItems,
                       structuredResult: completedItem.structuredResult ?? i.structuredResult,
+                      meta: completedItem.meta ?? i.meta,
+                      toolUi: completedItem.toolUi ?? i.toolUi,
                       errorCode: completedItem.errorCode ?? i.errorCode,
                       errorMessage: completedItem.errorMessage ?? i.errorMessage,
                       duration: endMs - startMs,

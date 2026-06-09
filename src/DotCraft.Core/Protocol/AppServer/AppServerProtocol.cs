@@ -260,6 +260,102 @@ public sealed class DynamicToolSpec
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ChannelToolApprovalDescriptor? Approval { get; set; }
+
+    /// <summary>
+    /// Extensible <c>_meta</c> envelope (MCP Apps). Carries Interactive Tool UI metadata; UI/host-only.
+    /// </summary>
+    [JsonPropertyName("_meta")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DynamicToolMeta? Meta { get; set; }
+}
+
+/// <summary>
+/// Extensible <c>_meta</c> envelope on a dynamic tool spec (MCP Apps).
+/// </summary>
+public sealed class DynamicToolMeta
+{
+    /// <summary>Interactive Tool UI descriptor (<c>_meta.ui</c>).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public UiToolMeta? Ui { get; set; }
+}
+
+/// <summary>
+/// Interactive Tool UI descriptor (<c>_meta.ui</c>), aligned to MCP Apps / SEP-1865.
+/// See <c>specs/protocols/tool-result-presentation.md</c> §4.
+/// </summary>
+public sealed class UiToolMeta
+{
+    /// <summary>The <c>ui://</c> resource URI whose HTML renders this tool's result.</summary>
+    public string ResourceUri { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Audience for the tool. <c>["model","app"]</c> = model-callable and UI-rendered;
+    /// <c>["app"]</c> = UI-only (hidden from the model, invocable only via <c>ui/tool/call</c>).
+    /// Absent =&gt; model-visible by default.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? Visibility { get; set; }
+
+    /// <summary>Content-Security-Policy allowances for the rendered iframe.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public UiToolCsp? Csp { get; set; }
+
+    /// <summary>Optional host permissions the UI requests.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? Permissions { get; set; }
+
+    /// <summary>Whether the host should draw a default border/frame around the UI.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? PrefersBorder { get; set; }
+
+    /// <summary>Optional app domain identifier (provenance / grouping).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Domain { get; set; }
+}
+
+/// <summary>
+/// Content-Security-Policy allowances for an Interactive Tool UI iframe.
+/// </summary>
+public sealed class UiToolCsp
+{
+    /// <summary>Origins the UI may <c>connect-src</c> to (fetch / XHR / WebSocket).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? ConnectDomains { get; set; }
+
+    /// <summary>Origins the UI may load passive resources from (img / style / font / media).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? ResourceDomains { get; set; }
+
+    /// <summary>Origins the UI may embed as nested frames.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? FrameDomains { get; set; }
+}
+
+/// <summary>
+/// Audience constants and helpers for <see cref="UiToolMeta.Visibility"/> (MCP Apps).
+/// </summary>
+public static class UiToolVisibility
+{
+    public const string Model = "model";
+    public const string App = "app";
+
+    /// <summary>
+    /// True when the tool should be exposed to the model. A tool with no UI metadata or no
+    /// explicit visibility list is model-visible; an explicit list must contain <c>"model"</c>.
+    /// </summary>
+    public static bool IsModelVisible(UiToolMeta? ui)
+        => ui?.Visibility is not { Count: > 0 } visibility
+           || visibility.Contains(Model, StringComparer.Ordinal);
+
+    /// <summary>
+    /// True when the tool may be invoked by its UI via <c>ui/tool/call</c>. A tool with no UI
+    /// metadata is not app-invocable; an explicit list must contain <c>"app"</c>, and a tool that
+    /// declares a UI resource without a visibility list is app-invocable by default.
+    /// </summary>
+    public static bool IsAppVisible(UiToolMeta? ui)
+        => ui is not null
+           && (ui.Visibility is not { Count: > 0 } visibility
+               || visibility.Contains(App, StringComparer.Ordinal));
 }
 
 public sealed class ChannelToolApprovalDescriptor
@@ -314,6 +410,72 @@ public sealed class DynamicToolCallResult
     public string? ErrorCode { get; set; }
 
     public string? ErrorMessage { get; set; }
+
+    /// <summary>
+    /// UI-only metadata (MCP Apps <c>_meta</c>). Forwarded to the host/UI for rendering;
+    /// never included in the model-visible result.
+    /// </summary>
+    [JsonPropertyName("_meta")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonNode? Meta { get; set; }
+}
+
+/// <summary>
+/// Params for <c>ui/resource/read</c> (host → server) and the brokered <c>item/resource/read</c>
+/// (server → app). Reads a <c>ui://</c> Interactive Tool UI resource. See
+/// <c>specs/protocols/appserver-protocol.md</c> §11.3.1.
+/// </summary>
+public sealed class UiResourceReadParams
+{
+    public string ThreadId { get; set; } = string.Empty;
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Namespace { get; set; }
+
+    public string Uri { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Result of a <c>ui://</c> resource read, aligned to MCP <c>resources/read</c>.
+/// </summary>
+public sealed class UiResourceReadResult
+{
+    public List<UiResourceContent> Contents { get; set; } = [];
+}
+
+/// <summary>
+/// A single resource entry returned by a <c>ui://</c> resource read.
+/// </summary>
+public sealed class UiResourceContent
+{
+    public string Uri { get; set; } = string.Empty;
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? MimeType { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Text { get; set; }
+}
+
+/// <summary>
+/// Params for <c>ui/tool/call</c> (host → server): a UI-initiated app-tool invocation
+/// (MCP Apps <c>callTool</c>). Decoupled from the conversation — gated, brokered, audited, with
+/// the result returned to the host/UI. See appserver-protocol.md §11.3.2.
+/// </summary>
+public sealed class UiToolCallParams
+{
+    public string ThreadId { get; set; } = string.Empty;
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Namespace { get; set; }
+
+    public string Tool { get; set; } = string.Empty;
+
+    public JsonObject Arguments { get; set; } = new();
+
+    /// <summary>The <c>callId</c> of the <c>dynamicToolCall</c> whose UI initiated this call (provenance).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? SourceCallId { get; set; }
 }
 
 public sealed class ChannelToolDisplay
@@ -4164,6 +4326,12 @@ public static class AppServerMethods
     public const string ItemApprovalRequest = "item/approval/request";
     public const string ItemRequestUserInput = "item/tool/requestUserInput";
     public const string ItemToolCall = "item/tool/call";
+
+    /// <summary>
+    /// Server → App request: read a <c>ui://</c> Interactive Tool UI resource owned by the app.
+    /// Brokered from the host's <c>ui/resource/read</c>. See appserver-protocol.md §11.3.1.
+    /// </summary>
+    public const string ItemResourceRead = "item/resource/read";
 
     // Server → Client notification (SubAgent progress)
     public const string SubAgentProgress = "subagent/progress";

@@ -130,7 +130,8 @@ public sealed class WireDynamicToolProxy : IThreadRuntimeToolProvider
             return [];
 
         return binding.Tools
-            .Where(tool => !reservedToolNames.Contains(tool.Name))
+            .Where(tool => !reservedToolNames.Contains(tool.Name)
+                && UiToolVisibility.IsModelVisible(tool.Meta?.Ui))
             .Select(tool => (AITool)new DynamicToolRuntimeFunction(this, binding, tool))
             .ToArray();
     }
@@ -197,7 +198,8 @@ public sealed class WireDynamicToolProxy : IThreadRuntimeToolProvider
                     TargetArgument = spec.Approval.TargetArgument,
                     Operation = spec.Approval.Operation,
                     OperationArgument = spec.Approval.OperationArgument
-                }
+                },
+            Meta = spec.Meta
         };
 
     private static DynamicToolCallResult Failed(string code, string message) =>
@@ -378,7 +380,11 @@ public sealed class WireDynamicToolProxy : IThreadRuntimeToolProvider
                 StructuredResult = result?.StructuredResult?.DeepClone(),
                 Success = result?.Success ?? false,
                 ErrorCode = result?.ErrorCode,
-                ErrorMessage = result?.ErrorMessage
+                ErrorMessage = result?.ErrorMessage,
+                Meta = result?.Meta?.DeepClone(),
+                Ui = spec.Meta?.Ui is { } ui
+                    ? JsonSerializer.SerializeToNode(ui, SessionWireJsonOptions.Default)
+                    : null
             };
 
         private async Task<(string ErrorCode, string ErrorMessage)?> ApplyServerApprovalAsync(

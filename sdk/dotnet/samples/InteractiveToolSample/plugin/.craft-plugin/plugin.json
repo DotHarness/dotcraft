@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "id": "dotcraft-sample-ui",
+  "version": "0.1.0",
+  "displayName": "Sample Interactive UI",
+  "description": "Sample app that renders an Interactive Tool UI card.",
+  "capabilities": ["app"],
+  "apps": "./apps.json"
+}

@@ -86,6 +86,53 @@ public sealed class AppBindingTests
         Assert.Equal(2, bindings[0].AttachedToolCount);
     }
 
+    [Fact]
+    public async Task ResourceHandler_RespondsToServerResourceRead()
+    {
+        var (client, transport) = await ConnectAsync();
+        await using var _ = client;
+
+        using var registration = client.RegisterResourceHandler((request, _) =>
+            Task.FromResult(new ResourceReadResult(new[]
+            {
+                new ResourceContent(request.Uri, "text/html;profile=mcp-app", "<!doctype html><body>board</body>")
+            })));
+
+        await transport.PushInboundAsync(new
+        {
+            jsonrpc = "2.0",
+            id = 99,
+            method = "item/resource/read",
+            @params = new { threadId = "thread_1", @namespace = "oratorio", uri = "ui://oratorio/board" }
+        });
+
+        using var outbound = await transport.ReadOutboundAsync();
+        Assert.Equal(99, outbound.RootElement.GetProperty("id").GetInt64());
+        var contents = outbound.RootElement.GetProperty("result").GetProperty("contents");
+        Assert.Equal("ui://oratorio/board", contents[0].GetProperty("uri").GetString());
+        Assert.Equal("text/html;profile=mcp-app", contents[0].GetProperty("mimeType").GetString());
+        Assert.Contains("board", contents[0].GetProperty("text").GetString());
+    }
+
+    [Fact]
+    public async Task ResourceRead_WithoutHandler_ReturnsEmptyContents()
+    {
+        var (client, transport) = await ConnectAsync();
+        await using var _ = client;
+
+        await transport.PushInboundAsync(new
+        {
+            jsonrpc = "2.0",
+            id = 100,
+            method = "item/resource/read",
+            @params = new { threadId = "thread_1", uri = "ui://oratorio/board" }
+        });
+
+        using var outbound = await transport.ReadOutboundAsync();
+        Assert.Equal(100, outbound.RootElement.GetProperty("id").GetInt64());
+        Assert.Empty(outbound.RootElement.GetProperty("result").GetProperty("contents").EnumerateArray());
+    }
+
     private static async Task<(DotCraftClient client, TestJsonRpcTransport transport)> ConnectAsync()
     {
         var transport = new TestJsonRpcTransport();
