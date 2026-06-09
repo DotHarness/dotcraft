@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.6.0 |
+| **Version** | 0.7.0 |
 | **Status** | Draft |
 | **Date** | 2026-06-09 |
 | **Parent Spec** | [AppServer Protocol](appserver-protocol.md) |
@@ -57,7 +57,7 @@ Only DotCraft **Desktop** advertises `interactiveToolUi`. TUI/channel adapters d
 ### 4.1 UI Resource
 - **URI scheme:** `ui://` (e.g. `ui://oratorio/board.html`). Changing the URI is the cache‑bust / version lever.
 - **MIME type:** `text/html;profile=mcp-app`.
-- **Content:** an HTML document (inline `<style>`/`<script type="module">`, or a root div + `<script src=…>` whose origin is allowed by CSP `resourceDomains`, §11). Served by the app via `resources/read` (§ AppServer Protocol); predeclared so the host can prefetch and inspect.
+- **Content:** an HTML document (inline `<style>`/`<script>`, or a root div + `<script src=…>` whose origin is allowed by CSP `resourceDomains`, §11). Served by the app on **`item/resource/read`**, brokered from the host's **`ui/resource/read`** ([AppServer Protocol §11.3.1](appserver-protocol.md)); predeclared so the host can prefetch and inspect.
 
 ### 4.2 Tool → UI linkage (`_meta.ui`)
 A tool references its UI in its descriptor `_meta` (not in the result), so the host can preload before completion:
@@ -111,12 +111,13 @@ A dynamic tool result carries three payloads with **distinct audiences**, mirror
 
 ## 6. Rendering
 
-DotCraft Desktop renders the UI resource in a **sandboxed iframe**:
+DotCraft Desktop renders the UI resource in a **sandboxed iframe served by a privileged host scheme**:
 
-- Sandboxed with `allow-scripts` and **without** `allow-same-origin` (the UI gets an opaque origin; no access to the parent DOM, cookies, or storage; cannot navigate the parent). DotCraft MAY use the SEP‑1865 double‑iframe / sandbox‑proxy pattern.
-- The iframe document is the app's own HTML; the host injects the bridge runtime (§7) before the app's module script runs.
-- The app's bundle mounts into its own root element. DotCraft does not restyle the inner UI; it hands theme/accent via host context (§8).
-- The host owns only the surrounding frame (quiet header with tool/app attribution; sizing). See [DESIGN.md](../clients/DESIGN.md) → Interactive Tool UI.
+- **Host scheme + own CSP.** The host registers a privileged scheme (`dotcraft-app://`) and serves the app's `ui://` HTML through it, applying a **per‑resource CSP** to that response so the document has its **own** CSP, independent of the app‑shell CSP. A `srcdoc` / `blob:` iframe is **not** used: it would inherit the embedding document's CSP (which forbids inline scripts in production), and a `<meta>` CSP can only further restrict it.
+- **Sandbox.** `sandbox="allow-scripts"` and **without** `allow-same-origin`: opaque origin; no access to the parent DOM/cookies/storage; cannot navigate the parent; no Node.
+- **CSP source.** Restrictive by default; widened only from `_meta.ui.csp` (§11): `connectDomains`→`connect-src`, `resourceDomains`→img/style/font/media‑src, `frameDomains`→`frame-src`. The app‑shell CSP must allow framing the host scheme (`frame-src`).
+- **No runtime injection.** The host injects nothing into the iframe. The app's own HTML/bundle speaks the bridge (§7) to `window.parent` via `postMessage`; the **renderer is the host‑side bridge peer** and validates `event.source` is the iframe. Apps MAY use `@mcp-ui/client` / the ext‑apps App Bridge, but that is the app's choice, not host‑injected.
+- The app's bundle mounts into its own root element; DotCraft does not restyle the inner UI, handing theme/locale via host context (§8). The host owns only the surrounding frame (quiet tool/app attribution; sizing). See [DESIGN.md](../clients/DESIGN.md) → Interactive Tool UI.
 
 ---
 
@@ -125,10 +126,9 @@ DotCraft Desktop renders the UI resource in a **sandboxed iframe**:
 The UI and host communicate via **JSON‑RPC 2.0 over `window.postMessage`** — a `ui/`‑prefixed dialect of MCP per SEP‑1865, with reused core methods (`tools/call`). DotCraft implements the host side; the app's UI uses it directly or via `@mcp-ui/client` / the ext‑apps App Bridge.
 
 ### 7.1 Lifecycle / handshake
-1. UI → host: **`ui/initialize`** (app capabilities) → host result: **`hostContext`** (§8) + **`hostCapabilities`** (`openLinks`, `serverTools`, `updateModelContext`, `message`, `sandbox`, `logging`).
-2. UI → host: **`ui/notifications/initialized`**.
-3. Host → UI: **`ui/notifications/tool-input`** (the call's arguments), then **`ui/notifications/tool-result`** (`structuredContent` + `_meta`).
-4. Teardown: host → UI **`ui/resource-teardown`** (§14).
+1. UI → host: **`ui/initialize`** (app capabilities) → host result: **`hostContext`** (§8) + **`hostCapabilities`** (`openLinks`, `serverTools`, `updateModelContext`, `message`, `logging`). In M‑ii these capabilities are all `false` (read‑only host); M‑iii flips them on.
+2. Host → UI: **`ui/notifications/tool-input`** (the call's arguments), then **`ui/notifications/tool-result`** (`content` + `structuredContent` + `_meta` + `isError`), sent after the `ui/initialize` result. (`ui/notifications/initialized` from the UI is optional; the host does not await it.)
+3. Teardown: host → UI **`ui/resource-teardown`** (§14).
 
 ### 7.2 Host → UI notifications
 - `ui/notifications/tool-input`, `ui/notifications/tool-input-partial` (streamed/healed partial args), `ui/notifications/tool-result`.
@@ -220,9 +220,9 @@ Desktop Host owns six subsystems (host‑owns vs app‑owns):
 
 | Subsystem | Host owns | App owns |
 |-----------|-----------|----------|
-| **(a) Sandbox iframe + bootstrap** | One sandboxed iframe per UI‑bearing `dynamicToolCall`; `sandbox="allow-scripts"` (no `allow-same-origin`); apply `_meta.ui.csp`; inject HTML (srcdoc/blob); inject the bridge runtime before the app script; enforce `maxHeight` / display mode. | HTML template, root element, JS/CSS bundle, mounting. |
+| **(a) Sandbox iframe + host scheme** | One sandboxed iframe per UI‑bearing `dynamicToolCall`; `sandbox="allow-scripts"` (no `allow-same-origin`); the app HTML is served via the privileged `dotcraft-app://` scheme with a **per‑resource CSP** built from `_meta.ui.csp`; **no runtime injection**; enforce `maxHeight` / display mode. | HTML template, root element, JS/CSS bundle (its own bridge code), mounting. |
 | **(b) Bridge runtime** | Implement the `ui/*` + `tools/*` JSON‑RPC peer over postMessage; push `hostContext`/notifications; service `tools/call`, `ui/open-link`, `ui/message`, `ui/update-model-context`, `ui/request-display-mode`, introspection; validate `event.source` is the iframe. | Consume via `useApp()`/the App Bridge. |
-| **(c) Resource fetch + cache** | On a tool with `_meta.ui.resourceUri`, `resources/read` the `ui://` (via AppServer), cache by URI, validate mimetype, refetch when URI changes. | `resources/list` + `resources/read` handlers; `ui://` naming; bundle hashing for versions. |
+| **(c) Resource fetch + cache** | On a tool with `_meta.ui.resourceUri`, the `dotcraft-app://` handler brokers **`ui/resource/read`** (→ app `item/resource/read`, [AppServer §11.3.1](appserver-protocol.md)); cache by URI; refetch when the URI changes. | `item/resource/read` handler serving `ui://` HTML; `ui://` naming; bundle hashing for versions. |
 | **(d) Tool‑call proxy + consent** | Receive UI `tools/call`; enforce visibility + binding scope/risk/approval; forward via `item/tool/call`; return result; hide `app`‑only tools from the model. | Declare `visibility`; tool handlers; result audience split (§5). |
 | **(e) State persistence** | Persist `widgetState` keyed to the thread item; restore on re‑open; re‑apply `structuredResult` each turn; route `ui/update-model-context` (deferred) and `ui/message` (immediate turn). | Choose `widgetState` (UI) vs `structuredResult` (model+UI) vs `_meta` (UI‑only). |
 | **(f) Theme / display handoff** | Compute + push `theme`/`locale`/`displayMode`/`maxHeight`/`safeArea`; re‑emit on change; expose host CSS vars; arbitrate `ui/request-display-mode`. | React to context; use host CSS vars; request modes from user gestures only. |
@@ -281,3 +281,29 @@ This spec ships in milestones; each has a dedicated behavior‑contract spec. Im
 | **M‑vi** | Capability negotiation, security & acceptance hardening | Planned | [M‑vi](tool-result-presentation-m6.md) |
 
 M‑i and M‑ii are verified end‑to‑end (the `sdk/dotnet/samples/InteractiveToolSample` app renders an interactive card in Desktop). M‑iii–M‑vi are hand‑off contracts.
+
+## 18. Implementation Landmarks (as built: M‑i, M‑ii)
+
+Where the delivered M‑i/M‑ii code lives, so M‑iii+ extends the right places.
+
+**AppServer / core (C#)**
+- `_meta.ui` model (`UiToolMeta`, `UiToolCsp`, `UiToolVisibility`), result `_meta`, wire types (`UiResourceReadParams`/`UiResourceReadResult`/`UiResourceContent`, `UiToolCallParams`), and the server→app `item/resource/read` constant: `src/DotCraft.Core/Protocol/AppServer/AppServerProtocol.cs`.
+- Item payload `_meta` + `ui` descriptor fields: `src/DotCraft.Core/Protocol/ItemPayloads.cs`.
+- `ui/resource/read` + `ui/tool/call` brokering, audit, and the model‑visibility filter: `src/DotCraft.Core/AppBinding/AppBindingService.cs` (`ReadUiResourceAsync`, `InvokeUiToolAsync`, `CreateRuntimeToolsForThread`); host routes in `AppBindingProtocolExtension.cs`. The same `_meta`/`ui` carry‑through also exists in `Protocol/AppServer/WireDynamicToolProxy.cs` (client‑declared dynamic tools).
+
+**SDK (C#)** — `sdk/dotnet/src/DotCraft.Sdk/AppServer/`
+- `RegisterResourceHandler` + `ResourceReadRequest`/`ResourceContent`/`ResourceReadResult`: `DotCraftClient.cs` + `AppServerModels.cs`.
+- `_meta` on `DynamicToolSpec`/`DynamicToolResult` (+ `DynamicToolMeta`/`DynamicToolUiMeta`/`DynamicToolUiCsp`): `AppServerModels.cs`.
+
+**Desktop main** — `desktop/src/main/`
+- `dotcraft-app://` privileged scheme + handler + per‑resource CSP: `dotcraftAppProtocol.ts`.
+- Scheme registration + parent CSP `frame-src 'self' dotcraft-app:` (and preserving the handler's CSP): `index.ts`.
+
+**Desktop renderer** — `desktop/src/renderer/`
+- iframe host + read‑only bridge peer: `components/conversation/InteractiveToolView.tsx`.
+- `toolUi`/`meta` types, `normalizeToolUiDescriptor`, and history mapping: `types/conversation.ts`.
+- ⚠️ **Two item mappers** — any new `dynamicToolCall` field must be carried in **both** `wireItemToConversationItem` (history/thread‑read load) **and** `buildToolLikeItem` + the `onItemCompleted` per‑field merge in `stores/conversationStore.ts` (the live `item/started → item/completed` path). M‑ii initially missed the live path, so cards rendered only on reload.
+- Routing to the iframe (`!isRunning && hasInteractiveToolUi`): `components/conversation/ToolCallCard.tsx`.
+- 7‑locale strings `interactiveTool.*`: `desktop/src/shared/locales/messages/*.ts`.
+
+**Sample app** — `sdk/dotnet/samples/InteractiveToolSample/`: one‑command auto‑bind‑and‑serve (+ handoff mode), plugin manifest, and a self‑contained bridge HTML card. The reference for app authors and for end‑to‑end verification.
