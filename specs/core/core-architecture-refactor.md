@@ -1,6 +1,6 @@
 # Core C# Architecture Refactor
 
-Status: **Active** (M1-M6 done; M7 planned)
+Status: **Complete** (M1-M7 done)
 Scope: `src/DotCraft.Core` — AppServer protocol layer, Session Core services, App Binding service.
 Non-goal: any wire-protocol or behavior change. `specs/protocols/appserver-protocol.md` and
 `specs/core/session-core.md` remain the behavioral source of truth and are not modified by this work.
@@ -279,11 +279,10 @@ Same facade pattern as 4.3: `AppBindingService` keeps its public surface (consum
 | `AppContextBlockService` | context block upsert/remove/list, prompt section building (844–1150) |
 | `AppUiInteractionService` | UI tool invoke + approval gate, open-link policy, model context updates, UI resource reads (1577–1940) |
 
-Shared internals (`AppBindingStore` access, `FindApp`/`FindBinding`/validation helpers, wire
-mapping) move to an internal `AppBindingStoreAccessor` + `AppBindingWireMapper`. The
-`_activeAttachments` registry is owned by `AppToolAttachmentService` and exposed to the others via
-a narrow interface, eliminating the current cross-cutting `TryRemove` calls sprinkled through
-revoke/refresh paths.
+Shared internals (`AppBindingStore` access, `FindApp`/`FindBinding`, and wire mapping) move to an
+internal `AppBindingStoreAccessor` + `AppBindingWireMapper`. Live app tool channels move to
+`AppBindingAttachmentRegistry`, which is injected through the facade composition instead of being
+managed directly by every revoke/refresh path.
 
 ## 5. Milestones
 
@@ -298,7 +297,7 @@ rebase pain: mechanical moves first, behavioral seams last.
 | M4 | **Domain handlers, batch 2** | thread, turn (+`TurnStartCoordinator`), worktree, subagent, initialize. Delete the old switch; `AppServerRequestHandler` reaches dispatcher-only form. | Medium (thick handlers) | **Done** — `subagent/*`, `worktree/*`, `thread/*`, `turn/*`, and `initialize` extracted. `AppServerRequestHandler` is dispatcher-only and under 500 lines. |
 | M5 | **SessionService sub-services** | 4.3.2 coordinators extracted against the *existing* dictionaries (state untouched, moves only). | Medium | **Done** — `WorktreeCoordinator`, `SubAgentSessionCoordinator`, `ThreadIndexCoordinator`, `ThreadCreationCoordinator`, `ThreadLifecycleCoordinator`, `ThreadAccessCoordinator`, `ThreadConfigurationCoordinator`, `TurnControlCoordinator`, `ThreadGoalCoordinator`, `ThreadQueueCoordinator`, and `MaintenanceCoordinator` extracted. Turn execution remains in `SessionService`; state dictionaries remain untouched for M6. |
 | M6 | **`ThreadRuntime` aggregation** | 4.3.1: introduce registry + runtime objects; coordinators and SessionService migrate field-by-field; delete the 24 dictionaries. | Highest — concurrency-sensitive; do last, smallest reviewable steps | **Done** — `ThreadRuntimeRegistry`/`ThreadRuntime` owns cached threads, event brokers, queue/agent locks, agent/tool/MCP caches, mode managers, plugin/dynamic tool-name sets, materialization flag, prompt snapshots, context-usage anchors, maintenance state, auto-consolidation state, and per-turn cancellation/approval/user-input/goal snapshots. Pending-deletion tombstones live inside the registry to prevent delete-vs-background-turn resurrection. |
-| M7 | **AppBinding split** | 4.4 sub-domain services. Independent of M5/M6; can run in parallel with them. | Low–medium | Planned |
+| M7 | **AppBinding split** | 4.4 sub-domain services. Independent of M5/M6; can run in parallel with them. | Low–medium | **Done** — `AppConnectionService`, `AppBindingLifecycleService`, `AppToolAttachmentService`, `AppContextBlockService`, and `AppUiInteractionService` extracted behind the existing facade. Shared store access moved to `AppBindingStoreAccessor`; projection mapping moved to `AppBindingWireMapper`; live app tool channels moved to `AppBindingAttachmentRegistry`. |
 
 > **As-built note (M1):** the wire namespace is `DotCraft.Protocol.AppServer` (the `RootNamespace`
 > is `DotCraft`, not `DotCraft.Core`); §4.1 references to `DotCraft.Core.Protocol.AppServer` should
