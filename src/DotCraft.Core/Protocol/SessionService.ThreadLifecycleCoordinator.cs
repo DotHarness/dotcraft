@@ -215,12 +215,11 @@ public sealed partial class SessionService
             if (owner._runtimeRegistry.TryRemove(threadId, out var runtime))
                 await runtime.DisposeAsync();
             owner._threadEventBrokers.TryRemove(threadId, out _);
-            owner._materializedThreads.TryRemove(threadId, out _);
             owner._turnsSinceConsolidation.TryRemove(threadId, out _);
             owner._activeAutoMemoryConsolidations.TryRemove(threadId, out _);
             owner._pendingAutoMemoryConsolidations.TryRemove(threadId, out _);
             owner.InvalidatePromptRequestSnapshot(threadId, "thread_deleted");
-            owner._contextUsageAnchors.TryRemove(threadId, out _);
+            owner.ClearContextUsageAnchor(threadId);
             owner.ForgetContextPages(threadId);
             if (owner.BackgroundTerminalService != null)
                 await owner.BackgroundTerminalService.CleanThreadAsync(threadId, ct);

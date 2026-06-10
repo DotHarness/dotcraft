@@ -82,6 +82,8 @@ internal sealed class ThreadRuntime(SessionThread thread) : IAsyncDisposable, ID
 
     public bool PendingPermanentDeletion { get; set; }
 
+    public bool Materialized { get; set; }
+
     public ConcurrentDictionary<string, TurnRuntime> Turns { get; } = new(StringComparer.Ordinal);
 
     public async ValueTask DisposeAsync()

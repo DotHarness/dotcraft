@@ -114,10 +114,7 @@ public sealed partial class SessionService(
     private readonly ConcurrentDictionary<TurnKey, CancellationTokenSource> _runningTurns = new();
     private readonly ConcurrentDictionary<string, ThreadMaintenanceState> _threadMaintenance = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, ThreadEventBroker> _threadEventBrokers = new();
-    private readonly ConcurrentDictionary<string, byte> _materializedThreads = new();
     private readonly ConcurrentDictionary<string, int> _turnsSinceConsolidation = new();
-    private readonly ConcurrentDictionary<string, PromptRequestSnapshot> _lastPromptRequestSnapshots = new();
-    private readonly ConcurrentDictionary<string, ContextUsageAnchor> _contextUsageAnchors = new();
     private readonly ConcurrentDictionary<string, byte> _threadsPendingPermanentDeletion = new();
     private readonly ConcurrentDictionary<TurnKey, GoalTurnSnapshot> _goalTurnSnapshots = new();
     private readonly ConcurrentDictionary<string, byte> _goalContinuationStarting = new();
@@ -221,6 +218,12 @@ public sealed partial class SessionService(
         }
     }
 
+    private void ClearContextUsageAnchor(string threadId)
+    {
+        if (_runtimeRegistry.TryGetRuntime(threadId, out var runtime))
+            runtime.ContextUsageAnchor = null;
+    }
+
     /// <summary>
     /// Suppresses immediate Session Core goal broadcasts within the current async flow.
     /// AppServer uses this to preserve response-before-notification ordering for direct goal mutations.
@@ -303,8 +306,8 @@ public sealed partial class SessionService(
         => ThreadAccess.GetRuntimeSnapshot(thread);
 
     internal PromptRequestSnapshot? TryGetLastPromptRequestSnapshot(string threadId) =>
-        _lastPromptRequestSnapshots.TryGetValue(threadId, out var snapshot)
-            ? snapshot
+        _runtimeRegistry.TryGetRuntime(threadId, out var runtime)
+            ? runtime.LastPromptRequest
             : null;
 
     internal PromptRequestSnapshot? TryGetValidLastPromptRequestSnapshot(
@@ -429,20 +432,24 @@ public sealed partial class SessionService(
 
     private void InvalidatePromptRequestSnapshot(string threadId, string reason)
     {
-        if (_lastPromptRequestSnapshots.TryRemove(threadId, out _))
+        if (_runtimeRegistry.TryGetRuntime(threadId, out var runtime)
+            && runtime.LastPromptRequest != null)
+        {
+            runtime.LastPromptRequest = null;
             logger?.LogDebug("Invalidated prompt request snapshot for thread {ThreadId}: {Reason}", threadId, reason);
+        }
     }
 
     internal long? TryEstimateContextTokensFromAnchor(
         string threadId,
         IReadOnlyList<ChatMessage> modelVisibleHistory) =>
-        _contextUsageAnchors.TryGetValue(threadId, out var anchor)
+        _runtimeRegistry.TryGetRuntime(threadId, out var runtime) && runtime.ContextUsageAnchor is { } anchor
             ? ContextUsageTokenCounter.EstimateFromAnchor(anchor, modelVisibleHistory)
             : null;
 
     private ContextUsageAnchor? TryGetInMemoryContextUsageAnchor(string threadId) =>
-        _contextUsageAnchors.TryGetValue(threadId, out var anchor)
-            ? anchor
+        _runtimeRegistry.TryGetRuntime(threadId, out var runtime)
+            ? runtime.ContextUsageAnchor
             : null;
 
     private ContextUsageSnapshot CreateContextUsageSnapshot(string threadId, long tokens)
@@ -475,9 +482,16 @@ public sealed partial class SessionService(
     {
         var normalizedTokens = Math.Max(0, tokens);
         if (anchor is not null)
+        {
             await persistence.SaveContextUsageAnchorAsync(threadId, anchor with { Tokens = normalizedTokens }, ct);
+            if (_runtimeRegistry.TryGetRuntime(threadId, out var runtime))
+                runtime.ContextUsageAnchor = anchor with { Tokens = normalizedTokens };
+        }
         else
+        {
             await persistence.SaveContextUsageTokensAsync(threadId, normalizedTokens, ct);
+        }
+
         return CreateContextUsageSnapshot(threadId, normalizedTokens);
     }
 
@@ -492,7 +506,10 @@ public sealed partial class SessionService(
         var fingerprint = MessageTokenEstimator.ComputePrefixFingerprint(
             snapshot.Messages,
             anchorMessageCount.Value);
-        if (_contextUsageAnchors.TryGetValue(threadId, out var existing)
+        var runtime = _runtimeRegistry.TryGetRuntime(threadId, out var existingRuntime)
+            ? existingRuntime
+            : null;
+        if (runtime?.ContextUsageAnchor is { } existing
             && existing.MessageCount == anchorMessageCount.Value
             && string.Equals(existing.PrefixFingerprint, fingerprint, StringComparison.Ordinal)
             && existing.Tokens >= normalizedTokens)
@@ -504,7 +521,8 @@ public sealed partial class SessionService(
             normalizedTokens,
             anchorMessageCount.Value,
             fingerprint);
-        _contextUsageAnchors[threadId] = anchor;
+        if (runtime != null)
+            runtime.ContextUsageAnchor = anchor;
         return anchor;
     }
 
@@ -1307,7 +1325,7 @@ public sealed partial class SessionService(
                             threadId,
                             status.ThresholdAfter.Tokens,
                             CancellationToken.None);
-                        _contextUsageAnchors.TryRemove(threadId, out _);
+                        ClearContextUsageAnchor(threadId);
                         ReleaseStableContextPages(threadId);
                         if (status.Outcome == CompactionOutcome.Partial)
                             traceCollector?.RecordContextCompaction(threadId);
@@ -1622,7 +1640,8 @@ public sealed partial class SessionService(
                                 : null,
                             CaptureSnapshotAsync = (snapshot, _) =>
                             {
-                                _lastPromptRequestSnapshots[threadId] = snapshot;
+                                if (_runtimeRegistry.TryGetRuntime(threadId, out var runtime))
+                                    runtime.LastPromptRequest = snapshot;
                                 return Task.CompletedTask;
                             },
                             TryCompactWithSnapshotAsync = TryCompactBeforeSamplingAsync,
@@ -2206,7 +2225,7 @@ public sealed partial class SessionService(
                                 threadId,
                                 status.ThresholdAfter.Tokens,
                                 CancellationToken.None);
-                            _contextUsageAnchors.TryRemove(threadId, out _);
+                            ClearContextUsageAnchor(threadId);
                             ReleaseStableContextPages(threadId);
                             traceCollector?.RecordContextCompaction(threadId);
                             eventChannel.EmitSystemEvent(
@@ -2356,7 +2375,7 @@ public sealed partial class SessionService(
         await persistence.RollbackThreadAsync(thread, numTurns, ct);
         traceCollector?.RecordThreadRollback(threadId, thread.Id, numTurns, thread.Turns.Count, thread.LastActiveAt);
         InvalidatePromptRequestSnapshot(threadId, "rollback");
-        _contextUsageAnchors.TryRemove(threadId, out _);
+        ClearContextUsageAnchor(threadId);
         ForgetContextPages(threadId);
         var agent = GetThreadAgentOrDefault(threadId);
         var updatedSession = await TryUpdateSessionAfterRollbackAsync(agent, threadId, removedTurns, ct);
@@ -2443,7 +2462,7 @@ public sealed partial class SessionService(
                      ?? throw new KeyNotFoundException($"Thread '{threadId}' not found.");
 
         _runtimeRegistry.SetThread(thread);
-        _materializedThreads[thread.Id] = 0;
+        _runtimeRegistry.SetThread(thread).Materialized = true;
         _ = GetOrCreateBroker(thread.Id);
         return thread;
     }
@@ -3259,7 +3278,8 @@ public sealed partial class SessionService(
         }
     }
 
-    private bool IsMaterialized(string threadId) => _materializedThreads.ContainsKey(threadId);
+    private bool IsMaterialized(string threadId) =>
+        _runtimeRegistry.TryGetRuntime(threadId, out var runtime) && runtime.Materialized;
 
     private bool IsPendingPermanentDeletion(string threadId) => _threadsPendingPermanentDeletion.ContainsKey(threadId);
 
@@ -3269,12 +3289,12 @@ public sealed partial class SessionService(
             return;
         if (thread.Ephemeral)
         {
-            _materializedThreads.TryRemove(thread.Id, out _);
+            _runtimeRegistry.SetThread(thread).Materialized = false;
             return;
         }
 
         await persistence.SaveThreadAsync(thread, ct);
-        _materializedThreads[thread.Id] = 0;
+        _runtimeRegistry.SetThread(thread).Materialized = true;
     }
 
     private async Task PersistThreadIfMaterializedAsync(SessionThread thread, CancellationToken ct)

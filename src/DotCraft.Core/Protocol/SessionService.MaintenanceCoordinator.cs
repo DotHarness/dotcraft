@@ -132,7 +132,7 @@ public sealed partial class SessionService
                             threadId,
                             status.ThresholdAfter.Tokens,
                             maintenanceCt);
-                        owner._contextUsageAnchors.TryRemove(threadId, out _);
+                        owner.ClearContextUsageAnchor(threadId);
                         owner.ReleaseStableContextPages(threadId);
                         if (status.Outcome == CompactionOutcome.Partial)
                             owner.TraceCollector?.RecordContextCompaction(threadId);

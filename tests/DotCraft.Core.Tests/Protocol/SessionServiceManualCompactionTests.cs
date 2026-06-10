@@ -1,5 +1,3 @@
-using System.Collections.Concurrent;
-using System.Reflection;
 using System.Text.Json;
 using DotCraft.Abstractions;
 using DotCraft.Agents;
@@ -529,13 +527,9 @@ public sealed class SessionServiceManualCompactionTests : IDisposable
         string threadId,
         PromptRequestSnapshot snapshot)
     {
-        var field = typeof(SessionService).GetField(
-            "_lastPromptRequestSnapshots",
-            BindingFlags.Instance | BindingFlags.NonPublic);
-        Assert.NotNull(field);
-        var snapshots = Assert.IsType<ConcurrentDictionary<string, PromptRequestSnapshot>>(
-            field!.GetValue(service));
-        snapshots[threadId] = snapshot;
+        var runtime = service.DebugGetRuntime(threadId);
+        Assert.NotNull(runtime);
+        runtime!.LastPromptRequest = snapshot;
     }
 
     private static async Task WaitUntilAsync(Func<bool> predicate)
