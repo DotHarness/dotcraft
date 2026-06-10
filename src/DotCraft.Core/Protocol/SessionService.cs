@@ -137,6 +137,7 @@ public sealed partial class SessionService(
     private ThreadIndexCoordinator? _threadIndexCoordinator;
     private ThreadCreationCoordinator? _threadCreationCoordinator;
     private ThreadLifecycleCoordinator? _threadLifecycleCoordinator;
+    private ThreadAccessCoordinator? _threadAccessCoordinator;
     private static readonly AsyncLocal<bool> SuppressGoalBroadcastContext = new();
     private static readonly IReadOnlySet<string> EmptyPluginFunctionToolNames = new HashSet<string>(StringComparer.Ordinal);
     private static readonly IReadOnlySet<string> EmptyDynamicToolNames = new HashSet<string>(StringComparer.Ordinal);
@@ -153,6 +154,8 @@ public sealed partial class SessionService(
     private ThreadCreationCoordinator ThreadCreation => _threadCreationCoordinator ??= new ThreadCreationCoordinator(this);
 
     private ThreadLifecycleCoordinator ThreadLifecycle => _threadLifecycleCoordinator ??= new ThreadLifecycleCoordinator(this);
+
+    private ThreadAccessCoordinator ThreadAccess => _threadAccessCoordinator ??= new ThreadAccessCoordinator(this);
 
     private SessionGate Gate => sessionGate;
 
@@ -239,22 +242,11 @@ public sealed partial class SessionService(
 
     /// <inheritdoc />
     public ContextUsageSnapshot? TryGetContextUsageSnapshot(string threadId)
-    {
-        if (string.IsNullOrWhiteSpace(threadId))
-            return null;
-
-        var tokens = persistence.LoadContextUsageTokens(threadId);
-        return tokens is null ? null : CreateContextUsageSnapshot(threadId, tokens.Value);
-    }
+        => ThreadAccess.TryGetContextUsageSnapshot(threadId);
 
     /// <inheritdoc />
     public ThreadSummaryRuntime GetThreadRuntimeSnapshot(SessionThread thread)
-    {
-        var maintenanceKind = _threadMaintenance.TryGetValue(thread.Id, out var maintenance)
-            ? maintenance.Kind
-            : null;
-        return ThreadSummaryRuntime.FromThread(thread, maintenanceKind);
-    }
+        => ThreadAccess.GetRuntimeSnapshot(thread);
 
     internal PromptRequestSnapshot? TryGetLastPromptRequestSnapshot(string threadId) =>
         _lastPromptRequestSnapshots.TryGetValue(threadId, out var snapshot)
@@ -951,20 +943,11 @@ Choose the next concrete action that advances the goal. Before doing substantial
 
     /// <inheritdoc/>
     public IReadOnlyDictionary<string, string> GetItemWidgetStates(string threadId)
-        => persistence.GetItemWidgetStates(NormalizeRequiredThreadId(threadId));
+        => ThreadAccess.GetItemWidgetStates(threadId);
 
     /// <inheritdoc/>
     public void SetItemWidgetState(string threadId, string callId, string? widgetStateJson)
-    {
-        var normalizedThreadId = NormalizeRequiredThreadId(threadId);
-        if (string.IsNullOrWhiteSpace(callId))
-            throw AppServerErrors.InvalidParams("'callId' is required.");
-
-        if (string.IsNullOrWhiteSpace(widgetStateJson))
-            persistence.DeleteItemWidgetState(normalizedThreadId, callId);
-        else
-            persistence.SaveItemWidgetState(normalizedThreadId, callId, widgetStateJson);
-    }
+        => ThreadAccess.SetItemWidgetState(threadId, callId, widgetStateJson);
 
     /// <inheritdoc/>
     public async Task<ThreadGoal> SetThreadGoalAsync(
@@ -1095,22 +1078,15 @@ Choose the next concrete action that advances the goal. Before doing substantial
         string threadId,
         bool replayRecent = false,
         CancellationToken ct = default)
-    {
-        var broker = GetOrCreateBroker(threadId);
-        return broker.SubscribeAsync(replayRecent, ct);
-    }
+        => ThreadAccess.Subscribe(threadId, replayRecent, ct);
 
     /// <inheritdoc/>
     public async Task<SessionThread> GetThreadAsync(string threadId, CancellationToken ct = default) =>
-        await GetOrLoadThreadAsync(threadId, ct);
+        await ThreadAccess.GetThreadAsync(threadId, ct);
 
     /// <inheritdoc/>
     public async Task<SessionThread> EnsureThreadLoadedAsync(string threadId, CancellationToken ct = default)
-    {
-        var thread = await GetOrLoadThreadAsync(threadId, ct);
-        await EnsurePerThreadAgentIfMissingAsync(threadId, thread, ct);
-        return thread;
-    }
+        => await ThreadAccess.EnsureThreadLoadedAsync(threadId, ct);
 
     // =========================================================================
     // Turn orchestration

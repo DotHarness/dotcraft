@@ -1,0 +1,60 @@
+using DotCraft.Protocol.AppServer;
+
+namespace DotCraft.Protocol;
+
+public sealed partial class SessionService
+{
+    private sealed class ThreadAccessCoordinator(SessionService owner)
+    {
+        public ContextUsageSnapshot? TryGetContextUsageSnapshot(string threadId)
+        {
+            if (string.IsNullOrWhiteSpace(threadId))
+                return null;
+
+            var tokens = owner.Persistence.LoadContextUsageTokens(threadId);
+            return tokens is null ? null : owner.CreateContextUsageSnapshot(threadId, tokens.Value);
+        }
+
+        public ThreadSummaryRuntime GetRuntimeSnapshot(SessionThread thread)
+        {
+            var maintenanceKind = owner._threadMaintenance.TryGetValue(thread.Id, out var maintenance)
+                ? maintenance.Kind
+                : null;
+            return ThreadSummaryRuntime.FromThread(thread, maintenanceKind);
+        }
+
+        public IReadOnlyDictionary<string, string> GetItemWidgetStates(string threadId) =>
+            owner.Persistence.GetItemWidgetStates(NormalizeRequiredThreadId(threadId));
+
+        public void SetItemWidgetState(string threadId, string callId, string? widgetStateJson)
+        {
+            var normalizedThreadId = NormalizeRequiredThreadId(threadId);
+            if (string.IsNullOrWhiteSpace(callId))
+                throw AppServerErrors.InvalidParams("'callId' is required.");
+
+            if (string.IsNullOrWhiteSpace(widgetStateJson))
+                owner.Persistence.DeleteItemWidgetState(normalizedThreadId, callId);
+            else
+                owner.Persistence.SaveItemWidgetState(normalizedThreadId, callId, widgetStateJson);
+        }
+
+        public IAsyncEnumerable<SessionEvent> Subscribe(
+            string threadId,
+            bool replayRecent,
+            CancellationToken ct)
+        {
+            var broker = owner.GetOrCreateBroker(threadId);
+            return broker.SubscribeAsync(replayRecent, ct);
+        }
+
+        public async Task<SessionThread> GetThreadAsync(string threadId, CancellationToken ct) =>
+            await owner.GetOrLoadThreadAsync(threadId, ct);
+
+        public async Task<SessionThread> EnsureThreadLoadedAsync(string threadId, CancellationToken ct)
+        {
+            var thread = await owner.GetOrLoadThreadAsync(threadId, ct);
+            await owner.EnsurePerThreadAgentIfMissingAsync(threadId, thread, ct);
+            return thread;
+        }
+    }
+}
