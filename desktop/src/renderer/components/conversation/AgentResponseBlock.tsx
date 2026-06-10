@@ -4,6 +4,7 @@ import type { ConversationItem, ConversationTurn, PluginFunctionContentItem } fr
 import { isToolLikeItemType } from '../../types/conversation'
 import { ThinkingIndicator } from './ThinkingIndicator'
 import { renderSubAgentTitle, ToolCallCard } from './ToolCallCard'
+import { hasInteractiveToolUi } from './InteractiveToolView'
 import { AgentMessage } from './AgentMessage'
 import { ErrorBlock } from './ErrorBlock'
 import { CancelledNotice } from './CancelledNotice'
@@ -368,31 +369,33 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
       renderNodes.push(...pinnedPlanNodes)
       renderNodes.push(...trailingNodes)
     } else {
-      const pinnedPlanIndex = findLastCreatePlanIndexBefore(renderableItems, lastFinalAgentMessageIndex)
-      const pinnedPlanItem = pinnedPlanIndex >= 0 ? renderableItems[pinnedPlanIndex] : null
-      const intermediateItems = pinnedPlanItem
-        ? [
-            ...renderableItems.slice(0, pinnedPlanIndex),
-            ...renderableItems.slice(pinnedPlanIndex + 1, lastFinalAgentMessageIndex)
-          ]
-        : renderableItems.slice(0, lastFinalAgentMessageIndex)
-      const trailingItems = renderableItems.slice(lastFinalAgentMessageIndex)
-      const intermediateNodes = pinnedPlanItem
-        ? [
-            ...renderItemSequence(
-              renderableItems.slice(0, pinnedPlanIndex),
-              'before-pinned-plan'
-            ),
-            ...renderItemSequence(
-              renderableItems.slice(pinnedPlanIndex + 1, lastFinalAgentMessageIndex),
-              'after-pinned-plan'
-            )
-          ]
-        : renderItemSequence(intermediateItems)
-      const pinnedPlanNodes = pinnedPlanItem
-        ? renderItemSequence([pinnedPlanItem], 'pinned-plan')
-        : []
-      const trailingNodes = renderItemSequence(trailingItems)
+      // Pin the last CreatePlan and the last interactive card out of the collapsed
+      // summary (tool-result-presentation M‑vii). Split the intermediate run at each
+      // pinned boundary so a pinned card never merges the tool runs on either side.
+      const pinnedIndices = collectPinnedIntermediateIndices(renderableItems, lastFinalAgentMessageIndex)
+      const trailingNodes = renderItemSequence(renderableItems.slice(lastFinalAgentMessageIndex))
+
+      const intermediateNodes: ConversationRenderNode[] = []
+      if (pinnedIndices.length === 0) {
+        intermediateNodes.push(...renderItemSequence(renderableItems.slice(0, lastFinalAgentMessageIndex)))
+      } else {
+        let segmentStart = 0
+        pinnedIndices.forEach((pinnedIndex, segment) => {
+          intermediateNodes.push(...renderItemSequence(
+            renderableItems.slice(segmentStart, pinnedIndex),
+            `intermediate-${segment}`
+          ))
+          segmentStart = pinnedIndex + 1
+        })
+        intermediateNodes.push(...renderItemSequence(
+          renderableItems.slice(segmentStart, lastFinalAgentMessageIndex),
+          'intermediate-tail'
+        ))
+      }
+
+      const pinnedNodes = pinnedIndices.flatMap((pinnedIndex, position) =>
+        renderItemSequence([renderableItems[pinnedIndex]], `pinned-${position}`)
+      )
 
       if (intermediateNodes.length > 0) {
         const elapsedMs = getIntermediateElapsedMs(turn, renderableItems[lastFinalAgentMessageIndex])
@@ -409,7 +412,7 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
         })
       }
 
-      renderNodes.push(...pinnedPlanNodes)
+      renderNodes.push(...pinnedNodes)
       renderNodes.push(...trailingNodes)
     }
   } else {
@@ -1117,6 +1120,40 @@ function findLastCreatePlanIndexBefore(items: ConversationItem[], beforeIndex: n
     }
   }
   return -1
+}
+
+/**
+ * A completed `dynamicToolCall` whose result declares an Interactive Tool UI
+ * (`ui://` resource). These are user‑actionable surfaces, not model‑log noise, so
+ * they are pinned out of the collapsed turn summary (tool-result-presentation §14, M‑vii).
+ */
+function isInteractiveCardItem(item: ConversationItem): boolean {
+  return isToolLikeItemType(item.type)
+    && item.status === 'completed'
+    && item.success !== false
+    && hasInteractiveToolUi(item)
+}
+
+function findLastInteractiveCardIndexBefore(items: ConversationItem[], beforeIndex: number): number {
+  for (let i = beforeIndex - 1; i >= 0; i--) {
+    if (isInteractiveCardItem(items[i])) return i
+  }
+  return -1
+}
+
+/**
+ * Intermediate items (before the final agent message) that should be pinned out of the
+ * collapsed turn summary rather than folded into "Processed in Xs": the last CreatePlan
+ * and the last interactive card. Returned ascending so the renderer can split the
+ * intermediate run at each pinned boundary and render the pinned items in order.
+ */
+function collectPinnedIntermediateIndices(items: ConversationItem[], beforeIndex: number): number[] {
+  const indices = new Set<number>()
+  const planIndex = findLastCreatePlanIndexBefore(items, beforeIndex)
+  if (planIndex >= 0) indices.add(planIndex)
+  const cardIndex = findLastInteractiveCardIndexBefore(items, beforeIndex)
+  if (cardIndex >= 0) indices.add(cardIndex)
+  return Array.from(indices).sort((a, b) => a - b)
 }
 
 function isGuidanceUserMessage(item: ConversationItem): boolean {

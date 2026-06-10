@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
 using DotCraft.Plugins;
 
 namespace DotCraft.Protocol;
@@ -380,6 +381,31 @@ public sealed record DynamicToolCallPayload
     public string? ErrorCode { get; init; }
 
     public string? ErrorMessage { get; init; }
+
+    /// <summary>
+    /// UI-only metadata (MCP Apps <c>_meta</c>) carried from the tool result to the host/UI.
+    /// Delivered to interactive clients via <c>item/completed</c>; never surfaced to the model.
+    /// </summary>
+    [JsonPropertyName("_meta")]
+    public JsonNode? Meta { get; init; }
+
+    /// <summary>
+    /// The tool's declared Interactive Tool UI descriptor (<c>_meta.ui</c>: resourceUri, csp,
+    /// visibility, …), surfaced to the host so it can render the UI without a separate catalog
+    /// lookup. Null when the tool declares no UI. Host/UI-only; never surfaced to the model.
+    /// </summary>
+    [JsonPropertyName("ui")]
+    public JsonNode? Ui { get; init; }
+
+    /// <summary>
+    /// UI-only Interactive Tool UI <c>widgetState</c> (M-iv), surfaced onto the item on
+    /// <c>thread/read</c> so the host can restore the iframe's persisted state. Not part of the
+    /// canonical rollout — populated from the mutable per-thread side store at read time. Never
+    /// surfaced to the model.
+    /// </summary>
+    [JsonPropertyName("widgetState")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonNode? WidgetState { get; init; }
 }
 
 /// <summary>

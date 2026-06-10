@@ -2082,6 +2082,179 @@ describe('AgentResponseBlock completed turn folding', () => {
   })
 })
 
+describe('AgentResponseBlock interactive card pinning', () => {
+  beforeEach(() => {
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {
+        settings: {
+          get: async () => ({ locale: 'en' })
+        },
+        // InteractiveToolView clears its model-context block on unmount (teardown).
+        appServer: {
+          sendRequest: vi.fn().mockResolvedValue({})
+        },
+        shell: {
+          openExternal: vi.fn().mockResolvedValue(undefined)
+        }
+      }
+    })
+    // ToolCallCard reads the active thread to build the iframe src.
+    useThreadStore.setState({ activeThreadId: 'thread-1' })
+  })
+
+  function makeInteractiveCardItem(
+    id: string,
+    toolName: string,
+    resourceUri: string,
+    createdAt: string
+  ): ConversationItem {
+    return {
+      id,
+      type: 'toolCall',
+      status: 'completed',
+      toolCallId: `${id}-call`,
+      toolName,
+      arguments: {},
+      success: true,
+      createdAt,
+      toolUi: { resourceUri, prefersBorder: true, domain: toolName }
+    }
+  }
+
+  it('pins an interactive card out of the collapsed turn summary', () => {
+    const turn: ConversationTurn = {
+      id: 'turn-pinned-card',
+      threadId: 'thread-1',
+      status: 'completed',
+      startedAt: '2026-06-10T11:30:00.000Z',
+      completedAt: '2026-06-10T11:30:06.000Z',
+      items: [
+        {
+          id: 'tool-read',
+          type: 'toolCall',
+          status: 'completed',
+          toolCallId: 'call-read',
+          toolName: 'ReadFile',
+          arguments: { path: 'src/main.ts' },
+          success: true,
+          createdAt: '2026-06-10T11:30:01.000Z'
+        },
+        makeInteractiveCardItem('card-board', 'ListBoardItems', 'ui://oratorio/board.html', '2026-06-10T11:30:03.000Z'),
+        {
+          id: 'assistant-final',
+          type: 'agentMessage',
+          status: 'completed',
+          text: 'here is the board',
+          createdAt: '2026-06-10T11:30:05.000Z'
+        }
+      ]
+    }
+
+    const { container } = render(
+      <LocaleProvider>
+        <AgentResponseBlock turn={turn} />
+      </LocaleProvider>
+    )
+
+    // The card's iframe renders standalone (pinned), not folded into the summary.
+    expect(container.querySelector('.interactive-tool-view__frame')).toBeTruthy()
+    expect(screen.getByText('here is the board')).toBeInTheDocument()
+    // The non-UI tool call stays collapsed until the summary is expanded.
+    expect(screen.getByText(/Processed in/)).toBeInTheDocument()
+    expect(screen.queryByText('Read main.ts')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: /Processed in/ }))
+    expect(screen.getByText('Read main.ts')).toBeInTheDocument()
+  })
+
+  it('pins only the latest interactive card before the final message', () => {
+    const turn: ConversationTurn = {
+      id: 'turn-two-cards',
+      threadId: 'thread-1',
+      status: 'completed',
+      startedAt: '2026-06-10T11:40:00.000Z',
+      completedAt: '2026-06-10T11:40:09.000Z',
+      items: [
+        makeInteractiveCardItem('card-first', 'ListBoardItems', 'ui://oratorio/board.html', '2026-06-10T11:40:01.000Z'),
+        {
+          id: 'tool-read',
+          type: 'toolCall',
+          status: 'completed',
+          toolCallId: 'call-read',
+          toolName: 'ReadFile',
+          arguments: { path: 'src/main.ts' },
+          success: true,
+          createdAt: '2026-06-10T11:40:02.000Z'
+        },
+        makeInteractiveCardItem('card-latest', 'GetBoardItem', 'ui://oratorio/item.html', '2026-06-10T11:40:05.000Z'),
+        {
+          id: 'assistant-final',
+          type: 'agentMessage',
+          status: 'completed',
+          text: 'opened the item',
+          createdAt: '2026-06-10T11:40:07.000Z'
+        }
+      ]
+    }
+
+    const { container } = render(
+      <LocaleProvider>
+        <AgentResponseBlock turn={turn} />
+      </LocaleProvider>
+    )
+
+    // Only the latest card is pinned; the earlier one stays in the collapsed summary.
+    expect(container.querySelector('iframe[title="GetBoardItem"]')).toBeTruthy()
+    expect(container.querySelector('iframe[title="ListBoardItems"]')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: /Processed in/ }))
+    expect(container.querySelector('iframe[title="ListBoardItems"]')).toBeTruthy()
+  })
+
+  it('pins both a CreatePlan and an interactive card', () => {
+    const turn: ConversationTurn = {
+      id: 'turn-plan-and-card',
+      threadId: 'thread-1',
+      status: 'completed',
+      startedAt: '2026-06-10T11:50:00.000Z',
+      completedAt: '2026-06-10T11:50:09.000Z',
+      items: [
+        makeCreatePlanItem('plan-1', 'My Plan', '2026-06-10T11:50:01.000Z'),
+        {
+          id: 'tool-read',
+          type: 'toolCall',
+          status: 'completed',
+          toolCallId: 'call-read',
+          toolName: 'ReadFile',
+          arguments: { path: 'src/main.ts' },
+          success: true,
+          createdAt: '2026-06-10T11:50:02.000Z'
+        },
+        makeInteractiveCardItem('card-board', 'ListBoardItems', 'ui://oratorio/board.html', '2026-06-10T11:50:04.000Z'),
+        {
+          id: 'assistant-final',
+          type: 'agentMessage',
+          status: 'completed',
+          text: 'plan and board',
+          createdAt: '2026-06-10T11:50:07.000Z'
+        }
+      ]
+    }
+
+    const { container } = render(
+      <LocaleProvider>
+        <AgentResponseBlock turn={turn} />
+      </LocaleProvider>
+    )
+
+    // Both pinned out of the summary; the plain ReadFile stays collapsed.
+    expect(screen.getByText('My Plan')).toBeInTheDocument()
+    expect(container.querySelector('.interactive-tool-view__frame')).toBeTruthy()
+    expect(screen.queryByText('Read main.ts')).toBeNull()
+  })
+})
+
 describe('AgentResponseBlock historical tool trimming', () => {
   beforeEach(() => {
     Object.defineProperty(window, 'api', {

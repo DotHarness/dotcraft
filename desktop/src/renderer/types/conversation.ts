@@ -124,6 +124,12 @@ export interface ConversationItem {
   contentItems?: PluginFunctionContentItem[]
   /** Structured result returned by pluginFunctionCall/dynamicToolCall items */
   structuredResult?: unknown
+  /** UI-only metadata (MCP Apps `_meta`) from the tool result; for the interactive UI only, never the model. */
+  meta?: Record<string, unknown>
+  /** The tool's declared Interactive Tool UI descriptor (`_meta.ui`); present → render a sandboxed iframe. */
+  toolUi?: ToolUiDescriptor
+  /** UI-only Interactive Tool UI widgetState (M-iv), surfaced on thread/read for iframe restore. */
+  widgetState?: unknown
   /** Error code returned by pluginFunctionCall/dynamicToolCall items */
   errorCode?: string
   /** Error message returned by pluginFunctionCall/dynamicToolCall items */
@@ -396,6 +402,51 @@ function mapReasoningElapsedSeconds(
  * This function falls back to payload fields so that both the flat (legacy/streaming)
  * and nested (thread/read history) shapes are handled correctly.
  */
+/** Interactive Tool UI descriptor (MCP Apps `_meta.ui`), surfaced on dynamicToolCall items. */
+export interface ToolUiDescriptor {
+  resourceUri: string
+  visibility?: string[]
+  csp?: {
+    connectDomains?: string[]
+    resourceDomains?: string[]
+    frameDomains?: string[]
+  }
+  permissions?: string[]
+  prefersBorder?: boolean
+  domain?: string
+}
+
+function toStringArray(value: unknown): string[] | undefined {
+  return Array.isArray(value)
+    ? value.filter((entry): entry is string => typeof entry === 'string')
+    : undefined
+}
+
+/** Validates a wire `_meta.ui` / payload `ui` descriptor; only a `ui://` resourceUri renders an iframe. */
+export function normalizeToolUiDescriptor(value: unknown): ToolUiDescriptor | undefined {
+  if (value == null || typeof value !== 'object') return undefined
+  const obj = value as Record<string, unknown>
+  const resourceUri = typeof obj.resourceUri === 'string' ? obj.resourceUri.trim() : ''
+  if (!resourceUri.startsWith('ui://')) return undefined
+
+  const descriptor: ToolUiDescriptor = { resourceUri }
+  const visibility = toStringArray(obj.visibility)
+  if (visibility) descriptor.visibility = visibility
+  const permissions = toStringArray(obj.permissions)
+  if (permissions) descriptor.permissions = permissions
+  if (typeof obj.prefersBorder === 'boolean') descriptor.prefersBorder = obj.prefersBorder
+  if (typeof obj.domain === 'string') descriptor.domain = obj.domain
+  if (obj.csp != null && typeof obj.csp === 'object') {
+    const csp = obj.csp as Record<string, unknown>
+    descriptor.csp = {
+      connectDomains: toStringArray(csp.connectDomains),
+      resourceDomains: toStringArray(csp.resourceDomains),
+      frameDomains: toStringArray(csp.frameDomains)
+    }
+  }
+  return descriptor
+}
+
 export function wireItemToConversationItem(raw: Record<string, unknown>): ConversationItem {
   const type = (raw.type as ItemType) ?? 'agentMessage'
   const payload = (raw.payload ?? {}) as Record<string, unknown>
@@ -405,6 +456,17 @@ export function wireItemToConversationItem(raw: Record<string, unknown>): Conver
     : undefined
   const invocationStructuredResult = isStructuredInvocation
     ? ((raw.structuredResult as unknown) ?? (payload.structuredResult as unknown))
+    : undefined
+  const invocationMeta = isStructuredInvocation
+    ? ((raw._meta as Record<string, unknown> | undefined)
+      ?? (payload._meta as Record<string, unknown> | undefined))
+    : undefined
+  const invocationToolUi = isStructuredInvocation
+    ? normalizeToolUiDescriptor((raw.ui as unknown) ?? (payload.ui as unknown))
+    : undefined
+  // M-iv: UI-only widgetState surfaced on thread/read for iframe restore (never reaches the model).
+  const invocationWidgetState = isStructuredInvocation
+    ? ((raw.widgetState as unknown) ?? (payload.widgetState as unknown))
     : undefined
   const invocationErrorMessage = isStructuredInvocation
     ? ((raw.errorMessage as string | undefined) ?? (payload.errorMessage as string | undefined))
@@ -497,6 +559,9 @@ export function wireItemToConversationItem(raw: Record<string, unknown>): Conver
       ?? (payload.functionName as string | undefined),
     contentItems: invocationContentItems,
     structuredResult: invocationStructuredResult,
+    meta: invocationMeta,
+    toolUi: invocationToolUi,
+    widgetState: invocationWidgetState,
     errorCode: (raw.errorCode as string | undefined)
       ?? (payload.errorCode as string | undefined),
     errorMessage: invocationErrorMessage,

@@ -411,6 +411,44 @@ describe('turn lifecycle', () => {
     expect(toolItem?.duration).toBe(21152)
   })
 
+  it('onItemCompleted carries the interactive UI descriptor (toolUi) and result _meta for a dynamicToolCall', () => {
+    const ui = { resourceUri: 'ui://dotcraft-sample/card', visibility: ['model', 'app'], prefersBorder: true }
+    s().onTurnStarted(makeTurn())
+    s().onItemStarted({
+      turnId: 'turn-1',
+      item: {
+        id: 'dyn-1',
+        type: 'dynamicToolCall',
+        createdAt: '2026-06-01T10:00:00.000Z',
+        payload: { callId: 'c1', toolName: 'ShowCard', namespace: 'sample', arguments: { note: 'hello' }, ui }
+      }
+    })
+    s().onItemCompleted({
+      turnId: 'turn-1',
+      item: {
+        id: 'dyn-1',
+        type: 'dynamicToolCall',
+        completedAt: '2026-06-01T10:00:01.000Z',
+        payload: {
+          callId: 'c1',
+          toolName: 'ShowCard',
+          namespace: 'sample',
+          arguments: { note: 'hello' },
+          structuredResult: { title: 'Sample Card', value: 'hello' },
+          _meta: { accent: 'sample' },
+          ui
+        }
+      }
+    })
+
+    const item = s().turns[0].items.find((i) => i.id === 'dyn-1')
+    expect(item?.status).toBe('completed')
+    expect(item?.toolUi?.resourceUri).toBe('ui://dotcraft-sample/card')
+    expect(item?.toolUi?.prefersBorder).toBe(true)
+    expect(item?.meta).toEqual({ accent: 'sample' })
+    expect(item?.structuredResult).toEqual({ title: 'Sample Card', value: 'hello' })
+  })
+
   it('uses terminal snapshots as authoritative output instead of duplicating deltas', () => {
     s().onTurnStarted(makeTurn())
     s().onItemStarted({

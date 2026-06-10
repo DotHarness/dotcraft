@@ -13,6 +13,8 @@ public sealed class DotCraftClient : IAsyncDisposable
 {
     private readonly ConcurrentDictionary<string, Func<DynamicToolCall, CancellationToken, Task<DynamicToolResult>>> _dynamicToolHandlers = new(StringComparer.Ordinal);
     private Func<DynamicToolCall, CancellationToken, Task<DynamicToolResult>>? _fallbackDynamicToolHandler;
+    private readonly ConcurrentDictionary<string, Func<ResourceReadRequest, CancellationToken, Task<ResourceReadResult>>> _resourceHandlers = new(StringComparer.Ordinal);
+    private Func<ResourceReadRequest, CancellationToken, Task<ResourceReadResult>>? _fallbackResourceHandler;
     private readonly ApprovalHandler? _approvalHandler;
     private readonly UserInputHandler? _userInputHandler;
 
@@ -28,6 +30,7 @@ public sealed class DotCraftClient : IAsyncDisposable
         Models = new DotCraftModelClient(this);
         AppBindings = new DotCraftAppBindingClient(this);
         Wire.RegisterServerRequestHandler("item/tool/call", HandleDynamicToolCallAsync);
+        Wire.RegisterServerRequestHandler("item/resource/read", HandleResourceReadAsync);
         Wire.RegisterServerRequestHandler("item/approval/request", HandleApprovalRequestAsync);
         Wire.RegisterServerRequestHandler("item/tool/requestUserInput", HandleUserInputRequestAsync);
     }
@@ -192,6 +195,84 @@ public sealed class DotCraftClient : IAsyncDisposable
     }
 
     /// <summary>
+    /// Registers one catch-all UI resource handler that serves <c>ui://</c> Interactive Tool UI
+    /// resources (MCP Apps). The app inspects <see cref="ResourceReadRequest.Uri"/> and returns HTML.
+    /// </summary>
+    public IDisposable RegisterResourceHandler(
+        Func<ResourceReadRequest, CancellationToken, Task<ResourceReadResult>> handler)
+    {
+        _fallbackResourceHandler = handler;
+        return new DisposableAction(() =>
+        {
+            if (ReferenceEquals(_fallbackResourceHandler, handler))
+            {
+                _fallbackResourceHandler = null;
+            }
+        });
+    }
+
+    /// <summary>
+    /// Registers a UI resource handler for a specific <c>ui://</c> URI.
+    /// </summary>
+    public IDisposable RegisterResourceHandler(
+        string uri,
+        Func<ResourceReadRequest, CancellationToken, Task<ResourceReadResult>> handler)
+    {
+        _resourceHandlers[uri] = handler;
+        return new DisposableAction(() => _resourceHandlers.TryRemove(uri, out _));
+    }
+
+    /// <summary>
+    /// Serves every file under <paramref name="folderPath"/> as a <c>ui://</c> Interactive Tool UI
+    /// resource under <paramref name="uriPrefix"/> (M‑v ergonomics) — e.g. a tool whose
+    /// <c>_meta.ui.resourceUri</c> is <c>{uriPrefix}/board.html</c> is served from
+    /// <c>board.html</c> in the folder, with no per‑URI boilerplate. Files are read on demand (so
+    /// edits are picked up during development) and given a MIME type by extension (HTML uses the
+    /// MCP‑Apps profile). Dispose the result to unregister every served URI.
+    /// </summary>
+    public IDisposable ServeStaticUiResources(string uriPrefix, string folderPath)
+    {
+        if (string.IsNullOrWhiteSpace(uriPrefix))
+            throw new ArgumentException("A ui:// uri prefix is required.", nameof(uriPrefix));
+
+        var prefix = uriPrefix.TrimEnd('/');
+        var root = Path.GetFullPath(folderPath);
+        if (!Directory.Exists(root))
+            throw new DirectoryNotFoundException($"UI resource folder not found: {root}");
+
+        var registrations = new List<IDisposable>();
+        foreach (var file in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
+        {
+            var relative = Path.GetRelativePath(root, file).Replace('\\', '/');
+            var uri = $"{prefix}/{relative}";
+            var path = file;
+            var mime = MimeForUiResource(path);
+            registrations.Add(RegisterResourceHandler(uri, async (_, ct) =>
+            {
+                var text = await File.ReadAllTextAsync(path, ct).ConfigureAwait(false);
+                return new ResourceReadResult([new ResourceContent(uri, mime, text)]);
+            }));
+        }
+
+        return new DisposableAction(() =>
+        {
+            foreach (var registration in registrations)
+                registration.Dispose();
+        });
+    }
+
+    private static string MimeForUiResource(string path) =>
+        Path.GetExtension(path).ToLowerInvariant() switch
+        {
+            ".html" or ".htm" => "text/html;profile=mcp-app",
+            ".js" or ".mjs" => "text/javascript",
+            ".css" => "text/css",
+            ".svg" => "image/svg+xml",
+            ".json" => "application/json",
+            _ => "application/octet-stream"
+        };
+
+    /// <summary>
     /// Reads AppServer notifications.
     /// </summary>
     public IAsyncEnumerable<AppServerNotification> ReadNotificationsAsync(CancellationToken cancellationToken = default) =>
@@ -235,6 +316,31 @@ public sealed class DotCraftClient : IAsyncDisposable
                 false,
                 ErrorCode: "AdapterToolCallFailed",
                 ErrorMessage: ex.Message);
+        }
+    }
+
+    private async Task<object?> HandleResourceReadAsync(ServerRequest request, CancellationToken cancellationToken)
+    {
+        var read = new ResourceReadRequest(
+            JsonElementReaders.ReadString(request.Params, "threadId") ?? string.Empty,
+            JsonElementReaders.ReadString(request.Params, "namespace"),
+            JsonElementReaders.ReadString(request.Params, "uri") ?? string.Empty);
+
+        var handler = _resourceHandlers.TryGetValue(read.Uri, out var keyed)
+            ? keyed
+            : _fallbackResourceHandler;
+        if (handler is null)
+        {
+            return new ResourceReadResult([]);
+        }
+
+        try
+        {
+            return await handler(read, cancellationToken);
+        }
+        catch
+        {
+            return new ResourceReadResult([]);
         }
     }
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { useT } from '../../contexts/LocaleContext'
-import type { PendingApproval } from '../../stores/conversationStore'
+import type { ApprovalDetailRowSpec, ApprovalOptionSpec, PendingApproval } from '../../stores/conversationStore'
 import { useConversationStore } from '../../stores/conversationStore'
 import { addToast } from '../../stores/toastStore'
 import type { ApprovalDecision, ApprovalType } from '../../types/conversation'
@@ -12,10 +12,18 @@ interface ApprovalDecisionComposerProps {
   request: PendingApproval
 }
 
-interface ApprovalOption {
-  decision: ApprovalDecision
-  label: string
-  description: string
+/** Default tool-approval detail rows (when the request carries no custom `detailRows`). */
+function buildToolDetailRows(request: PendingApproval, t: ReturnType<typeof useT>): ApprovalDetailRowSpec[] {
+  const rows: ApprovalDetailRowSpec[] = [
+    { label: t('approval.detail.type'), value: t(approvalTypeLabelKey(request.approvalType)) }
+  ]
+  const operation = request.operation.trim()
+  const target = request.target.trim()
+  const reason = request.reason.trim()
+  if (operation.length > 0) rows.push({ label: t('approval.detail.operation'), value: operation, mono: true })
+  if (target.length > 0) rows.push({ label: t('approval.detail.target'), value: target, mono: true })
+  if (reason.length > 0) rows.push({ label: t('approval.detail.reason'), value: reason })
+  return rows
 }
 
 export function ApprovalDecisionComposer({ request }: ApprovalDecisionComposerProps): JSX.Element {
@@ -30,69 +38,83 @@ export function ApprovalDecisionComposer({ request }: ApprovalDecisionComposerPr
     setSelectedIndex(0)
     setSubmitting(false)
     setSubmitted(false)
-  }, [request.bridgeId, request.itemId])
+  }, [request.bridgeId, request.itemId, request.requestId])
 
-  const options = useMemo<ApprovalOption[]>(() => [
+  const options = useMemo<ApprovalOptionSpec[]>(() => request.options ?? [
     {
-      decision: 'accept',
+      value: 'accept',
       label: t('approval.option.accept.label'),
       description: t('approval.option.accept.description')
     },
     {
-      decision: 'acceptForSession',
+      value: 'acceptForSession',
       label: t('approval.option.acceptForSession.label'),
       description: t('approval.option.acceptForSession.description')
     },
     {
-      decision: 'acceptAlways',
+      value: 'acceptAlways',
       label: t('approval.option.acceptAlways.label'),
       description: t('approval.option.acceptAlways.description')
     },
     {
-      decision: 'decline',
+      value: 'decline',
       label: t('approval.option.decline.label'),
       description: t('approval.option.decline.description')
     },
     {
-      decision: 'cancel',
+      value: 'cancel',
       label: t('approval.option.cancel.label'),
       description: t('approval.option.cancel.description')
     }
-  ], [t])
+  ], [t, request.options])
 
   const selectedOption = options[Math.min(selectedIndex, options.length - 1)] ?? options[0]
+  const declineValue = request.declineValue ?? 'decline'
+  const declineOption = options.find((option) => option.value === declineValue)
   const locallySubmitted = request.locallySubmittedDecision != null
   const locked = submitting || submitted || locallySubmitted
   const canMoveUp = selectedIndex > 0
   const canMoveDown = selectedIndex + 1 < options.length
-  const showFooterReject = selectedOption.decision !== 'decline'
+  const showFooterReject = selectedOption.value !== declineValue
 
-  const sendDecision = useCallback(async (decision: ApprovalDecision): Promise<void> => {
+  const sendDecision = useCallback(async (value: string): Promise<void> => {
     if (sendingRef.current || submitted || request.locallySubmittedDecision != null) return
     sendingRef.current = true
     setSubmitting(true)
-    useConversationStore.getState().onApprovalSubmitStarted(decision)
 
+    const failed = (err: unknown): void => {
+      sendingRef.current = false
+      setSubmitting(false)
+      addToast(t('approval.sendFailed', { error: err instanceof Error ? err.message : String(err) }), 'error')
+    }
+
+    // Non-tool sources (e.g. browser-use) route through a custom handler; tool approvals respond
+    // to AppServer via the bridge.
+    if (request.submit) {
+      try {
+        await request.submit(value)
+        setSubmitted(true)
+      } catch (err) {
+        failed(err)
+      }
+      return
+    }
+
+    const decision = value as ApprovalDecision
+    useConversationStore.getState().onApprovalSubmitStarted(decision)
     try {
       await window.api.appServer.sendServerResponse(request.bridgeId, { decision })
       useConversationStore.getState().onApprovalDecision(decision)
       setSubmitted(true)
     } catch (err) {
       useConversationStore.getState().onApprovalSubmitFailed()
-      sendingRef.current = false
-      setSubmitting(false)
-      addToast(
-        t('approval.sendFailed', {
-          error: err instanceof Error ? err.message : String(err)
-        }),
-        'error'
-      )
+      failed(err)
     }
-  }, [request.bridgeId, request.locallySubmittedDecision, submitted, t])
+  }, [request.bridgeId, request.locallySubmittedDecision, request.submit, submitted, t])
 
   const submitSelected = useCallback((): void => {
-    void sendDecision(selectedOption.decision)
-  }, [selectedOption.decision, sendDecision])
+    void sendDecision(selectedOption.value)
+  }, [selectedOption.value, sendDecision])
 
   const selectOption = (index: number): void => {
     if (locked) return
@@ -106,7 +128,7 @@ export function ApprovalDecisionComposer({ request }: ApprovalDecisionComposerPr
 
       if (event.key === 'Escape') {
         event.preventDefault()
-        void sendDecision('decline')
+        void sendDecision(declineValue)
         return
       }
 
@@ -132,14 +154,10 @@ export function ApprovalDecisionComposer({ request }: ApprovalDecisionComposerPr
 
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [locked, options.length, selectedIndex, sendDecision, submitSelected])
+  }, [declineValue, locked, options.length, selectedIndex, sendDecision, submitSelected])
 
-  const approvalType = request.approvalType
-  const typeLabel = t(approvalTypeLabelKey(approvalType))
-  const questionText = t(approvalQuestionKey(approvalType))
-  const operation = request.operation.trim()
-  const target = request.target.trim()
-  const reason = request.reason.trim()
+  const questionText = request.question ?? t(approvalQuestionKey(request.approvalType))
+  const detailRows = request.detailRows ?? buildToolDetailRows(request, t)
 
   return (
     <div style={composerDockStyle}>
@@ -155,21 +173,14 @@ export function ApprovalDecisionComposer({ request }: ApprovalDecisionComposerPr
             <div style={{ display: 'grid', gap: '8px' }}>
               <div style={questionStyle}>{questionText}</div>
               <div style={detailPanelStyle}>
-                <ApprovalDetailRow label={t('approval.detail.type')} value={typeLabel} />
-                {operation.length > 0 && (
-                  <ApprovalDetailRow label={t('approval.detail.operation')} value={operation} mono />
-                )}
-                {target.length > 0 && (
-                  <ApprovalDetailRow label={t('approval.detail.target')} value={target} mono />
-                )}
-                {reason.length > 0 && (
-                  <ApprovalDetailRow label={t('approval.detail.reason')} value={reason} />
-                )}
+                {detailRows.map((row, index) => (
+                  <ApprovalDetailRow key={`${row.label}-${index}`} label={row.label} value={row.value} mono={row.mono} />
+                ))}
               </div>
               <div style={{ display: 'grid', gap: '6px' }}>
                 {options.map((option, index) => (
                   <ComposerChoiceRow
-                    key={option.decision}
+                    key={option.value}
                     index={index}
                     label={option.label}
                     description={option.description}
@@ -197,13 +208,13 @@ export function ApprovalDecisionComposer({ request }: ApprovalDecisionComposerPr
                 <button
                   type="button"
                   onClick={() => {
-                    void sendDecision('decline')
+                    void sendDecision(declineValue)
                   }}
                   disabled={locked}
                   aria-label={t('approval.rejectShortcutAria')}
                   style={rejectButtonStyle(locked)}
                 >
-                  <span>{t('approval.option.decline.label')}</span>
+                  <span>{declineOption?.label ?? t('approval.option.decline.label')}</span>
                   <span style={kbdChipStyle}>Esc</span>
                 </button>
               )}
@@ -310,7 +321,12 @@ function detailValueStyle(mono: boolean): CSSProperties {
     fontFamily: mono ? 'var(--font-mono)' : undefined,
     fontSize: 'var(--text-body-size)',
     lineHeight: 'var(--text-body-line-height)',
-    overflowWrap: 'anywhere'
+    overflowWrap: 'anywhere',
+    // Long operation/target values (e.g. a large shell command) must not push the decision
+    // options off-screen (issue #39): bound the monospace value to a scrollable box.
+    ...(mono
+      ? { maxHeight: '160px', overflowY: 'auto', whiteSpace: 'pre-wrap' as const }
+      : {})
   }
 }
 

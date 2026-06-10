@@ -217,13 +217,20 @@ public static class AppContextBlockKinds
     public const string ArtifactIndex = "artifactIndex";
     public const string Policy = "policy";
 
+    /// <summary>
+    /// Model‑visible state pushed by an Interactive Tool UI via <c>ui/update-model-context</c>
+    /// (M‑iii). Keyed to the originating <c>dynamicToolCall</c> item; last‑write‑wins.
+    /// </summary>
+    public const string UiModelContext = "uiModelContext";
+
     public static bool IsKnown(string value) =>
         string.Equals(value, Role, StringComparison.Ordinal)
         || string.Equals(value, Mission, StringComparison.Ordinal)
         || string.Equals(value, TeamState, StringComparison.Ordinal)
         || string.Equals(value, MailboxDigest, StringComparison.Ordinal)
         || string.Equals(value, ArtifactIndex, StringComparison.Ordinal)
-        || string.Equals(value, Policy, StringComparison.Ordinal);
+        || string.Equals(value, Policy, StringComparison.Ordinal)
+        || string.Equals(value, UiModelContext, StringComparison.Ordinal);
 }
 
 public static class AppContextBlockVisibilities
@@ -270,6 +277,15 @@ public static class AppBindingErrorCodes
     public const string ScopeDenied = "AppBindingScopeDenied";
     public const string ToolUnavailable = "AppBindingToolUnavailable";
     public const string ProtocolViolation = "AppBindingProtocolViolation";
+
+    /// <summary>
+    /// A UI‑initiated tool call targeted a tool that requires approval, but the calling client
+    /// cannot prompt for it (no approval gate, e.g. non‑Desktop).
+    /// </summary>
+    public const string ApprovalRequired = "AppBindingApprovalRequired";
+
+    /// <summary>The user declined a UI‑initiated mutating tool call at the approval prompt (M‑v).</summary>
+    public const string ApprovalDeclined = "AppBindingApprovalDeclined";
 }
 
 public sealed record ManagedAppBindingCatalogMetadata(

@@ -119,6 +119,19 @@ public interface ISessionService
         throw new NotSupportedException("Thread goals are not supported by this session service.");
 
     /// <summary>
+    /// Loads stored Interactive Tool UI <c>widgetState</c> for a thread, keyed by <c>callId</c>
+    /// (M-iv). UI-only; never surfaced to the model. Default: none.
+    /// </summary>
+    IReadOnlyDictionary<string, string> GetItemWidgetStates(string threadId) =>
+        new Dictionary<string, string>(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Upserts (non-empty) or clears (null/empty) an Interactive Tool UI item's <c>widgetState</c>,
+    /// keyed by <c>callId</c> (M-iv). Decoupled from the conversation — no turn/item. Default: no-op.
+    /// </summary>
+    void SetItemWidgetState(string threadId, string callId, string? widgetStateJson) { }
+
+    /// <summary>
     /// Creates, replaces, or updates the current goal attached to a thread.
     /// </summary>
     Task<ThreadGoal> SetThreadGoalAsync(

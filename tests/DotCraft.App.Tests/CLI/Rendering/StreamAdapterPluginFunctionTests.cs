@@ -85,6 +85,69 @@ public sealed class StreamAdapterPluginFunctionTests
             });
     }
 
+    // M-v fallback contract: the non-Desktop channel renders the model-visible result
+    // (contentItems / structuredResult) and never the UI-only fields (_meta / widgetState / ui).
+    [Fact]
+    public async Task AdaptWireNotificationsAsync_DynamicToolFallback_RendersContentAndExcludesUiOnlyFields()
+    {
+        var events = new List<RenderEvent>();
+        await foreach (var renderEvent in StreamAdapter.AdaptWireNotificationsAsync(ReadDynamicToolFallbackNotifications()))
+        {
+            events.Add(renderEvent);
+        }
+
+        var completed = events.Single(e => e.Type == RenderEventType.ToolCallCompleted);
+        Assert.Contains("Board: 2 items", completed.AdditionalInfo);
+        Assert.DoesNotContain("ui-only-meta", completed.AdditionalInfo);
+        Assert.DoesNotContain("secret-widget-state", completed.AdditionalInfo);
+        Assert.DoesNotContain("board.html", completed.AdditionalInfo);
+    }
+
+    private static async IAsyncEnumerable<JsonDocument> ReadDynamicToolFallbackNotifications()
+    {
+        yield return JsonDocument.Parse(
+            """
+            {
+              "jsonrpc": "2.0",
+              "method": "item/started",
+              "params": {
+                "item": {
+                  "id": "dynamic-2",
+                  "type": "dynamicToolCall",
+                  "payload": { "namespace": "oratorio", "toolName": "ListBoardItems", "callId": "dynamic-call-2", "arguments": {} }
+                }
+              }
+            }
+            """);
+
+        await Task.Yield();
+
+        yield return JsonDocument.Parse(
+            """
+            {
+              "jsonrpc": "2.0",
+              "method": "item/completed",
+              "params": {
+                "item": {
+                  "id": "dynamic-2",
+                  "type": "dynamicToolCall",
+                  "payload": {
+                    "namespace": "oratorio",
+                    "toolName": "ListBoardItems",
+                    "callId": "dynamic-call-2",
+                    "contentItems": [ { "type": "text", "text": "Board: 2 items" } ],
+                    "structuredResult": { "count": 2 },
+                    "_meta": { "secret": "ui-only-meta" },
+                    "widgetState": { "selectedTab": "secret-widget-state" },
+                    "ui": { "resourceUri": "ui://oratorio/board.html" },
+                    "success": true
+                  }
+                }
+              }
+            }
+            """);
+    }
+
     private static async IAsyncEnumerable<JsonDocument> ReadNotifications()
     {
         yield return JsonDocument.Parse(

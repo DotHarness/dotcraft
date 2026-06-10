@@ -8,7 +8,8 @@ import { useThreadStore, type ThreadRuntimeSnapshot } from './stores/threadStore
 import {
   selectLatestCreatePlanTurnId,
   selectStreamingPlanItemId,
-  useConversationStore
+  useConversationStore,
+  type PendingApproval
 } from './stores/conversationStore'
 import { useUIStore } from './stores/uiStore'
 import { useViewerTabStore } from './stores/viewerTabStore'
@@ -371,110 +372,89 @@ function runtimeSnapshotFromThread(thread: Thread): ThreadRuntimeSnapshot {
   }
 }
 
-function BrowserUseApprovalDialog({
-  locale,
-  request,
-  onRespond
-}: {
+/**
+ * Builds a generic PendingApproval for a decoupled UI tool call's mutate-approval (M-v). Shown in
+ * the shared ApprovalDecisionComposer; the accept/decline decision is sent back as the response to
+ * the originating `ui/tool/approval/request` server request, then the slot is cleared.
+ */
+function buildUiToolApproval(
+  p: Record<string, unknown>,
+  bridgeId: string,
   locale: AppLocale
-  request: BrowserUseApprovalRequestPayload
-  onRespond: (action: BrowserUseApprovalResponseAction) => void
-}): JSX.Element {
-  const session = request.sessionName?.trim()
-  const message = session
-    ? translate(locale, 'browserUse.approval.messageWithSession', { session, domain: request.domain })
-    : translate(locale, 'browserUse.approval.message', { domain: request.domain })
-  return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="browser-approval-title"
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 10000,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: 'var(--overlay-scrim)'
-      }}
-    >
-      <div
-        style={{
-          width: '460px',
-          maxWidth: 'calc(100vw - 48px)',
-          border: '1px solid var(--border-default)',
-          borderRadius: '12px',
-          background: 'var(--bg-secondary)',
-          boxShadow: 'var(--shadow-level-3)',
-          padding: '22px'
-        }}
-      >
-        <h2
-          id="browser-approval-title"
-          style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)' }}
-        >
-          {translate(locale, 'browserUse.approval.title')}
-        </h2>
-        <p style={{ margin: '8px 0 14px', fontSize: '13px', lineHeight: 1.5, color: 'var(--text-secondary)' }}>
-          {message}
-        </p>
-        <div
-          style={{
-            border: '1px solid var(--border-default)',
-            borderRadius: '8px',
-            background: 'var(--bg-primary)',
-            padding: '10px',
-            fontFamily: 'var(--font-mono)',
-            fontSize: '12px',
-            color: 'var(--text-secondary)',
-            overflowWrap: 'anywhere'
-          }}
-        >
-          {request.url}
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '18px', flexWrap: 'wrap' }}>
-          <button type="button" onClick={() => onRespond('deny')} style={dialogSecondaryButtonStyle()}>
-            {translate(locale, 'browserUse.approval.cancel')}
-          </button>
-          <button type="button" onClick={() => onRespond('blockDomain')} style={dialogSecondaryButtonStyle(true)}>
-            {translate(locale, 'browserUse.approval.blockDomain')}
-          </button>
-          <button type="button" onClick={() => onRespond('allowOnce')} style={dialogSecondaryButtonStyle()}>
-            {translate(locale, 'browserUse.approval.allowOnce')}
-          </button>
-          <button type="button" onClick={() => onRespond('allowDomain')} style={dialogPrimaryButtonStyle()}>
-            {translate(locale, 'browserUse.approval.alwaysAllow')}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function dialogSecondaryButtonStyle(danger = false): CSSProperties {
+): PendingApproval {
   return {
-    padding: '8px 12px',
-    border: '1px solid var(--border-default)',
-    borderRadius: '8px',
-    background: 'transparent',
-    color: danger ? 'var(--error)' : 'var(--text-primary)',
-    fontSize: '13px',
-    fontWeight: 600,
-    cursor: 'pointer'
+    bridgeId,
+    threadId: typeof p.threadId === 'string' ? p.threadId : null,
+    turnId: null,
+    requestId: typeof p.approvalId === 'string' ? p.approvalId : '',
+    locallySubmittedDecision: null,
+    itemId: '',
+    approvalType: (typeof p.approvalType === 'string' ? p.approvalType : 'remoteResource') as PendingApproval['approvalType'],
+    operation: typeof p.operation === 'string' ? p.operation : '',
+    target: typeof p.target === 'string' ? p.target : '',
+    reason: '',
+    source: 'uiTool',
+    declineValue: 'decline',
+    options: [
+      {
+        value: 'accept',
+        label: translate(locale, 'approval.option.accept.label'),
+        description: translate(locale, 'approval.option.accept.description')
+      },
+      {
+        value: 'decline',
+        label: translate(locale, 'approval.option.decline.label'),
+        description: translate(locale, 'approval.option.decline.description')
+      }
+    ],
+    submit: async (value: string): Promise<void> => {
+      await window.api.appServer.sendServerResponse(bridgeId, { decision: value })
+      useConversationStore.getState().setGenericApproval(null)
+    }
   }
 }
 
-function dialogPrimaryButtonStyle(): CSSProperties {
+/**
+ * Builds a generic PendingApproval for a browser-use navigation request so it renders in the shared
+ * ApprovalDecisionComposer (bottom dock) instead of a separate modal. The decision routes back to
+ * the browser-use IPC channel and clears the generic-approval slot.
+ */
+function buildBrowserUseApproval(
+  request: BrowserUseApprovalRequestPayload,
+  locale: AppLocale
+): PendingApproval {
+  const session = request.sessionName?.trim()
+  const question = session
+    ? translate(locale, 'browserUse.approval.messageWithSession', { session, domain: request.domain })
+    : translate(locale, 'browserUse.approval.message', { domain: request.domain })
   return {
-    padding: '8px 12px',
-    border: '1px solid var(--text-primary)',
-    borderRadius: '8px',
-    background: 'var(--text-primary)',
-    color: 'var(--bg-primary)',
-    fontSize: '13px',
-    fontWeight: 700,
-    cursor: 'pointer'
+    bridgeId: '',
+    threadId: null,
+    turnId: null,
+    requestId: request.requestId,
+    locallySubmittedDecision: null,
+    itemId: '',
+    approvalType: 'remoteResource',
+    operation: '',
+    target: '',
+    reason: '',
+    source: 'browserUse',
+    question,
+    detailRows: [{ label: translate(locale, 'browserUse.approval.urlLabel'), value: request.url, mono: true }],
+    declineValue: 'deny',
+    options: [
+      { value: 'allowDomain', label: translate(locale, 'browserUse.approval.alwaysAllow'), description: '' },
+      { value: 'allowOnce', label: translate(locale, 'browserUse.approval.allowOnce'), description: '' },
+      { value: 'blockDomain', label: translate(locale, 'browserUse.approval.blockDomain'), description: '' },
+      { value: 'deny', label: translate(locale, 'browserUse.approval.cancel'), description: '' }
+    ],
+    submit: async (value: string): Promise<void> => {
+      await window.api.workspace.viewer.browserUse.sendApprovalResponse({
+        requestId: request.requestId,
+        action: value as BrowserUseApprovalResponseAction
+      })
+      useConversationStore.getState().setGenericApproval(null)
+    }
   }
 }
 
@@ -635,7 +615,6 @@ export function App(): JSX.Element {
     isGitBranchProbeSettled(mainWorkspaceGitStatus)
   const remoteWorkspaceActiveRef = useRef(remoteWorkspaceActive)
   remoteWorkspaceActiveRef.current = remoteWorkspaceActive
-  const [browserUseApprovalRequests, setBrowserUseApprovalRequests] = useState<BrowserUseApprovalRequestPayload[]>([])
   const [chromeSettingsOpenSeq, setChromeSettingsOpenSeq] = useState(0)
   const [whatsNewDialog, setWhatsNewDialog] = useState<{
     releases: WhatsNewRelease[]
@@ -2110,6 +2089,12 @@ export function App(): JSX.Element {
         useConversationStore.getState().onUserInputRequest(bridgeId, p)
         return
       }
+      if (method === 'ui/tool/approval/request') {
+        // Decoupled mutate-approval for a UI tool call (M-v): show it in the shared approval
+        // composer (generic-approval slot), independent of any turn.
+        useConversationStore.getState().setGenericApproval(buildUiToolApproval(p, bridgeId, localeRef.current))
+        return
+      }
         // Unknown server requests: respond with null to unblock AppServer
         // (will be handled by specific cases above in future)
         window.api.appServer.sendServerResponse(bridgeId, {
@@ -2364,32 +2349,13 @@ export function App(): JSX.Element {
 
   useEffect(() => {
     const unsubscribe = window.api.workspace.viewer.browserUse.onApprovalRequest((event) => {
-      setBrowserUseApprovalRequests((current) => {
-        if (current.some((item) => item.requestId === event.requestId)) return current
-        return [...current, event]
-      })
+      // Reuse the shared approval composer (bottom dock) instead of a separate modal.
+      useConversationStore.getState().setGenericApproval(buildBrowserUseApproval(event, localeRef.current))
     })
     return () => {
       unsubscribe()
     }
   }, [])
-
-  const respondToBrowserUseApproval = useCallback(
-    (request: BrowserUseApprovalRequestPayload, action: BrowserUseApprovalResponseAction): void => {
-      setBrowserUseApprovalRequests((current) => current.filter((item) => item.requestId !== request.requestId))
-      window.api.workspace.viewer.browserUse
-        .sendApprovalResponse({ requestId: request.requestId, action })
-        .catch((err: unknown) => {
-          addToast(
-            translate(localeRef.current, 'browserUse.approval.sendFailed', {
-              error: err instanceof Error ? err.message : String(err)
-            }),
-            'error'
-          )
-        })
-    },
-    []
-  )
 
   // Keep viewerTabStore in sync with active thread, and restore/fallback
   // uiStore.activeDetailTab according to the incoming thread's viewer state.
@@ -3050,13 +3016,6 @@ export function App(): JSX.Element {
         {quickOpenVisible && (
           <QuickOpenDialog
             onClose={() => setQuickOpenVisible(false)}
-          />
-        )}
-        {browserUseApprovalRequests[0] && (
-          <BrowserUseApprovalDialog
-            locale={locale}
-            request={browserUseApprovalRequests[0]}
-            onRespond={(action) => respondToBrowserUseApproval(browserUseApprovalRequests[0], action)}
           />
         )}
         {status === 'disconnected' && isExpectedRestart && (

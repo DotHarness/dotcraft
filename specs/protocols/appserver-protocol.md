@@ -6,7 +6,7 @@
 | **Status** | Living |
 | **Date** | 2026-06-01 |
 | **Parent Spec** | [Session Core](../core/session-core.md) (Section 20) |
-| **Related Specs** | [Tool Result Presentation](tool-result-presentation.md) |
+| **Related Specs** | [Interactive Tool UI](tool-result-presentation.md) |
 
 Purpose: Define a language-neutral JSON-RPC wire protocol that exposes Session Core (`ISessionService`) and related AppServer capabilities to out-of-process clients, enabling them to create and resume threads, submit turns, stream events, participate in approval flows, and call server-level management methods through one transport-stable contract.
 
@@ -471,9 +471,8 @@ Dynamic tool spec:
     "title": "Submit review draft",
     "subtitle": "Oratorio"
   },
-  "presentation": {
-    "version": "dotcraft.card.v1",
-    "actions": ["app.open", "copy"]
+  "_meta": {
+    "ui": { "resourceUri": "ui://oratorio/review-draft", "visibility": ["model", "app"] }
   },
   "approval": {
     "kind": "remoteResource",
@@ -491,8 +490,8 @@ Rules:
 - `inputSchema` is required and must be a valid JSON Schema object.
 - `outputSchema`, when present, describes the structured result returned by the tool.
 - `display`, when present, is optional user-facing metadata for clients that render tool activity.
-- `presentation`, when present, declares the presentation version and the action kinds the tool's results may use. See [Tool Result Presentation](tool-result-presentation.md).
-- `display` and `presentation` are client-facing metadata and MUST NOT be included in the model-visible tool description.
+- `_meta.ui`, when present, declares an interactive UI for the tool (UI resource `resourceUri`, `visibility`, CSP/permissions). See [Interactive Tool UI](tool-result-presentation.md).
+- `display` and `_meta.ui` are client-facing metadata and MUST NOT be included in the model-visible tool description.
 - `(namespace, name)` pairs must be unique within a `thread/start` request.
 - `approval`, when present, uses the same descriptive approval metadata as channel tools: `file`, `shell`, or `remoteResource`. DotCraft evaluates approval before dispatching `item/tool/call`.
 - If the bound connection closes, dynamic tools bound to that thread become unavailable and calls fail with a structured failed `dynamicToolCall` item until a capable client resumes the thread with replacement `dynamicTools`.
@@ -1831,7 +1830,7 @@ The canonical item payload schemas are defined in [Session Core, Section 4.2](..
 | `commandExecution` | Command execution payload uses camelCase fields such as `command`, `workingDirectory`, `source`, `status`, `aggregatedOutput`, `exitCode`, `durationMs`, and `callId`. |
 | `toolExecution` | Runtime lifecycle enhancement for a normal tool invocation. Payload uses `callId`, `toolName`, `status`, `success`, `durationMs`, `resultPreview`, and `errorMessage`. It is emitted only when the client advertises `capabilities.toolExecutionLifecycle = true`. |
 | `pluginFunctionCall` | Plugin function payload uses camelCase fields such as `pluginId`, `namespace`, `functionName`, `callId`, `arguments`, `contentItems`, `structuredResult`, `success`, `errorCode`, and `errorMessage`. For plugin-backed tools, including adapter-declared channel tools, this is the only conversation-item projection: the server emits `item/started` -> `item/completed` for `pluginFunctionCall` and does not emit companion `toolCall`/`toolResult` items. Plugin discovery and manifest architecture are defined in [plugin-architecture.md](../extensions/plugin-architecture.md). |
-| `dynamicToolCall` | Runtime dynamic tool payload uses camelCase fields such as `namespace`, `toolName`, `callId`, `arguments`, `contentItems`, `structuredResult`, optional client-only `presentation`, `success`, `errorCode`, and `errorMessage`. Dynamic tools are thread-scoped AppServer client callbacks declared on `thread/start`; the server emits `item/started` -> `item/completed` for `dynamicToolCall` and does not emit companion `toolCall`/`toolResult` items. |
+| `dynamicToolCall` | Runtime dynamic tool payload uses camelCase fields such as `namespace`, `toolName`, `callId`, `arguments`, `contentItems`, `structuredResult`, `success`, `errorCode`, and `errorMessage`. Dynamic tools are thread-scoped AppServer client callbacks declared on `thread/start`; the server emits `item/started` -> `item/completed` for `dynamicToolCall` and does not emit companion `toolCall`/`toolResult` items. |
 | `toolResult` | Result payload uses the canonical fields; transport serialization preserves nested JSON values losslessly. |
 | `approvalRequest` | Approval payload uses the canonical fields plus wire enum/string serialization rules from this spec. |
 | `approvalResponse` | Response payload uses the canonical fields; decision values are serialized as wire strings. |
@@ -2973,39 +2972,13 @@ Runtime dynamic tool invocation for client-declared `thread/start.dynamicTools`.
   ],
   "structuredResult": {
     "draftId": "draft_123"
-  },
-  "presentation": {
-    "schemaVersion": "dotcraft.card.v1",
-    "kind": "tool.result",
-    "cardId": "oratorio.submitReviewDraft.result",
-    "tool": { "namespace": "oratorio", "name": "SubmitReviewDraft", "callId": "call_123", "bindingId": "binding_abc" },
-    "risk": "mutate",
-    "status": "succeeded",
-    "title": "Review draft recorded",
-    "body": [
-      {
-        "type": "KeyValue",
-        "facts": [
-          { "label": "Draft id", "value": "draft_123", "mono": true }
-        ]
-      }
-    ],
-    "actions": [
-      {
-        "id": "copy-draft-id",
-        "label": "Copy draft id",
-        "kind": "copy",
-        "target": "draft_123"
-      }
-    ],
-    "fallbackText": "Review draft recorded."
   }
 }
 ```
 
-If the tool fails, the client returns `{ "success": false, "errorCode": "...", "errorMessage": "..." }`. Failed results MAY include `presentation` only when the declared renderer supports error display and a text fallback is also present. If the client disconnects, times out, or returns an invalid result, DotCraft completes the `dynamicToolCall` item as failed.
+If the tool fails, the client returns `{ "success": false, "errorCode": "...", "errorMessage": "..." }`. If the client disconnects, times out, or returns an invalid result, DotCraft completes the `dynamicToolCall` item as failed.
 
-`presentation` is client-only display data. The server MUST NOT include it in the model-visible value produced from the dynamic tool result. Servers and clients that do not support Tool Result Presentation ignore it and continue to use `contentItems`, `structuredResult`, and error fields.
+Interactive UI (when the tool declares `_meta.ui`) is rendered from the tool's UI resource and the host⇄UI bridge, not from the tool result; see [Interactive Tool UI](tool-result-presentation.md). The dynamic tool result itself carries only `contentItems` / `structuredResult` / error fields, which also serve as the text fallback for non-Desktop clients.
 
 When `success` is `false`, `errorCode` should use a stable string when possible. Standard protocol-level values:
 
@@ -3026,6 +2999,61 @@ Behavior rules:
 - `approval` metadata identifies approval targets for server interception only; it does not define an adapter-local approval policy.
 - Any gating decision for adapter-declared tools must be resolved from the same server-owned thread/workspace policy surfaces used by built-in tools.
 - For adapter-declared tools, item lifecycle projection is `pluginFunctionCall` only (`item/started` → `item/completed`). The server does not emit companion `toolCall`, `toolResult`, or `item/toolCall/argumentsDelta` events for the same invocation.
+
+#### 11.3.1 Interactive Tool UI Resource Read
+
+When a Desktop client that negotiated `interactiveToolUi` (see [Interactive Tool UI](tool-result-presentation.md)) renders a completed `dynamicToolCall` whose tool declared `_meta.ui.resourceUri`, it reads the `ui://` resource to load the app's UI into a sandboxed iframe.
+
+**Method:** `ui/resource/read` — **Direction:** client → server (request, requires response)
+
+**Params:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `threadId` | string | Thread whose App Binding owns the resource. |
+| `namespace` | string? | Tool namespace selecting the bound app. |
+| `uri` | string | The `ui://` resource URI from `_meta.ui.resourceUri`. |
+
+**Result:**
+
+```json
+{
+  "contents": [
+    { "uri": "ui://oratorio/board.html", "mimeType": "text/html;profile=mcp-app", "text": "<!doctype html>…" }
+  ]
+}
+```
+
+Rules:
+
+- The server brokers the read to the app that owns the binding for `threadId` (the app plays the MCP-server role and returns the resource over its App Binding connection).
+- Only `ui://` resources belonging to a tool the binding exposes may be read; the server rejects reads outside the binding's tools/scope, and rejects this method for clients that did not negotiate `interactiveToolUi`.
+- The host SHOULD cache by `uri`; changing the `uri` is the version / cache-bust lever.
+- After load, the UI talks to the host over the client-internal postMessage bridge (`ui/*` + `tools/call`); a UI-initiated `tools/call` is forwarded by the host as `ui/tool/call` (§11.3.2). The bridge is not AppServer wire — see [Interactive Tool UI](tool-result-presentation.md) §7.
+
+#### 11.3.2 UI-Initiated Tool Call (`ui/tool/call`)
+
+When the interactive UI invokes `tools/call` over the bridge ([Interactive Tool UI](tool-result-presentation.md) §7.3), the Desktop host forwards it to AppServer so the call is gated and audited. This mirrors MCP Apps `callTool`: it is a UI↔app interaction, **decoupled from the agent conversation**. The UI never reaches a tool directly.
+
+**Method:** `ui/tool/call` — **Direction:** client → server (request, requires response)
+
+**Params:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `threadId` | string | Thread whose binding owns the tool. |
+| `namespace` | string? | Tool namespace selecting the bound app. |
+| `tool` | string | Tool name. |
+| `arguments` | object | Tool arguments; validated against the tool's `inputSchema`. |
+| `sourceCallId` | string? | `callId` of the `dynamicToolCall` whose UI initiated this call (provenance). |
+
+Behavior:
+
+- AppServer MUST verify the tool is app-bound to `threadId`, is `app`-visible (`_meta.ui.visibility` includes `"app"`), and within the binding's granted scope; otherwise it rejects. Cross-binding / cross-app calls are rejected.
+- The call is **decoupled from the agent conversation**: it does **not** create a turn or a `dynamicToolCall` item, and the model does not observe it. The consent boundary is the app author's UI-visibility declaration (`_meta.ui.visibility`) plus the binding's granted scope, established when the user accepted the binding; AppServer does not re-prompt per UI call. Every call is recorded on the App Binding **audit trail**.
+- AppServer dispatches the call to the app (brokered `item/tool/call`) and returns the result to the host, which relays it to the UI via the bridge (`ui/notifications/tool-result`). The model becomes aware of UI state only when the UI explicitly calls `ui/update-model-context` (push state) or `ui/message` (inject a follow-up turn).
+
+**Result:** the same shape as a dynamic tool result — `{ "success", "contentItems"?, "structuredResult"?, "_meta"?, "errorCode"?, "errorMessage"? }`.
 
 ### 11.3 ACP Tool Proxy
 

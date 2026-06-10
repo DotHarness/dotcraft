@@ -1657,6 +1657,23 @@ Choose the next concrete action that advances the goal. Before doing substantial
     }
 
     /// <inheritdoc/>
+    public IReadOnlyDictionary<string, string> GetItemWidgetStates(string threadId)
+        => persistence.GetItemWidgetStates(NormalizeRequiredThreadId(threadId));
+
+    /// <inheritdoc/>
+    public void SetItemWidgetState(string threadId, string callId, string? widgetStateJson)
+    {
+        var normalizedThreadId = NormalizeRequiredThreadId(threadId);
+        if (string.IsNullOrWhiteSpace(callId))
+            throw AppServerErrors.InvalidParams("'callId' is required.");
+
+        if (string.IsNullOrWhiteSpace(widgetStateJson))
+            persistence.DeleteItemWidgetState(normalizedThreadId, callId);
+        else
+            persistence.SaveItemWidgetState(normalizedThreadId, callId, widgetStateJson);
+    }
+
+    /// <inheritdoc/>
     public async Task<ThreadGoal> SetThreadGoalAsync(
         string threadId,
         ThreadGoalUpdate update,

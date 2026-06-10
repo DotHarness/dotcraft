@@ -14,6 +14,7 @@ import {
   derivePluginFunctionResultText,
   isToolLikeItemType,
   normalizePluginFunctionContentItems,
+  normalizeToolUiDescriptor,
   wireItemToConversationItem,
   wireTurnToConversationTurn
 } from '../types/conversation'
@@ -98,6 +99,20 @@ interface ContextUsageSnapshotInput {
 // State interface
 // ---------------------------------------------------------------------------
 
+/** One selectable decision in the approval composer (resolved labels). */
+export interface ApprovalOptionSpec {
+  value: string
+  label: string
+  description: string
+}
+
+/** One label/value row in the approval composer's detail panel. */
+export interface ApprovalDetailRowSpec {
+  label: string
+  value: string
+  mono?: boolean
+}
+
 export interface PendingApproval {
   /** Bridge ID needed to respond via IPC */
   bridgeId: string
@@ -111,6 +126,25 @@ export interface PendingApproval {
   operation: string
   target: string
   reason: string
+  /**
+   * Approval source (informational; routing is driven by `submit`). `'tool'` (default) responds to
+   * AppServer; `'browserUse'` and `'uiTool'` are turn-less approvals shown via the generic-approval
+   * slot — the browser-use IPC channel and a decoupled `ui/tool/call`, respectively.
+   */
+  source?: 'tool' | 'browserUse' | 'uiTool'
+  /** Custom decision options; when omitted the composer uses the default tool options. */
+  options?: ApprovalOptionSpec[]
+  /** Custom detail rows; when omitted the composer derives them from type/operation/target/reason. */
+  detailRows?: ApprovalDetailRowSpec[]
+  /** Custom prompt; when omitted the composer derives it from `approvalType`. */
+  question?: string
+  /**
+   * Custom decision handler. When set (non-tool sources), the composer calls this with the chosen
+   * option value instead of the AppServer `sendServerResponse` path. Transient UI state only.
+   */
+  submit?: (value: string) => Promise<void>
+  /** Option value used for Esc / the footer reject button (default `'decline'`). */
+  declineValue?: string
 }
 
 interface ApprovalResolvedParams {
@@ -217,6 +251,8 @@ interface ConversationState {
   activeTurnId: string | null
   /** Non-null when turnStatus === 'waitingApproval' */
   pendingApproval: PendingApproval | null
+  /** A turn-less approval (e.g. browser-use) shown in the same composer; independent of turnStatus. */
+  genericApproval: PendingApproval | null
   /** Non-null when turnStatus === 'waitingInput' */
   pendingUserInput: PendingUserInputRequest | null
   /** Currently streaming agent message text */
@@ -378,6 +414,8 @@ interface ConversationActions {
    * Adds an approvalCard item to the current turn and sets waitingApproval state.
    */
   onApprovalRequest(bridgeId: string, params: Record<string, unknown>): void
+  /** Shows or clears a turn-less approval (e.g. browser-use) in the shared approval composer. */
+  setGenericApproval(approval: PendingApproval | null): void
   /**
    * Marks the active approval as already submitted by this Desktop connection.
    * Prevents runtime snapshots from sending a synthetic fallback response.
@@ -424,6 +462,7 @@ const initialState: ConversationState = {
   turns: [],
   turnStatus: 'idle',
   activeTurnId: null,
+  genericApproval: null,
   pendingApproval: null,
   pendingUserInput: null,
   streamingMessage: '',
@@ -720,6 +759,13 @@ function buildToolLikeItem(
   const invocationResult = hasStructuredInvocationResult
     ? derivePluginFunctionResultText(contentItems, structuredResult, errorMessage)
     : undefined
+  const meta = hasStructuredInvocationResult
+    ? ((item._meta as Record<string, unknown> | undefined)
+      ?? (payload._meta as Record<string, unknown> | undefined))
+    : undefined
+  const toolUi = hasStructuredInvocationResult
+    ? normalizeToolUiDescriptor((item.ui as unknown) ?? (payload.ui as unknown))
+    : undefined
 
   return {
     id: (item.id as string) ?? '',
@@ -749,6 +795,8 @@ function buildToolLikeItem(
       ?? (payload.functionName as string | undefined),
     contentItems,
     structuredResult,
+    meta,
+    toolUi,
     errorCode: (item.errorCode as string | undefined)
       ?? (payload.errorCode as string | undefined),
     errorMessage,
@@ -2044,6 +2092,8 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
                       functionName: completedItem.functionName ?? i.functionName,
                       contentItems: completedItem.contentItems ?? i.contentItems,
                       structuredResult: completedItem.structuredResult ?? i.structuredResult,
+                      meta: completedItem.meta ?? i.meta,
+                      toolUi: completedItem.toolUi ?? i.toolUi,
                       errorCode: completedItem.errorCode ?? i.errorCode,
                       errorMessage: completedItem.errorMessage ?? i.errorMessage,
                       duration: endMs - startMs,
@@ -2370,6 +2420,10 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
   },
   setRemoteWorkspaceActive(active) {
     set({ remoteWorkspaceActive: active })
+  },
+
+  setGenericApproval(approval) {
+    set({ genericApproval: approval })
   },
 
   onApprovalRequest(bridgeId, params) {

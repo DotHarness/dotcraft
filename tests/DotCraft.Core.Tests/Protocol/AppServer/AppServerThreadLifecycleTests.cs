@@ -52,6 +52,88 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
     }
 
     [Fact]
+    public async Task ItemWidgetState_PersistsClearsAndSurfacesOnThreadRead()
+    {
+        var thread = await _h.Service.CreateThreadAsync(_h.Identity);
+        var turn = new SessionTurn
+        {
+            Id = "turn_1",
+            ThreadId = thread.Id,
+            Status = TurnStatus.Completed,
+            StartedAt = DateTimeOffset.UtcNow
+        };
+        turn.Items.Add(new SessionItem
+        {
+            Id = "item_1",
+            TurnId = "turn_1",
+            Type = ItemType.DynamicToolCall,
+            Status = ItemStatus.Completed,
+            Payload = new DynamicToolCallPayload
+            {
+                CallId = "call_widget",
+                ToolName = "ShowCard",
+                Namespace = "sample",
+                Success = true
+            },
+            CreatedAt = DateTimeOffset.UtcNow,
+            CompletedAt = DateTimeOffset.UtcNow
+        });
+        thread.Turns.Add(turn);
+        await _h.Service.SeedThreadAsync(thread);
+
+        await _h.ExecuteRequestAsync(_h.BuildRequest(AppServerMethods.ItemWidgetStateSet, new
+        {
+            threadId = thread.Id,
+            callId = "call_widget",
+            widgetState = new { tab = 2, scroll = 120 }
+        }));
+        using (var setResp = await _h.Transport.ReadNextSentAsync())
+        {
+            AppServerTestHarness.AssertIsSuccessResponse(setResp);
+            Assert.False(setResp.RootElement.GetProperty("result").GetProperty("cleared").GetBoolean());
+        }
+
+        await _h.ExecuteRequestAsync(_h.BuildRequest(AppServerMethods.ThreadRead, new { threadId = thread.Id, includeTurns = true }));
+        using (var readResp = await _h.Transport.ReadNextSentAsync())
+        {
+            AppServerTestHarness.AssertIsSuccessResponse(readResp);
+            var item = readResp.RootElement.GetProperty("result").GetProperty("thread")
+                .GetProperty("turns")[0].GetProperty("items")[0];
+            Assert.Equal(2, item.GetProperty("payload").GetProperty("widgetState").GetProperty("tab").GetInt32());
+        }
+
+        await _h.ExecuteRequestAsync(_h.BuildRequest(AppServerMethods.ItemWidgetStateSet, new
+        {
+            threadId = thread.Id,
+            callId = "call_widget"
+        }));
+        using (var clearResp = await _h.Transport.ReadNextSentAsync())
+        {
+            AppServerTestHarness.AssertIsSuccessResponse(clearResp);
+            Assert.True(clearResp.RootElement.GetProperty("result").GetProperty("cleared").GetBoolean());
+        }
+
+        Assert.Empty(_h.Service.GetItemWidgetStates(thread.Id));
+    }
+
+    [Fact]
+    public async Task ItemWidgetState_RejectsOversizedState()
+    {
+        var thread = await _h.Service.CreateThreadAsync(_h.Identity);
+        await _h.Service.SeedThreadAsync(thread);
+
+        await _h.ExecuteRequestAsync(_h.BuildRequest(AppServerMethods.ItemWidgetStateSet, new
+        {
+            threadId = thread.Id,
+            callId = "call_widget",
+            widgetState = new { blob = new string('x', 9000) }
+        }));
+
+        using var resp = await _h.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsErrorResponse(resp, AppServerErrors.InvalidParamsCode);
+    }
+
+    [Fact]
     public async Task ThreadStart_OmitsWorkspacePath_NormalizesToHostWorkspace()
     {
         var msg = _h.BuildRequest(AppServerMethods.ThreadStart, new

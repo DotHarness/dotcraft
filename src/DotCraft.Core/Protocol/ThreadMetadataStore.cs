@@ -760,6 +760,58 @@ internal sealed class ThreadMetadataStore(StateRuntime stateRuntime)
         command.ExecuteNonQuery();
     }
 
+    /// <summary>
+    /// Upserts the UI-only <c>widgetState</c> for a <c>dynamicToolCall</c> item (Interactive Tool UI,
+    /// M-iv), keyed by <paramref name="callId"/>. Stored in a mutable side table — the canonical
+    /// rollout is append-only. <paramref name="widgetStateJson"/> is opaque, host-bounded JSON.
+    /// </summary>
+    public void SaveItemWidgetState(string threadId, string callId, string widgetStateJson)
+    {
+        using var connection = stateRuntime.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            INSERT INTO item_widget_state(thread_id, call_id, widget_state_json, updated_at)
+            VALUES ($thread_id, $call_id, $json, $updated_at)
+            ON CONFLICT(thread_id, call_id) DO UPDATE SET
+                widget_state_json = excluded.widget_state_json,
+                updated_at = excluded.updated_at
+            """;
+        command.Parameters.AddWithValue("$thread_id", threadId);
+        command.Parameters.AddWithValue("$call_id", callId);
+        command.Parameters.AddWithValue("$json", widgetStateJson);
+        command.Parameters.AddWithValue("$updated_at", DateTimeOffset.UtcNow.UtcDateTime.ToString("O"));
+        command.ExecuteNonQuery();
+    }
+
+    /// <summary>Removes a stored <c>widgetState</c> for an item (empty update / teardown).</summary>
+    public void DeleteItemWidgetState(string threadId, string callId)
+    {
+        using var connection = stateRuntime.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "DELETE FROM item_widget_state WHERE thread_id = $thread_id AND call_id = $call_id";
+        command.Parameters.AddWithValue("$thread_id", threadId);
+        command.Parameters.AddWithValue("$call_id", callId);
+        command.ExecuteNonQuery();
+    }
+
+    /// <summary>Loads every stored <c>widgetState</c> for a thread, keyed by <c>callId</c>.</summary>
+    public IReadOnlyDictionary<string, string> LoadItemWidgetStates(string threadId)
+    {
+        using var connection = stateRuntime.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT call_id, widget_state_json FROM item_widget_state WHERE thread_id = $thread_id";
+        command.Parameters.AddWithValue("$thread_id", threadId);
+        var result = new Dictionary<string, string>(StringComparer.Ordinal);
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            if (!reader.IsDBNull(0) && !reader.IsDBNull(1))
+                result[reader.GetString(0)] = reader.GetString(1);
+        }
+
+        return result;
+    }
+
     private static string? ExtractFirstUserMessage(SessionThread thread)
     {
         foreach (var turn in thread.Turns)

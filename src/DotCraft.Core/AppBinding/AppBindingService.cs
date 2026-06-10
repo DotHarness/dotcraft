@@ -1449,6 +1449,11 @@ public sealed class AppBindingService
                 if (reservedToolNames.Contains(spec.Name))
                     continue;
 
+                // App-only interactive UI tools (visibility excludes "model") are invoked via
+                // ui/tool/call from their UI, never exposed to the model.
+                if (!UiToolVisibility.IsModelVisible(spec.Meta?.Ui))
+                    continue;
+
                 var effectiveState = GetRuntimeBindingState(binding);
                 if (_managedRuntimesByAppId.ContainsKey(binding.AppId)
                     && effectiveState != AppBindingStates.Active)
@@ -1472,7 +1477,9 @@ public sealed class AppBindingService
         string workspaceCraftPath,
         string bindingId,
         DynamicToolSpec spec,
-        PluginFunctionExecutionContext execution,
+        string executionThreadId,
+        string executionTurnId,
+        ISessionService? executionSessionService,
         string callId,
         JsonObject arguments,
         CancellationToken cancellationToken)
@@ -1499,15 +1506,15 @@ public sealed class AppBindingService
                         workspaceCraftPath,
                         Directory.GetParent(Path.GetFullPath(workspaceCraftPath))?.FullName ?? Path.GetFullPath(workspaceCraftPath),
                         binding.BindingId,
-                        execution.ThreadId,
-                        execution.TurnId,
+                        executionThreadId,
+                        executionTurnId,
                         callId,
                         binding.AppId,
                         binding.GrantId,
                         spec.Name)
                     {
                         AppBindingService = this,
-                        SessionService = execution.SessionService
+                        SessionService = executionSessionService
                     },
                     arguments,
                     cancellationToken);
@@ -1531,8 +1538,8 @@ public sealed class AppBindingService
                 AppServerMethods.ItemToolCall,
                 new DynamicToolCallParams
                 {
-                    ThreadId = execution.ThreadId,
-                    TurnId = execution.TurnId,
+                    ThreadId = executionThreadId,
+                    TurnId = executionTurnId,
                     CallId = callId,
                     Namespace = spec.Namespace,
                     Tool = spec.Name,
@@ -1558,6 +1565,378 @@ public sealed class AppBindingService
         {
             return Failed(AppBindingErrorCodes.ToolUnavailable, ex.Message);
         }
+    }
+
+    /// <summary>
+    /// Invokes an app-bound tool on behalf of its Interactive Tool UI (MCP Apps <c>callTool</c>).
+    /// The call is decoupled from the agent conversation: it produces no turn or item, is gated by
+    /// App Binding scope + UI visibility, is recorded on the audit trail, and returns its result to
+    /// the host (which relays it to the UI). The model only learns of UI state via
+    /// <c>ui/update-model-context</c> or <c>ui/message</c>. See appserver-protocol.md §11.3.2.
+    /// </summary>
+    internal async ValueTask<DynamicToolCallResult> InvokeUiToolAsync(
+        string workspaceCraftPath,
+        string threadId,
+        string? @namespace,
+        string tool,
+        JsonObject arguments,
+        string? sourceCallId,
+        string userId,
+        ISessionService? sessionService,
+        UiToolApprovalGate? approvalGate,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(tool))
+            throw AppServerErrors.InvalidParams("'tool' is required.");
+
+        bool Matches(DynamicToolSpec candidate) =>
+            string.Equals(candidate.Name, tool, StringComparison.Ordinal)
+            && (string.IsNullOrEmpty(@namespace)
+                || string.Equals(candidate.Namespace, @namespace, StringComparison.Ordinal));
+
+        var state = GetStore(workspaceCraftPath).Snapshot();
+        var binding = state.Bindings.FirstOrDefault(candidate =>
+            string.Equals(candidate.ThreadId, threadId, StringComparison.Ordinal)
+            && candidate.AttachedTools.Any(Matches));
+
+        if (binding == null)
+            return Failed(AppBindingErrorCodes.ToolUnavailable, $"Tool '{tool}' is not app-bound to thread '{threadId}'.");
+
+        var spec = binding.AttachedTools.First(Matches);
+
+        // The app author decides which tools its UI may call via _meta.ui.visibility containing "app".
+        if (!UiToolVisibility.IsAppVisible(spec.Meta?.Ui))
+            return Failed(
+                AppBindingErrorCodes.ToolUnavailable,
+                $"Tool '{tool}' is not exposed to its UI (requires _meta.ui.visibility to include \"app\").");
+
+        var inputSchema = spec.InputSchema ?? new JsonObject { ["type"] = "object" };
+        if (!PluginFunctionSchemaValidator.TryValidateArguments(inputSchema, arguments, out var validationError))
+            return Failed("InvalidArguments", validationError);
+
+        var runtimeState = GetRuntimeBindingState(binding);
+        if (runtimeState != AppBindingStates.Active)
+            return Failed(AppBindingErrorCodes.Offline, $"The app binding for tool '{tool}' is {runtimeState}.");
+
+        // M‑v: a mutating UI tool call (one that declares an approval descriptor) requires user
+        // approval. A decoupled ui/tool/call has no turn/item, so the host raises the approval via
+        // the gate and awaits it. No gate (e.g. a non‑Desktop client that cannot prompt) → reject.
+        // See specs/protocols/tool-result-presentation.md §10.
+        if (spec.Approval != null)
+        {
+            if (approvalGate == null)
+                return Failed(
+                    AppBindingErrorCodes.ApprovalRequired,
+                    $"Tool '{tool}' requires approval, which this client cannot prompt for.");
+
+            var approved = await approvalGate(BuildUiToolApprovalInfo(spec, arguments), cancellationToken);
+            AddAuditWithSave(
+                workspaceCraftPath,
+                approved ? "binding.uiToolApproval.accepted" : "binding.uiToolApproval.declined",
+                threadId,
+                binding.BindingId,
+                binding.AppId,
+                userId,
+                $"tool={tool}");
+            if (!approved)
+                return Failed(AppBindingErrorCodes.ApprovalDeclined, $"The user declined to run '{tool}'.");
+        }
+
+        var callId = $"uitool_{Guid.NewGuid():N}";
+        AddAuditWithSave(
+            workspaceCraftPath,
+            "binding.uiToolCall",
+            threadId,
+            binding.BindingId,
+            binding.AppId,
+            userId,
+            string.IsNullOrWhiteSpace(sourceCallId) ? $"tool={tool}" : $"tool={tool};sourceCallId={sourceCallId}");
+
+        // No turn/item: dispatch directly to the app and return the result to the UI.
+        return await InvokeAttachedToolAsync(
+            workspaceCraftPath,
+            binding.BindingId,
+            spec,
+            executionThreadId: threadId,
+            executionTurnId: string.Empty,
+            sessionService,
+            callId,
+            arguments,
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Derives the approval prompt's <c>operation</c> / <c>target</c> from a mutating tool's approval
+    /// descriptor and the call arguments (M‑v decoupled approval).
+    /// </summary>
+    private static UiToolApprovalInfo BuildUiToolApprovalInfo(DynamicToolSpec spec, JsonObject arguments)
+    {
+        var approval = spec.Approval!;
+        string operation;
+        if (!string.IsNullOrWhiteSpace(approval.Operation))
+            operation = approval.Operation!;
+        else if (!string.IsNullOrWhiteSpace(approval.OperationArgument)
+                 && arguments.TryGetPropertyValue(approval.OperationArgument!, out var op) && op != null)
+            operation = op.ToString();
+        else
+            operation = spec.Name;
+
+        var target = !string.IsNullOrWhiteSpace(approval.TargetArgument)
+                     && arguments.TryGetPropertyValue(approval.TargetArgument, out var tgt) && tgt != null
+            ? tgt.ToString()
+            : string.Empty;
+
+        return new UiToolApprovalInfo(approval.Kind, operation, target);
+    }
+
+    /// <summary>
+    /// Validates and authorizes a UI‑initiated <c>ui/open-link</c>. Enforces the host scheme policy
+    /// (<c>https:</c>/<c>mailto:</c>, plus the bound app's own declared
+    /// <c>nativeApplication.protocol</c> deep‑link scheme — M‑v), confirms an active UI‑bearing
+    /// binding owns the surface, records the open on the audit trail, and returns the cleared URL —
+    /// the Desktop host performs the navigation. Decoupled from the conversation (no turn/item).
+    /// </summary>
+    internal UiOpenLinkResult OpenLink(
+        AppCatalogSnapshot catalog,
+        string workspaceCraftPath,
+        string threadId,
+        string? @namespace,
+        string url,
+        string? sourceCallId,
+        string userId)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+            throw AppServerErrors.InvalidParams("'url' is required.");
+
+        var binding = ResolveActiveUiBinding(workspaceCraftPath, threadId, @namespace);
+        var provenance = string.IsNullOrWhiteSpace(sourceCallId) ? null : $"sourceCallId={sourceCallId}";
+
+        if (!IsAllowedExternalLink(url, DeclaredAppProtocols(catalog, binding.AppId), out var normalized))
+        {
+            AddAuditWithSave(
+                workspaceCraftPath,
+                "binding.uiOpenLink.blocked",
+                threadId,
+                binding.BindingId,
+                binding.AppId,
+                userId,
+                provenance);
+            throw AppServerErrors.InvalidParams(
+                "Link scheme is not allowed. ui/open-link permits https:, mailto:, and the bound app's declared protocol.");
+        }
+
+        AddAuditWithSave(
+            workspaceCraftPath,
+            "binding.uiOpenLink",
+            threadId,
+            binding.BindingId,
+            binding.AppId,
+            userId,
+            provenance);
+        return new UiOpenLinkResult { Url = normalized };
+    }
+
+    /// <summary>
+    /// Records UI‑derived model‑visible state pushed via <c>ui/update-model-context</c> (M‑iii) as an
+    /// App Binding context block keyed to the originating <c>dynamicToolCall</c> item (<c>ui:&lt;callId&gt;</c>),
+    /// <c>visibility: "model"</c>, last‑write‑wins. Empty/absent content removes the block (e.g. on
+    /// teardown). Decoupled from the conversation (no turn/item).
+    /// </summary>
+    internal UiUpdateModelContextResult UpdateModelContext(
+        string workspaceCraftPath,
+        string threadId,
+        string? @namespace,
+        string sourceCallId,
+        string? title,
+        string? content,
+        string userId)
+    {
+        if (string.IsNullOrWhiteSpace(sourceCallId))
+            throw AppServerErrors.InvalidParams("'sourceCallId' is required.");
+
+        var binding = ResolveActiveUiBinding(workspaceCraftPath, threadId, @namespace);
+        var blockId = $"ui:{sourceCallId.Trim()}";
+        var trimmedContent = content?.Trim() ?? string.Empty;
+        if (Encoding.UTF8.GetByteCount(trimmedContent) > MaxContextBlockContentBytes)
+            throw AppServerErrors.InvalidParams(
+                $"ui/update-model-context content exceeds the {MaxContextBlockContentBytes}-byte limit.");
+
+        var safeTitle = string.IsNullOrWhiteSpace(title) ? "UI state" : title.Trim();
+        if (safeTitle.Length > MaxContextBlockMetadataLength)
+            safeTitle = safeTitle[..MaxContextBlockMetadataLength];
+
+        var cleared = trimmedContent.Length == 0;
+        var result = GetStore(workspaceCraftPath).Update(state =>
+        {
+            var live = FindBinding(state, binding.BindingId)
+                       ?? throw AppServerErrors.InvalidParams("The app binding no longer exists.");
+            var now = DateTimeOffset.UtcNow;
+
+            if (cleared)
+            {
+                var removed = live.ContextBlocks.RemoveAll(block =>
+                    string.Equals(block.BlockId, blockId, StringComparison.Ordinal)) > 0;
+                if (removed)
+                {
+                    live.LastChangedAt = now;
+                    AddAudit(state, "binding.uiModelContext.clear", live.ThreadId, live.BindingId, live.AppId, userId, blockId);
+                }
+
+                return new UiUpdateModelContextResult { BlockId = blockId, Cleared = true };
+            }
+
+            var existing = live.ContextBlocks.FirstOrDefault(block =>
+                string.Equals(block.BlockId, blockId, StringComparison.Ordinal));
+            if (existing == null && live.ContextBlocks.Count >= MaxContextBlocksPerBinding)
+                throw AppServerErrors.InvalidParams(
+                    $"Binding '{live.BindingId}' already has the maximum {MaxContextBlocksPerBinding} context blocks.");
+
+            var block = existing ?? new AppContextBlockRecord();
+            block.BlockId = blockId;
+            block.Kind = AppContextBlockKinds.UiModelContext;
+            block.Title = safeTitle;
+            block.Content = trimmedContent;
+            block.Visibility = AppContextBlockVisibilities.Model;
+            block.ExpiresAt = null;
+            block.UpdatedAt = now;
+            block.Version = now.ToString("O");
+            if (existing == null)
+                live.ContextBlocks.Add(block);
+
+            live.LastChangedAt = now;
+            AddAudit(state, "binding.uiModelContext.upsert", live.ThreadId, live.BindingId, live.AppId, userId, blockId);
+            return new UiUpdateModelContextResult { BlockId = blockId, Cleared = false };
+        });
+
+        NotifyAppContextBlocksChanged(binding.ThreadId);
+        return result;
+    }
+
+    /// <summary>
+    /// Host scheme policy for <c>ui/open-link</c>: <c>https:</c>, <c>mailto:</c>, and the bound
+    /// app's own declared deep‑link protocol(s) (per‑binding, from its catalog descriptor).
+    /// </summary>
+    private static bool IsAllowedExternalLink(string url, IReadOnlyList<string> appProtocols, out string normalized)
+    {
+        normalized = url.Trim();
+        if (!Uri.TryCreate(normalized, UriKind.Absolute, out var uri))
+            return false;
+        return string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
+               || string.Equals(uri.Scheme, Uri.UriSchemeMailto, StringComparison.OrdinalIgnoreCase)
+               || appProtocols.Any(protocol => string.Equals(uri.Scheme, protocol, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// Collects the deep‑link protocol(s) an app declares in its catalog descriptor
+    /// (<c>nativeApplication.protocol</c> plus per‑platform overrides). Empty when the app is not
+    /// in the catalog or declares no native application.
+    /// </summary>
+    private static IReadOnlyList<string> DeclaredAppProtocols(AppCatalogSnapshot catalog, string appId)
+    {
+        var native = catalog.Entries
+            .FirstOrDefault(entry => string.Equals(entry.Descriptor.AppId, appId, StringComparison.Ordinal))
+            ?.Descriptor.NativeApplication;
+        if (native == null)
+            return [];
+
+        var protocols = new List<string>();
+        if (!string.IsNullOrWhiteSpace(native.Protocol))
+            protocols.Add(native.Protocol.Trim().TrimEnd(':'));
+        if (native.Platforms != null)
+        {
+            foreach (var platform in native.Platforms.Values)
+            {
+                if (!string.IsNullOrWhiteSpace(platform.Protocol))
+                    protocols.Add(platform.Protocol.Trim().TrimEnd(':'));
+            }
+        }
+
+        return protocols;
+    }
+
+    /// <summary>
+    /// Resolves the active, UI‑bearing App Binding for a thread's interactive surface. Disambiguates
+    /// by <paramref name="namespace"/> when supplied; rejects when no active UI binding is found.
+    /// </summary>
+    private AppBindingRecord ResolveActiveUiBinding(string workspaceCraftPath, string threadId, string? @namespace)
+    {
+        if (string.IsNullOrWhiteSpace(threadId))
+            throw AppServerErrors.InvalidParams("'threadId' is required.");
+
+        var state = GetStore(workspaceCraftPath).Snapshot();
+        var binding = state.Bindings.FirstOrDefault(candidate =>
+            string.Equals(candidate.ThreadId, threadId, StringComparison.Ordinal)
+            && candidate.AttachedTools.Any(tool =>
+                tool.Meta?.Ui != null
+                && (string.IsNullOrEmpty(@namespace)
+                    || string.Equals(tool.Namespace, @namespace, StringComparison.Ordinal))));
+        if (binding == null)
+            throw AppServerErrors.InvalidParams($"No UI‑bearing app binding on thread '{threadId}'.");
+
+        var runtimeState = GetRuntimeBindingState(binding);
+        if (runtimeState != AppBindingStates.Active)
+            throw AppServerErrors.InvalidParams($"The app binding for thread '{threadId}' is {runtimeState}.");
+        return binding;
+    }
+
+    /// <summary>
+    /// Brokers a <c>ui://</c> Interactive Tool UI resource read to the app that owns the binding
+    /// for <paramref name="threadId"/>. The resource URI must be declared by an attached tool's
+    /// <c>_meta.ui.resourceUri</c>; reads outside the binding's tools are rejected.
+    /// </summary>
+    internal async ValueTask<UiResourceReadResult> ReadUiResourceAsync(
+        string workspaceCraftPath,
+        string threadId,
+        string? @namespace,
+        string uri,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(uri))
+            throw AppServerErrors.InvalidParams("'uri' is required.");
+
+        var state = GetStore(workspaceCraftPath).Snapshot();
+        var binding = state.Bindings.FirstOrDefault(candidate =>
+            string.Equals(candidate.ThreadId, threadId, StringComparison.Ordinal)
+            && candidate.AttachedTools.Any(tool =>
+                string.Equals(tool.Meta?.Ui?.ResourceUri, uri, StringComparison.Ordinal)
+                && (string.IsNullOrEmpty(@namespace)
+                    || string.Equals(tool.Namespace, @namespace, StringComparison.Ordinal))));
+
+        if (binding == null)
+            throw AppServerErrors.InvalidParams(
+                $"No app-bound tool on thread '{threadId}' declares UI resource '{uri}'.");
+
+        var runtimeState = GetRuntimeBindingState(binding);
+        if (runtimeState != AppBindingStates.Active)
+            throw AppServerErrors.InvalidParams($"The app binding for UI resource '{uri}' is {runtimeState}.");
+
+        if (!TryGetLiveAttachment(binding.BindingId, out var attachment))
+            throw AppServerErrors.InvalidParams("The app binding is offline. Reconnect the app or refresh the binding.");
+
+        var response = await attachment.Transport.SendClientRequestAsync(
+            AppServerMethods.ItemResourceRead,
+            new UiResourceReadParams { ThreadId = threadId, Namespace = @namespace, Uri = uri },
+            cancellationToken,
+            TimeSpan.FromSeconds(30));
+
+        if (response.Error.HasValue)
+            throw AppServerErrors.InvalidParams($"App failed to read UI resource '{uri}': {response.Error.Value}");
+        if (!response.Result.HasValue)
+            throw AppServerErrors.InvalidParams($"App returned no contents for UI resource '{uri}'.");
+
+        var result = response.Result.Value.Deserialize<UiResourceReadResult>(SessionWireJsonOptions.Default)
+            ?? throw AppServerErrors.InvalidParams($"App returned an invalid response for UI resource '{uri}'.");
+
+        // Host‑populate the per‑resource CSP (M‑iii data path B) from the *server‑validated*
+        // descriptor — the owning tool's _meta.ui.csp — never from the app's resource response or
+        // the iframe. The host (dotcraft-app:// handler) widens connect/resource/frame from this.
+        result.Csp = binding.AttachedTools
+            .FirstOrDefault(tool =>
+                string.Equals(tool.Meta?.Ui?.ResourceUri, uri, StringComparison.Ordinal)
+                && (string.IsNullOrEmpty(@namespace)
+                    || string.Equals(tool.Namespace, @namespace, StringComparison.Ordinal)))
+            ?.Meta?.Ui?.Csp;
+        return result;
     }
 
     private AppBindingStore GetStore(string workspaceCraftPath) =>
@@ -2491,7 +2870,8 @@ public sealed class AppBindingService
                     TargetArgument = spec.Approval.TargetArgument,
                     Operation = spec.Approval.Operation,
                     OperationArgument = spec.Approval.OperationArgument
-                }
+                },
+            Meta = spec.Meta
         };
 
     private static AppDescriptor CloneDescriptor(AppDescriptor descriptor) =>
@@ -2615,7 +2995,9 @@ public sealed class AppBindingService
                 workspaceCraftPath,
                 bindingId,
                 spec,
-                scope,
+                scope.ThreadId,
+                scope.TurnId,
+                scope.SessionService,
                 callId,
                 argsObject,
                 cancellationToken);
@@ -2641,7 +3023,11 @@ public sealed class AppBindingService
                 StructuredResult = result?.StructuredResult?.DeepClone(),
                 Success = result?.Success ?? false,
                 ErrorCode = result?.ErrorCode,
-                ErrorMessage = result?.ErrorMessage
+                ErrorMessage = result?.ErrorMessage,
+                Meta = result?.Meta?.DeepClone(),
+                Ui = spec.Meta?.Ui is { } ui
+                    ? JsonSerializer.SerializeToNode(ui, SessionWireJsonOptions.Default)
+                    : null
             };
 
         private async Task<(string ErrorCode, string ErrorMessage)?> ApplyServerApprovalAsync(

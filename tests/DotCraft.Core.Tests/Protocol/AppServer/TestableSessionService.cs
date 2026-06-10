@@ -134,6 +134,26 @@ internal sealed class TestableSessionService : ISessionService, IThreadAgentRefr
         return t;
     }
 
+    // M-iv: back the Interactive Tool UI widgetState side store with the real ThreadStore so
+    // thread/read enrichment is exercised end-to-end in AppServer tests.
+    public IReadOnlyDictionary<string, string> GetItemWidgetStates(string threadId)
+        => _store.LoadItemWidgetStates(threadId);
+
+    public void SetItemWidgetState(string threadId, string callId, string? widgetStateJson)
+    {
+        if (string.IsNullOrWhiteSpace(widgetStateJson))
+            _store.DeleteItemWidgetState(threadId, callId);
+        else
+            _store.SaveItemWidgetState(threadId, callId, widgetStateJson);
+    }
+
+    /// <summary>Seeds a thread (with any pre-built turns/items) into the store + cache for tests.</summary>
+    public async Task SeedThreadAsync(SessionThread thread, CancellationToken ct = default)
+    {
+        _cache[thread.Id] = thread;
+        await _store.SaveThreadAsync(thread, ct);
+    }
+
     public async Task<ThreadResetResult> ResetConversationAsync(
         SessionIdentity identity,
         ThreadConfiguration? config = null,

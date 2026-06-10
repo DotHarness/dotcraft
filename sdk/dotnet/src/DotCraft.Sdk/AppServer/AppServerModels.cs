@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace DotCraft.Sdk.AppServer;
 
@@ -193,7 +194,8 @@ public sealed record DynamicToolSpec(
     string Description,
     JsonElement InputSchema,
     bool DeferLoading = false,
-    ToolApprovalDescriptor? Approval = null);
+    ToolApprovalDescriptor? Approval = null,
+    [property: JsonPropertyName("_meta")] DynamicToolMeta? Meta = null);
 
 /// <summary>
 /// Approval metadata for a runtime dynamic tool.
@@ -203,6 +205,31 @@ public sealed record ToolApprovalDescriptor(
     string TargetArgument,
     string? Operation = null,
     string? OperationArgument = null);
+
+/// <summary>
+/// Extensible <c>_meta</c> envelope on a dynamic tool spec (MCP Apps).
+/// </summary>
+public sealed record DynamicToolMeta(
+    [property: JsonPropertyName("ui")] DynamicToolUiMeta? Ui = null);
+
+/// <summary>
+/// Interactive Tool UI descriptor (<c>_meta.ui</c>), aligned to MCP Apps / SEP-1865.
+/// </summary>
+public sealed record DynamicToolUiMeta(
+    [property: JsonPropertyName("resourceUri")] string ResourceUri,
+    [property: JsonPropertyName("visibility")] IReadOnlyList<string>? Visibility = null,
+    [property: JsonPropertyName("csp")] DynamicToolUiCsp? Csp = null,
+    [property: JsonPropertyName("permissions")] IReadOnlyList<string>? Permissions = null,
+    [property: JsonPropertyName("prefersBorder")] bool? PrefersBorder = null,
+    [property: JsonPropertyName("domain")] string? Domain = null);
+
+/// <summary>
+/// Content-Security-Policy allowances for an Interactive Tool UI iframe.
+/// </summary>
+public sealed record DynamicToolUiCsp(
+    [property: JsonPropertyName("connectDomains")] IReadOnlyList<string>? ConnectDomains = null,
+    [property: JsonPropertyName("resourceDomains")] IReadOnlyList<string>? ResourceDomains = null,
+    [property: JsonPropertyName("frameDomains")] IReadOnlyList<string>? FrameDomains = null);
 
 /// <summary>
 /// Runtime dynamic tool call sent from AppServer to the SDK client.
@@ -223,12 +250,32 @@ public sealed record DynamicToolResult(
     IReadOnlyList<ToolContentItem>? ContentItems = null,
     object? StructuredResult = null,
     string? ErrorCode = null,
-    string? ErrorMessage = null);
+    string? ErrorMessage = null,
+    [property: JsonPropertyName("_meta")] object? Meta = null);
 
 /// <summary>
 /// Text or media content returned from a runtime dynamic tool.
 /// </summary>
 public sealed record ToolContentItem(string Type, string? Text = null);
+
+/// <summary>
+/// Request to read a <c>ui://</c> Interactive Tool UI resource (MCP Apps), brokered from the host.
+/// </summary>
+public sealed record ResourceReadRequest(string ThreadId, string? Namespace, string Uri);
+
+/// <summary>
+/// A single <c>ui://</c> resource entry returned by the app.
+/// </summary>
+public sealed record ResourceContent(
+    [property: JsonPropertyName("uri")] string Uri,
+    [property: JsonPropertyName("mimeType")] string? MimeType = null,
+    [property: JsonPropertyName("text")] string? Text = null);
+
+/// <summary>
+/// Result of a <c>ui://</c> resource read; aligned to MCP <c>resources/read</c>.
+/// </summary>
+public sealed record ResourceReadResult(
+    [property: JsonPropertyName("contents")] IReadOnlyList<ResourceContent> Contents);
 
 internal static class JsonElementReaders
 {

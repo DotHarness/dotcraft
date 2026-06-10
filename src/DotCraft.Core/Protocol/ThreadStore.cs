@@ -240,6 +240,21 @@ public sealed class ThreadStore
     }
 
     /// <summary>
+    /// Upserts the UI-only Interactive Tool UI <c>widgetState</c> for a <c>dynamicToolCall</c> item
+    /// (M-iv), keyed by <paramref name="callId"/>. Stored in a mutable side table, not the rollout.
+    /// </summary>
+    public void SaveItemWidgetState(string threadId, string callId, string widgetStateJson)
+        => _metadataStore.SaveItemWidgetState(threadId, callId, widgetStateJson);
+
+    /// <summary>Removes a stored <c>widgetState</c> for an item.</summary>
+    public void DeleteItemWidgetState(string threadId, string callId)
+        => _metadataStore.DeleteItemWidgetState(threadId, callId);
+
+    /// <summary>Loads every stored <c>widgetState</c> for a thread, keyed by <c>callId</c>.</summary>
+    public IReadOnlyDictionary<string, string> LoadItemWidgetStates(string threadId)
+        => _metadataStore.LoadItemWidgetStates(threadId);
+
+    /// <summary>
     /// Loads the current persistent goal for a thread, if one exists.
     /// </summary>
     public Task<ThreadGoal?> GetThreadGoalAsync(string threadId, CancellationToken ct = default)
