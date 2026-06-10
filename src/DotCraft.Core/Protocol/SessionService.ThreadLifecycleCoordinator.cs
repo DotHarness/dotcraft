@@ -221,10 +221,6 @@ public sealed partial class SessionService
             owner._threadAgents.TryRemove(threadId, out _);
             owner._threadModeManagers.TryRemove(threadId, out _);
             owner._threadEventBrokers.TryRemove(threadId, out _);
-            if (owner._threadQueueLocks.TryRemove(threadId, out var queueLock))
-                queueLock.Dispose();
-            if (owner._threadAgentLocks.TryRemove(threadId, out var agentLock))
-                agentLock.Dispose();
             owner._materializedThreads.TryRemove(threadId, out _);
             owner._turnsSinceConsolidation.TryRemove(threadId, out _);
             owner._activeAutoMemoryConsolidations.TryRemove(threadId, out _);

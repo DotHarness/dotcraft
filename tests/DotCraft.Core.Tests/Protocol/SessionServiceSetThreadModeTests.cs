@@ -94,7 +94,9 @@ public sealed class SessionServiceSetThreadModeTests : IDisposable
         GetThreadAgents(svc)[thread.Id] = threadChatClient.AsAIAgent(new ChatClientAgentOptions());
 
         var agentLock = new SemaphoreSlim(0, 1);
-        GetThreadAgentLocks(svc)[thread.Id] = agentLock;
+        var runtime = svc.DebugGetRuntime(thread.Id);
+        Assert.NotNull(runtime);
+        runtime!.AgentLock = agentLock;
 
         var events = svc.SubmitInputAsync(
             thread.Id,
@@ -223,13 +225,6 @@ public sealed class SessionServiceSetThreadModeTests : IDisposable
         var field = typeof(SessionService).GetField("_threadAgents", BindingFlags.Instance | BindingFlags.NonPublic);
         Assert.NotNull(field);
         return (ConcurrentDictionary<string, AIAgent>)field.GetValue(svc)!;
-    }
-
-    private static ConcurrentDictionary<string, SemaphoreSlim> GetThreadAgentLocks(SessionService svc)
-    {
-        var field = typeof(SessionService).GetField("_threadAgentLocks", BindingFlags.Instance | BindingFlags.NonPublic);
-        Assert.NotNull(field);
-        return (ConcurrentDictionary<string, SemaphoreSlim>)field.GetValue(svc)!;
     }
 
     private static async Task DrainAsync(IAsyncEnumerable<SessionEvent> events)

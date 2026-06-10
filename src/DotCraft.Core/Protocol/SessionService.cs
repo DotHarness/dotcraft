@@ -117,8 +117,6 @@ public sealed partial class SessionService(
     private readonly ConcurrentDictionary<string, McpClientManager> _threadMcpManagers = new();
     private readonly ConcurrentDictionary<string, AgentModeManager> _threadModeManagers = new();
     private readonly ConcurrentDictionary<string, ThreadEventBroker> _threadEventBrokers = new();
-    private readonly ConcurrentDictionary<string, SemaphoreSlim> _threadQueueLocks = new();
-    private readonly ConcurrentDictionary<string, SemaphoreSlim> _threadAgentLocks = new();
     private readonly ConcurrentDictionary<string, byte> _materializedThreads = new();
     private readonly ConcurrentDictionary<string, int> _turnsSinceConsolidation = new();
     private readonly ConcurrentDictionary<string, PromptRequestSnapshot> _lastPromptRequestSnapshots = new();
@@ -190,6 +188,9 @@ public sealed partial class SessionService(
     private AgentFactory AgentFactory => agentFactory;
 
     internal int DebugRuntimeCount => _runtimeRegistry.Count;
+
+    internal ThreadRuntime? DebugGetRuntime(string threadId) =>
+        _runtimeRegistry.TryGetRuntime(threadId, out var runtime) ? runtime : null;
 
     /// <summary>
     /// Suppresses immediate Session Core goal broadcasts within the current async flow.
@@ -2420,16 +2421,20 @@ public sealed partial class SessionService(
 
     private async Task<IDisposable> AcquireThreadQueueLockAsync(string threadId, CancellationToken ct)
     {
-        var queueLock = _threadQueueLocks.GetOrAdd(threadId, static _ => new SemaphoreSlim(1, 1));
-        await queueLock.WaitAsync(ct);
-        return new SemaphoreSlimReleaser(queueLock);
+        if (!_runtimeRegistry.TryGetRuntime(threadId, out var runtime))
+            return NoopReleaser.Instance;
+
+        await runtime.QueueLock.WaitAsync(ct);
+        return new SemaphoreSlimReleaser(runtime.QueueLock);
     }
 
     private async Task<IDisposable> AcquireThreadAgentLockAsync(string threadId, CancellationToken ct)
     {
-        var agentLock = _threadAgentLocks.GetOrAdd(threadId, static _ => new SemaphoreSlim(1, 1));
-        await agentLock.WaitAsync(ct);
-        return new SemaphoreSlimReleaser(agentLock);
+        if (!_runtimeRegistry.TryGetRuntime(threadId, out var runtime))
+            return NoopReleaser.Instance;
+
+        await runtime.AgentLock.WaitAsync(ct);
+        return new SemaphoreSlimReleaser(runtime.AgentLock);
     }
 
     private void PublishQueueUpdated(string threadId, IReadOnlyList<QueuedTurnInput> queuedInputs) =>
@@ -2444,6 +2449,19 @@ public sealed partial class SessionService(
     private sealed class SemaphoreSlimReleaser(SemaphoreSlim semaphore) : IDisposable
     {
         public void Dispose() => semaphore.Release();
+    }
+
+    private sealed class NoopReleaser : IDisposable
+    {
+        public static readonly NoopReleaser Instance = new();
+
+        private NoopReleaser()
+        {
+        }
+
+        public void Dispose()
+        {
+        }
     }
 
     /// <inheritdoc/>

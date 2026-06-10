@@ -52,9 +52,9 @@ internal sealed class ThreadRuntime(SessionThread thread) : IAsyncDisposable, ID
 
     public ThreadEventBroker Broker { get; } = new(thread.Id);
 
-    public SemaphoreSlim QueueLock { get; } = new(1, 1);
+    public SemaphoreSlim QueueLock { get; set; } = new(1, 1);
 
-    public SemaphoreSlim AgentLock { get; } = new(1, 1);
+    public SemaphoreSlim AgentLock { get; set; } = new(1, 1);
 
     public AIAgent? Agent { get; set; }
 
