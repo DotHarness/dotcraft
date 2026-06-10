@@ -21,6 +21,7 @@ public sealed class AppBindingService
     private readonly AppBindingStoreAccessor _storeAccessor = new();
     private readonly AppBindingAttachmentRegistry _attachments = new();
     private readonly IReadOnlyDictionary<string, IManagedAppBindingRuntime> _managedRuntimesByAppId;
+    private readonly AppBindingWireMapper _wireMapper;
     private readonly AppConnectionService _connections;
     private readonly AppContextBlockService _contextBlocks;
     private readonly AppToolAttachmentService _tools;
@@ -41,6 +42,7 @@ public sealed class AppBindingService
             .Where(runtime => !string.IsNullOrWhiteSpace(runtime.Descriptor.AppId))
             .GroupBy(runtime => runtime.Descriptor.AppId, StringComparer.Ordinal)
             .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+        _wireMapper = new AppBindingWireMapper(_managedRuntimesByAppId);
         _connections = new AppConnectionService(_storeAccessor, _attachments);
         _contextBlocks = new AppContextBlockService(_storeAccessor, _managedRuntimesByAppId, NotifyAppContextBlocksChanged);
         _tools = new AppToolAttachmentService(this, _storeAccessor, _attachments, _managedRuntimesByAppId);
@@ -112,8 +114,8 @@ public sealed class AppBindingService
         var apps = catalog.Entries
             .Where(entry => (includeCatalog || entry.Plugin.Installed)
                             && (includeDisabled || entry.Plugin.Enabled)
-                            && IsVisibleOnAppListSurface(entry, surface))
-            .Select(entry => MapAppInfo(entry, state, userId, p.ThreadId, surface))
+                            && AppBindingWireMapper.IsVisibleOnAppListSurface(entry, surface))
+            .Select(entry => _wireMapper.MapAppInfo(entry, state, userId, p.ThreadId, surface))
             .OrderBy(app => app.DisplayName, StringComparer.OrdinalIgnoreCase)
             .ToList();
         return new AppListResult { Apps = apps };
@@ -128,7 +130,7 @@ public sealed class AppBindingService
     {
         var entry = FindApp(catalog, appId);
         var state = GetStore(workspaceCraftPath).Snapshot();
-        return new AppViewResult { App = MapAppInfo(entry, state, userId, threadId, AppBindingCatalogSurfaces.SdkDefault) };
+        return new AppViewResult { App = _wireMapper.MapAppInfo(entry, state, userId, threadId, AppBindingCatalogSurfaces.SdkDefault) };
     }
 
     public AppConnectionStartResult StartConnection(
@@ -559,409 +561,35 @@ public sealed class AppBindingService
         }
     }
 
-    private static bool IsVisibleOnAppListSurface(AppCatalogEntry entry, string surface)
-    {
-        if (entry.ManagedRuntime == null)
-            return true;
-
-        return entry.Plugin.Installed
-               && entry.Plugin.Enabled
-               && entry.ManagedRuntime.Surfaces.Contains(surface);
-    }
-
-    private AppInfoWire MapAppInfo(
-        AppCatalogEntry entry,
-        AppBindingStateDocument state,
-        string userId,
-        string? threadId,
-        string surface)
-    {
-        var managedRuntime = entry.ManagedRuntime == null
-            ? null
-            : _managedRuntimesByAppId.GetValueOrDefault(entry.Descriptor.AppId);
-        var descriptor = managedRuntime?.GetCatalogDescriptor(surface) ?? entry.Descriptor;
-        var managed = entry.ManagedRuntime != null;
-        var requiresExternalConnection = entry.ManagedRuntime?.RequiresExternalConnection ?? true;
-        var connectionStatus = managed && !requiresExternalConnection
-            ? new AppConnectionStatusWire { AppId = descriptor.AppId, State = AppConnectionStates.Connected }
-            : MapConnectionStatus(state, userId, descriptor.AppId);
-        var connection = managed && !requiresExternalConnection ? null : FindConnection(state, userId, descriptor.AppId);
-        var binding = string.IsNullOrWhiteSpace(threadId)
-            ? null
-            : state.Bindings
-                .Where(candidate => string.Equals(candidate.ThreadId, threadId, StringComparison.Ordinal)
-                                    && string.Equals(candidate.AppId, descriptor.AppId, StringComparison.Ordinal)
-                                    && candidate.State != AppBindingStates.Revoked)
-                .OrderByDescending(candidate => candidate.LastChangedAt)
-                .FirstOrDefault();
-
-        var icon = ResolveIconForWire(descriptor.Icon) ?? ResolvePluginInterfaceIconForWire(entry.Plugin.Manifest);
-        return new AppInfoWire
-        {
-            AppId = descriptor.AppId,
-            ToolNamespace = descriptor.ToolNamespace,
-            DisplayName = descriptor.DisplayName,
-            DeveloperName = descriptor.DeveloperName,
-            Description = descriptor.Description,
-            Category = descriptor.Category,
-            Icon = icon,
-            PluginId = entry.Plugin.Manifest.Id,
-            Installed = entry.Plugin.Installed,
-            Enabled = entry.Plugin.Enabled,
-            CatalogVisible = true,
-            Managed = managed,
-            RequiresExternalConnection = requiresExternalConnection,
-            ReleasePage = descriptor.ReleasePage,
-            DownloadUrl = descriptor.DownloadUrl,
-            NativeApp = new AppNativeApplicationWire
-            {
-                DisplayName = string.IsNullOrWhiteSpace(descriptor.NativeApplication.DisplayName)
-                    ? descriptor.DisplayName
-                    : descriptor.NativeApplication.DisplayName,
-                Protocol = descriptor.NativeApplication.Protocol,
-                InstallUrl = descriptor.NativeApplication.InstallUrl ?? descriptor.ReleasePage ?? descriptor.DownloadUrl,
-                Status = managed && !requiresExternalConnection
-                    ? AppNativeApplicationStates.Installed
-                    : AppNativeApplicationStates.Unknown
-            },
-            ConnectionState = connectionStatus.State,
-            AccountLabel = connection?.AccountLabel,
-            HandoffModes = descriptor.Connection.HandoffModes,
-            Scopes = descriptor.Scopes,
-            ToolCatalog = descriptor.ToolCatalog,
-            DynamicToolCatalog = new AppDynamicToolCatalogDescriptor
-            {
-                Enabled = descriptor.DynamicToolCatalog.Enabled,
-                Description = descriptor.DynamicToolCatalog.Description
-            },
-            BindingSummary = binding == null
-                ? null
-                : new ThreadAppBindingSummaryWire
-                {
-                    ThreadId = binding.ThreadId,
-                    BindingId = binding.BindingId,
-                    AppId = binding.AppId,
-                    DisplayName = descriptor.DisplayName,
-                    Icon = icon,
-                    ToolNamespace = descriptor.ToolNamespace,
-                    State = binding.State,
-                    ConnectionState = connectionStatus.State,
-                    Managed = managed,
-                    RequiresExternalConnection = requiresExternalConnection,
-                    GrantedScopes = binding.GrantedScopes.ToList(),
-                    ExpiresAt = binding.ExpiresAt
-                },
-            Diagnostics = entry.Diagnostics.Select(MapDiagnostic).ToList()
-        };
-    }
-
-    /// <summary>
-    /// Resolves a thread's <paramref name="originChannel"/> to the app that declared it as its
-    /// <c>originChannel</c>, returning branding (icon + display name) for the thread origin badge.
-    /// When the app also declares <c>originMembers</c> and <paramref name="channelContext"/> matches one,
-    /// the matched member's branding is returned instead of the app-level visual. Opt-in (declared
-    /// origin channels only); returns null when nothing matches or the channel is blank — so callers
-    /// fall back to the generic badge.
-    /// <para>
-    /// Matches both workspace-installed and bundled built-in (installable) apps. Origin branding is
-    /// purely cosmetic and does not grant tools, so it must not depend on whether the declaring app has
-    /// been deployed into the thread's specific workspace. This matters for threads that run in
-    /// workspaces without the app deployed — e.g. an app's own git worktrees — which would otherwise
-    /// see only the generic channel icon.
-    /// </para>
-    /// </summary>
-    public ThreadOriginAppWire? ResolveOriginApp(AppCatalogSnapshot catalog, string? originChannel, string? channelContext = null)
-    {
-        if (string.IsNullOrWhiteSpace(originChannel))
-            return null;
-
-        var entry = catalog.Entries
-            .Where(candidate => (candidate.Plugin.Installed || candidate.Plugin.Installable)
-                                && !string.IsNullOrWhiteSpace(candidate.Descriptor.OriginChannel)
-                                && string.Equals(candidate.Descriptor.OriginChannel, originChannel, StringComparison.OrdinalIgnoreCase))
-            .OrderBy(candidate => candidate.Descriptor.AppId, StringComparer.Ordinal)
-            .FirstOrDefault();
-        if (entry is null)
-            return null;
-
-        var member = ResolveOriginMember(entry.Descriptor, channelContext);
-        if (member is not null)
-        {
-            return new ThreadOriginAppWire
-            {
-                AppId = entry.Descriptor.AppId,
-                DisplayName = member.DisplayName,
-                Icon = ResolvePluginRelativeIconForWire(entry, member.Icon),
-                MemberId = member.Match
-            };
-        }
-
-        return new ThreadOriginAppWire
-        {
-            AppId = entry.Descriptor.AppId,
-            DisplayName = entry.Descriptor.DisplayName,
-            Icon = ResolveIconForWire(entry.Descriptor.Icon)
-                   ?? ResolvePluginInterfaceIconForWire(entry.Plugin.Manifest)
-        };
-    }
-
-    private static AppOriginMemberDescriptor? ResolveOriginMember(AppDescriptor descriptor, string? channelContext)
-    {
-        if (descriptor.OriginMembers is not { Count: > 0 } members || string.IsNullOrWhiteSpace(channelContext))
-            return null;
-
-        return members.FirstOrDefault(member =>
-            !string.IsNullOrWhiteSpace(member.Match)
-            && channelContext.Contains(member.Match, StringComparison.OrdinalIgnoreCase));
-    }
-
-    /// <summary>
-    /// Resolves an icon path declared in a descriptor that has not been path-absolutized by catalog
-    /// discovery (managed-runtime descriptors, and origin-member icons), relative to the owning
-    /// plugin root, then delegates to <see cref="ResolveIconForWire"/>. Refuses paths that escape the
-    /// plugin root.
-    /// </summary>
-    private static string? ResolvePluginRelativeIconForWire(AppCatalogEntry entry, string? icon)
-    {
-        if (string.IsNullOrWhiteSpace(icon))
-            return null;
-        if (icon.StartsWith("data:", StringComparison.OrdinalIgnoreCase)
-            || icon.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
-            || icon.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
-            || Path.IsPathFullyQualified(icon))
-        {
-            return ResolveIconForWire(icon);
-        }
-
-        try
-        {
-            var root = Path.GetFullPath(entry.Plugin.Manifest.RootPath);
-            var full = Path.GetFullPath(Path.Combine(root, icon));
-            if (!full.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
-                && !string.Equals(full, root, StringComparison.OrdinalIgnoreCase))
-            {
-                return null;
-            }
-
-            return ResolveIconForWire(full);
-        }
-        catch
-        {
-            return null;
-        }
-    }
+    public ThreadOriginAppWire? ResolveOriginApp(AppCatalogSnapshot catalog, string? originChannel, string? channelContext = null) =>
+        _wireMapper.ResolveOriginApp(catalog, originChannel, channelContext);
 
     internal ThreadAppBindingWire MapBinding(
         AppBindingRecord binding,
         AppDescriptor? descriptor,
-        AppConnectionStatusWire connection)
-    {
-        var effectiveState = binding.State;
-        if (binding.State == AppBindingStates.Active
-            && binding.ExpiresAt is { } expiresAt
-            && expiresAt <= DateTimeOffset.UtcNow)
-        {
-            effectiveState = AppBindingStates.Expired;
-        }
-
-        var managedRuntime = _managedRuntimesByAppId.GetValueOrDefault(binding.AppId);
-        var managed = managedRuntime != null;
-        var requiresExternalConnection = managedRuntime?.RequiresExternalConnection ?? true;
-        var connectionStatus = managed && !requiresExternalConnection
-            ? new AppConnectionStatusWire { AppId = binding.AppId, State = AppConnectionStates.Connected }
-            : connection;
-        return new ThreadAppBindingWire
-        {
-            BindingId = binding.BindingId,
-            ThreadId = binding.ThreadId,
-            AppId = binding.AppId,
-            DisplayName = descriptor?.DisplayName,
-            Icon = ResolveIconForWire(descriptor?.Icon),
-            ToolNamespace = descriptor?.ToolNamespace,
-            State = effectiveState,
-            ConnectionState = connectionStatus.State,
-            Managed = managed,
-            RequiresExternalConnection = requiresExternalConnection,
-            GrantedScopes = binding.GrantedScopes.ToList(),
-            AttachedToolCount = binding.AttachedTools.Count,
-            ExpiresAt = binding.ExpiresAt,
-            LastChangedAt = binding.LastChangedAt,
-            ApprovalMode = binding.ApprovalMode,
-            AuditRef = binding.AuditRef,
-            Diagnostic = binding.Diagnostic
-        };
-    }
+        AppConnectionStatusWire connection) =>
+        _wireMapper.MapBinding(binding, descriptor, connection);
 
     internal ThreadAppBindingWire MapPendingBindingRequest(
         AppBindingRequestRecord request,
         AppDescriptor? descriptor,
-        AppConnectionStatusWire connection)
-    {
-        var managedRuntime = _managedRuntimesByAppId.GetValueOrDefault(request.AppId);
-        var managed = managedRuntime != null;
-        var requiresExternalConnection = managedRuntime?.RequiresExternalConnection ?? true;
-        var connectionStatus = managed && !requiresExternalConnection
-            ? new AppConnectionStatusWire { AppId = request.AppId, State = AppConnectionStates.Connected }
-            : connection;
-        return new ThreadAppBindingWire
-        {
-            BindingRequestId = request.BindingRequestId,
-            BindingId = request.BindingRequestId,
-            ThreadId = request.ThreadId,
-            AppId = request.AppId,
-            DisplayName = descriptor?.DisplayName,
-            Icon = ResolveIconForWire(descriptor?.Icon),
-            ToolNamespace = descriptor?.ToolNamespace,
-            State = AppBindingStates.Pending,
-            ConnectionState = connectionStatus.State,
-            Managed = managed,
-            RequiresExternalConnection = requiresExternalConnection,
-            GrantedScopes = [],
-            AttachedToolCount = 0,
-            ExpiresAt = request.ExpiresAt,
-            LastChangedAt = request.CreatedAt,
-            Diagnostic = request.Reason
-        };
-    }
+        AppConnectionStatusWire connection) =>
+        _wireMapper.MapPendingBindingRequest(request, descriptor, connection);
 
     internal static ThreadAppBindingRefreshWire MapRefresh(AppBindingRecord binding) =>
-        new()
-        {
-            BindingId = binding.BindingId,
-            State = binding.State,
-            AttachedToolCount = binding.AttachedTools.Count
-        };
+        AppBindingWireMapper.MapRefresh(binding);
 
     internal static ThreadAppBindingSummaryWire MapSummary(ThreadAppBindingWire binding) =>
-        new()
-        {
-            ThreadId = binding.ThreadId,
-            BindingRequestId = binding.BindingRequestId,
-            BindingId = binding.BindingId,
-            AppId = binding.AppId,
-            DisplayName = binding.DisplayName,
-            Icon = binding.Icon,
-            ToolNamespace = binding.ToolNamespace,
-            State = binding.State,
-            ConnectionState = binding.ConnectionState,
-            Managed = binding.Managed,
-            RequiresExternalConnection = binding.RequiresExternalConnection,
-            GrantedScopes = binding.GrantedScopes.ToList(),
-            ExpiresAt = binding.ExpiresAt
-        };
+        AppBindingWireMapper.MapSummary(binding);
 
-    internal static AppConnectionStatusWire MapConnectionStatus(AppConnectionRecord? connection, string? appId = null)
-    {
-        if (connection == null)
-        {
-            return new AppConnectionStatusWire
-            {
-                AppId = appId ?? string.Empty,
-                State = AppConnectionStates.NotConnected
-            };
-        }
-
-        var state = connection.State;
-        if (state == AppConnectionStates.Connected
-            && connection.ExpiresAt is { } expiresAt
-            && expiresAt <= DateTimeOffset.UtcNow)
-        {
-            state = AppConnectionStates.NeedsAuth;
-        }
-
-        return new AppConnectionStatusWire
-        {
-            AppId = connection.AppId,
-            State = state,
-            ConnectedAt = connection.ConnectedAt,
-            ExpiresAt = connection.ExpiresAt,
-            AccountLabel = connection.AccountLabel,
-            Diagnostic = connection.Diagnostic,
-            PublicMetadata = state == AppConnectionStates.Connected
-                ? connection.PublicMetadata?.DeepClone() as JsonObject
-                : null
-        };
-    }
+    internal static AppConnectionStatusWire MapConnectionStatus(AppConnectionRecord? connection, string? appId = null) =>
+        AppBindingWireMapper.MapConnectionStatus(connection, appId);
 
     internal static AppConnectionStatusWire MapConnectionStatus(
         AppBindingStateDocument state,
         string userId,
-        string appId)
-    {
-        var connection = FindConnection(state, userId, appId);
-        var status = MapConnectionStatus(connection, appId);
-        if (status.State != AppConnectionStates.NotConnected)
-            return status;
-
-        var pending = state.ConnectionRequests
-            .Where(request => string.Equals(request.UserId, userId, StringComparison.Ordinal)
-                              && string.Equals(request.AppId, appId, StringComparison.Ordinal)
-                              && request.State == AppConnectionStates.Connecting
-                              && !request.Consumed
-                              && request.ExpiresAt > DateTimeOffset.UtcNow)
-            .OrderByDescending(request => request.CreatedAt)
-            .FirstOrDefault();
-        if (pending == null)
-            return status;
-
-        return new AppConnectionStatusWire
-        {
-            AppId = appId,
-            State = AppConnectionStates.Connecting,
-            ExpiresAt = pending.ExpiresAt
-        };
-    }
-
-    private static PluginDiagnosticWire MapDiagnostic(PluginDiagnostic diagnostic) =>
-        new()
-        {
-            Severity = diagnostic.Severity.ToString().ToLowerInvariant(),
-            Code = diagnostic.Code,
-            Message = diagnostic.Message,
-            PluginId = diagnostic.PluginId,
-            Path = diagnostic.Path
-        };
-
-    private static string? ResolveIconForWire(string? icon)
-    {
-        if (string.IsNullOrWhiteSpace(icon))
-            return null;
-        if (icon.StartsWith("data:", StringComparison.OrdinalIgnoreCase)
-            || icon.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
-            || icon.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
-        {
-            return icon;
-        }
-
-        try
-        {
-            if (!Path.IsPathFullyQualified(icon) || !File.Exists(icon))
-                return icon;
-
-            var mimeType = Path.GetExtension(icon).ToLowerInvariant() switch
-            {
-                ".svg" => "image/svg+xml",
-                ".png" => "image/png",
-                ".jpg" or ".jpeg" => "image/jpeg",
-                ".webp" => "image/webp",
-                ".ico" => "image/x-icon",
-                _ => "application/octet-stream"
-            };
-            return $"data:{mimeType};base64,{Convert.ToBase64String(File.ReadAllBytes(icon))}";
-        }
-        catch
-        {
-            return icon;
-        }
-    }
-
-    private static string? ResolvePluginInterfaceIconForWire(PluginManifest manifest)
-    {
-        var interfaceMetadata = manifest.Interface;
-        return ResolveIconForWire(interfaceMetadata?.ComposerIcon)
-               ?? ResolveIconForWire(interfaceMetadata?.Logo);
-    }
-
+        string appId) =>
+        AppBindingWireMapper.MapConnectionStatus(state, userId, appId);
     internal static AppHandoffWire BuildHandoff(
         string workspaceCraftPath,
         AppDescriptor descriptor,
