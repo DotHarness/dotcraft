@@ -278,7 +278,11 @@ public sealed class SessionServiceContextUsageSnapshotTests : IDisposable
             };
             await service.CreateThreadAsync(identity, threadId: threadId);
             var store = new ThreadStore(_tempDir);
-            await store.SaveContextUsageTokensAsync(threadId, 77_000);
+            await store.SaveContextUsageTokensAsync(
+                threadId,
+                77_000,
+                source: "history_estimate",
+                isEstimate: true);
         }
 
         await using var recreatedAgentFactory = CreateAgentFactory();
@@ -290,6 +294,8 @@ public sealed class SessionServiceContextUsageSnapshotTests : IDisposable
         var threshold = recreatedAgentFactory.CompactionPipeline.EvaluateThreshold(77_000);
         Assert.Equal(threshold.Tokens, snapshot!.Tokens);
         Assert.Equal(threshold.PercentLeft, snapshot.PercentLeft);
+        Assert.Equal("history_estimate", snapshot.Source);
+        Assert.True(snapshot.IsEstimate);
         Assert.Null(recreatedAgentFactory.TryGetTokenTracker(threadId));
     }
 

@@ -450,7 +450,11 @@ public sealed partial class SessionService(
             ? runtime.ContextUsageAnchor
             : null;
 
-    private ContextUsageSnapshot CreateContextUsageSnapshot(string threadId, long tokens)
+    private ContextUsageSnapshot CreateContextUsageSnapshot(
+        string threadId,
+        long tokens,
+        string? source = null,
+        bool isEstimate = false)
     {
         var pipeline = GetCompactionPipelineForThread(threadId);
         var threshold = pipeline.EvaluateThreshold(tokens);
@@ -462,7 +466,9 @@ public sealed partial class SessionService(
             AutoCompactThreshold = threshold.AutoThreshold,
             WarningThreshold = threshold.WarningThreshold,
             ErrorThreshold = threshold.ErrorThreshold,
-            PercentLeft = threshold.PercentLeft
+            PercentLeft = threshold.PercentLeft,
+            Source = source,
+            IsEstimate = isEstimate
         };
     }
 
@@ -470,55 +476,91 @@ public sealed partial class SessionService(
         string threadId,
         long tokens,
         CancellationToken ct = default)
-        => await SaveContextUsageSnapshotAsync(threadId, tokens, anchor: null, ct);
+        => await SaveContextUsageSnapshotAsync(
+            threadId,
+            tokens,
+            anchor: null,
+            source: null,
+            isEstimate: false,
+            ct: ct);
 
     private async Task<ContextUsageSnapshot> SaveContextUsageSnapshotAsync(
         string threadId,
         long tokens,
         ContextUsageAnchor? anchor,
         CancellationToken ct = default)
+        => await SaveContextUsageSnapshotAsync(
+            threadId,
+            tokens,
+            anchor,
+            source: null,
+            isEstimate: false,
+            ct: ct);
+
+    private async Task<ContextUsageSnapshot> SaveContextUsageSnapshotAsync(
+        string threadId,
+        long tokens,
+        string? source,
+        bool isEstimate,
+        CancellationToken ct = default)
+        => await SaveContextUsageSnapshotAsync(
+            threadId,
+            tokens,
+            anchor: null,
+            source: source,
+            isEstimate: isEstimate,
+            ct: ct);
+
+    private async Task<ContextUsageSnapshot> SaveContextUsageSnapshotAsync(
+        string threadId,
+        long tokens,
+        ContextUsageAnchor? anchor,
+        string? source,
+        bool isEstimate,
+        CancellationToken ct = default)
     {
         var normalizedTokens = Math.Max(0, tokens);
         if (anchor is not null)
         {
-            await persistence.SaveContextUsageAnchorAsync(threadId, anchor with { Tokens = normalizedTokens }, ct);
+            var normalizedAnchor = anchor with { Tokens = Math.Max(0, anchor.Tokens) };
+            await persistence.SaveContextUsageAnchorAsync(
+                threadId,
+                normalizedTokens,
+                normalizedAnchor,
+                source,
+                isEstimate,
+                ct);
             if (_runtimeRegistry.TryGetRuntime(threadId, out var runtime))
-                runtime.ContextUsageAnchor = anchor with { Tokens = normalizedTokens };
+                runtime.ContextUsageAnchor = normalizedAnchor;
         }
         else
         {
-            await persistence.SaveContextUsageTokensAsync(threadId, normalizedTokens, ct);
+            await persistence.SaveContextUsageTokensAsync(threadId, normalizedTokens, source, isEstimate, ct);
         }
 
-        return CreateContextUsageSnapshot(threadId, normalizedTokens);
+        return CreateContextUsageSnapshot(threadId, normalizedTokens, source, isEstimate);
     }
 
-    private ContextUsageAnchor? UpdateContextUsageAnchor(string threadId, long tokens)
+    private ContextUsageAnchor? UpdateContextUsageAnchor(string threadId, long anchorTokens)
     {
         var snapshot = TryGetLastPromptRequestSnapshot(threadId);
         var anchorMessageCount = snapshot?.Messages.Count;
         if (snapshot is null || anchorMessageCount is not > 0)
             return null;
 
-        var normalizedTokens = Math.Max(0, tokens);
+        var normalizedTokens = Math.Max(0, anchorTokens);
         var fingerprint = MessageTokenEstimator.ComputePrefixFingerprint(
             snapshot.Messages,
             anchorMessageCount.Value);
         var runtime = _runtimeRegistry.TryGetRuntime(threadId, out var existingRuntime)
             ? existingRuntime
             : null;
-        if (runtime?.ContextUsageAnchor is { } existing
-            && existing.MessageCount == anchorMessageCount.Value
-            && string.Equals(existing.PrefixFingerprint, fingerprint, StringComparison.Ordinal)
-            && existing.Tokens >= normalizedTokens)
-        {
-            return existing;
-        }
-
         var anchor = new ContextUsageAnchor(
             normalizedTokens,
             anchorMessageCount.Value,
-            fingerprint);
+            fingerprint,
+            snapshot.RequestFingerprint,
+            ContextUsageAnchorBoundary.Request);
         if (runtime != null)
             runtime.ContextUsageAnchor = anchor;
         return anchor;
@@ -527,7 +569,8 @@ public sealed partial class SessionService(
     private ContextTokenUsageEstimate EstimateContextTokens(
         string threadId,
         IReadOnlyList<ChatMessage> modelVisibleHistory,
-        long latestProviderTokens)
+        long latestContextTokens,
+        PromptRequestSnapshot? requestSnapshot = null)
     {
         var persistedTokens = persistence.LoadContextUsageTokens(threadId);
         var persistedAnchor = persistence.LoadContextUsageAnchor(threadId);
@@ -535,8 +578,9 @@ public sealed partial class SessionService(
             modelVisibleHistory,
             TryGetInMemoryContextUsageAnchor(threadId),
             persistedAnchor,
-            latestProviderTokens,
-            persistedTokens);
+            latestContextTokens,
+            persistedTokens,
+            requestSnapshot?.RequestFingerprint);
     }
 
     private bool GoalsEnabled => Goals.Enabled;
@@ -1267,17 +1311,27 @@ public sealed partial class SessionService(
                 var usageEstimate = EstimateContextTokens(
                     threadId,
                     modelVisibleHistory,
-                    tokenTracker.LastInputTokens);
+                    tokenTracker.LastContextTokens,
+                    requestSnapshot);
+                if (!usageEstimate.EligibleForAutoCompact)
+                    return null;
+
                 var tokenHint = usageEstimate.Tokens;
                 var pipeline = GetCompactionPipelineForThread(thread);
                 var threshold = pipeline.EvaluateThreshold(tokenHint);
                 if (!threshold.AboveAuto)
                     return null;
 
+                var preCompactUsage = CreateContextUsageSnapshot(
+                    threadId,
+                    tokenHint,
+                    usageEstimate.Source,
+                    usageEstimate.IsEstimate);
                 eventChannel.EmitSystemEvent(
                     "compacting",
                     percentLeft: threshold.PercentLeft,
-                    tokenCount: threshold.Tokens);
+                    tokenCount: threshold.Tokens,
+                    contextUsage: preCompactUsage);
 
                 CompactionHistoryResult result;
                 try
@@ -1301,7 +1355,8 @@ public sealed partial class SessionService(
                         "compactFailed",
                         message: ex.Message,
                         percentLeft: threshold.PercentLeft,
-                        tokenCount: threshold.Tokens);
+                        tokenCount: threshold.Tokens,
+                        contextUsage: preCompactUsage);
                     return null;
                 }
 
@@ -1324,7 +1379,9 @@ public sealed partial class SessionService(
                         var contextUsage = await SaveContextUsageSnapshotAsync(
                             threadId,
                             status.ThresholdAfter.Tokens,
-                            CancellationToken.None);
+                            source: "compacted_estimate",
+                            isEstimate: true,
+                            ct: CancellationToken.None);
                         ClearContextUsageAnchor(threadId);
                         ReleaseStableContextPages(threadId);
                         if (status.Outcome == CompactionOutcome.Partial)
@@ -1355,7 +1412,8 @@ public sealed partial class SessionService(
                             "compactSkipped",
                             message: status.FailureReason,
                             percentLeft: status.ThresholdAfter.PercentLeft,
-                            tokenCount: status.ThresholdAfter.Tokens);
+                            tokenCount: status.ThresholdAfter.Tokens,
+                            contextUsage: preCompactUsage);
                         return null;
 
                     case CompactionOutcome.Failed:
@@ -1363,7 +1421,8 @@ public sealed partial class SessionService(
                             "compactFailed",
                             message: status.FailureReason,
                             percentLeft: status.ThresholdAfter.PercentLeft,
-                            tokenCount: status.ThresholdAfter.Tokens);
+                            tokenCount: status.ThresholdAfter.Tokens,
+                            contextUsage: preCompactUsage);
                         return null;
 
                     default:
@@ -1957,6 +2016,7 @@ public sealed partial class SessionService(
                                 {
                                     var snapshot = TokenUsageExtractor.FromUsageContent(usage);
                                     var curIn = snapshot.InputTokens;
+                                    var curOut = snapshot.OutputTokens;
                                     if (snapshot.InputTokens > 0 || snapshot.OutputTokens > 0)
                                     {
                                         var usageDelta = usageAccumulator.ApplySnapshot(snapshot, currentUsageRequestIndex);
@@ -1979,13 +2039,16 @@ public sealed partial class SessionService(
                                                 delta.CachedInputTokens,
                                                 delta.CacheWriteInputTokens,
                                                 delta.ReasoningOutputTokens,
-                                                curIn);
+                                                curIn,
+                                                curOut);
                                             var anchor = UpdateContextUsageAnchor(threadId, tokenTracker.LastInputTokens);
                                             var contextUsage = await SaveContextUsageSnapshotAsync(
                                                 threadId,
-                                                tokenTracker.LastInputTokens,
+                                                tokenTracker.LastContextTokens,
                                                 anchor,
-                                                CancellationToken.None);
+                                                source: "provider_context",
+                                                isEstimate: false,
+                                                ct: CancellationToken.None);
                                             eventChannel.EmitUsageDelta(
                                                 delta.InputTokens,
                                                 delta.OutputTokens,
@@ -2086,20 +2149,28 @@ public sealed partial class SessionService(
                 // before the next sampling request.
                 {
                     var compactionPipeline = GetCompactionPipelineForThread(thread);
-                    var threshold = compactionPipeline.EvaluateThreshold(tokenTracker.LastInputTokens);
+                    var contextTokens = tokenTracker.LastContextTokens;
+                    var threshold = compactionPipeline.EvaluateThreshold(contextTokens);
+                    var contextUsage = CreateContextUsageSnapshot(
+                        threadId,
+                        contextTokens,
+                        contextTokens > 0 ? "provider_context" : null,
+                        isEstimate: false);
                     if (threshold.AboveError)
                     {
                         eventChannel.EmitSystemEvent(
                             "compactError",
                             percentLeft: threshold.PercentLeft,
-                            tokenCount: threshold.Tokens);
+                            tokenCount: threshold.Tokens,
+                            contextUsage: contextUsage);
                     }
                     else if (threshold.AboveWarning)
                     {
                         eventChannel.EmitSystemEvent(
                             "compactWarning",
                             percentLeft: threshold.PercentLeft,
-                            tokenCount: threshold.Tokens);
+                            tokenCount: threshold.Tokens,
+                            contextUsage: contextUsage);
                     }
                 }
 
@@ -2232,7 +2303,9 @@ public sealed partial class SessionService(
                             var contextUsage = await SaveContextUsageSnapshotAsync(
                                 threadId,
                                 status.ThresholdAfter.Tokens,
-                                CancellationToken.None);
+                                source: "compacted_estimate",
+                                isEstimate: true,
+                                ct: CancellationToken.None);
                             ClearContextUsageAnchor(threadId);
                             ReleaseStableContextPages(threadId);
                             traceCollector?.RecordContextCompaction(threadId);
@@ -3044,9 +3117,14 @@ public sealed partial class SessionService(
         {
             var tokens = 0L;
             if (session is not null && TrySnapshotInMemoryHistory(session, out var history) && history.Count > 0)
-                tokens = EstimateContextTokens(threadId, history, latestProviderTokens: 0).Tokens;
+                tokens = MessageTokenEstimator.Estimate(history);
 
-            await SaveContextUsageSnapshotAsync(threadId, tokens, ct);
+            await SaveContextUsageSnapshotAsync(
+                threadId,
+                tokens,
+                source: "history_estimate",
+                isEstimate: true,
+                ct: ct);
         }
         catch (OperationCanceledException)
         {

@@ -132,17 +132,36 @@ public sealed class ThreadStoreTests : IDisposable
         var anchor = new ContextUsageAnchor(
             Tokens: 1234,
             MessageCount: 2,
-            PrefixFingerprint: "abc123");
+            PrefixFingerprint: "abc123",
+            RequestFingerprint: "request-a");
 
-        await _store.SaveContextUsageAnchorAsync(thread.Id, anchor);
+        await _store.SaveContextUsageAnchorAsync(
+            thread.Id,
+            displayTokens: 5678,
+            anchor: anchor,
+            source: "provider_context");
 
         Assert.Equal(anchor, _store.LoadContextUsageAnchor(thread.Id));
-        Assert.Equal(1234, _store.LoadContextUsageTokens(thread.Id));
+        Assert.Equal(5678, _store.LoadContextUsageTokens(thread.Id));
+        var anchoredSnapshot = _store.LoadContextUsageSnapshot(thread.Id);
+        Assert.NotNull(anchoredSnapshot);
+        Assert.Equal(5678, anchoredSnapshot!.Tokens);
+        Assert.Equal("provider_context", anchoredSnapshot.Source);
+        Assert.False(anchoredSnapshot.IsEstimate);
 
-        await _store.SaveContextUsageTokensAsync(thread.Id, 42);
+        await _store.SaveContextUsageTokensAsync(
+            thread.Id,
+            42,
+            source: "compacted_estimate",
+            isEstimate: true);
 
         Assert.Null(_store.LoadContextUsageAnchor(thread.Id));
         Assert.Equal(42, _store.LoadContextUsageTokens(thread.Id));
+        var displaySnapshot = _store.LoadContextUsageSnapshot(thread.Id);
+        Assert.NotNull(displaySnapshot);
+        Assert.Equal(42, displaySnapshot!.Tokens);
+        Assert.Equal("compacted_estimate", displaySnapshot.Source);
+        Assert.True(displaySnapshot.IsEstimate);
     }
 
     [Fact]

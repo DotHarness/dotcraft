@@ -11,8 +11,14 @@ public sealed partial class SessionService
             if (string.IsNullOrWhiteSpace(threadId))
                 return null;
 
-            var tokens = owner.Persistence.LoadContextUsageTokens(threadId);
-            return tokens is null ? null : owner.CreateContextUsageSnapshot(threadId, tokens.Value);
+            var snapshot = owner.Persistence.LoadContextUsageSnapshot(threadId);
+            return snapshot is null
+                ? null
+                : owner.CreateContextUsageSnapshot(
+                    threadId,
+                    snapshot.Tokens,
+                    snapshot.Source,
+                    snapshot.IsEstimate);
         }
 
         public ThreadSummaryRuntime GetRuntimeSnapshot(SessionThread thread)

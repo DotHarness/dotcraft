@@ -97,14 +97,48 @@ public sealed class SessionPersistenceService(
     public long? LoadContextUsageTokens(string threadId)
         => threadStore.LoadContextUsageTokens(threadId);
 
+    /// <summary>
+    /// Loads the persisted context-window usage token count and diagnostic metadata for a thread.
+    /// </summary>
+    public ContextUsagePersistenceSnapshot? LoadContextUsageSnapshot(string threadId)
+        => threadStore.LoadContextUsageSnapshot(threadId);
+
     public ContextUsageAnchor? LoadContextUsageAnchor(string threadId)
         => threadStore.LoadContextUsageAnchor(threadId);
 
     public Task SaveContextUsageTokensAsync(string threadId, long tokens, CancellationToken ct = default)
         => threadStore.SaveContextUsageTokensAsync(threadId, tokens, ct);
 
+    public Task SaveContextUsageTokensAsync(string threadId, long tokens, string? source, CancellationToken ct = default)
+        => threadStore.SaveContextUsageTokensAsync(threadId, tokens, source, ct);
+
+    public Task SaveContextUsageTokensAsync(
+        string threadId,
+        long tokens,
+        string? source,
+        bool isEstimate,
+        CancellationToken ct = default)
+        => threadStore.SaveContextUsageTokensAsync(threadId, tokens, source, isEstimate, ct);
+
     public Task SaveContextUsageAnchorAsync(string threadId, ContextUsageAnchor anchor, CancellationToken ct = default)
         => threadStore.SaveContextUsageAnchorAsync(threadId, anchor, ct);
+
+    public Task SaveContextUsageAnchorAsync(
+        string threadId,
+        long displayTokens,
+        ContextUsageAnchor anchor,
+        string? source,
+        CancellationToken ct = default)
+        => threadStore.SaveContextUsageAnchorAsync(threadId, displayTokens, anchor, source, ct);
+
+    public Task SaveContextUsageAnchorAsync(
+        string threadId,
+        long displayTokens,
+        ContextUsageAnchor anchor,
+        string? source,
+        bool isEstimate,
+        CancellationToken ct = default)
+        => threadStore.SaveContextUsageAnchorAsync(threadId, displayTokens, anchor, source, isEstimate, ct);
 
     public IReadOnlyDictionary<string, string> GetItemWidgetStates(string threadId)
         => threadStore.LoadItemWidgetStates(threadId);

@@ -195,8 +195,13 @@ public sealed class StateRuntime
                 CREATE TABLE IF NOT EXISTS thread_context_usage (
                     thread_id TEXT PRIMARY KEY,
                     context_usage_tokens INTEGER NOT NULL,
+                    anchor_tokens INTEGER,
                     message_count INTEGER,
                     prefix_fingerprint TEXT,
+                    request_fingerprint TEXT,
+                    anchor_boundary TEXT,
+                    usage_source TEXT,
+                    usage_is_estimate INTEGER NOT NULL DEFAULT 0,
                     updated_at TEXT NOT NULL,
                     FOREIGN KEY(thread_id) REFERENCES threads(thread_id) ON DELETE CASCADE
                 );
@@ -442,8 +447,13 @@ public sealed class StateRuntime
             EnsureColumn(connection, "dashboard_usage_records", "cache_write_input_tokens", "INTEGER NOT NULL DEFAULT 0");
             EnsureColumn(connection, "dashboard_usage_records", "llm_call_count", "INTEGER NOT NULL DEFAULT 1");
             EnsureColumn(connection, "dashboard_usage_records", "reasoning_output_tokens", "INTEGER NOT NULL DEFAULT 0");
+            EnsureColumn(connection, "thread_context_usage", "anchor_tokens", "INTEGER");
             EnsureColumn(connection, "thread_context_usage", "message_count", "INTEGER");
             EnsureColumn(connection, "thread_context_usage", "prefix_fingerprint", "TEXT");
+            EnsureColumn(connection, "thread_context_usage", "request_fingerprint", "TEXT");
+            EnsureColumn(connection, "thread_context_usage", "anchor_boundary", "TEXT");
+            EnsureColumn(connection, "thread_context_usage", "usage_source", "TEXT");
+            EnsureColumn(connection, "thread_context_usage", "usage_is_estimate", "INTEGER NOT NULL DEFAULT 0");
 
             _initialized = true;
         }

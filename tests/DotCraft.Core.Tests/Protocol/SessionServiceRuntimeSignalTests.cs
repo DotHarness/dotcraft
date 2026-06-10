@@ -350,6 +350,7 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
         var svc = CreateService(agentFactory, compactChatClient, useStreamingFunctionInvoker: true);
         await svc.ResumeThreadAsync(thread.Id);
         await new ThreadStore(_tempDir).SaveContextUsageTokensAsync(thread.Id, 50_000);
+        agentFactory.GetOrCreateTokenTracker(thread.Id).Update(50_000, 0);
         var liveThread = await svc.GetThreadAsync(thread.Id);
         liveThread.LastActiveAt = DateTimeOffset.UtcNow.AddMinutes(-10);
 
@@ -634,7 +635,7 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
         Assert.Equal(3, summary.LlmCallCount);
 
         var contextUsage = svc.TryGetContextUsageSnapshot(thread.Id);
-        Assert.Equal(41_000, contextUsage?.Tokens);
+        Assert.Equal(41_008, contextUsage?.Tokens);
 
         var subject = Assert.Single(tokenUsageStore.GetSubjectBreakdown("test"));
         Assert.Equal("user-42", subject.Id);
@@ -800,6 +801,7 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
             compactionChatClient: new SummaryChatClient("<summary>compacted old context</summary>"));
         var compactService = CreateService(compactFactory, blockingChatClient, useStreamingFunctionInvoker: true);
         await compactService.ResumeThreadAsync(thread.Id);
+        compactFactory.GetOrCreateTokenTracker(thread.Id).Update(9_500, 0);
 
         var cancelEventsTask = CollectAsync(compactService.SubmitInputAsync(
             thread.Id,

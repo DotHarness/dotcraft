@@ -93,6 +93,8 @@ interface ContextUsageSnapshotInput {
   warningThreshold: number
   errorThreshold: number
   percentLeft: number
+  source?: string | null
+  isEstimate?: boolean
 }
 
 // ---------------------------------------------------------------------------

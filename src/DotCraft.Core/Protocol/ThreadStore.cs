@@ -213,6 +213,13 @@ public sealed class ThreadStore
         => _metadataStore.LoadContextUsageTokens(threadId);
 
     /// <summary>
+    /// Loads the persisted context-window usage token count and diagnostic metadata for a thread.
+    /// Returns null when no context usage snapshot has been recorded yet.
+    /// </summary>
+    public ContextUsagePersistenceSnapshot? LoadContextUsageSnapshot(string threadId)
+        => _metadataStore.LoadContextUsageSnapshot(threadId);
+
+    /// <summary>
     /// Loads the persisted provider-usage anchor metadata for a thread.
     /// Returns null when the metadata is absent or predates anchor support.
     /// </summary>
@@ -223,9 +230,24 @@ public sealed class ThreadStore
     /// Persists the current context-window usage token count for a thread.
     /// </summary>
     public Task SaveContextUsageTokensAsync(string threadId, long tokens, CancellationToken ct = default)
+        => SaveContextUsageTokensAsync(threadId, tokens, source: null, isEstimate: false, ct: ct);
+
+    public Task SaveContextUsageTokensAsync(
+        string threadId,
+        long tokens,
+        string? source,
+        CancellationToken ct = default)
+        => SaveContextUsageTokensAsync(threadId, tokens, source, isEstimate: false, ct: ct);
+
+    public Task SaveContextUsageTokensAsync(
+        string threadId,
+        long tokens,
+        string? source,
+        bool isEstimate,
+        CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
-        _metadataStore.SaveContextUsageTokens(threadId, tokens);
+        _metadataStore.SaveContextUsageTokens(threadId, tokens, source, isEstimate);
         return Task.CompletedTask;
     }
 
@@ -233,9 +255,26 @@ public sealed class ThreadStore
     /// Persists a context-window usage token count with anchor validation metadata.
     /// </summary>
     public Task SaveContextUsageAnchorAsync(string threadId, ContextUsageAnchor anchor, CancellationToken ct = default)
+        => SaveContextUsageAnchorAsync(threadId, anchor.Tokens, anchor, source: null, isEstimate: false, ct: ct);
+
+    public Task SaveContextUsageAnchorAsync(
+        string threadId,
+        long displayTokens,
+        ContextUsageAnchor anchor,
+        string? source,
+        CancellationToken ct = default)
+        => SaveContextUsageAnchorAsync(threadId, displayTokens, anchor, source, isEstimate: false, ct: ct);
+
+    public Task SaveContextUsageAnchorAsync(
+        string threadId,
+        long displayTokens,
+        ContextUsageAnchor anchor,
+        string? source,
+        bool isEstimate,
+        CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
-        _metadataStore.SaveContextUsageAnchor(threadId, anchor);
+        _metadataStore.SaveContextUsageAnchor(threadId, displayTokens, anchor, source, isEstimate);
         return Task.CompletedTask;
     }
 

@@ -3,18 +3,22 @@ using Microsoft.Extensions.AI;
 namespace DotCraft.Context.Compaction;
 
 /// <summary>
+/// Known model-visible boundaries for provider usage anchors.
+/// </summary>
+public static class ContextUsageAnchorBoundary
+{
+    public const string Request = "request";
+}
+
+/// <summary>
 /// Captures the provider-reported context usage at a known request boundary.
 /// </summary>
 public sealed record ContextUsageAnchor(
     long Tokens,
     int MessageCount,
-    string? PrefixFingerprint)
-{
-    public ContextUsageAnchor(long Tokens, int MessageCount)
-        : this(Tokens, MessageCount, PrefixFingerprint: null)
-    {
-    }
-}
+    string? PrefixFingerprint = null,
+    string? RequestFingerprint = null,
+    string? BoundaryKind = ContextUsageAnchorBoundary.Request);
 
 /// <summary>
 /// Counts current context pressure from the last provider usage plus an
@@ -28,10 +32,28 @@ public static class ContextUsageTokenCounter
     /// </summary>
     public static long? EstimateFromAnchor(
         ContextUsageAnchor? anchor,
-        IReadOnlyList<ChatMessage> modelVisibleHistory)
+        IReadOnlyList<ChatMessage> modelVisibleHistory,
+        string? requestFingerprint = null,
+        bool requireRequestFingerprint = false)
     {
         if (anchor is null)
             return null;
+
+        if (!string.IsNullOrWhiteSpace(anchor.BoundaryKind)
+            && !string.Equals(anchor.BoundaryKind, ContextUsageAnchorBoundary.Request, StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        if (requireRequestFingerprint || !string.IsNullOrWhiteSpace(requestFingerprint))
+        {
+            if (string.IsNullOrWhiteSpace(requestFingerprint)
+                || string.IsNullOrWhiteSpace(anchor.RequestFingerprint)
+                || !string.Equals(anchor.RequestFingerprint, requestFingerprint, StringComparison.Ordinal))
+            {
+                return null;
+            }
+        }
 
         if (anchor.MessageCount < 0 || anchor.MessageCount > modelVisibleHistory.Count)
             return null;

@@ -2,7 +2,7 @@ using Microsoft.Extensions.AI;
 
 namespace DotCraft.Context.Compaction;
 
-internal sealed record ContextTokenUsageEstimate(long Tokens, string Source);
+internal sealed record ContextTokenUsageEstimate(long Tokens, string Source, bool EligibleForAutoCompact, bool IsEstimate);
 
 internal static class ContextTokenUsageEstimator
 {
@@ -10,39 +10,62 @@ internal static class ContextTokenUsageEstimator
         IReadOnlyList<ChatMessage> history,
         ContextUsageAnchor? memoryAnchor,
         ContextUsageAnchor? persistedAnchor,
-        long latestProviderTokens,
-        long? persistedTokens)
+        long latestContextTokens,
+        long? persistedDisplayTokens,
+        string? requestFingerprint = null)
     {
-        if (ContextUsageTokenCounter.EstimateFromAnchor(memoryAnchor, history) is { } memoryAnchored)
+        const bool requireRequestFingerprint = true;
+        if (ContextUsageTokenCounter.EstimateFromAnchor(
+                memoryAnchor,
+                history,
+                requestFingerprint,
+                requireRequestFingerprint) is { } memoryAnchored)
         {
             return new ContextTokenUsageEstimate(
-                Math.Max(memoryAnchored, Math.Max(0, latestProviderTokens)),
-                "memory_anchor");
+                Math.Max(memoryAnchored, Math.Max(0, latestContextTokens)),
+                "memory_anchor",
+                EligibleForAutoCompact: true,
+                IsEstimate: true);
         }
 
-        if (ContextUsageTokenCounter.EstimateFromAnchor(persistedAnchor, history) is { } persistedAnchored)
+        if (ContextUsageTokenCounter.EstimateFromAnchor(
+                persistedAnchor,
+                history,
+                requestFingerprint,
+                requireRequestFingerprint) is { } persistedAnchored)
         {
             return new ContextTokenUsageEstimate(
-                Math.Max(persistedAnchored, Math.Max(0, latestProviderTokens)),
-                "persisted_anchor");
+                Math.Max(persistedAnchored, Math.Max(0, latestContextTokens)),
+                "persisted_anchor",
+                EligibleForAutoCompact: true,
+                IsEstimate: true);
         }
 
         var estimatedTokens = MessageTokenEstimator.Estimate(history);
         var bestTokens = (long)estimatedTokens;
         var source = "estimate";
+        var isEstimate = true;
 
-        if (latestProviderTokens > bestTokens)
+        if (latestContextTokens > bestTokens)
         {
-            bestTokens = latestProviderTokens;
-            source = "provider";
+            bestTokens = latestContextTokens;
+            source = "provider_context";
+            isEstimate = false;
         }
 
-        if (persistedTokens is > 0 && persistedTokens.Value > bestTokens)
+        if (bestTokens <= 0 && persistedDisplayTokens is > 0)
         {
-            bestTokens = persistedTokens.Value;
-            source = "persisted";
+            return new ContextTokenUsageEstimate(
+                persistedDisplayTokens.Value,
+                "persisted_display",
+                EligibleForAutoCompact: false,
+                IsEstimate: false);
         }
 
-        return new ContextTokenUsageEstimate(bestTokens, source);
+        return new ContextTokenUsageEstimate(
+            bestTokens,
+            source,
+            EligibleForAutoCompact: true,
+            IsEstimate: isEstimate);
     }
 }

@@ -30,6 +30,9 @@ public sealed record PromptRequestSnapshot
     /// <summary>Order-sensitive fingerprint of <see cref="Messages"/>.</summary>
     public required string MessageFingerprint { get; init; }
 
+    /// <summary>Fingerprint of request-shape fields outside the message list.</summary>
+    public string? RequestFingerprint { get; init; }
+
     /// <summary>Final model-visible tools sent to the provider for this sampling request.</summary>
     public required IReadOnlyList<AITool> Tools { get; init; }
 
@@ -90,6 +93,19 @@ public sealed record PromptRequestSnapshot
             .Select(message => message.Clone())
             .ToArray();
 
+        var toolFingerprint = PromptRequestFingerprints.ComputeToolFingerprint(tools);
+        var requestFingerprint = PromptRequestFingerprints.ComputeRequestFingerprint(
+            providerId,
+            options?.ModelId,
+            mode,
+            PromptRequestFingerprints.ComputeTextFingerprint(baseInstructions),
+            toolFingerprint,
+            options?.Reasoning,
+            options?.ResponseFormat,
+            options?.MaxOutputTokens,
+            options?.AllowMultipleToolCalls,
+            options?.ToolMode);
+
         return new PromptRequestSnapshot
         {
             ProviderId = providerId,
@@ -99,7 +115,8 @@ public sealed record PromptRequestSnapshot
             Messages = capturedMessages,
             MessageFingerprint = MessageTokenEstimator.ComputePrefixFingerprint(capturedMessages, capturedMessages.Length),
             Tools = tools,
-            ToolFingerprint = PromptRequestFingerprints.ComputeToolFingerprint(tools),
+            ToolFingerprint = toolFingerprint,
+            RequestFingerprint = requestFingerprint,
             Reasoning = options?.Reasoning,
             ResponseFormat = options?.ResponseFormat,
             MaxOutputTokens = options?.MaxOutputTokens,
@@ -138,6 +155,35 @@ public static class PromptRequestFingerprints
         var normalized = (tools ?? [])
             .Select(NormalizeTool)
             .ToArray();
+        return HashString(JsonSerializer.Serialize(normalized, JsonOptions));
+    }
+
+    /// <summary>
+    /// Computes a SHA-256 fingerprint for non-message request-shape fields.
+    /// </summary>
+    public static string ComputeRequestFingerprint(
+        string? providerId,
+        string? modelId,
+        string? mode,
+        string? baseInstructionsFingerprint,
+        string? toolFingerprint,
+        ReasoningOptions? reasoning,
+        ChatResponseFormat? responseFormat,
+        int? maxOutputTokens,
+        bool? allowMultipleToolCalls,
+        ChatToolMode? toolMode)
+    {
+        var normalized = new RequestFingerprintEntry(
+            providerId ?? string.Empty,
+            modelId ?? string.Empty,
+            mode ?? string.Empty,
+            baseInstructionsFingerprint ?? string.Empty,
+            toolFingerprint ?? string.Empty,
+            NormalizeOption(reasoning),
+            NormalizeOption(responseFormat),
+            maxOutputTokens,
+            allowMultipleToolCalls,
+            NormalizeOption(toolMode));
         return HashString(JsonSerializer.Serialize(normalized, JsonOptions));
     }
 
@@ -233,6 +279,21 @@ public static class PromptRequestFingerprints
         return "sha256:" + Convert.ToHexString(bytes).ToLowerInvariant();
     }
 
+    private static string? NormalizeOption(object? value)
+    {
+        if (value is null)
+            return null;
+
+        try
+        {
+            return JsonSerializer.Serialize(value, value.GetType(), JsonOptions);
+        }
+        catch
+        {
+            return value.ToString();
+        }
+    }
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
@@ -244,4 +305,16 @@ public static class PromptRequestFingerprints
         string Description,
         string? JsonSchema,
         string? ReturnJsonSchema);
+
+    private sealed record RequestFingerprintEntry(
+        string ProviderId,
+        string ModelId,
+        string Mode,
+        string BaseInstructionsFingerprint,
+        string ToolFingerprint,
+        string? Reasoning,
+        string? ResponseFormat,
+        int? MaxOutputTokens,
+        bool? AllowMultipleToolCalls,
+        string? ToolMode);
 }

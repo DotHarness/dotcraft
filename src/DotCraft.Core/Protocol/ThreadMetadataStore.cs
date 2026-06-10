@@ -4,6 +4,11 @@ using DotCraft.State;
 
 namespace DotCraft.Protocol;
 
+/// <summary>
+/// Persisted context-window usage snapshot plus diagnostic source metadata.
+/// </summary>
+public sealed record ContextUsagePersistenceSnapshot(long Tokens, string? Source, bool IsEstimate);
+
 internal sealed class ThreadMetadataStore(StateRuntime stateRuntime)
 {
     public void UpsertThread(SessionThread thread, string rolloutPath)
@@ -695,19 +700,42 @@ internal sealed class ThreadMetadataStore(StateRuntime stateRuntime)
         return value == null || value == DBNull.Value ? null : Convert.ToInt64(value);
     }
 
-    public ContextUsageAnchor? LoadContextUsageAnchor(string threadId)
+    public ContextUsagePersistenceSnapshot? LoadContextUsageSnapshot(string threadId)
     {
         using var connection = stateRuntime.OpenConnection();
         using var command = connection.CreateCommand();
         command.CommandText = """
-            SELECT context_usage_tokens, message_count, prefix_fingerprint
+            SELECT context_usage_tokens, usage_source, usage_is_estimate
             FROM thread_context_usage
             WHERE thread_id = $thread_id
             LIMIT 1
             """;
         command.Parameters.AddWithValue("$thread_id", threadId);
         using var reader = command.ExecuteReader();
-        if (!reader.Read() || reader.IsDBNull(1) || reader.IsDBNull(2))
+        if (!reader.Read() || reader.IsDBNull(0))
+            return null;
+
+        var source = reader.IsDBNull(1) ? null : reader.GetString(1);
+        var persistedEstimate = !reader.IsDBNull(2) && reader.GetInt64(2) != 0;
+        return new ContextUsagePersistenceSnapshot(
+            reader.GetInt64(0),
+            source,
+            persistedEstimate || IsEstimateSource(source));
+    }
+
+    public ContextUsageAnchor? LoadContextUsageAnchor(string threadId)
+    {
+        using var connection = stateRuntime.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT anchor_tokens, message_count, prefix_fingerprint, request_fingerprint, anchor_boundary
+            FROM thread_context_usage
+            WHERE thread_id = $thread_id
+            LIMIT 1
+            """;
+        command.Parameters.AddWithValue("$thread_id", threadId);
+        using var reader = command.ExecuteReader();
+        if (!reader.Read() || reader.IsDBNull(0) || reader.IsDBNull(1) || reader.IsDBNull(2))
             return null;
 
         var fingerprint = reader.GetString(2);
@@ -717,48 +745,112 @@ internal sealed class ThreadMetadataStore(StateRuntime stateRuntime)
         return new ContextUsageAnchor(
             Tokens: reader.GetInt64(0),
             MessageCount: reader.GetInt32(1),
-            PrefixFingerprint: fingerprint);
+            PrefixFingerprint: fingerprint,
+            RequestFingerprint: reader.IsDBNull(3) ? null : reader.GetString(3),
+            BoundaryKind: reader.IsDBNull(4) ? null : reader.GetString(4));
     }
 
-    public void SaveContextUsageTokens(string threadId, long tokens)
+    public void SaveContextUsageTokens(
+        string threadId,
+        long tokens,
+        string? source = null,
+        bool isEstimate = false)
     {
         using var connection = stateRuntime.OpenConnection();
         using var command = connection.CreateCommand();
         command.CommandText = """
-            INSERT INTO thread_context_usage(thread_id, context_usage_tokens, message_count, prefix_fingerprint, updated_at)
-            VALUES ($thread_id, $tokens, NULL, NULL, $updated_at)
+            INSERT INTO thread_context_usage(
+                thread_id,
+                context_usage_tokens,
+                anchor_tokens,
+                message_count,
+                prefix_fingerprint,
+                request_fingerprint,
+                anchor_boundary,
+                usage_source,
+                usage_is_estimate,
+                updated_at)
+            VALUES ($thread_id, $tokens, NULL, NULL, NULL, NULL, NULL, $usage_source, $usage_is_estimate, $updated_at)
             ON CONFLICT(thread_id) DO UPDATE SET
                 context_usage_tokens = excluded.context_usage_tokens,
+                anchor_tokens = NULL,
                 message_count = NULL,
                 prefix_fingerprint = NULL,
+                request_fingerprint = NULL,
+                anchor_boundary = NULL,
+                usage_source = excluded.usage_source,
+                usage_is_estimate = excluded.usage_is_estimate,
                 updated_at = excluded.updated_at
             """;
         command.Parameters.AddWithValue("$thread_id", threadId);
         command.Parameters.AddWithValue("$tokens", Math.Max(0, tokens));
+        command.Parameters.AddWithValue("$usage_source", (object?)source ?? DBNull.Value);
+        command.Parameters.AddWithValue("$usage_is_estimate", isEstimate ? 1 : 0);
         command.Parameters.AddWithValue("$updated_at", DateTimeOffset.UtcNow.UtcDateTime.ToString("O"));
         command.ExecuteNonQuery();
     }
 
     public void SaveContextUsageAnchor(string threadId, ContextUsageAnchor anchor)
+        => SaveContextUsageAnchor(threadId, anchor.Tokens, anchor);
+
+    public void SaveContextUsageAnchor(
+        string threadId,
+        long displayTokens,
+        ContextUsageAnchor anchor,
+        string? source = null,
+        bool isEstimate = false)
     {
         using var connection = stateRuntime.OpenConnection();
         using var command = connection.CreateCommand();
         command.CommandText = """
-            INSERT INTO thread_context_usage(thread_id, context_usage_tokens, message_count, prefix_fingerprint, updated_at)
-            VALUES ($thread_id, $tokens, $message_count, $prefix_fingerprint, $updated_at)
+            INSERT INTO thread_context_usage(
+                thread_id,
+                context_usage_tokens,
+                anchor_tokens,
+                message_count,
+                prefix_fingerprint,
+                request_fingerprint,
+                anchor_boundary,
+                usage_source,
+                usage_is_estimate,
+                updated_at)
+            VALUES (
+                $thread_id,
+                $display_tokens,
+                $anchor_tokens,
+                $message_count,
+                $prefix_fingerprint,
+                $request_fingerprint,
+                $anchor_boundary,
+                $usage_source,
+                $usage_is_estimate,
+                $updated_at)
             ON CONFLICT(thread_id) DO UPDATE SET
                 context_usage_tokens = excluded.context_usage_tokens,
+                anchor_tokens = excluded.anchor_tokens,
                 message_count = excluded.message_count,
                 prefix_fingerprint = excluded.prefix_fingerprint,
+                request_fingerprint = excluded.request_fingerprint,
+                anchor_boundary = excluded.anchor_boundary,
+                usage_source = excluded.usage_source,
+                usage_is_estimate = excluded.usage_is_estimate,
                 updated_at = excluded.updated_at
             """;
         command.Parameters.AddWithValue("$thread_id", threadId);
-        command.Parameters.AddWithValue("$tokens", Math.Max(0, anchor.Tokens));
+        command.Parameters.AddWithValue("$display_tokens", Math.Max(0, displayTokens));
+        command.Parameters.AddWithValue("$anchor_tokens", Math.Max(0, anchor.Tokens));
         command.Parameters.AddWithValue("$message_count", Math.Max(0, anchor.MessageCount));
         command.Parameters.AddWithValue("$prefix_fingerprint", (object?)anchor.PrefixFingerprint ?? DBNull.Value);
+        command.Parameters.AddWithValue("$request_fingerprint", (object?)anchor.RequestFingerprint ?? DBNull.Value);
+        command.Parameters.AddWithValue("$anchor_boundary", (object?)anchor.BoundaryKind ?? DBNull.Value);
+        command.Parameters.AddWithValue("$usage_source", (object?)source ?? DBNull.Value);
+        command.Parameters.AddWithValue("$usage_is_estimate", isEstimate ? 1 : 0);
         command.Parameters.AddWithValue("$updated_at", DateTimeOffset.UtcNow.UtcDateTime.ToString("O"));
         command.ExecuteNonQuery();
     }
+
+    private static bool IsEstimateSource(string? source) =>
+        source?.Contains("estimate", StringComparison.OrdinalIgnoreCase) == true;
 
     /// <summary>
     /// Upserts the UI-only <c>widgetState</c> for a <c>dynamicToolCall</c> item (Interactive Tool UI,
