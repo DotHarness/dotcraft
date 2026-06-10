@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | **Version** | 0.8.0 |
-| **Status** | In‑repo delivered; hardening (negotiation gating, security sign‑off, docs) remaining |
+| **Status** | Stable |
 | **Date** | 2026-06-10 |
 
 Purpose: let an App Binding app present a **rich, interactive UI for tool results** by shipping a sandboxed UI resource that DotCraft Desktop renders in an iframe, with a postMessage JSON‑RPC bridge between the UI and the host. DotCraft adopts the MCP Apps interaction + security model and binds it to DotCraft's App Binding authority: the app plays the MCP‑server role (tools + `ui://` resources) over its trusted, locally‑installed loopback connection; AppServer brokers; Desktop is the host that renders and bridges. Because apps are trusted and locally installed, the sandbox is defense‑in‑depth — authority is still enforced by App Binding.
@@ -14,9 +14,11 @@ Interactive UI renders only on Desktop (iframe). Non‑Desktop clients (TUI, cha
 
 ## 1. Scope
 
-Defines: capability negotiation (§3); UI resource declaration + tool linkage (§4); the tool‑result data‑audience split (§5); sandboxed iframe rendering (§6); the host ⇄ UI bridge (§7); host context / theme / display mode (§8); widget‑state persistence (§9); authorization of UI‑initiated tool calls (§10); security (§11); text fallback (§12); architecture & host/app responsibilities (§13); lifecycle & conversation placement (§14); the Oratorio validation contract (§15); acceptance (§16); status & remaining work (§17).
+Defines: capability negotiation (§3); UI resource declaration + tool linkage (§4); the tool‑result data‑audience split (§5); sandboxed iframe rendering (§6); the host ⇄ UI bridge (§7); host context / theme / display mode (§8); widget‑state persistence (§9); authorization of UI‑initiated tool calls (§10); security (§11); text fallback (§12); architecture & host/app responsibilities (§13); lifecycle & conversation placement (§14); the Oratorio validation contract (§15); acceptance (§16).
 
 Does not define a declarative block/card vocabulary, cross‑client rich rendering (Desktop‑only), or a replacement for App Binding, Runtime Dynamic Tools, or core MCP.
+
+**Blocking / elicitation cards are out of scope.** Interactive Tool UI cards are **non‑blocking** — the tool returns, the card renders, and the agent continues; the card drives further work through the bridge (`tools/call`, `ui/message`, …), never by pausing the turn. This matches MCP Apps (SEP‑1865), whose UI templates are non‑blocking; mid‑turn structured user input is **core MCP elicitation** (`elicitation/create`) — a separate, schema‑driven, host‑rendered concern that is not a `ui://` card and is not built here.
 
 ---
 
@@ -33,7 +35,7 @@ Does not define a declarative block/card vocabulary, cross‑client rich renderi
 
 ## 3. Capability Negotiation
 
-Optional and explicitly negotiated. A client that can render interactive UI advertises `interactiveToolUi` (with the supported MIME type) at `initialize`. Only DotCraft Desktop advertises it; TUI/channel adapters do not and receive the text fallback (§12). AppServer MUST NOT send UI resources or expect bridge traffic for a client that did not negotiate it, and MUST NOT honor `ui/*` host methods for such a client.
+Interactive UI is explicitly negotiated. A client that can render it sets the boolean `interactiveToolUi` capability at `initialize` (default `false`). Only DotCraft Desktop declares it; TUI and channel adapters do not and receive the text fallback (§12). For a client that did not declare it, AppServer does not honor the `ui/*` host methods (`ui/resource/read`, `ui/tool/call`, `ui/open-link`, `ui/update-model-context`, `item/widget-state/set`) — they are rejected as unsupported — so a non‑declaring client can neither serve nor drive an app's `ui://` surface.
 
 ---
 
@@ -164,7 +166,7 @@ The UI's access to its own app backend (direct `fetch`) is governed by CSP `conn
 
 - **Visibility** (`_meta.ui.visibility`, default `["model","app"]`): `["app"]` = UI‑only (callable from the UI, hidden from the model); `["model"]` = model‑only. AppServer enforces visibility when building the model tool list and validating UI `tools/call`.
 - **Sandbox & CSP:** mandatory iframe sandbox; restrictive default CSP, widened only from the server‑validated `_meta.ui.csp`. Widening one iframe's CSP must not affect other iframes or the app shell.
-- **Permissions:** `_meta.ui.permissions` map to Permissions‑Policy grants.
+- **Permissions:** the iframe is granted **only** the powerful features the app declares in `_meta.ui.permissions` (`camera`, `microphone`, `geolocation`, `clipboardWrite`), mapped from the server‑validated descriptor onto the iframe's Permissions‑Policy `allow`. Unknown tokens are dropped; with none declared, every powerful feature is denied (deny‑by‑default).
 - **Links:** `ui/open-link` is governed by a **host‑owned scheme policy** — `https:`, `mailto:`, and the bound app's declared `nativeApplication.protocol` deep‑link scheme (binding‑scoped — a vetted catalog declaration, not an ad‑hoc per‑app scheme). `javascript:` / `data:` / `file:` and every other scheme are forbidden. Blocked opens are audited.
 - **Loopback fetch (data path B):** an app backend serving the iframe's direct `fetch` must allow the iframe's opaque origin (CORS, loopback only, no credentials). This is the app's responsibility.
 - **Bridge authorization:** `event.source` is necessary but not sufficient because a sandboxed iframe can self-navigate while retaining the same frame/window proxy. Desktop mints a per-frame `bridgeToken` during the initial `dotcraft-app://` document handshake, requires it on all UI→host actions, and disables the bridge on duplicate initialization or iframe navigation.
@@ -228,15 +230,3 @@ Oratorio is the first validating app. It ships UI resources in its bundle, decla
 - Host context (theme/locale/displayMode) is pushed live; `widgetState` persists and restores per item.
 - A non‑blocking interactive card is pinned out of the collapsed turn summary.
 - The interactive UI is never required for correctness; text fallback always present.
-
----
-
-## 17. Status & Remaining Work
-
-**Delivered (in‑repo):** `ui://` resources + `_meta.ui`; the audience split; the sandboxed `dotcraft-app://` iframe with per‑resource CSP; the full tokenized bridge (handshake, tool‑input/result push, `tools/call`, `ui/open-link`, `ui/message`, `ui/update-model-context`, `ui/request-display-mode`, introspection); live host‑context push; `widgetState` persistence; `pip`/`fullscreen` display modes; decoupled mutate‑approval; the app deep‑link scheme allowance; pinned conversation placement; the non‑Desktop text fallback; and the Oratorio validation contract.
-
-**Remaining (hardening):**
-- Gate all interactive‑UI delivery and `ui/*` host methods strictly on `interactiveToolUi` negotiation; non‑negotiating clients get text only.
-- Security review sign‑off: sandbox attributes, per‑resource CSP correctness, scheme allow‑list, the permissions model, opaque‑origin isolation; decide which `permissions` are enforced vs declarative in v1.
-- Audit completeness: every UI‑initiated tool call and link open on the audit trail with provenance.
-- Bilingual (EN + 中文) user and app‑author documentation.

@@ -100,6 +100,20 @@ describe('InteractiveToolView', () => {
     expect(iframe.getAttribute('src')).toContain('threadId=t1')
   })
 
+  it('grants only the server-validated declared permissions via the iframe allow attribute', () => {
+    // No permissions declared → every powerful feature denied (empty allow).
+    const { container } = render(<InteractiveToolView item={makeItem()} threadId="t1" locale="en" />)
+    expect((container.querySelector('iframe') as HTMLIFrameElement).getAttribute('allow')).toBe('')
+
+    const item = {
+      ...makeItem(),
+      toolUi: { resourceUri: 'ui://oratorio/board', permissions: ['camera', 'microphone', 'clipboardWrite', 'bogus'] }
+    } as ConversationItem
+    const { container: c2 } = render(<InteractiveToolView item={item} threadId="t1" locale="en" />)
+    // Known tokens map to Permissions-Policy names; unknown ('bogus') dropped; geolocation not granted.
+    expect((c2.querySelector('iframe') as HTMLIFrameElement).getAttribute('allow')).toBe('camera; microphone; clipboard-write')
+  })
+
   it('answers ui/initialize with live action capabilities and pushes tool data', () => {
     const { frameWindow, postSpy } = mountFrame()
     const bridgeToken = initializeBridge(frameWindow, postSpy)

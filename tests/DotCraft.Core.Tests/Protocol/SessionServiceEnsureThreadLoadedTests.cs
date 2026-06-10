@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Reflection;
 using DotCraft.Abstractions;
 using DotCraft.Agents;
@@ -8,12 +7,11 @@ using DotCraft.Protocol;
 using DotCraft.Security;
 using DotCraft.Sessions;
 using DotCraft.Skills;
-using Microsoft.Agents.AI;
 
 namespace DotCraft.Tests.Sessions.Protocol;
 
 /// <summary>
-/// Verifies <see cref="SessionService.EnsureThreadLoadedAsync"/> hydrates <c>_threadAgents</c>
+/// Verifies <see cref="SessionService.EnsureThreadLoadedAsync"/> hydrates the per-thread runtime agent
 /// after a cold load from disk (simulated second <see cref="SessionService"/> instance).
 /// </summary>
 public sealed class SessionServiceEnsureThreadLoadedTests : IDisposable
@@ -105,9 +103,20 @@ public sealed class SessionServiceEnsureThreadLoadedTests : IDisposable
 
     private static bool ThreadAgentsContains(SessionService svc, string threadId)
     {
-        var field = typeof(SessionService).GetField("_threadAgents", BindingFlags.Instance | BindingFlags.NonPublic);
-        Assert.NotNull(field);
-        var dict = (ConcurrentDictionary<string, AIAgent>)field.GetValue(svc)!;
-        return dict.ContainsKey(threadId);
+        var registryField = typeof(SessionService).GetField("_runtimeRegistry", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(registryField);
+        var registry = registryField.GetValue(svc);
+        Assert.NotNull(registry);
+
+        var tryGetRuntime = registry.GetType().GetMethod("TryGetRuntime", BindingFlags.Instance | BindingFlags.Public);
+        Assert.NotNull(tryGetRuntime);
+        var args = new object?[] { threadId, null };
+        var found = (bool)tryGetRuntime.Invoke(registry, args)!;
+        if (!found || args[1] == null)
+            return false;
+
+        var agentProperty = args[1]!.GetType().GetProperty("Agent", BindingFlags.Instance | BindingFlags.Public);
+        Assert.NotNull(agentProperty);
+        return agentProperty.GetValue(args[1]) != null;
     }
 }

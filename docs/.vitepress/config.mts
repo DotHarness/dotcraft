@@ -133,6 +133,7 @@ const enSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
         items: [
           { text: withIcon('plug', 'App Binding'), link: '/developing/integrations/app-binding' },
           { text: withIcon('box', 'Build an App'), link: '/developing/integrations/build-an-app' },
+          { text: withIcon('layout', 'Interactive Tool UI'), link: '/developing/integrations/interactive-tool-ui' },
           { text: withIcon('dashboard', 'Desktop Extensions'), link: '/developing/integrations/desktop-extensions' },
           { text: withIcon('blocks', 'TypeScript Module'), link: '/developing/integrations/typescript-module' }
         ]
@@ -263,6 +264,7 @@ const zhSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
         items: [
           { text: withIcon('plug', 'App Binding'), link: '/zh/developing/integrations/app-binding' },
           { text: withIcon('box', '构建应用'), link: '/zh/developing/integrations/build-an-app' },
+          { text: withIcon('layout', '交互式工具 UI'), link: '/zh/developing/integrations/interactive-tool-ui' },
           { text: withIcon('dashboard', 'Desktop 扩展'), link: '/zh/developing/integrations/desktop-extensions' },
           { text: withIcon('blocks', 'TypeScript Module'), link: '/zh/developing/integrations/typescript-module' }
         ]

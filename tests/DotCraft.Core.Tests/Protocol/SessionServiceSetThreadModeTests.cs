@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Reflection;
 using DotCraft.Abstractions;
 using DotCraft.Agents;
@@ -91,10 +90,12 @@ public sealed class SessionServiceSetThreadModeTests : IDisposable
         var thread = await svc.CreateThreadAsync(identity);
 
         var threadChatClient = new SignalingChatClient("thread-agent");
-        GetThreadAgents(svc)[thread.Id] = threadChatClient.AsAIAgent(new ChatClientAgentOptions());
+        SetCachedThreadAgent(svc, thread.Id, threadChatClient.AsAIAgent(new ChatClientAgentOptions()));
 
         var agentLock = new SemaphoreSlim(0, 1);
-        GetThreadAgentLocks(svc)[thread.Id] = agentLock;
+        var runtime = svc.DebugGetRuntime(thread.Id);
+        Assert.NotNull(runtime);
+        runtime!.AgentLock = agentLock;
 
         var events = svc.SubmitInputAsync(
             thread.Id,
@@ -146,7 +147,7 @@ public sealed class SessionServiceSetThreadModeTests : IDisposable
         Assert.True(existingThread.Configuration?.Reasoning?.Enabled);
         Assert.Equal(ReasoningEffort.High, existingThread.Configuration?.Reasoning?.Effort);
         Assert.Equal(ReasoningOutput.Full, existingThread.Configuration?.Reasoning?.Output);
-        Assert.False(GetThreadAgents(svc).ContainsKey(existingThread.Id));
+        Assert.Null(svc.DebugGetRuntime(existingThread.Id)?.Agent);
 
         monitor.Current.Model = "model-b";
         monitor.Current.Reasoning = new AppConfig.ReasoningConfig
@@ -213,23 +214,17 @@ public sealed class SessionServiceSetThreadModeTests : IDisposable
 
     private static AIAgent GetCachedThreadAgent(SessionService svc, string threadId)
     {
-        var dict = GetThreadAgents(svc);
-        Assert.True(dict.TryGetValue(threadId, out var agent));
-        return agent;
+        var runtime = svc.DebugGetRuntime(threadId);
+        Assert.NotNull(runtime);
+        Assert.NotNull(runtime!.Agent);
+        return runtime.Agent;
     }
 
-    private static ConcurrentDictionary<string, AIAgent> GetThreadAgents(SessionService svc)
+    private static void SetCachedThreadAgent(SessionService svc, string threadId, AIAgent agent)
     {
-        var field = typeof(SessionService).GetField("_threadAgents", BindingFlags.Instance | BindingFlags.NonPublic);
-        Assert.NotNull(field);
-        return (ConcurrentDictionary<string, AIAgent>)field.GetValue(svc)!;
-    }
-
-    private static ConcurrentDictionary<string, SemaphoreSlim> GetThreadAgentLocks(SessionService svc)
-    {
-        var field = typeof(SessionService).GetField("_threadAgentLocks", BindingFlags.Instance | BindingFlags.NonPublic);
-        Assert.NotNull(field);
-        return (ConcurrentDictionary<string, SemaphoreSlim>)field.GetValue(svc)!;
+        var runtime = svc.DebugGetRuntime(threadId);
+        Assert.NotNull(runtime);
+        runtime!.Agent = agent;
     }
 
     private static async Task DrainAsync(IAsyncEnumerable<SessionEvent> events)

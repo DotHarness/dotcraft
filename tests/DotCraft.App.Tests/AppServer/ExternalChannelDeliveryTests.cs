@@ -2,7 +2,6 @@ using System.Diagnostics;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using System.Collections.Concurrent;
 using DotCraft.Abstractions;
 using DotCraft.Agents;
 using DotCraft.AppServer;
@@ -1978,11 +1977,15 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
         string threadId,
         IReadOnlySet<string> toolNames)
     {
-        var field = typeof(SessionService)
-            .GetField("_threadPluginFunctionToolNames", BindingFlags.Instance | BindingFlags.NonPublic);
-        Assert.NotNull(field);
-        var cache = Assert.IsType<ConcurrentDictionary<string, IReadOnlySet<string>>>(field!.GetValue(service));
-        cache[threadId] = new HashSet<string>(toolNames, StringComparer.Ordinal);
+        var method = typeof(SessionService)
+            .GetMethod("DebugGetRuntime", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(method);
+        var runtime = method!.Invoke(service, [threadId]);
+        Assert.NotNull(runtime);
+        var property = runtime!.GetType()
+            .GetProperty("PluginFunctionToolNames", BindingFlags.Instance | BindingFlags.Public);
+        Assert.NotNull(property);
+        property!.SetValue(runtime, new HashSet<string>(toolNames, StringComparer.Ordinal));
     }
 
     private static string ExtractResultText(object? result)

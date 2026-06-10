@@ -99,6 +99,13 @@ public sealed class AppBindingProtocolExtension(
         var userId = CurrentUserId(context);
         var ct = context.CancellationToken;
 
+        // Interactive Tool UI host methods are negotiated (tool-result-presentation.md §3): a client
+        // that did not declare interactiveToolUi support cannot serve or drive an app's ui:// surface,
+        // so these methods are not honored for it.
+        if (method is UiResourceRead or UiToolCall or UiOpenLink or UiUpdateModelContext
+            && !context.Connection.SupportsInteractiveToolUi)
+            throw AppServerErrors.MethodNotFound(method);
+
         switch (method)
         {
             case AppList:

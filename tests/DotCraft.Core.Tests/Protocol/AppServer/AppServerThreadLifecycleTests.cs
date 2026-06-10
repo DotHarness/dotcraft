@@ -25,7 +25,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
     public AppServerThreadLifecycleTests()
     {
         // All thread tests need a ready connection
-        _h.InitializeAsync().GetAwaiter().GetResult();
+        _h.InitializeAsync(interactiveToolUi: true).GetAwaiter().GetResult();
     }
 
     public void Dispose() => _h.Dispose();

@@ -11,6 +11,7 @@ that other protocols and clients project.
 | [memory-consolidation.md](memory-consolidation.md) | Automatic and manual memory consolidation triggers, persistence, events, and UX surface. |
 | [dreams.md](dreams.md) | Dream memory product model, runtime lifecycle, AppServer surface, and Desktop/dashboard UX contracts. |
 | [context-export-cli.md](context-export-cli.md) | Local read-only CLI for exporting session/memory context and searching persisted session evidence. |
+| [core-architecture-refactor.md](core-architecture-refactor.md) | Proposed decomposition of the oversized Core C# components (AppServer dispatch, SessionService state, AppBinding) with milestones; no wire/behavior change. |
 
 Related domains: [Protocols](../protocols/), [Runtime](../runtime/), [Agents](../agents/).
 

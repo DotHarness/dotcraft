@@ -556,6 +556,7 @@ function buildInitializeCapabilities(_profile: InitializeProfile): Record<string
           toolExecutionLifecycle: true,
           backgroundTerminals: true,
           configChange: true,
+          interactiveToolUi: true,
           optOutNotificationMethods: [],
           nodeRepl: {
             backend: 'desktop-node'

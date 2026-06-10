@@ -66,12 +66,15 @@ public sealed class AppServerThreadModelSnapshotTests : IDisposable
             connection,
             transport,
             new ModuleRegistryChannelListContributor(new ModuleRegistry(), null, null),
-            serverVersion: "0.0.1-test",
-            workspaceCraftPath: _craftPath,
-            hostWorkspacePath: _tempDir,
-            memoryStore: new MemoryStore(_tempDir),
-            appConfigMonitor: monitor,
-            skillsLoader: new SkillsLoader(_tempDir));
+            new AppServerConnectionServices
+            {
+                ServerVersion = "0.0.1-test",
+                WorkspaceCraftPath = _craftPath,
+                HostWorkspacePath = _tempDir,
+                MemoryStore = new MemoryStore(_tempDir),
+                AppConfigMonitor = monitor,
+                SkillsLoader = new SkillsLoader(_tempDir),
+            });
 
         await InitializeAsync(handler, transport);
 
@@ -150,12 +153,15 @@ public sealed class AppServerThreadModelSnapshotTests : IDisposable
             connection,
             transport,
             new ModuleRegistryChannelListContributor(new ModuleRegistry(), null, null),
-            serverVersion: "0.0.1-test",
-            workspaceCraftPath: _craftPath,
-            hostWorkspacePath: _tempDir,
-            memoryStore: new MemoryStore(_tempDir),
-            appConfigMonitor: monitor,
-            skillsLoader: new SkillsLoader(_tempDir));
+            new AppServerConnectionServices
+            {
+                ServerVersion = "0.0.1-test",
+                WorkspaceCraftPath = _craftPath,
+                HostWorkspacePath = _tempDir,
+                MemoryStore = new MemoryStore(_tempDir),
+                AppConfigMonitor = monitor,
+                SkillsLoader = new SkillsLoader(_tempDir),
+            });
 
         await InitializeAsync(handler, transport);
 

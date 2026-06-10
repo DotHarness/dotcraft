@@ -58,9 +58,12 @@ public sealed class WireClientIntegrationTests : IAsyncDisposable
         var handler = new AppServerRequestHandler(
             _service, connection, serverTransport,
             new ModuleRegistryChannelListContributor(new ModuleRegistry(), null, null),
-            serverVersion: "0.0.1-test",
-            hostWorkspacePath: _tempDir,
-            appConfigMonitor: new AppConfigMonitor(AppConfigTestFactory.CreateOpenAI()));
+            new AppServerConnectionServices
+            {
+                ServerVersion = "0.0.1-test",
+                HostWorkspacePath = _tempDir,
+                AppConfigMonitor = new AppConfigMonitor(AppConfigTestFactory.CreateOpenAI()),
+            });
 
         _serverLoop = Task.Run(() => RunServerLoopAsync(serverTransport, connection, handler, _serverCts.Token));
 

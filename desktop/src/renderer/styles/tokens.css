@@ -662,26 +662,33 @@ kbd {
   will-change: opacity, filter;
 }
 
-@keyframes composer-mascot-bounce {
+/* Send launch: crouch anticipation → stretch jump → squash landing → settle. */
+@keyframes composer-mascot-launch {
   0% {
-    transform: translateY(0) scale(1);
+    transform: translateY(0) scale(1, 1);
   }
-  28% {
-    transform: translateY(-9px) scale(1.06);
+  14% {
+    transform: translateY(3px) scale(1.14, 0.8);
   }
-  52% {
-    transform: translateY(0) scale(0.97);
+  38% {
+    transform: translateY(-20px) scale(0.9, 1.14);
   }
-  72% {
-    transform: translateY(-3px) scale(1.01);
+  58% {
+    transform: translateY(0) scale(1.1, 0.88);
+  }
+  74% {
+    transform: translateY(-6px) scale(0.98, 1.04);
+  }
+  88% {
+    transform: translateY(0) scale(1.02, 0.98);
   }
   100% {
-    transform: translateY(0) scale(1);
+    transform: translateY(0) scale(1, 1);
   }
 }
 
-.composer-mascot-bounce {
-  animation: composer-mascot-bounce 640ms cubic-bezier(0.34, 1.56, 0.64, 1);
+.composer-mascot-launch {
+  animation: composer-mascot-launch 820ms cubic-bezier(0.3, 0.9, 0.4, 1);
   transform-origin: bottom center;
 }
 
@@ -727,6 +734,575 @@ kbd {
 
 .composer-mascot-bubble {
   animation: composer-mascot-bubble-in 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ─── Composer mascot: SVG sub-part animation hooks ───
+   The robot's arm/antenna/face pieces carry stable mascot-* classes (see
+   MascotRobot.tsx). Each arm's white and blue pieces are separate elements
+   that move in lockstep around a shared shoulder origin in viewBox space
+   (transform-box: view-box resolves the origin in user units, identically
+   for both pieces). Raised poses (wave/cheer) compose "slide then rotate":
+   the translate first slips the whole arm down to the torso's mid-side,
+   far enough inboard that the white root cap stays buried in the body
+   silhouette, then the rotation fans the hand around that landed root —
+   the hand reads as growing straight out of the side, with no exposed
+   joint hardware. */
+.mascot-eyes,
+.mascot-glow,
+.mascot-light,
+.mascot-face {
+  transform-box: fill-box;
+}
+
+/* Expression switch: a terminal-screen "refresh" — the old face fades out
+   quickly, the new one fades in after a ~70ms blank beat, so two faces
+   never blend into a double exposure. Reduced motion falls back to a hard
+   cut via the mascot media-query below. */
+.mascot-face {
+  opacity: 0;
+  transition: opacity 110ms ease;
+}
+
+.mascot-robot[data-expression='neutral'] .mascot-face-neutral,
+.mascot-robot[data-expression='happy'] .mascot-face-happy,
+.mascot-robot[data-expression='operator'] .mascot-face-operator,
+.mascot-robot[data-expression='sleep'] .mascot-face-sleep {
+  opacity: 1;
+  transition: opacity 150ms ease 70ms;
+}
+
+.mascot-eyes {
+  transform-origin: center;
+}
+
+.mascot-glow {
+  opacity: 0;
+  transform-origin: center;
+}
+
+.mascot-light {
+  transform-origin: center;
+}
+
+.mascot-arm-l-w,
+.mascot-arm-l-b {
+  transform-box: view-box;
+  transform-origin: 233px 514px;
+  transition: transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.mascot-arm-r-w,
+.mascot-arm-r-b {
+  transform-box: view-box;
+  transform-origin: 791px 514px;
+  transition: transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ─── Composer mascot: idle micro-behaviors (randomly scheduled) ─── */
+@keyframes composer-mascot-blink {
+  0%,
+  100% {
+    transform: scaleY(1);
+  }
+  35%,
+  62% {
+    transform: scaleY(0.08);
+  }
+}
+
+.composer-mascot-blink .mascot-eyes {
+  animation: composer-mascot-blink 180ms ease-in-out;
+}
+
+/* Neutral is the terminal-prompt face: also flash its caret "mouth" like a cursor. */
+@keyframes composer-mascot-caret {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+.composer-mascot-blink .mascot-caret {
+  animation: composer-mascot-caret 260ms steps(1, end) 2;
+}
+
+@keyframes composer-mascot-look-l {
+  0% {
+    transform: translateX(0);
+  }
+  22%,
+  78% {
+    transform: translateX(-34px);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+@keyframes composer-mascot-look-r {
+  0% {
+    transform: translateX(0);
+  }
+  22%,
+  78% {
+    transform: translateX(34px);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+@keyframes composer-mascot-tilt-l {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  22%,
+  78% {
+    transform: rotate(-2.4deg);
+  }
+}
+
+@keyframes composer-mascot-tilt-r {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  22%,
+  78% {
+    transform: rotate(2.4deg);
+  }
+}
+
+.composer-mascot-look-l .mascot-face {
+  animation: composer-mascot-look-l 1.1s ease-in-out;
+}
+
+.composer-mascot-look-r .mascot-face {
+  animation: composer-mascot-look-r 1.1s ease-in-out;
+}
+
+.composer-mascot-look-l .composer-mascot-jelly {
+  animation: composer-mascot-tilt-l 1.1s ease-in-out;
+}
+
+.composer-mascot-look-r .composer-mascot-jelly {
+  animation: composer-mascot-tilt-r 1.1s ease-in-out;
+}
+
+/* Antenna pieces (white halo / glow / light ball) bob in lockstep — pure translate. */
+@keyframes composer-mascot-antenna-bob {
+  0% {
+    transform: translateY(0);
+  }
+  30% {
+    transform: translateY(-52px);
+  }
+  55% {
+    transform: translateY(12px);
+  }
+  75% {
+    transform: translateY(-16px);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+
+.composer-mascot-bob .mascot-antenna-w,
+.composer-mascot-bob .mascot-glow,
+.composer-mascot-bob .mascot-light {
+  animation: composer-mascot-antenna-bob 720ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Typing nod: tiny dip per keystroke (throttled by the animation itself). */
+@keyframes composer-mascot-nod {
+  0% {
+    transform: translateY(0);
+  }
+  40% {
+    transform: translateY(2.5px) scale(1.015, 0.985);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+
+.composer-mascot-nod {
+  animation: composer-mascot-nod 140ms ease-out;
+  transform-origin: bottom center;
+}
+
+/* ─── Composer mascot: thinking (turn running) — slow sway + light pulse ─── */
+@keyframes composer-mascot-think-sway {
+  0%,
+  100% {
+    transform: rotate(-2.2deg);
+  }
+  50% {
+    transform: rotate(2.2deg);
+  }
+}
+
+.composer-mascot-think {
+  animation: composer-mascot-think-sway 2.6s ease-in-out infinite;
+  transform-origin: bottom center;
+  will-change: transform;
+}
+
+@keyframes composer-mascot-glow-pulse {
+  0%,
+  100% {
+    opacity: 0;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(1.35);
+  }
+}
+
+@keyframes composer-mascot-light-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.12);
+  }
+}
+
+.composer-mascot-think .mascot-glow {
+  animation: composer-mascot-glow-pulse 1.3s ease-in-out infinite;
+}
+
+.composer-mascot-think .mascot-light {
+  animation: composer-mascot-light-pulse 1.3s ease-in-out infinite;
+}
+
+/* ─── Composer mascot: success — raised arms + double-hop cheer + star burst ───
+   Arms bury their roots in the torso's mid-sides (translate + scaleY → short
+   flippers) and swing up-and-out (\o/); same slide-then-rotate hinge as the
+   wave, so the outline wraps and the colour stays seam-continuous. */
+.composer-mascot-celebrate .mascot-arm-l-w,
+.composer-mascot-celebrate .mascot-arm-l-b {
+  transform: translate(48px, 88px) rotate(135deg) scaleY(0.82);
+}
+
+.composer-mascot-celebrate .mascot-arm-r-w,
+.composer-mascot-celebrate .mascot-arm-r-b {
+  transform: translate(-48px, 88px) rotate(-135deg) scaleY(0.82);
+}
+
+/* Raised arms swap from the body gradient (seamless at rest) to a solid hinge
+   colour, so a rotated arm has no gradient to diverge from the torso's field;
+   the swap is hidden by the motion. White halo capsules stay white. */
+.composer-mascot-wave .mascot-arm-r-b,
+.composer-mascot-celebrate .mascot-arm-r-b {
+  fill: #7a96fb;
+}
+
+.composer-mascot-celebrate .mascot-arm-l-b {
+  fill: #3161f7;
+}
+
+@keyframes composer-mascot-glow-flash {
+  0%,
+  100% {
+    opacity: 0;
+    transform: scale(1);
+  }
+  30% {
+    opacity: 0.7;
+    transform: scale(1.6);
+  }
+}
+
+.composer-mascot-celebrate .mascot-glow {
+  animation: composer-mascot-glow-flash 700ms ease-out 2;
+}
+
+@keyframes composer-mascot-cheer {
+  0% {
+    transform: translateY(0) scale(1, 1);
+  }
+  12% {
+    transform: translateY(2px) scale(1.08, 0.9);
+  }
+  30% {
+    transform: translateY(-13px) scale(0.96, 1.06);
+  }
+  46% {
+    transform: translateY(0) scale(1.05, 0.94);
+  }
+  60% {
+    transform: translateY(-8px) scale(0.98, 1.03);
+  }
+  74% {
+    transform: translateY(0) scale(1.02, 0.98);
+  }
+  100% {
+    transform: translateY(0) scale(1, 1);
+  }
+}
+
+.composer-mascot-cheer {
+  animation: composer-mascot-cheer 1s ease-out;
+  transform-origin: bottom center;
+}
+
+.composer-mascot-sparkles {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* Success star burst — semantic status color, not decoration. */
+.composer-mascot-sparkles i {
+  position: absolute;
+  left: 50%;
+  top: 6%;
+  width: 7px;
+  height: 7px;
+  background: var(--success);
+  clip-path: polygon(50% 0, 64% 36%, 100% 50%, 64% 64%, 50% 100%, 36% 64%, 0 50%, 36% 36%);
+  animation: composer-mascot-sparkle 900ms ease-out forwards;
+}
+
+@keyframes composer-mascot-sparkle {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.4) rotate(0);
+  }
+  18% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--dx), var(--dy)) scale(1) rotate(160deg);
+  }
+}
+
+/* ─── Composer mascot: failure — quick head shake, red light blink ───
+   The deflated droop pose itself is held inline by ComposerMascot while
+   the error light persists. */
+@keyframes composer-mascot-shake {
+  0%,
+  100% {
+    transform: translateX(0) rotate(0);
+  }
+  18% {
+    transform: translateX(-5px) rotate(-2.4deg);
+  }
+  38% {
+    transform: translateX(5px) rotate(2.4deg);
+  }
+  58% {
+    transform: translateX(-4px) rotate(-1.8deg);
+  }
+  78% {
+    transform: translateX(3px) rotate(1.2deg);
+  }
+}
+
+.composer-mascot-shake {
+  animation: composer-mascot-shake 520ms ease-in-out;
+  transform-origin: bottom center;
+}
+
+@keyframes composer-mascot-glow-blink {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 0.65;
+  }
+}
+
+.composer-mascot-deflate .mascot-glow {
+  animation: composer-mascot-glow-blink 560ms ease-in-out 3;
+}
+
+/* ─── Composer mascot: drag-over — eager hop, arms spread to catch the file ─── */
+@keyframes composer-mascot-eager-hop {
+  0%,
+  100% {
+    transform: translateY(0) scale(1, 1);
+  }
+  50% {
+    transform: translateY(-4px) scale(0.99, 1.02);
+  }
+}
+
+.composer-mascot-eager {
+  animation: composer-mascot-eager-hop 460ms ease-in-out infinite;
+  transform-origin: bottom center;
+}
+
+.composer-mascot-eager .mascot-arm-l-w,
+.composer-mascot-eager .mascot-arm-l-b {
+  transform: translate(8px, -20px) rotate(14deg);
+}
+
+.composer-mascot-eager .mascot-arm-r-w,
+.composer-mascot-eager .mascot-arm-r-b {
+  transform: translate(-8px, -20px) rotate(-14deg);
+}
+
+.composer-mascot-eager .mascot-glow {
+  animation: composer-mascot-glow-pulse 650ms ease-in-out infinite;
+}
+
+/* ─── Composer mascot: sleeping (long idle) — deep breathing, dim light, Zzz ───
+   The slumped pose is held inline by ComposerMascot. */
+@keyframes composer-mascot-sleep-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05, 1.06);
+  }
+}
+
+.composer-mascot-sleep-breathe {
+  animation: composer-mascot-sleep-breathe 5.6s ease-in-out infinite;
+  transform-origin: bottom center;
+}
+
+.composer-mascot-sleeping .mascot-light {
+  opacity: 0.45;
+}
+
+.composer-mascot-zzz {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.composer-mascot-zzz span {
+  position: absolute;
+  right: -2px;
+  top: 2px;
+  font-family: Georgia, serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-dimmed);
+  opacity: 0;
+  animation: composer-mascot-zzz 2.8s ease-out infinite;
+}
+
+.composer-mascot-zzz span:nth-child(2) {
+  animation-delay: 0.9s;
+  right: 2px;
+}
+
+.composer-mascot-zzz span:nth-child(3) {
+  animation-delay: 1.8s;
+  right: 6px;
+}
+
+@keyframes composer-mascot-zzz {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.7);
+  }
+  25% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(13px, -26px) scale(1.15);
+  }
+}
+
+/* Startled wake-up pop. */
+@keyframes composer-mascot-startle {
+  0% {
+    transform: translateY(0) scale(1);
+  }
+  30% {
+    transform: translateY(-7px) scale(1.1, 0.96);
+  }
+  60% {
+    transform: translateY(0) scale(0.97, 1.03);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+  }
+}
+
+.composer-mascot-startle {
+  animation: composer-mascot-startle 320ms ease-out;
+  transform-origin: bottom center;
+}
+
+/* ─── Composer mascot: click greeting — penguin-style flipper wave ───
+   Three phases: (1) 0→16% the arm extends — root slides into the torso's
+   mid-side and scaleY shrinks it to a short flipper, so it grows out instead
+   of a long limb popping; (2) 16→80% it fans between -92° (out) and -122°
+   (up-forward) twice; (3) 80→100% it retracts flush. Every keyframe keeps the
+   same function list (translate + rotate + scaleY) so the interpolation is
+   smooth, and the white capsule + blue band share it to stay locked.
+   translate dy=88 lands the hinge at ≈602 viewBox — the height of the resting
+   arm nub (torso vertical center, slightly above) — so the hand lifts from
+   where the arm already is rather than from a point too high up. */
+@keyframes composer-mascot-wave-arm {
+  0% {
+    transform: translate(0, 0) rotate(0) scaleY(1);
+  }
+  16% {
+    transform: translate(-48px, 88px) rotate(-122deg) scaleY(0.8);
+  }
+  32% {
+    transform: translate(-48px, 88px) rotate(-92deg) scaleY(0.8);
+  }
+  48% {
+    transform: translate(-48px, 88px) rotate(-122deg) scaleY(0.8);
+  }
+  64% {
+    transform: translate(-48px, 88px) rotate(-92deg) scaleY(0.8);
+  }
+  80% {
+    transform: translate(-48px, 88px) rotate(-114deg) scaleY(0.8);
+  }
+  100% {
+    transform: translate(0, 0) rotate(0) scaleY(1);
+  }
+}
+
+@keyframes composer-mascot-wave-lean {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  20%,
+  80% {
+    transform: rotate(3deg);
+  }
+}
+
+.composer-mascot-wave .mascot-arm-r-w,
+.composer-mascot-wave .mascot-arm-r-b {
+  animation: composer-mascot-wave-arm 1.6s ease-in-out;
+}
+
+.composer-mascot-wave .composer-mascot-jelly {
+  animation: composer-mascot-wave-lean 1.6s ease-in-out;
+}
+
+/* Honor reduced motion: stop every mascot loop, one-shot, and pose transition.
+   Scoped to the motion wrapper so the bubble and context menu stay unaffected. */
+@media (prefers-reduced-motion: reduce) {
+  .composer-mascot-motion,
+  .composer-mascot-motion * {
+    animation: none !important;
+    transition: none !important;
+  }
 }
 
 /* ─── Running tool text shimmer ─── */
