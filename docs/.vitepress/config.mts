@@ -3,7 +3,7 @@ import { withMermaid } from 'vitepress-plugin-mermaid'
 import { withIcon } from './theme/icons'
 
 const repo = 'https://github.com/DotHarness/dotcraft'
-const base = process.env.VITEPRESS_BASE ?? (process.env.GITHUB_ACTIONS ? '/dotcraft/' : '/')
+const base = process.env.VITEPRESS_BASE ?? '/'
 
 function escapeMustaches(value: string): string {
   return value.replaceAll('{{', '&#123;&#123;').replaceAll('}}', '&#125;&#125;')

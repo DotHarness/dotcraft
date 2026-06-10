@@ -19,13 +19,13 @@ Desktop is the recommended first entry point because workspace selection, model 
 If you only need the CLI and TUI binaries, install them directly:
 
 ```bash
-curl -fsSL https://dotharness.github.io/dotcraft/install.sh | bash
+curl -fsSL https://www.dotcraft.net/install.sh | bash
 ```
 
 Windows PowerShell:
 
 ```powershell
-irm https://dotharness.github.io/dotcraft/install.ps1 | iex
+irm https://www.dotcraft.net/install.ps1 | iex
 ```
 
 The Windows PowerShell installer auto-selects the x64 or ARM64 CLI/TUI archive. Linux and macOS CLI release archives are currently x64-only.

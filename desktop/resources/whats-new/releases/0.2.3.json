@@ -17,7 +17,7 @@
         "sizeBytes": 3333659,
         "sha256": "7E81F89786A9A220ECEE6AFC419AAF98C8646953AA1BD3ACAB326F19EBBEF050"
       },
-      "docsUrl": "https://dotharness.github.io/dotcraft/features/project-first"
+      "docsUrl": "https://www.dotcraft.net/features/project-first"
     },
     {
       "id": "desktop-extensions",
@@ -35,7 +35,7 @@
         "sizeBytes": 3314816,
         "sha256": "4D29120B68F5936BDD1204C7699C2F9305DDC36F716422A4C2618699050D9A59"
       },
-      "docsUrl": "https://dotharness.github.io/dotcraft/developing/integrations/desktop-extensions"
+      "docsUrl": "https://www.dotcraft.net/developing/integrations/desktop-extensions"
     }
   ]
 }

@@ -2,7 +2,7 @@
 
 ![intro](https://github.com/DotHarness/resources/raw/master/dotcraft/intro.png)
 
-[中文](./README_ZH.md) · [Documentation](https://dotharness.github.io/dotcraft/) · [Getting Started](https://dotharness.github.io/dotcraft/getting-started) · [Download Release](https://github.com/DotHarness/dotcraft/releases) · [DeepWiki](https://deepwiki.com/DotHarness/dotcraft) · [License](./LICENSE)
+[中文](./README_ZH.md) · [Documentation](https://www.dotcraft.net/) · [Getting Started](https://www.dotcraft.net/getting-started) · [Download Release](https://github.com/DotHarness/dotcraft/releases) · [DeepWiki](https://deepwiki.com/DotHarness/dotcraft) · [License](./LICENSE)
 
 AI Agent lives in your project. All in one workspace.
 
@@ -26,7 +26,7 @@ DotCraft is a .NET 10 / C# Agent Harness. It organizes AI workflows around a rea
 
 Most agents stretch one workspace across every project. DotCraft does the opposite: every project is its own workspace, with its own `.craft/` memory, skills, config, and model choices. Desktop keeps several open at once and switches between them instantly — each project resumes right where you left it, and moving, handing off, or backing one up carries its whole agent along.
 
-[Learn more →](https://dotharness.github.io/dotcraft/features/project-first)
+[Learn more →](https://www.dotcraft.net/features/project-first)
 
 ### Desktop Extensions — Plugins with a Full View Inside Desktop
 
@@ -34,7 +34,7 @@ Most agents stretch one workspace across every project. DotCraft does the opposi
 
 Plugins can now render their own UI right inside Desktop, not just add tools. The Oratorio board is the first: connect it to a thread and its board opens as a full view, reading items and queuing work through the same approvals and audit trail as any tool.
 
-[Learn more →](https://dotharness.github.io/dotcraft/developing/integrations/desktop-extensions)
+[Learn more →](https://www.dotcraft.net/developing/integrations/desktop-extensions)
 
 ### Goal — Persistent Conversation Objectives
 
@@ -42,7 +42,7 @@ Plugins can now render their own UI right inside Desktop, not just add tools. Th
 
 Pin a long-term objective to a conversation and set a token or time budget — whenever the conversation goes idle, DotCraft will quietly keep working toward it. You decide when it pauses, resumes, or wraps up.
 
-[Learn more →](https://dotharness.github.io/dotcraft/features/agent-system/automations#goals)
+[Learn more →](https://www.dotcraft.net/features/agent-system/automations#goals)
 
 ### Teams — Multi-agent Mission Board
 
@@ -50,7 +50,7 @@ Pin a long-term objective to a conversation and set a token or time budget — w
 
 For a complex request, DotCraft assembles a small team — Explorer, Builder, Reviewer, Operator — and a Team Leader who splits the work, dispatches it in parallel, and brings the results back together. You hand over one ask; you get the finished mission.
 
-[Learn more →](https://dotharness.github.io/dotcraft/features/agent-system/teams)
+[Learn more →](https://www.dotcraft.net/features/agent-system/teams)
 
 ### Dreams — Background Memory Consolidation
 
@@ -58,7 +58,7 @@ For a complex request, DotCraft assembles a small team — Explorer, Builder, Re
 
 While you work, Dreams quietly reviews recent activity in the background and drafts memory entries worth keeping. You approve them at your own pace, so the agent only remembers what you've actually agreed to.
 
-[Learn more →](https://dotharness.github.io/dotcraft/features/agent-system/memory)
+[Learn more →](https://www.dotcraft.net/features/agent-system/memory)
 
 ### Cross Channels — One Conversation, Any Platform
 
@@ -66,7 +66,7 @@ While you work, Dreams quietly reviews recent activity in the background and dra
 
 Start a conversation on Desktop, continue it in the TUI, and pick it back up later on QQ, WeCom, Feishu, Telegram, or WeChat. It's the same conversation everywhere, with tool approvals rendered natively on each platform.
 
-[Learn more →](https://dotharness.github.io/dotcraft/features/entry-points/channels)
+[Learn more →](https://www.dotcraft.net/features/entry-points/channels)
 
 ### App — SDK-driven App Binding for External Extensions
 
@@ -74,7 +74,7 @@ Start a conversation on Desktop, continue it in the TUI, and pick it back up lat
 
 With the DotCraft SDK you can wrap your own service into an App and plug it straight into the agent — bringing custom tools, data, and workflows into the conversation with no extra middleware. Per-tool approval and full audit trails come built in.
 
-[Learn more →](https://dotharness.github.io/dotcraft/developing/integrations/app-binding)
+[Learn more →](https://www.dotcraft.net/developing/integrations/app-binding)
 
 ### ChatGPT Plan — Sign in with ChatGPT, No Extra API Costs
 
@@ -82,7 +82,7 @@ With the DotCraft SDK you can wrap your own service into an App and plug it stra
 
 Already paying for ChatGPT Plus, Pro, Team, Business, or Enterprise? Sign in with your ChatGPT account and DotCraft will run on that subscription — no separate API key, no extra usage fees.
 
-[Learn more →](https://dotharness.github.io/dotcraft/getting-started)
+[Learn more →](https://www.dotcraft.net/getting-started)
 
 ## Get Started
 
@@ -93,19 +93,19 @@ Already paying for ChatGPT Plus, Pro, Team, Business, or Enterprise? Sign in wit
 3. Follow the initialization guide to configure the workspace and model provider.
 4. Create a session and send your first repository-understanding request.
 
-See [Getting Started](https://dotharness.github.io/dotcraft/getting-started) for the full guided flow.
+See [Getting Started](https://www.dotcraft.net/getting-started) for the full guided flow.
 
 ## Documentation
 
 | Goal | Document |
 |------|----------|
-| Install, configure, and run DotCraft for the first time | [Getting Started](https://dotharness.github.io/dotcraft/getting-started) |
-| Use the graphical desktop client | [Desktop](https://dotharness.github.io/dotcraft/features/entry-points/desktop) |
-| Use the full terminal interface | [TUI](https://dotharness.github.io/dotcraft/features/entry-points/tui) |
-| Run local automation tasks | [Automations & Hooks](https://dotharness.github.io/dotcraft/features/agent-system/automations) |
-| Connect clients, bots, or custom adapters | [Channels & Bots](https://dotharness.github.io/dotcraft/features/entry-points/channels) |
-| Deploy DotCraft and channel bots on a server | [Server Deployment](https://dotharness.github.io/dotcraft/developing/lifecycle/server-deployment) |
-| Architecture, SDKs, and protocols | [Architecture](https://dotharness.github.io/dotcraft/developing/architecture/overview) |
+| Install, configure, and run DotCraft for the first time | [Getting Started](https://www.dotcraft.net/getting-started) |
+| Use the graphical desktop client | [Desktop](https://www.dotcraft.net/features/entry-points/desktop) |
+| Use the full terminal interface | [TUI](https://www.dotcraft.net/features/entry-points/tui) |
+| Run local automation tasks | [Automations & Hooks](https://www.dotcraft.net/features/agent-system/automations) |
+| Connect clients, bots, or custom adapters | [Channels & Bots](https://www.dotcraft.net/features/entry-points/channels) |
+| Deploy DotCraft and channel bots on a server | [Server Deployment](https://www.dotcraft.net/developing/lifecycle/server-deployment) |
+| Architecture, SDKs, and protocols | [Architecture](https://www.dotcraft.net/developing/architecture/overview) |
 
 ## Contributing
 

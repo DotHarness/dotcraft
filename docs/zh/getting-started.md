@@ -19,13 +19,13 @@ Desktop 是推荐的第一入口，因为它把工作区选择、模型配置、
 如果你只需要 CLI 和 TUI 二进制，可以直接安装：
 
 ```bash
-curl -fsSL https://dotharness.github.io/dotcraft/install.sh | bash
+curl -fsSL https://www.dotcraft.net/install.sh | bash
 ```
 
 Windows PowerShell：
 
 ```powershell
-irm https://dotharness.github.io/dotcraft/install.ps1 | iex
+irm https://www.dotcraft.net/install.ps1 | iex
 ```
 
 Windows PowerShell 安装脚本会自动选择 x64 或 ARM64 的 CLI/TUI 归档。Linux 和 macOS 的 CLI Release 归档目前仍只提供 x64。

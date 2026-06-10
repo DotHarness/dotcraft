@@ -2,7 +2,7 @@
 
 ![intro](https://github.com/DotHarness/resources/raw/master/dotcraft/intro.png)
 
-[English](./README.md) · [官方文档](https://dotharness.github.io/dotcraft/zh/) · [快速开始](https://dotharness.github.io/dotcraft/zh/getting-started) · [下载 Release](https://github.com/DotHarness/dotcraft/releases) · [DeepWiki](https://deepwiki.com/DotHarness/dotcraft) · [License](./LICENSE)
+[English](./README.md) · [官方文档](https://www.dotcraft.net/zh/) · [快速开始](https://www.dotcraft.net/zh/getting-started) · [下载 Release](https://github.com/DotHarness/dotcraft/releases) · [DeepWiki](https://deepwiki.com/DotHarness/dotcraft) · [License](./LICENSE)
 
 最适合您项目的 AI Agent，所有能力尽在工作区内。
 
@@ -26,7 +26,7 @@ DotCraft 是一个 .NET 10 / C# Agent Harness。它围绕真实项目目录组�
 
 多数 Agent 把一个工作区摊到所有项目上；DotCraft 反过来：每个项目都是独立工作区，有自己的 `.craft/` 记忆、技能、配置与模型选择。Desktop 可同时打开多个项目并瞬间切换——每个都从你离开时的状态继续，迁移、交接或备份其中一个，都会带走它完整的 Agent。
 
-[了解更多 →](https://dotharness.github.io/dotcraft/zh/features/project-first)
+[了解更多 →](https://www.dotcraft.net/zh/features/project-first)
 
 ### Desktop 扩展 — 插件在 Desktop 内提供完整界面
 
@@ -34,7 +34,7 @@ DotCraft 是一个 .NET 10 / C# Agent Harness。它围绕真实项目目录组�
 
 插件现在可以直接在 Desktop 内渲染自己的界面，而不只是添加工具。Oratorio 看板是首个：把它连到一个会话，看板就作为完整视图打开，读取条目、排布工作，并和其他工具一样走同一套审批与审计链路。
 
-[了解更多 →](https://dotharness.github.io/dotcraft/zh/developing/integrations/desktop-extensions)
+[了解更多 →](https://www.dotcraft.net/zh/developing/integrations/desktop-extensions)
 
 ### Goal — 持久化的会话目标
 
@@ -42,7 +42,7 @@ DotCraft 是一个 .NET 10 / C# Agent Harness。它围绕真实项目目录组�
 
 把一项长期目标钉在某次会话上，给它设定 token 或时间预算——只要会话空闲，DotCraft 就会在后台自动继续推进。何时暂停、继续或完成，始终由你说了算。
 
-[了解更多 →](https://dotharness.github.io/dotcraft/zh/features/agent-system/automations#goals)
+[了解更多 →](https://www.dotcraft.net/zh/features/agent-system/automations#goals)
 
 ### Teams — 多 Agent 的 Mission 协作板
 
@@ -50,7 +50,7 @@ DotCraft 是一个 .NET 10 / C# Agent Harness。它围绕真实项目目录组�
 
 面对一项复杂请求，DotCraft 会组建一支小队（Explorer、Builder、Reviewer、Operator），由 Team Leader 拆解任务、并行分派并汇总结果。你只交代一次需求，剩下的交给团队完成。
 
-[了解更多 →](https://dotharness.github.io/dotcraft/zh/features/agent-system/teams)
+[了解更多 →](https://www.dotcraft.net/zh/features/agent-system/teams)
 
 ### Dreams — 后台被动记忆整理
 
@@ -58,7 +58,7 @@ DotCraft 是一个 .NET 10 / C# Agent Harness。它围绕真实项目目录组�
 
 在你工作时，Dreams 会在后台默默梳理近期的活动，整理出值得保留的记忆草稿。你按自己的节奏审阅与批准——Agent 只会记住你真正认可的内容。
 
-[了解更多 →](https://dotharness.github.io/dotcraft/zh/features/agent-system/memory)
+[了解更多 →](https://www.dotcraft.net/zh/features/agent-system/memory)
 
 ### Cross Channels — 一段对话，多端共享
 
@@ -66,7 +66,7 @@ DotCraft 是一个 .NET 10 / C# Agent Harness。它围绕真实项目目录组�
 
 在 Desktop 开一段对话，在 TUI 继续，再到 QQ、企业微信、飞书、Telegram、微信上接着聊——始终是同一段会话，工具审批也会以各平台原生形式呈现。
 
-[了解更多 →](https://dotharness.github.io/dotcraft/zh/features/entry-points/channels)
+[了解更多 →](https://www.dotcraft.net/zh/features/entry-points/channels)
 
 ### App — 用 SDK 自建 App Binding
 
@@ -74,7 +74,7 @@ DotCraft 是一个 .NET 10 / C# Agent Harness。它围绕真实项目目录组�
 
 借助 DotCraft SDK，你可以把自己的服务封装成一个 App，直接接入 Agent——把自定义的工具、数据和流程带进对话，无需任何中间层。单工具审批和完整审计链路开箱即用。
 
-[了解更多 →](https://dotharness.github.io/dotcraft/zh/developing/integrations/app-binding)
+[了解更多 →](https://www.dotcraft.net/zh/developing/integrations/app-binding)
 
 ### ChatGPT Plan — 复用已有的 ChatGPT 订阅
 
@@ -82,7 +82,7 @@ DotCraft 是一个 .NET 10 / C# Agent Harness。它围绕真实项目目录组�
 
 已经在为 ChatGPT Plus、Pro、Team、Business 或 Enterprise 付费？只需用 ChatGPT 账号登录，DotCraft 就会复用这份订阅——无需额外的 API Key，也不产生额外计费。
 
-[了解更多 →](https://dotharness.github.io/dotcraft/zh/getting-started)
+[了解更多 →](https://www.dotcraft.net/zh/getting-started)
 
 ## 快速开始
 
@@ -93,19 +93,19 @@ DotCraft 是一个 .NET 10 / C# Agent Harness。它围绕真实项目目录组�
 3. 跟随初始化引导配置工作区和模型提供商。
 4. 新建会话，发送你的第一次仓库理解请求。
 
-完整流程见 [快速开始](https://dotharness.github.io/dotcraft/zh/getting-started)。
+完整流程见 [快速开始](https://www.dotcraft.net/zh/getting-started)。
 
 ## 文档
 
 | 目标 | 文档 |
 |------|------|
-| 第一次安装、配置和运行 | [快速开始](https://dotharness.github.io/dotcraft/zh/getting-started) |
-| 使用图形化桌面客户端 | [Desktop](https://dotharness.github.io/dotcraft/zh/features/entry-points/desktop) |
-| 在终端里使用完整界面 | [TUI](https://dotharness.github.io/dotcraft/zh/features/entry-points/tui) |
-| 运行本地自动化任务 | [Automations 与 Hooks](https://dotharness.github.io/dotcraft/zh/features/agent-system/automations) |
-| 接入外部客户端、机器人或自定义适配器 | [Channels 与 Bots](https://dotharness.github.io/dotcraft/zh/features/entry-points/channels) |
-| 在服务器上一键部署 DotCraft 与渠道机器人 | [服务器部署](https://dotharness.github.io/dotcraft/zh/developing/lifecycle/server-deployment) |
-| 架构、SDK 与协议 | [架构总览](https://dotharness.github.io/dotcraft/zh/developing/architecture/overview) |
+| 第一次安装、配置和运行 | [快速开始](https://www.dotcraft.net/zh/getting-started) |
+| 使用图形化桌面客户端 | [Desktop](https://www.dotcraft.net/zh/features/entry-points/desktop) |
+| 在终端里使用完整界面 | [TUI](https://www.dotcraft.net/zh/features/entry-points/tui) |
+| 运行本地自动化任务 | [Automations 与 Hooks](https://www.dotcraft.net/zh/features/agent-system/automations) |
+| 接入外部客户端、机器人或自定义适配器 | [Channels 与 Bots](https://www.dotcraft.net/zh/features/entry-points/channels) |
+| 在服务器上一键部署 DotCraft 与渠道机器人 | [服务器部署](https://www.dotcraft.net/zh/developing/lifecycle/server-deployment) |
+| 架构、SDK 与协议 | [架构总览](https://www.dotcraft.net/zh/developing/architecture/overview) |
 
 ## 贡献代码
 
