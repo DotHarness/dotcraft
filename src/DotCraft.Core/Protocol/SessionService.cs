@@ -136,6 +136,7 @@ public sealed partial class SessionService(
     private SubAgentSessionCoordinator? _subAgentSessionCoordinator;
     private ThreadIndexCoordinator? _threadIndexCoordinator;
     private ThreadCreationCoordinator? _threadCreationCoordinator;
+    private ThreadLifecycleCoordinator? _threadLifecycleCoordinator;
     private static readonly AsyncLocal<bool> SuppressGoalBroadcastContext = new();
     private static readonly IReadOnlySet<string> EmptyPluginFunctionToolNames = new HashSet<string>(StringComparer.Ordinal);
     private static readonly IReadOnlySet<string> EmptyDynamicToolNames = new HashSet<string>(StringComparer.Ordinal);
@@ -151,6 +152,8 @@ public sealed partial class SessionService(
 
     private ThreadCreationCoordinator ThreadCreation => _threadCreationCoordinator ??= new ThreadCreationCoordinator(this);
 
+    private ThreadLifecycleCoordinator ThreadLifecycle => _threadLifecycleCoordinator ??= new ThreadLifecycleCoordinator(this);
+
     private SessionGate Gate => sessionGate;
 
     private SessionPersistenceService Persistence => persistence;
@@ -158,6 +161,8 @@ public sealed partial class SessionService(
     private ILogger<SessionService>? Logger => logger;
 
     private IChannelRuntimeToolProvider? ChannelRuntimeToolProvider => channelRuntimeToolProvider;
+
+    private IBackgroundTerminalService? BackgroundTerminalService => backgroundTerminalService;
 
     /// <summary>
     /// Suppresses immediate Session Core goal broadcasts within the current async flow.
@@ -928,61 +933,11 @@ Choose the next concrete action that advances the goal. Before doing substantial
 
     /// <inheritdoc/>
     public async Task<SessionThread> ResumeThreadAsync(string threadId, CancellationToken ct = default)
-    {
-        if (_threads.TryGetValue(threadId, out var cached))
-        {
-            if (cached.Status == ThreadStatus.Archived)
-                throw new InvalidOperationException($"Thread '{threadId}' is archived and cannot be resumed.");
-
-            if (cached.Status != ThreadStatus.Active)
-            {
-                var previousStatus = cached.Status;
-                cached.Status = ThreadStatus.Active;
-                cached.LastActiveAt = DateTimeOffset.UtcNow;
-                await PersistThreadIfMaterializedAsync(cached, ct);
-                GetOrCreateBroker(threadId).PublishThreadStatusChanged(previousStatus, cached.Status);
-            }
-
-            await EnsurePerThreadAgentIfMissingAsync(threadId, cached, ct);
-
-            var resumedByChannel = ChannelSessionScope.Current?.Channel ?? cached.OriginChannel;
-            GetOrCreateBroker(threadId).PublishThreadEvent(SessionEventType.ThreadResumed,
-                new ThreadResumedPayload { Thread = cached, ResumedBy = resumedByChannel });
-            return cached;
-        }
-
-        var thread = await persistence.LoadThreadAsync(threadId, ct)
-            ?? throw new KeyNotFoundException($"Thread '{threadId}' not found.");
-
-        if (thread.Status == ThreadStatus.Archived)
-            throw new InvalidOperationException($"Thread '{threadId}' is archived and cannot be resumed.");
-
-        thread.Status = ThreadStatus.Active;
-        thread.LastActiveAt = DateTimeOffset.UtcNow;
-
-        _threads[thread.Id] = thread;
-        var broker = GetOrCreateBroker(thread.Id);
-
-        await EnsurePerThreadAgentIfMissingAsync(thread.Id, thread, ct);
-
-        await PersistThreadWithMaterializationAsync(thread, ct);
-        var resumedBy = ChannelSessionScope.Current?.Channel ?? thread.OriginChannel;
-        broker.PublishThreadEvent(SessionEventType.ThreadResumed,
-            new ThreadResumedPayload { Thread = thread, ResumedBy = resumedBy });
-
-        return thread;
-    }
+        => await ThreadLifecycle.ResumeAsync(threadId, ct);
 
     /// <inheritdoc/>
     public async Task PauseThreadAsync(string threadId, CancellationToken ct = default)
-    {
-        var thread = await GetOrLoadThreadAsync(threadId, ct);
-        if (thread.Status == ThreadStatus.Paused) return;
-        var previousStatus = thread.Status;
-        thread.Status = ThreadStatus.Paused;
-        await PersistThreadStatusAsync(thread, ct);
-        GetOrCreateBroker(threadId).PublishThreadStatusChanged(previousStatus, thread.Status);
-    }
+        => await ThreadLifecycle.PauseAsync(threadId, ct);
 
     /// <inheritdoc/>
     public async Task<ThreadGoal?> GetThreadGoalAsync(string threadId, CancellationToken ct = default)
@@ -1047,56 +1002,15 @@ Choose the next concrete action that advances the goal. Before doing substantial
 
     /// <inheritdoc/>
     public async Task ArchiveThreadAsync(string threadId, CancellationToken ct = default)
-    {
-        var root = await GetOrLoadThreadAsync(threadId, ct);
-        ThrowIfDirectSubAgentLifecycleOperation(root, "archive");
-
-        foreach (var id in await CollectSubAgentSubtreeIdsAsync(root.Id, ct))
-        {
-            var thread = await GetOrLoadThreadAsync(id, ct);
-            await ArchiveThreadCoreAsync(thread, ct);
-        }
-    }
+        => await ThreadLifecycle.ArchiveAsync(threadId, ct);
 
     /// <inheritdoc/>
     public async Task UnarchiveThreadAsync(string threadId, CancellationToken ct = default)
-    {
-        var root = await GetOrLoadThreadAsync(threadId, ct);
-        ThrowIfDirectSubAgentLifecycleOperation(root, "unarchive");
-
-        foreach (var id in await CollectSubAgentSubtreeIdsAsync(root.Id, ct))
-        {
-            var thread = await GetOrLoadThreadAsync(id, ct);
-            await UnarchiveThreadCoreAsync(thread, ct);
-        }
-    }
+        => await ThreadLifecycle.UnarchiveAsync(threadId, ct);
 
     /// <inheritdoc/>
     public async Task DeleteThreadPermanentlyAsync(string threadId, CancellationToken ct = default)
-    {
-        var normalizedThreadId = threadId.Trim();
-        if (normalizedThreadId.Length == 0)
-            throw new ArgumentException("threadId is required.", nameof(threadId));
-
-        var root = await GetOrLoadThreadAsync(normalizedThreadId, ct);
-        ThrowIfDirectSubAgentLifecycleOperation(root, "delete");
-        var subtreeIds = await CollectSubAgentSubtreeIdsAsync(normalizedThreadId, ct);
-        var deleteOrder = subtreeIds.Reverse().ToList();
-        foreach (var id in deleteOrder)
-            _threadsPendingPermanentDeletion[id] = 0;
-
-        try
-        {
-            foreach (var id in deleteOrder)
-                await DeleteThreadCoreAsync(id, ct);
-        }
-        catch
-        {
-            foreach (var id in deleteOrder)
-                _threadsPendingPermanentDeletion.TryRemove(id, out _);
-            throw;
-        }
-    }
+        => await ThreadLifecycle.DeletePermanentlyAsync(threadId, ct);
 
     /// <inheritdoc/>
     public async Task<IReadOnlyList<ThreadSummary>> FindThreadsAsync(
@@ -1175,127 +1089,6 @@ Choose the next concrete action that advances the goal. Before doing substantial
         ?? (IsSubAgentThread(thread)
             ? AgentControlToolAccess.Disabled
             : AgentControlToolAccess.Full);
-
-    private static string? GetSubAgentParentThreadId(SessionThread thread)
-    {
-        var sourceParent = thread.Source.SubAgent?.ParentThreadId?.Trim();
-        if (!string.IsNullOrWhiteSpace(sourceParent))
-            return sourceParent;
-        var context = thread.ChannelContext?.Trim();
-        return string.IsNullOrWhiteSpace(context) ? null : context;
-    }
-
-    private static void ThrowIfDirectSubAgentLifecycleOperation(SessionThread thread, string operation)
-    {
-        if (!IsSubAgentThread(thread))
-            return;
-        var parentId = GetSubAgentParentThreadId(thread);
-        if (string.IsNullOrWhiteSpace(parentId))
-            return;
-        throw new InvalidOperationException(
-            $"SubAgent child thread '{thread.Id}' cannot be {operation}d directly; manage its parent thread '{parentId}' instead.");
-    }
-
-    private async Task<IReadOnlyList<string>> CollectSubAgentSubtreeIdsAsync(string rootThreadId, CancellationToken ct)
-    {
-        var result = new List<string>();
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        async Task VisitAsync(string id)
-        {
-            ct.ThrowIfCancellationRequested();
-            if (!seen.Add(id))
-                return;
-
-            result.Add(id);
-            var children = await persistence.ListSubAgentChildrenAsync(id, includeClosed: true, ct);
-            foreach (var child in children)
-                await VisitAsync(child.ChildThreadId);
-        }
-
-        await VisitAsync(rootThreadId);
-        return result;
-    }
-
-    private async Task ArchiveThreadCoreAsync(SessionThread thread, CancellationToken ct)
-    {
-        if (thread.Status == ThreadStatus.Archived)
-            return;
-        var previousStatus = thread.Status;
-        thread.Status = ThreadStatus.Archived;
-        _threadAgents.TryRemove(thread.Id, out _);
-        _threadModeManagers.TryRemove(thread.Id, out _);
-        _threadCurrentTools.TryRemove(thread.Id, out _);
-        _threadPluginFunctionToolNames.TryRemove(thread.Id, out _);
-        _threadDynamicToolNames.TryRemove(thread.Id, out _);
-        ForgetContextPages(thread.Id);
-        if (backgroundTerminalService != null)
-            await backgroundTerminalService.CleanThreadAsync(thread.Id, ct);
-        await PersistThreadStatusAsync(thread, ct);
-        PublishThreadStatusChanged(thread.Id, previousStatus, thread.Status);
-    }
-
-    private async Task UnarchiveThreadCoreAsync(SessionThread thread, CancellationToken ct)
-    {
-        if (thread.Status == ThreadStatus.Active)
-            return;
-        var previousStatus = thread.Status;
-        thread.Status = ThreadStatus.Active;
-        thread.LastActiveAt = DateTimeOffset.UtcNow;
-        await PersistThreadStatusAsync(thread, ct);
-        PublishThreadStatusChanged(thread.Id, previousStatus, thread.Status);
-    }
-
-    private async Task DeleteThreadCoreAsync(string threadId, CancellationToken ct)
-    {
-        var ephemeral = false;
-        if (_threads.TryGetValue(threadId, out var thread))
-        {
-            ephemeral = thread.Ephemeral;
-            foreach (var turn in thread.Turns.Where(t => t.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput))
-            {
-                var key = new TurnKey(threadId, turn.Id);
-                if (_runningTurns.TryRemove(key, out var turnCts))
-                    await turnCts.CancelAsync();
-                _pendingApprovals.TryRemove(key, out _);
-                _pendingUserInputRequests.TryRemove(key, out _);
-            }
-        }
-
-        if (!ephemeral)
-            await persistence.DeleteThreadCascadeAsync(threadId, ct);
-
-        _threads.TryRemove(threadId, out _);
-        _threadAgents.TryRemove(threadId, out _);
-        _threadModeManagers.TryRemove(threadId, out _);
-        _threadEventBrokers.TryRemove(threadId, out _);
-        if (_threadQueueLocks.TryRemove(threadId, out var queueLock))
-            queueLock.Dispose();
-        if (_threadAgentLocks.TryRemove(threadId, out var agentLock))
-            agentLock.Dispose();
-        _materializedThreads.TryRemove(threadId, out _);
-        _turnsSinceConsolidation.TryRemove(threadId, out _);
-        _activeAutoMemoryConsolidations.TryRemove(threadId, out _);
-        _pendingAutoMemoryConsolidations.TryRemove(threadId, out _);
-        InvalidatePromptRequestSnapshot(threadId, "thread_deleted");
-        _threadCurrentTools.TryRemove(threadId, out _);
-        _contextUsageAnchors.TryRemove(threadId, out _);
-        _threadPluginFunctionToolNames.TryRemove(threadId, out _);
-        _threadDynamicToolNames.TryRemove(threadId, out _);
-        ForgetContextPages(threadId);
-        if (_threadMcpManagers.TryRemove(threadId, out var mcpManager))
-            await mcpManager.DisposeAsync();
-        if (backgroundTerminalService != null)
-            await backgroundTerminalService.CleanThreadAsync(threadId, ct);
-
-        ThreadDeletedForBroadcast?.Invoke(threadId);
-    }
-
-    private void PublishThreadStatusChanged(string threadId, ThreadStatus previousStatus, ThreadStatus newStatus)
-    {
-        GetOrCreateBroker(threadId).PublishThreadStatusChanged(previousStatus, newStatus);
-        ThreadStatusChangedForBroadcast?.Invoke(threadId, previousStatus, newStatus);
-    }
 
     /// <inheritdoc/>
     public IAsyncEnumerable<SessionEvent> SubscribeThreadAsync(
@@ -3424,14 +3217,7 @@ Choose the next concrete action that advances the goal. Before doing substantial
 
     /// <inheritdoc/>
     public async Task RenameThreadAsync(string threadId, string displayName, CancellationToken ct = default)
-    {
-        var thread = await GetOrLoadThreadAsync(threadId, ct);
-        var previous = thread.DisplayName;
-        thread.DisplayName = displayName;
-        await PersistThreadWithMaterializationAsync(thread, ct);
-        if (previous != displayName)
-            ThreadRenamedForBroadcast?.Invoke(thread);
-    }
+        => await ThreadLifecycle.RenameAsync(threadId, displayName, ct);
 
     // =========================================================================
     // Private helpers
