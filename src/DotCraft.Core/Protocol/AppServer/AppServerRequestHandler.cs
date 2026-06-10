@@ -50,7 +50,6 @@ public sealed class AppServerRequestHandler(
     private readonly MemoryStore? memoryStore = services.MemoryStore;
     private readonly string? workspaceCraftPath = services.WorkspaceCraftPath;
     private readonly IAutomationsRequestHandler? automationsHandler = services.AutomationsHandler;
-    private readonly Action<McpStatusInfoWire>? broadcastMcpStatusChanged = services.BroadcastMcpStatusChanged;
     private readonly ICommitMessageSuggestService? commitMessageSuggest = services.CommitMessageSuggest;
     private readonly IWelcomeSuggestionService? welcomeSuggestionService = services.WelcomeSuggestionService;
     private readonly string? dashboardUrl = services.DashboardUrl;
@@ -116,6 +115,8 @@ public sealed class AppServerRequestHandler(
         ?? [];
 
     private SkillVariantContext? _skillVariants;
+    private WorkspaceConfigEditor? _workspaceConfig;
+    private AppServerMcpConfigService? _mcpConfig;
 
     /// <summary>
     /// Shared skill-variant resolver (variant mode + per-connection target), consulted by the
@@ -123,6 +124,12 @@ public sealed class AppServerRequestHandler(
     /// </summary>
     private SkillVariantContext SkillVariants => _skillVariants ??=
         new SkillVariantContext(appConfigMonitor, _chatClientRegistry, _hostWorkspacePath, workspaceCraftPath);
+
+    private WorkspaceConfigEditor WorkspaceConfig => _workspaceConfig ??=
+        new WorkspaceConfigEditor(appConfigMonitor, workspaceCraftPath);
+
+    private AppServerMcpConfigService McpConfig => _mcpConfig ??=
+        new AppServerMcpConfigService(appConfigMonitor, mcpClientManager, _hostWorkspacePath, workspaceCraftPath);
 
     private AppServerMethodTable? _domainMethods;
 
@@ -148,6 +155,7 @@ public sealed class AppServerRequestHandler(
         new TerminalRequestHandler(services.BackgroundTerminalService, sessionService),
         new DreamsRequestHandler(services.DreamsService, services.DreamStore, services.AppConfigMonitor, services.WorkspaceCraftPath, services.ContextPageManager),
         new SkillsRequestHandler(services.SkillsLoader, services.ContextPageManager, services.AppConfigMonitor, services.WorkspaceCraftPath, SkillVariants),
+        new McpRequestHandler(services.McpClientManager, McpConfig, services.AppConfigMonitor, services.BroadcastMcpStatusChanged),
         new UsageRequestHandler(services.TraceStore, services.SkillsLoader, sessionService, services.HostWorkspacePath),
         new AutomationRequestHandler(services.AutomationsHandler),
     ];
@@ -316,10 +324,6 @@ public sealed class AppServerRequestHandler(
                 AppServerMethods.AuthOpenAiLogin => HandleAuthOpenAiLoginAsync(msg, ct),
                 AppServerMethods.AuthOpenAiLogout => HandleAuthOpenAiLogoutAsync(msg, ct),
                 AppServerMethods.AuthOpenAiUsage => HandleAuthOpenAiUsageAsync(msg, ct),
-                AppServerMethods.McpList => HandleMcpListAsync(msg, ct),
-                AppServerMethods.McpGet => HandleMcpGetAsync(msg, ct),
-                AppServerMethods.McpUpsert => HandleMcpUpsertAsync(msg, ct),
-                AppServerMethods.McpRemove => HandleMcpRemoveAsync(msg, ct),
                 AppServerMethods.ExternalChannelList => HandleExternalChannelListAsync(msg, ct),
                 AppServerMethods.ExternalChannelGet => HandleExternalChannelGetAsync(msg, ct),
                 AppServerMethods.ExternalChannelUpsert => HandleExternalChannelUpsertAsync(msg, ct),
@@ -334,8 +338,6 @@ public sealed class AppServerRequestHandler(
                 AppServerMethods.SubAgentSendMessage => HandleSubAgentSendMessageAsync(msg, ct),
                 AppServerMethods.SubAgentFollowupTask => HandleSubAgentFollowupTaskAsync(msg, ct),
                 AppServerMethods.SubAgentClose => HandleSubAgentCloseAsync(msg, ct),
-                AppServerMethods.McpStatusList => HandleMcpStatusListAsync(msg, ct),
-                AppServerMethods.McpTest => HandleMcpTestAsync(msg, ct),
                 AppServerMethods.ThreadStart => HandleThreadStartAsync(msg, ct),
                 AppServerMethods.ThreadFork => HandleThreadForkAsync(msg, ct),
                 AppServerMethods.WorktreeCreateAndFork => HandleWorktreeCreateAndForkAsync(msg, ct),
@@ -1640,22 +1642,11 @@ public sealed class AppServerRequestHandler(
     }
 
     private AppConfig LoadCurrentMergedConfig()
-    {
-        if (!string.IsNullOrWhiteSpace(workspaceCraftPath))
-            return AppConfig.LoadWithGlobalFallback(Path.Combine(workspaceCraftPath, "config.json"), GetEffectiveGlobalConfigPath());
+        => WorkspaceConfig.LoadCurrentMergedConfig();
 
-        return appConfigMonitor?.Current ?? new AppConfig();
-    }
+    private string? GetEffectiveGlobalConfigPath() => WorkspaceConfig.EffectiveGlobalConfigPath;
 
-    private string? GetEffectiveGlobalConfigPath() => appConfigMonitor?.Current.GlobalConfigPath;
-
-    private string GetPersonalConfigPath() =>
-        !string.IsNullOrWhiteSpace(appConfigMonitor?.Current.GlobalConfigPath)
-            ? appConfigMonitor.Current.GlobalConfigPath!
-            : Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-            ".craft",
-            "config.json");
+    private string GetPersonalConfigPath() => WorkspaceConfig.PersonalConfigPath;
 
     private static string NormalizeProviderId(string? id)
     {
@@ -1765,93 +1756,6 @@ public sealed class AppServerRequestHandler(
         ResponsesApi = capabilities.ResponsesApi,
         NativeDeferredToolLoading = capabilities.NativeDeferredToolLoading
     };
-
-    private async Task<object?> HandleMcpListAsync(AppServerIncomingMessage msg, CancellationToken ct)
-    {
-        _ = msg;
-        EnsureMcpManagementAvailable();
-        var servers = await mcpClientManager!.ListConfigsAsync(ct);
-        return new McpListResult { Servers = servers.Select(MapMcpConfigToWire).ToList() };
-    }
-
-    private async Task<object?> HandleMcpGetAsync(AppServerIncomingMessage msg, CancellationToken ct)
-    {
-        var p = GetParams<McpGetParams>(msg);
-        EnsureMcpManagementAvailable();
-        if (string.IsNullOrWhiteSpace(p.Name))
-            throw AppServerErrors.InvalidParams("'name' is required.");
-
-        var server = await mcpClientManager!.GetConfigAsync(p.Name, ct);
-        if (server == null)
-            throw AppServerErrors.McpServerNotFound(p.Name);
-
-        return new McpGetResult { Server = MapMcpConfigToWire(server) };
-    }
-
-    private async Task<object?> HandleMcpUpsertAsync(AppServerIncomingMessage msg, CancellationToken ct)
-    {
-        var p = GetParams<McpUpsertParams>(msg);
-        EnsureMcpManagementAvailable();
-        ValidateMcpConfigWire(p.Server);
-
-        var server = MapWireToMcpConfig(p.Server);
-        server.Origin = McpServerOrigin.Workspace();
-
-        var existing = await mcpClientManager!.GetConfigAsync(server.Name, ct);
-        if (existing?.ReadOnly == true)
-            throw AppServerErrors.McpServerReadOnly(server.Name);
-
-        var workspaceServers = await GetWorkspaceMcpServersAsync(ct);
-        var existingIndex = workspaceServers.FindIndex(
-            candidate => string.Equals(candidate.Name, server.Name, StringComparison.OrdinalIgnoreCase));
-        if (existingIndex >= 0)
-            workspaceServers[existingIndex] = server;
-        else
-            workspaceServers.Add(server);
-
-        await SaveWorkspaceMcpServersAsync(workspaceCraftPath!, workspaceServers, ct);
-        SetCurrentWorkspaceMcpServers(workspaceServers);
-        await ReconnectEffectiveMcpRuntimeAsync(workspaceServers, ct);
-        appConfigMonitor?.NotifyChanged(
-            AppServerMethods.McpUpsert,
-            [ConfigChangeRegions.Mcp]);
-
-        var updated = await mcpClientManager.GetConfigAsync(server.Name, ct) ?? server;
-        var status = (await mcpClientManager.ListStatusesAsync(ct))
-            .FirstOrDefault(s => string.Equals(s.Name, updated.Name, StringComparison.OrdinalIgnoreCase));
-        if (status != null)
-            broadcastMcpStatusChanged?.Invoke(MapMcpStatusToWire(status));
-
-        return new McpUpsertResult { Server = MapMcpConfigToWire(updated) };
-    }
-
-    private async Task<object?> HandleMcpRemoveAsync(AppServerIncomingMessage msg, CancellationToken ct)
-    {
-        var p = GetParams<McpRemoveParams>(msg);
-        EnsureMcpManagementAvailable();
-        if (string.IsNullOrWhiteSpace(p.Name))
-            throw AppServerErrors.InvalidParams("'name' is required.");
-
-        var existing = await mcpClientManager!.GetConfigAsync(p.Name, ct);
-        if (existing == null)
-            throw AppServerErrors.McpServerNotFound(p.Name);
-        if (existing.ReadOnly)
-            throw AppServerErrors.McpServerReadOnly(p.Name);
-
-        var workspaceServers = await GetWorkspaceMcpServersAsync(ct);
-        var removed = workspaceServers.RemoveAll(
-            candidate => string.Equals(candidate.Name, p.Name, StringComparison.OrdinalIgnoreCase)) > 0;
-        if (!removed)
-            throw AppServerErrors.McpServerNotFound(p.Name);
-
-        await SaveWorkspaceMcpServersAsync(workspaceCraftPath!, workspaceServers, ct);
-        SetCurrentWorkspaceMcpServers(workspaceServers);
-        await ReconnectEffectiveMcpRuntimeAsync(workspaceServers, ct);
-        appConfigMonitor?.NotifyChanged(
-            AppServerMethods.McpRemove,
-            [ConfigChangeRegions.Mcp]);
-        return new McpRemoveResult { Removed = true };
-    }
 
     private Task<object?> HandleExternalChannelListAsync(AppServerIncomingMessage msg, CancellationToken ct)
     {
@@ -2149,33 +2053,6 @@ public sealed class AppServerRequestHandler(
             [ConfigChangeRegions.SubAgent]);
 
         return Task.FromResult<object?>(new SubAgentProfileRemoveResult { Removed = true });
-    }
-
-    private async Task<object?> HandleMcpStatusListAsync(AppServerIncomingMessage msg, CancellationToken ct)
-    {
-        _ = msg;
-        if (mcpClientManager == null)
-            throw AppServerErrors.MethodNotFound(AppServerMethods.McpStatusList);
-
-        var statuses = await mcpClientManager.ListStatusesAsync(ct);
-        return new McpStatusListResult { Servers = statuses.Select(MapMcpStatusToWire).ToList() };
-    }
-
-    private async Task<object?> HandleMcpTestAsync(AppServerIncomingMessage msg, CancellationToken ct)
-    {
-        var p = GetParams<McpTestParams>(msg);
-        if (mcpClientManager == null)
-            throw AppServerErrors.MethodNotFound(AppServerMethods.McpTest);
-
-        ValidateMcpConfigWire(p.Server);
-        var status = await mcpClientManager.TestAsync(MapWireToMcpConfig(p.Server), ct);
-        return new McpTestResult
-        {
-            Success = string.Equals(status.StartupState, "ready", StringComparison.OrdinalIgnoreCase),
-            ErrorCode = status.LastError == null ? null : "McpServerTestFailed",
-            ErrorMessage = status.LastError,
-            ToolCount = string.Equals(status.StartupState, "ready", StringComparison.OrdinalIgnoreCase) ? status.ToolCount : null
-        };
     }
 
     private async Task<object?> HandleThreadReadAsync(AppServerIncomingMessage msg, CancellationToken ct)
@@ -3292,12 +3169,6 @@ public sealed class AppServerRequestHandler(
         }
     }
 
-    private void EnsureMcpManagementAvailable()
-    {
-        if (mcpClientManager == null || string.IsNullOrWhiteSpace(workspaceCraftPath))
-            throw AppServerErrors.MethodNotFound("mcp/*");
-    }
-
     private void EnsureExternalChannelManagementAvailable()
     {
         if (string.IsNullOrWhiteSpace(workspaceCraftPath))
@@ -3311,36 +3182,10 @@ public sealed class AppServerRequestHandler(
     }
 
     private async Task<List<McpServerConfig>> GetWorkspaceMcpServersAsync(CancellationToken ct)
-    {
-        var source = appConfigMonitor?.Current.McpServers;
-        if (source is not { Count: > 0 } && mcpClientManager != null)
-            source = (await mcpClientManager.ListConfigsAsync(ct))
-                .Where(server => !server.ReadOnly)
-                .ToList();
-
-        return (source ?? [])
-            .Where(server => !server.ReadOnly)
-            .Select(CloneAsWorkspaceMcpServer)
-            .ToList();
-    }
+        => await McpConfig.GetWorkspaceServersAsync(ct);
 
     private List<McpServerConfig> GetWorkspaceMcpServersSnapshot()
-    {
-        return (appConfigMonitor?.Current.McpServers ?? [])
-            .Where(server => !server.ReadOnly)
-            .Select(CloneAsWorkspaceMcpServer)
-            .ToList();
-    }
-
-    private void SetCurrentWorkspaceMcpServers(IReadOnlyList<McpServerConfig> servers)
-    {
-        if (appConfigMonitor == null)
-            return;
-
-        appConfigMonitor.Current.McpServers = servers
-            .Select(CloneAsWorkspaceMcpServer)
-            .ToList();
-    }
+        => McpConfig.GetWorkspaceServersSnapshot();
 
     private List<LspServerConfig> GetWorkspaceLspServersSnapshot()
     {
@@ -3353,25 +3198,7 @@ public sealed class AppServerRequestHandler(
     private async Task ReconnectEffectiveMcpRuntimeAsync(
         IReadOnlyList<McpServerConfig> workspaceServers,
         CancellationToken ct)
-    {
-        if (mcpClientManager == null)
-            return;
-
-        var current = appConfigMonitor?.Current ?? new AppConfig();
-        current.McpServers = workspaceServers
-            .Select(CloneAsWorkspaceMcpServer)
-            .ToList();
-
-        var effective = PluginMcpServerResolver.LoadEffectiveServers(
-            current,
-            ResolveHostWorkspacePath(),
-            workspaceCraftPath ?? Path.Combine(ResolveHostWorkspacePath(), ".craft"),
-            out var diagnostics);
-        PluginDiagnosticsStore.Shared.Append(diagnostics);
-        PluginDiagnosticsLogger.Write(diagnostics);
-
-        await mcpClientManager.ConnectAsync(effective, ct);
-    }
+        => await McpConfig.ReconnectEffectiveRuntimeAsync(workspaceServers, ct);
 
     private async Task ReconnectEffectiveLspRuntimeAsync(CancellationToken ct)
     {
@@ -3382,93 +3209,12 @@ public sealed class AppServerRequestHandler(
         await lspServerManager.InitializeAsync(ct);
     }
 
-    private string ResolveHostWorkspacePath() =>
-        _hostWorkspacePath
-        ?? (workspaceCraftPath == null ? Directory.GetCurrentDirectory() : Directory.GetParent(workspaceCraftPath)?.FullName)
-        ?? Directory.GetCurrentDirectory();
-
-    private static McpServerConfig CloneAsWorkspaceMcpServer(McpServerConfig server)
-    {
-        var clone = server.Clone();
-        clone.Origin = McpServerOrigin.Workspace();
-        return clone;
-    }
-
     private static LspServerConfig CloneAsWorkspaceLspServer(LspServerConfig server)
     {
         var clone = server.Clone();
         clone.Origin = LspServerOrigin.Workspace();
         return clone;
     }
-
-    private static McpServerConfigWire MapMcpConfigToWire(McpServerConfig config) => new()
-    {
-        Name = config.Name,
-        Enabled = config.Enabled,
-        Transport = config.NormalizedTransport,
-        Command = string.IsNullOrWhiteSpace(config.Command) ? null : config.Command,
-        Args = config.Arguments.Count > 0 ? [.. config.Arguments] : null,
-        Env = config.EnvironmentVariables.Count > 0 ? new Dictionary<string, string>(config.EnvironmentVariables) : null,
-        EnvVars = config.EnvVars.Count > 0 ? [.. config.EnvVars] : null,
-        Cwd = config.Cwd,
-        Url = string.IsNullOrWhiteSpace(config.Url) ? null : config.Url,
-        BearerTokenEnvVar = config.BearerTokenEnvVar,
-        HttpHeaders = config.Headers.Count > 0 ? new Dictionary<string, string>(config.Headers) : null,
-        EnvHttpHeaders = config.EnvHttpHeaders.Count > 0 ? new Dictionary<string, string>(config.EnvHttpHeaders) : null,
-        StartupTimeoutSec = config.StartupTimeoutSec,
-        ToolTimeoutSec = config.ToolTimeoutSec,
-        Origin = MapMcpOriginToWire(config.Origin),
-        ReadOnly = config.ReadOnly
-    };
-
-    private static McpStatusInfoWire MapMcpStatusToWire(McpServerStatusSnapshot status) => new()
-    {
-        Name = status.Name,
-        Enabled = status.Enabled,
-        StartupState = status.StartupState,
-        ToolCount = status.ToolCount,
-        ResourceCount = status.ResourceCount,
-        ResourceTemplateCount = status.ResourceTemplateCount,
-        LastError = status.LastError,
-        Transport = status.Transport,
-        Origin = MapMcpOriginToWire(status.Origin),
-        ReadOnly = status.ReadOnly
-    };
-
-    private static McpServerConfig MapWireToMcpConfig(McpServerConfigWire wire) => new()
-    {
-        Name = wire.Name.Trim(),
-        Enabled = wire.Enabled,
-        Transport = NormalizeMcpTransport(wire.Transport),
-        Command = wire.Command?.Trim() ?? string.Empty,
-        Arguments = wire.Args ?? [],
-        EnvironmentVariables = wire.Env ?? new Dictionary<string, string>(),
-        EnvVars = wire.EnvVars ?? [],
-        Cwd = string.IsNullOrWhiteSpace(wire.Cwd) ? null : wire.Cwd.Trim(),
-        Url = wire.Url?.Trim() ?? string.Empty,
-        BearerTokenEnvVar = string.IsNullOrWhiteSpace(wire.BearerTokenEnvVar) ? null : wire.BearerTokenEnvVar.Trim(),
-        Headers = wire.HttpHeaders ?? new Dictionary<string, string>(),
-        EnvHttpHeaders = wire.EnvHttpHeaders ?? new Dictionary<string, string>(),
-        StartupTimeoutSec = wire.StartupTimeoutSec,
-        ToolTimeoutSec = wire.ToolTimeoutSec,
-        Origin = McpServerOrigin.Workspace()
-    };
-
-    private static McpServerOriginWire MapMcpOriginToWire(McpServerOrigin origin) =>
-        new()
-        {
-            Kind = origin.IsPlugin ? "plugin" : "workspace",
-            PluginId = origin.PluginId,
-            PluginDisplayName = origin.PluginDisplayName,
-            DeclaredName = origin.DeclaredName
-        };
-
-    private static string NormalizeMcpTransport(string? transport) =>
-        transport?.Equals("streamableHttp", StringComparison.OrdinalIgnoreCase) == true
-            || transport?.Equals("streamable-http", StringComparison.OrdinalIgnoreCase) == true
-            || transport?.Equals("http", StringComparison.OrdinalIgnoreCase) == true
-                ? "streamableHttp"
-                : "stdio";
 
     private static ExternalChannelConfigWire MapExternalChannelToWire(ExternalChannelEntry config) => new()
     {
@@ -3585,41 +3331,6 @@ public sealed class AppServerRequestHandler(
             _ => "subprocess"
         };
 
-    private static void ValidateMcpConfigWire(McpServerConfigWire server)
-    {
-        if (string.IsNullOrWhiteSpace(server.Name))
-            throw AppServerErrors.McpServerValidationFailed("'server.name' is required.");
-
-        var transport = NormalizeMcpTransport(server.Transport);
-
-        if (transport == "stdio")
-        {
-            if (string.IsNullOrWhiteSpace(server.Command))
-                throw AppServerErrors.McpServerValidationFailed("'server.command' is required for stdio transport.");
-            if (!string.IsNullOrWhiteSpace(server.Url))
-                throw AppServerErrors.McpServerValidationFailed("'server.url' is not supported for stdio transport.");
-            if (!string.IsNullOrWhiteSpace(server.BearerTokenEnvVar))
-                throw AppServerErrors.McpServerValidationFailed("'server.bearerTokenEnvVar' is not supported for stdio transport.");
-            if (server.HttpHeaders is { Count: > 0 } || server.EnvHttpHeaders is { Count: > 0 })
-                throw AppServerErrors.McpServerValidationFailed("HTTP headers are not supported for stdio transport.");
-        }
-        else
-        {
-            if (string.IsNullOrWhiteSpace(server.Url))
-                throw AppServerErrors.McpServerValidationFailed("'server.url' is required for streamableHttp transport.");
-            if (!Uri.TryCreate(server.Url, UriKind.Absolute, out _))
-                throw AppServerErrors.McpServerValidationFailed("'server.url' must be an absolute URL.");
-            if (!string.IsNullOrWhiteSpace(server.Command) ||
-                server.Args is { Count: > 0 } ||
-                server.Env is { Count: > 0 } ||
-                server.EnvVars is { Count: > 0 } ||
-                !string.IsNullOrWhiteSpace(server.Cwd))
-            {
-                throw AppServerErrors.McpServerValidationFailed("stdio-only fields are not supported for streamableHttp transport.");
-            }
-        }
-    }
-
     private static void ValidateExternalChannelConfigWire(ExternalChannelConfigWire channel)
     {
         if (string.IsNullOrWhiteSpace(channel.Name))
@@ -3672,39 +3383,6 @@ public sealed class AppServerRequestHandler(
             []);
         if (warnings.Count > 0)
             throw AppServerErrors.SubAgentProfileValidationFailed(string.Join(" ", warnings));
-    }
-
-    private static async Task SaveWorkspaceMcpServersAsync(
-        string workspaceCraftPath,
-        IReadOnlyList<McpServerConfig> servers,
-        CancellationToken ct)
-    {
-        _ = ct;
-        var configPath = Path.Combine(workspaceCraftPath, "config.json");
-        Directory.CreateDirectory(workspaceCraftPath);
-        var root = LoadWorkspaceConfigObject(configPath);
-        var legacyLanguageKey = FindCaseInsensitiveKey(root, "Language");
-        var legacyLanguageRemoved = legacyLanguageKey != null && root.Remove(legacyLanguageKey);
-
-        var key = FindCaseInsensitiveKey(root, "McpServers") ?? "McpServers";
-        var serverObject = new JsonObject();
-        foreach (var server in servers
-                     .Where(server => !server.ReadOnly && server.Origin.IsWorkspace)
-                     .OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase))
-        {
-            if (string.IsNullOrWhiteSpace(server.Name))
-                continue;
-
-            var workspaceServer = CloneAsWorkspaceMcpServer(server);
-            var serverNode = JsonSerializer.SerializeToNode(workspaceServer, AppConfig.SerializerOptions);
-            if (serverNode != null)
-                serverObject[workspaceServer.Name] = serverNode;
-        }
-
-        root[key] = serverObject;
-
-        var json = root.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
-        File.WriteAllText(configPath, $"{json}{Environment.NewLine}", new UTF8Encoding(false));
     }
 
     private static List<ExternalChannelEntry> LoadWorkspaceExternalChannels(string workspaceCraftPath)
@@ -5750,88 +5428,34 @@ public sealed class AppServerRequestHandler(
     }
 
     private static JsonObject LoadWorkspaceConfigObject(string configPath)
-    {
-        if (!File.Exists(configPath))
-            return new JsonObject();
-
-        try
-        {
-            var node = JsonNode.Parse(File.ReadAllText(configPath));
-            return node as JsonObject ?? new JsonObject();
-        }
-        catch
-        {
-            return new JsonObject();
-        }
-    }
+        => WorkspaceConfigEditor.LoadObject(configPath);
 
     private static string? FindCaseInsensitiveKey(JsonObject obj, string expectedKey)
-    {
-        foreach (var kv in obj)
-        {
-            if (string.Equals(kv.Key, expectedKey, StringComparison.OrdinalIgnoreCase))
-                return kv.Key;
-        }
-
-        return null;
-    }
+        => WorkspaceConfigEditor.FindCaseInsensitiveKey(obj, expectedKey);
 
     private static void UpsertOrRemoveConfigValue(
         JsonObject root,
         string? existingKey,
         string canonicalKey,
         string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            if (existingKey != null)
-                root.Remove(existingKey);
-            return;
-        }
-
-        root[existingKey ?? canonicalKey] = value;
-    }
+        => WorkspaceConfigEditor.UpsertOrRemoveValue(root, existingKey, canonicalKey, value);
 
     private static void UpsertOrRemoveConfigValue(
         JsonObject root,
         string? existingKey,
         string canonicalKey,
         bool? value)
-    {
-        if (!value.HasValue)
-        {
-            if (existingKey != null)
-                root.Remove(existingKey);
-            return;
-        }
-
-        root[existingKey ?? canonicalKey] = value.Value;
-    }
+        => WorkspaceConfigEditor.UpsertOrRemoveValue(root, existingKey, canonicalKey, value);
 
     private static void UpsertOrRemoveConfigValue(
         JsonObject root,
         string? existingKey,
         string canonicalKey,
         int? value)
-    {
-        if (!value.HasValue)
-        {
-            if (existingKey != null)
-                root.Remove(existingKey);
-            return;
-        }
-
-        root[existingKey ?? canonicalKey] = value.Value;
-    }
+        => WorkspaceConfigEditor.UpsertOrRemoveValue(root, existingKey, canonicalKey, value);
 
     private static void WriteConfigObject(string configPath, JsonObject root)
-    {
-        var directory = Path.GetDirectoryName(configPath);
-        if (!string.IsNullOrWhiteSpace(directory))
-            Directory.CreateDirectory(directory);
-        var json = root.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
-        File.WriteAllText(configPath, $"{json}{Environment.NewLine}", new UTF8Encoding(false));
-    }
+        => WorkspaceConfigEditor.WriteObject(configPath, root);
 
     private static string? ParseNullableString(JsonElement element, string fieldName)
     {
