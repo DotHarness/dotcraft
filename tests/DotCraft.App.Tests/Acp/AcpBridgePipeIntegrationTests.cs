@@ -43,10 +43,13 @@ public sealed class AcpBridgePipeIntegrationTests
             connection,
             serverTransport,
             new ModuleRegistryChannelListContributor(new ModuleRegistry(), null, null),
-            serverVersion: "0.0.1-test",
-            hostWorkspacePath: tempDir,
-            wireAcpExtensionProxy: wireAcp,
-            appConfigMonitor: CreateOpenAIConfigMonitor());
+            new AppServerConnectionServices
+            {
+                ServerVersion = "0.0.1-test",
+                HostWorkspacePath = tempDir,
+                WireAcpExtensionProxy = wireAcp,
+                AppConfigMonitor = CreateOpenAIConfigMonitor(),
+            });
 
         var serverCts = new CancellationTokenSource();
         var serverLoop = Task.Run(() => WireClientIntegrationTestsRunServerLoop.RunAsync(serverTransport, connection, handler, serverCts.Token));
@@ -267,10 +270,13 @@ public sealed class AcpBridgePipeIntegrationTests
             connection,
             serverTransport,
             new ModuleRegistryChannelListContributor(new ModuleRegistry(), null, null),
-            serverVersion: "0.0.1-test",
-            hostWorkspacePath: tempDir,
-            wireAcpExtensionProxy: wireAcp,
-            appConfigMonitor: CreateOpenAIConfigMonitor());
+            new AppServerConnectionServices
+            {
+                ServerVersion = "0.0.1-test",
+                HostWorkspacePath = tempDir,
+                WireAcpExtensionProxy = wireAcp,
+                AppConfigMonitor = CreateOpenAIConfigMonitor(),
+            });
 
         var serverCts = new CancellationTokenSource();
         var serverLoop = Task.Run(() => WireClientIntegrationTestsRunServerLoop.RunAsync(serverTransport, connection, handler, serverCts.Token));

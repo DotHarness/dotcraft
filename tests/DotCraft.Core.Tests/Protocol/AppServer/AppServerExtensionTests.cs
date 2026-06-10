@@ -50,7 +50,10 @@ public sealed class AppServerExtensionTests : IDisposable
                 _h.Connection,
                 _h.Transport,
                 new ModuleRegistryChannelListContributor(new ModuleRegistry(), null, null),
-                protocolExtensions: [new TestExtension(), new TestExtension()]));
+                new AppServerConnectionServices
+                {
+                    ProtocolExtensions = [new TestExtension(), new TestExtension()],
+                }));
 
         Assert.Contains("Duplicate AppServer extension method registration", ex.Message);
     }

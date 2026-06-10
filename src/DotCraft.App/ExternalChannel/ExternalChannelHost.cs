@@ -427,14 +427,17 @@ public sealed class ExternalChannelHost : IChannelService
         _handler = new AppServerRequestHandler(
             _sessionService, _connection, transport,
             new ModuleRegistryChannelListContributor(_moduleRegistry, CronService, HeartbeatService),
-            _serverVersion,
-            cronService: CronService,
-            heartbeatService: HeartbeatService,
-            workspaceCraftPath: _workspaceCraftPath,
-            hostWorkspacePath: _hostWorkspacePath,
-            streamDebugLogger: _streamDebugLogger,
-            configSchema: ConfigSchemaBuilder.BuildAll(ConfigSchemaRegistrations.GetAllConfigTypes()),
-            appConfigMonitor: _appConfigMonitor);
+            new AppServerConnectionServices
+            {
+                ServerVersion = _serverVersion,
+                CronService = CronService,
+                HeartbeatService = HeartbeatService,
+                WorkspaceCraftPath = _workspaceCraftPath,
+                HostWorkspacePath = _hostWorkspacePath,
+                StreamDebugLogger = _streamDebugLogger,
+                ConfigSchema = ConfigSchemaBuilder.BuildAll(ConfigSchemaRegistrations.GetAllConfigTypes()),
+                AppConfigMonitor = _appConfigMonitor,
+            });
 
         // Forward stderr to DotCraft's diagnostic log
         _ = ForwardStderrAsync(process, ct);
@@ -675,14 +678,17 @@ public sealed class ExternalChannelHost : IChannelService
         _handler = new AppServerRequestHandler(
             _sessionService, connection, transport,
             new ModuleRegistryChannelListContributor(_moduleRegistry, CronService, HeartbeatService),
-            _serverVersion,
-            cronService: CronService,
-            heartbeatService: HeartbeatService,
-            workspaceCraftPath: _workspaceCraftPath,
-            hostWorkspacePath: _hostWorkspacePath,
-            streamDebugLogger: _streamDebugLogger,
-            configSchema: ConfigSchemaBuilder.BuildAll(ConfigSchemaRegistrations.GetAllConfigTypes()),
-            appConfigMonitor: _appConfigMonitor);
+            new AppServerConnectionServices
+            {
+                ServerVersion = _serverVersion,
+                CronService = CronService,
+                HeartbeatService = HeartbeatService,
+                WorkspaceCraftPath = _workspaceCraftPath,
+                HostWorkspacePath = _hostWorkspacePath,
+                StreamDebugLogger = _streamDebugLogger,
+                ConfigSchema = ConfigSchemaBuilder.BuildAll(ConfigSchemaRegistrations.GetAllConfigTypes()),
+                AppConfigMonitor = _appConfigMonitor,
+            });
 
         AnsiConsole.MarkupLine(
             $"[green][[ExternalChannel]][/] WebSocket adapter [yellow]{Name}[/] connected " +
@@ -732,14 +738,17 @@ public sealed class ExternalChannelHost : IChannelService
             _handler = new AppServerRequestHandler(
                 _sessionService, connection, transport,
                 new ModuleRegistryChannelListContributor(_moduleRegistry, CronService, HeartbeatService),
-                _serverVersion,
-                cronService: CronService,
-                heartbeatService: HeartbeatService,
-                workspaceCraftPath: _workspaceCraftPath,
-                hostWorkspacePath: _hostWorkspacePath,
-                streamDebugLogger: _streamDebugLogger,
-                configSchema: ConfigSchemaBuilder.BuildAll(ConfigSchemaRegistrations.GetAllConfigTypes()),
-                appConfigMonitor: _appConfigMonitor);
+                new AppServerConnectionServices
+                {
+                    ServerVersion = _serverVersion,
+                    CronService = CronService,
+                    HeartbeatService = HeartbeatService,
+                    WorkspaceCraftPath = _workspaceCraftPath,
+                    HostWorkspacePath = _hostWorkspacePath,
+                    StreamDebugLogger = _streamDebugLogger,
+                    ConfigSchema = ConfigSchemaBuilder.BuildAll(ConfigSchemaRegistrations.GetAllConfigTypes()),
+                    AppConfigMonitor = _appConfigMonitor,
+                });
 
             AnsiConsole.MarkupLine(
                 $"[green][[ExternalChannel]][/] Managed WebSocket adapter [yellow]{Name}[/] connected " +

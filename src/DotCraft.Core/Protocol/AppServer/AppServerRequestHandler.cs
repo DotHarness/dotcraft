@@ -37,49 +37,48 @@ public sealed class AppServerRequestHandler(
     AppServerConnection connection,
     IAppServerTransport transport,
     IAppServerChannelListContributor channelListContributor,
-    string serverVersion = "0.1.0",
-    SessionApprovalDecision defaultApprovalDecision = SessionApprovalDecision.Reject,
-    CronService? cronService = null,
-    HeartbeatService? heartbeatService = null,
-    SkillsLoader? skillsLoader = null,
-    MemoryStore? memoryStore = null,
-    string? workspaceCraftPath = null,
-    string? hostWorkspacePath = null,
-    IAutomationsRequestHandler? automationsHandler = null,
-    Action<CronJobWireInfo, bool>? broadcastCronStateChanged = null,
-    Action<McpStatusInfoWire>? broadcastMcpStatusChanged = null,
-    ICommitMessageSuggestService? commitMessageSuggest = null,
-    IWelcomeSuggestionService? welcomeSuggestionService = null,
-    string? dashboardUrl = null,
-    WireAcpExtensionProxy? wireAcpExtensionProxy = null,
-    WireNodeReplProxy? wireNodeReplProxy = null,
-    WireDynamicToolProxy? wireDynamicToolProxy = null,
-    CommandRegistry? commandRegistry = null,
-    IChannelStatusProvider? channelStatusProvider = null,
-    McpClientManager? mcpClientManager = null,
-    LspServerManager? lspServerManager = null,
-    IEnumerable<IAppServerProtocolExtension>? protocolExtensions = null,
-    Func<ExternalChannelEntry, CancellationToken, Task>? onExternalChannelUpserted = null,
-    Func<string, CancellationToken, Task>? onExternalChannelRemoved = null,
-    IExternalChannelLogProvider? externalChannelLogProvider = null,
-    SessionStreamDebugLogger? streamDebugLogger = null,
-    IReadOnlyList<ConfigSchemaSection>? configSchema = null,
-    IAppConfigMonitor? appConfigMonitor = null,
-    ChatClientRegistry? chatClientRegistry = null,
-    OpenAIClientProvider? openAIClientProvider = null,
-    IOpenAIAuthService? openAIAuthService = null,
-    IOpenAIUsageService? openAIUsageService = null,
-    IBackgroundTerminalService? backgroundTerminalService = null,
-    IContextPageManager? contextPageManager = null,
-    DreamStore? dreamStore = null,
-    DreamsService? dreamsService = null,
-    AppBindingService? appBindingService = null,
-    PlanStore? planStore = null,
-    TraceStore? traceStore = null,
-    IReadOnlyList<string>? builtInPluginSourceRoots = null,
-    WireRuntimeAdditionalContextProvider? wireRuntimeAdditionalContextProvider = null,
-    Func<SessionThread, SubAgentCoordinator?>? subAgentCoordinatorFactory = null)
+    AppServerConnectionServices services)
 {
+    // Optional collaborators are supplied via the AppServerConnectionServices bundle. They are
+    // aliased to private fields below so the (hundreds of) method-body references that previously
+    // named the constructor parameters directly continue to resolve unchanged. The four required
+    // collaborators above remain positional constructor parameters.
+    private readonly string serverVersion = services.ServerVersion;
+    private readonly CronService? cronService = services.CronService;
+    private readonly HeartbeatService? heartbeatService = services.HeartbeatService;
+    private readonly SkillsLoader? skillsLoader = services.SkillsLoader;
+    private readonly MemoryStore? memoryStore = services.MemoryStore;
+    private readonly string? workspaceCraftPath = services.WorkspaceCraftPath;
+    private readonly IAutomationsRequestHandler? automationsHandler = services.AutomationsHandler;
+    private readonly Action<McpStatusInfoWire>? broadcastMcpStatusChanged = services.BroadcastMcpStatusChanged;
+    private readonly ICommitMessageSuggestService? commitMessageSuggest = services.CommitMessageSuggest;
+    private readonly IWelcomeSuggestionService? welcomeSuggestionService = services.WelcomeSuggestionService;
+    private readonly string? dashboardUrl = services.DashboardUrl;
+    private readonly WireAcpExtensionProxy? wireAcpExtensionProxy = services.WireAcpExtensionProxy;
+    private readonly WireNodeReplProxy? wireNodeReplProxy = services.WireNodeReplProxy;
+    private readonly WireDynamicToolProxy? wireDynamicToolProxy = services.WireDynamicToolProxy;
+    private readonly IChannelStatusProvider? channelStatusProvider = services.ChannelStatusProvider;
+    private readonly McpClientManager? mcpClientManager = services.McpClientManager;
+    private readonly LspServerManager? lspServerManager = services.LspServerManager;
+    private readonly Func<ExternalChannelEntry, CancellationToken, Task>? onExternalChannelUpserted = services.OnExternalChannelUpserted;
+    private readonly Func<string, CancellationToken, Task>? onExternalChannelRemoved = services.OnExternalChannelRemoved;
+    private readonly IExternalChannelLogProvider? externalChannelLogProvider = services.ExternalChannelLogProvider;
+    private readonly SessionStreamDebugLogger? streamDebugLogger = services.StreamDebugLogger;
+    private readonly IAppConfigMonitor? appConfigMonitor = services.AppConfigMonitor;
+    private readonly OpenAIClientProvider? openAIClientProvider = services.OpenAIClientProvider;
+    private readonly IOpenAIAuthService? openAIAuthService = services.OpenAIAuthService;
+    private readonly IOpenAIUsageService? openAIUsageService = services.OpenAIUsageService;
+    private readonly IBackgroundTerminalService? backgroundTerminalService = services.BackgroundTerminalService;
+    private readonly IContextPageManager? contextPageManager = services.ContextPageManager;
+    private readonly DreamStore? dreamStore = services.DreamStore;
+    private readonly DreamsService? dreamsService = services.DreamsService;
+    private readonly AppBindingService? appBindingService = services.AppBindingService;
+    private readonly PlanStore? planStore = services.PlanStore;
+    private readonly TraceStore? traceStore = services.TraceStore;
+    private readonly IReadOnlyList<string>? builtInPluginSourceRoots = services.BuiltInPluginSourceRoots;
+    private readonly WireRuntimeAdditionalContextProvider? wireRuntimeAdditionalContextProvider = services.WireRuntimeAdditionalContextProvider;
+    private readonly Func<SessionThread, SubAgentCoordinator?>? subAgentCoordinatorFactory = services.SubAgentCoordinatorFactory;
+
     private const string AppBindingAppListUpdatedNotification = "app/list/updated";
     private const string AppBindingThreadBindingsChangedNotification = "thread/appBindings/changed";
     private const int ThreadListDefaultPageLimit = 50;
@@ -89,38 +88,75 @@ public sealed class AppServerRequestHandler(
     private const string ThreadListCursorKind = "thread-list";
     private const string ThreadReadCursorKind = "thread-read";
 
-    private readonly CommandRegistry _commandRegistry = commandRegistry
+    private readonly CommandRegistry _commandRegistry = services.CommandRegistry
                                                         ?? CommandRegistry.CreateDefault(
-                                                            !string.IsNullOrWhiteSpace(workspaceCraftPath) ? new CustomCommandLoader(workspaceCraftPath) : null);
+                                                            !string.IsNullOrWhiteSpace(services.WorkspaceCraftPath) ? new CustomCommandLoader(services.WorkspaceCraftPath) : null);
 
-    private readonly IReadOnlyList<ConfigSchemaSection> _configSchema = configSchema ?? [];
+    private readonly IReadOnlyList<ConfigSchemaSection> _configSchema = services.ConfigSchema ?? [];
 
-    private readonly ChatClientRegistry _chatClientRegistry = chatClientRegistry ?? new ChatClientRegistry();
+    private readonly ChatClientRegistry _chatClientRegistry = services.ChatClientRegistry ?? new ChatClientRegistry();
 
     /// <summary>
     /// Fallback decision used by <see cref="AppServerEventDispatcher"/> when non-interactive
     /// approval resolution cannot be derived from thread policy.
     /// </summary>
-    private readonly SessionApprovalDecision _defaultApprovalDecision = defaultApprovalDecision;
+    private readonly SessionApprovalDecision _defaultApprovalDecision = services.DefaultApprovalDecision;
 
     /// <summary>
     /// When the wire client omits or sends an empty <c>identity.workspacePath</c>, substitute this
     /// host workspace root (AppServer / Gateway process workspace).
     /// </summary>
-    private readonly string? _hostWorkspacePath = hostWorkspacePath;
+    private readonly string? _hostWorkspacePath = services.HostWorkspacePath;
 
     private readonly IReadOnlyDictionary<string, IAppServerMethodHandler> _extensionMethods =
-        BuildExtensionMethodMap(protocolExtensions);
+        BuildExtensionMethodMap(services.ProtocolExtensions);
 
     private readonly IReadOnlyList<IAppServerCapabilityContributor> _capabilityContributors =
-        protocolExtensions?.Cast<IAppServerCapabilityContributor>().ToArray()
+        services.ProtocolExtensions?.Cast<IAppServerCapabilityContributor>().ToArray()
         ?? [];
 
+    private SkillVariantContext? _skillVariants;
+
+    /// <summary>
+    /// Shared skill-variant resolver (variant mode + per-connection target), consulted by the
+    /// initialize capability report, turn start, and the extracted <see cref="SkillsRequestHandler"/>.
+    /// </summary>
+    private SkillVariantContext SkillVariants => _skillVariants ??=
+        new SkillVariantContext(appConfigMonitor, _chatClientRegistry, _hostWorkspacePath, workspaceCraftPath);
+
+    private AppServerMethodTable? _domainMethods;
+
+    /// <summary>
+    /// Methods owned by built-in domain handlers extracted from this class (refactor M3/M4). The
+    /// dispatcher resolves a request against this table first, then the in-class switch for
+    /// not-yet-extracted domains, then protocol extensions. Built lazily so domain handlers can
+    /// capture the connection-scoped services initialized above.
+    /// </summary>
+    private AppServerMethodTable DomainMethods => _domainMethods ??= BuildDomainMethods();
+
+    private AppServerMethodTable BuildDomainMethods()
+    {
+        var table = new AppServerMethodTable();
+        foreach (var handler in BuildDomainHandlers())
+            handler.RegisterMethods(table);
+        return table;
+    }
+
+    private IEnumerable<IAppServerDomainHandler> BuildDomainHandlers() =>
+    [
+        new CronRequestHandler(services.CronService, services.BroadcastCronStateChanged),
+        new TerminalRequestHandler(services.BackgroundTerminalService, sessionService),
+        new DreamsRequestHandler(services.DreamsService, services.DreamStore, services.AppConfigMonitor, services.WorkspaceCraftPath, services.ContextPageManager),
+        new SkillsRequestHandler(services.SkillsLoader, services.ContextPageManager, services.AppConfigMonitor, services.WorkspaceCraftPath, SkillVariants),
+        new UsageRequestHandler(services.TraceStore, services.SkillsLoader, sessionService, services.HostWorkspacePath),
+        new AutomationRequestHandler(services.AutomationsHandler),
+    ];
+
     private void MarkMemoryContextDirty() =>
-        contextPageManager?.MarkDirty(ContextPageKeys.MemoryLongTerm("*"));
+        AppServerContextInvalidation.MarkMemory(contextPageManager);
 
     private void MarkSkillsContextDirty() =>
-        contextPageManager?.MarkDirty(ContextPageKeys.SkillsWildcard());
+        AppServerContextInvalidation.MarkSkills(contextPageManager);
 
     private static readonly HashSet<string> ReservedMethodNames =
     [
@@ -259,6 +295,11 @@ public sealed class AppServerRequestHandler(
 
         try
         {
+            // Extracted domain handlers register their methods in the table; resolve them first,
+            // then fall through to the in-class switch for not-yet-extracted domains.
+            if (DomainMethods.TryGet(method, out var domainHandler))
+                return await domainHandler(msg, ct);
+
             // Route to the appropriate handler
             return await (method switch
             {
@@ -328,22 +369,7 @@ public sealed class AppServerRequestHandler(
                 AppServerMethods.TurnQueueReorder => HandleTurnQueueReorderAsync(msg, ct),
                 AppServerMethods.TurnSteer => HandleTurnSteerAsync(msg, ct),
                 AppServerMethods.TurnInterrupt => HandleTurnInterruptAsync(msg, ct),
-                AppServerMethods.TerminalList => HandleTerminalListAsync(msg, ct),
-                AppServerMethods.TerminalRead => HandleTerminalReadAsync(msg, ct),
-                AppServerMethods.TerminalWrite => HandleTerminalWriteAsync(msg, ct),
-                AppServerMethods.TerminalStop => HandleTerminalStopAsync(msg, ct),
-                AppServerMethods.TerminalClean => HandleTerminalCleanAsync(msg, ct),
-                AppServerMethods.CronList => HandleCronListAsync(msg, ct),
-                AppServerMethods.CronRemove => HandleCronRemoveAsync(msg, ct),
-                AppServerMethods.CronEnable => HandleCronEnableAsync(msg, ct),
-                AppServerMethods.CronRun => HandleCronRunAsync(msg, ct),
                 AppServerMethods.HeartbeatTrigger => HandleHeartbeatTriggerAsync(msg, ct),
-                AppServerMethods.SkillsList => HandleSkillsListAsync(msg, ct),
-                AppServerMethods.SkillsRead => HandleSkillsReadAsync(msg, ct),
-                AppServerMethods.SkillsView => HandleSkillsViewAsync(msg, ct),
-                AppServerMethods.SkillsRestoreOriginal => HandleSkillsRestoreOriginalAsync(msg, ct),
-                AppServerMethods.SkillsSetEnabled => HandleSkillsSetEnabledAsync(msg, ct),
-                AppServerMethods.SkillsUninstall => HandleSkillsUninstallAsync(msg, ct),
                 AppServerMethods.PluginList => HandlePluginListAsync(msg, ct),
                 AppServerMethods.PluginView => HandlePluginViewAsync(msg, ct),
                 AppServerMethods.PluginInstall => HandlePluginInstallAsync(msg, ct),
@@ -351,32 +377,11 @@ public sealed class AppServerRequestHandler(
                 AppServerMethods.PluginSetEnabled => HandlePluginSetEnabledAsync(msg, ct),
                 AppServerMethods.CommandList => HandleCommandListAsync(msg, ct),
                 AppServerMethods.CommandExecute => HandleCommandExecuteAsync(msg, ct),
-                AppServerMethods.AutomationTaskList => RouteAutomation(h => h.HandleTaskListAsync(msg, ct)),
-                AppServerMethods.AutomationTaskRead => RouteAutomation(h => h.HandleTaskReadAsync(msg, ct)),
-                AppServerMethods.AutomationTaskCreate => RouteAutomation(h => h.HandleTaskCreateAsync(msg, ct)),
-                AppServerMethods.AutomationTaskRun => RouteAutomation(h => h.HandleTaskRunAsync(msg, ct)),
-                AppServerMethods.AutomationTaskDelete => RouteAutomation(h => h.HandleTaskDeleteAsync(msg, ct)),
-                AppServerMethods.AutomationTaskUpdateBinding => RouteAutomation(h => h.HandleTaskUpdateBindingAsync(msg, ct)),
-                AppServerMethods.AutomationTemplateList => RouteAutomation(h => h.HandleTemplateListAsync(msg, ct)),
-                AppServerMethods.AutomationTemplateSave => RouteAutomation(h => h.HandleTemplateSaveAsync(msg, ct)),
-                AppServerMethods.AutomationTemplateDelete => RouteAutomation(h => h.HandleTemplateDeleteAsync(msg, ct)),
                 AppServerMethods.WorkspaceCommitMessageSuggest => HandleWorkspaceCommitMessageSuggestAsync(msg, ct),
                 AppServerMethods.WelcomeSuggestions => HandleWelcomeSuggestionsAsync(msg, ct),
                 AppServerMethods.WorkspaceConfigSchema => HandleWorkspaceConfigSchemaAsync(msg, ct),
                 AppServerMethods.WorkspaceConfigUpdate => HandleWorkspaceConfigUpdateAsync(msg, ct),
-                AppServerMethods.DreamsStatus => HandleDreamsStatusAsync(msg, ct),
-                AppServerMethods.DreamsRun => HandleDreamsRunAsync(msg, ct),
-                AppServerMethods.DreamsCreate => HandleDreamsCreateAsync(msg, ct),
-                AppServerMethods.DreamsGet => HandleDreamsGetAsync(msg, ct),
-                AppServerMethods.DreamsList => HandleDreamsListAsync(msg, ct),
-                AppServerMethods.DreamsCancel => HandleDreamsCancelAsync(msg, ct),
-                AppServerMethods.DreamsArchive => HandleDreamsArchiveAsync(msg, ct),
-                AppServerMethods.DreamsApply => HandleDreamsApplyAsync(msg, ct),
-                AppServerMethods.DreamsDiscard => HandleDreamsDiscardAsync(msg, ct),
                 AppServerMethods.MemoryReset => HandleMemoryResetAsync(msg, ct),
-                AppServerMethods.UsageSummary => HandleUsageSummaryAsync(msg, ct),
-                AppServerMethods.UsageTimeseries => HandleUsageTimeseriesAsync(msg, ct),
-                AppServerMethods.ProfileInsights => HandleProfileInsightsAsync(msg, ct),
                 _ => TryHandleExtensionAsync(method, msg, ct)
             });
         }
@@ -3242,66 +3247,7 @@ public sealed class AppServerRequestHandler(
         return new { };
     }
 
-    private async Task<object?> HandleTerminalListAsync(AppServerIncomingMessage msg, CancellationToken ct)
-    {
-        var service = RequireBackgroundTerminals();
-        var p = GetParams<TerminalListParams>(msg);
-        var sessions = await service.ListAsync(p.ThreadId, ct);
-        return new { terminals = sessions };
-    }
-
-    private async Task<object?> HandleTerminalReadAsync(AppServerIncomingMessage msg, CancellationToken ct)
-    {
-        var service = RequireBackgroundTerminals();
-        var p = GetParams<TerminalReadParams>(msg);
-        if (string.IsNullOrWhiteSpace(p.SessionId))
-            throw AppServerErrors.InvalidParams("'sessionId' is required.");
-
-        var terminal = await service.ReadAsync(p.SessionId, p.WaitMs ?? 0, p.MaxOutputChars, ct);
-        return new { terminal };
-    }
-
-    private async Task<object?> HandleTerminalWriteAsync(AppServerIncomingMessage msg, CancellationToken ct)
-    {
-        var service = RequireBackgroundTerminals();
-        var p = GetParams<TerminalWriteParams>(msg);
-        if (string.IsNullOrWhiteSpace(p.SessionId))
-            throw AppServerErrors.InvalidParams("'sessionId' is required.");
-
-        var terminal = await service.WriteStdinAsync(
-            p.SessionId,
-            p.Input,
-            p.YieldTimeMs ?? 1000,
-            p.MaxOutputChars,
-            ct);
-        return new { terminal };
-    }
-
-    private async Task<object?> HandleTerminalStopAsync(AppServerIncomingMessage msg, CancellationToken ct)
-    {
-        var service = RequireBackgroundTerminals();
-        var p = GetParams<TerminalStopParams>(msg);
-        if (string.IsNullOrWhiteSpace(p.SessionId))
-            throw AppServerErrors.InvalidParams("'sessionId' is required.");
-
-        var terminal = await service.StopAsync(p.SessionId, ct);
-        return new { terminal };
-    }
-
-    private async Task<object?> HandleTerminalCleanAsync(AppServerIncomingMessage msg, CancellationToken ct)
-    {
-        var service = RequireBackgroundTerminals();
-        var p = GetParams<TerminalCleanParams>(msg);
-        if (string.IsNullOrWhiteSpace(p.ThreadId))
-            throw AppServerErrors.InvalidParams("'threadId' is required.");
-
-        await sessionService.CleanBackgroundTerminalsAsync(p.ThreadId, ct);
-        var terminals = await service.ListAsync(p.ThreadId, ct);
-        return new { terminals };
-    }
-
-    private IBackgroundTerminalService RequireBackgroundTerminals()
-        => backgroundTerminalService ?? throw AppServerErrors.MethodNotFound("terminal/*");
+    // terminal/* methods live in TerminalRequestHandler.
 
     private async Task<object?> HandleWorkspaceCommitMessageSuggestAsync(AppServerIncomingMessage msg, CancellationToken ct)
     {
@@ -4309,218 +4255,7 @@ public sealed class AppServerRequestHandler(
         });
     }
 
-    private Task<object?> HandleDreamsStatusAsync(AppServerIncomingMessage msg, CancellationToken ct)
-    {
-        _ = ct;
-        EnsureDreamsAvailable();
-        ValidateEmptyObjectParams(msg, AppServerMethods.DreamsStatus);
-        return Task.FromResult<object?>(BuildDreamsStatusResult());
-    }
-
-    private async Task<object?> HandleDreamsRunAsync(AppServerIncomingMessage msg, CancellationToken ct)
-    {
-        EnsureDreamsAvailable();
-        ValidateEmptyObjectParams(msg, AppServerMethods.DreamsRun);
-        await dreamsService!.RequestRunAsync(cancellationToken: ct).ConfigureAwait(false);
-        return BuildDreamsStatusResult();
-    }
-
-    private async Task<object?> HandleDreamsCreateAsync(AppServerIncomingMessage msg, CancellationToken ct)
-    {
-        EnsureDreamsAvailable();
-        var p = msg.Params.HasValue && msg.Params.Value.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined
-            ? new DreamsCreateParams()
-            : GetParams<DreamsCreateParams>(msg);
-        if (p.ThreadLookbackCount.HasValue && p.ThreadLookbackCount.Value <= 0)
-            throw AppServerErrors.InvalidParams("'threadLookbackCount' must be a positive integer.");
-
-        var state = await dreamsService!.RequestRunAsync(
-                new DreamsRunRequest(p.ThreadIds, p.ThreadLookbackCount, p.Instructions, p.Model),
-                ct)
-            .ConfigureAwait(false);
-        return new DreamsRunResult
-        {
-            Run = ToDreamRunWire(state),
-            ActiveDreamStoreId = dreamStore?.GetActiveStoreId()
-        };
-    }
-
-    private Task<object?> HandleDreamsGetAsync(AppServerIncomingMessage msg, CancellationToken ct)
-    {
-        _ = ct;
-        EnsureDreamsAvailable();
-        var p = GetParams<DreamsRunIdParams>(msg);
-        var state = dreamsService!.LoadRun(NormalizeDreamRunId(p.RunId));
-        if (state == null)
-            throw AppServerErrors.InvalidParams("Dream run not found.");
-        return Task.FromResult<object?>(new DreamsRunResult
-        {
-            Run = ToDreamRunWire(state),
-            ActiveDreamStoreId = dreamStore?.GetActiveStoreId(),
-            Preview = BuildDreamsRunPreview(state)
-        });
-    }
-
-    private Task<object?> HandleDreamsListAsync(AppServerIncomingMessage msg, CancellationToken ct)
-    {
-        _ = ct;
-        EnsureDreamsAvailable();
-        var p = msg.Params.HasValue && msg.Params.Value.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined
-            ? new DreamsListParams()
-            : GetParams<DreamsListParams>(msg);
-        return Task.FromResult<object?>(new DreamsListResult
-        {
-            Runs = dreamsService!.ListRuns(p.IncludeArchived)
-                .Select(ToDreamRunWire)
-                .ToList()
-        });
-    }
-
-    private async Task<object?> HandleDreamsCancelAsync(AppServerIncomingMessage msg, CancellationToken ct)
-    {
-        EnsureDreamsAvailable();
-        var p = GetParams<DreamsRunIdParams>(msg);
-        var state = await dreamsService!.CancelRunAsync(NormalizeDreamRunId(p.RunId), ct).ConfigureAwait(false);
-        if (state == null)
-            throw AppServerErrors.InvalidParams("Dream run not found.");
-        return new DreamsRunResult { Run = ToDreamRunWire(state), ActiveDreamStoreId = dreamStore?.GetActiveStoreId() };
-    }
-
-    private Task<object?> HandleDreamsArchiveAsync(AppServerIncomingMessage msg, CancellationToken ct)
-    {
-        _ = ct;
-        EnsureDreamsAvailable();
-        var p = GetParams<DreamsRunIdParams>(msg);
-        var state = dreamsService!.ArchiveRun(NormalizeDreamRunId(p.RunId));
-        if (state == null)
-            throw AppServerErrors.InvalidParams("Dream run not found.");
-        return Task.FromResult<object?>(new DreamsRunResult { Run = ToDreamRunWire(state), ActiveDreamStoreId = dreamStore?.GetActiveStoreId() });
-    }
-
-    private Task<object?> HandleDreamsApplyAsync(AppServerIncomingMessage msg, CancellationToken ct)
-    {
-        _ = ct;
-        EnsureDreamsAvailable();
-        var p = GetParams<DreamsRunIdParams>(msg);
-        DreamsRunState? state;
-        try
-        {
-            state = dreamsService!.ApplyRun(NormalizeDreamRunId(p.RunId));
-        }
-        catch (InvalidOperationException ex)
-        {
-            throw AppServerErrors.InvalidParams(ex.Message);
-        }
-        if (state == null)
-            throw AppServerErrors.InvalidParams("Dream run not found.");
-        MarkMemoryContextDirty();
-        appConfigMonitor?.NotifyChanged(AppServerMethods.DreamsApply, [ConfigChangeRegions.Memory]);
-        return Task.FromResult<object?>(new DreamsRunResult { Run = ToDreamRunWire(state), ActiveDreamStoreId = dreamStore?.GetActiveStoreId() });
-    }
-
-    private Task<object?> HandleDreamsDiscardAsync(AppServerIncomingMessage msg, CancellationToken ct)
-    {
-        _ = ct;
-        EnsureDreamsAvailable();
-        var p = GetParams<DreamsRunIdParams>(msg);
-        var state = dreamsService!.DiscardRun(NormalizeDreamRunId(p.RunId));
-        if (state == null)
-            throw AppServerErrors.InvalidParams("Dream run not found.");
-        return Task.FromResult<object?>(new DreamsRunResult { Run = ToDreamRunWire(state), ActiveDreamStoreId = dreamStore?.GetActiveStoreId() });
-    }
-
-    private void EnsureDreamsAvailable()
-    {
-        if (dreamsService == null || string.IsNullOrWhiteSpace(workspaceCraftPath))
-            throw AppServerErrors.MethodNotFound(AppServerMethods.DreamsStatus);
-    }
-
-    private DreamsStatusResult BuildDreamsStatusResult()
-    {
-        var config = appConfigMonitor?.Current.Dreams ?? new DreamsConfig();
-        var state = dreamsService!.LoadLatestState();
-        var running = state?.Status == DreamsRunStatuses.Running && !state.EndedAt.HasValue;
-        return new DreamsStatusResult
-        {
-            Enabled = config.Enabled,
-            Interval = FormatTimeSpanForWire(config.Interval),
-            ThreadLookbackCount = config.ThreadLookbackCount,
-            AutoApply = config.AutoApply,
-            HistoryTailChars = config.HistoryTailChars,
-            MinCompletedTurnsSinceLastRun = config.MinCompletedTurnsSinceLastRun,
-            NextRunAt = state?.NextRunAt,
-            Running = running,
-            ActiveDreamStoreId = dreamStore?.GetActiveStoreId(),
-            LastRun = state == null ? null : ToDreamRunWire(state)
-        };
-    }
-
-    private static DreamsRunStateWire ToDreamRunWire(DreamsRunState state) => new()
-    {
-        Id = state.Id,
-        Status = state.Status,
-        StartedAt = state.StartedAt,
-        EndedAt = state.EndedAt,
-        ProcessedThreadCount = state.ProcessedThreadCount,
-        CandidateThreadCount = state.CandidateThreadCount,
-        DreamWritten = state.DreamWritten,
-        HistoryWritten = state.HistoryWritten,
-        TopicFilesWritten = state.TopicFilesWritten,
-        TopicFilesDeleted = state.TopicFilesDeleted,
-        EvidenceSearchCount = state.EvidenceSearchCount,
-        EvidenceReadCount = state.EvidenceReadCount,
-        OutputStoreId = state.OutputStoreId,
-        ReviewStatus = state.ReviewStatus,
-        AutoApplied = state.AutoApplied,
-        ErrorType = state.ErrorType,
-        EvidenceThreadIds = state.EvidenceThreadIds,
-        WrittenPaths = state.WrittenPaths,
-        ThreadId = state.ThreadId,
-        TurnId = state.TurnId,
-        TurnIds = state.TurnIds,
-        Trigger = state.Trigger,
-        Message = state.Message,
-        Usage = state.Usage,
-        InputManifestPath = state.InputManifestPath
-    };
-
-    private DreamsRunPreviewWire? BuildDreamsRunPreview(DreamsRunState state)
-    {
-        if (dreamStore == null || string.IsNullOrWhiteSpace(state.OutputStoreId))
-            return null;
-
-        var activeStoreId = dreamStore.GetActiveStoreId();
-        return new DreamsRunPreviewWire
-        {
-            ActiveStoreId = activeStoreId,
-            OutputStoreId = state.OutputStoreId,
-            ActiveIndexMarkdown = string.IsNullOrWhiteSpace(activeStoreId) ? string.Empty : dreamStore.ReadIndex(activeStoreId),
-            OutputIndexMarkdown = dreamStore.ReadIndex(state.OutputStoreId),
-            ActiveTopicPaths = string.IsNullOrWhiteSpace(activeStoreId)
-                ? []
-                : dreamStore.ListTopicFiles(activeStoreId).Select(static topic => topic.Path).ToList(),
-            OutputTopicPaths = dreamStore.ListTopicFiles(state.OutputStoreId).Select(static topic => topic.Path).ToList()
-        };
-    }
-
-    private static string NormalizeDreamRunId(string runId)
-    {
-        if (string.IsNullOrWhiteSpace(runId))
-            throw AppServerErrors.InvalidParams("'runId' is required.");
-        return runId.Trim();
-    }
-
-    private static void ValidateEmptyObjectParams(AppServerIncomingMessage msg, string method)
-    {
-        if (msg.Params.HasValue
-            && msg.Params.Value.ValueKind is not JsonValueKind.Null
-                and not JsonValueKind.Object
-                and not JsonValueKind.Undefined)
-        {
-            throw AppServerErrors.InvalidParams($"{method} accepts omitted, null, or empty-object params.");
-        }
-    }
-
+    // dreams/* methods live in DreamsRequestHandler.
     private Task<object?> HandleMemoryResetAsync(AppServerIncomingMessage msg, CancellationToken ct)
     {
         _ = ct;
@@ -4554,172 +4289,9 @@ public sealed class AppServerRequestHandler(
         return Task.FromResult<object?>(new MemoryResetResult());
     }
 
-    // -------------------------------------------------------------------------
-    // cron/* methods (spec Section 16)
-    // -------------------------------------------------------------------------
+    // cron/* methods (spec Section 16) live in CronRequestHandler.
 
-    private Task<object?> HandleCronListAsync(AppServerIncomingMessage msg, CancellationToken ct)
-    {
-        if (cronService == null) throw AppServerErrors.MethodNotFound(AppServerMethods.CronList);
-        var p = GetParams<CronListParams>(msg);
-        var jobs = cronService.ListJobs(includeDisabled: p.IncludeDisabled);
-        return Task.FromResult<object?>(new CronListResult
-        {
-            Jobs = jobs.Select(MapCronJob).ToList()
-        });
-    }
-
-    private Task<object?> HandleCronRemoveAsync(AppServerIncomingMessage msg, CancellationToken ct)
-    {
-        if (cronService == null) throw AppServerErrors.MethodNotFound(AppServerMethods.CronRemove);
-        var p = GetParams<CronRemoveParams>(msg);
-        if (string.IsNullOrWhiteSpace(p.JobId))
-            throw AppServerErrors.InvalidParams("'jobId' is required.");
-        var removed = cronService.RemoveJob(p.JobId);
-        if (!removed) throw AppServerErrors.CronJobNotFound(p.JobId);
-        broadcastCronStateChanged?.Invoke(new CronJobWireInfo { Id = p.JobId }, true);
-        return Task.FromResult<object?>(new CronRemoveResult { Removed = true });
-    }
-
-    private Task<object?> HandleCronEnableAsync(AppServerIncomingMessage msg, CancellationToken ct)
-    {
-        if (cronService == null) throw AppServerErrors.MethodNotFound(AppServerMethods.CronEnable);
-        var p = GetParams<CronEnableParams>(msg);
-        if (string.IsNullOrWhiteSpace(p.JobId))
-            throw AppServerErrors.InvalidParams("'jobId' is required.");
-        var job = cronService.EnableJob(p.JobId, p.Enabled);
-        if (job == null) throw AppServerErrors.CronJobNotFound(p.JobId);
-        broadcastCronStateChanged?.Invoke(MapCronJob(job), false);
-        return Task.FromResult<object?>(new CronEnableResult { Job = MapCronJob(job) });
-    }
-
-    private Task<object?> HandleCronRunAsync(AppServerIncomingMessage msg, CancellationToken ct)
-    {
-        if (cronService == null) throw AppServerErrors.MethodNotFound(AppServerMethods.CronRun);
-        var p = GetParams<CronRunParams>(msg);
-        if (string.IsNullOrWhiteSpace(p.JobId))
-            throw AppServerErrors.InvalidParams("'jobId' is required.");
-        var job = cronService.RunJobNow(p.JobId);
-        if (job == null) throw AppServerErrors.CronJobNotFound(p.JobId);
-        return Task.FromResult<object?>(new CronRunResult
-        {
-            Queued = true,
-            Job = MapCronJob(job)
-        });
-    }
-
-    private static CronJobWireInfo MapCronJob(CronJob job) => CronJobWireMapping.ToWire(job);
-
-    // ── usage/summary (spec Section 27A.2) ───────────────────────────────────
-
-    private Task<object?> HandleUsageSummaryAsync(AppServerIncomingMessage msg, CancellationToken ct)
-    {
-        if (traceStore == null) throw AppServerErrors.MethodNotFound(AppServerMethods.UsageSummary);
-        var s = traceStore.GetSummary();
-        return Task.FromResult<object?>(new UsageSummaryResult
-        {
-            SessionCount = s.SessionCount,
-            TotalRequests = s.TotalRequests,
-            TotalResponses = s.TotalResponses,
-            TotalToolCalls = s.TotalToolCalls,
-            TotalErrors = s.TotalErrors,
-            TotalContextCompactions = s.TotalContextCompactions,
-            TotalInputTokens = s.TotalInputTokens,
-            TotalOutputTokens = s.TotalOutputTokens,
-            TotalCachedInputTokens = s.TotalCachedInputTokens,
-            TotalCacheWriteInputTokens = s.TotalCacheWriteInputTokens,
-            TotalFreshInputTokens = s.TotalFreshInputTokens,
-            TotalNonCachedInputTokens = s.TotalNonCachedInputTokens,
-            TotalReasoningOutputTokens = s.TotalReasoningOutputTokens,
-            TotalToolDurationMs = s.TotalToolDurationMs,
-            AvgToolDurationMs = s.AvgToolDurationMs,
-            MaxToolDurationMs = s.MaxToolDurationMs,
-            CacheHitRate = s.CacheHitRate,
-            TotalTokens = s.TotalTokens
-        });
-    }
-
-    // ── usage/timeseries (spec Section 27A.3) ────────────────────────────────
-
-    private Task<object?> HandleUsageTimeseriesAsync(AppServerIncomingMessage msg, CancellationToken ct)
-    {
-        if (traceStore == null) throw AppServerErrors.MethodNotFound(AppServerMethods.UsageTimeseries);
-        var p = GetParams<UsageTimeseriesParams>(msg);
-
-        var from = ParseUsageDate(p.From, "from");
-        var to = ParseUsageDate(p.To, "to");
-        var tz = Math.Clamp(p.TzOffsetMinutes ?? 0, -840, 840);
-
-        var buckets = traceStore.GetDailyUsage(from, to, tz);
-        return Task.FromResult<object?>(new UsageTimeseriesResult
-        {
-            TzOffsetMinutes = tz,
-            LongestTaskMs = traceStore.GetLongestTurnDurationMs(),
-            Days = buckets
-                .Select(b => new UsageTimeseriesDay
-                {
-                    Date = b.Date.ToString("yyyy-MM-dd"),
-                    InputTokens = b.InputTokens,
-                    OutputTokens = b.OutputTokens,
-                    TotalTokens = b.TotalTokens,
-                    SessionCount = b.SessionCount
-                })
-                .ToList()
-        });
-    }
-
-    // ── profile/insights (spec Section 27A.5) ────────────────────────────────
-
-    private async Task<object?> HandleProfileInsightsAsync(AppServerIncomingMessage msg, CancellationToken ct)
-    {
-        if (traceStore == null) throw AppServerErrors.MethodNotFound(AppServerMethods.ProfileInsights);
-        var p = GetParams<ProfileInsightsParams>(msg);
-        var topSkills = Math.Clamp(p.TopSkills ?? 5, 1, 20);
-
-        var insights = traceStore.GetProfileInsights(topSkills);
-
-        // Workspace-scoped count (not identity-scoped): the Profile page reflects all threads in
-        // this workspace, regardless of which channel/user (e.g. channelContext) created them.
-        var workspacePath = NormalizeIdentityWorkspace(new SessionIdentity()).WorkspacePath;
-        var totalThreads = await sessionService.CountWorkspaceThreadsAsync(workspacePath, ct);
-
-        return new ProfileInsightsResult
-        {
-            TopModel = ToRankedMetric(insights.TopModel),
-            TopReasoning = ToRankedMetric(insights.TopReasoning),
-            SkillsExplored = insights.DistinctSkillCount,
-            TotalSkillsUsed = insights.TotalSkillCount,
-            TotalThreads = totalThreads,
-            Skills = insights.TopSkills.Select(MapSkillUsage).ToList()
-        };
-    }
-
-    /// <summary>Maps an aggregated skill bucket to wire form, attaching live plugin attribution.</summary>
-    private SkillUsageWire MapSkillUsage(SkillUsageBucket bucket)
-    {
-        var wire = new SkillUsageWire { Name = bucket.Name, Count = bucket.Count };
-        var info = skillsLoader?.ResolveSkillInfo(bucket.Name);
-        if (info != null && !string.IsNullOrWhiteSpace(info.PluginId))
-        {
-            wire.PluginId = info.PluginId;
-            wire.PluginDisplayName = info.PluginDisplayName;
-        }
-        return wire;
-    }
-
-    private static RankedMetric? ToRankedMetric(RankedUsage? usage) =>
-        usage == null
-            ? null
-            : new RankedMetric { Key = usage.Key, Count = usage.Count, Total = usage.Total };
-
-    private static DateOnly? ParseUsageDate(string? value, string field)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-            return null;
-        if (!DateOnly.TryParseExact(value.Trim(), "yyyy-MM-dd", out var date))
-            throw AppServerErrors.InvalidParams($"'{field}' must be a 'YYYY-MM-DD' date.");
-        return date;
-    }
+    // usage/* and profile/insights live in UsageRequestHandler.
 
     // ── heartbeat/trigger (spec Section 17.2) ────────────────────────────────
 
@@ -4740,170 +4312,7 @@ public sealed class AppServerRequestHandler(
         }
     }
 
-    // ── skills/* (spec Section 18) ───────────────────────────────────────────
-
-    private Task<object?> HandleSkillsListAsync(AppServerIncomingMessage msg, CancellationToken ct)
-    {
-        if (skillsLoader == null)
-            throw AppServerErrors.MethodNotFound(AppServerMethods.SkillsList);
-        var p = GetParams<SkillsListParams>(msg);
-        var includeUnavailable = p.IncludeUnavailable ?? true;
-        var list = skillsLoader.ListSkills(filterUnavailable: !includeUnavailable);
-        var wires = list.Select(MapSkillToWire).ToList();
-        return Task.FromResult<object?>(new SkillsListResult { Skills = wires });
-    }
-
-    private Task<object?> HandleSkillsReadAsync(AppServerIncomingMessage msg, CancellationToken ct)
-    {
-        if (skillsLoader == null)
-            throw AppServerErrors.MethodNotFound(AppServerMethods.SkillsRead);
-        var p = GetParams<SkillsReadParams>(msg);
-        if (string.IsNullOrWhiteSpace(p.Name))
-            throw AppServerErrors.InvalidParams("'name' is required.");
-        var content = skillsLoader.LoadSkill(p.Name);
-        if (content == null)
-            throw AppServerErrors.SkillNotFound(p.Name);
-        var metadata = skillsLoader.GetSkillMetadata(p.Name);
-        return Task.FromResult<object?>(new SkillsReadResult
-        {
-            Name = p.Name,
-            Content = content,
-            Metadata = metadata
-        });
-    }
-
-    private Task<object?> HandleSkillsViewAsync(AppServerIncomingMessage msg, CancellationToken ct)
-    {
-        if (skillsLoader == null)
-            throw AppServerErrors.MethodNotFound(AppServerMethods.SkillsView);
-        var p = GetParams<SkillsViewParams>(msg);
-        if (string.IsNullOrWhiteSpace(p.Name))
-            throw AppServerErrors.InvalidParams("'name' is required.");
-
-        var target = BuildSkillVariantTarget();
-        var effective = skillsLoader.LoadEffectiveSkill(
-            p.Name,
-            IsSkillVariantModeEnabled(),
-            target);
-        if (effective == null)
-            throw AppServerErrors.SkillNotFound(p.Name);
-
-        return Task.FromResult<object?>(new SkillsViewResult
-        {
-            Name = p.Name,
-            Content = effective.Content
-        });
-    }
-
-    private Task<object?> HandleSkillsRestoreOriginalAsync(AppServerIncomingMessage msg, CancellationToken ct)
-    {
-        if (skillsLoader == null)
-            throw AppServerErrors.MethodNotFound(AppServerMethods.SkillsRestoreOriginal);
-        var p = GetParams<SkillsRestoreOriginalParams>(msg);
-        if (string.IsNullOrWhiteSpace(p.Name))
-            throw AppServerErrors.InvalidParams("'name' is required.");
-
-        if (skillsLoader.ResolveSkillInfo(p.Name) == null)
-            throw AppServerErrors.SkillNotFound(p.Name);
-
-        var restored = IsSkillVariantModeEnabled()
-            && skillsLoader.RestoreOriginalSkill(p.Name, BuildSkillVariantTarget());
-        if (restored)
-            MarkSkillsContextDirty();
-        return Task.FromResult<object?>(new SkillsRestoreOriginalResult
-        {
-            Name = p.Name,
-            Restored = restored
-        });
-    }
-
-    private Task<object?> HandleSkillsSetEnabledAsync(AppServerIncomingMessage msg, CancellationToken ct)
-    {
-        if (skillsLoader == null || string.IsNullOrEmpty(workspaceCraftPath))
-            throw AppServerErrors.MethodNotFound(AppServerMethods.SkillsSetEnabled);
-        var p = GetParams<SkillsSetEnabledParams>(msg);
-        if (string.IsNullOrWhiteSpace(p.Name))
-            throw AppServerErrors.InvalidParams("'name' is required.");
-
-        var all = skillsLoader.ListSkills(filterUnavailable: false);
-        if (all.All(s => !string.Equals(s.Name, p.Name, StringComparison.OrdinalIgnoreCase)))
-            throw AppServerErrors.SkillNotFound(p.Name);
-
-        var disabled = all.Where(s => !s.Enabled).Select(s => s.Name).ToList();
-        if (p.Enabled)
-            disabled.RemoveAll(n => string.Equals(n, p.Name, StringComparison.OrdinalIgnoreCase));
-        else if (!disabled.Contains(p.Name, StringComparer.OrdinalIgnoreCase))
-            disabled.Add(p.Name);
-
-        SkillsConfigPersistence.WriteWorkspaceDisabledSkills(workspaceCraftPath, disabled);
-        skillsLoader.SetDisabledSkills(disabled);
-        MarkSkillsContextDirty();
-        appConfigMonitor?.NotifyChanged(
-            AppServerMethods.SkillsSetEnabled,
-            [ConfigChangeRegions.Skills]);
-
-        var updated = skillsLoader.ListSkills(filterUnavailable: false)
-            .First(s => string.Equals(s.Name, p.Name, StringComparison.OrdinalIgnoreCase));
-        return Task.FromResult<object?>(new SkillsSetEnabledResult { Skill = MapSkillToWire(updated) });
-    }
-
-    private Task<object?> HandleSkillsUninstallAsync(AppServerIncomingMessage msg, CancellationToken ct)
-    {
-        ct.ThrowIfCancellationRequested();
-        if (skillsLoader == null || string.IsNullOrEmpty(workspaceCraftPath))
-            throw AppServerErrors.MethodNotFound(AppServerMethods.SkillsUninstall);
-
-        var p = GetParams<SkillsUninstallParams>(msg);
-        if (string.IsNullOrWhiteSpace(p.Name))
-            throw AppServerErrors.InvalidParams("'name' is required.");
-
-        var source = skillsLoader.ResolveSkillInfo(p.Name);
-        if (source == null)
-            throw AppServerErrors.SkillNotFound(p.Name);
-
-        if (!string.Equals(source.Source, "workspace", StringComparison.OrdinalIgnoreCase)
-            && !string.Equals(source.Source, "user", StringComparison.OrdinalIgnoreCase))
-        {
-            throw AppServerErrors.InvalidParams(
-                $"Skill '{source.Name}' is {source.Source} and cannot be uninstalled directly.");
-        }
-
-        var skillDir = Path.GetDirectoryName(source.Path);
-        if (string.IsNullOrWhiteSpace(skillDir))
-            throw AppServerErrors.InvalidParams($"Skill '{source.Name}' has an invalid path.");
-
-        var allowedRoot = string.Equals(source.Source, "workspace", StringComparison.OrdinalIgnoreCase)
-            ? skillsLoader.WorkspaceSkillsPath
-            : skillsLoader.UserSkillsPath;
-        if (!IsStrictChildPathOf(skillDir, allowedRoot))
-            throw AppServerErrors.InvalidParams($"Skill '{source.Name}' is outside the allowed {source.Source} skill root.");
-
-        var disabled = skillsLoader.ListSkills(filterUnavailable: false)
-            .Where(s => !s.Enabled)
-            .Select(s => s.Name)
-            .ToList();
-        disabled.RemoveAll(n => string.Equals(n, source.Name, StringComparison.OrdinalIgnoreCase));
-
-        var removedVariantCount = skillsLoader.VariantStore.DeleteVariantsForSource(source);
-        Directory.Delete(skillDir, recursive: true);
-
-        SkillsConfigPersistence.WriteWorkspaceDisabledSkills(workspaceCraftPath, disabled);
-        skillsLoader.SetDisabledSkills(disabled);
-        skillsLoader.RefreshDescriptors();
-        MarkSkillsContextDirty();
-        appConfigMonitor?.NotifyChanged(
-            AppServerMethods.SkillsUninstall,
-            [ConfigChangeRegions.Skills]);
-
-        return Task.FromResult<object?>(new SkillsUninstallResult
-        {
-            Name = source.Name,
-            Uninstalled = true,
-            Source = source.Source,
-            RemovedSourcePath = skillDir,
-            RemovedVariantCount = removedVariantCount
-        });
-    }
+    // skills/* methods live in SkillsRequestHandler.
 
     private Task<object?> HandlePluginListAsync(AppServerIncomingMessage msg, CancellationToken ct)
     {
@@ -5673,60 +5082,7 @@ public sealed class AppServerRequestHandler(
         return $"data:{mimeType};base64,{Convert.ToBase64String(File.ReadAllBytes(path))}";
     }
 
-    private SkillInfoWire MapSkillToWire(SkillsLoader.SkillInfo s)
-    {
-        var metadata = skillsLoader!.GetSkillMetadata(s.Name);
-        var interfaceInfo = skillsLoader.GetSkillInterface(s.Name);
-        return new SkillInfoWire
-        {
-            Name = s.Name,
-            Description = skillsLoader.GetSkillDescription(s.Name),
-            DisplayName = interfaceInfo?.DisplayName,
-            ShortDescription = interfaceInfo?.ShortDescription,
-            Source = s.Source,
-            PluginId = s.PluginId,
-            PluginDisplayName = s.PluginDisplayName,
-            Available = s.Available,
-            UnavailableReason = s.UnavailableReason,
-            Enabled = s.Enabled,
-            Path = s.Path,
-            HasVariant = HasCurrentSkillVariant(s),
-            IconSmallDataUrl = interfaceInfo?.IconSmallDataUrl,
-            IconLargeDataUrl = interfaceInfo?.IconLargeDataUrl,
-            DefaultPrompt = interfaceInfo?.DefaultPrompt,
-            Metadata = metadata
-        };
-    }
-
-    private bool HasCurrentSkillVariant(SkillsLoader.SkillInfo source)
-    {
-        if (skillsLoader == null || !IsSkillVariantModeEnabled())
-            return false;
-
-        var effectivePath = skillsLoader.ResolveEffectiveSkillFile(source, true, BuildSkillVariantTarget());
-        return effectivePath != null
-               && !string.Equals(effectivePath, source.Path, StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static bool IsStrictChildPathOf(string path, string root)
-    {
-        var normalizedPath = Path.GetFullPath(path)
-            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        var normalizedRoot = Path.GetFullPath(root)
-            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-
-        return normalizedPath.StartsWith(normalizedRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
-               || normalizedPath.StartsWith(normalizedRoot + Path.AltDirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
-    }
-
-    private bool IsSkillVariantModeEnabled()
-    {
-        var config = appConfigMonitor?.Current ?? new AppConfig();
-        return string.Equals(
-            config.Skills.SelfLearning.VariantMode,
-            "enabled",
-            StringComparison.OrdinalIgnoreCase);
-    }
+    private bool IsSkillVariantModeEnabled() => SkillVariants.IsVariantModeEnabled();
 
     private bool GoalsCapabilityEnabled()
     {
@@ -5734,29 +5090,7 @@ public sealed class AppServerRequestHandler(
         return config.Goals.Enabled;
     }
 
-    private SkillVariantTarget BuildSkillVariantTarget()
-    {
-        var config = appConfigMonitor?.Current ?? new AppConfig();
-        var model = ResolveMainModelOrFallback(config);
-        return SkillVariantStore.CreateTarget(
-            model,
-            _hostWorkspacePath ?? workspaceCraftPath ?? string.Empty,
-            config.Tools.Sandbox.Enabled,
-            config.Permissions.DefaultApprovalPolicy.ToString(),
-            toolNames: null);
-    }
-
-    private string ResolveMainModelOrFallback(AppConfig config)
-    {
-        try
-        {
-            return _chatClientRegistry.ResolveMainModel(config);
-        }
-        catch (ArgumentException)
-        {
-            return config.Model;
-        }
-    }
+    private SkillVariantTarget BuildSkillVariantTarget() => SkillVariants.BuildTarget();
 
     private bool IsServiceAvailableForRegistration(CommandRegistration registration)
     {
@@ -6716,16 +6050,6 @@ public sealed class AppServerRequestHandler(
     private static string? FormatTimeSpanForConfig(TimeSpan? value) =>
         value.HasValue ? value.Value.ToString("c", CultureInfo.InvariantCulture) : null;
 
-    private static string FormatTimeSpanForWire(TimeSpan value)
-    {
-        var normalized = value <= TimeSpan.Zero ? TimeSpan.FromHours(24) : value;
-        var totalSeconds = (long)Math.Round(normalized.TotalSeconds);
-        var hours = totalSeconds / 3600;
-        var minutes = (totalSeconds % 3600) / 60;
-        var seconds = totalSeconds % 60;
-        return $"{hours:00}:{minutes:00}:{seconds:00}";
-    }
-
     private static bool TryParseWireTimeSpan(string raw, out TimeSpan value)
     {
         if (TryParseTotalHoursTimeSpan(raw, out value))
@@ -6900,29 +6224,8 @@ public sealed class AppServerRequestHandler(
         return methods;
     }
 
-    private Task<object?> RouteAutomation(Func<IAutomationsRequestHandler, Task<object?>> action)
-    {
-        if (automationsHandler == null)
-            throw AppServerErrors.MethodNotFound("automation/*");
-        return action(automationsHandler);
-    }
-
     private static T GetParams<T>(AppServerIncomingMessage msg) where T : new()
-    {
-        if (!msg.Params.HasValue || msg.Params.Value.ValueKind == JsonValueKind.Null)
-            return new T();
-
-        try
-        {
-            return JsonSerializer.Deserialize<T>(
-                msg.Params.Value.GetRawText(),
-                SessionWireJsonOptions.Default) ?? new T();
-        }
-        catch (JsonException ex)
-        {
-            throw AppServerErrors.InvalidParams($"Failed to deserialize params: {ex.Message}");
-        }
-    }
+        => AppServerParams.Get<T>(msg);
 
     // ── auth/openai/* ────────────────────────────────────────────────
 

@@ -52,9 +52,12 @@ public sealed class WireClientWebSocketIntegrationTests : IAsyncDisposable
             var handler = new AppServerRequestHandler(
                 _service, connection, wsTransport,
                 new ModuleRegistryChannelListContributor(new ModuleRegistry(), null, null),
-                "0.0.1-test",
-                hostWorkspacePath: _tempDir,
-                appConfigMonitor: new AppConfigMonitor(AppConfigTestFactory.CreateOpenAI()));
+                new AppServerConnectionServices
+                {
+                    ServerVersion = "0.0.1-test",
+                    HostWorkspacePath = _tempDir,
+                    AppConfigMonitor = new AppConfigMonitor(AppConfigTestFactory.CreateOpenAI()),
+                });
             await RunServerLoopAsync(wsTransport, connection, handler, _serverCts.Token);
         });
 
@@ -206,9 +209,12 @@ public sealed class WireClientWebSocketIntegrationTests : IAsyncDisposable
             var handler2 = new AppServerRequestHandler(
                 _service, conn2, ws2Transport,
                 new ModuleRegistryChannelListContributor(new ModuleRegistry(), null, null),
-                "0.0.1-test",
-                hostWorkspacePath: _tempDir,
-                appConfigMonitor: new AppConfigMonitor(AppConfigTestFactory.CreateOpenAI()));
+                new AppServerConnectionServices
+                {
+                    ServerVersion = "0.0.1-test",
+                    HostWorkspacePath = _tempDir,
+                    AppConfigMonitor = new AppConfigMonitor(AppConfigTestFactory.CreateOpenAI()),
+                });
             await RunServerLoopAsync(ws2Transport, conn2, handler2, serverLoop2Cts.Token);
         });
 
