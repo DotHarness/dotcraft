@@ -133,6 +133,7 @@ public sealed partial class SessionService(
     private readonly ConcurrentDictionary<string, byte> _activeAutoMemoryConsolidations = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, AutoMemoryConsolidationWork> _pendingAutoMemoryConsolidations = new(StringComparer.Ordinal);
     private WorktreeCoordinator? _worktreeCoordinator;
+    private SubAgentSessionCoordinator? _subAgentSessionCoordinator;
     private static readonly AsyncLocal<bool> SuppressGoalBroadcastContext = new();
     private static readonly IReadOnlySet<string> EmptyPluginFunctionToolNames = new HashSet<string>(StringComparer.Ordinal);
     private static readonly IReadOnlySet<string> EmptyDynamicToolNames = new HashSet<string>(StringComparer.Ordinal);
@@ -141,6 +142,8 @@ public sealed partial class SessionService(
     private volatile bool _forcePerThreadAgents;
 
     private WorktreeCoordinator Worktrees => _worktreeCoordinator ??= new WorktreeCoordinator(this);
+
+    private SubAgentSessionCoordinator SubAgents => _subAgentSessionCoordinator ??= new SubAgentSessionCoordinator(this);
 
     private SessionGate Gate => sessionGate;
 
@@ -1577,56 +1580,36 @@ Choose the next concrete action that advances the goal. Before doing substantial
     }
 
     public async Task UpsertThreadSpawnEdgeAsync(ThreadSpawnEdge edge, CancellationToken ct = default)
-    {
-        ct.ThrowIfCancellationRequested();
-        await persistence.UpsertThreadSpawnEdgeAsync(edge, ct);
-        SubAgentGraphChangedForBroadcast?.Invoke(edge.ParentThreadId, edge.ChildThreadId);
-    }
+        => await SubAgents.UpsertThreadSpawnEdgeAsync(edge, ct);
 
     public async Task SetThreadSpawnEdgeStatusAsync(
         string parentThreadId,
         string childThreadId,
         string status,
         CancellationToken ct = default)
-    {
-        ct.ThrowIfCancellationRequested();
-        await persistence.SetThreadSpawnEdgeStatusAsync(parentThreadId, childThreadId, status, ct);
-        SubAgentGraphChangedForBroadcast?.Invoke(parentThreadId, childThreadId);
-    }
+        => await SubAgents.SetThreadSpawnEdgeStatusAsync(parentThreadId, childThreadId, status, ct);
 
     public Task<IReadOnlyList<ThreadSpawnEdge>> ListSubAgentChildrenAsync(
         string parentThreadId,
         bool includeClosed = false,
         CancellationToken ct = default)
-    {
-        ct.ThrowIfCancellationRequested();
-        return persistence.ListSubAgentChildrenAsync(parentThreadId, includeClosed, ct);
-    }
+        => SubAgents.ListChildrenAsync(parentThreadId, includeClosed, ct);
 
     public async Task AddSubAgentMailboxEntryAsync(SubAgentMailboxEntry entry, CancellationToken ct = default)
-    {
-        ct.ThrowIfCancellationRequested();
-        await persistence.AddSubAgentMailboxEntryAsync(entry, ct);
-    }
+        => await SubAgents.AddMailboxEntryAsync(entry, ct);
 
     public Task<IReadOnlyList<SubAgentMailboxEntry>> ListPendingSubAgentMailboxAsync(
         string rootThreadId,
         string targetAgentPath,
         CancellationToken ct = default)
-    {
-        ct.ThrowIfCancellationRequested();
-        return persistence.ListPendingSubAgentMailboxAsync(rootThreadId, targetAgentPath, ct);
-    }
+        => SubAgents.ListPendingMailboxAsync(rootThreadId, targetAgentPath, ct);
 
     public async Task MarkSubAgentMailboxDeliveredAsync(
         string rootThreadId,
         IReadOnlyList<string> entryIds,
         DateTimeOffset deliveredAt,
         CancellationToken ct = default)
-    {
-        ct.ThrowIfCancellationRequested();
-        await persistence.MarkSubAgentMailboxDeliveredAsync(rootThreadId, entryIds, deliveredAt, ct);
-    }
+        => await SubAgents.MarkMailboxDeliveredAsync(rootThreadId, entryIds, deliveredAt, ct);
 
     public async Task<SessionTurn> StartSubAgentSyntheticTurnAsync(
         string threadId,
@@ -1634,71 +1617,7 @@ Choose the next concrete action that advances the goal. Before doing substantial
         string runtimeType,
         string? profileName,
         CancellationToken ct = default)
-    {
-        var thread = await GetOrLoadThreadAsync(threadId, ct);
-        if (thread.Status != ThreadStatus.Active)
-            throw new InvalidOperationException($"Thread '{threadId}' is not Active (current status: {thread.Status}). Cannot submit input.");
-
-        if (thread.Turns.Any(t => t.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput))
-            throw new InvalidOperationException($"Thread '{threadId}' already has a running Turn. Wait for it to complete or cancel it first.");
-
-        var channelInfo = ChannelSessionScope.Current;
-        var turnOriginChannel = channelInfo?.Channel ?? thread.OriginChannel;
-        var turnChannelContext = channelInfo?.DefaultDeliveryTarget ?? thread.ChannelContext;
-        var triggerInfo = TurnTriggerScope.Current;
-        var text = string.Concat(content.OfType<TextContent>().Select(t => t.Text));
-        var turn = new SessionTurn
-        {
-            Id = SessionIdGenerator.NewTurnId(thread.Turns.Count + 1),
-            ThreadId = threadId,
-            Status = TurnStatus.Running,
-            StartedAt = DateTimeOffset.UtcNow,
-            OriginChannel = turnOriginChannel,
-            Initiator = new TurnInitiatorContext
-            {
-                ChannelName = turnOriginChannel,
-                UserId = channelInfo?.UserId ?? thread.UserId,
-                ChannelContext = turnChannelContext,
-                GroupId = channelInfo?.GroupId
-            }
-        };
-
-        var userItem = new SessionItem
-        {
-            Id = SessionIdGenerator.NewItemId(1),
-            TurnId = turn.Id,
-            Type = ItemType.UserMessage,
-            Status = ItemStatus.Completed,
-            CreatedAt = DateTimeOffset.UtcNow,
-            CompletedAt = DateTimeOffset.UtcNow,
-            Payload = new UserMessagePayload
-            {
-                Text = text,
-                ChannelName = turnOriginChannel,
-                ChannelContext = turnChannelContext,
-                GroupId = channelInfo?.GroupId,
-                TriggerKind = triggerInfo?.Kind,
-                TriggerLabel = triggerInfo?.Label,
-                TriggerRefId = triggerInfo?.RefId
-            }
-        };
-
-        turn.Input = userItem;
-        turn.Items.Add(userItem);
-        thread.Turns.Add(turn);
-        thread.LastActiveAt = DateTimeOffset.UtcNow;
-        thread.Metadata["subagent.syntheticRuntime"] = runtimeType;
-        if (!string.IsNullOrWhiteSpace(profileName))
-            thread.Metadata["subagent.profileName"] = profileName;
-
-        var broker = GetOrCreateBroker(threadId);
-        broker.PublishTurnStarted(turn);
-        ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnStarted);
-        broker.PublishItemEvent(SessionEventType.ItemStarted, turn.Id, userItem);
-        broker.PublishItemEvent(SessionEventType.ItemCompleted, turn.Id, userItem);
-        await PersistThreadWithMaterializationAsync(thread, ct);
-        return turn;
-    }
+        => await SubAgents.StartSyntheticTurnAsync(threadId, content, runtimeType, profileName, ct);
 
     public async Task<SessionTurn> CompleteSubAgentSyntheticTurnAsync(
         string threadId,
@@ -1707,84 +1626,14 @@ Choose the next concrete action that advances the goal. Before doing substantial
         bool isError,
         SubAgentTokenUsage? tokensUsed,
         CancellationToken ct = default)
-    {
-        var thread = await GetOrLoadThreadAsync(threadId, ct);
-        var turn = thread.Turns.FirstOrDefault(t => string.Equals(t.Id, turnId, StringComparison.Ordinal))
-            ?? throw new KeyNotFoundException($"Turn '{turnId}' not found in thread '{threadId}'.");
-        if (turn.Status is not (TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput))
-            return turn;
-
-        var item = isError
-            ? CreateErrorItem(turn, turn.Items.Count + 1, text, "subagent_error", fatal: true)
-            : new SessionItem
-            {
-                Id = SessionIdGenerator.NewItemId(turn.Items.Count + 1),
-                TurnId = turn.Id,
-                Type = ItemType.AgentMessage,
-                Status = ItemStatus.Completed,
-                CreatedAt = DateTimeOffset.UtcNow,
-                CompletedAt = DateTimeOffset.UtcNow,
-                Payload = new AgentMessagePayload { Text = text }
-            };
-
-        turn.Items.Add(item);
-        turn.Status = isError ? TurnStatus.Failed : TurnStatus.Completed;
-        turn.CompletedAt = DateTimeOffset.UtcNow;
-        turn.Error = isError ? text : null;
-        if (tokensUsed != null)
-        {
-            turn.TokenUsage = new TokenUsageInfo
-            {
-                InputTokens = tokensUsed.InputTokens,
-                OutputTokens = tokensUsed.OutputTokens,
-                CachedInputTokens = tokensUsed.CachedInputTokens,
-                CacheWriteInputTokens = tokensUsed.CacheWriteInputTokens,
-                ReasoningOutputTokens = tokensUsed.ReasoningOutputTokens,
-                LlmCallCount = tokensUsed.InputTokens > 0 || tokensUsed.OutputTokens > 0 ? 1 : 0,
-                TotalTokens = tokensUsed.InputTokens + tokensUsed.OutputTokens
-            };
-        }
-
-        thread.LastActiveAt = DateTimeOffset.UtcNow;
-        var broker = GetOrCreateBroker(threadId);
-        broker.PublishItemEvent(SessionEventType.ItemStarted, turn.Id, item);
-        broker.PublishItemEvent(SessionEventType.ItemCompleted, turn.Id, item);
-        if (isError)
-        {
-            broker.PublishTurnFailed(turn, text);
-            ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnFailed);
-        }
-        else
-        {
-            broker.PublishTurnCompleted(turn);
-            ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnCompleted);
-        }
-
-        await PersistThreadWithMaterializationAsync(thread, ct);
-        return turn;
-    }
+        => await SubAgents.CompleteSyntheticTurnAsync(threadId, turnId, text, isError, tokensUsed, ct);
 
     public async Task<SessionTurn> CancelSubAgentSyntheticTurnAsync(
         string threadId,
         string turnId,
         string reason,
         CancellationToken ct = default)
-    {
-        var thread = await GetOrLoadThreadAsync(threadId, ct);
-        var turn = thread.Turns.FirstOrDefault(t => string.Equals(t.Id, turnId, StringComparison.Ordinal))
-            ?? throw new KeyNotFoundException($"Turn '{turnId}' not found in thread '{threadId}'.");
-        if (turn.Status is not (TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput))
-            return turn;
-
-        turn.Status = TurnStatus.Cancelled;
-        turn.CompletedAt = DateTimeOffset.UtcNow;
-        thread.LastActiveAt = DateTimeOffset.UtcNow;
-        var broker = GetOrCreateBroker(threadId);
-        broker.PublishTurnCancelled(turn, reason);
-        ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnCancelled);
-        await PersistThreadWithMaterializationAsync(thread, ct);
-        return turn;
-    }
+        => await SubAgents.CancelSyntheticTurnAsync(threadId, turnId, reason, ct);
 
     private static bool IsSubAgentSummary(ThreadSummary summary) =>
         string.Equals(summary.Source.Kind, ThreadSourceKinds.SubAgent, StringComparison.OrdinalIgnoreCase)
