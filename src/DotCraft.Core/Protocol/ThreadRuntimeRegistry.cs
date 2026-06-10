@@ -116,6 +116,15 @@ internal sealed class ThreadRuntime(SessionThread thread) : IAsyncDisposable, ID
 
     public ConcurrentDictionary<string, TurnRuntime> Turns { get; } = new(StringComparer.Ordinal);
 
+    public TurnRuntime GetOrAddTurn(string turnId) =>
+        Turns.GetOrAdd(turnId, static _ => new TurnRuntime());
+
+    public bool TryGetTurn(string turnId, out TurnRuntime turnRuntime) =>
+        Turns.TryGetValue(turnId, out turnRuntime!);
+
+    public bool TryRemoveTurn(string turnId, out TurnRuntime turnRuntime) =>
+        Turns.TryRemove(turnId, out turnRuntime!);
+
     public async ValueTask DisposeAsync()
     {
         QueueLock.Dispose();

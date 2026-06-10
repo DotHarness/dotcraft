@@ -61,7 +61,9 @@ public sealed partial class SessionService
             string? notificationTurnId,
             CancellationToken ct)
         {
-            if (!owner._goalTurnSnapshots.TryGetValue(turnKey, out var snapshot))
+            var turnRuntime = owner.TryGetTurnRuntime(turnKey);
+            var snapshot = turnRuntime?.GoalSnapshot;
+            if (snapshot == null)
                 return null;
 
             var delta = DiffUsage(latestTurnUsage, snapshot.AccountedUsage);
@@ -78,7 +80,8 @@ public sealed partial class SessionService
                 ct);
             if (updated != null)
             {
-                owner._goalTurnSnapshots[turnKey] = snapshot.WithAccounted(latestTurnUsage, now);
+                if (turnRuntime != null)
+                    turnRuntime.GoalSnapshot = snapshot.WithAccounted(latestTurnUsage, now);
                 owner.PublishGoalUpdated(updated, notificationTurnId);
                 if (updated.Status == ThreadGoalStatus.BudgetLimited
                     && owner._goalBudgetGuidanceQueued.TryAdd(updated.GoalId, 0))
@@ -92,7 +95,8 @@ public sealed partial class SessionService
 
         public async Task PauseActiveForInterruptAsync(TurnKey turnKey, CancellationToken ct)
         {
-            if (!owner._goalTurnSnapshots.TryGetValue(turnKey, out var snapshot))
+            var snapshot = owner.TryGetTurnRuntime(turnKey)?.GoalSnapshot;
+            if (snapshot == null)
                 return;
 
             var current = await owner.Persistence.GetThreadGoalAsync(turnKey.ThreadId, ct);

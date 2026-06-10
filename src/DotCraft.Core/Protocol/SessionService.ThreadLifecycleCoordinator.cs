@@ -196,24 +196,26 @@ public sealed partial class SessionService
         private async Task DeleteCoreAsync(string threadId, CancellationToken ct)
         {
             var ephemeral = false;
-            if (owner._runtimeRegistry.TryGetThread(threadId, out var thread))
+            if (owner._runtimeRegistry.TryGetRuntime(threadId, out var runtime))
             {
+                var thread = runtime.Thread;
                 ephemeral = thread.Ephemeral;
                 foreach (var turn in thread.Turns.Where(t => t.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput))
                 {
-                    var key = new TurnKey(threadId, turn.Id);
-                    if (owner._runningTurns.TryRemove(key, out var turnCts))
-                        await turnCts.CancelAsync();
-                    owner._pendingApprovals.TryRemove(key, out _);
-                    owner._pendingUserInputRequests.TryRemove(key, out _);
+                    if (runtime.TryRemoveTurn(turn.Id, out var turnRuntime)
+                        && turnRuntime.Cancellation != null)
+                    {
+                        await turnRuntime.Cancellation.CancelAsync();
+                        turnRuntime.Cancellation.Dispose();
+                    }
                 }
             }
 
             if (!ephemeral)
                 await owner.Persistence.DeleteThreadCascadeAsync(threadId, ct);
 
-            if (owner._runtimeRegistry.TryRemove(threadId, out var runtime))
-                await runtime.DisposeAsync();
+            if (owner._runtimeRegistry.TryRemove(threadId, out var removedRuntime))
+                await removedRuntime.DisposeAsync();
             owner._threadEventBrokers.TryRemove(threadId, out _);
             owner.InvalidatePromptRequestSnapshot(threadId, "thread_deleted");
             owner.ClearContextUsageAnchor(threadId);

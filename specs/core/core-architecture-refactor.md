@@ -297,7 +297,7 @@ rebase pain: mechanical moves first, behavioral seams last.
 | M3 | **Domain handlers, batch 1** | Thin/CRUD domains: skills, plugin, mcp, cron, usage, dreams, terminal, command, automation, channel. Extract `WorkspaceConfigEditor` alongside provider/workspace handlers. | Low (thin delegation) | **Done** — dispatch seam built; **12 domains extracted to handler classes**: `cron/*`+`heartbeat/trigger`, `terminal/*`, `dreams/*`, `skills/*`, `mcp/*`, `channel/*`+`externalChannel/*`, `provider/*`+`model/list`+`auth/openai/*`, `workspace/config*`+welcome/commit-message/memory-reset, `plugin/*`, `command/*`, `usage/*`+`profile/insights`, `automation/*`. Shared helpers extracted: `AppServerContextInvalidation`, `SkillVariantContext`, `WorkspaceConfigEditor`, `AppServerMcpConfigService`, `McpWireMapper`, `ExternalChannelConfigService`, `ExternalChannelWireMapper`, `ProviderWireMapper`, `AppServerRuntimeConfigRefresher`. Tests green throughout. |
 | M4 | **Domain handlers, batch 2** | thread, turn (+`TurnStartCoordinator`), worktree, subagent, initialize. Delete the old switch; `AppServerRequestHandler` reaches dispatcher-only form. | Medium (thick handlers) | **Done** — `subagent/*`, `worktree/*`, `thread/*`, `turn/*`, and `initialize` extracted. `AppServerRequestHandler` is dispatcher-only and under 500 lines. |
 | M5 | **SessionService sub-services** | 4.3.2 coordinators extracted against the *existing* dictionaries (state untouched, moves only). | Medium | **Done** — `WorktreeCoordinator`, `SubAgentSessionCoordinator`, `ThreadIndexCoordinator`, `ThreadCreationCoordinator`, `ThreadLifecycleCoordinator`, `ThreadAccessCoordinator`, `ThreadConfigurationCoordinator`, `TurnControlCoordinator`, `ThreadGoalCoordinator`, `ThreadQueueCoordinator`, and `MaintenanceCoordinator` extracted. Turn execution remains in `SessionService`; state dictionaries remain untouched for M6. |
-| M6 | **`ThreadRuntime` aggregation** | 4.3.1: introduce registry + runtime objects; coordinators and SessionService migrate field-by-field; delete the 24 dictionaries. | Highest — concurrency-sensitive; do last, smallest reviewable steps | **In progress** — `ThreadRuntimeRegistry`/`ThreadRuntime` introduced; cached threads, queue/agent locks, agent/tool/MCP caches, mode managers, plugin/dynamic tool-name sets, materialization flag, prompt snapshots, context-usage anchors, maintenance state, and auto-consolidation state migrated into runtime registry; teardown count assertion added. Continue remaining state migrations. |
+| M6 | **`ThreadRuntime` aggregation** | 4.3.1: introduce registry + runtime objects; coordinators and SessionService migrate field-by-field; delete the 24 dictionaries. | Highest — concurrency-sensitive; do last, smallest reviewable steps | **In progress** — `ThreadRuntimeRegistry`/`ThreadRuntime` introduced; cached threads, queue/agent locks, agent/tool/MCP caches, mode managers, plugin/dynamic tool-name sets, materialization flag, prompt snapshots, context-usage anchors, maintenance state, auto-consolidation state, and per-turn cancellation/approval/user-input/goal snapshots migrated into runtime registry. Continue remaining state migrations. |
 | M7 | **AppBinding split** | 4.4 sub-domain services. Independent of M5/M6; can run in parallel with them. | Low–medium | Planned |
 
 > **As-built note (M1):** the wire namespace is `DotCraft.Protocol.AppServer` (the `RootNamespace`
@@ -353,9 +353,9 @@ rebase pain: mechanical moves first, behavioral seams last.
 > - M6 `ThreadRuntime` aggregation — runtime registry exists and owns cached
 >   `SessionThread` instances, queue/agent locks, agent/tool/MCP caches, mode managers,
 >   plugin/dynamic tool-name sets, materialization flags, prompt snapshots, and
->   context-usage anchors, maintenance state, and auto-consolidation state; remaining
->   per-thread and per-turn dictionaries still need field-cluster migrations into
->   `ThreadRuntime`/`TurnRuntime`.
+>   context-usage anchors, maintenance state, auto-consolidation state, and per-turn
+>   cancellation/approval/user-input/goal snapshots; remaining per-thread dictionaries
+>   still need field-cluster migrations into `ThreadRuntime`.
 
 ## 6. Verification strategy
 

@@ -10,7 +10,7 @@ public sealed partial class SessionService
             string requestId,
             SessionApprovalDecision decision)
         {
-            if (owner._pendingApprovals.TryGetValue(new TurnKey(threadId, turnId), out var svc))
+            if (owner.TryGetTurnRuntime(new TurnKey(threadId, turnId))?.PendingApproval is { } svc)
                 svc.TryResolve(requestId, decision);
             return Task.CompletedTask;
         }
@@ -21,14 +21,14 @@ public sealed partial class SessionService
             string requestId,
             RequestUserInputResponse response)
         {
-            if (owner._pendingUserInputRequests.TryGetValue(new TurnKey(threadId, turnId), out var svc))
+            if (owner.TryGetTurnRuntime(new TurnKey(threadId, turnId))?.PendingUserInput is { } svc)
                 svc.TryResolve(requestId, response);
             return Task.CompletedTask;
         }
 
         public Task CancelTurn(string threadId, string turnId)
         {
-            if (owner._runningTurns.TryGetValue(new TurnKey(threadId, turnId), out var cts))
+            if (owner.TryGetTurnRuntime(new TurnKey(threadId, turnId))?.Cancellation is { } cts)
                 cts.Cancel();
             return Task.CompletedTask;
         }

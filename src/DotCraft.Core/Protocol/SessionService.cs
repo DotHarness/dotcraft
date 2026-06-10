@@ -109,12 +109,8 @@ public sealed partial class SessionService(
 
     // In-memory state
     private readonly ThreadRuntimeRegistry _runtimeRegistry = new();
-    private readonly ConcurrentDictionary<TurnKey, SessionApprovalService> _pendingApprovals = new();
-    private readonly ConcurrentDictionary<TurnKey, SessionUserInputRequestService> _pendingUserInputRequests = new();
-    private readonly ConcurrentDictionary<TurnKey, CancellationTokenSource> _runningTurns = new();
     private readonly ConcurrentDictionary<string, ThreadEventBroker> _threadEventBrokers = new();
     private readonly ConcurrentDictionary<string, byte> _threadsPendingPermanentDeletion = new();
-    private readonly ConcurrentDictionary<TurnKey, GoalTurnSnapshot> _goalTurnSnapshots = new();
     private readonly ConcurrentDictionary<string, byte> _goalContinuationStarting = new();
     private readonly ConcurrentDictionary<string, byte> _goalBudgetGuidanceQueued = new();
     private WorktreeCoordinator? _worktreeCoordinator;
@@ -219,6 +215,17 @@ public sealed partial class SessionService(
         if (_runtimeRegistry.TryGetRuntime(threadId, out var runtime))
             runtime.ContextUsageAnchor = null;
     }
+
+    private TurnRuntime? TryGetTurnRuntime(TurnKey turnKey) =>
+        _runtimeRegistry.TryGetRuntime(turnKey.ThreadId, out var runtime)
+            && runtime.TryGetTurn(turnKey.TurnId, out var turnRuntime)
+                ? turnRuntime
+                : null;
+
+    private TurnRuntime? GetOrAddTurnRuntime(TurnKey turnKey) =>
+        _runtimeRegistry.TryGetRuntime(turnKey.ThreadId, out var runtime)
+            ? runtime.GetOrAddTurn(turnKey.TurnId)
+            : null;
 
     /// <summary>
     /// Suppresses immediate Session Core goal broadcasts within the current async flow.
@@ -981,7 +988,9 @@ public sealed partial class SessionService(
         // Step 5: Run execution in background
         var turnKey = new TurnKey(threadId, turn.Id);
         var cts = new CancellationTokenSource();
-        _runningTurns[turnKey] = cts;
+        var turnRuntime = GetOrAddTurnRuntime(turnKey);
+        if (turnRuntime != null)
+            turnRuntime.Cancellation = cts;
 
         _ = Task.Run(async () =>
         {
@@ -1458,11 +1467,15 @@ public sealed partial class SessionService(
                         && thread.Source.SubAgent == null)
                     {
                         var now = DateTimeOffset.UtcNow;
-                        _goalTurnSnapshots[turnKey] = new GoalTurnSnapshot(
-                            threadGoalForContext.GoalId,
-                            now,
-                            now,
-                            new TokenUsageInfo());
+                        var goalTurnRuntime = GetOrAddTurnRuntime(turnKey);
+                        if (goalTurnRuntime != null)
+                        {
+                            goalTurnRuntime.GoalSnapshot = new GoalTurnSnapshot(
+                                threadGoalForContext.GoalId,
+                                now,
+                                now,
+                                new TokenUsageInfo());
+                        }
                     }
                 }
 
@@ -1508,7 +1521,9 @@ public sealed partial class SessionService(
                             cts.Cancel,
                             approvalStore,
                             ThreadRuntimeSignalForBroadcast);
-                        _pendingApprovals[turnKey] = sessionApproval;
+                        var approvalTurnRuntime = GetOrAddTurnRuntime(turnKey);
+                        if (approvalTurnRuntime != null)
+                            approvalTurnRuntime.PendingApproval = sessionApproval;
                         turnApprovalService = sessionApproval;
                         break;
                 }
@@ -1521,7 +1536,9 @@ public sealed partial class SessionService(
                     NextItemSeq,
                     cts.Token,
                     ThreadRuntimeSignalForBroadcast);
-                _pendingUserInputRequests[turnKey] = userInputRequestService;
+                var userInputTurnRuntime = GetOrAddTurnRuntime(turnKey);
+                if (userInputTurnRuntime != null)
+                    userInputTurnRuntime.PendingUserInput = userInputRequestService;
 
                 // Set ApprovalContext for tools that read ApprovalContextScope
                 var approvalContextDisposable = sender != null
@@ -2272,11 +2289,11 @@ public sealed partial class SessionService(
             {
                 approvalOverride?.Dispose();
                 gateLock?.Dispose();
-                _pendingApprovals.TryRemove(turnKey, out _);
-                _pendingUserInputRequests.TryRemove(turnKey, out _);
-                _goalTurnSnapshots.TryRemove(turnKey, out _);
-                _runningTurns.TryRemove(turnKey, out var runCts);
-                runCts?.Dispose();
+                if (_runtimeRegistry.TryGetRuntime(turnKey.ThreadId, out var runtime)
+                    && runtime.TryRemoveTurn(turnKey.TurnId, out var removedTurnRuntime))
+                {
+                    removedTurnRuntime.Cancellation?.Dispose();
+                }
                 eventChannel.Complete();
             }
         }, CancellationToken.None); // Run regardless of caller ct; we handle it internally
