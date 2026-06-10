@@ -579,6 +579,40 @@ public sealed class AppBindingProtocolTests : IDisposable
     }
 
     [Fact]
+    public async Task UiHostMethod_RejectedWhenClientDidNotNegotiateInteractiveToolUi()
+    {
+        var service = new AppBindingService();
+        using var harness = CreateHarness(service);
+        await harness.InitializeAsync(); // interactiveToolUi defaults to false
+
+        using var response = await ExecuteAndReadResponseAsync(
+            harness,
+            "ui/open-link",
+            new { threadId = "thread-1", url = "https://example.com" });
+
+        AppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.MethodNotFoundCode);
+    }
+
+    [Fact]
+    public async Task UiHostMethod_PassesNegotiationGateWhenInteractiveToolUiDeclared()
+    {
+        var service = new AppBindingService();
+        using var harness = CreateHarness(service);
+        await harness.InitializeAsync(interactiveToolUi: true);
+        var thread = await harness.Service.CreateThreadAsync(CreateIdentity());
+
+        using var response = await ExecuteAndReadResponseAsync(
+            harness,
+            "ui/open-link",
+            new { threadId = thread.Id, url = "https://example.com" });
+
+        // The negotiation gate opens for a declaring client: the method is recognized and
+        // proceeds to the host scheme policy — it is not rejected as MethodNotFound.
+        if (response.RootElement.TryGetProperty("error", out var error))
+            Assert.NotEqual(AppServerErrors.MethodNotFoundCode, error.GetProperty("code").GetInt32());
+    }
+
+    [Fact]
     public async Task ConnectionStart_RejectsCatalogAppBeforeOwningPluginInstall()
     {
         var service = new AppBindingService();
@@ -1826,6 +1860,28 @@ public sealed class AppBindingProtocolTests : IDisposable
 
         // …but it is recorded on the audit trail.
         AssertAppBindingAuditContains("binding.uiToolCall");
+    }
+
+    [Fact]
+    public async Task UiOpenLink_RecordedOnAuditTrail()
+    {
+        WriteOratorioPlugin();
+        var service = new AppBindingService();
+        using var harness = CreateHarness(service);
+        await harness.InitializeAsync(interactiveToolUi: true);
+        await ConnectAppAsync(harness);
+        var thread = await harness.Service.CreateThreadAsync(CreateIdentity());
+        await CreateAcceptAndAttachUiToolAsync(harness, thread.Id);
+
+        using var response = await ExecuteAndReadResponseAsync(
+            harness,
+            "ui/open-link",
+            new { threadId = thread.Id, @namespace = "oratorio", url = "https://example.com", sourceCallId = "dyntool_1" });
+
+        AppServerTestHarness.AssertIsSuccessResponse(response);
+        Assert.Equal("https://example.com", response.RootElement.GetProperty("result").GetProperty("url").GetString());
+        // Every UI-initiated link open is recorded on the App Binding audit trail.
+        AssertAppBindingAuditContains("binding.uiOpenLink");
     }
 
     [Fact]

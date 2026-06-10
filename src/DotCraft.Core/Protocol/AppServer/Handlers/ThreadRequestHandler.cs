@@ -283,6 +283,10 @@ internal sealed class ThreadRequestHandler(
     private Task<object?> HandleItemWidgetStateSetAsync(AppServerIncomingMessage msg, CancellationToken ct)
     {
         _ = ct;
+        // widgetState is part of the Interactive Tool UI bridge; only a client that negotiated
+        // interactiveToolUi has an iframe to persist it (tool-result-presentation.md §3, §9).
+        if (!connection.SupportsInteractiveToolUi)
+            throw AppServerErrors.MethodNotFound(AppServerMethods.ItemWidgetStateSet);
         var p = AppServerParams.Get<ItemWidgetStateSetParams>(msg);
         if (string.IsNullOrWhiteSpace(p.ThreadId))
             throw AppServerErrors.InvalidParams("'threadId' is required.");

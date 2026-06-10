@@ -56,6 +56,9 @@ public sealed class AppServerConnection
     /// <summary>Client-declared capabilities from the <c>initialize</c> params.</summary>
     public AppServerClientCapabilities? ClientCapabilities => _clientCapabilities;
 
+    /// <summary>True when the client declared Interactive Tool UI support during <c>initialize</c>.</summary>
+    public bool SupportsInteractiveToolUi => _clientCapabilities?.InteractiveToolUi == true;
+
     // -------------------------------------------------------------------------
     // Channel adapter state (external-channel-adapter.md §5.1)
     // -------------------------------------------------------------------------

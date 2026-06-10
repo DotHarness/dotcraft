@@ -99,6 +99,14 @@ public sealed class AppServerClientCapabilities
     public bool? ConfigChange { get; set; }
 
     /// <summary>
+    /// Whether the client can render Interactive Tool UI (MCP Apps): the host serves a tool's
+    /// <c>ui://</c> resource in a sandboxed iframe and drives the <c>ui/*</c> bridge. Default false —
+    /// a non-declaring client receives the text fallback, and the host does not honor <c>ui/*</c>
+    /// host methods for it. See tool-result-presentation.md §3.
+    /// </summary>
+    public bool? InteractiveToolUi { get; set; }
+
+    /// <summary>
     /// Channel adapter capability (external-channel-adapter.md §5.1).
     /// Null for regular clients (CLI, VS Code, etc.).
     /// When present, identifies this connection as an external channel adapter.

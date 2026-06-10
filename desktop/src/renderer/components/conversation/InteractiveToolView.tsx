@@ -152,6 +152,27 @@ export function deriveUnavailableReason(
   }
 }
 
+/**
+ * Powerful-feature permissions an app may declare in `_meta.ui.permissions`, mapped to their
+ * Permissions-Policy tokens. The iframe is granted exactly the declared (server-validated)
+ * features and nothing else — unknown tokens are dropped and, with none declared, every powerful
+ * feature stays denied (deny-by-default). See tool-result-presentation.md §11.
+ */
+const PERMISSION_POLICY: Record<string, string> = {
+  camera: 'camera',
+  microphone: 'microphone',
+  geolocation: 'geolocation',
+  clipboardWrite: 'clipboard-write'
+}
+
+function buildIframeAllow(permissions: string[] | undefined): string {
+  if (!permissions || permissions.length === 0) return ''
+  const tokens = permissions
+    .map((permission) => PERMISSION_POLICY[permission])
+    .filter((token): token is string => typeof token === 'string')
+  return Array.from(new Set(tokens)).join('; ')
+}
+
 function InteractiveToolViewImpl({ item, threadId, locale, expanded = false }: InteractiveToolViewProps): JSX.Element | null {
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
   const bridgeRef = useRef<BridgeSession>(createBridgeSession())
@@ -166,6 +187,8 @@ function InteractiveToolViewImpl({ item, threadId, locale, expanded = false }: I
   const descriptor: ToolUiDescriptor | undefined = item.toolUi
   const resourceUri = descriptor?.resourceUri
   const prefersBorder = descriptor?.prefersBorder !== false
+  // Server-validated powerful-feature allow-list; empty → all powerful features denied.
+  const iframeAllow = buildIframeAllow(descriptor?.permissions)
   const namespace = item.pluginNamespace
   // Provenance for decoupled UI actions: the originating dynamicToolCall's callId.
   const sourceCallId = item.toolCallId ?? item.id
@@ -631,6 +654,7 @@ function InteractiveToolViewImpl({ item, threadId, locale, expanded = false }: I
         title={descriptor?.domain ?? item.toolName ?? 'App view'}
         src={src}
         sandbox="allow-scripts"
+        allow={iframeAllow}
         loading="lazy"
         style={{
           width: '100%',
