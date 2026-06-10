@@ -117,13 +117,15 @@ public sealed class UsageSnapshotDeltaTests
         Assert.Equal(500, tracker.TotalCachedInputTokens);
         Assert.Equal(100, tracker.TotalCacheWriteInputTokens);
         Assert.Equal(2000, tracker.LastInputTokens);
+        Assert.Equal(2000, tracker.LastContextTokens);
 
-        tracker.UpdateWithStreamingDeltas(51000, 50, 40000, 0, 0, 51000);
+        tracker.UpdateWithStreamingDeltas(51000, 50, 40000, 0, 0, 51000, 50);
         Assert.Equal(53000, tracker.TotalInputTokens);
         Assert.Equal(40500, tracker.TotalCachedInputTokens);
         Assert.Equal(100, tracker.TotalCacheWriteInputTokens);
         Assert.Equal(50, tracker.TotalOutputTokens);
         Assert.Equal(51000, tracker.LastInputTokens);
+        Assert.Equal(51050, tracker.LastContextTokens);
 
         tracker.AddSubAgentTokens(1000, 200, 900, 50, 0, llmCallCount: 2);
         Assert.Equal(1000, tracker.SubAgentInputTokens);

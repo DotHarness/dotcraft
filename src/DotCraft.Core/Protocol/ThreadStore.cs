@@ -223,9 +223,16 @@ public sealed class ThreadStore
     /// Persists the current context-window usage token count for a thread.
     /// </summary>
     public Task SaveContextUsageTokensAsync(string threadId, long tokens, CancellationToken ct = default)
+        => SaveContextUsageTokensAsync(threadId, tokens, source: null, ct: ct);
+
+    public Task SaveContextUsageTokensAsync(
+        string threadId,
+        long tokens,
+        string? source,
+        CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
-        _metadataStore.SaveContextUsageTokens(threadId, tokens);
+        _metadataStore.SaveContextUsageTokens(threadId, tokens, source);
         return Task.CompletedTask;
     }
 
@@ -233,9 +240,17 @@ public sealed class ThreadStore
     /// Persists a context-window usage token count with anchor validation metadata.
     /// </summary>
     public Task SaveContextUsageAnchorAsync(string threadId, ContextUsageAnchor anchor, CancellationToken ct = default)
+        => SaveContextUsageAnchorAsync(threadId, anchor.Tokens, anchor, source: null, ct: ct);
+
+    public Task SaveContextUsageAnchorAsync(
+        string threadId,
+        long displayTokens,
+        ContextUsageAnchor anchor,
+        string? source,
+        CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
-        _metadataStore.SaveContextUsageAnchor(threadId, anchor);
+        _metadataStore.SaveContextUsageAnchor(threadId, displayTokens, anchor, source);
         return Task.CompletedTask;
     }
 

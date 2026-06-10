@@ -50,25 +50,34 @@ public sealed partial class SessionService
                 var pipeline = GetCompactionPipelineForThread(thread);
                 var historyForEstimate = SnapshotSessionHistoryForConsolidation(session, thread);
                 var tokenTracker = owner.AgentFactory.GetOrCreateTokenTracker(threadId);
-                var usageEstimate = owner.EstimateContextTokens(
-                    threadId,
-                    historyForEstimate,
-                    tokenTracker.LastInputTokens);
-                var before = (int)Math.Min(int.MaxValue, usageEstimate.Tokens);
                 var manualPromptSnapshot = owner.TryPrepareManualPromptRequestSnapshot(
                     threadId,
                     historyForEstimate,
-                    before);
+                    estimatedInputTokens: null);
+                var usageEstimate = owner.EstimateContextTokens(
+                    threadId,
+                    historyForEstimate,
+                    tokenTracker.LastContextTokens,
+                    manualPromptSnapshot);
+                var before = (int)Math.Min(int.MaxValue, usageEstimate.Tokens);
+                if (manualPromptSnapshot is not null)
+                    manualPromptSnapshot = manualPromptSnapshot with { EstimatedInputTokens = before };
                 var fallbackTools = manualPromptSnapshot?.Tools is { Count: > 0 }
                     ? null
                     : await RebuildCurrentThreadToolsForCompactionAsync(thread, maintenanceCt);
                 var beforeThreshold = pipeline.EvaluateThreshold(before);
+                var beforeUsage = owner.CreateContextUsageSnapshot(
+                    threadId,
+                    before,
+                    usageEstimate.Source,
+                    usageEstimate.IsEstimate);
                 var broker = owner.GetOrCreateBroker(threadId);
 
                 broker.PublishSystemEvent(
                     "compacting",
                     percentLeft: beforeThreshold.PercentLeft,
-                    tokenCount: beforeThreshold.Tokens);
+                    tokenCount: beforeThreshold.Tokens,
+                    contextUsage: beforeUsage);
 
                 CompactionStatus status;
                 try
@@ -97,7 +106,8 @@ public sealed partial class SessionService
                         "compactCancelled",
                         message: "cancelled",
                         percentLeft: beforeThreshold.PercentLeft,
-                        tokenCount: beforeThreshold.Tokens);
+                        tokenCount: beforeThreshold.Tokens,
+                        contextUsage: beforeUsage);
                     return await FinishAsync(new ThreadCompactResult
                     {
                         Outcome = "cancelled",
@@ -112,7 +122,8 @@ public sealed partial class SessionService
                         "compactFailed",
                         message: ex.Message,
                         percentLeft: beforeThreshold.PercentLeft,
-                        tokenCount: beforeThreshold.Tokens);
+                        tokenCount: beforeThreshold.Tokens,
+                        contextUsage: beforeUsage);
                     return await FinishAsync(new ThreadCompactResult
                     {
                         Outcome = "failed",
@@ -131,7 +142,9 @@ public sealed partial class SessionService
                         var contextUsage = await owner.SaveContextUsageSnapshotAsync(
                             threadId,
                             status.ThresholdAfter.Tokens,
-                            maintenanceCt);
+                            source: "compacted_estimate",
+                            isEstimate: true,
+                            ct: maintenanceCt);
                         owner.ClearContextUsageAnchor(threadId);
                         owner.ReleaseStableContextPages(threadId);
                         if (status.Outcome == CompactionOutcome.Partial)
@@ -177,7 +190,8 @@ public sealed partial class SessionService
                             "compactSkipped",
                             message: status.FailureReason,
                             percentLeft: status.ThresholdAfter.PercentLeft,
-                            tokenCount: status.ThresholdAfter.Tokens);
+                            tokenCount: status.ThresholdAfter.Tokens,
+                            contextUsage: beforeUsage);
                         return await FinishAsync(new ThreadCompactResult
                         {
                             Outcome = "skipped",
@@ -190,7 +204,8 @@ public sealed partial class SessionService
                             "compactFailed",
                             message: status.FailureReason,
                             percentLeft: status.ThresholdAfter.PercentLeft,
-                            tokenCount: status.ThresholdAfter.Tokens);
+                            tokenCount: status.ThresholdAfter.Tokens,
+                            contextUsage: beforeUsage);
                         return await FinishAsync(new ThreadCompactResult
                         {
                             Outcome = "failed",

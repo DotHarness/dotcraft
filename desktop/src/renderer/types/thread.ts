@@ -188,6 +188,8 @@ export interface ContextUsageSnapshotWire {
   warningThreshold: number
   errorThreshold: number
   percentLeft: number
+  source?: string | null
+  isEstimate?: boolean
 }
 
 export type ThreadPlanTodoStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled'

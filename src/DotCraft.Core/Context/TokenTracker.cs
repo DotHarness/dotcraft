@@ -16,6 +16,7 @@ public sealed class TokenTracker
     }
 
     private long _lastInputTokens;
+    private long _lastContextTokens;
     private long _totalInputTokens;
     private long _totalOutputTokens;
     private long _totalCachedInputTokens;
@@ -32,6 +33,11 @@ public sealed class TokenTracker
     /// Input tokens from the most recent LLM call (for context compaction threshold).
     /// </summary>
     public long LastInputTokens => Interlocked.Read(ref _lastInputTokens);
+
+    /// <summary>
+    /// Context-pressure tokens from the most recent LLM call, including output tokens when available.
+    /// </summary>
+    public long LastContextTokens => Interlocked.Read(ref _lastContextTokens);
 
     /// <summary>
     /// Cumulative input tokens across all LLM calls in this session turn.
@@ -55,6 +61,7 @@ public sealed class TokenTracker
     public void Update(long inputTokens, long outputTokens, long cachedInputTokens, long reasoningOutputTokens)
     {
         Interlocked.Exchange(ref _lastInputTokens, inputTokens);
+        Interlocked.Exchange(ref _lastContextTokens, Math.Max(0, inputTokens) + Math.Max(0, outputTokens));
         Interlocked.Add(ref _totalInputTokens, inputTokens);
         Interlocked.Add(ref _totalOutputTokens, outputTokens);
         Interlocked.Add(ref _totalCachedInputTokens, cachedInputTokens);
@@ -64,6 +71,7 @@ public sealed class TokenTracker
     public void Update(long inputTokens, long outputTokens, long cachedInputTokens, long cacheWriteInputTokens, long reasoningOutputTokens)
     {
         Interlocked.Exchange(ref _lastInputTokens, inputTokens);
+        Interlocked.Exchange(ref _lastContextTokens, Math.Max(0, inputTokens) + Math.Max(0, outputTokens));
         Interlocked.Add(ref _totalInputTokens, inputTokens);
         Interlocked.Add(ref _totalOutputTokens, outputTokens);
         Interlocked.Add(ref _totalCachedInputTokens, cachedInputTokens);
@@ -73,7 +81,7 @@ public sealed class TokenTracker
 
     /// <summary>
     /// Accumulate per-notification usage deltas from streaming (where snapshots are cumulative)
-    /// and record the latest cumulative input token count for <see cref="LastInputTokens"/> compaction checks.
+    /// and record the latest cumulative context token count for compaction checks.
     /// </summary>
     public void UpdateWithStreamingDeltas(long deltaInput, long deltaOutput, long cumulativeInputSnapshot)
         => UpdateWithStreamingDeltas(deltaInput, deltaOutput, 0, 0, cumulativeInputSnapshot);
@@ -86,6 +94,9 @@ public sealed class TokenTracker
         long cumulativeInputSnapshot)
     {
         Interlocked.Exchange(ref _lastInputTokens, cumulativeInputSnapshot);
+        Interlocked.Exchange(
+            ref _lastContextTokens,
+            Math.Max(0, cumulativeInputSnapshot));
         Interlocked.Add(ref _totalInputTokens, deltaInput);
         Interlocked.Add(ref _totalOutputTokens, deltaOutput);
         Interlocked.Add(ref _totalCachedInputTokens, deltaCachedInput);
@@ -99,8 +110,28 @@ public sealed class TokenTracker
         long deltaCacheWriteInput,
         long deltaReasoningOutput,
         long cumulativeInputSnapshot)
+        => UpdateWithStreamingDeltas(
+            deltaInput,
+            deltaOutput,
+            deltaCachedInput,
+            deltaCacheWriteInput,
+            deltaReasoningOutput,
+            cumulativeInputSnapshot,
+            cumulativeOutputSnapshot: 0);
+
+    public void UpdateWithStreamingDeltas(
+        long deltaInput,
+        long deltaOutput,
+        long deltaCachedInput,
+        long deltaCacheWriteInput,
+        long deltaReasoningOutput,
+        long cumulativeInputSnapshot,
+        long cumulativeOutputSnapshot)
     {
         Interlocked.Exchange(ref _lastInputTokens, cumulativeInputSnapshot);
+        Interlocked.Exchange(
+            ref _lastContextTokens,
+            Math.Max(0, cumulativeInputSnapshot) + Math.Max(0, cumulativeOutputSnapshot));
         Interlocked.Add(ref _totalInputTokens, deltaInput);
         Interlocked.Add(ref _totalOutputTokens, deltaOutput);
         Interlocked.Add(ref _totalCachedInputTokens, deltaCachedInput);
@@ -142,6 +173,7 @@ public sealed class TokenTracker
     public void Reset()
     {
         Interlocked.Exchange(ref _lastInputTokens, 0);
+        Interlocked.Exchange(ref _lastContextTokens, 0);
         Interlocked.Exchange(ref _totalInputTokens, 0);
         Interlocked.Exchange(ref _totalOutputTokens, 0);
         Interlocked.Exchange(ref _totalCachedInputTokens, 0);

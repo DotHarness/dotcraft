@@ -700,14 +700,14 @@ internal sealed class ThreadMetadataStore(StateRuntime stateRuntime)
         using var connection = stateRuntime.OpenConnection();
         using var command = connection.CreateCommand();
         command.CommandText = """
-            SELECT context_usage_tokens, message_count, prefix_fingerprint
+            SELECT anchor_tokens, message_count, prefix_fingerprint, request_fingerprint, anchor_boundary
             FROM thread_context_usage
             WHERE thread_id = $thread_id
             LIMIT 1
             """;
         command.Parameters.AddWithValue("$thread_id", threadId);
         using var reader = command.ExecuteReader();
-        if (!reader.Read() || reader.IsDBNull(1) || reader.IsDBNull(2))
+        if (!reader.Read() || reader.IsDBNull(0) || reader.IsDBNull(1) || reader.IsDBNull(2))
             return null;
 
         var fingerprint = reader.GetString(2);
@@ -717,45 +717,94 @@ internal sealed class ThreadMetadataStore(StateRuntime stateRuntime)
         return new ContextUsageAnchor(
             Tokens: reader.GetInt64(0),
             MessageCount: reader.GetInt32(1),
-            PrefixFingerprint: fingerprint);
+            PrefixFingerprint: fingerprint,
+            RequestFingerprint: reader.IsDBNull(3) ? null : reader.GetString(3),
+            BoundaryKind: reader.IsDBNull(4) ? null : reader.GetString(4));
     }
 
-    public void SaveContextUsageTokens(string threadId, long tokens)
+    public void SaveContextUsageTokens(string threadId, long tokens, string? source = null)
     {
         using var connection = stateRuntime.OpenConnection();
         using var command = connection.CreateCommand();
         command.CommandText = """
-            INSERT INTO thread_context_usage(thread_id, context_usage_tokens, message_count, prefix_fingerprint, updated_at)
-            VALUES ($thread_id, $tokens, NULL, NULL, $updated_at)
+            INSERT INTO thread_context_usage(
+                thread_id,
+                context_usage_tokens,
+                anchor_tokens,
+                message_count,
+                prefix_fingerprint,
+                request_fingerprint,
+                anchor_boundary,
+                usage_source,
+                updated_at)
+            VALUES ($thread_id, $tokens, NULL, NULL, NULL, NULL, NULL, $usage_source, $updated_at)
             ON CONFLICT(thread_id) DO UPDATE SET
                 context_usage_tokens = excluded.context_usage_tokens,
+                anchor_tokens = NULL,
                 message_count = NULL,
                 prefix_fingerprint = NULL,
+                request_fingerprint = NULL,
+                anchor_boundary = NULL,
+                usage_source = excluded.usage_source,
                 updated_at = excluded.updated_at
             """;
         command.Parameters.AddWithValue("$thread_id", threadId);
         command.Parameters.AddWithValue("$tokens", Math.Max(0, tokens));
+        command.Parameters.AddWithValue("$usage_source", (object?)source ?? DBNull.Value);
         command.Parameters.AddWithValue("$updated_at", DateTimeOffset.UtcNow.UtcDateTime.ToString("O"));
         command.ExecuteNonQuery();
     }
 
     public void SaveContextUsageAnchor(string threadId, ContextUsageAnchor anchor)
+        => SaveContextUsageAnchor(threadId, anchor.Tokens, anchor);
+
+    public void SaveContextUsageAnchor(
+        string threadId,
+        long displayTokens,
+        ContextUsageAnchor anchor,
+        string? source = null)
     {
         using var connection = stateRuntime.OpenConnection();
         using var command = connection.CreateCommand();
         command.CommandText = """
-            INSERT INTO thread_context_usage(thread_id, context_usage_tokens, message_count, prefix_fingerprint, updated_at)
-            VALUES ($thread_id, $tokens, $message_count, $prefix_fingerprint, $updated_at)
+            INSERT INTO thread_context_usage(
+                thread_id,
+                context_usage_tokens,
+                anchor_tokens,
+                message_count,
+                prefix_fingerprint,
+                request_fingerprint,
+                anchor_boundary,
+                usage_source,
+                updated_at)
+            VALUES (
+                $thread_id,
+                $display_tokens,
+                $anchor_tokens,
+                $message_count,
+                $prefix_fingerprint,
+                $request_fingerprint,
+                $anchor_boundary,
+                $usage_source,
+                $updated_at)
             ON CONFLICT(thread_id) DO UPDATE SET
                 context_usage_tokens = excluded.context_usage_tokens,
+                anchor_tokens = excluded.anchor_tokens,
                 message_count = excluded.message_count,
                 prefix_fingerprint = excluded.prefix_fingerprint,
+                request_fingerprint = excluded.request_fingerprint,
+                anchor_boundary = excluded.anchor_boundary,
+                usage_source = excluded.usage_source,
                 updated_at = excluded.updated_at
             """;
         command.Parameters.AddWithValue("$thread_id", threadId);
-        command.Parameters.AddWithValue("$tokens", Math.Max(0, anchor.Tokens));
+        command.Parameters.AddWithValue("$display_tokens", Math.Max(0, displayTokens));
+        command.Parameters.AddWithValue("$anchor_tokens", Math.Max(0, anchor.Tokens));
         command.Parameters.AddWithValue("$message_count", Math.Max(0, anchor.MessageCount));
         command.Parameters.AddWithValue("$prefix_fingerprint", (object?)anchor.PrefixFingerprint ?? DBNull.Value);
+        command.Parameters.AddWithValue("$request_fingerprint", (object?)anchor.RequestFingerprint ?? DBNull.Value);
+        command.Parameters.AddWithValue("$anchor_boundary", (object?)anchor.BoundaryKind ?? DBNull.Value);
+        command.Parameters.AddWithValue("$usage_source", (object?)source ?? DBNull.Value);
         command.Parameters.AddWithValue("$updated_at", DateTimeOffset.UtcNow.UtcDateTime.ToString("O"));
         command.ExecuteNonQuery();
     }

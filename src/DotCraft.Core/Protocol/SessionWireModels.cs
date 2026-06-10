@@ -93,13 +93,12 @@ public sealed record SessionExtensionCapability
 
 /// <summary>
 /// Snapshot of the per-thread context-window usage used to drive the desktop token ring.
-/// Tokens comes from persisted per-thread context usage state, not billing usage
-/// or historical message estimation.
+/// Tokens come from per-thread context pressure state, not billing usage.
 /// </summary>
 public sealed record ContextUsageSnapshot
 {
     /// <summary>
-    /// Persisted input tokens currently occupying the context window.
+    /// Tokens currently occupying the context window.
     /// This is context occupancy, not billing or cumulative turn usage.
     /// </summary>
     public long Tokens { get; init; }
@@ -129,6 +128,18 @@ public sealed record ContextUsageSnapshot
     /// Percent of the effective context window still available (0.0 - 1.0).
     /// </summary>
     public double PercentLeft { get; init; }
+
+    /// <summary>
+    /// Diagnostic source for the token count, such as <c>provider_context</c> or <c>estimate</c>.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Source { get; init; }
+
+    /// <summary>
+    /// True when the token count includes local message estimation rather than a provider-reported snapshot only.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool IsEstimate { get; init; }
 }
 
 /// <summary>

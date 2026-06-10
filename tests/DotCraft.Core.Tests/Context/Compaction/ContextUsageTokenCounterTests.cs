@@ -59,17 +59,20 @@ public sealed class ContextUsageTokenCounterTests
         var anchor = new ContextUsageAnchor(
             Tokens: 10_000,
             MessageCount: 2,
-            PrefixFingerprint: MessageTokenEstimator.ComputePrefixFingerprint(messages, 2));
+            PrefixFingerprint: MessageTokenEstimator.ComputePrefixFingerprint(messages, 2),
+            RequestFingerprint: "request-a");
 
         var estimate = ContextTokenUsageEstimator.Estimate(
             messages,
             memoryAnchor: null,
             persistedAnchor: anchor,
-            latestProviderTokens: 0,
-            persistedTokens: 190_000);
+            latestContextTokens: 0,
+            persistedDisplayTokens: 190_000,
+            requestFingerprint: "request-a");
 
         Assert.Equal("persisted_anchor", estimate.Source);
         Assert.Equal(10_000 + MessageTokenEstimator.EstimateDelta([messages[2]]), estimate.Tokens);
+        Assert.True(estimate.EligibleForAutoCompact);
     }
 
     [Fact]
@@ -86,15 +89,16 @@ public sealed class ContextUsageTokenCounterTests
             messages,
             memoryAnchor: null,
             persistedAnchor: null,
-            latestProviderTokens: 10,
-            persistedTokens: 20);
+            latestContextTokens: 10,
+            persistedDisplayTokens: 20,
+            requestFingerprint: "request-a");
 
         Assert.Equal("estimate", estimate.Source);
         Assert.Equal(rough, estimate.Tokens);
     }
 
     [Fact]
-    public void ContextTokenUsageEstimator_StillUsesProviderOrPersistedWhenGreaterThanRoughEstimate()
+    public void ContextTokenUsageEstimator_UsesProviderContextButNotRawPersistedDisplayForAutoCompact()
     {
         var messages = new List<ChatMessage> { new(ChatRole.User, "short") };
         var rough = MessageTokenEstimator.Estimate(messages);
@@ -103,19 +107,54 @@ public sealed class ContextUsageTokenCounterTests
             messages,
             memoryAnchor: null,
             persistedAnchor: null,
-            latestProviderTokens: rough + 1_000,
-            persistedTokens: 0);
+            latestContextTokens: rough + 1_000,
+            persistedDisplayTokens: 0,
+            requestFingerprint: "request-a");
         var persistedEstimate = ContextTokenUsageEstimator.Estimate(
             messages,
             memoryAnchor: null,
             persistedAnchor: null,
-            latestProviderTokens: rough + 1_000,
-            persistedTokens: rough + 2_000);
+            latestContextTokens: 0,
+            persistedDisplayTokens: rough + 2_000,
+            requestFingerprint: "request-a");
 
-        Assert.Equal("provider", providerEstimate.Source);
+        Assert.Equal("provider_context", providerEstimate.Source);
         Assert.Equal(rough + 1_000, providerEstimate.Tokens);
-        Assert.Equal("persisted", persistedEstimate.Source);
-        Assert.Equal(rough + 2_000, persistedEstimate.Tokens);
+        Assert.True(providerEstimate.EligibleForAutoCompact);
+        Assert.Equal("estimate", persistedEstimate.Source);
+        Assert.Equal(rough, persistedEstimate.Tokens);
+        Assert.True(persistedEstimate.EligibleForAutoCompact);
+    }
+
+    [Fact]
+    public void EstimateFromAnchor_ValidatesRequestFingerprint()
+    {
+        var messages = new List<ChatMessage>
+        {
+            new(ChatRole.User, "first user"),
+            new(ChatRole.Assistant, "first assistant")
+        };
+        var anchor = new ContextUsageAnchor(
+            Tokens: 190_000,
+            MessageCount: 2,
+            PrefixFingerprint: MessageTokenEstimator.ComputePrefixFingerprint(messages, 2),
+            RequestFingerprint: "request-a");
+
+        Assert.NotNull(ContextUsageTokenCounter.EstimateFromAnchor(
+            anchor,
+            messages,
+            requestFingerprint: "request-a",
+            requireRequestFingerprint: true));
+        Assert.Null(ContextUsageTokenCounter.EstimateFromAnchor(
+            anchor,
+            messages,
+            requestFingerprint: "request-b",
+            requireRequestFingerprint: true));
+        Assert.Null(ContextUsageTokenCounter.EstimateFromAnchor(
+            anchor with { RequestFingerprint = null },
+            messages,
+            requestFingerprint: "request-a",
+            requireRequestFingerprint: true));
     }
 
     [Fact]

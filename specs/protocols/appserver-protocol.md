@@ -891,20 +891,24 @@ When paged, the first `thread/read` page returns the most recent `turnLimit` tur
 
 The `Thread` wire object may include `plan?: PlanSnapshot | null`. When present, it is the current persisted plan for that exact thread from `thread_plans`, using the same `title`, `overview`, `content`, and `todos` shape as `plan/updated`. Clients should use this field to restore plan/todo UI after switching threads.
 
-**`contextUsage` field**: When the server has persisted context-window occupancy for the thread, the returned `Thread` carries an optional `contextUsage` snapshot for the desktop token ring. This snapshot is not billing usage and must not be derived from cumulative `Turn.tokenUsage` totals or message-history estimation:
+**`contextUsage` field**: When the server has persisted context-window occupancy for the thread, the returned `Thread` carries an optional `contextUsage` snapshot for the desktop token ring. This snapshot is not billing usage and must not be derived from cumulative `Turn.tokenUsage` totals. Its token count represents context pressure from the latest usable provider context snapshot (input/cache/output where the provider reports it) plus an estimate for model-visible messages appended after that snapshot; after compaction, rollback, or another history replacement, old anchors are invalid and the snapshot falls back to the replacement history estimate until the next provider usage arrives:
 
 ```
 "contextUsage": {
-  "tokens": number,                // Approximate input tokens currently occupying context
+  "tokens": number,                // Approximate tokens currently occupying context
   "contextWindow": number,         // Effective context window for the thread's effective model (denominator)
   "autoCompactThreshold": number,  // Token count at which auto-compact runs
   "warningThreshold": number,      // Token count at which compactWarning starts firing
   "errorThreshold": number,        // Token count at which compactError starts firing
-  "percentLeft": number            // Fraction of the context window still available (0.0 - 1.0)
+  "percentLeft": number,           // Fraction of the context window still available (0.0 - 1.0)
+  "source": string,                // Optional diagnostic source, e.g. "provider_context" or "estimate"
+  "isEstimate": boolean            // Optional; true when tokens are estimated rather than provider-reported
 }
 ```
 
 The same snapshot is also embedded on `thread/start` and `thread/resume` responses (and their matching `thread/started` / `thread/resumed` notifications) so clients can seed the token ring without an extra round-trip. When `Compaction.ContextWindow` is inferred from the model catalog, `contextWindow` is computed from the thread's effective model, including `Thread.configuration.model` overrides. Freshly-created threads initialize persisted context usage to `tokens = 0`; the field is omitted only for older threads or hosts that have no persisted context usage state yet.
+
+Persisted context usage is display state. A stored token count without a matching provider anchor for the current model-visible history and request shape must not by itself trigger automatic compaction.
 
 ### 4.5 `thread/rollback`
 
@@ -2170,13 +2174,13 @@ Emitted each time the agent completes an LLM iteration and produces a `UsageCont
 | `freshInputTokens` | integer | Derived fresh input delta: `max(0, inputTokens - cachedInputTokens - cacheWriteInputTokens)`. |
 | `reasoningOutputTokens` | integer | Reasoning output tokens consumed in this LLM iteration (delta, not cumulative). |
 | `llmCallDelta` | integer | Optional. `1` when this delta starts a new LLM request, otherwise `0`. |
-| `contextInputTokens` | integer | Optional. Persisted context-occupancy input-token snapshot for the thread. Drives the desktop context-usage ring without waiting for turn completion. It is not billing/cumulative thread usage. |
+| `contextInputTokens` | integer | Optional. Latest provider input-token snapshot for the request. It is not billing/cumulative thread usage. |
 | `totalInputTokens` | integer | Optional. Backward-compatible alias of `contextInputTokens`; not billing/cumulative thread usage. |
 | `turnInputTokens` | integer | Optional. Cumulative billing input tokens emitted so far in the current turn. |
 | `totalOutputTokens` | integer | Optional. Backward-compatible cumulative output tokens emitted so far in the current turn. |
 | `turnOutputTokens` | integer | Optional. Cumulative billing output tokens emitted so far in the current turn. |
 | `turnLlmCalls` | integer | Optional. Cumulative LLM request count emitted so far in the current turn. |
-| `contextUsage` | object | Optional. Full `ContextUsageSnapshot` matching `totalInputTokens`, including thresholds needed to seed the desktop token ring. |
+| `contextUsage` | object | Optional. Full `ContextUsageSnapshot` for current context pressure, including thresholds needed to seed the desktop token ring. Its `tokens` may include output/cache pressure and therefore may be greater than `contextInputTokens`. |
 
 **Emission rules**:
 
@@ -2184,8 +2188,8 @@ Emitted each time the agent completes an LLM iteration and produces a `UsageCont
 - Each notification carries only the delta for the current LLM request. Providers may emit cumulative usage snapshots within one request; Session Core normalizes those snapshots before emitting.
 - The sum of all `item/usage/delta` notifications for a Turn's main agent equals the main-agent billing portion of `turn/completed.tokenUsage`.
 - `turn/completed.tokenUsage` is the final aggregate for the Turn. Clients that already consumed `item/usage/delta` notifications must treat it as a final snapshot, not an additional delta to add again.
-- Context-window occupancy is separate: `contextInputTokens`/`totalInputTokens` is the latest main-agent request input snapshot, not the billing sum.
-- Example: if one Turn has request input snapshots `12000 | 20000 | 41000`, `turnInputTokens` reaches `73000`, while `contextInputTokens` remains `41000`.
+- Context-window occupancy is separate: `contextInputTokens`/`totalInputTokens` is the latest main-agent request input snapshot, not the billing sum; `contextUsage.tokens` is the ring/threshold value and may also include provider output/cache tokens plus appended-message estimation.
+- Example: if one Turn has request input snapshots `12000 | 20000 | 41000`, `turnInputTokens` reaches `73000`, while `contextInputTokens` remains `41000`. If the final request also generated `3000` output tokens, `contextUsage.tokens` is at least `44000`.
 - Cache-hit accounting is cumulative by the same rule: `cachedInputTokens` deltas sum to the Turn's cache-hit input total, so dashboards can show how much of `turnInputTokens` came from cache hits.
 - SubAgent tokens are reported separately via `subagent/progress` and are not included in `item/usage/delta`.
 - Clients that do not need real-time token display can opt out via `optOutNotificationMethods: ["item/usage/delta"]` during `initialize`.
@@ -2246,7 +2250,7 @@ Emitted when a system-level maintenance operation occurs during a Turn's post-pr
 | `message` | string? | Compatibility alias for `fallbackText`. New clients should prefer `messageKey` + `params` + `fallbackText`. |
 | `percentLeft` | number? | Fraction of the effective context window still unused (`0.0`-`1.0`). Populated for compaction-related events. |
 | `tokenCount` | number? | Current estimated prompt token usage. Populated for compaction-related events. |
-| `contextUsage` | object? | Full `ContextUsageSnapshot` on successful `compacted` events when available. Clients should prefer it over `tokenCount` / `percentLeft` when updating context-window UI because it includes thresholds. |
+| `contextUsage` | object? | Full `ContextUsageSnapshot` on compaction-related events when available. Clients should prefer it over `tokenCount` / `percentLeft` when updating context-window UI because it includes thresholds and the exact server-side token source. |
 
 **Defined `kind` values**:
 
