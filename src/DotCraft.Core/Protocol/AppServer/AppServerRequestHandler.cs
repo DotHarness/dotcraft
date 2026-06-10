@@ -61,7 +61,6 @@ public sealed class AppServerRequestHandler(
     private readonly LspServerManager? lspServerManager = services.LspServerManager;
     private readonly SessionStreamDebugLogger? streamDebugLogger = services.StreamDebugLogger;
     private readonly IAppConfigMonitor? appConfigMonitor = services.AppConfigMonitor;
-    private readonly OpenAIClientProvider? openAIClientProvider = services.OpenAIClientProvider;
     private readonly IOpenAIAuthService? openAIAuthService = services.OpenAIAuthService;
     private readonly IOpenAIUsageService? openAIUsageService = services.OpenAIUsageService;
     private readonly IBackgroundTerminalService? backgroundTerminalService = services.BackgroundTerminalService;
@@ -115,6 +114,7 @@ public sealed class AppServerRequestHandler(
     private WorkspaceConfigEditor? _workspaceConfig;
     private AppServerMcpConfigService? _mcpConfig;
     private ExternalChannelConfigService? _externalChannelConfig;
+    private AppServerRuntimeConfigRefresher? _runtimeConfig;
 
     /// <summary>
     /// Shared skill-variant resolver (variant mode + per-connection target), consulted by the
@@ -131,6 +131,9 @@ public sealed class AppServerRequestHandler(
 
     private ExternalChannelConfigService ExternalChannelConfig => _externalChannelConfig ??=
         new ExternalChannelConfigService(channelListContributor, workspaceCraftPath);
+
+    private AppServerRuntimeConfigRefresher RuntimeConfig => _runtimeConfig ??=
+        new AppServerRuntimeConfigRefresher(sessionService, appConfigMonitor, workspaceCraftPath, WorkspaceConfig);
 
     private AppServerMethodTable? _domainMethods;
 
@@ -158,6 +161,7 @@ public sealed class AppServerRequestHandler(
         new SkillsRequestHandler(services.SkillsLoader, services.ContextPageManager, services.AppConfigMonitor, services.WorkspaceCraftPath, SkillVariants),
         new McpRequestHandler(services.McpClientManager, McpConfig, services.AppConfigMonitor, services.BroadcastMcpStatusChanged),
         new ChannelRequestHandler(channelListContributor, services.ChannelStatusProvider, WorkspaceConfig, ExternalChannelConfig, services.WorkspaceCraftPath, services.AppConfigMonitor, services.OnExternalChannelUpserted, services.OnExternalChannelRemoved, services.ExternalChannelLogProvider),
+        new ProviderRequestHandler(transport, WorkspaceConfig, RuntimeConfig, services.WorkspaceCraftPath, services.AppConfigMonitor, services.OpenAIClientProvider, services.OpenAIAuthService, services.OpenAIUsageService),
         new UsageRequestHandler(services.TraceStore, services.SkillsLoader, sessionService, services.HostWorkspacePath),
         new AutomationRequestHandler(services.AutomationsHandler),
     ];
@@ -314,16 +318,6 @@ public sealed class AppServerRequestHandler(
             return await (method switch
             {
                 AppServerMethods.Initialize => HandleInitializeAsync(msg, ct),
-                AppServerMethods.ProviderList => HandleProviderListAsync(msg, ct),
-                AppServerMethods.ProviderCreate => HandleProviderCreateAsync(msg, ct),
-                AppServerMethods.ProviderUpdate => HandleProviderUpdateAsync(msg, ct),
-                AppServerMethods.ProviderDelete => HandleProviderDeleteAsync(msg, ct),
-                AppServerMethods.ProviderTest => HandleProviderTestAsync(msg, ct),
-                AppServerMethods.ModelList => HandleModelListAsync(msg, ct),
-                AppServerMethods.AuthOpenAiStatus => HandleAuthOpenAiStatusAsync(msg, ct),
-                AppServerMethods.AuthOpenAiLogin => HandleAuthOpenAiLoginAsync(msg, ct),
-                AppServerMethods.AuthOpenAiLogout => HandleAuthOpenAiLogoutAsync(msg, ct),
-                AppServerMethods.AuthOpenAiUsage => HandleAuthOpenAiUsageAsync(msg, ct),
                 AppServerMethods.SubAgentProfileList => HandleSubAgentProfileListAsync(msg, ct),
                 AppServerMethods.SubAgentSettingsUpdate => HandleSubAgentSettingsUpdateAsync(msg, ct),
                 AppServerMethods.SubAgentProfileSetEnabled => HandleSubAgentProfileSetEnabledAsync(msg, ct),
@@ -1177,340 +1171,6 @@ public sealed class AppServerRequestHandler(
         }
     }
 
-    private Task<object?> HandleProviderListAsync(AppServerIncomingMessage msg, CancellationToken ct)
-    {
-        _ = GetParams<ProviderListParams>(msg);
-        _ = ct;
-        EnsureProviderManagementAvailable();
-
-        var config = LoadCurrentMergedConfig();
-        return Task.FromResult<object?>(new ProviderListResult
-        {
-            Providers = BuildProviderInfos(config)
-        });
-    }
-
-    private Task<object?> HandleProviderCreateAsync(AppServerIncomingMessage msg, CancellationToken ct)
-    {
-        _ = ct;
-        EnsureProviderManagementAvailable();
-        var p = GetParams<ProviderCreateParams>(msg);
-        var id = NormalizeProviderId(p.Id);
-        var protocol = NormalizeProviderProtocol(p.Protocol);
-        ValidateProviderPayload(
-            id,
-            protocol,
-            p.EndPoint,
-            p.NetworkTimeoutSeconds,
-            p.MaxOutputTokens,
-            p.StreamMaxRetries,
-            p.StreamIdleTimeoutMs);
-
-        var configPath = GetPersonalConfigPath();
-        var root = LoadWorkspaceConfigObject(configPath);
-        var providers = GetOrCreateConfigSection(root, "Providers", createIfMissing: true)!;
-        if (FindCaseInsensitiveKey(providers, id) != null)
-            throw AppServerErrors.InvalidParams($"Provider '{id}' already exists.");
-
-        var provider = new JsonObject();
-        providers[id] = provider;
-        UpsertOrRemoveConfigValue(provider, null, "DisplayName", NormalizeOptionalString(p.DisplayName) ?? id);
-        UpsertOrRemoveConfigValue(provider, null, "Protocol", protocol);
-        UpsertOrRemoveConfigValue(provider, null, "ApiKey", NormalizeOptionalString(p.ApiKey));
-        UpsertOrRemoveConfigValue(provider, null, "EndPoint", NormalizeOptionalString(p.EndPoint));
-        UpsertOrRemoveConfigValue(provider, null, "NetworkTimeoutSeconds", NormalizeNetworkTimeout(p.NetworkTimeoutSeconds));
-        UpsertOrRemoveConfigValue(provider, null, "MaxOutputTokens", NormalizeMaxOutputTokens(p.MaxOutputTokens));
-        UpsertOrRemoveConfigValue(provider, null, "StreamMaxRetries", NormalizeStreamMaxRetries(p.StreamMaxRetries));
-        UpsertOrRemoveConfigValue(provider, null, "StreamIdleTimeoutMs", NormalizeStreamIdleTimeoutMs(p.StreamIdleTimeoutMs));
-        var createAuthMethod = ModelProviderAuthMethods.Normalize(p.AuthMethod);
-        UpsertOrRemoveConfigValue(provider, null, "AuthMethod",
-            createAuthMethod == ModelProviderAuthMethods.ApiKey ? null : createAuthMethod);
-        WriteConfigObject(configPath, root);
-
-        RefreshCurrentLlmConfig();
-        InvalidateThreadAgents();
-        appConfigMonitor?.NotifyChanged(AppServerMethods.ProviderCreate, [ConfigChangeRegions.ProviderRegistry]);
-
-        var current = LoadCurrentMergedConfig();
-        return Task.FromResult<object?>(new ProviderMutationResult
-        {
-            Provider = BuildProviderInfo(id, current.Providers[id], isImplicit: false)
-        });
-    }
-
-    private Task<object?> HandleProviderUpdateAsync(AppServerIncomingMessage msg, CancellationToken ct)
-    {
-        _ = ct;
-        EnsureProviderManagementAvailable();
-        if (!msg.Params.HasValue || msg.Params.Value.ValueKind != JsonValueKind.Object)
-            throw AppServerErrors.InvalidParams("'id' is required.");
-
-        var p = GetParams<ProviderUpdateParams>(msg);
-        var id = NormalizeProviderId(p.Id);
-
-        var configPath = GetPersonalConfigPath();
-        var root = LoadWorkspaceConfigObject(configPath);
-        var providers = GetOrCreateConfigSection(root, "Providers", createIfMissing: false)
-            ?? throw AppServerErrors.InvalidParams($"Provider '{id}' is not configured.");
-        var existingKey = FindCaseInsensitiveKey(providers, id)
-            ?? throw AppServerErrors.InvalidParams($"Provider '{id}' is not configured.");
-        if (providers[existingKey] is not JsonObject provider)
-            throw AppServerErrors.InvalidParams($"Provider '{id}' is not an object.");
-
-        var protocolKey = FindCaseInsensitiveKey(provider, "Protocol");
-        var persistedProtocol = ReadConfigStringValue(provider, protocolKey);
-        var currentProtocol = NormalizeProviderProtocol(persistedProtocol ?? ModelProviderProtocols.OpenAI);
-        var protocol = currentProtocol;
-        if (TryGetCaseInsensitiveProperty(msg.Params.Value, "protocol", out var protocolEl))
-            protocol = NormalizeProviderProtocol(ParseNullableString(protocolEl, "protocol"));
-        var endPoint = ReadConfigStringValue(provider, FindCaseInsensitiveKey(provider, "EndPoint"));
-        if (TryGetCaseInsensitiveProperty(msg.Params.Value, "endPoint", out var endPointEl))
-            endPoint = NormalizeOptionalString(ParseNullableString(endPointEl, "endPoint"));
-        int? timeout = ReadConfigIntegerValue(provider, FindCaseInsensitiveKey(provider, "NetworkTimeoutSeconds"));
-        if (TryGetCaseInsensitiveProperty(msg.Params.Value, "networkTimeoutSeconds", out var timeoutEl))
-            timeout = ParseNullableInteger(timeoutEl, "networkTimeoutSeconds");
-        int? maxOutputTokens = ReadConfigIntegerValue(provider, FindCaseInsensitiveKey(provider, "MaxOutputTokens"));
-        if (TryGetCaseInsensitiveProperty(msg.Params.Value, "maxOutputTokens", out var maxOutputTokensEl))
-            maxOutputTokens = ParseNullableInteger(maxOutputTokensEl, "maxOutputTokens");
-        int? streamMaxRetries = ReadConfigIntegerValue(provider, FindCaseInsensitiveKey(provider, "StreamMaxRetries"));
-        if (TryGetCaseInsensitiveProperty(msg.Params.Value, "streamMaxRetries", out var streamMaxRetriesEl))
-            streamMaxRetries = ParseNullableInteger(streamMaxRetriesEl, "streamMaxRetries");
-        int? streamIdleTimeoutMs = ReadConfigIntegerValue(provider, FindCaseInsensitiveKey(provider, "StreamIdleTimeoutMs"));
-        if (TryGetCaseInsensitiveProperty(msg.Params.Value, "streamIdleTimeoutMs", out var streamIdleTimeoutMsEl))
-            streamIdleTimeoutMs = ParseNullableInteger(streamIdleTimeoutMsEl, "streamIdleTimeoutMs");
-
-        ValidateProviderPayload(id, protocol, endPoint, timeout, maxOutputTokens, streamMaxRetries, streamIdleTimeoutMs);
-
-        if (TryGetCaseInsensitiveProperty(msg.Params.Value, "displayName", out var displayNameEl))
-            UpsertOrRemoveConfigValue(provider, FindCaseInsensitiveKey(provider, "DisplayName"), "DisplayName",
-                NormalizeOptionalString(ParseNullableString(displayNameEl, "displayName")) ?? id);
-        if (TryGetCaseInsensitiveProperty(msg.Params.Value, "protocol", out _)
-            || !string.Equals(persistedProtocol, protocol, StringComparison.Ordinal))
-        {
-            UpsertOrRemoveConfigValue(provider, protocolKey, "Protocol", protocol);
-        }
-        if (TryGetCaseInsensitiveProperty(msg.Params.Value, "apiKey", out var apiKeyEl))
-            UpsertOrRemoveConfigValue(provider, FindCaseInsensitiveKey(provider, "ApiKey"), "ApiKey",
-                NormalizeOptionalString(ParseNullableString(apiKeyEl, "apiKey")));
-        if (TryGetCaseInsensitiveProperty(msg.Params.Value, "endPoint", out _))
-            UpsertOrRemoveConfigValue(provider, FindCaseInsensitiveKey(provider, "EndPoint"), "EndPoint", endPoint);
-        if (TryGetCaseInsensitiveProperty(msg.Params.Value, "networkTimeoutSeconds", out _))
-            UpsertOrRemoveConfigValue(provider, FindCaseInsensitiveKey(provider, "NetworkTimeoutSeconds"), "NetworkTimeoutSeconds",
-                NormalizeNetworkTimeout(timeout));
-        if (TryGetCaseInsensitiveProperty(msg.Params.Value, "maxOutputTokens", out _))
-            UpsertOrRemoveConfigValue(provider, FindCaseInsensitiveKey(provider, "MaxOutputTokens"), "MaxOutputTokens",
-                NormalizeMaxOutputTokens(maxOutputTokens));
-        if (TryGetCaseInsensitiveProperty(msg.Params.Value, "streamMaxRetries", out _))
-            UpsertOrRemoveConfigValue(provider, FindCaseInsensitiveKey(provider, "StreamMaxRetries"), "StreamMaxRetries",
-                NormalizeStreamMaxRetries(streamMaxRetries));
-        if (TryGetCaseInsensitiveProperty(msg.Params.Value, "streamIdleTimeoutMs", out _))
-            UpsertOrRemoveConfigValue(provider, FindCaseInsensitiveKey(provider, "StreamIdleTimeoutMs"), "StreamIdleTimeoutMs",
-                NormalizeStreamIdleTimeoutMs(streamIdleTimeoutMs));
-        if (TryGetCaseInsensitiveProperty(msg.Params.Value, "authMethod", out var authMethodEl))
-        {
-            var updatedAuthMethod = ModelProviderAuthMethods.Normalize(ParseNullableString(authMethodEl, "authMethod"));
-            UpsertOrRemoveConfigValue(provider, FindCaseInsensitiveKey(provider, "AuthMethod"), "AuthMethod",
-                updatedAuthMethod == ModelProviderAuthMethods.ApiKey ? null : updatedAuthMethod);
-        }
-
-        WriteConfigObject(configPath, root);
-
-        RefreshCurrentLlmConfig();
-        InvalidateThreadAgents();
-        appConfigMonitor?.NotifyChanged(AppServerMethods.ProviderUpdate, [ConfigChangeRegions.ProviderRegistry]);
-
-        var current = LoadCurrentMergedConfig();
-        return Task.FromResult<object?>(new ProviderMutationResult
-        {
-            Provider = BuildProviderInfo(existingKey, current.Providers[existingKey], isImplicit: false)
-        });
-    }
-
-    private Task<object?> HandleProviderDeleteAsync(AppServerIncomingMessage msg, CancellationToken ct)
-    {
-        _ = ct;
-        EnsureProviderManagementAvailable();
-        var p = GetParams<ProviderDeleteParams>(msg);
-        var id = NormalizeProviderId(p.Id);
-
-        var current = LoadCurrentMergedConfig();
-        if (string.Equals(current.ProviderId, id, StringComparison.OrdinalIgnoreCase))
-            throw AppServerErrors.InvalidParams($"Provider '{id}' is selected by the active workspace.");
-
-        var configPath = GetPersonalConfigPath();
-        var root = LoadWorkspaceConfigObject(configPath);
-        var providers = GetOrCreateConfigSection(root, "Providers", createIfMissing: false);
-        var removed = false;
-        if (providers != null && FindCaseInsensitiveKey(providers, id) is { } existingKey)
-            removed = providers.Remove(existingKey);
-
-        if (providers is { Count: 0 })
-            root.Remove(FindCaseInsensitiveKey(root, "Providers") ?? "Providers");
-        if (removed)
-            WriteConfigObject(configPath, root);
-
-        if (removed)
-        {
-            RefreshCurrentLlmConfig();
-            InvalidateThreadAgents();
-            appConfigMonitor?.NotifyChanged(AppServerMethods.ProviderDelete, [ConfigChangeRegions.ProviderRegistry]);
-        }
-
-        return Task.FromResult<object?>(new ProviderDeleteResult { Deleted = removed });
-    }
-
-    private async Task<object?> HandleModelListAsync(AppServerIncomingMessage msg, CancellationToken ct)
-    {
-        var p = GetParams<ModelListParams>(msg);
-
-        if (string.IsNullOrWhiteSpace(workspaceCraftPath))
-            throw AppServerErrors.MethodNotFound(AppServerMethods.ModelList);
-
-        var config = appConfigMonitor?.Current
-            ?? AppConfig.LoadWithGlobalFallback(Path.Combine(workspaceCraftPath, "config.json"), GetEffectiveGlobalConfigPath());
-        var result = await ModelProviderCatalog.FetchAsync(config, NormalizeOptionalString(p.ProviderId), ct, openAIClientProvider);
-
-        return new ModelListResult
-        {
-            Success = result.Success,
-            ProviderId = result.ProviderId,
-            Protocol = result.Protocol,
-            Models = [.. result.Models.Select(m => new ModelCatalogItem
-            {
-                Id = m.Id,
-                OwnedBy = m.OwnedBy,
-                CreatedAt = m.CreatedAt,
-                Reasoning = MapReasoningCapability(ModelThinkingAdapterCatalog.ResolveReasoningCapability(
-                    config,
-                    result.Protocol,
-                    result.EndPoint,
-                    m.Id))
-            })],
-            ErrorCode = result.Success ? null : result.ErrorCode.ToString(),
-            ErrorMessage = result.Success ? null : FormatModelListErrorMessage(result.ErrorMessage, result.EndPoint)
-        };
-    }
-
-    private async Task<object?> HandleProviderTestAsync(AppServerIncomingMessage msg, CancellationToken ct)
-    {
-        EnsureProviderManagementAvailable();
-        var p = GetParams<ProviderTestParams>(msg);
-        var config = LoadCurrentMergedConfig();
-        var providerId = NormalizeOptionalString(p.ProviderId);
-
-        ModelCatalogResult result;
-        if (!string.IsNullOrWhiteSpace(providerId))
-        {
-            result = await ModelProviderCatalog.FetchAsync(config, providerId, ct, openAIClientProvider);
-        }
-        else
-        {
-            var protocol = NormalizeProviderProtocol(p.Protocol);
-            ValidateProviderPayload(
-                "__provider_test__",
-                protocol,
-                p.EndPoint,
-                p.NetworkTimeoutSeconds,
-                p.MaxOutputTokens,
-                p.StreamMaxRetries,
-                p.StreamIdleTimeoutMs);
-            var draftProviderId = "__provider_test__";
-            var draftConfig = new AppConfig
-            {
-                Model = string.IsNullOrWhiteSpace(config.Model) ? "gpt-4o-mini" : config.Model,
-                NetworkTimeoutSeconds = config.NetworkTimeoutSeconds,
-                Providers = new Dictionary<string, AppConfig.ModelProviderConfig>(StringComparer.OrdinalIgnoreCase)
-                {
-                    [draftProviderId] = new()
-                    {
-                        DisplayName = "Provider Test",
-                        Protocol = protocol,
-                        ApiKey = NormalizeOptionalString(p.ApiKey) ?? string.Empty,
-                        EndPoint = NormalizeOptionalString(p.EndPoint) ?? string.Empty,
-                        NetworkTimeoutSeconds = NormalizeNetworkTimeout(p.NetworkTimeoutSeconds),
-                        MaxOutputTokens = NormalizeMaxOutputTokens(p.MaxOutputTokens),
-                        StreamMaxRetries = NormalizeStreamMaxRetries(p.StreamMaxRetries),
-                        StreamIdleTimeoutMs = NormalizeStreamIdleTimeoutMs(p.StreamIdleTimeoutMs)
-                    }
-                }
-            };
-            result = await ModelProviderCatalog.FetchAsync(draftConfig, draftProviderId, ct, openAIClientProvider);
-            result.ProviderId = null;
-        }
-
-        return new ProviderTestResult
-        {
-            Success = result.Success,
-            ProviderId = result.ProviderId,
-            Protocol = result.Protocol ?? NormalizeProviderProtocol(p.Protocol),
-            Models = [.. result.Models.Select(m => new ModelCatalogItem
-            {
-                Id = m.Id,
-                OwnedBy = m.OwnedBy,
-                CreatedAt = m.CreatedAt,
-                Reasoning = MapReasoningCapability(ModelThinkingAdapterCatalog.ResolveReasoningCapability(
-                    config,
-                    result.Protocol ?? NormalizeProviderProtocol(p.Protocol),
-                    result.EndPoint,
-                    m.Id))
-            })],
-            ErrorCode = result.Success ? null : result.ErrorCode.ToString(),
-            ErrorMessage = result.Success ? null : FormatModelListErrorMessage(result.ErrorMessage, result.EndPoint)
-        };
-    }
-
-    private static string? FormatModelListErrorMessage(string? message, string? endpoint)
-    {
-        if (string.IsNullOrWhiteSpace(endpoint))
-            return message;
-
-        var baseMessage = string.IsNullOrWhiteSpace(message)
-            ? "Model list request failed."
-            : message.Trim();
-        return $"{baseMessage} Endpoint: {endpoint.Trim()}";
-    }
-
-    private static ModelReasoningCapability? MapReasoningCapability(
-        ModelThinkingAdapterCatalog.ReasoningCapabilityData? capability)
-    {
-        if (capability == null)
-            return null;
-
-        return new ModelReasoningCapability
-        {
-            SupportsDisable = capability.SupportsDisable,
-            SupportedEfforts = [.. capability.SupportedEfforts.Select(option => new ModelReasoningEffortOption
-            {
-                Effort = option.Effort,
-                Label = string.IsNullOrWhiteSpace(option.Label) ? DefaultReasoningEffortLabel(option.Effort) : option.Label!,
-                Description = string.IsNullOrWhiteSpace(option.Description)
-                    ? DefaultReasoningEffortDescription(option.Effort)
-                    : option.Description!
-            })],
-            DefaultEffort = capability.DefaultEffort,
-            SupportedOutputs = [.. capability.SupportedOutputs],
-            DefaultOutput = capability.DefaultOutput
-        };
-    }
-
-    private static string DefaultReasoningEffortLabel(ReasoningEffort effort) => effort switch
-    {
-        ReasoningEffort.Low => "Low",
-        ReasoningEffort.Medium => "Medium",
-        ReasoningEffort.High => "High",
-        ReasoningEffort.ExtraHigh => "Extra High",
-        _ => effort.ToString()
-    };
-
-    private static string DefaultReasoningEffortDescription(ReasoningEffort effort) => effort switch
-    {
-        ReasoningEffort.Low => "Faster, lighter reasoning.",
-        ReasoningEffort.Medium => "Balanced reasoning.",
-        ReasoningEffort.High => "Deeper reasoning.",
-        ReasoningEffort.ExtraHigh => "Maximum depth for supported models.",
-        _ => string.Empty
-    };
-
     private static void ValidateReasoningForRuntime(
         AppConfig config,
         string? providerId,
@@ -1557,127 +1217,12 @@ public sealed class AppServerRequestHandler(
         }
     }
 
-    private void EnsureProviderManagementAvailable()
-    {
-        if (string.IsNullOrWhiteSpace(workspaceCraftPath))
-            throw AppServerErrors.MethodNotFound("provider/*");
-    }
-
     private AppConfig LoadCurrentMergedConfig()
         => WorkspaceConfig.LoadCurrentMergedConfig();
 
     private string? GetEffectiveGlobalConfigPath() => WorkspaceConfig.EffectiveGlobalConfigPath;
 
     private string GetPersonalConfigPath() => WorkspaceConfig.PersonalConfigPath;
-
-    private static string NormalizeProviderId(string? id)
-    {
-        var normalized = NormalizeOptionalString(id);
-        if (string.IsNullOrWhiteSpace(normalized))
-            throw AppServerErrors.InvalidParams("'id' is required.");
-        if (normalized.IndexOfAny(['/', '\\', ':']) >= 0)
-            throw AppServerErrors.InvalidParams("'id' must not contain '/', '\\', or ':'.");
-        return normalized;
-    }
-
-    private static void ValidateProviderPayload(
-        string id,
-        string protocol,
-        string? endPoint,
-        int? networkTimeoutSeconds,
-        int? maxOutputTokens,
-        int? streamMaxRetries,
-        int? streamIdleTimeoutMs)
-    {
-        _ = id;
-        _ = NormalizeProviderProtocol(protocol);
-        if (networkTimeoutSeconds.HasValue && networkTimeoutSeconds.Value < 1)
-            throw AppServerErrors.InvalidParams("'networkTimeoutSeconds' must be greater than zero.");
-        if (maxOutputTokens.HasValue && maxOutputTokens.Value < 1)
-            throw AppServerErrors.InvalidParams("'maxOutputTokens' must be greater than zero.");
-        if (streamMaxRetries.HasValue
-            && (streamMaxRetries.Value < 0 || streamMaxRetries.Value > ModelProviderDefaults.MaxStreamMaxRetries))
-            throw AppServerErrors.InvalidParams("'streamMaxRetries' must be between 0 and 100.");
-        if (streamIdleTimeoutMs.HasValue && streamIdleTimeoutMs.Value < 1)
-            throw AppServerErrors.InvalidParams("'streamIdleTimeoutMs' must be greater than zero.");
-        if (!string.IsNullOrWhiteSpace(endPoint) && !Uri.TryCreate(endPoint, UriKind.Absolute, out _))
-            throw AppServerErrors.InvalidParams("'endPoint' must be an absolute URI.");
-    }
-
-    private static int? NormalizeNetworkTimeout(int? value) => value.HasValue ? Math.Max(1, value.Value) : null;
-
-    private static int? NormalizeMaxOutputTokens(int? value) => value.HasValue ? Math.Max(1, value.Value) : null;
-
-    private static int? NormalizeStreamMaxRetries(int? value) =>
-        value.HasValue ? Math.Clamp(value.Value, 0, ModelProviderDefaults.MaxStreamMaxRetries) : null;
-
-    private static int? NormalizeStreamIdleTimeoutMs(int? value) => value.HasValue ? Math.Max(1, value.Value) : null;
-
-    private static string NormalizeProviderProtocol(string? protocol)
-    {
-        try
-        {
-            return ModelProviderProtocols.Normalize(protocol);
-        }
-        catch (ArgumentException)
-        {
-            throw AppServerErrors.InvalidParams($"Unsupported model provider protocol '{protocol}'.");
-        }
-    }
-
-    private static List<ProviderInfo> BuildProviderInfos(AppConfig config)
-    {
-        return config.Providers
-            .OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)
-            .Select(pair => BuildProviderInfo(pair.Key, pair.Value, isImplicit: false))
-            .ToList();
-    }
-
-    private static ProviderInfo BuildProviderInfo(
-        string id,
-        AppConfig.ModelProviderConfig provider,
-        bool isImplicit)
-    {
-        var protocol = ModelProviderProtocols.Normalize(provider.Protocol);
-        var authMethod = ModelProviderAuthMethods.Normalize(provider.AuthMethod);
-        return new ProviderInfo
-        {
-            Id = id,
-            DisplayName = string.IsNullOrWhiteSpace(provider.DisplayName) ? id : provider.DisplayName.Trim(),
-            Protocol = protocol,
-            ApiKey = string.IsNullOrWhiteSpace(provider.ApiKey) ? null : "********",
-            HasApiKey = !string.IsNullOrWhiteSpace(provider.ApiKey),
-            EndPoint = provider.EndPoint?.Trim() ?? string.Empty,
-            NetworkTimeoutSeconds = provider.NetworkTimeoutSeconds,
-            MaxOutputTokens = provider.MaxOutputTokens,
-            StreamMaxRetries = provider.StreamMaxRetries,
-            StreamIdleTimeoutMs = provider.StreamIdleTimeoutMs,
-            IsImplicit = isImplicit,
-            AuthMethod = authMethod,
-            ChatGptAccountId = authMethod == ModelProviderAuthMethods.ChatGptOAuth && !string.IsNullOrWhiteSpace(provider.ChatGptAccountId)
-                ? provider.ChatGptAccountId.Trim()
-                : null,
-            ChatGptPlanType = authMethod == ModelProviderAuthMethods.ChatGptOAuth && !string.IsNullOrWhiteSpace(provider.ChatGptPlanType)
-                ? provider.ChatGptPlanType.Trim()
-                : null,
-            Capabilities = MapProviderCapabilities(ModelProviderCapabilities.ForProtocol(protocol))
-        };
-    }
-
-    private static ProviderCapabilitiesWire MapProviderCapabilities(ModelProviderCapabilities capabilities) => new()
-    {
-        StreamingChat = capabilities.StreamingChat,
-        ToolCalling = capabilities.ToolCalling,
-        ModelListing = capabilities.ModelListing,
-        TokenUsageReporting = capabilities.TokenUsageReporting,
-        CachedInputUsageReporting = capabilities.CachedInputUsageReporting,
-        PromptCacheRequestShaping = capabilities.PromptCacheRequestShaping,
-        ExtendedThinking = capabilities.ExtendedThinking,
-        ToolChoiceControls = capabilities.ToolChoiceControls,
-        RawMetadataPassthrough = capabilities.RawMetadataPassthrough,
-        ResponsesApi = capabilities.ResponsesApi,
-        NativeDeferredToolLoading = capabilities.NativeDeferredToolLoading
-    };
 
     private Task<object?> HandleSubAgentProfileListAsync(AppServerIncomingMessage msg, CancellationToken ct)
     {
@@ -5535,134 +5080,6 @@ public sealed class AppServerRequestHandler(
 
     private static T GetParams<T>(AppServerIncomingMessage msg) where T : new()
         => AppServerParams.Get<T>(msg);
-
-    // ── auth/openai/* ────────────────────────────────────────────────
-
-    private Task<object?> HandleAuthOpenAiStatusAsync(AppServerIncomingMessage msg, CancellationToken ct)
-    {
-        var auth = openAIAuthService;
-        if (auth is null)
-            throw AppServerErrors.InvalidRequest("ChatGPT authentication is not available in this server build.");
-
-        return Task.FromResult<object?>(BuildAuthStatusResult(auth.GetStatus(), providerId: null));
-    }
-
-    private async Task<object?> HandleAuthOpenAiLoginAsync(AppServerIncomingMessage msg, CancellationToken ct)
-    {
-        var auth = openAIAuthService;
-        if (auth is null)
-            throw AppServerErrors.InvalidRequest("ChatGPT authentication is not available in this server build.");
-
-        var p = msg.Params is null ? new AuthOpenAiLoginParams() : GetParams<AuthOpenAiLoginParams>(msg);
-        var providerId = string.IsNullOrWhiteSpace(p.ProviderId) ? "openai" : p.ProviderId.Trim();
-        var openBrowser = p.OpenBrowser ?? true;
-
-        OpenAIAuthStatus status;
-        try
-        {
-            status = await auth.LoginAsync(
-                openBrowser,
-                onAuthorizationUrl: url =>
-                {
-                    // Fire-and-forget notification so the renderer can render "Copy URL" affordance.
-                    _ = transport.WriteMessageAsync(new
-                    {
-                        jsonrpc = "2.0",
-                        method = AppServerMethods.AuthOpenAiAuthorizeUrl,
-                        @params = new AuthOpenAiAuthorizeUrlNotification
-                        {
-                            Url = url,
-                            CallbackPort = OpenAIAuthConstants.RedirectPortPrimary
-                        }
-                    }, ct);
-                },
-                ct).ConfigureAwait(false);
-        }
-        catch (OpenAIAuthException ex)
-        {
-            throw AppServerErrors.InvalidRequest(ex.Message);
-        }
-
-        try
-        {
-            // Pin the write to the same global config the AppConfig loader is reading from —
-            // if it differs from the default, BindProviderToOAuth would otherwise write to a
-            // path the in-memory merged config never re-reads, and turn/start would keep seeing
-            // a stale (or absent) Providers[id] entry.
-            OpenAIAuthBindingPersistence.BindProviderToOAuth(providerId, status, GetEffectiveGlobalConfigPath());
-        }
-        catch (Exception ex)
-        {
-            throw AppServerErrors.InvalidRequest($"Login succeeded but provider config could not be updated: {ex.Message}");
-        }
-
-        // BindProviderToOAuth wrote new Provider data to the global config. Refresh the
-        // in-memory merged config so the next turn/start sees AuthMethod=chatgptOAuth instead of
-        // the stale (or absent) entry — otherwise the resolver would still see the old apiKey
-        // shape and throw "API key must be configured." Mirror what provider/create does.
-        RefreshCurrentLlmConfig();
-        InvalidateThreadAgents();
-        appConfigMonitor?.NotifyChanged(AppServerMethods.AuthOpenAiLogin, [ConfigChangeRegions.ProviderRegistry]);
-
-        return BuildAuthStatusResult(status, providerId);
-    }
-
-    private async Task<object?> HandleAuthOpenAiLogoutAsync(AppServerIncomingMessage msg, CancellationToken ct)
-    {
-        var auth = openAIAuthService;
-        if (auth is null)
-            throw AppServerErrors.InvalidRequest("ChatGPT authentication is not available in this server build.");
-
-        var p = msg.Params is null ? new AuthOpenAiLogoutParams() : GetParams<AuthOpenAiLogoutParams>(msg);
-        var providerId = string.IsNullOrWhiteSpace(p.ProviderId) ? "openai" : p.ProviderId.Trim();
-
-        await auth.LogoutAsync(ct).ConfigureAwait(false);
-        try
-        {
-            OpenAIAuthBindingPersistence.UnbindProvider(providerId, GetEffectiveGlobalConfigPath());
-        }
-        catch (Exception)
-        {
-            // Best-effort — the OAuth tokens are already deleted, which is the user's primary intent.
-        }
-
-        // Mirror the login path: refresh in-memory config so the resolver picks up the reverted
-        // AuthMethod immediately instead of continuing to think the provider is OAuth-bound.
-        RefreshCurrentLlmConfig();
-        InvalidateThreadAgents();
-        appConfigMonitor?.NotifyChanged(AppServerMethods.AuthOpenAiLogout, [ConfigChangeRegions.ProviderRegistry]);
-
-        return new AuthOpenAiStatusResult { LoggedIn = false, ProviderId = providerId };
-    }
-
-    private static AuthOpenAiStatusResult BuildAuthStatusResult(OpenAIAuthStatus status, string? providerId) =>
-        new()
-        {
-            LoggedIn = status.LoggedIn,
-            AccountId = status.AccountId,
-            PlanType = status.PlanType,
-            Email = status.Email,
-            LastRefresh = status.LastRefresh,
-            AccessTokenExpiresAt = status.AccessTokenExpiresAt,
-            ProviderId = providerId
-        };
-
-    private async Task<object?> HandleAuthOpenAiUsageAsync(AppServerIncomingMessage msg, CancellationToken ct)
-    {
-        var usage = openAIUsageService;
-        if (usage is null)
-            throw AppServerErrors.InvalidRequest("ChatGPT usage telemetry is not available in this server build.");
-
-        var snapshot = usage.CurrentSnapshot;
-        if (snapshot is null)
-        {
-            // First call from a freshly-connected client: trigger an inline refresh so the
-            // renderer can render a value on initial paint.
-            snapshot = await usage.RefreshAsync(ct).ConfigureAwait(false);
-        }
-
-        return OpenAIUsageMapping.ToWire(snapshot);
-    }
 
     /// <summary>
     /// Sends a JSON-RPC response followed immediately by a notification on the same connection.
