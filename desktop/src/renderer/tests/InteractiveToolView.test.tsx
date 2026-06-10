@@ -173,6 +173,38 @@ describe('InteractiveToolView', () => {
     )
   })
 
+  it('clears model context and disables old-token actions when the card degrades', async () => {
+    const { container, frameWindow, postSpy } = mountFrame()
+    const bridgeToken = initializeBridge(frameWindow, postSpy)
+    dispatch(frameWindow, { id: 13, method: 'ui/update-model-context', bridgeToken, params: { title: 'state', content: 'selected card-7' } })
+
+    await waitFor(() =>
+      expect(sendRequest).toHaveBeenCalledWith(
+        'ui/update-model-context',
+        expect.objectContaining({ threadId: 't1', sourceCallId: 'i1', content: 'selected card-7' }),
+        expect.any(Number)
+      )
+    )
+    sendRequest.mockClear()
+
+    act(() => {
+      useAppBindingStore.setState({ apps: [{ toolNamespace: 'oratorio', enabled: false }] as unknown as AppInfo[] })
+    })
+
+    await waitFor(() =>
+      expect(sendRequest).toHaveBeenCalledWith(
+        'ui/update-model-context',
+        expect.objectContaining({ threadId: 't1', sourceCallId: 'i1', content: '' }),
+        expect.any(Number)
+      )
+    )
+    expect(container.querySelector('iframe')).toBeNull()
+    expect(container.textContent).toContain('Plugin is disabled')
+
+    dispatch(frameWindow, { id: 14, method: 'tools/call', bridgeToken, params: { name: 'ListItems' } })
+    expect(sendRequest).not.toHaveBeenCalledWith('ui/tool/call', expect.anything(), expect.anything())
+  })
+
   it('injects a visible turn for ui/message and rate-limits a rapid second message', async () => {
     setWorkspace()
     const { frameWindow, postSpy } = mountFrame()

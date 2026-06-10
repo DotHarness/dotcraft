@@ -188,6 +188,10 @@ function InteractiveToolViewImpl({ item, threadId, locale, expanded = false }: I
     () => deriveUnavailableReason(bindingState, appEnabledByNamespace === false),
     [bindingState, appEnabledByNamespace]
   )
+  // App view can't render: show an explicit degraded state with the recorded tool result as a
+  // text fallback, instead of a blank iframe. `errored` (iframe self-navigation / load error)
+  // maps to the generic "failed" reason; binding-derived reasons are more specific.
+  const effectiveReason = unavailableReason ?? (errored ? 'failed' : null)
 
   // Ensure the thread's bindings are loaded (incl. revoked) so a history card can detect its own
   // unavailability; guarded so multiple cards in a thread don't each fire the request.
@@ -277,6 +281,10 @@ function InteractiveToolViewImpl({ item, threadId, locale, expanded = false }: I
     clearModelContext()
     if (showError) setErrored(true)
   }, [clearModelContext])
+
+  useEffect(() => {
+    if (effectiveReason) disableBridge(false)
+  }, [effectiveReason, disableBridge])
 
   useEffect(() => () => {
     if (!bridgeRef.current.disabled) {
@@ -588,10 +596,6 @@ function InteractiveToolViewImpl({ item, threadId, locale, expanded = false }: I
     )
   }
 
-  // App view can't render: show an explicit degraded state with the recorded tool result as a
-  // text fallback, instead of a blank iframe. `errored` (iframe self-navigation / load error)
-  // maps to the generic "failed" reason; binding-derived reasons are more specific.
-  const effectiveReason = unavailableReason ?? (errored ? 'failed' : null)
   if (effectiveReason) {
     return (
       <InteractiveToolDegraded
