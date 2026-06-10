@@ -526,10 +526,11 @@ public sealed class UiToolApprovalRequestParams
 }
 
 /// <summary>
-/// Params for <c>ui/open-link</c> (host → server, M‑iii): a UI‑initiated request to open an
-/// external link. The host enforces a fixed scheme policy (<c>https:</c>/<c>mailto:</c> only) and
-/// records the open on the App Binding audit trail; the actual navigation happens in the Desktop
-/// host. Decoupled — no turn/item. See tool-result-presentation-m3.md §3.
+/// Params for <c>ui/open-link</c> (host → server): a UI‑initiated request to open an external
+/// link. The host enforces the scheme policy (<c>https:</c>/<c>mailto:</c>, plus the bound app's
+/// declared <c>nativeApplication.protocol</c> deep‑link scheme — M‑v) and records the open on the
+/// App Binding audit trail; the actual navigation happens in the Desktop host. Decoupled — no
+/// turn/item. See tool-result-presentation-m3.md §3 and -m5.md.
 /// </summary>
 public sealed class UiOpenLinkParams
 {

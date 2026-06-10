@@ -1690,12 +1690,14 @@ public sealed class AppBindingService
     }
 
     /// <summary>
-    /// Validates and authorizes a UI‑initiated <c>ui/open-link</c> (M‑iii). Enforces the host scheme
-    /// policy (<c>https:</c>/<c>mailto:</c> only), confirms an active UI‑bearing binding owns the
-    /// surface, records the open on the audit trail, and returns the cleared URL — the Desktop host
-    /// performs the navigation. Decoupled from the conversation (no turn/item).
+    /// Validates and authorizes a UI‑initiated <c>ui/open-link</c>. Enforces the host scheme policy
+    /// (<c>https:</c>/<c>mailto:</c>, plus the bound app's own declared
+    /// <c>nativeApplication.protocol</c> deep‑link scheme — M‑v), confirms an active UI‑bearing
+    /// binding owns the surface, records the open on the audit trail, and returns the cleared URL —
+    /// the Desktop host performs the navigation. Decoupled from the conversation (no turn/item).
     /// </summary>
     internal UiOpenLinkResult OpenLink(
+        AppCatalogSnapshot catalog,
         string workspaceCraftPath,
         string threadId,
         string? @namespace,
@@ -1709,7 +1711,7 @@ public sealed class AppBindingService
         var binding = ResolveActiveUiBinding(workspaceCraftPath, threadId, @namespace);
         var provenance = string.IsNullOrWhiteSpace(sourceCallId) ? null : $"sourceCallId={sourceCallId}";
 
-        if (!IsAllowedExternalLink(url, out var normalized))
+        if (!IsAllowedExternalLink(url, DeclaredAppProtocols(catalog, binding.AppId), out var normalized))
         {
             AddAuditWithSave(
                 workspaceCraftPath,
@@ -1720,7 +1722,7 @@ public sealed class AppBindingService
                 userId,
                 provenance);
             throw AppServerErrors.InvalidParams(
-                "Link scheme is not allowed. ui/open-link permits https: and mailto: only.");
+                "Link scheme is not allowed. ui/open-link permits https:, mailto:, and the bound app's declared protocol.");
         }
 
         AddAuditWithSave(
@@ -1810,14 +1812,46 @@ public sealed class AppBindingService
         return result;
     }
 
-    /// <summary>Host scheme policy for <c>ui/open-link</c>: <c>https:</c> and <c>mailto:</c> only.</summary>
-    private static bool IsAllowedExternalLink(string url, out string normalized)
+    /// <summary>
+    /// Host scheme policy for <c>ui/open-link</c>: <c>https:</c>, <c>mailto:</c>, and the bound
+    /// app's own declared deep‑link protocol(s) (per‑binding, from its catalog descriptor).
+    /// </summary>
+    private static bool IsAllowedExternalLink(string url, IReadOnlyList<string> appProtocols, out string normalized)
     {
         normalized = url.Trim();
         if (!Uri.TryCreate(normalized, UriKind.Absolute, out var uri))
             return false;
         return string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
-               || string.Equals(uri.Scheme, Uri.UriSchemeMailto, StringComparison.OrdinalIgnoreCase);
+               || string.Equals(uri.Scheme, Uri.UriSchemeMailto, StringComparison.OrdinalIgnoreCase)
+               || appProtocols.Any(protocol => string.Equals(uri.Scheme, protocol, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// Collects the deep‑link protocol(s) an app declares in its catalog descriptor
+    /// (<c>nativeApplication.protocol</c> plus per‑platform overrides). Empty when the app is not
+    /// in the catalog or declares no native application.
+    /// </summary>
+    private static IReadOnlyList<string> DeclaredAppProtocols(AppCatalogSnapshot catalog, string appId)
+    {
+        var native = catalog.Entries
+            .FirstOrDefault(entry => string.Equals(entry.Descriptor.AppId, appId, StringComparison.Ordinal))
+            ?.Descriptor.NativeApplication;
+        if (native == null)
+            return [];
+
+        var protocols = new List<string>();
+        if (!string.IsNullOrWhiteSpace(native.Protocol))
+            protocols.Add(native.Protocol.Trim().TrimEnd(':'));
+        if (native.Platforms != null)
+        {
+            foreach (var platform in native.Platforms.Values)
+            {
+                if (!string.IsNullOrWhiteSpace(platform.Protocol))
+                    protocols.Add(platform.Protocol.Trim().TrimEnd(':'));
+            }
+        }
+
+        return protocols;
     }
 
     /// <summary>

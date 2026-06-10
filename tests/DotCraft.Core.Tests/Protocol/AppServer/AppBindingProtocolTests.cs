@@ -1967,7 +1967,7 @@ public sealed class AppBindingProtocolTests : IDisposable
     }
 
     [Fact]
-    public async Task UiOpenLink_AllowsHttpsAndMailtoRejectsDangerousSchemes()
+    public async Task UiOpenLink_AllowsHttpsMailtoAndBoundAppProtocolRejectsOtherSchemes()
     {
         WriteOratorioPlugin();
         var service = new AppBindingService();
@@ -1976,19 +1976,28 @@ public sealed class AppBindingProtocolTests : IDisposable
         await ConnectAppAsync(harness);
         var thread = await harness.Service.CreateThreadAsync(CreateIdentity());
         await CreateAcceptAndAttachUiToolAsync(harness, thread.Id);
+        var catalog = AppBindingCatalog.Discover(new AppConfig(), _tempRoot, _workspaceCraftPath);
 
         var https = service.OpenLink(
-            _workspaceCraftPath, thread.Id, "oratorio", "https://oratorio.example/board/1", "dyntool_1", "test_user");
+            catalog, _workspaceCraftPath, thread.Id, "oratorio", "https://oratorio.example/board/1", "dyntool_1", "test_user");
         Assert.Equal("https://oratorio.example/board/1", https.Url);
 
         var mailto = service.OpenLink(
-            _workspaceCraftPath, thread.Id, "oratorio", "mailto:team@example.com", null, "test_user");
+            catalog, _workspaceCraftPath, thread.Id, "oratorio", "mailto:team@example.com", null, "test_user");
         Assert.Equal("mailto:team@example.com", mailto.Url);
 
+        // The bound app's own declared nativeApplication.protocol is an allowed deep-link scheme (M-v).
+        var deepLink = service.OpenLink(
+            catalog, _workspaceCraftPath, thread.Id, "oratorio", "oratorio://open/task/t1", "dyntool_1", "test_user");
+        Assert.Equal("oratorio://open/task/t1", deepLink.Url);
+
         Assert.Throws<AppServerException>(() =>
-            service.OpenLink(_workspaceCraftPath, thread.Id, "oratorio", "javascript:alert(1)", null, "test_user"));
+            service.OpenLink(catalog, _workspaceCraftPath, thread.Id, "oratorio", "javascript:alert(1)", null, "test_user"));
         Assert.Throws<AppServerException>(() =>
-            service.OpenLink(_workspaceCraftPath, thread.Id, "oratorio", "file:///etc/passwd", null, "test_user"));
+            service.OpenLink(catalog, _workspaceCraftPath, thread.Id, "oratorio", "file:///etc/passwd", null, "test_user"));
+        // A custom scheme the bound app did NOT declare stays rejected.
+        Assert.Throws<AppServerException>(() =>
+            service.OpenLink(catalog, _workspaceCraftPath, thread.Id, "oratorio", "vscode://open?file=x", null, "test_user"));
 
         AssertAppBindingAuditContains("binding.uiOpenLink");
         AssertAppBindingAuditContains("binding.uiOpenLink.blocked");

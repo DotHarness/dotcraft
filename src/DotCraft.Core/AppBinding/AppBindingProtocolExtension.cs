@@ -424,7 +424,7 @@ public sealed class AppBindingProtocolExtension(
             {
                 var p = GetParams<UiOpenLinkParams>(msg);
                 await EnsureThreadAsync(context, p.ThreadId, ct);
-                return service.OpenLink(workspaceCraftPath, p.ThreadId, p.Namespace, p.Url, p.SourceCallId, userId);
+                return service.OpenLink(catalog, workspaceCraftPath, p.ThreadId, p.Namespace, p.Url, p.SourceCallId, userId);
             }
 
             case UiUpdateModelContext:
