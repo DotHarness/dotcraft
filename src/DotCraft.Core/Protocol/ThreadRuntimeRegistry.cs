@@ -11,6 +11,7 @@ namespace DotCraft.Protocol;
 internal sealed class ThreadRuntimeRegistry
 {
     private readonly ConcurrentDictionary<string, ThreadRuntime> _runtimes = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, byte> _pendingPermanentDeletion = new(StringComparer.Ordinal);
 
     public int Count => _runtimes.Count;
 
@@ -44,14 +45,34 @@ internal sealed class ThreadRuntimeRegistry
 
     public bool TryRemove(string threadId, out ThreadRuntime runtime) =>
         _runtimes.TryRemove(threadId, out runtime!);
+
+    public void MarkPendingPermanentDeletion(string threadId)
+    {
+        _pendingPermanentDeletion[threadId] = 0;
+        if (_runtimes.TryGetValue(threadId, out var runtime))
+            runtime.PendingPermanentDeletion = true;
+    }
+
+    public void ClearPendingPermanentDeletion(string threadId)
+    {
+        _pendingPermanentDeletion.TryRemove(threadId, out _);
+        if (_runtimes.TryGetValue(threadId, out var runtime))
+            runtime.PendingPermanentDeletion = false;
+    }
+
+    public bool IsPendingPermanentDeletion(string threadId) =>
+        _pendingPermanentDeletion.ContainsKey(threadId)
+        || (_runtimes.TryGetValue(threadId, out var runtime) && runtime.PendingPermanentDeletion);
 }
 
 internal sealed class ThreadRuntime(SessionThread thread) : IAsyncDisposable, IDisposable
 {
     private ThreadMaintenanceState? _maintenance;
     private int _activeAutoMemoryConsolidation;
+    private int _goalContinuationStarting;
     private int _turnsSinceConsolidation;
     private AutoMemoryConsolidationWork? _pendingAutoMemoryConsolidation;
+    private readonly ConcurrentDictionary<string, byte> _goalBudgetGuidanceQueued = new(StringComparer.Ordinal);
 
     public SessionThread Thread { get; set; } = thread;
 
@@ -105,6 +126,15 @@ internal sealed class ThreadRuntime(SessionThread thread) : IAsyncDisposable, ID
         work = Interlocked.Exchange(ref _pendingAutoMemoryConsolidation, null)!;
         return work != null;
     }
+
+    public bool TryStartGoalContinuation() =>
+        Interlocked.CompareExchange(ref _goalContinuationStarting, 1, 0) == 0;
+
+    public void CompleteGoalContinuation() =>
+        Interlocked.Exchange(ref _goalContinuationStarting, 0);
+
+    public bool TryQueueGoalBudgetGuidance(string goalId) =>
+        _goalBudgetGuidanceQueued.TryAdd(goalId, 0);
 
     public PromptRequestSnapshot? LastPromptRequest { get; set; }
 

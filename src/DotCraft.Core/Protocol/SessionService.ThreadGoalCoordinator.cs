@@ -84,7 +84,8 @@ public sealed partial class SessionService
                     turnRuntime.GoalSnapshot = snapshot.WithAccounted(latestTurnUsage, now);
                 owner.PublishGoalUpdated(updated, notificationTurnId);
                 if (updated.Status == ThreadGoalStatus.BudgetLimited
-                    && owner._goalBudgetGuidanceQueued.TryAdd(updated.GoalId, 0))
+                    && owner._runtimeRegistry.TryGetRuntime(turnKey.ThreadId, out var runtime)
+                    && runtime.TryQueueGoalBudgetGuidance(updated.GoalId))
                 {
                     await QueueBudgetLimitGuidanceAsync(turnKey, updated, ct);
                 }
@@ -122,7 +123,8 @@ public sealed partial class SessionService
             if (!config.Enabled || !config.AutoContinueEnabled)
                 return;
 
-            if (!owner._goalContinuationStarting.TryAdd(threadId, 0))
+            if (!owner._runtimeRegistry.TryGetRuntime(threadId, out var runtime)
+                || !runtime.TryStartGoalContinuation())
                 return;
 
             try
@@ -163,7 +165,8 @@ public sealed partial class SessionService
             }
             finally
             {
-                owner._goalContinuationStarting.TryRemove(threadId, out _);
+                if (owner._runtimeRegistry.TryGetRuntime(threadId, out runtime))
+                    runtime.CompleteGoalContinuation();
             }
         }
 

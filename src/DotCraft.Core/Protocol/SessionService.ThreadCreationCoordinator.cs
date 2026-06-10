@@ -43,8 +43,8 @@ public sealed partial class SessionService
             if (!string.IsNullOrWhiteSpace(thread.Source.SpawnedFromThreadId))
                 thread.Metadata["spawnedFromThreadId"] = thread.Source.SpawnedFromThreadId!;
 
-            owner._threadsPendingPermanentDeletion.TryRemove(thread.Id, out _);
             owner._runtimeRegistry.SetThread(thread);
+            owner._runtimeRegistry.ClearPendingPermanentDeletion(thread.Id);
             var broker = owner.GetOrCreateBroker(thread.Id);
 
             // Create a per-thread agent when custom configuration is provided or when
@@ -127,8 +127,8 @@ public sealed partial class SessionService
                 QueuedInputs = []
             };
 
-            owner._threadsPendingPermanentDeletion.TryRemove(forked.Id, out _);
             owner._runtimeRegistry.SetThread(forked);
+            owner._runtimeRegistry.ClearPendingPermanentDeletion(forked.Id);
             var broker = owner.GetOrCreateBroker(forked.Id);
 
             var buildThreadAgentOnCreate = options.Config != null

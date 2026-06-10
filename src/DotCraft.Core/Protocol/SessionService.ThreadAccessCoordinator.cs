@@ -38,13 +38,15 @@ public sealed partial class SessionService
                 owner.Persistence.SaveItemWidgetState(normalizedThreadId, callId, widgetStateJson);
         }
 
-        public IAsyncEnumerable<SessionEvent> Subscribe(
+        public async IAsyncEnumerable<SessionEvent> Subscribe(
             string threadId,
             bool replayRecent,
-            CancellationToken ct)
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
         {
+            await owner.GetOrLoadThreadAsync(threadId, ct);
             var broker = owner.GetOrCreateBroker(threadId);
-            return broker.SubscribeAsync(replayRecent, ct);
+            await foreach (var evt in broker.SubscribeAsync(replayRecent, ct).WithCancellation(ct))
+                yield return evt;
         }
 
         public async Task<SessionThread> GetThreadAsync(string threadId, CancellationToken ct) =>

@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -109,10 +108,6 @@ public sealed partial class SessionService(
 
     // In-memory state
     private readonly ThreadRuntimeRegistry _runtimeRegistry = new();
-    private readonly ConcurrentDictionary<string, ThreadEventBroker> _threadEventBrokers = new();
-    private readonly ConcurrentDictionary<string, byte> _threadsPendingPermanentDeletion = new();
-    private readonly ConcurrentDictionary<string, byte> _goalContinuationStarting = new();
-    private readonly ConcurrentDictionary<string, byte> _goalBudgetGuidanceQueued = new();
     private WorktreeCoordinator? _worktreeCoordinator;
     private SubAgentSessionCoordinator? _subAgentSessionCoordinator;
     private ThreadIndexCoordinator? _threadIndexCoordinator;
@@ -2476,7 +2471,6 @@ public sealed partial class SessionService(
 
         _runtimeRegistry.SetThread(thread);
         _runtimeRegistry.SetThread(thread).Materialized = true;
-        _ = GetOrCreateBroker(thread.Id);
         return thread;
     }
 
@@ -2691,7 +2685,9 @@ public sealed partial class SessionService(
     }
 
     private ThreadEventBroker GetOrCreateBroker(string threadId) =>
-        _threadEventBrokers.GetOrAdd(threadId, static id => new ThreadEventBroker(id));
+        _runtimeRegistry.TryGetRuntime(threadId, out var runtime)
+            ? runtime.Broker
+            : new ThreadEventBroker(threadId);
 
     /// <summary>
     /// Returns or creates an <see cref="AgentModeManager"/> for the given thread,
@@ -3294,7 +3290,8 @@ public sealed partial class SessionService(
     private bool IsMaterialized(string threadId) =>
         _runtimeRegistry.TryGetRuntime(threadId, out var runtime) && runtime.Materialized;
 
-    private bool IsPendingPermanentDeletion(string threadId) => _threadsPendingPermanentDeletion.ContainsKey(threadId);
+    private bool IsPendingPermanentDeletion(string threadId) =>
+        _runtimeRegistry.IsPendingPermanentDeletion(threadId);
 
     private async Task PersistThreadWithMaterializationAsync(SessionThread thread, CancellationToken ct)
     {

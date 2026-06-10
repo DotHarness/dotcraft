@@ -99,7 +99,11 @@ public sealed partial class SessionService
             var subtreeIds = await CollectSubAgentSubtreeIdsAsync(normalizedThreadId, ct);
             var deleteOrder = subtreeIds.Reverse().ToList();
             foreach (var id in deleteOrder)
-                owner._threadsPendingPermanentDeletion[id] = 0;
+            {
+                var thread = await owner.GetOrLoadThreadAsync(id, ct);
+                owner._runtimeRegistry.SetThread(thread);
+                owner._runtimeRegistry.MarkPendingPermanentDeletion(id);
+            }
 
             try
             {
@@ -109,7 +113,7 @@ public sealed partial class SessionService
             catch
             {
                 foreach (var id in deleteOrder)
-                    owner._threadsPendingPermanentDeletion.TryRemove(id, out _);
+                    owner._runtimeRegistry.ClearPendingPermanentDeletion(id);
                 throw;
             }
         }
@@ -216,7 +220,6 @@ public sealed partial class SessionService
 
             if (owner._runtimeRegistry.TryRemove(threadId, out var removedRuntime))
                 await removedRuntime.DisposeAsync();
-            owner._threadEventBrokers.TryRemove(threadId, out _);
             owner.InvalidatePromptRequestSnapshot(threadId, "thread_deleted");
             owner.ClearContextUsageAnchor(threadId);
             owner.ForgetContextPages(threadId);

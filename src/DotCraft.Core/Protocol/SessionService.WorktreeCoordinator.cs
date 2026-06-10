@@ -93,8 +93,8 @@ public sealed partial class SessionService
             capturedConfig.ExecutionWorkspaceOverride = worktree.Path;
             thread.Worktree = worktree;
 
-            owner._threadsPendingPermanentDeletion.TryRemove(thread.Id, out _);
             owner._runtimeRegistry.SetThread(thread);
+            owner._runtimeRegistry.ClearPendingPermanentDeletion(thread.Id);
             var broker = owner.GetOrCreateBroker(thread.Id);
 
             using (await owner.AcquireThreadAgentLockAsync(thread.Id, ct))
