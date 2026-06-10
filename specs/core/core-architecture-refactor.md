@@ -1,6 +1,6 @@
 # Core C# Architecture Refactor
 
-Status: **Active** (M1 done; M2 partial; M3 done; M4 in progress)
+Status: **Active** (M1 done; M2 partial; M3 done; M4 done)
 Scope: `src/DotCraft.Core` — AppServer protocol layer, Session Core services, App Binding service.
 Non-goal: any wire-protocol or behavior change. `specs/protocols/appserver-protocol.md` and
 `specs/core/session-core.md` remain the behavioral source of truth and are not modified by this work.
@@ -295,7 +295,7 @@ rebase pain: mechanical moves first, behavioral seams last.
 | M1 | **Wire split** | 4.1: `AppServerProtocol.cs` → `Wire/` files; no code changes beyond file moves. Also split `SessionWireModels.cs` if it exceeds budget after review. | Trivial (compile-verified moves) | **Done** (19 files; 386 conformance tests pass) |
 | M2 | **Dispatch infrastructure** | `AppServerMethodTable`, `AppServerConnectionServices` bundle, `AppServerParams`/`AppServerExceptionMapper`; dispatcher consumes the table; extensions adapted into it. Built-in methods still live in the old class but register via the table. Update the two host construction sites + test fixtures. | Low–medium (constructor surface) | **Partial** — `AppServerConnectionServices` bundle done (13 sites migrated; tests green). Method table + `AppServerParams`/`AppServerExceptionMapper` deferred to land with M3/M4 handler extraction (avoids converting the switch twice). |
 | M3 | **Domain handlers, batch 1** | Thin/CRUD domains: skills, plugin, mcp, cron, usage, dreams, terminal, command, automation, channel. Extract `WorkspaceConfigEditor` alongside provider/workspace handlers. | Low (thin delegation) | **Done** — dispatch seam built; **12 domains extracted to handler classes**: `cron/*`+`heartbeat/trigger`, `terminal/*`, `dreams/*`, `skills/*`, `mcp/*`, `channel/*`+`externalChannel/*`, `provider/*`+`model/list`+`auth/openai/*`, `workspace/config*`+welcome/commit-message/memory-reset, `plugin/*`, `command/*`, `usage/*`+`profile/insights`, `automation/*`. Shared helpers extracted: `AppServerContextInvalidation`, `SkillVariantContext`, `WorkspaceConfigEditor`, `AppServerMcpConfigService`, `McpWireMapper`, `ExternalChannelConfigService`, `ExternalChannelWireMapper`, `ProviderWireMapper`, `AppServerRuntimeConfigRefresher`. Tests green throughout. |
-| M4 | **Domain handlers, batch 2** | thread, turn (+`TurnStartCoordinator`), worktree, subagent, initialize. Delete the old switch; `AppServerRequestHandler` reaches dispatcher-only form. | Medium (thick handlers) | **In progress** — `subagent/*`, `worktree/*`, `thread/*`, and `turn/*` extracted; shared thread binding, response writer, runtime validation, thread wire projection, and input metadata seams are in place. Remaining: `initialize`. |
+| M4 | **Domain handlers, batch 2** | thread, turn (+`TurnStartCoordinator`), worktree, subagent, initialize. Delete the old switch; `AppServerRequestHandler` reaches dispatcher-only form. | Medium (thick handlers) | **Done** — `subagent/*`, `worktree/*`, `thread/*`, `turn/*`, and `initialize` extracted. `AppServerRequestHandler` is dispatcher-only and under 500 lines. |
 | M5 | **SessionService sub-services** | 4.3.2 coordinators extracted against the *existing* dictionaries (state untouched, moves only). | Medium | Planned |
 | M6 | **`ThreadRuntime` aggregation** | 4.3.1: introduce registry + runtime objects; coordinators and SessionService migrate field-by-field; delete the 24 dictionaries. | Highest — concurrency-sensitive; do last, smallest reviewable steps | Planned |
 | M7 | **AppBinding split** | 4.4 sub-domain services. Independent of M5/M6; can run in parallel with them. | Low–medium | Planned |
@@ -324,8 +324,8 @@ rebase pain: mechanical moves first, behavioral seams last.
 > - Pure helpers (`FormatTimeSpanForWire`, `ValidateEmptyObjectParams`, `NormalizeIdentityWorkspace`,
 >   `ExtractCommandName`, `ParseUsageDate`) → static helper classes.
 >
-> Current recommended sequence: finish M4 by extracting `initialize`
-> and deleting the remaining in-class switch.
+> Current recommended sequence: finish the remaining M2 cleanup (`AppServerExceptionMapper`),
+> then start M5 SessionService coordinator extraction against the existing state dictionaries.
 > before deleting the remaining switch.
 >
 > **As-built (M3 batch, 12 domains done).** Extracted, each verified (Core build + 386 conformance
@@ -346,8 +346,8 @@ rebase pain: mechanical moves first, behavioral seams last.
 > `IAutomationsRequestHandler`, so its handler is a thin router.
 >
 > **Remaining domains and their blocker (next sub-pass before extraction):**
-> - M4 thick (`initialize`) — final in-class protocol method; move handshake capability assembly
->   behind the method table.
+> - M2 cleanup — `MapOperationException` / `ExtractQuotedId` still live in the dispatcher; move them
+>   to `AppServerExceptionMapper` so request dispatch has no domain-error policy helpers.
 >   Largest knot; do last.
 
 ## 6. Verification strategy

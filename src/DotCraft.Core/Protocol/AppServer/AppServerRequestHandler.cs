@@ -37,37 +37,6 @@ public sealed class AppServerRequestHandler(
     IAppServerChannelListContributor channelListContributor,
     AppServerConnectionServices services)
 {
-    // Optional collaborators are supplied via the AppServerConnectionServices bundle. They are
-    // aliased to private fields below so the (hundreds of) method-body references that previously
-    // named the constructor parameters directly continue to resolve unchanged. The four required
-    // collaborators above remain positional constructor parameters.
-    private readonly string serverVersion = services.ServerVersion;
-    private readonly CronService? cronService = services.CronService;
-    private readonly HeartbeatService? heartbeatService = services.HeartbeatService;
-    private readonly SkillsLoader? skillsLoader = services.SkillsLoader;
-    private readonly MemoryStore? memoryStore = services.MemoryStore;
-    private readonly string? workspaceCraftPath = services.WorkspaceCraftPath;
-    private readonly IAutomationsRequestHandler? automationsHandler = services.AutomationsHandler;
-    private readonly IWelcomeSuggestionService? welcomeSuggestionService = services.WelcomeSuggestionService;
-    private readonly string? dashboardUrl = services.DashboardUrl;
-    private readonly WireAcpExtensionProxy? wireAcpExtensionProxy = services.WireAcpExtensionProxy;
-    private readonly WireNodeReplProxy? wireNodeReplProxy = services.WireNodeReplProxy;
-    private readonly WireDynamicToolProxy? wireDynamicToolProxy = services.WireDynamicToolProxy;
-    private readonly IChannelStatusProvider? channelStatusProvider = services.ChannelStatusProvider;
-    private readonly McpClientManager? mcpClientManager = services.McpClientManager;
-    private readonly SessionStreamDebugLogger? streamDebugLogger = services.StreamDebugLogger;
-    private readonly IAppConfigMonitor? appConfigMonitor = services.AppConfigMonitor;
-    private readonly IOpenAIAuthService? openAIAuthService = services.OpenAIAuthService;
-    private readonly IOpenAIUsageService? openAIUsageService = services.OpenAIUsageService;
-    private readonly IBackgroundTerminalService? backgroundTerminalService = services.BackgroundTerminalService;
-    private readonly IContextPageManager? contextPageManager = services.ContextPageManager;
-    private readonly DreamsService? dreamsService = services.DreamsService;
-    private readonly AppBindingService? appBindingService = services.AppBindingService;
-    private readonly PlanStore? planStore = services.PlanStore;
-    private readonly TraceStore? traceStore = services.TraceStore;
-    private readonly IReadOnlyList<string>? builtInPluginSourceRoots = services.BuiltInPluginSourceRoots;
-    private readonly WireRuntimeAdditionalContextProvider? wireRuntimeAdditionalContextProvider = services.WireRuntimeAdditionalContextProvider;
-
     private readonly CommandRegistry _commandRegistry = services.CommandRegistry
                                                         ?? CommandRegistry.CreateDefault(
                                                             !string.IsNullOrWhiteSpace(services.WorkspaceCraftPath) ? new CustomCommandLoader(services.WorkspaceCraftPath) : null);
@@ -81,12 +50,6 @@ public sealed class AppServerRequestHandler(
     /// approval resolution cannot be derived from thread policy.
     /// </summary>
     private readonly SessionApprovalDecision _defaultApprovalDecision = services.DefaultApprovalDecision;
-
-    /// <summary>
-    /// When the wire client omits or sends an empty <c>identity.workspacePath</c>, substitute this
-    /// host workspace root (AppServer / Gateway process workspace).
-    /// </summary>
-    private readonly string? _hostWorkspacePath = services.HostWorkspacePath;
 
     private readonly IReadOnlyDictionary<string, IAppServerMethodHandler> _extensionMethods =
         BuildExtensionMethodMap(services.ProtocolExtensions);
@@ -109,30 +72,30 @@ public sealed class AppServerRequestHandler(
     /// initialize capability report, turn start, and the extracted <see cref="SkillsRequestHandler"/>.
     /// </summary>
     private SkillVariantContext SkillVariants => _skillVariants ??=
-        new SkillVariantContext(appConfigMonitor, _chatClientRegistry, _hostWorkspacePath, workspaceCraftPath);
+        new SkillVariantContext(services.AppConfigMonitor, _chatClientRegistry, services.HostWorkspacePath, services.WorkspaceCraftPath);
 
     private WorkspaceConfigEditor WorkspaceConfig => _workspaceConfig ??=
-        new WorkspaceConfigEditor(appConfigMonitor, workspaceCraftPath);
+        new WorkspaceConfigEditor(services.AppConfigMonitor, services.WorkspaceCraftPath);
 
     private AppServerMcpConfigService McpConfig => _mcpConfig ??=
-        new AppServerMcpConfigService(appConfigMonitor, mcpClientManager, _hostWorkspacePath, workspaceCraftPath);
+        new AppServerMcpConfigService(services.AppConfigMonitor, services.McpClientManager, services.HostWorkspacePath, services.WorkspaceCraftPath);
 
     private ExternalChannelConfigService ExternalChannelConfig => _externalChannelConfig ??=
-        new ExternalChannelConfigService(channelListContributor, workspaceCraftPath);
+        new ExternalChannelConfigService(channelListContributor, services.WorkspaceCraftPath);
 
     private AppServerRuntimeConfigRefresher RuntimeConfig => _runtimeConfig ??=
-        new AppServerRuntimeConfigRefresher(sessionService, appConfigMonitor, workspaceCraftPath, WorkspaceConfig);
+        new AppServerRuntimeConfigRefresher(sessionService, services.AppConfigMonitor, services.WorkspaceCraftPath, WorkspaceConfig);
 
     private AppServerThreadBinder ThreadBinder => _threadBinder ??=
         new AppServerThreadBinder(
             sessionService,
             connection,
             transport,
-            wireAcpExtensionProxy,
-            wireNodeReplProxy,
-            wireDynamicToolProxy,
-            wireRuntimeAdditionalContextProvider,
-            contextPageManager);
+            services.WireAcpExtensionProxy,
+            services.WireNodeReplProxy,
+            services.WireDynamicToolProxy,
+            services.WireRuntimeAdditionalContextProvider,
+            services.ContextPageManager);
 
     private AppServerResponseWriter ResponseWriter => _responseWriter ??= new AppServerResponseWriter(transport);
 
@@ -140,12 +103,12 @@ public sealed class AppServerRequestHandler(
         new AppServerThreadWireProjector(
             sessionService,
             connection,
-            appConfigMonitor,
+            services.AppConfigMonitor,
             WorkspaceConfig,
-            skillsLoader,
-            planStore,
-            appBindingService,
-            builtInPluginSourceRoots);
+            services.SkillsLoader,
+            services.PlanStore,
+            services.AppBindingService,
+            services.BuiltInPluginSourceRoots);
 
     private AppServerMethodTable? _domainMethods;
 
@@ -167,6 +130,7 @@ public sealed class AppServerRequestHandler(
 
     private IEnumerable<IAppServerDomainHandler> BuildDomainHandlers() =>
     [
+        new InitializeRequestHandler(connection, services, _capabilityContributors, SkillVariants, ThreadProjector),
         new CronRequestHandler(services.CronService, services.HeartbeatService, services.BroadcastCronStateChanged),
         new TerminalRequestHandler(services.BackgroundTerminalService, sessionService),
         new DreamsRequestHandler(services.DreamsService, services.DreamStore, services.AppConfigMonitor, services.WorkspaceCraftPath, services.ContextPageManager),
@@ -184,9 +148,6 @@ public sealed class AppServerRequestHandler(
         new UsageRequestHandler(services.TraceStore, services.SkillsLoader, sessionService, services.HostWorkspacePath),
         new AutomationRequestHandler(services.AutomationsHandler),
     ];
-
-    private void MarkSkillsContextDirty() =>
-        AppServerContextInvalidation.MarkSkills(contextPageManager);
 
     private static readonly HashSet<string> ReservedMethodNames =
     [
@@ -325,17 +286,12 @@ public sealed class AppServerRequestHandler(
 
         try
         {
-            // Extracted domain handlers register their methods in the table; resolve them first,
-            // then fall through to the in-class switch for not-yet-extracted domains.
+            // Extracted domain handlers register their methods in the table; protocol extensions
+            // are the only fallback once built-in domains have had a chance to resolve the method.
             if (DomainMethods.TryGet(method, out var domainHandler))
                 return await domainHandler(msg, ct);
 
-            // Route to the appropriate handler
-            return await (method switch
-            {
-                AppServerMethods.Initialize => HandleInitializeAsync(msg, ct),
-                _ => TryHandleExtensionAsync(method, msg, ct)
-            });
+            return await TryHandleExtensionAsync(method, msg, ct);
         }
         catch (KeyNotFoundException ex)
         {
@@ -362,78 +318,6 @@ public sealed class AppServerRequestHandler(
     public void HandleInitializedNotification()
     {
         connection.MarkClientReady();
-    }
-
-    // -------------------------------------------------------------------------
-    // initialize (spec Section 3.2)
-    // -------------------------------------------------------------------------
-
-    private Task<object?> HandleInitializeAsync(AppServerIncomingMessage msg, CancellationToken ct)
-    {
-        var p = GetParams<AppServerInitializeParams>(msg);
-        if (!connection.TryMarkInitialized(p.ClientInfo, p.Capabilities))
-            throw AppServerErrors.AlreadyInitialized();
-
-        var capabilities = new AppServerServerCapabilities
-        {
-            ThreadManagement = true,
-            ThreadSubscriptions = true,
-            ThreadGoals = ThreadProjector.GoalsCapabilityEnabled(),
-            ThreadFork = true,
-            GitWorktrees = true,
-            ManualCompaction = true,
-            ManualMemoryConsolidation = memoryStore != null,
-            DynamicToolRebind = wireDynamicToolProxy != null,
-            RuntimeAdditionalContext = wireRuntimeAdditionalContextProvider != null,
-            ThreadMaintenanceInterrupt = true,
-            ApprovalFlow = true,
-            RequestUserInput = true,
-            ModeSwitch = true,
-            ConfigOverride = true,
-            BackgroundTerminals = backgroundTerminalService != null,
-            CronManagement = cronService != null,
-            HeartbeatManagement = heartbeatService != null,
-            SkillsManagement = skillsLoader != null,
-            PluginManagement = !string.IsNullOrWhiteSpace(workspaceCraftPath),
-            SkillVariants = skillsLoader != null && SkillVariants.IsVariantModeEnabled(),
-            CommandManagement = true,
-            Automations = automationsHandler != null,
-            ChannelStatus = channelStatusProvider != null,
-            ProviderManagement = !string.IsNullOrWhiteSpace(workspaceCraftPath),
-            ModelCatalogManagement = !string.IsNullOrWhiteSpace(workspaceCraftPath),
-            WorkspaceConfigManagement = !string.IsNullOrWhiteSpace(workspaceCraftPath),
-            MemoryManagement = memoryStore != null,
-            Dreams = dreamsService != null && !string.IsNullOrWhiteSpace(workspaceCraftPath),
-            McpManagement = !string.IsNullOrWhiteSpace(workspaceCraftPath) && mcpClientManager != null,
-            McpServerOrigins = mcpClientManager != null,
-            ExternalChannelManagement = !string.IsNullOrWhiteSpace(workspaceCraftPath),
-            SubAgentManagement = !string.IsNullOrWhiteSpace(workspaceCraftPath),
-            AuthOpenAiOAuth = openAIAuthService != null,
-            AuthOpenAiUsage = openAIUsageService != null,
-            SubAgentSessions = true,
-            McpStatus = mcpClientManager != null,
-            UsageTelemetry = traceStore != null
-        };
-
-        var capabilityBuilder = new AppServerCapabilityBuilder(capabilities, workspaceCraftPath);
-        foreach (var contributor in _capabilityContributors)
-            contributor.ContributeCapabilities(capabilityBuilder);
-        if (welcomeSuggestionService != null)
-            capabilityBuilder.SetExtension("welcomeSuggestions", true);
-
-        var result = new AppServerInitializeResult
-        {
-            ServerInfo = new AppServerServerInfo
-            {
-                Name = "dotcraft",
-                Version = serverVersion,
-                ProtocolVersion = "1"
-            },
-            Capabilities = capabilities,
-            DashboardUrl = dashboardUrl
-        };
-
-        return Task.FromResult<object?>(result);
     }
 
     // -------------------------------------------------------------------------
@@ -562,9 +446,9 @@ public sealed class AppServerRequestHandler(
                 connection,
                 transport,
                 sessionService,
-                workspaceCraftPath,
-                _hostWorkspacePath,
-                contextPageManager,
+                services.WorkspaceCraftPath,
+                services.HostWorkspacePath,
+                services.ContextPageManager,
                 ct));
     }
 
@@ -589,31 +473,6 @@ public sealed class AppServerRequestHandler(
         }
 
         return methods;
-    }
-
-    private static T GetParams<T>(AppServerIncomingMessage msg) where T : new()
-        => AppServerParams.Get<T>(msg);
-
-    /// <summary>
-    /// Sends a JSON-RPC response followed immediately by a notification on the same connection.
-    /// Used by thread lifecycle handlers (Fix 8) to guarantee response-before-notification ordering.
-    /// The caller must return null from its handle method to signal the host that the response
-    /// has already been sent.
-    /// </summary>
-    private async Task SendNotificationAfterResponseAsync(
-        JsonElement? requestId,
-        object responseResult,
-        string notificationMethod,
-        object notificationParams,
-        CancellationToken ct)
-    {
-        await transport.WriteMessageAsync(BuildResponse(requestId, responseResult), ct);
-        await transport.WriteMessageAsync(new
-        {
-            jsonrpc = "2.0",
-            method = notificationMethod,
-            @params = notificationParams
-        }, ct);
     }
 
     /// <summary>
