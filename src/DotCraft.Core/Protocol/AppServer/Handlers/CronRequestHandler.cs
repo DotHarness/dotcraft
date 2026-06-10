@@ -1,4 +1,5 @@
 using DotCraft.Cron;
+using DotCraft.Heartbeat;
 
 namespace DotCraft.Protocol.AppServer;
 
@@ -9,6 +10,7 @@ namespace DotCraft.Protocol.AppServer;
 /// </summary>
 internal sealed class CronRequestHandler(
     CronService? cronService,
+    HeartbeatService? heartbeatService,
     Action<CronJobWireInfo, bool>? broadcastCronStateChanged) : IAppServerDomainHandler
 {
     public void RegisterMethods(AppServerMethodTable table)
@@ -17,6 +19,7 @@ internal sealed class CronRequestHandler(
         table.Map(AppServerMethods.CronRemove, HandleCronRemoveAsync);
         table.Map(AppServerMethods.CronEnable, HandleCronEnableAsync);
         table.Map(AppServerMethods.CronRun, HandleCronRunAsync);
+        table.Map(AppServerMethods.HeartbeatTrigger, HandleHeartbeatTriggerAsync);
     }
 
     private Task<object?> HandleCronListAsync(AppServerIncomingMessage msg, CancellationToken ct)
@@ -67,6 +70,24 @@ internal sealed class CronRequestHandler(
             Queued = true,
             Job = MapCronJob(job)
         });
+    }
+
+    private async Task<object?> HandleHeartbeatTriggerAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    {
+        _ = msg;
+        _ = ct;
+        if (heartbeatService == null)
+            throw AppServerErrors.MethodNotFound(AppServerMethods.HeartbeatTrigger);
+
+        try
+        {
+            var result = await heartbeatService.TriggerNowAsync();
+            return new HeartbeatTriggerResult { Result = result };
+        }
+        catch (Exception ex)
+        {
+            return new HeartbeatTriggerResult { Error = ex.Message };
+        }
     }
 
     private static CronJobWireInfo MapCronJob(CronJob job) => CronJobWireMapping.ToWire(job);

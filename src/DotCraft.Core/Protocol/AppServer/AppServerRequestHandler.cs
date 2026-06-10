@@ -155,7 +155,7 @@ public sealed class AppServerRequestHandler(
 
     private IEnumerable<IAppServerDomainHandler> BuildDomainHandlers() =>
     [
-        new CronRequestHandler(services.CronService, services.BroadcastCronStateChanged),
+        new CronRequestHandler(services.CronService, services.HeartbeatService, services.BroadcastCronStateChanged),
         new TerminalRequestHandler(services.BackgroundTerminalService, sessionService),
         new DreamsRequestHandler(services.DreamsService, services.DreamStore, services.AppConfigMonitor, services.WorkspaceCraftPath, services.ContextPageManager),
         new SkillsRequestHandler(services.SkillsLoader, services.ContextPageManager, services.AppConfigMonitor, services.WorkspaceCraftPath, SkillVariants),
@@ -360,7 +360,6 @@ public sealed class AppServerRequestHandler(
                 AppServerMethods.TurnQueueReorder => HandleTurnQueueReorderAsync(msg, ct),
                 AppServerMethods.TurnSteer => HandleTurnSteerAsync(msg, ct),
                 AppServerMethods.TurnInterrupt => HandleTurnInterruptAsync(msg, ct),
-                AppServerMethods.HeartbeatTrigger => HandleHeartbeatTriggerAsync(msg, ct),
                 AppServerMethods.PluginList => HandlePluginListAsync(msg, ct),
                 AppServerMethods.PluginView => HandlePluginViewAsync(msg, ct),
                 AppServerMethods.PluginInstall => HandlePluginInstallAsync(msg, ct),
@@ -3197,28 +3196,9 @@ public sealed class AppServerRequestHandler(
         return Task.FromResult<object?>(new MemoryResetResult());
     }
 
-    // cron/* methods (spec Section 16) live in CronRequestHandler.
+    // cron/* and heartbeat/trigger live in CronRequestHandler.
 
     // usage/* and profile/insights live in UsageRequestHandler.
-
-    // ── heartbeat/trigger (spec Section 17.2) ────────────────────────────────
-
-    private async Task<object?> HandleHeartbeatTriggerAsync(
-        AppServerIncomingMessage msg, CancellationToken ct)
-    {
-        if (heartbeatService == null)
-            throw AppServerErrors.MethodNotFound(AppServerMethods.HeartbeatTrigger);
-
-        try
-        {
-            var result = await heartbeatService.TriggerNowAsync();
-            return new HeartbeatTriggerResult { Result = result };
-        }
-        catch (Exception ex)
-        {
-            return new HeartbeatTriggerResult { Error = ex.Message };
-        }
-    }
 
     // skills/* methods live in SkillsRequestHandler.
 
