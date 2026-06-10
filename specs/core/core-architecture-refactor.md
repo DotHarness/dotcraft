@@ -294,7 +294,7 @@ rebase pain: mechanical moves first, behavioral seams last.
 |---|---|---|---|---|
 | M1 | **Wire split** | 4.1: `AppServerProtocol.cs` → `Wire/` files; no code changes beyond file moves. Also split `SessionWireModels.cs` if it exceeds budget after review. | Trivial (compile-verified moves) | **Done** (19 files; 386 conformance tests pass) |
 | M2 | **Dispatch infrastructure** | `AppServerMethodTable`, `AppServerConnectionServices` bundle, `AppServerParams`/`AppServerExceptionMapper`; dispatcher consumes the table; extensions adapted into it. Built-in methods still live in the old class but register via the table. Update the two host construction sites + test fixtures. | Low–medium (constructor surface) | **Partial** — `AppServerConnectionServices` bundle done (13 sites migrated; tests green). Method table + `AppServerParams`/`AppServerExceptionMapper` deferred to land with M3/M4 handler extraction (avoids converting the switch twice). |
-| M3 | **Domain handlers, batch 1** | Thin/CRUD domains: skills, plugin, mcp, cron, usage, dreams, terminal, command, automation, channel. Extract `WorkspaceConfigEditor` alongside provider/workspace handlers. | Low (thin delegation) | **In progress** — dispatch seam built; **9 domains extracted to handler classes**: `cron/*`+`heartbeat/trigger`, `terminal/*`, `dreams/*`, `skills/*`, `mcp/*`, `channel/*`+`externalChannel/*`, `provider/*`+`model/list`+`auth/openai/*`, `usage/*`+`profile/insights`, `automation/*`. Shared helpers extracted: `AppServerContextInvalidation`, `SkillVariantContext`, `WorkspaceConfigEditor`, `AppServerMcpConfigService`, `McpWireMapper`, `ExternalChannelConfigService`, `ExternalChannelWireMapper`, `ProviderWireMapper`, `AppServerRuntimeConfigRefresher`. Tests green throughout. |
+| M3 | **Domain handlers, batch 1** | Thin/CRUD domains: skills, plugin, mcp, cron, usage, dreams, terminal, command, automation, channel. Extract `WorkspaceConfigEditor` alongside provider/workspace handlers. | Low (thin delegation) | **In progress** — dispatch seam built; **10 domains extracted to handler classes**: `cron/*`+`heartbeat/trigger`, `terminal/*`, `dreams/*`, `skills/*`, `mcp/*`, `channel/*`+`externalChannel/*`, `provider/*`+`model/list`+`auth/openai/*`, `workspace/config*`+welcome/commit-message/memory-reset, `usage/*`+`profile/insights`, `automation/*`. Shared helpers extracted: `AppServerContextInvalidation`, `SkillVariantContext`, `WorkspaceConfigEditor`, `AppServerMcpConfigService`, `McpWireMapper`, `ExternalChannelConfigService`, `ExternalChannelWireMapper`, `ProviderWireMapper`, `AppServerRuntimeConfigRefresher`. Tests green throughout. |
 | M4 | **Domain handlers, batch 2** | thread, turn (+`TurnStartCoordinator`), worktree, subagent, initialize. Delete the old switch; `AppServerRequestHandler` reaches dispatcher-only form. | Medium (thick handlers) | Planned |
 | M5 | **SessionService sub-services** | 4.3.2 coordinators extracted against the *existing* dictionaries (state untouched, moves only). | Medium | Planned |
 | M6 | **`ThreadRuntime` aggregation** | 4.3.1: introduce registry + runtime objects; coordinators and SessionService migrate field-by-field; delete the 24 dictionaries. | Highest — concurrency-sensitive; do last, smallest reviewable steps | Planned |
@@ -324,30 +324,26 @@ rebase pain: mechanical moves first, behavioral seams last.
 > - Pure helpers (`FormatTimeSpanForWire`, `ValidateEmptyObjectParams`, `NormalizeIdentityWorkspace`,
 >   `ExtractCommandName`, `ParseUsageDate`) → static helper classes.
 >
-> Current recommended sequence: (a) group the remaining workspace config-refresh
-> and plugin runtime seams; (b) extract those config-heavy handlers; (c) defer
-> command/plugin to M4 alongside thread enrichment.
+> Current recommended sequence: (a) group the remaining plugin runtime seams; (b) extract the
+> plugin handler if thread projection can stay isolated; (c) defer `command/*` and any
+> thread-projection-coupled plugin pieces to M4 alongside thread enrichment.
 >
-> **As-built (M3 batch, 9 domains done).** Extracted, each verified (Core build + 386 conformance
+> **As-built (M3 batch, 10 domains done).** Extracted, each verified (Core build + 386 conformance
 > tests, green per commit): `CronRequestHandler` (including `heartbeat/trigger`),
 > `TerminalRequestHandler`, `DreamsRequestHandler`,
 > `SkillsRequestHandler`, `McpRequestHandler`, `ChannelRequestHandler`, `ProviderRequestHandler`,
-> `UsageRequestHandler`, `AutomationRequestHandler`.
+> `WorkspaceRequestHandler`, `UsageRequestHandler`, `AutomationRequestHandler`.
 > Shared seams created: `AppServerContextInvalidation` (skills/memory page invalidation),
 > `SkillVariantContext` (variant mode + target, shared with turn-start/initialize),
 > `WorkspaceConfigEditor` (config JSON paths/load/write/upsert helpers),
 > `AppServerMcpConfigService` (workspace MCP persistence + effective runtime reconnect), and
 > `McpWireMapper`; plus `ExternalChannelConfigService` and `ExternalChannelWireMapper` for channel
 > management; plus `ProviderWireMapper` and `AppServerRuntimeConfigRefresher` for provider/model/auth
-> management. Single-domain helpers travelled with their handler (e.g. `MapSkillToWire`,
+> and workspace config runtime-refresh management. Single-domain helpers travelled with their handler (e.g. `MapSkillToWire`,
 > `ToDreamRunWire`, `ParseUsageDate`). `automation/*` was already a pass-through to
 > `IAutomationsRequestHandler`, so its handler is a thin router.
 >
 > **Remaining domains and their blocker (next sub-pass before extraction):**
-> - `workspace/config*` — still edits/read workspace+global config and shares refresh/invalidation
->   behavior with provider/MCP persistence. The initial `WorkspaceConfigEditor` now owns config paths/
->   load/write/upsert helpers, and `AppServerRuntimeConfigRefresher` owns the common runtime refresh
->   and agent-invalidation path.
 > - `plugin/*` — `MapPluginToWire`, `RefreshPluginRuntime`, plugin MCP/LSP summary indices, and
 >   skills-context invalidation. Needs the plugin-runtime helpers grouped first.
 > - `command/*` — depends on `EnrichThreadWireAsync` (thread projection), so it joins M4.

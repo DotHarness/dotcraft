@@ -1,4 +1,7 @@
 using DotCraft.Configuration;
+using DotCraft.Abstractions;
+using DotCraft.Context;
+using DotCraft.Dreams;
 
 namespace DotCraft.Protocol.AppServer;
 
@@ -27,9 +30,111 @@ internal sealed class AppServerRuntimeConfigRefresher(
             StringComparer.OrdinalIgnoreCase);
     }
 
+    public void RefreshCurrentPermissionsConfig(string? defaultApprovalPolicy)
+    {
+        if (appConfigMonitor == null)
+            return;
+
+        appConfigMonitor.Current.Permissions = new AppConfig.PermissionsConfig
+        {
+            DefaultApprovalPolicy = ToApprovalPolicy(defaultApprovalPolicy)
+        };
+    }
+
+    public void RefreshCurrentMemoryConfig()
+    {
+        if (appConfigMonitor == null || string.IsNullOrWhiteSpace(workspaceCraftPath))
+            return;
+
+        var mergedConfig = LoadMergedWorkspaceConfig(useGlobalFallback: true);
+        appConfigMonitor.Current.Memory = new MemoryConfig
+        {
+            AutoConsolidateEnabled = mergedConfig.Memory.AutoConsolidateEnabled,
+            ConsolidateEveryNTurns = mergedConfig.Memory.ConsolidateEveryNTurns
+        };
+    }
+
+    public void RefreshCurrentDreamsConfig()
+    {
+        if (appConfigMonitor == null || string.IsNullOrWhiteSpace(workspaceCraftPath))
+            return;
+
+        var mergedConfig = LoadMergedWorkspaceConfig(useGlobalFallback: false);
+        appConfigMonitor.Current.Dreams = new DreamsConfig
+        {
+            Enabled = mergedConfig.Dreams.Enabled,
+            Interval = mergedConfig.Dreams.Interval,
+            StartupDelay = mergedConfig.Dreams.StartupDelay,
+            ThreadLookbackCount = mergedConfig.Dreams.ThreadLookbackCount,
+            AutoApply = mergedConfig.Dreams.AutoApply,
+            HistoryTailChars = mergedConfig.Dreams.HistoryTailChars,
+            MinCompletedTurnsSinceLastRun = mergedConfig.Dreams.MinCompletedTurnsSinceLastRun
+        };
+    }
+
+    public void RefreshCurrentLspConfig(bool? toolsLspEnabled)
+    {
+        if (appConfigMonitor == null)
+            return;
+
+        if (toolsLspEnabled.HasValue)
+        {
+            appConfigMonitor.Current.Tools.Lsp.Enabled = toolsLspEnabled.Value;
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(workspaceCraftPath))
+        {
+            var mergedConfig = LoadMergedWorkspaceConfig(useGlobalFallback: true);
+            appConfigMonitor.Current.Tools.Lsp = mergedConfig.Tools.Lsp;
+            return;
+        }
+
+        appConfigMonitor.Current.Tools.Lsp.Enabled = false;
+    }
+
+    public void RefreshCurrentReasoningConfig()
+    {
+        if (appConfigMonitor == null)
+            return;
+
+        if (!string.IsNullOrWhiteSpace(workspaceCraftPath))
+        {
+            var mergedConfig = LoadMergedWorkspaceConfig(useGlobalFallback: true);
+            appConfigMonitor.Current.Reasoning = CloneReasoningConfig(mergedConfig.Reasoning);
+            return;
+        }
+
+        appConfigMonitor.Current.Reasoning = new AppConfig.ReasoningConfig();
+    }
+
     public void InvalidateThreadAgents()
     {
         if (sessionService is IThreadAgentRefreshService refreshService)
             refreshService.InvalidateThreadAgents();
     }
+
+    private AppConfig LoadMergedWorkspaceConfig(bool useGlobalFallback)
+    {
+        var configPath = Path.Combine(workspaceCraftPath!, "config.json");
+        return useGlobalFallback
+            ? AppConfig.LoadWithGlobalFallback(configPath, workspaceConfig.EffectiveGlobalConfigPath)
+            : AppConfig.LoadWithGlobalFallback(configPath);
+    }
+
+    private static ApprovalPolicy ToApprovalPolicy(string? rawPolicy)
+    {
+        return rawPolicy switch
+        {
+            "autoApprove" => ApprovalPolicy.AutoApprove,
+            _ => ApprovalPolicy.Default
+        };
+    }
+
+    private static AppConfig.ReasoningConfig CloneReasoningConfig(AppConfig.ReasoningConfig source) => new()
+    {
+        Enabled = source.Enabled,
+        Effort = source.Effort,
+        Output = source.Output
+    };
 }
