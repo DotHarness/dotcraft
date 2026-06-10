@@ -1,11 +1,14 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { Puzzle, ShieldX, TriangleAlert, Unplug } from 'lucide-react'
 import { translate, type AppLocale } from '../../../shared/locales'
 import { useLocale } from '../../contexts/LocaleContext'
-import type { ConversationItem, ToolUiDescriptor } from '../../types/conversation'
+import { derivePluginFunctionResultText, type ConversationItem, type ToolUiDescriptor } from '../../types/conversation'
 import { useConversationStore } from '../../stores/conversationStore'
+import { useAppBindingStore } from '../../stores/appBindingStore'
 import { useDisplayModeStore, AVAILABLE_DISPLAY_MODES, type DisplayMode } from '../../stores/displayModeStore'
 import { startTurnWithOptimisticUI } from '../../utils/startTurn'
+import { AnsiPre } from './AnsiPre'
 import { THEME_CHANGED_EVENT } from '../../../shared/theme'
 
 /**
@@ -115,11 +118,46 @@ function toErrorMessage(err: unknown): string {
   }
 }
 
+/**
+ * Why the app view can't render. Derived from the thread's app-binding state (and plugin
+ * enablement) rather than the iframe's ambiguous `onLoad` — a `dotcraft-app://` resource
+ * read refused by AppServer (offline/revoked/expired binding) still fires `onLoad`, so the
+ * iframe alone can't distinguish failure from success (see app-binding spec §16 — Desktop
+ * shows a safe error display and falls back to the tool result's text).
+ */
+export type InteractiveToolUnavailableReason = 'disconnected' | 'revoked' | 'pluginDisabled' | 'failed'
+
+/**
+ * Map a binding state + plugin-enablement to a degraded reason. Returns null when the card
+ * should still attempt to render the iframe (binding `active`/`pending`, or state unknown /
+ * not yet fetched) — degradation only kicks in on positive evidence so working apps never
+ * regress.
+ */
+export function deriveUnavailableReason(
+  bindingState: string | undefined,
+  pluginDisabled: boolean
+): InteractiveToolUnavailableReason | null {
+  if (pluginDisabled) return 'pluginDisabled'
+  switch (bindingState) {
+    case 'offline':
+      return 'disconnected'
+    case 'revoked':
+    case 'expired':
+    case 'cancelled':
+      return 'revoked'
+    case 'error':
+      return 'failed'
+    default:
+      return null
+  }
+}
+
 function InteractiveToolViewImpl({ item, threadId, locale, expanded = false }: InteractiveToolViewProps): JSX.Element | null {
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
   const bridgeRef = useRef<BridgeSession>(createBridgeSession())
   const [loaded, setLoaded] = useState(false)
   const [errored, setErrored] = useState(false)
+  const [reloadNonce, setReloadNonce] = useState(0)
   const workspacePath = useConversationStore((s) => s.workspacePath)
   const expandedCard = useDisplayModeStore((s) => s.expanded)
   const collapse = useDisplayModeStore((s) => s.collapse)
@@ -131,6 +169,35 @@ function InteractiveToolViewImpl({ item, threadId, locale, expanded = false }: I
   const namespace = item.pluginNamespace
   // Provenance for decoupled UI actions: the originating dynamicToolCall's callId.
   const sourceCallId = item.toolCallId ?? item.id
+
+  // Availability is derived from the thread's app-binding lifecycle, which is kept live by the
+  // `thread/appBindings/changed` notification (appBindingStore). A history thread re-entered
+  // after the app disconnected / the binding was revoked / the plugin was disabled resolves to
+  // an explicit degraded state + text fallback instead of a blank iframe.
+  const threadBindings = useAppBindingStore((s) => (threadId ? s.bindingsByThread[threadId] : undefined))
+  const appEnabledByNamespace = useAppBindingStore((s) => {
+    if (!namespace) return undefined
+    const app = s.apps.find((entry) => entry.toolNamespace === namespace)
+    return app ? app.enabled : undefined
+  })
+  const bindingState = useMemo(
+    () => (namespace ? threadBindings?.find((b) => b.toolNamespace === namespace)?.state : undefined),
+    [namespace, threadBindings]
+  )
+  const unavailableReason = useMemo(
+    () => deriveUnavailableReason(bindingState, appEnabledByNamespace === false),
+    [bindingState, appEnabledByNamespace]
+  )
+
+  // Ensure the thread's bindings are loaded (incl. revoked) so a history card can detect its own
+  // unavailability; guarded so multiple cards in a thread don't each fire the request.
+  useEffect(() => {
+    if (!threadId || !resourceUri) return
+    const store = useAppBindingStore.getState()
+    if (store.bindingsByThread[threadId] === undefined && store.bindingsLoadingByThread[threadId] !== true) {
+      void store.fetchThreadBindings(threadId, true)
+    }
+  }, [threadId, resourceUri])
 
   // M-iv display mode. The inline instance shows a placeholder while its card is expanded elsewhere
   // (so only one live iframe exists); the expanded instance reports its granted mode to the iframe.
@@ -151,6 +218,14 @@ function InteractiveToolViewImpl({ item, threadId, locale, expanded = false }: I
     bridgeRef.current = createBridgeSession()
     messageTimesRef.current = []
   }, [])
+
+  const handleRetry = useCallback(() => {
+    if (threadId) void useAppBindingStore.getState().fetchThreadBindings(threadId, true)
+    resetBridgeSession()
+    setErrored(false)
+    setLoaded(false)
+    setReloadNonce((n) => n + 1)
+  }, [threadId, resetBridgeSession])
 
   const setIframeRef = useCallback((node: HTMLIFrameElement | null) => {
     if (iframeRef.current === node) return
@@ -513,6 +588,23 @@ function InteractiveToolViewImpl({ item, threadId, locale, expanded = false }: I
     )
   }
 
+  // App view can't render: show an explicit degraded state with the recorded tool result as a
+  // text fallback, instead of a blank iframe. `errored` (iframe self-navigation / load error)
+  // maps to the generic "failed" reason; binding-derived reasons are more specific.
+  const effectiveReason = unavailableReason ?? (errored ? 'failed' : null)
+  if (effectiveReason) {
+    return (
+      <InteractiveToolDegraded
+        reason={effectiveReason}
+        item={item}
+        locale={locale}
+        expanded={expanded}
+        prefersBorder={prefersBorder}
+        onRetry={handleRetry}
+      />
+    )
+  }
+
   return (
     <div
       className="interactive-tool-view"
@@ -525,16 +617,11 @@ function InteractiveToolViewImpl({ item, threadId, locale, expanded = false }: I
         ...(expanded ? { height: '100%', display: 'flex', flexDirection: 'column' } : {})
       }}
     >
-      {!loaded && !errored && (
+      {!loaded && (
         <div style={statusStyle}>{translate(locale, 'interactiveTool.loading')}</div>
       )}
-      {errored && (
-        <div style={{ ...statusStyle, color: 'var(--text-error, #e5484d)' }}>
-          {translate(locale, 'interactiveTool.error')}
-        </div>
-      )}
       <iframe
-        key={src}
+        key={`${src}#${reloadNonce}`}
         ref={setIframeRef}
         className="interactive-tool-view__frame"
         title={descriptor?.domain ?? item.toolName ?? 'App view'}
@@ -546,7 +633,7 @@ function InteractiveToolViewImpl({ item, threadId, locale, expanded = false }: I
           height: expanded ? '100%' : DEFAULT_FRAME_HEIGHT,
           flex: expanded ? 1 : undefined,
           border: 'none',
-          display: errored ? 'none' : 'block'
+          display: 'block'
         }}
         onLoad={handleFrameLoad}
         onError={() => disableBridge(true)}
@@ -595,6 +682,140 @@ const placeholderButtonStyle: CSSProperties = {
   background: 'var(--bg-secondary, transparent)',
   color: 'var(--text-primary, inherit)',
   cursor: 'pointer'
+}
+
+const REASON_META: Record<
+  InteractiveToolUnavailableReason,
+  { Icon: typeof Unplug; tone: 'warning' | 'error' | 'neutral'; titleKey: string; descKey: string }
+> = {
+  disconnected: { Icon: Unplug, tone: 'warning', titleKey: 'interactiveTool.disconnected.title', descKey: 'interactiveTool.disconnected.desc' },
+  revoked: { Icon: ShieldX, tone: 'error', titleKey: 'interactiveTool.revoked.title', descKey: 'interactiveTool.revoked.desc' },
+  pluginDisabled: { Icon: Puzzle, tone: 'neutral', titleKey: 'interactiveTool.pluginDisabled.title', descKey: 'interactiveTool.pluginDisabled.desc' },
+  failed: { Icon: TriangleAlert, tone: 'error', titleKey: 'interactiveTool.failed.title', descKey: 'interactiveTool.failed.desc' }
+}
+
+function toneColor(tone: 'warning' | 'error' | 'neutral'): string {
+  if (tone === 'warning') return 'var(--warning, #eab308)'
+  if (tone === 'error') return 'var(--error, #ef4444)'
+  return 'var(--text-dimmed, rgba(255,255,255,0.4))'
+}
+
+/**
+ * Degraded surface shown when the app view can't render (binding offline/revoked/expired,
+ * plugin disabled, or a load failure). Explicit localized state + the recorded tool result as a
+ * readable fallback — the interactive UI is never required for correctness (tool-result-presentation §12).
+ */
+function InteractiveToolDegraded({
+  reason,
+  item,
+  locale,
+  expanded,
+  prefersBorder,
+  onRetry
+}: {
+  reason: InteractiveToolUnavailableReason
+  item: ConversationItem
+  locale: AppLocale
+  expanded: boolean
+  prefersBorder: boolean
+  onRetry: () => void
+}): JSX.Element {
+  const meta = REASON_META[reason]
+  const Icon = meta.Icon
+  const color = toneColor(meta.tone)
+  const resultText = derivePluginFunctionResultText(item.contentItems, item.structuredResult, item.errorMessage)
+  const icon: ReactNode = <Icon size={18} strokeWidth={1.6} />
+
+  return (
+    <div
+      className="interactive-tool-view interactive-tool-view--unavailable"
+      style={{
+        borderRadius: expanded ? 0 : 8,
+        overflow: 'hidden',
+        border: expanded ? 'none' : prefersBorder ? '1px solid var(--border-default, rgba(255,255,255,0.1))' : 'none',
+        background: 'var(--bg-primary, transparent)',
+        ...(expanded ? { height: '100%', display: 'flex', flexDirection: 'column' } : {})
+      }}
+    >
+      <div style={{ ...degradedPanelStyle, ...(expanded ? { flex: 1 } : { minHeight: 188 }) }}>
+        <span style={{ ...degradedIconStyle, color, background: `color-mix(in srgb, ${color} 12%, transparent)` }}>
+          {icon}
+        </span>
+        <div style={degradedTitleStyle}>{translate(locale, meta.titleKey)}</div>
+        <p style={degradedDescStyle}>{translate(locale, meta.descKey)}</p>
+        <button type="button" style={degradedRetryStyle} onClick={onRetry}>
+          {translate(locale, 'interactiveTool.retry')}
+        </button>
+      </div>
+      {resultText && (
+        <div style={degradedFallbackStyle}>
+          <div style={degradedFallbackLabelStyle}>{translate(locale, 'interactiveTool.resultFallbackLabel')}</div>
+          <AnsiPre text={resultText} maxHeight={expanded ? undefined : 200} truncatedLinesOver={20} colorWhenNoSgr="var(--text-secondary)" />
+        </div>
+      )}
+    </div>
+  )
+}
+
+const degradedPanelStyle: CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: '9px',
+  padding: '22px 18px',
+  textAlign: 'center'
+}
+
+const degradedIconStyle: CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: '40px',
+  height: '40px',
+  borderRadius: '10px'
+}
+
+const degradedTitleStyle: CSSProperties = {
+  fontSize: '14px',
+  fontWeight: 600,
+  color: 'var(--text-primary, inherit)'
+}
+
+const degradedDescStyle: CSSProperties = {
+  margin: 0,
+  maxWidth: '340px',
+  fontSize: '12.5px',
+  lineHeight: 1.5,
+  color: 'var(--text-secondary, rgba(255,255,255,0.6))'
+}
+
+const degradedRetryStyle: CSSProperties = {
+  marginTop: '4px',
+  font: 'inherit',
+  fontSize: '12.5px',
+  fontWeight: 600,
+  padding: '6px 14px',
+  borderRadius: '7px',
+  border: '1px solid var(--text-primary, #eee)',
+  background: 'var(--text-primary, #eee)',
+  color: 'var(--bg-primary, #111)',
+  cursor: 'pointer'
+}
+
+const degradedFallbackStyle: CSSProperties = {
+  padding: '11px 12px 13px',
+  borderTop: '1px solid var(--border-default, rgba(255,255,255,0.1))',
+  background: 'color-mix(in srgb, var(--text-primary) 1.5%, transparent)'
+}
+
+const degradedFallbackLabelStyle: CSSProperties = {
+  fontSize: '11px',
+  fontWeight: 600,
+  letterSpacing: '0.03em',
+  textTransform: 'uppercase',
+  color: 'var(--text-dimmed, rgba(255,255,255,0.4))',
+  marginBottom: '6px'
 }
 
 export const InteractiveToolView = memo(InteractiveToolViewImpl)

@@ -5,6 +5,7 @@ import type { ConversationItem } from '../types/conversation'
 import { startTurnWithOptimisticUI } from '../utils/startTurn'
 import { useConversationStore } from '../stores/conversationStore'
 import { useDisplayModeStore } from '../stores/displayModeStore'
+import { useAppBindingStore, type AppInfo, type ThreadAppBinding } from '../stores/appBindingStore'
 import { THEME_CHANGED_EVENT } from '../../shared/theme'
 
 vi.mock('../utils/startTurn', () => ({
@@ -54,6 +55,10 @@ beforeEach(() => {
   openExternal.mockReset().mockResolvedValue(undefined)
   ;(startTurnWithOptimisticUI as unknown as ReturnType<typeof vi.fn>).mockClear()
   useDisplayModeStore.setState({ expanded: null })
+  // Default to an active binding so the iframe renders (and the mount-time binding fetch is
+  // skipped); degraded-state tests reset + reseed the store themselves.
+  useAppBindingStore.getState().reset()
+  seedBindings('active')
   ;(window as unknown as { api: unknown }).api = {
     appServer: { sendRequest },
     shell: { openExternal }
@@ -310,9 +315,99 @@ describe('InteractiveToolView', () => {
         expect.any(Number)
       )
     )
-    expect(container.textContent).toContain("Couldn't load the app view.")
+    // The disabled bridge drops to the degraded "failed" surface, which also surfaces the
+    // recorded tool result as a readable fallback.
+    expect(container.textContent).toContain("Couldn't load the app view")
+    expect(container.querySelector('iframe')).toBeNull()
+    expect(container.textContent).toContain('cardId')
 
     dispatch(frameWindow, { id: 35, method: 'tools/call', bridgeToken, params: { name: 'ListItems' } })
     expect(sendRequest).not.toHaveBeenCalledWith('ui/tool/call', expect.anything(), expect.anything())
+  })
+})
+
+function seedBindings(state: string): void {
+  useAppBindingStore.setState({
+    bindingsByThread: {
+      t1: [
+        {
+          bindingId: 'b1',
+          threadId: 't1',
+          appId: 'oratorio.app',
+          toolNamespace: 'oratorio',
+          state,
+          connectionState: 'connected',
+          grantedScopes: [],
+          attachedToolCount: 1,
+          lastChangedAt: new Date(0).toISOString()
+        }
+      ] as unknown as ThreadAppBinding[]
+    }
+  })
+}
+
+describe('InteractiveToolView degraded states', () => {
+  beforeEach(() => {
+    useAppBindingStore.getState().reset()
+  })
+
+  function renderView(): HTMLElement {
+    return render(<InteractiveToolView item={makeItem()} threadId="t1" locale="en" />).container
+  }
+
+  it('renders the iframe when the binding is active', () => {
+    seedBindings('active')
+    const container = renderView()
+    expect(container.querySelector('iframe')).toBeTruthy()
+    expect(container.textContent).not.toContain('App disconnected')
+  })
+
+  it('shows the disconnected state + tool-result fallback when the binding is offline', () => {
+    seedBindings('offline')
+    const container = renderView()
+    expect(container.querySelector('iframe')).toBeNull()
+    expect(container.textContent).toContain('App disconnected')
+    // The recorded structuredResult is still readable as a fallback.
+    expect(container.textContent).toContain('cardId')
+  })
+
+  it.each([
+    ['revoked', 'App access was removed'],
+    ['expired', 'App access was removed'],
+    ['error', "Couldn't load the app view"]
+  ])('maps binding state %s to an explicit degraded surface', (state, title) => {
+    seedBindings(state)
+    const container = renderView()
+    expect(container.querySelector('iframe')).toBeNull()
+    expect(container.textContent).toContain(title)
+  })
+
+  it('shows the plugin-disabled state when the app is disabled, even with an active binding', () => {
+    seedBindings('active')
+    useAppBindingStore.setState({ apps: [{ toolNamespace: 'oratorio', enabled: false }] as unknown as AppInfo[] })
+    const container = renderView()
+    expect(container.querySelector('iframe')).toBeNull()
+    expect(container.textContent).toContain('Plugin is disabled')
+  })
+
+  it('switches a live card to the degraded state when the binding goes offline', () => {
+    seedBindings('active')
+    const container = renderView()
+    expect(container.querySelector('iframe')).toBeTruthy()
+
+    act(() => seedBindings('offline'))
+    expect(container.querySelector('iframe')).toBeNull()
+    expect(container.textContent).toContain('App disconnected')
+  })
+
+  it('fetches the thread bindings when none are loaded yet', async () => {
+    renderView()
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(sendRequest).toHaveBeenCalledWith(
+      'thread/appBindings/list',
+      expect.objectContaining({ threadId: 't1', includeRevoked: true })
+    )
   })
 })
