@@ -134,6 +134,7 @@ public sealed partial class SessionService(
     private readonly ConcurrentDictionary<string, AutoMemoryConsolidationWork> _pendingAutoMemoryConsolidations = new(StringComparer.Ordinal);
     private WorktreeCoordinator? _worktreeCoordinator;
     private SubAgentSessionCoordinator? _subAgentSessionCoordinator;
+    private ThreadIndexCoordinator? _threadIndexCoordinator;
     private static readonly AsyncLocal<bool> SuppressGoalBroadcastContext = new();
     private static readonly IReadOnlySet<string> EmptyPluginFunctionToolNames = new HashSet<string>(StringComparer.Ordinal);
     private static readonly IReadOnlySet<string> EmptyDynamicToolNames = new HashSet<string>(StringComparer.Ordinal);
@@ -144,6 +145,8 @@ public sealed partial class SessionService(
     private WorktreeCoordinator Worktrees => _worktreeCoordinator ??= new WorktreeCoordinator(this);
 
     private SubAgentSessionCoordinator SubAgents => _subAgentSessionCoordinator ??= new SubAgentSessionCoordinator(this);
+
+    private ThreadIndexCoordinator ThreadIndex => _threadIndexCoordinator ??= new ThreadIndexCoordinator(this);
 
     private SessionGate Gate => sessionGate;
 
@@ -1501,83 +1504,10 @@ Choose the next concrete action that advances the goal. Before doing substantial
         IReadOnlyList<string>? crossChannelOrigins = null,
         CancellationToken ct = default,
         bool includeSubAgents = false)
-    {
-        var all = await persistence.LoadIndexAsync(ct);
-        var hasCross = crossChannelOrigins is { Count: > 0 };
-        var mergedById = new Dictionary<string, ThreadSummary>(StringComparer.OrdinalIgnoreCase);
-        foreach (var summary in all)
-            mergedById[summary.Id] = summary;
-        foreach (var thread in _threads.Values)
-        {
-            if (thread.Ephemeral)
-                continue;
-
-            var summary = ThreadSummary.FromThread(thread);
-            summary.Runtime = GetThreadRuntimeSnapshot(thread);
-            mergedById[thread.Id] = summary;
-        }
-        var merged = mergedById.Values.ToList();
-
-        return merged
-            .Where(s =>
-            {
-                if (!(includeArchived || s.Status != ThreadStatus.Archived))
-                    return false;
-                if (!string.Equals(s.WorkspacePath, identity.WorkspacePath, StringComparison.OrdinalIgnoreCase))
-                    return false;
-                if (!includeSubAgents && IsSubAgentSummary(s))
-                    return false;
-                if (includeSubAgents
-                    && IsSubAgentSummary(s)
-                    && IsHiddenByArchivedParent(s, mergedById, includeArchived))
-                    return false;
-                if (includeSubAgents
-                    && IsSubAgentSummary(s)
-                    && (identity.UserId == null || s.UserId == identity.UserId))
-                    return true;
-
-                // userId and channelContext apply together for the native identity path only.
-                // Cron/heartbeat threads use synthetic userIds (e.g. cron:jobId) while Desktop uses local;
-                // they are included only via crossChannelOrigins (workspace + originChannel).
-                var identityMatch =
-                    (identity.UserId == null || s.UserId == identity.UserId)
-                    && (identity.ChannelContext == null
-                        ? s.ChannelContext == null
-                        : s.ChannelContext == identity.ChannelContext);
-
-                if (identityMatch)
-                    return true;
-
-                if (!hasCross)
-                    return false;
-
-                return OriginChannelInList(s.OriginChannel, crossChannelOrigins!);
-            })
-            .OrderByDescending(s => s.LastActiveAt)
-            .ToList();
-    }
+        => await ThreadIndex.FindAsync(identity, includeArchived, crossChannelOrigins, ct, includeSubAgents);
 
     public async Task<int> CountWorkspaceThreadsAsync(string workspacePath, CancellationToken ct = default)
-    {
-        if (string.IsNullOrWhiteSpace(workspacePath))
-            return 0;
-
-        var all = await persistence.LoadIndexAsync(ct);
-        var mergedById = new Dictionary<string, ThreadSummary>(StringComparer.OrdinalIgnoreCase);
-        foreach (var summary in all)
-            mergedById[summary.Id] = summary;
-        foreach (var thread in _threads.Values)
-        {
-            if (thread.Ephemeral)
-                continue;
-            mergedById[thread.Id] = ThreadSummary.FromThread(thread);
-        }
-
-        return mergedById.Values.Count(s =>
-            string.Equals(s.WorkspacePath, workspacePath, StringComparison.OrdinalIgnoreCase)
-            && !ThreadVisibility.IsInternal(s)
-            && !IsSubAgentSummary(s));
-    }
+        => await ThreadIndex.CountWorkspaceThreadsAsync(workspacePath, ct);
 
     public async Task UpsertThreadSpawnEdgeAsync(ThreadSpawnEdge edge, CancellationToken ct = default)
         => await SubAgents.UpsertThreadSpawnEdgeAsync(edge, ct);
@@ -1635,10 +1565,6 @@ Choose the next concrete action that advances the goal. Before doing substantial
         CancellationToken ct = default)
         => await SubAgents.CancelSyntheticTurnAsync(threadId, turnId, reason, ct);
 
-    private static bool IsSubAgentSummary(ThreadSummary summary) =>
-        string.Equals(summary.Source.Kind, ThreadSourceKinds.SubAgent, StringComparison.OrdinalIgnoreCase)
-        || string.Equals(summary.OriginChannel, SubAgentThreadOrigin.ChannelName, StringComparison.OrdinalIgnoreCase);
-
     private static bool IsSubAgentThread(SessionThread thread) =>
         string.Equals(thread.Source.Kind, ThreadSourceKinds.SubAgent, StringComparison.OrdinalIgnoreCase)
         || string.Equals(thread.OriginChannel, SubAgentThreadOrigin.ChannelName, StringComparison.OrdinalIgnoreCase);
@@ -1656,28 +1582,6 @@ Choose the next concrete action that advances the goal. Before doing substantial
             return sourceParent;
         var context = thread.ChannelContext?.Trim();
         return string.IsNullOrWhiteSpace(context) ? null : context;
-    }
-
-    private static string? GetSubAgentParentThreadId(ThreadSummary summary)
-    {
-        var sourceParent = summary.Source.SubAgent?.ParentThreadId?.Trim();
-        if (!string.IsNullOrWhiteSpace(sourceParent))
-            return sourceParent;
-        var context = summary.ChannelContext?.Trim();
-        return string.IsNullOrWhiteSpace(context) ? null : context;
-    }
-
-    private static bool IsHiddenByArchivedParent(
-        ThreadSummary summary,
-        IReadOnlyDictionary<string, ThreadSummary> summariesById,
-        bool includeArchived)
-    {
-        if (includeArchived)
-            return false;
-        var parentId = GetSubAgentParentThreadId(summary);
-        return !string.IsNullOrWhiteSpace(parentId)
-            && summariesById.TryGetValue(parentId, out var parent)
-            && parent.Status == ThreadStatus.Archived;
     }
 
     private static void ThrowIfDirectSubAgentLifecycleOperation(SessionThread thread, string operation)
@@ -1790,17 +1694,6 @@ Choose the next concrete action that advances the goal. Before doing substantial
     {
         GetOrCreateBroker(threadId).PublishThreadStatusChanged(previousStatus, newStatus);
         ThreadStatusChangedForBroadcast?.Invoke(threadId, previousStatus, newStatus);
-    }
-
-    private static bool OriginChannelInList(string originChannel, IReadOnlyList<string> origins)
-    {
-        foreach (var o in origins)
-        {
-            if (string.Equals(o, originChannel, StringComparison.OrdinalIgnoreCase))
-                return true;
-        }
-
-        return false;
     }
 
     /// <inheritdoc/>
