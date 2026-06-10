@@ -59,9 +59,6 @@ public sealed class AppServerRequestHandler(
     private readonly IChannelStatusProvider? channelStatusProvider = services.ChannelStatusProvider;
     private readonly McpClientManager? mcpClientManager = services.McpClientManager;
     private readonly LspServerManager? lspServerManager = services.LspServerManager;
-    private readonly Func<ExternalChannelEntry, CancellationToken, Task>? onExternalChannelUpserted = services.OnExternalChannelUpserted;
-    private readonly Func<string, CancellationToken, Task>? onExternalChannelRemoved = services.OnExternalChannelRemoved;
-    private readonly IExternalChannelLogProvider? externalChannelLogProvider = services.ExternalChannelLogProvider;
     private readonly SessionStreamDebugLogger? streamDebugLogger = services.StreamDebugLogger;
     private readonly IAppConfigMonitor? appConfigMonitor = services.AppConfigMonitor;
     private readonly OpenAIClientProvider? openAIClientProvider = services.OpenAIClientProvider;
@@ -117,6 +114,7 @@ public sealed class AppServerRequestHandler(
     private SkillVariantContext? _skillVariants;
     private WorkspaceConfigEditor? _workspaceConfig;
     private AppServerMcpConfigService? _mcpConfig;
+    private ExternalChannelConfigService? _externalChannelConfig;
 
     /// <summary>
     /// Shared skill-variant resolver (variant mode + per-connection target), consulted by the
@@ -130,6 +128,9 @@ public sealed class AppServerRequestHandler(
 
     private AppServerMcpConfigService McpConfig => _mcpConfig ??=
         new AppServerMcpConfigService(appConfigMonitor, mcpClientManager, _hostWorkspacePath, workspaceCraftPath);
+
+    private ExternalChannelConfigService ExternalChannelConfig => _externalChannelConfig ??=
+        new ExternalChannelConfigService(channelListContributor, workspaceCraftPath);
 
     private AppServerMethodTable? _domainMethods;
 
@@ -156,6 +157,7 @@ public sealed class AppServerRequestHandler(
         new DreamsRequestHandler(services.DreamsService, services.DreamStore, services.AppConfigMonitor, services.WorkspaceCraftPath, services.ContextPageManager),
         new SkillsRequestHandler(services.SkillsLoader, services.ContextPageManager, services.AppConfigMonitor, services.WorkspaceCraftPath, SkillVariants),
         new McpRequestHandler(services.McpClientManager, McpConfig, services.AppConfigMonitor, services.BroadcastMcpStatusChanged),
+        new ChannelRequestHandler(channelListContributor, services.ChannelStatusProvider, WorkspaceConfig, ExternalChannelConfig, services.WorkspaceCraftPath, services.AppConfigMonitor, services.OnExternalChannelUpserted, services.OnExternalChannelRemoved, services.ExternalChannelLogProvider),
         new UsageRequestHandler(services.TraceStore, services.SkillsLoader, sessionService, services.HostWorkspacePath),
         new AutomationRequestHandler(services.AutomationsHandler),
     ];
@@ -312,8 +314,6 @@ public sealed class AppServerRequestHandler(
             return await (method switch
             {
                 AppServerMethods.Initialize => HandleInitializeAsync(msg, ct),
-                AppServerMethods.ChannelList => HandleChannelListAsync(msg, ct),
-                AppServerMethods.ChannelStatus => HandleChannelStatusAsync(msg, ct),
                 AppServerMethods.ProviderList => HandleProviderListAsync(msg, ct),
                 AppServerMethods.ProviderCreate => HandleProviderCreateAsync(msg, ct),
                 AppServerMethods.ProviderUpdate => HandleProviderUpdateAsync(msg, ct),
@@ -324,11 +324,6 @@ public sealed class AppServerRequestHandler(
                 AppServerMethods.AuthOpenAiLogin => HandleAuthOpenAiLoginAsync(msg, ct),
                 AppServerMethods.AuthOpenAiLogout => HandleAuthOpenAiLogoutAsync(msg, ct),
                 AppServerMethods.AuthOpenAiUsage => HandleAuthOpenAiUsageAsync(msg, ct),
-                AppServerMethods.ExternalChannelList => HandleExternalChannelListAsync(msg, ct),
-                AppServerMethods.ExternalChannelGet => HandleExternalChannelGetAsync(msg, ct),
-                AppServerMethods.ExternalChannelUpsert => HandleExternalChannelUpsertAsync(msg, ct),
-                AppServerMethods.ExternalChannelRemove => HandleExternalChannelRemoveAsync(msg, ct),
-                AppServerMethods.ExternalChannelLogs => HandleExternalChannelLogsAsync(msg, ct),
                 AppServerMethods.SubAgentProfileList => HandleSubAgentProfileListAsync(msg, ct),
                 AppServerMethods.SubAgentSettingsUpdate => HandleSubAgentSettingsUpdateAsync(msg, ct),
                 AppServerMethods.SubAgentProfileSetEnabled => HandleSubAgentProfileSetEnabledAsync(msg, ct),
@@ -1182,79 +1177,6 @@ public sealed class AppServerRequestHandler(
         }
     }
 
-    private Task<object?> HandleChannelListAsync(AppServerIncomingMessage msg, CancellationToken ct)
-    {
-        _ = msg;
-        _ = ct;
-
-        var channels = new List<ChannelInfo>();
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        void Add(string name, string category)
-        {
-            if (!seen.Add(name))
-                return;
-            channels.Add(new ChannelInfo { Name = name, Category = category });
-        }
-
-        channelListContributor.AppendBaseChannels(channels, seen);
-
-        if (!string.IsNullOrEmpty(workspaceCraftPath))
-        {
-            var configPath = Path.Combine(workspaceCraftPath, "config.json");
-            if (File.Exists(configPath))
-            {
-                try
-                {
-                    var cfg = AppConfig.LoadWithGlobalFallback(configPath, GetEffectiveGlobalConfigPath());
-                    foreach (var entry in cfg.ExternalChannels)
-                    {
-                        if (!entry.Enabled || string.IsNullOrWhiteSpace(entry.Name))
-                            continue;
-                        Add(entry.Name, "external");
-                    }
-                }
-                catch
-                {
-                    // Best-effort: invalid config should not fail channel/list
-                }
-            }
-        }
-
-        static int CategoryOrder(string c) => c switch
-        {
-            "builtin" => 0,
-            "social" => 1,
-            "system" => 2,
-            "external" => 3,
-            _ => 4
-        };
-
-        channels.Sort((a, b) =>
-        {
-            var cmp = CategoryOrder(a.Category).CompareTo(CategoryOrder(b.Category));
-            return cmp != 0 ? cmp : string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase);
-        });
-
-        return Task.FromResult<object?>(new ChannelListResult { Channels = channels });
-    }
-
-    // -------------------------------------------------------------------------
-    // channel/status (spec Section 20)
-    // -------------------------------------------------------------------------
-
-    private Task<object?> HandleChannelStatusAsync(AppServerIncomingMessage msg, CancellationToken ct)
-    {
-        _ = msg;
-        _ = ct;
-
-        if (channelStatusProvider == null)
-            throw AppServerErrors.MethodNotFound(AppServerMethods.ChannelStatus);
-
-        var statuses = channelStatusProvider.GetChannelStatuses();
-        return Task.FromResult<object?>(new ChannelStatusResult { Channels = [.. statuses] });
-    }
-
     private Task<object?> HandleProviderListAsync(AppServerIncomingMessage msg, CancellationToken ct)
     {
         _ = GetParams<ProviderListParams>(msg);
@@ -1756,106 +1678,6 @@ public sealed class AppServerRequestHandler(
         ResponsesApi = capabilities.ResponsesApi,
         NativeDeferredToolLoading = capabilities.NativeDeferredToolLoading
     };
-
-    private Task<object?> HandleExternalChannelListAsync(AppServerIncomingMessage msg, CancellationToken ct)
-    {
-        _ = msg;
-        _ = ct;
-        EnsureExternalChannelManagementAvailable();
-        var channels = LoadWorkspaceExternalChannels(workspaceCraftPath!);
-        return Task.FromResult<object?>(new ExternalChannelListResult
-        {
-            Channels = channels.Select(MapExternalChannelToWire).ToList()
-        });
-    }
-
-    private Task<object?> HandleExternalChannelGetAsync(AppServerIncomingMessage msg, CancellationToken ct)
-    {
-        _ = ct;
-        var p = GetParams<ExternalChannelGetParams>(msg);
-        EnsureExternalChannelManagementAvailable();
-        if (string.IsNullOrWhiteSpace(p.Name))
-            throw AppServerErrors.InvalidParams("'name' is required.");
-
-        var channel = LoadWorkspaceExternalChannels(workspaceCraftPath!)
-            .FirstOrDefault(c => string.Equals(c.Name, p.Name, StringComparison.OrdinalIgnoreCase));
-        if (channel == null)
-            throw AppServerErrors.ExternalChannelNotFound(p.Name);
-
-        return Task.FromResult<object?>(new ExternalChannelGetResult
-        {
-            Channel = MapExternalChannelToWire(channel)
-        });
-    }
-
-    private async Task<object?> HandleExternalChannelUpsertAsync(AppServerIncomingMessage msg, CancellationToken ct)
-    {
-        var p = GetParams<ExternalChannelUpsertParams>(msg);
-        EnsureExternalChannelManagementAvailable();
-        ValidateExternalChannelConfigWire(p.Channel);
-
-        var channel = MapWireToExternalChannelConfig(p.Channel);
-        EnsureExternalChannelNameAvailable(channel.Name);
-
-        var channels = LoadWorkspaceExternalChannels(workspaceCraftPath!);
-        var existingIndex = channels.FindIndex(c => string.Equals(c.Name, channel.Name, StringComparison.OrdinalIgnoreCase));
-        if (existingIndex >= 0)
-            channels[existingIndex] = channel;
-        else
-            channels.Add(channel);
-
-        SaveWorkspaceExternalChannels(workspaceCraftPath!, channels);
-        if (onExternalChannelUpserted != null)
-            await onExternalChannelUpserted(channel, ct);
-        appConfigMonitor?.NotifyChanged(
-            AppServerMethods.ExternalChannelUpsert,
-            [ConfigChangeRegions.ExternalChannel]);
-
-        return new ExternalChannelUpsertResult
-        {
-            Channel = MapExternalChannelToWire(channel)
-        };
-    }
-
-    private async Task<object?> HandleExternalChannelRemoveAsync(AppServerIncomingMessage msg, CancellationToken ct)
-    {
-        var p = GetParams<ExternalChannelRemoveParams>(msg);
-        EnsureExternalChannelManagementAvailable();
-        if (string.IsNullOrWhiteSpace(p.Name))
-            throw AppServerErrors.InvalidParams("'name' is required.");
-
-        var channels = LoadWorkspaceExternalChannels(workspaceCraftPath!);
-        var removed = channels.RemoveAll(c => string.Equals(c.Name, p.Name, StringComparison.OrdinalIgnoreCase)) > 0;
-        if (!removed)
-            throw AppServerErrors.ExternalChannelNotFound(p.Name);
-
-        SaveWorkspaceExternalChannels(workspaceCraftPath!, channels);
-        if (onExternalChannelRemoved != null)
-            await onExternalChannelRemoved(p.Name, ct);
-        appConfigMonitor?.NotifyChanged(
-            AppServerMethods.ExternalChannelRemove,
-            [ConfigChangeRegions.ExternalChannel]);
-
-        return new ExternalChannelRemoveResult { Removed = true };
-    }
-
-    private Task<object?> HandleExternalChannelLogsAsync(AppServerIncomingMessage msg, CancellationToken ct)
-    {
-        _ = ct;
-        var p = GetParams<ExternalChannelLogsParams>(msg);
-        EnsureExternalChannelManagementAvailable();
-        if (externalChannelLogProvider == null)
-            throw AppServerErrors.InvalidRequest("External channel log retrieval is not available.");
-        if (string.IsNullOrWhiteSpace(p.Name))
-            throw AppServerErrors.InvalidParams("'name' is required.");
-
-        var lines = externalChannelLogProvider.GetRecentExternalChannelLogs(p.Name.Trim(), p.Tail);
-        return Task.FromResult<object?>(new ExternalChannelLogsResult
-        {
-            Name = p.Name.Trim(),
-            Lines = lines.ToList()
-        });
-    }
 
     private Task<object?> HandleSubAgentProfileListAsync(AppServerIncomingMessage msg, CancellationToken ct)
     {
@@ -3169,12 +2991,6 @@ public sealed class AppServerRequestHandler(
         }
     }
 
-    private void EnsureExternalChannelManagementAvailable()
-    {
-        if (string.IsNullOrWhiteSpace(workspaceCraftPath))
-            throw AppServerErrors.MethodNotFound("externalChannel/*");
-    }
-
     private void EnsureSubAgentManagementAvailable()
     {
         if (string.IsNullOrWhiteSpace(workspaceCraftPath))
@@ -3215,30 +3031,6 @@ public sealed class AppServerRequestHandler(
         clone.Origin = LspServerOrigin.Workspace();
         return clone;
     }
-
-    private static ExternalChannelConfigWire MapExternalChannelToWire(ExternalChannelEntry config) => new()
-    {
-        Name = config.Name,
-        Enabled = config.Enabled,
-        Transport = ExternalChannelTransportToWire(config.Transport),
-        Command = string.IsNullOrWhiteSpace(config.Command) ? null : config.Command,
-        BuiltinModule = string.IsNullOrWhiteSpace(config.BuiltinModule) ? null : config.BuiltinModule,
-        Args = config.Args is { Count: > 0 } ? [.. config.Args] : null,
-        WorkingDirectory = string.IsNullOrWhiteSpace(config.WorkingDirectory) ? null : config.WorkingDirectory,
-        Env = config.Env is { Count: > 0 } ? new Dictionary<string, string>(config.Env, StringComparer.Ordinal) : null
-    };
-
-    private static ExternalChannelEntry MapWireToExternalChannelConfig(ExternalChannelConfigWire wire) => new()
-    {
-        Name = wire.Name.Trim(),
-        Enabled = wire.Enabled,
-        Transport = NormalizeExternalChannelTransport(wire.Transport),
-        Command = string.IsNullOrWhiteSpace(wire.Command) ? null : wire.Command.Trim(),
-        BuiltinModule = string.IsNullOrWhiteSpace(wire.BuiltinModule) ? null : wire.BuiltinModule.Trim(),
-        Args = wire.Args is { Count: > 0 } ? [.. wire.Args.Where(a => !string.IsNullOrWhiteSpace(a)).Select(a => a.Trim())] : null,
-        WorkingDirectory = string.IsNullOrWhiteSpace(wire.WorkingDirectory) ? null : wire.WorkingDirectory.Trim(),
-        Env = wire.Env is { Count: > 0 } ? new Dictionary<string, string>(wire.Env, StringComparer.Ordinal) : null
-    };
 
     private static SubAgentProfileWriteWire MapSubAgentProfileToWire(SubAgentProfile profile) => new()
     {
@@ -3313,49 +3105,6 @@ public sealed class AppServerRequestHandler(
         SanitizationRules = wire.SanitizationRules?.DeepClone() as JsonObject
     };
 
-    private static ExternalChannelTransport NormalizeExternalChannelTransport(string? transport)
-    {
-        if (transport?.Equals("websocket", StringComparison.OrdinalIgnoreCase) == true)
-            return ExternalChannelTransport.Websocket;
-        if (transport?.Equals("managedWebsocket", StringComparison.OrdinalIgnoreCase) == true
-            || transport?.Equals("managed-websocket", StringComparison.OrdinalIgnoreCase) == true)
-            return ExternalChannelTransport.ManagedWebsocket;
-        return ExternalChannelTransport.Subprocess;
-    }
-
-    private static string ExternalChannelTransportToWire(ExternalChannelTransport transport) =>
-        transport switch
-        {
-            ExternalChannelTransport.Websocket => "websocket",
-            ExternalChannelTransport.ManagedWebsocket => "managedWebsocket",
-            _ => "subprocess"
-        };
-
-    private static void ValidateExternalChannelConfigWire(ExternalChannelConfigWire channel)
-    {
-        if (string.IsNullOrWhiteSpace(channel.Name))
-            throw AppServerErrors.ExternalChannelValidationFailed("'channel.name' is required.");
-
-        var transport = NormalizeExternalChannelTransport(channel.Transport);
-
-        if (transport is ExternalChannelTransport.Subprocess or ExternalChannelTransport.ManagedWebsocket)
-        {
-            if (string.IsNullOrWhiteSpace(channel.Command) && string.IsNullOrWhiteSpace(channel.BuiltinModule))
-                throw AppServerErrors.ExternalChannelValidationFailed("'channel.command' or 'channel.builtinModule' is required for subprocess or managedWebsocket transport.");
-        }
-        else
-        {
-            if (!string.IsNullOrWhiteSpace(channel.Command) ||
-                !string.IsNullOrWhiteSpace(channel.BuiltinModule) ||
-                channel.Args is { Count: > 0 } ||
-                !string.IsNullOrWhiteSpace(channel.WorkingDirectory) ||
-                channel.Env is { Count: > 0 })
-            {
-                throw AppServerErrors.ExternalChannelValidationFailed("process-launch fields are not supported for websocket transport.");
-            }
-        }
-    }
-
     private static void ValidateSubAgentProfileWire(SubAgentProfile profile)
     {
         if (string.IsNullOrWhiteSpace(profile.Name))
@@ -3383,12 +3132,6 @@ public sealed class AppServerRequestHandler(
             []);
         if (warnings.Count > 0)
             throw AppServerErrors.SubAgentProfileValidationFailed(string.Join(" ", warnings));
-    }
-
-    private static List<ExternalChannelEntry> LoadWorkspaceExternalChannels(string workspaceCraftPath)
-    {
-        var configPath = Path.Combine(workspaceCraftPath, "config.json");
-        return AppConfig.Load(configPath).ExternalChannels.Select(c => c.Clone()).ToList();
     }
 
     private SubAgentProfileListResult BuildSubAgentProfileListResult()
@@ -3638,64 +3381,6 @@ public sealed class AppServerRequestHandler(
         }
 
         appConfigMonitor.Current.Reasoning = new AppConfig.ReasoningConfig();
-    }
-
-    private static void SaveWorkspaceExternalChannels(string workspaceCraftPath, IReadOnlyCollection<ExternalChannelEntry> channels)
-    {
-        var configPath = Path.Combine(workspaceCraftPath, "config.json");
-        Directory.CreateDirectory(workspaceCraftPath);
-        var root = LoadWorkspaceConfigObject(configPath);
-
-        var key = FindCaseInsensitiveKey(root, "ExternalChannels") ?? "ExternalChannels";
-        var channelObject = new JsonObject();
-        foreach (var channel in channels.Where(c => !string.IsNullOrWhiteSpace(c.Name))
-                     .OrderBy(c => c.Name, StringComparer.OrdinalIgnoreCase))
-        {
-            channelObject[channel.Name] = BuildExternalChannelNode(channel);
-        }
-
-        root[key] = channelObject;
-
-        var json = root.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
-        File.WriteAllText(configPath, $"{json}{Environment.NewLine}", new UTF8Encoding(false));
-    }
-
-    private void EnsureExternalChannelNameAvailable(string name)
-    {
-        var nativeChannels = new List<ChannelInfo>();
-        channelListContributor.AppendBaseChannels(nativeChannels, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
-        if (nativeChannels.Any(c =>
-                !string.Equals(c.Category, "external", StringComparison.OrdinalIgnoreCase) &&
-                string.Equals(c.Name, name, StringComparison.OrdinalIgnoreCase)))
-        {
-            throw AppServerErrors.ExternalChannelNameConflict(
-                $"'{name}' conflicts with a native channel name.");
-        }
-    }
-
-    private static JsonObject BuildExternalChannelNode(ExternalChannelEntry channel)
-    {
-        var node = new JsonObject
-        {
-            ["enabled"] = channel.Enabled,
-            ["transport"] = ExternalChannelTransportToWire(channel.Transport)
-        };
-
-        if (channel.Transport is ExternalChannelTransport.Subprocess or ExternalChannelTransport.ManagedWebsocket)
-        {
-            if (!string.IsNullOrWhiteSpace(channel.Command))
-                node["command"] = channel.Command;
-            if (!string.IsNullOrWhiteSpace(channel.BuiltinModule))
-                node["builtinModule"] = channel.BuiltinModule;
-            if (channel.Args is { Count: > 0 })
-                node["args"] = JsonSerializer.SerializeToNode(channel.Args);
-            if (!string.IsNullOrWhiteSpace(channel.WorkingDirectory))
-                node["workingDirectory"] = channel.WorkingDirectory;
-            if (channel.Env is { Count: > 0 })
-                node["env"] = JsonSerializer.SerializeToNode(channel.Env);
-        }
-
-        return node;
     }
 
     private async Task<object?> HandleWorkspaceConfigUpdateAsync(AppServerIncomingMessage msg, CancellationToken ct)
