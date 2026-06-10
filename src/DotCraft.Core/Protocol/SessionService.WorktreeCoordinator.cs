@@ -98,7 +98,7 @@ public sealed partial class SessionService
             var broker = owner.GetOrCreateBroker(thread.Id);
 
             using (await owner.AcquireThreadAgentLockAsync(thread.Id, ct))
-                owner._threadAgents[thread.Id] = await owner.BuildAgentForThreadAsync(thread, ct);
+                owner.SetThreadAgent(thread.Id, await owner.BuildAgentForThreadAsync(thread, ct));
 
             await owner.PersistThreadWithMaterializationAsync(thread, ct);
             await owner.SaveContextUsageSnapshotAsync(thread.Id, 0, ct);

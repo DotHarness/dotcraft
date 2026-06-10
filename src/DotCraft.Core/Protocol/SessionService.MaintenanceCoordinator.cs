@@ -45,7 +45,7 @@ public sealed partial class SessionService
             try
             {
                 await owner.EnsurePerThreadAgentIfMissingAsync(threadId, thread, maintenanceCt);
-                var agent = owner._threadAgents.GetValueOrDefault(threadId, owner.DefaultAgent);
+                var agent = owner.GetThreadAgentOrDefault(threadId);
                 var session = await owner.Persistence.LoadOrCreateSessionAsync(agent, threadId, maintenanceCt);
                 var pipeline = GetCompactionPipelineForThread(thread);
                 var historyForEstimate = SnapshotSessionHistoryForConsolidation(session, thread);
@@ -243,7 +243,7 @@ public sealed partial class SessionService
                     ?? throw new InvalidOperationException($"Thread '{threadId}' has no completed turn to consolidate.");
 
                 await owner.EnsurePerThreadAgentIfMissingAsync(threadId, thread, ct);
-                var agent = owner._threadAgents.GetValueOrDefault(threadId, owner.DefaultAgent);
+                var agent = owner.GetThreadAgentOrDefault(threadId);
                 var session = await owner.Persistence.LoadOrCreateSessionAsync(agent, threadId, ct);
                 history = SnapshotSessionHistoryForConsolidation(session, thread);
                 if (history.Count == 0)
@@ -446,7 +446,8 @@ public sealed partial class SessionService
             if (owner.RequiresPerThreadAgent(thread) || owner._forcePerThreadAgents)
             {
                 await owner.EnsurePerThreadAgentIfMissingAsync(thread.Id, thread, ct);
-                if (owner._threadCurrentTools.TryGetValue(thread.Id, out var threadTools))
+                if (owner._runtimeRegistry.TryGetRuntime(thread.Id, out var runtime)
+                    && runtime.CurrentTools is { } threadTools)
                     return threadTools;
             }
 

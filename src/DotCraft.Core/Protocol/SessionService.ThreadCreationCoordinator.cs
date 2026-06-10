@@ -52,7 +52,7 @@ public sealed partial class SessionService
             if (buildThreadAgentOnCreate)
             {
                 using (await owner.AcquireThreadAgentLockAsync(thread.Id, ct))
-                    owner._threadAgents[thread.Id] = await owner.BuildAgentForThreadAsync(thread, ct);
+                    owner.SetThreadAgent(thread.Id, await owner.BuildAgentForThreadAsync(thread, ct));
             }
 
             await owner.PersistThreadWithMaterializationAsync(thread, ct);
@@ -137,7 +137,7 @@ public sealed partial class SessionService
             if (buildThreadAgentOnCreate)
             {
                 using (await owner.AcquireThreadAgentLockAsync(forked.Id, ct))
-                    owner._threadAgents[forked.Id] = await owner.BuildAgentForThreadAsync(forked, ct);
+                    owner.SetThreadAgent(forked.Id, await owner.BuildAgentForThreadAsync(forked, ct));
             }
 
             if (!forked.Ephemeral)

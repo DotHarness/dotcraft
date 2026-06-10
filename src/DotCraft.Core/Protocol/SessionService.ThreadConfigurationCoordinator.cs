@@ -12,7 +12,7 @@ public sealed partial class SessionService
                 thread.Configuration ??= new ThreadConfiguration();
                 thread.Configuration.Mode = mode;
 
-                owner._threadAgents[threadId] = await owner.BuildAgentForThreadAsync(thread, ct);
+                owner.SetThreadAgent(threadId, await owner.BuildAgentForThreadAsync(thread, ct));
 
                 await owner.PersistThreadWithMaterializationAsync(thread, ct);
             }
@@ -24,7 +24,7 @@ public sealed partial class SessionService
             using (await owner.AcquireThreadAgentLockAsync(threadId, ct))
             {
                 thread.Configuration = config;
-                owner._threadAgents[threadId] = await owner.BuildAgentForThreadAsync(thread, ct);
+                owner.SetThreadAgent(threadId, await owner.BuildAgentForThreadAsync(thread, ct));
                 await owner.PersistThreadWithMaterializationAsync(thread, ct);
             }
         }
@@ -33,14 +33,13 @@ public sealed partial class SessionService
         {
             var thread = await owner.GetOrLoadThreadAsync(threadId, ct);
             using (await owner.AcquireThreadAgentLockAsync(threadId, ct))
-                owner._threadAgents[threadId] = await owner.BuildAgentForThreadAsync(thread, ct);
+                owner.SetThreadAgent(threadId, await owner.BuildAgentForThreadAsync(thread, ct));
         }
 
         public void InvalidateAgents()
         {
             owner._forcePerThreadAgents = true;
-            owner._threadAgents.Clear();
-            owner._threadCurrentTools.Clear();
+            owner.ClearAllThreadAgentCaches();
         }
     }
 }

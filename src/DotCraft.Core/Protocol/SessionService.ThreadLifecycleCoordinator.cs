@@ -172,11 +172,7 @@ public sealed partial class SessionService
 
             var previousStatus = thread.Status;
             thread.Status = ThreadStatus.Archived;
-            owner._threadAgents.TryRemove(thread.Id, out _);
-            owner._threadModeManagers.TryRemove(thread.Id, out _);
-            owner._threadCurrentTools.TryRemove(thread.Id, out _);
-            owner._threadPluginFunctionToolNames.TryRemove(thread.Id, out _);
-            owner._threadDynamicToolNames.TryRemove(thread.Id, out _);
+            owner.ClearThreadAgentCaches(thread.Id);
             owner.ForgetContextPages(thread.Id);
             if (owner.BackgroundTerminalService != null)
                 await owner.BackgroundTerminalService.CleanThreadAsync(thread.Id, ct);
@@ -218,21 +214,14 @@ public sealed partial class SessionService
 
             if (owner._runtimeRegistry.TryRemove(threadId, out var runtime))
                 await runtime.DisposeAsync();
-            owner._threadAgents.TryRemove(threadId, out _);
-            owner._threadModeManagers.TryRemove(threadId, out _);
             owner._threadEventBrokers.TryRemove(threadId, out _);
             owner._materializedThreads.TryRemove(threadId, out _);
             owner._turnsSinceConsolidation.TryRemove(threadId, out _);
             owner._activeAutoMemoryConsolidations.TryRemove(threadId, out _);
             owner._pendingAutoMemoryConsolidations.TryRemove(threadId, out _);
             owner.InvalidatePromptRequestSnapshot(threadId, "thread_deleted");
-            owner._threadCurrentTools.TryRemove(threadId, out _);
             owner._contextUsageAnchors.TryRemove(threadId, out _);
-            owner._threadPluginFunctionToolNames.TryRemove(threadId, out _);
-            owner._threadDynamicToolNames.TryRemove(threadId, out _);
             owner.ForgetContextPages(threadId);
-            if (owner._threadMcpManagers.TryRemove(threadId, out var mcpManager))
-                await mcpManager.DisposeAsync();
             if (owner.BackgroundTerminalService != null)
                 await owner.BackgroundTerminalService.CleanThreadAsync(threadId, ct);
 

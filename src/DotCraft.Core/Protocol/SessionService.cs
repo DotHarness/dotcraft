@@ -109,22 +109,16 @@ public sealed partial class SessionService(
 
     // In-memory state
     private readonly ThreadRuntimeRegistry _runtimeRegistry = new();
-    private readonly ConcurrentDictionary<string, AIAgent> _threadAgents = new();
     private readonly ConcurrentDictionary<TurnKey, SessionApprovalService> _pendingApprovals = new();
     private readonly ConcurrentDictionary<TurnKey, SessionUserInputRequestService> _pendingUserInputRequests = new();
     private readonly ConcurrentDictionary<TurnKey, CancellationTokenSource> _runningTurns = new();
     private readonly ConcurrentDictionary<string, ThreadMaintenanceState> _threadMaintenance = new(StringComparer.Ordinal);
-    private readonly ConcurrentDictionary<string, McpClientManager> _threadMcpManagers = new();
-    private readonly ConcurrentDictionary<string, AgentModeManager> _threadModeManagers = new();
     private readonly ConcurrentDictionary<string, ThreadEventBroker> _threadEventBrokers = new();
     private readonly ConcurrentDictionary<string, byte> _materializedThreads = new();
     private readonly ConcurrentDictionary<string, int> _turnsSinceConsolidation = new();
     private readonly ConcurrentDictionary<string, PromptRequestSnapshot> _lastPromptRequestSnapshots = new();
-    private readonly ConcurrentDictionary<string, IReadOnlyList<AITool>> _threadCurrentTools = new();
     private readonly ConcurrentDictionary<string, ContextUsageAnchor> _contextUsageAnchors = new();
     private readonly ConcurrentDictionary<string, byte> _threadsPendingPermanentDeletion = new();
-    private readonly ConcurrentDictionary<string, IReadOnlySet<string>> _threadPluginFunctionToolNames = new();
-    private readonly ConcurrentDictionary<string, IReadOnlySet<string>> _threadDynamicToolNames = new();
     private readonly ConcurrentDictionary<TurnKey, GoalTurnSnapshot> _goalTurnSnapshots = new();
     private readonly ConcurrentDictionary<string, byte> _goalContinuationStarting = new();
     private readonly ConcurrentDictionary<string, byte> _goalBudgetGuidanceQueued = new();
@@ -191,6 +185,41 @@ public sealed partial class SessionService(
 
     internal ThreadRuntime? DebugGetRuntime(string threadId) =>
         _runtimeRegistry.TryGetRuntime(threadId, out var runtime) ? runtime : null;
+
+    private AIAgent GetThreadAgentOrDefault(string threadId) =>
+        _runtimeRegistry.TryGetRuntime(threadId, out var runtime) && runtime.Agent != null
+            ? runtime.Agent
+            : defaultAgent;
+
+    private bool HasThreadAgent(string threadId) =>
+        _runtimeRegistry.TryGetRuntime(threadId, out var runtime) && runtime.Agent != null;
+
+    private void SetThreadAgent(string threadId, AIAgent agent)
+    {
+        if (_runtimeRegistry.TryGetRuntime(threadId, out var runtime))
+            runtime.Agent = agent;
+    }
+
+    private void ClearThreadAgentCaches(string threadId)
+    {
+        if (!_runtimeRegistry.TryGetRuntime(threadId, out var runtime))
+            return;
+
+        runtime.Agent = null;
+        runtime.ModeManager = null;
+        runtime.CurrentTools = null;
+        runtime.PluginFunctionToolNames = null;
+        runtime.DynamicToolNames = null;
+    }
+
+    private void ClearAllThreadAgentCaches()
+    {
+        foreach (var runtime in _runtimeRegistry.Values)
+        {
+            runtime.Agent = null;
+            runtime.CurrentTools = null;
+        }
+    }
 
     /// <summary>
     /// Suppresses immediate Session Core goal broadcasts within the current async flow.
@@ -1373,7 +1402,7 @@ public sealed partial class SessionService(
 
                 // Step 5b: Load/create AgentSession
                 using (await AcquireThreadAgentLockAsync(threadId, executionCt))
-                    agent = _threadAgents.GetValueOrDefault(threadId, defaultAgent);
+                    agent = GetThreadAgentOrDefault(threadId);
 
                 // Bind tracing and token tracking before session creation so session metadata
                 // captured during CreateSessionAsync / LoadOrCreateSessionAsync is attributed
@@ -2329,7 +2358,7 @@ public sealed partial class SessionService(
         InvalidatePromptRequestSnapshot(threadId, "rollback");
         _contextUsageAnchors.TryRemove(threadId, out _);
         ForgetContextPages(threadId);
-        var agent = _threadAgents.GetValueOrDefault(threadId, defaultAgent);
+        var agent = GetThreadAgentOrDefault(threadId);
         var updatedSession = await TryUpdateSessionAfterRollbackAsync(agent, threadId, removedTurns, ct);
         await SaveContextUsageFromSessionAsync(threadId, updatedSession, ct);
         ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnCompleted);
@@ -2369,7 +2398,7 @@ public sealed partial class SessionService(
     {
         using (await AcquireThreadAgentLockAsync(thread.Id, ct))
         {
-            _threadAgents[thread.Id] = await BuildAgentForThreadAsync(thread, ct);
+            SetThreadAgent(thread.Id, await BuildAgentForThreadAsync(thread, ct));
             ReleaseStableContextPages(thread.Id);
             await PersistThreadWithMaterializationAsync(thread, ct);
         }
@@ -2529,8 +2558,8 @@ public sealed partial class SessionService(
 
         using (await AcquireThreadAgentLockAsync(threadId, ct))
         {
-            if (!_threadAgents.ContainsKey(threadId))
-                _threadAgents[threadId] = await BuildAgentForThreadAsync(thread, ct);
+            if (!HasThreadAgent(threadId))
+                SetThreadAgent(threadId, await BuildAgentForThreadAsync(thread, ct));
         }
     }
 
@@ -2638,19 +2667,21 @@ public sealed partial class SessionService(
     /// </summary>
     private AgentModeManager GetOrCreateModeManager(string threadId, AgentMode mode)
     {
-        return _threadModeManagers.AddOrUpdate(
-            threadId,
-            _ =>
-            {
-                var mm = new AgentModeManager();
-                if (mode != AgentMode.Agent) mm.SwitchMode(mode);
-                return mm;
-            },
-            (_, existing) =>
-            {
-                if (existing.CurrentMode != mode) existing.SwitchMode(mode);
-                return existing;
-            });
+        var runtime = _runtimeRegistry.TryGetRuntime(threadId, out var existingRuntime)
+            ? existingRuntime
+            : null;
+        if (runtime == null)
+        {
+            var mm = new AgentModeManager();
+            if (mode != AgentMode.Agent)
+                mm.SwitchMode(mode);
+            return mm;
+        }
+
+        runtime.ModeManager ??= new AgentModeManager();
+        if (runtime.ModeManager.CurrentMode != mode)
+            runtime.ModeManager.SwitchMode(mode);
+        return runtime.ModeManager;
     }
 
     private static string ResolveApprovalSource(string? channelName) =>
@@ -3307,6 +3338,7 @@ public sealed partial class SessionService(
         CancellationToken ct)
     {
         var threadId = thread.Id;
+        var threadRuntimeState = _runtimeRegistry.SetThread(thread);
         var config = thread.Configuration ?? new ThreadConfiguration();
         var mode = config.Mode.Equals("plan", StringComparison.OrdinalIgnoreCase)
             ? AgentMode.Plan
@@ -3387,13 +3419,16 @@ public sealed partial class SessionService(
 
         if (config.McpServers is { Length: > 0 })
         {
-            if (_threadMcpManagers.TryRemove(threadId, out var oldManager))
-                await oldManager.DisposeAsync();
+            if (threadRuntimeState.McpManager != null)
+            {
+                await threadRuntimeState.McpManager.DisposeAsync();
+                threadRuntimeState.McpManager = null;
+            }
 
             var threadMcpManager = new McpClientManager();
             await threadMcpManager.ConnectAsync(config.McpServers, ct);
             await threadMcpManager.WaitForStartupCompletionAsync(ct);
-            _threadMcpManagers[threadId] = threadMcpManager;
+            threadRuntimeState.McpManager = threadMcpManager;
             toolContext = CloneContextWithMcpManager(toolContext, threadMcpManager);
         }
         else if (toolContext.McpClientManager != null)
@@ -3422,7 +3457,7 @@ public sealed partial class SessionService(
                 throw new InvalidOperationException("UseToolProfileOnly requires a registered ToolProfile with at least one tool.");
             ApplyThreadToolFilters(profileTools, config);
             DeferredToolLoadingPlanner.Apply(profileTools, toolContext);
-            _threadCurrentTools[threadId] = profileTools.ToArray();
+            threadRuntimeState.CurrentTools = profileTools.ToArray();
             return agentFactory.CreateAgentWithTools(profileTools, mm, toolContext, config.AgentInstructions);
         }
 
@@ -3432,7 +3467,7 @@ public sealed partial class SessionService(
         AppendChannelTools(toolsWithMcp, thread);
         ApplyThreadToolFilters(toolsWithMcp, config);
         DeferredToolLoadingPlanner.Apply(toolsWithMcp, toolContext);
-        _threadCurrentTools[threadId] = toolsWithMcp.ToArray();
+        threadRuntimeState.CurrentTools = toolsWithMcp.ToArray();
         return agentFactory.CreateAgentWithTools(toolsWithMcp, mm, toolContext);
     }
 
@@ -3469,10 +3504,8 @@ public sealed partial class SessionService(
             .Select(name => name!)
             .ToHashSet(StringComparer.Ordinal);
 
-        if (pluginFunctionToolNames.Count == 0)
-            _threadPluginFunctionToolNames.TryRemove(thread.Id, out _);
-        else
-            _threadPluginFunctionToolNames[thread.Id] = pluginFunctionToolNames;
+        if (_runtimeRegistry.TryGetRuntime(thread.Id, out var runtime))
+            runtime.PluginFunctionToolNames = pluginFunctionToolNames.Count == 0 ? null : pluginFunctionToolNames;
 
         var dynamicToolNames = tools
             .OfType<IDynamicToolRuntimeTool>()
@@ -3481,20 +3514,22 @@ public sealed partial class SessionService(
             .Select(name => name!)
             .ToHashSet(StringComparer.Ordinal);
 
-        if (dynamicToolNames.Count == 0)
-            _threadDynamicToolNames.TryRemove(thread.Id, out _);
-        else
-            _threadDynamicToolNames[thread.Id] = dynamicToolNames;
+        if (_runtimeRegistry.TryGetRuntime(thread.Id, out runtime))
+            runtime.DynamicToolNames = dynamicToolNames.Count == 0 ? null : dynamicToolNames;
     }
 
     private IReadOnlySet<string> GetPluginFunctionToolNames(string threadId)
-        => _threadPluginFunctionToolNames.GetValueOrDefault(threadId, EmptyPluginFunctionToolNames);
+        => _runtimeRegistry.TryGetRuntime(threadId, out var runtime)
+            ? runtime.PluginFunctionToolNames ?? EmptyPluginFunctionToolNames
+            : EmptyPluginFunctionToolNames;
 
     private static bool IsPluginFunctionTool(IReadOnlySet<string> pluginFunctionToolNames, string? toolName)
         => !string.IsNullOrWhiteSpace(toolName) && pluginFunctionToolNames.Contains(toolName);
 
     private IReadOnlySet<string> GetDynamicToolNames(string threadId)
-        => _threadDynamicToolNames.GetValueOrDefault(threadId, EmptyDynamicToolNames);
+        => _runtimeRegistry.TryGetRuntime(threadId, out var runtime)
+            ? runtime.DynamicToolNames ?? EmptyDynamicToolNames
+            : EmptyDynamicToolNames;
 
     private static bool IsDynamicTool(IReadOnlySet<string> dynamicToolNames, string? toolName)
         => !string.IsNullOrWhiteSpace(toolName) && dynamicToolNames.Contains(toolName);
