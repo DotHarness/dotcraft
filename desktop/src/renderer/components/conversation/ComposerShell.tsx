@@ -1,5 +1,9 @@
 import {
+  useCallback,
+  useEffect,
+  useRef,
   useState,
+  type AnimationEvent,
   type ButtonHTMLAttributes,
   type CSSProperties,
   type DragEventHandler,
@@ -67,7 +71,7 @@ interface ComposerShellProps {
   focused?: boolean
   /** Show the DotCraft mascot standing on the composer's top-right edge. */
   showMascot?: boolean
-  /** Monotonic counter; bump on send to trigger a one-shot bounce. */
+  /** Monotonic counter; bump on send to trigger the one-shot launch jump. */
   mascotBounceSignal?: number
   /** State-driven expression/light/bubble/right-click menu for the mascot. */
   mascotInteraction?: ComposerMascotInteraction
@@ -80,12 +84,46 @@ const MASCOT_SCALE = 0.75
 const MASCOT_HIDDEN_RATIO = 0.06
 /** Extra upward nudge so the (scaled) feet sit flush on the rim, not sunk or floating. */
 const MASCOT_RAISE = 3
+/** Ambient idle time before the mascot dozes off (woken by any interaction). */
+const MASCOT_SLEEP_AFTER_MS = 90_000
+
+type MascotMicro = 'blink' | 'look-l' | 'look-r' | 'bob'
+
+/** Deterministic star-burst offsets for the success celebration. */
+const MASCOT_SPARKLES = Array.from({ length: 7 }, (_, i) => {
+  const angle = ((-150 + i * 40) * Math.PI) / 180
+  const radius = 26 + (i % 3) * 9
+  return {
+    dx: `${(Math.cos(angle) * radius).toFixed(1)}px`,
+    dy: `${(Math.sin(angle) * radius - 8).toFixed(1)}px`,
+    delay: `${i * 40}ms`
+  }
+})
+
+function prefersReducedMotion(): boolean {
+  // matchMedia is always present in Electron; guard for the jsdom test env.
+  return typeof window.matchMedia === 'function'
+    ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    : false
+}
 
 /**
  * DotCraft mascot standing on the composer's top-right edge.
- * Nested transform layers keep idle breathing, focus perk-up, and the send
- * bounce from clobbering each other's `transform`. The face swaps by state:
- * drag → operator, inputting (focused) → happy, else neutral.
+ *
+ * Nested transform layers keep the animations from clobbering each other's
+ * `transform`: display scale → pose (focus perk-up / error droop / sleep
+ * slump) → one-shot (launch/cheer/shake/startle/nod) → loop (breathe / think
+ * sway / eager hop / sleep breathe) → hover jelly → SVG. Sub-part animations
+ * (arms, antenna, eyes) live inside the SVG via the mascot-* class hooks.
+ *
+ * Behavior on top of the conversation-driven expression/light:
+ * - idle micro-behaviors: random blink / glance / antenna bob;
+ * - turn running (operator face, default light): sway + antenna light pulse;
+ * - success light: raised-arm cheer with a green flash and star burst;
+ * - error light: head shake, then a deflated droop while the light stays red;
+ * - drag-over: eager hop with arms spread;
+ * - ambient idle for a while: dozes off (Zzz, dim light), startled awake;
+ * - click: a flipper wave (easter egg). All gated by prefers-reduced-motion.
  */
 function ComposerMascot({
   focused,
@@ -99,17 +137,191 @@ function ComposerMascot({
   interaction?: ComposerMascotInteraction
 }): JSX.Element {
   const [menuPos, setMenuPos] = useState<ContextMenuPosition | null>(null)
+  const [micro, setMicro] = useState<MascotMicro | null>(null)
+  const [sleeping, setSleeping] = useState(false)
+  const [waving, setWaving] = useState(false)
+  const [startled, setStartled] = useState(false)
+  const [launching, setLaunching] = useState(false)
+  const [cheering, setCheering] = useState(false)
+  const [sparkling, setSparkling] = useState(false)
+  const [shaking, setShaking] = useState(false)
+  const [nodding, setNodding] = useState(false)
+
   // Conversation state overrides the ambient focus/drag expression when present.
-  const expression: MascotExpression =
+  const baseExpression: MascotExpression =
     interaction?.expression ?? (dragOver ? 'operator' : focused ? 'happy' : 'neutral')
   const light: MascotLight = interaction?.light ?? 'default'
   const menuItems = interaction?.menuItems ?? []
   const bubble = interaction?.bubble ?? null
+  // Local behaviors (sleep, wave) override the face; conversation light stays.
+  const expression: MascotExpression = sleeping ? 'sleep' : waving ? 'happy' : baseExpression
+
+  // Replay the send launch via state (not a remount) so other one-shots can
+  // share the same transform layer without re-triggering it.
+  const prevBounceRef = useRef(bounceSignal)
+  useEffect(() => {
+    if (bounceSignal === prevBounceRef.current) return
+    prevBounceRef.current = bounceSignal
+    if (!prefersReducedMotion()) setLaunching(true)
+  }, [bounceSignal])
+
+  // Celebrate / deflate on live light transitions (not on mount, so loading a
+  // finished thread does not replay the celebration).
+  const prevLightRef = useRef(light)
+  useEffect(() => {
+    const prev = prevLightRef.current
+    prevLightRef.current = light
+    if (light === prev || prefersReducedMotion()) return
+    if (light === 'success') {
+      setCheering(true)
+      setSparkling(true)
+    } else if (light === 'error') {
+      setShaking(true)
+    }
+  }, [light])
+
+  // Doze off after a long ambient idle; any state change wakes the mascot.
+  useEffect(() => {
+    const ambient =
+      !focused && !dragOver && !bubble && baseExpression === 'neutral' && light === 'default'
+    if (!ambient || prefersReducedMotion()) {
+      setSleeping(false)
+      return
+    }
+    if (sleeping) return
+    const timer = window.setTimeout(() => setSleeping(true), MASCOT_SLEEP_AFTER_MS)
+    return () => window.clearTimeout(timer)
+  }, [focused, dragOver, bubble, baseExpression, light, sleeping])
+
+  const wake = useCallback(() => {
+    setSleeping(false)
+    if (!prefersReducedMotion()) setStartled(true)
+  }, [])
+
+  // Idle micro-behaviors: occasional blink / glance / antenna bob.
+  useEffect(() => {
+    if (sleeping || prefersReducedMotion()) return
+    if (baseExpression !== 'neutral' && baseExpression !== 'happy') return
+    let cancelled = false
+    let timer = 0
+    const schedule = (): void => {
+      timer = window.setTimeout(
+        () => {
+          if (cancelled) return
+          if (!document.hidden) {
+            const r = Math.random()
+            if (r < 0.5) setMicro('blink')
+            else if (r < 0.72) setMicro(Math.random() < 0.5 ? 'look-l' : 'look-r')
+            else if (r < 0.86) setMicro('bob')
+          }
+          schedule()
+        },
+        2600 + Math.random() * 3200
+      )
+    }
+    schedule()
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [sleeping, baseExpression])
+
+  // Typing nod: keystrokes land here only while the composer editor is focused;
+  // the animation's own duration throttles the cadence.
+  useEffect(() => {
+    if (!focused || prefersReducedMotion()) return
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.ctrlKey || event.metaKey || event.altKey) return
+      setNodding(true)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [focused])
+
+  // One-shot states clear when their animation finishes (events bubble up here).
+  const onAnimationEnd = (event: AnimationEvent<HTMLDivElement>): void => {
+    switch (event.animationName) {
+      case 'composer-mascot-blink':
+        // Neutral's caret flash runs longer than the eye squash; let it finish.
+        if (expression !== 'neutral') setMicro(null)
+        break
+      case 'composer-mascot-caret':
+      case 'composer-mascot-look-l':
+      case 'composer-mascot-look-r':
+      case 'composer-mascot-antenna-bob':
+        setMicro(null)
+        break
+      case 'composer-mascot-launch':
+        setLaunching(false)
+        break
+      case 'composer-mascot-cheer':
+        setCheering(false)
+        break
+      case 'composer-mascot-sparkle':
+        setSparkling(false)
+        break
+      case 'composer-mascot-shake':
+        setShaking(false)
+        break
+      case 'composer-mascot-startle':
+        setStartled(false)
+        break
+      case 'composer-mascot-wave-arm':
+        setWaving(false)
+        break
+      case 'composer-mascot-nod':
+        setNodding(false)
+        break
+    }
+  }
+
+  // Pose layer: sleep slump > error droop > focus perk-up.
+  const poseTransform = sleeping
+    ? 'translateY(2px) rotate(2.6deg) scale(0.985)'
+    : light === 'error'
+      ? 'translateY(2px) rotate(-3deg) scale(0.98)'
+      : focused
+        ? 'scale(1.1)'
+        : 'scale(1)'
+
+  // One transform slot for one-shots; priority resolves rare overlaps.
+  const shotClass = cheering
+    ? 'composer-mascot-cheer'
+    : shaking
+      ? 'composer-mascot-shake'
+      : startled
+        ? 'composer-mascot-startle'
+        : launching
+          ? 'composer-mascot-launch'
+          : nodding
+            ? 'composer-mascot-nod'
+            : undefined
+
+  const loopClass = sleeping
+    ? 'composer-mascot-sleep-breathe'
+    : dragOver
+      ? 'composer-mascot-eager'
+      : baseExpression === 'operator' && light === 'default'
+        ? 'composer-mascot-think'
+        : 'composer-mascot-breathe'
+
+  const rootClassName =
+    [
+      micro ? `composer-mascot-${micro}` : null,
+      waving ? 'composer-mascot-wave' : null,
+      sleeping ? 'composer-mascot-sleeping' : null,
+      light === 'success' ? 'composer-mascot-celebrate' : null,
+      light === 'error' ? 'composer-mascot-deflate' : null
+    ]
+      .filter(Boolean)
+      .join(' ') || undefined
 
   return (
     <div
       // Decorative only until it carries a bubble or a right-click menu.
       aria-hidden={interaction ? undefined : true}
+      className={rootClassName}
+      onAnimationEnd={onAnimationEnd}
       style={{
         position: 'absolute',
         right: '40px',
@@ -137,8 +349,10 @@ function ComposerMascot({
         </div>
       )}
 
-      {/* Display scale: shrinks size + all nested motion uniformly, feet planted. */}
+      {/* Display scale: shrinks size + all nested motion uniformly, feet planted.
+          Also the prefers-reduced-motion scope (see tokens.css). */}
       <div
+        className="composer-mascot-motion"
         style={{
           transformOrigin: 'bottom center',
           transform: `scale(${MASCOT_SCALE})`,
@@ -148,23 +362,31 @@ function ComposerMascot({
           filter: 'drop-shadow(0 5.3px 7.3px color-mix(in srgb, #0b3d62 20%, transparent))'
         }}
       >
-        {/* Focus perk-up: grow in place (feet stay planted on the edge) when focused. */}
+        {/* Pose layer: focus perk-up / error droop / sleep slump (feet planted). */}
         <div
           style={{
             transformOrigin: 'bottom center',
             transition: 'transform 280ms cubic-bezier(0.34, 1.56, 0.64, 1)',
-            transform: focused ? 'scale(1.1)' : 'scale(1)'
+            transform: poseTransform
           }}
         >
-          {/* Send bounce: remounted by key so the one-shot replays each send. */}
-          <div key={bounceSignal} className={bounceSignal > 0 ? 'composer-mascot-bounce' : undefined}>
-            {/* Idle breathing. */}
-            <div className="composer-mascot-breathe">
+          {/* One-shot layer: launch / cheer / shake / startle / nod. */}
+          <div className={shotClass}>
+            {/* Activity loop: breathe / think sway / eager hop / sleep breathe. */}
+            <div className={loopClass}>
               {/* Hover jelly: pointer-events re-enabled here so only the visible
                   robot (above the rim) is hoverable; the rest stays click-through. */}
               <div
                 className="composer-mascot-jelly"
                 style={{ pointerEvents: 'auto', cursor: menuItems.length > 0 ? 'context-menu' : undefined }}
+                onMouseEnter={sleeping ? wake : undefined}
+                onClick={() => {
+                  if (sleeping) {
+                    wake()
+                    return
+                  }
+                  if (!prefersReducedMotion()) setWaving(true)
+                }}
                 onContextMenu={
                   menuItems.length > 0
                     ? (e) => {
@@ -179,6 +401,24 @@ function ComposerMascot({
             </div>
           </div>
         </div>
+
+        {sleeping && (
+          <div aria-hidden className="composer-mascot-zzz">
+            <span>z</span>
+            <span>z</span>
+            <span>z</span>
+          </div>
+        )}
+        {sparkling && (
+          <div aria-hidden className="composer-mascot-sparkles">
+            {MASCOT_SPARKLES.map((s, i) => (
+              <i
+                key={i}
+                style={{ '--dx': s.dx, '--dy': s.dy, animationDelay: s.delay } as CSSProperties}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
       {menuPos && menuItems.length > 0 && (
