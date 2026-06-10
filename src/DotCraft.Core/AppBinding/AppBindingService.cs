@@ -1621,7 +1621,7 @@ public sealed class AppBindingService
         // M‑v: a mutating UI tool call (one that declares an approval descriptor) requires user
         // approval. A decoupled ui/tool/call has no turn/item, so the host raises the approval via
         // the gate and awaits it. No gate (e.g. a non‑Desktop client that cannot prompt) → reject.
-        // See specs/protocols/tool-result-presentation-m5.md §3, §9.
+        // See specs/protocols/tool-result-presentation.md §10.
         if (spec.Approval != null)
         {
             if (approvalGate == null)
