@@ -58,7 +58,7 @@ The app declares `_meta.ui` and serves `ui://` (parent [§4](tool-result-present
 - [x] A conformance test asserts non‑Desktop text fallback renders `contentItems` and excludes UI‑only `_meta` / `widgetState` / `ui`.
 - [x] App‑author docs cover the mandatory text‑fallback rule and the folder‑serving helper.
 - [x] `ui/open-link` accepts the bound app's declared `nativeApplication.protocol` deep‑link scheme (binding‑scoped); undeclared custom schemes remain rejected and audited.
-- [ ] Oratorio `apps.json` metadata matches the §15 contract (external live validation is out of repo).
+- [x] Oratorio `apps.json` metadata matches the §15 contract — toolCatalog names/scopes and the `oratorio` deep‑link protocol (all platforms); the Oratorio repo now declares `_meta.ui` on the three board tools and serves `ui://oratorio/board|item|review.html` (live validation happens with the running app).
 
 ## 9. Resolved decisions
 
