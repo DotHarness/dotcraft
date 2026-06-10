@@ -16,7 +16,7 @@ public sealed partial class SessionService
             var mergedById = new Dictionary<string, ThreadSummary>(StringComparer.OrdinalIgnoreCase);
             foreach (var summary in all)
                 mergedById[summary.Id] = summary;
-            foreach (var thread in owner._threads.Values)
+            foreach (var thread in owner._runtimeRegistry.Values.Select(runtime => runtime.Thread))
             {
                 if (thread.Ephemeral)
                     continue;
@@ -81,7 +81,7 @@ public sealed partial class SessionService
             var mergedById = new Dictionary<string, ThreadSummary>(StringComparer.OrdinalIgnoreCase);
             foreach (var summary in all)
                 mergedById[summary.Id] = summary;
-            foreach (var thread in owner._threads.Values)
+            foreach (var thread in owner._runtimeRegistry.Values.Select(runtime => runtime.Thread))
             {
                 if (thread.Ephemeral)
                     continue;

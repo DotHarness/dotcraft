@@ -8,7 +8,7 @@ public sealed partial class SessionService
     {
         public async Task<SessionThread> ResumeAsync(string threadId, CancellationToken ct)
         {
-            if (owner._threads.TryGetValue(threadId, out var cached))
+            if (owner._runtimeRegistry.TryGetThread(threadId, out var cached))
             {
                 if (cached.Status == ThreadStatus.Archived)
                     throw new InvalidOperationException($"Thread '{threadId}' is archived and cannot be resumed.");
@@ -39,7 +39,7 @@ public sealed partial class SessionService
             thread.Status = ThreadStatus.Active;
             thread.LastActiveAt = DateTimeOffset.UtcNow;
 
-            owner._threads[thread.Id] = thread;
+            owner._runtimeRegistry.SetThread(thread);
             var broker = owner.GetOrCreateBroker(thread.Id);
 
             await owner.EnsurePerThreadAgentIfMissingAsync(thread.Id, thread, ct);
@@ -200,7 +200,7 @@ public sealed partial class SessionService
         private async Task DeleteCoreAsync(string threadId, CancellationToken ct)
         {
             var ephemeral = false;
-            if (owner._threads.TryGetValue(threadId, out var thread))
+            if (owner._runtimeRegistry.TryGetThread(threadId, out var thread))
             {
                 ephemeral = thread.Ephemeral;
                 foreach (var turn in thread.Turns.Where(t => t.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput))
@@ -216,7 +216,8 @@ public sealed partial class SessionService
             if (!ephemeral)
                 await owner.Persistence.DeleteThreadCascadeAsync(threadId, ct);
 
-            owner._threads.TryRemove(threadId, out _);
+            if (owner._runtimeRegistry.TryRemove(threadId, out var runtime))
+                await runtime.DisposeAsync();
             owner._threadAgents.TryRemove(threadId, out _);
             owner._threadModeManagers.TryRemove(threadId, out _);
             owner._threadEventBrokers.TryRemove(threadId, out _);

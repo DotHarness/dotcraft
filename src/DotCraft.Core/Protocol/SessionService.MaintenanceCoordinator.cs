@@ -279,7 +279,7 @@ public sealed partial class SessionService
 
         public CompactionPipeline GetCompactionPipelineForThread(string threadId)
         {
-            owner._threads.TryGetValue(threadId, out var thread);
+            owner._runtimeRegistry.TryGetThread(threadId, out var thread);
             return GetCompactionPipelineForThread(threadId, thread);
         }
 

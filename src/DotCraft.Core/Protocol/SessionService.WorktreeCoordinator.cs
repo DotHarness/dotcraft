@@ -94,7 +94,7 @@ public sealed partial class SessionService
             thread.Worktree = worktree;
 
             owner._threadsPendingPermanentDeletion.TryRemove(thread.Id, out _);
-            owner._threads[thread.Id] = thread;
+            owner._runtimeRegistry.SetThread(thread);
             var broker = owner.GetOrCreateBroker(thread.Id);
 
             using (await owner.AcquireThreadAgentLockAsync(thread.Id, ct))
@@ -219,7 +219,7 @@ public sealed partial class SessionService
                 byThreadId[summary.Id] = summary.Worktree;
             }
 
-            foreach (var thread in owner._threads.Values)
+            foreach (var thread in owner._runtimeRegistry.Values.Select(runtime => runtime.Thread))
             {
                 if (thread.Ephemeral || thread.Worktree == null)
                     continue;

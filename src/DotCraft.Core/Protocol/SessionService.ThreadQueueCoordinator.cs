@@ -52,7 +52,7 @@ public sealed partial class SessionService
             IReadOnlyList<QueuedTurnInput> queueSnapshot;
             using (await owner.AcquireThreadQueueLockAsync(threadId, ct))
             {
-                if (owner._threads.TryGetValue(threadId, out var cachedThread))
+                if (owner._runtimeRegistry.TryGetThread(threadId, out var cachedThread))
                     thread = cachedThread;
 
                 queued = queued with
@@ -83,7 +83,7 @@ public sealed partial class SessionService
             IReadOnlyList<QueuedTurnInput> queueSnapshot;
             using (await owner.AcquireThreadQueueLockAsync(threadId, ct))
             {
-                if (owner._threads.TryGetValue(threadId, out var cachedThread))
+                if (owner._runtimeRegistry.TryGetThread(threadId, out var cachedThread))
                     thread = cachedThread;
 
                 var queue = thread.QueuedInputs.ToList();
@@ -113,7 +113,7 @@ public sealed partial class SessionService
             var changed = false;
             using (await owner.AcquireThreadQueueLockAsync(threadId, ct))
             {
-                if (owner._threads.TryGetValue(threadId, out var cachedThread))
+                if (owner._runtimeRegistry.TryGetThread(threadId, out var cachedThread))
                     thread = cachedThread;
 
                 var queue = thread.QueuedInputs.ToList();
@@ -158,7 +158,7 @@ public sealed partial class SessionService
             IReadOnlyList<QueuedTurnInput> queueSnapshot;
             using (await owner.AcquireThreadQueueLockAsync(threadId, ct))
             {
-                if (owner._threads.TryGetValue(threadId, out var cachedThread))
+                if (owner._runtimeRegistry.TryGetThread(threadId, out var cachedThread))
                     thread = cachedThread;
 
                 turn = thread.Turns.LastOrDefault(t => t.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput)
@@ -206,7 +206,7 @@ public sealed partial class SessionService
                 IReadOnlyList<QueuedTurnInput> queueSnapshot;
                 using (await owner.AcquireThreadQueueLockAsync(threadId, ct))
                 {
-                    if (owner._threads.TryGetValue(threadId, out var cachedThread))
+                    if (owner._runtimeRegistry.TryGetThread(threadId, out var cachedThread))
                         thread = cachedThread;
 
                     var queue = thread.QueuedInputs.ToList();
@@ -260,7 +260,7 @@ public sealed partial class SessionService
                     IReadOnlyList<QueuedTurnInput>? queueSnapshot = null;
                     using (await owner.AcquireThreadQueueLockAsync(threadId, CancellationToken.None))
                     {
-                        if (owner._threads.TryGetValue(threadId, out var cachedThread))
+                        if (owner._runtimeRegistry.TryGetThread(threadId, out var cachedThread))
                             thread = cachedThread;
 
                         var queue = thread.QueuedInputs.ToList();

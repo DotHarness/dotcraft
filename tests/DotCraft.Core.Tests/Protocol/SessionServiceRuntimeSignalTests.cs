@@ -1163,12 +1163,14 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
         await using var agentFactory = CreateAgentFactory(chatClient);
         var svc = CreateService(agentFactory, chatClient);
         var thread = await svc.CreateThreadAsync(MakeIdentity());
+        Assert.Equal(1, svc.DebugRuntimeCount);
 
         var drainTask = DrainAsync(svc.SubmitInputAsync(thread.Id, [new TextContent("hello")]));
         await Task.Delay(50);
 
         await svc.DeleteThreadPermanentlyAsync(thread.Id);
         await drainTask;
+        Assert.Equal(0, svc.DebugRuntimeCount);
 
         var store = new ThreadStore(_tempDir);
         Assert.Null(await store.LoadThreadAsync(thread.Id));

@@ -108,7 +108,7 @@ public sealed partial class SessionService(
     private readonly TimeSpan _approvalTimeout = approvalTimeout ?? TimeSpan.FromMinutes(5);
 
     // In-memory state
-    private readonly ConcurrentDictionary<string, SessionThread> _threads = new();
+    private readonly ThreadRuntimeRegistry _runtimeRegistry = new();
     private readonly ConcurrentDictionary<string, AIAgent> _threadAgents = new();
     private readonly ConcurrentDictionary<TurnKey, SessionApprovalService> _pendingApprovals = new();
     private readonly ConcurrentDictionary<TurnKey, SessionUserInputRequestService> _pendingUserInputRequests = new();
@@ -188,6 +188,8 @@ public sealed partial class SessionService(
     private AIAgent DefaultAgent => defaultAgent;
 
     private AgentFactory AgentFactory => agentFactory;
+
+    internal int DebugRuntimeCount => _runtimeRegistry.Count;
 
     /// <summary>
     /// Suppresses immediate Session Core goal broadcasts within the current async flow.
@@ -805,7 +807,7 @@ public sealed partial class SessionService(
         CancellationToken callerCt)
     {
         // Step 1: Validate synchronously before starting the background Task
-        if (!_threads.TryGetValue(threadId, out var thread))
+        if (!_runtimeRegistry.TryGetThread(threadId, out var thread))
             throw new KeyNotFoundException($"Thread '{threadId}' not found. Call CreateThreadAsync or ResumeThreadAsync first.");
 
         if (thread.Status != ThreadStatus.Active)
@@ -2404,13 +2406,13 @@ public sealed partial class SessionService(
 
     private async Task<SessionThread> GetOrLoadThreadAsync(string threadId, CancellationToken ct)
     {
-        if (_threads.TryGetValue(threadId, out var cached))
+        if (_runtimeRegistry.TryGetThread(threadId, out var cached))
             return cached;
 
         var thread = await persistence.LoadThreadAsync(threadId, ct)
                      ?? throw new KeyNotFoundException($"Thread '{threadId}' not found.");
 
-        _threads[thread.Id] = thread;
+        _runtimeRegistry.SetThread(thread);
         _materializedThreads[thread.Id] = 0;
         _ = GetOrCreateBroker(thread.Id);
         return thread;
@@ -3167,7 +3169,7 @@ public sealed partial class SessionService(
         if (IsPendingPermanentDeletion(threadId))
             return false;
 
-        if (!_threads.TryGetValue(threadId, out var thread) || thread.HistoryMode != HistoryMode.Server)
+        if (!_runtimeRegistry.TryGetThread(threadId, out var thread) || thread.HistoryMode != HistoryMode.Server)
             return false;
             
         try
@@ -3187,7 +3189,7 @@ public sealed partial class SessionService(
         if (IsPendingPermanentDeletion(threadId))
             return;
 
-        if (!_threads.TryGetValue(threadId, out var thread) || thread.HistoryMode != HistoryMode.Server)
+        if (!_runtimeRegistry.TryGetThread(threadId, out var thread) || thread.HistoryMode != HistoryMode.Server)
             return;
 
         try

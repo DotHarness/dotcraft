@@ -208,7 +208,7 @@ Stop starting new substantive work for this goal. Summarize current progress, id
             IReadOnlyList<QueuedTurnInput> queueSnapshot;
             using (await owner.AcquireThreadQueueLockAsync(turnKey.ThreadId, ct))
             {
-                if (owner._threads.TryGetValue(turnKey.ThreadId, out var cachedThread))
+                if (owner._runtimeRegistry.TryGetThread(turnKey.ThreadId, out var cachedThread))
                     thread = cachedThread;
 
                 if (thread.QueuedInputs.Any(input =>
