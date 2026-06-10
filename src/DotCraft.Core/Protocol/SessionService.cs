@@ -141,6 +141,7 @@ public sealed partial class SessionService(
     private ThreadConfigurationCoordinator? _threadConfigurationCoordinator;
     private TurnControlCoordinator? _turnControlCoordinator;
     private ThreadGoalCoordinator? _threadGoalCoordinator;
+    private ThreadQueueCoordinator? _threadQueueCoordinator;
     private static readonly AsyncLocal<bool> SuppressGoalBroadcastContext = new();
     private static readonly IReadOnlySet<string> EmptyPluginFunctionToolNames = new HashSet<string>(StringComparer.Ordinal);
     private static readonly IReadOnlySet<string> EmptyDynamicToolNames = new HashSet<string>(StringComparer.Ordinal);
@@ -166,6 +167,8 @@ public sealed partial class SessionService(
     private TurnControlCoordinator TurnControl => _turnControlCoordinator ??= new TurnControlCoordinator(this);
 
     private ThreadGoalCoordinator Goals => _threadGoalCoordinator ??= new ThreadGoalCoordinator(this);
+
+    private ThreadQueueCoordinator ThreadQueue => _threadQueueCoordinator ??= new ThreadQueueCoordinator(this);
 
     private SessionGate Gate => sessionGate;
 
@@ -1098,7 +1101,7 @@ public sealed partial class SessionService(
                     queued = thread.QueuedInputs[queueIndex];
                 }
 
-                var contentParts = await ResolveQueuedInputPartsAsync(queued.MaterializedInputParts.ToList(), drainCt);
+                var contentParts = await ThreadQueue.ResolveInputPartsAsync(queued.MaterializedInputParts.ToList(), drainCt);
                 if (contentParts.Count == 0)
                     return null;
 
@@ -2266,128 +2269,21 @@ public sealed partial class SessionService(
         SenderContext? sender = null,
         CancellationToken ct = default,
         SessionInputSnapshot? inputSnapshot = null)
-    {
-        if (content.Count == 0 && inputSnapshot?.MaterializedInputParts is not { Count: > 0 })
-            throw new InvalidOperationException("Queued input must not be empty.");
-
-        var thread = await GetOrLoadThreadAsync(threadId, ct);
-        if (thread.Status != ThreadStatus.Active)
-            throw new InvalidOperationException($"Thread '{threadId}' is not Active (current status: {thread.Status}). Cannot enqueue input.");
-
-        var activeTurnId = thread.Turns
-            .LastOrDefault(t => t.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput)
-            ?.Id;
-
-        var nativeParts = inputSnapshot?.NativeInputParts?.ToList()
-            ?? content.Select(c => c.ToWireInputPart()).ToList();
-        var materializedParts = inputSnapshot?.MaterializedInputParts?.ToList()
-            ?? nativeParts;
-        var displayText = inputSnapshot?.DisplayText
-            ?? SessionWireMapper.BuildDisplayText(nativeParts);
-        var triggerInfo = TurnTriggerScope.Current;
-
-        var queued = new QueuedTurnInput
-        {
-            Id = SessionIdGenerator.NewQueuedInputId(),
-            ThreadId = threadId,
-            NativeInputParts = nativeParts,
-            MaterializedInputParts = materializedParts,
-            DisplayText = displayText,
-            Sender = sender,
-            Status = "queued",
-            CreatedAt = DateTimeOffset.UtcNow,
-            ReadyAfterTurnId = activeTurnId,
-            TriggerKind = triggerInfo?.Kind,
-            TriggerLabel = triggerInfo?.Label,
-            TriggerRefId = triggerInfo?.RefId
-        };
-
-        IReadOnlyList<QueuedTurnInput> queueSnapshot;
-        using (await AcquireThreadQueueLockAsync(threadId, ct))
-        {
-            if (_threads.TryGetValue(threadId, out var cachedThread))
-                thread = cachedThread;
-
-            queued = queued with
-            {
-                ReadyAfterTurnId = thread.Turns
-                    .LastOrDefault(t => t.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput)
-                    ?.Id
-            };
-
-            var queue = thread.QueuedInputs.ToList();
-            queue.Add(queued);
-            thread.QueuedInputs = queue;
-            thread.LastActiveAt = DateTimeOffset.UtcNow;
-            await PersistThreadWithMaterializationAsync(thread, ct);
-            queueSnapshot = queue.ToList();
-        }
-
-        PublishQueueUpdated(thread.Id, queueSnapshot);
-        return queued;
-    }
+        => await ThreadQueue.EnqueueAsync(threadId, content, sender, ct, inputSnapshot);
 
     /// <inheritdoc/>
     public async Task<IReadOnlyList<QueuedTurnInput>> RemoveQueuedTurnInputAsync(
         string threadId,
         string queuedInputId,
         CancellationToken ct = default)
-    {
-        var thread = await GetOrLoadThreadAsync(threadId, ct);
-        IReadOnlyList<QueuedTurnInput> queueSnapshot;
-        using (await AcquireThreadQueueLockAsync(threadId, ct))
-        {
-            if (_threads.TryGetValue(threadId, out var cachedThread))
-                thread = cachedThread;
-
-            var queue = thread.QueuedInputs.ToList();
-            var removed = queue.RemoveAll(q => string.Equals(q.Id, queuedInputId, StringComparison.Ordinal));
-            if (removed == 0)
-                throw new KeyNotFoundException($"Queued input '{queuedInputId}' not found.");
-
-            thread.QueuedInputs = queue;
-            thread.LastActiveAt = DateTimeOffset.UtcNow;
-            await PersistThreadWithMaterializationAsync(thread, ct);
-            queueSnapshot = queue.ToList();
-        }
-
-        PublishQueueUpdated(thread.Id, queueSnapshot);
-        return queueSnapshot;
-    }
+        => await ThreadQueue.RemoveAsync(threadId, queuedInputId, ct);
 
     /// <inheritdoc/>
     public async Task<IReadOnlyList<QueuedTurnInput>> ReorderQueuedTurnInputsAsync(
         string threadId,
         IReadOnlyList<string> orderedQueuedInputIds,
         CancellationToken ct = default)
-    {
-        ArgumentNullException.ThrowIfNull(orderedQueuedInputIds);
-
-        var thread = await GetOrLoadThreadAsync(threadId, ct);
-        IReadOnlyList<QueuedTurnInput> queueSnapshot;
-        var changed = false;
-        using (await AcquireThreadQueueLockAsync(threadId, ct))
-        {
-            if (_threads.TryGetValue(threadId, out var cachedThread))
-                thread = cachedThread;
-
-            var queue = thread.QueuedInputs.ToList();
-            var reordered = BuildReorderedQueuedInputs(queue, orderedQueuedInputIds);
-            changed = !queue.Select(q => q.Id).SequenceEqual(reordered.Select(q => q.Id), StringComparer.Ordinal);
-            if (changed)
-            {
-                thread.QueuedInputs = reordered;
-                thread.LastActiveAt = DateTimeOffset.UtcNow;
-                await PersistThreadWithMaterializationAsync(thread, ct);
-            }
-
-            queueSnapshot = thread.QueuedInputs.ToList();
-        }
-
-        if (changed)
-            PublishQueueUpdated(thread.Id, queueSnapshot);
-        return queueSnapshot;
-    }
+        => await ThreadQueue.ReorderAsync(threadId, orderedQueuedInputIds, ct);
 
     /// <inheritdoc/>
     public async Task<TurnSteerResult> SteerTurnAsync(
@@ -2396,85 +2292,7 @@ public sealed partial class SessionService(
         string queuedInputId,
         CancellationToken ct = default,
         SenderContext? sender = null)
-    {
-        if (string.IsNullOrWhiteSpace(expectedTurnId))
-            throw new InvalidOperationException("expectedTurnId must not be empty.");
-        if (string.IsNullOrWhiteSpace(queuedInputId))
-            throw new InvalidOperationException("queuedInputId must not be empty.");
-
-        var thread = await GetOrLoadThreadAsync(threadId, ct);
-        if (thread.Status != ThreadStatus.Active)
-            throw new InvalidOperationException($"Thread '{threadId}' is not Active (current status: {thread.Status}). Cannot steer turn.");
-
-        var turn = thread.Turns.LastOrDefault(t => t.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput)
-            ?? throw new InvalidOperationException($"Thread '{threadId}' has no active turn to steer.");
-        if (!string.Equals(turn.Id, expectedTurnId, StringComparison.Ordinal))
-            throw new InvalidOperationException($"Expected active turn id '{expectedTurnId}' but found '{turn.Id}'.");
-
-        IReadOnlyList<QueuedTurnInput> queueSnapshot;
-        using (await AcquireThreadQueueLockAsync(threadId, ct))
-        {
-            if (_threads.TryGetValue(threadId, out var cachedThread))
-                thread = cachedThread;
-
-            turn = thread.Turns.LastOrDefault(t => t.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput)
-                ?? throw new InvalidOperationException($"Thread '{threadId}' has no active turn to steer.");
-            if (!string.Equals(turn.Id, expectedTurnId, StringComparison.Ordinal))
-                throw new InvalidOperationException($"Expected active turn id '{expectedTurnId}' but found '{turn.Id}'.");
-
-            var queue = thread.QueuedInputs.ToList();
-            var queueIndex = queue.FindIndex(q => string.Equals(q.Id, queuedInputId, StringComparison.Ordinal));
-            if (queueIndex < 0)
-                throw new KeyNotFoundException($"Queued input '{queuedInputId}' not found.");
-
-            var queued = queue[queueIndex];
-            if (!string.Equals(queued.Status, "queued", StringComparison.Ordinal))
-                throw new InvalidOperationException($"Queued input '{queuedInputId}' is not queued (current status: {queued.Status}).");
-
-            queue[queueIndex] = queued with
-            {
-                Status = "guidancePending",
-                ReadyAfterTurnId = turn.Id,
-                Sender = sender ?? queued.Sender
-            };
-            thread.QueuedInputs = queue;
-            thread.LastActiveAt = DateTimeOffset.UtcNow;
-            await PersistThreadWithMaterializationAsync(thread, ct);
-            queueSnapshot = queue.ToList();
-        }
-
-        PublishQueueUpdated(thread.Id, queueSnapshot);
-
-        return new TurnSteerResult
-        {
-            TurnId = turn.Id,
-            QueuedInputs = queueSnapshot
-        };
-    }
-
-    private static List<QueuedTurnInput> BuildReorderedQueuedInputs(
-        IReadOnlyList<QueuedTurnInput> queue,
-        IReadOnlyList<string> orderedQueuedInputIds)
-    {
-        if (orderedQueuedInputIds.Count != queue.Count)
-            throw new ArgumentException("orderedQueuedInputIds must contain every current queued input ID exactly once.", nameof(orderedQueuedInputIds));
-
-        var byId = queue.ToDictionary(q => q.Id, StringComparer.Ordinal);
-        var seen = new HashSet<string>(StringComparer.Ordinal);
-        var reordered = new List<QueuedTurnInput>(queue.Count);
-        foreach (var queuedInputId in orderedQueuedInputIds)
-        {
-            if (string.IsNullOrWhiteSpace(queuedInputId))
-                throw new ArgumentException("orderedQueuedInputIds must not contain empty IDs.", nameof(orderedQueuedInputIds));
-            if (!seen.Add(queuedInputId))
-                throw new ArgumentException("orderedQueuedInputIds must not contain duplicate IDs.", nameof(orderedQueuedInputIds));
-            if (!byId.TryGetValue(queuedInputId, out var queuedInput))
-                throw new ArgumentException($"Queued input '{queuedInputId}' is not in the current queue.", nameof(orderedQueuedInputIds));
-            reordered.Add(queuedInput);
-        }
-
-        return reordered;
-    }
+        => await ThreadQueue.SteerAsync(threadId, expectedTurnId, queuedInputId, ct, sender);
 
     /// <inheritdoc/>
     public async Task<SessionThread> RollbackThreadAsync(string threadId, int numTurns, CancellationToken ct = default)
@@ -2938,170 +2756,7 @@ public sealed partial class SessionService(
 
     /// <inheritdoc/>
     public async Task TryStartNextQueuedTurnAsync(string threadId, CancellationToken ct = default)
-    {
-        QueuedTurnInput? queued = null;
-        SessionThread? thread = null;
-        try
-        {
-            thread = await GetOrLoadThreadAsync(threadId, ct);
-            IReadOnlyList<QueuedTurnInput> queueSnapshot;
-            using (await AcquireThreadQueueLockAsync(threadId, ct))
-            {
-                if (_threads.TryGetValue(threadId, out var cachedThread))
-                    thread = cachedThread;
-
-                var queue = thread.QueuedInputs.ToList();
-                var queueIndex = queue.FindIndex(q => string.Equals(q.Status, "queued", StringComparison.Ordinal));
-                if (queueIndex < 0)
-                    return;
-                if (thread.Turns.Any(t => t.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput))
-                    return;
-                if (_threadMaintenance.ContainsKey(threadId))
-                    return;
-
-                queued = queue[queueIndex];
-                queue.RemoveAt(queueIndex);
-                thread.QueuedInputs = queue;
-                thread.LastActiveAt = DateTimeOffset.UtcNow;
-                await PersistThreadWithMaterializationAsync(thread, ct);
-                queueSnapshot = queue.ToList();
-            }
-
-            PublishQueueUpdated(thread.Id, queueSnapshot);
-
-            var content = await ResolveQueuedInputPartsAsync(queued.MaterializedInputParts.ToList(), ct);
-            if (content.Count == 0)
-                return;
-
-            using var triggerScope = CreateQueuedInputTriggerScope(queued);
-            var events = SubmitInputAsync(
-                threadId,
-                content,
-                queued.Sender,
-                messages: null,
-                ct,
-                new SessionInputSnapshot
-                {
-                    NativeInputParts = queued.NativeInputParts,
-                    MaterializedInputParts = queued.MaterializedInputParts,
-                    DisplayText = queued.DisplayText,
-                    DeliveryMode = "queued"
-                });
-
-            _ = Task.Run(async () =>
-            {
-                await foreach (var _ in events.WithCancellation(CancellationToken.None)) { }
-            }, CancellationToken.None);
-        }
-        catch (Exception ex)
-        {
-            logger?.LogError(ex, "Failed to start queued input {QueuedInputId} for thread {ThreadId}", queued?.Id, threadId);
-            if (thread != null && queued != null)
-            {
-                IReadOnlyList<QueuedTurnInput>? queueSnapshot = null;
-                using (await AcquireThreadQueueLockAsync(threadId, CancellationToken.None))
-                {
-                    if (_threads.TryGetValue(threadId, out var cachedThread))
-                        thread = cachedThread;
-
-                    var queue = thread.QueuedInputs.ToList();
-                    if (queue.All(q => !string.Equals(q.Id, queued.Id, StringComparison.Ordinal)))
-                    {
-                        queue.Insert(0, queued);
-                        thread.QueuedInputs = queue;
-                        await PersistThreadWithMaterializationAsync(thread, CancellationToken.None);
-                        queueSnapshot = queue.ToList();
-                    }
-                }
-
-                if (queueSnapshot != null)
-                    PublishQueueUpdated(thread.Id, queueSnapshot);
-            }
-        }
-    }
-
-    private static async Task<List<AIContent>> ResolveQueuedInputPartsAsync(
-        List<SessionWireInputPart> parts,
-        CancellationToken ct)
-    {
-        var result = new List<AIContent>(parts.Count);
-        foreach (var part in parts)
-        {
-            result.Add(part.Type switch
-            {
-                "localImage" when part.Path is { } path => await ResolveQueuedLocalImageAsync(path, part.MimeType, part.FileName, ct),
-                "image" when part.Url is { } url => await ResolveQueuedRemoteImageAsync(url, ct),
-                _ => part.ToAIContent()
-            });
-        }
-        return result;
-    }
-
-    private static IDisposable? CreateQueuedInputTriggerScope(QueuedTurnInput queued)
-    {
-        if (string.IsNullOrWhiteSpace(queued.TriggerKind))
-            return null;
-
-        return TurnTriggerScope.Set(new TurnTriggerInfo
-        {
-            Kind = queued.TriggerKind!,
-            Label = queued.TriggerLabel,
-            RefId = queued.TriggerRefId
-        });
-    }
-
-    private static async Task<AIContent> ResolveQueuedLocalImageAsync(
-        string path,
-        string? mimeTypeHint,
-        string? fileNameHint,
-        CancellationToken ct)
-    {
-        try
-        {
-            var bytes = await File.ReadAllBytesAsync(path, ct);
-            var data = new DataContent(bytes, InferMediaType(path));
-            data.AdditionalProperties ??= new AdditionalPropertiesDictionary();
-            data.AdditionalProperties["localImage.path"] = path;
-            if (!string.IsNullOrWhiteSpace(mimeTypeHint))
-                data.AdditionalProperties["localImage.mimeType"] = mimeTypeHint.Trim();
-            if (!string.IsNullOrWhiteSpace(fileNameHint))
-                data.AdditionalProperties["localImage.fileName"] = fileNameHint.Trim();
-            return data;
-        }
-        catch
-        {
-            return new TextContent($"[localImage:{path}]");
-        }
-    }
-
-    private static async Task<AIContent> ResolveQueuedRemoteImageAsync(string url, CancellationToken ct)
-    {
-        try
-        {
-            using var response = await QueuedInputHttpClient.GetAsync(url, ct);
-            response.EnsureSuccessStatusCode();
-            var mediaType = response.Content.Headers.ContentType?.MediaType ?? "image/png";
-            var bytes = await response.Content.ReadAsByteArrayAsync(ct);
-            return new DataContent(bytes, mediaType);
-        }
-        catch
-        {
-            return new TextContent($"[image:{url}]");
-        }
-    }
-
-    private static string InferMediaType(string path)
-    {
-        var ext = Path.GetExtension(path).ToLowerInvariant();
-        return ext switch
-        {
-            ".jpg" or ".jpeg" => "image/jpeg",
-            ".gif" => "image/gif",
-            ".webp" => "image/webp",
-            ".bmp" => "image/bmp",
-            _ => "image/png"
-        };
-    }
+        => await ThreadQueue.TryStartNextAsync(threadId, ct);
 
     private void RecordTurnTokenUsage(SessionThread thread, SessionTurn turn)
     {
