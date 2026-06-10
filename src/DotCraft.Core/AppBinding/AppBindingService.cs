@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Text;
@@ -13,6 +12,7 @@ using DotCraft.Protocol.AppServer;
 using DotCraft.Security;
 using DotCraft.Skills;
 using Microsoft.Extensions.AI;
+using static DotCraft.AppBinding.AppBindingStoreAccessor;
 
 namespace DotCraft.AppBinding;
 
@@ -25,7 +25,7 @@ public sealed class AppBindingService
     private const int MaxContextBlockMetadataLength = 128;
     private const int MaxContextBlockContentBytes = 16 * 1024;
 
-    private readonly ConcurrentDictionary<string, AppBindingStore> _stores = new(StringComparer.OrdinalIgnoreCase);
+    private readonly AppBindingStoreAccessor _storeAccessor = new();
     private readonly AppBindingAttachmentRegistry _attachments = new();
     private readonly IReadOnlyDictionary<string, IManagedAppBindingRuntime> _managedRuntimesByAppId;
 
@@ -1940,37 +1940,7 @@ public sealed class AppBindingService
     }
 
     private AppBindingStore GetStore(string workspaceCraftPath) =>
-        _stores.GetOrAdd(Path.GetFullPath(workspaceCraftPath), path => new AppBindingStore(path));
-
-    private static AppCatalogEntry FindApp(AppCatalogSnapshot catalog, string appId)
-    {
-        var entry = catalog.Entries.FirstOrDefault(candidate =>
-            string.Equals(candidate.Descriptor.AppId, appId, StringComparison.Ordinal));
-        if (entry == null)
-            throw AppServerErrors.InvalidParams($"App '{appId}' was not found.");
-        return entry;
-    }
-
-    private static AppCatalogEntry FindEnabledApp(AppCatalogSnapshot catalog, string appId)
-    {
-        var entry = FindApp(catalog, appId);
-        if (!entry.Plugin.Installed || !entry.Plugin.Enabled)
-            throw AppServerErrors.InvalidParams($"App '{appId}' requires an installed and enabled plugin.");
-        return entry;
-    }
-
-    private static AppConnectionRecord? FindConnection(AppBindingStateDocument state, string userId, string appId) =>
-        state.Connections.FirstOrDefault(connection =>
-            string.Equals(connection.UserId, userId, StringComparison.Ordinal)
-            && string.Equals(connection.AppId, appId, StringComparison.Ordinal));
-
-    private static AppBindingRecord? FindBinding(AppBindingStateDocument state, string bindingId) =>
-        state.Bindings.FirstOrDefault(binding =>
-            string.Equals(binding.BindingId, bindingId, StringComparison.Ordinal));
-
-    private static bool IsConnectionUsable(AppConnectionRecord? connection) =>
-        connection is { State: AppConnectionStates.Connected }
-        && (connection.ExpiresAt == null || connection.ExpiresAt > DateTimeOffset.UtcNow);
+        _storeAccessor.GetStore(workspaceCraftPath);
 
     private bool IsBindingConnectionUsable(AppBindingStateDocument state, AppBindingRecord binding) =>
         IsManagedAppWithoutExternalConnection(binding.AppId)
