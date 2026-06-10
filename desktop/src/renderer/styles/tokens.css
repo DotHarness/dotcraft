@@ -739,15 +739,36 @@ kbd {
 /* ─── Composer mascot: SVG sub-part animation hooks ───
    The robot's arm/antenna/face pieces carry stable mascot-* classes (see
    MascotRobot.tsx). Each arm's white and blue pieces are separate elements
-   that rotate in lockstep around a shared shoulder origin in viewBox space
+   that move in lockstep around a shared shoulder origin in viewBox space
    (transform-box: view-box resolves the origin in user units, identically
-   for both pieces). Raised poses compose translate+rotate so the arm base
-   stays buried in the body silhouette instead of pivoting on a point. */
+   for both pieces). Raised poses (wave/cheer) compose "slide then rotate":
+   the translate first slips the whole arm down to the torso's mid-side,
+   far enough inboard that the white root cap stays buried in the body
+   silhouette, then the rotation fans the hand around that landed root —
+   the hand reads as growing straight out of the side, with no exposed
+   joint hardware. */
 .mascot-eyes,
 .mascot-glow,
 .mascot-light,
 .mascot-face {
   transform-box: fill-box;
+}
+
+/* Expression switch: a terminal-screen "refresh" — the old face fades out
+   quickly, the new one fades in after a ~70ms blank beat, so two faces
+   never blend into a double exposure. Reduced motion falls back to a hard
+   cut via the mascot media-query below. */
+.mascot-face {
+  opacity: 0;
+  transition: opacity 110ms ease;
+}
+
+.mascot-robot[data-expression='neutral'] .mascot-face-neutral,
+.mascot-robot[data-expression='happy'] .mascot-face-happy,
+.mascot-robot[data-expression='operator'] .mascot-face-operator,
+.mascot-robot[data-expression='sleep'] .mascot-face-sleep {
+  opacity: 1;
+  transition: opacity 150ms ease 70ms;
 }
 
 .mascot-eyes {
@@ -766,14 +787,14 @@ kbd {
 .mascot-arm-l-w,
 .mascot-arm-l-b {
   transform-box: view-box;
-  transform-origin: 213px 530px;
+  transform-origin: 233px 514px;
   transition: transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .mascot-arm-r-w,
 .mascot-arm-r-b {
   transform-box: view-box;
-  transform-origin: 811px 530px;
+  transform-origin: 791px 514px;
   transition: transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
@@ -962,15 +983,30 @@ kbd {
   animation: composer-mascot-light-pulse 1.3s ease-in-out infinite;
 }
 
-/* ─── Composer mascot: success — raised arms + double-hop cheer + star burst ─── */
+/* ─── Composer mascot: success — raised arms + double-hop cheer + star burst ───
+   Arms bury their roots in the torso's mid-sides (translate + scaleY → short
+   flippers) and swing up-and-out (\o/); same slide-then-rotate hinge as the
+   wave, so the outline wraps and the colour stays seam-continuous. */
 .composer-mascot-celebrate .mascot-arm-l-w,
 .composer-mascot-celebrate .mascot-arm-l-b {
-  transform: translate(15px, -34px) rotate(32deg);
+  transform: translate(48px, 88px) rotate(135deg) scaleY(0.82);
 }
 
 .composer-mascot-celebrate .mascot-arm-r-w,
 .composer-mascot-celebrate .mascot-arm-r-b {
-  transform: translate(-15px, -34px) rotate(-32deg);
+  transform: translate(-48px, 88px) rotate(-135deg) scaleY(0.82);
+}
+
+/* Raised arms swap from the body gradient (seamless at rest) to a solid hinge
+   colour, so a rotated arm has no gradient to diverge from the torso's field;
+   the swap is hidden by the motion. White halo capsules stay white. */
+.composer-mascot-wave .mascot-arm-r-b,
+.composer-mascot-celebrate .mascot-arm-r-b {
+  fill: #7a96fb;
+}
+
+.composer-mascot-celebrate .mascot-arm-l-b {
+  fill: #3161f7;
 }
 
 @keyframes composer-mascot-glow-flash {
@@ -1206,30 +1242,36 @@ kbd {
 }
 
 /* ─── Composer mascot: click greeting — penguin-style flipper wave ───
-   Kept at the side (never past -130°): higher angles bury the arm behind the
-   body so only its tip shows. The static shoulder pads in MascotRobot keep
-   the blue mass connected while the arm is raised. */
+   Three phases: (1) 0→16% the arm extends — root slides into the torso's
+   mid-side and scaleY shrinks it to a short flipper, so it grows out instead
+   of a long limb popping; (2) 16→80% it fans between -92° (out) and -122°
+   (up-forward) twice; (3) 80→100% it retracts flush. Every keyframe keeps the
+   same function list (translate + rotate + scaleY) so the interpolation is
+   smooth, and the white capsule + blue band share it to stay locked.
+   translate dy=88 lands the hinge at ≈602 viewBox — the height of the resting
+   arm nub (torso vertical center, slightly above) — so the hand lifts from
+   where the arm already is rather than from a point too high up. */
 @keyframes composer-mascot-wave-arm {
   0% {
-    transform: translate(0, 0) rotate(0);
+    transform: translate(0, 0) rotate(0) scaleY(1);
   }
-  18% {
-    transform: translate(-14px, -4px) rotate(-112deg);
+  16% {
+    transform: translate(-48px, 88px) rotate(-122deg) scaleY(0.8);
   }
-  34% {
-    transform: translate(-14px, -4px) rotate(-78deg);
+  32% {
+    transform: translate(-48px, 88px) rotate(-92deg) scaleY(0.8);
   }
-  50% {
-    transform: translate(-14px, -4px) rotate(-112deg);
+  48% {
+    transform: translate(-48px, 88px) rotate(-122deg) scaleY(0.8);
   }
-  66% {
-    transform: translate(-14px, -4px) rotate(-78deg);
+  64% {
+    transform: translate(-48px, 88px) rotate(-92deg) scaleY(0.8);
   }
-  82% {
-    transform: translate(-12px, -3px) rotate(-100deg);
+  80% {
+    transform: translate(-48px, 88px) rotate(-114deg) scaleY(0.8);
   }
   100% {
-    transform: translate(0, 0) rotate(0);
+    transform: translate(0, 0) rotate(0) scaleY(1);
   }
 }
 
@@ -1246,11 +1288,11 @@ kbd {
 
 .composer-mascot-wave .mascot-arm-r-w,
 .composer-mascot-wave .mascot-arm-r-b {
-  animation: composer-mascot-wave-arm 1.5s ease-in-out;
+  animation: composer-mascot-wave-arm 1.6s ease-in-out;
 }
 
 .composer-mascot-wave .composer-mascot-jelly {
-  animation: composer-mascot-wave-lean 1.5s ease-in-out;
+  animation: composer-mascot-wave-lean 1.6s ease-in-out;
 }
 
 /* Honor reduced motion: stop every mascot loop, one-shot, and pose transition.
