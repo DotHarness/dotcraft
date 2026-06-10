@@ -139,6 +139,7 @@ public sealed partial class SessionService(
     private ThreadLifecycleCoordinator? _threadLifecycleCoordinator;
     private ThreadAccessCoordinator? _threadAccessCoordinator;
     private ThreadConfigurationCoordinator? _threadConfigurationCoordinator;
+    private TurnControlCoordinator? _turnControlCoordinator;
     private static readonly AsyncLocal<bool> SuppressGoalBroadcastContext = new();
     private static readonly IReadOnlySet<string> EmptyPluginFunctionToolNames = new HashSet<string>(StringComparer.Ordinal);
     private static readonly IReadOnlySet<string> EmptyDynamicToolNames = new HashSet<string>(StringComparer.Ordinal);
@@ -160,6 +161,8 @@ public sealed partial class SessionService(
 
     private ThreadConfigurationCoordinator ThreadConfig =>
         _threadConfigurationCoordinator ??= new ThreadConfigurationCoordinator(this);
+
+    private TurnControlCoordinator TurnControl => _turnControlCoordinator ??= new TurnControlCoordinator(this);
 
     private SessionGate Gate => sessionGate;
 
@@ -2561,13 +2564,7 @@ Choose the next concrete action that advances the goal. Before doing substantial
         string requestId,
         SessionApprovalDecision decision,
         CancellationToken ct = default)
-    {
-        if (_pendingApprovals.TryGetValue(new TurnKey(threadId, turnId), out var svc))
-        {
-            svc.TryResolve(requestId, decision);
-        }
-        return Task.CompletedTask;
-    }
+        => TurnControl.ResolveApproval(threadId, turnId, requestId, decision);
 
     /// <inheritdoc/>
     public Task ResolveUserInputRequestAsync(
@@ -2576,48 +2573,19 @@ Choose the next concrete action that advances the goal. Before doing substantial
         string requestId,
         RequestUserInputResponse response,
         CancellationToken ct = default)
-    {
-        if (_pendingUserInputRequests.TryGetValue(new TurnKey(threadId, turnId), out var svc))
-        {
-            svc.TryResolve(requestId, response);
-        }
-        return Task.CompletedTask;
-    }
+        => TurnControl.ResolveUserInputRequest(threadId, turnId, requestId, response);
 
     /// <inheritdoc/>
     public Task CancelTurnAsync(string threadId, string turnId, CancellationToken ct = default)
-    {
-        if (_runningTurns.TryGetValue(new TurnKey(threadId, turnId), out var cts))
-            cts.Cancel();
-        return Task.CompletedTask;
-    }
+        => TurnControl.CancelTurn(threadId, turnId);
 
     /// <inheritdoc/>
     public Task CancelThreadMaintenanceAsync(string threadId, CancellationToken ct = default)
-    {
-        if (_threadMaintenance.TryGetValue(threadId, out var maintenance))
-        {
-            try
-            {
-                maintenance.Cancel();
-            }
-            catch (ObjectDisposedException)
-            {
-                // Maintenance reached its terminal state while the interrupt request was in flight.
-            }
-        }
-
-        return Task.CompletedTask;
-    }
+        => TurnControl.CancelThreadMaintenance(threadId);
 
     /// <inheritdoc/>
     public async Task CleanBackgroundTerminalsAsync(string threadId, CancellationToken ct = default)
-    {
-        if (backgroundTerminalService == null)
-            return;
-
-        await backgroundTerminalService.CleanThreadAsync(threadId, ct);
-    }
+        => await TurnControl.CleanBackgroundTerminalsAsync(threadId, ct);
 
     /// <inheritdoc/>
     public async Task<QueuedTurnInput> EnqueueTurnInputAsync(
