@@ -138,6 +138,7 @@ public sealed partial class SessionService(
     private ThreadCreationCoordinator? _threadCreationCoordinator;
     private ThreadLifecycleCoordinator? _threadLifecycleCoordinator;
     private ThreadAccessCoordinator? _threadAccessCoordinator;
+    private ThreadConfigurationCoordinator? _threadConfigurationCoordinator;
     private static readonly AsyncLocal<bool> SuppressGoalBroadcastContext = new();
     private static readonly IReadOnlySet<string> EmptyPluginFunctionToolNames = new HashSet<string>(StringComparer.Ordinal);
     private static readonly IReadOnlySet<string> EmptyDynamicToolNames = new HashSet<string>(StringComparer.Ordinal);
@@ -156,6 +157,9 @@ public sealed partial class SessionService(
     private ThreadLifecycleCoordinator ThreadLifecycle => _threadLifecycleCoordinator ??= new ThreadLifecycleCoordinator(this);
 
     private ThreadAccessCoordinator ThreadAccess => _threadAccessCoordinator ??= new ThreadAccessCoordinator(this);
+
+    private ThreadConfigurationCoordinator ThreadConfig =>
+        _threadConfigurationCoordinator ??= new ThreadConfigurationCoordinator(this);
 
     private SessionGate Gate => sessionGate;
 
@@ -3137,41 +3141,18 @@ Choose the next concrete action that advances the goal. Before doing substantial
 
     /// <inheritdoc/>
     public async Task SetThreadModeAsync(string threadId, string mode, CancellationToken ct = default)
-    {
-        var thread = await GetOrLoadThreadAsync(threadId, ct);
-        using (await AcquireThreadAgentLockAsync(threadId, ct))
-        {
-            thread.Configuration ??= new ThreadConfiguration();
-            thread.Configuration.Mode = mode;
-
-            _threadAgents[threadId] = await BuildAgentForThreadAsync(thread, ct);
-
-            await PersistThreadWithMaterializationAsync(thread, ct);
-        }
-    }
+        => await ThreadConfig.SetModeAsync(threadId, mode, ct);
 
     /// <inheritdoc/>
     public async Task UpdateThreadConfigurationAsync(
         string threadId,
         ThreadConfiguration config,
         CancellationToken ct = default)
-    {
-        var thread = await GetOrLoadThreadAsync(threadId, ct);
-        using (await AcquireThreadAgentLockAsync(threadId, ct))
-        {
-            thread.Configuration = config;
-            _threadAgents[threadId] = await BuildAgentForThreadAsync(thread, ct);
-            await PersistThreadWithMaterializationAsync(thread, ct);
-        }
-    }
+        => await ThreadConfig.UpdateAsync(threadId, config, ct);
 
     /// <inheritdoc />
     public async Task RefreshThreadAgentAsync(string threadId, CancellationToken ct = default)
-    {
-        var thread = await GetOrLoadThreadAsync(threadId, ct);
-        using (await AcquireThreadAgentLockAsync(threadId, ct))
-            _threadAgents[threadId] = await BuildAgentForThreadAsync(thread, ct);
-    }
+        => await ThreadConfig.RefreshAgentAsync(threadId, ct);
 
     private async Task RebuildAgentAndPersistThreadAsync(SessionThread thread, CancellationToken ct)
     {
@@ -3185,11 +3166,7 @@ Choose the next concrete action that advances the goal. Before doing substantial
 
     /// <inheritdoc />
     public void InvalidateThreadAgents()
-    {
-        _forcePerThreadAgents = true;
-        _threadAgents.Clear();
-        _threadCurrentTools.Clear();
-    }
+        => ThreadConfig.InvalidateAgents();
 
     /// <inheritdoc/>
     public async Task RenameThreadAsync(string threadId, string displayName, CancellationToken ct = default)
