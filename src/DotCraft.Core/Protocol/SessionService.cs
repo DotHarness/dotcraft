@@ -528,13 +528,14 @@ public sealed partial class SessionService(
                 normalizedTokens,
                 normalizedAnchor,
                 source,
+                isEstimate,
                 ct);
             if (_runtimeRegistry.TryGetRuntime(threadId, out var runtime))
                 runtime.ContextUsageAnchor = normalizedAnchor;
         }
         else
         {
-            await persistence.SaveContextUsageTokensAsync(threadId, normalizedTokens, source, ct);
+            await persistence.SaveContextUsageTokensAsync(threadId, normalizedTokens, source, isEstimate, ct);
         }
 
         return CreateContextUsageSnapshot(threadId, normalizedTokens, source, isEstimate);

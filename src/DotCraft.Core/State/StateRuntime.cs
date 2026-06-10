@@ -201,6 +201,7 @@ public sealed class StateRuntime
                     request_fingerprint TEXT,
                     anchor_boundary TEXT,
                     usage_source TEXT,
+                    usage_is_estimate INTEGER NOT NULL DEFAULT 0,
                     updated_at TEXT NOT NULL,
                     FOREIGN KEY(thread_id) REFERENCES threads(thread_id) ON DELETE CASCADE
                 );
@@ -452,6 +453,7 @@ public sealed class StateRuntime
             EnsureColumn(connection, "thread_context_usage", "request_fingerprint", "TEXT");
             EnsureColumn(connection, "thread_context_usage", "anchor_boundary", "TEXT");
             EnsureColumn(connection, "thread_context_usage", "usage_source", "TEXT");
+            EnsureColumn(connection, "thread_context_usage", "usage_is_estimate", "INTEGER NOT NULL DEFAULT 0");
 
             _initialized = true;
         }

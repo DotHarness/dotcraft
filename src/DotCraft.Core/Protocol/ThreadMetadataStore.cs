@@ -4,6 +4,11 @@ using DotCraft.State;
 
 namespace DotCraft.Protocol;
 
+/// <summary>
+/// Persisted context-window usage snapshot plus diagnostic source metadata.
+/// </summary>
+public sealed record ContextUsagePersistenceSnapshot(long Tokens, string? Source, bool IsEstimate);
+
 internal sealed class ThreadMetadataStore(StateRuntime stateRuntime)
 {
     public void UpsertThread(SessionThread thread, string rolloutPath)
@@ -695,6 +700,29 @@ internal sealed class ThreadMetadataStore(StateRuntime stateRuntime)
         return value == null || value == DBNull.Value ? null : Convert.ToInt64(value);
     }
 
+    public ContextUsagePersistenceSnapshot? LoadContextUsageSnapshot(string threadId)
+    {
+        using var connection = stateRuntime.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT context_usage_tokens, usage_source, usage_is_estimate
+            FROM thread_context_usage
+            WHERE thread_id = $thread_id
+            LIMIT 1
+            """;
+        command.Parameters.AddWithValue("$thread_id", threadId);
+        using var reader = command.ExecuteReader();
+        if (!reader.Read() || reader.IsDBNull(0))
+            return null;
+
+        var source = reader.IsDBNull(1) ? null : reader.GetString(1);
+        var persistedEstimate = !reader.IsDBNull(2) && reader.GetInt64(2) != 0;
+        return new ContextUsagePersistenceSnapshot(
+            reader.GetInt64(0),
+            source,
+            persistedEstimate || IsEstimateSource(source));
+    }
+
     public ContextUsageAnchor? LoadContextUsageAnchor(string threadId)
     {
         using var connection = stateRuntime.OpenConnection();
@@ -722,7 +750,11 @@ internal sealed class ThreadMetadataStore(StateRuntime stateRuntime)
             BoundaryKind: reader.IsDBNull(4) ? null : reader.GetString(4));
     }
 
-    public void SaveContextUsageTokens(string threadId, long tokens, string? source = null)
+    public void SaveContextUsageTokens(
+        string threadId,
+        long tokens,
+        string? source = null,
+        bool isEstimate = false)
     {
         using var connection = stateRuntime.OpenConnection();
         using var command = connection.CreateCommand();
@@ -736,8 +768,9 @@ internal sealed class ThreadMetadataStore(StateRuntime stateRuntime)
                 request_fingerprint,
                 anchor_boundary,
                 usage_source,
+                usage_is_estimate,
                 updated_at)
-            VALUES ($thread_id, $tokens, NULL, NULL, NULL, NULL, NULL, $usage_source, $updated_at)
+            VALUES ($thread_id, $tokens, NULL, NULL, NULL, NULL, NULL, $usage_source, $usage_is_estimate, $updated_at)
             ON CONFLICT(thread_id) DO UPDATE SET
                 context_usage_tokens = excluded.context_usage_tokens,
                 anchor_tokens = NULL,
@@ -746,11 +779,13 @@ internal sealed class ThreadMetadataStore(StateRuntime stateRuntime)
                 request_fingerprint = NULL,
                 anchor_boundary = NULL,
                 usage_source = excluded.usage_source,
+                usage_is_estimate = excluded.usage_is_estimate,
                 updated_at = excluded.updated_at
             """;
         command.Parameters.AddWithValue("$thread_id", threadId);
         command.Parameters.AddWithValue("$tokens", Math.Max(0, tokens));
         command.Parameters.AddWithValue("$usage_source", (object?)source ?? DBNull.Value);
+        command.Parameters.AddWithValue("$usage_is_estimate", isEstimate ? 1 : 0);
         command.Parameters.AddWithValue("$updated_at", DateTimeOffset.UtcNow.UtcDateTime.ToString("O"));
         command.ExecuteNonQuery();
     }
@@ -762,7 +797,8 @@ internal sealed class ThreadMetadataStore(StateRuntime stateRuntime)
         string threadId,
         long displayTokens,
         ContextUsageAnchor anchor,
-        string? source = null)
+        string? source = null,
+        bool isEstimate = false)
     {
         using var connection = stateRuntime.OpenConnection();
         using var command = connection.CreateCommand();
@@ -776,6 +812,7 @@ internal sealed class ThreadMetadataStore(StateRuntime stateRuntime)
                 request_fingerprint,
                 anchor_boundary,
                 usage_source,
+                usage_is_estimate,
                 updated_at)
             VALUES (
                 $thread_id,
@@ -786,6 +823,7 @@ internal sealed class ThreadMetadataStore(StateRuntime stateRuntime)
                 $request_fingerprint,
                 $anchor_boundary,
                 $usage_source,
+                $usage_is_estimate,
                 $updated_at)
             ON CONFLICT(thread_id) DO UPDATE SET
                 context_usage_tokens = excluded.context_usage_tokens,
@@ -795,6 +833,7 @@ internal sealed class ThreadMetadataStore(StateRuntime stateRuntime)
                 request_fingerprint = excluded.request_fingerprint,
                 anchor_boundary = excluded.anchor_boundary,
                 usage_source = excluded.usage_source,
+                usage_is_estimate = excluded.usage_is_estimate,
                 updated_at = excluded.updated_at
             """;
         command.Parameters.AddWithValue("$thread_id", threadId);
@@ -805,9 +844,13 @@ internal sealed class ThreadMetadataStore(StateRuntime stateRuntime)
         command.Parameters.AddWithValue("$request_fingerprint", (object?)anchor.RequestFingerprint ?? DBNull.Value);
         command.Parameters.AddWithValue("$anchor_boundary", (object?)anchor.BoundaryKind ?? DBNull.Value);
         command.Parameters.AddWithValue("$usage_source", (object?)source ?? DBNull.Value);
+        command.Parameters.AddWithValue("$usage_is_estimate", isEstimate ? 1 : 0);
         command.Parameters.AddWithValue("$updated_at", DateTimeOffset.UtcNow.UtcDateTime.ToString("O"));
         command.ExecuteNonQuery();
     }
+
+    private static bool IsEstimateSource(string? source) =>
+        source?.Contains("estimate", StringComparison.OrdinalIgnoreCase) == true;
 
     /// <summary>
     /// Upserts the UI-only <c>widgetState</c> for a <c>dynamicToolCall</c> item (Interactive Tool UI,
