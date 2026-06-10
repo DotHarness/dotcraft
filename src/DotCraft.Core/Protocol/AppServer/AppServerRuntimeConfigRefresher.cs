@@ -108,6 +108,29 @@ internal sealed class AppServerRuntimeConfigRefresher(
         appConfigMonitor.Current.Reasoning = new AppConfig.ReasoningConfig();
     }
 
+    public void RefreshCurrentSubAgentConfig()
+    {
+        if (appConfigMonitor == null || string.IsNullOrWhiteSpace(workspaceCraftPath))
+            return;
+
+        var mergedConfig = LoadMergedWorkspaceConfig(useGlobalFallback: true);
+        appConfigMonitor.Current.SubAgent = new AppConfig.SubAgentConfig
+        {
+            DisabledProfiles = [.. mergedConfig.SubAgent.DisabledProfiles],
+            EnableExternalCliSessionResume = mergedConfig.SubAgent.EnableExternalCliSessionResume,
+            Model = mergedConfig.SubAgent.Model,
+            MinWaitTimeoutMs = mergedConfig.SubAgent.MinWaitTimeoutMs,
+            DefaultWaitTimeoutMs = mergedConfig.SubAgent.DefaultWaitTimeoutMs,
+            MaxWaitTimeoutMs = mergedConfig.SubAgent.MaxWaitTimeoutMs,
+            MaxDepth = mergedConfig.SubAgent.MaxDepth,
+            Roles = [.. mergedConfig.SubAgent.Roles.Select(role => role.Clone())]
+        };
+        appConfigMonitor.Current.SubAgentProfiles = mergedConfig.SubAgentProfiles
+            .Where(profile => !string.IsNullOrWhiteSpace(profile.Name))
+            .Select(profile => profile.Clone())
+            .ToList();
+    }
+
     public void InvalidateThreadAgents()
     {
         if (sessionService is IThreadAgentRefreshService refreshService)
