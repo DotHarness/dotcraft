@@ -42,6 +42,12 @@ All SDKs build on the same layers:
 
 Use the SDK when you want a client library. Use the [AppServer Protocol](../protocols/appserver-protocol) directly when you are implementing a new transport, debugging the wire protocol, or need complete control over JSON-RPC messages.
 
+## App integration paths
+
+SDK clients can expose runtime dynamic tools directly on a live thread connection, or participate in App Binding when a native app needs to grant app-owned tools to one thread. Runtime tools are tied to the Wire Client connection; App Binding tools are tied to a persisted thread grant that the app accepts and reattaches.
+
+![DotCraft app integration paths: Wire Client and App Binding](https://github.com/DotHarness/resources/raw/master/dotcraft/app-integration.png)
+
 ## Capability Snapshot
 
 The [SDK specification](https://github.com/DotHarness/dotcraft/blob/master/specs/sdk/sdk.md) tracks the full cross-language parity matrix.

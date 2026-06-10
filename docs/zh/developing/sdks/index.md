@@ -42,6 +42,12 @@ pip install dotcraft
 
 需要客户端库时使用 SDK。需要实现新传输、调试 wire protocol，或完全控制 JSON-RPC 消息时，直接使用 [AppServer 协议](../protocols/appserver-protocol)。
 
+## 应用集成路径
+
+SDK 客户端可以在活跃线程连接上直接提供运行时动态工具，也可以参与 App Binding，让原生应用把自有工具授权给某一个线程。运行时工具绑定在当前 Wire Client 连接上；App Binding 工具绑定在应用接受并可重新挂载的持久化线程授权上。
+
+![DotCraft 应用集成路径：Wire Client 与 App Binding](https://github.com/DotHarness/resources/raw/master/dotcraft/app-integration.png)
+
 ## 能力快照
 
 完整的跨语言 parity 矩阵见 [SDK 规范](https://github.com/DotHarness/dotcraft/blob/master/specs/sdk/sdk.md)。

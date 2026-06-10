@@ -5,6 +5,12 @@
 > [!NOTE]
 > 下面的代码片段以 **Oratorio** 为例贯穿讲解。接你自己的应用时，把 `appId`、`toolNamespace`、协议 scheme、scope 与工具名换成你自己的即可。
 
+## 集成路径一览
+
+应用可以通过两条相关但不同的路径接入 DotCraft。Wire Client 会启动或恢复一个线程，并通过自己的 AppServer 连接提供运行时回调工具；App Binding 则由应用授权某个线程级 grant，再通过持久化的 Thread App Binding 挂载应用自有工具。
+
+![DotCraft 应用集成路径：Wire Client 与 App Binding](https://github.com/DotHarness/resources/raw/master/dotcraft/app-integration.png)
+
 ## 产品模型
 
 App Binding 有四个明确的层级。把它们分开，正是访问从"默认拥有"变成"显式授予"的关键：

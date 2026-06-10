@@ -5,6 +5,12 @@ This is the builder's guide for connecting an **external native app** to DotCraf
 > [!NOTE]
 > The snippets below use **Oratorio** as a running example. Swap `appId`, `toolNamespace`, the protocol scheme, scopes, and tool names for your own app's.
 
+## Integration paths at a glance
+
+Apps can integrate with DotCraft in two related but different ways. A Wire Client starts or resumes a thread and lends runtime callback tools over its live AppServer connection. App Binding asks the app to authorize a thread-specific grant, then attaches app-owned tools through a persisted Thread App Binding.
+
+![DotCraft app integration paths: Wire Client and App Binding](https://github.com/DotHarness/resources/raw/master/dotcraft/app-integration.png)
+
 ## Product Model
 
 App Binding has four explicit layers. Keeping them separate is what makes access opt-in rather than ambient:
