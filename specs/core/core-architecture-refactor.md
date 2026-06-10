@@ -1,6 +1,6 @@
 # Core C# Architecture Refactor
 
-Status: **Active** (M1-M4 done; M5 in progress)
+Status: **Active** (M1-M5 done; M6-M7 planned)
 Scope: `src/DotCraft.Core` — AppServer protocol layer, Session Core services, App Binding service.
 Non-goal: any wire-protocol or behavior change. `specs/protocols/appserver-protocol.md` and
 `specs/core/session-core.md` remain the behavioral source of truth and are not modified by this work.
@@ -296,7 +296,7 @@ rebase pain: mechanical moves first, behavioral seams last.
 | M2 | **Dispatch infrastructure** | `AppServerMethodTable`, `AppServerConnectionServices` bundle, `AppServerParams`/`AppServerExceptionMapper`; dispatcher consumes the table; extensions adapted into it. Built-in methods still live in the old class but register via the table. Update the two host construction sites + test fixtures. | Low–medium (constructor surface) | **Done** — services bundle, method table, `AppServerParams`, and `AppServerExceptionMapper` are in place; built-ins dispatch through the table before extension fallback. |
 | M3 | **Domain handlers, batch 1** | Thin/CRUD domains: skills, plugin, mcp, cron, usage, dreams, terminal, command, automation, channel. Extract `WorkspaceConfigEditor` alongside provider/workspace handlers. | Low (thin delegation) | **Done** — dispatch seam built; **12 domains extracted to handler classes**: `cron/*`+`heartbeat/trigger`, `terminal/*`, `dreams/*`, `skills/*`, `mcp/*`, `channel/*`+`externalChannel/*`, `provider/*`+`model/list`+`auth/openai/*`, `workspace/config*`+welcome/commit-message/memory-reset, `plugin/*`, `command/*`, `usage/*`+`profile/insights`, `automation/*`. Shared helpers extracted: `AppServerContextInvalidation`, `SkillVariantContext`, `WorkspaceConfigEditor`, `AppServerMcpConfigService`, `McpWireMapper`, `ExternalChannelConfigService`, `ExternalChannelWireMapper`, `ProviderWireMapper`, `AppServerRuntimeConfigRefresher`. Tests green throughout. |
 | M4 | **Domain handlers, batch 2** | thread, turn (+`TurnStartCoordinator`), worktree, subagent, initialize. Delete the old switch; `AppServerRequestHandler` reaches dispatcher-only form. | Medium (thick handlers) | **Done** — `subagent/*`, `worktree/*`, `thread/*`, `turn/*`, and `initialize` extracted. `AppServerRequestHandler` is dispatcher-only and under 500 lines. |
-| M5 | **SessionService sub-services** | 4.3.2 coordinators extracted against the *existing* dictionaries (state untouched, moves only). | Medium | **In progress** — `WorktreeCoordinator`, `SubAgentSessionCoordinator`, `ThreadIndexCoordinator`, `ThreadCreationCoordinator`, `ThreadLifecycleCoordinator`, `ThreadAccessCoordinator`, `ThreadConfigurationCoordinator`, `TurnControlCoordinator`, `ThreadGoalCoordinator`, and `ThreadQueueCoordinator` extracted; continue with maintenance/compaction clusters before turn execution. |
+| M5 | **SessionService sub-services** | 4.3.2 coordinators extracted against the *existing* dictionaries (state untouched, moves only). | Medium | **Done** — `WorktreeCoordinator`, `SubAgentSessionCoordinator`, `ThreadIndexCoordinator`, `ThreadCreationCoordinator`, `ThreadLifecycleCoordinator`, `ThreadAccessCoordinator`, `ThreadConfigurationCoordinator`, `TurnControlCoordinator`, `ThreadGoalCoordinator`, `ThreadQueueCoordinator`, and `MaintenanceCoordinator` extracted. Turn execution remains in `SessionService`; state dictionaries remain untouched for M6. |
 | M6 | **`ThreadRuntime` aggregation** | 4.3.1: introduce registry + runtime objects; coordinators and SessionService migrate field-by-field; delete the 24 dictionaries. | Highest — concurrency-sensitive; do last, smallest reviewable steps | Planned |
 | M7 | **AppBinding split** | 4.4 sub-domain services. Independent of M5/M6; can run in parallel with them. | Low–medium | Planned |
 
@@ -348,8 +348,8 @@ rebase pain: mechanical moves first, behavioral seams last.
 > - M5 SessionService sub-services — `WorktreeCoordinator`, `SubAgentSessionCoordinator`,
 >   `ThreadIndexCoordinator`, `ThreadCreationCoordinator`, `ThreadLifecycleCoordinator`,
 >   `ThreadAccessCoordinator`, `ThreadConfigurationCoordinator`, `TurnControlCoordinator`,
->   `ThreadGoalCoordinator`, and `ThreadQueueCoordinator` are extracted. Continue with
->   maintenance/compaction clusters before the concurrency-heavy turn execution path.
+>   `ThreadGoalCoordinator`, `ThreadQueueCoordinator`, and `MaintenanceCoordinator` are
+>   extracted. Continue with M6 `ThreadRuntime` aggregation before AppBinding split.
 
 ## 6. Verification strategy
 
