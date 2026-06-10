@@ -296,7 +296,7 @@ public sealed class AppServerRequestHandler(
         catch (KeyNotFoundException ex)
         {
             // Thread or turn not found in persistence or in-memory state
-            throw AppServerErrors.ThreadNotFound(ExtractQuotedId(ex.Message));
+            throw AppServerErrors.ThreadNotFound(AppServerExceptionMapper.ExtractQuotedId(ex.Message));
         }
         catch (WorktreeHandoffConflictException ex)
         {
@@ -304,7 +304,7 @@ public sealed class AppServerRequestHandler(
         }
         catch (InvalidOperationException ex)
         {
-            throw MapOperationException(ex);
+            throw AppServerExceptionMapper.MapOperationException(ex);
         }
         catch (ArgumentException ex)
         {
@@ -318,121 +318,6 @@ public sealed class AppServerRequestHandler(
     public void HandleInitializedNotification()
     {
         connection.MarkClientReady();
-    }
-
-    // -------------------------------------------------------------------------
-    // Domain exception → wire error code translation (Gap A, spec Section 8.3)
-    // -------------------------------------------------------------------------
-
-    /// <summary>
-    /// Translates an <see cref="InvalidOperationException"/> from the domain layer into the
-    /// appropriate <see cref="AppServerException"/> with a spec-defined error code.
-    /// </summary>
-    private static AppServerException MapOperationException(InvalidOperationException ex)
-    {
-        var msg = ex.Message;
-        var id = ExtractQuotedId(msg);
-
-        if (msg.Contains("archived and cannot be resumed") || msg.Contains("is not Active"))
-            return AppServerErrors.ThreadNotActive(id);
-
-        if (msg.Contains("already has a running Turn")
-            || msg.Contains("has a running Turn")
-            || msg.Contains("has active thread maintenance"))
-            return AppServerErrors.TurnInProgress(id);
-
-        // historyMode contract violations are caller errors → InvalidParams (-32602)
-        if (msg.Contains("client-managed history")
-            || msg.Contains("server-managed history")
-            || msg.Contains("SubAgent child thread")
-            || msg.Contains("deliveryMode")
-            || msg.Contains("has no goal")
-            || msg.Contains("already has a goal")
-            || msg.Contains("has no history")
-            || msg.Contains("has no completed turn")
-            || msg.Contains("has no model-visible history"))
-            return AppServerErrors.InvalidParams(msg);
-
-        return AppServerErrors.InternalError(msg);
-    }
-
-    /// <summary>
-    /// Extracts the first single-quoted identifier from an exception message.
-    /// For example: "Thread 'thread_001' not found." → "thread_001".
-    /// </summary>
-    private static string ExtractQuotedId(string message)
-    {
-        var start = message.IndexOf('\'');
-        if (start < 0) return string.Empty;
-        var end = message.IndexOf('\'', start + 1);
-        return end > start ? message[(start + 1)..end] : string.Empty;
-    }
-
-    private static string? NormalizeOptionalString(string? value)
-    {
-        var trimmed = value?.Trim();
-        return string.IsNullOrWhiteSpace(trimmed) ? null : trimmed;
-    }
-
-    private static string? ParseNullableString(JsonElement element, string fieldName)
-    {
-        return element.ValueKind switch
-        {
-            JsonValueKind.Null => null,
-            JsonValueKind.String => element.GetString(),
-            _ => throw AppServerErrors.InvalidParams($"'{fieldName}' must be a string or null.")
-        };
-    }
-
-    private static bool? ParseNullableBoolean(JsonElement element, string fieldName)
-    {
-        return element.ValueKind switch
-        {
-            JsonValueKind.Null => null,
-            JsonValueKind.True => true,
-            JsonValueKind.False => false,
-            _ => throw AppServerErrors.InvalidParams($"'{fieldName}' must be a boolean or null.")
-        };
-    }
-
-    private static int? ParseNullableInteger(JsonElement element, string fieldName)
-    {
-        return element.ValueKind switch
-        {
-            JsonValueKind.Null => null,
-            JsonValueKind.Number when element.TryGetInt32(out var value) => value,
-            _ => throw AppServerErrors.InvalidParams($"'{fieldName}' must be an integer or null.")
-        };
-    }
-
-    private static int ParseInteger(JsonElement element, string fieldName)
-    {
-        return element.ValueKind switch
-        {
-            JsonValueKind.Number when element.TryGetInt32(out var value) => value,
-            _ => throw AppServerErrors.InvalidParams($"'{fieldName}' must be an integer.")
-        };
-    }
-
-    private static bool TryGetCaseInsensitiveProperty(JsonElement obj, string expectedName, out JsonElement value)
-    {
-        if (obj.ValueKind != JsonValueKind.Object)
-        {
-            value = default;
-            return false;
-        }
-
-        foreach (var prop in obj.EnumerateObject())
-        {
-            if (string.Equals(prop.Name, expectedName, StringComparison.OrdinalIgnoreCase))
-            {
-                value = prop.Value;
-                return true;
-            }
-        }
-
-        value = default;
-        return false;
     }
 
     private Task<object?> TryHandleExtensionAsync(string method, AppServerIncomingMessage msg, CancellationToken ct)

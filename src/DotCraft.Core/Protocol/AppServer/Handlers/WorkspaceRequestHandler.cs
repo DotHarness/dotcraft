@@ -52,7 +52,7 @@ internal sealed class WorkspaceRequestHandler(
         }
         catch (KeyNotFoundException ex)
         {
-            throw AppServerErrors.ThreadNotFound(ExtractQuotedId(ex.Message));
+            throw AppServerErrors.ThreadNotFound(AppServerExceptionMapper.ExtractQuotedId(ex.Message));
         }
         catch (InvalidOperationException ex)
         {
@@ -408,14 +408,6 @@ internal sealed class WorkspaceRequestHandler(
             throw AppServerErrors.InvalidParams(
                 $"Model '{runtime.Model}' does not support reasoning effort '{reasoning.Effort}'.");
         }
-    }
-
-    private static string ExtractQuotedId(string message)
-    {
-        var start = message.IndexOf('\'');
-        if (start < 0) return string.Empty;
-        var end = message.IndexOf('\'', start + 1);
-        return end > start ? message[(start + 1)..end] : string.Empty;
     }
 
     private static string? NormalizeOptionalString(string? value)
