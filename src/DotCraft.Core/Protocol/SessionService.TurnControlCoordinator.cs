@@ -35,7 +35,8 @@ public sealed partial class SessionService
 
         public Task CancelThreadMaintenance(string threadId)
         {
-            if (owner._threadMaintenance.TryGetValue(threadId, out var maintenance))
+            if (owner._runtimeRegistry.TryGetRuntime(threadId, out var runtime)
+                && runtime.Maintenance is { } maintenance)
             {
                 try
                 {

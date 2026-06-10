@@ -48,6 +48,11 @@ internal sealed class ThreadRuntimeRegistry
 
 internal sealed class ThreadRuntime(SessionThread thread) : IAsyncDisposable, IDisposable
 {
+    private ThreadMaintenanceState? _maintenance;
+    private int _activeAutoMemoryConsolidation;
+    private int _turnsSinceConsolidation;
+    private AutoMemoryConsolidationWork? _pendingAutoMemoryConsolidation;
+
     public SessionThread Thread { get; set; } = thread;
 
     public ThreadEventBroker Broker { get; } = new(thread.Id);
@@ -68,13 +73,38 @@ internal sealed class ThreadRuntime(SessionThread thread) : IAsyncDisposable, ID
 
     public IReadOnlySet<string>? DynamicToolNames { get; set; }
 
-    public ThreadMaintenanceState? Maintenance { get; set; }
+    public ThreadMaintenanceState? Maintenance => Volatile.Read(ref _maintenance);
 
-    public int TurnsSinceConsolidation { get; set; }
+    public int TurnsSinceConsolidation => Volatile.Read(ref _turnsSinceConsolidation);
 
-    public AutoMemoryConsolidationWork? PendingAutoMemoryConsolidation { get; set; }
+    public bool ActiveAutoMemoryConsolidation => Volatile.Read(ref _activeAutoMemoryConsolidation) != 0;
 
-    public bool ActiveAutoMemoryConsolidation { get; set; }
+    public bool TrySetMaintenance(ThreadMaintenanceState state) =>
+        Interlocked.CompareExchange(ref _maintenance, state, null) == null;
+
+    public bool TryClearMaintenance(ThreadMaintenanceState state) =>
+        Interlocked.CompareExchange(ref _maintenance, null, state) == state;
+
+    public int IncrementTurnsSinceConsolidation() =>
+        Interlocked.Increment(ref _turnsSinceConsolidation);
+
+    public void ResetTurnsSinceConsolidation() =>
+        Interlocked.Exchange(ref _turnsSinceConsolidation, 0);
+
+    public bool TryStartAutoMemoryConsolidation() =>
+        Interlocked.CompareExchange(ref _activeAutoMemoryConsolidation, 1, 0) == 0;
+
+    public void CompleteAutoMemoryConsolidation() =>
+        Interlocked.Exchange(ref _activeAutoMemoryConsolidation, 0);
+
+    public void SetPendingAutoMemoryConsolidation(AutoMemoryConsolidationWork work) =>
+        Interlocked.Exchange(ref _pendingAutoMemoryConsolidation, work);
+
+    public bool TryTakePendingAutoMemoryConsolidation(out AutoMemoryConsolidationWork work)
+    {
+        work = Interlocked.Exchange(ref _pendingAutoMemoryConsolidation, null)!;
+        return work != null;
+    }
 
     public PromptRequestSnapshot? LastPromptRequest { get; set; }
 

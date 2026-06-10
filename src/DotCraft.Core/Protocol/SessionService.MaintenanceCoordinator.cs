@@ -251,7 +251,8 @@ public sealed partial class SessionService
 
                 requestSnapshot = owner.TryGetValidLastPromptRequestSnapshot(threadId, history);
                 maintenance = RegisterThreadMaintenance(threadId, "consolidating");
-                owner._turnsSinceConsolidation[threadId] = 0;
+                if (owner._runtimeRegistry.TryGetRuntime(threadId, out var runtime))
+                    runtime.ResetTurnsSinceConsolidation();
             }
 
             var broker = owner.GetOrCreateBroker(threadId);
@@ -295,9 +296,9 @@ public sealed partial class SessionService
 
         public void CompleteThreadMaintenance(string threadId, ThreadMaintenanceState state)
         {
-            if (owner._threadMaintenance.TryGetValue(threadId, out var current) && ReferenceEquals(current, state))
+            if (owner._runtimeRegistry.TryGetRuntime(threadId, out var runtime)
+                && runtime.TryClearMaintenance(state))
             {
-                owner._threadMaintenance.TryRemove(threadId, out _);
                 owner.ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.MaintenanceCompleted);
             }
 
@@ -306,7 +307,8 @@ public sealed partial class SessionService
 
         public void ThrowIfThreadMaintenanceActive(string threadId)
         {
-            if (owner._threadMaintenance.TryGetValue(threadId, out var maintenance))
+            if (owner._runtimeRegistry.TryGetRuntime(threadId, out var runtime)
+                && runtime.Maintenance is { } maintenance)
             {
                 throw new InvalidOperationException(
                     $"Thread '{threadId}' has active thread maintenance ({maintenance.Kind}). Wait for it to complete or cancel it first.");
@@ -331,10 +333,10 @@ public sealed partial class SessionService
                 return false;
 
             var interval = Math.Max(1, memoryConfig.ConsolidateEveryNTurns);
-            var count = owner._turnsSinceConsolidation.AddOrUpdate(
-                threadId,
-                1,
-                static (_, previous) => previous + 1);
+            if (!owner._runtimeRegistry.TryGetRuntime(threadId, out var runtime))
+                return false;
+
+            var count = runtime.IncrementTurnsSinceConsolidation();
 
             if (count < interval)
                 return false;
@@ -464,7 +466,8 @@ public sealed partial class SessionService
         private ThreadMaintenanceRegistration RegisterThreadMaintenance(string threadId, string kind)
         {
             var state = new ThreadMaintenanceState(kind);
-            if (!owner._threadMaintenance.TryAdd(threadId, state))
+            if (!owner._runtimeRegistry.TryGetRuntime(threadId, out var runtime)
+                || !runtime.TrySetMaintenance(state))
             {
                 state.Dispose();
                 throw new InvalidOperationException(
@@ -484,13 +487,16 @@ public sealed partial class SessionService
             AutoMemoryConsolidationWork work,
             SessionEventChannel? eventChannel)
         {
-            if (!owner._activeAutoMemoryConsolidations.TryAdd(threadId, 0))
+            if (!owner._runtimeRegistry.TryGetRuntime(threadId, out var runtime))
+                return false;
+
+            if (!runtime.TryStartAutoMemoryConsolidation())
             {
-                owner._pendingAutoMemoryConsolidations[threadId] = work;
+                runtime.SetPendingAutoMemoryConsolidation(work);
                 return true;
             }
 
-            owner._turnsSinceConsolidation[threadId] = 0;
+            runtime.ResetTurnsSinceConsolidation();
             eventChannel?.EmitSystemEvent("consolidating");
 
             _ = Task.Run(async () =>
@@ -511,25 +517,25 @@ public sealed partial class SessionService
                             broker,
                             CancellationToken.None);
 
-                        if (owner._pendingAutoMemoryConsolidations.TryRemove(threadId, out current))
+                        if (runtime.TryTakePendingAutoMemoryConsolidation(out current))
                         {
-                            owner._turnsSinceConsolidation[threadId] = 0;
+                            runtime.ResetTurnsSinceConsolidation();
                             broker.PublishTurnSystemEvent(current.Turn.Id, "consolidating");
                             continue;
                         }
 
-                        owner._activeAutoMemoryConsolidations.TryRemove(threadId, out _);
+                        runtime.CompleteAutoMemoryConsolidation();
 
-                        if (owner._pendingAutoMemoryConsolidations.TryRemove(threadId, out current))
+                        if (runtime.TryTakePendingAutoMemoryConsolidation(out current))
                         {
-                            if (owner._activeAutoMemoryConsolidations.TryAdd(threadId, 0))
+                            if (runtime.TryStartAutoMemoryConsolidation())
                             {
-                                owner._turnsSinceConsolidation[threadId] = 0;
+                                runtime.ResetTurnsSinceConsolidation();
                                 broker.PublishTurnSystemEvent(current.Turn.Id, "consolidating");
                                 continue;
                             }
 
-                            owner._pendingAutoMemoryConsolidations[threadId] = current;
+                            runtime.SetPendingAutoMemoryConsolidation(current);
                         }
 
                         break;
@@ -538,7 +544,7 @@ public sealed partial class SessionService
                 catch (Exception ex)
                 {
                     owner.Logger?.LogWarning(ex, "Automatic memory consolidation runner failed for thread {ThreadId}", threadId);
-                    owner._activeAutoMemoryConsolidations.TryRemove(threadId, out _);
+                    runtime.CompleteAutoMemoryConsolidation();
                 }
             });
 

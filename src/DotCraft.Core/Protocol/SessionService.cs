@@ -112,15 +112,11 @@ public sealed partial class SessionService(
     private readonly ConcurrentDictionary<TurnKey, SessionApprovalService> _pendingApprovals = new();
     private readonly ConcurrentDictionary<TurnKey, SessionUserInputRequestService> _pendingUserInputRequests = new();
     private readonly ConcurrentDictionary<TurnKey, CancellationTokenSource> _runningTurns = new();
-    private readonly ConcurrentDictionary<string, ThreadMaintenanceState> _threadMaintenance = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, ThreadEventBroker> _threadEventBrokers = new();
-    private readonly ConcurrentDictionary<string, int> _turnsSinceConsolidation = new();
     private readonly ConcurrentDictionary<string, byte> _threadsPendingPermanentDeletion = new();
     private readonly ConcurrentDictionary<TurnKey, GoalTurnSnapshot> _goalTurnSnapshots = new();
     private readonly ConcurrentDictionary<string, byte> _goalContinuationStarting = new();
     private readonly ConcurrentDictionary<string, byte> _goalBudgetGuidanceQueued = new();
-    private readonly ConcurrentDictionary<string, byte> _activeAutoMemoryConsolidations = new(StringComparer.Ordinal);
-    private readonly ConcurrentDictionary<string, AutoMemoryConsolidationWork> _pendingAutoMemoryConsolidations = new(StringComparer.Ordinal);
     private WorktreeCoordinator? _worktreeCoordinator;
     private SubAgentSessionCoordinator? _subAgentSessionCoordinator;
     private ThreadIndexCoordinator? _threadIndexCoordinator;

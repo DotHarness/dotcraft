@@ -215,7 +215,7 @@ public sealed partial class SessionService
                         return;
                     if (thread.Turns.Any(t => t.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput))
                         return;
-                    if (owner._threadMaintenance.ContainsKey(threadId))
+                    if (owner._runtimeRegistry.TryGetRuntime(threadId, out var runtime) && runtime.Maintenance != null)
                         return;
 
                     queued = queue[queueIndex];

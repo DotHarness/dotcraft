@@ -215,9 +215,6 @@ public sealed partial class SessionService
             if (owner._runtimeRegistry.TryRemove(threadId, out var runtime))
                 await runtime.DisposeAsync();
             owner._threadEventBrokers.TryRemove(threadId, out _);
-            owner._turnsSinceConsolidation.TryRemove(threadId, out _);
-            owner._activeAutoMemoryConsolidations.TryRemove(threadId, out _);
-            owner._pendingAutoMemoryConsolidations.TryRemove(threadId, out _);
             owner.InvalidatePromptRequestSnapshot(threadId, "thread_deleted");
             owner.ClearContextUsageAnchor(threadId);
             owner.ForgetContextPages(threadId);
