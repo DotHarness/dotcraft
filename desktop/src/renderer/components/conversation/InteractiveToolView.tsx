@@ -59,13 +59,35 @@ function currentTheme(): 'light' | 'dark' {
   return document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark'
 }
 
-function isJsonRpcRequest(data: unknown): data is { id: unknown; method: string; params?: unknown } {
+function isJsonRpcRequest(data: unknown): data is { id: unknown; method: string; params?: unknown; bridgeToken?: unknown } {
   return (
     data != null &&
     typeof data === 'object' &&
     typeof (data as { method?: unknown }).method === 'string' &&
     'id' in (data as object)
   )
+}
+
+interface BridgeSession {
+  token: string | null
+  initialized: boolean
+  disabled: boolean
+  loadCount: number
+}
+
+function createBridgeSession(): BridgeSession {
+  return { token: null, initialized: false, disabled: false, loadCount: 0 }
+}
+
+function createBridgeToken(): string {
+  const crypto = globalThis.crypto
+  if (typeof crypto?.randomUUID === 'function') return crypto.randomUUID()
+  if (typeof crypto?.getRandomValues === 'function') {
+    const bytes = new Uint8Array(32)
+    crypto.getRandomValues(bytes)
+    return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
+  }
+  throw new Error('Secure random bridge token unavailable.')
 }
 
 /** Extracts plain text from a `ui/message` payload (string, content array, or content object). */
@@ -95,6 +117,7 @@ function toErrorMessage(err: unknown): string {
 
 function InteractiveToolViewImpl({ item, threadId, locale, expanded = false }: InteractiveToolViewProps): JSX.Element | null {
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
+  const bridgeRef = useRef<BridgeSession>(createBridgeSession())
   const [loaded, setLoaded] = useState(false)
   const [errored, setErrored] = useState(false)
   const workspacePath = useConversationStore((s) => s.workspacePath)
@@ -124,6 +147,21 @@ function InteractiveToolViewImpl({ item, threadId, locale, expanded = false }: I
     iframeRef.current?.contentWindow?.postMessage(message, '*')
   }, [])
 
+  const resetBridgeSession = useCallback(() => {
+    bridgeRef.current = createBridgeSession()
+    messageTimesRef.current = []
+  }, [])
+
+  const setIframeRef = useCallback((node: HTMLIFrameElement | null) => {
+    if (iframeRef.current === node) return
+    iframeRef.current = node
+    if (node) {
+      resetBridgeSession()
+      setLoaded(false)
+      setErrored(false)
+    }
+  }, [resetBridgeSession])
+
   const pushToolData = useCallback(() => {
     postToFrame({
       jsonrpc: '2.0',
@@ -146,9 +184,8 @@ function InteractiveToolViewImpl({ item, threadId, locale, expanded = false }: I
   // navigation away). Latest ids are read from a ref so the empty-deps cleanup isn't stale.
   const teardownRef = useRef({ threadId, namespace, sourceCallId })
   teardownRef.current = { threadId, namespace, sourceCallId }
-  useEffect(() => () => {
+  const clearModelContext = useCallback(() => {
     const { threadId: tid, namespace: ns, sourceCallId: scid } = teardownRef.current
-    iframeRef.current?.contentWindow?.postMessage({ jsonrpc: '2.0', method: 'ui/resource-teardown' }, '*')
     if (tid && scid) {
       void window.api.appServer
         .sendRequest('ui/update-model-context', { threadId: tid, namespace: ns, sourceCallId: scid, content: '' }, ACTION_TIMEOUT_MS)
@@ -156,11 +193,52 @@ function InteractiveToolViewImpl({ item, threadId, locale, expanded = false }: I
     }
   }, [])
 
+  const disableBridge = useCallback((showError: boolean) => {
+    const bridge = bridgeRef.current
+    if (bridge.disabled) return
+    bridge.disabled = true
+    bridge.initialized = false
+    bridge.token = null
+    clearModelContext()
+    if (showError) setErrored(true)
+  }, [clearModelContext])
+
+  useEffect(() => () => {
+    if (!bridgeRef.current.disabled) {
+      iframeRef.current?.contentWindow?.postMessage({ jsonrpc: '2.0', method: 'ui/resource-teardown' }, '*')
+    }
+    clearModelContext()
+  }, [clearModelContext])
+
+  const handleFrameLoad = useCallback(() => {
+    const bridge = bridgeRef.current
+    if (bridge.loadCount === 0) {
+      bridge.loadCount += 1
+      setLoaded(true)
+      return
+    }
+    disableBridge(true)
+  }, [disableBridge])
+
   useEffect(() => {
     const respond = (id: unknown, result: unknown): void =>
-      postToFrame({ jsonrpc: '2.0', id, result })
+      bridgeRef.current.disabled ? undefined : postToFrame({ jsonrpc: '2.0', id, result })
     const respondError = (id: unknown, code: number, message: string): void =>
-      postToFrame({ jsonrpc: '2.0', id, error: { code, message } })
+      bridgeRef.current.disabled ? undefined : postToFrame({ jsonrpc: '2.0', id, error: { code, message } })
+
+    const validateBridgeToken = (id: unknown, data: { bridgeToken?: unknown }): boolean => {
+      const bridge = bridgeRef.current
+      if (bridge.disabled) return false
+      if (!bridge.initialized || !bridge.token) {
+        respondError(id, JSONRPC_INVALID_REQUEST, 'UI bridge is not initialized.')
+        return false
+      }
+      if (data.bridgeToken !== bridge.token) {
+        respondError(id, JSONRPC_INVALID_REQUEST, 'Invalid UI bridge token.')
+        return false
+      }
+      return true
+    }
 
     // ui/message safeguard: the host cannot verify a real click inside a sandboxed iframe, so it
     // is added as a visible turn, audited, and rate-limited (per MCP Apps; see M-iii §9).
@@ -303,19 +381,40 @@ function InteractiveToolViewImpl({ item, threadId, locale, expanded = false }: I
     }
 
     function onMessage(event: MessageEvent): void {
-      // Sandboxed (opaque-origin) iframe → validate by source, not origin.
+      // Sandboxed (opaque-origin) iframe → validate by source, not origin; host actions
+      // also require the per-document bridge token returned by the initial handshake.
       if (!iframeRef.current || event.source !== iframeRef.current.contentWindow) return
       const data = event.data
       if (!isJsonRpcRequest(data)) return
+      if (bridgeRef.current.disabled) return
       const params = (data.params ?? undefined) as Record<string, unknown> | undefined
 
       switch (data.method) {
         case 'ui/initialize':
+          if (bridgeRef.current.initialized) {
+            respondError(data.id, JSONRPC_INVALID_REQUEST, 'UI bridge is already initialized.')
+            disableBridge(true)
+            return
+          }
+          if (bridgeRef.current.loadCount > 0) {
+            respondError(data.id, JSONRPC_INVALID_REQUEST, 'UI bridge initialization window has closed.')
+            disableBridge(true)
+            return
+          }
+          try {
+            bridgeRef.current.token = createBridgeToken()
+          } catch (err) {
+            respondError(data.id, JSONRPC_INTERNAL_ERROR, toErrorMessage(err))
+            disableBridge(true)
+            return
+          }
+          bridgeRef.current.initialized = true
           postToFrame({
             jsonrpc: '2.0',
             id: data.id,
             result: {
               protocolVersion: PROTOCOL_VERSION,
+              bridgeToken: bridgeRef.current.token,
               hostContext: {
                 theme: currentTheme(),
                 locale,
@@ -338,21 +437,27 @@ function InteractiveToolViewImpl({ item, threadId, locale, expanded = false }: I
           pushToolData()
           return
         case 'tools/call':
+          if (!validateBridgeToken(data.id, data)) return
           void handleToolCall(data.id, params)
           return
         case 'ui/open-link':
+          if (!validateBridgeToken(data.id, data)) return
           void handleOpenLink(data.id, params)
           return
         case 'ui/update-model-context':
+          if (!validateBridgeToken(data.id, data)) return
           void handleUpdateModelContext(data.id, params)
           return
         case 'ui/set-widget-state':
+          if (!validateBridgeToken(data.id, data)) return
           void handleSetWidgetState(data.id, params)
           return
         case 'ui/request-display-mode':
+          if (!validateBridgeToken(data.id, data)) return
           handleRequestDisplayMode(data.id, params)
           return
         case 'ui/message':
+          if (!validateBridgeToken(data.id, data)) return
           void handleMessage(data.id, params)
           return
         default:
@@ -366,9 +471,10 @@ function InteractiveToolViewImpl({ item, threadId, locale, expanded = false }: I
 
   // M-iv: live host-context push — re-emit host context on Desktop theme change (event) and on
   // locale change (prop), so the iframe re-themes/re-localizes without a reload.
-  const didPushContextRef = useRef(false)
   useEffect(() => {
     const pushHostContext = (): void => {
+      const bridge = bridgeRef.current
+      if (!bridge.initialized || bridge.disabled) return
       postToFrame({
         jsonrpc: '2.0',
         method: 'ui/notifications/host-context-changed',
@@ -381,9 +487,8 @@ function InteractiveToolViewImpl({ item, threadId, locale, expanded = false }: I
         }
       })
     }
-    // ui/initialize already carried the initial context; only push on a real later change.
-    if (didPushContextRef.current) pushHostContext()
-    else didPushContextRef.current = true
+    // ui/initialize already carried the initial context; only push when an initialized bridge exists.
+    pushHostContext()
     window.addEventListener(THEME_CHANGED_EVENT, pushHostContext)
     return () => window.removeEventListener(THEME_CHANGED_EVENT, pushHostContext)
   }, [postToFrame, locale, currentMode])
@@ -429,7 +534,8 @@ function InteractiveToolViewImpl({ item, threadId, locale, expanded = false }: I
         </div>
       )}
       <iframe
-        ref={iframeRef}
+        key={src}
+        ref={setIframeRef}
         className="interactive-tool-view__frame"
         title={descriptor?.domain ?? item.toolName ?? 'App view'}
         src={src}
@@ -442,8 +548,8 @@ function InteractiveToolViewImpl({ item, threadId, locale, expanded = false }: I
           border: 'none',
           display: errored ? 'none' : 'block'
         }}
-        onLoad={() => setLoaded(true)}
-        onError={() => setErrored(true)}
+        onLoad={handleFrameLoad}
+        onError={() => disableBridge(true)}
       />
     </div>
   )

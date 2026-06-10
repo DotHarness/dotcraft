@@ -279,12 +279,15 @@ static class CardResource
 <script>
   const pending = {};
   let nextId = 1;
+  let bridgeToken = null;
   function notify(method, params) { parent.postMessage({ jsonrpc: "2.0", method, params }, "*"); }
   function request(method, params) {
     return new Promise((resolve) => {
       const id = nextId++;
       pending[id] = resolve;
-      parent.postMessage({ jsonrpc: "2.0", id, method, params }, "*");
+      const message = { jsonrpc: "2.0", id, method, params };
+      if (bridgeToken && method !== "ui/initialize") message.bridgeToken = bridgeToken;
+      parent.postMessage(message, "*");
     });
   }
   function applyContext(ctx) { if (ctx && ctx.theme) document.documentElement.dataset.theme = ctx.theme; }
@@ -323,6 +326,7 @@ static class CardResource
   });
   (async () => {
     const result = await request("ui/initialize", { app: { name: "dotcraft-sample-ui", version: "0.1.0" } });
+    bridgeToken = result && typeof result.bridgeToken === "string" ? result.bridgeToken : null;
     applyContext(result && result.hostContext);
     // M-iv: restore persisted widgetState delivered in the ui/initialize result.
     if (result && result.widgetState && typeof result.widgetState.note === "string")

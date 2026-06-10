@@ -81,7 +81,7 @@ DotCraft Desktop renders the UI resource in a **sandboxed iframe served by a pri
 - **Host scheme + own CSP.** The host registers a privileged scheme (`dotcraft-app://`) and serves the app's `ui://` HTML through it, applying a **per‑resource CSP** to that response so the document carries its **own** CSP, independent of the app‑shell CSP. A `srcdoc` / `blob:` iframe is not used: it would inherit the embedding document's CSP (which forbids inline scripts in production).
 - **Sandbox.** `sandbox="allow-scripts"`, **without** `allow-same-origin`: opaque origin; no access to parent DOM/cookies/storage; cannot navigate the parent; no Node.
 - **CSP source.** Restrictive by default (network‑denied); widened only from the server‑validated `_meta.ui.csp` (§11): `connectDomains`→`connect-src`, `resourceDomains`→img/style/font/media‑src, `frameDomains`→`frame-src`. The CSP is built host‑side, never from the iframe. The app‑shell CSP must allow framing the host scheme.
-- **No runtime injection.** The host injects nothing into the iframe. The app's own HTML/bundle speaks the bridge (§7) to `window.parent` via `postMessage`; the renderer is the host‑side bridge peer and validates that `event.source` is the iframe.
+- **No runtime injection.** The host injects nothing into the iframe. The app's own HTML/bundle speaks the bridge (§7) to `window.parent` via `postMessage`; the renderer is the host‑side bridge peer and validates both `event.source` and the per-document bridge token returned by the initial handshake.
 - The app's bundle mounts into its own root element; DotCraft does not restyle the inner UI, handing theme/locale via host context (§8). The host owns only the surrounding frame (quiet tool/app attribution; sizing).
 
 ---
@@ -91,7 +91,7 @@ DotCraft Desktop renders the UI resource in a **sandboxed iframe served by a pri
 The UI and host communicate via **JSON‑RPC 2.0 over `window.postMessage`** — a `ui/`‑prefixed dialect with reused core methods (`tools/call`). DotCraft implements the host side.
 
 ### 7.1 Handshake / lifecycle
-1. UI → host **`ui/initialize`** (app capabilities) → host result: **`hostContext`** (§8), **`hostCapabilities`** (`openLinks`, `serverTools`, `updateModelContext`, `message`, `logging`), and the restored **`widgetState`** (§9).
+1. UI → host **`ui/initialize`** (app capabilities) → host result: **`bridgeToken`** (an unguessable per-frame token for later UI→host requests), **`hostContext`** (§8), **`hostCapabilities`** (`openLinks`, `serverTools`, `updateModelContext`, `message`, `logging`), and the restored **`widgetState`** (§9).
 2. Host → UI **`ui/notifications/tool-input`** (the call's arguments), then **`ui/notifications/tool-result`** (`content` + `structuredContent` + `_meta` + `isError`).
 3. Teardown: host → UI **`ui/resource-teardown`** (§14).
 
@@ -101,6 +101,8 @@ The UI and host communicate via **JSON‑RPC 2.0 over `window.postMessage`** —
 - `ui/resource-teardown`.
 
 ### 7.3 UI → host requests
+
+Every UI→host request that asks the host to act (`tools/call`, `ui/open-link`, `ui/message`, `ui/update-model-context`, `ui/request-display-mode`, `ui/set-widget-state`) MUST include the top-level `bridgeToken` returned by the first successful `ui/initialize`. The initial handshake must occur before the first iframe load completes; duplicate or late initialization is rejected and disables the bridge. Host actions before initialization, after bridge disablement, or with a missing/wrong token are rejected or ignored. The host also disables the bridge when the iframe navigates away from the served resource so a new document in the same frame/window proxy cannot inherit the previous app document's authority.
 
 | Request | Use | DotCraft handling |
 |---------|-----|-------------------|
@@ -165,6 +167,7 @@ The UI's access to its own app backend (direct `fetch`) is governed by CSP `conn
 - **Permissions:** `_meta.ui.permissions` map to Permissions‑Policy grants.
 - **Links:** `ui/open-link` is governed by a **host‑owned scheme policy** — `https:`, `mailto:`, and the bound app's declared `nativeApplication.protocol` deep‑link scheme (binding‑scoped — a vetted catalog declaration, not an ad‑hoc per‑app scheme). `javascript:` / `data:` / `file:` and every other scheme are forbidden. Blocked opens are audited.
 - **Loopback fetch (data path B):** an app backend serving the iframe's direct `fetch` must allow the iframe's opaque origin (CORS, loopback only, no credentials). This is the app's responsibility.
+- **Bridge authorization:** `event.source` is necessary but not sufficient because a sandboxed iframe can self-navigate while retaining the same frame/window proxy. Desktop mints a per-frame `bridgeToken` during the initial `dotcraft-app://` document handshake, requires it on all UI→host actions, and disables the bridge on duplicate initialization or iframe navigation.
 - **Auditable + inspectable:** all UI→host traffic is JSON‑RPC (loggable); predeclared `ui://` resources are inspectable before render. The host bounds resource size, iframe count, and message rate.
 
 ---
@@ -181,7 +184,7 @@ Three actors: **AppServer** brokers MCP between the host and the app; the **app*
 
 The host owns:
 - **Sandbox iframe + host scheme** — one sandboxed iframe per UI‑bearing `dynamicToolCall`; the privileged `dotcraft-app://` scheme with a per‑resource CSP; no runtime injection; `maxHeight` / display‑mode enforcement.
-- **Bridge runtime** — the `ui/*` + `tools/*` JSON‑RPC peer over postMessage; push `hostContext` / notifications; service the UI→host requests; validate `event.source`.
+- **Bridge runtime** — the `ui/*` + `tools/*` JSON‑RPC peer over postMessage; push `hostContext` / notifications; service the UI→host requests; validate `event.source` plus `bridgeToken`, and disable the bridge when the iframe navigates away.
 - **Resource fetch + cache** — broker `ui/resource/read`; cache by URI; refetch when the URI changes.
 - **Tool‑call proxy + consent** — enforce visibility + scope/risk/approval; forward the call; return the result; hide `app`‑only tools from the model.
 - **State persistence** — persist `widgetState` keyed to the item; route `ui/update-model-context` (deferred) and `ui/message` (immediate turn).
@@ -197,7 +200,7 @@ Net: the host is the trust / arbitration boundary; the app owns its declarations
 
 - A UI instance is bound to a tool‑call result. The host renders after the `dynamicToolCall` item completes and sends `tool-result`. Results are atomic; optional streaming partial args flow via `tool-input-partial`.
 - **Placement.** Once a turn settles, a non‑blocking interactive card is **pinned** out of the collapsed turn summary — rendered standalone above the final agent message — rather than folded into the intermediate "Processed" disclosure like ordinary tool output. Only the last completed interactive card of a turn is pinned (earlier, superseded cards stay collapsed); pinning composes with the plan‑card pin. Deep‑history turns beyond the recent window trim their tool content (including the card's result data), so pinning applies to the live render path only.
-- On thread close, item teardown, or navigation away, the host sends `ui/resource-teardown` and disposes the iframe (clearing the model‑context block, §10).
+- On thread close, item teardown, or navigation away, the host sends `ui/resource-teardown` when still talking to the original document, disables/disposes the iframe bridge, and clears the model‑context block (§10).
 
 ---
 
@@ -217,7 +220,7 @@ Oratorio is the first validating app. It ships UI resources in its bundle, decla
 
 - Desktop negotiates `interactiveToolUi`; other clients fall back to tool‑result text.
 - A tool with `_meta.ui.resourceUri` renders its `ui://` resource in a sandboxed iframe.
-- The bridge supports the handshake + `tools/call`, `ui/open-link`, `ui/message`, `ui/update-model-context`, `ui/request-display-mode`, and host introspection.
+- The bridge supports the tokenized handshake + `tools/call`, `ui/open-link`, `ui/message`, `ui/update-model-context`, `ui/request-display-mode`, and host introspection.
 - Audience split enforced: `_meta` never reaches the model; `structuredResult` reaches model + UI; `contentItems` is the model / text fallback.
 - `visibility:["app"]` tools are hidden from the model but callable from the UI.
 - UI‑initiated `tools/call` is gated by scope/risk/approval and audited; mutating calls raise a decoupled approval; cross‑binding calls rejected.
@@ -230,7 +233,7 @@ Oratorio is the first validating app. It ships UI resources in its bundle, decla
 
 ## 17. Status & Remaining Work
 
-**Delivered (in‑repo):** `ui://` resources + `_meta.ui`; the audience split; the sandboxed `dotcraft-app://` iframe with per‑resource CSP; the full bridge (handshake, tool‑input/result push, `tools/call`, `ui/open-link`, `ui/message`, `ui/update-model-context`, `ui/request-display-mode`, introspection); live host‑context push; `widgetState` persistence; `pip`/`fullscreen` display modes; decoupled mutate‑approval; the app deep‑link scheme allowance; pinned conversation placement; the non‑Desktop text fallback; and the Oratorio validation contract.
+**Delivered (in‑repo):** `ui://` resources + `_meta.ui`; the audience split; the sandboxed `dotcraft-app://` iframe with per‑resource CSP; the full tokenized bridge (handshake, tool‑input/result push, `tools/call`, `ui/open-link`, `ui/message`, `ui/update-model-context`, `ui/request-display-mode`, introspection); live host‑context push; `widgetState` persistence; `pip`/`fullscreen` display modes; decoupled mutate‑approval; the app deep‑link scheme allowance; pinned conversation placement; the non‑Desktop text fallback; and the Oratorio validation contract.
 
 **Remaining (hardening):**
 - Gate all interactive‑UI delivery and `ui/*` host methods strictly on `interactiveToolUi` negotiation; non‑negotiating clients get text only.
