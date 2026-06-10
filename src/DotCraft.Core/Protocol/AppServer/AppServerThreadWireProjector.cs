@@ -54,6 +54,33 @@ internal sealed class AppServerThreadWireProjector(
         }
     }
 
+    public async Task EnrichSummaryAsync(
+        ThreadSummary summary,
+        Dictionary<string, AppCatalogSnapshot?> catalogByWorkspace,
+        CancellationToken ct)
+    {
+        summary.Goal = await TryGetGoalSnapshotAsync(summary.Id, ct);
+        if (appBindingService == null)
+            return;
+
+        if (!catalogByWorkspace.TryGetValue(summary.WorkspacePath, out var catalog))
+        {
+            catalog = TryGetAppCatalog(summary.WorkspacePath);
+            catalogByWorkspace[summary.WorkspacePath] = catalog;
+        }
+
+        if (catalog is null)
+            return;
+
+        var appBindings = appBindingService.ListThreadBindingSummaries(
+            catalog,
+            Path.Combine(summary.WorkspacePath, ".craft"),
+            summary.Id);
+        if (appBindings.Count > 0)
+            summary.AppBindings = appBindings;
+        summary.OriginApp = appBindingService.ResolveOriginApp(catalog, summary.OriginChannel, summary.ChannelContext);
+    }
+
     public bool GoalsCapabilityEnabled()
     {
         var config = appConfigMonitor?.Current ?? new AppConfig();
