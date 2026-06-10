@@ -4845,20 +4845,20 @@ Choose the next concrete action that advances the goal. Before doing substantial
         {
             if (part.AdditionalProperties == null)
                 continue;
-            if (!TryGetStringProperty(part.AdditionalProperties, AppServer.AppServerRequestHandler.LocalImagePathMetadataKey, out var path))
+            if (!TryGetStringProperty(part.AdditionalProperties, AppServer.AppServerInputMetadataKeys.LocalImagePath, out var path))
                 continue;
             var image = new UserMessageImage
             {
                 Path = path,
                 MimeType = TryGetStringProperty(
                     part.AdditionalProperties,
-                    AppServer.AppServerRequestHandler.LocalImageMimeTypeMetadataKey,
+                    AppServer.AppServerInputMetadataKeys.LocalImageMimeType,
                     out var mimeType)
                     ? mimeType
                     : null,
                 FileName = TryGetStringProperty(
                     part.AdditionalProperties,
-                    AppServer.AppServerRequestHandler.LocalImageFileNameMetadataKey,
+                    AppServer.AppServerInputMetadataKeys.LocalImageFileName,
                     out var fileName)
                     ? fileName
                     : null
