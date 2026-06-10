@@ -26,7 +26,7 @@ public sealed class AppBindingService
     private const int MaxContextBlockContentBytes = 16 * 1024;
 
     private readonly ConcurrentDictionary<string, AppBindingStore> _stores = new(StringComparer.OrdinalIgnoreCase);
-    private readonly ConcurrentDictionary<string, ActiveAppBindingAttachment> _activeAttachments = new(StringComparer.Ordinal);
+    private readonly AppBindingAttachmentRegistry _attachments = new();
     private readonly IReadOnlyDictionary<string, IManagedAppBindingRuntime> _managedRuntimesByAppId;
 
     /// <summary>
@@ -354,7 +354,7 @@ public sealed class AppBindingService
                 binding.State = AppBindingStates.Offline;
                 binding.LastChangedAt = DateTimeOffset.UtcNow;
                 binding.Diagnostic = "The app connection was revoked.";
-                _activeAttachments.TryRemove(binding.BindingId, out _);
+                _attachments.Remove(binding.BindingId);
             }
 
             AddAudit(state, "connection.revoked", null, null, p.AppId, userId, p.Reason);
@@ -698,7 +698,7 @@ public sealed class AppBindingService
             binding.LastChangedAt = DateTimeOffset.UtcNow;
             binding.Diagnostic = null;
 
-            _activeAttachments[binding.BindingId] = new ActiveAppBindingAttachment(transport, connection);
+            _attachments.Set(binding.BindingId, transport, connection);
             if (wasOffline)
                 AddAudit(state, "binding.reattached", binding.ThreadId, binding.BindingId, binding.AppId, binding.UserId, null);
             AddAudit(state, "binding.tools.attached", binding.ThreadId, binding.BindingId, binding.AppId, binding.UserId, $"{accepted.Count} tools");
@@ -1235,7 +1235,7 @@ public sealed class AppBindingService
                 binding.State = AppBindingStates.Offline;
                 binding.LastChangedAt = now;
                 binding.Diagnostic = diagnostic;
-                _activeAttachments.TryRemove(binding.BindingId, out _);
+                _attachments.Remove(binding.BindingId);
                 AddAudit(state, auditEvent, binding.ThreadId, binding.BindingId, binding.AppId, binding.UserId, diagnostic);
                 descriptors.TryGetValue(binding.AppId, out var descriptor);
                 moved.Add(MapBinding(
@@ -1281,7 +1281,7 @@ public sealed class AppBindingService
                 binding.State = AppBindingStates.Revoked;
                 binding.LastChangedAt = now;
                 binding.Diagnostic = "The thread was deleted.";
-                _activeAttachments.TryRemove(binding.BindingId, out _);
+                _attachments.Remove(binding.BindingId);
                 AddAudit(state, "binding.revoked.threadDeleted", binding.ThreadId, binding.BindingId, binding.AppId, binding.UserId, null);
 
                 var descriptor = catalog.Entries
@@ -1316,7 +1316,7 @@ public sealed class AppBindingService
             binding.State = AppBindingStates.Revoked;
             binding.LastChangedAt = DateTimeOffset.UtcNow;
             binding.Diagnostic = p.Reason;
-            _activeAttachments.TryRemove(binding.BindingId, out _);
+            _attachments.Remove(binding.BindingId);
             AddAudit(state, "binding.revoked", binding.ThreadId, binding.BindingId, binding.AppId, binding.UserId, p.Reason);
             return new ThreadAppBindingRevokeResult
             {
@@ -1359,7 +1359,7 @@ public sealed class AppBindingService
                     binding.State = AppBindingStates.Expired;
                     binding.LastChangedAt = now;
                     binding.Diagnostic = "The app binding has expired.";
-                    _activeAttachments.TryRemove(binding.BindingId, out _);
+                    _attachments.Remove(binding.BindingId);
                     AddAudit(state, "binding.expired", binding.ThreadId, binding.BindingId, binding.AppId, binding.UserId, null);
                 }
                 else if (!catalog.Entries.Any(entry =>
@@ -1418,7 +1418,7 @@ public sealed class AppBindingService
                     binding.State = AppBindingStates.Offline;
                     binding.LastChangedAt = now;
                     binding.Diagnostic = "The app connection is unavailable.";
-                    _activeAttachments.TryRemove(binding.BindingId, out _);
+                    _attachments.Remove(binding.BindingId);
                     AddAudit(state, "binding.offline", binding.ThreadId, binding.BindingId, binding.AppId, binding.UserId, binding.Diagnostic);
                 }
 
@@ -2692,16 +2692,7 @@ public sealed class AppBindingService
         string bindingId,
         [NotNullWhen(true)] out ActiveAppBindingAttachment? attachment)
     {
-        if (_activeAttachments.TryGetValue(bindingId, out attachment))
-        {
-            if (!attachment.Connection.IsClosed)
-                return true;
-
-            _activeAttachments.TryRemove(bindingId, out _);
-        }
-
-        attachment = null;
-        return false;
+        return _attachments.TryGetLive(bindingId, out attachment);
     }
 
     private static PluginDiagnosticWire MapDiagnostic(PluginDiagnostic diagnostic) =>
@@ -2924,10 +2915,6 @@ public sealed class AppBindingService
             return true;
         });
     }
-
-    private sealed record ActiveAppBindingAttachment(
-        IAppServerTransport Transport,
-        AppServerConnection Connection);
 
     private sealed class AppBindingRuntimeFunction(
         AppBindingService service,
