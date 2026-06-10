@@ -28,6 +28,7 @@ public sealed class AppBindingService
     private readonly AppBindingStoreAccessor _storeAccessor = new();
     private readonly AppBindingAttachmentRegistry _attachments = new();
     private readonly IReadOnlyDictionary<string, IManagedAppBindingRuntime> _managedRuntimesByAppId;
+    private readonly AppConnectionService _connections;
 
     /// <summary>
     /// Raised after app-supplied context blocks for a thread change.
@@ -43,6 +44,7 @@ public sealed class AppBindingService
             .Where(runtime => !string.IsNullOrWhiteSpace(runtime.Descriptor.AppId))
             .GroupBy(runtime => runtime.Descriptor.AppId, StringComparer.Ordinal)
             .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+        _connections = new AppConnectionService(_storeAccessor, _attachments);
     }
 
     public AppCatalogSnapshot DiscoverCatalog(
@@ -132,148 +134,27 @@ public sealed class AppBindingService
         AppCatalogSnapshot catalog,
         string workspaceCraftPath,
         string userId,
-        AppConnectionStartParams p)
-    {
-        if (string.IsNullOrWhiteSpace(p.AppId))
-            throw AppServerErrors.InvalidParams("'appId' is required.");
-
-        var entry = FindEnabledApp(catalog, p.AppId);
-        if (entry.ManagedRuntime?.RequiresExternalConnection == false)
-            throw AppServerErrors.InvalidParams($"Managed app '{p.AppId}' does not use an external connection flow.");
-
-        var token = AppBindingToken.NewToken();
-        var requestId = $"appconn_req_{Guid.NewGuid():N}";
-        var now = DateTimeOffset.UtcNow;
-        var expiresAt = now.AddMinutes(10);
-        var handoff = BuildHandoff(workspaceCraftPath, entry.Descriptor, p.HandoffMode, requestId, token, "connect");
-
-        GetStore(workspaceCraftPath).Update(state =>
-        {
-            state.ConnectionRequests.Add(new AppConnectionRequestRecord
-            {
-                ConnectionRequestId = requestId,
-                AppId = entry.Descriptor.AppId,
-                UserId = userId,
-                RequestTokenHash = AppBindingToken.Hash(token),
-                CreatedAt = now,
-                ExpiresAt = expiresAt
-            });
-            AddAudit(state, "connection.start", null, null, entry.Descriptor.AppId, userId, null);
-            return true;
-        });
-
-        return new AppConnectionStartResult
-        {
-            ConnectionRequestId = requestId,
-            AppId = entry.Descriptor.AppId,
-            State = AppConnectionStates.Connecting,
-            ExpiresAt = expiresAt,
-            Handoff = handoff
-        };
-    }
+        AppConnectionStartParams p) =>
+        _connections.StartConnection(catalog, workspaceCraftPath, userId, p);
 
     public AppConnectionRequestGetResult GetConnectionRequest(
         AppCatalogSnapshot catalog,
         string workspaceCraftPath,
-        AppConnectionRequestGetParams p)
-    {
-        if (string.IsNullOrWhiteSpace(p.AppId))
-            throw AppServerErrors.InvalidParams("'appId' is required.");
-        if (string.IsNullOrWhiteSpace(p.ConnectionRequestId))
-            throw AppServerErrors.InvalidParams("'connectionRequestId' is required.");
-        if (string.IsNullOrWhiteSpace(p.RequestToken))
-            throw AppServerErrors.InvalidParams("'requestToken' is required.");
-
-        var entry = FindEnabledApp(catalog, p.AppId);
-        var state = GetStore(workspaceCraftPath).Snapshot();
-        var now = DateTimeOffset.UtcNow;
-        var request = state.ConnectionRequests.FirstOrDefault(r =>
-            string.Equals(r.ConnectionRequestId, p.ConnectionRequestId, StringComparison.Ordinal));
-        if (request == null)
-            throw AppServerErrors.InvalidParams($"Connection request '{p.ConnectionRequestId}' was not found.");
-        if (!string.Equals(request.AppId, p.AppId, StringComparison.Ordinal))
-            throw AppServerErrors.InvalidParams("Connection request appId mismatch.");
-        if (request.Consumed)
-            throw AppServerErrors.InvalidParams("Connection request token has already been consumed.");
-        if (request.ExpiresAt <= now)
-            throw AppServerErrors.InvalidParams("Connection request token has expired.");
-        if (!AppBindingToken.Matches(p.RequestToken, request.RequestTokenHash))
-            throw AppServerErrors.InvalidParams("Connection request token is invalid.");
-
-        return new AppConnectionRequestGetResult
-        {
-            AppId = entry.Descriptor.AppId,
-            ConnectionRequestId = request.ConnectionRequestId,
-            DisplayName = entry.Descriptor.DisplayName,
-            DeveloperName = entry.Descriptor.DeveloperName,
-            WorkspaceLabel = WorkspaceLabel(workspaceCraftPath),
-            UserLabel = request.UserId,
-            ExpiresAt = request.ExpiresAt
-        };
-    }
+        AppConnectionRequestGetParams p) =>
+        _connections.GetConnectionRequest(catalog, workspaceCraftPath, p);
 
     public AppConnectionStatusWire CompleteConnection(
         AppCatalogSnapshot catalog,
         string workspaceCraftPath,
-        AppConnectionConnectParams p)
-    {
-        if (string.IsNullOrWhiteSpace(p.ConnectionRequestId))
-            throw AppServerErrors.InvalidParams("'connectionRequestId' is required.");
-        if (string.IsNullOrWhiteSpace(p.RequestToken))
-            throw AppServerErrors.InvalidParams("'requestToken' is required.");
-        if (string.IsNullOrWhiteSpace(p.AppId))
-            throw AppServerErrors.InvalidParams("'appId' is required.");
-
-        _ = FindEnabledApp(catalog, p.AppId);
-        var now = DateTimeOffset.UtcNow;
-        return GetStore(workspaceCraftPath).Update(state =>
-        {
-            var request = state.ConnectionRequests.FirstOrDefault(r =>
-                string.Equals(r.ConnectionRequestId, p.ConnectionRequestId, StringComparison.Ordinal));
-            if (request == null)
-                throw AppServerErrors.InvalidParams($"Connection request '{p.ConnectionRequestId}' was not found.");
-            if (!string.Equals(request.AppId, p.AppId, StringComparison.Ordinal))
-                throw AppServerErrors.InvalidParams("Connection request appId mismatch.");
-            if (request.Consumed)
-                throw AppServerErrors.InvalidParams("Connection request token has already been consumed.");
-            if (request.ExpiresAt <= now)
-                throw AppServerErrors.InvalidParams("Connection request token has expired.");
-            if (!AppBindingToken.Matches(p.RequestToken, request.RequestTokenHash))
-                throw AppServerErrors.InvalidParams("Connection request token is invalid.");
-
-            request.Consumed = true;
-            request.State = AppConnectionStates.Connected;
-
-            var connection = FindConnection(state, request.UserId, p.AppId);
-            if (connection == null)
-            {
-                connection = new AppConnectionRecord { AppId = p.AppId, UserId = request.UserId };
-                state.Connections.Add(connection);
-            }
-
-            connection.State = AppConnectionStates.Connected;
-            connection.ConnectedAt = now;
-            connection.ExpiresAt = p.ExpiresAt;
-            connection.AccountLabel = p.AccountLabel;
-            connection.ConnectionProof = p.ConnectionProof?.DeepClone() as JsonObject;
-            connection.PublicMetadata = SanitizePublicConnectionMetadata(p.PublicMetadata);
-            connection.Diagnostic = null;
-            AddAudit(state, "connection.connected", null, null, p.AppId, request.UserId, p.AccountLabel);
-
-            return MapConnectionStatus(connection);
-        });
-    }
+        AppConnectionConnectParams p) =>
+        _connections.CompleteConnection(catalog, workspaceCraftPath, p);
 
     public AppConnectionStatusWire GetConnectionStatus(
         AppCatalogSnapshot catalog,
         string workspaceCraftPath,
         string userId,
-        string appId)
-    {
-        _ = FindApp(catalog, appId);
-        var state = GetStore(workspaceCraftPath).Snapshot();
-        return MapConnectionStatus(state, userId, appId);
-    }
+        string appId) =>
+        _connections.GetConnectionStatus(catalog, workspaceCraftPath, userId, appId);
 
     /// <summary>
     /// Refreshes only the <c>publicMetadata</c> of an existing connected connection
@@ -285,82 +166,15 @@ public sealed class AppBindingService
     public AppConnectionStatusWire RefreshConnectionMetadata(
         AppCatalogSnapshot catalog,
         string workspaceCraftPath,
-        AppConnectionMetadataRefreshParams p)
-    {
-        if (string.IsNullOrWhiteSpace(p.AppId))
-            throw AppServerErrors.InvalidParams("'appId' is required.");
-        if (p.ConnectionProof == null)
-            throw AppServerErrors.InvalidParams("'connectionProof' is required.");
-
-        _ = FindEnabledApp(catalog, p.AppId);
-
-        return GetStore(workspaceCraftPath).Update(state =>
-        {
-            var connection = state.Connections.FirstOrDefault(candidate =>
-                string.Equals(candidate.AppId, p.AppId, StringComparison.Ordinal)
-                && candidate.State == AppConnectionStates.Connected
-                && ConnectionProofMatches(candidate.ConnectionProof, p.ConnectionProof));
-            if (connection == null)
-            {
-                throw AppServerErrors.InvalidParams(
-                    $"No connected '{p.AppId}' connection matches the supplied connection proof.");
-            }
-
-            connection.PublicMetadata = SanitizePublicConnectionMetadata(p.PublicMetadata);
-            AddAudit(state, "connection.metadata.refreshed", null, null, p.AppId, connection.UserId, null);
-
-            return MapConnectionStatus(connection);
-        });
-    }
-
-    private static bool ConnectionProofMatches(JsonObject? stored, JsonObject? presented) =>
-        stored != null && presented != null && JsonNode.DeepEquals(stored, presented);
+        AppConnectionMetadataRefreshParams p) =>
+        _connections.RefreshConnectionMetadata(catalog, workspaceCraftPath, p);
 
     public AppConnectionStatusWire RevokeConnection(
         AppCatalogSnapshot catalog,
         string workspaceCraftPath,
         string userId,
-        AppConnectionRevokeParams p)
-    {
-        if (string.IsNullOrWhiteSpace(p.AppId))
-            throw AppServerErrors.InvalidParams("'appId' is required.");
-
-        _ = FindApp(catalog, p.AppId);
-        return GetStore(workspaceCraftPath).Update(state =>
-        {
-            var connection = FindConnection(state, userId, p.AppId);
-            if (connection == null)
-            {
-                connection = new AppConnectionRecord
-                {
-                    AppId = p.AppId,
-                    UserId = userId,
-                    State = AppConnectionStates.NotConnected
-                };
-                state.Connections.Add(connection);
-            }
-            else
-            {
-                connection.State = AppConnectionStates.NotConnected;
-                connection.Diagnostic = p.Reason;
-                connection.PublicMetadata = null;
-            }
-
-            foreach (var binding in state.Bindings.Where(b =>
-                         string.Equals(b.AppId, p.AppId, StringComparison.Ordinal)
-                         && string.Equals(b.UserId, userId, StringComparison.Ordinal)
-                         && b.State == AppBindingStates.Active))
-            {
-                binding.State = AppBindingStates.Offline;
-                binding.LastChangedAt = DateTimeOffset.UtcNow;
-                binding.Diagnostic = "The app connection was revoked.";
-                _attachments.Remove(binding.BindingId);
-            }
-
-            AddAudit(state, "connection.revoked", null, null, p.AppId, userId, p.Reason);
-            return MapConnectionStatus(connection);
-        });
-    }
+        AppConnectionRevokeParams p) =>
+        _connections.RevokeConnection(catalog, workspaceCraftPath, userId, p);
 
     public AppBindingRequestCreateResult CreateBindingRequest(
         AppCatalogSnapshot catalog,
@@ -2554,66 +2368,6 @@ public sealed class AppBindingService
         };
     }
 
-    private static JsonObject? SanitizePublicConnectionMetadata(JsonObject? metadata)
-    {
-        if (metadata == null)
-            return null;
-
-        var result = new JsonObject();
-        CopyStringProperty(metadata, result, "displayName", 160);
-        CopyStringProperty(metadata, result, "message", 320);
-        CopyLoopbackSurfaceEndpoints(metadata, result);
-        return result.Count == 0 ? null : result;
-    }
-
-    private static void CopyStringProperty(JsonObject source, JsonObject target, string name, int maxLength)
-    {
-        if (source[name] is not JsonValue value || !value.TryGetValue<string>(out var text))
-            return;
-
-        var trimmed = text.Trim();
-        if (trimmed.Length == 0)
-            return;
-
-        target[name] = trimmed.Length <= maxLength ? trimmed : trimmed[..maxLength];
-    }
-
-    private static void CopyLoopbackSurfaceEndpoints(JsonObject source, JsonObject target)
-    {
-        if (source["surfaceEndpoints"] is not JsonObject endpoints)
-            return;
-
-        var accepted = new JsonObject();
-        foreach (var (key, node) in endpoints.Take(32))
-        {
-            if (string.IsNullOrWhiteSpace(key)
-                || node is not JsonValue value
-                || !value.TryGetValue<string>(out var url)
-                || !IsSafeLoopbackEndpoint(url))
-            {
-                continue;
-            }
-
-            accepted[key] = url.Trim();
-        }
-
-        if (accepted.Count > 0)
-            target["surfaceEndpoints"] = accepted;
-    }
-
-    private static bool IsSafeLoopbackEndpoint(string value)
-    {
-        if (!Uri.TryCreate(value.Trim(), UriKind.Absolute, out var uri))
-            return false;
-
-        if (uri.Scheme is not ("http" or "https" or "ws" or "wss"))
-            return false;
-
-        return string.Equals(uri.Host, "localhost", StringComparison.OrdinalIgnoreCase)
-               || string.Equals(uri.Host, "127.0.0.1", StringComparison.Ordinal)
-               || string.Equals(uri.Host, "::1", StringComparison.Ordinal);
-    }
-
     private static AppConnectionStatusWire MapConnectionStatus(
         AppBindingStateDocument state,
         string userId,
@@ -2787,22 +2541,6 @@ public sealed class AppBindingService
         catch
         {
             return string.Empty;
-        }
-    }
-
-    private static string WorkspaceLabel(string workspaceCraftPath)
-    {
-        try
-        {
-            var workspace = Directory.GetParent(Path.GetFullPath(workspaceCraftPath))?.FullName;
-            if (string.IsNullOrWhiteSpace(workspace))
-                return "Workspace";
-            var name = Path.GetFileName(workspace.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
-            return string.IsNullOrWhiteSpace(name) ? workspace : name;
-        }
-        catch
-        {
-            return "Workspace";
         }
     }
 
