@@ -109,6 +109,7 @@ public sealed class AppServerRequestHandler(
     private AppServerRuntimeConfigRefresher? _runtimeConfig;
     private AppServerThreadBinder? _threadBinder;
     private AppServerResponseWriter? _responseWriter;
+    private AppServerThreadWireProjector? _threadProjector;
 
     /// <summary>
     /// Shared skill-variant resolver (variant mode + per-connection target), consulted by the
@@ -142,6 +143,17 @@ public sealed class AppServerRequestHandler(
 
     private AppServerResponseWriter ResponseWriter => _responseWriter ??= new AppServerResponseWriter(transport);
 
+    private AppServerThreadWireProjector ThreadProjector => _threadProjector ??=
+        new AppServerThreadWireProjector(
+            sessionService,
+            connection,
+            appConfigMonitor,
+            WorkspaceConfig,
+            skillsLoader,
+            planStore,
+            appBindingService,
+            builtInPluginSourceRoots);
+
     private AppServerMethodTable? _domainMethods;
 
     /// <summary>
@@ -171,9 +183,9 @@ public sealed class AppServerRequestHandler(
         new ProviderRequestHandler(transport, WorkspaceConfig, RuntimeConfig, services.WorkspaceCraftPath, services.AppConfigMonitor, services.OpenAIClientProvider, services.OpenAIAuthService, services.OpenAIUsageService),
         new WorkspaceRequestHandler(services.CommitMessageSuggest, services.WelcomeSuggestionService, _configSchema, services.MemoryStore, services.DreamStore, services.DreamsService, services.LspServerManager, services.AppConfigMonitor, services.WorkspaceCraftPath, services.HostWorkspacePath, services.ContextPageManager, WorkspaceConfig, RuntimeConfig),
         new PluginRequestHandler(transport, services.SkillsLoader, services.AppConfigMonitor, services.WorkspaceCraftPath, services.HostWorkspacePath, services.BuiltInPluginSourceRoots, McpConfig, services.LspServerManager, services.ContextPageManager, services.AppBindingService, WorkspaceConfig),
-        new CommandRequestHandler(_commandRegistry, sessionService, connection, services.HeartbeatService, services.CronService, (thread, token) => EnrichThreadWireAsync(thread.ToWire(), thread, token)),
-        new WorktreeRequestHandler(sessionService, ResponseWriter, ThreadBinder, WorkspaceConfig, services.AppConfigMonitor, services.HostWorkspacePath, ProjectThreadWireAsync),
-        new SubAgentRequestHandler(sessionService, services.AppConfigMonitor, services.WorkspaceCraftPath, services.HostWorkspacePath, RuntimeConfig, (thread, wire, token) => EnrichThreadWireAsync(wire, thread, token), services.SubAgentCoordinatorFactory),
+        new CommandRequestHandler(_commandRegistry, sessionService, connection, services.HeartbeatService, services.CronService, (thread, token) => ThreadProjector.EnrichAsync(thread.ToWire(), thread, token)),
+        new WorktreeRequestHandler(sessionService, ResponseWriter, ThreadBinder, WorkspaceConfig, services.AppConfigMonitor, services.HostWorkspacePath, ThreadProjector.ProjectAsync),
+        new SubAgentRequestHandler(sessionService, services.AppConfigMonitor, services.WorkspaceCraftPath, services.HostWorkspacePath, RuntimeConfig, (thread, wire, token) => ThreadProjector.EnrichAsync(wire, thread, token), services.SubAgentCoordinatorFactory),
         new UsageRequestHandler(services.TraceStore, services.SkillsLoader, sessionService, services.HostWorkspacePath),
         new AutomationRequestHandler(services.AutomationsHandler),
     ];
@@ -399,7 +411,7 @@ public sealed class AppServerRequestHandler(
         {
             ThreadManagement = true,
             ThreadSubscriptions = true,
-            ThreadGoals = GoalsCapabilityEnabled(),
+            ThreadGoals = ThreadProjector.GoalsCapabilityEnabled(),
             ThreadFork = true,
             GitWorktrees = true,
             ManualCompaction = true,
@@ -531,10 +543,7 @@ public sealed class AppServerRequestHandler(
 
         // Fix 8: The host sends the thread/start response first, then emits the
         // thread/started notification as required by spec Section 4.1.
-        var startedWire = await EnrichThreadWireAsync(
-            WithRuntimeSnapshot(WithContextUsage(thread.ToWire(), thread.Id), thread),
-            thread,
-            ct);
+        var startedWire = await ThreadProjector.ProjectAsync(thread, true, false, ct);
         await SendNotificationAfterResponseAsync(
             msg.Id,
             new { thread = startedWire },
@@ -604,16 +613,8 @@ public sealed class AppServerRequestHandler(
             await refreshService.RefreshThreadAgentAsync(thread.Id, ct);
 
         var includeTurns = p.ExcludeTurns != true;
-        var responseWire = await EnrichThreadWireAsync(
-            WithRuntimeSnapshot(
-                WithContextUsage(FilterToolExecutionItemsForConnection(thread.ToWire(includeTurns)), thread.Id),
-                thread),
-            thread,
-            ct);
-        var notificationWire = await EnrichThreadWireAsync(
-            WithRuntimeSnapshot(WithContextUsage(thread.ToWire(includeTurns: false), thread.Id), thread),
-            thread,
-            ct);
+        var responseWire = await ThreadProjector.ProjectAsync(thread, includeTurns, true, ct);
+        var notificationWire = await ThreadProjector.ProjectAsync(thread, false, false, ct);
 
         await SendNotificationAfterResponseAsync(
             msg.Id,
@@ -663,10 +664,7 @@ public sealed class AppServerRequestHandler(
 
         // Gap D: use the client's declared name from initialize instead of hardcoded "appserver".
         var resumedBy = connection.ClientInfo?.Name ?? "appserver";
-        var resumedWire = await EnrichThreadWireAsync(
-            WithRuntimeSnapshot(WithContextUsage(thread.ToWire(), thread.Id), thread),
-            thread,
-            ct);
+        var resumedWire = await ThreadProjector.ProjectAsync(thread, true, false, ct);
         var responseResult = new { thread = resumedWire };
         var notifParams = new { thread = resumedWire, resumedBy };
 
@@ -740,10 +738,10 @@ public sealed class AppServerRequestHandler(
         var catalogByWorkspace = new Dictionary<string, AppCatalogSnapshot?>(StringComparer.Ordinal);
         foreach (var summary in page)
         {
-            summary.Goal = await TryGetGoalSnapshotAsync(summary.Id, ct);
+            summary.Goal = await ThreadProjector.TryGetGoalSnapshotAsync(summary.Id, ct);
             if (!catalogByWorkspace.TryGetValue(summary.WorkspacePath, out var catalog))
             {
-                catalog = TryGetAppCatalog(summary.WorkspacePath);
+                catalog = ThreadProjector.TryGetAppCatalog(summary.WorkspacePath);
                 catalogByWorkspace[summary.WorkspacePath] = catalog;
             }
             if (catalog is not null)
@@ -889,21 +887,6 @@ public sealed class AppServerRequestHandler(
     private AppConfig LoadCurrentMergedConfig()
         => WorkspaceConfig.LoadCurrentMergedConfig();
 
-    private async Task<SessionWireThread> ProjectThreadWireAsync(
-        SessionThread thread,
-        bool includeTurns,
-        bool filterToolExecutions,
-        CancellationToken ct)
-    {
-        var wire = thread.ToWire(includeTurns);
-        if (filterToolExecutions)
-            wire = FilterToolExecutionItemsForConnection(wire);
-        return await EnrichThreadWireAsync(
-            WithRuntimeSnapshot(WithContextUsage(wire, thread.Id), thread),
-            thread,
-            ct);
-    }
-
     private async Task<object?> HandleThreadReadAsync(AppServerIncomingMessage msg, CancellationToken ct)
     {
         var p = GetParams<ThreadReadParams>(msg);
@@ -940,55 +923,19 @@ public sealed class AppServerRequestHandler(
             baseWire = thread.ToWire(includeTurns);
         }
 
-        var wire = await WithPlanAsync(WithRuntimeSnapshot(
-            WithWidgetState(WithContextUsage(FilterToolExecutionItemsForConnection(baseWire), thread.Id), thread.Id),
-            thread), thread.Id, ct);
+        var wire = await ThreadProjector.WithPlanAsync(
+            ThreadProjector.WithRuntimeSnapshot(
+                ThreadProjector.WithWidgetState(
+                    ThreadProjector.WithContextUsage(ThreadProjector.FilterToolExecutionItemsForConnection(baseWire), thread.Id),
+                    thread.Id),
+                thread),
+            thread.Id,
+            ct);
         return new ThreadReadResult
         {
-            Thread = await EnrichThreadWireAsync(wire, thread, ct),
+            Thread = await ThreadProjector.EnrichAsync(wire, thread, ct),
             TurnPage = turnPage
         };
-    }
-
-    /// <summary>
-    /// Surfaces the UI-only Interactive Tool UI <c>widgetState</c> (M-iv) onto each
-    /// <c>dynamicToolCall</c> wire item from the mutable side store, so the host can restore the
-    /// iframe's persisted state on <c>thread/read</c>. Never reaches the model.
-    /// </summary>
-    private SessionWireThread WithWidgetState(SessionWireThread wire, string threadId)
-    {
-        if (wire.Turns is not { Count: > 0 } turns)
-            return wire;
-        var states = sessionService.GetItemWidgetStates(threadId);
-        if (states.Count == 0)
-            return wire;
-
-        foreach (var turn in turns)
-        {
-            if (turn.Items is not { Count: > 0 } items)
-                continue;
-            for (var i = 0; i < items.Count; i++)
-            {
-                if (items[i].Payload is not DynamicToolCallPayload payload
-                    || string.IsNullOrEmpty(payload.CallId)
-                    || !states.TryGetValue(payload.CallId, out var json))
-                {
-                    continue;
-                }
-
-                try
-                {
-                    if (System.Text.Json.Nodes.JsonNode.Parse(json) is { } node)
-                        items[i] = items[i] with { Payload = payload with { WidgetState = node } };
-                }
-                catch (System.Text.Json.JsonException)
-                {
-                    // Skip a corrupt stored state rather than failing the whole read.
-                }
-            }
-        }
-
-        return wire;
     }
 
     private Task<object?> HandleItemWidgetStateSetAsync(AppServerIncomingMessage msg, CancellationToken ct)
@@ -1011,7 +958,7 @@ public sealed class AppServerRequestHandler(
 
     private async Task<object?> HandleThreadGoalGetAsync(AppServerIncomingMessage msg, CancellationToken ct)
     {
-        if (!GoalsCapabilityEnabled())
+        if (!ThreadProjector.GoalsCapabilityEnabled())
             throw AppServerErrors.MethodNotFound(AppServerMethods.ThreadGoalGet);
 
         var p = GetParams<ThreadGoalGetParams>(msg);
@@ -1021,7 +968,7 @@ public sealed class AppServerRequestHandler(
 
     private async Task<object?> HandleThreadGoalSetAsync(AppServerIncomingMessage msg, CancellationToken ct)
     {
-        if (!GoalsCapabilityEnabled())
+        if (!ThreadProjector.GoalsCapabilityEnabled())
             throw AppServerErrors.MethodNotFound(AppServerMethods.ThreadGoalSet);
 
         var p = GetParams<ThreadGoalSetParams>(msg);
@@ -1051,7 +998,7 @@ public sealed class AppServerRequestHandler(
 
     private async Task<object?> HandleThreadGoalClearAsync(AppServerIncomingMessage msg, CancellationToken ct)
     {
-        if (!GoalsCapabilityEnabled())
+        if (!ThreadProjector.GoalsCapabilityEnabled())
             throw AppServerErrors.MethodNotFound(AppServerMethods.ThreadGoalClear);
 
         var p = GetParams<ThreadGoalClearParams>(msg);
@@ -1115,150 +1062,8 @@ public sealed class AppServerRequestHandler(
         var thread = await sessionService.RollbackThreadAsync(p.ThreadId, p.NumTurns, ct);
         return new ThreadRollbackResponse
         {
-            Thread = await HydrateThreadGoalAsync(
-                WithAppBindingAttribution(
-                    WithRuntimeSnapshot(
-                        WithContextUsage(FilterToolExecutionItemsForConnection(thread.ToWire(includeTurns: true)), thread.Id),
-                        thread),
-                    thread.Id,
-                    thread.WorkspacePath),
-                ct)
+            Thread = await ThreadProjector.ProjectAsync(thread, true, true, ct)
         };
-    }
-
-    private SessionWireThread FilterToolExecutionItemsForConnection(SessionWireThread wire)
-    {
-        if (connection.SupportsToolExecutionLifecycle || wire.Turns is null)
-            return wire;
-
-        foreach (var turn in wire.Turns)
-            turn.Items?.RemoveAll(item => item.Type == ItemType.ToolExecution);
-        return wire;
-    }
-
-    private SessionWireThread WithContextUsage(SessionWireThread wire, string threadId)
-    {
-        var snapshot = sessionService.TryGetContextUsageSnapshot(threadId);
-        return snapshot is null ? wire : wire with { ContextUsage = snapshot };
-    }
-
-    private SessionWireThread WithRuntimeSnapshot(SessionWireThread wire, SessionThread thread) =>
-        wire with { Runtime = sessionService.GetThreadRuntimeSnapshot(thread).ToWireRuntimeState() };
-
-    private async Task<SessionWireThread> WithPlanAsync(
-        SessionWireThread wire,
-        string threadId,
-        CancellationToken ct)
-    {
-        if (planStore == null)
-            return wire;
-
-        var plan = await planStore.LoadStructuredPlanAsync(threadId);
-        ct.ThrowIfCancellationRequested();
-        return wire with { Plan = plan == null ? null : DotCraft.Protocol.SessionWireMapper.ToWire(plan) };
-    }
-
-    private async Task<SessionWireThread> EnrichThreadWireAsync(
-        SessionWireThread wire,
-        SessionThread thread,
-        CancellationToken ct) =>
-        await HydrateThreadGoalAsync(WithAppBindingAttribution(wire, thread.Id, thread.WorkspacePath), ct);
-
-    /// <summary>
-    /// Attaches App Binding attribution to a thread wire: lightweight app-binding summaries plus, when the
-    /// thread's origin channel matches an installed app's declared origin channel, the origin-app branding
-    /// badge. Discovers the workspace catalog once so <c>thread/started</c>, <c>thread/updated</c>,
-    /// <c>thread/fork</c>, <c>thread/read</c>, and <c>thread/rollback</c> carry the same attribution as
-    /// <c>thread/list</c> — without it, event-delivered threads fall back to the generic channel icon.
-    /// </summary>
-    private SessionWireThread WithAppBindingAttribution(
-        SessionWireThread wire,
-        string threadId,
-        string workspacePath)
-    {
-        if (appBindingService is null || string.IsNullOrWhiteSpace(threadId))
-            return wire;
-        var catalog = TryGetAppCatalog(workspacePath);
-        if (catalog is null)
-            return wire;
-        var appBindings = appBindingService.ListThreadBindingSummaries(
-            catalog, Path.Combine(workspacePath, ".craft"), threadId);
-        var originApp = appBindingService.ResolveOriginApp(catalog, wire.OriginChannel, wire.ChannelContext);
-        if (appBindings.Count == 0 && originApp is null)
-            return wire;
-        return wire with
-        {
-            AppBindings = appBindings.Count > 0 ? appBindings : wire.AppBindings,
-            OriginApp = originApp ?? wire.OriginApp
-        };
-    }
-
-    /// <summary>
-    /// Synchronous thread-wire enricher handed to <see cref="AppServerEventDispatcher"/> so
-    /// <c>thread/started</c> (ThreadCreated) and <c>thread/resumed</c> notifications carry the same
-    /// App Binding / origin-app attribution as <c>thread/list</c>. Used for server-originated threads
-    /// (e.g. Teams mission member threads) that reach the client only via the event stream.
-    /// </summary>
-    private SessionWireThread EnrichThreadWireForNotification(SessionWireThread wire) =>
-        WithAppBindingAttribution(wire, wire.Id, wire.WorkspacePath);
-
-    /// <summary>
-    /// Discovers the App Binding catalog for a workspace, or null when App Binding is unavailable or
-    /// the workspace has no <c>.craft</c> directory. Shared by thread-summary enrichment (app bindings
-    /// + origin-app attribution) so a single <c>thread/list</c> projection discovers each workspace once.
-    /// </summary>
-    private AppCatalogSnapshot? TryGetAppCatalog(string workspacePath)
-    {
-        if (appBindingService == null || string.IsNullOrWhiteSpace(workspacePath))
-            return null;
-        var craftPath = Path.Combine(workspacePath, ".craft");
-        if (!Directory.Exists(craftPath))
-            return null;
-        return appBindingService.DiscoverCatalog(
-            appConfigMonitor?.Current ?? LoadCurrentMergedConfig(),
-            workspacePath,
-            craftPath,
-            skillsLoader,
-            builtInPluginSourceRoots);
-    }
-
-    private void RevokeAppBindingsForDeletedThread(SessionThread thread)
-    {
-        if (appBindingService == null)
-            return;
-
-        var craftPath = Path.Combine(thread.WorkspacePath, ".craft");
-        if (!Directory.Exists(craftPath))
-            return;
-
-        var catalog = appBindingService.DiscoverCatalog(
-            appConfigMonitor?.Current ?? LoadCurrentMergedConfig(),
-            thread.WorkspacePath,
-            craftPath,
-            skillsLoader,
-            builtInPluginSourceRoots);
-        _ = appBindingService.RevokeBindingsForDeletedThread(catalog, craftPath, thread.Id);
-    }
-
-    private async Task<SessionWireThread> HydrateThreadGoalAsync(SessionWireThread wire, CancellationToken ct)
-    {
-        var goal = await TryGetGoalSnapshotAsync(wire.Id, ct);
-        return goal is null ? wire : wire with { Goal = goal };
-    }
-
-    private async Task<ThreadGoal?> TryGetGoalSnapshotAsync(string threadId, CancellationToken ct)
-    {
-        if (!GoalsCapabilityEnabled())
-            return null;
-
-        try
-        {
-            return await sessionService.GetThreadGoalAsync(threadId, ct);
-        }
-        catch (NotSupportedException)
-        {
-            return null;
-        }
     }
 
     private static ThreadGoalStatus? ParseThreadGoalStatus(string? value)
@@ -1326,7 +1131,7 @@ public sealed class AppServerRequestHandler(
             events, connection, transport, sessionService,
             defaultApprovalDecision: _defaultApprovalDecision,
             streamDebugLogger: streamDebugLogger,
-            enrichThreadWire: EnrichThreadWireForNotification);
+            enrichThreadWire: ThreadProjector.EnrichForNotification);
         _ = dispatcher.RunAsync(subCts.Token)
             .ContinueWith(t =>
             {
@@ -1573,7 +1378,7 @@ public sealed class AppServerRequestHandler(
         var p = GetParams<ThreadDeleteParams>(msg);
         var thread = await sessionService.GetThreadAsync(p.ThreadId, ct);
         await sessionService.DeleteThreadPermanentlyAsync(p.ThreadId, ct);
-        RevokeAppBindingsForDeletedThread(thread);
+        ThreadProjector.RevokeAppBindingsForDeletedThread(thread);
         return new { };
     }
 
@@ -1795,7 +1600,7 @@ public sealed class AppServerRequestHandler(
             events, connection, transport, sessionService, OnTurnStarted,
             defaultApprovalDecision: _defaultApprovalDecision,
             streamDebugLogger: streamDebugLogger,
-            enrichThreadWire: EnrichThreadWireForNotification);
+            enrichThreadWire: ThreadProjector.EnrichForNotification);
 
         var dispatchTask = dispatcher.RunAsync(CancellationToken.None);
 
@@ -1984,12 +1789,6 @@ public sealed class AppServerRequestHandler(
     // skills/* methods live in SkillsRequestHandler.
 
     private bool IsSkillVariantModeEnabled() => SkillVariants.IsVariantModeEnabled();
-
-    private bool GoalsCapabilityEnabled()
-    {
-        var config = appConfigMonitor?.Current ?? new AppConfig();
-        return config.Goals.Enabled;
-    }
 
     private SkillVariantTarget BuildSkillVariantTarget() => SkillVariants.BuildTarget();
 
