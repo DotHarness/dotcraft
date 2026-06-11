@@ -44,6 +44,7 @@ html[data-theme="light"] .oratorio-board {
   width: 16px;
   height: 16px;
   flex: 0 0 auto;
+  display: block;
   stroke: currentColor;
   fill: none;
   stroke-width: 1.75;
@@ -159,6 +160,11 @@ html[data-theme="light"] .oratorio-board {
   padding: 0 12px;
   cursor: pointer;
   font: inherit;
+  /* Even line-height matched to the 16px icon: the text box then covers the same
+     pixel band as the icon (both at offset 8px), so icon + label round to the same
+     device row at fractional display scaling. The inherited 1.35 (=17.55px) left the
+     text box at a fractional 7.225px offset, drifting ~1px off the icon at 125/150%. */
+  line-height: 16px;
   font-weight: 600;
   white-space: nowrap;
 }
@@ -319,7 +325,7 @@ html[data-theme="light"] .oratorio-board {
   display: inline-flex; align-items: center; gap: 5px;
   height: 22px; padding: 0 8px; border-radius: 999px;
   background: var(--bg-tertiary); color: var(--text-secondary);
-  font-size: 11px; font-weight: 700; flex: 0 0 auto; min-width: 0; max-width: 100%;
+  font-size: 11px; line-height: 14px; font-weight: 700; flex: 0 0 auto; min-width: 0; max-width: 100%;
 }
 .oratorio-chip > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 14ch; }
 .oratorio-chip.chip-source { color: var(--text-primary); }
@@ -348,7 +354,7 @@ html[data-theme="light"] .oratorio-board {
   display: inline-flex; align-items: center; gap: 5px;
   min-height: 22px; padding: 0 8px;
   border: 1px solid var(--border-default); border-radius: 999px;
-  font-size: 11px; font-weight: 650; max-width: 100%; overflow: hidden;
+  font-size: 11px; line-height: 13px; font-weight: 650; max-width: 100%; overflow: hidden;
 }
 .oratorio-pill > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .oratorio-pill .ic { width: 13px; height: 13px; }
