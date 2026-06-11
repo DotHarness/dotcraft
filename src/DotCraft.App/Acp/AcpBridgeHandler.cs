@@ -38,11 +38,7 @@ public sealed class AcpBridgeHandler(
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
     };
 
-    private static readonly JsonSerializerOptions WireReadOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        PropertyNameCaseInsensitive = true
-    };
+    private static readonly JsonSerializerOptions WireReadOptions = SessionWireJsonOptions.Default;
 
     /// <summary>
     /// Throws <see cref="InvalidOperationException"/> if the JSON-RPC document contains an <c>error</c> field.

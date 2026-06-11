@@ -46,6 +46,72 @@ public sealed class ThreadStoreSerializationTests
         Assert.Null(exception);
     }
 
+    [Fact]
+    public void SessionJsonOptions_ReadsLegacyNumericReasoningConfig()
+    {
+        const string json = """
+            {
+              "reasoning": {
+                "enabled": true,
+                "effort": 2,
+                "output": 2
+              }
+            }
+            """;
+
+        var config = JsonSerializer.Deserialize<ThreadConfiguration>(json, SessionJsonOptions.Default);
+
+        Assert.NotNull(config?.Reasoning);
+        Assert.True(config!.Reasoning!.Enabled);
+        Assert.Equal(ReasoningEffort.Medium, config.Reasoning.Effort);
+        Assert.Equal(ReasoningOutput.Full, config.Reasoning.Output);
+    }
+
+    [Theory]
+    [InlineData("extraHigh", ReasoningEffort.ExtraHigh)]
+    [InlineData("extra_high", ReasoningEffort.ExtraHigh)]
+    [InlineData("xhigh", ReasoningEffort.ExtraHigh)]
+    [InlineData("medium", ReasoningEffort.Medium)]
+    public void SessionPersistenceJsonOptions_ReadsReasoningEffortStringsAndAliases(
+        string rawEffort,
+        ReasoningEffort expected)
+    {
+        var json = $$"""
+            {
+              "reasoning": {
+                "enabled": true,
+                "effort": "{{rawEffort}}",
+                "output": "full"
+              }
+            }
+            """;
+
+        var config = JsonSerializer.Deserialize<ThreadConfiguration>(json, SessionPersistenceJsonOptions.Default);
+
+        Assert.NotNull(config?.Reasoning);
+        Assert.Equal(expected, config!.Reasoning!.Effort);
+        Assert.Equal(ReasoningOutput.Full, config.Reasoning.Output);
+    }
+
+    [Fact]
+    public void SessionJsonOptions_WritesCanonicalReasoningStrings()
+    {
+        var config = new ThreadConfiguration
+        {
+            Reasoning = new()
+            {
+                Enabled = true,
+                Effort = ReasoningEffort.ExtraHigh,
+                Output = ReasoningOutput.Summary
+            }
+        };
+
+        var json = JsonSerializer.Serialize(config, SessionJsonOptions.Default);
+
+        Assert.Contains("\"effort\":\"extraHigh\"", json);
+        Assert.Contains("\"output\":\"summary\"", json);
+    }
+
     private sealed class UnknownTestAiContent : AIContent
     {
         public string Name { get; init; } = string.Empty;
