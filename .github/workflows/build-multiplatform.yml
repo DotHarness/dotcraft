@@ -59,7 +59,15 @@ jobs:
             runtime_id: osx-x64
             output_name: DotCraft-macos-x64
             cargo_target: x86_64-apple-darwin
+            file_arch: x86_64
             electron_builder_args: --mac --x64
+          - os: macos-15
+            os_name: macos
+            runtime_id: osx-arm64
+            output_name: DotCraft-macos-arm64
+            cargo_target: aarch64-apple-darwin
+            file_arch: arm64
+            electron_builder_args: --mac --arm64
 
     runs-on: ${{ matrix.os }}
 
@@ -113,6 +121,22 @@ jobs:
     - name: Copy TUI binary to publish - Linux/macOS
       if: runner.os != 'Windows'
       run: cp tui/target/${{ matrix.cargo_target }}/release/dotcraft-tui publish/${{ matrix.output_name }}/
+
+    - name: Verify macOS binary architectures
+      if: runner.os == 'macOS'
+      shell: bash
+      run: |
+        expected_arch="${{ matrix.file_arch }}"
+        file_output="$(file publish/${{ matrix.output_name }}/dotcraft publish/${{ matrix.output_name }}/dotcraft-tui)"
+        echo "$file_output"
+        if ! grep -q "dotcraft:.*Mach-O.*${expected_arch}" <<< "$file_output"; then
+          echo "::error::dotcraft is not a ${expected_arch} Mach-O binary"
+          exit 1
+        fi
+        if ! grep -q "dotcraft-tui:.*Mach-O.*${expected_arch}" <<< "$file_output"; then
+          echo "::error::dotcraft-tui is not a ${expected_arch} Mach-O binary"
+          exit 1
+        fi
 
     - name: Create archive for Linux/macOS
       if: runner.os != 'Windows'
@@ -248,7 +272,7 @@ jobs:
       if: runner.os == 'macOS'
       uses: actions/upload-artifact@v6
       with:
-        name: DotCraft-macos-x64-dmg
+        name: ${{ matrix.output_name }}-dmg
         path: desktop/dist/*.dmg
 
   release:

@@ -30,6 +30,12 @@ const releaseAssets: GitHubReleaseAsset[] = [
     size: 30,
     browser_download_url:
       'https://github.com/DotHarness/dotcraft/releases/download/v0.1.8/DotCraft-v0.1.8-macos-x64.dmg'
+  },
+  {
+    name: 'DotCraft-v0.1.8-macos-arm64.dmg',
+    size: 35,
+    browser_download_url:
+      'https://github.com/DotHarness/dotcraft/releases/download/v0.1.8/DotCraft-v0.1.8-macos-arm64.dmg'
   }
 ]
 
@@ -58,6 +64,16 @@ describe('app update release resolution', () => {
   it('selects the macOS DMG for mac builds', () => {
     expect(selectUpdateAsset(releaseAssets, 'darwin', 'x64')?.name)
       .toBe('DotCraft-v0.1.8-macos-x64.dmg')
+  })
+
+  it('selects the macOS ARM64 DMG for Apple Silicon builds', () => {
+    expect(selectUpdateAsset(releaseAssets, 'darwin', 'arm64')?.name)
+      .toBe('DotCraft-v0.1.8-macos-arm64.dmg')
+  })
+
+  it('does not select a different architecture macOS DMG', () => {
+    const x64OnlyAssets = releaseAssets.filter((asset) => !asset.name?.includes('arm64'))
+    expect(selectUpdateAsset(x64OnlyAssets, 'darwin', 'arm64')).toBeNull()
   })
 
   it('ignores non-DotHarness release download URLs', () => {

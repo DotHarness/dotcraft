@@ -24,10 +24,16 @@ case "$(uname -s)" in
     ;;
 esac
 
-case "$(uname -m)" in
-  x86_64|amd64) arch="x64" ;;
+machine="$(uname -m)"
+case "${platform}:${machine}" in
+  linux:x86_64|linux:amd64|macos:x86_64|macos:amd64) arch="x64" ;;
+  macos:arm64|macos:aarch64) arch="arm64" ;;
+  linux:*)
+    echo "error: unsupported architecture: ${machine}. DotCraft CLI releases for Linux are currently x64-only." >&2
+    exit 1
+    ;;
   *)
-    echo "error: unsupported architecture: $(uname -m). DotCraft CLI releases are currently x64-only." >&2
+    echo "error: unsupported architecture: ${machine}. DotCraft CLI releases are available for macOS x64, macOS arm64, and Linux x64." >&2
     exit 1
     ;;
 esac
