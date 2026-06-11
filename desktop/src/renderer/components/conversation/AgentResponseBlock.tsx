@@ -28,6 +28,7 @@ import { addToast } from '../../stores/toastStore'
 import { ToolCollapseChevron } from './ToolCollapseChevron'
 import { useLocale } from '../../contexts/LocaleContext'
 import { formatToolGroupLabel } from '../../utils/toolGroupLabel'
+import { isShellToolName } from '../../utils/shellTools'
 import { TurnCollapsedSummary } from './TurnCollapsedSummary'
 import { translate, type AppLocale } from '../../../shared/locales'
 import { formatSubAgentMeta, getSubAgentAccent } from '../../utils/subAgentPresentation'
@@ -1081,6 +1082,10 @@ const spawnAgentPromptPreviewStyle: CSSProperties = {
 
 function isGroupedItemFailed(item: ConversationItem): boolean {
   if (isToolItemLive(item)) return false
+  // Shell tools (Exec/RunCommand/BashCommand) never render as failed in their
+  // individual card — ToolCallCard forces success via `isShellTool`. Keep the
+  // aggregated row consistent so an exec exit code / failure doesn't redden it.
+  if (isShellToolName(item.toolName)) return false
   const executionFailed = item.executionStatus === 'failed'
     || item.executionStatus === 'cancelled'
     || (item.exitCode != null && item.exitCode !== 0)

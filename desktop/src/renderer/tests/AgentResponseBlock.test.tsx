@@ -960,6 +960,54 @@ describe('AgentResponseBlock tail tool aggregation timing', () => {
     expect(stack).toHaveTextContent('Explored 2 files')
   })
 
+  it('does not redden an aggregated shell group when an exec command fails', () => {
+    const turn: ConversationTurn = {
+      id: 'turn-shell-failed',
+      threadId: 'thread-1',
+      status: 'completed',
+      startedAt: '2026-04-18T11:11:00.000Z',
+      items: [
+        makeToolCallItem('shell-1', 'call-shell-1', 'Exec', '2026-04-18T11:11:01.000Z'),
+        { ...makeToolCallItem('shell-2', 'call-shell-2', 'Exec', '2026-04-18T11:11:02.000Z'), success: false, exitCode: 1 }
+      ]
+    }
+
+    const { container } = render(
+      <LocaleProvider>
+        <AgentResponseBlock turn={turn} />
+      </LocaleProvider>
+    )
+
+    const titleGroup = container.querySelector('[data-testid="tool-row-title-group"]') as HTMLElement
+    expect(titleGroup).toBeTruthy()
+    expect(titleGroup).toHaveTextContent('Ran 2 commands')
+    // Mirrors the individual ToolCallCard, which never reddens shell tools.
+    expect(titleGroup.style.color).toBe('var(--text-dimmed)')
+  })
+
+  it('still reddens an aggregated non-shell group when a tool fails', () => {
+    const turn: ConversationTurn = {
+      id: 'turn-explore-failed',
+      threadId: 'thread-1',
+      status: 'completed',
+      startedAt: '2026-04-18T11:11:00.000Z',
+      items: [
+        makeToolCallItem('file-1', 'call-file-1', 'ReadFile', '2026-04-18T11:11:01.000Z'),
+        { ...makeToolCallItem('file-2', 'call-file-2', 'FindFiles', '2026-04-18T11:11:02.000Z'), success: false }
+      ]
+    }
+
+    const { container } = render(
+      <LocaleProvider>
+        <AgentResponseBlock turn={turn} />
+      </LocaleProvider>
+    )
+
+    const titleGroup = container.querySelector('[data-testid="tool-row-title-group"]') as HTMLElement
+    expect(titleGroup).toBeTruthy()
+    expect(titleGroup.style.color).toBe('var(--error)')
+  })
+
   it('keeps adjacent tool stacks compact when hidden reasoning splits the raw items', () => {
     useUIStore.getState().setShowThinkingContent(false)
 
