@@ -1,0 +1,5 @@
+/* Reuse the Desktop design tokens verbatim (includes `@import "tailwindcss"`),
+   and point Tailwind's source scanner at the Desktop renderer sources so the
+   utility classes used by reused components are generated. */
+@import "../../../desktop/src/renderer/styles/tokens.css";
+@source "../../../desktop/src/renderer";

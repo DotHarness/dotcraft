@@ -2,6 +2,7 @@ import { useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent 
 import { ArrowDown, ArrowUp, CircleAlert } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { ActionTooltip } from '../ui/ActionTooltip'
+import { SIDEBAR_ROW_MIN_HEIGHT } from '../sidebar/sidebarNavRowStyles'
 
 export type ComposerChoiceDensity = 'compact' | 'decision'
 
@@ -110,22 +111,32 @@ export function composerChoiceRowStyle(
 ): CSSProperties {
   const decision = density === 'decision'
 
+  // Decision rows share the sidebar control geometry and hover/active tints so
+  // thread rows, nav rows, and decision choices read as one family.
   return {
     display: 'flex',
     alignItems: 'center',
     gap: decision ? '8px' : '7px',
     width: '100%',
-    minHeight: decision ? '40px' : '32px',
-    padding: decision ? '0 10px' : '4px 8px',
-    border: composerChoiceRowBorder(selected, highlighted),
-    borderRadius: decision ? '10px' : '8px',
-    background: composerChoiceRowBackground(selected, highlighted),
+    minHeight: decision ? SIDEBAR_ROW_MIN_HEIGHT : '32px',
+    padding: decision ? '0 12px' : '4px 8px',
+    border: decision ? 'none' : composerChoiceRowBorder(selected, highlighted),
+    borderRadius: decision ? 'var(--sidebar-control-radius)' : '8px',
+    background: decision
+      ? sidebarControlBackground(selected, highlighted)
+      : composerChoiceRowBackground(selected, highlighted),
     color: 'var(--text-primary)',
     cursor: disabled ? 'default' : 'pointer',
     opacity: disabled ? 0.72 : 1,
     outline: 'none',
-    transition: 'background 120ms ease, border-color 120ms ease, box-shadow 120ms ease'
+    transition: 'background 100ms ease, border-color 120ms ease, box-shadow 120ms ease'
   }
+}
+
+function sidebarControlBackground(selected: boolean, highlighted: boolean): string {
+  if (selected) return 'var(--sidebar-control-active)'
+  if (highlighted) return 'var(--sidebar-control-hover)'
+  return 'transparent'
 }
 
 function composerChoiceRowBackground(selected: boolean, highlighted: boolean): string {

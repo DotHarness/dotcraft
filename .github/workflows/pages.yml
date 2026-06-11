@@ -5,6 +5,9 @@ on:
     branches: [ master, main ]
     paths:
       - 'docs/**'
+      # The desktop web demo (docs/demo) imports Desktop renderer sources;
+      # rebuild the site when they change so reuse drift fails the deploy.
+      - 'desktop/src/**'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -30,10 +33,20 @@ jobs:
         with:
           node-version: '20'
           cache: npm
-          cache-dependency-path: docs/package-lock.json
+          cache-dependency-path: |
+            docs/package-lock.json
+            docs/demo/package-lock.json
 
       - name: Setup Pages
         uses: actions/configure-pages@v6
+
+      - name: Install desktop demo dependencies
+        run: npm ci
+        working-directory: docs/demo
+
+      - name: Build desktop demo
+        run: npm run build
+        working-directory: docs/demo
 
       - name: Install dependencies
         run: npm ci

@@ -266,7 +266,7 @@ function PlanAdjustmentRow({
       <div style={{ flex: '1 1 auto', minWidth: 0 }}>
         <RichInputArea
           ref={richRef}
-          chrome="minimal"
+          chrome="inline"
           placeholder={placeholder}
           onSubmit={onSubmit}
           onAtQuery={() => {}}

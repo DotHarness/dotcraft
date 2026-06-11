@@ -33,7 +33,9 @@ lastUpdated: false
       </div>
     </div>
     <figure class="dc-hero__media">
-      <img src="https://github.com/DotHarness/resources/raw/master/dotcraft/desktop_banner.png" alt="DotCraft Desktop preview" />
+      <div class="dc-demo" data-demo-lang="en">
+        <img src="https://github.com/DotHarness/resources/raw/master/dotcraft/desktop_banner.png" alt="DotCraft Desktop preview" />
+      </div>
       <div class="dc-hero__stage" aria-hidden="true">
         <div class="dc-stage-mascot" data-mascot="leader" style="--duration: 42s; --delay: -3s;">
           <div class="dc-stage-mascot__body">

@@ -55,7 +55,12 @@ export interface RichInputAreaHandle {
 interface RichInputAreaProps {
   disabled?: boolean
   placeholder?: string
-  chrome?: 'default' | 'minimal'
+  /**
+   * `default` draws the bordered input surface, `minimal` strips the chrome for
+   * composer surfaces with their own frame, `inline` additionally collapses the
+   * vertical footprint so the editor fits a sidebar-height decision row.
+   */
+  chrome?: 'default' | 'minimal' | 'inline'
   suppressSubmit?: boolean
   onToggleModeShortcut?: () => void
   onHistoryNavigate?: (direction: 'previous' | 'next') => boolean
@@ -1002,15 +1007,15 @@ export const RichInputArea = forwardRef(function RichInputArea(
             position: 'relative',
             flex: 1,
             resize: 'none',
-            border: chrome === 'minimal' ? 'none' : '1px solid var(--border-default)',
-            borderRadius: chrome === 'minimal' ? '0' : '8px',
-            padding: chrome === 'minimal' ? '8px 2px 6px' : '8px 12px',
+            border: chrome === 'default' ? '1px solid var(--border-default)' : 'none',
+            borderRadius: chrome === 'default' ? '8px' : '0',
+            padding: chrome === 'inline' ? '4px 2px' : chrome === 'minimal' ? '8px 2px 6px' : '8px 12px',
             fontSize: 'var(--conversation-font-size)',
             fontWeight: 'var(--conversation-font-weight)',
             lineHeight: 'var(--conversation-line-height)',
             fontFamily: 'var(--font-sans)',
             backgroundColor:
-              chrome === 'minimal'
+              chrome !== 'default'
                 ? 'transparent'
                 : disabled
                   ? 'var(--bg-tertiary)'
@@ -1018,7 +1023,7 @@ export const RichInputArea = forwardRef(function RichInputArea(
             color: disabled ? 'var(--text-dimmed)' : 'var(--text-primary)',
             outline: 'none',
             overflowY: 'auto',
-            minHeight: '40px',
+            minHeight: chrome === 'inline' ? '22px' : '40px',
             cursor: disabled ? 'not-allowed' : 'text',
             opacity: disabled ? 0.6 : 1
           }}

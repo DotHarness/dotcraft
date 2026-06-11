@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "target": "ESNext",
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@renderer/*": ["../../desktop/src/renderer/*"],
+      "@/*": ["../../desktop/src/renderer/*"]
+    }
+  },
+  "include": [
+    "src",
+    "vite.config.ts",
+    "../../desktop/src/renderer/**/*",
+    "../../desktop/src/preload/api.d.ts",
+    "../../desktop/src/shared/**/*"
+  ],
+  "exclude": ["node_modules", "dist"]
+}

@@ -39,3 +39,6 @@ target/
 # E2E test artifacts
 desktop/e2e/screenshots/
 /sdk/typescript/packages/channel-weixin/data
+
+# Generated desktop web demo bundle (built from docs/demo)
+docs/public/demo/
