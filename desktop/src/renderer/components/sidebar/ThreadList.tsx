@@ -893,13 +893,19 @@ function ProjectHeader({
             </ActionTooltip>
           </>
         ) : project.state === 'error' ? (
-          <ActionTooltip label={project.errorMessage || t('projectsRail.error')}>
-            <AlertCircle size={14} aria-hidden style={{ color: 'var(--error)' }} />
-          </ActionTooltip>
+          <span style={projectStatusIndicatorSlotStyle}>
+            <ActionTooltip label={project.errorMessage || t('projectsRail.error')}>
+              <AlertCircle size={14} aria-hidden style={{ color: 'var(--error)' }} />
+            </ActionTooltip>
+          </span>
         ) : collapsed && activity === 'running' ? (
-          <RunningSpinner label={t('threadEntry.turnRunning')} />
+          <span style={projectStatusIndicatorSlotStyle}>
+            <RunningSpinner label={t('threadEntry.turnRunning')} />
+          </span>
         ) : collapsed && activity === 'waiting' ? (
-          <span style={projectWaitingDotStyle} aria-label={t('projectsRail.awaitingResponse')} />
+          <span style={projectStatusIndicatorSlotStyle}>
+            <span style={projectWaitingDotStyle} aria-label={t('projectsRail.awaitingResponse')} />
+          </span>
         ) : null}
       </div>
       {menuOpen && menuPosition && typeof document !== 'undefined' && createPortal(
@@ -1320,6 +1326,18 @@ const projectIconButtonStyle: CSSProperties = {
   alignItems: 'center',
   justifyContent: 'center',
   cursor: 'pointer'
+}
+
+// Non-hover status indicators (spinner / waiting dot / error icon) sit in the
+// same 24px box as the action buttons they replace, so they stay centered under
+// the rightmost action button and line up with the thread rows' status slot.
+const projectStatusIndicatorSlotStyle: CSSProperties = {
+  width: '24px',
+  height: '24px',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  flexShrink: 0
 }
 
 const projectIconSlotStyle: CSSProperties = {
