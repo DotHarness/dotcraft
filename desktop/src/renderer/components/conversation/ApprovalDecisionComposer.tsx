@@ -172,9 +172,15 @@ export function ApprovalDecisionComposer({ request }: ApprovalDecisionComposerPr
           editor={(
             <div style={{ display: 'grid', gap: '8px' }}>
               <div style={questionStyle}>{questionText}</div>
-              <div style={detailPanelStyle}>
+              <div data-testid="approval-detail-panel" style={detailPanelStyle}>
                 {detailRows.map((row, index) => (
-                  <ApprovalDetailRow key={`${row.label}-${index}`} label={row.label} value={row.value} mono={row.mono} />
+                  <ApprovalDetailRow
+                    key={`${row.label}-${index}`}
+                    label={row.label}
+                    value={row.value}
+                    mono={row.mono}
+                    valueTestId={`approval-detail-value-${index}`}
+                  />
                 ))}
               </div>
               <div style={{ display: 'grid', gap: '6px' }}>
@@ -237,16 +243,18 @@ export function ApprovalDecisionComposer({ request }: ApprovalDecisionComposerPr
 function ApprovalDetailRow({
   label,
   value,
-  mono = false
+  mono = false,
+  valueTestId
 }: {
   label: string
   value: string
   mono?: boolean
+  valueTestId?: string
 }): JSX.Element {
   return (
     <div style={detailRowStyle}>
       <span style={detailLabelStyle}>{label}</span>
-      <span style={detailValueStyle(mono)}>{value}</span>
+      <span data-testid={valueTestId} style={detailValueStyle(mono)}>{value}</span>
     </div>
   )
 }
@@ -282,6 +290,9 @@ const composerDockStyle: CSSProperties = {
   padding: '0 clamp(20px, 4vw, 40px)'
 }
 
+const DETAIL_PANEL_MAX_HEIGHT = 'min(34vh, 300px)'
+const DETAIL_VALUE_MAX_HEIGHT = '120px'
+
 const questionStyle: CSSProperties = {
   minWidth: 0,
   color: 'var(--text-primary)',
@@ -296,14 +307,17 @@ const detailPanelStyle: CSSProperties = {
   padding: '8px 10px',
   border: '1px solid var(--border-default)',
   borderRadius: '8px',
-  background: 'var(--bg-primary)'
+  background: 'var(--bg-primary)',
+  maxHeight: DETAIL_PANEL_MAX_HEIGHT,
+  overflowY: 'auto',
+  overscrollBehavior: 'contain'
 }
 
 const detailRowStyle: CSSProperties = {
   display: 'grid',
   gridTemplateColumns: '84px minmax(0, 1fr)',
   gap: '8px',
-  alignItems: 'baseline',
+  alignItems: 'start',
   minWidth: 0
 }
 
@@ -322,11 +336,11 @@ function detailValueStyle(mono: boolean): CSSProperties {
     fontSize: 'var(--text-body-size)',
     lineHeight: 'var(--text-body-line-height)',
     overflowWrap: 'anywhere',
-    // Long operation/target values (e.g. a large shell command) must not push the decision
-    // options off-screen (issue #39): bound the monospace value to a scrollable box.
-    ...(mono
-      ? { maxHeight: '160px', overflowY: 'auto', whiteSpace: 'pre-wrap' as const }
-      : {})
+    maxHeight: DETAIL_VALUE_MAX_HEIGHT,
+    overflowY: 'auto',
+    // Long approval details (operation, target, and reason) must not push the decision
+    // options off-screen; each value gets a small local scroll area when needed.
+    whiteSpace: mono ? 'pre-wrap' : 'normal'
   }
 }
 
