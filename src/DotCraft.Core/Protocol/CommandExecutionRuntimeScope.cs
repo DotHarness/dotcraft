@@ -58,6 +58,31 @@ public sealed class CommandExecutionRuntimeContext
         return match;
     }
 
+    public PendingCommandExecutionRegistration? TryClaimPendingByCallId(string callId)
+    {
+        if (string.IsNullOrWhiteSpace(callId) || _pending.IsEmpty)
+            return null;
+
+        var remaining = new Queue<PendingCommandExecutionRegistration>();
+        PendingCommandExecutionRegistration? match = null;
+
+        while (_pending.TryDequeue(out var entry))
+        {
+            if (match == null && string.Equals(entry.CallId, callId, StringComparison.Ordinal))
+            {
+                match = entry;
+                continue;
+            }
+
+            remaining.Enqueue(entry);
+        }
+
+        while (remaining.Count > 0)
+            _pending.Enqueue(remaining.Dequeue());
+
+        return match;
+    }
+
     public PendingShellExecutionRegistration? TryClaimPendingShellExecution(
         string command,
         string workingDirectory)
@@ -73,6 +98,31 @@ public sealed class CommandExecutionRuntimeContext
             if (match == null &&
                 string.Equals(entry.Command, command, StringComparison.Ordinal) &&
                 string.Equals(entry.WorkingDirectory, workingDirectory, StringComparison.OrdinalIgnoreCase))
+            {
+                match = entry;
+                continue;
+            }
+
+            remaining.Enqueue(entry);
+        }
+
+        while (remaining.Count > 0)
+            _pendingShellExecutions.Enqueue(remaining.Dequeue());
+
+        return match;
+    }
+
+    public PendingShellExecutionRegistration? TryClaimPendingShellExecutionByCallId(string callId)
+    {
+        if (string.IsNullOrWhiteSpace(callId) || _pendingShellExecutions.IsEmpty)
+            return null;
+
+        var remaining = new Queue<PendingShellExecutionRegistration>();
+        PendingShellExecutionRegistration? match = null;
+
+        while (_pendingShellExecutions.TryDequeue(out var entry))
+        {
+            if (match == null && string.Equals(entry.CallId, callId, StringComparison.Ordinal))
             {
                 match = entry;
                 continue;

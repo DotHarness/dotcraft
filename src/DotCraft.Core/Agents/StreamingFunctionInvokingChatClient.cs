@@ -644,6 +644,8 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
             if (policyDecision is { Kind: not ModeToolPolicyDecisionKind.Allow })
             {
                 var message = policyDecision.Message ?? "MODE_POLICY_DENIED";
+                if (string.Equals(call.Name, "Exec", StringComparison.Ordinal))
+                    CommandExecutionTracker.CompletePendingFailureByCallId(call.CallId, message);
                 toolExecution?.CompleteFailure(message);
                 return new FunctionInvocationOutcome(call, FunctionInvocationStatus.RanToCompletion, message, null, context.Terminate);
             }

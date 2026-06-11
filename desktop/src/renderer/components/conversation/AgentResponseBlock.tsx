@@ -1314,15 +1314,28 @@ function hydrateToolCallItems(items: ConversationItem[]): ConversationItem[] {
     }
 
     if (commandExecution) {
+      const staleInProgressCommand =
+        commandExecution.executionStatus === 'inProgress'
+        && isTerminalExecutionStatus(hydrated.executionStatus)
+      const terminalPreviewOutput =
+        staleInProgressCommand && !commandExecution.aggregatedOutput
+          ? (hydrated.aggregatedOutput && hydrated.aggregatedOutput.length > 0
+              ? hydrated.aggregatedOutput
+              : hydrated.resultPreview ?? hydrated.result)
+          : undefined
       hydrated = {
         ...hydrated,
         status: commandExecution.status === 'completed' ? 'completed' : hydrated.status,
         command: commandExecution.command ?? hydrated.command,
         workingDirectory: commandExecution.workingDirectory ?? hydrated.workingDirectory,
         commandSource: commandExecution.commandSource ?? hydrated.commandSource,
-        aggregatedOutput: commandExecution.aggregatedOutput ?? hydrated.aggregatedOutput,
+        aggregatedOutput: terminalPreviewOutput
+          ?? commandExecution.aggregatedOutput
+          ?? hydrated.aggregatedOutput,
         exitCode: commandExecution.exitCode ?? hydrated.exitCode,
-        executionStatus: commandExecution.executionStatus ?? hydrated.executionStatus,
+        executionStatus: staleInProgressCommand
+          ? hydrated.executionStatus
+          : commandExecution.executionStatus ?? hydrated.executionStatus,
         duration: commandExecution.duration
           ?? hydrated.duration
           ?? computeItemDurationMs(hydrated.createdAt, commandExecution.completedAt),
@@ -1332,6 +1345,10 @@ function hydrateToolCallItems(items: ConversationItem[]): ConversationItem[] {
 
     return hydrated
   })
+}
+
+function isTerminalExecutionStatus(status: ConversationItem['executionStatus'] | undefined): boolean {
+  return status === 'completed' || status === 'failed' || status === 'cancelled'
 }
 
 function computeItemDurationMs(

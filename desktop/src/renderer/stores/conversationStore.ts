@@ -505,6 +505,10 @@ function sortItemsByCreatedAt(items: ConversationItem[]): ConversationItem[] {
   )
 }
 
+function isTerminalExecutionStatus(status: ConversationItem['executionStatus'] | undefined): boolean {
+  return status === 'completed' || status === 'failed' || status === 'cancelled'
+}
+
 function mergeCommandExecutionIntoToolCall(
   item: ConversationItem,
   commandExecution: Partial<ConversationItem>
@@ -514,21 +518,33 @@ function mergeCommandExecutionIntoToolCall(
   if (!commandExecution.toolCallId || item.toolCallId !== commandExecution.toolCallId) return item
   const commandOutput = commandExecution.aggregatedOutput
   const currentOutput = item.aggregatedOutput
+  const staleInProgressCommand =
+    commandExecution.executionStatus === 'inProgress'
+    && isTerminalExecutionStatus(item.executionStatus)
+  const terminalPreviewOutput =
+    staleInProgressCommand && !commandOutput
+      ? (item.aggregatedOutput && item.aggregatedOutput.length > 0
+          ? item.aggregatedOutput
+          : item.resultPreview ?? item.result)
+      : undefined
   const aggregatedOutput =
-    commandOutput != null
+    terminalPreviewOutput
+      ?? (commandOutput != null
       && commandExecution.executionStatus === 'inProgress'
       && currentOutput != null
       && currentOutput.length > commandOutput.length
       && currentOutput.startsWith(commandOutput)
       ? currentOutput
-      : commandOutput ?? currentOutput
+      : commandOutput ?? currentOutput)
 
   return {
     ...item,
     command: commandExecution.command ?? item.command,
     workingDirectory: commandExecution.workingDirectory ?? item.workingDirectory,
     aggregatedOutput,
-    executionStatus: commandExecution.executionStatus ?? item.executionStatus,
+    executionStatus: staleInProgressCommand
+      ? item.executionStatus
+      : commandExecution.executionStatus ?? item.executionStatus,
     exitCode: commandExecution.exitCode ?? item.exitCode,
     commandSource: commandExecution.commandSource ?? item.commandSource,
     duration: commandExecution.duration ?? item.duration

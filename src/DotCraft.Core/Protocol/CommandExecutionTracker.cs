@@ -25,6 +25,43 @@ internal sealed class CommandExecutionTracker
 
     public string? CallId => _item.AsCommandExecution?.CallId;
 
+    public static bool CompletePendingFailureByCallId(string callId, string message)
+    {
+        var runtime = CommandExecutionRuntimeScope.Current;
+        if (runtime is null || string.IsNullOrWhiteSpace(callId))
+            return false;
+
+        runtime.TryClaimPendingShellExecutionByCallId(callId);
+
+        var registration = runtime.TryClaimPendingByCallId(callId);
+        if (registration is null)
+            return false;
+
+        var item = registration.Item;
+        var currentPayload = item.AsCommandExecution;
+        var completedAt = DateTimeOffset.UtcNow;
+        item.Status = ItemStatus.Completed;
+        item.CompletedAt = completedAt;
+        item.Payload = new CommandExecutionPayload
+        {
+            Command = currentPayload?.Command ?? registration.Command,
+            WorkingDirectory = currentPayload?.WorkingDirectory ?? registration.WorkingDirectory,
+            Source = currentPayload?.Source ?? registration.Source,
+            Status = "failed",
+            AggregatedOutput = message,
+            SessionId = currentPayload?.SessionId,
+            OutputPath = currentPayload?.OutputPath,
+            OriginalOutputChars = currentPayload?.OriginalOutputChars,
+            Truncated = currentPayload?.Truncated,
+            BackgroundReason = currentPayload?.BackgroundReason,
+            ExitCode = null,
+            DurationMs = (long)Math.Max(0, (completedAt - item.CreatedAt).TotalMilliseconds),
+            CallId = currentPayload?.CallId ?? registration.CallId
+        };
+        runtime.EmitItemCompleted(item);
+        return true;
+    }
+
     public static CommandExecutionTracker? Begin(string command, string workingDirectory, string source)
     {
         var runtime = CommandExecutionRuntimeScope.Current;

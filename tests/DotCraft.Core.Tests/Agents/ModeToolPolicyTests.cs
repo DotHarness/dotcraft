@@ -1,4 +1,5 @@
 using DotCraft.Agents;
+using DotCraft.Protocol;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 
@@ -123,6 +124,118 @@ public sealed class ModeToolPolicyTests
         Assert.Contains("read-only shell commands", result.Result?.ToString(), StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task StreamingClient_DeniedPlanModeExecCompletesPendingCommandExecution()
+    {
+        const string callId = "call-1";
+        const string command = "Get-Content README.md | Select-String DotCraft";
+        var workingDirectory = Directory.GetCurrentDirectory();
+        var modeManager = new AgentModeManager();
+        modeManager.SwitchMode(AgentMode.Plan);
+        var inner = new ToolCallChatClient("Exec", new Dictionary<string, object?>
+        {
+            ["command"] = command
+        });
+        var invoked = false;
+        var tool = AIFunctionFactory.Create((string _) =>
+        {
+            invoked = true;
+            return "shell output";
+        }, name: "Exec");
+        var client = new StreamingFunctionInvokingChatClient(inner)
+        {
+            AdditionalTools = [tool],
+            ModeToolPolicy = new ModeToolPolicy(modeManager).Evaluate
+        };
+
+        var turn = new SessionTurn
+        {
+            Id = "turn_001",
+            ThreadId = "thread_test",
+            Status = TurnStatus.Running,
+            StartedAt = DateTimeOffset.UtcNow
+        };
+        var commandCompleted = new List<SessionItem>();
+        var toolCompleted = new List<SessionItem>();
+        var commandItem = CreatePendingCommandExecution(turn, "item_command", callId, command, workingDirectory);
+        var toolItem = CreatePendingToolExecution(turn, "item_tool", callId, "Exec");
+        var commandContext = new CommandExecutionRuntimeContext
+        {
+            ThreadId = turn.ThreadId,
+            TurnId = turn.Id,
+            Turn = turn,
+            NextItemSequence = () => turn.Items.Count + 1,
+            EmitItemStarted = _ => { },
+            EmitItemDelta = (_, _) => { },
+            EmitItemCompleted = commandCompleted.Add,
+            SupportsCommandExecutionStreaming = true
+        };
+        commandContext.RegisterPending(new PendingCommandExecutionRegistration
+        {
+            CallId = callId,
+            Command = command,
+            WorkingDirectory = workingDirectory,
+            Source = "host",
+            Item = commandItem
+        });
+        commandContext.RegisterPendingShellExecution(new PendingShellExecutionRegistration
+        {
+            CallId = callId,
+            Command = command,
+            WorkingDirectory = workingDirectory,
+            Source = "host"
+        });
+        var toolContext = new ToolExecutionRuntimeContext
+        {
+            TurnId = turn.Id,
+            Turn = turn,
+            NextItemSequence = () => turn.Items.Count + 1,
+            EmitItemStarted = _ => { },
+            EmitItemCompleted = toolCompleted.Add,
+            SupportsToolExecutionLifecycle = true
+        };
+        toolContext.RegisterPending(new PendingToolExecutionRegistration
+        {
+            CallId = callId,
+            ToolName = "Exec",
+            Item = toolItem
+        });
+
+        using var commandScope = CommandExecutionRuntimeScope.Set(commandContext);
+        using var toolScope = ToolExecutionRuntimeScope.Set(toolContext);
+
+        await foreach (var _ in client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")]))
+        {
+        }
+
+        Assert.False(invoked);
+        var result = Assert.Single(inner.Calls[1].SelectMany(message => message.Contents).OfType<FunctionResultContent>());
+        Assert.Contains("MODE_POLICY_DENIED", result.Result?.ToString(), StringComparison.Ordinal);
+
+        Assert.Same(commandItem, Assert.Single(commandCompleted));
+        Assert.Equal(ItemStatus.Completed, commandItem.Status);
+        Assert.NotNull(commandItem.CompletedAt);
+        var commandPayload = Assert.IsType<CommandExecutionPayload>(commandItem.Payload);
+        Assert.Equal(callId, commandPayload.CallId);
+        Assert.Equal(command, commandPayload.Command);
+        Assert.Equal(workingDirectory, commandPayload.WorkingDirectory);
+        Assert.Equal("host", commandPayload.Source);
+        Assert.Equal("failed", commandPayload.Status);
+        Assert.Null(commandPayload.ExitCode);
+        Assert.NotNull(commandPayload.DurationMs);
+        Assert.Contains("MODE_POLICY_DENIED", commandPayload.AggregatedOutput, StringComparison.Ordinal);
+
+        Assert.Same(toolItem, Assert.Single(toolCompleted));
+        Assert.Equal(ItemStatus.Completed, toolItem.Status);
+        var toolPayload = Assert.IsType<ToolExecutionPayload>(toolItem.Payload);
+        Assert.Equal("failed", toolPayload.Status);
+        Assert.False(toolPayload.Success);
+        Assert.Contains("MODE_POLICY_DENIED", toolPayload.ErrorMessage, StringComparison.Ordinal);
+
+        Assert.Null(commandContext.TryClaimPending(command, workingDirectory));
+        Assert.Null(commandContext.TryClaimPendingShellExecution(command, workingDirectory));
+    }
+
     [Theory]
     [InlineData(GoalToolNames.GetGoal)]
     [InlineData(GoalToolNames.CreateGoal)]
@@ -183,6 +296,58 @@ public sealed class ModeToolPolicyTests
         public void Dispose()
         {
         }
+    }
+
+    private static SessionItem CreatePendingCommandExecution(
+        SessionTurn turn,
+        string itemId,
+        string callId,
+        string command,
+        string workingDirectory)
+    {
+        var item = new SessionItem
+        {
+            Id = itemId,
+            TurnId = turn.Id,
+            Type = ItemType.CommandExecution,
+            Status = ItemStatus.Started,
+            CreatedAt = DateTimeOffset.UtcNow,
+            Payload = new CommandExecutionPayload
+            {
+                CallId = callId,
+                Command = command,
+                WorkingDirectory = workingDirectory,
+                Source = "host",
+                Status = "inProgress",
+                AggregatedOutput = string.Empty
+            }
+        };
+        turn.Items.Add(item);
+        return item;
+    }
+
+    private static SessionItem CreatePendingToolExecution(
+        SessionTurn turn,
+        string itemId,
+        string callId,
+        string toolName)
+    {
+        var item = new SessionItem
+        {
+            Id = itemId,
+            TurnId = turn.Id,
+            Type = ItemType.ToolExecution,
+            Status = ItemStatus.Started,
+            CreatedAt = DateTimeOffset.UtcNow,
+            Payload = new ToolExecutionPayload
+            {
+                CallId = callId,
+                ToolName = toolName,
+                Status = "inProgress"
+            }
+        };
+        turn.Items.Add(item);
+        return item;
     }
 
     private static string Exec(string command) => "shell output";

@@ -601,6 +601,60 @@ describe('turn lifecycle', () => {
     expect(toolItem?.result).toBe('agent done')
   })
 
+  it('keeps terminal toolExecution status when historical commandExecution is still inProgress', () => {
+    const denial = 'MODE_POLICY_DENIED\nTool: Exec\nCurrentMode: Plan'
+
+    s().setTurns([
+      makeTurn({
+        status: 'completed',
+        items: [
+          {
+            id: 'tool-denied',
+            type: 'toolCall',
+            status: 'completed',
+            toolName: 'Exec',
+            toolCallId: 'exec-denied',
+            arguments: { command: 'Get-Content README.md | Select-String DotCraft' },
+            createdAt: '2026-06-11T07:08:02.030Z',
+            completedAt: '2026-06-11T07:08:02.035Z'
+          },
+          {
+            id: 'cmd-denied',
+            type: 'commandExecution',
+            status: 'started',
+            toolCallId: 'exec-denied',
+            command: 'Get-Content README.md | Select-String DotCraft',
+            executionStatus: 'inProgress',
+            aggregatedOutput: '',
+            createdAt: '2026-06-11T07:08:02.030Z'
+          },
+          {
+            id: 'tool-execution-denied',
+            type: 'toolExecution',
+            status: 'completed',
+            toolCallId: 'exec-denied',
+            toolName: 'Exec',
+            executionStatus: 'failed',
+            success: false,
+            resultPreview: denial,
+            duration: 5,
+            createdAt: '2026-06-11T07:08:02.030Z',
+            completedAt: '2026-06-11T07:08:02.035Z'
+          }
+        ]
+      })
+    ])
+
+    const items = s().turns[0].items
+    expect(items.some((i) => i.type === 'toolExecution')).toBe(false)
+    const toolItem = items.find((i) => i.id === 'tool-denied')
+    expect(toolItem?.type).toBe('toolCall')
+    expect(toolItem?.executionStatus).toBe('failed')
+    expect(toolItem?.success).toBe(false)
+    expect(toolItem?.aggregatedOutput).toBe(denial)
+    expect(toolItem?.resultPreview).toBe(denial)
+  })
+
   it('keeps SubAgent streaming argument previews bounded for large prompts', () => {
     const largePrompt = 'x'.repeat(20000)
     s().onTurnStarted(makeTurn())
