@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { ThreadSummary, Thread, ThreadStatus, ThreadRuntimeSnapshot, ThreadGoal } from '../types/thread'
 import { useViewerTabStore } from './viewerTabStore'
+import { useComposerDraftStore } from './composerDraftStore'
 import { getSubAgentParentThreadId, isSubAgentThread } from '../utils/subAgentThreads'
 import { isInternalThread } from '../utils/internalThreads'
 import { normalizeWorkspaceProjectKey } from '../../shared/workspaceProjectKey'
@@ -412,6 +413,7 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
 
   removeThread(threadId) {
     disposeViewerTabsForThread(threadId)
+    useComposerDraftStore.getState().clearDraft(threadId)
     _get().removePinnedThread(threadId)
     set((state) => {
       const parkedApprovals = new Map(state.parkedApprovals)
@@ -455,6 +457,7 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
     const pinnedTreeIds = collectThreadTreeIds(_get().threadList, rootThreadId)
     for (const id of pinnedTreeIds) {
       _get().removePinnedThread(id)
+      useComposerDraftStore.getState().clearDraft(id)
     }
 
     set((state) => {

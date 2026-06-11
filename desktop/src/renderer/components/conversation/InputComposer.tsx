@@ -9,6 +9,7 @@ import { useCustomCommandCatalog } from '../../hooks/useCustomCommandCatalog'
 import { useSkillsStore } from '../../stores/skillsStore'
 import { useSubAgentStore } from '../../stores/subAgentStore'
 import { useThreadStore } from '../../stores/threadStore'
+import { useComposerDraftStore, threadComposerDraftHasContent } from '../../stores/composerDraftStore'
 import type { ContextUsageSnapshotWire, Thread, ThreadGoal } from '../../types/thread'
 import type { ComposerDraftSegment } from '../../types/composerDraft'
 import { wireTurnToConversationTurn } from '../../types/conversation'
@@ -77,6 +78,10 @@ interface ComposerHistoryEntry {
 interface ComposerDraftSnapshot extends ComposerHistoryEntry {
   files: ComposerFileAttachment[]
   images: ImageAttachment[]
+}
+
+function emptyComposerDraftSnapshot(): ComposerDraftSnapshot {
+  return { text: '', segments: [], files: [], images: [] }
 }
 
 function isTurnBusyError(err: unknown): boolean {
@@ -164,6 +169,9 @@ export function InputComposer({
   const pendingModeChangeRef = useRef<Promise<void> | null>(null)
   const applyingHistoryRef = useRef(false)
   const historyDraftRef = useRef<ComposerDraftSnapshot | null>(null)
+  // Latest composer contents, mirrored from change handlers so the per-thread
+  // draft can be saved on unmount even after `richRef` has been detached.
+  const latestDraftRef = useRef<ComposerDraftSnapshot>(emptyComposerDraftSnapshot())
   const capabilities = useConnectionStore((s) => s.capabilities)
   const effectiveFileWorkspacePath = fileWorkspacePath ?? workspacePath
   const activeThread = useThreadStore((s) => s.activeThread?.id === threadId ? s.activeThread : null)
@@ -326,11 +334,66 @@ export function InputComposer({
   }, [])
 
   const handleComposerContentChange = useCallback((): void => {
+    latestDraftRef.current = {
+      ...latestDraftRef.current,
+      text: richRef.current?.getText() ?? '',
+      segments: richRef.current?.getSegments() ?? []
+    }
     setContentRevision((n) => n + 1)
     if (applyingHistoryRef.current) return
     setHistoryCursor(null)
     historyDraftRef.current = null
   }, [])
+
+  // Mirror attachment state so the saved draft stays current without reading
+  // `richRef` (which may be detached by the time an unmount cleanup runs).
+  useEffect(() => {
+    latestDraftRef.current = { ...latestDraftRef.current, images }
+  }, [images])
+  useEffect(() => {
+    latestDraftRef.current = { ...latestDraftRef.current, files }
+  }, [files])
+
+  const resetComposerInput = useCallback((): void => {
+    richRef.current?.clear()
+    setImages([])
+    setFiles([])
+    latestDraftRef.current = emptyComposerDraftSnapshot()
+    useComposerDraftStore.getState().clearDraft(threadId)
+  }, [threadId])
+
+  // Preserve unsent composer input per thread across navigation: restore a saved
+  // draft on (re)mount, and save the current draft on unmount or thread switch.
+  // Drafts are in-memory only (see composerDraftStore); sending clears them.
+  useEffect(() => {
+    const id = threadId
+    latestDraftRef.current = emptyComposerDraftSnapshot()
+    let restoreTimer: number | undefined
+    // A one-shot prefill (e.g. "Try in chat") takes precedence over a saved draft.
+    if (!useUIStore.getState().composerPrefill) {
+      const draft = useComposerDraftStore.getState().getDraft(id)
+      if (draft && threadComposerDraftHasContent(draft)) {
+        restoreTimer = window.setTimeout(() => {
+          applyComposerSnapshot({ text: draft.text, segments: draft.segments }, draft.files, draft.images)
+          latestDraftRef.current = {
+            text: draft.text,
+            segments: [...draft.segments],
+            files: [...draft.files],
+            images: [...draft.images]
+          }
+        }, 0)
+      }
+    }
+    return () => {
+      if (restoreTimer !== undefined) window.clearTimeout(restoreTimer)
+      const snapshot = latestDraftRef.current
+      if (threadComposerDraftHasContent(snapshot)) {
+        useComposerDraftStore.getState().saveDraft(id, snapshot)
+      } else {
+        useComposerDraftStore.getState().clearDraft(id)
+      }
+    }
+  }, [threadId, applyComposerSnapshot])
 
   const handleHistoryNavigate = useCallback((direction: 'previous' | 'next'): boolean => {
     if (showMentionPopover || showSlashPopover || showSkillPopover || goalPopoverOpen) {
@@ -711,9 +774,7 @@ export function InputComposer({
       else if (systemCommand.kind === 'compact') clearInput = await compactThreadContext()
       else clearInput = await consolidateThreadMemory()
       if (clearInput) {
-        richRef.current?.clear()
-        setImages([])
-        setFiles([])
+        resetComposerInput()
       }
       return
     }
@@ -722,9 +783,7 @@ export function InputComposer({
     if (goalCommand) {
       const clearInput = await executeGoalCommand(goalCommand)
       if (clearInput) {
-        richRef.current?.clear()
-        setImages([])
-        setFiles([])
+        resetComposerInput()
       }
       return
     }
@@ -747,9 +806,7 @@ export function InputComposer({
             sender: undefined
           })
         }
-        richRef.current?.clear()
-        setImages([])
-        setFiles([])
+        resetComposerInput()
       } catch (err) {
         console.error('turn/enqueue failed:', err)
         addToast(err instanceof Error ? err.message : String(err), 'error')
@@ -771,9 +828,7 @@ export function InputComposer({
       images: capturedImages
     })
     try {
-      richRef.current?.clear()
-      setImages([])
-      setFiles([])
+      resetComposerInput()
       await startTurnWithOptimisticUI({
         threadId,
         workspacePath: effectiveFileWorkspacePath,

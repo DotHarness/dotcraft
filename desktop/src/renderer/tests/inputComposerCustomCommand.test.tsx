@@ -8,6 +8,7 @@ import { useConversationStore } from '../stores/conversationStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
 import { useToastStore } from '../stores/toastStore'
+import { useComposerDraftStore } from '../stores/composerDraftStore'
 import type { ThreadGoal } from '../types/thread'
 import type { ConversationTurn } from '../types/conversation'
 
@@ -108,6 +109,7 @@ describe('InputComposer custom command expansion', () => {
     useConnectionStore.getState().reset()
     useThreadStore.getState().reset()
     useToastStore.setState({ toasts: [] })
+    useComposerDraftStore.setState({ draftsByThread: {} })
     useUIStore.setState({
       activeMainView: 'conversation',
       automationsTab: 'tasks',
