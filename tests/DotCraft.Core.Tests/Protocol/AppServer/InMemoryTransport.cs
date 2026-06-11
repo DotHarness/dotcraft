@@ -95,6 +95,12 @@ internal sealed class InMemoryTransport : IAppServerTransport
     /// </summary>
     public Func<string, object?, AppServerIncomingMessage>? ApprovalHandler { get; set; }
 
+    /// <summary>
+    /// Async variant of <see cref="ApprovalHandler"/> for tests that need to hold a
+    /// server-initiated request open before returning a client response.
+    /// </summary>
+    public Func<string, object?, Task<AppServerIncomingMessage>>? ApprovalHandlerAsync { get; set; }
+
     // -------------------------------------------------------------------------
     // IAppServerTransport
     // -------------------------------------------------------------------------
@@ -125,6 +131,9 @@ internal sealed class InMemoryTransport : IAppServerTransport
 
         // Write the approval request to outbound so tests can observe it
         await WriteMessageAsync(new { jsonrpc = "2.0", id, method, @params }, ct);
+
+        if (ApprovalHandlerAsync != null)
+            return await ApprovalHandlerAsync(method, @params);
 
         if (ApprovalHandler != null)
             return ApprovalHandler(method, @params);

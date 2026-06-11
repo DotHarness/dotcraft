@@ -26,6 +26,8 @@ internal sealed class ThreadRequestHandler(
     private const int MaxWidgetStateBytes = 8 * 1024;
     private const string ThreadListCursorKind = "thread-list";
     private const string ThreadReadCursorKind = "thread-read";
+    private readonly object _pendingInteractiveReplayLock = new();
+    private readonly Dictionary<string, Task> _pendingInteractiveReplayTasks = new(StringComparer.Ordinal);
 
     public void RegisterMethods(AppServerMethodTable table)
     {
@@ -462,7 +464,32 @@ internal sealed class ThreadRequestHandler(
 
     private void SchedulePendingInteractiveRequestReplay(string threadId)
     {
-        _ = ReplayPendingInteractiveRequestsAsync(threadId);
+        Task replayTask;
+        lock (_pendingInteractiveReplayLock)
+        {
+            if (_pendingInteractiveReplayTasks.TryGetValue(threadId, out var existingReplay)
+                && !existingReplay.IsCompleted)
+                return;
+
+            replayTask = Task.Run(() => ReplayPendingInteractiveRequestsAsync(threadId));
+            _pendingInteractiveReplayTasks[threadId] = replayTask;
+        }
+
+        _ = replayTask.ContinueWith(
+            task =>
+            {
+                lock (_pendingInteractiveReplayLock)
+                {
+                    if (_pendingInteractiveReplayTasks.TryGetValue(threadId, out var currentReplay)
+                        && ReferenceEquals(currentReplay, task))
+                    {
+                        _pendingInteractiveReplayTasks.Remove(threadId);
+                    }
+                }
+            },
+            CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
     }
 
     private async Task ReplayPendingInteractiveRequestsAsync(string threadId)
@@ -470,7 +497,7 @@ internal sealed class ThreadRequestHandler(
         try
         {
             var thread = await sessionService.GetThreadAsync(threadId, CancellationToken.None);
-            ReplayPendingInteractiveRequests(thread);
+            await ReplayPendingInteractiveRequestsAsync(thread);
         }
         catch (KeyNotFoundException)
         {
@@ -483,7 +510,7 @@ internal sealed class ThreadRequestHandler(
         }
     }
 
-    private void ReplayPendingInteractiveRequests(SessionThread thread)
+    private async Task ReplayPendingInteractiveRequestsAsync(SessionThread thread)
     {
         var sender = CreateInteractiveRequestSender();
         foreach (var turn in thread.Turns)
@@ -492,13 +519,13 @@ internal sealed class ThreadRequestHandler(
             {
                 foreach (var (approvalItem, approvalRequest) in FindPendingApprovalRequests(turn))
                 {
-                    _ = ReplayApprovalRequestAsync(sender, thread.Id, turn.Id, approvalItem.Id, approvalRequest);
+                    await ReplayApprovalRequestAsync(sender, thread.Id, turn.Id, approvalItem.Id, approvalRequest);
                 }
             }
             else if (turn.Status == TurnStatus.WaitingInput
                 && TryFindPendingUserInputRequest(turn, out var userInputItem, out var userInputRequest))
             {
-                _ = ReplayUserInputRequestAsync(sender, thread.Id, turn.Id, userInputItem.Id, userInputRequest);
+                await ReplayUserInputRequestAsync(sender, thread.Id, turn.Id, userInputItem.Id, userInputRequest);
             }
         }
     }
