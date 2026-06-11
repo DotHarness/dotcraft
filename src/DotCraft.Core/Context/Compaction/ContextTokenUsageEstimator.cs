@@ -12,60 +12,92 @@ internal static class ContextTokenUsageEstimator
         ContextUsageAnchor? persistedAnchor,
         long latestContextTokens,
         long? persistedDisplayTokens,
-        string? requestFingerprint = null)
+        string? requestFingerprint = null,
+        string? contextUsageFingerprint = null,
+        int? baseInstructionsTokenEstimate = null,
+        string? persistedDisplaySource = null,
+        bool persistedDisplayIsEstimate = false)
     {
         const bool requireRequestFingerprint = true;
-        if (ContextUsageTokenCounter.EstimateFromAnchor(
+        var latestProviderTokens = Math.Max(0, latestContextTokens);
+        if (ContextUsageTokenCounter.EstimateFromAnchorDetailed(
                 memoryAnchor,
                 history,
                 requestFingerprint,
-                requireRequestFingerprint) is { } memoryAnchored)
+                requireRequestFingerprint,
+                contextUsageFingerprint,
+                baseInstructionsTokenEstimate) is { } memoryAnchored)
         {
             return new ContextTokenUsageEstimate(
-                Math.Max(memoryAnchored, Math.Max(0, latestContextTokens)),
-                "memory_anchor",
+                Math.Max(memoryAnchored.Tokens, latestProviderTokens),
+                memoryAnchored.UsedBaseInstructionsAdjustment ? "prefix_adjusted_anchor" : "memory_anchor",
                 EligibleForAutoCompact: true,
                 IsEstimate: true);
         }
 
-        if (ContextUsageTokenCounter.EstimateFromAnchor(
+        if (ContextUsageTokenCounter.EstimateFromAnchorDetailed(
                 persistedAnchor,
                 history,
                 requestFingerprint,
-                requireRequestFingerprint) is { } persistedAnchored)
+                requireRequestFingerprint,
+                contextUsageFingerprint,
+                baseInstructionsTokenEstimate) is { } persistedAnchored)
         {
             return new ContextTokenUsageEstimate(
-                Math.Max(persistedAnchored, Math.Max(0, latestContextTokens)),
-                "persisted_anchor",
+                Math.Max(persistedAnchored.Tokens, latestProviderTokens),
+                persistedAnchored.UsedBaseInstructionsAdjustment ? "prefix_adjusted_anchor" : "persisted_anchor",
                 EligibleForAutoCompact: true,
                 IsEstimate: true);
         }
 
-        var estimatedTokens = MessageTokenEstimator.Estimate(history);
-        var bestTokens = (long)estimatedTokens;
-        var source = "estimate";
-        var isEstimate = true;
-
-        if (latestContextTokens > bestTokens)
+        if (latestProviderTokens > 0)
         {
-            bestTokens = latestContextTokens;
-            source = "provider_context";
-            isEstimate = false;
+            return new ContextTokenUsageEstimate(
+                latestProviderTokens,
+                "provider_context",
+                EligibleForAutoCompact: true,
+                IsEstimate: false);
         }
 
-        if (bestTokens <= 0 && persistedDisplayTokens is > 0)
+        var estimatedTokens = (long)MessageTokenEstimator.Estimate(history);
+        var hasProviderLineage = memoryAnchor is not null
+            || persistedAnchor is not null
+            || IsProviderContextSource(persistedDisplaySource, persistedDisplayIsEstimate);
+        if (persistedDisplayTokens is > 0 && IsProviderContextSource(persistedDisplaySource, persistedDisplayIsEstimate))
+        {
+            return new ContextTokenUsageEstimate(
+                persistedDisplayTokens.Value,
+                "persisted_provider_context",
+                EligibleForAutoCompact: false,
+                IsEstimate: false);
+        }
+
+        if (hasProviderLineage)
+        {
+            return new ContextTokenUsageEstimate(
+                estimatedTokens,
+                "estimate_unverified_provider_lineage",
+                EligibleForAutoCompact: false,
+                IsEstimate: true);
+        }
+
+        if (estimatedTokens <= 0 && persistedDisplayTokens is > 0)
         {
             return new ContextTokenUsageEstimate(
                 persistedDisplayTokens.Value,
                 "persisted_display",
                 EligibleForAutoCompact: false,
-                IsEstimate: false);
+                IsEstimate: persistedDisplayIsEstimate);
         }
 
         return new ContextTokenUsageEstimate(
-            bestTokens,
-            source,
+            estimatedTokens,
+            "estimate",
             EligibleForAutoCompact: true,
-            IsEstimate: isEstimate);
+            IsEstimate: true);
     }
+
+    private static bool IsProviderContextSource(string? source, bool isEstimate) =>
+        !isEstimate
+        && string.Equals(source, "provider_context", StringComparison.OrdinalIgnoreCase);
 }

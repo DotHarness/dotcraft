@@ -33,6 +33,15 @@ public sealed record PromptRequestSnapshot
     /// <summary>Fingerprint of request-shape fields outside the message list.</summary>
     public string? RequestFingerprint { get; init; }
 
+    /// <summary>
+    /// Fingerprint of context-usage-relevant request-shape fields, excluding
+    /// base instructions so prompt text drift can be accounted for as a token delta.
+    /// </summary>
+    public string? ContextUsageFingerprint { get; init; }
+
+    /// <summary>Rough token estimate for <see cref="BaseInstructions"/>.</summary>
+    public int? BaseInstructionsTokenEstimate { get; init; }
+
     /// <summary>Final model-visible tools sent to the provider for this sampling request.</summary>
     public required IReadOnlyList<AITool> Tools { get; init; }
 
@@ -94,11 +103,22 @@ public sealed record PromptRequestSnapshot
             .ToArray();
 
         var toolFingerprint = PromptRequestFingerprints.ComputeToolFingerprint(tools);
+        var baseInstructionsFingerprint = PromptRequestFingerprints.ComputeTextFingerprint(baseInstructions);
         var requestFingerprint = PromptRequestFingerprints.ComputeRequestFingerprint(
             providerId,
             options?.ModelId,
             mode,
-            PromptRequestFingerprints.ComputeTextFingerprint(baseInstructions),
+            baseInstructionsFingerprint,
+            toolFingerprint,
+            options?.Reasoning,
+            options?.ResponseFormat,
+            options?.MaxOutputTokens,
+            options?.AllowMultipleToolCalls,
+            options?.ToolMode);
+        var contextUsageFingerprint = PromptRequestFingerprints.ComputeContextUsageFingerprint(
+            providerId,
+            options?.ModelId,
+            mode,
             toolFingerprint,
             options?.Reasoning,
             options?.ResponseFormat,
@@ -111,12 +131,14 @@ public sealed record PromptRequestSnapshot
             ProviderId = providerId,
             ModelId = options?.ModelId,
             BaseInstructions = baseInstructions,
-            BaseInstructionsFingerprint = PromptRequestFingerprints.ComputeTextFingerprint(baseInstructions),
+            BaseInstructionsFingerprint = baseInstructionsFingerprint,
             Messages = capturedMessages,
             MessageFingerprint = MessageTokenEstimator.ComputePrefixFingerprint(capturedMessages, capturedMessages.Length),
             Tools = tools,
             ToolFingerprint = toolFingerprint,
             RequestFingerprint = requestFingerprint,
+            ContextUsageFingerprint = contextUsageFingerprint,
+            BaseInstructionsTokenEstimate = MessageTokenEstimator.RoughTokenCount(baseInstructions),
             Reasoning = options?.Reasoning,
             ResponseFormat = options?.ResponseFormat,
             MaxOutputTokens = options?.MaxOutputTokens,
@@ -178,6 +200,34 @@ public static class PromptRequestFingerprints
             modelId ?? string.Empty,
             mode ?? string.Empty,
             baseInstructionsFingerprint ?? string.Empty,
+            toolFingerprint ?? string.Empty,
+            NormalizeOption(reasoning),
+            NormalizeOption(responseFormat),
+            maxOutputTokens,
+            allowMultipleToolCalls,
+            NormalizeOption(toolMode));
+        return HashString(JsonSerializer.Serialize(normalized, JsonOptions));
+    }
+
+    /// <summary>
+    /// Computes a SHA-256 fingerprint for request-shape fields that affect
+    /// context usage independently from the base instruction text.
+    /// </summary>
+    public static string ComputeContextUsageFingerprint(
+        string? providerId,
+        string? modelId,
+        string? mode,
+        string? toolFingerprint,
+        ReasoningOptions? reasoning,
+        ChatResponseFormat? responseFormat,
+        int? maxOutputTokens,
+        bool? allowMultipleToolCalls,
+        ChatToolMode? toolMode)
+    {
+        var normalized = new ContextUsageFingerprintEntry(
+            providerId ?? string.Empty,
+            modelId ?? string.Empty,
+            mode ?? string.Empty,
             toolFingerprint ?? string.Empty,
             NormalizeOption(reasoning),
             NormalizeOption(responseFormat),
@@ -311,6 +361,17 @@ public static class PromptRequestFingerprints
         string ModelId,
         string Mode,
         string BaseInstructionsFingerprint,
+        string ToolFingerprint,
+        string? Reasoning,
+        string? ResponseFormat,
+        int? MaxOutputTokens,
+        bool? AllowMultipleToolCalls,
+        string? ToolMode);
+
+    private sealed record ContextUsageFingerprintEntry(
+        string ProviderId,
+        string ModelId,
+        string Mode,
         string ToolFingerprint,
         string? Reasoning,
         string? ResponseFormat,

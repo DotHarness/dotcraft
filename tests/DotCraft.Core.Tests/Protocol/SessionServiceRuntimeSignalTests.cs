@@ -648,6 +648,63 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
         Assert.Equal(1, context.RelatedSubjectCount);
     }
 
+    [Fact]
+    public async Task SubmitInputAsync_BaseInstructionDriftKeepsProviderAnchorForAutoCompactDecision()
+    {
+        const string oldInstructions = "stable memory";
+        var newInstructions = "stable memory\n" + new string('m', 1_000);
+        var largePersistedUserMessage = new string('u', 480_000);
+
+        static void ConfigureRegressionWindow(AppConfig config)
+        {
+            config.Memory.AutoConsolidateEnabled = false;
+            config.CompactionContextWindowExplicit = true;
+            config.Compaction.ContextWindow = 130_000;
+            config.Compaction.SummaryReserveTokens = 0;
+            config.Compaction.AutoCompactBufferTokens = 20_000;
+            config.Compaction.WarningBufferTokens = 500;
+            config.Compaction.ErrorBufferTokens = 250;
+            config.Compaction.KeepRecentMinTokens = 1;
+            config.Compaction.KeepRecentMinGroups = 1;
+            config.Compaction.KeepRecentMaxTokens = 1_000;
+            config.Compaction.MicrocompactEnabled = false;
+        }
+
+        IChatClient seedChatClient = new FakeChatClient(
+        [
+            new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("seed ok")]),
+            UsageUpdate(requestIndex: 1, input: 103_000, output: 0, cachedInput: 100_000)
+        ]);
+        await using var seedFactory = CreateAgentFactory(seedChatClient, configureConfig: ConfigureRegressionWindow);
+        var seedService = CreateStreamingServiceWithInstructions(seedFactory, seedChatClient, oldInstructions);
+        var thread = await seedService.CreateThreadAsync(MakeIdentity());
+
+        await DrainAsync(seedService.SubmitInputAsync(thread.Id, [new TextContent(largePersistedUserMessage)]));
+
+        var store = new ThreadStore(_tempDir);
+        var persistedAnchor = store.LoadContextUsageAnchor(thread.Id);
+        Assert.NotNull(persistedAnchor);
+        Assert.Equal(103_000, persistedAnchor!.Tokens);
+        Assert.NotNull(persistedAnchor.ContextUsageFingerprint);
+        Assert.NotNull(persistedAnchor.BaseInstructionsTokenEstimate);
+
+        IChatClient followUpChatClient = new FakeChatClient(
+        [
+            new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("follow ok")])
+        ]);
+        await using var followUpFactory = CreateAgentFactory(
+            followUpChatClient,
+            configureConfig: ConfigureRegressionWindow,
+            compactionChatClient: new SummaryChatClient("<summary>unexpected compact</summary>"));
+        var followUpService = CreateStreamingServiceWithInstructions(followUpFactory, followUpChatClient, newInstructions);
+        await followUpService.ResumeThreadAsync(thread.Id);
+
+        var events = await CollectAsync(followUpService.SubmitInputAsync(thread.Id, [new TextContent("continue")]));
+
+        Assert.DoesNotContain(events, evt => IsSystemEvent(evt, "compacting"));
+        Assert.DoesNotContain(events, evt => IsSystemEvent(evt, "compacted"));
+    }
+
     private static ChatResponseUpdate UsageUpdate(int requestIndex, long input, long output, long cachedInput)
         => new()
         {
@@ -1310,6 +1367,24 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
             new SessionGate(),
             traceCollector: traceCollector,
             tokenUsageStore: tokenUsageStore);
+    }
+
+    private SessionService CreateStreamingServiceWithInstructions(
+        AgentFactory agentFactory,
+        IChatClient chatClient,
+        string instructions)
+    {
+        var defaultAgent = new StreamingFunctionInvokingChatClient(chatClient).AsAIAgent(
+            new ChatClientAgentOptions
+            {
+                UseProvidedChatClientAsIs = true,
+                ChatOptions = new ChatOptions { Instructions = instructions }
+            });
+        return new SessionService(
+            agentFactory,
+            defaultAgent,
+            new SessionPersistenceService(new ThreadStore(_tempDir)),
+            new SessionGate());
     }
 
     private AgentFactory CreateAgentFactory(

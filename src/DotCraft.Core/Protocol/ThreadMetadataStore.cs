@@ -728,7 +728,8 @@ internal sealed class ThreadMetadataStore(StateRuntime stateRuntime)
         using var connection = stateRuntime.OpenConnection();
         using var command = connection.CreateCommand();
         command.CommandText = """
-            SELECT anchor_tokens, message_count, prefix_fingerprint, request_fingerprint, anchor_boundary
+            SELECT anchor_tokens, message_count, prefix_fingerprint, request_fingerprint,
+                   anchor_boundary, context_fingerprint, base_instructions_tokens
             FROM thread_context_usage
             WHERE thread_id = $thread_id
             LIMIT 1
@@ -747,6 +748,8 @@ internal sealed class ThreadMetadataStore(StateRuntime stateRuntime)
             MessageCount: reader.GetInt32(1),
             PrefixFingerprint: fingerprint,
             RequestFingerprint: reader.IsDBNull(3) ? null : reader.GetString(3),
+            ContextUsageFingerprint: reader.IsDBNull(5) ? null : reader.GetString(5),
+            BaseInstructionsTokenEstimate: reader.IsDBNull(6) ? null : reader.GetInt32(6),
             BoundaryKind: reader.IsDBNull(4) ? null : reader.GetString(4));
     }
 
@@ -766,17 +769,21 @@ internal sealed class ThreadMetadataStore(StateRuntime stateRuntime)
                 message_count,
                 prefix_fingerprint,
                 request_fingerprint,
+                context_fingerprint,
+                base_instructions_tokens,
                 anchor_boundary,
                 usage_source,
                 usage_is_estimate,
                 updated_at)
-            VALUES ($thread_id, $tokens, NULL, NULL, NULL, NULL, NULL, $usage_source, $usage_is_estimate, $updated_at)
+            VALUES ($thread_id, $tokens, NULL, NULL, NULL, NULL, NULL, NULL, NULL, $usage_source, $usage_is_estimate, $updated_at)
             ON CONFLICT(thread_id) DO UPDATE SET
                 context_usage_tokens = excluded.context_usage_tokens,
                 anchor_tokens = NULL,
                 message_count = NULL,
                 prefix_fingerprint = NULL,
                 request_fingerprint = NULL,
+                context_fingerprint = NULL,
+                base_instructions_tokens = NULL,
                 anchor_boundary = NULL,
                 usage_source = excluded.usage_source,
                 usage_is_estimate = excluded.usage_is_estimate,
@@ -810,6 +817,8 @@ internal sealed class ThreadMetadataStore(StateRuntime stateRuntime)
                 message_count,
                 prefix_fingerprint,
                 request_fingerprint,
+                context_fingerprint,
+                base_instructions_tokens,
                 anchor_boundary,
                 usage_source,
                 usage_is_estimate,
@@ -821,6 +830,8 @@ internal sealed class ThreadMetadataStore(StateRuntime stateRuntime)
                 $message_count,
                 $prefix_fingerprint,
                 $request_fingerprint,
+                $context_fingerprint,
+                $base_instructions_tokens,
                 $anchor_boundary,
                 $usage_source,
                 $usage_is_estimate,
@@ -831,6 +842,8 @@ internal sealed class ThreadMetadataStore(StateRuntime stateRuntime)
                 message_count = excluded.message_count,
                 prefix_fingerprint = excluded.prefix_fingerprint,
                 request_fingerprint = excluded.request_fingerprint,
+                context_fingerprint = excluded.context_fingerprint,
+                base_instructions_tokens = excluded.base_instructions_tokens,
                 anchor_boundary = excluded.anchor_boundary,
                 usage_source = excluded.usage_source,
                 usage_is_estimate = excluded.usage_is_estimate,
@@ -842,6 +855,10 @@ internal sealed class ThreadMetadataStore(StateRuntime stateRuntime)
         command.Parameters.AddWithValue("$message_count", Math.Max(0, anchor.MessageCount));
         command.Parameters.AddWithValue("$prefix_fingerprint", (object?)anchor.PrefixFingerprint ?? DBNull.Value);
         command.Parameters.AddWithValue("$request_fingerprint", (object?)anchor.RequestFingerprint ?? DBNull.Value);
+        command.Parameters.AddWithValue("$context_fingerprint", (object?)anchor.ContextUsageFingerprint ?? DBNull.Value);
+        command.Parameters.AddWithValue("$base_instructions_tokens", anchor.BaseInstructionsTokenEstimate.HasValue
+            ? (object)Math.Max(0, anchor.BaseInstructionsTokenEstimate.Value)
+            : DBNull.Value);
         command.Parameters.AddWithValue("$anchor_boundary", (object?)anchor.BoundaryKind ?? DBNull.Value);
         command.Parameters.AddWithValue("$usage_source", (object?)source ?? DBNull.Value);
         command.Parameters.AddWithValue("$usage_is_estimate", isEstimate ? 1 : 0);

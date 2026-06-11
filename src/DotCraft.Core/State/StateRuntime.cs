@@ -199,6 +199,8 @@ public sealed class StateRuntime
                     message_count INTEGER,
                     prefix_fingerprint TEXT,
                     request_fingerprint TEXT,
+                    context_fingerprint TEXT,
+                    base_instructions_tokens INTEGER,
                     anchor_boundary TEXT,
                     usage_source TEXT,
                     usage_is_estimate INTEGER NOT NULL DEFAULT 0,
@@ -451,6 +453,8 @@ public sealed class StateRuntime
             EnsureColumn(connection, "thread_context_usage", "message_count", "INTEGER");
             EnsureColumn(connection, "thread_context_usage", "prefix_fingerprint", "TEXT");
             EnsureColumn(connection, "thread_context_usage", "request_fingerprint", "TEXT");
+            EnsureColumn(connection, "thread_context_usage", "context_fingerprint", "TEXT");
+            EnsureColumn(connection, "thread_context_usage", "base_instructions_tokens", "INTEGER");
             EnsureColumn(connection, "thread_context_usage", "anchor_boundary", "TEXT");
             EnsureColumn(connection, "thread_context_usage", "usage_source", "TEXT");
             EnsureColumn(connection, "thread_context_usage", "usage_is_estimate", "INTEGER NOT NULL DEFAULT 0");

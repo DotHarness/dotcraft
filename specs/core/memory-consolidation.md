@@ -72,6 +72,7 @@ Consolidation writes two memory layers:
 - `HISTORY.md` is append-only. Each consolidation attempt may append one timestamped paragraph describing key events, decisions, and topics.
 - If `HISTORY.md` does not exist when a consolidation attempt starts, DotCraft creates an empty file before invoking the maintenance agent. This bootstrap creation does not count as a successful memory write.
 - A tool-executing consolidation agent may directly update `MEMORY.md` and append `HISTORY.md`, but it must not read, search, write, or edit files outside those two memory files. Any attempted path traversal, absolute-path escape, or reparse-point escape must be denied before tool invocation.
+- A successful consolidation may mark memory-derived prompt pages dirty so they can be re-read after their stable-page lifetime permits it. Any resulting base-instructions drift is accounted for by Session Core's context usage accounting rules and must not be treated as a full-history estimate trigger.
 
 The operation is best-effort. The system should avoid corrupting existing memory files; if a consolidation attempt cannot produce a valid update, it should leave existing memory unchanged.
 

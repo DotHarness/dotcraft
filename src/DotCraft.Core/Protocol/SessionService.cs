@@ -560,6 +560,8 @@ public sealed partial class SessionService(
             anchorMessageCount.Value,
             fingerprint,
             snapshot.RequestFingerprint,
+            snapshot.ContextUsageFingerprint,
+            snapshot.BaseInstructionsTokenEstimate,
             ContextUsageAnchorBoundary.Request);
         if (runtime != null)
             runtime.ContextUsageAnchor = anchor;
@@ -572,15 +574,19 @@ public sealed partial class SessionService(
         long latestContextTokens,
         PromptRequestSnapshot? requestSnapshot = null)
     {
-        var persistedTokens = persistence.LoadContextUsageTokens(threadId);
+        var persistedSnapshot = persistence.LoadContextUsageSnapshot(threadId);
         var persistedAnchor = persistence.LoadContextUsageAnchor(threadId);
         return ContextTokenUsageEstimator.Estimate(
             modelVisibleHistory,
             TryGetInMemoryContextUsageAnchor(threadId),
             persistedAnchor,
             latestContextTokens,
-            persistedTokens,
-            requestSnapshot?.RequestFingerprint);
+            persistedSnapshot?.Tokens,
+            requestSnapshot?.RequestFingerprint,
+            requestSnapshot?.ContextUsageFingerprint,
+            requestSnapshot?.BaseInstructionsTokenEstimate,
+            persistedSnapshot?.Source,
+            persistedSnapshot?.IsEstimate ?? false);
     }
 
     private bool GoalsEnabled => Goals.Enabled;

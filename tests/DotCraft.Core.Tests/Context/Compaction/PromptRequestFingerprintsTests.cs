@@ -23,6 +23,67 @@ public sealed class PromptRequestFingerprintsTests
             PromptRequestFingerprints.ComputeToolFingerprint([right]));
     }
 
+    [Fact]
+    public void Capture_ContextUsageFingerprintExcludesBaseInstructions()
+    {
+        var tool = new SchemaTool("Inspect", """{"type":"object"}""");
+        var messages = new List<ChatMessage> { new(ChatRole.User, "hello") };
+
+        var first = PromptRequestSnapshot.Capture(
+            messages,
+            new ChatOptions
+            {
+                Instructions = "short memory",
+                ModelId = "gpt-test",
+                Tools = [tool]
+            },
+            providerId: "openai",
+            mode: "agent");
+        var second = PromptRequestSnapshot.Capture(
+            messages,
+            new ChatOptions
+            {
+                Instructions = "short memory plus newly consolidated durable memory",
+                ModelId = "gpt-test",
+                Tools = [tool]
+            },
+            providerId: "openai",
+            mode: "agent");
+
+        Assert.NotEqual(first.RequestFingerprint, second.RequestFingerprint);
+        Assert.Equal(first.ContextUsageFingerprint, second.ContextUsageFingerprint);
+        Assert.NotEqual(first.BaseInstructionsTokenEstimate, second.BaseInstructionsTokenEstimate);
+    }
+
+    [Fact]
+    public void Capture_ContextUsageFingerprintIncludesToolShape()
+    {
+        var messages = new List<ChatMessage> { new(ChatRole.User, "hello") };
+
+        var first = PromptRequestSnapshot.Capture(
+            messages,
+            new ChatOptions
+            {
+                Instructions = "same memory",
+                ModelId = "gpt-test",
+                Tools = [new SchemaTool("Inspect", """{"type":"object"}""")]
+            },
+            providerId: "openai",
+            mode: "agent");
+        var second = PromptRequestSnapshot.Capture(
+            messages,
+            new ChatOptions
+            {
+                Instructions = "same memory",
+                ModelId = "gpt-test",
+                Tools = [new SchemaTool("Inspect", """{"type":"object","properties":{"path":{"type":"string"}}}""")]
+            },
+            providerId: "openai",
+            mode: "agent");
+
+        Assert.NotEqual(first.ContextUsageFingerprint, second.ContextUsageFingerprint);
+    }
+
     private sealed class SchemaTool : AIFunction
     {
         private readonly JsonElement _schema;

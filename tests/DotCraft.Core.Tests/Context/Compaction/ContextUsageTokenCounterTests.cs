@@ -89,12 +89,37 @@ public sealed class ContextUsageTokenCounterTests
             messages,
             memoryAnchor: null,
             persistedAnchor: null,
-            latestContextTokens: 10,
+            latestContextTokens: 0,
             persistedDisplayTokens: 20,
             requestFingerprint: "request-a");
 
         Assert.Equal("estimate", estimate.Source);
         Assert.Equal(rough, estimate.Tokens);
+    }
+
+    [Fact]
+    public void ContextTokenUsageEstimator_UsesLatestProviderContextBeforeRoughEstimate()
+    {
+        var messages = new List<ChatMessage>
+        {
+            new(ChatRole.User, new string('u', 240_000)),
+            new(ChatRole.Assistant, new string('a', 240_000))
+        };
+        var rough = MessageTokenEstimator.Estimate(messages);
+        Assert.True(rough > 103_000);
+
+        var estimate = ContextTokenUsageEstimator.Estimate(
+            messages,
+            memoryAnchor: null,
+            persistedAnchor: null,
+            latestContextTokens: 103_000,
+            persistedDisplayTokens: 0,
+            requestFingerprint: "request-a");
+
+        Assert.Equal("provider_context", estimate.Source);
+        Assert.Equal(103_000, estimate.Tokens);
+        Assert.True(estimate.EligibleForAutoCompact);
+        Assert.False(estimate.IsEstimate);
     }
 
     [Fact]
@@ -155,6 +180,99 @@ public sealed class ContextUsageTokenCounterTests
             messages,
             requestFingerprint: "request-a",
             requireRequestFingerprint: true));
+    }
+
+    [Fact]
+    public void EstimateFromAnchor_AllowsBaseInstructionsDrift_WhenContextUsageFingerprintMatches()
+    {
+        var messages = new List<ChatMessage>
+        {
+            new(ChatRole.User, "first user"),
+            new(ChatRole.Assistant, "first assistant"),
+            new(ChatRole.User, new string('d', 400))
+        };
+        var anchor = new ContextUsageAnchor(
+            Tokens: 103_000,
+            MessageCount: 2,
+            PrefixFingerprint: MessageTokenEstimator.ComputePrefixFingerprint(messages, 2),
+            RequestFingerprint: "request-before-memory",
+            ContextUsageFingerprint: "context-shape",
+            BaseInstructionsTokenEstimate: 1_000);
+
+        var estimate = ContextUsageTokenCounter.EstimateFromAnchorDetailed(
+            anchor,
+            messages,
+            requestFingerprint: "request-after-memory",
+            requireRequestFingerprint: true,
+            contextUsageFingerprint: "context-shape",
+            baseInstructionsTokenEstimate: 1_125);
+
+        Assert.NotNull(estimate);
+        Assert.True(estimate!.UsedBaseInstructionsAdjustment);
+        Assert.Equal(
+            103_000 + 125 + MessageTokenEstimator.EstimateDelta([messages[2]]),
+            estimate.Tokens);
+    }
+
+    [Fact]
+    public void EstimateFromAnchor_RejectsBaseInstructionsAdjustment_WhenContextUsageFingerprintDiffers()
+    {
+        var messages = new List<ChatMessage>
+        {
+            new(ChatRole.User, "first user"),
+            new(ChatRole.Assistant, "first assistant")
+        };
+        var anchor = new ContextUsageAnchor(
+            Tokens: 103_000,
+            MessageCount: 2,
+            PrefixFingerprint: MessageTokenEstimator.ComputePrefixFingerprint(messages, 2),
+            RequestFingerprint: "request-before-tool-change",
+            ContextUsageFingerprint: "context-old",
+            BaseInstructionsTokenEstimate: 1_000);
+
+        var estimate = ContextUsageTokenCounter.EstimateFromAnchorDetailed(
+            anchor,
+            messages,
+            requestFingerprint: "request-after-tool-change",
+            requireRequestFingerprint: true,
+            contextUsageFingerprint: "context-new",
+            baseInstructionsTokenEstimate: 1_125);
+
+        Assert.Null(estimate);
+    }
+
+    [Fact]
+    public void ContextTokenUsageEstimator_UsesPersistedProviderFallbackWithoutAutoCompact_WhenLegacyAnchorCannotBeVerified()
+    {
+        var messages = new List<ChatMessage>
+        {
+            new(ChatRole.User, new string('u', 240_000)),
+            new(ChatRole.Assistant, new string('a', 240_000))
+        };
+        var anchor = new ContextUsageAnchor(
+            Tokens: 103_000,
+            MessageCount: 2,
+            PrefixFingerprint: MessageTokenEstimator.ComputePrefixFingerprint(messages, 2),
+            RequestFingerprint: "request-before-memory");
+        var rough = MessageTokenEstimator.Estimate(messages);
+        Assert.True(rough > 103_000);
+
+        var estimate = ContextTokenUsageEstimator.Estimate(
+            messages,
+            memoryAnchor: null,
+            persistedAnchor: anchor,
+            latestContextTokens: 0,
+            persistedDisplayTokens: 103_000,
+            requestFingerprint: "request-after-memory",
+            contextUsageFingerprint: "context-shape",
+            baseInstructionsTokenEstimate: 1_125,
+            persistedDisplaySource: "provider_context",
+            persistedDisplayIsEstimate: false);
+
+        Assert.Equal("persisted_provider_context", estimate.Source);
+        Assert.Equal(103_000, estimate.Tokens);
+        Assert.False(estimate.EligibleForAutoCompact);
+        Assert.False(estimate.IsEstimate);
     }
 
     [Fact]

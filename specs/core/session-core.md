@@ -1003,6 +1003,11 @@ SessionEvent
 
     The effective context window is evaluated for the thread's effective model when `Compaction.ContextWindow` is inferred from the model catalog; a thread-level model override therefore changes compaction thresholds for that thread.
 
+  - **Context usage accounting**:
+    - `ContextUsageSnapshot.tokens` is server-authoritative context-window occupancy, separate from cumulative billing usage. Session Core chooses sources in this order: latest provider usage snapshot; provider usage anchor plus model-visible messages appended after the anchored request; prefix-adjusted anchor when the anchored message prefix and non-instruction request shape still match; persisted provider-context display fallback; and finally full model-visible history estimate.
+    - Strict prompt request fingerprints are for prompt-cache and maintenance-fork safety. `PromptDriftDetected`, including drift caused by re-reading dirty memory pages, must not by itself force context usage to fall back to full-history estimation. If only base instructions changed, Session Core adjusts the anchored count by the estimated base-instructions token delta.
+    - Auto-compaction may trigger from provider context, a valid provider anchor, a prefix-adjusted anchor, or a full-history estimate only when no provider usage lineage exists. When a provider anchor or provider context snapshot exists but cannot be verified, full-history estimates are UI/diagnostic fallbacks and must not trigger auto-compaction.
+
   - **Defined `kind` values**:
 
     | Kind | Meaning | Timing |

@@ -133,7 +133,9 @@ public sealed class ThreadStoreTests : IDisposable
             Tokens: 1234,
             MessageCount: 2,
             PrefixFingerprint: "abc123",
-            RequestFingerprint: "request-a");
+            RequestFingerprint: "request-a",
+            ContextUsageFingerprint: "context-a",
+            BaseInstructionsTokenEstimate: 321);
 
         await _store.SaveContextUsageAnchorAsync(
             thread.Id,

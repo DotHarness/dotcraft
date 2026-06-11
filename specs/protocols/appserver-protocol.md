@@ -891,7 +891,7 @@ When paged, the first `thread/read` page returns the most recent `turnLimit` tur
 
 The `Thread` wire object may include `plan?: PlanSnapshot | null`. When present, it is the current persisted plan for that exact thread from `thread_plans`, using the same `title`, `overview`, `content`, and `todos` shape as `plan/updated`. Clients should use this field to restore plan/todo UI after switching threads.
 
-**`contextUsage` field**: When the server has persisted context-window occupancy for the thread, the returned `Thread` carries an optional `contextUsage` snapshot for the desktop token ring. This snapshot is not billing usage and must not be derived from cumulative `Turn.tokenUsage` totals. Its token count represents context pressure from the latest usable provider context snapshot (input/cache/output where the provider reports it) plus an estimate for model-visible messages appended after that snapshot; after compaction, rollback, or another history replacement, old anchors are invalid and the snapshot falls back to the replacement history estimate until the next provider usage arrives:
+**`contextUsage` field**: When the server has persisted context-window occupancy for the thread, the returned `Thread` carries an optional `contextUsage` snapshot for the desktop token ring. This snapshot is not billing usage and must not be derived from cumulative `Turn.tokenUsage` totals. Its token count is server-authoritative and follows Session Core's context usage accounting order: provider context, anchored post-request delta, prefix-adjusted anchor for base-instruction drift, persisted provider fallback, then full-history estimate when no provider lineage is available. After compaction, rollback, or another history replacement, old anchors are invalid and the snapshot falls back to the replacement history estimate until the next provider usage arrives:
 
 ```
 "contextUsage": {
@@ -901,12 +901,12 @@ The `Thread` wire object may include `plan?: PlanSnapshot | null`. When present,
   "warningThreshold": number,      // Token count at which compactWarning starts firing
   "errorThreshold": number,        // Token count at which compactError starts firing
   "percentLeft": number,           // Fraction of the context window still available (0.0 - 1.0)
-  "source": string,                // Optional diagnostic source, e.g. "provider_context" or "estimate"
+  "source": string,                // Optional diagnostic source, e.g. "provider_context" or "estimate"; extensible
   "isEstimate": boolean            // Optional; true when tokens are estimated rather than provider-reported
 }
 ```
 
-The same snapshot is also embedded on `thread/start` and `thread/resume` responses (and their matching `thread/started` / `thread/resumed` notifications) so clients can seed the token ring without an extra round-trip. When `Compaction.ContextWindow` is inferred from the model catalog, `contextWindow` is computed from the thread's effective model, including `Thread.configuration.model` overrides. Freshly-created threads initialize persisted context usage to `tokens = 0`; the field is omitted only for older threads or hosts that have no persisted context usage state yet.
+The same snapshot is also embedded on `thread/start` and `thread/resume` responses (and their matching `thread/started` / `thread/resumed` notifications) so clients can seed the token ring without an extra round-trip. Clients must prefer server-provided `contextUsage` over local token or ring estimates and must not independently enter compacting state from local estimates when the server snapshot is present. When `Compaction.ContextWindow` is inferred from the model catalog, `contextWindow` is computed from the thread's effective model, including `Thread.configuration.model` overrides. Freshly-created threads initialize persisted context usage to `tokens = 0`; the field is omitted only for older threads or hosts that have no persisted context usage state yet.
 
 Persisted context usage is display state. A stored token count without a matching provider anchor for the current model-visible history and request shape must not by itself trigger automatic compaction.
 
@@ -2250,7 +2250,7 @@ Emitted when a system-level maintenance operation occurs during a Turn's post-pr
 | `message` | string? | Compatibility alias for `fallbackText`. New clients should prefer `messageKey` + `params` + `fallbackText`. |
 | `percentLeft` | number? | Fraction of the effective context window still unused (`0.0`-`1.0`). Populated for compaction-related events. |
 | `tokenCount` | number? | Current estimated prompt token usage. Populated for compaction-related events. |
-| `contextUsage` | object? | Full `ContextUsageSnapshot` on compaction-related events when available. Clients should prefer it over `tokenCount` / `percentLeft` when updating context-window UI because it includes thresholds and the exact server-side token source. |
+| `contextUsage` | object? | Full `ContextUsageSnapshot` on compaction-related events when available. Clients should prefer it over `tokenCount` / `percentLeft` when updating context-window UI because it includes thresholds and the exact server-side token source. `source` is diagnostic and extensible; clients should not compute local replacements or compacting state when this snapshot is present. |
 
 **Defined `kind` values**:
 
