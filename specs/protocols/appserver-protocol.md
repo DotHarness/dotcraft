@@ -720,7 +720,7 @@ The server emits a `thread/resumed` notification.
 
 When `dynamicTools` is non-empty, the server validates the specs using the same rules as `thread/start.dynamicTools`, replaces any existing dynamic-tool binding for the thread with the current transport connection, and refreshes the thread agent before the next turn can use the tools. This lets reconnecting or batch clients resume a persisted thread while taking over its thread-scoped callback tools from an older closed connection.
 
-If the resumed thread contains an unresolved interactive request in a `waitingApproval` or `waitingInput` turn, the server must re-deliver the corresponding server-to-client request (`item/approval/request` or `item/tool/requestUserInput`) to the resuming connection when that connection declared the required capability. This replay uses the original logical `requestId`; the JSON-RPC request envelope may receive a fresh transport `id`. Replaying a pending request is idempotent per connection and must not create duplicate prompts for the same `method + threadId + turnId + requestId`.
+If the resumed thread contains unresolved interactive requests in a `waitingApproval` or `waitingInput` turn, the server must re-deliver the corresponding server-to-client requests (`item/approval/request` or `item/tool/requestUserInput`) to the resuming connection when that connection declared the required capability. This replay uses the original logical `requestId`; the JSON-RPC request envelope may receive a fresh transport `id`. Replaying a pending request is idempotent per connection and must not create duplicate prompts for the same `method + threadId + turnId + requestId`. When replaying multiple unresolved approval requests for the same thread, the server must start them serially: the next `item/approval/request` is sent only after the previous replayed approval request has resolved or fallen back, so the per-request reply timeout does not elapse while a prompt is only queued behind another approval in the client UI.
 
 **Example**:
 
@@ -2487,7 +2487,7 @@ If a client declared `capabilities.approvalSupport = false` during initializatio
 
 The same non-interactive fallback may also be applied when an approval-capable client disconnects, the approval request cannot be written to the transport, or the client times out before replying. Cancelling a passive `thread/subscribe` subscription is not itself a rejection, timeout, or disconnect; it must not resolve an outstanding approval request.
 
-When a client later resumes or subscribes to a thread that is still waiting for the same unresolved approval, the server replays `item/approval/request` with the original `requestId` so the client can render an actionable approval UI again.
+When a client later resumes or subscribes to a thread that is still waiting for unresolved approvals, the server replays `item/approval/request` with the original `requestId` values so the client can render actionable approval UI again. Multiple replayed approvals are started serially per thread; a later approval's server-to-client reply timeout begins only when that later request is actually sent.
 
 ### 7.5 Model-Initiated User Input Requests
 

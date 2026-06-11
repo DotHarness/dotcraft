@@ -1,4 +1,6 @@
+using System.Text.Json;
 using DotCraft.Protocol;
+using Microsoft.Extensions.AI;
 
 namespace DotCraft.Tests.Sessions.Protocol;
 
@@ -126,6 +128,30 @@ public sealed class SessionWireModelsTests
         Assert.Equal("WriteFile", root.GetProperty("toolName").GetString());
         Assert.Equal("call_1", root.GetProperty("callId").GetString());
         Assert.Equal("{\"content\":\"hello\"", root.GetProperty("delta").GetString());
+    }
+
+    [Fact]
+    public void SessionWireJsonOptions_ReadsReasoningConfigurationStrings()
+    {
+        const string json = """
+            {
+              "id": "thread_1",
+              "configuration": {
+                "reasoning": {
+                  "enabled": true,
+                  "effort": "medium",
+                  "output": "full"
+                }
+              }
+            }
+            """;
+
+        var thread = JsonSerializer.Deserialize<SessionWireThread>(json, SessionWireJsonOptions.Default);
+
+        Assert.NotNull(thread?.Configuration?.Reasoning);
+        Assert.True(thread!.Configuration!.Reasoning!.Enabled);
+        Assert.Equal(ReasoningEffort.Medium, thread.Configuration.Reasoning.Effort);
+        Assert.Equal(ReasoningOutput.Full, thread.Configuration.Reasoning.Output);
     }
 
     [Fact]

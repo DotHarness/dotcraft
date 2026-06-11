@@ -231,6 +231,51 @@ function matchesPendingApproval(
   return true
 }
 
+function samePendingApproval(a: PendingApproval, b: PendingApproval): boolean {
+  if (a.requestId && b.requestId) return a.requestId === b.requestId
+  if (a.itemId && b.itemId) return a.itemId === b.itemId
+  return a.bridgeId === b.bridgeId
+}
+
+function activePendingApproval(queue: PendingApproval[]): PendingApproval | null {
+  return queue[0] ?? null
+}
+
+function queueWithPendingApproval(
+  queue: PendingApproval[],
+  fallback: PendingApproval | null
+): PendingApproval[] {
+  return queue.length > 0 ? queue : fallback ? [fallback] : []
+}
+
+function upsertPendingApproval(
+  queue: PendingApproval[],
+  approval: PendingApproval
+): PendingApproval[] {
+  const existingIndex = queue.findIndex((candidate) => samePendingApproval(candidate, approval))
+  if (existingIndex < 0) return [...queue, approval]
+
+  return queue.map((candidate, index) =>
+    index === existingIndex
+      ? {
+          ...candidate,
+          ...approval,
+          locallySubmittedDecision: approval.locallySubmittedDecision ?? candidate.locallySubmittedDecision
+        }
+      : candidate
+  )
+}
+
+function updatePendingApprovalInQueue(
+  queue: PendingApproval[],
+  pending: PendingApproval,
+  update: (approval: PendingApproval) => PendingApproval
+): PendingApproval[] {
+  return queue.map((candidate) => (
+    samePendingApproval(candidate, pending) ? update(candidate) : candidate
+  ))
+}
+
 function approvalCardMatchesResolution(
   item: ConversationItem,
   itemId: string | null,
@@ -253,6 +298,8 @@ interface ConversationState {
   activeTurnId: string | null
   /** Non-null when turnStatus === 'waitingApproval' */
   pendingApproval: PendingApproval | null
+  /** All unresolved turn-bound approvals for the active turn, in composer order. */
+  pendingApprovals: PendingApproval[]
   /** A turn-less approval (e.g. browser-use) shown in the same composer; independent of turnStatus. */
   genericApproval: PendingApproval | null
   /** Non-null when turnStatus === 'waitingInput' */
@@ -466,6 +513,7 @@ const initialState: ConversationState = {
   activeTurnId: null,
   genericApproval: null,
   pendingApproval: null,
+  pendingApprovals: [],
   pendingUserInput: null,
   streamingMessage: '',
   streamingMessageLastDeltaAt: null,
@@ -1311,6 +1359,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
           turnStatus: 'running',
           activeTurnId: turn.id,
           pendingApproval: null,
+          pendingApprovals: [],
           pendingUserInput: null,
           streamingMessage: '',
           streamingMessageLastDeltaAt: null,
@@ -1350,6 +1399,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
         turnStatus: 'running',
         activeTurnId: turn.id,
         pendingApproval: null,
+        pendingApprovals: [],
         pendingUserInput: null,
         streamingMessage: '',
         streamingMessageLastDeltaAt: null,
@@ -1386,6 +1436,8 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
         ),
         turnStatus: 'idle',
         activeTurnId: null,
+        pendingApproval: null,
+        pendingApprovals: [],
         pendingUserInput: null,
         streamingMessage: '',
         streamingMessageLastDeltaAt: null,
@@ -1414,6 +1466,8 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       ),
       turnStatus: 'idle',
       activeTurnId: null,
+      pendingApproval: null,
+      pendingApprovals: [],
       pendingUserInput: null,
       streamingMessage: '',
       streamingMessageLastDeltaAt: null,
@@ -1444,6 +1498,8 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       ),
       turnStatus: 'idle',
       activeTurnId: null,
+      pendingApproval: null,
+      pendingApprovals: [],
       pendingUserInput: null,
       streamingMessage: '',
       streamingMessageLastDeltaAt: null,
@@ -2480,25 +2536,34 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       createdAt: new Date().toISOString()
     }
 
-    set((s) => ({
-      turns: s.turns.map((t) =>
-        t.id === turnId ? { ...t, items: upsertItemById(t.items, approvalItem) } : t
-      ),
-      activeTurnId: turnId ?? activeTurnId,
-      turnStatus: 'waitingApproval',
-      pendingApproval: {
-        bridgeId,
-        threadId,
-        turnId: turnId ?? null,
-        requestId,
-        locallySubmittedDecision,
-        itemId,
-        approvalType,
-        operation,
-        target,
-        reason
+    const pending: PendingApproval = {
+      bridgeId,
+      threadId,
+      turnId: turnId ?? null,
+      requestId,
+      locallySubmittedDecision,
+      itemId,
+      approvalType,
+      operation,
+      target,
+      reason
+    }
+
+    set((s) => {
+      const pendingApprovals = upsertPendingApproval(
+        queueWithPendingApproval(s.pendingApprovals, s.pendingApproval),
+        pending
+      )
+      return {
+        turns: s.turns.map((t) =>
+          t.id === turnId ? { ...t, items: upsertItemById(t.items, approvalItem) } : t
+        ),
+        activeTurnId: turnId ?? activeTurnId,
+        turnStatus: 'waitingApproval',
+        pendingApprovals,
+        pendingApproval: activePendingApproval(pendingApprovals)
       }
-    }))
+    })
   },
 
   onApprovalSubmitStarted(decision) {
@@ -2506,11 +2571,18 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       const pending = state.pendingApproval
       if (!pending) return state
 
-      return {
-        pendingApproval: {
-          ...pending,
+      const pendingApprovals = updatePendingApprovalInQueue(
+        queueWithPendingApproval(state.pendingApprovals, pending),
+        pending,
+        (approval) => ({
+          ...approval,
           locallySubmittedDecision: decision
-        }
+        })
+      )
+
+      return {
+        pendingApprovals,
+        pendingApproval: activePendingApproval(pendingApprovals)
       }
     })
   },
@@ -2520,11 +2592,18 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       const pending = state.pendingApproval
       if (!pending) return state
 
-      return {
-        pendingApproval: {
-          ...pending,
+      const pendingApprovals = updatePendingApprovalInQueue(
+        queueWithPendingApproval(state.pendingApprovals, pending),
+        pending,
+        (approval) => ({
+          ...approval,
           locallySubmittedDecision: null
-        }
+        })
+      )
+
+      return {
+        pendingApprovals,
+        pendingApproval: activePendingApproval(pendingApprovals)
       }
     })
   },
@@ -2548,8 +2627,11 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
 
   onApprovalResolved(params) {
     set((state) => {
-      const pending = state.pendingApproval
-      if (pending && !matchesPendingApproval(pending, params)) return state
+      const queue = queueWithPendingApproval(state.pendingApprovals, state.pendingApproval)
+      const pending = params
+        ? queue.find((candidate) => matchesPendingApproval(candidate, params)) ?? null
+        : activePendingApproval(queue)
+      if (queue.length > 0 && !pending) return state
 
       const requestId = params?.requestId ?? pending?.requestId ?? null
       const itemId = pending?.itemId ?? null
@@ -2564,26 +2646,41 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
             )
           }))
         : state.turns
-      const shouldClearPending = pending == null || matchesPendingApproval(pending, params)
       const shouldRestoreRunning = state.turnStatus === 'waitingApproval' || pending != null
+      const pendingApprovals = pending
+        ? queue.filter((candidate) => !samePendingApproval(candidate, pending))
+        : queue
+      const nextPendingApproval = activePendingApproval(pendingApprovals)
 
       return {
         turns,
-        pendingApproval: shouldClearPending ? null : state.pendingApproval,
-        turnStatus: shouldRestoreRunning ? 'running' : state.turnStatus
+        pendingApprovals,
+        pendingApproval: nextPendingApproval,
+        turnStatus: nextPendingApproval
+          ? 'waitingApproval'
+          : shouldRestoreRunning
+            ? 'running'
+            : state.turnStatus
       }
     })
   },
 
   onApprovalNoLongerPending(params) {
     set((state) => {
-      const pending = state.pendingApproval
-      if (!pending || !matchesPendingApproval(pending, params)) return state
+      const queue = queueWithPendingApproval(state.pendingApprovals, state.pendingApproval)
+      const pending = queue.find((candidate) => matchesPendingApproval(candidate, params)) ?? null
+      if (!pending) return state
+
+      const pendingApprovals = queue.filter((candidate) => !samePendingApproval(candidate, pending))
+      const nextPendingApproval = activePendingApproval(pendingApprovals)
 
       return {
-        pendingApproval: null,
-        turnStatus: params.nextTurnStatus,
-        activeTurnId: params.nextTurnStatus === 'idle' ? null : state.activeTurnId
+        pendingApprovals,
+        pendingApproval: nextPendingApproval,
+        turnStatus: nextPendingApproval ? 'waitingApproval' : params.nextTurnStatus,
+        activeTurnId: !nextPendingApproval && params.nextTurnStatus === 'idle'
+          ? null
+          : state.activeTurnId
       }
     })
   },
@@ -2593,15 +2690,21 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
     const pending = state.pendingApproval
     if (!pending) return
 
-    set((s) => ({
-      turns: s.turns.map((t) => ({
-        ...t,
-        items: t.items.map((i) =>
-          i.id === pending.itemId ? { ...i, approvalState: 'timedOut' as ApprovalState } : i
-        )
-      })),
-      pendingApproval: null
-    }))
+    set((s) => {
+      const queue = queueWithPendingApproval(s.pendingApprovals, pending)
+      const pendingApprovals = queue.filter((candidate) => !samePendingApproval(candidate, pending))
+      return {
+        turns: s.turns.map((t) => ({
+          ...t,
+          items: t.items.map((i) =>
+            i.id === pending.itemId ? { ...i, approvalState: 'timedOut' as ApprovalState } : i
+          )
+        })),
+        pendingApprovals,
+        pendingApproval: activePendingApproval(pendingApprovals),
+        turnStatus: pendingApprovals.length > 0 ? 'waitingApproval' : s.turnStatus
+      }
+    })
   },
 
   onUserInputRequest(bridgeId, params) {
@@ -2693,6 +2796,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       pendingTerminalByCallId: new Map<string, PendingTerminalEntry>(),
       subAgentEntries: [],
       pendingApproval: null,
+      pendingApprovals: [],
       pendingUserInput: null,
       plan: null,
       contextUsage: null

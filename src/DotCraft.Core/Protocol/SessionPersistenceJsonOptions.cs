@@ -25,6 +25,8 @@ public static class SessionPersistenceJsonOptions
                 Modifiers = { ConfigureAiContentPolymorphism }
             }
         };
+        options.Converters.Add(new ReasoningEffortJsonConverter());
+        options.Converters.Add(new ReasoningOutputJsonConverter());
         return options;
     }
 

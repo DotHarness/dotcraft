@@ -135,7 +135,12 @@ export function ThreadRowLayout({
         width: 'calc(100% - 20px)',
         minHeight: SIDEBAR_ROW_MIN_HEIGHT,
         margin: '2px 10px',
-        padding: `3px 12px 3px ${paddingLeft}px`,
+        // Right padding is 4px (not 12) so the 24px status slot — spinner,
+        // relative time, archive/confirm buttons — ends 14px from the sidebar's
+        // inner-right edge, exactly where the ProjectHeader's 24px action buttons
+        // (new-chat / more) end. This keeps every right-side control across the
+        // project header and its thread rows on the same vertical line.
+        padding: `3px 4px 3px ${paddingLeft}px`,
         boxSizing: 'border-box',
         borderRadius: 'var(--sidebar-control-radius)',
         backgroundColor: active ? 'var(--sidebar-control-active)' : 'transparent',

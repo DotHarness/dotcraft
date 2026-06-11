@@ -1601,20 +1601,26 @@ export function App(): JSX.Element {
             })
             if (threadStore.activeThreadId === threadId) {
               const conversation = useConversationStore.getState()
-              const pendingApproval = conversation.pendingApproval
-              if (
-                !runtimeSnapshot.waitingOnApproval &&
-                pendingApproval != null &&
-                pendingApproval.locallySubmittedDecision == null &&
-                (pendingApproval.threadId == null || pendingApproval.threadId === threadId)
-              ) {
-                window.api.appServer.sendServerResponse(pendingApproval.bridgeId, { decision: 'decline' })
-                conversation.onApprovalNoLongerPending({
-                  threadId,
-                  turnId: pendingApproval.turnId,
-                  requestId: pendingApproval.requestId,
-                  nextTurnStatus: runtimeSnapshot.running ? 'running' : 'idle'
-                })
+              const pendingApprovals = conversation.pendingApprovals.length > 0
+                ? conversation.pendingApprovals
+                : conversation.pendingApproval != null
+                  ? [conversation.pendingApproval]
+                  : []
+              if (!runtimeSnapshot.waitingOnApproval) {
+                for (const pendingApproval of pendingApprovals) {
+                  if (
+                    pendingApproval.locallySubmittedDecision == null &&
+                    (pendingApproval.threadId == null || pendingApproval.threadId === threadId)
+                  ) {
+                    window.api.appServer.sendServerResponse(pendingApproval.bridgeId, { decision: 'decline' })
+                    useConversationStore.getState().onApprovalNoLongerPending({
+                      threadId,
+                      turnId: pendingApproval.turnId,
+                      requestId: pendingApproval.requestId,
+                      nextTurnStatus: runtimeSnapshot.running ? 'running' : 'idle'
+                    })
+                  }
+                }
               }
               useConversationStore.getState().setMaintenanceKind(runtimeSnapshot.maintenanceKind)
             }
@@ -2454,23 +2460,30 @@ export function App(): JSX.Element {
       && latestCreatePlanTurnId != null
       && planApprovalDismissed[latestCreatePlanTurnId] !== true
 
-    if (prev && prev !== curr && convBeforeReset.pendingApproval != null) {
-      const pending = convBeforeReset.pendingApproval
-      useThreadStore.getState().parkApproval(prev, {
-        bridgeId: pending.bridgeId,
-        turnId: convBeforeReset.activeTurnId,
-        rawParams: {
-          threadId: prev,
-          turnId: convBeforeReset.activeTurnId,
-          itemId: pending.itemId,
-          requestId: pending.requestId,
-          locallySubmittedDecision: pending.locallySubmittedDecision,
-          approvalType: pending.approvalType,
-          operation: pending.operation,
-          target: pending.target,
-          reason: pending.reason
-        }
-      })
+    const pendingApprovalsBeforeReset = convBeforeReset.pendingApprovals.length > 0
+      ? convBeforeReset.pendingApprovals
+      : convBeforeReset.pendingApproval != null
+        ? [convBeforeReset.pendingApproval]
+        : []
+
+    if (prev && prev !== curr && pendingApprovalsBeforeReset.length > 0) {
+      for (const pending of pendingApprovalsBeforeReset) {
+        useThreadStore.getState().parkApproval(prev, {
+          bridgeId: pending.bridgeId,
+          turnId: pending.turnId ?? convBeforeReset.activeTurnId,
+          rawParams: {
+            threadId: prev,
+            turnId: pending.turnId ?? convBeforeReset.activeTurnId,
+            itemId: pending.itemId,
+            requestId: pending.requestId,
+            locallySubmittedDecision: pending.locallySubmittedDecision,
+            approvalType: pending.approvalType,
+            operation: pending.operation,
+            target: pending.target,
+            reason: pending.reason
+          }
+        })
+      }
       useThreadStore.getState().applyRuntimeSnapshot(prev, {
         running: convBeforeReset.turnStatus === 'running' || convBeforeReset.turnStatus === 'waitingApproval',
         waitingOnApproval: true,
@@ -2580,8 +2593,8 @@ export function App(): JSX.Element {
           useConversationStore.getState().setContextUsage(res.thread.contextUsage ?? null)
           useConversationStore.getState().setMaintenanceKind(runtime?.maintenanceKind ?? null)
           void useSubAgentStore.getState().fetchChildren(requestedId)
-          const parked = useThreadStore.getState().consumeParkedApproval(requestedId)
-          if (parked) {
+          const parkedApprovals = useThreadStore.getState().consumeParkedApprovals(requestedId)
+          for (const parked of parkedApprovals) {
             useConversationStore.getState().onApprovalRequest(parked.bridgeId, parked.rawParams)
           }
           const parkedUserInput = useThreadStore.getState().consumeParkedUserInput(requestedId)

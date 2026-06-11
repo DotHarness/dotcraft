@@ -637,6 +637,34 @@ describe('threadStore indicator state', () => {
     expect(useThreadStore.getState().parkedApprovals.has('t1')).toBe(false)
   })
 
+  it('parks multiple approvals for the same thread and consumes them together', () => {
+    const s = useThreadStore.getState()
+    s.parkApproval('t1', {
+      bridgeId: 'bridge-1',
+      turnId: 'turn-1',
+      rawParams: { threadId: 't1', turnId: 'turn-1', requestId: 'req-1' }
+    })
+    s.parkApproval('t1', {
+      bridgeId: 'bridge-2',
+      turnId: 'turn-1',
+      rawParams: { threadId: 't1', turnId: 'turn-1', requestId: 'req-2' }
+    })
+    s.parkApproval('t1', {
+      bridgeId: 'bridge-2-replay',
+      turnId: 'turn-1',
+      rawParams: { threadId: 't1', turnId: 'turn-1', requestId: 'req-2' }
+    })
+
+    expect(useThreadStore.getState().parkedApprovals.get('t1')?.map((approval) => approval.bridgeId)).toEqual([
+      'bridge-1',
+      'bridge-2-replay'
+    ])
+
+    const parked = useThreadStore.getState().consumeParkedApprovals('t1')
+    expect(parked.map((approval) => approval.bridgeId)).toEqual(['bridge-1', 'bridge-2-replay'])
+    expect(useThreadStore.getState().parkedApprovals.has('t1')).toBe(false)
+  })
+
   it('parks and consumes user input requests by thread id', () => {
     const s = useThreadStore.getState()
     s.parkUserInput('t1', {
