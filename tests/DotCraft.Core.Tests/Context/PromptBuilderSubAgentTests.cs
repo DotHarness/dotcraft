@@ -158,6 +158,18 @@ public sealed class PromptBuilderSubAgentTests : IDisposable
     }
 
     [Fact]
+    public void MainPrompt_IncludesGitCommitAttributionGuidance()
+    {
+        var prompt = CreateMainBuilder(
+                toolNames: ["Shell"])
+            .BuildSystemPrompt();
+
+        Assert.Contains("## Git Commit Attribution", prompt, StringComparison.Ordinal);
+        Assert.Contains("do not change git config", prompt, StringComparison.Ordinal);
+        Assert.Contains("Co-authored-by: DotCraft Bot <273930855+DotCraft-Bot@users.noreply.github.com>", prompt, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task AgentPrompt_WithExistingTodoList_DoesNotInjectTodoState()
     {
         var planStore = new PlanStore(_craftDir);

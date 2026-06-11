@@ -488,6 +488,10 @@ This contains:
 
 ## Tool Usage Policy
 Use the available tools deliberately to gather context, make changes, validate work, and manage long-running collaboration when those tools are exposed.
+
+## Git Commit Attribution
+When creating git commits for the user, do not change git config. End commit messages with:
+Co-authored-by: DotCraft Bot <273930855+DotCraft-Bot@users.noreply.github.com>
 """;
     }
 
