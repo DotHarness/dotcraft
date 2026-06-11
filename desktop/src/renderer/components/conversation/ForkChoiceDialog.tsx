@@ -11,6 +11,7 @@ import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { ArrowRightLeft, GitBranch, Laptop } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
+import { ModalHeader } from '../ui/ModalHeader'
 import type { ThreadForkMode } from '../../utils/threadFork'
 
 interface ForkChoiceDialogProps {
@@ -40,11 +41,12 @@ export function ForkChoiceDialog({ onChoose, onCancel }: ForkChoiceDialogProps):
       }}
     >
       <div style={cardStyle} onMouseDown={(event) => event.stopPropagation()}>
-        <div style={badgeStyle}>
-          <GitBranch size={18} strokeWidth={2} aria-hidden />
-        </div>
-        <h2 id="fork-choice-title" style={titleStyle}>{t('fork.choice.title')}</h2>
-        <p style={descriptionStyle}>{t('fork.choice.description')}</p>
+        <ModalHeader
+          icon={<GitBranch size={18} strokeWidth={2} aria-hidden />}
+          title={t('fork.choice.title')}
+          titleId="fork-choice-title"
+          description={t('fork.choice.description')}
+        />
 
         <div style={optionsStyle}>
           <ForkOption
@@ -124,32 +126,6 @@ const cardStyle: CSSProperties = {
   boxShadow: 'var(--shadow-level-3)',
   display: 'flex',
   flexDirection: 'column'
-}
-
-const badgeStyle: CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  width: '36px',
-  height: '36px',
-  borderRadius: '9px',
-  background: 'var(--bg-tertiary)',
-  color: 'var(--text-secondary)',
-  marginBottom: '12px'
-}
-
-const titleStyle: CSSProperties = {
-  margin: '0 0 6px',
-  fontSize: '15px',
-  fontWeight: 600,
-  color: 'var(--text-primary)'
-}
-
-const descriptionStyle: CSSProperties = {
-  margin: '0 0 16px',
-  fontSize: '12.5px',
-  lineHeight: 1.5,
-  color: 'var(--text-secondary)'
 }
 
 const optionsStyle: CSSProperties = {

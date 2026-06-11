@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { CSSProperties } from 'react'
-import { CheckCircle2, Pause, Play, RotateCcw, Target, Trash2, X } from 'lucide-react'
+import { CheckCircle2, Pause, Play, RotateCcw, Target, Trash2 } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { ActionTooltip } from '../ui/ActionTooltip'
+import { ModalHeader } from '../ui/ModalHeader'
 import type { ThreadGoal } from '../../types/thread'
 import { formatGoalUsage } from '../../utils/threadGoal'
 
@@ -84,7 +85,7 @@ export function GoalControlPopover({
     <div
       role="dialog"
       aria-modal="true"
-      aria-label={t('goal.panel.title')}
+      aria-labelledby="goal-title"
       onMouseDown={(event) => event.stopPropagation()}
       style={{
         width: 'min(520px, calc(100vw - 48px))',
@@ -95,15 +96,13 @@ export function GoalControlPopover({
         color: 'var(--text-primary)'
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-        <Target size={16} aria-hidden />
-        <div style={{ fontSize: 15, fontWeight: 600, flex: 1 }}>
-          {t('goal.panel.title')}
-        </div>
-        <button type="button" onClick={onDismiss} aria-label={t('goal.action.dismiss')} style={iconButtonStyle}>
-          <X size={15} aria-hidden />
-        </button>
-      </div>
+      <ModalHeader
+        icon={<Target size={18} aria-hidden />}
+        title={t('goal.panel.title')}
+        titleId="goal-title"
+        onClose={onDismiss}
+        closeLabel={t('goal.action.dismiss')}
+      />
 
       {goal && !editing ? (
         <>
@@ -160,24 +159,12 @@ export function GoalControlPopover({
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <textarea
             ref={inputRef}
+            className="dc-dialog-input"
             value={objective}
             onChange={(e) => setObjective(e.target.value)}
             placeholder={t('goal.objective.placeholder')}
             rows={3}
-            style={{
-              resize: 'vertical',
-              minHeight: 74,
-              maxHeight: 160,
-              borderRadius: 8,
-              border: '1px solid var(--border-default)',
-              background: 'var(--bg-tertiary)',
-              color: 'var(--text-primary)',
-              padding: '9px 10px',
-              font: 'inherit',
-              fontSize: 13,
-              lineHeight: 1.45,
-              outline: 'none'
-            }}
+            style={{ minHeight: 74, maxHeight: 160 }}
           />
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
             {goal && (
@@ -259,19 +246,6 @@ function statusDotStyle(status: ThreadGoal['status']): CSSProperties {
     background: color,
     flexShrink: 0
   }
-}
-
-const iconButtonStyle: CSSProperties = {
-  border: 'none',
-  background: 'transparent',
-  color: 'var(--text-secondary)',
-  cursor: 'pointer',
-  width: 24,
-  height: 24,
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  borderRadius: 6
 }
 
 const secondaryButtonStyle: CSSProperties = {

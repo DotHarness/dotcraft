@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronDown, ChevronRight, GitBranch, GitCommitHorizontal, X } from 'lucide-react'
+import { ChevronDown, ChevronRight, GitBranch, GitCommitHorizontal } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
+import { ModalHeader } from '../ui/ModalHeader'
 
 interface CommitDialogProps {
   workspacePath: string
@@ -31,7 +32,6 @@ export function CommitDialog({ workspacePath, onCommit, onClose }: CommitDialogP
   const [message, setMessage] = useState('')
   const [branch, setBranch] = useState<string | null>(null)
   const [filesExpanded, setFilesExpanded] = useState(false)
-  const [focused, setFocused] = useState(false)
   const messageRef = useRef<HTMLTextAreaElement>(null)
   const totalAdditions = writtenFiles.reduce((sum, file) => sum + file.additions, 0)
   const totalDeletions = writtenFiles.reduce((sum, file) => sum + file.deletions, 0)
@@ -77,7 +77,7 @@ export function CommitDialog({ workspacePath, onCommit, onClose }: CommitDialogP
     <div
       role="dialog"
       aria-modal="true"
-      aria-label={t('commit.title')}
+      aria-labelledby="commit-title"
       style={{
         position: 'fixed',
         inset: 0,
@@ -104,65 +104,13 @@ export function CommitDialog({ workspacePath, onCommit, onClose }: CommitDialogP
         }}
         onMouseDown={(e) => e.stopPropagation()}
       >
-        {/* Header: bare git-commit node icon + borderless close */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between'
-          }}
-        >
-          <span
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'var(--text-primary)'
-            }}
-          >
-            <GitCommitHorizontal size={20} aria-hidden="true" />
-          </span>
-          <button
-            type="button"
-            aria-label={t('commit.close')}
-            onClick={onClose}
-            style={{
-              width: '30px',
-              height: '30px',
-              borderRadius: '8px',
-              border: 'none',
-              background: 'transparent',
-              color: 'var(--text-secondary)',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              transition: 'background-color 100ms ease, color 100ms ease'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'
-              e.currentTarget.style.color = 'var(--text-primary)'
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = 'transparent'
-              e.currentTarget.style.color = 'var(--text-secondary)'
-            }}
-          >
-            <X size={16} />
-          </button>
-        </div>
-
-        <h2
-          style={{
-            margin: '14px 0',
-            fontSize: '24px',
-            fontWeight: 600,
-            letterSpacing: '-0.01em',
-            color: 'var(--text-primary)'
-          }}
-        >
-          {t('commit.title')}
-        </h2>
+        <ModalHeader
+          icon={<GitCommitHorizontal size={18} aria-hidden="true" />}
+          title={t('commit.title')}
+          titleId="commit-title"
+          onClose={onClose}
+          closeLabel={t('commit.close')}
+        />
 
         {/* Frameless info rows */}
         <div style={infoRowStyle}>
@@ -263,10 +211,9 @@ export function CommitDialog({ workspacePath, onCommit, onClose }: CommitDialogP
 
         <textarea
           ref={messageRef}
+          className="dc-dialog-input"
           value={message}
           onChange={(e) => setMessage(e.target.value)}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
           onKeyDown={(e) => {
             if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
               e.preventDefault()
@@ -274,21 +221,6 @@ export function CommitDialog({ workspacePath, onCommit, onClose }: CommitDialogP
             }
           }}
           rows={3}
-          style={{
-            width: '100%',
-            boxSizing: 'border-box',
-            padding: '10px 12px',
-            fontSize: '13px',
-            borderRadius: '10px',
-            border: `1px solid ${focused ? 'var(--accent)' : 'transparent'}`,
-            background: 'var(--bg-primary)',
-            color: 'var(--text-primary)',
-            resize: 'vertical',
-            outline: 'none',
-            fontFamily: 'inherit',
-            lineHeight: 1.5,
-            transition: 'border-color 120ms ease'
-          }}
           placeholder={t('commit.placeholderAuto')}
         />
 

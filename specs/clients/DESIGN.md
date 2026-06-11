@@ -1,5 +1,5 @@
 ---
-version: "0.4.0"
+version: "0.5.0"
 name: "DotCraft Desktop"
 description: "Quiet operational desktop UI for repeated agent work."
 sourceTokens: "desktop/src/renderer/styles/tokens.css"
@@ -74,6 +74,10 @@ components:
   selection-row:
     border: "none"
     hoverBackground: "var(--bg-tertiary)"
+  dialog-header:
+    iconBadge: "36px square, 9px radius, {colors.bg-tertiary} background, {colors.text-secondary} icon at 18px"
+    title: "15px, weight 600, {colors.text-primary}, placed below the badge"
+    close: "borderless transparent icon button, top-right"
 ---
 
 # DotCraft Desktop Design
@@ -281,6 +285,28 @@ Toolbar icon buttons generally use a 32px square treatment:
 Modal close buttons are the main exception. They should be borderless,
 transparent icon buttons with neutral hover feedback.
 
+### Dialog Headers
+
+Dialogs that carry an identity icon share one header treatment so they read as
+one family regardless of their differing bodies (forms, confirmations, pickers).
+Use the shared header rather than re-implementing per dialog.
+
+- The identity icon sits in a neutral rounded badge: a ~36px square with `8–9px`
+  radius, a `--bg-tertiary` background, and the glyph at `18px` in
+  `--text-secondary`. The badge gives every dialog the same quiet, recognizable
+  anchor; a bare icon without the badge is not used.
+- The title sits below the badge using the panel/dialog heading scale (`15px`,
+  weight `600`, `--text-primary`). Do not use hero-scale type for dialog titles —
+  even prominent dialogs stay at the dialog-heading scale.
+- An optional one or two line description follows the title in
+  `--text-secondary`.
+- When the dialog has a close affordance, it is a borderless, transparent icon
+  button in the top-right, aligned with the badge row (see Icon Buttons).
+
+The badge stays neutral by default. A semantic tint (success/warning/error) is
+allowed only when the dialog's whole purpose is that state, following the
+semantic-color rules; ordinary dialogs keep the neutral badge.
+
 ### Menus, Popovers, and Pickers
 
 Floating menus, context menus, select dropdowns, compact popovers, and command
@@ -323,6 +349,13 @@ Text inputs, textareas, selects, search boxes, and picker triggers stay neutral:
 - use `--accent` only for subtle focus-visible or focus ring affordances;
 - use `--text-primary` for values and secondary/dimmed tokens for placeholders;
 - do not use brand or semantic fills for ordinary input backgrounds.
+
+A simple action dialog's single message/objective input (commit message, thread
+goal) uses one shared recessed treatment: a `--bg-primary` field that is
+frameless at rest and shows the accent border only on focus, with an `8–10px`
+radius. Reuse this shared input rather than restyling per dialog. Dense
+multi-field dialog forms are the exception — they keep bordered fields so the
+columns stay legible.
 
 Validation combines copy, border/icon treatment, and semantic tokens. Error or
 warning color identifies the issue without taking over the form.
@@ -400,5 +433,7 @@ Review checklist:
 - Ordinary menu overlays are borderless and share the solid opaque surface; the
   only border is a single hairline on a submenu/stacked overlay's overlapping edge.
 - Modal close buttons are borderless transparent icon buttons.
+- Dialogs with an identity icon use the shared badged-icon header (neutral badge
+  + dialog-scale title), not a bare icon or hero-scale title.
 - Focus-visible state is present and accessible.
 - Light and dark themes preserve contrast and hierarchy.

@@ -2353,6 +2353,31 @@ kbd {
   color: var(--text-primary);
 }
 
+/* Shared text input for simple dialogs (commit message, thread goal, …): a
+   recessed --bg-primary field that is frameless at rest and shows the accent
+   border only on focus. Single source so these dialog inputs stay consistent.
+   Dense multi-field forms keep their bordered fields; this is for the single
+   prominent message/objective input in an action dialog. See DESIGN.md Inputs. */
+.dc-dialog-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  border: 1px solid transparent;
+  border-radius: 10px;
+  outline: none;
+  resize: vertical;
+  transition: border-color 120ms ease;
+}
+
+.dc-dialog-input:focus {
+  border-color: var(--accent);
+}
+
 /* Conversation markdown should not add trailing air after the final block. */
 .markdown-body > :last-child {
   margin-bottom: 0 !important;
