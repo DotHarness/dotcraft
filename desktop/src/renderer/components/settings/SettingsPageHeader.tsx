@@ -4,6 +4,8 @@ interface SettingsPageHeaderProps {
   title: ReactNode
   description?: ReactNode
   action?: ReactNode
+  /** Optional breadcrumb that replaces the title row on sub-pages (used for back-nav). */
+  breadcrumb?: ReactNode
   children?: ReactNode
 }
 
@@ -11,12 +13,15 @@ export function SettingsPageHeader({
   title,
   description,
   action,
+  breadcrumb,
   children
 }: SettingsPageHeaderProps): JSX.Element {
   return (
     <div style={settingsPageHeaderStyle()}>
       <div style={settingsPageHeaderTextStyle()}>
-        <div style={settingsPageTitleStyle()}>{title}</div>
+        {/* On sub-pages the breadcrumb's current segment is the heading, so it
+            replaces the title row instead of stacking above a duplicate. */}
+        {breadcrumb ?? <div style={settingsPageTitleStyle()}>{title}</div>}
         {description && <div style={settingsPageDescriptionStyle()}>{description}</div>}
         {children}
       </div>

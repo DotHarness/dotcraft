@@ -23,6 +23,7 @@ import {
   type ValueRow
 } from '../../ui/EditableList'
 import { AgentIcon } from './AgentIcon'
+import { SettingsBreadcrumb } from '../../SettingsBreadcrumb'
 import {
   actionBarStyle,
   dangerButtonStyle,
@@ -206,11 +207,12 @@ export function CustomProfileEditor({
 
   return (
     <div style={pageStyle()}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-        <button type="button" onClick={onBack} style={secondaryButtonStyle(saving || deleting)} disabled={saving || deleting}>
-          {t('settings.subAgents.back')}
-        </button>
-      </div>
+      <SettingsBreadcrumb
+        parentLabel={t('settings.subAgents.title')}
+        currentLabel={headerTitle}
+        onBack={onBack}
+        disabled={saving || deleting}
+      />
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
         <AgentIcon name={state.name || 'custom'} isBuiltIn={false} size={40} />

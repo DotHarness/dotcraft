@@ -254,11 +254,12 @@ describe('SubAgentsPanel', () => {
       await screen.findByRole('button', { name: 'Open sub-agent profile codex-cli' })
     )
 
-    expect(await screen.findByText('Codex CLI')).toBeInTheDocument()
+    // The title appears twice: the breadcrumb current segment and the hero heading.
+    expect((await screen.findAllByText('Codex CLI')).length).toBeGreaterThan(0)
     expect(screen.getByText('Binary found')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Customize' })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Back to Sub-Agents' }))
     expect(
       await screen.findByRole('button', { name: 'Open sub-agent profile native' })
     ).toBeInTheDocument()
@@ -302,7 +303,7 @@ describe('SubAgentsPanel', () => {
       await screen.findByRole('button', { name: 'Open sub-agent profile native' })
     )
 
-    expect(await screen.findByText('Native')).toBeInTheDocument()
+    expect((await screen.findAllByText('Native')).length).toBeGreaterThan(0)
     const switches = await screen.findAllByRole('switch', { name: 'Toggle sub-agent native' })
     for (const toggle of switches) {
       expect(toggle).toBeDisabled()
@@ -358,7 +359,7 @@ describe('SubAgentsPanel', () => {
     await screen.findByRole('button', { name: 'Open sub-agent profile native' })
     fireEvent.click(screen.getByRole('button', { name: 'Add custom agent' }))
 
-    expect(await screen.findByText('New custom agent')).toBeInTheDocument()
+    expect((await screen.findAllByText('New custom agent')).length).toBeGreaterThan(0)
 
     fireEvent.change(screen.getByTestId('subagent-name-input'), {
       target: { value: 'my-helper' }

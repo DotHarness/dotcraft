@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type JSX } from 'react'
 import {
   ListChecks,
+  Pencil,
   Plus,
   TestTube2,
   Trash2
@@ -42,6 +43,7 @@ import { ToggleSwitch } from '../channels/ToggleSwitch'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
 import { SettingsGroup, SettingsRow } from './SettingsGroup'
 import { SettingsPanelShell } from './SettingsPanelShell'
+import { SettingsBreadcrumb } from './SettingsBreadcrumb'
 import { PluginCatalogItem, PluginIcon, pluginSubtitle, pluginTitle } from '../plugins/PluginCatalogItem'
 import { PluginInstallDialog } from '../plugins/PluginInstallDialog'
 import {
@@ -3337,7 +3339,16 @@ export function SettingsView({
               <GeneralPanel>
               <SettingsPanelShell
                   title={t('settings.llm.title')}
-                  description={t('settings.llm.description')}
+                  description={providerEditorId === null ? t('settings.llm.description') : undefined}
+                  breadcrumb={
+                    providerEditorId === null ? undefined : (
+                      <SettingsBreadcrumb
+                        parentLabel={t('settings.llm.title')}
+                        currentLabel={providerEditorIsNew ? t('settings.llm.newTitle') : t('settings.llm.editTitle')}
+                        onBack={closeProviderEditor}
+                      />
+                    )
+                  }
                   action={
                     providerEditorId === null ? (
                       <button
@@ -3349,11 +3360,7 @@ export function SettingsView({
                         <Plus size={14} aria-hidden="true" />
                         <span style={primaryIconButtonLabelStyle}>{t('settings.llm.addProvider')}</span>
                       </button>
-                    ) : (
-                      <button type="button" onClick={closeProviderEditor} style={secondaryButtonStyle(false)}>
-                        {t('settings.mcp.back')}
-                      </button>
-                    )
+                    ) : undefined
                   }
                 >
 
@@ -3517,12 +3524,20 @@ export function SettingsView({
                               key={provider.id}
                               role="button"
                               tabIndex={0}
-                              aria-label={t('settings.llm.editProviderAria', { name: provider.displayName })}
-                              onClick={() => startEditProvider(provider)}
+                              aria-label={t('settings.llm.useProviderAria', { name: provider.displayName })}
+                              aria-pressed={active}
+                              aria-disabled={applyingWorkspaceProvider || undefined}
+                              onClick={() => {
+                                if (!active && !applyingWorkspaceProvider) {
+                                  void handleWorkspaceProviderChange(provider.id)
+                                }
+                              }}
                               onKeyDown={(event) => {
                                 if (event.key === 'Enter' || event.key === ' ') {
                                   event.preventDefault()
-                                  startEditProvider(provider)
+                                  if (!active && !applyingWorkspaceProvider) {
+                                    void handleWorkspaceProviderChange(provider.id)
+                                  }
                                 }
                               }}
                               style={providerRowStyle(active)}
@@ -3572,17 +3587,12 @@ export function SettingsView({
                                 onKeyDown={(event) => event.stopPropagation()}
                                 style={{ flexShrink: 0, display: 'inline-flex' }}
                               >
-                                <button
-                                  type="button"
-                                  onClick={() => void handleWorkspaceProviderChange(provider.id)}
-                                  disabled={active || applyingWorkspaceProvider}
-                                  aria-label={active
-                                    ? t('settings.llm.selectedProviderAria', { name: provider.displayName })
-                                    : t('settings.llm.useProviderAria', { name: provider.displayName })}
-                                  style={secondaryButtonStyle(active || applyingWorkspaceProvider)}
-                                >
-                                  {active ? t('settings.llm.selectedProvider') : t('settings.llm.useProvider')}
-                                </button>
+                                <IconButton
+                                  icon={<Pencil size={15} />}
+                                  label={t('settings.llm.editProviderAria', { name: provider.displayName })}
+                                  tooltipLabel={t('settings.llm.editTitle')}
+                                  onClick={() => startEditProvider(provider)}
+                                />
                               </span>
                             </div>
                           )
@@ -3594,10 +3604,7 @@ export function SettingsView({
 
                 {providerManagementEnabled && providerEditorId !== null && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                    <SettingsGroup
-                      title={providerEditorIsNew ? t('settings.llm.newTitle') : t('settings.llm.editTitle')}
-                      flush
-                    >
+                    <SettingsGroup flush>
                       <div style={providerFieldStackStyle()}>
                         <div style={providerFieldGridStyle()}>
                           <div>
@@ -4693,10 +4700,12 @@ export function SettingsView({
                   <SettingsPanelShell
                       title={t('settings.chrome.detailTitle')}
                       description={chromePlugin ? pluginSubtitle(chromePlugin) || t('settings.chrome.pageDescription') : t('settings.chrome.pageDescription')}
-                      action={
-                        <button type="button" onClick={() => setChromeDetailOpen(false)} style={secondaryButtonStyle(false)}>
-                          {t('settings.back')}
-                        </button>
+                      breadcrumb={
+                        <SettingsBreadcrumb
+                          parentLabel={t('settings.chrome.pageTitle')}
+                          currentLabel={t('settings.chrome.detailTitle')}
+                          onBack={() => setChromeDetailOpen(false)}
+                        />
                       }
                     >
                     <SettingsGroup title={t('settings.chrome.connectionStatus')} flush>
@@ -4859,17 +4868,22 @@ export function SettingsView({
             {activeSettingsTab === 'mcp' && (
               <McpPanel>
               <SettingsPanelShell
-                title={
-                  mcpEnabled && editingServerName !== null
-                    ? editingServerName === '__new__'
-                      ? t('settings.mcp.addTitle')
-                      : t('settings.mcp.editTitle')
-                    : t('settings.mcp.title')
-                }
+                title={t('settings.mcp.title')}
                 description={
                   mcpEnabled && editingServerName !== null
                     ? t('settings.mcp.editIntro')
                     : t('settings.mcp.description')
+                }
+                breadcrumb={
+                  mcpEnabled && editingServerName !== null ? (
+                    <SettingsBreadcrumb
+                      parentLabel={t('settings.mcp.title')}
+                      currentLabel={editingServerName === '__new__'
+                        ? t('settings.mcp.addTitle')
+                        : t('settings.mcp.editTitle')}
+                      onBack={cancelMcpEdit}
+                    />
+                  ) : undefined
                 }
                 action={
                   !mcpEnabled
@@ -4879,11 +4893,7 @@ export function SettingsView({
                         <Plus size={14} aria-hidden="true" />
                         <span style={primaryIconButtonLabelStyle}>{t('settings.mcp.addServer')}</span>
                       </button>
-                    ) : (
-                      <button type="button" onClick={cancelMcpEdit} style={secondaryButtonStyle(false)}>
-                        {t('settings.mcp.back')}
-                      </button>
-                    )
+                    ) : undefined
                 }
                 headerChildren={
                   mcpSavedHint && editingServerName === null ? (

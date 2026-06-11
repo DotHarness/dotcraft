@@ -5,14 +5,14 @@ import { SettingsGroup, SettingsRow } from '../../SettingsGroup'
 import { SettingsSelect } from '../../ui/SettingsSelect'
 import { PillSwitch } from '../../../ui/PillSwitch'
 import { AgentIcon } from './AgentIcon'
+import { SettingsBreadcrumb } from '../../SettingsBreadcrumb'
 import type { SubAgentProfileEntryWire } from './wire'
 import {
   inputStyle,
   pageDescriptionStyle,
   pageHeadingStyle,
   pageStyle,
-  primaryButtonStyle,
-  secondaryButtonStyle
+  primaryButtonStyle
 } from './styles'
 
 interface NativeProfileDetailProps {
@@ -62,11 +62,11 @@ export function NativeProfileDetail({
 
   return (
     <div style={pageStyle()}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-        <button type="button" onClick={onBack} style={secondaryButtonStyle()}>
-          {t('settings.subAgents.back')}
-        </button>
-      </div>
+      <SettingsBreadcrumb
+        parentLabel={t('settings.subAgents.title')}
+        currentLabel={t('settings.subAgents.preset.native.title')}
+        onBack={onBack}
+      />
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
         <AgentIcon name={profile.name} isBuiltIn size={40} />

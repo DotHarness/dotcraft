@@ -756,6 +756,7 @@ export const MESSAGES_KO = {
   'settings.mcp.editTitle': 'MCP 서버 편집',
   'settings.mcp.editIntro': '이 작업공간이 MCP 서버에 연결되는 방법을 구성합니다.',
   'settings.mcp.back': '뒤로',
+  'settings.breadcrumb.backTo': '{{label}}(으)로 돌아가기',
   'settings.mcp.field.name': '이름',
   'settings.mcp.field.namePlaceholder': 'MCP 서버 이름',
   'settings.mcp.field.enabled': '활성화됨',

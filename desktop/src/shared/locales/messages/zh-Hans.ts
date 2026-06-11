@@ -2498,6 +2498,7 @@ export const MESSAGES_ZH_HANS = {
   'settings.mcp.editTitle': '编辑 MCP 服务器',
   'settings.mcp.editIntro': '配置此工作区如何连接到 MCP 服务器。',
   'settings.mcp.back': '返回',
+  'settings.breadcrumb.backTo': '返回{{label}}',
   'settings.mcp.field.name': '名称',
   'settings.mcp.field.namePlaceholder': 'MCP 服务器名称',
   'settings.mcp.field.enabled': '启用',

@@ -2590,6 +2590,7 @@ export const MESSAGES_EN = {
   'settings.mcp.editTitle': 'Edit MCP server',
   'settings.mcp.editIntro': 'Configure how this workspace connects to the MCP server.',
   'settings.mcp.back': 'Back',
+  'settings.breadcrumb.backTo': 'Back to {{label}}',
   'settings.mcp.field.name': 'Name',
   'settings.mcp.field.namePlaceholder': 'MCP server name',
   'settings.mcp.field.enabled': 'Enabled',

@@ -756,6 +756,7 @@ export const MESSAGES_JA = {
   'settings.mcp.editTitle': 'MCP サーバーを編集する',
   'settings.mcp.editIntro': 'このワークスペースが MCP サーバーに接続する方法を構成します。',
   'settings.mcp.back': '戻る',
+  'settings.breadcrumb.backTo': '{{label}}に戻る',
   'settings.mcp.field.name': '名前',
   'settings.mcp.field.namePlaceholder': 'MCP サーバー名',
   'settings.mcp.field.enabled': '有効',

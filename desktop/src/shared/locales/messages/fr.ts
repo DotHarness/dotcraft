@@ -761,6 +761,7 @@ export const MESSAGES_FR = {
   'settings.mcp.editTitle': 'Modifier le serveur MCP',
   'settings.mcp.editIntro': 'Configurez la manière dont cet espace de travail se connecte au serveur MCP.',
   'settings.mcp.back': 'Retour',
+  'settings.breadcrumb.backTo': 'Retour à {{label}}',
   'settings.mcp.field.name': 'Nom',
   'settings.mcp.field.namePlaceholder': 'Nom du serveur MCP',
   'settings.mcp.field.enabled': 'Activé',

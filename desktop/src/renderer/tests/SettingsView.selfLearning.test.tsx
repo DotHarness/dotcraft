@@ -668,7 +668,7 @@ describe('SettingsView self-learning settings', () => {
     expect(screen.queryByText('Changes require a service restart to take effect')).not.toBeInTheDocument()
     expect(endpointInput.value).toBe('https://models.example.test/v1')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Back to Model Providers' }))
     expect(await screen.findByText('Provider list')).toBeInTheDocument()
     expect(screen.queryByLabelText('Provider id')).not.toBeInTheDocument()
   })
@@ -783,11 +783,11 @@ describe('SettingsView self-learning settings', () => {
     renderView()
 
     fireEvent.click(await screen.findByRole('button', { name: 'Model Providers' }))
-    const plusRow = await screen.findByRole('button', { name: 'Edit provider OpenAI (ChatGPT)' })
+    const plusRow = await screen.findByRole('button', { name: 'Use provider OpenAI (ChatGPT)' })
     expect(within(plusRow).getByText('ChatGPT · Plus')).toBeInTheDocument()
     expect(within(plusRow).queryByText('No API key')).not.toBeInTheDocument()
 
-    const notSignedRow = await screen.findByRole('button', { name: 'Edit provider Pending ChatGPT' })
+    const notSignedRow = await screen.findByRole('button', { name: 'Use provider Pending ChatGPT' })
     expect(within(notSignedRow).getByText('ChatGPT · Not signed in')).toBeInTheDocument()
   })
 
@@ -798,10 +798,10 @@ describe('SettingsView self-learning settings', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Model Providers' }))
     expect(await screen.findByText('Provider list')).toBeInTheDocument()
 
-    const openAiRow = await screen.findByRole('button', { name: 'Edit provider OpenAI' })
-    const openAiChatRow = await screen.findByRole('button', { name: 'Edit provider OpenAI Chat' })
-    const openAiResponsesRow = await screen.findByRole('button', { name: 'Edit provider OpenAI Responses' })
-    const anthropicRow = await screen.findByRole('button', { name: 'Edit provider Anthropic' })
+    const openAiRow = await screen.findByRole('button', { name: 'Use provider OpenAI' })
+    const openAiChatRow = await screen.findByRole('button', { name: 'Use provider OpenAI Chat' })
+    const openAiResponsesRow = await screen.findByRole('button', { name: 'Use provider OpenAI Responses' })
+    const anthropicRow = await screen.findByRole('button', { name: 'Use provider Anthropic' })
     expect(openAiRow.querySelector('svg[data-provider-mark="openai"]')).toBeInTheDocument()
     expect(openAiChatRow.querySelector('svg[data-provider-mark="openai"]')).toBeInTheDocument()
     expect(openAiResponsesRow.querySelector('svg[data-provider-mark="openai"]')).toBeInTheDocument()
@@ -815,7 +815,7 @@ describe('SettingsView self-learning settings', () => {
     expect(within(openAiRow).getAllByText('OpenAI')).toHaveLength(1)
     expect(within(anthropicRow).getAllByText('Anthropic')).toHaveLength(2)
 
-    fireEvent.click(openAiRow)
+    fireEvent.click(screen.getByRole('button', { name: 'Edit provider OpenAI' }))
     expect(await screen.findByRole('combobox', { name: 'Protocol' })).toHaveTextContent('OpenAI-Legacy')
   })
 
