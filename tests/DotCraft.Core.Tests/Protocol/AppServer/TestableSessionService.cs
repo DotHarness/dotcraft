@@ -12,7 +12,7 @@ namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 /// <c>SubmitInputAsync</c> yields canned <see cref="SessionEvent"/> sequences queued
 /// per thread via <see cref="EnqueueSubmitEvents"/>.
 /// </summary>
-internal sealed class TestableSessionService : ISessionService, IThreadAgentRefreshService, ISubAgentSyntheticTurnService
+internal sealed class TestableSessionService : ISessionService, IThreadAgentRefreshService, ISubAgentSyntheticTurnService, ISubAgentThreadLifecycleService
 {
     private readonly ThreadStore _store;
     private readonly Dictionary<string, SessionThread> _cache = new();
@@ -419,19 +419,44 @@ internal sealed class TestableSessionService : ISessionService, IThreadAgentRefr
 
     public async Task ArchiveThreadAsync(string threadId, CancellationToken ct = default)
     {
-        var t = await GetOrLoadAsync(threadId, ct);
-        if (t.Status == ThreadStatus.Archived) return;
-        t.Status = ThreadStatus.Archived;
-        await _store.SaveThreadAsync(t, ct);
+        var root = await GetOrLoadAsync(threadId, ct);
+        ThrowIfDirectSubAgentLifecycleOperation(root, "archive");
+        foreach (var id in await CollectSubAgentSubtreeIdsAsync(root.Id, includeClosed: true, ct))
+        {
+            var thread = await GetOrLoadAsync(id, ct);
+            if (thread.Status == ThreadStatus.Archived) continue;
+            await ArchiveCoreAsync(thread, ct);
+        }
+    }
+
+    public async Task ArchiveSubAgentTreeForCloseAsync(string childThreadId, CancellationToken ct = default)
+    {
+        var root = await GetOrLoadAsync(childThreadId, ct);
+        if (!IsSubAgentThread(root))
+            throw new InvalidOperationException($"Thread '{childThreadId}' is not a SubAgent child thread.");
+
+        foreach (var id in await CollectSubAgentSubtreeIdsAsync(root.Id, includeClosed: true, ct))
+        {
+            var thread = await GetOrLoadAsync(id, ct);
+            if (thread.Status == ThreadStatus.Archived) continue;
+            await ArchiveCoreAsync(thread, ct);
+        }
     }
 
     public async Task UnarchiveThreadAsync(string threadId, CancellationToken ct = default)
     {
-        var t = await GetOrLoadAsync(threadId, ct);
-        if (t.Status == ThreadStatus.Active) return;
-        t.Status = ThreadStatus.Active;
-        t.LastActiveAt = DateTimeOffset.UtcNow;
-        await _store.SaveThreadAsync(t, ct);
+        var root = await GetOrLoadAsync(threadId, ct);
+        ThrowIfDirectSubAgentLifecycleOperation(root, "unarchive");
+        foreach (var id in await CollectSubAgentSubtreeIdsAsync(root.Id, includeClosed: false, ct))
+        {
+            var thread = await GetOrLoadAsync(id, ct);
+            if (thread.Status == ThreadStatus.Active) continue;
+            var previousStatus = thread.Status;
+            thread.Status = ThreadStatus.Active;
+            thread.LastActiveAt = DateTimeOffset.UtcNow;
+            await _store.SaveThreadAsync(thread, ct);
+            ThreadStatusChangedForBroadcast?.Invoke(thread.Id, previousStatus, thread.Status);
+        }
     }
 
     public async Task RenameThreadAsync(string threadId, string displayName, CancellationToken ct = default)
@@ -629,11 +654,64 @@ internal sealed class TestableSessionService : ISessionService, IThreadAgentRefr
 
     public Task DeleteThreadPermanentlyAsync(string threadId, CancellationToken ct = default)
     {
-        _cache.Remove(threadId);
-        _store.DeleteThread(threadId);
-        _store.DeleteSessionFile(threadId);
-        ThreadDeletedForBroadcast?.Invoke(threadId);
-        return Task.CompletedTask;
+        return DeleteThreadPermanentlyCoreAsync(threadId, ct);
+    }
+
+    private async Task DeleteThreadPermanentlyCoreAsync(string threadId, CancellationToken ct)
+    {
+        var root = await GetOrLoadAsync(threadId, ct);
+        ThrowIfDirectSubAgentLifecycleOperation(root, "delete");
+        foreach (var id in (await CollectSubAgentSubtreeIdsAsync(root.Id, includeClosed: true, ct)).Reverse())
+        {
+            _cache.Remove(id);
+            _store.DeleteThread(id);
+            _store.DeleteSessionFile(id);
+            ThreadDeletedForBroadcast?.Invoke(id);
+        }
+    }
+
+    private async Task ArchiveCoreAsync(SessionThread thread, CancellationToken ct)
+    {
+        var previousStatus = thread.Status;
+        thread.Status = ThreadStatus.Archived;
+        await _store.SaveThreadAsync(thread, ct);
+        ThreadStatusChangedForBroadcast?.Invoke(thread.Id, previousStatus, thread.Status);
+    }
+
+    private static void ThrowIfDirectSubAgentLifecycleOperation(SessionThread thread, string operation)
+    {
+        if (!IsSubAgentThread(thread)) return;
+        var parentId = thread.Source.SubAgent?.ParentThreadId?.Trim();
+        if (string.IsNullOrWhiteSpace(parentId))
+            parentId = thread.ChannelContext?.Trim();
+        if (!string.IsNullOrWhiteSpace(parentId))
+            throw new InvalidOperationException(
+                $"SubAgent child thread '{thread.Id}' cannot be {operation}d directly; manage its parent thread '{parentId}' instead.");
+    }
+
+    private static bool IsSubAgentThread(SessionThread thread) =>
+        string.Equals(thread.Source.Kind, ThreadSourceKinds.SubAgent, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(thread.OriginChannel, SubAgentThreadOrigin.ChannelName, StringComparison.OrdinalIgnoreCase);
+
+    private async Task<IReadOnlyList<string>> CollectSubAgentSubtreeIdsAsync(
+        string rootThreadId,
+        bool includeClosed,
+        CancellationToken ct)
+    {
+        var result = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        async Task VisitAsync(string id)
+        {
+            if (!seen.Add(id)) return;
+            result.Add(id);
+            var children = await _store.ListSubAgentChildrenAsync(id, includeClosed, ct);
+            foreach (var child in children)
+                await VisitAsync(child.ChildThreadId);
+        }
+
+        await VisitAsync(rootThreadId);
+        return result;
     }
 
     // -------------------------------------------------------------------------

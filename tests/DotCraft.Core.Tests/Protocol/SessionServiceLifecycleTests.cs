@@ -388,6 +388,27 @@ public sealed class SessionServiceLifecycleTests : IDisposable
     }
 
     [Fact]
+    public async Task UnarchiveThread_DoesNotRestoreClosedSubAgentDescendants()
+    {
+        var identity = MakeIdentity();
+        var parent = await _svc.CreateThreadAsync(identity);
+        var closedChild = await CreateSubAgentAsync(parent, "closed-child-thread");
+        var closedGrandchild = await CreateSubAgentAsync(closedChild, "closed-grandchild-thread");
+        var openChild = await CreateSubAgentAsync(parent, "open-child-thread");
+
+        await _svc.SetThreadSpawnEdgeStatusAsync(parent.Id, closedChild.Id, ThreadSpawnEdgeStatus.Closed);
+        await _svc.ArchiveSubAgentTreeForCloseAsync(closedChild.Id);
+        await _svc.ArchiveThreadAsync(parent.Id);
+
+        await _svc.UnarchiveThreadAsync(parent.Id);
+
+        Assert.Equal(ThreadStatus.Active, (await _store.LoadThreadAsync(parent.Id))!.Status);
+        Assert.Equal(ThreadStatus.Active, (await _store.LoadThreadAsync(openChild.Id))!.Status);
+        Assert.Equal(ThreadStatus.Archived, (await _store.LoadThreadAsync(closedChild.Id))!.Status);
+        Assert.Equal(ThreadStatus.Archived, (await _store.LoadThreadAsync(closedGrandchild.Id))!.Status);
+    }
+
+    [Fact]
     public async Task DeleteThreadPermanentlyAsync_DeletesSubAgentDescendantsAndEdges()
     {
         var parent = await _svc.CreateThreadAsync(MakeIdentity());
@@ -676,7 +697,7 @@ public sealed class SessionServiceLifecycleTests : IDisposable
 /// A lightweight ISessionService implementation backed by ThreadStore, used for lifecycle testing.
 /// Does not implement SubmitInputAsync (throws NotSupportedException).
 /// </summary>
-internal sealed class FakeSessionService : ISessionService
+internal sealed class FakeSessionService : ISessionService, ISubAgentThreadLifecycleService
 {
     private readonly ThreadStore _store;
     private readonly Dictionary<string, SessionThread> _threads = new();
@@ -785,7 +806,7 @@ internal sealed class FakeSessionService : ISessionService
     {
         var root = await GetOrLoadAsync(threadId, ct);
         ThrowIfDirectSubAgentLifecycleOperation(root, "archive");
-        foreach (var id in await CollectSubAgentSubtreeIdsAsync(root.Id, ct))
+        foreach (var id in await CollectSubAgentSubtreeIdsAsync(root.Id, includeClosed: true, ct))
         {
             var thread = await GetOrLoadAsync(id, ct);
             if (thread.Status == ThreadStatus.Archived) continue;
@@ -800,7 +821,7 @@ internal sealed class FakeSessionService : ISessionService
     {
         var root = await GetOrLoadAsync(threadId, ct);
         ThrowIfDirectSubAgentLifecycleOperation(root, "unarchive");
-        foreach (var id in await CollectSubAgentSubtreeIdsAsync(root.Id, ct))
+        foreach (var id in await CollectSubAgentSubtreeIdsAsync(root.Id, includeClosed: false, ct))
         {
             var thread = await GetOrLoadAsync(id, ct);
             if (thread.Status == ThreadStatus.Active) continue;
@@ -1013,7 +1034,7 @@ internal sealed class FakeSessionService : ISessionService
     {
         var root = await GetOrLoadAsync(threadId, ct);
         ThrowIfDirectSubAgentLifecycleOperation(root, "delete");
-        foreach (var id in (await CollectSubAgentSubtreeIdsAsync(threadId, ct)).Reverse())
+        foreach (var id in (await CollectSubAgentSubtreeIdsAsync(threadId, includeClosed: true, ct)).Reverse())
         {
             _threads.Remove(id);
             _store.DeleteThread(id);
@@ -1031,7 +1052,27 @@ internal sealed class FakeSessionService : ISessionService
         return loaded;
     }
 
-    private async Task<IReadOnlyList<string>> CollectSubAgentSubtreeIdsAsync(string rootThreadId, CancellationToken ct)
+    public async Task ArchiveSubAgentTreeForCloseAsync(string childThreadId, CancellationToken ct = default)
+    {
+        var root = await GetOrLoadAsync(childThreadId, ct);
+        if (!IsSubAgentThread(root))
+            throw new InvalidOperationException($"Thread '{childThreadId}' is not a SubAgent child thread.");
+
+        foreach (var id in await CollectSubAgentSubtreeIdsAsync(root.Id, includeClosed: true, ct))
+        {
+            var thread = await GetOrLoadAsync(id, ct);
+            if (thread.Status == ThreadStatus.Archived) continue;
+            var previous = thread.Status;
+            thread.Status = ThreadStatus.Archived;
+            await _store.SaveThreadAsync(thread, ct);
+            ThreadStatusChangedForBroadcast?.Invoke(thread.Id, previous, thread.Status);
+        }
+    }
+
+    private async Task<IReadOnlyList<string>> CollectSubAgentSubtreeIdsAsync(
+        string rootThreadId,
+        bool includeClosed,
+        CancellationToken ct)
     {
         var result = new List<string>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -1040,7 +1081,7 @@ internal sealed class FakeSessionService : ISessionService
         {
             if (!seen.Add(id)) return;
             result.Add(id);
-            var children = await _store.ListSubAgentChildrenAsync(id, includeClosed: true, ct);
+            var children = await _store.ListSubAgentChildrenAsync(id, includeClosed, ct);
             foreach (var child in children)
                 await VisitAsync(child.ChildThreadId);
         }

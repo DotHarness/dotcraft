@@ -178,7 +178,7 @@ public sealed class SubAgentSessionControlTests : IDisposable
     }
 
     [Fact]
-    public async Task CloseAgent_WithRunningExternalProfile_CancelsSyntheticTurnAndClosesEdge()
+    public async Task CloseAgent_WithRunningExternalProfile_CancelsSyntheticTurnClosesEdgeAndArchivesChild()
     {
         var runtime = new FakeRuntime(CliOneshotRuntime.RuntimeTypeName, "unused")
         {
@@ -203,6 +203,63 @@ public sealed class SubAgentSessionControlTests : IDisposable
         Assert.Equal(ThreadSpawnEdgeStatus.Closed, closed.Status);
         Assert.Equal(ThreadSpawnEdgeStatus.Closed, edge.Status);
         Assert.Equal(TurnStatus.Cancelled, child.Turns.Single().Status);
+        Assert.Equal(ThreadStatus.Archived, child.Status);
+        Assert.Empty(await _sessionService.ListSubAgentChildrenAsync(context.ParentThread.Id));
+    }
+
+    [Fact]
+    public async Task CloseAgent_ArchivesTargetSubtree()
+    {
+        var context = await CreateContextAsync();
+        var child = await CreatePathSubAgentAsync(context);
+        var grandchild = await _sessionService.CreateThreadAsync(
+            new SessionIdentity
+            {
+                WorkspacePath = _tempDir,
+                UserId = "user",
+                ChannelName = SubAgentThreadOrigin.ChannelName,
+                ChannelContext = child.Id
+            },
+            displayName: "Deeper",
+            source: ThreadSource.ForSubAgent(new SubAgentThreadSource
+            {
+                ParentThreadId = child.Id,
+                ParentTurnId = "turn_child",
+                RootThreadId = context.RootThreadId,
+                Depth = 2,
+                AgentPath = "/root/inspect/deeper",
+                TaskName = "deeper",
+                AgentNickname = "Deeper",
+                ProfileName = SubAgentCoordinator.DefaultProfileName,
+                RuntimeType = NativeSubAgentRuntime.RuntimeTypeName,
+                SupportsSendMessage = true,
+                SupportsFollowupTask = true,
+                SupportsClose = true
+            }));
+        await _sessionService.UpsertThreadSpawnEdgeAsync(new ThreadSpawnEdge
+        {
+            ParentThreadId = child.Id,
+            ChildThreadId = grandchild.Id,
+            ParentTurnId = "turn_child",
+            Depth = 2,
+            AgentPath = "/root/inspect/deeper",
+            TaskName = "deeper",
+            AgentNickname = "Deeper",
+            ProfileName = SubAgentCoordinator.DefaultProfileName,
+            RuntimeType = NativeSubAgentRuntime.RuntimeTypeName,
+            SupportsSendMessage = true,
+            SupportsFollowupTask = true,
+            SupportsClose = true,
+            Status = ThreadSpawnEdgeStatus.Open
+        });
+
+        await SubAgentSessionControl.CloseAgentAsync(context, "/root/inspect", CancellationToken.None);
+
+        var incoming = Assert.Single(await _sessionService.ListSubAgentChildrenAsync(context.ParentThread.Id, includeClosed: true));
+        Assert.Equal(ThreadSpawnEdgeStatus.Closed, incoming.Status);
+        Assert.Equal(ThreadStatus.Archived, (await _sessionService.GetThreadAsync(child.Id)).Status);
+        Assert.Equal(ThreadStatus.Archived, (await _sessionService.GetThreadAsync(grandchild.Id)).Status);
+        Assert.Empty(await _sessionService.ListSubAgentChildrenAsync(context.ParentThread.Id));
     }
 
     [Fact]
@@ -1032,6 +1089,7 @@ public sealed class SubAgentSessionControlTests : IDisposable
         Assert.Equal(ThreadSpawnEdgeStatus.Closed, closed.Status);
         Assert.Equal("/root/inspect", closed.AgentPath);
         Assert.Equal(ThreadSpawnEdgeStatus.Closed, edge.Status);
+        Assert.Equal(ThreadStatus.Archived, (await _sessionService.GetThreadAsync(spawned.ChildThreadId)).Status);
     }
 
     [Fact]

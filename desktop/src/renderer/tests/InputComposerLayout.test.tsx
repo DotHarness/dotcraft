@@ -334,6 +334,12 @@ describe('InputComposer layout', () => {
     const dock = screen.getByTestId('subagent-dock')
     expect(within(dock).getByText('1 background agents')).toBeInTheDocument()
     expect(within(dock).getByText('queued follow-up')).toBeInTheDocument()
+    expect(within(dock).getByRole('button', { name: 'Expand background agents' })).toBeInTheDocument()
+
+    fireEvent.click(within(dock).getByRole('button', { name: 'Expand background agents' }))
+
+    expect(within(dock).getByText('queued follow-up')).toBeInTheDocument()
+    expect(within(dock).getByRole('button', { name: 'Collapse background agents' })).toBeInTheDocument()
 
     fireEvent.click(within(dock).getByRole('button', { name: 'Collapse background agents' }))
 

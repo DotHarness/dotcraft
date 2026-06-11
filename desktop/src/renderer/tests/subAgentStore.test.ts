@@ -63,7 +63,7 @@ describe('subAgentStore', () => {
 
     expect(appServerSendRequest).toHaveBeenCalledWith('subagent/children/list', {
       parentThreadId: 'parent-1',
-      includeClosed: true,
+      includeClosed: false,
       includeThreads: true
     })
     expect(useSubAgentStore.getState().childrenByParent.get('parent-1')).toEqual([
@@ -79,6 +79,7 @@ describe('subAgentStore', () => {
         runtime: expect.objectContaining({ running: true })
       })
     ])
+    expect(useSubAgentStore.getState().collapsedByParent.get('parent-1')).toBe(true)
   })
 
   it('falls back from displayName to nickname, taskName, agentPath segment, and childThreadId', async () => {
@@ -383,7 +384,41 @@ describe('subAgentStore', () => {
         threadSummary: null
       })
     ])
-    expect(useSubAgentStore.getState().collapsedByParent.get('parent-1')).toBe(false)
+    expect(useSubAgentStore.getState().collapsedByParent.get('parent-1')).toBe(true)
+  })
+
+  it('clears completed placeholders from authoritative empty child lists while keeping running placeholders', async () => {
+    useSubAgentStore.getState().updateProgress('parent-1', [
+      {
+        label: 'Finished',
+        isCompleted: true,
+        inputTokens: 1,
+        outputTokens: 2,
+        currentTool: null,
+        currentToolDisplay: 'Completed'
+      },
+      {
+        label: 'Still running',
+        isCompleted: false,
+        inputTokens: 3,
+        outputTokens: 4,
+        currentTool: 'ReadFile',
+        currentToolDisplay: 'Reading sprite atlas'
+      }
+    ])
+    appServerSendRequest.mockResolvedValue({ data: [] })
+
+    await useSubAgentStore.getState().fetchChildren('parent-1')
+
+    expect(useSubAgentStore.getState().childrenByParent.get('parent-1')).toEqual([
+      expect.objectContaining({
+        nickname: 'Still running',
+        isPlaceholder: true,
+        runtime: expect.objectContaining({ running: true })
+      })
+    ])
+    expect(useSubAgentStore.getState().childrenByParent.get('parent-1')?.some((child) => child.nickname === 'Finished')).toBe(false)
+    expect(useSubAgentStore.getState().collapsedByParent.get('parent-1')).toBe(true)
   })
 
   it('hydrates placeholder rows with real child threads while preserving progress display', async () => {
@@ -454,6 +489,7 @@ describe('subAgentStore', () => {
       })
     ])
     expect(useThreadStore.getState().runningTurnThreadIds.has('child-1')).toBe(true)
+    expect(useSubAgentStore.getState().collapsedByParent.get('parent-1')).toBe(true)
   })
 
   it('lets terminal edge status override stale running runtime from cache', async () => {

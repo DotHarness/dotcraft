@@ -565,7 +565,7 @@ describe('notification dispatch payload format', () => {
     await vi.waitFor(() => {
       expect(sendRequest).toHaveBeenCalledWith('subagent/children/list', {
         parentThreadId: 'thread-1',
-        includeClosed: true,
+        includeClosed: false,
         includeThreads: true
       })
       expect(useSubAgentStore.getState().childrenByParent.get('thread-1')?.[0]).toEqual(
@@ -858,7 +858,7 @@ describe('notification dispatch payload format', () => {
     await vi.waitFor(() => {
       expect(sendRequest).toHaveBeenCalledWith('subagent/children/list', {
         parentThreadId: 'thread-1',
-        includeClosed: true,
+        includeClosed: false,
         includeThreads: true
       })
       expect(useThreadStore.getState().threadList.some((thread) => thread.id === 'child-graph')).toBe(true)

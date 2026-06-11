@@ -240,25 +240,16 @@ function createPlaceholderChild(
   }
 }
 
-function maybeAutoExpandParent(
+function ensureDefaultCollapsed(
   state: SubAgentStoreState,
   parentThreadId: string,
-  previous: SubAgentChild[],
-  next: SubAgentChild[]
+  children: SubAgentChild[]
 ): Map<string, boolean> | null {
-  if (state.userCollapsedByParent.get(parentThreadId) === true) return null
+  if (children.length === 0 || state.collapsedByParent.has(parentThreadId)) return null
 
-  const hadChildren = previous.length > 0
-  const hadRunning = previous.some(isSubAgentChildRunning)
-  const hasChildren = next.length > 0
-  const hasRunning = next.some(isSubAgentChildRunning)
-  if ((!hadChildren && hasChildren) || (!hadRunning && hasRunning)) {
-    const collapsedByParent = new Map(state.collapsedByParent)
-    collapsedByParent.set(parentThreadId, false)
-    return collapsedByParent
-  }
-
-  return null
+  const collapsedByParent = new Map(state.collapsedByParent)
+  collapsedByParent.set(parentThreadId, true)
+  return collapsedByParent
 }
 
 export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
@@ -268,7 +259,13 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
     set((state) => {
       const previous = state.childrenByParent.get(parentThreadId) ?? []
       if (children.length === 0 && previous.some((child) => child.isPlaceholder)) {
-        return state
+        const runningPlaceholders = previous.filter((child) =>
+          child.isPlaceholder === true && isSubAgentChildRunning(child)
+        )
+        const childrenByParent = new Map(state.childrenByParent)
+        childrenByParent.set(parentThreadId, runningPlaceholders)
+        const collapsedByParent = ensureDefaultCollapsed(state, parentThreadId, runningPlaceholders)
+        return collapsedByParent ? { childrenByParent, collapsedByParent } : { childrenByParent }
       }
 
       const byId = new Map(previous.map((child) => [child.childThreadId, child]))
@@ -294,7 +291,7 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
       })
       const childrenByParent = new Map(state.childrenByParent)
       childrenByParent.set(parentThreadId, merged)
-      const collapsedByParent = maybeAutoExpandParent(state, parentThreadId, previous, merged)
+      const collapsedByParent = ensureDefaultCollapsed(state, parentThreadId, merged)
       return collapsedByParent ? { childrenByParent, collapsedByParent } : { childrenByParent }
     })
   },
@@ -310,7 +307,7 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
     try {
       const result = await window.api.appServer.sendRequest('subagent/children/list', {
         parentThreadId,
-        includeClosed: true,
+        includeClosed: false,
         includeThreads: true
       }) as { data?: SubAgentChildWire[] }
       const children = (result.data ?? [])
@@ -357,7 +354,7 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
       if (next.length === 0 && current.length === 0) return state
       const childrenByParent = new Map(state.childrenByParent)
       childrenByParent.set(parentThreadId, next)
-      const collapsedByParent = maybeAutoExpandParent(state, parentThreadId, current, next)
+      const collapsedByParent = ensureDefaultCollapsed(state, parentThreadId, next)
       return collapsedByParent ? { childrenByParent, collapsedByParent } : { childrenByParent }
     })
   },
@@ -378,7 +375,7 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
           }
         })
         childrenByParent.set(parentThreadId, next)
-        const collapsedByParent = maybeAutoExpandParent(state, parentThreadId, children, next)
+        const collapsedByParent = ensureDefaultCollapsed(state, parentThreadId, next)
         if (collapsedByParent) {
           return { childrenByParent, collapsedByParent }
         }

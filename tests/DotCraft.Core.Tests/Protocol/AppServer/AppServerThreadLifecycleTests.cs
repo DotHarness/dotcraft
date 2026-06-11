@@ -826,6 +826,8 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         var edge = Assert.Single(await _h.Service.ListSubAgentChildrenAsync(parent.Id, includeClosed: true));
         Assert.Equal(child.Id, edge.ChildThreadId);
         Assert.Equal(ThreadSpawnEdgeStatus.Closed, edge.Status);
+        Assert.Empty(await _h.Service.ListSubAgentChildrenAsync(parent.Id));
+        Assert.Equal(ThreadStatus.Archived, (await _h.Service.GetThreadAsync(child.Id)).Status);
     }
 
     [Fact]

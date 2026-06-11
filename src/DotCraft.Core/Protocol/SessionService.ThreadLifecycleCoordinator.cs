@@ -69,7 +69,7 @@ public sealed partial class SessionService
             var root = await owner.GetOrLoadThreadAsync(threadId, ct);
             ThrowIfDirectSubAgentLifecycleOperation(root, "archive");
 
-            foreach (var id in await CollectSubAgentSubtreeIdsAsync(root.Id, ct))
+            foreach (var id in await CollectSubAgentSubtreeIdsAsync(root.Id, includeClosed: true, ct))
             {
                 var thread = await owner.GetOrLoadThreadAsync(id, ct);
                 await ArchiveCoreAsync(thread, ct);
@@ -81,10 +81,23 @@ public sealed partial class SessionService
             var root = await owner.GetOrLoadThreadAsync(threadId, ct);
             ThrowIfDirectSubAgentLifecycleOperation(root, "unarchive");
 
-            foreach (var id in await CollectSubAgentSubtreeIdsAsync(root.Id, ct))
+            foreach (var id in await CollectSubAgentSubtreeIdsAsync(root.Id, includeClosed: false, ct))
             {
                 var thread = await owner.GetOrLoadThreadAsync(id, ct);
                 await UnarchiveCoreAsync(thread, ct);
+            }
+        }
+
+        public async Task ArchiveSubAgentTreeForCloseAsync(string childThreadId, CancellationToken ct)
+        {
+            var root = await owner.GetOrLoadThreadAsync(childThreadId, ct);
+            if (!IsSubAgentThread(root))
+                throw new InvalidOperationException($"Thread '{childThreadId}' is not a SubAgent child thread.");
+
+            foreach (var id in await CollectSubAgentSubtreeIdsAsync(root.Id, includeClosed: true, ct))
+            {
+                var thread = await owner.GetOrLoadThreadAsync(id, ct);
+                await ArchiveCoreAsync(thread, ct);
             }
         }
 
@@ -96,7 +109,7 @@ public sealed partial class SessionService
 
             var root = await owner.GetOrLoadThreadAsync(normalizedThreadId, ct);
             ThrowIfDirectSubAgentLifecycleOperation(root, "delete");
-            var subtreeIds = await CollectSubAgentSubtreeIdsAsync(normalizedThreadId, ct);
+            var subtreeIds = await CollectSubAgentSubtreeIdsAsync(normalizedThreadId, includeClosed: true, ct);
             var deleteOrder = subtreeIds.Reverse().ToList();
             foreach (var id in deleteOrder)
             {
@@ -148,7 +161,10 @@ public sealed partial class SessionService
                 $"SubAgent child thread '{thread.Id}' cannot be {operation}d directly; manage its parent thread '{parentId}' instead.");
         }
 
-        private async Task<IReadOnlyList<string>> CollectSubAgentSubtreeIdsAsync(string rootThreadId, CancellationToken ct)
+        private async Task<IReadOnlyList<string>> CollectSubAgentSubtreeIdsAsync(
+            string rootThreadId,
+            bool includeClosed,
+            CancellationToken ct)
         {
             var result = new List<string>();
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -160,7 +176,7 @@ public sealed partial class SessionService
                     return;
 
                 result.Add(id);
-                var children = await owner.Persistence.ListSubAgentChildrenAsync(id, includeClosed: true, ct);
+                var children = await owner.Persistence.ListSubAgentChildrenAsync(id, includeClosed, ct);
                 foreach (var child in children)
                     await VisitAsync(child.ChildThreadId);
             }

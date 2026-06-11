@@ -102,7 +102,7 @@ public sealed partial class SessionService(
     SessionStreamDebugLogger? sessionStreamDebugLogger = null,
     IBackgroundTerminalService? backgroundTerminalService = null,
     IAppConfigMonitor? appConfigMonitor = null)
-    : ISessionService, IThreadAgentRefreshService, ISubAgentSyntheticTurnService
+    : ISessionService, IThreadAgentRefreshService, ISubAgentSyntheticTurnService, ISubAgentThreadLifecycleService
 {
     private readonly TimeSpan _approvalTimeout = approvalTimeout ?? TimeSpan.FromMinutes(5);
 
@@ -843,6 +843,9 @@ public sealed partial class SessionService(
         string reason,
         CancellationToken ct = default)
         => await SubAgents.CancelSyntheticTurnAsync(threadId, turnId, reason, ct);
+
+    public async Task ArchiveSubAgentTreeForCloseAsync(string childThreadId, CancellationToken ct = default)
+        => await ThreadLifecycle.ArchiveSubAgentTreeForCloseAsync(childThreadId, ct);
 
     private static bool IsSubAgentThread(SessionThread thread) =>
         string.Equals(thread.Source.Kind, ThreadSourceKinds.SubAgent, StringComparison.OrdinalIgnoreCase)

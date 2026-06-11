@@ -786,6 +786,40 @@ public static class SubAgentSessionControl
     {
         var child = await sessionService.GetThreadAsync(childThreadId, ct);
         var parentThreadId = child.Source.SubAgent?.ParentThreadId ?? child.ChannelContext;
+        child = await CancelActiveChildTurnForCloseAsync(sessionService, childThreadId, child, ct);
+
+        if (!string.IsNullOrWhiteSpace(parentThreadId))
+            await sessionService.SetThreadSpawnEdgeStatusAsync(parentThreadId!, childThreadId, ThreadSpawnEdgeStatus.Closed, ct);
+
+        if (sessionService is ISubAgentThreadLifecycleService lifecycle)
+            await lifecycle.ArchiveSubAgentTreeForCloseAsync(childThreadId, ct);
+
+        NotifyAgentChange();
+
+        return new SubAgentControlResult
+        {
+            ChildThreadId = childThreadId,
+            AgentPath = child.Source.SubAgent?.AgentPath,
+            TaskName = child.Source.SubAgent?.TaskName,
+            Status = ThreadSpawnEdgeStatus.Closed,
+            AgentNickname = child.Source.SubAgent?.AgentNickname,
+            AgentRole = child.Source.SubAgent?.AgentRole,
+            ProfileName = child.Source.SubAgent?.ProfileName,
+            RuntimeType = child.Source.SubAgent?.RuntimeType,
+            SupportsSendInput = child.Source.SubAgent?.SupportsSendInput ?? true,
+            SupportsResume = child.Source.SubAgent?.SupportsResume ?? true,
+            SupportsSendMessage = child.Source.SubAgent?.SupportsSendMessage ?? true,
+            SupportsFollowupTask = child.Source.SubAgent?.SupportsFollowupTask ?? true,
+            SupportsClose = child.Source.SubAgent?.SupportsClose ?? true
+        };
+    }
+
+    private static async Task<SessionThread> CancelActiveChildTurnForCloseAsync(
+        ISessionService sessionService,
+        string childThreadId,
+        SessionThread child,
+        CancellationToken ct)
+    {
         if (RunningChildren.TryRemove(childThreadId, out var running))
         {
             try
@@ -815,46 +849,27 @@ public static class SubAgentSessionControl
 
         var activeTurn = child.Turns.LastOrDefault(t =>
             t.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput);
-        if (activeTurn != null)
+        if (activeTurn == null)
+            return child;
+
+        if (sessionService is ISubAgentSyntheticTurnService syntheticTurns
+            && !string.Equals(
+                child.Source.SubAgent?.RuntimeType,
+                NativeSubAgentRuntime.RuntimeTypeName,
+                StringComparison.OrdinalIgnoreCase))
         {
-            if (sessionService is ISubAgentSyntheticTurnService syntheticTurns
-                && !string.Equals(
-                    child.Source.SubAgent?.RuntimeType,
-                    NativeSubAgentRuntime.RuntimeTypeName,
-                    StringComparison.OrdinalIgnoreCase))
-            {
-                await syntheticTurns.CancelSubAgentSyntheticTurnAsync(
-                    childThreadId,
-                    activeTurn.Id,
-                    "Subagent was cancelled.",
-                    CancellationToken.None);
-            }
-            else
-            {
-                await sessionService.CancelTurnAsync(childThreadId, activeTurn.Id, ct);
-            }
+            await syntheticTurns.CancelSubAgentSyntheticTurnAsync(
+                childThreadId,
+                activeTurn.Id,
+                "Subagent was cancelled.",
+                CancellationToken.None);
+        }
+        else
+        {
+            await sessionService.CancelTurnAsync(childThreadId, activeTurn.Id, ct);
         }
 
-        if (!string.IsNullOrWhiteSpace(parentThreadId))
-            await sessionService.SetThreadSpawnEdgeStatusAsync(parentThreadId!, childThreadId, ThreadSpawnEdgeStatus.Closed, ct);
-        NotifyAgentChange();
-
-        return new SubAgentControlResult
-        {
-            ChildThreadId = childThreadId,
-            AgentPath = child.Source.SubAgent?.AgentPath,
-            TaskName = child.Source.SubAgent?.TaskName,
-            Status = ThreadSpawnEdgeStatus.Closed,
-            AgentNickname = child.Source.SubAgent?.AgentNickname,
-            AgentRole = child.Source.SubAgent?.AgentRole,
-            ProfileName = child.Source.SubAgent?.ProfileName,
-            RuntimeType = child.Source.SubAgent?.RuntimeType,
-            SupportsSendInput = child.Source.SubAgent?.SupportsSendInput ?? true,
-            SupportsResume = child.Source.SubAgent?.SupportsResume ?? true,
-            SupportsSendMessage = child.Source.SubAgent?.SupportsSendMessage ?? true,
-            SupportsFollowupTask = child.Source.SubAgent?.SupportsFollowupTask ?? true,
-            SupportsClose = child.Source.SubAgent?.SupportsClose ?? true
-        };
+        return await sessionService.GetThreadAsync(childThreadId, ct);
     }
 
     public static async Task<SubAgentControlResult> ResumeAgentAsync(

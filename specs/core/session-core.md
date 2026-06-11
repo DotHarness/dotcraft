@@ -292,9 +292,9 @@ When a path-addressable child turn reaches a terminal state, Session Core writes
 
 `ListAgents(pathPrefix?)` reports open path-addressable agents plus `/root`. Its `status` value reflects the execution lifecycle of the latest relevant turn: active turns report `running`, `waitingapproval`, or `waitinginput`; terminal turns report `completed`, `failed`, or `cancelled`; agents without turns report `idle`; closed edges report `closed`.
 
-Top-level thread discovery hides subagent threads by default. Callers that need a raw mixed list must request `includeSubAgents`; active lists still hide children whose parent is archived. Clients that render a background-agent widget should prefer the edge list for the active parent thread.
+Top-level thread discovery hides subagent threads by default. Callers that need a raw mixed list must request `includeSubAgents`; active lists still hide children whose parent is archived. Clients that render a background-agent widget should prefer the open edge list for the active parent thread, so explicitly closed child agents do not appear as active background activity.
 
-SubAgent child thread lifecycle is owned by the parent thread. Archiving, restoring, or permanently deleting a parent recursively applies to all descendant child threads. Direct archive/delete calls against a child thread are invalid; clients should close children through the SubAgent control APIs or manage the parent thread.
+SubAgent child thread lifecycle is owned by the parent thread. Archiving or permanently deleting a parent recursively applies to all descendant child threads. Restoring a parent restores only descendants whose parent/child edge is still open; children explicitly closed through `CloseAgent` remain archived. Direct archive/delete calls against a child thread are invalid; clients should close children through the SubAgent control APIs or manage the parent thread. `CloseAgent` marks the child edge closed, cancels any active child turn still owned by the server, and archives the target child subtree.
 
 #### 4.1.2 Turn
 

@@ -511,3 +511,17 @@ public interface ISubAgentSyntheticTurnService
         string reason,
         CancellationToken ct = default);
 }
+
+/// <summary>
+/// Internal Session Core extension used by SubAgent controls that need to apply
+/// child-thread lifecycle changes while preserving the public rule that child
+/// threads cannot be archived directly by clients.
+/// </summary>
+public interface ISubAgentThreadLifecycleService
+{
+    /// <summary>
+    /// Archives a SubAgent child thread and its descendants after the incoming
+    /// parent/child edge has been closed.
+    /// </summary>
+    Task ArchiveSubAgentTreeForCloseAsync(string childThreadId, CancellationToken ct = default);
+}

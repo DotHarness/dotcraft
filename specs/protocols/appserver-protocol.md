@@ -5381,7 +5381,7 @@ Servers advertising `capabilities.subAgentSessions = true` expose profile-backed
 
 SubAgent control uses stable agent paths. The root agent path is `/root`; each spawned child adds its `taskName` as a path segment, such as `/root/researcher`. `taskName` segments must use lowercase ASCII letters, digits, and underscores, and the reserved segment values `root`, `.`, and `..` are invalid. Relative control targets append valid path segments to the current agent path; absolute control targets must begin with `/root`. `agentNickname` is display metadata. A child thread's `displayName` is initialized from `agentNickname` when present, otherwise from `taskName`; renaming a thread does not change its path.
 
-`thread/list` hides subagent child threads unless `includeSubAgents` is true. Children follow the parent lifecycle: parent archive/unarchive/delete recursively applies to descendants, and direct child archive/delete calls are invalid. Clients rendering a composer-adjacent background-agent widget should use `subagent/children/list` for the active parent thread, then call `thread/read` for a child when the user expands or jumps into it.
+`thread/list` hides subagent child threads unless `includeSubAgents` is true. Children follow the parent lifecycle: parent archive/delete recursively applies to descendants, and parent unarchive restores only descendants whose parent/child edge is still open. Direct child archive/delete calls are invalid. Clients rendering a composer-adjacent background-agent widget should use `subagent/children/list` for the active parent thread, then call `thread/read` for a child when the user expands or jumps into it.
 
 When `includeThreads` is true, the returned child thread uses the same wire model as `thread/read` and may include a `runtime` snapshot derived from persisted turns. Clients should use `thread.runtime.running` to decide whether the child is actively executing. `edge.status: "open"` means the parent/child relationship remains available for path-based control and must not by itself be interpreted as a running child.
 
@@ -5430,7 +5430,7 @@ Result:
 }
 ```
 
-Edges without `agentPath` are returned without path fields and cannot be used as path-control targets.
+By default, closed edges are not returned. Clients that set `includeClosed: true` may receive closed historical edges for audit or settings surfaces, but composer-adjacent background-agent widgets should keep the default so explicitly closed agents disappear from active background activity. Edges without `agentPath` are returned without path fields and cannot be used as path-control targets.
 
 #### `subagent/sendMessage`
 
@@ -5476,7 +5476,7 @@ Params:
 }
 ```
 
-`subagent/close` resolves `target`, rejects `/root` and self-targets, cancels any active child turn when the server still owns the running task, and marks the parent/child edge closed.
+`subagent/close` resolves `target`, rejects `/root` and self-targets, cancels any active child turn when the server still owns the running task, marks the parent/child edge closed, and archives the target child subtree. The result shape is unchanged; the closed edge remains available only to callers that explicitly request closed edges, while default child listing no longer returns the closed child.
 
 ## 25. Workspace Config Methods
 
