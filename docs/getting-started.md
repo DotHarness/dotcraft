@@ -12,7 +12,8 @@ Go to [GitHub Releases](https://github.com/DotHarness/dotcraft/releases) and dow
 |----------|------------------|
 | Windows x64 | `DotCraft-vX.Y.Z-win-x64-Setup.exe` |
 | Windows ARM64 | `DotCraft-vX.Y.Z-win-arm64-Setup.exe` |
-| macOS | `DotCraft-vX.Y.Z-macos-x64.dmg` |
+| macOS Apple Silicon | `DotCraft-vX.Y.Z-macos-arm64.dmg` |
+| macOS Intel | `DotCraft-vX.Y.Z-macos-x64.dmg` |
 
 Desktop is the recommended first entry point because workspace selection, model configuration, sessions, diffs, plans, automation review, and runtime status live in one UI.
 
@@ -28,7 +29,7 @@ Windows PowerShell:
 irm https://www.dotcraft.net/install.ps1 | iex
 ```
 
-The Windows PowerShell installer auto-selects the x64 or ARM64 CLI/TUI archive. Linux and macOS CLI release archives are currently x64-only.
+The Windows PowerShell installer auto-selects the x64 or ARM64 CLI/TUI archive. The macOS/Linux shell installer auto-selects x64 or ARM64 on macOS; Linux CLI release archives are currently x64-only.
 
 ![DotCraft](https://github.com/DotHarness/resources/raw/master/dotcraft/desktop.png)
 

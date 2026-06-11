@@ -12,7 +12,8 @@
 |------|----------|
 | Windows x64 | `DotCraft-vX.Y.Z-win-x64-Setup.exe` |
 | Windows ARM64 | `DotCraft-vX.Y.Z-win-arm64-Setup.exe` |
-| macOS | `DotCraft-vX.Y.Z-macos-x64.dmg` |
+| macOS Apple Silicon | `DotCraft-vX.Y.Z-macos-arm64.dmg` |
+| macOS Intel | `DotCraft-vX.Y.Z-macos-x64.dmg` |
 
 Desktop 是推荐的第一入口，因为它把工作区选择、模型配置、会话、Diff、计划、自动化审核和运行状态放在同一个界面里。
 
@@ -28,7 +29,7 @@ Windows PowerShell：
 irm https://www.dotcraft.net/install.ps1 | iex
 ```
 
-Windows PowerShell 安装脚本会自动选择 x64 或 ARM64 的 CLI/TUI 归档。Linux 和 macOS 的 CLI Release 归档目前仍只提供 x64。
+Windows PowerShell 安装脚本会自动选择 x64 或 ARM64 的 CLI/TUI 归档。macOS/Linux shell 安装脚本会在 macOS 上自动选择 x64 或 ARM64；Linux 的 CLI Release 归档目前仍只提供 x64。
 
 ![DotCraft](https://github.com/DotHarness/resources/raw/master/dotcraft/desktop.png)
 
