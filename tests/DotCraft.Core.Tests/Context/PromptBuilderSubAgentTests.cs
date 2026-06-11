@@ -166,7 +166,7 @@ public sealed class PromptBuilderSubAgentTests : IDisposable
 
         Assert.Contains("## Git Commit Attribution", prompt, StringComparison.Ordinal);
         Assert.Contains("do not change git config", prompt, StringComparison.Ordinal);
-        Assert.Contains("Co-authored-by: DotCraft Bot <273930855+DotCraft-Bot@users.noreply.github.com>", prompt, StringComparison.Ordinal);
+        Assert.Contains("Co-authored-by: DotCraft <273930855+dotcraft-ai@users.noreply.github.com>", prompt, StringComparison.Ordinal);
     }
 
     [Fact]

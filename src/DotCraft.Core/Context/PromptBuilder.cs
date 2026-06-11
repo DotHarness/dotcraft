@@ -491,7 +491,7 @@ Use the available tools deliberately to gather context, make changes, validate w
 
 ## Git Commit Attribution
 When creating git commits for the user, do not change git config. End commit messages with:
-Co-authored-by: DotCraft Bot <273930855+DotCraft-Bot@users.noreply.github.com>
+Co-authored-by: DotCraft <273930855+dotcraft-ai@users.noreply.github.com>
 """;
     }
 
