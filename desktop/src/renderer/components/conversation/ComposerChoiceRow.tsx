@@ -187,14 +187,15 @@ function composerChoiceLabelWrapStyle(density: ComposerChoiceDensity): CSSProper
 export function composerChoiceLabelStyle(
   selected = false,
   disabled = false,
-  density: ComposerChoiceDensity = 'compact'
+  _density: ComposerChoiceDensity = 'compact'
 ): CSSProperties {
-  const decision = density === 'decision'
-
+  // Selection is conveyed by the row background alone; the label keeps the same
+  // weight/color in every state so its glyph width and brightness never shift.
+  void selected
   return {
     color: disabled ? 'var(--text-dimmed)' : 'var(--text-primary)',
     fontSize: 'var(--text-body-size)',
-    fontWeight: decision && selected ? 600 : 'var(--conversation-font-weight)',
+    fontWeight: 'var(--conversation-font-weight)',
     lineHeight: 'var(--text-body-line-height)',
     minWidth: 0
   }
