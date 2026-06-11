@@ -517,7 +517,7 @@ internal sealed class ThreadRequestHandler(
         {
             if (turn.Status == TurnStatus.WaitingApproval)
             {
-                foreach (var (approvalItem, approvalRequest) in FindPendingApprovalRequests(turn))
+                foreach (var (approvalItem, approvalRequest) in FindPendingApprovalRequests(turn).ToArray())
                 {
                     await ReplayApprovalRequestAsync(sender, thread.Id, turn.Id, approvalItem.Id, approvalRequest);
                 }
