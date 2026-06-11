@@ -156,6 +156,87 @@ if (client.Capabilities.DynamicToolRebind)
 }
 ```
 
+## Author Dynamic Tools With Attributes
+
+Hand-writing a `DynamicToolSpec.InputSchema` per tool is verbose and easy to get
+wrong. The `DotCraft.Sdk.Tools` namespace provides an attribute-based authoring
+layer that reflects `[DynamicTool]` methods, auto-generates each tool's JSON
+Schema (via `System.Text.Json.Schema.JsonSchemaExporter`), and dispatches calls
+with argument binding and structured error mapping.
+
+Two authoring conventions are supported:
+
+- **Typed-arguments record** — a single record/POCO parameter. Nested objects,
+  enums, nullability, and the `Schema*` refinement attributes
+  (`[SchemaMinimum]`, `[SchemaMaximum]`, `[SchemaPattern]`, `[SchemaMinItems]`,
+  `[SchemaMaxItems]`, `[SchemaConstTrue]`, `[SchemaAllowAdditionalProperties]`)
+  are all handled automatically.
+- **Flat parameters** — each method parameter becomes a property, annotated with
+  `[Description]`. A parameter assignable to `DynamicToolRegistryOptions.ContextType`
+  and a `CancellationToken` are injected and excluded from the schema.
+
+```csharp
+using DotCraft.Sdk.Tools;
+
+public sealed class GetIssueArgs
+{
+    [Description("Issue id to read.")]
+    public required string IssueId { get; init; }
+
+    [SchemaMinimum(1)]
+    [SchemaMaximum(100)]
+    public int? MaxComments { get; init; }
+}
+
+public sealed class IssueTools
+{
+    [DynamicTool("GetIssue", "Read an issue from MyApp.")]
+    public async Task<object> GetIssueAsync(GetIssueArgs args, CancellationToken ct)
+    {
+        var issue = await issueStore.GetIssueAsync(args.IssueId, ct);
+        return new { issue.Id, issue.Title, issue.Status };
+    }
+}
+
+var registry = new DynamicToolRegistry(new DynamicToolRegistryOptions
+{
+    // optional: per-app error codes / hints / logging
+    InvalidArgumentHint = "Check argument types and required fields.",
+    InternalErrorLogger = (ex, tool) => logger.LogError(ex, "Tool {Tool} failed.", tool),
+});
+registry.Register(new IssueTools(), "myapp");
+
+// Declare on thread/start:
+DynamicToolSpec[] specs = registry.ListDescriptors()
+    .Select(d => new DynamicToolSpec(
+        Namespace: "myapp",          // sanitize to a valid identifier if it contains dots
+        Name: d.Name.Split('.').Last(),
+        Description: d.Description,
+        InputSchema: d.InputSchema)) // already a JsonElement
+    .ToArray();
+
+// Dispatch server-initiated item/tool/call:
+using var registration = client.RegisterDynamicToolHandler(async (call, ct) =>
+{
+    JsonElement payload = await registry.InvokeJsonEnvelopeAsync(
+        call.Namespace ?? "myapp", call.Tool ?? "", call.Arguments, ct);
+    return new DynamicToolResult(true, StructuredResult: payload);
+});
+```
+
+`InvokeAsync` returns a neutral `DynamicToolOutcome` (success-with-data or a
+`{code,message,field?,hint?}` error); `InvokeJsonEnvelopeAsync` shapes it into the
+`{ "ok": true, "data": ... }` / `{ "ok": false, "error": {...} }` JSON envelope.
+Throw `DynamicToolException(code, message, field?, hint?)` from a tool body to
+return a structured error.
+
+> **Note (app-side adoption):** DotCraft's in-process managed tools (e.g. Teams)
+> currently use their own attribute mechanism with a manual schema builder. They
+> can migrate onto this shared component by mapping each `DynamicToolDescriptor`
+> (`JsonElement` schema) to their `DynamicToolSpec` and using
+> `DynamicToolRegistryOptions.ContextType` for the call context. That migration is
+> tracked as a follow-up.
+
 ## App Binding Handoff
 
 Native apps can parse a DotCraft App Binding handoff URL, inspect the binding
