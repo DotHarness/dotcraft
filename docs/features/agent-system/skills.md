@@ -75,7 +75,7 @@ When you install via **Install with DotCraft**, the agent keeps the original ski
 
 That preserves the value of self-learning while keeping a clean rollback.
 
-<video controls src="https://github.com/DotHarness/resources/raw/master/dotcraft/skill_variant.mp4" style="width: 100%; border-radius: 8px;"></video>
+![Skill Variant](https://github.com/DotHarness/resources/raw/master/dotcraft/skill_variant.gif)
 
 ## Enable / Disable Management
 

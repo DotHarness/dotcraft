@@ -16,43 +16,61 @@ DotCraft is a .NET 10 / C# Agent Harness. It organizes AI workflows around a rea
 - Unified session model: CLI, Desktop, TUI, chatbots, etc, all applications reuse the same execution engine.
 - Observability and governance: approvals, traces, Dashboard, Hooks, and sandbox settings make agent workflows easier to inspect and control.
 - Extensibility and integration: AppServer, SDKs, and plugins support custom entry points and business workflows.
-- Bring your own model: works with any OpenAI- or Anthropic-protocol provider, reuses an active ChatGPT (Codex) subscription, and natively supports DeepSeek V4 and MiMo V2.5 reasoning models.
+- Bring your own model: works with any OpenAI- or Anthropic-protocol provider, reuses an active ChatGPT subscription, and natively supports DeepSeek V4 and MiMo V2.5 reasoning models.
 
 ## Highlights
 
-### Multi-Workspace — Every Project Gets Its Own Agent
+DotCraft's capabilities, grouped by what they help you do.
+
+### Project-First Workspaces
+
+*Each project is its own workspace — running locally or on your own server.*
+
+#### Multi-Workspace — Every Project Gets Its Own Agent
 
 ![DotCraft multi-workspace](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/multi-workspace.gif)
 
-Most agents stretch one workspace across every project. DotCraft does the opposite: every project is its own workspace, with its own `.craft/` memory, skills, config, and model choices. Desktop keeps several open at once and switches between them instantly — each project resumes right where you left it, and moving, handing off, or backing one up carries its whole agent along.
+Most agents reuse one setup across every project; DotCraft gives each project its own agent — its own conversations, memory, skills, plugins, and settings — so it truly understands what it's working on.
 
 [Learn more →](https://www.dotcraft.net/features/project-first)
 
-### Desktop Extensions — Plugins with a Full View Inside Desktop
+#### Remote Servers — Drive a Server-Hosted Agent from Desktop
 
-![DotCraft Desktop extensions](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/desktop-extensions.gif)
+![DotCraft remote servers](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/servers.gif)
 
-Plugins can now render their own UI right inside Desktop, not just add tools. The Oratorio board is the first: connect it to a thread and its board opens as a full view, reading items and queuing work through the same approvals and audit trail as any tool.
+Run DotCraft on your own server and connect from Desktop anytime to drive it remotely.
 
-[Learn more →](https://www.dotcraft.net/developing/integrations/desktop-extensions)
+[Learn more →](https://www.dotcraft.net/features/self-hosted/server-deployment)
 
-### Goal — Persistent Conversation Objectives
+### Agents That Keep Working
 
-![DotCraft Goals](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/goal.gif)
+*Hand off a goal or a mission, and DotCraft carries it forward.*
 
-Pin a long-term objective to a conversation and set a token or time budget — whenever the conversation goes idle, DotCraft will quietly keep working toward it. You decide when it pauses, resumes, or wraps up.
-
-[Learn more →](https://www.dotcraft.net/features/agent-system/automations#goals)
-
-### Teams — Multi-agent Mission Board
+#### Teams — Multi-agent Mission Board
 
 ![DotCraft Teams](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/teams.gif)
 
-For a complex request, DotCraft assembles a small team — Explorer, Builder, Reviewer, Operator — and a Team Leader who splits the work, dispatches it in parallel, and brings the results back together. You hand over one ask; you get the finished mission.
+For a complex request, DotCraft assembles a small team to split up the work, dispatch it in parallel, and bring the results back together. You hand over one ask; you get the finished mission.
 
 [Learn more →](https://www.dotcraft.net/features/agent-system/teams)
 
-### Dreams — Background Memory Consolidation
+#### Goal — Persistent Conversation Objectives
+
+![DotCraft Goals](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/goal.gif)
+
+Pin a long-term goal to a conversation and give it a time or usage budget — whenever things go quiet, DotCraft quietly keeps working toward it. You decide when it pauses, resumes, or wraps up.
+
+[Learn more →](https://www.dotcraft.net/features/agent-system/automations#goals)
+
+#### Thread Tools — The Agent Manages Its Own Conversations
+
+![DotCraft thread tools](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/thread-tools.gif)
+
+From inside one conversation, DotCraft can look after all the others — start a new one in the background, search and read through past ones, pass a task along, or rename, pin, and tidy them away. It handles the housekeeping itself, without ever pulling you out of the conversation you're in.
+
+[Learn more →](https://www.dotcraft.net/features/entry-points/desktop)
+
+#### Dreams — Background Memory Consolidation
 
 ![Dreams review flow](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/dreams.gif)
 
@@ -60,23 +78,47 @@ While you work, Dreams quietly reviews recent activity in the background and dra
 
 [Learn more →](https://www.dotcraft.net/features/agent-system/memory)
 
-### Cross Channels — One Conversation, Any Platform
+### Extend & Integrate
 
-![DotCraft Channels configuration and conversations](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/channels.gif)
+*Bring your own tools, UIs, and services into the conversation.*
 
-Start a conversation on Desktop, continue it in the TUI, and pick it back up later on QQ, WeCom, Feishu, Telegram, or WeChat. It's the same conversation everywhere, with tool approvals rendered natively on each platform.
+#### Desktop Extensions — Plugins with a Full View Inside Desktop
 
-[Learn more →](https://www.dotcraft.net/features/entry-points/channels)
+![DotCraft Desktop extensions](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/desktop-extensions.gif)
 
-### App — SDK-driven App Binding for External Extensions
+A plugin doesn't have to stop at adding tools — it can bring its own full interface right inside Desktop.
+
+[Learn more →](https://www.dotcraft.net/developing/integrations/desktop-extensions)
+
+#### Interactive Tool Cards — Tool Results You Can Act On
+
+![DotCraft interactive tool cards](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/dynamic-tools-card.gif)
+
+Some tool results are things you act on, not just read — a board to scan, an item to operate, a status to refresh. Those render as live, interactive cards in the conversation, where your clicks and inputs drive the agent.
+
+[Learn more →](https://www.dotcraft.net/developing/integrations/interactive-tool-ui)
+
+#### App — SDK-driven App Binding for External Extensions
 
 ![DotCraft App Binding](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/app.gif)
 
-With the DotCraft SDK you can wrap your own service into an App and plug it straight into the agent — bringing custom tools, data, and workflows into the conversation with no extra middleware. Per-tool approval and full audit trails come built in.
+Have a service of your own? With the DotCraft SDK you can turn it into an App and plug it straight into the agent — its tools, data, and workflows become part of the conversation, with nothing extra in between.
 
 [Learn more →](https://www.dotcraft.net/developing/integrations/app-binding)
 
-### ChatGPT Plan — Sign in with ChatGPT, No Extra API Costs
+### Connect On Your Terms
+
+*Bring the agent to the chat apps you use, on the model you already pay for.*
+
+#### Cross Channels — One Agent Across Your Chat Apps
+
+![DotCraft Channels configuration and conversations](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/channels.gif)
+
+Run the same agent as a bot in QQ, WeCom, Feishu, Telegram, or WeChat — sharing one memory, skill set, and approval policy.
+
+[Learn more →](https://www.dotcraft.net/features/entry-points/channels)
+
+#### ChatGPT Plan — Sign in with ChatGPT, No Extra API Costs
 
 ![Sign in with ChatGPT](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/chatgpt.gif)
 

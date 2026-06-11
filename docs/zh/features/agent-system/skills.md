@@ -75,7 +75,7 @@ DotCraft 的 Skills 页面同时搜索本地已安装技能和外部技能市场
 
 这样自学习带来的收益保留下来，风险也有清晰的回退路径。
 
-<video controls src="https://github.com/DotHarness/resources/raw/master/dotcraft/skill_variant.mp4" style="width: 100%; border-radius: 8px;"></video>
+![Skill Variant](https://github.com/DotHarness/resources/raw/master/dotcraft/skill_variant.gif)
 
 ## 启用 / 禁用管理
 

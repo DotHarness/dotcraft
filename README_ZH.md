@@ -16,43 +16,61 @@ DotCraft 是一个 .NET 10 / C# Agent Harness。它围绕真实项目目录组�
 - 统一会话模型：CLI、Desktop、TUI 聊天机器人等等，所有应用复用同一执行引擎。
 - 可观测与治理：审批、Trace、Dashboard、Hooks 和沙箱配置让 agent 工作流更容易检查和约束。
 - 扩展与集成：AppServer、SDK 与插件体系支持自定义入口和业务工作流。
-- 自由换模：兼容所有 OpenAI 与 Anthropic 协议的 Provider，可直接复用 ChatGPT（Codex）订阅，并原生适配 DeepSeek V4、MiMo V2.5 等推理模型。
+- 自由换模：兼容所有 OpenAI 与 Anthropic 协议的 Provider，可直接复用 ChatGPT 订阅，并原生适配 DeepSeek V4、MiMo V2.5 等推理模型。
 
 ## 亮点功能
 
-### 多工作区 — 每个项目都有自己的 Agent
+DotCraft 的能力，按它帮你做什么来归类。
+
+### 项目为先的工作区
+
+*每个项目都是独立的工作区——既能跑在本地，也能跑在你自己的服务器上。*
+
+#### 多工作区 — 每个项目都有自己的 Agent
 
 ![DotCraft 多工作区](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/multi-workspace.gif)
 
-多数 Agent 把一个工作区摊到所有项目上；DotCraft 反过来：每个项目都是独立工作区，有自己的 `.craft/` 记忆、技能、配置与模型选择。Desktop 可同时打开多个项目并瞬间切换——每个都从你离开时的状态继续，迁移、交接或备份其中一个，都会带走它完整的 Agent。
+多数 Agent 把同一套配置摊到所有项目上；DotCraft 反过来：每个项目都有自己的 Agent——自己的会话、记忆、技能、插件和设置——因而真正懂你手上的项目。
 
 [了解更多 →](https://www.dotcraft.net/zh/features/project-first)
 
-### Desktop 扩展 — 插件在 Desktop 内提供完整界面
+#### 远程服务器 — 在 Desktop 里驱动服务器上的 Agent
 
-![DotCraft Desktop 扩展](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/desktop-extensions.gif)
+![DotCraft 远程服务器](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/servers.gif)
 
-插件现在可以直接在 Desktop 内渲染自己的界面，而不只是添加工具。Oratorio 看板是首个：把它连到一个会话，看板就作为完整视图打开，读取条目、排布工作，并和其他工具一样走同一套审批与审计链路。
+把 DotCraft 跑在你自己的服务器上，随时从 Desktop 连接进行远程操控。
 
-[了解更多 →](https://www.dotcraft.net/zh/developing/integrations/desktop-extensions)
+[了解更多 →](https://www.dotcraft.net/zh/features/self-hosted/server-deployment)
 
-### Goal — 持久化的会话目标
+### 持续工作的 Agent
 
-![DotCraft Goals](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/goal.gif)
+*交给它一个目标或一项任务，DotCraft 会持续推进。*
 
-把一项长期目标钉在某次会话上，给它设定 token 或时间预算——只要会话空闲，DotCraft 就会在后台自动继续推进。何时暂停、继续或完成，始终由你说了算。
-
-[了解更多 →](https://www.dotcraft.net/zh/features/agent-system/automations#goals)
-
-### Teams — 多 Agent 的 Mission 协作板
+#### Teams — 多 Agent 的 Mission 协作板
 
 ![DotCraft Teams](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/teams.gif)
 
-面对一项复杂请求，DotCraft 会组建一支小队（Explorer、Builder、Reviewer、Operator），由 Team Leader 拆解任务、并行分派并汇总结果。你只交代一次需求，剩下的交给团队完成。
+面对一项复杂请求，DotCraft 会组建一支小队拆解任务、并行分派并汇总结果。你只交代一次需求，剩下的交给团队完成。
 
 [了解更多 →](https://www.dotcraft.net/zh/features/agent-system/teams)
 
-### Dreams — 后台被动记忆整理
+#### Goal — 持久化的会话目标
+
+![DotCraft Goals](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/goal.gif)
+
+把一项长期目标钉在某次会话上，给它设个时间或用量预算——只要会话闲下来，DotCraft 就会在后台默默继续推进。何时暂停、继续或收尾，始终由你说了算。
+
+[了解更多 →](https://www.dotcraft.net/zh/features/agent-system/automations#goals)
+
+#### 会话工具 — Agent 自己打理会话
+
+![DotCraft 会话工具](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/thread-tools.gif)
+
+在一段对话里，DotCraft 就能照看其余的会话——在后台新开一个、翻找查看以前的、把某个任务转交出去，或是重命名、置顶、归档收拾。这些杂活它自己就办了，也绝不会把你从当前对话里拽走。
+
+[了解更多 →](https://www.dotcraft.net/zh/features/entry-points/desktop)
+
+#### Dreams — 后台被动记忆整理
 
 ![Dreams review flow](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/dreams.gif)
 
@@ -60,23 +78,47 @@ DotCraft 是一个 .NET 10 / C# Agent Harness。它围绕真实项目目录组�
 
 [了解更多 →](https://www.dotcraft.net/zh/features/agent-system/memory)
 
-### Cross Channels — 一段对话，多端共享
+### 扩展与集成
 
-![DotCraft Channels configuration and conversations](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/channels.gif)
+*把你自己的工具、界面和服务带进对话。*
 
-在 Desktop 开一段对话，在 TUI 继续，再到 QQ、企业微信、飞书、Telegram、微信上接着聊——始终是同一段会话，工具审批也会以各平台原生形式呈现。
+#### Desktop 扩展 — 插件在 Desktop 内提供完整界面
 
-[了解更多 →](https://www.dotcraft.net/zh/features/entry-points/channels)
+![DotCraft Desktop 扩展](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/desktop-extensions.gif)
 
-### App — 用 SDK 自建 App Binding
+插件不止于添加工具——它还能把自己完整的界面直接搬进 Desktop。
+
+[了解更多 →](https://www.dotcraft.net/zh/developing/integrations/desktop-extensions)
+
+#### 交互式工具卡片 — 工具结果可直接动手
+
+![DotCraft 交互式工具卡片](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/dynamic-tools-card.gif)
+
+有些工具结果是用来动手的，而不只是看——一块看板、一个可操作的条目、一项可刷新的状态。它们会在对话里直接渲染成可交互的实时卡片，你的点击和输入会直接驱动 Agent。
+
+[了解更多 →](https://www.dotcraft.net/zh/developing/integrations/interactive-tool-ui)
+
+#### App — 用 SDK 自建 App Binding
 
 ![DotCraft App Binding](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/app.gif)
 
-借助 DotCraft SDK，你可以把自己的服务封装成一个 App，直接接入 Agent——把自定义的工具、数据和流程带进对话，无需任何中间层。单工具审批和完整审计链路开箱即用。
+有自己的服务？借助 DotCraft SDK，你可以把它做成一个 App，直接接入 Agent——它的工具、数据和流程就成了对话的一部分，中间不用再搭别的东西。
 
 [了解更多 →](https://www.dotcraft.net/zh/developing/integrations/app-binding)
 
-### ChatGPT Plan — 复用已有的 ChatGPT 订阅
+### 随你接入
+
+*把 Agent 带进你常用的聊天软件，并复用你已有的模型订阅。*
+
+#### Cross Channels — 同一个 Agent，进驻你的各个聊天软件
+
+![DotCraft Channels configuration and conversations](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/channels.gif)
+
+让同一个 Agent 作为机器人进驻 QQ、企业微信、飞书、Telegram、微信——共用同一套记忆、技能与审批策略。
+
+[了解更多 →](https://www.dotcraft.net/zh/features/entry-points/channels)
+
+#### ChatGPT Plan — 复用已有的 ChatGPT 订阅
 
 ![复用 ChatGPT 订阅](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/chatgpt.gif)
 
