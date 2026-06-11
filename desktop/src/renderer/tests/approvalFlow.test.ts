@@ -277,6 +277,65 @@ describe('approval card state machine', () => {
     expect(approvalItem?.id).toBe('approval-item-1')
   })
 
+  it('queues multiple pending approvals and advances composer after each resolution', () => {
+    s().onApprovalRequest('bridge-1', {
+      ...SHELL_PARAMS,
+      itemId: 'approval-item-1'
+    })
+    s().onApprovalRequest('bridge-2', {
+      ...SHELL_PARAMS,
+      requestId: 'req-shell-2',
+      operation: 'npm run lint',
+      itemId: 'approval-item-2'
+    })
+    s().onApprovalRequest('bridge-3', {
+      ...SHELL_PARAMS,
+      requestId: 'req-shell-3',
+      operation: 'npm run build',
+      itemId: 'approval-item-3'
+    })
+
+    expect(s().turnStatus).toBe('waitingApproval')
+    expect(s().pendingApprovals.map((approval) => approval.requestId)).toEqual([
+      'req-shell-1',
+      'req-shell-2',
+      'req-shell-3'
+    ])
+    expect(s().pendingApproval?.bridgeId).toBe('bridge-1')
+
+    s().onApprovalResolved({
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      requestId: 'req-shell-1',
+      decision: 'accept'
+    })
+    expect(s().turnStatus).toBe('waitingApproval')
+    expect(s().pendingApproval?.bridgeId).toBe('bridge-2')
+    expect(s().pendingApprovals.map((approval) => approval.requestId)).toEqual([
+      'req-shell-2',
+      'req-shell-3'
+    ])
+
+    s().onApprovalResolved({
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      requestId: 'req-shell-2',
+      decision: 'decline'
+    })
+    expect(s().turnStatus).toBe('waitingApproval')
+    expect(s().pendingApproval?.bridgeId).toBe('bridge-3')
+
+    s().onApprovalResolved({
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      requestId: 'req-shell-3',
+      decision: 'accept'
+    })
+    expect(s().pendingApproval).toBeNull()
+    expect(s().pendingApprovals).toHaveLength(0)
+    expect(s().turnStatus).toBe('running')
+  })
+
   it('onApprovalDecision does nothing when no pendingApproval', () => {
     // No approval request has been issued
     expect(() => s().onApprovalDecision('accept')).not.toThrow()

@@ -34,7 +34,7 @@ interface ThreadStoreState {
   /** Set of threadIds that currently have a running turn (for activity indicator). */
   runningTurnThreadIds: Set<string>
   /** Background-thread approvals waiting for user to return to that thread. */
-  parkedApprovals: Map<string, ParkedApproval>
+  parkedApprovals: Map<string, ParkedApproval[]>
   parkedUserInputs: Map<string, ParkedUserInput>
   /** Lightweight per-thread runtime snapshot from workspace-level broadcasts. */
   runtimeSnapshots: Map<string, ThreadRuntimeSnapshot>
@@ -70,6 +70,7 @@ interface ThreadStoreActions {
   markTurnEnded(threadId: string): void
   parkApproval(threadId: string, approval: ParkedApproval): void
   consumeParkedApproval(threadId: string): ParkedApproval | null
+  consumeParkedApprovals(threadId: string): ParkedApproval[]
   clearParkedApproval(threadId: string): void
   parkUserInput(threadId: string, request: ParkedUserInput): void
   consumeParkedUserInput(threadId: string): ParkedUserInput | null
@@ -99,7 +100,7 @@ const initialState: ThreadStoreState = {
   searchQuery: '',
   loading: false,
   runningTurnThreadIds: new Set<string>(),
-  parkedApprovals: new Map<string, ParkedApproval>(),
+  parkedApprovals: new Map<string, ParkedApproval[]>(),
   parkedUserInputs: new Map<string, ParkedUserInput>(),
   runtimeSnapshots: new Map<string, ThreadRuntimeSnapshot>(),
   pendingApprovalThreadIds: new Set<string>(),
@@ -117,6 +118,21 @@ function filterSetToThreadList(current: Set<string>, ids: Set<string>): Set<stri
 
 function filterMapToThreadList<T>(current: Map<string, T>, ids: Set<string>): Map<string, T> {
   return new Map([...current].filter(([id]) => ids.has(id)))
+}
+
+function parkedApprovalKey(approval: ParkedApproval): string {
+  const requestId = typeof approval.rawParams.requestId === 'string' ? approval.rawParams.requestId : ''
+  if (requestId) return `request:${requestId}`
+  const itemId = typeof approval.rawParams.itemId === 'string' ? approval.rawParams.itemId : ''
+  if (itemId) return `item:${itemId}`
+  return `bridge:${approval.bridgeId}`
+}
+
+function upsertParkedApproval(queue: ParkedApproval[], approval: ParkedApproval): ParkedApproval[] {
+  const key = parkedApprovalKey(approval)
+  const index = queue.findIndex((candidate) => parkedApprovalKey(candidate) === key)
+  if (index < 0) return [...queue, approval]
+  return queue.map((candidate, i) => i === index ? approval : candidate)
 }
 
 function normalizeComparableWorkspacePath(path: string | null | undefined): string {
@@ -596,19 +612,38 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
   parkApproval(threadId, approval) {
     set((state) => {
       const parkedApprovals = new Map(state.parkedApprovals)
-      parkedApprovals.set(threadId, approval)
+      parkedApprovals.set(
+        threadId,
+        upsertParkedApproval(parkedApprovals.get(threadId) ?? [], approval)
+      )
       return { parkedApprovals }
     })
   },
 
   consumeParkedApproval(threadId) {
     const state = _get()
-    const approval = state.parkedApprovals.get(threadId) ?? null
+    const approvals = state.parkedApprovals.get(threadId) ?? []
+    const approval = approvals[0] ?? null
     if (!approval) return null
+    const parkedApprovals = new Map(state.parkedApprovals)
+    const remaining = approvals.slice(1)
+    if (remaining.length > 0) {
+      parkedApprovals.set(threadId, remaining)
+    } else {
+      parkedApprovals.delete(threadId)
+    }
+    set({ parkedApprovals })
+    return approval
+  },
+
+  consumeParkedApprovals(threadId) {
+    const state = _get()
+    const approvals = state.parkedApprovals.get(threadId) ?? []
+    if (approvals.length === 0) return []
     const parkedApprovals = new Map(state.parkedApprovals)
     parkedApprovals.delete(threadId)
     set({ parkedApprovals })
-    return approval
+    return approvals
   },
 
   clearParkedApproval(threadId) {
@@ -863,7 +898,7 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
     set({
       ...initialState,
       runningTurnThreadIds: new Set<string>(),
-      parkedApprovals: new Map<string, ParkedApproval>(),
+      parkedApprovals: new Map<string, ParkedApproval[]>(),
       parkedUserInputs: new Map<string, ParkedUserInput>(),
       runtimeSnapshots: new Map<string, ThreadRuntimeSnapshot>(),
       pendingApprovalThreadIds: new Set<string>(),

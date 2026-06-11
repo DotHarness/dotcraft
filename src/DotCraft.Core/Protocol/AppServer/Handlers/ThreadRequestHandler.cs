@@ -488,10 +488,12 @@ internal sealed class ThreadRequestHandler(
         var sender = CreateInteractiveRequestSender();
         foreach (var turn in thread.Turns)
         {
-            if (turn.Status == TurnStatus.WaitingApproval
-                && TryFindPendingApprovalRequest(turn, out var approvalItem, out var approvalRequest))
+            if (turn.Status == TurnStatus.WaitingApproval)
             {
-                _ = ReplayApprovalRequestAsync(sender, thread.Id, turn.Id, approvalItem.Id, approvalRequest);
+                foreach (var (approvalItem, approvalRequest) in FindPendingApprovalRequests(turn))
+                {
+                    _ = ReplayApprovalRequestAsync(sender, thread.Id, turn.Id, approvalItem.Id, approvalRequest);
+                }
             }
             else if (turn.Status == TurnStatus.WaitingInput
                 && TryFindPendingUserInputRequest(turn, out var userInputItem, out var userInputRequest))
@@ -544,26 +546,18 @@ internal sealed class ThreadRequestHandler(
         }
     }
 
-    private static bool TryFindPendingApprovalRequest(
-        SessionTurn turn,
-        out SessionItem item,
-        out ApprovalRequestPayload request)
+    private static IEnumerable<(SessionItem Item, ApprovalRequestPayload Request)> FindPendingApprovalRequests(
+        SessionTurn turn)
     {
-        foreach (var candidate in turn.Items.AsEnumerable().Reverse())
+        foreach (var candidate in turn.Items)
         {
             if (candidate.Payload is not ApprovalRequestPayload approvalRequest)
                 continue;
             if (HasApprovalResponse(turn, approvalRequest.RequestId))
                 continue;
 
-            item = candidate;
-            request = approvalRequest;
-            return true;
+            yield return (candidate, approvalRequest);
         }
-
-        item = null!;
-        request = null!;
-        return false;
     }
 
     private static bool TryFindPendingUserInputRequest(

@@ -457,6 +457,36 @@ public sealed class SessionApprovalServiceTests
     }
 
     [Fact]
+    public async Task TryResolve_WithParallelPendingApprovals_KeepsTurnWaitingUntilAllResolve()
+    {
+        var (svc, channel, turn) = MakeApprovalService();
+        var firstRequest = svc.RequestFileApprovalAsync("write", "/path/a.txt");
+        var secondRequest = svc.RequestFileApprovalAsync("write", "/path/b.txt");
+        var thirdRequest = svc.RequestFileApprovalAsync("write", "/path/c.txt");
+        await Task.Delay(10);
+
+        var requestIds = await GetApprovalRequestIdsAsync(channel, 3);
+        Assert.Equal(3, requestIds.Count);
+        Assert.True(svc.HasPendingApproval);
+        Assert.Equal(TurnStatus.WaitingApproval, turn.Status);
+
+        Assert.True(svc.TryResolve(requestIds[0], SessionApprovalDecision.AcceptOnce));
+        Assert.True(await firstRequest);
+        Assert.True(svc.HasPendingApproval);
+        Assert.Equal(TurnStatus.WaitingApproval, turn.Status);
+
+        Assert.True(svc.TryResolve(requestIds[1], SessionApprovalDecision.Reject));
+        Assert.False(await secondRequest);
+        Assert.True(svc.HasPendingApproval);
+        Assert.Equal(TurnStatus.WaitingApproval, turn.Status);
+
+        Assert.True(svc.TryResolve(requestIds[2], SessionApprovalDecision.AcceptOnce));
+        Assert.True(await thirdRequest);
+        Assert.False(svc.HasPendingApproval);
+        Assert.Equal(TurnStatus.Running, turn.Status);
+    }
+
+    [Fact]
     public async Task AcceptForSession_CachesMatchingApprovalScope()
     {
         var (svc, channel, _) = MakeApprovalService();
@@ -724,6 +754,27 @@ public sealed class SessionApprovalServiceTests
         }
 
         return null;
+    }
+
+    private static async Task<List<string>> GetApprovalRequestIdsAsync(
+        SessionEventChannel channel,
+        int expectedCount)
+    {
+        var requestIds = new List<string>();
+        await foreach (var evt in DrainWithTimeout(channel))
+        {
+            if (evt.EventType != SessionEventType.ApprovalRequested)
+                continue;
+
+            var requestId = (evt.ItemPayload?.Payload as ApprovalRequestPayload)?.RequestId;
+            if (requestId != null)
+                requestIds.Add(requestId);
+
+            if (requestIds.Count == expectedCount)
+                break;
+        }
+
+        return requestIds;
     }
 }
 

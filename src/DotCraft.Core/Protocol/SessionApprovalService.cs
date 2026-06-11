@@ -145,8 +145,10 @@ internal sealed class SessionApprovalService : IApprovalService
         _turn.Items.Add(responseItem);
 
         // Restore Running status before completing TCS so the Turn status is correct
-        // when agent execution resumes
-        _turn.Status = TurnStatus.Running;
+        // when agent execution resumes. Parallel tool calls can leave more approvals
+        // pending in the same turn, so keep the turn visibly blocked until the last
+        // one is resolved.
+        _turn.Status = _pending.IsEmpty ? TurnStatus.Running : TurnStatus.WaitingApproval;
 
         _channel.EmitItemStarted(responseItem);
         _channel.EmitApprovalResolved(responseItem);
@@ -203,7 +205,7 @@ internal sealed class SessionApprovalService : IApprovalService
                     Fatal = false
                 });
                 _turn.Items.Add(errorItem);
-                _turn.Status = TurnStatus.Running;
+                _turn.Status = _pending.IsEmpty ? TurnStatus.Running : TurnStatus.WaitingApproval;
                 _channel.EmitItemStarted(errorItem);
                 _channel.EmitItemCompleted(errorItem);
 
