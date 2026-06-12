@@ -43,6 +43,8 @@ describe('SchedulePicker', () => {
       <SchedulePicker value={{ kind: 'every', everyMs: 45 * 60_000 }} onChange={onChange} />
     )
 
+    // The interval input lives inside the schedule dropdown; open it first.
+    fireEvent.click(screen.getByRole('button', { name: /schedule/i }))
     expect((screen.getByRole('spinbutton') as HTMLInputElement).value).toBe('45')
 
     view.rerender(
@@ -75,7 +77,7 @@ describe('SchedulePicker', () => {
     expect(screen.queryByRole('spinbutton')).toBeNull()
   })
 
-  it('updates the custom minute input when templates are applied in NewTaskDialog', async () => {
+  it('updates the schedule summary when templates are applied in NewTaskDialog', async () => {
     const fortyFiveTemplate: AutomationTemplate = {
       id: 'tpl-45',
       title: 'Template 45',
@@ -101,14 +103,14 @@ describe('SchedulePicker', () => {
     fireEvent.click(await screen.findByRole('button', { name: /template 45/i }))
 
     await waitFor(() => {
-      expect((screen.getByRole('spinbutton') as HTMLInputElement).value).toBe('45')
+      expect(screen.getByText(/every 45 min/i)).toBeInTheDocument()
     })
 
     fireEvent.click(screen.getByRole('button', { name: /use template/i }))
     fireEvent.click(await screen.findByRole('button', { name: /template 90/i }))
 
     await waitFor(() => {
-      expect((screen.getByRole('spinbutton') as HTMLInputElement).value).toBe('90')
+      expect(screen.getByText(/every 90 min/i)).toBeInTheDocument()
     })
   })
 })

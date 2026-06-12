@@ -296,7 +296,7 @@ function TemplateCard({
               fontWeight: 500
             }}
           >
-            💬 {t('auto.templates.needsThread')}
+            {t('auto.templates.needsThread')}
           </span>
         )}
       </button>
