@@ -374,6 +374,13 @@ describe('ThreadList project-first layout', () => {
 
   it('project actions can start a new chat for that project', async () => {
     useThreadStore.getState().setActiveThreadId('old-thread')
+    useUIStore.getState().setWelcomeDraft({
+      text: 'Draft for workspace B',
+      images: [],
+      files: [],
+      mode: 'plan',
+      model: 'gpt-test'
+    }, '/workspace/b')
     useWorkspaceProjectsStore.getState().setPayload({
       foregroundWorkspacePath: '/workspace/a',
       secondaryLimit: 8,
@@ -400,6 +407,16 @@ describe('ThreadList project-first layout', () => {
       expect(workspaceSwitch).toHaveBeenCalledWith('/workspace/b')
       expect(useThreadStore.getState().activeThreadId).toBeNull()
       expect(useUIStore.getState().activeMainView).toBe('conversation')
+      expect(useUIStore.getState().welcomeDraft).toMatchObject({
+        text: 'Draft for workspace B',
+        mode: 'plan',
+        model: 'gpt-test'
+      })
+      expect(useUIStore.getState().getWelcomeDraftForWorkspace('/workspace/b')).toMatchObject({
+        text: 'Draft for workspace B',
+        mode: 'plan',
+        model: 'gpt-test'
+      })
     })
   })
 

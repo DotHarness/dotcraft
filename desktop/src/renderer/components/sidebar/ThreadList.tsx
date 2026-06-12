@@ -770,7 +770,7 @@ function ProjectHeader({
     if (!active && !isRemoteProject(project)) {
       await window.api.workspace.switch(project.path)
     }
-    useUIStore.getState().goToNewChat({ workspacePath: projectKey, clearDraft: true })
+    useUIStore.getState().goToNewChat({ workspacePath: projectKey })
     setActiveMainView('conversation')
   }
 
