@@ -127,6 +127,8 @@ export const MESSAGES_EN = {
   'settings.connection.applyConnectSuccess': 'Connected to remote AppServer',
   'settings.localAppServerRemoteHint': 'Local Hub/AppServer settings are used only in Local mode.',
   'settings.theme': 'Theme',
+  'settings.general.showInMenuBar': 'Show in menu bar',
+  'settings.general.showInMenuBarHint': 'Keep DotCraft available from the macOS menu bar.',
   'settings.notifications.title': 'Notifications',
   'settings.notifications.taskCompletion': 'Task completion notifications',
   'settings.notifications.taskCompletionHint': 'Set reminders when DotCraft completes a task.',

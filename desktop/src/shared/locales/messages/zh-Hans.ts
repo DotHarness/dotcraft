@@ -250,6 +250,8 @@ export const MESSAGES_ZH_HANS = {
   'settings.connection.applyConnectSuccess': '已连接到远程 AppServer',
   'settings.localAppServerRemoteHint': '本地 Hub/AppServer 设置仅在本地模式下使用。',
   'settings.theme': '主题',
+  'settings.general.showInMenuBar': '在菜单栏中显示',
+  'settings.general.showInMenuBarHint': '让 DotCraft 在 macOS 菜单栏中常驻显示。',
   'settings.notifications.title': '通知',
   'settings.notifications.taskCompletion': '任务完成通知',
   'settings.notifications.taskCompletionHint': '设置 DotCraft 完成任务时的提醒。',

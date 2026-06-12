@@ -135,6 +135,8 @@ export const MESSAGES_JA = {
   'settings.back': '戻る',
   'settings.loading': '読み込み中...',
   'settings.theme': 'テーマ',
+  'settings.general.showInMenuBar': 'メニューバーに表示',
+  'settings.general.showInMenuBarHint': 'DotCraft を macOS のメニューバーから使えるようにします。',
   'settings.theme.dark': 'ダーク',
   'settings.theme.light': 'ライト',
   'settings.optionThemeDark': 'ダーク',

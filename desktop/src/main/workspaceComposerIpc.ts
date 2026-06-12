@@ -76,6 +76,23 @@ function ripgrepQuietFallbackMs(): number {
   return envInt('DOTCRAFT_RG_QUIET_FALLBACK_MS', 5_000)
 }
 
+function isBrokenStdIoError(error: unknown): boolean {
+  const code = (error as NodeJS.ErrnoException | undefined)?.code
+  if (code === 'EIO' || code === 'EPIPE') return true
+  const message = error instanceof Error ? error.message : String(error ?? '')
+  return /write EIO|EPIPE/i.test(message)
+}
+
+function safeConsoleWrite(method: 'log' | 'warn', ...args: unknown[]): void {
+  try {
+    console[method](...args)
+  } catch (error) {
+    if (!isBrokenStdIoError(error)) {
+      throw error
+    }
+  }
+}
+
 /**
  * In an asar-packed Electron build, `@vscode/ripgrep`'s exported `rgPath`
  * points inside `app.asar`, but the binary lives in `app.asar.unpacked` (we
@@ -523,7 +540,7 @@ function startBackgroundIndexBuild(resolvedRoot: string, reason: string): Promis
   }).then(
     (entries) => entries,
     (err) => {
-      console.warn(`[fileIndex] build failed (reason=${reason}):`, err)
+      safeConsoleWrite('warn', `[fileIndex] build failed (reason=${reason}):`, err)
       throw err
     }
   ).finally(() => {
@@ -569,7 +586,8 @@ function startBackgroundIndexBuild(resolvedRoot: string, reason: string): Promis
     const sourceLabel = message.source ?? 'unknown'
     const truncatedNote = message.truncated ? ' (truncated)' : ''
     const fallbackNote = message.rgError ? ` (rg fallback: ${message.rgError})` : ''
-    console.log(
+    safeConsoleWrite(
+      'log',
       `[fileIndex] built via ${sourceLabel} count=${entries.length}${truncatedNote}${fallbackNote}`
     )
     settleResolve(entries)

@@ -1328,6 +1328,7 @@ const api = {
       theme?: 'dark' | 'light'
       locale?: AppLocale
       showThinkingContent?: boolean
+      showInMenuBar?: boolean
       visibleChannels?: string[]
       lastOpenEditorId?: EditorId
       lastSeenWhatsNewVersion?: string
@@ -1371,6 +1372,7 @@ const api = {
       theme?: 'dark' | 'light'
       locale?: AppLocale
       showThinkingContent?: boolean
+      showInMenuBar?: boolean
       visibleChannels?: string[]
       lastOpenEditorId?: EditorId
       lastSeenWhatsNewVersion?: string

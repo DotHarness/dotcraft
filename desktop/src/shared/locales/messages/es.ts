@@ -135,6 +135,8 @@ export const MESSAGES_ES = {
   'settings.back': 'Atrás',
   'settings.loading': 'Cargando...',
   'settings.theme': 'Tema',
+  'settings.general.showInMenuBar': 'Mostrar en la barra de menús',
+  'settings.general.showInMenuBarHint': 'Mantén DotCraft disponible desde la barra de menús de macOS.',
   'settings.theme.dark': 'Oscuro',
   'settings.theme.light': 'Claro',
   'settings.optionThemeDark': 'Oscuro',

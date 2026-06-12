@@ -84,6 +84,8 @@ export interface AppSettings {
   locale?: AppLocale
   /** Renderer-only preference; omitted or invalid values are treated as true */
   showThinkingContent?: boolean
+  /** macOS-only preference controlling whether DotCraft appears in the menu bar. */
+  showInMenuBar?: boolean
   /** Desktop-local What's New read marker. */
   lastSeenWhatsNewVersion?: string
   recentWorkspaces?: RecentWorkspace[]
@@ -227,6 +229,12 @@ function normalizeShowThinkingContent(settings: AppSettings): boolean | undefine
     : undefined
 }
 
+export function normalizeShowInMenuBar(settings: AppSettings): boolean | undefined {
+  return typeof settings.showInMenuBar === 'boolean'
+    ? settings.showInMenuBar
+    : undefined
+}
+
 function normalizeLastSeenWhatsNewVersion(settings: AppSettings): string | undefined {
   const raw = settings.lastSeenWhatsNewVersion
   if (!isValidAppVersion(raw)) return undefined
@@ -297,6 +305,7 @@ export function loadSettings(): AppSettings {
       raw.notifications = normalizeNotificationSettings(raw)
       raw.activeModuleVariants = normalizeActiveModuleVariants(raw)
       raw.showThinkingContent = normalizeShowThinkingContent(raw)
+      raw.showInMenuBar = normalizeShowInMenuBar(raw)
       raw.lastSeenWhatsNewVersion = normalizeLastSeenWhatsNewVersion(raw)
       raw.profile = normalizeProfileSettings(raw)
       raw.pinnedThreadIdsByWorkspace = normalizePinnedThreadIdsByWorkspace(raw)
@@ -332,6 +341,7 @@ export function saveSettings(settings: AppSettings): void {
     settings.notifications = normalizeNotificationSettings(settings)
     settings.activeModuleVariants = normalizeActiveModuleVariants(settings)
     settings.showThinkingContent = normalizeShowThinkingContent(settings)
+    settings.showInMenuBar = normalizeShowInMenuBar(settings)
     settings.lastSeenWhatsNewVersion = normalizeLastSeenWhatsNewVersion(settings)
     settings.profile = normalizeProfileSettings(settings)
     settings.pinnedThreadIdsByWorkspace = normalizePinnedThreadIdsByWorkspace(settings)

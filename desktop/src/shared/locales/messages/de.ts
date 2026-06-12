@@ -135,6 +135,8 @@ export const MESSAGES_DE = {
   'settings.back': 'Zurück',
   'settings.loading': 'Wird geladen...',
   'settings.theme': 'Theme',
+  'settings.general.showInMenuBar': 'In der Menüleiste anzeigen',
+  'settings.general.showInMenuBarHint': 'DotCraft in der macOS-Menüleiste verfügbar halten.',
   'settings.theme.dark': 'Dunkel',
   'settings.theme.light': 'Hell',
   'settings.optionThemeDark': 'Dunkel',

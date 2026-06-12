@@ -34,6 +34,11 @@ function readLockInfo(lockPath: string): TrayLockInfo | null {
   }
 }
 
+export function getTrayLockPid(lockPath = getTrayLockPath()): number | null {
+  const info = existsSync(lockPath) ? readLockInfo(lockPath) : null
+  return typeof info?.pid === 'number' ? info.pid : null
+}
+
 export function tryAcquireTrayLock(lockPath = getTrayLockPath()): TrayLockHandle | null {
   mkdirSync(dirname(lockPath), { recursive: true })
 

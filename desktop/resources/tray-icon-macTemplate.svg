@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48" fill="none" role="img" aria-labelledby="title desc">
+  <title id="title">DotCraft tray icon</title>
+  <desc id="desc">A compact DotCraft terminal badge optimized for small system tray sizes.</desc>
+  <path d="M24 8.8v5.4" stroke="#000" stroke-width="3" stroke-linecap="round"/>
+  <rect x="4.5" y="13.5" width="39" height="30.5" rx="10" fill="#000"/>
+  <circle cx="24" cy="6.8" r="3.4" fill="#000"/>
+  <rect x="8.5" y="18" width="31" height="21.5" rx="6.5" fill="#fff"/>
+
+  <path d="m16.2 24.1 5.6 4.4-5.6 4.4" stroke="#000" stroke-width="3.7" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M26.2 32.4h5.8" stroke="#000" stroke-width="3.3" stroke-linecap="round"/>
+</svg>

@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
-import { normalizePinnedThreadIdsByWorkspace, normalizeProfileSettings } from '../settings'
+import {
+  normalizePinnedThreadIdsByWorkspace,
+  normalizeProfileSettings,
+  normalizeShowInMenuBar
+} from '../settings'
 
 vi.mock('electron', () => ({
   app: {
@@ -60,5 +64,15 @@ describe('settings normalization', () => {
     expect(normalizeProfileSettings({ profile: { githubUsername: '-bad' } })).toBeUndefined()
     expect(normalizeProfileSettings({ profile: { githubUsername: 'has space' } })).toBeUndefined()
     expect(normalizeProfileSettings({})).toBeUndefined()
+  })
+
+  it('keeps a valid menu bar visibility toggle', () => {
+    expect(normalizeShowInMenuBar({ showInMenuBar: true })).toBe(true)
+    expect(normalizeShowInMenuBar({ showInMenuBar: false })).toBe(false)
+  })
+
+  it('drops invalid menu bar visibility values', () => {
+    expect(normalizeShowInMenuBar({ showInMenuBar: 'yes' as unknown as boolean })).toBeUndefined()
+    expect(normalizeShowInMenuBar({})).toBeUndefined()
   })
 })
