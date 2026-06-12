@@ -149,7 +149,8 @@ public sealed class AutomationTaskCreateParams
     public string? ApprovalPolicy { get; set; }
 
     /// <summary>
-    /// When <see cref="WorkflowTemplate"/> is omitted, written into generated <c>workflow.md</c> as <c>workspace: project|worktree</c>.
+    /// Explicit task workspace mode. Written into generated <c>workflow.md</c> when
+    /// <see cref="WorkflowTemplate"/> is omitted, and overrides the template workflow front matter when supplied.
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? WorkspaceMode { get; set; }

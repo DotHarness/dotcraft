@@ -108,9 +108,12 @@ public sealed partial class AutomationsRequestHandler(
 
         File.WriteAllText(Path.Combine(taskDir, "task.md"), fm.ToString());
 
+        var workflowWorkspaceMode = NormalizeOptionalWorkspaceMode(p.WorkspaceMode);
         var workflowContent = string.IsNullOrWhiteSpace(p.WorkflowTemplate)
-            ? BuildDefaultWorkflowContent(NormalizeWorkspaceMode(p.WorkspaceMode))
-            : CanonicalizeWorkflowWorkspaceMode(p.WorkflowTemplate);
+            ? BuildDefaultWorkflowContent(workflowWorkspaceMode ?? AutomationWorkspaceModeNames.Project)
+            : ApplyExplicitWorkflowWorkspaceMode(
+                CanonicalizeWorkflowWorkspaceMode(p.WorkflowTemplate),
+                workflowWorkspaceMode);
         File.WriteAllText(Path.Combine(taskDir, "workflow.md"), workflowContent);
 
         return Task.FromResult<object?>(new AutomationTaskCreateResult
@@ -575,6 +578,43 @@ public sealed partial class AutomationsRequestHandler(
             @"(?im)^(\s*workspace\s*:\s*)[""']?isolated[""']?(\s*(?:#.*)?$)",
             "$1worktree$2");
     }
+
+    private static string ApplyExplicitWorkflowWorkspaceMode(string markdown, string? workspaceMode)
+    {
+        if (string.IsNullOrWhiteSpace(workspaceMode) || string.IsNullOrWhiteSpace(markdown))
+            return markdown;
+
+        var newline = markdown.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
+        var match = WorkflowFrontMatterRegex().Match(markdown);
+        if (!match.Success)
+        {
+            return $"---{newline}workspace: {workspaceMode}{newline}---{newline}{markdown}";
+        }
+
+        var yamlGroup = match.Groups["yaml"];
+        var yaml = yamlGroup.Value;
+        var workspaceLineRegex = WorkflowWorkspaceLineRegex();
+        var updatedYaml = workspaceLineRegex.IsMatch(yaml)
+            ? workspaceLineRegex.Replace(
+                yaml,
+                m =>
+                {
+                    var suffix = m.Groups[2].Value;
+                    if (suffix.StartsWith("#", StringComparison.Ordinal))
+                        suffix = " " + suffix;
+                    return $"{m.Groups[1].Value}{workspaceMode}{suffix}";
+                },
+                1)
+            : $"workspace: {workspaceMode}{newline}{yaml}";
+
+        return markdown[..yamlGroup.Index] + updatedYaml + markdown[(yamlGroup.Index + yamlGroup.Length)..];
+    }
+
+    [GeneratedRegex(@"\A---[ \t]*\r?\n(?<yaml>.*?)(^---[ \t]*\r?\n?)", RegexOptions.Singleline | RegexOptions.Multiline)]
+    private static partial Regex WorkflowFrontMatterRegex();
+
+    [GeneratedRegex(@"(?im)^(\s*workspace\s*:\s*)[""']?[^#\r\n""']*[""']?(\s*(?:#.*)?$)")]
+    private static partial Regex WorkflowWorkspaceLineRegex();
 
     [GeneratedRegex(@"[^a-z0-9]+")]
     private static partial Regex SlugRegex();

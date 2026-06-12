@@ -125,6 +125,125 @@ public sealed class LocalAutomationProtocolTests
         }
     }
 
+    [Theory]
+    [InlineData("project", "worktree")]
+    [InlineData("worktree", "project")]
+    public async Task TaskCreate_TemplateWorkflowExplicitWorkspaceModeOverridesTemplate(
+        string templateMode,
+        string requestedMode)
+    {
+        var root = CreateTestRoot();
+        try
+        {
+            using var harness = CreateHarness(root);
+
+            var createResult = await harness.Handler.HandleTaskCreateAsync(
+                Request(AppServerMethods.AutomationTaskCreate, new
+                {
+                    title = "Override template workspace",
+                    description = "Use the target picker value",
+                    workflowTemplate = $"---\nworkspace: {templateMode}\nmax_rounds: 5\n---\nDo work",
+                    workspaceMode = requestedMode
+                }),
+                CancellationToken.None);
+
+            var created = Assert.IsType<AutomationTaskCreateResult>(createResult);
+            var workflow = await File.ReadAllTextAsync(
+                Path.Combine(created.TaskDirectory, "workflow.md"),
+                CancellationToken.None);
+            Assert.Contains($"workspace: {requestedMode}", workflow);
+            Assert.DoesNotContain($"workspace: {templateMode}", workflow);
+            Assert.Contains("max_rounds: 5", workflow);
+
+            var readResult = await harness.Handler.HandleTaskReadAsync(
+                Request(AppServerMethods.AutomationTaskRead, new { taskId = created.TaskId }),
+                CancellationToken.None);
+            var wire = Assert.IsType<AutomationTaskWire>(readResult);
+            Assert.Equal(requestedMode, wire.WorkspaceMode);
+        }
+        finally
+        {
+            DeleteDirectory(root);
+        }
+    }
+
+    [Fact]
+    public async Task TaskCreate_TemplateWorkflowExplicitWorkspaceModeInsertsIntoFrontMatter()
+    {
+        var root = CreateTestRoot();
+        try
+        {
+            using var harness = CreateHarness(root);
+
+            var createResult = await harness.Handler.HandleTaskCreateAsync(
+                Request(AppServerMethods.AutomationTaskCreate, new
+                {
+                    title = "Insert template workspace",
+                    description = "Add missing workspace metadata",
+                    workflowTemplate = "---\nmax_rounds: 3\n---\nDo work",
+                    workspaceMode = "worktree"
+                }),
+                CancellationToken.None);
+
+            var created = Assert.IsType<AutomationTaskCreateResult>(createResult);
+            var workflow = await File.ReadAllTextAsync(
+                Path.Combine(created.TaskDirectory, "workflow.md"),
+                CancellationToken.None);
+            Assert.True(
+                workflow.StartsWith("---\nworkspace: worktree\nmax_rounds: 3\n---\n", StringComparison.Ordinal),
+                workflow);
+
+            var readResult = await harness.Handler.HandleTaskReadAsync(
+                Request(AppServerMethods.AutomationTaskRead, new { taskId = created.TaskId }),
+                CancellationToken.None);
+            var wire = Assert.IsType<AutomationTaskWire>(readResult);
+            Assert.Equal("worktree", wire.WorkspaceMode);
+        }
+        finally
+        {
+            DeleteDirectory(root);
+        }
+    }
+
+    [Fact]
+    public async Task TaskCreate_TemplateWorkflowExplicitWorkspaceModeWrapsBodyOnlyWorkflow()
+    {
+        var root = CreateTestRoot();
+        try
+        {
+            using var harness = CreateHarness(root);
+
+            var createResult = await harness.Handler.HandleTaskCreateAsync(
+                Request(AppServerMethods.AutomationTaskCreate, new
+                {
+                    title = "Wrap body workflow",
+                    description = "Preserve body workspace text",
+                    workflowTemplate = "Do work\nworkspace: project in body",
+                    workspaceMode = "worktree"
+                }),
+                CancellationToken.None);
+
+            var created = Assert.IsType<AutomationTaskCreateResult>(createResult);
+            var workflow = await File.ReadAllTextAsync(
+                Path.Combine(created.TaskDirectory, "workflow.md"),
+                CancellationToken.None);
+            Assert.True(
+                workflow.StartsWith("---\nworkspace: worktree\n---\n", StringComparison.Ordinal),
+                workflow);
+            Assert.Contains("Do work\nworkspace: project in body", workflow);
+
+            var readResult = await harness.Handler.HandleTaskReadAsync(
+                Request(AppServerMethods.AutomationTaskRead, new { taskId = created.TaskId }),
+                CancellationToken.None);
+            var wire = Assert.IsType<AutomationTaskWire>(readResult);
+            Assert.Equal("worktree", wire.WorkspaceMode);
+        }
+        finally
+        {
+            DeleteDirectory(root);
+        }
+    }
+
     [Fact]
     public async Task TemplateSave_NormalizesLegacyWorkspaceMode()
     {
