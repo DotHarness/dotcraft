@@ -607,11 +607,7 @@ kbd {
   background: var(--text-dimmed);
 }
 
-/* Focus ring */
-:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
+/* Focus ring: defined once near the end with the outline-override block. */
 
 /* ─── Spinner animation ─── */
 @keyframes spin {
@@ -2496,8 +2492,12 @@ kbd {
   transition: border-color 120ms ease;
 }
 
-.dc-dialog-input:focus {
+.dc-dialog-input:focus,
+.dc-dialog-input:focus-visible {
   border-color: var(--accent);
+  /* The accent border is the focus affordance for these inputs; suppress the
+     global :focus-visible outline so it does not stack into a double ring. */
+  outline: none;
 }
 
 /* Conversation markdown should not add trailing air after the final block. */
