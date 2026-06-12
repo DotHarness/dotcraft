@@ -177,6 +177,9 @@ public sealed class AutomationOrchestrator
             throw new KeyNotFoundException(taskId);
         if (task.Status == AutomationTaskStatus.Running)
             throw new InvalidOperationException("Cannot discard a task worktree while the task is running.");
+        if (task.ThreadBinding != null
+            || (task.WorkspaceMode != AutomationWorkspaceMode.Worktree && task.Worktree == null))
+            throw new InvalidOperationException("Task does not have a managed worktree to discard.");
 
         await client.RemoveTaskWorktreeAsync(task.Id, task.ThreadId, ct);
         task.Worktree = null;
