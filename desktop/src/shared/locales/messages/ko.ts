@@ -1908,7 +1908,7 @@ export const MESSAGES_KO = {
   'toast.imageMessage': '이미지 메시지',
   'toast.fileReferenceMessage': '파일 참조 메시지',
   'toast.attachmentMessage': '첨부파일 메시지',
-  'conversation.thinking.streaming': '생각하다...',
+  'conversation.thinking.streaming': '생각하다',
   'conversation.thinking.completed': '{{seconds}}s 생각',
   'conversation.thinking.expandTooltip': '추론을 확장하려면 클릭하세요.',
   'conversation.thinking.statusTooltip': 'DotCraft는 생각하고 있습니다.',
