@@ -6,11 +6,12 @@ import { HubClient, type HubAppServerResponse, type HubEvent } from './HubClient
 import {
   getRecentWorkspaces,
   loadSettings,
+  normalizeShowInMenuBar,
   resolveTaskCompletionNotificationMode,
   type AppSettings,
   type RecentWorkspace
 } from './settings'
-import { tryAcquireTrayLock, type TrayLockHandle } from './trayLock'
+import { getTrayLockPid, isProcessAlive, tryAcquireTrayLock, type TrayLockHandle } from './trayLock'
 import { DEFAULT_LOCALE, normalizeLocale, translate, type AppLocale } from '../shared/locales'
 import { resolveDotCraftRuntimeTools } from './ripgrepRuntime'
 import { checkWorkspaceLock } from './workspaceLock'
@@ -28,6 +29,14 @@ interface TrayState {
 }
 
 const REFRESH_INTERVAL_MS = 5_000
+
+export function shouldRunTrayProcess(
+  settings: AppSettings,
+  platform: NodeJS.Platform = process.platform
+): boolean {
+  if (platform !== 'darwin') return true
+  return normalizeShowInMenuBar(settings) !== false
+}
 
 interface HubNotificationPayload {
   kind?: string | null
@@ -408,6 +417,11 @@ export async function showHubNotificationForSettings(
 }
 
 export async function runTrayProcess(): Promise<void> {
+  if (!shouldRunTrayProcess(loadSettings())) {
+    app.quit()
+    return
+  }
+
   const lock = tryAcquireTrayLock()
   if (!lock) {
     app.quit()
@@ -438,6 +452,10 @@ export async function runTrayProcess(): Promise<void> {
   const refresh = async (): Promise<void> => {
     if (disposed) return
     settings = loadSettings()
+    if (!shouldRunTrayProcess(settings)) {
+      app.quit()
+      return
+    }
     try {
       const [, appServers] = await Promise.all([
         hubClient.getStatus(),
@@ -514,8 +532,22 @@ export async function runTrayProcess(): Promise<void> {
   }, REFRESH_INTERVAL_MS)
 }
 
-export function ensureTrayProcess(): void {
+export function stopTrayProcess(): void {
+  const pid = getTrayLockPid()
+  if (pid == null || pid === process.pid || !isProcessAlive(pid)) {
+    return
+  }
+
+  try {
+    process.kill(pid)
+  } catch {
+    // Ignore shutdown races.
+  }
+}
+
+export function ensureTrayProcess(settings: AppSettings = loadSettings()): void {
   if (process.argv.includes('--tray')) return
+  if (!shouldRunTrayProcess(settings)) return
 
   const args = baseDesktopArgs()
   args.push('--tray')

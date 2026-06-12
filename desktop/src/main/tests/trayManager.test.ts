@@ -479,7 +479,7 @@ describe('trayManager process launches', () => {
   it('keeps the background tray process hidden', async () => {
     const { ensureTrayProcess } = await import('../trayManager')
 
-    ensureTrayProcess()
+    ensureTrayProcess({})
 
     const [, args, options] = childProcessMocks.spawn.mock.calls[0]
     expect(args).toEqual(expect.arrayContaining(['--tray']))
@@ -488,5 +488,13 @@ describe('trayManager process launches', () => {
       stdio: 'ignore',
       windowsHide: true
     })
+  })
+
+  it('does not launch a macOS tray process when menu bar visibility is disabled', async () => {
+    const { ensureTrayProcess } = await import('../trayManager')
+
+    ensureTrayProcess({ showInMenuBar: false })
+
+    expect(childProcessMocks.spawn).not.toHaveBeenCalled()
   })
 })

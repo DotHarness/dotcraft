@@ -104,7 +104,7 @@ import {
   type AppLocale,
   type TopLevelMenuId
 } from '../shared/locales'
-import { ensureTrayProcess, openDesktopWindow, runTrayProcess } from './trayManager'
+import { ensureTrayProcess, openDesktopWindow, runTrayProcess, stopTrayProcess } from './trayManager'
 import { configureAppIdentity } from './appIdentity'
 import { resolveDotCraftRuntimeTools } from './ripgrepRuntime'
 import { WhatsNewCatalog } from './whatsNewCatalog'
@@ -227,6 +227,42 @@ const isTrayMode = process.argv.includes('--tray')
 const CHROME_SETTINGS_DEEP_LINK_PORT = Number.parseInt(process.env.DOTCRAFT_DESKTOP_DEEPLINK_PORT || '32178', 10)
 
 configureAppIdentity()
+
+let devProcessGuardsInstalled = false
+
+function isBrokenStdIoError(error: unknown): boolean {
+  const code = (error as NodeJS.ErrnoException | undefined)?.code
+  if (code === 'EIO' || code === 'EPIPE') return true
+  const message = error instanceof Error ? error.message : String(error ?? '')
+  return /write EIO|EPIPE/i.test(message)
+}
+
+function installDevProcessGuards(): void {
+  if (!import.meta.env.DEV || devProcessGuardsInstalled) return
+  devProcessGuardsInstalled = true
+
+  const parentPid = process.ppid
+  const quitDevApp = (): void => {
+    if (isAppQuitting) return
+    app.quit()
+  }
+  const handleStdIoError = (error: unknown): void => {
+    if (isBrokenStdIoError(error)) {
+      quitDevApp()
+    }
+  }
+
+  process.stdout.on('error', handleStdIoError)
+  process.stderr.on('error', handleStdIoError)
+
+  const watchdog = setInterval(() => {
+    if (process.ppid === 1 || process.ppid !== parentPid) {
+      clearInterval(watchdog)
+      quitDevApp()
+    }
+  }, 1500)
+  watchdog.unref()
+}
 
 function normalizeWorkspaceConnectionKey(workspacePath: string): string {
   return normalizeWorkspaceProjectKey(workspacePath)
@@ -723,6 +759,13 @@ async function updateSharedSettings(partial: Partial<AppSettings>): Promise<void
   saveSettings(sharedSettings)
   if (partial.locale !== undefined && normalizeLocale(sharedSettings.locale) !== prevLocale) {
     refreshAppMenu()
+  }
+  if (process.platform === 'darwin' && partial.showInMenuBar !== undefined) {
+    if (sharedSettings.showInMenuBar === false) {
+      stopTrayProcess()
+    } else {
+      ensureTrayProcess(sharedSettings)
+    }
   }
 }
 
@@ -2740,7 +2783,11 @@ app.on('open-url', (event, url) => {
 
 app.whenReady().then(async () => {
   isAppQuitting = false
+  installDevProcessGuards()
   if (isTrayMode) {
+    if (process.platform === 'darwin') {
+      app.dock.hide()
+    }
     Menu.setApplicationMenu(null)
     void runTrayProcess().catch((error) => {
       console.error('[desktop-tray] failed to start tray process', error)
@@ -2763,7 +2810,7 @@ app.whenReady().then(async () => {
   sharedSettings = loadSettings()
   refreshAppMenu()
   try {
-    ensureTrayProcess()
+    ensureTrayProcess(sharedSettings)
   } catch (error) {
     console.warn('[desktop] failed to ensure tray process', error)
   }
@@ -2926,6 +2973,9 @@ app.on('before-quit', (event) => {
   }
 
   isAppQuitting = true
+  if (import.meta.env.DEV) {
+    stopTrayProcess()
+  }
   stopChromeSettingsDeepLinkServer()
   if (mainWindow && !mainWindow.isDestroyed()) {
     viewerBrowserManager.destroyAllTabs(mainWindow)

@@ -708,6 +708,7 @@ declare global {
           theme?: 'dark' | 'light'
           locale?: AppLocale
           showThinkingContent?: boolean
+          showInMenuBar?: boolean
           visibleChannels?: string[]
           lastOpenEditorId?: EditorId
           lastSeenWhatsNewVersion?: string
@@ -746,6 +747,7 @@ declare global {
             theme?: 'dark' | 'light'
             locale?: AppLocale
             showThinkingContent?: boolean
+            showInMenuBar?: boolean
             visibleChannels?: string[]
             lastOpenEditorId?: EditorId
             lastSeenWhatsNewVersion?: string

@@ -135,6 +135,8 @@ export const MESSAGES_FR = {
   'settings.back': 'Retour',
   'settings.loading': 'Chargement...',
   'settings.theme': 'Thème',
+  'settings.general.showInMenuBar': 'Afficher dans la barre des menus',
+  'settings.general.showInMenuBarHint': 'Garder DotCraft disponible depuis la barre des menus de macOS.',
   'settings.theme.dark': 'Sombre',
   'settings.theme.light': 'Clair',
   'settings.optionThemeDark': 'Sombre',

@@ -305,6 +305,7 @@ describe('SettingsView self-learning settings', () => {
     Object.defineProperty(window, 'api', {
       configurable: true,
       value: {
+        platform: 'win32',
         settings: { get: settingsGet, set: settingsSet },
         workspaceConfig: { getCore: workspaceConfigGetCore },
         appServer: {
@@ -439,6 +440,33 @@ describe('SettingsView self-learning settings', () => {
       expect(settingsSet).toHaveBeenCalledWith({ showThinkingContent: true })
     })
     expect(useUIStore.getState().showThinkingContent).toBe(true)
+  })
+
+  it('shows the macOS menu bar toggle only on mac and saves it', async () => {
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {
+        ...window.api,
+        platform: 'darwin'
+      }
+    })
+    settingsGet.mockResolvedValueOnce({
+      locale: 'en',
+      connectionMode: 'stdio',
+      visibleChannels: [],
+      showInMenuBar: false
+    })
+
+    renderView()
+
+    const toggle = await screen.findByRole('switch', { name: 'Show in menu bar' })
+    expect(toggle).toHaveAttribute('aria-checked', 'false')
+
+    fireEvent.click(toggle)
+
+    await waitFor(() => {
+      expect(settingsSet).toHaveBeenCalledWith({ showInMenuBar: true })
+    })
   })
 
   it('saves long-term memory toggle without restart banner', async () => {

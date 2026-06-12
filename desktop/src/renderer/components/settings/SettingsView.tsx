@@ -1363,6 +1363,7 @@ export function SettingsView({
 }: SettingsViewProps): JSX.Element {
   const t = useT()
   const confirm = useConfirmDialog()
+  const isMac = window.api.platform === 'darwin'
   const setUiLocale = useSetUiLocale()
   const setActiveMainView = useUIStore((s) => s.setActiveMainView)
   const activeSettingsTab = useUIStore((s) => s.activeSettingsTab)
@@ -1395,6 +1396,7 @@ export function SettingsView({
   const [locale, setLocale] = useState<AppLocale>(normalizeLocale(undefined))
   const [taskCompletionNotificationMode, setTaskCompletionNotificationMode] =
     useState<TaskCompletionNotificationMode>('whenUnfocused')
+  const [showInMenuBar, setShowInMenuBar] = useState(isMac)
   const [version, setVersion] = useState('')
   const [saving, setSaving] = useState(false)
   const [restartingAppServer, setRestartingAppServer] = useState(false)
@@ -2318,6 +2320,25 @@ export function SettingsView({
     [setShowThinkingContent, showThinkingContent, t]
   )
 
+  const handleShowInMenuBarToggle = useCallback(
+    async (checked: boolean): Promise<void> => {
+      const previous = showInMenuBar
+      setShowInMenuBar(checked)
+      try {
+        await window.api.settings.set({ showInMenuBar: checked })
+      } catch (err) {
+        setShowInMenuBar(previous)
+        addToast(
+          t('settings.saveFailed', {
+            error: err instanceof Error ? err.message : String(err)
+          }),
+          'error'
+        )
+      }
+    },
+    [showInMenuBar, t]
+  )
+
   const handleDefaultApprovalPolicyChange = useCallback(
     async (nextPolicy: VisibleApprovalPolicy): Promise<boolean> => {
       if (nextPolicy === defaultApprovalPolicy || applyingDefaultApprovalPolicy) return false
@@ -2429,6 +2450,7 @@ export function SettingsView({
             ? s.notifications.taskCompletionMode
             : 'whenUnfocused'
         )
+        setShowInMenuBar(isMac ? s.showInMenuBar !== false : false)
         setShowThinkingContent(s.showThinkingContent === true)
         setBrowserUseApprovalMode((s.browserUse?.approvalMode ?? 'alwaysAsk') as BrowserUseApprovalMode)
         setBrowserUseBlockedDomains([...(s.browserUse?.blockedDomains ?? [])])
@@ -2450,7 +2472,7 @@ export function SettingsView({
         applyWorkspaceCoreBaseline(core, false)
       })
     // `readWorkspaceCoreSafe` already normalizes missing bridge / failed reads.
-  }, [])
+  }, [isMac])
 
   useEffect(() => {
     if (!personalizationAvailable && activeSettingsTab === 'personalization') {
@@ -3270,6 +3292,22 @@ export function SettingsView({
                       />
                     }
                   />
+
+                  {isMac && (
+                    <SettingsRow
+                      label={t('settings.general.showInMenuBar')}
+                      description={t('settings.general.showInMenuBarHint')}
+                      control={
+                        <PillSwitch
+                          checked={showInMenuBar}
+                          aria-label={t('settings.general.showInMenuBar')}
+                          onChange={(checked) => {
+                            void handleShowInMenuBarToggle(checked)
+                          }}
+                        />
+                      }
+                    />
+                  )}
 
                   <SettingsRow>
                     <div style={{ fontSize: '12px', color: 'var(--text-dimmed)' }}>

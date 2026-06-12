@@ -135,6 +135,8 @@ export const MESSAGES_KO = {
   'settings.back': '뒤로',
   'settings.loading': '불러오는 중...',
   'settings.theme': '테마',
+  'settings.general.showInMenuBar': '메뉴 막대에 표시',
+  'settings.general.showInMenuBarHint': 'macOS 메뉴 막대에서 DotCraft를 계속 사용할 수 있게 합니다.',
   'settings.theme.dark': '다크',
   'settings.theme.light': '라이트',
   'settings.optionThemeDark': '다크',
