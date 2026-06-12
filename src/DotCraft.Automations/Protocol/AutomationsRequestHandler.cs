@@ -613,7 +613,7 @@ public sealed partial class AutomationsRequestHandler(
     [GeneratedRegex(@"\A---[ \t]*\r?\n(?<yaml>.*?)(^---[ \t]*\r?\n?)", RegexOptions.Singleline | RegexOptions.Multiline)]
     private static partial Regex WorkflowFrontMatterRegex();
 
-    [GeneratedRegex(@"(?im)^(\s*workspace\s*:\s*)[""']?[^#\r\n""']*[""']?(\s*(?:#.*)?$)")]
+    [GeneratedRegex(@"(?im)^(workspace\s*:\s*)[""']?[^#\r\n""']*[""']?(\s*(?:#.*)?$)")]
     private static partial Regex WorkflowWorkspaceLineRegex();
 
     [GeneratedRegex(@"[^a-z0-9]+")]
