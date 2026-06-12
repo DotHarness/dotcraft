@@ -1,4 +1,5 @@
 using DotCraft.Automations.Abstractions;
+using DotCraft.Protocol;
 
 namespace DotCraft.Automations.Local;
 
@@ -20,6 +21,17 @@ public sealed class LocalAutomationTask : AutomationTask
     /// Absolute path to the provisioned agent workspace directory (set by the orchestrator before workflow load).
     /// </summary>
     public string? AgentWorkspacePath { get; set; }
+
+    /// <summary>
+    /// Canonical workspace mode read from <c>workflow.md</c>. This is runtime metadata;
+    /// <c>workflow.md</c> remains the source of truth.
+    /// </summary>
+    public AutomationWorkspaceMode WorkspaceMode { get; set; } = AutomationWorkspaceMode.Project;
+
+    /// <summary>
+    /// Worktree metadata from the task thread, populated after provisioning.
+    /// </summary>
+    public ThreadWorktreeInfo? Worktree { get; set; }
 
     /// <summary>
     /// Serialized as <c>approval_policy</c> in task.md: <c>workspaceScope</c> (default, reject tools outside agent workspace)

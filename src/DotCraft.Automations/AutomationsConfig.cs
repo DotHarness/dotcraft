@@ -63,4 +63,16 @@ public sealed class AutomationsConfig
     /// Default: 10 minutes.
     /// </summary>
     public TimeSpan RetryMaxDelay { get; set; } = TimeSpan.FromMinutes(10);
+
+    /// <summary>
+    /// When true, idle clean automation worktrees may be removed opportunistically.
+    /// Worktrees with commits ahead of their base or uncommitted changes are never removed.
+    /// </summary>
+    public bool WorktreeRetentionEnabled { get; set; } = true;
+
+    /// <summary>
+    /// Minimum idle age before a clean automation worktree can be removed.
+    /// Default: 21 days, so active weekly tasks are not swept between normal runs.
+    /// </summary>
+    public TimeSpan WorktreeRetentionIdlePeriod { get; set; } = TimeSpan.FromDays(21);
 }

@@ -790,7 +790,7 @@ describe('AgentResponseBlock stream retry signal rendering', () => {
     expect(screen.getByRole('status', { name: '正在重新连接… 1/1' })).toBeInTheDocument()
     const text = container.textContent ?? ''
     expect(text.indexOf('正在重新连接… 1/1')).toBeGreaterThanOrEqual(0)
-    expect(text.indexOf('正在重新连接… 1/1')).toBeLessThan(text.indexOf('正在思考...'))
+    expect(text.indexOf('正在重新连接… 1/1')).toBeLessThan(text.indexOf('正在思考'))
   })
 
   it('does not render retry rows after the turn is no longer running', () => {
@@ -1565,8 +1565,8 @@ describe('AgentResponseBlock reasoning timeline rendering', () => {
       </LocaleProvider>
     )
 
-    const button = screen.getByRole('button', { name: 'Thinking...' })
-    expect(screen.getByText('Thinking...')).toBeInTheDocument()
+    const button = screen.getByRole('button', { name: 'Thinking' })
+    expect(screen.getByText('Thinking')).toBeInTheDocument()
     expectDisclosureInsideTitleGroup(container)
     fireEvent.click(button)
 
@@ -1641,8 +1641,8 @@ describe('AgentResponseBlock reasoning timeline rendering', () => {
       </LocaleProvider>
     )
 
-    const button = screen.getByRole('button', { name: 'Thinking...' })
-    expect(screen.getByText('Thinking...')).toBeInTheDocument()
+    const button = screen.getByRole('button', { name: 'Thinking' })
+    expect(screen.getByText('Thinking')).toBeInTheDocument()
     expect(container.querySelector('[data-testid="tool-disclosure-icon"]')).toBeNull()
 
     fireEvent.click(button)
@@ -1690,8 +1690,8 @@ describe('AgentResponseBlock idle running fallback', () => {
       </LocaleProvider>
     )
 
-    const button = screen.getByRole('button', { name: 'Thinking...' })
-    expect(screen.getByText('Thinking...')).toBeInTheDocument()
+    const button = screen.getByRole('button', { name: 'Thinking' })
+    expect(screen.getByText('Thinking')).toBeInTheDocument()
     expect(container.querySelector('[data-testid="tool-disclosure-icon"]')).toBeNull()
 
     fireEvent.click(button)
@@ -1728,8 +1728,8 @@ describe('AgentResponseBlock idle running fallback', () => {
       </LocaleProvider>
     )
 
-    expect(screen.getAllByText('Thinking...')).toHaveLength(1)
-    expect(screen.getByText('Thinking...')).toBeInTheDocument()
+    expect(screen.getAllByText('Thinking')).toHaveLength(1)
+    expect(screen.getByText('Thinking')).toBeInTheDocument()
   })
 
   it('does not render the fallback when non-empty assistant text streamed within the stall threshold', () => {
@@ -1759,14 +1759,14 @@ describe('AgentResponseBlock idle running fallback', () => {
       streamingMessageLastDeltaAt: Date.now()
     })
 
-    expect(screen.queryByText('Thinking...')).toBeNull()
+    expect(screen.queryByText('Thinking')).toBeNull()
     expect(screen.getByText('Streaming answer')).toBeInTheDocument()
 
     act(() => {
       vi.advanceTimersByTime(1999)
     })
 
-    expect(screen.queryByText('Thinking...')).toBeNull()
+    expect(screen.queryByText('Thinking')).toBeNull()
   })
 
   it('renders the fallback below non-empty assistant text after the stream stalls', () => {
@@ -1801,16 +1801,16 @@ describe('AgentResponseBlock idle running fallback', () => {
       </LocaleProvider>
     )
 
-    expect(screen.queryByText('Thinking...')).toBeNull()
+    expect(screen.queryByText('Thinking')).toBeNull()
 
     act(() => {
       vi.advanceTimersByTime(2000)
     })
 
     expect(screen.getByText('Streaming answer')).toBeInTheDocument()
-    expect(screen.getByText('Thinking...')).toBeInTheDocument()
+    expect(screen.getByText('Thinking')).toBeInTheDocument()
     const text = container.textContent ?? ''
-    expect(text.indexOf('Streaming answer')).toBeLessThan(text.indexOf('Thinking...'))
+    expect(text.indexOf('Streaming answer')).toBeLessThan(text.indexOf('Thinking'))
   })
 
   it('hides the stalled fallback when a new delta appends to the same streaming message', () => {
@@ -1850,7 +1850,7 @@ describe('AgentResponseBlock idle running fallback', () => {
       vi.advanceTimersByTime(2000)
     })
 
-    expect(screen.getByText('Thinking...')).toBeInTheDocument()
+    expect(screen.getByText('Thinking')).toBeInTheDocument()
 
     rerender(renderLive('Streaming answer continued', Date.now()))
     // Appended text reveals via the typewriter cadence; advance well under the
@@ -1859,7 +1859,7 @@ describe('AgentResponseBlock idle running fallback', () => {
       vi.advanceTimersByTime(500)
     })
 
-    expect(screen.queryByText('Thinking...')).toBeNull()
+    expect(screen.queryByText('Thinking')).toBeNull()
     expect(screen.getByText('Streaming answer continued')).toBeInTheDocument()
     expect(screen.queryByText('Streaming answer', { exact: true })).toBeNull()
   })
@@ -1885,7 +1885,7 @@ describe('AgentResponseBlock idle running fallback', () => {
 
     renderBlock(turn, { isRunning: true, showIdleThinkingFallback: true })
 
-    expect(screen.queryByText('Thinking...')).toBeNull()
+    expect(screen.queryByText('Thinking')).toBeNull()
     expect(screen.getByText(/FollowupTool/)).toBeInTheDocument()
   })
 
@@ -1914,7 +1914,7 @@ describe('AgentResponseBlock idle running fallback', () => {
         </LocaleProvider>
       )
 
-      expect(screen.queryByText('Thinking...')).toBeNull()
+      expect(screen.queryByText('Thinking')).toBeNull()
       unmount()
     }
   })

@@ -35,6 +35,7 @@ public sealed class AutomationOrchestrator
     private Task? _pollTask;
     private PeriodicTimer? _pollTimer;
     private int _stopped;
+    private DateTimeOffset _lastRetentionSweepAt = DateTimeOffset.MinValue;
 
     public AutomationOrchestrator(
         AutomationsConfig config,
@@ -89,7 +90,42 @@ public sealed class AutomationOrchestrator
             _logger.LogError(ex, "GetAllTasksAsync failed for local automation tasks");
         }
 
+        await HydrateLocalTaskRuntimeMetadataAsync(merged.Values, ct);
+
         return merged.Values.ToList();
+    }
+
+    private async Task HydrateLocalTaskRuntimeMetadataAsync(
+        IEnumerable<AutomationTask> tasks,
+        CancellationToken ct)
+    {
+        foreach (var task in tasks)
+        {
+            if (task is not LocalAutomationTask local)
+                continue;
+
+            try
+            {
+                local.WorkspaceMode = await _workflowLoader.GetWorkspaceModeAsync(local, ct);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Failed to read workspace mode for automation task {TaskId}", local.Id);
+                local.WorkspaceMode = AutomationWorkspaceMode.Project;
+            }
+
+            local.Worktree = null;
+            if (_sessionClient == null
+                || local.ThreadBinding != null
+                || local.WorkspaceMode != AutomationWorkspaceMode.Worktree
+                || string.IsNullOrWhiteSpace(local.ThreadId))
+            {
+                continue;
+            }
+
+            var thread = await _sessionClient.TryGetThreadAsync(local.ThreadId, ct);
+            local.Worktree = thread?.Worktree;
+        }
     }
 
     /// <summary>
@@ -103,8 +139,53 @@ public sealed class AutomationOrchestrator
     /// </summary>
     public async Task DeleteTaskAsync(string taskId, CancellationToken ct)
     {
+        if (_sessionClient != null)
+        {
+            var task = (await GetAllTasksAsync(ct))
+                .FirstOrDefault(t => string.Equals(t.Id, taskId, StringComparison.Ordinal));
+            if (task is LocalAutomationTask local
+                && local.ThreadBinding == null
+                && (local.WorkspaceMode == AutomationWorkspaceMode.Worktree || local.Worktree != null))
+            {
+                try
+                {
+                    await _sessionClient.RemoveTaskWorktreeAsync(local.Id, local.ThreadId, ct);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to remove managed worktree for automation task {TaskId}", taskId);
+                }
+            }
+        }
+
         await _source.DeleteTaskAsync(taskId, ct);
         _allTasks.TryRemove(taskId, out _);
+    }
+
+    /// <summary>
+    /// Removes a task's managed worktree and branch while preserving the task itself.
+    /// The next run recreates the worktree from the current workspace HEAD.
+    /// </summary>
+    public async Task<AutomationTask> DiscardTaskWorktreeAsync(string taskId, CancellationToken ct)
+    {
+        var client = _sessionClient
+            ?? throw new InvalidOperationException("Session client is not set.");
+        var task = (await GetAllTasksAsync(ct))
+            .FirstOrDefault(t => string.Equals(t.Id, taskId, StringComparison.Ordinal))
+            as LocalAutomationTask;
+        if (task == null)
+            throw new KeyNotFoundException(taskId);
+        if (task.Status == AutomationTaskStatus.Running)
+            throw new InvalidOperationException("Cannot discard a task worktree while the task is running.");
+        if (task.ThreadBinding != null
+            || (task.WorkspaceMode != AutomationWorkspaceMode.Worktree && task.Worktree == null))
+            throw new InvalidOperationException("Task does not have a managed worktree to discard.");
+
+        await client.RemoveTaskWorktreeAsync(task.Id, task.ThreadId, ct);
+        task.Worktree = null;
+        TrackTask(task);
+        await RaiseStatusChangedAsync(task, task.Status);
+        return task;
     }
 
     public Task StartAsync(CancellationToken ct)
@@ -220,6 +301,8 @@ public sealed class AutomationOrchestrator
                 return;
             }
 
+            await TryRunRetentionSweepAsync(ct);
+
             EnsureNextRunAtInitialized(pending);
 
             var pendingOnly = pending
@@ -309,6 +392,88 @@ public sealed class AutomationOrchestrator
             "Poll completed in {ElapsedMs}ms. {PollDetails}",
             elapsedMs,
             sb.ToString());
+    }
+
+    private async Task TryRunRetentionSweepAsync(CancellationToken ct)
+    {
+        if (_sessionClient == null
+            || !_config.WorktreeRetentionEnabled
+            || _config.WorktreeRetentionIdlePeriod < TimeSpan.FromDays(14))
+        {
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        if (now - _lastRetentionSweepAt < TimeSpan.FromHours(1))
+            return;
+        _lastRetentionSweepAt = now;
+
+        IReadOnlyList<AutomationTask> tasks;
+        try
+        {
+            tasks = await _source.GetAllTasksAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Skipping automation worktree retention sweep because task loading failed.");
+            return;
+        }
+
+        var byId = tasks.ToDictionary(t => t.Id, StringComparer.Ordinal);
+        IReadOnlyList<ThreadWorktreeStatus> statuses;
+        try
+        {
+            statuses = await _sessionClient.ListManagedWorktreesAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Skipping automation worktree retention sweep because worktree status loading failed.");
+            return;
+        }
+
+        foreach (var status in statuses)
+        {
+            ct.ThrowIfCancellationRequested();
+            var worktree = status.Worktree;
+            if (!string.Equals(worktree.OwnerKind, "automationTask", StringComparison.Ordinal)
+                || string.IsNullOrWhiteSpace(worktree.OwnerId))
+            {
+                continue;
+            }
+
+            byId.TryGetValue(worktree.OwnerId, out var task);
+            if (task?.Status == AutomationTaskStatus.Running)
+                continue;
+            if (status.HasUncommittedChanges || status.HasCommitsAheadOfBase)
+                continue;
+
+            var lastActivity = task?.UpdatedAt ?? worktree.CreatedAt;
+            if (now - lastActivity < _config.WorktreeRetentionIdlePeriod)
+                continue;
+
+            try
+            {
+                await _sessionClient.RemoveTaskWorktreeAsync(worktree.OwnerId, status.ThreadId, ct);
+                _logger.LogInformation(
+                    "Removed idle clean automation worktree for task {TaskId} at {Path}.",
+                    worktree.OwnerId,
+                    worktree.Path);
+                if (task is LocalAutomationTask local)
+                {
+                    local.Worktree = null;
+                    TrackTask(local);
+                    await RaiseStatusChangedAsync(local, local.Status);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(
+                    ex,
+                    "Failed to remove idle automation worktree for task {TaskId} at {Path}.",
+                    worktree.OwnerId,
+                    worktree.Path);
+            }
+        }
     }
 
     /// <summary>
@@ -461,23 +626,11 @@ public sealed class AutomationOrchestrator
         else if (task is LocalAutomationTask localTask)
         {
             var workspaceMode = await _workflowLoader.GetWorkspaceModeAsync(localTask, ct);
-            if (workspaceMode == AutomationWorkspaceMode.Isolated)
-            {
-                workspacePath = Path.Combine(localTask.TaskDirectory, "workspace");
-                Directory.CreateDirectory(workspacePath);
-            }
-            else
-            {
-                workspacePath = client.ProjectWorkspacePath;
-                Directory.CreateDirectory(workspacePath);
-            }
-
-            localTask.AgentWorkspacePath = workspacePath;
+            localTask.WorkspaceMode = workspaceMode;
             automationTaskDirectory = localTask.TaskDirectory;
 
             var threadConfig = new ThreadConfiguration
             {
-                WorkspaceOverride = workspacePath,
                 ToolProfile = _source.ToolProfileName,
                 ApprovalPolicy = ApprovalPolicy.AutoApprove,
                 AutomationTaskDirectory = automationTaskDirectory,
@@ -490,6 +643,36 @@ public sealed class AutomationOrchestrator
                 threadConfig,
                 ct,
                 displayName: task.Title);
+
+            if (workspaceMode == AutomationWorkspaceMode.Worktree)
+            {
+                try
+                {
+                    var worktree = await client.EnsureTaskWorktreeAsync(threadId, task.Id, ct);
+                    localTask.Worktree = worktree;
+                    workspacePath = worktree.Path;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(
+                        ex,
+                        "Worktree provisioning failed for task {TaskId}; falling back to legacy sandbox",
+                        task.Id);
+                    workspacePath = Path.Combine(localTask.TaskDirectory, "workspace");
+                    Directory.CreateDirectory(workspacePath);
+                    localTask.Worktree = null;
+                    await client.ConfigureTaskExecutionWorkspaceAsync(threadId, workspacePath, ct);
+                }
+            }
+            else
+            {
+                workspacePath = client.ProjectWorkspacePath;
+                Directory.CreateDirectory(workspacePath);
+                localTask.Worktree = null;
+                await client.ConfigureTaskExecutionWorkspaceAsync(threadId, executionWorkspacePath: null, ct);
+            }
+
+            localTask.AgentWorkspacePath = workspacePath;
         }
         else
         {

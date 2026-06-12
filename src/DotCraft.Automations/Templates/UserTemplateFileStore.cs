@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.RegularExpressions;
+using DotCraft.Automations.Abstractions;
 using DotCraft.Automations.Local;
 using DotCraft.Cron;
 using DotCraft.Hosting;
@@ -111,6 +112,7 @@ public sealed partial class UserTemplateFileStore(
         var now = DateTimeOffset.UtcNow;
         createdAt ??= now;
 
+        var canonicalWorkflowMarkdown = CanonicalizeWorkflowWorkspaceMode(workflowMarkdown ?? string.Empty);
         var fm = new TemplateFileFrontMatter
         {
             Id = id,
@@ -119,7 +121,7 @@ public sealed partial class UserTemplateFileStore(
             Icon = string.IsNullOrWhiteSpace(icon) ? null : icon,
             Category = string.IsNullOrWhiteSpace(category) ? null : category,
             DefaultSchedule = ToYaml(defaultSchedule),
-            DefaultWorkspaceMode = string.IsNullOrWhiteSpace(defaultWorkspaceMode) ? null : defaultWorkspaceMode,
+            DefaultWorkspaceMode = NormalizeOptionalWorkspaceMode(defaultWorkspaceMode),
             DefaultApprovalPolicy = string.IsNullOrWhiteSpace(defaultApprovalPolicy) ? null : defaultApprovalPolicy,
             NeedsThreadBinding = needsThreadBinding,
             DefaultTitle = string.IsNullOrWhiteSpace(defaultTitle) ? null : defaultTitle,
@@ -140,7 +142,7 @@ public sealed partial class UserTemplateFileStore(
         sb.Append(yaml.TrimEnd());
         sb.AppendLine();
         sb.AppendLine("---");
-        sb.Append(workflowMarkdown ?? string.Empty);
+        sb.Append(canonicalWorkflowMarkdown);
 
         File.WriteAllText(file, sb.ToString());
 
@@ -150,7 +152,7 @@ public sealed partial class UserTemplateFileStore(
             Description: fm.Description ?? string.Empty,
             Icon: fm.Icon ?? string.Empty,
             Category: fm.Category ?? string.Empty,
-            WorkflowMarkdown: workflowMarkdown ?? string.Empty,
+            WorkflowMarkdown: canonicalWorkflowMarkdown,
             DefaultSchedule: defaultSchedule,
             DefaultWorkspaceMode: fm.DefaultWorkspaceMode,
             DefaultApprovalPolicy: fm.DefaultApprovalPolicy,
@@ -232,7 +234,7 @@ public sealed partial class UserTemplateFileStore(
             Category: fm.Category ?? string.Empty,
             WorkflowMarkdown: body,
             DefaultSchedule: FromYaml(fm.DefaultSchedule),
-            DefaultWorkspaceMode: fm.DefaultWorkspaceMode,
+            DefaultWorkspaceMode: NormalizeOptionalWorkspaceModeForLoad(fm.DefaultWorkspaceMode),
             DefaultApprovalPolicy: fm.DefaultApprovalPolicy,
             NeedsThreadBinding: fm.NeedsThreadBinding ?? false,
             DefaultTitle: fm.DefaultTitle,
@@ -277,6 +279,38 @@ public sealed partial class UserTemplateFileStore(
             Expr = s.Expr,
             Tz = s.Tz
         };
+    }
+
+    private static string? NormalizeOptionalWorkspaceMode(string? mode)
+    {
+        if (string.IsNullOrWhiteSpace(mode))
+            return null;
+
+        if (AutomationWorkspaceModeNames.TryNormalize(mode, out var normalized))
+            return normalized;
+
+        throw new ArgumentException("Template default workspace mode must be 'project' or 'worktree'.", nameof(mode));
+    }
+
+    private static string? NormalizeOptionalWorkspaceModeForLoad(string? mode)
+    {
+        if (string.IsNullOrWhiteSpace(mode))
+            return null;
+
+        return AutomationWorkspaceModeNames.TryNormalize(mode, out var normalized)
+            ? normalized
+            : null;
+    }
+
+    private static string CanonicalizeWorkflowWorkspaceMode(string markdown)
+    {
+        if (string.IsNullOrWhiteSpace(markdown))
+            return markdown;
+
+        return Regex.Replace(
+            markdown,
+            @"(?im)^(\s*workspace\s*:\s*)[""']?isolated[""']?(\s*(?:#.*)?$)",
+            "$1worktree$2");
     }
 
     private sealed class TemplateFileFrontMatter

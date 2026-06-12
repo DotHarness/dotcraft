@@ -2500,6 +2500,18 @@ kbd {
   outline: none;
 }
 
+/* Numeric inputs inside custom popovers hide the native spin buttons so they
+   read as the same quiet control family as the surrounding pickers. */
+input.dc-plain-number::-webkit-outer-spin-button,
+input.dc-plain-number::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input.dc-plain-number {
+  appearance: textfield;
+}
+
 /* Conversation markdown should not add trailing air after the final block. */
 .markdown-body > :last-child {
   margin-bottom: 0 !important;

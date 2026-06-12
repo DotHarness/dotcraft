@@ -387,11 +387,21 @@ Client 可以在 `initialize.params.capabilities.optOutNotificationMethods` 中�
 | MCP | `mcp/list`, `mcp/get`, `mcp/upsert`, `mcp/status/list`, `mcp/test` | MCP 配置和状态。 |
 | External channels | `externalChannel/list`, `externalChannel/upsert` | 外部 channel 配置。 |
 | SubAgents | `subagent/profiles/list`, `subagent/profiles/upsert` | 子代理 profile 管理。 |
+| Automations | `automation/task/list`, `automation/task/create`, `automation/task/discardWorktree` | 本地任务生命周期、绑定和受管 worktree 清理。 |
+| Worktrees | `worktree/list`, `worktree/status`, `thread/worktree/handoff` | 受管 Git worktree 状态和交接。 |
 | Workspace config | `workspace/config/update` | 工作区配置更新。 |
 
 Client 应根据 `initialize` 响应中的 `capabilities` 决定是否展示对应 UI。
 
 `skills/list` 返回的 Skill 条目可能包含 `hasVariant: true`，表示当前运行环境下该技能会通过工作区适配内容执行。`skills/read` 仍读取源 `SKILL.md`；需要展示或执行有效内容时使用 `skills/view`。
+
+### Automation 和 worktree 状态
+
+Automation task wire 使用 canonical `workspaceMode`：`project` 或 `worktree`。Worktree 模式任务在受管 worktree 尚未创建、server 回退到任务 workspace、或 worktree 被丢弃后，会返回 `worktree: null`。
+
+渲染自动化审核 UI 的 client 可以对任务 Thread 调用 `worktree/status`。`ThreadWorktreeStatus` 包含 `hasUncommittedChanges`、`hasCommitsAheadOfBase` 和 `aheadCount`，足够用于紧凑状态提示以及删除/丢弃前的警告。
+
+使用 `automation/task/discardWorktree` 和 `{ taskId }` 可以移除任务的受管 worktree 和分支，同时保留任务本身。任务正在运行时，server 会拒绝丢弃。用户想继续在本地审核时，使用 `thread/worktree/handoff` 并传入 `mode: "local"`。
 
 ### Plugins 和 Skills 管理
 

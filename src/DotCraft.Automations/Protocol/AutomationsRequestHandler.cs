@@ -108,9 +108,12 @@ public sealed partial class AutomationsRequestHandler(
 
         File.WriteAllText(Path.Combine(taskDir, "task.md"), fm.ToString());
 
+        var workflowWorkspaceMode = NormalizeOptionalWorkspaceMode(p.WorkspaceMode);
         var workflowContent = string.IsNullOrWhiteSpace(p.WorkflowTemplate)
-            ? BuildDefaultWorkflowContent(NormalizeWorkspaceMode(p.WorkspaceMode))
-            : p.WorkflowTemplate;
+            ? BuildDefaultWorkflowContent(workflowWorkspaceMode ?? AutomationWorkspaceModeNames.Project)
+            : ApplyExplicitWorkflowWorkspaceMode(
+                CanonicalizeWorkflowWorkspaceMode(p.WorkflowTemplate),
+                workflowWorkspaceMode);
         File.WriteAllText(Path.Combine(taskDir, "workflow.md"), workflowContent);
 
         return Task.FromResult<object?>(new AutomationTaskCreateResult
@@ -181,6 +184,31 @@ public sealed partial class AutomationsRequestHandler(
         return new AutomationTaskRunResult { Task = ToWireDetailed(task) };
     }
 
+    public async Task<object?> HandleTaskDiscardWorktreeAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    {
+        var p = GetParams<AutomationTaskDiscardWorktreeParams>(msg);
+        if (string.IsNullOrWhiteSpace(p.TaskId))
+            throw AppServerErrors.InvalidParams("'taskId' is required.");
+
+        try
+        {
+            var task = await orchestrator.DiscardTaskWorktreeAsync(p.TaskId, ct);
+            return new AutomationTaskDiscardWorktreeResult { Task = ToWireDetailed(task) };
+        }
+        catch (KeyNotFoundException)
+        {
+            throw AppServerErrors.TaskNotFound(p.TaskId);
+        }
+        catch (NotSupportedException ex)
+        {
+            throw AppServerErrors.TaskInvalidStatus(ex.Message);
+        }
+        catch (InvalidOperationException ex)
+        {
+            throw AppServerErrors.TaskInvalidStatus(ex.Message);
+        }
+    }
+
     public async Task<object?> HandleTemplateListAsync(AppServerIncomingMessage msg, CancellationToken ct)
     {
         var p = GetParams<AutomationTemplateListParams>(msg);
@@ -226,7 +254,7 @@ public sealed partial class AutomationsRequestHandler(
                 category: p.Category,
                 workflowMarkdown: p.WorkflowMarkdown,
                 defaultSchedule: FromWire(p.DefaultSchedule),
-                defaultWorkspaceMode: p.DefaultWorkspaceMode,
+                defaultWorkspaceMode: NormalizeOptionalWorkspaceMode(p.DefaultWorkspaceMode),
                 defaultApprovalPolicy: p.DefaultApprovalPolicy,
                 needsThreadBinding: p.NeedsThreadBinding,
                 defaultTitle: p.DefaultTitle,
@@ -273,7 +301,7 @@ public sealed partial class AutomationsRequestHandler(
         Category = string.IsNullOrWhiteSpace(t.Category) ? null : t.Category,
         WorkflowMarkdown = t.WorkflowMarkdown,
         DefaultSchedule = ToWire(t.DefaultSchedule),
-        DefaultWorkspaceMode = t.DefaultWorkspaceMode,
+        DefaultWorkspaceMode = NormalizeOptionalWorkspaceMode(t.DefaultWorkspaceMode),
         DefaultApprovalPolicy = t.DefaultApprovalPolicy,
         NeedsThreadBinding = t.NeedsThreadBinding,
         DefaultTitle = t.DefaultTitle,
@@ -373,8 +401,7 @@ public sealed partial class AutomationsRequestHandler(
             ThreadBinding = ToWire(task.ThreadBinding),
             NextRunAt = task.NextRunAt
         };
-        if (task is LocalAutomationTask local)
-            w.ApprovalPolicy = local.ApprovalPolicy;
+        ApplyLocalWireMetadata(w, task);
         return w;
     }
 
@@ -394,9 +421,27 @@ public sealed partial class AutomationsRequestHandler(
             ThreadBinding = ToWire(task.ThreadBinding),
             NextRunAt = task.NextRunAt
         };
-        if (task is LocalAutomationTask local)
-            w.ApprovalPolicy = local.ApprovalPolicy;
+        ApplyLocalWireMetadata(w, task);
         return w;
+    }
+
+    private static void ApplyLocalWireMetadata(AutomationTaskWire w, AutomationTask task)
+    {
+        if (task is LocalAutomationTask local)
+        {
+            w.ApprovalPolicy = local.ApprovalPolicy;
+            w.WorkspaceMode = AutomationWorkspaceModeNames.ToCanonicalString(local.WorkspaceMode);
+            if (local.ThreadBinding == null
+                && local.WorkspaceMode == AutomationWorkspaceMode.Worktree
+                && local.Worktree != null)
+            {
+                w.Worktree = new AutomationTaskWorktreeWire
+                {
+                    BranchName = local.Worktree.BranchName,
+                    Path = local.Worktree.Path
+                };
+            }
+        }
     }
 
     private static AutomationScheduleWire? ToWire(CronSchedule? schedule)
@@ -472,7 +517,7 @@ public sealed partial class AutomationsRequestHandler(
     }
 
     /// <summary>
-    /// <paramref name="workspaceYamlValue"/> is <c>project</c> or <c>isolated</c> (validated by <see cref="NormalizeWorkspaceMode"/>).
+    /// <paramref name="workspaceYamlValue"/> is <c>project</c> or <c>worktree</c> (validated by <see cref="NormalizeWorkspaceMode"/>).
     /// Liquid body uses <c>{{ }}</c>; keep it in a non-interpolated raw string to avoid C# brace escaping.
     /// </summary>
     private static string BuildDefaultWorkflowContent(string workspaceYamlValue)
@@ -500,20 +545,76 @@ public sealed partial class AutomationsRequestHandler(
             """ + Body;
     }
 
-    /// <summary>Returns <c>project</c> or <c>isolated</c> for workflow.md YAML.</summary>
+    /// <summary>Returns <c>project</c> or <c>worktree</c> for workflow.md YAML.</summary>
     private static string NormalizeWorkspaceMode(string? mode)
     {
         if (string.IsNullOrWhiteSpace(mode))
-            return "project";
+            return AutomationWorkspaceModeNames.Project;
 
-        var m = mode.Trim();
-        if (string.Equals(m, "project", StringComparison.OrdinalIgnoreCase))
-            return "project";
-        if (string.Equals(m, "isolated", StringComparison.OrdinalIgnoreCase))
-            return "isolated";
+        if (AutomationWorkspaceModeNames.TryNormalize(mode, out var normalized) && normalized != null)
+            return normalized;
 
-        throw AppServerErrors.InvalidParams("'workspaceMode' must be 'project' or 'isolated'.");
+        throw AppServerErrors.InvalidParams("'workspaceMode' must be 'project' or 'worktree' (legacy 'isolated' is accepted).");
     }
+
+    private static string? NormalizeOptionalWorkspaceMode(string? mode)
+    {
+        if (string.IsNullOrWhiteSpace(mode))
+            return null;
+
+        if (AutomationWorkspaceModeNames.TryNormalize(mode, out var normalized))
+            return normalized;
+
+        throw AppServerErrors.InvalidParams("'defaultWorkspaceMode' must be 'project' or 'worktree' (legacy 'isolated' is accepted).");
+    }
+
+    private static string CanonicalizeWorkflowWorkspaceMode(string markdown)
+    {
+        if (string.IsNullOrWhiteSpace(markdown))
+            return markdown;
+
+        return Regex.Replace(
+            markdown,
+            @"(?im)^(\s*workspace\s*:\s*)[""']?isolated[""']?(\s*(?:#.*)?$)",
+            "$1worktree$2");
+    }
+
+    private static string ApplyExplicitWorkflowWorkspaceMode(string markdown, string? workspaceMode)
+    {
+        if (string.IsNullOrWhiteSpace(workspaceMode) || string.IsNullOrWhiteSpace(markdown))
+            return markdown;
+
+        var newline = markdown.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
+        var match = WorkflowFrontMatterRegex().Match(markdown);
+        if (!match.Success)
+        {
+            return $"---{newline}workspace: {workspaceMode}{newline}---{newline}{markdown}";
+        }
+
+        var yamlGroup = match.Groups["yaml"];
+        var yaml = yamlGroup.Value;
+        var workspaceLineRegex = WorkflowWorkspaceLineRegex();
+        var updatedYaml = workspaceLineRegex.IsMatch(yaml)
+            ? workspaceLineRegex.Replace(
+                yaml,
+                m =>
+                {
+                    var suffix = m.Groups[2].Value;
+                    if (suffix.StartsWith("#", StringComparison.Ordinal))
+                        suffix = " " + suffix;
+                    return $"{m.Groups[1].Value}{workspaceMode}{suffix}";
+                },
+                1)
+            : $"workspace: {workspaceMode}{newline}{yaml}";
+
+        return markdown[..yamlGroup.Index] + updatedYaml + markdown[(yamlGroup.Index + yamlGroup.Length)..];
+    }
+
+    [GeneratedRegex(@"\A---[ \t]*\r?\n(?<yaml>.*?)(^---[ \t]*\r?\n?)", RegexOptions.Singleline | RegexOptions.Multiline)]
+    private static partial Regex WorkflowFrontMatterRegex();
+
+    [GeneratedRegex(@"(?im)^(workspace\s*:\s*)[""']?[^#\r\n""']*[""']?(\s*(?:#.*)?$)")]
+    private static partial Regex WorkflowWorkspaceLineRegex();
 
     [GeneratedRegex(@"[^a-z0-9]+")]
     private static partial Regex SlugRegex();

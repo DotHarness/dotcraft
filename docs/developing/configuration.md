@@ -251,6 +251,8 @@ OpenSandbox example:
 | `Automations.MaxRetries` | Maximum retry count | `3` |
 | `Automations.RetryInitialDelay` | Initial retry delay | `00:00:30` |
 | `Automations.RetryMaxDelay` | Maximum retry delay | `00:10:00` |
+| `Automations.WorktreeRetentionEnabled` | Enables retention cleanup for idle automation task worktrees | `true` |
+| `Automations.WorktreeRetentionIdlePeriod` | Idle period before a clean automation task worktree is eligible for cleanup | `21.00:00:00` |
 | `Goals.Enabled` | Enables goal storage, AppServer methods, goal context injection, usage accounting, and model goal tools | `true` |
 | `Goals.AutoContinueEnabled` | Allows active goals to continue when a Thread is idle | `true` |
 | `Hooks.Enabled` | Enables Hooks | `true` |
@@ -259,6 +261,8 @@ OpenSandbox example:
 | `Heartbeat.Enabled` | Enables heartbeat service | `false` |
 | `Heartbeat.IntervalSeconds` | Check interval in seconds | `1800` |
 | `Heartbeat.NotifyAdmin` | Sends results to admin in social channels | `true` |
+
+`Automations.WorktreeRetentionIdlePeriod` must be at least `14.00:00:00`. The retention sweep only removes managed automation task worktrees that are idle, clean, and have no commits ahead of their base.
 
 Automation AppServer methods:
 
@@ -269,6 +273,7 @@ Automation AppServer methods:
 | `automation/task/create` | Create a local task |
 | `automation/task/run` | Run a local task immediately |
 | `automation/task/updateBinding` | Update or clear thread binding |
+| `automation/task/discardWorktree` | Remove a task's managed worktree and branch while keeping the task |
 | `automation/task/delete` | Delete a local task |
 | `automation/template/list` | List templates |
 | `automation/template/save` | Save a user template |

@@ -550,7 +550,7 @@ describe('MessageStream plan-accept sentinel filtering', () => {
 
     renderWithLocale(<MessageStream />)
 
-    expect(screen.getByText('Thinking...')).toBeInTheDocument()
+    expect(screen.getByText('Thinking')).toBeInTheDocument()
   })
 
   it('shows and clears the Thinking fallback when streaming assistant text stalls then resumes', () => {
@@ -589,15 +589,15 @@ describe('MessageStream plan-accept sentinel filtering', () => {
     renderWithLocale(<MessageStream />)
 
     expect(screen.getByText('Partial answer')).toBeInTheDocument()
-    expect(screen.queryByText('Thinking...')).toBeNull()
+    expect(screen.queryByText('Thinking')).toBeNull()
 
     act(() => {
       vi.advanceTimersByTime(2000)
     })
 
-    expect(screen.getByText('Thinking...')).toBeInTheDocument()
+    expect(screen.getByText('Thinking')).toBeInTheDocument()
     const stalledText = screen.getByTestId('message-stream').textContent ?? ''
-    expect(stalledText.indexOf('Partial answer')).toBeLessThan(stalledText.indexOf('Thinking...'))
+    expect(stalledText.indexOf('Partial answer')).toBeLessThan(stalledText.indexOf('Thinking'))
 
     act(() => {
       useConversationStore.setState({
@@ -611,7 +611,7 @@ describe('MessageStream plan-accept sentinel filtering', () => {
       vi.advanceTimersByTime(500)
     })
 
-    expect(screen.queryByText('Thinking...')).toBeNull()
+    expect(screen.queryByText('Thinking')).toBeNull()
     expect(screen.getByText('Partial answer continued')).toBeInTheDocument()
   })
 
@@ -654,7 +654,7 @@ describe('MessageStream plan-accept sentinel filtering', () => {
     renderWithLocale(<MessageStream />)
 
     expect(screen.getByText('Asking questions')).toBeInTheDocument()
-    expect(screen.queryByText('Thinking...')).toBeNull()
+    expect(screen.queryByText('Thinking')).toBeNull()
   })
 
   it('renders pending approvals as a lightweight running status while the composer handles decisions', async () => {
@@ -711,7 +711,7 @@ describe('MessageStream plan-accept sentinel filtering', () => {
     renderWithLocale(<MessageStream />)
 
     expect(await screen.findByText('等待审批')).toBeInTheDocument()
-    expect(screen.queryByText('正在思考...')).toBeNull()
+    expect(screen.queryByText('正在思考')).toBeNull()
     expect(screen.queryByText('Approval Required')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Accept' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Decline' })).not.toBeInTheDocument()
@@ -772,7 +772,7 @@ describe('MessageStream plan-accept sentinel filtering', () => {
 
     expect(screen.getByRole('status', { name: 'Auto-compacting context' })).toBeInTheDocument()
     expect(screen.getByText('Auto-compacting context')).toBeInTheDocument()
-    expect(screen.queryByText('Thinking...')).toBeNull()
+    expect(screen.queryByText('Thinking')).toBeNull()
 
     act(() => {
       useConversationStore.setState({ systemLabel: null })

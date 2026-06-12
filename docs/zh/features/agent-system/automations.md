@@ -28,6 +28,12 @@ Automations 在你的工作区里运行本地任务——可以定时，也可�
 | 完成摘要 | 工作完成后，Agent 写一段简短摘要 |
 | 删除 | 删除任务，可同时删除其关联对话 |
 
+### 审核 worktree 输出
+
+未绑定到现有 Thread 的自动化任务，在 Git 项目中会运行在受管 Git worktree 里。Desktop 的审核面板会显示分支、是否有未提交改动，以及是否有领先基础版本的提交。
+
+你可以在审核面板里打开任务 Thread、把 worktree 交接回本地 workspace，或丢弃任务 worktree。丢弃会移除该任务的 worktree 输出和受管分支；只有在确认不再需要这些改动时再使用。
+
 调度格式、工作流变量和完整的任务字段见 [Automations、Goals 与 Hooks](../../developing/configuration#automations-goals-与-hooks)。
 
 ---

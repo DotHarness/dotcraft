@@ -16,6 +16,7 @@ internal sealed class AutomationRequestHandler(IAutomationsRequestHandler? autom
         table.Map(AppServerMethods.AutomationTaskCreate, (msg, ct) => Route(h => h.HandleTaskCreateAsync(msg, ct)));
         table.Map(AppServerMethods.AutomationTaskRun, (msg, ct) => Route(h => h.HandleTaskRunAsync(msg, ct)));
         table.Map(AppServerMethods.AutomationTaskDelete, (msg, ct) => Route(h => h.HandleTaskDeleteAsync(msg, ct)));
+        table.Map(AppServerMethods.AutomationTaskDiscardWorktree, (msg, ct) => Route(h => h.HandleTaskDiscardWorktreeAsync(msg, ct)));
         table.Map(AppServerMethods.AutomationTaskUpdateBinding, (msg, ct) => Route(h => h.HandleTaskUpdateBindingAsync(msg, ct)));
         table.Map(AppServerMethods.AutomationTemplateList, (msg, ct) => Route(h => h.HandleTemplateListAsync(msg, ct)));
         table.Map(AppServerMethods.AutomationTemplateSave, (msg, ct) => Route(h => h.HandleTemplateSaveAsync(msg, ct)));

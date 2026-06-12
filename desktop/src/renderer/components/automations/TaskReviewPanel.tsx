@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { useT } from '../../contexts/LocaleContext'
 import type { ConversationTurn } from '../../types/conversation'
 import { useAutomationsStore } from '../../stores/automationsStore'
 import { useReviewPanelStore } from '../../stores/reviewPanelStore'
 import { useThreadStore } from '../../stores/threadStore'
-import type { AutomationTask } from '../../stores/automationsStore'
+import { useUIStore } from '../../stores/uiStore'
+import type { AutomationTask, AutomationWorktreeStatus } from '../../stores/automationsStore'
+import type { Thread } from '../../types/thread'
 import { StatusBadge } from './StatusBadge'
 import { MarkdownRenderer } from '../conversation/MarkdownRenderer'
 import { AgentResponseBlock } from '../conversation/AgentResponseBlock'
@@ -12,6 +14,9 @@ import type { SubAgentEntry } from '../../types/toolCall'
 import { ThreadPickerOverlay } from './ThreadPickerOverlay'
 import { addToast } from '../../stores/toastStore'
 import { ActionTooltip } from '../ui/ActionTooltip'
+import { ConfirmDialog } from '../ui/ConfirmDialog'
+import { WorktreeHandoffDialog } from '../conversation/WorktreeHandoffDialog'
+import { ArrowRightLeft, ExternalLink, GitBranch, RefreshCcw, Trash2 } from 'lucide-react'
 
 function ApprovalPolicyBadge({
   policy,
@@ -41,6 +46,269 @@ function ApprovalPolicyBadge({
         {label}
       </span>
     </ActionTooltip>
+  )
+}
+
+function WorktreeReviewSection({ task }: { task: AutomationTask }): JSX.Element | null {
+  const t = useT()
+  const getTaskWorktreeStatus = useAutomationsStore((s) => s.getTaskWorktreeStatus)
+  const discardTaskWorktree = useAutomationsStore((s) => s.discardTaskWorktree)
+  const fetchTasks = useAutomationsStore((s) => s.fetchTasks)
+  const setActiveMainView = useUIStore((s) => s.setActiveMainView)
+  const upsertThreads = useThreadStore((s) => s.upsertThreads)
+  const setActiveThreadId = useThreadStore((s) => s.setActiveThreadId)
+  const setActiveThread = useThreadStore((s) => s.setActiveThread)
+  const [status, setStatus] = useState<AutomationWorktreeStatus | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [confirmDiscard, setConfirmDiscard] = useState(false)
+  const [handoffThread, setHandoffThread] = useState<Thread | null>(null)
+
+  const isWorktreeTask =
+    task.workspaceMode === 'worktree' && !task.threadBinding?.threadId
+  const provisioned = Boolean(task.threadId && task.worktree)
+  const hasUnreviewedWork =
+    Boolean(status?.hasUncommittedChanges)
+    || Boolean(status?.hasCommitsAheadOfBase)
+    || (status?.aheadCount ?? 0) > 0
+
+  useEffect(() => {
+    if (!isWorktreeTask || !provisioned) {
+      setStatus(null)
+      setError(null)
+      setLoading(false)
+      return
+    }
+
+    let cancelled = false
+    setLoading(true)
+    setError(null)
+    getTaskWorktreeStatus(task)
+      .then((next) => {
+        if (!cancelled) setStatus(next)
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setStatus(null)
+          setError(err instanceof Error ? err.message : String(err))
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    getTaskWorktreeStatus,
+    isWorktreeTask,
+    provisioned,
+    task.id,
+    task.threadId,
+    task.updatedAt,
+    task.worktree?.path
+  ])
+
+  if (!isWorktreeTask) return null
+
+  async function refresh(): Promise<void> {
+    if (!provisioned) return
+    setLoading(true)
+    setError(null)
+    try {
+      setStatus(await getTaskWorktreeStatus(task))
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function readThread(): Promise<Thread | null> {
+    if (!task.threadId) return null
+    const result = (await window.api.appServer.sendRequest('thread/read', {
+      threadId: task.threadId,
+      includeTurns: false
+    })) as { thread?: Thread }
+    return result.thread ?? null
+  }
+
+  async function openThread(): Promise<void> {
+    try {
+      const thread = await readThread()
+      if (!thread) throw new Error(t('auto.review.threadMissing'))
+      upsertThreads([thread])
+      setActiveThread(thread)
+      setActiveThreadId(thread.id)
+      setActiveMainView('conversation')
+    } catch (err: unknown) {
+      addToast(
+        t('auto.review.openThreadFailed', {
+          error: err instanceof Error ? err.message : String(err)
+        }),
+        'error'
+      )
+    }
+  }
+
+  async function startHandoff(): Promise<void> {
+    if (task.status === 'running' || !provisioned) return
+    try {
+      const thread = await readThread()
+      if (!thread?.worktree) throw new Error(t('auto.review.worktreeNotProvisioned'))
+      setHandoffThread(thread)
+    } catch (err: unknown) {
+      addToast(
+        t('auto.review.handoffFailed', {
+          error: err instanceof Error ? err.message : String(err)
+        }),
+        'error'
+      )
+    }
+  }
+
+  async function discard(): Promise<void> {
+    setBusy(true)
+    try {
+      await discardTaskWorktree(task)
+      setStatus(null)
+      setConfirmDiscard(false)
+      addToast(t('auto.review.discardSuccess'), 'success')
+    } catch (err: unknown) {
+      addToast(
+        t('auto.review.discardFailed', {
+          error: err instanceof Error ? err.message : String(err)
+        }),
+        'error'
+      )
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const branch = status?.branchName || task.worktree?.branchName || t('workspaceFooter.branchUnknown')
+  const aheadCount = status?.aheadCount ?? 0
+  const canHandoff = provisioned && task.status !== 'running' && status?.exists !== false
+  const disableHandoffReason =
+    task.status === 'running'
+      ? t('auto.review.handoffDisabledRunning')
+      : !provisioned || status?.exists === false
+        ? t('auto.review.worktreeNotProvisioned')
+        : undefined
+
+  return (
+    <>
+      <div style={worktreeSectionStyle}>
+        <div style={worktreeHeaderStyle}>
+          <div style={worktreeTitleStyle}>
+            <GitBranch size={14} aria-hidden />
+            <span>{t('auto.review.worktreeHeading')}</span>
+          </div>
+          <ActionTooltip label={t('auto.review.worktreeRefresh')}>
+            <button
+              type="button"
+              disabled={!provisioned || loading}
+              onClick={() => void refresh()}
+              style={smallIconButtonStyle(!provisioned || loading)}
+              aria-label={t('auto.review.worktreeRefresh')}
+            >
+              <RefreshCcw size={13} aria-hidden />
+            </button>
+          </ActionTooltip>
+        </div>
+
+        {!provisioned ? (
+          <p style={worktreeMutedTextStyle}>{t('auto.review.worktreeNotProvisioned')}</p>
+        ) : (
+          <div style={{ display: 'grid', gap: '8px' }}>
+            <div style={worktreeMetaRowStyle}>
+              <span style={worktreeMetaLabelStyle}>{t('auto.review.worktreeBranch')}</span>
+              <span style={worktreeBranchStyle}>{branch}</span>
+            </div>
+            <div style={worktreePillsStyle}>
+              <span style={worktreePillStyle(status?.hasUncommittedChanges ? 'warning' : 'neutral')}>
+                {status?.hasUncommittedChanges
+                  ? t('auto.review.worktreeDirty')
+                  : t('auto.review.worktreeClean')}
+              </span>
+              <span style={worktreePillStyle(aheadCount > 0 ? 'warning' : 'neutral')}>
+                {aheadCount > 0
+                  ? t('auto.review.worktreeAhead', { count: aheadCount })
+                  : t('auto.review.worktreeNoAhead')}
+              </span>
+              {loading && <span style={worktreeMutedTextStyle}>{t('threadList.loading')}</span>}
+            </div>
+            {status?.exists === false && (
+              <p style={worktreeMutedTextStyle}>{t('auto.review.worktreeNotProvisioned')}</p>
+            )}
+            {error && <p style={worktreeErrorStyle}>{error}</p>}
+            <div style={worktreeActionsStyle}>
+              <button
+                type="button"
+                onClick={() => void openThread()}
+                style={secondaryActionButtonStyle}
+              >
+                <ExternalLink size={13} aria-hidden />
+                <span>{t('auto.review.openThread')}</span>
+              </button>
+              <ActionTooltip label={t('auto.review.handoffToLocal')} disabledReason={disableHandoffReason}>
+                <button
+                  type="button"
+                  disabled={!canHandoff}
+                  onClick={() => void startHandoff()}
+                  style={actionButtonStyle(!canHandoff)}
+                >
+                  <ArrowRightLeft size={13} aria-hidden />
+                  <span>{t('auto.review.handoffToLocal')}</span>
+                </button>
+              </ActionTooltip>
+              <button
+                type="button"
+                disabled={!provisioned || busy}
+                onClick={() => {
+                  if (hasUnreviewedWork) setConfirmDiscard(true)
+                  else void discard()
+                }}
+                style={dangerActionButtonStyle(!provisioned || busy)}
+              >
+                <Trash2 size={13} aria-hidden />
+                <span>{busy ? t('auto.deleting') : t('auto.review.discardWorktree')}</span>
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {confirmDiscard && (
+        <ConfirmDialog
+          title={t('auto.review.discardConfirmTitle')}
+          message={t('auto.review.discardConfirmMessage')}
+          confirmLabel={busy ? t('auto.deleting') : t('auto.review.discardWorktree')}
+          danger
+          onConfirm={() => void discard()}
+          onCancel={() => setConfirmDiscard(false)}
+        />
+      )}
+
+      {handoffThread && (
+        <WorktreeHandoffDialog
+          mode="local"
+          thread={handoffThread}
+          baseRef={handoffThread.worktree?.baseRef ?? null}
+          defaultBranchName={handoffThread.worktree?.branchName ?? branch}
+          localWorkspacePath={handoffThread.workspacePath}
+          onClose={() => setHandoffThread(null)}
+          onComplete={async () => {
+            setHandoffThread(null)
+            setStatus(null)
+            await fetchTasks({ silent: true })
+          }}
+          onBusyChange={setBusy}
+        />
+      )}
+    </>
   )
 }
 
@@ -365,6 +633,8 @@ export function TaskReviewPanel(): JSX.Element {
         />
       )}
 
+      {displayTask && <WorktreeReviewSection task={displayTask} />}
+
       {!loading && displayTask?.agentSummary && displayTask.agentSummary.trim().length > 0 ? (
         <div
           style={{
@@ -450,4 +720,143 @@ export function TaskReviewPanel(): JSX.Element {
 
     </div>
   )
+}
+
+const worktreeSectionStyle: CSSProperties = {
+  padding: '12px 14px',
+  borderBottom: '1px solid var(--border-default)',
+  display: 'grid',
+  gap: '10px',
+  flexShrink: 0
+}
+
+const worktreeHeaderStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: '8px'
+}
+
+const worktreeTitleStyle: CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '6px',
+  fontSize: '11px',
+  fontWeight: 600,
+  color: 'var(--text-tertiary)',
+  textTransform: 'uppercase',
+  letterSpacing: '0.04em'
+}
+
+const worktreeMutedTextStyle: CSSProperties = {
+  margin: 0,
+  fontSize: '12px',
+  color: 'var(--text-secondary)',
+  lineHeight: 1.45
+}
+
+const worktreeErrorStyle: CSSProperties = {
+  ...worktreeMutedTextStyle,
+  color: 'var(--error)'
+}
+
+const worktreeMetaRowStyle: CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'max-content minmax(0, 1fr)',
+  gap: '8px',
+  alignItems: 'center'
+}
+
+const worktreeMetaLabelStyle: CSSProperties = {
+  fontSize: '12px',
+  color: 'var(--text-tertiary)'
+}
+
+const worktreeBranchStyle: CSSProperties = {
+  minWidth: 0,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  fontSize: '12px',
+  fontWeight: 600,
+  color: 'var(--text-primary)'
+}
+
+const worktreePillsStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '6px',
+  flexWrap: 'wrap'
+}
+
+function worktreePillStyle(kind: 'neutral' | 'warning'): CSSProperties {
+  return {
+    display: 'inline-flex',
+    alignItems: 'center',
+    minHeight: '20px',
+    padding: '2px 7px',
+    borderRadius: '8px',
+    backgroundColor: kind === 'warning'
+      ? 'color-mix(in srgb, var(--warning) 18%, var(--bg-tertiary))'
+      : 'var(--bg-tertiary)',
+    color: kind === 'warning' ? 'var(--warning)' : 'var(--text-secondary)',
+    fontSize: '11px',
+    fontWeight: 600
+  }
+}
+
+const worktreeActionsStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '6px',
+  flexWrap: 'wrap'
+}
+
+const secondaryActionButtonStyle: CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '5px',
+  minHeight: '28px',
+  padding: '4px 9px',
+  borderRadius: '6px',
+  border: '1px solid var(--border-default)',
+  backgroundColor: 'transparent',
+  color: 'var(--text-secondary)',
+  fontSize: '11px',
+  fontWeight: 600,
+  cursor: 'pointer'
+}
+
+function actionButtonStyle(disabled: boolean): CSSProperties {
+  return {
+    ...secondaryActionButtonStyle,
+    color: disabled ? 'var(--text-dimmed)' : 'var(--text-secondary)',
+    cursor: disabled ? 'default' : 'pointer',
+    opacity: disabled ? 0.58 : 1
+  }
+}
+
+function dangerActionButtonStyle(disabled: boolean): CSSProperties {
+  return {
+    ...secondaryActionButtonStyle,
+    color: disabled ? 'var(--text-dimmed)' : 'var(--error)',
+    cursor: disabled ? 'default' : 'pointer',
+    opacity: disabled ? 0.58 : 1
+  }
+}
+
+function smallIconButtonStyle(disabled: boolean): CSSProperties {
+  return {
+    width: '26px',
+    height: '26px',
+    borderRadius: '6px',
+    border: '1px solid var(--border-default)',
+    backgroundColor: 'transparent',
+    color: disabled ? 'var(--text-dimmed)' : 'var(--text-secondary)',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    cursor: disabled ? 'default' : 'pointer',
+    opacity: disabled ? 0.58 : 1
+  }
 }

@@ -4,14 +4,16 @@ import {
   useAutomationsStore,
   type AutomationSchedule,
   type AutomationTemplate,
-  type AutomationThreadBinding
+  type AutomationThreadBinding,
+  type AutomationWorkspaceMode
 } from '../../stores/automationsStore'
 import { useThreadStore } from '../../stores/threadStore'
 import { SchedulePicker } from './SchedulePicker'
 import { ThreadPickerOverlay } from './ThreadPickerOverlay'
 import { TemplateGalleryOverlay } from './TemplateGalleryOverlay'
 import { PillSwitch } from '../ui/PillSwitch'
-import { ActionTooltip } from '../ui/ActionTooltip'
+import { MenuOption, PillDropdown } from '../ui/PillDropdown'
+import { PolicyDropdown, TargetDropdown, WorkspaceModeDropdown } from './TaskDropdowns'
 
 type DialogTab = 'task' | 'template'
 
@@ -25,7 +27,7 @@ interface Props {
   editingTemplate?: AutomationTemplate
 }
 
-type TargetMode = 'project' | 'isolated' | 'bound'
+type TargetMode = AutomationWorkspaceMode | 'bound'
 
 const DEFAULT_WORKFLOW_TEMPLATE = `---
 max_rounds: 10
@@ -73,14 +75,13 @@ export function NewTaskDialog({
     initialTemplate?.defaultSchedule ?? null
   )
   const [binding, setBinding] = useState<AutomationThreadBinding | null>(null)
-  const [workspaceMode, setWorkspaceMode] = useState<'project' | 'isolated'>(
-    (initialTemplate?.defaultWorkspaceMode as 'project' | 'isolated' | undefined) ?? 'project'
+  const [workspaceMode, setWorkspaceMode] = useState<AutomationWorkspaceMode>(
+    normalizeWorkspaceMode(initialTemplate?.defaultWorkspaceMode)
   )
   const [approvalPolicy, setApprovalPolicy] = useState<'workspaceScope' | 'fullAuto'>(
     (initialTemplate?.defaultApprovalPolicy as 'workspaceScope' | 'fullAuto' | undefined) ??
       'workspaceScope'
   )
-  const [showAdvanced, setShowAdvanced] = useState(false)
   const [showThreadPicker, setShowThreadPicker] = useState(false)
   const [showTemplates, setShowTemplates] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -105,8 +106,8 @@ export function NewTaskDialog({
   const [tplSchedule, setTplSchedule] = useState<AutomationSchedule | null>(
     editingTemplate?.defaultSchedule ?? null
   )
-  const [tplWorkspaceMode, setTplWorkspaceMode] = useState<'project' | 'isolated'>(
-    (editingTemplate?.defaultWorkspaceMode as 'project' | 'isolated' | undefined) ?? 'project'
+  const [tplWorkspaceMode, setTplWorkspaceMode] = useState<AutomationWorkspaceMode>(
+    normalizeWorkspaceMode(editingTemplate?.defaultWorkspaceMode)
   )
   const [tplApprovalPolicy, setTplApprovalPolicy] = useState<'workspaceScope' | 'fullAuto'>(
     (editingTemplate?.defaultApprovalPolicy as 'workspaceScope' | 'fullAuto' | undefined) ??
@@ -115,7 +116,6 @@ export function NewTaskDialog({
   const [tplNeedsThreadBinding, setTplNeedsThreadBinding] = useState<boolean>(
     editingTemplate?.needsThreadBinding ?? false
   )
-  const [tplShowAdvanced, setTplShowAdvanced] = useState(false)
   const [tplPrefillFromId, setTplPrefillFromId] = useState<string>('')
   const [tplDeleteConfirm, setTplDeleteConfirm] = useState(false)
   const [tplDeleting, setTplDeleting] = useState(false)
@@ -157,8 +157,12 @@ export function NewTaskDialog({
     if (tpl.defaultTitle) setTitle(tpl.defaultTitle)
     if (tpl.defaultDescription) setDescription(tpl.defaultDescription)
     if (tpl.defaultSchedule !== undefined) setSchedule(tpl.defaultSchedule ?? null)
-    if (tpl.defaultWorkspaceMode === 'project' || tpl.defaultWorkspaceMode === 'isolated')
-      setWorkspaceMode(tpl.defaultWorkspaceMode)
+    if (
+      tpl.defaultWorkspaceMode === 'project' ||
+      tpl.defaultWorkspaceMode === 'worktree' ||
+      tpl.defaultWorkspaceMode === 'isolated'
+    )
+      setWorkspaceMode(normalizeWorkspaceMode(tpl.defaultWorkspaceMode))
     if (tpl.defaultApprovalPolicy === 'workspaceScope' || tpl.defaultApprovalPolicy === 'fullAuto')
       setApprovalPolicy(tpl.defaultApprovalPolicy)
     if (tpl.needsThreadBinding && !binding) setShowThreadPicker(true)
@@ -173,8 +177,12 @@ export function NewTaskDialog({
     setTplDefaultTitle(tpl.defaultTitle ?? '')
     setTplDefaultDescription(tpl.defaultDescription ?? '')
     setTplSchedule(tpl.defaultSchedule ?? null)
-    if (tpl.defaultWorkspaceMode === 'project' || tpl.defaultWorkspaceMode === 'isolated')
-      setTplWorkspaceMode(tpl.defaultWorkspaceMode)
+    if (
+      tpl.defaultWorkspaceMode === 'project' ||
+      tpl.defaultWorkspaceMode === 'worktree' ||
+      tpl.defaultWorkspaceMode === 'isolated'
+    )
+      setTplWorkspaceMode(normalizeWorkspaceMode(tpl.defaultWorkspaceMode))
     if (tpl.defaultApprovalPolicy === 'workspaceScope' || tpl.defaultApprovalPolicy === 'fullAuto')
       setTplApprovalPolicy(tpl.defaultApprovalPolicy)
     setTplNeedsThreadBinding(tpl.needsThreadBinding ?? false)
@@ -269,7 +277,8 @@ export function NewTaskDialog({
         <div
           onClick={(e) => e.stopPropagation()}
           style={{
-            width: '580px',
+            width: tab === 'template' ? '680px' : '580px',
+            maxWidth: 'calc(100vw - 48px)',
             maxHeight: '85vh',
             backgroundColor: 'var(--bg-primary)',
             borderRadius: '12px',
@@ -308,7 +317,7 @@ export function NewTaskDialog({
                   cursor: 'pointer'
                 }}
               >
-                📚 {t('auto.newTask.useTemplate')}
+                {t('auto.newTask.useTemplate')}
               </button>
             )}
           </div>
@@ -395,88 +404,23 @@ export function NewTaskDialog({
                     padding: '8px 0 0'
                   }}
                 >
-                  <TargetPill
+                  <TargetDropdown
                     mode={targetMode}
                     boundName={boundThreadName}
-                    onIsolated={() => {
-                      setBinding(null)
-                      setWorkspaceMode('isolated')
-                    }}
                     onProject={() => {
                       setBinding(null)
                       setWorkspaceMode('project')
                     }}
+                    onIsolated={() => {
+                      setBinding(null)
+                      setWorkspaceMode('worktree')
+                    }}
                     onBind={() => setShowThreadPicker(true)}
                     onUnbind={() => setBinding(null)}
                   />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <SchedulePicker value={schedule} onChange={setSchedule} />
-                  </div>
+                  <SchedulePicker value={schedule} onChange={setSchedule} />
+                  <PolicyDropdown value={approvalPolicy} onChange={setApprovalPolicy} />
                 </div>
-
-                <button
-                  type="button"
-                  onClick={() => setShowAdvanced((v) => !v)}
-                  style={{
-                    alignSelf: 'flex-start',
-                    fontSize: '12px',
-                    color: 'var(--text-secondary)',
-                    background: 'transparent',
-                    border: 'none',
-                    cursor: 'pointer',
-                    padding: 0,
-                    textDecoration: 'underline dotted'
-                  }}
-                >
-                  {showAdvanced ? t('auto.newTask.hideDetails') : t('auto.newTask.advanced')} ▾
-                </button>
-
-                {showAdvanced && (
-                  <div
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '10px',
-                      padding: '10px 12px',
-                      borderRadius: '8px',
-                      border: '1px solid var(--border-default)',
-                      backgroundColor: 'var(--bg-secondary)'
-                    }}
-                  >
-                    {targetMode !== 'bound' && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <label style={advancedLabelStyle}>
-                          {t('auto.newTask.agentWorkspaceLabel')}
-                        </label>
-                        <select
-                          value={workspaceMode}
-                          onChange={(e) =>
-                            setWorkspaceMode(e.target.value as 'project' | 'isolated')
-                          }
-                          style={selectStyle}
-                        >
-                          <option value="project">{t('auto.newTask.workspaceProject')}</option>
-                          <option value="isolated">{t('auto.newTask.workspaceIsolated')}</option>
-                        </select>
-                      </div>
-                    )}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <label style={advancedLabelStyle}>{t('auto.newTask.toolPolicyLabel')}</label>
-                      <select
-                        value={approvalPolicy}
-                        onChange={(e) =>
-                          setApprovalPolicy(e.target.value as 'workspaceScope' | 'fullAuto')
-                        }
-                        style={selectStyle}
-                      >
-                        <option value="workspaceScope">
-                          {t('auto.newTask.policyWorkspace')}
-                        </option>
-                        <option value="fullAuto">{t('auto.newTask.policyFullAuto')}</option>
-                      </select>
-                    </div>
-                  </div>
-                )}
               </>
             ) : (
               <>
@@ -493,25 +437,42 @@ export function NewTaskDialog({
                     <label style={{ color: 'var(--text-secondary)' }}>
                       {t('auto.newTemplate.prefillFrom')}
                     </label>
-                    <select
-                      value={tplPrefillFromId}
-                      onChange={(e) => {
-                        const id = e.target.value
-                        setTplPrefillFromId(id)
-                        if (!id) return
-                        const src = templates.find((x) => x.id === id)
-                        if (src) prefillTemplateFrom(src)
-                      }}
-                      style={{ ...selectStyle, flex: 1 }}
+                    <PillDropdown
+                      ariaLabel={t('auto.newTemplate.prefillFrom')}
+                      label={
+                        templates.find((x) => x.id === tplPrefillFromId)?.title ??
+                        t('auto.newTemplate.prefillNone')
+                      }
+                      panelMinWidth={260}
                     >
-                      <option value="">{t('auto.newTemplate.prefillNone')}</option>
-                      {templates.map((tpl) => (
-                        <option key={tpl.id} value={tpl.id}>
-                          {(tpl.icon ? tpl.icon + ' ' : '') + tpl.title}
-                          {tpl.isUser ? ' ★' : ''}
-                        </option>
-                      ))}
-                    </select>
+                      {(close) => (
+                        <>
+                          <MenuOption
+                            selected={!tplPrefillFromId}
+                            onClick={() => {
+                              setTplPrefillFromId('')
+                              close()
+                            }}
+                          >
+                            {t('auto.newTemplate.prefillNone')}
+                          </MenuOption>
+                          {templates.map((tpl) => (
+                            <MenuOption
+                              key={tpl.id}
+                              selected={tplPrefillFromId === tpl.id}
+                              description={tpl.description ?? undefined}
+                              onClick={() => {
+                                setTplPrefillFromId(tpl.id)
+                                prefillTemplateFrom(tpl)
+                                close()
+                              }}
+                            >
+                              {tpl.title + (tpl.isUser ? ' ★' : '')}
+                            </MenuOption>
+                          ))}
+                        </>
+                      )}
+                    </PillDropdown>
                   </div>
                 )}
 
@@ -631,140 +592,99 @@ export function NewTaskDialog({
                   />
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => setTplShowAdvanced((v) => !v)}
+                <div
                   style={{
-                    alignSelf: 'flex-start',
-                    fontSize: '12px',
-                    color: 'var(--text-secondary)',
-                    background: 'transparent',
-                    border: 'none',
-                    cursor: 'pointer',
-                    padding: 0,
-                    textDecoration: 'underline dotted'
+                    borderTop: '1px solid var(--border-default)',
+                    marginTop: '4px',
+                    paddingTop: '14px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '12px'
                   }}
                 >
-                  {tplShowAdvanced
-                    ? t('auto.newTemplate.hideDefaults')
-                    : t('auto.newTemplate.showDefaults')}{' '}
-                  ▾
-                </button>
-
-                {tplShowAdvanced && (
+                  <div>
+                    <div style={advancedLabelStyle}>{t('auto.newTemplate.showDefaults')}</div>
+                    <div
+                      style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '3px' }}
+                    >
+                      {t('auto.newTemplate.defaultsHint')}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <label style={advancedLabelStyle}>
+                      {t('auto.newTemplate.field.defaultTitle')}
+                    </label>
+                    <input
+                      type="text"
+                      value={tplDefaultTitle}
+                      onChange={(e) => setTplDefaultTitle(e.target.value)}
+                      maxLength={200}
+                      style={{
+                        padding: '8px 10px',
+                        borderRadius: '6px',
+                        border: '1px solid var(--border-default)',
+                        backgroundColor: 'var(--bg-secondary)',
+                        color: 'var(--text-primary)',
+                        fontSize: '12px',
+                        outline: 'none'
+                      }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <label style={advancedLabelStyle}>
+                      {t('auto.newTemplate.field.defaultDescription')}
+                    </label>
+                    <textarea
+                      value={tplDefaultDescription}
+                      onChange={(e) => setTplDefaultDescription(e.target.value)}
+                      rows={3}
+                      style={{
+                        padding: '8px 10px',
+                        borderRadius: '6px',
+                        border: '1px solid var(--border-default)',
+                        backgroundColor: 'var(--bg-secondary)',
+                        color: 'var(--text-primary)',
+                        fontSize: '12px',
+                        resize: 'vertical',
+                        outline: 'none',
+                        fontFamily: 'inherit'
+                      }}
+                    />
+                  </div>
                   <div
                     style={{
                       display: 'flex',
-                      flexDirection: 'column',
-                      gap: '10px',
-                      padding: '10px 12px',
-                      borderRadius: '8px',
-                      border: '1px solid var(--border-default)',
-                      backgroundColor: 'var(--bg-secondary)'
+                      alignItems: 'center',
+                      flexWrap: 'wrap',
+                      gap: '8px'
                     }}
                   >
-                    <div style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>
-                      {t('auto.newTemplate.defaultsHint')}
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <label style={advancedLabelStyle}>
-                        {t('auto.newTemplate.field.defaultTitle')}
-                      </label>
-                      <input
-                        type="text"
-                        value={tplDefaultTitle}
-                        onChange={(e) => setTplDefaultTitle(e.target.value)}
-                        maxLength={200}
-                        style={{
-                          padding: '8px 10px',
-                          borderRadius: '6px',
-                          border: '1px solid var(--border-default)',
-                          backgroundColor: 'var(--bg-primary)',
-                          color: 'var(--text-primary)',
-                          fontSize: '12px',
-                          outline: 'none'
-                        }}
-                      />
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <label style={advancedLabelStyle}>
-                        {t('auto.newTemplate.field.defaultDescription')}
-                      </label>
-                      <textarea
-                        value={tplDefaultDescription}
-                        onChange={(e) => setTplDefaultDescription(e.target.value)}
-                        rows={3}
-                        style={{
-                          padding: '8px 10px',
-                          borderRadius: '6px',
-                          border: '1px solid var(--border-default)',
-                          backgroundColor: 'var(--bg-primary)',
-                          color: 'var(--text-primary)',
-                          fontSize: '12px',
-                          resize: 'vertical',
-                          outline: 'none',
-                          fontFamily: 'inherit'
-                        }}
-                      />
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <label style={advancedLabelStyle}>
-                        {t('auto.newTemplate.field.defaultSchedule')}
-                      </label>
-                      <SchedulePicker value={tplSchedule} onChange={setTplSchedule} />
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <label style={advancedLabelStyle}>
-                        {t('auto.newTask.agentWorkspaceLabel')}
-                      </label>
-                      <select
-                        value={tplWorkspaceMode}
-                        onChange={(e) =>
-                          setTplWorkspaceMode(e.target.value as 'project' | 'isolated')
-                        }
-                        style={selectStyle}
-                      >
-                        <option value="project">{t('auto.newTask.workspaceProject')}</option>
-                        <option value="isolated">{t('auto.newTask.workspaceIsolated')}</option>
-                      </select>
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <label style={advancedLabelStyle}>
-                        {t('auto.newTask.toolPolicyLabel')}
-                      </label>
-                      <select
-                        value={tplApprovalPolicy}
-                        onChange={(e) =>
-                          setTplApprovalPolicy(e.target.value as 'workspaceScope' | 'fullAuto')
-                        }
-                        style={selectStyle}
-                      >
-                        <option value="workspaceScope">
-                          {t('auto.newTask.policyWorkspace')}
-                        </option>
-                        <option value="fullAuto">{t('auto.newTask.policyFullAuto')}</option>
-                      </select>
-                    </div>
-                    <div
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        gap: '12px'
-                      }}
-                    >
-                      <span style={{ fontSize: '12px', color: 'var(--text-primary)' }}>
-                        {t('auto.newTemplate.field.needsThreadBinding')}
-                      </span>
-                      <PillSwitch
-                        checked={tplNeedsThreadBinding}
-                        onChange={setTplNeedsThreadBinding}
-                        aria-label={t('auto.newTemplate.field.needsThreadBinding')}
-                        size="sm"
-                      />
-                    </div>
+                    <SchedulePicker value={tplSchedule} onChange={setTplSchedule} />
+                    <WorkspaceModeDropdown
+                      value={tplWorkspaceMode}
+                      onChange={setTplWorkspaceMode}
+                    />
+                    <PolicyDropdown value={tplApprovalPolicy} onChange={setTplApprovalPolicy} />
                   </div>
-                )}
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '12px'
+                    }}
+                  >
+                    <span style={{ fontSize: '12px', color: 'var(--text-primary)' }}>
+                      {t('auto.newTemplate.field.needsThreadBinding')}
+                    </span>
+                    <PillSwitch
+                      checked={tplNeedsThreadBinding}
+                      onChange={setTplNeedsThreadBinding}
+                      aria-label={t('auto.newTemplate.field.needsThreadBinding')}
+                      size="sm"
+                    />
+                  </div>
+                </div>
               </>
             )}
 
@@ -926,16 +846,8 @@ export function NewTaskDialog({
   )
 }
 
-const selectStyle: CSSProperties = {
-  padding: '7px 10px',
-  borderRadius: '6px',
-  border: '1px solid var(--border-default)',
-  backgroundColor: 'var(--bg-primary)',
-  color: 'var(--text-primary)',
-  fontSize: '12px',
-  outline: 'none',
-  width: '100%',
-  cursor: 'pointer'
+function normalizeWorkspaceMode(value: unknown): AutomationWorkspaceMode {
+  return value === 'worktree' || value === 'isolated' ? 'worktree' : 'project'
 }
 
 const advancedLabelStyle: CSSProperties = {
@@ -989,151 +901,6 @@ function TabButton({
       }}
     >
       {label}
-    </button>
-  )
-}
-
-function TargetPill({
-  mode,
-  boundName,
-  onIsolated,
-  onProject,
-  onBind,
-  onUnbind
-}: {
-  mode: TargetMode
-  boundName: string | null
-  onIsolated(): void
-  onProject(): void
-  onBind(): void
-  onUnbind(): void
-}): JSX.Element {
-  const t = useT()
-  const [open, setOpen] = useState(false)
-
-  const label =
-    mode === 'bound'
-      ? `💬 ${boundName ?? ''}`
-      : mode === 'isolated'
-        ? `📦 ${t('auto.newTask.targetIsolated')}`
-        : `📁 ${t('auto.newTask.targetProject')}`
-
-  return (
-    <div style={{ position: 'relative' }}>
-      <ActionTooltip label={label}>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        style={{
-          padding: '5px 10px',
-          borderRadius: '999px',
-          border: mode === 'bound' ? '1px solid var(--accent)' : '1px solid var(--border-default)',
-          backgroundColor:
-            mode === 'bound'
-              ? 'color-mix(in srgb, var(--accent) 12%, transparent)'
-              : 'transparent',
-          color: mode === 'bound' ? 'var(--accent)' : 'var(--text-secondary)',
-          fontSize: '12px',
-          fontWeight: 500,
-          cursor: 'pointer',
-          maxWidth: '220px',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap'
-        }}
-      >
-        {label} ▾
-      </button>
-      </ActionTooltip>
-      {open && (
-        <div
-          style={{
-            position: 'absolute',
-            top: '110%',
-            left: 0,
-            zIndex: 20,
-            minWidth: '200px',
-            padding: '4px',
-            border: '1px solid var(--border-default)',
-            borderRadius: '8px',
-            backgroundColor: 'var(--bg-primary)',
-            boxShadow: '0 6px 18px rgba(0,0,0,0.25)',
-            display: 'flex',
-            flexDirection: 'column'
-          }}
-          onMouseLeave={() => setOpen(false)}
-        >
-          <MenuItem
-            active={mode === 'project'}
-            onClick={() => {
-              onProject()
-              setOpen(false)
-            }}
-          >
-            📁 {t('auto.newTask.targetProject')}
-          </MenuItem>
-          <MenuItem
-            active={mode === 'isolated'}
-            onClick={() => {
-              onIsolated()
-              setOpen(false)
-            }}
-          >
-            📦 {t('auto.newTask.targetIsolated')}
-          </MenuItem>
-          <MenuItem
-            onClick={() => {
-              onBind()
-              setOpen(false)
-            }}
-          >
-            💬 {t('auto.newTask.targetBindThread')}
-          </MenuItem>
-          {mode === 'bound' && (
-            <MenuItem
-              onClick={() => {
-                onUnbind()
-                setOpen(false)
-              }}
-            >
-              ✕ {t('auto.newTask.unbind')}
-            </MenuItem>
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function MenuItem({
-  active,
-  onClick,
-  children
-}: {
-  active?: boolean
-  onClick(): void
-  children: React.ReactNode
-}): JSX.Element {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      style={{
-        padding: '6px 10px',
-        border: 'none',
-        borderRadius: '6px',
-        backgroundColor: active ? 'var(--bg-tertiary)' : 'transparent',
-        color: 'var(--text-primary)',
-        fontSize: '12px',
-        textAlign: 'left',
-        cursor: 'pointer'
-      }}
-      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)')}
-      onMouseLeave={(e) =>
-        (e.currentTarget.style.backgroundColor = active ? 'var(--bg-tertiary)' : 'transparent')
-      }
-    >
-      {children}
     </button>
   )
 }

@@ -154,10 +154,10 @@ public static class LocalTaskTemplates
             DefaultTitle: "Build a classic mini-game",
             DefaultDescription: "Design and scaffold a tiny classic-style game (Pong/Snake/Breakout). Output the code and a one-paragraph explanation.",
             WorkflowMarkdown: BuildWorkflow(
-                "isolated",
+                "worktree",
                 "You are a one-shot automation that scaffolds a small classic game (Pong / Snake / Breakout). Output code + a short explanation."),
             DefaultSchedule: null,
-            DefaultWorkspaceMode: "isolated",
+            DefaultWorkspaceMode: "worktree",
             DefaultApprovalPolicy: "workspaceScope",
             NeedsThreadBinding: false)
     ];

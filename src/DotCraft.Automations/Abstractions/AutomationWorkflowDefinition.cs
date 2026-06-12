@@ -11,7 +11,7 @@ public sealed class AutomationWorkflowDefinition
     /// <summary>Maximum full passes over <see cref="Steps"/> before stopping.</summary>
     public int MaxRounds { get; init; } = 10;
 
-    /// <summary>Whether the agent runs in the project root or an isolated task workspace folder.</summary>
+    /// <summary>Whether the agent runs in the project root or a managed worktree.</summary>
     public AutomationWorkspaceMode WorkspaceMode { get; init; } = AutomationWorkspaceMode.Project;
 }
 

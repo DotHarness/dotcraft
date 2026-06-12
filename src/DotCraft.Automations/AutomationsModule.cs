@@ -28,6 +28,8 @@ public sealed partial class AutomationsModule : ModuleBase
         var a = config.GetSection<AutomationsConfig>("Automations");
         if (a.Enabled && a.MaxConcurrentTasks < 1)
             errors.Add("Automations: MaxConcurrentTasks must be at least 1.");
+        if (a.Enabled && a.WorktreeRetentionEnabled && a.WorktreeRetentionIdlePeriod < TimeSpan.FromDays(14))
+            errors.Add("Automations: WorktreeRetentionIdlePeriod must be at least 14 days.");
         return errors;
     }
 

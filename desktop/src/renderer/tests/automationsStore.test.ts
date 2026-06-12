@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { useAutomationsStore } from '../stores/automationsStore'
+import { useAutomationsStore, type AutomationTask } from '../stores/automationsStore'
 import { useCronStore } from '../stores/cronStore'
 
 describe('automationsStore templates', () => {
@@ -102,6 +102,107 @@ describe('automationsStore templates', () => {
     expect(sendRequest.mock.calls[0][1]).not.toHaveProperty('requireApproval')
   })
 
+  it('sends canonical worktree mode when creating tasks', async () => {
+    sendRequest.mockResolvedValueOnce({}).mockResolvedValueOnce({ tasks: [] })
+
+    await useAutomationsStore.getState().createTask({
+      title: 'Build game',
+      description: 'Create a mini game',
+      workspaceMode: 'worktree'
+    })
+
+    expect(sendRequest).toHaveBeenNthCalledWith(1, 'automation/task/create', {
+      title: 'Build game',
+      description: 'Create a mini game',
+      approvalPolicy: 'workspaceScope',
+      workspaceMode: 'worktree'
+    })
+  })
+
+  it('fetches managed worktree status for a worktree task', async () => {
+    const status = {
+      threadId: 'thread-1',
+      worktree: {
+        id: 'wt-1',
+        sourceThreadId: 'thread-1',
+        workspacePath: 'C:/repo',
+        sourceWorkspacePath: 'C:/repo',
+        path: 'C:/repo/.craft/worktrees/task-demo',
+        branchName: 'dotcraft/task-demo',
+        baseRef: 'HEAD',
+        baseHead: 'abc123',
+        head: 'def456',
+        ownerKind: 'automationTask',
+        ownerId: 'demo',
+        createdAt: '2026-05-04T00:00:00Z'
+      },
+      path: 'C:/repo/.craft/worktrees/task-demo',
+      branchName: 'dotcraft/task-demo',
+      head: 'def456',
+      exists: true,
+      isGitWorktree: true,
+      hasUncommittedChanges: true,
+      hasCommitsAheadOfBase: true,
+      aheadCount: 2
+    }
+    sendRequest.mockResolvedValueOnce({ status })
+
+    const result = await useAutomationsStore.getState().getTaskWorktreeStatus({
+      id: 'demo',
+      title: 'Demo',
+      status: 'completed',
+      threadId: 'thread-1',
+      workspaceMode: 'worktree',
+      worktree: {
+        branchName: 'dotcraft/task-demo',
+        path: 'C:/repo/.craft/worktrees/task-demo'
+      },
+      createdAt: '2026-05-04T00:00:00Z',
+      updatedAt: '2026-05-04T00:00:00Z'
+    })
+
+    expect(sendRequest).toHaveBeenCalledWith('worktree/status', {
+      threadId: 'thread-1'
+    })
+    expect(result).toEqual(status)
+  })
+
+  it('discards a managed worktree and refreshes tasks silently', async () => {
+    const task: AutomationTask = {
+      id: 'demo',
+      title: 'Demo',
+      status: 'completed',
+      threadId: 'thread-1',
+      workspaceMode: 'worktree',
+      worktree: {
+        branchName: 'dotcraft/task-demo',
+        path: 'C:/repo/.craft/worktrees/task-demo'
+      },
+      createdAt: '2026-05-04T00:00:00Z',
+      updatedAt: '2026-05-04T00:00:00Z'
+    }
+    const updated = {
+      ...task,
+      worktree: null,
+      updatedAt: '2026-05-04T00:01:00Z'
+    }
+    sendRequest
+      .mockResolvedValueOnce({ task: updated })
+      .mockResolvedValueOnce({ tasks: [updated] })
+
+    const result = await useAutomationsStore.getState().discardTaskWorktree(task)
+
+    expect(sendRequest).toHaveBeenNthCalledWith(
+      1,
+      'automation/task/discardWorktree',
+      { taskId: 'demo' },
+      180_000
+    )
+    expect(sendRequest).toHaveBeenNthCalledWith(2, 'automation/task/list', {})
+    expect(result.worktree).toBeNull()
+    expect(useAutomationsStore.getState().tasks[0]?.worktree).toBeNull()
+  })
+
   it('does not expose approve or reject task actions', () => {
     const state = useAutomationsStore.getState() as unknown as Record<string, unknown>
 
@@ -174,5 +275,29 @@ describe('automationsStore templates', () => {
       defaultApprovalPolicy: 'workspaceScope'
     })
     expect(sendRequest.mock.calls[0][1]).not.toHaveProperty('defaultRequireApproval')
+  })
+
+  it('sends canonical worktree default when saving templates', async () => {
+    sendRequest.mockResolvedValueOnce({
+      template: {
+        id: 'game',
+        title: 'Game',
+        workflowMarkdown: '---\nworkspace: worktree\n---'
+      }
+    })
+
+    await useAutomationsStore.getState().saveTemplate({
+      title: 'Game',
+      workflowMarkdown: '---\nworkspace: worktree\n---',
+      defaultWorkspaceMode: 'worktree',
+      needsThreadBinding: false
+    })
+
+    expect(sendRequest).toHaveBeenCalledWith('automation/template/save', {
+      title: 'Game',
+      workflowMarkdown: '---\nworkspace: worktree\n---',
+      needsThreadBinding: false,
+      defaultWorkspaceMode: 'worktree'
+    })
   })
 })
