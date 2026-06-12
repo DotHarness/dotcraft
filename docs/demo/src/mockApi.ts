@@ -124,11 +124,7 @@ const explicitApi = {
   titleBarOverlayHeight: 0,
   titleBarOverlayRightReserve: 0,
   menu: {
-    popupTopLevel: async () => {},
-    popupAddTabMenu: async () => null,
-    getAddTabMenuPayload: async () => null,
-    onAddTabMenuPayload: unsubscribe,
-    resolveAddTabMenu: async () => {}
+    popupTopLevel: async () => {}
   },
   appServer: {
     sendRequest: async (method: string) => handleAppServerRequest(method),
