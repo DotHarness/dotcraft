@@ -220,6 +220,65 @@ public sealed class ThreadStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task SaveThread_WhenCompletedTurnOnlyAppendsNotice_WritesSingleItemRecord()
+    {
+        var thread = CreateThread();
+        AddTurnWithMessages(thread, "remember this", "stored");
+        await _store.SaveThreadAsync(thread);
+        var path = GetCanonicalPath(thread.Id, archived: false);
+        var initialLineCount = File.ReadAllLines(path).Length;
+
+        thread.Turns[0].Items.Add(CreateMemoryNotice(thread.Turns[0], 3));
+        await _store.SaveThreadAsync(thread);
+
+        var lines = File.ReadAllLines(path);
+        Assert.Equal(initialLineCount + 1, lines.Length);
+        using var last = JsonDocument.Parse(lines[^1]);
+        Assert.Equal("item_appended", last.RootElement.GetProperty("kind").GetString());
+        Assert.Equal(
+            "memoryConsolidated",
+            last.RootElement
+                .GetProperty("itemAppended")
+                .GetProperty("item")
+                .GetProperty("payload")
+                .GetProperty("kind")
+                .GetString());
+    }
+
+    [Fact]
+    public async Task ThreadRolloutWrites_ForSameThread_AreSerializedAcrossThreadSaveAndCheckpointAppend()
+    {
+        var thread = CreateThread();
+        AddTurnWithMessages(thread, "seed", "answer");
+        await _store.SaveThreadAsync(thread);
+
+        var noticeThread = CloneThreadSnapshotForTest(thread);
+        noticeThread.Turns[0].Items.Add(CreateMemoryNotice(noticeThread.Turns[0], 3));
+
+        await Task.WhenAll(
+            Task.Run(() => _store.SaveThreadAsync(noticeThread)),
+            Task.Run(() => _store.AppendCompactionCheckpointAsync(
+                thread.Id,
+                thread.Turns[0].Id,
+                [new ChatMessage(ChatRole.Assistant, "compacted summary")],
+                "manual",
+                "partial",
+                1000,
+                100)));
+
+        var loaded = await new ThreadStore(_root).LoadThreadAsync(thread.Id);
+        Assert.NotNull(loaded);
+        Assert.Contains(
+            loaded.Turns.Single().Items,
+            item => item.Type == ItemType.SystemNotice
+                && item.AsSystemNotice?.Kind == "memoryConsolidated");
+
+        var rollout = await File.ReadAllTextAsync(GetCanonicalPath(thread.Id, archived: false));
+        Assert.Contains("\"kind\":\"context_compacted\"", rollout);
+        Assert.Contains("\"kind\":\"item_appended\"", rollout);
+    }
+
+    [Fact]
     public async Task LoadThenSave_ReusesLoadedSnapshot_ForSubsequentDiff()
     {
         var original = CreateThread();
@@ -1237,6 +1296,20 @@ public sealed class ThreadStoreTests : IDisposable
         thread.Turns.Add(turn);
         thread.LastActiveAt = DateTimeOffset.UtcNow;
     }
+
+    private static SessionItem CreateMemoryNotice(SessionTurn turn, int seq) => new()
+    {
+        Id = SessionIdGenerator.NewItemId(seq),
+        TurnId = turn.Id,
+        Type = ItemType.SystemNotice,
+        Status = ItemStatus.Completed,
+        CreatedAt = DateTimeOffset.UtcNow,
+        CompletedAt = DateTimeOffset.UtcNow,
+        Payload = new SystemNoticePayload
+        {
+            Kind = "memoryConsolidated"
+        }
+    };
 
     private static QueuedTurnInput CreateQueuedInput(string threadId, string text) => new()
     {

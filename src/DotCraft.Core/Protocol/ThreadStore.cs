@@ -14,6 +14,7 @@ namespace DotCraft.Protocol;
 /// </summary>
 public sealed class ThreadStore
 {
+    private readonly string _botPath;
     private readonly ThreadMetadataStore _metadataStore;
     private readonly ThreadRolloutStore _rolloutStore;
     private readonly ThreadAttachmentStore _attachmentStore;
@@ -26,6 +27,7 @@ public sealed class ThreadStore
 
     internal ThreadStore(string botPath, StateRuntime? stateRuntime)
     {
+        _botPath = Path.GetFullPath(botPath);
         var runtime = stateRuntime ?? new StateRuntime(botPath);
         _metadataStore = new ThreadMetadataStore(runtime);
         _rolloutStore = new ThreadRolloutStore(botPath);
@@ -38,6 +40,7 @@ public sealed class ThreadStore
     /// </summary>
     public async Task SaveThreadAsync(SessionThread thread, CancellationToken ct = default)
     {
+        using var writeLock = await ThreadRolloutWriteGate.AcquireAsync(_botPath, thread.Id, ct);
         if (!_threadSnapshotCache.TryGetValue(thread.Id, out var previous))
         {
             previous = await _rolloutStore.LoadThreadAsync(thread.Id, ct);
@@ -59,6 +62,7 @@ public sealed class ThreadStore
         int numTurns,
         CancellationToken ct = default)
     {
+        using var writeLock = await ThreadRolloutWriteGate.AcquireAsync(_botPath, thread.Id, ct);
         var rolloutPath = await _rolloutStore.AppendRollbackAsync(thread, numTurns, ct);
         _threadSnapshotCache[thread.Id] = CloneThreadSnapshot(thread);
         _metadataStore.UpsertThread(thread, rolloutPath);
@@ -76,6 +80,7 @@ public sealed class ThreadStore
         CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
+        using var writeLock = await ThreadRolloutWriteGate.AcquireAsync(_botPath, threadId, ct);
         var replacementElement = JsonSerializer.SerializeToElement(
             replacementHistory,
             SessionPersistenceJsonOptions.Default);
@@ -126,6 +131,7 @@ public sealed class ThreadStore
     /// </summary>
     public void DeleteThread(string threadId)
     {
+        using var writeLock = ThreadRolloutWriteGate.Acquire(_botPath, threadId);
         var candidatePaths = _threadSnapshotCache.TryGetValue(threadId, out var cached)
             ? _attachmentStore.ExtractManagedImagePaths(cached)
             : _rolloutStore.LoadThreadAsync(threadId).GetAwaiter().GetResult() is { } loaded

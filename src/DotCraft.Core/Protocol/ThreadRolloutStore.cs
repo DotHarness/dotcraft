@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 
 namespace DotCraft.Protocol;
@@ -6,6 +7,8 @@ internal sealed class ThreadRolloutStore
 {
     private readonly string _activeDir;
     private readonly string _archivedDir;
+
+    private const int AppendRetryCount = 5;
 
     private static readonly JsonSerializerOptions JsonOptions = SessionJsonOptions.Default;
 
@@ -96,7 +99,7 @@ internal sealed class ThreadRolloutStore
             var payload = string.Join(
                 Environment.NewLine,
                 records.Select(r => JsonSerializer.Serialize(r, JsonOptions))) + Environment.NewLine;
-            await File.AppendAllTextAsync(targetPath, payload, ct);
+            await AppendJsonLinesAsync(targetPath, payload, ct);
         }
 
         return targetPath;
@@ -131,7 +134,7 @@ internal sealed class ThreadRolloutStore
 
         Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
         var payload = JsonSerializer.Serialize(record, JsonOptions) + Environment.NewLine;
-        await File.AppendAllTextAsync(targetPath, payload, ct);
+        await AppendJsonLinesAsync(targetPath, payload, ct);
         return targetPath;
     }
 
@@ -170,7 +173,7 @@ internal sealed class ThreadRolloutStore
 
         Directory.CreateDirectory(Path.GetDirectoryName(existingPath)!);
         var payload = JsonSerializer.Serialize(record, JsonOptions) + Environment.NewLine;
-        await File.AppendAllTextAsync(existingPath, payload, ct);
+        await AppendJsonLinesAsync(existingPath, payload, ct);
         return existingPath;
     }
 
@@ -300,7 +303,7 @@ internal sealed class ThreadRolloutStore
         var previousTurns = previous?.Turns.ToDictionary(t => t.Id, StringComparer.Ordinal) ?? [];
         foreach (var turn in current.Turns)
         {
-            if (!previousTurns.TryGetValue(turn.Id, out var previousTurn) || !TurnsEquivalent(previousTurn, turn))
+            if (!previousTurns.TryGetValue(turn.Id, out var previousTurn))
             {
                 records.Add(CreateTurnStartedRecord(turn));
                 foreach (var item in turn.Items)
@@ -308,7 +311,59 @@ internal sealed class ThreadRolloutStore
 
                 if (turn.Status != TurnStatus.Running)
                     records.Add(CreateTurnCompletedRecord(turn));
+                continue;
             }
+
+            if (TurnsEquivalent(previousTurn, turn))
+                continue;
+
+            if (TryBuildTailItemAppendRecords(previousTurn, turn, records))
+                continue;
+
+            records.Add(CreateTurnStartedRecord(turn));
+            foreach (var item in turn.Items)
+                records.Add(CreateItemAppendedRecord(turn.Id, item));
+
+            if (turn.Status != TurnStatus.Running)
+                records.Add(CreateTurnCompletedRecord(turn));
+        }
+
+        static bool TryBuildTailItemAppendRecords(
+            SessionTurn previousTurn,
+            SessionTurn currentTurn,
+            List<ThreadRolloutRecord> records)
+        {
+            if (previousTurn.Status != TurnStatus.Completed || currentTurn.Status != TurnStatus.Completed)
+                return false;
+            if (!TurnMetadataEquivalent(previousTurn, currentTurn))
+                return false;
+            if (currentTurn.Items.Count <= previousTurn.Items.Count)
+                return false;
+
+            for (var i = 0; i < previousTurn.Items.Count; i++)
+            {
+                if (!JsonEquals(previousTurn.Items[i], currentTurn.Items[i]))
+                    return false;
+            }
+
+            foreach (var item in currentTurn.Items.Skip(previousTurn.Items.Count))
+                records.Add(CreateItemAppendedRecord(currentTurn.Id, item));
+
+            return true;
+        }
+
+        static bool TurnMetadataEquivalent(SessionTurn previousTurn, SessionTurn currentTurn)
+        {
+            return string.Equals(previousTurn.Id, currentTurn.Id, StringComparison.Ordinal)
+                && string.Equals(previousTurn.ThreadId, currentTurn.ThreadId, StringComparison.Ordinal)
+                && previousTurn.Status == currentTurn.Status
+                && previousTurn.StartedAt == currentTurn.StartedAt
+                && previousTurn.CompletedAt == currentTurn.CompletedAt
+                && string.Equals(previousTurn.OriginChannel, currentTurn.OriginChannel, StringComparison.Ordinal)
+                && JsonEquals(previousTurn.TokenUsage, currentTurn.TokenUsage)
+                && JsonEquals(previousTurn.Error, currentTurn.Error)
+                && JsonEquals(previousTurn.Initiator, currentTurn.Initiator)
+                && JsonEquals(previousTurn.Input, currentTurn.Input);
         }
 
         if (!string.Equals(previous?.DisplayName, current.DisplayName, StringComparison.Ordinal))
@@ -410,6 +465,37 @@ internal sealed class ThreadRolloutStore
         }
 
         return records;
+    }
+
+    private static async Task AppendJsonLinesAsync(string path, string payload, CancellationToken ct)
+    {
+        var bytes = Encoding.UTF8.GetBytes(payload);
+        for (var attempt = 0; ; attempt++)
+        {
+            try
+            {
+                await using var stream = new FileStream(
+                    path,
+                    FileMode.Append,
+                    FileAccess.Write,
+                    FileShare.Read,
+                    bufferSize: 4096,
+                    FileOptions.Asynchronous);
+                await stream.WriteAsync(bytes, ct);
+                await stream.FlushAsync(ct);
+                return;
+            }
+            catch (IOException ex) when (IsSharingViolation(ex) && attempt < AppendRetryCount)
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(20 << attempt), ct);
+            }
+        }
+    }
+
+    private static bool IsSharingViolation(IOException ex)
+    {
+        var errorCode = ex.HResult & 0xFFFF;
+        return errorCode is 32 or 33;
     }
 
     private static bool ThreadBaselineChanged(SessionThread previous, SessionThread current)

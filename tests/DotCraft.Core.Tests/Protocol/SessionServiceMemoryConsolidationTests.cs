@@ -162,6 +162,55 @@ public sealed class SessionServiceMemoryConsolidationTests : IDisposable
     }
 
     [Fact]
+    public async Task AutoConsolidation_WhenNextTurnRunsBeforeNoticePersists_CompletesWithoutFailure()
+    {
+        var consolidator = new BlockingMemoryConsolidator(
+            MemoryConsolidationResult.Succeeded(memoryWritten: true, historyWritten: true));
+        var chatClient = new StaticChatClient("ok");
+        await using var agentFactory = CreateAgentFactory(chatClient, consolidator);
+        var svc = CreateService(agentFactory, chatClient);
+        var thread = await svc.CreateThreadAsync(MakeIdentity());
+
+        var threadEventsTask = CollectThreadEventsAsync(
+            svc,
+            thread.Id,
+            events => events.Any(e => IsSystemEvent(e, "consolidated"))
+                || events.Any(e => IsSystemEvent(e, "consolidationFailed")));
+
+        await DrainAsync(svc.SubmitInputAsync(thread.Id, [new TextContent("first")]));
+        await consolidator.Started.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var runtimeDuringAutoConsolidation = svc.GetThreadRuntimeSnapshot(await svc.GetThreadAsync(thread.Id));
+        Assert.False(runtimeDuringAutoConsolidation.Busy);
+        Assert.Null(runtimeDuringAutoConsolidation.MaintenanceKind);
+
+        await DrainAsync(svc.SubmitInputAsync(thread.Id, [new TextContent("second")]));
+        consolidator.Release();
+
+        var threadEvents = await threadEventsTask;
+        Assert.DoesNotContain(threadEvents, e => IsSystemEvent(e, "consolidationFailed"));
+        Assert.Contains(threadEvents, e => IsSystemEvent(e, "consolidated"));
+
+        await WaitUntilAsync(() =>
+        {
+            var reloaded = new ThreadStore(_tempDir).LoadThreadAsync(thread.Id).GetAwaiter().GetResult();
+            return reloaded?.Turns.Count >= 2
+                && reloaded.Turns.Take(2).All(turn => turn.Status == TurnStatus.Completed)
+                && reloaded.Turns[0].Items.Any(item =>
+                    item.Type == ItemType.SystemNotice
+                    && item.AsSystemNotice?.Kind == "memoryConsolidated");
+        });
+
+        var persisted = await new ThreadStore(_tempDir).LoadThreadAsync(thread.Id);
+        Assert.NotNull(persisted);
+        Assert.Equal(2, persisted.Turns.Count);
+        Assert.Contains(
+            persisted.Turns[0].Items,
+            item => item.Type == ItemType.SystemNotice
+                && item.AsSystemNotice?.Kind == "memoryConsolidated");
+    }
+
+    [Fact]
     public async Task ManualConsolidation_DrainsQueuedInputsInReorderedOrder()
     {
         var consolidator = new BlockingMemoryConsolidator(MemoryConsolidationResult.Skipped("no changes"));
