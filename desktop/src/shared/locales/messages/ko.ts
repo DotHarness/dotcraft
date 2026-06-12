@@ -1903,6 +1903,7 @@ export const MESSAGES_KO = {
   'conversation.deepLink.rejectMalformed': '잘못된 링크 대상',
   'conversation.openFileRefAria': 'DotCraft 뷰어에서 {{file}} 열기',
   'conversation.openImageAttachmentAria': 'DotCraft 뷰어에서 {{file}} 이미지 열기',
+  'conversation.previewImageAttachmentAria': '{{file}} 이미지 미리보기',
   'conversation.reference.openWith': '다음으로 열기',
   'conversation.reference.defaultApp': '기본 앱',
   'conversation.reference.copyPath': '경로 복사',

@@ -1903,6 +1903,7 @@ export const MESSAGES_JA = {
   'conversation.deepLink.rejectMalformed': '不正なリンクターゲット',
   'conversation.openFileRefAria': 'DotCraft ビューアで {{file}} を開きます',
   'conversation.openImageAttachmentAria': 'DotCraft ビューアで画像 {{file}} を開きます',
+  'conversation.previewImageAttachmentAria': '画像 {{file}} をプレビュー',
   'conversation.reference.openWith': 'で開く',
   'conversation.reference.defaultApp': 'デフォルトのアプリ',
   'conversation.reference.copyPath': 'パスをコピーする',

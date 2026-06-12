@@ -464,6 +464,12 @@ describe('AgentResponseBlock subagent transcript rendering', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Preview tool output image 1' }))
     expect(screen.getByRole('dialog', { name: 'Image preview' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Zoom out' })).toBeInTheDocument()
+    expect(screen.getByText('100%')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Zoom in' }))
+    expect(screen.getByText('125%')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Zoom out' }))
+    expect(screen.getByText('100%')).toBeInTheDocument()
     fireEvent.keyDown(window, { key: 'Escape' })
     expect(screen.queryByRole('dialog', { name: 'Image preview' })).not.toBeInTheDocument()
 

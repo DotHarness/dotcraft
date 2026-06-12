@@ -1909,6 +1909,7 @@ export const MESSAGES_FR = {
   'conversation.deepLink.rejectMalformed': 'Cible du lien mal formée',
   'conversation.openFileRefAria': 'Ouvrez {{file}} dans la visionneuse DotCraft',
   'conversation.openImageAttachmentAria': 'Ouvrir l\'image {{file}} dans la visionneuse DotCraft',
+  'conversation.previewImageAttachmentAria': 'Prévisualiser l’image {{file}}',
   'conversation.reference.openWith': 'Ouvrir avec',
   'conversation.reference.defaultApp': 'Application par défaut',
   'conversation.reference.copyPath': 'Copier le chemin',

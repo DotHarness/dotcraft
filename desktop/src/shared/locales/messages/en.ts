@@ -1023,6 +1023,7 @@ export const MESSAGES_EN = {
   'conversation.deepLink.rejectMalformed': 'Malformed link target',
   'conversation.openFileRefAria': 'Open {{file}} in DotCraft viewer',
   'conversation.openImageAttachmentAria': 'Open image {{file}} in DotCraft viewer',
+  'conversation.previewImageAttachmentAria': 'Preview image {{file}}',
   'conversation.reference.openWith': 'Open with',
   'conversation.reference.defaultApp': 'Default app',
   'conversation.reference.copyPath': 'Copy path',

@@ -53,33 +53,50 @@ describe('AttachmentStrip', () => {
     })
   })
 
-  it('opens external pending file and image attachments in the internal viewer', async () => {
+  it('previews pending image attachments in the lightbox instead of the internal viewer', () => {
     const { container } = renderWithLocale(
+      <div style={{ position: 'relative', zIndex: 1, transform: 'translateZ(0)' }}>
+        <AttachmentStrip
+          images={[{
+            tempPath: 'D:/pics/photo.png',
+            dataUrl: 'data:image/png;base64,AA==',
+            fileName: 'photo.png',
+            mimeType: 'image/png'
+          }]}
+          files={[{ path: 'C:\\temp\\notes.txt', fileName: 'notes.txt' }]}
+          onRemoveImage={() => {}}
+          onRemoveFile={() => {}}
+        />
+      </div>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Preview image photo.png' }))
+
+    const lightbox = screen.getByRole('dialog', { name: 'Image preview' })
+    expect(lightbox).toBeInTheDocument()
+    expect(lightbox.parentElement).toBe(document.body)
+    expect(container).not.toContainElement(lightbox)
+    expect(authorizeFile).not.toHaveBeenCalled()
+    expect(useViewerTabStore.getState().getThreadState('thread-1').tabs).toEqual([])
+  })
+
+  it('opens pending file attachments in the internal viewer', async () => {
+    renderWithLocale(
       <AttachmentStrip
-        images={[{
-          tempPath: 'D:/pics/photo.png',
-          dataUrl: 'data:image/png;base64,AA==',
-          fileName: 'photo.png',
-          mimeType: 'image/png'
-        }]}
+        images={[]}
         files={[{ path: 'C:\\temp\\notes.txt', fileName: 'notes.txt' }]}
         onRemoveImage={() => {}}
         onRemoveFile={() => {}}
       />
     )
 
-    const imageButton = container.querySelector('img')?.closest('button')
-    expect(imageButton).not.toBeNull()
-    fireEvent.click(imageButton!)
     fireEvent.click(screen.getByRole('button', { name: 'Open notes.txt in DotCraft viewer' }))
 
     await waitFor(() => {
-      expect(authorizeFile).toHaveBeenCalledWith({ absolutePath: 'D:/pics/photo.png' })
       expect(authorizeFile).toHaveBeenCalledWith({ absolutePath: 'C:/temp/notes.txt' })
     })
     const tabs = useViewerTabStore.getState().getThreadState('thread-1').tabs
     expect(tabs).toEqual(expect.arrayContaining([
-      expect.objectContaining({ absolutePath: 'D:/pics/photo.png', contentClass: 'image' }),
       expect.objectContaining({ absolutePath: 'C:/temp/notes.txt', contentClass: 'text' })
     ]))
   })

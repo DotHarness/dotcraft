@@ -387,6 +387,24 @@ describe('UserMessageBlock trigger source pills', () => {
     })
   })
 
+  it('previews successfully hydrated message images in the lightbox', async () => {
+    readImageAsDataUrl.mockResolvedValue({ dataUrl: 'data:image/png;base64,AA==' })
+
+    renderWithLocale(
+      <UserMessageBlock
+        text=""
+        images={[{ path: 'F:/workspace/photo.png', fileName: 'photo.png', mimeType: 'image/png' }]}
+      />
+    )
+
+    const button = await screen.findByRole('button', { name: 'View attached image 1' })
+    fireEvent.click(button)
+
+    expect(screen.getByRole('dialog', { name: 'Image preview' })).toBeInTheDocument()
+    expect(authorizeFile).not.toHaveBeenCalled()
+    expect(useViewerTabStore.getState().getThreadState('thread-1').tabs).toEqual([])
+  })
+
   it('keeps failed external image rehydration clickable for the internal viewer', async () => {
     readImageAsDataUrl.mockRejectedValue(new Error('outside workspace'))
     authorizeFile.mockResolvedValue({ absolutePath: 'D:/pics/photo.png' })

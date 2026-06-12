@@ -318,23 +318,7 @@ export function UserMessageBlock({
               <button
                 key={`${idx}-${imageItem.url.slice(0, 32)}`}
                 type="button"
-                onClick={() => {
-                  const fallbackToLightbox = (): void => {
-                    setLightboxSrc(imageItem.url)
-                  }
-                  if (remoteWorkspaceActive || !imageItem.absolutePath || !workspacePath || !activeThreadId) {
-                    fallbackToLightbox()
-                    return
-                  }
-                  void openImagePathInViewer({
-                    absolutePath: imageItem.absolutePath,
-                    workspacePath,
-                    threadId: activeThreadId,
-                    t
-                  }).then((opened) => {
-                    if (!opened) fallbackToLightbox()
-                  })
-                }}
+                onClick={() => setLightboxSrc(imageItem.url)}
                 style={{
                   padding: 0,
                   border: 'none',

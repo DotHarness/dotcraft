@@ -979,6 +979,7 @@ export const MESSAGES_ZH_HANS = {
   'conversation.deepLink.rejectMalformed': '链接目标格式无效',
   'conversation.openFileRefAria': '在 DotCraft 内置文件浏览器中打开 {{file}}',
   'conversation.openImageAttachmentAria': '在 DotCraft 内置文件浏览器中打开图片 {{file}}',
+  'conversation.previewImageAttachmentAria': '预览图片 {{file}}',
   'conversation.reference.openWith': '打开方式',
   'conversation.reference.defaultApp': '默认应用',
   'conversation.reference.copyPath': '复制路径',

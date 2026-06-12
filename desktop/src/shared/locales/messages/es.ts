@@ -1908,6 +1908,7 @@ export const MESSAGES_ES = {
   'conversation.deepLink.rejectMalformed': 'Destino de enlace mal formado',
   'conversation.openFileRefAria': 'Abra {{file}} en el visor DotCraft',
   'conversation.openImageAttachmentAria': 'Abra la imagen {{file}} en el visor DotCraft',
+  'conversation.previewImageAttachmentAria': 'Vista previa de la imagen {{file}}',
   'conversation.reference.openWith': 'abrir con',
   'conversation.reference.defaultApp': 'Aplicación predeterminada',
   'conversation.reference.copyPath': 'Copiar ruta',
