@@ -1175,6 +1175,7 @@ export function InputComposer({
         showMascot
         mascotBounceSignal={mascotBounce}
         mascotInteraction={mascotInteraction}
+        mascotHandoff
         attachmentStrip={
           <AttachmentStrip
             images={images}

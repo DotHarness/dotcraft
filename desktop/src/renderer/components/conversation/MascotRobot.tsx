@@ -36,6 +36,15 @@ import { useId, type CSSProperties, type JSX } from 'react'
  * `.mascot-robot` svg drives a quick fade-out → fade-in crossfade in
  * tokens.css (a terminal-screen "refresh" between glyph faces).
  *
+ * Props (mini terminal, question sign) follow the same pattern: always
+ * mounted at opacity 0, revealed by tokens.css via the composer root classes
+ * `composer-mascot-prop-laptop` / `composer-mascot-hold-sign`. Design rule
+ * (per the composer-mascot design review): props avoid new arm geometry —
+ * the laptop only tucks the resting arms inward by pure translate (no
+ * rotation → the gradient stays seam-continuous with the torso), and the
+ * sign anchors to the landed hand tip of the existing wave raise grammar
+ * (the arm poses first, then the sign fades in at its hand).
+ *
  * The svg renders with `overflow: visible`: raised arms swing past the
  * 1024 viewBox edge after the 1.3× brand scale and must not be clipped.
  *
@@ -111,6 +120,7 @@ export function MascotRobot({
   const yellow = `mascot-yellow-${uid}`
   const softShadow = `mascot-soft-shadow-${uid}`
   const innerLift = `mascot-inner-lift-${uid}`
+  const laptopClip = `mascot-laptop-clip-${uid}`
   const lightFill =
     light === 'error' ? 'var(--error)' : light === 'success' ? 'var(--success)' : `url(#${yellow})`
   const glowFill = light === 'error' ? 'var(--error)' : light === 'success' ? 'var(--success)' : '#f6b500'
@@ -149,6 +159,9 @@ export function MascotRobot({
         <filter id={innerLift} x="-8%" y="-8%" width="116%" height="116%">
           <feDropShadow dx="0" dy="10" stdDeviation="16" floodColor="#163a88" floodOpacity=".1" />
         </filter>
+        <clipPath id={laptopClip}>
+          <rect x="358" y="716" width="308" height="128" rx="8" />
+        </clipPath>
       </defs>
 
       <g transform="translate(512 528) scale(1.3) translate(-512 -512)">
@@ -176,6 +189,39 @@ export function MascotRobot({
         <circle className="mascot-light" cx="512" cy="229" r="73" fill={lightFill} />
 
         <Faces mark={`url(#${blueMark})`} accent={`url(#${yellow})`} />
+
+        {/* Prop: mini terminal, propped in front of the lower torso while a turn
+            runs. Dark lid with a white stroke ring (a white frame melts into the
+            white face screen behind it); the slight tilt sells "object set down
+            in front", and the base bar rests on the composer rim. The arms do
+            not grip it — tokens.css only tucks them inward (see doc comment). */}
+        <g className="mascot-prop-laptop" transform="rotate(-2.5 512 800)">
+          <g filter={`url(#${softShadow})`}>
+            <rect x="338" y="698" width="348" height="164" rx="16" fill="#1d2433" stroke="#fff" strokeWidth="20" />
+            <rect x="300" y="862" width="424" height="26" rx="13" fill="#fff" />
+          </g>
+          <g clipPath={`url(#${laptopClip})`}>
+            <g className="mascot-laptop-lines" strokeLinecap="round" strokeWidth="16" fill="none">
+              <path d="M382 744h118" stroke="#8ca2ff" />
+              <path d="M382 780h170" stroke="#5fd3a6" />
+              <path d="M382 816h84" stroke="#8ca2ff" opacity="0.75" />
+              <path className="mascot-laptop-caret" d="M478 816h30" stroke="#ffcf11" />
+              <path d="M382 852h140" stroke="#5fd3a6" opacity="0.8" />
+              <path d="M382 888h96" stroke="#8ca2ff" />
+            </g>
+          </g>
+        </g>
+
+        {/* Prop: question sign, anchored to the landed hand tip of the raised
+            right arm (translate(-48,88) rotate(-128°) scaleY(0.8) → tip ≈878,497;
+            the pole overlaps the hand = gripped). Revealed only after the arm
+            lands — tokens.css sequences arm-first-in / sign-first-out. */}
+        <g className="mascot-prop-sign" filter={`url(#${softShadow})`}>
+          <rect x="866" y="356" width="24" height="150" rx="12" fill="#fff" />
+          <rect x="758" y="190" width="240" height="170" rx="26" fill="#fff" />
+          <path d="M843 247a37 37 0 0 1 70 12c0 24-36 36-36 36" stroke="#3161f7" strokeWidth="26" fill="none" strokeLinecap="round" />
+          <circle cx="878" cy="343" r="15" fill="#3161f7" />
+        </g>
       </g>
     </svg>
   )

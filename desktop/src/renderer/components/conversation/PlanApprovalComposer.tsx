@@ -12,7 +12,7 @@ import { useConversationStore } from '../../stores/conversationStore'
 import { useUIStore } from '../../stores/uiStore'
 import { acceptPlanSentinelFor } from '../../utils/planAcceptSentinel'
 import { startTurnWithOptimisticUI } from '../../utils/startTurn'
-import { ComposerShell } from './ComposerShell'
+import { ComposerShell, DECISION_MASCOT } from './ComposerShell'
 import { ConversationColumn } from './ConversationColumn'
 import {
   ComposerChoiceArrowHints,
@@ -161,6 +161,9 @@ export function PlanApprovalComposer({
           onDragLeave={(e) => e.preventDefault()}
           onDrop={(e) => e.preventDefault()}
           focused={editorFocused}
+          showMascot
+          mascotInteraction={DECISION_MASCOT}
+          mascotHandoff
           editor={(
             <div style={decisionComposerBodyStyle}>
               <div style={decisionComposerTitleStyle}>{t('planApproval.title')}</div>

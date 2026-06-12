@@ -12,7 +12,7 @@ import { useT } from '../../contexts/LocaleContext'
 import type { PendingUserInputRequest } from '../../stores/conversationStore'
 import { useConversationStore } from '../../stores/conversationStore'
 import { addToast } from '../../stores/toastStore'
-import { ComposerShell } from './ComposerShell'
+import { ComposerShell, DECISION_MASCOT } from './ComposerShell'
 import { ConversationColumn } from './ConversationColumn'
 import {
   DecisionDismissButton,
@@ -210,6 +210,9 @@ export function RequestUserInputComposer({ request }: RequestUserInputComposerPr
         onDragLeave={(e) => e.preventDefault()}
         onDrop={(e) => e.preventDefault()}
         focused
+        showMascot
+        mascotInteraction={DECISION_MASCOT}
+        mascotHandoff
         editor={(
           <div style={decisionComposerBodyStyle}>
             <div style={decisionComposerTitleRowStyle}>

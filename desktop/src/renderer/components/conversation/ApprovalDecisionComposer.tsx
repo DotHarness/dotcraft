@@ -4,7 +4,7 @@ import type { ApprovalDetailRowSpec, ApprovalOptionSpec, PendingApproval } from 
 import { useConversationStore } from '../../stores/conversationStore'
 import { addToast } from '../../stores/toastStore'
 import type { ApprovalDecision, ApprovalType } from '../../types/conversation'
-import { ComposerShell } from './ComposerShell'
+import { ComposerShell, DECISION_MASCOT } from './ComposerShell'
 import { ConversationColumn } from './ConversationColumn'
 import { ComposerChoiceRow } from './ComposerChoiceRow'
 
@@ -169,6 +169,9 @@ export function ApprovalDecisionComposer({ request }: ApprovalDecisionComposerPr
           onDragLeave={(e) => e.preventDefault()}
           onDrop={(e) => e.preventDefault()}
           focused
+          showMascot
+          mascotInteraction={DECISION_MASCOT}
+          mascotHandoff
           editor={(
             <div style={{ display: 'grid', gap: '8px' }}>
               <div style={questionStyle}>{questionText}</div>

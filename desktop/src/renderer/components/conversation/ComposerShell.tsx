@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type AnimationEvent,
@@ -14,6 +15,7 @@ import { ListChecks, Square, X } from 'lucide-react'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { MascotRobot, type MascotExpression, type MascotLight } from './MascotRobot'
 import { MascotBubble, type MascotBubbleAction, type MascotBubbleTone } from './MascotBubble'
+import { consumeMascotHandoff, recordMascotHandoff } from './mascotHandoff'
 import { ContextMenu, type ContextMenuItem, type ContextMenuPosition } from '../ui/ContextMenu'
 import type { ShortcutSpec } from '../ui/shortcutKeys'
 
@@ -40,7 +42,19 @@ export interface ComposerMascotInteraction {
   bubble?: ComposerMascotBubble | null
   /** Right-click preset actions (already localized). Empty disables the menu. */
   menuItems?: ContextMenuItem[]
+  /** Held prop pose: 'sign' raises the right arm (wave hinge grammar) with the
+   *  "?" sign — used by the approval composer. Suppresses the laptop prop. */
+  hold?: 'sign'
 }
+
+/**
+ * Shared mascot pose for the bottom-dock decision composers (tool approval,
+ * plan approval, ask-question). All three are "awaiting your decision" UIs in
+ * the same dock slot, so they use one pose: the operator face with the raised
+ * "?" sign. The held sign also suppresses the mini-terminal (laptop) prop, which
+ * would otherwise wrongly imply a running turn.
+ */
+export const DECISION_MASCOT: ComposerMascotInteraction = { expression: 'operator', hold: 'sign' }
 
 type ComposerActionButtonTone = 'enabled' | 'disabled'
 
@@ -75,6 +89,10 @@ interface ComposerShellProps {
   mascotBounceSignal?: number
   /** State-driven expression/light/bubble/right-click menu for the mascot. */
   mascotInteraction?: ComposerMascotInteraction
+  /** Participate in cross-composer position handoff: when this shell replaces
+   *  (or is replaced by) another handoff shell — input ↔ approval — the mascot
+   *  rides between the two rims instead of hard-cutting. */
+  mascotHandoff?: boolean
 }
 
 const MASCOT_SIZE = 58
@@ -118,23 +136,29 @@ function prefersReducedMotion(): boolean {
  *
  * Behavior on top of the conversation-driven expression/light:
  * - idle micro-behaviors: random blink / glance / antenna bob;
- * - turn running (operator face, default light): sway + antenna light pulse;
+ * - turn running (operator face, default light): sway + antenna light pulse,
+ *   and after 1.2s the mini-terminal prop fades in (arms tuck inward);
  * - success light: raised-arm cheer with a green flash and star burst;
  * - error light: head shake, then a deflated droop while the light stays red;
  * - drag-over: eager hop with arms spread;
  * - ambient idle for a while: dozes off (Zzz, dim light), startled awake;
+ * - interaction.hold === 'sign': right arm raises (wave hinge) holding the
+ *   "?" sign — the approval composer's pose;
+ * - handoff: rides between composer rims across the input ↔ approval remount;
  * - click: a flipper wave (easter egg). All gated by prefers-reduced-motion.
  */
 function ComposerMascot({
   focused,
   dragOver,
   bounceSignal,
-  interaction
+  interaction,
+  handoff = false
 }: {
   focused: boolean
   dragOver: boolean
   bounceSignal: number
   interaction?: ComposerMascotInteraction
+  handoff?: boolean
 }): JSX.Element {
   const [menuPos, setMenuPos] = useState<ContextMenuPosition | null>(null)
   const [micro, setMicro] = useState<MascotMicro | null>(null)
@@ -146,6 +170,8 @@ function ComposerMascot({
   const [sparkling, setSparkling] = useState(false)
   const [shaking, setShaking] = useState(false)
   const [nodding, setNodding] = useState(false)
+  const [landing, setLanding] = useState(false)
+  const rootRef = useRef<HTMLDivElement | null>(null)
 
   // Conversation state overrides the ambient focus/drag expression when present.
   const baseExpression: MascotExpression =
@@ -153,8 +179,53 @@ function ComposerMascot({
   const light: MascotLight = interaction?.light ?? 'default'
   const menuItems = interaction?.menuItems ?? []
   const bubble = interaction?.bubble ?? null
+  const holdSign = interaction?.hold === 'sign'
+  // Mini terminal: same condition as the think loop (a turn is running) minus
+  // held props and bubble overrides (an operator face with a bubble is a local
+  // confirm/busy state, not a running turn); the 1.2s reveal delay lives in
+  // tokens.css so quick turns never flash it.
+  const laptopActive =
+    !sleeping &&
+    !dragOver &&
+    !holdSign &&
+    bubble == null &&
+    baseExpression === 'operator' &&
+    light === 'default'
   // Local behaviors (sleep, wave) override the face; conversation light stays.
   const expression: MascotExpression = sleeping ? 'sleep' : waving ? 'happy' : baseExpression
+
+  // Cross-composer ride: the approval composer replaces the input composer (a
+  // full remount), so the outgoing mascot records its screen position in the
+  // layout cleanup (node still attached) and the incoming one starts from that
+  // offset, riding to its own rim — spring up with a startle, or an
+  // accelerated drop punctuated by the landing squash.
+  useLayoutEffect(() => {
+    if (!handoff) return undefined
+    const el = rootRef.current
+    if (!el) return undefined
+    let timer = 0
+    const dy = prefersReducedMotion() ? null : consumeMascotHandoff(el)
+    if (dy != null) {
+      const rising = dy > 0
+      el.style.transition = 'none'
+      el.style.transform = `translateY(${dy}px)`
+      void el.offsetHeight
+      el.style.transition = rising
+        ? 'transform 420ms cubic-bezier(0.34, 1.56, 0.64, 1)'
+        : 'transform 300ms cubic-bezier(0.55, 0, 0.8, 0.9)'
+      el.style.transform = 'translateY(0)'
+      if (rising) setStartled(true)
+      timer = window.setTimeout(() => {
+        el.style.transition = ''
+        el.style.transform = ''
+        if (!rising) setLanding(true)
+      }, rising ? 430 : 310)
+    }
+    return () => {
+      window.clearTimeout(timer)
+      recordMascotHandoff(el)
+    }
+  }, [handoff])
 
   // Replay the send launch via state (not a remount) so other one-shots can
   // share the same transform layer without re-triggering it.
@@ -272,6 +343,9 @@ function ComposerMascot({
       case 'composer-mascot-nod':
         setNodding(false)
         break
+      case 'composer-mascot-land':
+        setLanding(false)
+        break
     }
   }
 
@@ -291,11 +365,13 @@ function ComposerMascot({
       ? 'composer-mascot-shake'
       : startled
         ? 'composer-mascot-startle'
-        : launching
-          ? 'composer-mascot-launch'
-          : nodding
-            ? 'composer-mascot-nod'
-            : undefined
+        : landing
+          ? 'composer-mascot-land'
+          : launching
+            ? 'composer-mascot-launch'
+            : nodding
+              ? 'composer-mascot-nod'
+              : undefined
 
   const loopClass = sleeping
     ? 'composer-mascot-sleep-breathe'
@@ -311,7 +387,9 @@ function ComposerMascot({
       waving ? 'composer-mascot-wave' : null,
       sleeping ? 'composer-mascot-sleeping' : null,
       light === 'success' ? 'composer-mascot-celebrate' : null,
-      light === 'error' ? 'composer-mascot-deflate' : null
+      light === 'error' ? 'composer-mascot-deflate' : null,
+      holdSign ? 'composer-mascot-hold-sign' : null,
+      laptopActive ? 'composer-mascot-prop-laptop' : null
     ]
       .filter(Boolean)
       .join(' ') || undefined
@@ -320,6 +398,7 @@ function ComposerMascot({
     <div
       // Decorative only until it carries a bubble or a right-click menu.
       aria-hidden={interaction ? undefined : true}
+      ref={rootRef}
       className={rootClassName}
       onAnimationEnd={onAnimationEnd}
       style={{
@@ -454,7 +533,8 @@ export function ComposerShell({
   focused = false,
   showMascot = false,
   mascotBounceSignal = 0,
-  mascotInteraction
+  mascotInteraction,
+  mascotHandoff = false
 }: ComposerShellProps): JSX.Element {
   const [hovered, setHovered] = useState(false)
   return (
@@ -477,6 +557,7 @@ export function ComposerShell({
           dragOver={dragOver}
           bounceSignal={mascotBounceSignal}
           interaction={mascotInteraction}
+          handoff={mascotHandoff}
         />
       )}
       {topAccessoryVisible && (

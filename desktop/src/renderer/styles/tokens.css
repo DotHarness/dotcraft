@@ -784,18 +784,22 @@ kbd {
   transform-origin: center;
 }
 
+/* The default 140ms transition-delay sequences "prop first, arm after" when a
+   held prop retracts (sign fades 140ms, then the arm returns — never a prop
+   floating in mid-air). Every rule that ENTERS a posed arm state overrides the
+   delay back to 0 so raises stay immediate. */
 .mascot-arm-l-w,
 .mascot-arm-l-b {
   transform-box: view-box;
   transform-origin: 233px 514px;
-  transition: transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1) 140ms;
 }
 
 .mascot-arm-r-w,
 .mascot-arm-r-b {
   transform-box: view-box;
   transform-origin: 791px 514px;
-  transition: transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1) 140ms;
 }
 
 /* ─── Composer mascot: idle micro-behaviors (randomly scheduled) ─── */
@@ -990,11 +994,13 @@ kbd {
 .composer-mascot-celebrate .mascot-arm-l-w,
 .composer-mascot-celebrate .mascot-arm-l-b {
   transform: translate(48px, 88px) rotate(135deg) scaleY(0.82);
+  transition-delay: 0ms;
 }
 
 .composer-mascot-celebrate .mascot-arm-r-w,
 .composer-mascot-celebrate .mascot-arm-r-b {
   transform: translate(-48px, 88px) rotate(-135deg) scaleY(0.82);
+  transition-delay: 0ms;
 }
 
 /* Raised arms swap from the body gradient (seamless at rest) to a solid hinge
@@ -1146,11 +1152,13 @@ kbd {
 .composer-mascot-eager .mascot-arm-l-w,
 .composer-mascot-eager .mascot-arm-l-b {
   transform: translate(8px, -20px) rotate(14deg);
+  transition-delay: 0ms;
 }
 
 .composer-mascot-eager .mascot-arm-r-w,
 .composer-mascot-eager .mascot-arm-r-b {
   transform: translate(-8px, -20px) rotate(-14deg);
+  transition-delay: 0ms;
 }
 
 .composer-mascot-eager .mascot-glow {
@@ -1295,8 +1303,122 @@ kbd {
   animation: composer-mascot-wave-lean 1.6s ease-in-out;
 }
 
+/* ─── Composer mascot: props (design rule — avoid arm involvement) ───
+   Props live inside MascotRobot as always-mounted `mascot-prop-*` groups at
+   opacity 0, revealed by these composer root classes. */
+
+/* Mini terminal: shown after a turn has been running ≥1.2s (the transition
+   delay keeps quick turns from flashing it). The arms do NOT grip or tap —
+   they only tuck inward 18 viewBox units by pure translate: no rotation means
+   no solid-colour swap, the blue band gradient stays seam-continuous with the
+   torso, and the resting white outline behaviour is untouched. The "working"
+   read comes from the screen: log lines scroll, the caret blinks. */
+.mascot-prop-laptop {
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+
+.composer-mascot-prop-laptop .mascot-prop-laptop {
+  opacity: 1;
+  transition: opacity 240ms ease 1200ms;
+}
+
+.composer-mascot-prop-laptop .mascot-arm-l-w,
+.composer-mascot-prop-laptop .mascot-arm-l-b {
+  transform: translate(18px, 0);
+  transition: transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1) 1200ms;
+}
+
+.composer-mascot-prop-laptop .mascot-arm-r-w,
+.composer-mascot-prop-laptop .mascot-arm-r-b {
+  transform: translate(-18px, 0);
+  transition: transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1) 1200ms;
+}
+
+@keyframes composer-mascot-laptop-scroll {
+  0%,
+  58% {
+    transform: translateY(0);
+  }
+  66%,
+  100% {
+    transform: translateY(-36px);
+  }
+}
+
+.composer-mascot-prop-laptop .mascot-laptop-lines {
+  animation: composer-mascot-laptop-scroll 2200ms ease-in-out 1640ms infinite;
+}
+
+@keyframes composer-mascot-laptop-caret {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+.composer-mascot-prop-laptop .mascot-laptop-caret {
+  animation: composer-mascot-laptop-caret 800ms steps(1, end) infinite;
+}
+
+/* Question sign (approval): the right arm reuses the wave raise grammar
+   verbatim (slide-then-rotate + solid hinge colour, held at -128°), and the
+   sign fades in at the landed hand tip only AFTER the arm settles (320ms
+   spring + a beat). Retract is the reverse: the sign hides first (140ms), the
+   arm waits out its default 140ms transition-delay, then returns — the prop
+   is never left floating without a hand. */
+.composer-mascot-hold-sign .mascot-arm-r-w,
+.composer-mascot-hold-sign .mascot-arm-r-b {
+  transform: translate(-48px, 88px) rotate(-128deg) scaleY(0.8);
+  transition-delay: 0ms;
+}
+
+.composer-mascot-hold-sign .mascot-arm-r-b {
+  fill: #7a96fb;
+}
+
+.mascot-prop-sign {
+  opacity: 0;
+  transition: opacity 140ms ease;
+}
+
+.composer-mascot-hold-sign .mascot-prop-sign {
+  opacity: 1;
+  transition: opacity 180ms ease 340ms;
+}
+
+/* ─── Composer mascot: cross-composer ride landing squash ───
+   The approval composer replaces the input composer (a full remount); the new
+   mascot instance starts from the old one's screen position and rides to its
+   own rim (JS-driven translateY on the root, see ComposerShell). The landing
+   squash punctuates the drop back down. */
+@keyframes composer-mascot-land {
+  0% {
+    transform: translateY(0) scale(1, 1);
+  }
+  35% {
+    transform: translateY(2px) scale(1.12, 0.86);
+  }
+  70% {
+    transform: translateY(-2px) scale(0.97, 1.03);
+  }
+  100% {
+    transform: translateY(0) scale(1, 1);
+  }
+}
+
+.composer-mascot-land {
+  animation: composer-mascot-land 380ms ease-out;
+  transform-origin: bottom center;
+}
+
 /* Honor reduced motion: stop every mascot loop, one-shot, and pose transition.
-   Scoped to the motion wrapper so the bubble and context menu stay unaffected. */
+   Scoped to the motion wrapper so the bubble and context menu stay unaffected.
+   Props still appear/disappear (they are state indicators), just without
+   motion — the opacity/transform cuts are instant. */
 @media (prefers-reduced-motion: reduce) {
   .composer-mascot-motion,
   .composer-mascot-motion * {
