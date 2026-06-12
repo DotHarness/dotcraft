@@ -106,6 +106,10 @@
         "to": "tray-icon.png"
       },
       {
+        "from": "resources/tray-icon-macTemplate.png",
+        "to": "tray-icon-macTemplate.png"
+      },
+      {
         "from": "resources/bin",
         "to": "bin",
         "filter": [

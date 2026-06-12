@@ -77,7 +77,9 @@ export function resolveTrayIconPath(platform: NodeJS.Platform = process.platform
     : join(__dirname, '../../resources')
   const candidates = platform === 'win32'
     ? ['tray-icon.png', 'icon.ico', 'icon.png']
-    : ['tray-icon.png', 'icon.png']
+    : platform === 'darwin'
+      ? ['tray-icon-macTemplate.png', 'tray-icon.png', 'icon.png']
+      : ['tray-icon.png', 'icon.png']
 
   for (const candidate of candidates) {
     const path = join(basePath, candidate)
@@ -105,7 +107,17 @@ export function resolveNotificationIconPath(platform: NodeJS.Platform = process.
 
 function createTrayIcon(): Electron.NativeImage {
   const iconPath = resolveTrayIconPath()
-  return iconPath ? nativeImage.createFromPath(iconPath) : nativeImage.createEmpty()
+  if (!iconPath) {
+    return nativeImage.createEmpty()
+  }
+
+  const icon = nativeImage.createFromPath(iconPath)
+  if (process.platform === 'darwin') {
+    icon.setTemplateImage(true)
+    return icon.resize({ height: 18 })
+  }
+
+  return icon
 }
 
 function stripArgPair(argv: string[], name: string): string[] {

@@ -72,6 +72,16 @@ describe('trayManager icon resolution', () => {
     expect(existsSync).toHaveBeenCalledWith(expect.stringContaining('tray-icon.png'))
   })
 
+  it('prefers the mac template tray icon asset', async () => {
+    const { existsSync } = await import('fs')
+    const { resolveTrayIconPath } = await import('../trayManager')
+
+    const path = resolveTrayIconPath('darwin')
+
+    expect(path).toContain('tray-icon-macTemplate.png')
+    expect(existsSync).toHaveBeenCalledWith(expect.stringContaining('tray-icon-macTemplate.png'))
+  })
+
   it('falls back to the shared PNG when the Windows tray icon is missing', async () => {
     const { existsSync } = await import('fs')
     vi.mocked(existsSync).mockImplementation((path) => String(path).endsWith('icon.png'))
