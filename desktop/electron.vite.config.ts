@@ -24,8 +24,7 @@ export default defineConfig({
     build: {
       rollupOptions: {
         input: {
-          index: resolve('src/renderer/index.html'),
-          addTabPopup: resolve('src/renderer/add-tab-popup.html')
+          index: resolve('src/renderer/index.html')
         }
       }
     },

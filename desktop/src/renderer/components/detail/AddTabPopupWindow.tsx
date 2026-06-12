@@ -1,8 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { FilePlus2, FolderOpen, Globe, ListChecks, SquareTerminal } from 'lucide-react'
 import type { AddTabMenuAction, AddTabMenuItem, AddTabPopupPayload } from '../../../shared/addTabMenu'
-import { localeToHtmlLang, normalizeLocale } from '../../../shared/locales'
-import { applyTheme } from '../../utils/theme'
 
 function itemIcon(action: AddTabMenuAction): JSX.Element {
   const style = { display: 'block', flexShrink: 0 }
@@ -21,72 +20,51 @@ function itemIcon(action: AddTabMenuAction): JSX.Element {
   return <SquareTerminal size={14} aria-hidden style={style} />
 }
 
-export function AddTabPopupWindow(): JSX.Element | null {
-  const [payload, setPayload] = useState<AddTabPopupPayload | null>(null)
+interface AddTabPopupWindowProps {
+  payload: AddTabPopupPayload | null
+  onResolve: (action: AddTabMenuAction | null) => void
+}
+
+export function AddTabPopupWindow({
+  payload,
+  onResolve
+}: AddTabPopupWindowProps): JSX.Element | null {
   const [hoveredAction, setHoveredAction] = useState<AddTabMenuAction | null>(null)
-  const resolvedRef = useRef(false)
 
-  const resolve = useCallback((action: AddTabMenuAction | null): void => {
-    if (resolvedRef.current) return
-    resolvedRef.current = true
-    void window.api.menu.resolveAddTabMenu(action)
-  }, [])
-
-  const applyPayload = useCallback((nextPayload: AddTabPopupPayload): void => {
-    resolvedRef.current = false
+  useEffect(() => {
+    if (!payload) return
     setHoveredAction(null)
-    setPayload(nextPayload)
-    applyTheme(nextPayload.theme, { syncTitleBarOverlay: false })
-    document.documentElement.lang = localeToHtmlLang(normalizeLocale(nextPayload.locale))
-  }, [])
+  }, [payload])
 
   useEffect(() => {
-    let mounted = true
-    void window.api.menu.getAddTabMenuPayload().then((nextPayload) => {
-      if (!mounted) return
-      if (!nextPayload) {
-        return
-      }
-      applyPayload(nextPayload)
-    })
-    return () => {
-      mounted = false
-    }
-  }, [applyPayload, resolve])
-
-  useEffect(() => {
-    return window.api.menu.onAddTabMenuPayload((nextPayload) => {
-      applyPayload(nextPayload)
-    })
-  }, [applyPayload])
-
-  useEffect(() => {
+    if (!payload) return
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') {
         event.preventDefault()
-        resolve(null)
+        onResolve(null)
       }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [resolve])
+  }, [onResolve, payload])
 
-  if (!payload) return null
+  if (!payload || typeof document === 'undefined') return null
 
-  return (
+  return createPortal(
     <div
       role="presentation"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) {
           event.preventDefault()
-          resolve(null)
+          onResolve(null)
         }
       }}
       style={{
         position: 'fixed',
         inset: 0,
         background: 'transparent',
-        fontFamily: 'var(--font-ui)'
+        fontFamily: 'var(--font-ui)',
+        zIndex: 9999
       }}
     >
       <div
@@ -113,11 +91,12 @@ export function AddTabPopupWindow(): JSX.Element | null {
             item={item}
             hovered={hoveredAction === item.action}
             onHover={setHoveredAction}
-            onChoose={resolve}
+            onChoose={onResolve}
           />
         ))}
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
 
@@ -130,7 +109,7 @@ function AddTabPopupItem({
   item: AddTabMenuItem
   hovered: boolean
   onHover: (action: AddTabMenuAction | null) => void
-  onChoose: (action: AddTabMenuAction) => void
+  onChoose: (action: AddTabMenuAction | null) => void
 }): JSX.Element {
   const enabled = item.enabled
   return (

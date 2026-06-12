@@ -25,7 +25,6 @@ import type { AppUpdateState } from '../shared/appUpdate'
 import type { DesktopProviderProtocol } from '../shared/providerProtocols'
 import type { ConnectionSettingsDraft } from '../shared/remoteConnection'
 import type { AppLocale } from '../shared/locales'
-import type { AddTabMenuAction, AddTabMenuRequest, AddTabPopupPayload } from '../shared/addTabMenu'
 import type { WorkspaceProjectsPayload } from '../shared/workspaceProjects'
 
 export type UnsubscribeFn = () => void
@@ -373,10 +372,6 @@ declare global {
           x: number,
           y: number
         ): Promise<void>
-        popupAddTabMenu(request: AddTabMenuRequest): Promise<AddTabMenuAction | null>
-        getAddTabMenuPayload(): Promise<AddTabPopupPayload | null>
-        onAddTabMenuPayload(callback: (payload: AddTabPopupPayload) => void): UnsubscribeFn
-        resolveAddTabMenu(action: AddTabMenuAction | null): Promise<void>
       }
       appServer: {
         sendRequest(method: string, params?: unknown, timeoutMs?: number): Promise<unknown>

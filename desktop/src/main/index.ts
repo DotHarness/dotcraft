@@ -89,14 +89,7 @@ import {
   type WorkspaceSetupModelListRequest
 } from './workspaceSetup'
 import { encodeInitialWorkspaceStatusArg } from '../shared/initialWorkspaceStatus'
-import type { AddTabMenuRequest } from '../shared/addTabMenu'
 import { getEnabledEmbeddedModuleChannelNames } from '../shared/channelModulePersistence'
-import {
-  popupAddTabMenuWindow,
-  registerAddTabPopupWindowIpc,
-  warmAddTabPopupWindow,
-  type AddTabPopupWindowOptions
-} from './addTabPopupWindow'
 import { resolveInitialTheme, resolveWindowBackdropOptions } from './windowTheme'
 import {
   normalizeLocale,
@@ -561,22 +554,6 @@ function publishWorkspaceActivation(endpoint: WorkspaceActivationEndpoint): void
   if (currentWorkspacePath && !activeRemoteProject) {
     updateWorkspaceLockActivation(currentWorkspacePath, endpoint)
   }
-}
-
-function buildAddTabPopupWindowOptions(): AddTabPopupWindowOptions {
-  return {
-    isDev: import.meta.env.DEV,
-    preloadPath: join(__dirname, '../preload/index.js'),
-    rendererPopupIndexPath: join(__dirname, '../renderer/add-tab-popup.html'),
-    rendererDevUrl: 'http://localhost:5173'
-  }
-}
-
-function scheduleAddTabPopupWarmup(win: BrowserWindow, theme: 'dark' | 'light'): void {
-  setTimeout(() => {
-    if (win.isDestroyed()) return
-    void warmAddTabPopupWindow(win, buildAddTabPopupWindowOptions(), theme).catch(() => {})
-  }, 300)
 }
 
 async function handleServerRequestInMain(method: string, params: unknown): Promise<unknown | undefined> {
@@ -2717,14 +2694,12 @@ function emitWorkspaceStatus(win: BrowserWindow, payload: WorkspaceStatusPayload
 
 function registerMenuPopupIpc(): void {
   ipcMain.removeHandler('menu:popup-top-level')
-  ipcMain.removeHandler('menu:popup-add-tab')
   ipcMain.removeHandler('app:whats-new-get-releases')
   ipcMain.removeHandler('app:whats-new-get-media-states')
   ipcMain.removeHandler('app:whats-new-prefetch-media')
   ipcMain.removeHandler('app:update-get-state')
   ipcMain.removeHandler('app:update-check')
   ipcMain.removeHandler('app:update-download-and-install')
-  registerAddTabPopupWindowIpc()
   ipcMain.handle(
     'menu:popup-top-level',
     (event, payload: { menuId: TopLevelMenuId; x: number; y: number }) => {
@@ -2739,14 +2714,6 @@ function registerMenuPopupIpc(): void {
         x: Math.round(payload.x),
         y: Math.round(payload.y)
       })
-    }
-  )
-  ipcMain.handle(
-    'menu:popup-add-tab',
-    async (event, payload: AddTabMenuRequest) => {
-      const win = BrowserWindow.fromWebContents(event.sender)
-      if (!win || win.isDestroyed()) return null
-      return popupAddTabMenuWindow(win, payload, buildAddTabPopupWindowOptions())
     }
   )
   ipcMain.handle('app:whats-new-get-media-states', (_event, releaseVersions: string[]) => (
@@ -2878,7 +2845,6 @@ app.whenReady().then(async () => {
   win.webContents.once('did-finish-load', () => {
     emitWorkspaceStatus(win, initialWorkspaceStatus)
     scheduleInitialUpdateCheck()
-    scheduleAddTabPopupWarmup(win, resolveInitialTheme(sharedSettings))
     if (pendingChromeSettingsDeepLink) {
       openChromeSettingsFromDeepLink()
     }
@@ -2932,7 +2898,6 @@ app.whenReady().then(async () => {
       newWin.webContents.once('did-finish-load', () => {
         emitWorkspaceStatus(newWin, workspaceStatus)
         scheduleInitialUpdateCheck()
-        scheduleAddTabPopupWarmup(newWin, resolveInitialTheme(sharedSettings))
         if (pendingChromeSettingsDeepLink) {
           openChromeSettingsFromDeepLink()
         }

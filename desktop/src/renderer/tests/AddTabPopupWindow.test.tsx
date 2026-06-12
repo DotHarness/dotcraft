@@ -29,68 +29,53 @@ const payload: AddTabPopupPayload = {
 
 beforeEach(() => {
   document.documentElement.lang = 'en'
-  let payloadListener: ((payload: AddTabPopupPayload) => void) | null = null
-  Object.defineProperty(window, 'api', {
-    configurable: true,
-    value: {
-      menu: {
-        getAddTabMenuPayload: vi.fn(async () => payload),
-        onAddTabMenuPayload: vi.fn((listener: (payload: AddTabPopupPayload) => void) => {
-          payloadListener = listener
-          return () => {
-            payloadListener = null
-          }
-        }),
-        emitAddTabMenuPayload: (nextPayload: AddTabPopupPayload) => payloadListener?.(nextPayload),
-        resolveAddTabMenu: vi.fn(async () => undefined)
-      }
-    }
-  })
 })
 
 describe('AddTabPopupWindow', () => {
   it('renders themed menu items and resolves enabled choices', async () => {
-    render(<AddTabPopupWindow />)
+    const onResolve = vi.fn()
+    render(<AddTabPopupWindow payload={payload} onResolve={onResolve} />)
 
     await screen.findByRole('menu')
-    expect(document.documentElement.lang).toBe('ja')
 
     fireEvent.click(await screen.findByRole('menuitem', { name: /Open File/ }))
 
     await waitFor(() => {
-      expect(window.api.menu.resolveAddTabMenu).toHaveBeenCalledWith('openFile')
+      expect(onResolve).toHaveBeenCalledWith('openFile')
     })
   })
 
   it('keeps disabled items visible but inert', async () => {
-    render(<AddTabPopupWindow />)
+    const onResolve = vi.fn()
+    render(<AddTabPopupWindow payload={payload} onResolve={onResolve} />)
 
     const disabled = await screen.findByRole('menuitem', { name: 'Browser' })
     expect((disabled as HTMLButtonElement).disabled).toBe(true)
     fireEvent.click(disabled)
 
-    expect(window.api.menu.resolveAddTabMenu).not.toHaveBeenCalled()
+    expect(onResolve).not.toHaveBeenCalled()
   })
 
   it('dismisses with null on Escape', async () => {
-    render(<AddTabPopupWindow />)
+    const onResolve = vi.fn()
+    render(<AddTabPopupWindow payload={payload} onResolve={onResolve} />)
     await screen.findByRole('menu')
 
     fireEvent.keyDown(window, { key: 'Escape' })
 
     await waitFor(() => {
-      expect(window.api.menu.resolveAddTabMenu).toHaveBeenCalledWith(null)
+      expect(onResolve).toHaveBeenCalledWith(null)
     })
   })
 
-  it('updates menu content from pushed payloads', async () => {
-    window.api.menu.getAddTabMenuPayload = vi.fn(async () => null)
-    render(<AddTabPopupWindow />)
+  it('updates menu content from rerendered payloads', async () => {
+    const onResolve = vi.fn()
+    const { rerender } = render(<AddTabPopupWindow payload={null} onResolve={onResolve} />)
 
     act(() => {
-      ;(window.api.menu as typeof window.api.menu & {
-        emitAddTabMenuPayload: (nextPayload: AddTabPopupPayload) => void
-      }).emitAddTabMenuPayload({
+      rerender(
+        <AddTabPopupWindow
+          payload={{
         ...payload,
         theme: 'light',
         locale: 'ko',
@@ -99,11 +84,22 @@ describe('AddTabPopupWindow', () => {
           { action: 'openFile', label: 'Open Something', enabled: true },
           { action: 'newBrowser', label: 'Browser', enabled: true }
         ]
-      })
+          }}
+          onResolve={onResolve}
+        />
+      )
     })
 
     expect(await screen.findByRole('menuitem', { name: 'Open Something' })).toBeTruthy()
     expect(screen.getByRole('menu').getAttribute('style')).toContain('left: 24px')
-    expect(document.documentElement.lang).toBe('ko')
+  })
+
+  it('closes when clicking the backdrop', async () => {
+    const onResolve = vi.fn()
+    render(<AddTabPopupWindow payload={payload} onResolve={onResolve} />)
+
+    fireEvent.mouseDown(screen.getByRole('presentation'))
+
+    expect(onResolve).toHaveBeenCalledWith(null)
   })
 })
