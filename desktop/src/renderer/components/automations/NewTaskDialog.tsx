@@ -4,7 +4,8 @@ import {
   useAutomationsStore,
   type AutomationSchedule,
   type AutomationTemplate,
-  type AutomationThreadBinding
+  type AutomationThreadBinding,
+  type AutomationWorkspaceMode
 } from '../../stores/automationsStore'
 import { useThreadStore } from '../../stores/threadStore'
 import { SchedulePicker } from './SchedulePicker'
@@ -26,7 +27,7 @@ interface Props {
   editingTemplate?: AutomationTemplate
 }
 
-type TargetMode = 'project' | 'isolated' | 'bound'
+type TargetMode = AutomationWorkspaceMode | 'bound'
 
 const DEFAULT_WORKFLOW_TEMPLATE = `---
 max_rounds: 10
@@ -74,8 +75,8 @@ export function NewTaskDialog({
     initialTemplate?.defaultSchedule ?? null
   )
   const [binding, setBinding] = useState<AutomationThreadBinding | null>(null)
-  const [workspaceMode, setWorkspaceMode] = useState<'project' | 'isolated'>(
-    (initialTemplate?.defaultWorkspaceMode as 'project' | 'isolated' | undefined) ?? 'project'
+  const [workspaceMode, setWorkspaceMode] = useState<AutomationWorkspaceMode>(
+    normalizeWorkspaceMode(initialTemplate?.defaultWorkspaceMode)
   )
   const [approvalPolicy, setApprovalPolicy] = useState<'workspaceScope' | 'fullAuto'>(
     (initialTemplate?.defaultApprovalPolicy as 'workspaceScope' | 'fullAuto' | undefined) ??
@@ -105,8 +106,8 @@ export function NewTaskDialog({
   const [tplSchedule, setTplSchedule] = useState<AutomationSchedule | null>(
     editingTemplate?.defaultSchedule ?? null
   )
-  const [tplWorkspaceMode, setTplWorkspaceMode] = useState<'project' | 'isolated'>(
-    (editingTemplate?.defaultWorkspaceMode as 'project' | 'isolated' | undefined) ?? 'project'
+  const [tplWorkspaceMode, setTplWorkspaceMode] = useState<AutomationWorkspaceMode>(
+    normalizeWorkspaceMode(editingTemplate?.defaultWorkspaceMode)
   )
   const [tplApprovalPolicy, setTplApprovalPolicy] = useState<'workspaceScope' | 'fullAuto'>(
     (editingTemplate?.defaultApprovalPolicy as 'workspaceScope' | 'fullAuto' | undefined) ??
@@ -156,8 +157,12 @@ export function NewTaskDialog({
     if (tpl.defaultTitle) setTitle(tpl.defaultTitle)
     if (tpl.defaultDescription) setDescription(tpl.defaultDescription)
     if (tpl.defaultSchedule !== undefined) setSchedule(tpl.defaultSchedule ?? null)
-    if (tpl.defaultWorkspaceMode === 'project' || tpl.defaultWorkspaceMode === 'isolated')
-      setWorkspaceMode(tpl.defaultWorkspaceMode)
+    if (
+      tpl.defaultWorkspaceMode === 'project' ||
+      tpl.defaultWorkspaceMode === 'worktree' ||
+      tpl.defaultWorkspaceMode === 'isolated'
+    )
+      setWorkspaceMode(normalizeWorkspaceMode(tpl.defaultWorkspaceMode))
     if (tpl.defaultApprovalPolicy === 'workspaceScope' || tpl.defaultApprovalPolicy === 'fullAuto')
       setApprovalPolicy(tpl.defaultApprovalPolicy)
     if (tpl.needsThreadBinding && !binding) setShowThreadPicker(true)
@@ -172,8 +177,12 @@ export function NewTaskDialog({
     setTplDefaultTitle(tpl.defaultTitle ?? '')
     setTplDefaultDescription(tpl.defaultDescription ?? '')
     setTplSchedule(tpl.defaultSchedule ?? null)
-    if (tpl.defaultWorkspaceMode === 'project' || tpl.defaultWorkspaceMode === 'isolated')
-      setTplWorkspaceMode(tpl.defaultWorkspaceMode)
+    if (
+      tpl.defaultWorkspaceMode === 'project' ||
+      tpl.defaultWorkspaceMode === 'worktree' ||
+      tpl.defaultWorkspaceMode === 'isolated'
+    )
+      setTplWorkspaceMode(normalizeWorkspaceMode(tpl.defaultWorkspaceMode))
     if (tpl.defaultApprovalPolicy === 'workspaceScope' || tpl.defaultApprovalPolicy === 'fullAuto')
       setTplApprovalPolicy(tpl.defaultApprovalPolicy)
     setTplNeedsThreadBinding(tpl.needsThreadBinding ?? false)
@@ -404,7 +413,7 @@ export function NewTaskDialog({
                     }}
                     onIsolated={() => {
                       setBinding(null)
-                      setWorkspaceMode('isolated')
+                      setWorkspaceMode('worktree')
                     }}
                     onBind={() => setShowThreadPicker(true)}
                     onUnbind={() => setBinding(null)}
@@ -835,6 +844,10 @@ export function NewTaskDialog({
       )}
     </>
   )
+}
+
+function normalizeWorkspaceMode(value: unknown): AutomationWorkspaceMode {
+  return value === 'worktree' || value === 'isolated' ? 'worktree' : 'project'
 }
 
 const advancedLabelStyle: CSSProperties = {

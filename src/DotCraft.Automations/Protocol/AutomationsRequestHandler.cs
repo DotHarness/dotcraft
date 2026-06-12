@@ -110,7 +110,7 @@ public sealed partial class AutomationsRequestHandler(
 
         var workflowContent = string.IsNullOrWhiteSpace(p.WorkflowTemplate)
             ? BuildDefaultWorkflowContent(NormalizeWorkspaceMode(p.WorkspaceMode))
-            : p.WorkflowTemplate;
+            : CanonicalizeWorkflowWorkspaceMode(p.WorkflowTemplate);
         File.WriteAllText(Path.Combine(taskDir, "workflow.md"), workflowContent);
 
         return Task.FromResult<object?>(new AutomationTaskCreateResult
@@ -181,6 +181,31 @@ public sealed partial class AutomationsRequestHandler(
         return new AutomationTaskRunResult { Task = ToWireDetailed(task) };
     }
 
+    public async Task<object?> HandleTaskDiscardWorktreeAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    {
+        var p = GetParams<AutomationTaskDiscardWorktreeParams>(msg);
+        if (string.IsNullOrWhiteSpace(p.TaskId))
+            throw AppServerErrors.InvalidParams("'taskId' is required.");
+
+        try
+        {
+            var task = await orchestrator.DiscardTaskWorktreeAsync(p.TaskId, ct);
+            return new AutomationTaskDiscardWorktreeResult { Task = ToWireDetailed(task) };
+        }
+        catch (KeyNotFoundException)
+        {
+            throw AppServerErrors.TaskNotFound(p.TaskId);
+        }
+        catch (NotSupportedException ex)
+        {
+            throw AppServerErrors.TaskInvalidStatus(ex.Message);
+        }
+        catch (InvalidOperationException ex)
+        {
+            throw AppServerErrors.TaskInvalidStatus(ex.Message);
+        }
+    }
+
     public async Task<object?> HandleTemplateListAsync(AppServerIncomingMessage msg, CancellationToken ct)
     {
         var p = GetParams<AutomationTemplateListParams>(msg);
@@ -226,7 +251,7 @@ public sealed partial class AutomationsRequestHandler(
                 category: p.Category,
                 workflowMarkdown: p.WorkflowMarkdown,
                 defaultSchedule: FromWire(p.DefaultSchedule),
-                defaultWorkspaceMode: p.DefaultWorkspaceMode,
+                defaultWorkspaceMode: NormalizeOptionalWorkspaceMode(p.DefaultWorkspaceMode),
                 defaultApprovalPolicy: p.DefaultApprovalPolicy,
                 needsThreadBinding: p.NeedsThreadBinding,
                 defaultTitle: p.DefaultTitle,
@@ -273,7 +298,7 @@ public sealed partial class AutomationsRequestHandler(
         Category = string.IsNullOrWhiteSpace(t.Category) ? null : t.Category,
         WorkflowMarkdown = t.WorkflowMarkdown,
         DefaultSchedule = ToWire(t.DefaultSchedule),
-        DefaultWorkspaceMode = t.DefaultWorkspaceMode,
+        DefaultWorkspaceMode = NormalizeOptionalWorkspaceMode(t.DefaultWorkspaceMode),
         DefaultApprovalPolicy = t.DefaultApprovalPolicy,
         NeedsThreadBinding = t.NeedsThreadBinding,
         DefaultTitle = t.DefaultTitle,
@@ -373,8 +398,7 @@ public sealed partial class AutomationsRequestHandler(
             ThreadBinding = ToWire(task.ThreadBinding),
             NextRunAt = task.NextRunAt
         };
-        if (task is LocalAutomationTask local)
-            w.ApprovalPolicy = local.ApprovalPolicy;
+        ApplyLocalWireMetadata(w, task);
         return w;
     }
 
@@ -394,9 +418,27 @@ public sealed partial class AutomationsRequestHandler(
             ThreadBinding = ToWire(task.ThreadBinding),
             NextRunAt = task.NextRunAt
         };
-        if (task is LocalAutomationTask local)
-            w.ApprovalPolicy = local.ApprovalPolicy;
+        ApplyLocalWireMetadata(w, task);
         return w;
+    }
+
+    private static void ApplyLocalWireMetadata(AutomationTaskWire w, AutomationTask task)
+    {
+        if (task is LocalAutomationTask local)
+        {
+            w.ApprovalPolicy = local.ApprovalPolicy;
+            w.WorkspaceMode = AutomationWorkspaceModeNames.ToCanonicalString(local.WorkspaceMode);
+            if (local.ThreadBinding == null
+                && local.WorkspaceMode == AutomationWorkspaceMode.Worktree
+                && local.Worktree != null)
+            {
+                w.Worktree = new AutomationTaskWorktreeWire
+                {
+                    BranchName = local.Worktree.BranchName,
+                    Path = local.Worktree.Path
+                };
+            }
+        }
     }
 
     private static AutomationScheduleWire? ToWire(CronSchedule? schedule)
@@ -472,7 +514,7 @@ public sealed partial class AutomationsRequestHandler(
     }
 
     /// <summary>
-    /// <paramref name="workspaceYamlValue"/> is <c>project</c> or <c>isolated</c> (validated by <see cref="NormalizeWorkspaceMode"/>).
+    /// <paramref name="workspaceYamlValue"/> is <c>project</c> or <c>worktree</c> (validated by <see cref="NormalizeWorkspaceMode"/>).
     /// Liquid body uses <c>{{ }}</c>; keep it in a non-interpolated raw string to avoid C# brace escaping.
     /// </summary>
     private static string BuildDefaultWorkflowContent(string workspaceYamlValue)
@@ -500,19 +542,38 @@ public sealed partial class AutomationsRequestHandler(
             """ + Body;
     }
 
-    /// <summary>Returns <c>project</c> or <c>isolated</c> for workflow.md YAML.</summary>
+    /// <summary>Returns <c>project</c> or <c>worktree</c> for workflow.md YAML.</summary>
     private static string NormalizeWorkspaceMode(string? mode)
     {
         if (string.IsNullOrWhiteSpace(mode))
-            return "project";
+            return AutomationWorkspaceModeNames.Project;
 
-        var m = mode.Trim();
-        if (string.Equals(m, "project", StringComparison.OrdinalIgnoreCase))
-            return "project";
-        if (string.Equals(m, "isolated", StringComparison.OrdinalIgnoreCase))
-            return "isolated";
+        if (AutomationWorkspaceModeNames.TryNormalize(mode, out var normalized) && normalized != null)
+            return normalized;
 
-        throw AppServerErrors.InvalidParams("'workspaceMode' must be 'project' or 'isolated'.");
+        throw AppServerErrors.InvalidParams("'workspaceMode' must be 'project' or 'worktree' (legacy 'isolated' is accepted).");
+    }
+
+    private static string? NormalizeOptionalWorkspaceMode(string? mode)
+    {
+        if (string.IsNullOrWhiteSpace(mode))
+            return null;
+
+        if (AutomationWorkspaceModeNames.TryNormalize(mode, out var normalized))
+            return normalized;
+
+        throw AppServerErrors.InvalidParams("'defaultWorkspaceMode' must be 'project' or 'worktree' (legacy 'isolated' is accepted).");
+    }
+
+    private static string CanonicalizeWorkflowWorkspaceMode(string markdown)
+    {
+        if (string.IsNullOrWhiteSpace(markdown))
+            return markdown;
+
+        return Regex.Replace(
+            markdown,
+            @"(?im)^(\s*workspace\s*:\s*)[""']?isolated[""']?(\s*(?:#.*)?$)",
+            "$1worktree$2");
     }
 
     [GeneratedRegex(@"[^a-z0-9]+")]

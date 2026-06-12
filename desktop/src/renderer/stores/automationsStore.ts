@@ -33,6 +33,39 @@ export interface AutomationThreadBinding {
   mode?: string
 }
 
+export type AutomationWorkspaceMode = 'project' | 'worktree'
+
+export interface AutomationTaskWorktree {
+  branchName: string
+  path: string
+}
+
+export interface AutomationWorktreeStatus {
+  threadId: string
+  worktree: {
+    id: string
+    sourceThreadId: string
+    workspacePath: string
+    sourceWorkspacePath: string
+    path: string
+    branchName: string
+    baseRef: string
+    baseHead?: string
+    head: string
+    ownerKind?: string | null
+    ownerId?: string | null
+    createdAt: string
+  }
+  path: string
+  branchName: string
+  head?: string | null
+  exists: boolean
+  isGitWorktree: boolean
+  hasUncommittedChanges: boolean
+  hasCommitsAheadOfBase?: boolean
+  aheadCount?: number
+}
+
 export interface AutomationTask {
   id: string
   title: string
@@ -42,6 +75,10 @@ export interface AutomationTask {
   agentSummary?: string | null
   /** Wire: `workspaceScope` (default) or `fullAuto`; legacy `autoApprove` / `default`. */
   approvalPolicy?: string | null
+  /** Canonical declared workspace mode. */
+  workspaceMode?: AutomationWorkspaceMode | string | null
+  /** Managed worktree identity once provisioned. */
+  worktree?: AutomationTaskWorktree | null
   createdAt: string
   updatedAt: string
   /** Optional recurring schedule; when absent the task is one-shot (legacy behavior). */
@@ -63,7 +100,7 @@ export interface AutomationTemplate {
   category?: string
   workflowMarkdown: string
   defaultSchedule?: AutomationSchedule | null
-  defaultWorkspaceMode?: 'project' | 'isolated' | string | null
+  defaultWorkspaceMode?: AutomationWorkspaceMode | 'isolated' | string | null
   defaultApprovalPolicy?: 'workspaceScope' | 'fullAuto' | string | null
   needsThreadBinding?: boolean | null
   defaultTitle?: string | null
@@ -86,7 +123,7 @@ export interface SaveTemplateInput {
   category?: string | null
   workflowMarkdown: string
   defaultSchedule?: AutomationSchedule | null
-  defaultWorkspaceMode?: 'project' | 'isolated' | null
+  defaultWorkspaceMode?: AutomationWorkspaceMode | null
   defaultApprovalPolicy?: 'workspaceScope' | 'fullAuto' | null
   needsThreadBinding?: boolean
   defaultTitle?: string | null
@@ -98,7 +135,7 @@ export interface CreateTaskInput {
   description: string
   workflowTemplate?: string
   approvalPolicy?: 'workspaceScope' | 'fullAuto'
-  workspaceMode?: 'project' | 'isolated'
+  workspaceMode?: AutomationWorkspaceMode
   schedule?: AutomationSchedule | null
   threadBinding?: AutomationThreadBinding | null
   templateId?: string
@@ -122,6 +159,8 @@ interface AutomationsState {
   stopPolling(): void
   createTask(input: CreateTaskInput): Promise<void>
   runTaskNow(task: AutomationTask): Promise<void>
+  getTaskWorktreeStatus(task: AutomationTask): Promise<AutomationWorktreeStatus | null>
+  discardTaskWorktree(task: AutomationTask): Promise<AutomationTask>
   deleteTask(task: AutomationTask): Promise<void>
   /** Updates the task's thread binding. Pass null to unbind. */
   updateBinding(
@@ -198,6 +237,26 @@ export const useAutomationsStore = create<AutomationsState>((set, get) => ({
     })) as { task?: AutomationTask }
     if (result.task) get().upsertTask(result.task)
     await get().fetchTasks({ silent: true })
+  },
+
+  async getTaskWorktreeStatus(task: AutomationTask) {
+    if (!task.threadId || !task.worktree) return null
+    const result = (await window.api.appServer.sendRequest('worktree/status', {
+      threadId: task.threadId
+    })) as { status?: AutomationWorktreeStatus }
+    return result.status ?? null
+  },
+
+  async discardTaskWorktree(task: AutomationTask) {
+    const result = (await window.api.appServer.sendRequest(
+      'automation/task/discardWorktree',
+      { taskId: task.id },
+      180_000
+    )) as { task?: AutomationTask }
+    const updated = result.task ?? { ...task, worktree: null }
+    get().upsertTask(updated)
+    await get().fetchTasks({ silent: true })
+    return updated
   },
 
   async updateBinding(task: AutomationTask, binding: AutomationThreadBinding | null) {

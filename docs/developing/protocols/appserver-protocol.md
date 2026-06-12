@@ -387,11 +387,21 @@ The table below covers common method families used by AppServer clients.
 | MCP | `mcp/list`, `mcp/get`, `mcp/upsert`, `mcp/status/list`, `mcp/test` | MCP configuration and status. |
 | External channels | `externalChannel/list`, `externalChannel/upsert` | External channel configuration. |
 | SubAgents | `subagent/profiles/list`, `subagent/profiles/upsert` | SubAgent profile management. |
+| Automations | `automation/task/list`, `automation/task/create`, `automation/task/discardWorktree` | Local task lifecycle, binding, and managed worktree cleanup. |
+| Worktrees | `worktree/list`, `worktree/status`, `thread/worktree/handoff` | Managed Git worktree status and handoff. |
 | Workspace config | `workspace/config/update` | Workspace configuration updates. |
 
 Clients should use `capabilities` from the `initialize` response before showing feature-specific UI.
 
 Skill entries returned by `skills/list` may include `hasVariant: true`, which means the current runtime resolves that skill through a workspace adaptation. `skills/read` still reads the source `SKILL.md`; use `skills/view` when a client needs the effective content.
+
+### Automation and worktree status
+
+Automation task wires use canonical `workspaceMode` values: `project` or `worktree`. A worktree-mode task reports `worktree: null` until a managed worktree is provisioned, when the server falls back to the task workspace, or after the worktree is discarded.
+
+Clients that render automation review UI can call `worktree/status` for the task thread. `ThreadWorktreeStatus` includes `hasUncommittedChanges`, `hasCommitsAheadOfBase`, and `aheadCount`, which are enough for compact review indicators and delete/discard warnings.
+
+Use `automation/task/discardWorktree` with `{ taskId }` to remove a task's managed worktree and branch while keeping the task. The server rejects discard while the task is running. Use `thread/worktree/handoff` with `mode: "local"` when the user wants to keep reviewing the work locally.
 
 ### Plugin and Skill Management
 

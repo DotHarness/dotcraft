@@ -200,6 +200,135 @@ public sealed partial class SessionService
             }
         }
 
+        public async Task<WorktreeEnsureResult> EnsureAsync(
+            WorktreeEnsureOptions options,
+            CancellationToken ct)
+        {
+            ArgumentNullException.ThrowIfNull(options);
+            var threadId = NormalizeRequiredThreadId(options.ThreadId);
+            if (string.IsNullOrWhiteSpace(options.BranchName))
+                throw new ArgumentException("branchName is required.", nameof(options));
+
+            using (await owner.Gate.AcquireAsync(threadId, ct))
+            {
+                var thread = await owner.GetOrLoadThreadAsync(threadId, ct);
+                var sourceWorkspace = ResolveLocalWorkspacePath(thread);
+                var existing = thread.Worktree;
+                var worktree = await ThreadWorktreeManager.EnsureAsync(
+                    thread,
+                    sourceWorkspace,
+                    options,
+                    existing,
+                    owner.Logger,
+                    ct);
+
+                thread.Configuration ??= owner.CaptureThreadConfigurationForNewThread(null);
+                var reused = existing != null
+                             && string.Equals(existing.Path, worktree.Path, StringComparison.OrdinalIgnoreCase)
+                             && string.Equals(existing.BranchName, worktree.BranchName, StringComparison.Ordinal);
+                var changed = !reused
+                              || !string.Equals(existing?.BaseHead, worktree.BaseHead, StringComparison.OrdinalIgnoreCase)
+                              || !string.Equals(existing?.Head, worktree.Head, StringComparison.OrdinalIgnoreCase)
+                              || !string.Equals(existing?.OwnerKind, worktree.OwnerKind, StringComparison.Ordinal)
+                              || !string.Equals(existing?.OwnerId, worktree.OwnerId, StringComparison.Ordinal)
+                              || !string.Equals(thread.Configuration.ExecutionWorkspaceOverride, worktree.Path, StringComparison.OrdinalIgnoreCase);
+
+                thread.Configuration.ExecutionWorkspaceOverride = worktree.Path;
+                thread.Worktree = worktree;
+                if (changed)
+                {
+                    thread.LastActiveAt = DateTimeOffset.UtcNow;
+                    await owner.RebuildAgentAndPersistThreadAsync(thread, ct);
+                    owner.ThreadUpdatedForBroadcast?.Invoke(thread);
+                }
+
+                return new WorktreeEnsureResult
+                {
+                    Thread = thread,
+                    Worktree = worktree,
+                    Reused = reused
+                };
+            }
+        }
+
+        public async Task<SessionThread> ConfigureExecutionWorkspaceAsync(
+            ThreadExecutionWorkspaceOptions options,
+            CancellationToken ct)
+        {
+            ArgumentNullException.ThrowIfNull(options);
+            var threadId = NormalizeRequiredThreadId(options.ThreadId);
+            using (await owner.Gate.AcquireAsync(threadId, ct))
+            {
+                var thread = await owner.GetOrLoadThreadAsync(threadId, ct);
+                thread.Configuration ??= owner.CaptureThreadConfigurationForNewThread(null);
+                var nextExecutionWorkspace = string.IsNullOrWhiteSpace(options.ExecutionWorkspaceOverride)
+                    ? null
+                    : Path.GetFullPath(options.ExecutionWorkspaceOverride);
+                var changed = !string.Equals(
+                                  thread.Configuration.ExecutionWorkspaceOverride,
+                                  nextExecutionWorkspace,
+                                  StringComparison.OrdinalIgnoreCase)
+                              || (options.ClearWorktree && thread.Worktree != null);
+
+                thread.Configuration.ExecutionWorkspaceOverride = nextExecutionWorkspace;
+                if (options.ClearWorktree)
+                    thread.Worktree = null;
+
+                if (changed)
+                {
+                    thread.LastActiveAt = DateTimeOffset.UtcNow;
+                    await owner.RebuildAgentAndPersistThreadAsync(thread, ct);
+                    owner.ThreadUpdatedForBroadcast?.Invoke(thread);
+                }
+
+                return thread;
+            }
+        }
+
+        public async Task RemoveAsync(WorktreeRemoveOptions options, CancellationToken ct)
+        {
+            ArgumentNullException.ThrowIfNull(options);
+            var threadId = string.IsNullOrWhiteSpace(options.ThreadId) ? null : options.ThreadId.Trim();
+            if (!string.IsNullOrWhiteSpace(threadId))
+            {
+                using (await owner.Gate.AcquireAsync(threadId, ct))
+                {
+                    var thread = await TryGetThreadAsync(threadId, ct);
+                    var worktree = ResolveRemovalWorktree(options, thread);
+                    if (worktree != null)
+                    {
+                        await ThreadWorktreeManager.RemoveManagedWorktreeAndBranchAsync(
+                            worktree,
+                            options.DeleteBranch,
+                            ct,
+                            owner.Logger);
+                    }
+
+                    if (thread != null)
+                    {
+                        thread.Configuration ??= owner.CaptureThreadConfigurationForNewThread(null);
+                        thread.Configuration.ExecutionWorkspaceOverride = null;
+                        thread.Worktree = null;
+                        thread.LastActiveAt = DateTimeOffset.UtcNow;
+                        await owner.RebuildAgentAndPersistThreadAsync(thread, ct);
+                        owner.ThreadUpdatedForBroadcast?.Invoke(thread);
+                    }
+                }
+
+                return;
+            }
+
+            var fallback = ResolveRemovalWorktree(options, thread: null);
+            if (fallback != null)
+            {
+                await ThreadWorktreeManager.RemoveManagedWorktreeAndBranchAsync(
+                    fallback,
+                    options.DeleteBranch,
+                    ct,
+                    owner.Logger);
+            }
+        }
+
         public async Task<IReadOnlyList<ThreadWorktreeStatus>> ListAsync(
             SessionIdentity? identity,
             CancellationToken ct)
@@ -252,6 +381,51 @@ public sealed partial class SessionService
                 throw new InvalidOperationException($"Thread '{thread.Id}' is not bound to a DotCraft worktree.");
 
             return await ThreadWorktreeManager.GetStatusAsync(thread.Id, thread.Worktree, ct, owner.Logger);
+        }
+
+        private async Task<SessionThread?> TryGetThreadAsync(string threadId, CancellationToken ct)
+        {
+            try
+            {
+                return await owner.GetOrLoadThreadAsync(threadId, ct);
+            }
+            catch (KeyNotFoundException)
+            {
+                return null;
+            }
+        }
+
+        private static ThreadWorktreeInfo? ResolveRemovalWorktree(
+            WorktreeRemoveOptions options,
+            SessionThread? thread)
+        {
+            if (thread?.Worktree != null)
+                return thread.Worktree;
+
+            if (string.IsNullOrWhiteSpace(options.WorkspacePath)
+                || string.IsNullOrWhiteSpace(options.Path)
+                || string.IsNullOrWhiteSpace(options.BranchName))
+            {
+                return null;
+            }
+
+            var workspacePath = Path.GetFullPath(options.WorkspacePath);
+            return new ThreadWorktreeInfo
+            {
+                Id = "worktree_remove_" + Guid.NewGuid().ToString("N")[..8],
+                SourceThreadId = thread?.Id ?? string.Empty,
+                WorkspacePath = workspacePath,
+                SourceWorkspacePath = workspacePath,
+                Path = Path.GetFullPath(options.Path),
+                BranchName = options.BranchName.Trim(),
+                BaseRef = "HEAD",
+                BaseHead = string.Empty,
+                Head = string.Empty,
+                OwnerKind = options.BranchName.StartsWith("dotcraft/task-", StringComparison.Ordinal)
+                    ? "automationTask"
+                    : null,
+                CreatedAt = DateTimeOffset.UtcNow
+            };
         }
 
         private static void ThrowIfWorktreeIdentityMovesStateWorkspace(

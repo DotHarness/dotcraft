@@ -69,6 +69,133 @@ internal static class ThreadWorktreeManager
             ct).ConfigureAwait(false);
     }
 
+    public static async Task<ThreadWorktreeInfo> EnsureAsync(
+        SessionThread sourceThread,
+        string sourceExecutionWorkspace,
+        WorktreeEnsureOptions options,
+        ThreadWorktreeInfo? existing,
+        ILogger? logger,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(sourceThread);
+        ArgumentNullException.ThrowIfNull(options);
+        if (string.IsNullOrWhiteSpace(options.BranchName))
+            throw new ArgumentException("branchName is required.", nameof(options));
+
+        var stateWorkspace = NormalizeAbsolutePath(sourceThread.WorkspacePath, nameof(sourceThread.WorkspacePath));
+        var sourceWorkspace = NormalizeAbsolutePath(sourceExecutionWorkspace, nameof(sourceExecutionWorkspace));
+        var repositoryRoot = await ResolveRepositoryRootAsync(sourceWorkspace, ct, logger).ConfigureAwait(false);
+        var baseRef = string.IsNullOrWhiteSpace(options.BaseRef) ? "HEAD" : options.BaseRef.Trim();
+        var branchName = options.BranchName.Trim();
+        await ValidateBranchNameAsync(repositoryRoot, branchName, ct, logger).ConfigureAwait(false);
+        var baseHead = await ResolveRefAsync(repositoryRoot, baseRef, ct, logger).ConfigureAwait(false);
+
+        var worktreePath = ResolveWorktreePath(stateWorkspace, branchName, options.Path, allowExisting: true);
+        if (existing != null
+            && string.Equals(NormalizeAbsolutePath(existing.Path, nameof(existing.Path)), worktreePath, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(existing.BranchName, branchName, StringComparison.Ordinal))
+        {
+            var status = await GetStatusAsync(sourceThread.Id, existing, ct, logger).ConfigureAwait(false);
+            if (status.Exists
+                && status.IsGitWorktree
+                && string.Equals(status.BranchName, branchName, StringComparison.Ordinal))
+            {
+                return existing with
+                {
+                    BaseHead = string.IsNullOrWhiteSpace(existing.BaseHead) ? baseHead : existing.BaseHead,
+                    Head = string.IsNullOrWhiteSpace(status.Head) ? existing.Head : status.Head,
+                    OwnerKind = string.IsNullOrWhiteSpace(existing.OwnerKind) ? options.OwnerKind : existing.OwnerKind,
+                    OwnerId = string.IsNullOrWhiteSpace(existing.OwnerId) ? options.OwnerId : existing.OwnerId
+                };
+            }
+        }
+
+        Directory.CreateDirectory(Path.GetDirectoryName(worktreePath)!);
+        await TryRunGitAsync(repositoryRoot, ["worktree", "prune"], ct, logger).ConfigureAwait(false);
+
+        if (Directory.Exists(worktreePath))
+        {
+            var isGitWorktree = await GitSucceedsAsync(
+                worktreePath,
+                ["rev-parse", "--is-inside-work-tree"],
+                ct,
+                logger).ConfigureAwait(false);
+            if (isGitWorktree)
+            {
+                var currentBranch = await GitReadAsync(
+                    worktreePath,
+                    ["branch", "--show-current"],
+                    ct,
+                    logger).ConfigureAwait(false);
+                if (string.Equals(currentBranch, branchName, StringComparison.Ordinal))
+                {
+                    var currentHead = await GitReadAsync(
+                        worktreePath,
+                        ["rev-parse", "HEAD"],
+                        ct,
+                        logger).ConfigureAwait(false);
+                    return BuildEnsuredInfo(
+                        sourceThread,
+                        stateWorkspace,
+                        sourceWorkspace,
+                        worktreePath,
+                        branchName,
+                        baseRef,
+                        baseHead,
+                        string.IsNullOrWhiteSpace(currentHead) ? existing?.Head ?? string.Empty : currentHead,
+                        options.OwnerKind,
+                        options.OwnerId,
+                        existing);
+                }
+
+                await TryRunGitAsync(
+                    repositoryRoot,
+                    ["worktree", "remove", "--force", worktreePath],
+                    ct,
+                    logger).ConfigureAwait(false);
+            }
+
+            if (Directory.Exists(worktreePath))
+                Directory.Delete(worktreePath, recursive: true);
+        }
+        else if (File.Exists(worktreePath))
+        {
+            File.Delete(worktreePath);
+        }
+
+        var branchExists = await BranchExistsAsync(repositoryRoot, branchName, ct, logger).ConfigureAwait(false);
+        var head = branchExists ? await ResolveRefAsync(
+            repositoryRoot,
+            $"refs/heads/{branchName}",
+            ct,
+            logger).ConfigureAwait(false) : baseHead;
+
+        var addArgs = branchExists
+            ? new[] { "worktree", "add", worktreePath, branchName }
+            : new[] { "worktree", "add", "-b", branchName, worktreePath, baseRef };
+        var addResult = await GitProcessRunner.RunAsync(
+            repositoryRoot,
+            addArgs,
+            GitWorktreeTimeout,
+            ct,
+            logger: logger).ConfigureAwait(false);
+        if (addResult.ExitCode != 0)
+            throw new InvalidOperationException($"Failed to ensure git worktree: {TrimGitError(addResult)}");
+
+        return BuildEnsuredInfo(
+            sourceThread,
+            stateWorkspace,
+            sourceWorkspace,
+            worktreePath,
+            branchName,
+            baseRef,
+            baseHead,
+            head,
+            options.OwnerKind,
+            options.OwnerId,
+            existing);
+    }
+
     private static async Task<ThreadWorktreeInfo> CreateAsync(
         SessionThread sourceThread,
         string sourceExecutionWorkspace,
@@ -112,6 +239,7 @@ internal static class ThreadWorktreeManager
             Path = worktreePath,
             BranchName = branchName,
             BaseRef = baseRef,
+            BaseHead = head,
             Head = head,
             CreatedAt = DateTimeOffset.UtcNow,
             DirtyHandoff = handoff
@@ -236,6 +364,76 @@ internal static class ThreadWorktreeManager
         return BuildDirtyHandoffInfo(sourceEntries);
     }
 
+    public static async Task RemoveManagedWorktreeAndBranchAsync(
+        ThreadWorktreeInfo worktree,
+        bool deleteBranch,
+        CancellationToken ct,
+        ILogger? logger = null)
+    {
+        ArgumentNullException.ThrowIfNull(worktree);
+        var worktreePath = EnsureManagedWorktreePath(worktree);
+        string repositoryRoot;
+        try
+        {
+            var sourceWorkspace = string.IsNullOrWhiteSpace(worktree.SourceWorkspacePath)
+                ? worktree.WorkspacePath
+                : worktree.SourceWorkspacePath;
+            repositoryRoot = await ResolveRepositoryRootAsync(
+                NormalizeAbsolutePath(sourceWorkspace, nameof(worktree.SourceWorkspacePath)),
+                ct,
+                logger).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            logger?.LogWarning(ex, "Skipping managed worktree git removal because the source workspace is not a git repository.");
+            if (Directory.Exists(worktreePath))
+            {
+                try
+                {
+                    Directory.Delete(worktreePath, recursive: true);
+                }
+                catch (Exception deleteEx)
+                {
+                    logger?.LogWarning(deleteEx, "Failed to delete managed worktree directory {Path}.", worktreePath);
+                }
+            }
+
+            return;
+        }
+
+        if (Directory.Exists(worktreePath))
+        {
+            await TryRunGitAsync(
+                repositoryRoot,
+                ["worktree", "remove", "--force", worktreePath],
+                ct,
+                logger).ConfigureAwait(false);
+
+            if (Directory.Exists(worktreePath))
+            {
+                try
+                {
+                    Directory.Delete(worktreePath, recursive: true);
+                }
+                catch (Exception ex)
+                {
+                    logger?.LogWarning(ex, "Failed to delete managed worktree directory {Path}.", worktreePath);
+                }
+            }
+        }
+
+        await TryRunGitAsync(repositoryRoot, ["worktree", "prune"], ct, logger).ConfigureAwait(false);
+
+        if (deleteBranch && !string.IsNullOrWhiteSpace(worktree.BranchName))
+        {
+            await TryRunGitAsync(
+                repositoryRoot,
+                ["branch", "-D", worktree.BranchName],
+                ct,
+                logger).ConfigureAwait(false);
+        }
+    }
+
     public static async Task<ThreadWorktreeStatus> GetStatusAsync(
         string threadId,
         ThreadWorktreeInfo worktree,
@@ -255,7 +453,9 @@ internal static class ThreadWorktreeManager
                 Head = worktree.Head,
                 Exists = false,
                 IsGitWorktree = false,
-                HasUncommittedChanges = false
+                HasUncommittedChanges = false,
+                HasCommitsAheadOfBase = false,
+                AheadCount = 0
             };
         }
 
@@ -275,13 +475,17 @@ internal static class ThreadWorktreeManager
                 Head = worktree.Head,
                 Exists = true,
                 IsGitWorktree = false,
-                HasUncommittedChanges = false
+                HasUncommittedChanges = false,
+                HasCommitsAheadOfBase = false,
+                AheadCount = 0
             };
         }
 
         var branch = await GitReadAsync(path, ["branch", "--show-current"], ct, logger).ConfigureAwait(false);
         var head = await GitReadAsync(path, ["rev-parse", "HEAD"], ct, logger).ConfigureAwait(false);
         var status = await GitReadAsync(path, ["status", "--porcelain=v1"], ct, logger).ConfigureAwait(false);
+        var baseHead = string.IsNullOrWhiteSpace(worktree.BaseHead) ? worktree.BaseRef : worktree.BaseHead;
+        var aheadCount = await TryReadAheadCountAsync(path, baseHead, ct, logger).ConfigureAwait(false);
 
         return new ThreadWorktreeStatus
         {
@@ -292,8 +496,36 @@ internal static class ThreadWorktreeManager
             Head = string.IsNullOrWhiteSpace(head) ? worktree.Head : head,
             Exists = true,
             IsGitWorktree = true,
-            HasUncommittedChanges = !string.IsNullOrWhiteSpace(status)
+            HasUncommittedChanges = !string.IsNullOrWhiteSpace(status),
+            HasCommitsAheadOfBase = aheadCount > 0,
+            AheadCount = aheadCount
         };
+    }
+
+    private static async Task<int> TryReadAheadCountAsync(
+        string worktreePath,
+        string? baseRef,
+        CancellationToken ct,
+        ILogger? logger)
+    {
+        if (string.IsNullOrWhiteSpace(baseRef))
+            return 0;
+
+        var result = await GitProcessRunner.RunAsync(
+            worktreePath,
+            ["rev-list", "--count", $"{baseRef.Trim()}..HEAD"],
+            GitTimeout,
+            ct,
+            logger: logger).ConfigureAwait(false);
+        if (result.ExitCode != 0)
+        {
+            logger?.LogDebug("Failed to compute worktree ahead count: {Error}", TrimGitError(result));
+            return 0;
+        }
+
+        return int.TryParse(result.StdOut.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var count)
+            ? Math.Max(0, count)
+            : 0;
     }
 
     private static async Task<string> ResolveRepositoryRootAsync(
@@ -390,7 +622,44 @@ internal static class ThreadWorktreeManager
         return result.ExitCode == 0;
     }
 
-    private static string ResolveWorktreePath(string stateWorkspace, string branchName, string? requestedPath)
+    private static ThreadWorktreeInfo BuildEnsuredInfo(
+        SessionThread sourceThread,
+        string stateWorkspace,
+        string sourceWorkspace,
+        string worktreePath,
+        string branchName,
+        string baseRef,
+        string baseHead,
+        string head,
+        string? ownerKind,
+        string? ownerId,
+        ThreadWorktreeInfo? existing) =>
+        new()
+        {
+            Id = string.IsNullOrWhiteSpace(existing?.Id) ? NewWorktreeId() : existing!.Id,
+            SourceThreadId = sourceThread.Id,
+            WorkspacePath = stateWorkspace,
+            SourceWorkspacePath = sourceWorkspace,
+            Path = worktreePath,
+            BranchName = branchName,
+            BaseRef = string.IsNullOrWhiteSpace(existing?.BaseRef) ? baseRef : existing!.BaseRef,
+            BaseHead = string.IsNullOrWhiteSpace(existing?.BaseHead) ? baseHead : existing!.BaseHead,
+            Head = head,
+            OwnerKind = string.IsNullOrWhiteSpace(existing?.OwnerKind) ? ownerKind : existing!.OwnerKind,
+            OwnerId = string.IsNullOrWhiteSpace(existing?.OwnerId) ? ownerId : existing!.OwnerId,
+            CreatedAt = existing?.CreatedAt ?? DateTimeOffset.UtcNow,
+            DirtyHandoff = new ThreadWorktreeDirtyHandoffInfo
+            {
+                Requested = false,
+                Status = WorktreeDirtyHandoffStatuses.Skipped
+            }
+        };
+
+    private static string ResolveWorktreePath(
+        string stateWorkspace,
+        string branchName,
+        string? requestedPath,
+        bool allowExisting = false)
     {
         var worktreesRoot = NormalizeAbsolutePath(
             Path.Combine(stateWorkspace, ".craft", "worktrees"),
@@ -407,9 +676,9 @@ internal static class ThreadWorktreeManager
             throw new ArgumentException("Worktree path must resolve under '<workspace>/.craft/worktrees/'.");
         if (string.Equals(fullPath, worktreesRoot, StringComparison.OrdinalIgnoreCase))
             throw new ArgumentException("Worktree path must be a child path under '<workspace>/.craft/worktrees/'.");
-        if (Directory.Exists(fullPath) && Directory.EnumerateFileSystemEntries(fullPath).Any())
+        if (!allowExisting && Directory.Exists(fullPath) && Directory.EnumerateFileSystemEntries(fullPath).Any())
             throw new InvalidOperationException($"Worktree path '{fullPath}' already exists and is not empty.");
-        if (File.Exists(fullPath))
+        if (!allowExisting && File.Exists(fullPath))
             throw new InvalidOperationException($"Worktree path '{fullPath}' already exists as a file.");
 
         return fullPath;

@@ -63,12 +63,14 @@ export function TaskCard({ task }: { task: AutomationTask }): JSX.Element {
   const locale = useLocale()
   const [hovered, setHovered] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleteWarning, setDeleteWarning] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [runningNow, setRunningNow] = useState(false)
   const [menuPosition, setMenuPosition] = useState<ContextMenuPosition | null>(null)
   const selectTask = useAutomationsStore((s) => s.selectTask)
   const selectCronJob = useCronStore((s) => s.selectCronJob)
   const deleteTask = useAutomationsStore((s) => s.deleteTask)
+  const getTaskWorktreeStatus = useAutomationsStore((s) => s.getTaskWorktreeStatus)
   const runTaskNow = useAutomationsStore((s) => s.runTaskNow)
   const threadList = useThreadStore((s) => s.threadList)
   const deletable = isTaskDeletable(task.status)
@@ -117,6 +119,24 @@ export function TaskCard({ task }: { task: AutomationTask }): JSX.Element {
       setShowDeleteConfirm(false)
     } finally {
       setDeleting(false)
+    }
+  }
+
+  async function openDeleteConfirm(): Promise<void> {
+    setDeleteWarning(null)
+    setShowDeleteConfirm(true)
+    if (!task.threadId || !task.worktree || task.status === 'running') return
+    try {
+      const status = await getTaskWorktreeStatus(task)
+      const hasUnreviewedWork =
+        Boolean(status?.hasUncommittedChanges)
+        || Boolean(status?.hasCommitsAheadOfBase)
+        || (status?.aheadCount ?? 0) > 0
+      if (hasUnreviewedWork) {
+        setDeleteWarning(t('auto.task.deleteWorktreeWarning'))
+      }
+    } catch {
+      // Delete can continue; the server still performs best-effort worktree cleanup.
     }
   }
 
@@ -289,7 +309,7 @@ export function TaskCard({ task }: { task: AutomationTask }): JSX.Element {
             icon: <Trash2 size={14} />,
             danger: true,
             disabled: !deletable || deleting,
-            onClick: () => setShowDeleteConfirm(true)
+            onClick: () => void openDeleteConfirm()
           }
         ]}
       />
@@ -299,7 +319,9 @@ export function TaskCard({ task }: { task: AutomationTask }): JSX.Element {
       <ConfirmDialog
         title={t('auto.task.deleteTitle')}
         message={
-          task.threadId ? t('auto.task.deleteWithThread') : t('auto.task.deleteOnly')
+          `${task.threadId ? t('auto.task.deleteWithThread') : t('auto.task.deleteOnly')}${
+            deleteWarning ? `\n\n${deleteWarning}` : ''
+          }`
         }
         confirmLabel={deleting ? t('auto.deleting') : t('auto.delete')}
         danger

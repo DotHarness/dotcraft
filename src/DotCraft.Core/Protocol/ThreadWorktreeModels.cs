@@ -21,7 +21,13 @@ public sealed record ThreadWorktreeInfo
 
     public string BaseRef { get; init; } = string.Empty;
 
+    public string BaseHead { get; init; } = string.Empty;
+
     public string Head { get; init; } = string.Empty;
+
+    public string? OwnerKind { get; init; }
+
+    public string? OwnerId { get; init; }
 
     public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.UtcNow;
 
@@ -146,6 +152,61 @@ public sealed record WorktreeHandoffResult
     public ThreadWorktreeDirtyHandoffInfo? DirtyHandoff { get; init; }
 }
 
+/// <summary>
+/// Options for ensuring a named DotCraft-managed worktree is bound to an existing thread.
+/// </summary>
+public sealed record WorktreeEnsureOptions
+{
+    public string ThreadId { get; init; } = string.Empty;
+
+    public string BranchName { get; init; } = string.Empty;
+
+    public string? BaseRef { get; init; }
+
+    public string? Path { get; init; }
+
+    public string? OwnerKind { get; init; }
+
+    public string? OwnerId { get; init; }
+}
+
+public sealed record WorktreeEnsureResult
+{
+    public SessionThread Thread { get; init; } = new();
+
+    public ThreadWorktreeInfo Worktree { get; init; } = new();
+
+    public bool Reused { get; init; }
+}
+
+/// <summary>
+/// Options for setting a thread's execution workspace without moving its state workspace.
+/// </summary>
+public sealed record ThreadExecutionWorkspaceOptions
+{
+    public string ThreadId { get; init; } = string.Empty;
+
+    public string? ExecutionWorkspaceOverride { get; init; }
+
+    public bool ClearWorktree { get; init; } = true;
+}
+
+/// <summary>
+/// Options for force-removing a managed worktree and its branch.
+/// </summary>
+public sealed record WorktreeRemoveOptions
+{
+    public string? ThreadId { get; init; }
+
+    public string? WorkspacePath { get; init; }
+
+    public string? BranchName { get; init; }
+
+    public string? Path { get; init; }
+
+    public bool DeleteBranch { get; init; } = true;
+}
+
 public sealed class WorktreeHandoffConflictException(
     string message,
     IReadOnlyList<string> conflictPaths) : InvalidOperationException(message)
@@ -170,4 +231,8 @@ public sealed record ThreadWorktreeStatus
     public bool IsGitWorktree { get; init; }
 
     public bool HasUncommittedChanges { get; init; }
+
+    public bool HasCommitsAheadOfBase { get; init; }
+
+    public int AheadCount { get; init; }
 }

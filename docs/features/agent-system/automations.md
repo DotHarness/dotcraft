@@ -28,6 +28,12 @@ Create and manage tasks from the Desktop Automations panel. Each task pairs a sh
 | Completion summary | The agent writes a short summary when the work is done |
 | Delete | Remove the task, optionally with its linked conversation |
 
+### Review worktree output
+
+Unbound automation tasks run in a managed Git worktree when the project is a Git repository. The Desktop review panel shows the branch, whether the worktree has uncommitted changes, and whether it has commits ahead of the base.
+
+From the review panel you can open the task thread, hand the worktree back to your local workspace, or discard the task worktree. Discarding removes the task's worktree output and its managed branch, so use it only when you no longer need the changes.
+
 Schedule formats, workflow variables, and the full set of task fields are in [Automations, Goals, and Hooks](../../developing/configuration#automations-goals-and-hooks).
 
 ---

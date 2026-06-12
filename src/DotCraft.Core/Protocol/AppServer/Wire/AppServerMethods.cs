@@ -250,6 +250,7 @@ public static class AppServerMethods
     public const string AutomationTaskCreate = "automation/task/create";
     public const string AutomationTaskRun = "automation/task/run";
     public const string AutomationTaskDelete = "automation/task/delete";
+    public const string AutomationTaskDiscardWorktree = "automation/task/discardWorktree";
 
     /// <summary>Replaces or clears a task's thread binding without rewriting other fields.</summary>
     public const string AutomationTaskUpdateBinding = "automation/task/updateBinding";

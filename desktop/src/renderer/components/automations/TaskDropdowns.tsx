@@ -4,8 +4,8 @@ import { useT } from '../../contexts/LocaleContext'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { MenuHeading, MenuOption, PillDropdown } from '../ui/PillDropdown'
 
-type TargetMode = 'project' | 'isolated' | 'bound'
-type WorkspaceMode = 'project' | 'isolated'
+type TargetMode = 'project' | 'worktree' | 'bound'
+type WorkspaceMode = 'project' | 'worktree'
 type ApprovalPolicy = 'workspaceScope' | 'fullAuto'
 
 const triggerIconProps = { size: 13, strokeWidth: 1.8, 'aria-hidden': true } as const
@@ -13,7 +13,7 @@ const optionIconProps = { size: 14, strokeWidth: 1.8, 'aria-hidden': true } as c
 
 function workspaceIcon(mode: WorkspaceMode, forTrigger: boolean): JSX.Element {
   const props = forTrigger ? triggerIconProps : optionIconProps
-  return mode === 'isolated' ? <GitBranch {...props} /> : <Laptop {...props} />
+  return mode === 'worktree' ? <GitBranch {...props} /> : <Laptop {...props} />
 }
 
 /** Option hint shown as a tooltip beside the row instead of inline copy. */
@@ -54,7 +54,7 @@ export function TargetDropdown({
   const label =
     mode === 'bound'
       ? boundName ?? t('auto.newTask.targetBindThread')
-      : mode === 'isolated'
+      : mode === 'worktree'
         ? t('auto.newTask.targetIsolated')
         : t('auto.newTask.targetProject')
   const icon =
@@ -85,8 +85,8 @@ export function TargetDropdown({
           </OptionHint>
           <OptionHint hint={t('auto.newTask.workspaceIsolated')}>
             <MenuOption
-              selected={mode === 'isolated'}
-              icon={workspaceIcon('isolated', false)}
+              selected={mode === 'worktree'}
+              icon={workspaceIcon('worktree', false)}
               onClick={() => {
                 onIsolated()
                 close()
@@ -133,7 +133,7 @@ export function WorkspaceModeDropdown({
 }): JSX.Element {
   const t = useT()
   const label =
-    value === 'isolated' ? t('auto.newTask.targetIsolated') : t('auto.newTask.targetProject')
+    value === 'worktree' ? t('auto.newTask.targetIsolated') : t('auto.newTask.targetProject')
   return (
     <PillDropdown
       ariaLabel={t('auto.newTask.agentWorkspaceLabel')}
@@ -157,10 +157,10 @@ export function WorkspaceModeDropdown({
           </OptionHint>
           <OptionHint hint={t('auto.newTask.workspaceIsolated')}>
             <MenuOption
-              selected={value === 'isolated'}
-              icon={workspaceIcon('isolated', false)}
+              selected={value === 'worktree'}
+              icon={workspaceIcon('worktree', false)}
               onClick={() => {
-                onChange('isolated')
+                onChange('worktree')
                 close()
               }}
             >

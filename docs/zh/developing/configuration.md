@@ -251,6 +251,8 @@ OpenSandbox 示例：
 | `Automations.MaxRetries` | 最大重试次数 | `3` |
 | `Automations.RetryInitialDelay` | 重试初始延迟 | `00:00:30` |
 | `Automations.RetryMaxDelay` | 重试最大延迟 | `00:10:00` |
+| `Automations.WorktreeRetentionEnabled` | 是否启用空闲自动化任务 worktree 清理 | `true` |
+| `Automations.WorktreeRetentionIdlePeriod` | 干净自动化任务 worktree 进入清理候选前的空闲时间 | `21.00:00:00` |
 | `Goals.Enabled` | 启用目标存储、AppServer 方法、目标上下文注入、用量统计和模型 Goal 工具 | `true` |
 | `Goals.AutoContinueEnabled` | 允许 active 目标在线程空闲时自动继续 | `true` |
 | `Hooks.Enabled` | 是否启用 Hooks | `true` |
@@ -259,6 +261,8 @@ OpenSandbox 示例：
 | `Heartbeat.Enabled` | 是否启用心跳服务 | `false` |
 | `Heartbeat.IntervalSeconds` | 检查间隔（秒） | `1800` |
 | `Heartbeat.NotifyAdmin` | 社交渠道下是否将结果通知管理员 | `true` |
+
+`Automations.WorktreeRetentionIdlePeriod` 必须至少为 `14.00:00:00`。Retention sweep 只会移除空闲、干净、且没有领先基础版本提交的受管自动化任务 worktree。
 
 Automation AppServer 方法：
 
@@ -269,6 +273,7 @@ Automation AppServer 方法：
 | `automation/task/create` | 创建本地任务 |
 | `automation/task/run` | 立即运行本地任务 |
 | `automation/task/updateBinding` | 更新或清除线程绑定 |
+| `automation/task/discardWorktree` | 移除任务的受管 worktree 和分支，但保留任务本身 |
 | `automation/task/delete` | 删除本地任务 |
 | `automation/template/list` | 列出模板 |
 | `automation/template/save` | 保存用户模板 |

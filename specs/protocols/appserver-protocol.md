@@ -1300,6 +1300,23 @@ Return current Git status metadata for the worktree bound to a thread.
 
 This method is a lightweight refresh path for worktree indicators. Full file, diff, and commit UX remains a client concern using the thread's `effectiveWorkspacePath`.
 
+`ThreadWorktreeInfo` records the branch, path, `baseRef`, resolved `baseHead`, current `head`, optional `ownerKind` / `ownerId`, and `createdAt`. Automation task worktrees set `ownerKind = "automationTask"` and `ownerId = taskId`.
+
+`ThreadWorktreeStatus` contains:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `threadId` | string | Thread that owns the registered worktree. |
+| `worktree` | ThreadWorktreeInfo | Registered worktree metadata. |
+| `path` | string | Worktree path. |
+| `branchName` | string | Current branch, falling back to registered branch metadata. |
+| `head` | string? | Current Git HEAD when readable. |
+| `exists` | boolean | Whether the worktree path exists. |
+| `isGitWorktree` | boolean | Whether the path is a readable Git worktree. |
+| `hasUncommittedChanges` | boolean | Whether `git status --porcelain=v1` reports changes. |
+| `hasCommitsAheadOfBase` | boolean | Whether `HEAD` has commits ahead of the recorded `baseHead` / `baseRef`. |
+| `aheadCount` | number | Commit count for `base..HEAD`; zero when unreadable or not ahead. |
+
 ---
 
 ## 5. Turn Methods
@@ -2615,14 +2632,15 @@ Errors follow the standard JSON-RPC 2.0 error response format:
 
 Automation task methods are defined in full in [automations-lifecycle.md §13](../runtime/automations-lifecycle.md). Summary of the v1 wire surface:
 
-- `automation/task/list`, `automation/task/read`, `automation/task/create`, `automation/task/updateBinding`, `automation/task/delete` — CRUD and binding updates for local automation tasks. Task-level review and cancel endpoints are not part of this surface.
+- `automation/task/list`, `automation/task/read`, `automation/task/create`, `automation/task/updateBinding`, `automation/task/discardWorktree`, `automation/task/delete` — CRUD, binding updates, and managed worktree cleanup for local automation tasks. Task-level review and cancel endpoints are not part of this surface.
 - `automation/task/updateBinding` `{ taskId, threadBinding?: { threadId, mode } | null }` → `{ task }` — rewrites only the `thread_binding` block on disk; pass `null` to unbind.
+- `automation/task/discardWorktree` `{ taskId }` → `{ task }` — best-effort removes the task's managed worktree and branch while keeping the task. Rejects running tasks.
 - `automation/template/list` `{}` → `{ templates: AutomationTemplateWire[] }` — returns the built-in local task templates followed by any user-authored templates so desktop clients can render the "Use template" picker without bundling a copy. User templates carry `isUser: true`; built-ins omit the field (default `false`). User templates also populate `createdAt` / `updatedAt` (ISO-8601 UTC).
-- `automation/template/save` `{ id?, title, description?, icon?, category?, workflowMarkdown, defaultSchedule?, defaultWorkspaceMode?, defaultApprovalPolicy?, needsThreadBinding, defaultTitle?, defaultDescription? }` → `{ template: AutomationTemplateWire }` — upsert a user template. When `id` is omitted the server assigns `"user-" + shortGuid`. Rejects built-in id collisions, path-traversal / invalid id shapes (`^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$`), empty `title` / `workflowMarkdown`, and overlong `title` (>200 chars).
+- `automation/template/save` `{ id?, title, description?, icon?, category?, workflowMarkdown, defaultSchedule?, defaultWorkspaceMode?, defaultApprovalPolicy?, needsThreadBinding, defaultTitle?, defaultDescription? }` → `{ template: AutomationTemplateWire }` — upsert a user template. `defaultWorkspaceMode` is canonical `project` or `worktree`; legacy `isolated` input is accepted as `worktree`. When `id` is omitted the server assigns `"user-" + shortGuid`. Rejects built-in id collisions, path-traversal / invalid id shapes (`^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$`), empty `title` / `workflowMarkdown`, invalid workspace mode, and overlong `title` (>200 chars).
 - `automation/template/delete` `{ id }` → `{ ok: true }` — delete a user template directory. Built-in ids and invalid id shapes are rejected with `-32602` Invalid params. Idempotent: missing directories return `{ ok: true }`.
 - User template disk layout: `<CraftPath>/automations/templates/<id>/template.md` (overridable via `Automations.UserTemplatesRoot`). The file is YAML front matter (`id`, `title`, `description`, `icon`, `category`, `default_schedule`, `default_workspace_mode`, `default_approval_policy`, `needs_thread_binding`, `default_title`, `default_description`, `created_at`, `updated_at`) followed by the complete `workflow.md` body that is copied into new tasks applying the template.
-- `AutomationTaskWire.status` is one of `pending`, `running`, `completed`, or `failed`, and carries optional `schedule` (mirrors `CronSchedule`), `threadBinding` (`{ threadId, mode: "run-in-thread" }`), and `nextRunAt` (ISO-8601 UTC).
-- `automation/task/create` accepts `schedule`, `threadBinding`, and `templateId` in addition to the existing fields. When both `templateId` and explicit fields are supplied, the explicit fields win.
+- `AutomationTaskWire.status` is one of `pending`, `running`, `completed`, or `failed`, and carries `workspaceMode` (`project` or `worktree`), nullable `worktree` (`{ branchName, path }`), optional `schedule` (mirrors `CronSchedule`), `threadBinding` (`{ threadId, mode: "run-in-thread" }`), and `nextRunAt` (ISO-8601 UTC). `worktree` is null before provisioning, for project-mode or bound tasks, and when worktree-mode execution falls back to the legacy task workspace.
+- `automation/task/create` accepts `schedule`, `workspaceMode`, `threadBinding`, and `templateId` in addition to the existing fields. `workspaceMode` accepts canonical `project` or `worktree`; legacy `isolated` input is normalized to `worktree`. When both `templateId` and explicit fields are supplied, the explicit fields win.
 
 ### 8.4 Turn-Level Errors
 

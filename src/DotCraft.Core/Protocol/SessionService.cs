@@ -727,6 +727,24 @@ public sealed partial class SessionService(
         await Worktrees.HandoffAsync(options, ct);
 
     /// <inheritdoc/>
+    public async Task<WorktreeEnsureResult> EnsureManagedWorktreeAsync(
+        WorktreeEnsureOptions options,
+        CancellationToken ct = default) =>
+        await Worktrees.EnsureAsync(options, ct);
+
+    /// <inheritdoc/>
+    public async Task<SessionThread> ConfigureThreadExecutionWorkspaceAsync(
+        ThreadExecutionWorkspaceOptions options,
+        CancellationToken ct = default) =>
+        await Worktrees.ConfigureExecutionWorkspaceAsync(options, ct);
+
+    /// <inheritdoc/>
+    public async Task RemoveManagedWorktreeAsync(
+        WorktreeRemoveOptions options,
+        CancellationToken ct = default) =>
+        await Worktrees.RemoveAsync(options, ct);
+
+    /// <inheritdoc/>
     public async Task<IReadOnlyList<ThreadWorktreeStatus>> ListWorktreesAsync(
         SessionIdentity? identity = null,
         CancellationToken ct = default) =>

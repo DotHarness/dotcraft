@@ -62,7 +62,7 @@ public sealed partial class LocalWorkflowLoader(ILogger<LocalWorkflowLoader> log
         {
             Steps = steps,
             MaxRounds = fm.MaxRounds > 0 ? fm.MaxRounds : 10,
-            WorkspaceMode = MapWorkspaceString(fm.Workspace)
+            WorkspaceMode = AutomationWorkspaceModeNames.ToMode(fm.Workspace)
         });
     }
 
@@ -88,14 +88,7 @@ public sealed partial class LocalWorkflowLoader(ILogger<LocalWorkflowLoader> log
             .Build();
 
         var fm = deserializer.Deserialize<WorkflowYamlFrontMatter>(yamlText) ?? new WorkflowYamlFrontMatter();
-        return Task.FromResult(MapWorkspaceString(fm.Workspace));
-    }
-
-    private static AutomationWorkspaceMode MapWorkspaceString(string? workspace)
-    {
-        if (string.Equals(workspace?.Trim(), "isolated", StringComparison.OrdinalIgnoreCase))
-            return AutomationWorkspaceMode.Isolated;
-        return AutomationWorkspaceMode.Project;
+        return Task.FromResult(AutomationWorkspaceModeNames.ToMode(fm.Workspace));
     }
 
     /// <summary>
@@ -175,7 +168,7 @@ public sealed partial class LocalWorkflowLoader(ILogger<LocalWorkflowLoader> log
         public int MaxRounds { get; set; } = 10;
         public List<string>? Steps { get; set; }
 
-        /// <summary><c>project</c> (default) or <c>isolated</c>.</summary>
+        /// <summary><c>project</c> (default) or <c>worktree</c>. Legacy <c>isolated</c> is accepted.</summary>
         public string? Workspace { get; set; }
     }
 

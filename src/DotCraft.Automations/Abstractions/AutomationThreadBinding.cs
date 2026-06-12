@@ -15,7 +15,7 @@ public sealed class AutomationThreadBinding
     /// <list type="bullet">
     /// <item><c>run-in-thread</c> (default): submit turns directly into <see cref="ThreadId"/>,
     /// reusing its existing <see cref="DotCraft.Protocol.ThreadConfiguration"/>.</item>
-    /// <item>Reserved for future: <c>poll-separate</c> — run in an isolated automation thread but read
+    /// <item>Reserved for future: <c>poll-separate</c> — run in a separate automation thread but read
     /// the target thread's recent turns as context.</item>
     /// </list>
     /// </summary>

@@ -86,6 +86,30 @@ public interface ISessionService
         throw new NotSupportedException("Git worktree handoff is not supported by this session service.");
 
     /// <summary>
+    /// Ensures a named managed worktree exists and is bound as the execution workspace of an existing thread.
+    /// </summary>
+    Task<WorktreeEnsureResult> EnsureManagedWorktreeAsync(
+        WorktreeEnsureOptions options,
+        CancellationToken ct = default) =>
+        throw new NotSupportedException("Git worktree ensure is not supported by this session service.");
+
+    /// <summary>
+    /// Sets a thread's execution workspace without moving its state workspace.
+    /// </summary>
+    Task<SessionThread> ConfigureThreadExecutionWorkspaceAsync(
+        ThreadExecutionWorkspaceOptions options,
+        CancellationToken ct = default) =>
+        throw new NotSupportedException("Thread execution workspace configuration is not supported by this session service.");
+
+    /// <summary>
+    /// Force-removes a managed worktree and optionally its branch.
+    /// </summary>
+    Task RemoveManagedWorktreeAsync(
+        WorktreeRemoveOptions options,
+        CancellationToken ct = default) =>
+        throw new NotSupportedException("Git worktree removal is not supported by this session service.");
+
+    /// <summary>
     /// Lists DotCraft-managed Git worktrees registered through thread metadata.
     /// </summary>
     Task<IReadOnlyList<ThreadWorktreeStatus>> ListWorktreesAsync(

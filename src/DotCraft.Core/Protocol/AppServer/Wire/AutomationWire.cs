@@ -38,6 +38,18 @@ public sealed class AutomationTaskWire
     public string? ApprovalPolicy { get; set; }
 
     /// <summary>
+    /// Canonical declared workspace mode: <c>project</c> or <c>worktree</c>.
+    /// </summary>
+    public string WorkspaceMode { get; set; } = "project";
+
+    /// <summary>
+    /// Managed worktree identity once provisioned. Null before first dispatch, for project mode,
+    /// for bound tasks, and when a worktree task falls back to the legacy sandbox.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public AutomationTaskWorktreeWire? Worktree { get; set; }
+
+    /// <summary>
     /// Optional recurring schedule. When omitted, the task is one-shot (runs once from <c>pending</c>).
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -54,6 +66,13 @@ public sealed class AutomationTaskWire
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public DateTimeOffset? NextRunAt { get; set; }
+}
+
+public sealed class AutomationTaskWorktreeWire
+{
+    public string BranchName { get; set; } = string.Empty;
+
+    public string Path { get; set; } = string.Empty;
 }
 
 /// <summary>
@@ -130,7 +149,7 @@ public sealed class AutomationTaskCreateParams
     public string? ApprovalPolicy { get; set; }
 
     /// <summary>
-    /// When <see cref="WorkflowTemplate"/> is omitted, written into generated <c>workflow.md</c> as <c>workspace: project|isolated</c>.
+    /// When <see cref="WorkflowTemplate"/> is omitted, written into generated <c>workflow.md</c> as <c>workspace: project|worktree</c>.
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? WorkspaceMode { get; set; }
@@ -162,6 +181,12 @@ public sealed class AutomationTaskDeleteParams
     public string TaskId { get; set; } = string.Empty;
 }
 
+public sealed class AutomationTaskDiscardWorktreeParams
+{
+    public string WorkspacePath { get; set; } = string.Empty;
+    public string TaskId { get; set; } = string.Empty;
+}
+
 public sealed class AutomationTaskRunParams
 {
     public string WorkspacePath { get; set; } = string.Empty;
@@ -173,9 +198,14 @@ public sealed class AutomationTaskRunResult
     public AutomationTaskWire Task { get; set; } = new();
 }
 
+public sealed class AutomationTaskDiscardWorktreeResult
+{
+    public AutomationTaskWire Task { get; set; } = new();
+}
+
 /// <summary>
 /// Params for <see cref="AppServerMethods.AutomationTaskUpdateBinding"/>.
-/// When <see cref="ThreadBinding"/> is null the task is unbound (reverts to isolated automation thread).
+/// When <see cref="ThreadBinding"/> is null the task is unbound (uses its own automation thread).
 /// </summary>
 public sealed class AutomationTaskUpdateBindingParams
 {

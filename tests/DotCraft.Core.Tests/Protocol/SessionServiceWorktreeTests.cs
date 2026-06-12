@@ -149,6 +149,15 @@ public sealed class SessionServiceWorktreeTests : IDisposable
         Assert.Equal(_tempDir, seen.BotPath);
         Assert.StartsWith(Path.Combine(_tempDir, "memory"), seen.MemoryStore.MemoryDirectoryPath, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(Path.Combine(_tempDir, "skills"), seen.SkillsLoader.WorkspaceSkillsPath);
+
+        var guard = new FileAccessGuard(seen.WorkspacePath, requireApprovalOutsideWorkspace: false);
+        var worktreeFile = Path.Combine(result.Worktree.Path, "README.md");
+        var projectFile = Path.Combine(_tempDir, "README.md");
+        Assert.Null(await guard.ValidatePathAsync(worktreeFile, "read", worktreeFile));
+        Assert.Contains(
+            "outside workspace boundary",
+            await guard.ValidatePathAsync(projectFile, "read", projectFile),
+            StringComparison.Ordinal);
     }
 
     [Fact]
@@ -269,6 +278,156 @@ public sealed class SessionServiceWorktreeTests : IDisposable
         Assert.Equal(worktreePath, (await _store.LoadThreadAsync(thread.Id))?.Worktree?.Path);
     }
 
+    [Fact]
+    public async Task EnsureManagedWorktreeAsync_CreatesReusableTaskWorktreeWithoutDirtyHandoff()
+    {
+        await using var agentFactory = CreateAgentFactory();
+        var service = CreateService(agentFactory);
+        var thread = await service.CreateThreadAsync(MakeIdentity(), displayName: "Task worktree");
+
+        File.WriteAllText(Path.Combine(_tempDir, "README.md"), "dirty local" + Environment.NewLine);
+        File.WriteAllText(Path.Combine(_tempDir, "notes.txt"), "local only" + Environment.NewLine);
+
+        var path = Path.Combine(_tempDir, ".craft", "worktrees", "task-weekly-report");
+        var result = await service.EnsureManagedWorktreeAsync(new WorktreeEnsureOptions
+        {
+            ThreadId = thread.Id,
+            BranchName = "dotcraft/task-weekly-report",
+            Path = path,
+            OwnerKind = "automationTask",
+            OwnerId = "weekly-report"
+        });
+
+        Assert.Equal(path, result.Worktree.Path);
+        Assert.Equal("dotcraft/task-weekly-report", result.Worktree.BranchName);
+        Assert.NotEmpty(result.Worktree.BaseHead);
+        Assert.Equal("automationTask", result.Worktree.OwnerKind);
+        Assert.Equal("weekly-report", result.Worktree.OwnerId);
+        Assert.Equal(path, result.Thread.Configuration?.ExecutionWorkspaceOverride);
+        Assert.Equal(path, result.Thread.Worktree?.Path);
+        Assert.Equal("initial" + Environment.NewLine, File.ReadAllText(Path.Combine(path, "README.md")));
+        Assert.False(File.Exists(Path.Combine(path, "notes.txt")));
+        Assert.False(Directory.Exists(Path.Combine(path, ".craft", "threads")));
+
+        File.WriteAllText(Path.Combine(path, "worktree-state.txt"), "kept" + Environment.NewLine);
+        var reused = await service.EnsureManagedWorktreeAsync(new WorktreeEnsureOptions
+        {
+            ThreadId = thread.Id,
+            BranchName = "dotcraft/task-weekly-report",
+            Path = path,
+            OwnerKind = "automationTask",
+            OwnerId = "weekly-report"
+        });
+
+        Assert.True(reused.Reused);
+        Assert.Equal("kept" + Environment.NewLine, File.ReadAllText(Path.Combine(path, "worktree-state.txt")));
+        Assert.Equal("automationTask", reused.Worktree.OwnerKind);
+        Assert.Equal("weekly-report", reused.Worktree.OwnerId);
+    }
+
+    [Fact]
+    public async Task GetWorktreeStatusAsync_ReportsDirtyAndCommitsAheadOfBase()
+    {
+        await using var agentFactory = CreateAgentFactory();
+        var service = CreateService(agentFactory);
+        var thread = await service.CreateThreadAsync(MakeIdentity(), displayName: "Task status");
+        var path = Path.Combine(_tempDir, ".craft", "worktrees", "task-status");
+
+        var created = await service.EnsureManagedWorktreeAsync(new WorktreeEnsureOptions
+        {
+            ThreadId = thread.Id,
+            BranchName = "dotcraft/task-status",
+            Path = path,
+            OwnerKind = "automationTask",
+            OwnerId = "status"
+        });
+
+        var clean = await service.GetWorktreeStatusAsync(thread.Id);
+        Assert.True(clean.Exists);
+        Assert.False(clean.HasUncommittedChanges);
+        Assert.False(clean.HasCommitsAheadOfBase);
+        Assert.Equal(0, clean.AheadCount);
+
+        File.WriteAllText(Path.Combine(created.Worktree.Path, "status.txt"), "pending" + Environment.NewLine);
+
+        var dirty = await service.GetWorktreeStatusAsync(thread.Id);
+        Assert.True(dirty.HasUncommittedChanges);
+        Assert.False(dirty.HasCommitsAheadOfBase);
+        Assert.Equal(0, dirty.AheadCount);
+
+        RunGitCapture(created.Worktree.Path, "add", "status.txt");
+        RunGitCapture(created.Worktree.Path, "commit", "-m", "status");
+
+        var committed = await service.GetWorktreeStatusAsync(thread.Id);
+        Assert.False(committed.HasUncommittedChanges);
+        Assert.True(committed.HasCommitsAheadOfBase);
+        Assert.Equal(1, committed.AheadCount);
+        Assert.Equal("automationTask", committed.Worktree.OwnerKind);
+        Assert.Equal("status", committed.Worktree.OwnerId);
+    }
+
+    [Fact]
+    public async Task EnsureManagedWorktreeAsync_RecreatesMissingDirectoryFromExistingBranch()
+    {
+        await using var agentFactory = CreateAgentFactory();
+        var service = CreateService(agentFactory);
+        var thread = await service.CreateThreadAsync(MakeIdentity(), displayName: "Task recreate");
+        var path = Path.Combine(_tempDir, ".craft", "worktrees", "task-recreate");
+
+        var created = await service.EnsureManagedWorktreeAsync(new WorktreeEnsureOptions
+        {
+            ThreadId = thread.Id,
+            BranchName = "dotcraft/task-recreate",
+            Path = path
+        });
+
+        File.WriteAllText(Path.Combine(created.Worktree.Path, "marker.txt"), "from branch" + Environment.NewLine);
+        RunGitCapture(created.Worktree.Path, "add", "marker.txt");
+        RunGitCapture(created.Worktree.Path, "commit", "-m", "marker");
+        RunGitCapture(_tempDir, "worktree", "remove", "--force", created.Worktree.Path);
+
+        var recreated = await service.EnsureManagedWorktreeAsync(new WorktreeEnsureOptions
+        {
+            ThreadId = thread.Id,
+            BranchName = "dotcraft/task-recreate",
+            Path = path
+        });
+
+        Assert.True(Directory.Exists(recreated.Worktree.Path));
+        Assert.Equal("from branch" + Environment.NewLine, File.ReadAllText(Path.Combine(recreated.Worktree.Path, "marker.txt")));
+        Assert.Equal("dotcraft/task-recreate", RunGitCapture(recreated.Worktree.Path, "branch", "--show-current").Trim());
+    }
+
+    [Fact]
+    public async Task RemoveManagedWorktreeAsync_RemovesWorktreeAndManagedBranch()
+    {
+        await using var agentFactory = CreateAgentFactory();
+        var service = CreateService(agentFactory);
+        var thread = await service.CreateThreadAsync(MakeIdentity(), displayName: "Task remove");
+        var path = Path.Combine(_tempDir, ".craft", "worktrees", "task-remove");
+
+        var created = await service.EnsureManagedWorktreeAsync(new WorktreeEnsureOptions
+        {
+            ThreadId = thread.Id,
+            BranchName = "dotcraft/task-remove",
+            Path = path
+        });
+
+        await service.RemoveManagedWorktreeAsync(new WorktreeRemoveOptions
+        {
+            ThreadId = thread.Id,
+            WorkspacePath = _tempDir,
+            BranchName = "dotcraft/task-remove",
+            Path = created.Worktree.Path
+        });
+
+        Assert.False(Directory.Exists(created.Worktree.Path));
+        Assert.NotEqual(0, RunGitExitCode(_tempDir, "rev-parse", "--verify", "refs/heads/dotcraft/task-remove"));
+        var loaded = await _store.LoadThreadAsync(thread.Id);
+        Assert.Null(loaded?.Worktree);
+        Assert.Null(loaded?.Configuration?.ExecutionWorkspaceOverride);
+    }
+
     private SessionService CreateService(AgentFactory agentFactory)
     {
         var defaultAgent = agentFactory.CreateAgentForMode(AgentMode.Agent);
@@ -363,6 +522,33 @@ public sealed class SessionServiceWorktreeTests : IDisposable
         if (process.ExitCode != 0)
             throw new InvalidOperationException($"git {string.Join(" ", args)} failed: {stderr}");
         return stdout;
+    }
+
+    private static int RunGitExitCode(string workingDirectory, params string[] args)
+    {
+        var psi = new ProcessStartInfo
+        {
+            FileName = "git",
+            WorkingDirectory = workingDirectory,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            RedirectStandardInput = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+        foreach (var arg in args)
+            psi.ArgumentList.Add(arg);
+
+        using var process = Process.Start(psi)
+            ?? throw new InvalidOperationException("Failed to start git setup command.");
+        process.StandardInput.Close();
+        if (!process.WaitForExit(30_000))
+        {
+            process.Kill(entireProcessTree: true);
+            throw new TimeoutException($"git {string.Join(" ", args)} timed out.");
+        }
+
+        return process.ExitCode;
     }
 
     private sealed class RecordingToolProvider : IAgentToolProvider
