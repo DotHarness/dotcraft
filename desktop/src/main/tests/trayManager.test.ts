@@ -20,6 +20,10 @@ const activationMocks = vi.hoisted(() => ({
   requestWorkspaceWindowState: vi.fn<() => Promise<WorkspaceWindowState | null>>(async () => null)
 }))
 
+const desktopActivationLockMocks = vi.hoisted(() => ({
+  getDesktopActivationEndpoint: vi.fn(() => null)
+}))
+
 const electronMocks = vi.hoisted(() => {
   const show = vi.fn()
   let clickHandler: (() => void) | null = null
@@ -52,6 +56,8 @@ vi.mock('child_process', () => childProcessMocks)
 vi.mock('../workspaceLock', () => workspaceLockMocks)
 
 vi.mock('../desktopActivation', () => activationMocks)
+
+vi.mock('../desktopActivationLock', () => desktopActivationLockMocks)
 
 vi.mock('fs', () => ({
   existsSync: vi.fn(() => true)
@@ -111,6 +117,7 @@ describe('trayManager notifications', () => {
     workspaceLockMocks.checkWorkspaceLock.mockReturnValue({ locked: false })
     activationMocks.requestWorkspaceActivation.mockResolvedValue(false)
     activationMocks.requestWorkspaceWindowState.mockResolvedValue(null)
+    desktopActivationLockMocks.getDesktopActivationEndpoint.mockReturnValue(null)
   })
 
   it('parses Hub notification events', async () => {
@@ -413,6 +420,7 @@ describe('trayManager notifications', () => {
 describe('trayManager process launches', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    desktopActivationLockMocks.getDesktopActivationEndpoint.mockReturnValue(null)
   })
 
   it('launches Desktop windows visibly with a workspace argument', async () => {
@@ -488,6 +496,30 @@ describe('trayManager process launches', () => {
       stdio: 'ignore',
       windowsHide: true
     })
+  })
+
+  it('reuses the existing macOS Desktop window before spawning a new process', async () => {
+    const originalPlatform = process.platform
+    Object.defineProperty(process, 'platform', { value: 'darwin' })
+    activationMocks.requestWorkspaceActivation.mockResolvedValue(true)
+    desktopActivationLockMocks.getDesktopActivationEndpoint.mockReturnValue({
+      host: '127.0.0.1',
+      port: 456,
+      token: 'desktop-token',
+      protocolVersion: 1
+    })
+    try {
+      const { openDesktopWindow } = await import('../trayManager')
+      await openDesktopWindow('E:/examples/workspace')
+
+      expect(activationMocks.requestWorkspaceActivation).toHaveBeenCalledWith(
+        expect.objectContaining({ port: 456, token: 'desktop-token' }),
+        { workspacePath: 'E:/examples/workspace', threadId: null }
+      )
+      expect(childProcessMocks.spawn).not.toHaveBeenCalled()
+    } finally {
+      Object.defineProperty(process, 'platform', { value: originalPlatform })
+    }
   })
 
   it('does not launch a macOS tray process when menu bar visibility is disabled', async () => {

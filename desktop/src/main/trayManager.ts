@@ -16,6 +16,7 @@ import { DEFAULT_LOCALE, normalizeLocale, translate, type AppLocale } from '../s
 import { resolveDotCraftRuntimeTools } from './ripgrepRuntime'
 import { checkWorkspaceLock } from './workspaceLock'
 import { requestWorkspaceActivation, requestWorkspaceWindowState } from './desktopActivation'
+import { getDesktopActivationEndpoint } from './desktopActivationLock'
 import {
   buildWorkspaceOpenDeepLink,
   parseWorkspaceOpenDeepLink
@@ -174,6 +175,17 @@ export function spawnDesktopWindow(workspacePath?: string, threadId?: string | n
 export async function openDesktopWindow(workspacePath?: string | null, threadId?: string | null): Promise<void> {
   const path = workspacePath?.trim()
   if (path) {
+    if (process.platform === 'darwin') {
+      const desktopActivation = getDesktopActivationEndpoint()
+      if (desktopActivation) {
+        const activated = await requestWorkspaceActivation(desktopActivation, {
+          workspacePath: path,
+          threadId: threadId ?? null
+        })
+        if (activated) return
+      }
+    }
+
     const lock = checkWorkspaceLock(path)
     if (lock.activation) {
       const activated = await requestWorkspaceActivation(lock.activation, {

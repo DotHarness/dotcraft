@@ -71,6 +71,10 @@ import {
   type WorkspaceActivationEndpoint
 } from './workspaceLock'
 import {
+  releaseDesktopActivationLock,
+  updateDesktopActivationLock
+} from './desktopActivationLock'
+import {
   startWorkspaceActivationServer,
   type WorkspaceActivationHandle
 } from './desktopActivation'
@@ -547,10 +551,11 @@ function disposeWorkspaceConnection(entry: WorkspaceConnectionEntry): void {
 }
 
 function canActivateWorkspaceInThisWindow(workspacePath: string): boolean {
-  return !activeRemoteProject && Boolean(currentWorkspacePath && isSameWorkspacePath(currentWorkspacePath, workspacePath))
+  return !activeRemoteProject && workspacePath.trim().length > 0
 }
 
 function publishWorkspaceActivation(endpoint: WorkspaceActivationEndpoint): void {
+  updateDesktopActivationLock(endpoint)
   if (currentWorkspacePath && !activeRemoteProject) {
     updateWorkspaceLockActivation(currentWorkspacePath, endpoint)
   }
@@ -1179,11 +1184,12 @@ function stopWorkspaceActivation(): void {
   workspaceActivationStartingFor = ''
   workspaceActivation?.handle.close()
   workspaceActivation = null
+  releaseDesktopActivationLock()
 }
 
 function ensureWorkspaceActivation(workspacePath: string): void {
   const win = mainWindow
-  if (!workspacePath || !win || win.isDestroyed()) return
+  if (!win || win.isDestroyed()) return
   if (workspaceActivation?.workspacePath === workspacePath) {
     publishWorkspaceActivation(workspaceActivation.handle.endpoint)
     return
@@ -2345,6 +2351,7 @@ async function clearWorkspaceSelection(): Promise<void> {
   }
   setViewerWorkspaceRoot('')
   currentWorkspacePath = ''
+  ensureWorkspaceActivation('')
   delete sharedSettings.lastWorkspacePath
   saveSettings(sharedSettings)
 
@@ -2825,8 +2832,8 @@ app.whenReady().then(async () => {
   const win = createWindow(workspacePath, initialWorkspaceStatus)
   mainWindow = win
   currentWorkspacePath = workspacePath ?? ''
-  if (workspacePath && !initialActiveStack) {
-    ensureWorkspaceActivation(workspacePath)
+  if (!initialActiveStack) {
+    ensureWorkspaceActivation(workspacePath ?? '')
   }
   setViewerWorkspaceRoot(workspacePath ?? '')
 
@@ -2855,6 +2862,12 @@ app.whenReady().then(async () => {
     }
   })
 
+  win.on('focus', () => {
+    if (workspaceActivation) {
+      publishWorkspaceActivation(workspaceActivation.handle.endpoint)
+    }
+  })
+
   app.on('activate', () => {
     const windows = BrowserWindow.getAllWindows()
     if (windows.length === 0) {
@@ -2879,8 +2892,8 @@ app.whenReady().then(async () => {
       const newWin = createWindow(wsPath, workspaceStatus)
       mainWindow = newWin
       currentWorkspacePath = wsPath ?? ''
-      if (wsPath && !activeStack) {
-        ensureWorkspaceActivation(wsPath)
+      if (!activeStack) {
+        ensureWorkspaceActivation(wsPath ?? '')
       }
 
       if (wsPath) {
