@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ThreePanel, resolveDetailPanelWidth } from '../components/layout/ThreePanel'
 import { useThreadStore } from '../stores/threadStore'
 import {
@@ -77,6 +77,16 @@ describe('resolveDetailPanelWidth', () => {
 
 describe('ThreePanel sidebar resize', () => {
   beforeEach(() => {
+    const toggleMaximize = vi.fn().mockResolvedValue(false)
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {
+        platform: 'win32',
+        window: {
+          toggleMaximize
+        }
+      }
+    })
     Object.defineProperty(window, 'innerWidth', {
       configurable: true,
       writable: true,
@@ -167,6 +177,42 @@ describe('ThreePanel sidebar resize', () => {
     )
 
     expect(container.querySelector('.drag-handle--sidebar')).not.toBeInTheDocument()
+  })
+
+  it('renders a draggable macOS safe area above the sidebar rail', () => {
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {
+        ...window.api,
+        platform: 'darwin'
+      }
+    })
+
+    renderThreePanel()
+
+    const safeArea = screen.getByTestId('mac-sidebar-safe-area') as HTMLDivElement
+    expect(safeArea).toHaveStyle({ height: '24px' })
+    expect(safeArea.style.flexShrink).toBe('0')
+  })
+
+  it('toggles maximize when the macOS safe area is double-clicked', () => {
+    const toggleMaximize = vi.fn().mockResolvedValue(false)
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {
+        ...window.api,
+        platform: 'darwin',
+        window: {
+          toggleMaximize
+        }
+      }
+    })
+
+    renderThreePanel()
+
+    fireEvent.doubleClick(screen.getByTestId('mac-sidebar-safe-area'))
+
+    expect(toggleMaximize).toHaveBeenCalledTimes(1)
   })
 
   it('accumulates repeated detail panel drag deltas without snapping back', () => {

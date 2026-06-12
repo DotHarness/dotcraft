@@ -19,6 +19,8 @@ interface ThreePanelProps {
 
 const CONVERSATION_MIN_WIDTH = 400
 const RESIZE_HANDLE_HIT_WIDTH = 8
+const MAC_SIDEBAR_TRAFFIC_LIGHT_SAFE_AREA_PX = 24
+const DRAG_REGION: CSSProperties = { WebkitAppRegion: 'drag' }
 type ResizeEdge = 'sidebar' | 'detail' | null
 
 function isDetailPanelEffectivelyVisible(
@@ -75,6 +77,7 @@ export function resolveDetailPanelWidth(
  */
 export function ThreePanel({ sidebar, conversation, detail }: ThreePanelProps): JSX.Element {
   useResponsiveLayout()
+  const isMac = (window as Window & { api?: { platform?: string } }).api?.platform === 'darwin'
 
   const {
     sidebarCollapsed,
@@ -207,9 +210,24 @@ export function ThreePanel({ sidebar, conversation, detail }: ThreePanelProps): 
             resizingEdge === 'sidebar' ? 'none' : 'width 200ms ease-out, min-width 200ms ease-out',
           background: 'transparent',
           display: 'flex',
-          flexDirection: 'column'
+          flexDirection: 'column',
+          boxSizing: 'border-box'
         }}
       >
+        {isMac && (
+          <div
+            data-testid="mac-sidebar-safe-area"
+            onDoubleClick={() => {
+              void window.api.window.toggleMaximize()
+            }}
+            style={{
+              ...DRAG_REGION,
+              height: `${MAC_SIDEBAR_TRAFFIC_LIGHT_SAFE_AREA_PX}px`,
+              flexShrink: 0,
+              userSelect: 'none'
+            }}
+          />
+        )}
         {sidebar}
       </div>
 
