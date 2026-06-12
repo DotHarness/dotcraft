@@ -388,7 +388,7 @@ public sealed class AutomationOrchestrator
                 sb.Append(" (+").Append(more).Append(" more)");
         }
 
-        _logger.LogInformation(
+        _logger.LogDebug(
             "Poll completed in {ElapsedMs}ms. {PollDetails}",
             elapsedMs,
             sb.ToString());
