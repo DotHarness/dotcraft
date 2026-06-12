@@ -56,12 +56,15 @@ function readWindowState(win: BrowserWindow, foreground: boolean): WorkspaceWind
 }
 
 export async function startWorkspaceActivationServer(options: {
-  workspacePath: string
+  workspacePath?: string | null
   getWindow: () => BrowserWindow | null
   canActivateWorkspace?: (workspacePath: string) => boolean
   isForegroundWorkspace?: (workspacePath: string) => boolean
   onActivate: (request: WorkspaceActivationRequest) => void
 }): Promise<WorkspaceActivationHandle> {
+  const primaryWorkspacePath = typeof options.workspacePath === 'string'
+    ? options.workspacePath.trim()
+    : ''
   const token = randomBytes(24).toString('base64url')
   const server = net.createServer((socket) => {
     socket.setEncoding('utf8')
@@ -85,7 +88,10 @@ export async function startWorkspaceActivationServer(options: {
               throw new Error('Activation workspace does not match this process.')
             }
             const requestedWorkspacePath = message.workspacePath
-            const canActivate = sameWorkspace(requestedWorkspacePath, options.workspacePath) ||
+            const canActivate = (
+              primaryWorkspacePath.length > 0 &&
+              sameWorkspace(requestedWorkspacePath, primaryWorkspacePath)
+            ) ||
               options.canActivateWorkspace?.(requestedWorkspacePath) === true
             if (!canActivate) {
               throw new Error('Activation workspace does not match this process.')
@@ -102,7 +108,8 @@ export async function startWorkspaceActivationServer(options: {
                 readWindowState(
                   win,
                   options.isForegroundWorkspace?.(requestedWorkspacePath) ??
-                    sameWorkspace(requestedWorkspacePath, options.workspacePath)
+                    (primaryWorkspacePath.length > 0 &&
+                      sameWorkspace(requestedWorkspacePath, primaryWorkspacePath))
                 )
               )
               continue

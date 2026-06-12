@@ -125,4 +125,33 @@ describe('desktop activation protocol', () => {
       handle.close()
     }
   })
+
+  it('can activate a workspace even when the current window has no foreground workspace yet', async () => {
+    const onActivate = vi.fn()
+    const workspace = workspacePath('dotcraft-activation-no-workspace')
+    const handle = await startWorkspaceActivationServer({
+      workspacePath: '',
+      getWindow: () => createWindowState({
+        focused: () => true,
+        visible: () => true,
+        minimized: () => false
+      }),
+      canActivateWorkspace: () => true,
+      isForegroundWorkspace: () => false,
+      onActivate
+    })
+
+    try {
+      await expect(requestWorkspaceActivation(handle.endpoint, {
+        workspacePath: workspace,
+        threadId: 'thread_3'
+      })).resolves.toBe(true)
+      expect(onActivate).toHaveBeenCalledWith({
+        workspacePath: workspace,
+        threadId: 'thread_3'
+      })
+    } finally {
+      handle.close()
+    }
+  })
 })

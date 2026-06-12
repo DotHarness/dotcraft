@@ -8,9 +8,15 @@ import { useThreadStore } from '../../stores/threadStore'
 import { FilePlus2, ListChecks, SquareTerminal, Plus, X, Globe, PanelRightClose, MousePointer2 } from 'lucide-react'
 import { ChangesTab } from '../detail/ChangesTab'
 import { PlanTab } from '../detail/PlanTab'
+import { AddTabPopupWindow } from '../detail/AddTabPopupWindow'
 import { DetailPanelLauncher } from '../detail/DetailPanelLauncher'
 import { FileTypeIcon } from '../ui/FileTypeIcon'
-import type { AddTabMenuAction, AddTabMenuRequest } from '../../../shared/addTabMenu'
+import {
+  resolveAddTabPopupPayload,
+  type AddTabMenuAction,
+  type AddTabPopupPayload,
+  type AddTabMenuRequest
+} from '../../../shared/addTabMenu'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { ACTION_SHORTCUTS, formatShortcutParts, type ShortcutSpec } from '../ui/shortcutKeys'
 import { performAddTabAction } from '../../utils/detailTabActions'
@@ -67,6 +73,7 @@ export function DetailPanel({
   const changedFileCount = changedFiles.size
 
   const addButtonRef = useRef<HTMLButtonElement>(null)
+  const [addTabMenu, setAddTabMenu] = useState<AddTabPopupPayload | null>(null)
 
   const activeSystemId = activeDetailTab.kind === 'system' ? activeDetailTab.id : null
   const activeViewerId = activeDetailTab.kind === 'viewer' ? activeDetailTab.id : null
@@ -118,7 +125,11 @@ export function DetailPanel({
     performAddTabAction(action, { threadId: activeThreadId, workspacePath, t })
   }
 
-  const handleOpenAddTabMenu = async (): Promise<void> => {
+  const handleOpenAddTabMenu = (): void => {
+    if (addTabMenu) {
+      setAddTabMenu(null)
+      return
+    }
     const anchor = addButtonRef.current?.getBoundingClientRect()
     if (!anchor) return
     const canOpenWorkspaceTab = Boolean(activeThreadId && workspacePath)
@@ -173,8 +184,10 @@ export function DetailPanel({
             }])
       ]
     }
-    const action = await window.api.menu.popupAddTabMenu(request)
-    handleAddTabAction(action)
+    setAddTabMenu(resolveAddTabPopupPayload(request, {
+      width: window.innerWidth,
+      height: window.innerHeight
+    }))
   }
 
   const systemTabMeta: Record<SystemDetailTab, { label: string; icon: JSX.Element; badge?: number }> = {
@@ -298,6 +311,14 @@ export function DetailPanel({
             <Plus size={14} aria-hidden style={{ display: 'block' }} />
           </button>
         </ActionTooltip>
+
+        <AddTabPopupWindow
+          payload={addTabMenu}
+          onResolve={(action) => {
+            setAddTabMenu(null)
+            handleAddTabAction(action)
+          }}
+        />
 
         <div style={{ flex: 1 }} />
 

@@ -423,7 +423,7 @@ function installApi(
         listBranches: gitListBranches
       },
       menu: {
-        popupAddTabMenu: vi.fn().mockResolvedValue(null)
+        popupTopLevel: vi.fn().mockResolvedValue(undefined)
       }
     }
   })

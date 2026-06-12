@@ -77,9 +77,6 @@ beforeEach(() => {
         get: async () => ({ locale: 'en' })
       },
       platform: 'win32',
-      menu: {
-        popupAddTabMenu: vi.fn(async () => null)
-      },
       workspace: {
         viewer: {
           browser: {
@@ -387,7 +384,7 @@ describe('detail panel add-tab menu', () => {
     )
   }
 
-  it('passes anchor and enabled state to the popover request', async () => {
+  it('renders add-tab menu items with enabled state based on workspace context', async () => {
     cs().setWorkspacePath('/workspace/path')
     useThreadStore.getState().setActiveThreadId('thread-1')
     useViewerTabStore.getState().onThreadSwitched('thread-1')
@@ -395,21 +392,11 @@ describe('detail panel add-tab menu', () => {
 
     fireEvent.click(screen.getByLabelText('Add tab'))
 
-    await waitFor(() => {
-      expect(window.api.menu.popupAddTabMenu).toHaveBeenCalledWith(expect.objectContaining({
-        anchor: expect.objectContaining({
-          left: expect.any(Number),
-          top: expect.any(Number),
-          right: expect.any(Number),
-          bottom: expect.any(Number)
-        }),
-        items: expect.arrayContaining([
-          expect.objectContaining({ action: 'openFile', enabled: true }),
-          expect.objectContaining({ action: 'newBrowser', enabled: true }),
-          expect.objectContaining({ action: 'newTerminal', enabled: true })
-        ])
-      }))
-    })
+    const menu = await screen.findByRole('menu', { name: 'Add tab' })
+    expect(menu).toBeTruthy()
+    expect(screen.getByRole('menuitem', { name: /Open File/ })).not.toHaveProperty('disabled', true)
+    expect(screen.getByRole('menuitem', { name: /Browser/ })).not.toHaveProperty('disabled', true)
+    expect(screen.getByRole('menuitem', { name: /Terminal/ })).not.toHaveProperty('disabled', true)
   })
 
   it('disables browser and terminal menu items without an active workspace thread', async () => {
@@ -417,34 +404,18 @@ describe('detail panel add-tab menu', () => {
 
     fireEvent.click(screen.getByLabelText('Add tab'))
 
-    await waitFor(() => {
-      expect(window.api.menu.popupAddTabMenu).toHaveBeenCalledWith(expect.objectContaining({
-        items: expect.arrayContaining([
-          expect.objectContaining({ action: 'openFile', enabled: true }),
-          expect.objectContaining({ action: 'newBrowser', enabled: false }),
-          expect.objectContaining({ action: 'newTerminal', enabled: false })
-        ])
-      }))
-    })
+    expect(await screen.findByRole('menuitem', { name: /Open File/ })).not.toHaveProperty('disabled', true)
+    expect(screen.getByRole('menuitem', { name: /Browser/ })).toHaveProperty('disabled', true)
+    expect(screen.getByRole('menuitem', { name: /Terminal/ })).toHaveProperty('disabled', true)
   })
 
-  it('offers Diff and Progress entries that open the system tabs', async () => {
+  it('offers Changes and Checks entries that open the system tabs', async () => {
     useUIStore.setState({ openSystemTabs: [], activeDetailTab: { kind: 'launcher' } })
-    vi.mocked(window.api.menu.popupAddTabMenu).mockResolvedValueOnce('newPlan')
     render(createElement(Harness, { workspacePath: '' }))
 
     fireEvent.click(screen.getByLabelText('Add tab'))
 
-    await waitFor(() => {
-      expect(window.api.menu.popupAddTabMenu).toHaveBeenCalledWith(expect.objectContaining({
-        items: expect.arrayContaining([
-          expect.objectContaining({ action: 'newBrowser', shortcut: 'Ctrl+T' }),
-          expect.objectContaining({ action: 'newTerminal', shortcut: 'Ctrl+`' }),
-          expect.objectContaining({ action: 'newChanges', shortcut: 'Ctrl+Shift+G', enabled: true }),
-          expect.objectContaining({ action: 'newPlan', shortcut: 'Ctrl+Shift+P', enabled: true })
-        ])
-      }))
-    })
+    fireEvent.click(await screen.findByRole('menuitem', { name: /Checks/ }))
     await waitFor(() => {
       expect(ui().activeDetailTab).toEqual({ kind: 'system', id: 'plan' })
     })
@@ -452,11 +423,10 @@ describe('detail panel add-tab menu', () => {
   })
 
   it('opens Quick Open when the menu returns openFile', async () => {
-    window.api.menu.popupAddTabMenu = vi.fn(async () => 'openFile' as const)
-
     render(createElement(Harness, {}))
 
     fireEvent.click(screen.getByLabelText('Add tab'))
+    fireEvent.click(await screen.findByRole('menuitem', { name: /Open File/ }))
 
     await waitFor(() => {
       expect(useUIStore.getState().quickOpenVisible).toBe(true)
@@ -464,21 +434,15 @@ describe('detail panel add-tab menu', () => {
   })
 
   it('does nothing when the menu is dismissed', async () => {
-    window.api.menu.popupAddTabMenu = vi.fn(async () => null)
-
     render(createElement(Harness, {}))
 
     fireEvent.click(screen.getByLabelText('Add tab'))
-
-    await waitFor(() => {
-      expect(window.api.menu.popupAddTabMenu).toHaveBeenCalled()
-    })
+    fireEvent.keyDown(window, { key: 'Escape' })
     expect(useUIStore.getState().activeDetailTab).toEqual({ kind: 'system', id: 'changes' })
     expect(useViewerTabStore.getState().getThreadState('thread-1').tabs).toHaveLength(0)
   })
 
   it('opens a browser viewer tab when the menu returns newBrowser', async () => {
-    window.api.menu.popupAddTabMenu = vi.fn(async () => 'newBrowser' as const)
     cs().setWorkspacePath('/workspace/path')
     useThreadStore.getState().setActiveThreadId('thread-1')
     useViewerTabStore.getState().onThreadSwitched('thread-1')
@@ -486,6 +450,7 @@ describe('detail panel add-tab menu', () => {
     render(createElement(Harness, {}))
 
     fireEvent.click(screen.getByLabelText('Add tab'))
+    fireEvent.click(await screen.findByRole('menuitem', { name: /Browser/ }))
 
     await waitFor(() => {
       expect(useUIStore.getState().activeDetailTab.kind).toBe('viewer')
@@ -500,7 +465,6 @@ describe('detail panel add-tab menu', () => {
   })
 
   it('opens a terminal viewer tab when the menu returns newTerminal', async () => {
-    window.api.menu.popupAddTabMenu = vi.fn(async () => 'newTerminal' as const)
     cs().setWorkspacePath('/workspace/path')
     useThreadStore.getState().setActiveThreadId('thread-1')
     useViewerTabStore.getState().onThreadSwitched('thread-1')
@@ -508,6 +472,7 @@ describe('detail panel add-tab menu', () => {
     render(createElement(Harness, {}))
 
     fireEvent.click(screen.getByLabelText('Add tab'))
+    fireEvent.click(await screen.findByRole('menuitem', { name: /Terminal/ }))
 
     await waitFor(() => {
       const active = useUIStore.getState().activeDetailTab

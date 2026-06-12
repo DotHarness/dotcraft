@@ -18,7 +18,6 @@ import {
   TITLE_BAR_OVERLAY_RIGHT_RESERVE
 } from '../shared/titleBarOverlay'
 import type { TopLevelMenuId } from '../shared/locales/types'
-import type { AddTabMenuAction, AddTabMenuRequest, AddTabPopupPayload } from '../shared/addTabMenu'
 import type {
   BrowserUseApprovalRequestPayload,
   BrowserUseClosePayload,
@@ -485,20 +484,6 @@ const api = {
   menu: {
     popupTopLevel(menuId: TopLevelMenuId, x: number, y: number): Promise<void> {
       return ipcRenderer.invoke('menu:popup-top-level', { menuId, x, y })
-    },
-    popupAddTabMenu(request: AddTabMenuRequest): Promise<AddTabMenuAction | null> {
-      return ipcRenderer.invoke('menu:popup-add-tab', request)
-    },
-    getAddTabMenuPayload(): Promise<AddTabPopupPayload | null> {
-      return ipcRenderer.invoke('menu:add-tab-popup-payload')
-    },
-    onAddTabMenuPayload(listener: (payload: AddTabPopupPayload) => void): UnsubscribeFn {
-      const wrapped = (_event: Electron.IpcRendererEvent, payload: AddTabPopupPayload) => listener(payload)
-      ipcRenderer.on('menu:add-tab-popup-payload', wrapped)
-      return () => ipcRenderer.removeListener('menu:add-tab-popup-payload', wrapped)
-    },
-    resolveAddTabMenu(action: AddTabMenuAction | null): Promise<void> {
-      return ipcRenderer.invoke('menu:add-tab-popup-result', action)
     }
   },
 
