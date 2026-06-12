@@ -1337,7 +1337,7 @@ export const MESSAGES_JA = {
   'auto.newTask.tab.task': 'タスクの作成',
   'auto.newTask.tab.template': 'テンプレートの作成',
   'auto.newTask.tabAria': 'タスクまたはテンプレートを作成する',
-  'auto.newTask.targetBindThread': 'チャット…',
+  'auto.newTask.targetBindThread': 'チャット',
   'auto.newTask.targetChatHint': '既存のチャット内で実行し、そのワークスペースを共有します。',
   'auto.newTask.targetIsolated': 'Worktree',
   'auto.newTask.targetProject': 'ローカル',

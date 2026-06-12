@@ -2070,7 +2070,7 @@ export const MESSAGES_ZH_HANS = {
   'auto.newTask.create': '创建任务',
   'auto.newTask.targetIsolated': 'Worktree',
   'auto.newTask.targetProject': '本地',
-  'auto.newTask.targetBindThread': '会话…',
+  'auto.newTask.targetBindThread': '会话',
   'auto.newTask.targetChatHint': '在现有会话中运行，共享其工作区。',
   'auto.newTask.scheduleOnce': '仅运行一次',
   'auto.newTask.scheduleEveryHour': '每小时',

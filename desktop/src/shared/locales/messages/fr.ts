@@ -1343,7 +1343,7 @@ export const MESSAGES_FR = {
   'auto.newTask.tab.task': 'Créer une tâche',
   'auto.newTask.tab.template': 'Créer un modèle',
   'auto.newTask.tabAria': 'Créer une tâche ou un modèle',
-  'auto.newTask.targetBindThread': 'Chat…',
+  'auto.newTask.targetBindThread': 'Chat',
   'auto.newTask.targetChatHint': 'S\'exécute dans une conversation existante et partage son espace de travail.',
   'auto.newTask.targetIsolated': 'Worktree',
   'auto.newTask.targetProject': 'Local',

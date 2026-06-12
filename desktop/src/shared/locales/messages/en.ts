@@ -2165,7 +2165,7 @@ export const MESSAGES_EN = {
   'auto.newTask.create': 'Create Task',
   'auto.newTask.targetIsolated': 'Worktree',
   'auto.newTask.targetProject': 'Local',
-  'auto.newTask.targetBindThread': 'Chat…',
+  'auto.newTask.targetBindThread': 'Chat',
   'auto.newTask.targetChatHint': 'Runs in an existing chat and shares its workspace.',
   'auto.newTask.scheduleOnce': 'Run once',
   'auto.newTask.scheduleEveryHour': 'Every hour',

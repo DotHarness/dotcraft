@@ -1337,7 +1337,7 @@ export const MESSAGES_KO = {
   'auto.newTask.tab.task': '작업 생성',
   'auto.newTask.tab.template': '템플릿 생성',
   'auto.newTask.tabAria': '작업 또는 템플릿 만들기',
-  'auto.newTask.targetBindThread': '채팅…',
+  'auto.newTask.targetBindThread': '채팅',
   'auto.newTask.targetChatHint': '기존 채팅에서 실행되며 해당 작업 공간을 공유합니다.',
   'auto.newTask.targetIsolated': 'Worktree',
   'auto.newTask.targetProject': '로컬',

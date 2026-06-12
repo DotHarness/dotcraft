@@ -1344,7 +1344,7 @@ export const MESSAGES_DE = {
   'auto.newTask.tab.task': 'Aufgabe erstellen',
   'auto.newTask.tab.template': 'Vorlage erstellen',
   'auto.newTask.tabAria': 'Aufgabe oder Vorlage erstellen',
-  'auto.newTask.targetBindThread': 'Chat…',
+  'auto.newTask.targetBindThread': 'Chat',
   'auto.newTask.targetChatHint': 'Läuft in einem bestehenden Chat und teilt dessen Arbeitsbereich.',
   'auto.newTask.targetIsolated': 'Worktree',
   'auto.newTask.targetProject': 'Lokal',

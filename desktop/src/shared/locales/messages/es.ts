@@ -1342,7 +1342,7 @@ export const MESSAGES_ES = {
   'auto.newTask.tab.task': 'Crear tarea',
   'auto.newTask.tab.template': 'Crear plantilla',
   'auto.newTask.tabAria': 'Crear tarea o plantilla',
-  'auto.newTask.targetBindThread': 'Chat…',
+  'auto.newTask.targetBindThread': 'Chat',
   'auto.newTask.targetChatHint': 'Se ejecuta en un chat existente y comparte su espacio de trabajo.',
   'auto.newTask.targetIsolated': 'Worktree',
   'auto.newTask.targetProject': 'Local',
