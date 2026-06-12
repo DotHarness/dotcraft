@@ -143,7 +143,9 @@ public sealed class AutomationOrchestrator
         {
             var task = (await GetAllTasksAsync(ct))
                 .FirstOrDefault(t => string.Equals(t.Id, taskId, StringComparison.Ordinal));
-            if (task is LocalAutomationTask local)
+            if (task is LocalAutomationTask local
+                && local.ThreadBinding == null
+                && (local.WorkspaceMode == AutomationWorkspaceMode.Worktree || local.Worktree != null))
             {
                 try
                 {
