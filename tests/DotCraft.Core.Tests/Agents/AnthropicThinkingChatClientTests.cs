@@ -76,7 +76,7 @@ public sealed class AnthropicThinkingChatClientTests
     }
 
     [Fact]
-    public void PrepareOptions_NonCatalogModelLeavesOptionsUnchanged()
+    public void PrepareOptions_UnlistedModelLeavesRequestShapeUnchanged()
     {
         var config = CreateConfig(
             enabled: true,
@@ -85,13 +85,14 @@ public sealed class AnthropicThinkingChatClientTests
         var client = new AnthropicThinkingChatClient(
             new CaptureChatClient(),
             config,
-            "claude-sonnet-4-5",
-            "https://api.anthropic.com");
+            "deepseek-v4-pro",
+            "https://api.deepseek.com/anthropic");
         var options = new ChatOptions { Reasoning = config.Reasoning.ToOptions() };
 
         var prepared = client.PrepareOptions(options);
 
         Assert.Same(options, prepared);
+        Assert.Null(prepared!.RawRepresentationFactory);
     }
 
     [Fact]
