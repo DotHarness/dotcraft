@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useThreadStore } from '../../stores/threadStore'
-import { selectLatestCreatePlanTurnId, useConversationStore } from '../../stores/conversationStore'
+import { selectLatestCreatePlanTurnId, useConversationStore, type PendingApproval } from '../../stores/conversationStore'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { useModelCatalogStore, type ReasoningEffortWire, type ReasoningOutputWire } from '../../stores/modelCatalogStore'
 import { addToast } from '../../stores/toastStore'
@@ -38,6 +38,10 @@ const DEFAULT_REASONING_CONFIG: ResolvedReasoningConfig = {
   enabled: false,
   effort: 'medium',
   output: 'full'
+}
+
+function approvalComposerKey(request: PendingApproval): string {
+  return `${request.source ?? 'tool'}:${request.requestId || request.itemId || request.bridgeId}`
 }
 
 /**
@@ -431,7 +435,7 @@ export function ConversationPanel({
 
       {/* Input composer */}
       {composerApproval ? (
-        <ApprovalDecisionComposer request={composerApproval} />
+        <ApprovalDecisionComposer key={approvalComposerKey(composerApproval)} request={composerApproval} />
       ) : pendingUserInput ? (
         <RequestUserInputComposer request={pendingUserInput} />
       ) : showPlanApproval && latestCreatePlanTurnId ? (

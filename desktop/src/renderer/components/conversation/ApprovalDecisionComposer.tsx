@@ -26,19 +26,41 @@ function buildToolDetailRows(request: PendingApproval, t: ReturnType<typeof useT
   return rows
 }
 
+function approvalRequestKey(request: PendingApproval): string {
+  return `${request.source ?? 'tool'}:${request.requestId || request.itemId || request.bridgeId}`
+}
+
+function approvalRequestTarget(request: PendingApproval): {
+  bridgeId: string
+  threadId: string | null
+  turnId: string | null
+  requestId: string
+  itemId: string
+} {
+  return {
+    bridgeId: request.bridgeId,
+    threadId: request.threadId,
+    turnId: request.turnId,
+    requestId: request.requestId,
+    itemId: request.itemId
+  }
+}
+
 export function ApprovalDecisionComposer({ request }: ApprovalDecisionComposerProps): JSX.Element {
   const t = useT()
+  const requestKey = useMemo(() => approvalRequestKey(request), [request])
+  const requestTarget = useMemo(() => approvalRequestTarget(request), [request])
   const [selectedIndex, setSelectedIndex] = useState(0)
-  const [submitting, setSubmitting] = useState(false)
-  const [submitted, setSubmitted] = useState(false)
-  const sendingRef = useRef(false)
+  const [submittingRequestKey, setSubmittingRequestKey] = useState<string | null>(null)
+  const [submittedRequestKey, setSubmittedRequestKey] = useState<string | null>(null)
+  const sendingRef = useRef<string | null>(null)
 
   useEffect(() => {
-    sendingRef.current = false
+    sendingRef.current = null
     setSelectedIndex(0)
-    setSubmitting(false)
-    setSubmitted(false)
-  }, [request.bridgeId, request.itemId, request.requestId])
+    setSubmittingRequestKey(null)
+    setSubmittedRequestKey(null)
+  }, [requestKey])
 
   const options = useMemo<ApprovalOptionSpec[]>(() => request.options ?? [
     {
@@ -72,19 +94,21 @@ export function ApprovalDecisionComposer({ request }: ApprovalDecisionComposerPr
   const declineValue = request.declineValue ?? 'decline'
   const declineOption = options.find((option) => option.value === declineValue)
   const locallySubmitted = request.locallySubmittedDecision != null
+  const submitting = submittingRequestKey === requestKey
+  const submitted = submittedRequestKey === requestKey
   const locked = submitting || submitted || locallySubmitted
   const canMoveUp = selectedIndex > 0
   const canMoveDown = selectedIndex + 1 < options.length
   const showFooterReject = selectedOption.value !== declineValue
 
   const sendDecision = useCallback(async (value: string): Promise<void> => {
-    if (sendingRef.current || submitted || request.locallySubmittedDecision != null) return
-    sendingRef.current = true
-    setSubmitting(true)
+    if (sendingRef.current === requestKey || submitted || request.locallySubmittedDecision != null) return
+    sendingRef.current = requestKey
+    setSubmittingRequestKey(requestKey)
 
     const failed = (err: unknown): void => {
-      sendingRef.current = false
-      setSubmitting(false)
+      if (sendingRef.current === requestKey) sendingRef.current = null
+      setSubmittingRequestKey((current) => current === requestKey ? null : current)
       addToast(t('approval.sendFailed', { error: err instanceof Error ? err.message : String(err) }), 'error')
     }
 
@@ -93,7 +117,7 @@ export function ApprovalDecisionComposer({ request }: ApprovalDecisionComposerPr
     if (request.submit) {
       try {
         await request.submit(value)
-        setSubmitted(true)
+        setSubmittedRequestKey(requestKey)
       } catch (err) {
         failed(err)
       }
@@ -101,16 +125,16 @@ export function ApprovalDecisionComposer({ request }: ApprovalDecisionComposerPr
     }
 
     const decision = value as ApprovalDecision
-    useConversationStore.getState().onApprovalSubmitStarted(decision)
+    useConversationStore.getState().onApprovalSubmitStarted(decision, requestTarget)
     try {
       await window.api.appServer.sendServerResponse(request.bridgeId, { decision })
-      useConversationStore.getState().onApprovalDecision(decision)
-      setSubmitted(true)
+      useConversationStore.getState().onApprovalDecision(decision, requestTarget)
+      setSubmittedRequestKey(requestKey)
     } catch (err) {
-      useConversationStore.getState().onApprovalSubmitFailed()
+      useConversationStore.getState().onApprovalSubmitFailed(requestTarget)
       failed(err)
     }
-  }, [request.bridgeId, request.locallySubmittedDecision, request.submit, submitted, t])
+  }, [request.bridgeId, request.locallySubmittedDecision, request.submit, requestKey, requestTarget, submitted, t])
 
   const submitSelected = useCallback((): void => {
     void sendDecision(selectedOption.value)
