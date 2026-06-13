@@ -225,9 +225,9 @@ function matchesPendingApproval(
   if (!params) return true
   if (params.threadId && pending.threadId && params.threadId !== pending.threadId) return false
   if (params.turnId && pending.turnId && params.turnId !== pending.turnId) return false
-  if (params.requestId && pending.requestId && params.requestId !== pending.requestId) return false
-  if (params.itemId && pending.itemId && params.itemId !== pending.itemId) return false
-  if (params.bridgeId && pending.bridgeId && params.bridgeId !== pending.bridgeId) return false
+  if (params.requestId) return pending.requestId === params.requestId
+  if (params.itemId) return pending.itemId === params.itemId
+  if (params.bridgeId) return pending.bridgeId === params.bridgeId
   return true
 }
 
@@ -2615,27 +2615,40 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
   },
 
   onApprovalDecision(decision, target) {
-    const state = get()
-    const queue = queueWithPendingApproval(state.pendingApprovals, state.pendingApproval)
-    const pending = target
-      ? queue.find((candidate) => matchesPendingApproval(candidate, target)) ?? null
-      : activePendingApproval(queue)
-    const itemId = pending?.itemId ?? target?.itemId ?? null
-    const requestId = pending?.requestId ?? target?.requestId ?? null
-    if (!itemId && !requestId) return
+    set((state) => {
+      const queue = queueWithPendingApproval(state.pendingApprovals, state.pendingApproval)
+      const pending = target
+        ? queue.find((candidate) => matchesPendingApproval(candidate, target)) ?? null
+        : activePendingApproval(queue)
+      const itemId = pending?.itemId ?? target?.itemId ?? null
+      const requestId = pending?.requestId ?? target?.requestId ?? null
+      if (!itemId && !requestId) return state
 
-    const newState = approvalDecisionToState[decision]
+      const newState = approvalDecisionToState[decision]
+      const pendingApprovals = pending
+        ? queue.filter((candidate) => !samePendingApproval(candidate, pending))
+        : queue
+      const nextPendingApproval = activePendingApproval(pendingApprovals)
+      const shouldRestoreRunning = state.turnStatus === 'waitingApproval' || pending != null
 
-    set((s) => ({
-      turns: s.turns.map((t) => ({
-        ...t,
-        items: t.items.map((i) =>
-          approvalCardMatchesResolution(i, itemId, requestId)
-            ? { ...i, approvalState: newState }
-            : i
-        )
-      }))
-    }))
+      return {
+        turns: state.turns.map((t) => ({
+          ...t,
+          items: t.items.map((i) =>
+            approvalCardMatchesResolution(i, itemId, requestId)
+              ? { ...i, approvalState: newState }
+              : i
+          )
+        })),
+        pendingApprovals,
+        pendingApproval: nextPendingApproval,
+        turnStatus: nextPendingApproval
+          ? 'waitingApproval'
+          : shouldRestoreRunning
+            ? 'running'
+            : state.turnStatus
+      }
+    })
   },
 
   onApprovalResolved(params) {

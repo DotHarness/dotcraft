@@ -336,7 +336,7 @@ describe('approval card state machine', () => {
     expect(s().turnStatus).toBe('running')
   })
 
-  it('applies local submission state and decision to the targeted queued approval only', () => {
+  it('applies local submission state and advances only the targeted queued approval', () => {
     s().onApprovalRequest('bridge-1', {
       ...SHELL_PARAMS,
       itemId: 'approval-item-1'
@@ -369,13 +369,14 @@ describe('approval card state machine', () => {
     const approvalItems = s().turns[0].items.filter((item) => item.type === 'approvalCard')
     expect(approvalItems.find((item) => item.id === 'approval-item-1')?.approvalState).toBe('pending')
     expect(approvalItems.find((item) => item.id === 'approval-item-2')?.approvalState).toBe('acceptedForSession')
+    expect(s().pendingApproval?.requestId).toBe('req-shell-1')
+    expect(s().pendingApprovals.map((approval) => approval.requestId)).toEqual(['req-shell-1'])
 
     s().onApprovalSubmitFailed(secondTarget)
 
     expect(s().pendingApproval?.requestId).toBe('req-shell-1')
-    expect(
-      s().pendingApprovals.find((approval) => approval.requestId === 'req-shell-2')?.locallySubmittedDecision
-    ).toBeNull()
+    expect(s().pendingApprovals.map((approval) => approval.requestId)).toEqual(['req-shell-1'])
+    expect(s().pendingApproval?.locallySubmittedDecision).toBeNull()
   })
 
   it('onApprovalDecision does nothing when no pendingApproval', () => {
