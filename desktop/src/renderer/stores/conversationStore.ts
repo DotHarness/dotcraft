@@ -104,6 +104,10 @@ interface PendingToolCompletionEntry {
   toolResult?: ConversationItem
 }
 
+interface SetTurnsOptions {
+  preserveExistingRealtime?: boolean
+}
+
 // ---------------------------------------------------------------------------
 // State interface
 // ---------------------------------------------------------------------------
@@ -373,7 +377,7 @@ interface ConversationState {
 
 interface ConversationActions {
   /** Load full turn history from thread/read */
-  setTurns(turns: ConversationTurn[] | Array<Record<string, unknown>>): void
+  setTurns(turns: ConversationTurn[] | Array<Record<string, unknown>>, options?: SetTurnsOptions): void
   /** turn/started notification */
   onTurnStarted(rawTurn: Record<string, unknown>): void
   /** turn/completed notification */
@@ -902,6 +906,214 @@ function mergePendingToolCompletionEntry(
   }
 }
 
+function isTerminalTurnStatus(status: ConversationTurn['status']): boolean {
+  return status === 'completed' || status === 'failed' || status === 'cancelled'
+}
+
+function isResolvedApprovalCard(item: ConversationItem): boolean {
+  return item.type === 'approvalCard' &&
+    item.approvalState != null &&
+    item.approvalState !== 'pending'
+}
+
+function hasToolCompletionEvidence(item: ConversationItem): boolean {
+  return item.type === 'toolCall' && (
+    item.success !== undefined ||
+    item.result !== undefined ||
+    item.resultPreview !== undefined ||
+    item.executionStatus != null ||
+    item.completedAt != null
+  )
+}
+
+function itemRealtimeKeys(item: ConversationItem): string[] {
+  const keys = [`id:${item.id}`]
+  if (item.toolCallId) {
+    keys.push(`call:${item.toolCallId}`)
+  }
+  if (item.type === 'approvalCard' && item.approvalRequestId) {
+    keys.push(`approval:${item.approvalRequestId}`)
+  }
+  return keys
+}
+
+function indexItemsByRealtimeKey(items: ConversationItem[]): Map<string, ConversationItem> {
+  const index = new Map<string, ConversationItem>()
+  for (const item of items) {
+    for (const key of itemRealtimeKeys(item)) {
+      if (!index.has(key)) {
+        index.set(key, item)
+      }
+    }
+  }
+  return index
+}
+
+function findMatchingRealtimeItem(
+  item: ConversationItem,
+  existingByKey: Map<string, ConversationItem>
+): ConversationItem | undefined {
+  for (const key of itemRealtimeKeys(item)) {
+    const existing = existingByKey.get(key)
+    if (existing) return existing
+  }
+  return undefined
+}
+
+function mergeRealtimeToolCall(
+  incoming: ConversationItem,
+  existing: ConversationItem
+): ConversationItem {
+  if (incoming.type !== 'toolCall' || existing.type !== 'toolCall') return incoming
+  if (!hasToolCompletionEvidence(existing)) return incoming
+
+  return {
+    ...incoming,
+    status: existing.status === 'completed' ? 'completed' : incoming.status,
+    result: existing.result ?? incoming.result,
+    resultPreview: existing.resultPreview ?? incoming.resultPreview,
+    success: existing.success ?? incoming.success,
+    duration: existing.duration ?? incoming.duration,
+    executionStatus: existing.executionStatus ?? incoming.executionStatus,
+    completedAt: existing.completedAt ?? incoming.completedAt
+  }
+}
+
+function mergeRealtimeApprovalCard(
+  incoming: ConversationItem,
+  existing: ConversationItem
+): ConversationItem {
+  if (incoming.type !== 'approvalCard' || existing.type !== 'approvalCard') return incoming
+  if (!isResolvedApprovalCard(existing)) return incoming
+
+  return {
+    ...incoming,
+    approvalState: existing.approvalState,
+    completedAt: existing.completedAt ?? incoming.completedAt
+  }
+}
+
+function mergeRealtimeMatchedItem(
+  incoming: ConversationItem,
+  existing: ConversationItem | undefined
+): ConversationItem {
+  if (!existing) return incoming
+  if (incoming.type === 'toolCall') {
+    return mergeRealtimeToolCall(incoming, existing)
+  }
+  if (incoming.type === 'approvalCard') {
+    return mergeRealtimeApprovalCard(incoming, existing)
+  }
+  if (
+    existing.status === 'completed' &&
+    incoming.status !== 'completed' &&
+    existing.type === incoming.type
+  ) {
+    return {
+      ...incoming,
+      status: 'completed',
+      completedAt: existing.completedAt ?? incoming.completedAt
+    }
+  }
+  return incoming
+}
+
+function mergeExistingRealtimeTurn(
+  incoming: ConversationTurn,
+  existing: ConversationTurn | undefined
+): ConversationTurn {
+  if (!existing) return incoming
+
+  const existingByKey = indexItemsByRealtimeKey(existing.items)
+  const representedKeys = new Set<string>()
+  const mergedItems = incoming.items.map((item) => {
+    const existingItem = findMatchingRealtimeItem(item, existingByKey)
+    if (existingItem) {
+      for (const key of itemRealtimeKeys(existingItem)) {
+        representedKeys.add(key)
+      }
+    }
+    for (const key of itemRealtimeKeys(item)) {
+      representedKeys.add(key)
+    }
+    return mergeRealtimeMatchedItem(item, existingItem)
+  })
+
+  for (const existingItem of existing.items) {
+    const isRepresented = itemRealtimeKeys(existingItem).some((key) => representedKeys.has(key))
+    if (isRepresented) continue
+    mergedItems.push(existingItem)
+  }
+
+  const keepExistingTerminalStatus =
+    isTerminalTurnStatus(existing.status) && !isTerminalTurnStatus(incoming.status)
+
+  return {
+    ...incoming,
+    status: keepExistingTerminalStatus ? existing.status : incoming.status,
+    completedAt: keepExistingTerminalStatus ? existing.completedAt : incoming.completedAt,
+    tokenUsage: keepExistingTerminalStatus ? existing.tokenUsage : incoming.tokenUsage,
+    error: keepExistingTerminalStatus ? existing.error : incoming.error,
+    cancelReason: keepExistingTerminalStatus ? existing.cancelReason : incoming.cancelReason,
+    items: sortItemsByCreatedAt(mergedItems)
+  }
+}
+
+function turnThreadIds(turns: ConversationTurn[]): Set<string> {
+  const ids = new Set<string>()
+  for (const turn of turns) {
+    if (turn.threadId) {
+      ids.add(turn.threadId)
+    }
+  }
+  return ids
+}
+
+function hasSharedRealtimeScope(
+  incoming: ConversationTurn[],
+  existingTurns: ConversationTurn[]
+): boolean {
+  if (existingTurns.length === 0) return true
+  if (incoming.length === 0) return false
+
+  const incomingThreadIds = turnThreadIds(incoming)
+  const existingThreadIds = turnThreadIds(existingTurns)
+  if (incomingThreadIds.size > 0 && existingThreadIds.size > 0) {
+    for (const threadId of incomingThreadIds) {
+      if (existingThreadIds.has(threadId)) {
+        return true
+      }
+    }
+    return false
+  }
+
+  const incomingTurnIds = new Set(incoming.map((turn) => turn.id))
+  return existingTurns.some((turn) => incomingTurnIds.has(turn.id))
+}
+
+function mergeExistingRealtimeTurns(
+  incoming: ConversationTurn[],
+  existingTurns: ConversationTurn[]
+): ConversationTurn[] {
+  if (existingTurns.length === 0) return incoming
+  const existingById = new Map(existingTurns.map((turn) => [turn.id, turn]))
+  const incomingIds = new Set(incoming.map((turn) => turn.id))
+  const incomingThreadIds = turnThreadIds(incoming)
+  const merged = incoming.map((turn) => mergeExistingRealtimeTurn(turn, existingById.get(turn.id)))
+  for (const existing of existingTurns) {
+    if (
+      !incomingIds.has(existing.id) &&
+      incomingThreadIds.size > 0 &&
+      incomingThreadIds.has(existing.threadId)
+    ) {
+      merged.push(existing)
+    }
+  }
+  return merged.sort(
+    (a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime()
+  )
+}
+
 function findMatchingCommandExecution(
   items: ConversationItem[],
   toolCallId: string | undefined
@@ -1307,7 +1519,7 @@ function parseStreamRetryAttempt(message: string): Pick<StreamRetrySignal, 'atte
 export const useConversationStore = create<ConversationStore>((set, get) => ({
   ...initialState,
 
-  setTurns(turns) {
+  setTurns(turns, options = {}) {
     const converted = (turns as Array<Record<string, unknown>>).map((t) => {
       const maybeTurn = t as unknown as ConversationTurn
       if (typeof maybeTurn.items !== 'undefined' && !Array.isArray(maybeTurn.items)) {
@@ -1418,7 +1630,15 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
 
     // If the loaded history contains a non-terminal turn (e.g. switching back to a thread
     // that had an active turn or is waiting on a user decision), restore active state.
-    const activeTurn = [...rehydratedTurns]
+    const currentTurns = get().turns
+    const preserveExistingRealtime =
+      options.preserveExistingRealtime === true &&
+      hasSharedRealtimeScope(rehydratedTurns, currentTurns)
+    const turnsForState = preserveExistingRealtime
+      ? mergeExistingRealtimeTurns(rehydratedTurns, currentTurns)
+      : rehydratedTurns
+
+    const activeTurn = [...turnsForState]
       .reverse()
       .find((t) => t.status === 'running' || t.status === 'waitingApproval' || t.status === 'waitingInput')
     const activeTurnStatus =
@@ -1430,7 +1650,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
     const compactedNotice = latestCompactedNotice(rehydratedTurns)
     set((state) => {
       const terminalApplied = applyPendingTerminalsToTurns(
-        rehydratedTurns,
+        turnsForState,
         state.pendingTerminalByCallId
       )
       const toolCompletionApplied = applyPendingToolCompletionsToTurns(
@@ -1452,8 +1672,12 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
         maintenanceKind: null,
         backgroundMemoryStatus: null,
         streamRetrySignals: [],
-        changedFiles: rehydratedChangedFiles,
-        itemDiffs: rehydratedItemDiffs,
+        changedFiles: preserveExistingRealtime
+          ? new Map([...rehydratedChangedFiles, ...state.changedFiles])
+          : rehydratedChangedFiles,
+        itemDiffs: preserveExistingRealtime
+          ? new Map([...rehydratedItemDiffs, ...state.itemDiffs])
+          : rehydratedItemDiffs,
         streamingItemDiffs: new Map<string, FileDiff>(),
         streamingBaselines: new Map<string, StreamingFileBaseline>(),
         pendingTerminalByCallId: terminalApplied.pendingTerminalByCallId,

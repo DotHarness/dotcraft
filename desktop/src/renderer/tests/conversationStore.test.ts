@@ -691,6 +691,203 @@ describe('turn lifecycle', () => {
     expect(toolItem?.completedAt).toBe('2026-04-25T10:00:03.000Z')
   })
 
+  it('preserves realtime completed toolCall state over a stale thread/read hydrate', () => {
+    s().onTurnStarted(makeTurn({ id: 'turn-preserve' }))
+    s().onItemStarted({
+      turnId: 'turn-preserve',
+      item: {
+        id: 'tool-read',
+        type: 'toolCall',
+        createdAt: '2026-04-25T10:00:01.000Z',
+        payload: {
+          callId: 'call-read',
+          toolName: 'ReadFile',
+          arguments: { path: 'docs/readme.md' }
+        }
+      }
+    })
+    s().onItemCompleted({
+      turnId: 'turn-preserve',
+      item: {
+        id: 'result-read',
+        type: 'toolResult',
+        completedAt: '2026-04-25T10:00:03.000Z',
+        payload: {
+          callId: 'call-read',
+          result: 'file contents',
+          success: true
+        }
+      }
+    })
+
+    s().setTurns([
+      makeTurn({
+        id: 'turn-preserve',
+        status: 'running',
+        startedAt: '2026-04-25T10:00:00.000Z',
+        items: [
+          {
+            id: 'tool-read',
+            type: 'toolCall',
+            status: 'completed',
+            createdAt: '2026-04-25T10:00:01.000Z',
+            payload: {
+              callId: 'call-read',
+              toolName: 'ReadFile',
+              arguments: { path: 'docs/readme.md' }
+            }
+          }
+        ]
+      })
+    ], { preserveExistingRealtime: true })
+
+    const toolItem = s().turns[0].items.find((i) => i.id === 'tool-read')
+    expect(toolItem?.type).toBe('toolCall')
+    expect(toolItem?.status).toBe('completed')
+    expect(toolItem?.result).toBe('file contents')
+    expect(toolItem?.success).toBe(true)
+    expect(toolItem?.completedAt).toBe('2026-04-25T10:00:03.000Z')
+  })
+
+  it('preserves settled parallel explore tools and resolved approvals over stale hydrate', () => {
+    s().onTurnStarted(makeTurn({ id: 'turn-parallel' }))
+    const calls = [
+      ['tool-profile', 'call-profile', 'ReadFile', 'docs/profile.md', 'req-profile'],
+      ['tool-notes', 'call-notes', 'ReadFile', 'docs/notes.md', 'req-notes'],
+      ['tool-assets', 'call-assets', 'FindFiles', 'docs/assets', 'req-assets']
+    ] as const
+
+    for (const [itemId, callId, toolName, path, requestId] of calls) {
+      s().onItemStarted({
+        turnId: 'turn-parallel',
+        item: {
+          id: itemId,
+          type: 'toolCall',
+          createdAt: `2026-04-25T10:00:0${calls.findIndex((entry) => entry[0] === itemId) + 1}.000Z`,
+          payload: {
+            callId,
+            toolName,
+            arguments: { path }
+          }
+        }
+      })
+      s().onApprovalRequest(`bridge-${requestId}`, {
+        threadId: 'thread-1',
+        turnId: 'turn-parallel',
+        requestId,
+        approvalType: 'file',
+        operation: 'read',
+        target: path,
+        reason: `Read ${path}`
+      })
+      s().onApprovalResolved({
+        threadId: 'thread-1',
+        turnId: 'turn-parallel',
+        requestId,
+        decision: 'accept'
+      })
+      s().onItemCompleted({
+        turnId: 'turn-parallel',
+        item: {
+          id: `result-${callId}`,
+          type: 'toolResult',
+          completedAt: `2026-04-25T10:00:1${calls.findIndex((entry) => entry[0] === itemId) + 1}.000Z`,
+          payload: {
+            callId,
+            result: `${toolName} done`,
+            success: true
+          }
+        }
+      })
+    }
+
+    s().setTurns([
+      makeTurn({
+        id: 'turn-parallel',
+        status: 'running',
+        startedAt: '2026-04-25T10:00:00.000Z',
+        items: calls.map(([itemId, callId, toolName, path], index) => ({
+          id: itemId,
+          type: 'toolCall',
+          status: 'completed',
+          createdAt: `2026-04-25T10:00:0${index + 1}.000Z`,
+          payload: {
+            callId,
+            toolName,
+            arguments: { path }
+          }
+        }))
+      })
+    ], { preserveExistingRealtime: true })
+
+    const items = s().turns[0].items
+    const settledTools = items.filter((item) => item.type === 'toolCall')
+    expect(settledTools).toHaveLength(3)
+    expect(settledTools.every((item) => item.success === true && item.result != null)).toBe(true)
+    const approvalCards = items.filter((item) => item.type === 'approvalCard')
+    expect(approvalCards).toHaveLength(3)
+    expect(approvalCards.every((item) => item.approvalState === 'accepted')).toBe(true)
+  })
+
+  it('does not preserve realtime state across a different thread hydrate', () => {
+    s().onTurnStarted(makeTurn({ id: 'turn-a', threadId: 'thread-a' }))
+    s().onItemStarted({
+      turnId: 'turn-a',
+      item: {
+        id: 'tool-read',
+        type: 'toolCall',
+        createdAt: '2026-04-25T10:00:01.000Z',
+        payload: {
+          callId: 'call-read',
+          toolName: 'ReadFile',
+          arguments: { path: 'docs/a.md' }
+        }
+      }
+    })
+    s().onItemCompleted({
+      turnId: 'turn-a',
+      item: {
+        id: 'result-read',
+        type: 'toolResult',
+        completedAt: '2026-04-25T10:00:02.000Z',
+        payload: {
+          callId: 'call-read',
+          result: 'thread a contents',
+          success: true
+        }
+      }
+    })
+
+    s().setTurns([
+      makeTurn({
+        id: 'turn-b',
+        threadId: 'thread-b',
+        status: 'running',
+        startedAt: '2026-04-25T10:01:00.000Z',
+        items: [
+          {
+            id: 'tool-read',
+            type: 'toolCall',
+            status: 'completed',
+            createdAt: '2026-04-25T10:01:01.000Z',
+            payload: {
+              callId: 'call-read',
+              toolName: 'ReadFile',
+              arguments: { path: 'docs/b.md' }
+            }
+          }
+        ]
+      })
+    ], { preserveExistingRealtime: true })
+
+    expect(s().turns).toHaveLength(1)
+    expect(s().turns[0].id).toBe('turn-b')
+    const toolItem = s().turns[0].items.find((item) => item.id === 'tool-read')
+    expect(toolItem?.type).toBe('toolCall')
+    expect(toolItem?.result).toBeUndefined()
+    expect(toolItem?.success).toBeUndefined()
+  })
+
   it('keeps terminal toolExecution status when historical commandExecution is still inProgress', () => {
     const denial = 'MODE_POLICY_DENIED\nTool: Exec\nCurrentMode: Plan'
 

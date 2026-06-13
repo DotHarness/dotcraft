@@ -10,6 +10,7 @@ import { ComposerChoiceRow } from './ComposerChoiceRow'
 
 interface ApprovalDecisionComposerProps {
   request: PendingApproval
+  onResponseAccepted?: () => void
 }
 
 /** Default tool-approval detail rows (when the request carries no custom `detailRows`). */
@@ -46,7 +47,7 @@ function approvalRequestTarget(request: PendingApproval): {
   }
 }
 
-export function ApprovalDecisionComposer({ request }: ApprovalDecisionComposerProps): JSX.Element {
+export function ApprovalDecisionComposer({ request, onResponseAccepted }: ApprovalDecisionComposerProps): JSX.Element {
   const t = useT()
   const requestKey = useMemo(() => approvalRequestKey(request), [request])
   const requestTarget = useMemo(() => approvalRequestTarget(request), [request])
@@ -130,11 +131,21 @@ export function ApprovalDecisionComposer({ request }: ApprovalDecisionComposerPr
       await window.api.appServer.sendServerResponse(request.bridgeId, { decision })
       useConversationStore.getState().onApprovalDecision(decision, requestTarget)
       setSubmittedRequestKey(requestKey)
+      onResponseAccepted?.()
     } catch (err) {
       useConversationStore.getState().onApprovalSubmitFailed(requestTarget)
       failed(err)
     }
-  }, [request.bridgeId, request.locallySubmittedDecision, request.submit, requestKey, requestTarget, submitted, t])
+  }, [
+    onResponseAccepted,
+    request.bridgeId,
+    request.locallySubmittedDecision,
+    request.submit,
+    requestKey,
+    requestTarget,
+    submitted,
+    t
+  ])
 
   const submitSelected = useCallback((): void => {
     void sendDecision(selectedOption.value)

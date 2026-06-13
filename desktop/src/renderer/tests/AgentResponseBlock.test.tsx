@@ -918,6 +918,60 @@ describe('AgentResponseBlock tail tool aggregation timing', () => {
     expect(screen.getByText('Explored 2 files')).toBeInTheDocument()
   })
 
+  it('keeps a settled restored explore run grouped before later live tools and approvals', () => {
+    const turn: ConversationTurn = {
+      id: 'turn-restored-parallel-approvals',
+      threadId: 'thread-1',
+      status: 'running',
+      startedAt: '2026-04-18T11:06:00.000Z',
+      items: [
+        makeToolCallItem('tool-profile', 'call-profile', 'ReadFile', '2026-04-18T11:06:01.000Z'),
+        makeToolCallItem('tool-notes', 'call-notes', 'ReadFile', '2026-04-18T11:06:02.000Z'),
+        makeToolCallItem('tool-assets', 'call-assets', 'FindFiles', '2026-04-18T11:06:03.000Z'),
+        {
+          id: 'approval-profile',
+          type: 'approvalCard',
+          status: 'completed',
+          approvalRequestId: 'req-profile',
+          approvalType: 'file',
+          approvalOperation: 'read',
+          approvalTarget: 'docs/profile.md',
+          approvalState: 'accepted',
+          createdAt: '2026-04-18T11:06:04.000Z'
+        },
+        {
+          id: 'tool-next-find',
+          type: 'toolCall',
+          status: 'completed',
+          toolCallId: 'call-next-find',
+          toolName: 'FindFiles',
+          arguments: { path: 'docs' },
+          createdAt: '2026-04-18T11:06:05.000Z'
+        },
+        {
+          id: 'approval-next',
+          type: 'approvalCard',
+          status: 'completed',
+          approvalRequestId: 'req-next',
+          approvalType: 'file',
+          approvalOperation: 'read',
+          approvalTarget: 'docs',
+          approvalState: 'pending',
+          createdAt: '2026-04-18T11:06:06.000Z'
+        }
+      ]
+    }
+
+    render(
+      <LocaleProvider>
+        <AgentResponseBlock turn={turn} isRunning />
+      </LocaleProvider>
+    )
+
+    expect(screen.getByText('Explored 3 files')).toBeInTheDocument()
+    expect(screen.queryByText(/Reading file/)).toBeNull()
+  })
+
   it('aggregates trailing tool run after the turn completes', () => {
     const turn: ConversationTurn = {
       id: 'turn-tail-completed',

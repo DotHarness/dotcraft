@@ -169,6 +169,27 @@ describe('RequestUserInputComposer', () => {
     })
   })
 
+  it('notifies after the server accepts the user input response', async () => {
+    const onResponseAccepted = vi.fn()
+    renderWithLocale(
+      <RequestUserInputComposer request={request()} onResponseAccepted={onResponseAccepted} />
+    )
+
+    fireEvent.keyDown(window, { key: 'ArrowDown' })
+    fireEvent.keyDown(window, { key: 'Enter' })
+
+    await waitFor(() => {
+      expect(sendServerResponse).toHaveBeenCalledWith('bridge-input', {
+        answers: {
+          provider_id_handling: {
+            answers: ['Required']
+          }
+        }
+      })
+    })
+    expect(onResponseAccepted).toHaveBeenCalledTimes(1)
+  })
+
   it('clicking an unselected option selects it, then clicking it again submits', async () => {
     renderWithLocale(<RequestUserInputComposer request={request()} />)
 

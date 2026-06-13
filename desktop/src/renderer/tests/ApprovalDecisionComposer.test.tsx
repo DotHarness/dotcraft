@@ -114,6 +114,22 @@ describe('ApprovalDecisionComposer', () => {
     expect(useConversationStore.getState().pendingApprovals).toHaveLength(0)
   })
 
+  it('notifies after the server accepts a tool approval response', async () => {
+    const pending = pendingApproval()
+    const onResponseAccepted = vi.fn()
+    setPendingApproval(pending)
+    renderWithLocale(
+      <ApprovalDecisionComposer request={pending} onResponseAccepted={onResponseAccepted} />
+    )
+
+    fireEvent.keyDown(window, { key: 'Enter' })
+
+    await waitFor(() => {
+      expect(sendServerResponse).toHaveBeenCalledWith('bridge-approval', { decision: 'accept' })
+    })
+    expect(onResponseAccepted).toHaveBeenCalledTimes(1)
+  })
+
   it('uses number keys and Arrow keys to submit the selected decision', async () => {
     const pending = pendingApproval()
     setPendingApproval(pending)
@@ -257,8 +273,11 @@ describe('ApprovalDecisionComposer', () => {
     }))
 
     const pending = pendingApproval()
+    const onResponseAccepted = vi.fn()
     setPendingApproval(pending)
-    renderWithLocale(<ApprovalDecisionComposer request={pending} />)
+    renderWithLocale(
+      <ApprovalDecisionComposer request={pending} onResponseAccepted={onResponseAccepted} />
+    )
 
     const primary = screen.getByRole('button', { name: 'Allow once' })
     fireEvent.click(primary)
@@ -278,11 +297,14 @@ describe('ApprovalDecisionComposer', () => {
       expect(primary).not.toBeDisabled()
     })
     expect(useConversationStore.getState().pendingApproval?.locallySubmittedDecision).toBeNull()
+    expect(sendServerResponse).toHaveBeenCalledTimes(1)
+    expect(onResponseAccepted).not.toHaveBeenCalled()
 
     fireEvent.click(primary)
     await waitFor(() => {
       expect(sendServerResponse).toHaveBeenCalledTimes(2)
     })
+    expect(onResponseAccepted).toHaveBeenCalledTimes(1)
     expect(useConversationStore.getState().pendingApproval).toBeNull()
     expect(useConversationStore.getState().pendingApprovals).toHaveLength(0)
   })

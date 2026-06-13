@@ -26,6 +26,7 @@ interface ConversationPanelProps {
   remoteWorkspace?: boolean
   workspaceConfigChange?: WorkspaceConfigChangedPayload | null
   workspaceConfigChangeSeq?: number
+  onInteractionResponseAccepted?: () => void
 }
 
 interface ResolvedReasoningConfig {
@@ -55,7 +56,8 @@ export function ConversationPanel({
   projectKey,
   remoteWorkspace = false,
   workspaceConfigChange = null,
-  workspaceConfigChangeSeq = 0
+  workspaceConfigChangeSeq = 0,
+  onInteractionResponseAccepted
 }: ConversationPanelProps): JSX.Element {
   const activeThread = useThreadStore((s) => s.activeThread)
   const activeThreadId = useThreadStore((s) => s.activeThreadId)
@@ -435,9 +437,16 @@ export function ConversationPanel({
 
       {/* Input composer */}
       {composerApproval ? (
-        <ApprovalDecisionComposer key={approvalComposerKey(composerApproval)} request={composerApproval} />
+        <ApprovalDecisionComposer
+          key={approvalComposerKey(composerApproval)}
+          request={composerApproval}
+          onResponseAccepted={onInteractionResponseAccepted}
+        />
       ) : pendingUserInput ? (
-        <RequestUserInputComposer request={pendingUserInput} />
+        <RequestUserInputComposer
+          request={pendingUserInput}
+          onResponseAccepted={onInteractionResponseAccepted}
+        />
       ) : showPlanApproval && latestCreatePlanTurnId ? (
         <PlanApprovalComposer
           threadId={activeThread.id}

@@ -20,6 +20,11 @@ Purpose: Define the stable user-experience behavior of **DotCraft Desktop** as a
 - [4. Protocol Event to UX Behavior](#4-protocol-event-to-ux-behavior)
 - [5. Core Interaction Flows](#5-core-interaction-flows)
   - [5.1.1 Welcome Suggestions](#511-welcome-suggestions)
+  - [5.3 Resume or Open an Existing Thread](#53-resume-or-open-an-existing-thread)
+    - [5.3.1 Desktop Thread Restore Pipeline](#531-desktop-thread-restore-pipeline)
+    - [5.3.2 Interactive Request Restore](#532-interactive-request-restore)
+    - [5.3.3 Snapshot and Realtime Reconciliation](#533-snapshot-and-realtime-reconciliation)
+    - [5.3.4 Backend Verification Gate](#534-backend-verification-gate)
 - [6. Secondary Flows](#6-secondary-flows)
 - [6.7 Settings Surface](#67-settings-surface)
 - [6.8 Channel Modules](#68-channel-modules)
@@ -294,6 +299,55 @@ Desktop must also tolerate the request being replayed by AppServer when the user
 2. Client loads the thread content with enough history to make the conversation understandable.
 3. Client subscribes to future updates for the selected thread when real-time updates are needed.
 4. If the thread is not turn-capable, the user sees why and which actions remain allowed.
+
+### 5.3.1 Desktop Thread Restore Pipeline
+
+Desktop treats opening, returning to, or restoring an existing thread as a coordinated restore operation, not as independent `thread/read` and `thread/subscribe` side effects.
+
+1. When the user selects a thread, Desktop creates a new restore generation for that thread and clears any restore generation that belonged to the previously active thread.
+2. Desktop must hydrate the selected thread from `thread/read` with turn history and establish a `thread/subscribe` observer, normally with `replayRecent = true`.
+3. The `thread/read` and `thread/subscribe` requests may run serially or in parallel, but the active conversation must not expose replayed approval or user-input composers until both the current generation's history hydration and subscription readiness have completed.
+4. Any `thread/read`, `thread/subscribe`, `thread/unsubscribe`, or server-to-client interactive request result that belongs to an older restore generation must be ignored for the active conversation.
+5. For the same `threadId`, Desktop must serialize subscription operations. A queued or delayed `thread/unsubscribe` must not cancel a newer active `thread/subscribe` for the same thread after the user has returned.
+6. Switching threads, switching workspaces, disconnecting, or closing the window must clear the active restore generation and prevent late async work from restoring UI into the wrong foreground thread.
+
+This pipeline is a Desktop client responsibility. It does not change the AppServer protocol: `thread/read` remains the authoritative read-only snapshot, and `thread/subscribe` remains the live notification channel.
+
+### 5.3.2 Interactive Request Restore
+
+Pending approval and model-initiated user-input requests are part of the active turn and must survive ordinary Desktop navigation.
+
+- Switching away from a thread is not a decline, cancel, approval timeout, empty user-input answer, or dismissal.
+- If `item/approval/request` or `item/tool/requestUserInput` arrives while its source thread is not the active fully-restored thread, Desktop parks the request on that source thread instead of presenting it immediately.
+- Replayed requests are matched by logical identity: `method + threadId + turnId + requestId`. A fresh JSON-RPC envelope id is transport state and must not make the prompt a new logical request.
+- Replayed requests with the same logical identity restore the actionable composer once; they must not create duplicate cards, duplicate queue entries, or duplicate local decisions.
+- Multiple pending approvals for one turn are restored as a queue. The user resolves one visible approval at a time, and the next approval becomes actionable only after the prior approval has been submitted or resolved.
+- Local UI submission state such as selected option, submitting, submitted, and local accepted/rejected display belongs to one logical request identity only. It must not leak from one approval or user-input request to another.
+- A successful local response may be acknowledged immediately in the UI, but the thread remains running or waiting according to the latest server state until `item/approval/resolved`, `item/tool/requestUserInput/resolved`, `item/completed`, `turn/completed`, or a reconciled `thread/read` snapshot says otherwise.
+
+### 5.3.3 Snapshot and Realtime Reconciliation
+
+Desktop receives thread truth through two channels: durable snapshots from `thread/read` and realtime notifications from `thread/subscribe`. The UI must converge when these channels race.
+
+- `thread/read` is the authoritative persisted snapshot for the selected thread, but a stale snapshot must not regress newer realtime state already observed by the active renderer.
+- When merging a snapshot into the active conversation, Desktop must preserve already-observed terminal evidence for the same logical item or call, including completed `ToolExecution`, completed `ToolResult`, resolved approval cards, completed user-input responses, final agent messages, and terminal turn status.
+- Tool calls that already have terminal evidence must not return to a live "awaiting result" display because an older snapshot only contained the `ToolCall`.
+- A final `turn/completed`, `turn/failed`, or `turn/cancelled` state must clear running/waiting indicators even if an earlier local view still had live tools or composers.
+- `thread/runtimeChanged` is a summary signal for thread-list and activity state. It does not replace turn/item notifications and must not be treated as complete conversation history.
+- Desktop may use `thread/runtimeChanged` as a reconciliation trigger. If the server runtime says the active thread is idle while Desktop still shows running, waiting, or live awaiting-result tools, Desktop must perform a full `thread/read` with turns and reconcile the active conversation.
+- After submitting an approval or user-input response, Desktop should continue applying live notifications normally. If live completion notifications are missed, the next full snapshot reconcile must restore completed tools, final assistant output, and terminal turn state without requiring the user to switch away and back.
+- Reconciliation must be scoped to the active foreground thread and workspace. Snapshot state from one thread or workspace must not preserve or overwrite realtime state from another.
+
+### 5.3.4 Backend Verification Gate
+
+Before changing Desktop restore behavior for a reported restore bug, the implementer must verify whether AppServer and Session Core already contain the correct canonical state.
+
+- Treat the bug as Desktop-owned when rollout evidence or `thread/read` contains the expected completed tool results, approval responses, final agent message, and terminal turn state, but the active Desktop UI does not show them.
+- Treat the bug as AppServer or Session Core-owned when rollout evidence or `thread/read` is missing those canonical items, has impossible ordering, omits the terminal turn state, or cannot read a thread that should be readable.
+- Treat replay as backend-owned when `thread/subscribe` or `thread/resume` does not replay unresolved interactive requests for a thread that is still in `waitingApproval` or `waitingInput`, or when replay creates duplicate logical requests with different `requestId` values.
+- Treat subscription ordering and UI gating as Desktop-owned when backend evidence is correct but Desktop shows an approval composer before restore hydration is complete, loses a later approval, leaks local submitted state across approvals, or keeps completed tools live.
+- A Desktop fix must cite the evidence source used for this classification: rollout file, `thread/read` payload, `thread/runtimeChanged` snapshot, trace/session metadata, or an AppServer protocol log.
+- If backend evidence contradicts the expected Session Core or AppServer protocol behavior, backend repair takes priority over renderer workarounds.
 
 ### 5.4 Send a Message
 
