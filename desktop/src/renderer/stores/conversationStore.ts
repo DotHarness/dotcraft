@@ -1080,6 +1080,11 @@ function turnStartedAtMs(turn: ConversationTurn): number | null {
   return Number.isFinite(value) ? value : null
 }
 
+function turnCompletedAtMs(turn: ConversationTurn): number | null {
+  const value = turn.completedAt ? Date.parse(turn.completedAt) : Number.NaN
+  return Number.isFinite(value) ? value : null
+}
+
 function turnRepresentsOptimisticTurn(
   incoming: ConversationTurn,
   optimistic: ConversationTurn
@@ -1091,6 +1096,10 @@ function turnRepresentsOptimisticTurn(
   const optimisticStartedAt = turnStartedAtMs(optimistic)
   if (incomingStartedAt != null && optimisticStartedAt != null) {
     if (incomingStartedAt < optimisticStartedAt - OPTIMISTIC_TURN_CLOCK_SKEW_MS) return false
+    if (incomingStartedAt < optimisticStartedAt && isTerminalTurnStatus(incoming.status)) {
+      const incomingCompletedAt = turnCompletedAtMs(incoming)
+      if (incomingCompletedAt == null || incomingCompletedAt < optimisticStartedAt) return false
+    }
     if (incomingStartedAt - optimisticStartedAt > OPTIMISTIC_TURN_MATCH_WINDOW_MS) return false
   }
 
@@ -1858,7 +1867,9 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       if (alreadyExists) {
         return {
           turns: state.turns.map((t) =>
-            t.id === turn.id ? { ...t, status: 'running', startedAt: turn.startedAt } : t
+            t.id === turn.id
+              ? { ...mergeExistingRealtimeTurn(turn, t), status: 'running', startedAt: turn.startedAt }
+              : t
           ),
           turnStatus: 'running',
           activeTurnId: turn.id,

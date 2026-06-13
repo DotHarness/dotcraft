@@ -1771,6 +1771,53 @@ describe('optimistic turns', () => {
     expect(userMessages[0].id).toBe('server-user-preview')
   })
 
+  it('onTurnStarted replaces a promoted optimistic preview with the canonical server userMessage', () => {
+    s().addOptimisticTurn({
+      id: 'local-turn-live',
+      threadId: 'thread-1',
+      status: 'running',
+      items: [
+        {
+          id: 'local-user-live',
+          type: 'userMessage',
+          status: 'completed',
+          text: 'live canonical',
+          nativeInputParts: [{ type: 'text', text: 'live canonical' }],
+          createdAt: '2026-06-13T10:00:00.000Z'
+        }
+      ],
+      startedAt: '2026-06-13T10:00:00.000Z'
+    })
+    s().promoteOptimisticTurn('local-turn-live', 'turn-server-live')
+
+    s().onTurnStarted(makeTurn({
+      id: 'turn-server-live',
+      threadId: 'thread-1',
+      status: 'running',
+      startedAt: '2026-06-13T10:00:00.050Z',
+      items: [
+        {
+          id: 'server-user-live',
+          type: 'userMessage',
+          status: 'completed',
+          payload: {
+            text: 'live canonical',
+            nativeInputParts: [{ type: 'text', text: 'live canonical' }]
+          },
+          createdAt: '2026-06-13T10:00:00.050Z'
+        }
+      ]
+    }))
+
+    const state = s()
+    const userMessages = state.turns[0].items.filter((item) => item.type === 'userMessage')
+    expect(state.turns).toHaveLength(1)
+    expect(state.turns[0].id).toBe('turn-server-live')
+    expect(state.turnStatus).toBe('running')
+    expect(userMessages).toHaveLength(1)
+    expect(userMessages[0].id).toBe('server-user-live')
+  })
+
   it('does not keep a represented local optimistic turn when a snapshot arrives before promotion', () => {
     const optimisticTurn: ConversationTurn = {
       id: 'local-turn-cancel',
@@ -1896,6 +1943,91 @@ describe('optimistic turns', () => {
     ], { preserveExistingRealtime: true })
 
     expect(s().turns.map((turn) => turn.id)).toEqual(['turn-old-repeat', 'local-turn-repeat'])
+  })
+
+  it('keeps same-text terminal history inside clock skew when it completed before the optimistic turn', () => {
+    s().addOptimisticTurn({
+      id: 'local-turn-skew-repeat',
+      threadId: 'thread-1',
+      status: 'running',
+      items: [
+        {
+          id: 'local-user-skew-repeat',
+          type: 'userMessage',
+          status: 'completed',
+          text: 'ok',
+          createdAt: '2026-06-13T10:00:01.000Z'
+        }
+      ],
+      startedAt: '2026-06-13T10:00:01.000Z'
+    })
+
+    s().setTurns([
+      makeTurn({
+        id: 'turn-old-skew-repeat',
+        threadId: 'thread-1',
+        status: 'completed',
+        startedAt: '2026-06-13T10:00:00.500Z',
+        completedAt: '2026-06-13T10:00:00.900Z',
+        items: [
+          {
+            id: 'server-user-old-skew-repeat',
+            type: 'userMessage',
+            status: 'completed',
+            payload: { text: 'ok' },
+            createdAt: '2026-06-13T10:00:00.500Z'
+          }
+        ]
+      })
+    ], { preserveExistingRealtime: true })
+
+    expect(s().turns.map((turn) => turn.id)).toEqual([
+      'turn-old-skew-repeat',
+      'local-turn-skew-repeat'
+    ])
+  })
+
+  it('matches a terminal server turn inside backward clock skew when it completed after the optimistic turn began', () => {
+    s().addOptimisticTurn({
+      id: 'local-turn-skew-cancel',
+      threadId: 'thread-1',
+      status: 'running',
+      items: [
+        {
+          id: 'local-user-skew-cancel',
+          type: 'userMessage',
+          status: 'completed',
+          text: 'cancel fast',
+          createdAt: '2026-06-13T10:00:01.000Z'
+        }
+      ],
+      startedAt: '2026-06-13T10:00:01.000Z'
+    })
+
+    s().setTurns([
+      makeTurn({
+        id: 'turn-server-skew-cancel',
+        threadId: 'thread-1',
+        status: 'cancelled',
+        startedAt: '2026-06-13T10:00:00.500Z',
+        completedAt: '2026-06-13T10:00:01.200Z',
+        items: [
+          {
+            id: 'server-user-skew-cancel',
+            type: 'userMessage',
+            status: 'completed',
+            payload: { text: 'cancel fast' },
+            createdAt: '2026-06-13T10:00:00.500Z'
+          }
+        ]
+      })
+    ], { preserveExistingRealtime: true })
+
+    const state = s()
+    expect(state.turns).toHaveLength(1)
+    expect(state.turns[0].id).toBe('turn-server-skew-cancel')
+    expect(state.turns[0].status).toBe('cancelled')
+    expect(state.turns[0].items.filter((item) => item.type === 'userMessage')).toHaveLength(1)
   })
 
   it('promoteOptimisticTurn does not change activeTurnId if it was already replaced', () => {
