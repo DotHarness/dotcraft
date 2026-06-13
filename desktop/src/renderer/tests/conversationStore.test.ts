@@ -601,6 +601,96 @@ describe('turn lifecycle', () => {
     expect(toolItem?.result).toBe('agent done')
   })
 
+  it('stores early toolExecution completion and settles the matching toolCall when it starts', () => {
+    s().onTurnStarted(makeTurn())
+    s().onItemCompleted({
+      turnId: 'turn-1',
+      item: {
+        id: 'execution-read',
+        type: 'toolExecution',
+        completedAt: '2026-04-25T10:00:02.000Z',
+        payload: {
+          callId: 'read-early-execution',
+          toolName: 'ReadFile',
+          status: 'completed',
+          success: true,
+          durationMs: 900,
+          resultPreview: 'read done'
+        }
+      }
+    })
+
+    expect(s().turns[0].items).toHaveLength(0)
+    expect(s().pendingToolCompletionsByCallKey.size).toBe(1)
+
+    s().onItemStarted({
+      turnId: 'turn-1',
+      item: {
+        id: 'tool-read',
+        type: 'toolCall',
+        payload: {
+          callId: 'read-early-execution',
+          toolName: 'ReadFile',
+          arguments: { path: 'docs/readme.md' }
+        }
+      }
+    })
+
+    const items = s().turns[0].items
+    expect(items.some((i) => i.type === 'toolExecution')).toBe(false)
+    expect(s().pendingToolCompletionsByCallKey.size).toBe(0)
+    const toolItem = items.find((i) => i.id === 'tool-read')
+    expect(toolItem?.type).toBe('toolCall')
+    expect(toolItem?.status).toBe('completed')
+    expect(toolItem?.success).toBe(true)
+    expect(toolItem?.duration).toBe(900)
+    expect(toolItem?.resultPreview).toBe('read done')
+    expect(toolItem?.result).toBe('read done')
+  })
+
+  it('stores early toolResult completion and settles the matching toolCall when it starts', () => {
+    s().onTurnStarted(makeTurn())
+    s().onItemCompleted({
+      turnId: 'turn-1',
+      item: {
+        id: 'result-read',
+        type: 'toolResult',
+        completedAt: '2026-04-25T10:00:03.000Z',
+        payload: {
+          callId: 'read-early-result',
+          result: 'file contents',
+          success: true
+        }
+      }
+    })
+
+    expect(s().turns[0].items).toHaveLength(0)
+    expect(s().pendingToolCompletionsByCallKey.size).toBe(1)
+
+    s().onItemStarted({
+      turnId: 'turn-1',
+      item: {
+        id: 'tool-read-result',
+        type: 'toolCall',
+        createdAt: '2026-04-25T10:00:01.000Z',
+        payload: {
+          callId: 'read-early-result',
+          toolName: 'ReadFile',
+          arguments: { path: 'docs/notes.md' }
+        }
+      }
+    })
+
+    const toolItem = s().turns[0].items.find((i) => i.id === 'tool-read-result')
+    expect(s().pendingToolCompletionsByCallKey.size).toBe(0)
+    expect(toolItem?.type).toBe('toolCall')
+    expect(toolItem?.status).toBe('completed')
+    expect(toolItem?.result).toBe('file contents')
+    expect(toolItem?.success).toBe(true)
+    expect(toolItem?.duration).toBe(2000)
+    expect(toolItem?.completedAt).toBe('2026-04-25T10:00:03.000Z')
+  })
+
   it('keeps terminal toolExecution status when historical commandExecution is still inProgress', () => {
     const denial = 'MODE_POLICY_DENIED\nTool: Exec\nCurrentMode: Plan'
 

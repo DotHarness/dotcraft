@@ -1889,6 +1889,34 @@ describe('AgentResponseBlock idle running fallback', () => {
     expect(screen.getByText(/FollowupTool/)).toBeInTheDocument()
   })
 
+  it('renders the fallback when a ReadFile tool has already settled in a running turn', () => {
+    const turn: ConversationTurn = {
+      id: 'turn-settled-read',
+      threadId: 'thread-1',
+      status: 'running',
+      startedAt: '2026-04-18T11:24:10.000Z',
+      items: [
+        {
+          id: 'tool-read-settled',
+          type: 'toolCall',
+          status: 'completed',
+          toolCallId: 'call-read-settled',
+          toolName: 'ReadFile',
+          arguments: { path: 'docs/readme.md' },
+          result: 'file contents',
+          success: true,
+          createdAt: '2026-04-18T11:24:11.000Z',
+          completedAt: '2026-04-18T11:24:12.000Z'
+        }
+      ]
+    }
+
+    renderBlock(turn, { isRunning: true, showIdleThinkingFallback: true })
+
+    expect(screen.getByText('Thinking')).toBeInTheDocument()
+    expect(screen.queryByText(/Reading file/i)).toBeNull()
+  })
+
   it('does not render the fallback after terminal turn statuses', () => {
     const statuses: Array<ConversationTurn['status']> = ['completed', 'failed', 'cancelled']
 
