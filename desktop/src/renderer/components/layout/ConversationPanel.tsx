@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useThreadStore } from '../../stores/threadStore'
-import { selectLatestCreatePlanTurnId, useConversationStore } from '../../stores/conversationStore'
+import { selectLatestCreatePlanTurnId, useConversationStore, type PendingApproval } from '../../stores/conversationStore'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { useModelCatalogStore, type ReasoningEffortWire, type ReasoningOutputWire } from '../../stores/modelCatalogStore'
 import { addToast } from '../../stores/toastStore'
@@ -26,6 +26,7 @@ interface ConversationPanelProps {
   remoteWorkspace?: boolean
   workspaceConfigChange?: WorkspaceConfigChangedPayload | null
   workspaceConfigChangeSeq?: number
+  onInteractionResponseAccepted?: () => void
 }
 
 interface ResolvedReasoningConfig {
@@ -40,6 +41,10 @@ const DEFAULT_REASONING_CONFIG: ResolvedReasoningConfig = {
   output: 'full'
 }
 
+function approvalComposerKey(request: PendingApproval): string {
+  return `${request.source ?? 'tool'}:${request.requestId || request.itemId || request.bridgeId}`
+}
+
 /**
  * Main conversation panel.
  * Composes: ThreadHeader, MessageStream, InputComposer.
@@ -51,7 +56,8 @@ export function ConversationPanel({
   projectKey,
   remoteWorkspace = false,
   workspaceConfigChange = null,
-  workspaceConfigChangeSeq = 0
+  workspaceConfigChangeSeq = 0,
+  onInteractionResponseAccepted
 }: ConversationPanelProps): JSX.Element {
   const activeThread = useThreadStore((s) => s.activeThread)
   const activeThreadId = useThreadStore((s) => s.activeThreadId)
@@ -431,9 +437,16 @@ export function ConversationPanel({
 
       {/* Input composer */}
       {composerApproval ? (
-        <ApprovalDecisionComposer request={composerApproval} />
+        <ApprovalDecisionComposer
+          key={approvalComposerKey(composerApproval)}
+          request={composerApproval}
+          onResponseAccepted={onInteractionResponseAccepted}
+        />
       ) : pendingUserInput ? (
-        <RequestUserInputComposer request={pendingUserInput} />
+        <RequestUserInputComposer
+          request={pendingUserInput}
+          onResponseAccepted={onInteractionResponseAccepted}
+        />
       ) : showPlanApproval && latestCreatePlanTurnId ? (
         <PlanApprovalComposer
           threadId={activeThread.id}

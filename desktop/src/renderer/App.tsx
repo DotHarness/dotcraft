@@ -71,6 +71,11 @@ import { performAddTabAction } from './utils/detailTabActions'
 import { getSubAgentParentThreadId, isSubAgentThread } from './utils/subAgentThreads'
 import { isFatalConnectionError, useSlowConnectingHint } from './utils/connectionUi'
 import { isAgentTeamsPluginEnabled } from './utils/agentTeamsPlugin'
+import { conversationNeedsFullSnapshotReconcile } from './utils/threadRestoreReconcile'
+import {
+  createThreadSubscriptionOperationQueue,
+  runQueuedThreadUnsubscribe
+} from './utils/threadSubscriptionCoordinator'
 import {
   findDesktopMainViewExtension,
   getDesktopMainViewExtensions,
@@ -108,6 +113,16 @@ const ACTIVE_THREAD_METADATA_REFRESH_INTERVAL_MS = 5_000
 const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0'
 
 type WorkspaceLaunchTarget = 'unknown' | 'setup' | 'main' | 'error'
+
+interface ThreadSubscribeEnsureOptions {
+  replayRecent?: boolean
+  forceReplay?: boolean
+}
+
+type EnsureThreadSubscribed = (
+  threadId: string,
+  options?: ThreadSubscribeEnsureOptions
+) => Promise<void>
 
 interface WorkspaceLaunchTransitionState {
   phase: WorkspaceLaunchTransitionPhase
@@ -663,10 +678,39 @@ export function App(): JSX.Element {
   const whatsNewDialogOpenRef = useRef(false)
   const showMainWorkspaceUiRef = useRef(false)
   const threadListReloadGenerationRef = useRef(0)
+  const ensureThreadSubscribedRef = useRef<EnsureThreadSubscribed | null>(null)
+  const reconcileActiveThreadSnapshotRef = useRef<((reason?: string) => void) | null>(null)
+  const activeThreadSnapshotReconcileInFlightRef = useRef<{
+    threadId: string
+    scope: string
+    promise: Promise<void>
+  } | null>(null)
+  const scheduledActiveThreadReconcileTimerRef = useRef<number | null>(null)
+  const threadRestoreGateRef = useRef<{ threadId: string; token: number } | null>(null)
+  const threadRestoreGateTokenRef = useRef(0)
   const pendingAutoWhatsNewRef = useRef<{
     releases: WhatsNewRelease[]
     markSeenVersion?: string
   } | null>(null)
+
+  const beginThreadRestoreGate = useCallback((threadId: string): number => {
+    const token = threadRestoreGateTokenRef.current + 1
+    threadRestoreGateTokenRef.current = token
+    threadRestoreGateRef.current = { threadId, token }
+    return token
+  }, [])
+
+  const clearThreadRestoreGate = useCallback((threadId?: string, token?: number): void => {
+    const gate = threadRestoreGateRef.current
+    if (!gate) return
+    if (threadId != null && gate.threadId !== threadId) return
+    if (token != null && gate.token !== token) return
+    threadRestoreGateRef.current = null
+  }, [])
+
+  const isThreadRestoreGated = useCallback((threadId: string | null): boolean => {
+    return threadId != null && threadRestoreGateRef.current?.threadId === threadId
+  }, [])
   const lastSeenWhatsNewVersionRef = useRef<string | undefined>(undefined)
 
   useEffect(() => {
@@ -1622,7 +1666,23 @@ export function App(): JSX.Element {
                   }
                 }
               }
+              const shouldReplayInteractiveRequests =
+                (runtimeSnapshot.waitingOnApproval && pendingApprovals.length === 0) ||
+                (runtimeSnapshot.waitingOnInput && conversation.pendingUserInput == null)
+              if (shouldReplayInteractiveRequests) {
+                const ensureSubscribed = ensureThreadSubscribedRef.current
+                if (ensureSubscribed) {
+                  void ensureSubscribed(threadId, { replayRecent: true, forceReplay: true })
+                    .catch((err: unknown) => console.error('thread/subscribe replay failed:', err))
+                }
+              }
               useConversationStore.getState().setMaintenanceKind(runtimeSnapshot.maintenanceKind)
+              if (conversationNeedsFullSnapshotReconcile({
+                conversation: useConversationStore.getState(),
+                runtime: runtimeSnapshot
+              })) {
+                reconcileActiveThreadSnapshotRef.current?.('runtimeChanged')
+              }
             }
             break
           }
@@ -2069,7 +2129,7 @@ export function App(): JSX.Element {
         const threadId = typeof p.threadId === 'string' ? p.threadId : null
         const turnId = typeof p.turnId === 'string' ? p.turnId : null
         const activeThreadId = useThreadStore.getState().activeThreadId
-        if (threadId && threadId !== activeThreadId) {
+        if (threadId && (threadId !== activeThreadId || isThreadRestoreGated(threadId))) {
           useThreadStore.getState().parkApproval(threadId, {
             bridgeId,
             turnId,
@@ -2084,7 +2144,7 @@ export function App(): JSX.Element {
         const threadId = typeof p.threadId === 'string' ? p.threadId : null
         const turnId = typeof p.turnId === 'string' ? p.turnId : null
         const activeThreadId = useThreadStore.getState().activeThreadId
-        if (threadId && threadId !== activeThreadId) {
+        if (threadId && (threadId !== activeThreadId || isThreadRestoreGated(threadId))) {
           useThreadStore.getState().parkUserInput(threadId, {
             bridgeId,
             turnId,
@@ -2315,22 +2375,149 @@ export function App(): JSX.Element {
   const browserVisibilitySentRef = useRef<Map<string, boolean>>(new Map())
   const activeBrowserTabSentRef = useRef<string | null>(null)
   /**
-   * Tracks the thread we currently hold a server-side subscription for.
-   * Used as a guard against React StrictMode's mount->cleanup->remount cycle:
-   * the cleanup function does NOT reset this ref, so the remount sees
-   * subscribedRef === curr and skips the duplicate subscribe call.
+   * Tracks the thread we currently hold a server-side subscription for. The
+   * intent/ready/in-flight refs below guard duplicate subscribes and stale
+   * completions across React StrictMode and rapid thread switches.
    */
   const subscribedThreadIdRef = useRef<string | null>(null)
   const subscribedThreadConnectionKeyRef = useRef<string | null>(null)
+  const threadSubscriptionOperationsRef = useRef(createThreadSubscriptionOperationQueue())
+  const threadSubscriptionIntentRef = useRef<{ threadId: string; key: string } | null>(null)
+  const threadSubscriptionReadyRef = useRef<{ threadId: string; key: string } | null>(null)
+  const threadSubscriptionInFlightRef = useRef<{
+    threadId: string
+    key: string
+    replayRecent: boolean
+    promise: Promise<void>
+  } | null>(null)
   const { activeThreadId } = useThreadStore()
   const activeThreadSubscriptionScope =
     status === 'connected'
       ? `${foregroundThreadListIdentityKey}\u0000${connectionEpoch}`
       : ''
+  const activeThreadSubscriptionScopeRef = useRef(activeThreadSubscriptionScope)
+  activeThreadSubscriptionScopeRef.current = activeThreadSubscriptionScope
   const activeThreadSubscriptionKey =
     activeThreadId && activeThreadSubscriptionScope
       ? `${activeThreadSubscriptionScope}\u0000${activeThreadId}`
       : null
+
+  const getThreadSubscriptionKey = useCallback((threadId: string): string => {
+    const scope = activeThreadSubscriptionScopeRef.current
+    return scope ? `${scope}\u0000${threadId}` : `unscoped\u0000${threadId}`
+  }, [])
+
+  const clearThreadSubscriptionState = useCallback((threadId?: string): void => {
+    if (!threadId || subscribedThreadIdRef.current === threadId) {
+      subscribedThreadIdRef.current = null
+      subscribedThreadConnectionKeyRef.current = null
+    }
+    if (!threadId || threadSubscriptionIntentRef.current?.threadId === threadId) {
+      threadSubscriptionIntentRef.current = null
+    }
+    if (!threadId || threadSubscriptionReadyRef.current?.threadId === threadId) {
+      threadSubscriptionReadyRef.current = null
+    }
+    if (!threadId || threadSubscriptionInFlightRef.current?.threadId === threadId) {
+      threadSubscriptionInFlightRef.current = null
+    }
+  }, [])
+
+  const ensureThreadSubscribed = useCallback<EnsureThreadSubscribed>((
+    threadId: string,
+    options: ThreadSubscribeEnsureOptions = {}
+  ): Promise<void> => {
+    const key = getThreadSubscriptionKey(threadId)
+    const forceReplay = options.forceReplay === true
+    const replayRecent = options.replayRecent === true
+    const ready = threadSubscriptionReadyRef.current
+    if (!forceReplay && !replayRecent && ready?.threadId === threadId && ready.key === key) {
+      return Promise.resolve()
+    }
+
+    const inFlight = threadSubscriptionInFlightRef.current
+    const needsReplaySubscribe = replayRecent || forceReplay
+    if (
+      inFlight?.threadId === threadId &&
+      inFlight.key === key &&
+      (!needsReplaySubscribe || inFlight.replayRecent)
+    ) {
+      return inFlight.promise
+    }
+
+    const keepReadyOnFailure = (forceReplay || replayRecent) && ready?.threadId === threadId && ready.key === key
+    threadSubscriptionIntentRef.current = { threadId, key }
+    if (!forceReplay && !replayRecent) {
+      threadSubscriptionReadyRef.current = null
+      subscribedThreadIdRef.current = null
+      subscribedThreadConnectionKeyRef.current = null
+    }
+
+    const requestParams: { threadId: string; replayRecent?: boolean } = { threadId }
+    if (replayRecent) {
+      requestParams.replayRecent = true
+    }
+
+    let promise!: Promise<void>
+    promise = threadSubscriptionOperationsRef.current
+      .enqueue(threadId, async () => {
+        if (getThreadSubscriptionKey(threadId) !== key) {
+          return
+        }
+        await window.api.appServer.sendRequest('thread/subscribe', requestParams)
+      })
+      .then(() => {
+        const intent = threadSubscriptionIntentRef.current
+        const activeThread = useThreadStore.getState().activeThreadId
+        if (
+          intent?.threadId !== threadId ||
+          intent.key !== key ||
+          activeThread !== threadId
+        ) {
+          return
+        }
+        subscribedThreadIdRef.current = threadId
+        subscribedThreadConnectionKeyRef.current = key
+        threadSubscriptionReadyRef.current = { threadId, key }
+      })
+      .catch((err: unknown) => {
+        const intent = threadSubscriptionIntentRef.current
+        if (intent?.threadId === threadId && intent.key === key && !keepReadyOnFailure) {
+          subscribedThreadIdRef.current = null
+          subscribedThreadConnectionKeyRef.current = null
+          threadSubscriptionReadyRef.current = null
+        }
+        throw err
+      })
+      .finally(() => {
+        const inFlight = threadSubscriptionInFlightRef.current
+        if (inFlight?.threadId === threadId && inFlight.key === key && inFlight.promise === promise) {
+          threadSubscriptionInFlightRef.current = null
+        }
+      })
+
+    threadSubscriptionInFlightRef.current = { threadId, key, replayRecent, promise }
+    return promise
+  }, [getThreadSubscriptionKey])
+
+  ensureThreadSubscribedRef.current = ensureThreadSubscribed
+
+  const queueThreadUnsubscribe = useCallback((threadId: string): Promise<void> => {
+    const key = getThreadSubscriptionKey(threadId)
+    clearThreadSubscriptionState(threadId)
+    return threadSubscriptionOperationsRef.current.enqueue(threadId, async () => {
+      if (getThreadSubscriptionKey(threadId) !== key) {
+        return
+      }
+      await runQueuedThreadUnsubscribe({
+        threadId,
+        getActiveThreadId: () => useThreadStore.getState().activeThreadId,
+        unsubscribe: async (targetThreadId) => {
+          await window.api.appServer.sendRequest('thread/unsubscribe', { threadId: targetThreadId })
+        }
+      })
+    })
+  }, [clearThreadSubscriptionState, getThreadSubscriptionKey])
 
   useEffect(() => {
     const unsubscribeOpen = window.api.workspace.viewer.browserUse.onOpen(handleBrowserUseOpen)
@@ -2535,25 +2722,28 @@ export function App(): JSX.Element {
 
     // Unsubscribe from previous thread when genuinely switching (not StrictMode remount)
     if (prev && prev !== curr) {
-      window.api.appServer
-        .sendRequest('thread/unsubscribe', { threadId: prev })
+      queueThreadUnsubscribe(prev)
         .catch(() => {
           // Best-effort, ignore errors
         })
-      if (subscribedThreadIdRef.current === prev) {
-        subscribedThreadIdRef.current = null
-        subscribedThreadConnectionKeyRef.current = null
-      }
     }
 
     if (curr) {
       const requestedId = curr
+      const restoreGateToken = beginThreadRestoreGate(requestedId)
       performance.mark(`app:thread-switch-start:${requestedId}`)
+      const subscriptionReady = ensureThreadSubscribed(requestedId, { replayRecent: true })
+        .then(() => true)
+        .catch((err: unknown) => {
+          console.error('thread/subscribe failed:', err)
+          return false
+        })
       window.api.appServer
         .sendRequest('thread/read', { threadId: curr, includeTurns: true })
         .then(async (result) => {
           // Stale guard: user may have switched threads while we were loading
           if (useThreadStore.getState().activeThreadId !== requestedId) {
+            clearThreadRestoreGate(requestedId, restoreGateToken)
             useUIStore.getState().cancelPendingWelcomeTurnForThread(requestedId)
             return
           }
@@ -2578,7 +2768,7 @@ export function App(): JSX.Element {
           const convTurns = rawTurns.map(wireTurnToConversationTurn)
           performance.mark(`app:thread-switch-rendered:${requestedId}`)
           performance.measure('app:thread-switch', `app:thread-switch-start:${requestedId}`, `app:thread-switch-rendered:${requestedId}`)
-          useConversationStore.getState().setTurns(convTurns)
+          useConversationStore.getState().setTurns(convTurns, { preserveExistingRealtime: true })
           if (res.thread.plan) {
             useConversationStore.getState().onPlanUpdated(res.thread.plan)
           }
@@ -2593,6 +2783,19 @@ export function App(): JSX.Element {
           useConversationStore.getState().setContextUsage(res.thread.contextUsage ?? null)
           useConversationStore.getState().setMaintenanceKind(runtime?.maintenanceKind ?? null)
           void useSubAgentStore.getState().fetchChildren(requestedId)
+          if (!await subscriptionReady) {
+            clearThreadRestoreGate(requestedId, restoreGateToken)
+            if (useThreadStore.getState().activeThreadId === requestedId) {
+              useUIStore.getState().cancelPendingWelcomeTurnForThread(requestedId)
+            }
+            return
+          }
+          if (useThreadStore.getState().activeThreadId !== requestedId) {
+            clearThreadRestoreGate(requestedId, restoreGateToken)
+            useUIStore.getState().cancelPendingWelcomeTurnForThread(requestedId)
+            return
+          }
+          clearThreadRestoreGate(requestedId, restoreGateToken)
           const parkedApprovals = useThreadStore.getState().consumeParkedApprovals(requestedId)
           for (const parked of parkedApprovals) {
             useConversationStore.getState().onApprovalRequest(parked.bridgeId, parked.rawParams)
@@ -2751,36 +2954,20 @@ export function App(): JSX.Element {
           }
         })
         .catch((err: unknown) => {
+          clearThreadRestoreGate(requestedId, restoreGateToken)
           console.error('thread/read failed:', err)
           useUIStore.getState().cancelPendingWelcomeTurnForThread(requestedId)
           addToast(translate(localeRef.current, 'toast.threadNotFound'), 'warning')
         })
-
-      // Guard: skip subscribe if we already hold a subscription for this thread.
-      // React StrictMode runs this effect twice (mount, cleanup, remount) — but the
-      // cleanup does NOT reset this ref, so the remount finds subscribedRef === curr
-      // and skips the call, preventing a second server-side subscription.
-      const subscriptionKey = activeThreadSubscriptionScope
-        ? `${activeThreadSubscriptionScope}\u0000${curr}`
-        : null
-      if (
-        subscribedThreadIdRef.current !== curr ||
-        subscribedThreadConnectionKeyRef.current !== subscriptionKey
-      ) {
-        subscribedThreadIdRef.current = curr
-        subscribedThreadConnectionKeyRef.current = subscriptionKey
-        window.api.appServer
-          .sendRequest('thread/subscribe', { threadId: curr })
-          .catch((err: unknown) => console.error('thread/subscribe failed:', err))
-      }
     } else {
+      clearThreadRestoreGate()
       // No active thread: unsubscribe whatever we were subscribed to
       if (subscribedThreadIdRef.current) {
-        void window.api.appServer
-          .sendRequest('thread/unsubscribe', { threadId: subscribedThreadIdRef.current })
+        const subscribedThreadId = subscribedThreadIdRef.current
+        void queueThreadUnsubscribe(subscribedThreadId)
           .catch(() => {})
-        subscribedThreadIdRef.current = null
-        subscribedThreadConnectionKeyRef.current = null
+      } else {
+        clearThreadSubscriptionState()
       }
       useThreadStore.getState().setActiveThread(null)
     }
@@ -2789,27 +2976,126 @@ export function App(): JSX.Element {
     // No cleanup return here: a cleanup that resets subscribedThreadIdRef defeats
     // the StrictMode guard above. Thread-switch unsubscription is handled by the
     // prev !== curr block. On window close the connection terminates anyway.
-  }, [activeThreadId])
+  }, [
+    activeThreadId,
+    beginThreadRestoreGate,
+    clearThreadRestoreGate,
+    clearThreadSubscriptionState,
+    ensureThreadSubscribed,
+    queueThreadUnsubscribe
+  ])
 
   useEffect(() => {
     if (status !== 'connected') {
-      subscribedThreadConnectionKeyRef.current = null
+      if (scheduledActiveThreadReconcileTimerRef.current != null) {
+        window.clearTimeout(scheduledActiveThreadReconcileTimerRef.current)
+        scheduledActiveThreadReconcileTimerRef.current = null
+      }
+      activeThreadSnapshotReconcileInFlightRef.current = null
+      clearThreadRestoreGate()
+      threadSubscriptionOperationsRef.current.clear()
+      clearThreadSubscriptionState()
       return
     }
     if (!activeThreadId || !activeThreadSubscriptionKey) return
-    if (
-      subscribedThreadIdRef.current === activeThreadId &&
-      subscribedThreadConnectionKeyRef.current === activeThreadSubscriptionKey
-    ) {
+
+    ensureThreadSubscribed(activeThreadId, { replayRecent: true })
+      .catch((err: unknown) => console.error('thread/subscribe failed:', err))
+  }, [
+    activeThreadId,
+    activeThreadSubscriptionKey,
+    clearThreadRestoreGate,
+    clearThreadSubscriptionState,
+    ensureThreadSubscribed,
+    status
+  ])
+
+  const applyActiveThreadSnapshot = useCallback((
+    thread: Thread,
+    requestedId: string,
+    includeTurns: boolean
+  ): ThreadRuntimeSnapshot => {
+    const runtimeSnapshot = runtimeSnapshotFromThread(thread)
+    const threadStore = useThreadStore.getState()
+    threadStore.upsertThreads([thread])
+    threadStore.setActiveThread(thread)
+    threadStore.applyRuntimeSnapshot(requestedId, runtimeSnapshot, {
+      isActive: true,
+      isDesktopOrigin: thread.originChannel?.toLowerCase() === 'dotcraft-desktop'
+    })
+
+    const conversation = useConversationStore.getState()
+    if (includeTurns) {
+      const rawTurns = (thread.turns ?? []) as unknown as Array<Record<string, unknown>>
+      conversation.setTurns(rawTurns.map(wireTurnToConversationTurn), { preserveExistingRealtime: true })
+      if (thread.plan) {
+        useConversationStore.getState().onPlanUpdated(thread.plan)
+      }
+    }
+    useConversationStore.getState().setMaintenanceKind(thread.runtime?.maintenanceKind ?? null)
+    if (Object.prototype.hasOwnProperty.call(thread, 'queuedInputs')) {
+      useConversationStore.getState().setQueuedInputs(thread.queuedInputs ?? [])
+    }
+    if (Object.prototype.hasOwnProperty.call(thread, 'contextUsage')) {
+      useConversationStore.getState().setContextUsage(thread.contextUsage ?? null)
+    }
+    return runtimeSnapshot
+  }, [])
+
+  const reconcileActiveThreadSnapshot = useCallback((reason = 'unspecified'): void => {
+    const requestedId = useThreadStore.getState().activeThreadId
+    if (!requestedId) return
+    if (useConnectionStore.getState().status !== 'connected') return
+
+    const scope = activeThreadSubscriptionScopeRef.current
+    const inFlight = activeThreadSnapshotReconcileInFlightRef.current
+    if (inFlight?.threadId === requestedId && inFlight.scope === scope) {
       return
     }
 
-    subscribedThreadIdRef.current = activeThreadId
-    subscribedThreadConnectionKeyRef.current = activeThreadSubscriptionKey
-    window.api.appServer
-      .sendRequest('thread/subscribe', { threadId: activeThreadId, replayRecent: true })
-      .catch((err: unknown) => console.error('thread/subscribe failed:', err))
-  }, [activeThreadId, activeThreadSubscriptionKey, status])
+    let promise!: Promise<void>
+    promise = (async () => {
+      try {
+        const result = await window.api.appServer.sendRequest('thread/read', {
+          threadId: requestedId,
+          includeTurns: true
+        })
+        if (useThreadStore.getState().activeThreadId !== requestedId) return
+        if (activeThreadSubscriptionScopeRef.current !== scope) return
+        const res = result as { thread?: Thread }
+        if (!res.thread) return
+        applyActiveThreadSnapshot(res.thread, requestedId, true)
+      } catch (err) {
+        console.error(`thread/read reconcile failed (${reason}):`, err)
+      } finally {
+        const current = activeThreadSnapshotReconcileInFlightRef.current
+        if (current?.threadId === requestedId && current.scope === scope && current.promise === promise) {
+          activeThreadSnapshotReconcileInFlightRef.current = null
+        }
+      }
+    })()
+
+    activeThreadSnapshotReconcileInFlightRef.current = {
+      threadId: requestedId,
+      scope,
+      promise
+    }
+  }, [applyActiveThreadSnapshot])
+
+  reconcileActiveThreadSnapshotRef.current = reconcileActiveThreadSnapshot
+
+  const scheduleActiveThreadSnapshotReconcile = useCallback((): void => {
+    const scheduledThreadId = useThreadStore.getState().activeThreadId
+    if (!scheduledThreadId) return
+    if (scheduledActiveThreadReconcileTimerRef.current != null) {
+      window.clearTimeout(scheduledActiveThreadReconcileTimerRef.current)
+    }
+    scheduledActiveThreadReconcileTimerRef.current = window.setTimeout(() => {
+      scheduledActiveThreadReconcileTimerRef.current = null
+      if (useThreadStore.getState().activeThreadId !== scheduledThreadId) return
+      reconcileActiveThreadSnapshotRef.current?.('interactive-response')
+    }, 750)
+  }, [])
 
   useEffect(() => {
     if (!activeThreadId || status !== 'connected') return
@@ -2829,19 +3115,12 @@ export function App(): JSX.Element {
         const res = result as { thread?: Thread }
         if (!res.thread) return
 
-        const threadStore = useThreadStore.getState()
-        threadStore.upsertThreads([res.thread])
-        threadStore.setActiveThread(res.thread)
-        threadStore.applyRuntimeSnapshot(requestedId, runtimeSnapshotFromThread(res.thread), {
-          isActive: true,
-          isDesktopOrigin: res.thread.originChannel?.toLowerCase() === 'dotcraft-desktop'
-        })
-        useConversationStore.getState().setMaintenanceKind(res.thread.runtime?.maintenanceKind ?? null)
-        if (Object.prototype.hasOwnProperty.call(res.thread, 'queuedInputs')) {
-          useConversationStore.getState().setQueuedInputs(res.thread.queuedInputs ?? [])
-        }
-        if (Object.prototype.hasOwnProperty.call(res.thread, 'contextUsage')) {
-          useConversationStore.getState().setContextUsage(res.thread.contextUsage ?? null)
+        const runtimeSnapshot = applyActiveThreadSnapshot(res.thread, requestedId, false)
+        if (conversationNeedsFullSnapshotReconcile({
+          conversation: useConversationStore.getState(),
+          runtime: runtimeSnapshot
+        })) {
+          reconcileActiveThreadSnapshot('metadata-refresh')
         }
       } catch {
         // Best-effort metadata refresh. The existing subscription/read paths remain authoritative.
@@ -2857,7 +3136,7 @@ export function App(): JSX.Element {
       disposed = true
       window.clearInterval(timer)
     }
-  }, [activeThreadId, status])
+  }, [activeThreadId, applyActiveThreadSnapshot, reconcileActiveThreadSnapshot, status])
 
   // -------------------------------------------------------------------------
   // Render
@@ -3153,6 +3432,7 @@ export function App(): JSX.Element {
                   remoteWorkspace={remoteWorkspaceActive}
                   workspaceConfigChange={workspaceConfigChange}
                   workspaceConfigChangeSeq={workspaceConfigChangeSeq}
+                  onInteractionResponseAccepted={scheduleActiveThreadSnapshotReconcile}
                 />
               )}
             </div>

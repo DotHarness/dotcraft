@@ -390,7 +390,7 @@ declare global {
           callback: (status: ConnectionStatusPayload) => void
         ): UnsubscribeFn
         onServerRequest(callback: (payload: ServerRequestPayload) => void): UnsubscribeFn
-        sendServerResponse(bridgeId: string, result: unknown): void
+        sendServerResponse(bridgeId: string, result: unknown): Promise<void>
       }
       workspaceConfig: {
         getCore(): Promise<{

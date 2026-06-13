@@ -9,6 +9,7 @@ import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
 
 const sendServerResponse = vi.fn()
+const TEST_WORKSPACE = '<workspace>'
 
 function pendingApproval(overrides: Partial<PendingApproval> = {}): PendingApproval {
   return {
@@ -20,7 +21,7 @@ function pendingApproval(overrides: Partial<PendingApproval> = {}): PendingAppro
     itemId: 'approval-bridge-approval',
     approvalType: 'shell',
     operation: 'npm test',
-    target: 'F:\\dotcraft',
+    target: TEST_WORKSPACE,
     reason: 'DotCraft wants to run the test suite.',
     ...overrides
   }
@@ -33,7 +34,8 @@ function renderWithLocale(node: JSX.Element): void {
 function setPendingApproval(request = pendingApproval()): void {
   useConversationStore.setState({
     turnStatus: 'waitingApproval',
-    pendingApproval: request
+    pendingApproval: request,
+    pendingApprovals: [request]
   })
 }
 
@@ -75,7 +77,7 @@ describe('ApprovalDecisionComposer', () => {
       activeThread: {
         id: 'thread-1',
         userId: 'local',
-        workspacePath: 'F:\\dotcraft',
+        workspacePath: TEST_WORKSPACE,
         displayName: 'Approval thread',
         status: 'active',
         originChannel: 'dotcraft-desktop',
@@ -88,7 +90,7 @@ describe('ApprovalDecisionComposer', () => {
     })
     setPendingApproval(pending)
 
-    renderWithLocale(<ConversationPanel workspacePath="F:\\dotcraft" />)
+    renderWithLocale(<ConversationPanel workspacePath={TEST_WORKSPACE} />)
     await act(async () => {
       await Promise.resolve()
     })
@@ -108,7 +110,24 @@ describe('ApprovalDecisionComposer', () => {
     await waitFor(() => {
       expect(sendServerResponse).toHaveBeenCalledWith('bridge-approval', { decision: 'accept' })
     })
-    expect(useConversationStore.getState().pendingApproval?.locallySubmittedDecision).toBe('accept')
+    expect(useConversationStore.getState().pendingApproval).toBeNull()
+    expect(useConversationStore.getState().pendingApprovals).toHaveLength(0)
+  })
+
+  it('notifies after the server accepts a tool approval response', async () => {
+    const pending = pendingApproval()
+    const onResponseAccepted = vi.fn()
+    setPendingApproval(pending)
+    renderWithLocale(
+      <ApprovalDecisionComposer request={pending} onResponseAccepted={onResponseAccepted} />
+    )
+
+    fireEvent.keyDown(window, { key: 'Enter' })
+
+    await waitFor(() => {
+      expect(sendServerResponse).toHaveBeenCalledWith('bridge-approval', { decision: 'accept' })
+    })
+    expect(onResponseAccepted).toHaveBeenCalledTimes(1)
   })
 
   it('uses number keys and Arrow keys to submit the selected decision', async () => {
@@ -254,8 +273,11 @@ describe('ApprovalDecisionComposer', () => {
     }))
 
     const pending = pendingApproval()
+    const onResponseAccepted = vi.fn()
     setPendingApproval(pending)
-    renderWithLocale(<ApprovalDecisionComposer request={pending} />)
+    renderWithLocale(
+      <ApprovalDecisionComposer request={pending} onResponseAccepted={onResponseAccepted} />
+    )
 
     const primary = screen.getByRole('button', { name: 'Allow once' })
     fireEvent.click(primary)
@@ -275,12 +297,126 @@ describe('ApprovalDecisionComposer', () => {
       expect(primary).not.toBeDisabled()
     })
     expect(useConversationStore.getState().pendingApproval?.locallySubmittedDecision).toBeNull()
+    expect(sendServerResponse).toHaveBeenCalledTimes(1)
+    expect(onResponseAccepted).not.toHaveBeenCalled()
 
     fireEvent.click(primary)
     await waitFor(() => {
       expect(sendServerResponse).toHaveBeenCalledTimes(2)
     })
-    expect(useConversationStore.getState().pendingApproval?.locallySubmittedDecision).toBe('accept')
+    expect(onResponseAccepted).toHaveBeenCalledTimes(1)
+    expect(useConversationStore.getState().pendingApproval).toBeNull()
+    expect(useConversationStore.getState().pendingApprovals).toHaveLength(0)
+  })
+
+  it('keeps the next approval enabled when the previous response resolves late', async () => {
+    let resolveFirst!: () => void
+    sendServerResponse.mockReturnValueOnce(new Promise<void>((resolve) => {
+      resolveFirst = resolve
+    }))
+
+    const firstPending = pendingApproval({
+      bridgeId: 'bridge-approval-1',
+      requestId: 'request-approval-1',
+      itemId: 'approval-bridge-approval-1',
+      target: '<workspace>/first.md'
+    })
+    const secondPending = pendingApproval({
+      bridgeId: 'bridge-approval-2',
+      requestId: 'request-approval-2',
+      itemId: 'approval-bridge-approval-2',
+      target: '<workspace>/second.md'
+    })
+
+    setPendingApproval(firstPending)
+    const { rerender } = render(
+      <LocaleProvider><ApprovalDecisionComposer request={firstPending} /></LocaleProvider>
+    )
+
+    const firstPrimary = screen.getByRole('button', { name: 'Allow once' })
+    fireEvent.click(firstPrimary)
+    await waitFor(() => {
+      expect(firstPrimary).toBeDisabled()
+    })
+
+    setPendingApproval(secondPending)
+    rerender(<LocaleProvider><ApprovalDecisionComposer request={secondPending} /></LocaleProvider>)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Allow once' })).not.toBeDisabled()
+    })
+    expect(screen.getByRole('button', { name: '1. Allow once' })).toHaveAttribute('aria-disabled', 'false')
+    expect(screen.getByRole('button', { name: '2. Allow for session' })).toHaveAttribute('aria-disabled', 'false')
+    expect(screen.getByRole('button', { name: 'Reject approval' })).not.toBeDisabled()
+
+    await act(async () => {
+      resolveFirst()
+    })
+
+    expect(screen.getByRole('button', { name: 'Allow once' })).not.toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Allow once' }))
+
+    await waitFor(() => {
+      expect(sendServerResponse).toHaveBeenCalledWith('bridge-approval-2', { decision: 'accept' })
+    })
+  })
+
+  it('advances to the next queued approval after a local decision without waiting for resolved notification', async () => {
+    const firstPending = pendingApproval({
+      bridgeId: 'bridge-approval-1',
+      requestId: 'request-approval-1',
+      itemId: 'approval-bridge-approval-1',
+      target: '<workspace>/first.md'
+    })
+    const secondPending = pendingApproval({
+      bridgeId: 'bridge-approval-2',
+      requestId: 'request-approval-2',
+      itemId: 'approval-bridge-approval-2',
+      target: '<workspace>/second.md'
+    })
+    useConnectionStore.setState({
+      status: 'connected',
+      capabilities: { modelCatalogManagement: true, workspaceConfigManagement: true }
+    })
+    useThreadStore.setState({
+      activeThreadId: 'thread-approval',
+      activeThread: {
+        id: 'thread-approval',
+        userId: 'local',
+        workspacePath: TEST_WORKSPACE,
+        displayName: 'Approval thread',
+        status: 'active',
+        originChannel: 'dotcraft-desktop',
+        metadata: {},
+        createdAt: new Date().toISOString(),
+        lastActiveAt: new Date().toISOString(),
+        turns: []
+      },
+      loading: false
+    })
+    useConversationStore.setState({
+      activeTurnId: 'turn-approval',
+      turnStatus: 'waitingApproval',
+      pendingApproval: firstPending,
+      pendingApprovals: [firstPending, secondPending]
+    })
+
+    renderWithLocale(<ConversationPanel workspacePath={TEST_WORKSPACE} />)
+    expect(screen.getByText('<workspace>/first.md')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Allow once' }))
+
+    await waitFor(() => {
+      expect(sendServerResponse).toHaveBeenCalledWith('bridge-approval-1', { decision: 'accept' })
+    })
+    await waitFor(() => {
+      expect(screen.getByText('<workspace>/second.md')).toBeInTheDocument()
+    })
+
+    expect(useConversationStore.getState().pendingApproval?.requestId).toBe('request-approval-2')
+    expect(screen.getByRole('button', { name: 'Allow once' })).not.toBeDisabled()
+    expect(screen.getByRole('button', { name: '1. Allow once' })).toHaveAttribute('aria-disabled', 'false')
+    expect(screen.getByRole('button', { name: 'Reject approval' })).not.toBeDisabled()
   })
 
   it('does not resubmit an approval that was already submitted locally', () => {

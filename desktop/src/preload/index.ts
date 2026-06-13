@@ -567,8 +567,8 @@ const api = {
      * Sends the user's decision for a server-initiated request back to Main.
      * Main will forward this as the JSON-RPC response to AppServer.
      */
-    sendServerResponse(bridgeId: string, result: unknown): void {
-      ipcRenderer.invoke('appserver:server-response', bridgeId, result).catch(() => {})
+    sendServerResponse(bridgeId: string, result: unknown): Promise<void> {
+      return ipcRenderer.invoke('appserver:server-response', bridgeId, result)
     }
   },
 

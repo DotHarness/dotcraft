@@ -36,9 +36,13 @@ interface RequestUserInputResponse {
 
 interface RequestUserInputComposerProps {
   request: PendingUserInputRequest
+  onResponseAccepted?: () => void
 }
 
-export function RequestUserInputComposer({ request }: RequestUserInputComposerProps): JSX.Element | null {
+export function RequestUserInputComposer({
+  request,
+  onResponseAccepted
+}: RequestUserInputComposerProps): JSX.Element | null {
   const t = useT()
   const [currentQuestion, setCurrentQuestion] = useState(0)
   const [selected, setSelected] = useState<number[]>([])
@@ -57,6 +61,9 @@ export function RequestUserInputComposer({ request }: RequestUserInputComposerPr
     useConversationStore.getState().onUserInputResolved()
     window.api.appServer
       .sendServerResponse(request.bridgeId, response)
+      .then(() => {
+        onResponseAccepted?.()
+      })
       .catch((err: unknown) => {
         addToast(
           t('userInput.sendFailed', {
@@ -65,7 +72,7 @@ export function RequestUserInputComposer({ request }: RequestUserInputComposerPr
           'error'
         )
       })
-  }, [request.bridgeId, t])
+  }, [onResponseAccepted, request.bridgeId, t])
 
   useEffect(() => {
     if (request.questions.length === 0 && !sentEmptyRef.current) {

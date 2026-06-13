@@ -97,6 +97,17 @@ interface ContextUsageSnapshotInput {
   isEstimate?: boolean
 }
 
+interface PendingToolCompletionEntry {
+  turnId: string
+  callId: string
+  toolExecution?: ConversationItem
+  toolResult?: ConversationItem
+}
+
+interface SetTurnsOptions {
+  preserveExistingRealtime?: boolean
+}
+
 // ---------------------------------------------------------------------------
 // State interface
 // ---------------------------------------------------------------------------
@@ -149,17 +160,19 @@ export interface PendingApproval {
   declineValue?: string
 }
 
-interface ApprovalResolvedParams {
+interface ApprovalRequestMatch {
   threadId?: string | null
   turnId?: string | null
   requestId?: string | null
+  itemId?: string | null
+  bridgeId?: string | null
+}
+
+interface ApprovalResolvedParams extends ApprovalRequestMatch {
   decision?: ApprovalDecision | null
 }
 
-interface ApprovalNoLongerPendingParams {
-  threadId?: string | null
-  turnId?: string | null
-  requestId?: string | null
+interface ApprovalNoLongerPendingParams extends ApprovalRequestMatch {
   nextTurnStatus: 'running' | 'idle'
 }
 
@@ -218,16 +231,14 @@ function normalizeApprovalDecision(value: unknown): ApprovalDecision | null {
 
 function matchesPendingApproval(
   pending: PendingApproval,
-  params: {
-    threadId?: string | null
-    turnId?: string | null
-    requestId?: string | null
-  } | undefined
+  params: ApprovalRequestMatch | undefined
 ): boolean {
   if (!params) return true
   if (params.threadId && pending.threadId && params.threadId !== pending.threadId) return false
   if (params.turnId && pending.turnId && params.turnId !== pending.turnId) return false
-  if (params.requestId && pending.requestId && params.requestId !== pending.requestId) return false
+  if (params.requestId) return pending.requestId === params.requestId
+  if (params.itemId) return pending.itemId === params.itemId
+  if (params.bridgeId) return pending.bridgeId === params.bridgeId
   return true
 }
 
@@ -346,6 +357,8 @@ interface ConversationState {
   streamingBaselines: Map<string, StreamingFileBaseline>
   /** Foreground terminal events that arrived before their Exec toolCall item. */
   pendingTerminalByCallId: Map<string, PendingTerminalEntry>
+  /** Tool completion items that arrived before their matching toolCall item. */
+  pendingToolCompletionsByCallKey: Map<string, PendingToolCompletionEntry>
   /** Live SubAgent progress entries — replaced wholesale on each notification */
   subAgentEntries: SubAgentEntry[]
   /** Current agent plan from plan/updated events — replaced wholesale */
@@ -364,7 +377,7 @@ interface ConversationState {
 
 interface ConversationActions {
   /** Load full turn history from thread/read */
-  setTurns(turns: ConversationTurn[] | Array<Record<string, unknown>>): void
+  setTurns(turns: ConversationTurn[] | Array<Record<string, unknown>>, options?: SetTurnsOptions): void
   /** turn/started notification */
   onTurnStarted(rawTurn: Record<string, unknown>): void
   /** turn/completed notification */
@@ -469,14 +482,14 @@ interface ConversationActions {
    * Marks the active approval as already submitted by this Desktop connection.
    * Prevents runtime snapshots from sending a synthetic fallback response.
    */
-  onApprovalSubmitStarted(decision: ApprovalDecision): void
+  onApprovalSubmitStarted(decision: ApprovalDecision, target?: ApprovalRequestMatch): void
   /** Clears the local submission marker after the IPC response fails. */
-  onApprovalSubmitFailed(): void
+  onApprovalSubmitFailed(target?: ApprovalRequestMatch): void
   /**
    * Called when the user makes a decision.
    * Updates the approval item state locally; IPC response is sent by the caller.
    */
-  onApprovalDecision(decision: ApprovalDecision): void
+  onApprovalDecision(decision: ApprovalDecision, target?: ApprovalRequestMatch): void
   /**
    * Called when item/approval/resolved notification arrives.
    * Clears pendingApproval and restores turnStatus to 'running'.
@@ -537,6 +550,7 @@ const initialState: ConversationState = {
   streamingItemDiffs: new Map<string, FileDiff>(),
   streamingBaselines: new Map<string, StreamingFileBaseline>(),
   pendingTerminalByCallId: new Map<string, PendingTerminalEntry>(),
+  pendingToolCompletionsByCallKey: new Map<string, PendingToolCompletionEntry>(),
   subAgentEntries: [],
   plan: null,
   contextUsage: null
@@ -780,11 +794,324 @@ function mergeToolExecutionIntoToolCall(
   }
 }
 
-function mergeToolExecutionAcrossItems(
+function toolCompletionKey(turnId: string | undefined, callId: string | undefined): string | null {
+  if (!turnId || !callId) return null
+  return `${turnId}\u0000${callId}`
+}
+
+function turnHasToolCall(turn: ConversationTurn, callId: string): boolean {
+  return turn.items.some((item) => item.type === 'toolCall' && item.toolCallId === callId)
+}
+
+function mergeToolResultIntoToolCall(
+  item: ConversationItem,
+  toolResult: Partial<ConversationItem>
+): ConversationItem {
+  if (item.type !== 'toolCall') return item
+  if (!toolResult.toolCallId || item.toolCallId !== toolResult.toolCallId) return item
+
+  const startMs = item.createdAt ? Date.parse(item.createdAt) : Date.now()
+  const completedAt = toolResult.completedAt ?? item.completedAt ?? new Date().toISOString()
+  const endMs = Date.parse(completedAt)
+  const duration =
+    Number.isFinite(startMs) && Number.isFinite(endMs)
+      ? Math.max(0, endMs - startMs)
+      : item.duration
+
+  return {
+    ...item,
+    status: 'completed',
+    result: toolResult.result ?? item.result ?? '',
+    success: toolResult.success ?? item.success ?? true,
+    duration,
+    completedAt
+  }
+}
+
+function mergeToolCompletionEntryIntoItems(
   items: ConversationItem[],
-  toolExecution: Partial<ConversationItem>
+  entry: PendingToolCompletionEntry
 ): ConversationItem[] {
-  return items.map((i) => mergeToolExecutionIntoToolCall(i, toolExecution))
+  return items.map((item) => {
+    if (item.type !== 'toolCall' || item.toolCallId !== entry.callId) return item
+    const withExecution = entry.toolExecution
+      ? mergeToolExecutionIntoToolCall(item, entry.toolExecution)
+      : item
+    return entry.toolResult
+      ? mergeToolResultIntoToolCall(withExecution, entry.toolResult)
+      : withExecution
+  })
+}
+
+function removePendingToolCompletionEntries(
+  pending: Map<string, PendingToolCompletionEntry>,
+  keys: Set<string>
+): Map<string, PendingToolCompletionEntry> {
+  if (keys.size === 0) return pending
+  const next = new Map(pending)
+  for (const key of keys) {
+    next.delete(key)
+  }
+  return next
+}
+
+function applyPendingToolCompletionsToTurn(
+  turn: ConversationTurn,
+  pending: Map<string, PendingToolCompletionEntry>
+): { turn: ConversationTurn; appliedKeys: Set<string> } {
+  let items = turn.items
+  const appliedKeys = new Set<string>()
+  for (const [key, entry] of pending) {
+    if (entry.turnId !== turn.id || !turnHasToolCall({ ...turn, items }, entry.callId)) {
+      continue
+    }
+    items = mergeToolCompletionEntryIntoItems(items, entry)
+    appliedKeys.add(key)
+  }
+  return appliedKeys.size > 0
+    ? { turn: { ...turn, items: sortItemsByCreatedAt(items) }, appliedKeys }
+    : { turn, appliedKeys }
+}
+
+function applyPendingToolCompletionsToTurns(
+  turns: ConversationTurn[],
+  pending: Map<string, PendingToolCompletionEntry>
+): {
+  turns: ConversationTurn[]
+  pendingToolCompletionsByCallKey: Map<string, PendingToolCompletionEntry>
+} {
+  let applied = new Set<string>()
+  const nextTurns = turns.map((turn) => {
+    const result = applyPendingToolCompletionsToTurn(turn, pending)
+    if (result.appliedKeys.size > 0) {
+      applied = new Set([...applied, ...result.appliedKeys])
+    }
+    return result.turn
+  })
+  return {
+    turns: nextTurns,
+    pendingToolCompletionsByCallKey: removePendingToolCompletionEntries(pending, applied)
+  }
+}
+
+function mergePendingToolCompletionEntry(
+  previous: PendingToolCompletionEntry | undefined,
+  entry: PendingToolCompletionEntry
+): PendingToolCompletionEntry {
+  return {
+    turnId: entry.turnId,
+    callId: entry.callId,
+    toolExecution: entry.toolExecution ?? previous?.toolExecution,
+    toolResult: entry.toolResult ?? previous?.toolResult
+  }
+}
+
+function isTerminalTurnStatus(status: ConversationTurn['status']): boolean {
+  return status === 'completed' || status === 'failed' || status === 'cancelled'
+}
+
+function isResolvedApprovalCard(item: ConversationItem): boolean {
+  return item.type === 'approvalCard' &&
+    item.approvalState != null &&
+    item.approvalState !== 'pending'
+}
+
+function hasToolCompletionEvidence(item: ConversationItem): boolean {
+  return item.type === 'toolCall' && (
+    item.success !== undefined ||
+    item.result !== undefined ||
+    item.resultPreview !== undefined ||
+    item.executionStatus != null ||
+    item.completedAt != null
+  )
+}
+
+function itemRealtimeKeys(item: ConversationItem): string[] {
+  const keys = [`id:${item.id}`]
+  if (item.toolCallId) {
+    keys.push(`call:${item.toolCallId}`)
+  }
+  if (item.type === 'approvalCard' && item.approvalRequestId) {
+    keys.push(`approval:${item.approvalRequestId}`)
+  }
+  return keys
+}
+
+function indexItemsByRealtimeKey(items: ConversationItem[]): Map<string, ConversationItem> {
+  const index = new Map<string, ConversationItem>()
+  for (const item of items) {
+    for (const key of itemRealtimeKeys(item)) {
+      if (!index.has(key)) {
+        index.set(key, item)
+      }
+    }
+  }
+  return index
+}
+
+function findMatchingRealtimeItem(
+  item: ConversationItem,
+  existingByKey: Map<string, ConversationItem>
+): ConversationItem | undefined {
+  for (const key of itemRealtimeKeys(item)) {
+    const existing = existingByKey.get(key)
+    if (existing) return existing
+  }
+  return undefined
+}
+
+function mergeRealtimeToolCall(
+  incoming: ConversationItem,
+  existing: ConversationItem
+): ConversationItem {
+  if (incoming.type !== 'toolCall' || existing.type !== 'toolCall') return incoming
+  if (!hasToolCompletionEvidence(existing)) return incoming
+
+  return {
+    ...incoming,
+    status: existing.status === 'completed' ? 'completed' : incoming.status,
+    result: existing.result ?? incoming.result,
+    resultPreview: existing.resultPreview ?? incoming.resultPreview,
+    success: existing.success ?? incoming.success,
+    duration: existing.duration ?? incoming.duration,
+    executionStatus: existing.executionStatus ?? incoming.executionStatus,
+    completedAt: existing.completedAt ?? incoming.completedAt
+  }
+}
+
+function mergeRealtimeApprovalCard(
+  incoming: ConversationItem,
+  existing: ConversationItem
+): ConversationItem {
+  if (incoming.type !== 'approvalCard' || existing.type !== 'approvalCard') return incoming
+  if (!isResolvedApprovalCard(existing)) return incoming
+
+  return {
+    ...incoming,
+    approvalState: existing.approvalState,
+    completedAt: existing.completedAt ?? incoming.completedAt
+  }
+}
+
+function mergeRealtimeMatchedItem(
+  incoming: ConversationItem,
+  existing: ConversationItem | undefined
+): ConversationItem {
+  if (!existing) return incoming
+  if (incoming.type === 'toolCall') {
+    return mergeRealtimeToolCall(incoming, existing)
+  }
+  if (incoming.type === 'approvalCard') {
+    return mergeRealtimeApprovalCard(incoming, existing)
+  }
+  if (
+    existing.status === 'completed' &&
+    incoming.status !== 'completed' &&
+    existing.type === incoming.type
+  ) {
+    return {
+      ...incoming,
+      status: 'completed',
+      completedAt: existing.completedAt ?? incoming.completedAt
+    }
+  }
+  return incoming
+}
+
+function mergeExistingRealtimeTurn(
+  incoming: ConversationTurn,
+  existing: ConversationTurn | undefined
+): ConversationTurn {
+  if (!existing) return incoming
+
+  const existingByKey = indexItemsByRealtimeKey(existing.items)
+  const representedKeys = new Set<string>()
+  const mergedItems = incoming.items.map((item) => {
+    const existingItem = findMatchingRealtimeItem(item, existingByKey)
+    if (existingItem) {
+      for (const key of itemRealtimeKeys(existingItem)) {
+        representedKeys.add(key)
+      }
+    }
+    for (const key of itemRealtimeKeys(item)) {
+      representedKeys.add(key)
+    }
+    return mergeRealtimeMatchedItem(item, existingItem)
+  })
+
+  for (const existingItem of existing.items) {
+    const isRepresented = itemRealtimeKeys(existingItem).some((key) => representedKeys.has(key))
+    if (isRepresented) continue
+    mergedItems.push(existingItem)
+  }
+
+  const keepExistingTerminalStatus =
+    isTerminalTurnStatus(existing.status) && !isTerminalTurnStatus(incoming.status)
+
+  return {
+    ...incoming,
+    status: keepExistingTerminalStatus ? existing.status : incoming.status,
+    completedAt: keepExistingTerminalStatus ? existing.completedAt : incoming.completedAt,
+    tokenUsage: keepExistingTerminalStatus ? existing.tokenUsage : incoming.tokenUsage,
+    error: keepExistingTerminalStatus ? existing.error : incoming.error,
+    cancelReason: keepExistingTerminalStatus ? existing.cancelReason : incoming.cancelReason,
+    items: sortItemsByCreatedAt(mergedItems)
+  }
+}
+
+function turnThreadIds(turns: ConversationTurn[]): Set<string> {
+  const ids = new Set<string>()
+  for (const turn of turns) {
+    if (turn.threadId) {
+      ids.add(turn.threadId)
+    }
+  }
+  return ids
+}
+
+function hasSharedRealtimeScope(
+  incoming: ConversationTurn[],
+  existingTurns: ConversationTurn[]
+): boolean {
+  if (existingTurns.length === 0) return true
+  if (incoming.length === 0) return false
+
+  const incomingThreadIds = turnThreadIds(incoming)
+  const existingThreadIds = turnThreadIds(existingTurns)
+  if (incomingThreadIds.size > 0 && existingThreadIds.size > 0) {
+    for (const threadId of incomingThreadIds) {
+      if (existingThreadIds.has(threadId)) {
+        return true
+      }
+    }
+    return false
+  }
+
+  const incomingTurnIds = new Set(incoming.map((turn) => turn.id))
+  return existingTurns.some((turn) => incomingTurnIds.has(turn.id))
+}
+
+function mergeExistingRealtimeTurns(
+  incoming: ConversationTurn[],
+  existingTurns: ConversationTurn[]
+): ConversationTurn[] {
+  if (existingTurns.length === 0) return incoming
+  const existingById = new Map(existingTurns.map((turn) => [turn.id, turn]))
+  const incomingIds = new Set(incoming.map((turn) => turn.id))
+  const incomingThreadIds = turnThreadIds(incoming)
+  const merged = incoming.map((turn) => mergeExistingRealtimeTurn(turn, existingById.get(turn.id)))
+  for (const existing of existingTurns) {
+    if (
+      !incomingIds.has(existing.id) &&
+      incomingThreadIds.size > 0 &&
+      incomingThreadIds.has(existing.threadId)
+    ) {
+      merged.push(existing)
+    }
+  }
+  return merged.sort(
+    (a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime()
+  )
 }
 
 function findMatchingCommandExecution(
@@ -1192,7 +1519,7 @@ function parseStreamRetryAttempt(message: string): Pick<StreamRetrySignal, 'atte
 export const useConversationStore = create<ConversationStore>((set, get) => ({
   ...initialState,
 
-  setTurns(turns) {
+  setTurns(turns, options = {}) {
     const converted = (turns as Array<Record<string, unknown>>).map((t) => {
       const maybeTurn = t as unknown as ConversationTurn
       if (typeof maybeTurn.items !== 'undefined' && !Array.isArray(maybeTurn.items)) {
@@ -1303,7 +1630,15 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
 
     // If the loaded history contains a non-terminal turn (e.g. switching back to a thread
     // that had an active turn or is waiting on a user decision), restore active state.
-    const activeTurn = [...rehydratedTurns]
+    const currentTurns = get().turns
+    const preserveExistingRealtime =
+      options.preserveExistingRealtime === true &&
+      hasSharedRealtimeScope(rehydratedTurns, currentTurns)
+    const turnsForState = preserveExistingRealtime
+      ? mergeExistingRealtimeTurns(rehydratedTurns, currentTurns)
+      : rehydratedTurns
+
+    const activeTurn = [...turnsForState]
       .reverse()
       .find((t) => t.status === 'running' || t.status === 'waitingApproval' || t.status === 'waitingInput')
     const activeTurnStatus =
@@ -1315,11 +1650,15 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
     const compactedNotice = latestCompactedNotice(rehydratedTurns)
     set((state) => {
       const terminalApplied = applyPendingTerminalsToTurns(
-        rehydratedTurns,
+        turnsForState,
         state.pendingTerminalByCallId
       )
+      const toolCompletionApplied = applyPendingToolCompletionsToTurns(
+        terminalApplied.turns,
+        state.pendingToolCompletionsByCallKey
+      )
       return {
-        turns: terminalApplied.turns,
+        turns: toolCompletionApplied.turns,
         turnStatus: activeTurnStatus,
         activeTurnId: activeTurn ? activeTurn.id : null,
         streamingMessage: '',
@@ -1333,11 +1672,16 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
         maintenanceKind: null,
         backgroundMemoryStatus: null,
         streamRetrySignals: [],
-        changedFiles: rehydratedChangedFiles,
-        itemDiffs: rehydratedItemDiffs,
+        changedFiles: preserveExistingRealtime
+          ? new Map([...rehydratedChangedFiles, ...state.changedFiles])
+          : rehydratedChangedFiles,
+        itemDiffs: preserveExistingRealtime
+          ? new Map([...rehydratedItemDiffs, ...state.itemDiffs])
+          : rehydratedItemDiffs,
         streamingItemDiffs: new Map<string, FileDiff>(),
         streamingBaselines: new Map<string, StreamingFileBaseline>(),
         pendingTerminalByCallId: terminalApplied.pendingTerminalByCallId,
+        pendingToolCompletionsByCallKey: toolCompletionApplied.pendingToolCompletionsByCallKey,
         contextUsage: compactedNotice
           ? applyCompactedNoticeToContextUsage(state.contextUsage, compactedNotice)
           : state.contextUsage
@@ -1566,6 +1910,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       const baseItem = buildToolLikeItem(item, type, 'started')
       set((state) => {
         let nextPending = state.pendingTerminalByCallId
+        let nextPendingToolCompletions = state.pendingToolCompletionsByCallKey
         const turns = state.turns.map((t) => {
           if (t.id !== turnId || t.items.some((existing) => existing.id === baseItem.id)) return t
           const nextItem = type === 'toolCall'
@@ -1578,9 +1923,21 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
           if (type !== 'toolCall') return nextTurn
           const applied = applyPendingTerminalsToTurn(nextTurn, state.pendingTerminalByCallId)
           nextPending = removePendingTerminalEntries(nextPending, applied.appliedCallIds)
-          return applied.turn
+          const completionApplied = applyPendingToolCompletionsToTurn(
+            applied.turn,
+            state.pendingToolCompletionsByCallKey
+          )
+          nextPendingToolCompletions = removePendingToolCompletionEntries(
+            nextPendingToolCompletions,
+            completionApplied.appliedKeys
+          )
+          return completionApplied.turn
         })
-        return { turns, pendingTerminalByCallId: nextPending }
+        return {
+          turns,
+          pendingTerminalByCallId: nextPending,
+          pendingToolCompletionsByCallKey: nextPendingToolCompletions
+        }
       })
     } else if (type === 'commandExecution') {
       const itemPayload = (item?.payload ?? {}) as Record<string, unknown>
@@ -1720,6 +2077,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
     set((state) => {
       let capturedToolName = ''
       let capturedPreview = ''
+      let nextPendingToolCompletions = state.pendingToolCompletionsByCallKey
       const nextTurns = state.turns.map((t) => {
         if (t.id !== turnId) return t
         const existing = t.items.find((i) => i.id === itemId)
@@ -1776,7 +2134,16 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
           capturedToolName = created?.toolName ?? params.toolName ?? ''
           capturedPreview = created?.argumentsPreview ?? delta
         }
-        return { ...t, items: sortItemsByCreatedAt(nextItems) }
+        const nextTurn = { ...t, items: sortItemsByCreatedAt(nextItems) }
+        const completionApplied = applyPendingToolCompletionsToTurn(
+          nextTurn,
+          state.pendingToolCompletionsByCallKey
+        )
+        nextPendingToolCompletions = removePendingToolCompletionEntries(
+          nextPendingToolCompletions,
+          completionApplied.appliedKeys
+        )
+        return completionApplied.turn
       })
 
       const nextStreamingItemDiffs = new Map(state.streamingItemDiffs)
@@ -1814,7 +2181,8 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       return {
         turns: nextTurns,
         streamingItemDiffs: nextStreamingItemDiffs,
-        streamingBaselines: nextStreamingBaselines
+        streamingBaselines: nextStreamingBaselines,
+        pendingToolCompletionsByCallKey: nextPendingToolCompletions
       }
     })
 
@@ -2039,6 +2407,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
         ?? (itemPayload.callId as string | undefined)
       set((s) => {
         let nextPending = s.pendingTerminalByCallId
+        let nextPendingToolCompletions = s.pendingToolCompletionsByCallKey
         const turns = s.turns.map((t) => {
           if (t.id !== turnId) return t
           const nextTurn = {
@@ -2060,9 +2429,21 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
           }
           const applied = applyPendingTerminalsToTurn(nextTurn, s.pendingTerminalByCallId)
           nextPending = removePendingTerminalEntries(nextPending, applied.appliedCallIds)
-          return applied.turn
+          const completionApplied = applyPendingToolCompletionsToTurn(
+            applied.turn,
+            s.pendingToolCompletionsByCallKey
+          )
+          nextPendingToolCompletions = removePendingToolCompletionEntries(
+            nextPendingToolCompletions,
+            completionApplied.appliedKeys
+          )
+          return completionApplied.turn
         })
-        return { turns, pendingTerminalByCallId: nextPending }
+        return {
+          turns,
+          pendingTerminalByCallId: nextPending,
+          pendingToolCompletionsByCallKey: nextPendingToolCompletions
+        }
       })
     } else if (type === 'commandExecution') {
       const itemPayload = (item?.payload ?? {}) as Record<string, unknown>
@@ -2120,20 +2501,36 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       }))
     } else if (type === 'toolExecution') {
       const toolExecution = wireItemToConversationItem(item)
-      if (!toolExecution.toolCallId) return
+      const callId = toolExecution.toolCallId
+      const key = toolCompletionKey(turnId, callId)
+      if (!callId || !key) return
 
-      set((s) => ({
-        turns: s.turns.map((t) =>
-          t.id !== turnId
-            ? t
-            : {
-                ...t,
-                items: sortItemsByCreatedAt(
-                  mergeToolExecutionAcrossItems(t.items, toolExecution)
-                )
-              }
-        )
-      }))
+      set((s) => {
+        let matched = false
+        const pending = new Map(s.pendingToolCompletionsByCallKey)
+        const entry = mergePendingToolCompletionEntry(pending.get(key), {
+          turnId,
+          callId,
+          toolExecution
+        })
+        const turns = s.turns.map((t) => {
+          if (t.id !== turnId || !turnHasToolCall(t, callId)) return t
+          matched = true
+          return {
+            ...t,
+            items: sortItemsByCreatedAt(
+              mergeToolCompletionEntryIntoItems(t.items, entry)
+            )
+          }
+        })
+
+        if (matched) {
+          pending.delete(key)
+        } else {
+          pending.set(key, entry)
+        }
+        return { turns, pendingToolCompletionsByCallKey: pending }
+      })
     } else if (type === 'pluginFunctionCall' || type === 'dynamicToolCall') {
       const completedItem = buildToolLikeItem(
         item,
@@ -2185,6 +2582,8 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       const callId = (item?.callId as string | undefined)
         ?? (itemPayload.callId as string | undefined)
         ?? (item?.toolCallId as string | undefined)
+      const key = toolCompletionKey(turnId, callId)
+      if (!callId || !key) return
       const resultText = (item?.result as string | undefined)
         ?? (itemPayload.result as string | undefined)
         ?? (item?.text as string | undefined)
@@ -2192,35 +2591,41 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       const success = (item?.success as boolean | undefined)
         ?? (itemPayload.success as boolean | undefined)
         ?? true
+      const toolResult = wireItemToConversationItem(item)
 
       set((s) => {
+        let matched = false
+        const pending = new Map(s.pendingToolCompletionsByCallKey)
+        const entry = mergePendingToolCompletionEntry(pending.get(key), {
+          turnId,
+          callId,
+          toolResult: {
+            ...toolResult,
+            toolCallId: callId,
+            result: resultText,
+            success
+          }
+        })
         const nextTurns = s.turns.map((t) => {
-          if (t.id !== turnId) return t
+          if (t.id !== turnId || !turnHasToolCall(t, callId)) return t
+          matched = true
           return {
             ...t,
             items: sortItemsByCreatedAt(
-              t.items.map((i) => {
-                if (i.type === 'toolCall' && i.toolCallId === callId) {
-                  const startMs = i.createdAt ? new Date(i.createdAt).getTime() : Date.now()
-                  const endMs = (item?.completedAt as string)
-                    ? new Date(item.completedAt as string).getTime()
-                    : Date.now()
-                  return {
-                    ...i,
-                    status: 'completed' as const,
-                    result: resultText,
-                    success,
-                    duration: endMs - startMs,
-                    completedAt: (item?.completedAt as string) ?? new Date().toISOString()
-                  }
-                }
-                return i
-              })
+              mergeToolCompletionEntryIntoItems(t.items, entry)
             )
           }
         })
 
-        return { turns: nextTurns }
+        if (matched) {
+          pending.delete(key)
+        } else {
+          pending.set(key, entry)
+        }
+        return {
+          turns: nextTurns,
+          pendingToolCompletionsByCallKey: pending
+        }
       })
 
       // Cumulative diff (async — may read disk); requires workspace path for IPC
@@ -2566,13 +2971,16 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
     })
   },
 
-  onApprovalSubmitStarted(decision) {
+  onApprovalSubmitStarted(decision, target) {
     set((state) => {
-      const pending = state.pendingApproval
+      const queue = queueWithPendingApproval(state.pendingApprovals, state.pendingApproval)
+      const pending = target
+        ? queue.find((candidate) => matchesPendingApproval(candidate, target)) ?? null
+        : activePendingApproval(queue)
       if (!pending) return state
 
       const pendingApprovals = updatePendingApprovalInQueue(
-        queueWithPendingApproval(state.pendingApprovals, pending),
+        queue,
         pending,
         (approval) => ({
           ...approval,
@@ -2587,13 +2995,16 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
     })
   },
 
-  onApprovalSubmitFailed() {
+  onApprovalSubmitFailed(target) {
     set((state) => {
-      const pending = state.pendingApproval
+      const queue = queueWithPendingApproval(state.pendingApprovals, state.pendingApproval)
+      const pending = target
+        ? queue.find((candidate) => matchesPendingApproval(candidate, target)) ?? null
+        : activePendingApproval(queue)
       if (!pending) return state
 
       const pendingApprovals = updatePendingApprovalInQueue(
-        queueWithPendingApproval(state.pendingApprovals, pending),
+        queue,
         pending,
         (approval) => ({
           ...approval,
@@ -2608,21 +3019,41 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
     })
   },
 
-  onApprovalDecision(decision) {
-    const state = get()
-    const pending = state.pendingApproval
-    if (!pending) return
+  onApprovalDecision(decision, target) {
+    set((state) => {
+      const queue = queueWithPendingApproval(state.pendingApprovals, state.pendingApproval)
+      const pending = target
+        ? queue.find((candidate) => matchesPendingApproval(candidate, target)) ?? null
+        : activePendingApproval(queue)
+      const itemId = pending?.itemId ?? target?.itemId ?? null
+      const requestId = pending?.requestId ?? target?.requestId ?? null
+      if (!itemId && !requestId) return state
 
-    const newState = approvalDecisionToState[decision]
+      const newState = approvalDecisionToState[decision]
+      const pendingApprovals = pending
+        ? queue.filter((candidate) => !samePendingApproval(candidate, pending))
+        : queue
+      const nextPendingApproval = activePendingApproval(pendingApprovals)
+      const shouldRestoreRunning = state.turnStatus === 'waitingApproval' || pending != null
 
-    set((s) => ({
-      turns: s.turns.map((t) => ({
-        ...t,
-        items: t.items.map((i) =>
-          i.id === pending.itemId ? { ...i, approvalState: newState } : i
-        )
-      }))
-    }))
+      return {
+        turns: state.turns.map((t) => ({
+          ...t,
+          items: t.items.map((i) =>
+            approvalCardMatchesResolution(i, itemId, requestId)
+              ? { ...i, approvalState: newState }
+              : i
+          )
+        })),
+        pendingApprovals,
+        pendingApproval: nextPendingApproval,
+        turnStatus: nextPendingApproval
+          ? 'waitingApproval'
+          : shouldRestoreRunning
+            ? 'running'
+            : state.turnStatus
+      }
+    })
   },
 
   onApprovalResolved(params) {
@@ -2794,6 +3225,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       streamingItemDiffs: new Map<string, FileDiff>(),
       streamingBaselines: new Map<string, StreamingFileBaseline>(),
       pendingTerminalByCallId: new Map<string, PendingTerminalEntry>(),
+      pendingToolCompletionsByCallKey: new Map<string, PendingToolCompletionEntry>(),
       subAgentEntries: [],
       pendingApproval: null,
       pendingApprovals: [],
