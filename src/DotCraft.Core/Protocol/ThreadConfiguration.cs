@@ -10,6 +10,25 @@ namespace DotCraft.Protocol;
 public sealed class ThreadConfiguration
 {
     /// <summary>
+    /// Optional identifier of the Agent Profile snapshot that produced this configuration.
+    /// Runtime enforcement uses the resolved fields on this object, not the profile file.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? AgentProfileId { get; set; }
+
+    /// <summary>
+    /// Optional source of the Agent Profile snapshot, such as <c>builtIn</c>, <c>user</c>, or <c>workspace</c>.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? AgentProfileSource { get; set; }
+
+    /// <summary>
+    /// Optional fingerprint of the profile content that produced this resolved configuration.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? AgentProfileFingerprint { get; set; }
+
+    /// <summary>
     /// Per-thread MCP server connections. Null means use workspace-level MCP configuration.
     /// </summary>
     public McpServerConfig[]? McpServers { get; set; }
@@ -100,6 +119,37 @@ public sealed class ThreadConfiguration
     public string[]? ToolDenyList { get; set; }
 
     /// <summary>
+    /// Structured tool policy compiled from an Agent Profile or supplied directly by a client.
+    /// Composes with legacy <see cref="ToolAllowList"/> and <see cref="ToolDenyList"/>.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public ThreadToolPolicy? ToolPolicy { get; set; }
+
+    /// <summary>
+    /// Structured MCP server and MCP tool policy for this thread.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public ThreadMcpPolicy? McpPolicy { get; set; }
+
+    /// <summary>
+    /// Structured plugin and app policy for this thread.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public ThreadPluginPolicy? PluginPolicy { get; set; }
+
+    /// <summary>
+    /// Structured skills policy for this thread.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public ThreadSkillsPolicy? SkillsPolicy { get; set; }
+
+    /// <summary>
+    /// Structured Agent Teams policy for this thread.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public ThreadTeamsPolicy? TeamsPolicy { get; set; }
+
+    /// <summary>
     /// Optional per-thread override for DotCraft agent-control tools.
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
@@ -148,4 +198,131 @@ public sealed class ThreadConfiguration
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public bool? RequireApprovalOutsideWorkspace { get; set; }
+}
+
+/// <summary>
+/// Exact-name policy for general model-visible tools.
+/// </summary>
+public sealed class ThreadToolPolicy
+{
+    /// <summary>
+    /// Tool names allowed by the profile. Null means no allow-list; an empty array means no tools.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string[]? Allow { get; set; }
+
+    /// <summary>
+    /// Tool names denied by the profile. Deny rules win over allow rules.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string[]? Deny { get; set; }
+
+    /// <summary>
+    /// Optional agent-control policy: <c>disabled</c>, <c>full</c>, or <c>allowList</c>.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? AgentControl { get; set; }
+
+    /// <summary>
+    /// Optional agent-control tool allow-list used when <see cref="AgentControl"/> is <c>allowList</c>.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string[]? AllowedAgentControlTools { get; set; }
+}
+
+/// <summary>
+/// Policy for MCP servers and tools available to a thread.
+/// </summary>
+public sealed class ThreadMcpPolicy
+{
+    /// <summary>
+    /// MCP server names allowed for this thread. Null means no server allow-list; empty means none.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string[]? Servers { get; set; }
+
+    /// <summary>
+    /// MCP tool-name policy. Wildcards are supported for MCP tool names.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public ThreadNamePolicy? Tools { get; set; }
+}
+
+/// <summary>
+/// Reusable allow/deny name policy.
+/// </summary>
+public sealed class ThreadNamePolicy
+{
+    /// <summary>
+    /// Allowed names or patterns. Null means no allow-list; empty means none.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string[]? Allow { get; set; }
+
+    /// <summary>
+    /// Denied names or patterns. Deny rules win over allow rules.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string[]? Deny { get; set; }
+}
+
+/// <summary>
+/// Policy for plugin-provided functions and app-provided dynamic tools.
+/// </summary>
+public sealed class ThreadPluginPolicy
+{
+    /// <summary>
+    /// Allowed plugin or app ids. Null means no allow-list; empty means none.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string[]? Allow { get; set; }
+
+    /// <summary>
+    /// Denied plugin or app ids. Deny rules win over allow rules.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string[]? Deny { get; set; }
+}
+
+/// <summary>
+/// Policy for agent-facing skill access.
+/// </summary>
+public sealed class ThreadSkillsPolicy
+{
+    /// <summary>
+    /// Skill names that should be preloaded into prompt context by profile-aware prompt rendering.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string[]? Preload { get; set; }
+
+    /// <summary>
+    /// Skill names the agent may read. Null means no allow-list; empty means none.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string[]? Allow { get; set; }
+
+    /// <summary>
+    /// Skill names the agent may not read or mutate. Deny rules win over allow rules.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string[]? Deny { get; set; }
+
+    /// <summary>
+    /// Whether skill management tools may be exposed and invoked.
+    /// Null means the existing runtime default applies.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public bool? AllowManage { get; set; }
+}
+
+/// <summary>
+/// Policy for Agent Teams runtime-owned capabilities.
+/// </summary>
+public sealed class ThreadTeamsPolicy
+{
+    /// <summary>
+    /// Reserved Teams tool behavior. <c>keep</c> preserves Teams-owned runtime tools for Teams threads.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? ReservedTools { get; set; }
 }

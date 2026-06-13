@@ -658,6 +658,9 @@ public sealed partial class SessionService(
 
     private static ThreadConfiguration CloneThreadConfiguration(ThreadConfiguration source) => new()
     {
+        AgentProfileId = source.AgentProfileId,
+        AgentProfileSource = source.AgentProfileSource,
+        AgentProfileFingerprint = source.AgentProfileFingerprint,
         McpServers = source.McpServers == null ? null : [.. source.McpServers],
         Mode = source.Mode,
         Extensions = source.Extensions == null ? null : [.. source.Extensions],
@@ -672,6 +675,11 @@ public sealed partial class SessionService(
         AgentInstructions = source.AgentInstructions,
         ToolAllowList = source.ToolAllowList == null ? null : [.. source.ToolAllowList],
         ToolDenyList = source.ToolDenyList == null ? null : [.. source.ToolDenyList],
+        ToolPolicy = CloneToolPolicy(source.ToolPolicy),
+        McpPolicy = CloneMcpPolicy(source.McpPolicy),
+        PluginPolicy = ClonePluginPolicy(source.PluginPolicy),
+        SkillsPolicy = CloneSkillsPolicy(source.SkillsPolicy),
+        TeamsPolicy = CloneTeamsPolicy(source.TeamsPolicy),
         AgentControlToolAccess = source.AgentControlToolAccess,
         AllowedAgentControlTools = source.AllowedAgentControlTools == null ? null : [.. source.AllowedAgentControlTools],
         PromptProfile = source.PromptProfile,
@@ -688,6 +696,63 @@ public sealed partial class SessionService(
         Effort = source.Effort,
         Output = source.Output
     };
+
+    private static ThreadToolPolicy? CloneToolPolicy(ThreadToolPolicy? source) =>
+        source == null
+            ? null
+            : new ThreadToolPolicy
+            {
+                Allow = source.Allow == null ? null : [.. source.Allow],
+                Deny = source.Deny == null ? null : [.. source.Deny],
+                AgentControl = source.AgentControl,
+                AllowedAgentControlTools = source.AllowedAgentControlTools == null ? null : [.. source.AllowedAgentControlTools]
+            };
+
+    private static ThreadMcpPolicy? CloneMcpPolicy(ThreadMcpPolicy? source) =>
+        source == null
+            ? null
+            : new ThreadMcpPolicy
+            {
+                Servers = source.Servers == null ? null : [.. source.Servers],
+                Tools = CloneNamePolicy(source.Tools)
+            };
+
+    private static ThreadPluginPolicy? ClonePluginPolicy(ThreadPluginPolicy? source) =>
+        source == null
+            ? null
+            : new ThreadPluginPolicy
+            {
+                Allow = source.Allow == null ? null : [.. source.Allow],
+                Deny = source.Deny == null ? null : [.. source.Deny]
+            };
+
+    private static ThreadSkillsPolicy? CloneSkillsPolicy(ThreadSkillsPolicy? source) =>
+        source == null
+            ? null
+            : new ThreadSkillsPolicy
+            {
+                Preload = source.Preload == null ? null : [.. source.Preload],
+                Allow = source.Allow == null ? null : [.. source.Allow],
+                Deny = source.Deny == null ? null : [.. source.Deny],
+                AllowManage = source.AllowManage
+            };
+
+    private static ThreadTeamsPolicy? CloneTeamsPolicy(ThreadTeamsPolicy? source) =>
+        source == null
+            ? null
+            : new ThreadTeamsPolicy
+            {
+                ReservedTools = source.ReservedTools
+            };
+
+    private static ThreadNamePolicy? CloneNamePolicy(ThreadNamePolicy? source) =>
+        source == null
+            ? null
+            : new ThreadNamePolicy
+            {
+                Allow = source.Allow == null ? null : [.. source.Allow],
+                Deny = source.Deny == null ? null : [.. source.Deny]
+            };
 
     private static AppConfig.ReasoningConfig? CloneNullableReasoningConfig(AppConfig.ReasoningConfig? source) =>
         source == null ? null : CloneReasoningConfig(source);
@@ -875,11 +940,40 @@ public sealed partial class SessionService(
         string.Equals(thread.Source.Kind, ThreadSourceKinds.SubAgent, StringComparison.OrdinalIgnoreCase)
         || string.Equals(thread.OriginChannel, SubAgentThreadOrigin.ChannelName, StringComparison.OrdinalIgnoreCase);
 
-    private static AgentControlToolAccess ResolveAgentControlToolAccess(SessionThread thread) =>
-        thread.Configuration?.AgentControlToolAccess
-        ?? (IsSubAgentThread(thread)
+    private static AgentControlToolAccess ResolveAgentControlToolAccess(SessionThread thread)
+    {
+        var defaultAccess = IsSubAgentThread(thread)
             ? AgentControlToolAccess.Disabled
-            : AgentControlToolAccess.Full);
+            : AgentControlToolAccess.Full;
+        var config = thread.Configuration;
+        if (config == null)
+            return defaultAccess;
+
+        var legacy = config.AgentControlToolAccess;
+        var structured = ParseAgentControlToolAccess(config.ToolPolicy?.AgentControl);
+        if (legacy == AgentControlToolAccess.Disabled || structured == AgentControlToolAccess.Disabled)
+            return AgentControlToolAccess.Disabled;
+        if (legacy == AgentControlToolAccess.AllowList || structured == AgentControlToolAccess.AllowList)
+            return AgentControlToolAccess.AllowList;
+        if (legacy == AgentControlToolAccess.Full || structured == AgentControlToolAccess.Full)
+            return AgentControlToolAccess.Full;
+        return defaultAccess;
+    }
+
+    private static AgentControlToolAccess? ParseAgentControlToolAccess(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
+
+        return value.Trim() switch
+        {
+            var v when string.Equals(v, "disabled", StringComparison.OrdinalIgnoreCase) => AgentControlToolAccess.Disabled,
+            var v when string.Equals(v, "full", StringComparison.OrdinalIgnoreCase) => AgentControlToolAccess.Full,
+            var v when string.Equals(v, "allowList", StringComparison.OrdinalIgnoreCase) => AgentControlToolAccess.AllowList,
+            var v when string.Equals(v, "allow-list", StringComparison.OrdinalIgnoreCase) => AgentControlToolAccess.AllowList,
+            _ => null
+        };
+    }
 
     /// <inheritdoc/>
     public IAsyncEnumerable<SessionEvent> SubscribeThreadAsync(
@@ -2740,6 +2834,12 @@ public sealed partial class SessionService(
 
     private static bool HasAgentShapingConfiguration(ThreadConfiguration config)
     {
+        if (!string.IsNullOrWhiteSpace(config.AgentProfileId))
+            return true;
+        if (!string.IsNullOrWhiteSpace(config.AgentProfileSource))
+            return true;
+        if (!string.IsNullOrWhiteSpace(config.AgentProfileFingerprint))
+            return true;
         if (!string.Equals(config.Mode, "agent", StringComparison.OrdinalIgnoreCase))
             return true;
         if (config.McpServers is { Length: > 0 })
@@ -2762,6 +2862,16 @@ public sealed partial class SessionService(
             return true;
         if (config.ToolDenyList is { Length: > 0 })
             return true;
+        if (HasPolicy(config.ToolPolicy))
+            return true;
+        if (HasPolicy(config.McpPolicy))
+            return true;
+        if (HasPolicy(config.PluginPolicy))
+            return true;
+        if (HasPolicy(config.SkillsPolicy))
+            return true;
+        if (HasPolicy(config.TeamsPolicy))
+            return true;
         if (config.AgentControlToolAccess.HasValue)
             return true;
         if (config.AllowedAgentControlTools is { Length: > 0 })
@@ -2778,6 +2888,33 @@ public sealed partial class SessionService(
             return true;
         return config.RequireApprovalOutsideWorkspace.HasValue;
     }
+
+    private static bool HasPolicy(ThreadToolPolicy? policy) =>
+        policy != null
+        && (policy.Allow != null
+            || policy.Deny != null
+            || !string.IsNullOrWhiteSpace(policy.AgentControl)
+            || policy.AllowedAgentControlTools != null);
+
+    private static bool HasPolicy(ThreadMcpPolicy? policy) =>
+        policy != null
+        && (policy.Servers != null || HasPolicy(policy.Tools));
+
+    private static bool HasPolicy(ThreadNamePolicy? policy) =>
+        policy != null && (policy.Allow != null || policy.Deny != null);
+
+    private static bool HasPolicy(ThreadPluginPolicy? policy) =>
+        policy != null && (policy.Allow != null || policy.Deny != null);
+
+    private static bool HasPolicy(ThreadSkillsPolicy? policy) =>
+        policy != null
+        && (policy.Preload != null
+            || policy.Allow != null
+            || policy.Deny != null
+            || policy.AllowManage.HasValue);
+
+    private static bool HasPolicy(ThreadTeamsPolicy? policy) =>
+        policy != null && !string.IsNullOrWhiteSpace(policy.ReservedTools);
 
     private async Task PersistThreadStatusAsync(SessionThread thread, CancellationToken ct)
     {
@@ -3540,7 +3677,7 @@ public sealed partial class SessionService(
                 CurrentOriginChannel = thread.OriginChannel,
                 CurrentChannelContext = thread.ChannelContext,
                 AgentControlToolAccess = agentControlToolAccess,
-                AllowedAgentControlTools = ToSet(config.AllowedAgentControlTools),
+                AllowedAgentControlTools = ResolveAllowedAgentControlTools(config),
                 ToolAllowList = ToSet(config.ToolAllowList),
                 ToolDenyList = ToSet(config.ToolDenyList),
                 PromptProfile = config.PromptProfile,
@@ -3572,6 +3709,9 @@ public sealed partial class SessionService(
         }
 
         toolContext.DeferredToolRegistry = null;
+        var capabilityPolicy = new ThreadCapabilityPolicyEvaluator(config, toolContext);
+        toolContext.ToolCallPolicy = capabilityPolicy.EvaluateCall;
+        toolContext.ToolInvocationPolicy = capabilityPolicy.EvaluateInvocation;
 
         List<AITool>? profileTools = null;
         if (!string.IsNullOrEmpty(config.ToolProfile))
@@ -3590,8 +3730,9 @@ public sealed partial class SessionService(
         {
             if (profileTools is not { Count: > 0 })
                 throw new InvalidOperationException("UseToolProfileOnly requires a registered ToolProfile with at least one tool.");
-            ApplyThreadToolFilters(profileTools, config);
+            ApplyThreadToolFilters(profileTools, capabilityPolicy);
             DeferredToolLoadingPlanner.Apply(profileTools, toolContext);
+            ApplyThreadToolFilters(profileTools, capabilityPolicy);
             threadRuntimeState.CurrentTools = profileTools.ToArray();
             return agentFactory.CreateAgentWithTools(profileTools, mm, toolContext, config.AgentInstructions);
         }
@@ -3600,27 +3741,15 @@ public sealed partial class SessionService(
         if (profileTools != null)
             toolsWithMcp.AddRange(profileTools);
         AppendChannelTools(toolsWithMcp, thread);
-        ApplyThreadToolFilters(toolsWithMcp, config);
+        ApplyThreadToolFilters(toolsWithMcp, capabilityPolicy);
         DeferredToolLoadingPlanner.Apply(toolsWithMcp, toolContext);
+        ApplyThreadToolFilters(toolsWithMcp, capabilityPolicy);
         threadRuntimeState.CurrentTools = toolsWithMcp.ToArray();
         return agentFactory.CreateAgentWithTools(toolsWithMcp, mm, toolContext);
     }
 
-    private static void ApplyThreadToolFilters(List<AITool> tools, ThreadConfiguration config)
-    {
-        var allow = config.ToolAllowList?
-            .Where(name => !string.IsNullOrWhiteSpace(name))
-            .ToHashSet(StringComparer.Ordinal);
-        var deny = config.ToolDenyList?
-            .Where(name => !string.IsNullOrWhiteSpace(name))
-            .ToHashSet(StringComparer.Ordinal);
-
-        if (allow is { Count: > 0 })
-            tools.RemoveAll(tool => !allow.Contains(tool.Name));
-
-        if (deny is { Count: > 0 })
-            tools.RemoveAll(tool => deny.Contains(tool.Name));
-    }
+    private static void ApplyThreadToolFilters(List<AITool> tools, ThreadCapabilityPolicyEvaluator policy) =>
+        tools.RemoveAll(tool => !policy.AllowsTool(tool));
 
     private void AppendChannelTools(List<AITool> tools, SessionThread thread)
     {
@@ -3719,9 +3848,11 @@ public sealed partial class SessionService(
             AgentControlToolAccess = thread == null
                 ? source.AgentControlToolAccess
                 : ResolveAgentControlToolAccess(thread),
-            AllowedAgentControlTools = thread == null ? source.AllowedAgentControlTools : ToSet(thread.Configuration?.AllowedAgentControlTools),
+            AllowedAgentControlTools = thread == null ? source.AllowedAgentControlTools : ResolveAllowedAgentControlTools(thread.Configuration),
             ToolAllowList = thread == null ? source.ToolAllowList : ToSet(thread.Configuration?.ToolAllowList),
             ToolDenyList = thread == null ? source.ToolDenyList : ToSet(thread.Configuration?.ToolDenyList),
+            ToolCallPolicy = source.ToolCallPolicy,
+            ToolInvocationPolicy = source.ToolInvocationPolicy,
             PromptProfile = thread?.Configuration?.PromptProfile ?? source.PromptProfile,
             RoleInstructions = thread?.Configuration?.RoleInstructions ?? source.RoleInstructions
         };
@@ -3770,6 +3901,8 @@ public sealed partial class SessionService(
             AllowedAgentControlTools = source.AllowedAgentControlTools,
             ToolAllowList = source.ToolAllowList,
             ToolDenyList = source.ToolDenyList,
+            ToolCallPolicy = source.ToolCallPolicy,
+            ToolInvocationPolicy = source.ToolInvocationPolicy,
             PromptProfile = source.PromptProfile,
             RoleInstructions = source.RoleInstructions
         };
@@ -3815,6 +3948,8 @@ public sealed partial class SessionService(
             AllowedAgentControlTools = source.AllowedAgentControlTools,
             ToolAllowList = source.ToolAllowList,
             ToolDenyList = source.ToolDenyList,
+            ToolCallPolicy = source.ToolCallPolicy,
+            ToolInvocationPolicy = source.ToolInvocationPolicy,
             PromptProfile = source.PromptProfile,
             RoleInstructions = source.RoleInstructions
         };
@@ -3828,6 +3963,49 @@ public sealed partial class SessionService(
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .ToHashSet(StringComparer.Ordinal);
         return set.Count == 0 ? null : set;
+    }
+
+    private static IReadOnlySet<string>? ResolveAllowedAgentControlTools(ThreadConfiguration? config)
+    {
+        if (config == null)
+            return null;
+
+        var legacyRequiresAllowList = config.AgentControlToolAccess == AgentControlToolAccess.AllowList;
+        var structuredRequiresAllowList =
+            ParseAgentControlToolAccess(config.ToolPolicy?.AgentControl) == AgentControlToolAccess.AllowList;
+        if (!legacyRequiresAllowList && !structuredRequiresAllowList)
+            return null;
+
+        HashSet<string>? result = null;
+        if (legacyRequiresAllowList)
+            result = ToSetPreserveEmpty(config.AllowedAgentControlTools);
+
+        if (structuredRequiresAllowList)
+        {
+            var structured = ToSetPreserveEmpty(config.ToolPolicy?.AllowedAgentControlTools);
+            result = result == null
+                ? structured
+                : Intersect(result, structured);
+        }
+
+        return result ?? new HashSet<string>(StringComparer.Ordinal);
+    }
+
+    private static HashSet<string> ToSetPreserveEmpty(IEnumerable<string>? values)
+    {
+        if (values == null)
+            return new HashSet<string>(StringComparer.Ordinal);
+
+        return values
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .ToHashSet(StringComparer.Ordinal);
+    }
+
+    private static HashSet<string> Intersect(IReadOnlySet<string> left, IReadOnlySet<string> right)
+    {
+        var result = new HashSet<string>(left, StringComparer.Ordinal);
+        result.IntersectWith(right);
+        return result;
     }
 
     internal static bool TryRemoveStreamingToolCallIndexByItemReference(

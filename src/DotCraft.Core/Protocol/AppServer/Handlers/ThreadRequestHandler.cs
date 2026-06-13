@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
+using DotCraft.Agents;
 using DotCraft.AppBinding;
 using DotCraft.Configuration;
 using DotCraft.Logging;
@@ -17,6 +18,7 @@ internal sealed class ThreadRequestHandler(
     WorkspaceConfigEditor workspaceConfig,
     IAppConfigMonitor? appConfigMonitor,
     string? hostWorkspacePath,
+    string? workspaceCraftPath,
     SessionStreamDebugLogger? streamDebugLogger,
     SessionApprovalDecision defaultApprovalDecision) : IAppServerDomainHandler
 {
@@ -68,6 +70,7 @@ internal sealed class ThreadRequestHandler(
         threadBinder.ValidateRuntimeInputs(p.DynamicTools, p.AdditionalContext);
 
         var identity = NormalizeIdentityWorkspace(p.Identity);
+        p.Config = ResolveAgentProfileConfig(p.Config, msg, identity);
         var historyMode = p.HistoryMode?.ToLowerInvariant() == "client"
             ? HistoryMode.Client
             : HistoryMode.Server;
@@ -94,6 +97,50 @@ internal sealed class ThreadRequestHandler(
             AppServerMethods.ThreadStarted,
             new { thread = startedWire },
             ct);
+
+        return null;
+    }
+
+    private ThreadConfiguration? ResolveAgentProfileConfig(
+        ThreadConfiguration? config,
+        AppServerIncomingMessage msg,
+        SessionIdentity identity)
+    {
+        if (string.IsNullOrWhiteSpace(config?.AgentProfileId))
+            return config;
+
+        try
+        {
+            var store = new AgentProfileStore(ResolveAgentProfileWorkspaceCraftPath(identity));
+            return store.ResolveThreadStartConfiguration(config, TryGetConfigElement(msg));
+        }
+        catch (AgentProfileException ex)
+        {
+            throw AgentProfileRequestHandler.MapError(ex);
+        }
+    }
+
+    private string? ResolveAgentProfileWorkspaceCraftPath(SessionIdentity identity)
+    {
+        if (!string.IsNullOrWhiteSpace(workspaceCraftPath))
+            return workspaceCraftPath;
+        if (!string.IsNullOrWhiteSpace(identity.WorkspacePath))
+            return Path.Combine(identity.WorkspacePath, ".craft");
+        if (!string.IsNullOrWhiteSpace(hostWorkspacePath))
+            return Path.Combine(hostWorkspacePath, ".craft");
+        return null;
+    }
+
+    private static JsonElement? TryGetConfigElement(AppServerIncomingMessage msg)
+    {
+        if (!msg.Params.HasValue || msg.Params.Value.ValueKind != JsonValueKind.Object)
+            return null;
+
+        foreach (var property in msg.Params.Value.EnumerateObject())
+        {
+            if (string.Equals(property.Name, "config", StringComparison.OrdinalIgnoreCase))
+                return property.Value;
+        }
 
         return null;
     }

@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using DotCraft.Abstractions;
+using DotCraft.Agents;
 using DotCraft.AppBinding;
 using DotCraft.Configuration;
 using DotCraft.Plugins;
@@ -21,6 +22,11 @@ namespace DotCraft.Teams;
 public sealed class TeamsService(IAppConfigMonitor? appConfigMonitor = null) : IManagedAppBindingRuntime, IThreadRuntimeSignalObserver
 {
     private const string CreateTeamToolName = "CreateTeam";
+    private const string TeamProfileLeader = "team-leader";
+    private const string TeamProfileExplorer = "team-explorer";
+    private const string TeamProfileBuilder = "team-builder";
+    private const string TeamProfileReviewer = "team-reviewer";
+    private const string TeamProfileOperator = "team-operator";
 
     private static readonly IReadOnlyList<string> TeamScopes =
     [
@@ -133,7 +139,7 @@ public sealed class TeamsService(IAppConfigMonitor? appConfigMonitor = null) : I
             EnsureMissionScratchpads(write, workspaceCraftPath);
             return write;
         });
-        return await BuildViewAsync(sessionService, state, ct);
+        return await BuildViewAsync(sessionService, state, workspaceCraftPath, ct);
     }
 
     public async Task<TeamsTeamViewResult> EnableTeamAsync(
@@ -145,7 +151,7 @@ public sealed class TeamsService(IAppConfigMonitor? appConfigMonitor = null) : I
     {
         SetRuntimeServices(appBindingService, sessionService);
         var state = await EnsureTeamAsync(appBindingService, sessionService, workspacePath, workspaceCraftPath, ct);
-        return await BuildViewAsync(sessionService, state, ct);
+        return await BuildViewAsync(sessionService, state, workspaceCraftPath, ct);
     }
 
     public async Task<TeamsMissionCreateResult> CreateMissionAsync(
@@ -219,7 +225,7 @@ public sealed class TeamsService(IAppConfigMonitor? appConfigMonitor = null) : I
         {
             Mission = mission,
             QueuedInput = queued,
-            Team = await BuildViewAsync(sessionService, latest, ct)
+            Team = await BuildViewAsync(sessionService, latest, workspaceCraftPath, ct)
         };
     }
 
@@ -261,7 +267,7 @@ public sealed class TeamsService(IAppConfigMonitor? appConfigMonitor = null) : I
         });
         await StopMissionThreadsAsync(sessionService, state.MissionThreads.Where(t => string.Equals(t.MissionId, p.MissionId, StringComparison.Ordinal)), ct);
         RefreshContexts(workspaceCraftPath, state);
-        return await BuildViewAsync(sessionService, state, ct);
+        return await BuildViewAsync(sessionService, state, workspaceCraftPath, ct);
     }
 
     public async Task<TeamsTeamViewResult> ArchiveMissionAsync(
@@ -300,7 +306,7 @@ public sealed class TeamsService(IAppConfigMonitor? appConfigMonitor = null) : I
         }
 
         RefreshContexts(workspaceCraftPath, state);
-        return await BuildViewAsync(sessionService, state, ct);
+        return await BuildViewAsync(sessionService, state, workspaceCraftPath, ct);
     }
 
     public TeamsMemberOpenThreadResult OpenMemberThread(string workspaceCraftPath, TeamsMemberOpenThreadParams p)
@@ -502,6 +508,7 @@ public sealed class TeamsService(IAppConfigMonitor? appConfigMonitor = null) : I
             }
         }
 
+        var profileResolution = ResolveMemberProfile(new AgentProfileStore(workspaceCraftPath), member);
         var thread = await sessionService.CreateThreadAsync(
             new SessionIdentity
             {
@@ -510,11 +517,7 @@ public sealed class TeamsService(IAppConfigMonitor? appConfigMonitor = null) : I
                 ChannelContext = $"{missionId}:{member.MemberId}",
                 WorkspacePath = workspacePath
             },
-            new ThreadConfiguration
-            {
-                Mode = "agent",
-                RoleInstructions = BuildMissionThreadRoleInstructions(member)
-            },
+            BuildMissionThreadConfiguration(member, profileResolution),
             displayName: $"DotCraft {member.DisplayName} - {mission.Title}",
             ct: ct);
 
@@ -653,8 +656,17 @@ public sealed class TeamsService(IAppConfigMonitor? appConfigMonitor = null) : I
 
         var thread = await sessionService.GetThreadAsync(threadId, ct);
         var config = thread.Configuration ?? new ThreadConfiguration { Mode = "agent" };
-        var expected = BuildMissionThreadRoleInstructions(member);
-        var needsUpdate = !string.Equals(config.RoleInstructions, expected, StringComparison.Ordinal)
+        var teamsInstructions = BuildMissionThreadRoleInstructions(member);
+        var currentInstructions = config.RoleInstructions?.Trim();
+        var hasTeamsInstructions = !string.IsNullOrWhiteSpace(currentInstructions)
+                                   && currentInstructions.EndsWith(teamsInstructions.Trim(), StringComparison.Ordinal);
+        var expected = string.IsNullOrWhiteSpace(config.AgentProfileId)
+            ? teamsInstructions
+            : hasTeamsInstructions
+                ? currentInstructions!
+                : CombineRoleInstructions(currentInstructions, teamsInstructions);
+        var needsUpdate = !hasTeamsInstructions
+                          || !string.Equals(config.RoleInstructions, expected, StringComparison.Ordinal)
                           || !string.IsNullOrWhiteSpace(config.AgentInstructions)
                           || config.OverrideBasePrompt;
         if (!needsUpdate)
@@ -1341,6 +1353,7 @@ public sealed class TeamsService(IAppConfigMonitor? appConfigMonitor = null) : I
     private async Task<TeamsTeamViewResult> BuildViewAsync(
         ISessionService sessionService,
         TeamsStateDocument state,
+        string workspaceCraftPath,
         CancellationToken ct)
     {
         var visibleMissions = state.Missions
@@ -1429,9 +1442,11 @@ public sealed class TeamsService(IAppConfigMonitor? appConfigMonitor = null) : I
         }
 
         var members = new List<TeamMemberView>();
+        var profileStore = new AgentProfileStore(workspaceCraftPath);
         foreach (var member in state.Members)
         {
             var view = CopyMember(member);
+            view.AgentProfile = ResolveMemberProfileView(profileStore, member);
             var memberThreadViews = missionThreadViews
                 .Where(thread => string.Equals(thread.MemberId, member.MemberId, StringComparison.Ordinal))
                 .ToList();
@@ -1518,12 +1533,150 @@ public sealed class TeamsService(IAppConfigMonitor? appConfigMonitor = null) : I
             .ToList();
     }
 
+    private static ThreadConfiguration BuildMissionThreadConfiguration(
+        TeamMemberRecord member,
+        TeamMemberProfileResolution profile)
+    {
+        var config = profile.Config ?? new ThreadConfiguration { Mode = "agent" };
+        config.Mode = string.IsNullOrWhiteSpace(config.Mode) ? "agent" : config.Mode;
+        config.RoleInstructions = CombineRoleInstructions(config.RoleInstructions, BuildMissionThreadRoleInstructions(member));
+        config.AgentInstructions = null;
+        config.OverrideBasePrompt = false;
+        config.TeamsPolicy ??= new ThreadTeamsPolicy();
+        if (!string.Equals(config.TeamsPolicy.ReservedTools, "disabled", StringComparison.OrdinalIgnoreCase))
+            config.TeamsPolicy.ReservedTools = "keep";
+        return config;
+    }
+
+    private static TeamMemberProfileResolution ResolveMemberProfile(AgentProfileStore store, TeamMemberRecord member)
+    {
+        var requested = string.IsNullOrWhiteSpace(member.AgentProfileId)
+            ? DefaultAgentProfileIdForMember(member)
+            : member.AgentProfileId.Trim();
+        var diagnostics = new List<TeamMemberAgentProfileDiagnostic>();
+        var resolved = TryResolveProfile(store, requested, diagnostics, fallbackUsed: false);
+        if (resolved.Config != null)
+            return resolved;
+
+        var fallback = DefaultAgentProfileIdForMember(member);
+        if (!string.Equals(requested, fallback, StringComparison.OrdinalIgnoreCase))
+        {
+            var fallbackResolved = TryResolveProfile(store, fallback, diagnostics, fallbackUsed: true);
+            if (fallbackResolved.Config != null)
+                return fallbackResolved with { RequestedId = requested };
+        }
+
+        return new TeamMemberProfileResolution(
+            requested,
+            null,
+            null,
+            null,
+            null,
+            Missing: true,
+            FallbackUsed: !string.Equals(requested, fallback, StringComparison.OrdinalIgnoreCase),
+            Valid: false,
+            diagnostics);
+    }
+
+    private static TeamMemberProfileResolution TryResolveProfile(
+        AgentProfileStore store,
+        string profileId,
+        List<TeamMemberAgentProfileDiagnostic> diagnostics,
+        bool fallbackUsed)
+    {
+        try
+        {
+            var entry = store.Read(profileId);
+            diagnostics.AddRange(entry.Diagnostics.Select(ToTeamProfileDiagnostic));
+            if (!entry.Valid || entry.CompiledConfiguration == null)
+            {
+                diagnostics.Add(new TeamMemberAgentProfileDiagnostic
+                {
+                    Severity = "error",
+                    Code = "AgentProfileInvalid",
+                    Message = $"Agent profile '{profileId}' is invalid."
+                });
+                return new TeamMemberProfileResolution(profileId, null, null, null, null, false, fallbackUsed, false, diagnostics);
+            }
+
+            return new TeamMemberProfileResolution(
+                profileId,
+                entry.Id,
+                entry.Source,
+                entry.Fingerprint,
+                store.ResolveProfileConfiguration(entry.Id),
+                false,
+                fallbackUsed,
+                true,
+                diagnostics);
+        }
+        catch
+        {
+            diagnostics.Add(new TeamMemberAgentProfileDiagnostic
+            {
+                Severity = "error",
+                Code = "AgentProfileMissing",
+                Message = $"Agent profile '{profileId}' could not be resolved."
+            });
+            return new TeamMemberProfileResolution(profileId, null, null, null, null, true, fallbackUsed, false, diagnostics);
+        }
+    }
+
+    private static TeamMemberAgentProfileView ResolveMemberProfileView(AgentProfileStore store, TeamMemberRecord member)
+    {
+        var profile = ResolveMemberProfile(store, member);
+        return new TeamMemberAgentProfileView
+        {
+            RequestedId = profile.RequestedId,
+            ActiveId = profile.ActiveId,
+            Source = profile.Source,
+            Fingerprint = profile.Fingerprint,
+            Missing = profile.Missing,
+            FallbackUsed = profile.FallbackUsed,
+            Valid = profile.Valid,
+            Diagnostics = profile.Diagnostics
+        };
+    }
+
+    private static TeamMemberAgentProfileDiagnostic ToTeamProfileDiagnostic(AgentProfileDiagnostic diagnostic) => new()
+    {
+        Severity = diagnostic.Severity,
+        Code = diagnostic.Code,
+        Message = diagnostic.Message
+    };
+
+    private static string CombineRoleInstructions(string? profileInstructions, string teamsInstructions)
+    {
+        if (string.IsNullOrWhiteSpace(profileInstructions))
+            return teamsInstructions.Trim();
+
+        return $"{profileInstructions.Trim()}{Environment.NewLine}{Environment.NewLine}{teamsInstructions.Trim()}";
+    }
+
+    private static string DefaultAgentProfileIdForMember(TeamMemberRecord member)
+    {
+        var key = string.IsNullOrWhiteSpace(member.MemberId) ? member.Role : member.MemberId;
+        return key.Trim().ToLowerInvariant() switch
+        {
+            "leader" => TeamProfileLeader,
+            "explorer" => TeamProfileExplorer,
+            "builder" => TeamProfileBuilder,
+            "reviewer" => TeamProfileReviewer,
+            "operator" => TeamProfileOperator,
+            _ => TeamProfileBuilder
+        };
+    }
+
     private static void EnsureDefaultMembers(TeamsStateDocument state)
     {
         foreach (var seed in DefaultMembers())
         {
-            if (state.Members.Any(m => string.Equals(m.MemberId, seed.MemberId, StringComparison.Ordinal)))
+            var existing = state.Members.FirstOrDefault(m => string.Equals(m.MemberId, seed.MemberId, StringComparison.Ordinal));
+            if (existing != null)
+            {
+                existing.AgentProfileId ??= seed.AgentProfileId;
                 continue;
+            }
             state.Members.Add(seed);
         }
     }
@@ -1536,6 +1689,7 @@ public sealed class TeamsService(IAppConfigMonitor? appConfigMonitor = null) : I
             Role = "leader",
             DisplayName = "Team Leader",
             Description = "Breaks missions into plans, assigns tasks, and keeps the team synchronized.",
+            AgentProfileId = TeamProfileLeader,
             AvatarAccent = LeaderAvatarAccent,
             DeskX = 50,
             DeskY = 26
@@ -1546,6 +1700,7 @@ public sealed class TeamsService(IAppConfigMonitor? appConfigMonitor = null) : I
             Role = "explorer",
             DisplayName = "Explorer",
             Description = "Researches, inspects, and maps unknowns before the team commits to a path.",
+            AgentProfileId = TeamProfileExplorer,
             AvatarAccent = "#0ea5e9",
             DeskX = 32,
             DeskY = 62
@@ -1556,6 +1711,7 @@ public sealed class TeamsService(IAppConfigMonitor? appConfigMonitor = null) : I
             Role = "builder",
             DisplayName = "Builder",
             Description = "Implements changes, creates artifacts, and reports practical blockers.",
+            AgentProfileId = TeamProfileBuilder,
             AvatarAccent = "#8b5cf6",
             DeskX = 52,
             DeskY = 68
@@ -1566,6 +1722,7 @@ public sealed class TeamsService(IAppConfigMonitor? appConfigMonitor = null) : I
             Role = "reviewer",
             DisplayName = "Reviewer",
             Description = "Checks correctness, risks, missing tests, and quality before delivery.",
+            AgentProfileId = TeamProfileReviewer,
             AvatarAccent = "#22c55e",
             DeskX = 68,
             DeskY = 52
@@ -1576,6 +1733,7 @@ public sealed class TeamsService(IAppConfigMonitor? appConfigMonitor = null) : I
             Role = "operator",
             DisplayName = "Operator",
             Description = "Handles app, computer, and workflow operations that need careful execution.",
+            AgentProfileId = TeamProfileOperator,
             AvatarAccent = "#eab308",
             DeskX = 70,
             DeskY = 28
@@ -2341,6 +2499,9 @@ public sealed class TeamsService(IAppConfigMonitor? appConfigMonitor = null) : I
     {
         foreach (var member in state.Members)
         {
+            if (string.IsNullOrWhiteSpace(member.AgentProfileId))
+                member.AgentProfileId = DefaultAgentProfileIdForMember(member);
+
             if (string.Equals(member.MemberId, "leader", StringComparison.OrdinalIgnoreCase)
                 && string.Equals(member.AvatarAccent, LegacyLeaderAvatarAccent, StringComparison.OrdinalIgnoreCase))
             {
@@ -2863,6 +3024,17 @@ public sealed class TeamsService(IAppConfigMonitor? appConfigMonitor = null) : I
     private sealed record MessageDispatch(string MissionId, string MemberId, List<string> MessageIds);
 
     private sealed record LeaderDispatch(string MissionId, string Reason);
+
+    private sealed record TeamMemberProfileResolution(
+        string? RequestedId,
+        string? ActiveId,
+        string? Source,
+        string? Fingerprint,
+        ThreadConfiguration? Config,
+        bool Missing,
+        bool FallbackUsed,
+        bool Valid,
+        List<TeamMemberAgentProfileDiagnostic> Diagnostics);
 
     private sealed record TeamQueuedInput(string ModelText, string DisplayText);
 
@@ -3491,6 +3663,7 @@ public sealed class TeamsService(IAppConfigMonitor? appConfigMonitor = null) : I
             Role = member.Role,
             DisplayName = member.DisplayName,
             Description = member.Description,
+            AgentProfileId = member.AgentProfileId,
             ThreadId = member.ThreadId,
             BindingId = member.BindingId,
             GrantId = member.GrantId,

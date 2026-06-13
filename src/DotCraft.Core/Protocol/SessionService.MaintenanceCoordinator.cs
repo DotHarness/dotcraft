@@ -474,7 +474,9 @@ public sealed partial class SessionService
                 : AgentMode.Agent;
             var tools = owner.AgentFactory.CreateToolsForMode(mode);
             owner.AppendChannelTools(tools, thread);
-            ApplyThreadToolFilters(tools, config);
+            ApplyThreadToolFilters(
+                tools,
+                new ThreadCapabilityPolicyEvaluator(config, owner.AgentFactory.ToolProviderContext));
             return tools;
         }
 

@@ -112,6 +112,12 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
     /// </summary>
     public Func<FunctionInvocationContext, ModeToolPolicyDecision>? ModeToolPolicy { get; set; }
 
+    /// <summary>
+    /// Optional runtime policy hook invoked before a tool name is resolved.
+    /// Used to reject stale calls to tools hidden by thread capability policy.
+    /// </summary>
+    public Func<FunctionCallContent, ModeToolPolicyDecision>? ToolCallPolicy { get; set; }
+
     public override async Task<ChatResponse> GetResponseAsync(
         IEnumerable<ChatMessage> messages,
         ChatOptions? options = null,
@@ -612,6 +618,14 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
         CancellationToken cancellationToken)
     {
         var toolExecution = ToolExecutionTracker.Claim(call.CallId);
+        var prePolicyDecision = ToolCallPolicy?.Invoke(call);
+        if (prePolicyDecision is { Kind: not ModeToolPolicyDecisionKind.Allow })
+        {
+            var message = prePolicyDecision.Message ?? "TOOL_POLICY_DENIED";
+            CompleteDeniedToolCall(call, toolExecution, message);
+            return new FunctionInvocationOutcome(call, FunctionInvocationStatus.RanToCompletion, message, null, false);
+        }
+
         var tool = FindTool(call.Name, options);
         if (tool is not AIFunction function)
         {
@@ -644,9 +658,7 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
             if (policyDecision is { Kind: not ModeToolPolicyDecisionKind.Allow })
             {
                 var message = policyDecision.Message ?? "MODE_POLICY_DENIED";
-                if (string.Equals(call.Name, "Exec", StringComparison.Ordinal))
-                    CommandExecutionTracker.CompletePendingFailureByCallId(call.CallId, message);
-                toolExecution?.CompleteFailure(message);
+                CompleteDeniedToolCall(call, toolExecution, message);
                 return new FunctionInvocationOutcome(call, FunctionInvocationStatus.RanToCompletion, message, null, context.Terminate);
             }
 
@@ -678,6 +690,16 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
         {
             CurrentInvocationContext.Value = previousContext;
         }
+    }
+
+    private static void CompleteDeniedToolCall(
+        FunctionCallContent call,
+        ToolExecutionTracker? toolExecution,
+        string message)
+    {
+        if (string.Equals(call.Name, "Exec", StringComparison.Ordinal))
+            CommandExecutionTracker.CompletePendingFailureByCallId(call.CallId, message);
+        toolExecution?.CompleteFailure(message);
     }
 
     private FunctionResultContent CreateFunctionResultContent(FunctionInvocationOutcome result)

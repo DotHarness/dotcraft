@@ -223,6 +223,17 @@ public sealed class ToolProviderContext
     public IReadOnlySet<string>? ToolDenyList { get; init; }
 
     /// <summary>
+    /// Optional pre-resolution policy for model tool calls in this thread.
+    /// Used to reject stale calls to tools hidden by thread capability policy.
+    /// </summary>
+    public Func<FunctionCallContent, ModeToolPolicyDecision>? ToolCallPolicy { get; set; }
+
+    /// <summary>
+    /// Optional invocation policy for resolved functions in this thread.
+    /// </summary>
+    public Func<FunctionInvocationContext, ModeToolPolicyDecision>? ToolInvocationPolicy { get; set; }
+
+    /// <summary>
     /// Optional prompt profile for the current thread.
     /// </summary>
     public string? PromptProfile { get; init; }

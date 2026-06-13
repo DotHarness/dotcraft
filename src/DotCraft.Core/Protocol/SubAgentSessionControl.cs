@@ -1680,6 +1680,9 @@ $$"""
 
         return new ThreadConfiguration
         {
+            AgentProfileId = source.AgentProfileId,
+            AgentProfileSource = source.AgentProfileSource,
+            AgentProfileFingerprint = source.AgentProfileFingerprint,
             McpServers = source.McpServers?.ToArray(),
             Mode = source.Mode,
             Extensions = source.Extensions?.ToArray(),
@@ -1693,6 +1696,11 @@ $$"""
             AgentInstructions = source.AgentInstructions,
             ToolAllowList = source.ToolAllowList?.ToArray(),
             ToolDenyList = source.ToolDenyList?.ToArray(),
+            ToolPolicy = CloneToolPolicy(source.ToolPolicy),
+            McpPolicy = CloneMcpPolicy(source.McpPolicy),
+            PluginPolicy = ClonePluginPolicy(source.PluginPolicy),
+            SkillsPolicy = CloneSkillsPolicy(source.SkillsPolicy),
+            TeamsPolicy = CloneTeamsPolicy(source.TeamsPolicy),
             AgentControlToolAccess = source.AgentControlToolAccess,
             AllowedAgentControlTools = source.AllowedAgentControlTools?.ToArray(),
             PromptProfile = source.PromptProfile,
@@ -1712,6 +1720,63 @@ $$"""
                 Enabled = source.Enabled,
                 Effort = source.Effort,
                 Output = source.Output
+            };
+
+    private static ThreadToolPolicy? CloneToolPolicy(ThreadToolPolicy? source) =>
+        source == null
+            ? null
+            : new ThreadToolPolicy
+            {
+                Allow = source.Allow?.ToArray(),
+                Deny = source.Deny?.ToArray(),
+                AgentControl = source.AgentControl,
+                AllowedAgentControlTools = source.AllowedAgentControlTools?.ToArray()
+            };
+
+    private static ThreadMcpPolicy? CloneMcpPolicy(ThreadMcpPolicy? source) =>
+        source == null
+            ? null
+            : new ThreadMcpPolicy
+            {
+                Servers = source.Servers?.ToArray(),
+                Tools = CloneNamePolicy(source.Tools)
+            };
+
+    private static ThreadPluginPolicy? ClonePluginPolicy(ThreadPluginPolicy? source) =>
+        source == null
+            ? null
+            : new ThreadPluginPolicy
+            {
+                Allow = source.Allow?.ToArray(),
+                Deny = source.Deny?.ToArray()
+            };
+
+    private static ThreadSkillsPolicy? CloneSkillsPolicy(ThreadSkillsPolicy? source) =>
+        source == null
+            ? null
+            : new ThreadSkillsPolicy
+            {
+                Preload = source.Preload?.ToArray(),
+                Allow = source.Allow?.ToArray(),
+                Deny = source.Deny?.ToArray(),
+                AllowManage = source.AllowManage
+            };
+
+    private static ThreadTeamsPolicy? CloneTeamsPolicy(ThreadTeamsPolicy? source) =>
+        source == null
+            ? null
+            : new ThreadTeamsPolicy
+            {
+                ReservedTools = source.ReservedTools
+            };
+
+    private static ThreadNamePolicy? CloneNamePolicy(ThreadNamePolicy? source) =>
+        source == null
+            ? null
+            : new ThreadNamePolicy
+            {
+                Allow = source.Allow?.ToArray(),
+                Deny = source.Deny?.ToArray()
             };
 
     private static string[]? MergeAllowLists(string[]? parent, IReadOnlyList<string> role)

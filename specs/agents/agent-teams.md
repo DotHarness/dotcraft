@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Related Specs** | [App Binding](../protocols/app-binding.md), [Session Core](../core/session-core.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Desktop Client](../clients/desktop-client.md), [SDK](../sdk/sdk.md) |
+| **Related Specs** | [Prompt Composition](prompt-composition.md), [Agent Profiles](agent-profiles.md), [App Binding](../protocols/app-binding.md), [Session Core](../core/session-core.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Desktop Client](../clients/desktop-client.md), [SDK](../sdk/sdk.md) |
 
 Purpose: define Agent Teams as an App Binding validation scenario and first-party managed app runtime without making teams a DotCraft Core entity.
 
@@ -31,17 +31,17 @@ This specification defines:
 - The `app/threadInput/enqueue` App Binding RPC so a bound app can enqueue input for its own bound thread.
 - `runWhenIdle` queued-input start policy: the app may request automatic start only when the target thread is idle.
 - Binding-scoped App Context Blocks for fixed role, mission, and app policy context.
-- Teams-owned `ThreadConfiguration.RoleInstructions` for Mission teammate identity and collaboration boundaries.
+- Teams-owned role instructions for Mission teammate identity and collaboration boundaries.
 
 Out of scope:
 
 - Core `TeamRun`, `TeamSession`, `Member`, `Task`, `Mailbox`, or `Artifact` entities.
 - Binding inheritance or delegation to SubAgents.
-- Model-visible dynamic Team or member creation. DotCraft Teams uses a fixed roster; per-role customization belongs on member profiles as skills, MCP servers, plugins, prompts, permission policy, and tool-surface settings.
+- Model-visible dynamic Team or member creation. DotCraft Teams uses a fixed roster; per-role customization belongs on Agent Profiles as skills, MCP servers, plugins, prompts, permission policy, and tool-surface settings.
 - Generic `TaskCreate`, `TaskUpdate`, `TaskList`, or `TaskGet` tool aliases. Teams uses the dedicated tool names below to keep the model-visible tool surface small.
 - Global scheduler ownership in Core.
 - Raw mailbox events as thread history.
-- App authority to edit `ThreadConfiguration.AgentInstructions` or the generated base prompt.
+- App authority to edit full base instructions or the generated base prompt.
 
 ---
 
@@ -140,7 +140,7 @@ The required collaboration loop is:
 3. The user creates a Mission.
 4. Teams creates one Leader Mission thread for that Mission.
 5. Teams creates one managed App Binding for the Leader Mission thread.
-6. Teams applies Teams-owned `ThreadConfiguration.RoleInstructions` and upserts fixed role, mission, and policy context blocks for that Mission thread.
+6. Teams applies Teams-owned role instructions and upserts fixed role, mission, and policy context blocks for that Mission thread.
 7. Teams enqueues a Leader Mission input with `triggerKind = "team"` and `startPolicy = "runWhenIdle"`.
 8. The Leader agent runs as a normal DotCraft turn and calls Teams tools.
 9. `AssignTask` creates Teams-owned task/digest state, records task dependencies, and lazily creates the target teammate's Mission thread when needed.
@@ -332,7 +332,7 @@ Agent Teams uses several prompt surfaces. Each surface has a narrow purpose so r
 
 | Surface | Lifecycle | Injection point | Contract |
 |---------|-----------|-----------------|----------|
-| Role instructions | Mission thread lifecycle | `ThreadConfiguration.RoleInstructions` | Stable role identity, collaboration boundary, and hard workflow rules. |
+| Role instructions | Mission thread lifecycle | Role-instruction layer | Stable role identity, collaboration boundary, and hard workflow rules. |
 | App context blocks | Mission thread lifecycle; repaired on Teams state repair | App Binding context | Stable mission id/title/prompt/status, member role, policy notes, and scratchpad path. |
 | Queued input | One turn | Scheduler-generated input | Current event, task assignment, mailbox summary, recovery check, blocker handling, or finalization request. |
 | Tool descriptions/schema | Tool catalog lifecycle | Model-visible tool list | Tool selection hints and parameter semantics only. |
@@ -397,7 +397,7 @@ Rules:
 - App Context Block prompt rendering must not embed mutable metadata fields such as `version`, `updatedAt`, or `expiresAt`; those fields remain available through `thread/appContextBlocks/list` and App Binding audit only.
 - Scratchpad paths in App Context identify durable handoff storage only. They do not grant authority to treat scratchpad files as completed Tasks, accepted reviews, or final Mission state.
 
-Mission teammate threads may additionally set `ThreadConfiguration.RoleInstructions`. These role instructions are deterministic Teams-owned system guidance appended after the base prompt. They define the member's Team role, clarify that teammate threads collaborate inside the Mission rather than directly chatting with the end user, and direct live coordination through Team tools. Teams must not use `OverrideBasePrompt` or `AgentInstructions`.
+Mission teammate threads may additionally set role instructions. These role instructions are deterministic Teams-owned system guidance appended after the base prompt. They define the member's Team role, clarify that teammate threads collaborate inside the Mission rather than directly chatting with the end user, and direct live coordination through Team tools. Teams must not use full-prompt replacement.
 
 ---
 
@@ -467,7 +467,7 @@ A managed runtime contributes:
 
 Managed runtimes use the same App Binding records, scopes, tools, context blocks, prompt rendering, and audit as external apps. They do not use external stdio/WebSocket tool transport, and they are not marked offline merely because no external attachment exists.
 
-This is a substrate convenience for first-party apps. The public contracts must remain external-app-shaped so Teams can later become a separate native app without changing the thread model.
+This is a substrate convenience for first-party apps. The external contracts must keep the external app shape so Teams can later become a separate native app without changing the thread model.
 
 Managed runtime descriptors are not product App catalog entries on their own. `DotCraft.Teams` is owned by the `agent-teams` Desktop Extension plugin and may appear only on `welcome` and `threadBinding` App Binding surfaces after that plugin is installed and enabled. It must never appear on `pluginDetail`, and DotCraft must not expose it by creating a synthetic installed plugin.
 
