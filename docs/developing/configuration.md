@@ -151,11 +151,22 @@ Deep-thinking adapter catalog files:
 - Global: `~/.craft/model-thinking-adapters.json`
 - Workspace: `.craft/model-thinking-adapters.json`
 
+The built-in catalog exposes full reasoning choices for unlisted Anthropic-protocol models, but does not assume they support Anthropic `adaptive` request shaping. Add `anthropicThinking` entries for models or endpoints that explicitly support that shape.
+
 ```json
 {
   "deepThinking": {
     "models": ["deepseek", "mimo", "my-thinking-model-"],
     "endpoints": ["deepseek", "my-thinking-gateway"]
+  },
+  "anthropicThinking": {
+    "adapters": [
+      {
+        "models": ["my-adaptive-anthropic-model-"],
+        "thinking": { "type": "adaptive", "display": "fromReasoningOutput" },
+        "outputConfig": { "effort": "fromReasoningEffort" }
+      }
+    ]
   }
 }
 ```

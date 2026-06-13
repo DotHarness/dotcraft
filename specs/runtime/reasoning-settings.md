@@ -209,7 +209,7 @@ Rules:
 - request shaping, such as Anthropic adaptive thinking or OpenAI-compatible deep-thinking body patches
 - UI capability metadata, such as supported efforts, default effort, output support, and whether Off is enforceable
 
-Catalog entries must support model prefix matching and namespaced suffix matching, so a namespaced model ID ending in `claude-opus-4-7` matches `claude-opus-4-7`.
+Catalog entries must support model prefix matching and namespaced suffix matching, so a namespaced model ID ending in `claude-opus-4-7` matches `claude-opus-4-7`. Protocol-level reasoning capability entries can expose the full reasoning control surface for unlisted Anthropic-protocol models, but Anthropic `thinking.type="adaptive"` request shaping is applied only by explicit `anthropicThinking` model or endpoint adapters.
 
 ### 6.2 OpenAI Protocols
 
@@ -225,7 +225,7 @@ For `openai-chat-completions` and `openai-responses` protocol runtimes:
 For `anthropic` protocol runtimes:
 
 - `enabled=false`: omit the Anthropic `thinking` field when the model supports disabling.
-- `enabled=true`: use the matching catalog adapter to produce Anthropic SDK `MessageCreateParams`.
+- `enabled=true`: use the most-specific catalog adapter to produce Anthropic SDK `MessageCreateParams` when one matches; unlisted models still carry provider-neutral `ChatOptions.Reasoning` but do not receive Anthropic `adaptive` request shaping.
 - Adaptive models use `thinking.type="adaptive"`, `thinking.display` from `Reasoning.Output`, and `output_config.effort` from `Reasoning.Effort`.
 - `Extra High` maps through the catalog, because Anthropic model families differ: Opus 4.7 supports `xhigh`, while Opus 4.6, Sonnet 4.6, and Mythos support `max`.
 - Models whose default behavior always reasons, such as Mythos Preview, must be represented with `supportsDisable=false`.

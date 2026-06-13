@@ -151,11 +151,22 @@ Deep-thinking adapter 文件：
 - 全局：`~/.craft/model-thinking-adapters.json`
 - 工作区：`.craft/model-thinking-adapters.json`
 
+内置 catalog 会为未列入的 Anthropic 协议模型开放完整思考选项，但不会假设它们支持 Anthropic `adaptive` 请求形状。只有明确支持该形状的模型或 endpoint，才应添加 `anthropicThinking` 条目。
+
 ```json
 {
   "deepThinking": {
     "models": ["deepseek", "mimo", "my-thinking-model-"],
     "endpoints": ["deepseek", "my-thinking-gateway"]
+  },
+  "anthropicThinking": {
+    "adapters": [
+      {
+        "models": ["my-adaptive-anthropic-model-"],
+        "thinking": { "type": "adaptive", "display": "fromReasoningOutput" },
+        "outputConfig": { "effort": "fromReasoningEffort" }
+      }
+    ]
   }
 }
 ```

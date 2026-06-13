@@ -118,6 +118,16 @@ public sealed class ModelThinkingAdapterCatalogTests : IDisposable
     }
 
     [Fact]
+    public void ResolveAnthropicThinkingAdapter_DoesNotUseBuiltInDefaultForUnlistedModel()
+    {
+        var adapter = ModelThinkingAdapterCatalog.ResolveAnthropicThinkingAdapter(
+            endpoint: "https://api.deepseek.com/anthropic",
+            model: "deepseek-v4-pro");
+
+        Assert.Null(adapter);
+    }
+
+    [Fact]
     public void ResolveAnthropicThinkingAdapter_MergesGlobalAndWorkspaceCatalogs()
     {
         var globalPath = WriteCatalog("global", """
@@ -186,6 +196,23 @@ public sealed class ModelThinkingAdapterCatalogTests : IDisposable
             protocol: ModelProviderProtocols.OpenAI,
             endpoint: "https://litellm.example.test/v1",
             model: "vendor/reasoning-model-v1");
+
+        Assert.NotNull(capability);
+        Assert.True(capability.SupportsDisable);
+        Assert.Equal(ReasoningEffort.Medium, capability.DefaultEffort);
+        Assert.Equal(
+            [ReasoningEffort.Low, ReasoningEffort.Medium, ReasoningEffort.High, ReasoningEffort.ExtraHigh],
+            capability.SupportedEfforts.Select(option => option.Effort));
+        Assert.Contains(ReasoningOutput.Full, capability.SupportedOutputs);
+    }
+
+    [Fact]
+    public void ResolveReasoningCapability_AnthropicProtocolUsesDefaultCapability()
+    {
+        var capability = ModelThinkingAdapterCatalog.ResolveReasoningCapability(
+            protocol: ModelProviderProtocols.Anthropic,
+            endpoint: "https://api.deepseek.com/anthropic",
+            model: "deepseek-v4-pro");
 
         Assert.NotNull(capability);
         Assert.True(capability.SupportsDisable);
