@@ -2120,6 +2120,50 @@ describe('optimistic turns', () => {
     expect(s().turns).toHaveLength(1)                  // still only one turn
     expect(s().activeTurnId).toBe('turn_002')
   })
+
+  it('Scenario A: onTurnStarted replaces matching optimistic user message with canonical server item', () => {
+    s().addOptimisticTurn({
+      id: 'local-turn-canonical-first',
+      threadId: 'thread-1',
+      status: 'running',
+      items: [
+        {
+          id: 'local-user-canonical-first',
+          type: 'userMessage',
+          status: 'completed',
+          text: 'notification first',
+          nativeInputParts: [{ type: 'text', text: 'notification first' }],
+          createdAt: '2026-06-13T10:00:00.000Z'
+        }
+      ],
+      startedAt: '2026-06-13T10:00:00.000Z'
+    })
+
+    s().onTurnStarted(makeTurn({
+      id: 'turn-canonical-first',
+      threadId: 'thread-1',
+      startedAt: '2026-06-13T10:00:00.050Z',
+      items: [
+        {
+          id: 'server-user-canonical-first',
+          type: 'userMessage',
+          status: 'completed',
+          payload: {
+            text: 'notification first',
+            nativeInputParts: [{ type: 'text', text: 'notification first' }]
+          },
+          createdAt: '2026-06-13T10:00:00.050Z'
+        }
+      ]
+    }))
+    s().promoteOptimisticTurn('local-turn-canonical-first', 'turn-canonical-first')
+
+    const userMessages = s().turns[0].items.filter((item) => item.type === 'userMessage')
+    expect(s().turns).toHaveLength(1)
+    expect(s().turns[0].id).toBe('turn-canonical-first')
+    expect(userMessages).toHaveLength(1)
+    expect(userMessages[0].id).toBe('server-user-canonical-first')
+  })
 })
 
 describe('subAgent progress', () => {

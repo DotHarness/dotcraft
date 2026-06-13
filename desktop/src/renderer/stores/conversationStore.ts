@@ -1898,13 +1898,8 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       const lastOptimistic = [...state.turns].reverse().find((t) => t.id.startsWith('local-turn-'))
       let nextTurns: ConversationTurn[]
       if (lastOptimistic) {
-        // Merge: keep user message items from the optimistic turn, add server items if any
-        const mergedItems = [
-          ...lastOptimistic.items.filter((i) => i.type === 'userMessage'),
-          ...turn.items.filter((i) => i.type !== 'userMessage')
-        ]
         nextTurns = state.turns.map((t) =>
-          t.id === lastOptimistic.id ? { ...turn, items: mergedItems } : t
+          t.id === lastOptimistic.id ? mergeExistingRealtimeTurn(turn, lastOptimistic) : t
         )
       } else {
         nextTurns = [...state.turns, turn]
