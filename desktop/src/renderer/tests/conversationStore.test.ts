@@ -1719,6 +1719,185 @@ describe('optimistic turns', () => {
     expect(state.turns[0].items[0].text).toBe('Hello')
   })
 
+  it('preserveExistingRealtime prefers the server userMessage over the promoted optimistic preview', () => {
+    const optimisticTurn: ConversationTurn = {
+      id: 'local-turn-preview',
+      threadId: 'thread-1',
+      status: 'running',
+      items: [
+        {
+          id: 'local-user-preview',
+          type: 'userMessage',
+          status: 'completed',
+          text: 'cancel this turn',
+          nativeInputParts: [{ type: 'text', text: 'cancel this turn' }],
+          createdAt: '2026-06-13T10:00:00.000Z'
+        }
+      ],
+      startedAt: '2026-06-13T10:00:00.000Z'
+    }
+
+    s().addOptimisticTurn(optimisticTurn)
+    s().promoteOptimisticTurn('local-turn-preview', 'turn-server-preview')
+    s().setTurns([
+      makeTurn({
+        id: 'turn-server-preview',
+        threadId: 'thread-1',
+        status: 'cancelled',
+        startedAt: '2026-06-13T10:00:00.050Z',
+        completedAt: '2026-06-13T10:00:01.000Z',
+        items: [
+          {
+            id: 'server-user-preview',
+            type: 'userMessage',
+            status: 'completed',
+            payload: {
+              text: 'cancel this turn',
+              nativeInputParts: [{ type: 'text', text: 'cancel this turn' }]
+            },
+            createdAt: '2026-06-13T10:00:00.050Z',
+            completedAt: '2026-06-13T10:00:00.050Z'
+          }
+        ]
+      })
+    ], { preserveExistingRealtime: true })
+
+    const state = s()
+    const userMessages = state.turns.flatMap((turn) => turn.items.filter((item) => item.type === 'userMessage'))
+    expect(state.turns).toHaveLength(1)
+    expect(state.turns[0].id).toBe('turn-server-preview')
+    expect(state.turns[0].status).toBe('cancelled')
+    expect(userMessages).toHaveLength(1)
+    expect(userMessages[0].id).toBe('server-user-preview')
+  })
+
+  it('does not keep a represented local optimistic turn when a snapshot arrives before promotion', () => {
+    const optimisticTurn: ConversationTurn = {
+      id: 'local-turn-cancel',
+      threadId: 'thread-1',
+      status: 'running',
+      items: [
+        {
+          id: 'local-user-cancel',
+          type: 'userMessage',
+          status: 'completed',
+          text: 'stop me',
+          createdAt: '2026-06-13T10:00:00.000Z'
+        }
+      ],
+      startedAt: '2026-06-13T10:00:00.000Z'
+    }
+
+    s().addOptimisticTurn(optimisticTurn)
+    s().setTurns([
+      makeTurn({
+        id: 'turn-server-cancel',
+        threadId: 'thread-1',
+        status: 'cancelled',
+        startedAt: '2026-06-13T10:00:00.100Z',
+        completedAt: '2026-06-13T10:00:01.000Z',
+        items: [
+          {
+            id: 'server-user-cancel',
+            type: 'userMessage',
+            status: 'completed',
+            payload: { text: 'stop me' },
+            createdAt: '2026-06-13T10:00:00.100Z'
+          }
+        ]
+      })
+    ], { preserveExistingRealtime: true })
+    s().promoteOptimisticTurn('local-turn-cancel', 'turn-server-cancel')
+
+    const state = s()
+    expect(state.turns).toHaveLength(1)
+    expect(state.turns[0].id).toBe('turn-server-cancel')
+    expect(state.turns[0].items.filter((item) => item.type === 'userMessage')).toHaveLength(1)
+    expect(state.activeTurnId).toBeNull()
+  })
+
+  it('promoteOptimisticTurn coalesces when the server turn is already present', () => {
+    s().setTurns([
+      makeTurn({
+        id: 'turn-server-existing',
+        threadId: 'thread-1',
+        status: 'running',
+        startedAt: '2026-06-13T10:00:00.050Z',
+        items: [
+          {
+            id: 'server-user-existing',
+            type: 'userMessage',
+            status: 'completed',
+            payload: { text: 'already here' },
+            createdAt: '2026-06-13T10:00:00.050Z'
+          }
+        ]
+      })
+    ])
+    s().addOptimisticTurn({
+      id: 'local-turn-existing',
+      threadId: 'thread-1',
+      status: 'running',
+      items: [
+        {
+          id: 'local-user-existing',
+          type: 'userMessage',
+          status: 'completed',
+          text: 'already here',
+          createdAt: '2026-06-13T10:00:00.000Z'
+        }
+      ],
+      startedAt: '2026-06-13T10:00:00.000Z'
+    })
+
+    s().promoteOptimisticTurn('local-turn-existing', 'turn-server-existing')
+
+    const state = s()
+    expect(state.turns).toHaveLength(1)
+    expect(state.turns[0].id).toBe('turn-server-existing')
+    expect(state.activeTurnId).toBe('turn-server-existing')
+    expect(state.turns[0].items.filter((item) => item.type === 'userMessage')).toHaveLength(1)
+  })
+
+  it('keeps a newer same-text optimistic turn when the snapshot only has older history', () => {
+    s().addOptimisticTurn({
+      id: 'local-turn-repeat',
+      threadId: 'thread-1',
+      status: 'running',
+      items: [
+        {
+          id: 'local-user-repeat',
+          type: 'userMessage',
+          status: 'completed',
+          text: 'repeat',
+          createdAt: '2026-06-13T10:05:00.000Z'
+        }
+      ],
+      startedAt: '2026-06-13T10:05:00.000Z'
+    })
+
+    s().setTurns([
+      makeTurn({
+        id: 'turn-old-repeat',
+        threadId: 'thread-1',
+        status: 'completed',
+        startedAt: '2026-06-13T10:00:00.000Z',
+        completedAt: '2026-06-13T10:00:01.000Z',
+        items: [
+          {
+            id: 'server-user-old-repeat',
+            type: 'userMessage',
+            status: 'completed',
+            payload: { text: 'repeat' },
+            createdAt: '2026-06-13T10:00:00.000Z'
+          }
+        ]
+      })
+    ], { preserveExistingRealtime: true })
+
+    expect(s().turns.map((turn) => turn.id)).toEqual(['turn-old-repeat', 'local-turn-repeat'])
+  })
+
   it('promoteOptimisticTurn does not change activeTurnId if it was already replaced', () => {
     // Simulate race: turn/started arrived before turn/start response and already updated activeTurnId
     const optimisticTurn: import('../types/conversation').ConversationTurn = {

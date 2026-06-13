@@ -960,6 +960,158 @@ function findMatchingRealtimeItem(
   return undefined
 }
 
+const OPTIMISTIC_TURN_CLOCK_SKEW_MS = 1000
+const OPTIMISTIC_TURN_MATCH_WINDOW_MS = 5 * 60 * 1000
+
+function isOptimisticTurn(turn: ConversationTurn): boolean {
+  return turn.id.startsWith('local-turn-')
+}
+
+function isOrdinaryUserMessage(item: ConversationItem): boolean {
+  return item.type === 'userMessage' &&
+    item.deliveryMode !== 'guidance' &&
+    item.deliveryMode !== 'subagentMailbox' &&
+    item.triggerKind == null
+}
+
+function isOptimisticUserMessage(item: ConversationItem): boolean {
+  return isOrdinaryUserMessage(item) && item.id.startsWith('local-')
+}
+
+function firstOrdinaryUserMessage(turn: ConversationTurn): ConversationItem | undefined {
+  return turn.items.find(isOrdinaryUserMessage)
+}
+
+function itemPayloadRecord(item: ConversationItem): Record<string, unknown> {
+  const payload = (item as unknown as { payload?: unknown }).payload
+  return payload != null && typeof payload === 'object' && !Array.isArray(payload)
+    ? payload as Record<string, unknown>
+    : {}
+}
+
+function userMessageImageCount(item: ConversationItem): number {
+  const payloadImages = itemPayloadRecord(item).images
+  return Math.max(
+    item.images?.length ?? 0,
+    item.imageDataUrls?.length ?? 0,
+    Array.isArray(payloadImages) ? payloadImages.length : 0
+  )
+}
+
+function userMessageNativeInputParts(item: ConversationItem): unknown {
+  return item.nativeInputParts ?? itemPayloadRecord(item).nativeInputParts
+}
+
+function inputPartSignature(parts: unknown): string | null {
+  if (!Array.isArray(parts) || parts.length === 0) return null
+  const normalized = parts
+    .flatMap((rawPart) => {
+      if (rawPart == null || typeof rawPart !== 'object') return []
+      const part = rawPart as Record<string, unknown>
+      const type = typeof part.type === 'string' ? part.type : ''
+      switch (type) {
+        case 'text':
+          return [{ type, text: typeof part.text === 'string' ? part.text : '' }]
+        case 'commandRef':
+          return [{
+            type,
+            name: typeof part.name === 'string' ? part.name : '',
+            argsText: typeof part.argsText === 'string' ? part.argsText : undefined,
+            rawText: typeof part.rawText === 'string' ? part.rawText : undefined
+          }]
+        case 'skillRef':
+          return [{ type, name: typeof part.name === 'string' ? part.name : '' }]
+        case 'fileRef':
+          return [{
+            type,
+            path: typeof part.path === 'string' ? part.path : '',
+            displayPath: typeof part.displayPath === 'string' ? part.displayPath : undefined
+          }]
+        case 'image':
+        case 'localImage':
+          return []
+        default:
+          return [{ type }]
+      }
+    })
+  return JSON.stringify(normalized)
+}
+
+function normalizedUserMessageText(item: ConversationItem): string {
+  const payload = itemPayloadRecord(item)
+  const text =
+    item.text
+    ?? (typeof payload.text === 'string' ? payload.text : undefined)
+    ?? (typeof payload.message === 'string' ? payload.message : undefined)
+  return (text ?? '').trim()
+}
+
+function userMessagesRepresentSameRequest(a: ConversationItem, b: ConversationItem): boolean {
+  if (!isOrdinaryUserMessage(a) || !isOrdinaryUserMessage(b)) return false
+
+  const imageCountA = userMessageImageCount(a)
+  const imageCountB = userMessageImageCount(b)
+  if ((imageCountA > 0 || imageCountB > 0) && imageCountA !== imageCountB) return false
+
+  const partsA = inputPartSignature(userMessageNativeInputParts(a))
+  const partsB = inputPartSignature(userMessageNativeInputParts(b))
+  if (partsA != null && partsB != null) return partsA === partsB
+
+  const textA = normalizedUserMessageText(a)
+  const textB = normalizedUserMessageText(b)
+  if (textA.length > 0 || textB.length > 0) return textA === textB
+
+  return imageCountA > 0 && imageCountA === imageCountB
+}
+
+function optimisticUserMessageRepresentedByIncoming(
+  existingItem: ConversationItem,
+  incomingItems: ConversationItem[]
+): boolean {
+  return isOptimisticUserMessage(existingItem) &&
+    incomingItems.some((incomingItem) =>
+      !isOptimisticUserMessage(incomingItem) &&
+      userMessagesRepresentSameRequest(existingItem, incomingItem)
+    )
+}
+
+function turnStartedAtMs(turn: ConversationTurn): number | null {
+  const value = Date.parse(turn.startedAt)
+  return Number.isFinite(value) ? value : null
+}
+
+function turnRepresentsOptimisticTurn(
+  incoming: ConversationTurn,
+  optimistic: ConversationTurn
+): boolean {
+  if (!isOptimisticTurn(optimistic)) return false
+  if (incoming.threadId && optimistic.threadId && incoming.threadId !== optimistic.threadId) return false
+
+  const incomingStartedAt = turnStartedAtMs(incoming)
+  const optimisticStartedAt = turnStartedAtMs(optimistic)
+  if (incomingStartedAt != null && optimisticStartedAt != null) {
+    if (incomingStartedAt < optimisticStartedAt - OPTIMISTIC_TURN_CLOCK_SKEW_MS) return false
+    if (incomingStartedAt - optimisticStartedAt > OPTIMISTIC_TURN_MATCH_WINDOW_MS) return false
+  }
+
+  const incomingUser = firstOrdinaryUserMessage(incoming)
+  const optimisticUser = firstOrdinaryUserMessage(optimistic)
+  return incomingUser != null &&
+    optimisticUser != null &&
+    userMessagesRepresentSameRequest(incomingUser, optimisticUser)
+}
+
+function findRepresentedOptimisticTurn(
+  incoming: ConversationTurn,
+  existingTurns: ConversationTurn[],
+  representedExistingIds: Set<string>
+): ConversationTurn | undefined {
+  return existingTurns.find((existing) =>
+    !representedExistingIds.has(existing.id) &&
+    turnRepresentsOptimisticTurn(incoming, existing)
+  )
+}
+
 function mergeRealtimeToolCall(
   incoming: ConversationItem,
   existing: ConversationItem
@@ -1042,6 +1194,7 @@ function mergeExistingRealtimeTurn(
   for (const existingItem of existing.items) {
     const isRepresented = itemRealtimeKeys(existingItem).some((key) => representedKeys.has(key))
     if (isRepresented) continue
+    if (optimisticUserMessageRepresentedByIncoming(existingItem, incoming.items)) continue
     mergedItems.push(existingItem)
   }
 
@@ -1099,10 +1252,17 @@ function mergeExistingRealtimeTurns(
   const existingById = new Map(existingTurns.map((turn) => [turn.id, turn]))
   const incomingIds = new Set(incoming.map((turn) => turn.id))
   const incomingThreadIds = turnThreadIds(incoming)
-  const merged = incoming.map((turn) => mergeExistingRealtimeTurn(turn, existingById.get(turn.id)))
+  const representedExistingIds = new Set<string>()
+  const merged = incoming.map((turn) => {
+    const existing = existingById.get(turn.id)
+      ?? findRepresentedOptimisticTurn(turn, existingTurns, representedExistingIds)
+    if (existing) representedExistingIds.add(existing.id)
+    return mergeExistingRealtimeTurn(turn, existing)
+  })
   for (const existing of existingTurns) {
     if (
       !incomingIds.has(existing.id) &&
+      !representedExistingIds.has(existing.id) &&
       incomingThreadIds.size > 0 &&
       incomingThreadIds.has(existing.threadId)
     ) {
@@ -2838,13 +2998,27 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
   },
 
   promoteOptimisticTurn(localId, serverId) {
-    set((state) => ({
-      turns: state.turns.map((t) => (t.id === localId ? { ...t, id: serverId } : t)),
-      activeTurnId: state.activeTurnId === localId ? serverId : state.activeTurnId,
-      streamRetrySignals: state.streamRetrySignals.map((signal) =>
-        signal.turnId === localId ? { ...signal, turnId: serverId } : signal
-      )
-    }))
+    set((state) => {
+      const localTurn = state.turns.find((turn) => turn.id === localId)
+      const serverTurn = state.turns.find((turn) => turn.id === serverId)
+      const turns = localTurn && serverTurn
+        ? state.turns
+          .flatMap((turn) => {
+            if (turn.id === serverId) return [mergeExistingRealtimeTurn(serverTurn, localTurn)]
+            if (turn.id === localId) return []
+            return [turn]
+          })
+          .sort((a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime())
+        : state.turns.map((turn) => (turn.id === localId ? { ...turn, id: serverId } : turn))
+
+      return {
+        turns,
+        activeTurnId: state.activeTurnId === localId ? serverId : state.activeTurnId,
+        streamRetrySignals: state.streamRetrySignals.map((signal) =>
+          signal.turnId === localId ? { ...signal, turnId: serverId } : signal
+        )
+      }
+    })
   },
 
   onSubagentProgress(entries) {
