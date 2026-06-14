@@ -2727,4 +2727,14 @@ export const MESSAGES_KO = {
   'settings.group.archived': '보관된 스레드',
   'settings.subAgents.empty': '아직 사용 가능한 하위 에이전트가 없습니다.',
   'settings.subAgents.card.disabled': '장애인',
+  'agentBuilder.chat.emptyTitle': '이 에이전트를 어떻게 개선할까요?',
+  'agentBuilder.chat.quick.test': '이 에이전트 테스트',
+  'agentBuilder.chat.quick.advanced': '고급 로직 추가',
+  'agentBuilder.chat.quick.optimize': '이 에이전트 최적화',
+  'agentBuilder.chat.prompt.test':
+    '현실적인 첫 작업으로 이 에이전트를 테스트하세요. 지침, 도구, 스킬, 모델, 승인 정책의 빈틈을 찾고 구체적인 변경을 제안하세요.',
+  'agentBuilder.chat.prompt.advanced':
+    '이 에이전트에 고급 로직을 추가하세요. 범위를 불필요하게 넓히지 않으면서 라우팅, 제약, 예외 상황, 도구 또는 스킬 선택을 강화하세요.',
+  'agentBuilder.chat.prompt.optimize':
+    '이 에이전트의 신뢰성과 집중도를 최적화하세요. 역할 지침을 더 명확히 하고 불필요한 기능을 제거하며 필요한 최소 도구와 스킬을 추천하세요.',
 } satisfies Partial<Record<MessageId, string>>

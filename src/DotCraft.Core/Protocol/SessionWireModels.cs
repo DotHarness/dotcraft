@@ -496,11 +496,23 @@ public static class SessionWireMapper
             LastActiveAt = thread.LastActiveAt,
             HistoryMode = thread.HistoryMode,
             Configuration = thread.Configuration,
-            Metadata = new Dictionary<string, string>(thread.Metadata),
+            Metadata = BuildThreadMetadata(thread),
             Runtime = ThreadSummaryRuntime.FromThread(thread).ToWireRuntimeState(),
             QueuedInputs = thread.QueuedInputs.ToList(),
             Turns = includeTurns ? thread.Turns.Select(t => t.ToWire(includeItems: true)).ToList() : null
         };
+
+    private static Dictionary<string, string> BuildThreadMetadata(SessionThread thread)
+    {
+        var metadata = new Dictionary<string, string>(thread.Metadata);
+        if (!string.IsNullOrWhiteSpace(thread.Configuration?.AgentBuilderTargetId)
+            && !metadata.ContainsKey(ThreadVisibility.InternalMetadataKey))
+        {
+            metadata[ThreadVisibility.InternalMetadataKey] = ThreadVisibility.AgentBuilderInternalValue;
+        }
+
+        return metadata;
+    }
 
     private static string ResolveEffectiveWorkspacePath(SessionThread thread)
     {

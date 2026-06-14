@@ -2732,4 +2732,14 @@ export const MESSAGES_ES = {
   'settings.group.archived': 'Hilos archivados',
   'settings.subAgents.empty': 'Aún no hay subagentes disponibles.',
   'settings.subAgents.card.disabled': 'Discapacitado',
+  'agentBuilder.chat.emptyTitle': '¿Cómo deberíamos mejorar este agente?',
+  'agentBuilder.chat.quick.test': 'Probar este agente',
+  'agentBuilder.chat.quick.advanced': 'Añadir lógica avanzada',
+  'agentBuilder.chat.quick.optimize': 'Optimizar este agente',
+  'agentBuilder.chat.prompt.test':
+    'Prueba este agente con una primera tarea realista. Identifica vacíos en sus instrucciones, herramientas, habilidades, modelo y política de aprobación, y sugiere cambios concretos.',
+  'agentBuilder.chat.prompt.advanced':
+    'Añade lógica avanzada a este agente. Refuerza su enrutamiento, restricciones, casos límite y selección de herramientas o habilidades sin ampliar su alcance innecesariamente.',
+  'agentBuilder.chat.prompt.optimize':
+    'Optimiza este agente para que sea más fiable y enfocado. Ajusta sus instrucciones de rol, elimina capacidades innecesarias y recomienda las herramientas y habilidades mínimas que necesita.',
 } satisfies Partial<Record<MessageId, string>>

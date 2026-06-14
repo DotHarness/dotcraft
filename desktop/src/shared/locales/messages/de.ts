@@ -2734,4 +2734,14 @@ export const MESSAGES_DE = {
   'settings.group.archived': 'Archivierte Threads',
   'settings.subAgents.empty': 'Noch keine Unteragenten verfügbar.',
   'settings.subAgents.card.disabled': 'Deaktiviert',
+  'agentBuilder.chat.emptyTitle': 'Wie sollten wir diesen Agenten verbessern?',
+  'agentBuilder.chat.quick.test': 'Diesen Agenten testen',
+  'agentBuilder.chat.quick.advanced': 'Erweiterte Logik hinzufügen',
+  'agentBuilder.chat.quick.optimize': 'Diesen Agenten optimieren',
+  'agentBuilder.chat.prompt.test':
+    'Teste diesen Agenten mit einer realistischen ersten Aufgabe. Finde Lücken in Anweisungen, Tools, Skills, Modell und Genehmigungsrichtlinie und schlage konkrete Änderungen vor.',
+  'agentBuilder.chat.prompt.advanced':
+    'Füge diesem Agenten erweiterte Logik hinzu. Stärke Routing, Einschränkungen, Randfälle sowie Tool- oder Skill-Auswahl, ohne den Umfang unnötig zu erweitern.',
+  'agentBuilder.chat.prompt.optimize':
+    'Optimiere diesen Agenten für Zuverlässigkeit und Fokus. Straffe seine Rollenanweisungen, entferne unnötige Fähigkeiten und empfehle die minimal nötigen Tools und Skills.',
 } satisfies Partial<Record<MessageId, string>>

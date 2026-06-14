@@ -9,60 +9,113 @@
  * so the editor can apply it to the live draft and highlight the field — see agentBuilderDraftSync.ts.
  */
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useThreadStore } from '../../stores/threadStore'
 import { useConversationStore } from '../../stores/conversationStore'
 import type { ThreadSummary } from '../../types/thread'
+import type { InputPart } from '../../types/conversation'
 import { isBuilderToolName, parseBuilderToolResult, type BuilderToolResult } from './agentBuilderDraftSync'
-import type { SaveTarget } from './agentProfileDraft'
 
 export type BuilderConversationStatus = 'idle' | 'starting' | 'ready' | 'error'
 
 interface Options {
-  /** When true, ensure a builder thread exists and is active; when false, tear down and restore. */
+  /** When false, tear down and restore the previously active thread if a builder thread was started. */
   active: boolean
-  /** The profile id the conversation edits (a placeholder is fine for a not-yet-created agent). */
-  targetId: string
-  /** Source the profile will be saved to (user / workspace). */
-  targetSource: SaveTarget
-  /** Optional opening message auto-sent once when the thread is ready (the auto-propose entry). */
-  initialPrompt?: string | null
   /** Called with each builder tool's parsed result, in stream order. */
   onResult: (result: BuilderToolResult) => void
+}
+
+interface StartBuilderConversationOptions {
+  /** The profile id the conversation edits (a placeholder is fine for a not-yet-created agent). */
+  targetId: string
+  /** Source used to seed the profile being edited (builtIn / plugin / user / workspace). */
+  targetSource: string
+  /** Current editor markdown to seed into the server draft before the first builder turn. */
+  initialDraftMarkdown: string
+  /** Opening user input for the first builder turn. */
+  inputParts: InputPart[]
+  /** Optional pre-thread model/reasoning config selected in the detached composer. */
+  config?: Record<string, unknown>
 }
 
 interface Result {
   threadId: string | null
   status: BuilderConversationStatus
   error: string | null
+  start: (options: StartBuilderConversationOptions) => Promise<void>
+  syncDraft: (rawContent: string) => Promise<void>
 }
 
 async function rpc<T>(method: string, params: Record<string, unknown>): Promise<T> {
   return (await window.api.appServer.sendRequest(method, params)) as T
 }
 
-export function useAgentBuilderConversation({ active, targetId, targetSource, initialPrompt, onResult }: Options): Result {
+export function useAgentBuilderConversation({
+  active,
+  onResult
+}: Options): Result {
   const workspacePath = useConversationStore((s) => s.workspacePath)
   const [threadId, setThreadId] = useState<string | null>(null)
   const [status, setStatus] = useState<BuilderConversationStatus>('idle')
   const [error, setError] = useState<string | null>(null)
   const previousActiveThreadIdRef = useRef<string | null>(null)
-  const proposedThreadRef = useRef<string | null>(null)
+  const threadIdRef = useRef<string | null>(null)
+  const startPromiseRef = useRef<Promise<void> | null>(null)
+  const startTokenRef = useRef(0)
   const onResultRef = useRef(onResult)
   onResultRef.current = onResult
-  const initialPromptRef = useRef(initialPrompt)
-  initialPromptRef.current = initialPrompt
 
-  // Create + activate the builder thread when the pane opens; restore the prior thread when it closes.
+  const setCurrentThreadId = useCallback((nextThreadId: string | null): void => {
+    threadIdRef.current = nextThreadId
+    setThreadId(nextThreadId)
+  }, [])
+
   useEffect(() => {
-    if (!active) return undefined
-    let cancelled = false
+    if (active) return undefined
 
-    void (async () => {
+    startTokenRef.current += 1
+    if (threadIdRef.current) {
+      useThreadStore.getState().setActiveThreadId(previousActiveThreadIdRef.current)
+      useThreadStore.getState().setActiveThread(null)
+    }
+    setCurrentThreadId(null)
+    setStatus('idle')
+    setError(null)
+    startPromiseRef.current = null
+    return undefined
+  }, [active, setCurrentThreadId])
+
+  useEffect(() => () => {
+    if (threadIdRef.current) {
+      useThreadStore.getState().setActiveThreadId(previousActiveThreadIdRef.current)
+      useThreadStore.getState().setActiveThread(null)
+    }
+  }, [])
+
+  const start = useCallback(async ({
+    targetId,
+    targetSource,
+    initialDraftMarkdown,
+    inputParts,
+    config = {}
+  }: StartBuilderConversationOptions): Promise<void> => {
+    if (threadIdRef.current) return
+    if (startPromiseRef.current) {
+      await startPromiseRef.current
+      return
+    }
+
+    const token = ++startTokenRef.current
+    const promise = (async () => {
       setStatus('starting')
       setError(null)
       try {
         previousActiveThreadIdRef.current = useThreadStore.getState().activeThreadId
+        const startConfig: Record<string, unknown> = {
+          ...config,
+          agentBuilderTargetId: targetId.trim() || 'draft-agent',
+          agentBuilderTargetSource: targetSource.trim() || 'workspace'
+        }
         const res = await rpc<{ thread: ThreadSummary }>('thread/start', {
           identity: {
             channelName: 'dotcraft-desktop',
@@ -70,51 +123,67 @@ export function useAgentBuilderConversation({ active, targetId, targetSource, in
             channelContext: `workspace:${workspacePath}`,
             workspacePath
           },
+          config: startConfig,
           historyMode: 'server'
         })
-        if (cancelled) return
+        if (token !== startTokenRef.current) return
 
         const newThreadId = res.thread.id
-        // Bind the thread to the target profile so the backend exposes the builder tools + working draft.
-        await rpc('thread/config/update', {
+        await rpc('agent/profiles/builderDraft/update', {
           threadId: newThreadId,
-          config: {
-            agentBuilderTargetId: targetId.trim() || 'draft-agent',
-            agentBuilderTargetSource: targetSource
-          }
+          rawContent: initialDraftMarkdown
         })
-        if (cancelled) return
+        if (token !== startTokenRef.current) return
 
         // Don't add the builder thread to the local thread list — it's an internal thread (hidden from
         // the sidebar; the backend also excludes it from thread/list). Selecting it triggers App's
         // active-thread effect, which loads it and subscribes for streaming.
         useThreadStore.getState().setActiveThreadId(newThreadId)
-        setThreadId(newThreadId)
-        setStatus('ready')
+        useThreadStore.getState().setActiveThread(null)
+        setCurrentThreadId(newThreadId)
 
-        // Auto-propose: send the opening message once so the builder starts proposing immediately.
-        const prompt = initialPromptRef.current?.trim()
-        if (prompt && proposedThreadRef.current !== newThreadId) {
-          proposedThreadRef.current = newThreadId
-          await rpc('turn/enqueue', { threadId: newThreadId, text: prompt }).catch(() => undefined)
-        }
+        await rpc('turn/start', {
+          threadId: newThreadId,
+          input: inputParts,
+          identity: {
+            channelName: 'dotcraft-desktop',
+            userId: 'local',
+            channelContext: `workspace:${workspacePath}`,
+            workspacePath
+          }
+        })
+        if (token !== startTokenRef.current) return
+
+        setStatus('ready')
       } catch (err) {
-        if (!cancelled) {
-          setStatus('error')
-          setError(err instanceof Error ? err.message : String(err))
+        if (threadIdRef.current) {
+          useThreadStore.getState().setActiveThreadId(previousActiveThreadIdRef.current)
+          useThreadStore.getState().setActiveThread(null)
+          setCurrentThreadId(null)
         }
+        setStatus('error')
+        setError(err instanceof Error ? err.message : String(err))
+        throw err
       }
     })()
 
-    return () => {
-      cancelled = true
-      const previous = previousActiveThreadIdRef.current
-      useThreadStore.getState().setActiveThreadId(previous)
-      setThreadId(null)
-      setStatus('idle')
-      setError(null)
+    startPromiseRef.current = promise
+    try {
+      await promise
+    } finally {
+      if (startPromiseRef.current === promise) {
+        startPromiseRef.current = null
+      }
     }
-  }, [active, targetId, targetSource, workspacePath])
+  }, [setCurrentThreadId, workspacePath])
+
+  const syncDraft = useCallback(async (rawContent: string): Promise<void> => {
+    if (!threadId) return
+    await rpc('agent/profiles/builderDraft/update', {
+      threadId,
+      rawContent
+    })
+  }, [threadId])
 
   // Surface builder tool results off the notification stream (item/completed for a builder tool call).
   useEffect(() => {
@@ -134,5 +203,5 @@ export function useAgentBuilderConversation({ active, targetId, targetSource, in
     }
   }, [threadId])
 
-  return { threadId, status, error }
+  return { threadId, status, error, start, syncDraft }
 }

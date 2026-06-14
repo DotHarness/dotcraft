@@ -358,12 +358,16 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
   },
 
   upsertThreads(threads) {
+    const internalThreadIds = new Set(threads.filter((thread) => isInternalThread(thread)).map((thread) => thread.id))
     const visibleThreads = threads.filter((thread) => !isInternalThread(thread))
-    if (visibleThreads.length === 0) return
+    if (visibleThreads.length === 0 && internalThreadIds.size === 0) return
     set((state) => {
       const incoming = new Map(visibleThreads.map((thread) => [thread.id, thread]))
       const seen = new Set<string>()
-      const threadList = state.threadList.map((thread) => {
+      const existingThreadList = internalThreadIds.size > 0
+        ? state.threadList.filter((thread) => !internalThreadIds.has(thread.id))
+        : state.threadList
+      const threadList = existingThreadList.map((thread) => {
         const next = incoming.get(thread.id)
         if (!next) return thread
         seen.add(thread.id)
@@ -371,9 +375,26 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
       })
       const missing = visibleThreads.filter((thread) => !seen.has(thread.id))
       const runtimeSnapshots = new Map(state.runtimeSnapshots)
+      const parkedApprovals = new Map(state.parkedApprovals)
+      const parkedUserInputs = new Map(state.parkedUserInputs)
       const runningTurnThreadIds = new Set(state.runningTurnThreadIds)
+      const pendingApprovalThreadIds = new Set(state.pendingApprovalThreadIds)
+      const pendingUserInputThreadIds = new Set(state.pendingUserInputThreadIds)
+      const pendingPlanConfirmationThreadIds = new Set(state.pendingPlanConfirmationThreadIds)
       const unreadCompletedThreadIds = new Set(state.unreadCompletedThreadIds)
       const goalSnapshots = new Map(state.goalSnapshots)
+
+      for (const id of internalThreadIds) {
+        runtimeSnapshots.delete(id)
+        parkedApprovals.delete(id)
+        parkedUserInputs.delete(id)
+        runningTurnThreadIds.delete(id)
+        pendingApprovalThreadIds.delete(id)
+        pendingUserInputThreadIds.delete(id)
+        pendingPlanConfirmationThreadIds.delete(id)
+        unreadCompletedThreadIds.delete(id)
+        goalSnapshots.delete(id)
+      }
 
       for (const thread of visibleThreads) {
         if (thread.goal === null) {
@@ -407,7 +428,12 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
       return {
         threadList: [...missing, ...threadList],
         runtimeSnapshots,
+        parkedApprovals,
+        parkedUserInputs,
         runningTurnThreadIds,
+        pendingApprovalThreadIds,
+        pendingUserInputThreadIds,
+        pendingPlanConfirmationThreadIds,
         unreadCompletedThreadIds,
         goalSnapshots
       }

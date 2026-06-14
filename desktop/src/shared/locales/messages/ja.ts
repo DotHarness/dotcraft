@@ -2727,4 +2727,14 @@ export const MESSAGES_JA = {
   'settings.group.archived': 'アーカイブされたスレッド',
   'settings.subAgents.empty': 'まだ利用可能なサブエージェントはありません。',
   'settings.subAgents.card.disabled': '障害者',
+  'agentBuilder.chat.emptyTitle': 'このエージェントをどう改善しますか？',
+  'agentBuilder.chat.quick.test': 'このエージェントをテスト',
+  'agentBuilder.chat.quick.advanced': '高度なロジックを追加',
+  'agentBuilder.chat.quick.optimize': 'このエージェントを最適化',
+  'agentBuilder.chat.prompt.test':
+    '現実的な最初のタスクでこのエージェントをテストしてください。指示、ツール、スキル、モデル、承認ポリシーの不足を見つけ、具体的な変更を提案してください。',
+  'agentBuilder.chat.prompt.advanced':
+    'このエージェントに高度なロジックを追加してください。範囲を不必要に広げず、ルーティング、制約、エッジケース、ツールやスキルの選択を強化してください。',
+  'agentBuilder.chat.prompt.optimize':
+    'このエージェントの信頼性と集中度を最適化してください。役割指示を引き締め、不要な機能を取り除き、必要最小限のツールとスキルを提案してください。',
 } satisfies Partial<Record<MessageId, string>>

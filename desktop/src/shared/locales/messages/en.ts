@@ -2901,6 +2901,18 @@ export const MESSAGES_EN = {
     'Optional JSON object passed to the runtime for output sanitization.',
   'settings.subAgents.custom.sanitizationRulesPlaceholder': '{ "redactEmails": true }',
 
+  // Agent Builder chat
+  'agentBuilder.chat.emptyTitle': 'How should we improve this agent?',
+  'agentBuilder.chat.quick.test': 'Test this agent',
+  'agentBuilder.chat.quick.advanced': 'Add advanced logic',
+  'agentBuilder.chat.quick.optimize': 'Optimize this agent',
+  'agentBuilder.chat.prompt.test':
+    'Test this agent against a realistic first task. Identify gaps in its instructions, tools, skills, model, and approval policy, then suggest concrete changes.',
+  'agentBuilder.chat.prompt.advanced':
+    'Add advanced logic to this agent. Strengthen its routing, constraints, edge cases, and tool or skill choices without broadening its scope unnecessarily.',
+  'agentBuilder.chat.prompt.optimize':
+    'Optimize this agent for reliability and focus. Tighten its role instructions, remove unnecessary capability, and recommend the minimal tools and skills it needs.',
+
   // Validation
   'settings.subAgents.validation.nameRequired': 'A name is required.',
   'settings.subAgents.validation.binRequired': 'The binary path is required.',

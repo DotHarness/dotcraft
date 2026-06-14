@@ -2823,4 +2823,14 @@ export const MESSAGES_ZH_HANS = {
   'subAgent.triggeredBy.input': '直接输入 · {{label}}',
   'subAgent.triggeredBy.mailbox': '邮箱消息 · {{label}}',
   'subAgent.triggeredBy.generic': 'SubAgent 协作输入',
+  'agentBuilder.chat.emptyTitle': '要如何改进这个 Agent？',
+  'agentBuilder.chat.quick.test': '测试这个 Agent',
+  'agentBuilder.chat.quick.advanced': '添加高级逻辑',
+  'agentBuilder.chat.quick.optimize': '优化这个 Agent',
+  'agentBuilder.chat.prompt.test':
+    '请用一个真实的首个任务测试这个 Agent。找出它在指令、工具、技能、模型和审批策略上的缺口，然后给出具体修改建议。',
+  'agentBuilder.chat.prompt.advanced':
+    '请为这个 Agent 添加高级逻辑。强化它的路由、约束、边界情况以及工具或技能选择，但不要不必要地扩大范围。',
+  'agentBuilder.chat.prompt.optimize':
+    '请优化这个 Agent 的可靠性和专注度。收紧角色指令，移除不必要的能力，并推荐它真正需要的最小工具和技能集合。',
 } satisfies Partial<Record<MessageId, string>>

@@ -115,6 +115,8 @@ public static class AppServerMethods
     public const string AgentProfileUpsert = "agent/profiles/upsert";
     public const string AgentProfileRemove = "agent/profiles/remove";
     public const string AgentProfileRefreshThread = "agent/profiles/refreshThread";
+    public const string AgentProfileBuilderDraftRead = "agent/profiles/builderDraft/read";
+    public const string AgentProfileBuilderDraftUpdate = "agent/profiles/builderDraft/update";
     public const string SubAgentProfileList = "subagent/profiles/list";
     public const string SubAgentSettingsUpdate = "subagent/settings/update";
     public const string SubAgentProfileSetEnabled = "subagent/profiles/setEnabled";

@@ -1,4 +1,8 @@
+using DotCraft.Abstractions;
+using DotCraft.Agents;
+using DotCraft.Protocol;
 using DotCraft.Protocol.AppServer;
+using DotCraft.Tools;
 using System.Text.Json;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
@@ -300,6 +304,97 @@ public sealed class AgentProfileManagementTests : IDisposable
             File.ReadAllLines(auditPath).Select(line => JsonDocument.Parse(line)).ToList(),
             document => document.RootElement.GetProperty("code").GetString() == "AgentProfileThreadRefreshed"
                         && document.RootElement.GetProperty("threadId").GetString() == threadId);
+    }
+
+    [Fact]
+    public async Task BuilderDraftMethods_RejectOrdinaryThread()
+    {
+        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
+        await harness.InitializeAsync();
+        var thread = await harness.Service.CreateThreadAsync(harness.Identity);
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.AgentProfileBuilderDraftRead, new
+        {
+            threadId = thread.Id
+        }));
+
+        using var response = await harness.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
+    }
+
+    [Fact]
+    public async Task BuilderDraftUpdate_SeedsAndReadReturnsSameDraft()
+    {
+        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
+        await harness.InitializeAsync();
+        var thread = await harness.Service.CreateThreadAsync(
+            harness.Identity,
+            new ThreadConfiguration
+            {
+                AgentBuilderTargetId = "draft-agent",
+                AgentBuilderTargetSource = "workspace"
+            });
+        var raw = ProfileMarkdown("draft-agent", "Draft synced from editor", "Synced builder draft.");
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.AgentProfileBuilderDraftUpdate, new
+        {
+            threadId = thread.Id,
+            rawContent = raw
+        }));
+
+        using (var updateResponse = await harness.Transport.ReadNextSentAsync())
+        {
+            AppServerTestHarness.AssertIsSuccessResponse(updateResponse);
+            var result = updateResponse.RootElement.GetProperty("result");
+            Assert.Equal(thread.Id, result.GetProperty("threadId").GetString());
+            Assert.Equal("draft-agent", result.GetProperty("targetId").GetString());
+            Assert.Equal("workspace", result.GetProperty("targetSource").GetString());
+            Assert.Equal(raw, result.GetProperty("rawContent").GetString());
+        }
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.AgentProfileBuilderDraftRead, new
+        {
+            threadId = thread.Id
+        }));
+
+        using var readResponse = await harness.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(readResponse);
+        Assert.Equal(
+            raw,
+            readResponse.RootElement.GetProperty("result").GetProperty("rawContent").GetString());
+
+        ProfileBuilderDraftStore.Remove(thread.Id);
+    }
+
+    [Fact]
+    public async Task BuilderPromptProvider_UsesDraftSyncedThroughAppServer()
+    {
+        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
+        await harness.InitializeAsync();
+        var thread = await harness.Service.CreateThreadAsync(
+            harness.Identity,
+            new ThreadConfiguration
+            {
+                AgentBuilderTargetId = "draft-agent",
+                AgentBuilderTargetSource = "workspace"
+            });
+        var raw = ProfileMarkdown("draft-agent", "Draft synced from editor", "Prompt-visible instructions.");
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.AgentProfileBuilderDraftUpdate, new
+        {
+            threadId = thread.Id,
+            rawContent = raw
+        }));
+        await harness.Transport.ReadNextSentAsync();
+
+        var section = new ProfileBuilderSystemPromptProvider()
+            .GetSystemPromptSection(new ThreadSystemPromptContext(thread.Id, harness.Identity.WorkspacePath));
+
+        Assert.NotNull(section);
+        Assert.Contains("Prompt-visible instructions.", section);
+        Assert.Contains("draft-agent", section);
+
+        ProfileBuilderDraftStore.Remove(thread.Id);
     }
 
     private static string ProfileMarkdown(string id, string description, string? body = null) =>

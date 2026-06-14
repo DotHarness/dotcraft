@@ -173,6 +173,29 @@ public sealed class AgentProfileRefreshThreadResult
     public AgentProfileAuditWire Audit { get; set; } = new();
 }
 
+public sealed class AgentProfileBuilderDraftReadParams
+{
+    public string ThreadId { get; set; } = string.Empty;
+}
+
+public sealed class AgentProfileBuilderDraftUpdateParams
+{
+    public string ThreadId { get; set; } = string.Empty;
+
+    public string RawContent { get; set; } = string.Empty;
+}
+
+public sealed class AgentProfileBuilderDraftResult
+{
+    public string ThreadId { get; set; } = string.Empty;
+
+    public string TargetId { get; set; } = string.Empty;
+
+    public string TargetSource { get; set; } = AgentProfileSources.Workspace;
+
+    public string RawContent { get; set; } = string.Empty;
+}
+
 public sealed class AgentProfileAuditWire
 {
     public string Event { get; set; } = string.Empty;

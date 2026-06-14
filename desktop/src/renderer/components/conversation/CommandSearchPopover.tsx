@@ -28,6 +28,7 @@ interface CommandSearchPopoverProps {
   onSelectCommand: (commandName: string) => void
   onSelectSkill?: (skillName: string) => void
   onDismiss: () => void
+  constrainToAnchor?: boolean
 }
 
 export function CommandSearchPopover({
@@ -40,7 +41,8 @@ export function CommandSearchPopover({
   onSelectSystemAction,
   onSelectCommand,
   onSelectSkill,
-  onDismiss
+  onDismiss,
+  constrainToAnchor = false
 }: CommandSearchPopoverProps): JSX.Element | null {
   const t = useT()
   const skillList = skills ?? []
@@ -128,8 +130,9 @@ export function CommandSearchPopover({
         bottom: '100%',
         left: 0,
         marginBottom: '4px',
-        minWidth: '320px',
-        maxWidth: '480px',
+        width: constrainToAnchor ? '100%' : undefined,
+        minWidth: constrainToAnchor ? 'min(280px, 100%)' : '320px',
+        maxWidth: constrainToAnchor ? '100%' : '480px',
         maxHeight: '260px',
         overflowY: 'auto',
         zIndex: 50,

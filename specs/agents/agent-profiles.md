@@ -217,6 +217,8 @@ Profile management uses Markdown as the primary authoring format.
 | `agent/profiles/upsert` | Create or replace a writable user/workspace profile. |
 | `agent/profiles/remove` | Remove a writable user/workspace profile. |
 | `agent/profiles/refreshThread` | Explicitly refresh a profile-backed thread from the current resolved profile. |
+| `agent/profiles/builderDraft/read` | Read the transient working draft for a bound conversational builder thread. |
+| `agent/profiles/builderDraft/update` | Replace the transient working draft for a bound conversational builder thread without persisting a profile file. |
 
 Rules:
 
@@ -294,13 +296,13 @@ Agent-profile generation tools may propose or modify Markdown profiles, but they
 
 ## 12A. Conversational Builder
 
-The conversational builder lets a user create or refine an Agent Profile by talking to a dedicated **profile-builder agent** instead of (or alongside) the structured editor. It is a normal Session Core thread reusing the standard turn, streaming, and tool-call machinery — it adds **no new request methods** to the AppServer surface.
+The conversational builder lets a user create or refine an Agent Profile by talking to a dedicated **profile-builder agent** instead of (or alongside) the structured editor. It is a normal Session Core thread reusing the standard turn, streaming, and tool-call machinery. The only Agent Builder-specific AppServer methods are transient working-draft synchronization methods; conversation itself still uses ordinary thread/turn APIs.
 
 ### 12A.1 Model
 
 - **Builder thread.** A profile-builder conversation runs in a Session Core thread whose `ThreadSource` is the builder kind, so it is excluded from the ordinary thread listing (the same way SubAgent threads are). The thread runs the built-in profile-builder agent — a hidden, non-listed agent that is not itself an editable profile in the gallery.
 - **Target binding.** The thread's `ThreadConfiguration.agentBuilderTargetId` (with `agentBuilderTargetSource`) names the profile the conversation edits. A thread without this binding is not a builder thread and exposes no builder tools.
-- **Working draft.** The builder edits a **thread-scoped working draft** held server-side, seeded from the target profile's Markdown (empty for a new agent). The draft is the agent's authoritative state for the session: it is injected into prompt composition (Section 7) as a cache-stable context section and read by clients to render the live document. The draft is not a persisted profile until it is created or saved (see 12A.4).
+- **Working draft.** The builder edits a **thread-scoped working draft** held server-side, seeded from the target profile's Markdown (empty for a new agent). The draft is the agent's authoritative state for the session: it is injected into prompt composition (Section 7) as a cache-stable context section and synchronized with clients through `agent/profiles/builderDraft/read` and `agent/profiles/builderDraft/update`. The draft is not a persisted profile until it is created or saved (see 12A.4).
 
 ### 12A.2 Builder tools
 
@@ -330,7 +332,7 @@ Prompt composition for a builder thread additionally injects, through the normal
 
 - **New agent.** The working draft is not persisted until the user explicitly **creates** it (the client's Create action upserts through the management API, Section 9). Before creation the conversation and the draft are transient; abandoning the builder discards them.
 - **Existing agent.** A builder thread bound to an already-persisted profile flushes draft changes back through the management API (debounced auto-save). The profile file's last-write time is surfaced (`updatedAt`) for an "updated …" indicator.
-- **Manual edits.** A client may also hand-edit the same draft through the structured editor; manual and builder-tool edits target the same working draft. While a builder turn is running, clients should present the document as agent-controlled (non-interactive) to avoid concurrent field conflicts; manual editing resumes when the turn completes.
+- **Manual edits.** A client may also hand-edit the same draft through the structured editor; manual edits are debounced to `agent/profiles/builderDraft/update`, and clients flush pending draft sync before sending a builder message. Builder tools mutate the same server-side draft. While a builder turn is running, clients should present the document as agent-controlled (non-interactive) to avoid concurrent field conflicts; manual editing resumes when the turn completes.
 - **No privileged path.** Creating or saving a profile from the builder uses the same validation, source, policy, and stale-thread refresh rules as Sections 5 and 9 — the builder is not a privileged write path.
 
 ---

@@ -19,6 +19,7 @@ interface FileSearchPopoverProps {
   workspacePath: string
   onSelect: (relativePath: string) => void
   onDismiss: () => void
+  constrainToAnchor?: boolean
 }
 
 /**
@@ -33,7 +34,8 @@ export function FileSearchPopover({
   visible,
   workspacePath,
   onSelect,
-  onDismiss
+  onDismiss,
+  constrainToAnchor = false
 }: FileSearchPopoverProps): JSX.Element | null {
   const t = useT()
   const [loading, setLoading] = useState(false)
@@ -152,8 +154,9 @@ export function FileSearchPopover({
         bottom: '100%',
         left: 0,
         marginBottom: '4px',
-        minWidth: '280px',
-        maxWidth: '420px',
+        width: constrainToAnchor ? '100%' : undefined,
+        minWidth: constrainToAnchor ? 'min(260px, 100%)' : '280px',
+        maxWidth: constrainToAnchor ? '100%' : '420px',
         maxHeight: '240px',
         overflowY: 'auto',
         zIndex: 50,

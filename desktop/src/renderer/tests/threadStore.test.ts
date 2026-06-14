@@ -282,6 +282,55 @@ describe('threadStore.upsertThreads', () => {
     expect(useThreadStore.getState().threadList[0].displayName).toBe('New')
   })
 
+  it('removes a previously visible thread when an upsert marks it internal', () => {
+    const leakedGoal = makeGoal('leaked')
+    const leaked = makeThreadSummary('leaked', {
+      displayName: 'New conversation',
+      originChannel: 'dotcraft-desktop',
+      goal: leakedGoal
+    })
+
+    useThreadStore.getState().setThreadList([leaked, makeThreadSummary('visible')])
+    useThreadStore.getState().applyRuntimeSnapshot('leaked', {
+      running: true,
+      waitingOnApproval: true,
+      waitingOnInput: true,
+      waitingOnPlanConfirmation: true
+    }, {
+      isActive: false,
+      isDesktopOrigin: true
+    })
+    useThreadStore.getState().parkApproval('leaked', {
+      bridgeId: 'approval-1',
+      turnId: 'turn-1',
+      rawParams: { threadId: 'leaked', requestId: 'request-1' }
+    })
+    useThreadStore.getState().parkUserInput('leaked', {
+      bridgeId: 'input-1',
+      turnId: 'turn-1',
+      rawParams: { threadId: 'leaked', requestId: 'input-1', questions: [] }
+    })
+    useThreadStore.getState().markUnreadCompleted('leaked')
+
+    useThreadStore.getState().upsertThreads([
+      makeThreadSummary('leaked', {
+        metadata: { 'dotcraft.internal': 'agent-builder' }
+      })
+    ])
+
+    const state = useThreadStore.getState()
+    expect(state.threadList.map((thread) => thread.id)).toEqual(['visible'])
+    expect(state.runtimeSnapshots.has('leaked')).toBe(false)
+    expect(state.runningTurnThreadIds.has('leaked')).toBe(false)
+    expect(state.pendingApprovalThreadIds.has('leaked')).toBe(false)
+    expect(state.pendingUserInputThreadIds.has('leaked')).toBe(false)
+    expect(state.pendingPlanConfirmationThreadIds.has('leaked')).toBe(false)
+    expect(state.unreadCompletedThreadIds.has('leaked')).toBe(false)
+    expect(state.parkedApprovals.has('leaked')).toBe(false)
+    expect(state.parkedUserInputs.has('leaked')).toBe(false)
+    expect(state.goalSnapshots.has('leaked')).toBe(false)
+  })
+
   it('clears stale worktree metadata when a local snapshot omits worktree', () => {
     const worktreeThread = makeWorktreeThread('t1')
     const localThread = makeThreadSummary('t1', {

@@ -12,13 +12,15 @@ import {
   type SetStateAction
 } from 'react'
 import { createPortal } from 'react-dom'
-import { ArrowLeft, Eye, FileSearch, FileText, MessageSquare, MoreHorizontal, Pencil, Plus, RefreshCw, Search, Shuffle, Sparkles, Tag, Trash2, X, type LucideIcon } from 'lucide-react'
+import { ArrowLeft, Eye, FileSearch, FileText, MoreHorizontal, Pencil, Plus, RefreshCw, Search, Shuffle, Sparkles, Tag, Trash2, X, type LucideIcon } from 'lucide-react'
 import { showToast } from '../../stores/toastStore'
 import { useModelCatalogStore } from '../../stores/modelCatalogStore'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useLocale } from '../../contexts/LocaleContext'
 import { ConversationPanel } from '../layout/ConversationPanel'
-import { ComposerSendButton, ComposerShell, SendIcon } from '../conversation/ComposerShell'
+import { InputComposer, type InputComposerSubmitPayload } from '../conversation/InputComposer'
+import { useComposerModelControls } from '../conversation/useComposerModelControls'
+import type { ThreadConfigurationWire } from '../../types/thread'
 import { formatRelativeTime } from '../../utils/relativeTime'
 import { CatalogCompactGrid, CatalogHoverButton, CatalogSearchBox, CatalogSection, styles as catalogStyles } from '../catalog/CatalogSurface'
 import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
@@ -43,6 +45,7 @@ import {
 import { applyBuilderChange, type BuilderField, type BuilderToolResult } from './agentBuilderDraftSync'
 import { useAgentBuilderConversation } from './useAgentBuilderConversation'
 import { AgentSaveTargetDialog } from './AgentSaveTargetDialog'
+import { AgentBuilderChatEmptyState } from './AgentBuilderChatEmptyState'
 import './AgentBuilderView.css'
 
 // ── Wire shapes (subset; see specs/protocols/appserver-protocol.md) ──
@@ -140,6 +143,10 @@ function writableSource(source: string | null): SaveTarget {
   return source === 'user' ? 'user' : 'workspace'
 }
 
+function newDraftTargetId(): string {
+  return `draft-agent-${globalThis.crypto?.randomUUID?.() ?? Date.now().toString(36)}`
+}
+
 export function AgentBuilderView(): JSX.Element {
   const [profiles, setProfiles] = useState<ProfileEntry[]>([])
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
@@ -158,15 +165,27 @@ export function AgentBuilderView(): JSX.Element {
   const lastSavedIdRef = useRef<string | null>(null)
   const lastSavedSourceRef = useRef<SaveTarget | null>(null)
 
-  // Conversational builder: when non-null, the chat pane is open with these stable session params.
-  // Kept separate from the (live-changing) draft so editing the name doesn't recreate the thread.
-  const [chat, setChat] = useState<{ targetId: string; targetSource: SaveTarget; initialPrompt: string } | null>(null)
+  // Conversational builder target. The hidden thread is created lazily on the first chat send.
+  // Kept separate from the live draft so editing the name doesn't retarget the conversation.
+  const [builderSession, setBuilderSession] = useState<{
+    targetId: string
+    targetSource: string
+  } | null>(null)
+  const [introPrefillRequest, setIntroPrefillRequest] = useState<{ id: number; text: string } | null>(null)
+  const [builderPrefillRequest, setBuilderPrefillRequest] = useState<{ id: number; text: string } | null>(null)
+  const introPrefillSeqRef = useRef(0)
+  const builderPrefillSeqRef = useRef(0)
   // The field the agent most recently edited — drives the cursor-on-field highlight (M4).
   const [highlight, setHighlight] = useState<{ field: BuilderField; seq: number } | null>(null)
   const highlightSeqRef = useRef(0)
   // Create flow: the save target (user/workspace) is chosen in a dialog opened from the Create button.
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const workspacePath = useConversationStore((s) => s.workspacePath)
+  const builderTurnStatus = useConversationStore((s) => s.turnStatus)
+  const draftSyncTimerRef = useRef<number | null>(null)
+  const draftSyncPromiseRef = useRef<Promise<void> | null>(null)
+  const lastSyncedBuilderDraftRef = useRef<string | null>(null)
+  const latestBuilderDraftRef = useRef<string>('')
 
   useEffect(() => {
     if (!highlight) return undefined
@@ -182,12 +201,82 @@ export function AgentBuilderView(): JSX.Element {
   }, [])
 
   const builderConversation = useAgentBuilderConversation({
-    active: route.name === 'builder' && chat !== null,
-    targetId: chat?.targetId ?? '',
-    targetSource: chat?.targetSource ?? 'workspace',
-    initialPrompt: chat?.initialPrompt ?? null,
+    active: route.name === 'builder',
     onResult: handleBuilderResult
   })
+  const builderConversationStatus = builderConversation.status
+  const builderConversationError = builderConversation.error
+  const syncBuilderDraftRequest = builderConversation.syncDraft
+  const startBuilderConversation = builderConversation.start
+
+  const syncBuilderDraftNow = useCallback((rawContent?: string): Promise<void> => {
+    if (builderConversationStatus !== 'ready') {
+      return draftSyncPromiseRef.current ?? Promise.resolve()
+    }
+    const next = rawContent ?? latestBuilderDraftRef.current
+    if (next === lastSyncedBuilderDraftRef.current) {
+      return draftSyncPromiseRef.current ?? Promise.resolve()
+    }
+
+    const previous = draftSyncPromiseRef.current
+    const promise = (previous ?? Promise.resolve())
+      .catch(() => undefined)
+      .then(() => syncBuilderDraftRequest(next))
+      .then(() => {
+        lastSyncedBuilderDraftRef.current = next
+      })
+      .finally(() => {
+        if (draftSyncPromiseRef.current === promise) {
+          draftSyncPromiseRef.current = null
+        }
+      })
+    draftSyncPromiseRef.current = promise
+    return promise
+  }, [builderConversationStatus, syncBuilderDraftRequest])
+
+  const flushBuilderDraft = useCallback(async (): Promise<void> => {
+    if (draftSyncTimerRef.current !== null) {
+      window.clearTimeout(draftSyncTimerRef.current)
+      draftSyncTimerRef.current = null
+    }
+    const current = route.name === 'builder' ? toMarkdown(route.draft) : latestBuilderDraftRef.current
+    latestBuilderDraftRef.current = current
+    await syncBuilderDraftNow(current)
+    if (draftSyncPromiseRef.current) {
+      await draftSyncPromiseRef.current
+    }
+  }, [route, syncBuilderDraftNow])
+
+  useEffect(() => {
+    if (route.name !== 'builder') {
+      lastSyncedBuilderDraftRef.current = null
+      latestBuilderDraftRef.current = ''
+      if (draftSyncTimerRef.current !== null) {
+        window.clearTimeout(draftSyncTimerRef.current)
+        draftSyncTimerRef.current = null
+      }
+      return undefined
+    }
+    const md = toMarkdown(route.draft)
+    latestBuilderDraftRef.current = md
+    if (builderConversationStatus !== 'ready' || builderTurnStatus !== 'idle') return undefined
+    if (md === lastSyncedBuilderDraftRef.current) return undefined
+
+    if (draftSyncTimerRef.current !== null) {
+      window.clearTimeout(draftSyncTimerRef.current)
+    }
+    draftSyncTimerRef.current = window.setTimeout(() => {
+      draftSyncTimerRef.current = null
+      void syncBuilderDraftNow(md).catch(() => undefined)
+    }, 400)
+
+    return () => {
+      if (draftSyncTimerRef.current !== null) {
+        window.clearTimeout(draftSyncTimerRef.current)
+        draftSyncTimerRef.current = null
+      }
+    }
+  }, [route, builderConversationStatus, builderTurnStatus, syncBuilderDraftNow])
 
   const loadProfiles = useCallback(async (): Promise<void> => {
     try {
@@ -255,30 +344,117 @@ export function AgentBuilderView(): JSX.Element {
         created: !readOnly,
         updatedAt: readOnly ? null : (res.profile?.updatedAt ?? entry.updatedAt ?? null)
       })
+      setBuilderSession({
+        targetId: entry.id,
+        targetSource: entry.source
+      })
     } catch (err) {
       showToast({ message: `Could not open: ${errorText(err)}`, type: 'error' })
     }
   }, [])
 
-  const startDraft = useCallback((draft: ProfileDraft, avatar: AvatarSpec): void => {
+  const startDraft = useCallback((
+    draft: ProfileDraft,
+    avatar: AvatarSpec,
+    options: { targetId?: string; targetSource?: string } = {}
+  ): void => {
     lastSavedMdRef.current = null
     lastSavedIdRef.current = null
     lastSavedSourceRef.current = null
+    lastSyncedBuilderDraftRef.current = null
     setViewMode('edit')
     setAutoSaveState('idle')
     setRoute({ name: 'builder', draft, id: null, source: null, readOnly: false, isNew: true, saveTarget: 'workspace', saving: false, avatar, created: false, updatedAt: null })
+    setBuilderSession({
+      targetId: options.targetId?.trim() || draft.name.trim() || newDraftTargetId(),
+      targetSource: options.targetSource?.trim() || 'workspace'
+    })
   }, [])
 
-  const newBlank = useCallback((description = ''): void => {
-    startDraft({ ...createEmptyDraft(), description }, randomAvatar())
+  const newBlank = useCallback((): void => {
+    startDraft(createEmptyDraft(), randomAvatar(), {
+      targetId: newDraftTargetId(),
+      targetSource: 'workspace'
+    })
   }, [startDraft])
+
+  const prefillIntroComposer = useCallback((text: string): void => {
+    setIntroPrefillRequest({ id: ++introPrefillSeqRef.current, text })
+  }, [])
+
+  const prefillBuilderComposer = useCallback((text: string): void => {
+    setBuilderPrefillRequest({ id: ++builderPrefillSeqRef.current, text })
+  }, [])
+
+  const startBuilderChatWithDraft = useCallback(async ({
+    draft,
+    targetId,
+    targetSource,
+    inputParts,
+    config
+  }: {
+    draft: ProfileDraft
+    targetId: string
+    targetSource: string
+    inputParts: InputComposerSubmitPayload['inputParts']
+    config: ThreadConfigurationWire
+  }): Promise<void> => {
+    const md = toMarkdown(draft)
+    latestBuilderDraftRef.current = md
+    await startBuilderConversation({
+      targetId,
+      targetSource,
+      initialDraftMarkdown: md,
+      inputParts,
+      config
+    })
+    lastSyncedBuilderDraftRef.current = md
+  }, [startBuilderConversation])
+
+  const startBlankFromIntro = useCallback(async (
+    payload: InputComposerSubmitPayload,
+    config: ThreadConfigurationWire
+  ): Promise<void> => {
+    const draft = createEmptyDraft()
+    const avatar = randomAvatar()
+    const targetId = newDraftTargetId()
+    const targetSource = 'workspace'
+    startDraft(draft, avatar, { targetId, targetSource })
+    await startBuilderChatWithDraft({
+      draft,
+      targetId,
+      targetSource,
+      inputParts: payload.inputParts,
+      config
+    })
+  }, [startDraft, startBuilderChatWithDraft])
+
+  const startBuilderChatFromRoute = useCallback(async (
+    payload: InputComposerSubmitPayload,
+    config: ThreadConfigurationWire
+  ): Promise<void> => {
+    if (route.name !== 'builder') return
+    const routeName = route.draft.name.trim()
+    const targetId = builderSession?.targetId ?? route.id ?? (routeName || newDraftTargetId())
+    const targetSource = builderSession?.targetSource ?? route.source ?? route.saveTarget ?? 'workspace'
+    await startBuilderChatWithDraft({
+      draft: route.draft,
+      targetId,
+      targetSource,
+      inputParts: payload.inputParts,
+      config
+    })
+  }, [builderSession, route, startBuilderChatWithDraft])
 
   const fromTemplate = useCallback(async (entry: ProfileEntry): Promise<void> => {
     try {
       const res = await rpc<{ profile?: ProfileEntry }>('agent/profiles/read', { id: entry.id, source: entry.source })
       const draft = parseProfile(res.profile?.rawContent)
       if (!draft.name) draft.name = entry.id
-      startDraft(draft, avatarForProfile(draft.name))
+      startDraft(draft, avatarForProfile(draft.name), {
+        targetId: entry.id,
+        targetSource: entry.source
+      })
     } catch (err) {
       showToast({ message: `Could not load template: ${errorText(err)}`, type: 'error' })
     }
@@ -358,30 +534,15 @@ export function AgentBuilderView(): JSX.Element {
       await rpc('agent/profiles/remove', { id, source })
       showToast({ message: `Removed "${id}".`, type: 'info' })
       await loadProfiles()
-      setChat(null)
+      setBuilderSession(null)
       setRoute({ name: 'gallery' })
     } catch (err) {
       showToast({ message: `Remove failed: ${errorText(err)}`, type: 'error' })
     }
   }, [route, loadProfiles])
 
-  // Open/close the chat pane. Opening captures a stable target id (a placeholder for a new agent),
-  // so the builder thread is created once and survives name edits.
-  const toggleChat = useCallback((): void => {
-    setChat((current) => {
-      if (current) return null
-      if (route.name !== 'builder') return null
-      const { name, description } = route.draft
-      const intent = description.trim() || name.trim()
-      const initialPrompt = route.created
-        ? `Let's refine the "${name.trim() || 'this'}" agent together. Review its current configuration and suggest improvements to its instructions, tools, and skills.`
-        : `Help me build a new agent.${intent ? ` What I want: "${intent}".` : ''} Propose a name, role instructions, and a sensible set of tools and skills, then we'll refine it together.`
-      return { targetId: name.trim() || 'draft-agent', targetSource: route.saveTarget, initialPrompt }
-    })
-  }, [route])
-
   const leaveBuilder = useCallback((): void => {
-    setChat(null)
+    setBuilderSession(null)
     setHighlight(null)
     setRoute({ name: 'gallery' })
   }, [])
@@ -396,9 +557,8 @@ export function AgentBuilderView(): JSX.Element {
   }, [profiles, query])
 
   if (route.name === 'builder') {
-    const chatOpen = chat !== null
     return (
-      <div className={`agent-builder-split${chatOpen ? ' is-chat' : ''}`}>
+      <div className="agent-builder-split is-chat">
         <div className="agent-builder-split-main">
           <BuilderView
             route={route}
@@ -410,27 +570,35 @@ export function AgentBuilderView(): JSX.Element {
             viewMode={viewMode}
             setViewMode={setViewMode}
             autoSaveState={autoSaveState}
-            chatOpen={chatOpen}
-            onToggleChat={toggleChat}
             highlightField={highlight?.field ?? null}
+            agentDriving={builderConversation.threadId !== null && builderTurnStatus === 'running'}
             onBack={leaveBuilder}
             onDelete={removeProfile}
             onCreate={() => setCreateDialogOpen(true)}
           />
         </div>
-        {chatOpen && (
-          <aside className="agent-builder-chatpane">
-            {builderConversation.status === 'error' ? (
-              <div className="agent-builder-chat-error">
-                Couldn’t start the builder chat: {builderConversation.error}
-              </div>
-            ) : builderConversation.status !== 'ready' ? (
-              <div className="agent-builder-chat-loading">Starting builder…</div>
-            ) : (
-              <ConversationPanel workspacePath={workspacePath} minimalComposer mascotAvatar={route.avatar} />
-            )}
-          </aside>
-        )}
+        <aside className="agent-builder-chatpane">
+          {builderConversationStatus === 'starting' ? (
+            <div className="agent-builder-chat-loading">Starting builder…</div>
+          ) : builderConversationStatus === 'ready' ? (
+            <ConversationPanel
+              workspacePath={workspacePath}
+              minimalComposer
+              mascotAvatar={route.avatar}
+              variant="agentBuilder"
+              onBeforeSend={flushBuilderDraft}
+            />
+          ) : (
+            <DetachedAgentBuilderChat
+              workspacePath={workspacePath}
+              mascotAvatar={route.avatar}
+              prefillRequest={builderPrefillRequest}
+              error={builderConversationStatus === 'error' ? builderConversationError : null}
+              onPrefill={prefillBuilderComposer}
+              onSubmit={startBuilderChatFromRoute}
+            />
+          )}
+        </aside>
         {createDialogOpen && (
           <AgentSaveTargetDialog
             name={route.draft.name.trim()}
@@ -462,12 +630,16 @@ export function AgentBuilderView(): JSX.Element {
             <RobotAvatar spec={AGENT_BUILDER_AVATAR} size={52} animated />
           </span>
           <h1 className="agent-builder-intro-title">Build a new agent</h1>
-          <IntroComposer onSubmit={(text) => newBlank(text)} />
+          <IntroBuilderComposer
+            workspacePath={workspacePath}
+            prefillRequest={introPrefillRequest}
+            onSubmit={startBlankFromIntro}
+          />
           <div className="agent-builder-intro-sugs">
             {SUGGESTIONS.map((s) => {
               const Icon = s.icon
               return (
-                <button key={s.title} type="button" className="agent-builder-intro-sug" onClick={() => newBlank(s.prompt)}>
+                <button key={s.title} type="button" className="agent-builder-intro-sug" onClick={() => prefillIntroComposer(s.prompt)}>
                   <span className="agent-builder-intro-sug-ic" aria-hidden><Icon size={16} /></span>
                   <span className="agent-builder-intro-sug-t">{s.title}</span>
                   <span className="agent-builder-intro-sug-d">{s.desc}</span>
@@ -550,45 +722,98 @@ export function AgentBuilderView(): JSX.Element {
 }
 
 // ── "Build a new agent" input ──
-// Reuses the real conversation ComposerShell (same card/mascot/send affordance as the chat composer),
-// in its minimal form: no permissions / workspace / subscription chrome. Keeps the builder visually
-// consistent with the conversational pane since they are one feature.
-function IntroComposer({ onSubmit }: { onSubmit: (text: string) => void }): JSX.Element {
-  const [text, setText] = useState('')
-  const canSend = text.trim().length > 0
-  const submit = (): void => {
-    if (canSend) onSubmit(text.trim())
-  }
+// Uses the real conversation composer, but with a detached submit handler because the hidden builder
+// thread is created only after the user sends the first intent.
+function IntroBuilderComposer({
+  workspacePath,
+  prefillRequest,
+  onSubmit
+}: {
+  workspacePath: string
+  prefillRequest: { id: number; text: string } | null
+  onSubmit: (payload: InputComposerSubmitPayload, config: ThreadConfigurationWire) => Promise<void> | void
+}): JSX.Element {
+  const modelControls = useComposerModelControls({
+    workspacePath,
+    mode: 'detached'
+  })
+
   return (
     <div className="agent-builder-introcomposer">
-      <ComposerShell
-        dragOver={false}
-        dropLabel=""
-        onDragOver={(e) => e.preventDefault()}
-        onDragLeave={() => {}}
-        onDrop={(e) => e.preventDefault()}
-        editor={
-          <textarea
-            className="agent-builder-intro-input"
-            rows={3}
-            value={text}
-            autoFocus
-            placeholder="Describe the agent you want…"
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault()
-                submit()
-              }
-            }}
-          />
-        }
-        footerLeading={<span />}
-        footerAction={
-          <ComposerSendButton tone={canSend ? 'enabled' : 'disabled'} disabled={!canSend} aria-label="Create" onClick={submit}>
-            <SendIcon />
-          </ComposerSendButton>
-        }
+      <InputComposer
+        threadId="agent-builder-intro"
+        workspacePath={workspacePath}
+        minimalChrome
+        mascotAvatar={AGENT_BUILDER_AVATAR}
+        variant="agentBuilder"
+        placeholder="Describe the agent you want…"
+        prefillRequest={prefillRequest}
+        submitOverride={(payload) => onSubmit(payload, modelControls.threadStartConfig)}
+        modelName={modelControls.modelName}
+        modelOptions={modelControls.modelOptions}
+        modelCatalog={modelControls.modelCatalog}
+        reasoningValue={modelControls.reasoningValue}
+        modelLoading={modelControls.modelLoading}
+        modelDisabled={modelControls.modelDisabled}
+        modelListUnsupportedEndpoint={modelControls.modelListUnsupportedEndpoint}
+        modelCatalogError={modelControls.modelCatalogError}
+        modelCatalogErrorMessage={modelControls.modelCatalogErrorMessage}
+        onModelChange={modelControls.onModelChange}
+        onReasoningChange={modelControls.onReasoningChange}
+        onModelCatalogRetry={modelControls.onModelCatalogRetry}
+      />
+    </div>
+  )
+}
+
+function DetachedAgentBuilderChat({
+  workspacePath,
+  mascotAvatar,
+  prefillRequest,
+  error,
+  onPrefill,
+  onSubmit
+}: {
+  workspacePath: string
+  mascotAvatar: AvatarSpec
+  prefillRequest: { id: number; text: string } | null
+  error: string | null
+  onPrefill: (prompt: string) => void
+  onSubmit: (payload: InputComposerSubmitPayload, config: ThreadConfigurationWire) => Promise<void> | void
+}): JSX.Element {
+  const modelControls = useComposerModelControls({
+    workspacePath,
+    mode: 'detached'
+  })
+
+  return (
+    <div className="agent-builder-detached-chat">
+      {error && (
+        <div className="agent-builder-chat-error" role="alert">
+          Couldn’t start the builder chat: {error}
+        </div>
+      )}
+      <AgentBuilderChatEmptyState onPick={onPrefill} />
+      <InputComposer
+        threadId="agent-builder-detached"
+        workspacePath={workspacePath}
+        minimalChrome
+        mascotAvatar={mascotAvatar}
+        variant="agentBuilder"
+        prefillRequest={prefillRequest}
+        submitOverride={(payload) => onSubmit(payload, modelControls.threadStartConfig)}
+        modelName={modelControls.modelName}
+        modelOptions={modelControls.modelOptions}
+        modelCatalog={modelControls.modelCatalog}
+        reasoningValue={modelControls.reasoningValue}
+        modelLoading={modelControls.modelLoading}
+        modelDisabled={modelControls.modelDisabled}
+        modelListUnsupportedEndpoint={modelControls.modelListUnsupportedEndpoint}
+        modelCatalogError={modelControls.modelCatalogError}
+        modelCatalogErrorMessage={modelControls.modelCatalogErrorMessage}
+        onModelChange={modelControls.onModelChange}
+        onReasoningChange={modelControls.onReasoningChange}
+        onModelCatalogRetry={modelControls.onModelCatalogRetry}
       />
     </div>
   )
@@ -656,15 +881,14 @@ interface BuilderViewProps {
   viewMode: 'edit' | 'preview'
   setViewMode: Dispatch<SetStateAction<'edit' | 'preview'>>
   autoSaveState: 'idle' | 'saving' | 'saved' | 'error'
-  chatOpen: boolean
-  onToggleChat: () => void
   highlightField: BuilderField | null
+  agentDriving: boolean
   onBack: () => void
   onDelete: () => void
   onCreate: () => void
 }
 
-function BuilderView({ route, setRoute, setDraft, toolCatalog, skillCatalog, mcpServers, viewMode, setViewMode, autoSaveState, chatOpen, onToggleChat, highlightField, onBack, onDelete, onCreate }: BuilderViewProps): JSX.Element {
+function BuilderView({ route, setRoute, setDraft, toolCatalog, skillCatalog, mcpServers, viewMode, setViewMode, autoSaveState, highlightField, agentDriving, onBack, onDelete, onCreate }: BuilderViewProps): JSX.Element {
   const locale = useLocale()
   const { draft, avatar } = route
   const nameMissing = !draft.name.trim()
@@ -673,8 +897,6 @@ function BuilderView({ route, setRoute, setDraft, toolCatalog, skillCatalog, mcp
   const menuRef = useRef<HTMLDivElement>(null)
   // While a builder turn is running, the agent "drives" the document: it becomes non-interactive and
   // shows the cursor-on-field affordance so the user watches rather than fights the agent's edits.
-  const agentTurnRunning = useConversationStore((s) => s.turnStatus === 'running')
-  const agentDriving = chatOpen && agentTurnRunning
   const fieldClass = (fields: BuilderField[]): string =>
     highlightField && fields.includes(highlightField) ? ' is-agent-editing' : ''
 
@@ -725,14 +947,6 @@ function BuilderView({ route, setRoute, setDraft, toolCatalog, skillCatalog, mcp
                     : 'Saved'}
             </span>
           )}
-          <button
-            type="button"
-            className={`agent-builder-btn-secondary${chatOpen ? ' is-active' : ''}`}
-            onClick={onToggleChat}
-            aria-pressed={chatOpen}
-          >
-            {chatOpen ? <><MessageSquare size={15} /> Chatting</> : <><Sparkles size={15} /> Build with chat</>}
-          </button>
           <button type="button" className="agent-builder-btn-secondary" onClick={() => setViewMode(preview ? 'edit' : 'preview')}>
             {preview ? <><Pencil size={15} /> Edit</> : <><Eye size={15} /> Preview</>}
           </button>

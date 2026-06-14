@@ -114,11 +114,8 @@
 .agent-builder-intro { position: relative; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 7vh 24px 0; overflow: hidden; }
 .agent-builder-intro-mascot { display: inline-flex; }
 .agent-builder-intro-title { margin: 4px 0 8px; font-size: 26px; font-weight: 720; letter-spacing: -0.015em; }
-/* Intro input reuses the conversation ComposerShell; this just constrains its width to the column. */
+/* Intro input reuses the real conversation composer; this constrains its width to the column. */
 .agent-builder-introcomposer { width: min(600px, 100%); }
-.agent-builder-intro-input { width: 100%; border: none; outline: none; box-shadow: none; appearance: none; -webkit-appearance: none; resize: none; background: transparent; color: var(--text-primary); font: inherit; font-size: var(--conversation-font-size, 14px); line-height: var(--conversation-line-height, 1.5); }
-.agent-builder-intro-input:focus, .agent-builder-intro-input:focus-visible { outline: none; box-shadow: none; }
-.agent-builder-intro-input::placeholder { color: var(--composer-placeholder, var(--text-dimmed)); }
 .agent-builder-intro-sugs { width: min(600px, 100%); display: flex; flex-direction: column; gap: 1px; margin-top: 4px; }
 .agent-builder-intro-sug { display: flex; align-items: center; gap: 9px; text-align: left; border: 0; background: transparent; color: inherit; padding: 9px 10px; border-radius: 9px; cursor: pointer; }
 .agent-builder-intro-sug:hover { background: color-mix(in srgb, var(--text-primary) 4%, transparent); }
@@ -144,6 +141,8 @@
 .agent-builder-chatpane > * { flex: 1 1 auto; min-height: 0; }
 .agent-builder-chat-loading, .agent-builder-chat-error { flex: 1 1 auto; display: grid; place-items: center; padding: 24px; text-align: center; font-size: 13px; color: var(--text-secondary); }
 .agent-builder-chat-error { color: var(--error); }
+.agent-builder-detached-chat { height: 100%; display: flex; flex-direction: column; min-height: 0; background: transparent; }
+.agent-builder-detached-chat > .agent-builder-chat-error { flex: 0 0 auto; display: block; padding: 12px 20px; border-bottom: 1px solid var(--border-default); text-align: left; }
 .agent-builder-btn-secondary.is-active { border-color: var(--border-active); background: var(--bg-tertiary); }
 
 /* The agent is editing a field: a soft brand ring + an "editing" cursor tag on the section label. */

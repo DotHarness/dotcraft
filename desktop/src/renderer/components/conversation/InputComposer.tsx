@@ -103,6 +103,16 @@ function isRequestTimeoutError(err: unknown): boolean {
   return normalized.includes('timed out') || normalized.includes('timeout')
 }
 
+export interface InputComposerSubmitPayload {
+  text: string
+  segments: ComposerDraftSegment[]
+  files: ComposerFileAttachment[]
+  images: ImageAttachment[]
+  inputParts: InputPart[]
+  visibleText: string
+  bodyText: string
+}
+
 interface InputComposerProps {
   threadId: string
   /** Thread state/identity workspace path. Worktree threads still belong to this root. */
@@ -134,6 +144,20 @@ interface InputComposerProps {
    * Agent Builder pane to show the edited profile's character (the builder thread has no profile id).
    */
   mascotAvatar?: AvatarSpec
+  /** Purpose-built embedded composer behavior for Agent Builder. */
+  variant?: 'default' | 'agentBuilder'
+  /** Override placeholder text for embedded composers with a narrower task. */
+  placeholder?: string
+  /** One-shot text injection request from an external empty state or suggestion. */
+  prefillRequest?: { id: number; text: string } | null
+  /** Called immediately before sending or queueing a user message. */
+  onBeforeSend?: () => Promise<void> | void
+  /**
+   * Optional detached submit handler. When provided, InputComposer still owns rich-input serialization,
+   * but the caller owns the destination thread/RPC. Used by the Agent Builder intro before a hidden
+   * builder thread exists.
+   */
+  submitOverride?: (payload: InputComposerSubmitPayload) => Promise<void> | void
 }
 
 /**
@@ -158,9 +182,16 @@ export function InputComposer({
   onReasoningChange,
   onModelCatalogRetry,
   minimalChrome = false,
-  mascotAvatar
+  mascotAvatar,
+  variant = 'default',
+  placeholder,
+  prefillRequest = null,
+  onBeforeSend,
+  submitOverride
 }: InputComposerProps): JSX.Element {
   const t = useT()
+  const isAgentBuilder = variant === 'agentBuilder'
+  const hasSubmitOverride = submitOverride !== undefined
   const [images, setImages] = useState<ImageAttachment[]>([])
   const [files, setFiles] = useState<ComposerFileAttachment[]>([])
   const [atQuery, setAtQuery] = useState<string | null>(null)
@@ -183,7 +214,7 @@ export function InputComposer({
   const [mascotBounce, setMascotBounce] = useState(0)
   const richRef = useRef<RichInputAreaHandle>(null)
   const sendInFlightRef = useRef(false)
-  const pendingModeChangeRef = useRef<Promise<void> | null>(null)
+  const pendingModeChangeRef = useRef<Promise<unknown> | null>(null)
   const applyingHistoryRef = useRef(false)
   const historyDraftRef = useRef<ComposerDraftSnapshot | null>(null)
   // Latest composer contents, mirrored from change handlers so the per-thread
@@ -207,31 +238,34 @@ export function InputComposer({
   const pendingMessage = useConversationStore((s) => s.pendingMessage)
   const queuedInputs = useConversationStore((s) => s.queuedInputs)
   const maintenanceKind = useConversationStore((s) => s.maintenanceKind)
-  const mascotInteraction = useComposerMascot({ threadId, workspacePath })
+  const rawMascotInteraction = useComposerMascot({ threadId, workspacePath })
+  const mascotInteraction = hasSubmitOverride ? undefined : rawMascotInteraction
   const threadMode = useConversationStore((s) => s.threadMode)
   const setThreadMode = useConversationStore((s) => s.setThreadMode)
   const composerPrefill = useUIStore((s) => s.composerPrefill)
   const currentGoal = useThreadStore((s) => s.goalSnapshots.get(threadId) ?? null)
   const hasSubAgentDock = useSubAgentStore((s) => (s.childrenByParent.get(threadId)?.length ?? 0) > 0)
-  const hasBackgroundActivityDock = queuedInputs.length > 0 || hasSubAgentDock
+  const visibleQueuedInputs = hasSubmitOverride ? [] : queuedInputs
+  const visiblePendingMessage = hasSubmitOverride ? null : pendingMessage
+  const hasBackgroundActivityDock = !hasSubmitOverride && (queuedInputs.length > 0 || hasSubAgentDock)
   const locale = useLocale()
   const confirm = useConfirmDialog()
 
-  const isRunning = turnStatus === 'running'
-  const isWaitingApproval = turnStatus === 'waitingApproval'
-  const isWaitingInput = turnStatus === 'waitingInput'
-  const isMaintenanceActive = maintenanceKind === 'compacting' || maintenanceKind === 'consolidating'
+  const isRunning = !hasSubmitOverride && turnStatus === 'running'
+  const isWaitingApproval = !hasSubmitOverride && turnStatus === 'waitingApproval'
+  const isWaitingInput = !hasSubmitOverride && turnStatus === 'waitingInput'
+  const isMaintenanceActive = !hasSubmitOverride && (maintenanceKind === 'compacting' || maintenanceKind === 'consolidating')
   const isBusyForInput = isRunning || isMaintenanceActive
   const canUseCommandPicker = capabilities?.commandManagement === true
   const canUseSkillPicker = capabilities?.skillsManagement === true
-  const canUseThreadGoals = capabilities?.threadGoals === true
-  const canUseManualCompaction = capabilities?.manualCompaction === true
-  const canUseManualMemoryConsolidation = capabilities?.manualMemoryConsolidation === true
+  const canUseThreadGoals = !isAgentBuilder && capabilities?.threadGoals === true
+  const canUseManualCompaction = !isAgentBuilder && capabilities?.manualCompaction === true
+  const canUseManualMemoryConsolidation = !isAgentBuilder && capabilities?.manualMemoryConsolidation === true
   const turnsLength = turns.length
   const canCompactCurrentThread = canUseManualCompaction && turnsLength > 0 && turnStatus === 'idle' && !isMaintenanceActive
   const canConsolidateCurrentThread = canUseManualMemoryConsolidation && turnsLength > 0 && turnStatus === 'idle' && !isMaintenanceActive
-  const canUseSystemActions = true
-  const canUseAgentProfiles = capabilities?.agentProfileManagement === true
+  const canUseSystemActions = !isAgentBuilder
+  const canUseAgentProfiles = !isAgentBuilder && capabilities?.agentProfileManagement === true
   const rawProfileId = (activeThread?.configuration as Record<string, unknown> | null | undefined)?.agentProfileId
   const activeProfileId = typeof rawProfileId === 'string' && rawProfileId.length > 0 ? rawProfileId : undefined
   const hasProfile = activeProfileId !== undefined
@@ -242,8 +276,11 @@ export function InputComposer({
 
   const showMentionPopover = atQuery !== null && !mentionDismissed && !remoteWorkspace
   const normalizedSlashQuery = slashQuery?.toLowerCase() ?? null
-  const isExactSystemSlashQuery = normalizedSlashQuery === 'plan' || normalizedSlashQuery === 'agent' || normalizedSlashQuery === 'compact' || normalizedSlashQuery === 'consolidate'
-  const showSlashPopover = slashQuery !== null && !slashDismissed && canUseSlashPicker && !isExactSystemSlashQuery
+  const isAgentBuilderModeSlashQuery = isAgentBuilder
+    && (normalizedSlashQuery === 'plan' || normalizedSlashQuery === 'agent')
+  const isExactSystemSlashQuery = !isAgentBuilder
+    && (normalizedSlashQuery === 'plan' || normalizedSlashQuery === 'agent' || normalizedSlashQuery === 'compact' || normalizedSlashQuery === 'consolidate')
+  const showSlashPopover = slashQuery !== null && !slashDismissed && canUseSlashPicker && !isExactSystemSlashQuery && !isAgentBuilderModeSlashQuery
   const showSkillPopover = skillQuery !== null && !skillDismissed && canUseSkillPicker
   const { commands: customCommands, status: customCommandStatus } = useCustomCommandCatalog({
     enabled: canUseCommandPicker,
@@ -277,6 +314,7 @@ export function InputComposer({
   const systemActions = useMemo(
     () => {
       const actions: SlashSystemActionInfo[] = []
+      if (!canUseSystemActions) return actions
       // A profile-backed thread runs its agent's fixed capability scope, so it has no Plan/Agent mode.
       if (!hasProfile) {
         actions.push({
@@ -327,7 +365,7 @@ export function InputComposer({
       }
       return actions
     },
-    [canCompactCurrentThread, canConsolidateCurrentThread, canUseAgentProfiles, canUseThreadGoals, hasProfile, t, threadMode]
+    [canCompactCurrentThread, canConsolidateCurrentThread, canUseAgentProfiles, canUseSystemActions, canUseThreadGoals, hasProfile, t, threadMode]
   )
 
   useEffect(() => {
@@ -511,6 +549,16 @@ export function InputComposer({
       }, 0)
     }
   }, [composerPrefill])
+
+  useEffect(() => {
+    const prefill = prefillRequest?.text
+    if (!prefill) return
+    setTimeout(() => {
+      richRef.current?.setPlainText(prefill)
+      richRef.current?.setSelectionRange({ start: prefill.length, end: prefill.length })
+      richRef.current?.focus()
+    }, 0)
+  }, [prefillRequest?.id, prefillRequest?.text])
 
   useEffect(() => {
     const focus = (): void => {
@@ -800,7 +848,7 @@ export function InputComposer({
       return
     }
 
-    const systemCommand = parseSystemSlashCommand(trimmed)
+    const systemCommand = isAgentBuilder ? null : parseSystemSlashCommand(trimmed)
     if (systemCommand) {
       let clearInput = false
       if (systemCommand.kind === 'plan') clearInput = await setComposerMode('plan')
@@ -813,7 +861,7 @@ export function InputComposer({
       return
     }
 
-    const goalCommand = parseGoalSlashCommand(trimmed)
+    const goalCommand: GoalSlashCommand | null = isAgentBuilder ? null : parseGoalSlashCommand(trimmed)
     if (goalCommand) {
       const clearInput = await executeGoalCommand(goalCommand)
       if (clearInput) {
@@ -822,10 +870,52 @@ export function InputComposer({
       return
     }
 
+    try {
+      await onBeforeSend?.()
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : String(err), 'error')
+      return
+    }
+
     setMascotBounce((n) => n + 1)
 
     if (pendingModeChangeRef.current) {
       await pendingModeChangeRef.current
+    }
+
+    if (submitOverride) {
+      if (sendInFlightRef.current) return
+      sendInFlightRef.current = true
+      const capturedImages = [...images]
+      const capturedFiles = [...files]
+      const capturedSegments = [...segments]
+      const { inputParts, visibleText, bodyText } = buildComposerInputParts({
+        text: trimmed,
+        segments: capturedSegments,
+        files: capturedFiles,
+        images: capturedImages
+      })
+      try {
+        resetComposerInput()
+        await submitOverride({
+          text: trimmed,
+          segments: capturedSegments,
+          files: capturedFiles,
+          images: capturedImages,
+          inputParts,
+          visibleText,
+          bodyText
+        })
+      } catch (err) {
+        console.error('composer submit override failed:', err)
+        richRef.current?.setContent({ text: trimmed, segments: capturedSegments })
+        setImages(capturedImages)
+        setFiles(capturedFiles)
+        addToast(err instanceof Error ? err.message : String(err), 'error')
+      } finally {
+        sendInFlightRef.current = false
+      }
+      return
     }
 
     if (isBusyForInput) {
@@ -902,7 +992,7 @@ export function InputComposer({
     } finally {
       sendInFlightRef.current = false
     }
-  }, [compactThreadContext, consolidateThreadMemory, effectiveFileWorkspacePath, executeGoalCommand, files, images, isBusyForInput, isWaitingApproval, isWaitingInput, modelLoading, remoteWorkspace, setComposerMode, threadId, workspacePath, t])
+  }, [compactThreadContext, consolidateThreadMemory, effectiveFileWorkspacePath, executeGoalCommand, files, images, isAgentBuilder, isBusyForInput, isWaitingApproval, isWaitingInput, modelLoading, onBeforeSend, remoteWorkspace, setComposerMode, submitOverride, threadId, workspacePath, t])
 
   const removeQueuedInput = useCallback(async (queuedInputId: string): Promise<void> => {
     try {
@@ -1230,14 +1320,14 @@ export function InputComposer({
   return (
     <div style={composerDockStyle}>
       <ConversationColumn>
-      {pendingMessage && <PendingMessageIndicator message={pendingMessage} />}
+      {visiblePendingMessage && <PendingMessageIndicator message={visiblePendingMessage} />}
       <ComposerShell
         dragOver={dragOver}
         dropLabel={t('composer.dropImage')}
         topAccessory={(
           <BackgroundActivityDock
             parentThreadId={threadId}
-            queuedInputs={queuedInputs}
+            queuedInputs={visibleQueuedInputs}
             onQueueSteer={(id) => { void steerQueuedInput(id) }}
             onQueueRemove={(id) => { void removeQueuedInput(id) }}
             onQueueReorder={(orderedIds) => { void reorderQueuedInputs(orderedIds) }}
@@ -1305,6 +1395,7 @@ export function InputComposer({
                 onDismiss={() => {
                   setSlashDismissed(true)
                 }}
+                constrainToAnchor={isAgentBuilder}
               />
               <CommandSearchPopover
                 query={skillQuery ?? ''}
@@ -1317,6 +1408,7 @@ export function InputComposer({
                 onDismiss={() => {
                   setSkillDismissed(true)
                 }}
+                constrainToAnchor={isAgentBuilder}
               />
               <FileSearchPopover
                 query={atQuery ?? ''}
@@ -1326,13 +1418,14 @@ export function InputComposer({
                 onDismiss={() => {
                   setMentionDismissed(true)
                 }}
+                constrainToAnchor={isAgentBuilder}
               />
               <RichInputArea
                 ref={richRef}
                 chrome="minimal"
                 disabled={isWaitingApproval || isWaitingInput}
                 suppressSubmit={showMentionPopover || showSlashPopover || showSkillPopover || modelLoading}
-                onToggleModeShortcut={() => {
+                onToggleModeShortcut={isAgentBuilder ? undefined : () => {
                   void toggleMode()
                 }}
                 onHistoryNavigate={handleHistoryNavigate}
@@ -1342,7 +1435,7 @@ export function InputComposer({
                     ? t('composer.placeholder.approval')
                     : isWaitingInput
                       ? t('composer.placeholder.userInput')
-                      : t('composer.placeholder.ask')
+                      : placeholder ?? t('composer.placeholder.ask')
                 }
                 onSubmit={() => {
                   void sendMessage()
@@ -1375,10 +1468,10 @@ export function InputComposer({
               onReferenceFiles={() => {
                 void pickFiles()
               }}
-              planModeLabel={hasProfile ? undefined : t('composer.system.plan')}
+              planModeLabel={isAgentBuilder || hasProfile ? undefined : t('composer.system.plan')}
               planModeToggleLabel={t('composer.system.plan.toggle')}
               planModeEnabled={threadMode === 'plan'}
-              onTogglePlanMode={hasProfile ? undefined : () => {
+              onTogglePlanMode={isAgentBuilder || hasProfile ? undefined : () => {
                 void toggleMode()
               }}
               attachmentDisabledReason={remoteLocalFilesUnavailable}
@@ -1397,7 +1490,7 @@ export function InputComposer({
                 title={t('composer.customPill.title', { name: activeProfileId ?? '' })}
                 ariaLabel={t('composer.customPill.aria')}
               />
-            ) : (
+            ) : !isAgentBuilder ? (
               <ComposerPlanModeLabel
                 value={threadMode}
                 onDisable={() => {
@@ -1408,6 +1501,8 @@ export function InputComposer({
                 title={t('composer.planPill.create')}
                 ariaLabel={t('composer.system.plan.disable')}
               />
+            ) : (
+              null
             )}
             {currentGoal && (
               <ActionTooltip label={currentGoal.objective} placement="top">
@@ -1441,7 +1536,7 @@ export function InputComposer({
         footerAction={
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             {!minimalChrome && <ChatGptUsageBadge provider={activeChatGptProvider} />}
-            <ContextUsageRing />
+            {!hasSubmitOverride && <ContextUsageRing />}
             <ModelPicker
               modelName={modelName}
               modelOptions={modelOptions}
