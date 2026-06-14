@@ -661,6 +661,8 @@ public sealed partial class SessionService(
         AgentProfileId = source.AgentProfileId,
         AgentProfileSource = source.AgentProfileSource,
         AgentProfileFingerprint = source.AgentProfileFingerprint,
+        AgentBuilderTargetId = source.AgentBuilderTargetId,
+        AgentBuilderTargetSource = source.AgentBuilderTargetSource,
         McpServers = source.McpServers == null ? null : [.. source.McpServers],
         Mode = source.Mode,
         Extensions = source.Extensions == null ? null : [.. source.Extensions],

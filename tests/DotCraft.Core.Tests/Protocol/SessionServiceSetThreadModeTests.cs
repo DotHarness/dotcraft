@@ -191,6 +191,41 @@ public sealed class SessionServiceSetThreadModeTests : IDisposable
         Assert.Equal(ReasoningOutput.Summary, explicitThread.Configuration?.Reasoning?.Output);
     }
 
+    [Fact]
+    public async Task CreateThreadAsync_PreservesAgentBuilderTargetConfiguration()
+    {
+        var store = new ThreadStore(_tempDir);
+        var persistence = new SessionPersistenceService(store);
+        var identity = new SessionIdentity
+        {
+            ChannelName = "test",
+            UserId = "u",
+            WorkspacePath = _tempDir
+        };
+
+        await using var agentFactory = CreateAgentFactory();
+        var defaultAgent = agentFactory.CreateAgentForMode(AgentMode.Agent);
+        var svc = new SessionService(agentFactory, defaultAgent, persistence, new SessionGate());
+
+        var thread = await svc.CreateThreadAsync(
+            identity,
+            new ThreadConfiguration
+            {
+                AgentBuilderTargetId = "draft-agent",
+                AgentBuilderTargetSource = "workspace"
+            });
+
+        Assert.Equal("draft-agent", thread.Configuration?.AgentBuilderTargetId);
+        Assert.Equal("workspace", thread.Configuration?.AgentBuilderTargetSource);
+        Assert.True(ThreadVisibility.IsInternal(thread));
+
+        var loaded = await store.LoadThreadAsync(thread.Id);
+        Assert.NotNull(loaded);
+        Assert.Equal("draft-agent", loaded?.Configuration?.AgentBuilderTargetId);
+        Assert.Equal("workspace", loaded?.Configuration?.AgentBuilderTargetSource);
+        Assert.True(ThreadVisibility.IsInternal(loaded!));
+    }
+
     private AgentFactory CreateAgentFactory()
     {
         var config = AppConfigTestFactory.CreateOpenAI();

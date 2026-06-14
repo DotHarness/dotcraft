@@ -23,11 +23,11 @@ import { paletteOf, type AvatarSpec } from '../agents/agentAvatar'
  *      evenly and is still present on the underside once the arm rotates out.
  *   2. The blue band uses the body gradient at rest (a seamless continuation of
  *      the torso — the arm boundary is invisible), and tokens.css swaps its
- *      `fill` to a SOLID hinge colour (left #3161f7, right #7a96fb) only while
- *      raised (.composer-mascot-wave / -celebrate). An SVG gradient rotates with
- *      its shape, so a raised gradient arm diverges from the body's diagonal
- *      field at the seam; a solid matches the hinge colour at every angle, and
- *      the swap is masked by the motion (imperceptible at the ~44px size).
+ *      `fill` to a SOLID palette-derived hinge colour only while raised
+ *      (.composer-mascot-wave / -celebrate). An SVG gradient rotates with its
+ *      shape, so a raised gradient arm diverges from the body's diagonal field
+ *      at the seam; a solid matches the hinge colour at every angle, and the
+ *      swap is masked by the motion (imperceptible at the ~44px size).
  *   3. Raised poses (wave / cheer) compose "slide then rotate, with scaleY":
  *      the translate slips the arm down so its root buries in the torso's
  *      mid-side, scaleY keeps it a short flipper, and the rotation fans the
@@ -115,6 +115,27 @@ function Faces({ mark, accent }: { mark: string; accent: string }): JSX.Element 
   )
 }
 
+function mixHex(a: string, b: string, amount: number): string {
+  const left = parseHex(a)
+  const right = parseHex(b)
+  const ratio = Math.max(0, Math.min(1, amount))
+  const mix = (from: number, to: number): number => Math.round(from + (to - from) * ratio)
+  return `#${toHex(mix(left.r, right.r))}${toHex(mix(left.g, right.g))}${toHex(mix(left.b, right.b))}`
+}
+
+function parseHex(hex: string): { r: number; g: number; b: number } {
+  const normalized = hex.trim().replace(/^#/, '')
+  return {
+    r: Number.parseInt(normalized.slice(0, 2), 16),
+    g: Number.parseInt(normalized.slice(2, 4), 16),
+    b: Number.parseInt(normalized.slice(4, 6), 16)
+  }
+}
+
+function toHex(value: number): string {
+  return value.toString(16).padStart(2, '0')
+}
+
 export function MascotRobot({
   expression = 'neutral',
   light = 'default',
@@ -159,6 +180,19 @@ export function MascotRobot({
   const mark2 = palette ? palette.markL : '#8ca2ff'
   const softShadowColor = palette ? palette.shadow : '#0b3d62'
   const innerLiftColor = palette ? palette.shadow : '#163a88'
+  const raisedArmLeft = palette ? mixHex(palette.bodyD, palette.bodyM, 0.22) : '#3161f7'
+  const raisedArmRight = palette ? mixHex(palette.bodyM, palette.bodyL, 0.56) : '#7a96fb'
+  const propMark = palette ? palette.markD : '#3161f7'
+  const laptopLine = palette ? palette.markL : '#8ca2ff'
+  const svgStyle = {
+    '--mascot-raised-arm-left': raisedArmLeft,
+    '--mascot-raised-arm-right': raisedArmRight,
+    '--mascot-shadow-color': softShadowColor,
+    overflow: 'visible',
+    opacity: dipping ? 0.25 : 1,
+    transition: 'opacity 90ms ease',
+    ...style
+  } as CSSProperties
 
   return (
     <svg
@@ -169,7 +203,7 @@ export function MascotRobot({
       xmlns="http://www.w3.org/2000/svg"
       className={className ? `mascot-robot ${className}` : 'mascot-robot'}
       data-expression={expression}
-      style={{ overflow: 'visible', opacity: dipping ? 0.25 : 1, transition: 'opacity 90ms ease', ...style }}
+      style={svgStyle}
       role="img"
       aria-label="DotCraft mascot"
     >
@@ -237,12 +271,12 @@ export function MascotRobot({
           </g>
           <g clipPath={`url(#${laptopClip})`}>
             <g className="mascot-laptop-lines" strokeLinecap="round" strokeWidth="16" fill="none">
-              <path d="M382 744h118" stroke="#8ca2ff" />
+              <path d="M382 744h118" stroke={laptopLine} />
               <path d="M382 780h170" stroke="#5fd3a6" />
-              <path d="M382 816h84" stroke="#8ca2ff" opacity="0.75" />
+              <path d="M382 816h84" stroke={laptopLine} opacity="0.75" />
               <path className="mascot-laptop-caret" d="M478 816h30" stroke="#ffcf11" />
               <path d="M382 852h140" stroke="#5fd3a6" opacity="0.8" />
-              <path d="M382 888h96" stroke="#8ca2ff" />
+              <path d="M382 888h96" stroke={laptopLine} />
             </g>
           </g>
         </g>
@@ -254,8 +288,8 @@ export function MascotRobot({
         <g className="mascot-prop-sign" filter={`url(#${softShadow})`}>
           <rect x="866" y="356" width="24" height="150" rx="12" fill="#fff" />
           <rect x="758" y="190" width="240" height="170" rx="26" fill="#fff" />
-          <path d="M843 247a37 37 0 0 1 70 12c0 24-36 36-36 36" stroke="#3161f7" strokeWidth="26" fill="none" strokeLinecap="round" />
-          <circle cx="878" cy="343" r="15" fill="#3161f7" />
+          <path d="M843 247a37 37 0 0 1 70 12c0 24-36 36-36 36" stroke={propMark} strokeWidth="26" fill="none" strokeLinecap="round" />
+          <circle cx="878" cy="343" r="15" fill={propMark} />
         </g>
       </g>
     </svg>

@@ -268,6 +268,40 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
     }
 
     [Fact]
+    public async Task ThreadStart_WithAgentBuilderTarget_AllowsImmediateBuilderDraftUpdate()
+    {
+        var startMsg = _h.BuildRequest(AppServerMethods.ThreadStart, new
+        {
+            identity = new { channelName = "appserver", userId = "test_user", workspacePath = _h.Identity.WorkspacePath },
+            config = new
+            {
+                agentBuilderTargetId = "draft-agent",
+                agentBuilderTargetSource = "workspace"
+            }
+        });
+        await _h.ExecuteRequestAsync(startMsg);
+
+        var startResponse = await _h.Transport.ReadNextSentAsync();
+        _ = await _h.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(startResponse);
+        var threadId = startResponse.RootElement.GetProperty("result").GetProperty("thread").GetProperty("id").GetString()!;
+
+        var draftMsg = _h.BuildRequest(AppServerMethods.AgentProfileBuilderDraftUpdate, new
+        {
+            threadId,
+            rawContent = "---\nname: draft-agent\n---\n\nDraft body.\n"
+        });
+        await _h.ExecuteRequestAsync(draftMsg);
+
+        var draftResponse = await _h.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(draftResponse);
+        var result = draftResponse.RootElement.GetProperty("result");
+        Assert.Equal(threadId, result.GetProperty("threadId").GetString());
+        Assert.Equal("draft-agent", result.GetProperty("targetId").GetString());
+        Assert.Equal("workspace", result.GetProperty("targetSource").GetString());
+    }
+
+    [Fact]
     public async Task ThreadStart_ResponseBeforeNotification_Ordering()
     {
         var msg = _h.BuildRequest(AppServerMethods.ThreadStart, new

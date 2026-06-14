@@ -14,7 +14,7 @@ import {
 import { Bot, ListChecks, Square, X } from 'lucide-react'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { MascotRobot, type MascotExpression, type MascotLight } from './MascotRobot'
-import type { AvatarSpec } from '../agents/agentAvatar'
+import { paletteOf, type AvatarSpec } from '../agents/agentAvatar'
 import { MascotBubble, type MascotBubbleAction, type MascotBubbleTone } from './MascotBubble'
 import { consumeMascotHandoff, recordMascotHandoff } from './mascotHandoff'
 import { ContextMenu, type ContextMenuItem, type ContextMenuPosition } from '../ui/ContextMenu'
@@ -198,6 +198,7 @@ function ComposerMascot({
     light === 'default'
   // Local behaviors (sleep, wave) override the face; conversation light stays.
   const expression: MascotExpression = sleeping ? 'sleep' : waving ? 'happy' : baseExpression
+  const mascotShadowColor = avatar ? paletteOf(avatar).shadow : '#0b3d62'
 
   // Cross-composer ride: the approval composer replaces the input composer (a
   // full remount), so the outgoing mascot records its screen position in the
@@ -441,9 +442,8 @@ function ComposerMascot({
           transformOrigin: 'bottom center',
           transform: `scale(${MASCOT_SCALE})`,
           // Mascot drop-shadow biases downward so it reads with the contact shadow on
-          // the rim below. Raw navy is a brand-asset rendering artifact (mirrors the
-          // robot's own shadows in MascotRobot), not a themed surface color.
-          filter: 'drop-shadow(0 5.3px 7.3px color-mix(in srgb, #0b3d62 20%, transparent))'
+          // the rim below. It follows the profile palette's shadow color.
+          filter: `drop-shadow(0 5.3px 7.3px color-mix(in srgb, ${mascotShadowColor} 20%, transparent))`
         }}
       >
         {/* Pose layer: focus perk-up / error droop / sleep slump (feet planted). */}
@@ -543,6 +543,7 @@ export function ComposerShell({
   mascotHandoff = false
 }: ComposerShellProps): JSX.Element {
   const [hovered, setHovered] = useState(false)
+  const mascotShadowColor = mascotAvatar ? paletteOf(mascotAvatar).shadow : '#0b3d62'
   return (
     <div
       onMouseEnter={() => setHovered(true)}
@@ -634,8 +635,8 @@ export function ComposerShell({
             // Contact shadow cast by the mascot's feet onto the composer rim, so the
             // robot reads as standing on the surface rather than floating above it.
             // Anchored under the mascot (right:40 + half width 29 − 1px border ≈ 68);
-            // translateX(50%) centers the blob on that point. Brand-asset rendering
-            // artifact (raw navy mirrors MascotRobot's shadows), not a themed color.
+            // translateX(50%) centers the blob on that point. It follows the profile
+            // palette's shadow color, matching MascotRobot's internal shadow.
             <div
               aria-hidden
               style={{
@@ -647,7 +648,7 @@ export function ComposerShell({
                 transform: 'translateX(50%)',
                 borderRadius: '50%',
                 background:
-                  'radial-gradient(50% 100% at 50% 0%, color-mix(in srgb, #0b3d62 10%, transparent) 0%, transparent 72%)',
+                  `radial-gradient(50% 100% at 50% 0%, color-mix(in srgb, ${mascotShadowColor} 10%, transparent) 0%, transparent 72%)`,
                 filter: 'blur(2px)',
                 pointerEvents: 'none'
               }}

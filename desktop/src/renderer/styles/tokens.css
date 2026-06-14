@@ -999,16 +999,16 @@ kbd {
   transition-delay: 0ms;
 }
 
-/* Raised arms swap from the body gradient (seamless at rest) to a solid hinge
-   colour, so a rotated arm has no gradient to diverge from the torso's field;
-   the swap is hidden by the motion. White halo capsules stay white. */
+/* Raised arms swap from the body gradient (seamless at rest) to a profile-aware
+   solid hinge colour, so a rotated arm has no gradient to diverge from the
+   torso's field; the swap is hidden by the motion. White halo capsules stay white. */
 .composer-mascot-wave .mascot-arm-r-b,
 .composer-mascot-celebrate .mascot-arm-r-b {
-  fill: #7a96fb;
+  fill: var(--mascot-raised-arm-right, #7a96fb);
 }
 
 .composer-mascot-celebrate .mascot-arm-l-b {
-  fill: #3161f7;
+  fill: var(--mascot-raised-arm-left, #3161f7);
 }
 
 @keyframes composer-mascot-glow-flash {
@@ -1373,7 +1373,7 @@ kbd {
 }
 
 .composer-mascot-hold-sign .mascot-arm-r-b {
-  fill: #7a96fb;
+  fill: var(--mascot-raised-arm-right, #7a96fb);
 }
 
 .mascot-prop-sign {
