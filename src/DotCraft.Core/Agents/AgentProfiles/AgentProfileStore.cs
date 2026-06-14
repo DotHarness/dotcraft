@@ -853,7 +853,8 @@ public sealed partial class AgentProfileStore
             AddRestriction(restrictedFields, diagnostics, "tools.agentControl", "Plugin profile tool control was restricted at the plugin trust boundary.");
         }
 
-        if (config.ToolPolicy?.Allow is { Length: > 0 } allowedTools)
+        config.ToolPolicy ??= new ThreadToolPolicy();
+        if (config.ToolPolicy.Allow is { Length: > 0 } allowedTools)
         {
             var filtered = allowedTools
                 .Where(tool => !HighRiskToolNames.Contains(tool.Trim()))
@@ -864,6 +865,13 @@ public sealed partial class AgentProfileStore
                 config.ToolAllowList = filtered;
                 AddRestriction(restrictedFields, diagnostics, "tools.allow", "Plugin profile high-risk tools were removed at the plugin trust boundary.");
             }
+        }
+        else if (config.ToolPolicy.Allow == null)
+        {
+            var highRiskTools = HighRiskToolNames.ToArray();
+            config.ToolPolicy.Deny = MergeUnique(config.ToolPolicy.Deny, highRiskTools);
+            config.ToolDenyList = MergeUnique(config.ToolDenyList, highRiskTools);
+            AddRestriction(restrictedFields, diagnostics, "tools.deny", "Plugin profile high-risk tools were denied at the plugin trust boundary.");
         }
 
         if (config.McpPolicy?.Servers is { Length: > 0 })
