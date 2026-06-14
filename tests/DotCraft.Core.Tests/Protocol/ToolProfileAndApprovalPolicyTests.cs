@@ -55,4 +55,71 @@ public class ToolProfileAndApprovalPolicyTests
         Assert.NotNull(roundTrip);
         Assert.False(roundTrip.RequireApprovalOutsideWorkspace);
     }
+
+    [Fact]
+    public void ThreadConfiguration_RoundTripsAgentProfilePolicyFields()
+    {
+        var cfg = new ThreadConfiguration
+        {
+            AgentProfileId = "team-reviewer",
+            AgentProfileSource = "workspace",
+            AgentProfileFingerprint = "sha256:abc",
+            ToolPolicy = new ThreadToolPolicy
+            {
+                Allow = ["ReadFile", "GrepFiles"],
+                Deny = ["WriteFile"],
+                AgentControl = "allowList",
+                AllowedAgentControlTools = ["WaitAgent"]
+            },
+            McpPolicy = new ThreadMcpPolicy
+            {
+                Servers = ["github-readonly"],
+                Tools = new ThreadNamePolicy
+                {
+                    Allow = ["mcp__github-readonly__get_*"],
+                    Deny = ["*write*"]
+                }
+            },
+            PluginPolicy = new ThreadPluginPolicy
+            {
+                Allow = ["github"],
+                Deny = ["agent-teams"]
+            },
+            SkillsPolicy = new ThreadSkillsPolicy
+            {
+                Preload = ["code-review"],
+                Allow = ["code-review", "repo-style"],
+                Deny = ["dangerous-skill"],
+                AllowManage = false
+            },
+            TeamsPolicy = new ThreadTeamsPolicy
+            {
+                ReservedTools = "keep"
+            }
+        };
+
+        var json = JsonSerializer.Serialize(cfg, SessionJsonOptions.Default);
+        Assert.Contains("\"agentProfileId\":\"team-reviewer\"", json);
+        Assert.Contains("\"toolPolicy\"", json);
+        Assert.Contains("\"mcpPolicy\"", json);
+        Assert.Contains("\"skillsPolicy\"", json);
+
+        var roundTrip = JsonSerializer.Deserialize<ThreadConfiguration>(json, SessionJsonOptions.Default);
+        Assert.NotNull(roundTrip);
+        Assert.Equal("team-reviewer", roundTrip!.AgentProfileId);
+        Assert.Equal("workspace", roundTrip.AgentProfileSource);
+        Assert.Equal("sha256:abc", roundTrip.AgentProfileFingerprint);
+        Assert.Equal(["ReadFile", "GrepFiles"], roundTrip.ToolPolicy!.Allow!);
+        Assert.Equal(["WriteFile"], roundTrip.ToolPolicy.Deny!);
+        Assert.Equal("allowList", roundTrip.ToolPolicy.AgentControl);
+        Assert.Equal(["WaitAgent"], roundTrip.ToolPolicy.AllowedAgentControlTools!);
+        Assert.Equal(["github-readonly"], roundTrip.McpPolicy!.Servers!);
+        Assert.Equal(["mcp__github-readonly__get_*"], roundTrip.McpPolicy.Tools!.Allow!);
+        Assert.Equal(["*write*"], roundTrip.McpPolicy.Tools.Deny!);
+        Assert.Equal(["github"], roundTrip.PluginPolicy!.Allow!);
+        Assert.Equal(["agent-teams"], roundTrip.PluginPolicy.Deny!);
+        Assert.Equal(["code-review"], roundTrip.SkillsPolicy!.Preload!);
+        Assert.False(roundTrip.SkillsPolicy?.AllowManage);
+        Assert.Equal("keep", roundTrip.TeamsPolicy?.ReservedTools);
+    }
 }

@@ -94,7 +94,12 @@ public static class AppServerErrors
     public const int SubAgentProfileNotFoundCode = -32083;
     public const int SubAgentProfileValidationFailedCode = -32084;
     public const int SubAgentProfileProtectedCode = -32085;
+    public const int AgentProfileNotFoundCode = -32086;
+    public const int AgentProfileValidationFailedCode = -32087;
+    public const int AgentProfileProtectedCode = -32088;
+    public const int AgentProfileSourceUnavailableCode = -32089;
     public const int WorktreeHandoffConflictCode = -32090;
+    public const int AgentProfileConflictCode = -32091;
     // ── Automation-specific codes (-32050 to -32059) ──
 
     public const int TaskNotFoundCode = -32051;
@@ -219,6 +224,29 @@ public static class AppServerErrors
 
     public static AppServerException SubAgentProfileProtected(string detail) =>
         Create(SubAgentProfileProtectedCode, "SubAgentProfileProtected", "errors.subAgentProfileProtected", "SubAgent profile is protected", detail: detail);
+
+    public static AppServerException AgentProfileNotFound(string detail) =>
+        Create(AgentProfileNotFoundCode, "AgentProfileNotFound", "errors.agentProfileNotFound", "Agent profile not found", detail: detail);
+
+    public static AppServerException AgentProfileValidationFailed(
+        string detail,
+        object? diagnostics = null) =>
+        Create(
+            AgentProfileValidationFailedCode,
+            "AgentProfileValidationFailed",
+            "errors.agentProfileValidationFailed",
+            "Agent profile validation failed",
+            diagnostics == null ? null : new { diagnostics },
+            detail);
+
+    public static AppServerException AgentProfileProtected(string detail) =>
+        Create(AgentProfileProtectedCode, "AgentProfileProtected", "errors.agentProfileProtected", "Agent profile is protected", detail: detail);
+
+    public static AppServerException AgentProfileSourceUnavailable(string detail) =>
+        Create(AgentProfileSourceUnavailableCode, "AgentProfileSourceUnavailable", "errors.agentProfileSourceUnavailable", "Agent profile source is unavailable", detail: detail);
+
+    public static AppServerException AgentProfileConflict(string detail) =>
+        Create(AgentProfileConflictCode, "AgentProfileConflict", "errors.agentProfileConflict", "Agent profile conflict", detail: detail);
 
     public static AppServerException TaskAlreadyExists(string taskId) =>
         Create(TaskAlreadyExistsCode, "TaskAlreadyExists", "errors.taskAlreadyExists", $"Task already exists: {taskId}", new { taskId });

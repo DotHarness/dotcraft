@@ -78,6 +78,36 @@ public sealed class ModeToolPolicyTests
         Assert.Contains("NextAllowedActions:", result.Result?.ToString(), StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task StreamingClient_AppliesToolCallPolicyBeforeToolResolution()
+    {
+        var inner = new ToolCallChatClient("WriteFile", new Dictionary<string, object?>
+        {
+            ["path"] = "a.txt",
+            ["content"] = "hello"
+        });
+        var client = new StreamingFunctionInvokingChatClient(inner)
+        {
+            ToolCallPolicy = call => string.Equals(call.Name, "WriteFile", StringComparison.Ordinal)
+                ? ModeToolPolicyDecision.DenyRecoverable(
+                    """
+PROFILE_TOOL_POLICY_DENIED
+Tool: WriteFile
+Reason: denied by test policy
+""")
+                : ModeToolPolicyDecision.Allow
+        };
+
+        await foreach (var _ in client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")]))
+        {
+        }
+
+        var result = Assert.Single(inner.Calls[1].SelectMany(message => message.Contents).OfType<FunctionResultContent>());
+        Assert.Contains("PROFILE_TOOL_POLICY_DENIED", result.Result?.ToString(), StringComparison.Ordinal);
+        Assert.Contains("Tool: WriteFile", result.Result?.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain("not found", result.Result?.ToString(), StringComparison.OrdinalIgnoreCase);
+    }
+
     [Theory]
     [InlineData("git status")]
     [InlineData("Get-Content README.md")]

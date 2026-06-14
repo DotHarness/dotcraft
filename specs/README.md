@@ -30,7 +30,7 @@ area they are changing.
 - Protocols: [appserver-protocol.md](protocols/appserver-protocol.md), [external-channel-adapter.md](protocols/external-channel-adapter.md), [app-binding.md](protocols/app-binding.md), [tool-result-presentation.md](protocols/tool-result-presentation.md)
 - Clients: [desktop-client.md](clients/desktop-client.md), [Desktop DESIGN.md](clients/DESIGN.md), [tui-client.md](clients/tui-client.md)
 - Runtime: [hub-architecture.md](runtime/hub-architecture.md), [automations-lifecycle.md](runtime/automations-lifecycle.md), [chrome-browser-runtime.md](runtime/chrome-browser-runtime.md), [desktop-inapp-browser.md](runtime/desktop-inapp-browser.md), [openai-subscription-auth.md](runtime/openai-subscription-auth.md), [prompt-cache.md](runtime/prompt-cache.md), [reasoning-settings.md](runtime/reasoning-settings.md)
-- Agents: [agent-teams.md](agents/agent-teams.md), [external-cli-subagent-design.md](agents/external-cli-subagent-design.md)
+- Agents: [agent-profiles.md](agents/agent-profiles.md), [prompt-composition.md](agents/prompt-composition.md), [agent-teams.md](agents/agent-teams.md), [external-cli-subagent-design.md](agents/external-cli-subagent-design.md)
 - Extensions: [plugin-architecture.md](extensions/plugin-architecture.md), [skill-2.0.md](extensions/skill-2.0.md), [lsp-plugin.md](extensions/lsp-plugin.md)
 - SDK: [sdk.md](sdk/sdk.md), [typescript.md](sdk/typescript.md), [dotnet.md](sdk/dotnet.md)
 

@@ -403,6 +403,13 @@ public sealed class AppServerServerCapabilities
     public bool ExternalChannelManagement { get; set; }
 
     /// <summary>
+    /// Server supports Agent Profile Markdown management methods
+    /// (<c>agent/profiles/list</c>, <c>agent/profiles/upsert</c>, etc.).
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool AgentProfileManagement { get; set; }
+
+    /// <summary>
     /// Server supports SubAgent profile management methods
     /// (<c>subagent/profiles/list</c>, <c>subagent/profiles/setEnabled</c>, etc.).
     /// </summary>

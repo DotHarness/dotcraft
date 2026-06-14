@@ -464,7 +464,8 @@ public sealed class AgentFactory : IAsyncDisposable
             {
                 AllowConcurrentInvocation = true,
                 EnableToolCallArgumentPreviews = true,
-                ModeToolPolicy = modeManager == null ? null : new ModeToolPolicy(modeManager).Evaluate,
+                ModeToolPolicy = BuildInvocationPolicy(modeManager, ctx.ToolInvocationPolicy),
+                ToolCallPolicy = ctx.ToolCallPolicy,
                 IsStreamableTool = name => !streamOptOutTools.Contains(name)
             };
             if (deferredRegistry != null)
@@ -769,6 +770,26 @@ public sealed class AgentFactory : IAsyncDisposable
                 optOut.Add(fn.Name);
             }
         }
+    }
+
+    private static Func<FunctionInvocationContext, ModeToolPolicyDecision>? BuildInvocationPolicy(
+        AgentModeManager? modeManager,
+        Func<FunctionInvocationContext, ModeToolPolicyDecision>? threadPolicy)
+    {
+        Func<FunctionInvocationContext, ModeToolPolicyDecision>? modePolicy =
+            modeManager == null ? null : new ModeToolPolicy(modeManager).Evaluate;
+        if (modePolicy == null)
+            return threadPolicy;
+        if (threadPolicy == null)
+            return modePolicy;
+
+        return context =>
+        {
+            var modeDecision = modePolicy(context);
+            return modeDecision.Kind == ModeToolPolicyDecisionKind.Allow
+                ? threadPolicy(context)
+                : modeDecision;
+        };
     }
 
     private ChatOptions CreateChatOptions(

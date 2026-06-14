@@ -53,6 +53,7 @@ internal sealed class InitializeRequestHandler(
             McpManagement = !string.IsNullOrWhiteSpace(workspaceCraftPath) && services.McpClientManager != null,
             McpServerOrigins = services.McpClientManager != null,
             ExternalChannelManagement = !string.IsNullOrWhiteSpace(workspaceCraftPath),
+            AgentProfileManagement = true,
             SubAgentManagement = !string.IsNullOrWhiteSpace(workspaceCraftPath),
             AuthOpenAiOAuth = services.OpenAIAuthService != null,
             AuthOpenAiUsage = services.OpenAIUsageService != null,

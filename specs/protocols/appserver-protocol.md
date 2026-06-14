@@ -77,7 +77,7 @@ The current v1 contract is based on the refactored Session Core, not on the earl
 
 | Bucket | V1 Items |
 |-------|----------|
-| **Guaranteed in v1** | Rich approval decisions (`accept`, `acceptForSession`, `acceptAlways`, `decline`, `cancel`), thread-scoped event subscription, accurate per-turn origin/initiator metadata, strict `historyMode` rules, separate wire DTO serialization with camelCase enums and lossless delta typing. Cron management methods (`cron/list`, `cron/remove`, `cron/enable`, `cron/run`) with the `cronManagement` server capability flag. Heartbeat trigger method (`heartbeat/trigger`) with the `heartbeatManagement` capability flag. Skills management methods (`skills/list`, `skills/read`, `skills/view`, `skills/restoreOriginal`, `skills/setEnabled`, `skills/uninstall`) with the `skillsManagement` / `skillVariants` capability flags. Command management methods (`command/list`, `command/execute`) with the `commandManagement` capability flag. Channel status method (`channel/status`) with the `channelStatus` capability flag. Provider management methods (`provider/list`, `provider/create`, `provider/update`, `provider/delete`, `provider/test`) with the `providerManagement` capability flag. Model catalog method (`model/list`) with the `modelCatalogManagement` capability flag. MCP management methods (`mcp/list`, `mcp/get`, `mcp/upsert`, `mcp/remove`, `mcp/status/list`, `mcp/test`) with the `mcpManagement` / `mcpStatus` capability flags. External channel management methods (`externalChannel/list`, `externalChannel/get`, `externalChannel/upsert`, `externalChannel/remove`) with the `externalChannelManagement` capability flag. SubAgent profile management methods (`subagent/profiles/list`, `subagent/settings/update`, `subagent/profiles/setEnabled`, `subagent/profiles/upsert`, `subagent/profiles/remove`) with the `subAgentManagement` capability flag. Session-backed SubAgent child-thread listing, mailbox send, follow-up task, and close methods with the `subAgentSessions` capability flag. Workspace config update method (`workspace/config/update`) with the `workspaceConfigManagement` capability flag. Dreams workspace memory methods (`dreams/status`, `dreams/run`, `dreams/create`, `dreams/get`, `dreams/list`, `dreams/cancel`, `dreams/apply`, `dreams/discard`, `dreams/archive`) with the `dreams` capability flag. |
+| **Guaranteed in v1** | Rich approval decisions (`accept`, `acceptForSession`, `acceptAlways`, `decline`, `cancel`), thread-scoped event subscription, accurate per-turn origin/initiator metadata, strict `historyMode` rules, separate wire DTO serialization with camelCase enums and lossless delta typing. Cron management methods (`cron/list`, `cron/remove`, `cron/enable`, `cron/run`) with the `cronManagement` server capability flag. Heartbeat trigger method (`heartbeat/trigger`) with the `heartbeatManagement` capability flag. Skills management methods (`skills/list`, `skills/read`, `skills/view`, `skills/restoreOriginal`, `skills/setEnabled`, `skills/uninstall`) with the `skillsManagement` / `skillVariants` capability flags. Command management methods (`command/list`, `command/execute`) with the `commandManagement` capability flag. Channel status method (`channel/status`) with the `channelStatus` capability flag. Provider management methods (`provider/list`, `provider/create`, `provider/update`, `provider/delete`, `provider/test`) with the `providerManagement` capability flag. Model catalog method (`model/list`) with the `modelCatalogManagement` capability flag. MCP management methods (`mcp/list`, `mcp/get`, `mcp/upsert`, `mcp/remove`, `mcp/status/list`, `mcp/test`) with the `mcpManagement` / `mcpStatus` capability flags. External channel management methods (`externalChannel/list`, `externalChannel/get`, `externalChannel/upsert`, `externalChannel/remove`) with the `externalChannelManagement` capability flag. Agent Profile Markdown management methods (`agent/profiles/list`, `agent/profiles/read`, `agent/profiles/validate`, `agent/profiles/upsert`, `agent/profiles/remove`) with the `agentProfileManagement` capability flag. SubAgent profile management methods (`subagent/profiles/list`, `subagent/settings/update`, `subagent/profiles/setEnabled`, `subagent/profiles/upsert`, `subagent/profiles/remove`) with the `subAgentManagement` capability flag. Session-backed SubAgent child-thread listing, mailbox send, follow-up task, and close methods with the `subAgentSessions` capability flag. Workspace config update method (`workspace/config/update`) with the `workspaceConfigManagement` capability flag. Dreams workspace memory methods (`dreams/status`, `dreams/run`, `dreams/create`, `dreams/get`, `dreams/list`, `dreams/cancel`, `dreams/apply`, `dreams/discard`, `dreams/archive`) with the `dreams` capability flag. |
 | **Guaranteed with narrowed semantics** | `thread/list` is deterministic and supports optional cursor pagination; archived threads are excluded by default and included only via an explicit filter. `thread/read` supports optional cursor pagination for turn history while preserving full-history reads for legacy clients. |
 | **Deferred from v1** | Structured extension capability registry beyond a flat namespace advertisement. Clients must treat extension namespaces as optional and discoverable, not required for core Session behavior. |
 
@@ -406,6 +406,7 @@ Built-in channels do not negotiate these capabilities over `initialize`; they pr
 | `capabilities.mcpManagement` | boolean | Server supports MCP configuration management methods (`mcp/list`, `mcp/get`, `mcp/upsert`, `mcp/remove`). |
 | `capabilities.mcpServerOrigins` | boolean | Server annotates MCP config/status DTOs with `origin` and `readOnly` so clients can show plugin-bundled MCP servers as read-only runtime entries. |
 | `capabilities.externalChannelManagement` | boolean | Server supports external channel configuration management methods (`externalChannel/list`, `externalChannel/get`, `externalChannel/upsert`, `externalChannel/remove`). |
+| `capabilities.agentProfileManagement` | boolean | Server supports Agent Profile Markdown management methods (`agent/profiles/list`, `agent/profiles/read`, `agent/profiles/validate`, `agent/profiles/upsert`, `agent/profiles/remove`, `agent/profiles/refreshThread`). |
 | `capabilities.subAgentManagement` | boolean | Server supports SubAgent profile management methods (`subagent/profiles/list`, `subagent/settings/update`, `subagent/profiles/setEnabled`, `subagent/profiles/upsert`, `subagent/profiles/remove`). |
 | `capabilities.mcpStatus` | boolean | Server supports MCP runtime status methods and notifications (`mcp/status/list`, `mcp/status/updated`, `mcp/test`). |
 | `capabilities.usageTelemetry` | boolean | Server supports the aggregate usage telemetry method (`usage/summary`). Absent or `false` when tracing is disabled (no trace store is available). |
@@ -442,6 +443,8 @@ Create a new thread. The server generates a Thread ID and persists initial state
 | `historyMode` | string | no | `"server"` (default) or `"client"`. |
 | `displayName` | string | no | Explicit thread display name. |
 | `spawnedFromThreadId` | string | no | Id of the thread that started this thread on the user's behalf (e.g. the Desktop `CreateThread` tool invoked from another thread). The server records it as a non-subagent origin on the new thread's `ThreadSource` (`kind` stays `"user"`) and mirrors it into thread metadata as `spawnedFromThreadId`, so the new thread stays an ordinary sibling thread (it does not become a subagent and does not enter the SubAgent dock) while its first user message can link back to the source thread. Self-references are ignored. |
+
+When `config.agentProfileId` is set, AppServer resolves the Agent Profile for the normalized workspace, compiles the Markdown profile into a `ThreadConfiguration`, applies only the supported runtime overlays (`providerId`, `model`, `reasoning`), captures normal defaults for omitted fields, and persists the resolved snapshot on the new thread. Capability-expanding overlay fields such as tools, MCP, plugins, skills, approval bypass, `agentInstructions`, `overrideBasePrompt`, and workspace overrides are rejected with `AgentProfileValidationFailed`.
 
 #### 4.1.0 Runtime Dynamic Tools
 
@@ -582,6 +585,9 @@ Thread-management tools are dynamic client callbacks, while thread lifecycle, st
 
 ```json
 {
+  "agentProfileId": "team-reviewer",
+  "agentProfileSource": "workspace",
+  "agentProfileFingerprint": "sha256:...",
   "mcpServers": [],
   "mode": "agent",
   "extensions": ["_unity"],
@@ -592,6 +598,34 @@ Thread-management tools are dynamic client callbacks, while thread lifecycle, st
   "toolProfile": "commit-message",
   "useToolProfileOnly": false,
   "agentInstructions": "Focus on concise commit messages.",
+  "toolAllowList": ["ReadFile"],
+  "toolDenyList": ["WriteFile"],
+  "toolPolicy": {
+    "allow": ["ReadFile", "GrepFiles"],
+    "deny": ["WriteFile"],
+    "agentControl": "allowList",
+    "allowedAgentControlTools": ["WaitAgent"]
+  },
+  "mcpPolicy": {
+    "servers": ["github-readonly"],
+    "tools": {
+      "allow": ["mcp__github-readonly__get_*"],
+      "deny": ["*write*"]
+    }
+  },
+  "pluginPolicy": {
+    "allow": ["github"],
+    "deny": []
+  },
+  "skillsPolicy": {
+    "preload": ["code-review"],
+    "allow": ["code-review"],
+    "deny": [],
+    "allowManage": false
+  },
+  "teamsPolicy": {
+    "reservedTools": "keep"
+  },
   "approvalPolicy": "default",
   "automationTaskDirectory": "/path/to/task",
   "reasoning": {
@@ -607,6 +641,9 @@ Fields:
 
 | Field | Type | Description |
 |-------|------|-------------|
+| `agentProfileId` | string | Optional Agent Profile id whose resolved snapshot produced this configuration. Runtime behavior reads the resolved configuration fields, not the profile file. |
+| `agentProfileSource` | string | Optional profile source such as `builtIn`, `user`, or `workspace`. |
+| `agentProfileFingerprint` | string | Optional fingerprint for diagnostics, audit, and future refresh flows. |
 | `mcpServers` | `McpServerConfig[]` | Optional per-thread MCP server configuration. |
 | `mode` | string | Agent mode for the thread. Default `agent`. |
 | `extensions` | string[] | Optional active ACP extension prefixes. |
@@ -617,6 +654,13 @@ Fields:
 | `toolProfile` | string | Optional named tool profile. |
 | `useToolProfileOnly` | boolean | When `true`, use only the tools from `toolProfile`. |
 | `agentInstructions` | string | Optional additional system instructions. |
+| `toolAllowList` | string[] | Legacy exact-name tool allow-list. Null or omitted means no legacy allow-list. |
+| `toolDenyList` | string[] | Legacy exact-name tool deny-list. Deny wins over allow. |
+| `toolPolicy` | object | Structured tool policy with `allow`, `deny`, `agentControl`, and `allowedAgentControlTools`. Null or omitted keeps existing runtime defaults. |
+| `mcpPolicy` | object | Structured MCP policy. `servers` filters by MCP server name where available; `tools.allow` and `tools.deny` filter MCP tool names and may use `*` wildcards. |
+| `pluginPolicy` | object | Structured plugin/app policy with source-aware `allow` and `deny` lists where metadata exists, falling back to stable tool-name denial. |
+| `skillsPolicy` | object | Structured skills policy with `preload`, skill name `allow`/`deny`, and `allowManage`. |
+| `teamsPolicy` | object | Structured Agent Teams policy. `reservedTools = keep` preserves Teams-owned tools for Teams-managed threads. |
 | `approvalPolicy` | string | Thread-scoped approval mode: `default`, `autoApprove`, or `interrupt`. `default` means the thread consults the workspace default approval policy. |
 | `automationTaskDirectory` | string | Optional local automation task directory. |
 | `reasoning` | object | Optional per-thread reasoning configuration. When absent, old threads fall back to current workspace defaults. Uses camelCase wire enum values such as `low`, `medium`, `high`, `extraHigh` and output values such as `none`, `summary`, or `full`. |
@@ -5169,6 +5213,192 @@ On success, the server emits `workspace/configChanged` (see [Section 24.5](#245-
 | `-32080` | `ExternalChannelNotFound` | Requested external channel name does not exist. |
 | `-32081` | `ExternalChannelValidationFailed` | External channel config payload is invalid for the selected transport. |
 | `-32082` | `ExternalChannelNameConflict` | Name conflicts with an existing logical key or a native channel name after case-insensitive comparison. |
+
+## 23A. Agent Profile Management Methods
+
+These methods manage ordinary Agent Profile Markdown files. Agent Profiles are distinct from SubAgent launcher profiles; they compile into `ThreadConfiguration` snapshots for ordinary `thread/start` and future Teams/session runtimes.
+
+Clients should check `capabilities.agentProfileManagement` before calling `agent/profiles/list`, `agent/profiles/read`, `agent/profiles/validate`, `agent/profiles/upsert`, `agent/profiles/remove`, or `agent/profiles/refreshThread`.
+
+Profile sources:
+
+- `builtIn`: read-only profiles shipped by DotCraft.
+- `plugin`: read-only profiles shipped by installed plugins under `.craft/plugins/{pluginId}/agent-profiles/*.md`.
+- `user`: user DotCraft config home, under `agents/`.
+- `workspace`: workspace `.craft/agents/{id}.md`.
+- `managed`: read-only managed profiles under `.craft/managed/agent-profiles/*.md`.
+
+Source precedence is `builtIn` < `plugin` < `user` < `workspace` < `managed`. Same-id profiles do not merge; the highest-priority valid profile wins when a source is not specified.
+
+### 23A.1 Profile Diagnostics
+
+Diagnostics are stable English fallback messages. Desktop owns localization.
+
+```json
+{
+  "severity": "error",
+  "code": "MissingRequiredField",
+  "message": "Agent profile frontmatter must include 'description'."
+}
+```
+
+### 23A.2 `agent/profiles/list`
+
+**Params**:
+
+```json
+{ "source": "workspace", "includeInvalid": true }
+```
+
+**Result**:
+
+```json
+{
+  "profiles": [
+    {
+      "id": "team-reviewer",
+      "description": "Read-only reviewer focused on correctness, risks, and tests.",
+      "source": "workspace",
+      "path": ".craft/agents/team-reviewer.md",
+      "fingerprint": "sha256:...",
+      "valid": true,
+      "isBuiltIn": false,
+      "readOnly": false,
+      "shadowed": false,
+      "sourceStack": ["workspace", "builtIn"],
+      "lockedFields": [],
+      "restrictedFields": [],
+      "trustRestricted": false,
+      "staleThreadIds": [],
+      "diagnostics": []
+    }
+  ]
+}
+```
+
+### 23A.3 `agent/profiles/read`
+
+**Params**:
+
+```json
+{ "id": "team-reviewer", "source": "workspace" }
+```
+
+`source` is optional. When omitted, normal source precedence is used.
+
+**Result**:
+
+```json
+{
+  "profile": {
+    "id": "team-reviewer",
+    "source": "workspace",
+    "fingerprint": "sha256:...",
+    "valid": true,
+    "diagnostics": [],
+    "rawContent": "---\nname: team-reviewer\n..."
+  }
+}
+```
+
+### 23A.4 `agent/profiles/validate`
+
+Validates raw Markdown without writing.
+
+**Params**:
+
+```json
+{ "rawContent": "---\nname: team-reviewer\n...", "source": "workspace" }
+```
+
+**Result**:
+
+```json
+{
+  "valid": true,
+  "diagnostics": [],
+  "summary": {
+    "id": "team-reviewer",
+    "description": "Read-only reviewer focused on correctness, risks, and tests."
+  },
+  "compiledConfig": {
+    "agentProfileId": "team-reviewer",
+    "agentProfileSource": "workspace"
+  }
+}
+```
+
+### 23A.5 `agent/profiles/upsert`
+
+Creates or replaces a writable user/workspace profile from raw Markdown. The frontmatter `name` must match the requested `id`.
+
+**Params**:
+
+```json
+{
+  "id": "team-reviewer",
+  "source": "workspace",
+  "rawContent": "---\nname: team-reviewer\n..."
+}
+```
+
+Built-in, plugin, and managed profiles are read-only.
+
+### 23A.6 `agent/profiles/remove`
+
+Removes a writable user/workspace profile.
+
+**Params**:
+
+```json
+{ "id": "team-reviewer", "source": "workspace" }
+```
+
+**Result**:
+
+```json
+{ "removed": true }
+```
+
+### 23A.7 `agent/profiles/refreshThread`
+
+Explicitly refreshes one profile-backed thread from the currently resolved profile. Profile file changes still do not mutate existing threads until this method or another explicit configuration update is used.
+
+**Params**:
+
+```json
+{ "threadId": "thread_...", "profileId": "team-reviewer" }
+```
+
+`profileId` is optional. When omitted, the server uses the thread's persisted `configuration.agentProfileId`.
+
+**Result**:
+
+```json
+{
+  "threadId": "thread_...",
+  "profile": { "id": "team-reviewer", "source": "workspace", "fingerprint": "sha256:..." },
+  "config": { "agentProfileId": "team-reviewer", "agentProfileFingerprint": "sha256:..." },
+  "wasStale": true,
+  "audit": {
+    "event": "agentProfile.thread.refresh",
+    "code": "AgentProfileThreadRefreshed",
+    "threadId": "thread_...",
+    "profileId": "team-reviewer",
+    "status": "success"
+  }
+}
+```
+
+### 23A.8 Error Codes
+
+| Code | Constant | When |
+|------|----------|------|
+| `-32086` | `AgentProfileNotFound` | Requested Agent Profile id/source does not exist. |
+| `-32087` | `AgentProfileValidationFailed` | Markdown/frontmatter validation failed, or `thread/start` supplied an unsupported overlay with `agentProfileId`. |
+| `-32088` | `AgentProfileProtected` | Write/remove targeted a built-in profile. |
+| `-32089` | `AgentProfileSourceUnavailable` | Requested source is unsupported or cannot be read/written in this runtime. |
+| `-32091` | `AgentProfileConflict` | Requested id conflicts with the profile frontmatter name or a protected source. |
 
 ## 24. SubAgent Profile Management Methods
 

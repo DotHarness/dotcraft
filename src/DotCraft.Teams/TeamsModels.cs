@@ -115,6 +115,9 @@ public class TeamMemberRecord
 
     public string Description { get; set; } = string.Empty;
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? AgentProfileId { get; set; }
+
     public string ThreadId { get; set; } = string.Empty;
 
     public string BindingId { get; set; } = string.Empty;
@@ -440,6 +443,41 @@ public sealed class TeamMemberView : TeamMemberRecord
     public bool WaitingOnApproval { get; set; }
 
     public bool WaitingOnInput { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public TeamMemberAgentProfileView? AgentProfile { get; set; }
+}
+
+public sealed class TeamMemberAgentProfileView
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? RequestedId { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ActiveId { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Source { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Fingerprint { get; set; }
+
+    public bool Missing { get; set; }
+
+    public bool FallbackUsed { get; set; }
+
+    public bool Valid { get; set; } = true;
+
+    public List<TeamMemberAgentProfileDiagnostic> Diagnostics { get; set; } = [];
+}
+
+public sealed class TeamMemberAgentProfileDiagnostic
+{
+    public string Severity { get; set; } = "error";
+
+    public string Code { get; set; } = string.Empty;
+
+    public string Message { get; set; } = string.Empty;
 }
 
 public sealed class MissionThreadView : MissionThreadRecord

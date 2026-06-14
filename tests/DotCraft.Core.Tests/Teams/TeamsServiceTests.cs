@@ -233,6 +233,11 @@ public sealed class TeamsServiceTests : IDisposable
             Assert.True(view.Team.Enabled);
             Assert.Equal("default", view.Team.TeamId);
             Assert.Equal(new[] { "leader", "explorer", "builder", "reviewer", "operator" }, view.Members.Select(m => m.MemberId).ToList());
+            Assert.Equal("team-leader", view.Members.Single(member => member.MemberId == "leader").AgentProfileId);
+            Assert.Equal("team-explorer", view.Members.Single(member => member.MemberId == "explorer").AgentProfileId);
+            Assert.Equal("team-builder", view.Members.Single(member => member.MemberId == "builder").AgentProfileId);
+            Assert.Equal("team-reviewer", view.Members.Single(member => member.MemberId == "reviewer").AgentProfileId);
+            Assert.Equal("team-operator", view.Members.Single(member => member.MemberId == "operator").AgentProfileId);
             Assert.Equal("#4f7cf6", view.Members.Single(member => member.MemberId == "leader").AvatarAccent);
             Assert.Empty(view.MissionThreads);
             var stateFile = Path.Combine(_workspaceCraftPath, "teams", "state.json");
@@ -243,6 +248,9 @@ public sealed class TeamsServiceTests : IDisposable
                 Assert.Equal("default", team.GetProperty("teamId").GetString());
                 Assert.False(state.RootElement.TryGetProperty("office", out _));
                 Assert.Empty(state.RootElement.GetProperty("missionThreads").EnumerateArray());
+                Assert.Equal("team-leader", state.RootElement.GetProperty("members").EnumerateArray()
+                    .Single(member => member.GetProperty("memberId").GetString() == "leader")
+                    .GetProperty("agentProfileId").GetString());
             }
 
             foreach (var member in view.Members)
@@ -258,6 +266,74 @@ public sealed class TeamsServiceTests : IDisposable
         {
             _appBindingService.AppContextBlocksChanged -= OnAppContextChanged;
         }
+    }
+
+    [Fact]
+    public async Task CreateMission_UsesLeaderAgentProfileForMissionThread()
+    {
+        var created = await _teamsService.CreateMissionAsync(
+            _appBindingService,
+            _sessionService,
+            _tempRoot,
+            _workspaceCraftPath,
+            new TeamsMissionCreateParams
+            {
+                Title = "Profile-backed mission",
+                Prompt = "Use the leader profile."
+            },
+            CancellationToken.None);
+
+        var leaderThreadView = Assert.Single(created.Team.MissionThreads, thread => thread.MemberId == "leader");
+        var leaderThread = await _sessionService.GetThreadAsync(leaderThreadView.ThreadId);
+        Assert.NotNull(leaderThread.Configuration);
+        var config = leaderThread.Configuration!;
+
+        Assert.Equal("team-leader", config.AgentProfileId);
+        Assert.Equal("builtIn", config.AgentProfileSource);
+        Assert.StartsWith("sha256:", config.AgentProfileFingerprint);
+        Assert.Equal("keep", config.TeamsPolicy?.ReservedTools);
+        Assert.Contains("You coordinate the mission", config.RoleInstructions, StringComparison.Ordinal);
+        Assert.Contains("You are the DotCraft Team Leader", config.RoleInstructions, StringComparison.Ordinal);
+        Assert.True(
+            config.RoleInstructions!.IndexOf("You coordinate the mission", StringComparison.Ordinal)
+            < config.RoleInstructions.IndexOf("You are the DotCraft Team Leader", StringComparison.Ordinal));
+
+        var leader = Assert.Single(created.Team.Members, member => member.MemberId == "leader");
+        Assert.Equal("team-leader", leader.AgentProfile?.ActiveId);
+        Assert.Equal("builtIn", leader.AgentProfile?.Source);
+
+        await _teamsService.EnableTeamAsync(
+            _appBindingService,
+            _sessionService,
+            _tempRoot,
+            _workspaceCraftPath,
+            CancellationToken.None);
+        var repairedLeaderThread = await _sessionService.GetThreadAsync(leaderThreadView.ThreadId);
+        Assert.Contains("You coordinate the mission", repairedLeaderThread.Configuration?.RoleInstructions, StringComparison.Ordinal);
+        Assert.Contains("You are the DotCraft Team Leader", repairedLeaderThread.Configuration?.RoleInstructions, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ViewTeam_ReportsMissingMemberProfileWithFallbackDiagnostics()
+    {
+        await _teamsService.EnableTeamAsync(
+            _appBindingService,
+            _sessionService,
+            _tempRoot,
+            _workspaceCraftPath,
+            CancellationToken.None);
+        var statePath = Path.Combine(_workspaceCraftPath, "teams", "state.json");
+        var stateJson = File.ReadAllText(statePath).Replace("\"agentProfileId\": \"team-reviewer\"", "\"agentProfileId\": \"missing-reviewer\"");
+        File.WriteAllText(statePath, stateJson);
+
+        var view = await _teamsService.ViewTeamAsync(_sessionService, _workspaceCraftPath, CancellationToken.None);
+
+        var reviewer = Assert.Single(view.Members, member => member.MemberId == "reviewer");
+        Assert.Equal("missing-reviewer", reviewer.AgentProfileId);
+        Assert.Equal("missing-reviewer", reviewer.AgentProfile?.RequestedId);
+        Assert.Equal("team-reviewer", reviewer.AgentProfile?.ActiveId);
+        Assert.True(reviewer.AgentProfile?.FallbackUsed);
+        Assert.Contains(reviewer.AgentProfile!.Diagnostics, diagnostic => diagnostic.Code == "AgentProfileMissing");
     }
 
     [Fact]
