@@ -8,7 +8,13 @@ namespace DotCraft.Agents;
 /// </summary>
 public sealed class ModeToolPolicy(AgentModeManager modeManager)
 {
-    private static readonly HashSet<string> PlanDeniedTools = new(StringComparer.OrdinalIgnoreCase)
+    /// <summary>
+    /// Built-in tool names that Plan (read-only) mode hard-denies. Exposed so the tool catalog
+    /// (<c>tool/list</c>, spec Section 18A) can annotate Plan-mode availability from a single source
+    /// of truth. Tools that are only conditionally restricted in Plan mode (for example shell
+    /// <c>Exec</c>) are intentionally not listed here.
+    /// </summary>
+    public static readonly IReadOnlySet<string> PlanDeniedToolNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     {
         "WriteFile",
         "EditFile",
@@ -37,7 +43,7 @@ public sealed class ModeToolPolicy(AgentModeManager modeManager)
         if (modeManager.CurrentMode != AgentMode.Plan)
             return ModeToolPolicyDecision.Allow;
 
-        if (PlanDeniedTools.Contains(toolName))
+        if (PlanDeniedToolNames.Contains(toolName))
             return DenyPlanMode(toolName, $"Plan mode does not allow {toolName}.");
 
         if (string.Equals(toolName, "Exec", StringComparison.OrdinalIgnoreCase))

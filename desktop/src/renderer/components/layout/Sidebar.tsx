@@ -26,7 +26,7 @@ import {
   SIDEBAR_NAV_ROW_OUTER
 } from '../sidebar/sidebarNavRowStyles'
 import { SettingsIcon } from '../ui/AppIcons'
-import { MessageSquare, Puzzle, SquareKanban, SquarePen, UsersRound } from 'lucide-react'
+import { Bot, MessageSquare, Puzzle, SquareKanban, SquarePen, UsersRound } from 'lucide-react'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
 
@@ -230,6 +230,9 @@ function resolveExtensionIcon(icon?: string | null): typeof UsersRound {
     case 'board':
     case 'kanban':
       return SquareKanban
+    case 'bot':
+    case 'agent':
+      return Bot
     default:
       return UsersRound
   }

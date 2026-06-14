@@ -29,6 +29,18 @@ public sealed class ThreadConfiguration
     public string? AgentProfileFingerprint { get; set; }
 
     /// <summary>
+    /// When set, this thread runs the conversational profile-builder agent editing the named
+    /// Agent Profile (see specs/agents/agent-profiles.md §12A). It exposes the builder tools and a
+    /// thread-scoped working draft and is excluded from ordinary thread listings.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? AgentBuilderTargetId { get; set; }
+
+    /// <summary>Source (user / workspace) of the Agent Profile being edited; pairs with <see cref="AgentBuilderTargetId"/>.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? AgentBuilderTargetSource { get; set; }
+
+    /// <summary>
     /// Per-thread MCP server connections. Null means use workspace-level MCP configuration.
     /// </summary>
     public McpServerConfig[]? McpServers { get; set; }

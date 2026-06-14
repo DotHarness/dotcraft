@@ -1,0 +1,170 @@
+/*
+ * Agent Builder (DotCraft Desktop mainView).
+ *
+ * All colors resolve from DotCraft tokens (specs/clients/DESIGN.md), so the view
+ * follows the host light/dark theme. Every selector is scoped under `.agent-builder`.
+ * Primary actions use neutral inversion (text-primary bg), not accent blue.
+ */
+
+.agent-builder {
+  position: relative;
+  height: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  background: var(--main-surface, var(--bg-primary));
+}
+.agent-builder *, .agent-builder *::before, .agent-builder *::after { box-sizing: border-box; }
+
+/* primary button — used by the builder's Preview/Edit toggle (the gallery uses the shared CatalogSurface) */
+.agent-builder-btn {
+  display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 14px; border-radius: 9px;
+  font: inherit; font-size: 13px; font-weight: 600; white-space: nowrap; cursor: pointer;
+  border: 1px solid var(--text-primary); background: var(--text-primary); color: var(--bg-primary);
+}
+.agent-builder-btn:hover { background: color-mix(in srgb, var(--text-primary) 88%, var(--bg-primary)); }
+
+/* ── Builder (document editor) ── */
+.agent-builder-edit-head { flex: 0 0 auto; min-height: 56px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 18px; border-bottom: 1px solid var(--border-default); }
+.agent-builder-edit-left { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.agent-builder-edit-right { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; justify-content: flex-end; }
+.agent-builder-iconbtn { width: 30px; height: 30px; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--text-secondary); cursor: pointer; }
+.agent-builder-iconbtn:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+.agent-builder-headavatar { display: inline-flex; }
+.agent-builder-headname { font-size: 15px; font-weight: 680; }
+.agent-builder-btn-secondary, .agent-builder-btn-ghost { display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 13px; border-radius: 9px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; border: 1px solid var(--border-default); background: var(--bg-secondary); color: var(--text-primary); }
+.agent-builder-btn-secondary:hover, .agent-builder-btn-ghost:hover { background: var(--bg-tertiary); }
+.agent-builder-btn-ghost { border-color: transparent; background: transparent; color: var(--text-secondary); }
+.agent-builder-btn[disabled] { opacity: 0.5; cursor: default; }
+
+/* full-width scroll container keeps the scrollbar at the app's right edge, not on the centered doc */
+.agent-builder-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+.agent-builder-doc { max-width: 720px; width: 100%; margin: 0 auto; padding: 22px 30px 56px; }
+.agent-builder-id { display: flex; align-items: center; gap: 16px; }
+.agent-builder-id-avatar { position: relative; display: inline-flex; flex: 0 0 auto; }
+.agent-builder-reroll { position: absolute; right: -4px; bottom: -4px; width: 22px; height: 22px; display: grid; place-items: center; border: 1px solid var(--border-default); border-radius: 999px; background: var(--bg-elevated); color: var(--text-secondary); cursor: pointer; box-shadow: var(--shadow-sm); }
+.agent-builder-reroll:hover { color: var(--text-primary); border-color: var(--border-active); }
+.agent-builder-id-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.agent-builder-id-name { border: 1px solid transparent; border-radius: 8px; padding: 3px 7px; margin-left: -7px; font: inherit; font-size: 22px; font-weight: 700; letter-spacing: -0.01em; color: var(--text-primary); background: transparent; outline: none; }
+.agent-builder-id-name:hover { border-color: var(--border-default); }
+.agent-builder-id-name:focus { border-color: var(--border-active); background: var(--bg-secondary); }
+.agent-builder-id-name.is-empty { color: var(--text-dimmed); }
+.agent-builder-id-desc { border: 1px solid transparent; border-radius: 8px; padding: 4px 7px; margin-left: -7px; font: inherit; font-size: 13.5px; color: var(--text-secondary); background: transparent; outline: none; }
+.agent-builder-id-desc:hover { border-color: var(--border-default); }
+.agent-builder-id-desc:focus { border-color: var(--border-active); background: var(--bg-secondary); }
+.agent-builder-note { margin-top: 8px; font-size: 11.5px; color: var(--text-dimmed); }
+.agent-builder-divider { height: 1px; background: var(--border-default); margin: 20px 0 0; }
+
+.agent-builder-sec { margin-top: 24px; display: flex; flex-direction: column; gap: 11px; }
+.agent-builder-sec-label { font-size: 13px; font-weight: 650; color: var(--text-primary); }
+
+/* catalog selector: selected chips + dashed add + portal popover (tools / mcp / skills) */
+.agent-builder-pick { display: flex; flex-direction: column; gap: 8px; }
+.agent-builder-pick-empty { font-size: 12px; color: var(--text-dimmed); line-height: 1.5; }
+.agent-builder-chiprow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.agent-builder-chip { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 5px 0 11px; border-radius: 999px; font-size: 12.5px; font-weight: 600; font-family: var(--font-mono); border: 1px solid var(--border-default); background: var(--bg-secondary); color: var(--text-primary); box-shadow: var(--shadow-sm); }
+.agent-builder-chip-ic { font-family: var(--font-ui); font-size: 13px; line-height: 1; }
+.agent-builder-chip-x { width: 18px; height: 18px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 999px; background: transparent; color: var(--text-dimmed); cursor: pointer; opacity: 0; transition: opacity 120ms ease; }
+.agent-builder-chip:hover .agent-builder-chip-x, .agent-builder-chip:focus-within .agent-builder-chip-x { opacity: 1; }
+.agent-builder-chip-x:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+.agent-builder-add { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 13px; border-radius: 999px; font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; border: 1px dashed var(--border-active); background: transparent; color: var(--text-secondary); }
+.agent-builder-add:hover { color: var(--text-primary); border-color: color-mix(in srgb, var(--accent) 50%, var(--border-active)); }
+
+/* add popover (rendered in a portal at document.body) */
+.agent-builder-addmenu { position: fixed; z-index: 1000; display: flex; flex-direction: column; max-height: 320px; padding: 6px; border: 1px solid var(--border-default); border-radius: 12px; background: var(--bg-elevated); box-shadow: var(--shadow-lg); }
+.agent-builder-addmenu-search { display: flex; align-items: center; gap: 7px; padding: 6px 8px; color: var(--text-dimmed); border-bottom: 1px solid color-mix(in srgb, var(--border-default) 70%, transparent); margin-bottom: 4px; }
+.agent-builder-addmenu-search input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--text-primary); font: inherit; font-size: 13px; }
+.agent-builder-addmenu-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 1px; }
+.agent-builder-addmenu-empty { padding: 10px; text-align: center; font-size: 12px; color: var(--text-dimmed); }
+.agent-builder-addmenu-opt { display: flex; align-items: center; gap: 9px; width: 100%; padding: 7px 9px; border: 0; border-radius: 8px; background: transparent; color: inherit; cursor: pointer; text-align: left; }
+.agent-builder-addmenu-opt:hover { background: var(--bg-tertiary); }
+.agent-builder-addmenu-ic { flex: 0 0 auto; width: 20px; text-align: center; font-size: 14px; line-height: 1; }
+.agent-builder-addmenu-copy { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.agent-builder-addmenu-name { font-size: 13px; font-weight: 600; font-family: var(--font-mono); color: var(--text-primary); }
+.agent-builder-addmenu-desc { font-size: 11.5px; color: var(--text-secondary); line-height: 1.4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.agent-builder-instr { width: 100%; min-height: 118px; border: 1px solid transparent; border-radius: 10px; background: transparent; padding: 10px 12px; margin-left: -12px; box-sizing: border-box; resize: vertical; color: var(--text-primary); font: inherit; font-size: 14px; line-height: 1.8; outline: none; }
+.agent-builder-instr:hover { border-color: var(--border-default); }
+.agent-builder-instr:focus { border-color: var(--border-active); background: var(--bg-secondary); }
+.agent-builder-instr::placeholder { color: var(--text-dimmed); }
+
+/* Details uses the shared SettingsGroup/SettingsRow (desktop Settings layout) — no bespoke styles. */
+
+/* header: auto-save status + "…" overflow menu */
+.agent-builder-autosave { font-size: 11.5px; color: var(--text-dimmed); white-space: nowrap; }
+.agent-builder-autosave.is-error { color: var(--error); }
+.agent-builder-menu { position: relative; display: inline-flex; }
+.agent-builder-menu-pop { position: absolute; right: 0; top: calc(100% + 6px); z-index: 30; min-width: 150px; padding: 6px; border: 1px solid var(--border-default); border-radius: 10px; background: var(--bg-elevated); box-shadow: var(--shadow-lg); }
+.agent-builder-menu-item { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 10px; border: 0; border-radius: 7px; background: transparent; color: var(--text-primary); font: inherit; font-size: 13px; cursor: pointer; text-align: left; }
+.agent-builder-menu-item:hover { background: var(--bg-tertiary); }
+.agent-builder-menu-item.is-danger { color: color-mix(in srgb, var(--error) 80%, var(--text-primary)); }
+.agent-builder-menu-item.is-danger:hover { background: color-mix(in srgb, var(--error) 12%, transparent); }
+
+/* preview (read-only) fields drop their edit affordances */
+.agent-builder-id-name[readonly], .agent-builder-id-desc[readonly], .agent-builder-instr[readonly] { cursor: default; }
+.agent-builder-id-name[readonly]:hover, .agent-builder-id-desc[readonly]:hover, .agent-builder-instr[readonly]:hover { border-color: transparent; background: transparent; }
+
+/* ── "Build a new agent" intro ── */
+.agent-builder-intro-top { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; padding: 14px 22px; }
+.agent-builder-intro-blank { border: 0; background: transparent; color: var(--text-secondary); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.agent-builder-intro-blank:hover { color: var(--text-primary); }
+.agent-builder-intro { position: relative; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 7vh 24px 0; overflow: hidden; }
+.agent-builder-intro-mascot { display: inline-flex; }
+.agent-builder-intro-title { margin: 4px 0 8px; font-size: 26px; font-weight: 720; letter-spacing: -0.015em; }
+/* Intro input reuses the conversation ComposerShell; this just constrains its width to the column. */
+.agent-builder-introcomposer { width: min(600px, 100%); }
+.agent-builder-intro-input { width: 100%; border: none; outline: none; box-shadow: none; appearance: none; -webkit-appearance: none; resize: none; background: transparent; color: var(--text-primary); font: inherit; font-size: var(--conversation-font-size, 14px); line-height: var(--conversation-line-height, 1.5); }
+.agent-builder-intro-input:focus, .agent-builder-intro-input:focus-visible { outline: none; box-shadow: none; }
+.agent-builder-intro-input::placeholder { color: var(--composer-placeholder, var(--text-dimmed)); }
+.agent-builder-intro-sugs { width: min(600px, 100%); display: flex; flex-direction: column; gap: 1px; margin-top: 4px; }
+.agent-builder-intro-sug { display: flex; align-items: center; gap: 9px; text-align: left; border: 0; background: transparent; color: inherit; padding: 9px 10px; border-radius: 9px; cursor: pointer; }
+.agent-builder-intro-sug:hover { background: color-mix(in srgb, var(--text-primary) 4%, transparent); }
+.agent-builder-intro-sug-ic { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; color: var(--text-dimmed); }
+.agent-builder-intro-sug-t { font-size: 13px; font-weight: 600; color: var(--text-primary); flex: 0 0 auto; }
+.agent-builder-intro-sug-d { font-size: 12.5px; color: var(--text-dimmed); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agent-builder-intro-deck { position: absolute; left: 50%; bottom: 0; transform: translate(-50%, 30%); display: flex; align-items: flex-end; justify-content: center; }
+.agent-builder-deckcard { position: relative; width: 168px; margin: 0 -22px; display: flex; flex-direction: column; align-items: flex-start; gap: 7px; padding: 16px 16px 18px; cursor: pointer; text-align: left; transform-origin: bottom center; border: 1px solid var(--border-default); border-radius: 16px; background: var(--bg-elevated); box-shadow: var(--shadow-md); color: var(--text-primary); transition: transform 180ms cubic-bezier(.2,.8,.2,1), box-shadow 180ms ease, border-color 180ms ease; }
+.agent-builder-deckcard.is-active { box-shadow: var(--shadow-lg); border-color: color-mix(in srgb, var(--accent) 40%, var(--border-default)); }
+.agent-builder-deckcard-name { font-size: 13.5px; font-weight: 700; text-transform: capitalize; }
+.agent-builder-deckcard-desc { font-size: 11.5px; color: var(--text-dimmed); line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+/* avatar idle bob */
+.ab-robot { display: block; }
+.ab-robot--anim { animation: agent-builder-bob 3.6s ease-in-out infinite; }
+@keyframes agent-builder-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+@media (prefers-reduced-motion: reduce) { .ab-robot--anim { animation: none; } }
+
+/* ── Conversational builder split pane ── */
+.agent-builder-split { display: flex; height: 100%; min-height: 0; }
+.agent-builder-split-main { flex: 1 1 auto; min-width: 0; height: 100%; }
+.agent-builder-chatpane { flex: 0 0 clamp(360px, 38%, 520px); min-width: 0; height: 100%; display: flex; flex-direction: column; min-height: 0; border-left: 1px solid var(--border-default); background: var(--bg-primary); }
+.agent-builder-chatpane > * { flex: 1 1 auto; min-height: 0; }
+.agent-builder-chat-loading, .agent-builder-chat-error { flex: 1 1 auto; display: grid; place-items: center; padding: 24px; text-align: center; font-size: 13px; color: var(--text-secondary); }
+.agent-builder-chat-error { color: var(--error); }
+.agent-builder-btn-secondary.is-active { border-color: var(--border-active); background: var(--bg-tertiary); }
+
+/* The agent is editing a field: a soft brand ring + an "editing" cursor tag on the section label. */
+.agent-builder-sec.is-agent-editing, .agent-builder-id.is-agent-editing {
+  border-radius: 10px;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent, #6366F1) 55%, transparent);
+  transition: box-shadow 180ms ease;
+}
+.agent-builder-sec { transition: box-shadow 320ms ease; }
+.agent-builder-sec-label { display: inline-flex; align-items: center; gap: 8px; }
+.agent-builder-editcursor {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 10.5px; font-weight: 600; letter-spacing: 0.02em; text-transform: lowercase;
+  color: var(--bg-primary); background: color-mix(in srgb, var(--accent, #6366F1) 88%, black);
+  padding: 1px 7px 1px 5px; border-radius: 999px;
+  animation: agent-builder-cursorpop 200ms ease;
+}
+@keyframes agent-builder-cursorpop { from { opacity: 0; transform: translateY(2px) scale(0.92); } to { opacity: 1; transform: none; } }
+
+/* While a builder turn runs, the document is agent-driven: dim + non-interactive behind a veil. */
+.agent-builder-doc.is-agent-driving { position: relative; }
+.agent-builder-doc.is-agent-driving > :not(.agent-builder-driving-veil) { pointer-events: none; }
+.agent-builder-driving-veil { position: absolute; inset: 0; z-index: 5; cursor: progress; background: color-mix(in srgb, var(--bg-primary) 22%, transparent); }
+@media (prefers-reduced-motion: reduce) { .agent-builder-editcursor { animation: none; } }

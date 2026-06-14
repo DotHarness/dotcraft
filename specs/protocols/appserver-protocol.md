@@ -40,6 +40,7 @@ Purpose: Define a language-neutral JSON-RPC wire protocol that exposes Session C
 - [16. Cron Management Methods](#16-cron-management-methods)
 - [17. Heartbeat Management Methods](#17-heartbeat-management-methods)
 - [18. Skills Management Methods](#18-skills-management-methods)
+- [18A. Tool Catalog Methods](#18a-tool-catalog-methods)
 - [19. Command Management Methods](#19-command-management-methods)
 - [20. Channel Status Methods](#20-channel-status-methods)
 - [21. Model Catalog Methods](#21-model-catalog-methods)
@@ -397,6 +398,7 @@ Built-in channels do not negotiate these capabilities over `initialize`; they pr
 | `capabilities.skillsManagement` | boolean | Server supports skills management methods (`skills/list`, `skills/read`, `skills/view`, `skills/restoreOriginal`, `skills/setEnabled`, `skills/uninstall`). |
 | `capabilities.pluginManagement` | boolean | Server supports plugin management methods (`plugin/list`, `plugin/view`, `plugin/install`, `plugin/remove`, `plugin/setEnabled`). |
 | `capabilities.skillVariants` | boolean | Server has skill variants enabled for the current runtime. Clients may use effective skill views and restore source-skill behavior (`skills/view`, `skills/restoreOriginal`) without exposing variant internals. |
+| `capabilities.toolCatalog` | boolean | Server supports the built-in tool catalog method (`tool/list`). Always `true` for servers built on this protocol version; the catalog is derived from server reflection and has no workspace dependency. |
 | `capabilities.commandManagement` | boolean | Server supports command management methods (`command/list`, `command/execute`). |
 | `capabilities.providerManagement` | boolean | Server supports personal model provider management methods (`provider/list`, `provider/create`, `provider/update`, `provider/delete`, `provider/test`). |
 | `capabilities.modelCatalogManagement` | boolean | Server supports model catalog methods (`model/list`). |
@@ -644,6 +646,8 @@ Fields:
 | `agentProfileId` | string | Optional Agent Profile id whose resolved snapshot produced this configuration. Runtime behavior reads the resolved configuration fields, not the profile file. |
 | `agentProfileSource` | string | Optional profile source such as `builtIn`, `user`, or `workspace`. |
 | `agentProfileFingerprint` | string | Optional fingerprint for diagnostics, audit, and future refresh flows. |
+| `agentBuilderTargetId` | string | Optional. Marks the thread as a **conversational profile-builder** session editing this Agent Profile id (see agent-profiles spec §12A). When set, the server exposes the builder tools and a thread-scoped working draft; the thread is excluded from ordinary thread listings. |
+| `agentBuilderTargetSource` | string | Optional builder target source (`user` / `workspace`). Pairs with `agentBuilderTargetId`. |
 | `mcpServers` | `McpServerConfig[]` | Optional per-thread MCP server configuration. |
 | `mode` | string | Agent mode for the thread. Default `agent`. |
 | `extensions` | string[] | Optional active ACP extension prefixes. |
@@ -4433,6 +4437,83 @@ Clients must check `capabilities.pluginManagement` before calling any `plugin/*`
 
 ---
 
+## 18A. Tool Catalog Methods
+
+### 18A.1 Scope
+
+This method exposes the catalog of **built-in tools** the server can expose to the model, so clients can present a tool picker (for example, the Agent Profile editor's `tools.allow` / `tools.deny` selectors) instead of free-text entry. The catalog is the set of tool methods the server discovers by reflection over its own tool assemblies; it is independent of any workspace, thread, or MCP/plugin configuration.
+
+It does **not** enumerate MCP tools (see `mcp/list`), plugin/app tools (see `plugin/list`), or skills (see `skills/list`). Those are listed by their own methods. The names returned here are the exact tool identifiers used in Agent Profile `tools.allow` / `tools.deny` lists.
+
+Clients should check `capabilities.toolCatalog` in the `initialize` response before calling `tool/list`. If the flag is absent or `false`, the server returns `-32601` (method not found).
+
+### 18A.2 `ToolInfo` Wire DTO
+
+```json
+{
+  "name": "ReadFile",
+  "description": "Read the contents of a file at the given path...",
+  "icon": "📄",
+  "source": "builtin",
+  "planMode": true
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | Canonical tool identifier (the model-visible tool name). This is the value used in Agent Profile `tools.allow` / `tools.deny`. |
+| `description` | string | Human-readable description from the tool's method-level metadata. May be empty when the tool declares none. |
+| `icon` | string | Display icon (emoji). Falls back to a generic tool glyph when the tool declares none. |
+| `source` | string | Always `"builtin"` for tools returned by this method. Reserved for forward compatibility with other tool origins. |
+| `planMode` | boolean | `true` when the tool is allowed while the thread is in Plan (read-only) mode. `false` for mutating tools that Plan mode hard-denies (for example `WriteFile`, `EditFile`). Tools that are conditionally restricted in Plan mode (for example shell `Exec`, which Plan mode allows only for read-only commands) report `true`. |
+
+### 18A.3 `tool/list`
+
+List the built-in tools the server can expose to the model.
+
+**Direction**: client → server (request)
+
+**Params**:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `mode` | string | no | When `"plan"`, only tools available in Plan mode are returned (those with `planMode: true`). When omitted or `"agent"`, the full built-in catalog is returned with each tool's `planMode` annotation. Unknown values are treated as `"agent"`. |
+
+**Result**:
+
+```json
+{
+  "tools": [
+    { "name": "EditFile", "description": "Make a targeted edit to an existing file...", "icon": "🔄", "source": "builtin", "planMode": false },
+    { "name": "Exec", "description": "Run a shell command...", "icon": "💻", "source": "builtin", "planMode": true },
+    { "name": "ReadFile", "description": "Read the contents of a file...", "icon": "📄", "source": "builtin", "planMode": true },
+    { "name": "WebSearch", "description": "Search the web...", "icon": "🔍", "source": "builtin", "planMode": true },
+    { "name": "WriteFile", "description": "Write content to a file...", "icon": "✏️", "source": "builtin", "planMode": false }
+  ]
+}
+```
+
+**Behavior**: The server returns its built-in tools sorted by `name` (ordinal). The list is deterministic for a given server build and carries no workspace, thread, or per-connection state. Clients filter the model-visible surface per Agent Profile via `tools.allow` / `tools.deny`; this method only describes what those lists may reference.
+
+**Example**:
+
+```json
+{ "jsonrpc": "2.0", "method": "tool/list", "id": 71, "params": { "mode": "plan" } }
+
+{ "jsonrpc": "2.0", "id": 71, "result": {
+    "tools": [
+      { "name": "Exec", "description": "Run a shell command...", "icon": "💻", "source": "builtin", "planMode": true },
+      { "name": "ReadFile", "description": "Read the contents of a file...", "icon": "📄", "source": "builtin", "planMode": true }
+    ]
+} }
+```
+
+### 18A.4 Capability Advertisement
+
+Clients should check `capabilities.toolCatalog` before calling `tool/list`.
+
+---
+
 ## 19. Command Management Methods
 
 ### 19.1 Scope
@@ -5260,6 +5341,7 @@ Diagnostics are stable English fallback messages. Desktop owns localization.
       "description": "Read-only reviewer focused on correctness, risks, and tests.",
       "source": "workspace",
       "path": ".craft/agents/team-reviewer.md",
+      "updatedAt": "2026-06-14T09:00:00Z",
       "fingerprint": "sha256:...",
       "valid": true,
       "isBuiltIn": false,
@@ -5275,6 +5357,8 @@ Diagnostics are stable English fallback messages. Desktop owns localization.
   ]
 }
 ```
+
+`updatedAt` is the profile file's last-write time (UTC, ISO 8601). It is omitted for built-in/in-memory profiles that have no backing file. Clients use it for an "updated …" indicator.
 
 ### 23A.3 `agent/profiles/read`
 

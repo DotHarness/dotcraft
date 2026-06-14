@@ -12,11 +12,16 @@ public static class ThreadVisibility
     /// </summary>
     public const string InternalMetadataKey = "dotcraft.internal";
 
+    /// <summary>Metadata marker value used for conversational Agent Builder threads.</summary>
+    public const string AgentBuilderInternalValue = "agent-builder";
+
     /// <summary>
-    /// Returns whether the thread is an internal-only DotCraft helper thread.
+    /// Returns whether the thread is an internal-only DotCraft helper thread. Conversational Agent
+    /// Builder threads (those bound to a builder target) are internal and excluded from listings.
     /// </summary>
     public static bool IsInternal(SessionThread thread) =>
-        IsInternal(thread.OriginChannel, thread.Metadata);
+        !string.IsNullOrWhiteSpace(thread.Configuration?.AgentBuilderTargetId)
+        || IsInternal(thread.OriginChannel, thread.Metadata);
 
     /// <summary>
     /// Returns whether the thread summary represents an internal-only DotCraft helper thread.

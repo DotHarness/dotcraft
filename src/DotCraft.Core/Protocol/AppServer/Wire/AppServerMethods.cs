@@ -239,6 +239,9 @@ public static class AppServerMethods
     public const string SkillsSetEnabled = "skills/setEnabled";
     public const string SkillsUninstall = "skills/uninstall";
 
+    // Client → Server requests (built-in tool catalog, spec Section 18A)
+    public const string ToolList = "tool/list";
+
     // Client → Server requests (plugin management)
     public const string PluginList = "plugin/list";
     public const string PluginView = "plugin/view";

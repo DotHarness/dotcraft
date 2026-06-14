@@ -48,6 +48,9 @@ public sealed class AgentProfileEntry
 
     public string? Path { get; init; }
 
+    /// <summary>Last write time of the profile file (UTC), when it exists on disk. Null for in-memory/built-in.</summary>
+    public DateTimeOffset? UpdatedAt { get; init; }
+
     public string? PluginId { get; init; }
 
     public string Fingerprint { get; init; } = string.Empty;
@@ -655,6 +658,7 @@ public sealed partial class AgentProfileStore
             Description = validation.Description,
             Source = source,
             Path = path,
+            UpdatedAt = TryGetLastWriteTime(path),
             PluginId = pluginId,
             Fingerprint = validation.Fingerprint,
             Valid = validation.Valid,
@@ -665,6 +669,20 @@ public sealed partial class AgentProfileStore
             RestrictedFields = validation.RestrictedFields,
             CompiledConfiguration = validation.CompiledConfiguration
         };
+    }
+
+    private static DateTimeOffset? TryGetLastWriteTime(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return null;
+        try
+        {
+            return File.Exists(path) ? File.GetLastWriteTimeUtc(path) : null;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private string? GetSourceDirectory(string source)

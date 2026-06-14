@@ -1,0 +1,30 @@
+{
+  "extensions": [
+    {
+      "id": "agent-builder",
+      "displayName": "Agent Builder",
+      "description": "Build and edit role-specific agents — pick their tools, skills, and model in one place.",
+      "entry": "./desktop/agent-builder.mjs",
+      "styles": [],
+      "surfaces": [
+        {
+          "type": "mainView",
+          "viewId": "builder",
+          "label": "Agents",
+          "localizedLabel": { "en": "Agents", "zh-Hans": "Agents", "ja": "エージェント", "ko": "에이전트", "es": "Agentes", "fr": "Agents", "de": "Agenten" },
+          "icon": "bot",
+          "placement": "sidebar",
+          "order": 52
+        },
+        {
+          "type": "pluginDetail",
+          "title": "Agent Builder",
+          "description": "Build and edit role-specific agents — choose each one's tools, skills, model, and instructions."
+        }
+      ],
+      "requiredAppIds": [],
+      "connectOrigins": [],
+      "surfaceWriteScopes": []
+    }
+  ]
+}

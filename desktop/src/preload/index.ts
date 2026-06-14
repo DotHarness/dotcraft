@@ -868,6 +868,9 @@ const api = {
     },
     openApp(params: { grantId: string; appId: string; url: string }): Promise<void> {
       return ipcRenderer.invoke('desktop-extension:app-open', params)
+    },
+    appServerRequest(params: { grantId: string; method: string; params?: unknown; timeoutMs?: number }): Promise<unknown> {
+      return ipcRenderer.invoke('desktop-extension:appserver-request', params)
     }
   },
 

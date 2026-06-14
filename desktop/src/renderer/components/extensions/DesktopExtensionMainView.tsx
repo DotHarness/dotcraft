@@ -7,6 +7,7 @@ import { useUIStore } from '../../stores/uiStore'
 import { useThreadStore } from '../../stores/threadStore'
 import { removeToast, showToast, type ToastType } from '../../stores/toastStore'
 import { TeamsView } from '../teams/TeamsView'
+import { AgentBuilderView } from '../agents/AgentBuilderView'
 
 type ExtensionComponent = React.ComponentType<DesktopExtensionComponentProps>
 
@@ -35,6 +36,14 @@ interface DesktopExtensionHost {
     getJson(url: string, timeoutMs?: number): Promise<unknown>
     postJson(url: string, body: unknown, timeoutMs?: number): Promise<unknown>
   }
+  /**
+   * Scoped DotCraft AppServer JSON-RPC bridge. Each call is allow-listed in the
+   * main process against the extension's `appServerScopes` (declared in
+   * desktop-extensions.json), e.g. `["agent/profiles/*", "thread/start"]`.
+   */
+  appServer: {
+    request(method: string, params?: unknown, timeoutMs?: number): Promise<unknown>
+  }
   navigation: {
     setActiveMainView(view: ActiveMainView): void
     openThread(threadId: string): void
@@ -50,6 +59,7 @@ interface DesktopExtensionHost {
   }
   components: {
     TeamsView: React.ComponentType
+    AgentBuilderView: React.ComponentType
   }
 }
 
@@ -243,6 +253,11 @@ function createDesktopExtensionHost(
         })
       }
     },
+    appServer: {
+      request(method, params, timeoutMs) {
+        return window.api.desktopExtensions.appServerRequest({ grantId, method, params, timeoutMs })
+      }
+    },
     navigation: {
       setActiveMainView,
       openThread(threadId) {
@@ -263,7 +278,8 @@ function createDesktopExtensionHost(
       }
     },
     components: {
-      TeamsView
+      TeamsView,
+      AgentBuilderView
     }
   }
 }

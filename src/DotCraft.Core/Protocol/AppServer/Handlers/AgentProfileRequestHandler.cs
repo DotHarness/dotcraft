@@ -227,6 +227,7 @@ internal sealed class AgentProfileRequestHandler(
         Description = profile.Description,
         Source = profile.Source,
         Path = profile.Path,
+        UpdatedAt = profile.UpdatedAt,
         PluginId = profile.PluginId,
         Fingerprint = profile.Fingerprint,
         Valid = profile.Valid,

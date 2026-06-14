@@ -501,6 +501,7 @@ declare global {
         getAppConnectionStatus(params: { grantId: string; appId: string }): Promise<unknown>
         startAppConnection(params: { grantId: string; appId: string }): Promise<unknown>
         openApp(params: { grantId: string; appId: string; url: string }): Promise<void>
+        appServerRequest(params: { grantId: string; method: string; params?: unknown; timeoutMs?: number }): Promise<unknown>
       }
       workspace: {
         pickFolder(): Promise<string | null>

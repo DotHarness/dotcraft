@@ -27,6 +27,8 @@ interface ConversationPanelProps {
   workspaceConfigChange?: WorkspaceConfigChangedPayload | null
   workspaceConfigChangeSeq?: number
   onInteractionResponseAccepted?: () => void
+  /** Render the composer with minimal chrome (no workspace/branch footer, permissions, or subscription badge). */
+  minimalComposer?: boolean
 }
 
 interface ResolvedReasoningConfig {
@@ -57,7 +59,8 @@ export function ConversationPanel({
   remoteWorkspace = false,
   workspaceConfigChange = null,
   workspaceConfigChangeSeq = 0,
-  onInteractionResponseAccepted
+  onInteractionResponseAccepted,
+  minimalComposer = false
 }: ConversationPanelProps): JSX.Element {
   const activeThread = useThreadStore((s) => s.activeThread)
   const activeThreadId = useThreadStore((s) => s.activeThreadId)
@@ -459,6 +462,7 @@ export function ConversationPanel({
           workspacePath={threadStateWorkspacePath}
           fileWorkspacePath={activeEffectiveWorkspacePath}
           remoteWorkspace={remoteWorkspace}
+          minimalChrome={minimalComposer}
           modelName={modelName}
           modelOptions={modelOptions}
           modelCatalog={modelCatalog}

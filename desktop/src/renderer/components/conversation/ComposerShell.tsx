@@ -11,7 +11,7 @@ import {
   type JSX,
   type ReactNode
 } from 'react'
-import { ListChecks, Square, X } from 'lucide-react'
+import { Bot, ListChecks, Square, X } from 'lucide-react'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { MascotRobot, type MascotExpression, type MascotLight } from './MascotRobot'
 import { MascotBubble, type MascotBubbleAction, type MascotBubbleTone } from './MascotBubble'
@@ -744,6 +744,58 @@ export function ComposerPlanModeLabel({
           transition: 'background-color 120ms ease, color 120ms ease'
         }}
     >
+        <Icon size={13} strokeWidth={2} aria-hidden />
+        <span>{label}</span>
+      </button>
+    </ActionTooltip>
+  )
+}
+
+interface ComposerCustomProfileLabelProps {
+  label: string
+  onClear: () => void
+  title: string
+  ariaLabel: string
+}
+
+/**
+ * Footer pill shown when the active thread is backed by an agent profile. Replaces the Plan pill
+ * (a profile-backed thread has no operational mode). Hover/focus reveals the clear (×) affordance.
+ */
+export function ComposerCustomProfileLabel({ label, onClear, title, ariaLabel }: ComposerCustomProfileLabelProps): JSX.Element {
+  const [hovered, setHovered] = useState(false)
+  const [focused, setFocused] = useState(false)
+  const active = hovered || focused
+  const Icon = active ? X : Bot
+
+  return (
+    <ActionTooltip label={title} placement="top">
+      <button
+        type="button"
+        onClick={onClear}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        aria-label={ariaLabel}
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '6px',
+          height: COMPOSER_FOOTER_CONTROL_HEIGHT,
+          padding: '0 8px',
+          borderRadius: '999px',
+          border: 'none',
+          background: active ? composerFooterControlHoverBackground : 'color-mix(in srgb, var(--accent) 12%, transparent)',
+          color: 'var(--composer-footer-text)',
+          cursor: 'pointer',
+          fontSize: 'var(--type-secondary-size)',
+          lineHeight: 'var(--type-secondary-line-height)',
+          fontWeight: 'var(--type-ui-emphasis-weight)',
+          outline: 'none',
+          transition: 'background-color 120ms ease, color 120ms ease'
+        }}
+      >
         <Icon size={13} strokeWidth={2} aria-hidden />
         <span>{label}</span>
       </button>

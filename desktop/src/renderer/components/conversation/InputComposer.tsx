@@ -1,5 +1,5 @@
 import { useRef, useState, useCallback, useEffect, useMemo, type CSSProperties } from 'react'
-import { Archive, ChevronsDown, ListChecks, Target } from 'lucide-react'
+import { Archive, Bot, ChevronsDown, ListChecks, Target } from 'lucide-react'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
 import { addToast } from '../../stores/toastStore'
@@ -49,6 +49,7 @@ import { ApprovalPolicyPicker } from './ApprovalPolicyPicker'
 import { BackgroundActivityDock } from './SubAgentDock'
 import {
   COMPOSER_FOOTER_CONTROL_HEIGHT,
+  ComposerCustomProfileLabel,
   ComposerPlanModeLabel,
   ComposerSendButton,
   ComposerShell,
@@ -57,6 +58,7 @@ import {
   composerFooterControlHoverBackground,
   composerModelPillStyle
 } from './ComposerShell'
+import { ProfilePickerPopover } from './ProfilePickerPopover'
 import { ComposerWorkspaceFooter } from './ComposerWorkspaceFooter'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
@@ -120,6 +122,12 @@ interface InputComposerProps {
   onModelChange?: (model: string) => void
   onReasoningChange?: (value: ReasoningQuickValue) => void
   onModelCatalogRetry?: () => void
+  /**
+   * Minimal chrome for embedded composers (e.g. the conversational Agent Builder pane): hides the
+   * workspace/worktree+branch footer, the approval-policy (permissions) picker, and the ChatGPT
+   * subscription badge. The core input — attach, plan pill, reasoning, model, send — is kept.
+   */
+  minimalChrome?: boolean
 }
 
 /**
@@ -142,7 +150,8 @@ export function InputComposer({
   modelCatalogErrorMessage = null,
   onModelChange,
   onReasoningChange,
-  onModelCatalogRetry
+  onModelCatalogRetry,
+  minimalChrome = false
 }: InputComposerProps): JSX.Element {
   const t = useT()
   const [images, setImages] = useState<ImageAttachment[]>([])
@@ -154,6 +163,7 @@ export function InputComposer({
   const [skillQuery, setSkillQuery] = useState<string | null>(null)
   const [skillDismissed, setSkillDismissed] = useState(false)
   const [goalPopoverOpen, setGoalPopoverOpen] = useState(false)
+  const [profilePickerOpen, setProfilePickerOpen] = useState(false)
   const [goalPillActive, setGoalPillActive] = useState(false)
   const [goalBusy, setGoalBusy] = useState(false)
   const [compactBusy, setCompactBusy] = useState(false)
@@ -214,6 +224,10 @@ export function InputComposer({
   const canCompactCurrentThread = canUseManualCompaction && turnsLength > 0 && turnStatus === 'idle' && !isMaintenanceActive
   const canConsolidateCurrentThread = canUseManualMemoryConsolidation && turnsLength > 0 && turnStatus === 'idle' && !isMaintenanceActive
   const canUseSystemActions = true
+  const canUseAgentProfiles = capabilities?.agentProfileManagement === true
+  const rawProfileId = (activeThread?.configuration as Record<string, unknown> | null | undefined)?.agentProfileId
+  const activeProfileId = typeof rawProfileId === 'string' && rawProfileId.length > 0 ? rawProfileId : undefined
+  const hasProfile = activeProfileId !== undefined
   const canUseSlashPicker = canUseCommandPicker || canUseSkillPicker || canUseThreadGoals || canUseSystemActions
   const remoteLocalFilesUnavailable = remoteWorkspace ? t('input.remoteLocalFilesUnavailable') : undefined
 
@@ -253,8 +267,10 @@ export function InputComposer({
   )
   const systemActions = useMemo(
     () => {
-      const actions: SlashSystemActionInfo[] = [
-        {
+      const actions: SlashSystemActionInfo[] = []
+      // A profile-backed thread runs its agent's fixed capability scope, so it has no Plan/Agent mode.
+      if (!hasProfile) {
+        actions.push({
           id: 'planMode',
           label: t('composer.system.plan'),
           description: threadMode === 'agent'
@@ -262,8 +278,17 @@ export function InputComposer({
             : t('composer.system.plan.disable'),
           keywords: ['plan', 'agent'],
           icon: <ListChecks size={11} strokeWidth={2} aria-hidden />
-        }
-      ]
+        })
+      }
+      if (canUseAgentProfiles) {
+        actions.push({
+          id: 'profile',
+          label: t('composer.system.profile'),
+          description: t('composer.system.profile.description'),
+          keywords: ['profile', 'agent', 'custom'],
+          icon: <Bot size={11} strokeWidth={2} aria-hidden />
+        })
+      }
       if (canCompactCurrentThread) {
         actions.push({
           id: 'compact',
@@ -293,7 +318,7 @@ export function InputComposer({
       }
       return actions
     },
-    [canCompactCurrentThread, canConsolidateCurrentThread, canUseThreadGoals, t, threadMode]
+    [canCompactCurrentThread, canConsolidateCurrentThread, canUseAgentProfiles, canUseThreadGoals, hasProfile, t, threadMode]
   )
 
   useEffect(() => {
@@ -942,6 +967,7 @@ export function InputComposer({
   }, [threadId])
 
   async function setComposerMode(nextMode: 'agent' | 'plan'): Promise<boolean> {
+    if (hasProfile) return false
     if (pendingModeChangeRef.current) return false
     const previousMode = useConversationStore.getState().threadMode
     if (previousMode === nextMode) return true
@@ -1127,11 +1153,52 @@ export function InputComposer({
     }
   }, [])
 
+  const applyProfile = useCallback(async (profileId: string): Promise<void> => {
+    setProfilePickerOpen(false)
+    try {
+      // refreshThread resolves and applies the profile's compiled configuration (tools/mcp/skills/model).
+      const res = await window.api.appServer.sendRequest('agent/profiles/refreshThread', { threadId, profileId }) as { config?: Record<string, unknown> }
+      // A profile-backed thread has no operational mode; reset the optimistic local mode to agent.
+      setThreadMode('agent')
+      const active = useThreadStore.getState().activeThread
+      if (active && active.id === threadId) {
+        const nextConfig = res.config && typeof res.config === 'object'
+          ? res.config
+          : { ...(active.configuration ?? {}), agentProfileId: profileId }
+        useThreadStore.getState().setActiveThread({ ...active, configuration: nextConfig as unknown as typeof active.configuration })
+      }
+    } catch (err) {
+      addToast(t('composer.profile.changeFailed', { error: err instanceof Error ? err.message : String(err) }), 'error')
+    }
+  }, [threadId, setThreadMode, t])
+
+  const clearProfile = useCallback(async (): Promise<void> => {
+    try {
+      const readRes = await window.api.appServer.sendRequest('thread/read', { threadId, includeTurns: false }) as { thread?: { configuration?: Record<string, unknown> | null } }
+      const config = readRes.thread?.configuration && typeof readRes.thread.configuration === 'object'
+        ? { ...readRes.thread.configuration }
+        : {}
+      delete config.agentProfileId
+      delete config.agentProfileFingerprint
+      const active = useThreadStore.getState().activeThread
+      if (active && active.id === threadId) {
+        useThreadStore.getState().setActiveThread({ ...active, configuration: config as unknown as typeof active.configuration })
+      }
+      await window.api.appServer.sendRequest('thread/config/update', { threadId, config })
+    } catch (err) {
+      addToast(t('composer.profile.changeFailed', { error: err instanceof Error ? err.message : String(err) }), 'error')
+    }
+  }, [threadId, t])
+
   const onSelectSystemAction = useCallback((actionId: string): void => {
     setSlashDismissed(true)
     clearSlashSystemInput()
     if (actionId === 'planMode') {
       void toggleMode()
+      return
+    }
+    if (actionId === 'profile') {
+      setProfilePickerOpen(true)
       return
     }
     if (actionId === 'compact') {
@@ -1203,6 +1270,16 @@ export function InputComposer({
                 onClear={clearGoal}
                 onDismiss={() => {
                   setGoalPopoverOpen(false)
+                }}
+              />
+              <ProfilePickerPopover
+                visible={profilePickerOpen}
+                activeProfileId={activeProfileId}
+                onPick={(profileId) => {
+                  void applyProfile(profileId)
+                }}
+                onDismiss={() => {
+                  setProfilePickerOpen(false)
                 }}
               />
               <CommandSearchPopover
@@ -1288,27 +1365,40 @@ export function InputComposer({
               onReferenceFiles={() => {
                 void pickFiles()
               }}
-              planModeLabel={t('composer.system.plan')}
+              planModeLabel={hasProfile ? undefined : t('composer.system.plan')}
               planModeToggleLabel={t('composer.system.plan.toggle')}
               planModeEnabled={threadMode === 'plan'}
-              onTogglePlanMode={() => {
+              onTogglePlanMode={hasProfile ? undefined : () => {
                 void toggleMode()
               }}
               attachmentDisabledReason={remoteLocalFilesUnavailable}
             />
 
-            <ApprovalPolicyPicker threadId={threadId} disabled={isBusyForInput || isWaitingApproval || isWaitingInput} />
+            {!minimalChrome && (
+              <ApprovalPolicyPicker threadId={threadId} disabled={isBusyForInput || isWaitingApproval || isWaitingInput} />
+            )}
 
-            <ComposerPlanModeLabel
-              value={threadMode}
-              onDisable={() => {
-                void setComposerMode('agent')
-              }}
-              label={t('composer.mode.plan')}
-              shortcut={ACTION_SHORTCUTS.toggleMode}
-              title={t('composer.planPill.create')}
-              ariaLabel={t('composer.system.plan.disable')}
-            />
+            {hasProfile ? (
+              <ComposerCustomProfileLabel
+                label={t('composer.mode.custom')}
+                onClear={() => {
+                  void clearProfile()
+                }}
+                title={t('composer.customPill.title', { name: activeProfileId ?? '' })}
+                ariaLabel={t('composer.customPill.aria')}
+              />
+            ) : (
+              <ComposerPlanModeLabel
+                value={threadMode}
+                onDisable={() => {
+                  void setComposerMode('agent')
+                }}
+                label={t('composer.mode.plan')}
+                shortcut={ACTION_SHORTCUTS.toggleMode}
+                title={t('composer.planPill.create')}
+                ariaLabel={t('composer.system.plan.disable')}
+              />
+            )}
             {currentGoal && (
               <ActionTooltip label={currentGoal.objective} placement="top">
                 <button
@@ -1340,7 +1430,7 @@ export function InputComposer({
         }
         footerAction={
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <ChatGptUsageBadge provider={activeChatGptProvider} />
+            {!minimalChrome && <ChatGptUsageBadge provider={activeChatGptProvider} />}
             <ContextUsageRing />
             <ModelPicker
               modelName={modelName}
@@ -1412,13 +1502,15 @@ export function InputComposer({
           </div>
         }
         belowFooter={
-          <ComposerWorkspaceFooter
-            workspacePath={effectiveFileWorkspacePath}
-            mode={activeThread?.worktree ? 'worktree' : 'local'}
-            variant="thread"
-            thread={activeThread}
-            remoteWorkspace={remoteWorkspace}
-          />
+          minimalChrome ? undefined : (
+            <ComposerWorkspaceFooter
+              workspacePath={effectiveFileWorkspacePath}
+              mode={activeThread?.worktree ? 'worktree' : 'local'}
+              variant="thread"
+              thread={activeThread}
+              remoteWorkspace={remoteWorkspace}
+            />
+          )
         }
       />
       </ConversationColumn>

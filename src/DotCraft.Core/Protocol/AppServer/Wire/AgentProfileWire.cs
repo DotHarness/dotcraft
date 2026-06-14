@@ -37,6 +37,10 @@ public sealed class AgentProfileEntryWire
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Path { get; set; }
 
+    /// <summary>Last write time of the profile file (UTC). Absent for built-in/in-memory profiles.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DateTimeOffset? UpdatedAt { get; set; }
+
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? PluginId { get; set; }
 

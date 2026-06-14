@@ -403,6 +403,14 @@ public sealed class AppServerServerCapabilities
     public bool ExternalChannelManagement { get; set; }
 
     /// <summary>
+    /// Server supports the built-in tool catalog method (<c>tool/list</c>, spec Section 18A).
+    /// Always true for servers built on this protocol version; the catalog is derived from
+    /// server reflection and has no workspace dependency.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool ToolCatalog { get; set; }
+
+    /// <summary>
     /// Server supports Agent Profile Markdown management methods
     /// (<c>agent/profiles/list</c>, <c>agent/profiles/upsert</c>, etc.).
     /// </summary>

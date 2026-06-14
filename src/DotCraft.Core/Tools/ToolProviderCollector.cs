@@ -38,6 +38,7 @@ public static class ToolProviderCollector
         {
             providers.Add(new CoreToolProvider());
             providers.Add(new GoalToolProvider());
+            providers.Add(new AgentProfileBuilderToolProvider());
             providers.Add(new NodeReplPluginFunctionProvider());
             providers.Add(new CronToolProvider());
 

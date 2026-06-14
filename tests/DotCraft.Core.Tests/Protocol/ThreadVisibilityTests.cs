@@ -57,6 +57,35 @@ public sealed class ThreadVisibilityTests
         Assert.True(ThreadVisibility.IsInternal(thread));
     }
 
+    [Fact]
+    public void IsInternal_WhenSessionThreadIsAgentBuilder_ReturnsTrue()
+    {
+        var thread = new SessionThread
+        {
+            Id = "thread_builder",
+            OriginChannel = "dotcraft-desktop",
+            Configuration = new ThreadConfiguration { AgentBuilderTargetId = "release-notes-writer" }
+        };
+
+        Assert.True(ThreadVisibility.IsInternal(thread));
+    }
+
+    [Fact]
+    public void FromThread_AgentBuilderThread_ProjectsInternalMarkerSoSummaryIsHidden()
+    {
+        var thread = new SessionThread
+        {
+            Id = "thread_builder",
+            OriginChannel = "dotcraft-desktop",
+            Configuration = new ThreadConfiguration { AgentBuilderTargetId = "release-notes-writer" }
+        };
+
+        var summary = ThreadSummary.FromThread(thread);
+
+        Assert.Equal(ThreadVisibility.AgentBuilderInternalValue, summary.Metadata[ThreadVisibility.InternalMetadataKey]);
+        Assert.True(ThreadVisibility.IsInternal(summary));
+    }
+
     private static ThreadSummary CreateSummary(string originChannel = "dotcraft-desktop") =>
         new()
         {

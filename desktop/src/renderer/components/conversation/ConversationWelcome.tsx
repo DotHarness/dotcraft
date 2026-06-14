@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType, type CSSProperties } from 'react'
-import { BookText, Bug, ExternalLink, FileText, Link2, ListChecks, RefreshCw, Sparkles, Target } from 'lucide-react'
+import { BookText, Bot, Bug, ExternalLink, FileText, Link2, ListChecks, RefreshCw, Sparkles, Target } from 'lucide-react'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { useModelCatalogStore, type ReasoningEffortWire, type ReasoningOutputWire } from '../../stores/modelCatalogStore'
@@ -32,6 +32,7 @@ import { ModelPicker, type ReasoningQuickValue } from './ModelPicker'
 import { ChatGptUsageBadge } from './ChatGptUsageBadge'
 import { ApprovalPolicyPicker, type VisibleApprovalPolicy } from './ApprovalPolicyPicker'
 import {
+  ComposerCustomProfileLabel,
   ComposerPlanModeLabel,
   ComposerSendButton,
   ComposerShell,
@@ -39,6 +40,7 @@ import {
   composerModelPillStyle
 } from './ComposerShell'
 import { ComposerWorkspaceFooter, type ComposerWorkspaceMode } from './ComposerWorkspaceFooter'
+import { ProfilePickerPopover } from './ProfilePickerPopover'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { PillSwitch } from '../ui/PillSwitch'
 import { Skeleton } from '../ui/Skeleton'
@@ -203,6 +205,10 @@ export function ConversationWelcome({
   const canUseSkillPicker = capabilities?.skillsManagement === true
   const canUseThreadGoals = capabilities?.threadGoals === true
   const canUseAppBinding = capabilities?.appBinding === true
+  const canUseAgentProfiles = capabilities?.agentProfileManagement === true
+  // A profile chosen via /Profile before sending; applied to the thread that the first message creates.
+  const [profilePickerOpen, setProfilePickerOpen] = useState(false)
+  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null)
   const canUseSystemActions = true
   const canUseSlashPicker = canUseCommandPicker || canUseSkillPicker || canUseThreadGoals || canUseSystemActions
   const remoteLocalFilesUnavailable = remoteWorkspace ? t('input.remoteLocalFilesUnavailable') : undefined
@@ -241,8 +247,10 @@ export function ConversationWelcome({
   )
   const systemActions = useMemo(
     () => {
-      const actions = [
-        {
+      const actions = []
+      // A profile-backed thread runs its agent's fixed capability scope, so it has no Plan/Agent mode.
+      if (!selectedProfileId) {
+        actions.push({
           id: 'planMode',
           label: t('composer.system.plan'),
           description: welcomeMode === 'agent'
@@ -250,8 +258,17 @@ export function ConversationWelcome({
             : t('composer.system.plan.disable'),
           keywords: ['plan', 'agent', '计划'],
           icon: <ListChecks size={11} strokeWidth={2} aria-hidden />
-        }
-      ]
+        })
+      }
+      if (canUseAgentProfiles) {
+        actions.push({
+          id: 'profile',
+          label: t('composer.system.profile'),
+          description: t('composer.system.profile.description'),
+          keywords: ['profile', 'agent', 'custom'],
+          icon: <Bot size={11} strokeWidth={2} aria-hidden />
+        })
+      }
       if (canUseThreadGoals) {
         actions.push({
           id: 'goal',
@@ -263,7 +280,7 @@ export function ConversationWelcome({
       }
       return actions
     },
-    [canUseThreadGoals, t, welcomeMode]
+    [canUseAgentProfiles, canUseThreadGoals, selectedProfileId, t, welcomeMode]
   )
   const modelApiAvailable =
     isConnected &&
@@ -654,6 +671,10 @@ export function ConversationWelcome({
       toggleWelcomeMode()
       return
     }
+    if (actionId === 'profile') {
+      setProfilePickerOpen(true)
+      return
+    }
     if (actionId !== 'goal') return
     setGoalPopoverOpen(true)
   }, [clearSlashSystemInput, toggleWelcomeMode])
@@ -958,6 +979,13 @@ export function ConversationWelcome({
     return res.thread
   }, [identityPath, welcomeBaseRef, welcomeWorkspaceMode, welcomeWorktreeBranchName])
 
+  // Apply a profile chosen via /Profile to the freshly created thread (the only method that lands the
+  // profile's compiled config). No-op when no profile was selected.
+  const applyWelcomeProfile = useCallback(async (threadId: string, profileId: string | null): Promise<void> => {
+    if (!profileId) return
+    await window.api.appServer.sendRequest('agent/profiles/refreshThread', { threadId, profileId })
+  }, [])
+
   const createGoalBackedThread = useCallback(async (objective: string): Promise<boolean> => {
     if (!canUseThreadGoals) {
       showGoalUnavailable()
@@ -976,14 +1004,17 @@ export function ConversationWelcome({
     setGoalBusy(true)
     setStarting(true)
     setMascotBounce((n) => n + 1)
-    const capturedMode = welcomeMode
+    // A profile-backed thread runs its agent's fixed posture (no Plan/Agent mode).
+    const capturedMode = selectedProfileId ? 'agent' : welcomeMode
     const capturedApprovalPolicy = welcomeApprovalPolicy
     const capturedModel = modelName === 'Default' ? '' : modelName
     const capturedReasoning = reasoningConfig
+    const capturedProfileId = selectedProfileId
     let createdThreadId: string | null = null
     try {
       const thread = await startWelcomeThread()
       createdThreadId = thread.id
+      await applyWelcomeProfile(thread.id, capturedProfileId)
 
       const goalResult = await window.api.appServer.sendRequest('thread/goal/set', {
         threadId: thread.id,
@@ -1030,11 +1061,13 @@ export function ConversationWelcome({
     }
   }, [
     addThread,
+    applyWelcomeProfile,
     canUseThreadGoals,
     clearWelcomeDraft,
     connectionStatus,
     draftProjectKey,
     modelLoading,
+    selectedProfileId,
     setActiveThreadId,
     showGoalUnavailable,
     startWelcomeAppBindings,
@@ -1102,14 +1135,17 @@ export function ConversationWelcome({
     setMascotBounce((n) => n + 1)
     const capturedImages = [...images]
     const capturedFiles = [...files]
-    const capturedMode = welcomeMode
+    // A profile-backed thread runs its agent's fixed posture (no Plan/Agent mode).
+    const capturedMode = selectedProfileId ? 'agent' : welcomeMode
     const capturedApprovalPolicy = welcomeApprovalPolicy
     const capturedModel = modelName === 'Default' ? '' : modelName
     const capturedReasoning = reasoningConfig
+    const capturedProfileId = selectedProfileId
     let createdThreadId: string | null = null
     try {
       const thread = await startWelcomeThread()
       createdThreadId = thread.id
+      await applyWelcomeProfile(thread.id, capturedProfileId)
       await startWelcomeAppBindings(thread.id)
 
       skipDraftPersistRef.current = true
@@ -1153,6 +1189,8 @@ export function ConversationWelcome({
     images,
     connectionStatus,
     addThread,
+    applyWelcomeProfile,
+    selectedProfileId,
     setActiveThreadId,
     startWelcomeAppBindings,
     startWelcomeThread,
@@ -1403,6 +1441,17 @@ export function ConversationWelcome({
                         setGoalPopoverOpen(false)
                       }}
                     />
+                    <ProfilePickerPopover
+                      visible={profilePickerOpen}
+                      activeProfileId={selectedProfileId ?? undefined}
+                      onPick={(profileId) => {
+                        setSelectedProfileId(profileId)
+                        setProfilePickerOpen(false)
+                      }}
+                      onDismiss={() => {
+                        setProfilePickerOpen(false)
+                      }}
+                    />
                     <CommandSearchPopover
                       query={slashQuery ?? ''}
                       visible={showSlashPopover}
@@ -1493,10 +1542,10 @@ export function ConversationWelcome({
                     onReferenceFiles={() => {
                       void pickFiles()
                     }}
-                    planModeLabel={t('composer.system.plan')}
+                    planModeLabel={selectedProfileId ? undefined : t('composer.system.plan')}
                     planModeToggleLabel={t('composer.system.plan.toggle')}
                     planModeEnabled={welcomeMode === 'plan'}
-                    onTogglePlanMode={() => {
+                    onTogglePlanMode={selectedProfileId ? undefined : () => {
                       toggleWelcomeMode()
                     }}
                     attachmentDisabledReason={remoteLocalFilesUnavailable}
@@ -1508,16 +1557,25 @@ export function ConversationWelcome({
                     disabled={starting}
                   />
 
-                  <ComposerPlanModeLabel
-                    value={welcomeMode}
-                    onDisable={() => {
-                      setWelcomeMode('agent')
-                    }}
-                    label={t('composer.mode.plan')}
-                    shortcut={ACTION_SHORTCUTS.toggleMode}
-                    title={t('composer.planPill.create')}
-                    ariaLabel={t('composer.system.plan.disable')}
-                  />
+                  {selectedProfileId ? (
+                    <ComposerCustomProfileLabel
+                      label={t('composer.mode.custom')}
+                      onClear={() => setSelectedProfileId(null)}
+                      title={t('composer.customPill.title', { name: selectedProfileId })}
+                      ariaLabel={t('composer.customPill.aria')}
+                    />
+                  ) : (
+                    <ComposerPlanModeLabel
+                      value={welcomeMode}
+                      onDisable={() => {
+                        setWelcomeMode('agent')
+                      }}
+                      label={t('composer.mode.plan')}
+                      shortcut={ACTION_SHORTCUTS.toggleMode}
+                      title={t('composer.planPill.create')}
+                      ariaLabel={t('composer.system.plan.disable')}
+                    />
+                  )}
                 </div>
               }
               footerAction={
