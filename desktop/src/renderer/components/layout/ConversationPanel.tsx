@@ -9,6 +9,7 @@ import { ThreadHeader } from '../conversation/ThreadHeader'
 import { InteractiveToolOverlay } from '../conversation/InteractiveToolView'
 import { MessageStream } from '../conversation/MessageStream'
 import { InputComposer } from '../conversation/InputComposer'
+import type { AvatarSpec } from '../agents/agentAvatar'
 import { PlanApprovalComposer } from '../conversation/PlanApprovalComposer'
 import { RequestUserInputComposer } from '../conversation/RequestUserInputComposer'
 import { ApprovalDecisionComposer } from '../conversation/ApprovalDecisionComposer'
@@ -29,6 +30,8 @@ interface ConversationPanelProps {
   onInteractionResponseAccepted?: () => void
   /** Render the composer with minimal chrome (no workspace/branch footer, permissions, or subscription badge). */
   minimalComposer?: boolean
+  /** Explicit mascot character for the composer (e.g. the Agent Builder pane's edited-profile avatar). */
+  mascotAvatar?: AvatarSpec
 }
 
 interface ResolvedReasoningConfig {
@@ -60,7 +63,8 @@ export function ConversationPanel({
   workspaceConfigChange = null,
   workspaceConfigChangeSeq = 0,
   onInteractionResponseAccepted,
-  minimalComposer = false
+  minimalComposer = false,
+  mascotAvatar
 }: ConversationPanelProps): JSX.Element {
   const activeThread = useThreadStore((s) => s.activeThread)
   const activeThreadId = useThreadStore((s) => s.activeThreadId)
@@ -463,6 +467,7 @@ export function ConversationPanel({
           fileWorkspacePath={activeEffectiveWorkspacePath}
           remoteWorkspace={remoteWorkspace}
           minimalChrome={minimalComposer}
+          mascotAvatar={mascotAvatar}
           modelName={modelName}
           modelOptions={modelOptions}
           modelCatalog={modelCatalog}

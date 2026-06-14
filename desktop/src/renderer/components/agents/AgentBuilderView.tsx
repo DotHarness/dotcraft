@@ -427,7 +427,7 @@ export function AgentBuilderView(): JSX.Element {
             ) : builderConversation.status !== 'ready' ? (
               <div className="agent-builder-chat-loading">Starting builder…</div>
             ) : (
-              <ConversationPanel workspacePath={workspacePath} minimalComposer />
+              <ConversationPanel workspacePath={workspacePath} minimalComposer mascotAvatar={route.avatar} />
             )}
           </aside>
         )}

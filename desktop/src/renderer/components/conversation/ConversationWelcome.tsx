@@ -41,6 +41,7 @@ import {
 } from './ComposerShell'
 import { ComposerWorkspaceFooter, type ComposerWorkspaceMode } from './ComposerWorkspaceFooter'
 import { ProfilePickerPopover } from './ProfilePickerPopover'
+import { avatarForProfile } from '../agents/agentAvatar'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { PillSwitch } from '../ui/PillSwitch'
 import { Skeleton } from '../ui/Skeleton'
@@ -1403,6 +1404,7 @@ export function ConversationWelcome({
               focused={editorFocused}
               showMascot
               mascotBounceSignal={mascotBounce}
+              mascotAvatar={selectedProfileId ? avatarForProfile(selectedProfileId) : undefined}
               attachmentStrip={
                 <AttachmentStrip
                   images={images}

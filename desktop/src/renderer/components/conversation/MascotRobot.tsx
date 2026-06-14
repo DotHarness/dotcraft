@@ -1,4 +1,5 @@
-import { useId, type CSSProperties, type JSX } from 'react'
+import { useEffect, useId, useState, type CSSProperties, type JSX } from 'react'
+import { paletteOf, type AvatarSpec } from '../agents/agentAvatar'
 
 /**
  * Inline DotCraft mascot robot with a swappable face.
@@ -66,6 +67,13 @@ interface MascotRobotProps {
   size?: number
   className?: string
   style?: CSSProperties
+  /**
+   * Optional Agent Profile character. When set, the body / arm / face-mark gradients and the
+   * drop-shadow color come from this profile's palette (the antenna stays brand-yellow so its
+   * error/success status semantics survive). Absent → the default DotCraft blue. Changing it plays
+   * a short opacity dip, swapping the palette at the trough (see crossfade below).
+   */
+  avatar?: AvatarSpec
 }
 
 /**
@@ -112,7 +120,8 @@ export function MascotRobot({
   light = 'default',
   size = 48,
   className,
-  style
+  style,
+  avatar
 }: MascotRobotProps): JSX.Element {
   const uid = useId().replace(/:/g, '')
   const blue = `mascot-blue-${uid}`
@@ -125,6 +134,32 @@ export function MascotRobot({
     light === 'error' ? 'var(--error)' : light === 'success' ? 'var(--success)' : `url(#${yellow})`
   const glowFill = light === 'error' ? 'var(--error)' : light === 'success' ? 'var(--success)' : '#f6b500'
 
+  // Crossfade: render the palette of `rendered`, which only catches up to `avatar` at the dip trough,
+  // so the color swap lands while the robot is faded out (a brief "terminal refresh" between agents).
+  const targetKey = avatar ? paletteOf(avatar).key : 'default'
+  const [rendered, setRendered] = useState<AvatarSpec | undefined>(avatar)
+  const [dipping, setDipping] = useState(false)
+  const renderedKey = rendered ? paletteOf(rendered).key : 'default'
+  useEffect(() => {
+    if (targetKey === renderedKey) return undefined
+    setDipping(true)
+    const timer = window.setTimeout(() => {
+      setRendered(avatar)
+      setDipping(false)
+    }, 90)
+    return () => window.clearTimeout(timer)
+  }, [targetKey, renderedKey, avatar])
+
+  const palette = rendered ? paletteOf(rendered) : null
+  const body0 = palette ? palette.bodyD : '#2458f7'
+  const body1 = palette ? palette.bodyM : '#5f82f7'
+  const body2 = palette ? palette.bodyL : '#8fa5ff'
+  const mark0 = palette ? palette.markD : '#2257f5'
+  const mark1 = palette ? palette.markL : '#577df7'
+  const mark2 = palette ? palette.markL : '#8ca2ff'
+  const softShadowColor = palette ? palette.shadow : '#0b3d62'
+  const innerLiftColor = palette ? palette.shadow : '#163a88'
+
   return (
     <svg
       width={size}
@@ -134,30 +169,30 @@ export function MascotRobot({
       xmlns="http://www.w3.org/2000/svg"
       className={className ? `mascot-robot ${className}` : 'mascot-robot'}
       data-expression={expression}
-      style={{ overflow: 'visible', ...style }}
+      style={{ overflow: 'visible', opacity: dipping ? 0.25 : 1, transition: 'opacity 90ms ease', ...style }}
       role="img"
       aria-label="DotCraft mascot"
     >
       <defs>
         <linearGradient id={blue} x1="279" y1="766" x2="736" y2="334" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stopColor="#2458f7" />
-          <stop offset=".46" stopColor="#5f82f7" />
-          <stop offset="1" stopColor="#8fa5ff" />
+          <stop offset="0" stopColor={body0} />
+          <stop offset=".46" stopColor={body1} />
+          <stop offset="1" stopColor={body2} />
         </linearGradient>
         <linearGradient id={blueMark} x1="380" y1="696" x2="492" y2="557" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stopColor="#2257f5" />
-          <stop offset=".55" stopColor="#577df7" />
-          <stop offset="1" stopColor="#8ca2ff" />
+          <stop offset="0" stopColor={mark0} />
+          <stop offset=".55" stopColor={mark1} />
+          <stop offset="1" stopColor={mark2} />
         </linearGradient>
         <linearGradient id={yellow} x1="481" y1="174" x2="617" y2="713" gradientUnits="userSpaceOnUse">
           <stop offset="0" stopColor="#ffcf11" />
           <stop offset="1" stopColor="#f6b500" />
         </linearGradient>
         <filter id={softShadow} x="-12%" y="-12%" width="124%" height="124%">
-          <feDropShadow dx="0" dy="18" stdDeviation="24" floodColor="#0b3d62" floodOpacity=".18" />
+          <feDropShadow dx="0" dy="18" stdDeviation="24" floodColor={softShadowColor} floodOpacity=".18" />
         </filter>
         <filter id={innerLift} x="-8%" y="-8%" width="116%" height="116%">
-          <feDropShadow dx="0" dy="10" stdDeviation="16" floodColor="#163a88" floodOpacity=".1" />
+          <feDropShadow dx="0" dy="10" stdDeviation="16" floodColor={innerLiftColor} floodOpacity=".1" />
         </filter>
         <clipPath id={laptopClip}>
           <rect x="358" y="716" width="308" height="128" rx="8" />

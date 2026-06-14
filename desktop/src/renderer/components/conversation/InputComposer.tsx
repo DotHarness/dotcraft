@@ -60,6 +60,7 @@ import {
 } from './ComposerShell'
 import { ProfilePickerPopover } from './ProfilePickerPopover'
 import { ComposerWorkspaceFooter } from './ComposerWorkspaceFooter'
+import { avatarForProfile, type AvatarSpec } from '../agents/agentAvatar'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
@@ -128,6 +129,11 @@ interface InputComposerProps {
    * subscription badge. The core input — attach, plan pill, reasoning, model, send — is kept.
    */
   minimalChrome?: boolean
+  /**
+   * Explicit mascot character. When set, overrides the thread-profile-derived avatar — used by the
+   * Agent Builder pane to show the edited profile's character (the builder thread has no profile id).
+   */
+  mascotAvatar?: AvatarSpec
 }
 
 /**
@@ -151,7 +157,8 @@ export function InputComposer({
   onModelChange,
   onReasoningChange,
   onModelCatalogRetry,
-  minimalChrome = false
+  minimalChrome = false,
+  mascotAvatar
 }: InputComposerProps): JSX.Element {
   const t = useT()
   const [images, setImages] = useState<ImageAttachment[]>([])
@@ -228,6 +235,8 @@ export function InputComposer({
   const rawProfileId = (activeThread?.configuration as Record<string, unknown> | null | undefined)?.agentProfileId
   const activeProfileId = typeof rawProfileId === 'string' && rawProfileId.length > 0 ? rawProfileId : undefined
   const hasProfile = activeProfileId !== undefined
+  // Explicit avatar (builder pane) wins; otherwise derive from the thread's active profile.
+  const effectiveMascotAvatar = mascotAvatar ?? (activeProfileId ? avatarForProfile(activeProfileId) : undefined)
   const canUseSlashPicker = canUseCommandPicker || canUseSkillPicker || canUseThreadGoals || canUseSystemActions
   const remoteLocalFilesUnavailable = remoteWorkspace ? t('input.remoteLocalFilesUnavailable') : undefined
 
@@ -1242,6 +1251,7 @@ export function InputComposer({
         showMascot
         mascotBounceSignal={mascotBounce}
         mascotInteraction={mascotInteraction}
+        mascotAvatar={effectiveMascotAvatar}
         mascotHandoff
         attachmentStrip={
           <AttachmentStrip

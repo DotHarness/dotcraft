@@ -14,6 +14,7 @@ import {
 import { Bot, ListChecks, Square, X } from 'lucide-react'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { MascotRobot, type MascotExpression, type MascotLight } from './MascotRobot'
+import type { AvatarSpec } from '../agents/agentAvatar'
 import { MascotBubble, type MascotBubbleAction, type MascotBubbleTone } from './MascotBubble'
 import { consumeMascotHandoff, recordMascotHandoff } from './mascotHandoff'
 import { ContextMenu, type ContextMenuItem, type ContextMenuPosition } from '../ui/ContextMenu'
@@ -89,6 +90,8 @@ interface ComposerShellProps {
   mascotBounceSignal?: number
   /** State-driven expression/light/bubble/right-click menu for the mascot. */
   mascotInteraction?: ComposerMascotInteraction
+  /** Optional Agent Profile character: recolors the mascot to the profile's palette. */
+  mascotAvatar?: AvatarSpec
   /** Participate in cross-composer position handoff: when this shell replaces
    *  (or is replaced by) another handoff shell — input ↔ approval — the mascot
    *  rides between the two rims instead of hard-cutting. */
@@ -152,12 +155,14 @@ function ComposerMascot({
   dragOver,
   bounceSignal,
   interaction,
+  avatar,
   handoff = false
 }: {
   focused: boolean
   dragOver: boolean
   bounceSignal: number
   interaction?: ComposerMascotInteraction
+  avatar?: AvatarSpec
   handoff?: boolean
 }): JSX.Element {
   const [menuPos, setMenuPos] = useState<ContextMenuPosition | null>(null)
@@ -475,7 +480,7 @@ function ComposerMascot({
                     : undefined
                 }
               >
-                <MascotRobot expression={expression} light={light} size={MASCOT_SIZE} />
+                <MascotRobot expression={expression} light={light} size={MASCOT_SIZE} avatar={avatar} />
               </div>
             </div>
           </div>
@@ -534,6 +539,7 @@ export function ComposerShell({
   showMascot = false,
   mascotBounceSignal = 0,
   mascotInteraction,
+  mascotAvatar,
   mascotHandoff = false
 }: ComposerShellProps): JSX.Element {
   const [hovered, setHovered] = useState(false)
@@ -557,6 +563,7 @@ export function ComposerShell({
           dragOver={dragOver}
           bounceSignal={mascotBounceSignal}
           interaction={mascotInteraction}
+          avatar={mascotAvatar}
           handoff={mascotHandoff}
         />
       )}
