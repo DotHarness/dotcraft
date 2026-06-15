@@ -344,6 +344,9 @@ function ComposerMascot({
         setStartled(false)
         break
       case 'composer-mascot-wave-arm':
+      // Held-sign variant: the arm rocks the gripped "?" sign instead of fanning
+      // an empty hand; same one-shot lifecycle, different keyframes.
+      case 'composer-mascot-sign-wave-arm':
         setWaving(false)
         break
       case 'composer-mascot-nod':

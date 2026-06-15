@@ -1386,6 +1386,73 @@ kbd {
   transition: opacity 180ms ease 340ms;
 }
 
+/* Click greeting WHILE holding the sign — wave the flag, not the bare hand.
+   The plain wave (composer-mascot-wave-arm) drops the raised arm back to rest
+   and fans an empty hand, leaving the sign pinned in space. Instead the raised
+   right arm rocks around its held -128° angle and the sign swings in lockstep,
+   so it reads as the robot waving the sign it is gripping. Both keep
+   translate(-48,88) scaleY(0.8) fixed (only the angle moves) and start/end
+   exactly at the held pose, so the hand-off to/from .composer-mascot-hold-sign
+   is seamless. The compound selector (two root classes) outranks the lone
+   .composer-mascot-wave arm rule, so only this animation runs on the arm. */
+@keyframes composer-mascot-sign-wave-arm {
+  0% {
+    transform: translate(-48px, 88px) rotate(-128deg) scaleY(0.8);
+  }
+  18% {
+    transform: translate(-48px, 88px) rotate(-143deg) scaleY(0.8);
+  }
+  42% {
+    transform: translate(-48px, 88px) rotate(-113deg) scaleY(0.8);
+  }
+  66% {
+    transform: translate(-48px, 88px) rotate(-143deg) scaleY(0.8);
+  }
+  86% {
+    transform: translate(-48px, 88px) rotate(-120deg) scaleY(0.8);
+  }
+  100% {
+    transform: translate(-48px, 88px) rotate(-128deg) scaleY(0.8);
+  }
+}
+
+/* The sign's matching swing is a pure rotation about the hand's pivot — the
+   arm's shoulder hinge (791,514) shifted by its held translate (-48,88), i.e.
+   C = (743,602) — by exactly the arm's angular deviation from -128° at each
+   step (-143° → -15°, -113° → +15°). Same centre + same delta means the board
+   tracks the hand tip rigidly: it stays gripped instead of floating. */
+@keyframes composer-mascot-sign-wave-prop {
+  0% {
+    transform: rotate(0deg);
+  }
+  18% {
+    transform: rotate(-15deg);
+  }
+  42% {
+    transform: rotate(15deg);
+  }
+  66% {
+    transform: rotate(-15deg);
+  }
+  86% {
+    transform: rotate(8deg);
+  }
+  100% {
+    transform: rotate(0deg);
+  }
+}
+
+.composer-mascot-hold-sign.composer-mascot-wave .mascot-arm-r-w,
+.composer-mascot-hold-sign.composer-mascot-wave .mascot-arm-r-b {
+  animation: composer-mascot-sign-wave-arm 1.6s ease-in-out;
+}
+
+.composer-mascot-hold-sign.composer-mascot-wave .mascot-prop-sign {
+  transform-box: view-box;
+  transform-origin: 743px 602px;
+  animation: composer-mascot-sign-wave-prop 1.6s ease-in-out;
+}
+
 /* ─── Composer mascot: cross-composer ride landing squash ───
    The approval composer replaces the input composer (a full remount); the new
    mascot instance starts from the old one's screen position and rides to its
