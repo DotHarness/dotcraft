@@ -167,12 +167,48 @@ const MARKER_FALLBACK_SELECTOR = [
 ].join(', ')
 const MARKER_OFFSET_X_ATTR = 'data-agent-builder-marker-offset-x'
 const MARKER_OFFSET_Y_ATTR = 'data-agent-builder-marker-offset-y'
+const MARKER_SELECTOR = '.agent-builder-edit-marker'
+const MARKER_FLIP_PAD = 12
 
 function markerOffset(target: HTMLElement, attr: string): number | null {
   const value = target.getAttribute(attr)
   if (value == null) return null
   const parsed = Number.parseFloat(value)
   return Number.isFinite(parsed) ? parsed : null
+}
+
+let markerTextCanvas: HTMLCanvasElement | null = null
+
+// Width of `line` as the element actually renders it — used to find where the
+// text ends inside a full-width input/textarea (its box edge is uninformative).
+function markerTextWidth(el: HTMLElement, line: string): number {
+  try {
+    const canvas = (markerTextCanvas ??= document.createElement('canvas'))
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return 0
+    const style = window.getComputedStyle(el)
+    ctx.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`
+    return ctx.measureText(line).width
+  } catch {
+    return 0
+  }
+}
+
+// Distance from a marker target's left edge to the end of its rendered content.
+// Text fields span the full width, so we measure the text rather than trust the
+// box edge; every other target hugs its own content.
+function markerContentEnd(target: HTMLElement): number {
+  if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
+    const style = window.getComputedStyle(target)
+    const paddingLeft = Number.parseFloat(style.paddingLeft) || 0
+    const paddingRight = Number.parseFloat(style.paddingRight) || 0
+    const raw = target.value || target.placeholder || ''
+    const line = target instanceof HTMLTextAreaElement ? (raw.split('\n')[0] ?? '') : raw
+    const end = paddingLeft + markerTextWidth(target, line)
+    const maxEnd = target.clientWidth - paddingRight
+    return maxEnd > 0 ? Math.min(end, maxEnd) : end
+  }
+  return target.getBoundingClientRect().width
 }
 
 // Neutral-inverted primary "+ Add" button, matching the Channels/Plugins catalog header.
@@ -1332,10 +1368,18 @@ function FieldAnchor({
       if (!target) return
       const anchorRect = anchor.getBoundingClientRect()
       const targetRect = target.getBoundingClientRect()
-      const x = targetRect.left - anchorRect.left + (markerOffset(target, MARKER_OFFSET_X_ATTR) ?? 0)
+      const x = targetRect.left - anchorRect.left + markerContentEnd(target) + (markerOffset(target, MARKER_OFFSET_X_ATTR) ?? 0)
       const y = targetRect.top - anchorRect.top + (markerOffset(target, MARKER_OFFSET_Y_ATTR) ?? (targetRect.height / 2))
       anchor.style.setProperty('--agent-builder-marker-x', `${Math.round(x)}px`)
       anchor.style.setProperty('--agent-builder-marker-y', `${Math.round(y)}px`)
+
+      // The label trails to the right of the cursor by default; flip it leftward
+      // only when the content already reaches the field's right edge so it never
+      // overflows the (clipped) editor pane.
+      const marker = anchor.querySelector<HTMLElement>(MARKER_SELECTOR)
+      if (marker) {
+        marker.classList.toggle('is-marker-flipped', x + marker.offsetWidth + MARKER_FLIP_PAD > anchorRect.width)
+      }
     }
 
     const scheduleMeasure = (): void => {
@@ -1373,8 +1417,8 @@ function AgentEditingMarker({ field }: { field: BuilderField }): JSX.Element {
 
   return (
     <span className="agent-builder-edit-marker" aria-label={label}>
-      <span className="agent-builder-edit-marker-pill">{label}</span>
       <MousePointer2 className="agent-builder-edit-marker-arrow" size={17} aria-hidden />
+      <span className="agent-builder-edit-marker-pill">{label}</span>
     </span>
   )
 }

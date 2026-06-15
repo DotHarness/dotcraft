@@ -189,8 +189,14 @@
   opacity: 1;
   pointer-events: none;
   white-space: nowrap;
-  transform: translate(calc(-100% - 8px), -50%);
+  transform: translate(2px, -50%);
   animation: agent-builder-marker-pop 180ms ease both;
+}
+/* Fallback when the content already reaches the field's right edge: trail the
+   label leftward instead so it never overflows the clipped editor pane. */
+.agent-builder-edit-marker.is-marker-flipped {
+  flex-direction: row-reverse;
+  transform: translate(calc(-100% - 2px), -50%);
 }
 .agent-builder-edit-marker-pill {
   margin-top: 9px;
