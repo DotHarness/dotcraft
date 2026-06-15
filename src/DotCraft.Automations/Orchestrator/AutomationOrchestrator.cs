@@ -629,13 +629,44 @@ public sealed class AutomationOrchestrator
             localTask.WorkspaceMode = workspaceMode;
             automationTaskDirectory = localTask.TaskDirectory;
 
-            var threadConfig = new ThreadConfiguration
+            ThreadConfiguration threadConfig;
+            var boundProfileId = string.IsNullOrWhiteSpace(localTask.AgentProfileId)
+                ? null
+                : localTask.AgentProfileId.Trim();
+            if (boundProfileId != null)
             {
-                ToolProfile = _source.ToolProfileName,
-                ApprovalPolicy = ApprovalPolicy.AutoApprove,
-                AutomationTaskDirectory = automationTaskDirectory,
-                RequireApprovalOutsideWorkspace = ResolveRequireApprovalOutsideWorkspace(task)
-            };
+                try
+                {
+                    // Resolve the bound Agent Profile fresh each dispatch so profile edits take effect on
+                    // the next run. The profile governs capabilities (tools/MCP/skills/model/instructions);
+                    // ApplyAutomationOperationalOverrides forces the automation-owned fields on top.
+                    var workspaceCraftPath = Path.Combine(client.ProjectWorkspacePath, ".craft");
+                    threadConfig = new AgentProfileStore(workspaceCraftPath).ResolveProfileConfiguration(boundProfileId);
+                    threadConfig.AgentProfileId = boundProfileId;
+                }
+                catch (Exception ex)
+                {
+                    // A bound profile that no longer resolves (deleted / invalid) fails the run rather than
+                    // silently downgrading to the default agent — the task explicitly requested that capability set.
+                    _logger.LogWarning(
+                        ex,
+                        "Agent profile '{ProfileId}' for task {TaskId} could not be resolved; failing the run",
+                        boundProfileId,
+                        task.Id);
+                    task.AgentSummary = $"Agent profile '{boundProfileId}' is missing or invalid.";
+                    task.Status = AutomationTaskStatus.Failed;
+                    TrackTask(task);
+                    await _source.OnStatusChangedAsync(task, AutomationTaskStatus.Failed, ct);
+                    await RaiseStatusChangedAsync(task, AutomationTaskStatus.Failed);
+                    return;
+                }
+            }
+            else
+            {
+                threadConfig = new ThreadConfiguration();
+            }
+
+            ApplyAutomationOperationalOverrides(threadConfig, automationTaskDirectory, task);
 
             threadId = await client.CreateOrResumeThreadAsync(
                 AutomationsChannelName,
@@ -827,6 +858,51 @@ public sealed class AutomationOrchestrator
             await _source.OnStatusChangedAsync(task, AutomationTaskStatus.Completed, ct);
             await RaiseStatusChangedAsync(task, AutomationTaskStatus.Completed);
             _logger.LogInformation("Task {TaskId} completed", task.Id);
+        }
+    }
+
+    /// <summary>
+    /// Applies the automation-owned operational fields on top of a (possibly profile-resolved) thread
+    /// configuration. These always win over an Agent Profile: unattended runs must auto-approve, the task
+    /// directory must be set so <c>CompleteLocalTask</c> is injected, and the completion tool must remain
+    /// reachable even under a restrictive profile tool policy.
+    /// </summary>
+    private void ApplyAutomationOperationalOverrides(
+        ThreadConfiguration config,
+        string? automationTaskDirectory,
+        AutomationTask task)
+    {
+        // The local-task tool profile injects CompleteLocalTask; it is operational infrastructure, not a
+        // capability the user chose, so it is applied regardless of any bound Agent Profile.
+        config.ToolProfile = _source.ToolProfileName;
+        config.UseToolProfileOnly = false;
+        // Automation always executes, never plans; a profile compiled in plan mode must not no-op the run.
+        config.Mode = "agent";
+        config.ApprovalPolicy = ApprovalPolicy.AutoApprove;
+        config.AutomationTaskDirectory = automationTaskDirectory;
+        config.RequireApprovalOutsideWorkspace = ResolveRequireApprovalOutsideWorkspace(task);
+        EnsureCompletionToolAllowed(config);
+    }
+
+    /// <summary>
+    /// Ensures a bound profile's allow-list cannot hide <c>CompleteLocalTask</c>, which would leave the run
+    /// unable to finish. Deny rules are left untouched: an explicit deny is treated as a deliberate choice.
+    /// </summary>
+    private static void EnsureCompletionToolAllowed(ThreadConfiguration config)
+    {
+        const string completionTool = "CompleteLocalTask";
+
+        if (config.ToolPolicy?.Allow is { Length: > 0 } allow
+            && !allow.Contains(completionTool, StringComparer.Ordinal))
+        {
+            config.ToolPolicy.Allow = [.. allow, completionTool];
+        }
+
+        if (config.ToolAllowList is { } legacyAllow
+            && legacyAllow.Any(v => !string.IsNullOrWhiteSpace(v))
+            && !legacyAllow.Contains(completionTool, StringComparer.Ordinal))
+        {
+            config.ToolAllowList = [.. legacyAllow, completionTool];
         }
     }
 

@@ -96,6 +96,9 @@ public sealed partial class AutomationsRequestHandler(
         fm.AppendLine("agent_summary: null");
         fm.AppendLine($"approval_policy: \"{EscapeYamlString(approvalPolicy)}\"");
 
+        if (!string.IsNullOrWhiteSpace(p.AgentProfileId))
+            fm.AppendLine($"agent_profile_id: \"{EscapeYamlString(p.AgentProfileId.Trim())}\"");
+
         if (!string.IsNullOrWhiteSpace(p.TemplateId))
             fm.AppendLine($"template_id: \"{EscapeYamlString(p.TemplateId)}\"");
 
@@ -256,6 +259,7 @@ public sealed partial class AutomationsRequestHandler(
                 defaultSchedule: FromWire(p.DefaultSchedule),
                 defaultWorkspaceMode: NormalizeOptionalWorkspaceMode(p.DefaultWorkspaceMode),
                 defaultApprovalPolicy: p.DefaultApprovalPolicy,
+                defaultAgentProfileId: p.DefaultAgentProfileId,
                 needsThreadBinding: p.NeedsThreadBinding,
                 defaultTitle: p.DefaultTitle,
                 defaultDescription: p.DefaultDescription,
@@ -303,6 +307,7 @@ public sealed partial class AutomationsRequestHandler(
         DefaultSchedule = ToWire(t.DefaultSchedule),
         DefaultWorkspaceMode = NormalizeOptionalWorkspaceMode(t.DefaultWorkspaceMode),
         DefaultApprovalPolicy = t.DefaultApprovalPolicy,
+        DefaultAgentProfileId = string.IsNullOrWhiteSpace(t.DefaultAgentProfileId) ? null : t.DefaultAgentProfileId,
         NeedsThreadBinding = t.NeedsThreadBinding,
         DefaultTitle = t.DefaultTitle,
         DefaultDescription = t.DefaultDescription,
@@ -430,6 +435,7 @@ public sealed partial class AutomationsRequestHandler(
         if (task is LocalAutomationTask local)
         {
             w.ApprovalPolicy = local.ApprovalPolicy;
+            w.AgentProfileId = string.IsNullOrWhiteSpace(local.AgentProfileId) ? null : local.AgentProfileId;
             w.WorkspaceMode = AutomationWorkspaceModeNames.ToCanonicalString(local.WorkspaceMode);
             if (local.ThreadBinding == null
                 && local.WorkspaceMode == AutomationWorkspaceMode.Worktree

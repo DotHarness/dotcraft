@@ -100,6 +100,7 @@ public sealed partial class LocalTaskFileStore(
             CreatedAt = fm.CreatedAt,
             UpdatedAt = fm.UpdatedAt,
             ApprovalPolicy = fm.ApprovalPolicy,
+            AgentProfileId = string.IsNullOrWhiteSpace(fm.AgentProfileId) ? null : fm.AgentProfileId!.Trim(),
             Schedule = ParseSchedule(fm.Schedule),
             ThreadBinding = ParseBinding(fm.ThreadBinding)
         };
@@ -200,6 +201,7 @@ public sealed partial class LocalTaskFileStore(
             ThreadId = task.ThreadId,
             AgentSummary = task.AgentSummary,
             ApprovalPolicy = task.ApprovalPolicy,
+            AgentProfileId = task.AgentProfileId,
             Schedule = ToYaml(task.Schedule),
             ThreadBinding = ToYaml(task.ThreadBinding),
             NextRunAt = task.NextRunAt
@@ -276,6 +278,9 @@ public sealed partial class LocalTaskFileStore(
 
         /// <summary><c>workspaceScope</c> (default) or <c>fullAuto</c>.</summary>
         public string? ApprovalPolicy { get; set; }
+
+        /// <summary>Optional Agent Profile id bound to the task (<c>agent_profile_id</c>).</summary>
+        public string? AgentProfileId { get; set; }
 
         /// <summary>Optional recurring schedule; absent = one-shot (run once when pending).</summary>
         public ScheduleYaml? Schedule { get; set; }

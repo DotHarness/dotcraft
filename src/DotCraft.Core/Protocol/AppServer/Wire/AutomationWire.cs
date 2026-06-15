@@ -33,6 +33,15 @@ public sealed class AutomationTaskWire
     public string? ApprovalPolicy { get; set; }
 
     /// <summary>
+    /// Optional Agent Profile bound to the task; governs the agent's capabilities
+    /// (tools, MCP, skills, model, instructions). Null when the task runs with the
+    /// default automation agent. Only the id is persisted; the profile is resolved
+    /// at each dispatch.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? AgentProfileId { get; set; }
+
+    /// <summary>
     /// Canonical declared workspace mode: <c>project</c> or <c>worktree</c>.
     /// </summary>
     public string WorkspaceMode { get; set; } = "project";
@@ -159,6 +168,13 @@ public sealed class AutomationTaskCreateParams
     public AutomationThreadBindingWire? ThreadBinding { get; set; }
 
     /// <summary>
+    /// Optional Agent Profile id binding the task to a profile that governs the agent's capabilities.
+    /// Persisted as <c>agent_profile_id</c> in <c>task.md</c>.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? AgentProfileId { get; set; }
+
+    /// <summary>
     /// Optional template id the dialog selected; persisted in front-matter for telemetry / re-apply.
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -254,6 +270,13 @@ public sealed class AutomationTemplateWire
     public string? DefaultApprovalPolicy { get; set; }
 
     /// <summary>
+    /// Optional Agent Profile id that pre-fills the task Agent picker when this template is
+    /// applied. A default, not itself executable.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? DefaultAgentProfileId { get; set; }
+
+    /// <summary>
     /// Suggests to the UI that this template benefits from being bound to an existing thread
     /// (e.g. feishu-reply watchers). The dialog may surface the thread picker up-front.
     /// </summary>
@@ -322,6 +345,10 @@ public sealed class AutomationTemplateSaveParams
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? DefaultApprovalPolicy { get; set; }
+
+    /// <summary>Optional Agent Profile id pre-filled into the task Agent picker when applied.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? DefaultAgentProfileId { get; set; }
 
     public bool NeedsThreadBinding { get; set; }
 

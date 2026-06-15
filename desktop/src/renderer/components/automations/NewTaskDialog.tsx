@@ -14,6 +14,7 @@ import { TemplateGalleryOverlay } from './TemplateGalleryOverlay'
 import { PillSwitch } from '../ui/PillSwitch'
 import { MenuOption, PillDropdown } from '../ui/PillDropdown'
 import { PolicyDropdown, TargetDropdown, WorkspaceModeDropdown } from './TaskDropdowns'
+import { AgentProfileDropdown } from './AgentProfileDropdown'
 
 type DialogTab = 'task' | 'template'
 
@@ -90,6 +91,9 @@ export function NewTaskDialog({
   const [workflowTemplate, setWorkflowTemplate] = useState<string | undefined>(
     initialTemplate?.workflowMarkdown
   )
+  const [agentProfileId, setAgentProfileId] = useState<string | null>(
+    initialTemplate?.defaultAgentProfileId ?? null
+  )
 
   // --- Template tab state ---
   const [tplTitle, setTplTitle] = useState(editingTemplate?.title ?? '')
@@ -115,6 +119,9 @@ export function NewTaskDialog({
   )
   const [tplNeedsThreadBinding, setTplNeedsThreadBinding] = useState<boolean>(
     editingTemplate?.needsThreadBinding ?? false
+  )
+  const [tplDefaultAgentProfileId, setTplDefaultAgentProfileId] = useState<string | null>(
+    editingTemplate?.defaultAgentProfileId ?? null
   )
   const [tplPrefillFromId, setTplPrefillFromId] = useState<string>('')
   const [tplDeleteConfirm, setTplDeleteConfirm] = useState(false)
@@ -165,6 +172,7 @@ export function NewTaskDialog({
       setWorkspaceMode(normalizeWorkspaceMode(tpl.defaultWorkspaceMode))
     if (tpl.defaultApprovalPolicy === 'workspaceScope' || tpl.defaultApprovalPolicy === 'fullAuto')
       setApprovalPolicy(tpl.defaultApprovalPolicy)
+    setAgentProfileId(tpl.defaultAgentProfileId ?? null)
     if (tpl.needsThreadBinding && !binding) setShowThreadPicker(true)
   }
 
@@ -186,6 +194,7 @@ export function NewTaskDialog({
     if (tpl.defaultApprovalPolicy === 'workspaceScope' || tpl.defaultApprovalPolicy === 'fullAuto')
       setTplApprovalPolicy(tpl.defaultApprovalPolicy)
     setTplNeedsThreadBinding(tpl.needsThreadBinding ?? false)
+    setTplDefaultAgentProfileId(tpl.defaultAgentProfileId ?? null)
   }
 
   async function handleSubmitTask(): Promise<void> {
@@ -201,7 +210,8 @@ export function NewTaskDialog({
         schedule: schedule && schedule.kind !== 'once' ? schedule : null,
         threadBinding: binding,
         templateId,
-        workflowTemplate
+        workflowTemplate,
+        agentProfileId
       })
       onClose()
     } catch (e: unknown) {
@@ -229,7 +239,8 @@ export function NewTaskDialog({
         defaultApprovalPolicy: tplApprovalPolicy,
         needsThreadBinding: tplNeedsThreadBinding,
         defaultTitle: tplDefaultTitle.trim() || null,
-        defaultDescription: tplDefaultDescription.trim() || null
+        defaultDescription: tplDefaultDescription.trim() || null,
+        defaultAgentProfileId: tplDefaultAgentProfileId
       })
       onClose()
     } catch (e: unknown) {
@@ -404,6 +415,7 @@ export function NewTaskDialog({
                     padding: '8px 0 0'
                   }}
                 >
+                  <AgentProfileDropdown value={agentProfileId} onChange={setAgentProfileId} />
                   <TargetDropdown
                     mode={targetMode}
                     boundName={boundThreadName}
@@ -659,6 +671,10 @@ export function NewTaskDialog({
                       gap: '8px'
                     }}
                   >
+                    <AgentProfileDropdown
+                      value={tplDefaultAgentProfileId}
+                      onChange={setTplDefaultAgentProfileId}
+                    />
                     <SchedulePicker value={tplSchedule} onChange={setTplSchedule} />
                     <WorkspaceModeDropdown
                       value={tplWorkspaceMode}

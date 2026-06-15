@@ -24,6 +24,7 @@ Create and manage tasks from the Desktop Automations panel. Each task pairs a sh
 | Manual run | Trigger a task on demand from Desktop |
 | Scheduled run | Give the task a schedule so it runs on its own |
 | Thread binding | Bind a task to an existing conversation so future runs continue there |
+| Agent profile | Run the task as a saved Agent Profile, so it uses just that agent's tools, skills, and model (optional — defaults to the workspace agent) |
 | Templates | Save a task as a reusable template |
 | Completion summary | The agent writes a short summary when the work is done |
 | Delete | Remove the task, optionally with its linked conversation |

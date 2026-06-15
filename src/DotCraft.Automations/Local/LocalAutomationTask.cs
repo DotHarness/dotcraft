@@ -38,4 +38,12 @@ public sealed class LocalAutomationTask : AutomationTask
     /// or <c>fullAuto</c>. Legacy <c>autoApprove</c> / <c>default</c> are still read by the orchestrator.
     /// </summary>
     public string? ApprovalPolicy { get; set; }
+
+    /// <summary>
+    /// Serialized as <c>agent_profile_id</c> in task.md. Optional Agent Profile bound to the task that
+    /// governs the agent's capabilities (tools, MCP, skills, model, instructions). Null when the task
+    /// runs with the default automation agent. Only the id is persisted; the orchestrator resolves the
+    /// profile into the task thread configuration at each dispatch and fails the run if it no longer resolves.
+    /// </summary>
+    public string? AgentProfileId { get; set; }
 }
