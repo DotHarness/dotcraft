@@ -150,22 +150,20 @@
 .agent-builder-split { position: relative; display: flex; height: 100%; min-height: 0; }
 .agent-builder-split-main { position: relative; flex: 1 1 auto; min-width: 0; height: 100%; overflow: hidden; background: var(--main-surface, var(--bg-primary)); }
 .agent-builder-split-main > .agent-builder { position: relative; z-index: 1; background: transparent; }
-/* While a builder turn runs, thin accent rails on both edges signal the agent is editing. */
-.agent-builder-split-main.is-agent-driving::before,
-.agent-builder-split-main.is-agent-driving::after {
+.agent-builder-split-main.is-agent-driving::before {
   content: "";
   position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  z-index: 2;
+  inset: 0;
+  z-index: 0;
   pointer-events: none;
-  background: linear-gradient(180deg, transparent, var(--accent) 22%, var(--accent) 78%, transparent);
-  box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 45%, transparent);
-  animation: agent-builder-driving-glow 2.6s ease-in-out infinite;
+  background:
+    radial-gradient(ellipse at 0% 24%, color-mix(in srgb, var(--accent) 20%, transparent) 0, transparent 30%),
+    radial-gradient(ellipse at 100% 24%, color-mix(in srgb, var(--accent) 20%, transparent) 0, transparent 30%),
+    linear-gradient(90deg, color-mix(in srgb, var(--accent) 13%, transparent), transparent 18%, transparent 82%, color-mix(in srgb, var(--accent) 13%, transparent));
+  filter: blur(18px);
+  opacity: 0.68;
+  animation: agent-builder-driving-glow 2.8s ease-in-out infinite;
 }
-.agent-builder-split-main.is-agent-driving::before { left: 0; }
-.agent-builder-split-main.is-agent-driving::after { right: 0; }
 .agent-builder-chatpane { flex: 0 0 auto; min-width: 0; height: 100%; display: flex; flex-direction: column; min-height: 0; border-left: 1px solid var(--agent-builder-chat-divider-border, var(--border-default)); background: var(--bg-primary); transition: width 180ms ease-out, flex-basis 180ms ease-out; }
 .agent-builder-split.is-resizing .agent-builder-chatpane { transition: none; }
 .agent-builder-chatpane > * { flex: 1 1 auto; min-height: 0; }
@@ -234,9 +232,9 @@
   background: color-mix(in srgb, var(--bg-primary) 10%, transparent);
 }
 @keyframes agent-builder-driving-glow {
-  0%, 100% { opacity: 0.4; }
-  50% { opacity: 0.85; }
+  0%, 100% { opacity: 0.58; transform: translateY(0); }
+  50% { opacity: 0.88; transform: translateY(-2px); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .agent-builder-edit-marker, .agent-builder-split-main.is-agent-driving::before, .agent-builder-split-main.is-agent-driving::after { animation: none; }
+  .agent-builder-edit-marker, .agent-builder-split-main.is-agent-driving::before { animation: none; }
 }
