@@ -36,7 +36,8 @@ import { SettingsGroup, SettingsRow } from '../settings/SettingsGroup'
 import { SettingsSelect } from '../settings/ui/SettingsSelect'
 import { PillSwitch } from '../ui/PillSwitch'
 import { RobotAvatar } from './RobotAvatar'
-import { AGENT_BUILDER_AVATAR, avatarForProfile, normalizeAvatar, randomAvatar, type AvatarSpec } from './agentAvatar'
+import { AGENT_BUILDER_AVATAR, randomAvatar, resolveProfileAvatar, type AvatarSpec } from './agentAvatar'
+import { useAgentProfileAvatarStore } from '../../stores/agentProfileAvatarStore'
 import {
   AGENT_CONTROL_OPTIONS,
   APPROVAL_OPTIONS,
@@ -205,7 +206,7 @@ function writableSource(source: string | null): SaveTarget {
 }
 
 function avatarForEntry(entry: Pick<ProfileEntry, 'id' | 'name' | 'avatar'>): AvatarSpec {
-  return normalizeAvatar(entry.avatar) ?? avatarForProfile(entry.name || entry.id)
+  return resolveProfileAvatar(entry.name || entry.id, entry.avatar)
 }
 
 function draftWithAvatar(draft: ProfileDraft, avatar: AvatarSpec): ProfileDraft {
@@ -398,7 +399,11 @@ export function AgentBuilderView(): JSX.Element {
   const loadProfiles = useCallback(async (): Promise<void> => {
     try {
       const res = await rpc<{ profiles?: ProfileEntry[] }>('agent/profiles/list', { includeInvalid: true })
-      setProfiles(Array.isArray(res.profiles) ? res.profiles : [])
+      const profiles = Array.isArray(res.profiles) ? res.profiles : []
+      setProfiles(profiles)
+      // Share the freshly-fetched stored avatars so the composer/welcome mascots
+      // (which only know a profile id) resolve the same avatar without a refetch.
+      useAgentProfileAvatarStore.getState().setFromList(useConversationStore.getState().workspacePath, profiles)
       setStatus('ready')
       setLoadError(null)
     } catch (err) {

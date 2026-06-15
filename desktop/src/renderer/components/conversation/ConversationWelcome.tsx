@@ -41,7 +41,7 @@ import {
 } from './ComposerShell'
 import { ComposerWorkspaceFooter, type ComposerWorkspaceMode } from './ComposerWorkspaceFooter'
 import { ProfilePickerPopover } from './ProfilePickerPopover'
-import { avatarForProfile } from '../agents/agentAvatar'
+import { useResolvedProfileAvatar } from '../../stores/agentProfileAvatarStore'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { PillSwitch } from '../ui/PillSwitch'
 import { Skeleton } from '../ui/Skeleton'
@@ -210,6 +210,9 @@ export function ConversationWelcome({
   // A profile chosen via /Profile before sending; applied to the thread that the first message creates.
   const [profilePickerOpen, setProfilePickerOpen] = useState(false)
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null)
+  // Honor the profile's configured (stored) avatar, falling back to the derived
+  // one — same resolution as the composer/picker/gallery (see store).
+  const resolvedProfileAvatar = useResolvedProfileAvatar(selectedProfileId ?? undefined, workspacePath)
   const canUseSystemActions = true
   const canUseSlashPicker = canUseCommandPicker || canUseSkillPicker || canUseThreadGoals || canUseSystemActions
   const remoteLocalFilesUnavailable = remoteWorkspace ? t('input.remoteLocalFilesUnavailable') : undefined
@@ -1404,7 +1407,7 @@ export function ConversationWelcome({
               focused={editorFocused}
               showMascot
               mascotBounceSignal={mascotBounce}
-              mascotAvatar={selectedProfileId ? avatarForProfile(selectedProfileId) : undefined}
+              mascotAvatar={resolvedProfileAvatar}
               attachmentStrip={
                 <AttachmentStrip
                   images={images}

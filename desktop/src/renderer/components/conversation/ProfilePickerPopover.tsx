@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { RobotAvatar } from '../agents/RobotAvatar'
-import { avatarFromSeed } from '../agents/agentAvatar'
+import { resolveProfileAvatar, type AvatarSpec } from '../agents/agentAvatar'
 
 interface ProfileEntry {
   id: string
@@ -11,6 +11,8 @@ interface ProfileEntry {
   source: string
   valid?: boolean
   shadowed?: boolean
+  /** Avatar the user configured in the builder (packed number or spec); honored over the derived one. */
+  avatar?: number | AvatarSpec
 }
 
 interface ProfilePickerPopoverProps {
@@ -29,6 +31,7 @@ export function ProfilePickerPopover({ visible, activeProfileId, onPick, onDismi
   const [profiles, setProfiles] = useState<ProfileEntry[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [hoveredId, setHoveredId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!visible) return undefined
@@ -85,11 +88,13 @@ export function ProfilePickerPopover({ visible, activeProfileId, onPick, onDismi
               <button
                 key={`${profile.source}:${profile.id}`}
                 type="button"
-                style={itemStyle(profile.id === activeProfileId)}
+                style={itemStyle(profile.id === activeProfileId, profile.id === hoveredId)}
                 onClick={() => onPick(profile.id)}
+                onMouseEnter={() => setHoveredId(profile.id)}
+                onMouseLeave={() => setHoveredId((prev) => (prev === profile.id ? null : prev))}
               >
                 <span style={AVATAR_STYLE} aria-hidden>
-                  <RobotAvatar spec={avatarFromSeed(profile.id)} size={30} />
+                  <RobotAvatar spec={resolveProfileAvatar(profile.id, profile.avatar)} size={30} />
                 </span>
                 <span style={COPY_STYLE}>
                   <span style={NAME_STYLE}>{profile.id}</span>
@@ -167,7 +172,7 @@ const STATE_STYLE: CSSProperties = {
   color: 'var(--text-secondary)'
 }
 
-function itemStyle(active: boolean): CSSProperties {
+function itemStyle(active: boolean, hovered: boolean): CSSProperties {
   return {
     display: 'flex',
     alignItems: 'center',
@@ -176,11 +181,19 @@ function itemStyle(active: boolean): CSSProperties {
     padding: '9px 11px',
     border: '1px solid transparent',
     borderRadius: 10,
-    background: active ? 'color-mix(in srgb, var(--accent) 14%, transparent)' : 'transparent',
+    // Active profile keeps its accent highlight; other rows get the shared menu
+    // row hover (--sidebar-control-hover, as ContextMenu) — previously rows had
+    // no hover feedback at all.
+    background: active
+      ? 'color-mix(in srgb, var(--accent) 14%, transparent)'
+      : hovered
+        ? 'var(--sidebar-control-hover)'
+        : 'transparent',
     borderColor: active ? 'color-mix(in srgb, var(--accent) 45%, var(--border-active))' : 'transparent',
     color: 'inherit',
     cursor: 'pointer',
-    textAlign: 'left'
+    textAlign: 'left',
+    transition: 'background-color 120ms ease'
   }
 }
 

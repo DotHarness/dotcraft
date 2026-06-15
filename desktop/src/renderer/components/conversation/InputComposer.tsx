@@ -60,7 +60,8 @@ import {
 } from './ComposerShell'
 import { ProfilePickerPopover } from './ProfilePickerPopover'
 import { ComposerWorkspaceFooter } from './ComposerWorkspaceFooter'
-import { avatarForProfile, type AvatarSpec } from '../agents/agentAvatar'
+import { type AvatarSpec } from '../agents/agentAvatar'
+import { useResolvedProfileAvatar } from '../../stores/agentProfileAvatarStore'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
@@ -272,8 +273,11 @@ export function InputComposer({
   const rawProfileId = (activeThread?.configuration as Record<string, unknown> | null | undefined)?.agentProfileId
   const activeProfileId = typeof rawProfileId === 'string' && rawProfileId.length > 0 ? rawProfileId : undefined
   const hasProfile = activeProfileId !== undefined
-  // Explicit avatar (builder pane) wins; otherwise derive from the thread's active profile.
-  const effectiveMascotAvatar = mascotAvatar ?? (activeProfileId ? avatarForProfile(activeProfileId) : undefined)
+  // Explicit avatar (builder pane) wins; otherwise resolve the active profile's
+  // avatar — the configured (stored) one if any, else derived — so the mascot
+  // matches the builder gallery and picker instead of a name-hash.
+  const resolvedProfileAvatar = useResolvedProfileAvatar(activeProfileId, workspacePath)
+  const effectiveMascotAvatar = mascotAvatar ?? resolvedProfileAvatar
   const canUseSlashPicker = canUseCommandPicker || canUseSkillPicker || canUseThreadGoals || canUseSystemActions
   const remoteLocalFilesUnavailable = remoteWorkspace ? t('input.remoteLocalFilesUnavailable') : undefined
 

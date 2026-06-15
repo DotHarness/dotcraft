@@ -139,6 +139,19 @@ export function avatarForProfile(id: string): AvatarSpec {
   return TEAM_ROLE_AVATARS[id] ?? avatarFromSeed(id)
 }
 
+/**
+ * Single source of truth for an agent profile's avatar across every surface
+ * (builder gallery, profile picker, composer + welcome mascots). An explicit
+ * avatar the user configured in the builder (stored in the profile frontmatter,
+ * passed here as a packed number or spec) always wins; otherwise it falls back
+ * to the derived avatar. Using this everywhere prevents the surfaces from
+ * diverging — the picker/composer previously ignored the stored avatar and only
+ * hashed the id, so a red-configured profile showed up green.
+ */
+export function resolveProfileAvatar(seed: string, storedAvatar?: number | AvatarSpec | null): AvatarSpec {
+  return normalizeAvatar(storedAvatar) ?? avatarForProfile(seed)
+}
+
 /** A fresh random spec (the re-roll dice). Differs from `avoid` when possible. */
 export function randomAvatar(avoid?: AvatarSpec): AvatarSpec {
   const r = (n: number): number => Math.floor(Math.random() * n)
