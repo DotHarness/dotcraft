@@ -6,11 +6,25 @@ import { useConversationStore } from '../stores/conversationStore'
 import { useThreadStore } from '../stores/threadStore'
 
 const appServerSendRequest = vi.fn()
+const appServerOnNotification = vi.fn()
+type NotificationPayload = { method: string; params?: unknown }
+let notificationHandlers: Array<(payload: NotificationPayload) => void> = []
 
-function Harness(): JSX.Element {
+function emitNotification(payload: NotificationPayload): void {
+  for (const handler of notificationHandlers) handler(payload)
+}
+
+function Harness({
+  onResult = vi.fn(),
+  onEditingField
+}: {
+  onResult?: ReturnType<typeof vi.fn>
+  onEditingField?: ReturnType<typeof vi.fn>
+}): JSX.Element {
   const result = useAgentBuilderConversation({
     active: true,
-    onResult: vi.fn()
+    onResult,
+    onEditingField
   })
 
   useEffect(() => {
@@ -43,11 +57,18 @@ function PassiveHarness(): JSX.Element {
 describe('useAgentBuilderConversation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    notificationHandlers = []
     appServerSendRequest.mockImplementation(async (method: string) => {
       if (method === 'thread/start') {
         return { thread: { id: 'builder-thread' } }
       }
       return {}
+    })
+    appServerOnNotification.mockImplementation((handler: (payload: NotificationPayload) => void) => {
+      notificationHandlers.push(handler)
+      return () => {
+        notificationHandlers = notificationHandlers.filter((existing) => existing !== handler)
+      }
     })
 
     Object.defineProperty(window, 'api', {
@@ -55,7 +76,7 @@ describe('useAgentBuilderConversation', () => {
       value: {
         appServer: {
           sendRequest: appServerSendRequest,
-          onNotification: vi.fn(() => vi.fn())
+          onNotification: appServerOnNotification
         }
       }
     })
@@ -125,6 +146,155 @@ describe('useAgentBuilderConversation', () => {
     })
     expect(appServerSendRequest.mock.calls.some(([method]) => method === 'turn/enqueue')).toBe(false)
     expect(useThreadStore.getState().activeThreadId).toBe('builder-thread')
+  })
+
+  it('surfaces builder tool results from real toolCall and toolResult notifications', async () => {
+    const onResult = vi.fn()
+    const onEditingField = vi.fn()
+    render(<Harness onResult={onResult} onEditingField={onEditingField} />)
+
+    await waitFor(() => {
+      expect(screen.getByText('ready')).toBeInTheDocument()
+      expect(appServerOnNotification).toHaveBeenCalled()
+    })
+
+    emitNotification({
+      method: 'item/completed',
+      params: {
+        threadId: 'builder-thread',
+        turnId: 'turn-1',
+        item: {
+          id: 'tool-call-1',
+          type: 'toolCall',
+          payload: {
+            toolName: 'SetAgentName',
+            callId: 'call-1',
+            arguments: { name: 'triage-bot' }
+          }
+        }
+      }
+    })
+    expect(onEditingField).toHaveBeenCalledWith('name')
+
+    emitNotification({
+      method: 'item/completed',
+      params: {
+        threadId: 'builder-thread',
+        turnId: 'turn-1',
+        item: {
+          id: 'tool-result-1',
+          type: 'toolResult',
+          payload: {
+            callId: 'call-1',
+            result: '{"ok":true,"field":"name","change":{"op":"set","value":"triage-bot"}}',
+            success: true
+          }
+        }
+      }
+    })
+
+    expect(onResult).toHaveBeenCalledWith({
+      ok: true,
+      field: 'name',
+      change: { op: 'set', value: 'triage-bot' }
+    })
+    expect(onEditingField).toHaveBeenLastCalledWith(null)
+  })
+
+  it('surfaces the edited field as soon as builder tool arguments stream', async () => {
+    const onEditingField = vi.fn()
+    render(<Harness onEditingField={onEditingField} />)
+
+    await waitFor(() => {
+      expect(screen.getByText('ready')).toBeInTheDocument()
+      expect(appServerOnNotification).toHaveBeenCalled()
+    })
+
+    emitNotification({
+      method: 'item/toolCall/argumentsDelta',
+      params: {
+        threadId: 'builder-thread',
+        turnId: 'turn-1',
+        itemId: 'tool-call-1',
+        toolName: 'AppendAgentInstructions',
+        callId: 'call-1',
+        delta: '{"text":"'
+      }
+    })
+
+    expect(onEditingField).toHaveBeenCalledWith('instructions')
+
+    emitNotification({
+      method: 'turn/completed',
+      params: {
+        turn: {
+          id: 'turn-1',
+          threadId: 'builder-thread'
+        }
+      }
+    })
+
+    expect(onEditingField).toHaveBeenLastCalledWith(null)
+  })
+
+  it('surfaces the edited field at builder tool start and keeps it through callId-only argument deltas', async () => {
+    const onEditingField = vi.fn()
+    render(<Harness onEditingField={onEditingField} />)
+
+    await waitFor(() => {
+      expect(screen.getByText('ready')).toBeInTheDocument()
+      expect(appServerOnNotification).toHaveBeenCalled()
+    })
+
+    emitNotification({
+      method: 'item/started',
+      params: {
+        threadId: 'builder-thread',
+        turnId: 'turn-1',
+        item: {
+          id: 'tool-call-1',
+          type: 'toolCall',
+          payload: {
+            toolName: 'SetAgentModel',
+            callId: 'call-1'
+          }
+        }
+      }
+    })
+
+    expect(onEditingField).toHaveBeenCalledWith('model')
+
+    emitNotification({
+      method: 'item/toolCall/argumentsDelta',
+      params: {
+        threadId: 'builder-thread',
+        turnId: 'turn-1',
+        itemId: 'tool-call-1',
+        callId: 'call-1',
+        delta: '{"model":"'
+      }
+    })
+
+    expect(onEditingField).toHaveBeenLastCalledWith('model')
+
+    emitNotification({
+      method: 'item/completed',
+      params: {
+        threadId: 'builder-thread',
+        turnId: 'turn-1',
+        item: {
+          id: 'tool-result-1',
+          type: 'toolResult',
+          payload: {
+            callId: 'call-1',
+            result: '{"ok":true,"field":"model","change":{"op":"set","value":"gpt-5.5"}}',
+            success: true
+          }
+        }
+      }
+    })
+
+    expect(onEditingField).toHaveBeenLastCalledWith(null)
   })
 
   it('surfaces initial turn/start failures instead of silently swallowing them', async () => {

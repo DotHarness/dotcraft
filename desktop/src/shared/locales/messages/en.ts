@@ -2912,6 +2912,17 @@ export const MESSAGES_EN = {
     'Add advanced logic to this agent. Strengthen its routing, constraints, edge cases, and tool or skill choices without broadening its scope unnecessarily.',
   'agentBuilder.chat.prompt.optimize':
     'Optimize this agent for reliability and focus. Tighten its role instructions, remove unnecessary capability, and recommend the minimal tools and skills it needs.',
+  'agentBuilder.removeChip': 'Remove {{item}}',
+  'agentBuilder.editing.updatingField': 'Updating {{field}}',
+  'agentBuilder.field.name': 'name',
+  'agentBuilder.field.description': 'description',
+  'agentBuilder.field.instructions': 'instructions',
+  'agentBuilder.field.tools': 'tools',
+  'agentBuilder.field.mcp': 'MCP',
+  'agentBuilder.field.skills': 'skills',
+  'agentBuilder.field.model': 'model',
+  'agentBuilder.field.approval': 'approval',
+  'agentBuilder.field.toolControl': 'tool control',
 
   // Validation
   'settings.subAgents.validation.nameRequired': 'A name is required.',

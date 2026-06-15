@@ -12,23 +12,31 @@ import {
   type SetStateAction
 } from 'react'
 import { createPortal } from 'react-dom'
-import { ArrowLeft, Eye, FileSearch, FileText, MoreHorizontal, Pencil, Plus, RefreshCw, Search, Shuffle, Sparkles, Tag, Trash2, X, type LucideIcon } from 'lucide-react'
+import { ArrowLeft, BookOpen, CircleHelp, Clock, Eye, FileSearch, FileText, Globe, ListChecks, MoreHorizontal, MousePointer2, Pencil, Plus, RefreshCw, Search, Server, Shuffle, Tag, Trash2, Wrench, X, type LucideIcon } from 'lucide-react'
 import { showToast } from '../../stores/toastStore'
 import { useModelCatalogStore } from '../../stores/modelCatalogStore'
 import { useConversationStore } from '../../stores/conversationStore'
-import { useLocale } from '../../contexts/LocaleContext'
+import { useUIStore } from '../../stores/uiStore'
+import { useLocale, useT } from '../../contexts/LocaleContext'
 import { ConversationPanel } from '../layout/ConversationPanel'
+import { DragHandle } from '../layout/DragHandle'
 import { InputComposer, type InputComposerSubmitPayload } from '../conversation/InputComposer'
 import { useComposerModelControls } from '../conversation/useComposerModelControls'
+import { MarkdownRenderer } from '../conversation/MarkdownRenderer'
 import type { ThreadConfigurationWire } from '../../types/thread'
 import { formatRelativeTime } from '../../utils/relativeTime'
+import {
+  AGENT_BUILDER_CHAT_MIN_WIDTH,
+  resolveAgentBuilderChatWidth,
+  resolveMaxAgentBuilderChatWidth
+} from '../../utils/agentBuilderLayout'
 import { CatalogCompactGrid, CatalogHoverButton, CatalogSearchBox, CatalogSection, styles as catalogStyles } from '../catalog/CatalogSurface'
 import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
 import { SettingsGroup, SettingsRow } from '../settings/SettingsGroup'
 import { SettingsSelect } from '../settings/ui/SettingsSelect'
 import { PillSwitch } from '../ui/PillSwitch'
 import { RobotAvatar } from './RobotAvatar'
-import { AGENT_BUILDER_AVATAR, avatarForProfile, randomAvatar, type AvatarSpec } from './agentAvatar'
+import { AGENT_BUILDER_AVATAR, avatarForProfile, normalizeAvatar, randomAvatar, type AvatarSpec } from './agentAvatar'
 import {
   AGENT_CONTROL_OPTIONS,
   APPROVAL_OPTIONS,
@@ -42,7 +50,7 @@ import {
   type ReasoningEffort,
   type SaveTarget
 } from './agentProfileDraft'
-import { applyBuilderChange, type BuilderField, type BuilderToolResult } from './agentBuilderDraftSync'
+import { applyBuilderChange, isBuilderField, type BuilderField, type BuilderToolResult } from './agentBuilderDraftSync'
 import { useAgentBuilderConversation } from './useAgentBuilderConversation'
 import { AgentSaveTargetDialog } from './AgentSaveTargetDialog'
 import { AgentBuilderChatEmptyState } from './AgentBuilderChatEmptyState'
@@ -54,6 +62,7 @@ interface ProfileEntry {
   id: string
   name?: string
   description?: string
+  avatar?: number | AvatarSpec
   source: string
   valid?: boolean
   readOnly?: boolean
@@ -113,6 +122,58 @@ const FAN = [
   { rot: 14, y: 16 }
 ]
 
+const BUILDER_FIELD_LABEL_KEYS: Record<BuilderField, string> = {
+  name: 'agentBuilder.field.name',
+  description: 'agentBuilder.field.description',
+  instructions: 'agentBuilder.field.instructions',
+  'tools.allow': 'agentBuilder.field.tools',
+  'mcp.servers': 'agentBuilder.field.mcp',
+  'skills.preload': 'agentBuilder.field.skills',
+  model: 'agentBuilder.field.model',
+  approval: 'agentBuilder.field.approval',
+  'tools.agentControl': 'agentBuilder.field.toolControl'
+}
+
+const INSTRUCTIONS_PLACEHOLDER = 'Give your agent instructions on how to operate — its job, boundaries, and what it handles…'
+
+type CatalogKind = 'tool' | 'mcp' | 'skill'
+
+const TOOL_ICON_BY_NAME: Record<string, LucideIcon> = {
+  WebSearch: Search,
+  WebFetch: Globe,
+  WriteFile: Pencil,
+  ReadFile: FileText,
+  TodoWrite: ListChecks,
+  Cron: Clock,
+  RequestUserInput: CircleHelp
+}
+
+function catalogIcon(kind: CatalogKind, id: string): LucideIcon {
+  if (kind === 'mcp') return Server
+  if (kind === 'skill') return BookOpen
+  return TOOL_ICON_BY_NAME[id] ?? Wrench
+}
+
+const MARKER_TARGET_SELECTOR = '[data-agent-builder-marker-target]'
+const MARKER_FALLBACK_SELECTOR = [
+  MARKER_TARGET_SELECTOR,
+  '.dc-settings-select__value',
+  'input',
+  'textarea',
+  '.agent-builder-chip-label',
+  '.agent-builder-pick-empty',
+  '.agent-builder-add'
+].join(', ')
+const MARKER_OFFSET_X_ATTR = 'data-agent-builder-marker-offset-x'
+const MARKER_OFFSET_Y_ATTR = 'data-agent-builder-marker-offset-y'
+
+function markerOffset(target: HTMLElement, attr: string): number | null {
+  const value = target.getAttribute(attr)
+  if (value == null) return null
+  const parsed = Number.parseFloat(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
 // Neutral-inverted primary "+ Add" button, matching the Channels/Plugins catalog header.
 const primaryAddButton: CSSProperties = {
   ...catalogStyles.manageButton,
@@ -141,6 +202,14 @@ function sectionFor(source: string): Filter {
 
 function writableSource(source: string | null): SaveTarget {
   return source === 'user' ? 'user' : 'workspace'
+}
+
+function avatarForEntry(entry: Pick<ProfileEntry, 'id' | 'name' | 'avatar'>): AvatarSpec {
+  return normalizeAvatar(entry.avatar) ?? avatarForProfile(entry.name || entry.id)
+}
+
+function draftWithAvatar(draft: ProfileDraft, avatar: AvatarSpec): ProfileDraft {
+  return draft.avatar ? draft : { ...draft, avatar }
 }
 
 function newDraftTargetId(): string {
@@ -175,13 +244,21 @@ export function AgentBuilderView(): JSX.Element {
   const [builderPrefillRequest, setBuilderPrefillRequest] = useState<{ id: number; text: string } | null>(null)
   const introPrefillSeqRef = useRef(0)
   const builderPrefillSeqRef = useRef(0)
-  // The field the agent most recently edited — drives the cursor-on-field highlight (M4).
+  // The field the agent most recently edited — drives the cursor marker after a tool result lands.
   const [highlight, setHighlight] = useState<{ field: BuilderField; seq: number } | null>(null)
+  const [editingField, setEditingField] = useState<BuilderField | null>(null)
   const highlightSeqRef = useRef(0)
+  const builderSplitRef = useRef<HTMLDivElement>(null)
+  const builderSplitWidthRef = useRef<number | null>(null)
+  const [builderSplitWidth, setBuilderSplitWidth] = useState<number | null>(null)
+  const [builderChatDividerActive, setBuilderChatDividerActive] = useState(false)
+  const [builderChatResizing, setBuilderChatResizing] = useState(false)
   // Create flow: the save target (user/workspace) is chosen in a dialog opened from the Create button.
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const workspacePath = useConversationStore((s) => s.workspacePath)
   const builderTurnStatus = useConversationStore((s) => s.turnStatus)
+  const agentBuilderChatWidth = useUIStore((s) => s.agentBuilderChatWidth)
+  const agentBuilderChatWidthRatio = useUIStore((s) => s.agentBuilderChatWidthRatio)
   const draftSyncTimerRef = useRef<number | null>(null)
   const draftSyncPromiseRef = useRef<Promise<void> | null>(null)
   const lastSyncedBuilderDraftRef = useRef<string | null>(null)
@@ -195,19 +272,59 @@ export function AgentBuilderView(): JSX.Element {
 
   // Apply one streamed builder tool result to the live draft and flag the edited field.
   const handleBuilderResult = useCallback((result: BuilderToolResult): void => {
-    if (!result.ok || !result.field) return
+    if (!result.ok || !isBuilderField(result.field)) return
     setHighlight({ field: result.field, seq: (highlightSeqRef.current += 1) })
     setRoute((r) => (r.name === 'builder' ? { ...r, draft: applyBuilderChange(r.draft, result).draft } : r))
   }, [])
 
   const builderConversation = useAgentBuilderConversation({
     active: route.name === 'builder',
-    onResult: handleBuilderResult
+    onResult: handleBuilderResult,
+    onEditingField: setEditingField
   })
   const builderConversationStatus = builderConversation.status
   const builderConversationError = builderConversation.error
   const syncBuilderDraftRequest = builderConversation.syncDraft
   const startBuilderConversation = builderConversation.start
+
+  useLayoutEffect(() => {
+    if (route.name !== 'builder') return undefined
+    const node = builderSplitRef.current
+    if (!node) return undefined
+
+    const measure = (): void => {
+      const rect = node.getBoundingClientRect()
+      const width = rect.width || window.innerWidth
+      builderSplitWidthRef.current = width
+      setBuilderSplitWidth((current) => (current != null && Math.abs(current - width) < 0.5 ? current : width))
+    }
+
+    measure()
+    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null
+    observer?.observe(node)
+    window.addEventListener('resize', measure)
+    return () => {
+      observer?.disconnect()
+      window.removeEventListener('resize', measure)
+      builderSplitWidthRef.current = null
+      setBuilderSplitWidth(null)
+    }
+  }, [route.name])
+
+  const handleBuilderChatDrag = useCallback((delta: number): void => {
+    const splitWidth = builderSplitWidthRef.current
+      ?? builderSplitRef.current?.getBoundingClientRect().width
+      ?? window.innerWidth
+    const state = useUIStore.getState()
+    const currentWidth = resolveAgentBuilderChatWidth(
+      state.agentBuilderChatWidth,
+      state.agentBuilderChatWidthRatio,
+      splitWidth
+    )
+    const maxWidth = resolveMaxAgentBuilderChatWidth(splitWidth)
+    const nextWidth = Math.min(maxWidth, Math.max(AGENT_BUILDER_CHAT_MIN_WIDTH, currentWidth - delta))
+    state.setAgentBuilderChatWidth(nextWidth, splitWidth)
+  }, [])
 
   const syncBuilderDraftNow = useCallback((rawContent?: string): Promise<void> => {
     if (builderConversationStatus !== 'ready') {
@@ -339,7 +456,7 @@ export function AgentBuilderView(): JSX.Element {
         isNew: readOnly,
         saveTarget: writableSource(entry.source),
         saving: false,
-        avatar: avatarForProfile(draft.name),
+        avatar: draft.avatar ?? avatarForEntry(res.profile ?? entry),
         // An existing writable profile is already "created"; a read-only template is an uncreated copy.
         created: !readOnly,
         updatedAt: readOnly ? null : (res.profile?.updatedAt ?? entry.updatedAt ?? null)
@@ -364,9 +481,10 @@ export function AgentBuilderView(): JSX.Element {
     lastSyncedBuilderDraftRef.current = null
     setViewMode('edit')
     setAutoSaveState('idle')
-    setRoute({ name: 'builder', draft, id: null, source: null, readOnly: false, isNew: true, saveTarget: 'workspace', saving: false, avatar, created: false, updatedAt: null })
+    const nextDraft = draftWithAvatar(draft, avatar)
+    setRoute({ name: 'builder', draft: nextDraft, id: null, source: null, readOnly: false, isNew: true, saveTarget: 'workspace', saving: false, avatar, created: false, updatedAt: null })
     setBuilderSession({
-      targetId: options.targetId?.trim() || draft.name.trim() || newDraftTargetId(),
+      targetId: options.targetId?.trim() || nextDraft.name.trim() || newDraftTargetId(),
       targetSource: options.targetSource?.trim() || 'workspace'
     })
   }, [])
@@ -415,8 +533,8 @@ export function AgentBuilderView(): JSX.Element {
     payload: InputComposerSubmitPayload,
     config: ThreadConfigurationWire
   ): Promise<void> => {
-    const draft = createEmptyDraft()
     const avatar = randomAvatar()
+    const draft = draftWithAvatar(createEmptyDraft(), avatar)
     const targetId = newDraftTargetId()
     const targetSource = 'workspace'
     startDraft(draft, avatar, { targetId, targetSource })
@@ -451,7 +569,7 @@ export function AgentBuilderView(): JSX.Element {
       const res = await rpc<{ profile?: ProfileEntry }>('agent/profiles/read', { id: entry.id, source: entry.source })
       const draft = parseProfile(res.profile?.rawContent)
       if (!draft.name) draft.name = entry.id
-      startDraft(draft, avatarForProfile(draft.name), {
+      startDraft(draft, draft.avatar ?? avatarForEntry(res.profile ?? entry), {
         targetId: entry.id,
         targetSource: entry.source
       })
@@ -544,6 +662,7 @@ export function AgentBuilderView(): JSX.Element {
   const leaveBuilder = useCallback((): void => {
     setBuilderSession(null)
     setHighlight(null)
+    setEditingField(null)
     setRoute({ name: 'gallery' })
   }, [])
 
@@ -557,9 +676,24 @@ export function AgentBuilderView(): JSX.Element {
   }, [profiles, query])
 
   if (route.name === 'builder') {
+    const activeEditingField = editingField ?? highlight?.field ?? null
+    const agentDriving = builderConversation.threadId !== null && (builderTurnStatus === 'running' || editingField !== null)
+    const effectiveBuilderChatWidth = resolveAgentBuilderChatWidth(
+      agentBuilderChatWidth,
+      agentBuilderChatWidthRatio,
+      builderSplitWidth ?? window.innerWidth
+    )
+    const builderChatpaneStyle = {
+      width: effectiveBuilderChatWidth,
+      flexBasis: effectiveBuilderChatWidth,
+      minWidth: AGENT_BUILDER_CHAT_MIN_WIDTH,
+      '--agent-builder-chat-divider-border': builderChatDividerActive
+        ? 'var(--resize-divider-active)'
+        : 'var(--border-default)'
+    } as CSSProperties
     return (
-      <div className="agent-builder-split is-chat">
-        <div className="agent-builder-split-main">
+      <div ref={builderSplitRef} className={`agent-builder-split is-chat${builderChatResizing ? ' is-resizing' : ''}`}>
+        <div className={`agent-builder-split-main${agentDriving ? ' is-agent-driving' : ''}`}>
           <BuilderView
             route={route}
             setRoute={setRoute}
@@ -570,14 +704,14 @@ export function AgentBuilderView(): JSX.Element {
             viewMode={viewMode}
             setViewMode={setViewMode}
             autoSaveState={autoSaveState}
-            highlightField={highlight?.field ?? null}
-            agentDriving={builderConversation.threadId !== null && builderTurnStatus === 'running'}
+            editingField={activeEditingField}
+            agentDriving={agentDriving}
             onBack={leaveBuilder}
             onDelete={removeProfile}
             onCreate={() => setCreateDialogOpen(true)}
           />
         </div>
-        <aside className="agent-builder-chatpane">
+        <aside className="agent-builder-chatpane" style={builderChatpaneStyle}>
           {builderConversationStatus === 'starting' ? (
             <div className="agent-builder-chat-loading">Starting builder…</div>
           ) : builderConversationStatus === 'ready' ? (
@@ -599,6 +733,18 @@ export function AgentBuilderView(): JSX.Element {
             />
           )}
         </aside>
+        <DragHandle
+          className="drag-handle--agent-builder-chat"
+          onDrag={handleBuilderChatDrag}
+          onActiveChange={setBuilderChatDividerActive}
+          onDragStateChange={setBuilderChatResizing}
+          style={{
+            position: 'absolute',
+            top: 0,
+            bottom: 0,
+            right: `${effectiveBuilderChatWidth - 4}px`
+          }}
+        />
         {createDialogOpen && (
           <AgentSaveTargetDialog
             name={route.draft.name.trim()}
@@ -626,26 +772,25 @@ export function AgentBuilderView(): JSX.Element {
           </button>
         </div>
         <div className="agent-builder-intro">
-          <span className="agent-builder-intro-mascot">
-            <RobotAvatar spec={AGENT_BUILDER_AVATAR} size={52} animated />
-          </span>
-          <h1 className="agent-builder-intro-title">Build a new agent</h1>
-          <IntroBuilderComposer
-            workspacePath={workspacePath}
-            prefillRequest={introPrefillRequest}
-            onSubmit={startBlankFromIntro}
-          />
-          <div className="agent-builder-intro-sugs">
-            {SUGGESTIONS.map((s) => {
-              const Icon = s.icon
-              return (
-                <button key={s.title} type="button" className="agent-builder-intro-sug" onClick={() => prefillIntroComposer(s.prompt)}>
-                  <span className="agent-builder-intro-sug-ic" aria-hidden><Icon size={16} /></span>
-                  <span className="agent-builder-intro-sug-t">{s.title}</span>
-                  <span className="agent-builder-intro-sug-d">{s.desc}</span>
-                </button>
-              )
-            })}
+          <div className="agent-builder-intro-center">
+            <h1 className="agent-builder-intro-title">Build a new agent</h1>
+            <IntroBuilderComposer
+              workspacePath={workspacePath}
+              prefillRequest={introPrefillRequest}
+              onSubmit={startBlankFromIntro}
+            />
+            <div className="agent-builder-intro-sugs">
+              {SUGGESTIONS.map((s) => {
+                const Icon = s.icon
+                return (
+                  <button key={s.title} type="button" className="agent-builder-intro-sug" onClick={() => prefillIntroComposer(s.prompt)}>
+                    <span className="agent-builder-intro-sug-ic" aria-hidden><Icon size={16} /></span>
+                    <span className="agent-builder-intro-sug-t">{s.title}</span>
+                    <span className="agent-builder-intro-sug-d">{s.desc}</span>
+                  </button>
+                )
+              })}
+            </div>
           </div>
           {templates.length > 0 && (
             <TemplateDeck templates={templates} onPick={(p) => void fromTemplate(p)} />
@@ -696,7 +841,7 @@ export function AgentBuilderView(): JSX.Element {
                 {items.map((p) => (
                   <CatalogHoverButton key={`${p.source}:${p.id}`} type="button" baseStyle={catalogStyles.compactItem} onClick={() => void openProfile(p)}>
                     <span style={galleryAvatar}>
-                      <RobotAvatar spec={avatarForProfile(p.id)} size={36} />
+                      <RobotAvatar spec={avatarForEntry(p)} size={36} />
                     </span>
                     <span style={galleryText}>
                       <span style={catalogStyles.rowTitleLine}><strong style={catalogStyles.rowTitle}>{p.id}</strong></span>
@@ -761,6 +906,7 @@ function IntroBuilderComposer({
         onModelChange={modelControls.onModelChange}
         onReasoningChange={modelControls.onReasoningChange}
         onModelCatalogRetry={modelControls.onModelCatalogRetry}
+        dockPadding={0}
       />
     </div>
   )
@@ -860,7 +1006,7 @@ function TemplateDeck({ templates, onPick }: { templates: ProfileEntry[]; onPick
             }}
             onClick={() => onPick(p)}
           >
-            <RobotAvatar spec={avatarForProfile(p.id)} size={34} />
+            <RobotAvatar spec={avatarForEntry(p)} size={34} />
             <span className="agent-builder-deckcard-name">{p.id.replace('team-', '')}</span>
             <span className="agent-builder-deckcard-desc">{p.description || ''}</span>
           </button>
@@ -881,26 +1027,26 @@ interface BuilderViewProps {
   viewMode: 'edit' | 'preview'
   setViewMode: Dispatch<SetStateAction<'edit' | 'preview'>>
   autoSaveState: 'idle' | 'saving' | 'saved' | 'error'
-  highlightField: BuilderField | null
+  editingField: BuilderField | null
   agentDriving: boolean
   onBack: () => void
   onDelete: () => void
   onCreate: () => void
 }
 
-function BuilderView({ route, setRoute, setDraft, toolCatalog, skillCatalog, mcpServers, viewMode, setViewMode, autoSaveState, highlightField, agentDriving, onBack, onDelete, onCreate }: BuilderViewProps): JSX.Element {
+function BuilderView({ route, setRoute, setDraft, toolCatalog, skillCatalog, mcpServers, viewMode, setViewMode, autoSaveState, editingField, agentDriving, onBack, onDelete, onCreate }: BuilderViewProps): JSX.Element {
   const locale = useLocale()
   const { draft, avatar } = route
   const nameMissing = !draft.name.trim()
   const preview = viewMode === 'preview'
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
-  // While a builder turn is running, the agent "drives" the document: it becomes non-interactive and
-  // shows the cursor-on-field affordance so the user watches rather than fights the agent's edits.
-  const fieldClass = (fields: BuilderField[]): string =>
-    highlightField && fields.includes(highlightField) ? ' is-agent-editing' : ''
 
-  const reroll = (): void => setRoute((r) => (r.name === 'builder' ? { ...r, avatar: randomAvatar(r.avatar) } : r))
+  const reroll = (): void => setRoute((r) => {
+    if (r.name !== 'builder') return r
+    const avatar = randomAvatar(r.avatar)
+    return { ...r, avatar, draft: { ...r.draft, avatar } }
+  })
 
   useEffect(() => {
     if (!menuOpen) return undefined
@@ -974,7 +1120,7 @@ function BuilderView({ route, setRoute, setDraft, toolCatalog, skillCatalog, mcp
       <div className="agent-builder-scroll">
       <div className={`agent-builder-doc${agentDriving ? ' is-agent-driving' : ''}`}>
         {agentDriving && <div className="agent-builder-driving-veil" aria-hidden />}
-        <div className={`agent-builder-id${fieldClass(['name', 'description'])}`}>
+        <div className="agent-builder-id">
           <span className="agent-builder-id-avatar">
             <RobotAvatar spec={avatar} size={64} animated />
             {!preview && (
@@ -984,82 +1130,100 @@ function BuilderView({ route, setRoute, setDraft, toolCatalog, skillCatalog, mcp
             )}
           </span>
           <div className="agent-builder-id-main">
-            <input
-              className={`agent-builder-id-name${nameMissing ? ' is-empty' : ''}`}
-              value={draft.name}
-              placeholder="agent name"
-              readOnly={preview}
-              onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
-            />
-            <input
-              className="agent-builder-id-desc"
-              value={draft.description}
-              placeholder="One line about this agent…"
-              readOnly={preview}
-              onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))}
-            />
+            <FieldAnchor field="name" active={editingField === 'name'} className="agent-builder-field-anchor-name">
+              <input
+                className={`agent-builder-id-name${nameMissing ? ' is-empty' : ''}`}
+                value={draft.name}
+                placeholder="agent name"
+                readOnly={preview}
+                data-agent-builder-marker-target
+                data-agent-builder-marker-offset-x={7}
+                onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
+              />
+            </FieldAnchor>
+            <FieldAnchor field="description" active={editingField === 'description'} className="agent-builder-field-anchor-description">
+              <input
+                className="agent-builder-id-desc"
+                value={draft.description}
+                placeholder="One line about this agent…"
+                readOnly={preview}
+                data-agent-builder-marker-target
+                data-agent-builder-marker-offset-x={7}
+                onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))}
+              />
+            </FieldAnchor>
             {route.readOnly && !preview && <div className="agent-builder-note">Built-in template — click Create to save it as a new agent in the selected source.</div>}
           </div>
         </div>
 
         <div className="agent-builder-divider" />
 
-        <Section label="Tools" editing={highlightField === 'tools.allow'}>
+        <Section label="Tools">
           <CatalogField
-            options={toolCatalog.map((tool) => ({ id: tool.name, label: tool.name, description: tool.description, icon: tool.icon }))}
+            options={toolCatalog.map((tool) => ({ id: tool.name, label: tool.name, description: tool.description }))}
             selected={draft.tools.allow}
             onChange={(allow) => setDraft((d) => ({ ...d, tools: { ...d.tools, allow, deny: d.tools.deny.filter((x) => !allow.includes(x)) } }))}
             addLabel="Add tool"
             emptyHint="All built-in tools are available — add tools to restrict to an allow-list."
+            kind="tool"
+            field="tools.allow"
+            editingField={editingField}
             readOnly={preview}
           />
         </Section>
 
-        <Section label="MCP" editing={highlightField === 'mcp.servers'}>
+        <Section label="MCP">
           <CatalogField
             options={mcpServers.map((name) => ({ id: name, label: name }))}
             selected={draft.mcp.servers}
             onChange={(servers) => setDraft((d) => ({ ...d, mcp: { ...d.mcp, servers } }))}
             addLabel="Add MCP server"
             emptyHint={mcpServers.length === 0 ? 'No MCP servers configured for this workspace.' : undefined}
+            kind="mcp"
+            field="mcp.servers"
+            editingField={editingField}
             readOnly={preview}
           />
         </Section>
 
-        <Section label="Skills" editing={highlightField === 'skills.preload'}>
+        <Section label="Skills">
           <CatalogField
             options={skillCatalog.map((s) => ({ id: s.name, label: s.displayName || s.name, description: s.description }))}
             selected={draft.skills.preload}
             onChange={(preload) => setDraft((d) => ({ ...d, skills: { ...d.skills, preload } }))}
             addLabel="Add skill"
+            kind="skill"
+            field="skills.preload"
+            editingField={editingField}
             readOnly={preview}
           />
         </Section>
 
-        <Section label="Instructions" editing={highlightField === 'instructions'}>
-          <textarea
-            className="agent-builder-instr"
-            rows={6}
+        <Section label="Instructions">
+          <InstructionsField
             value={draft.roleInstructions}
-            placeholder="Give your agent instructions on how to operate — its job, boundaries, and what it handles…"
-            readOnly={preview}
-            onChange={(e) => setDraft((d) => ({ ...d, roleInstructions: e.target.value }))}
+            preview={preview}
+            editingField={editingField}
+            onChange={(roleInstructions) => setDraft((d) => ({ ...d, roleInstructions }))}
           />
         </Section>
 
-        <Section label="Details" editing={highlightField === 'model' || highlightField === 'approval' || highlightField === 'tools.agentControl'}>
+        <Section label="Details">
           <SettingsGroup>
             <SettingsRow
               label="Model"
               controlMinWidth={200}
               control={(
-                <SettingsSelect<string>
-                  value={draft.model}
-                  onValueChange={(v) => setDraft((d) => ({ ...d, model: v }))}
-                  disabled={preview}
-                  style={{ width: '100%' }}
-                  options={modelSelectOptions}
-                />
+                <FieldAnchor field="model" active={editingField === 'model'} className="agent-builder-detail-control">
+                  <SettingsSelect<string>
+                    value={draft.model}
+                    onValueChange={(v) => setDraft((d) => ({ ...d, model: v }))}
+                    disabled={preview}
+                    style={{ width: '100%' }}
+                    valueProps={{ 'data-agent-builder-marker-target': '' }}
+                    options={modelSelectOptions}
+                  />
+                </FieldAnchor>
               )}
             />
             <SettingsRow
@@ -1080,26 +1244,32 @@ function BuilderView({ route, setRoute, setDraft, toolCatalog, skillCatalog, mcp
               description="Whether the agent can manage its own available tools at runtime."
               controlMinWidth={200}
               control={(
-                <SettingsSelect<AgentControl>
-                  value={draft.tools.agentControl}
-                  onValueChange={(v) => setDraft((d) => ({ ...d, tools: { ...d.tools, agentControl: v } }))}
-                  disabled={preview}
-                  style={{ width: '100%' }}
-                  options={AGENT_CONTROL_OPTIONS}
-                />
+                <FieldAnchor field="tools.agentControl" active={editingField === 'tools.agentControl'} className="agent-builder-detail-control">
+                  <SettingsSelect<AgentControl>
+                    value={draft.tools.agentControl}
+                    onValueChange={(v) => setDraft((d) => ({ ...d, tools: { ...d.tools, agentControl: v } }))}
+                    disabled={preview}
+                    style={{ width: '100%' }}
+                    valueProps={{ 'data-agent-builder-marker-target': '' }}
+                    options={AGENT_CONTROL_OPTIONS}
+                  />
+                </FieldAnchor>
               )}
             />
             <SettingsRow
               label="Approval"
               controlMinWidth={200}
               control={(
-                <SettingsSelect<ApprovalPolicy>
-                  value={draft.permissions.approvalPolicy}
-                  onValueChange={(v) => setDraft((d) => ({ ...d, permissions: { ...d.permissions, approvalPolicy: v } }))}
-                  disabled={preview}
-                  style={{ width: '100%' }}
-                  options={APPROVAL_OPTIONS}
-                />
+                <FieldAnchor field="approval" active={editingField === 'approval'} className="agent-builder-detail-control">
+                  <SettingsSelect<ApprovalPolicy>
+                    value={draft.permissions.approvalPolicy}
+                    onValueChange={(v) => setDraft((d) => ({ ...d, permissions: { ...d.permissions, approvalPolicy: v } }))}
+                    disabled={preview}
+                    style={{ width: '100%' }}
+                    valueProps={{ 'data-agent-builder-marker-target': '' }}
+                    options={APPROVAL_OPTIONS}
+                  />
+                </FieldAnchor>
               )}
             />
             <SettingsRow
@@ -1122,19 +1292,135 @@ function BuilderView({ route, setRoute, setDraft, toolCatalog, skillCatalog, mcp
   )
 }
 
-function Section({ label, children, editing = false }: { label: string; children: ReactNode; editing?: boolean }): JSX.Element {
+function Section({ label, children }: { label: string; children: ReactNode }): JSX.Element {
   return (
-    <section className={`agent-builder-sec${editing ? ' is-agent-editing' : ''}`}>
-      <div className="agent-builder-sec-label">
-        {label}
-        {editing && (
-          <span className="agent-builder-editcursor" aria-hidden>
-            <Sparkles size={11} /> editing
-          </span>
-        )}
-      </div>
+    <section className="agent-builder-sec">
+      <div className="agent-builder-sec-label">{label}</div>
       {children}
     </section>
+  )
+}
+
+function FieldAnchor({
+  field,
+  active,
+  className,
+  children
+}: {
+  field: BuilderField
+  active: boolean
+  className?: string
+  children: ReactNode
+}): JSX.Element {
+  const anchorRef = useRef<HTMLDivElement>(null)
+
+  useLayoutEffect(() => {
+    if (!active) return undefined
+    const anchor = anchorRef.current
+    if (!anchor) return undefined
+    let frame = 0
+
+    const measure = (): void => {
+      const target = anchor.querySelector<HTMLElement>(MARKER_FALLBACK_SELECTOR)
+      if (!target) return
+      const anchorRect = anchor.getBoundingClientRect()
+      const targetRect = target.getBoundingClientRect()
+      const x = targetRect.left - anchorRect.left + (markerOffset(target, MARKER_OFFSET_X_ATTR) ?? 0)
+      const y = targetRect.top - anchorRect.top + (markerOffset(target, MARKER_OFFSET_Y_ATTR) ?? (targetRect.height / 2))
+      anchor.style.setProperty('--agent-builder-marker-x', `${Math.round(x)}px`)
+      anchor.style.setProperty('--agent-builder-marker-y', `${Math.round(y)}px`)
+    }
+
+    const scheduleMeasure = (): void => {
+      if (frame) window.cancelAnimationFrame(frame)
+      frame = window.requestAnimationFrame(measure)
+    }
+
+    scheduleMeasure()
+    const target = anchor.querySelector<HTMLElement>(MARKER_FALLBACK_SELECTOR)
+    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(scheduleMeasure) : null
+    observer?.observe(anchor)
+    if (target) observer?.observe(target)
+    window.addEventListener('resize', scheduleMeasure)
+    window.addEventListener('scroll', scheduleMeasure, true)
+    return () => {
+      if (frame) window.cancelAnimationFrame(frame)
+      observer?.disconnect()
+      window.removeEventListener('resize', scheduleMeasure)
+      window.removeEventListener('scroll', scheduleMeasure, true)
+    }
+  })
+
+  return (
+    <div ref={anchorRef} className={`agent-builder-field-anchor${className ? ` ${className}` : ''}`} data-builder-field-anchor={field}>
+      {active && <AgentEditingMarker field={field} />}
+      {children}
+    </div>
+  )
+}
+
+function AgentEditingMarker({ field }: { field: BuilderField }): JSX.Element {
+  const t = useT()
+  const fieldLabel = t(BUILDER_FIELD_LABEL_KEYS[field])
+  const label = t('agentBuilder.editing.updatingField', { field: fieldLabel })
+
+  return (
+    <span className="agent-builder-edit-marker" aria-label={label}>
+      <span className="agent-builder-edit-marker-pill">{label}</span>
+      <MousePointer2 className="agent-builder-edit-marker-arrow" size={17} aria-hidden />
+    </span>
+  )
+}
+
+function InstructionsField({
+  value,
+  preview,
+  editingField,
+  onChange
+}: {
+  value: string
+  preview: boolean
+  editingField: BuilderField | null
+  onChange: (value: string) => void
+}): JSX.Element {
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  useLayoutEffect(() => {
+    const textarea = textareaRef.current
+    if (!textarea) return
+    textarea.style.height = 'auto'
+    textarea.style.height = `${textarea.scrollHeight}px`
+  }, [value, preview])
+
+  return (
+    <FieldAnchor field="instructions" active={editingField === 'instructions'} className="agent-builder-field-anchor-instructions">
+      {preview ? (
+        <div
+          className="agent-builder-instr-preview"
+          data-agent-builder-marker-target
+          data-agent-builder-marker-offset-x={12}
+          data-agent-builder-marker-offset-y={22}
+        >
+          {value.trim() ? (
+            <MarkdownRenderer content={value} containOverflow enableMermaid={false} />
+          ) : (
+            <span className="agent-builder-instr-empty">{INSTRUCTIONS_PLACEHOLDER}</span>
+          )}
+        </div>
+      ) : (
+        <textarea
+          ref={textareaRef}
+          className="agent-builder-instr"
+          rows={6}
+          value={value}
+          placeholder={INSTRUCTIONS_PLACEHOLDER}
+          data-agent-builder-marker-target
+          data-agent-builder-marker-offset-x={12}
+          data-agent-builder-marker-offset-y={22}
+          onChange={(e) => onChange(e.target.value)}
+        />
+      )}
+    </FieldAnchor>
   )
 }
 
@@ -1142,7 +1428,6 @@ interface CatalogOption {
   id: string
   label: string
   description?: string
-  icon?: string
 }
 
 /**
@@ -1156,6 +1441,9 @@ function CatalogField({
   onChange,
   addLabel,
   emptyHint,
+  kind,
+  field,
+  editingField,
   readOnly = false
 }: {
   options: CatalogOption[]
@@ -1163,6 +1451,9 @@ function CatalogField({
   onChange: (next: string[]) => void
   addLabel: string
   emptyHint?: string
+  kind: CatalogKind
+  field: BuilderField
+  editingField: BuilderField | null
   readOnly?: boolean
 }): JSX.Element {
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -1171,42 +1462,87 @@ function CatalogField({
   const addable = options.filter((o) => !selected.includes(o.id))
 
   if (readOnly && selected.length === 0) {
-    return <span className="agent-builder-pick-empty">None</span>
+    return (
+      <FieldAnchor field={field} active={editingField === field} className="agent-builder-field-anchor-catalog">
+        <span className="agent-builder-pick-empty" data-agent-builder-marker-target>None</span>
+      </FieldAnchor>
+    )
   }
 
   return (
-    <div className="agent-builder-pick">
-      {!readOnly && selected.length === 0 && emptyHint && <span className="agent-builder-pick-empty">{emptyHint}</span>}
-      <div className="agent-builder-chiprow">
-        {selected.map((id) => {
-          const option = byId.get(id)
-          return (
-            <span key={id} className="agent-builder-chip">
-              {option?.icon && <span className="agent-builder-chip-ic" aria-hidden>{option.icon}</span>}
-              <span>{option?.label ?? id}</span>
-              {!readOnly && (
-                <button type="button" className="agent-builder-chip-x" aria-label="remove" onClick={() => onChange(selected.filter((x) => x !== id))}>
-                  <X size={12} />
-                </button>
-              )}
-            </span>
-          )
-        })}
-        {!readOnly && (
-          <button ref={addRef} type="button" className="agent-builder-add" aria-expanded={pickerOpen} onClick={() => setPickerOpen((v) => !v)}>
-            <Plus size={14} /> {addLabel}
-          </button>
+    <FieldAnchor field={field} active={editingField === field} className="agent-builder-field-anchor-catalog">
+      <div className="agent-builder-pick">
+        {!readOnly && selected.length === 0 && emptyHint && (
+          <span className="agent-builder-pick-empty" data-agent-builder-marker-target>{emptyHint}</span>
+        )}
+        <div className="agent-builder-chiprow">
+          {selected.map((id, index) => {
+            const option = byId.get(id)
+            const label = option?.label ?? id
+            return (
+              <AgentBuilderChip
+                key={id}
+                label={label}
+                icon={catalogIcon(kind, id)}
+                readOnly={readOnly}
+                markerTarget={index === 0}
+                onRemove={() => onChange(selected.filter((x) => x !== id))}
+              />
+            )
+          })}
+          {!readOnly && (
+            <button
+              ref={addRef}
+              type="button"
+              className="agent-builder-add"
+              aria-expanded={pickerOpen}
+              data-agent-builder-marker-target={selected.length === 0 && !emptyHint ? true : undefined}
+              onClick={() => setPickerOpen((v) => !v)}
+            >
+              <Plus size={14} /> {addLabel}
+            </button>
+          )}
+        </div>
+        {pickerOpen && !readOnly && (
+          <CatalogAddPopover
+            anchor={addRef.current}
+            options={addable}
+            kind={kind}
+            onPick={(id) => onChange([...selected, id])}
+            onClose={() => setPickerOpen(false)}
+          />
         )}
       </div>
-      {pickerOpen && !readOnly && (
-        <CatalogAddPopover
-          anchor={addRef.current}
-          options={addable}
-          onPick={(id) => onChange([...selected, id])}
-          onClose={() => setPickerOpen(false)}
-        />
-      )}
-    </div>
+    </FieldAnchor>
+  )
+}
+
+function AgentBuilderChip({
+  label,
+  icon: Icon,
+  readOnly,
+  markerTarget,
+  onRemove
+}: {
+  label: string
+  icon: LucideIcon
+  readOnly: boolean
+  markerTarget?: boolean
+  onRemove: () => void
+}): JSX.Element {
+  const t = useT()
+  return (
+    <span className={`agent-builder-chip${readOnly ? ' is-readonly' : ' is-removable'}`}>
+      <span className="agent-builder-chip-icon-slot" aria-hidden={readOnly ? true : undefined}>
+        <Icon className="agent-builder-chip-ic agent-builder-chip-ic-default" size={13} strokeWidth={2} aria-hidden />
+        {!readOnly && (
+          <button type="button" className="agent-builder-chip-remove" aria-label={t('agentBuilder.removeChip', { item: label })} onClick={onRemove}>
+            <X size={12} strokeWidth={2.2} aria-hidden />
+          </button>
+        )}
+      </span>
+      <span className="agent-builder-chip-label" data-agent-builder-marker-target={markerTarget ? true : undefined}>{label}</span>
+    </span>
   )
 }
 
@@ -1214,11 +1550,13 @@ function CatalogField({
 function CatalogAddPopover({
   anchor,
   options,
+  kind,
   onPick,
   onClose
 }: {
   anchor: HTMLElement | null
   options: CatalogOption[]
+  kind: CatalogKind
   onPick: (id: string) => void
   onClose: () => void
 }): JSX.Element | null {
@@ -1265,15 +1603,18 @@ function CatalogAddPopover({
         {filtered.length === 0 ? (
           <div className="agent-builder-addmenu-empty">Nothing to add</div>
         ) : (
-          filtered.map((o) => (
-            <button key={o.id} type="button" role="option" className="agent-builder-addmenu-opt" onClick={() => onPick(o.id)}>
-              {o.icon && <span className="agent-builder-addmenu-ic" aria-hidden>{o.icon}</span>}
-              <span className="agent-builder-addmenu-copy">
-                <span className="agent-builder-addmenu-name">{o.label}</span>
-                {o.description && <span className="agent-builder-addmenu-desc">{o.description}</span>}
-              </span>
-            </button>
-          ))
+          filtered.map((o) => {
+            const Icon = catalogIcon(kind, o.id)
+            return (
+              <button key={o.id} type="button" role="option" className="agent-builder-addmenu-opt" onClick={() => onPick(o.id)}>
+                <span className="agent-builder-addmenu-ic" aria-hidden><Icon size={14} strokeWidth={2} /></span>
+                <span className="agent-builder-addmenu-copy">
+                  <span className="agent-builder-addmenu-name">{o.label}</span>
+                  {o.description && <span className="agent-builder-addmenu-desc">{o.description}</span>}
+                </span>
+              </button>
+            )
+          })
         )}
       </div>
     </div>,

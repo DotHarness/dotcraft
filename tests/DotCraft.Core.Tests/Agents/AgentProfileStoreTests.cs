@@ -94,6 +94,7 @@ Body
 ---
 name: reviewer-lite
 description: Read-only reviewer
+avatar: 554
 providerId: profile-provider
 model: inherit
 reasoning:
@@ -124,6 +125,7 @@ Focus on correctness.
             AgentProfileSources.Workspace);
 
         Assert.True(result.Valid);
+        Assert.Equal(AgentProfileAvatarCodec.Encode(10, 2, 4), result.Avatar);
         var config = Assert.IsType<ThreadConfiguration>(result.CompiledConfiguration);
         Assert.Equal("reviewer-lite", config.AgentProfileId);
         Assert.Equal(AgentProfileSources.Workspace, config.AgentProfileSource);

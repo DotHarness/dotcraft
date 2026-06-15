@@ -2833,4 +2833,15 @@ export const MESSAGES_ZH_HANS = {
     '请为这个 Agent 添加高级逻辑。强化它的路由、约束、边界情况以及工具或技能选择，但不要不必要地扩大范围。',
   'agentBuilder.chat.prompt.optimize':
     '请优化这个 Agent 的可靠性和专注度。收紧角色指令，移除不必要的能力，并推荐它真正需要的最小工具和技能集合。',
+  'agentBuilder.removeChip': '移除 {{item}}',
+  'agentBuilder.editing.updatingField': '正在更新{{field}}',
+  'agentBuilder.field.name': '名称',
+  'agentBuilder.field.description': '描述',
+  'agentBuilder.field.instructions': '指令',
+  'agentBuilder.field.tools': '工具',
+  'agentBuilder.field.mcp': 'MCP',
+  'agentBuilder.field.skills': '技能',
+  'agentBuilder.field.model': '模型',
+  'agentBuilder.field.approval': '审批',
+  'agentBuilder.field.toolControl': '工具控制',
 } satisfies Partial<Record<MessageId, string>>

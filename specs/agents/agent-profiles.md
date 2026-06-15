@@ -54,6 +54,7 @@ Minimal shape:
 ---
 name: team-reviewer
 description: Read-only reviewer focused on correctness, risks, and tests.
+avatar: 457
 model: inherit
 tools:
   deny: [WriteFile, EditFile, Exec, WriteStdin]
@@ -77,6 +78,7 @@ Supported frontmatter groups:
 | Field | Meaning |
 |-------|---------|
 | `providerId`, `model`, `reasoning`, `mode`, `promptProfile` | Runtime defaults for new profile-backed threads. |
+| `avatar` | Optional packed non-negative integer client visual identity metadata. Bits 0-3 encode `palette`, bits 4-6 encode `face`, and bits 7-9 encode `accessory`. It is not compiled into thread configuration or model-visible instructions. |
 | `tools` | Built-in, dynamic, deferred, and agent-control tool policy. |
 | `mcp` | MCP server and MCP tool policy. |
 | `plugins` | Plugin/app capability policy. |

@@ -12,6 +12,7 @@ public sealed class AgentProfileDraft
 {
     public string Name { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
+    public int? Avatar { get; set; }
     public string Model { get; set; } = "inherit";
     public string ReasoningEffort { get; set; } = "medium";
 
@@ -93,6 +94,7 @@ public static class AgentProfileDraftEditor
                     case "name": draft.Name = val; break;
                     case "description": draft.Description = val; break;
                     case "model": draft.Model = string.IsNullOrEmpty(val) ? "inherit" : val; break;
+                    case "avatar": draft.Avatar = ParsePackedAvatar(val); break;
                     case "reasoning" or "tools" or "mcp" or "skills" or "permissions": section = key; break;
                 }
             }
@@ -130,6 +132,8 @@ public static class AgentProfileDraftEditor
         var fm = new List<string> { "---" };
         fm.Add($"name: {(string.IsNullOrEmpty(draft.Name) ? "untitled-agent" : draft.Name)}");
         fm.Add($"description: {draft.Description}");
+        if (draft.Avatar.HasValue)
+            fm.Add($"avatar: {draft.Avatar.Value}");
         fm.Add($"model: {(string.IsNullOrEmpty(draft.Model) ? "inherit" : draft.Model)}");
 
         if (!string.IsNullOrEmpty(draft.ReasoningEffort) && draft.ReasoningEffort != "medium")
@@ -262,4 +266,16 @@ public static class AgentProfileDraftEditor
 
     private static string YamlList(IReadOnlyList<string> values) =>
         values.Count == 0 ? "[]" : $"[{string.Join(", ", values)}]";
+
+    private static int? ParsePackedAvatar(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value)
+            || value.Any(ch => !char.IsDigit(ch))
+            || !int.TryParse(value, out var parsed))
+        {
+            return null;
+        }
+
+        return AgentProfileAvatarCodec.TryDecode(parsed, out _, out _, out _) ? parsed : null;
+    }
 }

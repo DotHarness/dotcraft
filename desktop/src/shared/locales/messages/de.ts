@@ -2744,4 +2744,15 @@ export const MESSAGES_DE = {
     'Füge diesem Agenten erweiterte Logik hinzu. Stärke Routing, Einschränkungen, Randfälle sowie Tool- oder Skill-Auswahl, ohne den Umfang unnötig zu erweitern.',
   'agentBuilder.chat.prompt.optimize':
     'Optimiere diesen Agenten für Zuverlässigkeit und Fokus. Straffe seine Rollenanweisungen, entferne unnötige Fähigkeiten und empfehle die minimal nötigen Tools und Skills.',
+  'agentBuilder.removeChip': '{{item}} entfernen',
+  'agentBuilder.editing.updatingField': '{{field}} wird aktualisiert',
+  'agentBuilder.field.name': 'Name',
+  'agentBuilder.field.description': 'Beschreibung',
+  'agentBuilder.field.instructions': 'Anweisungen',
+  'agentBuilder.field.tools': 'Tools',
+  'agentBuilder.field.mcp': 'MCP',
+  'agentBuilder.field.skills': 'Skills',
+  'agentBuilder.field.model': 'Modell',
+  'agentBuilder.field.approval': 'Genehmigung',
+  'agentBuilder.field.toolControl': 'Tool-Steuerung',
 } satisfies Partial<Record<MessageId, string>>

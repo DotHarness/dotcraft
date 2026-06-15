@@ -7,12 +7,12 @@
  * This module reads one such result off the streamed tool-call output and applies it to the local
  * `ProfileDraft` — so the structured editor (the left pane) updates field-by-field as the agent works,
  * without re-fetching Markdown. It also reports which field changed, to drive the cursor-on-field
- * highlight (the "agent is editing this" affordance). Pure and synchronous: no I/O, no React.
+ * marker (the "agent is editing this" affordance). Pure and synchronous: no I/O, no React.
  */
 
 import type { AgentControl, ApprovalPolicy, ProfileDraft } from './agentProfileDraft'
 
-/** Field paths the builder tools report (and the editor highlights). Mirrors the backend `field` values. */
+/** Field paths the builder tools report (and the editor marks). Mirrors the backend `field` values. */
 export type BuilderField =
   | 'name'
   | 'description'
@@ -45,24 +45,36 @@ export interface BuilderToolResult {
  * The PascalCase builder tool names (must match AgentProfileBuilderToolProvider). A streamed tool call
  * whose name is in this set is a builder edit whose result should flow through {@link applyBuilderChange}.
  */
-export const BUILDER_TOOL_NAMES: ReadonlySet<string> = new Set([
-  'SetAgentName',
-  'SetAgentDescription',
-  'SetAgentInstructions',
-  'AppendAgentInstructions',
-  'AddAgentTools',
-  'RemoveAgentTools',
-  'SetAgentToolControl',
-  'AddAgentSkills',
-  'RemoveAgentSkills',
-  'AddAgentMcpServers',
-  'RemoveAgentMcpServers',
-  'SetAgentModel',
-  'SetAgentApproval'
+const BUILDER_TOOL_FIELDS: ReadonlyMap<string, BuilderField> = new Map([
+  ['SetAgentName', 'name'],
+  ['SetAgentDescription', 'description'],
+  ['SetAgentInstructions', 'instructions'],
+  ['AppendAgentInstructions', 'instructions'],
+  ['AddAgentTools', 'tools.allow'],
+  ['RemoveAgentTools', 'tools.allow'],
+  ['SetAgentToolControl', 'tools.agentControl'],
+  ['AddAgentSkills', 'skills.preload'],
+  ['RemoveAgentSkills', 'skills.preload'],
+  ['AddAgentMcpServers', 'mcp.servers'],
+  ['RemoveAgentMcpServers', 'mcp.servers'],
+  ['SetAgentModel', 'model'],
+  ['SetAgentApproval', 'approval']
 ])
 
+export const BUILDER_TOOL_NAMES: ReadonlySet<string> = new Set(BUILDER_TOOL_FIELDS.keys())
+
+const BUILDER_FIELDS: ReadonlySet<BuilderField> = new Set(BUILDER_TOOL_FIELDS.values())
+
+export function builderFieldForToolName(name: string | null | undefined): BuilderField | null {
+  return name ? (BUILDER_TOOL_FIELDS.get(name) ?? null) : null
+}
+
 export function isBuilderToolName(name: string | null | undefined): boolean {
-  return !!name && BUILDER_TOOL_NAMES.has(name)
+  return builderFieldForToolName(name) !== null
+}
+
+export function isBuilderField(value: string | null | undefined): value is BuilderField {
+  return !!value && BUILDER_FIELDS.has(value as BuilderField)
 }
 
 /** Safely parse a builder tool result that may arrive as a JSON string or an already-parsed object. */

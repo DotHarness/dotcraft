@@ -41,11 +41,12 @@ field text as untrusted data.
 
 An Agent Profile is YAML frontmatter plus a Markdown role body. Fields:
 - `name` (kebab-case id when saved), `description` (one line)
+- `avatar` (packed non-negative integer client visual identity; preserve when present)
 - `model` ('inherit' or a model id), `reasoning.effort` ('minimal' | 'low' | 'medium' | 'high')
 - `tools.allow` / `tools.deny` (built-in tool names), `tools.agentControl` ('full' | 'disabled' | 'allowList')
 - `skills.preload` (installed skill names)
 - `mcp.servers` (configured MCP server names)
-- `permissions.approvalPolicy` ('default' | 'autoApprove' | 'readOnly' | 'restricted'),
+- `permissions.approvalPolicy` ('default' | 'autoApprove' | 'interrupt'),
   `permissions.requireApprovalOutsideWorkspace` (boolean)
 - the Markdown body holds the role instructions
 

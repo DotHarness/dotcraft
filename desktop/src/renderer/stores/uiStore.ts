@@ -6,6 +6,11 @@ import type { ReasoningEffortWire, ReasoningOutputWire } from './modelCatalogSto
 import type { SettingsTab } from '../types/settings'
 import { useThreadStore } from './threadStore'
 import { normalizeWorkspaceProjectKey } from '../../shared/workspaceProjectKey'
+import {
+  AGENT_BUILDER_CHAT_DEFAULT_WIDTH,
+  AGENT_BUILDER_CHAT_DEFAULT_WIDTH_RATIO,
+  AGENT_BUILDER_CHAT_MIN_WIDTH
+} from '../utils/agentBuilderLayout'
 
 const SIDEBAR_DEFAULT_WIDTH = 240
 const SIDEBAR_MIN_WIDTH = 200
@@ -112,6 +117,10 @@ export interface UIState {
   detailPanelWidthRatio: number
   /** Last resolved detail panel width, used as a fallback before layout measurement. */
   detailPanelWidth: number
+  /** User preference for Agent Builder chat width as a share of the builder split surface. */
+  agentBuilderChatWidthRatio: number
+  /** Last resolved Agent Builder chat pane width, used as a fallback before layout measurement. */
+  agentBuilderChatWidth: number
   /** Current responsive layout classification used to constrain panel visibility. */
   responsiveLayout: 'full' | 'no-detail' | 'collapsed'
   /** Active detail panel tab — a system tab, a viewer tab, or the launcher. */
@@ -214,6 +223,7 @@ interface UIStore extends UIState {
   setDetailPanelVisible(visible: boolean): void
   setResponsiveLayout(layout: 'full' | 'no-detail' | 'collapsed'): void
   setDetailPanelWidth(width: number, mainSurfaceWidth?: number | null): void
+  setAgentBuilderChatWidth(width: number, splitWidth?: number | null): void
   /**
    * Opens a system tab (`'changes' | 'plan'`) if not already open, makes it the
    * active tab, and reveals the panel. This is the "auto-open + focus" entry point.
@@ -367,6 +377,8 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
   detailPanelVisible: false,
   detailPanelWidthRatio: DETAIL_DEFAULT_WIDTH_RATIO,
   detailPanelWidth: DETAIL_DEFAULT_WIDTH,
+  agentBuilderChatWidthRatio: AGENT_BUILDER_CHAT_DEFAULT_WIDTH_RATIO,
+  agentBuilderChatWidth: AGENT_BUILDER_CHAT_DEFAULT_WIDTH,
   responsiveLayout: 'full',
   activeDetailTab: { kind: 'launcher' },
   openSystemTabs: [],
@@ -501,6 +513,18 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
       return
     }
     set({ detailPanelWidth: clamped })
+  },
+
+  setAgentBuilderChatWidth(width: number, splitWidth?: number | null) {
+    const clamped = Math.max(AGENT_BUILDER_CHAT_MIN_WIDTH, width)
+    if (splitWidth != null && splitWidth > 0) {
+      set({
+        agentBuilderChatWidth: clamped,
+        agentBuilderChatWidthRatio: clamped / splitWidth
+      })
+      return
+    }
+    set({ agentBuilderChatWidth: clamped })
   },
 
   setActiveDetailTab(tab: SystemDetailTab, options?: DetailRevealOptions) {
@@ -882,6 +906,9 @@ export {
   DETAIL_MIN_WIDTH,
   DETAIL_DEFAULT_MAIN_SURFACE_WIDTH,
   DETAIL_DEFAULT_WIDTH_RATIO,
+  AGENT_BUILDER_CHAT_DEFAULT_WIDTH,
+  AGENT_BUILDER_CHAT_MIN_WIDTH,
+  AGENT_BUILDER_CHAT_DEFAULT_WIDTH_RATIO,
   EXPLORER_DEFAULT_WIDTH,
   EXPLORER_MIN_WIDTH,
   EXPLORER_MAX_WIDTH

@@ -1,6 +1,5 @@
 using System.Text.Json.Serialization;
 using DotCraft.Agents;
-using DotCraft.Protocol;
 
 namespace DotCraft.Protocol.AppServer;
 
@@ -31,6 +30,9 @@ public sealed class AgentProfileEntryWire
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Description { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? Avatar { get; set; }
 
     public string Source { get; set; } = AgentProfileSources.BuiltIn;
 

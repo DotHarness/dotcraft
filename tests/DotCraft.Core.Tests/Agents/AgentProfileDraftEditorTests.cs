@@ -49,6 +49,7 @@ public sealed class AgentProfileDraftEditorTests : IDisposable
         {
             Name = "release-notes-writer",
             Description = "Drafts release notes from merged PRs",
+            Avatar = AgentProfileAvatarCodec.Encode(7, 3, 5),
             Model = "claude-opus-4-8",
             ReasoningEffort = "high",
             ToolsAllow = ["ReadFile", "RunShellCommand"],
@@ -69,6 +70,7 @@ public sealed class AgentProfileDraftEditorTests : IDisposable
 
         Assert.Equal(draft.Name, roundTripped.Name);
         Assert.Equal(draft.Description, roundTripped.Description);
+        Assert.Equal(draft.Avatar, roundTripped.Avatar);
         Assert.Equal(draft.Model, roundTripped.Model);
         Assert.Equal(draft.ReasoningEffort, roundTripped.ReasoningEffort);
         Assert.Equal(draft.ToolsAllow, roundTripped.ToolsAllow);
@@ -143,6 +145,7 @@ public sealed class AgentProfileDraftEditorTests : IDisposable
         {
             Name = "doc-writer",
             Description = "Writes documentation",
+            Avatar = AgentProfileAvatarCodec.Encode(2, 1, 4),
             ToolsAllow = ["ReadFile"],
             SkillsPreload = ["docx"],
             ApprovalPolicy = "interrupt",
@@ -157,6 +160,7 @@ public sealed class AgentProfileDraftEditorTests : IDisposable
 
         Assert.True(entry.Valid, string.Join("; ", entry.Diagnostics.Select(d => $"{d.Code}:{d.Message}")));
         Assert.Equal("Writes documentation", entry.Description);
+        Assert.Equal(AgentProfileAvatarCodec.Encode(2, 1, 4), entry.Avatar);
         Assert.NotNull(entry.CompiledConfiguration);
         Assert.Contains("ReadFile", entry.CompiledConfiguration!.ToolPolicy?.Allow ?? []);
     }

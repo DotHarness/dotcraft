@@ -3,14 +3,12 @@
  *
  * A `ProfileDraft` is the in-memory shape the editor manipulates. It mirrors the
  * Agent Profile frontmatter from specs/agents/agent-profiles.md (name, description,
- * model, reasoning, mode, tools, mcp, skills, permissions) plus the Markdown body
+ * avatar, model, reasoning, mode, tools, mcp, skills, permissions) plus the Markdown body
  * (`roleInstructions`). `toMarkdown` renders the draft as the raw Markdown the
  * `agent/profiles/upsert` write format expects; `parseProfile` reads it back.
- *
- * The avatar and social channels are intentionally NOT part of the draft: avatars are
- * derived from the name (see agentAvatar.ts) and channels are a deferred product concept
- * not yet present in the frontmatter schema.
  */
+
+import { decodeAvatar, encodeAvatar, type AvatarSpec } from './agentAvatar'
 
 export type SaveTarget = 'user' | 'workspace'
 export type ReasoningEffort = 'minimal' | 'low' | 'medium' | 'high'
@@ -25,6 +23,7 @@ export type ModelId = 'inherit' | 'claude-opus-4-8' | 'claude-sonnet-4-6' | 'cla
 export interface ProfileDraft {
   name: string
   description: string
+  avatar?: AvatarSpec
   model: string
   reasoningEffort: ReasoningEffort
   tools: {
@@ -96,6 +95,12 @@ function parseList(value: string): string[] {
   return inner.split(',').map((x) => x.trim()).filter(Boolean)
 }
 
+function parsePackedAvatar(value: string): AvatarSpec | undefined {
+  const trimmed = value.trim()
+  if (!/^\d+$/.test(trimmed)) return undefined
+  return decodeAvatar(Number.parseInt(trimmed, 10)) ?? undefined
+}
+
 /** Parse the raw Markdown (frontmatter + body) returned by agent/profiles/read into a draft. */
 export function parseProfile(rawContent: string | null | undefined): ProfileDraft {
   const draft = createEmptyDraft()
@@ -124,7 +129,9 @@ export function parseProfile(rawContent: string | null | undefined): ProfileDraf
       if (key === 'name') draft.name = val
       else if (key === 'description') draft.description = val
       else if (key === 'model') draft.model = val || 'inherit'
-      else if (key === 'reasoning' || key === 'tools' || key === 'mcp' || key === 'skills' || key === 'permissions') section = key
+      else if (key === 'avatar') {
+        draft.avatar = parsePackedAvatar(val)
+      } else if (key === 'reasoning' || key === 'tools' || key === 'mcp' || key === 'skills' || key === 'permissions') section = key
     } else if (indent === 2) {
       sub = null
       if (section === 'reasoning' && key === 'effort') draft.reasoningEffort = (val || 'medium') as ReasoningEffort
@@ -155,6 +162,9 @@ export function toMarkdown(draft: ProfileDraft): string {
   const fm: string[] = ['---']
   fm.push(`name: ${draft.name || 'untitled-agent'}`)
   fm.push(`description: ${draft.description || ''}`)
+  if (draft.avatar) {
+    fm.push(`avatar: ${encodeAvatar(draft.avatar)}`)
+  }
   fm.push(`model: ${draft.model || 'inherit'}`)
   if (draft.reasoningEffort && draft.reasoningEffort !== 'medium') {
     fm.push('reasoning:')

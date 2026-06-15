@@ -122,6 +122,63 @@ public sealed class AgentProfileManagementTests : IDisposable
     }
 
     [Fact]
+    public async Task CrudMethods_SurfaceAvatarMetadata()
+    {
+        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
+        await harness.InitializeAsync();
+
+        var raw = """
+---
+name: avatar-bot
+description: Uses a persisted avatar
+avatar: 278
+model: inherit
+---
+
+Avatar body.
+""";
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.AgentProfileUpsert, new
+        {
+            id = "avatar-bot",
+            source = "workspace",
+            rawContent = raw
+        }));
+
+        using (var upsertResponse = await harness.Transport.ReadNextSentAsync())
+        {
+            AppServerTestHarness.AssertIsSuccessResponse(upsertResponse);
+            Assert.Equal(
+                AgentProfileAvatarCodec.Encode(6, 1, 2),
+                upsertResponse.RootElement.GetProperty("result").GetProperty("profile").GetProperty("avatar").GetInt32());
+        }
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.AgentProfileList, new { }));
+        using (var listResponse = await harness.Transport.ReadNextSentAsync())
+        {
+            AppServerTestHarness.AssertIsSuccessResponse(listResponse);
+            var profile = listResponse.RootElement.GetProperty("result").GetProperty("profiles")
+                .EnumerateArray()
+                .Single(profile => profile.GetProperty("id").GetString() == "avatar-bot");
+            Assert.Equal(AgentProfileAvatarCodec.Encode(6, 1, 2), profile.GetProperty("avatar").GetInt32());
+        }
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.AgentProfileRead, new
+        {
+            id = "avatar-bot"
+        }));
+
+        using var readResponse = await harness.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(readResponse);
+        Assert.Equal(
+            AgentProfileAvatarCodec.Encode(6, 1, 2),
+            readResponse.RootElement.GetProperty("result")
+                .GetProperty("profile")
+                .GetProperty("avatar")
+                .GetInt32());
+    }
+
+    [Fact]
     public async Task ThreadStart_WithAgentProfile_PersistsResolvedConfigurationSnapshot()
     {
         using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);

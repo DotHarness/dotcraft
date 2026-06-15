@@ -6,7 +6,6 @@ using DotCraft.Context;
 using DotCraft.Plugins;
 using DotCraft.Protocol;
 using DotCraft.Protocol.AppServer;
-using DotCraft.Security;
 using DotCraft.Skills;
 using Microsoft.Extensions.AI;
 using static DotCraft.AppBinding.AppBindingStoreAccessor;

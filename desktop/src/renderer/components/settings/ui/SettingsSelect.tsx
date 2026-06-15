@@ -11,6 +11,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type HTMLAttributes,
   type JSX,
   type KeyboardEvent,
   type ReactNode
@@ -33,6 +34,7 @@ interface SettingsSelectProps<T extends string = string> {
   ariaLabel?: string
   disabled?: boolean
   style?: CSSProperties
+  valueProps?: HTMLAttributes<HTMLSpanElement>
   menuMaxHeight?: number
 }
 
@@ -51,6 +53,7 @@ export function SettingsSelect<T extends string = string>({
   ariaLabel,
   disabled = false,
   style,
+  valueProps,
   menuMaxHeight = 280
 }: SettingsSelectProps<T>): JSX.Element {
   const reactId = useId()
@@ -322,7 +325,7 @@ export function SettingsSelect<T extends string = string>({
         onKeyDown={handleKeyDown}
         style={style}
       >
-        <span className="dc-settings-select__value">
+        <span className="dc-settings-select__value" {...valueProps}>
           {selectedOption?.label ?? value}
         </span>
         <ChevronDown

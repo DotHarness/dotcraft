@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { createEmptyDraft } from '../components/agents/agentProfileDraft'
 import {
   applyBuilderChange,
+  builderFieldForToolName,
   isBuilderToolName,
   parseBuilderToolResult
 } from '../components/agents/agentBuilderDraftSync'
@@ -12,6 +13,14 @@ describe('agentBuilderDraftSync', () => {
     expect(isBuilderToolName('AddAgentTools')).toBe(true)
     expect(isBuilderToolName('ReadFile')).toBe(false)
     expect(isBuilderToolName(undefined)).toBe(false)
+  })
+
+  it('maps builder tool names to edited fields', () => {
+    expect(builderFieldForToolName('SetAgentName')).toBe('name')
+    expect(builderFieldForToolName('AppendAgentInstructions')).toBe('instructions')
+    expect(builderFieldForToolName('AddAgentTools')).toBe('tools.allow')
+    expect(builderFieldForToolName('SetAgentApproval')).toBe('approval')
+    expect(builderFieldForToolName('ReadFile')).toBeNull()
   })
 
   it('parses a JSON-string result and rejects malformed input', () => {

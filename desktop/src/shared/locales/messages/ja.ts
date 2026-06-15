@@ -2737,4 +2737,15 @@ export const MESSAGES_JA = {
     'このエージェントに高度なロジックを追加してください。範囲を不必要に広げず、ルーティング、制約、エッジケース、ツールやスキルの選択を強化してください。',
   'agentBuilder.chat.prompt.optimize':
     'このエージェントの信頼性と集中度を最適化してください。役割指示を引き締め、不要な機能を取り除き、必要最小限のツールとスキルを提案してください。',
+  'agentBuilder.removeChip': '{{item}}を削除',
+  'agentBuilder.editing.updatingField': '{{field}}を更新中',
+  'agentBuilder.field.name': '名前',
+  'agentBuilder.field.description': '説明',
+  'agentBuilder.field.instructions': '指示',
+  'agentBuilder.field.tools': 'ツール',
+  'agentBuilder.field.mcp': 'MCP',
+  'agentBuilder.field.skills': 'スキル',
+  'agentBuilder.field.model': 'モデル',
+  'agentBuilder.field.approval': '承認',
+  'agentBuilder.field.toolControl': 'ツール制御',
 } satisfies Partial<Record<MessageId, string>>

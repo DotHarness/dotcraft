@@ -5,9 +5,8 @@
  * white terminal face screen + stubby arms + glowing yellow status ball), the same
  * vocabulary as the Teams role avatars, so a generated agent looks native to DotCraft.
  *
- * Agent Profile frontmatter has no avatar field, so the spec is derived
- * deterministically from the profile name (stable identicon) and can be re-rolled in
- * session via the dice control. Re-rolls are visual only; they are not persisted.
+ * Saved profiles may carry an explicit packed avatar number in frontmatter. Profiles without
+ * one derive a deterministic spec from the profile name (stable identicon).
  */
 
 export interface AvatarSpec {
@@ -48,6 +47,12 @@ export const PALETTE: PaletteEntry[] = [
 
 export const FACE_COUNT = 5
 export const ACCESSORY_COUNT = 6
+const PALETTE_MASK = 0x0f
+const FACE_MASK = 0x07
+const ACCESSORY_MASK = 0x07
+const FACE_SHIFT = 4
+const ACCESSORY_SHIFT = 7
+const AVATAR_MASK = PALETTE_MASK | (FACE_MASK << FACE_SHIFT) | (ACCESSORY_MASK << ACCESSORY_SHIFT)
 
 /**
  * The canonical Agent Builder character: indigo/periwinkle body, a friendly "happy" face, and the
@@ -58,6 +63,41 @@ export const AGENT_BUILDER_AVATAR: AvatarSpec = { palette: 1, face: 1, accessory
 
 export function paletteOf(spec: AvatarSpec): PaletteEntry {
   return PALETTE[spec.palette % PALETTE.length]
+}
+
+export function encodeAvatar(spec: AvatarSpec): number {
+  return (spec.palette & PALETTE_MASK)
+    | ((spec.face & FACE_MASK) << FACE_SHIFT)
+    | ((spec.accessory & ACCESSORY_MASK) << ACCESSORY_SHIFT)
+}
+
+export function decodeAvatar(value: number): AvatarSpec | null {
+  if (!Number.isInteger(value) || value < 0 || (value & ~AVATAR_MASK) !== 0) return null
+  const spec = {
+    palette: value & PALETTE_MASK,
+    face: (value >> FACE_SHIFT) & FACE_MASK,
+    accessory: (value >> ACCESSORY_SHIFT) & ACCESSORY_MASK
+  }
+  return isAvatarSpec(spec) ? spec : null
+}
+
+export function isAvatarSpec(value: unknown): value is AvatarSpec {
+  if (!value || typeof value !== 'object') return false
+  const spec = value as Partial<AvatarSpec>
+  return Number.isInteger(spec.palette)
+    && Number.isInteger(spec.face)
+    && Number.isInteger(spec.accessory)
+    && spec.palette! >= 0
+    && spec.palette! < PALETTE.length
+    && spec.face! >= 0
+    && spec.face! < FACE_COUNT
+    && spec.accessory! >= 0
+    && spec.accessory! < ACCESSORY_COUNT
+}
+
+export function normalizeAvatar(value: unknown): AvatarSpec | undefined {
+  if (typeof value === 'number') return decodeAvatar(value) ?? undefined
+  return isAvatarSpec(value) ? value : undefined
 }
 
 /** FNV-1a-ish string hash → unsigned 32-bit. */
@@ -94,7 +134,7 @@ const TEAM_ROLE_AVATARS: Record<string, AvatarSpec> = {
   'team-operator': { palette: 7, face: 3, accessory: 5 }
 }
 
-/** Avatar for a profile id: a known Teams role keeps its shipped avatar; everything else is name-seeded. */
+/** Fallback avatar for a profile id: a known Teams role keeps its shipped avatar; everything else is name-seeded. */
 export function avatarForProfile(id: string): AvatarSpec {
   return TEAM_ROLE_AVATARS[id] ?? avatarFromSeed(id)
 }

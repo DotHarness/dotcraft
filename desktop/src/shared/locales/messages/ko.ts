@@ -2737,4 +2737,15 @@ export const MESSAGES_KO = {
     '이 에이전트에 고급 로직을 추가하세요. 범위를 불필요하게 넓히지 않으면서 라우팅, 제약, 예외 상황, 도구 또는 스킬 선택을 강화하세요.',
   'agentBuilder.chat.prompt.optimize':
     '이 에이전트의 신뢰성과 집중도를 최적화하세요. 역할 지침을 더 명확히 하고 불필요한 기능을 제거하며 필요한 최소 도구와 스킬을 추천하세요.',
+  'agentBuilder.removeChip': '{{item}} 제거',
+  'agentBuilder.editing.updatingField': '{{field}} 업데이트 중',
+  'agentBuilder.field.name': '이름',
+  'agentBuilder.field.description': '설명',
+  'agentBuilder.field.instructions': '지침',
+  'agentBuilder.field.tools': '도구',
+  'agentBuilder.field.mcp': 'MCP',
+  'agentBuilder.field.skills': '스킬',
+  'agentBuilder.field.model': '모델',
+  'agentBuilder.field.approval': '승인',
+  'agentBuilder.field.toolControl': '도구 제어',
 } satisfies Partial<Record<MessageId, string>>

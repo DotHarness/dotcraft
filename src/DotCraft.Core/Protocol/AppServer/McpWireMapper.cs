@@ -1,4 +1,3 @@
-using DotCraft.Configuration;
 using DotCraft.Mcp;
 
 namespace DotCraft.Protocol.AppServer;

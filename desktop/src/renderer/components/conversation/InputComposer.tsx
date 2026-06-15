@@ -158,6 +158,8 @@ interface InputComposerProps {
    * builder thread exists.
    */
   submitOverride?: (payload: InputComposerSubmitPayload) => Promise<void> | void
+  /** Overrides the dock padding when the composer is embedded in a non-docked welcome-style surface. */
+  dockPadding?: CSSProperties['padding']
 }
 
 /**
@@ -187,7 +189,8 @@ export function InputComposer({
   placeholder,
   prefillRequest = null,
   onBeforeSend,
-  submitOverride
+  submitOverride,
+  dockPadding = composerDockStyle.padding
 }: InputComposerProps): JSX.Element {
   const t = useT()
   const isAgentBuilder = variant === 'agentBuilder'
@@ -1316,9 +1319,13 @@ export function InputComposer({
   const onSelectSkill = useCallback((skillName: string): void => {
     richRef.current?.insertSkillTag(skillName)
   }, [])
+  const effectiveComposerDockStyle =
+    dockPadding === composerDockStyle.padding
+      ? composerDockStyle
+      : { ...composerDockStyle, padding: dockPadding }
 
   return (
-    <div style={composerDockStyle}>
+    <div style={effectiveComposerDockStyle}>
       <ConversationColumn>
       {visiblePendingMessage && <PendingMessageIndicator message={visiblePendingMessage} />}
       <ComposerShell

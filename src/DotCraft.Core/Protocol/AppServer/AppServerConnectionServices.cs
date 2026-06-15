@@ -1,13 +1,7 @@
-using System.Text;
-using System.Text.Json;
-using System.Text.Json.Nodes;
-using System.Globalization;
 using DotCraft.Agents;
-using DotCraft.Abstractions;
 using DotCraft.AppBinding;
 using DotCraft.Auth.OpenAI;
 using DotCraft.Commands.Core;
-using DotCraft.Commands.Custom;
 using DotCraft.Configuration;
 using DotCraft.Context;
 using DotCraft.Cron;
@@ -17,11 +11,9 @@ using DotCraft.Lsp;
 using DotCraft.Mcp;
 using DotCraft.Memory;
 using DotCraft.Dreams;
-using DotCraft.Plugins;
 using DotCraft.Skills;
 using DotCraft.Tools.BackgroundTerminals;
 using DotCraft.Tracing;
-using Microsoft.Extensions.AI;
 
 namespace DotCraft.Protocol.AppServer;
 

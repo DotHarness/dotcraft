@@ -2742,4 +2742,15 @@ export const MESSAGES_ES = {
     'Añade lógica avanzada a este agente. Refuerza su enrutamiento, restricciones, casos límite y selección de herramientas o habilidades sin ampliar su alcance innecesariamente.',
   'agentBuilder.chat.prompt.optimize':
     'Optimiza este agente para que sea más fiable y enfocado. Ajusta sus instrucciones de rol, elimina capacidades innecesarias y recomienda las herramientas y habilidades mínimas que necesita.',
+  'agentBuilder.removeChip': 'Eliminar {{item}}',
+  'agentBuilder.editing.updatingField': 'Actualizando {{field}}',
+  'agentBuilder.field.name': 'nombre',
+  'agentBuilder.field.description': 'descripción',
+  'agentBuilder.field.instructions': 'instrucciones',
+  'agentBuilder.field.tools': 'herramientas',
+  'agentBuilder.field.mcp': 'MCP',
+  'agentBuilder.field.skills': 'habilidades',
+  'agentBuilder.field.model': 'modelo',
+  'agentBuilder.field.approval': 'aprobación',
+  'agentBuilder.field.toolControl': 'control de herramientas',
 } satisfies Partial<Record<MessageId, string>>
