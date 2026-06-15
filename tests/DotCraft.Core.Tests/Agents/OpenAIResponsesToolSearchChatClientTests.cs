@@ -821,6 +821,95 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
     }
 
     [Fact]
+    public async Task GetStreamingResponseAsync_WithResponsesFunctionArgumentDeltas_InjectsToolCallArgumentPreviews()
+    {
+        var inner = new FakeChatClient(new ChatResponse([new ChatMessage(ChatRole.Assistant, "inner response")]));
+        var transport = new FakeToolSearchTransport(
+            CreateStreamingUpdate("""
+                {
+                  "type": "response.output_item.added",
+                  "output_index": 0,
+                  "item": {
+                    "type": "function_call",
+                    "id": "fc_001",
+                    "call_id": "call_123",
+                    "name": "CreatePlan",
+                    "arguments": "",
+                    "status": "in_progress"
+                  }
+                }
+                """),
+            CreateStreamingUpdate("""
+                {
+                  "type": "response.function_call_arguments.delta",
+                  "item_id": "fc_001",
+                  "output_index": 0,
+                  "delta": "{\"plan\":\"shi"
+                }
+                """),
+            CreateStreamingUpdate("""
+                {
+                  "type": "response.function_call_arguments.delta",
+                  "item_id": "fc_001",
+                  "output_index": 0,
+                  "delta": "p\"}"
+                }
+                """),
+            CreateStreamingUpdate("""
+                {
+                  "type": "response.function_call_arguments.done",
+                  "item_id": "fc_001",
+                  "output_index": 0,
+                  "arguments": "{\"plan\":\"ship\"}"
+                }
+                """),
+            CreateStreamingUpdate("""
+                {
+                  "type": "response.output_item.done",
+                  "output_index": 0,
+                  "item": {
+                    "type": "function_call",
+                    "id": "fc_001",
+                    "call_id": "call_123",
+                    "name": "CreatePlan",
+                    "arguments": "{\"plan\":\"ship\"}",
+                    "status": "completed"
+                  }
+                }
+                """));
+        using var responsesClient = CreateClient(inner, transport);
+        using var invokingClient = new StreamingFunctionInvokingChatClient(responsesClient)
+        {
+            EnableToolCallArgumentPreviews = true,
+            IsStreamableTool = name => string.Equals(name, "CreatePlan", StringComparison.Ordinal),
+            TerminateOnUnknownCalls = true
+        };
+
+        var updates = new List<ChatResponseUpdate>();
+        var deltas = new List<ToolCallArgumentsDeltaContent>();
+        await foreach (var update in invokingClient.GetStreamingResponseAsync(
+                           [new ChatMessage(ChatRole.User, "make a plan")]))
+        {
+            updates.Add(update);
+            deltas.AddRange(update.Contents.OfType<ToolCallArgumentsDeltaContent>());
+        }
+
+        Assert.Equal(2, deltas.Count);
+        Assert.Equal(0, deltas[0].ToolCallIndex);
+        Assert.Equal("CreatePlan", deltas[0].ToolName);
+        Assert.Equal("call_123", deltas[0].CallId);
+        Assert.Equal("{\"plan\":\"shi", deltas[0].ArgumentsDelta);
+        Assert.Equal(0, deltas[1].ToolCallIndex);
+        Assert.Null(deltas[1].ToolName);
+        Assert.Null(deltas[1].CallId);
+        Assert.Equal("p\"}", deltas[1].ArgumentsDelta);
+
+        var finalCall = Assert.Single(updates.SelectMany(update => update.Contents).OfType<FunctionCallContent>());
+        Assert.Equal("CreatePlan", finalCall.Name);
+        Assert.Equal("call_123", finalCall.CallId);
+    }
+
+    [Fact]
     public async Task GetStreamingResponseAsync_WithDuplicateInputRawResponseItem_DoesNotThrow()
     {
         var inner = new FakeChatClient(new ChatResponse([new ChatMessage(ChatRole.Assistant, "inner response")]));
@@ -1035,6 +1124,11 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
             OutputIndex = 0,
             Item = item
         };
+
+    private static StreamingResponseUpdate CreateStreamingUpdate(string json) =>
+        ModelReaderWriter.Read<StreamingResponseUpdate>(
+            BinaryData.FromString(json),
+            ModelReaderWriterOptions.Json)!;
 
     private static ResponseItem CreateUnknownToolSearchCallItem(string callId, object arguments)
     {
