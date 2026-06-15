@@ -396,7 +396,6 @@ function InlineReferenceLink({
   linkMode: 'conversation' | 'external'
   t: (key: string) => string
 }): JSX.Element {
-  const [hovered, setHovered] = useState(false)
   const [focused, setFocused] = useState(false)
   const [contextMenu, setContextMenu] = useState<{ position: ContextMenuPosition; targetPath: string } | null>(null)
   const presentation = useMemo(
@@ -440,62 +439,35 @@ function InlineReferenceLink({
   }
 
   const NonFileIcon = presentation.kind === 'browser' ? Globe : Link2
-  const borderColor = presentation.kind === 'file'
-    ? 'color-mix(in srgb, var(--border-active) 44%, transparent)'
-    : 'color-mix(in srgb, var(--accent) 46%, transparent)'
-  const background = presentation.kind === 'file'
-    ? (hovered
-        ? 'color-mix(in srgb, var(--bg-active) 76%, var(--bg-tertiary))'
-        : 'color-mix(in srgb, var(--bg-tertiary) 88%, transparent)')
-    : (hovered
-        ? 'color-mix(in srgb, var(--accent) 18%, var(--bg-secondary))'
-        : 'color-mix(in srgb, var(--accent) 12%, transparent)')
 
   const anchor = (
     <a
         href={href}
         onClick={(event) => { void handleClick(event) }}
         onContextMenu={handleContextMenu}
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         data-inline-reference-kind={presentation.kind}
+        // Shares the quiet inline-reference chip language with the composer pills
+        // and user-message refs (tokens.css .dc-ref*): no border/fill at rest,
+        // revealed on hover; file = neutral, link = accent. Baseline-aligned via
+        // the shared inline-block + nudged-icon rules.
+        className={`dc-ref ${presentation.kind === 'file' ? 'dc-ref-file' : 'dc-ref-link'}`}
         style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: '4px',
-          verticalAlign: '-0.2em',
           margin: '0 4px',
-          padding: '1px 7px',
           maxWidth: 'min(100%, var(--inline-reference-max-width))',
-          borderRadius: '7px',
-          border: `1px solid ${borderColor}`,
-          background,
-          color: presentation.kind === 'file' ? 'var(--text-primary)' : 'var(--accent)',
+          fontSize: '12px',
+          lineHeight: 1.25,
           textDecoration: 'none',
           cursor: href ? 'pointer' : 'default',
-          boxShadow: focused ? '0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent)' : 'none',
-          transition: 'background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease',
-          lineHeight: 1.25
+          boxShadow: focused ? '0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent)' : 'none'
         }}
         {...props}
       >
         {presentation.kind === 'file'
-          ? <FileTypeIcon path={presentation.absolutePath ?? presentation.label} size={12} />
-          : <NonFileIcon size={12} strokeWidth={2.1} aria-hidden style={{ flexShrink: 0 }} />}
-        <span
-          style={{
-            minWidth: 0,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-            fontSize: '12px',
-            fontWeight: 600
-          }}
-        >
-          {presentation.label}
-        </span>
+          ? <FileTypeIcon path={presentation.absolutePath ?? presentation.label} size={12} style={{ display: 'inline-block' }} />
+          : <NonFileIcon size={12} strokeWidth={2.1} aria-hidden />}
+        <span>{presentation.label}</span>
       </a>
   )
 

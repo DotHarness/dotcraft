@@ -112,6 +112,9 @@
   --warning: #eab308;
   --error: #ef4444;
   --info: #3b82f6;
+  /* Inline reference (chip) skill colour — a calmer sage than the status-green
+     --success, which reads too loud as inline text. Link chips reuse --info. */
+  --ref-skill: #56a87c;
 
   /* Running-tool shimmer: dim resting base + a white core tinted with brand accent.
      Defined per theme so the highlight stays white-anchored (never inverts to a dark
@@ -399,6 +402,8 @@ html[data-theme="light"] {
   --warning: #c9a227;
   --error: #dc2626;
   --info: #2563eb;
+  /* Darker sage for legibility on the light surface (see dark-theme note). */
+  --ref-skill: #3e8c64;
 
   /* Light theme: base stays dark ink so the white-anchored core reads as a highlight
      sweeping over readable text, not a dark streak. */
@@ -1522,12 +1527,11 @@ kbd {
    the 4px gap the former flex layout provided. */
 .dc-ref > .dc-ref-icon,
 .dc-ref > svg {
+  /* inline-block is required: a bare inline <svg> aligns its bottom to the text
+     baseline and rides high; a block <svg> would stack onto its own line. */
+  display: inline-block;
   vertical-align: -0.17em;
   margin-right: 4px;
-}
-
-.dc-ref > .dc-ref-icon {
-  display: inline-block;
 }
 
 .dc-ref-file {
@@ -1535,16 +1539,23 @@ kbd {
 }
 
 .dc-ref-command,
-.dc-ref-skill {
+.dc-ref-skill,
+.dc-ref-link {
   font-weight: 600;
 }
 
+/* command keeps the brand accent; skill uses the calmer sage --ref-skill; link
+   uses the brighter --info blue (the dark --accent read too dark for URLs). */
 .dc-ref-command {
   color: var(--accent);
 }
 
 .dc-ref-skill {
-  color: var(--success);
+  color: var(--ref-skill);
+}
+
+.dc-ref-link {
+  color: var(--info);
 }
 
 .dc-ref-file:hover {
@@ -1558,8 +1569,13 @@ kbd {
 }
 
 .dc-ref-skill:hover {
-  border-color: color-mix(in srgb, var(--success) 38%, transparent);
-  background: color-mix(in srgb, var(--success) 16%, transparent);
+  border-color: color-mix(in srgb, var(--ref-skill) 38%, transparent);
+  background: color-mix(in srgb, var(--ref-skill) 16%, transparent);
+}
+
+.dc-ref-link:hover {
+  border-color: color-mix(in srgb, var(--info) 38%, transparent);
+  background: color-mix(in srgb, var(--info) 16%, transparent);
 }
 
 /* ─── Running tool text shimmer ─── */

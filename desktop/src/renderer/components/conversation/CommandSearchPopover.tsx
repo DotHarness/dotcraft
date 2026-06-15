@@ -226,7 +226,7 @@ export function CommandSearchPopover({
                 }}
                 style={mentionRowStyle(index === highlight)}
               >
-                <MentionRowIcon tint="var(--success)">
+                <MentionRowIcon tint="var(--ref-skill)">
                   <Sparkle size={15} strokeWidth={2} aria-hidden />
                 </MentionRowIcon>
                 <span style={mentionRowNameStyle}>{highlightMatch(skill.name, query)}</span>
