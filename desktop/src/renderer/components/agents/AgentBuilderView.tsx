@@ -116,11 +116,11 @@ const SUGGESTIONS: { icon: LucideIcon; title: string; desc: string; prompt: stri
 ]
 
 const FAN = [
-  { rot: -14, y: 16 },
-  { rot: -7, y: 5 },
+  { rot: -11, y: 12 },
+  { rot: -6, y: 4 },
   { rot: 0, y: 0 },
-  { rot: 7, y: 5 },
-  { rot: 14, y: 16 }
+  { rot: 6, y: 4 },
+  { rot: 11, y: 12 }
 ]
 
 const BUILDER_FIELD_LABEL_KEYS: Record<BuilderField, string> = {
@@ -1011,8 +1011,10 @@ function TemplateDeck({ templates, onPick }: { templates: ProfileEntry[]; onPick
             }}
             onClick={() => onPick(p)}
           >
-            <RobotAvatar spec={avatarForEntry(p)} size={34} />
-            <span className="agent-builder-deckcard-name">{p.id.replace('team-', '')}</span>
+            <span className="agent-builder-deckcard-head">
+              <RobotAvatar spec={avatarForEntry(p)} size={40} />
+              <span className="agent-builder-deckcard-name">{p.id.replace('team-', '')}</span>
+            </span>
             <span className="agent-builder-deckcard-desc">{p.description || ''}</span>
           </button>
         )

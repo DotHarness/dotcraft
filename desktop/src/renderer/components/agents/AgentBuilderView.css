@@ -133,10 +133,11 @@
 .agent-builder-intro-sug:hover .agent-builder-intro-sug-ic, .agent-builder-intro-sug:focus-visible .agent-builder-intro-sug-ic { color: var(--text-secondary); }
 .agent-builder-intro-sug-t { font-size: inherit; line-height: inherit; font-weight: var(--type-ui-emphasis-weight); color: var(--text-primary); flex: 0 0 auto; }
 .agent-builder-intro-sug-d { font-size: inherit; line-height: inherit; color: var(--text-dimmed); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.agent-builder-intro-deck { position: absolute; left: 50%; bottom: 0; transform: translate(-50%, 30%); display: flex; align-items: flex-end; justify-content: center; }
-.agent-builder-deckcard { position: relative; width: 168px; margin: 0 -22px; display: flex; flex-direction: column; align-items: flex-start; gap: 7px; padding: 16px 16px 18px; cursor: pointer; text-align: left; transform-origin: bottom center; border: 1px solid var(--border-default); border-radius: 16px; background: var(--bg-elevated); box-shadow: var(--shadow-md); color: var(--text-primary); transition: transform 180ms cubic-bezier(.2,.8,.2,1), box-shadow 180ms ease, border-color 180ms ease; }
+.agent-builder-intro-deck { position: absolute; left: 50%; bottom: 0; transform: translate(-50%, 42%); display: flex; align-items: flex-end; justify-content: center; }
+.agent-builder-deckcard { position: relative; width: 168px; min-height: 168px; margin: 0 -38px; box-sizing: border-box; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 16px 16px 18px; cursor: pointer; text-align: left; transform-origin: bottom center; border: 1px solid var(--border-default); border-radius: 16px; background: var(--bg-elevated); box-shadow: var(--shadow-md); color: var(--text-primary); transition: transform 180ms cubic-bezier(.2,.8,.2,1), box-shadow 180ms ease, border-color 180ms ease; }
 .agent-builder-deckcard.is-active { box-shadow: var(--shadow-lg); border-color: color-mix(in srgb, var(--accent) 40%, var(--border-default)); }
-.agent-builder-deckcard-name { font-size: 13.5px; font-weight: 700; text-transform: capitalize; }
+.agent-builder-deckcard-head { display: flex; align-items: center; gap: 9px; width: 100%; }
+.agent-builder-deckcard-name { flex: 1; min-width: 0; font-size: 18px; font-weight: 700; line-height: 1.1; text-transform: capitalize; overflow-wrap: anywhere; }
 .agent-builder-deckcard-desc { font-size: 11.5px; color: var(--text-dimmed); line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
 /* avatar idle bob */
