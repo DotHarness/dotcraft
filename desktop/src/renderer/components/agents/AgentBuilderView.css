@@ -157,11 +157,11 @@
   z-index: 0;
   pointer-events: none;
   background:
-    radial-gradient(ellipse at 0% 24%, color-mix(in srgb, var(--accent) 20%, transparent) 0, transparent 30%),
-    radial-gradient(ellipse at 100% 24%, color-mix(in srgb, var(--accent) 20%, transparent) 0, transparent 30%),
-    linear-gradient(90deg, color-mix(in srgb, var(--accent) 13%, transparent), transparent 18%, transparent 82%, color-mix(in srgb, var(--accent) 13%, transparent));
-  filter: blur(18px);
-  opacity: 0.68;
+    radial-gradient(ellipse at 0% 24%, color-mix(in srgb, var(--accent) 20%, transparent) 0, transparent 22.5%),
+    radial-gradient(ellipse at 100% 24%, color-mix(in srgb, var(--accent) 20%, transparent) 0, transparent 22.5%),
+    linear-gradient(90deg, color-mix(in srgb, var(--accent) 13%, transparent), transparent 13.5%, transparent 86.5%, color-mix(in srgb, var(--accent) 13%, transparent));
+  filter: blur(13.5px);
+  opacity: 0.51;
   animation: agent-builder-driving-glow 2.8s ease-in-out infinite;
 }
 .agent-builder-chatpane { flex: 0 0 auto; min-width: 0; height: 100%; display: flex; flex-direction: column; min-height: 0; border-left: 1px solid var(--agent-builder-chat-divider-border, var(--border-default)); background: var(--bg-primary); transition: width 180ms ease-out, flex-basis 180ms ease-out; }
@@ -232,8 +232,8 @@
   background: color-mix(in srgb, var(--bg-primary) 10%, transparent);
 }
 @keyframes agent-builder-driving-glow {
-  0%, 100% { opacity: 0.58; transform: translateY(0); }
-  50% { opacity: 0.88; transform: translateY(-2px); }
+  0%, 100% { opacity: 0.435; transform: translateY(0); }
+  50% { opacity: 0.66; transform: translateY(-2px); }
 }
 @media (prefers-reduced-motion: reduce) {
   .agent-builder-edit-marker, .agent-builder-split-main.is-agent-driving::before { animation: none; }
