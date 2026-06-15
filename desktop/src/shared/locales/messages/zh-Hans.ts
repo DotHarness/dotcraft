@@ -1539,6 +1539,7 @@ export const MESSAGES_ZH_HANS = {
   'connection.unknownError': '未知错误',
   'connection.statusTitle': '连接状态：{{status}}',
   'fileSearch.loading': '加载中…',
+  'fileSearch.filesGroup': '文件',
   'fileSearch.noMatch': '没有匹配的文件',
   'fileSearch.hint': '输入以搜索文件',
   'fileSearch.building': '正在建立文件索引…',

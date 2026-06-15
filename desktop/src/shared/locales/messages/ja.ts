@@ -2252,6 +2252,7 @@ export const MESSAGES_JA = {
   'connection.startupTakingLong': 'まだ DotCraft AppServer に接続しています。これには予想以上に時間がかかっています。',
   'connection.unknownError': '不明なエラー',
   'fileSearch.loading': '読み込み中…',
+  'fileSearch.filesGroup': 'ファイル',
   'fileSearch.noMatch': '一致するファイルがありません',
   'fileSearch.hint': '入力してファイルを検索します',
   'fileSearch.building': 'ファイルのインデックス作成中…',

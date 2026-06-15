@@ -1490,6 +1490,78 @@ kbd {
   }
 }
 
+/* ─── Inline reference chips (file / command / skill) ───
+   One shared chip treatment for the composer editor pills (raw DOM, see
+   richInputSerialization.createRefSpan) and the sent-message bubble refs
+   (UserMessageBlock). The chip is QUIET at rest — just the type-colored icon +
+   name, no border, no background — and only reveals its border + tinted fill on
+   hover, so a message full of references stays calm until the user points at
+   one. The type colour (neutral file / accent command / success skill) lives on
+   the text + icon and is always present; only the chip chrome is hover-gated. A
+   1px transparent rest border reserves space so the hover border never nudges
+   the surrounding text. */
+.dc-ref {
+  /* inline-block (not inline-flex): an inline-block's baseline is its last text
+     line's baseline, so the chip's LABEL sits on the surrounding text baseline.
+     An inline-flex chip synthesizes its baseline from the first item (the icon)
+     and rides high above the running text — visible once the rest background is
+     gone. */
+  display: inline-block;
+  vertical-align: baseline;
+  padding: 1px 6px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  white-space: nowrap;
+  user-select: none;
+  transition: background 110ms ease, border-color 110ms ease;
+}
+
+/* Leading icon — a `.dc-ref-icon` span in the composer pill, a bare <svg> in the
+   bubble ref. Nudge it down onto the text so it centres on the label, and add
+   the 4px gap the former flex layout provided. */
+.dc-ref > .dc-ref-icon,
+.dc-ref > svg {
+  vertical-align: -0.17em;
+  margin-right: 4px;
+}
+
+.dc-ref > .dc-ref-icon {
+  display: inline-block;
+}
+
+.dc-ref-file {
+  color: var(--text-primary);
+}
+
+.dc-ref-command,
+.dc-ref-skill {
+  font-weight: 600;
+}
+
+.dc-ref-command {
+  color: var(--accent);
+}
+
+.dc-ref-skill {
+  color: var(--success);
+}
+
+.dc-ref-file:hover {
+  border-color: color-mix(in srgb, var(--border-active) 44%, transparent);
+  background: color-mix(in srgb, var(--bg-tertiary) 88%, transparent);
+}
+
+.dc-ref-command:hover {
+  border-color: color-mix(in srgb, var(--accent) 38%, transparent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.dc-ref-skill:hover {
+  border-color: color-mix(in srgb, var(--success) 38%, transparent);
+  background: color-mix(in srgb, var(--success) 16%, transparent);
+}
+
 /* ─── Running tool text shimmer ─── */
 @keyframes tool-running-gradient {
   0% {

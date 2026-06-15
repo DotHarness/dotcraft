@@ -2257,6 +2257,7 @@ export const MESSAGES_ES = {
   'connection.startupTakingLong': 'Todavía conectándome a DotCraft AppServer. Esto está tardando más de lo esperado.',
   'connection.unknownError': 'Error desconocido',
   'fileSearch.loading': 'Cargando…',
+  'fileSearch.filesGroup': 'Archivos',
   'fileSearch.noMatch': 'No hay archivos coincidentes',
   'fileSearch.hint': 'Escribe para buscar archivos',
   'fileSearch.building': 'Indexando archivos…',

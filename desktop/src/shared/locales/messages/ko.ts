@@ -2252,6 +2252,7 @@ export const MESSAGES_KO = {
   'connection.startupTakingLong': '아직 DotCraft AppServer에 연결되어 있습니다. 예상보다 시간이 오래 걸립니다.',
   'connection.unknownError': '알 수 없는 오류',
   'fileSearch.loading': '로드 중…',
+  'fileSearch.filesGroup': '파일',
   'fileSearch.noMatch': '일치하는 파일이 없습니다.',
   'fileSearch.hint': '파일을 검색하려면 입력하세요.',
   'fileSearch.building': '파일 색인 중…',

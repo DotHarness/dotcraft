@@ -120,7 +120,11 @@ describe('truncateEditorDomToSerializedLength', () => {
     expect(root.querySelector(`.${FILE_REF_CLASS}`)).not.toBeNull()
     expect(root.querySelector(`.${COMMAND_REF_CLASS}`)).not.toBeNull()
     expect(root.querySelector(`.${SKILL_REF_CLASS}`)).not.toBeNull()
-    expect((root.querySelector(`.${COMMAND_REF_CLASS}`) as HTMLElement).style.verticalAlign).toBe('-0.12em')
+    // Visual treatment now comes from the shared inline-reference chip classes
+    // (tokens.css .dc-ref*), not inline styles.
+    const commandRef = root.querySelector(`.${COMMAND_REF_CLASS}`) as HTMLElement
+    expect(commandRef.classList.contains('dc-ref')).toBe(true)
+    expect(commandRef.classList.contains('dc-ref-command')).toBe(true)
     expect(serializeEditor(root)).toBe('Check @src/foo.ts then /code-review and $memory')
   })
 

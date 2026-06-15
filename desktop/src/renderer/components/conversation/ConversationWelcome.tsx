@@ -258,7 +258,7 @@ export function ConversationWelcome({
             ? t('composer.system.plan.enable')
             : t('composer.system.plan.disable'),
           keywords: ['plan', 'agent', '计划'],
-          icon: <ListChecks size={11} strokeWidth={2} aria-hidden />
+          icon: <ListChecks size={15} strokeWidth={2} aria-hidden />
         })
       }
       if (canUseAgentProfiles) {
@@ -267,7 +267,7 @@ export function ConversationWelcome({
           label: t('composer.system.profile'),
           description: t('composer.system.profile.description'),
           keywords: ['profile', 'agent', 'custom'],
-          icon: <Bot size={11} strokeWidth={2} aria-hidden />
+          icon: <Bot size={15} strokeWidth={2} aria-hidden />
         })
       }
       if (canUseThreadGoals) {
@@ -276,7 +276,7 @@ export function ConversationWelcome({
           label: t('goal.system.label'),
           description: t('goal.system.description'),
           keywords: ['goal', '目标'],
-          icon: <Target size={11} strokeWidth={2} aria-hidden />
+          icon: <Target size={15} strokeWidth={2} aria-hidden />
         })
       }
       return actions

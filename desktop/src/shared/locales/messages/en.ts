@@ -1594,6 +1594,7 @@ export const MESSAGES_EN = {
   'connection.unknownError': 'Unknown error',
   'connection.statusTitle': 'Connection status: {{status}}',
   'fileSearch.loading': 'Loading…',
+  'fileSearch.filesGroup': 'Files',
   'fileSearch.noMatch': 'No matching files',
   'fileSearch.hint': 'Type to search files',
   'fileSearch.building': 'Indexing files…',

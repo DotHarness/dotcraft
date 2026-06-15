@@ -327,7 +327,7 @@ export function InputComposer({
             ? t('composer.system.plan.enable')
             : t('composer.system.plan.disable'),
           keywords: ['plan', 'agent'],
-          icon: <ListChecks size={11} strokeWidth={2} aria-hidden />
+          icon: <ListChecks size={15} strokeWidth={2} aria-hidden />
         })
       }
       if (canUseAgentProfiles) {
@@ -336,7 +336,7 @@ export function InputComposer({
           label: t('composer.system.profile'),
           description: t('composer.system.profile.description'),
           keywords: ['profile', 'agent', 'custom'],
-          icon: <Bot size={11} strokeWidth={2} aria-hidden />
+          icon: <Bot size={15} strokeWidth={2} aria-hidden />
         })
       }
       if (canCompactCurrentThread) {
@@ -345,7 +345,7 @@ export function InputComposer({
           label: t('composer.system.compact'),
           description: t('composer.system.compact.description'),
           keywords: ['compact'],
-          icon: <ChevronsDown size={11} strokeWidth={2} aria-hidden />
+          icon: <ChevronsDown size={15} strokeWidth={2} aria-hidden />
         })
       }
       if (canConsolidateCurrentThread) {
@@ -354,7 +354,7 @@ export function InputComposer({
           label: t('composer.system.consolidate'),
           description: t('composer.system.consolidate.description'),
           keywords: ['consolidate', 'memory'],
-          icon: <Archive size={11} strokeWidth={2} aria-hidden />
+          icon: <Archive size={15} strokeWidth={2} aria-hidden />
         })
       }
       if (canUseThreadGoals) {
@@ -363,7 +363,7 @@ export function InputComposer({
           label: t('goal.system.label'),
           description: t('goal.system.description'),
           keywords: ['goal', '目标'],
-          icon: <Target size={11} strokeWidth={2} aria-hidden />
+          icon: <Target size={15} strokeWidth={2} aria-hidden />
         })
       }
       return actions
