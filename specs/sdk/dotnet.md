@@ -1391,7 +1391,7 @@ The Trusted Publishing policy on nuget.org must be configured for:
 | Workflow File | `publish-nuget.yml` |
 | Environment | leave blank |
 
-The workflow requires a GitHub Actions repository or organization variable named `NUGET_USER` containing the nuget.org profile name or organization user used for Trusted Publishing. This value is not an API key and must not be an email address.
+The workflow requires a GitHub Actions repository or organization variable named `NUGET_USER` containing the nuget.org username that created the Trusted Publishing policy. This value is not the `GitHubActions` publisher label shown by nuget.org, is not an API key, and must not be an email address.
 
 Version rules:
 

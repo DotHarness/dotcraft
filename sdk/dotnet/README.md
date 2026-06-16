@@ -385,7 +385,9 @@ The nuget.org Trusted Publishing policy should be configured for:
 | Environment | leave blank |
 
 Set the `NUGET_USER` GitHub Actions repository or organization variable to the
-nuget.org profile or organization name used for Trusted Publishing.
+nuget.org username that created the Trusted Publishing policy. This is not the
+`GitHubActions` publisher label shown by nuget.org and must not be an email
+address.
 
 ## Development
 

@@ -190,7 +190,7 @@ jobs:
           NUGET_USER: ${{ vars.NUGET_USER }}
         run: |
           if ([string]::IsNullOrWhiteSpace($env:NUGET_USER)) {
-            throw "Set the NUGET_USER GitHub Actions repository or organization variable to the nuget.org profile name used for Trusted Publishing."
+            throw "Set NUGET_USER to the nuget.org username that created the Trusted Publishing policy. Do not use the GitHubActions publisher label or an email address."
           }
 
       - name: NuGet login through Trusted Publishing
@@ -208,6 +208,5 @@ jobs:
           $ErrorActionPreference = "Stop"
           $source = "https://api.nuget.org/v3/index.json"
           $nupkg = "artifacts/nuget/DotCraft.Sdk.$env:PACKAGE_VERSION.nupkg"
-          $snupkg = "artifacts/nuget/DotCraft.Sdk.$env:PACKAGE_VERSION.snupkg"
+          # NuGet pushes the sibling .snupkg automatically when it is next to the .nupkg.
           dotnet nuget push $nupkg --source $source --api-key $env:NUGET_API_KEY
-          dotnet nuget push $snupkg --source $source --api-key $env:NUGET_API_KEY
