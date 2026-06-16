@@ -114,6 +114,7 @@ describe('useAgentBuilderConversation', () => {
     expect(appServerSendRequest.mock.calls.map(([method]) => method)).toEqual([
       'thread/start',
       'agent/profiles/builderDraft/update',
+      'thread/subscribe',
       'turn/start'
     ])
     expect(appServerSendRequest).toHaveBeenNthCalledWith(1, 'thread/start', {
@@ -134,7 +135,10 @@ describe('useAgentBuilderConversation', () => {
       threadId: 'builder-thread',
       rawContent: '---\nname: draft-agent\n---\n\nDraft body.\n'
     })
-    expect(appServerSendRequest).toHaveBeenNthCalledWith(3, 'turn/start', {
+    expect(appServerSendRequest).toHaveBeenNthCalledWith(3, 'thread/subscribe', {
+      threadId: 'builder-thread'
+    })
+    expect(appServerSendRequest).toHaveBeenNthCalledWith(4, 'turn/start', {
       threadId: 'builder-thread',
       input: [{ type: 'text', text: 'Build the agent from this intent.' }],
       identity: {
@@ -146,6 +150,45 @@ describe('useAgentBuilderConversation', () => {
     })
     expect(appServerSendRequest.mock.calls.some(([method]) => method === 'turn/enqueue')).toBe(false)
     expect(useThreadStore.getState().activeThreadId).toBe('builder-thread')
+  })
+
+  it('does not start the initial builder turn until the thread subscription succeeds', async () => {
+    appServerSendRequest.mockImplementation(async (method: string) => {
+      if (method === 'thread/start') {
+        return { thread: { id: 'builder-thread' } }
+      }
+      if (method === 'thread/subscribe') {
+        throw new Error('subscribe failed')
+      }
+      return {}
+    })
+
+    render(<Harness />)
+
+    await waitFor(() => {
+      expect(screen.getByText('error')).toBeInTheDocument()
+      expect(screen.getByText('subscribe failed')).toBeInTheDocument()
+    })
+    expect(appServerSendRequest.mock.calls.map(([method]) => method)).toEqual([
+      'thread/start',
+      'agent/profiles/builderDraft/update',
+      'thread/subscribe'
+    ])
+    expect(appServerSendRequest.mock.calls.some(([method]) => method === 'turn/start')).toBe(false)
+    expect(useThreadStore.getState().activeThreadId).toBe('previous-thread')
+  })
+
+  it('does not restore the previous active thread over a user-selected thread on unmount', async () => {
+    const { unmount } = render(<Harness />)
+
+    await waitFor(() => {
+      expect(screen.getByText('ready')).toBeInTheDocument()
+    })
+
+    useThreadStore.getState().setActiveThreadId('user-selected-thread')
+    unmount()
+
+    expect(useThreadStore.getState().activeThreadId).toBe('user-selected-thread')
   })
 
   it('surfaces builder tool results from real toolCall and toolResult notifications', async () => {

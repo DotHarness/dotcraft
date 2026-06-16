@@ -1385,6 +1385,8 @@ For persisted server-managed threads, the execution lifecycle of a started turn 
 
 **Interaction with `thread/subscribe`**: If the calling connection already holds an active subscription for the target thread (via `thread/subscribe`), the server MUST use the subscription path to deliver all turn-scoped notifications instead of creating a separate inline dispatch path. The `turn/start` JSON-RPC response is still sent before the first `turn/started` notification. The server must still keep an internal active-turn drain for the submitted turn so connection loss does not stop execution or strand approvals after the passive subscription is cancelled. See [Section 6.10](#610-notification-delivery-guarantees) for the at-most-once delivery guarantee.
 
+Clients that intend to render a turn from `thread/subscribe` notifications SHOULD establish the subscription, or an equivalent event-capture path, before calling `turn/start`. Clients should not merge inline dispatch, subscription replay, and local streaming state for the same running turn unless they have a stable event identity or offset to deduplicate notifications.
+
 **Direction**: client → server (request)
 
 **Params**:

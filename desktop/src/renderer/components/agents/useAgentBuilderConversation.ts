@@ -116,6 +116,15 @@ function builderToolCallField(params: Record<string, unknown>): { field: Builder
   return { field, callId }
 }
 
+function restorePreviousActiveThreadIfCurrentBuilder(builderThreadId: string | null, previousThreadId: string | null): void {
+  if (!builderThreadId) return
+  const threadStore = useThreadStore.getState()
+  if (threadStore.activeThreadId !== builderThreadId) return
+
+  threadStore.setActiveThreadId(previousThreadId)
+  threadStore.setActiveThread(null)
+}
+
 export function useAgentBuilderConversation({
   active,
   onResult,
@@ -145,8 +154,7 @@ export function useAgentBuilderConversation({
 
     startTokenRef.current += 1
     if (threadIdRef.current) {
-      useThreadStore.getState().setActiveThreadId(previousActiveThreadIdRef.current)
-      useThreadStore.getState().setActiveThread(null)
+      restorePreviousActiveThreadIfCurrentBuilder(threadIdRef.current, previousActiveThreadIdRef.current)
     }
     setCurrentThreadId(null)
     setStatus('idle')
@@ -159,8 +167,7 @@ export function useAgentBuilderConversation({
 
   useEffect(() => () => {
     if (threadIdRef.current) {
-      useThreadStore.getState().setActiveThreadId(previousActiveThreadIdRef.current)
-      useThreadStore.getState().setActiveThread(null)
+      restorePreviousActiveThreadIfCurrentBuilder(threadIdRef.current, previousActiveThreadIdRef.current)
     }
   }, [])
 
@@ -214,6 +221,11 @@ export function useAgentBuilderConversation({
         useThreadStore.getState().setActiveThread(null)
         setCurrentThreadId(newThreadId)
 
+        await rpc('thread/subscribe', {
+          threadId: newThreadId
+        })
+        if (token !== startTokenRef.current) return
+
         await rpc('turn/start', {
           threadId: newThreadId,
           input: inputParts,
@@ -229,8 +241,7 @@ export function useAgentBuilderConversation({
         setStatus('ready')
       } catch (err) {
         if (threadIdRef.current) {
-          useThreadStore.getState().setActiveThreadId(previousActiveThreadIdRef.current)
-          useThreadStore.getState().setActiveThread(null)
+          restorePreviousActiveThreadIfCurrentBuilder(threadIdRef.current, previousActiveThreadIdRef.current)
           setCurrentThreadId(null)
         }
         setStatus('error')
