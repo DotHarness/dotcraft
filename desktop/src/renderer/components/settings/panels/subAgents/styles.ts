@@ -47,15 +47,18 @@ export function monoTextAreaStyle(): CSSProperties {
 
 export function primaryButtonStyle(disabled = false): CSSProperties {
   return {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '6px',
     padding: '8px 14px',
-    border: '1px solid var(--text-primary)',
+    border: 'none',
     borderRadius: '8px',
-    background: disabled ? 'color-mix(in srgb, var(--text-primary) 45%, var(--bg-tertiary))' : 'var(--text-primary)',
-    color: 'var(--bg-primary)',
+    backgroundColor: disabled ? 'var(--bg-tertiary)' : 'var(--text-primary)',
+    color: disabled ? 'var(--text-tertiary)' : 'var(--bg-primary)',
     fontSize: '13px',
     fontWeight: 600,
-    cursor: disabled ? 'default' : 'pointer',
-    opacity: disabled ? 0.85 : 1
+    cursor: disabled ? 'default' : 'pointer'
   }
 }
 

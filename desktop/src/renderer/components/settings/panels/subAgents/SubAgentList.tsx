@@ -1,4 +1,5 @@
 import type { CSSProperties, JSX, KeyboardEvent, MouseEvent } from 'react'
+import { Plus } from 'lucide-react'
 import { useT } from '../../../../contexts/LocaleContext'
 import type { MessageKey } from '../../../../../shared/locales'
 import { SettingsGroup } from '../../SettingsGroup'
@@ -109,6 +110,7 @@ export function SubAgentList({
               onClick={onAddCustom}
               style={primaryButtonStyle(false)}
             >
+              <Plus size={14} aria-hidden />
               {t('settings.subAgents.list.addCustomAgent')}
             </button>
           </div>

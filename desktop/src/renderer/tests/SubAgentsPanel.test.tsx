@@ -234,6 +234,14 @@ describe('SubAgentsPanel', () => {
     expect(screen.getByRole('switch', { name: 'Toggle sub-agent codex-cli' })).not.toBeDisabled()
   })
 
+  it('renders the custom agent add action with a plus icon', async () => {
+    renderPanel()
+
+    const addButton = await screen.findByRole('button', { name: 'Add custom agent' })
+
+    expect(addButton.querySelector('svg[aria-hidden="true"]')).toBeInTheDocument()
+  })
+
   it('updates the workspace resume switch', async () => {
     renderPanel()
 

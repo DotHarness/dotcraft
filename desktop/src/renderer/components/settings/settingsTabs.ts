@@ -15,6 +15,7 @@ import {
 
 import type { MessageKey } from '../../../shared/locales'
 import type { SettingsTab } from '../../types/settings'
+import { McpIcon } from './McpIcon'
 
 type Translate = (key: MessageKey) => string
 
@@ -47,7 +48,7 @@ export function buildSettingsTabs(t: Translate, options: SettingsTabOptions): Se
     tabs.splice(2, 0, { id: 'personalization', label: t('settings.tab.personalization'), icon: SlidersHorizontal })
   }
   if (options.mcpEnabled) {
-    tabs.push({ id: 'mcp', label: 'MCP', icon: Server })
+    tabs.push({ id: 'mcp', label: 'MCP', icon: McpIcon })
   }
   if (options.subAgentEnabled) {
     tabs.push({ id: 'subAgents', label: t('settings.tab.subAgents'), icon: Bot })
