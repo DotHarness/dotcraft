@@ -369,10 +369,10 @@ The normal preview flow is:
 2. Run the `Publish NuGet` workflow with `target=dry-run`.
 3. Inspect the uploaded `.nupkg` and `.snupkg` artifacts.
 4. Re-run the same workflow with `target=nuget-org` from `main`.
-5. Set `confirm` to exactly:
+5. Set `confirm` to the exact package version:
 
 ```text
-publish DotCraft.Sdk 0.1.0-preview.1 to nuget.org
+0.1.0-preview.1
 ```
 
 The nuget.org Trusted Publishing policy should be configured for:

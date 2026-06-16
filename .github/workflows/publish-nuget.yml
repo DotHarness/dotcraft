@@ -12,7 +12,7 @@ on:
           - dry-run
           - nuget-org
       confirm:
-        description: "Required for nuget-org: publish DotCraft.Sdk <version> to nuget.org"
+        description: "Required for nuget-org: enter the exact DotCraft.Sdk version from the project file"
         required: false
         type: string
 
@@ -73,9 +73,9 @@ jobs:
             if ($env:GITHUB_REF_FULL -ne "refs/heads/main") {
               throw "nuget.org publishing is allowed only from the main branch."
             }
-            $expected = "publish DotCraft.Sdk $version to nuget.org"
+            $expected = $version
             if ($env:CONFIRM -cne $expected) {
-              throw "Confirmation must exactly match: $expected"
+              throw "Confirmation must exactly match the DotCraft.Sdk version: $expected"
             }
           }
 

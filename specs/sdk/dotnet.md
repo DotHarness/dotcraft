@@ -1375,7 +1375,7 @@ The release workflow must:
 - build, test, pack, inspect, and upload package artifacts before any publish step;
 - read the package version from `sdk/dotnet/src/DotCraft.Sdk/DotCraft.Sdk.csproj`;
 - publish only from `refs/heads/main`;
-- require an exact human confirmation string for `nuget.org`;
+- require the exact package version as human confirmation for `nuget.org`;
 - require `id-token: write` only on the publish job;
 - use NuGet Trusted Publishing through `NuGet/login@v1` when available;
 - avoid storing long-lived NuGet API keys in repository secrets;
