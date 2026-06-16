@@ -46,6 +46,22 @@ Run DotCraft on your own server and connect from Desktop anytime to drive it rem
 
 *Hand off a goal or a mission, and DotCraft carries it forward.*
 
+#### Agent Profiles — Personalized Agents for Every Workflow
+
+![DotCraft Agent Profiles](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/agent-profile.gif)
+
+Save purpose-built agents with their own model, tools, skills, and permissions. Pick one in a chat, assign it to a Team member, or bind it to an automation task so the right agent shows up where the work starts.
+
+[Learn more →](https://www.dotcraft.net/features/agent-system/agent-profiles)
+
+#### Agent Builder — Customize Your Agent by Chatting
+
+![DotCraft Agent Builder](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/agent-builder.gif)
+
+Tell DotCraft what kind of agent you want, then refine its instructions, tools, skills, model, and approval style in a guided conversation.
+
+[Learn more →](https://www.dotcraft.net/features/agent-system/agent-profiles#agent-builder)
+
 #### Teams — Multi-agent Mission Board
 
 ![DotCraft Teams](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/teams.gif)

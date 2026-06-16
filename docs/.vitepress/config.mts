@@ -49,6 +49,7 @@ const enSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
           { text: withIcon('sparkles', 'Skills & Self-Learning'), link: '/features/agent-system/skills' },
           { text: withIcon('puzzle', 'Plugins & Tools'), link: '/features/agent-system/plugins-tools' },
           { text: withIcon('workflow', 'Automations & Goals'), link: '/features/agent-system/automations' },
+          { text: withIcon('bot', 'Agent Profiles'), link: '/features/agent-system/agent-profiles' },
           { text: withIcon('users', 'SubAgents'), link: '/features/agent-system/subagents' },
           { text: withIcon('network', 'Teams'), link: '/features/agent-system/teams' }
         ]
@@ -180,6 +181,7 @@ const zhSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
           { text: withIcon('sparkles', 'Skills 与自学习'), link: '/zh/features/agent-system/skills' },
           { text: withIcon('puzzle', '插件与工具'), link: '/zh/features/agent-system/plugins-tools' },
           { text: withIcon('workflow', 'Automations 与 Goals'), link: '/zh/features/agent-system/automations' },
+          { text: withIcon('bot', '个性化智能体'), link: '/zh/features/agent-system/agent-profiles' },
           { text: withIcon('users', 'SubAgents'), link: '/zh/features/agent-system/subagents' },
           { text: withIcon('network', 'Teams'), link: '/zh/features/agent-system/teams' }
         ]

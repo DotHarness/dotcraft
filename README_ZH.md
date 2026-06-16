@@ -46,6 +46,22 @@ DotCraft 的能力，按它帮你做什么来归类。
 
 *交给它一个目标或一项任务，DotCraft 会持续推进。*
 
+#### 个性化智能体 — 每种工作流都有合适的 Agent
+
+![DotCraft 个性化智能体](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/agent-profile.gif)
+
+保存带有模型、工具、技能和权限的专属智能体。在会话中选择它、分配给 Teams 成员，或绑定到自动化任务，让合适的智能体出现在对应工作里。
+
+[了解更多 →](https://www.dotcraft.net/zh/features/agent-system/agent-profiles)
+
+#### Agent Builder — 用对话定制你的智能体
+
+![DotCraft Agent Builder](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/agent-builder.gif)
+
+告诉 DotCraft 你想要什么样的智能体，再通过对话调整它的指令、工具、技能、模型和审批方式。
+
+[了解更多 →](https://www.dotcraft.net/zh/features/agent-system/agent-profiles#agent-builder)
+
 #### Teams — 多 Agent 的 Mission 协作板
 
 ![DotCraft Teams](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/teams.gif)

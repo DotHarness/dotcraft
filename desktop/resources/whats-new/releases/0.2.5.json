@@ -1,0 +1,41 @@
+{
+  "version": "0.2.5",
+  "cards": [
+    {
+      "id": "agent-profiles",
+      "title": {
+        "en": "Agent Profiles",
+        "zh-Hans": "个性化智能体"
+      },
+      "summary": {
+        "en": "Use personalized agents in chats, Teams, and automation tasks.",
+        "zh-Hans": "在会话、Teams 和自动化任务中使用个性化智能体。"
+      },
+      "media": {
+        "fileName": "agent-profile.gif",
+        "url": "https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/agent-profile.gif",
+        "sizeBytes": 2595632,
+        "sha256": "7784FBC22DF677D6BEC175DA84B39075C2FCED3B035A5045069578675B6CED69"
+      },
+      "docsUrl": "https://www.dotcraft.net/features/agent-system/agent-profiles"
+    },
+    {
+      "id": "agent-builder",
+      "title": {
+        "en": "Agent Builder",
+        "zh-Hans": "Agent Builder"
+      },
+      "summary": {
+        "en": "Customize your agent just by chatting.",
+        "zh-Hans": "用对话定制你的智能体。"
+      },
+      "media": {
+        "fileName": "agent-builder.gif",
+        "url": "https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/agent-builder.gif",
+        "sizeBytes": 5113685,
+        "sha256": "3DE4CE10E3432F619237381ECB0C63478F6E1776C8E219E1449421D956AB1C23"
+      },
+      "docsUrl": "https://www.dotcraft.net/features/agent-system/agent-profiles#agent-builder"
+    }
+  ]
+}
