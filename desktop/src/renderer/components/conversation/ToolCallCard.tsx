@@ -167,7 +167,8 @@ export const ToolCallCard = memo(function ToolCallCard({
     locale
   )
   const isRunning = isToolItemLive(item, { turnRunning })
-  const shellOutput = item.aggregatedOutput ?? item.result ?? ''
+  const toolResult = item.result ?? item.errorMessage ?? item.resultPreview
+  const shellOutput = item.aggregatedOutput ?? toolResult ?? ''
   const skillManageDisplay = isSkillManageTool ? getSkillManageDisplay(args, item.result) : null
   const skillViewDisplay = isSkillViewTool ? getSkillViewDisplay(args, item.result) : null
   const success = (isShellTool || item.success !== false)
@@ -220,8 +221,8 @@ export const ToolCallCard = memo(function ToolCallCard({
   const hasCompletedExpandableContent = isShellTool
     ? hasVisibleText(shellOutput)
     : FILE_WRITE_TOOLS.has(toolName)
-      ? !!renderableFileDiff || hasVisibleText(item.result)
-      : hasVisibleText(item.result)
+      ? !!renderableFileDiff || hasVisibleText(toolResult)
+      : hasVisibleText(toolResult)
   const canExpandWhileRunning =
     !isWebFetchTool
     && !isSkillManageTool
@@ -485,12 +486,13 @@ export const ToolCallCard = memo(function ToolCallCard({
   const label = FILE_WRITE_TOOLS.has(toolName)
     ? formatFileToolLabel(toolName, fileDiff, fallbackLabel, locale)
     : fallbackLabel
+  const failureText = item.errorMessage ?? item.resultPreview ?? item.result ?? shellOutput
   const failedPreview = stripAnsi(
     isSkillManageTool
       ? (skillManageDisplay?.message ?? '')
       : isSkillViewTool
         ? (skillViewDisplay?.message ?? '')
-        : (item.result ?? shellOutput)
+        : (failureText ?? '')
   )
   const hasFlushWebSearchTable =
     toolName === 'WebSearch'
@@ -543,7 +545,7 @@ export const ToolCallCard = memo(function ToolCallCard({
         >
           <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {success ? label : translate(locale, 'toolCall.failed', { label })}
-            {!success && (item.result || shellOutput) && (
+            {!success && hasVisibleText(failureText) && (
               <span style={{ color: 'var(--error)', marginLeft: '6px' }}>
                 - {failedPreview.slice(0, 80)}{failedPreview.length > 80 ? '…' : ''}
               </span>
@@ -572,7 +574,7 @@ export const ToolCallCard = memo(function ToolCallCard({
               itemId={item.id}
               toolName={toolName}
               args={args}
-              result={isShellTool ? shellOutput : item.result}
+              result={isShellTool ? shellOutput : toolResult}
               success={success}
               fileDiff={renderableFileDiff ? { diff: renderableFileDiff } : undefined}
               locale={locale}

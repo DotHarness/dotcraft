@@ -4,6 +4,7 @@
 
 using System.Runtime.CompilerServices;
 using System.Runtime.ExceptionServices;
+using System.Text.RegularExpressions;
 using DotCraft.Context;
 using DotCraft.Protocol;
 using DotCraft.Tracing;
@@ -23,8 +24,13 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
     : DelegatingChatClient(innerClient)
 {
     private static readonly AsyncLocal<FunctionInvocationContext?> CurrentInvocationContext = new();
+    private static readonly Regex AnsiEscapeRegex = new(@"\x1B\[[0-?]*[ -/]*[@-~]", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    private static readonly Regex SecretAssignmentRegex = new(@"\b(token|access[_-]?token|refresh[_-]?token|api[_-]?key|password|secret)\s*[:=]\s*([^\s,;]+)", RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+    private static readonly Regex BearerSecretRegex = new(@"\bBearer\s+[A-Za-z0-9._~+/=-]+", RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+    private static readonly Regex WhitespaceRegex = new(@"\s+", RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     private const string InvalidToolArgumentsMetadataKey = "dotcraft.toolResult.invalidArguments";
+    private const int ToolFailureMessageMaxChars = 1000;
 
     /// <summary>
     /// Gets the function invocation context currently flowing through this client.
@@ -43,7 +49,7 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
     public bool AllowConcurrentInvocation { get; set; }
 
     /// <summary>
-    /// Includes raw exception messages in generated function result content.
+    /// Includes additional exception details in generated function result content.
     /// </summary>
     public bool IncludeDetailedErrors { get; set; }
 
@@ -690,7 +696,7 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
                 ? await function.InvokeAsync(arguments, cancellationToken)
                 : await FunctionInvoker(context, cancellationToken);
             if (value is FunctionResultContent { Exception: { } resultException })
-                toolExecution?.CompleteFailure(resultException.Message, value);
+                toolExecution?.CompleteFailure(SanitizeToolFailureMessage(resultException.Message), value);
             else
                 toolExecution?.CompleteSuccess(value);
             return new FunctionInvocationOutcome(call, FunctionInvocationStatus.RanToCompletion, value, null, context.Terminate);
@@ -702,12 +708,12 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
         }
         catch (Exception ex) when (captureExceptions && ex is not OperationCanceledException)
         {
-            toolExecution?.CompleteFailure(ex.Message);
+            toolExecution?.CompleteFailure(SanitizeToolFailureMessage(ex.Message));
             return new FunctionInvocationOutcome(call, FunctionInvocationStatus.Exception, null, ex, false);
         }
         catch (Exception ex)
         {
-            toolExecution?.CompleteFailure(ex.Message);
+            toolExecution?.CompleteFailure(SanitizeToolFailureMessage(ex.Message));
             throw;
         }
         finally
@@ -742,17 +748,42 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
         var message = result.Status switch
         {
             FunctionInvocationStatus.NotFound => $"Error: Requested function \"{result.Call.Name}\" not found.",
-            FunctionInvocationStatus.Exception => "Error: Function failed.",
+            FunctionInvocationStatus.Exception => CreateFunctionFailureMessage(result.Exception),
             _ => "Error: Unknown error."
         };
-
-        if (IncludeDetailedErrors && result.Status == FunctionInvocationStatus.Exception && result.Exception != null)
-            message = $"{message} Exception: {result.Exception.Message}";
 
         return new FunctionResultContent(result.Call.CallId, message)
         {
             Exception = result.Exception
         };
+    }
+
+    private string CreateFunctionFailureMessage(Exception? exception)
+    {
+        var reason = exception == null
+            ? null
+            : IncludeDetailedErrors
+                ? $"{exception.GetType().Name}: {exception.Message}"
+                : exception.Message;
+        var safeReason = SanitizeToolFailureMessage(reason);
+        return string.IsNullOrEmpty(safeReason)
+            ? "Error: Function failed."
+            : $"Error: Function failed. Reason: {safeReason}";
+    }
+
+    private static string SanitizeToolFailureMessage(string? message)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+            return string.Empty;
+
+        var sanitized = AnsiEscapeRegex.Replace(message, string.Empty);
+        sanitized = BearerSecretRegex.Replace(sanitized, "Bearer ***");
+        sanitized = SecretAssignmentRegex.Replace(sanitized, "$1=***");
+        sanitized = WhitespaceRegex.Replace(sanitized, " ").Trim();
+
+        return sanitized.Length <= ToolFailureMessageMaxChars
+            ? sanitized
+            : sanitized[..(ToolFailureMessageMaxChars - 3)] + "...";
     }
 
     internal static bool IsInvalidToolArgumentsResult(FunctionResultContent content)

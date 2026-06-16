@@ -398,7 +398,7 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
     }
 
     [Fact]
-    public async Task GetStreamingResponseAsync_UsesGenericToolErrorUnlessDetailedErrorsAreEnabled()
+    public async Task GetStreamingResponseAsync_IncludesSanitizedToolErrorByDefault()
     {
         var genericInner = new FailingToolFakeChatClient();
         var genericClient = new StreamingFunctionInvokingChatClient(genericInner)
@@ -411,7 +411,7 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
         }
 
         var genericResult = Assert.Single(genericInner.Calls[1].SelectMany(message => message.Contents).OfType<FunctionResultContent>());
-        Assert.Equal("Error: Function failed.", genericResult.Result);
+        Assert.Equal("Error: Function failed. Reason: boom", genericResult.Result);
 
         var detailedInner = new FailingToolFakeChatClient();
         var detailedClient = new StreamingFunctionInvokingChatClient(detailedInner)
@@ -425,7 +425,30 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
         }
 
         var detailedResult = Assert.Single(detailedInner.Calls[1].SelectMany(message => message.Contents).OfType<FunctionResultContent>());
+        Assert.Contains("InvalidOperationException", detailedResult.Result?.ToString(), StringComparison.Ordinal);
         Assert.Contains("boom", detailedResult.Result?.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task GetStreamingResponseAsync_RedactsSensitiveToolErrorText()
+    {
+        var inner = new FailingToolFakeChatClient();
+        var client = new StreamingFunctionInvokingChatClient(inner)
+        {
+            AdditionalTools = [AIFunctionFactory.Create(ThrowSensitiveError, name: "Fail")]
+        };
+
+        await foreach (var _ in client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")]))
+        {
+        }
+
+        var result = Assert.Single(inner.Calls[1].SelectMany(message => message.Contents).OfType<FunctionResultContent>());
+        var text = Assert.IsType<string>(result.Result);
+        Assert.Contains("Bearer ***", text, StringComparison.Ordinal);
+        Assert.Contains("token=***", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("secret-token", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("abc123", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("\u001b", text, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -596,6 +619,9 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
     }
 
     private static string ThrowBoom() => throw new InvalidOperationException("boom");
+
+    private static string ThrowSensitiveError() =>
+        throw new InvalidOperationException("Request failed.\nAuthorization: Bearer abc123 token=secret-token \u001b[31mred");
 
     private static void RegisterToolExecution(
         SessionTurn turn,

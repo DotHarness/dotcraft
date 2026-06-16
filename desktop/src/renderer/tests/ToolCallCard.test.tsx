@@ -521,6 +521,32 @@ describe('ToolCallCard shell rendering', () => {
     expect(pre?.textContent).toContain('Exit code: 1')
   })
 
+  it('shows tool execution errorMessage before generic failed result previews', () => {
+    const item: ConversationItem = {
+      id: 'tool-failed-mcp',
+      type: 'toolCall',
+      status: 'completed',
+      toolName: 'local_strict_header_probe',
+      toolCallId: 'strict-header-call',
+      arguments: {},
+      resultPreview: 'Error: Function failed.',
+      errorMessage: "mcp-method: expected 'tools/call', got None",
+      success: false,
+      executionStatus: 'failed',
+      createdAt: new Date().toISOString()
+    }
+
+    const { container } = renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
+
+    expect(container).toHaveTextContent("mcp-method: expected 'tools/call', got None")
+    expect(container).not.toHaveTextContent('Error: Function failed.')
+
+    fireEvent.click(screen.getByRole('button'))
+
+    const pre = document.querySelector('pre')
+    expect(pre?.textContent).toContain("mcp-method: expected 'tools/call', got None")
+  })
+
   it('renders completed empty shell output as a non-expandable row', () => {
     const item: ConversationItem = {
       id: 'tool-empty-shell',

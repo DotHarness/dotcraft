@@ -601,6 +601,48 @@ describe('turn lifecycle', () => {
     expect(toolItem?.result).toBe('agent done')
   })
 
+  it('uses failed toolExecution errorMessage as the matching toolCall preview', () => {
+    s().onTurnStarted(makeTurn())
+    s().onItemStarted({
+      turnId: 'turn-1',
+      item: {
+        id: 'tool-strict-header',
+        type: 'toolCall',
+        payload: {
+          callId: 'strict-header-1',
+          toolName: 'local_strict_header_probe',
+          arguments: {}
+        }
+      }
+    })
+
+    s().onItemCompleted({
+      turnId: 'turn-1',
+      item: {
+        id: 'execution-strict-header',
+        type: 'toolExecution',
+        completedAt: '2026-06-16T10:00:02.000Z',
+        payload: {
+          callId: 'strict-header-1',
+          toolName: 'local_strict_header_probe',
+          status: 'failed',
+          success: false,
+          durationMs: 80,
+          resultPreview: 'Error: Function failed.',
+          errorMessage: "mcp-method: expected 'tools/call', got None"
+        }
+      }
+    })
+
+    const toolItem = s().turns[0].items.find((i) => i.id === 'tool-strict-header')
+    expect(toolItem?.type).toBe('toolCall')
+    expect(toolItem?.executionStatus).toBe('failed')
+    expect(toolItem?.success).toBe(false)
+    expect(toolItem?.errorMessage).toBe("mcp-method: expected 'tools/call', got None")
+    expect(toolItem?.resultPreview).toBe("mcp-method: expected 'tools/call', got None")
+    expect(toolItem?.result).toBe("mcp-method: expected 'tools/call', got None")
+  })
+
   it('stores early toolExecution completion and settles the matching toolCall when it starts', () => {
     s().onTurnStarted(makeTurn())
     s().onItemCompleted({
