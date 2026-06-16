@@ -24,6 +24,9 @@ const scrollPositionCache = new Map<string, number>()
 const NEAR_BOTTOM_THRESHOLD = 50
 const SCROLL_BUTTON_BASE_BOTTOM_PX = 10
 const SCROLL_BUTTON_DOCK_GAP_PX = 10
+/** Resting gap reserved below the last message so it never sits flush against the
+ *  composer (and clears the dock's top edge when a dock is present). */
+const MESSAGE_STREAM_BOTTOM_BASE_PX = 40
 const FULL_HISTORY_TURN_COUNT = 3
 
 interface InlineEditState {
@@ -158,11 +161,18 @@ export function MessageStream(): JSX.Element {
     (effectiveSystemLabel?.length ?? 0)
 
   const { scrollRef, showScrollButton, scrollToBottom } = useAutoScroll(contentLength)
-  const scrollButtonBottomOffsetPx = getScrollButtonBottomOffsetPx({
+  // The background-activity dock floats up from the composer's top edge, over the
+  // bottom of the scroll region. Reserve its height (plus the resting gap) below
+  // the last message so the composer/dock never covers it at the scroll bottom,
+  // and lift the scroll-to-bottom button by the same dock height.
+  const dockHeightPx = estimateBackgroundActivityDockHeightPx({
     queuedInputCount,
     subAgentChildCount,
     subAgentCollapsed
   })
+  const scrollButtonBottomOffsetPx =
+    SCROLL_BUTTON_BASE_BOTTOM_PX + (dockHeightPx > 0 ? dockHeightPx + SCROLL_BUTTON_DOCK_GAP_PX : 0)
+  const bottomClearancePx = MESSAGE_STREAM_BOTTOM_BASE_PX + dockHeightPx
   const sentAsGoalItemId = getSentAsGoalItemId(turns, currentGoal)
 
   useEffect(() => {
@@ -263,7 +273,7 @@ export function MessageStream(): JSX.Element {
         style={{
           height: '100%',
           overflowY: 'auto',
-          padding: '32px clamp(20px, 4vw, 40px) 28px',
+          padding: `32px clamp(20px, 4vw, 40px) ${bottomClearancePx}px`,
           display: 'flex',
           flexDirection: 'column',
           gap: 'var(--conversation-block-gap)'
@@ -372,23 +382,6 @@ export function MessageStream(): JSX.Element {
       )}
     </div>
   )
-}
-
-function getScrollButtonBottomOffsetPx({
-  queuedInputCount,
-  subAgentChildCount,
-  subAgentCollapsed
-}: {
-  queuedInputCount: number
-  subAgentChildCount: number
-  subAgentCollapsed: boolean
-}): number {
-  const dockHeight = estimateBackgroundActivityDockHeightPx({
-    queuedInputCount,
-    subAgentChildCount,
-    subAgentCollapsed
-  })
-  return SCROLL_BUTTON_BASE_BOTTOM_PX + (dockHeight > 0 ? dockHeight + SCROLL_BUTTON_DOCK_GAP_PX : 0)
 }
 
 function SystemStatusDivider({ labelKey }: { labelKey: string }): JSX.Element {

@@ -1,6 +1,16 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
 import { useT } from '../../contexts/LocaleContext'
 import { ActionTooltip } from '../ui/ActionTooltip'
+import { FileTypeIcon } from '../ui/FileTypeIcon'
+import {
+  MentionRowIcon,
+  MentionSectionHeader,
+  mentionEmptyStyle,
+  mentionPopoverContainerStyle,
+  mentionRowDescStyle,
+  mentionRowNameStyle,
+  mentionRowStyle
+} from './mentionPopoverUi'
 
 const DEBOUNCE_MS = 80
 const INDEX_POLL_MS = 1500
@@ -19,6 +29,7 @@ interface FileSearchPopoverProps {
   workspacePath: string
   onSelect: (relativePath: string) => void
   onDismiss: () => void
+  constrainToAnchor?: boolean
 }
 
 /**
@@ -33,7 +44,8 @@ export function FileSearchPopover({
   visible,
   workspacePath,
   onSelect,
-  onDismiss
+  onDismiss,
+  constrainToAnchor = false
 }: FileSearchPopoverProps): JSX.Element | null {
   const t = useT()
   const [loading, setLoading] = useState(false)
@@ -147,29 +159,15 @@ export function FileSearchPopover({
   return (
     <div
       role="listbox"
-      style={{
-        position: 'absolute',
-        bottom: '100%',
-        left: 0,
-        marginBottom: '4px',
-        minWidth: '280px',
-        maxWidth: '420px',
-        maxHeight: '240px',
-        overflowY: 'auto',
-        zIndex: 50,
-        boxShadow: 'var(--glass-shadow-soft)',
-        background: 'var(--glass-surface-strong)',
-        border: 'none',
-        borderRadius: '12px',
-        backdropFilter: 'var(--glass-blur)',
-        WebkitBackdropFilter: 'var(--glass-blur)',
-        padding: '4px 0'
-      }}
+      style={mentionPopoverContainerStyle({
+        constrainToAnchor,
+        minWidth: '300px',
+        maxWidth: '440px',
+        maxHeight: '260px'
+      })}
     >
       {loading && files.length === 0 && (
-        <div style={{ padding: '8px 12px', fontSize: '12px', color: 'var(--text-dimmed)' }}>
-          {t('fileSearch.loading')}
-        </div>
+        <div style={mentionEmptyStyle}>{t('fileSearch.loading')}</div>
       )}
       {!loading && files.length === 0 && indexStatus === 'building' && (
         <IndexingState
@@ -179,56 +177,29 @@ export function FileSearchPopover({
         />
       )}
       {!loading && files.length === 0 && indexStatus !== 'building' && query.trim() !== '' && (
-        <div style={{ padding: '8px 12px', fontSize: '12px', color: 'var(--text-dimmed)' }}>
-          {t('fileSearch.noMatch')}
-        </div>
+        <div style={mentionEmptyStyle}>{t('fileSearch.noMatch')}</div>
       )}
       {!loading && files.length === 0 && indexStatus !== 'building' && query.trim() === '' && (
-        <div style={{ padding: '8px 12px', fontSize: '12px', color: 'var(--text-dimmed)' }}>
-          {t('fileSearch.hint')}
-        </div>
+        <div style={mentionEmptyStyle}>{t('fileSearch.hint')}</div>
       )}
+      {files.length > 0 && <MentionSectionHeader label={t('fileSearch.filesGroup')} />}
       {files.map((f, i) => {
         const dirLabel = f.dir || '.'
         return (
-        <ActionTooltip key={f.relativePath} label={dirLabel} wrapperStyle={{ display: 'block', width: '100%' }}>
+        <ActionTooltip key={f.relativePath} label={f.relativePath} wrapperStyle={{ display: 'block', width: '100%' }}>
         <button
           type="button"
           role="option"
           aria-selected={i === highlight}
           onMouseEnter={() => { setHighlight(i) }}
           onClick={() => { onSelect(f.relativePath) }}
-          style={{
-            display: 'flex',
-            width: '100%',
-            alignItems: 'center',
-            gap: '8px',
-            padding: '6px 12px',
-            border: 'none',
-            background: i === highlight ? 'var(--bg-tertiary)' : 'transparent',
-            color: 'var(--text-primary)',
-            cursor: 'pointer',
-            textAlign: 'left',
-            fontSize: '13px'
-          }}
+          style={mentionRowStyle(i === highlight)}
         >
-          <span style={{ flexShrink: 0 }}>📄</span>
-          <span style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {highlightMatch(f.name, query)}
-          </span>
-          <span
-            style={{
-              marginLeft: 'auto',
-              fontSize: '11px',
-              color: 'var(--text-dimmed)',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-              maxWidth: '140px'
-            }}
-          >
-            {dirLabel}
-          </span>
+          <MentionRowIcon>
+            <FileTypeIcon path={f.relativePath} size={16} />
+          </MentionRowIcon>
+          <span style={mentionRowNameStyle}>{highlightMatch(f.name, query)}</span>
+          <span style={mentionRowDescStyle}>{dirLabel}</span>
         </button>
         </ActionTooltip>
         )

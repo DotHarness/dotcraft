@@ -21,6 +21,7 @@ colors:
   warning: "var(--warning)"
   error: "var(--error)"
   info: "var(--info)"
+  ref-skill: "var(--ref-skill)"
   glass-surface-strong: "var(--glass-surface-strong)"
   background-activity-dock-background: "var(--background-activity-dock-background)"
   composer-top-accessory-separator: "var(--composer-top-accessory-separator)"

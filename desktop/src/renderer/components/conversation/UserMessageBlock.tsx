@@ -557,23 +557,12 @@ function SkillRefChip({ skillName }: { skillName: string }): JSX.Element {
     <>
       <ActionTooltip label={`$${skillName}`}>
       <span
+        className="dc-ref dc-ref-skill"
         onContextMenu={(event) => { void handleContextMenu(event) }}
         style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: '4px',
-          verticalAlign: '-0.2em',
           margin: '0 4px',
-          padding: '1px 7px',
-          borderRadius: '7px',
-          border: '1px solid color-mix(in srgb, var(--success) 38%, transparent)',
-          background: 'color-mix(in srgb, var(--success) 16%, transparent)',
-          color: 'var(--success)',
           fontSize: '12px',
           lineHeight: 1.25,
-          whiteSpace: 'nowrap',
-          userSelect: 'none',
-          fontWeight: 600,
           maxWidth: 'var(--inline-reference-max-width)'
         }}
       >
@@ -597,22 +586,11 @@ function CommandRefChip({ commandText }: { commandText: string }): JSX.Element {
   return (
     <ActionTooltip label={commandText}>
     <span
+        className="dc-ref dc-ref-command"
         style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: '4px',
-          verticalAlign: '-0.2em',
           margin: '0 4px',
-          padding: '1px 7px',
-          borderRadius: '7px',
-          border: '1px solid color-mix(in srgb, var(--accent) 38%, transparent)',
-          background: 'color-mix(in srgb, var(--accent) 16%, transparent)',
-          color: 'var(--accent)',
           fontSize: '12px',
           lineHeight: 1.25,
-          whiteSpace: 'nowrap',
-          userSelect: 'none',
-          fontWeight: 600,
           maxWidth: 'var(--inline-reference-max-width)'
         }}
       >
@@ -650,6 +628,7 @@ function FileRefChip({
         type="button"
         aria-label={t('conversation.openFileRefAria', { file: fileName })}
         disabled={!canOpen}
+        className="dc-ref dc-ref-file"
         onContextMenu={(event) => {
           if (!resolvedTargetPath) return
           event.preventDefault()
@@ -669,26 +648,15 @@ function FileRefChip({
           })
         }}
         style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: '4px',
-          verticalAlign: '-0.2em',
           margin: '0 4px',
-          padding: '1px 7px',
-          borderRadius: '7px',
-          border: '1px solid color-mix(in srgb, var(--border-active) 44%, transparent)',
-          background: 'color-mix(in srgb, var(--bg-tertiary) 88%, transparent)',
-          color: 'var(--text-primary)',
           fontSize: '12px',
           lineHeight: 1.25,
-          whiteSpace: 'nowrap',
-          userSelect: 'none',
           maxWidth: 'var(--inline-reference-max-width)',
           cursor: canOpen ? 'pointer' : 'default',
-          font: 'inherit'
+          fontFamily: 'inherit'
         }}
       >
-        <FileTypeIcon path={displayPath} size={12} />
+        <FileTypeIcon path={displayPath} size={12} style={{ display: 'inline-block' }} />
         <span>{fileName}</span>
       </button>
       </ActionTooltip>

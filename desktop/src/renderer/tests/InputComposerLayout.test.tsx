@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import type { ComponentProps } from 'react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { InputComposer } from '../components/conversation/InputComposer'
 import { useConnectionStore } from '../stores/connectionStore'
@@ -16,7 +17,7 @@ import type { ConversationTurn } from '../types/conversation'
 const settingsGet = vi.fn()
 const appServerSendRequest = vi.fn()
 
-function renderComposer(): void {
+function renderComposer(extraProps: Partial<ComponentProps<typeof InputComposer>> = {}): void {
   render(
     <LocaleProvider>
       <InputComposer
@@ -24,6 +25,7 @@ function renderComposer(): void {
         workspacePath="C:\\sample\\workspace"
         modelName="gpt-5.4"
         modelOptions={['gpt-5.4', 'gpt-5.4-mini']}
+        {...extraProps}
       />
     </LocaleProvider>
   )
@@ -170,6 +172,60 @@ describe('InputComposer layout', () => {
     const sendButton = screen.getByRole('button', { name: 'Send message' })
 
     expect(sendButton).toBeInTheDocument()
+  })
+
+  it('disables plan and agent mode controls in the agent builder variant', async () => {
+    const onBeforeSend = vi.fn().mockResolvedValue(undefined)
+
+    renderComposer({ variant: 'agentBuilder', minimalChrome: true, onBeforeSend })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add attachment' }))
+    expect(screen.queryByRole('menuitemcheckbox', { name: 'Plan mode' })).toBeNull()
+
+    const textbox = screen.getByRole('textbox')
+    fireEvent.keyDown(textbox, { key: 'Tab', shiftKey: true })
+    expect(appServerSendRequest.mock.calls.some(([method]) => method === 'thread/mode/set')).toBe(false)
+
+    textbox.textContent = '/plan'
+    fireEvent.input(textbox)
+    fireEvent.keyDown(textbox, { key: 'Enter', code: 'Enter' })
+
+    await waitFor(() => {
+      expect(onBeforeSend).toHaveBeenCalledTimes(1)
+      expect(appServerSendRequest).toHaveBeenCalledWith('turn/start', expect.objectContaining({
+        threadId: 'thread-1'
+      }))
+    })
+    expect(appServerSendRequest.mock.calls.some(([method]) => method === 'thread/mode/set')).toBe(false)
+  })
+
+  it('submits detached agent builder intro input through the override with serialized input parts', async () => {
+    const submitOverride = vi.fn().mockResolvedValue(undefined)
+
+    renderComposer({
+      threadId: 'agent-builder-intro',
+      variant: 'agentBuilder',
+      minimalChrome: true,
+      placeholder: 'Describe the agent you want...',
+      submitOverride
+    })
+
+    const textbox = screen.getByRole('textbox')
+    expect(textbox).toHaveAttribute('aria-placeholder', 'Describe the agent you want...')
+
+    textbox.textContent = 'Build a support triage agent'
+    fireEvent.input(textbox)
+    fireEvent.keyDown(textbox, { key: 'Enter', code: 'Enter' })
+
+    await waitFor(() => {
+      expect(submitOverride).toHaveBeenCalledWith(expect.objectContaining({
+        text: 'Build a support triage agent',
+        inputParts: [{ type: 'text', text: 'Build a support triage agent' }]
+      }))
+    })
+    expect(appServerSendRequest.mock.calls.some(([method]) => method === 'turn/start')).toBe(false)
+    expect(appServerSendRequest.mock.calls.some(([method]) => method === 'turn/enqueue')).toBe(false)
+    expect(appServerSendRequest.mock.calls.some(([method]) => method === 'thread/mode/set')).toBe(false)
   })
 
   it('localizes the plan mode label and attachment menu switch', async () => {

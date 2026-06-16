@@ -1,6 +1,5 @@
 using System.Text.Json.Serialization;
 using DotCraft.Agents;
-using DotCraft.Protocol;
 
 namespace DotCraft.Protocol.AppServer;
 
@@ -32,10 +31,17 @@ public sealed class AgentProfileEntryWire
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Description { get; set; }
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? Avatar { get; set; }
+
     public string Source { get; set; } = AgentProfileSources.BuiltIn;
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Path { get; set; }
+
+    /// <summary>Last write time of the profile file (UTC). Absent for built-in/in-memory profiles.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DateTimeOffset? UpdatedAt { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? PluginId { get; set; }
@@ -167,6 +173,29 @@ public sealed class AgentProfileRefreshThreadResult
     public bool WasStale { get; set; }
 
     public AgentProfileAuditWire Audit { get; set; } = new();
+}
+
+public sealed class AgentProfileBuilderDraftReadParams
+{
+    public string ThreadId { get; set; } = string.Empty;
+}
+
+public sealed class AgentProfileBuilderDraftUpdateParams
+{
+    public string ThreadId { get; set; } = string.Empty;
+
+    public string RawContent { get; set; } = string.Empty;
+}
+
+public sealed class AgentProfileBuilderDraftResult
+{
+    public string ThreadId { get; set; } = string.Empty;
+
+    public string TargetId { get; set; } = string.Empty;
+
+    public string TargetSource { get; set; } = AgentProfileSources.Workspace;
+
+    public string RawContent { get; set; } = string.Empty;
 }
 
 public sealed class AgentProfileAuditWire

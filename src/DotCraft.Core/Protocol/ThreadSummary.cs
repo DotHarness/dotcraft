@@ -196,8 +196,21 @@ public sealed class ThreadSummary
             LastActiveAt = thread.LastActiveAt,
             TurnCount = thread.Turns.Count,
             Runtime = ThreadSummaryRuntime.FromThread(thread),
-            Metadata = new Dictionary<string, string>(thread.Metadata)
+            Metadata = BuildSummaryMetadata(thread)
         };
+
+    private static Dictionary<string, string> BuildSummaryMetadata(SessionThread thread)
+    {
+        var metadata = new Dictionary<string, string>(thread.Metadata);
+        // Surface the conversational Agent Builder marker so summary-based visibility checks
+        // (thread/list) treat builder threads as internal even though the binding lives in the config.
+        if (!string.IsNullOrWhiteSpace(thread.Configuration?.AgentBuilderTargetId)
+            && !metadata.ContainsKey(ThreadVisibility.InternalMetadataKey))
+        {
+            metadata[ThreadVisibility.InternalMetadataKey] = ThreadVisibility.AgentBuilderInternalValue;
+        }
+        return metadata;
+    }
 }
 
 /// <summary>

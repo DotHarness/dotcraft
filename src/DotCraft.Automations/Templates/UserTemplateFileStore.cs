@@ -70,6 +70,7 @@ public sealed partial class UserTemplateFileStore(
         CronSchedule? defaultSchedule,
         string? defaultWorkspaceMode,
         string? defaultApprovalPolicy,
+        string? defaultAgentProfileId,
         bool needsThreadBinding,
         string? defaultTitle,
         string? defaultDescription,
@@ -123,6 +124,7 @@ public sealed partial class UserTemplateFileStore(
             DefaultSchedule = ToYaml(defaultSchedule),
             DefaultWorkspaceMode = NormalizeOptionalWorkspaceMode(defaultWorkspaceMode),
             DefaultApprovalPolicy = string.IsNullOrWhiteSpace(defaultApprovalPolicy) ? null : defaultApprovalPolicy,
+            DefaultAgentProfileId = string.IsNullOrWhiteSpace(defaultAgentProfileId) ? null : defaultAgentProfileId!.Trim(),
             NeedsThreadBinding = needsThreadBinding,
             DefaultTitle = string.IsNullOrWhiteSpace(defaultTitle) ? null : defaultTitle,
             DefaultDescription = string.IsNullOrWhiteSpace(defaultDescription) ? null : defaultDescription,
@@ -161,7 +163,8 @@ public sealed partial class UserTemplateFileStore(
             DefaultDescription: fm.DefaultDescription,
             IsUser: true,
             CreatedAt: createdAt,
-            UpdatedAt: now));
+            UpdatedAt: now,
+            DefaultAgentProfileId: fm.DefaultAgentProfileId));
     }
 
     /// <summary>Deletes a user template directory. Idempotent when the directory is already gone.</summary>
@@ -241,7 +244,8 @@ public sealed partial class UserTemplateFileStore(
             DefaultDescription: fm.DefaultDescription,
             IsUser: true,
             CreatedAt: fm.CreatedAt,
-            UpdatedAt: fm.UpdatedAt);
+            UpdatedAt: fm.UpdatedAt,
+            DefaultAgentProfileId: string.IsNullOrWhiteSpace(fm.DefaultAgentProfileId) ? null : fm.DefaultAgentProfileId!.Trim());
     }
 
     private static CronSchedule? FromYaml(ScheduleYaml? y)
@@ -323,6 +327,7 @@ public sealed partial class UserTemplateFileStore(
         public ScheduleYaml? DefaultSchedule { get; set; }
         public string? DefaultWorkspaceMode { get; set; }
         public string? DefaultApprovalPolicy { get; set; }
+        public string? DefaultAgentProfileId { get; set; }
         public bool? NeedsThreadBinding { get; set; }
         public string? DefaultTitle { get; set; }
         public string? DefaultDescription { get; set; }

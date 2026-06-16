@@ -2768,7 +2768,10 @@ export function App(): JSX.Element {
           const convTurns = rawTurns.map(wireTurnToConversationTurn)
           performance.mark(`app:thread-switch-rendered:${requestedId}`)
           performance.measure('app:thread-switch', `app:thread-switch-start:${requestedId}`, `app:thread-switch-rendered:${requestedId}`)
-          useConversationStore.getState().setTurns(convTurns, { preserveExistingRealtime: true })
+          useConversationStore.getState().setTurns(convTurns, {
+            preserveExistingRealtime: true,
+            realtimeScopeThreadId: requestedId
+          })
           if (res.thread.plan) {
             useConversationStore.getState().onPlanUpdated(res.thread.plan)
           }
@@ -3027,7 +3030,10 @@ export function App(): JSX.Element {
     const conversation = useConversationStore.getState()
     if (includeTurns) {
       const rawTurns = (thread.turns ?? []) as unknown as Array<Record<string, unknown>>
-      conversation.setTurns(rawTurns.map(wireTurnToConversationTurn), { preserveExistingRealtime: true })
+      conversation.setTurns(rawTurns.map(wireTurnToConversationTurn), {
+        preserveExistingRealtime: true,
+        realtimeScopeThreadId: requestedId
+      })
       if (thread.plan) {
         useConversationStore.getState().onPlanUpdated(thread.plan)
       }

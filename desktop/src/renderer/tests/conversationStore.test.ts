@@ -749,6 +749,76 @@ describe('turn lifecycle', () => {
     expect(toolItem?.completedAt).toBe('2026-04-25T10:00:03.000Z')
   })
 
+  it('preserves a same-thread running turn when a stale empty thread/read snapshot arrives', () => {
+    s().onTurnStarted(makeTurn({
+      id: 'turn-builder-live',
+      threadId: 'builder-thread',
+      status: 'running'
+    }))
+    s().onItemStarted({
+      turnId: 'turn-builder-live',
+      item: {
+        id: 'agent-streaming',
+        type: 'agentMessage',
+        status: 'streaming',
+        createdAt: '2026-04-25T10:00:01.000Z'
+      }
+    })
+    s().onAgentMessageDelta('Designing')
+
+    s().setTurns([], {
+      preserveExistingRealtime: true,
+      realtimeScopeThreadId: 'builder-thread'
+    })
+
+    const state = s()
+    expect(state.turns).toHaveLength(1)
+    expect(state.turns[0].id).toBe('turn-builder-live')
+    expect(state.turnStatus).toBe('running')
+    expect(state.activeTurnId).toBe('turn-builder-live')
+    expect(state.activeItemId).toBe('agent-streaming')
+    expect(state.streamingMessage).toBe('Designing')
+  })
+
+  it('does not preserve a running turn for a stale empty snapshot from a different thread', () => {
+    s().onTurnStarted(makeTurn({
+      id: 'turn-other-live',
+      threadId: 'other-thread',
+      status: 'running'
+    }))
+
+    s().setTurns([], {
+      preserveExistingRealtime: true,
+      realtimeScopeThreadId: 'builder-thread'
+    })
+
+    const state = s()
+    expect(state.turns).toHaveLength(0)
+    expect(state.turnStatus).toBe('idle')
+    expect(state.activeTurnId).toBeNull()
+  })
+
+  it('does not preserve terminal history over a same-thread empty snapshot', () => {
+    s().setTurns([
+      makeTurn({
+        id: 'turn-builder-done',
+        threadId: 'builder-thread',
+        status: 'completed',
+        completedAt: '2026-04-25T10:00:02.000Z'
+      })
+    ])
+
+    s().setTurns([], {
+      preserveExistingRealtime: true,
+      realtimeScopeThreadId: 'builder-thread'
+    })
+
+    const state = s()
+    expect(state.turns).toHaveLength(0)
+    expect(state.turnStatus).toBe('idle')
+    expect(state.activeTurnId).toBeNull()
+  })
+
   it('preserves settled parallel explore tools and resolved approvals over stale hydrate', () => {
     s().onTurnStarted(makeTurn({ id: 'turn-parallel' }))
     const calls = [

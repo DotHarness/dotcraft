@@ -21,6 +21,7 @@ export interface ServerCapabilities {
   cronManagement?: boolean
   heartbeatManagement?: boolean
   skillsManagement?: boolean
+  toolCatalog?: boolean
   pluginManagement?: boolean
   skillVariants?: boolean
   commandManagement?: boolean

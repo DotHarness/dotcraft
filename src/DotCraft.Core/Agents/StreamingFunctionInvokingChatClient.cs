@@ -9,8 +9,9 @@ using DotCraft.Protocol;
 using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
 using OpenAiStreamingUpdate = OpenAI.Chat.StreamingChatCompletionUpdate;
+using OpenAI.Responses;
 
-#pragma warning disable MEAI001 // Mirrors upstream FunctionInvokingChatClient handling for provider-managed continuations.
+#pragma warning disable OPENAI001, MEAI001 // Mirrors upstream FunctionInvokingChatClient handling for provider-managed continuations.
 
 namespace DotCraft.Agents;
 
@@ -479,6 +480,29 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
                     toolCallUpdate.FunctionArgumentsUpdate?.ToString());
             }
 
+            yield break;
+        }
+
+        if (rawRepresentation is StreamingResponseOutputItemAddedUpdate
+            {
+                Item: FunctionCallResponseItem functionCallItem
+            } outputItemAdded)
+        {
+            yield return new ToolCallDeltaChunk(
+                outputItemAdded.OutputIndex,
+                functionCallItem.FunctionName,
+                functionCallItem.CallId,
+                null);
+            yield break;
+        }
+
+        if (rawRepresentation is StreamingResponseFunctionCallArgumentsDeltaUpdate functionArgumentsDelta)
+        {
+            yield return new ToolCallDeltaChunk(
+                functionArgumentsDelta.OutputIndex,
+                null,
+                null,
+                functionArgumentsDelta.Delta.ToString());
             yield break;
         }
 

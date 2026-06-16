@@ -150,6 +150,17 @@ An extension may additionally issue scoped mutating requests (HTTP `POST` with a
 
 Desktop must reject a renderer-initiated mutating extension request when the target origin is not declared in the verified descriptor or `surfaceWriteScopes` is empty. `surfaceWriteScopes` is the extension's declared write intent: it is surfaced when the plugin is installed and the app is connected, and it gates whether Desktop exposes `postJson` at all. Renderer host wrappers may reject calls early for user experience, but the main process is the enforcement point for descriptor-bound origins, app ids, and write intent. Per-request authorization is enforced by the app's loopback surface using the connection credential it issued, not re-checked by Desktop — App Binding scopes are granted per thread binding rather than per connection, so the surface endpoint (not Desktop) is the authority for an un-bound, workspace-level surface write. The extension should issue writes only while a required app is connected; Desktop does not prompt per write, because the user authorized the app connection and its published surface. The app's loopback surface must validate every request and may reject it. This is the explicit mutation grant anticipated by [App Binding](../protocols/app-binding.md) `publicMetadata.surfaceEndpoints`; agent-invoked and externally-visible writes still go through App Binding tools and app-owned approval.
 
+### Extension AppServer bridge (scoped)
+
+Some extensions manage DotCraft's own state rather than an external app's loopback surface — e.g. an Agent Builder that reads and writes Agent Profiles via `agent/profiles/*`. For these, the extension descriptor may declare `appServerScopes`: a list of AppServer JSON-RPC method patterns the extension may call through `host.appServer.request(method, params)`. A trailing `*` is a wildcard prefix (e.g. `agent/profiles/*`); a bare method name matches exactly (e.g. `thread/start`).
+
+Rules:
+
+- The allow-list is enforced in the main process, read straight from the verified `desktop-extensions.json` on disk (not the `plugin/list` wire) when the extension grant is created — the on-disk manifest is the authority.
+- A request whose method matches no declared `appServerScopes` pattern is rejected, and an extension that declares no `appServerScopes` cannot reach AppServer at all (default-closed).
+- Unlike `host.network` (loopback HTTP to a connected app's surface), this bridge targets the DotCraft AppServer itself — the same JSON-RPC the Desktop client uses — so it is appropriate only for extensions managing first-party DotCraft capabilities. The declared scopes are the extension's AppServer intent and are surfaced at install time.
+- Renderer host wrappers may reject early for UX, but the main process is the enforcement point.
+
 DotCraft discovers plugin roots from:
 
 1. Workspace-local root: `<workspace>/.craft/plugins`

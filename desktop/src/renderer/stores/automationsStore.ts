@@ -87,6 +87,8 @@ export interface AutomationTask {
   threadBinding?: AutomationThreadBinding | null
   /** ISO 8601 UTC. Null when the task has no schedule or is ready to dispatch immediately. */
   nextRunAt?: string | null
+  /** Optional Agent Profile bound to the task; governs the agent's capabilities at run time. */
+  agentProfileId?: string | null
 }
 
 /**
@@ -105,6 +107,8 @@ export interface AutomationTemplate {
   needsThreadBinding?: boolean | null
   defaultTitle?: string | null
   defaultDescription?: string | null
+  /** Optional Agent Profile id pre-filled into the task Agent picker when the template is applied. */
+  defaultAgentProfileId?: string | null
   /** True for user-authored templates (editable + deletable); false/absent for built-ins. */
   isUser?: boolean
   /** ISO-8601 UTC, only present for user templates. */
@@ -128,6 +132,8 @@ export interface SaveTemplateInput {
   needsThreadBinding?: boolean
   defaultTitle?: string | null
   defaultDescription?: string | null
+  /** Agent Profile id pre-filled into the task Agent picker when the template is applied. Null clears it. */
+  defaultAgentProfileId?: string | null
 }
 
 export interface CreateTaskInput {
@@ -139,6 +145,8 @@ export interface CreateTaskInput {
   schedule?: AutomationSchedule | null
   threadBinding?: AutomationThreadBinding | null
   templateId?: string
+  /** Optional Agent Profile binding the task's run to a profile. */
+  agentProfileId?: string | null
 }
 
 interface AutomationsState {
@@ -227,6 +235,7 @@ export const useAutomationsStore = create<AutomationsState>((set, get) => ({
     if (input.schedule && input.schedule.kind !== 'once') params.schedule = input.schedule
     if (input.threadBinding && input.threadBinding.threadId) params.threadBinding = input.threadBinding
     if (input.templateId) params.templateId = input.templateId
+    if (input.agentProfileId) params.agentProfileId = input.agentProfileId
     await window.api.appServer.sendRequest('automation/task/create', params)
     await get().fetchTasks()
   },
@@ -321,6 +330,7 @@ export const useAutomationsStore = create<AutomationsState>((set, get) => ({
       params.defaultTitle = input.defaultTitle
     if (input.defaultDescription != null && input.defaultDescription !== '')
       params.defaultDescription = input.defaultDescription
+    if (input.defaultAgentProfileId) params.defaultAgentProfileId = input.defaultAgentProfileId
 
     const result = (await window.api.appServer.sendRequest(
       'automation/template/save',

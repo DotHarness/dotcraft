@@ -31,13 +31,13 @@ Tasks are addressed by `taskId` only. The AppServer automation task methods do n
 |--------|--------|--------|
 | `automation/task/list` | `{}` | `{ tasks: AutomationTaskWire[] }` |
 | `automation/task/read` | `{ taskId }` | `{ task: AutomationTaskWire }` |
-| `automation/task/create` | `{ title, description, workflowTemplate?, approvalPolicy?, workspaceMode?, schedule?, threadBinding?, templateId? }` | `{ task: AutomationTaskWire }` |
+| `automation/task/create` | `{ title, description, workflowTemplate?, approvalPolicy?, workspaceMode?, schedule?, threadBinding?, templateId?, agentProfileId? }` | `{ task: AutomationTaskWire }` |
 | `automation/task/run` | `{ taskId }` | `{ task: AutomationTaskWire }` |
 | `automation/task/updateBinding` | `{ taskId, threadBinding?: AutomationThreadBindingWire | null }` | `{ task: AutomationTaskWire }` |
 | `automation/task/discardWorktree` | `{ taskId }` | `{ task: AutomationTaskWire }` |
 | `automation/task/delete` | `{ taskId }` | `{ ok: true }` |
 | `automation/template/list` | `{ locale? }` | `{ templates: AutomationTemplateWire[] }` |
-| `automation/template/save` | `{ id?, title, description?, icon?, category?, workflowMarkdown, defaultSchedule?, defaultWorkspaceMode?, defaultApprovalPolicy?, needsThreadBinding?, defaultTitle?, defaultDescription? }` | `{ template: AutomationTemplateWire }` |
+| `automation/template/save` | `{ id?, title, description?, icon?, category?, workflowMarkdown, defaultSchedule?, defaultWorkspaceMode?, defaultApprovalPolicy?, needsThreadBinding?, defaultTitle?, defaultDescription?, defaultAgentProfileId? }` | `{ template: AutomationTemplateWire }` |
 | `automation/template/delete` | `{ id }` | `{ ok: true }` |
 
 ## `AutomationTaskWire`
@@ -50,6 +50,7 @@ Tasks are addressed by `taskId` only. The AppServer automation task methods do n
   "status": "pending",
   "threadId": null,
   "approvalPolicy": "workspaceScope",
+  "agentProfileId": "team-reviewer",
   "workspaceMode": "worktree",
   "worktree": {
     "branchName": "dotcraft/task-weekly-report",
@@ -68,6 +69,10 @@ Tasks are addressed by `taskId` only. The AppServer automation task methods do n
 `isolated` is accepted on reads and create requests as an alias for `worktree`.
 `worktree` is populated after a managed task worktree is provisioned and is
 `null` for project-mode tasks, bound tasks, and non-Git fallback execution.
+`agentProfileId` is the optional Agent Profile bound to the task; `null` when
+the task runs with the default automation agent. Only the id is persisted; the
+profile is resolved to a `ThreadConfiguration` at dispatch (see
+[Agent Profile Binding](#agent-profile-binding)).
 
 ## Workspace Modes
 
@@ -107,8 +112,48 @@ The local file store owns parsing and persistence. `task.md` contains task metad
 5. Unbound tasks create or resume the task conversation in the project workspace.
    Worktree-mode tasks then ensure a managed Git worktree under
    `.craft/worktrees/` and use it only as the execution workspace.
-6. The local task tool profile is registered with `CompleteLocalTask`.
-7. Completion writes the Agent summary and emits `automation/task/updated`.
+6. When the task is bound to an Agent Profile, the orchestrator resolves the
+   profile into the task thread configuration and applies the automation
+   operational overrides on top (see [Agent Profile Binding](#agent-profile-binding)).
+   A missing or invalid bound profile fails the run.
+7. The local task tool profile is registered with `CompleteLocalTask`.
+8. Completion writes the Agent summary and emits `automation/task/updated`.
+
+## Agent Profile Binding
+
+A task may bind an [Agent Profile](../protocols/appserver-protocol.md#23a-agent-profile-management-methods)
+via `agentProfileId`. Binding is optional; an unbound task runs with the default
+automation agent and the source tool profile, unchanged from prior behavior.
+
+Capability vs. operation is split:
+
+- The **Agent Profile governs capabilities** — the resolved `ThreadConfiguration`
+  supplies tools, MCP servers, skills, model, and agent instructions.
+- The **automation governs operation** — regardless of the profile, the
+  orchestrator force-overrides the operational fields it owns:
+  `approvalPolicy` is forced to auto-approve (unattended runs must never block on
+  approval), `automationTaskDirectory` is set to the task directory,
+  `requireApprovalOutsideWorkspace` is derived from the task's approval policy,
+  and the automation `toolProfile` is applied so the `CompleteLocalTask`
+  completion tool is injected. Workspace mode and schedule remain task-owned.
+
+When a profile is bound, the profile's tool / MCP / skills policy is the source
+of truth for the agent's general capabilities; the default source tool profile's
+capability set is not merged on top. The one exception is operational: the
+completion tool (`CompleteLocalTask`) is always injected and kept reachable even
+under a restrictive profile allow-list, so the run can always finish.
+
+Only the binding is persisted in `task.md`, as the optional `agent_profile_id`
+front-matter key. The profile is resolved to a `ThreadConfiguration` snapshot at
+each dispatch, so edits to the profile take effect on the task's next run. If the bound profile cannot be resolved (deleted
+or invalid) at dispatch, the run **fails** (`status: failed`) rather than
+silently falling back to the default agent — the task explicitly requested that
+capability set. Clients are expected to surface the failure reason.
+
+Templates carry the binding as `defaultAgentProfileId`, a default that pre-fills
+the Agent picker when a task is created from the template; it is not itself
+executable. A template referencing a profile id that no longer resolves
+pre-fills as the default agent.
 
 ## Managed Worktree Review
 

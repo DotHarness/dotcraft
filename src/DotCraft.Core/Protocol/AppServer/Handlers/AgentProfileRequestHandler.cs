@@ -1,4 +1,5 @@
 using DotCraft.Agents;
+using DotCraft.Tools;
 
 namespace DotCraft.Protocol.AppServer;
 
@@ -15,6 +16,8 @@ internal sealed class AgentProfileRequestHandler(
         table.Map(AppServerMethods.AgentProfileUpsert, HandleUpsertAsync);
         table.Map(AppServerMethods.AgentProfileRemove, HandleRemoveAsync);
         table.Map(AppServerMethods.AgentProfileRefreshThread, HandleRefreshThreadAsync);
+        table.Map(AppServerMethods.AgentProfileBuilderDraftRead, HandleBuilderDraftReadAsync);
+        table.Map(AppServerMethods.AgentProfileBuilderDraftUpdate, HandleBuilderDraftUpdateAsync);
     }
 
     private async Task<object?> HandleListAsync(AppServerIncomingMessage msg, CancellationToken ct)
@@ -205,8 +208,98 @@ internal sealed class AgentProfileRequestHandler(
         }
     }
 
+    private async Task<object?> HandleBuilderDraftReadAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    {
+        var p = AppServerParams.Get<AgentProfileBuilderDraftReadParams>(msg);
+        var binding = await RequireBuilderThreadAsync(p.ThreadId, ct);
+        var entry = EnsureBuilderDraft(binding.ThreadId, binding.TargetId, binding.TargetSource);
+        return new AgentProfileBuilderDraftResult
+        {
+            ThreadId = binding.ThreadId,
+            TargetId = entry.TargetId,
+            TargetSource = entry.TargetSource,
+            RawContent = entry.Markdown
+        };
+    }
+
+    private async Task<object?> HandleBuilderDraftUpdateAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    {
+        var p = AppServerParams.Get<AgentProfileBuilderDraftUpdateParams>(msg);
+        if (p.RawContent == null)
+            throw AppServerErrors.InvalidParams("'rawContent' is required.");
+
+        var binding = await RequireBuilderThreadAsync(p.ThreadId, ct);
+        var existing = ProfileBuilderDraftStore.TryGet(binding.ThreadId);
+        if (existing != null
+            && (!string.Equals(existing.TargetId, binding.TargetId, StringComparison.Ordinal)
+                || !string.Equals(existing.TargetSource, binding.TargetSource, StringComparison.Ordinal)))
+        {
+            ProfileBuilderDraftStore.Remove(binding.ThreadId);
+            existing = null;
+        }
+
+        var entry = existing == null
+            ? ProfileBuilderDraftStore.Seed(binding.ThreadId, binding.TargetId, binding.TargetSource, p.RawContent)
+            : ProfileBuilderDraftStore.Update(binding.ThreadId, p.RawContent) ?? existing;
+
+        return new AgentProfileBuilderDraftResult
+        {
+            ThreadId = binding.ThreadId,
+            TargetId = entry.TargetId,
+            TargetSource = entry.TargetSource,
+            RawContent = entry.Markdown
+        };
+    }
+
     private AgentProfileStore CreateStore() =>
         new(ResolveWorkspaceCraftPath());
+
+    private async Task<(string ThreadId, string TargetId, string TargetSource)> RequireBuilderThreadAsync(
+        string? threadId,
+        CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(threadId))
+            throw AppServerErrors.InvalidParams("'threadId' is required.");
+
+        var thread = await sessionService.GetThreadAsync(threadId.Trim(), ct);
+        var targetId = thread.Configuration?.AgentBuilderTargetId?.Trim();
+        if (string.IsNullOrWhiteSpace(targetId))
+            throw AppServerErrors.InvalidParams("Thread is not an Agent Builder session.");
+
+        var targetSource = string.IsNullOrWhiteSpace(thread.Configuration?.AgentBuilderTargetSource)
+            ? AgentProfileSources.Workspace
+            : thread.Configuration.AgentBuilderTargetSource!.Trim();
+
+        return (thread.Id, targetId, targetSource);
+    }
+
+    private ProfileBuilderDraftEntry EnsureBuilderDraft(string threadId, string targetId, string targetSource)
+    {
+        var entry = ProfileBuilderDraftStore.TryGet(threadId);
+        if (entry != null
+            && string.Equals(entry.TargetId, targetId, StringComparison.Ordinal)
+            && string.Equals(entry.TargetSource, targetSource, StringComparison.Ordinal))
+        {
+            return entry;
+        }
+
+        if (entry != null)
+            ProfileBuilderDraftStore.Remove(threadId);
+
+        return ProfileBuilderDraftStore.Seed(threadId, targetId, targetSource, SeedBuilderDraftMarkdown(targetId, targetSource));
+    }
+
+    private string SeedBuilderDraftMarkdown(string targetId, string targetSource)
+    {
+        try
+        {
+            return CreateStore().Read(targetId, targetSource).RawContent ?? string.Empty;
+        }
+        catch (AgentProfileException ex) when (ex.Kind == AgentProfileErrorKind.NotFound)
+        {
+            return string.Empty;
+        }
+    }
 
     private string? ResolveWorkspaceCraftPath()
     {
@@ -225,8 +318,10 @@ internal sealed class AgentProfileRequestHandler(
         Id = profile.Id,
         Name = profile.Name,
         Description = profile.Description,
+        Avatar = profile.Avatar,
         Source = profile.Source,
         Path = profile.Path,
+        UpdatedAt = profile.UpdatedAt,
         PluginId = profile.PluginId,
         Fingerprint = profile.Fingerprint,
         Valid = profile.Valid,

@@ -38,6 +38,7 @@ public sealed partial class AppServerModule : ModuleBase
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IThreadRuntimeToolProvider, AppBindingRuntimeToolProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IThreadSystemPromptContextProvider, WireRuntimeAdditionalContextSystemPromptProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IThreadSystemPromptContextProvider, AppBindingThreadSystemPromptContextProvider>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IThreadSystemPromptContextProvider, DotCraft.Agents.ProfileBuilderSystemPromptProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IThreadRuntimeToolProvider, ThreadPluginFunctionToolProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IAppServerProtocolExtension, AppBindingProtocolExtension>());
         services.TryAddSingleton<IChannelRuntimeToolProvider, CompositeChannelRuntimeToolProvider>();

@@ -42,6 +42,7 @@ import {
   authorizeDesktopExtensionGrant,
   clearDesktopExtensionGrants,
   ensureDesktopExtensionAppAllowed,
+  ensureDesktopExtensionAppServerMethodAllowed,
   ensureDesktopExtensionAppUrlAllowed,
   requireDesktopExtensionGrant,
   revokeDesktopExtensionGrant,
@@ -1855,6 +1856,53 @@ export function registerIpcHandlers(
     }
   )
 
+  handleSafe(
+    'desktop-extension:appserver-request',
+    async (
+      _event,
+      params: { grantId: string; method: string; params?: unknown; timeoutMs?: number }
+    ): Promise<unknown> => {
+      const grant = requireDesktopExtensionGrant(params.grantId)
+      const method = typeof params.method === 'string' ? params.method.trim() : ''
+      // Allow-list enforced from the plugin's desktop-extensions.json appServerScopes.
+      ensureDesktopExtensionAppServerMethodAllowed(grant, method)
+      const client = getWireClient()
+      if (!client) {
+        throw new Error(translate(mainLocale(callbacks), 'ipc.appServerNotConnected'))
+      }
+      let requestParams: unknown = params.params != null ? params.params : {}
+      // thread/start needs the desktop session identity + active workspace, which a
+      // sandboxed extension cannot supply. Inject it from the active workspace when
+      // the caller did not provide an identity (mirrors desktopIdentity()).
+      if (
+        method === 'thread/start'
+        && typeof requestParams === 'object'
+        && requestParams !== null
+        && !Array.isArray(requestParams)
+        && (requestParams as Record<string, unknown>).identity == null
+      ) {
+        const workspaceStatus = callbacks?.getWorkspaceStatus?.()
+        const workspacePath = typeof workspaceStatus?.workspacePath === 'string' ? workspaceStatus.workspacePath : ''
+        if (!workspacePath) {
+          throw new Error('Desktop extension thread/start requires an active workspace.')
+        }
+        requestParams = {
+          ...(requestParams as Record<string, unknown>),
+          identity: {
+            channelName: 'dotcraft-desktop',
+            userId: 'local',
+            channelContext: 'workspace:' + workspacePath,
+            workspacePath
+          }
+        }
+      }
+      const timeoutMs = typeof params.timeoutMs === 'number' && params.timeoutMs > 0 ? params.timeoutMs : 20_000
+      return sendDesktopAppServerRequest(client, method, requestParams, timeoutMs, {
+        supportsDynamicToolRebind: callbacks?.getConnectionStatus().capabilities?.dynamicToolRebind === true
+      })
+    }
+  )
+
   // Renderer -> Main: browser tab lifecycle / navigation
   handleSafe(
     'viewer:browser:create',
@@ -2503,6 +2551,7 @@ export function unregisterIpcHandlers(): void {
   ipcMain.removeHandler('desktop-extension:app-connection-status')
   ipcMain.removeHandler('desktop-extension:app-connection-start')
   ipcMain.removeHandler('desktop-extension:app-open')
+  ipcMain.removeHandler('desktop-extension:appserver-request')
   clearDesktopExtensionGrants()
   clearAuthorizedPluginRoots()
   ipcMain.removeHandler('viewer:browser:create')

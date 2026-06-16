@@ -300,4 +300,54 @@ describe('automationsStore templates', () => {
       defaultWorkspaceMode: 'worktree'
     })
   })
+
+  it('sends the bound agent profile id when creating tasks', async () => {
+    sendRequest.mockResolvedValueOnce({}).mockResolvedValueOnce({ tasks: [] })
+
+    await useAutomationsStore.getState().createTask({
+      title: 'Reviewed task',
+      description: 'Run as the reviewer agent',
+      agentProfileId: 'team-reviewer'
+    })
+
+    expect(sendRequest).toHaveBeenNthCalledWith(1, 'automation/task/create', {
+      title: 'Reviewed task',
+      description: 'Run as the reviewer agent',
+      approvalPolicy: 'workspaceScope',
+      workspaceMode: 'project',
+      agentProfileId: 'team-reviewer'
+    })
+  })
+
+  it('omits the agent profile id when creating a default-agent task', async () => {
+    sendRequest.mockResolvedValueOnce({}).mockResolvedValueOnce({ tasks: [] })
+
+    await useAutomationsStore.getState().createTask({
+      title: 'Default task',
+      description: 'Runs with the default agent',
+      agentProfileId: null
+    })
+
+    expect(sendRequest.mock.calls[0][1]).not.toHaveProperty('agentProfileId')
+  })
+
+  it('sends the default agent profile id when saving templates', async () => {
+    sendRequest.mockResolvedValueOnce({
+      template: { id: 'reviewed', title: 'Reviewed', workflowMarkdown: '---\n---' }
+    })
+
+    await useAutomationsStore.getState().saveTemplate({
+      title: 'Reviewed',
+      workflowMarkdown: '---\n---',
+      needsThreadBinding: false,
+      defaultAgentProfileId: 'team-reviewer'
+    })
+
+    expect(sendRequest).toHaveBeenCalledWith('automation/template/save', {
+      title: 'Reviewed',
+      workflowMarkdown: '---\n---',
+      needsThreadBinding: false,
+      defaultAgentProfileId: 'team-reviewer'
+    })
+  })
 })

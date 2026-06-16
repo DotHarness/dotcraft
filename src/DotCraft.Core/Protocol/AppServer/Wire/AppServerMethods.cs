@@ -1,10 +1,3 @@
-using System.Text.Json;
-using System.Text.Json.Serialization;
-using System.Text.Json.Nodes;
-using DotCraft.Configuration;
-using DotCraft.Cron;
-using Microsoft.Extensions.AI;
-
 namespace DotCraft.Protocol.AppServer;
 
 
@@ -115,6 +108,8 @@ public static class AppServerMethods
     public const string AgentProfileUpsert = "agent/profiles/upsert";
     public const string AgentProfileRemove = "agent/profiles/remove";
     public const string AgentProfileRefreshThread = "agent/profiles/refreshThread";
+    public const string AgentProfileBuilderDraftRead = "agent/profiles/builderDraft/read";
+    public const string AgentProfileBuilderDraftUpdate = "agent/profiles/builderDraft/update";
     public const string SubAgentProfileList = "subagent/profiles/list";
     public const string SubAgentSettingsUpdate = "subagent/settings/update";
     public const string SubAgentProfileSetEnabled = "subagent/profiles/setEnabled";
@@ -238,6 +233,9 @@ public static class AppServerMethods
     public const string SkillsRestoreOriginal = "skills/restoreOriginal";
     public const string SkillsSetEnabled = "skills/setEnabled";
     public const string SkillsUninstall = "skills/uninstall";
+
+    // Client → Server requests (built-in tool catalog, spec Section 18A)
+    public const string ToolList = "tool/list";
 
     // Client → Server requests (plugin management)
     public const string PluginList = "plugin/list";

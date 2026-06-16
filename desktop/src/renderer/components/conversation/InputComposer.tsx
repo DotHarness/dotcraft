@@ -1,5 +1,5 @@
 import { useRef, useState, useCallback, useEffect, useMemo, type CSSProperties } from 'react'
-import { Archive, ChevronsDown, ListChecks, Target } from 'lucide-react'
+import { Archive, Bot, ChevronsDown, ListChecks, Target } from 'lucide-react'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
 import { addToast } from '../../stores/toastStore'
@@ -49,6 +49,7 @@ import { ApprovalPolicyPicker } from './ApprovalPolicyPicker'
 import { BackgroundActivityDock } from './SubAgentDock'
 import {
   COMPOSER_FOOTER_CONTROL_HEIGHT,
+  ComposerCustomProfileLabel,
   ComposerPlanModeLabel,
   ComposerSendButton,
   ComposerShell,
@@ -57,7 +58,10 @@ import {
   composerFooterControlHoverBackground,
   composerModelPillStyle
 } from './ComposerShell'
+import { ProfilePickerPopover } from './ProfilePickerPopover'
 import { ComposerWorkspaceFooter } from './ComposerWorkspaceFooter'
+import { type AvatarSpec } from '../agents/agentAvatar'
+import { useResolvedProfileAvatar } from '../../stores/agentProfileAvatarStore'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
@@ -100,6 +104,16 @@ function isRequestTimeoutError(err: unknown): boolean {
   return normalized.includes('timed out') || normalized.includes('timeout')
 }
 
+export interface InputComposerSubmitPayload {
+  text: string
+  segments: ComposerDraftSegment[]
+  files: ComposerFileAttachment[]
+  images: ImageAttachment[]
+  inputParts: InputPart[]
+  visibleText: string
+  bodyText: string
+}
+
 interface InputComposerProps {
   threadId: string
   /** Thread state/identity workspace path. Worktree threads still belong to this root. */
@@ -120,6 +134,33 @@ interface InputComposerProps {
   onModelChange?: (model: string) => void
   onReasoningChange?: (value: ReasoningQuickValue) => void
   onModelCatalogRetry?: () => void
+  /**
+   * Minimal chrome for embedded composers (e.g. the conversational Agent Builder pane): hides the
+   * workspace/worktree+branch footer, the approval-policy (permissions) picker, and the ChatGPT
+   * subscription badge. The core input — attach, plan pill, reasoning, model, send — is kept.
+   */
+  minimalChrome?: boolean
+  /**
+   * Explicit mascot character. When set, overrides the thread-profile-derived avatar — used by the
+   * Agent Builder pane to show the edited profile's character (the builder thread has no profile id).
+   */
+  mascotAvatar?: AvatarSpec
+  /** Purpose-built embedded composer behavior for Agent Builder. */
+  variant?: 'default' | 'agentBuilder'
+  /** Override placeholder text for embedded composers with a narrower task. */
+  placeholder?: string
+  /** One-shot text injection request from an external empty state or suggestion. */
+  prefillRequest?: { id: number; text: string } | null
+  /** Called immediately before sending or queueing a user message. */
+  onBeforeSend?: () => Promise<void> | void
+  /**
+   * Optional detached submit handler. When provided, InputComposer still owns rich-input serialization,
+   * but the caller owns the destination thread/RPC. Used by the Agent Builder intro before a hidden
+   * builder thread exists.
+   */
+  submitOverride?: (payload: InputComposerSubmitPayload) => Promise<void> | void
+  /** Overrides the dock padding when the composer is embedded in a non-docked welcome-style surface. */
+  dockPadding?: CSSProperties['padding']
 }
 
 /**
@@ -142,9 +183,19 @@ export function InputComposer({
   modelCatalogErrorMessage = null,
   onModelChange,
   onReasoningChange,
-  onModelCatalogRetry
+  onModelCatalogRetry,
+  minimalChrome = false,
+  mascotAvatar,
+  variant = 'default',
+  placeholder,
+  prefillRequest = null,
+  onBeforeSend,
+  submitOverride,
+  dockPadding = composerDockStyle.padding
 }: InputComposerProps): JSX.Element {
   const t = useT()
+  const isAgentBuilder = variant === 'agentBuilder'
+  const hasSubmitOverride = submitOverride !== undefined
   const [images, setImages] = useState<ImageAttachment[]>([])
   const [files, setFiles] = useState<ComposerFileAttachment[]>([])
   const [atQuery, setAtQuery] = useState<string | null>(null)
@@ -154,6 +205,7 @@ export function InputComposer({
   const [skillQuery, setSkillQuery] = useState<string | null>(null)
   const [skillDismissed, setSkillDismissed] = useState(false)
   const [goalPopoverOpen, setGoalPopoverOpen] = useState(false)
+  const [profilePickerOpen, setProfilePickerOpen] = useState(false)
   const [goalPillActive, setGoalPillActive] = useState(false)
   const [goalBusy, setGoalBusy] = useState(false)
   const [compactBusy, setCompactBusy] = useState(false)
@@ -166,7 +218,7 @@ export function InputComposer({
   const [mascotBounce, setMascotBounce] = useState(0)
   const richRef = useRef<RichInputAreaHandle>(null)
   const sendInFlightRef = useRef(false)
-  const pendingModeChangeRef = useRef<Promise<void> | null>(null)
+  const pendingModeChangeRef = useRef<Promise<unknown> | null>(null)
   const applyingHistoryRef = useRef(false)
   const historyDraftRef = useRef<ComposerDraftSnapshot | null>(null)
   // Latest composer contents, mirrored from change handlers so the per-thread
@@ -190,37 +242,52 @@ export function InputComposer({
   const pendingMessage = useConversationStore((s) => s.pendingMessage)
   const queuedInputs = useConversationStore((s) => s.queuedInputs)
   const maintenanceKind = useConversationStore((s) => s.maintenanceKind)
-  const mascotInteraction = useComposerMascot({ threadId, workspacePath })
+  const rawMascotInteraction = useComposerMascot({ threadId, workspacePath })
+  const mascotInteraction = hasSubmitOverride ? undefined : rawMascotInteraction
   const threadMode = useConversationStore((s) => s.threadMode)
   const setThreadMode = useConversationStore((s) => s.setThreadMode)
   const composerPrefill = useUIStore((s) => s.composerPrefill)
   const currentGoal = useThreadStore((s) => s.goalSnapshots.get(threadId) ?? null)
   const hasSubAgentDock = useSubAgentStore((s) => (s.childrenByParent.get(threadId)?.length ?? 0) > 0)
-  const hasBackgroundActivityDock = queuedInputs.length > 0 || hasSubAgentDock
+  const visibleQueuedInputs = hasSubmitOverride ? [] : queuedInputs
+  const visiblePendingMessage = hasSubmitOverride ? null : pendingMessage
+  const hasBackgroundActivityDock = !hasSubmitOverride && (queuedInputs.length > 0 || hasSubAgentDock)
   const locale = useLocale()
   const confirm = useConfirmDialog()
 
-  const isRunning = turnStatus === 'running'
-  const isWaitingApproval = turnStatus === 'waitingApproval'
-  const isWaitingInput = turnStatus === 'waitingInput'
-  const isMaintenanceActive = maintenanceKind === 'compacting' || maintenanceKind === 'consolidating'
+  const isRunning = !hasSubmitOverride && turnStatus === 'running'
+  const isWaitingApproval = !hasSubmitOverride && turnStatus === 'waitingApproval'
+  const isWaitingInput = !hasSubmitOverride && turnStatus === 'waitingInput'
+  const isMaintenanceActive = !hasSubmitOverride && (maintenanceKind === 'compacting' || maintenanceKind === 'consolidating')
   const isBusyForInput = isRunning || isMaintenanceActive
   const canUseCommandPicker = capabilities?.commandManagement === true
   const canUseSkillPicker = capabilities?.skillsManagement === true
-  const canUseThreadGoals = capabilities?.threadGoals === true
-  const canUseManualCompaction = capabilities?.manualCompaction === true
-  const canUseManualMemoryConsolidation = capabilities?.manualMemoryConsolidation === true
+  const canUseThreadGoals = !isAgentBuilder && capabilities?.threadGoals === true
+  const canUseManualCompaction = !isAgentBuilder && capabilities?.manualCompaction === true
+  const canUseManualMemoryConsolidation = !isAgentBuilder && capabilities?.manualMemoryConsolidation === true
   const turnsLength = turns.length
   const canCompactCurrentThread = canUseManualCompaction && turnsLength > 0 && turnStatus === 'idle' && !isMaintenanceActive
   const canConsolidateCurrentThread = canUseManualMemoryConsolidation && turnsLength > 0 && turnStatus === 'idle' && !isMaintenanceActive
-  const canUseSystemActions = true
+  const canUseSystemActions = !isAgentBuilder
+  const canUseAgentProfiles = !isAgentBuilder && capabilities?.agentProfileManagement === true
+  const rawProfileId = (activeThread?.configuration as Record<string, unknown> | null | undefined)?.agentProfileId
+  const activeProfileId = typeof rawProfileId === 'string' && rawProfileId.length > 0 ? rawProfileId : undefined
+  const hasProfile = activeProfileId !== undefined
+  // Explicit avatar (builder pane) wins; otherwise resolve the active profile's
+  // avatar — the configured (stored) one if any, else derived — so the mascot
+  // matches the builder gallery and picker instead of a name-hash.
+  const resolvedProfileAvatar = useResolvedProfileAvatar(activeProfileId, workspacePath)
+  const effectiveMascotAvatar = mascotAvatar ?? resolvedProfileAvatar
   const canUseSlashPicker = canUseCommandPicker || canUseSkillPicker || canUseThreadGoals || canUseSystemActions
   const remoteLocalFilesUnavailable = remoteWorkspace ? t('input.remoteLocalFilesUnavailable') : undefined
 
   const showMentionPopover = atQuery !== null && !mentionDismissed && !remoteWorkspace
   const normalizedSlashQuery = slashQuery?.toLowerCase() ?? null
-  const isExactSystemSlashQuery = normalizedSlashQuery === 'plan' || normalizedSlashQuery === 'agent' || normalizedSlashQuery === 'compact' || normalizedSlashQuery === 'consolidate'
-  const showSlashPopover = slashQuery !== null && !slashDismissed && canUseSlashPicker && !isExactSystemSlashQuery
+  const isAgentBuilderModeSlashQuery = isAgentBuilder
+    && (normalizedSlashQuery === 'plan' || normalizedSlashQuery === 'agent')
+  const isExactSystemSlashQuery = !isAgentBuilder
+    && (normalizedSlashQuery === 'plan' || normalizedSlashQuery === 'agent' || normalizedSlashQuery === 'compact' || normalizedSlashQuery === 'consolidate')
+  const showSlashPopover = slashQuery !== null && !slashDismissed && canUseSlashPicker && !isExactSystemSlashQuery && !isAgentBuilderModeSlashQuery
   const showSkillPopover = skillQuery !== null && !skillDismissed && canUseSkillPicker
   const { commands: customCommands, status: customCommandStatus } = useCustomCommandCatalog({
     enabled: canUseCommandPicker,
@@ -253,24 +320,36 @@ export function InputComposer({
   )
   const systemActions = useMemo(
     () => {
-      const actions: SlashSystemActionInfo[] = [
-        {
+      const actions: SlashSystemActionInfo[] = []
+      if (!canUseSystemActions) return actions
+      // A profile-backed thread runs its agent's fixed capability scope, so it has no Plan/Agent mode.
+      if (!hasProfile) {
+        actions.push({
           id: 'planMode',
           label: t('composer.system.plan'),
           description: threadMode === 'agent'
             ? t('composer.system.plan.enable')
             : t('composer.system.plan.disable'),
           keywords: ['plan', 'agent'],
-          icon: <ListChecks size={11} strokeWidth={2} aria-hidden />
-        }
-      ]
+          icon: <ListChecks size={15} strokeWidth={2} aria-hidden />
+        })
+      }
+      if (canUseAgentProfiles) {
+        actions.push({
+          id: 'profile',
+          label: t('composer.system.profile'),
+          description: t('composer.system.profile.description'),
+          keywords: ['profile', 'agent', 'custom'],
+          icon: <Bot size={15} strokeWidth={2} aria-hidden />
+        })
+      }
       if (canCompactCurrentThread) {
         actions.push({
           id: 'compact',
           label: t('composer.system.compact'),
           description: t('composer.system.compact.description'),
           keywords: ['compact'],
-          icon: <ChevronsDown size={11} strokeWidth={2} aria-hidden />
+          icon: <ChevronsDown size={15} strokeWidth={2} aria-hidden />
         })
       }
       if (canConsolidateCurrentThread) {
@@ -279,7 +358,7 @@ export function InputComposer({
           label: t('composer.system.consolidate'),
           description: t('composer.system.consolidate.description'),
           keywords: ['consolidate', 'memory'],
-          icon: <Archive size={11} strokeWidth={2} aria-hidden />
+          icon: <Archive size={15} strokeWidth={2} aria-hidden />
         })
       }
       if (canUseThreadGoals) {
@@ -288,12 +367,12 @@ export function InputComposer({
           label: t('goal.system.label'),
           description: t('goal.system.description'),
           keywords: ['goal', '目标'],
-          icon: <Target size={11} strokeWidth={2} aria-hidden />
+          icon: <Target size={15} strokeWidth={2} aria-hidden />
         })
       }
       return actions
     },
-    [canCompactCurrentThread, canConsolidateCurrentThread, canUseThreadGoals, t, threadMode]
+    [canCompactCurrentThread, canConsolidateCurrentThread, canUseAgentProfiles, canUseSystemActions, canUseThreadGoals, hasProfile, t, threadMode]
   )
 
   useEffect(() => {
@@ -477,6 +556,16 @@ export function InputComposer({
       }, 0)
     }
   }, [composerPrefill])
+
+  useEffect(() => {
+    const prefill = prefillRequest?.text
+    if (!prefill) return
+    setTimeout(() => {
+      richRef.current?.setPlainText(prefill)
+      richRef.current?.setSelectionRange({ start: prefill.length, end: prefill.length })
+      richRef.current?.focus()
+    }, 0)
+  }, [prefillRequest?.id, prefillRequest?.text])
 
   useEffect(() => {
     const focus = (): void => {
@@ -766,7 +855,7 @@ export function InputComposer({
       return
     }
 
-    const systemCommand = parseSystemSlashCommand(trimmed)
+    const systemCommand = isAgentBuilder ? null : parseSystemSlashCommand(trimmed)
     if (systemCommand) {
       let clearInput = false
       if (systemCommand.kind === 'plan') clearInput = await setComposerMode('plan')
@@ -779,7 +868,7 @@ export function InputComposer({
       return
     }
 
-    const goalCommand = parseGoalSlashCommand(trimmed)
+    const goalCommand: GoalSlashCommand | null = isAgentBuilder ? null : parseGoalSlashCommand(trimmed)
     if (goalCommand) {
       const clearInput = await executeGoalCommand(goalCommand)
       if (clearInput) {
@@ -788,10 +877,52 @@ export function InputComposer({
       return
     }
 
+    try {
+      await onBeforeSend?.()
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : String(err), 'error')
+      return
+    }
+
     setMascotBounce((n) => n + 1)
 
     if (pendingModeChangeRef.current) {
       await pendingModeChangeRef.current
+    }
+
+    if (submitOverride) {
+      if (sendInFlightRef.current) return
+      sendInFlightRef.current = true
+      const capturedImages = [...images]
+      const capturedFiles = [...files]
+      const capturedSegments = [...segments]
+      const { inputParts, visibleText, bodyText } = buildComposerInputParts({
+        text: trimmed,
+        segments: capturedSegments,
+        files: capturedFiles,
+        images: capturedImages
+      })
+      try {
+        resetComposerInput()
+        await submitOverride({
+          text: trimmed,
+          segments: capturedSegments,
+          files: capturedFiles,
+          images: capturedImages,
+          inputParts,
+          visibleText,
+          bodyText
+        })
+      } catch (err) {
+        console.error('composer submit override failed:', err)
+        richRef.current?.setContent({ text: trimmed, segments: capturedSegments })
+        setImages(capturedImages)
+        setFiles(capturedFiles)
+        addToast(err instanceof Error ? err.message : String(err), 'error')
+      } finally {
+        sendInFlightRef.current = false
+      }
+      return
     }
 
     if (isBusyForInput) {
@@ -868,7 +999,7 @@ export function InputComposer({
     } finally {
       sendInFlightRef.current = false
     }
-  }, [compactThreadContext, consolidateThreadMemory, effectiveFileWorkspacePath, executeGoalCommand, files, images, isBusyForInput, isWaitingApproval, isWaitingInput, modelLoading, remoteWorkspace, setComposerMode, threadId, workspacePath, t])
+  }, [compactThreadContext, consolidateThreadMemory, effectiveFileWorkspacePath, executeGoalCommand, files, images, isAgentBuilder, isBusyForInput, isWaitingApproval, isWaitingInput, modelLoading, onBeforeSend, remoteWorkspace, setComposerMode, submitOverride, threadId, workspacePath, t])
 
   const removeQueuedInput = useCallback(async (queuedInputId: string): Promise<void> => {
     try {
@@ -942,6 +1073,7 @@ export function InputComposer({
   }, [threadId])
 
   async function setComposerMode(nextMode: 'agent' | 'plan'): Promise<boolean> {
+    if (hasProfile) return false
     if (pendingModeChangeRef.current) return false
     const previousMode = useConversationStore.getState().threadMode
     if (previousMode === nextMode) return true
@@ -1127,11 +1259,52 @@ export function InputComposer({
     }
   }, [])
 
+  const applyProfile = useCallback(async (profileId: string): Promise<void> => {
+    setProfilePickerOpen(false)
+    try {
+      // refreshThread resolves and applies the profile's compiled configuration (tools/mcp/skills/model).
+      const res = await window.api.appServer.sendRequest('agent/profiles/refreshThread', { threadId, profileId }) as { config?: Record<string, unknown> }
+      // A profile-backed thread has no operational mode; reset the optimistic local mode to agent.
+      setThreadMode('agent')
+      const active = useThreadStore.getState().activeThread
+      if (active && active.id === threadId) {
+        const nextConfig = res.config && typeof res.config === 'object'
+          ? res.config
+          : { ...(active.configuration ?? {}), agentProfileId: profileId }
+        useThreadStore.getState().setActiveThread({ ...active, configuration: nextConfig as unknown as typeof active.configuration })
+      }
+    } catch (err) {
+      addToast(t('composer.profile.changeFailed', { error: err instanceof Error ? err.message : String(err) }), 'error')
+    }
+  }, [threadId, setThreadMode, t])
+
+  const clearProfile = useCallback(async (): Promise<void> => {
+    try {
+      const readRes = await window.api.appServer.sendRequest('thread/read', { threadId, includeTurns: false }) as { thread?: { configuration?: Record<string, unknown> | null } }
+      const config = readRes.thread?.configuration && typeof readRes.thread.configuration === 'object'
+        ? { ...readRes.thread.configuration }
+        : {}
+      delete config.agentProfileId
+      delete config.agentProfileFingerprint
+      const active = useThreadStore.getState().activeThread
+      if (active && active.id === threadId) {
+        useThreadStore.getState().setActiveThread({ ...active, configuration: config as unknown as typeof active.configuration })
+      }
+      await window.api.appServer.sendRequest('thread/config/update', { threadId, config })
+    } catch (err) {
+      addToast(t('composer.profile.changeFailed', { error: err instanceof Error ? err.message : String(err) }), 'error')
+    }
+  }, [threadId, t])
+
   const onSelectSystemAction = useCallback((actionId: string): void => {
     setSlashDismissed(true)
     clearSlashSystemInput()
     if (actionId === 'planMode') {
       void toggleMode()
+      return
+    }
+    if (actionId === 'profile') {
+      setProfilePickerOpen(true)
       return
     }
     if (actionId === 'compact') {
@@ -1150,18 +1323,22 @@ export function InputComposer({
   const onSelectSkill = useCallback((skillName: string): void => {
     richRef.current?.insertSkillTag(skillName)
   }, [])
+  const effectiveComposerDockStyle =
+    dockPadding === composerDockStyle.padding
+      ? composerDockStyle
+      : { ...composerDockStyle, padding: dockPadding }
 
   return (
-    <div style={composerDockStyle}>
+    <div style={effectiveComposerDockStyle}>
       <ConversationColumn>
-      {pendingMessage && <PendingMessageIndicator message={pendingMessage} />}
+      {visiblePendingMessage && <PendingMessageIndicator message={visiblePendingMessage} />}
       <ComposerShell
         dragOver={dragOver}
         dropLabel={t('composer.dropImage')}
         topAccessory={(
           <BackgroundActivityDock
             parentThreadId={threadId}
-            queuedInputs={queuedInputs}
+            queuedInputs={visibleQueuedInputs}
             onQueueSteer={(id) => { void steerQueuedInput(id) }}
             onQueueRemove={(id) => { void removeQueuedInput(id) }}
             onQueueReorder={(orderedIds) => { void reorderQueuedInputs(orderedIds) }}
@@ -1175,6 +1352,7 @@ export function InputComposer({
         showMascot
         mascotBounceSignal={mascotBounce}
         mascotInteraction={mascotInteraction}
+        mascotAvatar={effectiveMascotAvatar}
         mascotHandoff
         attachmentStrip={
           <AttachmentStrip
@@ -1205,6 +1383,16 @@ export function InputComposer({
                   setGoalPopoverOpen(false)
                 }}
               />
+              <ProfilePickerPopover
+                visible={profilePickerOpen}
+                activeProfileId={activeProfileId}
+                onPick={(profileId) => {
+                  void applyProfile(profileId)
+                }}
+                onDismiss={() => {
+                  setProfilePickerOpen(false)
+                }}
+              />
               <CommandSearchPopover
                 query={slashQuery ?? ''}
                 visible={showSlashPopover}
@@ -1218,6 +1406,7 @@ export function InputComposer({
                 onDismiss={() => {
                   setSlashDismissed(true)
                 }}
+                constrainToAnchor={isAgentBuilder}
               />
               <CommandSearchPopover
                 query={skillQuery ?? ''}
@@ -1230,6 +1419,7 @@ export function InputComposer({
                 onDismiss={() => {
                   setSkillDismissed(true)
                 }}
+                constrainToAnchor={isAgentBuilder}
               />
               <FileSearchPopover
                 query={atQuery ?? ''}
@@ -1239,13 +1429,14 @@ export function InputComposer({
                 onDismiss={() => {
                   setMentionDismissed(true)
                 }}
+                constrainToAnchor={isAgentBuilder}
               />
               <RichInputArea
                 ref={richRef}
                 chrome="minimal"
                 disabled={isWaitingApproval || isWaitingInput}
                 suppressSubmit={showMentionPopover || showSlashPopover || showSkillPopover || modelLoading}
-                onToggleModeShortcut={() => {
+                onToggleModeShortcut={isAgentBuilder ? undefined : () => {
                   void toggleMode()
                 }}
                 onHistoryNavigate={handleHistoryNavigate}
@@ -1255,7 +1446,7 @@ export function InputComposer({
                     ? t('composer.placeholder.approval')
                     : isWaitingInput
                       ? t('composer.placeholder.userInput')
-                      : t('composer.placeholder.ask')
+                      : placeholder ?? t('composer.placeholder.ask')
                 }
                 onSubmit={() => {
                   void sendMessage()
@@ -1288,27 +1479,42 @@ export function InputComposer({
               onReferenceFiles={() => {
                 void pickFiles()
               }}
-              planModeLabel={t('composer.system.plan')}
+              planModeLabel={isAgentBuilder || hasProfile ? undefined : t('composer.system.plan')}
               planModeToggleLabel={t('composer.system.plan.toggle')}
               planModeEnabled={threadMode === 'plan'}
-              onTogglePlanMode={() => {
+              onTogglePlanMode={isAgentBuilder || hasProfile ? undefined : () => {
                 void toggleMode()
               }}
               attachmentDisabledReason={remoteLocalFilesUnavailable}
             />
 
-            <ApprovalPolicyPicker threadId={threadId} disabled={isBusyForInput || isWaitingApproval || isWaitingInput} />
+            {!minimalChrome && (
+              <ApprovalPolicyPicker threadId={threadId} disabled={isBusyForInput || isWaitingApproval || isWaitingInput} />
+            )}
 
-            <ComposerPlanModeLabel
-              value={threadMode}
-              onDisable={() => {
-                void setComposerMode('agent')
-              }}
-              label={t('composer.mode.plan')}
-              shortcut={ACTION_SHORTCUTS.toggleMode}
-              title={t('composer.planPill.create')}
-              ariaLabel={t('composer.system.plan.disable')}
-            />
+            {hasProfile ? (
+              <ComposerCustomProfileLabel
+                label={t('composer.mode.custom')}
+                onClear={() => {
+                  void clearProfile()
+                }}
+                title={t('composer.customPill.title', { name: activeProfileId ?? '' })}
+                ariaLabel={t('composer.customPill.aria')}
+              />
+            ) : !isAgentBuilder ? (
+              <ComposerPlanModeLabel
+                value={threadMode}
+                onDisable={() => {
+                  void setComposerMode('agent')
+                }}
+                label={t('composer.mode.plan')}
+                shortcut={ACTION_SHORTCUTS.toggleMode}
+                title={t('composer.planPill.create')}
+                ariaLabel={t('composer.system.plan.disable')}
+              />
+            ) : (
+              null
+            )}
             {currentGoal && (
               <ActionTooltip label={currentGoal.objective} placement="top">
                 <button
@@ -1340,8 +1546,8 @@ export function InputComposer({
         }
         footerAction={
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <ChatGptUsageBadge provider={activeChatGptProvider} />
-            <ContextUsageRing />
+            {!minimalChrome && <ChatGptUsageBadge provider={activeChatGptProvider} />}
+            {!hasSubmitOverride && <ContextUsageRing />}
             <ModelPicker
               modelName={modelName}
               modelOptions={modelOptions}
@@ -1412,13 +1618,15 @@ export function InputComposer({
           </div>
         }
         belowFooter={
-          <ComposerWorkspaceFooter
-            workspacePath={effectiveFileWorkspacePath}
-            mode={activeThread?.worktree ? 'worktree' : 'local'}
-            variant="thread"
-            thread={activeThread}
-            remoteWorkspace={remoteWorkspace}
-          />
+          minimalChrome ? undefined : (
+            <ComposerWorkspaceFooter
+              workspacePath={effectiveFileWorkspacePath}
+              mode={activeThread?.worktree ? 'worktree' : 'local'}
+              variant="thread"
+              thread={activeThread}
+              remoteWorkspace={remoteWorkspace}
+            />
+          )
         }
       />
       </ConversationColumn>

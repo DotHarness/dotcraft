@@ -222,4 +222,7 @@ public static class ContextPageKeys
 
     public static ContextPageKey RuntimeAdditionalContext() =>
         new("runtime", "additionalContext", "");
+
+    public static ContextPageKey AgentBuilderTarget(string variant) =>
+        new("agentBuilder", "target", variant);
 }

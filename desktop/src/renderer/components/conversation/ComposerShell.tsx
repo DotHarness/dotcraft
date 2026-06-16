@@ -11,9 +11,10 @@ import {
   type JSX,
   type ReactNode
 } from 'react'
-import { ListChecks, Square, X } from 'lucide-react'
+import { Bot, ListChecks, Square, X } from 'lucide-react'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { MascotRobot, type MascotExpression, type MascotLight } from './MascotRobot'
+import { paletteOf, type AvatarSpec } from '../agents/agentAvatar'
 import { MascotBubble, type MascotBubbleAction, type MascotBubbleTone } from './MascotBubble'
 import { consumeMascotHandoff, recordMascotHandoff } from './mascotHandoff'
 import { ContextMenu, type ContextMenuItem, type ContextMenuPosition } from '../ui/ContextMenu'
@@ -89,6 +90,8 @@ interface ComposerShellProps {
   mascotBounceSignal?: number
   /** State-driven expression/light/bubble/right-click menu for the mascot. */
   mascotInteraction?: ComposerMascotInteraction
+  /** Optional Agent Profile character: recolors the mascot to the profile's palette. */
+  mascotAvatar?: AvatarSpec
   /** Participate in cross-composer position handoff: when this shell replaces
    *  (or is replaced by) another handoff shell — input ↔ approval — the mascot
    *  rides between the two rims instead of hard-cutting. */
@@ -152,12 +155,14 @@ function ComposerMascot({
   dragOver,
   bounceSignal,
   interaction,
+  avatar,
   handoff = false
 }: {
   focused: boolean
   dragOver: boolean
   bounceSignal: number
   interaction?: ComposerMascotInteraction
+  avatar?: AvatarSpec
   handoff?: boolean
 }): JSX.Element {
   const [menuPos, setMenuPos] = useState<ContextMenuPosition | null>(null)
@@ -193,6 +198,7 @@ function ComposerMascot({
     light === 'default'
   // Local behaviors (sleep, wave) override the face; conversation light stays.
   const expression: MascotExpression = sleeping ? 'sleep' : waving ? 'happy' : baseExpression
+  const mascotShadowColor = avatar ? paletteOf(avatar).shadow : '#0b3d62'
 
   // Cross-composer ride: the approval composer replaces the input composer (a
   // full remount), so the outgoing mascot records its screen position in the
@@ -338,6 +344,9 @@ function ComposerMascot({
         setStartled(false)
         break
       case 'composer-mascot-wave-arm':
+      // Held-sign variant: the arm rocks the gripped "?" sign instead of fanning
+      // an empty hand; same one-shot lifecycle, different keyframes.
+      case 'composer-mascot-sign-wave-arm':
         setWaving(false)
         break
       case 'composer-mascot-nod':
@@ -436,9 +445,8 @@ function ComposerMascot({
           transformOrigin: 'bottom center',
           transform: `scale(${MASCOT_SCALE})`,
           // Mascot drop-shadow biases downward so it reads with the contact shadow on
-          // the rim below. Raw navy is a brand-asset rendering artifact (mirrors the
-          // robot's own shadows in MascotRobot), not a themed surface color.
-          filter: 'drop-shadow(0 5.3px 7.3px color-mix(in srgb, #0b3d62 20%, transparent))'
+          // the rim below. It follows the profile palette's shadow color.
+          filter: `drop-shadow(0 5.3px 7.3px color-mix(in srgb, ${mascotShadowColor} 20%, transparent))`
         }}
       >
         {/* Pose layer: focus perk-up / error droop / sleep slump (feet planted). */}
@@ -475,7 +483,7 @@ function ComposerMascot({
                     : undefined
                 }
               >
-                <MascotRobot expression={expression} light={light} size={MASCOT_SIZE} />
+                <MascotRobot expression={expression} light={light} size={MASCOT_SIZE} avatar={avatar} />
               </div>
             </div>
           </div>
@@ -534,9 +542,11 @@ export function ComposerShell({
   showMascot = false,
   mascotBounceSignal = 0,
   mascotInteraction,
+  mascotAvatar,
   mascotHandoff = false
 }: ComposerShellProps): JSX.Element {
   const [hovered, setHovered] = useState(false)
+  const mascotShadowColor = mascotAvatar ? paletteOf(mascotAvatar).shadow : '#0b3d62'
   return (
     <div
       onMouseEnter={() => setHovered(true)}
@@ -557,6 +567,7 @@ export function ComposerShell({
           dragOver={dragOver}
           bounceSignal={mascotBounceSignal}
           interaction={mascotInteraction}
+          avatar={mascotAvatar}
           handoff={mascotHandoff}
         />
       )}
@@ -627,8 +638,8 @@ export function ComposerShell({
             // Contact shadow cast by the mascot's feet onto the composer rim, so the
             // robot reads as standing on the surface rather than floating above it.
             // Anchored under the mascot (right:40 + half width 29 − 1px border ≈ 68);
-            // translateX(50%) centers the blob on that point. Brand-asset rendering
-            // artifact (raw navy mirrors MascotRobot's shadows), not a themed color.
+            // translateX(50%) centers the blob on that point. It follows the profile
+            // palette's shadow color, matching MascotRobot's internal shadow.
             <div
               aria-hidden
               style={{
@@ -640,7 +651,7 @@ export function ComposerShell({
                 transform: 'translateX(50%)',
                 borderRadius: '50%',
                 background:
-                  'radial-gradient(50% 100% at 50% 0%, color-mix(in srgb, #0b3d62 10%, transparent) 0%, transparent 72%)',
+                  `radial-gradient(50% 100% at 50% 0%, color-mix(in srgb, ${mascotShadowColor} 10%, transparent) 0%, transparent 72%)`,
                 filter: 'blur(2px)',
                 pointerEvents: 'none'
               }}
@@ -744,6 +755,58 @@ export function ComposerPlanModeLabel({
           transition: 'background-color 120ms ease, color 120ms ease'
         }}
     >
+        <Icon size={13} strokeWidth={2} aria-hidden />
+        <span>{label}</span>
+      </button>
+    </ActionTooltip>
+  )
+}
+
+interface ComposerCustomProfileLabelProps {
+  label: string
+  onClear: () => void
+  title: string
+  ariaLabel: string
+}
+
+/**
+ * Footer pill shown when the active thread is backed by an agent profile. Replaces the Plan pill
+ * (a profile-backed thread has no operational mode). Hover/focus reveals the clear (×) affordance.
+ */
+export function ComposerCustomProfileLabel({ label, onClear, title, ariaLabel }: ComposerCustomProfileLabelProps): JSX.Element {
+  const [hovered, setHovered] = useState(false)
+  const [focused, setFocused] = useState(false)
+  const active = hovered || focused
+  const Icon = active ? X : Bot
+
+  return (
+    <ActionTooltip label={title} placement="top">
+      <button
+        type="button"
+        onClick={onClear}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        aria-label={ariaLabel}
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '6px',
+          height: COMPOSER_FOOTER_CONTROL_HEIGHT,
+          padding: '0 6px',
+          borderRadius: '999px',
+          border: 'none',
+          background: active ? composerFooterControlHoverBackground : 'transparent',
+          color: 'var(--composer-footer-text)',
+          cursor: 'pointer',
+          fontSize: 'var(--type-secondary-size)',
+          lineHeight: 'var(--type-secondary-line-height)',
+          fontWeight: 'var(--type-ui-emphasis-weight)',
+          outline: 'none',
+          transition: 'background-color 120ms ease, color 120ms ease'
+        }}
+      >
         <Icon size={13} strokeWidth={2} aria-hidden />
         <span>{label}</span>
       </button>

@@ -180,11 +180,16 @@ function catalogHoverButtonStyle(
 ): CSSProperties {
   const transition = 'background-color 120ms ease, border-color 120ms ease, color 120ms ease'
   if (!active) return { ...baseStyle, transition }
+  // Base styles declare their border via the `border` shorthand. Override that SAME
+  // shorthand on hover — never the `borderColor` longhand. Mixing the two confuses
+  // React's inline-style diff: on un-hover it clears `borderColor` without re-applying
+  // `border`, leaving a stale 1px `currentColor` (dark) frame that persists.
+  const hasBorder = typeof baseStyle.border === 'string' && baseStyle.border !== 'none'
   return {
     ...baseStyle,
     background: 'var(--bg-tertiary)',
     backgroundColor: 'var(--bg-tertiary)',
-    borderColor: baseStyle.border || baseStyle.borderColor ? 'transparent' : baseStyle.borderColor,
+    border: hasBorder ? '1px solid transparent' : baseStyle.border,
     color: 'var(--text-primary)',
     transition,
     ...hoverStyle

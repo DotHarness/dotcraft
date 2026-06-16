@@ -44,9 +44,15 @@ public sealed class AgentProfileEntry
 
     public string? Description { get; init; }
 
+    /// <summary>Optional packed profile avatar used by clients for visual identity.</summary>
+    public int? Avatar { get; init; }
+
     public string Source { get; init; } = AgentProfileSources.BuiltIn;
 
     public string? Path { get; init; }
+
+    /// <summary>Last write time of the profile file (UTC), when it exists on disk. Null for in-memory/built-in.</summary>
+    public DateTimeOffset? UpdatedAt { get; init; }
 
     public string? PluginId { get; init; }
 
@@ -83,6 +89,9 @@ public sealed class AgentProfileValidationResult
 
     public string? Description { get; init; }
 
+    /// <summary>Optional packed profile avatar parsed from frontmatter.</summary>
+    public int? Avatar { get; init; }
+
     public string Body { get; init; } = string.Empty;
 
     public string Fingerprint { get; init; } = string.Empty;
@@ -96,6 +105,46 @@ public sealed class AgentProfileValidationResult
     public List<string> RestrictedFields { get; init; } = [];
 
     public ThreadConfiguration? CompiledConfiguration { get; init; }
+}
+
+/// <summary>Packs and validates Agent Profile avatar indices into a single integer frontmatter field.</summary>
+public static class AgentProfileAvatarCodec
+{
+    /// <summary>The number of palette variants currently supported by the desktop renderer.</summary>
+    public const int PaletteCount = 12;
+
+    /// <summary>The number of face variants currently supported by the desktop renderer.</summary>
+    public const int FaceCount = 5;
+
+    /// <summary>The number of accessory variants currently supported by the desktop renderer.</summary>
+    public const int AccessoryCount = 6;
+
+    private const int PaletteMask = 0x0f;
+    private const int FaceMask = 0x07;
+    private const int AccessoryMask = 0x07;
+    private const int FaceShift = 4;
+    private const int AccessoryShift = 7;
+    private const int AvatarMask = PaletteMask | (FaceMask << FaceShift) | (AccessoryMask << AccessoryShift);
+
+    /// <summary>Packs palette, face, and accessory indices into one non-negative integer.</summary>
+    public static int Encode(int palette, int face, int accessory) =>
+        (palette & PaletteMask)
+        | ((face & FaceMask) << FaceShift)
+        | ((accessory & AccessoryMask) << AccessoryShift);
+
+    /// <summary>Attempts to unpack a persisted avatar value into palette, face, and accessory indices.</summary>
+    public static bool TryDecode(int value, out int palette, out int face, out int accessory)
+    {
+        palette = value & PaletteMask;
+        face = (value >> FaceShift) & FaceMask;
+        accessory = (value >> AccessoryShift) & AccessoryMask;
+
+        return value >= 0
+            && (value & ~AvatarMask) == 0
+            && palette < PaletteCount
+            && face < FaceCount
+            && accessory < AccessoryCount;
+    }
 }
 
 public sealed class AgentProfileAuditRecord
@@ -146,6 +195,7 @@ public sealed partial class AgentProfileStore
     {
         "name",
         "description",
+        "avatar",
         "providerId",
         "model",
         "reasoning",
@@ -386,6 +436,7 @@ public sealed partial class AgentProfileStore
 
         var id = ReadOptionalString(frontmatter, "name", diagnostics, required: true);
         var description = ReadOptionalString(frontmatter, "description", diagnostics, required: true);
+        var avatar = ReadOptionalAvatar(frontmatter, diagnostics);
         if (!string.IsNullOrWhiteSpace(id))
         {
             id = id.Trim();
@@ -410,6 +461,7 @@ public sealed partial class AgentProfileStore
         {
             Id = id,
             Description = string.IsNullOrWhiteSpace(description) ? null : description.Trim(),
+            Avatar = avatar,
             Body = extracted.Value.Body,
             Fingerprint = fingerprint,
             Diagnostics = diagnostics,
@@ -653,8 +705,10 @@ public sealed partial class AgentProfileStore
             Id = id,
             Name = validation.Id,
             Description = validation.Description,
+            Avatar = validation.Avatar,
             Source = source,
             Path = path,
+            UpdatedAt = TryGetLastWriteTime(path),
             PluginId = pluginId,
             Fingerprint = validation.Fingerprint,
             Valid = validation.Valid,
@@ -665,6 +719,20 @@ public sealed partial class AgentProfileStore
             RestrictedFields = validation.RestrictedFields,
             CompiledConfiguration = validation.CompiledConfiguration
         };
+    }
+
+    private static DateTimeOffset? TryGetLastWriteTime(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return null;
+        try
+        {
+            return File.Exists(path) ? File.GetLastWriteTimeUtc(path) : null;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private string? GetSourceDirectory(string source)
@@ -692,6 +760,7 @@ public sealed partial class AgentProfileStore
         Id = entry.Id,
         Name = entry.Name,
         Description = entry.Description,
+        Avatar = entry.Avatar,
         Source = entry.Source,
         Path = entry.Path,
         PluginId = entry.PluginId,
@@ -720,6 +789,7 @@ public sealed partial class AgentProfileStore
         Id = entry.Id,
         Name = entry.Name,
         Description = entry.Description,
+        Avatar = entry.Avatar,
         Source = entry.Source,
         Path = entry.Path,
         PluginId = entry.PluginId,
@@ -835,6 +905,64 @@ public sealed partial class AgentProfileStore
         ValidateAllowedFields(TryGetObject(locked, "mcp", diagnostics), LockedMcpFields, "locked.mcp", diagnostics);
         ValidateAllowedFields(TryGetObject(locked, "permissions", diagnostics), LockedPermissionsFields, "locked.permissions", diagnostics);
         ValidateAllowedFields(TryGetObject(locked, "teams", diagnostics), LockedTeamsFields, "locked.teams", diagnostics);
+    }
+
+    private static int? ReadOptionalAvatar(
+        JsonObject frontmatter,
+        List<AgentProfileDiagnostic> diagnostics)
+    {
+        if (!TryGetProperty(frontmatter, "avatar", out var value) || value == null)
+            return null;
+
+        var avatar = ReadPackedAvatarValue(value, diagnostics);
+        return avatar.HasValue && ValidateAvatarValue(avatar.Value, diagnostics) ? avatar.Value : null;
+    }
+
+    private static int? ReadPackedAvatarValue(JsonNode value, List<AgentProfileDiagnostic> diagnostics)
+    {
+        int? parsed = null;
+        if (value is JsonValue jsonValue)
+        {
+            if (jsonValue.TryGetValue<int>(out var intValue))
+                parsed = intValue;
+            else if (jsonValue.TryGetValue<long>(out var longValue)
+                && longValue >= int.MinValue
+                && longValue <= int.MaxValue)
+            {
+                parsed = (int)longValue;
+            }
+            else if (jsonValue.TryGetValue<string>(out var raw)
+                && raw.All(char.IsDigit)
+                && int.TryParse(raw, NumberStyles.None, CultureInfo.InvariantCulture, out var stringValue))
+            {
+                parsed = stringValue;
+            }
+        }
+
+        if (!parsed.HasValue)
+        {
+            diagnostics.Add(Error("InvalidFieldType", "Agent profile field 'avatar' must be an integer."));
+            return null;
+        }
+
+        if (parsed.Value < 0)
+        {
+            diagnostics.Add(Error("InvalidPolicyValue", "Agent profile field 'avatar' must be a non-negative integer."));
+            return null;
+        }
+
+        return parsed.Value;
+    }
+
+    private static bool ValidateAvatarValue(int avatar, List<AgentProfileDiagnostic> diagnostics)
+    {
+        if (AgentProfileAvatarCodec.TryDecode(avatar, out _, out _, out _))
+            return true;
+
+        diagnostics.Add(Error(
+            "InvalidPolicyValue",
+            $"Agent profile field 'avatar' must encode palette < {AgentProfileAvatarCodec.PaletteCount}, face < {AgentProfileAvatarCodec.FaceCount}, and accessory < {AgentProfileAvatarCodec.AccessoryCount}."));
+        return false;
     }
 
     private static void ApplyPluginTrustRestrictions(
@@ -1316,6 +1444,52 @@ public sealed partial class AgentProfileStore
         return null;
     }
 
+    private static int? ReadOptionalNonNegativeInt(
+        JsonObject section,
+        string key,
+        List<AgentProfileDiagnostic> diagnostics,
+        bool required = false)
+    {
+        if (!TryGetProperty(section, key, out var value) || value == null)
+        {
+            if (required)
+                diagnostics.Add(Error("MissingRequiredField", $"Agent profile frontmatter must include '{key}'."));
+            return null;
+        }
+
+        int? parsed = null;
+        if (value is JsonValue jsonValue)
+        {
+            if (jsonValue.TryGetValue<int>(out var intValue))
+                parsed = intValue;
+            else if (jsonValue.TryGetValue<long>(out var longValue)
+                && longValue >= int.MinValue
+                && longValue <= int.MaxValue)
+            {
+                parsed = (int)longValue;
+            }
+            else if (jsonValue.TryGetValue<string>(out var raw)
+                && int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var stringValue))
+            {
+                parsed = stringValue;
+            }
+        }
+
+        if (!parsed.HasValue)
+        {
+            diagnostics.Add(Error("InvalidFieldType", $"Agent profile field '{key}' must be an integer."));
+            return null;
+        }
+
+        if (parsed.Value < 0)
+        {
+            diagnostics.Add(Error("InvalidPolicyValue", $"Agent profile field '{key}' must be a non-negative integer."));
+            return null;
+        }
+
+        return parsed.Value;
+    }
+
     private static string[]? ReadOptionalStringArray(
         JsonObject section,
         string key,
@@ -1494,6 +1668,8 @@ public sealed partial class AgentProfileStore
         AgentProfileId = source.AgentProfileId,
         AgentProfileSource = source.AgentProfileSource,
         AgentProfileFingerprint = source.AgentProfileFingerprint,
+        AgentBuilderTargetId = source.AgentBuilderTargetId,
+        AgentBuilderTargetSource = source.AgentBuilderTargetSource,
         McpServers = source.McpServers == null ? null : [.. source.McpServers],
         Mode = source.Mode,
         Extensions = source.Extensions == null ? null : [.. source.Extensions],

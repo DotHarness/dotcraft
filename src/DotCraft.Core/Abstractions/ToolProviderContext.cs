@@ -202,6 +202,15 @@ public sealed class ToolProviderContext
     public ThreadSource? CurrentThreadSource { get; init; }
 
     /// <summary>
+    /// When set, this thread is a conversational profile-builder session editing the named Agent
+    /// Profile id. Enables the builder tools (see AgentProfileBuilderToolProvider).
+    /// </summary>
+    public string? AgentBuilderTargetId { get; init; }
+
+    /// <summary>Source (user / workspace) of the Agent Profile being edited by this builder thread.</summary>
+    public string? AgentBuilderTargetSource { get; init; }
+
+    /// <summary>
     /// Controls which DotCraft agent-control tools may be exposed in this tool context.
     /// </summary>
     public AgentControlToolAccess AgentControlToolAccess { get; init; } = AgentControlToolAccess.Full;

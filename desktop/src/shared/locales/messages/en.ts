@@ -1594,6 +1594,7 @@ export const MESSAGES_EN = {
   'connection.unknownError': 'Unknown error',
   'connection.statusTitle': 'Connection status: {{status}}',
   'fileSearch.loading': 'Loading…',
+  'fileSearch.filesGroup': 'Files',
   'fileSearch.noMatch': 'No matching files',
   'fileSearch.hint': 'Type to search files',
   'fileSearch.building': 'Indexing files…',
@@ -1871,6 +1872,15 @@ export const MESSAGES_EN = {
   'composer.system.plan.disable': 'Disable plan mode',
   'composer.system.plan.toggle': 'Toggle plan mode',
   'composer.system.plan.description': 'Toggle the current conversation between agent and plan mode.',
+  'composer.mode.custom': 'Custom',
+  'composer.system.profile': 'Agent profile',
+  'composer.system.profile.description': 'Run this thread as a saved agent',
+  'composer.profile.pickTitle': 'Choose an agent',
+  'composer.profile.loading': 'Loading agents…',
+  'composer.profile.empty': 'No saved agents yet.',
+  'composer.customPill.title': 'Running the {{name}} agent — click to clear',
+  'composer.customPill.aria': 'Clear agent profile',
+  'composer.profile.changeFailed': "Couldn't update the agent: {{error}}",
   'composer.system.compact': 'Compact',
   'composer.system.compact.description': "Compact this session's context",
   'composer.system.consolidate': 'Consolidate',
@@ -2149,6 +2159,9 @@ export const MESSAGES_EN = {
   'auto.newTask.title': 'New automation task',
   'auto.newTask.agentWorkspaceLabel': 'Agent workspace',
   'auto.newTask.toolPolicyLabel': 'Tool policy',
+  'auto.newTask.agentLabel': 'Agent',
+  'auto.newTask.agentDefault': 'Default agent',
+  'auto.newTask.agentDefaultHint': "Run with the workspace's default agent.",
   'auto.newTask.namePlaceholder': 'e.g. Implement feature X',
   'auto.newTask.promptPlaceholder': 'Describe what the agent should do. Markdown supported.',
   'auto.newTask.workspaceProject': 'Runs directly in this project. Changes apply to your working copy.',
@@ -2891,6 +2904,29 @@ export const MESSAGES_EN = {
   'settings.subAgents.custom.sanitizationRulesHint':
     'Optional JSON object passed to the runtime for output sanitization.',
   'settings.subAgents.custom.sanitizationRulesPlaceholder': '{ "redactEmails": true }',
+
+  // Agent Builder chat
+  'agentBuilder.chat.emptyTitle': 'How should we improve this agent?',
+  'agentBuilder.chat.quick.test': 'Test this agent',
+  'agentBuilder.chat.quick.advanced': 'Add advanced logic',
+  'agentBuilder.chat.quick.optimize': 'Optimize this agent',
+  'agentBuilder.chat.prompt.test':
+    'Test this agent against a realistic first task. Identify gaps in its instructions, tools, skills, model, and approval policy, then suggest concrete changes.',
+  'agentBuilder.chat.prompt.advanced':
+    'Add advanced logic to this agent. Strengthen its routing, constraints, edge cases, and tool or skill choices without broadening its scope unnecessarily.',
+  'agentBuilder.chat.prompt.optimize':
+    'Optimize this agent for reliability and focus. Tighten its role instructions, remove unnecessary capability, and recommend the minimal tools and skills it needs.',
+  'agentBuilder.removeChip': 'Remove {{item}}',
+  'agentBuilder.editing.updatingField': 'Updating {{field}}',
+  'agentBuilder.field.name': 'name',
+  'agentBuilder.field.description': 'description',
+  'agentBuilder.field.instructions': 'instructions',
+  'agentBuilder.field.tools': 'tools',
+  'agentBuilder.field.mcp': 'MCP',
+  'agentBuilder.field.skills': 'skills',
+  'agentBuilder.field.model': 'model',
+  'agentBuilder.field.approval': 'approval',
+  'agentBuilder.field.toolControl': 'tool control',
 
   // Validation
   'settings.subAgents.validation.nameRequired': 'A name is required.',

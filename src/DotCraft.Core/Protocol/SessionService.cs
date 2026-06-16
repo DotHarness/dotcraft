@@ -1,5 +1,4 @@
 using System.Text;
-using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Abstractions;
 using DotCraft.Agents;
@@ -661,6 +660,8 @@ public sealed partial class SessionService(
         AgentProfileId = source.AgentProfileId,
         AgentProfileSource = source.AgentProfileSource,
         AgentProfileFingerprint = source.AgentProfileFingerprint,
+        AgentBuilderTargetId = source.AgentBuilderTargetId,
+        AgentBuilderTargetSource = source.AgentBuilderTargetSource,
         McpServers = source.McpServers == null ? null : [.. source.McpServers],
         Mode = source.Mode,
         Extensions = source.Extensions == null ? null : [.. source.Extensions],
@@ -3674,6 +3675,8 @@ public sealed partial class SessionService(
                 RequireApprovalOutsideWorkspace = config.RequireApprovalOutsideWorkspace,
                 CurrentThreadId = thread.Id,
                 CurrentThreadSource = thread.Source,
+                AgentBuilderTargetId = config.AgentBuilderTargetId,
+                AgentBuilderTargetSource = config.AgentBuilderTargetSource,
                 CurrentOriginChannel = thread.OriginChannel,
                 CurrentChannelContext = thread.ChannelContext,
                 AgentControlToolAccess = agentControlToolAccess,
@@ -3843,6 +3846,8 @@ public sealed partial class SessionService(
             DeferredToolRegistry = source.DeferredToolRegistry,
             CurrentThreadId = thread?.Id ?? source.CurrentThreadId,
             CurrentThreadSource = thread?.Source ?? source.CurrentThreadSource,
+            AgentBuilderTargetId = thread?.Configuration?.AgentBuilderTargetId ?? source.AgentBuilderTargetId,
+            AgentBuilderTargetSource = thread?.Configuration?.AgentBuilderTargetSource ?? source.AgentBuilderTargetSource,
             CurrentOriginChannel = thread?.OriginChannel ?? source.CurrentOriginChannel,
             CurrentChannelContext = thread?.ChannelContext ?? source.CurrentChannelContext,
             AgentControlToolAccess = thread == null
@@ -3895,6 +3900,8 @@ public sealed partial class SessionService(
             DeferredToolRegistry = source.DeferredToolRegistry,
             CurrentThreadId = source.CurrentThreadId,
             CurrentThreadSource = source.CurrentThreadSource,
+            AgentBuilderTargetId = source.AgentBuilderTargetId,
+            AgentBuilderTargetSource = source.AgentBuilderTargetSource,
             CurrentOriginChannel = source.CurrentOriginChannel,
             CurrentChannelContext = source.CurrentChannelContext,
             AgentControlToolAccess = source.AgentControlToolAccess,
@@ -3942,6 +3949,8 @@ public sealed partial class SessionService(
             RequireApprovalOutsideWorkspace = source.RequireApprovalOutsideWorkspace,
             CurrentThreadId = source.CurrentThreadId,
             CurrentThreadSource = source.CurrentThreadSource,
+            AgentBuilderTargetId = source.AgentBuilderTargetId,
+            AgentBuilderTargetSource = source.AgentBuilderTargetSource,
             CurrentOriginChannel = source.CurrentOriginChannel,
             CurrentChannelContext = source.CurrentChannelContext,
             AgentControlToolAccess = source.AgentControlToolAccess,

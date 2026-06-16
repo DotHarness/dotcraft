@@ -1,25 +1,8 @@
-using System.Text;
 using System.Text.Json;
-using System.Text.Json.Nodes;
-using System.Globalization;
 using DotCraft.Agents;
-using DotCraft.Abstractions;
-using DotCraft.AppBinding;
-using DotCraft.Auth.OpenAI;
 using DotCraft.Commands.Core;
 using DotCraft.Commands.Custom;
 using DotCraft.Configuration;
-using DotCraft.Context;
-using DotCraft.Cron;
-using DotCraft.Heartbeat;
-using DotCraft.Logging;
-using DotCraft.Mcp;
-using DotCraft.Memory;
-using DotCraft.Dreams;
-using DotCraft.Skills;
-using DotCraft.Tools.BackgroundTerminals;
-using DotCraft.Tracing;
-using Microsoft.Extensions.AI;
 
 namespace DotCraft.Protocol.AppServer;
 
@@ -135,6 +118,7 @@ public sealed class AppServerRequestHandler(
         new TerminalRequestHandler(services.BackgroundTerminalService, sessionService),
         new DreamsRequestHandler(services.DreamsService, services.DreamStore, services.AppConfigMonitor, services.WorkspaceCraftPath, services.ContextPageManager),
         new SkillsRequestHandler(services.SkillsLoader, services.ContextPageManager, services.AppConfigMonitor, services.WorkspaceCraftPath, SkillVariants),
+        new ToolRequestHandler(),
         new McpRequestHandler(services.McpClientManager, McpConfig, services.AppConfigMonitor, services.BroadcastMcpStatusChanged),
         new ChannelRequestHandler(channelListContributor, services.ChannelStatusProvider, WorkspaceConfig, ExternalChannelConfig, services.WorkspaceCraftPath, services.AppConfigMonitor, services.OnExternalChannelUpserted, services.OnExternalChannelRemoved, services.ExternalChannelLogProvider),
         new ProviderRequestHandler(transport, WorkspaceConfig, RuntimeConfig, services.WorkspaceCraftPath, services.AppConfigMonitor, services.OpenAIClientProvider, services.OpenAIAuthService, services.OpenAIUsageService),
@@ -222,6 +206,7 @@ public sealed class AppServerRequestHandler(
         AppServerMethods.SkillsRestoreOriginal,
         AppServerMethods.SkillsSetEnabled,
         AppServerMethods.SkillsUninstall,
+        AppServerMethods.ToolList,
         AppServerMethods.PluginList,
         AppServerMethods.PluginView,
         AppServerMethods.PluginInstall,

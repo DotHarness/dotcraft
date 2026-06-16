@@ -106,6 +106,7 @@ interface PendingToolCompletionEntry {
 
 interface SetTurnsOptions {
   preserveExistingRealtime?: boolean
+  realtimeScopeThreadId?: string | null
 }
 
 // ---------------------------------------------------------------------------
@@ -1233,10 +1234,13 @@ function turnThreadIds(turns: ConversationTurn[]): Set<string> {
 
 function hasSharedRealtimeScope(
   incoming: ConversationTurn[],
-  existingTurns: ConversationTurn[]
+  existingTurns: ConversationTurn[],
+  realtimeScopeThreadId?: string | null
 ): boolean {
   if (existingTurns.length === 0) return true
-  if (incoming.length === 0) return false
+  if (incoming.length === 0) {
+    return liveRealtimeTurnsForScope(existingTurns, realtimeScopeThreadId).length > 0
+  }
 
   const incomingThreadIds = turnThreadIds(incoming)
   const existingThreadIds = turnThreadIds(existingTurns)
@@ -1255,9 +1259,13 @@ function hasSharedRealtimeScope(
 
 function mergeExistingRealtimeTurns(
   incoming: ConversationTurn[],
-  existingTurns: ConversationTurn[]
+  existingTurns: ConversationTurn[],
+  realtimeScopeThreadId?: string | null
 ): ConversationTurn[] {
   if (existingTurns.length === 0) return incoming
+  if (incoming.length === 0) {
+    return liveRealtimeTurnsForScope(existingTurns, realtimeScopeThreadId)
+  }
   const existingById = new Map(existingTurns.map((turn) => [turn.id, turn]))
   const incomingIds = new Set(incoming.map((turn) => turn.id))
   const incomingThreadIds = turnThreadIds(incoming)
@@ -1280,6 +1288,17 @@ function mergeExistingRealtimeTurns(
   }
   return merged.sort(
     (a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime()
+  )
+}
+
+function liveRealtimeTurnsForScope(
+  existingTurns: ConversationTurn[],
+  realtimeScopeThreadId?: string | null
+): ConversationTurn[] {
+  if (!realtimeScopeThreadId) return []
+  return existingTurns.filter((turn) =>
+    turn.threadId === realtimeScopeThreadId &&
+    !isTerminalTurnStatus(turn.status)
   )
 }
 
@@ -1802,10 +1821,14 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
     const currentTurns = get().turns
     const preserveExistingRealtime =
       options.preserveExistingRealtime === true &&
-      hasSharedRealtimeScope(rehydratedTurns, currentTurns)
+      hasSharedRealtimeScope(rehydratedTurns, currentTurns, options.realtimeScopeThreadId)
     const turnsForState = preserveExistingRealtime
-      ? mergeExistingRealtimeTurns(rehydratedTurns, currentTurns)
+      ? mergeExistingRealtimeTurns(rehydratedTurns, currentTurns, options.realtimeScopeThreadId)
       : rehydratedTurns
+    const preserveEmptyRealtimeSnapshot =
+      preserveExistingRealtime &&
+      rehydratedTurns.length === 0 &&
+      turnsForState.length > 0
 
     const activeTurn = [...turnsForState]
       .reverse()
@@ -1830,11 +1853,11 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
         turns: toolCompletionApplied.turns,
         turnStatus: activeTurnStatus,
         activeTurnId: activeTurn ? activeTurn.id : null,
-        streamingMessage: '',
-        streamingMessageLastDeltaAt: null,
-        streamingReasoning: '',
-        streamingReasoningStartedAt: null,
-        activeItemId: null,
+        streamingMessage: preserveEmptyRealtimeSnapshot ? state.streamingMessage : '',
+        streamingMessageLastDeltaAt: preserveEmptyRealtimeSnapshot ? state.streamingMessageLastDeltaAt : null,
+        streamingReasoning: preserveEmptyRealtimeSnapshot ? state.streamingReasoning : '',
+        streamingReasoningStartedAt: preserveEmptyRealtimeSnapshot ? state.streamingReasoningStartedAt : null,
+        activeItemId: preserveEmptyRealtimeSnapshot ? state.activeItemId : null,
         turnStartedAt: activeTurn
           ? (activeTurn.startedAt ? new Date(activeTurn.startedAt).getTime() : Date.now())
           : null,

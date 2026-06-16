@@ -1,5 +1,6 @@
 import { COMMAND_REF_CLASS, FILE_REF_CLASS, SKILL_REF_CLASS } from './richInputConstants'
 import { SPARKLE_ICON_SVG, TERMINAL_ICON_SVG } from './refIconSvgs'
+import { paintFileRefIcon } from './fileRefIconDom'
 import type { ComposerDraftSegment } from '../../types/composerDraft'
 
 type RefType = Exclude<ComposerDraftSegment, { type: 'text' }>['type']
@@ -41,16 +42,12 @@ export function createRefSpan(kind: RefType, value: string): HTMLSpanElement {
   const removeIcon = document.createElement('span')
   span.setAttribute('contenteditable', 'false')
   span.setAttribute('data-ref-type', kind)
-  span.style.display = 'inline-flex'
-  span.style.alignItems = 'center'
-  span.style.gap = '4px'
-  span.style.padding = '1px 6px'
+  // The chip's box (layout, rest-quiet/hover-revealed border + fill, type colour)
+  // comes from the shared .dc-ref* classes in tokens.css so the editor pill and
+  // the sent-message bubble ref stay visually identical. Only the few props that
+  // differ between the two surfaces (font size, baseline nudge) stay inline.
   span.style.fontSize = '13px'
-  span.style.verticalAlign = '-0.12em'
-  span.style.whiteSpace = 'nowrap'
-  span.style.userSelect = 'none'
   span.style.cursor = 'default'
-  span.style.borderRadius = kind === 'file' ? '4px' : '6px'
 
   icon.className = 'dc-ref-icon dc-ref-icon-default'
   icon.setAttribute('aria-hidden', 'true')
@@ -62,28 +59,21 @@ export function createRefSpan(kind: RefType, value: string): HTMLSpanElement {
 
   label.className = 'dc-ref-label'
   if (kind === 'file') {
-    span.className = FILE_REF_CLASS
-    span.style.background = 'var(--bg-tertiary)'
+    span.className = `${FILE_REF_CLASS} dc-ref dc-ref-file`
     span.setAttribute('data-relative-path', value)
     const fileName = value.split('/').pop() ?? value
     label.textContent = fileName
-    icon.textContent = '📄'
+    // Colored VS Code file-type icon (same set as the bubble ref / explorer),
+    // painted into raw DOM with a neutral fallback that upgrades when ready.
+    paintFileRefIcon(icon, value, 14)
     span.title = value
   } else if (kind === 'command') {
-    span.className = COMMAND_REF_CLASS
-    span.style.background = 'color-mix(in srgb, var(--accent) 16%, transparent)'
-    span.style.border = '1px solid color-mix(in srgb, var(--accent) 38%, transparent)'
-    span.style.color = 'var(--accent)'
-    span.style.fontWeight = '600'
+    span.className = `${COMMAND_REF_CLASS} dc-ref dc-ref-command`
     span.setAttribute('data-command', value)
     label.textContent = value.startsWith('/') ? value.slice(1) : value
     icon.innerHTML = TERMINAL_ICON_SVG
   } else {
-    span.className = SKILL_REF_CLASS
-    span.style.background = 'color-mix(in srgb, var(--success) 16%, transparent)'
-    span.style.border = '1px solid color-mix(in srgb, var(--success) 38%, transparent)'
-    span.style.color = 'var(--success)'
-    span.style.fontWeight = '600'
+    span.className = `${SKILL_REF_CLASS} dc-ref dc-ref-skill`
     span.setAttribute('data-skill', value)
     label.textContent = value
     icon.innerHTML = SPARKLE_ICON_SVG

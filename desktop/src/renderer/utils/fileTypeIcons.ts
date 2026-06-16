@@ -260,6 +260,21 @@ export function areVscodeIconsReady(): boolean {
   return registered
 }
 
+/**
+ * Subscribe (outside React) to the moment the icon collection finishes
+ * registering. Fires once per listener when `ensureVscodeIcons()` resolves;
+ * returns an unsubscribe. Used by the raw-DOM composer pill to upgrade its
+ * neutral fallback glyph to the colored VS Code icon. If already registered the
+ * caller should check {@link areVscodeIconsReady} first — this only signals the
+ * transition.
+ */
+export function subscribeVscodeIconsReady(listener: () => void): () => void {
+  listeners.add(listener)
+  return () => {
+    listeners.delete(listener)
+  }
+}
+
 /** Re-renders the caller when the icon collection becomes available. */
 export function useIconsReady(): boolean {
   return useSyncExternalStore(

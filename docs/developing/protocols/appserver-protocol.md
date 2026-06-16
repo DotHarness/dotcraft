@@ -381,6 +381,7 @@ The table below covers common method families used by AppServer clients.
 | Cron | `cron/list`, `cron/remove`, `cron/enable` | Scheduled task management. |
 | Heartbeat | `heartbeat/trigger` | Manual heartbeat trigger. |
 | Skills | `skills/list`, `skills/read`, `skills/view`, `skills/restoreOriginal`, `skills/setEnabled`, `skills/uninstall` | Skill discovery, effective view, restore original, enablement, and removable skill deletion. |
+| Tools | `tool/list` | Built-in tool catalog (name, description, icon, Plan-mode availability) for agent profile tool pickers. |
 | Plugins | `plugin/list`, `plugin/view`, `plugin/install`, `plugin/remove`, `plugin/setEnabled` | Plugin discovery, detail, installation, removal, and enablement management. |
 | Commands | `command/list`, `command/execute` | Custom command discovery and execution. |
 | Models | `model/list` | Model catalog. |

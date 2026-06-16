@@ -10,6 +10,13 @@ export interface DesktopExtensionGrant {
   connectOrigins: string[]
   surfaceWriteScopes: string[]
   requiredAppIds: string[]
+  /**
+   * AppServer JSON-RPC method patterns this extension may call through the
+   * scoped `host.appServer.request` bridge. Read straight from the plugin's
+   * `desktop-extensions.json` (not the wire), so the manifest on disk is the
+   * authority. Supports a trailing `*` wildcard, e.g. `agent/profiles/*`.
+   */
+  appServerScopes: string[]
   appProtocols: Record<string, string[]>
 }
 
@@ -18,6 +25,7 @@ interface DesktopExtensionDescriptor {
   connectOrigins?: unknown
   surfaceWriteScopes?: unknown
   requiredAppIds?: unknown
+  appServerScopes?: unknown
 }
 
 const grants = new Map<string, DesktopExtensionGrant>()
@@ -64,6 +72,7 @@ export async function authorizeDesktopExtensionGrant(params: {
     connectOrigins: stringArrayField(descriptor, 'connectOrigins'),
     surfaceWriteScopes: stringArrayField(descriptor, 'surfaceWriteScopes'),
     requiredAppIds: stringArrayField(descriptor, 'requiredAppIds'),
+    appServerScopes: stringArrayField(descriptor, 'appServerScopes'),
     appProtocols: await readPluginAppProtocols(rootPath, stringField(manifest, 'apps'))
   })
   return { grantId }
@@ -121,6 +130,33 @@ export function ensureDesktopExtensionAppUrlAllowed(
   if (!allowedProtocols.includes(protocol)) {
     throw new Error(`Desktop extension '${grant.extensionId}' is not allowed to open this app URL.`)
   }
+}
+
+/** True when `method` matches one of the scope patterns (trailing `*` wildcard, e.g. `agent/profiles/*`). */
+export function desktopExtensionAppServerMethodAllowed(scopes: readonly string[], method: string): boolean {
+  const target = typeof method === 'string' ? method.trim() : ''
+  if (!target) return false
+  return scopes.some((scope) => matchesScope(scope, target))
+}
+
+export function ensureDesktopExtensionAppServerMethodAllowed(
+  grant: DesktopExtensionGrant,
+  method: string
+): void {
+  if (!desktopExtensionAppServerMethodAllowed(grant.appServerScopes, method)) {
+    throw new Error(`Desktop extension '${grant.extensionId}' is not allowed to call AppServer method '${method}'.`)
+  }
+}
+
+function matchesScope(scope: string, method: string): boolean {
+  const pattern = typeof scope === 'string' ? scope.trim() : ''
+  if (!pattern) return false
+  if (pattern === '*') return true
+  if (pattern.endsWith('*')) {
+    const prefix = pattern.slice(0, -1)
+    return method.startsWith(prefix) && method.length > prefix.length
+  }
+  return method === pattern
 }
 
 async function readPluginAppProtocols(

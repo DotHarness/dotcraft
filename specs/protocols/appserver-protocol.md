@@ -40,6 +40,7 @@ Purpose: Define a language-neutral JSON-RPC wire protocol that exposes Session C
 - [16. Cron Management Methods](#16-cron-management-methods)
 - [17. Heartbeat Management Methods](#17-heartbeat-management-methods)
 - [18. Skills Management Methods](#18-skills-management-methods)
+- [18A. Tool Catalog Methods](#18a-tool-catalog-methods)
 - [19. Command Management Methods](#19-command-management-methods)
 - [20. Channel Status Methods](#20-channel-status-methods)
 - [21. Model Catalog Methods](#21-model-catalog-methods)
@@ -77,7 +78,7 @@ The current v1 contract is based on the refactored Session Core, not on the earl
 
 | Bucket | V1 Items |
 |-------|----------|
-| **Guaranteed in v1** | Rich approval decisions (`accept`, `acceptForSession`, `acceptAlways`, `decline`, `cancel`), thread-scoped event subscription, accurate per-turn origin/initiator metadata, strict `historyMode` rules, separate wire DTO serialization with camelCase enums and lossless delta typing. Cron management methods (`cron/list`, `cron/remove`, `cron/enable`, `cron/run`) with the `cronManagement` server capability flag. Heartbeat trigger method (`heartbeat/trigger`) with the `heartbeatManagement` capability flag. Skills management methods (`skills/list`, `skills/read`, `skills/view`, `skills/restoreOriginal`, `skills/setEnabled`, `skills/uninstall`) with the `skillsManagement` / `skillVariants` capability flags. Command management methods (`command/list`, `command/execute`) with the `commandManagement` capability flag. Channel status method (`channel/status`) with the `channelStatus` capability flag. Provider management methods (`provider/list`, `provider/create`, `provider/update`, `provider/delete`, `provider/test`) with the `providerManagement` capability flag. Model catalog method (`model/list`) with the `modelCatalogManagement` capability flag. MCP management methods (`mcp/list`, `mcp/get`, `mcp/upsert`, `mcp/remove`, `mcp/status/list`, `mcp/test`) with the `mcpManagement` / `mcpStatus` capability flags. External channel management methods (`externalChannel/list`, `externalChannel/get`, `externalChannel/upsert`, `externalChannel/remove`) with the `externalChannelManagement` capability flag. Agent Profile Markdown management methods (`agent/profiles/list`, `agent/profiles/read`, `agent/profiles/validate`, `agent/profiles/upsert`, `agent/profiles/remove`) with the `agentProfileManagement` capability flag. SubAgent profile management methods (`subagent/profiles/list`, `subagent/settings/update`, `subagent/profiles/setEnabled`, `subagent/profiles/upsert`, `subagent/profiles/remove`) with the `subAgentManagement` capability flag. Session-backed SubAgent child-thread listing, mailbox send, follow-up task, and close methods with the `subAgentSessions` capability flag. Workspace config update method (`workspace/config/update`) with the `workspaceConfigManagement` capability flag. Dreams workspace memory methods (`dreams/status`, `dreams/run`, `dreams/create`, `dreams/get`, `dreams/list`, `dreams/cancel`, `dreams/apply`, `dreams/discard`, `dreams/archive`) with the `dreams` capability flag. |
+| **Guaranteed in v1** | Rich approval decisions (`accept`, `acceptForSession`, `acceptAlways`, `decline`, `cancel`), thread-scoped event subscription, accurate per-turn origin/initiator metadata, strict `historyMode` rules, separate wire DTO serialization with camelCase enums and lossless delta typing. Cron management methods (`cron/list`, `cron/remove`, `cron/enable`, `cron/run`) with the `cronManagement` server capability flag. Heartbeat trigger method (`heartbeat/trigger`) with the `heartbeatManagement` capability flag. Skills management methods (`skills/list`, `skills/read`, `skills/view`, `skills/restoreOriginal`, `skills/setEnabled`, `skills/uninstall`) with the `skillsManagement` / `skillVariants` capability flags. Command management methods (`command/list`, `command/execute`) with the `commandManagement` capability flag. Channel status method (`channel/status`) with the `channelStatus` capability flag. Provider management methods (`provider/list`, `provider/create`, `provider/update`, `provider/delete`, `provider/test`) with the `providerManagement` capability flag. Model catalog method (`model/list`) with the `modelCatalogManagement` capability flag. MCP management methods (`mcp/list`, `mcp/get`, `mcp/upsert`, `mcp/remove`, `mcp/status/list`, `mcp/test`) with the `mcpManagement` / `mcpStatus` capability flags. External channel management methods (`externalChannel/list`, `externalChannel/get`, `externalChannel/upsert`, `externalChannel/remove`) with the `externalChannelManagement` capability flag. Agent Profile Markdown management methods (`agent/profiles/list`, `agent/profiles/read`, `agent/profiles/validate`, `agent/profiles/upsert`, `agent/profiles/remove`, `agent/profiles/builderDraft/read`, `agent/profiles/builderDraft/update`) with the `agentProfileManagement` capability flag. SubAgent profile management methods (`subagent/profiles/list`, `subagent/settings/update`, `subagent/profiles/setEnabled`, `subagent/profiles/upsert`, `subagent/profiles/remove`) with the `subAgentManagement` capability flag. Session-backed SubAgent child-thread listing, mailbox send, follow-up task, and close methods with the `subAgentSessions` capability flag. Workspace config update method (`workspace/config/update`) with the `workspaceConfigManagement` capability flag. Dreams workspace memory methods (`dreams/status`, `dreams/run`, `dreams/create`, `dreams/get`, `dreams/list`, `dreams/cancel`, `dreams/apply`, `dreams/discard`, `dreams/archive`) with the `dreams` capability flag. |
 | **Guaranteed with narrowed semantics** | `thread/list` is deterministic and supports optional cursor pagination; archived threads are excluded by default and included only via an explicit filter. `thread/read` supports optional cursor pagination for turn history while preserving full-history reads for legacy clients. |
 | **Deferred from v1** | Structured extension capability registry beyond a flat namespace advertisement. Clients must treat extension namespaces as optional and discoverable, not required for core Session behavior. |
 
@@ -397,6 +398,7 @@ Built-in channels do not negotiate these capabilities over `initialize`; they pr
 | `capabilities.skillsManagement` | boolean | Server supports skills management methods (`skills/list`, `skills/read`, `skills/view`, `skills/restoreOriginal`, `skills/setEnabled`, `skills/uninstall`). |
 | `capabilities.pluginManagement` | boolean | Server supports plugin management methods (`plugin/list`, `plugin/view`, `plugin/install`, `plugin/remove`, `plugin/setEnabled`). |
 | `capabilities.skillVariants` | boolean | Server has skill variants enabled for the current runtime. Clients may use effective skill views and restore source-skill behavior (`skills/view`, `skills/restoreOriginal`) without exposing variant internals. |
+| `capabilities.toolCatalog` | boolean | Server supports the built-in tool catalog method (`tool/list`). Always `true` for servers built on this protocol version; the catalog is derived from server reflection and has no workspace dependency. |
 | `capabilities.commandManagement` | boolean | Server supports command management methods (`command/list`, `command/execute`). |
 | `capabilities.providerManagement` | boolean | Server supports personal model provider management methods (`provider/list`, `provider/create`, `provider/update`, `provider/delete`, `provider/test`). |
 | `capabilities.modelCatalogManagement` | boolean | Server supports model catalog methods (`model/list`). |
@@ -406,7 +408,7 @@ Built-in channels do not negotiate these capabilities over `initialize`; they pr
 | `capabilities.mcpManagement` | boolean | Server supports MCP configuration management methods (`mcp/list`, `mcp/get`, `mcp/upsert`, `mcp/remove`). |
 | `capabilities.mcpServerOrigins` | boolean | Server annotates MCP config/status DTOs with `origin` and `readOnly` so clients can show plugin-bundled MCP servers as read-only runtime entries. |
 | `capabilities.externalChannelManagement` | boolean | Server supports external channel configuration management methods (`externalChannel/list`, `externalChannel/get`, `externalChannel/upsert`, `externalChannel/remove`). |
-| `capabilities.agentProfileManagement` | boolean | Server supports Agent Profile Markdown management methods (`agent/profiles/list`, `agent/profiles/read`, `agent/profiles/validate`, `agent/profiles/upsert`, `agent/profiles/remove`, `agent/profiles/refreshThread`). |
+| `capabilities.agentProfileManagement` | boolean | Server supports Agent Profile Markdown management methods (`agent/profiles/list`, `agent/profiles/read`, `agent/profiles/validate`, `agent/profiles/upsert`, `agent/profiles/remove`, `agent/profiles/refreshThread`, `agent/profiles/builderDraft/read`, `agent/profiles/builderDraft/update`). |
 | `capabilities.subAgentManagement` | boolean | Server supports SubAgent profile management methods (`subagent/profiles/list`, `subagent/settings/update`, `subagent/profiles/setEnabled`, `subagent/profiles/upsert`, `subagent/profiles/remove`). |
 | `capabilities.mcpStatus` | boolean | Server supports MCP runtime status methods and notifications (`mcp/status/list`, `mcp/status/updated`, `mcp/test`). |
 | `capabilities.usageTelemetry` | boolean | Server supports the aggregate usage telemetry method (`usage/summary`). Absent or `false` when tracing is disabled (no trace store is available). |
@@ -644,6 +646,8 @@ Fields:
 | `agentProfileId` | string | Optional Agent Profile id whose resolved snapshot produced this configuration. Runtime behavior reads the resolved configuration fields, not the profile file. |
 | `agentProfileSource` | string | Optional profile source such as `builtIn`, `user`, or `workspace`. |
 | `agentProfileFingerprint` | string | Optional fingerprint for diagnostics, audit, and future refresh flows. |
+| `agentBuilderTargetId` | string | Optional. Marks the thread as a **conversational profile-builder** session editing this Agent Profile id (see agent-profiles spec §12A). When set, the server exposes the builder tools and a thread-scoped working draft; the thread is excluded from ordinary thread listings. |
+| `agentBuilderTargetSource` | string | Optional builder target source (`user` / `workspace`). Pairs with `agentBuilderTargetId`. |
 | `mcpServers` | `McpServerConfig[]` | Optional per-thread MCP server configuration. |
 | `mode` | string | Agent mode for the thread. Default `agent`. |
 | `extensions` | string[] | Optional active ACP extension prefixes. |
@@ -1380,6 +1384,8 @@ Clients must not call `turn/start` while the thread has a running/waiting turn o
 For persisted server-managed threads, the execution lifecycle of a started turn is owned by the AppServer, not by the single request transport that submitted it. If the client WebSocket disconnects after `turn/start` has begun, the server must continue consuming the turn event stream so the turn can complete or fail normally. The disconnected client may miss notifications and should recover by reconnecting and calling `thread/read` or `thread/subscribe`.
 
 **Interaction with `thread/subscribe`**: If the calling connection already holds an active subscription for the target thread (via `thread/subscribe`), the server MUST use the subscription path to deliver all turn-scoped notifications instead of creating a separate inline dispatch path. The `turn/start` JSON-RPC response is still sent before the first `turn/started` notification. The server must still keep an internal active-turn drain for the submitted turn so connection loss does not stop execution or strand approvals after the passive subscription is cancelled. See [Section 6.10](#610-notification-delivery-guarantees) for the at-most-once delivery guarantee.
+
+Clients that intend to render a turn from `thread/subscribe` notifications SHOULD establish the subscription, or an equivalent event-capture path, before calling `turn/start`. Clients should not merge inline dispatch, subscription replay, and local streaming state for the same running turn unless they have a stable event identity or offset to deduplicate notifications.
 
 **Direction**: client → server (request)
 
@@ -2680,11 +2686,12 @@ Automation task methods are defined in full in [automations-lifecycle.md §13](.
 - `automation/task/updateBinding` `{ taskId, threadBinding?: { threadId, mode } | null }` → `{ task }` — rewrites only the `thread_binding` block on disk; pass `null` to unbind.
 - `automation/task/discardWorktree` `{ taskId }` → `{ task }` — best-effort removes the task's managed worktree and branch while keeping the task. Rejects running tasks.
 - `automation/template/list` `{}` → `{ templates: AutomationTemplateWire[] }` — returns the built-in local task templates followed by any user-authored templates so desktop clients can render the "Use template" picker without bundling a copy. User templates carry `isUser: true`; built-ins omit the field (default `false`). User templates also populate `createdAt` / `updatedAt` (ISO-8601 UTC).
-- `automation/template/save` `{ id?, title, description?, icon?, category?, workflowMarkdown, defaultSchedule?, defaultWorkspaceMode?, defaultApprovalPolicy?, needsThreadBinding, defaultTitle?, defaultDescription? }` → `{ template: AutomationTemplateWire }` — upsert a user template. `defaultWorkspaceMode` is canonical `project` or `worktree`; legacy `isolated` input is accepted as `worktree`. When `id` is omitted the server assigns `"user-" + shortGuid`. Rejects built-in id collisions, path-traversal / invalid id shapes (`^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$`), empty `title` / `workflowMarkdown`, invalid workspace mode, and overlong `title` (>200 chars).
+- `automation/template/save` `{ id?, title, description?, icon?, category?, workflowMarkdown, defaultSchedule?, defaultWorkspaceMode?, defaultApprovalPolicy?, needsThreadBinding, defaultTitle?, defaultDescription?, defaultAgentProfileId? }` → `{ template: AutomationTemplateWire }` — upsert a user template. `defaultWorkspaceMode` is canonical `project` or `worktree`; legacy `isolated` input is accepted as `worktree`. `defaultAgentProfileId` records the Agent Profile that pre-fills the task Agent picker when the template is applied; it is a default, not itself executable. When `id` is omitted the server assigns `"user-" + shortGuid`. Rejects built-in id collisions, path-traversal / invalid id shapes (`^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$`), empty `title` / `workflowMarkdown`, invalid workspace mode, and overlong `title` (>200 chars).
 - `automation/template/delete` `{ id }` → `{ ok: true }` — delete a user template directory. Built-in ids and invalid id shapes are rejected with `-32602` Invalid params. Idempotent: missing directories return `{ ok: true }`.
-- User template disk layout: `<CraftPath>/automations/templates/<id>/template.md` (overridable via `Automations.UserTemplatesRoot`). The file is YAML front matter (`id`, `title`, `description`, `icon`, `category`, `default_schedule`, `default_workspace_mode`, `default_approval_policy`, `needs_thread_binding`, `default_title`, `default_description`, `created_at`, `updated_at`) followed by the complete `workflow.md` body that is copied into new tasks applying the template.
+- User template disk layout: `<CraftPath>/automations/templates/<id>/template.md` (overridable via `Automations.UserTemplatesRoot`). The file is YAML front matter (`id`, `title`, `description`, `icon`, `category`, `default_schedule`, `default_workspace_mode`, `default_approval_policy`, `default_agent_profile_id`, `needs_thread_binding`, `default_title`, `default_description`, `created_at`, `updated_at`) followed by the complete `workflow.md` body that is copied into new tasks applying the template.
 - `AutomationTaskWire.status` is one of `pending`, `running`, `completed`, or `failed`, and carries `workspaceMode` (`project` or `worktree`), nullable `worktree` (`{ branchName, path }`), optional `schedule` (mirrors `CronSchedule`), `threadBinding` (`{ threadId, mode: "run-in-thread" }`), and `nextRunAt` (ISO-8601 UTC). `worktree` is null before provisioning, for project-mode or bound tasks, and when worktree-mode execution falls back to the legacy task workspace.
-- `automation/task/create` accepts `schedule`, `workspaceMode`, `threadBinding`, and `templateId` in addition to the existing fields. `workspaceMode` accepts canonical `project` or `worktree`; legacy `isolated` input is normalized to `worktree`. When both `templateId` and explicit fields are supplied, the explicit fields win.
+- `automation/task/create` accepts `schedule`, `workspaceMode`, `threadBinding`, `templateId`, and `agentProfileId` in addition to the existing fields. `workspaceMode` accepts canonical `project` or `worktree`; legacy `isolated` input is normalized to `worktree`. When both `templateId` and explicit fields are supplied, the explicit fields win.
+- `agentProfileId` (on `automation/task/create`, persisted as `agent_profile_id` in `task.md`) binds the task to an Agent Profile that governs the agent's capabilities (tools, MCP, skills, model, instructions). The automation still force-overrides its operational fields (auto-approve, task directory, approval-outside-workspace) on top of the resolved profile, and always injects its `CompleteLocalTask` completion tool — kept reachable even under a restrictive profile allow-list — so the run can finish. The profile's capability policy is the source of truth for general tools; the default source tool profile is not merged on top. Only the id is stored; the profile is resolved at each dispatch (latest definition wins). A bound profile that no longer resolves fails the run. See [automations-lifecycle.md §Agent Profile Binding](../runtime/automations-lifecycle.md#agent-profile-binding).
 
 ### 8.4 Turn-Level Errors
 
@@ -4433,6 +4440,83 @@ Clients must check `capabilities.pluginManagement` before calling any `plugin/*`
 
 ---
 
+## 18A. Tool Catalog Methods
+
+### 18A.1 Scope
+
+This method exposes the catalog of **built-in tools** the server can expose to the model, so clients can present a tool picker (for example, the Agent Profile editor's `tools.allow` / `tools.deny` selectors) instead of free-text entry. The catalog is the set of tool methods the server discovers by reflection over its own tool assemblies; it is independent of any workspace, thread, or MCP/plugin configuration.
+
+It does **not** enumerate MCP tools (see `mcp/list`), plugin/app tools (see `plugin/list`), or skills (see `skills/list`). Those are listed by their own methods. The names returned here are the exact tool identifiers used in Agent Profile `tools.allow` / `tools.deny` lists.
+
+Clients should check `capabilities.toolCatalog` in the `initialize` response before calling `tool/list`. If the flag is absent or `false`, the server returns `-32601` (method not found).
+
+### 18A.2 `ToolInfo` Wire DTO
+
+```json
+{
+  "name": "ReadFile",
+  "description": "Read the contents of a file at the given path...",
+  "icon": "📄",
+  "source": "builtin",
+  "planMode": true
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | Canonical tool identifier (the model-visible tool name). This is the value used in Agent Profile `tools.allow` / `tools.deny`. |
+| `description` | string | Human-readable description from the tool's method-level metadata. May be empty when the tool declares none. |
+| `icon` | string | Display icon (emoji). Falls back to a generic tool glyph when the tool declares none. |
+| `source` | string | Always `"builtin"` for tools returned by this method. Reserved for forward compatibility with other tool origins. |
+| `planMode` | boolean | `true` when the tool is allowed while the thread is in Plan (read-only) mode. `false` for mutating tools that Plan mode hard-denies (for example `WriteFile`, `EditFile`). Tools that are conditionally restricted in Plan mode (for example shell `Exec`, which Plan mode allows only for read-only commands) report `true`. |
+
+### 18A.3 `tool/list`
+
+List the built-in tools the server can expose to the model.
+
+**Direction**: client → server (request)
+
+**Params**:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `mode` | string | no | When `"plan"`, only tools available in Plan mode are returned (those with `planMode: true`). When omitted or `"agent"`, the full built-in catalog is returned with each tool's `planMode` annotation. Unknown values are treated as `"agent"`. |
+
+**Result**:
+
+```json
+{
+  "tools": [
+    { "name": "EditFile", "description": "Make a targeted edit to an existing file...", "icon": "🔄", "source": "builtin", "planMode": false },
+    { "name": "Exec", "description": "Run a shell command...", "icon": "💻", "source": "builtin", "planMode": true },
+    { "name": "ReadFile", "description": "Read the contents of a file...", "icon": "📄", "source": "builtin", "planMode": true },
+    { "name": "WebSearch", "description": "Search the web...", "icon": "🔍", "source": "builtin", "planMode": true },
+    { "name": "WriteFile", "description": "Write content to a file...", "icon": "✏️", "source": "builtin", "planMode": false }
+  ]
+}
+```
+
+**Behavior**: The server returns its built-in tools sorted by `name` (ordinal). The list is deterministic for a given server build and carries no workspace, thread, or per-connection state. Clients filter the model-visible surface per Agent Profile via `tools.allow` / `tools.deny`; this method only describes what those lists may reference.
+
+**Example**:
+
+```json
+{ "jsonrpc": "2.0", "method": "tool/list", "id": 71, "params": { "mode": "plan" } }
+
+{ "jsonrpc": "2.0", "id": 71, "result": {
+    "tools": [
+      { "name": "Exec", "description": "Run a shell command...", "icon": "💻", "source": "builtin", "planMode": true },
+      { "name": "ReadFile", "description": "Read the contents of a file...", "icon": "📄", "source": "builtin", "planMode": true }
+    ]
+} }
+```
+
+### 18A.4 Capability Advertisement
+
+Clients should check `capabilities.toolCatalog` before calling `tool/list`.
+
+---
+
 ## 19. Command Management Methods
 
 ### 19.1 Scope
@@ -5218,7 +5302,7 @@ On success, the server emits `workspace/configChanged` (see [Section 24.5](#245-
 
 These methods manage ordinary Agent Profile Markdown files. Agent Profiles are distinct from SubAgent launcher profiles; they compile into `ThreadConfiguration` snapshots for ordinary `thread/start` and future Teams/session runtimes.
 
-Clients should check `capabilities.agentProfileManagement` before calling `agent/profiles/list`, `agent/profiles/read`, `agent/profiles/validate`, `agent/profiles/upsert`, `agent/profiles/remove`, or `agent/profiles/refreshThread`.
+Clients should check `capabilities.agentProfileManagement` before calling `agent/profiles/list`, `agent/profiles/read`, `agent/profiles/validate`, `agent/profiles/upsert`, `agent/profiles/remove`, `agent/profiles/refreshThread`, `agent/profiles/builderDraft/read`, or `agent/profiles/builderDraft/update`.
 
 Profile sources:
 
@@ -5260,6 +5344,7 @@ Diagnostics are stable English fallback messages. Desktop owns localization.
       "description": "Read-only reviewer focused on correctness, risks, and tests.",
       "source": "workspace",
       "path": ".craft/agents/team-reviewer.md",
+      "updatedAt": "2026-06-14T09:00:00Z",
       "fingerprint": "sha256:...",
       "valid": true,
       "isBuiltIn": false,
@@ -5275,6 +5360,8 @@ Diagnostics are stable English fallback messages. Desktop owns localization.
   ]
 }
 ```
+
+`updatedAt` is the profile file's last-write time (UTC, ISO 8601). It is omitted for built-in/in-memory profiles that have no backing file. Clients use it for an "updated …" indicator.
 
 ### 23A.3 `agent/profiles/read`
 
@@ -5390,7 +5477,47 @@ Explicitly refreshes one profile-backed thread from the currently resolved profi
 }
 ```
 
-### 23A.8 Error Codes
+### 23A.8 Conversational Builder Draft Methods
+
+These methods synchronize the transient working draft for the conversational Agent Builder. They are available only for threads whose `ThreadConfiguration.agentBuilderTargetId` is set. Ordinary threads return `-32602` (`InvalidParams`). Draft updates do not write Agent Profile files and do not emit workspace config/file change notifications.
+
+#### `agent/profiles/builderDraft/read`
+
+Reads the server-side working draft for a bound builder thread. If the thread is bound but no working draft exists yet, the server seeds it from the target profile Markdown; a missing target profile seeds an empty draft for new-agent creation.
+
+**Params**:
+
+```json
+{ "threadId": "thread_..." }
+```
+
+**Result**:
+
+```json
+{
+  "threadId": "thread_...",
+  "targetId": "draft-agent",
+  "targetSource": "workspace",
+  "rawContent": "---\nname: draft-agent\n..."
+}
+```
+
+#### `agent/profiles/builderDraft/update`
+
+Replaces the server-side working draft for a bound builder thread. Clients use this for debounced structured-editor edits and must flush pending updates before sending a builder chat message, so the first and subsequent builder turns see the current draft in prompt composition.
+
+**Params**:
+
+```json
+{
+  "threadId": "thread_...",
+  "rawContent": "---\nname: draft-agent\n..."
+}
+```
+
+**Result**: same shape as `builderDraft/read`.
+
+### 23A.9 Error Codes
 
 | Code | Constant | When |
 |------|----------|------|

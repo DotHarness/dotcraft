@@ -20,7 +20,7 @@ describe('App active thread subscription source', () => {
     expect(appSource).toContain('const subscriptionReady = ensureThreadSubscribed(requestedId, { replayRecent: true })')
     expect(appSource).toContain("sendRequest('thread/subscribe', requestParams)")
     expect(appSource).toContain('queueThreadUnsubscribe(prev)')
-    expect(appSource).toContain('setTurns(convTurns, { preserveExistingRealtime: true })')
+    expect(appSource).toContain('realtimeScopeThreadId: requestedId')
 
     const gateIndex = appSource.indexOf('const restoreGateToken = beginThreadRestoreGate(requestedId)')
     const subscribeIndex = appSource.indexOf('const subscriptionReady = ensureThreadSubscribed(requestedId, { replayRecent: true })')
@@ -65,7 +65,8 @@ describe('App active thread subscription source', () => {
     expect(appSource).toContain('const reconcileActiveThreadSnapshot = useCallback')
     expect(appSource).toContain("sendRequest('thread/read', {")
     expect(appSource).toContain('includeTurns: true')
-    expect(appSource).toContain('setTurns(rawTurns.map(wireTurnToConversationTurn), { preserveExistingRealtime: true })')
+    expect(appSource).toContain('conversation.setTurns(rawTurns.map(wireTurnToConversationTurn), {')
+    expect(appSource).toContain('realtimeScopeThreadId: requestedId')
     expect(appSource).toContain("reconcileActiveThreadSnapshotRef.current?.('runtimeChanged')")
     expect(appSource).toContain("reconcileActiveThreadSnapshot('metadata-refresh')")
   })

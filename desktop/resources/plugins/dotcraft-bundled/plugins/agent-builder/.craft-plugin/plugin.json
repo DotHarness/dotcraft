@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "agent-builder",
+  "version": "0.1.0",
+  "displayName": "Agent Builder",
+  "description": "Build and edit role-specific agents — pick their tools, skills, model, and instructions.",
+  "capabilities": ["desktopExtension"],
+  "desktopExtensions": "./desktop-extensions.json",
+  "interface": {
+    "displayName": "Agent Builder",
+    "shortDescription": "Build role-specific agents",
+    "longDescription": "Agent Builder creates reusable agents from a gallery and a focused editor — choose each agent's model, tools, MCP servers, skills, and role instructions, then test it in a new thread.",
+    "developerName": "DotHarness",
+    "category": "Productivity",
+    "capabilities": ["App"],
+    "defaultPrompt": "Build a new agent.",
+    "brandColor": "#6366F1",
+    "composerIcon": "./assets/agent-builder.svg",
+    "logo": "./assets/agent-builder.svg"
+  }
+}

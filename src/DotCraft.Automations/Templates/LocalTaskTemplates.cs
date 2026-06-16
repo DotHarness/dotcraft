@@ -218,4 +218,5 @@ public sealed record LocalTaskTemplate(
     string? DefaultDescription = null,
     bool IsUser = false,
     DateTimeOffset? CreatedAt = null,
-    DateTimeOffset? UpdatedAt = null);
+    DateTimeOffset? UpdatedAt = null,
+    string? DefaultAgentProfileId = null);

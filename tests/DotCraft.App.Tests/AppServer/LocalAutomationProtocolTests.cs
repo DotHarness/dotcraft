@@ -274,6 +274,108 @@ public sealed class LocalAutomationProtocolTests
     }
 
     [Fact]
+    public async Task TaskCreate_PersistsAndRoundTripsAgentProfileId()
+    {
+        var root = CreateTestRoot();
+        try
+        {
+            using var harness = CreateHarness(root);
+
+            var createResult = await harness.Handler.HandleTaskCreateAsync(
+                Request(AppServerMethods.AutomationTaskCreate, new
+                {
+                    title = "Bound to a profile",
+                    description = "Runs as a specific agent",
+                    agentProfileId = "team-reviewer"
+                }),
+                CancellationToken.None);
+
+            var created = Assert.IsType<AutomationTaskCreateResult>(createResult);
+            var taskMd = await File.ReadAllTextAsync(
+                Path.Combine(created.TaskDirectory, "task.md"),
+                CancellationToken.None);
+            Assert.Contains("agent_profile_id: \"team-reviewer\"", taskMd);
+
+            var readResult = await harness.Handler.HandleTaskReadAsync(
+                Request(AppServerMethods.AutomationTaskRead, new { taskId = created.TaskId }),
+                CancellationToken.None);
+            Assert.Equal("team-reviewer", Assert.IsType<AutomationTaskWire>(readResult).AgentProfileId);
+        }
+        finally
+        {
+            DeleteDirectory(root);
+        }
+    }
+
+    [Fact]
+    public async Task TaskCreate_WithoutAgentProfile_LeavesBindingNull()
+    {
+        var root = CreateTestRoot();
+        try
+        {
+            using var harness = CreateHarness(root);
+
+            var createResult = await harness.Handler.HandleTaskCreateAsync(
+                Request(AppServerMethods.AutomationTaskCreate, new
+                {
+                    title = "No profile",
+                    description = "Runs with the default automation agent"
+                }),
+                CancellationToken.None);
+
+            var created = Assert.IsType<AutomationTaskCreateResult>(createResult);
+            var taskMd = await File.ReadAllTextAsync(
+                Path.Combine(created.TaskDirectory, "task.md"),
+                CancellationToken.None);
+            Assert.DoesNotContain("agent_profile_id", taskMd);
+
+            var readResult = await harness.Handler.HandleTaskReadAsync(
+                Request(AppServerMethods.AutomationTaskRead, new { taskId = created.TaskId }),
+                CancellationToken.None);
+            Assert.Null(Assert.IsType<AutomationTaskWire>(readResult).AgentProfileId);
+        }
+        finally
+        {
+            DeleteDirectory(root);
+        }
+    }
+
+    [Fact]
+    public async Task TemplateSave_PersistsAndRoundTripsDefaultAgentProfileId()
+    {
+        var root = CreateTestRoot();
+        try
+        {
+            using var harness = CreateHarness(root);
+
+            var saveResult = await harness.Handler.HandleTemplateSaveAsync(
+                Request(AppServerMethods.AutomationTemplateSave, new
+                {
+                    title = "Profile-defaulting template",
+                    workflowMarkdown = "---\nworkspace: project\n---\nDo work",
+                    defaultAgentProfileId = "team-reviewer",
+                    needsThreadBinding = false
+                }),
+                CancellationToken.None);
+
+            var saved = Assert.IsType<AutomationTemplateSaveResult>(saveResult).Template;
+            Assert.Equal("team-reviewer", saved.DefaultAgentProfileId);
+
+            // Reloading from disk on the next list must preserve the default.
+            var listResult = await harness.Handler.HandleTemplateListAsync(
+                Request(AppServerMethods.AutomationTemplateList, new { }),
+                CancellationToken.None);
+            var reloaded = Assert.IsType<AutomationTemplateListResult>(listResult)
+                .Templates.Single(t => t.Id == saved.Id);
+            Assert.Equal("team-reviewer", reloaded.DefaultAgentProfileId);
+        }
+        finally
+        {
+            DeleteDirectory(root);
+        }
+    }
+
+    [Fact]
     public async Task TaskRead_NormalizesLegacyIsolatedWorkflowWithoutMigratingFile()
     {
         var root = CreateTestRoot();
