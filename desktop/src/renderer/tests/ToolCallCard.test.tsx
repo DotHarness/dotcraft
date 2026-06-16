@@ -131,6 +131,47 @@ describe('ToolCallCard RequestUserInput rendering', () => {
   })
 })
 
+describe('ToolCallCard default tool result rendering', () => {
+  beforeEach(() => {
+    useConversationStore.getState().reset()
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {
+        settings: {
+          get: async () => ({ locale: 'en' })
+        },
+        appServer: {
+          sendRequest: vi.fn(async () => ({}))
+        }
+      }
+    })
+  })
+
+  it('renders MCP envelope results as decoded JSON without outer content fields', () => {
+    const item: ConversationItem = {
+      id: 'mcp-local-ping',
+      type: 'toolCall',
+      status: 'completed',
+      toolName: 'local_ping',
+      toolCallId: 'local-ping-call',
+      arguments: { message: 'dotcraft manual test' },
+      result: '{"content":[{"type":"text","text":"{\\u0022ok\\u0022:true,\\u0022message\\u0022:\\u0022dotcraft manual test\\u0022}"}],"structuredContent":{"ok":true,"message":"dotcraft manual test"},"isError":false}',
+      success: true,
+      createdAt: new Date().toISOString()
+    }
+
+    const { container } = renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
+    fireEvent.click(screen.getByRole('button', { name: /Called local_ping/ }))
+
+    const pre = container.querySelector('pre')
+    expect(pre?.textContent).toContain('"ok": true')
+    expect(pre?.textContent).toContain('"message": "dotcraft manual test"')
+    expect(pre?.textContent).not.toContain('\\u0022')
+    expect(pre?.textContent).not.toContain('structuredContent')
+    expect(pre?.textContent).not.toContain('"content"')
+  })
+})
+
 describe('ToolCallCard subagent result rendering', () => {
   beforeEach(() => {
     useConversationStore.getState().reset()

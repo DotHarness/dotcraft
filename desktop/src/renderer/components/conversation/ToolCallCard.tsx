@@ -60,6 +60,7 @@ import {
 import { useThreadStore } from '../../stores/threadStore'
 import { useSubAgentStore, type SubAgentChild } from '../../stores/subAgentStore'
 import { isToolItemLive } from '../../utils/toolCallAggregation'
+import { formatDefaultToolResultForDisplay } from '../../utils/toolResultDisplay'
 import { formatSubAgentMeta, getSubAgentAccent } from '../../utils/subAgentPresentation'
 import {
   formatRequestUserInputResultLines,
@@ -720,7 +721,7 @@ function ExpandedContent({
     )
   }
 
-  const resultText = result ?? ''
+  const resultText = formatDefaultToolResultForDisplay(result)
   const invocation = formatExpandedInvocation(toolName, args, locale, { planTodos })
 
   return (
