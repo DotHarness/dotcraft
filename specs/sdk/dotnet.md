@@ -9,7 +9,7 @@
 
 Purpose: Define the .NET binding, public API shape, AppServer method coverage, App Binding helper surface, testing expectations, and compatibility strategy for `DotCraft.Sdk`.
 
-Shared SDK behavior is defined by [Unified SDK Specification](sdk.md). This language binding records the current `dotcraft-dotnet` implementation baseline and the .NET-specific design, package, and publishing rules.
+Shared SDK behavior is defined by [Unified SDK Specification](sdk.md). This language binding records the current .NET SDK implementation baseline and the .NET-specific design, package, and publishing rules.
 
 ---
 
@@ -100,7 +100,7 @@ The SDK must make native app integration straightforward:
 handoff URL -> AppServer connection -> inspect request -> accept -> attach tools -> keep alive
 ```
 
-The SDK may provide general thread and turn APIs, but App Binding helpers are a primary design center for `dotcraft-dotnet`.
+The SDK may provide general thread and turn APIs, but App Binding helpers are a primary design center for `DotCraft.Sdk`.
 
 ### 2.4 Protocol Changes Are Spec-First
 
@@ -121,7 +121,7 @@ Section 17 is the living coverage index.
 
 ## 3. Current Implementation Snapshot
 
-The current `dotcraft-dotnet` repository contains one package:
+The current repository contains one .NET SDK package:
 
 ```text
 src/DotCraft.Sdk/DotCraft.Sdk.csproj
@@ -1373,9 +1373,9 @@ The release workflow must:
 - be manually triggered through `workflow_dispatch`;
 - default to a non-publishing dry run;
 - build, test, pack, inspect, and upload package artifacts before any publish step;
+- read the package version from `sdk/dotnet/src/DotCraft.Sdk/DotCraft.Sdk.csproj`;
 - publish only from `refs/heads/main`;
 - require an exact human confirmation string for `nuget.org`;
-- use the GitHub Environment `nuget-production` for the actual publish job;
 - require `id-token: write` only on the publish job;
 - use NuGet Trusted Publishing through `NuGet/login@v1` when available;
 - avoid storing long-lived NuGet API keys in repository secrets;
@@ -1387,13 +1387,15 @@ The Trusted Publishing policy on nuget.org must be configured for:
 | Field | Value |
 |-------|-------|
 | Repository Owner | `DotHarness` |
-| Repository | `dotcraft-dotnet` |
+| Repository | `dotcraft` |
 | Workflow File | `publish-nuget.yml` |
-| Environment | `nuget-production` |
+| Environment | leave blank |
 
-The workflow requires a GitHub Actions variable named `NUGET_USER` containing the nuget.org profile name or organization user used for Trusted Publishing. This value is not an API key and must not be an email address.
+The workflow requires a GitHub Actions repository or organization variable named `NUGET_USER` containing the nuget.org profile name or organization user used for Trusted Publishing. This value is not an API key and must not be an email address.
 
-Version input rules:
+Version rules:
+
+The workflow reads the release version from `DotCraft.Sdk.csproj`:
 
 | Channel | Version Pattern |
 |---------|-----------------|

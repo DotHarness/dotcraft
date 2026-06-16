@@ -8,10 +8,10 @@
     <Version>0.1.0</Version>
     <Authors>DotHarness</Authors>
     <Description>Lightweight .NET SDK for DotCraft Hub and AppServer protocol clients.</Description>
-    <PackageProjectUrl>https://github.com/DotHarness/dotcraft-dotnet</PackageProjectUrl>
+    <PackageProjectUrl>https://github.com/DotHarness/dotcraft</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
-    <RepositoryUrl>https://github.com/DotHarness/dotcraft-dotnet</RepositoryUrl>
+    <RepositoryUrl>https://github.com/DotHarness/dotcraft</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageTags>dotcraft;appserver;json-rpc;sdk;ai</PackageTags>
     <IncludeSymbols>true</IncludeSymbols>

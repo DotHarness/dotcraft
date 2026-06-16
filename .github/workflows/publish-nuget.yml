@@ -3,18 +3,6 @@ name: Publish NuGet
 on:
   workflow_dispatch:
     inputs:
-      version:
-        description: "Package version, for example 0.1.0-preview.1"
-        required: true
-        type: string
-      channel:
-        description: "Release channel"
-        required: true
-        default: preview
-        type: choice
-        options:
-          - preview
-          - stable
       target:
         description: "Dry run only, or publish to nuget.org"
         required: true
@@ -51,26 +39,34 @@ jobs:
         id: validate
         shell: pwsh
         env:
-          PACKAGE_VERSION: ${{ inputs.version }}
-          CHANNEL: ${{ inputs.channel }}
+          PACKAGE_PROJECT: ./sdk/dotnet/src/DotCraft.Sdk/DotCraft.Sdk.csproj
           TARGET: ${{ inputs.target }}
           CONFIRM: ${{ inputs.confirm }}
           GITHUB_REF_NAME: ${{ github.ref_name }}
           GITHUB_REF_FULL: ${{ github.ref }}
         run: |
           $ErrorActionPreference = "Stop"
-          $version = $env:PACKAGE_VERSION.Trim()
+          if (!(Test-Path $env:PACKAGE_PROJECT)) {
+            throw "Package project not found: $($env:PACKAGE_PROJECT)"
+          }
+
+          [xml]$project = Get-Content -Raw $env:PACKAGE_PROJECT
+          $version = @($project.Project.PropertyGroup | ForEach-Object { $_.Version } | Where-Object { ![string]::IsNullOrWhiteSpace($_) } | Select-Object -First 1)
+          $version = "$version".Trim()
           if ([string]::IsNullOrWhiteSpace($version)) {
-            throw "Package version is required."
+            throw "Set <Version> in $($env:PACKAGE_PROJECT) before publishing."
           }
 
           $previewPattern = '^\d+\.\d+\.\d+-preview\.\d+$'
           $stablePattern = '^\d+\.\d+\.\d+$'
-          if ($env:CHANNEL -eq "preview" -and $version -notmatch $previewPattern) {
-            throw "Preview releases must use MAJOR.MINOR.PATCH-preview.N, for example 0.1.0-preview.1."
+          if ($version -match $previewPattern) {
+            $channel = "preview"
           }
-          if ($env:CHANNEL -eq "stable" -and $version -notmatch $stablePattern) {
-            throw "Stable releases must use MAJOR.MINOR.PATCH, for example 0.1.0."
+          elseif ($version -match $stablePattern) {
+            $channel = "stable"
+          }
+          else {
+            throw "DotCraft.Sdk <Version> must be MAJOR.MINOR.PATCH-preview.N or MAJOR.MINOR.PATCH. Current value: $version"
           }
 
           if ($env:TARGET -eq "nuget-org") {
@@ -106,13 +102,27 @@ jobs:
           }
 
           "version=$version" >> $env:GITHUB_OUTPUT
-          Write-Host "Validated DotCraft.Sdk $version for $($env:TARGET)."
+          "channel=$channel" >> $env:GITHUB_OUTPUT
+          Write-Host "Validated DotCraft.Sdk $version ($channel) for $($env:TARGET)."
 
       - name: Restore
         run: dotnet restore ./sdk/dotnet/DotCraft.Sdk.sln
 
+      - name: Build
+        shell: pwsh
+        env:
+          PACKAGE_VERSION: ${{ steps.validate.outputs.version }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          dotnet build ./sdk/dotnet/DotCraft.Sdk.sln `
+            --configuration Release `
+            --no-restore `
+            /p:Version=$env:PACKAGE_VERSION `
+            /p:PackageVersion=$env:PACKAGE_VERSION `
+            /p:ContinuousIntegrationBuild=true
+
       - name: Test
-        run: dotnet test ./sdk/dotnet/DotCraft.Sdk.sln --configuration Release --no-restore
+        run: dotnet test ./sdk/dotnet/DotCraft.Sdk.sln --configuration Release --no-build
 
       - name: Pack release artifacts
         shell: pwsh
@@ -125,6 +135,7 @@ jobs:
             --configuration Release `
             --no-build `
             --output artifacts/nuget `
+            /p:Version=$env:PACKAGE_VERSION `
             /p:PackageVersion=$env:PACKAGE_VERSION `
             /p:ContinuousIntegrationBuild=true
 
@@ -157,7 +168,6 @@ jobs:
     needs: pack
     if: ${{ inputs.target == 'nuget-org' }}
     runs-on: ubuntu-latest
-    environment: nuget-production
     permissions:
       contents: read
       id-token: write
@@ -180,7 +190,7 @@ jobs:
           NUGET_USER: ${{ vars.NUGET_USER }}
         run: |
           if ([string]::IsNullOrWhiteSpace($env:NUGET_USER)) {
-            throw "Set the NUGET_USER repository or environment variable to the nuget.org profile name used for Trusted Publishing."
+            throw "Set the NUGET_USER GitHub Actions repository or organization variable to the nuget.org profile name used for Trusted Publishing."
           }
 
       - name: NuGet login through Trusted Publishing

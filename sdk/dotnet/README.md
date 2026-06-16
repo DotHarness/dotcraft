@@ -1,4 +1,4 @@
-# dotcraft-dotnet
+# DotCraft.Sdk
 
 .NET SDK for DotCraft Hub discovery, AppServer JSON-RPC clients,
 runtime dynamic tools, and App Binding integration.
@@ -364,11 +364,12 @@ emergency exception.
 
 The normal preview flow is:
 
-1. Run the `Publish NuGet` workflow with `target=dry-run` and a preview version
-   such as `0.1.0-preview.1`.
-2. Inspect the uploaded `.nupkg` and `.snupkg` artifacts.
-3. Re-run the same workflow with `target=nuget-org` from `main`.
-4. Set `confirm` to exactly:
+1. Set `<Version>` in `src/DotCraft.Sdk/DotCraft.Sdk.csproj` to a preview
+   version such as `0.1.0-preview.1` and commit the change.
+2. Run the `Publish NuGet` workflow with `target=dry-run`.
+3. Inspect the uploaded `.nupkg` and `.snupkg` artifacts.
+4. Re-run the same workflow with `target=nuget-org` from `main`.
+5. Set `confirm` to exactly:
 
 ```text
 publish DotCraft.Sdk 0.1.0-preview.1 to nuget.org
@@ -379,13 +380,12 @@ The nuget.org Trusted Publishing policy should be configured for:
 | Field | Value |
 |-------|-------|
 | Repository owner | `DotHarness` |
-| Repository | `dotcraft-dotnet` |
+| Repository | `dotcraft` |
 | Workflow file | `publish-nuget.yml` |
-| Environment | `nuget-production` |
+| Environment | leave blank |
 
-Configure `nuget-production` as a protected GitHub Environment and set the
-`NUGET_USER` GitHub Actions variable to the nuget.org profile or organization
-name used for Trusted Publishing.
+Set the `NUGET_USER` GitHub Actions repository or organization variable to the
+nuget.org profile or organization name used for Trusted Publishing.
 
 ## Development
 
