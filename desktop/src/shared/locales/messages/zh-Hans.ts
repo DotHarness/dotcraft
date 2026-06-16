@@ -2537,10 +2537,17 @@ export const MESSAGES_ZH_HANS = {
   'settings.mcp.field.envForwardingPlaceholder': 'ENV_VAR_NAME',
   'settings.mcp.field.cwd': '工作目录',
   'settings.mcp.field.url': 'URL',
+  'settings.mcp.field.urlHint': '填写 Streamable HTTP MCP 端点，通常以 /mcp 结尾；不要填写旧版 SSE URL。',
   'settings.mcp.field.bearerEnv': 'Bearer Token 环境变量',
   'settings.mcp.field.bearerEnvPlaceholder': 'DOCS_TOKEN',
+  'settings.mcp.field.bearerEnvHint':
+    '这里填写环境变量名，不是 Token 值。DotCraft 会发送 Authorization: Bearer <value>。',
   'settings.mcp.field.httpHeaders': 'HTTP 请求头',
+  'settings.mcp.field.httpHeadersHint':
+    '每次请求都会发送的固定请求头。适合非敏感值；Token 建议使用环境变量注入的请求头。',
   'settings.mcp.field.envHeaders': '环境变量注入的请求头',
+  'settings.mcp.field.envHeadersHint':
+    '将请求头名称映射到环境变量名。发送时会把环境变量值作为该请求头的原始值。',
   'settings.mcp.keyPlaceholder': '键',
   'settings.mcp.valuePlaceholder': '值',
   'settings.mcp.headerPlaceholder': '请求头',

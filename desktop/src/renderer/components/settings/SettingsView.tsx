@@ -738,6 +738,15 @@ function sectionLabelStyle(): CSSProperties {
   }
 }
 
+function fieldHintStyle(): CSSProperties {
+  return {
+    fontSize: '12px',
+    color: 'var(--text-dimmed)',
+    lineHeight: 1.5,
+    marginTop: '6px'
+  }
+}
+
 function inputStyle(mono = false): CSSProperties {
   return {
     width: '100%',
@@ -5233,6 +5242,7 @@ export function SettingsView({
                             placeholder="https://example.com/mcp"
                             style={inputStyle(true)}
                           />
+                          <div style={fieldHintStyle()}>{t('settings.mcp.field.urlHint')}</div>
                         </div>
 
                         <div>
@@ -5246,6 +5256,7 @@ export function SettingsView({
                             placeholder={t('settings.mcp.field.bearerEnvPlaceholder')}
                             style={inputStyle(true)}
                           />
+                          <div style={fieldHintStyle()}>{t('settings.mcp.field.bearerEnvHint')}</div>
                         </div>
 
                         <div>
@@ -5256,6 +5267,7 @@ export function SettingsView({
                             keyPlaceholder={t('settings.mcp.headerPlaceholder')}
                             valuePlaceholder={t('settings.mcp.valuePlaceholder')}
                           />
+                          <div style={fieldHintStyle()}>{t('settings.mcp.field.httpHeadersHint')}</div>
                         </div>
 
                         <div>
@@ -5266,6 +5278,7 @@ export function SettingsView({
                             keyPlaceholder={t('settings.mcp.headerPlaceholder')}
                             valuePlaceholder={t('settings.mcp.field.envForwardingPlaceholder')}
                           />
+                          <div style={fieldHintStyle()}>{t('settings.mcp.field.envHeadersHint')}</div>
                         </div>
                         </div>
                       </SettingsGroup>
