@@ -1293,12 +1293,16 @@ function hydrateToolCallItems(items: ConversationItem[]): ConversationItem[] {
     let hydrated = item
 
     if (toolExecution) {
+      const resultPreview = toolExecution.executionStatus === 'failed'
+        ? toolExecution.errorMessage ?? toolExecution.resultPreview ?? hydrated.resultPreview
+        : toolExecution.resultPreview ?? toolExecution.errorMessage ?? hydrated.resultPreview
       hydrated = {
         ...hydrated,
         status: 'completed',
-        result: hydrated.result ?? toolExecution.resultPreview,
-        resultPreview: toolExecution.resultPreview ?? hydrated.resultPreview,
+        result: hydrated.result ?? resultPreview,
+        resultPreview,
         success: toolExecution.success ?? hydrated.success,
+        errorMessage: toolExecution.errorMessage ?? hydrated.errorMessage,
         executionStatus: toolExecution.executionStatus ?? hydrated.executionStatus,
         duration: toolExecution.duration
           ?? hydrated.duration

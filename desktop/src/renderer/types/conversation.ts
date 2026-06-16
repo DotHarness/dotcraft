@@ -468,8 +468,10 @@ export function wireItemToConversationItem(raw: Record<string, unknown>): Conver
   const invocationWidgetState = isStructuredInvocation
     ? ((raw.widgetState as unknown) ?? (payload.widgetState as unknown))
     : undefined
+  const rawErrorMessage = (raw.errorMessage as string | undefined)
+    ?? (payload.errorMessage as string | undefined)
   const invocationErrorMessage = isStructuredInvocation
-    ? ((raw.errorMessage as string | undefined) ?? (payload.errorMessage as string | undefined))
+    ? rawErrorMessage
     : undefined
   const invocationResult = isStructuredInvocation
     ? derivePluginFunctionResultText(
@@ -564,7 +566,7 @@ export function wireItemToConversationItem(raw: Record<string, unknown>): Conver
     widgetState: invocationWidgetState,
     errorCode: (raw.errorCode as string | undefined)
       ?? (payload.errorCode as string | undefined),
-    errorMessage: invocationErrorMessage,
+    errorMessage: invocationErrorMessage ?? rawErrorMessage,
     result: (raw.result as string | undefined)
       ?? (payload.result as string | undefined)
       ?? invocationResult,

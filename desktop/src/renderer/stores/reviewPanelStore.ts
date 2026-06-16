@@ -238,14 +238,18 @@ function mergeToolExecutionIntoToolCall(
 ): ConversationItem {
   if (item.type !== 'toolCall') return item
   if (!toolExecution.toolCallId || item.toolCallId !== toolExecution.toolCallId) return item
+  const resultPreview = toolExecution.executionStatus === 'failed'
+    ? toolExecution.errorMessage ?? toolExecution.resultPreview ?? item.resultPreview
+    : toolExecution.resultPreview ?? toolExecution.errorMessage ?? item.resultPreview
 
   return {
     ...item,
     status: 'completed',
     success: toolExecution.success ?? item.success,
     duration: toolExecution.duration ?? item.duration,
-    resultPreview: toolExecution.resultPreview ?? item.resultPreview,
-    result: item.result ?? toolExecution.resultPreview,
+    resultPreview,
+    result: item.result ?? resultPreview,
+    errorMessage: toolExecution.errorMessage ?? item.errorMessage,
     executionStatus: toolExecution.executionStatus ?? item.executionStatus,
     completedAt: toolExecution.completedAt ?? item.completedAt
   }
