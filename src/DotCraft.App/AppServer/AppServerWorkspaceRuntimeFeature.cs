@@ -1,6 +1,4 @@
-using DotCraft.Abstractions;
 using DotCraft.Agents;
-using DotCraft.Channels;
 using DotCraft.Configuration;
 using DotCraft.Cron;
 using DotCraft.Gateway;

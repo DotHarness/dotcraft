@@ -1,7 +1,5 @@
-using System.ClientModel;
 using System.Collections.Concurrent;
 using System.Net.WebSockets;
-using DotCraft.Abstractions;
 using DotCraft.Agents;
 using DotCraft.AppBinding;
 using Microsoft.Extensions.Logging;
@@ -9,32 +7,22 @@ using DotCraft.Common;
 using DotCraft.Configuration;
 using DotCraft.Context;
 using DotCraft.Cron;
-using DotCraft.Heartbeat;
 using DotCraft.Text;
 using DotCraft.Logging;
 using DotCraft.Hosting;
-using DotCraft.Lsp;
 using DotCraft.Memory;
 using DotCraft.Dreams;
 using DotCraft.Mcp;
 using DotCraft.Modules;
 using DotCraft.Protocol;
 using DotCraft.Protocol.AppServer;
-using DotCraft.Security;
-using DotCraft.Skills;
-using DotCraft.Tools;
 using DotCraft.Tools.BackgroundTerminals;
-using DotCraft.Automations.Abstractions;
-using DotCraft.Automations.Orchestrator;
 using DotCraft.Automations.Protocol;
 using DotCraft.Tracing;
 using DotCraft.ExternalChannel;
-using DotCraft.Channels;
-using DotCraft.Gateway;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
-using OpenAI;
 using Spectre.Console;
 
 namespace DotCraft.AppServer;
@@ -50,7 +38,6 @@ public sealed class AppServerHost(
     WorkspaceRuntime runtime,
     ExternalChannelRegistry? externalChannelRegistry = null) : IDotCraftHost
 {
-    private readonly WorkspaceRuntime _runtime = runtime;
     private readonly IServiceProvider _services = runtime.Services;
 
     /// <summary>
@@ -79,18 +66,18 @@ public sealed class AppServerHost(
     }
 
     private IReadOnlyList<IAppServerProtocolExtension> ProtocolExtensions =>
-        _runtime.Services.GetServices<IAppServerProtocolExtension>().ToArray();
+        runtime.Services.GetServices<IAppServerProtocolExtension>().ToArray();
 
     public async Task RunAsync(CancellationToken cancellationToken = default)
     {
-        var appServerConfig = _runtime.Config.GetSection<AppServerConfig>("AppServer");
-        if (!AppServerWorkspaceLock.TryAcquire(_runtime.Paths, out var workspaceLock, out var existingLock))
+        var appServerConfig = runtime.Config.GetSection<AppServerConfig>("AppServer");
+        if (!AppServerWorkspaceLock.TryAcquire(runtime.Paths, out var workspaceLock, out var existingLock))
         {
             var owner = existingLock is null
                 ? "another live process"
                 : $"pid {existingLock.Pid}";
             throw new InvalidOperationException(
-                $"DotCraft AppServer workspace lock is already held by {owner}: {AppServerWorkspaceLock.GetLockFilePath(_runtime.Paths.CraftPath)}");
+                $"DotCraft AppServer workspace lock is already held by {owner}: {AppServerWorkspaceLock.GetLockFilePath(runtime.Paths.CraftPath)}");
         }
 
         if (workspaceLock is null)
@@ -101,11 +88,11 @@ public sealed class AppServerHost(
 
         workspaceLock.Publish(CreateLockInfo(appServerConfig));
 
-        var moduleRegistry = _runtime.Services.GetRequiredService<ModuleRegistry>();
+        var moduleRegistry = runtime.Services.GetRequiredService<ModuleRegistry>();
 
         try
         {
-            await _runtime.StartAsync(moduleRegistry, cancellationToken);
+            await runtime.StartAsync(moduleRegistry, cancellationToken);
             SubscribeRuntimeEvents();
 
             try
@@ -138,7 +125,7 @@ public sealed class AppServerHost(
             finally
             {
                 UnsubscribeRuntimeEvents();
-                await _runtime.StopAsync(CancellationToken.None);
+                await runtime.StopAsync(CancellationToken.None);
             }
         }
         finally
@@ -152,7 +139,7 @@ public sealed class AppServerHost(
     private AppServerLockInfo CreateLockInfo(AppServerConfig appServerConfig)
         => new(
             Pid: Environment.ProcessId,
-            WorkspacePath: _runtime.Paths.WorkspacePath,
+            WorkspacePath: runtime.Paths.WorkspacePath,
             ManagedByHub: ManagedAppServerEnvironment.IsManaged,
             HubApiBaseUrl: Environment.GetEnvironmentVariable(ManagedAppServerEnvironment.HubApiBaseUrl),
             StartedAt: DateTimeOffset.UtcNow,
@@ -168,10 +155,10 @@ public sealed class AppServerHost(
                 BuildWebSocketEndpoint(appServerConfig.WebSocket.Host, appServerConfig.WebSocket.Port, appServerConfig.WebSocket.Token);
         }
 
-        if (_runtime.Config.DashBoard.Enabled && _runtime.Config.Tracing.Enabled)
+        if (runtime.Config.DashBoard.Enabled && runtime.Config.Tracing.Enabled)
         {
             endpoints["dashboard"] =
-                $"http://{_runtime.Config.DashBoard.Host}:{_runtime.Config.DashBoard.Port}/dashboard";
+                $"http://{runtime.Config.DashBoard.Host}:{runtime.Config.DashBoard.Port}/dashboard";
         }
 
         return endpoints;
@@ -185,21 +172,21 @@ public sealed class AppServerHost(
 
     private void SubscribeRuntimeEvents()
     {
-        _runtime.WorkspaceConfigChanged += BroadcastWorkspaceConfigChanged;
-        _runtime.McpStatusChanged += OnRuntimeMcpStatusChanged;
-        _runtime.PlanUpdated += BroadcastPlanUpdated;
-        _runtime.ThreadStarted += BroadcastThreadStarted;
-        _runtime.ThreadRenamed += BroadcastThreadRenamed;
-        _runtime.ThreadUpdated += BroadcastThreadUpdated;
-        _runtime.ThreadDeleted += BroadcastThreadDeleted;
-        _runtime.ThreadStatusChanged += BroadcastThreadStatusChanged;
-        _runtime.ThreadRuntimeSignal += OnThreadRuntimeSignal;
-        _runtime.ThreadGoalUpdated += BroadcastThreadGoalUpdated;
-        _runtime.ThreadGoalCleared += BroadcastThreadGoalCleared;
-        _runtime.SubAgentGraphChanged += BroadcastSubAgentGraphChanged;
-        _runtime.CronStateChanged += OnCronStateChanged;
-        _runtime.BackgroundJobResultProduced += OnBackgroundJobResultProduced;
-        _runtime.AutomationTaskUpdated += BroadcastAutomationTaskUpdated;
+        runtime.WorkspaceConfigChanged += BroadcastWorkspaceConfigChanged;
+        runtime.McpStatusChanged += OnRuntimeMcpStatusChanged;
+        runtime.PlanUpdated += BroadcastPlanUpdated;
+        runtime.ThreadStarted += BroadcastThreadStarted;
+        runtime.ThreadRenamed += BroadcastThreadRenamed;
+        runtime.ThreadUpdated += BroadcastThreadUpdated;
+        runtime.ThreadDeleted += BroadcastThreadDeleted;
+        runtime.ThreadStatusChanged += BroadcastThreadStatusChanged;
+        runtime.ThreadRuntimeSignal += OnThreadRuntimeSignal;
+        runtime.ThreadGoalUpdated += BroadcastThreadGoalUpdated;
+        runtime.ThreadGoalCleared += BroadcastThreadGoalCleared;
+        runtime.SubAgentGraphChanged += BroadcastSubAgentGraphChanged;
+        runtime.CronStateChanged += OnCronStateChanged;
+        runtime.BackgroundJobResultProduced += OnBackgroundJobResultProduced;
+        runtime.AutomationTaskUpdated += BroadcastAutomationTaskUpdated;
         if (_services.GetService<IBackgroundTerminalService>() is { } terminals)
             terminals.TerminalEvent += BroadcastBackgroundTerminalEvent;
         if (_services.GetService<DotCraft.Auth.OpenAI.IOpenAIUsageService>() is { } usage)
@@ -208,21 +195,21 @@ public sealed class AppServerHost(
 
     private void UnsubscribeRuntimeEvents()
     {
-        _runtime.WorkspaceConfigChanged -= BroadcastWorkspaceConfigChanged;
-        _runtime.McpStatusChanged -= OnRuntimeMcpStatusChanged;
-        _runtime.PlanUpdated -= BroadcastPlanUpdated;
-        _runtime.ThreadStarted -= BroadcastThreadStarted;
-        _runtime.ThreadRenamed -= BroadcastThreadRenamed;
-        _runtime.ThreadUpdated -= BroadcastThreadUpdated;
-        _runtime.ThreadDeleted -= BroadcastThreadDeleted;
-        _runtime.ThreadStatusChanged -= BroadcastThreadStatusChanged;
-        _runtime.ThreadRuntimeSignal -= OnThreadRuntimeSignal;
-        _runtime.ThreadGoalUpdated -= BroadcastThreadGoalUpdated;
-        _runtime.ThreadGoalCleared -= BroadcastThreadGoalCleared;
-        _runtime.SubAgentGraphChanged -= BroadcastSubAgentGraphChanged;
-        _runtime.CronStateChanged -= OnCronStateChanged;
-        _runtime.BackgroundJobResultProduced -= OnBackgroundJobResultProduced;
-        _runtime.AutomationTaskUpdated -= BroadcastAutomationTaskUpdated;
+        runtime.WorkspaceConfigChanged -= BroadcastWorkspaceConfigChanged;
+        runtime.McpStatusChanged -= OnRuntimeMcpStatusChanged;
+        runtime.PlanUpdated -= BroadcastPlanUpdated;
+        runtime.ThreadStarted -= BroadcastThreadStarted;
+        runtime.ThreadRenamed -= BroadcastThreadRenamed;
+        runtime.ThreadUpdated -= BroadcastThreadUpdated;
+        runtime.ThreadDeleted -= BroadcastThreadDeleted;
+        runtime.ThreadStatusChanged -= BroadcastThreadStatusChanged;
+        runtime.ThreadRuntimeSignal -= OnThreadRuntimeSignal;
+        runtime.ThreadGoalUpdated -= BroadcastThreadGoalUpdated;
+        runtime.ThreadGoalCleared -= BroadcastThreadGoalCleared;
+        runtime.SubAgentGraphChanged -= BroadcastSubAgentGraphChanged;
+        runtime.CronStateChanged -= OnCronStateChanged;
+        runtime.BackgroundJobResultProduced -= OnBackgroundJobResultProduced;
+        runtime.AutomationTaskUpdated -= BroadcastAutomationTaskUpdated;
         if (_services.GetService<IBackgroundTerminalService>() is { } terminals)
             terminals.TerminalEvent -= BroadcastBackgroundTerminalEvent;
         if (_services.GetService<DotCraft.Auth.OpenAI.IOpenAIUsageService>() is { } usage)
@@ -234,48 +221,48 @@ public sealed class AppServerHost(
         AppServerConnection connection)
     {
         return new AppServerRequestHandler(
-            _runtime.SessionService,
+            runtime.SessionService,
             connection,
             transport,
-            _runtime.ChannelListContributor,
+            runtime.ChannelListContributor,
             new AppServerConnectionServices
             {
                 ServerVersion = AppVersion.Informational,
-                CronService = _runtime.CronService,
-                HeartbeatService = _runtime.HeartbeatService,
-                SkillsLoader = _runtime.SkillsLoader,
-                MemoryStore = _runtime.MemoryStore,
-                WorkspaceCraftPath = _runtime.Paths.CraftPath,
-                HostWorkspacePath = _runtime.Paths.WorkspacePath,
-                AutomationsHandler = _runtime.AutomationsHandler,
+                CronService = runtime.CronService,
+                HeartbeatService = runtime.HeartbeatService,
+                SkillsLoader = runtime.SkillsLoader,
+                MemoryStore = runtime.MemoryStore,
+                WorkspaceCraftPath = runtime.Paths.CraftPath,
+                HostWorkspacePath = runtime.Paths.WorkspacePath,
+                AutomationsHandler = runtime.AutomationsHandler,
                 BroadcastCronStateChanged = BroadcastCronStateChanged,
-                CommitMessageSuggest = _runtime.CommitMessageSuggestService,
-                WelcomeSuggestionService = _runtime.WelcomeSuggestionService,
-                DashboardUrl = _runtime.DashboardUrl,
-                WireAcpExtensionProxy = _runtime.WireAcpExtensionProxy,
-                WireNodeReplProxy = _runtime.WireNodeReplProxy,
-                WireDynamicToolProxy = _runtime.WireDynamicToolProxy,
-                ChannelStatusProvider = _runtime.ChannelStatusProvider,
-                McpClientManager = _runtime.McpClientManager,
-                LspServerManager = _runtime.LspServerManager,
+                CommitMessageSuggest = runtime.CommitMessageSuggestService,
+                WelcomeSuggestionService = runtime.WelcomeSuggestionService,
+                DashboardUrl = runtime.DashboardUrl,
+                WireAcpExtensionProxy = runtime.WireAcpExtensionProxy,
+                WireNodeReplProxy = runtime.WireNodeReplProxy,
+                WireDynamicToolProxy = runtime.WireDynamicToolProxy,
+                ChannelStatusProvider = runtime.ChannelStatusProvider,
+                McpClientManager = runtime.McpClientManager,
+                LspServerManager = runtime.LspServerManager,
                 BroadcastMcpStatusChanged = BroadcastMcpStatusChanged,
                 ProtocolExtensions = ProtocolExtensions,
-                OnExternalChannelUpserted = _runtime.ApplyExternalChannelUpsertAsync,
-                OnExternalChannelRemoved = _runtime.ApplyExternalChannelRemoveAsync,
-                ExternalChannelLogProvider = _runtime.ExternalChannelLogProvider,
+                OnExternalChannelUpserted = runtime.ApplyExternalChannelUpsertAsync,
+                OnExternalChannelRemoved = runtime.ApplyExternalChannelRemoveAsync,
+                ExternalChannelLogProvider = runtime.ExternalChannelLogProvider,
                 StreamDebugLogger = _services.GetService<SessionStreamDebugLogger>(),
-                ConfigSchema = _runtime.ConfigSchema,
+                ConfigSchema = runtime.ConfigSchema,
                 AppConfigMonitor = _services.GetRequiredService<IAppConfigMonitor>(),
                 ChatClientRegistry = _services.GetRequiredService<ChatClientRegistry>(),
                 OpenAIClientProvider = _services.GetRequiredService<OpenAIClientProvider>(),
                 OpenAIAuthService = _services.GetService<DotCraft.Auth.OpenAI.IOpenAIAuthService>(),
                 OpenAIUsageService = _services.GetService<DotCraft.Auth.OpenAI.IOpenAIUsageService>(),
                 BackgroundTerminalService = _services.GetService<IBackgroundTerminalService>(),
-                ContextPageManager = _runtime.ContextPageManager,
+                ContextPageManager = runtime.ContextPageManager,
                 DreamStore = _services.GetService<DreamStore>(),
-                DreamsService = _runtime.DreamsService,
+                DreamsService = runtime.DreamsService,
                 AppBindingService = _services.GetService<AppBindingService>(),
-                PlanStore = _runtime.PlanStore,
+                PlanStore = runtime.PlanStore,
                 TraceStore = _services.GetService<TraceStore>(),
                 WireRuntimeAdditionalContextProvider = _services.GetService<WireRuntimeAdditionalContextProvider>(),
             });
@@ -299,7 +286,7 @@ public sealed class AppServerHost(
 
         try
         {
-            await RunLoopAsync(transport, connection, handler, _runtime.WireAcpExtensionProxy, _runtime.WireNodeReplProxy, _runtime.WireDynamicToolProxy, _services.GetService<WireRuntimeAdditionalContextProvider>(), _runtime.ContextPageManager, cancellationToken);
+            await RunLoopAsync(transport, connection, handler, runtime.WireAcpExtensionProxy, runtime.WireNodeReplProxy, runtime.WireDynamicToolProxy, _services.GetService<WireRuntimeAdditionalContextProvider>(), runtime.ContextPageManager, cancellationToken);
         }
         finally
         {
@@ -351,7 +338,7 @@ public sealed class AppServerHost(
 
         try
         {
-            await RunLoopAsync(transport, connection, handler, _runtime.WireAcpExtensionProxy, _runtime.WireNodeReplProxy, _runtime.WireDynamicToolProxy, _services.GetService<WireRuntimeAdditionalContextProvider>(), _runtime.ContextPageManager, cancellationToken);
+            await RunLoopAsync(transport, connection, handler, runtime.WireAcpExtensionProxy, runtime.WireNodeReplProxy, runtime.WireDynamicToolProxy, _services.GetService<WireRuntimeAdditionalContextProvider>(), runtime.ContextPageManager, cancellationToken);
         }
         finally
         {
@@ -505,7 +492,7 @@ public sealed class AppServerHost(
 
                         // Not a channel adapter — fall through to normal RunLoopAsync
                         // (initialize already processed, loop will handle subsequent messages)
-                        await RunLoopAsync(wsTransport, wsConnection, wsHandler, _runtime.WireAcpExtensionProxy, _runtime.WireNodeReplProxy, _runtime.WireDynamicToolProxy, _services.GetService<WireRuntimeAdditionalContextProvider>(), _runtime.ContextPageManager, hostCt);
+                        await RunLoopAsync(wsTransport, wsConnection, wsHandler, runtime.WireAcpExtensionProxy, runtime.WireNodeReplProxy, runtime.WireDynamicToolProxy, _services.GetService<WireRuntimeAdditionalContextProvider>(), runtime.ContextPageManager, hostCt);
                         return;
                     }
 
@@ -520,7 +507,7 @@ public sealed class AppServerHost(
                     }
                 }
 
-                await RunLoopAsync(wsTransport, wsConnection, wsHandler, _runtime.WireAcpExtensionProxy, _runtime.WireNodeReplProxy, _runtime.WireDynamicToolProxy, _services.GetService<WireRuntimeAdditionalContextProvider>(), _runtime.ContextPageManager, hostCt);
+                await RunLoopAsync(wsTransport, wsConnection, wsHandler, runtime.WireAcpExtensionProxy, runtime.WireNodeReplProxy, runtime.WireDynamicToolProxy, _services.GetService<WireRuntimeAdditionalContextProvider>(), runtime.ContextPageManager, hostCt);
             } // end try
             finally
             {
@@ -682,7 +669,7 @@ public sealed class AppServerHost(
 
     public async ValueTask DisposeAsync()
     {
-        await _runtime.DisposeAsync();
+        await runtime.DisposeAsync();
     }
 
     private void OnRuntimeMcpStatusChanged(McpServerStatusChangedEventArgs e)
@@ -823,7 +810,7 @@ public sealed class AppServerHost(
 
     private void BroadcastOpenAiUsageChanged(DotCraft.Auth.OpenAI.OpenAIUsageSnapshot? snapshot)
     {
-        var result = DotCraft.Auth.OpenAI.OpenAIUsageMapping.ToWire(snapshot);
+        var result = Auth.OpenAI.OpenAIUsageMapping.ToWire(snapshot);
         var notification = new
         {
             jsonrpc = "2.0",
@@ -963,7 +950,7 @@ public sealed class AppServerHost(
 
         var wire = thread.ToWire() with
         {
-            Runtime = _runtime.SessionService.GetThreadRuntimeSnapshot(thread).ToWireRuntimeState()
+            Runtime = runtime.SessionService.GetThreadRuntimeSnapshot(thread).ToWireRuntimeState()
         };
         var notification = new
         {
@@ -1130,7 +1117,7 @@ public sealed class AppServerHost(
 
         var wire = thread.ToWire(includeTurns: false) with
         {
-            Runtime = _runtime.SessionService.GetThreadRuntimeSnapshot(thread).ToWireRuntimeState()
+            Runtime = runtime.SessionService.GetThreadRuntimeSnapshot(thread).ToWireRuntimeState()
         };
         var notification = new
         {
@@ -1172,7 +1159,7 @@ public sealed class AppServerHost(
     {
         if (signal == SessionThreadRuntimeSignal.MemoryConsolidated)
         {
-            _runtime.WelcomeSuggestionService.ScheduleRefresh(_runtime.Paths.WorkspacePath, threadId);
+            runtime.WelcomeSuggestionService.ScheduleRefresh(runtime.Paths.WorkspacePath, threadId);
             return;
         }
 
@@ -1257,16 +1244,16 @@ public sealed class AppServerHost(
 
         _ = Task.Run(async () =>
         {
-            var decision = await HubTurnNotificationPolicy.ResolveDecisionAsync(_runtime.SessionService, threadId);
+            var decision = await HubTurnNotificationPolicy.ResolveDecisionAsync(runtime.SessionService, threadId);
             if (!decision.ShouldNotify)
                 return;
 
             var actionUrl = decision.OpenDesktopOnClick && !string.IsNullOrWhiteSpace(decision.ThreadId)
-                ? HubTurnNotificationPolicy.BuildDesktopOpenActionUrl(_runtime.Paths.WorkspacePath, decision.ThreadId)
+                ? HubTurnNotificationPolicy.BuildDesktopOpenActionUrl(runtime.Paths.WorkspacePath, decision.ThreadId)
                 : null;
 
             await HubNotificationClient.RequestAsync(
-                _runtime.Paths.WorkspacePath,
+                runtime.Paths.WorkspacePath,
                 spec.Kind,
                 spec.TitleKey,
                 FallbackText.Format(spec.TitleKey),
@@ -1442,7 +1429,7 @@ public sealed class AppServerHost(
     /// </summary>
     private void BroadcastAutomationTaskUpdated(IAutomationTaskEventPayload task)
     {
-        var notification = AutomationsEventDispatcher.BuildNotification(task, _runtime.Paths.WorkspacePath);
+        var notification = AutomationsEventDispatcher.BuildNotification(task, runtime.Paths.WorkspacePath);
 
         foreach (var (transport, connection) in _activeTransports)
         {
