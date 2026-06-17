@@ -73,6 +73,7 @@ public sealed class SessionServiceManualCompactionTests : IDisposable
         var compactedUsage = compactedEvent.ContextUsage!;
         Assert.Equal(resultUsage.Tokens, compactedUsage.Tokens);
         Assert.Equal(resultUsage.PercentLeft, compactedUsage.PercentLeft);
+        Assert.Null(new ThreadStore(_tempDir).LoadContextUsageAnchor(thread.Id));
 
         var reloaded = await service.GetThreadAsync(thread.Id);
         var notice = reloaded.Turns

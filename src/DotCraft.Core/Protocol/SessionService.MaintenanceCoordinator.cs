@@ -142,13 +142,11 @@ public sealed partial class SessionService
                     {
                         tokenTracker.Reset();
                         await owner.Persistence.SaveSessionAsync(agent, session, threadId, maintenanceCt);
-                        var contextUsage = await owner.SaveContextUsageSnapshotAsync(
+                        var contextUsage = await owner.SaveReplacementContextUsageSnapshotAsync(
                             threadId,
                             status.ThresholdAfter.Tokens,
                             source: "compacted_estimate",
-                            isEstimate: true,
                             ct: maintenanceCt);
-                        owner.ClearContextUsageAnchor(threadId);
                         owner.ReleaseStableContextPages(threadId);
                         if (status.Outcome == CompactionOutcome.Partial)
                             owner.TraceCollector?.RecordContextCompaction(threadId);

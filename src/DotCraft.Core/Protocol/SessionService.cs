@@ -561,6 +561,22 @@ public sealed partial class SessionService(
         return CreateContextUsageSnapshot(threadId, normalizedTokens, source, isEstimate);
     }
 
+    private async Task<ContextUsageSnapshot> SaveReplacementContextUsageSnapshotAsync(
+        string threadId,
+        long tokens,
+        string source,
+        CancellationToken ct = default)
+    {
+        var snapshot = await SaveContextUsageSnapshotAsync(
+            threadId,
+            tokens,
+            source,
+            isEstimate: true,
+            ct: ct);
+        ClearContextUsageAnchor(threadId);
+        return snapshot;
+    }
+
     private ContextUsageAnchor? UpdateContextUsageAnchor(string threadId, long anchorTokens)
     {
         var snapshot = TryGetLastPromptRequestSnapshot(threadId);
@@ -1542,13 +1558,11 @@ public sealed partial class SessionService(
                             status.ThresholdAfter.Tokens);
                         InvalidatePromptRequestSnapshot(threadId, "auto_compaction");
                         await TrySaveSessionAsync(agent, session, threadId);
-                        var contextUsage = await SaveContextUsageSnapshotAsync(
+                        var contextUsage = await SaveReplacementContextUsageSnapshotAsync(
                             threadId,
                             status.ThresholdAfter.Tokens,
                             source: "compacted_estimate",
-                            isEstimate: true,
                             ct: CancellationToken.None);
-                        ClearContextUsageAnchor(threadId);
                         ReleaseStableContextPages(threadId);
                         if (status.Outcome == CompactionOutcome.Partial)
                             traceCollector?.RecordContextCompaction(threadId);
@@ -2473,13 +2487,11 @@ public sealed partial class SessionService(
                                 status.ThresholdBefore.Tokens,
                                 status.ThresholdAfter.Tokens);
                             InvalidatePromptRequestSnapshot(threadId, "reactive_compaction");
-                            var contextUsage = await SaveContextUsageSnapshotAsync(
+                            var contextUsage = await SaveReplacementContextUsageSnapshotAsync(
                                 threadId,
                                 status.ThresholdAfter.Tokens,
                                 source: "compacted_estimate",
-                                isEstimate: true,
                                 ct: CancellationToken.None);
-                            ClearContextUsageAnchor(threadId);
                             ReleaseStableContextPages(threadId);
                             traceCollector?.RecordContextCompaction(threadId);
                             eventChannel.EmitSystemEvent(
@@ -3374,11 +3386,10 @@ public sealed partial class SessionService(
             if (session is not null && TrySnapshotInMemoryHistory(session, out var history) && history.Count > 0)
                 tokens = MessageTokenEstimator.Estimate(PrepareProviderVisibleHistory(history));
 
-            await SaveContextUsageSnapshotAsync(
+            await SaveReplacementContextUsageSnapshotAsync(
                 threadId,
                 tokens,
                 source: "history_estimate",
-                isEstimate: true,
                 ct: ct);
         }
         catch (OperationCanceledException)

@@ -1220,6 +1220,7 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
         Assert.Equal("history_estimate", rollbackSnapshot!.Source);
         Assert.True(rollbackSnapshot.IsEstimate);
         Assert.NotEqual(103_200, rollbackSnapshot.Tokens);
+        Assert.Null(new ThreadStore(_tempDir).LoadContextUsageAnchor(thread.Id));
     }
 
     [Fact]
