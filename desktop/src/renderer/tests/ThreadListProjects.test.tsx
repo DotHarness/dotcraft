@@ -165,6 +165,65 @@ describe('ThreadList project-first layout', () => {
     })
   })
 
+  it('does not render archived threads from cached secondary project rows', () => {
+    const archivedB: ThreadSummary = {
+      ...makeThread('archived-b', 'Archived B', 4),
+      status: 'archived'
+    }
+    const activeB = makeThread('active-b', 'Active B', 8)
+    useWorkspaceProjectsStore.getState().setPayload({
+      foregroundWorkspacePath: '/workspace/a',
+      secondaryLimit: 8,
+      projects: [
+        {
+          path: '/workspace/b',
+          name: 'b',
+          state: 'secondary',
+          running: true,
+          loaded: true,
+          threadCount: 2,
+          threads: [archivedB, activeB],
+          pinnedThreadIds: []
+        }
+      ]
+    })
+
+    renderList()
+
+    expect(screen.getByText('Active B')).toBeInTheDocument()
+    expect(screen.queryByText('Archived B')).not.toBeInTheDocument()
+  })
+
+  it('does not render archived pinned threads from cached project rows', () => {
+    const archivedPinnedB: ThreadSummary = {
+      ...makeThread('archived-pinned-b', 'Archived Pinned B', 4),
+      status: 'archived'
+    }
+    const activeB = makeThread('active-b', 'Active B', 8)
+    useWorkspaceProjectsStore.getState().setPayload({
+      foregroundWorkspacePath: '/workspace/a',
+      secondaryLimit: 8,
+      projects: [
+        {
+          path: '/workspace/b',
+          name: 'b',
+          state: 'secondary',
+          running: true,
+          loaded: true,
+          threadCount: 2,
+          threads: [archivedPinnedB, activeB],
+          pinnedThreadIds: ['archived-pinned-b']
+        }
+      ]
+    })
+
+    renderList()
+
+    expect(screen.getByText('Active B')).toBeInTheDocument()
+    expect(screen.queryByText('Archived Pinned B')).not.toBeInTheDocument()
+    expect(screen.queryByText('Pinned')).not.toBeInTheDocument()
+  })
+
   it('marks only the foreground (current) workspace header with aria-current', () => {
     useWorkspaceProjectsStore.getState().setPayload({
       foregroundWorkspacePath: '/workspace/a',
