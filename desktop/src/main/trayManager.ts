@@ -199,6 +199,15 @@ export async function openDesktopWindow(workspacePath?: string | null, threadId?
   spawnDesktopWindow(path || undefined, threadId)
 }
 
+export async function openMostRecentWorkspaceFromTray(settings: AppSettings = loadSettings()): Promise<boolean> {
+  const recentPath = getRecentWorkspaces(settings).find((workspace) => workspace.path.trim())?.path.trim()
+  const workspacePath = recentPath || settings.lastWorkspacePath?.trim()
+  if (!workspacePath) return false
+
+  await openDesktopWindow(workspacePath)
+  return true
+}
+
 async function openNotificationAction(payload: HubNotificationPayload): Promise<void> {
   const actionUrl = payload.actionUrl?.trim()
   if (actionUrl) {
@@ -452,6 +461,17 @@ export async function runTrayProcess(): Promise<void> {
   let eventAbortController: AbortController | null = null
   let refreshTimer: ReturnType<typeof setInterval> | null = null
   let disposed = false
+  let openRecentInFlight = false
+
+  tray.on('click', () => {
+    if (disposed || openRecentInFlight) return
+    openRecentInFlight = true
+    void openMostRecentWorkspaceFromTray(loadSettings()).catch(() => {
+      // Non-fatal: tray clicks should not crash the background process.
+    }).finally(() => {
+      openRecentInFlight = false
+    })
+  })
 
   const setMenu = (state: TrayState): void => {
     if (!tray) return

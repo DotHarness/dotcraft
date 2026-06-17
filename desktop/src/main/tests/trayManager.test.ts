@@ -1,6 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { HubEvent } from '../HubClient'
 import type { WorkspaceWindowState } from '../desktopActivation'
+import type { AppSettings } from '../settings'
 import type { WorkspaceLockStatus } from '../workspaceLock'
 
 const childProcessMocks = vi.hoisted(() => ({
@@ -15,6 +16,46 @@ const workspaceLockMocks = vi.hoisted(() => ({
   checkWorkspaceLock: vi.fn<() => WorkspaceLockStatus>(() => ({ locked: false }))
 }))
 
+const settingsMocks = vi.hoisted(() => ({
+  loadSettings: vi.fn<() => AppSettings>(() => ({}))
+}))
+
+const trayLockMocks = vi.hoisted(() => {
+  const release = vi.fn()
+  return {
+    release,
+    tryAcquireTrayLock: vi.fn(() => ({ release })),
+    getTrayLockPid: vi.fn(() => null),
+    isProcessAlive: vi.fn(() => false)
+  }
+})
+
+const hubClientMocks = vi.hoisted(() => {
+  const getStatus = vi.fn(async () => ({}))
+  const listAppServers = vi.fn(async () => [])
+  const subscribeEvents = vi.fn(async () => {})
+  const shutdownHub = vi.fn(async () => {})
+  const restartAppServer = vi.fn(async () => {})
+  const stopAppServer = vi.fn(async () => {})
+  const HubClient = vi.fn().mockImplementation(() => ({
+    getStatus,
+    listAppServers,
+    subscribeEvents,
+    shutdownHub,
+    restartAppServer,
+    stopAppServer
+  }))
+  return {
+    HubClient,
+    getStatus,
+    listAppServers,
+    subscribeEvents,
+    shutdownHub,
+    restartAppServer,
+    stopAppServer
+  }
+})
+
 const activationMocks = vi.hoisted(() => ({
   requestWorkspaceActivation: vi.fn<() => Promise<boolean>>(async () => false),
   requestWorkspaceWindowState: vi.fn<() => Promise<WorkspaceWindowState | null>>(async () => null)
@@ -26,34 +67,91 @@ const desktopActivationLockMocks = vi.hoisted(() => ({
 
 const electronMocks = vi.hoisted(() => {
   const show = vi.fn()
-  let clickHandler: (() => void) | null = null
-  const on = vi.fn((event: string, handler: () => void) => {
-    if (event === 'click') clickHandler = handler
+  let notificationClickHandler: (() => void) | null = null
+  let trayClickHandler: (() => void) | null = null
+  const beforeQuitHandlers: Array<() => void> = []
+  const notificationOn = vi.fn((event: string, handler: () => void) => {
+    if (event === 'click') notificationClickHandler = handler
   })
+  const trayOn = vi.fn((event: string, handler: () => void) => {
+    if (event === 'click') trayClickHandler = handler
+  })
+  const appOn = vi.fn((event: string, handler: () => void) => {
+    if (event === 'before-quit') beforeQuitHandlers.push(handler)
+  })
+  const appQuit = vi.fn()
   const openExternal = vi.fn()
+  const setToolTip = vi.fn()
+  const setContextMenu = vi.fn()
+  const destroy = vi.fn()
   return {
     show,
-    on,
+    notificationOn,
+    trayOn,
+    appOn,
+    appQuit,
+    setToolTip,
+    setContextMenu,
+    destroy,
     triggerClick: () => {
-      clickHandler?.()
+      notificationClickHandler?.()
+    },
+    triggerTrayClick: () => {
+      trayClickHandler?.()
+    },
+    triggerBeforeQuit: () => {
+      for (const handler of beforeQuitHandlers.splice(0)) handler()
+    },
+    resetHandlers: () => {
+      notificationClickHandler = null
+      trayClickHandler = null
+      beforeQuitHandlers.splice(0)
     },
     openExternal,
-    Notification: vi.fn().mockImplementation(() => ({ show, on }))
+    Notification: vi.fn().mockImplementation(() => ({ show, on: notificationOn }))
   }
 })
 
 vi.mock('electron', () => ({
-  app: { isPackaged: false, resourcesPath: 'resources', quit: vi.fn(), on: vi.fn() },
+  app: {
+    isPackaged: false,
+    resourcesPath: 'resources',
+    quit: electronMocks.appQuit,
+    on: electronMocks.appOn
+  },
   Menu: { buildFromTemplate: vi.fn((template) => ({ template })) },
-  nativeImage: { createFromPath: vi.fn(), createEmpty: vi.fn() },
+  nativeImage: {
+    createFromPath: vi.fn(() => ({
+      setTemplateImage: vi.fn(),
+      resize: vi.fn(() => ({}))
+    })),
+    createEmpty: vi.fn(() => ({}))
+  },
   Notification: Object.assign(electronMocks.Notification, { isSupported: vi.fn(() => true) }),
   shell: { openExternal: electronMocks.openExternal },
-  Tray: vi.fn()
+  Tray: vi.fn().mockImplementation(() => ({
+    on: electronMocks.trayOn,
+    setToolTip: electronMocks.setToolTip,
+    setContextMenu: electronMocks.setContextMenu,
+    destroy: electronMocks.destroy
+  }))
 }))
 
 vi.mock('child_process', () => childProcessMocks)
 
 vi.mock('../workspaceLock', () => workspaceLockMocks)
+
+vi.mock('../settings', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../settings')>()
+  return {
+    ...actual,
+    loadSettings: settingsMocks.loadSettings
+  }
+})
+
+vi.mock('../trayLock', () => trayLockMocks)
+
+vi.mock('../HubClient', () => ({ HubClient: hubClientMocks.HubClient }))
 
 vi.mock('../desktopActivation', () => activationMocks)
 
@@ -62,6 +160,22 @@ vi.mock('../desktopActivationLock', () => desktopActivationLockMocks)
 vi.mock('fs', () => ({
   existsSync: vi.fn(() => true)
 }))
+
+beforeEach(() => {
+  settingsMocks.loadSettings.mockReturnValue({})
+  trayLockMocks.tryAcquireTrayLock.mockReturnValue({ release: trayLockMocks.release })
+  trayLockMocks.getTrayLockPid.mockReturnValue(null)
+  trayLockMocks.isProcessAlive.mockReturnValue(false)
+  hubClientMocks.getStatus.mockResolvedValue({})
+  hubClientMocks.listAppServers.mockResolvedValue([])
+  hubClientMocks.subscribeEvents.mockResolvedValue(undefined)
+  hubClientMocks.shutdownHub.mockResolvedValue(undefined)
+})
+
+afterEach(() => {
+  electronMocks.triggerBeforeQuit()
+  electronMocks.resetHandlers()
+})
 
 describe('trayManager icon resolution', () => {
   beforeEach(() => {
