@@ -383,6 +383,9 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
     {
         foreach (var update in updates)
         {
+            if (update.FinishReason == ChatFinishReason.Length)
+                return true;
+
             foreach (var content in update.Contents)
             {
                 if (IsEffectiveProviderOutput(content))
