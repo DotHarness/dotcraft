@@ -347,11 +347,19 @@ public sealed class ThreadStore
 
     /// <summary>
     /// Returns all persisted thread summaries from SQLite metadata, ordered by activity.
+    /// Rows whose canonical rollout file is missing are omitted because callers cannot read them.
     /// </summary>
     public Task<List<ThreadSummary>> LoadIndexAsync(CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
-        return Task.FromResult(_metadataStore.LoadIndex());
+        var index = _metadataStore.LoadIndex()
+            .Where(summary =>
+            {
+                ct.ThrowIfCancellationRequested();
+                return _rolloutStore.ResolveExistingPath(summary.Id) != null;
+            })
+            .ToList();
+        return Task.FromResult(index);
     }
 
     public Task UpsertThreadSpawnEdgeAsync(ThreadSpawnEdge edge, CancellationToken ct = default)

@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { applyWorkspaceThreadNotificationToCache } from '../workspaceThreadCache'
+import {
+  applyWorkspaceThreadListRefreshFailure,
+  applyWorkspaceThreadListRefreshSuccess,
+  applyWorkspaceThreadNotificationToCache
+} from '../workspaceThreadCache'
 
 function thread(id: string, extra: Record<string, unknown> = {}): Record<string, unknown> {
   return {
@@ -40,6 +44,22 @@ describe('workspace thread cache notifications', () => {
       threadId: 'parent',
       previousStatus: 'active',
       newStatus: 'archived'
+    })
+
+    expect(result.changed).toBe(true)
+    expect(result.refreshThreadList).toBe(false)
+    expect(ids(result.threads)).toEqual(['sibling'])
+  })
+
+  it('removes a started archived thread tree when status casing comes from the wire', () => {
+    const cache = [
+      thread('parent'),
+      subAgent('child', 'parent'),
+      thread('sibling')
+    ]
+
+    const result = applyWorkspaceThreadNotificationToCache(cache, 'thread/started', {
+      thread: thread('parent', { status: 'Archived' })
     })
 
     expect(result.changed).toBe(true)
@@ -89,5 +109,22 @@ describe('workspace thread cache notifications', () => {
     expect(result.changed).toBe(true)
     expect(result.refreshThreadList).toBe(false)
     expect((result.threads[0] as { status: string }).status).toBe('active')
+  })
+})
+
+describe('workspace thread list refresh cache', () => {
+  it('clears a prior refresh error after a later successful thread list load', () => {
+    const entry = {
+      threads: [thread('stale')],
+      errorMessage: 'thread/list failed'
+    }
+
+    applyWorkspaceThreadListRefreshFailure(entry, new Error('still failing'))
+    expect(entry.errorMessage).toBe('still failing')
+
+    applyWorkspaceThreadListRefreshSuccess(entry, [thread('fresh')])
+
+    expect(entry.errorMessage).toBeUndefined()
+    expect(ids(entry.threads)).toEqual(['fresh'])
   })
 })

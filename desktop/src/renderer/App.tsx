@@ -322,6 +322,23 @@ function currentForegroundThreadListKey(
   return normalizeWorkspaceProjectKey(activeProjectKey || protocolWorkspacePath || '')
 }
 
+function resolveActiveProjectKey(
+  foregroundProjectId: string | null | undefined,
+  remoteProjectId: string | null | undefined,
+  protocolWorkspacePath: string | null | undefined,
+  workspacePath: string | null | undefined
+): string {
+  const remoteKey = remoteProjectId?.trim()
+  if (remoteKey) return remoteKey
+
+  const protocolPath = protocolWorkspacePath || workspacePath || ''
+  const protocolKey = normalizeWorkspaceProjectKey(protocolPath)
+  const foregroundKey = normalizeWorkspaceProjectKey(foregroundProjectId)
+  if (!protocolKey) return foregroundProjectId || ''
+  if (foregroundKey && foregroundKey === protocolKey) return foregroundProjectId || protocolPath
+  return protocolPath
+}
+
 function currentForegroundThreadListIdentityKey(
   activeProjectKey: string | null | undefined,
   protocolWorkspacePath: string | null | undefined,
@@ -341,6 +358,11 @@ function canReloadForegroundThreadList(
   const projectKey = normalizeWorkspaceProjectKey(activeProjectKey)
   if (!projectKey || projectKey.startsWith('remote:')) return true
   return projectKey === protocolKey
+}
+
+function isThreadNotFoundError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error ?? '')
+  return /ThreadNotFound|thread not found/i.test(message)
 }
 
 function resetWorkspaceScopedRendererState(): void {
@@ -607,7 +629,12 @@ export function App(): JSX.Element {
   const foregroundProjectId = useWorkspaceProjectsStore((s) => s.foregroundProjectId)
   const showSlowConnectingHint = useSlowConnectingHint(status, workspacePath)
   const remoteWorkspaceActive = workspaceStatus.remote != null
-  const activeProjectKey = foregroundProjectId || workspaceStatus.remote?.projectId || protocolWorkspacePath || workspacePath
+  const activeProjectKey = resolveActiveProjectKey(
+    foregroundProjectId,
+    workspaceStatus.remote?.projectId,
+    protocolWorkspacePath,
+    workspacePath
+  )
   const foregroundThreadListKey = activeProjectKey || protocolWorkspacePath || workspacePath
   const foregroundThreadListIdentityKey = currentForegroundThreadListIdentityKey(
     activeProjectKey,
@@ -688,6 +715,11 @@ export function App(): JSX.Element {
   const scheduledActiveThreadReconcileTimerRef = useRef<number | null>(null)
   const threadRestoreGateRef = useRef<{ threadId: string; token: number } | null>(null)
   const threadRestoreGateTokenRef = useRef(0)
+  const threadListRetryRef = useRef<{ key: string; attempts: number; timer: number | null }>({
+    key: '',
+    attempts: 0,
+    timer: null
+  })
   const pendingAutoWhatsNewRef = useRef<{
     releases: WhatsNewRelease[]
     markSeenVersion?: string
@@ -765,6 +797,10 @@ export function App(): JSX.Element {
       const res = result as { data: ThreadSummary[] }
       const threadStore = useThreadStore.getState()
       threadStore.setThreadList(res.data ?? [], projectKey)
+      if (threadListRetryRef.current.timer != null) {
+        window.clearTimeout(threadListRetryRef.current.timer)
+      }
+      threadListRetryRef.current = { key: '', attempts: 0, timer: null }
       threadStore.hydratePinnedThreadIds(
         projectKey,
         resolvePinnedThreadIdsForWorkspace(settings.pinnedThreadIdsByWorkspace, projectKey)
@@ -781,13 +817,39 @@ export function App(): JSX.Element {
     } catch (err: unknown) {
       if (!isCurrentRequest()) return
       console.error('Failed to load thread list:', err)
-      setThreadList([], projectKey)
+      const currentThreadListProjectKey = useThreadStore.getState().threadListProjectKey
+      if (currentThreadListProjectKey !== projectKey) {
+        setThreadList([], projectKey)
+      }
+      const retryKey = `${projectKey}\u0000${requestProtocolWorkspaceKey}`
+      const retry = threadListRetryRef.current
+      if (retry.key !== retryKey) {
+        if (retry.timer != null) window.clearTimeout(retry.timer)
+        threadListRetryRef.current = { key: retryKey, attempts: 0, timer: null }
+      }
+      const nextRetry = threadListRetryRef.current
+      if (nextRetry.attempts < 3 && nextRetry.timer == null) {
+        nextRetry.attempts += 1
+        nextRetry.timer = window.setTimeout(() => {
+          nextRetry.timer = null
+          void reloadThreadList(options)
+        }, 1200)
+      }
     } finally {
       if (isCurrentRequest()) {
         setLoading(false)
       }
     }
   }, [setThreadList, setLoading])
+
+  useEffect(() => {
+    return () => {
+      if (threadListRetryRef.current.timer != null) {
+        window.clearTimeout(threadListRetryRef.current.timer)
+        threadListRetryRef.current.timer = null
+      }
+    }
+  }, [])
 
   useEffect(() => {
     const onPinnedThreadIdsChanged = window.api.settings.onPinnedThreadIdsChanged
@@ -2959,6 +3021,9 @@ export function App(): JSX.Element {
         .catch((err: unknown) => {
           clearThreadRestoreGate(requestedId, restoreGateToken)
           console.error('thread/read failed:', err)
+          if (isThreadNotFoundError(err)) {
+            useThreadStore.getState().removeThread(requestedId)
+          }
           useUIStore.getState().cancelPendingWelcomeTurnForThread(requestedId)
           addToast(translate(localeRef.current, 'toast.threadNotFound'), 'warning')
         })

@@ -4,6 +4,11 @@ export interface WorkspaceThreadCacheUpdateResult {
   refreshThreadList: boolean
 }
 
+export interface WorkspaceThreadListRefreshState {
+  threads: unknown[]
+  errorMessage?: string
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value != null && typeof value === 'object'
 }
@@ -149,4 +154,19 @@ export function applyWorkspaceThreadNotificationToCache(
     changed: next !== threads,
     refreshThreadList
   }
+}
+
+export function applyWorkspaceThreadListRefreshSuccess(
+  entry: WorkspaceThreadListRefreshState,
+  data: unknown
+): void {
+  entry.threads = Array.isArray(data) ? data : []
+  entry.errorMessage = undefined
+}
+
+export function applyWorkspaceThreadListRefreshFailure(
+  entry: WorkspaceThreadListRefreshState,
+  error: unknown
+): void {
+  entry.errorMessage = error instanceof Error ? error.message : String(error)
 }

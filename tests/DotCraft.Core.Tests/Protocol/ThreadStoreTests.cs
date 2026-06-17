@@ -993,6 +993,21 @@ public sealed class ThreadStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task LoadIndex_WhenRolloutFileIsMissing_ExcludesStaleMetadataRow()
+    {
+        var stale = CreateThread();
+        var current = CreateThread();
+        await _store.SaveThreadAsync(stale);
+        await _store.SaveThreadAsync(current);
+        File.Delete(GetCanonicalPath(stale.Id, archived: false));
+
+        var index = await new ThreadStore(_root).LoadIndexAsync();
+
+        Assert.DoesNotContain(index, s => s.Id == stale.Id);
+        Assert.Contains(index, s => s.Id == current.Id);
+    }
+
+    [Fact]
     public async Task LoadIndex_IgnoresThreadSessionsStoredInDb()
     {
         var thread = CreateThread();
