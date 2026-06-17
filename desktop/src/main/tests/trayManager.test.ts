@@ -523,10 +523,16 @@ describe('trayManager process launches', () => {
   })
 
   it('does not launch a macOS tray process when menu bar visibility is disabled', async () => {
-    const { ensureTrayProcess } = await import('../trayManager')
+    const originalPlatform = process.platform
+    Object.defineProperty(process, 'platform', { value: 'darwin' })
+    try {
+      const { ensureTrayProcess } = await import('../trayManager')
 
-    ensureTrayProcess({ showInMenuBar: false })
+      ensureTrayProcess({ showInMenuBar: false })
 
-    expect(childProcessMocks.spawn).not.toHaveBeenCalled()
+      expect(childProcessMocks.spawn).not.toHaveBeenCalled()
+    } finally {
+      Object.defineProperty(process, 'platform', { value: originalPlatform })
+    }
   })
 })

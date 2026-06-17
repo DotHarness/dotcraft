@@ -68,12 +68,80 @@ export interface HubEvent {
   data?: unknown
 }
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null
+}
+
+function stringValue(record: Record<string, unknown>, key: string): string | null {
+  const value = record[key]
+  return typeof value === 'string' && value.trim() ? value.trim() : null
+}
+
+function numberValue(record: Record<string, unknown>, key: string): number | null {
+  const value = record[key]
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+function previewValue(value: unknown, maxLength = 1200): string | null {
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed) return null
+    return trimmed.length > maxLength ? `${trimmed.slice(0, maxLength)}…` : trimmed
+  }
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value)
+  }
+  if (value !== null && typeof value === 'object') {
+    try {
+      const json = JSON.stringify(value)
+      return json.length > maxLength ? `${json.slice(0, maxLength)}…` : json
+    } catch {
+      return null
+    }
+  }
+  return null
+}
+
+function summarizeHubErrorDetails(details: unknown): string | null {
+  const direct = previewValue(details)
+  const record = asRecord(details)
+  if (!record) return direct
+
+  const parts: string[] = []
+  const append = (label: string, value: unknown): void => {
+    const preview = previewValue(value)
+    if (preview && !parts.includes(`${label}: ${preview}`)) {
+      parts.push(`${label}: ${preview}`)
+    }
+  }
+
+  append('error', record.error)
+  append('reason', record.reason)
+  append('lastError', record.lastError)
+  append('recentStderr', record.recentStderr)
+  append('workspacePath', stringValue(record, 'workspacePath'))
+  append('craftPath', stringValue(record, 'craftPath'))
+  append('lockPath', stringValue(record, 'lockPath'))
+  append('pid', numberValue(record, 'pid'))
+  append('expectedPid', numberValue(record, 'expectedPid'))
+
+  return parts.length > 0 ? `Details: ${parts.join('; ')}` : direct
+}
+
+function formatHubErrorMessage(message: string, details?: unknown): string {
+  const summary = summarizeHubErrorDetails(details)
+  return summary ? `${message}\n${summary}` : message
+}
+
 export class HubClientError extends Error {
   constructor(
     readonly code: string,
-    message: string
+    message: string,
+    readonly details?: unknown
   ) {
-    super(message)
+    super(formatHubErrorMessage(message, details))
     this.name = 'HubClientError'
   }
 }
@@ -243,16 +311,12 @@ export class HubClient {
   private async ensureHub(): Promise<HubLockInfo> {
     const live = await this.tryGetLiveHub()
     if (live) {
-      if (this.options.restartMismatchedHub) {
-        const expectedBinaryPath = this.resolveExpectedBinaryPath()
+      const expectedBinaryPath = this.resolveExpectedBinaryPath()
+      if (this.shouldRestartMismatchedHub(live, expectedBinaryPath)) {
         if (!expectedBinaryPath) {
           throw new HubClientError('binary-not-found', this.missingBinaryMessage())
         }
-        if (!this.hubMatchesExpectedBinary(live, expectedBinaryPath)) {
-          await this.shutdownMismatchedHub(live)
-        } else {
-          return live
-        }
+        await this.shutdownMismatchedHub(live)
       } else {
         return live
       }
@@ -309,8 +373,23 @@ export class HubClient {
     return typeof hub.binaryPath === 'string' && pathsEqual(hub.binaryPath, expectedBinaryPath)
   }
 
+  private shouldRestartMismatchedHub(hub: HubLockInfo, expectedBinaryPath: string | null): boolean {
+    if (this.options.restartMismatchedHub === false) return false
+    if (!expectedBinaryPath) return this.options.restartMismatchedHub === true
+    if (this.options.restartMismatchedHub === true) return !this.hubMatchesExpectedBinary(hub, expectedBinaryPath)
+    return typeof hub.binaryPath === 'string' && !this.hubMatchesExpectedBinary(hub, expectedBinaryPath)
+  }
+
   private async shutdownMismatchedHub(hub: HubLockInfo): Promise<void> {
-    await this.requestJson<{ ok: boolean }>(hub, '/v1/shutdown', { method: 'POST' })
+    try {
+      await this.requestJson<{ ok: boolean }>(hub, '/v1/shutdown', { method: 'POST' })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      throw new HubClientError(
+        'hubMismatchShutdownFailed',
+        `DotCraft Hub is running from a different binary and could not be stopped automatically. Exit DotCraft Hub from the system tray, then restart DotCraft. ${message}`
+      )
+    }
 
     const started = Date.now()
     while (Date.now() - started < SHUTDOWN_TIMEOUT_MS) {
@@ -322,7 +401,7 @@ export class HubClient {
 
     throw new HubClientError(
       'hubMismatchShutdownTimeout',
-      'DotCraft Hub is running from a different binary and did not stop after shutdown. Close DotCraft and tray, then retry Desktop dev.'
+      'DotCraft Hub is running from a different binary and did not stop after shutdown. Exit DotCraft Hub from the system tray, then restart DotCraft.'
     )
   }
 
@@ -381,11 +460,14 @@ export class HubClient {
 
   private async toError(response: Response): Promise<HubClientError> {
     try {
-      const body = await response.json() as { error?: { code?: string; message?: string } }
+      const body = await response.json() as {
+        error?: { code?: string; message?: string; details?: unknown }
+      }
       if (body.error?.code || body.error?.message) {
         return new HubClientError(
           body.error.code ?? 'hubRequestFailed',
-          body.error.message ?? `Hub request failed with HTTP ${response.status}.`
+          body.error.message ?? `Hub request failed with HTTP ${response.status}.`,
+          body.error.details
         )
       }
     } catch {

@@ -32,6 +32,12 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
     internal Func<AppServerLockInfo, CancellationToken, Task<string?>> ExistingAppServerProbeAsync { get; set; } =
         ProbeExistingAppServerAsync;
 
+    internal Func<string?, string, IReadOnlyDictionary<string, string?>, CancellationToken, Task<IManagedAppServerProcess>> StartAppServerProcessAsync { get; set; } =
+        StartManagedAppServerProcessAsync;
+
+    internal Func<string, string, CancellationToken, Task> ManagedWebSocketProbeAsync { get; set; } =
+        ProbeWebSocketAsync;
+
     public ManagedAppServerRegistry(
         HubEventBus events,
         string hubApiBaseUrl,
@@ -114,21 +120,22 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
             Persist(entry);
             _events.Publish("appserver.starting", canonical, new { endpoints = plan.ResponseEndpoints });
 
+            IManagedAppServerProcess? startedProcess = null;
             try
             {
-                var process = await AppServerProcess.StartAsync(
-                    dotcraftBin: _dotcraftBin,
-                    workspacePath: canonical,
-                    environmentVariables: plan.Environment,
-                    createNoWindow: true,
-                    attachWindowsJob: true,
-                    ct: cancellationToken);
+                var process = await StartAppServerProcessAsync(
+                    _dotcraftBin,
+                    canonical,
+                    plan.Environment,
+                    cancellationToken);
+                startedProcess = process;
 
-                await ProbeWebSocketAsync(plan.WebSocketProbeUrl, plan.WebSocketToken, cancellationToken);
+                await ManagedWebSocketProbeAsync(plan.WebSocketProbeUrl, plan.WebSocketToken, cancellationToken);
                 VerifyManagedLock(craftPath, process.ProcessId, canonical);
 
                 process.OnCrashed += () => OnProcessCrashed(entry);
                 entry.Process = process;
+                startedProcess = null;
                 entry.State = HubAppServerStates.Running;
                 entry.Pid = process.ProcessId;
                 entry.ServerVersion = process.ServerVersion;
@@ -146,18 +153,31 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
                 _events.Publish("appserver.running", canonical, new { pid = process.ProcessId, endpoints = plan.ResponseEndpoints });
                 return entry.ToResponse();
             }
-            catch (Exception ex) when (ex is not HubProtocolException)
+            catch (Exception ex)
             {
+                if (startedProcess is not null)
+                    await DisposeStartedProcessAfterFailureAsync(entry, startedProcess, craftPath);
+
                 entry.State = HubAppServerStates.Exited;
                 entry.LastError = ex.Message;
                 entry.LastExitedAt = DateTimeOffset.UtcNow;
                 Persist(entry);
-                _events.Publish("appserver.exited", canonical, new { error = ex.Message });
+                _events.Publish("appserver.exited", canonical, new
+                {
+                    error = ex.Message,
+                    pid = entry.Pid,
+                    exitCode = entry.ExitCode,
+                    stderr = entry.RecentStderr
+                });
+
+                if (ex is HubProtocolException)
+                    throw;
+
                 throw new HubProtocolException(
                     "appServerStartFailed",
                     "Managed AppServer failed during startup.",
                     StatusCodes.Status500InternalServerError,
-                    new { workspacePath = canonical, error = ex.Message });
+                    new { workspacePath = canonical, error = ex.Message, recentStderr = entry.RecentStderr });
             }
         }
         finally
@@ -647,6 +667,37 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
                 Reason: reason));
     }
 
+    private static async Task<IManagedAppServerProcess> StartManagedAppServerProcessAsync(
+        string? dotcraftBin,
+        string workspacePath,
+        IReadOnlyDictionary<string, string?> environmentVariables,
+        CancellationToken cancellationToken)
+        => new AppServerProcessAdapter(await AppServerProcess.StartAsync(
+            dotcraftBin: dotcraftBin,
+            workspacePath: workspacePath,
+            environmentVariables: environmentVariables,
+            createNoWindow: true,
+            attachWindowsJob: true,
+            ct: cancellationToken));
+
+    private static async Task DisposeStartedProcessAfterFailureAsync(
+        ManagedEntry entry,
+        IManagedAppServerProcess process,
+        string craftPath)
+    {
+        try
+        {
+            await process.DisposeAsync();
+        }
+        finally
+        {
+            entry.RecentStderr = process.RecentStderr;
+            entry.ExitCode = process.ExitCode;
+            entry.Pid = process.ProcessId;
+            CleanupWorkspaceLock(craftPath);
+        }
+    }
+
     private static async Task StopManagedProcessesAsync(ManagedEntry entry, string craftPath)
     {
         if (entry.Process is { } process)
@@ -966,7 +1017,7 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
 
         public string State { get; set; } = HubAppServerStates.Stopped;
 
-        public AppServerProcess? Process { get; set; }
+        public IManagedAppServerProcess? Process { get; set; }
 
         public bool AdoptedExternalLock { get; set; }
 
@@ -1036,4 +1087,40 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
             LastError,
             RecentStderr);
     }
+}
+
+internal interface IManagedAppServerProcess : IAsyncDisposable
+{
+    bool IsRunning { get; }
+
+    int? ExitCode { get; }
+
+    string RecentStderr { get; }
+
+    int ProcessId { get; }
+
+    string? ServerVersion { get; }
+
+    event Action? OnCrashed;
+}
+
+internal sealed class AppServerProcessAdapter(AppServerProcess process) : IManagedAppServerProcess
+{
+    public bool IsRunning => process.IsRunning;
+
+    public int? ExitCode => process.ExitCode;
+
+    public string RecentStderr => process.RecentStderr;
+
+    public int ProcessId => process.ProcessId;
+
+    public string? ServerVersion => process.ServerVersion;
+
+    public event Action? OnCrashed
+    {
+        add => process.OnCrashed += value;
+        remove => process.OnCrashed -= value;
+    }
+
+    public ValueTask DisposeAsync() => process.DisposeAsync();
 }

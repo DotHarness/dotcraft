@@ -183,6 +183,43 @@ public sealed class ManagedAppServerRegistryTests : IDisposable
     }
 
     [Fact]
+    public async Task Ensure_DisposesStartedProcessWhenStartupProbeFails()
+    {
+        var registryPath = Path.Combine(_tempDir, "hub", "appservers.json");
+        var workspace = CreateWorkspace("probe-failure-workspace");
+        var process = new FakeManagedAppServerProcess(
+            processId: 12345,
+            exitCode: 42,
+            recentStderr: "probe stderr");
+
+        await using var registry = new ManagedAppServerRegistry(
+            new HubEventBus(),
+            "http://127.0.0.1:43000",
+            "hub-token",
+            registryPath: registryPath)
+        {
+            StartAppServerProcessAsync = (_, _, _, _) => Task.FromResult<IManagedAppServerProcess>(process),
+            ManagedWebSocketProbeAsync = (_, _, _) => Task.FromException(new InvalidOperationException("probe failed"))
+        };
+
+        var ex = await Assert.ThrowsAsync<HubProtocolException>(() => registry.EnsureAsync(new EnsureAppServerRequest
+        {
+            WorkspacePath = workspace,
+            StartIfMissing = true
+        }, CancellationToken.None));
+
+        Assert.Equal("appServerStartFailed", ex.Code);
+        Assert.True(process.Disposed);
+
+        var inspected = registry.GetByWorkspace(workspace);
+        Assert.Equal(HubAppServerStates.Exited, inspected.State);
+        Assert.Equal("probe failed", inspected.LastError);
+        Assert.Equal(12345, inspected.Pid);
+        Assert.Equal(42, inspected.ExitCode);
+        Assert.Equal("probe stderr", inspected.RecentStderr);
+    }
+
+    [Fact]
     public async Task Dispose_DoesNotMarkAdoptedExternalWorkspaceStopped()
     {
         var registryPath = Path.Combine(_tempDir, "hub", "appservers.json");
@@ -288,6 +325,34 @@ public sealed class ManagedAppServerRegistryTests : IDisposable
         ExitCode: null,
         LastError: null,
         RecentStderr: null);
+
+    private sealed class FakeManagedAppServerProcess(
+        int processId,
+        int? exitCode,
+        string recentStderr) : IManagedAppServerProcess
+    {
+        public bool IsRunning => !Disposed;
+
+        public int? ExitCode => exitCode;
+
+        public string RecentStderr => recentStderr;
+
+        public int ProcessId => processId;
+
+        public string? ServerVersion => "test-version";
+
+        public bool Disposed { get; private set; }
+
+        public event Action? OnCrashed;
+
+        public ValueTask DisposeAsync()
+        {
+            Disposed = true;
+            return ValueTask.CompletedTask;
+        }
+
+        public void RaiseCrashed() => OnCrashed?.Invoke();
+    }
 
     public void Dispose()
     {
