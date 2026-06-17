@@ -135,6 +135,24 @@ public sealed class UsageSnapshotDeltaTests
     }
 
     [Fact]
+    public void TokenTracker_UpdateWithStreamingDeltas_RecordsProviderInputPlusOutputAsContext()
+    {
+        var tracker = new TokenTracker();
+
+        tracker.UpdateWithStreamingDeltas(
+            deltaInput: 212_505,
+            deltaOutput: 2_751,
+            deltaCachedInput: 0,
+            deltaCacheWriteInput: 0,
+            deltaReasoningOutput: 0,
+            cumulativeInputSnapshot: 212_505,
+            cumulativeOutputSnapshot: 2_751);
+
+        Assert.Equal(212_505, tracker.LastInputTokens);
+        Assert.Equal(215_256, tracker.LastContextTokens);
+    }
+
+    [Fact]
     public void RepeatedIdenticalSnapshots_YieldZeroAdditionalDelta()
     {
         long lastIn = 0, lastOut = 0;

@@ -17,6 +17,11 @@ using OpenAI.Responses;
 namespace DotCraft.Agents;
 
 /// <summary>
+/// Raised when a provider streaming request completes without yielding any updates.
+/// </summary>
+public sealed class EmptyProviderResponseException(string message) : InvalidOperationException(message);
+
+/// <summary>
 /// DotCraft-owned streaming function invocation loop with safe-boundary hooks
 /// for same-turn guidance injection and tool-call argument previews.
 /// </summary>
@@ -207,7 +212,10 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
             }
 
             if (updates.Count == 0)
-                yield break;
+            {
+                throw new EmptyProviderResponseException(
+                    "The model provider returned an empty streaming response before any content, tool call, or usage update was received.");
+            }
 
             var response = updates.ToChatResponse();
             (responseMessages ??= []).AddRange(response.Messages);

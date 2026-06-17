@@ -2394,6 +2394,13 @@ public sealed partial class SessionService(
                 ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnCancelled);
                 await PersistCancelledTurnAsync();
             }
+            catch (EmptyProviderResponseException ex)
+            {
+                logger?.LogError(ex, "Turn execution failed because the provider returned an empty stream for thread {ThreadId}", threadId);
+                await FailAndPersistTurnAsync(
+                    BuildEmptyProviderResponseMessage(threadId, session, tokenTracker, ex.Message),
+                    "agent_empty_response");
+            }
             catch (Exception ex)
             {
                 logger?.LogError(ex, "Turn execution failed for thread {ThreadId}", threadId);
@@ -2579,6 +2586,7 @@ public sealed partial class SessionService(
         traceCollector?.RecordThreadRollback(threadId, thread.Id, numTurns, thread.Turns.Count, thread.LastActiveAt);
         InvalidatePromptRequestSnapshot(threadId, "rollback");
         ClearContextUsageAnchor(threadId);
+        agentFactory.RemoveTokenTracker(threadId);
         ForgetContextPages(threadId);
         var agent = GetThreadAgentOrDefault(threadId);
         var updatedSession = await TryUpdateSessionAfterRollbackAsync(agent, threadId, removedTurns, ct);
@@ -3189,6 +3197,44 @@ public sealed partial class SessionService(
 
         history = messages.ToList();
         return true;
+    }
+
+    private string BuildEmptyProviderResponseMessage(
+        string threadId,
+        AgentSession? session,
+        TokenTracker? tokenTracker,
+        string fallbackMessage)
+    {
+        const string contextHint =
+            " The current conversation appears to be near or over the model context window; compact or roll back history, then retry.";
+        var message = string.IsNullOrWhiteSpace(fallbackMessage)
+            ? "The model provider returned an empty streaming response before any content, tool call, or usage update was received."
+            : fallbackMessage;
+
+        try
+        {
+            if (session is null
+                || !TrySnapshotInMemoryHistory(session, out var history)
+                || history.Count == 0)
+            {
+                return message;
+            }
+
+            var estimate = EstimateContextTokens(
+                threadId,
+                history,
+                tokenTracker?.LastContextTokens ?? 0,
+                TryGetLastPromptRequestSnapshot(threadId));
+            var threshold = GetCompactionPipelineForThread(threadId).EvaluateThreshold(estimate.Tokens);
+            return threshold.AboveWarning
+                ? message + contextHint
+                : message;
+        }
+        catch (Exception ex)
+        {
+            logger?.LogDebug(ex, "Failed to attach context-window hint for empty provider response on thread {ThreadId}", threadId);
+            return message;
+        }
     }
 
     private async Task TrySaveThreadAsync(SessionThread thread)

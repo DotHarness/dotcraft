@@ -50,19 +50,21 @@ internal static class ContextTokenUsageEstimator
                 IsEstimate: true);
         }
 
-        if (latestProviderTokens > 0)
-        {
-            return new ContextTokenUsageEstimate(
-                latestProviderTokens,
-                "provider_context",
-                EligibleForAutoCompact: true,
-                IsEstimate: false);
-        }
-
         var estimatedTokens = (long)MessageTokenEstimator.Estimate(history);
         var hasProviderLineage = memoryAnchor is not null
             || persistedAnchor is not null
+            || latestProviderTokens > 0
             || IsProviderContextSource(persistedDisplaySource, persistedDisplayIsEstimate);
+
+        if (latestProviderTokens > 0)
+        {
+            return new ContextTokenUsageEstimate(
+                Math.Max(estimatedTokens, latestProviderTokens),
+                "estimate_unverified_provider_context",
+                EligibleForAutoCompact: true,
+                IsEstimate: true);
+        }
+
         if (persistedDisplayTokens is > 0 && IsProviderContextSource(persistedDisplaySource, persistedDisplayIsEstimate))
         {
             return new ContextTokenUsageEstimate(

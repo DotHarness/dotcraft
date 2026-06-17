@@ -217,6 +217,29 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
     }
 
     [Fact]
+    public async Task SubmitInputAsync_WhenProviderStreamIsEmpty_MarksTurnFailed()
+    {
+        IChatClient chatClient = new FakeChatClient([]);
+        await using var agentFactory = CreateAgentFactory(chatClient);
+        var svc = CreateService(agentFactory, chatClient, useStreamingFunctionInvoker: true);
+        var thread = await svc.CreateThreadAsync(MakeIdentity());
+
+        var events = await CollectAsync(svc.SubmitInputAsync(thread.Id, [new TextContent("hello")]));
+
+        Assert.DoesNotContain(events, evt => evt.EventType == SessionEventType.TurnCompleted);
+        Assert.Contains(events, evt => evt.EventType == SessionEventType.TurnFailed);
+        var updatedThread = await svc.GetThreadAsync(thread.Id);
+        var turn = Assert.Single(updatedThread.Turns);
+        Assert.Equal(TurnStatus.Failed, turn.Status);
+        var errorItem = Assert.Single(turn.Items, item => item.Type == ItemType.Error);
+        var errorPayload = Assert.IsType<ErrorPayload>(errorItem.Payload);
+        Assert.Equal("agent_empty_response", errorPayload.Code);
+        Assert.True(errorPayload.Fatal);
+        Assert.Contains("empty streaming response", errorPayload.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(turn.Items, item => item.Type == ItemType.AgentMessage);
+    }
+
+    [Fact]
     public async Task SubmitInputAsync_PassesCapturedPromptRequestSnapshotToMemoryForkConsolidator()
     {
         IChatClient chatClient = new FakeChatClient([new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("ok")])]);
@@ -1119,6 +1142,40 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
         Assert.Equal(thread.Id, metadata.RootElement.GetProperty("threadId").GetString());
         Assert.Equal(1, metadata.RootElement.GetProperty("numTurns").GetInt32());
         Assert.Equal(0, metadata.RootElement.GetProperty("remainingTurns").GetInt32());
+    }
+
+    [Fact]
+    public async Task RollbackThreadAsync_RemovesProviderTokenTrackerAndSavesHistoryEstimate()
+    {
+        IChatClient chatClient = new FakeChatClient(
+        [
+            new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("answer")]),
+            UsageUpdate(requestIndex: 1, input: 103_000, output: 200, cachedInput: 100_000)
+        ]);
+        await using var agentFactory = CreateAgentFactory(chatClient);
+        var service = CreateService(agentFactory, chatClient);
+        var thread = await service.CreateThreadAsync(MakeIdentity());
+
+        await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("first " + new string('u', 1_000))]));
+        await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("second " + new string('u', 1_000))]));
+
+        var trackerBeforeRollback = agentFactory.TryGetTokenTracker(thread.Id);
+        Assert.NotNull(trackerBeforeRollback);
+        Assert.Equal(103_200, trackerBeforeRollback!.LastContextTokens);
+        var providerSnapshot = service.TryGetContextUsageSnapshot(thread.Id);
+        Assert.NotNull(providerSnapshot);
+        Assert.Equal(103_200, providerSnapshot!.Tokens);
+        Assert.Equal("provider_context", providerSnapshot.Source);
+        Assert.False(providerSnapshot.IsEstimate);
+
+        await service.RollbackThreadAsync(thread.Id, 1);
+
+        Assert.Null(agentFactory.TryGetTokenTracker(thread.Id));
+        var rollbackSnapshot = service.TryGetContextUsageSnapshot(thread.Id);
+        Assert.NotNull(rollbackSnapshot);
+        Assert.Equal("history_estimate", rollbackSnapshot!.Source);
+        Assert.True(rollbackSnapshot.IsEstimate);
+        Assert.NotEqual(103_200, rollbackSnapshot.Tokens);
     }
 
     [Fact]
