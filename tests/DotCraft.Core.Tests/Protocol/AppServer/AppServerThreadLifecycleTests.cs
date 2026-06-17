@@ -1650,7 +1650,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         AppServerTestHarness.AssertIsSuccessResponse(firstDoc);
         var firstResult = firstDoc.RootElement.GetProperty("result");
         var firstTurns = firstResult.GetProperty("thread").GetProperty("turns");
-        Assert.Equal(["turn_004", "turn_005"], firstTurns.EnumerateArray().Select(t => t.GetProperty("id").GetString()).ToArray());
+        Assert.Equal(["turn_004", "turn_005"], firstTurns.EnumerateArray().Select(t => t.GetProperty("id").GetString()!).ToArray());
         var firstPage = firstResult.GetProperty("turnPage");
         Assert.Equal(5, firstPage.GetProperty("totalTurns").GetInt32());
         Assert.Equal(4, firstPage.GetProperty("startOrdinal").GetInt32());
@@ -1671,7 +1671,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         AppServerTestHarness.AssertIsSuccessResponse(secondDoc);
         var secondResult = secondDoc.RootElement.GetProperty("result");
         var secondTurns = secondResult.GetProperty("thread").GetProperty("turns");
-        Assert.Equal(["turn_002", "turn_003"], secondTurns.EnumerateArray().Select(t => t.GetProperty("id").GetString()).ToArray());
+        Assert.Equal(["turn_002", "turn_003"], secondTurns.EnumerateArray().Select(t => t.GetProperty("id").GetString()!).ToArray());
         Assert.Equal(2, secondResult.GetProperty("turnPage").GetProperty("startOrdinal").GetInt32());
         Assert.Equal(3, secondResult.GetProperty("turnPage").GetProperty("endOrdinal").GetInt32());
     }
