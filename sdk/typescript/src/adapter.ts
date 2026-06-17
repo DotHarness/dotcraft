@@ -22,6 +22,7 @@ import {
   ModuleLifecycleState,
   ThreadResolver,
   TurnStreamReducer,
+  UserInputDispatcher,
   buildChannelSender,
   type ChannelAdapterMessageOptions,
   type ThreadResolveEvent,
@@ -52,6 +53,7 @@ export abstract class ChannelAdapter {
   private readonly commandRouter: CommandRouter;
   private readonly streamReducer: TurnStreamReducer;
   private readonly approvalDispatcher: ApprovalDispatcher;
+  private readonly userInputDispatcher: UserInputDispatcher;
   private readonly deliveryDispatcher: DeliveryDispatcher;
   private readonly channelToolDispatcher: ChannelToolDispatcher;
   private readonly lifecycle = new ModuleLifecycleState();
@@ -103,6 +105,10 @@ export abstract class ChannelAdapter {
       client: () => this.client,
       onApprovalRequest: (params) => this.onApprovalRequest(params),
     });
+    this.userInputDispatcher = new UserInputDispatcher({
+      client: () => this.client,
+      onUserInputRequest: (params) => this.onUserInputRequest(params),
+    });
     this.deliveryDispatcher = new DeliveryDispatcher({
       client: () => this.client,
       onDeliver: (target, content, metadata) => this.onDeliver(target, content, metadata),
@@ -131,6 +137,12 @@ export abstract class ChannelAdapter {
   abstract onDeliver(target: string, content: string, metadata: Record<string, unknown>): Promise<boolean>;
 
   abstract onApprovalRequest(request: Record<string, unknown>): Promise<string>;
+
+  protected async onUserInputRequest(
+    _request: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    return { answers: {} };
+  }
 
   protected async onSend(
     target: string,
@@ -226,10 +238,15 @@ export abstract class ChannelAdapter {
     this.setStatus("starting");
     await this.client.connect();
     await this.client.start();
+    this.approvalDispatcher.register();
+    this.userInputDispatcher.register();
+    this.deliveryDispatcher.register();
+    this.channelToolDispatcher.register();
     await this.client.initialize({
       clientName: this.clientName,
       clientVersion: this.clientVersion,
       approvalSupport: true,
+      requestUserInputSupport: true,
       streamingSupport: true,
       optOutNotifications: this.optOutNotifications,
       channelName: this.channelName,
@@ -239,10 +256,6 @@ export abstract class ChannelAdapter {
     });
     this.running = true;
     this.setStatus("ready");
-
-    this.approvalDispatcher.register();
-    this.deliveryDispatcher.register();
-    this.channelToolDispatcher.register();
 
     console.info(`ChannelAdapter '${this.channelName}' started (client: ${this.clientName} ${this.clientVersion})`);
   }

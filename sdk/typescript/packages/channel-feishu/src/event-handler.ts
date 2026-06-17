@@ -51,6 +51,22 @@ export function createFeishuEventHandlers(params: {
         });
         return;
       }
+      const pendingChannelContext = channelContextForMessage(event);
+      if (pendingChannelContext && params.adapter.hasPendingUserInput(pendingChannelContext)) {
+        const parsed = await parseInboundMessage(
+          params.client,
+          event,
+          params.bot.openId,
+          params.config.downloadDir,
+        );
+        if (parsed && await params.adapter.tryHandlePendingUserInputMessage(parsed)) {
+          logInfo("user_input.message.consumed", {
+            messageId: shortId(messageId),
+            channelContext: shortId(parsed.channelContext),
+          });
+          return;
+        }
+      }
       const mentionDecision = shouldHandleMessageWithReason(
         event,
         params.bot.openId,
@@ -159,6 +175,12 @@ export function createFeishuEventHandlers(params: {
       }
     },
   };
+}
+
+function channelContextForMessage(event: FeishuMessageEvent): string {
+  const senderId = event.sender.sender_id.open_id ?? "";
+  if (event.message.chat_type === "group") return `group:${event.message.chat_id}`;
+  return senderId ? `dm:${senderId}` : "";
 }
 
 function looksLikeFeishuReactionEmojiType(value: string): boolean {

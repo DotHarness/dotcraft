@@ -19,9 +19,17 @@ import {
 import {
   ConfigValidationError,
   configureTextMergeDebug,
+  emptyUserInputResponse,
+  hasUserInputAnswer,
+  mergeUserInputResponses,
+  normalizeUserInputQuestions,
   ModuleChannelAdapter,
+  splitUserInputRequestByQuestion,
+  userInputResponseForSingleChoice,
+  userInputResponseFromText,
   type ThreadResolveEvent,
   type ModuleError,
+  type UserInputResponse,
   type WorkspaceContext,
   mergeReplyTextFromDeltaAndSnapshot,
 } from "@dotcraft/sdk/channel";
@@ -32,6 +40,8 @@ import {
   buildErrorCard,
   buildFileCaptionCard,
   buildTranscriptCard,
+  buildUserInputCard,
+  buildUserInputResolvedCard,
 } from "./card-builder.js";
 import { createOrUpdateCard, sendReplyCards, sendSingleCard, updateCard } from "./card-sender.js";
 import { createFeishuEventHandlers } from "./event-handler.js";
@@ -115,6 +125,18 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
       timeoutSeconds: number;
     }
   >();
+  private readonly userInputWaiters = new Map<
+    string,
+    {
+      resolve: (response: UserInputResponse) => void;
+      threadId: string;
+      channelTarget: string;
+      messageId: string;
+      request: Record<string, unknown>;
+      promptTitle?: string;
+    }
+  >();
+  private readonly userInputRequestByChannelTarget = new Map<string, string>();
 
   constructor(cfg?: FeishuAdapterConfig) {
     super(
@@ -182,6 +204,7 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
   }
 
   override async stop(): Promise<void> {
+    this.resolveAllPendingUserInputs(emptyUserInputResponse());
     this.eventAbortController?.abort();
     this.eventAbortController = undefined;
     this.feishu?.stopEventStream();
@@ -474,6 +497,90 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
     });
   }
 
+  protected override async onUserInputRequest(request: Record<string, unknown>): Promise<UserInputResponse> {
+    const requestId = String(request.requestId ?? "");
+    const threadId = String(request.threadId ?? "");
+    const channelTarget = this.threadContextMap.get(threadId);
+    if (!channelTarget || !requestId) {
+      logWarn("user_input.request.invalid_context", {
+        requestId: shortId(requestId),
+        threadId: shortId(threadId),
+      });
+      return emptyUserInputResponse();
+    }
+
+    const steps = splitUserInputRequestByQuestion(request);
+    if (steps.length === 0) {
+      return emptyUserInputResponse();
+    }
+
+    const responses: UserInputResponse[] = [];
+    for (const step of steps) {
+      const response = await this.requestUserInputStep({
+        request: step.request,
+        threadId,
+        channelTarget,
+        promptTitle: this.userInputPromptTitle(step.questionIndex, step.questionCount),
+      });
+      if (!hasUserInputAnswer(response, step.question.id)) {
+        return emptyUserInputResponse();
+      }
+      responses.push(response);
+    }
+
+    return mergeUserInputResponses(responses);
+  }
+
+  private async requestUserInputStep(params: {
+    request: Record<string, unknown>;
+    threadId: string;
+    channelTarget: string;
+    promptTitle?: string;
+  }): Promise<UserInputResponse> {
+    const requestId = String(params.request.requestId ?? "");
+    if (!requestId) {
+      return emptyUserInputResponse();
+    }
+
+    const previousRequestId = this.userInputRequestByChannelTarget.get(params.channelTarget);
+    if (previousRequestId) {
+      this.resolvePendingUserInput(previousRequestId, emptyUserInputResponse());
+    }
+
+    const sent = await sendSingleCard(
+      this.getFeishuClient(),
+      params.channelTarget,
+      buildUserInputCard({
+        request: params.request,
+        cardTitle: this.cardTitle,
+        promptTitle: params.promptTitle,
+      }),
+    );
+    logInfo("user_input.card_sent", {
+      requestId: shortId(requestId),
+      threadId: shortId(params.threadId),
+      channelTarget: shortId(params.channelTarget),
+      messageId: shortId(sent.messageId),
+    });
+
+    return await new Promise<UserInputResponse>((resolve) => {
+      this.userInputWaiters.set(requestId, {
+        resolve,
+        threadId: params.threadId,
+        channelTarget: params.channelTarget,
+        messageId: sent.messageId,
+        request: params.request,
+        promptTitle: params.promptTitle,
+      });
+      this.userInputRequestByChannelTarget.set(params.channelTarget, requestId);
+    });
+  }
+
+  private userInputPromptTitle(questionIndex: number, questionCount: number): string {
+    const base = `${this.cardTitle} needs your input`;
+    return questionCount > 1 ? `${base} (${questionIndex + 1}/${questionCount})` : base;
+  }
+
   private async tryUpdateApprovalCard(messageId: string, card: Record<string, unknown>): Promise<void> {
     try {
       await updateCard(this.getFeishuClient(), messageId, card);
@@ -665,6 +772,9 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
       kind: message.kind,
       chatType: message.chatType,
     });
+    if (await this.tryResolvePendingUserInputFromText(message.channelContext, message.text)) {
+      return;
+    }
     if (isNewCommand(message.text)) {
       await this.newThread(message.threadUserId, message.channelContext);
       await sendSingleCard(
@@ -697,6 +807,9 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
 
   handleCardAction(event: FeishuCardActionEvent): boolean {
     const value = parseActionValue(event.action?.value);
+    if (value?.kind === "userInput") {
+      return this.handleUserInputCardAction(event, value);
+    }
     if (!value || value.kind !== "approval") {
       const kindStr =
         value && typeof value === "object" && "kind" in value
@@ -733,6 +846,114 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
       messageId: shortId(openMessageId || waiter.messageId),
     });
     return true;
+  }
+
+  hasPendingUserInput(channelContext: string): boolean {
+    return this.userInputRequestByChannelTarget.has(channelContext);
+  }
+
+  async tryHandlePendingUserInputMessage(message: ParsedInboundMessage): Promise<boolean> {
+    return await this.tryResolvePendingUserInputFromText(message.channelContext, message.text);
+  }
+
+  private handleUserInputCardAction(event: FeishuCardActionEvent, value: Record<string, unknown>): boolean {
+    const requestId = String(value.requestId ?? "");
+    const optionIndex = Number(value.optionIndex);
+    const waiter = this.userInputWaiters.get(requestId);
+    if (!waiter || !Number.isInteger(optionIndex)) {
+      logWarn("user_input.action_no_waiter", {
+        requestId: shortId(requestId),
+        openMessageId: shortId(String(event.context?.open_message_id ?? "")),
+      });
+      return false;
+    }
+    const openMessageId = String(event.context?.open_message_id ?? "");
+    if (openMessageId && waiter.messageId && openMessageId !== waiter.messageId) {
+      logWarn("user_input.action_message_mismatch", {
+        requestId: shortId(requestId),
+        expectedMessageId: shortId(waiter.messageId),
+        actualMessageId: shortId(openMessageId),
+      });
+      return false;
+    }
+
+    const response = userInputResponseForSingleChoice(waiter.request, optionIndex);
+    const question = normalizeUserInputQuestions(waiter.request)[0];
+    const answerSummary = question?.options[optionIndex]?.label ?? "";
+    this.resolvePendingUserInput(requestId, response, answerSummary);
+    return true;
+  }
+
+  private async tryResolvePendingUserInputFromText(channelTarget: string, text: string): Promise<boolean> {
+    const requestId = this.userInputRequestByChannelTarget.get(channelTarget);
+    if (!requestId) return false;
+    const waiter = this.userInputWaiters.get(requestId);
+    if (!waiter) {
+      this.userInputRequestByChannelTarget.delete(channelTarget);
+      return false;
+    }
+
+    const response = userInputResponseFromText(waiter.request, text);
+    if (!response) {
+      await sendSingleCard(
+        this.getFeishuClient(),
+        channelTarget,
+        buildUserInputCard({
+          request: waiter.request,
+          cardTitle: this.cardTitle,
+          promptTitle: waiter.promptTitle,
+        }),
+      ).catch((error) => {
+        logWarn("user_input.reprompt_failed", {
+          requestId: shortId(requestId),
+          message: errorMessage(error),
+        });
+      });
+      return true;
+    }
+
+    this.resolvePendingUserInput(requestId, response);
+    return true;
+  }
+
+  private resolvePendingUserInput(
+    requestId: string,
+    response: UserInputResponse,
+    answerSummary?: string,
+  ): void {
+    const waiter = this.userInputWaiters.get(requestId);
+    if (!waiter) return;
+    this.userInputWaiters.delete(requestId);
+    if (this.userInputRequestByChannelTarget.get(waiter.channelTarget) === requestId) {
+      this.userInputRequestByChannelTarget.delete(waiter.channelTarget);
+    }
+    if (waiter.messageId) {
+      void this.tryUpdateUserInputCard(
+        waiter.messageId,
+        buildUserInputResolvedCard({ requestId, answerSummary }),
+      );
+    }
+    waiter.resolve(response);
+  }
+
+  private resolveAllPendingUserInputs(response: UserInputResponse): void {
+    for (const requestId of [...this.userInputWaiters.keys()]) {
+      this.resolvePendingUserInput(requestId, response);
+    }
+  }
+
+  private async tryUpdateUserInputCard(messageId: string, card: Record<string, unknown>): Promise<void> {
+    try {
+      await updateCard(this.getFeishuClient(), messageId, card);
+      logInfo("user_input.card_updated", {
+        messageId: shortId(messageId),
+      });
+    } catch (error) {
+      logWarn("user_input.card_update_failed", {
+        messageId: shortId(messageId),
+        message: errorMessage(error),
+      });
+    }
   }
 
   protected override onThreadsArchived(_identityKey: string, archivedThreadIds: string[]): void {

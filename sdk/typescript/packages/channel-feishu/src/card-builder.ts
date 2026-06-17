@@ -4,6 +4,11 @@ import {
   DECISION_CANCEL,
   DECISION_DECLINE,
 } from "@dotcraft/sdk";
+import {
+  buildUserInputPrompt,
+  canUseNativeSingleChoiceUserInput,
+  normalizeUserInputQuestions,
+} from "@dotcraft/sdk/channel";
 import { chunkMarkdown, normalizeMarkdownForFeishu, summarizeApprovalOperation } from "./formatting.js";
 
 export const DEFAULT_CARD_TITLE = "DotCraft";
@@ -123,6 +128,45 @@ export function buildApprovalTimeoutCard(params: { requestId: string; timeoutSec
   ]);
 }
 
+export function buildUserInputCard(params: {
+  request: Record<string, unknown>;
+  cardTitle?: string;
+  promptTitle?: string;
+}): Record<string, unknown> {
+  const requestId = String(params.request.requestId ?? "");
+  const prompt = buildUserInputPrompt(params.request, {
+    title: params.promptTitle ?? `${resolveCardTitle(params.cardTitle)} needs your input`,
+  });
+  const elements: Array<Record<string, unknown>> = [
+    {
+      tag: "markdown",
+      content: normalizeMarkdownForFeishu(prompt),
+    },
+  ];
+
+  if (canUseNativeSingleChoiceUserInput(params.request)) {
+    const question = normalizeUserInputQuestions(params.request)[0]!;
+    question.options.forEach((option, index) => {
+      elements.push(buildUserInputButton(option.label, `user_input_${requestId}_${index}`, requestId, index));
+    });
+  }
+
+  return buildV2Card("Input Required", "indigo", elements);
+}
+
+export function buildUserInputResolvedCard(params: {
+  requestId: string;
+  answerSummary?: string;
+}): Record<string, unknown> {
+  const detail = params.answerSummary ? `\nAnswer: ${params.answerSummary}` : "";
+  return buildV2Card("Input Received", "green", [
+    {
+      tag: "markdown",
+      content: `Request: ${params.requestId}${detail}`,
+    },
+  ]);
+}
+
 export function buildErrorCard(title: string, message: string): Record<string, unknown> {
   return buildV2Card(title, "red", [
     {
@@ -153,6 +197,35 @@ function buildV2Card(
     body: {
       elements: bodyElements,
     },
+  };
+}
+
+function buildUserInputButton(
+  label: string,
+  elementId: string,
+  requestId: string,
+  optionIndex: number,
+): Record<string, unknown> {
+  const callbackValue = {
+    kind: "userInput",
+    requestId,
+    optionIndex,
+  };
+
+  return {
+    tag: "button",
+    element_id: elementId,
+    text: {
+      tag: "plain_text",
+      content: label.slice(0, 64),
+    },
+    type: "primary",
+    behaviors: [
+      {
+        type: "callback",
+        value: callbackValue,
+      },
+    ],
   };
 }
 

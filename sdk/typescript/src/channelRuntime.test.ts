@@ -15,10 +15,20 @@ import {
   ModuleLifecycleState,
   ThreadResolver,
   TurnStreamReducer,
+  UserInputDispatcher,
 } from "./channelRuntime.js";
 import { DotCraftError } from "./errors.js";
 import { JsonRpcMessage, Thread } from "./models.js";
 import type { WorkspaceContext } from "./module.js";
+import {
+  buildUserInputPrompt,
+  canUseNativeSingleChoiceUserInput,
+  hasUserInputAnswer,
+  mergeUserInputResponses,
+  splitUserInputRequestByQuestion,
+  userInputResponseForSingleChoice,
+  userInputResponseFromText,
+} from "./userInput.js";
 
 function deferred<T = void>(): {
   promise: Promise<T>;
@@ -144,6 +154,87 @@ test("ChannelMessageQueue serializes each identity and keeps identities independ
   await waitUntil(() => eventsSeen.includes("a2"));
   assert.deepEqual(eventsSeen, ["a1:start", "b1", "a1:end", "a2"]);
   assert.deepEqual(errors, []);
+});
+
+test("user-input helpers format prompts and parse numeric replies", () => {
+  const request = {
+    requestId: "req-1",
+    questions: [
+      {
+        id: "choice",
+        header: "Pick a mode",
+        question: "Which mode should DotCraft use?",
+        options: [
+          { label: "Auto", description: "Let DotCraft choose." },
+          { label: "Manual", description: "Ask before each step." },
+        ],
+        isOther: true,
+      },
+    ],
+  };
+
+  assert.equal(canUseNativeSingleChoiceUserInput(request), true);
+  assert.deepEqual(userInputResponseForSingleChoice(request, 1), {
+    answers: { choice: { answers: ["Manual"] } },
+  });
+  assert.deepEqual(userInputResponseFromText(request, "2"), {
+    answers: { choice: { answers: ["Manual"] } },
+  });
+  assert.deepEqual(userInputResponseFromText(request, "0 custom plan"), {
+    answers: { choice: { answers: ["custom plan"] } },
+  });
+  assert.match(buildUserInputPrompt(request), /Reply with an option number/);
+});
+
+test("user-input helpers parse multi-question replies by question number", () => {
+  const request = {
+    questions: [
+      { id: "first", header: "First", question: "One?", options: [{ label: "A" }, { label: "B" }] },
+      { id: "second", header: "Second", question: "Two?", isOther: true },
+    ],
+  };
+
+  assert.equal(canUseNativeSingleChoiceUserInput(request), false);
+  assert.deepEqual(userInputResponseFromText(request, "1: 2\n2: 0 custom"), {
+    answers: {
+      first: { answers: ["B"] },
+      second: { answers: ["custom"] },
+    },
+  });
+});
+
+test("user-input helpers split multi-question requests for sequential prompts", () => {
+  const request = {
+    requestId: "req-1",
+    threadId: "thread-1",
+    questions: [
+      { id: "first", header: "First", question: "One?", options: [{ label: "A" }, { label: "B" }] },
+      { id: "second", header: "Second", question: "Two?", isOther: true },
+    ],
+  };
+
+  const steps = splitUserInputRequestByQuestion(request);
+
+  assert.equal(steps.length, 2);
+  assert.equal(steps[0]?.question.id, "first");
+  assert.equal(steps[0]?.request.requestId, "req-1:1");
+  assert.deepEqual((steps[0]?.request.questions as unknown[] | undefined)?.map((item) => (item as { id: string }).id), [
+    "first",
+  ]);
+  assert.equal(steps[1]?.request.requestId, "req-1:2");
+
+  const merged = mergeUserInputResponses([
+    { answers: { first: { answers: ["B"] } } },
+    { answers: { second: { answers: ["custom"] } } },
+  ]);
+  assert.equal(hasUserInputAnswer(merged, "first"), true);
+  assert.equal(hasUserInputAnswer(merged, "missing"), false);
+  assert.deepEqual(merged, {
+    answers: {
+      first: { answers: ["B"] },
+      second: { answers: ["custom"] },
+    },
+  });
 });
 
 test("ChannelMessageQueue continues after a job error", async () => {
@@ -464,7 +555,7 @@ test("TurnStreamReducer handles orphan deltas, snapshot-only turns, failures, an
   assert.deepEqual(terminalEvents, ["failed:boom", "cancelled"]);
 });
 
-test("dispatchers register approval, delivery, tool, and heartbeat handlers", async () => {
+test("dispatchers register approval, user-input, delivery, tool, and heartbeat handlers", async () => {
   const fake = new FakeRuntimeClient();
   const errors: string[] = [];
   new ApprovalDispatcher({
@@ -478,6 +569,11 @@ test("dispatchers register approval, delivery, tool, and heartbeat handlers", as
     onSend: async (_target, message) => ({ delivered: true, kind: message.kind }),
     onError: (message) => errors.push(message),
   }).register();
+  new UserInputDispatcher({
+    client: asWire(fake),
+    onUserInputRequest: async (request) => ({ answers: { choice: { answers: [String(request.choice ?? "A")] } } }),
+    onError: (message) => errors.push(message),
+  }).register();
   new ChannelToolDispatcher({
     client: asWire(fake),
     onToolCall: async (request) => ({ success: true, tool: request.tool }),
@@ -485,6 +581,9 @@ test("dispatchers register approval, delivery, tool, and heartbeat handlers", as
   }).register();
 
   assert.equal(await fake.approvalHandler?.("approval", {}), "accept");
+  assert.deepEqual(await fake.requestHandlers.get("item/tool/requestUserInput")?.("input", {
+    choice: "B",
+  }), { answers: { choice: { answers: ["B"] } } });
   assert.deepEqual(await fake.requestHandlers.get("ext/channel/deliver")?.("d1", {
     target: "chat",
     content: "hello",
@@ -527,6 +626,13 @@ test("dispatchers preserve exception fallback shapes", async () => {
     },
     onError: () => {},
   }).register();
+  new UserInputDispatcher({
+    client: asWire(fake),
+    onUserInputRequest: async () => {
+      throw new Error("user input failed");
+    },
+    onError: () => {},
+  }).register();
   new ChannelToolDispatcher({
     client: asWire(fake),
     onToolCall: async () => {
@@ -536,6 +642,9 @@ test("dispatchers preserve exception fallback shapes", async () => {
   }).register();
 
   assert.equal(await fake.approvalHandler?.("approval", {}), "cancel");
+  assert.deepEqual(await fake.requestHandlers.get("item/tool/requestUserInput")?.("input", {}), {
+    answers: {},
+  });
   assert.deepEqual(await fake.requestHandlers.get("ext/channel/deliver")?.("d1", {}), {
     delivered: false,
     error: "Error: delivery failed",

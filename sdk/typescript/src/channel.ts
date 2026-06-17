@@ -16,6 +16,7 @@ export {
   ModuleLifecycleState,
   ThreadResolver,
   TurnStreamReducer,
+  UserInputDispatcher,
   applyChannelRuntimeDefaults,
   buildChannelSender,
   isStdioChannelRuntime,
@@ -51,7 +52,27 @@ export type {
   TurnStreamDebugLogger,
   TurnStreamReducerHandlers,
   TurnStreamReducerOptions,
+  UserInputDispatcherOptions,
 } from "./channelRuntime.js";
+export {
+  buildUserInputPrompt,
+  canUseNativeSingleChoiceUserInput,
+  emptyUserInputResponse,
+  hasUserInputAnswer,
+  mergeUserInputResponses,
+  normalizeUserInputQuestions,
+  splitUserInputRequestByQuestion,
+  userInputResponseForSingleChoice,
+  userInputResponseFromText,
+} from "./userInput.js";
+export type {
+  UserInputAnswer,
+  UserInputPromptOptions,
+  UserInputQuestion,
+  UserInputQuestionOption,
+  UserInputQuestionRequest,
+  UserInputResponse,
+} from "./userInput.js";
 export {
   ModuleChannelAdapter,
 } from "./moduleAdapter.js";

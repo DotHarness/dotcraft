@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildApprovalCard, buildReplyCards, buildTranscriptCard, DEFAULT_CARD_TITLE } from "./card-builder.js";
+import {
+  buildApprovalCard,
+  buildReplyCards,
+  buildTranscriptCard,
+  buildUserInputCard,
+  DEFAULT_CARD_TITLE,
+} from "./card-builder.js";
 
 function getCardTitle(card: Record<string, unknown>): string {
   const header = (card.header as Record<string, unknown> | undefined) ?? {};
@@ -53,4 +59,35 @@ test("invalid card title falls back to default title", () => {
   assert.equal(getCardTitle(byEmpty), DEFAULT_CARD_TITLE);
   assert.equal(getCardTitle(byWhitespace), DEFAULT_CARD_TITLE);
   assert.equal(getCardTitle(byTooLong), DEFAULT_CARD_TITLE);
+});
+
+test("buildUserInputCard uses native callback buttons for single-choice questions", () => {
+  const card = buildUserInputCard({
+    request: {
+      requestId: "req-1",
+      questions: [
+        {
+          id: "mode",
+          header: "Pick a mode",
+          question: "Which mode?",
+          options: [{ label: "Auto" }, { label: "Manual" }],
+        },
+      ],
+    },
+  });
+  const body = (card.body as Record<string, unknown> | undefined) ?? {};
+  const elements = (body.elements as Array<Record<string, unknown>> | undefined) ?? [];
+  const buttons = elements.filter((element) => element.tag === "button");
+
+  assert.equal(buttons.length, 2);
+  assert.deepEqual(buttons[1]?.behaviors, [
+    {
+      type: "callback",
+      value: {
+        kind: "userInput",
+        requestId: "req-1",
+        optionIndex: 1,
+      },
+    },
+  ]);
 });

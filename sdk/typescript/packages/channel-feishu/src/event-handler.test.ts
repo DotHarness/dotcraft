@@ -17,6 +17,8 @@ type MockAdapter = {
   cardActionCalls: number;
   handleInboundMessage: (message: ParsedInboundMessage) => Promise<void>;
   handleCardAction: (event: FeishuCardActionEvent) => boolean;
+  hasPendingUserInput: (channelContext: string) => boolean;
+  tryHandlePendingUserInputMessage: (message: ParsedInboundMessage) => Promise<boolean>;
 };
 
 type MockClient = {
@@ -35,6 +37,12 @@ function createAdapterMock(onHandle?: (message: ParsedInboundMessage) => void): 
     },
     handleCardAction(_event: FeishuCardActionEvent): boolean {
       this.cardActionCalls += 1;
+      return false;
+    },
+    hasPendingUserInput(_channelContext: string): boolean {
+      return false;
+    },
+    async tryHandlePendingUserInputMessage(_message: ParsedInboundMessage): Promise<boolean> {
       return false;
     },
   };
@@ -243,6 +251,35 @@ test("Feishu event handler skips reaction when group message does not mention th
     }),
   );
 
+  assert.equal(client.reactedMessages.length, 0);
+  assert.equal(adapter.handledMessages.length, 0);
+});
+
+test("Feishu event handler lets pending user-input replies bypass group mention gate", async () => {
+  const client = createClientMock();
+  const adapter = createAdapterMock() as MockAdapter;
+  const consumed: string[] = [];
+  adapter.hasPendingUserInput = (channelContext) => channelContext === "group:oc_group_1";
+  adapter.tryHandlePendingUserInputMessage = async (message) => {
+    consumed.push(`${message.channelContext}:${message.text}`);
+    return true;
+  };
+  const { handlers } = createHandlers({ client, adapter });
+
+  await handlers.onMessage(
+    createTextEvent({
+      message: {
+        message_id: "om_group_pending_1",
+        chat_id: "oc_group_1",
+        chat_type: "group",
+        message_type: "text",
+        content: JSON.stringify({ text: "2" }),
+        mentions: [],
+      },
+    }),
+  );
+
+  assert.deepEqual(consumed, ["group:oc_group_1:2"]);
   assert.equal(client.reactedMessages.length, 0);
   assert.equal(adapter.handledMessages.length, 0);
 });

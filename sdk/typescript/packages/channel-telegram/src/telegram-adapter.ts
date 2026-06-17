@@ -13,7 +13,17 @@ import {
 import {
   ConfigValidationError,
   ModuleChannelAdapter,
+  buildUserInputPrompt,
+  canUseNativeSingleChoiceUserInput,
+  emptyUserInputResponse,
+  hasUserInputAnswer,
+  mergeUserInputResponses,
+  normalizeUserInputQuestions,
+  splitUserInputRequestByQuestion,
+  userInputResponseForSingleChoice,
+  userInputResponseFromText,
   type ModuleError,
+  type UserInputResponse,
   type WorkspaceContext,
 } from "@dotcraft/sdk/channel";
 
@@ -40,6 +50,13 @@ export const DEFAULT_BOT_COMMANDS = [
 type PendingApproval = {
   resolve: (decision: string) => void;
   timer: ReturnType<typeof setTimeout>;
+};
+
+type PendingUserInput = {
+  request: Record<string, unknown>;
+  chatTarget: string;
+  promptTitle?: string;
+  resolve: (response: UserInputResponse) => void;
 };
 
 export function validateTelegramConfig(rawConfig: unknown): asserts rawConfig is TelegramConfig {
@@ -129,6 +146,9 @@ export class TelegramAdapter extends ModuleChannelAdapter<TelegramConfig> {
   private readonly typingTasks = new Map<string, Promise<void>>();
   private readonly typingAbortControllers = new Map<string, AbortController>();
   private readonly pendingApprovals = new Map<string, PendingApproval>();
+  private readonly pendingUserInputs = new Map<string, PendingUserInput>();
+  private readonly pendingUserInputByChat = new Map<string, string>();
+  private nextUserInputToken = 1;
   private pollingPromise: Promise<void> | null = null;
   private approvalTimeoutMs = 120_000;
   private pollTimeoutSeconds = 30;
@@ -206,6 +226,7 @@ export class TelegramAdapter extends ModuleChannelAdapter<TelegramConfig> {
 
   override async stop(): Promise<void> {
     this.resolveAllPendingApprovals("cancel");
+    this.resolveAllPendingUserInputs(emptyUserInputResponse());
     this.stopAllTyping();
 
     const bot = this.bot;
@@ -364,6 +385,76 @@ export class TelegramAdapter extends ModuleChannelAdapter<TelegramConfig> {
     return decision;
   }
 
+  protected override async onUserInputRequest(request: Record<string, unknown>): Promise<UserInputResponse> {
+    const threadId = String(request.threadId ?? "");
+    const chatTarget = this.threadContextMap.get(threadId);
+    const chatId = chatTarget ? parseTargetChatId(chatTarget) : null;
+    if (chatId === null) {
+      console.warn(`[telegram] cannot find chat for thread ${threadId}; resolving user input empty`);
+      return emptyUserInputResponse();
+    }
+
+    const steps = splitUserInputRequestByQuestion(request);
+    if (steps.length === 0) {
+      return emptyUserInputResponse();
+    }
+
+    const responses: UserInputResponse[] = [];
+    for (const step of steps) {
+      const response = await this.requestUserInputStep({
+        request: step.request,
+        chatId,
+        promptTitle: this.userInputPromptTitle(step.questionIndex, step.questionCount),
+      });
+      if (!hasUserInputAnswer(response, step.question.id)) {
+        return emptyUserInputResponse();
+      }
+      responses.push(response);
+    }
+
+    return mergeUserInputResponses(responses);
+  }
+
+  private async requestUserInputStep(params: {
+    request: Record<string, unknown>;
+    chatId: number;
+    promptTitle?: string;
+  }): Promise<UserInputResponse> {
+    const token = `ui${this.nextUserInputToken++}`;
+    const prompt = escapeHtml(buildUserInputPrompt(params.request, { title: params.promptTitle }));
+    const messageOptions: Parameters<TelegramApiLike["sendMessage"]>[2] = { parse_mode: "HTML" };
+    if (canUseNativeSingleChoiceUserInput(params.request)) {
+      const keyboard = new InlineKeyboard();
+      const question = normalizeUserInputQuestions(params.request)[0]!;
+      question.options.forEach((option, index) => {
+        keyboard.text(option.label.slice(0, 64), `userinput:${token}:${index}`).row();
+      });
+      messageOptions.reply_markup = keyboard;
+    }
+
+    await this.requireBot().api.sendMessage(params.chatId, prompt, messageOptions);
+
+    return await new Promise<UserInputResponse>((resolve) => {
+      const chatKey = String(params.chatId);
+      const previousToken = this.pendingUserInputByChat.get(chatKey);
+      if (previousToken) {
+        this.resolvePendingUserInput(previousToken, emptyUserInputResponse());
+      }
+      this.pendingUserInputs.set(token, {
+        request: params.request,
+        chatTarget: chatKey,
+        promptTitle: params.promptTitle,
+        resolve,
+      });
+      this.pendingUserInputByChat.set(chatKey, token);
+    });
+  }
+
+  private userInputPromptTitle(questionIndex: number, questionCount: number): string {
+    const base = "DotCraft needs your input";
+    return questionCount > 1 ? `${base} (${questionIndex + 1}/${questionCount})` : base;
+  }
+
   protected override async onSegmentCompleted(
     _threadId: string,
     _turnId: string,
@@ -452,6 +543,9 @@ export class TelegramAdapter extends ModuleChannelAdapter<TelegramConfig> {
 
     const chatId = ctx.chatId;
     const text = String(ctx.msg.text ?? "");
+    if (await this.tryHandlePendingUserInputText(String(chatId), text)) {
+      return;
+    }
     this.startTyping(String(chatId));
     await this.handleMessage({
       userId: String(ctx.from.id),
@@ -469,6 +563,11 @@ export class TelegramAdapter extends ModuleChannelAdapter<TelegramConfig> {
     await ctx.answerCallbackQuery();
 
     const parts = String(ctx.callbackQuery.data).split(":", 3);
+    if (parts.length === 3 && parts[0] === "userinput") {
+      await this.handleUserInputCallback(ctx, parts[1] ?? "", Number(parts[2]));
+      return;
+    }
+
     if (parts.length !== 3 || parts[0] !== "approval") {
       return;
     }
@@ -500,6 +599,63 @@ export class TelegramAdapter extends ModuleChannelAdapter<TelegramConfig> {
     } catch {
       // Ignore edit failures for stale/deleted messages.
     }
+  }
+
+  private async handleUserInputCallback(ctx: Context, token: string, optionIndex: number): Promise<void> {
+    const pending = this.pendingUserInputs.get(token);
+    if (!pending || !Number.isInteger(optionIndex)) {
+      return;
+    }
+
+    const response = userInputResponseForSingleChoice(pending.request, optionIndex);
+    this.resolvePendingUserInput(token, response);
+
+    const message = ctx.callbackQuery?.message;
+    if (!message || !("message_id" in message) || !("chat" in message)) {
+      return;
+    }
+
+    const question = normalizeUserInputQuestions(pending.request)[0];
+    const chosenLabel = question?.options[optionIndex]?.label ?? "selected";
+    try {
+      await this.requireBot().api.editMessageReplyMarkup(message.chat.id, message.message_id, {
+        reply_markup: undefined,
+      });
+      const text = "text" in message ? escapeHtml(String(message.text ?? "")) : "";
+      await this.requireBot().api.editMessageText(
+        message.chat.id,
+        message.message_id,
+        `${text}\n\n<i>Answer: ${escapeHtml(chosenLabel)}</i>`,
+        { parse_mode: "HTML" },
+      );
+    } catch {
+      // Ignore edit failures for stale/deleted messages.
+    }
+  }
+
+  private async tryHandlePendingUserInputText(chatTarget: string, text: string): Promise<boolean> {
+    const token = this.pendingUserInputByChat.get(chatTarget);
+    if (!token) return false;
+    const pending = this.pendingUserInputs.get(token);
+    if (!pending) {
+      this.pendingUserInputByChat.delete(chatTarget);
+      return false;
+    }
+
+    const response = userInputResponseFromText(pending.request, text);
+    if (!response) {
+      await this.requireBot().api.sendMessage(
+        Number(chatTarget),
+        escapeHtml(buildUserInputPrompt(pending.request, {
+          title: pending.promptTitle ?? "Please answer the pending DotCraft question",
+        })),
+        { parse_mode: "HTML" },
+      ).catch(() => undefined);
+      return true;
+    }
+
+    this.resolvePendingUserInput(token, response);
+    return true;
   }
 
   private async waitForPollingSession(bot: Bot): Promise<void> {
@@ -619,6 +775,22 @@ export class TelegramAdapter extends ModuleChannelAdapter<TelegramConfig> {
       clearTimeout(pending.timer);
       pending.resolve(decision);
       this.pendingApprovals.delete(key);
+    }
+  }
+
+  private resolvePendingUserInput(token: string, response: UserInputResponse): void {
+    const pending = this.pendingUserInputs.get(token);
+    if (!pending) return;
+    this.pendingUserInputs.delete(token);
+    if (this.pendingUserInputByChat.get(pending.chatTarget) === token) {
+      this.pendingUserInputByChat.delete(pending.chatTarget);
+    }
+    pending.resolve(response);
+  }
+
+  private resolveAllPendingUserInputs(response: UserInputResponse): void {
+    for (const token of [...this.pendingUserInputs.keys()]) {
+      this.resolvePendingUserInput(token, response);
     }
   }
 

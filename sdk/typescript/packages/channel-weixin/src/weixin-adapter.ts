@@ -21,9 +21,16 @@ import {
   ConfigValidationError,
   ModuleChannelAdapter,
   ModuleConfigLoader,
+  buildUserInputPrompt,
+  emptyUserInputResponse,
+  hasUserInputAnswer,
+  mergeUserInputResponses,
   resolveModuleStatePath,
   resolveModuleTempPath,
+  splitUserInputRequestByQuestion,
+  userInputResponseFromText,
   type ModuleError,
+  type UserInputResponse,
   type WorkspaceContext,
 } from "@dotcraft/sdk/channel";
 
@@ -143,6 +150,10 @@ export class WeixinAdapter extends ModuleChannelAdapter<WeixinConfig> {
     string,
     { resolve: (v: string) => void; timer: ReturnType<typeof setTimeout> }
   >();
+  private readonly userInputWaiters = new Map<
+    string,
+    { request: Record<string, unknown>; promptTitle?: string; resolve: (response: UserInputResponse) => void }
+  >();
 
   constructor(cfg?: WeixinAdapterConfig) {
     super("weixin", "dotcraft-weixin", "0.1.0", [
@@ -231,6 +242,7 @@ export class WeixinAdapter extends ModuleChannelAdapter<WeixinConfig> {
     this.monitorAbortController?.abort();
     this.monitorAbortController = undefined;
     this.authFlowInProgress = false;
+    this.resolveAllPendingUserInputs(emptyUserInputResponse());
 
     if (this.dotcraftStarted) {
       await super.stop();
@@ -471,6 +483,13 @@ export class WeixinAdapter extends ModuleChannelAdapter<WeixinConfig> {
     pending.resolve(DECISION_CANCEL);
   }
 
+  private cancelPendingUserInputIfAny(userId: string): void {
+    const pending = this.userInputWaiters.get(userId);
+    if (!pending) return;
+    this.userInputWaiters.delete(userId);
+    pending.resolve(emptyUserInputResponse());
+  }
+
   async onDeliver(target: string, content: string, _metadata: Record<string, unknown>): Promise<boolean> {
     const userId = target.replace(/^user:/, "");
     try {
@@ -648,13 +667,68 @@ export class WeixinAdapter extends ModuleChannelAdapter<WeixinConfig> {
     });
   }
 
+  protected override async onUserInputRequest(request: Record<string, unknown>): Promise<UserInputResponse> {
+    const threadId = String(request.threadId ?? "");
+    const userId = this.findUserIdForThread(threadId);
+    if (!userId) {
+      console.warn("No user for thread; resolving user input empty");
+      return emptyUserInputResponse();
+    }
+
+    const steps = splitUserInputRequestByQuestion(request);
+    if (steps.length === 0) {
+      return emptyUserInputResponse();
+    }
+
+    const responses: UserInputResponse[] = [];
+    for (const step of steps) {
+      const response = await this.requestUserInputStep({
+        userId,
+        request: step.request,
+        promptTitle: this.userInputPromptTitle(step.questionIndex, step.questionCount),
+      });
+      if (!hasUserInputAnswer(response, step.question.id)) {
+        return emptyUserInputResponse();
+      }
+      responses.push(response);
+    }
+
+    return mergeUserInputResponses(responses);
+  }
+
+  private async requestUserInputStep(params: {
+    userId: string;
+    request: Record<string, unknown>;
+    promptTitle?: string;
+  }): Promise<UserInputResponse> {
+    await this.sendWeixinText(
+      params.userId,
+      `❓ 需要你回答 DotCraft 问题\n${buildUserInputPrompt(params.request, { title: params.promptTitle })}`,
+    );
+
+    return await new Promise<UserInputResponse>((resolve) => {
+      const previous = this.userInputWaiters.get(params.userId);
+      previous?.resolve(emptyUserInputResponse());
+      this.userInputWaiters.set(params.userId, {
+        request: params.request,
+        promptTitle: params.promptTitle,
+        resolve,
+      });
+    });
+  }
+
+  private userInputPromptTitle(questionIndex: number, questionCount: number): string {
+    const base = "DotCraft needs your input";
+    return questionCount > 1 ? `${base} (${questionIndex + 1}/${questionCount})` : base;
+  }
+
   protected override async onSegmentCompleted(
     _threadId: string,
     _turnId: string,
     segmentText: string,
     _isFinal: boolean,
     channelContext: string,
-  ): Promise<boolean> {
+  ): Promise<boolean | void> {
     if (!segmentText.trim()) return true;
     try {
       await this.sendWeixinText(channelContext, segmentText);
@@ -705,12 +779,14 @@ export class WeixinAdapter extends ModuleChannelAdapter<WeixinConfig> {
 
     if (isNewCommand(text)) {
       this.cancelPendingApprovalIfAny(from);
+      this.cancelPendingUserInputIfAny(from);
       await this.newThread(from, from);
       await this.sendWeixinText(from, "已开启新对话，请直接输入消息。");
       return;
     }
 
     if (this.tryHandleApprovalReply(from, text)) return;
+    if (await this.tryHandleUserInputReply(from, text)) return;
 
     const name = from;
     // Fire-and-forget so the monitor loop can continue polling for approval replies
@@ -723,5 +799,26 @@ export class WeixinAdapter extends ModuleChannelAdapter<WeixinConfig> {
       channelContext: from,
       senderExtra: { senderRole: "admin" },
     }).catch((e) => console.error("handleMessage error:", e));
+  }
+
+  private async tryHandleUserInputReply(userId: string, text: string): Promise<boolean> {
+    const pending = this.userInputWaiters.get(userId);
+    if (!pending) return false;
+    const response = userInputResponseFromText(pending.request, text);
+    if (!response) {
+      await this.sendWeixinText(userId, buildUserInputPrompt(pending.request, { title: pending.promptTitle }));
+      return true;
+    }
+
+    this.userInputWaiters.delete(userId);
+    pending.resolve(response);
+    return true;
+  }
+
+  private resolveAllPendingUserInputs(response: UserInputResponse): void {
+    for (const [userId, pending] of this.userInputWaiters) {
+      pending.resolve(response);
+      this.userInputWaiters.delete(userId);
+    }
   }
 }

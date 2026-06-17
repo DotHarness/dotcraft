@@ -17,6 +17,7 @@ import {
   mergeReplyTextFromDeltaAndSnapshot,
 } from "./turnReply.js";
 import { shouldFlushSegmentOnItemStarted } from "./segmentBoundaries.js";
+import { emptyUserInputResponse, type UserInputResponse } from "./userInput.js";
 
 type ClientProvider = DotCraftWireClient | (() => DotCraftWireClient);
 
@@ -948,6 +949,35 @@ export class ApprovalDispatcher {
       } catch (error) {
         this.onError("onApprovalRequest raised:", error);
         return "cancel";
+      }
+    });
+  }
+}
+
+export interface UserInputDispatcherOptions {
+  client: ClientProvider;
+  onUserInputRequest: (request: Record<string, unknown>) => Promise<UserInputResponse | Record<string, unknown>>;
+  onError?: (message: string, error: unknown) => void;
+}
+
+export class UserInputDispatcher {
+  private readonly client: ClientProvider;
+  private readonly onUserInputRequest: (request: Record<string, unknown>) => Promise<UserInputResponse | Record<string, unknown>>;
+  private readonly onError: (message: string, error: unknown) => void;
+
+  constructor(options: UserInputDispatcherOptions) {
+    this.client = options.client;
+    this.onUserInputRequest = options.onUserInputRequest;
+    this.onError = options.onError ?? ((message, error) => console.error(message, error));
+  }
+
+  register(): void {
+    resolveClient(this.client).registerServerRequestHandler("item/tool/requestUserInput", async (_id, params) => {
+      try {
+        return await this.onUserInputRequest(params);
+      } catch (error) {
+        this.onError("onUserInputRequest raised:", error);
+        return emptyUserInputResponse();
       }
     });
   }
