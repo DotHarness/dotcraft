@@ -256,7 +256,7 @@ function buildAppServerMenu(
         label: L('tray.restartAppServer'),
         enabled: Boolean(workspacePath),
         click: async () => {
-          await hubClient.restartAppServer(workspacePath, undefined, resolveDotCraftRuntimeTools())
+          await hubClient.restartAppServer(workspacePath, resolveDotCraftRuntimeTools())
           refresh()
         }
       },
@@ -447,7 +447,7 @@ export async function runTrayProcess(): Promise<void> {
     binaryPath: settings.appServerBinaryPath,
     preferDevBuild: import.meta.env.DEV,
     requireDevBuild: import.meta.env.DEV,
-    restartMismatchedHub: import.meta.env.DEV
+    ...(import.meta.env.DEV ? { restartMismatchedHub: true } : {})
   })
   let eventAbortController: AbortController | null = null
   let refreshTimer: ReturnType<typeof setInterval> | null = null

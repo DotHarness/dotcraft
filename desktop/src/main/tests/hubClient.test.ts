@@ -101,6 +101,35 @@ describe('HubClient AppServer management', () => {
     })
   })
 
+  it('includes Hub error details in thrown errors', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ ok: true })
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        json: async () => ({
+          error: {
+            code: 'appServerStartFailed',
+            message: 'Managed AppServer failed during startup.',
+            details: {
+              workspacePath: 'E:/repo',
+              error: 'Access denied while binding WebSocket.',
+              recentStderr: 'System.Net.Sockets.SocketException: forbidden'
+            }
+          }
+        })
+      })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(new HubClient().ensureAppServer('E:/repo')).rejects.toMatchObject({
+      code: 'appServerStartFailed',
+      details: expect.objectContaining({
+        error: 'Access denied while binding WebSocket.'
+      }),
+      message: expect.stringContaining('Access denied while binding WebSocket.')
+    })
+  })
+
   it('restarts a live Hub when dev mode expects a different binary', async () => {
     const expectedBinary = 'C:/repo/build/release/dotcraft.exe'
     let hubPid = 1234
@@ -161,6 +190,75 @@ describe('HubClient AppServer management', () => {
       binarySource: 'custom',
       binaryPath: expectedBinary,
       restartMismatchedHub: true
+    }).ensureAppServer('E:/repo')
+
+    expect(childProcessMocks.spawn).toHaveBeenCalledWith(
+      expectedBinary,
+      ['hub'],
+      expect.objectContaining({ detached: true })
+    )
+    expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/v1/shutdown'))).toBe(true)
+  })
+
+  it('restarts a live Hub by default when it reports a different binary', async () => {
+    const expectedBinary = 'C:/Users/test/AppData/Local/Programs/DotCraft/resources/bin/dotcraft.exe'
+    let hubPid = 1234
+    let hubBinary = 'C:/Users/test/AppData/Local/Programs/DotCraft-old/resources/bin/dotcraft.exe'
+    let shutdownRequested = false
+
+    fsMocks.readFileSync.mockImplementation(() => JSON.stringify({
+      pid: hubPid,
+      apiBaseUrl: 'http://127.0.0.1:8123',
+      token: 'hub-token',
+      startedAt: '',
+      version: '',
+      binaryPath: hubBinary
+    }))
+    vi.spyOn(process, 'kill').mockImplementation((pid) => {
+      if (pid === 1234 && shutdownRequested) {
+        const error = new Error('missing') as NodeJS.ErrnoException
+        error.code = 'ESRCH'
+        throw error
+      }
+      return true
+    })
+
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.endsWith('/v1/status')) {
+        return {
+          ok: true,
+          json: async () => ({ binaryPath: hubBinary })
+        } as Response
+      }
+      if (url.endsWith('/v1/shutdown')) {
+        shutdownRequested = true
+        hubPid = 5678
+        hubBinary = expectedBinary
+        return {
+          ok: true,
+          json: async () => ({ ok: true })
+        } as Response
+      }
+      if (url.endsWith('/v1/appservers/ensure')) {
+        return {
+          ok: true,
+          json: async () => ({
+            workspacePath: 'E:/repo',
+            canonicalWorkspacePath: 'E:/repo',
+            state: 'running',
+            endpoints: { appServerWebSocket: 'ws://127.0.0.1:9000/ws' },
+            serviceStatus: {},
+            startedByHub: true
+          })
+        } as Response
+      }
+      throw new Error(`unexpected fetch: ${url} ${String(init?.method)}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await new HubClient({
+      binarySource: 'custom',
+      binaryPath: expectedBinary
     }).ensureAppServer('E:/repo')
 
     expect(childProcessMocks.spawn).toHaveBeenCalledWith(

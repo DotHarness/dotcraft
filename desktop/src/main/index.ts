@@ -965,7 +965,7 @@ function createHubClient(settings: AppSettings): HubClient {
     binaryPath: settings.appServerBinaryPath,
     preferDevBuild: import.meta.env.DEV,
     requireDevBuild: import.meta.env.DEV,
-    restartMismatchedHub: import.meta.env.DEV
+    ...(import.meta.env.DEV ? { restartMismatchedHub: true } : {})
   })
 }
 
