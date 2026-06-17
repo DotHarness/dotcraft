@@ -120,6 +120,10 @@ export interface ConnectionStatusPayload {
   binarySource?: BinarySource
 }
 
+export interface RetryConnectionRequest {
+  restartManaged?: boolean
+}
+
 export interface ResolvedBinaryRequest {
   binarySource?: BinarySource
   binaryPath?: string
@@ -896,6 +900,8 @@ export interface IpcHandlerCallbacks {
   onOpenNewWindow: () => void
   /** Restarts the Desktop-managed AppServer subprocess for the current workspace. */
   onRestartManagedAppServer: () => Promise<void>
+  /** Retries the current AppServer connection, optionally restarting a Hub-managed local AppServer first. */
+  onRetryAppServerConnection?: (request?: RetryConnectionRequest) => Promise<void>
   /** Applies connection settings and switches to the resulting AppServer connection. */
   onApplyConnectionSettings?: (draft: ConnectionSettingsDraft) => Promise<void>
   /** Connects Desktop to a saved remote stack through a rebuilt SSH tunnel. */
@@ -945,6 +951,7 @@ export interface IpcHandlerCallbacks {
  * - `appserver:resolved-binary`      (renderer -> main, invoke) -> resolves the selected binary source
  * - `appserver:pick-binary`          (renderer -> main, invoke) -> opens native file picker for dotcraft
  * - `appserver:restart-managed`   (renderer -> main, invoke) -> restarts Desktop-managed AppServer
+ * - `appserver:retry-connection`  (renderer -> main, invoke) -> retries current AppServer connection
  * - `window:set-title`            (renderer -> main, invoke) -> sets window title
  * - `window:get-workspace-path`   (renderer -> main, invoke) -> returns workspace path
  * - `workspace:pick-folder`       (renderer -> main, invoke) -> opens native folder picker
@@ -1242,6 +1249,13 @@ export function registerIpcHandlers(
 
   handleSafe('appserver:restart-managed', async () => {
     await callbacks?.onRestartManagedAppServer()
+  })
+
+  handleSafe('appserver:retry-connection', async (_event, request?: RetryConnectionRequest) => {
+    if (!callbacks?.onRetryAppServerConnection) {
+      throw new Error('AppServer connection retry is not available right now.')
+    }
+    await callbacks.onRetryAppServerConnection(request)
   })
 
   handleSafe('appserver:apply-connection-settings', async (_event, draft: ConnectionSettingsDraft) => {
@@ -2494,6 +2508,7 @@ export function unregisterIpcHandlers(): void {
   ipcMain.removeHandler('appserver:resolved-binary')
   ipcMain.removeHandler('appserver:pick-binary')
   ipcMain.removeHandler('appserver:restart-managed')
+  ipcMain.removeHandler('appserver:retry-connection')
   ipcMain.removeHandler('appserver:apply-connection-settings')
   ipcMain.removeHandler('appserver:server-response')
   ipcMain.removeHandler('window:set-title')

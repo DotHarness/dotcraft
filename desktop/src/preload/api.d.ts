@@ -145,6 +145,10 @@ export interface ConnectionStatusPayload {
   binarySource?: BinarySource
 }
 
+export interface RetryConnectionRequest {
+  restartManaged?: boolean
+}
+
 export interface ResolvedBinaryPayload {
   source: BinarySource
   path: string | null
@@ -384,6 +388,7 @@ declare global {
         }): Promise<ResolvedBinaryPayload>
         pickBinary(): Promise<string | null>
         restartManaged(): Promise<void>
+        retryConnection(request?: RetryConnectionRequest): Promise<void>
         applyConnectionSettings(draft: ConnectionSettingsDraft): Promise<void>
         onNotification(callback: (payload: NotificationPayload) => void): UnsubscribeFn
         onConnectionStatus(

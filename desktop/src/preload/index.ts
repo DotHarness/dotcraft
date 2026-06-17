@@ -125,6 +125,10 @@ export interface ConnectionStatusPayload {
   binarySource?: BinarySource
 }
 
+export interface RetryConnectionRequest {
+  restartManaged?: boolean
+}
+
 export interface ResolvedBinaryPayload {
   source: BinarySource
   path: string | null
@@ -525,6 +529,10 @@ const api = {
 
     restartManaged(): Promise<void> {
       return ipcRenderer.invoke('appserver:restart-managed')
+    },
+
+    retryConnection(request?: RetryConnectionRequest): Promise<void> {
+      return ipcRenderer.invoke('appserver:retry-connection', request)
     },
 
     applyConnectionSettings(draft: ConnectionSettingsDraft): Promise<void> {

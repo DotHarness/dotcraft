@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useConnectionStore } from '../stores/connectionStore'
 import { useT } from '../contexts/LocaleContext'
 
@@ -17,6 +18,8 @@ interface ErrorScreenProps {
 export function ErrorScreen({ onOpenSettings }: ErrorScreenProps = {}): JSX.Element | null {
   const t = useT()
   const { status, errorMessage, errorType, binarySource } = useConnectionStore()
+  const [retryPending, setRetryPending] = useState(false)
+  const [retryError, setRetryError] = useState<string | null>(null)
 
   if (status !== 'error') return null
 
@@ -45,13 +48,31 @@ export function ErrorScreen({ onOpenSettings }: ErrorScreenProps = {}): JSX.Elem
     : isHandshakeTimeout
       ? t('error.action.restart')
       : t('error.action.retry')
+  const displayedActionLabel = retryPending
+    ? isHandshakeTimeout
+      ? t('settings.action.restarting')
+      : t('settings.action.connecting')
+    : actionLabel
+  const detailsText = [
+    errorMessage,
+    retryError ? `Retry failed: ${retryError}` : null
+  ].filter((value): value is string => Boolean(value)).join('\n\n')
 
-  function handleAction(): void {
+  async function handleAction(): Promise<void> {
     if (isBinaryNotFound || isRemoteConfigInvalid) {
       onOpenSettings?.()
-    } else {
-      // Reload the window to trigger reconnection
-      window.location.reload()
+      return
+    }
+    if (retryPending) return
+
+    setRetryPending(true)
+    setRetryError(null)
+    try {
+      await window.api.appServer.retryConnection({ restartManaged: isHandshakeTimeout })
+    } catch (error) {
+      setRetryError(error instanceof Error ? error.message : String(error))
+    } finally {
+      setRetryPending(false)
     }
   }
 
@@ -123,7 +144,9 @@ export function ErrorScreen({ onOpenSettings }: ErrorScreenProps = {}): JSX.Elem
         {/* Action button */}
         <button
           type="button"
-          onClick={handleAction}
+          onClick={() => { void handleAction() }}
+          disabled={retryPending}
+          aria-busy={retryPending}
           style={{
             padding: '10px 24px',
             backgroundColor: 'var(--text-primary)',
@@ -132,22 +155,25 @@ export function ErrorScreen({ onOpenSettings }: ErrorScreenProps = {}): JSX.Elem
             borderRadius: '8px',
             fontSize: '14px',
             fontWeight: 500,
-            cursor: 'pointer',
+            cursor: retryPending ? 'not-allowed' : 'pointer',
+            opacity: retryPending ? 0.78 : 1,
             transition: 'background-color 150ms ease',
             boxShadow: 'var(--shadow-level-1)'
           }}
           onMouseEnter={(e) => {
+            if (retryPending) return
             ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'color-mix(in srgb, var(--text-primary) 88%, var(--bg-primary))'
           }}
           onMouseLeave={(e) => {
+            if (retryPending) return
             ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--text-primary)'
           }}
         >
-          {actionLabel}
+          {displayedActionLabel}
         </button>
 
         {/* Error details (collapsible for debugging) */}
-        {errorMessage && (
+        {detailsText && (
           <details
             style={{
               marginTop: '20px',
@@ -177,7 +203,7 @@ export function ErrorScreen({ onOpenSettings }: ErrorScreenProps = {}): JSX.Elem
                 border: '1px solid var(--border-default)'
               }}
             >
-              {errorMessage}
+              {detailsText}
             </pre>
           </details>
         )}

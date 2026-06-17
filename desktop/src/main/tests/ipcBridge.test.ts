@@ -1141,6 +1141,19 @@ describe('registerIpcHandlers', () => {
     expect(onRestartManagedAppServer).toHaveBeenCalledOnce()
   })
 
+  it('registers appserver:retry-connection and forwards the request to callback', async () => {
+    const onRetryAppServerConnection = vi.fn().mockResolvedValue(undefined)
+    const handlers = registerHandlersForTest('/workspace', () => null, createIpcCallbacks({
+      onRetryAppServerConnection
+    }))
+    const request = { restartManaged: true }
+
+    expect(handlers.has('appserver:retry-connection')).toBe(true)
+    await handlers.get('appserver:retry-connection')?.({}, request)
+
+    expect(onRetryAppServerConnection).toHaveBeenCalledWith(request)
+  })
+
   it('registers appserver:apply-connection-settings and forwards the draft to callback', async () => {
     const handlers = new Map<string, (...args: unknown[]) => unknown>()
     vi.mocked(ipcMain.handle).mockImplementation((channel, handler) => {

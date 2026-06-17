@@ -108,6 +108,10 @@ import { WhatsNewCatalog } from './whatsNewCatalog'
 import { WhatsNewMediaCache, resolveWhatsNewMediaAssets } from './whatsNewMediaCache'
 import type { WhatsNewMediaState } from '../shared/whatsNew'
 import { AppUpdateService } from './appUpdate'
+import {
+  retryAppServerConnection,
+  type RetryConnectionRequest
+} from './appServerRetry'
 import type { AppUpdateState } from '../shared/appUpdate'
 import {
   resolveRemoteWebSocketConfig,
@@ -1894,6 +1898,32 @@ function getManagedAppServerEndpoint(response: HubAppServerResponse): string {
   return endpoint
 }
 
+async function restartCurrentManagedAppServer(): Promise<void> {
+  if (!currentWorkspacePath) {
+    throw new Error('Open a workspace before restarting AppServer.')
+  }
+  if (process.argv.includes('--remote')) {
+    throw new Error('Cannot restart AppServer while using a remote WebSocket connection.')
+  }
+  if (resolveConnectionMode(sharedSettings) === 'remote') {
+    throw new Error('Restart is only available for Hub-managed local AppServers.')
+  }
+  const hubClient = createHubClient(sharedSettings)
+  const restarted = await hubClient.restartAppServer(currentWorkspacePath, resolveDotCraftRuntimeTools())
+  await connectViaWebSocket(currentWorkspacePath, getManagedAppServerEndpoint(restarted))
+  startHubEventSubscription(currentWorkspacePath, hubClient)
+}
+
+async function retryCurrentAppServerConnection(request?: RetryConnectionRequest): Promise<void> {
+  await retryAppServerConnection(request, {
+    currentWorkspacePath,
+    launchedWithRemote: process.argv.includes('--remote'),
+    connectionMode: resolveConnectionMode(sharedSettings),
+    reconnect: () => connectToAppServer(currentWorkspacePath),
+    restartManaged: restartCurrentManagedAppServer
+  })
+}
+
 function isCurrentWorkspaceEvent(event: HubEvent, workspacePath: string): boolean {
   if (!event.workspacePath) return false
   return isSameWorkspacePath(event.workspacePath, workspacePath)
@@ -2213,21 +2243,8 @@ function buildCallbacks(): IpcHandlerCallbacks {
     onOpenNewWindow: () => {
       openNewProcess()
     },
-    onRestartManagedAppServer: async () => {
-      if (!currentWorkspacePath) {
-        throw new Error('Open a workspace before restarting AppServer.')
-      }
-      if (process.argv.includes('--remote')) {
-        throw new Error('Cannot restart AppServer while using a remote WebSocket connection.')
-      }
-      if (resolveConnectionMode(sharedSettings) === 'remote') {
-        throw new Error('Restart is only available for Hub-managed local AppServers.')
-      }
-      const hubClient = createHubClient(sharedSettings)
-      const restarted = await hubClient.restartAppServer(currentWorkspacePath, resolveDotCraftRuntimeTools())
-      await connectViaWebSocket(currentWorkspacePath, getManagedAppServerEndpoint(restarted))
-      startHubEventSubscription(currentWorkspacePath, hubClient)
-    },
+    onRestartManagedAppServer: restartCurrentManagedAppServer,
+    onRetryAppServerConnection: retryCurrentAppServerConnection,
     onApplyConnectionSettings: applyConnectionSettings,
     onConnectRemoteStack: connectRemoteStackFromServers,
     onDisconnectRemoteStack: disconnectRemoteStackFromServers,
