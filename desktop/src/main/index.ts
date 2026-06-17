@@ -140,6 +140,7 @@ import {
   shouldBridgeWorkspaceServerRequest,
   type WorkspaceConnectionRole
 } from './workspaceConnectionRouting'
+import { applyWorkspaceThreadNotificationToCache } from './workspaceThreadCache'
 
 // ─── Single-process state ─────────────────────────────────────────────────────
 // Each Electron process owns exactly one window and one AppServer connection.
@@ -479,64 +480,13 @@ async function refreshConnectionThreadList(entry: WorkspaceConnectionEntry): Pro
   }
 }
 
-function upsertWorkspaceThread(entry: WorkspaceConnectionEntry, thread: unknown): void {
-  if (!thread || typeof thread !== 'object') return
-  const id = (thread as { id?: unknown }).id
-  if (typeof id !== 'string' || !id) return
-  const existing = entry.threads.findIndex((candidate) =>
-    candidate != null && typeof candidate === 'object' && (candidate as { id?: unknown }).id === id
-  )
-  if (existing >= 0) {
-    entry.threads[existing] = {
-      ...(entry.threads[existing] as Record<string, unknown>),
-      ...(thread as Record<string, unknown>)
-    }
-  } else {
-    entry.threads = [thread, ...entry.threads]
-  }
-}
-
 function applyWorkspaceThreadNotification(entry: WorkspaceConnectionEntry, method: string, params: unknown): void {
-  const p = (params ?? {}) as Record<string, unknown>
-  if (method === 'thread/started' && p.thread) {
-    upsertWorkspaceThread(entry, p.thread)
-  } else if (method === 'thread/renamed') {
-    const threadId = typeof p.threadId === 'string' ? p.threadId : ''
-    const displayName = typeof p.displayName === 'string' ? p.displayName : ''
-    entry.threads = entry.threads.map((thread) =>
-      thread != null &&
-      typeof thread === 'object' &&
-      (thread as { id?: unknown }).id === threadId
-        ? { ...(thread as Record<string, unknown>), displayName }
-        : thread
-    )
-  } else if (method === 'thread/deleted') {
-    const threadId = typeof p.threadId === 'string' ? p.threadId : ''
-    entry.threads = entry.threads.filter((thread) =>
-      !(thread != null && typeof thread === 'object' && (thread as { id?: unknown }).id === threadId)
-    )
-  } else if (method === 'thread/statusChanged') {
-    const threadId = typeof p.threadId === 'string' ? p.threadId : ''
-    const newStatus = typeof p.newStatus === 'string' ? p.newStatus : ''
-    entry.threads = entry.threads.map((thread) =>
-      thread != null &&
-      typeof thread === 'object' &&
-      (thread as { id?: unknown }).id === threadId
-        ? { ...(thread as Record<string, unknown>), status: newStatus }
-        : thread
-    )
-  } else if (method === 'thread/runtimeChanged') {
-    const threadId = typeof p.threadId === 'string' ? p.threadId : ''
-    const runtime = p.runtime
-    entry.threads = entry.threads.map((thread) =>
-      thread != null &&
-      typeof thread === 'object' &&
-      (thread as { id?: unknown }).id === threadId
-        ? { ...(thread as Record<string, unknown>), runtime }
-        : thread
-    )
-  }
+  const result = applyWorkspaceThreadNotificationToCache(entry.threads, method, params)
+  entry.threads = result.threads
   emitWorkspaceProjects()
+  if (result.refreshThreadList) {
+    void refreshConnectionThreadList(entry)
+  }
 }
 
 function disposeWorkspaceConnection(entry: WorkspaceConnectionEntry): void {

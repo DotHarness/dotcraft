@@ -389,6 +389,7 @@ function filterProjectThreads(project: WorkspaceProjectSummary, searchQuery: str
   return sortThreadsByRecentActivity(project.threads
     .filter(isThreadSummary)
     .filter((thread) => !isInternalThread(thread))
+    .filter((thread) => thread.status !== 'archived')
     .filter((thread) => {
       if (!query) return true
       return (thread.displayName ?? '').toLowerCase().includes(query)
