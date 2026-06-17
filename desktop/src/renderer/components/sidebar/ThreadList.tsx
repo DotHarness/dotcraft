@@ -389,7 +389,7 @@ function filterProjectThreads(project: WorkspaceProjectSummary, searchQuery: str
   return sortThreadsByRecentActivity(project.threads
     .filter(isThreadSummary)
     .filter((thread) => !isInternalThread(thread))
-    .filter((thread) => thread.status !== 'archived')
+    .filter((thread) => thread.status?.toLowerCase() !== 'archived')
     .filter((thread) => {
       if (!query) return true
       return (thread.displayName ?? '').toLowerCase().includes(query)
@@ -721,6 +721,9 @@ function ProjectHeader({
   const showActions = hovered || menuOpen
   const detailLabel = project.remote?.displayPath || project.remote?.endpoint || project.identityWorkspacePath || project.path
   const iconLabel = cold ? t('projectsRail.notRunning') : detailLabel
+  const errorLabel = project.errorMessage || t('projectsRail.error')
+  const showErrorIndicator = project.state === 'error'
+  const actionColumnWidth = showErrorIndicator ? '86px' : '60px'
 
   function updateProjectMenuPosition(): void {
     const rect = rowRef.current?.getBoundingClientRect()
@@ -825,7 +828,7 @@ function ProjectHeader({
       style={{
         position: 'relative',
         display: 'grid',
-        gridTemplateColumns: '20px minmax(0, 1fr) 60px',
+        gridTemplateColumns: `20px minmax(0, 1fr) ${actionColumnWidth}`,
         alignItems: 'center',
         gap: '6px',
         minHeight: SIDEBAR_ROW_MIN_HEIGHT,
@@ -859,7 +862,7 @@ function ProjectHeader({
       </ActionTooltip>
       <div
         style={{
-          width: '60px',
+          width: actionColumnWidth,
           display: 'inline-flex',
           alignItems: 'center',
           justifyContent: 'flex-end',
@@ -892,13 +895,10 @@ function ProjectHeader({
                 <MoreHorizontal size={15} aria-hidden />
               </button>
             </ActionTooltip>
+            {showErrorIndicator && <ProjectErrorIndicator label={errorLabel} />}
           </>
-        ) : project.state === 'error' ? (
-          <span style={projectStatusIndicatorSlotStyle}>
-            <ActionTooltip label={project.errorMessage || t('projectsRail.error')}>
-              <AlertCircle size={14} aria-hidden style={{ color: 'var(--error)' }} />
-            </ActionTooltip>
-          </span>
+        ) : showErrorIndicator ? (
+          <ProjectErrorIndicator label={errorLabel} />
         ) : collapsed && activity === 'running' ? (
           <span style={projectStatusIndicatorSlotStyle}>
             <RunningSpinner label={t('threadEntry.turnRunning')} />
@@ -949,6 +949,18 @@ function ProjectHeader({
         document.body
       )}
     </div>
+  )
+}
+
+function ProjectErrorIndicator({ label }: { label: string }): JSX.Element {
+  return (
+    <span style={projectStatusIndicatorSlotStyle}>
+      <ActionTooltip label={label}>
+        <span aria-label={label} style={projectStatusIndicatorSlotStyle}>
+          <AlertCircle size={14} aria-hidden style={{ color: 'var(--error)' }} />
+        </span>
+      </ActionTooltip>
+    </span>
   )
 }
 

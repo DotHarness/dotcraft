@@ -140,7 +140,11 @@ import {
   shouldBridgeWorkspaceServerRequest,
   type WorkspaceConnectionRole
 } from './workspaceConnectionRouting'
-import { applyWorkspaceThreadNotificationToCache } from './workspaceThreadCache'
+import {
+  applyWorkspaceThreadListRefreshFailure,
+  applyWorkspaceThreadListRefreshSuccess,
+  applyWorkspaceThreadNotificationToCache
+} from './workspaceThreadCache'
 
 // ─── Single-process state ─────────────────────────────────────────────────────
 // Each Electron process owns exactly one window and one AppServer connection.
@@ -472,10 +476,10 @@ async function refreshConnectionThreadList(entry: WorkspaceConnectionEntry): Pro
       identity: makeThreadListIdentity(entry.workspacePath),
       includeSubAgents: true
     })
-    entry.threads = Array.isArray(result.data) ? result.data : []
+    applyWorkspaceThreadListRefreshSuccess(entry, result.data)
     emitWorkspaceProjects()
   } catch (error) {
-    entry.errorMessage = error instanceof Error ? error.message : String(error)
+    applyWorkspaceThreadListRefreshFailure(entry, error)
     emitWorkspaceProjects()
   }
 }
@@ -1837,6 +1841,7 @@ async function connectViaWebSocket(
   client.on('close', () => {
     entry.connected = false
     entry.connecting = false
+    entry.errorMessage = undefined
     emitWorkspaceProjects()
     if (entry.role === 'secondary') return
     if (!isCurrentForegroundClient()) return
@@ -2088,6 +2093,7 @@ function createSecondaryWorkspaceConnection(
   client.on('close', () => {
     entry.connected = false
     entry.connecting = false
+    entry.errorMessage = undefined
     emitWorkspaceProjects()
     if (entry.role === 'foreground' && mainWindow && !mainWindow.isDestroyed()) {
       const loc = normalizeLocale(sharedSettings.locale)

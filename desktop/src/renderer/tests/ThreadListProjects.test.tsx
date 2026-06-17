@@ -194,6 +194,35 @@ describe('ThreadList project-first layout', () => {
     expect(screen.queryByText('Archived B')).not.toBeInTheDocument()
   })
 
+  it('does not render cached archived threads with legacy status casing', () => {
+    const archivedB: ThreadSummary = {
+      ...makeThread('archived-b', 'Archived B', 4),
+      status: 'Archived' as ThreadSummary['status']
+    }
+    const activeB = makeThread('active-b', 'Active B', 8)
+    useWorkspaceProjectsStore.getState().setPayload({
+      foregroundWorkspacePath: '/workspace/a',
+      secondaryLimit: 8,
+      projects: [
+        {
+          path: '/workspace/b',
+          name: 'b',
+          state: 'secondary',
+          running: true,
+          loaded: true,
+          threadCount: 2,
+          threads: [archivedB, activeB],
+          pinnedThreadIds: []
+        }
+      ]
+    })
+
+    renderList()
+
+    expect(screen.getByText('Active B')).toBeInTheDocument()
+    expect(screen.queryByText('Archived B')).not.toBeInTheDocument()
+  })
+
   it('does not render archived pinned threads from cached project rows', () => {
     const archivedPinnedB: ThreadSummary = {
       ...makeThread('archived-pinned-b', 'Archived Pinned B', 4),
@@ -222,6 +251,42 @@ describe('ThreadList project-first layout', () => {
     expect(screen.getByText('Active B')).toBeInTheDocument()
     expect(screen.queryByText('Archived Pinned B')).not.toBeInTheDocument()
     expect(screen.queryByText('Pinned')).not.toBeInTheDocument()
+  })
+
+  it('keeps project errors accessible while showing hover actions', () => {
+    useWorkspaceProjectsStore.getState().setPayload({
+      foregroundWorkspacePath: '/workspace/a',
+      secondaryLimit: 8,
+      projects: [
+        {
+          path: '/workspace/b',
+          name: 'b',
+          state: 'error',
+          running: false,
+          loaded: false,
+          threadCount: 0,
+          threads: [],
+          pinnedThreadIds: [],
+          errorMessage: 'Connection refused'
+        }
+      ]
+    })
+
+    renderList()
+
+    const row = screen.getByRole('button', { name: 'b' })
+    expect(screen.getByLabelText('Connection refused')).toBeInTheDocument()
+
+    fireEvent.mouseEnter(row)
+
+    const errorIndicator = screen.getByLabelText('Connection refused')
+    const newChatButton = screen.getByRole('button', { name: 'New chat in project' })
+    const projectActionsButton = screen.getByRole('button', { name: 'Project actions' })
+    expect(errorIndicator).toBeInTheDocument()
+    expect(newChatButton).toBeInTheDocument()
+    expect(projectActionsButton).toBeInTheDocument()
+    expect(newChatButton.compareDocumentPosition(errorIndicator) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(projectActionsButton.compareDocumentPosition(errorIndicator) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('marks only the foreground (current) workspace header with aria-current', () => {
