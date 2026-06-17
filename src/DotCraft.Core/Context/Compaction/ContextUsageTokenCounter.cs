@@ -25,7 +25,10 @@ public sealed record ContextUsageAnchor(
 /// <summary>
 /// Result of applying a provider usage anchor to the current model-visible history.
 /// </summary>
-public sealed record ContextUsageAnchorEstimate(long Tokens, bool UsedBaseInstructionsAdjustment);
+public sealed record ContextUsageAnchorEstimate(
+    long Tokens,
+    bool UsedBaseInstructionsAdjustment,
+    int BaseInstructionsTokenDelta = 0);
 
 /// <summary>
 /// Counts current context pressure from the last provider usage plus an
@@ -112,6 +115,7 @@ public static class ContextUsageTokenCounter
             : 0;
         return new ContextUsageAnchorEstimate(
             Math.Max(0, anchor.Tokens + deltaTokens + baseInstructionsDelta),
-            usedBaseInstructionsAdjustment);
+            usedBaseInstructionsAdjustment,
+            baseInstructionsDelta);
     }
 }

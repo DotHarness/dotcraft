@@ -298,6 +298,41 @@ public sealed class ContextUsageTokenCounterTests
     }
 
     [Fact]
+    public void ContextTokenUsageEstimator_AdjustsLatestProviderContext_WhenBaseInstructionsShrink()
+    {
+        var messages = new List<ChatMessage>
+        {
+            new(ChatRole.User, "first user"),
+            new(ChatRole.Assistant, "reply")
+        };
+        var anchor = new ContextUsageAnchor(
+            Tokens: 103_000,
+            MessageCount: 1,
+            PrefixFingerprint: MessageTokenEstimator.ComputePrefixFingerprint(messages, 1),
+            RequestFingerprint: "request-before-memory",
+            ContextUsageFingerprint: "context-shape",
+            BaseInstructionsTokenEstimate: 1_000);
+
+        var estimate = ContextTokenUsageEstimator.Estimate(
+            messages,
+            memoryAnchor: anchor,
+            persistedAnchor: null,
+            latestContextTokens: 105_000,
+            persistedDisplayTokens: 0,
+            requestFingerprint: "request-after-memory",
+            contextUsageFingerprint: "context-shape",
+            baseInstructionsTokenEstimate: 500);
+
+        var expectedAnchored = 103_000
+            + MessageTokenEstimator.EstimateDelta(messages, 1, 1)
+            - 500;
+        Assert.Equal("prefix_adjusted_anchor", estimate.Source);
+        Assert.Equal(Math.Max(expectedAnchored, 104_500), estimate.Tokens);
+        Assert.True(estimate.Tokens < 105_000);
+        Assert.True(estimate.EligibleForAutoCompact);
+    }
+
+    [Fact]
     public void EstimateFromAnchor_RejectsBaseInstructionsAdjustment_WhenContextUsageFingerprintDiffers()
     {
         var messages = new List<ChatMessage>
