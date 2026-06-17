@@ -479,6 +479,81 @@ MCP example:
 
 With `Tools.DeferredLoading.Strategy = Auto`, `openai-responses` uses native client-executed `tool_search`, while chat-completions and Anthropic use simulated `SearchTools`.
 
+### HTTP transport: authentication and headers
+
+An MCP server entry can use the HTTP transport by setting `transport` to `http`
+(also accepted as `streamableHttp` / `streamable-http`) and providing a `url`.
+The following fields attach authentication and custom headers, and apply to the
+**HTTP transport only** — they are ignored for `stdio`.
+
+| Field | Description | Default |
+|---|---|---|
+| `url` | Server endpoint, e.g. `https://mcp.exa.ai/mcp` | `""` |
+| `httpHeaders` | Map of header name → literal value, sent on every request | `{}` |
+| `bearerTokenEnvVar` | Name of an environment variable holding a token; sent as `Authorization: Bearer <token>` | `null` |
+| `envHttpHeaders` | Map of header name → environment-variable name; each header is set to that variable's value | `{}` |
+
+`bearerTokenEnvVar` and `envHttpHeaders` hold **environment-variable names, not
+secret values**, so tokens never live in `config.json`. (For literal values you
+can also use the global `${VAR}` placeholder support in any string field, but the
+dedicated fields below fail fast with a clear error when a variable is missing,
+instead of silently keeping the placeholder.)
+
+Bearer-token example:
+
+```json
+{
+  "McpServers": {
+    "exa": {
+      "transport": "http",
+      "url": "https://mcp.exa.ai/mcp",
+      "bearerTokenEnvVar": "EXA_API_KEY"
+    }
+  }
+}
+```
+
+Custom-header example (non-Bearer auth schemes):
+
+```json
+{
+  "McpServers": {
+    "my-api": {
+      "transport": "http",
+      "url": "https://mcp.example.com/mcp",
+      "httpHeaders": { "X-Client": "dotcraft" },
+      "envHttpHeaders": {
+        "X-API-Key": "MY_API_KEY"
+      }
+    }
+  }
+}
+```
+
+Provide the referenced variables in DotCraft's environment before launching it:
+
+```bash
+export EXA_API_KEY="sk-..."      # macOS/Linux
+# setx EXA_API_KEY "sk-..."      # Windows (new shells)
+```
+
+**Header precedence.** Headers are assembled in this order, so later steps
+override earlier ones on the same header name (case-insensitive):
+`httpHeaders` → `bearerTokenEnvVar` (sets `Authorization`) → `envHttpHeaders`.
+Use either `bearerTokenEnvVar` or an `envHttpHeaders` entry keyed `Authorization`
+for the auth header, not both.
+
+**Missing-variable errors.** If a referenced environment variable is unset or
+empty, the server fails to start with one of:
+
+```
+MCP server '<name>' requires env var '<bearerTokenEnvVar>'.
+MCP server '<name>' requires env var '<envVarName>' for header '<headerName>'.
+```
+
+The second message means an `envHttpHeaders` entry points at a variable that
+isn't set — define the variable, or remove the entry.
+
 ## SubAgent and External CLI Profiles
 
 For the beginner path, read [SubAgents](../features/agent-system/subagents).
