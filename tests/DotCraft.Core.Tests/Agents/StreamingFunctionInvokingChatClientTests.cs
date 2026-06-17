@@ -545,6 +545,36 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
     }
 
     [Fact]
+    public async Task GetStreamingResponseAsync_ThrowsEmptyResponse_WhenProviderEmitsOnlyEmptyUpdate()
+    {
+        var client = new StreamingFunctionInvokingChatClient(
+            new FixedUpdatesFakeChatClient(new ChatResponseUpdate(ChatRole.Assistant, [])));
+
+        var ex = await Assert.ThrowsAsync<EmptyProviderResponseException>(() =>
+            CollectAsync(client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")])));
+
+        Assert.Contains("empty streaming response", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task GetStreamingResponseAsync_ThrowsEmptyResponse_WhenProviderEmitsOnlyUsage()
+    {
+        var client = new StreamingFunctionInvokingChatClient(
+            new FixedUpdatesFakeChatClient(new ChatResponseUpdate(ChatRole.Assistant, [
+                new UsageContent(new UsageDetails
+                {
+                    InputTokenCount = 10,
+                    OutputTokenCount = 0
+                })
+            ])));
+
+        var ex = await Assert.ThrowsAsync<EmptyProviderResponseException>(() =>
+            CollectAsync(client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")])));
+
+        Assert.Contains("assistant content", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task GetStreamingResponseAsync_EmitsToolExecutionCompletionAsEachParallelToolFinishes()
     {
         var inner = new ParallelToolsFakeChatClient();
@@ -724,6 +754,31 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
         {
             Calls.Add(chatMessages.ToList());
             yield return new ChatResponseUpdate(ChatRole.Assistant, "done");
+            await Task.CompletedTask;
+        }
+
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+
+        public void Dispose()
+        {
+        }
+    }
+
+    private sealed class FixedUpdatesFakeChatClient(params ChatResponseUpdate[] updates) : IChatClient
+    {
+        public Task<ChatResponse> GetResponseAsync(
+            IEnumerable<ChatMessage> chatMessages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ChatResponse([new ChatMessage(ChatRole.Assistant, "ok")]));
+
+        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+            IEnumerable<ChatMessage> chatMessages,
+            ChatOptions? options = null,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            foreach (var update in updates)
+                yield return update;
             await Task.CompletedTask;
         }
 

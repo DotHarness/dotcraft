@@ -17,7 +17,7 @@ using OpenAI.Responses;
 namespace DotCraft.Agents;
 
 /// <summary>
-/// Raised when a provider streaming request completes without yielding any updates.
+/// Raised when a provider streaming request completes without assistant-visible output.
 /// </summary>
 public sealed class EmptyProviderResponseException(string message) : InvalidOperationException(message);
 
@@ -149,6 +149,7 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
         var lastIterationHadConversationId = false;
         var guidanceContinuationCount = 0;
         var toolMessageId = Guid.NewGuid().ToString("N");
+        var hasAnyEffectiveProviderOutput = false;
 
         for (var iteration = 0; ; iteration++)
         {
@@ -211,11 +212,13 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
                 RemoveToolCallArgumentPreviews(update, addedPreviewContents);
             }
 
-            if (updates.Count == 0)
+            var hasEffectiveProviderOutput = HasEffectiveProviderOutput(updates);
+            if (!hasEffectiveProviderOutput && !hasAnyEffectiveProviderOutput)
             {
                 throw new EmptyProviderResponseException(
-                    "The model provider returned an empty streaming response before any content, tool call, or usage update was received.");
+                    "The model provider returned an empty streaming response before any assistant content, reasoning output, or tool call was received.");
             }
+            hasAnyEffectiveProviderOutput |= hasEffectiveProviderOutput;
 
             var response = updates.ToChatResponse();
             (responseMessages ??= []).AddRange(response.Messages);
@@ -375,6 +378,34 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
                 functionCall.Arguments = new Dictionary<string, object?>();
         }
     }
+
+    private static bool HasEffectiveProviderOutput(IEnumerable<ChatResponseUpdate> updates)
+    {
+        foreach (var update in updates)
+        {
+            foreach (var content in update.Contents)
+            {
+                if (IsEffectiveProviderOutput(content))
+                    return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsEffectiveProviderOutput(AIContent content) =>
+        content switch
+        {
+            UsageContent => false,
+            TextContent text => !string.IsNullOrEmpty(text.Text),
+            TextReasoningContent reasoning => ReasoningContentHelper.TryGetText(reasoning, out _),
+            ToolCallArgumentsDeltaContent delta => !string.IsNullOrEmpty(delta.ArgumentsDelta)
+                || !string.IsNullOrWhiteSpace(delta.ToolName)
+                || !string.IsNullOrWhiteSpace(delta.CallId),
+            FunctionCallContent { InformationalOnly: false } => true,
+            FunctionCallContent => false,
+            _ => true
+        };
 
     private static void MarkServerHandledFunctionCalls(List<ChatResponseUpdate> updates, List<FunctionCallContent> functionCalls)
     {

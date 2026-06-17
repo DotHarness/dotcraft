@@ -3264,7 +3264,7 @@ public sealed partial class SessionService(
         const string contextHint =
             " The current conversation appears to be near or over the model context window; compact or roll back history, then retry.";
         var message = string.IsNullOrWhiteSpace(fallbackMessage)
-            ? "The model provider returned an empty streaming response before any content, tool call, or usage update was received."
+            ? "The model provider returned an empty streaming response before any assistant content, reasoning output, or tool call was received."
             : fallbackMessage;
 
         try
