@@ -59,7 +59,10 @@ public sealed class SessionServiceManualCompactionTests : IDisposable
         Assert.NotNull(result.ContextUsage);
         var resultUsage = result.ContextUsage!;
         Assert.True(resultUsage.Tokens > 0);
-        Assert.Contains(events, e => IsSystemEvent(e, "compacting"));
+        var compactingEvent = Assert.Single(
+            events.Select(e => e.SystemEventPayload),
+            payload => payload?.Kind == "compacting");
+        Assert.Null(compactingEvent!.ContextUsage);
         Assert.Contains(events, e => IsSystemEvent(e, "compacted"));
         Assert.Contains(events, IsManualCompactionNotice);
         var compactedEvent = Assert.Single(
@@ -70,6 +73,7 @@ public sealed class SessionServiceManualCompactionTests : IDisposable
         var compactedUsage = compactedEvent.ContextUsage!;
         Assert.Equal(resultUsage.Tokens, compactedUsage.Tokens);
         Assert.Equal(resultUsage.PercentLeft, compactedUsage.PercentLeft);
+        Assert.Null(new ThreadStore(_tempDir).LoadContextUsageAnchor(thread.Id));
 
         var reloaded = await service.GetThreadAsync(thread.Id);
         var notice = reloaded.Turns

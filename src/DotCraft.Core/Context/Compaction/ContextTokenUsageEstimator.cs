@@ -29,7 +29,7 @@ internal static class ContextTokenUsageEstimator
                 baseInstructionsTokenEstimate) is { } memoryAnchored)
         {
             return new ContextTokenUsageEstimate(
-                Math.Max(memoryAnchored.Tokens, latestProviderTokens),
+                SelectAnchoredTokens(memoryAnchored, latestProviderTokens),
                 memoryAnchored.UsedBaseInstructionsAdjustment ? "prefix_adjusted_anchor" : "memory_anchor",
                 EligibleForAutoCompact: true,
                 IsEstimate: true);
@@ -44,25 +44,19 @@ internal static class ContextTokenUsageEstimator
                 baseInstructionsTokenEstimate) is { } persistedAnchored)
         {
             return new ContextTokenUsageEstimate(
-                Math.Max(persistedAnchored.Tokens, latestProviderTokens),
+                SelectAnchoredTokens(persistedAnchored, latestProviderTokens),
                 persistedAnchored.UsedBaseInstructionsAdjustment ? "prefix_adjusted_anchor" : "persisted_anchor",
                 EligibleForAutoCompact: true,
                 IsEstimate: true);
         }
 
-        var estimatedTokens = (long)MessageTokenEstimator.Estimate(history);
-        var hasProviderLineage = memoryAnchor is not null
-            || persistedAnchor is not null
-            || latestProviderTokens > 0
-            || IsProviderContextSource(persistedDisplaySource, persistedDisplayIsEstimate);
-
         if (latestProviderTokens > 0)
         {
             return new ContextTokenUsageEstimate(
-                Math.Max(estimatedTokens, latestProviderTokens),
-                "estimate_unverified_provider_context",
-                EligibleForAutoCompact: true,
-                IsEstimate: true);
+                latestProviderTokens,
+                "unverified_provider_context",
+                EligibleForAutoCompact: false,
+                IsEstimate: false);
         }
 
         if (persistedDisplayTokens is > 0 && IsProviderContextSource(persistedDisplaySource, persistedDisplayIsEstimate))
@@ -74,6 +68,18 @@ internal static class ContextTokenUsageEstimator
                 IsEstimate: false);
         }
 
+        var estimatedTokens = (long)MessageTokenEstimator.Estimate(history);
+        if (persistedDisplayTokens is > 0 && IsReplacementHistoryEstimateSource(persistedDisplaySource, persistedDisplayIsEstimate))
+        {
+            return new ContextTokenUsageEstimate(
+                Math.Max(estimatedTokens, persistedDisplayTokens.Value),
+                persistedDisplaySource!,
+                EligibleForAutoCompact: true,
+                IsEstimate: true);
+        }
+
+        var hasProviderLineage = memoryAnchor is not null
+            || persistedAnchor is not null;
         if (hasProviderLineage)
         {
             return new ContextTokenUsageEstimate(
@@ -102,4 +108,21 @@ internal static class ContextTokenUsageEstimator
     private static bool IsProviderContextSource(string? source, bool isEstimate) =>
         !isEstimate
         && string.Equals(source, "provider_context", StringComparison.OrdinalIgnoreCase);
+
+    private static long SelectAnchoredTokens(ContextUsageAnchorEstimate anchored, long latestProviderTokens)
+    {
+        if (latestProviderTokens <= 0)
+            return anchored.Tokens;
+
+        if (!anchored.UsedBaseInstructionsAdjustment)
+            return Math.Max(anchored.Tokens, latestProviderTokens);
+
+        var adjustedProviderTokens = Math.Max(0, latestProviderTokens + anchored.BaseInstructionsTokenDelta);
+        return Math.Max(anchored.Tokens, adjustedProviderTokens);
+    }
+
+    private static bool IsReplacementHistoryEstimateSource(string? source, bool isEstimate) =>
+        isEstimate
+        && (string.Equals(source, "history_estimate", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(source, "compacted_estimate", StringComparison.OrdinalIgnoreCase));
 }

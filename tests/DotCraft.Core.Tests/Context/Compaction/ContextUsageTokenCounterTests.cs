@@ -98,7 +98,7 @@ public sealed class ContextUsageTokenCounterTests
     }
 
     [Fact]
-    public void ContextTokenUsageEstimator_UsesHistoryEstimateWhenLatestProviderContextHasNoValidAnchor()
+    public void ContextTokenUsageEstimator_DoesNotAutoCompactFromUnverifiedProviderContext()
     {
         var messages = new List<ChatMessage>
         {
@@ -116,8 +116,60 @@ public sealed class ContextUsageTokenCounterTests
             persistedDisplayTokens: 0,
             requestFingerprint: "request-a");
 
-        Assert.Equal("estimate_unverified_provider_context", estimate.Source);
+        Assert.Equal("unverified_provider_context", estimate.Source);
+        Assert.Equal(103_000, estimate.Tokens);
+        Assert.False(estimate.EligibleForAutoCompact);
+        Assert.False(estimate.IsEstimate);
+    }
+
+    [Fact]
+    public void ContextTokenUsageEstimator_AutoCompactsFromReplacementHistoryEstimate()
+    {
+        var messages = new List<ChatMessage>
+        {
+            new(ChatRole.User, new string('u', 240_000)),
+            new(ChatRole.Assistant, new string('a', 240_000))
+        };
+        var rough = MessageTokenEstimator.Estimate(messages);
+        Assert.True(rough > 103_000);
+
+        var estimate = ContextTokenUsageEstimator.Estimate(
+            messages,
+            memoryAnchor: null,
+            persistedAnchor: null,
+            latestContextTokens: 0,
+            persistedDisplayTokens: 103_000,
+            requestFingerprint: "request-a",
+            persistedDisplaySource: "history_estimate",
+            persistedDisplayIsEstimate: true);
+
+        Assert.Equal("history_estimate", estimate.Source);
         Assert.Equal(rough, estimate.Tokens);
+        Assert.True(estimate.EligibleForAutoCompact);
+        Assert.True(estimate.IsEstimate);
+    }
+
+    [Fact]
+    public void ContextTokenUsageEstimator_TrustsPersistedReplacementEstimateWhenItIsHigher()
+    {
+        var messages = new List<ChatMessage>
+        {
+            new(ChatRole.User, "short")
+        };
+        var rough = MessageTokenEstimator.Estimate(messages);
+
+        var estimate = ContextTokenUsageEstimator.Estimate(
+            messages,
+            memoryAnchor: null,
+            persistedAnchor: null,
+            latestContextTokens: 0,
+            persistedDisplayTokens: rough + 1_000,
+            requestFingerprint: "request-a",
+            persistedDisplaySource: "history_estimate",
+            persistedDisplayIsEstimate: true);
+
+        Assert.Equal("history_estimate", estimate.Source);
+        Assert.Equal(rough + 1_000, estimate.Tokens);
         Assert.True(estimate.EligibleForAutoCompact);
         Assert.True(estimate.IsEstimate);
     }
@@ -173,10 +225,10 @@ public sealed class ContextUsageTokenCounterTests
             persistedDisplayTokens: rough + 2_000,
             requestFingerprint: "request-a");
 
-        Assert.Equal("estimate_unverified_provider_context", providerEstimate.Source);
+        Assert.Equal("unverified_provider_context", providerEstimate.Source);
         Assert.Equal(rough + 1_000, providerEstimate.Tokens);
-        Assert.True(providerEstimate.EligibleForAutoCompact);
-        Assert.True(providerEstimate.IsEstimate);
+        Assert.False(providerEstimate.EligibleForAutoCompact);
+        Assert.False(providerEstimate.IsEstimate);
         Assert.Equal("estimate", persistedEstimate.Source);
         Assert.Equal(rough, persistedEstimate.Tokens);
         Assert.True(persistedEstimate.EligibleForAutoCompact);
@@ -243,6 +295,41 @@ public sealed class ContextUsageTokenCounterTests
         Assert.Equal(
             103_000 + 125 + MessageTokenEstimator.EstimateDelta([messages[2]]),
             estimate.Tokens);
+    }
+
+    [Fact]
+    public void ContextTokenUsageEstimator_AdjustsLatestProviderContext_WhenBaseInstructionsShrink()
+    {
+        var messages = new List<ChatMessage>
+        {
+            new(ChatRole.User, "first user"),
+            new(ChatRole.Assistant, "reply")
+        };
+        var anchor = new ContextUsageAnchor(
+            Tokens: 103_000,
+            MessageCount: 1,
+            PrefixFingerprint: MessageTokenEstimator.ComputePrefixFingerprint(messages, 1),
+            RequestFingerprint: "request-before-memory",
+            ContextUsageFingerprint: "context-shape",
+            BaseInstructionsTokenEstimate: 1_000);
+
+        var estimate = ContextTokenUsageEstimator.Estimate(
+            messages,
+            memoryAnchor: anchor,
+            persistedAnchor: null,
+            latestContextTokens: 105_000,
+            persistedDisplayTokens: 0,
+            requestFingerprint: "request-after-memory",
+            contextUsageFingerprint: "context-shape",
+            baseInstructionsTokenEstimate: 500);
+
+        var expectedAnchored = 103_000
+            + MessageTokenEstimator.EstimateDelta(messages, 1, 1)
+            - 500;
+        Assert.Equal("prefix_adjusted_anchor", estimate.Source);
+        Assert.Equal(Math.Max(expectedAnchored, 104_500), estimate.Tokens);
+        Assert.True(estimate.Tokens < 105_000);
+        Assert.True(estimate.EligibleForAutoCompact);
     }
 
     [Fact]

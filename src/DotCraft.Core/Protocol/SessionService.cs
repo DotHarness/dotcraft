@@ -103,6 +103,11 @@ public sealed partial class SessionService(
     IAppConfigMonitor? appConfigMonitor = null)
     : ISessionService, IThreadAgentRefreshService, ISubAgentSyntheticTurnService, ISubAgentThreadLifecycleService
 {
+    private sealed record PreparedContextTokenEstimate(
+        IReadOnlyList<ChatMessage> History,
+        PromptRequestSnapshot? RequestSnapshot,
+        ContextTokenUsageEstimate Estimate);
+
     private readonly TimeSpan _approvalTimeout = approvalTimeout ?? TimeSpan.FromMinutes(5);
 
     // In-memory state
@@ -427,6 +432,22 @@ public sealed partial class SessionService(
         };
     }
 
+    private static PromptRequestSnapshot RebasePromptRequestSnapshotMessages(
+        PromptRequestSnapshot template,
+        IReadOnlyList<ChatMessage> currentHistory)
+    {
+        var capturedMessages = MessageGrouper
+            .NormalizeFunctionCallArguments(currentHistory)
+            .Select(message => message.Clone())
+            .ToArray();
+
+        return template with
+        {
+            Messages = capturedMessages,
+            MessageFingerprint = MessageTokenEstimator.ComputePrefixFingerprint(capturedMessages, capturedMessages.Length)
+        };
+    }
+
     private void InvalidatePromptRequestSnapshot(string threadId, string reason)
     {
         if (_runtimeRegistry.TryGetRuntime(threadId, out var runtime)
@@ -540,6 +561,22 @@ public sealed partial class SessionService(
         return CreateContextUsageSnapshot(threadId, normalizedTokens, source, isEstimate);
     }
 
+    private async Task<ContextUsageSnapshot> SaveReplacementContextUsageSnapshotAsync(
+        string threadId,
+        long tokens,
+        string source,
+        CancellationToken ct = default)
+    {
+        var snapshot = await SaveContextUsageSnapshotAsync(
+            threadId,
+            tokens,
+            source,
+            isEstimate: true,
+            ct: ct);
+        ClearContextUsageAnchor(threadId);
+        return snapshot;
+    }
+
     private ContextUsageAnchor? UpdateContextUsageAnchor(string threadId, long anchorTokens)
     {
         var snapshot = TryGetLastPromptRequestSnapshot(threadId);
@@ -586,6 +623,27 @@ public sealed partial class SessionService(
             requestSnapshot?.BaseInstructionsTokenEstimate,
             persistedSnapshot?.Source,
             persistedSnapshot?.IsEstimate ?? false);
+    }
+
+    private static IReadOnlyList<ChatMessage> PrepareProviderVisibleHistory(IReadOnlyList<ChatMessage> history) =>
+        ModelRequestHistorySanitizer.Sanitize(history);
+
+    private PreparedContextTokenEstimate PrepareContextTokenEstimate(
+        string threadId,
+        IReadOnlyList<ChatMessage> modelVisibleHistory,
+        long latestContextTokens,
+        PromptRequestSnapshot? requestSnapshot = null)
+    {
+        var preparedHistory = PrepareProviderVisibleHistory(modelVisibleHistory);
+        var preparedSnapshot = ReferenceEquals(preparedHistory, modelVisibleHistory) || requestSnapshot is null
+            ? requestSnapshot
+            : RebasePromptRequestSnapshotMessages(requestSnapshot, preparedHistory);
+        var estimate = EstimateContextTokens(
+            threadId,
+            preparedHistory,
+            latestContextTokens,
+            preparedSnapshot);
+        return new PreparedContextTokenEstimate(preparedHistory, preparedSnapshot, estimate);
     }
 
     private bool GoalsEnabled => Goals.Enabled;
@@ -1430,11 +1488,14 @@ public sealed partial class SessionService(
                 if (session is null || tokenTracker is null || modelVisibleHistory.Count == 0)
                     return null;
 
-                var usageEstimate = EstimateContextTokens(
+                var preparedEstimate = PrepareContextTokenEstimate(
                     threadId,
                     modelVisibleHistory,
                     tokenTracker.LastContextTokens,
                     requestSnapshot);
+                var compactHistory = preparedEstimate.History;
+                var compactSnapshot = preparedEstimate.RequestSnapshot;
+                var usageEstimate = preparedEstimate.Estimate;
                 if (!usageEstimate.EligibleForAutoCompact)
                     return null;
 
@@ -1452,19 +1513,18 @@ public sealed partial class SessionService(
                 eventChannel.EmitSystemEvent(
                     "compacting",
                     percentLeft: threshold.PercentLeft,
-                    tokenCount: threshold.Tokens,
-                    contextUsage: preCompactUsage);
+                    tokenCount: threshold.Tokens);
 
                 CompactionHistoryResult result;
                 try
                 {
                     result = await pipeline.TryAutoCompactHistoryAsync(
-                        modelVisibleHistory,
+                        compactHistory,
                         threadId,
                         tokenHint,
                         lastActivityBeforeTurn,
                         compactionCt,
-                        requestSnapshot);
+                        compactSnapshot);
                 }
                 catch (OperationCanceledException)
                 {
@@ -1498,13 +1558,11 @@ public sealed partial class SessionService(
                             status.ThresholdAfter.Tokens);
                         InvalidatePromptRequestSnapshot(threadId, "auto_compaction");
                         await TrySaveSessionAsync(agent, session, threadId);
-                        var contextUsage = await SaveContextUsageSnapshotAsync(
+                        var contextUsage = await SaveReplacementContextUsageSnapshotAsync(
                             threadId,
                             status.ThresholdAfter.Tokens,
                             source: "compacted_estimate",
-                            isEstimate: true,
                             ct: CancellationToken.None);
-                        ClearContextUsageAnchor(threadId);
                         ReleaseStableContextPages(threadId);
                         if (status.Outcome == CompactionOutcome.Partial)
                             traceCollector?.RecordContextCompaction(threadId);
@@ -2429,13 +2487,11 @@ public sealed partial class SessionService(
                                 status.ThresholdBefore.Tokens,
                                 status.ThresholdAfter.Tokens);
                             InvalidatePromptRequestSnapshot(threadId, "reactive_compaction");
-                            var contextUsage = await SaveContextUsageSnapshotAsync(
+                            var contextUsage = await SaveReplacementContextUsageSnapshotAsync(
                                 threadId,
                                 status.ThresholdAfter.Tokens,
                                 source: "compacted_estimate",
-                                isEstimate: true,
                                 ct: CancellationToken.None);
-                            ClearContextUsageAnchor(threadId);
                             ReleaseStableContextPages(threadId);
                             traceCollector?.RecordContextCompaction(threadId);
                             eventChannel.EmitSystemEvent(
@@ -3208,7 +3264,7 @@ public sealed partial class SessionService(
         const string contextHint =
             " The current conversation appears to be near or over the model context window; compact or roll back history, then retry.";
         var message = string.IsNullOrWhiteSpace(fallbackMessage)
-            ? "The model provider returned an empty streaming response before any content, tool call, or usage update was received."
+            ? "The model provider returned an empty streaming response before any assistant content, reasoning output, or tool call was received."
             : fallbackMessage;
 
         try
@@ -3220,11 +3276,11 @@ public sealed partial class SessionService(
                 return message;
             }
 
-            var estimate = EstimateContextTokens(
+            var estimate = PrepareContextTokenEstimate(
                 threadId,
                 history,
                 tokenTracker?.LastContextTokens ?? 0,
-                TryGetLastPromptRequestSnapshot(threadId));
+                TryGetLastPromptRequestSnapshot(threadId)).Estimate;
             var threshold = GetCompactionPipelineForThread(threadId).EvaluateThreshold(estimate.Tokens);
             return threshold.AboveWarning
                 ? message + contextHint
@@ -3328,13 +3384,12 @@ public sealed partial class SessionService(
         {
             var tokens = 0L;
             if (session is not null && TrySnapshotInMemoryHistory(session, out var history) && history.Count > 0)
-                tokens = MessageTokenEstimator.Estimate(history);
+                tokens = MessageTokenEstimator.Estimate(PrepareProviderVisibleHistory(history));
 
-            await SaveContextUsageSnapshotAsync(
+            await SaveReplacementContextUsageSnapshotAsync(
                 threadId,
                 tokens,
                 source: "history_estimate",
-                isEstimate: true,
                 ct: ct);
         }
         catch (OperationCanceledException)

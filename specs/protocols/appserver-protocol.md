@@ -2317,7 +2317,7 @@ Emitted when a system-level maintenance operation occurs during a Turn's post-pr
 | `message` | string? | Compatibility alias for `fallbackText`. New clients should prefer `messageKey` + `params` + `fallbackText`. |
 | `percentLeft` | number? | Fraction of the effective context window still unused (`0.0`-`1.0`). Populated for compaction-related events. |
 | `tokenCount` | number? | Current estimated prompt token usage. Populated for compaction-related events. |
-| `contextUsage` | object? | Full `ContextUsageSnapshot` on compaction-related events when available. Clients should prefer it over `tokenCount` / `percentLeft` when updating context-window UI because it includes thresholds and the exact server-side token source. `source` is diagnostic and extensible; clients should not compute local replacements or compacting state when this snapshot is present. |
+| `contextUsage` | object? | Full `ContextUsageSnapshot` on terminal compaction events when available. Clients should prefer it over `tokenCount` / `percentLeft` when updating context-window UI because it includes thresholds and the exact server-side token source. `compacting` start events must not update the context ring from projected request estimates. `source` is diagnostic and extensible; clients should not compute local replacements or compacting state when this snapshot is present. |
 
 **Defined `kind` values**:
 

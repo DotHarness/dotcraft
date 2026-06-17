@@ -48,17 +48,21 @@ public sealed partial class SessionService
                 var agent = owner.GetThreadAgentOrDefault(threadId);
                 var session = await owner.Persistence.LoadOrCreateSessionAsync(agent, threadId, maintenanceCt);
                 var pipeline = GetCompactionPipelineForThread(thread);
-                var historyForEstimate = SnapshotSessionHistoryForConsolidation(session, thread);
+                var historyForEstimate = SessionService.PrepareProviderVisibleHistory(
+                    SnapshotSessionHistoryForConsolidation(session, thread));
                 var tokenTracker = owner.AgentFactory.GetOrCreateTokenTracker(threadId);
                 var manualPromptSnapshot = owner.TryPrepareManualPromptRequestSnapshot(
                     threadId,
                     historyForEstimate,
                     estimatedInputTokens: null);
-                var usageEstimate = owner.EstimateContextTokens(
+                var preparedEstimate = owner.PrepareContextTokenEstimate(
                     threadId,
                     historyForEstimate,
                     tokenTracker.LastContextTokens,
                     manualPromptSnapshot);
+                historyForEstimate = preparedEstimate.History;
+                manualPromptSnapshot = preparedEstimate.RequestSnapshot;
+                var usageEstimate = preparedEstimate.Estimate;
                 var before = (int)Math.Min(int.MaxValue, usageEstimate.Tokens);
                 if (manualPromptSnapshot is not null)
                     manualPromptSnapshot = manualPromptSnapshot with { EstimatedInputTokens = before };
@@ -76,8 +80,7 @@ public sealed partial class SessionService
                 broker.PublishSystemEvent(
                     "compacting",
                     percentLeft: beforeThreshold.PercentLeft,
-                    tokenCount: beforeThreshold.Tokens,
-                    contextUsage: beforeUsage);
+                    tokenCount: beforeThreshold.Tokens);
 
                 CompactionStatus status;
                 try
@@ -139,13 +142,11 @@ public sealed partial class SessionService
                     {
                         tokenTracker.Reset();
                         await owner.Persistence.SaveSessionAsync(agent, session, threadId, maintenanceCt);
-                        var contextUsage = await owner.SaveContextUsageSnapshotAsync(
+                        var contextUsage = await owner.SaveReplacementContextUsageSnapshotAsync(
                             threadId,
                             status.ThresholdAfter.Tokens,
                             source: "compacted_estimate",
-                            isEstimate: true,
                             ct: maintenanceCt);
-                        owner.ClearContextUsageAnchor(threadId);
                         owner.ReleaseStableContextPages(threadId);
                         if (status.Outcome == CompactionOutcome.Partial)
                             owner.TraceCollector?.RecordContextCompaction(threadId);

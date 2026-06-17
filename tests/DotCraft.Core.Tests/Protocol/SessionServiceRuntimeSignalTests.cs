@@ -240,6 +240,31 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
     }
 
     [Fact]
+    public async Task SubmitInputAsync_WhenProviderStreamHasOnlyUsage_MarksTurnFailed()
+    {
+        IChatClient chatClient = new FakeChatClient(
+        [
+            UsageUpdate(requestIndex: 1, input: 10_000, output: 0, cachedInput: 9_000)
+        ]);
+        await using var agentFactory = CreateAgentFactory(chatClient);
+        var svc = CreateService(agentFactory, chatClient, useStreamingFunctionInvoker: true);
+        var thread = await svc.CreateThreadAsync(MakeIdentity());
+
+        var events = await CollectAsync(svc.SubmitInputAsync(thread.Id, [new TextContent("hello")]));
+
+        Assert.DoesNotContain(events, evt => evt.EventType == SessionEventType.TurnCompleted);
+        Assert.Contains(events, evt => evt.EventType == SessionEventType.TurnFailed);
+        var updatedThread = await svc.GetThreadAsync(thread.Id);
+        var turn = Assert.Single(updatedThread.Turns);
+        Assert.Equal(TurnStatus.Failed, turn.Status);
+        var errorItem = Assert.Single(turn.Items, item => item.Type == ItemType.Error);
+        var errorPayload = Assert.IsType<ErrorPayload>(errorItem.Payload);
+        Assert.Equal("agent_empty_response", errorPayload.Code);
+        Assert.True(errorPayload.Fatal);
+        Assert.DoesNotContain(turn.Items, item => item.Type == ItemType.AgentMessage);
+    }
+
+    [Fact]
     public async Task SubmitInputAsync_PassesCapturedPromptRequestSnapshotToMemoryForkConsolidator()
     {
         IChatClient chatClient = new FakeChatClient([new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("ok")])]);
@@ -372,14 +397,25 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
             compactionChatClient: new SummaryChatClient("<summary>should not be needed</summary>"));
         var svc = CreateService(agentFactory, compactChatClient, useStreamingFunctionInvoker: true);
         await svc.ResumeThreadAsync(thread.Id);
-        await new ThreadStore(_tempDir).SaveContextUsageTokensAsync(thread.Id, 50_000);
-        agentFactory.GetOrCreateTokenTracker(thread.Id).Update(50_000, 0);
+        await new ThreadStore(_tempDir).SaveContextUsageTokensAsync(
+            thread.Id,
+            50_000,
+            source: "history_estimate",
+            isEstimate: true);
         var liveThread = await svc.GetThreadAsync(thread.Id);
         liveThread.LastActiveAt = DateTimeOffset.UtcNow.AddMinutes(-10);
 
         var events = await CollectAsync(svc.SubmitInputAsync(thread.Id, [new TextContent("continue")]));
 
+        var compacting = Assert.Single(
+            events.Select(evt => evt.SystemEventPayload).OfType<SystemEventPayload>(),
+            payload => payload.Kind == "compacting");
+        Assert.Null(compacting.ContextUsage);
         Assert.Contains(events, evt => IsSystemEvent(evt, "compacted"));
+        var compacted = Assert.Single(
+            events.Select(evt => evt.SystemEventPayload).OfType<SystemEventPayload>(),
+            payload => payload.Kind == "compacted");
+        Assert.NotNull(compacted.ContextUsage);
         Assert.DoesNotContain(events, evt =>
             (evt.EventType == SessionEventType.ItemStarted ||
                 evt.EventType == SessionEventType.ItemCompleted) &&
@@ -389,6 +425,36 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
             loaded!.Turns.SelectMany(turn => turn.Items),
             item => item.Type == ItemType.SystemNotice &&
                 item.Payload is SystemNoticePayload { Kind: "compacted" });
+    }
+
+    [Fact]
+    public async Task SubmitInputAsync_UnverifiedProviderContextDoesNotAutoCompact()
+    {
+        IChatClient chatClient = new FakeChatClient([
+            new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("answer without compact")])
+        ]);
+        await using var agentFactory = CreateAgentFactory(
+            chatClient,
+            configureConfig: ConfigureSmallCompaction,
+            compactionChatClient: new SummaryChatClient("<summary>unexpected</summary>"));
+        var svc = CreateService(agentFactory, chatClient, useStreamingFunctionInvoker: true);
+        var thread = await svc.CreateThreadAsync(MakeIdentity());
+
+        await new ThreadStore(_tempDir).SaveContextUsageTokensAsync(
+            thread.Id,
+            10_000,
+            source: "provider_context",
+            isEstimate: false);
+        agentFactory.GetOrCreateTokenTracker(thread.Id).Update(10_000, 0);
+
+        var events = await CollectAsync(svc.SubmitInputAsync(thread.Id, [new TextContent("continue")]));
+
+        Assert.DoesNotContain(events, evt => IsSystemEvent(evt, "compacting"));
+        Assert.DoesNotContain(events, evt => IsSystemEvent(evt, "compacted"));
+        Assert.Contains(events, evt =>
+            evt.EventType == SessionEventType.ItemCompleted &&
+            evt.ItemPayload?.Type == ItemType.AgentMessage &&
+            evt.ItemPayload.AsAgentMessage?.Text == "answer without compact");
     }
 
     [Fact]
@@ -872,7 +938,11 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
         }
 
         var store = new ThreadStore(_tempDir);
-        await store.SaveContextUsageTokensAsync(thread.Id, 9_500);
+        await store.SaveContextUsageTokensAsync(
+            thread.Id,
+            9_500,
+            source: "history_estimate",
+            isEstimate: true);
 
         var blockingChatClient = new RecordingBlockingChatClient();
         await using var compactFactory = CreateAgentFactory(
@@ -881,7 +951,6 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
             compactionChatClient: new SummaryChatClient("<summary>compacted old context</summary>"));
         var compactService = CreateService(compactFactory, blockingChatClient, useStreamingFunctionInvoker: true);
         await compactService.ResumeThreadAsync(thread.Id);
-        compactFactory.GetOrCreateTokenTracker(thread.Id).Update(9_500, 0);
 
         var cancelEventsTask = CollectAsync(compactService.SubmitInputAsync(
             thread.Id,
@@ -1176,6 +1245,7 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
         Assert.Equal("history_estimate", rollbackSnapshot!.Source);
         Assert.True(rollbackSnapshot.IsEstimate);
         Assert.NotEqual(103_200, rollbackSnapshot.Tokens);
+        Assert.Null(new ThreadStore(_tempDir).LoadContextUsageAnchor(thread.Id));
     }
 
     [Fact]
