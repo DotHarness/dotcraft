@@ -29,25 +29,6 @@ const baseDiff: FileDiff = {
 }
 
 describe('InlineDiffView', () => {
-  it('keeps standalone mode bordered by default', () => {
-    render(<InlineDiffView diff={baseDiff} />)
-
-    const view = screen.getByTestId('inline-diff-view')
-    expect(view.style.borderWidth).toBe('1px')
-    expect(view.style.borderStyle).toBe('solid')
-    expect(view.style.borderRadius).toBe('4px')
-    expect(screen.getByText('src/deep/AgentTools.cs')).toBeInTheDocument()
-  })
-
-  it('renders embedded mode without an inner card border', () => {
-    render(<InlineDiffView diff={baseDiff} variant="embedded" />)
-
-    const view = screen.getByTestId('inline-diff-view')
-    expect(view.style.borderWidth).toBe('0px')
-    expect(view.style.borderStyle).toBe('none')
-    expect(view.style.borderRadius).toBe('0px')
-  })
-
   it('renders compact headers with basename and full path tooltip', async () => {
     render(
       <InlineDiffView

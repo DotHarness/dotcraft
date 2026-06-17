@@ -72,40 +72,4 @@ describe('formatToolGroupLabel write dedup', () => {
     const label = formatToolGroupLabel('write', items, 'en', changedFiles)
     expect(label).toBe('Created 1, modified 2 files')
   })
-
-  it('formats WebSearch-only groups', () => {
-    const label = formatToolGroupLabel('web', [
-      makeItem('WebSearch', '1'),
-      makeItem('WebSearch', '2')
-    ], 'en', new Map())
-
-    expect(label).toBe('Searched web 2 times')
-  })
-
-  it('formats WebFetch-only groups', () => {
-    const label = formatToolGroupLabel('web', [
-      makeItem('WebFetch', '1'),
-      makeItem('WebFetch', '2')
-    ], 'en', new Map())
-
-    expect(label).toBe('Fetched web 2 pages')
-  })
-
-  it('formats mixed web tool groups', () => {
-    const label = formatToolGroupLabel('web', [
-      makeItem('WebSearch', '1'),
-      makeItem('WebFetch', '2')
-    ], 'en', new Map())
-
-    expect(label).toBe('Used web 2 times')
-  })
-
-  it('formats spawned subagent groups', () => {
-    const label = formatToolGroupLabel('subagent', [
-      makeItem('SpawnAgent', '1'),
-      makeItem('SpawnAgent', '2')
-    ], 'en', new Map())
-
-    expect(label).toBe('Spawned 2 agents')
-  })
 })

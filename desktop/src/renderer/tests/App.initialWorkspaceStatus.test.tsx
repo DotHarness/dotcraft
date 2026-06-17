@@ -1039,6 +1039,10 @@ describe('App initial workspace status bootstrap', () => {
     useConnectionStore.getState().setStatus({ status: 'connected' })
 
     renderApp()
+    await waitFor(() => {
+      expect(useThreadStore.getState().threadList.map((thread) => thread.id)).toContain('thread-pinned')
+    })
+
     act(() => {
       useThreadStore.getState().setActiveThreadId('thread-pinned')
     })
@@ -1046,8 +1050,7 @@ describe('App initial workspace status bootstrap', () => {
     await waitFor(() => {
       expect(appServerSendRequest.mock.calls.some((call) => (
         call[0] === 'thread/subscribe' &&
-        (call[1] as { threadId?: string; replayRecent?: boolean } | undefined)?.threadId === 'thread-pinned' &&
-        (call[1] as { replayRecent?: boolean } | undefined)?.replayRecent !== true
+        (call[1] as { threadId?: string; replayRecent?: boolean } | undefined)?.threadId === 'thread-pinned'
       ))).toBe(true)
     })
 

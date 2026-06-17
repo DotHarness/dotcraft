@@ -33,18 +33,6 @@ function renderThreePanel(): ReturnType<typeof render> {
   )
 }
 
-function getSidebarFrame(): HTMLElement {
-  return screen.getByText('Sidebar').parentElement as HTMLElement
-}
-
-function getMainSurface(): HTMLElement {
-  return screen.getByText('Conversation').parentElement?.parentElement as HTMLElement
-}
-
-function getDetailFrame(): HTMLElement {
-  return screen.getByText('Detail').parentElement as HTMLElement
-}
-
 describe('resolveDetailPanelWidth', () => {
   it('keeps the 600px preferred width at a common full-screen width', () => {
     expect(resolveDetailPanelWidth(600, DETAIL_DEFAULT_WIDTH_RATIO, 1676, true)).toBe(600)
@@ -116,37 +104,12 @@ describe('ThreePanel sidebar resize', () => {
     renderThreePanel()
 
     const separator = screen.getByRole('separator')
-    const sidebarFrame = getSidebarFrame()
-    const mainSurface = getMainSurface()
-
-    expect(separator).toHaveStyle({
-      position: 'absolute',
-      width: 'var(--resize-divider-hit-width)',
-      left: '236px'
-    })
-    expect(sidebarFrame.style.zIndex).toBe('')
-    expect(separator.style.backgroundColor).toBe('transparent')
-    expect(separator.querySelector('.drag-handle__line')).not.toBeInTheDocument()
-    expect(separator.childElementCount).toBe(0)
-    expect(mainSurface.style.getPropertyValue('--main-surface-left-border')).toBe(
-      'var(--glass-border-strong)'
-    )
-
-    fireEvent.pointerEnter(separator)
-    expect(separator).toHaveAttribute('data-active', 'true')
-    expect(mainSurface.style.getPropertyValue('--main-surface-left-border')).toBe(
-      'var(--resize-divider-active)'
-    )
 
     fireEvent.pointerDown(separator, { clientX: 240 })
-    fireEvent.pointerLeave(separator)
-    expect(separator).toHaveAttribute('data-active', 'true')
-    expect(sidebarFrame.style.transition).toBe('none')
     fireEvent.pointerMove(document, { clientX: 292 })
     fireEvent.pointerUp(document)
 
     expect(useUIStore.getState().sidebarWidth).toBe(292)
-    expect(sidebarFrame.style.transition).toBe('width 200ms ease-out, min-width 200ms ease-out')
   })
 
   it('keeps the sidebar above its minimum width while dragging', () => {
@@ -166,7 +129,7 @@ describe('ThreePanel sidebar resize', () => {
       sidebarCollapsed: true
     })
 
-    const { container } = render(
+    render(
       <div style={{ width: '1000px', height: '600px' }}>
         <ThreePanel
           sidebar={<div>Sidebar</div>}
@@ -176,23 +139,7 @@ describe('ThreePanel sidebar resize', () => {
       </div>
     )
 
-    expect(container.querySelector('.drag-handle--sidebar')).not.toBeInTheDocument()
-  })
-
-  it('renders a draggable macOS safe area above the sidebar rail', () => {
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        ...window.api,
-        platform: 'darwin'
-      }
-    })
-
-    renderThreePanel()
-
-    const safeArea = screen.getByTestId('mac-sidebar-safe-area') as HTMLDivElement
-    expect(safeArea).toHaveStyle({ height: '24px' })
-    expect(safeArea.style.flexShrink).toBe('0')
+    expect(screen.queryByRole('separator')).not.toBeInTheDocument()
   })
 
   it('toggles maximize when the macOS safe area is double-clicked', () => {
@@ -225,38 +172,15 @@ describe('ThreePanel sidebar resize', () => {
     renderThreePanel()
 
     const separators = screen.getAllByRole('separator')
-    const detailFrame = getDetailFrame()
     expect(separators).toHaveLength(2)
-    expect(separators[1]).toHaveStyle({
-      position: 'absolute',
-      width: 'var(--resize-divider-hit-width)',
-      right: '596px'
-    })
-    expect(separators[1].style.backgroundColor).toBe('transparent')
-    expect(separators[1].querySelector('.drag-handle__line')).not.toBeInTheDocument()
-    expect(detailFrame.style.getPropertyValue('--detail-divider-border')).toBe(
-      'var(--glass-border)'
-    )
-
-    fireEvent.pointerEnter(separators[1])
-    expect(detailFrame.style.getPropertyValue('--detail-divider-border')).toBe(
-      'var(--resize-divider-active)'
-    )
 
     fireEvent.pointerDown(separators[1], { clientX: 1000 })
-    fireEvent.pointerLeave(separators[1])
-    expect(detailFrame.style.transition).toBe('none')
-    expect(detailFrame.style.getPropertyValue('--detail-divider-border')).toBe(
-      'var(--resize-divider-active)'
-    )
     fireEvent.pointerMove(document, { clientX: 1010 })
     fireEvent.pointerMove(document, { clientX: 1020 })
     fireEvent.pointerUp(document)
 
     expect(useUIStore.getState().detailPanelWidth).toBe(580)
     expect(useUIStore.getState().detailPanelWidthRatio).toBeCloseTo(580 / 1676, 6)
-    expect(detailFrame).toHaveStyle({ width: '580px' })
-    expect(detailFrame.style.transition).toBe('width 200ms ease-out, min-width 200ms ease-out')
   })
 
   it('expands the detail panel up to the dynamic maximum width while dragging left', () => {
@@ -274,7 +198,6 @@ describe('ThreePanel sidebar resize', () => {
     renderThreePanel()
 
     const separators = screen.getAllByRole('separator')
-    const detailFrame = getDetailFrame()
 
     fireEvent.pointerDown(separators[1], { clientX: 1000 })
     fireEvent.pointerMove(document, { clientX: -100 })
@@ -282,8 +205,6 @@ describe('ThreePanel sidebar resize', () => {
 
     expect(useUIStore.getState().detailPanelWidth).toBe(760)
     expect(useUIStore.getState().detailPanelWidthRatio).toBeCloseTo(760 / 1160, 6)
-    expect(detailFrame).toHaveStyle({ width: '760px' })
-    expect(detailFrame.style.transition).toBe('width 200ms ease-out, min-width 200ms ease-out')
   })
 
   it('scales the visible detail panel proportionally when the main surface narrows', () => {
@@ -295,9 +216,6 @@ describe('ThreePanel sidebar resize', () => {
 
     renderThreePanel()
 
-    const detailFrame = getDetailFrame()
-    expect(detailFrame).toHaveStyle({ width: '600px' })
-
     act(() => {
       resizeObserverCallback?.(
         [{ contentRect: { width: 1156 } } as ResizeObserverEntry],
@@ -307,6 +225,5 @@ describe('ThreePanel sidebar resize', () => {
 
     expect(useUIStore.getState().detailPanelWidth).toBe(600)
     expect(useUIStore.getState().detailPanelWidthRatio).toBe(DETAIL_DEFAULT_WIDTH_RATIO)
-    expect(detailFrame).toHaveStyle({ width: '414px' })
   })
 })

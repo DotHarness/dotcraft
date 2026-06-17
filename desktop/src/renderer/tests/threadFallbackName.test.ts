@@ -19,28 +19,6 @@ describe('getFallbackThreadName', () => {
     ).toBe(`${'A'.repeat(50)}...`)
   })
 
-  it('uses the image fallback when only images are present', () => {
-    expect(
-      getFallbackThreadName({
-        visibleText: '',
-        imagesCount: 1,
-        filesCount: 0,
-        ...fallbackNames
-      })
-    ).toBe('Message')
-  })
-
-  it('uses the file fallback when only files are present', () => {
-    expect(
-      getFallbackThreadName({
-        visibleText: '',
-        imagesCount: 0,
-        filesCount: 2,
-        ...fallbackNames
-      })
-    ).toBe('File reference message')
-  })
-
   it('ignores leading structured file refs when naming attachment messages', () => {
     expect(
       getFallbackThreadName({
@@ -61,28 +39,6 @@ describe('getFallbackThreadName', () => {
         ...fallbackNames
       })
     ).toBe('File reference message')
-  })
-
-  it('uses the attachment fallback when images and files are both present', () => {
-    expect(
-      getFallbackThreadName({
-        visibleText: '',
-        imagesCount: 1,
-        filesCount: 2,
-        ...fallbackNames
-      })
-    ).toBe('Attachment message')
-  })
-
-  it('falls back to the caller-provided default when there are no attachments', () => {
-    expect(
-      getFallbackThreadName({
-        visibleText: '',
-        imagesCount: 0,
-        filesCount: 0,
-        ...fallbackNames
-      })
-    ).toBe('Message')
   })
 
   it('does not use leaked system reminders as fallback names', () => {

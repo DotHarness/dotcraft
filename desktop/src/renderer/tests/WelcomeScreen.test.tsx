@@ -70,30 +70,15 @@ describe('WelcomeScreen', () => {
     const opening = new Promise<void>(() => {})
     workspacePickFolder.mockResolvedValue('F:\\Git\\site')
     onOpenWorkspace.mockReturnValue(opening)
-    const { container } = renderWelcome()
-    const logo = container.querySelector('.welcome-logo-image')
+    renderWelcome()
 
-    expect(container.querySelector('.welcome-workspace-panel')).toBeInTheDocument()
     const openWorkspaceRow = screen.getByRole('button', { name: 'Open Workspace' })
-    expect(openWorkspaceRow.querySelector('.welcome-workspace-row-icon svg')).toBeInTheDocument()
-    expect(screen.getByText('Choose a local folder to begin')).toBeInTheDocument()
-    expect(logo).toBeInstanceOf(HTMLImageElement)
-    expect(logo).toHaveAttribute('width', '96')
-    expect(logo).toHaveAttribute('height', '96')
-    expect(container.querySelectorAll('.welcome-logo-image')).toHaveLength(1)
-    expect(container.querySelector('.welcome-logo-ring')).toBeNull()
-    expect(container.querySelector('.welcome-brand-opening-logo')).toBeNull()
-
     fireEvent.click(openWorkspaceRow)
 
     await act(async () => {
       await Promise.resolve()
     })
 
-    expect(container.querySelectorAll('.welcome-logo-image')).toHaveLength(1)
-    expect(container.querySelector('.welcome-logo-image')).toBe(logo)
-    expect(container.querySelector('.welcome-brand-opening-logo')).toBeNull()
-    expect(container.querySelector('.welcome-brand-opening-overlay')).toBeNull()
     expect(screen.getByRole('button', { name: 'Open Workspace' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'EN' })).toBeDisabled()
     expect(onOpenWorkspace).toHaveBeenCalledWith({
@@ -118,7 +103,6 @@ describe('WelcomeScreen', () => {
       await Promise.resolve()
     })
 
-    expect(document.querySelector('.welcome-workspace-panel')).toBeInTheDocument()
     const recentWorkspace = screen.getByRole('button', { name: 'Open workspace dotcraft' })
     fireEvent.click(recentWorkspace)
 

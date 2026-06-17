@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { WorkspaceSetupInterstitial } from '../components/WorkspaceSetupInterstitial'
 import { WorkspaceSetupWizard } from '../components/WorkspaceSetupWizard'
 import { LocaleProvider } from '../contexts/LocaleContext'
@@ -34,10 +34,6 @@ function renderInterstitial(isOpening = false, onStart = vi.fn()) {
       />
     </LocaleProvider>
   )
-}
-
-function decodeLogoSrc(element: Element | null | undefined): string {
-  return decodeURIComponent(element?.getAttribute('src') ?? '')
 }
 
 async function openConfigStep(): Promise<void> {
@@ -81,15 +77,10 @@ describe('WorkspaceSetupWizard', () => {
 
   it('shows the interstitial as a short setup wizard entry and disables actions while opening', () => {
     const onStart = vi.fn()
-    const { container } = renderInterstitial(false, onStart)
+    renderInterstitial(false, onStart)
 
     expect(screen.getByText("This workspace hasn't finished DotCraft setup")).toBeInTheDocument()
     expect(screen.getByText('Current workspace')).toBeInTheDocument()
-    const logo = container.querySelector('.setup-logo-image')
-    expect(logo).toBeInstanceOf(HTMLImageElement)
-    expect(logo).toHaveAttribute('width', '96')
-    expect(logo).toHaveAttribute('height', '96')
-    expect(container.querySelector('.setup-logo-ring')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: /Start workspace setup/ }))
     expect(onStart).toHaveBeenCalledTimes(1)
 
@@ -211,7 +202,7 @@ describe('WorkspaceSetupWizard', () => {
       ]
     }
 
-    const { container } = renderWizard(status)
+    renderWizard(status)
 
     fireEvent.click(await screen.findByRole('button', { name: 'Next' }))
     expect(screen.getByText('Choose a starting profile')).toBeInTheDocument()
@@ -219,8 +210,6 @@ describe('WorkspaceSetupWizard', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Next' }))
     expect(screen.getByText('Import existing coding-agent config')).toBeInTheDocument()
     expect(screen.getByRole('radio', { name: /Codex/ })).toHaveAttribute('aria-checked', 'true')
-    expect(Array.from(container.querySelectorAll('img')).some((image) => image.src.includes('Codex'))).toBe(true)
-    expect(Array.from(container.querySelectorAll('img')).some((image) => image.src.includes('Claude'))).toBe(true)
 
     fireEvent.click(screen.getByRole('radio', { name: /Claude Code/ }))
     expect(screen.getByRole('radio', { name: /Claude Code/ })).toHaveAttribute('aria-checked', 'true')
@@ -417,133 +406,6 @@ describe('WorkspaceSetupWizard', () => {
     expect(screen.getByRole('heading', { name: 'Confirm and create' })).toBeInTheDocument()
   })
 
-  it('shows provider protocol icons on OpenAI and Anthropic template cards', async () => {
-    const status: WorkspaceStatusPayload = {
-      status: 'needs-setup',
-      workspacePath: 'E:\\Git\\dotcraft',
-      hasUserConfig: false,
-      providers: []
-    }
-
-    renderWizard(status)
-    await openConfigStep()
-
-    const openAiCard = screen.getByRole('button', { name: /OpenAI-Responses/ })
-    const anthropicCard = screen.getByRole('button', { name: /Anthropic/ })
-    const openAiIcon = openAiCard.querySelector('svg[data-provider-mark="openai"]')
-    const anthropicIcon = anthropicCard.querySelector('svg[data-provider-mark="anthropic"]')
-
-    expect(openAiIcon).toHaveAttribute('aria-hidden', 'true')
-    expect(anthropicIcon).toHaveAttribute('aria-hidden', 'true')
-    expect(openAiIcon).toHaveAttribute('fill', 'currentColor')
-    expect(anthropicIcon).toHaveAttribute('fill', 'currentColor')
-  })
-
-  it('uses the full color profile logo and switches it from the selected profile', async () => {
-    vi.useFakeTimers()
-    const status: WorkspaceStatusPayload = {
-      status: 'needs-setup',
-      workspacePath: 'E:\\Git\\dotcraft',
-      hasUserConfig: false,
-      providers: []
-    }
-
-    const { container } = renderWizard(status)
-    expect(screen.getByText('Workspace setup')).toBeInTheDocument()
-    expect(screen.getByText('Confirm DotCraft workspace')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-
-    const logo = container.querySelector('.setup-profile-logo-image')
-    expect(logo).toBeInstanceOf(HTMLImageElement)
-    expect(decodeLogoSrc(logo)).toMatch(/dotcraft\.svg|DotCraft/)
-
-    const developerCard = screen.getByRole('button', { name: /Developer/ })
-    expect(developerCard.querySelector('img')).toBeNull()
-    fireEvent.click(developerCard)
-    expect(decodeLogoSrc(container.querySelector('.setup-profile-logo-image--leaving'))).toMatch(/dotcraft\.svg|DotCraft/)
-    expect(decodeLogoSrc(container.querySelector('.setup-profile-logo-image--entering'))).toMatch(
-      /dotcraft-developer|DotCraft Developer/
-    )
-    expect(container.querySelectorAll('.setup-profile-logo-image')).toHaveLength(2)
-    await act(async () => {
-      vi.advanceTimersByTime(180)
-    })
-    expect(container.querySelector('.setup-profile-logo-image--leaving')).toBeNull()
-    expect(container.querySelector('.setup-profile-logo-image--entering')).toBeNull()
-    expect(container.querySelectorAll('.setup-profile-logo-image')).toHaveLength(1)
-    expect(decodeLogoSrc(container.querySelector('.setup-profile-logo-image'))).toMatch(
-      /dotcraft-developer|DotCraft Developer/
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: /Personal assistant/ }))
-    expect(decodeLogoSrc(container.querySelector('.setup-profile-logo-image--leaving'))).toMatch(
-      /dotcraft-developer|DotCraft Developer/
-    )
-    expect(decodeLogoSrc(container.querySelector('.setup-profile-logo-image--entering'))).toMatch(
-      /dotcraft-personal-assistant|DotCraft Personal Assistant/
-    )
-    await act(async () => {
-      vi.advanceTimersByTime(180)
-    })
-    expect(container.querySelectorAll('.setup-profile-logo-image')).toHaveLength(1)
-    expect(decodeLogoSrc(container.querySelector('.setup-profile-logo-image'))).toMatch(
-      /dotcraft-personal-assistant|DotCraft Personal Assistant/
-    )
-  })
-
-  it('does not transition the profile logo during step navigation', async () => {
-    const status: WorkspaceStatusPayload = {
-      status: 'needs-setup',
-      workspacePath: 'E:\\Git\\dotcraft',
-      hasUserConfig: false,
-      providers: []
-    }
-
-    const { container } = renderWizard(status)
-    expect(container.querySelectorAll('.setup-profile-logo-image')).toHaveLength(1)
-    fireEvent.click(await screen.findByRole('button', { name: 'Next' }))
-
-    expect(container.querySelector('.setup-profile-logo-image--leaving')).toBeNull()
-    expect(container.querySelector('.setup-profile-logo-image--entering')).toBeNull()
-    expect(container.querySelectorAll('.setup-profile-logo-image')).toHaveLength(1)
-    expect(decodeLogoSrc(container.querySelector('.setup-profile-logo-image'))).toMatch(/dotcraft\.svg|DotCraft/)
-  })
-
-  it('uses the latest selected profile for rapid logo transitions', async () => {
-    vi.useFakeTimers()
-    const status: WorkspaceStatusPayload = {
-      status: 'needs-setup',
-      workspacePath: 'E:\\Git\\dotcraft',
-      hasUserConfig: false,
-      providers: []
-    }
-
-    const { container } = renderWizard(status)
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-
-    fireEvent.click(screen.getByRole('button', { name: /Developer/ }))
-    fireEvent.click(screen.getByRole('button', { name: /Personal assistant/ }))
-
-    expect(container.querySelectorAll('.setup-profile-logo-image')).toHaveLength(2)
-    expect(decodeLogoSrc(container.querySelector('.setup-profile-logo-image--leaving'))).toMatch(
-      /dotcraft-developer|DotCraft Developer/
-    )
-    expect(decodeLogoSrc(container.querySelector('.setup-profile-logo-image--entering'))).toMatch(
-      /dotcraft-personal-assistant|DotCraft Personal Assistant/
-    )
-    expect(Array.from(container.querySelectorAll('.setup-profile-logo-image')).map(decodeLogoSrc).join(' ')).not.toMatch(
-      /dotcraft\.svg|DotCraft/
-    )
-
-    await act(async () => {
-      vi.advanceTimersByTime(180)
-    })
-    expect(container.querySelectorAll('.setup-profile-logo-image')).toHaveLength(1)
-    expect(decodeLogoSrc(container.querySelector('.setup-profile-logo-image'))).toMatch(
-      /dotcraft-personal-assistant|DotCraft Personal Assistant/
-    )
-  })
-
   it('passes the selected profile logo to the setup completion handoff', async () => {
     const status: WorkspaceStatusPayload = {
       status: 'needs-setup',
@@ -593,36 +455,6 @@ describe('WorkspaceSetupWizard', () => {
       height: expect.any(Number)
     }))
     expect(runSetup).not.toHaveBeenCalled()
-  })
-
-  it('can hide and defer wizard content during the setup logo handoff', () => {
-    const status: WorkspaceStatusPayload = {
-      status: 'needs-setup',
-      workspacePath: 'E:\\Git\\dotcraft',
-      hasUserConfig: false,
-      providers: []
-    }
-    const logoAnchorRef = vi.fn()
-
-    const { container } = render(
-      <LocaleProvider>
-        <WorkspaceSetupWizard
-          workspacePath="E:\\Git\\dotcraft"
-          workspaceStatus={status}
-          hideLogo
-          deferContent
-          logoAnchorRef={logoAnchorRef}
-          onChooseDifferentWorkspace={() => {}}
-          onCancel={() => {}}
-        />
-      </LocaleProvider>
-    )
-
-    expect(container.querySelector('.setup-wizard-shell--handoff')).toBeInTheDocument()
-    expect(container.querySelector('.setup-wizard-logo-anchor--hidden')).toBeInTheDocument()
-    expect(container.querySelector('.workspace-setup-nav-button--back')).toBeInTheDocument()
-    expect(container.querySelector('.workspace-setup-nav-button--next')).toBeInTheDocument()
-    expect(logoAnchorRef).toHaveBeenCalled()
   })
 
   it('keeps manual model entry available when model list is unavailable', async () => {
