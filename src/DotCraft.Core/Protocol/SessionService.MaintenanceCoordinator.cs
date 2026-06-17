@@ -48,17 +48,21 @@ public sealed partial class SessionService
                 var agent = owner.GetThreadAgentOrDefault(threadId);
                 var session = await owner.Persistence.LoadOrCreateSessionAsync(agent, threadId, maintenanceCt);
                 var pipeline = GetCompactionPipelineForThread(thread);
-                var historyForEstimate = SnapshotSessionHistoryForConsolidation(session, thread);
+                var historyForEstimate = SessionService.PrepareProviderVisibleHistory(
+                    SnapshotSessionHistoryForConsolidation(session, thread));
                 var tokenTracker = owner.AgentFactory.GetOrCreateTokenTracker(threadId);
                 var manualPromptSnapshot = owner.TryPrepareManualPromptRequestSnapshot(
                     threadId,
                     historyForEstimate,
                     estimatedInputTokens: null);
-                var usageEstimate = owner.EstimateContextTokens(
+                var preparedEstimate = owner.PrepareContextTokenEstimate(
                     threadId,
                     historyForEstimate,
                     tokenTracker.LastContextTokens,
                     manualPromptSnapshot);
+                historyForEstimate = preparedEstimate.History;
+                manualPromptSnapshot = preparedEstimate.RequestSnapshot;
+                var usageEstimate = preparedEstimate.Estimate;
                 var before = (int)Math.Min(int.MaxValue, usageEstimate.Tokens);
                 if (manualPromptSnapshot is not null)
                     manualPromptSnapshot = manualPromptSnapshot with { EstimatedInputTokens = before };

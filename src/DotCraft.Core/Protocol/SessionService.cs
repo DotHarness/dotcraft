@@ -103,6 +103,11 @@ public sealed partial class SessionService(
     IAppConfigMonitor? appConfigMonitor = null)
     : ISessionService, IThreadAgentRefreshService, ISubAgentSyntheticTurnService, ISubAgentThreadLifecycleService
 {
+    private sealed record PreparedContextTokenEstimate(
+        IReadOnlyList<ChatMessage> History,
+        PromptRequestSnapshot? RequestSnapshot,
+        ContextTokenUsageEstimate Estimate);
+
     private readonly TimeSpan _approvalTimeout = approvalTimeout ?? TimeSpan.FromMinutes(5);
 
     // In-memory state
@@ -602,6 +607,27 @@ public sealed partial class SessionService(
             requestSnapshot?.BaseInstructionsTokenEstimate,
             persistedSnapshot?.Source,
             persistedSnapshot?.IsEstimate ?? false);
+    }
+
+    private static IReadOnlyList<ChatMessage> PrepareProviderVisibleHistory(IReadOnlyList<ChatMessage> history) =>
+        ModelRequestHistorySanitizer.Sanitize(history);
+
+    private PreparedContextTokenEstimate PrepareContextTokenEstimate(
+        string threadId,
+        IReadOnlyList<ChatMessage> modelVisibleHistory,
+        long latestContextTokens,
+        PromptRequestSnapshot? requestSnapshot = null)
+    {
+        var preparedHistory = PrepareProviderVisibleHistory(modelVisibleHistory);
+        var preparedSnapshot = ReferenceEquals(preparedHistory, modelVisibleHistory) || requestSnapshot is null
+            ? requestSnapshot
+            : RebasePromptRequestSnapshotMessages(requestSnapshot, preparedHistory);
+        var estimate = EstimateContextTokens(
+            threadId,
+            preparedHistory,
+            latestContextTokens,
+            preparedSnapshot);
+        return new PreparedContextTokenEstimate(preparedHistory, preparedSnapshot, estimate);
     }
 
     private bool GoalsEnabled => Goals.Enabled;
@@ -1446,15 +1472,14 @@ public sealed partial class SessionService(
                 if (session is null || tokenTracker is null || modelVisibleHistory.Count == 0)
                     return null;
 
-                var compactHistory = ModelRequestHistorySanitizer.Sanitize(modelVisibleHistory);
-                var compactSnapshot = ReferenceEquals(compactHistory, modelVisibleHistory) || requestSnapshot is null
-                    ? requestSnapshot
-                    : RebasePromptRequestSnapshotMessages(requestSnapshot, compactHistory);
-                var usageEstimate = EstimateContextTokens(
+                var preparedEstimate = PrepareContextTokenEstimate(
                     threadId,
-                    compactHistory,
+                    modelVisibleHistory,
                     tokenTracker.LastContextTokens,
-                    compactSnapshot);
+                    requestSnapshot);
+                var compactHistory = preparedEstimate.History;
+                var compactSnapshot = preparedEstimate.RequestSnapshot;
+                var usageEstimate = preparedEstimate.Estimate;
                 if (!usageEstimate.EligibleForAutoCompact)
                     return null;
 
@@ -3239,11 +3264,11 @@ public sealed partial class SessionService(
                 return message;
             }
 
-            var estimate = EstimateContextTokens(
+            var estimate = PrepareContextTokenEstimate(
                 threadId,
                 history,
                 tokenTracker?.LastContextTokens ?? 0,
-                TryGetLastPromptRequestSnapshot(threadId));
+                TryGetLastPromptRequestSnapshot(threadId)).Estimate;
             var threshold = GetCompactionPipelineForThread(threadId).EvaluateThreshold(estimate.Tokens);
             return threshold.AboveWarning
                 ? message + contextHint
@@ -3347,7 +3372,7 @@ public sealed partial class SessionService(
         {
             var tokens = 0L;
             if (session is not null && TrySnapshotInMemoryHistory(session, out var history) && history.Count > 0)
-                tokens = MessageTokenEstimator.Estimate(history);
+                tokens = MessageTokenEstimator.Estimate(PrepareProviderVisibleHistory(history));
 
             await SaveContextUsageSnapshotAsync(
                 threadId,
