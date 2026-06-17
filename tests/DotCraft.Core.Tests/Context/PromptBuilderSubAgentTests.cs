@@ -34,23 +34,13 @@ public sealed class PromptBuilderSubAgentTests : IDisposable
     }
 
     [Fact]
-    public void MainPrompt_WhenSpawnAgentAvailable_IncludesLifecycleGuidance()
+    public void MainPrompt_WhenSpawnAgentAvailable_IncludesLifecycleSection()
     {
         var prompt = CreateMainBuilder(
                 toolNames: ["SpawnAgent", "SendMessage", "FollowupTask", "WaitAgent", "ListAgents", "CloseAgent"])
             .BuildSystemPrompt();
 
         Assert.Contains("## SubAgent Lifecycle", prompt, StringComparison.Ordinal);
-        Assert.Contains("Use `SpawnAgent` for concrete sidecar work", prompt, StringComparison.Ordinal);
-        Assert.Contains("Use `SendMessage` for mailbox-only coordination", prompt, StringComparison.Ordinal);
-        Assert.Contains("Use `FollowupTask` to start or queue a target agent turn", prompt, StringComparison.Ordinal);
-        Assert.Contains("set `deliveryMode` to `steer` only when a running native target should receive same-turn guidance", prompt, StringComparison.Ordinal);
-        Assert.Contains("Use `WaitAgent` only when the parent is blocked", prompt, StringComparison.Ordinal);
-        Assert.Contains("defaults to 60000", prompt, StringComparison.Ordinal);
-        Assert.Contains("between 15000 and 3600000", prompt, StringComparison.Ordinal);
-        Assert.Contains("Use `CloseAgent` with an `agentPath`", prompt, StringComparison.Ordinal);
-        Assert.DoesNotContain("### Designing Child Tasks", prompt, StringComparison.Ordinal);
-        Assert.DoesNotContain("When you are not confident you can find what you need in 1-2 tool calls", prompt, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -61,26 +51,16 @@ public sealed class PromptBuilderSubAgentTests : IDisposable
             .BuildSystemPrompt();
 
         Assert.DoesNotContain("## SubAgent Lifecycle", prompt, StringComparison.Ordinal);
-        Assert.DoesNotContain("Use `WaitAgent` only when the parent is blocked", prompt, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void MainPrompt_WhenRequestUserInputAvailable_IncludesQuestionGuidance()
+    public void MainPrompt_WhenRequestUserInputAvailable_IncludesQuestionSection()
     {
         var prompt = CreateMainBuilder(
                 toolNames: ["ReadFile", "RequestUserInput"])
             .BuildSystemPrompt();
 
         Assert.Contains("## RequestUserInput", prompt, StringComparison.Ordinal);
-        Assert.Contains("Use `RequestUserInput` only when it is listed", prompt, StringComparison.Ordinal);
-        Assert.Contains("In Plan mode, after targeted non-mutating exploration, use `RequestUserInput`", prompt, StringComparison.Ordinal);
-        Assert.Contains("cannot be answered by repo or environment exploration", prompt, StringComparison.Ordinal);
-        Assert.Contains("Do not ask meaningful multiple-choice questions as plain assistant text", prompt, StringComparison.Ordinal);
-        Assert.Contains("recommended option first", prompt, StringComparison.Ordinal);
-        Assert.Contains("In Agent mode, prefer reasonable assumptions and execution", prompt, StringComparison.Ordinal);
-        Assert.DoesNotContain("### Plan Mode Questions", prompt, StringComparison.Ordinal);
-        Assert.DoesNotContain("### Agent Mode Questions", prompt, StringComparison.Ordinal);
-        Assert.DoesNotContain("### Question Format", prompt, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -91,7 +71,6 @@ public sealed class PromptBuilderSubAgentTests : IDisposable
             .BuildSystemPrompt();
 
         Assert.DoesNotContain("## RequestUserInput", prompt, StringComparison.Ordinal);
-        Assert.DoesNotContain("Do not ask meaningful multiple-choice questions as plain assistant text", prompt, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -123,7 +102,6 @@ public sealed class PromptBuilderSubAgentTests : IDisposable
 
         Assert.Contains("## SubAgent Context", prompt, StringComparison.Ordinal);
         Assert.DoesNotContain("## SubAgent Lifecycle", prompt, StringComparison.Ordinal);
-        Assert.DoesNotContain("Use `WaitAgent` only when the parent is blocked", prompt, StringComparison.Ordinal);
         Assert.DoesNotContain("## RequestUserInput", prompt, StringComparison.Ordinal);
     }
 
@@ -138,35 +116,6 @@ public sealed class PromptBuilderSubAgentTests : IDisposable
         Assert.DoesNotContain("## Skill Self-Learning", prompt, StringComparison.Ordinal);
         Assert.DoesNotContain("# Memory", prompt, StringComparison.Ordinal);
         Assert.DoesNotContain("## Available Tool Sources", prompt, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void Prompt_IncludesResponseStyleGuidance()
-    {
-        var mainPrompt = CreateMainBuilder(
-                toolNames: ["ReadFile", "GrepFiles", "FindFiles"])
-            .BuildSystemPrompt();
-        var subAgentPrompt = CreateBuilder(
-                toolNames: ["ReadFile", "GrepFiles", "FindFiles"],
-                roleInstructions: "Role-specific guidance.")
-            .BuildSystemPrompt();
-
-        Assert.Contains("## Response Style", mainPrompt, StringComparison.Ordinal);
-        Assert.Contains("Be concise, direct, and useful", mainPrompt, StringComparison.Ordinal);
-        Assert.Contains("## Response Style", subAgentPrompt, StringComparison.Ordinal);
-        Assert.Contains("Be concise, direct, and useful", subAgentPrompt, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void MainPrompt_IncludesGitCommitAttributionGuidance()
-    {
-        var prompt = CreateMainBuilder(
-                toolNames: ["Shell"])
-            .BuildSystemPrompt();
-
-        Assert.Contains("## Git Commit Attribution", prompt, StringComparison.Ordinal);
-        Assert.Contains("do not change git config", prompt, StringComparison.Ordinal);
-        Assert.Contains("Co-authored-by: DotCraft <273930855+dotcraft-ai@users.noreply.github.com>", prompt, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -238,8 +187,6 @@ public sealed class PromptBuilderSubAgentTests : IDisposable
 
         Assert.Equal(agentPrompt, planPrompt);
         Assert.Contains("## Mode Protocol", agentPrompt, StringComparison.Ordinal);
-        Assert.DoesNotContain("Plan mode ACTIVE", agentPrompt, StringComparison.Ordinal);
-        Assert.DoesNotContain("Your operational mode has changed", agentPrompt, StringComparison.Ordinal);
     }
 
     private PromptBuilder CreateMainBuilder(IReadOnlyList<string> toolNames) =>

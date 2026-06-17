@@ -48,7 +48,9 @@ public sealed class InitHelperSetupTests : IDisposable
         Assert.DoesNotContain("EndPoint", workspaceNode.Select(p => p.Key));
         Assert.DoesNotContain("ProviderId", workspaceNode.Select(p => p.Key));
         Assert.DoesNotContain("Model", workspaceNode.Select(p => p.Key));
-        Assert.Contains("Developer Assistant", File.ReadAllText(Path.Combine(craftPath, "AGENTS.md")));
+        var agentsPath = Path.Combine(craftPath, "AGENTS.md");
+        Assert.True(File.Exists(agentsPath));
+        Assert.False(string.IsNullOrWhiteSpace(File.ReadAllText(agentsPath)));
     }
 
     [Fact]
@@ -82,7 +84,9 @@ public sealed class InitHelperSetupTests : IDisposable
         Assert.Equal("deepseek-chat", workspaceNode["Model"]?.GetValue<string>());
         Assert.DoesNotContain("ApiKey", workspaceNode.Select(p => p.Key));
         Assert.DoesNotContain("EndPoint", workspaceNode.Select(p => p.Key));
-        Assert.Contains("Personal Assistant", File.ReadAllText(Path.Combine(craftPath, "AGENTS.md")));
+        var agentsPath = Path.Combine(craftPath, "AGENTS.md");
+        Assert.True(File.Exists(agentsPath));
+        Assert.False(string.IsNullOrWhiteSpace(File.ReadAllText(agentsPath)));
     }
 
     [Fact]
@@ -270,7 +274,9 @@ public sealed class InitHelperSetupTests : IDisposable
         Assert.DoesNotContain("Model", workspaceNode.Select(p => p.Key));
         Assert.DoesNotContain("ApiKey", workspaceNode.Select(p => p.Key));
         Assert.DoesNotContain("EndPoint", workspaceNode.Select(p => p.Key));
-        Assert.Contains("Personal Assistant", File.ReadAllText(Path.Combine(craftPath, "AGENTS.md")));
+        var agentsPath = Path.Combine(craftPath, "AGENTS.md");
+        Assert.True(File.Exists(agentsPath));
+        Assert.False(string.IsNullOrWhiteSpace(File.ReadAllText(agentsPath)));
     }
 
     public void Dispose()

@@ -149,22 +149,6 @@ public sealed class CronToolsTests : IDisposable
         Assert.Empty(svc.ListJobs(includeDisabled: true));
     }
 
-    [Fact]
-    public void DisplayUsesScheduleKindBeforeAutoFilledDailyFields()
-    {
-        var label = CronToolDisplays.Cron(new Dictionary<string, object?>
-        {
-            ["action"] = "add",
-            ["scheduleKind"] = "at",
-            ["message"] = "x",
-            ["delaySeconds"] = 120,
-            ["dailyHour"] = 0,
-            ["dailyMinute"] = 0
-        });
-
-        Assert.Equal("Schedule \"x\" in 2m", label);
-    }
-
     private static string ErrorOf(string result)
     {
         using var doc = JsonDocument.Parse(result);

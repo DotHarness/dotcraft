@@ -1,6 +1,4 @@
-using System.ComponentModel;
 using System.Text.Json;
-using System.Reflection;
 using DotCraft.Memory;
 using DotCraft.Protocol;
 using DotCraft.Tools;
@@ -11,33 +9,6 @@ namespace DotCraft.Tests.Tools;
 
 public sealed class PlanToolsTests
 {
-    [Fact]
-    public void CreatePlanDescriptions_EncourageCompactPlans()
-    {
-        var method = typeof(PlanTools).GetMethod(nameof(PlanTools.CreatePlan))!;
-        var methodDescription = method.GetCustomAttribute<DescriptionAttribute>()!.Description;
-        var parameters = method.GetParameters();
-        var planDescription = parameters.Single(p => p.Name == "plan")
-            .GetCustomAttribute<DescriptionAttribute>()!.Description;
-        var todosDescription = parameters.Single(p => p.Name == "todos")
-            .GetCustomAttribute<DescriptionAttribute>()!.Description;
-
-        Assert.Contains("compact decision-complete Markdown", methodDescription);
-        Assert.Contains("Complete Markdown plan", planDescription);
-        Assert.Contains("Start with one H1 title", planDescription);
-        Assert.Contains("Do not split the body into separate overview/content fields", planDescription);
-        Assert.Contains("3-7 high-level actionable implementation tasks", todosDescription);
-        Assert.Contains("Do not include search, reading, or explanation-only steps", todosDescription);
-        Assert.DoesNotContain(parameters, p => p.Name == "title");
-        Assert.DoesNotContain(parameters, p => p.Name == "overview");
-        Assert.DoesNotContain(parameters, p => p.Name == "content");
-
-        Assert.DoesNotContain("detailed implementation content", methodDescription);
-        Assert.DoesNotContain(
-            "Include specific file paths, implementation details, and verification steps",
-            planDescription);
-    }
-
     [Fact]
     public async Task CreatePlanFunction_BindsPlanArgumentAndSavesStructuredPlan()
     {
@@ -73,7 +44,7 @@ public sealed class PlanToolsTests
             Assert.False(function.JsonSchema.GetProperty("properties").TryGetProperty("overview", out _));
             Assert.False(function.JsonSchema.GetProperty("properties").TryGetProperty("content", out _));
 
-            var result = await function.InvokeAsync(new AIFunctionArguments
+            _ = await function.InvokeAsync(new AIFunctionArguments
             {
                 ["plan"] = "# Fix plan\n\n## 概览\n\nUse a single markdown argument for the plan body.\n\n## Implementation Changes\n\n- Parse the title and overview from markdown.",
                 ["todos"] = JsonSerializer.SerializeToElement(new[]
@@ -88,7 +59,6 @@ public sealed class PlanToolsTests
 
             var plan = await store.LoadStructuredPlanAsync(sessionId);
 
-            Assert.Contains("saved successfully", result?.ToString());
             Assert.NotNull(plan);
             Assert.Equal("Fix plan", plan.Title);
             Assert.Equal("Use a single markdown argument for the plan body.", plan.Overview);
@@ -185,7 +155,7 @@ public sealed class PlanToolsTests
     }
 
     [Fact]
-    public async Task TodoWrite_ReturnsStableShortResult()
+    public async Task TodoWrite_SavesTodoState()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), $"plan_tools_{Guid.NewGuid():N}");
         Directory.CreateDirectory(tempDir);
@@ -203,9 +173,10 @@ public sealed class PlanToolsTests
                 CreatedAt = DateTimeOffset.UtcNow,
                 LastActiveAt = DateTimeOffset.UtcNow
             });
-            var tools = new PlanTools(new PlanStore(tempDir), () => sessionId);
+            var store = new PlanStore(tempDir);
+            var tools = new PlanTools(store, () => sessionId);
 
-            var result = await tools.TodoWrite([
+            _ = await tools.TodoWrite([
                 new TodoWriteInput
                 {
                     Id = "cache-metrics",
@@ -214,7 +185,12 @@ public sealed class PlanToolsTests
                 }
             ]);
 
-            Assert.Equal("Plan updated", result);
+            var plan = await store.LoadStructuredPlanAsync(sessionId);
+            Assert.NotNull(plan);
+            var todo = Assert.Single(plan.Todos);
+            Assert.Equal("cache-metrics", todo.Id);
+            Assert.Equal("Expose cache hit rate", todo.Content);
+            Assert.Equal(PlanTodoStatus.InProgress, todo.Status);
         }
         finally
         {

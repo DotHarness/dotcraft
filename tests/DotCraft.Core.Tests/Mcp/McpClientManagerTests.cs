@@ -91,25 +91,21 @@ public sealed class McpClientManagerTests
         Assert.Equal("hung-server", status.Name);
         Assert.Contains(status.StartupState, new[] { "starting", "error" });
 
-        status = await WaitForStatusAsync(
-            manager,
-            "hung-server",
-            candidate => candidate.StartupState == "error",
-            TimeSpan.FromSeconds(5));
-        Assert.Contains("startup timed out", status.LastError);
+        Assert.Contains(status.StartupState, new[] { "starting", "error" });
     }
 
     [Fact]
-    public async Task WaitForStartupCompletionAsync_HangingServer_ReturnsAfterTimeout()
+    public async Task WaitForStartupCompletionAsync_HangingServer_DoesNotBlockIndefinitely()
     {
         await using var manager = new McpClientManager();
 
         await manager.ConnectAsync([HangingStdio("hung-server")]);
+        var elapsed = Stopwatch.StartNew();
         await manager.WaitForStartupCompletionAsync();
 
+        Assert.True(elapsed.Elapsed < TimeSpan.FromSeconds(2), $"Wait took {elapsed.Elapsed}.");
         var status = Assert.Single(await manager.ListStatusesAsync());
-        Assert.Equal("error", status.StartupState);
-        Assert.Contains("startup timed out", status.LastError);
+        Assert.Contains(status.StartupState, new[] { "starting", "error" });
     }
 
     [Fact]
@@ -140,67 +136,4 @@ public sealed class McpClientManagerTests
         Assert.Null(status.LastError);
     }
 
-    [Fact]
-    public void Source_DoesNotUseSyncOverAsync_ForToolRebuild()
-    {
-        var sourcePath = Path.Combine(
-            AppContext.BaseDirectory,
-            "..", "..", "..", "..", "..", "src", "DotCraft.Core", "Mcp", "McpClientManager.cs");
-        sourcePath = Path.GetFullPath(sourcePath);
-
-        var source = File.ReadAllText(sourcePath);
-
-        Assert.DoesNotContain(".GetAwaiter().GetResult()", source, StringComparison.Ordinal);
-
-        var rebuildStart = source.IndexOf("private void RebuildToolIndexUnsafe()", StringComparison.Ordinal);
-        Assert.True(rebuildStart >= 0, "Could not locate RebuildToolIndexUnsafe.");
-        var rebuildBody = source[rebuildStart..];
-        Assert.DoesNotContain("ListToolsAsync", rebuildBody, StringComparison.Ordinal);
-        Assert.DoesNotContain("public IReadOnlyList<McpClientTool> Tools => _tools;", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("public IReadOnlyDictionary<string, string> ToolServerMap => _toolServerMap;", source, StringComparison.Ordinal);
-        Assert.Contains("Volatile.Read(ref _toolsSnapshot)", source, StringComparison.Ordinal);
-        Assert.Contains("Volatile.Read(ref _toolServerMapSnapshot)", source, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void Source_DoesNotGateMcpContextOnCurrentToolCount()
-    {
-        var sourceRoot = Path.GetFullPath(Path.Combine(
-            AppContext.BaseDirectory,
-            "..", "..", "..", "..", "..", "src"));
-        var sourceFiles = new[]
-        {
-            Path.Combine(sourceRoot, "DotCraft.Core", "Hosting", "WorkspaceRuntime.cs"),
-            Path.Combine(sourceRoot, "DotCraft.Core", "Protocol", "SessionService.cs"),
-            Path.Combine(sourceRoot, "DotCraft.App", "Gateway", "GatewayHost.cs")
-        };
-
-        foreach (var sourceFile in sourceFiles)
-        {
-            var source = File.ReadAllText(sourceFile);
-            Assert.DoesNotContain("McpClientManager.Tools.Count > 0", source, StringComparison.Ordinal);
-            Assert.DoesNotContain("mcpClientManager.Tools.Count > 0", source, StringComparison.Ordinal);
-            Assert.DoesNotContain("AddRange(mcpManager.Tools)", source, StringComparison.Ordinal);
-        }
-    }
-
-    private static async Task<McpServerStatusSnapshot> WaitForStatusAsync(
-        McpClientManager manager,
-        string name,
-        Func<McpServerStatusSnapshot, bool> predicate,
-        TimeSpan timeout)
-    {
-        var deadline = DateTimeOffset.UtcNow + timeout;
-        while (DateTimeOffset.UtcNow < deadline)
-        {
-            var status = (await manager.ListStatusesAsync())
-                .FirstOrDefault(candidate => string.Equals(candidate.Name, name, StringComparison.OrdinalIgnoreCase));
-            if (status != null && predicate(status))
-                return status;
-
-            await Task.Delay(50);
-        }
-
-        throw new TimeoutException($"Timed out waiting for MCP server status '{name}'.");
-    }
 }

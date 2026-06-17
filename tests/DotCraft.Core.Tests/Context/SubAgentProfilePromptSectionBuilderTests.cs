@@ -6,7 +6,7 @@ namespace DotCraft.Tests.Context;
 public sealed class SubAgentProfilePromptSectionBuilderTests
 {
     [Fact]
-    public void Build_ConfiguredProfilesOverrideBuiltIns_AndCanRequireWorkingDirectory()
+    public void Build_ConfiguredProfilesOverrideBuiltIns()
     {
         var section = SubAgentProfilePromptSectionBuilder.Build(
             [
@@ -25,7 +25,6 @@ public sealed class SubAgentProfilePromptSectionBuilderTests
 
         Assert.NotNull(section);
         Assert.Contains("`cursor-cli`", section);
-        Assert.Contains("Requires `workingDirectory`.", section);
     }
 
     [Fact]

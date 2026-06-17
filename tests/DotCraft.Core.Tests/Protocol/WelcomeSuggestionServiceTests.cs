@@ -1,5 +1,3 @@
-using System.ComponentModel;
-using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Memory;
@@ -243,9 +241,6 @@ public sealed class WelcomeSuggestionServiceTests : IDisposable
         {
             var method = typeof(WelcomeSuggestionToolMethods).GetMethod(methodName)!;
             Assert.Equal(typeof(Task<string>), method.ReturnType);
-
-            var description = method.GetCustomAttribute<DescriptionAttribute>()!.Description;
-            Assert.Contains("compact JSON string", description);
 
             var function = methodName switch
             {

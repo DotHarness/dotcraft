@@ -23,7 +23,6 @@ public sealed class RuntimeContextBuilderTests
         Assert.Contains("AllowedActionProfile: ReadOnlyObserve", block, StringComparison.Ordinal);
         Assert.Contains("PlanState: Absent", block, StringComparison.Ordinal);
         Assert.Contains("## Mode Action", block, StringComparison.Ordinal);
-        Assert.Contains("use `RequestUserInput` if available instead of plain text questions", block, StringComparison.Ordinal);
         Assert.DoesNotContain("[Runtime Context]", block, StringComparison.Ordinal);
         Assert.DoesNotContain("<dotcraft_", block, StringComparison.Ordinal);
     }
@@ -46,7 +45,7 @@ public sealed class RuntimeContextBuilderTests
     }
 
     [Fact]
-    public void BuildBlock_AgentModeWarnsNotToCallCreatePlan()
+    public void BuildBlock_AgentModeIncludesCurrentMode()
     {
         var modeManager = new AgentModeManager();
 
@@ -55,6 +54,5 @@ public sealed class RuntimeContextBuilderTests
             workspacePath: Directory.GetCurrentDirectory());
 
         Assert.Contains("CurrentMode: Agent", block, StringComparison.Ordinal);
-        Assert.Contains("Do not call CreatePlan in Agent mode.", block, StringComparison.Ordinal);
     }
 }

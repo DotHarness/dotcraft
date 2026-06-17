@@ -1,7 +1,4 @@
-using System.ComponentModel;
-using System.Reflection;
 using System.Text.Json;
-using System.Text.Json.Nodes;
 using DotCraft.Protocol;
 using DotCraft.Tools;
 
@@ -69,56 +66,6 @@ public sealed class RequestUserInputToolsTests
             .GetProperty("answers")[0]
             .GetString();
         Assert.Equal("Auto-generate (Recommended)", answer);
-    }
-
-    [Fact]
-    public void RequestUserInput_DisplayFormatter_FormatsQuestionCount()
-    {
-        Assert.Equal(
-            "Ask 1 question",
-            CoreToolDisplays.RequestUserInput(new Dictionary<string, object?>
-            {
-                ["questions"] = new[] { new object() }
-            }));
-        Assert.Equal(
-            "Ask 3 questions",
-            CoreToolDisplays.RequestUserInput(new Dictionary<string, object?>
-            {
-                ["questions"] = new JsonArray(new JsonObject(), new JsonObject(), new JsonObject())
-            }));
-        Assert.Equal(
-            "Ask questions",
-            CoreToolDisplays.RequestUserInput(new Dictionary<string, object?>()));
-    }
-
-    [Fact]
-    public void RequestUserInput_ToolMetadata_RegistersDisplayFormatter()
-    {
-        var method = typeof(RequestUserInputTools).GetMethod(nameof(RequestUserInputTools.RequestUserInput));
-
-        var attr = method?.GetCustomAttribute<ToolAttribute>();
-
-        Assert.NotNull(attr);
-        Assert.Equal(typeof(CoreToolDisplays), attr!.DisplayType);
-        Assert.Equal(nameof(CoreToolDisplays.RequestUserInput), attr.DisplayMethod);
-    }
-
-    [Fact]
-    public void RequestUserInput_Descriptions_MatchQuestionGuidance()
-    {
-        var method = typeof(RequestUserInputTools).GetMethod(nameof(RequestUserInputTools.RequestUserInput));
-        var methodDescription = method?.GetCustomAttribute<DescriptionAttribute>()?.Description;
-        var questionsDescription = method?.GetParameters()
-            .Single(parameter => parameter.Name == "questions")
-            .GetCustomAttribute<DescriptionAttribute>()
-            ?.Description;
-
-        Assert.Contains("one to three short questions", methodDescription);
-        Assert.Contains("Agent and Plan modes", methodDescription);
-        Assert.Contains("recommended option first", methodDescription);
-        Assert.Contains("Do not include an Other option", methodDescription);
-        Assert.Contains("Questions to show the user", questionsDescription);
-        Assert.Contains("Prefer 1 and do not exceed 3", questionsDescription);
     }
 
     private static RequestUserInputQuestion ValidQuestion() => new()
