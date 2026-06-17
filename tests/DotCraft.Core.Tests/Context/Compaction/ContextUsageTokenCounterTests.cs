@@ -98,7 +98,7 @@ public sealed class ContextUsageTokenCounterTests
     }
 
     [Fact]
-    public void ContextTokenUsageEstimator_UsesLatestProviderContextBeforeRoughEstimate()
+    public void ContextTokenUsageEstimator_UsesHistoryEstimateWhenLatestProviderContextHasNoValidAnchor()
     {
         var messages = new List<ChatMessage>
         {
@@ -116,14 +116,44 @@ public sealed class ContextUsageTokenCounterTests
             persistedDisplayTokens: 0,
             requestFingerprint: "request-a");
 
-        Assert.Equal("provider_context", estimate.Source);
-        Assert.Equal(103_000, estimate.Tokens);
+        Assert.Equal("estimate_unverified_provider_context", estimate.Source);
+        Assert.Equal(rough, estimate.Tokens);
         Assert.True(estimate.EligibleForAutoCompact);
-        Assert.False(estimate.IsEstimate);
+        Assert.True(estimate.IsEstimate);
     }
 
     [Fact]
-    public void ContextTokenUsageEstimator_UsesProviderContextButNotRawPersistedDisplayForAutoCompact()
+    public void ContextTokenUsageEstimator_UsesValidAnchorBeforeHistoryEstimate()
+    {
+        var messages = new List<ChatMessage>
+        {
+            new(ChatRole.User, new string('u', 240_000)),
+            new(ChatRole.Assistant, new string('a', 240_000))
+        };
+        var anchor = new ContextUsageAnchor(
+            Tokens: 103_000,
+            MessageCount: 1,
+            PrefixFingerprint: MessageTokenEstimator.ComputePrefixFingerprint(messages, 1),
+            RequestFingerprint: "request-a");
+
+        var estimate = ContextTokenUsageEstimator.Estimate(
+            messages,
+            memoryAnchor: anchor,
+            persistedAnchor: null,
+            latestContextTokens: 104_000,
+            persistedDisplayTokens: 0,
+            requestFingerprint: "request-a");
+
+        Assert.Equal("memory_anchor", estimate.Source);
+        Assert.Equal(
+            Math.Max(104_000, 103_000 + MessageTokenEstimator.EstimateDelta(messages, 1, 1)),
+            estimate.Tokens);
+        Assert.True(estimate.EligibleForAutoCompact);
+        Assert.True(estimate.IsEstimate);
+    }
+
+    [Fact]
+    public void ContextTokenUsageEstimator_UsesUnverifiedProviderHintButNotRawPersistedDisplayForAutoCompact()
     {
         var messages = new List<ChatMessage> { new(ChatRole.User, "short") };
         var rough = MessageTokenEstimator.Estimate(messages);
@@ -143,9 +173,10 @@ public sealed class ContextUsageTokenCounterTests
             persistedDisplayTokens: rough + 2_000,
             requestFingerprint: "request-a");
 
-        Assert.Equal("provider_context", providerEstimate.Source);
+        Assert.Equal("estimate_unverified_provider_context", providerEstimate.Source);
         Assert.Equal(rough + 1_000, providerEstimate.Tokens);
         Assert.True(providerEstimate.EligibleForAutoCompact);
+        Assert.True(providerEstimate.IsEstimate);
         Assert.Equal("estimate", persistedEstimate.Source);
         Assert.Equal(rough, persistedEstimate.Tokens);
         Assert.True(persistedEstimate.EligibleForAutoCompact);
