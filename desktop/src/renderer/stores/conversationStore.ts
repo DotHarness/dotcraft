@@ -2938,7 +2938,11 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       }
     }
 
-    if (kind === 'compacting' || kind === 'compacted' || kind === 'compactSkipped' || kind === 'compactFailed' || kind === 'compactCancelled') {
+    if (kind === 'compacting') {
+      return
+    }
+
+    if (kind === 'compacted' || kind === 'compactSkipped' || kind === 'compactFailed' || kind === 'compactCancelled') {
       if (params?.contextUsage) {
         set({ contextUsage: toContextUsage(params.contextUsage) })
         return

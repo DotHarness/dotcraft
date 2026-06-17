@@ -76,8 +76,7 @@ public sealed partial class SessionService
                 broker.PublishSystemEvent(
                     "compacting",
                     percentLeft: beforeThreshold.PercentLeft,
-                    tokenCount: beforeThreshold.Tokens,
-                    contextUsage: beforeUsage);
+                    tokenCount: beforeThreshold.Tokens);
 
                 CompactionStatus status;
                 try

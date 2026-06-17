@@ -1468,6 +1468,40 @@ describe('context usage (token ring)', () => {
     expect(s().contextUsage?.severity).toBe('normal')
   })
 
+  it('does not apply projected compacting snapshots to contextUsage', () => {
+    s().setContextUsage({ ...baseSnapshot, tokens: 150_000, percentLeft: 0.25 })
+
+    s().onSystemEvent('compacting', {
+      tokenCount: 260_000,
+      percentLeft: 0,
+      contextUsage: {
+        tokens: 260_000,
+        contextWindow: 200_000,
+        autoCompactThreshold: 180_000,
+        warningThreshold: 176_000,
+        errorThreshold: 194_000,
+        percentLeft: 0
+      }
+    })
+
+    expect(s().contextUsage?.tokens).toBe(150_000)
+    expect(s().contextUsage?.percentLeft).toBe(0.25)
+    expect(s().contextUsage?.severity).toBe('normal')
+  })
+
+  it('does not apply projected compacting tokenCount to contextUsage', () => {
+    s().setContextUsage({ ...baseSnapshot, tokens: 150_000, percentLeft: 0.25 })
+
+    s().onSystemEvent('compacting', {
+      tokenCount: 260_000,
+      percentLeft: 0
+    })
+
+    expect(s().contextUsage?.tokens).toBe(150_000)
+    expect(s().contextUsage?.percentLeft).toBe(0.25)
+    expect(s().contextUsage?.severity).toBe('normal')
+  })
+
   it('applies compacted systemNotice tokens to an existing context ring', () => {
     s().setContextUsage({ ...baseSnapshot, tokens: 195_000, percentLeft: 0.025 })
     s().onTurnStarted(makeTurn())

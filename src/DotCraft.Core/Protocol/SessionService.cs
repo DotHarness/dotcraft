@@ -1472,8 +1472,7 @@ public sealed partial class SessionService(
                 eventChannel.EmitSystemEvent(
                     "compacting",
                     percentLeft: threshold.PercentLeft,
-                    tokenCount: threshold.Tokens,
-                    contextUsage: preCompactUsage);
+                    tokenCount: threshold.Tokens);
 
                 CompactionHistoryResult result;
                 try

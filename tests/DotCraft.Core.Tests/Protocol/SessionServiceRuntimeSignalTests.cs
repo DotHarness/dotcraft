@@ -382,7 +382,15 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
 
         var events = await CollectAsync(svc.SubmitInputAsync(thread.Id, [new TextContent("continue")]));
 
+        var compacting = Assert.Single(
+            events.Select(evt => evt.SystemEventPayload).OfType<SystemEventPayload>(),
+            payload => payload.Kind == "compacting");
+        Assert.Null(compacting.ContextUsage);
         Assert.Contains(events, evt => IsSystemEvent(evt, "compacted"));
+        var compacted = Assert.Single(
+            events.Select(evt => evt.SystemEventPayload).OfType<SystemEventPayload>(),
+            payload => payload.Kind == "compacted");
+        Assert.NotNull(compacted.ContextUsage);
         Assert.DoesNotContain(events, evt =>
             (evt.EventType == SessionEventType.ItemStarted ||
                 evt.EventType == SessionEventType.ItemCompleted) &&

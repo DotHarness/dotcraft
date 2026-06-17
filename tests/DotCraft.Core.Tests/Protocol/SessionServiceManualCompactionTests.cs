@@ -59,7 +59,10 @@ public sealed class SessionServiceManualCompactionTests : IDisposable
         Assert.NotNull(result.ContextUsage);
         var resultUsage = result.ContextUsage!;
         Assert.True(resultUsage.Tokens > 0);
-        Assert.Contains(events, e => IsSystemEvent(e, "compacting"));
+        var compactingEvent = Assert.Single(
+            events.Select(e => e.SystemEventPayload),
+            payload => payload?.Kind == "compacting");
+        Assert.Null(compactingEvent!.ContextUsage);
         Assert.Contains(events, e => IsSystemEvent(e, "compacted"));
         Assert.Contains(events, IsManualCompactionNotice);
         var compactedEvent = Assert.Single(
