@@ -372,8 +372,11 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
             compactionChatClient: new SummaryChatClient("<summary>should not be needed</summary>"));
         var svc = CreateService(agentFactory, compactChatClient, useStreamingFunctionInvoker: true);
         await svc.ResumeThreadAsync(thread.Id);
-        await new ThreadStore(_tempDir).SaveContextUsageTokensAsync(thread.Id, 50_000);
-        agentFactory.GetOrCreateTokenTracker(thread.Id).Update(50_000, 0);
+        await new ThreadStore(_tempDir).SaveContextUsageTokensAsync(
+            thread.Id,
+            50_000,
+            source: "history_estimate",
+            isEstimate: true);
         var liveThread = await svc.GetThreadAsync(thread.Id);
         liveThread.LastActiveAt = DateTimeOffset.UtcNow.AddMinutes(-10);
 
@@ -389,6 +392,36 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
             loaded!.Turns.SelectMany(turn => turn.Items),
             item => item.Type == ItemType.SystemNotice &&
                 item.Payload is SystemNoticePayload { Kind: "compacted" });
+    }
+
+    [Fact]
+    public async Task SubmitInputAsync_UnverifiedProviderContextDoesNotAutoCompact()
+    {
+        IChatClient chatClient = new FakeChatClient([
+            new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("answer without compact")])
+        ]);
+        await using var agentFactory = CreateAgentFactory(
+            chatClient,
+            configureConfig: ConfigureSmallCompaction,
+            compactionChatClient: new SummaryChatClient("<summary>unexpected</summary>"));
+        var svc = CreateService(agentFactory, chatClient, useStreamingFunctionInvoker: true);
+        var thread = await svc.CreateThreadAsync(MakeIdentity());
+
+        await new ThreadStore(_tempDir).SaveContextUsageTokensAsync(
+            thread.Id,
+            10_000,
+            source: "provider_context",
+            isEstimate: false);
+        agentFactory.GetOrCreateTokenTracker(thread.Id).Update(10_000, 0);
+
+        var events = await CollectAsync(svc.SubmitInputAsync(thread.Id, [new TextContent("continue")]));
+
+        Assert.DoesNotContain(events, evt => IsSystemEvent(evt, "compacting"));
+        Assert.DoesNotContain(events, evt => IsSystemEvent(evt, "compacted"));
+        Assert.Contains(events, evt =>
+            evt.EventType == SessionEventType.ItemCompleted &&
+            evt.ItemPayload?.Type == ItemType.AgentMessage &&
+            evt.ItemPayload.AsAgentMessage?.Text == "answer without compact");
     }
 
     [Fact]
@@ -872,7 +905,11 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
         }
 
         var store = new ThreadStore(_tempDir);
-        await store.SaveContextUsageTokensAsync(thread.Id, 9_500);
+        await store.SaveContextUsageTokensAsync(
+            thread.Id,
+            9_500,
+            source: "history_estimate",
+            isEstimate: true);
 
         var blockingChatClient = new RecordingBlockingChatClient();
         await using var compactFactory = CreateAgentFactory(
@@ -881,7 +918,6 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
             compactionChatClient: new SummaryChatClient("<summary>compacted old context</summary>"));
         var compactService = CreateService(compactFactory, blockingChatClient, useStreamingFunctionInvoker: true);
         await compactService.ResumeThreadAsync(thread.Id);
-        compactFactory.GetOrCreateTokenTracker(thread.Id).Update(9_500, 0);
 
         var cancelEventsTask = CollectAsync(compactService.SubmitInputAsync(
             thread.Id,

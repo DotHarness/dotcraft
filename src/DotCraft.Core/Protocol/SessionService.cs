@@ -427,6 +427,22 @@ public sealed partial class SessionService(
         };
     }
 
+    private static PromptRequestSnapshot RebasePromptRequestSnapshotMessages(
+        PromptRequestSnapshot template,
+        IReadOnlyList<ChatMessage> currentHistory)
+    {
+        var capturedMessages = MessageGrouper
+            .NormalizeFunctionCallArguments(currentHistory)
+            .Select(message => message.Clone())
+            .ToArray();
+
+        return template with
+        {
+            Messages = capturedMessages,
+            MessageFingerprint = MessageTokenEstimator.ComputePrefixFingerprint(capturedMessages, capturedMessages.Length)
+        };
+    }
+
     private void InvalidatePromptRequestSnapshot(string threadId, string reason)
     {
         if (_runtimeRegistry.TryGetRuntime(threadId, out var runtime)
@@ -1430,11 +1446,15 @@ public sealed partial class SessionService(
                 if (session is null || tokenTracker is null || modelVisibleHistory.Count == 0)
                     return null;
 
+                var compactHistory = ModelRequestHistorySanitizer.Sanitize(modelVisibleHistory);
+                var compactSnapshot = ReferenceEquals(compactHistory, modelVisibleHistory) || requestSnapshot is null
+                    ? requestSnapshot
+                    : RebasePromptRequestSnapshotMessages(requestSnapshot, compactHistory);
                 var usageEstimate = EstimateContextTokens(
                     threadId,
-                    modelVisibleHistory,
+                    compactHistory,
                     tokenTracker.LastContextTokens,
-                    requestSnapshot);
+                    compactSnapshot);
                 if (!usageEstimate.EligibleForAutoCompact)
                     return null;
 
@@ -1459,12 +1479,12 @@ public sealed partial class SessionService(
                 try
                 {
                     result = await pipeline.TryAutoCompactHistoryAsync(
-                        modelVisibleHistory,
+                        compactHistory,
                         threadId,
                         tokenHint,
                         lastActivityBeforeTurn,
                         compactionCt,
-                        requestSnapshot);
+                        compactSnapshot);
                 }
                 catch (OperationCanceledException)
                 {
