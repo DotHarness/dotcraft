@@ -5,6 +5,7 @@ using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Context;
 using DotCraft.Security;
+using DotCraft.Tools;
 
 namespace DotCraft.Skills;
 
@@ -48,6 +49,7 @@ public sealed class SkillManageTool(
     /// <summary>
     /// Creates and maintains reusable workspace skills.
     /// </summary>
+    [GeneratedTool]
     [Description(SkillManageDescription)]
     [StreamArguments(false)]
     public async Task<string> SkillManage(

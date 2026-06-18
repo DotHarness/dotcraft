@@ -1,5 +1,6 @@
 using DotCraft.Abstractions;
 using DotCraft.Configuration;
+using DotCraft.GeneratedTools.Core;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Tools;
@@ -93,7 +94,7 @@ internal static class DeferredToolLoadingPlanner
         else
         {
             var searchTool = new ToolSearchTool(registry, cfg.MaxSearchResults);
-            tools.Add(AIFunctionFactory.Create(searchTool.SearchTools));
+            tools.Add(GeneratedToolFunctions.ToolSearchTool_SearchTools(searchTool));
         }
     }
 

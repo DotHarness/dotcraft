@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using DotCraft.Abstractions;
 using DotCraft.Automations.Abstractions;
+using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 
@@ -21,41 +22,8 @@ public sealed class LocalTaskCompletionToolProvider(
         if (taskDir == null)
             yield break;
 
-        yield return AIFunctionFactory.Create(
-            async ([Description("Brief description of what was done to complete the task.")] string summary) =>
-            {
-                logger.LogInformation("Agent calling CompleteLocalTask for {TaskDir}: {Summary}", taskDir, summary);
-                try
-                {
-                    var task = await fileStore.LoadAsync(taskDir, CancellationToken.None).ConfigureAwait(false);
-
-                    if (task.Status == AutomationTaskStatus.Completed)
-                        return "Local task is already marked as completed.";
-
-                    if (task.Status != AutomationTaskStatus.Running)
-                    {
-                        return $"Cannot complete task in status {task.Status}. " +
-                               "CompleteLocalTask is only available while the task is running.";
-                    }
-
-                    if (!string.IsNullOrWhiteSpace(summary))
-                        task.AgentSummary = summary.Trim();
-
-                    task.Status = AutomationTaskStatus.Completed;
-                    await fileStore.SaveAsync(task, CancellationToken.None).ConfigureAwait(false);
-
-                    return "Local task has been marked as completed. " +
-                           "The orchestrator will stop the workflow after this turn.";
-                }
-                catch (Exception ex)
-                {
-                    logger.LogWarning(ex, "Failed to complete local task at {TaskDir}", taskDir);
-                    return $"Warning: could not update task.md ({ex.Message}).";
-                }
-            },
-            "CompleteLocalTask",
-            "Call this when the task is fully complete. Sets task.md to completed and stores the summary. " +
-            "Only call after you have finished all required work in the task workspace.");
+        var methods = new LocalTaskCompletionToolMethods(fileStore, logger, taskDir);
+        yield return DotCraft.GeneratedTools.Automations.GeneratedToolFunctions.LocalTaskCompletionToolMethods_CompleteLocalTask(methods);
     }
 
     private static string? TryResolveTaskDirectory(string workspacePath)
@@ -80,5 +48,47 @@ public sealed class LocalTaskCompletionToolProvider(
         var taskDir = parent.FullName;
         var taskFile = Path.Combine(taskDir, "task.md");
         return File.Exists(taskFile) ? taskDir : null;
+    }
+}
+
+internal sealed class LocalTaskCompletionToolMethods(
+    LocalTaskFileStore fileStore,
+    ILogger logger,
+    string taskDir)
+{
+    [GeneratedTool]
+    [Description("Call this when the task is fully complete. Sets task.md to completed and stores the summary. Only call after you have finished all required work in the task workspace.")]
+    public async Task<string> CompleteLocalTask(
+        [Description("Brief description of what was done to complete the task.")] string summary,
+        CancellationToken cancellationToken = default)
+    {
+        logger.LogInformation("Agent calling CompleteLocalTask for {TaskDir}: {Summary}", taskDir, summary);
+        try
+        {
+            var task = await fileStore.LoadAsync(taskDir, cancellationToken).ConfigureAwait(false);
+
+            if (task.Status == AutomationTaskStatus.Completed)
+                return "Local task is already marked as completed.";
+
+            if (task.Status != AutomationTaskStatus.Running)
+            {
+                return $"Cannot complete task in status {task.Status}. " +
+                       "CompleteLocalTask is only available while the task is running.";
+            }
+
+            if (!string.IsNullOrWhiteSpace(summary))
+                task.AgentSummary = summary.Trim();
+
+            task.Status = AutomationTaskStatus.Completed;
+            await fileStore.SaveAsync(task, cancellationToken).ConfigureAwait(false);
+
+            return "Local task has been marked as completed. " +
+                   "The orchestrator will stop the workflow after this turn.";
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to complete local task at {TaskDir}", taskDir);
+            return $"Warning: could not update task.md ({ex.Message}).";
+        }
     }
 }

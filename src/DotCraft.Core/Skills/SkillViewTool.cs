@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using DotCraft.Tools;
 using DotCraft.Tracing;
 
 namespace DotCraft.Skills;
@@ -22,6 +23,7 @@ public sealed class SkillViewTool(
     /// <summary>
     /// Loads a skill's effective <c>SKILL.md</c> body.
     /// </summary>
+    [GeneratedTool]
     [Description(SkillViewDescription)]
     public string SkillView(
         [Description("Skill name, for example 'browser' or 'skill-authoring'.")]

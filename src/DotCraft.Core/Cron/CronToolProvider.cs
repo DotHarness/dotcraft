@@ -1,4 +1,5 @@
 using DotCraft.Abstractions;
+using DotCraft.GeneratedTools.Core;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Cron;
@@ -18,6 +19,6 @@ public sealed class CronToolProvider : IAgentToolProvider
         if (context.CronTools == null)
             return [];
 
-        return [AIFunctionFactory.Create(context.CronTools.Cron)];
+        return [GeneratedToolFunctions.CronTools_Cron(context.CronTools)];
     }
 }

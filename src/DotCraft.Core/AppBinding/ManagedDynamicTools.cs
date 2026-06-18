@@ -184,10 +184,25 @@ public static class DynamicToolSpecFactory
     }
 }
 
+public interface IManagedDynamicToolRegistry<TTarget>
+    where TTarget : class
+{
+    IReadOnlyList<DynamicToolSpec> ToolSpecs { get; }
+
+    bool ContainsTool(string toolName);
+
+    ValueTask<DynamicToolCallResult> InvokeAsync(
+        TTarget target,
+        ManagedAppBindingToolCallContext context,
+        JsonObject arguments,
+        CancellationToken cancellationToken);
+}
+
 /// <summary>
 /// Dispatches attributed managed dynamic tools and exposes their generated specs.
 /// </summary>
 public sealed class ManagedDynamicToolRegistry<TTarget>
+    : IManagedDynamicToolRegistry<TTarget>
     where TTarget : class
 {
     private readonly IReadOnlyDictionary<string, DynamicToolMethod> _methodsByName;
@@ -407,4 +422,142 @@ public sealed class ManagedDynamicToolRegistry<TTarget>
         string ToolName,
         ParameterInfo[] Parameters,
         Type ReturnType);
+}
+
+internal static class GeneratedDynamicToolArgumentBinder
+{
+    public static string BindRequiredString(JsonObject arguments, string name)
+    {
+        var value = BindString(arguments, name, hasDefaultValue: false, defaultValue: null);
+        if (value == null)
+            throw AppServerErrors.InvalidParams($"'{name}' is required.");
+        return value;
+    }
+
+    public static string? BindOptionalString(JsonObject arguments, string name, string? defaultValue = null) =>
+        BindString(arguments, name, hasDefaultValue: true, defaultValue);
+
+    public static bool BindRequiredBool(JsonObject arguments, string name)
+    {
+        var value = BindNullableBool(arguments, name, hasDefaultValue: false, defaultValue: null);
+        if (!value.HasValue)
+            throw AppServerErrors.InvalidParams($"'{name}' is required.");
+        return value.Value;
+    }
+
+    public static bool? BindOptionalBool(JsonObject arguments, string name, bool? defaultValue = null) =>
+        BindNullableBool(arguments, name, hasDefaultValue: true, defaultValue);
+
+    public static List<string>? BindOptionalStringList(JsonObject arguments, string name) =>
+        BindStringList(arguments, name, hasDefaultValue: true, defaultValue: null);
+
+    public static string[]? BindOptionalStringArray(JsonObject arguments, string name) =>
+        BindStringList(arguments, name, hasDefaultValue: true, defaultValue: null)?.ToArray();
+
+    public static List<string> BindRequiredStringList(JsonObject arguments, string name)
+    {
+        var value = BindStringList(arguments, name, hasDefaultValue: false, defaultValue: null);
+        if (value == null)
+            throw AppServerErrors.InvalidParams($"'{name}' is required.");
+        return value;
+    }
+
+    public static string[] BindRequiredStringArray(JsonObject arguments, string name) =>
+        BindRequiredStringList(arguments, name).ToArray();
+
+    public static int? BindOptionalInt(JsonObject arguments, string name, int? defaultValue = null) =>
+        BindNullableNumber<int>(arguments, name, hasDefaultValue: true, defaultValue, value => value.TryGetValue<int>(out var parsed) ? parsed : null);
+
+    public static long? BindOptionalLong(JsonObject arguments, string name, long? defaultValue = null) =>
+        BindNullableNumber<long>(arguments, name, hasDefaultValue: true, defaultValue, value => value.TryGetValue<long>(out var parsed) ? parsed : null);
+
+    private static string? BindString(JsonObject arguments, string name, bool hasDefaultValue, string? defaultValue)
+    {
+        if (!TryGetArgument(arguments, name, hasDefaultValue, out var node))
+            return defaultValue;
+
+        if (node!.GetValueKind() != JsonValueKind.String)
+            throw AppServerErrors.InvalidParams($"'{name}' must be a string.");
+
+        var value = node.GetValue<string>()?.Trim();
+        return string.IsNullOrWhiteSpace(value) ? null : value;
+    }
+
+    private static bool? BindNullableBool(JsonObject arguments, string name, bool hasDefaultValue, bool? defaultValue)
+    {
+        if (!TryGetArgument(arguments, name, hasDefaultValue, out var node))
+            return defaultValue;
+
+        if (node!.GetValueKind() == JsonValueKind.True)
+            return true;
+        if (node.GetValueKind() == JsonValueKind.False)
+            return false;
+        if (node.GetValueKind() == JsonValueKind.String && bool.TryParse(node.GetValue<string>(), out var parsed))
+            return parsed;
+        throw AppServerErrors.InvalidParams($"'{name}' must be a boolean.");
+    }
+
+    private static T? BindNullableNumber<T>(
+        JsonObject arguments,
+        string name,
+        bool hasDefaultValue,
+        T? defaultValue,
+        Func<JsonValue, T?> converter)
+        where T : struct
+    {
+        if (!TryGetArgument(arguments, name, hasDefaultValue, out var node))
+            return defaultValue;
+
+        if (node is not JsonValue value || node.GetValueKind() != JsonValueKind.Number)
+            throw AppServerErrors.InvalidParams($"'{name}' must be a number.");
+        var parsed = converter(value);
+        if (parsed == null)
+            throw AppServerErrors.InvalidParams($"'{name}' is outside the supported numeric range.");
+        return parsed.Value;
+    }
+
+    private static List<string>? BindStringList(
+        JsonObject arguments,
+        string name,
+        bool hasDefaultValue,
+        List<string>? defaultValue)
+    {
+        if (!TryGetArgument(arguments, name, hasDefaultValue, out var node))
+            return defaultValue;
+
+        var result = new List<string>();
+        if (node!.GetValueKind() == JsonValueKind.String)
+        {
+            var value = node.GetValue<string>()?.Trim();
+            if (!string.IsNullOrWhiteSpace(value))
+                result.Add(value);
+            return result;
+        }
+
+        if (node is not JsonArray array)
+            throw AppServerErrors.InvalidParams($"'{name}' must be an array of strings.");
+
+        foreach (var item in array)
+        {
+            if (item == null || item.GetValueKind() != JsonValueKind.String)
+                throw AppServerErrors.InvalidParams($"'{name}' must be an array of strings.");
+            var value = item.GetValue<string>()?.Trim();
+            if (!string.IsNullOrWhiteSpace(value) && !result.Contains(value, StringComparer.Ordinal))
+                result.Add(value);
+        }
+
+        return result;
+    }
+
+    private static bool TryGetArgument(JsonObject arguments, string name, bool hasDefaultValue, out JsonNode? node)
+    {
+        if (!arguments.TryGetPropertyValue(name, out node) || node == null)
+        {
+            if (hasDefaultValue)
+                return false;
+            throw AppServerErrors.InvalidParams($"'{name}' is required.");
+        }
+
+        return true;
+    }
 }

@@ -19,7 +19,7 @@ namespace DotCraft.Teams;
 /// <summary>
 /// Managed App Binding runtime and state owner for the DotCraft Team.
 /// </summary>
-public sealed class TeamsService(IAppConfigMonitor? appConfigMonitor = null) : IManagedAppBindingRuntime, IThreadRuntimeSignalObserver
+public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = null) : IManagedAppBindingRuntime, IThreadRuntimeSignalObserver
 {
     private const string CreateTeamToolName = "CreateTeam";
     private const string TeamProfileLeader = "team-leader";
@@ -75,7 +75,8 @@ public sealed class TeamsService(IAppConfigMonitor? appConfigMonitor = null) : I
 
     private readonly ConcurrentDictionary<string, TeamsStateStore> _stores = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _schedulerLocks = new(StringComparer.OrdinalIgnoreCase);
-    private static readonly ManagedDynamicToolRegistry<TeamsService> DynamicTools = new(TeamsConstants.ToolNamespace);
+    private static readonly IManagedDynamicToolRegistry<TeamsService> DynamicTools =
+        CreateGeneratedDynamicToolRegistry(TeamsConstants.ToolNamespace);
     private static readonly Regex ArtifactReferencePattern = new(@"\bartifact_[A-Za-z0-9_-]+\b", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex TaskAliasPattern = new(@"^t[1-9][0-9]*$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex ArtifactAliasPattern = new(@"^a[1-9][0-9]*$", RegexOptions.Compiled | RegexOptions.CultureInvariant);

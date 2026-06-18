@@ -6,6 +6,7 @@ using DotCraft.Configuration;
 using DotCraft.Context;
 using DotCraft.Context.Compaction;
 using DotCraft.Tracing;
+using DotCraft.GeneratedTools.Core;
 using DotCraft.Hooks;
 using DotCraft.Memory;
 using DotCraft.Dreams;
@@ -381,15 +382,15 @@ public sealed class AgentFactory : IAsyncDisposable
         {
             // Use GetActiveSessionKey for reliable session key retrieval across async boundaries
             var planTools = new PlanTools(_planStore, TracingChatClient.GetActiveSessionKey, _onPlanUpdated);
-            tools.Add(AIFunctionFactory.Create(planTools.CreatePlan));
-            tools.Add(AIFunctionFactory.Create(planTools.UpdateTodos));
-            tools.Add(AIFunctionFactory.Create(planTools.TodoWrite));
+            tools.Add(GeneratedToolFunctions.PlanTools_CreatePlan(planTools));
+            tools.Add(GeneratedToolFunctions.PlanTools_UpdateTodos(planTools));
+            tools.Add(GeneratedToolFunctions.PlanTools_TodoWrite(planTools));
         }
 
         if (toolContext.CurrentThreadSource?.SubAgent == null)
         {
             var userInputTools = new RequestUserInputTools();
-            tools.Add(AIFunctionFactory.Create(userInputTools.RequestUserInput));
+            tools.Add(GeneratedToolFunctions.RequestUserInputTools_RequestUserInput(userInputTools));
         }
 
         tools = ApplyResultLimits(tools, toolContext.WorkspacePath);
@@ -684,7 +685,9 @@ public sealed class AgentFactory : IAsyncDisposable
 
         AITool Wrap(AIFunction fn)
         {
-            var limit = ToolResultProcessor.ResolveMaxResultChars(fn.Name, globalMax);
+            var limit = GeneratedToolMetadataResolver.TryGet(fn, out var metadata) && metadata.MaxResultChars.HasValue
+                ? metadata.MaxResultChars.Value
+                : ToolResultProcessor.ResolveMaxResultChars(fn.Name, globalMax);
             return new ResultSizeLimitingFunction(fn, limit, workspacePath, previewLines);
         }
     }
@@ -735,9 +738,8 @@ public sealed class AgentFactory : IAsyncDisposable
 
     /// <summary>
     /// Builds the set of tool names that should opt out of streaming argument deltas.
-    /// A tool opts out when its underlying method carries
-    /// <c>[StreamArguments(false)]</c>. Tools without an <c>UnderlyingMethod</c>
-    /// (e.g. MCP tools) are always streamable.
+    /// Generated tools expose the policy through generated metadata; legacy or dynamic
+    /// wrappers fall back to inspecting <c>UnderlyingMethod</c> when one is available.
     /// </summary>
     internal static HashSet<string> BuildStreamOptOutToolNames(
         IEnumerable<AITool> primary,
@@ -756,6 +758,13 @@ public sealed class AgentFactory : IAsyncDisposable
         {
             if (tool is not AIFunction fn)
                 continue;
+
+            if (GeneratedToolMetadataResolver.TryGet(fn, out var metadata))
+            {
+                if (!metadata.StreamArgumentsEnabled)
+                    optOut.Add(fn.Name);
+                continue;
+            }
 
             var method = fn.UnderlyingMethod;
             if (method is null)

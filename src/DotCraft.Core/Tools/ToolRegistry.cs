@@ -31,6 +31,13 @@ public static class ToolRegistry
             if (!ScannedAssemblies.Add(assembly))
                 return;
 
+            var generatedDescriptors = ReadGeneratedDescriptors(assembly);
+            if (generatedDescriptors.Count > 0)
+            {
+                RegisterGenerated(generatedDescriptors);
+                return;
+            }
+
             foreach (var type in assembly.GetTypes())
             {
                 if (type.IsAbstract || type.IsGenericTypeDefinition || !type.IsClass)
@@ -164,6 +171,21 @@ public static class ToolRegistry
     public static void RegisterMaxResultChars(string toolName, int maxResultChars)
         => MaxResultCharsByTool[toolName] = maxResultChars;
 
+    internal static void RegisterGenerated(IEnumerable<GeneratedToolDescriptor> descriptors)
+    {
+        foreach (var descriptor in descriptors)
+        {
+            if (!string.IsNullOrEmpty(descriptor.Icon))
+                ToolIcons[descriptor.Name] = descriptor.Icon;
+
+            if (descriptor.DisplayFormatter != null)
+                DisplayFormatters[descriptor.Name] = descriptor.DisplayFormatter;
+
+            if (descriptor.MaxResultChars.HasValue)
+                MaxResultCharsByTool[descriptor.Name] = descriptor.MaxResultChars.Value;
+        }
+    }
+
     public static bool IsToolIconRegistered(string toolName)
         => ToolIcons.ContainsKey(toolName);
 
@@ -203,5 +225,20 @@ public static class ToolRegistry
 
         if (del != null)
             DisplayFormatters[toolName] = del;
+    }
+
+    internal static IReadOnlyList<GeneratedToolDescriptor> ReadGeneratedDescriptors(Assembly assembly)
+    {
+        var descriptors = new List<GeneratedToolDescriptor>();
+        foreach (var attribute in assembly.GetCustomAttributes<GeneratedToolCatalogAttribute>())
+        {
+            var property = attribute.ProviderType.GetProperty(
+                "Descriptors",
+                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
+            if (property?.GetValue(null) is IEnumerable<GeneratedToolDescriptor> generated)
+                descriptors.AddRange(generated);
+        }
+
+        return descriptors;
     }
 }

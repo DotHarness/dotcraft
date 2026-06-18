@@ -1,5 +1,6 @@
 using DotCraft.Abstractions;
 using DotCraft.Configuration;
+using DotCraft.GeneratedTools.Core;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Tools;
@@ -59,7 +60,7 @@ public sealed class DeferredToolProvider : IAgentToolProvider
         var searchTool = new ToolSearchTool(registry, cfg.MaxSearchResults);
         var tools = new List<AITool>(alwaysLoaded.Count + 1);
         tools.AddRange(alwaysLoaded);
-        tools.Add(AIFunctionFactory.Create(searchTool.SearchTools));
+        tools.Add(GeneratedToolFunctions.ToolSearchTool_SearchTools(searchTool));
         return tools;
     }
 }

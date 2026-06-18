@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using DotCraft.Abstractions;
+using DotCraft.GeneratedTools.Core;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Tools;
@@ -11,7 +12,7 @@ public sealed class CommitSuggestToolProvider : IAgentToolProvider
 {
     public IEnumerable<AITool> CreateTools(ToolProviderContext context)
     {
-        yield return AIFunctionFactory.Create(CommitSuggestMethods.CommitSuggest);
+        yield return GeneratedToolFunctions.CommitSuggestMethods_CommitSuggest();
     }
 }
 
@@ -22,6 +23,7 @@ public static class CommitSuggestMethods
 {
     public const string ToolName = "CommitSuggest";
 
+    [GeneratedTool]
     [Description(
         "Submit the suggested git commit message. Call once with a concise summary line (Conventional Commits style) and an optional body.")]
     public static string CommitSuggest(
