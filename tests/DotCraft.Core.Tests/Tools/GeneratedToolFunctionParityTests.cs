@@ -227,12 +227,15 @@ public sealed class GeneratedToolFunctionParityTests : IDisposable
     {
         Assert.Equal(pair.Factory.Name, pair.Generated.Name);
         Assert.Equal(pair.Factory.Description, pair.Generated.Description);
+        AssertJsonEqual(pair.Factory.JsonSchema, pair.Generated.JsonSchema, $"{pair.Name} raw input schema");
         AssertJsonEqual(
             ToolSchemaSanitizer.SanitizeJsonSchema(pair.Factory.JsonSchema),
             ToolSchemaSanitizer.SanitizeJsonSchema(pair.Generated.JsonSchema),
             $"{pair.Name} input schema");
         AssertNullableJsonEqual(pair.Factory.ReturnJsonSchema, pair.Generated.ReturnJsonSchema, $"{pair.Name} return schema");
-        Assert.Same(AIJsonUtilities.DefaultOptions, pair.Generated.JsonSerializerOptions);
+        Assert.Same(pair.Factory.JsonSerializerOptions, pair.Generated.JsonSerializerOptions);
+        Assert.NotNull(pair.Factory.UnderlyingMethod);
+        Assert.Null(pair.Generated.UnderlyingMethod);
     }
 
     private static async Task AssertInvocationMatchesAsync(
@@ -243,6 +246,7 @@ public sealed class GeneratedToolFunctionParityTests : IDisposable
         var generatedResult = await generated.InvokeAsync(arguments);
         var factoryResult = await factory.InvokeAsync(arguments);
 
+        Assert.Equal(factoryResult?.GetType(), generatedResult?.GetType());
         Assert.Equal(
             JsonSerializer.SerializeToElement(factoryResult, factoryResult?.GetType() ?? typeof(object)).GetRawText(),
             JsonSerializer.SerializeToElement(generatedResult, generatedResult?.GetType() ?? typeof(object)).GetRawText());
