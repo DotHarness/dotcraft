@@ -30,6 +30,39 @@ public sealed class TraceStore
     private int _persistInFlight;
     private const int DefaultEventPageLimit = 1000;
     private const int MaxEventPageLimit = 1000;
+    private const string TraceSessionSummaryColumns = """
+                session_key,
+                started_at,
+                last_activity_at,
+                request_count,
+                maintenance_fork_request_count,
+                response_count,
+                maintenance_fork_response_count,
+                tool_call_count,
+                error_count,
+                context_compaction_count,
+                thinking_count,
+                token_usage_count,
+                total_input_tokens,
+                total_output_tokens,
+                total_cached_input_tokens,
+                total_cache_write_input_tokens,
+                total_reasoning_output_tokens,
+                total_tool_duration_ms,
+                max_tool_duration_ms,
+                max_turn_duration_ms,
+                last_finish_reason,
+                final_system_prompt,
+                tool_names_json,
+                first_user_request,
+                system_prompt_hash,
+                tool_schema_hash,
+                prompt_drift_count,
+                session_metadata_captured_at,
+                last_prompt_cache_change_at,
+                last_prompt_cache_change_kind,
+                last_prompt_cache_changed_fields_json
+        """;
 
     private static readonly JsonSerializerOptions PersistJsonOptions = new()
     {
@@ -906,7 +939,15 @@ public sealed class TraceStore
                 max_turn_duration_ms,
                 last_finish_reason,
                 final_system_prompt,
-                tool_names_json
+                tool_names_json,
+                first_user_request,
+                system_prompt_hash,
+                tool_schema_hash,
+                prompt_drift_count,
+                session_metadata_captured_at,
+                last_prompt_cache_change_at,
+                last_prompt_cache_change_kind,
+                last_prompt_cache_changed_fields_json
             ) VALUES (
                 $session_key,
                 $started_at,
@@ -930,31 +971,93 @@ public sealed class TraceStore
                 $max_turn_duration_ms,
                 $last_finish_reason,
                 $final_system_prompt,
-                $tool_names_json
+                $tool_names_json,
+                $first_user_request,
+                $system_prompt_hash,
+                $tool_schema_hash,
+                $prompt_drift_count,
+                $session_metadata_captured_at,
+                $last_prompt_cache_change_at,
+                $last_prompt_cache_change_kind,
+                $last_prompt_cache_changed_fields_json
             )
             ON CONFLICT(session_key) DO UPDATE SET
-                started_at = excluded.started_at,
-                last_activity_at = excluded.last_activity_at,
-                request_count = excluded.request_count,
-                maintenance_fork_request_count = excluded.maintenance_fork_request_count,
-                response_count = excluded.response_count,
-                maintenance_fork_response_count = excluded.maintenance_fork_response_count,
-                tool_call_count = excluded.tool_call_count,
-                error_count = excluded.error_count,
-                context_compaction_count = excluded.context_compaction_count,
-                thinking_count = excluded.thinking_count,
-                token_usage_count = excluded.token_usage_count,
-                total_input_tokens = excluded.total_input_tokens,
-                total_output_tokens = excluded.total_output_tokens,
-                total_cached_input_tokens = excluded.total_cached_input_tokens,
-                total_cache_write_input_tokens = excluded.total_cache_write_input_tokens,
-                total_reasoning_output_tokens = excluded.total_reasoning_output_tokens,
-                total_tool_duration_ms = excluded.total_tool_duration_ms,
-                max_tool_duration_ms = excluded.max_tool_duration_ms,
-                max_turn_duration_ms = excluded.max_turn_duration_ms,
-                last_finish_reason = excluded.last_finish_reason,
-                final_system_prompt = excluded.final_system_prompt,
-                tool_names_json = excluded.tool_names_json
+                started_at = CASE
+                    WHEN excluded.started_at < trace_sessions.started_at THEN excluded.started_at
+                    ELSE trace_sessions.started_at
+                END,
+                last_activity_at = CASE
+                    WHEN excluded.last_activity_at > trace_sessions.last_activity_at THEN excluded.last_activity_at
+                    ELSE trace_sessions.last_activity_at
+                END,
+                request_count = MAX(trace_sessions.request_count, excluded.request_count),
+                maintenance_fork_request_count = MAX(trace_sessions.maintenance_fork_request_count, excluded.maintenance_fork_request_count),
+                response_count = MAX(trace_sessions.response_count, excluded.response_count),
+                maintenance_fork_response_count = MAX(trace_sessions.maintenance_fork_response_count, excluded.maintenance_fork_response_count),
+                tool_call_count = MAX(trace_sessions.tool_call_count, excluded.tool_call_count),
+                error_count = MAX(trace_sessions.error_count, excluded.error_count),
+                context_compaction_count = MAX(trace_sessions.context_compaction_count, excluded.context_compaction_count),
+                thinking_count = MAX(trace_sessions.thinking_count, excluded.thinking_count),
+                token_usage_count = MAX(trace_sessions.token_usage_count, excluded.token_usage_count),
+                total_input_tokens = MAX(trace_sessions.total_input_tokens, excluded.total_input_tokens),
+                total_output_tokens = MAX(trace_sessions.total_output_tokens, excluded.total_output_tokens),
+                total_cached_input_tokens = MAX(trace_sessions.total_cached_input_tokens, excluded.total_cached_input_tokens),
+                total_cache_write_input_tokens = MAX(trace_sessions.total_cache_write_input_tokens, excluded.total_cache_write_input_tokens),
+                total_reasoning_output_tokens = MAX(trace_sessions.total_reasoning_output_tokens, excluded.total_reasoning_output_tokens),
+                total_tool_duration_ms = MAX(trace_sessions.total_tool_duration_ms, excluded.total_tool_duration_ms),
+                max_tool_duration_ms = MAX(trace_sessions.max_tool_duration_ms, excluded.max_tool_duration_ms),
+                max_turn_duration_ms = MAX(trace_sessions.max_turn_duration_ms, excluded.max_turn_duration_ms),
+                last_finish_reason = COALESCE(excluded.last_finish_reason, trace_sessions.last_finish_reason),
+                final_system_prompt = CASE
+                    WHEN excluded.session_metadata_captured_at IS NOT NULL
+                      AND (trace_sessions.session_metadata_captured_at IS NULL OR excluded.session_metadata_captured_at >= trace_sessions.session_metadata_captured_at)
+                    THEN excluded.final_system_prompt
+                    ELSE COALESCE(trace_sessions.final_system_prompt, excluded.final_system_prompt)
+                END,
+                tool_names_json = CASE
+                    WHEN excluded.session_metadata_captured_at IS NOT NULL
+                      AND (trace_sessions.session_metadata_captured_at IS NULL OR excluded.session_metadata_captured_at >= trace_sessions.session_metadata_captured_at)
+                    THEN excluded.tool_names_json
+                    ELSE COALESCE(trace_sessions.tool_names_json, excluded.tool_names_json)
+                END,
+                first_user_request = COALESCE(NULLIF(trace_sessions.first_user_request, ''), excluded.first_user_request),
+                system_prompt_hash = CASE
+                    WHEN excluded.session_metadata_captured_at IS NOT NULL
+                      AND (trace_sessions.session_metadata_captured_at IS NULL OR excluded.session_metadata_captured_at >= trace_sessions.session_metadata_captured_at)
+                    THEN excluded.system_prompt_hash
+                    ELSE COALESCE(trace_sessions.system_prompt_hash, excluded.system_prompt_hash)
+                END,
+                tool_schema_hash = CASE
+                    WHEN excluded.session_metadata_captured_at IS NOT NULL
+                      AND (trace_sessions.session_metadata_captured_at IS NULL OR excluded.session_metadata_captured_at >= trace_sessions.session_metadata_captured_at)
+                    THEN excluded.tool_schema_hash
+                    ELSE COALESCE(trace_sessions.tool_schema_hash, excluded.tool_schema_hash)
+                END,
+                prompt_drift_count = MAX(trace_sessions.prompt_drift_count, excluded.prompt_drift_count),
+                session_metadata_captured_at = CASE
+                    WHEN excluded.session_metadata_captured_at IS NOT NULL
+                      AND (trace_sessions.session_metadata_captured_at IS NULL OR excluded.session_metadata_captured_at > trace_sessions.session_metadata_captured_at)
+                    THEN excluded.session_metadata_captured_at
+                    ELSE trace_sessions.session_metadata_captured_at
+                END,
+                last_prompt_cache_change_at = CASE
+                    WHEN excluded.last_prompt_cache_change_at IS NOT NULL
+                      AND (trace_sessions.last_prompt_cache_change_at IS NULL OR excluded.last_prompt_cache_change_at > trace_sessions.last_prompt_cache_change_at)
+                    THEN excluded.last_prompt_cache_change_at
+                    ELSE trace_sessions.last_prompt_cache_change_at
+                END,
+                last_prompt_cache_change_kind = CASE
+                    WHEN excluded.last_prompt_cache_change_at IS NOT NULL
+                      AND (trace_sessions.last_prompt_cache_change_at IS NULL OR excluded.last_prompt_cache_change_at >= trace_sessions.last_prompt_cache_change_at)
+                    THEN excluded.last_prompt_cache_change_kind
+                    ELSE trace_sessions.last_prompt_cache_change_kind
+                END,
+                last_prompt_cache_changed_fields_json = CASE
+                    WHEN excluded.last_prompt_cache_change_at IS NOT NULL
+                      AND (trace_sessions.last_prompt_cache_change_at IS NULL OR excluded.last_prompt_cache_change_at >= trace_sessions.last_prompt_cache_change_at)
+                    THEN excluded.last_prompt_cache_changed_fields_json
+                    ELSE trace_sessions.last_prompt_cache_changed_fields_json
+                END
             """;
         command.Parameters.AddWithValue("$session_key", session.SessionKey);
         command.Parameters.AddWithValue("$started_at", session.StartedAt.UtcDateTime.ToString("O"));
@@ -979,6 +1082,24 @@ public sealed class TraceStore
         command.Parameters.AddWithValue("$last_finish_reason", (object?)session.LastFinishReason ?? DBNull.Value);
         command.Parameters.AddWithValue("$final_system_prompt", (object?)session.FinalSystemPrompt ?? DBNull.Value);
         command.Parameters.AddWithValue("$tool_names_json", JsonSerializer.Serialize(session.ToolNames, PersistJsonOptions));
+        command.Parameters.AddWithValue("$first_user_request", (object?)session.FirstUserRequest ?? DBNull.Value);
+        command.Parameters.AddWithValue("$system_prompt_hash", (object?)session.SystemPromptHash ?? DBNull.Value);
+        command.Parameters.AddWithValue("$tool_schema_hash", (object?)session.ToolSchemaHash ?? DBNull.Value);
+        command.Parameters.AddWithValue("$prompt_drift_count", session.PromptDriftCount);
+        command.Parameters.AddWithValue(
+            "$session_metadata_captured_at",
+            session.SessionMetadataCapturedAt.HasValue
+                ? session.SessionMetadataCapturedAt.Value.UtcDateTime.ToString("O")
+                : DBNull.Value);
+        command.Parameters.AddWithValue(
+            "$last_prompt_cache_change_at",
+            session.LastPromptCacheChangeAt.HasValue
+                ? session.LastPromptCacheChangeAt.Value.UtcDateTime.ToString("O")
+                : DBNull.Value);
+        command.Parameters.AddWithValue("$last_prompt_cache_change_kind", (object?)session.LastPromptCacheChangeKind ?? DBNull.Value);
+        command.Parameters.AddWithValue(
+            "$last_prompt_cache_changed_fields_json",
+            JsonSerializer.Serialize(session.LastPromptCacheChangedFields, PersistJsonOptions));
         command.ExecuteNonQuery();
     }
 
@@ -986,7 +1107,7 @@ public sealed class TraceStore
     {
         return _sessions.GetOrAdd(evt.SessionKey, key =>
             _stateRuntime != null
-                ? LoadSessionFromDbEvents(key, keepEvents: false) ?? new TraceSession
+                ? LoadSessionSummaryFromDb(key) ?? LoadSessionFromDbEvents(key, keepEvents: false) ?? new TraceSession
                 {
                     SessionKey = key,
                     StartedAt = evt.Timestamp
@@ -1004,31 +1125,9 @@ public sealed class TraceStore
 
         using var connection = _stateRuntime!.OpenConnection();
         using var command = connection.CreateCommand();
-        command.CommandText = """
+        command.CommandText = $"""
             SELECT
-                session_key,
-                started_at,
-                last_activity_at,
-                request_count,
-                maintenance_fork_request_count,
-                response_count,
-                maintenance_fork_response_count,
-                tool_call_count,
-                error_count,
-                context_compaction_count,
-                thinking_count,
-                token_usage_count,
-                total_input_tokens,
-                total_output_tokens,
-                total_cached_input_tokens,
-                total_cache_write_input_tokens,
-                total_reasoning_output_tokens,
-                total_tool_duration_ms,
-                max_tool_duration_ms,
-                max_turn_duration_ms,
-                last_finish_reason,
-                final_system_prompt,
-                tool_names_json
+            {TraceSessionSummaryColumns}
             FROM trace_sessions
             ORDER BY last_activity_at DESC, session_key DESC
             """;
@@ -1047,37 +1146,16 @@ public sealed class TraceStore
             return null;
 
         WaitForPendingPersistence();
-        var replayed = LoadSessionFromDbEvents(sessionKey, keepEvents: false);
-        if (replayed != null)
-            return replayed;
+        return LoadSessionSummaryFromDb(sessionKey) ?? LoadSessionFromDbEvents(sessionKey, keepEvents: false);
+    }
 
+    private TraceSession? LoadSessionSummaryFromDb(string sessionKey)
+    {
         using var connection = _stateRuntime!.OpenConnection();
         using var command = connection.CreateCommand();
-        command.CommandText = """
+        command.CommandText = $"""
             SELECT
-                session_key,
-                started_at,
-                last_activity_at,
-                request_count,
-                maintenance_fork_request_count,
-                response_count,
-                maintenance_fork_response_count,
-                tool_call_count,
-                error_count,
-                context_compaction_count,
-                thinking_count,
-                token_usage_count,
-                total_input_tokens,
-                total_output_tokens,
-                total_cached_input_tokens,
-                total_cache_write_input_tokens,
-                total_reasoning_output_tokens,
-                total_tool_duration_ms,
-                max_tool_duration_ms,
-                max_turn_duration_ms,
-                last_finish_reason,
-                final_system_prompt,
-                tool_names_json
+            {TraceSessionSummaryColumns}
             FROM trace_sessions
             WHERE session_key = $session_key
             """;
@@ -1303,7 +1381,15 @@ public sealed class TraceStore
             ThinkingCount = ReadInt32(reader, 10),
             TokenUsageCount = ReadInt32(reader, 11),
             LastFinishReason = ReadStringOrNull(reader, 20),
-            FinalSystemPrompt = ReadStringOrNull(reader, 21)
+            FinalSystemPrompt = ReadStringOrNull(reader, 21),
+            FirstUserRequest = ReadStringOrNull(reader, 23),
+            SystemPromptHash = ReadStringOrNull(reader, 24),
+            ToolSchemaHash = ReadStringOrNull(reader, 25),
+            PromptDriftCount = ReadInt32(reader, 26),
+            SessionMetadataCapturedAt = ReadDateTimeOffsetOrNull(reader, 27),
+            LastPromptCacheChangeAt = ReadDateTimeOffsetOrNull(reader, 28),
+            LastPromptCacheChangeKind = ReadStringOrNull(reader, 29),
+            LastPromptCacheChangedFields = ReadStringArray(reader, 30)
         };
         session.LoadAggregateSnapshot(
             ReadInt64(reader, 12),
@@ -1314,11 +1400,11 @@ public sealed class TraceStore
             ReadInt64(reader, 17),
             ReadInt64(reader, 18),
             ReadInt64(reader, 19));
-        session.SetToolNames(ReadToolNames(reader, 22));
+        session.SetToolNames(ReadStringArray(reader, 22));
         return session;
     }
 
-    private static IReadOnlyList<string> ReadToolNames(DbDataReader reader, int ordinal)
+    private static string[] ReadStringArray(DbDataReader reader, int ordinal)
     {
         if (reader.IsDBNull(ordinal))
             return [];
@@ -1356,6 +1442,24 @@ public sealed class TraceStore
 
     private static string? ReadStringOrNull(DbDataReader reader, int ordinal)
         => reader.IsDBNull(ordinal) ? null : reader.GetString(ordinal);
+
+    private static DateTimeOffset? ReadDateTimeOffsetOrNull(DbDataReader reader, int ordinal)
+    {
+        if (reader.IsDBNull(ordinal))
+            return null;
+
+        var value = reader.GetString(ordinal);
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
+
+        return DateTimeOffset.TryParse(
+            value,
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
+            out var parsed)
+            ? parsed
+            : null;
+    }
 
     private void DeleteSessionFile(string sessionKey)
     {

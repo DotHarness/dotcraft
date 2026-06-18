@@ -6,6 +6,7 @@ public sealed class StateRuntime
 {
     private const double DefaultCompactFreelistRatio = 0.25;
     private const int DefaultCompactMinFreelistPages = 32;
+    private const string TraceSessionSummaryMetadataBackfillKey = "trace_sessions.summary_metadata_backfill_v1";
 
     private readonly string _connectionString;
     private readonly bool _readOnly;
@@ -331,7 +332,15 @@ public sealed class StateRuntime
                     max_turn_duration_ms INTEGER NOT NULL DEFAULT 0,
                     last_finish_reason TEXT,
                     final_system_prompt TEXT,
-                    tool_names_json TEXT
+                    tool_names_json TEXT,
+                    first_user_request TEXT,
+                    system_prompt_hash TEXT,
+                    tool_schema_hash TEXT,
+                    prompt_drift_count INTEGER NOT NULL DEFAULT 0,
+                    session_metadata_captured_at TEXT,
+                    last_prompt_cache_change_at TEXT,
+                    last_prompt_cache_change_kind TEXT,
+                    last_prompt_cache_changed_fields_json TEXT
                 );
 
                 CREATE INDEX IF NOT EXISTS idx_trace_sessions_last_activity
@@ -443,6 +452,14 @@ public sealed class StateRuntime
             EnsureColumn(connection, "trace_sessions", "maintenance_fork_request_count", "INTEGER NOT NULL DEFAULT 0");
             EnsureColumn(connection, "trace_sessions", "maintenance_fork_response_count", "INTEGER NOT NULL DEFAULT 0");
             EnsureColumn(connection, "trace_sessions", "max_turn_duration_ms", "INTEGER NOT NULL DEFAULT 0");
+            EnsureColumn(connection, "trace_sessions", "first_user_request", "TEXT");
+            EnsureColumn(connection, "trace_sessions", "system_prompt_hash", "TEXT");
+            EnsureColumn(connection, "trace_sessions", "tool_schema_hash", "TEXT");
+            EnsureColumn(connection, "trace_sessions", "prompt_drift_count", "INTEGER NOT NULL DEFAULT 0");
+            EnsureColumn(connection, "trace_sessions", "session_metadata_captured_at", "TEXT");
+            EnsureColumn(connection, "trace_sessions", "last_prompt_cache_change_at", "TEXT");
+            EnsureColumn(connection, "trace_sessions", "last_prompt_cache_change_kind", "TEXT");
+            EnsureColumn(connection, "trace_sessions", "last_prompt_cache_changed_fields_json", "TEXT");
             EnsureColumn(connection, "trace_events", "reasoning_effort", "TEXT");
             EnsureColumn(connection, "token_usage_records", "cache_write_input_tokens", "INTEGER NOT NULL DEFAULT 0");
             EnsureColumn(connection, "dashboard_usage_records", "cached_input_tokens", "INTEGER NOT NULL DEFAULT 0");
@@ -458,8 +475,147 @@ public sealed class StateRuntime
             EnsureColumn(connection, "thread_context_usage", "anchor_boundary", "TEXT");
             EnsureColumn(connection, "thread_context_usage", "usage_source", "TEXT");
             EnsureColumn(connection, "thread_context_usage", "usage_is_estimate", "INTEGER NOT NULL DEFAULT 0");
+            BackfillTraceSessionSummaryMetadata(connection);
 
             _initialized = true;
+        }
+    }
+
+    private static void BackfillTraceSessionSummaryMetadata(SqliteConnection connection)
+    {
+        try
+        {
+            using (var marker = connection.CreateCommand())
+            {
+                marker.CommandText = "SELECT value FROM state_info WHERE key = $key LIMIT 1";
+                marker.Parameters.AddWithValue("$key", TraceSessionSummaryMetadataBackfillKey);
+                if (string.Equals(marker.ExecuteScalar() as string, "1", StringComparison.Ordinal))
+                    return;
+            }
+
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText = """
+                    UPDATE trace_sessions
+                    SET first_user_request = COALESCE(
+                        NULLIF(first_user_request, ''),
+                        (
+                            SELECT NULLIF(TRIM(json_extract(e.event_json, '$.Content')), '')
+                            FROM trace_events e
+                            WHERE e.session_key = trace_sessions.session_key
+                              AND e.type = 'Request'
+                              AND json_valid(e.event_json)
+                              AND NULLIF(TRIM(json_extract(e.event_json, '$.Content')), '') IS NOT NULL
+                            ORDER BY e.timestamp ASC, e.id ASC
+                            LIMIT 1
+                        )
+                    );
+
+                    UPDATE trace_sessions
+                    SET
+                        system_prompt_hash = COALESCE(
+                            NULLIF(system_prompt_hash, ''),
+                            (
+                                SELECT NULLIF(TRIM(json_extract(e.event_json, '$.SystemPromptHash')), '')
+                                FROM trace_events e
+                                WHERE e.session_key = trace_sessions.session_key
+                                  AND e.type = 'SessionMetadata'
+                                  AND json_valid(e.event_json)
+                                  AND NULLIF(TRIM(json_extract(e.event_json, '$.SystemPromptHash')), '') IS NOT NULL
+                                ORDER BY e.timestamp DESC, e.id DESC
+                                LIMIT 1
+                            )
+                        ),
+                        tool_schema_hash = COALESCE(
+                            NULLIF(tool_schema_hash, ''),
+                            (
+                                SELECT NULLIF(TRIM(json_extract(e.event_json, '$.ToolSchemaHash')), '')
+                                FROM trace_events e
+                                WHERE e.session_key = trace_sessions.session_key
+                                  AND e.type = 'SessionMetadata'
+                                  AND json_valid(e.event_json)
+                                  AND NULLIF(TRIM(json_extract(e.event_json, '$.ToolSchemaHash')), '') IS NOT NULL
+                                ORDER BY e.timestamp DESC, e.id DESC
+                                LIMIT 1
+                            )
+                        ),
+                        session_metadata_captured_at = COALESCE(
+                            NULLIF(session_metadata_captured_at, ''),
+                            (
+                                SELECT e.timestamp
+                                FROM trace_events e
+                                WHERE e.session_key = trace_sessions.session_key
+                                  AND e.type = 'SessionMetadata'
+                                  AND json_valid(e.event_json)
+                                ORDER BY e.timestamp DESC, e.id DESC
+                                LIMIT 1
+                            )
+                        );
+
+                    UPDATE trace_sessions
+                    SET prompt_drift_count = (
+                        SELECT COUNT(*)
+                        FROM trace_events e
+                        WHERE e.session_key = trace_sessions.session_key
+                          AND e.type IN ('SessionMetadata', 'ToolInjection')
+                          AND json_valid(e.event_json)
+                          AND json_extract(e.event_json, '$.PromptCacheEventKind') = 'drift'
+                    )
+                    WHERE prompt_drift_count = 0;
+
+                    UPDATE trace_sessions
+                    SET
+                        last_prompt_cache_change_at = COALESCE(
+                            NULLIF(last_prompt_cache_change_at, ''),
+                            (
+                                SELECT e.timestamp
+                                FROM trace_events e
+                                WHERE e.session_key = trace_sessions.session_key
+                                  AND e.type IN ('SessionMetadata', 'ToolInjection')
+                                  AND json_valid(e.event_json)
+                                  AND json_extract(e.event_json, '$.PromptCacheEventKind') IN ('drift', 'toolExtension')
+                                ORDER BY e.timestamp DESC, e.id DESC
+                                LIMIT 1
+                            )
+                        ),
+                        last_prompt_cache_change_kind = COALESCE(
+                            NULLIF(last_prompt_cache_change_kind, ''),
+                            (
+                                SELECT json_extract(e.event_json, '$.PromptCacheEventKind')
+                                FROM trace_events e
+                                WHERE e.session_key = trace_sessions.session_key
+                                  AND e.type IN ('SessionMetadata', 'ToolInjection')
+                                  AND json_valid(e.event_json)
+                                  AND json_extract(e.event_json, '$.PromptCacheEventKind') IN ('drift', 'toolExtension')
+                                ORDER BY e.timestamp DESC, e.id DESC
+                                LIMIT 1
+                            )
+                        ),
+                        last_prompt_cache_changed_fields_json = COALESCE(
+                            NULLIF(last_prompt_cache_changed_fields_json, ''),
+                            (
+                                SELECT COALESCE(json_extract(e.event_json, '$.PromptCacheChangedFields'), '[]')
+                                FROM trace_events e
+                                WHERE e.session_key = trace_sessions.session_key
+                                  AND e.type IN ('SessionMetadata', 'ToolInjection')
+                                  AND json_valid(e.event_json)
+                                  AND json_extract(e.event_json, '$.PromptCacheEventKind') IN ('drift', 'toolExtension')
+                                ORDER BY e.timestamp DESC, e.id DESC
+                                LIMIT 1
+                            )
+                        );
+
+                    INSERT INTO state_info(key, value)
+                    VALUES ($key, '1')
+                    ON CONFLICT(key) DO UPDATE SET value = excluded.value;
+                    """;
+                command.Parameters.AddWithValue("$key", TraceSessionSummaryMetadataBackfillKey);
+                command.ExecuteNonQuery();
+            }
+        }
+        catch
+        {
+            // Best-effort migration; newly recorded sessions persist these fields directly.
         }
     }
 
