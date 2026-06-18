@@ -1,6 +1,5 @@
 ---
-description: "Two-layer memory system with grep-based recall."
-always: true
+description: "Reference for DotCraft memory files and history recall; use when the user asks about memory mechanics or when past events are needed."
 ---
 
 # Memory

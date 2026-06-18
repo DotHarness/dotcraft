@@ -135,17 +135,17 @@ public sealed class PromptBuilder(
         if (!string.IsNullOrWhiteSpace(skillsSummary))
         {
             var skillLoadInstruction = IsToolAvailable(availableToolNames, "SkillView")
-                ? "Before replying, scan the available skills below. If a skill is relevant or even partially relevant to the task, you MUST load it with the SkillView tool and follow its instructions. Use ReadFile only when SkillView is unavailable or when you need to inspect a specific physical supporting file referenced by the loaded skill."
-                : "Before replying, scan the available skills below. If a skill is relevant or even partially relevant to the task, you MUST read its SKILL.md file using the ReadFile tool and follow its instructions.";
+                ? "Before replying, scan the available skills below. If the user names a skill or the current task clearly matches a skill's description, load that skill with the SkillView tool and follow its instructions. Use ReadFile only when SkillView is unavailable or when you need to inspect a specific physical supporting file referenced by the loaded skill."
+                : "Before replying, scan the available skills below. If the user names a skill or the current task clearly matches a skill's description, read that skill's SKILL.md and follow its instructions.";
             parts.Add(
 $"""
-# Skills (mandatory)
+# Skills
 
 {skillLoadInstruction}
 
-Err on the side of loading skills. Skills encode project workflows, pitfalls, user preferences, and quality standards that may outperform a general-purpose approach.
+Skills encode project workflows, pitfalls, user preferences, and quality standards that may outperform a general-purpose approach. Use the minimal set of matching skills. Do not carry skill choices across turns unless the skill is re-mentioned or the new task clearly matches it.
 
-Only proceed without loading a skill if genuinely none of the listed skills are relevant to the task.
+Active skills shown above are already loaded; follow their instructions directly instead of calling SkillView for them again.
 
 {skillsSummary}
 """
@@ -480,7 +480,7 @@ This is your working directory where you perform file and shell operations.
 ## DotCraft Directory
 Your data directory is at: {{craftPath}}
 This contains:
-- Memory: {{craftPath}}/memory/ (see Memory skill for details)
+- Memory: {{craftPath}}/memory/ (long-term context and history files)
 - Custom skills: {{craftPath}}/skills/{skill-name}/SKILL.md
 - Configuration: {{craftPath}}/config.json
 
