@@ -1214,25 +1214,26 @@ public sealed class TraceStore
         WaitForPendingPersistence();
 
         using var connection = _stateRuntime!.OpenConnection();
+        var columns = GetTableColumns(connection, "trace_sessions");
         using var command = connection.CreateCommand();
-        command.CommandText = """
+        command.CommandText = $"""
             SELECT
                 COUNT(*),
-                COALESCE(SUM(request_count), 0),
-                COALESCE(SUM(maintenance_fork_request_count), 0),
-                COALESCE(SUM(response_count), 0),
-                COALESCE(SUM(maintenance_fork_response_count), 0),
-                COALESCE(SUM(tool_call_count), 0),
-                COALESCE(SUM(error_count), 0),
-                COALESCE(SUM(context_compaction_count), 0),
-                COALESCE(SUM(total_tool_duration_ms), 0),
-                COALESCE(MAX(max_tool_duration_ms), 0),
-                COALESCE(MAX(max_turn_duration_ms), 0),
-                COALESCE(SUM(total_input_tokens), 0),
-                COALESCE(SUM(total_output_tokens), 0),
-                COALESCE(SUM(total_cached_input_tokens), 0),
-                COALESCE(SUM(total_cache_write_input_tokens), 0),
-                COALESCE(SUM(total_reasoning_output_tokens), 0)
+                {SumTraceSessionColumnOrZero(columns, "request_count")},
+                {SumTraceSessionColumnOrZero(columns, "maintenance_fork_request_count")},
+                {SumTraceSessionColumnOrZero(columns, "response_count")},
+                {SumTraceSessionColumnOrZero(columns, "maintenance_fork_response_count")},
+                {SumTraceSessionColumnOrZero(columns, "tool_call_count")},
+                {SumTraceSessionColumnOrZero(columns, "error_count")},
+                {SumTraceSessionColumnOrZero(columns, "context_compaction_count")},
+                {SumTraceSessionColumnOrZero(columns, "total_tool_duration_ms")},
+                {MaxTraceSessionColumnOrZero(columns, "max_tool_duration_ms")},
+                {MaxTraceSessionColumnOrZero(columns, "max_turn_duration_ms")},
+                {SumTraceSessionColumnOrZero(columns, "total_input_tokens")},
+                {SumTraceSessionColumnOrZero(columns, "total_output_tokens")},
+                {SumTraceSessionColumnOrZero(columns, "total_cached_input_tokens")},
+                {SumTraceSessionColumnOrZero(columns, "total_cache_write_input_tokens")},
+                {SumTraceSessionColumnOrZero(columns, "total_reasoning_output_tokens")}
             FROM trace_sessions
             """;
 
@@ -1314,6 +1315,10 @@ public sealed class TraceStore
         WaitForPendingPersistence();
 
         using var connection = _stateRuntime!.OpenConnection();
+        var columns = GetTableColumns(connection, "trace_sessions");
+        if (!columns.Contains("max_turn_duration_ms"))
+            return 0;
+
         using var command = connection.CreateCommand();
         command.CommandText = "SELECT COALESCE(MAX(max_turn_duration_ms), 0) FROM trace_sessions";
         return Convert.ToInt64(command.ExecuteScalar(), CultureInfo.InvariantCulture);
@@ -1428,6 +1433,12 @@ public sealed class TraceStore
             columns.Add(reader.GetString(1));
         return columns;
     }
+
+    private static string SumTraceSessionColumnOrZero(IReadOnlySet<string> availableColumns, string columnName)
+        => availableColumns.Contains(columnName) ? $"COALESCE(SUM({columnName}), 0)" : "0";
+
+    private static string MaxTraceSessionColumnOrZero(IReadOnlySet<string> availableColumns, string columnName)
+        => availableColumns.Contains(columnName) ? $"COALESCE(MAX({columnName}), 0)" : "0";
 
     private static string[] ReadStringArray(DbDataReader reader, int ordinal)
     {
