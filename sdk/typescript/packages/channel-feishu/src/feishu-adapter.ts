@@ -895,7 +895,7 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
 
     const response = userInputResponseFromText(waiter.request, text);
     if (!response) {
-      await sendSingleCard(
+      const sent = await sendSingleCard(
         this.getFeishuClient(),
         channelTarget,
         buildUserInputCard({
@@ -908,7 +908,11 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
           requestId: shortId(requestId),
           message: errorMessage(error),
         });
+        return null;
       });
+      if (sent?.messageId) {
+        waiter.messageId = sent.messageId;
+      }
       return true;
     }
 
