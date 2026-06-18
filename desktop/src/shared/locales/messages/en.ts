@@ -776,9 +776,9 @@ export const MESSAGES_EN = {
   'setupWizard.import.title': 'Import existing coding-agent config',
   'setupWizard.import.description':
     'DotCraft found project instructions from another coding agent. Choose one to use as this workspace’s `.craft/AGENTS.md`, or keep the DotCraft profile template.',
-  'setupWizard.import.none.title': 'Use DotCraft profile template',
+  'setupWizard.import.none.title': 'Skip import',
   'setupWizard.import.none.description':
-    'Keep the selected DotCraft profile as the starting project instructions.',
+    'Do not copy an existing instructions file during setup.',
   'setupWizard.import.source.codex.title': 'Codex',
   'setupWizard.import.source.codex.description':
     'Import {{file}} as DotCraft project instructions.',
@@ -788,7 +788,7 @@ export const MESSAGES_EN = {
   'setupWizard.import.selectedNote':
     'The selected file will be copied into `.craft/AGENTS.md` when the workspace is created. The original file will not be changed.',
   'setupWizard.import.skippedNote':
-    'DotCraft will create `.craft/AGENTS.md` from the selected profile template.',
+    'Setup will continue with the selected profile settings.',
   'setupWizard.import.warningInline':
     'Workspace setup finished, but DotCraft could not import the selected agent config. You can copy it into `.craft/AGENTS.md` manually.',
   'setupWizard.import.warningToast':
@@ -841,7 +841,7 @@ export const MESSAGES_EN = {
   'setupWizard.summary.userDefault': 'Future default',
   'setupWizard.summary.import': 'Imported config',
   'setupWizard.summary.importSource': '{{source}} - {{file}}',
-  'setupWizard.summary.importNone': 'Use DotCraft profile template',
+  'setupWizard.summary.importNone': 'Skip import',
   'setupWizard.summary.yes': 'Yes',
   'setupWizard.summary.no': 'No',
   'setupWizard.profileSummary.default': 'Default',

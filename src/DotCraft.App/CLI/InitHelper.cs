@@ -104,13 +104,12 @@ public static class InitHelper
         WorkspaceBootstrapProfile profile,
         List<(string Status, string Path)>? createdItems = null)
     {
-        var agentsPath = Path.Combine(craftPath, "AGENTS.md");
-        File.WriteAllText(agentsPath, GetTemplateContent("AGENTS", profile), Encoding.UTF8);
-        createdItems?.Add(("[green]✓[/]", "AGENTS.md"));
-
-        var userPath = Path.Combine(craftPath, "USER.md");
-        File.WriteAllText(userPath, GetTemplateContent("USER", profile), Encoding.UTF8);
-        createdItems?.Add(("[green]✓[/]", "USER.md"));
+        if (profile != WorkspaceBootstrapProfile.Default)
+        {
+            var agentsPath = Path.Combine(craftPath, "AGENTS.md");
+            File.WriteAllText(agentsPath, GetTemplateContent("AGENTS", profile), Encoding.UTF8);
+            createdItems?.Add(("[green]✓[/]", "AGENTS.md"));
+        }
 
         var memoryPath = Path.Combine(craftPath, "memory", "MEMORY.md");
         File.WriteAllText(memoryPath, GetTemplateContent("MEMORY"), Encoding.UTF8);

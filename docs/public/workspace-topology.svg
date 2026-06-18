@@ -55,8 +55,7 @@
     <text x="28" y="96" class="label" fill="#2E6B56">Loaded into every session</text>
     <text x="28" y="122" class="mono">.craft/AGENTS.md</text>
     <text x="28" y="146" class="mono">.craft/SOUL.md</text>
-    <text x="28" y="170" class="mono">.craft/USER.md</text>
-    <text x="28" y="224" class="muted">Role, tone, user context, and project rules.</text>
+    <text x="28" y="224" class="muted">Role, tone, and project rules.</text>
   </g>
 
   <g transform="translate(972 306)">

@@ -741,15 +741,15 @@ export const MESSAGES_ZH_HANS = {
   'setupWizard.import.title': '导入已有 coding agent 配置',
   'setupWizard.import.description':
     'DotCraft 在这个项目中找到了其他 coding agent 的项目指令。你可以选择一个作为本工作区的 `.craft/AGENTS.md`，也可以继续使用 DotCraft 角色模板。',
-  'setupWizard.import.none.title': '使用 DotCraft 角色模板',
-  'setupWizard.import.none.description': '保留刚才选择的 DotCraft 角色模板作为初始项目指令。',
+  'setupWizard.import.none.title': '跳过导入',
+  'setupWizard.import.none.description': '初始化时不复制已有项目指令文件。',
   'setupWizard.import.source.codex.title': 'Codex',
   'setupWizard.import.source.codex.description': '将 {{file}} 导入为 DotCraft 项目指令。',
   'setupWizard.import.source.claude.title': 'Claude Code',
   'setupWizard.import.source.claude.description': '将 {{file}} 导入为 DotCraft 项目指令。',
   'setupWizard.import.selectedNote':
     '创建工作区时，所选文件会被复制到 `.craft/AGENTS.md`。原文件不会被修改。',
-  'setupWizard.import.skippedNote': 'DotCraft 会根据所选角色模板创建 `.craft/AGENTS.md`。',
+  'setupWizard.import.skippedNote': '将继续使用所选角色模板完成初始化。',
   'setupWizard.import.warningInline':
     '工作区初始化已完成，但 DotCraft 未能导入所选 agent 配置。你可以手动复制到 `.craft/AGENTS.md`。',
   'setupWizard.import.warningToast':
@@ -801,7 +801,7 @@ export const MESSAGES_ZH_HANS = {
   'setupWizard.summary.userDefault': '未来默认',
   'setupWizard.summary.import': '导入配置',
   'setupWizard.summary.importSource': '{{source}} - {{file}}',
-  'setupWizard.summary.importNone': '使用 DotCraft 角色模板',
+  'setupWizard.summary.importNone': '跳过导入',
   'setupWizard.summary.yes': '是',
   'setupWizard.summary.no': '否',
   'setupWizard.profileSummary.default': '默认',

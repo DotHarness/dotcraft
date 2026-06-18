@@ -51,6 +51,7 @@ public sealed class InitHelperSetupTests : IDisposable
         var agentsPath = Path.Combine(craftPath, "AGENTS.md");
         Assert.True(File.Exists(agentsPath));
         Assert.False(string.IsNullOrWhiteSpace(File.ReadAllText(agentsPath)));
+        Assert.False(File.Exists(Path.Combine(craftPath, "USER.md")));
     }
 
     [Fact]
@@ -87,6 +88,7 @@ public sealed class InitHelperSetupTests : IDisposable
         var agentsPath = Path.Combine(craftPath, "AGENTS.md");
         Assert.True(File.Exists(agentsPath));
         Assert.False(string.IsNullOrWhiteSpace(File.ReadAllText(agentsPath)));
+        Assert.False(File.Exists(Path.Combine(craftPath, "USER.md")));
     }
 
     [Fact]
@@ -130,6 +132,8 @@ public sealed class InitHelperSetupTests : IDisposable
         Assert.DoesNotContain("EndPoint", workspaceNode.Select(p => p.Key));
         Assert.Equal("openai", workspaceNode["ProviderId"]?.GetValue<string>());
         Assert.Equal("gpt-4.1", workspaceNode["Model"]?.GetValue<string>());
+        Assert.False(File.Exists(Path.Combine(craftPath, "AGENTS.md")));
+        Assert.False(File.Exists(Path.Combine(craftPath, "USER.md")));
     }
 
     [Fact]
@@ -210,6 +214,8 @@ public sealed class InitHelperSetupTests : IDisposable
         var workspaceNode = JsonNode.Parse(File.ReadAllText(Path.Combine(craftPath, "config.json")))!.AsObject();
         Assert.Equal("openai-api", workspaceNode["ProviderId"]?.GetValue<string>());
         Assert.Equal("gpt-4.1", workspaceNode["Model"]?.GetValue<string>());
+        Assert.False(File.Exists(Path.Combine(craftPath, "AGENTS.md")));
+        Assert.False(File.Exists(Path.Combine(craftPath, "USER.md")));
     }
 
     [Fact]
@@ -277,6 +283,7 @@ public sealed class InitHelperSetupTests : IDisposable
         var agentsPath = Path.Combine(craftPath, "AGENTS.md");
         Assert.True(File.Exists(agentsPath));
         Assert.False(string.IsNullOrWhiteSpace(File.ReadAllText(agentsPath)));
+        Assert.False(File.Exists(Path.Combine(craftPath, "USER.md")));
     }
 
     public void Dispose()
