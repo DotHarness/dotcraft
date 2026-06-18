@@ -8,7 +8,7 @@ namespace DotCraft.Tools;
 /// Wraps an <see cref="AIFunction"/> to normalize empty results and enforce per-tool result size limits
 /// (spill-to-disk with preview when exceeded). Intended as the outermost wrapper so hooks see full results.
 /// </summary>
-internal sealed class ResultSizeLimitingFunction : DelegatingAIFunction, IPluginFunctionTool, IDeferredToolMetadata
+internal sealed class ResultSizeLimitingFunction : DelegatingAIFunction, IPluginFunctionTool, IDeferredToolMetadata, IGeneratedToolMetadata
 {
     private readonly int _maxResultChars;
     private readonly string _workspacePath;
@@ -39,6 +39,18 @@ internal sealed class ResultSizeLimitingFunction : DelegatingAIFunction, IPlugin
 
     public string? DeferredToolNamespace =>
         DeferredToolMetadataResolver.TryGet(InnerFunction, out var metadata) ? metadata.Namespace : null;
+
+    public bool StreamArgumentsEnabled =>
+        !GeneratedToolMetadataResolver.TryGet(InnerFunction, out var metadata) || metadata.StreamArgumentsEnabled;
+
+    public int? MaxResultChars =>
+        GeneratedToolMetadataResolver.TryGet(InnerFunction, out var metadata) ? metadata.MaxResultChars : null;
+
+    public string? Icon =>
+        GeneratedToolMetadataResolver.TryGet(InnerFunction, out var metadata) ? metadata.Icon : null;
+
+    public Func<IDictionary<string, object?>?, string>? DisplayFormatter =>
+        GeneratedToolMetadataResolver.TryGet(InnerFunction, out var metadata) ? metadata.DisplayFormatter : null;
 
     protected override async ValueTask<object?> InvokeCoreAsync(
         AIFunctionArguments arguments,

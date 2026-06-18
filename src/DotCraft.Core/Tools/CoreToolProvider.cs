@@ -1,6 +1,7 @@
 using DotCraft.Abstractions;
 using DotCraft.Agents;
 using DotCraft.Configuration;
+using DotCraft.GeneratedTools.Core;
 using DotCraft.Skills;
 using Microsoft.Extensions.AI;
 
@@ -88,11 +89,11 @@ public sealed class CoreToolProvider : IAgentToolProvider
             lspServerManager: context.LspServerManager,
             ripgrepPath: context.Config.Tools.File.RipgrepPath,
             searchTimeout: fileSearchTimeout);
-        tools.Add(AIFunctionFactory.Create(fileTools.ReadFile));
-        tools.Add(AIFunctionFactory.Create(fileTools.WriteFile));
-        tools.Add(AIFunctionFactory.Create(fileTools.EditFile));
-        tools.Add(AIFunctionFactory.Create(fileTools.GrepFiles));
-        tools.Add(AIFunctionFactory.Create(fileTools.FindFiles));
+        tools.Add(GeneratedToolFunctions.FileTools_ReadFile(fileTools));
+        tools.Add(GeneratedToolFunctions.FileTools_WriteFile(fileTools));
+        tools.Add(GeneratedToolFunctions.FileTools_EditFile(fileTools));
+        tools.Add(GeneratedToolFunctions.FileTools_GrepFiles(fileTools));
+        tools.Add(GeneratedToolFunctions.FileTools_FindFiles(fileTools));
 
         // LSP tool
         if (context.Config.Tools.Lsp.Enabled && context.LspServerManager != null)
@@ -104,7 +105,7 @@ public sealed class CoreToolProvider : IAgentToolProvider
                 context.Config.Tools.Lsp.MaxFileSize,
                 context.ApprovalService,
                 context.PathBlacklist);
-            tools.Add(AIFunctionFactory.Create(lspTool.LSP));
+            tools.Add(GeneratedToolFunctions.LspTool_LSP(lspTool));
         }
 
         // Shell tools
@@ -116,8 +117,8 @@ public sealed class CoreToolProvider : IAgentToolProvider
             approvalService: context.ApprovalService,
             blacklist: context.PathBlacklist,
             backgroundTerminals: context.BackgroundTerminalService);
-        tools.Add(AIFunctionFactory.Create(shellTools.Exec));
-        tools.Add(AIFunctionFactory.Create(shellTools.WriteStdin));
+        tools.Add(GeneratedToolFunctions.ShellTools_Exec(shellTools));
+        tools.Add(GeneratedToolFunctions.ShellTools_WriteStdin(shellTools));
 
         // Web tools
         var webTools = new WebTools(
@@ -125,8 +126,8 @@ public sealed class CoreToolProvider : IAgentToolProvider
             context.Config.Tools.Web.Timeout,
             context.Config.Tools.Web.SearchMaxResults,
             context.Config.Tools.Web.SearchProvider);
-        tools.Add(AIFunctionFactory.Create(webTools.WebSearch));
-        tools.Add(AIFunctionFactory.Create(webTools.WebFetch));
+        tools.Add(GeneratedToolFunctions.WebTools_WebSearch(webTools));
+        tools.Add(GeneratedToolFunctions.WebTools_WebFetch(webTools));
 
         var target = SkillVariantStore.CreateTarget(
             context.EffectiveMainModel,
@@ -139,7 +140,7 @@ public sealed class CoreToolProvider : IAgentToolProvider
 
         // Effective skill loading is always available; SkillManage remains opt-in.
         var skillViewTool = new SkillViewTool(context.SkillsLoader, variantModeEnabled, target, context.TraceCollector);
-        tools.Add(AIFunctionFactory.Create(skillViewTool.SkillView));
+        tools.Add(GeneratedToolFunctions.SkillViewTool_SkillView(skillViewTool));
 
         // Skill self-learning mutation tools are opt-in and hidden from the model unless enabled.
         if (selfLearning.Enabled)
@@ -152,7 +153,7 @@ public sealed class CoreToolProvider : IAgentToolProvider
                 selfLearning,
                 context.ApprovalService,
                 context.ContextPageManager);
-            tools.Add(AIFunctionFactory.Create(skillManageTool.SkillManage));
+            tools.Add(GeneratedToolFunctions.SkillManageTool_SkillManage(skillManageTool));
         }
 
         return tools;

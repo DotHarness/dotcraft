@@ -1,5 +1,3 @@
-using DotCraft.Configuration;
-
 namespace DotCraft.Configuration;
 
 internal static class AppConfigTestFactory

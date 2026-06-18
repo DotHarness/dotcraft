@@ -36,6 +36,23 @@ public static class BuiltInToolCatalog
     {
         var assembly = typeof(ToolAttribute).Assembly;
         var byName = new SortedDictionary<string, BuiltInToolDescriptor>(StringComparer.Ordinal);
+        var generatedDescriptors = ToolRegistry.ReadGeneratedDescriptors(assembly);
+        if (generatedDescriptors.Count > 0)
+        {
+            foreach (var descriptor in generatedDescriptors.Where(static descriptor => descriptor.CatalogVisible))
+            {
+                if (byName.ContainsKey(descriptor.Name))
+                    continue;
+
+                var icon = string.IsNullOrEmpty(descriptor.Icon) ? DefaultIcon : descriptor.Icon;
+                byName[descriptor.Name] = new BuiltInToolDescriptor(
+                    descriptor.Name,
+                    descriptor.Description,
+                    icon);
+            }
+
+            return byName.Values.ToList();
+        }
 
         foreach (var type in assembly.GetTypes())
         {

@@ -4,7 +4,6 @@ using DotCraft.Configuration;
 using DotCraft.Memory;
 using DotCraft.Security;
 using DotCraft.Skills;
-using DotCraft.Tools;
 
 namespace DotCraft.Tests.Agents;
 

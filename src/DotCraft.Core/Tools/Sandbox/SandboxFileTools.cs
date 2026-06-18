@@ -26,7 +26,7 @@ public sealed class SandboxFileTools
     }
 
     [Description("Read the contents of a file or list the contents of a directory. If the path is a directory, lists its entries. Supports 1-indexed offset and limit for paginated reading of text files; limit without offset starts at line 1. Text output is line-numbered and indicates whether more lines remain. Large text files require offset/limit or GrepFiles. PDF and other binary files are rejected instead of read as text.")]
-    [Tool(Icon = "📄", DisplayType = typeof(CoreToolDisplays), DisplayMethod = nameof(CoreToolDisplays.ReadFile), MaxResultChars = 0)]
+    [Tool(CatalogVisible = false, Icon = "📄", DisplayType = typeof(CoreToolDisplays), DisplayMethod = nameof(CoreToolDisplays.ReadFile), MaxResultChars = 0)]
     public async Task<string> ReadFile(
         [Description("Path inside the sandbox (absolute or relative to /workspace).")] string path,
         [Description("Line number to start reading from (1-indexed). Omit or pass 0 to start at line 1 when limit is provided.")] int offset = 0,
@@ -89,7 +89,7 @@ public sealed class SandboxFileTools
     }
 
     [Description("Write content to a file at the given path. Creates parent directories if needed. Prefer this tool for creating new files or intentional full-file rewrites. When modifying an existing file, prefer EditFile for targeted changes.")]
-    [Tool(Icon = "✏️", DisplayType = typeof(CoreToolDisplays), DisplayMethod = nameof(CoreToolDisplays.WriteFile))]
+    [Tool(CatalogVisible = false, Icon = "✏️", DisplayType = typeof(CoreToolDisplays), DisplayMethod = nameof(CoreToolDisplays.WriteFile))]
     public async Task<string> WriteFile(
         [Description("Path inside the sandbox (absolute or relative to /workspace).")] string path,
         [Description("The content to write.")] string content)
@@ -129,7 +129,7 @@ public sealed class SandboxFileTools
     }
 
     [Description("Replace text in a file: oldText (snippet to find) and newText. Prefer a minimal unique snippet (typically 2-6 lines including nearby context) instead of large pasted blocks. For existing files, prefer targeted EditFile replacements over full-file rewrites, even when many changes are needed. Use WriteFile for new files or intentional full rewrites. When replaceAll is false, same fuzzy matching as workspace EditFile (exact, line trim, indentation, whitespace, Unicode). Use replaceAll only when you intentionally want to replace every exact occurrence at once.")]
-    [Tool(Icon = "🔄", DisplayType = typeof(CoreToolDisplays), DisplayMethod = nameof(CoreToolDisplays.EditFile))]
+    [Tool(CatalogVisible = false, Icon = "🔄", DisplayType = typeof(CoreToolDisplays), DisplayMethod = nameof(CoreToolDisplays.EditFile))]
     public async Task<string> EditFile(
         [Description("Path inside the sandbox (absolute or relative to /workspace).")] string path,
         [Description("The snippet from the file to replace.")] string oldText = "",
@@ -190,7 +190,7 @@ public sealed class SandboxFileTools
     }
 
     [Description("Search file contents using a regular expression pattern. Returns matching lines with file paths and line numbers. Skips binary files and .git/node_modules directories.")]
-    [Tool(Icon = "🔍", DisplayType = typeof(CoreToolDisplays), DisplayMethod = nameof(CoreToolDisplays.GrepFiles), MaxResultChars = 20_000)]
+    [Tool(CatalogVisible = false, Icon = "🔍", DisplayType = typeof(CoreToolDisplays), DisplayMethod = nameof(CoreToolDisplays.GrepFiles), MaxResultChars = 20_000)]
     public async Task<string> GrepFiles(
         [Description("The regular expression pattern to search for.")] string pattern,
         [Description("Directory to search in (relative to /workspace).")] string path = "",
@@ -223,7 +223,7 @@ public sealed class SandboxFileTools
     }
 
     [Description("Find files by name pattern. Searches recursively, skipping .git and node_modules directories. Use semicolons to separate multiple patterns (e.g. \"*.cs;*.json\").")]
-    [Tool(Icon = "📂", DisplayType = typeof(CoreToolDisplays), DisplayMethod = nameof(CoreToolDisplays.FindFiles))]
+    [Tool(CatalogVisible = false, Icon = "📂", DisplayType = typeof(CoreToolDisplays), DisplayMethod = nameof(CoreToolDisplays.FindFiles))]
     public async Task<string> FindFiles(
         [Description("File name pattern (e.g. \"*.cs\", \"*.json\"). Use semicolons for multiple patterns.")] string pattern,
         [Description("Directory to search in (relative to /workspace).")] string path = "")

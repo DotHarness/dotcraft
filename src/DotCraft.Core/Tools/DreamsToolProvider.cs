@@ -1,5 +1,6 @@
 using DotCraft.Abstractions;
 using DotCraft.Dreams;
+using DotCraft.GeneratedTools.Core;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Tools;
@@ -33,10 +34,10 @@ public sealed class DreamsToolProvider(DreamsRunRegistry runRegistry) : IAgentTo
             ripgrepPath: context.Config.Tools.File.RipgrepPath,
             searchTimeout: TimeSpan.FromSeconds(Math.Max(1, context.Config.Tools.File.SearchTimeoutSeconds)));
 
-        yield return AIFunctionFactory.Create(fileTools.ReadFile);
-        yield return AIFunctionFactory.Create(fileTools.WriteFile);
-        yield return AIFunctionFactory.Create(fileTools.EditFile);
-        yield return AIFunctionFactory.Create(fileTools.GrepFiles);
-        yield return AIFunctionFactory.Create(fileTools.FindFiles);
+        yield return GeneratedToolFunctions.FileTools_ReadFile(fileTools);
+        yield return GeneratedToolFunctions.FileTools_WriteFile(fileTools);
+        yield return GeneratedToolFunctions.FileTools_EditFile(fileTools);
+        yield return GeneratedToolFunctions.FileTools_GrepFiles(fileTools);
+        yield return GeneratedToolFunctions.FileTools_FindFiles(fileTools);
     }
 }

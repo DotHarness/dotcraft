@@ -27,7 +27,7 @@ public sealed class SandboxShellTools
     }
 
     [Description("Execute a shell command and return its output.")]
-    [Tool(Icon = "⌨️", DisplayType = typeof(CoreToolDisplays), DisplayMethod = nameof(CoreToolDisplays.Exec), MaxResultChars = 30_000)]
+    [Tool(CatalogVisible = false, Icon = "⌨️", DisplayType = typeof(CoreToolDisplays), DisplayMethod = nameof(CoreToolDisplays.Exec), MaxResultChars = 30_000)]
     public async Task<string> Exec(
         [Description("The shell command to execute.")] string command,
         [Description("Optional working directory inside the sandbox.")] string? workingDir = null)

@@ -28,4 +28,10 @@ public class ToolAttribute : Attribute
     /// from configuration, and <c>0</c> for unlimited (no spill for size).
     /// </summary>
     public int MaxResultChars { get; set; } = -1;
+
+    /// <summary>
+    /// Whether this runtime implementation should be listed in the global built-in tool catalog.
+    /// Alternate implementations such as sandbox tools can opt out while preserving runtime metadata.
+    /// </summary>
+    public bool CatalogVisible { get; set; } = true;
 }

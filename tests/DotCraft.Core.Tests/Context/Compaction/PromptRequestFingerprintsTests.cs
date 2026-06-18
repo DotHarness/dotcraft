@@ -1,7 +1,6 @@
 using System.Reflection;
 using System.Text.Json;
 using DotCraft.Context;
-using DotCraft.Context.Compaction;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Tests.Context.Compaction;

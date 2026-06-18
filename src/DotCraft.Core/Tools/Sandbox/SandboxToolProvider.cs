@@ -1,6 +1,7 @@
 using DotCraft.Abstractions;
 using DotCraft.Agents;
 using DotCraft.Configuration;
+using DotCraft.GeneratedTools.Core;
 using DotCraft.Skills;
 using Microsoft.Extensions.AI;
 
@@ -41,17 +42,17 @@ public sealed class SandboxToolProvider : IAgentToolProvider
             sandboxManager,
             context.Config.Tools.Shell.Timeout,
             context.Config.Tools.Shell.MaxOutputLength);
-        tools.Add(AIFunctionFactory.Create(shellTools.Exec));
+        tools.Add(GeneratedToolFunctions.SandboxShellTools_Exec(shellTools));
 
         // Sandbox file tools (replaces FileTools)
         var fileTools = new SandboxFileTools(
             sandboxManager,
             context.Config.Tools.File.MaxFileSize);
-        tools.Add(AIFunctionFactory.Create(fileTools.ReadFile));
-        tools.Add(AIFunctionFactory.Create(fileTools.WriteFile));
-        tools.Add(AIFunctionFactory.Create(fileTools.EditFile));
-        tools.Add(AIFunctionFactory.Create(fileTools.GrepFiles));
-        tools.Add(AIFunctionFactory.Create(fileTools.FindFiles));
+        tools.Add(GeneratedToolFunctions.SandboxFileTools_ReadFile(fileTools));
+        tools.Add(GeneratedToolFunctions.SandboxFileTools_WriteFile(fileTools));
+        tools.Add(GeneratedToolFunctions.SandboxFileTools_EditFile(fileTools));
+        tools.Add(GeneratedToolFunctions.SandboxFileTools_GrepFiles(fileTools));
+        tools.Add(GeneratedToolFunctions.SandboxFileTools_FindFiles(fileTools));
 
         // Agent-control tools are gated by the context policy so sandbox and
         // non-sandbox tool sets expose the same SubAgent permissions.
@@ -106,8 +107,8 @@ public sealed class SandboxToolProvider : IAgentToolProvider
             context.Config.Tools.Web.Timeout,
             context.Config.Tools.Web.SearchMaxResults,
             context.Config.Tools.Web.SearchProvider);
-        tools.Add(AIFunctionFactory.Create(webTools.WebSearch));
-        tools.Add(AIFunctionFactory.Create(webTools.WebFetch));
+        tools.Add(GeneratedToolFunctions.WebTools_WebSearch(webTools));
+        tools.Add(GeneratedToolFunctions.WebTools_WebFetch(webTools));
 
         var target = SkillVariantStore.CreateTarget(
             context.EffectiveMainModel,
@@ -118,7 +119,7 @@ public sealed class SandboxToolProvider : IAgentToolProvider
         var selfLearning = context.Config.Skills.SelfLearning;
         var variantModeEnabled = string.Equals(selfLearning.VariantMode, "enabled", StringComparison.OrdinalIgnoreCase);
         var skillViewTool = new SkillViewTool(context.SkillsLoader, variantModeEnabled, target);
-        tools.Add(AIFunctionFactory.Create(skillViewTool.SkillView));
+        tools.Add(GeneratedToolFunctions.SkillViewTool_SkillView(skillViewTool));
 
         if (selfLearning.Enabled)
         {
@@ -130,7 +131,7 @@ public sealed class SandboxToolProvider : IAgentToolProvider
                 selfLearning,
                 context.ApprovalService,
                 context.ContextPageManager);
-            tools.Add(AIFunctionFactory.Create(skillManageTool.SkillManage));
+            tools.Add(GeneratedToolFunctions.SkillManageTool_SkillManage(skillManageTool));
         }
 
         return tools;

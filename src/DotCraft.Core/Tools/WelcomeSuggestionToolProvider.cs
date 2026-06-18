@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Text.Json;
 using DotCraft.Abstractions;
+using DotCraft.GeneratedTools.Core;
 using DotCraft.Memory;
 using DotCraft.Protocol;
 using Microsoft.Extensions.AI;
@@ -18,8 +19,8 @@ public sealed class WelcomeSuggestionToolProvider(
 
     public IEnumerable<AITool> CreateTools(ToolProviderContext context)
     {
-        yield return AIFunctionFactory.Create(_methods.ReadWelcomeWorkspaceMemory);
-        yield return AIFunctionFactory.Create(_methods.EmitWelcomeSuggestions);
+        yield return GeneratedToolFunctions.WelcomeSuggestionToolMethods_ReadWelcomeWorkspaceMemory(_methods);
+        yield return GeneratedToolFunctions.WelcomeSuggestionToolMethods_EmitWelcomeSuggestions(_methods);
     }
 }
 

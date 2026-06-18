@@ -1,6 +1,7 @@
 using DotCraft.Abstractions;
 using DotCraft.Agents;
 using DotCraft.Configuration;
+using DotCraft.GeneratedTools.Core;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Tools;
@@ -23,12 +24,12 @@ public static class AgentControlToolRegistrar
         SubAgentWaitAgentTimeoutOptions? waitAgentTimeoutOptions = null)
     {
         var agentTools = new AgentTools(subAgentCoordinator, subAgentRoles, maxSubAgentDepth, subAgentModel, waitAgentTimeoutOptions);
-        AddIfAllowed(tools, context, nameof(AgentTools.SpawnAgent), () => AIFunctionFactory.Create(agentTools.SpawnAgent));
-        AddIfAllowed(tools, context, nameof(AgentTools.SendMessage), () => AIFunctionFactory.Create(agentTools.SendMessage));
-        AddIfAllowed(tools, context, nameof(AgentTools.FollowupTask), () => AIFunctionFactory.Create(agentTools.FollowupTask));
-        AddIfAllowed(tools, context, nameof(AgentTools.WaitAgent), () => AIFunctionFactory.Create(agentTools.WaitAgent));
-        AddIfAllowed(tools, context, nameof(AgentTools.ListAgents), () => AIFunctionFactory.Create(agentTools.ListAgents));
-        AddIfAllowed(tools, context, nameof(AgentTools.CloseAgent), () => AIFunctionFactory.Create(agentTools.CloseAgent));
+        AddIfAllowed(tools, context, nameof(AgentTools.SpawnAgent), () => GeneratedToolFunctions.AgentTools_SpawnAgent(agentTools));
+        AddIfAllowed(tools, context, nameof(AgentTools.SendMessage), () => GeneratedToolFunctions.AgentTools_SendMessage(agentTools));
+        AddIfAllowed(tools, context, nameof(AgentTools.FollowupTask), () => GeneratedToolFunctions.AgentTools_FollowupTask(agentTools));
+        AddIfAllowed(tools, context, nameof(AgentTools.WaitAgent), () => GeneratedToolFunctions.AgentTools_WaitAgent(agentTools));
+        AddIfAllowed(tools, context, nameof(AgentTools.ListAgents), () => GeneratedToolFunctions.AgentTools_ListAgents(agentTools));
+        AddIfAllowed(tools, context, nameof(AgentTools.CloseAgent), () => GeneratedToolFunctions.AgentTools_CloseAgent(agentTools));
     }
 
     private static void AddIfAllowed(

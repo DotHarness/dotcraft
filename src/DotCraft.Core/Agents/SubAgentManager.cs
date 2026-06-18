@@ -2,6 +2,7 @@ using DotCraft.Configuration;
 using DotCraft.Context;
 using DotCraft.Tracing;
 using DotCraft.Diagnostics;
+using DotCraft.GeneratedTools.Core;
 using DotCraft.Security;
 using DotCraft.Tools;
 using DotCraft.Tools.Sandbox;
@@ -235,11 +236,11 @@ public sealed class SubAgentManager
 
         if (_useSandbox && _sandboxFileTools != null && _sandboxShellTools != null)
         {
-            tools.Add(AIFunctionFactory.Create(_sandboxFileTools.ReadFile));
-            tools.Add(AIFunctionFactory.Create(_sandboxFileTools.WriteFile));
-            tools.Add(AIFunctionFactory.Create(_sandboxFileTools.GrepFiles));
-            tools.Add(AIFunctionFactory.Create(_sandboxFileTools.FindFiles));
-            tools.Add(AIFunctionFactory.Create(_sandboxShellTools.Exec));
+            tools.Add(GeneratedToolFunctions.SandboxFileTools_ReadFile(_sandboxFileTools));
+            tools.Add(GeneratedToolFunctions.SandboxFileTools_WriteFile(_sandboxFileTools));
+            tools.Add(GeneratedToolFunctions.SandboxFileTools_GrepFiles(_sandboxFileTools));
+            tools.Add(GeneratedToolFunctions.SandboxFileTools_FindFiles(_sandboxFileTools));
+            tools.Add(GeneratedToolFunctions.SandboxShellTools_Exec(_sandboxShellTools));
         }
         else
         {
@@ -262,15 +263,15 @@ public sealed class SubAgentManager
                 blacklist: _blacklist
             );
 
-            tools.Add(AIFunctionFactory.Create(fileTools.ReadFile));
-            tools.Add(AIFunctionFactory.Create(fileTools.WriteFile));
-            tools.Add(AIFunctionFactory.Create(fileTools.GrepFiles));
-            tools.Add(AIFunctionFactory.Create(fileTools.FindFiles));
-            tools.Add(AIFunctionFactory.Create(shellTools.Exec));
+            tools.Add(GeneratedToolFunctions.FileTools_ReadFile(fileTools));
+            tools.Add(GeneratedToolFunctions.FileTools_WriteFile(fileTools));
+            tools.Add(GeneratedToolFunctions.FileTools_GrepFiles(fileTools));
+            tools.Add(GeneratedToolFunctions.FileTools_FindFiles(fileTools));
+            tools.Add(GeneratedToolFunctions.ShellTools_Exec(shellTools));
         }
 
-        tools.Add(AIFunctionFactory.Create(_webTools.WebSearch));
-        tools.Add(AIFunctionFactory.Create(_webTools.WebFetch));
+        tools.Add(GeneratedToolFunctions.WebTools_WebSearch(_webTools));
+        tools.Add(GeneratedToolFunctions.WebTools_WebFetch(_webTools));
 
         // ChatClientBuilder applies middleware in reverse registration order:
         // first Use(...) is outermost. Register function invocation first so its internal
