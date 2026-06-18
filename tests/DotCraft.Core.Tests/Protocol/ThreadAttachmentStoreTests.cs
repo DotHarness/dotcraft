@@ -1,4 +1,5 @@
 using DotCraft.Protocol;
+using DotCraft.State;
 
 namespace DotCraft.Tests.Protocol;
 
@@ -54,6 +55,23 @@ public sealed class ThreadAttachmentStoreTests : IDisposable
         Assert.True(File.Exists(imagePath));
     }
 
+    [Fact]
+    public async Task ConstructingThreadStore_DoesNotRebuildAttachmentReferences()
+    {
+        var imagePath = CreateAttachment("lazy-startup.png");
+        var thread = CreateThread("thread_lazy_attachment_index", imagePath);
+        await _store.SaveThreadAsync(thread);
+        Assert.Equal(1, CountAttachmentRows());
+
+        ClearAttachmentRows();
+        Assert.Equal(0, CountAttachmentRows());
+
+        _ = new ThreadStore(_root);
+
+        Assert.Equal(0, CountAttachmentRows());
+        Assert.True(File.Exists(imagePath));
+    }
+
     public void Dispose()
     {
         try
@@ -74,6 +92,24 @@ public sealed class ThreadAttachmentStoreTests : IDisposable
         var path = Path.Combine(dir, fileName);
         File.WriteAllBytes(path, [1, 2, 3, 4]);
         return path;
+    }
+
+    private int CountAttachmentRows()
+    {
+        var runtime = new StateRuntime(_root);
+        using var connection = runtime.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT COUNT(*) FROM thread_attachments";
+        return Convert.ToInt32(command.ExecuteScalar());
+    }
+
+    private void ClearAttachmentRows()
+    {
+        var runtime = new StateRuntime(_root);
+        using var connection = runtime.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "DELETE FROM thread_attachments";
+        command.ExecuteNonQuery();
     }
 
     private static SessionThread CreateThread(string id, string imagePath)

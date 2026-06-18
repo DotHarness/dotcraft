@@ -232,6 +232,11 @@ let initialUpdateCheckStarted = false
 const isTrayMode = process.argv.includes('--tray')
 const CHROME_SETTINGS_DEEP_LINK_PORT = Number.parseInt(process.env.DOTCRAFT_DESKTOP_DEEPLINK_PORT || '32178', 10)
 
+if (isTrayMode) {
+  app.disableHardwareAcceleration()
+  app.commandLine.appendSwitch('disable-gpu')
+}
+
 configureAppIdentity()
 
 let devProcessGuardsInstalled = false

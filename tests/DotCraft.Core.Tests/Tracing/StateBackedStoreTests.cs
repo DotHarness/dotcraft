@@ -85,6 +85,41 @@ public sealed class StateBackedStoreTests : IDisposable
     }
 
     [Fact]
+    public void TraceStore_StateDbSummary_DoesNotRequire_EventJson_Load()
+    {
+        var writer = new TraceStore(_tracingPath, 5000, true, _stateRuntime);
+        writer.Record(new TraceEvent
+        {
+            SessionKey = "thread-summary-only",
+            Type = TraceEventType.Request,
+            Content = "hello"
+        });
+        writer.Record(new TraceEvent
+        {
+            SessionKey = "thread-summary-only",
+            Type = TraceEventType.TokenUsage,
+            InputTokens = 11,
+            OutputTokens = 7
+        });
+
+        using (var connection = _stateRuntime.OpenConnection())
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "UPDATE trace_events SET event_json = '{ broken json' WHERE session_key = $session_key";
+            command.Parameters.AddWithValue("$session_key", "thread-summary-only");
+            command.ExecuteNonQuery();
+        }
+
+        var reader = new TraceStore(_tracingPath, 5000, false, _stateRuntime);
+        reader.LoadFromDisk();
+
+        var summary = reader.GetSummary();
+        Assert.Equal(1, summary.SessionCount);
+        Assert.Equal(1, summary.TotalRequests);
+        Assert.Equal(18, summary.TotalTokens);
+    }
+
+    [Fact]
     public void TraceStore_PageQuery_Returns_Latest_StateDb_Events_Beyond_InMemory_Cap()
     {
         var writer = new TraceStore(_tracingPath, 5000, true, _stateRuntime);

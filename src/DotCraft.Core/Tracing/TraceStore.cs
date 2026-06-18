@@ -1,4 +1,6 @@
 using System.Collections.Concurrent;
+using System.Data.Common;
+using System.Globalization;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
@@ -110,6 +112,27 @@ public sealed class TraceStore
             SessionKey = key
         });
 
+        ApplySessionMetadata(
+            session,
+            finalSystemPrompt,
+            toolNames,
+            systemPromptHash,
+            toolSchemaHash,
+            capturedAt,
+            promptCacheEventKind,
+            promptCacheChangedFields);
+    }
+
+    private static void ApplySessionMetadata(
+        TraceSession session,
+        string? finalSystemPrompt,
+        IEnumerable<string>? toolNames,
+        string? systemPromptHash = null,
+        string? toolSchemaHash = null,
+        DateTimeOffset? capturedAt = null,
+        string? promptCacheEventKind = null,
+        IEnumerable<string>? promptCacheChangedFields = null)
+    {
         var effectivePromptCacheEventKind = promptCacheEventKind;
         var effectivePromptCacheChangedFields = promptCacheChangedFields?.ToArray();
         if (string.IsNullOrWhiteSpace(effectivePromptCacheEventKind))
@@ -169,6 +192,9 @@ public sealed class TraceStore
 
     public IReadOnlyList<TraceSession> GetSessions()
     {
+        if (_stateRuntime != null)
+            return GetSessionsFromDb();
+
         return _sessions.Values
             .OrderByDescending(s => s.LastActivityAt)
             .ToList();
@@ -176,11 +202,17 @@ public sealed class TraceStore
 
     public TraceSession? GetSession(string sessionKey)
     {
+        if (_stateRuntime != null)
+            return GetSessionFromDb(sessionKey) ?? _sessions.GetValueOrDefault(sessionKey);
+
         return _sessions.GetValueOrDefault(sessionKey);
     }
 
     public IReadOnlyList<TraceEvent> GetEvents(string sessionKey)
     {
+        if (_stateRuntime != null)
+            return GetEventsFromDb(sessionKey);
+
         if (!_sessions.TryGetValue(sessionKey, out var session))
             return [];
         return session.Events.OrderBy(e => e.Timestamp).ToList();
@@ -196,7 +228,10 @@ public sealed class TraceStore
         var types = ResolveEventPageFilter(filter);
 
         if (_stateRuntime != null)
+        {
+            WaitForPendingPersistence();
             return GetEventPageFromDb(sessionKey, normalizedLimit, beforeCursor, types);
+        }
 
         return GetEventPageFromMemory(sessionKey, normalizedLimit, beforeCursor, types);
     }
@@ -344,6 +379,9 @@ public sealed class TraceStore
 
     public TraceSummary GetSummary()
     {
+        if (_stateRuntime != null)
+            return GetSummaryFromDb();
+
         long totalInput = 0, totalOutput = 0, totalCachedInput = 0, totalCacheWriteInput = 0, totalReasoningOutput = 0;
         int totalRequests = 0, totalMaintenanceForkRequests = 0, totalResponses = 0, totalMaintenanceForkResponses = 0;
         int totalToolCalls = 0, totalErrors = 0, totalContextCompactions = 0;
@@ -403,6 +441,9 @@ public sealed class TraceStore
     /// <param name="tzOffsetMinutes">Minutes to add to UTC to obtain the client's local time.</param>
     public IReadOnlyList<DailyUsageBucket> GetDailyUsage(DateOnly? from, DateOnly? to, int tzOffsetMinutes)
     {
+        if (_stateRuntime != null)
+            return GetDailyUsageFromDb(from, to, tzOffsetMinutes);
+
         var offset = TimeSpan.FromMinutes(tzOffsetMinutes);
         var buckets = new Dictionary<DateOnly, (long Input, long Output, int Sessions)>();
 
@@ -440,6 +481,9 @@ public sealed class TraceStore
     /// </summary>
     public long GetLongestTurnDurationMs()
     {
+        if (_stateRuntime != null)
+            return GetLongestTurnDurationMsFromDb();
+
         long max = 0;
         foreach (var session in _sessions.Values)
             max = Math.Max(max, session.MaxTurnDurationMs);
@@ -457,9 +501,11 @@ public sealed class TraceStore
     public ProfileInsights GetProfileInsights(int topSkills = 5)
     {
         var limit = Math.Clamp(topSkills, 1, 50);
-        return _stateRuntime != null
-            ? GetProfileInsightsFromDb(limit)
-            : GetProfileInsightsFromMemory(limit);
+        if (_stateRuntime == null)
+            return GetProfileInsightsFromMemory(limit);
+
+        WaitForPendingPersistence();
+        return GetProfileInsightsFromDb(limit);
     }
 
     private ProfileInsights GetProfileInsightsFromDb(int topSkills)
@@ -581,7 +627,9 @@ public sealed class TraceStore
     {
         if (_stateRuntime != null)
         {
-            LoadFromDb();
+            // State-backed stores keep historical events in SQLite and read them on demand.
+            // Startup only needs the table schema opened by StateRuntime; materializing every
+            // event_json row here inflates appserver memory for large workspaces.
             return;
         }
 
@@ -614,11 +662,7 @@ public sealed class TraceStore
 
     private void ApplyEvent(TraceEvent evt, bool writeToSse)
     {
-        var session = _sessions.GetOrAdd(evt.SessionKey, key => new TraceSession
-        {
-            SessionKey = key,
-            StartedAt = evt.Timestamp
-        });
+        var session = GetOrAddSessionForEvent(evt);
 
         if (session.StartedAt > evt.Timestamp)
         {
@@ -627,12 +671,21 @@ public sealed class TraceStore
         }
 
         session.LastActivityAt = evt.Timestamp;
+        ApplyEventToSession(session, evt);
 
+        AddInMemoryEvent(session, evt);
+
+        if (writeToSse)
+            _sseChannel.Writer.TryWrite(evt);
+    }
+
+    private void ApplyEventToSession(TraceSession session, TraceEvent evt)
+    {
         switch (evt.Type)
         {
             case TraceEventType.SessionMetadata:
-                UpsertSessionMetadata(
-                    evt.SessionKey,
+                ApplySessionMetadata(
+                    session,
                     evt.FinalSystemPrompt,
                     evt.ToolNames,
                     evt.SystemPromptHash,
@@ -696,11 +749,6 @@ public sealed class TraceStore
                 session.ThinkingCount++;
                 break;
         }
-
-        AddInMemoryEvent(session, evt);
-
-        if (writeToSse)
-            _sseChannel.Writer.TryWrite(evt);
     }
 
     private static void ApplyPromptCacheChangeSummary(TraceSession session, TraceEvent evt)
@@ -934,15 +982,134 @@ public sealed class TraceStore
         command.ExecuteNonQuery();
     }
 
-    private void LoadFromDb()
+    private TraceSession GetOrAddSessionForEvent(TraceEvent evt)
     {
+        return _sessions.GetOrAdd(evt.SessionKey, key =>
+            _stateRuntime != null
+                ? LoadSessionFromDbEvents(key, keepEvents: false) ?? new TraceSession
+                {
+                    SessionKey = key,
+                    StartedAt = evt.Timestamp
+                }
+                : new TraceSession
+                {
+                    SessionKey = key,
+                    StartedAt = evt.Timestamp
+                });
+    }
+
+    private IReadOnlyList<TraceSession> GetSessionsFromDb()
+    {
+        WaitForPendingPersistence();
+
+        using var connection = _stateRuntime!.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT
+                session_key,
+                started_at,
+                last_activity_at,
+                request_count,
+                maintenance_fork_request_count,
+                response_count,
+                maintenance_fork_response_count,
+                tool_call_count,
+                error_count,
+                context_compaction_count,
+                thinking_count,
+                token_usage_count,
+                total_input_tokens,
+                total_output_tokens,
+                total_cached_input_tokens,
+                total_cache_write_input_tokens,
+                total_reasoning_output_tokens,
+                total_tool_duration_ms,
+                max_tool_duration_ms,
+                max_turn_duration_ms,
+                last_finish_reason,
+                final_system_prompt,
+                tool_names_json
+            FROM trace_sessions
+            ORDER BY last_activity_at DESC, session_key DESC
+            """;
+
+        var sessions = new List<TraceSession>();
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+            sessions.Add(ReadSessionSummary(reader));
+
+        return sessions;
+    }
+
+    private TraceSession? GetSessionFromDb(string sessionKey)
+    {
+        if (string.IsNullOrWhiteSpace(sessionKey))
+            return null;
+
+        WaitForPendingPersistence();
+        var replayed = LoadSessionFromDbEvents(sessionKey, keepEvents: false);
+        if (replayed != null)
+            return replayed;
+
+        using var connection = _stateRuntime!.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT
+                session_key,
+                started_at,
+                last_activity_at,
+                request_count,
+                maintenance_fork_request_count,
+                response_count,
+                maintenance_fork_response_count,
+                tool_call_count,
+                error_count,
+                context_compaction_count,
+                thinking_count,
+                token_usage_count,
+                total_input_tokens,
+                total_output_tokens,
+                total_cached_input_tokens,
+                total_cache_write_input_tokens,
+                total_reasoning_output_tokens,
+                total_tool_duration_ms,
+                max_tool_duration_ms,
+                max_turn_duration_ms,
+                last_finish_reason,
+                final_system_prompt,
+                tool_names_json
+            FROM trace_sessions
+            WHERE session_key = $session_key
+            """;
+        command.Parameters.AddWithValue("$session_key", sessionKey);
+        using var reader = command.ExecuteReader();
+        return reader.Read() ? ReadSessionSummary(reader) : null;
+    }
+
+    private IReadOnlyList<TraceEvent> GetEventsFromDb(string sessionKey)
+    {
+        if (_maxEventsPerSession <= 0 || string.IsNullOrWhiteSpace(sessionKey))
+            return [];
+
+        WaitForPendingPersistence();
+
         using var connection = _stateRuntime!.OpenConnection();
         using var command = connection.CreateCommand();
         command.CommandText = """
             SELECT event_json
-            FROM trace_events
-            ORDER BY timestamp, id
+            FROM (
+                SELECT timestamp, id, event_json
+                FROM trace_events
+                WHERE session_key = $session_key
+                ORDER BY timestamp DESC, id DESC
+                LIMIT $limit
+            )
+            ORDER BY timestamp ASC, id ASC
             """;
+        command.Parameters.AddWithValue("$session_key", sessionKey);
+        command.Parameters.AddWithValue("$limit", _maxEventsPerSession);
+
+        var events = new List<TraceEvent>();
         using var reader = command.ExecuteReader();
         while (reader.Read())
         {
@@ -950,14 +1117,245 @@ public sealed class TraceStore
             {
                 var evt = JsonSerializer.Deserialize<TraceEvent>(reader.GetString(0), PersistJsonOptions);
                 if (evt != null)
-                    ApplyEvent(evt, writeToSse: false);
+                    events.Add(evt);
             }
             catch
             {
                 // Skip corrupted rows.
             }
         }
+
+        return events;
     }
+
+    private TraceSummary GetSummaryFromDb()
+    {
+        WaitForPendingPersistence();
+
+        using var connection = _stateRuntime!.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT
+                COUNT(*),
+                COALESCE(SUM(request_count), 0),
+                COALESCE(SUM(maintenance_fork_request_count), 0),
+                COALESCE(SUM(response_count), 0),
+                COALESCE(SUM(maintenance_fork_response_count), 0),
+                COALESCE(SUM(tool_call_count), 0),
+                COALESCE(SUM(error_count), 0),
+                COALESCE(SUM(context_compaction_count), 0),
+                COALESCE(SUM(total_tool_duration_ms), 0),
+                COALESCE(MAX(max_tool_duration_ms), 0),
+                COALESCE(MAX(max_turn_duration_ms), 0),
+                COALESCE(SUM(total_input_tokens), 0),
+                COALESCE(SUM(total_output_tokens), 0),
+                COALESCE(SUM(total_cached_input_tokens), 0),
+                COALESCE(SUM(total_cache_write_input_tokens), 0),
+                COALESCE(SUM(total_reasoning_output_tokens), 0)
+            FROM trace_sessions
+            """;
+
+        using var reader = command.ExecuteReader();
+        if (!reader.Read())
+            return new TraceSummary();
+
+        var totalToolCalls = ReadInt32(reader, 5);
+        var totalToolDuration = ReadInt64(reader, 8);
+        var totalInput = ReadInt64(reader, 11);
+        var totalOutput = ReadInt64(reader, 12);
+        return new TraceSummary
+        {
+            SessionCount = ReadInt32(reader, 0),
+            TotalRequests = ReadInt32(reader, 1),
+            TotalMaintenanceForkRequests = ReadInt32(reader, 2),
+            TotalResponses = ReadInt32(reader, 3),
+            TotalMaintenanceForkResponses = ReadInt32(reader, 4),
+            TotalToolCalls = totalToolCalls,
+            TotalErrors = ReadInt32(reader, 6),
+            TotalContextCompactions = ReadInt32(reader, 7),
+            TotalToolDurationMs = totalToolDuration,
+            AvgToolDurationMs = totalToolCalls > 0 ? totalToolDuration / (double)totalToolCalls : 0,
+            MaxToolDurationMs = ReadInt64(reader, 9),
+            MaxTurnDurationMs = ReadInt64(reader, 10),
+            TotalInputTokens = totalInput,
+            TotalOutputTokens = totalOutput,
+            TotalCachedInputTokens = ReadInt64(reader, 13),
+            TotalCacheWriteInputTokens = ReadInt64(reader, 14),
+            TotalReasoningOutputTokens = ReadInt64(reader, 15),
+            TotalTokens = totalInput + totalOutput
+        };
+    }
+
+    private IReadOnlyList<DailyUsageBucket> GetDailyUsageFromDb(DateOnly? from, DateOnly? to, int tzOffsetMinutes)
+    {
+        WaitForPendingPersistence();
+
+        var offset = TimeSpan.FromMinutes(tzOffsetMinutes);
+        var buckets = new Dictionary<DateOnly, (long Input, long Output, int Sessions)>();
+        using var connection = _stateRuntime!.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT started_at, total_input_tokens, total_output_tokens
+            FROM trace_sessions
+            """;
+
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            var localWallClock = ParseTimestamp(reader.GetString(0)).ToUniversalTime().Add(offset).DateTime;
+            var date = DateOnly.FromDateTime(localWallClock);
+            if (from.HasValue && date < from.Value)
+                continue;
+            if (to.HasValue && date > to.Value)
+                continue;
+
+            var current = buckets.GetValueOrDefault(date);
+            buckets[date] = (
+                current.Input + ReadInt64(reader, 1),
+                current.Output + ReadInt64(reader, 2),
+                current.Sessions + 1);
+        }
+
+        return buckets
+            .OrderBy(kv => kv.Key)
+            .Select(kv => new DailyUsageBucket
+            {
+                Date = kv.Key,
+                InputTokens = kv.Value.Input,
+                OutputTokens = kv.Value.Output,
+                SessionCount = kv.Value.Sessions
+            })
+            .ToList();
+    }
+
+    private long GetLongestTurnDurationMsFromDb()
+    {
+        WaitForPendingPersistence();
+
+        using var connection = _stateRuntime!.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT COALESCE(MAX(max_turn_duration_ms), 0) FROM trace_sessions";
+        return Convert.ToInt64(command.ExecuteScalar(), CultureInfo.InvariantCulture);
+    }
+
+    private TraceSession? LoadSessionFromDbEvents(string sessionKey, bool keepEvents)
+    {
+        using var connection = _stateRuntime!.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT event_json
+            FROM trace_events
+            WHERE session_key = $session_key
+            ORDER BY timestamp, id
+            """;
+        command.Parameters.AddWithValue("$session_key", sessionKey);
+
+        TraceSession? session = null;
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            TraceEvent? evt;
+            try
+            {
+                evt = JsonSerializer.Deserialize<TraceEvent>(reader.GetString(0), PersistJsonOptions);
+            }
+            catch
+            {
+                // Skip corrupted rows.
+                continue;
+            }
+
+            if (evt == null || !string.Equals(evt.SessionKey, sessionKey, StringComparison.Ordinal))
+                continue;
+
+            session ??= new TraceSession
+            {
+                SessionKey = evt.SessionKey,
+                StartedAt = evt.Timestamp
+            };
+
+            if (session.StartedAt > evt.Timestamp)
+                session = CloneSessionWithStartedAt(session, evt.Timestamp);
+
+            session.LastActivityAt = evt.Timestamp;
+            ApplyEventToSession(session, evt);
+            if (keepEvents)
+                AddInMemoryEvent(session, evt);
+        }
+
+        return session;
+    }
+
+    private static TraceSession ReadSessionSummary(DbDataReader reader)
+    {
+        var session = new TraceSession
+        {
+            SessionKey = reader.GetString(0),
+            StartedAt = ParseTimestamp(reader.GetString(1)),
+            LastActivityAt = ParseTimestamp(reader.GetString(2)),
+            RequestCount = ReadInt32(reader, 3),
+            MaintenanceForkRequestCount = ReadInt32(reader, 4),
+            ResponseCount = ReadInt32(reader, 5),
+            MaintenanceForkResponseCount = ReadInt32(reader, 6),
+            ToolCallCount = ReadInt32(reader, 7),
+            ErrorCount = ReadInt32(reader, 8),
+            ContextCompactionCount = ReadInt32(reader, 9),
+            ThinkingCount = ReadInt32(reader, 10),
+            TokenUsageCount = ReadInt32(reader, 11),
+            LastFinishReason = ReadStringOrNull(reader, 20),
+            FinalSystemPrompt = ReadStringOrNull(reader, 21)
+        };
+        session.LoadAggregateSnapshot(
+            ReadInt64(reader, 12),
+            ReadInt64(reader, 13),
+            ReadInt64(reader, 14),
+            ReadInt64(reader, 15),
+            ReadInt64(reader, 16),
+            ReadInt64(reader, 17),
+            ReadInt64(reader, 18),
+            ReadInt64(reader, 19));
+        session.SetToolNames(ReadToolNames(reader, 22));
+        return session;
+    }
+
+    private static IReadOnlyList<string> ReadToolNames(DbDataReader reader, int ordinal)
+    {
+        if (reader.IsDBNull(ordinal))
+            return [];
+
+        try
+        {
+            return JsonSerializer.Deserialize<string[]>(reader.GetString(ordinal), PersistJsonOptions) ?? [];
+        }
+        catch
+        {
+            return [];
+        }
+    }
+
+    private static DateTimeOffset ParseTimestamp(string value)
+    {
+        return DateTimeOffset.TryParse(
+            value,
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
+            out var parsed)
+            ? parsed
+            : DateTimeOffset.UtcNow;
+    }
+
+    private static int ReadInt32(DbDataReader reader, int ordinal)
+        => reader.IsDBNull(ordinal)
+            ? 0
+            : Convert.ToInt32(reader.GetValue(ordinal), CultureInfo.InvariantCulture);
+
+    private static long ReadInt64(DbDataReader reader, int ordinal)
+        => reader.IsDBNull(ordinal)
+            ? 0
+            : Convert.ToInt64(reader.GetValue(ordinal), CultureInfo.InvariantCulture);
+
+    private static string? ReadStringOrNull(DbDataReader reader, int ordinal)
+        => reader.IsDBNull(ordinal) ? null : reader.GetString(ordinal);
 
     private void DeleteSessionFile(string sessionKey)
     {
