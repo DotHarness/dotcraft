@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "DotCraft Chrome",
+  "name": "DotCraft",
   "version": "0.1.0",
   "description": "Connects DotCraft to your existing Chrome browser with explicit user control.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAkjaDNiFbsIeVW2JrpnGXOtGb1w5dS7fiKyV7C7fiGqNT4HReP/JbY22rNsgAMTBjXj9QjnUQfgtoO1VRI38g2HpYIn8JkvZqd6PS0r/Ch0qXJzhRx59jolXlYyafBKeKFmonZCjM/F6lxi8R+cPfr7/jZ+IZVlCZ1DsBEBJMItZ8OgHNmb+hVKC3ulCgkQv7nh2lx6xooGYW5hBIGrLpNaQ4DwecLLuEn/KR8qGj84jG2XRbelCT6ecVEdng5xqn0OqtjTkJSyTCPrMcFKVcaV9bNRb+GpZmG0A1pLwM2rAKOpb4m1SJUqZBheYBZhI+4q0coGqQM35c3QIV79LF1QIDAQAB",
@@ -14,12 +14,24 @@
   "host_permissions": [
     "<all_urls>"
   ],
+  "icons": {
+    "16": "icons/dotcraft-16.png",
+    "32": "icons/dotcraft-32.png",
+    "48": "icons/dotcraft-48.png",
+    "128": "icons/dotcraft-128.png"
+  },
   "background": {
     "service_worker": "service_worker.js",
     "type": "module"
   },
   "action": {
-    "default_title": "DotCraft Chrome",
+    "default_title": "DotCraft",
+    "default_icon": {
+      "16": "icons/dotcraft-16.png",
+      "32": "icons/dotcraft-32.png",
+      "48": "icons/dotcraft-48.png",
+      "128": "icons/dotcraft-128.png"
+    },
     "default_popup": "popup.html"
   }
 }

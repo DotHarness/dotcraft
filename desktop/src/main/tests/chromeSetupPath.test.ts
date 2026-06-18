@@ -10,19 +10,22 @@ vi.mock('electron', () => ({
 
 vi.mock('fs', () => ({
   existsSync: vi.fn(),
+  readFileSync: vi.fn(),
   promises: {
     readdir: vi.fn()
   }
 }))
 
-import { existsSync } from 'fs'
-import { resolveBundledChromePluginRoot, resolveChromePluginRoot } from '../chromeSetup'
+import { existsSync, readFileSync } from 'fs'
+import { resolveBundledChromePluginRoot, resolveChromeExtensionManagementUrl, resolveChromePluginRoot } from '../chromeSetup'
 
 describe('chrome plugin root resolution', () => {
   const mockExistsSync = existsSync as ReturnType<typeof vi.fn>
+  const mockReadFileSync = readFileSync as ReturnType<typeof vi.fn>
 
   beforeEach(() => {
     vi.clearAllMocks()
+    mockReadFileSync.mockReturnValue('{"extensionId":"pekajfcokkicggfjmickmkngmmoojlda"}')
   })
 
   it('prefers an installed workspace chrome plugin', () => {
@@ -39,5 +42,19 @@ describe('chrome plugin root resolution', () => {
     mockExistsSync.mockImplementation((candidate: string) => candidate === bundled)
 
     expect(resolveChromePluginRoot(workspace)).toBe(bundled)
+  })
+
+  it('builds the Chrome extension detail URL from bundled metadata', () => {
+    mockExistsSync.mockReturnValue(false)
+
+    expect(resolveChromeExtensionManagementUrl()).toBe('chrome://extensions/?id=pekajfcokkicggfjmickmkngmmoojlda')
+  })
+
+  it('falls back to the Chrome extensions page when metadata cannot be read', () => {
+    mockReadFileSync.mockImplementation(() => {
+      throw new Error('missing metadata')
+    })
+
+    expect(resolveChromeExtensionManagementUrl()).toBe('chrome://extensions')
   })
 })

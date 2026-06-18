@@ -34,7 +34,7 @@ import { useSettingsWorkspaceConfigChangeEffects } from '../../hooks/useSettings
 import { SecretInput } from '../channels/FormShared'
 import { ArchivedThreadsSettingsView } from './ArchivedThreadsSettingsView'
 import { ActionTooltip } from '../ui/ActionTooltip'
-import { FolderIcon, OpenInBrowserIcon, RefreshIcon } from '../ui/AppIcons'
+import { ExtensionsIcon, FolderIcon, OpenInBrowserIcon, RefreshIcon, WrenchIcon } from '../ui/AppIcons'
 import { IconButton } from '../ui/IconButton'
 import { InputWithAction } from '../ui/InputWithAction'
 import { SelectionCard, ResolvedPill } from '../ui/SelectionCard'
@@ -870,28 +870,6 @@ function chromeActionToolbarStyle(): CSSProperties {
     flexWrap: 'wrap',
     flex: '1 1 320px',
     minWidth: 0
-  }
-}
-
-function chromeActionButtonStyle(disabled = false, variant: 'primary' | 'secondary' = 'secondary'): CSSProperties {
-  const isPrimary = variant === 'primary'
-  return {
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 32,
-    padding: '0 12px',
-    border: isPrimary ? '1px solid var(--text-primary)' : '1px solid var(--border-default)',
-    borderRadius: '8px',
-    background: isPrimary ? 'var(--text-primary)' : 'var(--bg-tertiary)',
-    color: isPrimary ? 'var(--bg-primary)' : 'var(--text-primary)',
-    fontSize: '12px',
-    fontWeight: 600,
-    lineHeight: 1,
-    cursor: disabled ? 'default' : 'pointer',
-    opacity: disabled ? 0.7 : 1,
-    whiteSpace: 'nowrap',
-    flexShrink: 0
   }
 }
 
@@ -4779,40 +4757,44 @@ export function SettingsView({
                         </div>
                       </div>
                       <div style={chromeActionToolbarStyle()}>
-                        <button
-                          type="button"
+                        <IconButton
+                          icon={<RefreshIcon size={15} />}
+                          label={t('settings.chrome.refreshStatus')}
+                          tooltipLabel={t('settings.chrome.refreshStatus')}
+                          tooltipPlacement="top"
                           onClick={() => void reloadChromeSetupStatus()}
                           disabled={chromeSetupLoading}
-                          style={chromeActionButtonStyle(chromeSetupLoading, 'primary')}
-                        >
-                          {chromeSetupLoading ? t('settings.loading') : t('settings.chrome.refreshStatus')}
-                        </button>
-                        <button
-                          type="button"
+                          disabledReason={chromeSetupLoading ? t('settings.loading') : undefined}
+                        />
+                        <IconButton
+                          icon={<OpenInBrowserIcon size={15} />}
+                          label={t('settings.chrome.openChrome')}
+                          tooltipLabel={t('settings.chrome.openChrome')}
+                          tooltipPlacement="top"
                           onClick={() => void handleOpenChrome()}
                           disabled={chromeOpening}
-                          style={chromeActionButtonStyle(chromeOpening)}
-                        >
-                          {chromeOpening ? t('settings.chrome.opening') : t('settings.chrome.openChrome')}
-                        </button>
+                          disabledReason={chromeOpening ? t('settings.chrome.opening') : undefined}
+                        />
                         {chromeSetupStatus && !setupResultOk(chromeSetupStatus.extension) && (
-                          <button
-                            type="button"
+                          <IconButton
+                            icon={<ExtensionsIcon size={15} />}
+                            label={t('settings.chrome.openExtensions')}
+                            tooltipLabel={t('settings.chrome.openExtensions')}
+                            tooltipPlacement="top"
                             onClick={() => void handleOpenChrome(chromeExtensionManagementUrl(chromeSetupStatus))}
                             disabled={chromeOpening}
-                            style={chromeActionButtonStyle(chromeOpening)}
-                          >
-                            {t('settings.chrome.openExtensions')}
-                          </button>
+                            disabledReason={chromeOpening ? t('settings.chrome.opening') : undefined}
+                          />
                         )}
-                        <button
-                          type="button"
+                        <IconButton
+                          icon={<WrenchIcon size={15} />}
+                          label={chromeNativeHostActionLabel(chromeSetupStatus, false, t)}
+                          tooltipLabel={chromeNativeHostActionLabel(chromeSetupStatus, false, t)}
+                          tooltipPlacement="top"
                           onClick={() => void handleInstallChromeNativeHost()}
                           disabled={chromeNativeHostInstalling}
-                          style={chromeActionButtonStyle(chromeNativeHostInstalling)}
-                        >
-                          {chromeNativeHostActionLabel(chromeSetupStatus, chromeNativeHostInstalling, t)}
-                        </button>
+                          disabledReason={chromeNativeHostInstalling ? t('settings.chrome.installingNativeHost') : undefined}
+                        />
                       </div>
                     </div>
                     </SettingsGroup>

@@ -10,10 +10,12 @@ import {
   Folder,
   GitCommitHorizontal,
   Monitor,
+  Puzzle,
   RotateCw,
   Settings,
   Sparkle,
-  SquareTerminal
+  SquareTerminal,
+  Wrench
 } from 'lucide-react'
 
 export function FolderIcon({ size = 16 }: { size?: number }): JSX.Element {
@@ -30,6 +32,14 @@ export function CheckCircleIcon({ size = 16 }: { size?: number }): JSX.Element {
 
 export function OpenInBrowserIcon({ size = 16 }: { size?: number }): JSX.Element {
   return <ExternalLink size={size} strokeWidth={1.8} aria-hidden="true" />
+}
+
+export function ExtensionsIcon({ size = 16 }: { size?: number }): JSX.Element {
+  return <Puzzle size={size} strokeWidth={1.8} aria-hidden="true" />
+}
+
+export function WrenchIcon({ size = 16 }: { size?: number }): JSX.Element {
+  return <Wrench size={size} strokeWidth={1.8} aria-hidden="true" />
 }
 
 export function CommitIcon({ size = 16 }: { size?: number }): JSX.Element {

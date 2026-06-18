@@ -10,6 +10,7 @@ const {
   launchEditorMock,
   execFileMock,
   existsSyncMock,
+  readFileSyncMock,
   listWorkspaceFilesMock,
   notificationShowMock
 } = vi.hoisted(() => ({
@@ -19,12 +20,14 @@ const {
   launchEditorMock: vi.fn(),
   execFileMock: vi.fn(),
   existsSyncMock: vi.fn(),
+  readFileSyncMock: vi.fn(),
   listWorkspaceFilesMock: vi.fn(),
   notificationShowMock: vi.fn()
 }))
 
 vi.mock('fs', () => ({
   existsSync: existsSyncMock,
+  readFileSync: readFileSyncMock,
   promises: {
     readFile: vi.fn(),
     writeFile: vi.fn(),
@@ -469,6 +472,7 @@ describe('registerIpcHandlers', () => {
     vi.clearAllMocks()
     scanModulesMock.mockResolvedValue([])
     moduleProcessManagerStartMock.mockResolvedValue({ ok: true })
+    readFileSyncMock.mockReturnValue('{"extensionId":"pekajfcokkicggfjmickmkngmmoojlda"}')
     detectEditorsMock.mockResolvedValue([
       { id: 'cursor', labelKey: 'editors.cursor', iconKey: 'editor-generic' },
       { id: 'explorer', labelKey: 'editors.explorer', iconKey: 'explorer' }
@@ -1014,13 +1018,13 @@ describe('registerIpcHandlers', () => {
     const handlers = registerHandlersForTest()
     const openChrome = handlers.get('chrome:open')!
 
-    await openChrome({}, { url: 'chrome://extensions/?id=abc' })
+    await openChrome({}, { url: 'chrome://extensions' })
     await openChrome({}, { url: 'file:///C:/secret.txt' })
 
     expect(execFileMock).toHaveBeenCalledTimes(2)
     const firstArgs = execFileMock.mock.calls[0]![1] as string[]
     const secondArgs = execFileMock.mock.calls[1]![1] as string[]
-    expect(firstArgs.at(-1)).toBe('chrome://extensions/?id=abc')
+    expect(firstArgs.at(-1)).toBe('chrome://extensions/?id=pekajfcokkicggfjmickmkngmmoojlda')
     expect(secondArgs.at(-1)).toBe('about:blank')
   })
 
