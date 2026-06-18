@@ -1,6 +1,5 @@
 using ModelContextProtocol.Client;
 using System.Net;
-using System.Net.Http;
 
 namespace DotCraft.Mcp;
 

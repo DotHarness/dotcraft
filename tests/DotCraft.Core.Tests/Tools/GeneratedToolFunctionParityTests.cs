@@ -7,7 +7,6 @@ using DotCraft.GeneratedTools.Core;
 using DotCraft.Hosting;
 using DotCraft.Lsp;
 using DotCraft.Memory;
-using DotCraft.Protocol;
 using DotCraft.Skills;
 using DotCraft.Tools;
 using DotCraft.Tools.Sandbox;

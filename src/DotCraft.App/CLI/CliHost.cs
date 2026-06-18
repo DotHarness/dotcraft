@@ -5,7 +5,6 @@ using DotCraft.Configuration;
 using DotCraft.Hub;
 using DotCraft.Hosting;
 using DotCraft.Modules;
-using DotCraft.Protocol;
 using DotCraft.Protocol.AppServer;
 using DotCraft.Tools;
 

@@ -1,5 +1,4 @@
 using System.Net;
-using System.Text.Json;
 using DotCraft.Auth.OpenAI;
 
 namespace DotCraft.Tests.Auth.OpenAI;
