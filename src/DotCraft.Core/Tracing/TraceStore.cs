@@ -1,4 +1,6 @@
 using System.Collections.Concurrent;
+using System.Data.Common;
+using System.Globalization;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
@@ -28,6 +30,40 @@ public sealed class TraceStore
     private int _persistInFlight;
     private const int DefaultEventPageLimit = 1000;
     private const int MaxEventPageLimit = 1000;
+    private static readonly TraceSessionSummaryColumn[] TraceSessionSummaryColumns =
+    [
+        new("session_key", "session_key"),
+        new("started_at", "started_at"),
+        new("last_activity_at", "started_at"),
+        new("request_count", "0"),
+        new("maintenance_fork_request_count", "0"),
+        new("response_count", "0"),
+        new("maintenance_fork_response_count", "0"),
+        new("tool_call_count", "0"),
+        new("error_count", "0"),
+        new("context_compaction_count", "0"),
+        new("thinking_count", "0"),
+        new("token_usage_count", "0"),
+        new("total_input_tokens", "0"),
+        new("total_output_tokens", "0"),
+        new("total_cached_input_tokens", "0"),
+        new("total_cache_write_input_tokens", "0"),
+        new("total_reasoning_output_tokens", "0"),
+        new("total_tool_duration_ms", "0"),
+        new("max_tool_duration_ms", "0"),
+        new("max_turn_duration_ms", "0"),
+        new("last_finish_reason", "NULL"),
+        new("final_system_prompt", "NULL"),
+        new("tool_names_json", "'[]'"),
+        new("first_user_request", "NULL"),
+        new("system_prompt_hash", "NULL"),
+        new("tool_schema_hash", "NULL"),
+        new("prompt_drift_count", "0"),
+        new("session_metadata_captured_at", "NULL"),
+        new("last_prompt_cache_change_at", "NULL"),
+        new("last_prompt_cache_change_kind", "NULL"),
+        new("last_prompt_cache_changed_fields_json", "NULL")
+    ];
 
     private static readonly JsonSerializerOptions PersistJsonOptions = new()
     {
@@ -110,6 +146,27 @@ public sealed class TraceStore
             SessionKey = key
         });
 
+        ApplySessionMetadata(
+            session,
+            finalSystemPrompt,
+            toolNames,
+            systemPromptHash,
+            toolSchemaHash,
+            capturedAt,
+            promptCacheEventKind,
+            promptCacheChangedFields);
+    }
+
+    private static void ApplySessionMetadata(
+        TraceSession session,
+        string? finalSystemPrompt,
+        IEnumerable<string>? toolNames,
+        string? systemPromptHash = null,
+        string? toolSchemaHash = null,
+        DateTimeOffset? capturedAt = null,
+        string? promptCacheEventKind = null,
+        IEnumerable<string>? promptCacheChangedFields = null)
+    {
         var effectivePromptCacheEventKind = promptCacheEventKind;
         var effectivePromptCacheChangedFields = promptCacheChangedFields?.ToArray();
         if (string.IsNullOrWhiteSpace(effectivePromptCacheEventKind))
@@ -169,6 +226,9 @@ public sealed class TraceStore
 
     public IReadOnlyList<TraceSession> GetSessions()
     {
+        if (_stateRuntime != null)
+            return GetSessionsFromDb();
+
         return _sessions.Values
             .OrderByDescending(s => s.LastActivityAt)
             .ToList();
@@ -176,11 +236,17 @@ public sealed class TraceStore
 
     public TraceSession? GetSession(string sessionKey)
     {
+        if (_stateRuntime != null)
+            return GetSessionFromDb(sessionKey) ?? _sessions.GetValueOrDefault(sessionKey);
+
         return _sessions.GetValueOrDefault(sessionKey);
     }
 
     public IReadOnlyList<TraceEvent> GetEvents(string sessionKey)
     {
+        if (_stateRuntime != null)
+            return GetEventsFromDb(sessionKey);
+
         if (!_sessions.TryGetValue(sessionKey, out var session))
             return [];
         return session.Events.OrderBy(e => e.Timestamp).ToList();
@@ -196,7 +262,10 @@ public sealed class TraceStore
         var types = ResolveEventPageFilter(filter);
 
         if (_stateRuntime != null)
+        {
+            WaitForPendingPersistence();
             return GetEventPageFromDb(sessionKey, normalizedLimit, beforeCursor, types);
+        }
 
         return GetEventPageFromMemory(sessionKey, normalizedLimit, beforeCursor, types);
     }
@@ -344,6 +413,9 @@ public sealed class TraceStore
 
     public TraceSummary GetSummary()
     {
+        if (_stateRuntime != null)
+            return GetSummaryFromDb();
+
         long totalInput = 0, totalOutput = 0, totalCachedInput = 0, totalCacheWriteInput = 0, totalReasoningOutput = 0;
         int totalRequests = 0, totalMaintenanceForkRequests = 0, totalResponses = 0, totalMaintenanceForkResponses = 0;
         int totalToolCalls = 0, totalErrors = 0, totalContextCompactions = 0;
@@ -403,6 +475,9 @@ public sealed class TraceStore
     /// <param name="tzOffsetMinutes">Minutes to add to UTC to obtain the client's local time.</param>
     public IReadOnlyList<DailyUsageBucket> GetDailyUsage(DateOnly? from, DateOnly? to, int tzOffsetMinutes)
     {
+        if (_stateRuntime != null)
+            return GetDailyUsageFromDb(from, to, tzOffsetMinutes);
+
         var offset = TimeSpan.FromMinutes(tzOffsetMinutes);
         var buckets = new Dictionary<DateOnly, (long Input, long Output, int Sessions)>();
 
@@ -440,6 +515,9 @@ public sealed class TraceStore
     /// </summary>
     public long GetLongestTurnDurationMs()
     {
+        if (_stateRuntime != null)
+            return GetLongestTurnDurationMsFromDb();
+
         long max = 0;
         foreach (var session in _sessions.Values)
             max = Math.Max(max, session.MaxTurnDurationMs);
@@ -457,9 +535,11 @@ public sealed class TraceStore
     public ProfileInsights GetProfileInsights(int topSkills = 5)
     {
         var limit = Math.Clamp(topSkills, 1, 50);
-        return _stateRuntime != null
-            ? GetProfileInsightsFromDb(limit)
-            : GetProfileInsightsFromMemory(limit);
+        if (_stateRuntime == null)
+            return GetProfileInsightsFromMemory(limit);
+
+        WaitForPendingPersistence();
+        return GetProfileInsightsFromDb(limit);
     }
 
     private ProfileInsights GetProfileInsightsFromDb(int topSkills)
@@ -581,7 +661,9 @@ public sealed class TraceStore
     {
         if (_stateRuntime != null)
         {
-            LoadFromDb();
+            // State-backed stores keep historical events in SQLite and read them on demand.
+            // Startup only needs the table schema opened by StateRuntime; materializing every
+            // event_json row here inflates appserver memory for large workspaces.
             return;
         }
 
@@ -614,11 +696,7 @@ public sealed class TraceStore
 
     private void ApplyEvent(TraceEvent evt, bool writeToSse)
     {
-        var session = _sessions.GetOrAdd(evt.SessionKey, key => new TraceSession
-        {
-            SessionKey = key,
-            StartedAt = evt.Timestamp
-        });
+        var session = GetOrAddSessionForEvent(evt);
 
         if (session.StartedAt > evt.Timestamp)
         {
@@ -627,12 +705,21 @@ public sealed class TraceStore
         }
 
         session.LastActivityAt = evt.Timestamp;
+        ApplyEventToSession(session, evt);
 
+        AddInMemoryEvent(session, evt);
+
+        if (writeToSse)
+            _sseChannel.Writer.TryWrite(evt);
+    }
+
+    private void ApplyEventToSession(TraceSession session, TraceEvent evt)
+    {
         switch (evt.Type)
         {
             case TraceEventType.SessionMetadata:
-                UpsertSessionMetadata(
-                    evt.SessionKey,
+                ApplySessionMetadata(
+                    session,
                     evt.FinalSystemPrompt,
                     evt.ToolNames,
                     evt.SystemPromptHash,
@@ -696,11 +783,6 @@ public sealed class TraceStore
                 session.ThinkingCount++;
                 break;
         }
-
-        AddInMemoryEvent(session, evt);
-
-        if (writeToSse)
-            _sseChannel.Writer.TryWrite(evt);
     }
 
     private static void ApplyPromptCacheChangeSummary(TraceSession session, TraceEvent evt)
@@ -858,7 +940,15 @@ public sealed class TraceStore
                 max_turn_duration_ms,
                 last_finish_reason,
                 final_system_prompt,
-                tool_names_json
+                tool_names_json,
+                first_user_request,
+                system_prompt_hash,
+                tool_schema_hash,
+                prompt_drift_count,
+                session_metadata_captured_at,
+                last_prompt_cache_change_at,
+                last_prompt_cache_change_kind,
+                last_prompt_cache_changed_fields_json
             ) VALUES (
                 $session_key,
                 $started_at,
@@ -882,31 +972,93 @@ public sealed class TraceStore
                 $max_turn_duration_ms,
                 $last_finish_reason,
                 $final_system_prompt,
-                $tool_names_json
+                $tool_names_json,
+                $first_user_request,
+                $system_prompt_hash,
+                $tool_schema_hash,
+                $prompt_drift_count,
+                $session_metadata_captured_at,
+                $last_prompt_cache_change_at,
+                $last_prompt_cache_change_kind,
+                $last_prompt_cache_changed_fields_json
             )
             ON CONFLICT(session_key) DO UPDATE SET
-                started_at = excluded.started_at,
-                last_activity_at = excluded.last_activity_at,
-                request_count = excluded.request_count,
-                maintenance_fork_request_count = excluded.maintenance_fork_request_count,
-                response_count = excluded.response_count,
-                maintenance_fork_response_count = excluded.maintenance_fork_response_count,
-                tool_call_count = excluded.tool_call_count,
-                error_count = excluded.error_count,
-                context_compaction_count = excluded.context_compaction_count,
-                thinking_count = excluded.thinking_count,
-                token_usage_count = excluded.token_usage_count,
-                total_input_tokens = excluded.total_input_tokens,
-                total_output_tokens = excluded.total_output_tokens,
-                total_cached_input_tokens = excluded.total_cached_input_tokens,
-                total_cache_write_input_tokens = excluded.total_cache_write_input_tokens,
-                total_reasoning_output_tokens = excluded.total_reasoning_output_tokens,
-                total_tool_duration_ms = excluded.total_tool_duration_ms,
-                max_tool_duration_ms = excluded.max_tool_duration_ms,
-                max_turn_duration_ms = excluded.max_turn_duration_ms,
-                last_finish_reason = excluded.last_finish_reason,
-                final_system_prompt = excluded.final_system_prompt,
-                tool_names_json = excluded.tool_names_json
+                started_at = CASE
+                    WHEN excluded.started_at < trace_sessions.started_at THEN excluded.started_at
+                    ELSE trace_sessions.started_at
+                END,
+                last_activity_at = CASE
+                    WHEN excluded.last_activity_at > trace_sessions.last_activity_at THEN excluded.last_activity_at
+                    ELSE trace_sessions.last_activity_at
+                END,
+                request_count = MAX(trace_sessions.request_count, excluded.request_count),
+                maintenance_fork_request_count = MAX(trace_sessions.maintenance_fork_request_count, excluded.maintenance_fork_request_count),
+                response_count = MAX(trace_sessions.response_count, excluded.response_count),
+                maintenance_fork_response_count = MAX(trace_sessions.maintenance_fork_response_count, excluded.maintenance_fork_response_count),
+                tool_call_count = MAX(trace_sessions.tool_call_count, excluded.tool_call_count),
+                error_count = MAX(trace_sessions.error_count, excluded.error_count),
+                context_compaction_count = MAX(trace_sessions.context_compaction_count, excluded.context_compaction_count),
+                thinking_count = MAX(trace_sessions.thinking_count, excluded.thinking_count),
+                token_usage_count = MAX(trace_sessions.token_usage_count, excluded.token_usage_count),
+                total_input_tokens = MAX(trace_sessions.total_input_tokens, excluded.total_input_tokens),
+                total_output_tokens = MAX(trace_sessions.total_output_tokens, excluded.total_output_tokens),
+                total_cached_input_tokens = MAX(trace_sessions.total_cached_input_tokens, excluded.total_cached_input_tokens),
+                total_cache_write_input_tokens = MAX(trace_sessions.total_cache_write_input_tokens, excluded.total_cache_write_input_tokens),
+                total_reasoning_output_tokens = MAX(trace_sessions.total_reasoning_output_tokens, excluded.total_reasoning_output_tokens),
+                total_tool_duration_ms = MAX(trace_sessions.total_tool_duration_ms, excluded.total_tool_duration_ms),
+                max_tool_duration_ms = MAX(trace_sessions.max_tool_duration_ms, excluded.max_tool_duration_ms),
+                max_turn_duration_ms = MAX(trace_sessions.max_turn_duration_ms, excluded.max_turn_duration_ms),
+                last_finish_reason = COALESCE(excluded.last_finish_reason, trace_sessions.last_finish_reason),
+                final_system_prompt = CASE
+                    WHEN excluded.session_metadata_captured_at IS NOT NULL
+                      AND (trace_sessions.session_metadata_captured_at IS NULL OR excluded.session_metadata_captured_at >= trace_sessions.session_metadata_captured_at)
+                    THEN excluded.final_system_prompt
+                    ELSE COALESCE(trace_sessions.final_system_prompt, excluded.final_system_prompt)
+                END,
+                tool_names_json = CASE
+                    WHEN excluded.session_metadata_captured_at IS NOT NULL
+                      AND (trace_sessions.session_metadata_captured_at IS NULL OR excluded.session_metadata_captured_at >= trace_sessions.session_metadata_captured_at)
+                    THEN excluded.tool_names_json
+                    ELSE COALESCE(trace_sessions.tool_names_json, excluded.tool_names_json)
+                END,
+                first_user_request = COALESCE(NULLIF(trace_sessions.first_user_request, ''), excluded.first_user_request),
+                system_prompt_hash = CASE
+                    WHEN excluded.session_metadata_captured_at IS NOT NULL
+                      AND (trace_sessions.session_metadata_captured_at IS NULL OR excluded.session_metadata_captured_at >= trace_sessions.session_metadata_captured_at)
+                    THEN excluded.system_prompt_hash
+                    ELSE COALESCE(trace_sessions.system_prompt_hash, excluded.system_prompt_hash)
+                END,
+                tool_schema_hash = CASE
+                    WHEN excluded.session_metadata_captured_at IS NOT NULL
+                      AND (trace_sessions.session_metadata_captured_at IS NULL OR excluded.session_metadata_captured_at >= trace_sessions.session_metadata_captured_at)
+                    THEN excluded.tool_schema_hash
+                    ELSE COALESCE(trace_sessions.tool_schema_hash, excluded.tool_schema_hash)
+                END,
+                prompt_drift_count = MAX(trace_sessions.prompt_drift_count, excluded.prompt_drift_count),
+                session_metadata_captured_at = CASE
+                    WHEN excluded.session_metadata_captured_at IS NOT NULL
+                      AND (trace_sessions.session_metadata_captured_at IS NULL OR excluded.session_metadata_captured_at > trace_sessions.session_metadata_captured_at)
+                    THEN excluded.session_metadata_captured_at
+                    ELSE trace_sessions.session_metadata_captured_at
+                END,
+                last_prompt_cache_change_at = CASE
+                    WHEN excluded.last_prompt_cache_change_at IS NOT NULL
+                      AND (trace_sessions.last_prompt_cache_change_at IS NULL OR excluded.last_prompt_cache_change_at > trace_sessions.last_prompt_cache_change_at)
+                    THEN excluded.last_prompt_cache_change_at
+                    ELSE trace_sessions.last_prompt_cache_change_at
+                END,
+                last_prompt_cache_change_kind = CASE
+                    WHEN excluded.last_prompt_cache_change_at IS NOT NULL
+                      AND (trace_sessions.last_prompt_cache_change_at IS NULL OR excluded.last_prompt_cache_change_at >= trace_sessions.last_prompt_cache_change_at)
+                    THEN excluded.last_prompt_cache_change_kind
+                    ELSE trace_sessions.last_prompt_cache_change_kind
+                END,
+                last_prompt_cache_changed_fields_json = CASE
+                    WHEN excluded.last_prompt_cache_change_at IS NOT NULL
+                      AND (trace_sessions.last_prompt_cache_change_at IS NULL OR excluded.last_prompt_cache_change_at >= trace_sessions.last_prompt_cache_change_at)
+                    THEN excluded.last_prompt_cache_changed_fields_json
+                    ELSE trace_sessions.last_prompt_cache_changed_fields_json
+                END
             """;
         command.Parameters.AddWithValue("$session_key", session.SessionKey);
         command.Parameters.AddWithValue("$started_at", session.StartedAt.UtcDateTime.ToString("O"));
@@ -931,18 +1083,114 @@ public sealed class TraceStore
         command.Parameters.AddWithValue("$last_finish_reason", (object?)session.LastFinishReason ?? DBNull.Value);
         command.Parameters.AddWithValue("$final_system_prompt", (object?)session.FinalSystemPrompt ?? DBNull.Value);
         command.Parameters.AddWithValue("$tool_names_json", JsonSerializer.Serialize(session.ToolNames, PersistJsonOptions));
+        command.Parameters.AddWithValue("$first_user_request", (object?)session.FirstUserRequest ?? DBNull.Value);
+        command.Parameters.AddWithValue("$system_prompt_hash", (object?)session.SystemPromptHash ?? DBNull.Value);
+        command.Parameters.AddWithValue("$tool_schema_hash", (object?)session.ToolSchemaHash ?? DBNull.Value);
+        command.Parameters.AddWithValue("$prompt_drift_count", session.PromptDriftCount);
+        command.Parameters.AddWithValue(
+            "$session_metadata_captured_at",
+            session.SessionMetadataCapturedAt.HasValue
+                ? session.SessionMetadataCapturedAt.Value.UtcDateTime.ToString("O")
+                : DBNull.Value);
+        command.Parameters.AddWithValue(
+            "$last_prompt_cache_change_at",
+            session.LastPromptCacheChangeAt.HasValue
+                ? session.LastPromptCacheChangeAt.Value.UtcDateTime.ToString("O")
+                : DBNull.Value);
+        command.Parameters.AddWithValue("$last_prompt_cache_change_kind", (object?)session.LastPromptCacheChangeKind ?? DBNull.Value);
+        command.Parameters.AddWithValue(
+            "$last_prompt_cache_changed_fields_json",
+            JsonSerializer.Serialize(session.LastPromptCacheChangedFields, PersistJsonOptions));
         command.ExecuteNonQuery();
     }
 
-    private void LoadFromDb()
+    private TraceSession GetOrAddSessionForEvent(TraceEvent evt)
     {
+        return _sessions.GetOrAdd(evt.SessionKey, key =>
+            _stateRuntime != null
+                ? LoadSessionSummaryFromDb(key) ?? LoadSessionFromDbEvents(key, keepEvents: false) ?? new TraceSession
+                {
+                    SessionKey = key,
+                    StartedAt = evt.Timestamp
+                }
+                : new TraceSession
+                {
+                    SessionKey = key,
+                    StartedAt = evt.Timestamp
+                });
+    }
+
+    private IReadOnlyList<TraceSession> GetSessionsFromDb()
+    {
+        WaitForPendingPersistence();
+
+        using var connection = _stateRuntime!.OpenConnection();
+        var selectList = BuildTraceSessionSummarySelectList(connection);
+        using var command = connection.CreateCommand();
+        command.CommandText = $"""
+            SELECT
+            {selectList}
+            FROM trace_sessions
+            ORDER BY last_activity_at DESC, session_key DESC
+            """;
+
+        var sessions = new List<TraceSession>();
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+            sessions.Add(ReadSessionSummary(reader));
+
+        return sessions;
+    }
+
+    private TraceSession? GetSessionFromDb(string sessionKey)
+    {
+        if (string.IsNullOrWhiteSpace(sessionKey))
+            return null;
+
+        WaitForPendingPersistence();
+        return LoadSessionSummaryFromDb(sessionKey) ?? LoadSessionFromDbEvents(sessionKey, keepEvents: false);
+    }
+
+    private TraceSession? LoadSessionSummaryFromDb(string sessionKey)
+    {
+        using var connection = _stateRuntime!.OpenConnection();
+        var selectList = BuildTraceSessionSummarySelectList(connection);
+        using var command = connection.CreateCommand();
+        command.CommandText = $"""
+            SELECT
+            {selectList}
+            FROM trace_sessions
+            WHERE session_key = $session_key
+            """;
+        command.Parameters.AddWithValue("$session_key", sessionKey);
+        using var reader = command.ExecuteReader();
+        return reader.Read() ? ReadSessionSummary(reader) : null;
+    }
+
+    private IReadOnlyList<TraceEvent> GetEventsFromDb(string sessionKey)
+    {
+        if (_maxEventsPerSession <= 0 || string.IsNullOrWhiteSpace(sessionKey))
+            return [];
+
+        WaitForPendingPersistence();
+
         using var connection = _stateRuntime!.OpenConnection();
         using var command = connection.CreateCommand();
         command.CommandText = """
             SELECT event_json
-            FROM trace_events
-            ORDER BY timestamp, id
+            FROM (
+                SELECT timestamp, id, event_json
+                FROM trace_events
+                WHERE session_key = $session_key
+                ORDER BY timestamp DESC, id DESC
+                LIMIT $limit
+            )
+            ORDER BY timestamp ASC, id ASC
             """;
+        command.Parameters.AddWithValue("$session_key", sessionKey);
+        command.Parameters.AddWithValue("$limit", _maxEventsPerSession);
+
+        var events = new List<TraceEvent>();
         using var reader = command.ExecuteReader();
         while (reader.Read())
         {
@@ -950,13 +1198,303 @@ public sealed class TraceStore
             {
                 var evt = JsonSerializer.Deserialize<TraceEvent>(reader.GetString(0), PersistJsonOptions);
                 if (evt != null)
-                    ApplyEvent(evt, writeToSse: false);
+                    events.Add(evt);
             }
             catch
             {
                 // Skip corrupted rows.
             }
         }
+
+        return events;
+    }
+
+    private TraceSummary GetSummaryFromDb()
+    {
+        WaitForPendingPersistence();
+
+        using var connection = _stateRuntime!.OpenConnection();
+        var columns = GetTableColumns(connection, "trace_sessions");
+        using var command = connection.CreateCommand();
+        command.CommandText = $"""
+            SELECT
+                COUNT(*),
+                {SumTraceSessionColumnOrZero(columns, "request_count")},
+                {SumTraceSessionColumnOrZero(columns, "maintenance_fork_request_count")},
+                {SumTraceSessionColumnOrZero(columns, "response_count")},
+                {SumTraceSessionColumnOrZero(columns, "maintenance_fork_response_count")},
+                {SumTraceSessionColumnOrZero(columns, "tool_call_count")},
+                {SumTraceSessionColumnOrZero(columns, "error_count")},
+                {SumTraceSessionColumnOrZero(columns, "context_compaction_count")},
+                {SumTraceSessionColumnOrZero(columns, "total_tool_duration_ms")},
+                {MaxTraceSessionColumnOrZero(columns, "max_tool_duration_ms")},
+                {MaxTraceSessionColumnOrZero(columns, "max_turn_duration_ms")},
+                {SumTraceSessionColumnOrZero(columns, "total_input_tokens")},
+                {SumTraceSessionColumnOrZero(columns, "total_output_tokens")},
+                {SumTraceSessionColumnOrZero(columns, "total_cached_input_tokens")},
+                {SumTraceSessionColumnOrZero(columns, "total_cache_write_input_tokens")},
+                {SumTraceSessionColumnOrZero(columns, "total_reasoning_output_tokens")}
+            FROM trace_sessions
+            """;
+
+        using var reader = command.ExecuteReader();
+        if (!reader.Read())
+            return new TraceSummary();
+
+        var totalToolCalls = ReadInt32(reader, 5);
+        var totalToolDuration = ReadInt64(reader, 8);
+        var totalInput = ReadInt64(reader, 11);
+        var totalOutput = ReadInt64(reader, 12);
+        return new TraceSummary
+        {
+            SessionCount = ReadInt32(reader, 0),
+            TotalRequests = ReadInt32(reader, 1),
+            TotalMaintenanceForkRequests = ReadInt32(reader, 2),
+            TotalResponses = ReadInt32(reader, 3),
+            TotalMaintenanceForkResponses = ReadInt32(reader, 4),
+            TotalToolCalls = totalToolCalls,
+            TotalErrors = ReadInt32(reader, 6),
+            TotalContextCompactions = ReadInt32(reader, 7),
+            TotalToolDurationMs = totalToolDuration,
+            AvgToolDurationMs = totalToolCalls > 0 ? totalToolDuration / (double)totalToolCalls : 0,
+            MaxToolDurationMs = ReadInt64(reader, 9),
+            MaxTurnDurationMs = ReadInt64(reader, 10),
+            TotalInputTokens = totalInput,
+            TotalOutputTokens = totalOutput,
+            TotalCachedInputTokens = ReadInt64(reader, 13),
+            TotalCacheWriteInputTokens = ReadInt64(reader, 14),
+            TotalReasoningOutputTokens = ReadInt64(reader, 15),
+            TotalTokens = totalInput + totalOutput
+        };
+    }
+
+    private IReadOnlyList<DailyUsageBucket> GetDailyUsageFromDb(DateOnly? from, DateOnly? to, int tzOffsetMinutes)
+    {
+        WaitForPendingPersistence();
+
+        var offset = TimeSpan.FromMinutes(tzOffsetMinutes);
+        var buckets = new Dictionary<DateOnly, (long Input, long Output, int Sessions)>();
+        using var connection = _stateRuntime!.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT started_at, total_input_tokens, total_output_tokens
+            FROM trace_sessions
+            """;
+
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            var localWallClock = ParseTimestamp(reader.GetString(0)).ToUniversalTime().Add(offset).DateTime;
+            var date = DateOnly.FromDateTime(localWallClock);
+            if (from.HasValue && date < from.Value)
+                continue;
+            if (to.HasValue && date > to.Value)
+                continue;
+
+            var current = buckets.GetValueOrDefault(date);
+            buckets[date] = (
+                current.Input + ReadInt64(reader, 1),
+                current.Output + ReadInt64(reader, 2),
+                current.Sessions + 1);
+        }
+
+        return buckets
+            .OrderBy(kv => kv.Key)
+            .Select(kv => new DailyUsageBucket
+            {
+                Date = kv.Key,
+                InputTokens = kv.Value.Input,
+                OutputTokens = kv.Value.Output,
+                SessionCount = kv.Value.Sessions
+            })
+            .ToList();
+    }
+
+    private long GetLongestTurnDurationMsFromDb()
+    {
+        WaitForPendingPersistence();
+
+        using var connection = _stateRuntime!.OpenConnection();
+        var columns = GetTableColumns(connection, "trace_sessions");
+        if (!columns.Contains("max_turn_duration_ms"))
+            return 0;
+
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT COALESCE(MAX(max_turn_duration_ms), 0) FROM trace_sessions";
+        return Convert.ToInt64(command.ExecuteScalar(), CultureInfo.InvariantCulture);
+    }
+
+    private TraceSession? LoadSessionFromDbEvents(string sessionKey, bool keepEvents)
+    {
+        using var connection = _stateRuntime!.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT event_json
+            FROM trace_events
+            WHERE session_key = $session_key
+            ORDER BY timestamp, id
+            """;
+        command.Parameters.AddWithValue("$session_key", sessionKey);
+
+        TraceSession? session = null;
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            TraceEvent? evt;
+            try
+            {
+                evt = JsonSerializer.Deserialize<TraceEvent>(reader.GetString(0), PersistJsonOptions);
+            }
+            catch
+            {
+                // Skip corrupted rows.
+                continue;
+            }
+
+            if (evt == null || !string.Equals(evt.SessionKey, sessionKey, StringComparison.Ordinal))
+                continue;
+
+            session ??= new TraceSession
+            {
+                SessionKey = evt.SessionKey,
+                StartedAt = evt.Timestamp
+            };
+
+            if (session.StartedAt > evt.Timestamp)
+                session = CloneSessionWithStartedAt(session, evt.Timestamp);
+
+            session.LastActivityAt = evt.Timestamp;
+            ApplyEventToSession(session, evt);
+            if (keepEvents)
+                AddInMemoryEvent(session, evt);
+        }
+
+        return session;
+    }
+
+    private static TraceSession ReadSessionSummary(DbDataReader reader)
+    {
+        var session = new TraceSession
+        {
+            SessionKey = reader.GetString(0),
+            StartedAt = ParseTimestamp(reader.GetString(1)),
+            LastActivityAt = ParseTimestamp(reader.GetString(2)),
+            RequestCount = ReadInt32(reader, 3),
+            MaintenanceForkRequestCount = ReadInt32(reader, 4),
+            ResponseCount = ReadInt32(reader, 5),
+            MaintenanceForkResponseCount = ReadInt32(reader, 6),
+            ToolCallCount = ReadInt32(reader, 7),
+            ErrorCount = ReadInt32(reader, 8),
+            ContextCompactionCount = ReadInt32(reader, 9),
+            ThinkingCount = ReadInt32(reader, 10),
+            TokenUsageCount = ReadInt32(reader, 11),
+            LastFinishReason = ReadStringOrNull(reader, 20),
+            FinalSystemPrompt = ReadStringOrNull(reader, 21),
+            FirstUserRequest = ReadStringOrNull(reader, 23),
+            SystemPromptHash = ReadStringOrNull(reader, 24),
+            ToolSchemaHash = ReadStringOrNull(reader, 25),
+            PromptDriftCount = ReadInt32(reader, 26),
+            SessionMetadataCapturedAt = ReadDateTimeOffsetOrNull(reader, 27),
+            LastPromptCacheChangeAt = ReadDateTimeOffsetOrNull(reader, 28),
+            LastPromptCacheChangeKind = ReadStringOrNull(reader, 29),
+            LastPromptCacheChangedFields = ReadStringArray(reader, 30)
+        };
+        session.LoadAggregateSnapshot(
+            ReadInt64(reader, 12),
+            ReadInt64(reader, 13),
+            ReadInt64(reader, 14),
+            ReadInt64(reader, 15),
+            ReadInt64(reader, 16),
+            ReadInt64(reader, 17),
+            ReadInt64(reader, 18),
+            ReadInt64(reader, 19));
+        session.SetToolNames(ReadStringArray(reader, 22));
+        return session;
+    }
+
+    private static string BuildTraceSessionSummarySelectList(DbConnection connection)
+    {
+        var availableColumns = GetTableColumns(connection, "trace_sessions");
+        return string.Join(
+            ",\n",
+            TraceSessionSummaryColumns.Select(column =>
+                availableColumns.Contains(column.Name)
+                    ? "                " + column.Name
+                    : $"                {column.FallbackExpression} AS {column.Name}"));
+    }
+
+    private static HashSet<string> GetTableColumns(DbConnection connection, string tableName)
+    {
+        var columns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        using var command = connection.CreateCommand();
+        command.CommandText = $"PRAGMA table_info({tableName})";
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+            columns.Add(reader.GetString(1));
+        return columns;
+    }
+
+    private static string SumTraceSessionColumnOrZero(IReadOnlySet<string> availableColumns, string columnName)
+        => availableColumns.Contains(columnName) ? $"COALESCE(SUM({columnName}), 0)" : "0";
+
+    private static string MaxTraceSessionColumnOrZero(IReadOnlySet<string> availableColumns, string columnName)
+        => availableColumns.Contains(columnName) ? $"COALESCE(MAX({columnName}), 0)" : "0";
+
+    private static string[] ReadStringArray(DbDataReader reader, int ordinal)
+    {
+        if (reader.IsDBNull(ordinal))
+            return [];
+
+        try
+        {
+            return JsonSerializer.Deserialize<string[]>(reader.GetString(ordinal), PersistJsonOptions) ?? [];
+        }
+        catch
+        {
+            return [];
+        }
+    }
+
+    private static DateTimeOffset ParseTimestamp(string value)
+    {
+        return DateTimeOffset.TryParse(
+            value,
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
+            out var parsed)
+            ? parsed
+            : DateTimeOffset.UtcNow;
+    }
+
+    private static int ReadInt32(DbDataReader reader, int ordinal)
+        => reader.IsDBNull(ordinal)
+            ? 0
+            : Convert.ToInt32(reader.GetValue(ordinal), CultureInfo.InvariantCulture);
+
+    private static long ReadInt64(DbDataReader reader, int ordinal)
+        => reader.IsDBNull(ordinal)
+            ? 0
+            : Convert.ToInt64(reader.GetValue(ordinal), CultureInfo.InvariantCulture);
+
+    private static string? ReadStringOrNull(DbDataReader reader, int ordinal)
+        => reader.IsDBNull(ordinal) ? null : reader.GetString(ordinal);
+
+    private static DateTimeOffset? ReadDateTimeOffsetOrNull(DbDataReader reader, int ordinal)
+    {
+        if (reader.IsDBNull(ordinal))
+            return null;
+
+        var value = reader.GetString(ordinal);
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
+
+        return DateTimeOffset.TryParse(
+            value,
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
+            out var parsed)
+            ? parsed
+            : null;
     }
 
     private void DeleteSessionFile(string sessionKey)
@@ -1259,6 +1797,8 @@ public sealed class TraceStore
         => string.Concat(value.Split(Path.GetInvalidFileNameChars()));
 
     private sealed record TraceEventDbRow(long RowId, string Timestamp, string EventJson);
+
+    private sealed record TraceSessionSummaryColumn(string Name, string FallbackExpression);
 }
 
 public sealed record TraceEventPage(

@@ -32,7 +32,6 @@ public sealed class ThreadStore
         _metadataStore = new ThreadMetadataStore(runtime);
         _rolloutStore = new ThreadRolloutStore(botPath);
         _attachmentStore = new ThreadAttachmentStore(runtime, botPath);
-        RebuildAttachmentReferences();
     }
 
     /// <summary>
@@ -422,18 +421,6 @@ public sealed class ThreadStore
         var json = JsonSerializer.SerializeToUtf8Bytes(thread, SessionJsonOptions.Default);
         return JsonSerializer.Deserialize<SessionThread>(json, SessionJsonOptions.Default)
             ?? throw new InvalidOperationException($"Failed to clone thread snapshot for {thread.Id}.");
-    }
-
-    private void RebuildAttachmentReferences()
-    {
-        try
-        {
-            _attachmentStore.RebuildFromThreads(_rolloutStore.LoadAllThreads());
-        }
-        catch
-        {
-            // Attachment indexing is best-effort; missing thumbnails should not block startup.
-        }
     }
 
     private async Task<AgentSession> RebuildSessionFromRolloutAsync(

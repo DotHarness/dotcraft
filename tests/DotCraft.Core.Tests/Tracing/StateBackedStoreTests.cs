@@ -1,4 +1,5 @@
 using System.Text.Json;
+using DotCraft.DashBoard;
 using DotCraft.State;
 using DotCraft.Protocol;
 using DotCraft.Tracing;
@@ -82,6 +83,73 @@ public sealed class StateBackedStoreTests : IDisposable
         Assert.Equal(18, summary.TotalTokens);
         Assert.Equal(2, summary.TotalCacheWriteInputTokens);
         Assert.Equal(1, summary.TotalToolCalls);
+    }
+
+    [Fact]
+    public void TraceStore_StateDbSummary_DoesNotRequire_EventJson_Load()
+    {
+        var writer = new TraceStore(_tracingPath, 5000, true, _stateRuntime);
+        var startedAt = new DateTimeOffset(2026, 6, 18, 8, 0, 0, TimeSpan.Zero);
+        writer.Record(new TraceEvent
+        {
+            SessionKey = "thread-summary-only",
+            Type = TraceEventType.Request,
+            Content = "hello",
+            Timestamp = startedAt
+        });
+        writer.Record(new TraceEvent
+        {
+            SessionKey = "thread-summary-only",
+            Type = TraceEventType.SessionMetadata,
+            SystemPromptHash = "aaa",
+            ToolSchemaHash = "bbb",
+            PromptCacheEventKind = PromptCacheEventKinds.Baseline,
+            Timestamp = startedAt.AddSeconds(1)
+        });
+        writer.Record(new TraceEvent
+        {
+            SessionKey = "thread-summary-only",
+            Type = TraceEventType.SessionMetadata,
+            SystemPromptHash = "ccc",
+            ToolSchemaHash = "bbb",
+            PromptCacheEventKind = PromptCacheEventKinds.Drift,
+            PromptCacheChangedFields = [PromptCacheChangedFields.Prompt],
+            Timestamp = startedAt.AddSeconds(2)
+        });
+        writer.Record(new TraceEvent
+        {
+            SessionKey = "thread-summary-only",
+            Type = TraceEventType.TokenUsage,
+            InputTokens = 11,
+            OutputTokens = 7,
+            Timestamp = startedAt.AddSeconds(3)
+        });
+
+        using (var connection = _stateRuntime.OpenConnection())
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "UPDATE trace_events SET event_json = '{ broken json' WHERE session_key = $session_key";
+            command.Parameters.AddWithValue("$session_key", "thread-summary-only");
+            command.ExecuteNonQuery();
+        }
+
+        var reader = new TraceStore(_tracingPath, 5000, false, _stateRuntime);
+        reader.LoadFromDisk();
+
+        var summary = reader.GetSummary();
+        Assert.Equal(1, summary.SessionCount);
+        Assert.Equal(1, summary.TotalRequests);
+        Assert.Equal(18, summary.TotalTokens);
+
+        var session = Assert.Single(reader.GetSessions());
+        Assert.Equal("hello", session.FirstUserRequest);
+        Assert.Equal("ccc", session.SystemPromptHash);
+        Assert.Equal("bbb", session.ToolSchemaHash);
+        Assert.Equal(1, session.PromptDriftCount);
+        Assert.Equal(startedAt.AddSeconds(2), session.SessionMetadataCapturedAt);
+        Assert.Equal(startedAt.AddSeconds(2), session.LastPromptCacheChangeAt);
+        Assert.Equal(PromptCacheEventKinds.Drift, session.LastPromptCacheChangeKind);
+        Assert.Equal([PromptCacheChangedFields.Prompt], session.LastPromptCacheChangedFields);
     }
 
     [Fact]
@@ -262,6 +330,235 @@ public sealed class StateBackedStoreTests : IDisposable
         Assert.Equal(1, session.PromptDriftCount);
         Assert.Equal(PromptCacheEventKinds.Drift, session.LastPromptCacheChangeKind);
         Assert.Equal([PromptCacheChangedFields.Prompt], session.LastPromptCacheChangedFields);
+
+        var listed = Assert.Single(reader.GetSessions());
+        Assert.Equal("ccc", listed.SystemPromptHash);
+        Assert.Equal("bbb", listed.ToolSchemaHash);
+        Assert.Equal(1, listed.PromptDriftCount);
+        Assert.Equal(PromptCacheEventKinds.Drift, listed.LastPromptCacheChangeKind);
+        Assert.Equal([PromptCacheChangedFields.Prompt], listed.LastPromptCacheChangedFields);
+    }
+
+    [Fact]
+    public void TraceStore_Backfills_SessionSummaryMetadata_From_StateDbEvents()
+    {
+        var writer = new TraceStore(_tracingPath, 5000, true, _stateRuntime);
+        var startedAt = new DateTimeOffset(2026, 6, 18, 9, 0, 0, TimeSpan.Zero);
+        writer.Record(new TraceEvent
+        {
+            SessionKey = "thread-backfill",
+            Type = TraceEventType.Request,
+            Content = "first backfill request",
+            Timestamp = startedAt
+        });
+        writer.Record(new TraceEvent
+        {
+            SessionKey = "thread-backfill",
+            Type = TraceEventType.SessionMetadata,
+            SystemPromptHash = "old-system",
+            ToolSchemaHash = "tools",
+            PromptCacheEventKind = PromptCacheEventKinds.Baseline,
+            Timestamp = startedAt.AddSeconds(1)
+        });
+        writer.Record(new TraceEvent
+        {
+            SessionKey = "thread-backfill",
+            Type = TraceEventType.ToolInjection,
+            PromptCacheEventKind = PromptCacheEventKinds.ToolExtension,
+            PromptCacheChangedFields = [PromptCacheChangedFields.Tools],
+            Timestamp = startedAt.AddSeconds(2)
+        });
+        writer.Record(new TraceEvent
+        {
+            SessionKey = "thread-backfill",
+            Type = TraceEventType.SessionMetadata,
+            SystemPromptHash = "new-system",
+            ToolSchemaHash = "tools",
+            PromptCacheEventKind = PromptCacheEventKinds.Drift,
+            PromptCacheChangedFields = [PromptCacheChangedFields.Prompt],
+            Timestamp = startedAt.AddSeconds(3)
+        });
+
+        using (var connection = _stateRuntime.OpenConnection())
+        {
+            using (var clear = connection.CreateCommand())
+            {
+                clear.CommandText = """
+                    UPDATE trace_sessions
+                    SET
+                        first_user_request = NULL,
+                        system_prompt_hash = NULL,
+                        tool_schema_hash = NULL,
+                        prompt_drift_count = 0,
+                        session_metadata_captured_at = NULL,
+                        last_prompt_cache_change_at = NULL,
+                        last_prompt_cache_change_kind = NULL,
+                        last_prompt_cache_changed_fields_json = NULL
+                    WHERE session_key = $session_key;
+
+                    DELETE FROM state_info WHERE key = 'trace_sessions.summary_metadata_backfill_v1';
+                    """;
+                clear.Parameters.AddWithValue("$session_key", "thread-backfill");
+                clear.ExecuteNonQuery();
+            }
+
+            using var corrupt = connection.CreateCommand();
+            corrupt.CommandText = """
+                INSERT INTO trace_events(event_id, session_key, timestamp, type, event_json)
+                VALUES ('broken-backfill', $session_key, $timestamp, 'Request', '{ broken json')
+                """;
+            corrupt.Parameters.AddWithValue("$session_key", "thread-backfill");
+            corrupt.Parameters.AddWithValue("$timestamp", startedAt.AddSeconds(-1).UtcDateTime.ToString("O"));
+            corrupt.ExecuteNonQuery();
+        }
+
+        var migratedRuntime = new StateRuntime(_craftPath);
+        var reader = new TraceStore(_tracingPath, 5000, false, migratedRuntime);
+        reader.LoadFromDisk();
+
+        var session = Assert.Single(reader.GetSessions());
+        Assert.Equal("first backfill request", session.FirstUserRequest);
+        Assert.Equal("new-system", session.SystemPromptHash);
+        Assert.Equal("tools", session.ToolSchemaHash);
+        Assert.Equal(1, session.PromptDriftCount);
+        Assert.Equal(startedAt.AddSeconds(3), session.SessionMetadataCapturedAt);
+        Assert.Equal(startedAt.AddSeconds(3), session.LastPromptCacheChangeAt);
+        Assert.Equal(PromptCacheEventKinds.Drift, session.LastPromptCacheChangeKind);
+        Assert.Equal([PromptCacheChangedFields.Prompt], session.LastPromptCacheChangedFields);
+    }
+
+    [Fact]
+    public void DashBoardReadOnlyStoreLoader_Tolerates_Unmigrated_TraceSessionSummaryColumns()
+    {
+        var writer = new TraceStore(_tracingPath, 5000, true, _stateRuntime);
+        writer.Record(new TraceEvent
+        {
+            SessionKey = "thread-readonly-legacy",
+            Type = TraceEventType.Request,
+            Content = "legacy preview"
+        });
+        writer.Record(new TraceEvent
+        {
+            SessionKey = "thread-readonly-legacy",
+            Type = TraceEventType.TokenUsage,
+            InputTokens = 13,
+            OutputTokens = 8,
+            CachedInputTokens = 5,
+            CacheWriteInputTokens = 3,
+            ReasoningOutputTokens = 2
+        });
+        writer.Record(new TraceEvent
+        {
+            SessionKey = "thread-readonly-legacy",
+            Type = TraceEventType.SessionMetadata,
+            SystemPromptHash = "system-hash",
+            ToolSchemaHash = "tool-hash",
+            PromptCacheEventKind = PromptCacheEventKinds.Drift,
+            PromptCacheChangedFields = [PromptCacheChangedFields.Prompt]
+        });
+
+        using (var connection = _stateRuntime.OpenConnection())
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = """
+                CREATE TABLE trace_sessions_legacy (
+                    session_key TEXT PRIMARY KEY,
+                    started_at TEXT NOT NULL,
+                    last_activity_at TEXT NOT NULL,
+                    request_count INTEGER NOT NULL DEFAULT 0,
+                    response_count INTEGER NOT NULL DEFAULT 0,
+                    tool_call_count INTEGER NOT NULL DEFAULT 0,
+                    error_count INTEGER NOT NULL DEFAULT 0,
+                    context_compaction_count INTEGER NOT NULL DEFAULT 0,
+                    thinking_count INTEGER NOT NULL DEFAULT 0,
+                    total_input_tokens INTEGER NOT NULL DEFAULT 0,
+                    total_output_tokens INTEGER NOT NULL DEFAULT 0,
+                    total_tool_duration_ms INTEGER NOT NULL DEFAULT 0,
+                    max_tool_duration_ms INTEGER NOT NULL DEFAULT 0,
+                    last_finish_reason TEXT,
+                    final_system_prompt TEXT,
+                    tool_names_json TEXT
+                );
+
+                INSERT INTO trace_sessions_legacy (
+                    session_key,
+                    started_at,
+                    last_activity_at,
+                    request_count,
+                    response_count,
+                    tool_call_count,
+                    error_count,
+                    context_compaction_count,
+                    thinking_count,
+                    total_input_tokens,
+                    total_output_tokens,
+                    total_tool_duration_ms,
+                    max_tool_duration_ms,
+                    last_finish_reason,
+                    final_system_prompt,
+                    tool_names_json
+                )
+                SELECT
+                    session_key,
+                    started_at,
+                    last_activity_at,
+                    request_count,
+                    response_count,
+                    tool_call_count,
+                    error_count,
+                    context_compaction_count,
+                    thinking_count,
+                    total_input_tokens,
+                    total_output_tokens,
+                    total_tool_duration_ms,
+                    max_tool_duration_ms,
+                    last_finish_reason,
+                    final_system_prompt,
+                    tool_names_json
+                FROM trace_sessions;
+
+                DROP TABLE trace_sessions;
+                ALTER TABLE trace_sessions_legacy RENAME TO trace_sessions;
+                """;
+            command.ExecuteNonQuery();
+        }
+
+        var stores = DashBoardReadOnlyStoreLoader.Load(_craftPath);
+        var session = Assert.Single(stores.TraceStore.GetSessions());
+
+        Assert.True(stores.UsesStateDb);
+        Assert.Equal("thread-readonly-legacy", session.SessionKey);
+        Assert.Equal(1, session.RequestCount);
+        Assert.Equal(0, session.MaintenanceForkRequestCount);
+        Assert.Equal(0, session.TokenUsageCount);
+        Assert.Equal(13, session.TotalInputTokens);
+        Assert.Equal(8, session.TotalOutputTokens);
+        Assert.Equal(0, session.TotalCachedInputTokens);
+        Assert.Equal(0, session.TotalCacheWriteInputTokens);
+        Assert.Equal(0, session.TotalReasoningOutputTokens);
+        Assert.Equal(0, session.MaxTurnDurationMs);
+        Assert.Null(session.FirstUserRequest);
+        Assert.Null(session.SystemPromptHash);
+        Assert.Null(session.ToolSchemaHash);
+        Assert.Equal(0, session.PromptDriftCount);
+        Assert.Null(session.LastPromptCacheChangeKind);
+        Assert.Empty(session.LastPromptCacheChangedFields);
+
+        var summary = stores.TraceStore.GetSummary();
+        Assert.Equal(1, summary.SessionCount);
+        Assert.Equal(1, summary.TotalRequests);
+        Assert.Equal(0, summary.TotalMaintenanceForkRequests);
+        Assert.Equal(13, summary.TotalInputTokens);
+        Assert.Equal(8, summary.TotalOutputTokens);
+        Assert.Equal(0, summary.TotalCachedInputTokens);
+        Assert.Equal(0, summary.TotalCacheWriteInputTokens);
+        Assert.Equal(0, summary.TotalReasoningOutputTokens);
+        Assert.Equal(0, summary.MaxTurnDurationMs);
+        Assert.Equal(0, stores.TraceStore.GetLongestTurnDurationMs());
+
+        var usage = Assert.Single(stores.TraceStore.GetDailyUsage(null, null, 0));
+        Assert.Equal(13, usage.InputTokens);
+        Assert.Equal(8, usage.OutputTokens);
     }
 
     [Fact]
