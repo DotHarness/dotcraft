@@ -1,6 +1,6 @@
 import { app } from 'electron'
 import { execFile } from 'child_process'
-import { existsSync, promises as fsPromises } from 'fs'
+import { existsSync, promises as fsPromises, readFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import net from 'net'
@@ -50,6 +50,25 @@ export function resolveChromePluginRoot(workspacePath?: string): string {
 
 function chromeScriptPath(workspacePath: string | undefined, scriptName: string): string {
   return join(resolveChromePluginRoot(workspacePath), 'scripts', scriptName)
+}
+
+function chromeExtensionMetadataPath(workspacePath?: string): string {
+  return chromeScriptPath(workspacePath, 'extension-id.json')
+}
+
+function readChromeExtensionId(workspacePath?: string): string | null {
+  try {
+    const metadata = JSON.parse(readFileSync(chromeExtensionMetadataPath(workspacePath), 'utf8')) as { extensionId?: unknown }
+    const extensionId = typeof metadata.extensionId === 'string' ? metadata.extensionId.trim() : ''
+    return /^[a-z]{32}$/i.test(extensionId) ? extensionId : null
+  } catch {
+    return null
+  }
+}
+
+export function resolveChromeExtensionManagementUrl(workspacePath?: string): string {
+  const extensionId = readChromeExtensionId(workspacePath)
+  return extensionId ? `chrome://extensions/?id=${encodeURIComponent(extensionId)}` : 'chrome://extensions'
 }
 
 function resolveNodeRuntime(): { command: string; env: NodeJS.ProcessEnv } {
@@ -339,15 +358,16 @@ export async function openChromeWindow(
   workspacePath: string | undefined,
   request: ChromeOpenRequest = {}
 ): Promise<unknown> {
-  const url = normalizeChromeOpenUrl(request.url)
+  const url = normalizeChromeOpenUrl(request.url, workspacePath)
   return runChromeSetupScript(workspacePath, 'open-chrome-window.js', ['--json', url])
 }
 
-function normalizeChromeOpenUrl(value?: string): string {
+function normalizeChromeOpenUrl(value?: string, workspacePath?: string): string {
   const trimmed = value?.trim()
   if (!trimmed) return 'about:blank'
   if (trimmed === 'about:blank') return trimmed
   if (/^https?:\/\//i.test(trimmed)) return trimmed
+  if (/^chrome:\/\/extensions\/?$/i.test(trimmed)) return resolveChromeExtensionManagementUrl(workspacePath)
   if (/^chrome:\/\/extensions(?:\/|\?|$)/i.test(trimmed)) return trimmed
   return 'about:blank'
 }
