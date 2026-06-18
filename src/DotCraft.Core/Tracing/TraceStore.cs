@@ -30,39 +30,40 @@ public sealed class TraceStore
     private int _persistInFlight;
     private const int DefaultEventPageLimit = 1000;
     private const int MaxEventPageLimit = 1000;
-    private const string TraceSessionSummaryColumns = """
-                session_key,
-                started_at,
-                last_activity_at,
-                request_count,
-                maintenance_fork_request_count,
-                response_count,
-                maintenance_fork_response_count,
-                tool_call_count,
-                error_count,
-                context_compaction_count,
-                thinking_count,
-                token_usage_count,
-                total_input_tokens,
-                total_output_tokens,
-                total_cached_input_tokens,
-                total_cache_write_input_tokens,
-                total_reasoning_output_tokens,
-                total_tool_duration_ms,
-                max_tool_duration_ms,
-                max_turn_duration_ms,
-                last_finish_reason,
-                final_system_prompt,
-                tool_names_json,
-                first_user_request,
-                system_prompt_hash,
-                tool_schema_hash,
-                prompt_drift_count,
-                session_metadata_captured_at,
-                last_prompt_cache_change_at,
-                last_prompt_cache_change_kind,
-                last_prompt_cache_changed_fields_json
-        """;
+    private static readonly TraceSessionSummaryColumn[] TraceSessionSummaryColumns =
+    [
+        new("session_key", "session_key"),
+        new("started_at", "started_at"),
+        new("last_activity_at", "started_at"),
+        new("request_count", "0"),
+        new("maintenance_fork_request_count", "0"),
+        new("response_count", "0"),
+        new("maintenance_fork_response_count", "0"),
+        new("tool_call_count", "0"),
+        new("error_count", "0"),
+        new("context_compaction_count", "0"),
+        new("thinking_count", "0"),
+        new("token_usage_count", "0"),
+        new("total_input_tokens", "0"),
+        new("total_output_tokens", "0"),
+        new("total_cached_input_tokens", "0"),
+        new("total_cache_write_input_tokens", "0"),
+        new("total_reasoning_output_tokens", "0"),
+        new("total_tool_duration_ms", "0"),
+        new("max_tool_duration_ms", "0"),
+        new("max_turn_duration_ms", "0"),
+        new("last_finish_reason", "NULL"),
+        new("final_system_prompt", "NULL"),
+        new("tool_names_json", "'[]'"),
+        new("first_user_request", "NULL"),
+        new("system_prompt_hash", "NULL"),
+        new("tool_schema_hash", "NULL"),
+        new("prompt_drift_count", "0"),
+        new("session_metadata_captured_at", "NULL"),
+        new("last_prompt_cache_change_at", "NULL"),
+        new("last_prompt_cache_change_kind", "NULL"),
+        new("last_prompt_cache_changed_fields_json", "NULL")
+    ];
 
     private static readonly JsonSerializerOptions PersistJsonOptions = new()
     {
@@ -1124,10 +1125,11 @@ public sealed class TraceStore
         WaitForPendingPersistence();
 
         using var connection = _stateRuntime!.OpenConnection();
+        var selectList = BuildTraceSessionSummarySelectList(connection);
         using var command = connection.CreateCommand();
         command.CommandText = $"""
             SELECT
-            {TraceSessionSummaryColumns}
+            {selectList}
             FROM trace_sessions
             ORDER BY last_activity_at DESC, session_key DESC
             """;
@@ -1152,10 +1154,11 @@ public sealed class TraceStore
     private TraceSession? LoadSessionSummaryFromDb(string sessionKey)
     {
         using var connection = _stateRuntime!.OpenConnection();
+        var selectList = BuildTraceSessionSummarySelectList(connection);
         using var command = connection.CreateCommand();
         command.CommandText = $"""
             SELECT
-            {TraceSessionSummaryColumns}
+            {selectList}
             FROM trace_sessions
             WHERE session_key = $session_key
             """;
@@ -1402,6 +1405,28 @@ public sealed class TraceStore
             ReadInt64(reader, 19));
         session.SetToolNames(ReadStringArray(reader, 22));
         return session;
+    }
+
+    private static string BuildTraceSessionSummarySelectList(DbConnection connection)
+    {
+        var availableColumns = GetTableColumns(connection, "trace_sessions");
+        return string.Join(
+            ",\n",
+            TraceSessionSummaryColumns.Select(column =>
+                availableColumns.Contains(column.Name)
+                    ? "                " + column.Name
+                    : $"                {column.FallbackExpression} AS {column.Name}"));
+    }
+
+    private static HashSet<string> GetTableColumns(DbConnection connection, string tableName)
+    {
+        var columns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        using var command = connection.CreateCommand();
+        command.CommandText = $"PRAGMA table_info({tableName})";
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+            columns.Add(reader.GetString(1));
+        return columns;
     }
 
     private static string[] ReadStringArray(DbDataReader reader, int ordinal)
@@ -1761,6 +1786,8 @@ public sealed class TraceStore
         => string.Concat(value.Split(Path.GetInvalidFileNameChars()));
 
     private sealed record TraceEventDbRow(long RowId, string Timestamp, string EventJson);
+
+    private sealed record TraceSessionSummaryColumn(string Name, string FallbackExpression);
 }
 
 public sealed record TraceEventPage(

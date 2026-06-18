@@ -1,4 +1,5 @@
 using System.Text.Json;
+using DotCraft.DashBoard;
 using DotCraft.State;
 using DotCraft.Protocol;
 using DotCraft.Tracing;
@@ -424,6 +425,127 @@ public sealed class StateBackedStoreTests : IDisposable
         Assert.Equal(startedAt.AddSeconds(3), session.LastPromptCacheChangeAt);
         Assert.Equal(PromptCacheEventKinds.Drift, session.LastPromptCacheChangeKind);
         Assert.Equal([PromptCacheChangedFields.Prompt], session.LastPromptCacheChangedFields);
+    }
+
+    [Fact]
+    public void DashBoardReadOnlyStoreLoader_Tolerates_Unmigrated_TraceSessionSummaryColumns()
+    {
+        var writer = new TraceStore(_tracingPath, 5000, true, _stateRuntime);
+        writer.Record(new TraceEvent
+        {
+            SessionKey = "thread-readonly-legacy",
+            Type = TraceEventType.Request,
+            Content = "legacy preview"
+        });
+        writer.Record(new TraceEvent
+        {
+            SessionKey = "thread-readonly-legacy",
+            Type = TraceEventType.SessionMetadata,
+            SystemPromptHash = "system-hash",
+            ToolSchemaHash = "tool-hash",
+            PromptCacheEventKind = PromptCacheEventKinds.Drift,
+            PromptCacheChangedFields = [PromptCacheChangedFields.Prompt]
+        });
+
+        using (var connection = _stateRuntime.OpenConnection())
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = """
+                CREATE TABLE trace_sessions_legacy (
+                    session_key TEXT PRIMARY KEY,
+                    started_at TEXT NOT NULL,
+                    last_activity_at TEXT NOT NULL,
+                    request_count INTEGER NOT NULL DEFAULT 0,
+                    maintenance_fork_request_count INTEGER NOT NULL DEFAULT 0,
+                    response_count INTEGER NOT NULL DEFAULT 0,
+                    maintenance_fork_response_count INTEGER NOT NULL DEFAULT 0,
+                    tool_call_count INTEGER NOT NULL DEFAULT 0,
+                    error_count INTEGER NOT NULL DEFAULT 0,
+                    context_compaction_count INTEGER NOT NULL DEFAULT 0,
+                    thinking_count INTEGER NOT NULL DEFAULT 0,
+                    token_usage_count INTEGER NOT NULL DEFAULT 0,
+                    total_input_tokens INTEGER NOT NULL DEFAULT 0,
+                    total_output_tokens INTEGER NOT NULL DEFAULT 0,
+                    total_cached_input_tokens INTEGER NOT NULL DEFAULT 0,
+                    total_cache_write_input_tokens INTEGER NOT NULL DEFAULT 0,
+                    total_reasoning_output_tokens INTEGER NOT NULL DEFAULT 0,
+                    total_tool_duration_ms INTEGER NOT NULL DEFAULT 0,
+                    max_tool_duration_ms INTEGER NOT NULL DEFAULT 0,
+                    max_turn_duration_ms INTEGER NOT NULL DEFAULT 0,
+                    last_finish_reason TEXT,
+                    final_system_prompt TEXT,
+                    tool_names_json TEXT
+                );
+
+                INSERT INTO trace_sessions_legacy (
+                    session_key,
+                    started_at,
+                    last_activity_at,
+                    request_count,
+                    maintenance_fork_request_count,
+                    response_count,
+                    maintenance_fork_response_count,
+                    tool_call_count,
+                    error_count,
+                    context_compaction_count,
+                    thinking_count,
+                    token_usage_count,
+                    total_input_tokens,
+                    total_output_tokens,
+                    total_cached_input_tokens,
+                    total_cache_write_input_tokens,
+                    total_reasoning_output_tokens,
+                    total_tool_duration_ms,
+                    max_tool_duration_ms,
+                    max_turn_duration_ms,
+                    last_finish_reason,
+                    final_system_prompt,
+                    tool_names_json
+                )
+                SELECT
+                    session_key,
+                    started_at,
+                    last_activity_at,
+                    request_count,
+                    maintenance_fork_request_count,
+                    response_count,
+                    maintenance_fork_response_count,
+                    tool_call_count,
+                    error_count,
+                    context_compaction_count,
+                    thinking_count,
+                    token_usage_count,
+                    total_input_tokens,
+                    total_output_tokens,
+                    total_cached_input_tokens,
+                    total_cache_write_input_tokens,
+                    total_reasoning_output_tokens,
+                    total_tool_duration_ms,
+                    max_tool_duration_ms,
+                    max_turn_duration_ms,
+                    last_finish_reason,
+                    final_system_prompt,
+                    tool_names_json
+                FROM trace_sessions;
+
+                DROP TABLE trace_sessions;
+                ALTER TABLE trace_sessions_legacy RENAME TO trace_sessions;
+                """;
+            command.ExecuteNonQuery();
+        }
+
+        var stores = DashBoardReadOnlyStoreLoader.Load(_craftPath);
+        var session = Assert.Single(stores.TraceStore.GetSessions());
+
+        Assert.True(stores.UsesStateDb);
+        Assert.Equal("thread-readonly-legacy", session.SessionKey);
+        Assert.Equal(1, session.RequestCount);
+        Assert.Null(session.FirstUserRequest);
+        Assert.Null(session.SystemPromptHash);
+        Assert.Null(session.ToolSchemaHash);
+        Assert.Equal(0, session.PromptDriftCount);
+        Assert.Null(session.LastPromptCacheChangeKind);
+        Assert.Empty(session.LastPromptCacheChangedFields);
     }
 
     [Fact]
