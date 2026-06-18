@@ -27,7 +27,7 @@
     "build": "tsc -p tsconfig.json && npm run generate:manifest",
     "bundle": "esbuild dist/cli.js --bundle --platform=node --format=esm --outfile=dist/cli.bundle.js --external:node:* --banner:js=\"import{createRequire}from'node:module';const require=createRequire(import.meta.url);\"",
     "dev": "npm run build && node dist/cli.js --workspace .",
-    "test": "npm run build && node --test dist/feishu-client.test.js dist/feishu-docx-tools.test.js dist/feishu-wiki-tools.test.js dist/feishu-transcript.test.js dist/event-handler.test.js dist/card-action-dedup.test.js dist/module.test.js dist/config.test.js dist/conformance.test.js",
+    "test": "npm run build && node --test dist/feishu-client.test.js dist/feishu-docx-tools.test.js dist/feishu-wiki-tools.test.js dist/feishu-transcript.test.js dist/event-handler.test.js dist/card-action-dedup.test.js dist/card-builder.test.js dist/module.test.js dist/config.test.js dist/conformance.test.js",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "engines": {

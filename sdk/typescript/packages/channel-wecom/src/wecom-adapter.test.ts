@@ -173,3 +173,52 @@ test("WeComAdapter resolves approvals only for the matching sender and chat", as
     for (const timer of timers) clearTimeout(timer);
   }
 });
+
+test("WeComAdapter consumes pending user-input replies before forwarding to agent", async () => {
+  type PendingUserInput = {
+    channelContext: string;
+    userId: string;
+    request: Record<string, unknown>;
+    resolve: (response: Record<string, unknown>) => void;
+  };
+  const adapter = new WeComAdapter() as unknown as {
+    pendingUserInputs: Map<string, PendingUserInput>;
+    handleTextMessage: (
+      parameters: string[],
+      from: { userId: string; name: string; alias: string },
+      pusher: { getChatId: () => string; pushText: (content: string) => Promise<void> },
+    ) => Promise<void>;
+    runInboundMessage: () => Promise<void>;
+  };
+  let forwarded = false;
+  const resolved: Record<string, unknown>[] = [];
+  adapter.runInboundMessage = async () => {
+    forwarded = true;
+  };
+  adapter.pendingUserInputs.set("req-1", {
+    channelContext: "chat:chat-1",
+    userId: "u1",
+    request: {
+      requestId: "req-1",
+      questions: [
+        {
+          id: "mode",
+          header: "Pick a mode",
+          question: "Which mode?",
+          options: [{ label: "Auto" }, { label: "Manual" }],
+        },
+      ],
+    },
+    resolve: (response) => resolved.push(response),
+  });
+
+  await adapter.handleTextMessage(
+    ["2"],
+    { userId: "u1", name: "User One", alias: "" },
+    { getChatId: () => "chat-1", pushText: async () => undefined },
+  );
+
+  assert.equal(forwarded, false);
+  assert.deepEqual(resolved, [{ answers: { mode: { answers: ["Manual"] } } }]);
+  assert.equal(adapter.pendingUserInputs.size, 0);
+});

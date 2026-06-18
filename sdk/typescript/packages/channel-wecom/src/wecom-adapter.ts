@@ -14,6 +14,13 @@ import {
 import {
   ConfigValidationError,
   ModuleChannelAdapter,
+  buildUserInputPrompt,
+  emptyUserInputResponse,
+  hasUserInputAnswer,
+  mergeUserInputResponses,
+  splitUserInputRequestByQuestion,
+  userInputResponseFromText,
+  type UserInputResponse,
   type WorkspaceContext,
 } from "@dotcraft/sdk/channel";
 
@@ -36,6 +43,14 @@ type PendingApproval = {
   userId: string;
   resolve: (decision: string) => void;
   timer: ReturnType<typeof setTimeout>;
+};
+
+type PendingUserInput = {
+  channelContext: string;
+  userId: string;
+  request: Record<string, unknown>;
+  promptTitle?: string;
+  resolve: (response: UserInputResponse) => void;
 };
 
 export function validateWeComConfig(rawConfig: unknown): asserts rawConfig is WeComConfig {
@@ -92,6 +107,7 @@ export class WeComAdapter extends ModuleChannelAdapter<WeComConfig> {
   private readonly threadContextMap = new Map<string, string>();
   private readonly lastSenderByContext = new Map<string, string>();
   private readonly pendingApprovals = new Map<string, PendingApproval>();
+  private readonly pendingUserInputs = new Map<string, PendingUserInput>();
   private approvalTimeoutMs = 60_000;
   private tempDir = "";
 
@@ -176,6 +192,7 @@ export class WeComAdapter extends ModuleChannelAdapter<WeComConfig> {
 
   override async stop(): Promise<void> {
     this.resolveAllPendingApprovals(DECISION_CANCEL);
+    this.resolveAllPendingUserInputs(emptyUserInputResponse());
     const server = this.server;
     this.server = undefined;
     this.registry = undefined;
@@ -296,6 +313,75 @@ export class WeComAdapter extends ModuleChannelAdapter<WeComConfig> {
     });
   }
 
+  protected override async onUserInputRequest(request: Record<string, unknown>): Promise<UserInputResponse> {
+    const threadId = String(request.threadId ?? "");
+    const requestId = String(request.requestId ?? "");
+    const channelContext = this.threadContextMap.get(threadId);
+    if (!channelContext || !requestId) {
+      console.warn(`[wecom] cannot find chat for thread ${threadId}; resolving user input empty`);
+      return emptyUserInputResponse();
+    }
+
+    const userId = this.lastSenderByContext.get(channelContext);
+    if (!userId) {
+      console.warn(`[wecom] cannot find user for '${channelContext}'; resolving user input empty`);
+      return emptyUserInputResponse();
+    }
+
+    const steps = splitUserInputRequestByQuestion(request);
+    if (steps.length === 0) {
+      return emptyUserInputResponse();
+    }
+
+    const responses: UserInputResponse[] = [];
+    for (const step of steps) {
+      const response = await this.requestUserInputStep({
+        request: step.request,
+        channelContext,
+        userId,
+        promptTitle: this.userInputPromptTitle(step.questionIndex, step.questionCount),
+      });
+      if (!hasUserInputAnswer(response, step.question.id)) {
+        return emptyUserInputResponse();
+      }
+      responses.push(response);
+    }
+
+    return mergeUserInputResponses(responses);
+  }
+
+  private async requestUserInputStep(params: {
+    request: Record<string, unknown>;
+    channelContext: string;
+    userId: string;
+    promptTitle?: string;
+  }): Promise<UserInputResponse> {
+    const requestId = String(params.request.requestId ?? "");
+    if (!requestId) {
+      return emptyUserInputResponse();
+    }
+
+    this.cancelPendingUserInputsFor(params.channelContext, params.userId);
+    await this.createPusher(params.channelContext).pushText(
+      `❓ 需要你回答 DotCraft 问题\n${buildUserInputPrompt(params.request, { title: params.promptTitle })}`,
+    );
+
+    return await new Promise<UserInputResponse>((resolve) => {
+      this.pendingUserInputs.set(requestId, {
+        channelContext: params.channelContext,
+        userId: params.userId,
+        request: params.request,
+        promptTitle: params.promptTitle,
+        resolve,
+      });
+    });
+  }
+
+  private userInputPromptTitle(questionIndex: number, questionCount: number): string {
+    const base = "DotCraft needs your input";
+    return questionCount > 1 ? `${base} (${questionIndex + 1}/${questionCount})` : base;
+  }
+
   protected override async onSegmentCompleted(
     _threadId: string,
     _turnId: string,
@@ -335,6 +421,9 @@ export class WeComAdapter extends ModuleChannelAdapter<WeComConfig> {
     const channelContext = `chat:${pusher.getChatId()}`;
     const approvalDecision = parseWeComApprovalDecision(plainText);
     if (approvalDecision && this.resolvePendingApproval(approvalDecision, from.userId, channelContext)) {
+      return;
+    }
+    if (await this.tryResolvePendingUserInput(plainText, from.userId, channelContext)) {
       return;
     }
 
@@ -451,11 +540,50 @@ export class WeComAdapter extends ModuleChannelAdapter<WeComConfig> {
     return false;
   }
 
+  private async tryResolvePendingUserInput(text: string, userId: string, channelContext: string): Promise<boolean> {
+    for (const [requestId, pending] of this.pendingUserInputs) {
+      if (pending.userId !== userId || pending.channelContext !== channelContext) {
+        continue;
+      }
+
+      const response = userInputResponseFromText(pending.request, text);
+      if (!response) {
+        await this.createPusher(channelContext).pushText(
+          buildUserInputPrompt(pending.request, { title: pending.promptTitle }),
+        );
+        return true;
+      }
+
+      this.pendingUserInputs.delete(requestId);
+      pending.resolve(response);
+      return true;
+    }
+
+    return false;
+  }
+
   private resolveAllPendingApprovals(decision: string): void {
     for (const [requestId, pending] of this.pendingApprovals) {
       clearTimeout(pending.timer);
       pending.resolve(decision);
       this.pendingApprovals.delete(requestId);
+    }
+  }
+
+  private resolveAllPendingUserInputs(response: UserInputResponse): void {
+    for (const [requestId, pending] of this.pendingUserInputs) {
+      pending.resolve(response);
+      this.pendingUserInputs.delete(requestId);
+    }
+  }
+
+  private cancelPendingUserInputsFor(channelContext: string, userId: string): void {
+    for (const [requestId, pending] of this.pendingUserInputs) {
+      if (pending.channelContext !== channelContext || pending.userId !== userId) {
+        continue;
+      }
+      pending.resolve(emptyUserInputResponse());
+      this.pendingUserInputs.delete(requestId);
     }
   }
 

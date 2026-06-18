@@ -97,3 +97,47 @@ test("Weixin retries transient text fetch failures with the same client id", asy
     globalThis.fetch = originalFetch;
   }
 });
+
+test("Weixin consumes pending user-input replies before forwarding to agent", async () => {
+  type PendingUserInput = {
+    request: Record<string, unknown>;
+    resolve: (response: Record<string, unknown>) => void;
+  };
+  const adapter = new WeixinAdapter() as unknown as {
+    userInputWaiters: Map<string, PendingUserInput>;
+    handleInboundUserMessage: (msg: {
+      from_user_id?: string;
+      item_list?: { type?: number; text_item?: { text?: string } }[];
+      context_token?: string;
+    }) => Promise<void>;
+    handleMessage: (opts: Record<string, unknown>) => Promise<void>;
+  };
+  let forwarded = false;
+  const resolved: Record<string, unknown>[] = [];
+  adapter.handleMessage = async () => {
+    forwarded = true;
+  };
+  adapter.userInputWaiters.set("user@im.wechat", {
+    request: {
+      requestId: "req-1",
+      questions: [
+        {
+          id: "mode",
+          header: "Pick a mode",
+          question: "Which mode?",
+          options: [{ label: "Auto" }, { label: "Manual" }],
+        },
+      ],
+    },
+    resolve: (response) => resolved.push(response),
+  });
+
+  await adapter.handleInboundUserMessage({
+    from_user_id: "user@im.wechat",
+    item_list: [{ type: 1, text_item: { text: "2" } }],
+  });
+
+  assert.equal(forwarded, false);
+  assert.deepEqual(resolved, [{ answers: { mode: { answers: ["Manual"] } } }]);
+  assert.equal(adapter.userInputWaiters.size, 0);
+});

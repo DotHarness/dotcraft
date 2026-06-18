@@ -145,6 +145,48 @@ test("QQAdapter resolves approvals only for the matching sender and chat", async
   }
 });
 
+test("QQAdapter consumes pending user-input replies before group mention gating", async () => {
+  type PendingUserInput = {
+    channelContext: string;
+    userId: string;
+    request: Record<string, unknown>;
+    resolve: (response: Record<string, unknown>) => void;
+  };
+  const adapter = new QQAdapter() as unknown as {
+    pendingUserInputs: Map<string, PendingUserInput>;
+    handleOneBotMessage: (evt: OneBotMessageEvent) => Promise<void>;
+  };
+  const resolved: Record<string, unknown>[] = [];
+  adapter.pendingUserInputs.set("req-1", {
+    channelContext: "group:123",
+    userId: "456",
+    request: {
+      requestId: "req-1",
+      questions: [
+        {
+          id: "mode",
+          header: "Pick a mode",
+          question: "Which mode?",
+          options: [{ label: "Auto" }, { label: "Manual" }],
+        },
+      ],
+    },
+    resolve: (response) => resolved.push(response),
+  });
+
+  await adapter.handleOneBotMessage({
+    post_type: "message",
+    message_type: "group",
+    user_id: 456,
+    group_id: 123,
+    self_id: 999,
+    message: [{ type: "text", data: { text: "2" } }],
+  });
+
+  assert.deepEqual(resolved, [{ answers: { mode: { answers: ["Manual"] } } }]);
+  assert.equal(adapter.pendingUserInputs.size, 0);
+});
+
 async function captureHandleMessageOptions(evt: OneBotMessageEvent): Promise<Record<string, unknown>> {
   const adapter = new QQAdapter() as unknown as {
     permission: QQPermissionService;

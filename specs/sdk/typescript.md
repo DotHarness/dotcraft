@@ -1036,6 +1036,7 @@ The channel SDK should factor reusable runtime pieces:
 | `DeliveryDispatcher` | Handle `ext/channel/deliver` and `ext/channel/send`. |
 | `ChannelToolDispatcher` | Handle `ext/channel/toolCall`. |
 | `ApprovalDispatcher` | Route `item/approval/request` to platform approval hooks. |
+| `UserInputDispatcher` | Route `item/tool/requestUserInput` to platform question hooks. |
 | `ModuleConfigLoader` | Load and validate workspace config files. |
 | `ModuleLifecycleState` | Track `stopped`, `starting`, `ready`, `configMissing`, `configInvalid`, `authRequired`, `authExpired`, and failure statuses. |
 
@@ -1048,6 +1049,7 @@ Subclasses implement or override:
 ```ts
 onDeliver(target: string, content: string, metadata: Record<string, unknown>): Promise<boolean>;
 onApprovalRequest(request: Record<string, unknown>): Promise<ApprovalDecision>;
+onUserInputRequest(request: Record<string, unknown>): Promise<UserInputResponse>;
 getDeliveryCapabilities(): Record<string, unknown> | null;
 getChannelTools(): Record<string, unknown>[] | null;
 onSend(target: string, message: Record<string, unknown>, metadata: Record<string, unknown>): Promise<Record<string, unknown>>;
@@ -1059,6 +1061,12 @@ onTurnCancelled(threadId: string, turnId: string): Promise<void>;
 onThreadContextBound(threadId: string, channelContext: string): void;
 onThreadsArchived(identityKey: string, archivedThreadIds: string[]): void;
 ```
+
+First-party channel adapters must advertise `requestUserInputSupport` and resolve `item/tool/requestUserInput` requests. When a request contains multiple questions, chat-style adapters should ask them one at a time and aggregate the per-question answers into the protocol `UserInputResponse`. When a platform exposes stable native buttons, adapters should use them for single-question option prompts; otherwise they should display a numbered reply prompt and consume the matching inbound reply before it becomes a normal user turn. Current first-party behavior:
+
+- Feishu/Lark: interactive card buttons for each non-secret option question; numbered/text replies for free-form and secret questions.
+- Telegram: inline keyboard buttons for each non-secret option question; numbered/text replies for free-form and secret questions.
+- QQ, WeCom, and Weixin: one numbered/text prompt per question using the existing text-message channel surface.
 
 ### 16.5 Channel Identity
 
