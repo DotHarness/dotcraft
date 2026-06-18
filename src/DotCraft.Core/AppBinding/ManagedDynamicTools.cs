@@ -424,7 +424,10 @@ public sealed class ManagedDynamicToolRegistry<TTarget>
         Type ReturnType);
 }
 
-internal static class GeneratedDynamicToolArgumentBinder
+/// <summary>
+/// Provides argument conversion helpers used by source-generated dynamic tool registries.
+/// </summary>
+public static class GeneratedDynamicToolArgumentBinder
 {
     public static string BindRequiredString(JsonObject arguments, string name)
     {
@@ -448,6 +451,53 @@ internal static class GeneratedDynamicToolArgumentBinder
     public static bool? BindOptionalBool(JsonObject arguments, string name, bool? defaultValue = null) =>
         BindNullableBool(arguments, name, hasDefaultValue: true, defaultValue);
 
+    public static short BindRequiredShort(JsonObject arguments, string name) =>
+        BindRequiredNumber<short>(arguments, name, value => value.TryGetValue<short>(out var parsed) ? parsed : null);
+
+    public static short? BindOptionalShort(JsonObject arguments, string name, short? defaultValue = null) =>
+        BindNullableNumber(arguments, name, hasDefaultValue: true, defaultValue, value => value.TryGetValue<short>(out var parsed) ? parsed : null);
+
+    public static int BindRequiredInt(JsonObject arguments, string name) =>
+        BindRequiredNumber<int>(arguments, name, value => value.TryGetValue<int>(out var parsed) ? parsed : null);
+
+    public static int? BindOptionalInt(JsonObject arguments, string name, int? defaultValue = null) =>
+        BindNullableNumber(arguments, name, hasDefaultValue: true, defaultValue, value => value.TryGetValue<int>(out var parsed) ? parsed : null);
+
+    public static long BindRequiredLong(JsonObject arguments, string name) =>
+        BindRequiredNumber<long>(arguments, name, value => value.TryGetValue<long>(out var parsed) ? parsed : null);
+
+    public static long? BindOptionalLong(JsonObject arguments, string name, long? defaultValue = null) =>
+        BindNullableNumber(arguments, name, hasDefaultValue: true, defaultValue, value => value.TryGetValue<long>(out var parsed) ? parsed : null);
+
+    public static float BindRequiredFloat(JsonObject arguments, string name) =>
+        BindRequiredNumber<float>(arguments, name, value => value.TryGetValue<float>(out var parsed) ? parsed : null);
+
+    public static float? BindOptionalFloat(JsonObject arguments, string name, float? defaultValue = null) =>
+        BindNullableNumber(arguments, name, hasDefaultValue: true, defaultValue, value => value.TryGetValue<float>(out var parsed) ? parsed : null);
+
+    public static double BindRequiredDouble(JsonObject arguments, string name) =>
+        BindRequiredNumber<double>(arguments, name, value => value.TryGetValue<double>(out var parsed) ? parsed : null);
+
+    public static double? BindOptionalDouble(JsonObject arguments, string name, double? defaultValue = null) =>
+        BindNullableNumber(arguments, name, hasDefaultValue: true, defaultValue, value => value.TryGetValue<double>(out var parsed) ? parsed : null);
+
+    public static decimal BindRequiredDecimal(JsonObject arguments, string name) =>
+        BindRequiredNumber<decimal>(arguments, name, value => value.TryGetValue<decimal>(out var parsed) ? parsed : null);
+
+    public static decimal? BindOptionalDecimal(JsonObject arguments, string name, decimal? defaultValue = null) =>
+        BindNullableNumber(arguments, name, hasDefaultValue: true, defaultValue, value => value.TryGetValue<decimal>(out var parsed) ? parsed : null);
+
+    public static JsonObject BindRequiredJsonObject(JsonObject arguments, string name)
+    {
+        var value = BindJsonObject(arguments, name, hasDefaultValue: false, defaultValue: null);
+        if (value == null)
+            throw AppServerErrors.InvalidParams($"'{name}' is required.");
+        return value;
+    }
+
+    public static JsonObject? BindOptionalJsonObject(JsonObject arguments, string name) =>
+        BindJsonObject(arguments, name, hasDefaultValue: true, defaultValue: null);
+
     public static List<string>? BindOptionalStringList(JsonObject arguments, string name) =>
         BindStringList(arguments, name, hasDefaultValue: true, defaultValue: null);
 
@@ -464,12 +514,6 @@ internal static class GeneratedDynamicToolArgumentBinder
 
     public static string[] BindRequiredStringArray(JsonObject arguments, string name) =>
         BindRequiredStringList(arguments, name).ToArray();
-
-    public static int? BindOptionalInt(JsonObject arguments, string name, int? defaultValue = null) =>
-        BindNullableNumber<int>(arguments, name, hasDefaultValue: true, defaultValue, value => value.TryGetValue<int>(out var parsed) ? parsed : null);
-
-    public static long? BindOptionalLong(JsonObject arguments, string name, long? defaultValue = null) =>
-        BindNullableNumber<long>(arguments, name, hasDefaultValue: true, defaultValue, value => value.TryGetValue<long>(out var parsed) ? parsed : null);
 
     private static string? BindString(JsonObject arguments, string name, bool hasDefaultValue, string? defaultValue)
     {
@@ -497,6 +541,15 @@ internal static class GeneratedDynamicToolArgumentBinder
         throw AppServerErrors.InvalidParams($"'{name}' must be a boolean.");
     }
 
+    private static T BindRequiredNumber<T>(JsonObject arguments, string name, Func<JsonValue, T?> converter)
+        where T : struct
+    {
+        var value = BindNullableNumber(arguments, name, hasDefaultValue: false, defaultValue: default(T?), converter);
+        if (!value.HasValue)
+            throw AppServerErrors.InvalidParams($"'{name}' is required.");
+        return value.Value;
+    }
+
     private static T? BindNullableNumber<T>(
         JsonObject arguments,
         string name,
@@ -514,6 +567,16 @@ internal static class GeneratedDynamicToolArgumentBinder
         if (parsed == null)
             throw AppServerErrors.InvalidParams($"'{name}' is outside the supported numeric range.");
         return parsed.Value;
+    }
+
+    private static JsonObject? BindJsonObject(JsonObject arguments, string name, bool hasDefaultValue, JsonObject? defaultValue)
+    {
+        if (!TryGetArgument(arguments, name, hasDefaultValue, out var node))
+            return defaultValue;
+
+        if (node is not JsonObject obj)
+            throw AppServerErrors.InvalidParams($"'{name}' must be a JSON object.");
+        return (JsonObject)obj.DeepClone();
     }
 
     private static List<string>? BindStringList(

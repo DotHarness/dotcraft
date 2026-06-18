@@ -22,6 +22,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\DotCraft.AppServerTestClient\DotCraft.AppServerTestClient.csproj" />
     <ProjectReference Include="..\..\src\DotCraft.Core\DotCraft.Core.csproj" />
+    <ProjectReference Include="..\..\src\DotCraft.Gen\DotCraft.Gen.csproj" />
     <ProjectReference Include="..\..\src\DotCraft.Teams\DotCraft.Teams.csproj" />
   </ItemGroup>
 

@@ -141,6 +141,44 @@ public sealed class ManagedDynamicToolRegistryTests
         Assert.Contains("unsupported type", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public void GeneratedArgumentBinder_MatchesFallbackSupportedTypesAndClonesJsonObjects()
+    {
+        var arguments = JsonNode.Parse("""
+            {
+              "text": " hello ",
+              "flag": "true",
+              "shortValue": 1,
+              "intValue": 2,
+              "longValue": 3,
+              "floatValue": 1.5,
+              "doubleValue": 2.5,
+              "decimalValue": 3.5,
+              "metadata": { "source": "test" },
+              "tags": ["alpha", "alpha", " beta ", ""]
+            }
+            """)!.AsObject();
+        var metadata = (JsonObject)arguments["metadata"]!;
+
+        Assert.Equal("hello", GeneratedDynamicToolArgumentBinder.BindRequiredString(arguments, "text"));
+        Assert.True(GeneratedDynamicToolArgumentBinder.BindRequiredBool(arguments, "flag"));
+        Assert.Equal((short)1, GeneratedDynamicToolArgumentBinder.BindRequiredShort(arguments, "shortValue"));
+        Assert.Equal(2, GeneratedDynamicToolArgumentBinder.BindRequiredInt(arguments, "intValue"));
+        Assert.Equal(3L, GeneratedDynamicToolArgumentBinder.BindRequiredLong(arguments, "longValue"));
+        Assert.Equal(1.5F, GeneratedDynamicToolArgumentBinder.BindRequiredFloat(arguments, "floatValue"));
+        Assert.Equal(2.5D, GeneratedDynamicToolArgumentBinder.BindRequiredDouble(arguments, "doubleValue"));
+        Assert.Equal(3.5M, GeneratedDynamicToolArgumentBinder.BindRequiredDecimal(arguments, "decimalValue"));
+        Assert.Equal(["alpha", "beta"], GeneratedDynamicToolArgumentBinder.BindRequiredStringList(arguments, "tags"));
+        Assert.Equal(["alpha", "beta"], GeneratedDynamicToolArgumentBinder.BindRequiredStringArray(arguments, "tags"));
+
+        var clone = GeneratedDynamicToolArgumentBinder.BindRequiredJsonObject(arguments, "metadata");
+        clone["mutated"] = true;
+        Assert.False(metadata.ContainsKey("mutated"));
+
+        Assert.Equal(42, GeneratedDynamicToolArgumentBinder.BindOptionalInt(new JsonObject(), "missing", 42));
+        Assert.Null(GeneratedDynamicToolArgumentBinder.BindOptionalString(new JsonObject { ["empty"] = "   " }, "empty", "fallback"));
+    }
+
     private static ManagedAppBindingToolCallContext Context(string toolName) =>
         new(
             WorkspaceCraftPath: "craft",

@@ -52,6 +52,30 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
+    private static readonly DiagnosticDescriptor DuplicateDynamicToolName = new(
+        "DCGEN005",
+        "Duplicate generated dynamic tool name",
+        "Dynamic tool name '{0}' is ambiguous for methods: {1}",
+        "DotCraft.Gen",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    private static readonly DiagnosticDescriptor DuplicateDynamicToolOrder = new(
+        "DCGEN006",
+        "Duplicate generated dynamic tool order",
+        "Dynamic tool order '{0}' is ambiguous for methods: {1}",
+        "DotCraft.Gen",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    private static readonly DiagnosticDescriptor UnsupportedDynamicReturnType = new(
+        "DCGEN007",
+        "Unsupported generated dynamic tool return type",
+        "Dynamic tool '{0}' has unsupported return type '{1}'",
+        "DotCraft.Gen",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
     private static readonly SymbolDisplayFormat TypeFormat =
         SymbolDisplayFormat.FullyQualifiedFormat.WithMiscellaneousOptions(
             SymbolDisplayFormat.FullyQualifiedFormat.MiscellaneousOptions |
@@ -119,7 +143,9 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
         var toolAttribute = FindAttribute(method, ToolAttributeFqn);
         var generatedAttribute = FindAttribute(method, GeneratedToolAttributeFqn);
         var description = GetDescription(method);
-        var catalogVisible = toolAttribute != null || GetNamedBool(generatedAttribute, "CatalogVisible", catalogVisibleDefault);
+        var catalogVisible = toolAttribute != null
+            ? GetNamedBool(toolAttribute, "CatalogVisible", catalogVisibleDefault)
+            : GetNamedBool(generatedAttribute, "CatalogVisible", catalogVisibleDefault);
         var streamArgumentsEnabled = GetStreamArgumentsEnabled(method);
         var displayType = GetNamedType(toolAttribute, "DisplayType");
         var displayMethod = GetNamedString(toolAttribute, "DisplayMethod");
@@ -208,6 +234,7 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
         var deferLoading = GetNamedBool(attribute, "DeferLoading", false);
         var parameters = method.Parameters.Select(parameter => ParameterInfo.From(parameter)).ToList();
         return new DynamicToolInfo(
+            Identity: BuildMethodIdentity(method),
             Namespace: method.ContainingNamespace.ToDisplayString(),
             ContainingTypeName: method.ContainingType.Name,
             ContainingTypeFullName: method.ContainingType.ToDisplayString(TypeFormat),
@@ -397,13 +424,18 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
         if (tools.Count == 0)
             return;
 
-        foreach (var tool in tools)
-            ValidateDynamicTool(context, tool);
+        var validTools = tools
+            .Where(tool => ValidateDynamicTool(context, tool))
+            .ToList();
 
-        foreach (var group in tools.GroupBy(static tool => tool.ContainingTypeFullName, StringComparer.Ordinal))
+        foreach (var group in validTools.GroupBy(static tool => tool.ContainingTypeFullName, StringComparer.Ordinal))
         {
-            var first = group.First();
-            var ordered = group.OrderBy(static tool => tool.Order).ThenBy(static tool => tool.ToolName, StringComparer.Ordinal).ToList();
+            var groupedTools = group.ToList();
+            if (!ValidateDynamicToolGroup(context, groupedTools))
+                continue;
+
+            var first = groupedTools.First();
+            var ordered = groupedTools.OrderBy(static tool => tool.Order).ThenBy(static tool => tool.ToolName, StringComparer.Ordinal).ToList();
             var sb = new StringBuilder();
             AppendHeader(sb);
             sb.AppendLine($"namespace {first.Namespace};");
@@ -508,35 +540,64 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
 
     private static string DynamicBindExpression(ParameterInfo parameter)
     {
-        var type = parameter.TypeName;
-        if (type == "string")
-            return parameter.HasDefaultValue
-                ? $"global::DotCraft.AppBinding.GeneratedDynamicToolArgumentBinder.BindOptionalString(arguments, {Quote(parameter.Name)}, {FormatDefaultValue(parameter)})"
-                : $"global::DotCraft.AppBinding.GeneratedDynamicToolArgumentBinder.BindRequiredString(arguments, {Quote(parameter.Name)})";
-        if (type == "string?")
-            return $"global::DotCraft.AppBinding.GeneratedDynamicToolArgumentBinder.BindOptionalString(arguments, {Quote(parameter.Name)}, {FormatDefaultValue(parameter)})";
-        if (type == "bool")
-            return parameter.HasDefaultValue
-                ? $"global::DotCraft.AppBinding.GeneratedDynamicToolArgumentBinder.BindOptionalBool(arguments, {Quote(parameter.Name)}, {FormatDefaultValue(parameter)})!.Value"
-                : $"global::DotCraft.AppBinding.GeneratedDynamicToolArgumentBinder.BindRequiredBool(arguments, {Quote(parameter.Name)})";
-        if (type == "bool?")
-            return $"global::DotCraft.AppBinding.GeneratedDynamicToolArgumentBinder.BindOptionalBool(arguments, {Quote(parameter.Name)}, {FormatDefaultValue(parameter)})";
-        if (type == "string[]")
-            return parameter.HasDefaultValue
-                ? $"global::DotCraft.AppBinding.GeneratedDynamicToolArgumentBinder.BindOptionalStringArray(arguments, {Quote(parameter.Name)})"
-                : $"global::DotCraft.AppBinding.GeneratedDynamicToolArgumentBinder.BindRequiredStringArray(arguments, {Quote(parameter.Name)})";
-        if (type == "string[]?")
-            return $"global::DotCraft.AppBinding.GeneratedDynamicToolArgumentBinder.BindOptionalStringArray(arguments, {Quote(parameter.Name)})";
-        if (IsStringListTypeName(type))
-            return parameter.HasDefaultValue
-                ? $"global::DotCraft.AppBinding.GeneratedDynamicToolArgumentBinder.BindOptionalStringList(arguments, {Quote(parameter.Name)})"
-                : $"global::DotCraft.AppBinding.GeneratedDynamicToolArgumentBinder.BindRequiredStringList(arguments, {Quote(parameter.Name)})";
-        if (type == "int?")
-            return $"global::DotCraft.AppBinding.GeneratedDynamicToolArgumentBinder.BindOptionalInt(arguments, {Quote(parameter.Name)}, {FormatDefaultValue(parameter)})";
-        if (type == "long?")
-            return $"global::DotCraft.AppBinding.GeneratedDynamicToolArgumentBinder.BindOptionalLong(arguments, {Quote(parameter.Name)}, {FormatDefaultValue(parameter)})";
+        var type = UnwrapNullable(parameter.TypeSymbol);
+        var name = Quote(parameter.Name);
+        var optionalValueSuffix = IsNullableValueType(parameter.TypeSymbol) ? string.Empty : "!.Value";
 
-        return $"throw new global::System.InvalidOperationException(\"Unsupported generated dynamic parameter type: {EscapeForString(type)}\")";
+        if (IsString(type))
+            return parameter.HasDefaultValue
+                ? $"global::DotCraft.AppBinding.GeneratedDynamicToolArgumentBinder.BindOptionalString(arguments, {name}, {FormatDefaultValue(parameter)})"
+                : $"global::DotCraft.AppBinding.GeneratedDynamicToolArgumentBinder.BindRequiredString(arguments, {name})";
+
+        if (IsBoolean(type))
+            return parameter.HasDefaultValue
+                ? $"global::DotCraft.AppBinding.GeneratedDynamicToolArgumentBinder.BindOptionalBool(arguments, {name}, {FormatDefaultValue(parameter)}){optionalValueSuffix}"
+                : $"global::DotCraft.AppBinding.GeneratedDynamicToolArgumentBinder.BindRequiredBool(arguments, {name})";
+
+        if (IsInteger(type))
+            return DynamicNumericBindExpression(parameter, type, name, optionalValueSuffix);
+
+        if (IsNumber(type))
+            return DynamicNumericBindExpression(parameter, type, name, optionalValueSuffix);
+
+        if (IsJsonObject(type))
+            return parameter.HasDefaultValue
+                ? $"global::DotCraft.AppBinding.GeneratedDynamicToolArgumentBinder.BindOptionalJsonObject(arguments, {name})"
+                : $"global::DotCraft.AppBinding.GeneratedDynamicToolArgumentBinder.BindRequiredJsonObject(arguments, {name})";
+
+        if (parameter.TypeSymbol is IArrayTypeSymbol array && IsString(UnwrapNullable(array.ElementType)))
+            return parameter.HasDefaultValue
+                ? $"global::DotCraft.AppBinding.GeneratedDynamicToolArgumentBinder.BindOptionalStringArray(arguments, {name})"
+                : $"global::DotCraft.AppBinding.GeneratedDynamicToolArgumentBinder.BindRequiredStringArray(arguments, {name})";
+
+        if (IsStringListType(type))
+            return parameter.HasDefaultValue
+                ? $"global::DotCraft.AppBinding.GeneratedDynamicToolArgumentBinder.BindOptionalStringList(arguments, {name})"
+                : $"global::DotCraft.AppBinding.GeneratedDynamicToolArgumentBinder.BindRequiredStringList(arguments, {name})";
+
+        return $"throw new global::System.InvalidOperationException(\"Unsupported generated dynamic parameter type: {EscapeForString(parameter.TypeName)}\")";
+    }
+
+    private static string DynamicNumericBindExpression(
+        ParameterInfo parameter,
+        ITypeSymbol type,
+        string name,
+        string optionalValueSuffix)
+    {
+        var method = type.SpecialType switch
+        {
+            SpecialType.System_Int16 => "Short",
+            SpecialType.System_Int32 => "Int",
+            SpecialType.System_Int64 => "Long",
+            SpecialType.System_Single => "Float",
+            SpecialType.System_Double => "Double",
+            SpecialType.System_Decimal => "Decimal",
+            _ => throw new InvalidOperationException($"Unsupported generated dynamic numeric parameter type: {parameter.TypeName}")
+        };
+
+        return parameter.HasDefaultValue
+            ? $"global::DotCraft.AppBinding.GeneratedDynamicToolArgumentBinder.BindOptional{method}(arguments, {name}, {FormatDefaultValue(parameter)}){optionalValueSuffix}"
+            : $"global::DotCraft.AppBinding.GeneratedDynamicToolArgumentBinder.BindRequired{method}(arguments, {name})";
     }
 
     private static void ValidateTool(SourceProductionContext context, ToolInfo tool)
@@ -554,19 +615,85 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
         }
     }
 
-    private static void ValidateDynamicTool(SourceProductionContext context, DynamicToolInfo tool)
+    private static bool ValidateDynamicTool(SourceProductionContext context, DynamicToolInfo tool)
     {
+        var valid = true;
         if (string.IsNullOrWhiteSpace(tool.Description))
+        {
             context.ReportDiagnostic(Diagnostic.Create(MissingDescription, tool.Location, tool.ToolName, "method"));
+            valid = false;
+        }
+
+        if (!IsSupportedDynamicReturnType(tool.ReturnType))
+        {
+            context.ReportDiagnostic(Diagnostic.Create(UnsupportedDynamicReturnType, tool.Location, tool.ToolName, tool.ReturnType));
+            valid = false;
+        }
 
         foreach (var parameter in tool.Parameters.Where(static p => !p.IsCancellationToken && !p.IsManagedContext))
         {
             if (string.IsNullOrWhiteSpace(parameter.Description))
+            {
                 context.ReportDiagnostic(Diagnostic.Create(MissingDescription, parameter.Location, tool.ToolName, $"parameter '{parameter.Name}'"));
+                valid = false;
+            }
 
-            if (!IsSupportedDynamicParameter(parameter.TypeName))
+            if (!IsSupportedDynamicParameter(parameter.TypeSymbol))
+            {
                 context.ReportDiagnostic(Diagnostic.Create(UnsupportedDynamicParameter, parameter.Location, tool.ToolName, parameter.Name, parameter.TypeName));
+                valid = false;
+            }
         }
+
+        return valid;
+    }
+
+    private static bool ValidateDynamicToolGroup(SourceProductionContext context, IReadOnlyList<DynamicToolInfo> tools)
+    {
+        var valid = true;
+        var duplicateNames = tools
+            .GroupBy(static tool => tool.ToolName, StringComparer.Ordinal)
+            .Where(static group => group.Count() > 1)
+            .ToList();
+        foreach (var group in duplicateNames)
+        {
+            var methods = string.Join(
+                ", ",
+                group.Select(static tool => tool.Identity).OrderBy(static value => value, StringComparer.Ordinal));
+            foreach (var tool in group)
+            {
+                context.ReportDiagnostic(Diagnostic.Create(
+                    DuplicateDynamicToolName,
+                    tool.Location,
+                    group.Key,
+                    methods));
+            }
+
+            valid = false;
+        }
+
+        var duplicateOrders = tools
+            .GroupBy(static tool => tool.Order)
+            .Where(static group => group.Count() > 1)
+            .ToList();
+        foreach (var group in duplicateOrders)
+        {
+            var methods = string.Join(
+                ", ",
+                group.Select(static tool => tool.Identity).OrderBy(static value => value, StringComparer.Ordinal));
+            foreach (var tool in group)
+            {
+                context.ReportDiagnostic(Diagnostic.Create(
+                    DuplicateDynamicToolOrder,
+                    tool.Location,
+                    group.Key,
+                    methods));
+            }
+
+            valid = false;
+        }
+
+        return valid;
     }
 
     private static bool IsSupportedToolParameter(ITypeSymbol type)
@@ -585,9 +712,21 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
         return false;
     }
 
-    private static bool IsSupportedDynamicParameter(string typeName) =>
-        typeName is "string" or "string?" or "bool" or "bool?" or "int?" or "long?"
-        || IsStringListTypeName(typeName);
+    private static bool IsSupportedDynamicParameter(ITypeSymbol type)
+    {
+        var nonNullable = UnwrapNullable(type);
+        return IsString(nonNullable)
+            || IsBoolean(nonNullable)
+            || IsInteger(nonNullable)
+            || IsNumber(nonNullable)
+            || IsJsonObject(nonNullable)
+            || IsStringListType(nonNullable);
+    }
+
+    private static bool IsSupportedDynamicReturnType(string typeName) =>
+        typeName == "global::DotCraft.Protocol.AppServer.DynamicToolCallResult"
+        || typeName == "global::System.Threading.Tasks.Task<global::DotCraft.Protocol.AppServer.DynamicToolCallResult>"
+        || typeName == "global::System.Threading.Tasks.ValueTask<global::DotCraft.Protocol.AppServer.DynamicToolCallResult>";
 
     private static bool IsPrimitiveLike(ITypeSymbol type)
     {
@@ -703,6 +842,10 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
         {
             entries.Add(emitNullableType ? "\"type\":[\"number\",\"null\"]" : "\"type\":\"number\"");
         }
+        else if (IsJsonObject(typeWithoutNullable))
+        {
+            entries.Add("\"type\":\"object\"");
+        }
         else
         {
             entries.Add("\"type\":\"object\"");
@@ -794,6 +937,9 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
         };
     }
 
+    private static bool IsStringListType(ITypeSymbol type) =>
+        TryGetCollectionElement(type, out var element) && IsString(UnwrapNullable(element));
+
     private static bool TryGetCollectionElement(ITypeSymbol type, out ITypeSymbol element)
     {
         if (type is IArrayTypeSymbol array)
@@ -831,6 +977,11 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
         return type;
     }
 
+    private static bool IsNullableValueType(ITypeSymbol type) =>
+        type is INamedTypeSymbol named
+        && named.ConstructedFrom.SpecialType == SpecialType.System_Nullable_T
+        && named.TypeArguments.Length == 1;
+
     private static string? UnwrapTaskType(string typeName)
     {
         const string taskPrefix = "global::System.Threading.Tasks.Task<";
@@ -848,21 +999,16 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
         typeName.StartsWith("global::System.Threading.Tasks.Task<", StringComparison.Ordinal) ||
         typeName.StartsWith("global::System.Threading.Tasks.ValueTask<", StringComparison.Ordinal);
 
-    private static bool IsStringListTypeName(string typeName) =>
-        typeName is "global::System.Collections.Generic.List<string>?" or
-            "global::System.Collections.Generic.List<string>" or
-            "global::System.Collections.Generic.IReadOnlyList<string>?" or
-            "global::System.Collections.Generic.IReadOnlyList<string>" or
-            "global::System.Collections.Generic.IEnumerable<string>?" or
-            "global::System.Collections.Generic.IEnumerable<string>" or
-            "string[]?" or
-            "string[]";
-
     private static bool IsCancellationToken(ITypeSymbol type) =>
         type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) == "global::System.Threading.CancellationToken";
 
     private static bool IsManagedContext(ITypeSymbol type) =>
         type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) == "global::DotCraft.AppBinding.ManagedAppBindingToolCallContext";
+
+    private static bool IsJsonObject(ITypeSymbol type) =>
+        type is INamedTypeSymbol named
+        && named.Name == "JsonObject"
+        && named.ContainingNamespace.ToDisplayString() == "System.Text.Json.Nodes";
 
     private static bool IsString(ITypeSymbol type) => type.SpecialType == SpecialType.System_String;
 
@@ -1017,6 +1163,7 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
     private sealed class DynamicToolInfo
     {
         public DynamicToolInfo(
+            string Identity,
             string Namespace,
             string ContainingTypeName,
             string ContainingTypeFullName,
@@ -1029,6 +1176,7 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
             IReadOnlyList<ParameterInfo> Parameters,
             Location? Location)
         {
+            this.Identity = Identity;
             this.Namespace = Namespace;
             this.ContainingTypeName = ContainingTypeName;
             this.ContainingTypeFullName = ContainingTypeFullName;
@@ -1042,6 +1190,7 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
             this.Location = Location;
         }
 
+        public string Identity { get; }
         public string Namespace { get; }
         public string ContainingTypeName { get; }
         public string ContainingTypeFullName { get; }
