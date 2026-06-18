@@ -112,6 +112,30 @@ describe('ThreePanel sidebar resize', () => {
     expect(useUIStore.getState().sidebarWidth).toBe(292)
   })
 
+  it('reveals the sidebar divider glow only while the divider is hovered or dragged', () => {
+    renderThreePanel()
+
+    const glow = screen.getByTestId('sidebar-divider-glow')
+    const separator = screen.getByRole('separator')
+
+    // Rest state: the left edge stays the plain frame hairline, glow hidden.
+    expect(glow.style.opacity).toBe('0')
+
+    // Hover the divider: the center-bright gradient fades in.
+    fireEvent.pointerEnter(separator)
+    expect(glow.style.opacity).toBe('1')
+
+    // Leaving the divider restores the rest state.
+    fireEvent.pointerLeave(separator)
+    expect(glow.style.opacity).toBe('0')
+
+    // Dragging keeps the glow visible even without hover.
+    fireEvent.pointerDown(separator, { clientX: 240 })
+    expect(glow.style.opacity).toBe('1')
+    fireEvent.pointerUp(document)
+    expect(glow.style.opacity).toBe('0')
+  })
+
   it('keeps the sidebar above its minimum width while dragging', () => {
     renderThreePanel()
 

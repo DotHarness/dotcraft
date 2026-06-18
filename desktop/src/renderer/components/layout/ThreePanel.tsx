@@ -259,12 +259,30 @@ export function ThreePanel({ sidebar, conversation, detail }: ThreePanelProps): 
           flexDirection: 'row',
           background: 'var(--main-surface)',
           borderRadius: '14px 0 0 14px',
-          boxShadow: 'var(--main-surface-frame-shadow)',
-          '--main-surface-left-border': sidebarDividerHighlighted
-            ? 'var(--resize-divider-active)'
-            : 'var(--glass-border-strong)'
-        } as CSSProperties}
+          boxShadow: 'var(--main-surface-frame-shadow)'
+        }}
       >
+        {/* Sidebar resize-divider highlight. The rest-state left edge stays the
+            plain --main-surface-left-border hairline drawn by the frame shadow;
+            on hover/drag this neutral vertical gradient fades in over the card's
+            left edge — brightest at center, fading toward the top and bottom. */}
+        <div
+          aria-hidden
+          data-testid="sidebar-divider-glow"
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            bottom: 0,
+            width: 'var(--main-surface-edge-glow-width)',
+            background: 'var(--main-surface-edge-glow)',
+            opacity: sidebarDividerHighlighted ? 1 : 0,
+            transition: 'opacity 150ms ease',
+            pointerEvents: 'none',
+            zIndex: 4
+          }}
+        />
+
         {/* Conversation panel (always visible, fills remaining space) */}
         <div
           style={{

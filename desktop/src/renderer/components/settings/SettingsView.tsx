@@ -3224,7 +3224,10 @@ export function SettingsView({
         flexDirection: 'column',
         height: '100%',
         minHeight: 0,
-        backgroundColor: 'var(--bg-primary)'
+        // Transparent so the shared ThreePanel main-surface frame (rounded card +
+        // inset edge borders) shows through, matching the conversation and other
+        // main views. An opaque --bg-primary here painted over and hid the frame.
+        backgroundColor: 'transparent'
       }}
     >
       <main style={settingsMainStyle()}>

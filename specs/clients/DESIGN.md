@@ -26,6 +26,7 @@ colors:
   background-activity-dock-background: "var(--background-activity-dock-background)"
   composer-top-accessory-separator: "var(--composer-top-accessory-separator)"
   composer-input-rest-border: "var(--composer-input-rest-border)"
+  main-surface-edge-glow: "var(--main-surface-edge-glow)"
 typography:
   ui:
     fontFamily: "var(--font-ui)"
@@ -219,6 +220,13 @@ Use depth instead of color variety.
   ordinary overlay carries.
 - Larger dialogs, inspectors, viewers, and non-menu popovers may use subtle
   neutral boundaries when contrast requires it.
+- The sidebar/main-surface resize divider highlights on hover and drag with a
+  neutral vertical gradient on the main card's left edge (`--main-surface-edge-glow`):
+  brightest at center, fading to transparent toward the top and bottom. The
+  rest-state edge is unchanged — the plain `--main-surface-left-border` hairline
+  the frame shadow already draws. This is a functional resize affordance in a
+  neutral tone (no accent, no bloom), not a decorative glow; the rule below still
+  forbids glow/accent treatments on ordinary controls.
 
 Do not use glow rings, highlighted borders, accent borders, or decorative
 gradients to make ordinary controls "stand out." Use placement, hierarchy,

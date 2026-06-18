@@ -209,6 +209,19 @@
     inset 0 1px 0 0 var(--main-surface-top-border),
     inset 0 -1px 0 0 var(--glass-border),
     0 2px 4px -1px rgba(0, 0, 0, 0.22);
+  /* Sidebar<->main-surface resize-divider highlight: a neutral vertical gradient
+     on the card's left edge — brightest at center, fading to transparent toward
+     the top and bottom. Painted only while the divider is hovered/dragged; the
+     rest-state edge stays the plain --main-surface-left-border hairline that the
+     frame shadow already draws. See ThreePanel and specs/clients/DESIGN.md. */
+  --main-surface-edge-glow-width: 2px;
+  --main-surface-edge-glow:
+    linear-gradient(
+      180deg,
+      transparent 16%,
+      color-mix(in srgb, var(--text-primary) 46%, transparent) 50%,
+      transparent 84%
+    );
   --glass-blur: blur(18px) saturate(1.08);
   --glass-blur-soft: blur(12px) saturate(1.05);
   --composer-input-background: #2b2b2b;
@@ -463,6 +476,16 @@ html[data-theme="light"] {
     inset 1px 0 0 0 var(--main-surface-left-border),
     inset 0 1px 0 0 var(--main-surface-top-border),
     0 2px 4px -1px rgba(0, 0, 0, 0.08);
+  /* Light theme keeps a slightly softer peak so the dark-ink gradient reads as a
+     quiet divider highlight on the white card rather than a hard streak. Width is
+     inherited from :root (--main-surface-edge-glow-width). */
+  --main-surface-edge-glow:
+    linear-gradient(
+      180deg,
+      transparent 16%,
+      color-mix(in srgb, var(--text-primary) 34%, transparent) 50%,
+      transparent 84%
+    );
   --glass-blur: blur(18px) saturate(1.05);
   --glass-blur-soft: blur(12px) saturate(1.03);
   --composer-input-background: #ffffff;
