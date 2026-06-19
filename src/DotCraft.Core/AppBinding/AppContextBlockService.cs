@@ -57,6 +57,7 @@ internal sealed class AppContextBlockService(
 
             changed = true;
             binding.LastChangedAt = now;
+            binding.ExposureRevision++;
             AddAudit(
                 state,
                 "binding.context.upsert",
@@ -121,6 +122,7 @@ internal sealed class AppContextBlockService(
 
             changed = true;
             binding.LastChangedAt = now;
+            binding.ExposureRevision++;
             AddAudit(
                 state,
                 "binding.context.upsert",
@@ -160,6 +162,7 @@ internal sealed class AppContextBlockService(
                 throw AppServerErrors.InvalidParams($"Context block '{blockId}' was not found.");
 
             binding.LastChangedAt = DateTimeOffset.UtcNow;
+            binding.ExposureRevision++;
             AddAudit(
                 state,
                 "binding.context.remove",

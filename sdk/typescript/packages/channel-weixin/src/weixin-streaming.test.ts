@@ -98,6 +98,135 @@ test("Weixin retries transient text fetch failures with the same client id", asy
   }
 });
 
+test("WeixinAdapter builds social binding target from user context", () => {
+  const adapter = new WeixinAdapter() as unknown as {
+    buildSocialTarget: (
+      opts: Record<string, unknown>,
+      sender: Record<string, unknown>,
+      channelContext: string,
+    ) => Record<string, unknown> | null;
+  };
+
+  const target = adapter.buildSocialTarget(
+    {
+      userId: "user@im.wechat",
+      userName: "Weixin User",
+      text: "/bind DTC-123456",
+      channelContext: "user@im.wechat",
+    },
+    {
+      senderId: "user@im.wechat",
+      senderName: "Weixin User",
+      senderRole: "admin",
+      groupId: "user@im.wechat",
+    },
+    "user@im.wechat",
+  );
+
+  assert.deepEqual(target, {
+    channelName: "weixin",
+    conversationKind: "user",
+    conversationId: "user@im.wechat",
+    deliveryTarget: "user@im.wechat",
+    displayName: "Weixin User",
+    boundBy: {
+      platformUserId: "user@im.wechat",
+      displayName: "Weixin User",
+    },
+  });
+});
+
+test("WeixinAdapter accepts social bind codes for user context", async () => {
+  const adapter = new WeixinAdapter() as unknown as {
+    client: {
+      request: (method: string, params: Record<string, unknown>) => Promise<Record<string, unknown>>;
+    };
+    commandRouter: {
+      routeBeforeQueue: () => Promise<"enqueue" | "handled">;
+    };
+    onDeliver: (target: string, content: string, metadata: Record<string, unknown>) => Promise<boolean>;
+    handleMessage: (opts: Record<string, unknown>) => Promise<void>;
+  };
+  const requests: Array<{ method: string; params: Record<string, unknown> }> = [];
+  const deliveries: Array<{ target: string; content: string; metadata: Record<string, unknown> }> = [];
+
+  adapter.commandRouter.routeBeforeQueue = async () => {
+    throw new Error("bind command should not reach command routing");
+  };
+  adapter.client.request = async (method, params) => {
+    requests.push({ method, params });
+    if (method === "app/binding/request/get") {
+      return {
+        bindingRequestId: "request-1",
+        appId: "com.dotharness.channel.weixin",
+        threadId: "thread-1",
+        bindingKind: "socialChannel",
+        requestedScopes: ["conversation.receive", "message.send"],
+      };
+    }
+    if (method === "app/binding/accept") {
+      return {
+        binding: {
+          bindingId: "binding-1",
+          appId: "com.dotharness.channel.weixin",
+          threadId: "thread-1",
+          state: "active",
+          bindingKind: "socialChannel",
+          socialTarget: params.socialTarget,
+        },
+      };
+    }
+    throw new Error(`unexpected request ${method}`);
+  };
+  adapter.onDeliver = async (target, content, metadata) => {
+    deliveries.push({ target, content, metadata });
+    return true;
+  };
+
+  await adapter.handleMessage({
+    userId: "user@im.wechat",
+    userName: "Weixin User",
+    text: "/bind DTC-123456",
+    channelContext: "user@im.wechat",
+    senderExtra: { senderRole: "admin" },
+  });
+
+  assert.deepEqual(requests[0], {
+    method: "app/binding/request/get",
+    params: {
+      appId: "com.dotharness.channel.weixin",
+      bindCode: "DTC-123456",
+      requestToken: "DTC-123456",
+    },
+  });
+  assert.equal(requests[1]?.method, "app/binding/accept");
+  assert.deepEqual(requests[1]?.params.socialTarget, {
+    channelName: "weixin",
+    conversationKind: "user",
+    conversationId: "user@im.wechat",
+    deliveryTarget: "user@im.wechat",
+    displayName: "Weixin User",
+    boundBy: {
+      platformUserId: "user@im.wechat",
+      displayName: "Weixin User",
+    },
+  });
+  assert.equal(requests[1]?.params.grantId, "social:weixin::user:user@im.wechat");
+  assert.equal(requests[1]?.params.approvedBy, "user@im.wechat");
+  assert.equal(requests[1]?.params.auditRef, "channel:weixin:user:user@im.wechat");
+  assert.deepEqual(deliveries, [
+    {
+      target: "user@im.wechat",
+      content: "Bound this conversation to thread thread-1.",
+      metadata: {
+        appId: "com.dotharness.channel.weixin",
+        bindingId: "binding-1",
+        bindingKind: "socialChannel",
+      },
+    },
+  ]);
+});
+
 test("Weixin consumes pending user-input replies before forwarding to agent", async () => {
   type PendingUserInput = {
     request: Record<string, unknown>;

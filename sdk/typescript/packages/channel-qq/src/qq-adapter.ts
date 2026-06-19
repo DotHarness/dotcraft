@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto";
 import {
   localImagePart,
   textPart,
+  type SocialChannelTarget,
 } from "@dotcraft/sdk";
 import {
   WebSocketTransport,
@@ -19,6 +20,8 @@ import {
   mergeUserInputResponses,
   splitUserInputRequestByQuestion,
   userInputResponseFromText,
+  type ChannelToolDescriptor,
+  type ChannelAdapterMessageOpts,
   type UserInputResponse,
   type WorkspaceContext,
 } from "@dotcraft/sdk/channel";
@@ -134,8 +137,38 @@ export class QQAdapter extends ModuleChannelAdapter<QQConfig> {
     return this.mediaTools.getDeliveryCapabilities();
   }
 
-  protected override getChannelTools(): Record<string, unknown>[] | null {
+  protected override getChannelTools(): ChannelToolDescriptor[] | null {
     return this.mediaTools.getChannelTools();
+  }
+
+  protected override buildSocialTarget(
+    opts: ChannelAdapterMessageOpts,
+    sender: Record<string, unknown>,
+    channelContext: string,
+  ): SocialChannelTarget | null {
+    const target = parseQQTarget(channelContext);
+    if (!target) return null;
+    const platformUserId = String(sender.senderId ?? opts.userId ?? "");
+    const displayName = typeof sender.senderName === "string" && sender.senderName.trim()
+      ? sender.senderName.trim()
+      : null;
+    const conversationLabel = target.kind === "group"
+      ? `QQ group ${target.id}`
+      : displayName ?? `QQ user ${target.id}`;
+
+    return {
+      channelName: "qq",
+      conversationKind: target.kind === "group" ? "group" : "user",
+      conversationId: target.id,
+      deliveryTarget: channelContext,
+      displayName: conversationLabel,
+      boundBy: platformUserId
+        ? {
+          platformUserId,
+          displayName,
+        }
+        : null,
+    };
   }
 
   override async startWithContext(context: WorkspaceContext): Promise<void> {
@@ -427,14 +460,34 @@ export class QQAdapter extends ModuleChannelAdapter<QQConfig> {
       return;
     }
 
-    const segments = normalizeMessageSegments(evt.message);
-    if (isGroup && this.requireMentionInGroups && !this.isAtSelf(evt, segments)) {
-      return;
-    }
-
     const role = this.permission.getUserRole(senderId, isGroup ? groupId : undefined);
     if (role === "unauthorized") {
       console.info(`[qq] unauthorized user ${senderId} ignored`);
+      return;
+    }
+    const senderContext = {
+      senderId,
+      senderName,
+      senderRole: role,
+      ...(evt.self_id !== undefined ? { botId: String(evt.self_id) } : {}),
+      ...(isGroup ? { groupId: channelContext } : {}),
+    };
+
+    if (this.parseSocialBindCode(rawText)) {
+      this.lastSenderByContext.set(channelContext, senderId);
+      await this.handleMessage({
+        userId: threadUserId,
+        userName: senderName,
+        text: rawText,
+        channelContext,
+        sender: senderContext,
+        omitSenderGroupId: !isGroup,
+      });
+      return;
+    }
+
+    const segments = normalizeMessageSegments(evt.message);
+    if (isGroup && this.requireMentionInGroups && !this.isAtSelf(evt, segments)) {
       return;
     }
 
@@ -450,12 +503,7 @@ export class QQAdapter extends ModuleChannelAdapter<QQConfig> {
       userName: senderName,
       text: rawText || "[image]",
       channelContext,
-      sender: {
-        senderId,
-        senderName,
-        senderRole: role,
-        ...(isGroup ? { groupId: channelContext } : {}),
-      },
+      sender: senderContext,
       omitSenderGroupId: !isGroup,
       inputParts: inputParts.length > 0 ? inputParts : undefined,
     });

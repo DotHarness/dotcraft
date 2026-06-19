@@ -31,6 +31,7 @@ public sealed class AppBindingProtocolTests : IDisposable
     private const string AppBindingContextUpsert = "app/binding/context/upsert";
     private const string AppBindingContextRemove = "app/binding/context/remove";
     private const string AppThreadInputEnqueue = "app/threadInput/enqueue";
+    private const string AppSocialBindingResolve = "app/socialBinding/resolve";
     private const string ThreadAppBindingsList = "thread/appBindings/list";
     private const string ThreadAppBindingsRefresh = "thread/appBindings/refresh";
     private const string ThreadAppBindingsRevoke = "thread/appBindings/revoke";
@@ -427,6 +428,532 @@ public sealed class AppBindingProtocolTests : IDisposable
         Assert.Equal("task_123", storedQueued.TriggerRefId);
         Assert.Empty(stored.Turns);
         AssertAppBindingAuditContains("binding.threadInput.enqueue");
+    }
+
+    [Fact]
+    public async Task SocialBinding_CreateAcceptResolveAndRejectDuplicateTarget()
+    {
+        const string qqAppId = "com.dotharness.channel.qq";
+        var service = new AppBindingService([
+            new SocialChannelAppBindingRuntime(
+                "qq",
+                "QQ",
+                "Continue this thread in QQ.",
+                new ChannelRuntimeRegistry())
+        ]);
+        using var harness = CreateHarness(service);
+        await InitializeChannelAdapterAsync(harness, "qq");
+        var thread = await harness.Service.CreateThreadAsync(CreateIdentity());
+
+        using var createResponse = await ExecuteAndReadResponseAsync(
+            harness,
+            AppBindingRequestCreate,
+            new
+            {
+                threadId = thread.Id,
+                appId = qqAppId,
+                requestedScopes = new[] { "conversation.receive", "message.send" },
+                requestedTools = new[] { "SendMessageToBoundConversation" },
+                source = "threadMenu",
+                bindingKind = "socialChannel",
+                socialIntent = new
+                {
+                    channelName = "qq",
+                    targetSelection = "confirmInChannel",
+                    displayHint = "QQ"
+                }
+            });
+        AppServerTestHarness.AssertIsSuccessResponse(createResponse);
+        var createResult = createResponse.RootElement.GetProperty("result");
+        Assert.Equal("bindCode", createResult.GetProperty("handoff").GetProperty("mode").GetString());
+        var bindCode = createResult.GetProperty("handoff").GetProperty("bindCode").GetString()!;
+        Assert.StartsWith("DTC-", bindCode, StringComparison.Ordinal);
+        var bindingRequestId = createResult.GetProperty("bindingRequestId").GetString()!;
+
+        using var inspectResponse = await ExecuteAndReadResponseAsync(
+            harness,
+            AppBindingRequestGet,
+            new
+            {
+                appId = qqAppId,
+                requestToken = bindCode,
+                bindCode
+            });
+        AppServerTestHarness.AssertIsSuccessResponse(inspectResponse);
+        Assert.Equal("socialChannel", inspectResponse.RootElement.GetProperty("result").GetProperty("bindingKind").GetString());
+        Assert.Equal("qq", inspectResponse.RootElement.GetProperty("result").GetProperty("socialIntent").GetProperty("channelName").GetString());
+
+        using var acceptResponse = await ExecuteAndReadResponseAsync(
+            harness,
+            AppBindingAccept,
+            new
+            {
+                bindingRequestId,
+                requestToken = bindCode,
+                grantId = "social-grant-1",
+                grantedScopes = new[] { "conversation.receive", "message.send" },
+                approvalMode = "channelBindCode",
+                approvedBy = "9988",
+                socialTarget = QqSocialTarget()
+            },
+            expectedNotificationMethod: "thread/appBindings/changed");
+        AppServerTestHarness.AssertIsSuccessResponse(acceptResponse);
+        var binding = acceptResponse.RootElement.GetProperty("result").GetProperty("binding");
+        Assert.Equal("socialChannel", binding.GetProperty("bindingKind").GetString());
+        Assert.Equal("social-grant-1", binding.GetProperty("grantId").GetString());
+        Assert.Equal("group:123456", binding.GetProperty("socialTarget").GetProperty("deliveryTarget").GetString());
+        Assert.Equal(1, binding.GetProperty("attachedToolCount").GetInt32());
+
+        using var resolveResponse = await ExecuteAndReadResponseAsync(
+            harness,
+            AppSocialBindingResolve,
+            new
+            {
+                appId = qqAppId,
+                channelName = "qq",
+                conversationKind = "group",
+                conversationId = "123456"
+            });
+        AppServerTestHarness.AssertIsSuccessResponse(resolveResponse);
+        var resolved = resolveResponse.RootElement.GetProperty("result").GetProperty("binding");
+        Assert.Equal(thread.Id, resolved.GetProperty("threadId").GetString());
+        Assert.Equal("social-grant-1", resolved.GetProperty("grantId").GetString());
+        Assert.Equal("socialChannel", resolved.GetProperty("bindingKind").GetString());
+
+        var duplicateThread = await harness.Service.CreateThreadAsync(CreateIdentity());
+        using var duplicateCreateResponse = await ExecuteAndReadResponseAsync(
+            harness,
+            AppBindingRequestCreate,
+            new
+            {
+                threadId = duplicateThread.Id,
+                appId = qqAppId,
+                requestedScopes = new[] { "conversation.receive", "message.send" },
+                source = "threadMenu",
+                bindingKind = "socialChannel",
+                socialIntent = new { channelName = "qq" }
+            });
+        var duplicateBindCode = duplicateCreateResponse.RootElement.GetProperty("result").GetProperty("handoff").GetProperty("bindCode").GetString()!;
+        using var duplicateAcceptResponse = await ExecuteAndReadResponseAsync(
+            harness,
+            AppBindingAccept,
+            new
+            {
+                requestToken = duplicateBindCode,
+                grantId = "social-grant-2",
+                grantedScopes = new[] { "conversation.receive", "message.send" },
+                approvalMode = "channelBindCode",
+                approvedBy = "9988",
+                socialTarget = QqSocialTarget()
+            });
+        AppServerTestHarness.AssertIsErrorResponse(duplicateAcceptResponse, AppServerErrors.InvalidParamsCode);
+        Assert.Contains(
+            "already bound",
+            duplicateAcceptResponse.RootElement.GetProperty("error").GetProperty("data").GetProperty("detail").GetString());
+    }
+
+    [Fact]
+    public async Task SocialBindingResolve_RejectsNonChannelAndCrossChannelCallers()
+    {
+        const string qqAppId = "com.dotharness.channel.qq";
+
+        using (var desktopHarness = CreateHarness(new AppBindingService()))
+        {
+            await desktopHarness.InitializeAsync();
+
+            using var desktopResolveResponse = await ExecuteAndReadResponseAsync(
+                desktopHarness,
+                AppSocialBindingResolve,
+                new
+                {
+                    appId = qqAppId,
+                    channelName = "qq",
+                    conversationKind = "group",
+                    conversationId = "123456"
+                });
+            AppServerTestHarness.AssertIsErrorResponse(desktopResolveResponse, AppServerErrors.InvalidParamsCode);
+            Assert.Contains(
+                "may only be called by channel adapters",
+                desktopResolveResponse.RootElement.GetProperty("error").GetProperty("data").GetProperty("detail").GetString());
+        }
+
+        using var wecomHarness = CreateHarness(new AppBindingService());
+        await InitializeChannelAdapterAsync(wecomHarness, "wecom");
+
+        using var crossChannelResolveResponse = await ExecuteAndReadResponseAsync(
+            wecomHarness,
+            AppSocialBindingResolve,
+            new
+            {
+                appId = qqAppId,
+                channelName = "qq",
+                conversationKind = "group",
+                conversationId = "123456"
+            });
+        AppServerTestHarness.AssertIsErrorResponse(crossChannelResolveResponse, AppServerErrors.InvalidParamsCode);
+        Assert.Contains(
+            "cannot resolve bindings for another channel",
+            crossChannelResolveResponse.RootElement.GetProperty("error").GetProperty("data").GetProperty("detail").GetString());
+
+        using var mismatchedAppResponse = await ExecuteAndReadResponseAsync(
+            wecomHarness,
+            AppSocialBindingResolve,
+            new
+            {
+                appId = qqAppId,
+                channelName = "wecom",
+                conversationKind = "chat",
+                conversationId = "chat-1"
+            });
+        AppServerTestHarness.AssertIsErrorResponse(mismatchedAppResponse, AppServerErrors.InvalidParamsCode);
+        Assert.Contains(
+            "appId does not match channelName",
+            mismatchedAppResponse.RootElement.GetProperty("error").GetProperty("data").GetProperty("detail").GetString());
+    }
+
+    [Fact]
+    public async Task SocialBindingAccept_RejectsNonChannelAndCrossChannelCallers()
+    {
+        using (var desktopHarness = CreateHarness(new AppBindingService()))
+        {
+            await desktopHarness.InitializeAsync();
+
+            using var desktopAcceptResponse = await ExecuteAndReadResponseAsync(
+                desktopHarness,
+                AppBindingAccept,
+                new
+                {
+                    requestToken = "DTC-123456",
+                    grantId = "social-grant-1",
+                    grantedScopes = new[] { "conversation.receive", "message.send" },
+                    approvalMode = "channelBindCode",
+                    socialTarget = QqSocialTarget()
+                });
+            AppServerTestHarness.AssertIsErrorResponse(desktopAcceptResponse, AppServerErrors.InvalidParamsCode);
+            Assert.Contains(
+                "may only be accepted by channel adapters",
+                desktopAcceptResponse.RootElement.GetProperty("error").GetProperty("data").GetProperty("detail").GetString());
+        }
+
+        using var wecomHarness = CreateHarness(new AppBindingService());
+        await InitializeChannelAdapterAsync(wecomHarness, "wecom");
+
+        using var crossChannelAcceptResponse = await ExecuteAndReadResponseAsync(
+            wecomHarness,
+            AppBindingAccept,
+            new
+            {
+                requestToken = "DTC-123456",
+                grantId = "social-grant-1",
+                grantedScopes = new[] { "conversation.receive", "message.send" },
+                approvalMode = "channelBindCode",
+                socialTarget = QqSocialTarget()
+            });
+        AppServerTestHarness.AssertIsErrorResponse(crossChannelAcceptResponse, AppServerErrors.InvalidParamsCode);
+        Assert.Contains(
+            "cannot accept bindings for another channel",
+            crossChannelAcceptResponse.RootElement.GetProperty("error").GetProperty("data").GetProperty("detail").GetString());
+    }
+
+    [Fact]
+    public async Task ThreadInputEnqueue_FromSocialBindingDeliversCompletedReplyToBoundTarget()
+    {
+        const string qqAppId = "com.dotharness.channel.qq";
+        var registry = new ChannelRuntimeRegistry();
+        var runtime = new RecordingChannelRuntime("qq");
+        registry.Register(runtime);
+        var service = new AppBindingService([
+            new SocialChannelAppBindingRuntime(
+                "qq",
+                "QQ",
+                "Continue this thread in QQ.",
+                registry)
+        ]);
+        using var harness = CreateHarness(service, channelRuntimeRegistry: registry);
+        await InitializeChannelAdapterAsync(harness, "qq");
+        var thread = await harness.Service.CreateThreadAsync(CreateIdentity());
+
+        using var createResponse = await ExecuteAndReadResponseAsync(
+            harness,
+            AppBindingRequestCreate,
+            new
+            {
+                threadId = thread.Id,
+                appId = qqAppId,
+                requestedScopes = new[] { "conversation.receive", "message.send" },
+                source = "threadMenu",
+                bindingKind = "socialChannel",
+                socialIntent = new { channelName = "qq" }
+            });
+        var bindingRequestId = createResponse.RootElement.GetProperty("result").GetProperty("bindingRequestId").GetString()!;
+        var bindCode = createResponse.RootElement.GetProperty("result").GetProperty("handoff").GetProperty("bindCode").GetString()!;
+
+        using var acceptResponse = await ExecuteAndReadResponseAsync(
+            harness,
+            AppBindingAccept,
+            new
+            {
+                bindingRequestId,
+                requestToken = bindCode,
+                grantId = "social-grant-1",
+                grantedScopes = new[] { "conversation.receive", "message.send" },
+                approvalMode = "channelBindCode",
+                approvedBy = "9988",
+                socialTarget = QqSocialTarget()
+            },
+            expectedNotificationMethod: "thread/appBindings/changed");
+        AppServerTestHarness.AssertIsSuccessResponse(acceptResponse);
+        var bindingId = acceptResponse.RootElement.GetProperty("result").GetProperty("binding").GetProperty("bindingId").GetString()!;
+
+        using var enqueueResponse = await ExecuteAndReadResponseAsync(
+            harness,
+            AppThreadInputEnqueue,
+            new
+            {
+                bindingId,
+                appId = qqAppId,
+                grantId = "social-grant-1",
+                input = new[] { new { type = "text", text = "hello from qq" } },
+                sender = new
+                {
+                    senderId = "9988",
+                    senderName = "Ada",
+                    senderRole = "admin",
+                    groupId = "group:123456"
+                },
+                startPolicy = "runWhenIdle"
+            });
+        AppServerTestHarness.AssertIsSuccessResponse(enqueueResponse);
+        var queuedInputId = enqueueResponse.RootElement.GetProperty("result").GetProperty("queuedInput").GetProperty("id").GetString()!;
+        Assert.Equal(bindingId, harness.Service.LastStartedQueuedInput?.DeliveryBindingId);
+
+        await harness.Service.WaitForThreadSubscriberAsync(thread.Id, TimeSpan.FromSeconds(2));
+        var input = new SessionItem
+        {
+            Id = "item_input",
+            TurnId = "turn_001",
+            Type = ItemType.UserMessage,
+            Status = ItemStatus.Completed,
+            CreatedAt = DateTimeOffset.UtcNow,
+            CompletedAt = DateTimeOffset.UtcNow,
+            Payload = new UserMessagePayload
+            {
+                Text = "hello from qq",
+                DeliveryMode = "queued",
+                QueuedInputId = queuedInputId,
+                DeliveryBindingId = bindingId
+            }
+        };
+        var turn = new SessionTurn
+        {
+            Id = "turn_001",
+            ThreadId = thread.Id,
+            Status = TurnStatus.Running,
+            StartedAt = DateTimeOffset.UtcNow,
+            Input = input,
+            Items = [input]
+        };
+        var completed = new SessionTurn
+        {
+            Id = turn.Id,
+            ThreadId = thread.Id,
+            Status = TurnStatus.Completed,
+            StartedAt = turn.StartedAt,
+            CompletedAt = DateTimeOffset.UtcNow,
+            Input = input,
+            Items =
+            [
+                input,
+                new SessionItem
+                {
+                    Id = "item_agent",
+                    TurnId = turn.Id,
+                    Type = ItemType.AgentMessage,
+                    Status = ItemStatus.Completed,
+                    CreatedAt = DateTimeOffset.UtcNow,
+                    CompletedAt = DateTimeOffset.UtcNow,
+                    Payload = new AgentMessagePayload { Text = "reply to bound qq" }
+                }
+            ]
+        };
+        harness.Service.PublishThreadEvent(new SessionEvent
+        {
+            EventId = "evt_1",
+            EventType = SessionEventType.TurnStarted,
+            ThreadId = thread.Id,
+            TurnId = turn.Id,
+            Timestamp = DateTimeOffset.UtcNow,
+            Payload = turn
+        });
+        harness.Service.PublishThreadEvent(new SessionEvent
+        {
+            EventId = "evt_2",
+            EventType = SessionEventType.TurnCompleted,
+            ThreadId = thread.Id,
+            TurnId = turn.Id,
+            Timestamp = DateTimeOffset.UtcNow,
+            Payload = completed
+        });
+
+        var delivery = await runtime.WaitForDeliveryAsync(TimeSpan.FromSeconds(2));
+        Assert.Equal("group:123456", delivery.Target);
+        Assert.Equal("text", delivery.Message.Kind);
+        Assert.Equal("reply to bound qq", delivery.Message.Text);
+        await WaitForAppBindingAuditContainsAsync("binding.socialDelivery.delivered");
+    }
+
+    [Fact]
+    public async Task SocialChannelAppBoundTool_UsesBindingTargetForNativeChannelTools()
+    {
+        const string qqAppId = "com.dotharness.channel.qq";
+        var registry = new ChannelRuntimeRegistry();
+        var runtime = new RecordingChannelRuntime(
+            "qq",
+            [
+                new ChannelToolDescriptor
+                {
+                    Name = "QQSendImageToCurrentChat",
+                    Description = "Send an image to the current QQ chat.",
+                    RequiresChatContext = true,
+                    InputSchema = new JsonObject
+                    {
+                        ["type"] = "object",
+                        ["properties"] = new JsonObject
+                        {
+                            ["fileName"] = new JsonObject { ["type"] = "string" }
+                        },
+                        ["required"] = new JsonArray("fileName")
+                    }
+                }
+            ]);
+        registry.Register(runtime);
+        var service = new AppBindingService([
+            new SocialChannelAppBindingRuntime(
+                "qq",
+                "QQ",
+                "Continue this thread in QQ.",
+                registry)
+        ]);
+        using var harness = CreateHarness(service, channelRuntimeRegistry: registry);
+        await InitializeChannelAdapterAsync(harness, "qq");
+        var thread = await harness.Service.CreateThreadAsync(CreateIdentity());
+        await CreateAcceptedQqSocialBindingAsync(harness, qqAppId, thread.Id);
+
+        var tools = service.CreateRuntimeToolsForThread(thread, new HashSet<string>(StringComparer.Ordinal))
+            .OfType<AIFunction>()
+            .ToList();
+        Assert.Contains(tools, tool => tool.Name == "SendMessageToBoundConversation");
+        var nativeTool = Assert.Single(tools, tool => tool.Name == "QQSendImageToCurrentChat");
+
+        var turn = AppServerTestHarness.MakeTurn(thread.Id);
+        var seq = 0;
+        using var scope = PluginFunctionExecutionScope.Set(new PluginFunctionExecutionContext
+        {
+            ThreadId = thread.Id,
+            TurnId = turn.Id,
+            OriginChannel = "desktop",
+            ChannelContext = "desktop-context-must-not-be-used",
+            SenderId = "desktop-user",
+            GroupId = "desktop-group",
+            WorkspacePath = thread.WorkspacePath,
+            RequireApprovalOutsideWorkspace = false,
+            ApprovalService = new AutoApproveApprovalService(),
+            Turn = turn,
+            SessionService = harness.Service,
+            NextItemSequence = () => ++seq,
+            EmitItemStarted = _ => { },
+            EmitItemCompleted = _ => { }
+        });
+
+        await nativeTool.InvokeAsync(new AIFunctionArguments(new Dictionary<string, object?>
+        {
+            ["fileName"] = "photo.png"
+        }));
+
+        var call = await runtime.WaitForToolCallAsync(TimeSpan.FromSeconds(2));
+        Assert.Equal("QQSendImageToCurrentChat", call.Tool);
+        Assert.Equal("photo.png", call.Arguments["fileName"]?.GetValue<string>());
+        Assert.Equal("qq", call.Context.ChannelName);
+        Assert.Equal("group:123456", call.Context.ChannelContext);
+        Assert.Equal("group:123456", call.Context.GroupId);
+        Assert.Equal("9988", call.Context.SenderId);
+
+        var payload = Assert.IsType<DynamicToolCallPayload>(Assert.Single(turn.Items).Payload);
+        Assert.True(payload.Success);
+        Assert.Equal("native tool ok", Assert.Single(payload.ContentItems!).Text);
+    }
+
+    [Fact]
+    public async Task SocialChannelAppBoundTool_RejectsNativeToolTargetOverride()
+    {
+        const string qqAppId = "com.dotharness.channel.qq";
+        var registry = new ChannelRuntimeRegistry();
+        var runtime = new RecordingChannelRuntime(
+            "qq",
+            [
+                new ChannelToolDescriptor
+                {
+                    Name = "QQSendImageToCurrentChat",
+                    Description = "Send an image to the current QQ chat.",
+                    RequiresChatContext = true,
+                    InputSchema = new JsonObject
+                    {
+                        ["type"] = "object",
+                        ["properties"] = new JsonObject
+                        {
+                            ["fileName"] = new JsonObject { ["type"] = "string" },
+                            ["chatId"] = new JsonObject { ["type"] = "string" }
+                        },
+                        ["required"] = new JsonArray("fileName")
+                    }
+                }
+            ]);
+        registry.Register(runtime);
+        var service = new AppBindingService([
+            new SocialChannelAppBindingRuntime(
+                "qq",
+                "QQ",
+                "Continue this thread in QQ.",
+                registry)
+        ]);
+        using var harness = CreateHarness(service, channelRuntimeRegistry: registry);
+        await InitializeChannelAdapterAsync(harness, "qq");
+        var thread = await harness.Service.CreateThreadAsync(CreateIdentity());
+        await CreateAcceptedQqSocialBindingAsync(harness, qqAppId, thread.Id);
+
+        var nativeTool = Assert.Single(
+            service.CreateRuntimeToolsForThread(thread, new HashSet<string>(StringComparer.Ordinal))
+                .OfType<AIFunction>(),
+            tool => tool.Name == "QQSendImageToCurrentChat");
+
+        var turn = AppServerTestHarness.MakeTurn(thread.Id);
+        var seq = 0;
+        using var scope = PluginFunctionExecutionScope.Set(new PluginFunctionExecutionContext
+        {
+            ThreadId = thread.Id,
+            TurnId = turn.Id,
+            OriginChannel = "desktop",
+            WorkspacePath = thread.WorkspacePath,
+            RequireApprovalOutsideWorkspace = false,
+            ApprovalService = new AutoApproveApprovalService(),
+            Turn = turn,
+            SessionService = harness.Service,
+            NextItemSequence = () => ++seq,
+            EmitItemStarted = _ => { },
+            EmitItemCompleted = _ => { }
+        });
+
+        await nativeTool.InvokeAsync(new AIFunctionArguments(new Dictionary<string, object?>
+        {
+            ["fileName"] = "photo.png",
+            ["chatId"] = "group:999999"
+        }));
+
+        Assert.Null(runtime.LastToolCall);
+        var payload = Assert.IsType<DynamicToolCallPayload>(Assert.Single(turn.Items).Payload);
+        Assert.False(payload.Success);
+        Assert.Equal(AppBindingErrorCodes.ProtocolViolation, payload.ErrorCode);
+        Assert.Contains("cannot override the bound social target", payload.ErrorMessage);
     }
 
     [Fact]
@@ -1763,18 +2290,166 @@ public sealed class AppBindingProtocolTests : IDisposable
     private AppServerTestHarness CreateHarness(
         AppBindingService service,
         AppConfig? config = null,
-        IContextPageManager? contextPageManager = null)
+        IContextPageManager? contextPageManager = null,
+        IChannelRuntimeRegistry? channelRuntimeRegistry = null)
     {
         config ??= new AppConfig();
         var monitor = new AppConfigMonitor(config);
         return new AppServerTestHarness(
             workspaceCraftPath: _workspaceCraftPath,
-            protocolExtensions: [new AppBindingProtocolExtension(service, monitor, builtInPluginSourceRoots: [BundledPluginSourceRoot()])],
+            protocolExtensions:
+            [
+                new AppBindingProtocolExtension(
+                    service,
+                    monitor,
+                    builtInPluginSourceRoots: [BundledPluginSourceRoot()],
+                    channelRuntimeRegistry: channelRuntimeRegistry)
+            ],
             appConfigMonitor: monitor,
             appBindingService: service,
             contextPageManager: contextPageManager,
             builtInPluginSourceRoots: [BundledPluginSourceRoot()]);
     }
+
+    private static async Task InitializeChannelAdapterAsync(AppServerTestHarness harness, string channelName)
+    {
+        await harness.ExecuteRequestAsync(harness.BuildRequest(
+            AppServerMethods.Initialize,
+            new
+            {
+                clientInfo = new { name = $"{channelName}-adapter", version = "0.0.1" },
+                capabilities = new
+                {
+                    approvalSupport = true,
+                    streamingSupport = true,
+                    channelAdapter = new
+                    {
+                        channelName,
+                        deliverySupport = true
+                    }
+                }
+            }));
+        using var response = await harness.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(response);
+        harness.Handler.HandleInitializedNotification();
+    }
+
+    private static async Task<string> CreateAcceptedQqSocialBindingAsync(
+        AppServerTestHarness harness,
+        string qqAppId,
+        string threadId)
+    {
+        using var createResponse = await ExecuteAndReadResponseAsync(
+            harness,
+            AppBindingRequestCreate,
+            new
+            {
+                threadId,
+                appId = qqAppId,
+                requestedScopes = new[] { "conversation.receive", "message.send" },
+                source = "threadMenu",
+                bindingKind = "socialChannel",
+                socialIntent = new { channelName = "qq" }
+            });
+        AppServerTestHarness.AssertIsSuccessResponse(createResponse);
+        var bindingRequestId = createResponse.RootElement.GetProperty("result").GetProperty("bindingRequestId").GetString()!;
+        var bindCode = createResponse.RootElement.GetProperty("result").GetProperty("handoff").GetProperty("bindCode").GetString()!;
+
+        using var acceptResponse = await ExecuteAndReadResponseAsync(
+            harness,
+            AppBindingAccept,
+            new
+            {
+                bindingRequestId,
+                requestToken = bindCode,
+                grantId = "social-grant-1",
+                grantedScopes = new[] { "conversation.receive", "message.send" },
+                approvalMode = "channelBindCode",
+                approvedBy = "9988",
+                socialTarget = QqSocialTarget()
+            },
+            expectedNotificationMethod: "thread/appBindings/changed");
+        AppServerTestHarness.AssertIsSuccessResponse(acceptResponse);
+        return acceptResponse.RootElement.GetProperty("result").GetProperty("binding").GetProperty("bindingId").GetString()!;
+    }
+
+    private static object QqSocialTarget() => new
+    {
+        channelName = "qq",
+        conversationKind = "group",
+        conversationId = "123456",
+        deliveryTarget = "group:123456",
+        displayName = "QQ group 123456",
+        boundBy = new
+        {
+            platformUserId = "9988",
+            displayName = "Ada"
+        }
+    };
+
+    private sealed class RecordingChannelRuntime(
+        string name,
+        IReadOnlyList<ChannelToolDescriptor>? channelTools = null) : IChannelRuntime
+    {
+        private readonly TaskCompletionSource<RecordedDelivery> _delivery =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource<ExtChannelToolCallParams> _toolCall =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public string Name { get; } = name;
+
+        public ExtChannelToolCallParams? LastToolCall { get; private set; }
+
+        public IReadOnlyList<ChannelToolDescriptor> GetChannelTools() => channelTools ?? [];
+
+        public Task<ExtChannelSendResult> DeliverAsync(
+            string target,
+            ChannelOutboundMessage message,
+            object? metadata = null,
+            CancellationToken cancellationToken = default)
+        {
+            _delivery.TrySetResult(new RecordedDelivery(target, message, metadata));
+            return Task.FromResult(new ExtChannelSendResult
+            {
+                Delivered = true,
+                RemoteMessageId = "remote-1"
+            });
+        }
+
+        public Task<ExtChannelToolCallResult> ExecuteToolAsync(
+            ExtChannelToolCallParams request,
+            CancellationToken cancellationToken = default)
+        {
+            LastToolCall = request;
+            _toolCall.TrySetResult(request);
+            return Task.FromResult(new ExtChannelToolCallResult
+            {
+                Success = true,
+                ContentItems = [new ExtChannelToolContentItem { Type = "text", Text = "native tool ok" }]
+            });
+        }
+
+        public async Task<RecordedDelivery> WaitForDeliveryAsync(TimeSpan timeout)
+        {
+            var completed = await Task.WhenAny(_delivery.Task, Task.Delay(timeout));
+            if (completed != _delivery.Task)
+                throw new TimeoutException("Timed out waiting for channel delivery.");
+            return await _delivery.Task;
+        }
+
+        public async Task<ExtChannelToolCallParams> WaitForToolCallAsync(TimeSpan timeout)
+        {
+            var completed = await Task.WhenAny(_toolCall.Task, Task.Delay(timeout));
+            if (completed != _toolCall.Task)
+                throw new TimeoutException("Timed out waiting for channel tool call.");
+            return await _toolCall.Task;
+        }
+    }
+
+    private sealed record RecordedDelivery(
+        string Target,
+        ChannelOutboundMessage Message,
+        object? Metadata);
 
     [Fact]
     public async Task UiResourceRead_BrokersDeclaredResourceToAppAndRejectsUndeclaredUri()
@@ -2153,10 +2828,50 @@ public sealed class AppBindingProtocolTests : IDisposable
     private void AssertAppBindingAuditContains(string eventName)
     {
         var statePath = Path.Combine(_workspaceCraftPath, "app-bindings", "state.json");
-        using var document = JsonDocument.Parse(File.ReadAllText(statePath));
+        using var document = JsonDocument.Parse(ReadAppBindingState(statePath));
         Assert.Contains(
             document.RootElement.GetProperty("audit").EnumerateArray(),
             audit => audit.GetProperty("event").GetString() == eventName);
+    }
+
+    private async Task WaitForAppBindingAuditContainsAsync(string eventName)
+    {
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(2);
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            var statePath = Path.Combine(_workspaceCraftPath, "app-bindings", "state.json");
+            if (File.Exists(statePath))
+            {
+                try
+                {
+                    using var document = JsonDocument.Parse(ReadAppBindingState(statePath));
+                    if (document.RootElement.GetProperty("audit").EnumerateArray()
+                        .Any(audit => audit.GetProperty("event").GetString() == eventName))
+                    {
+                        return;
+                    }
+                }
+                catch (IOException)
+                {
+                    // The social delivery observer writes audit asynchronously; retry while the file is locked.
+                }
+                catch (JsonException)
+                {
+                    // The writer may have replaced the state file between Exists and read; retry.
+                }
+            }
+
+            await Task.Delay(10);
+        }
+
+        AssertAppBindingAuditContains(eventName);
+    }
+
+    private static string ReadAppBindingState(string statePath)
+    {
+        using var stream = new FileStream(statePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+        using var reader = new StreamReader(stream);
+        return reader.ReadToEnd();
     }
 
     private SessionIdentity CreateIdentity() =>

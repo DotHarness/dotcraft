@@ -37,6 +37,135 @@ test("parseTargetChatId supports raw and prefixed targets", () => {
   assert.equal(parseTargetChatId("bad-target"), null);
 });
 
+test("TelegramAdapter builds social binding target from chat context", () => {
+  const adapter = new TelegramAdapter() as unknown as {
+    buildSocialTarget: (
+      opts: Record<string, unknown>,
+      sender: Record<string, unknown>,
+      channelContext: string,
+    ) => Record<string, unknown> | null;
+  };
+
+  const target = adapter.buildSocialTarget(
+    {
+      userId: "42",
+      userName: "Ada",
+      text: "/bind DTC-123456",
+      channelContext: "group:-100123",
+    },
+    {
+      senderId: "42",
+      senderName: "Ada",
+      senderRole: "admin",
+      groupId: "group:-100123",
+    },
+    "group:-100123",
+  );
+
+  assert.deepEqual(target, {
+    channelName: "telegram",
+    conversationKind: "group",
+    conversationId: "-100123",
+    deliveryTarget: "group:-100123",
+    displayName: "Telegram chat -100123",
+    boundBy: {
+      platformUserId: "42",
+      displayName: "Ada",
+    },
+  });
+});
+
+test("TelegramAdapter accepts social bind codes for chat context", async () => {
+  const adapter = new TelegramAdapter() as unknown as {
+    client: {
+      request: (method: string, params: Record<string, unknown>) => Promise<Record<string, unknown>>;
+    };
+    commandRouter: {
+      routeBeforeQueue: () => Promise<"enqueue" | "handled">;
+    };
+    onDeliver: (target: string, content: string, metadata: Record<string, unknown>) => Promise<boolean>;
+    handleMessage: (opts: Record<string, unknown>) => Promise<void>;
+  };
+  const requests: Array<{ method: string; params: Record<string, unknown> }> = [];
+  const deliveries: Array<{ target: string; content: string; metadata: Record<string, unknown> }> = [];
+
+  adapter.commandRouter.routeBeforeQueue = async () => {
+    throw new Error("bind command should not reach command routing");
+  };
+  adapter.client.request = async (method, params) => {
+    requests.push({ method, params });
+    if (method === "app/binding/request/get") {
+      return {
+        bindingRequestId: "request-1",
+        appId: "com.dotharness.channel.telegram",
+        threadId: "thread-1",
+        bindingKind: "socialChannel",
+        requestedScopes: ["conversation.receive", "message.send"],
+      };
+    }
+    if (method === "app/binding/accept") {
+      return {
+        binding: {
+          bindingId: "binding-1",
+          appId: "com.dotharness.channel.telegram",
+          threadId: "thread-1",
+          state: "active",
+          bindingKind: "socialChannel",
+          socialTarget: params.socialTarget,
+        },
+      };
+    }
+    throw new Error(`unexpected request ${method}`);
+  };
+  adapter.onDeliver = async (target, content, metadata) => {
+    deliveries.push({ target, content, metadata });
+    return true;
+  };
+
+  await adapter.handleMessage({
+    userId: "42",
+    userName: "Ada",
+    text: "/bind DTC-123456",
+    channelContext: "group:-100123",
+    senderExtra: { senderRole: "admin" },
+  });
+
+  assert.deepEqual(requests[0], {
+    method: "app/binding/request/get",
+    params: {
+      appId: "com.dotharness.channel.telegram",
+      bindCode: "DTC-123456",
+      requestToken: "DTC-123456",
+    },
+  });
+  assert.equal(requests[1]?.method, "app/binding/accept");
+  assert.deepEqual(requests[1]?.params.socialTarget, {
+    channelName: "telegram",
+    conversationKind: "group",
+    conversationId: "-100123",
+    deliveryTarget: "group:-100123",
+    displayName: "Telegram chat -100123",
+    boundBy: {
+      platformUserId: "42",
+      displayName: "Ada",
+    },
+  });
+  assert.equal(requests[1]?.params.grantId, "social:telegram::group:-100123");
+  assert.equal(requests[1]?.params.approvedBy, "42");
+  assert.equal(requests[1]?.params.auditRef, "channel:telegram:group:-100123");
+  assert.deepEqual(deliveries, [
+    {
+      target: "group:-100123",
+      content: "Bound this conversation to thread thread-1.",
+      metadata: {
+        appId: "com.dotharness.channel.telegram",
+        bindingId: "binding-1",
+        bindingKind: "socialChannel",
+      },
+    },
+  ]);
+});
+
 test("isTelegramConflictError detects 409 conflict messages", () => {
   assert.equal(isTelegramConflictError(new Error("409 Conflict: terminated by other getUpdates request")), true);
   assert.equal(isTelegramConflictError(new Error("400 Bad Request")), false);

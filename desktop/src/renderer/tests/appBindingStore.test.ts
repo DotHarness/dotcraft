@@ -242,6 +242,50 @@ describe('appBindingStore', () => {
     expect(listCalls).toBe(2)
   })
 
+  it('treats an active social-channel binding as ready without attached tools', async () => {
+    sendRequest.mockImplementation(async (method: string) => {
+      if (method === 'thread/appBindings/list') {
+        return {
+          bindings: [
+            {
+              bindingRequestId: 'request-social-1',
+              bindingId: 'binding-social-1',
+              threadId: 'thread-1',
+              appId: 'com.dotharness.channel.qq',
+              bindingKind: 'socialChannel',
+              state: 'active',
+              connectionState: 'connected',
+              grantedScopes: ['conversation.receive', 'message.send'],
+              attachedToolCount: 0,
+              lastChangedAt: '2026-05-16T00:00:00Z',
+              socialTarget: {
+                channelName: 'qq',
+                conversationKind: 'group',
+                conversationId: '123456',
+                deliveryTarget: 'group:123456',
+                displayName: 'QQ group 123456'
+              }
+            }
+          ]
+        }
+      }
+      return {}
+    })
+
+    const binding = await useAppBindingStore.getState().waitForThreadBinding(
+      {
+        threadId: 'thread-1',
+        appId: 'com.dotharness.channel.qq',
+        bindingRequestId: 'request-social-1'
+      },
+      { timeoutMs: 1, intervalMs: 0 }
+    )
+
+    expect(binding.state).toBe('active')
+    expect(binding.attachedToolCount).toBe(0)
+    expect(binding.socialTarget?.displayName).toBe('QQ group 123456')
+  })
+
   it('times out while a thread binding has no attached tools', async () => {
     sendRequest.mockImplementation(async (method: string) => {
       if (method === 'thread/appBindings/list') {

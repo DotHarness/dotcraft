@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { ChannelAdapter } from "./adapter.js";
+import { ChannelAdapter, type ChannelAdapterMessageOpts } from "./adapter.js";
 import { Thread, Turn } from "./models.js";
 import { shouldFlushSegmentOnItemStarted } from "./segmentBoundaries.js";
 import type { Transport } from "./transport.js";
@@ -52,6 +52,23 @@ class RecordingAdapter extends ChannelAdapter {
   ): Promise<void> {
     await super.onTurnCompleted(_threadId, _turnId, replyText, _channelContext, segmentsWereDelivered);
     if (!segmentsWereDelivered && replyText) this.completedReplies.push(replyText);
+  }
+}
+
+class SocialRecordingAdapter extends RecordingAdapter {
+  protected override buildSocialTarget(
+    opts: ChannelAdapterMessageOpts,
+    sender: Record<string, unknown>,
+    channelContext: string,
+  ) {
+    const conversationId = channelContext || String(sender.groupId ?? opts.userId);
+    return {
+      channelName: "test-channel",
+      conversationKind: "group",
+      conversationId,
+      displayName: `Group ${conversationId}`,
+      deliveryTarget: `group:${conversationId}`,
+    };
   }
 }
 
@@ -119,6 +136,87 @@ test("ChannelAdapter flushes the current segment before plugin function calls", 
     [],
     "full merged reply must not be delivered again when segments were already sent",
   );
+});
+
+test("processMessage enqueues bound social input instead of streaming a turn", async () => {
+  const adapter = new SocialRecordingAdapter();
+  const client = (adapter as unknown as { client: Record<string, unknown> }).client;
+  let resolveParams: Record<string, unknown> | null = null;
+  let enqueueParams: Record<string, unknown> | null = null;
+
+  (adapter as unknown as {
+    getOrCreateThread: (...args: unknown[]) => Promise<Thread>;
+  }).getOrCreateThread = async () => {
+    throw new Error("bound social input must not create a legacy thread");
+  };
+
+  client.threadResume = async () => {
+    throw new Error("bound social input must not resume for streaming");
+  };
+  client.streamEvents = () => {
+    throw new Error("bound social input must not open a stream");
+  };
+  client.turnStart = async () => {
+    throw new Error("bound social input must not start a streaming turn");
+  };
+  client.request = async (method: unknown, params: unknown) => {
+    if (method === "app/socialBinding/resolve") {
+      resolveParams = params as Record<string, unknown>;
+      return {
+        binding: {
+          bindingId: "bind-social-1",
+          threadId: "thread-bound-1",
+          appId: "com.dotharness.channel.test-channel",
+          grantId: "grant-social-1",
+          bindingKind: "socialChannel",
+          state: "active",
+          connectionState: "connected",
+          grantedScopes: ["conversation.receive", "message.send"],
+          attachedToolCount: 0,
+          lastChangedAt: "2026-06-20T00:00:00Z",
+          socialTarget: {
+            channelName: "test-channel",
+            conversationKind: "group",
+            conversationId: "group-123",
+            deliveryTarget: "group:group-123",
+          },
+        },
+      };
+    }
+    if (method === "app/threadInput/enqueue") {
+      enqueueParams = params as Record<string, unknown>;
+      return { queuedInput: { id: "queue-1", threadId: "thread-bound-1", status: "queued" }, queuedInputs: [] };
+    }
+    throw new Error(`unexpected request ${String(method)}`);
+  };
+
+  await (adapter as unknown as {
+    processMessage: (identityKey: string, opts: Record<string, unknown>) => Promise<void>;
+  }).processMessage("u:group-123", {
+    userId: "u",
+    userName: "Tester",
+    text: "hello bound",
+    channelContext: "group-123",
+  });
+
+  assert.deepEqual(resolveParams, {
+    appId: "com.dotharness.channel.test-channel",
+    channelName: "test-channel",
+    accountId: undefined,
+    conversationKind: "group",
+    conversationId: "group-123",
+  });
+  assert.deepEqual(enqueueParams, {
+    bindingId: "bind-social-1",
+    appId: "com.dotharness.channel.test-channel",
+    grantId: "grant-social-1",
+    input: [{ type: "text", text: "hello bound" }],
+    displayText: "hello bound",
+    triggerLabel: "test-channel message",
+    triggerRefId: "test-channel::group:group-123",
+    startPolicy: "runWhenIdle",
+    sender: { senderId: "u", senderName: "Tester", groupId: "group-123" },
+  });
 });
 
 test("ChannelAdapter lets explicit sender override thread identity and omit implicit channel context groupId", async () => {

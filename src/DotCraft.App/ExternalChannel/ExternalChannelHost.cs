@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text.Json;
 using DotCraft.Abstractions;
+using DotCraft.AppBinding;
 using DotCraft.AppServer;
 using DotCraft.Configuration;
 using DotCraft.Cron;
@@ -45,6 +46,8 @@ public sealed class ExternalChannelHost : IChannelService
     private readonly Func<ProcessStartInfo, ManagedChildProcess> _managedChildProcessFactory;
     private readonly SessionStreamDebugLogger? _streamDebugLogger;
     private readonly IAppConfigMonitor? _appConfigMonitor;
+    private readonly IReadOnlyList<IAppServerProtocolExtension> _protocolExtensions;
+    private readonly AppBindingService? _appBindingService;
 
     // Current transport/connection/handler — replaced on restart or reconnect
     private IAppServerTransport? _transport;
@@ -86,7 +89,9 @@ public sealed class ExternalChannelHost : IChannelService
         IApprovalService? approvalService = null,
         Func<string, object>? deliveryDependenciesFactory = null,
         SessionStreamDebugLogger? streamDebugLogger = null,
-        IAppConfigMonitor? appConfigMonitor = null)
+        IAppConfigMonitor? appConfigMonitor = null,
+        IEnumerable<IAppServerProtocolExtension>? protocolExtensions = null,
+        AppBindingService? appBindingService = null)
         : this(
             config,
             sessionService,
@@ -98,7 +103,9 @@ public sealed class ExternalChannelHost : IChannelService
             deliveryDependenciesFactory,
             ManagedChildProcess.Start,
             streamDebugLogger,
-            appConfigMonitor)
+            appConfigMonitor,
+            protocolExtensions,
+            appBindingService)
     {
     }
 
@@ -111,7 +118,9 @@ public sealed class ExternalChannelHost : IChannelService
         Func<string, object>? deliveryDependenciesFactory,
         Func<ProcessStartInfo, ManagedChildProcess> managedChildProcessFactory,
         SessionStreamDebugLogger? streamDebugLogger = null,
-        IAppConfigMonitor? appConfigMonitor = null)
+        IAppConfigMonitor? appConfigMonitor = null,
+        IEnumerable<IAppServerProtocolExtension>? protocolExtensions = null,
+        AppBindingService? appBindingService = null)
         : this(
             config,
             sessionService,
@@ -123,7 +132,9 @@ public sealed class ExternalChannelHost : IChannelService
             deliveryDependenciesFactory,
             managedChildProcessFactory,
             streamDebugLogger,
-            appConfigMonitor)
+            appConfigMonitor,
+            protocolExtensions,
+            appBindingService)
     {
     }
 
@@ -138,7 +149,9 @@ public sealed class ExternalChannelHost : IChannelService
         Func<string, object>? deliveryDependenciesFactory,
         Func<ProcessStartInfo, ManagedChildProcess> managedChildProcessFactory,
         SessionStreamDebugLogger? streamDebugLogger = null,
-        IAppConfigMonitor? appConfigMonitor = null)
+        IAppConfigMonitor? appConfigMonitor = null,
+        IEnumerable<IAppServerProtocolExtension>? protocolExtensions = null,
+        AppBindingService? appBindingService = null)
     {
         _config = config ?? throw new ArgumentNullException(nameof(config));
         _sessionService = sessionService ?? throw new ArgumentNullException(nameof(sessionService));
@@ -150,6 +163,8 @@ public sealed class ExternalChannelHost : IChannelService
         _managedChildProcessFactory = managedChildProcessFactory ?? throw new ArgumentNullException(nameof(managedChildProcessFactory));
         _streamDebugLogger = streamDebugLogger;
         _appConfigMonitor = appConfigMonitor;
+        _protocolExtensions = protocolExtensions?.ToArray() ?? [];
+        _appBindingService = appBindingService;
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -437,6 +452,8 @@ public sealed class ExternalChannelHost : IChannelService
                 StreamDebugLogger = _streamDebugLogger,
                 ConfigSchema = ConfigSchemaRegistrations.GetConfigSchema(),
                 AppConfigMonitor = _appConfigMonitor,
+                ProtocolExtensions = _protocolExtensions,
+                AppBindingService = _appBindingService,
             });
 
         // Forward stderr to DotCraft's diagnostic log
@@ -688,6 +705,8 @@ public sealed class ExternalChannelHost : IChannelService
                 StreamDebugLogger = _streamDebugLogger,
                 ConfigSchema = ConfigSchemaRegistrations.GetConfigSchema(),
                 AppConfigMonitor = _appConfigMonitor,
+                ProtocolExtensions = _protocolExtensions,
+                AppBindingService = _appBindingService,
             });
 
         AnsiConsole.MarkupLine(
@@ -748,6 +767,8 @@ public sealed class ExternalChannelHost : IChannelService
                     StreamDebugLogger = _streamDebugLogger,
                     ConfigSchema = ConfigSchemaRegistrations.GetConfigSchema(),
                     AppConfigMonitor = _appConfigMonitor,
+                    ProtocolExtensions = _protocolExtensions,
+                    AppBindingService = _appBindingService,
                 });
 
             AnsiConsole.MarkupLine(

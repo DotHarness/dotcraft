@@ -71,6 +71,7 @@ internal sealed class AppToolAttachmentService(
             binding.GrantProof = p.GrantProof?.DeepClone() as JsonObject;
             binding.LastChangedAt = DateTimeOffset.UtcNow;
             binding.Diagnostic = null;
+            binding.ExposureRevision++;
 
             attachments.Set(binding.BindingId, transport, connection);
             if (wasOffline)
@@ -275,6 +276,7 @@ internal sealed class AppToolAttachmentService(
             BindingId = binding.BindingId,
             ThreadId = binding.ThreadId,
             AppId = binding.AppId,
+            GrantId = binding.GrantId,
             DisplayName = descriptor?.DisplayName,
             Icon = ResolveIconForWire(descriptor?.Icon),
             ToolNamespace = descriptor?.ToolNamespace,
@@ -288,7 +290,10 @@ internal sealed class AppToolAttachmentService(
             LastChangedAt = binding.LastChangedAt,
             ApprovalMode = binding.ApprovalMode,
             AuditRef = binding.AuditRef,
-            Diagnostic = binding.Diagnostic
+            Diagnostic = binding.Diagnostic,
+            BindingKind = binding.BindingKind,
+            SocialTarget = binding.SocialTarget,
+            ExposureRevision = binding.ExposureRevision
         };
     }
 

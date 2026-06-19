@@ -87,6 +87,163 @@ test("QQAdapter uses group thread identity and real sender context", async () =>
   assert.equal(privateOpts.omitSenderGroupId, true);
 });
 
+test("QQAdapter builds social binding targets from native QQ context", () => {
+  const adapter = new QQAdapter() as unknown as {
+    buildSocialTarget: (
+      opts: Record<string, unknown>,
+      sender: Record<string, unknown>,
+      channelContext: string,
+    ) => Record<string, unknown> | null;
+  };
+
+  assert.deepEqual(adapter.buildSocialTarget(
+    {
+      userId: "group:123",
+      userName: "Alice",
+      text: "/bind DTC-123456",
+      channelContext: "group:123",
+    },
+    {
+      senderId: "456",
+      senderName: "Alice",
+      senderRole: "admin",
+      groupId: "group:123",
+    },
+    "group:123",
+  ), {
+    channelName: "qq",
+    conversationKind: "group",
+    conversationId: "123",
+    deliveryTarget: "group:123",
+    displayName: "QQ group 123",
+    boundBy: {
+      platformUserId: "456",
+      displayName: "Alice",
+    },
+  });
+
+  assert.deepEqual(adapter.buildSocialTarget(
+    {
+      userId: "456",
+      userName: "Alice",
+      text: "/bind DTC-123456",
+      channelContext: "user:456",
+    },
+    {
+      senderId: "456",
+      senderName: "Alice",
+      senderRole: "admin",
+    },
+    "user:456",
+  ), {
+    channelName: "qq",
+    conversationKind: "user",
+    conversationId: "456",
+    deliveryTarget: "user:456",
+    displayName: "Alice",
+    boundBy: {
+      platformUserId: "456",
+      displayName: "Alice",
+    },
+  });
+});
+
+test("QQAdapter accepts social bind codes before group mention gating", async () => {
+  const adapter = new QQAdapter() as unknown as {
+    permission: QQPermissionService;
+    requireMentionInGroups: boolean;
+    client: {
+      request: (method: string, params: Record<string, unknown>) => Promise<Record<string, unknown>>;
+    };
+    commandRouter: {
+      routeBeforeQueue: () => Promise<"enqueue" | "handled">;
+    };
+    onDeliver: (target: string, content: string, metadata: Record<string, unknown>) => Promise<boolean>;
+    handleOneBotMessage: (evt: OneBotMessageEvent) => Promise<void>;
+  };
+  const requests: Array<{ method: string; params: Record<string, unknown> }> = [];
+  const deliveries: Array<{ target: string; content: string; metadata: Record<string, unknown> }> = [];
+
+  adapter.permission = new QQPermissionService({ adminUsers: [456] });
+  adapter.requireMentionInGroups = true;
+  adapter.commandRouter.routeBeforeQueue = async () => {
+    throw new Error("bind command should not reach command routing");
+  };
+  adapter.client.request = async (method, params) => {
+    requests.push({ method, params });
+    if (method === "app/binding/request/get") {
+      return {
+        bindingRequestId: "request-1",
+        appId: "com.dotharness.channel.qq",
+        threadId: "thread-1",
+        bindingKind: "socialChannel",
+        requestedScopes: ["conversation.receive", "message.send"],
+      };
+    }
+    if (method === "app/binding/accept") {
+      return {
+        binding: {
+          bindingId: "binding-1",
+          appId: "com.dotharness.channel.qq",
+          threadId: "thread-1",
+          state: "active",
+          bindingKind: "socialChannel",
+          socialTarget: params.socialTarget,
+        },
+      };
+    }
+    throw new Error(`unexpected request ${method}`);
+  };
+  adapter.onDeliver = async (target, content, metadata) => {
+    deliveries.push({ target, content, metadata });
+    return true;
+  };
+
+  await adapter.handleOneBotMessage({
+    post_type: "message",
+    message_type: "group",
+    user_id: 456,
+    group_id: 123,
+    sender: { card: "Alice" },
+    message: [{ type: "text", data: { text: "/bind DTC-123456" } }],
+  });
+
+  assert.deepEqual(requests[0], {
+    method: "app/binding/request/get",
+    params: {
+      appId: "com.dotharness.channel.qq",
+      bindCode: "DTC-123456",
+      requestToken: "DTC-123456",
+    },
+  });
+  assert.equal(requests[1]?.method, "app/binding/accept");
+  assert.deepEqual(requests[1]?.params.socialTarget, {
+    channelName: "qq",
+    conversationKind: "group",
+    conversationId: "123",
+    deliveryTarget: "group:123",
+    displayName: "QQ group 123",
+    boundBy: {
+      platformUserId: "456",
+      displayName: "Alice",
+    },
+  });
+  assert.equal(requests[1]?.params.grantId, "social:qq::group:123");
+  assert.equal(requests[1]?.params.approvedBy, "456");
+  assert.equal(requests[1]?.params.auditRef, "channel:qq:group:123");
+  assert.deepEqual(deliveries, [
+    {
+      target: "group:123",
+      content: "Bound this conversation to thread thread-1.",
+      metadata: {
+        appId: "com.dotharness.channel.qq",
+        bindingId: "binding-1",
+        bindingKind: "socialChannel",
+      },
+    },
+  ]);
+});
+
 test("QQAdapter resolves approvals only for the matching sender and chat", async () => {
   type PendingApproval = {
     channelContext: string;

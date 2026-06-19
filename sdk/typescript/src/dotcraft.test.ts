@@ -17,6 +17,7 @@ class FakeWire {
   approvalHandler: ServerRequestHandler | null = null;
   readonly requestHandlers = new Map<string, ServerRequestHandler>();
   readonly calls: string[] = [];
+  readonly requests: Array<{ method: string; params: unknown }> = [];
   startParams: Record<string, unknown> | null = null;
   turnStartInput: unknown;
   turnStartSender: unknown;
@@ -94,7 +95,8 @@ class FakeWire {
     this.releaseAfterInterrupt?.();
   }
 
-  async request<T>(method: string): Promise<T> {
+  async request<T>(method: string, params?: unknown): Promise<T> {
+    this.requests.push({ method, params: toJsonParams(params) });
     if (method === "model/list") {
       return {
         models: [{ id: "claude-opus-4-8", displayName: "Claude Opus 4.8", provider: "anthropic" }],
@@ -129,6 +131,11 @@ function createSdk(
     approvalHandler,
     userInputHandler,
   );
+}
+
+function toJsonParams(params: unknown): unknown {
+  if (params === undefined) return undefined;
+  return JSON.parse(JSON.stringify(params)) as unknown;
 }
 
 test("DotCraft thread start strips dynamic tool handlers and binds callbacks", async () => {
@@ -314,4 +321,105 @@ test("DotCraft models.list returns typed model info", async () => {
   assert.equal(models[0].id, "claude-opus-4-8");
   assert.equal(models[0].displayName, "Claude Opus 4.8");
   assert.equal(models[0].provider, "anthropic");
+});
+
+test("DotCraft appBindings social helpers send expected JSON-RPC params", async () => {
+  const wire = new FakeWire();
+  const sdk = createSdk(wire);
+  const socialTarget = {
+    channelName: "qq",
+    conversationKind: "group",
+    conversationId: "123",
+    deliveryTarget: "group:123",
+    displayName: "QQ group 123",
+    boundBy: {
+      platformUserId: "456",
+      displayName: "Alice",
+    },
+  };
+
+  await sdk.appBindings.createSocialBindingRequest({
+    threadId: "thread-1",
+    channelName: "qq",
+    requestedTools: ["SendMessageToBoundConversation"],
+    displayHint: "QQ",
+  });
+  await sdk.appBindings.getBindingRequest({
+    appId: "com.dotharness.channel.qq",
+    bindCode: "DTC-123456",
+    requestToken: "DTC-123456",
+  });
+  await sdk.appBindings.acceptSocialBinding({
+    bindingRequestId: "request-1",
+    requestToken: "DTC-123456",
+    socialTarget,
+  });
+  await sdk.appBindings.resolveSocialBinding({
+    channelName: "qq",
+    conversationKind: "group",
+    conversationId: "123",
+  });
+  await sdk.appBindings.enqueueThreadInput({
+    bindingId: "binding-1",
+    appId: "com.dotharness.channel.qq",
+    grantId: "social:qq::group:123",
+    input: [{ type: "text", text: "hello" }],
+    displayText: "hello",
+    triggerLabel: "qq message",
+    triggerRefId: "qq::group:123",
+    startPolicy: "runWhenIdle",
+    sender: { senderId: "456", senderName: "Alice", groupId: "group:123" },
+  });
+
+  assert.deepEqual(wire.requests.map((request) => request.method), [
+    "app/binding/request/create",
+    "app/binding/request/get",
+    "app/binding/accept",
+    "app/socialBinding/resolve",
+    "app/threadInput/enqueue",
+  ]);
+  assert.deepEqual(wire.requests[0]?.params, {
+    threadId: "thread-1",
+    appId: "com.dotharness.channel.qq",
+    requestedScopes: ["conversation.receive", "message.send"],
+    requestedTools: ["SendMessageToBoundConversation"],
+    source: "sdk",
+    bindingKind: "socialChannel",
+    socialIntent: {
+      channelName: "qq",
+      targetSelection: "confirmInChannel",
+      displayHint: "QQ",
+    },
+  });
+  assert.deepEqual(wire.requests[1]?.params, {
+    appId: "com.dotharness.channel.qq",
+    bindCode: "DTC-123456",
+    requestToken: "DTC-123456",
+  });
+  assert.deepEqual(wire.requests[2]?.params, {
+    bindingRequestId: "request-1",
+    requestToken: "DTC-123456",
+    grantId: "social:qq::group:123",
+    grantedScopes: ["conversation.receive", "message.send"],
+    approvalMode: "channelBindCode",
+    approvedBy: "456",
+    socialTarget,
+  });
+  assert.deepEqual(wire.requests[3]?.params, {
+    appId: "com.dotharness.channel.qq",
+    channelName: "qq",
+    conversationKind: "group",
+    conversationId: "123",
+  });
+  assert.deepEqual(wire.requests[4]?.params, {
+    bindingId: "binding-1",
+    appId: "com.dotharness.channel.qq",
+    grantId: "social:qq::group:123",
+    input: [{ type: "text", text: "hello" }],
+    displayText: "hello",
+    triggerLabel: "qq message",
+    triggerRefId: "qq::group:123",
+    startPolicy: "runWhenIdle",
+    sender: { senderId: "456", senderName: "Alice", groupId: "group:123" },
+  });
 });

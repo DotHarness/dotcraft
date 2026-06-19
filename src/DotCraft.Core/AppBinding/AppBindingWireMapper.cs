@@ -99,7 +99,10 @@ internal sealed class AppBindingWireMapper(
                     Managed = managed,
                     RequiresExternalConnection = requiresExternalConnection,
                     GrantedScopes = binding.GrantedScopes.ToList(),
-                    ExpiresAt = binding.ExpiresAt
+                    ExpiresAt = binding.ExpiresAt,
+                    BindingKind = binding.BindingKind,
+                    SocialTarget = binding.SocialTarget,
+                    ExposureRevision = binding.ExposureRevision
                 },
             Diagnostics = entry.Diagnostics.Select(MapDiagnostic).ToList()
         };
@@ -164,6 +167,7 @@ internal sealed class AppBindingWireMapper(
             BindingId = binding.BindingId,
             ThreadId = binding.ThreadId,
             AppId = binding.AppId,
+            GrantId = binding.GrantId,
             DisplayName = descriptor?.DisplayName,
             Icon = ResolveIconForWire(descriptor?.Icon),
             ToolNamespace = descriptor?.ToolNamespace,
@@ -177,7 +181,10 @@ internal sealed class AppBindingWireMapper(
             LastChangedAt = binding.LastChangedAt,
             ApprovalMode = binding.ApprovalMode,
             AuditRef = binding.AuditRef,
-            Diagnostic = binding.Diagnostic
+            Diagnostic = binding.Diagnostic,
+            BindingKind = binding.BindingKind,
+            SocialTarget = binding.SocialTarget,
+            ExposureRevision = binding.ExposureRevision
         };
     }
 
@@ -209,7 +216,8 @@ internal sealed class AppBindingWireMapper(
             AttachedToolCount = 0,
             ExpiresAt = request.ExpiresAt,
             LastChangedAt = request.CreatedAt,
-            Diagnostic = request.Reason
+            Diagnostic = request.Reason,
+            BindingKind = request.BindingKind
         };
     }
 
@@ -236,7 +244,10 @@ internal sealed class AppBindingWireMapper(
             Managed = binding.Managed,
             RequiresExternalConnection = binding.RequiresExternalConnection,
             GrantedScopes = binding.GrantedScopes.ToList(),
-            ExpiresAt = binding.ExpiresAt
+            ExpiresAt = binding.ExpiresAt,
+            BindingKind = binding.BindingKind,
+            SocialTarget = binding.SocialTarget,
+            ExposureRevision = binding.ExposureRevision
         };
 
     public static AppConnectionStatusWire MapConnectionStatus(AppConnectionRecord? connection, string? appId = null)

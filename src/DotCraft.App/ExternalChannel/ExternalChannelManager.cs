@@ -1,10 +1,12 @@
 using DotCraft.Abstractions;
+using DotCraft.AppBinding;
 using DotCraft.AppServer;
 using DotCraft.Common;
 using DotCraft.Configuration;
 using DotCraft.Logging;
 using DotCraft.Modules;
 using DotCraft.Protocol;
+using DotCraft.Protocol.AppServer;
 using DotCraft.Security;
 using Spectre.Console;
 
@@ -54,7 +56,9 @@ public sealed class ExternalChannelManager
         IApprovalService? approvalService = null,
         ExternalChannelRegistry? registry = null,
         SessionStreamDebugLogger? streamDebugLogger = null,
-        IAppConfigMonitor? appConfigMonitor = null)
+        IAppConfigMonitor? appConfigMonitor = null,
+        IEnumerable<IAppServerProtocolExtension>? protocolExtensions = null,
+        AppBindingService? appBindingService = null)
     {
         _registry = registry ?? new ExternalChannelRegistry();
 
@@ -115,7 +119,9 @@ public sealed class ExternalChannelManager
                 pathBlacklist,
                 approvalService,
                 streamDebugLogger: streamDebugLogger,
-                appConfigMonitor: appConfigMonitor);
+                appConfigMonitor: appConfigMonitor,
+                protocolExtensions: protocolExtensions,
+                appBindingService: appBindingService);
             _hosts.Add(host);
 
             // Register all hosts for unified channel runtime tool discovery and WebSocket routing.

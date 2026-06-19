@@ -9,17 +9,52 @@ export interface CapabilitySummary {
   capabilitySetMayVaryByEnvironment: boolean;
 }
 
+export interface ChannelToolDisplayDescriptor {
+  title?: string;
+  subtitle?: string;
+  icon?: string;
+  [key: string]: unknown;
+}
+
 export interface ToolApprovalDescriptor {
-  required: boolean;
+  [key: string]: unknown;
+  /**
+   * Server approval category, for example "file" or "shell".
+   */
+  kind: string;
+  /**
+   * Name of the tool argument that contains the primary approval target.
+   */
+  targetArgument: string;
+  /**
+   * Optional static operation label forwarded to the approval service.
+   */
+  operation?: string;
+  /**
+   * Optional argument name whose runtime value is forwarded as the operation string.
+   */
+  operationArgument?: string;
+  /**
+   * Legacy adapter hint accepted for compatibility; policy remains server-owned.
+   */
+  required?: boolean;
   promptTemplate?: string;
 }
 
 export interface ChannelToolDescriptor {
+  [key: string]: unknown;
   name: string;
-  displayName: string;
+  /**
+   * Legacy display label kept for older adapters. New descriptors should use display.title.
+   */
+  displayName?: string;
   description: string;
   inputSchema: Record<string, unknown>;
+  outputSchema?: Record<string, unknown>;
+  display?: ChannelToolDisplayDescriptor;
   approval?: ToolApprovalDescriptor;
+  requiresChatContext?: boolean;
+  deferLoading?: boolean;
 }
 
 export interface DeliveryCapabilityDescriptor {

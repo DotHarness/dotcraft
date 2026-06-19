@@ -131,11 +131,41 @@ export interface AppDynamicToolCatalog {
 }
 
 export interface AppHandoff {
-  mode: "url" | "customProtocol" | "localCommand" | string;
+  mode: "url" | "customProtocol" | "localCommand" | "bindCode" | string;
   uri?: string | null;
+  bindCode?: string | null;
+  instructions?: string | null;
   command?: string | null;
   args?: string[] | null;
   trustedRoot?: string | null;
+}
+
+export type AppBindingKind = "app" | "socialChannel" | "managedApp" | (string & {});
+
+export type SocialBindingTargetSelection =
+  | "confirmInChannel"
+  | "currentConversation"
+  | (string & {});
+
+export interface SocialBindingIntent {
+  channelName: string;
+  targetSelection?: SocialBindingTargetSelection;
+  displayHint?: string | null;
+}
+
+export interface SocialChannelBoundBy {
+  platformUserId: string;
+  displayName?: string | null;
+}
+
+export interface SocialChannelTarget {
+  channelName: string;
+  accountId?: string | null;
+  conversationKind: string;
+  conversationId: string;
+  deliveryTarget: string;
+  displayName?: string | null;
+  boundBy?: SocialChannelBoundBy | null;
 }
 
 export interface AppInfo {
@@ -169,12 +199,16 @@ export interface ThreadAppBindingSummary {
   threadId: string;
   bindingId: string;
   appId: string;
+  grantId?: string | null;
+  bindingKind?: AppBindingKind | null;
   displayName?: string | null;
   toolNamespace?: string | null;
   state: string;
   connectionState: string;
   grantedScopes: string[];
   expiresAt?: string | null;
+  socialTarget?: SocialChannelTarget | null;
+  exposureRevision?: number;
 }
 
 export interface ThreadAppBinding {
@@ -182,6 +216,8 @@ export interface ThreadAppBinding {
   bindingId: string;
   threadId: string;
   appId: string;
+  grantId?: string | null;
+  bindingKind?: AppBindingKind | null;
   displayName?: string | null;
   toolNamespace?: string | null;
   state: string;
@@ -193,6 +229,8 @@ export interface ThreadAppBinding {
   approvalMode?: string | null;
   auditRef?: string | null;
   diagnostic?: string | null;
+  socialTarget?: SocialChannelTarget | null;
+  exposureRevision?: number;
 }
 
 export interface AppConnectionStartResult {
@@ -223,6 +261,20 @@ export interface AppBindingRequestCreateResult {
   confirmation?: Record<string, unknown>;
 }
 
+export interface AppBindingRequestGetResult {
+  bindingRequestId: string;
+  threadId: string;
+  appId: string;
+  requestedScopes: string[];
+  requestedTools?: string[] | null;
+  reason?: string | null;
+  source?: string | null;
+  state: string;
+  expiresAt: string;
+  bindingKind?: AppBindingKind | null;
+  socialIntent?: SocialBindingIntent | null;
+}
+
 export interface AppBindingAcceptResult {
   binding: ThreadAppBinding;
 }
@@ -231,6 +283,23 @@ export interface AppBindingAttachToolsResult {
   binding: ThreadAppBinding;
   acceptedToolCount: number;
   warnings: string[];
+}
+
+export interface AppSocialBindingResolveParams {
+  appId?: string;
+  channelName: string;
+  accountId?: string | null;
+  conversationKind: string;
+  conversationId: string;
+}
+
+export interface AppSocialBindingResolveResult {
+  binding?: ThreadAppBinding | null;
+}
+
+export interface AppThreadInputEnqueueResult {
+  queuedInput?: unknown;
+  queuedInputs?: unknown[];
 }
 
 export interface AppBindingManager {
@@ -255,10 +324,29 @@ export interface AppBindingManager {
     requestedTools?: string[];
     reason?: string;
     source: "pluginDetail" | "threadMenu" | "welcome" | "agentSuggestion" | "sdk";
+    bindingKind?: AppBindingKind;
+    socialIntent?: SocialBindingIntent;
   }): Promise<AppBindingRequestCreateResult>;
+  createSocialBindingRequest(params: {
+    threadId: string;
+    channelName: string;
+    appId?: string;
+    requestedScopes?: string[];
+    requestedTools?: string[];
+    reason?: string;
+    source?: "pluginDetail" | "threadMenu" | "welcome" | "agentSuggestion" | "sdk";
+    targetSelection?: SocialBindingTargetSelection;
+    displayHint?: string | null;
+  }): Promise<AppBindingRequestCreateResult>;
+  getBindingRequest(params: {
+    appId?: string;
+    bindingRequestId?: string;
+    requestToken?: string;
+    bindCode?: string;
+  }): Promise<AppBindingRequestGetResult>;
   cancelBindingRequest(bindingRequestId: string, reason?: string): Promise<Record<string, unknown>>;
   acceptBinding(params: {
-    bindingRequestId: string;
+    bindingRequestId?: string;
     requestToken: string;
     grantId: string;
     grantedScopes: string[];
@@ -266,7 +354,32 @@ export interface AppBindingManager {
     approvalMode: "interactive" | "policyAutoApproved" | "adminApproved" | string;
     approvedBy?: string;
     auditRef?: string;
+    grantProof?: Record<string, unknown>;
+    socialTarget?: SocialChannelTarget;
   }): Promise<AppBindingAcceptResult>;
+  acceptSocialBinding(params: {
+    bindingRequestId?: string;
+    requestToken: string;
+    grantId?: string;
+    grantedScopes?: string[];
+    expiresAt?: string;
+    approvedBy?: string;
+    auditRef?: string;
+    grantProof?: Record<string, unknown>;
+    socialTarget: SocialChannelTarget;
+  }): Promise<AppBindingAcceptResult>;
+  resolveSocialBinding(params: AppSocialBindingResolveParams): Promise<AppSocialBindingResolveResult>;
+  enqueueThreadInput(params: {
+    bindingId: string;
+    appId: string;
+    grantId: string;
+    input: InputPart[];
+    displayText?: string;
+    triggerLabel?: string;
+    triggerRefId?: string;
+    startPolicy?: string;
+    sender?: SenderContext;
+  }): Promise<AppThreadInputEnqueueResult>;
   attachTools(params: {
     bindingId: string;
     threadId: string;
@@ -499,6 +612,10 @@ function defaultUserId(): string {
   } catch {
     return "local-user";
   }
+}
+
+function socialChannelAppId(channelName: string): string {
+  return `com.dotharness.channel.${channelName.trim().toLowerCase()}`;
 }
 
 function normalizeIdentity(options: ThreadIdentityOptions = {}): SessionIdentity {
@@ -790,8 +907,46 @@ class AppBindingManagerImpl implements AppBindingManager {
     requestedTools?: string[];
     reason?: string;
     source: "pluginDetail" | "threadMenu" | "welcome" | "agentSuggestion" | "sdk";
+    bindingKind?: AppBindingKind;
+    socialIntent?: SocialBindingIntent;
   }): Promise<AppBindingRequestCreateResult> {
     return await this.sdk.request<AppBindingRequestCreateResult>("app/binding/request/create", params);
+  }
+
+  async createSocialBindingRequest(params: {
+    threadId: string;
+    channelName: string;
+    appId?: string;
+    requestedScopes?: string[];
+    requestedTools?: string[];
+    reason?: string;
+    source?: "pluginDetail" | "threadMenu" | "welcome" | "agentSuggestion" | "sdk";
+    targetSelection?: SocialBindingTargetSelection;
+    displayHint?: string | null;
+  }): Promise<AppBindingRequestCreateResult> {
+    return await this.createBindingRequest({
+      threadId: params.threadId,
+      appId: params.appId ?? socialChannelAppId(params.channelName),
+      requestedScopes: params.requestedScopes ?? ["conversation.receive", "message.send"],
+      requestedTools: params.requestedTools,
+      reason: params.reason,
+      source: params.source ?? "sdk",
+      bindingKind: "socialChannel",
+      socialIntent: {
+        channelName: params.channelName,
+        targetSelection: params.targetSelection ?? "confirmInChannel",
+        displayHint: params.displayHint,
+      },
+    });
+  }
+
+  async getBindingRequest(params: {
+    appId?: string;
+    bindingRequestId?: string;
+    requestToken?: string;
+    bindCode?: string;
+  }): Promise<AppBindingRequestGetResult> {
+    return await this.sdk.request<AppBindingRequestGetResult>("app/binding/request/get", params);
   }
 
   async cancelBindingRequest(bindingRequestId: string, reason?: string): Promise<Record<string, unknown>> {
@@ -802,7 +957,7 @@ class AppBindingManagerImpl implements AppBindingManager {
   }
 
   async acceptBinding(params: {
-    bindingRequestId: string;
+    bindingRequestId?: string;
     requestToken: string;
     grantId: string;
     grantedScopes: string[];
@@ -810,8 +965,66 @@ class AppBindingManagerImpl implements AppBindingManager {
     approvalMode: "interactive" | "policyAutoApproved" | "adminApproved" | string;
     approvedBy?: string;
     auditRef?: string;
+    grantProof?: Record<string, unknown>;
+    socialTarget?: SocialChannelTarget;
   }): Promise<AppBindingAcceptResult> {
     return await this.sdk.request<AppBindingAcceptResult>("app/binding/accept", params);
+  }
+
+  async acceptSocialBinding(params: {
+    bindingRequestId?: string;
+    requestToken: string;
+    grantId?: string;
+    grantedScopes?: string[];
+    expiresAt?: string;
+    approvedBy?: string;
+    auditRef?: string;
+    grantProof?: Record<string, unknown>;
+    socialTarget: SocialChannelTarget;
+  }): Promise<AppBindingAcceptResult> {
+    const target = params.socialTarget;
+    return await this.acceptBinding({
+      bindingRequestId: params.bindingRequestId,
+      requestToken: params.requestToken,
+      grantId: params.grantId ?? [
+        "social",
+        target.channelName,
+        target.accountId ?? "",
+        target.conversationKind,
+        target.conversationId,
+      ].join(":"),
+      grantedScopes: params.grantedScopes ?? ["conversation.receive", "message.send"],
+      expiresAt: params.expiresAt,
+      approvalMode: "channelBindCode",
+      approvedBy: params.approvedBy ?? target.boundBy?.platformUserId,
+      auditRef: params.auditRef,
+      grantProof: params.grantProof,
+      socialTarget: target,
+    });
+  }
+
+  async resolveSocialBinding(params: AppSocialBindingResolveParams): Promise<AppSocialBindingResolveResult> {
+    return await this.sdk.request<AppSocialBindingResolveResult>("app/socialBinding/resolve", {
+      appId: params.appId ?? socialChannelAppId(params.channelName),
+      channelName: params.channelName,
+      accountId: params.accountId,
+      conversationKind: params.conversationKind,
+      conversationId: params.conversationId,
+    });
+  }
+
+  async enqueueThreadInput(params: {
+    bindingId: string;
+    appId: string;
+    grantId: string;
+    input: InputPart[];
+    displayText?: string;
+    triggerLabel?: string;
+    triggerRefId?: string;
+    startPolicy?: string;
+    sender?: SenderContext;
+  }): Promise<AppThreadInputEnqueueResult> {
+    return await this.sdk.request<AppThreadInputEnqueueResult>("app/threadInput/enqueue", params);
   }
 
   async attachTools(params: {

@@ -46,7 +46,8 @@ public sealed partial class SessionService
                 ReadyAfterTurnId = activeTurnId,
                 TriggerKind = triggerInfo?.Kind,
                 TriggerLabel = triggerInfo?.Label,
-                TriggerRefId = triggerInfo?.RefId
+                TriggerRefId = triggerInfo?.RefId,
+                DeliveryBindingId = inputSnapshot?.DeliveryBindingId
             };
 
             IReadOnlyList<QueuedTurnInput> queueSnapshot;
@@ -244,7 +245,9 @@ public sealed partial class SessionService
                         NativeInputParts = queued.NativeInputParts,
                         MaterializedInputParts = queued.MaterializedInputParts,
                         DisplayText = queued.DisplayText,
-                        DeliveryMode = "queued"
+                        DeliveryMode = "queued",
+                        QueuedInputId = queued.Id,
+                        DeliveryBindingId = queued.DeliveryBindingId
                     });
 
                 _ = Task.Run(async () =>

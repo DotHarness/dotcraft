@@ -1,4 +1,5 @@
 using System.Text.Json;
+using DotCraft.Abstractions;
 using DotCraft.Configuration;
 using DotCraft.Context;
 using DotCraft.Protocol;
@@ -15,8 +16,13 @@ public sealed class AppBindingProtocolExtension(
     AppBindingService service,
     IAppConfigMonitor appConfigMonitor,
     SkillsLoader? skillsLoader = null,
-    IReadOnlyList<string>? builtInPluginSourceRoots = null) : IAppServerProtocolExtension
+    IReadOnlyList<string>? builtInPluginSourceRoots = null,
+    IChannelRuntimeRegistry? channelRuntimeRegistry = null) : IAppServerProtocolExtension
 {
+    private readonly SocialChannelDeliveryCoordinator? _socialDeliveryCoordinator = channelRuntimeRegistry == null
+        ? null
+        : new SocialChannelDeliveryCoordinator(service, channelRuntimeRegistry);
+
     private const string AppList = "app/list";
     private const string AppView = "app/view";
     private const string AppConnectionStart = "app/connection/start";
@@ -33,6 +39,7 @@ public sealed class AppBindingProtocolExtension(
     private const string AppBindingContextUpsert = "app/binding/context/upsert";
     private const string AppBindingContextRemove = "app/binding/context/remove";
     private const string AppThreadInputEnqueue = "app/threadInput/enqueue";
+    private const string AppSocialBindingResolve = "app/socialBinding/resolve";
     private const string ThreadAppBindingsList = "thread/appBindings/list";
     private const string ThreadAppBindingsRevoke = "thread/appBindings/revoke";
     private const string ThreadAppBindingsRefresh = "thread/appBindings/refresh";
@@ -65,6 +72,7 @@ public sealed class AppBindingProtocolExtension(
         AppBindingContextUpsert,
         AppBindingContextRemove,
         AppThreadInputEnqueue,
+        AppSocialBindingResolve,
         ThreadAppBindingsList,
         ThreadAppBindingsRevoke,
         ThreadAppBindingsRefresh,
@@ -290,6 +298,7 @@ public sealed class AppBindingProtocolExtension(
             case AppBindingAccept:
             {
                 var p = GetParams<AppBindingAcceptParams>(msg);
+                AuthorizeSocialBindingAccept(context.Connection, p);
                 var result = service.AcceptBinding(catalog, workspaceCraftPath, p);
                 return await SendThreadBindingChangedAfterResponseAsync(
                     msg,
@@ -346,6 +355,9 @@ public sealed class AppBindingProtocolExtension(
                 var threadId = service.AuthorizeThreadInputEnqueue(catalog, workspaceCraftPath, p);
                 var prepared = PrepareAppThreadInput(p);
                 await context.SessionService.EnsureThreadLoadedAsync(threadId, ct);
+                var deliveryBindingId = service.GetActiveSocialTarget(workspaceCraftPath, p.BindingId) == null
+                    ? null
+                    : p.BindingId.Trim();
 
                 var triggerKind = string.Equals(p.AppId, DotCraftTeamsAppId, StringComparison.Ordinal)
                     ? "team"
@@ -360,13 +372,14 @@ public sealed class AppBindingProtocolExtension(
                     var queued = await context.SessionService.EnqueueTurnInputAsync(
                         threadId,
                         prepared.Content,
-                        sender: null,
+                        sender: p.Sender,
                         ct,
                         new SessionInputSnapshot
                         {
                             NativeInputParts = prepared.NativeInputParts,
                             MaterializedInputParts = prepared.MaterializedInputParts,
-                            DisplayText = prepared.DisplayText
+                            DisplayText = prepared.DisplayText,
+                            DeliveryBindingId = deliveryBindingId
                         });
                     service.RecordThreadInputEnqueued(
                         workspaceCraftPath,
@@ -375,6 +388,16 @@ public sealed class AppBindingProtocolExtension(
                         triggerKind,
                         p.TriggerLabel,
                         p.TriggerRefId);
+                    if (!string.IsNullOrWhiteSpace(deliveryBindingId))
+                    {
+                        _socialDeliveryCoordinator?.StartQueuedTurnDelivery(
+                            context.SessionService,
+                            workspaceCraftPath,
+                            threadId,
+                            deliveryBindingId,
+                            queued.Id,
+                            ct);
+                    }
 
                     var startPolicy = NormalizeStartPolicy(p.StartPolicy);
                     if (string.Equals(startPolicy, AppThreadInputStartPolicies.RunWhenIdle, StringComparison.Ordinal))
@@ -387,6 +410,13 @@ public sealed class AppBindingProtocolExtension(
                         QueuedInputs = thread.QueuedInputs.ToList()
                     };
                 }
+            }
+
+            case AppSocialBindingResolve:
+            {
+                var p = GetParams<AppSocialBindingResolveParams>(msg);
+                AuthorizeSocialBindingResolve(context.Connection, p);
+                return service.ResolveSocialBinding(catalog, workspaceCraftPath, p);
             }
 
             case ThreadAppBindingsList:
@@ -472,6 +502,7 @@ public sealed class AppBindingProtocolExtension(
                         BindingId = before.BindingId,
                         ThreadId = before.ThreadId,
                         AppId = before.AppId,
+                        GrantId = before.GrantId,
                         DisplayName = before.DisplayName,
                         Icon = before.Icon,
                         ToolNamespace = before.ToolNamespace,
@@ -483,7 +514,10 @@ public sealed class AppBindingProtocolExtension(
                         LastChangedAt = before.LastChangedAt,
                         ApprovalMode = before.ApprovalMode,
                         AuditRef = before.AuditRef,
-                        Diagnostic = before.Diagnostic
+                        Diagnostic = before.Diagnostic,
+                        BindingKind = before.BindingKind,
+                        SocialTarget = before.SocialTarget,
+                        ExposureRevision = before.ExposureRevision
                     };
                 return await SendThreadBindingChangedAfterResponseAsync(
                     msg,
@@ -581,6 +615,35 @@ public sealed class AppBindingProtocolExtension(
             throw AppServerErrors.InvalidParams($"Unknown app thread input startPolicy '{startPolicy}'.");
         return normalized;
     }
+
+    private static void AuthorizeSocialBindingResolve(
+        AppServerConnection connection,
+        AppSocialBindingResolveParams p)
+    {
+        if (!connection.IsChannelAdapter || string.IsNullOrWhiteSpace(connection.ChannelAdapterName))
+            throw AppServerErrors.InvalidParams("'app/socialBinding/resolve' may only be called by channel adapters.");
+        if (string.IsNullOrWhiteSpace(p.ChannelName))
+            throw AppServerErrors.InvalidParams("'channelName' is required.");
+        if (!string.Equals(connection.ChannelAdapterName, p.ChannelName.Trim(), StringComparison.OrdinalIgnoreCase))
+            throw AppServerErrors.InvalidParams("Channel adapter cannot resolve bindings for another channel.");
+        if (!string.Equals(p.AppId, ChannelAppId(p.ChannelName), StringComparison.Ordinal))
+            throw AppServerErrors.InvalidParams("Social binding appId does not match channelName.");
+    }
+
+    private static void AuthorizeSocialBindingAccept(
+        AppServerConnection connection,
+        AppBindingAcceptParams p)
+    {
+        if (p.SocialTarget == null)
+            return;
+        if (!connection.IsChannelAdapter || string.IsNullOrWhiteSpace(connection.ChannelAdapterName))
+            throw AppServerErrors.InvalidParams("Social channel bindings may only be accepted by channel adapters.");
+        if (!string.Equals(connection.ChannelAdapterName, p.SocialTarget.ChannelName.Trim(), StringComparison.OrdinalIgnoreCase))
+            throw AppServerErrors.InvalidParams("Channel adapter cannot accept bindings for another channel.");
+    }
+
+    private static string ChannelAppId(string channelName) =>
+        $"com.dotharness.channel.{channelName.Trim().ToLowerInvariant()}";
 
     private sealed class PreparedAppThreadInput
     {

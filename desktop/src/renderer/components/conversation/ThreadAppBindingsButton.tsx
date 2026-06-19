@@ -25,6 +25,14 @@ interface ThreadAppRowModel {
   key: string
   app?: AppInfo
   binding?: ThreadBindingLike
+  pendingHandoff?: PendingSocialHandoff
+}
+
+interface PendingSocialHandoff {
+  appId: string
+  bindingRequestId: string
+  bindCode: string
+  instructions?: string | null
 }
 
 export function ThreadAppBindingsButton({ threadId }: ThreadAppBindingsButtonProps): JSX.Element | null {
@@ -52,6 +60,7 @@ export function ThreadAppBindingsButton({ threadId }: ThreadAppBindingsButtonPro
   const waitForThreadBinding = useAppBindingStore((s) => s.waitForThreadBinding)
   const [open, setOpen] = useState(false)
   const [busyKey, setBusyKey] = useState<string | null>(null)
+  const [pendingSocialHandoffs, setPendingSocialHandoffs] = useState<Record<string, PendingSocialHandoff>>({})
   const rootRef = useRef<HTMLDivElement>(null)
 
   const refreshThreadAppPicker = useCallback(async (forceRefresh = false): Promise<void> => {
@@ -116,16 +125,25 @@ export function ThreadAppBindingsButton({ threadId }: ThreadAppBindingsButtonPro
         : threadBindings.find((candidate) => candidate.appId === app.appId)
       if (binding) unmatchedBindings.delete(binding.bindingId)
       if (isHiddenTeamsMissionBinding(app.appId, binding)) continue
-      nextRows.push({ key: `app:${app.appId}`, app, binding })
+      nextRows.push({
+        key: `app:${app.appId}`,
+        app,
+        binding,
+        pendingHandoff: resolvePendingSocialHandoff(pendingSocialHandoffs, app, binding)
+      })
     }
 
     for (const binding of unmatchedBindings.values()) {
       if (isHiddenTeamsMissionBinding(binding.appId, binding)) continue
-      nextRows.push({ key: `binding:${binding.bindingId}`, binding })
+      nextRows.push({
+        key: `binding:${binding.bindingId}`,
+        binding,
+        pendingHandoff: resolvePendingSocialHandoff(pendingSocialHandoffs, undefined, binding)
+      })
     }
 
     return nextRows
-  }, [threadApps, threadBindings])
+  }, [pendingSocialHandoffs, threadApps, threadBindings])
 
   const activeBindingCount = useMemo(
     () => rows.filter((row) => row.binding != null && row.binding.state !== 'revoked' && row.binding.state !== 'cancelled').length,
@@ -166,15 +184,41 @@ export function ThreadAppBindingsButton({ threadId }: ThreadAppBindingsButtonPro
     if (app.requiresExternalConnection !== false && app.connectionState !== 'connected') {
       throw new Error(t('appBinding.welcomeAppNotConnected', { name: app.displayName || app.appId }))
     }
+    const socialChannelName = getSocialChannelName(app)
 
     const result = await createBindingRequest({
       threadId,
       appId: app.appId,
       requestedScopes: defaultRequestedScopes(app),
       requestedTools: requestedToolsForBinding(app),
-      source: 'threadMenu'
+      source: 'threadMenu',
+      ...(socialChannelName
+        ? {
+            bindingKind: 'socialChannel',
+            socialIntent: {
+              channelName: socialChannelName,
+              targetSelection: 'confirmInChannel',
+              displayHint: app.displayName || socialChannelName
+            }
+          }
+        : {})
     })
     if (result.handoff?.uri) await openAppHandoff(result.handoff, t)
+    if (result.handoff?.bindCode) {
+      setPendingSocialHandoffs((current) => ({
+        ...current,
+        [result.bindingRequestId]: {
+          appId: app.appId,
+          bindingRequestId: result.bindingRequestId,
+          bindCode: result.handoff!.bindCode!,
+          instructions: result.handoff!.instructions
+        }
+      }))
+      addToast(result.handoff.instructions || `/bind ${result.handoff.bindCode}`, 'info', 120_000)
+      await fetchThreadBindings(threadId)
+      await fetchApps(threadId, true, 'threadBinding')
+      return
+    }
     if (result.state !== 'active') addToast(t('appBinding.bindingStarted'), 'info')
     await waitForThreadBinding({
       threadId,
@@ -234,6 +278,7 @@ export function ThreadAppBindingsButton({ threadId }: ThreadAppBindingsButtonPro
                 key={row.key}
                 app={row.app}
                 binding={row.binding}
+                pendingHandoff={row.pendingHandoff}
                 busy={busyKey != null}
                 onConnect={() => {
                   if (!row.app) return
@@ -281,6 +326,7 @@ export function ThreadAppBindingsButton({ threadId }: ThreadAppBindingsButtonPro
 function ThreadAppRow({
   app,
   binding,
+  pendingHandoff,
   busy,
   onConnect,
   onInstall,
@@ -291,6 +337,7 @@ function ThreadAppRow({
 }: {
   app?: AppInfo
   binding?: ThreadBindingLike
+  pendingHandoff?: PendingSocialHandoff
   busy: boolean
   onConnect: () => void
   onInstall: () => void
@@ -301,6 +348,11 @@ function ThreadAppRow({
 }): JSX.Element {
   const t = useT()
   const displayName = app?.displayName || binding?.displayName || binding?.appId || ''
+  const socialTargetLabel = binding?.socialTarget ? formatSocialTarget(binding.socialTarget) : null
+  const pendingInstruction = pendingHandoff
+    ? pendingHandoff.instructions?.trim() || `/bind ${pendingHandoff.bindCode}`
+    : null
+  const pendingLabel = binding?.state === 'pending' && !pendingInstruction ? t('appBinding.handoffOpening') : null
   const icon = app?.icon || binding?.icon
   const connectionState = binding?.connectionState || app?.connectionState || 'notConnected'
   const requiresExternalConnection = binding?.requiresExternalConnection ?? app?.requiresExternalConnection ?? true
@@ -308,6 +360,7 @@ function ThreadAppRow({
   const canOpenExternalApp = binding?.state === 'offline' && requiresExternalConnection !== false
   const canBind = app != null
     && binding == null
+    && pendingHandoff == null
     && (requiresExternalConnection === false || app.connectionState === 'connected')
   const canConnect = app != null
     && binding == null
@@ -316,8 +369,10 @@ function ThreadAppRow({
     && !nativeMissing
   const statusLabel = binding
     ? bindingStateLabel(binding.state, t)
+    : pendingHandoff
+      ? bindingStateLabel('pending', t)
     : connectionStateLabel(connectionState, t)
-  const statusGood = binding ? binding.state === 'active' : connectionState === 'connected'
+  const statusGood = binding ? binding.state === 'active' : pendingHandoff ? false : connectionState === 'connected'
   const showStatusPill = !canOpenExternalApp
   return (
     <div style={bindingRow}>
@@ -327,6 +382,9 @@ function ThreadAppRow({
           <strong style={bindingTitle}>{displayName}</strong>
           {showStatusPill && <span style={statePill(statusGood)}>{statusLabel}</span>}
         </div>
+        {socialTargetLabel && <div style={bindingSubtitle}>{socialTargetLabel}</div>}
+        {pendingInstruction && <div style={bindingInstruction}>{pendingInstruction}</div>}
+        {pendingLabel && <div style={bindingSubtitle}>{pendingLabel}</div>}
       </div>
       <div style={bindingActions}>
         {app && !binding && nativeMissing && (
@@ -358,7 +416,7 @@ function ThreadAppRow({
             <button type="button" style={iconButton} disabled={busy} aria-label={t('appBinding.refresh')} onClick={onRefresh}>
               <RefreshCw size={13} aria-hidden />
             </button>
-            <button type="button" style={iconButton} disabled={busy} aria-label={t('appBinding.revoke')} onClick={onRevoke}>
+            <button type="button" style={iconButton} disabled={busy} aria-label={binding.state === 'pending' ? t('common.cancel') : t('appBinding.revoke')} onClick={onRevoke}>
               <Unlink size={13} aria-hidden />
             </button>
           </>
@@ -406,6 +464,39 @@ function requestedToolsForBinding(app: AppInfo): string[] | undefined {
     : app.toolCatalog.map((tool) => tool.name)
 }
 
+function getSocialChannelName(app: AppInfo): string | null {
+  const prefix = 'com.dotharness.channel.'
+  if (app.appId.startsWith(prefix)) return app.appId.slice(prefix.length)
+  return null
+}
+
+function resolvePendingSocialHandoff(
+  pendingHandoffs: Record<string, PendingSocialHandoff>,
+  app?: AppInfo,
+  binding?: ThreadBindingLike
+): PendingSocialHandoff | undefined {
+  if (binding?.state !== 'pending') return undefined
+  const bindingRequestId = 'bindingRequestId' in binding ? binding.bindingRequestId : undefined
+  if (bindingRequestId && pendingHandoffs[bindingRequestId]) {
+    return pendingHandoffs[bindingRequestId]
+  }
+  const appId = app?.appId ?? binding?.appId
+  if (!appId || !getSocialChannelNameFromAppId(appId)) return undefined
+  return Object.values(pendingHandoffs).find((handoff) => handoff.appId === appId)
+}
+
+function getSocialChannelNameFromAppId(appId: string): string | null {
+  const prefix = 'com.dotharness.channel.'
+  if (appId.startsWith(prefix)) return appId.slice(prefix.length)
+  return null
+}
+
+function formatSocialTarget(target: NonNullable<ThreadBindingLike['socialTarget']>): string {
+  const name = target.displayName?.trim()
+  if (name) return name
+  return `${target.channelName}:${target.conversationKind}:${target.conversationId}`
+}
+
 function isHiddenTeamsMissionBinding(appId: string, binding?: ThreadBindingLike): boolean {
   return appId === DOTCRAFT_TEAMS_APP_ID
     && binding?.managed === true
@@ -428,6 +519,8 @@ const bindingRow: CSSProperties = { display: 'grid', gridTemplateColumns: '30px 
 const bindingMain: CSSProperties = { minWidth: 0 }
 const bindingTitleRow: CSSProperties = { display: 'flex', alignItems: 'center', gap: 7, minWidth: 0, flexWrap: 'wrap' }
 const bindingTitle: CSSProperties = { fontSize: 12, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }
+const bindingSubtitle: CSSProperties = { marginTop: 3, color: 'var(--text-secondary)', fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }
+const bindingInstruction: CSSProperties = { marginTop: 4, color: 'var(--text-primary)', fontSize: 11, lineHeight: 1.35, overflowWrap: 'anywhere' }
 const bindingIconImg: CSSProperties = { width: 30, height: 30, borderRadius: 7, objectFit: 'cover', background: 'var(--bg-tertiary)', border: '1px solid var(--border-default)' }
 const bindingIconFallback: CSSProperties = { width: 30, height: 30, borderRadius: 7, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-tertiary)', border: '1px solid var(--border-default)', color: 'var(--text-secondary)' }
 const bindingActions: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, flexWrap: 'wrap' }

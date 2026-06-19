@@ -50,6 +50,55 @@ function appInfo(overrides: Record<string, unknown> = {}) {
   }
 }
 
+function socialAppInfo(overrides: Record<string, unknown> = {}) {
+  return appInfo({
+    appId: 'com.dotharness.channel.qq',
+    toolNamespace: 'qq',
+    displayName: 'QQ',
+    developerName: 'DotHarness',
+    description: 'Continue this thread in QQ.',
+    pluginId: 'channel-qq',
+    managed: true,
+    requiresExternalConnection: false,
+    connectionState: 'connected',
+    nativeApp: { displayName: 'QQ', protocol: '', status: 'installed' },
+    scopes: [
+      { id: 'conversation.receive', displayName: 'Receive messages', description: 'Receive QQ messages', risk: 'read' },
+      { id: 'message.send', displayName: 'Send replies', description: 'Send QQ replies', risk: 'externalWrite' }
+    ],
+    toolCatalog: [{ name: 'SendMessageToBoundConversation', scope: 'message.send', risk: 'externalWrite', defaultExposure: 'deferred' }],
+    ...overrides
+  })
+}
+
+function socialBinding(state = 'active') {
+  return {
+    bindingId: 'binding-social-1',
+    bindingRequestId: 'bind-req-social-1',
+    threadId: 'thread-1',
+    appId: 'com.dotharness.channel.qq',
+    displayName: 'QQ',
+    toolNamespace: 'qq',
+    bindingKind: 'socialChannel',
+    managed: true,
+    requiresExternalConnection: false,
+    state,
+    connectionState: 'connected',
+    grantedScopes: ['conversation.receive', 'message.send'],
+    attachedToolCount: 0,
+    lastChangedAt: '2026-05-16T00:00:00Z',
+    socialTarget: state === 'active'
+      ? {
+          channelName: 'qq',
+          conversationKind: 'group',
+          conversationId: '123456',
+          deliveryTarget: 'group:123456',
+          displayName: 'QQ group 123456'
+        }
+      : null
+  }
+}
+
 describe('ThreadAppBindingsButton', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -461,6 +510,99 @@ describe('ThreadAppBindingsButton', () => {
     await waitFor(() => {
       expect(screen.getByText('No apps bound')).toBeInTheDocument()
       expect(screen.queryByText('Agent Teams')).toBeNull()
+    })
+  })
+
+  it('starts a social binding request and keeps bind instructions visible while pending', async () => {
+    let bindingState: string | null = null
+    sendRequest.mockImplementation(async (method: string) => {
+      if (method === 'thread/appBindings/refresh') return { bindings: bindingState ? [socialBinding(bindingState)] : [] }
+      if (method === 'thread/appBindings/list') return { bindings: bindingState ? [socialBinding(bindingState)] : [] }
+      if (method === 'app/list') return { apps: [socialAppInfo()] }
+      if (method === 'app/binding/request/create') {
+        bindingState = 'pending'
+        return {
+          bindingRequestId: 'bind-req-social-1',
+          threadId: 'thread-1',
+          appId: 'com.dotharness.channel.qq',
+          requestedScopes: ['conversation.receive', 'message.send'],
+          state: 'pending',
+          tokenExpiresAt: '2026-05-18T00:00:00Z',
+          handoff: {
+            mode: 'bindCode',
+            bindCode: 'DTC-482913',
+            instructions: 'Send /bind DTC-482913 in the QQ conversation to bind it to this thread.'
+          }
+        }
+      }
+      return {}
+    })
+
+    render(
+      <LocaleProvider>
+        <ThreadAppBindingsButton threadId="thread-1" />
+      </LocaleProvider>
+    )
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Apps' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Bind thread' }))
+
+    await waitFor(() => {
+      expect(sendRequest).toHaveBeenCalledWith('app/binding/request/create', expect.objectContaining({
+        appId: 'com.dotharness.channel.qq',
+        bindingKind: 'socialChannel',
+        requestedScopes: ['conversation.receive', 'message.send'],
+        requestedTools: ['SendMessageToBoundConversation'],
+        socialIntent: {
+          channelName: 'qq',
+          targetSelection: 'confirmInChannel',
+          displayHint: 'QQ'
+        }
+      }))
+    })
+    expect(await screen.findByText('Pending')).toBeInTheDocument()
+    expect(screen.getByText('Send /bind DTC-482913 in the QQ conversation to bind it to this thread.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument()
+    expect(shellOpenAppHandoff).not.toHaveBeenCalled()
+  })
+
+  it('shows the active social target and can refresh or revoke it', async () => {
+    sendRequest.mockImplementation(async (method: string) => {
+      if (method === 'thread/appBindings/refresh') return { bindings: [socialBinding('active')] }
+      if (method === 'thread/appBindings/list') return { bindings: [socialBinding('active')] }
+      if (method === 'app/list') return { apps: [socialAppInfo({ bindingSummary: socialBinding('active') })] }
+      if (method === 'thread/appBindings/revoke') return {}
+      return {}
+    })
+
+    render(
+      <LocaleProvider>
+        <ThreadAppBindingsButton threadId="thread-1" />
+      </LocaleProvider>
+    )
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Apps' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('QQ group 123456').textContent).toBe('QQ group 123456')
+    })
+
+    const refreshButtons = screen.getAllByRole('button', { name: 'Refresh' })
+    fireEvent.click(refreshButtons[refreshButtons.length - 1])
+    await waitFor(() => {
+      expect(sendRequest).toHaveBeenCalledWith('thread/appBindings/refresh', {
+        threadId: 'thread-1',
+        bindingId: 'binding-social-1'
+      })
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Revoke' }))
+    await waitFor(() => {
+      expect(sendRequest).toHaveBeenCalledWith('thread/appBindings/revoke', {
+        threadId: 'thread-1',
+        bindingId: 'binding-social-1',
+        reason: undefined
+      })
     })
   })
 })

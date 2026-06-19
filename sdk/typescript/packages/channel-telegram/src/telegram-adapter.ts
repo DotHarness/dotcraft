@@ -11,6 +11,9 @@ import {
   type Transport,
 } from "@dotcraft/sdk/wire";
 import {
+  type SocialChannelTarget,
+} from "@dotcraft/sdk";
+import {
   ConfigValidationError,
   ModuleChannelAdapter,
   buildUserInputPrompt,
@@ -23,6 +26,8 @@ import {
   userInputResponseForSingleChoice,
   userInputResponseFromText,
   type ModuleError,
+  type ChannelToolDescriptor,
+  type ChannelAdapterMessageOpts,
   type UserInputResponse,
   type WorkspaceContext,
 } from "@dotcraft/sdk/channel";
@@ -178,11 +183,40 @@ export class TelegramAdapter extends ModuleChannelAdapter<TelegramConfig> {
     });
   }
 
+  protected override buildSocialTarget(
+    opts: ChannelAdapterMessageOpts,
+    sender: Record<string, unknown>,
+    channelContext: string,
+  ): SocialChannelTarget | null {
+    const chatId = parseTargetChatId(channelContext);
+    if (chatId === null) return null;
+    const platformUserId = String(sender.senderId ?? opts.userId ?? "");
+    const displayName = typeof sender.senderName === "string" && sender.senderName.trim()
+      ? sender.senderName.trim()
+      : null;
+    const conversationKind = chatId < 0 ? "group" : "user";
+    return {
+      channelName: "telegram",
+      conversationKind,
+      conversationId: String(chatId),
+      deliveryTarget: channelContext || String(chatId),
+      displayName: conversationKind === "group"
+        ? `Telegram chat ${chatId}`
+        : displayName ?? `Telegram user ${chatId}`,
+      boundBy: platformUserId
+        ? {
+          platformUserId,
+          displayName,
+        }
+        : null,
+    };
+  }
+
   protected override getDeliveryCapabilities(): Record<string, unknown> | null {
     return this.mediaTools.getDeliveryCapabilities();
   }
 
-  protected override getChannelTools(): Record<string, unknown>[] | null {
+  protected override getChannelTools(): ChannelToolDescriptor[] | null {
     return this.mediaTools.getChannelTools();
   }
 

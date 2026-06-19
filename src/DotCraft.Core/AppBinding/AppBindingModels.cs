@@ -208,6 +208,88 @@ public static class AppBindingStates
     public const string Cancelled = "cancelled";
 }
 
+public static class AppBindingKinds
+{
+    public const string App = "app";
+    public const string SocialChannel = "socialChannel";
+    public const string ManagedApp = "managedApp";
+
+    public static bool IsKnown(string value) =>
+        string.Equals(value, App, StringComparison.Ordinal)
+        || string.Equals(value, SocialChannel, StringComparison.Ordinal)
+        || string.Equals(value, ManagedApp, StringComparison.Ordinal);
+}
+
+public static class SocialBindingTargetSelections
+{
+    public const string ConfirmInChannel = "confirmInChannel";
+    public const string DesktopPicker = "desktopPicker";
+    public const string DeepLink = "deepLink";
+
+    public static bool IsKnown(string value) =>
+        string.Equals(value, ConfirmInChannel, StringComparison.Ordinal)
+        || string.Equals(value, DesktopPicker, StringComparison.Ordinal)
+        || string.Equals(value, DeepLink, StringComparison.Ordinal);
+}
+
+public sealed class SocialBindingIntentWire
+{
+    public string ChannelName { get; set; } = string.Empty;
+
+    public string TargetSelection { get; set; } = SocialBindingTargetSelections.ConfirmInChannel;
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? DisplayHint { get; set; }
+}
+
+public sealed class SocialChannelBoundByWire
+{
+    public string PlatformUserId { get; set; } = string.Empty;
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? DisplayName { get; set; }
+}
+
+public sealed class SocialChannelTargetWire
+{
+    public string ChannelName { get; set; } = string.Empty;
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? AccountId { get; set; }
+
+    public string ConversationKind { get; set; } = string.Empty;
+
+    public string ConversationId { get; set; } = string.Empty;
+
+    public string DeliveryTarget { get; set; } = string.Empty;
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? DisplayName { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public SocialChannelBoundByWire? BoundBy { get; set; }
+}
+
+public sealed class AppSocialBindingResolveParams
+{
+    public string AppId { get; set; } = string.Empty;
+
+    public string ChannelName { get; set; } = string.Empty;
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? AccountId { get; set; }
+
+    public string ConversationKind { get; set; } = string.Empty;
+
+    public string ConversationId { get; set; } = string.Empty;
+}
+
+public sealed class AppSocialBindingResolveResult
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ThreadAppBindingWire? Binding { get; set; }
+}
+
 public static class AppContextBlockKinds
 {
     public const string Role = "role";
@@ -547,6 +629,12 @@ public sealed class AppBindingRequestCreateParams
     public string? Reason { get; set; }
 
     public string Source { get; set; } = string.Empty;
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? BindingKind { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public SocialBindingIntentWire? SocialIntent { get; set; }
 }
 
 public sealed class AppBindingRequestCreateResult
@@ -593,9 +681,14 @@ public sealed class AppBindingRequestGetParams
 {
     public string AppId { get; set; } = string.Empty;
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string BindingRequestId { get; set; } = string.Empty;
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string RequestToken { get; set; } = string.Empty;
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? BindCode { get; set; }
 }
 
 public sealed class AppBindingRequestGetResult
@@ -629,10 +722,17 @@ public sealed class AppBindingRequestGetResult
     public AppDynamicToolCatalogDescriptor DynamicToolCatalog { get; set; } = new();
 
     public DateTimeOffset ExpiresAt { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? BindingKind { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public SocialBindingIntentWire? SocialIntent { get; set; }
 }
 
 public sealed class AppBindingAcceptParams
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string BindingRequestId { get; set; } = string.Empty;
 
     public string RequestToken { get; set; } = string.Empty;
@@ -651,6 +751,12 @@ public sealed class AppBindingAcceptParams
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? AuditRef { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonObject? GrantProof { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public SocialChannelTargetWire? SocialTarget { get; set; }
 }
 
 public sealed class AppBindingAcceptResult
@@ -767,6 +873,9 @@ public sealed class AppThreadInputEnqueueParams
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? StartPolicy { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public SenderContext? Sender { get; set; }
 }
 
 public sealed class AppThreadInputEnqueueResult
@@ -842,6 +951,9 @@ public sealed class ThreadAppBindingWire
     public string AppId { get; set; } = string.Empty;
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? GrantId { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? DisplayName { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -875,6 +987,15 @@ public sealed class ThreadAppBindingWire
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Diagnostic { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? BindingKind { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public SocialChannelTargetWire? SocialTarget { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public long ExposureRevision { get; set; }
 }
 
 public sealed class ThreadAppContextBlockWire
@@ -940,6 +1061,15 @@ public sealed class ThreadAppBindingSummaryWire
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public DateTimeOffset? ExpiresAt { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? BindingKind { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public SocialChannelTargetWire? SocialTarget { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public long ExposureRevision { get; set; }
 }
 
 public sealed class ThreadAppBindingRefreshWire
@@ -957,6 +1087,12 @@ public sealed class AppHandoffWire
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Uri { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? BindCode { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Instructions { get; set; }
 }
 
 public sealed class AppBindingConfirmationWire

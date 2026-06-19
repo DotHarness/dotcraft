@@ -11,6 +11,7 @@ import {
   DECISION_ACCEPT_FOR_SESSION,
   DECISION_CANCEL,
   DECISION_DECLINE,
+  type SocialChannelTarget,
 } from "@dotcraft/sdk";
 import {
   DotCraftWireClient,
@@ -29,6 +30,8 @@ import {
   resolveModuleTempPath,
   splitUserInputRequestByQuestion,
   userInputResponseFromText,
+  type ChannelToolDescriptor,
+  type ChannelAdapterMessageOpts,
   type ModuleError,
   type UserInputResponse,
   type WorkspaceContext,
@@ -505,8 +508,34 @@ export class WeixinAdapter extends ModuleChannelAdapter<WeixinConfig> {
     return this.mediaTools.getDeliveryCapabilities();
   }
 
-  protected override getChannelTools(): Record<string, unknown>[] | null {
+  protected override getChannelTools(): ChannelToolDescriptor[] | null {
     return this.mediaTools.getChannelTools();
+  }
+
+  protected override buildSocialTarget(
+    opts: ChannelAdapterMessageOpts,
+    sender: Record<string, unknown>,
+    channelContext: string,
+  ): SocialChannelTarget | null {
+    const conversationId = channelContext.trim();
+    if (!conversationId) return null;
+    const platformUserId = String(sender.senderId ?? opts.userId ?? "");
+    const displayName = typeof sender.senderName === "string" && sender.senderName.trim()
+      ? sender.senderName.trim()
+      : null;
+    return {
+      channelName: "weixin",
+      conversationKind: "user",
+      conversationId,
+      deliveryTarget: conversationId,
+      displayName: displayName ?? `Weixin user ${conversationId}`,
+      boundBy: platformUserId
+        ? {
+          platformUserId,
+          displayName,
+        }
+        : null,
+    };
   }
 
   protected override async onSend(
