@@ -900,7 +900,8 @@ div.VPSidebarItem.is-active > .item {
    marooned in a half-width right rail. */
 .dc-hero__inner {
   position: relative;
-  z-index: 1;
+  /* Above .dc-hero__media so the open download dropdown isn't covered by it. */
+  z-index: 2;
   width: min(900px, 100%);
   margin: 0 auto;
   display: flex;
@@ -953,24 +954,6 @@ div.VPSidebarItem.is-active > .item {
   border: 1px solid var(--dc-line-strong);
   background: var(--dc-surface);
   box-shadow: var(--dc-shadow-lg);
-}
-
-/* Section eyebrow — a plain accent label, no pill chrome. Matches the uppercase
-   label style on the feature-reel cards for one consistent eyebrow treatment. */
-.dc-kicker {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0 0 18px;
-  color: var(--dc-accent);
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.dark .dc-kicker {
-  color: var(--dc-accent-hover);
 }
 
 .dc-hero h1 {
@@ -1099,6 +1082,95 @@ div.VPSidebarItem.is-active > .item {
   box-shadow: var(--dc-shadow-sm);
 }
 
+/* Download split button — main action + caret menu, read as one control. */
+.dc-download {
+  position: relative;
+  display: inline-flex;
+}
+
+.dc-download .dc-button {
+  transform: none;
+}
+
+.dc-download .dc-button:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+.dc-download__main {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.dc-download__toggle {
+  min-width: 40px;
+  padding: 0 10px;
+  margin-left: -1px;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.dc-download__toggle svg {
+  transition: transform 0.18s ease;
+}
+
+.dc-download--open .dc-download__toggle svg {
+  transform: rotate(180deg);
+}
+
+/* Both segments highlight together. */
+.dc-download:hover .dc-button,
+.dc-download--open .dc-button {
+  border-color: var(--dc-line-strong);
+  background: var(--dc-surface-2);
+}
+
+.dc-download__menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 20;
+  min-width: max(100%, 220px);
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+  border: 1px solid var(--dc-line-strong);
+  border-radius: var(--dc-radius-md);
+  background: var(--dc-surface);
+  box-shadow: var(--dc-shadow-lg);
+}
+
+/* Re-assert hidden: the class's `display` would otherwise beat the UA `[hidden]`. */
+.dc-download__menu[hidden] {
+  display: none;
+}
+
+.dc-download__item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 38px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--dc-radius-sm);
+  background: transparent;
+  color: var(--dc-text);
+  font-size: 14px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.dc-download__item:hover {
+  background: var(--dc-surface-2);
+}
+
+.dc-download__item:focus-visible {
+  outline: 2px solid var(--dc-accent);
+  outline-offset: -2px;
+}
+
 .dc-section {
   padding: 92px 24px;
   border-bottom: 1px solid var(--dc-line);
@@ -1148,17 +1220,23 @@ div.VPSidebarItem.is-active > .item {
   gap: 14px;
 }
 
-.dc-card {
+/* Feature link cards — icon tile, copy, and a bottom accent arrow. */
+.dc-feature {
   position: relative;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
+  min-height: 232px;
+  padding: 26px 26px 24px;
   border: 1px solid var(--dc-line);
   border-radius: var(--dc-radius-lg);
   background: var(--dc-surface);
-  padding: 26px 26px 28px;
+  color: var(--dc-text);
+  text-decoration: none;
   transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
-.dc-card::before {
+.dc-feature::before {
   content: "";
   position: absolute;
   inset: 0 0 auto;
@@ -1168,179 +1246,317 @@ div.VPSidebarItem.is-active > .item {
   transition: opacity 0.2s ease;
 }
 
-.dc-card:hover {
+.dc-feature:hover {
   transform: translateY(-2px);
-  border-color: color-mix(in srgb, var(--dc-accent) 30%, var(--dc-line-strong));
+  border-color: color-mix(in srgb, var(--card-accent, var(--dc-accent)) 30%, var(--dc-line-strong));
   box-shadow: var(--dc-shadow-md);
 }
 
-.dc-card:hover::before {
+.dc-feature:hover::before {
   opacity: 1;
 }
 
-.dc-card--workspace,
-.dc-card--appserver {
+.dc-feature--workspace {
   --card-accent: var(--dc-accent);
 }
 
-.dc-card--memory,
-.dc-card--editors {
+.dc-feature--memory {
   --card-accent: var(--dc-green);
 }
 
-.dc-card--runtime,
-.dc-card--sdks {
+.dc-feature--runtime {
   --card-accent: var(--dc-amber);
 }
 
-.dc-card__index {
+.dc-feature__icon {
   display: inline-flex;
   align-items: center;
-  margin-bottom: 14px;
-  padding: 3px 9px;
-  border-radius: 999px;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 18px;
+  border-radius: var(--dc-radius-md);
   background: color-mix(in srgb, var(--card-accent, var(--dc-accent)) 12%, transparent);
-  color: color-mix(in srgb, var(--card-accent, var(--dc-accent)) 72%, var(--dc-text));
-  font-family: var(--vp-font-family-mono);
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.06em;
+  color: color-mix(in srgb, var(--card-accent, var(--dc-accent)) 78%, var(--dc-text));
 }
 
-.dc-card--link {
-  display: block;
-  color: var(--dc-text);
-}
-
-.dc-card--link:hover h3 {
-  color: var(--dc-accent);
-}
-
-.dc-card h3 {
+.dc-feature h3 {
   margin: 0 0 10px;
   font-size: 19px;
   letter-spacing: 0;
 }
 
-.dc-card p {
-  margin: 0;
+.dc-feature p {
+  /* Bottom margin keeps a gap above the auto-aligned arrow on the tallest card. */
+  margin: 0 0 22px;
   color: var(--dc-muted);
   line-height: 1.7;
 }
 
-.dc-showcase {
-  display: grid;
-  grid-template-columns: minmax(280px, 0.74fr) minmax(360px, 1fr);
-  gap: 40px;
-  align-items: center;
-}
-
-.dc-showcase--reverse .dc-media {
-  order: -1;
-}
-
-.dc-media {
-  position: relative;
-  margin: 0;
-}
-
-.dc-media img {
-  display: block;
-  width: 100%;
-  border-radius: 12px;
-  border: 1px solid var(--dc-line);
-  background: var(--dc-surface);
-  box-shadow: var(--dc-shadow-lg);
-}
-
-.dc-steps {
-  counter-reset: dc-step;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
-}
-
-.dc-step {
-  counter-increment: dc-step;
-  padding: 24px 26px 28px;
-  border: 1px solid var(--dc-line);
-  border-radius: var(--dc-radius-lg);
-  background: var(--dc-surface);
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
-}
-
-.dc-step:hover {
-  border-color: var(--dc-line-strong);
-  box-shadow: var(--dc-shadow-md);
-  transform: translateY(-2px);
-}
-
-.dc-step::before {
-  content: counter(dc-step, decimal-leading-zero);
+.dc-feature__arrow {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 34px;
   height: 34px;
-  margin-bottom: 16px;
+  margin-top: auto;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--dc-accent) 12%, transparent);
-  color: var(--dc-accent-strong);
+  border: 1px solid var(--dc-line-strong);
+  color: var(--dc-muted);
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.dc-feature:hover .dc-feature__arrow {
+  border-color: var(--card-accent, var(--dc-accent));
+  background: var(--card-accent, var(--dc-accent));
+  color: #fff;
+  transform: translateX(3px);
+}
+
+/* =============================================================================
+ * Consolidated feature preview — left accordion + one shared stage on the right,
+ * driven by three sibling radios (no JS). Each `#dcp-N:checked` expands its row,
+ * rotates its chevron, and cross-fades the matching panel. Radios are visually
+ * hidden but keep keyboard focus.
+ * ============================================================================= */
+.dc-preview {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(280px, 0.92fr) minmax(360px, 1fr);
+  gap: 48px;
+  /* Top-align so the preview doesn't shift as the list height changes per row. */
+  align-items: start;
+}
+
+.dc-preview__radio {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.dc-preview__list {
+  display: flex;
+  flex-direction: column;
+}
+
+.dc-preview__row {
+  position: relative;
+  display: block;
+  padding: 22px 6px 22px 20px;
+  cursor: pointer;
+  border-radius: var(--dc-radius-md);
+  transition: background-color 0.18s ease;
+}
+
+.dc-preview__row + .dc-preview__row {
+  border-top: 1px solid var(--dc-line);
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+.dc-preview__row:hover {
+  background: color-mix(in srgb, var(--dc-text) 3%, transparent);
+}
+
+/* Accent bar marks the open row. */
+.dc-preview__row::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 22px;
+  bottom: 22px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--dc-accent);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.dc-preview__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.dc-preview__title {
+  font-family: var(--dc-display);
+  font-size: 21px;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  color: var(--dc-text);
+}
+
+.dc-preview__chev {
+  flex: none;
+  display: inline-flex;
+  color: var(--dc-dimmed);
+  transition: transform 0.22s ease, color 0.2s ease;
+}
+
+/* grid-rows 0fr→1fr animates the real height, so rows open/close in sync. */
+.dc-preview__body {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition: grid-template-rows 0.3s ease, opacity 0.25s ease;
+}
+
+.dc-preview__body-inner {
+  overflow: hidden;
+  min-height: 0;
+}
+
+.dc-preview__text {
+  display: block;
+  /* Gap sits inside the clipped inner so it collapses to 0 when the row closes. */
+  margin-top: 16px;
+  color: var(--dc-muted);
+  font-size: 15.5px;
+  line-height: 1.7;
+}
+
+.dc-preview__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+/* --- Checked state (one block per row id) --- */
+#dcp-1:checked ~ .dc-preview__list label[for="dcp-1"] .dc-preview__body,
+#dcp-2:checked ~ .dc-preview__list label[for="dcp-2"] .dc-preview__body,
+#dcp-3:checked ~ .dc-preview__list label[for="dcp-3"] .dc-preview__body {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+#dcp-1:checked ~ .dc-preview__list label[for="dcp-1"] .dc-preview__chev,
+#dcp-2:checked ~ .dc-preview__list label[for="dcp-2"] .dc-preview__chev,
+#dcp-3:checked ~ .dc-preview__list label[for="dcp-3"] .dc-preview__chev {
+  transform: rotate(180deg);
+  color: var(--dc-accent);
+}
+
+#dcp-1:checked ~ .dc-preview__list label[for="dcp-1"]::before,
+#dcp-2:checked ~ .dc-preview__list label[for="dcp-2"]::before,
+#dcp-3:checked ~ .dc-preview__list label[for="dcp-3"]::before {
+  opacity: 1;
+}
+
+#dcp-1:focus-visible ~ .dc-preview__list label[for="dcp-1"] .dc-preview__title,
+#dcp-2:focus-visible ~ .dc-preview__list label[for="dcp-2"] .dc-preview__title,
+#dcp-3:focus-visible ~ .dc-preview__list label[for="dcp-3"] .dc-preview__title {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  text-decoration-color: var(--dc-accent);
+}
+
+/* --- Shared stage --- */
+.dc-preview__stage {
+  position: relative;
+  aspect-ratio: 16 / 10;
+}
+
+.dc-preview__panel {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s ease;
+}
+
+#dcp-1:checked ~ .dc-preview__stage .dc-preview__panel[data-panel="dcp-1"],
+#dcp-2:checked ~ .dc-preview__stage .dc-preview__panel[data-panel="dcp-2"],
+#dcp-3:checked ~ .dc-preview__stage .dc-preview__panel[data-panel="dcp-3"] {
+  opacity: 1;
+  visibility: visible;
+}
+
+.dc-preview__panel img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top left;
+  border-radius: var(--dc-radius-lg);
+  border: 1px solid var(--dc-line);
+  background: var(--dc-surface);
+  box-shadow: var(--dc-shadow-lg);
+}
+
+/* Code-snippet mock for the developer row. */
+.dc-codeframe {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: var(--dc-radius-lg);
+  border: 1px solid var(--dc-line);
+  background: var(--dc-surface-2);
+  box-shadow: var(--dc-shadow-lg);
+}
+
+.dc-codeframe__bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  height: 40px;
+  flex: none;
+  border-bottom: 1px solid var(--dc-line);
+  background: color-mix(in srgb, var(--dc-text) 4%, var(--dc-surface));
+}
+
+.dc-codeframe__dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 999px;
+  background: var(--dc-line-strong);
+}
+
+.dc-codeframe__dot:nth-child(1) { background: #ec6a5e; }
+.dc-codeframe__dot:nth-child(2) { background: #f4bf4f; }
+.dc-codeframe__dot:nth-child(3) { background: #61c354; }
+
+.dc-codeframe__name {
+  margin-left: 8px;
+  font-family: var(--vp-font-family-mono);
+  font-size: 12px;
+  color: var(--dc-dimmed);
+}
+
+.dc-codeframe__code {
+  flex: 1;
+  margin: 0;
+  padding: 18px 20px;
+  overflow: auto;
+  background: transparent;
   font-family: var(--vp-font-family-mono);
   font-size: 13px;
-  font-weight: 800;
-  letter-spacing: 0;
-}
-
-.dark .dc-step::before {
-  color: var(--dc-accent);
-}
-
-.dc-step strong {
-  display: block;
-  margin-bottom: 8px;
-  font-size: 17px;
-}
-
-.dc-step span {
-  display: block;
-  color: var(--dc-muted);
-  line-height: 1.65;
-}
-
-.dc-link-list {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.dc-link-list a {
-  border: 1px solid var(--dc-line);
-  border-radius: var(--dc-radius-md);
-  padding: 15px 16px;
+  line-height: 1.7;
   color: var(--dc-text);
-  background: var(--dc-surface);
-  font-weight: 600;
-  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, color 0.2s ease;
+  white-space: pre;
 }
 
-.dc-link-list a:hover {
-  transform: translateY(-2px);
-  border-color: color-mix(in srgb, var(--dc-accent) 45%, var(--dc-line-strong));
-  color: var(--dc-accent);
-  box-shadow: var(--dc-shadow-md);
+.dc-codeframe__code code {
+  font: inherit;
+  color: inherit;
+  background: none;
+  padding: 0;
 }
 
-.dc-link-list a:hover span {
-  color: var(--dc-muted);
-}
-
-.dc-link-list a span {
-  display: block;
-  margin-top: 4px;
-  color: var(--dc-muted);
-  font-weight: 400;
-  line-height: 1.55;
+@media (prefers-reduced-motion: reduce) {
+  .dc-preview__body,
+  .dc-preview__chev,
+  .dc-preview__panel {
+    transition: none;
+  }
 }
 
 .dc-section--cta {
@@ -1401,18 +1617,14 @@ div.VPSidebarItem.is-active > .item {
     padding: 0 14px;
   }
 
-  .dc-showcase {
+  .dc-grid {
     grid-template-columns: 1fr;
   }
 
-  .dc-showcase--reverse .dc-media {
-    order: 0;
-  }
-
-  .dc-grid,
-  .dc-link-list,
-  .dc-steps {
+  /* Accordion stacks: full-width list, the shared preview below it. */
+  .dc-preview {
     grid-template-columns: 1fr;
+    gap: 24px;
   }
 
   .dc-section {
@@ -1460,6 +1672,19 @@ div.VPSidebarItem.is-active > .item {
     min-width: 0;
     font-size: 13px;
     padding: 0 10px;
+  }
+
+  /* Keep the split button as one half-width unit; the caret stays compact. */
+  .dc-download {
+    flex: 1 1 calc(50% - 8px);
+  }
+
+  .dc-download__main {
+    flex: 1 1 auto;
+  }
+
+  .dc-download__toggle {
+    flex: 0 0 auto;
   }
 }
 

@@ -2,15 +2,30 @@ import DefaultTheme from 'vitepress/theme'
 import type { EnhanceAppContext } from 'vitepress'
 import './custom.css'
 import { setupDemoEmbed } from './demoEmbed'
+import { setupDownloadButton } from './downloadButton'
 
 export default {
   extends: DefaultTheme,
   enhanceApp({ router }: EnhanceAppContext) {
     if (typeof window === 'undefined') return
 
+    const enhance = (): void => {
+      setupDemoEmbed()
+      setupDownloadButton()
+    }
+
+    // The page component can mount after enhanceApp, so retry until the hero
+    // markup exists (both enhancers are idempotent). setTimeout, not rAF, so it
+    // still runs when the tab loads hidden — rAF is paused while not visible.
     const initEmbed = (): void => {
-      // Wait for the new page's DOM before looking for the hero embed.
-      requestAnimationFrame(() => setupDemoEmbed())
+      let attempts = 0
+      const tick = (): void => {
+        enhance()
+        if (++attempts < 40 && !document.querySelector('[data-download], .dc-demo')) {
+          setTimeout(tick, 50)
+        }
+      }
+      tick()
     }
 
     const previous = router.onAfterRouteChange
