@@ -1774,6 +1774,8 @@ export const MESSAGES_EN = {
   'workspaceFooter.handoffToWorktreeSuccess': 'Thread moved to a worktree',
   'workspaceFooter.handoffToLocalSuccess': 'Worktree changes moved back to local',
   'workspaceFooter.handoffFailed': 'Worktree handoff failed: {{error}}',
+  'workspaceFooter.handoffUnavailableDuringConversation':
+    'Workspace switching is unavailable while the conversation is in progress.',
   'workspaceFooter.handoffWorktreeTitle': 'Hand off chat to worktree',
   'workspaceFooter.handoffWorktreeDescription': 'Create and check out a branch in a new worktree to continue working in parallel.',
   'workspaceFooter.handoffWorktreeRunningTitle': 'Handing off to worktree',

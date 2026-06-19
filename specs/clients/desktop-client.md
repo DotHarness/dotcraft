@@ -471,7 +471,7 @@ Worktree execution:
 - Desktop may show a local progress checklist while a handoff request is pending. These checklist rows are presentation hints and are not protocol progress notifications.
 - Worktree -> local handoff checks out the worktree branch locally, applies the worktree's uncommitted changes back to the local workspace, and removes the managed worktree. If local dirty changes conflict, Desktop shows the server error and does not switch UI state.
 - Branch checkout and create-and-checkout controls operate on the current effective Git directory. Local mode operates on the main workspace; worktree mode operates on the selected thread's worktree path.
-- Desktop hides or disables worktree and branch controls for remote workspaces, missing capabilities, non-Git directories, and threads that are running, waiting for approval/input, or in blocking maintenance.
+- Desktop hides or disables worktree and branch controls for remote workspaces, missing capabilities, and non-Git directories. For existing threads that are running, waiting for approval/input, or in blocking maintenance, the local/worktree handoff menu remains available, but the confirmation dialog disables the final handoff action and explains that the workspace cannot be switched while a conversation is in progress.
 
 ### 5.11 Manage Thread Goal
 

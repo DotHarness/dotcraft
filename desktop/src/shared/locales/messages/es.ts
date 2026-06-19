@@ -1105,6 +1105,8 @@ export const MESSAGES_ES = {
   'workspaceFooter.handoffToWorktreeSuccess': 'Conversación movida a un worktree',
   'workspaceFooter.handoffToLocalSuccess': 'Cambios del worktree devueltos a local',
   'workspaceFooter.handoffFailed': 'Error al transferir el worktree: {{error}}',
+  'workspaceFooter.handoffUnavailableDuringConversation':
+    'No puedes cambiar entre local y worktree mientras la conversación está en curso.',
   'workspaceFooter.handoffWorktreeTitle': 'Transferir el chat a un worktree',
   'workspaceFooter.handoffWorktreeDescription':
     'Crea y cambia a una rama en un nuevo worktree para seguir trabajando en paralelo.',

@@ -22,6 +22,7 @@ interface WorktreeHandoffDialogProps {
   baseRef: string | null
   defaultBranchName: string
   localWorkspacePath: string
+  disabledReason?: string | null
   onClose: () => void
   onComplete: (thread: Thread) => void | Promise<void>
   onBusyChange?: (busy: boolean) => void
@@ -51,6 +52,7 @@ export function WorktreeHandoffDialog({
   baseRef,
   defaultBranchName,
   localWorkspacePath,
+  disabledReason = null,
   onClose,
   onComplete,
   onBusyChange
@@ -70,6 +72,7 @@ export function WorktreeHandoffDialog({
   const worktreeBranch = thread.worktree?.branchName?.trim() || baseRef || t('workspaceFooter.branchUnknown')
   const targetWorkspace = workspaceName(localWorkspacePath)
   const branchError = mode === 'worktree' ? branchNameError(branchDraft, t) : null
+  const handoffDisabled = Boolean(branchError) || Boolean(disabledReason)
   const title = phase === 'success'
     ? successView?.title ?? t('workspaceFooter.handoffWorktreeSuccessTitle')
     : mode === 'worktree'
@@ -122,7 +125,7 @@ export function WorktreeHandoffDialog({
       if (event.key === 'Escape') {
         event.preventDefault()
         handleClose()
-      } else if (event.key === 'Enter' && phase === 'confirm' && !branchError) {
+      } else if (event.key === 'Enter' && phase === 'confirm' && !handoffDisabled) {
         event.preventDefault()
         void startHandoff()
       }
@@ -212,6 +215,7 @@ export function WorktreeHandoffDialog({
 
   async function startHandoff(): Promise<void> {
     if (phase === 'running') return
+    if (disabledReason) return
     const branch = normalizeBranchName(branchDraft)
     const error = mode === 'worktree' ? branchNameError(branch, t) : null
     if (error) {
@@ -368,13 +372,17 @@ export function WorktreeHandoffDialog({
               <div style={errorStyle}>{errorText || branchError}</div>
             )}
 
+            {disabledReason && (
+              <div role="status" style={noticeStyle}>{disabledReason}</div>
+            )}
+
             <button
               type="button"
-              disabled={Boolean(branchError)}
+              disabled={handoffDisabled}
               style={{
                 ...primaryButtonStyle,
-                opacity: branchError ? 0.55 : 1,
-                cursor: branchError ? 'default' : 'pointer'
+                opacity: handoffDisabled ? 0.55 : 1,
+                cursor: handoffDisabled ? 'default' : 'pointer'
               }}
               onClick={() => { void startHandoff() }}
             >
@@ -580,6 +588,16 @@ const summaryPillStyle: CSSProperties = {
 const errorStyle: CSSProperties = {
   marginTop: '10px',
   color: 'var(--error)',
+  fontSize: '13px',
+  lineHeight: 1.45
+}
+
+const noticeStyle: CSSProperties = {
+  marginTop: '12px',
+  padding: '10px 12px',
+  borderRadius: '8px',
+  background: 'var(--bg-tertiary)',
+  color: 'var(--text-secondary)',
   fontSize: '13px',
   lineHeight: 1.45
 }

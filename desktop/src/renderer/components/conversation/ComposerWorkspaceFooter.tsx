@@ -270,6 +270,9 @@ export function ComposerWorkspaceFooter({
     || thread?.runtime?.waitingOnApproval === true
     || thread?.runtime?.waitingOnInput === true
     || Boolean(thread?.runtime?.maintenanceKind)
+  const handoffDisabledReason = isThread && threadBusy
+    ? t('workspaceFooter.handoffUnavailableDuringConversation')
+    : null
   const branchActionPath = workspacePath.trim()
   const branchActionPathKey = normalizeGitPathKey(branchActionPath)
   const gitPathState = useGitStore((s) =>
@@ -490,6 +493,7 @@ export function ComposerWorkspaceFooter({
       baseRef={currentBranchLabel(branches)}
       defaultBranchName={defaultWorktreeBranchName(localWorkspacePath)}
       localWorkspacePath={localWorkspacePath}
+      disabledReason={handoffDisabledReason}
       onBusyChange={setBusy}
       onClose={() => setHandoffMode(null)}
       onComplete={() => { void loadBranches({ force: true }) }}
@@ -599,7 +603,7 @@ export function ComposerWorkspaceFooter({
         <>
       <div style={{ position: 'relative' }}>
         <WorkspaceFooterPill
-          disabled={busy || !branchControlsReady || (isThread && threadBusy)}
+          disabled={busy || !branchControlsReady}
           open={openMenu === 'workspace'}
           onClick={() => setOpenMenu(openMenu === 'workspace' ? null : 'workspace')}
         >
@@ -614,7 +618,7 @@ export function ComposerWorkspaceFooter({
                 label={t('workspaceFooter.handoffToBranch')}
                 icon={<ArrowRightLeft size={14} strokeWidth={1.8} aria-hidden />}
                 checked={false}
-                disabled={busy || !branchControlsReady || (isThread && threadBusy)}
+                disabled={busy || !branchControlsReady}
                 onClick={() => {
                   setHandoffMode('local')
                   setOpenMenu(null)
@@ -626,7 +630,7 @@ export function ComposerWorkspaceFooter({
                   label={t('workspaceFooter.workLocally')}
                   icon={<Laptop size={14} strokeWidth={1.8} aria-hidden />}
                   checked={mode === 'local'}
-                  disabled={busy || !branchControlsReady || (isThread && threadBusy)}
+                  disabled={busy || !branchControlsReady}
                   onClick={() => {
                     if (variant === 'welcome') onWelcomeModeChange?.('local')
                     setOpenMenu(null)
@@ -638,7 +642,7 @@ export function ComposerWorkspaceFooter({
                     ? <FolderPlus size={14} strokeWidth={1.8} aria-hidden />
                     : <ArrowRightLeft size={14} strokeWidth={1.8} aria-hidden />}
                   checked={mode === 'worktree'}
-                  disabled={!canUseWorktrees || busy || (isThread && threadBusy)}
+                  disabled={!canUseWorktrees || busy}
                   onClick={() => {
                     if (variant === 'welcome') onWelcomeModeChange?.('worktree')
                     else if (mode !== 'worktree') setHandoffMode('worktree')

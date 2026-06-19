@@ -60,6 +60,18 @@ function makeWorktreeThread(): Thread {
   })
 }
 
+function makeRuntime(overrides: Partial<NonNullable<Thread['runtime']>> = {}): NonNullable<Thread['runtime']> {
+  return {
+    running: true,
+    busy: false,
+    waitingOnApproval: false,
+    waitingOnInput: false,
+    waitingOnPlanConfirmation: false,
+    maintenanceKind: null,
+    ...overrides
+  }
+}
+
 function renderFooter(thread: Thread, mode: 'local' | 'worktree') {
   useThreadStore.setState({
     activeThreadId: thread.id,
@@ -325,6 +337,85 @@ describe('ComposerWorkspaceFooter', () => {
     await waitFor(() => {
       expect(useThreadStore.getState().activeThread?.worktree?.branchName).toBe('dotcraft/handoff')
     })
+  })
+
+  it('opens local handoff choices for running threads but disables handoff in the dialog', async () => {
+    const runningThread = makeThread({ runtime: makeRuntime() })
+    const idleThread = makeThread({ runtime: makeRuntime({ running: false }) })
+    const worktreeThread = makeWorktreeThread()
+    appServerSendRequest.mockResolvedValue({ thread: worktreeThread })
+
+    const view = renderFooter(runningThread, 'local')
+
+    const locationButton = await screen.findByRole('button', { name: 'Local' })
+    expect(locationButton).not.toBeDisabled()
+    fireEvent.click(locationButton)
+
+    const handoffItem = screen.getByRole('button', { name: 'Handoff to worktree' })
+    expect(handoffItem).not.toBeDisabled()
+    fireEvent.click(handoffItem)
+
+    expect(screen.getByRole('dialog', { name: 'Hand off chat to worktree' })).toBeInTheDocument()
+    expect(screen.getByText('Workspace switching is unavailable while the conversation is in progress.')).toBeInTheDocument()
+
+    const handoffButton = screen.getByRole('button', { name: 'Hand off' })
+    expect(handoffButton).toBeDisabled()
+    fireEvent.click(handoffButton)
+    fireEvent.keyDown(document, { key: 'Enter' })
+    expect(appServerSendRequest).not.toHaveBeenCalled()
+
+    useThreadStore.getState().setActiveThread(idleThread)
+    view.rerender(
+      <LocaleProvider>
+        <ComposerWorkspaceFooter
+          workspacePath={idleThread.effectiveWorkspacePath || idleThread.workspacePath}
+          mode="local"
+          variant="thread"
+          thread={idleThread}
+        />
+      </LocaleProvider>
+    )
+
+    expect(screen.queryByText('Workspace switching is unavailable while the conversation is in progress.')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Hand off' })).not.toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Hand off' }))
+
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith(
+        'thread/worktree/handoff',
+        {
+          threadId: 'thread-1',
+          mode: 'worktree',
+          branchName: 'dotcraft/sample-app',
+          baseRef: 'main',
+          copyDirtyChanges: true
+        },
+        180_000
+      )
+    })
+  })
+
+  it('opens worktree handoff choices for running threads but disables local handoff in the dialog', async () => {
+    const runningWorktreeThread = makeWorktreeThread()
+    runningWorktreeThread.runtime = makeRuntime()
+
+    renderFooter(runningWorktreeThread, 'worktree')
+
+    const locationButton = await screen.findByRole('button', { name: 'Worktree' })
+    expect(locationButton).not.toBeDisabled()
+    fireEvent.click(locationButton)
+
+    const handoffItem = screen.getByRole('button', { name: 'Handoff to branch' })
+    expect(handoffItem).not.toBeDisabled()
+    fireEvent.click(handoffItem)
+
+    expect(screen.getByRole('dialog', { name: 'Hand off chat to local' })).toBeInTheDocument()
+    expect(screen.getByText('Workspace switching is unavailable while the conversation is in progress.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Hand off' })).toBeDisabled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Hand off' }))
+    fireEvent.keyDown(document, { key: 'Enter' })
+    expect(appServerSendRequest).not.toHaveBeenCalled()
   })
 
   it('shows worktree to local progress and sends a local handoff request', async () => {

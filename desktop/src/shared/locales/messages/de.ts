@@ -1107,6 +1107,8 @@ export const MESSAGES_DE = {
   'workspaceFooter.handoffToWorktreeSuccess': 'Thread in einen Worktree verschoben',
   'workspaceFooter.handoffToLocalSuccess': 'Worktree-Änderungen zurück nach lokal verschoben',
   'workspaceFooter.handoffFailed': 'Worktree-Übergabe fehlgeschlagen: {{error}}',
+  'workspaceFooter.handoffUnavailableDuringConversation':
+    'Während die Unterhaltung läuft, kann nicht zwischen lokal und Worktree gewechselt werden.',
   'workspaceFooter.handoffWorktreeTitle': 'Chat an Worktree übergeben',
   'workspaceFooter.handoffWorktreeDescription':
     'Erstellen und checken Sie einen Zweig in einem neuen Worktree aus, um parallel weiterzuarbeiten.',

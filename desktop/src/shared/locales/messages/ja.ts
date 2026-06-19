@@ -1101,6 +1101,8 @@ export const MESSAGES_JA = {
   'workspaceFooter.handoffToWorktreeSuccess': 'スレッドを worktree に移しました',
   'workspaceFooter.handoffToLocalSuccess': 'worktree の変更をローカルに戻しました',
   'workspaceFooter.handoffFailed': 'Worktree の引き継ぎに失敗しました: {{error}}',
+  'workspaceFooter.handoffUnavailableDuringConversation':
+    '会話の進行中は、ローカルと worktree を切り替えられません。',
   'workspaceFooter.handoffWorktreeTitle': 'チャットを worktree に引き継ぐ',
   'workspaceFooter.handoffWorktreeDescription': '新しい worktree でブランチを作成してチェックアウトし、並行して作業を続けます。',
   'workspaceFooter.handoffWorktreeRunningTitle': 'worktree に引き継ぎ中',

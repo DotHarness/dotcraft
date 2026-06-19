@@ -1101,6 +1101,8 @@ export const MESSAGES_KO = {
   'workspaceFooter.handoffToWorktreeSuccess': '스레드를 worktree로 옮겼습니다',
   'workspaceFooter.handoffToLocalSuccess': 'worktree 변경 사항을 로컬로 되돌렸습니다',
   'workspaceFooter.handoffFailed': 'Worktree 이관 실패: {{error}}',
+  'workspaceFooter.handoffUnavailableDuringConversation':
+    '대화가 진행 중일 때는 로컬과 worktree 사이를 전환할 수 없습니다.',
   'workspaceFooter.handoffWorktreeTitle': '채팅을 worktree로 이관',
   'workspaceFooter.handoffWorktreeDescription': '새 worktree에서 브랜치를 만들고 체크아웃하여 병렬로 계속 작업합니다.',
   'workspaceFooter.handoffWorktreeRunningTitle': 'worktree로 이관 중',

@@ -1717,6 +1717,7 @@ export const MESSAGES_ZH_HANS = {
   'workspaceFooter.handoffToWorktreeSuccess': '已将会话移交到 worktree',
   'workspaceFooter.handoffToLocalSuccess': '已将 worktree 改动移回本地',
   'workspaceFooter.handoffFailed': 'Worktree 移交失败：{{error}}',
+  'workspaceFooter.handoffUnavailableDuringConversation': '对话进行中时，无法在本地和 worktree 之间切换。',
   'workspaceFooter.handoffWorktreeTitle': '将会话移交到 worktree',
   'workspaceFooter.handoffWorktreeDescription': '在新的 worktree 中创建并切换分支，以便并行继续工作。',
   'workspaceFooter.handoffWorktreeRunningTitle': '正在移交到 worktree',
