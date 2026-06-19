@@ -286,7 +286,7 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
             var dreamStore = _sp.GetService<DreamStore>();
             dashApp.MapDashBoard(traceStore, _paths, tokenUsageStore,
                 orchestratorProviders: capturedOrchestrators,
-                configTypes: ConfigSchemaRegistrations.GetAllConfigTypes(),
+                configSchema: ConfigSchemaRegistrations.GetConfigSchema(),
                 persistence: persistence,
                 deleteThreadAsync: (threadId, cancellationToken) => capturedSvc.DeleteThreadPermanentlyAsync(threadId, cancellationToken),
                 sessionHandler: new DelegateDashBoardSessionHandler(id => capturedSvc.DeleteThreadPermanentlyAsync(id)),

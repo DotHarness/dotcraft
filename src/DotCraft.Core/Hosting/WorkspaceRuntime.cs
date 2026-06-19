@@ -1,4 +1,3 @@
-using System.Reflection;
 using DotCraft.Abstractions;
 using DotCraft.Agents;
 using DotCraft.AppBinding;
@@ -348,7 +347,9 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
 
                 var channelListContributor =
                     new ModuleRegistryChannelListContributor(moduleRegistry, cronService, heartbeatService);
-                var configSchema = BuildConfigSchema();
+                var configSchema = Services.GetService<IConfigSchemaProvider>()?.GetConfigSchema()
+                    ?? throw new InvalidOperationException(
+                        "IConfigSchemaProvider is not registered. Hosts that use WorkspaceRuntime must register the generated ConfigSchemaRegistrations.CreateSchemaProvider() instance.");
                 var dreamsRunner = new DreamsSessionRunner(
                     sessionService,
                     Services.GetRequiredService<SessionPersistenceService>(),
@@ -686,53 +687,6 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
         AutomationTaskUpdated?.Invoke(task);
     }
 
-    private static IReadOnlyList<ConfigSchemaSection> BuildConfigSchema()
-    {
-        var types = new List<Type>();
-        foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
-        {
-            Type[] assemblyTypes;
-            try
-            {
-                assemblyTypes = assembly.GetTypes();
-            }
-            catch (ReflectionTypeLoadException ex)
-            {
-                assemblyTypes = ex.Types.Where(t => t != null).Cast<Type>().ToArray();
-            }
-            catch
-            {
-                continue;
-            }
-
-            types.AddRange(assemblyTypes.Where(type =>
-                type.IsClass
-                && !type.IsAbstract
-                && type.GetCustomAttributes(typeof(ConfigSectionAttribute), inherit: false).Length > 0));
-        }
-
-        var configTypes = types
-            .Distinct()
-            .ToArray();
-
-        var schema = new List<ConfigSchemaSection>();
-        foreach (var configType in configTypes)
-        {
-            try
-            {
-                schema.AddRange(ConfigSchemaBuilder.BuildAll([configType]));
-            }
-            catch
-            {
-                // Some test-loaded assemblies may contain incomplete config metadata.
-                // Skip invalid sections and preserve the rest of the runtime contract.
-            }
-        }
-
-        return schema
-            .OrderBy(section => section.Order)
-            .ToArray();
-    }
 }
 
 public interface IWorkspaceRuntimeFactory

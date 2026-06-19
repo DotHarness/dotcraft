@@ -31,6 +31,7 @@ public sealed class AppServerHostResolutionTests
 
         var services = new ServiceCollection()
             .AddSingleton(registry)
+            .AddSingleton<IConfigSchemaProvider>(ConfigSchemaRegistrations.CreateSchemaProvider())
             .AddDotCraft(config, fixture.WorkspacePath, fixture.BotPath);
 
         var builder = new HostBuilder(registry, config, paths, "app-server");

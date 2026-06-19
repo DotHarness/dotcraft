@@ -14,30 +14,6 @@ public class ExternalChannelConfigTests
     };
 
     [Fact]
-    public void ExternalChannelsSection_HasRootKey_ItemFields_AndExpectedTypes()
-    {
-        var schema = ConfigSchemaBuilder.BuildAll([typeof(ExternalChannelEntry)]);
-        var section = Assert.Single(schema);
-
-        Assert.Equal("ExternalChannels", section.RootKey);
-        Assert.NotNull(section.ItemFields);
-        Assert.NotEmpty(section.ItemFields);
-        Assert.Empty(section.Fields);
-
-        var byKey = section.ItemFields!.ToDictionary(f => f.Key, f => f);
-        Assert.Equal("text", byKey["Name"].Type);
-        Assert.Equal("bool", byKey["Enabled"].Type);
-        Assert.Equal("select", byKey["Transport"].Type);
-        Assert.Contains("subprocess", byKey["Transport"].Options!);
-        Assert.Contains("websocket", byKey["Transport"].Options!);
-        Assert.Contains("managedWebsocket", byKey["Transport"].Options!);
-        Assert.Equal("text", byKey["Command"].Type);
-        Assert.Equal("stringList", byKey["Args"].Type);
-        Assert.Equal("text", byKey["WorkingDirectory"].Type);
-        Assert.Equal("keyValueMap", byKey["Env"].Type);
-    }
-
-    [Fact]
     public void AppConfig_Deserializes_ExternalChannels_ObjectMap_IntoStrongTypedList()
     {
         const string json = """

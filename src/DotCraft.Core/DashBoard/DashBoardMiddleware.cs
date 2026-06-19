@@ -40,7 +40,7 @@ public static class DashBoardMiddleware
         TokenUsageStore? tokenUsageStore = null,
         bool setupMode = false,
         IEnumerable<IOrchestratorSnapshotProvider>? orchestratorProviders = null,
-        IEnumerable<Type>? configTypes = null,
+        IReadOnlyList<ConfigSchemaSection>? configSchema = null,
         SessionPersistenceService? persistence = null,
         Func<string, CancellationToken, Task>? deleteThreadAsync = null,
         IDashBoardSessionHandler? sessionHandler = null,
@@ -90,10 +90,10 @@ public static class DashBoardMiddleware
             MapOrchestratorEndpoints(endpoints, capturedOrchestrators);
 
         // Build schema and derive sensitive paths from it at startup
-        var schema = runtime.Capabilities.Settings && configTypes != null
-            ? ConfigSchemaBuilder.BuildAll(configTypes)
+        var schema = runtime.Capabilities.Settings && configSchema != null
+            ? configSchema
             : [];
-        var sensitivePaths = ConfigSchemaBuilder.BuildSensitivePaths(schema);
+        var sensitivePaths = ConfigSchemaUtilities.BuildSensitivePaths(schema);
         endpoints.MapGet("/dashboard/", ctx =>
         {
             ctx.Response.ContentType = "text/html; charset=utf-8";

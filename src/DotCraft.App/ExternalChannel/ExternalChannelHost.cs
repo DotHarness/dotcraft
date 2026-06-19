@@ -435,7 +435,7 @@ public sealed class ExternalChannelHost : IChannelService
                 WorkspaceCraftPath = _workspaceCraftPath,
                 HostWorkspacePath = _hostWorkspacePath,
                 StreamDebugLogger = _streamDebugLogger,
-                ConfigSchema = ConfigSchemaBuilder.BuildAll(ConfigSchemaRegistrations.GetAllConfigTypes()),
+                ConfigSchema = ConfigSchemaRegistrations.GetConfigSchema(),
                 AppConfigMonitor = _appConfigMonitor,
             });
 
@@ -686,7 +686,7 @@ public sealed class ExternalChannelHost : IChannelService
                 WorkspaceCraftPath = _workspaceCraftPath,
                 HostWorkspacePath = _hostWorkspacePath,
                 StreamDebugLogger = _streamDebugLogger,
-                ConfigSchema = ConfigSchemaBuilder.BuildAll(ConfigSchemaRegistrations.GetAllConfigTypes()),
+                ConfigSchema = ConfigSchemaRegistrations.GetConfigSchema(),
                 AppConfigMonitor = _appConfigMonitor,
             });
 
@@ -746,7 +746,7 @@ public sealed class ExternalChannelHost : IChannelService
                     WorkspaceCraftPath = _workspaceCraftPath,
                     HostWorkspacePath = _hostWorkspacePath,
                     StreamDebugLogger = _streamDebugLogger,
-                    ConfigSchema = ConfigSchemaBuilder.BuildAll(ConfigSchemaRegistrations.GetAllConfigTypes()),
+                    ConfigSchema = ConfigSchemaRegistrations.GetConfigSchema(),
                     AppConfigMonitor = _appConfigMonitor,
                 });
 
