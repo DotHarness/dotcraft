@@ -736,6 +736,7 @@ export const MESSAGES_EN = {
   'welcome.suggestion.docs': 'Generate documentation',
   'welcome.sendTitle': 'Send (Enter)',
   'welcome.sendAria': 'Send message',
+  'welcome.startingAria': 'Starting conversation',
 
   // Workspace setup
   'setupInterstitial.title': "This workspace hasn't finished DotCraft setup",

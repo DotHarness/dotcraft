@@ -11,7 +11,7 @@ import {
   type JSX,
   type ReactNode
 } from 'react'
-import { Bot, ListChecks, Square, X } from 'lucide-react'
+import { Bot, ListChecks, Loader2, Square, X } from 'lucide-react'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { MascotRobot, type MascotExpression, type MascotLight } from './MascotRobot'
 import { paletteOf, type AvatarSpec } from '../agents/agentAvatar'
@@ -921,6 +921,10 @@ export function SendIcon(): JSX.Element {
       <path d="M12 19a1.25 1.25 0 0 1-1.25-1.25v-8.03l-3.1 3.1a1.25 1.25 0 1 1-1.77-1.77l5.24-5.24a1.25 1.25 0 0 1 1.76 0l5.24 5.24a1.25 1.25 0 1 1-1.77 1.77l-3.1-3.1v8.03A1.25 1.25 0 0 1 12 19Z" />
     </svg>
   )
+}
+
+export function SendProcessingIcon(): JSX.Element {
+  return <Loader2 size={16} strokeWidth={2.2} className="animate-spin-custom" aria-hidden="true" />
 }
 
 export function StopIcon(): JSX.Element {

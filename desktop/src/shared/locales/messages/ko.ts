@@ -165,6 +165,7 @@ export const MESSAGES_KO = {
   'welcome.suggestion.docs': '문서 생성하기',
   'welcome.sendTitle': '보내기 (Enter)',
   'welcome.sendAria': '메시지 보내기',
+  'welcome.startingAria': '대화 시작 중',
 
   'setupWizard.title': '워크스페이스 설정',
   'setupWizard.done': '완료',

@@ -991,6 +991,9 @@ describe('ConversationWelcome composer', () => {
         source: 'welcome'
       }))
     })
+    const startingButton = screen.getByRole('button', { name: 'Starting conversation' })
+    expect(startingButton).toBeDisabled()
+    expect(startingButton).toHaveAttribute('aria-busy', 'true')
     expect(useUIStore.getState().pendingWelcomeTurn).toBeNull()
 
     bindingList.resolve({

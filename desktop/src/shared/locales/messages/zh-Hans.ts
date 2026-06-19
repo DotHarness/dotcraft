@@ -706,6 +706,7 @@ export const MESSAGES_ZH_HANS = {
   'welcome.suggestion.docs': '生成文档',
   'welcome.sendTitle': '发送 (Enter)',
   'welcome.sendAria': '发送消息',
+  'welcome.startingAria': '正在开始对话',
 
   'setupInterstitial.title': '该工作区还没有完成 DotCraft 设置',
   'setupInterstitial.description':

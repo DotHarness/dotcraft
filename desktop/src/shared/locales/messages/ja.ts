@@ -165,6 +165,7 @@ export const MESSAGES_JA = {
   'welcome.suggestion.docs': 'ドキュメントを生成する',
   'welcome.sendTitle': '送信 (Enter)',
   'welcome.sendAria': 'メッセージを送信',
+  'welcome.startingAria': '会話を開始中',
 
   'setupWizard.title': 'ワークスペース設定',
   'setupWizard.done': '完了',

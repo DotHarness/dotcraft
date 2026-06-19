@@ -37,6 +37,7 @@ import {
   ComposerSendButton,
   ComposerShell,
   SendIcon,
+  SendProcessingIcon,
   composerModelPillStyle
 } from './ComposerShell'
 import { ComposerWorkspaceFooter, type ComposerWorkspaceMode } from './ComposerWorkspaceFooter'
@@ -1622,7 +1623,7 @@ export function ConversationWelcome({
                     )}
                   />
                   <ActionTooltip
-                    label={t('welcome.sendAria')}
+                    label={starting ? t('welcome.startingAria') : t('welcome.sendAria')}
                     shortcut={canSend ? ACTION_SHORTCUTS.send : undefined}
                     placement="top"
                   >
@@ -1630,9 +1631,10 @@ export function ConversationWelcome({
                       tone={canSend ? 'enabled' : 'disabled'}
                       onClick={() => { void sendFromWelcome() }}
                       disabled={!canSend}
-                      aria-label={t('welcome.sendAria')}
+                      aria-label={starting ? t('welcome.startingAria') : t('welcome.sendAria')}
+                      aria-busy={starting ? 'true' : undefined}
                     >
-                      <SendIcon />
+                      {starting ? <SendProcessingIcon /> : <SendIcon />}
                     </ComposerSendButton>
                   </ActionTooltip>
                 </div>

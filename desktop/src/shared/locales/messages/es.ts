@@ -165,6 +165,7 @@ export const MESSAGES_ES = {
   'welcome.suggestion.docs': 'Generar documentación',
   'welcome.sendTitle': 'Enviar (Enter)',
   'welcome.sendAria': 'Enviar mensaje',
+  'welcome.startingAria': 'Iniciando conversación',
 
   'setupWizard.title': 'Configuración del espacio',
   'setupWizard.done': 'Listo',
