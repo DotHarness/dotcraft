@@ -387,6 +387,7 @@ var hostBuilder = new HostBuilder(moduleRegistry, config, paths, preferredPrimar
 var services = new ServiceCollection()
     .AddSingleton(moduleRegistry)
     .AddSingleton(cliArgs)
+    .AddSingleton<IConfigSchemaProvider>(ConfigSchemaRegistrations.CreateSchemaProvider())
     .AddDotCraft(config, workspacePath, botPath);
 
 var (provider, host) = hostBuilder.Build(services);

@@ -594,6 +594,72 @@ public sealed class StateBackedStoreTests : IDisposable
     }
 
     [Fact]
+    public void TraceStore_StateBackedStore_DoesNotBuffer_Events_InMemory()
+    {
+        var store = new TraceStore(_tracingPath, 5000, true, _stateRuntime);
+        var largePayload = new string('x', 64 * 1024);
+
+        store.Record(new TraceEvent
+        {
+            SessionKey = "state-backed-no-buffer",
+            Type = TraceEventType.Request,
+            Content = largePayload
+        });
+        store.Record(new TraceEvent
+        {
+            SessionKey = "state-backed-no-buffer",
+            Type = TraceEventType.PromptCacheRequestShape,
+            MetadataJson = JsonSerializer.Serialize(new
+            {
+                schemaVersion = 1,
+                requestShape = largePayload
+            })
+        });
+
+        Assert.Equal(0, store.GetBufferedEventCount("state-backed-no-buffer"));
+
+        var events = store.GetEvents("state-backed-no-buffer");
+        Assert.Equal(2, events.Count);
+        Assert.Contains(events, evt => evt.Type == TraceEventType.Request && evt.Content == largePayload);
+        Assert.Contains(events, evt => evt.Type == TraceEventType.PromptCacheRequestShape && evt.MetadataJson?.Contains(largePayload) == true);
+
+        var page = store.GetEventPage("state-backed-no-buffer", limit: 10);
+        Assert.Equal(2, page.Events.Count);
+        Assert.Equal(0, store.GetBufferedEventCount("state-backed-no-buffer"));
+    }
+
+    [Fact]
+    public void TraceStore_InMemoryStore_Retains_Events_Up_To_Max()
+    {
+        var store = new TraceStore(maxEventsPerSession: 2);
+
+        store.Record(new TraceEvent
+        {
+            SessionKey = "in-memory-retention",
+            Type = TraceEventType.Request,
+            Content = "one",
+            Timestamp = new DateTimeOffset(2026, 6, 19, 1, 0, 0, TimeSpan.Zero)
+        });
+        store.Record(new TraceEvent
+        {
+            SessionKey = "in-memory-retention",
+            Type = TraceEventType.Request,
+            Content = "two",
+            Timestamp = new DateTimeOffset(2026, 6, 19, 1, 0, 1, TimeSpan.Zero)
+        });
+        store.Record(new TraceEvent
+        {
+            SessionKey = "in-memory-retention",
+            Type = TraceEventType.Request,
+            Content = "three",
+            Timestamp = new DateTimeOffset(2026, 6, 19, 1, 0, 2, TimeSpan.Zero)
+        });
+
+        Assert.Equal(2, store.GetBufferedEventCount("in-memory-retention"));
+        Assert.Equal(["two", "three"], store.GetEvents("in-memory-retention").Select(evt => evt.Content ?? string.Empty).ToArray());
+    }
+
+    [Fact]
     public void TraceStore_RefreshFromDisk_Rebuilds_From_Shared_StateDb()
     {
         var reader = new TraceStore(_tracingPath, 5000, false, _stateRuntime);

@@ -270,6 +270,9 @@ public sealed class TraceStore
         return GetEventPageFromMemory(sessionKey, normalizedLimit, beforeCursor, types);
     }
 
+    internal int GetBufferedEventCount(string sessionKey)
+        => _sessions.TryGetValue(sessionKey, out var session) ? session.Events.Count : 0;
+
     public bool ClearSession(string sessionKey)
     {
         lock (_diskMutationLock)
@@ -1561,6 +1564,9 @@ public sealed class TraceStore
 
     private void AddInMemoryEvent(TraceSession session, TraceEvent evt)
     {
+        if (_stateRuntime != null)
+            return;
+
         if (_maxEventsPerSession <= 0)
             return;
 

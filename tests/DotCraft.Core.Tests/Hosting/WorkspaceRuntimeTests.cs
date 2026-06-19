@@ -22,8 +22,7 @@ public sealed class WorkspaceRuntimeTests
         using var fixture = new WorkspaceFixture();
         var config = CreateConfig();
 
-        await using var provider = new ServiceCollection()
-            .AddDotCraft(config, fixture.WorkspacePath, fixture.BotPath)
+        await using var provider = CreateRuntimeServices(fixture, config)
             .BuildServiceProvider();
 
         var runtime = provider.GetRequiredService<WorkspaceRuntime>();
@@ -44,8 +43,7 @@ public sealed class WorkspaceRuntimeTests
     {
         using var fixture = new WorkspaceFixture();
 
-        await using var provider = new ServiceCollection()
-            .AddDotCraft(CreateConfig(), fixture.WorkspacePath, fixture.BotPath)
+        await using var provider = CreateRuntimeServices(fixture)
             .BuildServiceProvider();
 
         var runtime = provider.GetRequiredService<WorkspaceRuntime>();
@@ -62,8 +60,7 @@ public sealed class WorkspaceRuntimeTests
         using var fixture = new WorkspaceFixture();
         var featureFactory = new FakeWorkspaceRuntimeAppServerFeatureFactory();
 
-        await using var provider = new ServiceCollection()
-            .AddDotCraft(CreateConfig(), fixture.WorkspacePath, fixture.BotPath)
+        await using var provider = CreateRuntimeServices(fixture)
             .AddSingleton<IWorkspaceRuntimeAppServerFeatureFactory>(featureFactory)
             .BuildServiceProvider();
 
@@ -96,13 +93,64 @@ public sealed class WorkspaceRuntimeTests
     }
 
     [Fact]
+    public async Task WorkspaceRuntime_StartAsync_UsesRegisteredConfigSchemaProvider()
+    {
+        using var fixture = new WorkspaceFixture();
+        var schemaProvider = new RecordingConfigSchemaProvider([
+            new ConfigSchemaSection
+            {
+                Section = "Provider Only",
+                Fields =
+                [
+                    new ConfigSchemaField
+                    {
+                        Key = "Enabled",
+                        Type = "bool"
+                    }
+                ]
+            }
+        ]);
+
+        await using var provider = CreateRuntimeServices(fixture, schemaProvider: schemaProvider)
+            .AddSingleton<IWorkspaceRuntimeAppServerFeatureFactory>(new FakeWorkspaceRuntimeAppServerFeatureFactory())
+            .BuildServiceProvider();
+
+        var runtime = provider.GetRequiredService<WorkspaceRuntime>();
+        await runtime.StartAsync(new ModuleRegistry());
+
+        var section = Assert.Single(runtime.ConfigSchema);
+        Assert.Equal("Provider Only", section.Section);
+        Assert.Single(section.Fields);
+        Assert.Equal("Enabled", section.Fields[0].Key);
+        Assert.Equal(1, schemaProvider.GetConfigSchemaCallCount);
+
+        await runtime.StopAsync();
+    }
+
+    [Fact]
+    public async Task WorkspaceRuntime_StartAsync_RequiresRegisteredConfigSchemaProvider()
+    {
+        using var fixture = new WorkspaceFixture();
+
+        await using var provider = new ServiceCollection()
+            .AddDotCraft(CreateConfig(), fixture.WorkspacePath, fixture.BotPath)
+            .AddSingleton<IWorkspaceRuntimeAppServerFeatureFactory>(new FakeWorkspaceRuntimeAppServerFeatureFactory())
+            .BuildServiceProvider();
+
+        var runtime = provider.GetRequiredService<WorkspaceRuntime>();
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => runtime.StartAsync(new ModuleRegistry()));
+
+        Assert.Contains(nameof(IConfigSchemaProvider), error.Message);
+        Assert.Contains("ConfigSchemaRegistrations.CreateSchemaProvider", error.Message);
+    }
+
+    [Fact]
     public async Task WorkspaceRuntime_ForwardsFeatureAndSessionEvents()
     {
         using var fixture = new WorkspaceFixture();
         var featureFactory = new FakeWorkspaceRuntimeAppServerFeatureFactory();
 
-        await using var provider = new ServiceCollection()
-            .AddDotCraft(CreateConfig(), fixture.WorkspacePath, fixture.BotPath)
+        await using var provider = CreateRuntimeServices(fixture)
             .AddSingleton<IWorkspaceRuntimeAppServerFeatureFactory>(featureFactory)
             .BuildServiceProvider();
 
@@ -194,8 +242,7 @@ public sealed class WorkspaceRuntimeTests
         };
         var featureFactory = new FakeWorkspaceRuntimeAppServerFeatureFactory(feature);
 
-        await using var provider = new ServiceCollection()
-            .AddDotCraft(CreateConfig(), fixture.WorkspacePath, fixture.BotPath)
+        await using var provider = CreateRuntimeServices(fixture)
             .AddSingleton<IWorkspaceRuntimeAppServerFeatureFactory>(featureFactory)
             .BuildServiceProvider();
 
@@ -261,8 +308,7 @@ public sealed class WorkspaceRuntimeTests
         };
         var featureFactory = new FakeWorkspaceRuntimeAppServerFeatureFactory(feature);
 
-        await using var provider = new ServiceCollection()
-            .AddDotCraft(CreateConfig(), fixture.WorkspacePath, fixture.BotPath)
+        await using var provider = CreateRuntimeServices(fixture)
             .AddSingleton<IWorkspaceRuntimeAppServerFeatureFactory>(featureFactory)
             .BuildServiceProvider();
 
@@ -340,8 +386,7 @@ public sealed class WorkspaceRuntimeTests
             ThrowOnStart = true
         };
 
-        await using var failingProvider = new ServiceCollection()
-            .AddDotCraft(CreateConfig(), fixture.WorkspacePath, fixture.BotPath)
+        await using var failingProvider = CreateRuntimeServices(fixture)
             .AddSingleton<IWorkspaceRuntimeAppServerFeatureFactory>(
                 new FakeWorkspaceRuntimeAppServerFeatureFactory(failingFeature))
             .BuildServiceProvider();
@@ -353,8 +398,7 @@ public sealed class WorkspaceRuntimeTests
         Assert.Equal(1, failingFeature.StopCalls);
         Assert.Equal(1, failingFeature.DisposeCalls);
 
-        await using var successProvider = new ServiceCollection()
-            .AddDotCraft(CreateConfig(), fixture.WorkspacePath, fixture.BotPath)
+        await using var successProvider = CreateRuntimeServices(fixture)
             .AddSingleton<IWorkspaceRuntimeAppServerFeatureFactory>(
                 new FakeWorkspaceRuntimeAppServerFeatureFactory(new FakeWorkspaceRuntimeAppServerFeature()))
             .BuildServiceProvider();
@@ -363,6 +407,32 @@ public sealed class WorkspaceRuntimeTests
         await successRuntime.StartAsync(new ModuleRegistry());
         Assert.True(successRuntime.IsStarted);
         await successRuntime.StopAsync();
+    }
+
+    private static IServiceCollection CreateRuntimeServices(
+        WorkspaceFixture fixture,
+        AppConfig? config = null,
+        IConfigSchemaProvider? schemaProvider = null)
+        => new ServiceCollection()
+            .AddDotCraft(config ?? CreateConfig(), fixture.WorkspacePath, fixture.BotPath)
+            .AddSingleton<IConfigSchemaProvider>(
+                schemaProvider ?? new RecordingConfigSchemaProvider([
+                    new ConfigSchemaSection
+                    {
+                        Section = "Core",
+                        Fields = []
+                    }
+                ]));
+
+    private sealed class RecordingConfigSchemaProvider(IReadOnlyList<ConfigSchemaSection> schema) : IConfigSchemaProvider
+    {
+        public int GetConfigSchemaCallCount { get; private set; }
+
+        public IReadOnlyList<ConfigSchemaSection> GetConfigSchema()
+        {
+            GetConfigSchemaCallCount++;
+            return schema;
+        }
     }
 
     private sealed class WorkspaceFixture : IDisposable

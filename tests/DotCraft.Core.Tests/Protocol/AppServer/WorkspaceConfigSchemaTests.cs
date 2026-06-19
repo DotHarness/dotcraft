@@ -24,10 +24,9 @@ public sealed class WorkspaceConfigSchemaTests : IDisposable
     [Fact]
     public async Task Initialize_WithWorkspaceConfigManagement_AdvertisesCapability()
     {
-        var schema = ConfigSchemaBuilder.BuildAll([typeof(AppConfig)]);
         using var harness = new AppServerTestHarness(
             workspaceCraftPath: _workspaceCraftPath,
-            configSchema: schema);
+            configSchema: CreateTestSchema());
 
         var initDoc = await harness.InitializeAsync();
         var caps = initDoc.RootElement.GetProperty("result").GetProperty("capabilities");
@@ -37,10 +36,9 @@ public sealed class WorkspaceConfigSchemaTests : IDisposable
     [Fact]
     public async Task WorkspaceConfigSchema_ReturnsSchemaSections()
     {
-        var schema = ConfigSchemaBuilder.BuildAll([typeof(AppConfig)]);
         using var harness = new AppServerTestHarness(
             workspaceCraftPath: _workspaceCraftPath,
-            configSchema: schema);
+            configSchema: CreateTestSchema());
         await harness.InitializeAsync();
 
         var msg = harness.BuildRequest(AppServerMethods.WorkspaceConfigSchema, new { });
@@ -65,4 +63,21 @@ public sealed class WorkspaceConfigSchemaTests : IDisposable
 
         AppServerTestHarness.AssertIsErrorResponse(doc, AppServerErrors.MethodNotFoundCode);
     }
+
+    private static IReadOnlyList<ConfigSchemaSection> CreateTestSchema() =>
+    [
+        new ConfigSchemaSection
+        {
+            Section = "Core",
+            Fields =
+            [
+                new ConfigSchemaField
+                {
+                    Key = "Model",
+                    Type = "text",
+                    DefaultValue = "gpt-4o-mini"
+                }
+            ]
+        }
+    ];
 }

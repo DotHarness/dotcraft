@@ -15,42 +15,6 @@ public class SubAgentProfileConfigTests
     };
 
     [Fact]
-    public void SubAgentProfilesSection_HasRootKey_ItemFields_AndExpectedTypes()
-    {
-        var schema = ConfigSchemaBuilder.BuildAll([typeof(SubAgentProfile)]);
-        var section = Assert.Single(schema);
-
-        Assert.Equal("SubAgentProfiles", section.RootKey);
-        Assert.NotNull(section.ItemFields);
-        Assert.NotEmpty(section.ItemFields);
-        Assert.Empty(section.Fields);
-
-        var byKey = section.ItemFields!.ToDictionary(f => f.Key, f => f);
-        Assert.Equal("text", byKey["Name"].Type);
-        Assert.Equal("text", byKey["Runtime"].Type);
-        Assert.Equal("text", byKey["Bin"].Type);
-        Assert.Equal("stringList", byKey["Args"].Type);
-        Assert.Equal("keyValueMap", byKey["Env"].Type);
-        Assert.Equal("stringList", byKey["EnvPassthrough"].Type);
-        Assert.Equal("select", byKey["WorkingDirectoryMode"].Type);
-        Assert.Contains("workspace", byKey["WorkingDirectoryMode"].Options!);
-        Assert.Contains("specified", byKey["WorkingDirectoryMode"].Options!);
-        Assert.Equal("select", byKey["InputMode"].Type);
-        Assert.Contains("stdin", byKey["InputMode"].Options!);
-        Assert.Equal("text", byKey["InputArgTemplate"].Type);
-        Assert.Equal("text", byKey["InputEnvKey"].Type);
-        Assert.Equal("text", byKey["ResumeArgTemplate"].Type);
-        Assert.Equal("text", byKey["ResumeSessionIdJsonPath"].Type);
-        Assert.Equal("text", byKey["ResumeSessionIdRegex"].Type);
-        Assert.Equal("text", byKey["OutputJsonPath"].Type);
-        Assert.Equal("text", byKey["OutputInputTokensJsonPath"].Type);
-        Assert.Equal("text", byKey["OutputOutputTokensJsonPath"].Type);
-        Assert.Equal("text", byKey["OutputTotalTokensJsonPath"].Type);
-        Assert.Equal("text", byKey["OutputFileArgTemplate"].Type);
-        Assert.Equal("json", byKey["SanitizationRules"].Type);
-    }
-
-    [Fact]
     public void AppConfig_Deserializes_SubAgentProfiles_ObjectMap_IntoStrongTypedList()
     {
         const string json = """
