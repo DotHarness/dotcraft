@@ -113,7 +113,8 @@ internal sealed class AppToolAttachmentService(
 
                 var effectiveState = GetRuntimeBindingState(binding);
                 if (managedRuntimesByAppId.ContainsKey(binding.AppId)
-                    && effectiveState != AppBindingStates.Active)
+                    && effectiveState != AppBindingStates.Active
+                    && !string.Equals(binding.BindingKind, AppBindingKinds.SocialChannel, StringComparison.Ordinal))
                 {
                     continue;
                 }
@@ -232,8 +233,8 @@ internal sealed class AppToolAttachmentService(
             return AppBindingStates.Expired;
         if (binding.State != AppBindingStates.Active)
             return binding.State;
-        if (managedRuntimesByAppId.ContainsKey(binding.AppId))
-            return AppBindingStates.Active;
+        if (managedRuntimesByAppId.TryGetValue(binding.AppId, out var runtime))
+            return IsManagedRuntimeReady(runtime, binding.AppId) ? AppBindingStates.Active : AppBindingStates.Offline;
         if (!TryGetLiveAttachment(binding.BindingId, out _))
             return AppBindingStates.Offline;
         return AppBindingStates.Active;
@@ -246,11 +247,21 @@ internal sealed class AppToolAttachmentService(
 
     private bool IsBindingConnectionUsable(AppBindingStateDocument state, AppBindingRecord binding) =>
         IsManagedAppWithoutExternalConnection(binding.AppId)
-        || IsConnectionUsable(FindConnection(state, binding.UserId, binding.AppId));
+            ? IsManagedAppWithoutExternalConnectionReady(binding.AppId)
+            : IsConnectionUsable(FindConnection(state, binding.UserId, binding.AppId));
 
     private bool IsManagedAppWithoutExternalConnection(string appId) =>
         managedRuntimesByAppId.TryGetValue(appId, out var runtime)
         && runtime.RequiresExternalConnection == false;
+
+    private bool IsManagedAppWithoutExternalConnectionReady(string appId) =>
+        managedRuntimesByAppId.TryGetValue(appId, out var runtime)
+        && runtime.RequiresExternalConnection == false
+        && IsManagedRuntimeReady(runtime, appId);
+
+    private static bool IsManagedRuntimeReady(IManagedAppBindingRuntime runtime, string appId) =>
+        runtime.RequiresExternalConnection
+        || string.Equals(runtime.GetConnectionStatus(appId).State, AppConnectionStates.Connected, StringComparison.Ordinal);
 
     private ThreadAppBindingWire MapBinding(
         AppBindingRecord binding,
@@ -268,9 +279,12 @@ internal sealed class AppToolAttachmentService(
         var managedRuntime = managedRuntimesByAppId.GetValueOrDefault(binding.AppId);
         var managed = managedRuntime != null;
         var requiresExternalConnection = managedRuntime?.RequiresExternalConnection ?? true;
-        var connectionStatus = managed && !requiresExternalConnection
-            ? new AppConnectionStatusWire { AppId = binding.AppId, State = AppConnectionStates.Connected }
-            : connection;
+        var connectionStatus = AppBindingWireMapper.ResolveConnectionStatus(
+            managedRuntime,
+            managed,
+            requiresExternalConnection,
+            binding.AppId,
+            connection);
         return new ThreadAppBindingWire
         {
             BindingId = binding.BindingId,

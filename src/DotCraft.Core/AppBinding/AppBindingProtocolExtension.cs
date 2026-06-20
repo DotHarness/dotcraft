@@ -269,7 +269,14 @@ public sealed class AppBindingProtocolExtension(
             case AppBindingRequestGet:
             {
                 var p = GetParams<AppBindingRequestGetParams>(msg);
-                var result = service.GetBindingRequest(catalog, workspaceCraftPath, p);
+                var result = service.GetBindingRequest(
+                    catalog,
+                    workspaceCraftPath,
+                    p,
+                    channelAdapterName: context.Connection.IsChannelAdapter
+                        ? context.Connection.ChannelAdapterName
+                        : null,
+                    requireSocialAuthorization: true);
                 var thread = await EnsureThreadAsync(context, result.ThreadId, ct);
                 result.ThreadTitle = thread.DisplayName;
                 return result;

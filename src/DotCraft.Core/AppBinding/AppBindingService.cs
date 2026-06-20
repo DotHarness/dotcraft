@@ -162,8 +162,11 @@ public sealed class AppBindingService
         AppCatalogSnapshot catalog,
         string workspaceCraftPath,
         string userId,
-        string appId) =>
-        _connections.GetConnectionStatus(catalog, workspaceCraftPath, userId, appId);
+        string appId)
+    {
+        var fallback = _connections.GetConnectionStatus(catalog, workspaceCraftPath, userId, appId);
+        return ResolveManagedConnectionStatus(appId, fallback);
+    }
 
     /// <summary>
     /// Refreshes only the <c>publicMetadata</c> of an existing connected connection
@@ -196,8 +199,16 @@ public sealed class AppBindingService
         AppCatalogSnapshot catalog,
         string workspaceCraftPath,
         AppBindingRequestGetParams p,
-        string? threadTitle = null) =>
-        _lifecycle.GetBindingRequest(catalog, workspaceCraftPath, p, threadTitle);
+        string? threadTitle = null,
+        string? channelAdapterName = null,
+        bool requireSocialAuthorization = false) =>
+        _lifecycle.GetBindingRequest(
+            catalog,
+            workspaceCraftPath,
+            p,
+            threadTitle,
+            channelAdapterName,
+            requireSocialAuthorization);
 
     public AppBindingRequestCancelResult CancelBindingRequest(
         string workspaceCraftPath,
@@ -498,12 +509,37 @@ public sealed class AppBindingService
         _storeAccessor.GetStore(workspaceCraftPath);
 
     internal bool IsBindingConnectionUsable(AppBindingStateDocument state, AppBindingRecord binding) =>
-        IsManagedAppWithoutExternalConnection(binding.AppId)
-        || IsConnectionUsable(FindConnection(state, binding.UserId, binding.AppId));
+        IsAppConnectionUsable(state, binding.UserId, binding.AppId);
+
+    internal bool IsAppConnectionUsable(AppBindingStateDocument state, string userId, string appId) =>
+        IsManagedAppWithoutExternalConnection(appId)
+            ? IsManagedAppWithoutExternalConnectionReady(appId)
+            : IsConnectionUsable(FindConnection(state, userId, appId));
 
     internal bool IsManagedAppWithoutExternalConnection(string appId) =>
         _managedRuntimesByAppId.TryGetValue(appId, out var runtime)
         && runtime.RequiresExternalConnection == false;
+
+    internal bool IsManagedAppWithoutExternalConnectionReady(string appId) =>
+        _managedRuntimesByAppId.TryGetValue(appId, out var runtime)
+        && runtime.RequiresExternalConnection == false
+        && string.Equals(runtime.GetConnectionStatus(appId).State, AppConnectionStates.Connected, StringComparison.Ordinal);
+
+    internal AppConnectionStatusWire ResolveManagedConnectionStatus(
+        string appId,
+        AppConnectionStatusWire fallback)
+    {
+        if (!_managedRuntimesByAppId.TryGetValue(appId, out var runtime)
+            || runtime.RequiresExternalConnection)
+        {
+            return fallback;
+        }
+
+        var status = runtime.GetConnectionStatus(appId);
+        if (string.IsNullOrWhiteSpace(status.AppId))
+            status.AppId = appId;
+        return status;
+    }
 
     internal static void ValidateRequestedScopes(AppDescriptor descriptor, IReadOnlyList<string> requestedScopes)
     {

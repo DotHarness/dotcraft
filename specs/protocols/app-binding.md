@@ -4,7 +4,7 @@
 |-------|-------|
 | **Version** | 0.5.0 |
 | **Status** | Living |
-| **Date** | 2026-06-19 |
+| **Date** | 2026-06-20 |
 | **Related Specs** | [AppServer Protocol](appserver-protocol.md), [Tool Result Presentation](tool-result-presentation.md), [Plugin Architecture](../extensions/plugin-architecture.md), [Session Core](../core/session-core.md), [Desktop Client](../clients/desktop-client.md), [SDK](../sdk/sdk.md), [TypeScript SDK Binding](../sdk/typescript.md) |
 
 Purpose: define the product-grade App Binding architecture for DotCraft. App Binding lets a user connect an installed native application or a managed channel runtime and grant one specific DotCraft thread access to app-owned tools or social-channel conversation input, while keeping app/channel authority, account consent, and high-risk operations under the owning runtime's control.
@@ -764,6 +764,7 @@ Rules:
 
 - The DotCraft plugin/package must be installed and enabled.
 - The app connection must be usable before creating a binding request.
+- For first-party managed runtimes without external connection records, including social-channel apps, usable means the runtime's current connection status is `connected`.
 - DotCraft must require user confirmation before creating or launching a binding request.
 - The app must inspect and validate the binding request before accepting. It may auto-accept when the user already selected this connected app in DotCraft and app policy permits it; otherwise it must show its own confirmation UI.
 - Pending requests appear in `thread/appBindings/list`.
@@ -820,6 +821,12 @@ Lets the app inspect a pending binding request before accepting it or showing co
 The app must use this result to validate scope, risk, target thread, and tool details before accepting. If the app policy requires additional confirmation, the confirmation UI must be rendered from this trusted result rather than from deep link query text.
 
 For social-channel requests, the channel adapter calls this method with its app id (`com.dotharness.channel.<channelName>`) and the bind code before accepting. Only the matching channel adapter connection may inspect requests for its channel app id.
+
+Rules:
+
+- `socialChannel` requests may only be inspected by a channel-adapter connection whose `channelAdapter.channelName` matches the request's `socialIntent.channelName`.
+- For first-party channel runtimes, the request `appId` must equal `com.dotharness.channel.<channelName>`.
+- Desktop clients and other non-channel callers must not be able to use a bind code as a thread metadata lookup API.
 
 ### 10.3 `app/binding/request/cancel`
 
@@ -890,6 +897,7 @@ Rules:
 - The app may narrow scopes but must not expand them.
 - Acceptance makes the binding active, but tools are not model-visible until attachment succeeds and the next safe exposure boundary is reached.
 - `socialChannel` acceptance must come from a connection whose `channelAdapter.channelName` matches `socialTarget.channelName`.
+- `socialChannel` acceptance requires the managed channel runtime to still be usable. A stale bind code must not create an active binding after the channel adapter disconnects.
 - `socialChannel` acceptance stores the normalized `socialTarget` and enforces the active-target uniqueness rule from §6.3.
 
 ### 10.5 `app/binding/attachTools`
@@ -1033,7 +1041,7 @@ Adds app-provided input to the queue of the thread derived from an active bindin
 Rules:
 
 - `appId` and `grantId` must match the active binding.
-- The app connection must be usable, or the app must be a first-party managed App Binding runtime.
+- The app connection must be usable. For first-party managed App Binding runtimes that do not use external connection records, usability is derived from the runtime's current connection status.
 - The binding must be active and unexpired.
 - The target thread id is derived from the binding; callers cannot specify or override it.
 - The method must reject cross-app, cross-thread, revoked, expired, cancelled, pending, offline, and wrong-grant attempts.
@@ -1088,7 +1096,7 @@ Rules:
 - Only a channel-adapter connection for the same `channelName` may call this method.
 - `appId` must equal `com.dotharness.channel.<channelName>` for first-party channel runtimes.
 - Successful results include the active binding's `grantId`; adapters use it when calling `app/threadInput/enqueue`.
-- Revoked, expired, pending, cancelled, offline, and wrong-account bindings do not resolve.
+- Revoked, expired, pending, cancelled, offline, runtime-unavailable, and wrong-account bindings do not resolve.
 - The method is an address lookup, not an enumeration API; callers cannot query across channels.
 
 ---
@@ -1137,7 +1145,7 @@ Lists bindings and pending binding requests for a thread.
 }
 ```
 
-Pending entries use `state: "pending"` and have no granted scopes or attached tools. Social-channel entries include `bindingKind: "socialChannel"` and, once active, their `socialTarget` so Desktop can show the bound conversation label. `exposureRevision` increments when tool exposure, context blocks, or social target metadata changes.
+Pending entries use `state: "pending"` and have no granted scopes or attached tools. Clients cancel pending request rows with `app/binding/request/cancel`; `thread/appBindings/revoke` is only for accepted binding records. Social-channel entries include `bindingKind: "socialChannel"` and, once active, their `socialTarget` so Desktop can show the bound conversation label. `exposureRevision` increments when tool exposure, context blocks, or social target metadata changes.
 
 ### 11.2 `thread/appContextBlocks/list`
 
@@ -1309,6 +1317,8 @@ For a `socialChannel` binding, DotCraft may expose:
 - The generic `SendMessageToBoundConversation` tool, which sends text to the bound conversation.
 - Runtime-declared native channel tools from the channel adapter, such as image or media send helpers, when the adapter reports a usable tool descriptor and the runtime is ready.
 
+Managed social-channel app connection status is derived from channel runtime readiness, not from a persisted app connection record. `app/list`, `app/connection/status`, thread binding wires, tool exposure, and `app/threadInput/enqueue` must agree on this status. When a runtime becomes unavailable, refresh marks active social-channel bindings `offline`; clients must not present an active-but-disconnected social binding as deliverable.
+
 Social-channel app-bound tool execution rules:
 
 - The delivery target is always derived from the active binding's `socialTarget.deliveryTarget`.
@@ -1344,7 +1354,7 @@ Direct external writes are allowed only when descriptor risk, granted scopes, Do
 
 ### 13.6 Stable Offline Stubs
 
-When a binding is `offline`, DotCraft should preserve stable model-visible tool stubs where possible. Calls fail quickly with structured errors.
+When a binding is `offline`, DotCraft should preserve stable model-visible tool stubs where possible. Calls fail quickly with structured errors. For managed social-channel bindings that already attached tools before going offline, the tool names should remain stable and invocation must fail before dispatch when runtime readiness says the channel is unavailable.
 
 Standard app binding tool error codes:
 

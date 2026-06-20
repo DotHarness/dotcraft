@@ -32,9 +32,12 @@ internal sealed class AppBindingWireMapper(
         var descriptor = managedRuntime?.GetCatalogDescriptor(surface) ?? entry.Descriptor;
         var managed = entry.ManagedRuntime != null;
         var requiresExternalConnection = entry.ManagedRuntime?.RequiresExternalConnection ?? true;
-        var connectionStatus = managed && !requiresExternalConnection
-            ? new AppConnectionStatusWire { AppId = descriptor.AppId, State = AppConnectionStates.Connected }
-            : MapConnectionStatus(state, userId, descriptor.AppId);
+        var connectionStatus = ResolveConnectionStatus(
+            managedRuntime,
+            managed,
+            requiresExternalConnection,
+            descriptor.AppId,
+            MapConnectionStatus(state, userId, descriptor.AppId));
         var connection = managed && !requiresExternalConnection ? null : FindConnection(state, userId, descriptor.AppId);
         var binding = string.IsNullOrWhiteSpace(threadId)
             ? null
@@ -159,9 +162,12 @@ internal sealed class AppBindingWireMapper(
         var managedRuntime = managedRuntimesByAppId.GetValueOrDefault(binding.AppId);
         var managed = managedRuntime != null;
         var requiresExternalConnection = managedRuntime?.RequiresExternalConnection ?? true;
-        var connectionStatus = managed && !requiresExternalConnection
-            ? new AppConnectionStatusWire { AppId = binding.AppId, State = AppConnectionStates.Connected }
-            : connection;
+        var connectionStatus = ResolveConnectionStatus(
+            managedRuntime,
+            managed,
+            requiresExternalConnection,
+            binding.AppId,
+            connection);
         return new ThreadAppBindingWire
         {
             BindingId = binding.BindingId,
@@ -196,9 +202,12 @@ internal sealed class AppBindingWireMapper(
         var managedRuntime = managedRuntimesByAppId.GetValueOrDefault(request.AppId);
         var managed = managedRuntime != null;
         var requiresExternalConnection = managedRuntime?.RequiresExternalConnection ?? true;
-        var connectionStatus = managed && !requiresExternalConnection
-            ? new AppConnectionStatusWire { AppId = request.AppId, State = AppConnectionStates.Connected }
-            : connection;
+        var connectionStatus = ResolveConnectionStatus(
+            managedRuntime,
+            managed,
+            requiresExternalConnection,
+            request.AppId,
+            connection);
         return new ThreadAppBindingWire
         {
             BindingRequestId = request.BindingRequestId,
@@ -249,6 +258,23 @@ internal sealed class AppBindingWireMapper(
             SocialTarget = binding.SocialTarget,
             ExposureRevision = binding.ExposureRevision
         };
+
+    internal static AppConnectionStatusWire ResolveConnectionStatus(
+        IManagedAppBindingRuntime? managedRuntime,
+        bool managed,
+        bool requiresExternalConnection,
+        string appId,
+        AppConnectionStatusWire fallback)
+    {
+        if (!managed || requiresExternalConnection)
+            return fallback;
+
+        var status = managedRuntime?.GetConnectionStatus(appId)
+                     ?? new AppConnectionStatusWire { AppId = appId, State = AppConnectionStates.Connected };
+        if (string.IsNullOrWhiteSpace(status.AppId))
+            status.AppId = appId;
+        return status;
+    }
 
     public static AppConnectionStatusWire MapConnectionStatus(AppConnectionRecord? connection, string? appId = null)
     {

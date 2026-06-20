@@ -4,6 +4,7 @@ import { LocaleProvider } from '../contexts/LocaleContext'
 import { ThreadAppBindingsButton } from '../components/conversation/ThreadAppBindingsButton'
 import { useAppBindingStore } from '../stores/appBindingStore'
 import { useConnectionStore } from '../stores/connectionStore'
+import { useToastStore } from '../stores/toastStore'
 
 const sendRequest = vi.fn()
 const settingsGet = vi.fn()
@@ -107,6 +108,7 @@ describe('ThreadAppBindingsButton', () => {
     shellGetProtocolHandlerName.mockResolvedValue('Oratorio')
     useConnectionStore.getState().reset()
     useAppBindingStore.getState().reset()
+    useToastStore.setState({ toasts: [] })
     useConnectionStore.getState().setStatus({
       status: 'connected',
       capabilities: { appBinding: true }
@@ -535,6 +537,15 @@ describe('ThreadAppBindingsButton', () => {
           }
         }
       }
+      if (method === 'app/binding/request/cancel') {
+        bindingState = null
+        return {
+          bindingRequestId: 'bind-req-social-1',
+          threadId: 'thread-1',
+          appId: 'com.dotharness.channel.qq',
+          state: 'cancelled'
+        }
+      }
       return {}
     })
 
@@ -562,8 +573,82 @@ describe('ThreadAppBindingsButton', () => {
     })
     expect(await screen.findByText('Pending')).toBeInTheDocument()
     expect(screen.getByText('Send /bind DTC-482913 in the QQ conversation to bind it to this thread.')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'Refresh' })).toHaveLength(1)
+    expect(sendRequest).not.toHaveBeenCalledWith('thread/appBindings/refresh', {
+      threadId: 'thread-1',
+      bindingId: 'bind-req-social-1'
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    await waitFor(() => {
+      expect(sendRequest).toHaveBeenCalledWith('app/binding/request/cancel', {
+        bindingRequestId: 'bind-req-social-1',
+        reason: undefined
+      })
+    })
+    expect(sendRequest).not.toHaveBeenCalledWith('thread/appBindings/revoke', expect.anything())
+    await waitFor(() => {
+      expect(useToastStore.getState().toasts.some((toast) => toast.message === 'App binding request canceled')).toBe(true)
+    })
+    expect(useToastStore.getState().toasts.some((toast) => toast.message === 'App binding revoked')).toBe(false)
     expect(shellOpenAppHandoff).not.toHaveBeenCalled()
+  })
+
+  it('hides offline social channels without thread bindings', async () => {
+    sendRequest.mockImplementation(async (method: string) => {
+      if (method === 'thread/appBindings/refresh') return { bindings: [] }
+      if (method === 'thread/appBindings/list') return { bindings: [] }
+      if (method === 'app/list') return { apps: [socialAppInfo({ connectionState: 'notConnected' })] }
+      return {}
+    })
+
+    render(
+      <LocaleProvider>
+        <ThreadAppBindingsButton threadId="thread-1" />
+      </LocaleProvider>
+    )
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Apps' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('No apps bound')).toBeInTheDocument()
+      expect(screen.queryByText('QQ')).toBeNull()
+    })
+    expect(screen.queryByText('Not connected')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Bind thread' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Connect' })).toBeNull()
+  })
+
+  it('does not show a disconnected active social binding as bound', async () => {
+    const disconnectedBinding = { ...socialBinding('active'), connectionState: 'notConnected' }
+    sendRequest.mockImplementation(async (method: string) => {
+      if (method === 'thread/appBindings/refresh') return { bindings: [disconnectedBinding] }
+      if (method === 'thread/appBindings/list') return { bindings: [disconnectedBinding] }
+      if (method === 'app/list') {
+        return {
+          apps: [
+            socialAppInfo({
+              connectionState: 'notConnected',
+              bindingSummary: disconnectedBinding
+            })
+          ]
+        }
+      }
+      return {}
+    })
+
+    render(
+      <LocaleProvider>
+        <ThreadAppBindingsButton threadId="thread-1" />
+      </LocaleProvider>
+    )
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Apps' }))
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('QQ')).toBeInTheDocument()
+      expect(document.body.textContent).toContain('Not connected')
+      expect(document.body.textContent).not.toContain('Bound')
+    })
   })
 
   it('shows the active social target and can refresh or revoke it', async () => {

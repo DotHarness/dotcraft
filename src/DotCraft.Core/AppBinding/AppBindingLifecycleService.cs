@@ -46,8 +46,7 @@ internal sealed class AppBindingLifecycleService(
         AppBindingService.ValidateRequestedTools(entry.Descriptor, p.RequestedTools);
 
         var state = stores.GetStore(workspaceCraftPath).Snapshot();
-        var connection = FindConnection(state, userId, p.AppId);
-        if (!owner.IsManagedAppWithoutExternalConnection(p.AppId) && !IsConnectionUsable(connection))
+        if (!owner.IsAppConnectionUsable(state, userId, p.AppId))
             throw AppServerErrors.InvalidParams($"App '{p.AppId}' is not connected for this workspace user.");
 
         var token = string.Equals(bindingKind, AppBindingKinds.SocialChannel, StringComparison.Ordinal)
@@ -113,6 +112,10 @@ internal sealed class AppBindingLifecycleService(
         AppBindingService.ValidateRequestedScopes(descriptor, p.RequestedScopes);
         AppBindingService.ValidateRequestedTools(descriptor, p.RequestedTools);
 
+        var state = stores.GetStore(workspaceCraftPath).Snapshot();
+        if (!owner.IsAppConnectionUsable(state, userId, p.AppId))
+            throw AppServerErrors.InvalidParams($"App '{p.AppId}' is not connected for this workspace user.");
+
         var toolSpecs = runtime.GetToolSpecsForSurface(ManagedAppBindingToolSurfaces.ThreadBinding).ToList();
         if (p.RequestedTools is { Count: > 0 } requestedTools)
         {
@@ -156,7 +159,9 @@ internal sealed class AppBindingLifecycleService(
         AppCatalogSnapshot catalog,
         string workspaceCraftPath,
         AppBindingRequestGetParams p,
-        string? threadTitle = null)
+        string? threadTitle = null,
+        string? channelAdapterName = null,
+        bool requireSocialAuthorization = false)
     {
         if (string.IsNullOrWhiteSpace(p.AppId))
             throw AppServerErrors.InvalidParams("'appId' is required.");
@@ -180,6 +185,7 @@ internal sealed class AppBindingLifecycleService(
             throw AppServerErrors.InvalidParams("Binding request token has expired.");
         if (!AppBindingToken.Matches(token!, request.RequestTokenHash))
             throw AppServerErrors.InvalidParams("Binding request token is invalid.");
+        AuthorizeSocialBindingRequestGet(request, channelAdapterName, requireSocialAuthorization);
 
         var requestedScopeSet = request.RequestedScopes.ToHashSet(StringComparer.Ordinal);
         var requestedTools = request.RequestedTools?.ToHashSet(StringComparer.Ordinal);
@@ -272,8 +278,7 @@ internal sealed class AppBindingLifecycleService(
             var socialTarget = NormalizeAcceptedSocialTarget(request, p.SocialTarget);
             if (socialTarget != null)
                 EnsureNoActiveSocialTargetConflict(state, request.AppId, socialTarget);
-            if (!owner.IsManagedAppWithoutExternalConnection(request.AppId)
-                && !IsConnectionUsable(FindConnection(state, request.UserId, request.AppId)))
+            if (!owner.IsAppConnectionUsable(state, request.UserId, request.AppId))
                 throw AppServerErrors.InvalidParams($"App '{request.AppId}' is not connected for this workspace user.");
 
             request.Consumed = true;
@@ -371,7 +376,9 @@ internal sealed class AppBindingLifecycleService(
                                 && string.Equals(candidate.BindingKind, AppBindingKinds.SocialChannel, StringComparison.Ordinal)
                                 && candidate.SocialTarget != null
                                 && (candidate.ExpiresAt == null || candidate.ExpiresAt > now))
-            .FirstOrDefault(candidate => SocialTargetMatches(candidate.SocialTarget!, p));
+            .FirstOrDefault(candidate =>
+                owner.IsBindingConnectionUsable(state, candidate)
+                && SocialTargetMatches(candidate.SocialTarget!, p));
         return new AppSocialBindingResolveResult
         {
             Binding = binding == null
@@ -540,6 +547,41 @@ internal sealed class AppBindingLifecycleService(
             DisplayHint = string.IsNullOrWhiteSpace(socialIntent.DisplayHint) ? null : socialIntent.DisplayHint.Trim()
         };
     }
+
+    private static void AuthorizeSocialBindingRequestGet(
+        AppBindingRequestRecord request,
+        string? channelAdapterName,
+        bool requireSocialAuthorization)
+    {
+        if (!string.Equals(request.BindingKind, AppBindingKinds.SocialChannel, StringComparison.Ordinal))
+            return;
+
+        var channelName = ResolveSocialRequestChannelName(request);
+        if (string.IsNullOrWhiteSpace(channelName))
+            throw AppServerErrors.InvalidParams("Social binding request channelName is missing.");
+        if (!string.Equals(request.AppId, ChannelAppId(channelName), StringComparison.Ordinal))
+            throw AppServerErrors.InvalidParams("Social binding appId does not match channelName.");
+        if (!requireSocialAuthorization)
+            return;
+        if (string.IsNullOrWhiteSpace(channelAdapterName))
+            throw AppServerErrors.InvalidParams("Social channel binding requests may only be inspected by channel adapters.");
+        if (!string.Equals(channelAdapterName.Trim(), channelName, StringComparison.OrdinalIgnoreCase))
+            throw AppServerErrors.InvalidParams("Channel adapter cannot inspect binding requests for another channel.");
+    }
+
+    private static string? ResolveSocialRequestChannelName(AppBindingRequestRecord request)
+    {
+        if (!string.IsNullOrWhiteSpace(request.SocialIntent?.ChannelName))
+            return request.SocialIntent.ChannelName.Trim().ToLowerInvariant();
+
+        const string prefix = "com.dotharness.channel.";
+        return request.AppId.StartsWith(prefix, StringComparison.Ordinal)
+            ? request.AppId[prefix.Length..]
+            : null;
+    }
+
+    private static string ChannelAppId(string channelName) =>
+        $"com.dotharness.channel.{channelName.Trim().ToLowerInvariant()}";
 
     private static SocialChannelTargetWire? NormalizeAcceptedSocialTarget(
         AppBindingRequestRecord request,
@@ -880,13 +922,25 @@ internal sealed class AppBindingLifecycleService(
                 }
                 else if (owner.IsManagedAppWithoutExternalConnection(binding.AppId))
                 {
-                    if (binding.State == AppBindingStates.Offline)
+                    if (owner.IsManagedAppWithoutExternalConnectionReady(binding.AppId))
                     {
-                        binding.State = AppBindingStates.Active;
+                        if (binding.State == AppBindingStates.Offline)
+                        {
+                            binding.State = AppBindingStates.Active;
+                            binding.LastChangedAt = now;
+                            binding.Diagnostic = null;
+                            binding.ExposureRevision++;
+                            AppBindingService.AddAudit(state, "binding.managed.reattached", binding.ThreadId, binding.BindingId, binding.AppId, binding.UserId, null);
+                        }
+                    }
+                    else if (binding.State == AppBindingStates.Active)
+                    {
+                        binding.State = AppBindingStates.Offline;
                         binding.LastChangedAt = now;
-                        binding.Diagnostic = null;
+                        binding.Diagnostic = "The managed app runtime is not connected.";
                         binding.ExposureRevision++;
-                        AppBindingService.AddAudit(state, "binding.managed.reattached", binding.ThreadId, binding.BindingId, binding.AppId, binding.UserId, null);
+                        attachments.Remove(binding.BindingId);
+                        AppBindingService.AddAudit(state, "binding.managed.offline", binding.ThreadId, binding.BindingId, binding.AppId, binding.UserId, binding.Diagnostic);
                     }
                 }
                 else if (FindConnection(state, binding.UserId, binding.AppId) is { } connection

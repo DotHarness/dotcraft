@@ -189,6 +189,7 @@ interface AppBindingStore {
   }): Promise<AppBindingRequestCreateResult>
   fetchThreadBindings(threadId: string, includeRevoked?: boolean): Promise<void>
   refreshThreadBindings(threadId: string, bindingId?: string): Promise<void>
+  cancelBindingRequest(threadId: string, bindingRequestId: string, reason?: string): Promise<void>
   revokeThreadBinding(threadId: string, bindingId: string, reason?: string): Promise<void>
   waitForConnection(appId: string, options?: AppBindingWaitOptions): Promise<AppInfo>
   waitForThreadBinding(params: {
@@ -292,6 +293,15 @@ export const useAppBindingStore = create<AppBindingStore>((set, get) => ({
     await window.api.appServer.sendRequest('thread/appBindings/refresh', {
       threadId,
       bindingId: bindingId || undefined
+    })
+    await get().fetchThreadBindings(threadId)
+    if (get().appsThreadId === threadId) await get().fetchApps(threadId, false, get().appsSurface)
+  },
+
+  async cancelBindingRequest(threadId, bindingRequestId, reason) {
+    await window.api.appServer.sendRequest('app/binding/request/cancel', {
+      bindingRequestId,
+      reason
     })
     await get().fetchThreadBindings(threadId)
     if (get().appsThreadId === threadId) await get().fetchApps(threadId, false, get().appsSurface)

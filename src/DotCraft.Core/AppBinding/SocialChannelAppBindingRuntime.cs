@@ -39,6 +39,15 @@ public sealed class SocialChannelAppBindingRuntime(
 
     public AppDescriptor GetCatalogDescriptor(string surface) => Descriptor;
 
+    public AppConnectionStatusWire GetConnectionStatus(string appId) =>
+        new()
+        {
+            AppId = appId,
+            State = runtimeRegistry.TryGet(_channelName, out var runtime) && runtime is { IsReady: true }
+                ? AppConnectionStates.Connected
+                : AppConnectionStates.NotConnected
+        };
+
     public IReadOnlyList<DynamicToolSpec> GetToolSpecsForSurface(string surface) => ToolSpecs;
 
     public async ValueTask<DynamicToolCallResult> InvokeToolAsync(

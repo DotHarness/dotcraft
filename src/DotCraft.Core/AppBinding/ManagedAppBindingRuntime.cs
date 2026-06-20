@@ -63,6 +63,17 @@ public interface IManagedAppBindingRuntime
     AppDescriptor GetCatalogDescriptor(string surface) => Descriptor;
 
     /// <summary>
+    /// Current connection status for a managed runtime that does not use the
+    /// external app connection handoff flow.
+    /// </summary>
+    AppConnectionStatusWire GetConnectionStatus(string appId) =>
+        new()
+        {
+            AppId = appId,
+            State = AppConnectionStates.Connected
+        };
+
+    /// <summary>
     /// Tool specs attached to a managed binding for a specific surface.
     /// </summary>
     IReadOnlyList<DynamicToolSpec> GetToolSpecsForSurface(string surface) => ToolSpecs;
