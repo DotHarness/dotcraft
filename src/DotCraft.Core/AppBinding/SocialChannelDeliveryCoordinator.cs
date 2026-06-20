@@ -40,9 +40,15 @@ public sealed class SocialChannelDeliveryCoordinator(
                     queuedInputId,
                     cancellationToken);
             }
-            catch
+            catch (Exception ex)
             {
                 // Delivery is best-effort and must never fault turn execution or AppServer request handling.
+                appBindingService.RecordSocialDelivery(
+                    workspaceCraftPath,
+                    bindingId,
+                    queuedInputId,
+                    delivered: false,
+                    diagnostic: $"deliveryObserverFailed:{ex.GetType().Name}");
             }
         }, CancellationToken.None);
     }

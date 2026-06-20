@@ -639,6 +639,23 @@ public sealed class AppBindingProtocolTests : IDisposable
             item => item.GetProperty("appId").GetString() == qqAppId);
         Assert.Equal("notConnected", offlineApp.GetProperty("connectionState").GetString());
 
+        registry.Register(new RecordingChannelRuntime("qq", isReady: false));
+
+        using var connectingResponse = await ExecuteAndReadResponseAsync(
+            harness,
+            AppList,
+            new
+            {
+                includeDisabled = true,
+                forceRefresh = true,
+                surface = AppBindingCatalogSurfaces.ThreadBinding
+            });
+        AppServerTestHarness.AssertIsSuccessResponse(connectingResponse);
+        var connectingApp = Assert.Single(
+            connectingResponse.RootElement.GetProperty("result").GetProperty("apps").EnumerateArray(),
+            item => item.GetProperty("appId").GetString() == qqAppId);
+        Assert.Equal("connecting", connectingApp.GetProperty("connectionState").GetString());
+
         registry.Register(new RecordingChannelRuntime("qq"));
 
         using var onlineResponse = await ExecuteAndReadResponseAsync(
@@ -679,6 +696,15 @@ public sealed class AppBindingProtocolTests : IDisposable
         AppServerTestHarness.AssertIsSuccessResponse(offlineResponse);
         Assert.Equal("notConnected", offlineResponse.RootElement.GetProperty("result").GetProperty("state").GetString());
 
+        registry.Register(new RecordingChannelRuntime("qq", isReady: false));
+
+        using var connectingResponse = await ExecuteAndReadResponseAsync(
+            harness,
+            AppConnectionStatus,
+            new { appId = qqAppId });
+        AppServerTestHarness.AssertIsSuccessResponse(connectingResponse);
+        Assert.Equal("connecting", connectingResponse.RootElement.GetProperty("result").GetProperty("state").GetString());
+
         registry.Register(new RecordingChannelRuntime("qq"));
 
         using var onlineResponse = await ExecuteAndReadResponseAsync(
@@ -687,6 +713,61 @@ public sealed class AppBindingProtocolTests : IDisposable
             new { appId = qqAppId });
         AppServerTestHarness.AssertIsSuccessResponse(onlineResponse);
         Assert.Equal("connected", onlineResponse.RootElement.GetProperty("result").GetProperty("state").GetString());
+    }
+
+    [Fact]
+    public async Task SocialChannelAppList_ReportsInvalidNativeToolDiagnostics()
+    {
+        const string qqAppId = "com.dotharness.channel.qq";
+        var registry = new ChannelRuntimeRegistry();
+        registry.Register(new RecordingChannelRuntime(
+            "qq",
+            [
+                new ChannelToolDescriptor
+                {
+                    Name = "QQValidTool",
+                    Description = "Valid native QQ tool.",
+                    InputSchema = CreateCardSchema()
+                },
+                new ChannelToolDescriptor
+                {
+                    Name = "QQInvalidTool",
+                    Description = string.Empty,
+                    InputSchema = CreateCardSchema()
+                }
+            ]));
+        var service = new AppBindingService([
+            new SocialChannelAppBindingRuntime(
+                "qq",
+                "QQ",
+                "Continue this thread in QQ.",
+                registry)
+        ]);
+        using var harness = CreateHarness(service);
+        await harness.InitializeAsync();
+
+        using var response = await ExecuteAndReadResponseAsync(
+            harness,
+            AppList,
+            new
+            {
+                includeDisabled = true,
+                surface = AppBindingCatalogSurfaces.ThreadBinding
+            });
+        AppServerTestHarness.AssertIsSuccessResponse(response);
+        var app = Assert.Single(
+            response.RootElement.GetProperty("result").GetProperty("apps").EnumerateArray(),
+            item => item.GetProperty("appId").GetString() == qqAppId);
+        Assert.Contains(
+            app.GetProperty("toolCatalog").EnumerateArray(),
+            tool => tool.GetProperty("name").GetString() == "QQValidTool");
+        Assert.DoesNotContain(
+            app.GetProperty("toolCatalog").EnumerateArray(),
+            tool => tool.GetProperty("name").GetString() == "QQInvalidTool");
+        Assert.Contains(
+            app.GetProperty("diagnostics").EnumerateArray(),
+            diagnostic => diagnostic.GetProperty("code").GetString() == "InvalidChannelToolDescriptor"
+                          && diagnostic.GetProperty("message").GetString()?.Contains("must declare a description") == true);
     }
 
     [Fact]
@@ -1107,6 +1188,117 @@ public sealed class AppBindingProtocolTests : IDisposable
         Assert.Equal("text", delivery.Message.Kind);
         Assert.Equal("reply to bound qq", delivery.Message.Text);
         await WaitForAppBindingAuditContainsAsync("binding.socialDelivery.delivered");
+    }
+
+    [Fact]
+    public async Task ThreadInputEnqueue_FromSocialBindingRecordsObserverFailureDiagnostic()
+    {
+        const string qqAppId = "com.dotharness.channel.qq";
+        var registry = new ChannelRuntimeRegistry();
+        registry.Register(new RecordingChannelRuntime("qq", throwOnDeliver: true));
+        var service = new AppBindingService([
+            new SocialChannelAppBindingRuntime(
+                "qq",
+                "QQ",
+                "Continue this thread in QQ.",
+                registry)
+        ]);
+        using var harness = CreateHarness(service, channelRuntimeRegistry: registry);
+        await InitializeChannelAdapterAsync(harness, "qq");
+        var thread = await harness.Service.CreateThreadAsync(CreateIdentity());
+        var bindingId = await CreateAcceptedQqSocialBindingAsync(harness, qqAppId, thread.Id);
+
+        using var enqueueResponse = await ExecuteAndReadResponseAsync(
+            harness,
+            AppThreadInputEnqueue,
+            new
+            {
+                bindingId,
+                appId = qqAppId,
+                grantId = "social-grant-1",
+                input = new[] { new { type = "text", text = "hello from qq" } },
+                sender = new
+                {
+                    senderId = "9988",
+                    senderName = "Ada",
+                    groupId = "group:123456"
+                },
+                startPolicy = "runWhenIdle"
+            });
+        AppServerTestHarness.AssertIsSuccessResponse(enqueueResponse);
+        var queuedInputId = enqueueResponse.RootElement.GetProperty("result").GetProperty("queuedInput").GetProperty("id").GetString()!;
+
+        await harness.Service.WaitForThreadSubscriberAsync(thread.Id, TimeSpan.FromSeconds(2));
+        var input = new SessionItem
+        {
+            Id = "item_input",
+            TurnId = "turn_delivery_failure",
+            Type = ItemType.UserMessage,
+            Status = ItemStatus.Completed,
+            CreatedAt = DateTimeOffset.UtcNow,
+            CompletedAt = DateTimeOffset.UtcNow,
+            Payload = new UserMessagePayload
+            {
+                Text = "hello from qq",
+                DeliveryMode = "queued",
+                QueuedInputId = queuedInputId,
+                DeliveryBindingId = bindingId
+            }
+        };
+        var turn = new SessionTurn
+        {
+            Id = "turn_delivery_failure",
+            ThreadId = thread.Id,
+            Status = TurnStatus.Running,
+            StartedAt = DateTimeOffset.UtcNow,
+            Input = input,
+            Items = [input]
+        };
+        var completed = new SessionTurn
+        {
+            Id = turn.Id,
+            ThreadId = thread.Id,
+            Status = TurnStatus.Completed,
+            StartedAt = turn.StartedAt,
+            CompletedAt = DateTimeOffset.UtcNow,
+            Input = input,
+            Items =
+            [
+                input,
+                new SessionItem
+                {
+                    Id = "item_agent",
+                    TurnId = turn.Id,
+                    Type = ItemType.AgentMessage,
+                    Status = ItemStatus.Completed,
+                    CreatedAt = DateTimeOffset.UtcNow,
+                    CompletedAt = DateTimeOffset.UtcNow,
+                    Payload = new AgentMessagePayload { Text = "reply that will fail delivery" }
+                }
+            ]
+        };
+        harness.Service.PublishThreadEvent(new SessionEvent
+        {
+            EventId = "evt_delivery_failure_started",
+            EventType = SessionEventType.TurnStarted,
+            ThreadId = thread.Id,
+            TurnId = turn.Id,
+            Timestamp = DateTimeOffset.UtcNow,
+            Payload = turn
+        });
+        harness.Service.PublishThreadEvent(new SessionEvent
+        {
+            EventId = "evt_delivery_failure_completed",
+            EventType = SessionEventType.TurnCompleted,
+            ThreadId = thread.Id,
+            TurnId = turn.Id,
+            Timestamp = DateTimeOffset.UtcNow,
+            Payload = completed
+        });
+
+        await WaitForAppBindingAuditContainsAsync(
+            "binding.socialDelivery.failed",
+            "deliveryObserverFailed:InvalidOperationException");
     }
 
     [Fact]
@@ -2875,7 +3067,9 @@ public sealed class AppBindingProtocolTests : IDisposable
 
     private sealed class RecordingChannelRuntime(
         string name,
-        IReadOnlyList<ChannelToolDescriptor>? channelTools = null) : IChannelRuntime
+        IReadOnlyList<ChannelToolDescriptor>? channelTools = null,
+        bool isReady = true,
+        bool throwOnDeliver = false) : IChannelRuntime
     {
         private readonly TaskCompletionSource<RecordedDelivery> _delivery =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -2883,6 +3077,8 @@ public sealed class AppBindingProtocolTests : IDisposable
             new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public string Name { get; } = name;
+
+        public bool IsReady { get; } = isReady;
 
         public ExtChannelToolCallParams? LastToolCall { get; private set; }
 
@@ -2894,6 +3090,9 @@ public sealed class AppBindingProtocolTests : IDisposable
             object? metadata = null,
             CancellationToken cancellationToken = default)
         {
+            if (throwOnDeliver)
+                throw new InvalidOperationException("Synthetic delivery failure.");
+
             _delivery.TrySetResult(new RecordedDelivery(target, message, metadata));
             return Task.FromResult(new ExtChannelSendResult
             {
@@ -3311,16 +3510,16 @@ public sealed class AppBindingProtocolTests : IDisposable
         return bindingId;
     }
 
-    private void AssertAppBindingAuditContains(string eventName)
+    private void AssertAppBindingAuditContains(string eventName, string? detailContains = null)
     {
         var statePath = Path.Combine(_workspaceCraftPath, "app-bindings", "state.json");
         using var document = JsonDocument.Parse(ReadAppBindingState(statePath));
         Assert.Contains(
             document.RootElement.GetProperty("audit").EnumerateArray(),
-            audit => audit.GetProperty("event").GetString() == eventName);
+            audit => AuditMatches(audit, eventName, detailContains));
     }
 
-    private async Task WaitForAppBindingAuditContainsAsync(string eventName)
+    private async Task WaitForAppBindingAuditContainsAsync(string eventName, string? detailContains = null)
     {
         var deadline = DateTimeOffset.UtcNow.AddSeconds(2);
         while (DateTimeOffset.UtcNow < deadline)
@@ -3332,7 +3531,7 @@ public sealed class AppBindingProtocolTests : IDisposable
                 {
                     using var document = JsonDocument.Parse(ReadAppBindingState(statePath));
                     if (document.RootElement.GetProperty("audit").EnumerateArray()
-                        .Any(audit => audit.GetProperty("event").GetString() == eventName))
+                        .Any(audit => AuditMatches(audit, eventName, detailContains)))
                     {
                         return;
                     }
@@ -3350,7 +3549,18 @@ public sealed class AppBindingProtocolTests : IDisposable
             await Task.Delay(10);
         }
 
-        AssertAppBindingAuditContains(eventName);
+        AssertAppBindingAuditContains(eventName, detailContains);
+    }
+
+    private static bool AuditMatches(JsonElement audit, string eventName, string? detailContains)
+    {
+        if (audit.GetProperty("event").GetString() != eventName)
+            return false;
+        if (string.IsNullOrWhiteSpace(detailContains))
+            return true;
+
+        return audit.TryGetProperty("detail", out var detail)
+               && detail.GetString()?.Contains(detailContains, StringComparison.Ordinal) == true;
     }
 
     private static string ReadAppBindingState(string statePath)

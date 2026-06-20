@@ -32,6 +32,9 @@ internal sealed class AppBindingWireMapper(
         var descriptor = managedRuntime?.GetCatalogDescriptor(surface) ?? entry.Descriptor;
         var managed = entry.ManagedRuntime != null;
         var requiresExternalConnection = entry.ManagedRuntime?.RequiresExternalConnection ?? true;
+        var diagnostics = managedRuntime == null
+            ? entry.Diagnostics
+            : entry.Diagnostics.Concat(managedRuntime.GetCatalogDiagnostics(surface)).ToArray();
         var connectionStatus = ResolveConnectionStatus(
             managedRuntime,
             managed,
@@ -107,7 +110,7 @@ internal sealed class AppBindingWireMapper(
                     SocialTarget = binding.SocialTarget,
                     ExposureRevision = binding.ExposureRevision
                 },
-            Diagnostics = entry.Diagnostics.Select(MapDiagnostic).ToList()
+            Diagnostics = diagnostics.Select(MapDiagnostic).ToList()
         };
     }
 

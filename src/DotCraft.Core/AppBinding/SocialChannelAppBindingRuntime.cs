@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using DotCraft.Abstractions;
+using DotCraft.Plugins;
 using DotCraft.Protocol;
 using DotCraft.Protocol.AppServer;
 
@@ -39,14 +40,28 @@ public sealed class SocialChannelAppBindingRuntime(
 
     public AppDescriptor GetCatalogDescriptor(string surface) => Descriptor;
 
-    public AppConnectionStatusWire GetConnectionStatus(string appId) =>
-        new()
+    public AppConnectionStatusWire GetConnectionStatus(string appId)
+    {
+        var state = AppConnectionStates.NotConnected;
+        if (runtimeRegistry.TryGet(_channelName, out var runtime) && runtime != null)
+        {
+            state = runtime.IsReady
+                ? AppConnectionStates.Connected
+                : AppConnectionStates.Connecting;
+        }
+
+        return new AppConnectionStatusWire
         {
             AppId = appId,
-            State = runtimeRegistry.TryGet(_channelName, out var runtime) && runtime is { IsReady: true }
-                ? AppConnectionStates.Connected
-                : AppConnectionStates.NotConnected
+            State = state
         };
+    }
+
+    public IReadOnlyList<PluginDiagnostic> GetCatalogDiagnostics(string surface)
+    {
+        GetChannelToolDescriptors(out var diagnostics);
+        return diagnostics;
+    }
 
     public IReadOnlyList<DynamicToolSpec> GetToolSpecsForSurface(string surface) => ToolSpecs;
 
@@ -234,22 +249,59 @@ public sealed class SocialChannelAppBindingRuntime(
         })
     ];
 
-    private IReadOnlyList<ChannelToolDescriptor> GetChannelToolDescriptors()
+    private IReadOnlyList<ChannelToolDescriptor> GetChannelToolDescriptors() =>
+        GetChannelToolDescriptors(out _);
+
+    private IReadOnlyList<ChannelToolDescriptor> GetChannelToolDescriptors(out IReadOnlyList<PluginDiagnostic> diagnostics)
     {
         if (!runtimeRegistry.TryGet(_channelName, out var runtime) || runtime == null || !runtime.IsReady)
+        {
+            diagnostics = [];
             return [];
+        }
 
-        return runtime.GetChannelTools()
-            .Where(IsUsableChannelTool)
-            .GroupBy(tool => tool.Name, StringComparer.Ordinal)
-            .Select(group => group.First())
-            .ToList();
+        var accepted = new List<ChannelToolDescriptor>();
+        var warnings = new List<PluginDiagnostic>();
+        var acceptedNames = new HashSet<string>(StringComparer.Ordinal);
+        var appId = AppIdForChannel(_channelName);
+        foreach (var descriptor in runtime.GetChannelTools())
+        {
+            if (string.Equals(descriptor.Name, SendMessageToolName, StringComparison.Ordinal))
+            {
+                warnings.Add(PluginDiagnostic.Warning(
+                    "ChannelToolNameConflict",
+                    $"Channel tool '{descriptor.Name}' conflicts with the built-in social binding send tool.",
+                    appId));
+                continue;
+            }
+
+            if (!TryValidateChannelTool(descriptor, out var message))
+            {
+                warnings.Add(PluginDiagnostic.Warning(
+                    "InvalidChannelToolDescriptor",
+                    message,
+                    appId));
+                continue;
+            }
+
+            if (!acceptedNames.Add(descriptor.Name))
+            {
+                warnings.Add(PluginDiagnostic.Warning(
+                    "DuplicateChannelToolDescriptor",
+                    $"Channel tool '{descriptor.Name}' is declared more than once; only the first declaration is used.",
+                    appId));
+                continue;
+            }
+
+            accepted.Add(descriptor);
+        }
+
+        diagnostics = warnings;
+        return accepted;
     }
 
-    private static bool IsUsableChannelTool(ChannelToolDescriptor descriptor)
+    private static bool TryValidateChannelTool(ChannelToolDescriptor descriptor, out string message)
     {
-        if (string.Equals(descriptor.Name, SendMessageToolName, StringComparison.Ordinal))
-            return false;
         var spec = new DynamicToolSpec
         {
             Namespace = "channel",
@@ -259,7 +311,7 @@ public sealed class SocialChannelAppBindingRuntime(
             DeferLoading = descriptor.DeferLoading,
             Approval = descriptor.Approval
         };
-        return WireDynamicToolProxy.TryValidateSpecs([spec], out _);
+        return WireDynamicToolProxy.TryValidateSpecs([spec], out message);
     }
 
     private static bool TryFindTargetOverride(JsonObject arguments, out string argumentName)
