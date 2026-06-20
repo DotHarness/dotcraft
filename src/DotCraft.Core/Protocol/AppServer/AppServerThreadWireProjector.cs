@@ -210,6 +210,24 @@ internal sealed class AppServerThreadWireProjector(
         _ = appBindingService.RevokeBindingsForDeletedThread(catalog, craftPath, thread.Id);
     }
 
+    public ThreadArchiveSocialBindingCleanupResult RevokeSocialAppBindingsForArchivedThread(SessionThread thread)
+    {
+        if (appBindingService == null)
+            return new ThreadArchiveSocialBindingCleanupResult([], []);
+
+        var craftPath = Path.Combine(thread.WorkspacePath, ".craft");
+        if (!Directory.Exists(craftPath))
+            return new ThreadArchiveSocialBindingCleanupResult([], []);
+
+        var catalog = appBindingService.DiscoverCatalog(
+            appConfigMonitor?.Current ?? workspaceConfig.LoadCurrentMergedConfig(),
+            thread.WorkspacePath,
+            craftPath,
+            skillsLoader,
+            builtInPluginSourceRoots);
+        return appBindingService.RevokeSocialBindingsForArchivedThread(catalog, craftPath, thread.Id);
+    }
+
     public async Task<SessionWireThread> HydrateThreadGoalAsync(SessionWireThread wire, CancellationToken ct)
     {
         var goal = await TryGetGoalSnapshotAsync(wire.Id, ct);

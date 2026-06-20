@@ -4,6 +4,14 @@ using static DotCraft.AppBinding.AppBindingStoreAccessor;
 
 namespace DotCraft.AppBinding;
 
+internal sealed record ThreadArchiveSocialBindingCleanupResult(
+    IReadOnlyList<ThreadArchiveSocialBindingChange> RevokedBindings,
+    IReadOnlyList<AppBindingRequestCancelResult> CancelledRequests);
+
+internal sealed record ThreadArchiveSocialBindingChange(
+    ThreadAppBindingWire Binding,
+    string PreviousState);
+
 internal sealed class AppBindingLifecycleService(
     AppBindingService owner,
     AppBindingStoreAccessor stores,
@@ -859,6 +867,82 @@ internal sealed class AppBindingLifecycleService(
         });
     }
 
+    internal ThreadArchiveSocialBindingCleanupResult RevokeSocialBindingsForArchivedThread(
+        AppCatalogSnapshot catalog,
+        string workspaceCraftPath,
+        string threadId)
+    {
+        if (string.IsNullOrWhiteSpace(threadId))
+            return new ThreadArchiveSocialBindingCleanupResult([], []);
+
+        return stores.GetStore(workspaceCraftPath).Update(state =>
+        {
+            var now = DateTimeOffset.UtcNow;
+            const string diagnostic = "The thread was archived.";
+            var descriptors = catalog.Entries
+                .GroupBy(entry => entry.Descriptor.AppId, StringComparer.Ordinal)
+                .ToDictionary(group => group.Key, group => group.First().Descriptor, StringComparer.Ordinal);
+            var revoked = new List<ThreadArchiveSocialBindingChange>();
+            var cancelled = new List<AppBindingRequestCancelResult>();
+
+            foreach (var request in state.BindingRequests.Where(request =>
+                         string.Equals(request.ThreadId, threadId, StringComparison.Ordinal)
+                         && string.Equals(request.BindingKind, AppBindingKinds.SocialChannel, StringComparison.Ordinal)
+                         && request.State == AppBindingStates.Pending
+                         && !request.Consumed).ToList())
+            {
+                request.State = AppBindingStates.Cancelled;
+                request.Consumed = true;
+                AppBindingService.AddAudit(
+                    state,
+                    "binding.request.cancelled.threadArchived",
+                    request.ThreadId,
+                    null,
+                    request.AppId,
+                    request.UserId,
+                    diagnostic);
+                cancelled.Add(new AppBindingRequestCancelResult
+                {
+                    BindingRequestId = request.BindingRequestId,
+                    ThreadId = request.ThreadId,
+                    AppId = request.AppId,
+                    State = AppBindingStates.Cancelled
+                });
+            }
+
+            foreach (var binding in state.Bindings.Where(binding =>
+                         string.Equals(binding.ThreadId, threadId, StringComparison.Ordinal)
+                         && string.Equals(binding.BindingKind, AppBindingKinds.SocialChannel, StringComparison.Ordinal)
+                         && !IsTerminalBindingState(binding.State)).ToList())
+            {
+                var previousState = binding.State;
+                binding.State = AppBindingStates.Revoked;
+                binding.LastChangedAt = now;
+                binding.Diagnostic = diagnostic;
+                binding.ExposureRevision++;
+                attachments.Remove(binding.BindingId);
+                AppBindingService.AddAudit(
+                    state,
+                    "binding.revoked.threadArchived",
+                    binding.ThreadId,
+                    binding.BindingId,
+                    binding.AppId,
+                    binding.UserId,
+                    diagnostic);
+
+                descriptors.TryGetValue(binding.AppId, out var descriptor);
+                revoked.Add(new ThreadArchiveSocialBindingChange(
+                    owner.MapBinding(
+                        binding,
+                        descriptor,
+                        AppBindingService.MapConnectionStatus(state, binding.UserId, binding.AppId)),
+                    previousState));
+            }
+
+            return new ThreadArchiveSocialBindingCleanupResult(revoked, cancelled);
+        });
+    }
+
     public ThreadAppBindingRevokeResult RevokeBinding(
         string workspaceCraftPath,
         ThreadAppBindingRevokeParams p)
@@ -888,6 +972,11 @@ internal sealed class AppBindingLifecycleService(
             };
         });
     }
+
+    private static bool IsTerminalBindingState(string state) =>
+        string.Equals(state, AppBindingStates.Revoked, StringComparison.Ordinal)
+        || string.Equals(state, AppBindingStates.Expired, StringComparison.Ordinal)
+        || string.Equals(state, AppBindingStates.Cancelled, StringComparison.Ordinal);
 
     public ThreadAppBindingRefreshResult RefreshBindings(
         AppCatalogSnapshot catalog,

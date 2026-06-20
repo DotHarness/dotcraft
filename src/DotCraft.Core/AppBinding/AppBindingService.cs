@@ -411,6 +411,12 @@ public sealed class AppBindingService
         string threadId) =>
         _lifecycle.RevokeBindingsForDeletedThread(catalog, workspaceCraftPath, threadId);
 
+    internal ThreadArchiveSocialBindingCleanupResult RevokeSocialBindingsForArchivedThread(
+        AppCatalogSnapshot catalog,
+        string workspaceCraftPath,
+        string threadId) =>
+        _lifecycle.RevokeSocialBindingsForArchivedThread(catalog, workspaceCraftPath, threadId);
+
     public ThreadAppBindingRevokeResult RevokeBinding(
         string workspaceCraftPath,
         ThreadAppBindingRevokeParams p) =>

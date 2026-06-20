@@ -28,6 +28,7 @@ internal sealed class ThreadRequestHandler(
     private const int MaxWidgetStateBytes = 8 * 1024;
     private const string ThreadListCursorKind = "thread-list";
     private const string ThreadReadCursorKind = "thread-read";
+    private const string ThreadAppBindingsChanged = "thread/appBindings/changed";
     private readonly object _pendingInteractiveReplayLock = new();
     private readonly Dictionary<string, Task> _pendingInteractiveReplayTasks = new(StringComparer.Ordinal);
 
@@ -701,19 +702,64 @@ internal sealed class ThreadRequestHandler(
         if (previousStatus == ThreadStatus.Archived)
             return new { };
 
+        var socialBindingCleanup = threadProjector.RevokeSocialAppBindingsForArchivedThread(thread);
         if (connection.HasSubscription(p.ThreadId))
         {
             await responseWriter.WriteResponseAsync(msg.Id, new { }, ct);
+            await SendArchiveSocialBindingNotificationsAsync(socialBindingCleanup, ct);
             return null;
         }
 
-        await responseWriter.SendNotificationAfterResponseAsync(
-            msg.Id,
-            new { },
-            AppServerMethods.ThreadStatusChanged,
-            new { threadId = p.ThreadId, previousStatus, newStatus = ThreadStatus.Archived },
-            ct);
+        await responseWriter.WriteResponseAsync(msg.Id, new { }, ct);
+        await transport.WriteMessageAsync(new
+        {
+            jsonrpc = "2.0",
+            method = AppServerMethods.ThreadStatusChanged,
+            @params = new { threadId = p.ThreadId, previousStatus, newStatus = ThreadStatus.Archived }
+        }, ct);
+        await SendArchiveSocialBindingNotificationsAsync(socialBindingCleanup, ct);
         return null;
+    }
+
+    private async Task SendArchiveSocialBindingNotificationsAsync(
+        ThreadArchiveSocialBindingCleanupResult cleanup,
+        CancellationToken ct)
+    {
+        foreach (var change in cleanup.RevokedBindings)
+        {
+            await transport.WriteMessageAsync(new
+            {
+                jsonrpc = "2.0",
+                method = ThreadAppBindingsChanged,
+                @params = new
+                {
+                    threadId = change.Binding.ThreadId,
+                    bindingId = change.Binding.BindingId,
+                    appId = change.Binding.AppId,
+                    state = change.Binding.State,
+                    previousState = change.PreviousState,
+                    changeKind = "threadArchived"
+                }
+            }, ct);
+        }
+
+        foreach (var request in cleanup.CancelledRequests)
+        {
+            await transport.WriteMessageAsync(new
+            {
+                jsonrpc = "2.0",
+                method = ThreadAppBindingsChanged,
+                @params = new
+                {
+                    threadId = request.ThreadId,
+                    bindingRequestId = request.BindingRequestId,
+                    appId = request.AppId,
+                    state = request.State,
+                    previousState = AppBindingStates.Pending,
+                    changeKind = "threadArchived"
+                }
+            }, ct);
+        }
     }
 
     private async Task<object?> HandleThreadUnarchiveAsync(AppServerIncomingMessage msg, CancellationToken ct)
