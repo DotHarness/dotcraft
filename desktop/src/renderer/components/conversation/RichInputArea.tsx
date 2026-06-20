@@ -367,10 +367,15 @@ export const RichInputArea = forwardRef(function RichInputArea(
     const adjustHeight = useCallback((): void => {
       const el = editorRef.current
       if (!el) return
+      // Setting height to 'auto' to measure scrollHeight collapses the overflow
+      // and snaps scrollTop to 0. Preserve it across the measurement so committing
+      // an IME composition (input → adjustHeight) doesn't jump the editor to the top.
+      const prevScrollTop = el.scrollTop
       el.style.height = 'auto'
       const lineHeight = parseInt(getComputedStyle(el).lineHeight) || 20
       const maxHeight = lineHeight * MAX_ROWS + 24
       el.style.height = `${Math.min(el.scrollHeight, maxHeight)}px`
+      el.scrollTop = prevScrollTop
     }, [])
 
     const getText = useCallback((): string => {
