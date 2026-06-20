@@ -101,6 +101,17 @@ public sealed record UserMessagePayload
     /// Optional routing id for client-side click-through (e.g. cron job id, task id).
     /// </summary>
     public string? TriggerRefId { get; init; }
+
+    /// <summary>
+    /// Queued input id that produced this user message when <see cref="DeliveryMode"/> is <c>queued</c>.
+    /// </summary>
+    public string? QueuedInputId { get; init; }
+
+    /// <summary>
+    /// Thread app binding id that should receive this turn's default assistant delivery.
+    /// Only populated for app/social binding initiated turns.
+    /// </summary>
+    public string? DeliveryBindingId { get; init; }
 }
 
 /// <summary>
@@ -127,6 +138,16 @@ public sealed record SessionInputSnapshot
     /// Optional delivery mode carried into the persisted UserMessage payload.
     /// </summary>
     public string? DeliveryMode { get; init; }
+
+    /// <summary>
+    /// Queued input id when this snapshot represents a dequeued input.
+    /// </summary>
+    public string? QueuedInputId { get; init; }
+
+    /// <summary>
+    /// Thread app binding id that should receive this turn's default assistant delivery.
+    /// </summary>
+    public string? DeliveryBindingId { get; init; }
 }
 
 /// <summary>
@@ -167,6 +188,11 @@ public sealed record QueuedTurnInput
     /// Optional routing id for client-side click-through to the trigger source.
     /// </summary>
     public string? TriggerRefId { get; init; }
+
+    /// <summary>
+    /// Thread app binding id that should receive this queued input's default assistant delivery.
+    /// </summary>
+    public string? DeliveryBindingId { get; init; }
 }
 
 /// <summary>

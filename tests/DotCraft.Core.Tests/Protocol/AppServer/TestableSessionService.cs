@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Threading.Channels;
 using DotCraft.Protocol;
 using DotCraft.Agents;
 using Microsoft.Extensions.AI;
@@ -17,6 +18,8 @@ internal sealed class TestableSessionService : ISessionService, IThreadAgentRefr
     private readonly ThreadStore _store;
     private readonly Dictionary<string, SessionThread> _cache = new();
     private readonly Dictionary<string, Queue<SessionEvent[]>> _submitQueue = new();
+    private readonly Lock _threadSubscribersLock = new();
+    private readonly Dictionary<string, List<Channel<SessionEvent>>> _threadSubscribers = new(StringComparer.Ordinal);
     private readonly List<(string threadId, string turnId)> _cancelledTurns = new();
     private readonly List<string> _cancelledMaintenances = new();
     private readonly List<(string threadId, string turnId, string requestId, SessionApprovalDecision decision)> _resolvedApprovals = new();
@@ -79,6 +82,39 @@ internal sealed class TestableSessionService : ISessionService, IThreadAgentRefr
         if (!_submitQueue.TryGetValue(threadId, out var queue))
             _submitQueue[threadId] = queue = new Queue<SessionEvent[]>();
         queue.Enqueue(events);
+    }
+
+    public void PublishThreadEvent(SessionEvent evt)
+    {
+        lock (_threadSubscribersLock)
+        {
+            if (!_threadSubscribers.TryGetValue(evt.ThreadId, out var subscribers))
+                return;
+            foreach (var subscriber in subscribers.ToList())
+            {
+                subscriber.Writer.TryWrite(evt);
+            }
+        }
+    }
+
+    public async Task WaitForThreadSubscriberAsync(
+        string threadId,
+        TimeSpan timeout,
+        CancellationToken ct = default)
+    {
+        var deadline = DateTimeOffset.UtcNow + timeout;
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            lock (_threadSubscribersLock)
+            {
+                if (_threadSubscribers.TryGetValue(threadId, out var subscribers) && subscribers.Count > 0)
+                    return;
+            }
+
+            await Task.Delay(10, ct);
+        }
+
+        throw new TimeoutException($"Timed out waiting for a thread subscriber on '{threadId}'.");
     }
 
     // -------------------------------------------------------------------------
@@ -839,18 +875,47 @@ internal sealed class TestableSessionService : ISessionService, IThreadAgentRefr
         bool replayRecent = false,
         CancellationToken ct = default)
     {
-        // Keep the subscription alive until the token is cancelled so that
-        // AppServerConnection.HasSubscription(threadId) stays true for the lifetime of the subscription.
-        // In the real SessionService, this stream is driven by the ThreadEventBroker.
-        return BlockUntilCancelledAsync(ct);
+        var channel = Channel.CreateUnbounded<SessionEvent>(new UnboundedChannelOptions
+        {
+            SingleReader = true,
+            SingleWriter = false
+        });
+        lock (_threadSubscribersLock)
+        {
+            if (!_threadSubscribers.TryGetValue(threadId, out var subscribers))
+                _threadSubscribers[threadId] = subscribers = [];
+            subscribers.Add(channel);
+        }
+
+        return ReadThreadSubscriptionAsync(threadId, channel, ct);
     }
 
-    private static async IAsyncEnumerable<SessionEvent> BlockUntilCancelledAsync(
+    private async IAsyncEnumerable<SessionEvent> ReadThreadSubscriptionAsync(
+        string threadId,
+        Channel<SessionEvent> channel,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
     {
-        try { await Task.Delay(Timeout.Infinite, ct); }
-        catch (OperationCanceledException) { }
-        yield break;
+        try
+        {
+            await foreach (var evt in channel.Reader.ReadAllAsync(ct))
+            {
+                yield return evt;
+            }
+        }
+        finally
+        {
+            lock (_threadSubscribersLock)
+            {
+                if (_threadSubscribers.TryGetValue(threadId, out var subscribers))
+                {
+                    subscribers.Remove(channel);
+                    if (subscribers.Count == 0)
+                        _threadSubscribers.Remove(threadId);
+                }
+            }
+
+            channel.Writer.TryComplete();
+        }
     }
 
     public Task ResolveApprovalAsync(
@@ -938,7 +1003,8 @@ internal sealed class TestableSessionService : ISessionService, IThreadAgentRefr
             Status = "queued",
             TriggerKind = triggerInfo?.Kind,
             TriggerLabel = triggerInfo?.Label,
-            TriggerRefId = triggerInfo?.RefId
+            TriggerRefId = triggerInfo?.RefId,
+            DeliveryBindingId = inputSnapshot?.DeliveryBindingId
         };
         thread.QueuedInputs.Add(queued);
         thread.LastActiveAt = DateTimeOffset.UtcNow;

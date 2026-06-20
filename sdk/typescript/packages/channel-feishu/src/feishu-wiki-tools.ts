@@ -1,3 +1,5 @@
+import type { ChannelToolDescriptor } from "@dotcraft/sdk/channel";
+
 import type { FeishuClient } from "./feishu-client.js";
 import type { FeishuWikiObjType } from "./feishu-types.js";
 
@@ -61,7 +63,7 @@ class WikiToolError extends Error {
   }
 }
 
-export function getFeishuWikiChannelTools(enabled: boolean): Record<string, unknown>[] {
+export function getFeishuWikiChannelTools(enabled: boolean): ChannelToolDescriptor[] {
   if (!enabled) return [];
   return [
     {

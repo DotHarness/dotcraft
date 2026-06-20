@@ -269,8 +269,10 @@ Fields:
   - Optional human-readable source label.
 - `TriggerRefId` (string, nullable)
   - Optional stable source id for client-side click-through or audit correlation.
+- `DeliveryBindingId` (string, nullable)
+  - Optional App Binding id that owns the default output delivery target for the future Turn.
 
-When a queued input starts a future Turn, Session Core must copy trigger metadata into the persisted `UserMessagePayload`. When a queued input is promoted into current-turn guidance, the guidance `UserMessage` item must preserve the same trigger metadata.
+When a queued input starts a future Turn, Session Core must copy trigger metadata, the queued input id, and any default delivery binding id into the persisted `UserMessagePayload`. When a queued input is promoted into current-turn guidance, the guidance `UserMessage` item must preserve the same trigger metadata.
 
 #### 4.1.1.4 SubAgent Child Threads
 
@@ -1114,6 +1116,8 @@ IAsyncEnumerable<SessionEvent> SubmitInputAsync(
 The `content` parameter accepts multimodal input (text, images, etc.) as a list of `AIContent` parts. When the transport provides native input metadata (for example native command, skill, or file-reference parts), Session Core persists both the transport-native snapshot and the materialized `AIContent` snapshot on `UserMessagePayload`, derives `UserMessagePayload.Text` from the native snapshot for compatibility/display, and passes the full multimodal materialized content to the agent via `ChatMessage`. A convenience extension method `SubmitInputAsync(string threadId, string text, ...)` wraps plain text into `[new TextContent(text)]` for text-only callers.
 
 `UserMessagePayload.DeliveryMode` is optional and indicates how the user message entered the conversation: `"normal"` (or omitted) for a direct Turn start, `"queued"` for a queued input that later became a Turn, and `"guidance"` for a user request appended to an active Turn.
+
+`UserMessagePayload.QueuedInputId` stores the queue record that produced the message when available. `UserMessagePayload.DeliveryBindingId` stores the App Binding id that should receive the default assistant output for that Turn; direct Desktop-originated input leaves it empty.
 
 ```
 Task<QueuedTurnInput> EnqueueTurnInputAsync(

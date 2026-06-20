@@ -1,6 +1,7 @@
 import { stat } from "node:fs/promises";
 import { resolve } from "node:path";
 
+import type { ChannelToolDescriptor } from "@dotcraft/sdk/channel";
 import { InputFile } from "grammy";
 
 export const DOCUMENT_TOOL_NAME = "TelegramSendDocumentToCurrentChat";
@@ -70,7 +71,7 @@ export class TelegramMediaTools {
     };
   }
 
-  getChannelTools(): Record<string, unknown>[] {
+  getChannelTools(): ChannelToolDescriptor[] {
     const sourceProperties = {
       filePath: { type: "string" },
       fileUrl: { type: "string" },

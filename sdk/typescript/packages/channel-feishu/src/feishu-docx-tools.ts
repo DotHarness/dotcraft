@@ -1,6 +1,8 @@
 import { stat } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 
+import type { ChannelToolDescriptor } from "@dotcraft/sdk/channel";
+
 import type { FeishuClient } from "./feishu-client.js";
 import type { FeishuConfig } from "./feishu-types.js";
 import { extractWikiNodeToken, resolveWikiSpaceTarget } from "./feishu-wiki-tools.js";
@@ -165,7 +167,7 @@ export function areFeishuDocxToolsEnabled(config: FeishuConfig | undefined): boo
   return config?.feishu.tools?.docs?.enabled === true;
 }
 
-export function getFeishuDocxChannelTools(enabled: boolean): Record<string, unknown>[] {
+export function getFeishuDocxChannelTools(enabled: boolean): ChannelToolDescriptor[] {
   if (!enabled) return [];
   const simpleBlockSchema = {
     type: "object",

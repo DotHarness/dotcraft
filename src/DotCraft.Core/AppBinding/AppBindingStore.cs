@@ -146,6 +146,10 @@ internal sealed class AppBindingRequestRecord
 
     public string RequestTokenHash { get; set; } = string.Empty;
 
+    public string BindingKind { get; set; } = AppBindingKinds.App;
+
+    public SocialBindingIntentWire? SocialIntent { get; set; }
+
     public string State { get; set; } = AppBindingStates.Pending;
 
     public DateTimeOffset CreatedAt { get; set; }
@@ -167,6 +171,8 @@ internal sealed class AppBindingRecord
 
     public string State { get; set; } = AppBindingStates.Pending;
 
+    public string BindingKind { get; set; } = AppBindingKinds.App;
+
     public string GrantId { get; set; } = string.Empty;
 
     public List<string> RequestedScopes { get; set; } = [];
@@ -186,6 +192,10 @@ internal sealed class AppBindingRecord
     public string? AuditRef { get; set; }
 
     public string? Diagnostic { get; set; }
+
+    public SocialChannelTargetWire? SocialTarget { get; set; }
+
+    public long ExposureRevision { get; set; }
 
     public List<DynamicToolSpec> AttachedTools { get; set; } = [];
 

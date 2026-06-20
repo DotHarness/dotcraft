@@ -2,6 +2,7 @@ import { createCipheriv, createHash, randomBytes } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { basename, resolve } from "node:path";
 
+import type { ChannelToolDescriptor } from "@dotcraft/sdk/channel";
 import {
   buildFileMessageReq,
   buildImageMessageReq,
@@ -76,7 +77,7 @@ export class WeixinMediaTools {
     };
   }
 
-  getChannelTools(): Record<string, unknown>[] {
+  getChannelTools(): ChannelToolDescriptor[] {
     return [
       {
         name: WEIXIN_SEND_FILE_TOOL,

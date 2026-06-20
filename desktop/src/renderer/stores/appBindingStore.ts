@@ -6,6 +6,29 @@ export type AppBindingRisk = 'read' | 'mutate' | 'externalWrite'
 export type AppToolExposure = 'direct' | 'deferred'
 export type AppNativeStatus = 'installed' | 'missing' | 'unknown'
 export type AppListSurface = 'pluginDetail' | 'welcome' | 'threadBinding' | 'sdk/default'
+export type AppBindingKind = 'app' | 'socialChannel' | 'managedApp' | string
+export type SocialBindingTargetSelection = 'confirmInChannel' | 'currentConversation' | string
+
+export interface SocialBindingIntent {
+  channelName: string
+  targetSelection?: SocialBindingTargetSelection
+  displayHint?: string | null
+}
+
+export interface SocialChannelBoundBy {
+  platformUserId: string
+  displayName?: string | null
+}
+
+export interface SocialChannelTarget {
+  channelName: string
+  accountId?: string | null
+  conversationKind: string
+  conversationId: string
+  deliveryTarget: string
+  displayName?: string | null
+  boundBy?: SocialChannelBoundBy | null
+}
 
 export interface AppHandoffModeDescriptor {
   mode: 'url' | 'customProtocol' | string
@@ -37,6 +60,8 @@ export interface ThreadAppBindingSummary {
   threadId: string
   bindingId: string
   appId: string
+  grantId?: string | null
+  bindingKind?: AppBindingKind | null
   displayName?: string | null
   state: AppBindingState | string
   connectionState?: AppConnectionState | string
@@ -46,6 +71,8 @@ export interface ThreadAppBindingSummary {
   icon?: string | null
   toolNamespace?: string | null
   expiresAt?: string | null
+  socialTarget?: SocialChannelTarget | null
+  exposureRevision?: number
 }
 
 export interface AppNativeApplication {
@@ -85,6 +112,8 @@ export interface AppInfo {
 export interface AppHandoff {
   mode: string
   uri?: string | null
+  bindCode?: string | null
+  instructions?: string | null
 }
 
 export interface AppConnectionStartResult {
@@ -115,6 +144,8 @@ export interface ThreadAppBinding {
   bindingId: string
   threadId: string
   appId: string
+  grantId?: string | null
+  bindingKind?: AppBindingKind | null
   displayName?: string | null
   icon?: string | null
   toolNamespace?: string | null
@@ -129,6 +160,8 @@ export interface ThreadAppBinding {
   approvalMode?: string | null
   auditRef?: string | null
   diagnostic?: string | null
+  socialTarget?: SocialChannelTarget | null
+  exposureRevision?: number
 }
 
 interface AppBindingStore {
@@ -151,9 +184,12 @@ interface AppBindingStore {
     requestedTools?: string[]
     reason?: string
     source: 'pluginDetail' | 'threadMenu' | 'welcome' | 'agentSuggestion' | 'sdk'
+    bindingKind?: AppBindingKind
+    socialIntent?: SocialBindingIntent
   }): Promise<AppBindingRequestCreateResult>
   fetchThreadBindings(threadId: string, includeRevoked?: boolean): Promise<void>
   refreshThreadBindings(threadId: string, bindingId?: string): Promise<void>
+  cancelBindingRequest(threadId: string, bindingRequestId: string, reason?: string): Promise<void>
   revokeThreadBinding(threadId: string, bindingId: string, reason?: string): Promise<void>
   waitForConnection(appId: string, options?: AppBindingWaitOptions): Promise<AppInfo>
   waitForThreadBinding(params: {
@@ -262,6 +298,15 @@ export const useAppBindingStore = create<AppBindingStore>((set, get) => ({
     if (get().appsThreadId === threadId) await get().fetchApps(threadId, false, get().appsSurface)
   },
 
+  async cancelBindingRequest(threadId, bindingRequestId, reason) {
+    await window.api.appServer.sendRequest('app/binding/request/cancel', {
+      bindingRequestId,
+      reason
+    })
+    await get().fetchThreadBindings(threadId)
+    if (get().appsThreadId === threadId) await get().fetchApps(threadId, false, get().appsSurface)
+  },
+
   async revokeThreadBinding(threadId, bindingId, reason) {
     await window.api.appServer.sendRequest('thread/appBindings/revoke', {
       threadId,
@@ -297,7 +342,7 @@ export const useAppBindingStore = create<AppBindingStore>((set, get) => ({
       const binding = findMatchingBinding(bindings, params.appId, params.bindingRequestId)
       if (binding != null) {
         lastState = binding.state
-        if (binding.state === 'active' && binding.attachedToolCount > 0) return binding
+        if (binding.state === 'active' && (binding.attachedToolCount > 0 || binding.bindingKind === 'socialChannel')) return binding
         if (
           binding.state === 'cancelled'
           || binding.state === 'revoked'

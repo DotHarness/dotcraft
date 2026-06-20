@@ -114,6 +114,137 @@ test("WeComAdapter uses chat thread identity and real sender context", async () 
   });
 });
 
+test("WeComAdapter builds social binding target from chat context", () => {
+  const adapter = new WeComAdapter() as unknown as {
+    buildSocialTarget: (
+      opts: Record<string, unknown>,
+      sender: Record<string, unknown>,
+      channelContext: string,
+    ) => Record<string, unknown> | null;
+  };
+
+  const target = adapter.buildSocialTarget(
+    {
+      userId: "chat:chat-1",
+      userName: "User One",
+      text: "/bind 482913",
+      channelContext: "chat:chat-1",
+    },
+    {
+      senderId: "u1",
+      senderName: "User One",
+      senderRole: "admin",
+      groupId: "chat:chat-1",
+    },
+    "chat:chat-1",
+  );
+
+  assert.deepEqual(target, {
+    channelName: "wecom",
+    conversationKind: "chat",
+    conversationId: "chat-1",
+    deliveryTarget: "chat:chat-1",
+    displayName: "WeCom chat chat-1",
+    boundBy: {
+      platformUserId: "u1",
+      displayName: "User One",
+    },
+  });
+});
+
+test("WeComAdapter accepts social bind codes before forwarding to the agent", async () => {
+  const adapter = new WeComAdapter() as unknown as {
+    client: {
+      request: (method: string, params: Record<string, unknown>) => Promise<Record<string, unknown>>;
+    };
+    commandRouter: {
+      routeBeforeQueue: () => Promise<"enqueue" | "handled">;
+    };
+    onDeliver: (target: string, content: string, metadata: Record<string, unknown>) => Promise<boolean>;
+    handleTextMessage: (
+      parameters: string[],
+      from: { userId: string; name: string; alias: string },
+      pusher: { getChatId: () => string; pushText: (content: string) => Promise<void> },
+    ) => Promise<void>;
+  };
+  const requests: Array<{ method: string; params: Record<string, unknown> }> = [];
+  const deliveries: Array<{ target: string; content: string; metadata: Record<string, unknown> }> = [];
+
+  adapter.commandRouter.routeBeforeQueue = async () => {
+    throw new Error("bind command should not reach command routing");
+  };
+  adapter.client.request = async (method, params) => {
+    requests.push({ method, params });
+    if (method === "app/binding/request/get") {
+      return {
+        bindingRequestId: "request-1",
+        appId: "com.dotharness.channel.wecom",
+        threadId: "thread-1",
+        bindingKind: "socialChannel",
+        requestedScopes: ["conversation.receive", "message.send"],
+      };
+    }
+    if (method === "app/binding/accept") {
+      return {
+        binding: {
+          bindingId: "binding-1",
+          appId: "com.dotharness.channel.wecom",
+          threadId: "thread-1",
+          state: "active",
+          bindingKind: "socialChannel",
+          socialTarget: params.socialTarget,
+        },
+      };
+    }
+    throw new Error(`unexpected request ${method}`);
+  };
+  adapter.onDeliver = async (target, content, metadata) => {
+    deliveries.push({ target, content, metadata });
+    return true;
+  };
+
+  await adapter.handleTextMessage(
+    ["/bind", "482913"],
+    { userId: "u1", name: "User One", alias: "" },
+    { getChatId: () => "chat-1", pushText: async () => undefined },
+  );
+
+  assert.deepEqual(requests[0], {
+    method: "app/binding/request/get",
+    params: {
+      appId: "com.dotharness.channel.wecom",
+      bindCode: "482913",
+      requestToken: "482913",
+    },
+  });
+  assert.equal(requests[1]?.method, "app/binding/accept");
+  assert.deepEqual(requests[1]?.params.socialTarget, {
+    channelName: "wecom",
+    conversationKind: "chat",
+    conversationId: "chat-1",
+    deliveryTarget: "chat:chat-1",
+    displayName: "WeCom chat chat-1",
+    boundBy: {
+      platformUserId: "u1",
+      displayName: "User One",
+    },
+  });
+  assert.equal(requests[1]?.params.grantId, "social:wecom::chat:chat-1");
+  assert.equal(requests[1]?.params.approvedBy, "u1");
+  assert.equal(requests[1]?.params.auditRef, "channel:wecom:chat:chat-1");
+  assert.deepEqual(deliveries, [
+    {
+      target: "chat:chat-1",
+      content: "Bound this conversation to thread thread-1.",
+      metadata: {
+        appId: "com.dotharness.channel.wecom",
+        bindingId: "binding-1",
+        bindingKind: "socialChannel",
+      },
+    },
+  ]);
+});
+
 test("WeComAdapter resolves approvals only for the matching sender and chat", async () => {
   type PendingApproval = {
     channelContext: string;

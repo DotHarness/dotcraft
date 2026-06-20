@@ -32,9 +32,15 @@ internal sealed class AppBindingWireMapper(
         var descriptor = managedRuntime?.GetCatalogDescriptor(surface) ?? entry.Descriptor;
         var managed = entry.ManagedRuntime != null;
         var requiresExternalConnection = entry.ManagedRuntime?.RequiresExternalConnection ?? true;
-        var connectionStatus = managed && !requiresExternalConnection
-            ? new AppConnectionStatusWire { AppId = descriptor.AppId, State = AppConnectionStates.Connected }
-            : MapConnectionStatus(state, userId, descriptor.AppId);
+        var diagnostics = managedRuntime == null
+            ? entry.Diagnostics
+            : entry.Diagnostics.Concat(managedRuntime.GetCatalogDiagnostics(surface)).ToArray();
+        var connectionStatus = ResolveConnectionStatus(
+            managedRuntime,
+            managed,
+            requiresExternalConnection,
+            descriptor.AppId,
+            MapConnectionStatus(state, userId, descriptor.AppId));
         var connection = managed && !requiresExternalConnection ? null : FindConnection(state, userId, descriptor.AppId);
         var binding = string.IsNullOrWhiteSpace(threadId)
             ? null
@@ -99,9 +105,12 @@ internal sealed class AppBindingWireMapper(
                     Managed = managed,
                     RequiresExternalConnection = requiresExternalConnection,
                     GrantedScopes = binding.GrantedScopes.ToList(),
-                    ExpiresAt = binding.ExpiresAt
+                    ExpiresAt = binding.ExpiresAt,
+                    BindingKind = binding.BindingKind,
+                    SocialTarget = binding.SocialTarget,
+                    ExposureRevision = binding.ExposureRevision
                 },
-            Diagnostics = entry.Diagnostics.Select(MapDiagnostic).ToList()
+            Diagnostics = diagnostics.Select(MapDiagnostic).ToList()
         };
     }
 
@@ -156,14 +165,18 @@ internal sealed class AppBindingWireMapper(
         var managedRuntime = managedRuntimesByAppId.GetValueOrDefault(binding.AppId);
         var managed = managedRuntime != null;
         var requiresExternalConnection = managedRuntime?.RequiresExternalConnection ?? true;
-        var connectionStatus = managed && !requiresExternalConnection
-            ? new AppConnectionStatusWire { AppId = binding.AppId, State = AppConnectionStates.Connected }
-            : connection;
+        var connectionStatus = ResolveConnectionStatus(
+            managedRuntime,
+            managed,
+            requiresExternalConnection,
+            binding.AppId,
+            connection);
         return new ThreadAppBindingWire
         {
             BindingId = binding.BindingId,
             ThreadId = binding.ThreadId,
             AppId = binding.AppId,
+            GrantId = binding.GrantId,
             DisplayName = descriptor?.DisplayName,
             Icon = ResolveIconForWire(descriptor?.Icon),
             ToolNamespace = descriptor?.ToolNamespace,
@@ -177,7 +190,10 @@ internal sealed class AppBindingWireMapper(
             LastChangedAt = binding.LastChangedAt,
             ApprovalMode = binding.ApprovalMode,
             AuditRef = binding.AuditRef,
-            Diagnostic = binding.Diagnostic
+            Diagnostic = binding.Diagnostic,
+            BindingKind = binding.BindingKind,
+            SocialTarget = binding.SocialTarget,
+            ExposureRevision = binding.ExposureRevision
         };
     }
 
@@ -189,9 +205,12 @@ internal sealed class AppBindingWireMapper(
         var managedRuntime = managedRuntimesByAppId.GetValueOrDefault(request.AppId);
         var managed = managedRuntime != null;
         var requiresExternalConnection = managedRuntime?.RequiresExternalConnection ?? true;
-        var connectionStatus = managed && !requiresExternalConnection
-            ? new AppConnectionStatusWire { AppId = request.AppId, State = AppConnectionStates.Connected }
-            : connection;
+        var connectionStatus = ResolveConnectionStatus(
+            managedRuntime,
+            managed,
+            requiresExternalConnection,
+            request.AppId,
+            connection);
         return new ThreadAppBindingWire
         {
             BindingRequestId = request.BindingRequestId,
@@ -209,7 +228,8 @@ internal sealed class AppBindingWireMapper(
             AttachedToolCount = 0,
             ExpiresAt = request.ExpiresAt,
             LastChangedAt = request.CreatedAt,
-            Diagnostic = request.Reason
+            Diagnostic = request.Reason,
+            BindingKind = request.BindingKind
         };
     }
 
@@ -236,8 +256,28 @@ internal sealed class AppBindingWireMapper(
             Managed = binding.Managed,
             RequiresExternalConnection = binding.RequiresExternalConnection,
             GrantedScopes = binding.GrantedScopes.ToList(),
-            ExpiresAt = binding.ExpiresAt
+            ExpiresAt = binding.ExpiresAt,
+            BindingKind = binding.BindingKind,
+            SocialTarget = binding.SocialTarget,
+            ExposureRevision = binding.ExposureRevision
         };
+
+    internal static AppConnectionStatusWire ResolveConnectionStatus(
+        IManagedAppBindingRuntime? managedRuntime,
+        bool managed,
+        bool requiresExternalConnection,
+        string appId,
+        AppConnectionStatusWire fallback)
+    {
+        if (!managed || requiresExternalConnection)
+            return fallback;
+
+        var status = managedRuntime?.GetConnectionStatus(appId)
+                     ?? new AppConnectionStatusWire { AppId = appId, State = AppConnectionStates.Connected };
+        if (string.IsNullOrWhiteSpace(status.AppId))
+            status.AppId = appId;
+        return status;
+    }
 
     public static AppConnectionStatusWire MapConnectionStatus(AppConnectionRecord? connection, string? appId = null)
     {

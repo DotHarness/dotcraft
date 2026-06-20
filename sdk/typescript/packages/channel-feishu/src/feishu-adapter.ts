@@ -11,6 +11,7 @@ import {
   DECISION_CANCEL,
   DECISION_DECLINE,
   textPart,
+  type SocialChannelTarget,
 } from "@dotcraft/sdk";
 import {
   DotCraftWireClient,
@@ -28,6 +29,8 @@ import {
   userInputResponseForSingleChoice,
   userInputResponseFromText,
   type ThreadResolveEvent,
+  type ChannelToolDescriptor,
+  type ChannelAdapterMessageOpts,
   type ModuleError,
   type UserInputResponse,
   type WorkspaceContext,
@@ -226,6 +229,34 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
     return this.feishu;
   }
 
+  protected override buildSocialTarget(
+    opts: ChannelAdapterMessageOpts,
+    sender: Record<string, unknown>,
+    channelContext: string,
+  ): SocialChannelTarget | null {
+    const target = parseFeishuSocialTarget(channelContext);
+    if (!target) return null;
+    const platformUserId = String(sender.senderId ?? opts.userId ?? "");
+    const displayName = typeof sender.senderName === "string" && sender.senderName.trim()
+      ? sender.senderName.trim()
+      : null;
+    return {
+      channelName: "feishu",
+      conversationKind: target.conversationKind,
+      conversationId: target.conversationId,
+      deliveryTarget: target.deliveryTarget,
+      displayName: target.conversationKind === "group"
+        ? `Feishu group ${target.conversationId}`
+        : displayName ?? `Feishu user ${target.conversationId}`,
+      boundBy: platformUserId
+        ? {
+          platformUserId,
+          displayName,
+        }
+        : null,
+    };
+  }
+
   async onDeliver(target: string, content: string, _metadata: Record<string, unknown>): Promise<boolean> {
     logInfo("outbound.deliver.start", {
       target: shortId(target),
@@ -261,7 +292,7 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
     };
   }
 
-  protected override getChannelTools(): Record<string, unknown>[] | null {
+  protected override getChannelTools(): ChannelToolDescriptor[] | null {
     return [
       {
         name: "FeishuSendFileToCurrentChat",
@@ -1020,6 +1051,24 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
       };
     }
   }
+}
+
+function parseFeishuSocialTarget(channelContext: string): {
+  conversationKind: "group" | "user";
+  conversationId: string;
+  deliveryTarget: string;
+} | null {
+  const target = channelContext.trim();
+  if (!target) return null;
+  if (target.startsWith("group:")) {
+    const id = target.slice("group:".length).trim();
+    return id ? { conversationKind: "group", conversationId: id, deliveryTarget: target } : null;
+  }
+  if (target.startsWith("dm:")) {
+    const id = target.slice("dm:".length).trim();
+    return id ? { conversationKind: "user", conversationId: id, deliveryTarget: target } : null;
+  }
+  return { conversationKind: "group", conversationId: target, deliveryTarget: target };
 }
 
 function isNewCommand(text: string): boolean {

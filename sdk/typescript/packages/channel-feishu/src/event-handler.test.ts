@@ -194,6 +194,149 @@ test("FeishuAdapter keeps group thread identity while forwarding real sender con
   });
 });
 
+test("FeishuAdapter builds social binding target from group and p2p contexts", () => {
+  const adapter = new FeishuAdapter() as unknown as {
+    buildSocialTarget: (
+      opts: Record<string, unknown>,
+      sender: Record<string, unknown>,
+      channelContext: string,
+    ) => Record<string, unknown> | null;
+  };
+
+  assert.deepEqual(
+    adapter.buildSocialTarget(
+      { userId: "group:oc_group_1", userName: "Alice", text: "/bind 482913" },
+      { senderId: "ou_user_1", senderName: "Alice", groupId: "group:oc_group_1" },
+      "group:oc_group_1",
+    ),
+    {
+      channelName: "feishu",
+      conversationKind: "group",
+      conversationId: "oc_group_1",
+      deliveryTarget: "group:oc_group_1",
+      displayName: "Feishu group oc_group_1",
+      boundBy: {
+        platformUserId: "ou_user_1",
+        displayName: "Alice",
+      },
+    },
+  );
+
+  assert.deepEqual(
+    adapter.buildSocialTarget(
+      { userId: "ou_user_1", userName: "Alice", text: "/bind 482913" },
+      { senderId: "ou_user_1", senderName: "Alice" },
+      "dm:ou_user_1",
+    ),
+    {
+      channelName: "feishu",
+      conversationKind: "user",
+      conversationId: "ou_user_1",
+      deliveryTarget: "dm:ou_user_1",
+      displayName: "Alice",
+      boundBy: {
+        platformUserId: "ou_user_1",
+        displayName: "Alice",
+      },
+    },
+  );
+});
+
+test("FeishuAdapter accepts social bind codes for group context", async () => {
+  const adapter = new FeishuAdapter() as unknown as {
+    client: {
+      request: (method: string, params: Record<string, unknown>) => Promise<Record<string, unknown>>;
+    };
+    commandRouter: {
+      routeBeforeQueue: () => Promise<"enqueue" | "handled">;
+    };
+    onDeliver: (target: string, content: string, metadata: Record<string, unknown>) => Promise<boolean>;
+    handleMessage: (opts: Record<string, unknown>) => Promise<void>;
+  };
+  const requests: Array<{ method: string; params: Record<string, unknown> }> = [];
+  const deliveries: Array<{ target: string; content: string; metadata: Record<string, unknown> }> = [];
+
+  adapter.commandRouter.routeBeforeQueue = async () => {
+    throw new Error("bind command should not reach command routing");
+  };
+  adapter.client.request = async (method, params) => {
+    requests.push({ method, params });
+    if (method === "app/binding/request/get") {
+      return {
+        bindingRequestId: "request-1",
+        appId: "com.dotharness.channel.feishu",
+        threadId: "thread-1",
+        bindingKind: "socialChannel",
+        requestedScopes: ["conversation.receive", "message.send"],
+      };
+    }
+    if (method === "app/binding/accept") {
+      return {
+        binding: {
+          bindingId: "binding-1",
+          appId: "com.dotharness.channel.feishu",
+          threadId: "thread-1",
+          state: "active",
+          bindingKind: "socialChannel",
+          socialTarget: params.socialTarget,
+        },
+      };
+    }
+    throw new Error(`unexpected request ${method}`);
+  };
+  adapter.onDeliver = async (target, content, metadata) => {
+    deliveries.push({ target, content, metadata });
+    return true;
+  };
+
+  await adapter.handleMessage({
+    userId: "group:oc_group_1",
+    userName: "Alice",
+    text: "/bind 482913",
+    channelContext: "group:oc_group_1",
+    sender: {
+      senderId: "ou_user_1",
+      senderName: "Alice",
+      groupId: "group:oc_group_1",
+    },
+  });
+
+  assert.deepEqual(requests[0], {
+    method: "app/binding/request/get",
+    params: {
+      appId: "com.dotharness.channel.feishu",
+      bindCode: "482913",
+      requestToken: "482913",
+    },
+  });
+  assert.equal(requests[1]?.method, "app/binding/accept");
+  assert.deepEqual(requests[1]?.params.socialTarget, {
+    channelName: "feishu",
+    conversationKind: "group",
+    conversationId: "oc_group_1",
+    deliveryTarget: "group:oc_group_1",
+    displayName: "Feishu group oc_group_1",
+    boundBy: {
+      platformUserId: "ou_user_1",
+      displayName: "Alice",
+    },
+  });
+  assert.equal(requests[1]?.params.grantId, "social:feishu::group:oc_group_1");
+  assert.equal(requests[1]?.params.approvedBy, "ou_user_1");
+  assert.equal(requests[1]?.params.auditRef, "channel:feishu:group:oc_group_1");
+  assert.deepEqual(deliveries, [
+    {
+      target: "group:oc_group_1",
+      content: "Bound this conversation to thread thread-1.",
+      metadata: {
+        appId: "com.dotharness.channel.feishu",
+        bindingId: "binding-1",
+        bindingKind: "socialChannel",
+      },
+    },
+  ]);
+});
+
 test("Feishu event handler adds reaction before forwarding inbound message", async () => {
   const steps: string[] = [];
   const client = createClientMock(async (messageId, emojiType) => {

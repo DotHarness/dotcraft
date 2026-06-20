@@ -2,6 +2,8 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { extname, join } from "node:path";
 
+import type { ChannelToolDescriptor } from "@dotcraft/sdk/channel";
+
 import type { OneBotActionResponse } from "./onebot.js";
 import {
   isActionOk,
@@ -56,7 +58,7 @@ export class QQMediaTools {
     };
   }
 
-  getChannelTools(): Record<string, unknown>[] {
+  getChannelTools(): ChannelToolDescriptor[] {
     return [
       {
         name: QQ_SEND_GROUP_VOICE_TOOL,

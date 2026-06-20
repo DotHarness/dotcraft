@@ -19,7 +19,7 @@ test("Weixin sends non-final segments immediately instead of waiting for turn co
   };
   internals.apiBaseUrl = "https://ilink.example";
   internals.botToken = "token";
-  internals.contextTokens = { "user@im.wechat": "ctx" };
+  internals.contextTokens = { "wx-user-1": "ctx" };
 
   const sentTexts: string[] = [];
   globalThis.fetch = (async (_input: string | URL | Request, init?: RequestInit) => {
@@ -31,8 +31,8 @@ test("Weixin sends non-final segments immediately instead of waiting for turn co
   }) as typeof fetch;
 
   try {
-    await adapter.exposeSegmentCompleted("先给你中间结果。", false, "user@im.wechat");
-    await adapter.exposeSegmentCompleted("最终结果。", true, "user@im.wechat");
+    await adapter.exposeSegmentCompleted("先给你中间结果。", false, "wx-user-1");
+    await adapter.exposeSegmentCompleted("最终结果。", true, "wx-user-1");
 
     assert.deepEqual(sentTexts, ["先给你中间结果。", "最终结果。"]);
   } finally {
@@ -51,13 +51,13 @@ test("Weixin reports segment delivery failure instead of acknowledging it", asyn
   };
   internals.apiBaseUrl = "https://ilink.example";
   internals.botToken = "token";
-  internals.contextTokens = { "user@im.wechat": "ctx" };
+  internals.contextTokens = { "wx-user-1": "ctx" };
 
   globalThis.fetch = (async () => new Response("bad request", { status: 400 })) as typeof fetch;
   console.error = () => {};
 
   try {
-    const delivered = await adapter.exposeSegmentCompleted("不会成功发送。", false, "user@im.wechat");
+    const delivered = await adapter.exposeSegmentCompleted("不会成功发送。", false, "wx-user-1");
     assert.equal(delivered, false);
   } finally {
     globalThis.fetch = originalFetch;
@@ -75,7 +75,7 @@ test("Weixin retries transient text fetch failures with the same client id", asy
   };
   internals.apiBaseUrl = "https://ilink.example";
   internals.botToken = "token";
-  internals.contextTokens = { "user@im.wechat": "ctx" };
+  internals.contextTokens = { "wx-user-1": "ctx" };
 
   const clientIds: string[] = [];
   let attempts = 0;
@@ -89,13 +89,142 @@ test("Weixin retries transient text fetch failures with the same client id", asy
   }) as typeof fetch;
 
   try {
-    const delivered = await adapter.exposeSegmentCompleted("重试后成功。", false, "user@im.wechat");
+    const delivered = await adapter.exposeSegmentCompleted("重试后成功。", false, "wx-user-1");
     assert.equal(delivered, true);
     assert.equal(attempts, 3);
     assert.equal(new Set(clientIds).size, 1);
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test("WeixinAdapter builds social binding target from user context", () => {
+  const adapter = new WeixinAdapter() as unknown as {
+    buildSocialTarget: (
+      opts: Record<string, unknown>,
+      sender: Record<string, unknown>,
+      channelContext: string,
+    ) => Record<string, unknown> | null;
+  };
+
+  const target = adapter.buildSocialTarget(
+    {
+      userId: "wx-user-1",
+      userName: "Weixin User",
+      text: "/bind 482913",
+      channelContext: "wx-user-1",
+    },
+    {
+      senderId: "wx-user-1",
+      senderName: "Weixin User",
+      senderRole: "admin",
+      groupId: "wx-user-1",
+    },
+    "wx-user-1",
+  );
+
+  assert.deepEqual(target, {
+    channelName: "weixin",
+    conversationKind: "user",
+    conversationId: "wx-user-1",
+    deliveryTarget: "wx-user-1",
+    displayName: "Weixin User",
+    boundBy: {
+      platformUserId: "wx-user-1",
+      displayName: "Weixin User",
+    },
+  });
+});
+
+test("WeixinAdapter accepts social bind codes for user context", async () => {
+  const adapter = new WeixinAdapter() as unknown as {
+    client: {
+      request: (method: string, params: Record<string, unknown>) => Promise<Record<string, unknown>>;
+    };
+    commandRouter: {
+      routeBeforeQueue: () => Promise<"enqueue" | "handled">;
+    };
+    onDeliver: (target: string, content: string, metadata: Record<string, unknown>) => Promise<boolean>;
+    handleMessage: (opts: Record<string, unknown>) => Promise<void>;
+  };
+  const requests: Array<{ method: string; params: Record<string, unknown> }> = [];
+  const deliveries: Array<{ target: string; content: string; metadata: Record<string, unknown> }> = [];
+
+  adapter.commandRouter.routeBeforeQueue = async () => {
+    throw new Error("bind command should not reach command routing");
+  };
+  adapter.client.request = async (method, params) => {
+    requests.push({ method, params });
+    if (method === "app/binding/request/get") {
+      return {
+        bindingRequestId: "request-1",
+        appId: "com.dotharness.channel.weixin",
+        threadId: "thread-1",
+        bindingKind: "socialChannel",
+        requestedScopes: ["conversation.receive", "message.send"],
+      };
+    }
+    if (method === "app/binding/accept") {
+      return {
+        binding: {
+          bindingId: "binding-1",
+          appId: "com.dotharness.channel.weixin",
+          threadId: "thread-1",
+          state: "active",
+          bindingKind: "socialChannel",
+          socialTarget: params.socialTarget,
+        },
+      };
+    }
+    throw new Error(`unexpected request ${method}`);
+  };
+  adapter.onDeliver = async (target, content, metadata) => {
+    deliveries.push({ target, content, metadata });
+    return true;
+  };
+
+  await adapter.handleMessage({
+    userId: "wx-user-1",
+    userName: "Weixin User",
+    text: "/bind 482913",
+    channelContext: "wx-user-1",
+    senderExtra: { senderRole: "admin" },
+  });
+
+  assert.deepEqual(requests[0], {
+    method: "app/binding/request/get",
+    params: {
+      appId: "com.dotharness.channel.weixin",
+      bindCode: "482913",
+      requestToken: "482913",
+    },
+  });
+  assert.equal(requests[1]?.method, "app/binding/accept");
+  assert.deepEqual(requests[1]?.params.socialTarget, {
+    channelName: "weixin",
+    conversationKind: "user",
+    conversationId: "wx-user-1",
+    deliveryTarget: "wx-user-1",
+    displayName: "Weixin User",
+    boundBy: {
+      platformUserId: "wx-user-1",
+      displayName: "Weixin User",
+    },
+  });
+  assert.equal(requests[1]?.params.grantId, "social:weixin::user:wx-user-1");
+  assert.equal(requests[1]?.params.approvedBy, "wx-user-1");
+  assert.equal(requests[1]?.params.auditRef, "channel:weixin:user:wx-user-1");
+  assert.deepEqual(deliveries, [
+    {
+      target: "wx-user-1",
+      content: "Bound this conversation to thread thread-1.",
+      metadata: {
+        appId: "com.dotharness.channel.weixin",
+        bindingId: "binding-1",
+        bindingKind: "socialChannel",
+      },
+    },
+  ]);
 });
 
 test("Weixin consumes pending user-input replies before forwarding to agent", async () => {
@@ -117,7 +246,7 @@ test("Weixin consumes pending user-input replies before forwarding to agent", as
   adapter.handleMessage = async () => {
     forwarded = true;
   };
-  adapter.userInputWaiters.set("user@im.wechat", {
+  adapter.userInputWaiters.set("wx-user-1", {
     request: {
       requestId: "req-1",
       questions: [
@@ -133,7 +262,7 @@ test("Weixin consumes pending user-input replies before forwarding to agent", as
   });
 
   await adapter.handleInboundUserMessage({
-    from_user_id: "user@im.wechat",
+    from_user_id: "wx-user-1",
     item_list: [{ type: 1, text_item: { text: "2" } }],
   });
 

@@ -6,6 +6,7 @@ import {
   DECISION_CANCEL,
   localImagePart,
   textPart,
+  type SocialChannelTarget,
 } from "@dotcraft/sdk";
 import {
   WebSocketTransport,
@@ -20,6 +21,8 @@ import {
   mergeUserInputResponses,
   splitUserInputRequestByQuestion,
   userInputResponseFromText,
+  type ChannelToolDescriptor,
+  type ChannelAdapterMessageOpts,
   type UserInputResponse,
   type WorkspaceContext,
 } from "@dotcraft/sdk/channel";
@@ -140,8 +143,35 @@ export class WeComAdapter extends ModuleChannelAdapter<WeComConfig> {
     return this.mediaTools.getDeliveryCapabilities();
   }
 
-  protected override getChannelTools(): Record<string, unknown>[] | null {
+  protected override getChannelTools(): ChannelToolDescriptor[] | null {
     return this.mediaTools.getChannelTools();
+  }
+
+  protected override buildSocialTarget(
+    opts: ChannelAdapterMessageOpts,
+    sender: Record<string, unknown>,
+    channelContext: string,
+  ): SocialChannelTarget | null {
+    const conversationId = parseWeComConversationId(channelContext);
+    if (!conversationId) return null;
+    const platformUserId = String(sender.senderId ?? opts.userId ?? "");
+    const displayName = typeof sender.senderName === "string" && sender.senderName.trim()
+      ? sender.senderName.trim()
+      : null;
+
+    return {
+      channelName: "wecom",
+      conversationKind: "chat",
+      conversationId,
+      deliveryTarget: channelContext,
+      displayName: `WeCom chat ${conversationId}`,
+      boundBy: platformUserId
+        ? {
+          platformUserId,
+          displayName,
+        }
+        : null,
+    };
   }
 
   override async startWithContext(context: WorkspaceContext): Promise<void> {
@@ -610,4 +640,9 @@ function mediaTypeToExt(mediaType: string): string {
     default:
       return ".jpg";
   }
+}
+
+function parseWeComConversationId(channelContext: string): string | null {
+  const match = /^chat:(.+)$/.exec(channelContext.trim());
+  return match?.[1]?.trim() || null;
 }

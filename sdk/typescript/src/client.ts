@@ -10,6 +10,7 @@ import {
 } from "./models.js";
 import { DotCraftError, toDotCraftError } from "./errors.js";
 import { Transport, TransportClosed, WebSocketTransport } from "./transport.js";
+import type { ChannelToolDescriptor } from "./capability.js";
 
 export type NotificationHandler = (params: Record<string, unknown>) => void | Promise<void>;
 export type ServerRequestHandler = (
@@ -68,7 +69,7 @@ export class DotCraftWireClient {
     channelName?: string | null;
     deliverySupport?: boolean;
     deliveryCapabilities?: Record<string, unknown> | null;
-    channelTools?: Record<string, unknown>[] | null;
+    channelTools?: ChannelToolDescriptor[] | null;
     extraCapabilities?: Record<string, unknown> | null;
   }): Promise<InitializeResult> {
     if (!this.readerPromise) await this.start();

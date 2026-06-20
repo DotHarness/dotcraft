@@ -98,8 +98,9 @@ export function WorkspaceOptionsMenu({
     const rect = ref.current?.getBoundingClientRect()
     if (!rect) return
     const viewportWidth = window.innerWidth || 320
-    const menuWidth = Math.min(320, Math.max(220, rect.right - 8))
-    const left = Math.max(8, Math.min(rect.right - menuWidth, viewportWidth - menuWidth - 8))
+    const menuWidth = 220
+    // Left-aligned to the trigger so the menu opens downward-right from the button.
+    const left = Math.max(8, Math.min(rect.left, viewportWidth - menuWidth - 8))
     setMenuPosition({
       top: rect.bottom + 4,
       left,

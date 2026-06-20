@@ -20,7 +20,7 @@ test("getUploadUrl posts media metadata with base_info", async () => {
       body: {
         filekey: "file-1",
         media_type: 3,
-        to_user_id: "user@im.wechat",
+        to_user_id: "wx-user-1",
         rawsize: 12,
         rawfilemd5: "md5",
         filesize: 16,
@@ -32,7 +32,7 @@ test("getUploadUrl posts media metadata with base_info", async () => {
     assert.equal(capturedUrl, "https://ilink.example/ilink/bot/getuploadurl");
     assert.equal(capturedBody.filekey, "file-1");
     assert.equal(capturedBody.media_type, 3);
-    assert.equal(capturedBody.to_user_id, "user@im.wechat");
+    assert.equal(capturedBody.to_user_id, "wx-user-1");
     assert.deepEqual(capturedBody.base_info, { channel_version: "0.1.0" });
     assert.equal(result.upload_param, "upload-token");
   } finally {

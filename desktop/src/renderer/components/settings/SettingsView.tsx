@@ -3493,6 +3493,7 @@ export function SettingsView({
                                 icon={<RefreshIcon size={15} />}
                                 label={t('settings.llm.refreshModels')}
                                 tooltipLabel={t('settings.llm.refreshModels')}
+                                size={35}
                                 disabled={providerModelLoading || !selectedProviderId}
                                 onClick={() => void reloadProviderModels(selectedProviderId)}
                               />

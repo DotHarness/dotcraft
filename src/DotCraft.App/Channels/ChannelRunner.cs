@@ -1,4 +1,5 @@
 using DotCraft.Abstractions;
+using DotCraft.AppBinding;
 using DotCraft.AppServer;
 using DotCraft.Common;
 using DotCraft.Configuration;
@@ -251,7 +252,9 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
                 approvalService,
                 _externalChannelRegistry,
                 streamDebugLogger,
-                appConfigMonitor);
+                appConfigMonitor,
+                _sp.GetServices<IAppServerProtocolExtension>(),
+                _sp.GetService<AppBindingService>());
 
             foreach (var extCh in ecManager.Channels)
             {
@@ -430,7 +433,9 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
             _pathBlacklist,
             approvalService,
             streamDebugLogger: _sp.GetService<SessionStreamDebugLogger>(),
-            appConfigMonitor: _sp.GetService<IAppConfigMonitor>());
+            appConfigMonitor: _sp.GetService<IAppConfigMonitor>(),
+            protocolExtensions: _sp.GetServices<IAppServerProtocolExtension>(),
+            appBindingService: _sp.GetService<AppBindingService>());
     }
 
     private ExternalChannelHost? RemoveExternalChannelHost_NoLock(string channelName)

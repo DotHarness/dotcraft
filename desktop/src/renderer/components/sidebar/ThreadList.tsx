@@ -482,9 +482,18 @@ function ProjectsSectionHeader({
     const rect = addButtonRef.current?.getBoundingClientRect()
     if (!rect) return
     const viewportWidth = window.innerWidth || 320
+    const viewportHeight = window.innerHeight || 480
     const menuWidth = 220
-    const left = Math.max(8, Math.min(rect.right - menuWidth, viewportWidth - menuWidth - 8))
-    setAddMenuPosition({ top: rect.bottom + 4, left, width: menuWidth })
+    const estimatedMenuHeight = 76
+    const gap = 4
+    // Left-aligned dropdown that opens downward-right from the trigger, so the menu
+    // extends into open space instead of overlapping the project list below.
+    const left = Math.max(8, Math.min(rect.left, viewportWidth - menuWidth - 8))
+    const belowTop = rect.bottom + gap
+    const top = belowTop + estimatedMenuHeight > viewportHeight - 8
+      ? Math.max(8, rect.top - estimatedMenuHeight - gap)
+      : belowTop
+    setAddMenuPosition({ top, left, width: menuWidth })
   }
 
   useEffect(() => {
@@ -732,7 +741,8 @@ function ProjectHeader({
     const viewportHeight = window.innerHeight || 480
     const menuWidth = 220
     const estimatedMenuHeight = isRemoteProject(project) ? 144 : 176
-    const left = Math.max(8, Math.min(rect.right - menuWidth, viewportWidth - menuWidth - 8))
+    // Left-aligned to the project row so the menu opens downward-right from its left edge.
+    const left = Math.max(8, Math.min(rect.left, viewportWidth - menuWidth - 8))
     const belowTop = rect.bottom + 4
     const top = belowTop + estimatedMenuHeight > viewportHeight - 8
       ? Math.max(8, rect.top - estimatedMenuHeight - 4)

@@ -13,6 +13,13 @@ import {
   textPart,
 } from "./models.js";
 import { Transport } from "./transport.js";
+import type { ChannelToolDescriptor } from "./capability.js";
+import type {
+  AppBindingAcceptResult,
+  AppBindingRequestGetResult,
+  SocialChannelTarget,
+  ThreadAppBinding,
+} from "./dotcraft.js";
 import {
   ApprovalDispatcher,
   ChannelMessageQueue,
@@ -166,7 +173,7 @@ export abstract class ChannelAdapter {
     return null;
   }
 
-  protected getChannelTools(): Record<string, unknown>[] | null {
+  protected getChannelTools(): ChannelToolDescriptor[] | null {
     return null;
   }
 
@@ -268,8 +275,112 @@ export abstract class ChannelAdapter {
   }
 
   async handleMessage(opts: ChannelAdapterMessageOpts): Promise<void> {
+    const channelContext = opts.channelContext ?? "";
+    const bindCode = this.parseSocialBindCode(opts.text);
+    if (bindCode) {
+      const sender = buildChannelSender(opts, channelContext);
+      if (await this.tryAcceptSocialBinding(opts, sender, channelContext, bindCode)) return;
+    }
+
     const result = await this.commandRouter.routeBeforeQueue(opts);
     if (result === "enqueue") this.enqueueMessage(opts);
+  }
+
+  protected getSocialBindingAppId(): string {
+    return `com.dotharness.channel.${this.channelName}`;
+  }
+
+  protected parseSocialBindCode(text: string): string | null {
+    const match = /^\/bind\s+(\S+)\s*$/i.exec(text.trim());
+    return match?.[1] ?? null;
+  }
+
+  protected buildSocialTarget(
+    _opts: ChannelAdapterMessageOpts,
+    _sender: Record<string, unknown>,
+    _channelContext: string,
+  ): SocialChannelTarget | null {
+    return null;
+  }
+
+  protected async onSocialBindingAccepted(
+    binding: ThreadAppBinding,
+    target: SocialChannelTarget,
+    _opts: ChannelAdapterMessageOpts,
+  ): Promise<void> {
+    await this.onDeliver(
+      target.deliveryTarget,
+      `Bound this conversation to thread ${binding.threadId}.`,
+      {
+        appId: binding.appId,
+        bindingId: binding.bindingId,
+        bindingKind: binding.bindingKind ?? "socialChannel",
+      },
+    );
+  }
+
+  protected async onSocialBindingFailed(
+    error: unknown,
+    target: SocialChannelTarget,
+    _opts: ChannelAdapterMessageOpts,
+  ): Promise<void> {
+    const message = error instanceof Error ? error.message : String(error);
+    await this.onDeliver(target.deliveryTarget, `Binding failed: ${message}`, {
+      error: message,
+    });
+  }
+
+  private async tryAcceptSocialBinding(
+    opts: ChannelAdapterMessageOpts,
+    sender: Record<string, unknown>,
+    channelContext: string,
+    bindCode: string,
+  ): Promise<boolean> {
+    const target = this.buildSocialTarget(opts, sender, channelContext);
+    if (!target) return false;
+
+    try {
+      const appId = this.getSocialBindingAppId();
+      const request = await this.client.request<AppBindingRequestGetResult>(
+        "app/binding/request/get",
+        {
+          appId,
+          bindCode,
+          requestToken: bindCode,
+        },
+      );
+      const result = await this.client.request<AppBindingAcceptResult>(
+        "app/binding/accept",
+        {
+          bindingRequestId: request.bindingRequestId,
+          requestToken: bindCode,
+          grantId: this.socialGrantId(target),
+          grantedScopes: request.requestedScopes?.length
+            ? request.requestedScopes
+            : ["conversation.receive", "message.send"],
+          approvalMode: "channelBindCode",
+          approvedBy: target.boundBy?.platformUserId ?? String(sender.senderId ?? opts.userId),
+          auditRef: `channel:${target.channelName}:${target.conversationKind}:${target.conversationId}`,
+          grantProof: { acceptedVia: "bindCode" },
+          socialTarget: target,
+        },
+      );
+      await this.onSocialBindingAccepted(result.binding, target, opts);
+    } catch (error) {
+      await this.onSocialBindingFailed(error, target, opts);
+    }
+
+    return true;
+  }
+
+  private socialGrantId(target: SocialChannelTarget): string {
+    return [
+      "social",
+      target.channelName,
+      target.accountId ?? "",
+      target.conversationKind,
+      target.conversationId,
+    ].join(":");
   }
 
   /**
@@ -341,20 +452,28 @@ export abstract class ChannelAdapter {
   ): Promise<void> {
     const channelContext = opts.channelContext ?? "";
     const workspacePath = opts.workspacePath ?? this.defaultWorkspacePath;
-
-    const thread = await this.getOrCreateThread(
-      identityKey,
-      opts.userId,
-      channelContext,
-      workspacePath,
-    );
-    this.onThreadContextBound(thread.id, channelContext);
-
     const sender = buildChannelSender(opts, channelContext);
+
+    const socialBinding = await this.resolveSocialBindingForMessage(opts, sender, channelContext);
+    let threadId: string;
+    if (socialBinding) {
+      threadId = socialBinding.threadId;
+      this.threadMap.set(identityKey, threadId);
+    } else {
+      const thread = await this.getOrCreateThread(
+        identityKey,
+        opts.userId,
+        channelContext,
+        workspacePath,
+      );
+      threadId = thread.id;
+    }
+    this.onThreadContextBound(threadId, channelContext);
+
     const commandRoute = await this.commandRouter.routeForTurn({
       identityKey,
       opts,
-      threadId: thread.id,
+      threadId,
       sender,
       workspacePath,
     });
@@ -363,10 +482,15 @@ export abstract class ChannelAdapter {
     const turnOpts = commandRoute.opts;
     const input = turnOpts.inputParts?.length ? turnOpts.inputParts : [textPart(turnOpts.text)];
 
-    const eventStream = this.client.streamEvents(thread.id);
+    if (socialBinding) {
+      await this.enqueueSocialBoundInput(socialBinding, input, turnOpts, sender);
+      return;
+    }
+
+    const eventStream = this.client.streamEvents(threadId);
     let turn: Turn;
     try {
-      turn = await this.client.turnStart(thread.id, input, sender);
+      turn = await this.client.turnStart(threadId, input, sender);
     } catch (e) {
       await eventStream.return?.();
       if (e instanceof DotCraftError && e.rpcCode === ERR_TURN_IN_PROGRESS) {
@@ -380,7 +504,7 @@ export abstract class ChannelAdapter {
           turnOpts.userId,
           channelContext,
           workspacePath,
-          thread.id,
+          threadId,
         );
         this.onThreadContextBound(recovered.id, channelContext);
         const stream2 = this.client.streamEvents(recovered.id);
@@ -396,7 +520,70 @@ export abstract class ChannelAdapter {
       throw e;
     }
 
-    await this.consumeTurnEventStream(eventStream, thread.id, turn.id, channelContext);
+    await this.consumeTurnEventStream(eventStream, threadId, turn.id, channelContext);
+  }
+
+  private async enqueueSocialBoundInput(
+    binding: ThreadAppBinding,
+    input: Record<string, unknown>[],
+    opts: ChannelAdapterMessageOpts,
+    sender: Record<string, unknown>,
+  ): Promise<void> {
+    const grantId = binding.grantId?.trim();
+    if (!grantId) {
+      throw new Error(`Resolved social binding ${binding.bindingId} is missing grantId.`);
+    }
+
+    await this.client.request("app/threadInput/enqueue", {
+      bindingId: binding.bindingId,
+      appId: binding.appId,
+      grantId,
+      input,
+      displayText: opts.text,
+      triggerLabel: `${this.channelName} message`,
+      triggerRefId: this.socialBindingTriggerRef(binding),
+      startPolicy: "runWhenIdle",
+      sender,
+    });
+  }
+
+  private async resolveSocialBindingForMessage(
+    opts: ChannelAdapterMessageOpts,
+    sender: Record<string, unknown>,
+    channelContext: string,
+  ): Promise<ThreadAppBinding | null> {
+    const target = this.buildSocialTarget(opts, sender, channelContext);
+    if (!target) return null;
+
+    try {
+      const result = await this.client.request<{ binding?: ThreadAppBinding | null }>(
+        "app/socialBinding/resolve",
+        {
+          appId: this.getSocialBindingAppId(),
+          channelName: target.channelName,
+          accountId: target.accountId,
+          conversationKind: target.conversationKind,
+          conversationId: target.conversationId,
+        },
+      );
+      const binding = result.binding ?? null;
+      return binding?.state === "active" ? binding : null;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(`[${this.channelName}] social binding resolve failed; falling back to legacy thread routing: ${message}`);
+      return null;
+    }
+  }
+
+  private socialBindingTriggerRef(binding: ThreadAppBinding): string | undefined {
+    const target = binding.socialTarget;
+    if (!target) return undefined;
+    return [
+      target.channelName,
+      target.accountId ?? "",
+      target.conversationKind,
+      target.conversationId,
+    ].join(":");
   }
 
   /**

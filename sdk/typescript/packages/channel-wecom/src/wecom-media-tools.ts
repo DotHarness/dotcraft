@@ -2,6 +2,8 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, extname, join } from "node:path";
 
+import type { ChannelToolDescriptor } from "@dotcraft/sdk/channel";
+
 import { WeComPusher } from "./wecom-pusher.js";
 
 export const WE_COM_SEND_VOICE_TOOL = "WeComSendVoice";
@@ -34,7 +36,7 @@ export class WeComMediaTools {
     };
   }
 
-  getChannelTools(): Record<string, unknown>[] {
+  getChannelTools(): ChannelToolDescriptor[] {
     return [
       {
         name: WE_COM_SEND_VOICE_TOOL,

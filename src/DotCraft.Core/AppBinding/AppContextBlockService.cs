@@ -57,6 +57,7 @@ internal sealed class AppContextBlockService(
 
             changed = true;
             binding.LastChangedAt = now;
+            binding.ExposureRevision++;
             AddAudit(
                 state,
                 "binding.context.upsert",
@@ -121,6 +122,7 @@ internal sealed class AppContextBlockService(
 
             changed = true;
             binding.LastChangedAt = now;
+            binding.ExposureRevision++;
             AddAudit(
                 state,
                 "binding.context.upsert",
@@ -160,6 +162,7 @@ internal sealed class AppContextBlockService(
                 throw AppServerErrors.InvalidParams($"Context block '{blockId}' was not found.");
 
             binding.LastChangedAt = DateTimeOffset.UtcNow;
+            binding.ExposureRevision++;
             AddAudit(
                 state,
                 "binding.context.remove",
@@ -314,11 +317,17 @@ internal sealed class AppContextBlockService(
 
     private bool IsBindingConnectionUsable(AppBindingStateDocument state, AppBindingRecord binding) =>
         IsManagedAppWithoutExternalConnection(binding.AppId)
-        || IsConnectionUsable(FindConnection(state, binding.UserId, binding.AppId));
+            ? IsManagedAppWithoutExternalConnectionReady(binding.AppId)
+            : IsConnectionUsable(FindConnection(state, binding.UserId, binding.AppId));
 
     private bool IsManagedAppWithoutExternalConnection(string appId) =>
         managedRuntimesByAppId.TryGetValue(appId, out var runtime)
         && runtime.RequiresExternalConnection == false;
+
+    private bool IsManagedAppWithoutExternalConnectionReady(string appId) =>
+        managedRuntimesByAppId.TryGetValue(appId, out var runtime)
+        && runtime.RequiresExternalConnection == false
+        && string.Equals(runtime.GetConnectionStatus(appId).State, AppConnectionStates.Connected, StringComparison.Ordinal);
 
     private static AppBindingRecord RequireWritableContextBinding(
         AppBindingStateDocument state,

@@ -65,12 +65,11 @@ public sealed class AppBindingService
         foreach (var runtime in _managedRuntimesByAppId.Values.OrderBy(runtime => runtime.Descriptor.DisplayName, StringComparer.OrdinalIgnoreCase))
         {
             var owningPluginId = runtime.OwningPluginId;
-            if (string.IsNullOrWhiteSpace(owningPluginId))
-                continue;
-
-            var owningPlugin = catalog.Plugins
-                .FirstOrDefault(plugin => plugin.Installed
-                                          && PluginIds.EqualsCanonical(plugin.Manifest.Id, owningPluginId));
+            var owningPlugin = string.IsNullOrWhiteSpace(owningPluginId)
+                ? CreateSyntheticManagedPlugin(runtime.Descriptor, workspaceCraftPath)
+                : catalog.Plugins
+                    .FirstOrDefault(plugin => plugin.Installed
+                                              && PluginIds.EqualsCanonical(plugin.Manifest.Id, owningPluginId));
             if (owningPlugin == null)
                 continue;
 
@@ -97,7 +96,15 @@ public sealed class AppBindingService
             });
         }
 
-        return new AppCatalogSnapshot(entries, diagnostics) { Plugins = catalog.Plugins };
+        return new AppCatalogSnapshot(entries, diagnostics)
+        {
+            Plugins = entries
+                .Select(entry => entry.Plugin)
+                .Concat(catalog.Plugins)
+                .GroupBy(plugin => plugin.Manifest.Id, StringComparer.OrdinalIgnoreCase)
+                .Select(group => group.First())
+                .ToArray()
+        };
     }
 
     public AppListResult ListApps(
@@ -155,8 +162,11 @@ public sealed class AppBindingService
         AppCatalogSnapshot catalog,
         string workspaceCraftPath,
         string userId,
-        string appId) =>
-        _connections.GetConnectionStatus(catalog, workspaceCraftPath, userId, appId);
+        string appId)
+    {
+        var fallback = _connections.GetConnectionStatus(catalog, workspaceCraftPath, userId, appId);
+        return ResolveManagedConnectionStatus(appId, fallback);
+    }
 
     /// <summary>
     /// Refreshes only the <c>publicMetadata</c> of an existing connected connection
@@ -189,8 +199,16 @@ public sealed class AppBindingService
         AppCatalogSnapshot catalog,
         string workspaceCraftPath,
         AppBindingRequestGetParams p,
-        string? threadTitle = null) =>
-        _lifecycle.GetBindingRequest(catalog, workspaceCraftPath, p, threadTitle);
+        string? threadTitle = null,
+        string? channelAdapterName = null,
+        bool requireSocialAuthorization = false) =>
+        _lifecycle.GetBindingRequest(
+            catalog,
+            workspaceCraftPath,
+            p,
+            threadTitle,
+            channelAdapterName,
+            requireSocialAuthorization);
 
     public AppBindingRequestCancelResult CancelBindingRequest(
         string workspaceCraftPath,
@@ -202,6 +220,12 @@ public sealed class AppBindingService
         string workspaceCraftPath,
         AppBindingAcceptParams p) =>
         _lifecycle.AcceptBinding(catalog, workspaceCraftPath, p);
+
+    public AppSocialBindingResolveResult ResolveSocialBinding(
+        AppCatalogSnapshot catalog,
+        string workspaceCraftPath,
+        AppSocialBindingResolveParams p) =>
+        _lifecycle.ResolveSocialBinding(catalog, workspaceCraftPath, p);
 
     public AppBindingAttachToolsResult AttachTools(
         AppCatalogSnapshot catalog,
@@ -301,6 +325,63 @@ public sealed class AppBindingService
         string threadId,
         bool includeRevoked) =>
         _lifecycle.ListThreadBindings(catalog, workspaceCraftPath, threadId, includeRevoked);
+
+    public SocialChannelTargetWire? GetSocialTarget(string workspaceCraftPath, string bindingId)
+    {
+        if (string.IsNullOrWhiteSpace(bindingId))
+            return null;
+
+        var binding = GetStore(workspaceCraftPath).Snapshot().Bindings.FirstOrDefault(candidate =>
+            string.Equals(candidate.BindingId, bindingId, StringComparison.Ordinal));
+        return binding?.SocialTarget;
+    }
+
+    public SocialChannelTargetWire? GetActiveSocialTarget(string workspaceCraftPath, string bindingId)
+    {
+        if (string.IsNullOrWhiteSpace(bindingId))
+            return null;
+
+        var binding = GetStore(workspaceCraftPath).Snapshot().Bindings.FirstOrDefault(candidate =>
+            string.Equals(candidate.BindingId, bindingId, StringComparison.Ordinal));
+        if (binding == null
+            || binding.State != AppBindingStates.Active
+            || !string.Equals(binding.BindingKind, AppBindingKinds.SocialChannel, StringComparison.Ordinal)
+            || binding.SocialTarget == null)
+        {
+            return null;
+        }
+
+        if (binding.ExpiresAt is { } expiresAt && expiresAt <= DateTimeOffset.UtcNow)
+            return null;
+
+        return binding.SocialTarget;
+    }
+
+    public void RecordSocialDelivery(
+        string workspaceCraftPath,
+        string bindingId,
+        string turnId,
+        bool delivered,
+        string? diagnostic)
+    {
+        if (string.IsNullOrWhiteSpace(bindingId) || string.IsNullOrWhiteSpace(turnId))
+            return;
+
+        GetStore(workspaceCraftPath).Update(state =>
+        {
+            var binding = state.Bindings.FirstOrDefault(candidate =>
+                string.Equals(candidate.BindingId, bindingId.Trim(), StringComparison.Ordinal));
+            AddAudit(
+                state,
+                delivered ? "binding.socialDelivery.delivered" : "binding.socialDelivery.failed",
+                binding?.ThreadId,
+                binding?.BindingId ?? bindingId.Trim(),
+                binding?.AppId,
+                binding?.UserId,
+                string.IsNullOrWhiteSpace(diagnostic) ? turnId : $"{turnId}:{diagnostic}");
+            return true;
+        });
+    }
 
     public IReadOnlyList<ThreadAppBindingWire> ListBindingsForAppUser(
         AppCatalogSnapshot catalog,
@@ -428,12 +509,37 @@ public sealed class AppBindingService
         _storeAccessor.GetStore(workspaceCraftPath);
 
     internal bool IsBindingConnectionUsable(AppBindingStateDocument state, AppBindingRecord binding) =>
-        IsManagedAppWithoutExternalConnection(binding.AppId)
-        || IsConnectionUsable(FindConnection(state, binding.UserId, binding.AppId));
+        IsAppConnectionUsable(state, binding.UserId, binding.AppId);
+
+    internal bool IsAppConnectionUsable(AppBindingStateDocument state, string userId, string appId) =>
+        IsManagedAppWithoutExternalConnection(appId)
+            ? IsManagedAppWithoutExternalConnectionReady(appId)
+            : IsConnectionUsable(FindConnection(state, userId, appId));
 
     internal bool IsManagedAppWithoutExternalConnection(string appId) =>
         _managedRuntimesByAppId.TryGetValue(appId, out var runtime)
         && runtime.RequiresExternalConnection == false;
+
+    internal bool IsManagedAppWithoutExternalConnectionReady(string appId) =>
+        _managedRuntimesByAppId.TryGetValue(appId, out var runtime)
+        && runtime.RequiresExternalConnection == false
+        && string.Equals(runtime.GetConnectionStatus(appId).State, AppConnectionStates.Connected, StringComparison.Ordinal);
+
+    internal AppConnectionStatusWire ResolveManagedConnectionStatus(
+        string appId,
+        AppConnectionStatusWire fallback)
+    {
+        if (!_managedRuntimesByAppId.TryGetValue(appId, out var runtime)
+            || runtime.RequiresExternalConnection)
+        {
+            return fallback;
+        }
+
+        var status = runtime.GetConnectionStatus(appId);
+        if (string.IsNullOrWhiteSpace(status.AppId))
+            status.AppId = appId;
+        return status;
+    }
 
     internal static void ValidateRequestedScopes(AppDescriptor descriptor, IReadOnlyList<string> requestedScopes)
     {
@@ -697,6 +803,28 @@ public sealed class AppBindingService
         JsonSerializer.Deserialize<AppDescriptor>(
             JsonSerializer.Serialize(descriptor, SessionWireJsonOptions.Default),
             SessionWireJsonOptions.Default) ?? new AppDescriptor();
+
+    private static DiscoveredPlugin CreateSyntheticManagedPlugin(AppDescriptor descriptor, string workspaceCraftPath)
+    {
+        var root = Path.GetFullPath(Path.Combine(workspaceCraftPath, "managed-apps", descriptor.AppId));
+        return new DiscoveredPlugin(
+            new PluginManifest
+            {
+                SchemaVersion = PluginManifestParser.SupportedSchemaVersion,
+                Id = $"managed:{descriptor.AppId}",
+                DisplayName = descriptor.DisplayName,
+                Description = descriptor.Description,
+                Capabilities = ["app"],
+                RootPath = root,
+                ManifestPath = Path.Combine(root, ".craft-plugin", "plugin.json")
+            },
+            PluginDiscoverySourceKind.BuiltIn,
+            root,
+            Enabled: true,
+            Installed: true,
+            Installable: false,
+            Removable: false);
+    }
 
     internal static void AddAudit(
         AppBindingStateDocument state,

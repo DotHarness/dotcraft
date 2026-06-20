@@ -1151,7 +1151,9 @@ public sealed partial class SessionService(
                 Images = images.Count > 0 ? images : null,
                 TriggerKind = triggerInfo?.Kind,
                 TriggerLabel = triggerInfo?.Label,
-                TriggerRefId = triggerInfo?.RefId
+                TriggerRefId = triggerInfo?.RefId,
+                QueuedInputId = inputSnapshot?.QueuedInputId,
+                DeliveryBindingId = inputSnapshot?.DeliveryBindingId
             }
         };
 
@@ -1416,7 +1418,9 @@ public sealed partial class SessionService(
                         Images = images.Count > 0 ? images : null,
                         TriggerKind = queued.TriggerKind,
                         TriggerLabel = queued.TriggerLabel,
-                        TriggerRefId = queued.TriggerRefId
+                        TriggerRefId = queued.TriggerRefId,
+                        QueuedInputId = queued.Id,
+                        DeliveryBindingId = queued.DeliveryBindingId
                     }
                 };
 
