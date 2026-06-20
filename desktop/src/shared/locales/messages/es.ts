@@ -615,7 +615,7 @@ export const MESSAGES_ES = {
   'settings.group.http': 'HTTP',
   'settings.group.workspaceSettings': 'Configuración del espacio de trabajo',
   'settings.group.conversations': 'Conversaciones',
-  'settings.servers.title': 'Servidores',
+  'settings.servers.title': 'Servidores remotos',
   'settings.servers.description': 'Administra DotCraft ejecutándose en tus servidores remotos.',
   'settings.servers.addServer': 'Agregar servidor',
   'settings.servers.add': 'Agregar',

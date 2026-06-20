@@ -2466,7 +2466,7 @@ export const MESSAGES_EN = {
   'settings.group.archived': 'Archived threads',
 
   // Remote servers
-  'settings.servers.title': 'Servers',
+  'settings.servers.title': 'Remote Servers',
   'settings.servers.description': 'Manage DotCraft running on your remote servers.',
   'settings.servers.addServer': 'Add server',
   'settings.servers.add': 'Add',

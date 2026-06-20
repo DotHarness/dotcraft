@@ -615,7 +615,7 @@ export const MESSAGES_KO = {
   'settings.group.http': 'HTTP',
   'settings.group.workspaceSettings': '작업공간 설정',
   'settings.group.conversations': '대화',
-  'settings.servers.title': '서버',
+  'settings.servers.title': '원격 서버',
   'settings.servers.description': '원격 서버에서 실행 중인 DotCraft를 관리합니다.',
   'settings.servers.addServer': '서버 추가',
   'settings.servers.add': '추가',

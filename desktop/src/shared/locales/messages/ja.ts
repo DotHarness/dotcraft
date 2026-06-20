@@ -615,7 +615,7 @@ export const MESSAGES_JA = {
   'settings.group.http': 'HTTP',
   'settings.group.workspaceSettings': 'ワークスペースの設定',
   'settings.group.conversations': '会話',
-  'settings.servers.title': 'サーバー',
+  'settings.servers.title': 'リモートサーバー',
   'settings.servers.description': 'リモートサーバーで実行中の DotCraft を管理します。',
   'settings.servers.addServer': 'サーバーを追加',
   'settings.servers.add': '追加',

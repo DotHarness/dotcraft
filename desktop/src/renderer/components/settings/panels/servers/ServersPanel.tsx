@@ -1063,10 +1063,7 @@ function ServerList({
   return (
     <div style={s.card}>
       <div style={s.groupHead}>
-        <span style={{ fontSize: 13, fontWeight: 600 }}>{t('settings.servers.title')}</span>
-        <button style={{ ...s.btn, ...s.btnSm }} onClick={onAdd}>
-          <Plus size={14} /> {t('settings.servers.add')}
-        </button>
+        <span style={{ fontSize: 13, fontWeight: 600 }}>{t('settings.group.servers')}</span>
       </div>
       {hosts.map((host, index) => {
         const reach = reachabilityView(host, t)

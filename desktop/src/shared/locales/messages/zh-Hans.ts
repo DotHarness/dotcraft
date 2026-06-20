@@ -2380,7 +2380,7 @@ export const MESSAGES_ZH_HANS = {
   'settings.group.archived': '归档会话',
 
   // 远程服务器
-  'settings.servers.title': '服务器',
+  'settings.servers.title': '远程服务器',
   'settings.servers.description': '管理远程服务器上运行的 DotCraft。',
   'settings.servers.addServer': '添加服务器',
   'settings.servers.add': '添加',
