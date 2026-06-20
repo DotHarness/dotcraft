@@ -277,7 +277,15 @@ public sealed class AppBindingProtocolExtension(
                         ? context.Connection.ChannelAdapterName
                         : null,
                     requireSocialAuthorization: true);
-                var thread = await EnsureThreadAsync(context, result.ThreadId, ct);
+                var thread = string.Equals(result.BindingKind, AppBindingKinds.SocialChannel, StringComparison.Ordinal)
+                    ? await EnsureThreadAvailableForSocialBindingRequestAsync(
+                        context,
+                        service,
+                        workspaceCraftPath,
+                        result.BindingRequestId,
+                        result.ThreadId,
+                        ct)
+                    : await EnsureThreadAsync(context, result.ThreadId, ct);
                 result.ThreadTitle = thread.DisplayName;
                 return result;
             }
@@ -306,6 +314,32 @@ public sealed class AppBindingProtocolExtension(
             {
                 var p = GetParams<AppBindingAcceptParams>(msg);
                 AuthorizeSocialBindingAccept(context.Connection, p);
+                if (p.SocialTarget != null)
+                {
+                    var preflight = service.GetSocialBindingAcceptPreflight(
+                        catalog,
+                        workspaceCraftPath,
+                        p,
+                        channelAdapterName: context.Connection.IsChannelAdapter
+                            ? context.Connection.ChannelAdapterName
+                            : null,
+                        requireSocialAuthorization: true);
+                    await EnsureThreadAvailableForSocialBindingRequestAsync(
+                        context,
+                        service,
+                        workspaceCraftPath,
+                        preflight.Request.BindingRequestId,
+                        preflight.Request.ThreadId,
+                        ct);
+                    await RevokeUnavailableSocialBindingConflictsAsync(
+                        context,
+                        service,
+                        catalog,
+                        workspaceCraftPath,
+                        preflight.Request.AppId,
+                        preflight.SocialTarget,
+                        ct);
+                }
                 var result = service.AcceptBinding(catalog, workspaceCraftPath, p);
                 return await SendThreadBindingChangedAfterResponseAsync(
                     msg,
@@ -361,10 +395,22 @@ public sealed class AppBindingProtocolExtension(
                 var p = GetParams<AppThreadInputEnqueueParams>(msg);
                 var threadId = service.AuthorizeThreadInputEnqueue(catalog, workspaceCraftPath, p);
                 var prepared = PrepareAppThreadInput(p);
-                await context.SessionService.EnsureThreadLoadedAsync(threadId, ct);
                 var deliveryBindingId = service.GetActiveSocialTarget(workspaceCraftPath, p.BindingId) == null
                     ? null
                     : p.BindingId.Trim();
+                if (!string.IsNullOrWhiteSpace(deliveryBindingId)
+                    && !await IsThreadAvailableForSocialBindingAsync(context, threadId, ct))
+                {
+                    service.RevokeStaleSocialBinding(
+                        catalog,
+                        workspaceCraftPath,
+                        deliveryBindingId,
+                        "The bound thread is unavailable.",
+                        "binding.revoked.threadUnavailable");
+                    throw AppServerErrors.InvalidParams("Social binding thread is unavailable.");
+                }
+
+                await context.SessionService.EnsureThreadLoadedAsync(threadId, ct);
 
                 var triggerKind = string.Equals(p.AppId, DotCraftTeamsAppId, StringComparison.Ordinal)
                     ? "team"
@@ -423,7 +469,13 @@ public sealed class AppBindingProtocolExtension(
             {
                 var p = GetParams<AppSocialBindingResolveParams>(msg);
                 AuthorizeSocialBindingResolve(context.Connection, p);
-                return service.ResolveSocialBinding(catalog, workspaceCraftPath, p);
+                return await ResolveSocialBindingWithThreadValidationAsync(
+                    context,
+                    service,
+                    catalog,
+                    workspaceCraftPath,
+                    p,
+                    ct);
             }
 
             case ThreadAppBindingsList:
@@ -583,6 +635,112 @@ public sealed class AppBindingProtocolExtension(
             throw AppServerErrors.InvalidParams("'threadId' is required.");
         return await context.SessionService.GetThreadAsync(threadId, ct);
     }
+
+    private static async Task<SessionThread> EnsureThreadAvailableForSocialBindingRequestAsync(
+        AppServerExtensionContext context,
+        AppBindingService service,
+        string workspaceCraftPath,
+        string bindingRequestId,
+        string threadId,
+        CancellationToken ct)
+    {
+        var thread = await TryGetThreadForSocialBindingAsync(context, threadId, ct);
+        if (IsThreadUnavailableForSocialBinding(thread))
+        {
+            service.CancelPendingSocialBindingRequestForUnavailableThread(
+                workspaceCraftPath,
+                bindingRequestId,
+                "The binding request thread is unavailable.",
+                "binding.request.cancelled.threadUnavailable");
+            throw AppServerErrors.InvalidParams("Binding request is no longer pending.");
+        }
+
+        return thread!;
+    }
+
+    private static async Task<AppSocialBindingResolveResult> ResolveSocialBindingWithThreadValidationAsync(
+        AppServerExtensionContext context,
+        AppBindingService service,
+        AppCatalogSnapshot catalog,
+        string workspaceCraftPath,
+        AppSocialBindingResolveParams p,
+        CancellationToken ct)
+    {
+        for (var attempt = 0; attempt < 16; attempt++)
+        {
+            var result = service.ResolveSocialBinding(catalog, workspaceCraftPath, p);
+            if (result.Binding == null)
+                return result;
+
+            if (await IsThreadAvailableForSocialBindingAsync(context, result.Binding.ThreadId, ct))
+                return result;
+
+            service.RevokeStaleSocialBinding(
+                catalog,
+                workspaceCraftPath,
+                result.Binding.BindingId,
+                "The bound thread is unavailable.",
+                "binding.revoked.threadUnavailable");
+        }
+
+        return new AppSocialBindingResolveResult { Binding = null };
+    }
+
+    private static async Task RevokeUnavailableSocialBindingConflictsAsync(
+        AppServerExtensionContext context,
+        AppBindingService service,
+        AppCatalogSnapshot catalog,
+        string workspaceCraftPath,
+        string appId,
+        SocialChannelTargetWire socialTarget,
+        CancellationToken ct)
+    {
+        for (var attempt = 0; attempt < 16; attempt++)
+        {
+            var conflict = service.FindActiveSocialBindingConflict(catalog, workspaceCraftPath, appId, socialTarget);
+            if (conflict == null)
+                return;
+            if (await IsThreadAvailableForSocialBindingAsync(context, conflict.ThreadId, ct))
+                return;
+
+            service.RevokeStaleSocialBinding(
+                catalog,
+                workspaceCraftPath,
+                conflict.BindingId,
+                "The bound thread is unavailable.",
+                "binding.revoked.threadUnavailable");
+        }
+    }
+
+    private static async Task<bool> IsThreadAvailableForSocialBindingAsync(
+        AppServerExtensionContext context,
+        string threadId,
+        CancellationToken ct)
+    {
+        var thread = await TryGetThreadForSocialBindingAsync(context, threadId, ct);
+        return !IsThreadUnavailableForSocialBinding(thread);
+    }
+
+    private static async Task<SessionThread?> TryGetThreadForSocialBindingAsync(
+        AppServerExtensionContext context,
+        string threadId,
+        CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(threadId))
+            return null;
+
+        try
+        {
+            return await context.SessionService.GetThreadAsync(threadId, ct);
+        }
+        catch (KeyNotFoundException)
+        {
+            return null;
+        }
+    }
+
+    private static bool IsThreadUnavailableForSocialBinding(SessionThread? thread) =>
+        thread == null || thread.Status == ThreadStatus.Archived;
 
     private static PreparedAppThreadInput PrepareAppThreadInput(AppThreadInputEnqueueParams p)
     {

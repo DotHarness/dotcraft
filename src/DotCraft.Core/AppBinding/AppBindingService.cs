@@ -221,11 +221,50 @@ public sealed class AppBindingService
         AppBindingAcceptParams p) =>
         _lifecycle.AcceptBinding(catalog, workspaceCraftPath, p);
 
+    internal SocialBindingAcceptPreflightResult GetSocialBindingAcceptPreflight(
+        AppCatalogSnapshot catalog,
+        string workspaceCraftPath,
+        AppBindingAcceptParams p,
+        string? channelAdapterName = null,
+        bool requireSocialAuthorization = false) =>
+        _lifecycle.GetSocialBindingAcceptPreflight(
+            catalog,
+            workspaceCraftPath,
+            p,
+            channelAdapterName,
+            requireSocialAuthorization);
+
     public AppSocialBindingResolveResult ResolveSocialBinding(
         AppCatalogSnapshot catalog,
         string workspaceCraftPath,
         AppSocialBindingResolveParams p) =>
         _lifecycle.ResolveSocialBinding(catalog, workspaceCraftPath, p);
+
+    internal ThreadAppBindingWire? FindActiveSocialBindingConflict(
+        AppCatalogSnapshot catalog,
+        string workspaceCraftPath,
+        string appId,
+        SocialChannelTargetWire socialTarget) =>
+        _lifecycle.FindActiveSocialBindingConflict(catalog, workspaceCraftPath, appId, socialTarget);
+
+    internal ThreadAppBindingWire? RevokeStaleSocialBinding(
+        AppCatalogSnapshot catalog,
+        string workspaceCraftPath,
+        string bindingId,
+        string diagnostic,
+        string auditEvent) =>
+        _lifecycle.RevokeStaleSocialBinding(catalog, workspaceCraftPath, bindingId, diagnostic, auditEvent);
+
+    internal AppBindingRequestCancelResult? CancelPendingSocialBindingRequestForUnavailableThread(
+        string workspaceCraftPath,
+        string bindingRequestId,
+        string diagnostic,
+        string auditEvent) =>
+        _lifecycle.CancelPendingSocialBindingRequestForUnavailableThread(
+            workspaceCraftPath,
+            bindingRequestId,
+            diagnostic,
+            auditEvent);
 
     public AppBindingAttachToolsResult AttachTools(
         AppCatalogSnapshot catalog,

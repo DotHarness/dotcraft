@@ -1034,7 +1034,7 @@ The server emits a `thread/statusChanged` notification.
 
 ### 4.9 `thread/archive`
 
-Archive a thread. Archived threads are read-only — they can be listed and read but not resumed or turned. Archiving a thread releases social-channel App Bindings for that thread: accepted social bindings are revoked and pending social bind-code requests are cancelled, allowing the same social conversation to be bound to another active thread. If the target is a top-level parent with session-backed SubAgent descendants, the server recursively archives the full child-thread subtree. Directly archiving a SubAgent child thread is invalid; callers manage it through its parent.
+Archive a thread. Archived threads are read-only — they can be listed and read but not resumed or turned. Archiving a thread releases social-channel App Bindings for that thread: accepted social bindings are revoked and pending social bind-code requests are cancelled, allowing the same social conversation to be bound to another active thread. Social-channel resolve and accept flows also lazily revoke stale bindings that still point at missing or archived threads, covering historical data and out-of-band thread deletion. If the target is a top-level parent with session-backed SubAgent descendants, the server recursively archives the full child-thread subtree. Directly archiving a SubAgent child thread is invalid; callers manage it through its parent.
 
 **Direction**: client → server (request)
 

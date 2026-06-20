@@ -414,7 +414,7 @@ A social binding stores:
 
 `channelName`, `conversationKind`, and `conversationId` are the stable lookup key. `accountId` is optional and lets a multi-account adapter distinguish bot/accounts when it has a stable account id. `deliveryTarget` is adapter-owned and is the value passed back to the channel runtime for outbound delivery.
 
-Within one workspace and app/channel, at most one active unexpired `socialChannel` binding on a non-archived thread may exist for the same `(channelName, accountId, conversationKind, conversationId)` tuple.
+Within one workspace and app/channel, at most one active unexpired `socialChannel` binding on an existing non-archived thread may exist for the same `(channelName, accountId, conversationKind, conversationId)` tuple. If a stale active social binding points at a missing or archived thread, servers revoke that binding when it is observed by social resolve or accept flows so the conversation can be rebound.
 
 ---
 
@@ -1096,7 +1096,8 @@ Rules:
 - Only a channel-adapter connection for the same `channelName` may call this method.
 - `appId` must equal `com.dotharness.channel.<channelName>` for first-party channel runtimes.
 - Successful results include the active binding's `grantId`; adapters use it when calling `app/threadInput/enqueue`.
-- Revoked, expired, pending, cancelled, offline, runtime-unavailable, archived-thread, and wrong-account bindings do not resolve.
+- Revoked, expired, pending, cancelled, offline, runtime-unavailable, missing-thread, archived-thread, and wrong-account bindings do not resolve.
+- If resolve finds an otherwise matching active social binding whose thread is missing or archived, the server revokes that binding and returns `{ "binding": null }`.
 - The method is an address lookup, not an enumeration API; callers cannot query across channels.
 
 ---
@@ -1390,6 +1391,7 @@ DotCraft may add generic binding context to the agent, such as available app nam
 ### 14.1 Thread Lifecycle
 
 - Thread archive keeps binding records. For `socialChannel` bindings, archive revokes accepted bindings and cancels pending bind-code requests so the social conversation can be rebound to another active thread.
+- Social bind-code request get/accept treats pending requests for missing or archived threads as no longer pending and cancels them. Social accept may also revoke stale active social bindings for the same social target before enforcing uniqueness.
 - Thread delete revokes active bindings and records lifecycle audit.
 - Thread export should include lightweight binding summaries, not app credentials or secret grant proofs.
 - Thread import must not silently reactivate bindings. Imported bindings start unavailable until the user reconnects and rebinds or the app explicitly reattaches under policy.

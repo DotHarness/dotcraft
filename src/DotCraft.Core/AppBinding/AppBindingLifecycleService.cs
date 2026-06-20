@@ -12,6 +12,10 @@ internal sealed record ThreadArchiveSocialBindingChange(
     ThreadAppBindingWire Binding,
     string PreviousState);
 
+internal sealed record SocialBindingAcceptPreflightResult(
+    AppBindingRequestGetResult Request,
+    SocialChannelTargetWire SocialTarget);
+
 internal sealed class AppBindingLifecycleService(
     AppBindingService owner,
     AppBindingStoreAccessor stores,
@@ -196,36 +200,7 @@ internal sealed class AppBindingLifecycleService(
             throw AppServerErrors.InvalidParams("Binding request token is invalid.");
         AuthorizeSocialBindingRequestGet(request, channelAdapterName, requireSocialAuthorization);
 
-        var requestedScopeSet = request.RequestedScopes.ToHashSet(StringComparer.Ordinal);
-        var requestedTools = request.RequestedTools?.ToHashSet(StringComparer.Ordinal);
-        return new AppBindingRequestGetResult
-        {
-            AppId = entry.Descriptor.AppId,
-            BindingRequestId = request.BindingRequestId,
-            ThreadId = request.ThreadId,
-            ThreadTitle = threadTitle,
-            DisplayName = entry.Descriptor.DisplayName,
-            DeveloperName = entry.Descriptor.DeveloperName,
-            Source = request.Source,
-            Reason = request.Reason,
-            RequestedScopes = request.RequestedScopes.ToList(),
-            ScopeCatalog = entry.Descriptor.Scopes
-                .Where(scope => requestedScopeSet.Contains(scope.Id))
-                .ToList(),
-            RequestedTools = request.RequestedTools?.ToList() ?? [],
-            ToolCatalog = entry.Descriptor.ToolCatalog
-                .Where(tool => requestedScopeSet.Contains(tool.Scope)
-                               && (requestedTools == null || requestedTools.Contains(tool.Name)))
-                .ToList(),
-            DynamicToolCatalog = new AppDynamicToolCatalogDescriptor
-            {
-                Enabled = entry.Descriptor.DynamicToolCatalog.Enabled,
-                Description = entry.Descriptor.DynamicToolCatalog.Description
-            },
-            ExpiresAt = request.ExpiresAt,
-            BindingKind = request.BindingKind,
-            SocialIntent = request.SocialIntent
-        };
+        return BuildBindingRequestGetResult(entry.Descriptor, request, threadTitle);
     }
 
     public AppBindingRequestCancelResult CancelBindingRequest(
@@ -255,6 +230,62 @@ internal sealed class AppBindingLifecycleService(
         });
     }
 
+    private static AppBindingRequestGetResult BuildBindingRequestGetResult(
+        AppDescriptor descriptor,
+        AppBindingRequestRecord request,
+        string? threadTitle)
+    {
+        var requestedScopeSet = request.RequestedScopes.ToHashSet(StringComparer.Ordinal);
+        var requestedTools = request.RequestedTools?.ToHashSet(StringComparer.Ordinal);
+        return new AppBindingRequestGetResult
+        {
+            AppId = descriptor.AppId,
+            BindingRequestId = request.BindingRequestId,
+            ThreadId = request.ThreadId,
+            ThreadTitle = threadTitle,
+            DisplayName = descriptor.DisplayName,
+            DeveloperName = descriptor.DeveloperName,
+            Source = request.Source,
+            Reason = request.Reason,
+            RequestedScopes = request.RequestedScopes.ToList(),
+            ScopeCatalog = descriptor.Scopes
+                .Where(scope => requestedScopeSet.Contains(scope.Id))
+                .ToList(),
+            RequestedTools = request.RequestedTools?.ToList() ?? [],
+            ToolCatalog = descriptor.ToolCatalog
+                .Where(tool => requestedScopeSet.Contains(tool.Scope)
+                               && (requestedTools == null || requestedTools.Contains(tool.Name)))
+                .ToList(),
+            DynamicToolCatalog = new AppDynamicToolCatalogDescriptor
+            {
+                Enabled = descriptor.DynamicToolCatalog.Enabled,
+                Description = descriptor.DynamicToolCatalog.Description
+            },
+            ExpiresAt = request.ExpiresAt,
+            BindingKind = request.BindingKind,
+            SocialIntent = request.SocialIntent
+        };
+    }
+
+    internal SocialBindingAcceptPreflightResult GetSocialBindingAcceptPreflight(
+        AppCatalogSnapshot catalog,
+        string workspaceCraftPath,
+        AppBindingAcceptParams p,
+        string? channelAdapterName = null,
+        bool requireSocialAuthorization = false)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var state = stores.GetStore(workspaceCraftPath).Snapshot();
+        var request = ResolveValidBindingRequestForAccept(state, p, now);
+        AuthorizeSocialBindingRequestGet(request, channelAdapterName, requireSocialAuthorization);
+        var socialTarget = NormalizeAcceptedSocialTarget(request, p.SocialTarget)
+            ?? throw AppServerErrors.InvalidParams("'socialTarget' is required for socialChannel bindings.");
+        var entry = FindEnabledApp(catalog, request.AppId);
+        return new SocialBindingAcceptPreflightResult(
+            BuildBindingRequestGetResult(entry.Descriptor, request, threadTitle: null),
+            socialTarget);
+    }
+
     public AppBindingAcceptResult AcceptBinding(
         AppCatalogSnapshot catalog,
         string workspaceCraftPath,
@@ -272,16 +303,7 @@ internal sealed class AppBindingLifecycleService(
         var now = DateTimeOffset.UtcNow;
         return stores.GetStore(workspaceCraftPath).Update(state =>
         {
-            var request = ResolvePendingBindingRequest(state, appId: null, p.BindingRequestId, p.RequestToken)
-                ?? ResolveBindingRequestByToken(state, appId: null, p.BindingRequestId, p.RequestToken);
-            if (request == null)
-                throw AppServerErrors.InvalidParams("Binding request was not found.");
-            if (request.State != AppBindingStates.Pending || request.Consumed)
-                throw AppServerErrors.InvalidParams("Binding request is no longer pending.");
-            if (request.ExpiresAt <= now)
-                throw AppServerErrors.InvalidParams("Binding request token has expired.");
-            if (!AppBindingToken.Matches(p.RequestToken, request.RequestTokenHash))
-                throw AppServerErrors.InvalidParams("Binding request token is invalid.");
+            var request = ResolveValidBindingRequestForAccept(state, p, now);
 
             var entry = FindEnabledApp(catalog, request.AppId);
             AppBindingService.ValidateGrantedScopes(entry.Descriptor, request.RequestedScopes, p.GrantedScopes);
@@ -395,6 +417,118 @@ internal sealed class AppBindingLifecycleService(
                 ? null
                 : owner.MapBinding(binding, entry.Descriptor, AppBindingService.MapConnectionStatus(state, binding.UserId, binding.AppId))
         };
+    }
+
+    internal ThreadAppBindingWire? FindActiveSocialBindingConflict(
+        AppCatalogSnapshot catalog,
+        string workspaceCraftPath,
+        string appId,
+        SocialChannelTargetWire socialTarget)
+    {
+        if (string.IsNullOrWhiteSpace(appId))
+            throw AppServerErrors.InvalidParams("'appId' is required.");
+
+        var state = stores.GetStore(workspaceCraftPath).Snapshot();
+        var now = DateTimeOffset.UtcNow;
+        var binding = state.Bindings.FirstOrDefault(candidate =>
+            candidate.State == AppBindingStates.Active
+            && string.Equals(candidate.AppId, appId.Trim(), StringComparison.Ordinal)
+            && string.Equals(candidate.BindingKind, AppBindingKinds.SocialChannel, StringComparison.Ordinal)
+            && (candidate.ExpiresAt == null || candidate.ExpiresAt > now)
+            && candidate.SocialTarget != null
+            && SocialTargetMatches(candidate.SocialTarget!, socialTarget));
+        if (binding == null)
+            return null;
+
+        var descriptor = catalog.Entries
+            .FirstOrDefault(entry => string.Equals(entry.Descriptor.AppId, binding.AppId, StringComparison.Ordinal))
+            ?.Descriptor;
+        return owner.MapBinding(
+            binding,
+            descriptor,
+            AppBindingService.MapConnectionStatus(state, binding.UserId, binding.AppId));
+    }
+
+    internal ThreadAppBindingWire? RevokeStaleSocialBinding(
+        AppCatalogSnapshot catalog,
+        string workspaceCraftPath,
+        string bindingId,
+        string diagnostic,
+        string auditEvent)
+    {
+        if (string.IsNullOrWhiteSpace(bindingId))
+            return null;
+
+        return stores.GetStore(workspaceCraftPath).Update(state =>
+        {
+            var binding = state.Bindings.FirstOrDefault(candidate =>
+                string.Equals(candidate.BindingId, bindingId.Trim(), StringComparison.Ordinal)
+                && string.Equals(candidate.BindingKind, AppBindingKinds.SocialChannel, StringComparison.Ordinal)
+                && !IsTerminalBindingState(candidate.State));
+            if (binding == null)
+                return null;
+
+            binding.State = AppBindingStates.Revoked;
+            binding.LastChangedAt = DateTimeOffset.UtcNow;
+            binding.Diagnostic = diagnostic;
+            binding.ExposureRevision++;
+            attachments.Remove(binding.BindingId);
+            AppBindingService.AddAudit(
+                state,
+                string.IsNullOrWhiteSpace(auditEvent) ? "binding.revoked.threadUnavailable" : auditEvent,
+                binding.ThreadId,
+                binding.BindingId,
+                binding.AppId,
+                binding.UserId,
+                diagnostic);
+
+            var descriptor = catalog.Entries
+                .FirstOrDefault(entry => string.Equals(entry.Descriptor.AppId, binding.AppId, StringComparison.Ordinal))
+                ?.Descriptor;
+            return owner.MapBinding(
+                binding,
+                descriptor,
+                AppBindingService.MapConnectionStatus(state, binding.UserId, binding.AppId));
+        });
+    }
+
+    internal AppBindingRequestCancelResult? CancelPendingSocialBindingRequestForUnavailableThread(
+        string workspaceCraftPath,
+        string bindingRequestId,
+        string diagnostic,
+        string auditEvent)
+    {
+        if (string.IsNullOrWhiteSpace(bindingRequestId))
+            return null;
+
+        return stores.GetStore(workspaceCraftPath).Update(state =>
+        {
+            var request = state.BindingRequests.FirstOrDefault(candidate =>
+                string.Equals(candidate.BindingRequestId, bindingRequestId.Trim(), StringComparison.Ordinal)
+                && string.Equals(candidate.BindingKind, AppBindingKinds.SocialChannel, StringComparison.Ordinal)
+                && candidate.State == AppBindingStates.Pending
+                && !candidate.Consumed);
+            if (request == null)
+                return null;
+
+            request.State = AppBindingStates.Cancelled;
+            request.Consumed = true;
+            AppBindingService.AddAudit(
+                state,
+                string.IsNullOrWhiteSpace(auditEvent) ? "binding.request.cancelled.threadUnavailable" : auditEvent,
+                request.ThreadId,
+                null,
+                request.AppId,
+                request.UserId,
+                diagnostic);
+            return new AppBindingRequestCancelResult
+            {
+                BindingRequestId = request.BindingRequestId,
+                ThreadId = request.ThreadId,
+                AppId = request.AppId,
+                State = AppBindingStates.Cancelled
+            };
+        });
     }
 
     public ThreadAppBindingWire EnsureManagedBinding(
@@ -682,6 +816,27 @@ internal sealed class AppBindingLifecycleService(
             && (string.IsNullOrWhiteSpace(bindingRequestId)
                 || string.Equals(request.BindingRequestId, bindingRequestId.Trim(), StringComparison.Ordinal)));
         return candidates.FirstOrDefault(request => AppBindingToken.Matches(token.Trim(), request.RequestTokenHash));
+    }
+
+    private static AppBindingRequestRecord ResolveValidBindingRequestForAccept(
+        AppBindingStateDocument state,
+        AppBindingAcceptParams p,
+        DateTimeOffset now)
+    {
+        if (string.IsNullOrWhiteSpace(p.RequestToken))
+            throw AppServerErrors.InvalidParams("'requestToken' is required.");
+
+        var request = ResolvePendingBindingRequest(state, appId: null, p.BindingRequestId, p.RequestToken)
+            ?? ResolveBindingRequestByToken(state, appId: null, p.BindingRequestId, p.RequestToken);
+        if (request == null)
+            throw AppServerErrors.InvalidParams("Binding request was not found.");
+        if (request.State != AppBindingStates.Pending || request.Consumed)
+            throw AppServerErrors.InvalidParams("Binding request is no longer pending.");
+        if (request.ExpiresAt <= now)
+            throw AppServerErrors.InvalidParams("Binding request token has expired.");
+        if (!AppBindingToken.Matches(p.RequestToken, request.RequestTokenHash))
+            throw AppServerErrors.InvalidParams("Binding request token is invalid.");
+        return request;
     }
 
     private static AppBindingRequestRecord? ResolveBindingRequestByToken(
