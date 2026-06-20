@@ -127,7 +127,7 @@ test("WeComAdapter builds social binding target from chat context", () => {
     {
       userId: "chat:chat-1",
       userName: "User One",
-      text: "/bind DTC-123456",
+      text: "/bind 482913",
       channelContext: "chat:chat-1",
     },
     {
@@ -204,7 +204,7 @@ test("WeComAdapter accepts social bind codes before forwarding to the agent", as
   };
 
   await adapter.handleTextMessage(
-    ["/bind", "DTC-123456"],
+    ["/bind", "482913"],
     { userId: "u1", name: "User One", alias: "" },
     { getChatId: () => "chat-1", pushText: async () => undefined },
   );
@@ -213,8 +213,8 @@ test("WeComAdapter accepts social bind codes before forwarding to the agent", as
     method: "app/binding/request/get",
     params: {
       appId: "com.dotharness.channel.wecom",
-      bindCode: "DTC-123456",
-      requestToken: "DTC-123456",
+      bindCode: "482913",
+      requestToken: "482913",
     },
   });
   assert.equal(requests[1]?.method, "app/binding/accept");

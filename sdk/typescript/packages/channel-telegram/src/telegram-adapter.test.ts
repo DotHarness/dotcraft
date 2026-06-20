@@ -50,7 +50,7 @@ test("TelegramAdapter builds social binding target from chat context", () => {
     {
       userId: "42",
       userName: "Ada",
-      text: "/bind DTC-123456",
+      text: "/bind 482913",
       channelContext: "group:-100123",
     },
     {
@@ -125,7 +125,7 @@ test("TelegramAdapter accepts social bind codes for chat context", async () => {
   await adapter.handleMessage({
     userId: "42",
     userName: "Ada",
-    text: "/bind DTC-123456",
+    text: "/bind 482913",
     channelContext: "group:-100123",
     senderExtra: { senderRole: "admin" },
   });
@@ -134,8 +134,8 @@ test("TelegramAdapter accepts social bind codes for chat context", async () => {
     method: "app/binding/request/get",
     params: {
       appId: "com.dotharness.channel.telegram",
-      bindCode: "DTC-123456",
-      requestToken: "DTC-123456",
+      bindCode: "482913",
+      requestToken: "482913",
     },
   });
   assert.equal(requests[1]?.method, "app/binding/accept");

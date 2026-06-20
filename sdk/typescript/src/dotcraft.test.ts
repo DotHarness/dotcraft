@@ -346,12 +346,12 @@ test("DotCraft appBindings social helpers send expected JSON-RPC params", async 
   });
   await sdk.appBindings.getBindingRequest({
     appId: "com.dotharness.channel.qq",
-    bindCode: "DTC-123456",
-    requestToken: "DTC-123456",
+    bindCode: "482913",
+    requestToken: "482913",
   });
   await sdk.appBindings.acceptSocialBinding({
     bindingRequestId: "request-1",
-    requestToken: "DTC-123456",
+    requestToken: "482913",
     socialTarget,
   });
   await sdk.appBindings.resolveSocialBinding({
@@ -393,12 +393,12 @@ test("DotCraft appBindings social helpers send expected JSON-RPC params", async 
   });
   assert.deepEqual(wire.requests[1]?.params, {
     appId: "com.dotharness.channel.qq",
-    bindCode: "DTC-123456",
-    requestToken: "DTC-123456",
+    bindCode: "482913",
+    requestToken: "482913",
   });
   assert.deepEqual(wire.requests[2]?.params, {
     bindingRequestId: "request-1",
-    requestToken: "DTC-123456",
+    requestToken: "482913",
     grantId: "social:qq::group:123",
     grantedScopes: ["conversation.receive", "message.send"],
     approvalMode: "channelBindCode",

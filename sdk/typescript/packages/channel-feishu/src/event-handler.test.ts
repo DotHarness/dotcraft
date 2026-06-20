@@ -205,7 +205,7 @@ test("FeishuAdapter builds social binding target from group and p2p contexts", (
 
   assert.deepEqual(
     adapter.buildSocialTarget(
-      { userId: "group:oc_group_1", userName: "Alice", text: "/bind DTC-123456" },
+      { userId: "group:oc_group_1", userName: "Alice", text: "/bind 482913" },
       { senderId: "ou_user_1", senderName: "Alice", groupId: "group:oc_group_1" },
       "group:oc_group_1",
     ),
@@ -224,7 +224,7 @@ test("FeishuAdapter builds social binding target from group and p2p contexts", (
 
   assert.deepEqual(
     adapter.buildSocialTarget(
-      { userId: "ou_user_1", userName: "Alice", text: "/bind DTC-123456" },
+      { userId: "ou_user_1", userName: "Alice", text: "/bind 482913" },
       { senderId: "ou_user_1", senderName: "Alice" },
       "dm:ou_user_1",
     ),
@@ -292,7 +292,7 @@ test("FeishuAdapter accepts social bind codes for group context", async () => {
   await adapter.handleMessage({
     userId: "group:oc_group_1",
     userName: "Alice",
-    text: "/bind DTC-123456",
+    text: "/bind 482913",
     channelContext: "group:oc_group_1",
     sender: {
       senderId: "ou_user_1",
@@ -305,8 +305,8 @@ test("FeishuAdapter accepts social bind codes for group context", async () => {
     method: "app/binding/request/get",
     params: {
       appId: "com.dotharness.channel.feishu",
-      bindCode: "DTC-123456",
-      requestToken: "DTC-123456",
+      bindCode: "482913",
+      requestToken: "482913",
     },
   });
   assert.equal(requests[1]?.method, "app/binding/accept");

@@ -103,6 +103,10 @@ export function ThreadAppBindingsButton({ threadId }: ThreadAppBindingsButtonPro
     void refreshThreadAppPicker(false)
   }, [canUseAppBinding, open, refreshThreadAppPicker])
 
+  useEffect(() => {
+    setPendingSocialHandoffs((current) => prunePendingSocialHandoffs(current, bindings, apps))
+  }, [apps, bindings])
+
   const threadBindings = useMemo(
     () => bindings.filter((binding) => binding.state !== 'revoked'
       && binding.state !== 'cancelled'),
@@ -127,7 +131,7 @@ export function ThreadAppBindingsButton({ threadId }: ThreadAppBindingsButtonPro
         : threadBindings.find((candidate) => candidate.appId === app.appId)
       if (binding) unmatchedBindings.delete(binding.bindingId)
       if (isHiddenTeamsMissionBinding(app.appId, binding)) continue
-      const pendingHandoff = resolvePendingSocialHandoff(pendingSocialHandoffs, app, binding)
+      const pendingHandoff = resolvePendingSocialHandoff(pendingSocialHandoffs, binding)
       if (isUnavailableSocialAppRow(app, binding, pendingHandoff)) continue
       nextRows.push({
         key: `app:${app.appId}`,
@@ -142,7 +146,7 @@ export function ThreadAppBindingsButton({ threadId }: ThreadAppBindingsButtonPro
       nextRows.push({
         key: `binding:${binding.bindingId}`,
         binding,
-        pendingHandoff: resolvePendingSocialHandoff(pendingSocialHandoffs, undefined, binding)
+        pendingHandoff: resolvePendingSocialHandoff(pendingSocialHandoffs, binding)
       })
     }
 
@@ -209,18 +213,24 @@ export function ThreadAppBindingsButton({ threadId }: ThreadAppBindingsButtonPro
     })
     if (result.handoff?.uri) await openAppHandoff(result.handoff, t)
     if (result.handoff?.bindCode) {
-      setPendingSocialHandoffs((current) => ({
-        ...current,
-        [result.bindingRequestId]: {
-          appId: app.appId,
-          bindingRequestId: result.bindingRequestId,
-          bindCode: result.handoff!.bindCode!,
-          instructions: result.handoff!.instructions
-        }
-      }))
-      addToast(result.handoff.instructions || `/bind ${result.handoff.bindCode}`, 'info', 120_000)
       await fetchThreadBindings(threadId)
       await fetchApps(threadId, true, 'threadBinding')
+      const state = useAppBindingStore.getState()
+      const currentBindings = state.bindingsByThread[threadId] ?? EMPTY_THREAD_APP_BINDINGS
+      const currentApps = state.appsThreadId === threadId && state.appsSurface === 'threadBinding'
+        ? state.apps
+        : EMPTY_THREAD_APPS
+      if (hasPendingSocialBindingRequest(currentBindings, currentApps, result.bindingRequestId)) {
+        setPendingSocialHandoffs((current) => ({
+          ...current,
+          [result.bindingRequestId]: {
+            appId: app.appId,
+            bindingRequestId: result.bindingRequestId,
+            bindCode: result.handoff!.bindCode!,
+            instructions: result.handoff!.instructions
+          }
+        }))
+      }
       return
     }
     if (result.state !== 'active') addToast(t('appBinding.bindingStarted'), 'info')
@@ -521,7 +531,6 @@ function getSocialChannelName(app: AppInfo): string | null {
 
 function resolvePendingSocialHandoff(
   pendingHandoffs: Record<string, PendingSocialHandoff>,
-  app?: AppInfo,
   binding?: ThreadBindingLike
 ): PendingSocialHandoff | undefined {
   if (binding?.state !== 'pending') return undefined
@@ -529,9 +538,57 @@ function resolvePendingSocialHandoff(
   if (bindingRequestId && pendingHandoffs[bindingRequestId]) {
     return pendingHandoffs[bindingRequestId]
   }
-  const appId = app?.appId ?? binding?.appId
-  if (!appId || !getSocialChannelNameFromAppId(appId)) return undefined
-  return Object.values(pendingHandoffs).find((handoff) => handoff.appId === appId)
+  return undefined
+}
+
+function prunePendingSocialHandoffs(
+  handoffs: Record<string, PendingSocialHandoff>,
+  bindings: readonly ThreadAppBinding[],
+  apps: readonly AppInfo[]
+): Record<string, PendingSocialHandoff> {
+  const keys = Object.keys(handoffs)
+  if (keys.length === 0) return handoffs
+
+  const pendingRequestIds = collectPendingSocialBindingRequestIds(bindings, apps)
+  let changed = false
+  const next: Record<string, PendingSocialHandoff> = {}
+  for (const key of keys) {
+    if (pendingRequestIds.has(key)) {
+      next[key] = handoffs[key]
+    } else {
+      changed = true
+    }
+  }
+  return changed ? next : handoffs
+}
+
+function hasPendingSocialBindingRequest(
+  bindings: readonly ThreadAppBinding[],
+  apps: readonly AppInfo[],
+  bindingRequestId: string
+): boolean {
+  return collectPendingSocialBindingRequestIds(bindings, apps).has(bindingRequestId)
+}
+
+function collectPendingSocialBindingRequestIds(
+  bindings: readonly ThreadAppBinding[],
+  apps: readonly AppInfo[]
+): Set<string> {
+  const ids = new Set<string>()
+  for (const binding of bindings) {
+    addPendingSocialBindingRequestId(ids, binding)
+  }
+  for (const app of apps) {
+    if (app.bindingSummary) addPendingSocialBindingRequestId(ids, app.bindingSummary)
+  }
+  return ids
+}
+
+function addPendingSocialBindingRequestId(ids: Set<string>, binding: ThreadBindingLike): void {
+  if (binding.state !== 'pending') return
+  if (!getSocialChannelNameFromAppId(binding.appId)) return
+  const bindingRequestId = 'bindingRequestId' in binding ? binding.bindingRequestId : undefined
+  if (bindingRequestId) ids.add(bindingRequestId)
 }
 
 function getSocialChannelNameFromAppId(appId: string): string | null {

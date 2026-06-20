@@ -104,7 +104,7 @@ test("sendStructuredMessage sends a file_item after encrypted CDN upload", async
     const result = await tools.sendStructuredMessage({
       baseUrl: "https://ilink.example",
       token: "token",
-      toUserId: "user@im.wechat",
+      toUserId: "wx-user-1",
       contextToken: "ctx",
       clientId: "client-1",
       message: {
@@ -157,7 +157,7 @@ test("sendStructuredMessage sends an image_item without thumbnail upload", async
     await tools.sendStructuredMessage({
       baseUrl: "https://ilink.example",
       token: "token",
-      toUserId: "user@im.wechat",
+      toUserId: "wx-user-1",
       contextToken: "ctx",
       clientId: "client-1",
       message: {
@@ -214,7 +214,7 @@ test("CDN upload retries 5xx responses and preserves x-error-message", async () 
         await tools.sendStructuredMessage({
           baseUrl: "https://ilink.example",
           token: "token",
-          toUserId: "user@im.wechat",
+          toUserId: "wx-user-1",
           contextToken: "ctx",
           clientId: "client-1",
           message: {
@@ -247,7 +247,7 @@ test("media tools report getUploadUrl fetch failures with stage context", async 
     async () =>
       await tools.sendStructuredMessage({
         baseUrl: "https://ilink.example",
-        toUserId: "user@im.wechat",
+        toUserId: "wx-user-1",
         clientId: "client",
         message: { kind: "file", source: { kind: "dataBase64", dataBase64: Buffer.from("x").toString("base64") } },
       }),
@@ -273,7 +273,7 @@ test("media tools report CDN fetch failures with stage context", async () => {
       async () =>
         await tools.sendStructuredMessage({
           baseUrl: "https://ilink.example",
-          toUserId: "user@im.wechat",
+          toUserId: "wx-user-1",
           clientId: "client",
           message: { kind: "file", source: { kind: "dataBase64", dataBase64: Buffer.from("x").toString("base64") } },
         }),
@@ -307,7 +307,7 @@ test("media tools report final sendMessage failures with stage context", async (
       async () =>
         await tools.sendStructuredMessage({
           baseUrl: "https://ilink.example",
-          toUserId: "user@im.wechat",
+          toUserId: "wx-user-1",
           clientId: "client",
           message: { kind: "file", source: { kind: "dataBase64", dataBase64: Buffer.from("x").toString("base64") } },
         }),
@@ -328,7 +328,7 @@ test("media tools reject invalid sources", async () => {
     async () =>
       await tools.sendStructuredMessage({
         baseUrl: "https://ilink.example",
-        toUserId: "user@im.wechat",
+        toUserId: "wx-user-1",
         clientId: "client",
         message: { kind: "file", source: { kind: "dataBase64", dataBase64: "%%%" } },
       }),
@@ -339,7 +339,7 @@ test("media tools reject invalid sources", async () => {
     async () =>
       await tools.sendStructuredMessage({
         baseUrl: "https://ilink.example",
-        toUserId: "user@im.wechat",
+        toUserId: "wx-user-1",
         clientId: "client",
         message: { kind: "file", source: { kind: "url", url: "https://example.com/a.pdf" } },
       }),
@@ -367,7 +367,7 @@ test("tool call resolves host path file names and exposes approval metadata", as
 
     const result = await tools.executeToolCall({
       baseUrl: "https://ilink.example",
-      toUserId: "user@im.wechat",
+      toUserId: "wx-user-1",
       clientId: "client",
       toolName: WEIXIN_SEND_FILE_TOOL,
       args: { filePath },
@@ -405,7 +405,7 @@ test("adapter sends caption as normalized text before media delivery", async () 
   };
   internals.apiBaseUrl = "https://ilink.example";
   internals.botToken = "token";
-  internals.contextTokens = { "user@im.wechat": "ctx" };
+  internals.contextTokens = { "wx-user-1": "ctx" };
   internals.mediaTools = {
     async sendStructuredMessage(): Promise<Record<string, unknown>> {
       order.push("media");
@@ -427,7 +427,7 @@ test("adapter sends caption as normalized text before media delivery", async () 
   }) as typeof fetch;
 
   try {
-    const result = await adapter.exposeSend("user@im.wechat", {
+    const result = await adapter.exposeSend("wx-user-1", {
       kind: "file",
       caption: "**hello** [site](https://example.com)",
       source: { kind: "dataBase64", dataBase64: Buffer.from("x").toString("base64") },
@@ -460,7 +460,7 @@ test("adapter reports caption failure without blocking file tool delivery", asyn
   };
   internals.apiBaseUrl = "https://ilink.example";
   internals.botToken = "token";
-  internals.contextTokens = { "user@im.wechat": "ctx" };
+  internals.contextTokens = { "wx-user-1": "ctx" };
   let mediaCalled = false;
   internals.mediaTools = {
     async executeToolCall(): Promise<Record<string, unknown>> {
@@ -489,7 +489,7 @@ test("adapter reports caption failure without blocking file tool delivery", asyn
     const result = await adapter.exposeToolCall({
       tool: WEIXIN_SEND_FILE_TOOL,
       arguments: { filePath: "report.txt", caption: "caption" },
-      context: { channelContext: "user@im.wechat" },
+      context: { channelContext: "wx-user-1" },
     });
 
     assert.equal(mediaCalled, true);

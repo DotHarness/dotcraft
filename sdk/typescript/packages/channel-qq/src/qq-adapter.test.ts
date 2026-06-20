@@ -100,7 +100,7 @@ test("QQAdapter builds social binding targets from native QQ context", () => {
     {
       userId: "group:123",
       userName: "Alice",
-      text: "/bind DTC-123456",
+      text: "/bind 482913",
       channelContext: "group:123",
     },
     {
@@ -126,7 +126,7 @@ test("QQAdapter builds social binding targets from native QQ context", () => {
     {
       userId: "456",
       userName: "Alice",
-      text: "/bind DTC-123456",
+      text: "/bind 482913",
       channelContext: "user:456",
     },
     {
@@ -205,15 +205,15 @@ test("QQAdapter accepts social bind codes before group mention gating", async ()
     user_id: 456,
     group_id: 123,
     sender: { card: "Alice" },
-    message: [{ type: "text", data: { text: "/bind DTC-123456" } }],
+    message: [{ type: "text", data: { text: "/bind 482913" } }],
   });
 
   assert.deepEqual(requests[0], {
     method: "app/binding/request/get",
     params: {
       appId: "com.dotharness.channel.qq",
-      bindCode: "DTC-123456",
-      requestToken: "DTC-123456",
+      bindCode: "482913",
+      requestToken: "482913",
     },
   });
   assert.equal(requests[1]?.method, "app/binding/accept");

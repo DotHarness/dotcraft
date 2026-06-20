@@ -754,8 +754,8 @@ For a social-channel request, `handoff` uses a short bind code:
   "tokenExpiresAt": "2026-06-19T13:10:00Z",
   "handoff": {
     "mode": "bindCode",
-    "bindCode": "DTC-482913",
-    "instructions": "Send /bind DTC-482913 in the QQ conversation to bind it to this thread."
+    "bindCode": "482913",
+    "instructions": "Send /bind 482913 in the QQ conversation to bind it to this thread."
   }
 }
 ```

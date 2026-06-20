@@ -174,7 +174,8 @@ internal sealed class AppBindingLifecycleService(
         var entry = FindEnabledApp(catalog, p.AppId);
         var state = stores.GetStore(workspaceCraftPath).Snapshot();
         var now = DateTimeOffset.UtcNow;
-        var request = ResolvePendingBindingRequest(state, p.AppId, p.BindingRequestId, token!);
+        var request = ResolvePendingBindingRequest(state, p.AppId, p.BindingRequestId, token!)
+            ?? ResolveBindingRequestByToken(state, p.AppId, p.BindingRequestId, token!);
         if (request == null)
             throw AppServerErrors.InvalidParams("Binding request was not found.");
         if (!string.Equals(request.AppId, p.AppId, StringComparison.Ordinal))
@@ -263,7 +264,8 @@ internal sealed class AppBindingLifecycleService(
         var now = DateTimeOffset.UtcNow;
         return stores.GetStore(workspaceCraftPath).Update(state =>
         {
-            var request = ResolvePendingBindingRequest(state, appId: null, p.BindingRequestId, p.RequestToken);
+            var request = ResolvePendingBindingRequest(state, appId: null, p.BindingRequestId, p.RequestToken)
+                ?? ResolveBindingRequestByToken(state, appId: null, p.BindingRequestId, p.RequestToken);
             if (request == null)
                 throw AppServerErrors.InvalidParams("Binding request was not found.");
             if (request.State != AppBindingStates.Pending || request.Consumed)
@@ -674,6 +676,19 @@ internal sealed class AppBindingLifecycleService(
         return candidates.FirstOrDefault(request => AppBindingToken.Matches(token.Trim(), request.RequestTokenHash));
     }
 
+    private static AppBindingRequestRecord? ResolveBindingRequestByToken(
+        AppBindingStateDocument state,
+        string? appId,
+        string? bindingRequestId,
+        string token)
+    {
+        var candidates = state.BindingRequests.Where(request =>
+            (string.IsNullOrWhiteSpace(appId) || string.Equals(request.AppId, appId.Trim(), StringComparison.Ordinal))
+            && (string.IsNullOrWhiteSpace(bindingRequestId)
+                || string.Equals(request.BindingRequestId, bindingRequestId.Trim(), StringComparison.Ordinal)));
+        return candidates.FirstOrDefault(request => AppBindingToken.Matches(token.Trim(), request.RequestTokenHash));
+    }
+
     private static AppHandoffWire BuildSocialHandoff(
         AppDescriptor descriptor,
         SocialBindingIntentWire socialIntent,
@@ -686,7 +701,7 @@ internal sealed class AppBindingLifecycleService(
         };
 
     private static string NewBindCode() =>
-        $"DTC-{RandomNumberGenerator.GetInt32(0, 1_000_000):D6}";
+        $"{RandomNumberGenerator.GetInt32(100_000, 1_000_000)}";
 
     private static string? NormalizeNullable(string? value)
     {

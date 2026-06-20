@@ -56,6 +56,10 @@ class RecordingAdapter extends ChannelAdapter {
 }
 
 class SocialRecordingAdapter extends RecordingAdapter {
+  parseBindCodeForTest(text: string): string | null {
+    return this.parseSocialBindCode(text);
+  }
+
   protected override buildSocialTarget(
     opts: ChannelAdapterMessageOpts,
     sender: Record<string, unknown>,
@@ -76,6 +80,14 @@ test("should flush segments for plugin function calls", () => {
   assert.equal(shouldFlushSegmentOnItemStarted("toolCall"), true);
   assert.equal(shouldFlushSegmentOnItemStarted("pluginFunctionCall"), true);
   assert.equal(shouldFlushSegmentOnItemStarted("agentMessage"), false);
+});
+
+test("ChannelAdapter parses numeric and legacy social bind codes", () => {
+  const adapter = new SocialRecordingAdapter();
+
+  assert.equal(adapter.parseBindCodeForTest("/bind 482913"), "482913");
+  assert.equal(adapter.parseBindCodeForTest("/bind DTC-123456"), "DTC-123456");
+  assert.equal(adapter.parseBindCodeForTest("bind 482913"), null);
 });
 
 test("ChannelAdapter flushes the current segment before plugin function calls", async () => {
