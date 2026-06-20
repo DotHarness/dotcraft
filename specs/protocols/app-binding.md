@@ -742,7 +742,7 @@ Creates a pending thread binding request and returns an app handoff.
 }
 ```
 
-For a social-channel request, `handoff` uses a short bind code:
+For a social-channel request, `handoff` uses a six-digit numeric bind code with no prefix:
 
 ```json
 {
@@ -763,6 +763,7 @@ For a social-channel request, `handoff` uses a short bind code:
 Rules:
 
 - The DotCraft plugin/package must be installed and enabled.
+- Social bind codes must match `^[1-9][0-9]{5}$`.
 - The app connection must be usable before creating a binding request.
 - For first-party managed runtimes without external connection records, including social-channel apps, usable means the runtime's current connection status is `connected`.
 - DotCraft must require user confirmation before creating or launching a binding request.
@@ -899,6 +900,7 @@ Rules:
 - `socialChannel` acceptance must come from a connection whose `channelAdapter.channelName` matches `socialTarget.channelName`.
 - `socialChannel` acceptance requires the managed channel runtime to still be usable. A stale bind code must not create an active binding after the channel adapter disconnects.
 - `socialChannel` acceptance stores the normalized `socialTarget` and enforces the active-target uniqueness rule from §6.3.
+- Managed `socialChannel` acceptance attaches the channel runtime's currently registered native tools whose catalog entries are covered by granted scopes, then refreshes the thread agent so the next turn sees the new tool set.
 
 ### 10.5 `app/binding/attachTools`
 
@@ -1313,12 +1315,13 @@ For every attached tool, DotCraft must validate:
 
 Managed social-channel apps expose enabled channel runtimes as app-bindable apps, for example `com.dotharness.channel.qq`. Their descriptor `toolNamespace` must equal the normalized channel name.
 
-For a `socialChannel` binding, DotCraft may expose:
+For a `socialChannel` binding, DotCraft may expose runtime-declared native channel tools from the channel adapter, such as image or media send helpers, when the adapter reports a usable tool descriptor and the runtime is ready. DotCraft does not expose a generic text-send tool for bound conversations; replies to social-originated turns use the turn's delivery binding and are delivered automatically.
 
-- The generic `SendMessageToBoundConversation` tool, which sends text to the bound conversation.
-- Runtime-declared native channel tools from the channel adapter, such as image or media send helpers, when the adapter reports a usable tool descriptor and the runtime is ready.
+Social-channel native tools are direct by default. A channel adapter must set `deferLoading: true` on its `ChannelToolDescriptor` when a native tool should be deferred; an omitted or `false` value maps to `defaultExposure: "direct"` and a non-deferred attached tool.
 
 Managed social-channel app connection status is derived from channel runtime readiness, not from a persisted app connection record. `app/list`, `app/connection/status`, thread binding wires, tool exposure, and `app/threadInput/enqueue` must agree on this status. When a runtime becomes unavailable, refresh marks active social-channel bindings `offline`; clients must not present an active-but-disconnected social binding as deliverable.
+
+Refresh recomputes managed social-channel attached tools from the current registered runtime descriptors. It removes obsolete tools, adds newly available native tools covered by granted scopes, increments `exposureRevision` when the exposed tool set changes, and refreshes the thread agent.
 
 Social-channel app-bound tool execution rules:
 
@@ -1328,7 +1331,7 @@ Social-channel app-bound tool execution rules:
 - The channel runtime receives the bound channel context and sender metadata from `socialTarget`, not from the caller's Desktop/AppServer execution context.
 - If the runtime is offline or no longer advertises the native tool, calls fail with a structured app-binding tool error and must not mutate another conversation.
 
-The legacy `ExternalChannelToolProvider` remains available for old external-channel threads whose tools are selected from `Thread.OriginChannel`. It is a compatibility path only; new social-channel bindings should route through App Binding and the binding's `socialTarget`.
+The origin-channel `ExternalChannelToolProvider` remains available for external-channel threads whose tools are selected from `Thread.OriginChannel`. New social-channel bindings route through App Binding and the binding's `socialTarget`.
 
 ### 13.4 Direct and Deferred Groups
 

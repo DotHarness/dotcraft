@@ -1,31 +1,25 @@
-using System.Text.Json.Nodes;
 using DotCraft.Abstractions;
 using DotCraft.Configuration;
 using DotCraft.Plugins;
 using DotCraft.Protocol;
 using DotCraft.Protocol.AppServer;
-using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.ExternalChannel;
 
-internal sealed class ExternalChannelToolProvider(IChannelRuntimeRegistry registry, AppConfig? config = null)
+internal sealed class ExternalChannelToolProvider(
+    IChannelRuntimeRegistry registry,
+    AppConfig? config = null,
+    ChannelToolRegistrationService? channelToolRegistration = null)
     : IThreadPluginFunctionProvider, IReservedRuntimeToolNameConfigurator
 {
     private const string PluginId = "external-channel";
     private const string PluginIdPrefix = "external-channel:";
-    private readonly Lock _registrationLock = new();
-    private HashSet<string> _reservedRuntimeToolNames = new(StringComparer.Ordinal);
+    private readonly ChannelToolRegistrationService _channelToolRegistration =
+        channelToolRegistration ?? new ChannelToolRegistrationService();
 
     public void ConfigureReservedToolNames(IEnumerable<string> toolNames)
-    {
-        lock (_registrationLock)
-        {
-            _reservedRuntimeToolNames = new HashSet<string>(
-                toolNames.Where(name => !string.IsNullOrWhiteSpace(name)),
-                StringComparer.Ordinal);
-        }
-    }
+        => _channelToolRegistration.ConfigureReservedToolNames(toolNames);
 
     public IReadOnlyList<PluginFunctionRegistration> CreateFunctionsForThread(
         SessionThread thread,
@@ -43,9 +37,8 @@ internal sealed class ExternalChannelToolProvider(IChannelRuntimeRegistry regist
             return [];
         }
 
-        EnsureRuntimeRegistration(runtime);
-        var descriptors = runtime
-            .GetChannelTools()
+        var descriptors = _channelToolRegistration
+            .GetRegisteredTools(runtime)
             .Where(descriptor => !reservedToolNames.Contains(descriptor.Name))
             .ToArray();
         if (descriptors.Length == 0)
@@ -64,63 +57,6 @@ internal sealed class ExternalChannelToolProvider(IChannelRuntimeRegistry regist
         => CreateFunctionsForThread(thread, reservedToolNames)
             .Select(registration => (AITool)new PluginFunctionRuntimeFunction(registration))
             .ToArray();
-
-    private void EnsureRuntimeRegistration(IChannelRuntime runtime)
-    {
-        if (runtime is not ExternalChannelHost host || host.AdapterConnection == null)
-            return;
-
-        var connection = host.AdapterConnection;
-        if (connection.ChannelToolRegistrationFinalized)
-            return;
-
-        lock (_registrationLock)
-        {
-            if (connection.ChannelToolRegistrationFinalized)
-                return;
-
-            FinalizeRuntimeRegistration(host, connection, _reservedRuntimeToolNames);
-        }
-    }
-
-    private static void FinalizeRuntimeRegistration(
-        IChannelRuntime runtime,
-        AppServerConnection connection,
-        IReadOnlySet<string> reservedToolNames)
-    {
-        var diagnostics = new List<ChannelToolRegistrationDiagnostic>();
-        var registered = new List<ChannelToolDescriptor>();
-
-        foreach (var descriptor in connection.DeclaredChannelTools)
-        {
-            if (reservedToolNames.Contains(descriptor.Name))
-            {
-                diagnostics.Add(new ChannelToolRegistrationDiagnostic
-                {
-                    ToolName = descriptor.Name,
-                    Code = "ChannelToolNameConflict",
-                    Message = $"Tool '{descriptor.Name}' conflicts with an existing runtime tool."
-                });
-                continue;
-            }
-
-            if (!TryValidateDescriptor(descriptor, out var message))
-            {
-                diagnostics.Add(new ChannelToolRegistrationDiagnostic
-                {
-                    ToolName = descriptor.Name,
-                    Code = "InvalidChannelToolDescriptor",
-                    Message = message
-                });
-                continue;
-            }
-
-            RegisterToolDisplay(descriptor);
-            registered.Add(descriptor);
-        }
-
-        connection.SetChannelToolRegistration(registered, diagnostics);
-    }
 
     private static PluginFunctionDescriptor MapDescriptor(
         IChannelRuntime runtime,
@@ -153,144 +89,6 @@ internal sealed class ExternalChannelToolProvider(IChannelRuntimeRegistry regist
             RequiresChatContext = descriptor.RequiresChatContext,
             DeferLoading = descriptor.DeferLoading
         };
-
-    private static void RegisterToolDisplay(ChannelToolDescriptor descriptor)
-    {
-        if (descriptor.Display != null)
-        {
-            ToolRegistry.RegisterDisplay(
-                descriptor.Name,
-                title: descriptor.Display.Title,
-                subtitle: descriptor.Display.Subtitle,
-                icon: descriptor.Display.Icon);
-        }
-    }
-
-    private static bool TryValidateDescriptor(ChannelToolDescriptor descriptor, out string message)
-    {
-        if (string.IsNullOrWhiteSpace(descriptor.Name))
-        {
-            message = "Tool name is required.";
-            return false;
-        }
-
-        if (string.IsNullOrWhiteSpace(descriptor.Description))
-        {
-            message = $"Tool '{descriptor.Name}' must declare a description.";
-            return false;
-        }
-
-        if (descriptor.InputSchema == null)
-        {
-            message = $"Tool '{descriptor.Name}' must declare inputSchema.";
-            return false;
-        }
-
-        if (!PluginFunctionSchemaValidator.TryValidateSchema(descriptor.InputSchema, out message))
-        {
-            message = $"Tool '{descriptor.Name}' has an invalid inputSchema: {message}";
-            return false;
-        }
-
-        if (descriptor.OutputSchema != null
-            && !PluginFunctionSchemaValidator.TryValidateSchema(descriptor.OutputSchema, out message))
-        {
-            message = $"Tool '{descriptor.Name}' has an invalid outputSchema: {message}";
-            return false;
-        }
-
-        if (descriptor.Approval != null
-            && !TryValidateApprovalDescriptor(descriptor, out message))
-        {
-            message = $"Tool '{descriptor.Name}' has an invalid approval descriptor: {message}";
-            return false;
-        }
-
-        message = string.Empty;
-        return true;
-    }
-
-    private static bool TryValidateApprovalDescriptor(ChannelToolDescriptor descriptor, out string message)
-    {
-        var approval = descriptor.Approval;
-        if (approval == null)
-        {
-            message = string.Empty;
-            return true;
-        }
-
-        if (string.IsNullOrWhiteSpace(approval.Kind))
-        {
-            message = "approval.kind is required.";
-            return false;
-        }
-
-        if (!approval.Kind.Equals("file", StringComparison.OrdinalIgnoreCase)
-            && !approval.Kind.Equals("shell", StringComparison.OrdinalIgnoreCase)
-            && !approval.Kind.Equals("remoteResource", StringComparison.OrdinalIgnoreCase))
-        {
-            message = $"approval.kind '{approval.Kind}' is not supported.";
-            return false;
-        }
-
-        if (string.IsNullOrWhiteSpace(approval.TargetArgument))
-        {
-            message = "approval.targetArgument is required.";
-            return false;
-        }
-
-        if (!TryValidateStringProperty(descriptor.InputSchema, approval.TargetArgument, out message))
-            return false;
-
-        var hasStaticOperation = !string.IsNullOrWhiteSpace(approval.Operation);
-        var hasOperationArgument = !string.IsNullOrWhiteSpace(approval.OperationArgument);
-        if (hasStaticOperation == hasOperationArgument)
-        {
-            message = "exactly one of approval.operation or approval.operationArgument must be set.";
-            return false;
-        }
-
-        if (hasOperationArgument
-            && !TryValidateStringProperty(descriptor.InputSchema, approval.OperationArgument!, out message))
-        {
-            return false;
-        }
-
-        message = string.Empty;
-        return true;
-    }
-
-    private static bool TryValidateStringProperty(JsonObject? schema, string propertyName, out string message)
-    {
-        if (schema is not JsonObject schemaObject)
-        {
-            message = "inputSchema must be an object.";
-            return false;
-        }
-
-        if (!string.Equals(schemaObject["type"]?.GetValue<string>(), "object", StringComparison.Ordinal))
-        {
-            message = "inputSchema.type must be 'object' when approval metadata is declared.";
-            return false;
-        }
-
-        if (schemaObject["properties"] is not JsonObject properties
-            || !properties.TryGetPropertyValue(propertyName, out var propertySchema)
-            || propertySchema is not JsonObject propertySchemaObject)
-        {
-            message = $"approval references unknown property '{propertyName}'.";
-            return false;
-        }
-
-        if (!string.Equals(propertySchemaObject["type"]?.GetValue<string>(), "string", StringComparison.Ordinal))
-        {
-            message = $"approval property '{propertyName}' must be declared as a string.";
-            return false;
-        }
-
-        message = string.Empty;
-        return true;
-    }
 
     private sealed class ExternalChannelPluginFunctionInvoker(
         IChannelRuntime runtime,

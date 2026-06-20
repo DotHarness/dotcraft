@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Abstractions;
 using DotCraft.Agents;
+using DotCraft.AppBinding;
 using DotCraft.AppServer;
 using DotCraft.Configuration;
 using DotCraft.ExternalChannel;
@@ -723,6 +724,63 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
         Assert.Equal(ItemType.PluginFunctionCall, turn.Items[0].Type);
         Assert.Equal(["started", "completed"], lifecycle);
         Assert.NotNull(result);
+    }
+
+    [Fact]
+    public void SocialChannelAppBindingRuntime_ListsAdapterDeclaredToolsWithoutLegacyProvider()
+    {
+        var registry = new ExternalChannelRegistry();
+        var host = CreateHost("weixin");
+        var connection = CreateToolAdapterConnection(
+            "weixin",
+            [
+                new ChannelToolDescriptor
+                {
+                    Name = "WeixinSendImageToCurrentChat",
+                    Description = "Send an image to the current Weixin chat.",
+                    RequiresChatContext = true,
+                    InputSchema = new JsonObject
+                    {
+                        ["type"] = "object",
+                        ["properties"] = new JsonObject
+                        {
+                            ["fileName"] = new JsonObject { ["type"] = "string" }
+                        },
+                        ["required"] = new JsonArray("fileName")
+                    }
+                }
+            ]);
+        AttachFakeAdapter(host, new StubTransport(), connection);
+        registry.Register("weixin", host);
+
+        var service = new AppBindingService([
+            new SocialChannelAppBindingRuntime(
+                "weixin",
+                "Weixin",
+                "Continue this thread in Weixin.",
+                registry,
+                new ChannelToolRegistrationService())
+        ]);
+        var craftPath = Path.Combine(_tempDir, ".craft");
+        Directory.CreateDirectory(craftPath);
+        var catalog = service.DiscoverCatalog(new AppConfig(), _tempDir, craftPath);
+
+        var result = service.ListApps(
+            catalog,
+            craftPath,
+            "user_1",
+            new AppListParams
+            {
+                IncludeDisabled = true,
+                Surface = AppBindingCatalogSurfaces.ThreadBinding
+            });
+
+        var app = Assert.Single(result.Apps, item => item.AppId == "com.dotharness.channel.weixin");
+        Assert.Equal(AppConnectionStates.Connected, app.ConnectionState);
+        var tool = Assert.Single(app.ToolCatalog, tool => tool.Name == "WeixinSendImageToCurrentChat");
+        Assert.Equal(AppBindingExposures.Direct, tool.DefaultExposure);
+        Assert.True(connection.ChannelToolRegistrationFinalized);
+        Assert.Single(connection.RegisteredChannelTools);
     }
 
     [Fact]

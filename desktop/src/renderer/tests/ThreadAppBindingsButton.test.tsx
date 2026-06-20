@@ -67,7 +67,7 @@ function socialAppInfo(overrides: Record<string, unknown> = {}) {
       { id: 'conversation.receive', displayName: 'Receive messages', description: 'Receive QQ messages', risk: 'read' },
       { id: 'message.send', displayName: 'Send replies', description: 'Send QQ replies', risk: 'externalWrite' }
     ],
-    toolCatalog: [{ name: 'SendMessageToBoundConversation', scope: 'message.send', risk: 'externalWrite', defaultExposure: 'deferred' }],
+    toolCatalog: [{ name: 'QQSendImageToCurrentChat', scope: 'message.send', risk: 'externalWrite', defaultExposure: 'direct' }],
     ...overrides
   })
 }
@@ -563,7 +563,7 @@ describe('ThreadAppBindingsButton', () => {
         appId: 'com.dotharness.channel.qq',
         bindingKind: 'socialChannel',
         requestedScopes: ['conversation.receive', 'message.send'],
-        requestedTools: ['SendMessageToBoundConversation'],
+        requestedTools: ['QQSendImageToCurrentChat'],
         socialIntent: {
           channelName: 'qq',
           targetSelection: 'confirmInChannel',
