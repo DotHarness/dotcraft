@@ -246,15 +246,9 @@ echo.
 REM Copy helper scripts to CLI output directory
 copy /Y "Scripts\install_to_path.ps1" "build\release\install_to_path.ps1"
 
-REM Create zip for dotcraft
-echo Creating dotcraft.zip...
-powershell -Command "Compress-Archive -Path 'build\release\*' -DestinationPath 'build\release\dotcraft_v%VERSION%.zip' -Force"
-
 echo.
 echo =====================================
 echo  Packaging completed!
-echo =====================================
-echo  - dotcraft.zip created
 echo =====================================
 echo.
 pause 
