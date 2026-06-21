@@ -315,10 +315,10 @@ Risk categories:
 | `risk` | `"read" \| "mutate" \| "externalWrite"` | yes | Tool risk. Must not be lower risk than its scope. |
 | `defaultExposure` | `"direct" \| "deferred"` | yes | Default loading group. |
 | `description` | string | no | Optional catalog description. The runtime `DynamicToolSpec.description` remains authoritative for the model. |
-| `display` | object | no | Optional user-facing display metadata for clients. See [Tool Result Presentation](tool-result-presentation.md#51-display). |
-| `_meta` | object | no | Optional interactive UI metadata under `_meta.ui` (UI resource `resourceUri`, tool `visibility`, CSP/permissions). See [Interactive Tool UI](tool-result-presentation.md). |
+| `display` | object | no | Optional descriptor authoring metadata for client display. Runtime clients may receive the equivalent display contract through attached `DynamicToolSpec` metadata rather than as a catalog-entry wire field. See [Tool Result Presentation](tool-result-presentation.md#51-display). |
+| `_meta` | object | no | Optional descriptor authoring metadata for interactive UI under `_meta.ui` (UI resource `resourceUri`, tool `visibility`, CSP/permissions). Runtime executable metadata is carried on attached dynamic tool specs and validated against this declaration. See [Interactive Tool UI](tool-result-presentation.md). |
 
-The catalog is not the executable tool schema. It is a coarse declaration used for discovery, user consent, DotCraft validation, and optional client rendering. Concrete tool schemas are attached later by `app/binding/attachTools`.
+The catalog is not the executable tool schema. It is a coarse declaration used for discovery, user consent, DotCraft validation, and optional client rendering. Concrete tool schemas are attached later by `app/binding/attachTools`; AppServer wire projections may expose UI/display metadata on those dynamic tool specs without duplicating every descriptor field on catalog entries.
 
 ### 5.6 Dynamic Tool Catalog Descriptor
 
@@ -945,8 +945,8 @@ Rules:
 - Every tool namespace must match the descriptor `toolNamespace`.
 - Every tool name must exist in the descriptor `toolCatalog` or in this attachment's `toolCatalog` when `dynamicToolCatalog.enabled` is true.
 - Runtime catalog entries may only reference descriptor-declared scopes and must not declare lower risk than their scope.
-- Runtime catalog entries may declare `display` and `presentation`, but those declarations are bounded by the same scope, risk, namespace, and validation rules as static catalog entries.
-- Attached `DynamicToolSpec.presentation` declarations may narrow the accepted catalog card contract but must not expand the allowed action kinds or callable surface routes beyond it.
+- Runtime catalog entries and attached dynamic tool specs may declare `display` and `presentation`, but those declarations are bounded by the same scope, risk, namespace, and validation rules as static catalog entries.
+- Attached `DynamicToolSpec` display, `_meta.ui`, and `presentation` declarations are the executable runtime metadata. They may narrow the accepted catalog card contract but must not expand the allowed action kinds or callable surface routes beyond it.
 - Granted scopes must cover each tool's declared catalog scope.
 - `mutate` and `externalWrite` tools default to deferred exposure unless DotCraft policy explicitly allows direct exposure.
 - In Responses native deferred-loading mode, app-bound deferred tools are advertised through `tool_search` as namespace loadable tool specs. They are not injected into the top-level model tool list after discovery.
@@ -1309,7 +1309,7 @@ For every attached tool, DotCraft must validate:
 - Tool name exists in the descriptor `toolCatalog` or in an accepted attachment-time catalog for a dynamic catalog app.
 - Granted scopes cover the tool's declared catalog scope.
 - Tool risk and exposure are compatible with descriptor defaults and DotCraft policy.
-- Interactive tool UI metadata (`_meta.ui`: resource, visibility, CSP), when declared, is compatible with the accepted App Binding catalog entry and the [Interactive Tool UI](tool-result-presentation.md) contract.
+- Interactive tool UI metadata carried by the attached dynamic tool spec (`_meta.ui`: resource, visibility, CSP), when declared, is compatible with the accepted App Binding catalog entry and the [Interactive Tool UI](tool-result-presentation.md) contract.
 
 ### 13.3 Social-Channel Managed Tools
 

@@ -226,7 +226,7 @@ When variant mode is enabled:
 - Editing an existing source skill for self-learning routes to a variant.
 - `edit`, `patch`, `write_file`, and `remove_file` operate on the current variant for the named source skill.
 - If no current mutable variant exists, the first mutation forks the current source skill into a new variant and applies the mutation there.
-- Skill source directories should be protected from ordinary file-edit tools so source safety does not rely only on prompt compliance.
+- Source safety for self-learning mutations is provided by routing `SkillManage` writes to variants. Hard protection from ordinary file-edit tools is a deployment guardrail: hosts that expose general file tools should use path blacklists or equivalent guards when they need source skill directories to be immutable.
 
 When variant mode is disabled:
 

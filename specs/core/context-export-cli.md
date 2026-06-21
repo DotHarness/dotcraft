@@ -44,11 +44,11 @@ Optional:
 
 - `--workspace <path>` resolves the workspace root; defaults to the current directory.
 - `--output <file>` writes Markdown to a file; omission writes to stdout.
-- `--profile handoff|transcript` selects the rendering profile. Default: `handoff`.
+- `--profile handoff|transcript` records the requested export profile in metadata. Default: `handoff`; the current renderer uses the same handoff-compatible document shape for both values.
 - `--tool-results none|summary|full` controls tool result rendering. Default: `summary`.
 - `--history none|tail|full` controls `.craft/memory/HISTORY.md` inclusion. Default: `tail`.
 
-`handoff` output must include:
+Current export output includes:
 
 - thread metadata
 - workspace memory from `.craft/memory/MEMORY.md`
@@ -57,7 +57,7 @@ Optional:
 - a current-context section that reflects the latest surviving compaction checkpoint when one exists
 - surviving turns ordered by turn start time
 
-`transcript` output may be more complete, but must still honor rollback and tool-result privacy flags.
+`transcript` is accepted as a profile label for compatibility and audit metadata. It does not currently add separate transcript-only sections; all exports must still honor rollback and tool-result privacy flags.
 
 ### 4.2 `dotcraft context search`
 

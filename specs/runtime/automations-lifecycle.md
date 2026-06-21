@@ -30,8 +30,8 @@ Tasks are addressed by `taskId` only. The AppServer automation task methods do n
 | Method | Params | Result |
 |--------|--------|--------|
 | `automation/task/list` | `{}` | `{ tasks: AutomationTaskWire[] }` |
-| `automation/task/read` | `{ taskId }` | `{ task: AutomationTaskWire }` |
-| `automation/task/create` | `{ title, description, workflowTemplate?, approvalPolicy?, workspaceMode?, schedule?, threadBinding?, templateId?, agentProfileId? }` | `{ task: AutomationTaskWire }` |
+| `automation/task/read` | `{ taskId }` | `AutomationTaskWire` |
+| `automation/task/create` | `{ title, description, workflowTemplate?, approvalPolicy?, workspaceMode?, schedule?, threadBinding?, templateId?, agentProfileId? }` | `{ taskId: string, taskDirectory: string }` |
 | `automation/task/run` | `{ taskId }` | `{ task: AutomationTaskWire }` |
 | `automation/task/updateBinding` | `{ taskId, threadBinding?: AutomationThreadBindingWire | null }` | `{ task: AutomationTaskWire }` |
 | `automation/task/discardWorktree` | `{ taskId }` | `{ task: AutomationTaskWire }` |

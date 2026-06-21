@@ -92,6 +92,8 @@ DotCraft Desktop renders the UI resource in a **sandboxed iframe served by a pri
 
 The UI and host communicate via **JSON‑RPC 2.0 over `window.postMessage`** — a `ui/`‑prefixed dialect with reused core methods (`tools/call`). DotCraft implements the host side.
 
+Layering note: method names in this section are the Desktop host ⇄ iframe bridge dialect, not AppServer wire methods. When bridge actions need server authority, Desktop forwards them to AppServer using the server RPC names in [AppServer Protocol](appserver-protocol.md#113-interactive-tool-ui-host-methods): `tools/call` → `ui/tool/call`, UI resource fetch → `ui/resource/read`, widget state persistence → `item/widget-state/set`, and link/context actions → `ui/open-link` / `ui/update-model-context`. `ui/message` and display-mode negotiation are host responsibilities unless a separate AppServer method is specified.
+
 ### 7.1 Handshake / lifecycle
 1. UI → host **`ui/initialize`** (app capabilities) → host result: **`bridgeToken`** (an unguessable per-frame token for later UI→host requests), **`hostContext`** (§8), **`hostCapabilities`** (`openLinks`, `serverTools`, `updateModelContext`, `message`, `logging`), and the restored **`widgetState`** (§9).
 2. Host → UI **`ui/notifications/tool-input`** (the call's arguments), then **`ui/notifications/tool-result`** (`content` + `structuredContent` + `_meta` + `isError`).
@@ -104,14 +106,14 @@ The UI and host communicate via **JSON‑RPC 2.0 over `window.postMessage`** —
 
 ### 7.3 UI → host requests
 
-Every UI→host request that asks the host to act (`tools/call`, `ui/open-link`, `ui/message`, `ui/update-model-context`, `ui/request-display-mode`, `ui/set-widget-state`) MUST include the top-level `bridgeToken` returned by the first successful `ui/initialize`. The initial handshake must occur before the first iframe load completes; duplicate or late initialization is rejected and disables the bridge. Host actions before initialization, after bridge disablement, or with a missing/wrong token are rejected or ignored. The host also disables the bridge when the iframe navigates away from the served resource so a new document in the same frame/window proxy cannot inherit the previous app document's authority.
+Every UI→host bridge request that asks the host to act (`tools/call`, `ui/open-link`, `ui/message`, `ui/update-model-context`, `ui/request-display-mode`, `ui/set-widget-state`) MUST include the top-level `bridgeToken` returned by the first successful `ui/initialize`. The initial handshake must occur before the first iframe load completes; duplicate or late initialization is rejected and disables the bridge. Host actions before initialization, after bridge disablement, or with a missing/wrong token are rejected or ignored. The host also disables the bridge when the iframe navigates away from the served resource so a new document in the same frame/window proxy cannot inherit the previous app document's authority.
 
 | Request | Use | DotCraft handling |
 |---------|-----|-------------------|
-| `tools/call` | Invoke an app‑bound dynamic tool | Gated by App Binding (§10), **decoupled** from the conversation (no turn/item), audited; result returned to the UI only. The model learns of UI state only via `ui/update-model-context` or `ui/message`. |
-| `ui/open-link` | Open a URL | **No tool call.** Host‑owned scheme policy (§11): `https:` / `mailto:` and the bound app's declared deep‑link protocol; all others rejected. |
+| `tools/call` | Invoke an app‑bound dynamic tool | Forwarded by Desktop as AppServer `ui/tool/call`, gated by App Binding (§10), **decoupled** from the conversation (no turn/item), audited; result returned to the UI only. The model learns of UI state only via `ui/update-model-context` or `ui/message`. |
+| `ui/open-link` | Open a URL | **No tool call.** Host‑owned scheme policy (§11): `https:` / `mailto:` and the bound app's declared deep‑link protocol; all others rejected. When server policy/audit is needed, Desktop forwards the action as AppServer `ui/open-link`. |
 | `ui/message` | Send a follow‑up user message → triggers a model turn | Added as a **visible** user message and a normal turn, **rate‑limited**; host MAY request consent. The iframe gesture is not host‑verifiable, so it is not verified. |
-| `ui/update-model-context` | Feed UI state to the model's next turn | Recorded as an App Binding context block (`visibility:"model"`), keyed to the originating item, **last‑write‑wins**, size‑bounded; **removed on teardown**. No turn/item. |
+| `ui/update-model-context` | Feed UI state to the model's next turn | Forwarded by Desktop as AppServer `ui/update-model-context`; recorded as an App Binding context block (`visibility:"model"`), keyed to the originating item, **last‑write‑wins**, size‑bounded; **removed on teardown**. No turn/item. |
 | `ui/request-display-mode` | Request `inline` / `pip` / `fullscreen` | Host returns the **granted** mode (may differ; §8). Must be user‑initiated. |
 
 Not every action is a tool call: a button may open a link, `fetch` the app's own backend (under CSP `connect-src`, §11), message the thread, or call a tool — the app chooses per action.
@@ -140,8 +142,8 @@ The host pushes a context object at `ui/initialize` and on change via `ui/notifi
 
 ## 9. Widget State Persistence
 
-- The UI may persist a `widgetState` (UI‑only state: selected row, expanded panel, staged input) via the bridge; the host persists it **keyed to the originating `dynamicToolCall` item**, asynchronously (the UI need not await).
-- Because the canonical thread rollout is append‑only / event‑sourced, `widgetState` is stored in a **dedicated mutable per‑thread side store**, surfaced on the item's payload on `thread/read`, and written back via a decoupled set method (no turn/item).
+- The UI may persist a `widgetState` (UI‑only state: selected row, expanded panel, staged input) via the bridge; the host persists it **keyed to the originating `dynamicToolCall` item**, asynchronously (the UI need not await). Desktop writes the server-side value through AppServer `item/widget-state/set` when the state must survive reload or cross-client reads.
+- Because the canonical thread rollout is append‑only / event‑sourced, `widgetState` is stored in a **dedicated mutable per‑thread side store**, surfaced on the item's payload on `thread/read`, and written back via that decoupled set method (no turn/item).
 - It is **restored in the `ui/initialize` result** (alongside `hostContext`), so it is present at/before first paint — no flash of a stale or empty card. Restore survives scroll‑away, thread reload, and app restart.
 - **UI‑only** — it never reaches the model unless the UI explicitly calls `ui/update-model-context`. **Size‑bounded** (≤ 8 KB per item; oversized updates rejected).
 - It is layered on top of the server‑authoritative `structuredResult`, which is re‑applied from the tool result each turn. `widgetState` is never authoritative data.
@@ -150,7 +152,7 @@ The host pushes a context object at `ui/initialize` and on change via `ui/notifi
 
 ## 10. Authorization
 
-A UI‑initiated `tools/call` carries no authority of its own; DotCraft re‑derives and enforces it:
+A UI‑initiated bridge `tools/call` carries no authority of its own; DotCraft re‑derives and enforces it at the AppServer `ui/tool/call` boundary:
 
 - The target tool MUST be app‑bound to the current thread, `app`‑visible (§11), and within the binding's granted scope.
 - **Risk gating.** A `read` / no‑approval tool proceeds. A `mutate` / `externalWrite` tool (one that declares an approval descriptor) raises a **decoupled approval** that reuses Desktop's existing approval surface; the `ui/tool/call` awaits the decision, then dispatches or rejects. The approval is **transient** (keyed to the thread + approval id) — no turn is created and no persisted conversation item — so decoupling is preserved; every decision is audited.

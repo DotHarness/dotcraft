@@ -164,9 +164,6 @@ Compatibility read aliases are accepted for common LSP config examples:
 |-------|-----------------|
 | `args` | `arguments` |
 | `env` | `environmentVariables` |
-| `startupTimeout` | `startupTimeoutMs` |
-
-`startupTimeout` is interpreted as milliseconds as a compatibility read alias for existing plugin examples. DotCraft-authored plugins should prefer `startupTimeoutMs`.
 
 ---
 

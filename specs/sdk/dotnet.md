@@ -193,7 +193,6 @@ Current explicit gaps:
 
 - No typed wrappers for `thread/rename`, `thread/config/update`, goal methods, maintenance methods, or memory consolidation methods.
 - No typed wrappers for provider, workspace config, skills, plugins, commands, cron, heartbeat, MCP, external channel, subagent, memory, or Dreams methods.
-- No typed wrappers for `app/list`, `app/view`, `app/connection/start`, `app/connection/revoke`, `app/binding/request/create`, `app/binding/request/cancel`, `thread/appBindings/list`, `thread/appBindings/revoke`, or `thread/appBindings/refresh`.
 - No automatic reconnect or callback rebind policy.
 
 ---
@@ -982,18 +981,27 @@ The parser may validate expected URI scheme and expected app id.
 
 ### 14.2 Current App-Side RPC Helpers
 
-`DotCraftAppBindingClient` currently exposes generic result helpers for:
+`DotCraftAppBindingClient` currently exposes typed helpers for app discovery, app connection lifecycle, thread binding requests, thread binding inspection/revocation/refresh, and app-owned tool attachment. It also keeps generic helpers for app-side request payloads whose app-specific data shape is owned by the external app:
 
 | SDK Method | AppServer Method | Purpose |
 |------------|------------------|---------|
+| `ListAppsAsync` | `app/list` | List installed or visible apps. |
+| `ViewAppAsync` | `app/view` | Read one app descriptor. |
+| `StartConnectionAsync` | `app/connection/start` | Start a connection request. |
 | `GetConnectionRequestAsync<T>` | `app/connection/request/get` | Inspect an app connection request. |
-| `ConnectAsync<T>` | `app/connection/connect` | Complete an app connection request. |
-| `GetConnectionStatusAsync<T>` | `app/connection/status` | Read app connection status. |
-| `GetBindingRequestAsync<T>` | `app/binding/request/get` | Inspect a thread binding request. |
-| `AcceptBindingAsync<T>` | `app/binding/accept` | Accept a thread binding request. |
-| `AttachToolsAsync<T>` | `app/binding/attachTools` | Attach app-owned Runtime Dynamic Tools to an accepted binding. |
+| `CompleteConnectionAsync` | `app/connection/connect` | Complete an app connection request. |
+| `GetConnectionStatusAsync` | `app/connection/status` | Read app connection status. |
+| `RevokeConnectionAsync` | `app/connection/revoke` | Revoke an app connection. |
+| `CreateBindingRequestAsync` | `app/binding/request/create` | Create a thread binding request. |
+| `GetBindingRequestAsync` | `app/binding/request/get` | Inspect a thread binding request. |
+| `CancelBindingRequestAsync` | `app/binding/request/cancel` | Cancel a pending thread binding request. |
+| `AcceptBindingAsync` | `app/binding/accept` | Accept a thread binding request. |
+| `AttachToolsAsync` | `app/binding/attachTools` | Attach app-owned Runtime Dynamic Tools to an accepted binding. |
+| `ListThreadBindingsAsync` | `thread/appBindings/list` | List thread app bindings. |
+| `RevokeThreadBindingAsync` | `thread/appBindings/revoke` | Revoke a thread app binding. |
+| `RefreshThreadBindingsAsync` | `thread/appBindings/refresh` | Refresh thread app binding state. |
 
-The SDK currently preserves raw request and response shapes for App Binding methods. Typed App Binding DTOs may be added later, but they must remain compatible with [App Binding](../protocols/app-binding.md).
+Typed App Binding DTOs must remain compatible with [App Binding](../protocols/app-binding.md). Methods that carry app-defined payloads may still expose generic type parameters or raw escape hatches so app authors can model their own connection and binding payloads.
 
 ### 14.3 Keep Alive
 
@@ -1474,7 +1482,7 @@ Future amendments may cover:
 - automatic reconnect and dynamic tool rebind policy;
 - typed wrappers for thread rename, config, goals, and maintenance;
 - typed wrappers for provider, workspace config, skills, plugins, commands, cron, heartbeat, MCP, external channels, subagents, memory, and Dreams;
-- full typed App Binding DTOs and helpers for start, cancel, revoke, refresh, list, and view methods;
+- additional typed App Binding DTO refinements for app-defined connection and binding payloads;
 - generated .NET protocol DTOs from a shared AppServer schema;
 - multi-targeting earlier .NET versions;
 - structured logging with safe token redaction;
