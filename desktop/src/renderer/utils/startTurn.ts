@@ -20,6 +20,8 @@ interface StartTurnParams {
   includeUserPreview?: boolean
   renameThreadFromText?: boolean
   throwOnStartError?: boolean
+  /** Marks this submission as the one that established the thread goal (durable "sent as goal"). */
+  sentAsGoal?: boolean
 }
 
 /**
@@ -39,7 +41,8 @@ export async function startTurnWithOptimisticUI({
   attachmentFallbackThreadName,
   includeUserPreview = true,
   renameThreadFromText = true,
-  throwOnStartError = false
+  throwOnStartError = false,
+  sentAsGoal = false
 }: StartTurnParams): Promise<boolean> {
   const { inputParts, visibleText } = buildComposerInputParts({ text, segments, files, images })
   if (inputParts.length === 0) {
@@ -76,6 +79,7 @@ export async function startTurnWithOptimisticUI({
         mimeType: i.mimeType,
         fileName: i.fileName
       })),
+      sentAsGoal: sentAsGoal ? true : undefined,
       createdAt: optimisticNow,
       completedAt: optimisticNow
     }]
@@ -95,6 +99,7 @@ export async function startTurnWithOptimisticUI({
     const result = await window.api.appServer.sendRequest('turn/start', {
       threadId,
       input: inputParts,
+      ...(sentAsGoal ? { sentAsGoal: true } : {}),
       identity: {
         channelName: 'dotcraft-desktop',
         userId: 'local',

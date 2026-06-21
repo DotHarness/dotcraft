@@ -320,11 +320,12 @@ public sealed class ThreadStore
     /// <summary>
     /// Atomically adds usage to the current thread goal when its id still matches the expected goal id.
     /// </summary>
-    public Task<ThreadGoal?> AccountThreadGoalUsageAsync(
+    public Task<GoalAccountingOutcome> AccountThreadGoalUsageAsync(
         string threadId,
         string expectedGoalId,
         TokenUsageInfo usageDelta,
         long timeDeltaSeconds,
+        GoalAccountingMode mode,
         CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
@@ -332,7 +333,8 @@ public sealed class ThreadStore
             threadId,
             expectedGoalId,
             usageDelta,
-            timeDeltaSeconds));
+            timeDeltaSeconds,
+            mode));
     }
 
     /// <summary>

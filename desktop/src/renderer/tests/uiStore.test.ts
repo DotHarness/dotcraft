@@ -134,6 +134,18 @@ describe('uiStore pending welcome turn', () => {
 
     expect(pending?.reasoning).toEqual(reasoning)
   })
+
+  it('preserves sentAsGoal when consuming the pending welcome turn', () => {
+    useUIStore.getState().setPendingWelcomeTurn({
+      threadId: 'thread-goal',
+      text: 'review the branch',
+      sentAsGoal: true
+    })
+
+    const pending = useUIStore.getState().consumePendingWelcomeTurnIfMatch('thread-goal')
+
+    expect(pending?.sentAsGoal).toBe(true)
+  })
 })
 
 describe('uiStore responsive panel preferences', () => {

@@ -34,20 +34,16 @@ function makeRunningTurn(): ReturnType<typeof useConversationStore.getState>['tu
 }
 
 function makeGoal(threadId: string, objective: string, createdAt: string): ThreadGoal {
+  const createdAtSeconds = Math.trunc(Date.parse(createdAt) / 1000)
   return {
     threadId,
-    goalId: `goal-${threadId}`,
     objective,
     status: 'active',
     tokenBudget: null,
-    tokensUsed: {
-      inputTokens: 0,
-      outputTokens: 0,
-      totalTokens: 0
-    },
+    tokensUsed: 0,
     timeUsedSeconds: 0,
-    createdAt,
-    updatedAt: createdAt
+    createdAt: createdAtSeconds,
+    updatedAt: createdAtSeconds
   }
 }
 
@@ -291,9 +287,7 @@ describe('MessageStream plan-accept sentinel filtering', () => {
     expect(screen.queryByText('Mailbox delivery-only message')).toBeNull()
   })
 
-  it('marks the first user-authored objective message as sent as a goal', () => {
-    const goalCreatedAt = '2026-04-16T08:00:00.000Z'
-    useThreadStore.getState().setThreadGoal(makeGoal('thread-1', 'Build feature', goalCreatedAt))
+  it('badges a user message flagged sentAsGoal', () => {
     useConversationStore.setState({
       turns: [{
         id: 'turn-1',
@@ -307,6 +301,7 @@ describe('MessageStream plan-accept sentinel filtering', () => {
             type: 'userMessage',
             status: 'completed',
             text: 'Build feature',
+            sentAsGoal: true,
             createdAt: '2026-04-16T08:00:01.000Z'
           },
           {
@@ -325,6 +320,46 @@ describe('MessageStream plan-accept sentinel filtering', () => {
     expect(screen.getByText('Build feature')).toBeInTheDocument()
     expect(screen.getByText('Sent as goal')).toBeInTheDocument()
     expect(screen.queryByText('Goal auto-continue')).toBeNull()
+  })
+
+  it('badges only the flagged seed, never a later reply that matches the objective text', () => {
+    // A completed goal whose objective text equals a later casual reply must not leak the
+    // badge onto that reply; only the durably-flagged user item is marked.
+    useThreadStore.getState().setThreadGoal({
+      ...makeGoal('thread-1', '很好', '2026-04-16T08:00:00.000Z'),
+      status: 'complete'
+    })
+    useConversationStore.setState({
+      turns: [{
+        id: 'turn-1',
+        threadId: 'thread-1',
+        status: 'completed',
+        startedAt: '2026-04-16T08:00:01.000Z',
+        completedAt: '2026-04-16T08:00:10.000Z',
+        items: [
+          {
+            id: 'u1',
+            type: 'userMessage',
+            status: 'completed',
+            text: 'Build feature',
+            sentAsGoal: true,
+            createdAt: '2026-04-16T08:00:01.000Z'
+          },
+          {
+            id: 'u2',
+            type: 'userMessage',
+            status: 'completed',
+            text: '很好',
+            createdAt: '2026-04-16T08:05:00.000Z'
+          }
+        ]
+      }]
+    })
+
+    renderWithLocale(<MessageStream />)
+
+    expect(screen.getByText('很好')).toBeInTheDocument()
+    expect(screen.getAllByText('Sent as goal')).toHaveLength(1)
   })
 
   it('hides tool-derived content before the newest three turns without adding a hidden-tools notice', () => {

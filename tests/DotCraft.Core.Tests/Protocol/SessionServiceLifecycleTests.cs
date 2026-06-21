@@ -994,7 +994,8 @@ internal sealed class FakeSessionService : ISessionService, ISubAgentThreadLifec
             MaterializedInputParts = inputSnapshot?.MaterializedInputParts?.ToList() ?? parts,
             DisplayText = inputSnapshot?.DisplayText ?? SessionWireMapper.BuildDisplayText(parts),
             Sender = sender,
-            CreatedAt = DateTimeOffset.UtcNow
+            CreatedAt = DateTimeOffset.UtcNow,
+            SentAsGoal = inputSnapshot?.SentAsGoal
         };
         thread.QueuedInputs.Add(queued);
         thread.LastActiveAt = DateTimeOffset.UtcNow;

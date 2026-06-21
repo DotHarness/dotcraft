@@ -1,4 +1,51 @@
 import type { ThreadGoal } from '../types/thread'
+import type { ComposerDraftSegment } from '../types/composerDraft'
+import type { ComposerFileAttachment, ImageAttachment } from '../types/conversation'
+import { stringifyComposerDraftSegments } from '../components/conversation/richInputSerialization'
+
+export interface GoalObjectiveDraft {
+  text: string
+  segments?: ComposerDraftSegment[]
+  files?: ComposerFileAttachment[]
+  images?: ImageAttachment[]
+}
+
+/**
+ * Flatten composer input (rich text + attached files/images) into a single goal
+ * objective string. Inline @file / $skill refs are serialized in place; files and
+ * images attached out-of-band (paperclip / paste / drop) are appended as labeled
+ * path references so the goal stays a plain string the model can read on every
+ * continuation turn, under labeled "Referenced files" / "Referenced image files" sections.
+ */
+export function buildGoalObjective(draft: GoalObjectiveDraft): string {
+  const segments = draft.segments && draft.segments.length > 0
+    ? draft.segments
+    : draft.text.length > 0
+      ? [{ type: 'text', value: draft.text } as ComposerDraftSegment]
+      : []
+  const body = stringifyComposerDraftSegments(segments).trim()
+
+  const sections: string[] = []
+  if (body) sections.push(body)
+
+  const filePaths = (draft.files ?? [])
+    .map((file) => file.path.trim())
+    .filter((path) => path.length > 0)
+  if (filePaths.length > 0) {
+    const lines = filePaths.map((path, index) => `- [File #${index + 1}]: ${path}`)
+    sections.push(`Referenced files:\n${lines.join('\n')}`)
+  }
+
+  const imagePaths = (draft.images ?? [])
+    .map((image) => (image.tempPath ?? '').trim())
+    .filter((path) => path.length > 0)
+  if (imagePaths.length > 0) {
+    const lines = imagePaths.map((path, index) => `- [Image #${index + 1}]: ${path}`)
+    sections.push(`Referenced image files:\n${lines.join('\n')}`)
+  }
+
+  return sections.join('\n\n')
+}
 
 export type GoalSlashCommand =
   | { kind: 'show' }
@@ -31,16 +78,21 @@ export function isThreadGoal(value: unknown): value is ThreadGoal {
   if (value == null || typeof value !== 'object') return false
   const goal = value as Partial<ThreadGoal>
   return typeof goal.threadId === 'string'
-    && typeof goal.goalId === 'string'
     && typeof goal.objective === 'string'
+    && typeof goal.tokensUsed === 'number'
+    && typeof goal.timeUsedSeconds === 'number'
+    && typeof goal.createdAt === 'number'
+    && typeof goal.updatedAt === 'number'
     && (goal.status === 'active'
       || goal.status === 'paused'
+      || goal.status === 'blocked'
+      || goal.status === 'usageLimited'
       || goal.status === 'budgetLimited'
       || goal.status === 'complete')
 }
 
 export function formatGoalUsage(goal: ThreadGoal): string {
-  const total = Math.max(0, Math.trunc(goal.tokensUsed?.totalTokens ?? 0))
+  const total = Math.max(0, Math.trunc(goal.tokensUsed ?? 0))
   if (typeof goal.tokenBudget === 'number' && Number.isFinite(goal.tokenBudget) && goal.tokenBudget > 0) {
     return `${formatNumber(total)} / ${formatNumber(goal.tokenBudget)} tokens`
   }

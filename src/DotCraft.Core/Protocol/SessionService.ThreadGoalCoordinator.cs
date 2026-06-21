@@ -34,9 +34,14 @@ public sealed partial class SessionService
             var thread = await owner.GetOrLoadThreadAsync(normalizedThreadId, ct);
             ThrowIfEphemeralThread(thread);
             var existing = await owner.Persistence.GetThreadGoalAsync(normalizedThreadId, ct);
+            var previousGoalId = existing?.GoalId;
+            await FlushInFlightAccountingForExternalMutationAsync(normalizedThreadId, existing, ct);
+            if (existing != null)
+                existing = await owner.Persistence.GetThreadGoalAsync(normalizedThreadId, ct);
 
             var next = BuildThreadGoal(normalizedThreadId, existing, update, mode);
             await owner.Persistence.UpsertThreadGoalAsync(next, ct);
+            ResetInFlightSnapshotsAfterExternalMutation(normalizedThreadId, previousGoalId, next);
             owner.PublishGoalUpdated(next, null);
             if (next.Status == ThreadGoalStatus.Active && IsThreadIdleForContinuation(thread))
                 _ = MaybeContinueIfIdleAsync(normalizedThreadId, CancellationToken.None);
@@ -49,9 +54,14 @@ public sealed partial class SessionService
             var normalizedThreadId = NormalizeRequiredThreadId(threadId);
             var thread = await owner.GetOrLoadThreadAsync(normalizedThreadId, ct);
             ThrowIfEphemeralThread(thread);
+            var existing = await owner.Persistence.GetThreadGoalAsync(normalizedThreadId, ct);
+            await FlushInFlightAccountingForExternalMutationAsync(normalizedThreadId, existing, ct);
             var cleared = await owner.Persistence.DeleteThreadGoalAsync(normalizedThreadId, ct);
             if (cleared)
+            {
+                ResetInFlightSnapshotsAfterExternalMutation(normalizedThreadId, existing?.GoalId, next: null);
                 owner.PublishGoalCleared(normalizedThreadId);
+            }
             return new ThreadGoalClearResult(cleared);
         }
 
@@ -59,6 +69,7 @@ public sealed partial class SessionService
             TurnKey turnKey,
             TokenUsageInfo latestTurnUsage,
             string? notificationTurnId,
+            GoalAccountingMode mode,
             CancellationToken ct)
         {
             var turnRuntime = owner.TryGetTurnRuntime(turnKey);
@@ -66,19 +77,23 @@ public sealed partial class SessionService
             if (snapshot == null)
                 return null;
 
+            if (turnRuntime != null)
+                turnRuntime.LatestGoalUsage = latestTurnUsage;
+
             var delta = DiffUsage(latestTurnUsage, snapshot.AccountedUsage);
             if (!HasUsage(delta))
                 return null;
 
             var now = DateTimeOffset.UtcNow;
             var timeDeltaSeconds = (long)Math.Max(0, (now - snapshot.LastAccountedAt).TotalSeconds);
-            var updated = await owner.Persistence.AccountThreadGoalUsageAsync(
+            var outcome = await owner.Persistence.AccountThreadGoalUsageAsync(
                 turnKey.ThreadId,
                 snapshot.GoalId,
                 delta,
                 timeDeltaSeconds,
+                mode,
                 ct);
-            if (updated != null)
+            if (outcome is { Updated: true, Goal: { } updated })
             {
                 if (turnRuntime != null)
                     turnRuntime.GoalSnapshot = snapshot.WithAccounted(latestTurnUsage, now);
@@ -91,8 +106,83 @@ public sealed partial class SessionService
                 }
             }
 
-            return updated;
+            return outcome.Goal;
         }
+
+        private async Task FlushInFlightAccountingForExternalMutationAsync(
+            string threadId,
+            ThreadGoal? existing,
+            CancellationToken ct)
+        {
+            if (existing == null
+                || !owner._runtimeRegistry.TryGetRuntime(threadId, out var runtime))
+            {
+                return;
+            }
+
+            foreach (var (turnId, turnRuntime) in runtime.Turns)
+            {
+                var snapshot = turnRuntime.GoalSnapshot;
+                if (snapshot == null
+                    || !string.Equals(snapshot.GoalId, existing.GoalId, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                var latestUsage = turnRuntime.LatestGoalUsage ?? snapshot.AccountedUsage;
+                var delta = DiffUsage(latestUsage, snapshot.AccountedUsage);
+                var now = DateTimeOffset.UtcNow;
+                var timeDeltaSeconds = (long)Math.Max(0, (now - snapshot.LastAccountedAt).TotalSeconds);
+                if (!HasUsage(delta) && timeDeltaSeconds == 0)
+                    continue;
+
+                var outcome = await owner.Persistence.AccountThreadGoalUsageAsync(
+                    threadId,
+                    snapshot.GoalId,
+                    delta,
+                    timeDeltaSeconds,
+                    GoalAccountingMode.ActiveOnly,
+                    ct);
+                if (outcome is { Updated: true, Goal: { } updated })
+                {
+                    turnRuntime.GoalSnapshot = snapshot.WithAccounted(latestUsage, now);
+                    owner.PublishGoalUpdated(updated, turnId);
+                }
+            }
+        }
+
+        private void ResetInFlightSnapshotsAfterExternalMutation(
+            string threadId,
+            string? previousGoalId,
+            ThreadGoal? next)
+        {
+            if (previousGoalId == null
+                || !owner._runtimeRegistry.TryGetRuntime(threadId, out var runtime))
+            {
+                return;
+            }
+
+            foreach (var turnRuntime in runtime.Turns.Values)
+            {
+                var snapshot = turnRuntime.GoalSnapshot;
+                if (snapshot == null
+                    || !string.Equals(snapshot.GoalId, previousGoalId, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                if (CanContinueAccountingSnapshot(snapshot, next))
+                    continue;
+
+                turnRuntime.GoalSnapshot = null;
+                turnRuntime.LatestGoalUsage = new TokenUsageInfo();
+            }
+        }
+
+        private static bool CanContinueAccountingSnapshot(GoalTurnSnapshot snapshot, ThreadGoal? next) =>
+            next != null
+            && string.Equals(next.GoalId, snapshot.GoalId, StringComparison.Ordinal)
+            && next.Status is ThreadGoalStatus.Active or ThreadGoalStatus.BudgetLimited;
 
         public async Task PauseActiveForInterruptAsync(TurnKey turnKey, CancellationToken ct)
         {
@@ -114,6 +204,28 @@ public sealed partial class SessionService
                 GoalSetMode.UpdateOnly);
             await owner.Persistence.UpsertThreadGoalAsync(paused, ct);
             owner.PublishGoalUpdated(paused, turnKey.TurnId);
+        }
+
+        public async Task MarkActiveBlockedForTurnErrorAsync(TurnKey turnKey, CancellationToken ct)
+        {
+            var snapshot = owner.TryGetTurnRuntime(turnKey)?.GoalSnapshot;
+            if (snapshot == null)
+                return;
+
+            var current = await owner.Persistence.GetThreadGoalAsync(turnKey.ThreadId, ct);
+            if (current is not { Status: ThreadGoalStatus.Active }
+                || !string.Equals(current.GoalId, snapshot.GoalId, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            var blocked = BuildThreadGoal(
+                turnKey.ThreadId,
+                current,
+                new ThreadGoalUpdate { Status = ThreadGoalStatus.Blocked },
+                GoalSetMode.UpdateOnly);
+            await owner.Persistence.UpsertThreadGoalAsync(blocked, ct);
+            owner.PublishGoalUpdated(blocked, turnKey.TurnId);
         }
 
         public async Task MaybeContinueIfIdleAsync(string threadId, CancellationToken ct)
@@ -315,15 +427,17 @@ Choose the next concrete action that advances the goal. Before doing substantial
             if (update.HasTokenBudget && update.TokenBudget is <= 0)
                 throw new ArgumentException("Goal token budget must be positive.", nameof(update));
 
-            if (mode == GoalSetMode.CreateOnly && existing != null)
+            if (mode == GoalSetMode.CreateOnly && existing is { Status: not ThreadGoalStatus.Complete })
                 throw new InvalidOperationException($"Thread '{threadId}' already has a goal.");
             if (mode == GoalSetMode.UpdateOnly && existing == null)
                 throw new InvalidOperationException($"Thread '{threadId}' has no goal.");
             if (!hasObjective && existing == null)
                 throw new InvalidOperationException($"Thread '{threadId}' has no goal.");
+            if (mode == GoalSetMode.CreateOnly && !hasObjective)
+                throw new InvalidOperationException("Goal objective is required.");
 
             var now = DateTimeOffset.UtcNow;
-            var replacing = ShouldReplaceGoal(existing, objective, mode);
+            var replacing = ShouldReplaceGoal(existing, hasObjective, mode);
             var baseGoal = replacing
                 ? NewGoal(threadId, objective!, now)
                 : existing ?? NewGoal(threadId, objective!, now);
@@ -354,15 +468,12 @@ Choose the next concrete action that advances the goal. Before doing substantial
             };
         }
 
-        private static bool ShouldReplaceGoal(ThreadGoal? existing, string? objective, GoalSetMode mode)
+        private static bool ShouldReplaceGoal(ThreadGoal? existing, bool hasObjective, GoalSetMode mode)
         {
-            if (existing == null || string.IsNullOrWhiteSpace(objective))
+            if (existing == null || !hasObjective)
                 return false;
-            if (mode == GoalSetMode.ReplaceExisting)
-                return true;
-            if (!string.Equals(existing.Objective, objective, StringComparison.Ordinal))
-                return true;
-            return existing.Status == ThreadGoalStatus.Complete;
+            return mode == GoalSetMode.ReplaceExisting
+                || (mode == GoalSetMode.CreateOnly && existing.Status == ThreadGoalStatus.Complete);
         }
 
         private static ThreadGoal NewGoal(string threadId, string objective, DateTimeOffset now) => new()

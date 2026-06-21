@@ -181,4 +181,6 @@ internal sealed class TurnRuntime
     public SessionUserInputRequestService? PendingUserInput { get; set; }
 
     public GoalTurnSnapshot? GoalSnapshot { get; set; }
+
+    public TokenUsageInfo LatestGoalUsage { get; set; } = new();
 }

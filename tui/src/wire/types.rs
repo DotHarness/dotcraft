@@ -108,25 +108,13 @@ pub struct ServerCapabilities {
 #[serde(rename_all = "camelCase")]
 pub struct ThreadGoal {
     pub thread_id: String,
-    pub goal_id: String,
     pub objective: String,
     pub status: String,
     pub token_budget: Option<i64>,
-    pub tokens_used: TokenUsage,
+    pub tokens_used: i64,
     pub time_used_seconds: i64,
-    pub created_at: String,
-    pub updated_at: String,
-}
-
-#[derive(Debug, Deserialize, Clone, Default, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub struct TokenUsage {
-    pub input_tokens: i64,
-    pub output_tokens: i64,
-    pub cached_input_tokens: i64,
-    pub cache_write_input_tokens: i64,
-    pub reasoning_output_tokens: i64,
-    pub total_tokens: i64,
+    pub created_at: i64,
+    pub updated_at: i64,
 }
 
 #[derive(Debug, Deserialize)]

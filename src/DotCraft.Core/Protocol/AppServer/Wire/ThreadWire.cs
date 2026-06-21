@@ -197,7 +197,7 @@ public sealed class ThreadGoalGetParams
 public sealed class ThreadGoalGetResult
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
-    public ThreadGoal? Goal { get; set; }
+    public ThreadGoalWire? Goal { get; set; }
 }
 
 public sealed class ThreadGoalSetParams
@@ -209,13 +209,11 @@ public sealed class ThreadGoalSetParams
     public string? Status { get; set; }
 
     public JsonElement? TokenBudget { get; set; }
-
-    public string? Mode { get; set; }
 }
 
 public sealed class ThreadGoalSetResult
 {
-    public ThreadGoal Goal { get; set; } = null!;
+    public ThreadGoalWire Goal { get; set; } = null!;
 }
 
 public sealed class ThreadGoalClearParams

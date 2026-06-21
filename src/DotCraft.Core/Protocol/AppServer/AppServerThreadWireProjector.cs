@@ -39,14 +39,15 @@ internal sealed class AppServerThreadWireProjector(
     public SessionWireThread EnrichForNotification(SessionWireThread wire) =>
         WithAppBindingAttribution(wire, wire.Id, wire.WorkspacePath);
 
-    public async Task<ThreadGoal?> TryGetGoalSnapshotAsync(string threadId, CancellationToken ct)
+    public async Task<ThreadGoalWire?> TryGetGoalSnapshotAsync(string threadId, CancellationToken ct)
     {
         if (!GoalsCapabilityEnabled())
             return null;
 
         try
         {
-            return await sessionService.GetThreadGoalAsync(threadId, ct);
+            var goal = await sessionService.GetThreadGoalAsync(threadId, ct);
+            return goal is null ? null : ThreadGoalWire.FromGoal(goal);
         }
         catch (NotSupportedException)
         {

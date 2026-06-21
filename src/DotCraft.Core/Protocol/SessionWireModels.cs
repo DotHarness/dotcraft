@@ -247,7 +247,7 @@ public sealed record SessionWireThread
     /// <summary>
     /// Optional current goal snapshot for clients that hydrate thread state from lifecycle/list responses.
     /// </summary>
-    public ThreadGoal? Goal { get; init; }
+    public ThreadGoalWire? Goal { get; init; }
 
     /// <summary>
     /// Lightweight app binding summaries for this thread. Full descriptor and audit details are exposed by app/* methods.

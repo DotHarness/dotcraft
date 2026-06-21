@@ -29,18 +29,13 @@ function renderWithLocaleAndConfirm(node: JSX.Element): void {
 function makeGoal(threadId = 'thread-1', objective = 'Existing goal'): ThreadGoal {
   return {
     threadId,
-    goalId: `goal-${threadId}`,
     objective,
     status: 'active',
     tokenBudget: null,
-    tokensUsed: {
-      inputTokens: 0,
-      outputTokens: 0,
-      totalTokens: 0
-    },
+    tokensUsed: 0,
     timeUsedSeconds: 0,
-    createdAt: '2024-01-01T00:00:00Z',
-    updatedAt: '2024-01-01T00:00:00Z'
+    createdAt: 1704067200,
+    updatedAt: 1704067200
   }
 }
 
@@ -337,7 +332,9 @@ describe('InputComposer custom command expansion', () => {
 
     fireEvent.click(screen.getByRole('option', { name: /goal/i }))
 
-    expect(await screen.findByRole('dialog', { name: 'Goal' })).toBeInTheDocument()
+    // With no current goal, selecting Goal enters compose mode (the next message
+    // becomes the thread goal) instead of opening a separate dialog.
+    expect(await screen.findByRole('button', { name: 'Exit goal mode' })).toBeInTheDocument()
     expect(screen.getAllByRole('textbox').length).toBeGreaterThan(0)
   })
 
@@ -360,7 +357,7 @@ describe('InputComposer custom command expansion', () => {
 
     fireEvent.click(await screen.findByRole('option', { name: /目标/ }))
 
-    expect(await screen.findByRole('dialog', { name: '目标' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: '退出目标模式' })).toBeInTheDocument()
   })
 
   it('shows plan mode system action and toggles mode without starting a turn', async () => {
@@ -913,11 +910,49 @@ describe('InputComposer custom command expansion', () => {
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith('thread/goal/set', {
         threadId: 'thread-1',
-        objective: 'Fix tests',
-        mode: 'upsertOrUpdate'
+        objective: 'Fix tests'
       })
     })
     expect(appServerSendRequest).not.toHaveBeenCalledWith('turn/start', expect.anything())
+  })
+
+  it('sets the goal from goal compose mode without sending a legacy mode field', async () => {
+    useConnectionStore.setState({
+      status: 'connected',
+      capabilities: {
+        threadGoals: true
+      }
+    })
+    appServerSendRequest.mockImplementation(async (method: string) => {
+      if (method === 'thread/goal/get') return { goal: null }
+      if (method === 'thread/goal/set') return { goal: makeGoal('thread-1', 'Match the mockup') }
+      if (method === 'turn/start') return { turn: { id: 'turn-1' } }
+      return {}
+    })
+
+    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="C:\\work\\project" />)
+
+    // Goal compose mode is hidden by default and entered from the `/` system menu.
+    const textbox = screen.getByRole('textbox')
+    fireEvent.focus(textbox)
+    textbox.textContent = '/'
+    setCaretToEnd(textbox)
+    fireEvent.input(textbox)
+    fireEvent.click(await screen.findByRole('option', { name: /goal/i }))
+
+    expect(await screen.findByRole('button', { name: 'Exit goal mode' })).toBeInTheDocument()
+    textbox.textContent = 'Match the mockup'
+    fireEvent.input(textbox)
+    fireEvent.keyDown(textbox, { key: 'Enter' })
+
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith('thread/goal/set', {
+        threadId: 'thread-1',
+        objective: 'Match the mockup'
+      })
+    })
+    // The goal is now active, so the composer switches from the compose pill to the status pill.
+    expect(await screen.findByText('Goal: active')).toBeInTheDocument()
   })
 
   it('handles /goal pause resume and clear with goal RPCs', async () => {
@@ -946,8 +981,7 @@ describe('InputComposer custom command expansion', () => {
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith('thread/goal/set', {
         threadId: 'thread-1',
-        status: 'paused',
-        mode: 'updateOnly'
+        status: 'paused'
       })
     })
 
@@ -958,8 +992,7 @@ describe('InputComposer custom command expansion', () => {
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith('thread/goal/set', {
         threadId: 'thread-1',
-        status: 'active',
-        mode: 'updateOnly'
+        status: 'active'
       })
     })
 
@@ -998,8 +1031,7 @@ describe('InputComposer custom command expansion', () => {
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith('thread/goal/set', {
         threadId: 'thread-1',
-        objective: 'New goal',
-        mode: 'replaceExisting'
+        objective: 'New goal'
       })
     })
   })

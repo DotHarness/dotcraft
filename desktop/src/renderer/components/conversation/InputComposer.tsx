@@ -25,7 +25,7 @@ import { startTurnWithOptimisticUI } from '../../utils/startTurn'
 import { useComposerMascot } from './useComposerMascot'
 import { buildComposerInputParts } from '../../utils/composeInputParts'
 import { isAcceptPlanSentinel } from '../../utils/planAcceptSentinel'
-import { extractGoal, formatGoalUsage, parseGoalSlashCommand, type GoalSlashCommand } from '../../utils/threadGoal'
+import { buildGoalObjective, extractGoal, parseGoalSlashCommand, type GoalSlashCommand } from '../../utils/threadGoal'
 import {
   classifyDroppedComposerFiles,
   extForFile,
@@ -38,6 +38,7 @@ import { AttachmentStrip } from './AttachmentStrip'
 import { FileSearchPopover } from './FileSearchPopover'
 import { CommandSearchPopover, type SlashSystemActionInfo } from './CommandSearchPopover'
 import { GoalControlPopover } from './GoalControlPopover'
+import { GoalComposePill } from './GoalComposePill'
 import { ModelPicker, type ReasoningQuickValue } from './ModelPicker'
 import type { ModelCatalogItem } from '../../stores/modelCatalogStore'
 import { useModelCatalogStore } from '../../stores/modelCatalogStore'
@@ -205,6 +206,7 @@ export function InputComposer({
   const [skillQuery, setSkillQuery] = useState<string | null>(null)
   const [skillDismissed, setSkillDismissed] = useState(false)
   const [goalPopoverOpen, setGoalPopoverOpen] = useState(false)
+  const [goalComposeMode, setGoalComposeMode] = useState(false)
   const [profilePickerOpen, setProfilePickerOpen] = useState(false)
   const [goalPillActive, setGoalPillActive] = useState(false)
   const [goalBusy, setGoalBusy] = useState(false)
@@ -641,8 +643,7 @@ export function InputComposer({
 
       const result = await window.api.appServer.sendRequest('thread/goal/set', {
         threadId,
-        objective: trimmedObjective,
-        mode: replacing ? 'replaceExisting' : 'upsertOrUpdate'
+        objective: trimmedObjective
       })
       const goal = extractGoal(result)
       if (goal) {
@@ -676,8 +677,7 @@ export function InputComposer({
       }
       const result = await window.api.appServer.sendRequest('thread/goal/set', {
         threadId,
-        status,
-        mode: 'updateOnly'
+        status
       })
       const goal = extractGoal(result)
       if (goal) {
@@ -739,6 +739,75 @@ export function InputComposer({
     if (command.kind === 'resume') return updateGoalStatus('active')
     return clearGoal()
   }, [canUseThreadGoals, clearGoal, ensureCurrentGoal, setGoalObjective, showGoalUnavailable, updateGoalStatus])
+
+  const enterGoalComposeMode = useCallback((): void => {
+    if (!canUseThreadGoals) {
+      showGoalUnavailable()
+      return
+    }
+    setGoalComposeMode(true)
+    window.setTimeout(() => richRef.current?.focus(), 0)
+  }, [canUseThreadGoals, showGoalUnavailable])
+
+  // Goal compose mode: the composer's rich input + attachments become the objective.
+  // We flatten everything to a single objective string, set the goal, then submit
+  // that objective as a normal turn so the agent starts on it and the message
+  // renders with the "Sent as goal" badge.
+  const sendGoalFromComposer = useCallback(async (): Promise<void> => {
+    const text = richRef.current?.getText() ?? ''
+    const segments = richRef.current?.getSegments() ?? []
+    const capturedFiles = [...files]
+    const capturedImages = [...images]
+    const objective = buildGoalObjective({ text, segments, files, images })
+    if (!objective.trim()) {
+      addToast(t('goal.toast.emptyObjective'), 'warning')
+      return
+    }
+    if (remoteWorkspace && (images.length > 0 || files.length > 0)) {
+      addToast(t('input.remoteLocalFilesUnavailable'), 'warning')
+      return
+    }
+    if (sendInFlightRef.current) return
+    sendInFlightRef.current = true
+    try {
+      const ok = await setGoalObjective(objective)
+      if (!ok) return
+      if (isBusyForInput) {
+        const { inputParts } = buildComposerInputParts({ text: objective })
+        await window.api.appServer.sendRequest('turn/enqueue', {
+          threadId,
+          input: inputParts,
+          sender: undefined,
+          sentAsGoal: true
+        })
+      } else {
+        await startTurnWithOptimisticUI({
+          threadId,
+          workspacePath: effectiveFileWorkspacePath,
+          identityWorkspacePath: workspacePath,
+          text: objective,
+          segments: [],
+          images: [],
+          files: [],
+          fallbackThreadName: t('toast.imageMessage'),
+          fileFallbackThreadName: t('toast.fileReferenceMessage'),
+          attachmentFallbackThreadName: t('toast.attachmentMessage'),
+          throwOnStartError: true,
+          sentAsGoal: true
+        })
+      }
+      setGoalComposeMode(false)
+      setMascotBounce((n) => n + 1)
+      resetComposerInput()
+    } catch (err) {
+      richRef.current?.setContent({ text, segments })
+      setFiles(capturedFiles)
+      setImages(capturedImages)
+      addToast(err instanceof Error ? err.message : String(err), 'error')
+    } finally {
+      sendInFlightRef.current = false
+    }
+  }, [files, images, remoteWorkspace, setGoalObjective, resetComposerInput, isBusyForInput, threadId, effectiveFileWorkspacePath, workspacePath, t])
 
   const saveDataUrlAsTemp = useCallback(
     async (dataUrl: string, fileName: string, mimeType: string): Promise<void> => {
@@ -844,6 +913,10 @@ export function InputComposer({
   )
 
   const sendMessage = useCallback(async () => {
+    if (!isAgentBuilder && goalComposeMode && canUseThreadGoals) {
+      await sendGoalFromComposer()
+      return
+    }
     const text = richRef.current?.getText() ?? ''
     const segments = richRef.current?.getSegments() ?? []
     const trimmed = text.trim()
@@ -999,7 +1072,7 @@ export function InputComposer({
     } finally {
       sendInFlightRef.current = false
     }
-  }, [compactThreadContext, consolidateThreadMemory, effectiveFileWorkspacePath, executeGoalCommand, files, images, isAgentBuilder, isBusyForInput, isWaitingApproval, isWaitingInput, modelLoading, onBeforeSend, remoteWorkspace, setComposerMode, submitOverride, threadId, workspacePath, t])
+  }, [compactThreadContext, consolidateThreadMemory, effectiveFileWorkspacePath, executeGoalCommand, files, images, isAgentBuilder, isBusyForInput, isWaitingApproval, isWaitingInput, modelLoading, onBeforeSend, remoteWorkspace, setComposerMode, submitOverride, threadId, workspacePath, t, goalComposeMode, canUseThreadGoals, sendGoalFromComposer])
 
   const removeQueuedInput = useCallback(async (queuedInputId: string): Promise<void> => {
     try {
@@ -1316,9 +1389,13 @@ export function InputComposer({
       return
     }
     if (actionId !== 'goal') return
-    setGoalPopoverOpen(true)
-    void ensureCurrentGoal().catch(() => {})
-  }, [clearSlashSystemInput, ensureCurrentGoal, compactThreadContext, consolidateThreadMemory, toggleMode])
+    if (currentGoal) {
+      setGoalPopoverOpen(true)
+      void ensureCurrentGoal().catch(() => {})
+    } else {
+      enterGoalComposeMode()
+    }
+  }, [clearSlashSystemInput, currentGoal, enterGoalComposeMode, ensureCurrentGoal, compactThreadContext, consolidateThreadMemory, toggleMode])
 
   const onSelectSkill = useCallback((skillName: string): void => {
     richRef.current?.insertSkillTag(skillName)
@@ -1446,7 +1523,9 @@ export function InputComposer({
                     ? t('composer.placeholder.approval')
                     : isWaitingInput
                       ? t('composer.placeholder.userInput')
-                      : placeholder ?? t('composer.placeholder.ask')
+                      : goalComposeMode
+                        ? t('goal.objective.placeholder')
+                        : placeholder ?? t('composer.placeholder.ask')
                 }
                 onSubmit={() => {
                   void sendMessage()
@@ -1489,7 +1568,7 @@ export function InputComposer({
             />
 
             {!minimalChrome && (
-              <ApprovalPolicyPicker threadId={threadId} disabled={isBusyForInput || isWaitingApproval || isWaitingInput} />
+              <ApprovalPolicyPicker threadId={threadId} disabled={isWaitingApproval || isWaitingInput} />
             )}
 
             {hasProfile ? (
@@ -1515,32 +1594,36 @@ export function InputComposer({
             ) : (
               null
             )}
-            {currentGoal && (
-              <ActionTooltip label={currentGoal.objective} placement="top">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setGoalPopoverOpen(true)
-                    void ensureCurrentGoal().catch(() => {})
-                  }}
-                  onMouseEnter={() => setGoalPillActive(true)}
-                  onMouseLeave={() => setGoalPillActive(false)}
-                  onFocus={(event) => {
-                    if (event.currentTarget.matches(':focus-visible')) setGoalPillActive(true)
-                  }}
-                  onBlur={() => setGoalPillActive(false)}
-                  aria-label={t('goal.pill.aria', { status: t(`goal.status.${currentGoal.status}`) })}
-                  style={goalPillStyle(currentGoal.status, goalPillActive)}
-                >
-                  <Target size={13} aria-hidden />
-                  <span>{t(`goal.pill.${currentGoal.status}`)}</span>
-                  {formatGoalUsage(currentGoal) && (
-                    <span style={{ color: 'var(--composer-footer-muted)' }}>
-                      {formatGoalUsage(currentGoal)}
-                    </span>
-                  )}
-                </button>
-              </ActionTooltip>
+            {canUseThreadGoals && !isAgentBuilder && (
+              goalComposeMode ? (
+                <GoalComposePill
+                  label={t('goal.system.label')}
+                  title={t('goal.compose.active')}
+                  ariaLabel={t('goal.compose.exit')}
+                  onExit={() => setGoalComposeMode(false)}
+                />
+              ) : currentGoal ? (
+                <ActionTooltip label={currentGoal.objective} placement="top">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setGoalPopoverOpen(true)
+                      void ensureCurrentGoal().catch(() => {})
+                    }}
+                    onMouseEnter={() => setGoalPillActive(true)}
+                    onMouseLeave={() => setGoalPillActive(false)}
+                    onFocus={(event) => {
+                      if (event.currentTarget.matches(':focus-visible')) setGoalPillActive(true)
+                    }}
+                    onBlur={() => setGoalPillActive(false)}
+                    aria-label={t('goal.pill.aria', { status: t(`goal.status.${currentGoal.status}`) })}
+                    style={goalPillStyle(currentGoal.status, goalPillActive)}
+                  >
+                    <Target size={13} aria-hidden />
+                    <span>{t(`goal.pill.${currentGoal.status}`)}</span>
+                  </button>
+                </ActionTooltip>
+              ) : null
             )}
           </div>
         }

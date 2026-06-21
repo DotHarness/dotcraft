@@ -140,7 +140,8 @@ internal sealed class TurnRequestHandler(
             {
                 NativeInputParts = materializedInput.NativeInputParts,
                 MaterializedInputParts = materializedInput.MaterializedInputParts,
-                DisplayText = materializedInput.DisplayText
+                DisplayText = materializedInput.DisplayText,
+                SentAsGoal = p.SentAsGoal
             });
 
         if (connection.HasSubscription(p.ThreadId))
@@ -297,7 +298,8 @@ internal sealed class TurnRequestHandler(
             {
                 NativeInputParts = materializedInput.NativeInputParts,
                 MaterializedInputParts = materializedInput.MaterializedInputParts,
-                DisplayText = materializedInput.DisplayText
+                DisplayText = materializedInput.DisplayText,
+                SentAsGoal = p.SentAsGoal
             });
         var thread = await sessionService.GetThreadAsync(p.ThreadId, ct);
         return new TurnEnqueueResponse

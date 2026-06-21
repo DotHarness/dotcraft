@@ -628,6 +628,10 @@ internal sealed class TestableSessionService : ISessionService, IThreadAgentRefr
     {
         _ = await GetOrLoadAsync(threadId, ct);
         var existing = await _store.GetThreadGoalAsync(threadId, ct);
+        if (mode == GoalSetMode.CreateOnly && existing is { Status: not ThreadGoalStatus.Complete })
+            throw new InvalidOperationException($"Thread '{threadId}' already has a goal.");
+        if (mode == GoalSetMode.UpdateOnly && existing == null)
+            throw new InvalidOperationException($"Thread '{threadId}' has no goal.");
         if (existing == null && string.IsNullOrWhiteSpace(update.Objective))
             throw new InvalidOperationException($"Thread '{threadId}' has no goal.");
 
@@ -635,9 +639,8 @@ internal sealed class TestableSessionService : ISessionService, IThreadAgentRefr
         var now = DateTimeOffset.UtcNow;
         var replace = existing != null
             && !string.IsNullOrWhiteSpace(objective)
-            && (!string.Equals(existing.Objective, objective, StringComparison.Ordinal)
-                || existing.Status == ThreadGoalStatus.Complete
-                || mode == GoalSetMode.ReplaceExisting);
+            && (mode == GoalSetMode.ReplaceExisting
+                || (mode == GoalSetMode.CreateOnly && existing.Status == ThreadGoalStatus.Complete));
         var goal = replace || existing == null
             ? new ThreadGoal
             {
@@ -1004,7 +1007,8 @@ internal sealed class TestableSessionService : ISessionService, IThreadAgentRefr
             TriggerKind = triggerInfo?.Kind,
             TriggerLabel = triggerInfo?.Label,
             TriggerRefId = triggerInfo?.RefId,
-            DeliveryBindingId = inputSnapshot?.DeliveryBindingId
+            DeliveryBindingId = inputSnapshot?.DeliveryBindingId,
+            SentAsGoal = inputSnapshot?.SentAsGoal
         };
         thread.QueuedInputs.Add(queued);
         thread.LastActiveAt = DateTimeOffset.UtcNow;

@@ -2979,6 +2979,7 @@ export function App(): JSX.Element {
                 mimeType: i.mimeType,
                 fileName: i.fileName
               })),
+              sentAsGoal: pendingWelcome.sentAsGoal === true ? true : undefined,
               createdAt: optimisticNow,
               completedAt: optimisticNow
             }
@@ -2998,6 +2999,7 @@ export function App(): JSX.Element {
                 .sendRequest('turn/start', {
                   threadId,
                   input: pendingInputParts,
+                  ...(pendingWelcome.sentAsGoal ? { sentAsGoal: true } : {}),
                   identity: {
                     channelName: 'dotcraft-desktop',
                     userId: 'local',

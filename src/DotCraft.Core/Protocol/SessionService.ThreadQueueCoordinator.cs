@@ -47,7 +47,8 @@ public sealed partial class SessionService
                 TriggerKind = triggerInfo?.Kind,
                 TriggerLabel = triggerInfo?.Label,
                 TriggerRefId = triggerInfo?.RefId,
-                DeliveryBindingId = inputSnapshot?.DeliveryBindingId
+                DeliveryBindingId = inputSnapshot?.DeliveryBindingId,
+                SentAsGoal = inputSnapshot?.SentAsGoal
             };
 
             IReadOnlyList<QueuedTurnInput> queueSnapshot;
@@ -247,7 +248,8 @@ public sealed partial class SessionService
                         DisplayText = queued.DisplayText,
                         DeliveryMode = "queued",
                         QueuedInputId = queued.Id,
-                        DeliveryBindingId = queued.DeliveryBindingId
+                        DeliveryBindingId = queued.DeliveryBindingId,
+                        SentAsGoal = queued.SentAsGoal
                     });
 
                 _ = Task.Run(async () =>

@@ -602,83 +602,70 @@ internal sealed class ThreadMetadataStore(StateRuntime stateRuntime)
         command.ExecuteNonQuery();
     }
 
-    public ThreadGoal? AccountThreadGoalUsage(
+    public GoalAccountingOutcome AccountThreadGoalUsage(
         string threadId,
         string expectedGoalId,
         TokenUsageInfo usageDelta,
-        long timeDeltaSeconds)
+        long timeDeltaSeconds,
+        GoalAccountingMode mode)
     {
+        var normalizedTimeDelta = Math.Max(0, timeDeltaSeconds);
+        if (!HasUsage(usageDelta) && normalizedTimeDelta == 0)
+            return GoalAccountingOutcome.Unchanged(LoadThreadGoal(threadId));
+
         using var connection = stateRuntime.OpenConnection();
         using var transaction = connection.BeginTransaction();
-        using var select = connection.CreateCommand();
-        select.Transaction = transaction;
-        select.CommandText = """
-            SELECT thread_id, goal_id, objective, status, token_budget,
-                   input_tokens, output_tokens, cached_input_tokens,
-                   cache_write_input_tokens, reasoning_output_tokens, total_tokens,
-                   time_used_seconds, created_at_utc, updated_at_utc
-            FROM thread_goals
-            WHERE thread_id = $thread_id AND goal_id = $goal_id
-            LIMIT 1
-            """;
-        select.Parameters.AddWithValue("$thread_id", threadId);
-        select.Parameters.AddWithValue("$goal_id", expectedGoalId);
-
-        ThreadGoal? current;
-        using (var reader = select.ExecuteReader())
-        {
-            current = reader.Read() ? ReadGoal(reader) : null;
-        }
-
-        if (current == null)
-        {
-            transaction.Commit();
-            return null;
-        }
-
-        var nextTokens = current.TokensUsed + usageDelta;
-        var nextStatus = current.Status == ThreadGoalStatus.Active
-            && current.TokenBudget.HasValue
-            && nextTokens.TotalTokens >= current.TokenBudget.Value
-                ? ThreadGoalStatus.BudgetLimited
-                : current.Status;
-        var next = current with
-        {
-            TokensUsed = nextTokens,
-            TimeUsedSeconds = current.TimeUsedSeconds + Math.Max(0, timeDeltaSeconds),
-            Status = nextStatus,
-            UpdatedAt = DateTimeOffset.UtcNow
-        };
 
         using var update = connection.CreateCommand();
         update.Transaction = transaction;
-        update.CommandText = """
+        update.CommandText = $"""
             UPDATE thread_goals
-            SET status = $status,
-                input_tokens = $input_tokens,
-                output_tokens = $output_tokens,
-                cached_input_tokens = $cached_input_tokens,
-                cache_write_input_tokens = $cache_write_input_tokens,
-                reasoning_output_tokens = $reasoning_output_tokens,
-                total_tokens = $total_tokens,
-                time_used_seconds = $time_used_seconds,
+            SET status = CASE
+                    WHEN {GoalAccountingBudgetStatusPredicate(mode)}
+                         AND token_budget IS NOT NULL
+                         AND total_tokens + $total_tokens >= token_budget
+                    THEN $status
+                    ELSE status
+                END,
+                input_tokens = input_tokens + $input_tokens,
+                output_tokens = output_tokens + $output_tokens,
+                cached_input_tokens = cached_input_tokens + $cached_input_tokens,
+                cache_write_input_tokens = cache_write_input_tokens + $cache_write_input_tokens,
+                reasoning_output_tokens = reasoning_output_tokens + $reasoning_output_tokens,
+                total_tokens = total_tokens + $total_tokens,
+                time_used_seconds = time_used_seconds + $time_used_seconds,
                 updated_at_utc = $updated_at_utc
             WHERE thread_id = $thread_id AND goal_id = $goal_id
+              AND {GoalAccountingStatusPredicate(mode)}
+            RETURNING thread_id, goal_id, objective, status, token_budget,
+                   input_tokens, output_tokens, cached_input_tokens,
+                   cache_write_input_tokens, reasoning_output_tokens, total_tokens,
+                   time_used_seconds, created_at_utc, updated_at_utc
             """;
         update.Parameters.AddWithValue("$thread_id", threadId);
         update.Parameters.AddWithValue("$goal_id", expectedGoalId);
-        update.Parameters.AddWithValue("$status", ToGoalStatusStorage(next.Status));
-        update.Parameters.AddWithValue("$input_tokens", next.TokensUsed.InputTokens);
-        update.Parameters.AddWithValue("$output_tokens", next.TokensUsed.OutputTokens);
-        update.Parameters.AddWithValue("$cached_input_tokens", next.TokensUsed.CachedInputTokens);
-        update.Parameters.AddWithValue("$cache_write_input_tokens", next.TokensUsed.CacheWriteInputTokens);
-        update.Parameters.AddWithValue("$reasoning_output_tokens", next.TokensUsed.ReasoningOutputTokens);
-        update.Parameters.AddWithValue("$total_tokens", next.TokensUsed.TotalTokens);
-        update.Parameters.AddWithValue("$time_used_seconds", next.TimeUsedSeconds);
-        update.Parameters.AddWithValue("$updated_at_utc", next.UpdatedAt.UtcDateTime.ToString("O"));
-        update.ExecuteNonQuery();
+        update.Parameters.AddWithValue("$status", ToGoalStatusStorage(ThreadGoalStatus.BudgetLimited));
+        update.Parameters.AddWithValue("$input_tokens", Math.Max(0, usageDelta.InputTokens));
+        update.Parameters.AddWithValue("$output_tokens", Math.Max(0, usageDelta.OutputTokens));
+        update.Parameters.AddWithValue("$cached_input_tokens", Math.Max(0, usageDelta.CachedInputTokens));
+        update.Parameters.AddWithValue("$cache_write_input_tokens", Math.Max(0, usageDelta.CacheWriteInputTokens));
+        update.Parameters.AddWithValue("$reasoning_output_tokens", Math.Max(0, usageDelta.ReasoningOutputTokens));
+        update.Parameters.AddWithValue("$total_tokens", Math.Max(0, usageDelta.TotalTokens));
+        update.Parameters.AddWithValue("$time_used_seconds", normalizedTimeDelta);
+        update.Parameters.AddWithValue("$updated_at_utc", DateTimeOffset.UtcNow.UtcDateTime.ToString("O"));
+
+        ThreadGoal? updated = null;
+        using (var reader = update.ExecuteReader())
+        {
+            if (reader.Read())
+                updated = ReadGoal(reader);
+        }
+
         transaction.Commit();
-        return next;
+        if (updated != null)
+            return GoalAccountingOutcome.UpdatedGoal(updated);
+
+        return GoalAccountingOutcome.Unchanged(LoadThreadGoal(threadId));
     }
 
     public bool DeleteThreadGoal(string threadId)
@@ -977,6 +964,8 @@ internal sealed class ThreadMetadataStore(StateRuntime stateRuntime)
     {
         ThreadGoalStatus.Active => "active",
         ThreadGoalStatus.Paused => "paused",
+        ThreadGoalStatus.Blocked => "blocked",
+        ThreadGoalStatus.UsageLimited => "usage_limited",
         ThreadGoalStatus.BudgetLimited => "budget_limited",
         ThreadGoalStatus.Complete => "complete",
         _ => "active"
@@ -986,10 +975,36 @@ internal sealed class ThreadMetadataStore(StateRuntime stateRuntime)
     {
         "active" => ThreadGoalStatus.Active,
         "paused" => ThreadGoalStatus.Paused,
+        "blocked" => ThreadGoalStatus.Blocked,
+        "usage_limited" => ThreadGoalStatus.UsageLimited,
         "budget_limited" => ThreadGoalStatus.BudgetLimited,
         "complete" => ThreadGoalStatus.Complete,
         _ => ThreadGoalStatus.Active
     };
+
+    private static string GoalAccountingStatusPredicate(GoalAccountingMode mode) => mode switch
+    {
+        GoalAccountingMode.ActiveStatusOnly => "status = 'active'",
+        GoalAccountingMode.ActiveOnly => "status IN ('active', 'budget_limited')",
+        GoalAccountingMode.ActiveOrComplete => "status IN ('active', 'budget_limited', 'complete')",
+        GoalAccountingMode.ActiveOrStopped => "status IN ('active', 'paused', 'blocked', 'usage_limited', 'budget_limited')",
+        _ => "status = 'active'"
+    };
+
+    private static string GoalAccountingBudgetStatusPredicate(GoalAccountingMode mode) => mode switch
+    {
+        GoalAccountingMode.ActiveOrStopped => "status IN ('active', 'paused', 'blocked', 'usage_limited', 'budget_limited')",
+        _ => "status = 'active'"
+    };
+
+    private static bool HasUsage(TokenUsageInfo usage) =>
+        usage.InputTokens > 0
+        || usage.OutputTokens > 0
+        || usage.CachedInputTokens > 0
+        || usage.CacheWriteInputTokens > 0
+        || usage.ReasoningOutputTokens > 0
+        || usage.LlmCallCount > 0
+        || usage.TotalTokens > 0;
 }
 
 internal sealed record ThreadRolloutLocation(string ThreadId, string RolloutPath, ThreadStatus Status);

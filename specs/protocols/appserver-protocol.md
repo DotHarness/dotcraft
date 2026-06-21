@@ -1138,28 +1138,29 @@ Thread goal behavior is defined by [Goal Design](../core/goal-design.md). AppSer
 | Method | Params | Result |
 |--------|--------|--------|
 | `thread/goal/get` | `{ threadId }` | `{ goal: ThreadGoal? }` |
-| `thread/goal/set` | `{ threadId, objective?, status?, tokenBudget?, mode? }` | `{ goal: ThreadGoal }` |
+| `thread/goal/set` | `{ threadId, objective?, status?, tokenBudget? }` | `{ goal: ThreadGoal }` |
 | `thread/goal/clear` | `{ threadId }` | `{ cleared: boolean }` |
 
 Clients must check `capabilities.threadGoals` before calling these methods. When absent or false, servers return method-not-found or a capability error.
 
-`thread/goal/set.mode` defaults to `"upsertOrUpdate"` and may be `"replaceExisting"`, `"createOnly"`, or `"updateOnly"`. `status` values are `"active"`, `"paused"`, `"budgetLimited"`, and `"complete"`. Interactive clients should confirm before replacing a different non-complete objective; the server still enforces authoritative state transitions.
+`thread/goal/set` creates an active goal when no goal exists and updates an existing goal in place otherwise. The legacy `mode` param is not supported. `status` values are `"active"`, `"paused"`, `"blocked"`, `"usageLimited"`, `"budgetLimited"`, and `"complete"`.
 
 `ThreadGoal` uses the normal wire casing:
 
 ```json
 {
   "threadId": "thread_...",
-  "goalId": "goal_...",
   "objective": "Ship the feature",
   "status": "active",
   "tokenBudget": null,
-  "tokensUsed": { "totalTokens": 0 },
+  "tokensUsed": 0,
   "timeUsedSeconds": 0,
-  "createdAt": "2026-05-08T00:00:00Z",
-  "updatedAt": "2026-05-08T00:00:00Z"
+  "createdAt": 1778198400,
+  "updatedAt": 1778198400
 }
 ```
+
+`createdAt` and `updatedAt` are Unix seconds. The public AppServer wire shape omits the internal `goal_id` and token breakdown columns.
 
 Goal notifications:
 

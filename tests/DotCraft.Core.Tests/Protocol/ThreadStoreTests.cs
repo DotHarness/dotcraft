@@ -1205,6 +1205,107 @@ public sealed class ThreadStoreTests : IDisposable
             await ExtractHistoryAsync(CreateAgent(), session));
     }
 
+    [Fact]
+    public async Task AccountThreadGoalUsageAsync_ActiveOnly_SkipsStoppedAndCompleteGoals()
+    {
+        foreach (var status in new[]
+                 {
+                     ThreadGoalStatus.Paused,
+                     ThreadGoalStatus.Blocked,
+                     ThreadGoalStatus.UsageLimited,
+                     ThreadGoalStatus.Complete
+                 })
+        {
+            var goal = NewGoal(status);
+            await _store.SaveThreadAsync(CreateThread(goal.ThreadId));
+            await _store.UpsertThreadGoalAsync(goal);
+
+            var outcome = await _store.AccountThreadGoalUsageAsync(
+                goal.ThreadId,
+                goal.GoalId,
+                Usage(7),
+                3,
+                GoalAccountingMode.ActiveOnly);
+
+            var loaded = await _store.GetThreadGoalAsync(goal.ThreadId);
+            Assert.False(outcome.Updated);
+            Assert.NotNull(loaded);
+            Assert.Equal(0, loaded.TokensUsed.TotalTokens);
+            Assert.Equal(status, loaded.Status);
+        }
+    }
+
+    [Fact]
+    public async Task AccountThreadGoalUsageAsync_ModePredicates_IncludeCompleteAndStoppedWhenRequested()
+    {
+        var complete = NewGoal(ThreadGoalStatus.Complete);
+        await _store.SaveThreadAsync(CreateThread(complete.ThreadId));
+        await _store.UpsertThreadGoalAsync(complete);
+        var completeOutcome = await _store.AccountThreadGoalUsageAsync(
+            complete.ThreadId,
+            complete.GoalId,
+            Usage(11),
+            4,
+            GoalAccountingMode.ActiveOrComplete);
+        Assert.True(completeOutcome.Updated);
+        Assert.Equal(11, completeOutcome.Goal?.TokensUsed.TotalTokens);
+        Assert.Equal(ThreadGoalStatus.Complete, completeOutcome.Goal?.Status);
+
+        var blocked = NewGoal(ThreadGoalStatus.Blocked);
+        await _store.SaveThreadAsync(CreateThread(blocked.ThreadId));
+        await _store.UpsertThreadGoalAsync(blocked);
+        var blockedOutcome = await _store.AccountThreadGoalUsageAsync(
+            blocked.ThreadId,
+            blocked.GoalId,
+            Usage(13),
+            5,
+            GoalAccountingMode.ActiveOrStopped);
+        Assert.True(blockedOutcome.Updated);
+        Assert.Equal(13, blockedOutcome.Goal?.TokensUsed.TotalTokens);
+        Assert.Equal(ThreadGoalStatus.Blocked, blockedOutcome.Goal?.Status);
+    }
+
+    [Fact]
+    public async Task AccountThreadGoalUsageAsync_StaleGoalId_DoesNotMutateCurrentGoal()
+    {
+        var goal = NewGoal(ThreadGoalStatus.Active);
+        await _store.SaveThreadAsync(CreateThread(goal.ThreadId));
+        await _store.UpsertThreadGoalAsync(goal);
+
+        var outcome = await _store.AccountThreadGoalUsageAsync(
+            goal.ThreadId,
+            "goal_stale",
+            Usage(9),
+            2,
+            GoalAccountingMode.ActiveOnly);
+
+        var loaded = await _store.GetThreadGoalAsync(goal.ThreadId);
+        Assert.False(outcome.Updated);
+        Assert.NotNull(loaded);
+        Assert.Equal(0, loaded.TokensUsed.TotalTokens);
+        Assert.Equal(goal.GoalId, loaded.GoalId);
+    }
+
+    [Fact]
+    public async Task AccountThreadGoalUsageAsync_BudgetCrossing_ChangesActiveGoalToBudgetLimited()
+    {
+        var goal = NewGoal(ThreadGoalStatus.Active) with { TokenBudget = 10 };
+        await _store.SaveThreadAsync(CreateThread(goal.ThreadId));
+        await _store.UpsertThreadGoalAsync(goal);
+
+        var outcome = await _store.AccountThreadGoalUsageAsync(
+            goal.ThreadId,
+            goal.GoalId,
+            Usage(12),
+            6,
+            GoalAccountingMode.ActiveOnly);
+
+        Assert.True(outcome.Updated);
+        Assert.Equal(12, outcome.Goal?.TokensUsed.TotalTokens);
+        Assert.Equal(6, outcome.Goal?.TimeUsedSeconds);
+        Assert.Equal(ThreadGoalStatus.BudgetLimited, outcome.Goal?.Status);
+    }
+
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
@@ -1219,6 +1320,24 @@ public sealed class ThreadStoreTests : IDisposable
         CreatedAt = DateTimeOffset.UtcNow,
         LastActiveAt = DateTimeOffset.UtcNow,
         HistoryMode = HistoryMode.Server
+    };
+
+    private static ThreadGoal NewGoal(ThreadGoalStatus status) => new()
+    {
+        ThreadId = SessionIdGenerator.NewThreadId(),
+        GoalId = SessionIdGenerator.NewGoalId(),
+        Objective = $"Goal {Guid.NewGuid():N}",
+        Status = status,
+        TokensUsed = new TokenUsageInfo(),
+        TimeUsedSeconds = 0,
+        CreatedAt = DateTimeOffset.UtcNow,
+        UpdatedAt = DateTimeOffset.UtcNow
+    };
+
+    private static TokenUsageInfo Usage(long total) => new()
+    {
+        InputTokens = total,
+        TotalTokens = total
     };
 
     private static SessionThread CloneThreadSnapshotForTest(SessionThread thread)
