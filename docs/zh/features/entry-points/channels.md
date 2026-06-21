@@ -38,6 +38,14 @@ TypeScript 频道模块统一遵循 [TypeScript Module 集成契约](../../devel
 
 详细机制见 [统一会话核心](../../developing/architecture/session-core)。
 
+## 把会话交接到社交渠道
+
+![DotCraft 社交渠道接续](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/channel-handoff.gif)
+
+你可以把 Desktop 中已有的会话绑定到已连接的社交渠道。在会话的 Apps 菜单中选择一个已连接渠道，然后在目标聊天里发送界面显示的 `/bind 123456` 命令。DotCraft 会把该聊天连接到同一个 Thread，后续来自该渠道的消息会继续这条会话，而不是创建一条新的机器人会话。
+
+由社交渠道触发的回复会自动投递回该渠道；你在 Desktop 中发送的消息仍只留在 Desktop，除非这一轮是由渠道消息触发的。
+
 ## 适用场景
 
 | 场景 | 推荐 |
@@ -47,6 +55,7 @@ TypeScript 频道模块统一遵循 [TypeScript Module 集成契约](../../devel
 | 项目客服 / 售后 | 微信 / WeCom |
 | 想在群里调 Agent 跑 CI 报告 | 任意渠道 + [Automations](../agent-system/automations) |
 | 想在 Desktop 里看群聊历史并接管回复 | 任意渠道 + Desktop 同工作区 |
+| 把 Desktop 会话接续到社交聊天 | 任意已连接渠道 + 在目标聊天中发送 `/bind` |
 
 ## 安全建议
 
