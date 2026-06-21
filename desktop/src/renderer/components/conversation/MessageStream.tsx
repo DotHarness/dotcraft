@@ -12,7 +12,7 @@ import { ScrollToBottomButton } from './ScrollToBottomButton'
 import { ConversationColumn } from './ConversationColumn'
 import { wireTurnToConversationTurn } from '../../types/conversation'
 import type { ConversationItem, ConversationTurn } from '../../types/conversation'
-import type { ContextUsageSnapshotWire, Thread, ThreadGoal } from '../../types/thread'
+import type { ContextUsageSnapshotWire, Thread } from '../../types/thread'
 import { isAcceptPlanSentinel } from '../../utils/planAcceptSentinel'
 import { getSpawnedFromThreadId } from '../../utils/subAgentThreads'
 import { startTurnWithOptimisticUI } from '../../utils/startTurn'
@@ -67,24 +67,6 @@ function lastUserItem(turn: ConversationTurn): ConversationItem | undefined {
   return [...turn.items].reverse().find(isVisibleUserMessage)
 }
 
-function getSentAsGoalItemId(turns: ConversationTurn[], goal: ThreadGoal | null): string | null {
-  const objective = goal?.objective.trim()
-  if (!goal || !objective) return null
-
-  for (const turn of turns) {
-    const firstUser = turn.items.find((item) =>
-      isVisibleUserMessage(item) &&
-      !item.triggerKind
-    )
-    if (!firstUser) continue
-    if ((firstUser.text ?? '').trim() !== objective) return null
-    if (!isNearGoalCreation(firstUser.createdAt, goal.createdAt)) return null
-    return firstUser.id
-  }
-
-  return null
-}
-
 function isVisibleUserMessage(item: ConversationItem): boolean {
   return (
     item.type === 'userMessage' &&
@@ -93,15 +75,6 @@ function isVisibleUserMessage(item: ConversationItem): boolean {
     item.triggerKind !== 'subagentMailbox' &&
     !isAcceptPlanSentinel(item.text ?? '')
   )
-}
-
-function isNearGoalCreation(messageCreatedAt: string | undefined, goalCreatedAt: number): boolean {
-  if (!messageCreatedAt) return true
-  const messageMs = Date.parse(messageCreatedAt)
-  const goalMs = goalCreatedAt * 1000
-  if (!Number.isFinite(messageMs) || !Number.isFinite(goalMs)) return true
-  const deltaMs = messageMs - goalMs
-  return deltaMs >= -30_000 && deltaMs <= 5 * 60_000
 }
 
 /**
@@ -133,12 +106,6 @@ export function MessageStream(): JSX.Element {
     const parent = threadList.find((t) => t.id === parentId)
     return { refId: parentId, label: parent?.displayName?.trim() || undefined }
   }, [threadList, activeThreadId])
-  const currentGoal = useThreadStore((s) =>
-    activeThreadId
-      ? s.goalSnapshots.get(activeThreadId)
-        ?? (s.activeThread?.id === activeThreadId ? (s.activeThread.goal ?? null) : null)
-      : null
-  )
   const queuedInputCount = useConversationStore((s) => s.queuedInputs.length)
   const subAgentChildCount = useSubAgentStore((s) =>
     activeThreadId ? (s.childrenByParent.get(activeThreadId)?.length ?? 0) : 0
@@ -173,7 +140,6 @@ export function MessageStream(): JSX.Element {
   const scrollButtonBottomOffsetPx =
     SCROLL_BUTTON_BASE_BOTTOM_PX + (dockHeightPx > 0 ? dockHeightPx + SCROLL_BUTTON_DOCK_GAP_PX : 0)
   const bottomClearancePx = MESSAGE_STREAM_BOTTOM_BASE_PX + dockHeightPx
-  const sentAsGoalItemId = getSentAsGoalItemId(turns, currentGoal)
 
   useEffect(() => {
     setEditing(null)
@@ -334,7 +300,6 @@ export function MessageStream(): JSX.Element {
               onDraftChange={(draftText) => {
                 setEditing((prev) => prev ? { ...prev, draftText } : prev)
               }}
-              sentAsGoalItemId={sentAsGoalItemId}
               onCancelEdit={() => {
                 setEditing(null)
               }}
@@ -457,7 +422,6 @@ interface TurnBlockProps {
   editing: InlineEditState | null
   onStartEdit: (item: ConversationItem) => void
   onDraftChange: (draftText: string) => void
-  sentAsGoalItemId: string | null
   onCancelEdit: () => void
   onSubmitEdit: () => void
 }
@@ -479,7 +443,6 @@ function TurnBlock({
   editing,
   onStartEdit,
   onDraftChange,
-  sentAsGoalItemId,
   onCancelEdit,
   onSubmitEdit
 }: TurnBlockProps): JSX.Element {
@@ -508,7 +471,7 @@ function TurnBlock({
           triggerKind={showOrigin ? 'thread' : item.triggerKind}
           triggerLabel={showOrigin ? threadOrigin?.label : item.triggerLabel}
           triggerRefId={showOrigin ? threadOrigin?.refId : item.triggerRefId}
-          sentAsGoal={item.id === sentAsGoalItemId}
+          sentAsGoal={item.sentAsGoal === true}
           editable={canEditUserMessage && idx === userItems.length - 1 && isIdle && isTextOnlyEditableUserMessage(item)}
           onEdit={() => onStartEdit(item)}
           editing={editing?.turnId === turn.id && editing.itemId === item.id}

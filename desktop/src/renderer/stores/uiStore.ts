@@ -191,6 +191,8 @@ export interface UIState {
     }
     /** Approval policy chosen on Welcome before thread exists; applied after thread/read. */
     approvalPolicy?: Extract<ApprovalPolicyWire, 'default' | 'autoApprove'>
+    /** True when this first turn establishes the thread goal (durable "sent as goal"). */
+    sentAsGoal?: boolean
     createdAt: number
   } | null
   /** Background project thread click waiting for the target workspace's foreground thread list. */
@@ -287,6 +289,7 @@ interface UIStore extends UIState {
         output: ReasoningOutputWire
       }
       approvalPolicy?: Extract<ApprovalPolicyWire, 'default' | 'autoApprove'>
+      sentAsGoal?: boolean
     } | null
   ): void
   /** If pending matches threadId, return payload and clear; otherwise return null. */
@@ -305,6 +308,7 @@ interface UIStore extends UIState {
       output: ReasoningOutputWire
     }
     approvalPolicy?: Extract<ApprovalPolicyWire, 'default' | 'autoApprove'>
+    sentAsGoal?: boolean
   } | null
   /** Clear pending welcome turn when it targets the given thread (e.g. thread/read failed). */
   cancelPendingWelcomeTurnForThread(threadId: string): void
@@ -749,7 +753,7 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
         clearTimeout(timer)
       }
       set({ pendingWelcomeTurn: null, _pendingWelcomeTimer: null })
-      const { text, inputParts, images, files, mode, model, reasoning, approvalPolicy } = p
+      const { text, inputParts, images, files, mode, model, reasoning, approvalPolicy, sentAsGoal } = p
       return {
         text,
         ...(inputParts !== undefined ? { inputParts } : {}),
@@ -758,7 +762,8 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
         ...(mode !== undefined ? { mode } : {}),
         ...(model !== undefined ? { model } : {}),
         ...(reasoning !== undefined ? { reasoning } : {}),
-        ...(approvalPolicy !== undefined ? { approvalPolicy } : {})
+        ...(approvalPolicy !== undefined ? { approvalPolicy } : {}),
+        ...(sentAsGoal !== undefined ? { sentAsGoal } : {})
       }
     }
     return null

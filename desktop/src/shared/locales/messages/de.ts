@@ -2293,6 +2293,8 @@ export const MESSAGES_DE = {
   'slashSearch.skillsGroup': 'Fähigkeiten',
   'goal.panel.title': 'Ziel',
   'goal.objective.placeholder': 'Beschreiben Sie das Ziel dieses Threads',
+  'goal.compose.active': 'Zielmodus – Ihre Nachricht wird zum Thread-Ziel',
+  'goal.compose.exit': 'Zielmodus verlassen',
   'goal.action.set': 'Ziel setzen',
   'goal.action.replace': 'Ersetzen',
   'goal.action.pause': 'Pause',

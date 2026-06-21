@@ -20,9 +20,9 @@ import {
   mergeComposerFileAttachments
 } from '../../utils/composerAttachments'
 import { buildComposerInputParts } from '../../utils/composeInputParts'
-import { extractGoal, parseGoalSlashCommand, type GoalSlashCommand } from '../../utils/threadGoal'
+import { buildGoalObjective, extractGoal, parseGoalSlashCommand, type GoalSlashCommand } from '../../utils/threadGoal'
 import { CommandSearchPopover } from './CommandSearchPopover'
-import { GoalControlPopover } from './GoalControlPopover'
+import { GoalComposePill } from './GoalComposePill'
 import { FileSearchPopover } from './FileSearchPopover'
 import { AttachmentStrip } from './AttachmentStrip'
 import { ComposerAttachmentMenu } from './ComposerAttachmentMenu'
@@ -144,8 +144,7 @@ export function ConversationWelcome({
   const [slashDismissed, setSlashDismissed] = useState(false)
   const [skillQuery, setSkillQuery] = useState<string | null>(null)
   const [skillDismissed, setSkillDismissed] = useState(false)
-  const [goalPopoverOpen, setGoalPopoverOpen] = useState(false)
-  const [goalBusy, setGoalBusy] = useState(false)
+  const [goalComposeMode, setGoalComposeMode] = useState(false)
   /** Agent/plan before a thread exists; applied when the first thread is created. */
   const [welcomeMode, setWelcomeMode] = useState<ThreadMode>('agent')
   const [welcomeWorkspaceMode, setWelcomeWorkspaceMode] = useState<ComposerWorkspaceMode>('local')
@@ -669,6 +668,11 @@ export function ConversationWelcome({
     setWelcomeMode((m) => (m === 'agent' ? 'plan' : 'agent'))
   }, [])
 
+  const enterGoalComposeMode = useCallback((): void => {
+    setGoalComposeMode(true)
+    window.setTimeout(() => richRef.current?.focus(), 0)
+  }, [])
+
   const onSelectSystemAction = useCallback((actionId: string): void => {
     setSlashDismissed(true)
     clearSlashSystemInput()
@@ -681,8 +685,8 @@ export function ConversationWelcome({
       return
     }
     if (actionId !== 'goal') return
-    setGoalPopoverOpen(true)
-  }, [clearSlashSystemInput, toggleWelcomeMode])
+    enterGoalComposeMode()
+  }, [clearSlashSystemInput, enterGoalComposeMode, toggleWelcomeMode])
 
   const onSelectSkill = useCallback((skillName: string): void => {
     richRef.current?.insertSkillTag(skillName)
@@ -1006,7 +1010,6 @@ export function ConversationWelcome({
     }
 
     sendInFlightRef.current = true
-    setGoalBusy(true)
     setStarting(true)
     setMascotBounce((n) => n + 1)
     // A profile-backed thread runs its agent's fixed posture (no Plan/Agent mode).
@@ -1023,8 +1026,7 @@ export function ConversationWelcome({
 
       const goalResult = await window.api.appServer.sendRequest('thread/goal/set', {
         threadId: thread.id,
-        objective: trimmedObjective,
-        mode: 'upsertOrUpdate'
+        objective: trimmedObjective
       })
       const goal = extractGoal(goalResult)
       await startWelcomeAppBindings(thread.id)
@@ -1050,7 +1052,8 @@ export function ConversationWelcome({
         mode: capturedMode,
         approvalPolicy: capturedApprovalPolicy,
         model: capturedModel,
-        reasoning: capturedReasoning
+        reasoning: capturedReasoning,
+        sentAsGoal: true
       })
       setActiveThreadId(thread.id)
       useUIStore.getState().setActiveMainView('conversation')
@@ -1061,7 +1064,6 @@ export function ConversationWelcome({
       return false
     } finally {
       sendInFlightRef.current = false
-      setGoalBusy(false)
       setStarting(false)
     }
   }, [
@@ -1090,13 +1092,13 @@ export function ConversationWelcome({
       return false
     }
     if (command.kind === 'show') {
-      setGoalPopoverOpen(true)
+      enterGoalComposeMode()
       return true
     }
     if (command.kind === 'set') return createGoalBackedThread(command.objective)
     addToast(t('goal.toast.noCurrent'), 'warning')
     return false
-  }, [canUseThreadGoals, createGoalBackedThread, showGoalUnavailable, t])
+  }, [canUseThreadGoals, createGoalBackedThread, enterGoalComposeMode, showGoalUnavailable, t])
 
   const sendFromWelcome = useCallback(async (): Promise<void> => {
     const text = richRef.current?.getText() ?? ''
@@ -1112,6 +1114,17 @@ export function ConversationWelcome({
     }
     if (remoteWorkspace && (images.length > 0 || files.length > 0)) {
       addToast(t('input.remoteLocalFilesUnavailable'), 'warning')
+      return
+    }
+
+    if (goalComposeMode) {
+      const objective = buildGoalObjective({ text, segments, files, images })
+      if (!objective.trim()) {
+        addToast(t('goal.toast.emptyObjective'), 'warning')
+        return
+      }
+      const created = await createGoalBackedThread(objective)
+      if (created) setGoalComposeMode(false)
       return
     }
 
@@ -1207,6 +1220,8 @@ export function ConversationWelcome({
     clearWelcomeDraft,
     draftProjectKey,
     executeWelcomeGoalCommand,
+    goalComposeMode,
+    createGoalBackedThread,
     remoteWorkspace,
     t
   ])
@@ -1426,27 +1441,6 @@ export function ConversationWelcome({
               editor={
                 <div style={{ position: 'relative' }}>
                   <div style={{ position: 'relative', minWidth: 0 }}>
-                    <GoalControlPopover
-                      visible={goalPopoverOpen}
-                      goal={null}
-                      busy={goalBusy}
-                      onSetObjective={createGoalBackedThread}
-                      onPause={async () => {
-                        addToast(t('goal.toast.noCurrent'), 'warning')
-                        return false
-                      }}
-                      onResume={async () => {
-                        addToast(t('goal.toast.noCurrent'), 'warning')
-                        return false
-                      }}
-                      onClear={async () => {
-                        addToast(t('goal.toast.noCurrent'), 'warning')
-                        return false
-                      }}
-                      onDismiss={() => {
-                        setGoalPopoverOpen(false)
-                      }}
-                    />
                     <ProfilePickerPopover
                       visible={profilePickerOpen}
                       activeProfileId={selectedProfileId ?? undefined}
@@ -1500,9 +1494,11 @@ export function ConversationWelcome({
                       suppressSubmit={showMentionPopover || showSlashPopover || showSkillPopover || modelLoading}
                       onToggleModeShortcut={toggleWelcomeMode}
                       placeholder={
-                        isConnected
-                          ? t('welcomeComposer.placeholder.ask')
-                          : t('composer.placeholder.connecting')
+                        !isConnected
+                          ? t('composer.placeholder.connecting')
+                          : goalComposeMode
+                            ? t('goal.objective.placeholder')
+                            : t('welcomeComposer.placeholder.ask')
                       }
                       onSubmit={() => {
                         void sendFromWelcome()
@@ -1580,6 +1576,15 @@ export function ConversationWelcome({
                       shortcut={ACTION_SHORTCUTS.toggleMode}
                       title={t('composer.planPill.create')}
                       ariaLabel={t('composer.system.plan.disable')}
+                    />
+                  )}
+
+                  {canUseThreadGoals && goalComposeMode && (
+                    <GoalComposePill
+                      label={t('goal.system.label')}
+                      title={t('goal.compose.active')}
+                      ariaLabel={t('goal.compose.exit')}
+                      onExit={() => setGoalComposeMode(false)}
                     />
                   )}
                 </div>

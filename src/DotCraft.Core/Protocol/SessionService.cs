@@ -1157,7 +1157,8 @@ public sealed partial class SessionService(
                 TriggerLabel = triggerInfo?.Label,
                 TriggerRefId = triggerInfo?.RefId,
                 QueuedInputId = inputSnapshot?.QueuedInputId,
-                DeliveryBindingId = inputSnapshot?.DeliveryBindingId
+                DeliveryBindingId = inputSnapshot?.DeliveryBindingId,
+                SentAsGoal = inputSnapshot?.SentAsGoal
             }
         };
 

@@ -2292,6 +2292,8 @@ export const MESSAGES_FR = {
   'slashSearch.skillsGroup': 'Compétences',
   'goal.panel.title': 'Objectif',
   'goal.objective.placeholder': 'Décrivez l\'objectif de ce fil',
+  'goal.compose.active': 'Mode objectif — votre message deviendra l\'objectif du fil',
+  'goal.compose.exit': 'Quitter le mode objectif',
   'goal.action.set': 'Fixer un objectif',
   'goal.action.replace': 'Remplacer',
   'goal.action.pause': 'Pause',

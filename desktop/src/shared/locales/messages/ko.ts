@@ -2286,6 +2286,8 @@ export const MESSAGES_KO = {
   'slashSearch.skillsGroup': '기술',
   'goal.panel.title': '목표',
   'goal.objective.placeholder': '이 스레드의 목표를 설명하세요.',
+  'goal.compose.active': '목표 모드 — 보내는 내용이 스레드 목표가 됩니다',
+  'goal.compose.exit': '목표 모드 종료',
   'goal.action.set': '목표 설정',
   'goal.action.replace': '바꾸기',
   'goal.action.pause': '일시중지',

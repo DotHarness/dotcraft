@@ -2286,6 +2286,8 @@ export const MESSAGES_JA = {
   'slashSearch.skillsGroup': 'スキル',
   'goal.panel.title': '目標',
   'goal.objective.placeholder': 'このスレッドの目標を説明してください',
+  'goal.compose.active': '目標モード — 送信内容がスレッド目標になります',
+  'goal.compose.exit': '目標モードを終了',
   'goal.action.set': '目標を設定する',
   'goal.action.replace': '交換する',
   'goal.action.pause': '一時停止',

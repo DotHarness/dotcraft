@@ -347,6 +347,41 @@ public sealed class SessionServiceGoalTests : IDisposable
         Assert.Equal(thread.Id, result.Goal.ThreadId);
     }
 
+    [Fact]
+    public async Task SubmitInputAsync_PersistsSentAsGoal_OnUserMessageItem()
+    {
+        var chatClient = new RecordingUsageChatClient([
+            UsageUpdate(input: 1, output: 1),
+            new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("ok")])
+        ]);
+        await using var agentFactory = CreateAgentFactory(chatClient, config =>
+            config.Goals = new AppConfig.GoalsConfig { AutoContinueEnabled = false });
+        var service = CreateService(agentFactory, chatClient);
+        var thread = await service.CreateThreadAsync(new SessionIdentity
+        {
+            ChannelName = "test",
+            UserId = "user1",
+            WorkspacePath = _tempDir
+        });
+
+        // A turn flagged sentAsGoal must stamp the durable marker on the persisted user item;
+        // an ordinary turn must not (clients read this instead of matching objective text).
+        await DrainAsync(service.SubmitInputAsync(
+            thread.Id,
+            [new TextContent("Ship the thing")],
+            inputSnapshot: new SessionInputSnapshot { SentAsGoal = true }));
+        await DrainAsync(service.SubmitInputAsync(
+            thread.Id,
+            [new TextContent("looks good")]));
+
+        var loaded = await service.GetThreadAsync(thread.Id);
+        Assert.Equal(2, loaded.Turns.Count);
+        var goalPayload = Assert.IsType<UserMessagePayload>(loaded.Turns[0].Input!.Payload);
+        Assert.True(goalPayload.SentAsGoal);
+        var plainPayload = Assert.IsType<UserMessagePayload>(loaded.Turns[1].Input!.Payload);
+        Assert.NotEqual(true, plainPayload.SentAsGoal);
+    }
+
     private SessionService CreateService(AgentFactory agentFactory, IChatClient chatClient)
     {
         var defaultAgent = chatClient.AsAIAgent(new ChatClientAgentOptions());

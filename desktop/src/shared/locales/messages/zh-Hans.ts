@@ -1563,6 +1563,8 @@ export const MESSAGES_ZH_HANS = {
   'goal.system.label': '目标',
   'goal.panel.title': '目标',
   'goal.objective.placeholder': '描述此会话要持续完成的目标',
+  'goal.compose.active': '目标模式 — 发送的内容将成为会话目标',
+  'goal.compose.exit': '退出目标模式',
   'goal.action.set': '设置目标',
   'goal.action.replace': '替换',
   'goal.action.pause': '暂停',

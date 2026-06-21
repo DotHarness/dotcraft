@@ -607,8 +607,7 @@ describe('ConversationWelcome composer', () => {
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith('thread/goal/set', {
         threadId: 'thread-welcome',
-        objective: 'Build feature',
-        mode: 'upsertOrUpdate'
+        objective: 'Build feature'
       })
     })
     const startIndex = appServerSendRequest.mock.calls.findIndex((call) => call[0] === 'thread/start')
@@ -725,16 +724,17 @@ describe('ConversationWelcome composer', () => {
     fireEvent.input(textbox)
     fireEvent.click(await screen.findByRole('option', { name: /goal/i }))
 
-    fireEvent.change(await screen.findByPlaceholderText('Describe the goal for this thread'), {
-      target: { value: 'Panel goal' }
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'Set goal' }))
+    // Selecting Goal enters compose mode; the main composer becomes the objective.
+    expect(await screen.findByRole('button', { name: 'Exit goal mode' })).toBeInTheDocument()
+    const composer = screen.getByRole('textbox')
+    composer.textContent = 'Panel goal'
+    fireEvent.input(composer)
+    fireEvent.keyDown(composer, { key: 'Enter' })
 
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith('thread/goal/set', {
         threadId: 'thread-welcome',
-        objective: 'Panel goal',
-        mode: 'upsertOrUpdate'
+        objective: 'Panel goal'
       })
     })
     expect(appServerSendRequest.mock.calls.some((call) => call[0] === 'turn/start')).toBe(false)

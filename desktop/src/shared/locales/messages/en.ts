@@ -1618,6 +1618,8 @@ export const MESSAGES_EN = {
   'goal.system.label': 'Goal',
   'goal.panel.title': 'Goal',
   'goal.objective.placeholder': 'Describe the goal for this thread',
+  'goal.compose.active': 'Goal mode — your message becomes the thread goal',
+  'goal.compose.exit': 'Exit goal mode',
   'goal.action.set': 'Set goal',
   'goal.action.replace': 'Replace',
   'goal.action.pause': 'Pause',

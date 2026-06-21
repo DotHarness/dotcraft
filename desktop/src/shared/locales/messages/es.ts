@@ -2291,6 +2291,8 @@ export const MESSAGES_ES = {
   'slashSearch.skillsGroup': 'Habilidades',
   'goal.panel.title': 'Objetivo',
   'goal.objective.placeholder': 'Describe el objetivo de este hilo.',
+  'goal.compose.active': 'Modo objetivo: tu mensaje se convertirá en el objetivo del hilo',
+  'goal.compose.exit': 'Salir del modo objetivo',
   'goal.action.set': 'Establecer objetivo',
   'goal.action.replace': 'Reemplazar',
   'goal.action.pause': 'Pausa',

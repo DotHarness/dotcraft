@@ -112,6 +112,14 @@ public sealed record UserMessagePayload
     /// Only populated for app/social binding initiated turns.
     /// </summary>
     public string? DeliveryBindingId { get; init; }
+
+    /// <summary>
+    /// True when this user message established the thread goal — the objective was submitted
+    /// "as a goal". Durable provenance for the client "sent as goal" badge
+    /// (see specs/core/goal-design.md §7.5). Null/false for ordinary messages; clients must
+    /// not infer goal origin by matching message text to the current objective.
+    /// </summary>
+    public bool? SentAsGoal { get; init; }
 }
 
 /// <summary>
@@ -148,6 +156,12 @@ public sealed record SessionInputSnapshot
     /// Thread app binding id that should receive this turn's default assistant delivery.
     /// </summary>
     public string? DeliveryBindingId { get; init; }
+
+    /// <summary>
+    /// True when this submission establishes the thread goal; persisted onto the resulting
+    /// UserMessage payload as <see cref="UserMessagePayload.SentAsGoal"/>.
+    /// </summary>
+    public bool? SentAsGoal { get; init; }
 }
 
 /// <summary>
