@@ -231,6 +231,7 @@ export const MESSAGES_JA = {
   'error.action.restart': '再起動',
   'error.action.retry': '再試行',
   'error.details': 'エラー詳細',
+  'error.details.copy': 'エラー詳細をコピー',
   'error.copyAria': 'エラーをコピー',
   'error.copiedAria': 'エラーをコピーしました',
 

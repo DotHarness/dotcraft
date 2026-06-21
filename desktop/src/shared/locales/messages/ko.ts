@@ -231,6 +231,7 @@ export const MESSAGES_KO = {
   'error.action.restart': '다시 시작',
   'error.action.retry': '다시 시도',
   'error.details': '오류 세부 정보',
+  'error.details.copy': '오류 세부 정보 복사',
   'error.copyAria': '오류 복사',
   'error.copiedAria': '오류가 복사됨',
 
