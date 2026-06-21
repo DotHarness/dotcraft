@@ -234,6 +234,7 @@ export interface QueuedTurnInput {
   triggerKind?: Exclude<ConversationItem['triggerKind'], 'thread'>
   triggerLabel?: string
   triggerRefId?: string
+  sentAsGoal?: boolean
 }
 
 export interface UserMessageImageRef {

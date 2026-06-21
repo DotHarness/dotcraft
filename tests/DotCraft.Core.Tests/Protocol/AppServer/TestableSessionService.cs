@@ -1007,7 +1007,8 @@ internal sealed class TestableSessionService : ISessionService, IThreadAgentRefr
             TriggerKind = triggerInfo?.Kind,
             TriggerLabel = triggerInfo?.Label,
             TriggerRefId = triggerInfo?.RefId,
-            DeliveryBindingId = inputSnapshot?.DeliveryBindingId
+            DeliveryBindingId = inputSnapshot?.DeliveryBindingId,
+            SentAsGoal = inputSnapshot?.SentAsGoal
         };
         thread.QueuedInputs.Add(queued);
         thread.LastActiveAt = DateTimeOffset.UtcNow;

@@ -134,6 +134,38 @@ public sealed class SessionServiceGoalTests : IDisposable
     }
 
     [Fact]
+    public async Task SubmitInputAsync_AccountsBudgetLimitedGoalUsage()
+    {
+        var chatClient = new RecordingUsageChatClient([
+            UsageUpdate(input: 7, output: 3),
+            new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("ok")])
+        ]);
+        await using var agentFactory = CreateAgentFactory(chatClient, config =>
+            config.Goals = new AppConfig.GoalsConfig { AutoContinueEnabled = false });
+        var service = CreateService(agentFactory, chatClient);
+        var thread = await service.CreateThreadAsync(new SessionIdentity
+        {
+            ChannelName = "test",
+            UserId = "user1",
+            WorkspacePath = _tempDir
+        });
+        await service.SetThreadGoalAsync(
+            thread.Id,
+            new ThreadGoalUpdate { Objective = "Wrap up within budget", TokenBudget = 1, HasTokenBudget = true });
+        await service.SetThreadGoalAsync(
+            thread.Id,
+            new ThreadGoalUpdate { Status = ThreadGoalStatus.BudgetLimited },
+            GoalSetMode.UpdateOnly);
+
+        await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("wrap up")]));
+
+        var goal = await service.GetThreadGoalAsync(thread.Id);
+        Assert.NotNull(goal);
+        Assert.Equal(ThreadGoalStatus.BudgetLimited, goal.Status);
+        Assert.Equal(10, goal.TokensUsed.TotalTokens);
+    }
+
+    [Fact]
     public async Task SetThreadGoalAsync_ObjectiveUpdate_PreservesUsageAndCreatedAt()
     {
         var thread = await _service.CreateThreadAsync(new SessionIdentity
@@ -382,6 +414,89 @@ public sealed class SessionServiceGoalTests : IDisposable
         Assert.NotEqual(true, plainPayload.SentAsGoal);
     }
 
+    [Fact]
+    public async Task SetThreadGoalAsync_ExternalCompleteStopsInFlightAccounting()
+    {
+        var firstUsageAccounted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var continueStreaming = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var chatClient = new BlockingUsageChatClient(firstUsageAccounted, continueStreaming);
+        await using var agentFactory = CreateAgentFactory(chatClient, config =>
+            config.Goals = new AppConfig.GoalsConfig { AutoContinueEnabled = false });
+        var service = CreateService(agentFactory, chatClient);
+        var thread = await service.CreateThreadAsync(new SessionIdentity
+        {
+            ChannelName = "test",
+            UserId = "user1",
+            WorkspacePath = _tempDir
+        });
+        await service.SetThreadGoalAsync(
+            thread.Id,
+            new ThreadGoalUpdate { Objective = "Stop attribution on completion" });
+
+        var drainTask = Task.Run(async () =>
+            await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("work")])));
+        await firstUsageAccounted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var completed = await service.SetThreadGoalAsync(
+            thread.Id,
+            new ThreadGoalUpdate { Status = ThreadGoalStatus.Complete },
+            GoalSetMode.UpdateOnly);
+        Assert.Equal(5, completed.TokensUsed.TotalTokens);
+
+        continueStreaming.SetResult();
+        await drainTask.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var goal = await service.GetThreadGoalAsync(thread.Id);
+        Assert.NotNull(goal);
+        Assert.Equal(ThreadGoalStatus.Complete, goal.Status);
+        Assert.Equal(5, goal.TokensUsed.TotalTokens);
+    }
+
+    [Fact]
+    public async Task SetThreadGoalAsync_ExternalMutationDoesNotAccountStoppedGoal()
+    {
+        var firstUsageAccounted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var continueStreaming = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var chatClient = new BlockingUsageChatClient(firstUsageAccounted, continueStreaming);
+        await using var agentFactory = CreateAgentFactory(chatClient, config =>
+            config.Goals = new AppConfig.GoalsConfig { AutoContinueEnabled = false });
+        var service = CreateService(agentFactory, chatClient);
+        var thread = await service.CreateThreadAsync(new SessionIdentity
+        {
+            ChannelName = "test",
+            UserId = "user1",
+            WorkspacePath = _tempDir
+        });
+        await service.SetThreadGoalAsync(
+            thread.Id,
+            new ThreadGoalUpdate { Objective = "Do not account stopped progress" });
+
+        var drainTask = Task.Run(async () =>
+            await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("work")])));
+        await firstUsageAccounted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var paused = await service.SetThreadGoalAsync(
+            thread.Id,
+            new ThreadGoalUpdate { Status = ThreadGoalStatus.Paused },
+            GoalSetMode.UpdateOnly);
+        Assert.Equal(5, paused.TokensUsed.TotalTokens);
+
+        var updated = await service.SetThreadGoalAsync(
+            thread.Id,
+            new ThreadGoalUpdate { Objective = "Still paused" },
+            GoalSetMode.UpdateOnly);
+        Assert.Equal(ThreadGoalStatus.Paused, updated.Status);
+        Assert.Equal(5, updated.TokensUsed.TotalTokens);
+
+        continueStreaming.SetResult();
+        await drainTask.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var goal = await service.GetThreadGoalAsync(thread.Id);
+        Assert.NotNull(goal);
+        Assert.Equal(ThreadGoalStatus.Paused, goal.Status);
+        Assert.Equal(5, goal.TokensUsed.TotalTokens);
+    }
+
     private SessionService CreateService(AgentFactory agentFactory, IChatClient chatClient)
     {
         var defaultAgent = chatClient.AsAIAgent(new ChatClientAgentOptions());
@@ -461,6 +576,35 @@ public sealed class SessionServiceGoalTests : IDisposable
             foreach (var update in updates)
                 yield return update;
             await Task.CompletedTask;
+        }
+
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+
+        public void Dispose()
+        {
+        }
+    }
+
+    private sealed class BlockingUsageChatClient(
+        TaskCompletionSource firstUsageAccounted,
+        TaskCompletionSource continueStreaming) : IChatClient
+    {
+        public Task<ChatResponse> GetResponseAsync(
+            IEnumerable<ChatMessage> chatMessages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ChatResponse([new ChatMessage(ChatRole.Assistant, [new TextContent("ok")])]));
+
+        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+            IEnumerable<ChatMessage> chatMessages,
+            ChatOptions? options = null,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            yield return UsageUpdate(input: 3, output: 2);
+            firstUsageAccounted.SetResult();
+            await continueStreaming.Task.WaitAsync(cancellationToken);
+            yield return UsageUpdate(input: 6, output: 4);
+            yield return new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("ok")]);
         }
 
         public object? GetService(Type serviceType, object? serviceKey = null) => null;

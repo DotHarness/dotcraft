@@ -34,9 +34,11 @@ public sealed partial class SessionService
             var thread = await owner.GetOrLoadThreadAsync(normalizedThreadId, ct);
             ThrowIfEphemeralThread(thread);
             var existing = await owner.Persistence.GetThreadGoalAsync(normalizedThreadId, ct);
+            await FlushInFlightAccountingForExternalMutationAsync(normalizedThreadId, existing, ct);
 
             var next = BuildThreadGoal(normalizedThreadId, existing, update, mode);
             await owner.Persistence.UpsertThreadGoalAsync(next, ct);
+            ResetInFlightSnapshotsAfterExternalMutation(normalizedThreadId, existing?.GoalId, next);
             owner.PublishGoalUpdated(next, null);
             if (next.Status == ThreadGoalStatus.Active && IsThreadIdleForContinuation(thread))
                 _ = MaybeContinueIfIdleAsync(normalizedThreadId, CancellationToken.None);
@@ -49,9 +51,14 @@ public sealed partial class SessionService
             var normalizedThreadId = NormalizeRequiredThreadId(threadId);
             var thread = await owner.GetOrLoadThreadAsync(normalizedThreadId, ct);
             ThrowIfEphemeralThread(thread);
+            var existing = await owner.Persistence.GetThreadGoalAsync(normalizedThreadId, ct);
+            await FlushInFlightAccountingForExternalMutationAsync(normalizedThreadId, existing, ct);
             var cleared = await owner.Persistence.DeleteThreadGoalAsync(normalizedThreadId, ct);
             if (cleared)
+            {
+                ResetInFlightSnapshotsAfterExternalMutation(normalizedThreadId, existing?.GoalId, next: null);
                 owner.PublishGoalCleared(normalizedThreadId);
+            }
             return new ThreadGoalClearResult(cleared);
         }
 
@@ -66,6 +73,9 @@ public sealed partial class SessionService
             var snapshot = turnRuntime?.GoalSnapshot;
             if (snapshot == null)
                 return null;
+
+            if (turnRuntime != null)
+                turnRuntime.LatestGoalUsage = latestTurnUsage;
 
             var delta = DiffUsage(latestTurnUsage, snapshot.AccountedUsage);
             if (!HasUsage(delta))
@@ -95,6 +105,81 @@ public sealed partial class SessionService
 
             return outcome.Goal;
         }
+
+        private async Task FlushInFlightAccountingForExternalMutationAsync(
+            string threadId,
+            ThreadGoal? existing,
+            CancellationToken ct)
+        {
+            if (existing == null
+                || !owner._runtimeRegistry.TryGetRuntime(threadId, out var runtime))
+            {
+                return;
+            }
+
+            foreach (var (turnId, turnRuntime) in runtime.Turns)
+            {
+                var snapshot = turnRuntime.GoalSnapshot;
+                if (snapshot == null
+                    || !string.Equals(snapshot.GoalId, existing.GoalId, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                var latestUsage = turnRuntime.LatestGoalUsage ?? snapshot.AccountedUsage;
+                var delta = DiffUsage(latestUsage, snapshot.AccountedUsage);
+                var now = DateTimeOffset.UtcNow;
+                var timeDeltaSeconds = (long)Math.Max(0, (now - snapshot.LastAccountedAt).TotalSeconds);
+                if (!HasUsage(delta) && timeDeltaSeconds == 0)
+                    continue;
+
+                var outcome = await owner.Persistence.AccountThreadGoalUsageAsync(
+                    threadId,
+                    snapshot.GoalId,
+                    delta,
+                    timeDeltaSeconds,
+                    GoalAccountingMode.ActiveOnly,
+                    ct);
+                if (outcome is { Updated: true, Goal: { } updated })
+                {
+                    turnRuntime.GoalSnapshot = snapshot.WithAccounted(latestUsage, now);
+                    owner.PublishGoalUpdated(updated, turnId);
+                }
+            }
+        }
+
+        private void ResetInFlightSnapshotsAfterExternalMutation(
+            string threadId,
+            string? previousGoalId,
+            ThreadGoal? next)
+        {
+            if (previousGoalId == null
+                || !owner._runtimeRegistry.TryGetRuntime(threadId, out var runtime))
+            {
+                return;
+            }
+
+            foreach (var turnRuntime in runtime.Turns.Values)
+            {
+                var snapshot = turnRuntime.GoalSnapshot;
+                if (snapshot == null
+                    || !string.Equals(snapshot.GoalId, previousGoalId, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                if (CanContinueAccountingSnapshot(snapshot, next))
+                    continue;
+
+                turnRuntime.GoalSnapshot = null;
+                turnRuntime.LatestGoalUsage = new TokenUsageInfo();
+            }
+        }
+
+        private static bool CanContinueAccountingSnapshot(GoalTurnSnapshot snapshot, ThreadGoal? next) =>
+            next != null
+            && string.Equals(next.GoalId, snapshot.GoalId, StringComparison.Ordinal)
+            && next.Status is ThreadGoalStatus.Active or ThreadGoalStatus.BudgetLimited;
 
         public async Task PauseActiveForInterruptAsync(TurnKey turnKey, CancellationToken ct)
         {

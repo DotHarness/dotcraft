@@ -584,6 +584,27 @@ public sealed class AppServerTurnTests : IDisposable
     }
 
     [Fact]
+    public async Task TurnEnqueue_PreservesSentAsGoal()
+    {
+        var thread = await _h.Service.CreateThreadAsync(_h.Identity);
+
+        var msg = _h.BuildRequest(AppServerMethods.TurnEnqueue, new
+        {
+            threadId = thread.Id,
+            input = new object[] { new { type = "text", text = "Ship the goal" } },
+            sentAsGoal = true
+        });
+        await _h.ExecuteRequestAsync(msg);
+
+        var doc = await _h.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(doc);
+        var result = doc.RootElement.GetProperty("result");
+        Assert.True(result.GetProperty("queuedInput").GetProperty("sentAsGoal").GetBoolean());
+        var queued = Assert.Single(result.GetProperty("queuedInputs").EnumerateArray());
+        Assert.True(queued.GetProperty("sentAsGoal").GetBoolean());
+    }
+
+    [Fact]
     public async Task TurnSteer_MarksQueuedInputGuidancePending()
     {
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);

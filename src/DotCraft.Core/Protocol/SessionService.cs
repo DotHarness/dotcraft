@@ -1721,7 +1721,7 @@ public sealed partial class SessionService(
                 if (GoalsEnabled)
                 {
                     threadGoalForContext = await persistence.GetThreadGoalAsync(threadId, executionCt);
-                    if (threadGoalForContext is { Status: ThreadGoalStatus.Active }
+                    if (threadGoalForContext is { Status: ThreadGoalStatus.Active or ThreadGoalStatus.BudgetLimited }
                         && turnMode != AgentMode.Plan
                         && thread.Source.SubAgent == null)
                     {

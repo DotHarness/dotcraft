@@ -756,6 +756,8 @@ export function InputComposer({
   const sendGoalFromComposer = useCallback(async (): Promise<void> => {
     const text = richRef.current?.getText() ?? ''
     const segments = richRef.current?.getSegments() ?? []
+    const capturedFiles = [...files]
+    const capturedImages = [...images]
     const objective = buildGoalObjective({ text, segments, files, images })
     if (!objective.trim()) {
       addToast(t('goal.toast.emptyObjective'), 'warning')
@@ -770,15 +772,13 @@ export function InputComposer({
     try {
       const ok = await setGoalObjective(objective)
       if (!ok) return
-      setGoalComposeMode(false)
-      setMascotBounce((n) => n + 1)
-      resetComposerInput()
       if (isBusyForInput) {
         const { inputParts } = buildComposerInputParts({ text: objective })
         await window.api.appServer.sendRequest('turn/enqueue', {
           threadId,
           input: inputParts,
-          sender: undefined
+          sender: undefined,
+          sentAsGoal: true
         })
       } else {
         await startTurnWithOptimisticUI({
@@ -792,11 +792,17 @@ export function InputComposer({
           fallbackThreadName: t('toast.imageMessage'),
           fileFallbackThreadName: t('toast.fileReferenceMessage'),
           attachmentFallbackThreadName: t('toast.attachmentMessage'),
-          throwOnStartError: false,
+          throwOnStartError: true,
           sentAsGoal: true
         })
       }
+      setGoalComposeMode(false)
+      setMascotBounce((n) => n + 1)
+      resetComposerInput()
     } catch (err) {
+      richRef.current?.setContent({ text, segments })
+      setFiles(capturedFiles)
+      setImages(capturedImages)
       addToast(err instanceof Error ? err.message : String(err), 'error')
     } finally {
       sendInFlightRef.current = false

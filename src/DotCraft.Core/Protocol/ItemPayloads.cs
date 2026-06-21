@@ -207,6 +207,12 @@ public sealed record QueuedTurnInput
     /// Thread app binding id that should receive this queued input's default assistant delivery.
     /// </summary>
     public string? DeliveryBindingId { get; init; }
+
+    /// <summary>
+    /// True when this queued input was originally submitted as the thread goal objective.
+    /// Preserved into the future UserMessage payload when dequeued.
+    /// </summary>
+    public bool? SentAsGoal { get; init; }
 }
 
 /// <summary>

@@ -65,6 +65,12 @@ public sealed class TurnEnqueueParams
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public SenderContext? Sender { get; set; }
+
+    /// <summary>
+    /// True when this queued submission establishes the thread goal.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? SentAsGoal { get; set; }
 }
 
 public sealed class TurnEnqueueResponse
