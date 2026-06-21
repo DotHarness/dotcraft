@@ -148,7 +148,7 @@ Errors use this shape:
 }
 ```
 
-Common error codes include `unauthorized`, `workspaceNotFound`, `workspaceLocked`, `appServerStartFailed`, `appServerUnhealthy`, `portUnavailable`, and `invalidNotification`.
+Common error codes include `unauthorized`, `workspaceNotFound`, `workspaceLocked`, `appServerStartFailed`, `appServerUnhealthy`, `portUnavailable`, `invalidNotification`, and `hubInternalError`.
 
 ---
 

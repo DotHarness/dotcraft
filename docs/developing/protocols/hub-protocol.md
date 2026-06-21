@@ -319,6 +319,7 @@ Common error codes:
 | `appServerUnhealthy` | 500 | Managed AppServer failed readiness or health checks. |
 | `portUnavailable` | 500 | Hub could not allocate a required local port. |
 | `invalidNotification` | 400 | Notification request is invalid. |
+| `hubInternalError` | 500 | Hub encountered an unexpected internal error. |
 
 ## Client Recommendations
 

@@ -54,6 +54,26 @@ public sealed class ManagedAppServerRegistryTests : IDisposable
     }
 
     [Fact]
+    public async Task List_RefreshesPersistedStartingRecordWithoutLiveLockToExited()
+    {
+        var registryPath = Path.Combine(_tempDir, "hub", "appservers.json");
+        var workspace = CreateWorkspace("starting-workspace");
+        var store = new HubAppServerRegistryStore(registryPath);
+        store.Save([CreateRegistryRecord(workspace, HubAppServerStates.Starting)]);
+
+        await using var registry = new ManagedAppServerRegistry(
+            new HubEventBus(),
+            "http://127.0.0.1:43000",
+            "hub-token",
+            registryPath: registryPath);
+
+        Assert.Empty(registry.List());
+        var persisted = Assert.Single(store.Load().Values);
+        Assert.Equal(HubAppServerStates.Exited, persisted.State);
+        Assert.False(persisted.StartedByHub);
+    }
+
+    [Fact]
     public async Task List_ReturnsPersistedWorkspaceWhenLockOwnerIsStillRunning()
     {
         var registryPath = Path.Combine(_tempDir, "hub", "appservers.json");
@@ -217,6 +237,44 @@ public sealed class ManagedAppServerRegistryTests : IDisposable
         Assert.Equal(12345, inspected.Pid);
         Assert.Equal(42, inspected.ExitCode);
         Assert.Equal("probe stderr", inspected.RecentStderr);
+    }
+
+    [Fact]
+    public async Task Ensure_DoesNotFailWhenRegistryPersistenceFails()
+    {
+        var workspace = CreateWorkspace("persistence-failure-workspace");
+        var blockedParent = Path.Combine(_tempDir, "blocked-registry-parent");
+        File.WriteAllText(blockedParent, "not a directory");
+        var registryPath = Path.Combine(blockedParent, "appservers.json");
+        var process = new FakeManagedAppServerProcess(
+            processId: Environment.ProcessId,
+            exitCode: null,
+            recentStderr: string.Empty);
+
+        await using var registry = new ManagedAppServerRegistry(
+            new HubEventBus(),
+            "http://127.0.0.1:43000",
+            "hub-token",
+            registryPath: registryPath)
+        {
+            StartAppServerProcessAsync = (_, canonical, _, _) =>
+            {
+                var lockPath = AppServerWorkspaceLock.GetLockFilePath(Path.Combine(canonical, ".craft"));
+                WriteWorkspaceLock(lockPath, canonical, pid: Environment.ProcessId, wsUrl: "ws://127.0.0.1:43123/ws?token=x");
+                return Task.FromResult<IManagedAppServerProcess>(process);
+            },
+            ManagedWebSocketProbeAsync = (_, _, _) => Task.CompletedTask
+        };
+
+        var response = await registry.EnsureAsync(new EnsureAppServerRequest
+        {
+            WorkspacePath = workspace,
+            StartIfMissing = true
+        }, CancellationToken.None);
+
+        Assert.Equal(HubAppServerStates.Running, response.State);
+        Assert.Equal(Environment.ProcessId, response.Pid);
+        Assert.True(response.StartedByHub);
     }
 
     [Fact]

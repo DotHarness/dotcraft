@@ -130,6 +130,41 @@ describe('HubClient AppServer management', () => {
     })
   })
 
+  it('uses structured Hub internal error messages instead of generic HTTP 500 text', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ ok: true })
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        json: async () => ({
+          error: {
+            code: 'hubInternalError',
+            message: 'Hub encountered an unexpected internal error.',
+            details: {
+              type: 'IOException'
+            }
+          }
+        })
+      })
+    vi.stubGlobal('fetch', fetchMock)
+
+    let thrown: unknown
+    try {
+      await new HubClient().ensureAppServer('E:/repo')
+    } catch (error) {
+      thrown = error
+    }
+
+    expect(thrown).toMatchObject({
+      code: 'hubInternalError',
+      details: expect.objectContaining({
+        type: 'IOException'
+      }),
+      message: expect.stringContaining('Hub encountered an unexpected internal error.')
+    })
+    expect((thrown as Error).message).not.toContain('Hub request failed with HTTP 500.')
+  })
+
   it('restarts a live Hub when dev mode expects a different binary', async () => {
     const expectedBinary = 'C:/repo/build/release/dotcraft.exe'
     let hubPid = 1234

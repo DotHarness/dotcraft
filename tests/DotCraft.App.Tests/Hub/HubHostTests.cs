@@ -78,6 +78,35 @@ public sealed class HubHostTests : IDisposable
     }
 
     [Fact]
+    public async Task RunAsync_UnexpectedEndpointErrorsReturnHubErrorResponse()
+    {
+        var paths = HubPaths.Resolve(_userProfile);
+        await using var host = new HubHost(new HubConfig { Port = 0 }, paths);
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+
+        var runTask = host.RunAsync(cts.Token);
+        var info = await WaitForLockAsync(paths.LockFilePath, runTask, cts.Token);
+
+        using var http = new HttpClient();
+        using var request = AuthorizedPost(info, $"{info.ApiBaseUrl}/v1/appservers/ensure", new
+        {
+            workspacePath = "\0",
+            startIfMissing = false
+        });
+
+        var response = await http.SendAsync(request, cts.Token);
+        var body = await response.Content.ReadAsStringAsync(cts.Token);
+        Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
+        using var doc = JsonDocument.Parse(body);
+        var error = doc.RootElement.GetProperty("error");
+        Assert.Equal("hubInternalError", error.GetProperty("code").GetString());
+        Assert.Equal("Hub encountered an unexpected internal error.", error.GetProperty("message").GetString());
+
+        await ShutdownAsync(http, info, cts.Token);
+        await runTask.WaitAsync(cts.Token);
+    }
+
+    [Fact]
     public async Task RunAsync_NotificationRequestEmitsSseEvent()
     {
         var paths = HubPaths.Resolve(_userProfile);

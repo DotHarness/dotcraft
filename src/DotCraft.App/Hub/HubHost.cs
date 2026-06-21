@@ -247,6 +247,10 @@ public sealed class HubHost : IDotCraftHost
         {
             return ToErrorResult(ex);
         }
+        catch (Exception ex)
+        {
+            return ToUnexpectedErrorResult(ex);
+        }
     }
 
     private static async Task<IResult> ProtectedAsync(Func<Task<IResult>> action)
@@ -259,6 +263,10 @@ public sealed class HubHost : IDotCraftHost
         {
             return ToErrorResult(ex);
         }
+        catch (Exception ex)
+        {
+            return ToUnexpectedErrorResult(ex);
+        }
     }
 
     private static IResult ToErrorResult(HubProtocolException ex)
@@ -266,6 +274,15 @@ public sealed class HubHost : IDotCraftHost
             new HubErrorResponse(new HubError(ex.Code, ex.Message, ex.Details)),
             HubJson.Options,
             statusCode: ex.StatusCode);
+
+    private static IResult ToUnexpectedErrorResult(Exception ex)
+        => Results.Json(
+            new HubErrorResponse(new HubError(
+                "hubInternalError",
+                "Hub encountered an unexpected internal error.",
+                new { type = ex.GetType().Name })),
+            HubJson.Options,
+            statusCode: StatusCodes.Status500InternalServerError);
 
     private static string NormalizeHost(string host)
         => string.IsNullOrWhiteSpace(host) ? "127.0.0.1" : host.Trim();

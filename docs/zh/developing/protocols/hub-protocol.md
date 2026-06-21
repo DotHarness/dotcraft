@@ -319,6 +319,7 @@ data: {"kind":"appserver.running","at":"2026-04-30T06:31:00Z","workspacePath":"/
 | `appServerUnhealthy` | 500 | 托管 AppServer 未通过就绪检查或健康检查。 |
 | `portUnavailable` | 500 | Hub 无法分配需要的本地端口。 |
 | `invalidNotification` | 400 | 通知请求无效。 |
+| `hubInternalError` | 500 | Hub 遇到未预期的内部错误。 |
 
 ## 客户端实现建议
 
