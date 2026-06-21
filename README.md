@@ -126,11 +126,10 @@ Have a service of your own? With the DotCraft SDK you can turn it into an App an
 
 *Bring the agent to the chat apps you use, on the model you already pay for.*
 
-#### Cross Channels — One Agent Across Your Chat Apps
-
-![DotCraft Channels configuration and conversations](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/channels.gif)
-
-Run the same agent as a bot in QQ, WeCom, Feishu, Telegram, or WeChat — sharing one memory, skill set, and approval policy.
+| Cross Channels — One Agent Across Your Chat Apps | Channel Handoff — Continue a Desktop Conversation in Chat |
+|---|---|
+| ![DotCraft Channels configuration and conversations](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/channels.gif) | ![DotCraft Channel Handoff](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/channel-handoff.gif) |
+| Run the same agent as a bot in QQ, WeCom, Feishu, Telegram, or WeChat — sharing one memory, skill set, and approval policy. | Hand off a Desktop conversation to a connected social channel, then keep talking in the same thread. |
 
 [Learn more →](https://www.dotcraft.net/features/entry-points/channels)
 

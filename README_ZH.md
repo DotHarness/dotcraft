@@ -126,11 +126,10 @@ DotCraft 的能力，按它帮你做什么来归类。
 
 *把 Agent 带进你常用的聊天软件，并复用你已有的模型订阅。*
 
-#### Cross Channels — 同一个 Agent，进驻你的各个聊天软件
-
-![DotCraft Channels configuration and conversations](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/channels.gif)
-
-让同一个 Agent 作为机器人进驻 QQ、企业微信、飞书、Telegram、微信——共用同一套记忆、技能与审批策略。
+| Cross Channels — 同一个 Agent，进驻你的各个聊天软件 | Channel Handoff — 把 Desktop 会话接续到聊天里 |
+|---|---|
+| ![DotCraft Channels configuration and conversations](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/channels.gif) | ![DotCraft 社交渠道接续](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/channel-handoff.gif) |
+| 让同一个 Agent 作为机器人进驻 QQ、企业微信、飞书、Telegram、微信——共用同一套记忆、技能与审批策略。 | 把 Desktop 会话交接到已连接的社交渠道，然后在同一条 Thread 里继续聊。 |
 
 [了解更多 →](https://www.dotcraft.net/zh/features/entry-points/channels)
 
