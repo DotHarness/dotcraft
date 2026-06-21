@@ -49,18 +49,13 @@ function makeWorktreeThread(id: string, overrides: Partial<Thread> = {}): Thread
 function makeGoal(threadId: string, overrides: Partial<ThreadGoal> = {}): ThreadGoal {
   return {
     threadId,
-    goalId: `goal-${threadId}`,
     objective: `Goal ${threadId}`,
     status: 'active',
     tokenBudget: null,
-    tokensUsed: {
-      inputTokens: 0,
-      outputTokens: 0,
-      totalTokens: 0
-    },
+    tokensUsed: 0,
     timeUsedSeconds: 0,
-    createdAt: '2024-01-01T00:00:00Z',
-    updatedAt: '2024-01-01T00:00:00Z',
+    createdAt: 1704067200,
+    updatedAt: 1704067200,
     ...overrides
   }
 }

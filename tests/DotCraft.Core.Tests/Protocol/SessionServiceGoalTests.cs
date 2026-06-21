@@ -134,6 +134,73 @@ public sealed class SessionServiceGoalTests : IDisposable
     }
 
     [Fact]
+    public async Task SetThreadGoalAsync_ObjectiveUpdate_PreservesUsageAndCreatedAt()
+    {
+        var thread = await _service.CreateThreadAsync(new SessionIdentity
+        {
+            ChannelName = "test",
+            UserId = "user1",
+            WorkspacePath = _tempDir
+        });
+        var original = await _service.SetThreadGoalAsync(
+            thread.Id,
+            new ThreadGoalUpdate { Objective = "First objective", TokenBudget = 100, HasTokenBudget = true });
+        await _store.AccountThreadGoalUsageAsync(
+            thread.Id,
+            original.GoalId,
+            new TokenUsageInfo { InputTokens = 8, TotalTokens = 8 },
+            2,
+            GoalAccountingMode.ActiveOnly);
+
+        var updated = await _service.SetThreadGoalAsync(
+            thread.Id,
+            new ThreadGoalUpdate { Objective = "Updated objective" });
+
+        Assert.Equal(original.GoalId, updated.GoalId);
+        Assert.Equal(original.CreatedAt, updated.CreatedAt);
+        Assert.Equal("Updated objective", updated.Objective);
+        Assert.Equal(8, updated.TokensUsed.TotalTokens);
+        Assert.Equal(2, updated.TimeUsedSeconds);
+        Assert.Equal(100, updated.TokenBudget);
+    }
+
+    [Fact]
+    public async Task SetThreadGoalAsync_CreateOnly_FailsUntilExistingGoalIsComplete()
+    {
+        var thread = await _service.CreateThreadAsync(new SessionIdentity
+        {
+            ChannelName = "test",
+            UserId = "user1",
+            WorkspacePath = _tempDir
+        });
+        var first = await _service.SetThreadGoalAsync(
+            thread.Id,
+            new ThreadGoalUpdate { Objective = "First objective" },
+            GoalSetMode.CreateOnly);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            _service.SetThreadGoalAsync(
+                thread.Id,
+                new ThreadGoalUpdate { Objective = "Second objective" },
+                GoalSetMode.CreateOnly));
+
+        await _service.SetThreadGoalAsync(
+            thread.Id,
+            new ThreadGoalUpdate { Status = ThreadGoalStatus.Complete },
+            GoalSetMode.UpdateOnly);
+
+        var second = await _service.SetThreadGoalAsync(
+            thread.Id,
+            new ThreadGoalUpdate { Objective = "Second objective" },
+            GoalSetMode.CreateOnly);
+
+        Assert.NotEqual(first.GoalId, second.GoalId);
+        Assert.Equal("Second objective", second.Objective);
+        Assert.Equal(ThreadGoalStatus.Active, second.Status);
+        Assert.Equal(0, second.TokensUsed.TotalTokens);
+    }
+
+    [Fact]
     public async Task GoalTools_AreSchemaStableAcrossAgentAndPlanModes()
     {
         var memory = new MemoryStore(_tempDir);

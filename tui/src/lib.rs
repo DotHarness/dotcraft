@@ -2932,7 +2932,7 @@ async fn show_current_goal(wire: &mut WireClient, state: &mut AppState) -> Resul
 
 fn format_goal_summary(prefix: &str, goal: &wire::types::ThreadGoal) -> String {
     let usage = match goal.token_budget {
-        Some(budget) => format!("{}/{} tokens", goal.tokens_used.total_tokens, budget),
+        Some(budget) => format!("{}/{} tokens", goal.tokens_used, budget),
         None => format!("{}s elapsed", goal.time_used_seconds),
     };
     format!(

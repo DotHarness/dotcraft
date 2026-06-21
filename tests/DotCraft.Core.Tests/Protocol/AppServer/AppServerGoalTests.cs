@@ -1,5 +1,6 @@
 using DotCraft.Protocol;
 using DotCraft.Protocol.AppServer;
+using System.Text.Json;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 
@@ -46,9 +47,28 @@ public sealed class AppServerGoalTests : IDisposable
         Assert.Equal("Finish AppServer goal M1", goal.GetProperty("objective").GetString());
         Assert.Equal("active", goal.GetProperty("status").GetString());
         Assert.Equal(9000, goal.GetProperty("tokenBudget").GetInt64());
+        Assert.False(goal.TryGetProperty("goalId", out _));
+        Assert.Equal(JsonValueKind.Number, goal.GetProperty("tokensUsed").ValueKind);
+        Assert.Equal(0, goal.GetProperty("tokensUsed").GetInt64());
+        Assert.Equal(JsonValueKind.Number, goal.GetProperty("createdAt").ValueKind);
+        Assert.Equal(JsonValueKind.Number, goal.GetProperty("updatedAt").ValueKind);
 
         AppServerTestHarness.AssertIsNotification(notification, AppServerMethods.ThreadGoalUpdated);
         Assert.Equal(thread.Id, notification.RootElement.GetProperty("params").GetProperty("threadId").GetString());
+        Assert.False(notification.RootElement.GetProperty("params").GetProperty("goal").TryGetProperty("goalId", out _));
+    }
+
+    [Fact]
+    public async Task ThreadGoalSet_RejectsLegacyMode()
+    {
+        var thread = await _h.Service.CreateThreadAsync(_h.Identity);
+
+        await _h.ExecuteRequestAsync(_h.BuildRequest(
+            AppServerMethods.ThreadGoalSet,
+            new { threadId = thread.Id, objective = "Legacy mode", mode = "replaceExisting" }));
+
+        var response = await _h.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
     }
 
     [Fact]

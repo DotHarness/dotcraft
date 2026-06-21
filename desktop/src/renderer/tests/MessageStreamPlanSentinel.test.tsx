@@ -34,20 +34,16 @@ function makeRunningTurn(): ReturnType<typeof useConversationStore.getState>['tu
 }
 
 function makeGoal(threadId: string, objective: string, createdAt: string): ThreadGoal {
+  const createdAtSeconds = Math.trunc(Date.parse(createdAt) / 1000)
   return {
     threadId,
-    goalId: `goal-${threadId}`,
     objective,
     status: 'active',
     tokenBudget: null,
-    tokensUsed: {
-      inputTokens: 0,
-      outputTokens: 0,
-      totalTokens: 0
-    },
+    tokensUsed: 0,
     timeUsedSeconds: 0,
-    createdAt,
-    updatedAt: createdAt
+    createdAt: createdAtSeconds,
+    updatedAt: createdAtSeconds
   }
 }
 

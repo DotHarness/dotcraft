@@ -213,7 +213,7 @@ public sealed class StateRuntime
                     thread_id TEXT PRIMARY KEY,
                     goal_id TEXT NOT NULL,
                     objective TEXT NOT NULL,
-                    status TEXT NOT NULL CHECK(status IN ('active', 'paused', 'budget_limited', 'complete')),
+                    status TEXT NOT NULL CHECK(status IN ('active', 'paused', 'blocked', 'usage_limited', 'budget_limited', 'complete')),
                     token_budget INTEGER,
                     input_tokens INTEGER NOT NULL DEFAULT 0,
                     output_tokens INTEGER NOT NULL DEFAULT 0,
@@ -475,10 +475,72 @@ public sealed class StateRuntime
             EnsureColumn(connection, "thread_context_usage", "anchor_boundary", "TEXT");
             EnsureColumn(connection, "thread_context_usage", "usage_source", "TEXT");
             EnsureColumn(connection, "thread_context_usage", "usage_is_estimate", "INTEGER NOT NULL DEFAULT 0");
+            EnsureThreadGoalsStatusConstraint(connection);
             BackfillTraceSessionSummaryMetadata(connection);
 
             _initialized = true;
         }
+    }
+
+    private static void EnsureThreadGoalsStatusConstraint(SqliteConnection connection)
+    {
+        string? createSql;
+        using (var schema = connection.CreateCommand())
+        {
+            schema.CommandText = "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'thread_goals' LIMIT 1";
+            createSql = schema.ExecuteScalar() as string;
+        }
+
+        if (string.IsNullOrWhiteSpace(createSql)
+            || createSql.Contains("'usage_limited'", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            PRAGMA foreign_keys=OFF;
+            BEGIN TRANSACTION;
+
+            ALTER TABLE thread_goals RENAME TO thread_goals_old_status_constraint;
+
+            CREATE TABLE thread_goals (
+                thread_id TEXT PRIMARY KEY,
+                goal_id TEXT NOT NULL,
+                objective TEXT NOT NULL,
+                status TEXT NOT NULL CHECK(status IN ('active', 'paused', 'blocked', 'usage_limited', 'budget_limited', 'complete')),
+                token_budget INTEGER,
+                input_tokens INTEGER NOT NULL DEFAULT 0,
+                output_tokens INTEGER NOT NULL DEFAULT 0,
+                cached_input_tokens INTEGER NOT NULL DEFAULT 0,
+                cache_write_input_tokens INTEGER NOT NULL DEFAULT 0,
+                reasoning_output_tokens INTEGER NOT NULL DEFAULT 0,
+                total_tokens INTEGER NOT NULL DEFAULT 0,
+                time_used_seconds INTEGER NOT NULL DEFAULT 0,
+                created_at_utc TEXT NOT NULL,
+                updated_at_utc TEXT NOT NULL,
+                FOREIGN KEY(thread_id) REFERENCES threads(thread_id) ON DELETE CASCADE
+            );
+
+            INSERT INTO thread_goals (
+                thread_id, goal_id, objective, status, token_budget,
+                input_tokens, output_tokens, cached_input_tokens,
+                cache_write_input_tokens, reasoning_output_tokens, total_tokens,
+                time_used_seconds, created_at_utc, updated_at_utc
+            )
+            SELECT
+                thread_id, goal_id, objective, status, token_budget,
+                input_tokens, output_tokens, cached_input_tokens,
+                cache_write_input_tokens, reasoning_output_tokens, total_tokens,
+                time_used_seconds, created_at_utc, updated_at_utc
+            FROM thread_goals_old_status_constraint;
+
+            DROP TABLE thread_goals_old_status_constraint;
+
+            COMMIT;
+            PRAGMA foreign_keys=ON;
+            """;
+        command.ExecuteNonQuery();
     }
 
     private static void BackfillTraceSessionSummaryMetadata(SqliteConnection connection)

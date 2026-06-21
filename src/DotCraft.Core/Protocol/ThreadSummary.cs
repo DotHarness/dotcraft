@@ -152,7 +152,7 @@ public sealed class ThreadSummary
     /// Optional current goal snapshot for list hydration.
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public ThreadGoal? Goal { get; set; }
+    public ThreadGoalWire? Goal { get; set; }
 
     /// <summary>
     /// Lightweight app binding summaries for clients that hydrate thread state from list responses.

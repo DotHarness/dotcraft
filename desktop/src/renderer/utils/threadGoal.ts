@@ -31,16 +31,21 @@ export function isThreadGoal(value: unknown): value is ThreadGoal {
   if (value == null || typeof value !== 'object') return false
   const goal = value as Partial<ThreadGoal>
   return typeof goal.threadId === 'string'
-    && typeof goal.goalId === 'string'
     && typeof goal.objective === 'string'
+    && typeof goal.tokensUsed === 'number'
+    && typeof goal.timeUsedSeconds === 'number'
+    && typeof goal.createdAt === 'number'
+    && typeof goal.updatedAt === 'number'
     && (goal.status === 'active'
       || goal.status === 'paused'
+      || goal.status === 'blocked'
+      || goal.status === 'usageLimited'
       || goal.status === 'budgetLimited'
       || goal.status === 'complete')
 }
 
 export function formatGoalUsage(goal: ThreadGoal): string {
-  const total = Math.max(0, Math.trunc(goal.tokensUsed?.totalTokens ?? 0))
+  const total = Math.max(0, Math.trunc(goal.tokensUsed ?? 0))
   if (typeof goal.tokenBudget === 'number' && Number.isFinite(goal.tokenBudget) && goal.tokenBudget > 0) {
     return `${formatNumber(total)} / ${formatNumber(goal.tokenBudget)} tokens`
   }

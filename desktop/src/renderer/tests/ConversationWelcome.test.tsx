@@ -124,18 +124,13 @@ function renderWelcome({
 function makeGoal(threadId = 'thread-welcome', objective = 'Build feature'): ThreadGoal {
   return {
     threadId,
-    goalId: `goal-${threadId}`,
     objective,
     status: 'active',
     tokenBudget: null,
-    tokensUsed: {
-      inputTokens: 0,
-      outputTokens: 0,
-      totalTokens: 0
-    },
+    tokensUsed: 0,
     timeUsedSeconds: 0,
-    createdAt: '2024-01-01T00:00:00Z',
-    updatedAt: '2024-01-01T00:00:00Z'
+    createdAt: 1704067200,
+    updatedAt: 1704067200
   }
 }
 

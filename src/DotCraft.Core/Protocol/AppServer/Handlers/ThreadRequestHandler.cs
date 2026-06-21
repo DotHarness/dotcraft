@@ -359,13 +359,19 @@ internal sealed class ThreadRequestHandler(
 
         var p = AppServerParams.Get<ThreadGoalGetParams>(msg);
         var goal = await sessionService.GetThreadGoalAsync(p.ThreadId, ct);
-        return new ThreadGoalGetResult { Goal = goal };
+        return new ThreadGoalGetResult { Goal = goal is null ? null : ThreadGoalWire.FromGoal(goal) };
     }
 
     private async Task<object?> HandleThreadGoalSetAsync(AppServerIncomingMessage msg, CancellationToken ct)
     {
         if (!threadProjector.GoalsCapabilityEnabled())
             throw AppServerErrors.MethodNotFound(AppServerMethods.ThreadGoalSet);
+
+        if (msg.Params is { ValueKind: JsonValueKind.Object } paramsElement
+            && paramsElement.TryGetProperty("mode", out _))
+        {
+            throw AppServerErrors.InvalidParams("'mode' is not supported by thread/goal/set.");
+        }
 
         var p = AppServerParams.Get<ThreadGoalSetParams>(msg);
         var update = new ThreadGoalUpdate
@@ -375,19 +381,19 @@ internal sealed class ThreadRequestHandler(
             HasTokenBudget = p.TokenBudget.HasValue,
             TokenBudget = ParseThreadGoalBudget(p.TokenBudget)
         };
-        var mode = ParseGoalSetMode(p.Mode);
         ThreadGoal goal;
         using (SessionService.SuppressGoalBroadcastNotifications())
         {
-            goal = await sessionService.SetThreadGoalAsync(p.ThreadId, update, mode, ct);
+            goal = await sessionService.SetThreadGoalAsync(p.ThreadId, update, ct: ct);
         }
 
-        var result = new ThreadGoalSetResult { Goal = goal };
+        var wireGoal = ThreadGoalWire.FromGoal(goal);
+        var result = new ThreadGoalSetResult { Goal = wireGoal };
         await responseWriter.SendNotificationAfterResponseAsync(
             msg.Id,
             result,
             AppServerMethods.ThreadGoalUpdated,
-            new { threadId = goal.ThreadId, goal, turnId = (string?)null },
+            new { threadId = goal.ThreadId, goal = wireGoal, turnId = (string?)null },
             ct);
         return null;
     }
@@ -907,24 +913,11 @@ internal sealed class ThreadRequestHandler(
         {
             "active" => ThreadGoalStatus.Active,
             "paused" => ThreadGoalStatus.Paused,
+            "blocked" => ThreadGoalStatus.Blocked,
+            "usageLimited" => ThreadGoalStatus.UsageLimited,
             "budgetLimited" => ThreadGoalStatus.BudgetLimited,
             "complete" => ThreadGoalStatus.Complete,
-            _ => throw AppServerErrors.InvalidParams("'status' must be active, paused, budgetLimited, or complete.")
-        };
-    }
-
-    private static GoalSetMode ParseGoalSetMode(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-            return GoalSetMode.UpsertOrUpdate;
-
-        return value.Trim() switch
-        {
-            "upsertOrUpdate" => GoalSetMode.UpsertOrUpdate,
-            "createOnly" => GoalSetMode.CreateOnly,
-            "updateOnly" => GoalSetMode.UpdateOnly,
-            "replaceExisting" => GoalSetMode.ReplaceExisting,
-            _ => throw AppServerErrors.InvalidParams("'mode' must be upsertOrUpdate, createOnly, updateOnly, or replaceExisting.")
+            _ => throw AppServerErrors.InvalidParams("'status' must be active, paused, blocked, usageLimited, budgetLimited, or complete.")
         };
     }
 

@@ -197,6 +197,8 @@ public enum ThreadGoalStatus
 {
     Active,
     Paused,
+    Blocked,
+    UsageLimited,
     BudgetLimited,
     Complete
 }
@@ -208,6 +210,8 @@ Wire values are lower camel case:
 |--------|------|
 | `Active` | `"active"` |
 | `Paused` | `"paused"` |
+| `Blocked` | `"blocked"` |
+| `UsageLimited` | `"usageLimited"` |
 | `BudgetLimited` | `"budgetLimited"` |
 | `Complete` | `"complete"` |
 
@@ -215,6 +219,8 @@ Status semantics:
 
 - `Active`: Session Core may continue this goal when the thread is idle.
 - `Paused`: The goal is preserved but will not continue automatically.
+- `Blocked`: The model or runtime determined progress is blocked. The goal is preserved but will not continue automatically until the user resumes or replaces it.
+- `UsageLimited`: Provider or account usage limits stopped progress. The goal is preserved but will not continue automatically until the user resumes or replaces it.
 - `BudgetLimited`: The goal reached or exceeded its token budget. DotCraft should not begin new substantive goal work until the user changes the goal or budget.
 - `Complete`: The objective has been achieved. This is terminal for the current logical goal.
 
@@ -248,7 +254,7 @@ public sealed record ThreadGoalUpdate
 | `TokenBudget <= 0` when provided | Invalid request / invalid operation. |
 | Thread does not exist | Thread not found. |
 | Thread is ephemeral or not persisted in state DB | Goals unsupported for this thread. |
-| Mutating status or budget without an existing goal | Goal not found. |
+| Mutating status or budget without an existing goal | Invalid params / invalid operation. |
 
 Clients should enforce the objective length limit before sending, but Session Core remains authoritative.
 
@@ -263,15 +269,23 @@ stateDiagram-v2
     [*] --> Active: create or set objective
     Active --> Paused: user pause or turn interrupt
     Paused --> Active: user resume
+    Active --> Blocked: model update_goal(blocked) or terminal turn error
+    Blocked --> Active: user resume
+    Active --> UsageLimited: provider/account usage limit
+    UsageLimited --> Active: user resume
     Active --> BudgetLimited: total tokens >= tokenBudget
     Paused --> BudgetLimited: resume/update with exhausted budget
     Active --> Complete: model update_goal(complete)
     Paused --> Complete: user/system set complete
+    Blocked --> Complete: user/system set complete
+    UsageLimited --> Complete: user/system set complete
     BudgetLimited --> Complete: model proves objective complete
     Complete --> Active: replace objective
     BudgetLimited --> Active: user changes budget or resumes with available budget
     Active --> [*]: clear
     Paused --> [*]: clear
+    Blocked --> [*]: clear
+    UsageLimited --> [*]: clear
     BudgetLimited --> [*]: clear
     Complete --> [*]: clear
 ```
@@ -281,9 +295,10 @@ stateDiagram-v2
 `SetThreadGoal` with an objective follows these rules:
 
 1. If no goal exists, create a new active goal by default.
-2. If a goal exists with the same objective and status is not `Complete`, update the existing goal and preserve usage.
-3. If a goal exists with a different objective, replace it with a new `GoalId` and reset usage.
-4. If a goal exists with the same objective and status is `Complete`, replace it with a new `GoalId` and reset usage.
+2. If a goal exists, an AppServer/user `objective` update changes the objective in place and preserves `GoalId`, usage, and `CreatedAt`.
+3. Status-only or budget-only updates require an existing goal.
+4. Model `CreateGoal` uses create-only semantics: it fails while an unfinished goal exists, and creates a new logical goal only after the current goal is `Complete`.
+5. Explicit internal/admin replacement may create a new `GoalId` and reset usage, but this is not part of the public AppServer `thread/goal/set` wire contract.
 
 ### 5.3 Status Protection
 
@@ -291,6 +306,7 @@ Session Core and persistence must protect system-owned terminal states:
 
 - A `BudgetLimited` goal must not be downgraded to `Paused` by a pause request.
 - A `Complete` goal must not become `Active` unless the operation is an explicit replacement or an explicit admin/system mutation that resets the logical goal.
+- `Blocked` and `UsageLimited` are stopped states and must not auto-continue.
 - If a goal is set to `Active` while `TokenBudget` is present and `TokensUsed.TotalTokens >= TokenBudget`, the stored status becomes `BudgetLimited`.
 
 ### 5.4 Clear
@@ -315,7 +331,7 @@ CREATE TABLE thread_goals (
     thread_id TEXT PRIMARY KEY NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL,
     objective TEXT NOT NULL,
-    status TEXT NOT NULL CHECK(status IN ('active', 'paused', 'budget_limited', 'complete')),
+    status TEXT NOT NULL CHECK(status IN ('active', 'paused', 'blocked', 'usage_limited', 'budget_limited', 'complete')),
     token_budget INTEGER,
 
     input_tokens INTEGER NOT NULL DEFAULT 0,
@@ -358,7 +374,7 @@ Accounting modes control which statuses are eligible for usage updates.
 | `ActiveStatusOnly` | `active` | Interrupt pause path before status changes. |
 | `ActiveOnly` | `active`, `budget_limited` | Normal turn/tool accounting. |
 | `ActiveOrComplete` | `active`, `budget_limited`, `complete` | Completion accounting when final usage must be preserved. |
-| `ActiveOrStopped` | `active`, `paused`, `budget_limited` | External mutation or recovery paths that must account stopped in-flight work. |
+| `ActiveOrStopped` | `active`, `paused`, `blocked`, `usage_limited`, `budget_limited` | External mutation or recovery paths that must account stopped in-flight work. |
 
 ### 6.4 Atomic Budget Check
 
@@ -388,10 +404,10 @@ Task<ThreadGoalClearResult> ClearThreadGoalAsync(
     CancellationToken cancellationToken = default);
 ```
 
-`GoalSetMode`:
+`GoalSetMode` is an internal/runtime helper, not an AppServer wire field:
 
 - `UpsertOrUpdate`: create, replace, or update according to replacement rules.
-- `CreateOnly`: create only when no current goal exists.
+- `CreateOnly`: create only when no unfinished current goal exists; a completed current goal may be replaced.
 - `UpdateOnly`: update status or budget only when a current goal exists.
 - `ReplaceExisting`: force objective replacement after a client confirmation.
 
@@ -440,7 +456,7 @@ The input `UserMessagePayload` should use:
 
 - `triggerKind = "goal"`
 - `triggerLabel = "Goal continuation"` or a localized equivalent
-- `triggerRefId = goalId`
+- `triggerRefId = internal goalId`
 - `channelName = "goal"` or the host's internal goal origin name
 
 Clients may use this to render the turn as system-initiated goal work, not as a typed user message.
@@ -690,25 +706,17 @@ Clients must check `capabilities.threadGoals` before calling `thread/goal/*`.
 ```json
 {
   "threadId": "thread_20260508_abcd",
-  "goalId": "goal_20260508_xyz",
   "objective": "Improve benchmark coverage",
   "status": "active",
   "tokenBudget": 50000,
-  "tokensUsed": {
-    "inputTokens": 1200,
-    "outputTokens": 300,
-    "cachedInputTokens": 0,
-    "cacheWriteInputTokens": 0,
-    "reasoningOutputTokens": 0,
-    "totalTokens": 1500
-  },
+  "tokensUsed": 1500,
   "timeUsedSeconds": 240,
-  "createdAt": "2026-05-08T10:00:00Z",
-  "updatedAt": "2026-05-08T10:04:00Z"
+  "createdAt": 1778234400,
+  "updatedAt": 1778234640
 }
 ```
 
-`goalId` is included on the wire for diagnostics, optimistic UI reconciliation, and budget reporting. Clients must not use it to mutate a different thread.
+The public wire shape intentionally omits internal `goalId` and token breakdown fields. C# storage may retain `goal_id`, input/output/cache/reasoning token columns, and ISO timestamps internally; AppServer and goal tools expose only the public scalar total-token and Unix-second projection.
 
 ### 10.3 `thread/goal/get`
 
@@ -755,7 +763,6 @@ Fields:
 | `objective` | string | no | New or replacement objective. Omitted when only status/budget changes. |
 | `status` | string | no | Desired status. |
 | `tokenBudget` | number or null | no | Omitted leaves unchanged, null clears, positive number sets. |
-| `mode` | string | no | `"upsertOrUpdate"` default, `"replaceExisting"`, `"createOnly"`, or `"updateOnly"`. |
 
 Result:
 
@@ -766,9 +773,9 @@ Result:
 Behavior:
 
 - The server validates the request against Session Core rules.
-- With `objective` and `mode = "upsertOrUpdate"`, the server applies replacement rules.
-- Desktop/TUI clients should use `thread/goal/get` first and ask the user before replacing a current non-complete goal.
-- The server still accepts `replaceExisting` so clients can make the confirmation explicit.
+- With `objective`, the server creates a goal when none exists or updates the existing objective in place.
+- Status-only and budget-only updates require an existing goal.
+- The `mode` field is not part of the public protocol; servers should reject legacy `mode` params with invalid params.
 - The server emits `thread/goal/updated` after mutation.
 
 ### 10.5 `thread/goal/clear`
@@ -850,17 +857,12 @@ Older servers may omit the field even when a goal exists. Clients can call `thre
 
 ### 10.9 Error Codes
 
-Recommended AppServer errors:
+AppServer does not require dedicated goal-specific error codes. Servers should use the normal JSON-RPC/AppServer errors:
 
-| Code | Name | Condition |
-|------|------|-----------|
-| `-32080` | `ThreadGoalsDisabled` | Server does not support or has disabled goals. |
-| `-32081` | `ThreadGoalUnsupported` | Target thread is ephemeral or lacks state DB persistence. |
-| `-32082` | `ThreadGoalNotFound` | Update-only operation requires an existing goal. |
-| `-32083` | `ThreadGoalInvalidObjective` | Objective is empty or too long. |
-| `-32084` | `ThreadGoalInvalidBudget` | Budget is non-positive. |
-
-If AppServer does not add dedicated codes, it must at least return JSON-RPC invalid params for validation errors and thread-not-found for missing threads.
+- method-not-found or capability errors when goals are disabled or unsupported
+- thread-not-found for missing threads
+- invalid-params for malformed status, invalid objective, invalid budget, legacy `mode`, or mutations that require an existing goal
+- internal-error for unexpected persistence/runtime failures
 
 ---
 
@@ -912,7 +914,7 @@ Clients should display a compact goal status where space allows:
 
 Usage display preference:
 
-1. If `tokenBudget` exists, show `tokensUsed.totalTokens / tokenBudget`.
+1. If `tokenBudget` exists, show `tokensUsed / tokenBudget`.
 2. Otherwise show elapsed time.
 
 ### 11.5 Goal Summary

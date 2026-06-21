@@ -9,7 +9,7 @@ export type ThreadStatus = 'active' | 'paused' | 'archived'
 
 export type ApprovalPolicyWire = 'default' | 'autoApprove' | 'interrupt'
 
-export type ThreadGoalStatus = 'active' | 'paused' | 'budgetLimited' | 'complete'
+export type ThreadGoalStatus = 'active' | 'paused' | 'blocked' | 'usageLimited' | 'budgetLimited' | 'complete'
 
 export interface TokenUsage {
   inputTokens: number
@@ -22,14 +22,13 @@ export interface TokenUsage {
 
 export interface ThreadGoal {
   threadId: string
-  goalId: string
   objective: string
   status: ThreadGoalStatus
   tokenBudget?: number | null
-  tokensUsed: TokenUsage
+  tokensUsed: number
   timeUsedSeconds: number
-  createdAt: string
-  updatedAt: string
+  createdAt: number
+  updatedAt: number
 }
 
 export interface ThreadRuntimeSnapshot {

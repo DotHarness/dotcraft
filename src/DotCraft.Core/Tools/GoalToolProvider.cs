@@ -38,7 +38,7 @@ public static class GoalToolNames
     /// <summary>Creates a new thread goal.</summary>
     public const string CreateGoal = "CreateGoal";
 
-    /// <summary>Marks the current thread goal complete.</summary>
+    /// <summary>Marks the current thread goal complete or blocked.</summary>
     public const string UpdateGoal = "UpdateGoal";
 }
 
@@ -80,7 +80,7 @@ internal sealed class GoalToolMethods
                     Status = ThreadGoalStatus.Active
                 },
                 GoalSetMode.CreateOnly);
-            return Serialize(new { goal = ToResult(goal) });
+            return Serialize(ToResult(goal));
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
         {
@@ -89,26 +89,38 @@ internal sealed class GoalToolMethods
     }
 
     [GeneratedTool]
-    [Description("Update the current thread goal. The only allowed status update is status='complete' when the goal is actually complete.")]
+    [Description("Update the current thread goal. Allowed statuses are status='complete' when the goal is actually complete, or status='blocked' when progress is genuinely blocked.")]
     public async Task<string> UpdateGoal(
-        [Description("Only 'complete' is accepted. pause/resume/budget-limit are controlled by Session Core or the user UI.")] string status)
+        [Description("Only 'complete' or 'blocked' is accepted. pause/resume/budget-limit/usage-limit are controlled by Session Core or the user UI.")] string status)
     {
         var context = GoalToolRuntimeScope.Current;
         if (context is null)
             return Serialize(new { error = "Goal tools are only available inside a Session Core turn." });
 
-        if (!string.Equals(status, "complete", StringComparison.OrdinalIgnoreCase))
-            return Serialize(new { error = "UpdateGoal only accepts status='complete'." });
+        var normalizedStatus = status?.Trim() ?? string.Empty;
+        var targetStatus = normalizedStatus switch
+        {
+            _ when string.Equals(normalizedStatus, "complete", StringComparison.OrdinalIgnoreCase) => ThreadGoalStatus.Complete,
+            _ when string.Equals(normalizedStatus, "blocked", StringComparison.OrdinalIgnoreCase) => ThreadGoalStatus.Blocked,
+            _ => (ThreadGoalStatus?)null
+        };
+        if (targetStatus is null)
+            return Serialize(new { error = "UpdateGoal only accepts status='complete' or status='blocked'." });
 
         try
         {
             var goal = await context.SessionService.SetThreadGoalAsync(
                 context.ThreadId,
-                new ThreadGoalUpdate { Status = ThreadGoalStatus.Complete },
+                new ThreadGoalUpdate { Status = targetStatus.Value },
                 GoalSetMode.UpdateOnly);
+            if (targetStatus.Value == ThreadGoalStatus.Blocked)
+                return Serialize(ToResult(goal));
+
+            var payload = ToResult(goal);
             return Serialize(new
             {
-                goal = ToResult(goal),
+                payload.Goal,
+                payload.RemainingTokens,
                 completionBudgetReport = new
                 {
                     goal.TokensUsed.TotalTokens,
@@ -124,25 +136,15 @@ internal sealed class GoalToolMethods
         }
     }
 
-    private static object? ToResult(ThreadGoal? goal)
+    private static GoalToolResult ToResult(ThreadGoal? goal)
     {
         if (goal is null)
-            return null;
+            return new GoalToolResult(null, null);
 
-        return new
-        {
-            goal.ThreadId,
-            goal.GoalId,
-            goal.Objective,
-            status = goal.Status.ToString(),
-            goal.TokenBudget,
-            goal.TokensUsed,
-            remainingTokens = RemainingTokens(goal),
-            goal.TimeUsedSeconds,
-            goal.CreatedAt,
-            goal.UpdatedAt
-        };
+        return new GoalToolResult(ThreadGoalWire.FromGoal(goal), RemainingTokens(goal));
     }
+
+    private sealed record GoalToolResult(ThreadGoalWire? Goal, long? RemainingTokens);
 
     private static long? RemainingTokens(ThreadGoal goal) =>
         goal.TokenBudget.HasValue

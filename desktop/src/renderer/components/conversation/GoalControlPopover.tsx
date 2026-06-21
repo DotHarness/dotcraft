@@ -137,7 +137,7 @@ export function GoalControlPopover({
             {goal.status === 'active' && (
               <GoalButton icon={<Pause size={13} aria-hidden />} label={t('goal.action.pause')} disabled={busy} onClick={onPause} />
             )}
-            {goal.status === 'paused' && (
+            {goal.status !== 'active' && goal.status !== 'complete' && (
               <GoalButton icon={<Play size={13} aria-hidden />} label={t('goal.action.resume')} disabled={busy} onClick={onResume} />
             )}
             {goal.status === 'complete' && (
@@ -236,9 +236,9 @@ function statusDotStyle(status: ThreadGoal['status']): CSSProperties {
     ? 'var(--success)'
     : status === 'paused'
       ? 'var(--warning)'
-      : status === 'budgetLimited'
-        ? 'var(--error)'
-        : 'var(--info)'
+      : status === 'complete'
+        ? 'var(--info)'
+        : 'var(--error)'
   return {
     width: 8,
     height: 8,

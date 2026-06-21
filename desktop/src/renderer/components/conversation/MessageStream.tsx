@@ -95,10 +95,10 @@ function isVisibleUserMessage(item: ConversationItem): boolean {
   )
 }
 
-function isNearGoalCreation(messageCreatedAt: string | undefined, goalCreatedAt: string): boolean {
+function isNearGoalCreation(messageCreatedAt: string | undefined, goalCreatedAt: number): boolean {
   if (!messageCreatedAt) return true
   const messageMs = Date.parse(messageCreatedAt)
-  const goalMs = Date.parse(goalCreatedAt)
+  const goalMs = goalCreatedAt * 1000
   if (!Number.isFinite(messageMs) || !Number.isFinite(goalMs)) return true
   const deltaMs = messageMs - goalMs
   return deltaMs >= -30_000 && deltaMs <= 5 * 60_000

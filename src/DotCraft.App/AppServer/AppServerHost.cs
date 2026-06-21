@@ -1021,11 +1021,12 @@ public sealed class AppServerHost(
 
     private void BroadcastThreadGoalUpdated(ThreadGoal goal, string? turnId)
     {
+        var wireGoal = ThreadGoalWire.FromGoal(goal);
         var notification = new
         {
             jsonrpc = "2.0",
             method = AppServerMethods.ThreadGoalUpdated,
-            @params = new { threadId = goal.ThreadId, goal, turnId }
+            @params = new { threadId = goal.ThreadId, goal = wireGoal, turnId }
         };
 
         foreach (var (transport, connection) in _activeTransports)

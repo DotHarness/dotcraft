@@ -652,11 +652,15 @@ public sealed partial class SessionService(
         TurnKey turnKey,
         TokenUsageInfo latestTurnUsage,
         string? notificationTurnId,
+        GoalAccountingMode mode = GoalAccountingMode.ActiveOnly,
         CancellationToken ct = default) =>
-        await Goals.AccountUsageAsync(turnKey, latestTurnUsage, notificationTurnId, ct);
+        await Goals.AccountUsageAsync(turnKey, latestTurnUsage, notificationTurnId, mode, ct);
 
     private async Task PauseActiveGoalForInterruptAsync(TurnKey turnKey, CancellationToken ct = default)
         => await Goals.PauseActiveForInterruptAsync(turnKey, ct);
+
+    private async Task MarkActiveGoalBlockedForTurnErrorAsync(TurnKey turnKey, CancellationToken ct = default)
+        => await Goals.MarkActiveBlockedForTurnErrorAsync(turnKey, ct);
 
     private async Task MaybeContinueGoalIfIdleAsync(string threadId, CancellationToken ct = default)
         => await Goals.MaybeContinueIfIdleAsync(threadId, ct);
@@ -1626,6 +1630,22 @@ public sealed partial class SessionService(
                 eventChannel.EmitItemCompleted(errorItem);
 
                 FailTurn(turn, eventChannel, errorMsg);
+                await AccountGoalUsageAsync(
+                    turnKey,
+                    new TokenUsageInfo
+                    {
+                        InputTokens = inputTokens,
+                        OutputTokens = outputTokens,
+                        CachedInputTokens = cachedInputTokens,
+                        CacheWriteInputTokens = cacheWriteInputTokens,
+                        ReasoningOutputTokens = reasoningOutputTokens,
+                        LlmCallCount = llmCallCount,
+                        TotalTokens = inputTokens + outputTokens
+                    },
+                    turn.Id,
+                    GoalAccountingMode.ActiveOrStopped,
+                    CancellationToken.None);
+                await MarkActiveGoalBlockedForTurnErrorAsync(turnKey, CancellationToken.None);
                 ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnFailed);
                 await TrySaveThreadAsync(thread);
                 if (session is not null)
@@ -2260,6 +2280,7 @@ public sealed partial class SessionService(
                                                     TotalTokens = inputTokens + outputTokens
                                                 },
                                                 turn.Id,
+                                                GoalAccountingMode.ActiveOnly,
                                                 CancellationToken.None);
                                         }
                                     }
@@ -2307,7 +2328,12 @@ public sealed partial class SessionService(
                         LlmCallCount = Math.Max(llmCallCount, mainTraceUsageDelta) + tokenTracker.SubAgentLlmCallCount,
                         TotalTokens = totalInput + totalOutput
                     };
-                    await AccountGoalUsageAsync(turnKey, turn.TokenUsage, turn.Id, CancellationToken.None);
+                    await AccountGoalUsageAsync(
+                        turnKey,
+                        turn.TokenUsage,
+                        turn.Id,
+                        GoalAccountingMode.ActiveOrComplete,
+                        CancellationToken.None);
                 }
 
                 if (lastFinishReason == ChatFinishReason.Length)
@@ -2418,6 +2444,7 @@ public sealed partial class SessionService(
                         TotalTokens = inputTokens + outputTokens
                     },
                     turn.Id,
+                    GoalAccountingMode.ActiveOrStopped,
                     CancellationToken.None);
                 await PauseActiveGoalForInterruptAsync(turnKey, CancellationToken.None);
                 turn.Status = TurnStatus.Cancelled;
