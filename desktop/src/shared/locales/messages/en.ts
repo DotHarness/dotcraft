@@ -870,6 +870,7 @@ export const MESSAGES_EN = {
   'error.action.restart': 'Restart',
   'error.action.retry': 'Retry',
   'error.details': 'Error details',
+  'error.details.copy': 'Copy error details',
   'error.copyAria': 'Copy error',
   'error.copiedAria': 'Error copied',
 

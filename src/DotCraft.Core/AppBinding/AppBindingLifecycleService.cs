@@ -1,5 +1,7 @@
-using DotCraft.Protocol.AppServer;
 using System.Security.Cryptography;
+using System.Text.Json;
+using DotCraft.Protocol;
+using DotCraft.Protocol.AppServer;
 using static DotCraft.AppBinding.AppBindingStoreAccessor;
 
 namespace DotCraft.AppBinding;
@@ -184,6 +186,8 @@ internal sealed class AppBindingLifecycleService(
             throw AppServerErrors.InvalidParams("'requestToken' is required.");
 
         var entry = FindEnabledApp(catalog, p.AppId);
+        if (IsSocialChannelAppId(entry.Descriptor.AppId) && !IsSocialBindCode(token!))
+            throw AppServerErrors.InvalidParams("Social bind code must be a 6-digit number.");
         var state = stores.GetStore(workspaceCraftPath).Snapshot();
         var now = DateTimeOffset.UtcNow;
         var request = ResolvePendingBindingRequest(state, p.AppId, p.BindingRequestId, token!)
@@ -346,6 +350,7 @@ internal sealed class AppBindingLifecycleService(
                 if (toolSpecs.Count > 0)
                 {
                     var warnings = new List<string>();
+                    var exposure = ClassifyManagedToolExposure(entry.Descriptor, toolSpecs);
                     var attach = new AppBindingAttachToolsParams
                     {
                         BindingId = binding.BindingId,
@@ -353,7 +358,8 @@ internal sealed class AppBindingLifecycleService(
                         AppId = binding.AppId,
                         GrantId = binding.GrantId,
                         Tools = toolSpecs,
-                        DeferredToolNames = toolSpecs.Select(tool => tool.Name).ToList(),
+                        DirectToolNames = exposure.DirectToolNames,
+                        DeferredToolNames = exposure.DeferredToolNames,
                         GrantProof = p.GrantProof
                     };
                     var accepted = AppBindingService.ValidateAttachedTools(
@@ -830,6 +836,11 @@ internal sealed class AppBindingLifecycleService(
             ?? ResolveBindingRequestByToken(state, appId: null, p.BindingRequestId, p.RequestToken);
         if (request == null)
             throw AppServerErrors.InvalidParams("Binding request was not found.");
+        if (string.Equals(request.BindingKind, AppBindingKinds.SocialChannel, StringComparison.Ordinal)
+            && !IsSocialBindCode(p.RequestToken))
+        {
+            throw AppServerErrors.InvalidParams("Social bind code must be a 6-digit number.");
+        }
         if (request.State != AppBindingStates.Pending || request.Consumed)
             throw AppServerErrors.InvalidParams("Binding request is no longer pending.");
         if (request.ExpiresAt <= now)
@@ -865,6 +876,17 @@ internal sealed class AppBindingLifecycleService(
 
     private static string NewBindCode() =>
         $"{RandomNumberGenerator.GetInt32(100_000, 1_000_000)}";
+
+    private static bool IsSocialChannelAppId(string appId) =>
+        appId.StartsWith("com.dotharness.channel.", StringComparison.Ordinal);
+
+    private static bool IsSocialBindCode(string token)
+    {
+        var trimmed = token.Trim();
+        return trimmed.Length == 6
+               && trimmed[0] is >= '1' and <= '9'
+               && trimmed.All(c => c is >= '0' and <= '9');
+    }
 
     private static string? NormalizeNullable(string? value)
     {
@@ -1179,7 +1201,8 @@ internal sealed class AppBindingLifecycleService(
                     binding.LastChangedAt = now;
                     binding.Diagnostic = "The owning plugin is disabled or unavailable.";
                 }
-                else if (owner.IsManagedAppWithoutExternalConnection(binding.AppId))
+                else if (managedRuntimesByAppId.TryGetValue(binding.AppId, out var managedRuntime)
+                         && managedRuntime.RequiresExternalConnection == false)
                 {
                     if (owner.IsManagedAppWithoutExternalConnectionReady(binding.AppId))
                     {
@@ -1191,6 +1214,8 @@ internal sealed class AppBindingLifecycleService(
                             binding.ExposureRevision++;
                             AppBindingService.AddAudit(state, "binding.managed.reattached", binding.ThreadId, binding.BindingId, binding.AppId, binding.UserId, null);
                         }
+
+                        RefreshManagedSocialAttachedTools(catalog, state, binding, managedRuntime, now);
                     }
                     else if (binding.State == AppBindingStates.Active)
                     {
@@ -1253,4 +1278,103 @@ internal sealed class AppBindingLifecycleService(
             return new ThreadAppBindingRefreshResult { Bindings = results };
         });
     }
+
+    private void RefreshManagedSocialAttachedTools(
+        AppCatalogSnapshot catalog,
+        AppBindingStateDocument state,
+        AppBindingRecord binding,
+        IManagedAppBindingRuntime managedRuntime,
+        DateTimeOffset now)
+    {
+        if (!string.Equals(binding.BindingKind, AppBindingKinds.SocialChannel, StringComparison.Ordinal))
+            return;
+
+        var descriptor = catalog.Entries
+            .FirstOrDefault(entry => string.Equals(entry.Descriptor.AppId, binding.AppId, StringComparison.Ordinal))
+            ?.Descriptor;
+        if (descriptor == null)
+            return;
+
+        var grantedScopes = binding.GrantedScopes.ToHashSet(StringComparer.Ordinal);
+        var catalogByName = descriptor.ToolCatalog.ToDictionary(tool => tool.Name, StringComparer.Ordinal);
+        var toolSpecs = managedRuntime
+            .GetToolSpecsForSurface(ManagedAppBindingToolSurfaces.ThreadBinding)
+            .Where(tool => catalogByName.TryGetValue(tool.Name, out var catalogEntry)
+                           && grantedScopes.Contains(catalogEntry.Scope))
+            .ToList();
+        var warnings = new List<string>();
+        var exposure = ClassifyManagedToolExposure(descriptor, toolSpecs);
+        var accepted = AppBindingService.ValidateAttachedTools(
+            descriptor,
+            binding,
+            new AppBindingAttachToolsParams
+            {
+                BindingId = binding.BindingId,
+                ThreadId = binding.ThreadId,
+                AppId = binding.AppId,
+                GrantId = binding.GrantId,
+                Tools = toolSpecs,
+                DirectToolNames = exposure.DirectToolNames,
+                DeferredToolNames = exposure.DeferredToolNames,
+                GrantProof = binding.GrantProof
+            },
+            warnings,
+            managedRuntime.AllowDirectMutatingToolExposure);
+
+        if (DynamicToolSpecsEqual(binding.AttachedTools, accepted))
+            return;
+
+        binding.AttachedTools = accepted;
+        binding.DirectToolNames = accepted
+            .Where(tool => tool.DeferLoading != true)
+            .Select(tool => tool.Name)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+        binding.DeferredToolNames = accepted
+            .Where(tool => tool.DeferLoading == true)
+            .Select(tool => tool.Name)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+        binding.LastChangedAt = now;
+        binding.ExposureRevision++;
+        AppBindingService.AddAudit(
+            state,
+            "binding.managed.toolsRefreshed",
+            binding.ThreadId,
+            binding.BindingId,
+            binding.AppId,
+            binding.UserId,
+            null);
+    }
+
+    private static bool DynamicToolSpecsEqual(
+        IReadOnlyList<DynamicToolSpec> left,
+        IReadOnlyList<DynamicToolSpec> right) =>
+        JsonSerializer.Serialize(left, SessionWireJsonOptions.Default)
+        == JsonSerializer.Serialize(right, SessionWireJsonOptions.Default);
+
+    private static ManagedToolExposureNames ClassifyManagedToolExposure(
+        AppDescriptor descriptor,
+        IReadOnlyList<DynamicToolSpec> tools)
+    {
+        var catalogByName = descriptor.ToolCatalog.ToDictionary(tool => tool.Name, StringComparer.Ordinal);
+        var direct = new List<string>();
+        var deferred = new List<string>();
+        foreach (var tool in tools)
+        {
+            var deferLoading = tool.DeferLoading == true
+                               || (catalogByName.TryGetValue(tool.Name, out var catalogEntry)
+                                   && string.Equals(catalogEntry.DefaultExposure, AppBindingExposures.Deferred, StringComparison.Ordinal));
+            if (deferLoading)
+                deferred.Add(tool.Name);
+            else
+                direct.Add(tool.Name);
+        }
+
+        return new ManagedToolExposureNames(direct, deferred);
+    }
+
+    private sealed record ManagedToolExposureNames(
+        List<string> DirectToolNames,
+        List<string> DeferredToolNames);
 }

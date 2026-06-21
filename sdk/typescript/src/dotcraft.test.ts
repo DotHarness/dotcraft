@@ -341,7 +341,7 @@ test("DotCraft appBindings social helpers send expected JSON-RPC params", async 
   await sdk.appBindings.createSocialBindingRequest({
     threadId: "thread-1",
     channelName: "qq",
-    requestedTools: ["SendMessageToBoundConversation"],
+    requestedTools: ["QQSendImageToCurrentChat"],
     displayHint: "QQ",
   });
   await sdk.appBindings.getBindingRequest({
@@ -382,7 +382,7 @@ test("DotCraft appBindings social helpers send expected JSON-RPC params", async 
     threadId: "thread-1",
     appId: "com.dotharness.channel.qq",
     requestedScopes: ["conversation.receive", "message.send"],
-    requestedTools: ["SendMessageToBoundConversation"],
+    requestedTools: ["QQSendImageToCurrentChat"],
     source: "sdk",
     bindingKind: "socialChannel",
     socialIntent: {

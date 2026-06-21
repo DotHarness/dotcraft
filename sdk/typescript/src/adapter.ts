@@ -291,7 +291,7 @@ export abstract class ChannelAdapter {
   }
 
   protected parseSocialBindCode(text: string): string | null {
-    const match = /^\/bind\s+(\S+)\s*$/i.exec(text.trim());
+    const match = /^\/bind\s+([1-9][0-9]{5})\s*$/i.exec(text.trim());
     return match?.[1] ?? null;
   }
 
@@ -454,12 +454,14 @@ export abstract class ChannelAdapter {
     const workspacePath = opts.workspacePath ?? this.defaultWorkspacePath;
     const sender = buildChannelSender(opts, channelContext);
 
-    const socialBinding = await this.resolveSocialBindingForMessage(opts, sender, channelContext);
+    const socialTarget = this.buildSocialTarget(opts, sender, channelContext);
+    const socialBinding = socialTarget
+      ? await this.resolveSocialBindingForMessage(socialTarget)
+      : null;
+    if (socialTarget && !socialBinding) return;
+
     let threadId: string;
-    if (socialBinding) {
-      threadId = socialBinding.threadId;
-      this.threadMap.set(identityKey, threadId);
-    } else {
+    if (!socialBinding) {
       const thread = await this.getOrCreateThread(
         identityKey,
         opts.userId,
@@ -467,6 +469,9 @@ export abstract class ChannelAdapter {
         workspacePath,
       );
       threadId = thread.id;
+    } else {
+      threadId = socialBinding.threadId;
+      this.threadMap.set(identityKey, threadId);
     }
     this.onThreadContextBound(threadId, channelContext);
 
@@ -548,13 +553,8 @@ export abstract class ChannelAdapter {
   }
 
   private async resolveSocialBindingForMessage(
-    opts: ChannelAdapterMessageOpts,
-    sender: Record<string, unknown>,
-    channelContext: string,
+    target: SocialChannelTarget,
   ): Promise<ThreadAppBinding | null> {
-    const target = this.buildSocialTarget(opts, sender, channelContext);
-    if (!target) return null;
-
     try {
       const result = await this.client.request<{ binding?: ThreadAppBinding | null }>(
         "app/socialBinding/resolve",
@@ -570,7 +570,7 @@ export abstract class ChannelAdapter {
       return binding?.state === "active" ? binding : null;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      console.warn(`[${this.channelName}] social binding resolve failed; falling back to legacy thread routing: ${message}`);
+      console.warn(`[${this.channelName}] social binding resolve failed; message was ignored: ${message}`);
       return null;
     }
   }

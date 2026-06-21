@@ -10,6 +10,7 @@ using DotCraft.Protocol;
 using DotCraft.Protocol.AppServer;
 using DotCraft.Security;
 using DotCraft.Skills;
+using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
@@ -435,7 +436,7 @@ public sealed class AppBindingProtocolTests : IDisposable
     {
         const string qqAppId = "com.dotharness.channel.qq";
         var registry = new ChannelRuntimeRegistry();
-        registry.Register(new RecordingChannelRuntime("qq"));
+        registry.Register(new RecordingChannelRuntime("qq", [QqSendImageTool()]));
         var service = new AppBindingService([
             new SocialChannelAppBindingRuntime(
                 "qq",
@@ -455,7 +456,7 @@ public sealed class AppBindingProtocolTests : IDisposable
                 threadId = thread.Id,
                 appId = qqAppId,
                 requestedScopes = new[] { "conversation.receive", "message.send" },
-                requestedTools = new[] { "SendMessageToBoundConversation" },
+                requestedTools = new[] { "QQSendImageToCurrentChat" },
                 source = "threadMenu",
                 bindingKind = "socialChannel",
                 socialIntent = new
@@ -505,6 +506,13 @@ public sealed class AppBindingProtocolTests : IDisposable
         Assert.Equal("social-grant-1", binding.GetProperty("grantId").GetString());
         Assert.Equal("group:123456", binding.GetProperty("socialTarget").GetProperty("deliveryTarget").GetString());
         Assert.Equal(1, binding.GetProperty("attachedToolCount").GetInt32());
+        Assert.Contains(thread.Id, harness.Service.RefreshedThreadAgents);
+        var runtimeTool = Assert.Single(
+            service.CreateRuntimeToolsForThread(thread, new HashSet<string>(StringComparer.Ordinal))
+                .OfType<AIFunction>(),
+            tool => tool.Name == "QQSendImageToCurrentChat");
+        Assert.True(DeferredToolMetadataResolver.TryGet(runtimeTool, out var metadata));
+        Assert.False(metadata.DeferLoading);
 
         using var resolveResponse = await ExecuteAndReadResponseAsync(
             harness,
@@ -552,6 +560,32 @@ public sealed class AppBindingProtocolTests : IDisposable
         Assert.Contains(
             "already bound",
             duplicateAcceptResponse.RootElement.GetProperty("error").GetProperty("data").GetProperty("detail").GetString());
+    }
+
+    [Fact]
+    public async Task SocialBindingAccept_PreservesExplicitDeferredNativeTools()
+    {
+        const string qqAppId = "com.dotharness.channel.qq";
+        var registry = new ChannelRuntimeRegistry();
+        registry.Register(new RecordingChannelRuntime("qq", [QqSendImageTool("QQDeferredImageTool", deferLoading: true)]));
+        var service = new AppBindingService([
+            new SocialChannelAppBindingRuntime(
+                "qq",
+                "QQ",
+                "Continue this thread in QQ.",
+                registry)
+        ]);
+        using var harness = CreateHarness(service, channelRuntimeRegistry: registry);
+        await InitializeChannelAdapterAsync(harness, "qq");
+        var thread = await harness.Service.CreateThreadAsync(CreateIdentity());
+        await CreateAcceptedQqSocialBindingAsync(harness, qqAppId, thread.Id);
+
+        var runtimeTool = Assert.Single(
+            service.CreateRuntimeToolsForThread(thread, new HashSet<string>(StringComparer.Ordinal))
+                .OfType<AIFunction>(),
+            tool => tool.Name == "QQDeferredImageTool");
+        Assert.True(DeferredToolMetadataResolver.TryGet(runtimeTool, out var metadata));
+        Assert.True(metadata.DeferLoading);
     }
 
     [Fact]
@@ -1148,6 +1182,46 @@ public sealed class AppBindingProtocolTests : IDisposable
     }
 
     [Fact]
+    public async Task SocialChannelAppList_MapsNativeToolExposureFromDeferLoading()
+    {
+        const string qqAppId = "com.dotharness.channel.qq";
+        var registry = new ChannelRuntimeRegistry();
+        registry.Register(new RecordingChannelRuntime(
+            "qq",
+            [
+                QqSendImageTool(),
+                QqSendImageTool("QQDeferredImageTool", deferLoading: true)
+            ]));
+        var service = new AppBindingService([
+            new SocialChannelAppBindingRuntime(
+                "qq",
+                "QQ",
+                "Continue this thread in QQ.",
+                registry)
+        ]);
+        using var harness = CreateHarness(service);
+        await harness.InitializeAsync();
+
+        using var response = await ExecuteAndReadResponseAsync(
+            harness,
+            AppList,
+            new
+            {
+                includeDisabled = true,
+                surface = AppBindingCatalogSurfaces.ThreadBinding
+            });
+        AppServerTestHarness.AssertIsSuccessResponse(response);
+        var app = Assert.Single(
+            response.RootElement.GetProperty("result").GetProperty("apps").EnumerateArray(),
+            item => item.GetProperty("appId").GetString() == qqAppId);
+        var toolCatalog = app.GetProperty("toolCatalog")
+            .EnumerateArray()
+            .ToDictionary(tool => tool.GetProperty("name").GetString()!, StringComparer.Ordinal);
+        Assert.Equal("direct", toolCatalog["QQSendImageToCurrentChat"].GetProperty("defaultExposure").GetString());
+        Assert.Equal("deferred", toolCatalog["QQDeferredImageTool"].GetProperty("defaultExposure").GetString());
+    }
+
+    [Fact]
     public async Task SocialChannelAppList_ReportsInvalidNativeToolDiagnostics()
     {
         const string qqAppId = "com.dotharness.channel.qq";
@@ -1443,7 +1517,7 @@ public sealed class AppBindingProtocolTests : IDisposable
                 AppBindingAccept,
                 new
                 {
-                    requestToken = "DTC-123456",
+                    requestToken = "482913",
                     grantId = "social-grant-1",
                     grantedScopes = new[] { "conversation.receive", "message.send" },
                     approvalMode = "channelBindCode",
@@ -1463,7 +1537,7 @@ public sealed class AppBindingProtocolTests : IDisposable
             AppBindingAccept,
             new
             {
-                requestToken = "DTC-123456",
+                requestToken = "482913",
                 grantId = "social-grant-1",
                 grantedScopes = new[] { "conversation.receive", "message.send" },
                 approvalMode = "channelBindCode",
@@ -1860,7 +1934,7 @@ public sealed class AppBindingProtocolTests : IDisposable
     {
         const string qqAppId = "com.dotharness.channel.qq";
         var registry = new ChannelRuntimeRegistry();
-        registry.Register(new RecordingChannelRuntime("qq"));
+        registry.Register(new RecordingChannelRuntime("qq", [QqSendImageTool()]));
         var service = new AppBindingService([
             new SocialChannelAppBindingRuntime(
                 "qq",
@@ -1884,7 +1958,7 @@ public sealed class AppBindingProtocolTests : IDisposable
         var tool = Assert.Single(
             service.CreateRuntimeToolsForThread(thread, new HashSet<string>(StringComparer.Ordinal))
                 .OfType<AIFunction>(),
-            candidate => candidate.Name == "SendMessageToBoundConversation");
+            candidate => candidate.Name == "QQSendImageToCurrentChat");
         var turn = AppServerTestHarness.MakeTurn(thread.Id);
         var seq = 0;
         using var scope = PluginFunctionExecutionScope.Set(new PluginFunctionExecutionContext
@@ -1904,7 +1978,7 @@ public sealed class AppBindingProtocolTests : IDisposable
 
         await tool.InvokeAsync(new AIFunctionArguments(new Dictionary<string, object?>
         {
-            ["text"] = "hello while offline"
+            ["fileName"] = "photo.png"
         }));
 
         var payload = Assert.IsType<DynamicToolCallPayload>(Assert.Single(turn.Items).Payload);
@@ -1919,23 +1993,7 @@ public sealed class AppBindingProtocolTests : IDisposable
         var registry = new ChannelRuntimeRegistry();
         var runtime = new RecordingChannelRuntime(
             "qq",
-            [
-                new ChannelToolDescriptor
-                {
-                    Name = "QQSendImageToCurrentChat",
-                    Description = "Send an image to the current QQ chat.",
-                    RequiresChatContext = true,
-                    InputSchema = new JsonObject
-                    {
-                        ["type"] = "object",
-                        ["properties"] = new JsonObject
-                        {
-                            ["fileName"] = new JsonObject { ["type"] = "string" }
-                        },
-                        ["required"] = new JsonArray("fileName")
-                    }
-                }
-            ]);
+            [QqSendImageTool()]);
         registry.Register(runtime);
         var service = new AppBindingService([
             new SocialChannelAppBindingRuntime(
@@ -1952,7 +2010,6 @@ public sealed class AppBindingProtocolTests : IDisposable
         var tools = service.CreateRuntimeToolsForThread(thread, new HashSet<string>(StringComparer.Ordinal))
             .OfType<AIFunction>()
             .ToList();
-        Assert.Contains(tools, tool => tool.Name == "SendMessageToBoundConversation");
         var nativeTool = Assert.Single(tools, tool => tool.Name == "QQSendImageToCurrentChat");
 
         var turn = AppServerTestHarness.MakeTurn(thread.Id);
@@ -3494,6 +3551,25 @@ public sealed class AppBindingProtocolTests : IDisposable
         {
             platformUserId = "9988",
             displayName = "Ada"
+        }
+    };
+
+    private static ChannelToolDescriptor QqSendImageTool(
+        string name = "QQSendImageToCurrentChat",
+        bool? deferLoading = null) => new()
+    {
+        Name = name,
+        Description = "Send an image to the current QQ chat.",
+        RequiresChatContext = true,
+        DeferLoading = deferLoading,
+        InputSchema = new JsonObject
+        {
+            ["type"] = "object",
+            ["properties"] = new JsonObject
+            {
+                ["fileName"] = new JsonObject { ["type"] = "string" }
+            },
+            ["required"] = new JsonArray("fileName")
         }
     };
 

@@ -32,32 +32,38 @@ public sealed partial class GatewayModule : ModuleBase
 
         // Register ExternalChannelRegistry as a singleton (all external hosts + WebSocket routing)
         services.TryAddSingleton<ExternalChannelRegistry>();
+        services.TryAddSingleton<ChannelToolRegistrationService>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IThreadPluginFunctionProvider, ExternalChannelToolProvider>());
         services.AddSingleton<IManagedAppBindingRuntime>(sp => new SocialChannelAppBindingRuntime(
             "qq",
             "QQ",
             "Continue this thread in a QQ group or private chat.",
-            sp.GetRequiredService<IChannelRuntimeRegistry>()));
+            sp.GetRequiredService<IChannelRuntimeRegistry>(),
+            sp.GetRequiredService<ChannelToolRegistrationService>()));
         services.AddSingleton<IManagedAppBindingRuntime>(sp => new SocialChannelAppBindingRuntime(
             "wecom",
             "WeCom",
             "Continue this thread in a WeCom conversation.",
-            sp.GetRequiredService<IChannelRuntimeRegistry>()));
+            sp.GetRequiredService<IChannelRuntimeRegistry>(),
+            sp.GetRequiredService<ChannelToolRegistrationService>()));
         services.AddSingleton<IManagedAppBindingRuntime>(sp => new SocialChannelAppBindingRuntime(
             "telegram",
             "Telegram",
             "Continue this thread in a Telegram chat.",
-            sp.GetRequiredService<IChannelRuntimeRegistry>()));
+            sp.GetRequiredService<IChannelRuntimeRegistry>(),
+            sp.GetRequiredService<ChannelToolRegistrationService>()));
         services.AddSingleton<IManagedAppBindingRuntime>(sp => new SocialChannelAppBindingRuntime(
             "feishu",
             "Feishu",
             "Continue this thread in a Feishu chat.",
-            sp.GetRequiredService<IChannelRuntimeRegistry>()));
+            sp.GetRequiredService<IChannelRuntimeRegistry>(),
+            sp.GetRequiredService<ChannelToolRegistrationService>()));
         services.AddSingleton<IManagedAppBindingRuntime>(sp => new SocialChannelAppBindingRuntime(
             "weixin",
             "Weixin",
             "Continue this thread in a Weixin conversation.",
-            sp.GetRequiredService<IChannelRuntimeRegistry>()));
+            sp.GetRequiredService<IChannelRuntimeRegistry>(),
+            sp.GetRequiredService<ChannelToolRegistrationService>()));
         services.TryAddSingleton<AppBindingService>();
         services.TryAddSingleton<WireRuntimeAdditionalContextProvider>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IThreadRuntimeToolProvider, WireDynamicToolProxy>());

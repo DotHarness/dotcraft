@@ -231,6 +231,7 @@ export const MESSAGES_FR = {
   'error.action.restart': 'Redémarrer',
   'error.action.retry': 'Réessayer',
   'error.details': 'Détails de l’erreur',
+  'error.details.copy': 'Copier les détails de l’erreur',
   'error.copyAria': 'Copier l’erreur',
   'error.copiedAria': 'Erreur copiée',
 

@@ -13,17 +13,19 @@ public sealed class SocialChannelAppBindingRuntime(
     string channelName,
     string displayName,
     string description,
-    IChannelRuntimeRegistry runtimeRegistry) : IManagedAppBindingRuntime
+    IChannelRuntimeRegistry runtimeRegistry,
+    ChannelToolRegistrationService? channelToolRegistration = null) : IManagedAppBindingRuntime
 {
     private const string ConversationReceiveScope = "conversation.receive";
     private const string MessageSendScope = "message.send";
-    private const string SendMessageToolName = "SendMessageToBoundConversation";
 
     private readonly string _channelName = NormalizeChannelName(channelName);
     private readonly string _displayName = string.IsNullOrWhiteSpace(displayName) ? channelName : displayName.Trim();
     private readonly string _description = string.IsNullOrWhiteSpace(description)
         ? $"Continue this thread in {displayName}."
         : description.Trim();
+    private readonly ChannelToolRegistrationService _channelToolRegistration =
+        channelToolRegistration ?? new ChannelToolRegistrationService();
 
     public AppDescriptor Descriptor => BuildDescriptor(_channelName, _displayName, _description);
 
@@ -36,7 +38,7 @@ public sealed class SocialChannelAppBindingRuntime(
 
     public IReadOnlyList<DynamicToolSpec> ToolSpecs => BuildToolSpecs(_channelName, GetChannelToolDescriptors());
 
-    public bool AllowDirectMutatingToolExposure => false;
+    public bool AllowDirectMutatingToolExposure => true;
 
     public AppDescriptor GetCatalogDescriptor(string surface) => Descriptor;
 
@@ -69,44 +71,7 @@ public sealed class SocialChannelAppBindingRuntime(
         ManagedAppBindingToolCallContext context,
         JsonObject arguments,
         CancellationToken cancellationToken)
-    {
-        if (!string.Equals(context.ToolName, SendMessageToolName, StringComparison.Ordinal))
-            return await InvokeNativeChannelToolAsync(context, arguments, cancellationToken);
-
-        var text = arguments.TryGetPropertyValue("text", out var textNode)
-            ? textNode?.GetValue<string>()?.Trim()
-            : null;
-        if (string.IsNullOrWhiteSpace(text))
-            return Fail("InvalidArguments", "'text' is required.");
-
-        var target = context.AppBindingService?.GetSocialTarget(context.WorkspaceCraftPath, context.BindingId);
-        if (target == null)
-            return Fail(AppBindingErrorCodes.ToolUnavailable, "The binding does not have a social channel target.");
-        if (!string.Equals(target.ChannelName, _channelName, StringComparison.OrdinalIgnoreCase))
-            return Fail(AppBindingErrorCodes.ProtocolViolation, "The binding target channel does not match this runtime.");
-        if (!runtimeRegistry.TryGet(_channelName, out var runtime) || runtime == null || !runtime.IsReady)
-            return Fail(AppBindingErrorCodes.Offline, $"Channel '{_channelName}' is not connected.");
-
-        var delivery = await runtime.DeliverAsync(
-            target.DeliveryTarget,
-            new ChannelOutboundMessage
-            {
-                Kind = "text",
-                Text = text
-            },
-            metadata: new
-            {
-                context.ThreadId,
-                context.TurnId,
-                context.BindingId,
-                context.AppId
-            },
-            cancellationToken);
-
-        return delivery.Delivered
-            ? Ok($"Message sent to {_displayName}.", new { target = target.DeliveryTarget })
-            : Fail(delivery.ErrorCode ?? "ChannelDeliveryFailed", delivery.ErrorMessage ?? "Channel delivery failed.");
-    }
+        => await InvokeNativeChannelToolAsync(context, arguments, cancellationToken);
 
     private async ValueTask<DynamicToolCallResult> InvokeNativeChannelToolAsync(
         ManagedAppBindingToolCallContext context,
@@ -184,22 +149,14 @@ public sealed class SocialChannelAppBindingRuntime(
             ],
             ToolCatalog =
             [
-                new AppToolCatalogEntry
-                {
-                    Name = SendMessageToolName,
-                    Scope = MessageSendScope,
-                    Risk = AppBindingRisks.ExternalWrite,
-                    DefaultExposure = AppBindingExposures.Deferred,
-                    Description = $"Send a message to the {displayName} conversation bound to this thread."
-                },
                 ..GetChannelToolDescriptors().Select(descriptor => new AppToolCatalogEntry
                 {
                     Name = descriptor.Name,
                     Scope = MessageSendScope,
                     Risk = AppBindingRisks.ExternalWrite,
-                    DefaultExposure = descriptor.DeferLoading == false
-                        ? AppBindingExposures.Direct
-                        : AppBindingExposures.Deferred,
+                    DefaultExposure = descriptor.DeferLoading == true
+                        ? AppBindingExposures.Deferred
+                        : AppBindingExposures.Direct,
                     Description = descriptor.Description
                 })
             ],
@@ -210,33 +167,13 @@ public sealed class SocialChannelAppBindingRuntime(
         string channelName,
         IReadOnlyList<ChannelToolDescriptor> channelTools) =>
     [
-        new DynamicToolSpec
-        {
-            Namespace = channelName,
-            Name = SendMessageToolName,
-            Description = "Send a message to the social conversation bound to this thread.",
-            InputSchema = new JsonObject
-            {
-                ["type"] = "object",
-                ["properties"] = new JsonObject
-                {
-                    ["text"] = new JsonObject
-                    {
-                        ["type"] = "string",
-                        ["description"] = "Message text to send."
-                    }
-                },
-                ["required"] = new JsonArray("text")
-            },
-            DeferLoading = true
-        },
         ..channelTools.Select(tool => new DynamicToolSpec
         {
             Namespace = channelName,
             Name = tool.Name,
             Description = tool.Description,
             InputSchema = tool.InputSchema?.DeepClone() as JsonObject,
-            DeferLoading = tool.DeferLoading ?? true,
+            DeferLoading = tool.DeferLoading,
             Approval = tool.Approval == null
                 ? null
                 : new ChannelToolApprovalDescriptor
@@ -260,58 +197,15 @@ public sealed class SocialChannelAppBindingRuntime(
             return [];
         }
 
-        var accepted = new List<ChannelToolDescriptor>();
-        var warnings = new List<PluginDiagnostic>();
-        var acceptedNames = new HashSet<string>(StringComparer.Ordinal);
         var appId = AppIdForChannel(_channelName);
-        foreach (var descriptor in runtime.GetChannelTools())
-        {
-            if (string.Equals(descriptor.Name, SendMessageToolName, StringComparison.Ordinal))
-            {
-                warnings.Add(PluginDiagnostic.Warning(
-                    "ChannelToolNameConflict",
-                    $"Channel tool '{descriptor.Name}' conflicts with the built-in social binding send tool.",
-                    appId));
-                continue;
-            }
-
-            if (!TryValidateChannelTool(descriptor, out var message))
-            {
-                warnings.Add(PluginDiagnostic.Warning(
-                    "InvalidChannelToolDescriptor",
-                    message,
-                    appId));
-                continue;
-            }
-
-            if (!acceptedNames.Add(descriptor.Name))
-            {
-                warnings.Add(PluginDiagnostic.Warning(
-                    "DuplicateChannelToolDescriptor",
-                    $"Channel tool '{descriptor.Name}' is declared more than once; only the first declaration is used.",
-                    appId));
-                continue;
-            }
-
-            accepted.Add(descriptor);
-        }
-
-        diagnostics = warnings;
-        return accepted;
-    }
-
-    private static bool TryValidateChannelTool(ChannelToolDescriptor descriptor, out string message)
-    {
-        var spec = new DynamicToolSpec
-        {
-            Namespace = "channel",
-            Name = descriptor.Name,
-            Description = descriptor.Description,
-            InputSchema = descriptor.InputSchema?.DeepClone() as JsonObject,
-            DeferLoading = descriptor.DeferLoading,
-            Approval = descriptor.Approval
-        };
-        return WireDynamicToolProxy.TryValidateSpecs([spec], out message);
+        var tools = _channelToolRegistration.GetRegisteredTools(runtime, out var channelDiagnostics);
+        diagnostics = channelDiagnostics
+            .Select(diagnostic => PluginDiagnostic.Warning(
+                diagnostic.Code,
+                diagnostic.Message,
+                appId))
+            .ToList();
+        return tools;
     }
 
     private static bool TryFindTargetOverride(JsonObject arguments, out string argumentName)

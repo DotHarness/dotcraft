@@ -26,7 +26,7 @@ namespace DotCraft.ExternalChannel;
 /// lifecycle while the adapter connects back over the AppServer WebSocket endpoint.
 /// </para>
 /// </summary>
-public sealed class ExternalChannelHost : IChannelService
+public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrationSource
 {
     private const int MaxLogLines = 200;
     private const string DotCraftNodeBinEnv = "DOTCRAFT_NODE_BIN";
@@ -198,6 +198,8 @@ public sealed class ExternalChannelHost : IChannelService
     /// Current adapter connection snapshot, when attached.
     /// </summary>
     public AppServerConnection? AdapterConnection => _connection;
+
+    AppServerConnection? IChannelToolRegistrationSource.ChannelToolRegistrationConnection => _connection;
 
     public HeartbeatService? HeartbeatService { get; set; }
 

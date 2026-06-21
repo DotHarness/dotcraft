@@ -82,11 +82,10 @@ test("should flush segments for plugin function calls", () => {
   assert.equal(shouldFlushSegmentOnItemStarted("agentMessage"), false);
 });
 
-test("ChannelAdapter parses numeric and legacy social bind codes", () => {
+test("ChannelAdapter parses numeric social bind codes", () => {
   const adapter = new SocialRecordingAdapter();
 
   assert.equal(adapter.parseBindCodeForTest("/bind 482913"), "482913");
-  assert.equal(adapter.parseBindCodeForTest("/bind DTC-123456"), "DTC-123456");
   assert.equal(adapter.parseBindCodeForTest("bind 482913"), null);
 });
 
@@ -159,7 +158,7 @@ test("processMessage enqueues bound social input instead of streaming a turn", a
   (adapter as unknown as {
     getOrCreateThread: (...args: unknown[]) => Promise<Thread>;
   }).getOrCreateThread = async () => {
-    throw new Error("bound social input must not create a legacy thread");
+    throw new Error("bound social input must not create a thread");
   };
 
   client.threadResume = async () => {
@@ -228,6 +227,48 @@ test("processMessage enqueues bound social input instead of streaming a turn", a
     triggerRefId: "test-channel::group:group-123",
     startPolicy: "runWhenIdle",
     sender: { senderId: "u", senderName: "Tester", groupId: "group-123" },
+  });
+});
+
+test("processMessage ignores unbound social input instead of creating a thread", async () => {
+  const adapter = new SocialRecordingAdapter();
+  const client = (adapter as unknown as { client: Record<string, unknown> }).client;
+  let resolveParams: Record<string, unknown> | null = null;
+
+  (adapter as unknown as {
+    getOrCreateThread: (...args: unknown[]) => Promise<Thread>;
+  }).getOrCreateThread = async () => {
+    throw new Error("unbound social input must not create a thread");
+  };
+  client.turnStart = async () => {
+    throw new Error("unbound social input must not start a turn");
+  };
+  client.streamEvents = () => {
+    throw new Error("unbound social input must not open a stream");
+  };
+  client.request = async (method: unknown, params: unknown) => {
+    if (method === "app/socialBinding/resolve") {
+      resolveParams = params as Record<string, unknown>;
+      return { binding: null };
+    }
+    throw new Error(`unexpected request ${String(method)}`);
+  };
+
+  await (adapter as unknown as {
+    processMessage: (identityKey: string, opts: Record<string, unknown>) => Promise<void>;
+  }).processMessage("u:group-123", {
+    userId: "u",
+    userName: "Tester",
+    text: "hello unbound",
+    channelContext: "group-123",
+  });
+
+  assert.deepEqual(resolveParams, {
+    appId: "com.dotharness.channel.test-channel",
+    channelName: "test-channel",
+    accountId: undefined,
+    conversationKind: "group",
+    conversationId: "group-123",
   });
 });
 

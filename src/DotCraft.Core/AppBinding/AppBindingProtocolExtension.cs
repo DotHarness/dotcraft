@@ -348,7 +348,7 @@ public sealed class AppBindingProtocolExtension(
                     result.Binding,
                     previousState: AppBindingStates.Pending,
                     changeKind: "accepted",
-                    refreshAgent: false);
+                    refreshAgent: result.Binding.AttachedToolCount > 0);
             }
 
             case AppBindingAttachTools:

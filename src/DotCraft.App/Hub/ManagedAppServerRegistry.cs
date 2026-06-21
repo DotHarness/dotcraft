@@ -924,7 +924,14 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
 
     private void PersistAll()
     {
-        _store?.Save(_persisted.Values);
+        try
+        {
+            _store?.Save(_persisted.Values);
+        }
+        catch
+        {
+            // Registry persistence is best-effort; live memory and workspace locks remain authoritative.
+        }
     }
 
     private static (string WorkspacePath, string CanonicalWorkspacePath, string CraftPath) ResolveWorkspace(string workspacePath)

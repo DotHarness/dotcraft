@@ -38,6 +38,14 @@ For the channel registration and transport fields behind these shapes, see [Entr
 
 See [Unified Session Core](../../developing/architecture/session-core) for the model.
 
+## Hand Off a Conversation to a Channel
+
+![DotCraft channel handoff](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/channel-handoff.gif)
+
+You can bind an existing Desktop conversation to a connected social channel. Open the conversation's Apps menu, choose a connected channel, then send the shown `/bind 123456` command in the target chat. DotCraft links that chat to the same Thread, so future messages from the channel continue the conversation instead of creating a separate bot thread.
+
+Replies triggered from the social channel are delivered back to that channel automatically. Messages you send from Desktop stay in Desktop unless a channel message starts the turn.
+
 ## Scenarios
 
 | Scenario | Recommendation |
@@ -47,6 +55,7 @@ See [Unified Session Core](../../developing/architecture/session-core) for the m
 | Project support / aftermarket | WeChat / WeCom |
 | Trigger an Agent CI report from a group | Any channel + [Automations](../agent-system/automations) |
 | Read group history in Desktop and take over | Any channel + Desktop on the same workspace |
+| Continue a Desktop conversation in a social chat | Any connected channel + `/bind` from the target chat |
 
 ## Security Notes
 

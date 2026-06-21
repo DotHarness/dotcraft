@@ -8,6 +8,7 @@ namespace DotCraft.Hub;
 internal sealed class HubAppServerRegistryStore
 {
     private readonly string _path;
+    private readonly object _saveLock = new();
 
     public HubAppServerRegistryStore(string path)
     {
@@ -36,31 +37,34 @@ internal sealed class HubAppServerRegistryStore
 
     public void Save(IEnumerable<HubAppServerRegistryRecord> records)
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
-        var document = new HubAppServerRegistryDocument(
-            Version: 1,
-            UpdatedAt: DateTimeOffset.UtcNow,
-            AppServers: records
-                .Where(r => !string.IsNullOrWhiteSpace(r.CanonicalWorkspacePath))
-                .OrderBy(r => r.CanonicalWorkspacePath, WorkspaceComparer)
-                .ToArray());
+        lock (_saveLock)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
+            var document = new HubAppServerRegistryDocument(
+                Version: 1,
+                UpdatedAt: DateTimeOffset.UtcNow,
+                AppServers: records
+                    .Where(r => !string.IsNullOrWhiteSpace(r.CanonicalWorkspacePath))
+                    .OrderBy(r => r.CanonicalWorkspacePath, WorkspaceComparer)
+                    .ToArray());
 
-        var tempPath = _path + "." + Environment.ProcessId + ".tmp";
-        File.WriteAllText(tempPath, JsonSerializer.Serialize(document, HubJson.Options));
-        try
-        {
-            File.Move(tempPath, _path, overwrite: true);
-        }
-        finally
-        {
+            var tempPath = _path + "." + Environment.ProcessId + "." + Guid.NewGuid().ToString("N") + ".tmp";
+            File.WriteAllText(tempPath, JsonSerializer.Serialize(document, HubJson.Options));
             try
             {
-                if (File.Exists(tempPath))
-                    File.Delete(tempPath);
+                File.Move(tempPath, _path, overwrite: true);
             }
-            catch
+            finally
             {
-                // Best-effort cleanup only.
+                try
+                {
+                    if (File.Exists(tempPath))
+                        File.Delete(tempPath);
+                }
+                catch
+                {
+                    // Best-effort cleanup only.
+                }
             }
         }
     }

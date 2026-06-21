@@ -829,6 +829,7 @@ export const MESSAGES_ZH_HANS = {
   'error.action.restart': '重新启动',
   'error.action.retry': '重试',
   'error.details': '错误详情',
+  'error.details.copy': '复制错误详情',
   'error.copyAria': '复制错误',
   'error.copiedAria': '错误已复制',
 
