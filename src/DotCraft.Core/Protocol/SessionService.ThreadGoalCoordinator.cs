@@ -34,11 +34,14 @@ public sealed partial class SessionService
             var thread = await owner.GetOrLoadThreadAsync(normalizedThreadId, ct);
             ThrowIfEphemeralThread(thread);
             var existing = await owner.Persistence.GetThreadGoalAsync(normalizedThreadId, ct);
+            var previousGoalId = existing?.GoalId;
             await FlushInFlightAccountingForExternalMutationAsync(normalizedThreadId, existing, ct);
+            if (existing != null)
+                existing = await owner.Persistence.GetThreadGoalAsync(normalizedThreadId, ct);
 
             var next = BuildThreadGoal(normalizedThreadId, existing, update, mode);
             await owner.Persistence.UpsertThreadGoalAsync(next, ct);
-            ResetInFlightSnapshotsAfterExternalMutation(normalizedThreadId, existing?.GoalId, next);
+            ResetInFlightSnapshotsAfterExternalMutation(normalizedThreadId, previousGoalId, next);
             owner.PublishGoalUpdated(next, null);
             if (next.Status == ThreadGoalStatus.Active && IsThreadIdleForContinuation(thread))
                 _ = MaybeContinueIfIdleAsync(normalizedThreadId, CancellationToken.None);
