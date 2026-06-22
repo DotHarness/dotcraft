@@ -949,7 +949,7 @@ Rules:
 - Attached `DynamicToolSpec` display, `_meta.ui`, and `presentation` declarations are the executable runtime metadata. They may narrow the accepted catalog card contract but must not expand the allowed action kinds or callable surface routes beyond it.
 - Granted scopes must cover each tool's declared catalog scope.
 - `mutate` and `externalWrite` tools default to deferred exposure unless DotCraft policy explicitly allows direct exposure.
-- In Responses native deferred-loading mode, app-bound deferred tools are advertised through `tool_search` as namespace loadable tool specs. They are not injected into the top-level model tool list after discovery.
+- In provider-native deferred-loading mode, such as OpenAI Responses or Anthropic beta tool references, app-bound deferred tools are advertised through `tool_search` as namespace loadable tool specs. They are not injected as ordinary complete schemas into the top-level model tool list after discovery.
 
 Future app-bound MCP tools must enter through an equivalent attachment path and must not be injected through ordinary workspace or per-thread MCP configuration.
 

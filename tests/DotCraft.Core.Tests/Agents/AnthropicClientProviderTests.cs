@@ -88,6 +88,7 @@ public sealed class AnthropicClientProviderTests
         var capabilities = ModelProviderCapabilities.ForProtocol(ModelProviderProtocols.Anthropic);
 
         Assert.True(capabilities.PromptCacheRequestShaping);
+        Assert.True(capabilities.NativeDeferredToolLoading);
     }
 
     private static EffectiveModelRuntime Runtime(string protocol, int networkTimeoutSeconds = 600) => new(

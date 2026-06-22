@@ -19,17 +19,20 @@ internal static class DeferredToolLoadingPlanner
         string protocol)
     {
         var normalizedProtocol = ModelProviderProtocols.Normalize(protocol);
+        var supportsNative =
+            normalizedProtocol == ModelProviderProtocols.OpenAIResponses
+            || normalizedProtocol == ModelProviderProtocols.Anthropic;
         return config.Strategy switch
         {
             AppConfig.DeferredLoadingStrategy.Off => DeferredToolLoadingMode.Off,
             AppConfig.DeferredLoadingStrategy.Simulated => DeferredToolLoadingMode.Simulated,
-            AppConfig.DeferredLoadingStrategy.Auto => normalizedProtocol == ModelProviderProtocols.OpenAIResponses
+            AppConfig.DeferredLoadingStrategy.Auto => supportsNative
                 ? DeferredToolLoadingMode.Native
                 : DeferredToolLoadingMode.Simulated,
-            AppConfig.DeferredLoadingStrategy.Native when normalizedProtocol == ModelProviderProtocols.OpenAIResponses
+            AppConfig.DeferredLoadingStrategy.Native when supportsNative
                 => DeferredToolLoadingMode.Native,
             AppConfig.DeferredLoadingStrategy.Native => throw new InvalidOperationException(
-                "Deferred tool loading strategy 'Native' requires provider protocol 'openai-responses'."),
+                "Deferred tool loading strategy 'Native' requires provider protocol 'openai-responses' or 'anthropic'."),
             _ => DeferredToolLoadingMode.Off
         };
     }
@@ -38,6 +41,7 @@ internal static class DeferredToolLoadingPlanner
     {
         context.DeferredToolRegistry = null;
         var cfg = context.Config.Tools.DeferredLoading;
+        var normalizedProtocol = ModelProviderProtocols.Normalize(context.EffectiveProviderProtocol);
         var mode = ResolveMode(cfg, context.EffectiveProviderProtocol);
         if (mode == DeferredToolLoadingMode.Off || tools.Count == 0)
             return;
@@ -79,17 +83,22 @@ internal static class DeferredToolLoadingPlanner
         tools.RemoveAll(tool => deferredNames.Contains(tool.Name));
         if (mode == DeferredToolLoadingMode.Native)
         {
+            var toolName = normalizedProtocol == ModelProviderProtocols.Anthropic
+                ? AnthropicToolSearchTool.ToolName
+                : NativeToolSearchTool.ToolName;
             var traceContext = context.TraceCollector == null
                 ? null
                 : new DeferredToolLoadingTraceContext(
                     context.TraceCollector,
                     cfg.Strategy.ToString(),
                     mode.ToString(),
-                    ModelProviderProtocols.Normalize(context.EffectiveProviderProtocol),
-                    NativeToolSearchTool.ToolName,
+                    normalizedProtocol,
+                    toolName,
                     sanitizedEntries.Length,
                     cfg.MaxSearchResults);
-            tools.Add(new NativeToolSearchTool(registry, cfg.MaxSearchResults, traceContext));
+            tools.Add(normalizedProtocol == ModelProviderProtocols.Anthropic
+                ? new AnthropicToolSearchTool(registry, cfg.MaxSearchResults, traceContext)
+                : new NativeToolSearchTool(registry, cfg.MaxSearchResults, traceContext));
         }
         else
         {

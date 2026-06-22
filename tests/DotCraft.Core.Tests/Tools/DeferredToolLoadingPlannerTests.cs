@@ -61,6 +61,36 @@ public sealed class DeferredToolLoadingPlannerTests
     }
 
     [Fact]
+    public void Apply_AnthropicNativeAddsAnthropicToolSearchMarker()
+    {
+        var config = new AppConfig();
+        config.Tools.DeferredLoading.Strategy = AppConfig.DeferredLoadingStrategy.Native;
+        var context = CreateContext(config, ModelProviderProtocols.Anthropic);
+        var tools = new List<AITool> { new MetadataFunction("DeferredRuntimeTool", deferLoading: true) };
+
+        DeferredToolLoadingPlanner.Apply(tools, context);
+
+        var marker = Assert.IsType<AnthropicToolSearchTool>(Assert.Single(tools));
+        Assert.Equal(AnthropicToolSearchTool.ToolName, marker.Name);
+        Assert.Equal("Native", context.DeferredToolRegistry!.Mode.ToString());
+    }
+
+    [Fact]
+    public void Apply_AnthropicExplicitSimulatedAddsLegacySearchTool()
+    {
+        var config = new AppConfig();
+        config.Tools.DeferredLoading.Strategy = AppConfig.DeferredLoadingStrategy.Simulated;
+        var context = CreateContext(config, ModelProviderProtocols.Anthropic);
+        var tools = new List<AITool> { new MetadataFunction("DeferredRuntimeTool", deferLoading: true) };
+
+        DeferredToolLoadingPlanner.Apply(tools, context);
+
+        Assert.Contains(tools, tool => tool.Name == nameof(ToolSearchTool.SearchTools));
+        Assert.DoesNotContain(tools, tool => tool is AnthropicToolSearchTool);
+        Assert.Equal("Simulated", context.DeferredToolRegistry!.Mode.ToString());
+    }
+
+    [Fact]
     public void Registry_Bm25SearchUsesSchemaText()
     {
         var tool = new MetadataFunction(

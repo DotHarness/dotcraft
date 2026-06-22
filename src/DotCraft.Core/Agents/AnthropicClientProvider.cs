@@ -35,7 +35,7 @@ public sealed class AnthropicClientProvider
     public IChatClient GetChatClient(EffectiveModelRuntime runtime)
     {
         ArgumentNullException.ThrowIfNull(runtime);
-        return GetAnthropicClient(runtime).AsIChatClient(
+        return GetAnthropicClient(runtime).Beta.AsIChatClient(
             NormalizeRequiredModel(runtime.Model),
             defaultMaxOutputTokens: NormalizeMaxOutputTokens(runtime.MaxOutputTokens));
     }

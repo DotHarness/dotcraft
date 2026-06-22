@@ -128,7 +128,8 @@ public sealed record ModelProviderCapabilities
                 ExtendedThinking = true,
                 ToolChoiceControls = false,
                 PromptCacheRequestShaping = true,
-                RawMetadataPassthrough = false
+                RawMetadataPassthrough = false,
+                NativeDeferredToolLoading = true
             },
             _ => new ModelProviderCapabilities()
         };

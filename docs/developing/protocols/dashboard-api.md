@@ -25,7 +25,7 @@ Read-only mode only exposes trace, session listing, token usage, tools, runtime 
 | `ToolCallStarted` | Tool call started |
 | `ToolCallCompleted` | Tool call completed |
 | `ToolInjection` | Simulated deferred loading injected tool schemas into the next model request |
-| `DeferredToolLoading` | Responses native deferred loading activated deferred tools through `tool_search` |
+| `DeferredToolLoading` | Provider-native deferred loading activated deferred tools through `tool_search` |
 | `TokenUsage` | Token usage for one LLM request |
 | `Error` | Runtime error |
 | `ContextCompaction` | Context compaction |
@@ -40,7 +40,7 @@ Dashboard records `Thinking` and `Response` trace events by contiguous streaming
 
 Maintenance requests such as context compaction and memory consolidation also record `MaintenanceForkRequest` / `MaintenanceForkResponse` events. These events preserve snapshot/cache metadata, raw model text, tool-call-only responses, empty responses, and fallback reasons so Dashboard can diagnose issues such as `summary_unavailable`.
 
-`DeferredToolLoading` is used for Responses native deferred tool loading. It records the tools newly activated by `tool_search`, the configured strategy, the effective mode, and the provider protocol; it does not mean top-level `tools` were injected and it is not marked as a prompt-cache tool extension.
+`DeferredToolLoading` is used for provider-native deferred tool loading, currently OpenAI Responses and Anthropic beta tool references. It records the tools newly activated by `tool_search`, the configured strategy, the effective mode, and the provider protocol; it does not mean top-level `tools` were injected and it is not marked as a prompt-cache tool extension.
 
 `PromptCacheRequestShape` records SHA-256 hashes and counts for OpenAI Responses request components so adjacent requests can be compared for prefix stability.
 

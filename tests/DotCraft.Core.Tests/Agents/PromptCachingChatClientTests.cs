@@ -379,10 +379,56 @@ public sealed class PromptCachingChatClientTests
     }
 
     [Fact]
+    public async Task GetResponseAsync_AnthropicBetaNative_SerializesUserAndToolResultCacheControl()
+    {
+        var handler = new AnthropicCaptureHandler();
+        var client = CreateAnthropicBetaNativeHttpClient(handler);
+
+        await client.GetResponseAsync([
+            new ChatMessage(ChatRole.User, "hello"),
+            new ChatMessage(ChatRole.Assistant, (IList<AIContent>)[
+                new FunctionCallContent("call_1", "ReadFile", new Dictionary<string, object?>())
+            ]),
+            new ChatMessage(ChatRole.Tool, (IList<AIContent>)[
+                new FunctionResultContent("call_1", "result text")
+            ])
+        ]);
+
+        Assert.NotNull(handler.LastRequestJson);
+        using var document = JsonDocument.Parse(handler.LastRequestJson!);
+        var root = document.RootElement;
+        var userText = root.GetProperty("messages")[0].GetProperty("content")[0];
+        Assert.Equal("text", userText.GetProperty("type").GetString());
+        AssertWireCacheControl(userText, expectedTtl: null);
+
+        var toolResult = FindFirstContentBlock(root, "tool_result");
+        Assert.Equal("call_1", toolResult.GetProperty("tool_use_id").GetString());
+        AssertWireCacheControl(toolResult, expectedTtl: null);
+    }
+
+    [Fact]
     public async Task GetResponseAsync_AnthropicNative_SerializesSystemCacheControl()
     {
         var handler = new AnthropicCaptureHandler();
         var client = CreateAnthropicNativeHttpClient(handler, ttl: "1h");
+
+        await client.GetResponseAsync([
+            new ChatMessage(ChatRole.System, "stable system prompt")
+        ]);
+
+        Assert.NotNull(handler.LastRequestJson);
+        using var document = JsonDocument.Parse(handler.LastRequestJson!);
+        var system = document.RootElement.GetProperty("system")[0];
+        Assert.Equal("text", system.GetProperty("type").GetString());
+        Assert.Equal("stable system prompt", system.GetProperty("text").GetString());
+        AssertWireCacheControl(system, expectedTtl: "1h");
+    }
+
+    [Fact]
+    public async Task GetResponseAsync_AnthropicBetaNative_SerializesSystemCacheControl()
+    {
+        var handler = new AnthropicCaptureHandler();
+        var client = CreateAnthropicBetaNativeHttpClient(handler, ttl: "1h");
 
         await client.GetResponseAsync([
             new ChatMessage(ChatRole.System, "stable system prompt")
@@ -1372,6 +1418,24 @@ public sealed class PromptCachingChatClientTests
         };
         return new PromptCachingChatClient(
             anthropicClient.AsIChatClient(model),
+            new AppConfig.PromptCachingConfig { Ttl = ttl },
+            model,
+            PromptCacheMarkerStrategy.AnthropicNative,
+            sessionKeyAccessor: () => Guid.NewGuid().ToString("N"));
+    }
+
+    private static PromptCachingChatClient CreateAnthropicBetaNativeHttpClient(
+        AnthropicCaptureHandler handler,
+        string model = "claude-haiku-4-5",
+        string ttl = "")
+    {
+        var anthropicClient = new AnthropicClient
+        {
+            HttpClient = new HttpClient(handler) { BaseAddress = new Uri("http://localhost") },
+            ApiKey = "test-key"
+        };
+        return new PromptCachingChatClient(
+            anthropicClient.Beta.AsIChatClient(model),
             new AppConfig.PromptCachingConfig { Ttl = ttl },
             model,
             PromptCacheMarkerStrategy.AnthropicNative,

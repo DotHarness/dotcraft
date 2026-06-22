@@ -141,6 +141,13 @@ Breakpoint placement contract:
 
 The cache write that produced a segment counts as `cache_write_input_tokens` on that call and as `cached_input_tokens` on subsequent calls; both fields surface in trace.
 
+Native deferred tool loading uses Anthropic's beta tool-reference path without changing this cache-control contract:
+
+- DotCraft sends the `anthropic-beta: advanced-tool-use-2025-11-20` request header when Anthropic native deferred loading is active.
+- The top-level tool list contains ordinary always-loaded tools, the local `tool_search` tool, and only deferred tools that were already discovered. Discovered deferred tools are serialized with `defer_loading: true`.
+- `tool_search` returns Anthropic `tool_reference` content blocks. DotCraft does not reuse the OpenAI Responses `tool_search_output` wire shape on this protocol.
+- Undiscovered deferred tools are not injected as ordinary complete schemas, so discovering a new tool does not perturb the cached prefix the way simulated deferred loading does.
+
 **Empirical envelope:** ~82% aggregate hit rate on the `prompt-cache-baseline` workload.
 
 ### 2.5 Trace diagnostics
@@ -205,4 +212,4 @@ Each protocol's envelope is a calibration baseline, not a contract. Provider rou
 - Verify each routing header in isolation against the ChatGPT backend to learn which of installation id / `session-id` / `thread-id` / `session_id` / `conversation_id` carries the most weight. Today they are all sent because each costs little and none requires turn-state fabrication.
 - Run opt-in A/B profiles for Codex-shaped User-Agent and explicit `OpenAI-Beta` values, measuring cache coverage, 401/403 rate, first-token latency, and rate-limit headers before considering any default change.
 - Surface per-call cache coverage in the desktop dashboard so drift from the expected pattern is visible without trace-database inspection.
-- Audit cache-marker placement on the anthropic protocol: the current marks cover system prompt and snapshot prefix; additional marks on large stable tool definitions or the first user instruction block may raise the envelope.
+- Audit cache-marker placement on the anthropic protocol: the current marks cover system prompt and snapshot prefix; additional marks on large stable always-loaded tool definitions or the first user instruction block may raise the envelope.

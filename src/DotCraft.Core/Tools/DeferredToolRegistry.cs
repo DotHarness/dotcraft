@@ -89,6 +89,40 @@ public sealed class DeferredToolRegistry
     }
 
     /// <summary>
+    /// Activates deferred tools by exact name and returns the tools that exist in
+    /// this registry. Used by provider-native tool-search flows where the model
+    /// can select known names directly.
+    /// </summary>
+    public IReadOnlyList<ToolSearchResult> ActivateByName(IEnumerable<string> names)
+    {
+        ArgumentNullException.ThrowIfNull(names);
+
+        var requested = names
+            .Select(static name => string.IsNullOrWhiteSpace(name) ? null : name.Trim())
+            .Where(static name => !string.IsNullOrWhiteSpace(name))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        if (requested.Length == 0)
+            return [];
+
+        var results = new List<ToolSearchResult>(requested.Length);
+        lock (_lock)
+        {
+            foreach (var name in requested)
+            {
+                if (!_deferredTools.TryGetValue(name!, out var tool))
+                    continue;
+
+                results.Add(new ToolSearchResult(tool.Name, tool.Description ?? string.Empty));
+                if (_activatedNames.Add(tool.Name))
+                    _activatedTools.Add(tool);
+            }
+        }
+
+        return results;
+    }
+
+    /// <summary>
     /// Searches deferred tools by keyword and activates matching ones.
     /// Activation means the tool is added to <see cref="ActivatedToolsList"/>
     /// so the invocation loop can execute it, and noted in the name set so

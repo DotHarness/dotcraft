@@ -36,6 +36,28 @@ public sealed class AnthropicThinkingChatClientTests
     }
 
     [Fact]
+    public async Task GetResponseAsync_BetaClientSerializesAdaptiveThinking()
+    {
+        var handler = new CaptureHandler();
+        var config = CreateConfig(
+            enabled: true,
+            effort: ReasoningEffort.High,
+            output: ReasoningOutput.Full);
+        var client = CreateBetaClient(handler, config, model: "claude-opus-4-7");
+
+        await client.GetResponseAsync([new ChatMessage(ChatRole.User, "hello")], new ChatOptions
+        {
+            Reasoning = config.Reasoning.ToOptions()
+        });
+
+        using var document = JsonDocument.Parse(handler.LastRequestJson!);
+        var root = document.RootElement;
+        Assert.Equal("adaptive", root.GetProperty("thinking").GetProperty("type").GetString());
+        Assert.Equal("summarized", root.GetProperty("thinking").GetProperty("display").GetString());
+        Assert.Equal("high", root.GetProperty("output_config").GetProperty("effort").GetString());
+    }
+
+    [Fact]
     public async Task GetResponseAsync_ReasoningOutputNoneSerializesOmittedDisplay()
     {
         var handler = new CaptureHandler();
@@ -129,6 +151,25 @@ public sealed class AnthropicThinkingChatClientTests
 
         return new AnthropicThinkingChatClient(
             anthropicClient.AsIChatClient(model),
+            config,
+            model,
+            "http://localhost",
+            defaultMaxOutputTokens: 64_000);
+    }
+
+    private static AnthropicThinkingChatClient CreateBetaClient(
+        CaptureHandler handler,
+        AppConfig config,
+        string model)
+    {
+        var anthropicClient = new AnthropicClient
+        {
+            HttpClient = new HttpClient(handler) { BaseAddress = new Uri("http://localhost") },
+            ApiKey = "test-key"
+        };
+
+        return new AnthropicThinkingChatClient(
+            anthropicClient.Beta.AsIChatClient(model),
             config,
             model,
             "http://localhost",

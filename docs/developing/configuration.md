@@ -477,7 +477,7 @@ MCP example:
 }
 ```
 
-With `Tools.DeferredLoading.Strategy = Auto`, `openai-responses` uses native client-executed `tool_search`, while chat-completions and Anthropic use simulated `SearchTools`.
+With `Tools.DeferredLoading.Strategy = Auto`, `openai-responses` and Anthropic use native client-executed `tool_search`; chat-completions uses simulated `SearchTools`.
 
 ## SubAgent and External CLI Profiles
 
