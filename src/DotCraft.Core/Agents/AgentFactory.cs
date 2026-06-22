@@ -623,7 +623,8 @@ public sealed class AgentFactory : IAsyncDisposable
             var registry = deferredRegistry;
             var tc = _traceCollector;
             var hr = _hookRunner;
-            chatClientBuilder.Use(innerClient => new DynamicToolInjectionChatClient(innerClient, registry, tc, hr));
+            if (deferredRegistry.Mode == DeferredToolLoadingMode.Simulated)
+                chatClientBuilder.Use(innerClient => new DynamicToolInjectionChatClient(innerClient, registry, tc, hr));
         }
         chatClientBuilder.Use(innerClient => new ImageContentSanitizingChatClient(innerClient));
         var runtime = _chatClientRegistry.ResolveMainRuntime(
