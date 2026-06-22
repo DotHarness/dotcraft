@@ -1166,7 +1166,7 @@ Goal notifications:
 
 | Notification | Params | Notes |
 |--------------|--------|-------|
-| `thread/goal/updated` | `{ threadId, turnId?, goal }` | `turnId` is present when a running turn caused the update, such as accounting or `UpdateGoal(complete)`. |
+| `thread/goal/updated` | `{ threadId, turnId?, goal }` | `turnId` is present when a running turn caused the update, such as accounting or `UpdateGoal(complete)` / `UpdateGoal(blocked)`. |
 | `thread/goal/cleared` | `{ threadId }` | Emitted only when a goal was deleted. |
 
 `thread/read`, `thread/start`, `thread/resume`, and `thread/list` may include an optional `goal` snapshot for hydration. Clients must still consume goal notifications as the incremental source of truth.
