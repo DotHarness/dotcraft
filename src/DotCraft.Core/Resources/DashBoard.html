@@ -3300,6 +3300,7 @@ function renderTraceEvent(e) {
         strategy ? `<span class="badge badge-info">strategy ${escapeHtml(strategy)}</span>` : '',
         mode ? `<span class="badge badge-accent">mode ${escapeHtml(String(mode).toLowerCase())}</span>` : '',
         md.providerProtocol ? `<span class="badge badge-info">protocol ${escapeHtml(md.providerProtocol)}</span>` : '',
+        md.wireShape ? `<span class="badge badge-info">wire ${escapeHtml(md.wireShape)}</span>` : '',
         count != null ? `<span class="badge badge-warning">${formatNumber(count)} activated</span>` : '',
         md.deferredToolCount != null ? `<span class="badge badge-info">${formatNumber(md.deferredToolCount)} deferred</span>` : ''
       ].filter(Boolean).join('');

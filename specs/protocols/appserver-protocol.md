@@ -308,7 +308,7 @@ Each `channelTools` descriptor supports:
 
 Channel tool names should use PascalCase. For cross-runtime icon support, adapters should prefer declaring emoji icons via `channelTools[].display.icon`.
 
-`deferLoading` requests lazy tool exposure. When the active provider supports native deferred tool loading, such as the Responses API with `nativeDeferredToolLoading`, the server may omit the tool from the top-level model tool list and expose it later through the native `tool_search` flow. Otherwise the server may simulate deferred loading with DotCraft's ordinary local tool-search mechanism.
+`deferLoading` requests lazy tool exposure. When the active provider supports native deferred tool loading, such as OpenAI Responses or Anthropic beta tool references with `nativeDeferredToolLoading`, the server may omit the tool from the top-level model tool list and expose it later through the native `tool_search` flow. Otherwise the server may simulate deferred loading with DotCraft's ordinary local tool-search mechanism.
 
 When `approval` is present, it is a descriptive risk declaration rather than an adapter-owned policy block:
 
@@ -4841,7 +4841,7 @@ Additional capability flags include:
 | Field | Type | Description |
 |-------|------|-------------|
 | `responsesApi` | boolean | Whether the provider protocol uses the OpenAI Responses API surface. |
-| `nativeDeferredToolLoading` | boolean | Whether `Tools.DeferredLoading.Strategy = Native` is protocol-valid for this provider. |
+| `nativeDeferredToolLoading` | boolean | Whether `Tools.DeferredLoading.Strategy = Native` is protocol-valid for this provider, currently OpenAI Responses and Anthropic beta tool-reference providers. |
 
 ### 21.3 Provider Management Methods
 

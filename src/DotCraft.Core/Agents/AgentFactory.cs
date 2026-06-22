@@ -450,7 +450,8 @@ public sealed class AgentFactory : IAsyncDisposable
 
         // ChatClientBuilder applies earlier Use calls outside later ones:
         // TracingChatClient => StreamingFunctionInvokingChatClient => [DynamicToolInjectionChatClient]
-        // => ImageContentSanitizingChatClient => provider-specific clients.
+        // => ImageContentSanitizingChatClient => [AnthropicDeferredToolLoadingChatClient]
+        // => provider-specific clients.
         var chatClientBuilder = new ChatClientBuilder(ctx.ChatClient);
         if (_traceCollector != null)
         {
@@ -481,13 +482,23 @@ public sealed class AgentFactory : IAsyncDisposable
             chatClientBuilder.Use(innerClient => new DynamicToolInjectionChatClient(innerClient, registry, tc, hr));
         }
         chatClientBuilder.Use(innerClient => new ImageContentSanitizingChatClient(innerClient));
+        var runtime = ctx.ChatClientRegistry.ResolveMainRuntime(
+            ctx.Config,
+            ctx.EffectiveProviderId,
+            ctx.EffectiveMainModel);
+        if (deferredRegistry?.Mode == DeferredToolLoadingMode.Native
+            && string.Equals(runtime.Protocol, ModelProviderProtocols.Anthropic, StringComparison.Ordinal))
+        {
+            chatClientBuilder.Use(innerClient => new AnthropicDeferredToolLoadingChatClient(
+                innerClient,
+                runtime.Model,
+                runtime.MaxOutputTokens,
+                deferredRegistry));
+        }
         ProviderChatClientAdapters.UseProviderAdapters(
             chatClientBuilder,
             ctx.Config,
-            ctx.ChatClientRegistry.ResolveMainRuntime(
-                ctx.Config,
-                ctx.EffectiveProviderId,
-                ctx.EffectiveMainModel),
+            runtime,
             ctx.EffectiveReasoning,
             ctx.Config.PromptCaching,
             _traceCollector);
@@ -585,7 +596,7 @@ public sealed class AgentFactory : IAsyncDisposable
         // ChatClientBuilder applies earlier Use calls outside later ones:
         // ToolCallFilteringChatClient => TracingChatClient => StreamingFunctionInvokingChatClient
         // => [DynamicToolInjectionChatClient] => ImageContentSanitizingChatClient
-        // => provider-specific clients.
+        // => [AnthropicDeferredToolLoadingChatClient] => provider-specific clients.
         var chatClientBuilder = new ChatClientBuilder(_chatClient);
         chatClientBuilder.Use(innerClient => new ToolCallFilteringChatClient(innerClient));
         if (_traceCollector != null)
@@ -612,16 +623,27 @@ public sealed class AgentFactory : IAsyncDisposable
             var registry = deferredRegistry;
             var tc = _traceCollector;
             var hr = _hookRunner;
-            chatClientBuilder.Use(innerClient => new DynamicToolInjectionChatClient(innerClient, registry, tc, hr));
+            if (deferredRegistry.Mode == DeferredToolLoadingMode.Simulated)
+                chatClientBuilder.Use(innerClient => new DynamicToolInjectionChatClient(innerClient, registry, tc, hr));
         }
         chatClientBuilder.Use(innerClient => new ImageContentSanitizingChatClient(innerClient));
+        var runtime = _chatClientRegistry.ResolveMainRuntime(
+            _config,
+            _toolProviderContext.EffectiveProviderId,
+            _toolProviderContext.EffectiveMainModel);
+        if (deferredRegistry?.Mode == DeferredToolLoadingMode.Native
+            && string.Equals(runtime.Protocol, ModelProviderProtocols.Anthropic, StringComparison.Ordinal))
+        {
+            chatClientBuilder.Use(innerClient => new AnthropicDeferredToolLoadingChatClient(
+                innerClient,
+                runtime.Model,
+                runtime.MaxOutputTokens,
+                deferredRegistry));
+        }
         ProviderChatClientAdapters.UseProviderAdapters(
             chatClientBuilder,
             _config,
-            _chatClientRegistry.ResolveMainRuntime(
-                _config,
-                _toolProviderContext.EffectiveProviderId,
-                _toolProviderContext.EffectiveMainModel),
+            runtime,
             _toolProviderContext.EffectiveReasoning,
             _config.PromptCaching,
             _traceCollector);

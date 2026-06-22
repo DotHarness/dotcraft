@@ -477,7 +477,7 @@ MCP 示例：
 }
 ```
 
-`Tools.DeferredLoading.Strategy = Auto` 时，`openai-responses` 使用原生 client-executed `tool_search`，chat-completions / Anthropic 使用模拟 `SearchTools`。
+`Tools.DeferredLoading.Strategy = Auto` 时，`openai-responses` 和 Anthropic 使用原生 client-executed `tool_search`，chat-completions 使用模拟 `SearchTools`。
 
 ## SubAgent 与 External CLI Profiles
 

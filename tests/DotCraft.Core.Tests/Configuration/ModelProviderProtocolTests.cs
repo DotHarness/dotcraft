@@ -44,9 +44,11 @@ public sealed class ModelProviderProtocolTests
     [Theory]
     [InlineData(AppConfig.DeferredLoadingStrategy.Auto, ModelProviderProtocols.OpenAIChatCompletions, "Simulated")]
     [InlineData(AppConfig.DeferredLoadingStrategy.Auto, ModelProviderProtocols.OpenAIResponses, "Native")]
-    [InlineData(AppConfig.DeferredLoadingStrategy.Auto, ModelProviderProtocols.Anthropic, "Simulated")]
+    [InlineData(AppConfig.DeferredLoadingStrategy.Auto, ModelProviderProtocols.Anthropic, "Native")]
     [InlineData(AppConfig.DeferredLoadingStrategy.Simulated, ModelProviderProtocols.OpenAIResponses, "Simulated")]
+    [InlineData(AppConfig.DeferredLoadingStrategy.Simulated, ModelProviderProtocols.Anthropic, "Simulated")]
     [InlineData(AppConfig.DeferredLoadingStrategy.Native, ModelProviderProtocols.OpenAIResponses, "Native")]
+    [InlineData(AppConfig.DeferredLoadingStrategy.Native, ModelProviderProtocols.Anthropic, "Native")]
     public void DeferredLoadingStrategy_ResolvesAtProtocolLevel(
         AppConfig.DeferredLoadingStrategy strategy,
         string protocol,
@@ -62,7 +64,6 @@ public sealed class ModelProviderProtocolTests
 
     [Theory]
     [InlineData(ModelProviderProtocols.OpenAIChatCompletions)]
-    [InlineData(ModelProviderProtocols.Anthropic)]
     public void DeferredLoadingStrategy_NativeRejectsNonResponsesProtocol(string protocol)
     {
         Assert.Throws<InvalidOperationException>(() =>

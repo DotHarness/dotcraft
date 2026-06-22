@@ -242,7 +242,8 @@ public sealed class TraceCollector(TraceStore store)
         string query,
         int deferredToolCount,
         int requestedMaxResults,
-        int maxSearchResults)
+        int maxSearchResults,
+        string wireShape)
     {
         var normalizedTools = tools
             .Where(static tool => !string.IsNullOrWhiteSpace(tool.Name))
@@ -275,6 +276,7 @@ public sealed class TraceCollector(TraceStore store)
                 effectiveMode,
                 providerProtocol,
                 trigger,
+                wireShape,
                 query,
                 deferredToolCount,
                 requestedMaxResults,

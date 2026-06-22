@@ -269,6 +269,7 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
         Assert.Equal("Native", root.GetProperty("effectiveMode").GetString());
         Assert.Equal(ModelProviderProtocols.OpenAIResponses, root.GetProperty("providerProtocol").GetString());
         Assert.Equal(NativeToolSearchTool.ToolName, root.GetProperty("trigger").GetString());
+        Assert.Equal("openai_responses_tool_search_output", root.GetProperty("wireShape").GetString());
         Assert.Equal("board task", root.GetProperty("query").GetString());
         Assert.Equal(1, root.GetProperty("deferredToolCount").GetInt32());
         Assert.Equal(5, root.GetProperty("requestedMaxResults").GetInt32());
