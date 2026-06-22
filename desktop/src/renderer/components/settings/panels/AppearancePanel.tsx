@@ -125,36 +125,30 @@ export function AppearancePanel(): JSX.Element {
 
   return (
     <SettingsPanelShell title={t('settings.tab.appearance')} description={t('settings.appearance.description')}>
-      <AppearancePreview />
+      <div style={themeCardsRowStyle}>
+        <ThemeModeCard
+          kind="system"
+          label={t('settings.appearance.mode.system')}
+          selected={appearance.themeMode === 'system'}
+          onSelect={() => handleThemeMode('system')}
+        />
+        <ThemeModeCard
+          kind="light"
+          label={t('settings.appearance.mode.light')}
+          selected={appearance.themeMode === 'light'}
+          onSelect={() => handleThemeMode('light')}
+        />
+        <ThemeModeCard
+          kind="dark"
+          label={t('settings.appearance.mode.dark')}
+          selected={appearance.themeMode === 'dark'}
+          onSelect={() => handleThemeMode('dark')}
+        />
+      </div>
+
+      <AppearancePreview accent={appearance.accent ?? '#4566cc'} codeFontSize={codeSize} />
 
       <SettingsGroup title={t('settings.appearance.group.theme')}>
-        <SettingsRow
-          label={t('settings.appearance.mode.label')}
-          description={t('settings.appearance.mode.hint')}
-          orientation="block"
-        >
-          <div style={themeCardsRowStyle}>
-            <ThemeModeCard
-              kind="system"
-              label={t('settings.appearance.mode.system')}
-              selected={appearance.themeMode === 'system'}
-              onSelect={() => handleThemeMode('system')}
-            />
-            <ThemeModeCard
-              kind="light"
-              label={t('settings.appearance.mode.light')}
-              selected={appearance.themeMode === 'light'}
-              onSelect={() => handleThemeMode('light')}
-            />
-            <ThemeModeCard
-              kind="dark"
-              label={t('settings.appearance.mode.dark')}
-              selected={appearance.themeMode === 'dark'}
-              onSelect={() => handleThemeMode('dark')}
-            />
-          </div>
-        </SettingsRow>
-
         <SettingsRow
           label={t('settings.appearance.accent.label')}
           description={t('settings.appearance.accent.hint')}
@@ -344,10 +338,7 @@ function ThemeModeCard({
           </span>
         )}
       </span>
-      <span style={themeCapStyle(selected)}>
-        {selected && <Check size={13} strokeWidth={3} color="var(--accent)" aria-hidden />}
-        {label}
-      </span>
+      <span style={themeCapStyle(selected)}>{label}</span>
     </button>
   )
 }

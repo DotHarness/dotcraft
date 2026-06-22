@@ -2,56 +2,106 @@ import type { CSSProperties, JSX } from 'react'
 import { useT } from '../../../contexts/LocaleContext'
 import { useUIStore } from '../../../stores/uiStore'
 
-type LineKind = 'context' | 'add' | 'remove'
-interface SampleLine {
-  no: string
-  kind: LineKind
+interface Segment {
   text: string
+  /** highlight.js token class, styled by the active hljs stylesheet (theme-aware). */
+  cls?: string
+  /** Render this segment in the live accent color (used for the accent value). */
+  accent?: boolean
+}
+interface CodeLine {
+  no: number
+  changed: boolean
+  segs: Segment[]
 }
 
-// A small, fixed sample that exercises theme colors, the code font size, and the diff style.
-const SAMPLE: SampleLine[] = [
-  { no: '1', kind: 'context', text: 'export function applyTheme(mode) {' },
-  { no: '2', kind: 'context', text: '  // resolve System -> light | dark' },
-  { no: '3', kind: 'remove', text: "  root.setAttribute('data-theme', mode)" },
-  { no: '4', kind: 'add', text: "  root.setAttribute('data-theme', resolve(mode))" },
-  { no: '5', kind: 'context', text: '}' }
+const HEADER: Segment[] = [
+  { text: 'const ', cls: 'hljs-keyword' },
+  { text: 'themePreview' },
+  { text: ': ' },
+  { text: 'ThemeConfig', cls: 'hljs-title' },
+  { text: ' = {' }
+]
+const CLOSE: Segment[] = [{ text: '};' }]
+
+function attr(name: string, value: Segment): Segment[] {
+  return [{ text: '  ' }, { text: name, cls: 'hljs-attr' }, { text: ': ' }, value, { text: ',' }]
+}
+
+// The "before" pane is fixed; the "after" pane reflects the current accent + code font size,
+// so the diff demonstrates the live theme, accent, and code size against a baseline.
+const LEFT: CodeLine[] = [
+  { no: 1, changed: false, segs: HEADER },
+  { no: 2, changed: true, segs: attr('surface', { text: '"sidebar"', cls: 'hljs-string' }) },
+  { no: 3, changed: true, segs: attr('accent', { text: '"#4566cc"', cls: 'hljs-string' }) },
+  { no: 4, changed: true, segs: attr('codeSize', { text: '12', cls: 'hljs-number' }) },
+  { no: 5, changed: false, segs: CLOSE }
 ]
 
+function rightLines(accent: string, codeFontSize: number): CodeLine[] {
+  return [
+    { no: 1, changed: false, segs: HEADER },
+    { no: 2, changed: true, segs: attr('surface', { text: '"sidebar-elevated"', cls: 'hljs-string' }) },
+    { no: 3, changed: true, segs: attr('accent', { text: `"${accent}"`, cls: 'hljs-string', accent: true }) },
+    { no: 4, changed: true, segs: attr('codeSize', { text: String(codeFontSize), cls: 'hljs-number' }) },
+    { no: 5, changed: false, segs: CLOSE }
+  ]
+}
+
 /**
- * Live Appearance preview. Reads the applied CSS variables and the diff-markers store so the
- * theme, accent, code font size, and diff style are reflected as the user changes them. Purely
- * presentational — a documented visualization surface (see specs/clients/DESIGN.md).
+ * Live Appearance preview rendered as a split (before/after) code diff, mirroring the editor's
+ * theme: it reflects the applied theme colors, accent, and code font size, and follows the diff
+ * style (tinted lines vs +/- markers). Purely presentational — a documented visualization
+ * surface (see specs/clients/DESIGN.md).
  */
-export function AppearancePreview(): JSX.Element {
+export function AppearancePreview({
+  accent,
+  codeFontSize
+}: {
+  accent: string
+  codeFontSize: number
+}): JSX.Element {
   const t = useT()
   const signMode = useUIStore((s) => s.diffMarkers) === 'sign'
+  const right = rightLines(accent, codeFontSize)
 
   return (
     <section style={containerStyle} aria-label={t('settings.appearance.preview.label')}>
-      <div style={toolbarStyle}>{t('settings.appearance.preview.label')}</div>
-      <div style={editorStyle}>
-        {SAMPLE.map((line) => (
-          <div key={line.no} style={rowStyle(line.kind, signMode)}>
-            <span style={lineNoStyle}>{line.no}</span>
-            <span style={gutterStyle(line.kind)}>
-              {line.kind === 'add' ? '+' : line.kind === 'remove' ? '-' : ' '}
-            </span>
-            <span style={textStyle(line.kind, signMode)}>{line.text}</span>
-          </div>
-        ))}
-      </div>
-      <div style={chromeRowStyle}>
-        <span style={primaryBtnStyle}>Save</span>
-        <span style={secondaryBtnStyle}>Configure</span>
-        <span style={linkStyle}>View docs ↗</span>
-        <span style={badgeStyle}>NEW</span>
-        <span style={selectedRowStyle}>
-          <span style={dotStyle} aria-hidden />
-          Active thread
-        </span>
+      <div className="hljs" style={editorStyle}>
+        <Pane lines={LEFT} side="left" signMode={signMode} />
+        <Pane lines={right} side="right" signMode={signMode} />
       </div>
     </section>
+  )
+}
+
+function Pane({
+  lines,
+  side,
+  signMode
+}: {
+  lines: CodeLine[]
+  side: 'left' | 'right'
+  signMode: boolean
+}): JSX.Element {
+  return (
+    <div style={paneStyle(side)}>
+      {lines.map((line) => (
+        <div key={line.no} style={lineStyle(line.changed, side, signMode)}>
+          <span style={lineNoStyle}>{line.no}</span>
+          {signMode && (
+            <span style={signStyle(side)}>{line.changed ? (side === 'left' ? '-' : '+') : ' '}</span>
+          )}
+          <span style={codeStyle}>
+            {line.segs.map((seg, i) => (
+              <span key={i} className={seg.cls} style={seg.accent ? accentSegStyle : undefined}>
+                {seg.text}
+              </span>
+            ))}
+          </span>
+        </div>
+      ))}
+    </div>
   )
 }
 
@@ -63,131 +113,52 @@ const containerStyle: CSSProperties = {
   marginBottom: 16
 }
 
-const toolbarStyle: CSSProperties = {
-  padding: '9px 13px',
-  borderBottom: '1px solid var(--border-default)',
-  fontSize: 11,
-  letterSpacing: '0.05em',
-  textTransform: 'uppercase',
-  color: 'var(--text-dimmed)'
-}
-
 const editorStyle: CSSProperties = {
+  display: 'flex',
   background: 'var(--code-block-bg)',
-  padding: '11px 0',
   fontFamily: 'var(--font-mono)',
   fontSize: 'var(--text-code-size)',
   lineHeight: 1.6
 }
 
-function rowStyle(kind: LineKind, signMode: boolean): CSSProperties {
+function paneStyle(side: 'left' | 'right'): CSSProperties {
   return {
-    display: 'flex',
-    background: signMode
-      ? 'transparent'
-      : kind === 'add'
-        ? 'var(--diff-add-bg)'
-        : kind === 'remove'
-          ? 'var(--diff-remove-bg)'
-          : 'transparent',
-    whiteSpace: 'pre'
+    flex: 1,
+    minWidth: 0,
+    overflowX: 'auto',
+    padding: '10px 0',
+    borderRight: side === 'left' ? '1px solid var(--border-default)' : undefined
   }
 }
 
+function lineStyle(changed: boolean, side: 'left' | 'right', signMode: boolean): CSSProperties {
+  const style: CSSProperties = { display: 'flex', minWidth: 'max-content', whiteSpace: 'pre' }
+  if (changed && !signMode) {
+    style.background = side === 'left' ? 'var(--diff-remove-bg)' : 'var(--diff-add-bg)'
+    style.boxShadow = `inset 2px 0 0 ${side === 'left' ? 'var(--error)' : 'var(--success)'}`
+  }
+  return style
+}
+
 const lineNoStyle: CSSProperties = {
-  width: 34,
+  width: 30,
   flexShrink: 0,
   textAlign: 'right',
-  paddingRight: 12,
+  paddingRight: 10,
   color: 'var(--text-dimmed)',
   userSelect: 'none'
 }
 
-function gutterStyle(kind: LineKind): CSSProperties {
+function signStyle(side: 'left' | 'right'): CSSProperties {
   return {
-    width: 16,
+    width: 14,
     flexShrink: 0,
     textAlign: 'center',
     userSelect: 'none',
-    color: kind === 'add' ? 'var(--success)' : kind === 'remove' ? 'var(--error)' : 'var(--text-dimmed)'
+    color: side === 'left' ? 'var(--error)' : 'var(--success)'
   }
 }
 
-function textStyle(kind: LineKind, signMode: boolean): CSSProperties {
-  return {
-    flex: 1,
-    paddingRight: 12,
-    color: signMode
-      ? kind === 'add'
-        ? 'var(--success)'
-        : kind === 'remove'
-          ? 'var(--error)'
-          : 'var(--text-primary)'
-      : kind === 'remove'
-        ? 'var(--text-secondary)'
-        : 'var(--text-primary)'
-  }
-}
+const codeStyle: CSSProperties = { paddingRight: 12 }
 
-const chromeRowStyle: CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 10,
-  flexWrap: 'wrap',
-  padding: '12px 13px'
-}
-
-const primaryBtnStyle: CSSProperties = {
-  fontSize: 12.5,
-  fontWeight: 600,
-  padding: '6px 12px',
-  borderRadius: 8,
-  background: 'var(--text-primary)',
-  color: 'var(--bg-primary)',
-  border: '1px solid var(--text-primary)'
-}
-
-const secondaryBtnStyle: CSSProperties = {
-  fontSize: 12.5,
-  fontWeight: 500,
-  padding: '6px 12px',
-  borderRadius: 8,
-  background: 'var(--bg-tertiary)',
-  color: 'var(--text-primary)',
-  border: '1px solid var(--border-default)'
-}
-
-const linkStyle: CSSProperties = {
-  fontSize: 12.5,
-  fontWeight: 600,
-  color: 'var(--accent)'
-}
-
-const badgeStyle: CSSProperties = {
-  fontSize: 10,
-  fontWeight: 700,
-  letterSpacing: '0.04em',
-  color: 'var(--accent)',
-  background: 'color-mix(in srgb, var(--accent) 16%, transparent)',
-  padding: '2px 7px',
-  borderRadius: 999
-}
-
-const selectedRowStyle: CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: 8,
-  fontSize: 13,
-  color: 'var(--text-primary)',
-  padding: '6px 10px',
-  borderRadius: 8,
-  background: 'color-mix(in srgb, var(--accent) 12%, var(--bg-secondary))',
-  boxShadow: 'inset 2px 0 0 var(--accent)'
-}
-
-const dotStyle: CSSProperties = {
-  width: 7,
-  height: 7,
-  borderRadius: 999,
-  background: 'var(--accent)'
-}
+const accentSegStyle: CSSProperties = { color: 'var(--accent)' }
