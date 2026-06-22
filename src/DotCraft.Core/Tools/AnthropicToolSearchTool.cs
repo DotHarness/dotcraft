@@ -2,7 +2,6 @@ using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Anthropic.Models.Beta.Messages;
-using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Tools;
@@ -69,7 +68,13 @@ internal sealed class AnthropicToolSearchTool(
             .Select(static entry => entry!)
             .ToArray();
 
-        RecordDeferredToolLoading(query, maxResults, entries, activatedBefore);
+        DeferredToolLoadingTraceRecorder.RecordNewActivations(
+            traceContext,
+            query,
+            maxResults,
+            entries,
+            activatedBefore,
+            DeferredToolLoadingTraceRecorder.AnthropicToolReferenceWireShape);
 
         if (entries.Length == 0)
             return ValueTask.FromResult<object?>("No matching tools found. Try different keywords.");
@@ -81,42 +86,6 @@ internal sealed class AnthropicToolSearchTool(
             })
             .ToArray();
         return ValueTask.FromResult<object?>(references);
-    }
-
-    private void RecordDeferredToolLoading(
-        string query,
-        int requestedMaxResults,
-        IReadOnlyList<DeferredToolEntry> entries,
-        IReadOnlySet<string>? activatedBefore)
-    {
-        if (traceContext == null || activatedBefore == null || entries.Count == 0)
-            return;
-
-        var newTools = entries
-            .Where(entry => !activatedBefore.Contains(entry.Tool.Name))
-            .Select(static entry => new DeferredToolLoadingTraceTool(
-                entry.Tool.Name,
-                entry.Source,
-                entry.Namespace))
-            .ToArray();
-        if (newTools.Length == 0)
-            return;
-
-        var sessionKey = TracingChatClient.CurrentSessionKey ?? TracingChatClient.GetActiveSessionKey();
-        if (string.IsNullOrWhiteSpace(sessionKey))
-            return;
-
-        traceContext.Collector.RecordDeferredToolLoading(
-            sessionKey,
-            newTools,
-            traceContext.Strategy,
-            traceContext.EffectiveMode,
-            traceContext.ProviderProtocol,
-            traceContext.Trigger,
-            query,
-            traceContext.DeferredToolCount,
-            requestedMaxResults,
-            traceContext.MaxSearchResults);
     }
 
     private static bool TryParseSelect(string query, out string[] names)

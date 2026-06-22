@@ -7,6 +7,7 @@ using Anthropic.Models.Beta.Messages;
 using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Tools;
+using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Tests.Agents;
@@ -132,6 +133,82 @@ public sealed class AnthropicDeferredToolLoadingChatClientTests
         Assert.True(block.TryPickBetaToolReferenceBlockParam(out var reference));
         Assert.Equal("TicketLookup", reference.ToolName);
         Assert.Contains("TicketLookup", registry.GetActivatedToolNames());
+    }
+
+    [Fact]
+    public async Task ToolSearch_RecordsDeferredToolLoadingTraceOnceForNewActivations()
+    {
+        const string sessionKey = "anthropic-deferred-loading-trace";
+        var store = new TraceStore();
+        var collector = new TraceCollector(store);
+        var tool = CreateTicketLookupTool();
+        var registry = new DeferredToolRegistry(
+            [new DeferredToolEntry(tool, "runtime", "issues")],
+            DeferredToolLoadingMode.Native);
+        var searchTool = new AnthropicToolSearchTool(
+            registry,
+            maxSearchResults: 5,
+            new DeferredToolLoadingTraceContext(
+                collector,
+                "Auto",
+                "Native",
+                ModelProviderProtocols.Anthropic,
+                AnthropicToolSearchTool.ToolName,
+                DeferredToolCount: 1,
+                MaxSearchResults: 5));
+        var previousSessionKey = TracingChatClient.CurrentSessionKey;
+
+        try
+        {
+            TracingChatClient.ResetCallState(sessionKey);
+            TracingChatClient.CurrentSessionKey = sessionKey;
+            await searchTool.InvokeAsync(new AIFunctionArguments
+            {
+                ["query"] = "select:TicketLookup",
+                ["max_results"] = 5
+            });
+            await searchTool.InvokeAsync(new AIFunctionArguments
+            {
+                ["query"] = "select:TicketLookup",
+                ["max_results"] = 5
+            });
+        }
+        finally
+        {
+            TracingChatClient.ResetCallState(sessionKey);
+            TracingChatClient.CurrentSessionKey = previousSessionKey;
+        }
+
+        var evt = Assert.Single(store.GetEvents(sessionKey), e => e.Type == TraceEventType.DeferredToolLoading);
+        Assert.Equal("1 deferred tool activated", evt.ToolName);
+        Assert.Equal("TicketLookup", evt.Content);
+        Assert.NotNull(evt.ChangedToolNames);
+        Assert.Equal(["TicketLookup"], evt.ChangedToolNames);
+        Assert.Null(evt.PromptCacheEventKind);
+        Assert.Null(evt.PromptCacheChangedFields);
+
+        Assert.NotNull(evt.MetadataJson);
+        using var metadata = JsonDocument.Parse(evt.MetadataJson);
+        var root = metadata.RootElement;
+        Assert.Equal("Auto", root.GetProperty("strategy").GetString());
+        Assert.Equal("Native", root.GetProperty("effectiveMode").GetString());
+        Assert.Equal(ModelProviderProtocols.Anthropic, root.GetProperty("providerProtocol").GetString());
+        Assert.Equal(AnthropicToolSearchTool.ToolName, root.GetProperty("trigger").GetString());
+        Assert.Equal("anthropic_tool_reference", root.GetProperty("wireShape").GetString());
+        Assert.Equal("select:TicketLookup", root.GetProperty("query").GetString());
+        Assert.Equal(1, root.GetProperty("deferredToolCount").GetInt32());
+        Assert.Equal(5, root.GetProperty("requestedMaxResults").GetInt32());
+        Assert.Equal(5, root.GetProperty("maxSearchResults").GetInt32());
+        var tracedTool = Assert.Single(root.GetProperty("tools").EnumerateArray());
+        Assert.Equal("TicketLookup", tracedTool.GetProperty("name").GetString());
+        Assert.Equal("runtime", tracedTool.GetProperty("source").GetString());
+        Assert.Equal("issues", tracedTool.GetProperty("namespace").GetString());
+
+        var session = store.GetSession(sessionKey);
+        Assert.NotNull(session);
+        Assert.Equal(0, session.PromptDriftCount);
+        Assert.Null(session.LastPromptCacheChangeKind);
+        Assert.Empty(session.LastPromptCacheChangedFields);
     }
 
     [Fact]

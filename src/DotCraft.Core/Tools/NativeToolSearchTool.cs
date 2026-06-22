@@ -66,45 +66,15 @@ internal sealed class NativeToolSearchTool(
             .Select(static entry => entry!)
             .ToArray();
 
-        RecordDeferredToolLoading(query, maxResults, entries, activatedBefore);
+        DeferredToolLoadingTraceRecorder.RecordNewActivations(
+            traceContext,
+            query,
+            maxResults,
+            entries,
+            activatedBefore,
+            DeferredToolLoadingTraceRecorder.OpenAIResponsesToolSearchOutputWireShape);
 
         return ValueTask.FromResult<object?>(new NativeToolSearchOutput(ToOutputTools(entries)));
-    }
-
-    private void RecordDeferredToolLoading(
-        string query,
-        int requestedMaxResults,
-        IReadOnlyList<DeferredToolEntry> entries,
-        IReadOnlySet<string>? activatedBefore)
-    {
-        if (traceContext == null || activatedBefore == null || entries.Count == 0)
-            return;
-
-        var newTools = entries
-            .Where(entry => !activatedBefore.Contains(entry.Tool.Name))
-            .Select(static entry => new DeferredToolLoadingTraceTool(
-                entry.Tool.Name,
-                entry.Source,
-                entry.Namespace))
-            .ToArray();
-        if (newTools.Length == 0)
-            return;
-
-        var sessionKey = TracingChatClient.CurrentSessionKey ?? TracingChatClient.GetActiveSessionKey();
-        if (string.IsNullOrWhiteSpace(sessionKey))
-            return;
-
-        traceContext.Collector.RecordDeferredToolLoading(
-            sessionKey,
-            newTools,
-            traceContext.Strategy,
-            traceContext.EffectiveMode,
-            traceContext.ProviderProtocol,
-            traceContext.Trigger,
-            query,
-            traceContext.DeferredToolCount,
-            requestedMaxResults,
-            traceContext.MaxSearchResults);
     }
 
     private static string? ReadString(AIFunctionArguments arguments, string name)

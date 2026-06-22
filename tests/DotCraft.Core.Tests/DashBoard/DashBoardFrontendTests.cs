@@ -14,6 +14,8 @@ public sealed class DashBoardFrontendTests
         Assert.Contains("e.type === 'DeferredToolLoading'", html);
         Assert.Contains("strategy ${escapeHtml(strategy)}", html);
         Assert.Contains("protocol ${escapeHtml(md.providerProtocol)}", html);
+        Assert.Contains("wire ${escapeHtml(md.wireShape)}", html);
+        Assert.Contains("event.type === 'SessionMetadata' || event.type === 'ToolInjection' || event.type === 'PromptCacheDiagnostic'", html);
     }
 
     [Fact]
