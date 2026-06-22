@@ -12,7 +12,8 @@ namespace DotCraft.Agents;
 internal sealed class AnthropicDeferredToolLoadingChatClient(
     IChatClient innerClient,
     string? model,
-    int? defaultMaxOutputTokens = null)
+    int? defaultMaxOutputTokens = null,
+    DeferredToolRegistry? registry = null)
     : DelegatingChatClient(innerClient)
 {
     internal const string ToolSearchBetaHeader = "advanced-tool-use-2025-11-20";
@@ -41,19 +42,20 @@ internal sealed class AnthropicDeferredToolLoadingChatClient(
     internal ChatOptions? PrepareOptions(ChatOptions? options)
     {
         var marker = options?.Tools?.OfType<AnthropicToolSearchTool>().FirstOrDefault();
-        if (marker == null)
+        var deferredRegistry = marker?.Registry ?? registry;
+        if (deferredRegistry == null)
             return options;
 
-        var prepared = options!.Clone();
+        var prepared = options?.Clone() ?? new ChatOptions();
         var tools = prepared.Tools?.ToList() ?? [];
         var existingNames = tools
             .Select(static tool => tool.Name)
             .Where(static name => !string.IsNullOrWhiteSpace(name))
             .ToHashSet(StringComparer.Ordinal);
 
-        foreach (var name in marker.Registry.GetActivatedToolNames())
+        foreach (var name in deferredRegistry.GetActivatedToolNames())
         {
-            if (!marker.Registry.Entries.TryGetValue(name, out var entry))
+            if (!deferredRegistry.Entries.TryGetValue(name, out var entry))
                 continue;
             if (!existingNames.Add(entry.Tool.Name))
                 continue;

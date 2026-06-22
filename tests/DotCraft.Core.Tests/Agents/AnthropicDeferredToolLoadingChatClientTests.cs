@@ -113,6 +113,43 @@ public sealed class AnthropicDeferredToolLoadingChatClientTests
     }
 
     [Fact]
+    public async Task GetResponseAsync_AfterActivationWithPromptCacheAndThinkingSendsDeferredSchema()
+    {
+        var handler = new CaptureHandler();
+        var tool = CreateTicketLookupTool();
+        var registry = new DeferredToolRegistry(
+            [new DeferredToolEntry(tool, "runtime")],
+            DeferredToolLoadingMode.Native);
+        registry.ActivateByName(["TicketLookup"]);
+        var config = new AppConfig
+        {
+            Reasoning = new AppConfig.ReasoningConfig
+            {
+                Enabled = true,
+                Effort = ReasoningEffort.High,
+                Output = ReasoningOutput.Full
+            }
+        };
+        var client = CreateAdaptedClient(handler, config, "claude-opus-4-7");
+
+        await client.GetResponseAsync(
+            [new ChatMessage(ChatRole.User, "Use the activated ticket tool.")],
+            new ChatOptions
+            {
+                Tools = [new AnthropicToolSearchTool(registry)],
+                Reasoning = config.Reasoning.ToOptions()
+            });
+
+        Assert.Contains(AnthropicDeferredToolLoadingChatClient.ToolSearchBetaHeader, handler.LastBetaHeader);
+        using var document = JsonDocument.Parse(handler.LastRequestJson!);
+        var tools = document.RootElement.GetProperty("tools").EnumerateArray().ToArray();
+        Assert.Contains(tools, toolElement =>
+            string.Equals(toolElement.GetProperty("name").GetString(), "TicketLookup", StringComparison.Ordinal)
+            && toolElement.TryGetProperty("defer_loading", out var deferLoading)
+            && deferLoading.GetBoolean());
+    }
+
+    [Fact]
     public async Task ToolSearch_ReturnsAnthropicToolReferenceContentBlocks()
     {
         var tool = CreateTicketLookupTool();
@@ -260,7 +297,36 @@ public sealed class AnthropicDeferredToolLoadingChatClientTests
         Assert.Equal("done", finalText);
     }
 
-    private static AnthropicDeferredToolLoadingChatClient CreateClient(CaptureHandler handler)
+    [Fact]
+    public async Task PrepareOptions_WithRegistryInjectsActivatedSchemaWhenMarkerIsMissing()
+    {
+        var handler = new CaptureHandler();
+        var registry = new DeferredToolRegistry(
+            [new DeferredToolEntry(CreateTicketLookupTool(), "runtime")],
+            DeferredToolLoadingMode.Native);
+        registry.ActivateByName(["TicketLookup"]);
+        var anthropicClient = new AnthropicClient
+        {
+            HttpClient = new HttpClient(handler) { BaseAddress = new Uri("http://localhost") },
+            ApiKey = "test-key"
+        };
+        var client = new AnthropicDeferredToolLoadingChatClient(
+            anthropicClient.Beta.AsIChatClient("claude-sonnet-4-5"),
+            "claude-sonnet-4-5",
+            defaultMaxOutputTokens: 1024,
+            registry);
+
+        await client.GetResponseAsync(
+            [new ChatMessage(ChatRole.User, "Use the activated ticket tool.")],
+            new ChatOptions { Tools = [] });
+
+        using var document = JsonDocument.Parse(handler.LastRequestJson!);
+        var toolElement = Assert.Single(document.RootElement.GetProperty("tools").EnumerateArray());
+        Assert.Equal("TicketLookup", toolElement.GetProperty("name").GetString());
+        Assert.True(toolElement.GetProperty("defer_loading").GetBoolean());
+    }
+
+    private static AnthropicDeferredToolLoadingChatClient CreateClient(HttpMessageHandler handler)
     {
         var anthropicClient = new AnthropicClient
         {

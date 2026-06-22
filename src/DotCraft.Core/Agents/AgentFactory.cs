@@ -492,7 +492,8 @@ public sealed class AgentFactory : IAsyncDisposable
             chatClientBuilder.Use(innerClient => new AnthropicDeferredToolLoadingChatClient(
                 innerClient,
                 runtime.Model,
-                runtime.MaxOutputTokens));
+                runtime.MaxOutputTokens,
+                deferredRegistry));
         }
         ProviderChatClientAdapters.UseProviderAdapters(
             chatClientBuilder,
@@ -635,7 +636,8 @@ public sealed class AgentFactory : IAsyncDisposable
             chatClientBuilder.Use(innerClient => new AnthropicDeferredToolLoadingChatClient(
                 innerClient,
                 runtime.Model,
-                runtime.MaxOutputTokens));
+                runtime.MaxOutputTokens,
+                deferredRegistry));
         }
         ProviderChatClientAdapters.UseProviderAdapters(
             chatClientBuilder,

@@ -20,6 +20,8 @@ using DotCraft.Protocol.AppServer;
 //                                  -- Run real-provider compaction smoke scenarios
 //    prompt-cache-smoke --matrix <json> [--report <json>]
 //                                  -- Run real-provider prompt cache baseline smoke
+//    deferred-loading-smoke --matrix <json> [--report <json>]
+//                                  -- Run real-provider native deferred loading smoke
 //    stream-retry-smoke --matrix <json> [--report <json>]
 //                                  -- Run real-provider stream retry smoke scenarios
 // ─────────────────────────────────────────────────────────────────────────────
@@ -64,6 +66,10 @@ static void Usage()
               Run real-provider prompt cache baseline scenarios with compaction disabled.
               The matrix supplies providerId/model per protocol.
 
+          deferred-loading-smoke --matrix <deferred-loading-smoke.json> [--report <report.json>] [--work-root <dir>]
+              Run real-provider native deferred loading scenarios with a local MCP server.
+              The matrix supplies providerId/model for openai-responses and anthropic.
+
           stream-retry-smoke --matrix <stream-retry-smoke.json> [--report <report.json>] [--work-root <dir>]
               Run real-provider stream retry smoke scenarios. Each case starts a local
               fault proxy, drops the first streaming request, and verifies reconnect.
@@ -101,6 +107,9 @@ for (var i = 0; i < args.Length; i++)
 
 if (dotcraftBin == null)
 {
+    if (string.Equals(command, "deferred-loading-smoke-mcp-server", StringComparison.Ordinal))
+        return await DeferredLoadingSmokeMcpServer.RunAsync();
+
     Console.Error.WriteLine("Error: --dotcraft-bin is required.");
     Usage();
     return 1;
@@ -131,6 +140,8 @@ try
         "trigger-approval" => await RunTriggerApprovalAsync(dotcraftBin, workspace, commandArgs.FirstOrDefault()),
         "compact-smoke" => await CompactSmokeCli.RunAsync(dotcraftBin, commandArgs),
         "prompt-cache-smoke" => await PromptCacheSmokeCli.RunAsync(dotcraftBin, commandArgs),
+        "deferred-loading-smoke" => await DeferredLoadingSmokeCli.RunAsync(dotcraftBin, commandArgs),
+        "deferred-loading-smoke-mcp-server" => await DeferredLoadingSmokeMcpServer.RunAsync(),
         "stream-retry-smoke" => await StreamRetrySmokeCli.RunAsync(dotcraftBin, commandArgs),
         _ => PrintUnknownCommand(command)
     };
