@@ -438,6 +438,7 @@ declare global {
       window: {
         setTitle(title: string): void
         setTitleBarOverlayTheme(theme: 'dark' | 'light'): Promise<void>
+        setZoomFactor(factor: number): void
         minimize(): Promise<void>
         toggleMaximize(): Promise<boolean>
         close(): Promise<void>
@@ -706,7 +707,14 @@ declare global {
           }
           modulesDirectory?: string
           activeModuleVariants?: Record<string, string>
-          theme?: 'dark' | 'light'
+          theme?: 'system' | 'dark' | 'light'
+          accent?: string
+          codeFontSize?: number
+          diffMarkers?: 'color' | 'sign'
+          reduceMotion?: 'system' | 'on' | 'off'
+          pointerCursors?: boolean
+          interfaceZoom?: number
+          translucentSidebar?: boolean
           locale?: AppLocale
           showThinkingContent?: boolean
           showInMenuBar?: boolean

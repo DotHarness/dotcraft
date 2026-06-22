@@ -4,6 +4,7 @@ import type { ComposerDraftSegment } from '../types/composerDraft'
 import type { ApprovalPolicyWire } from '../types/thread'
 import type { ReasoningEffortWire, ReasoningOutputWire } from './modelCatalogStore'
 import type { SettingsTab } from '../types/settings'
+import type { DiffMarkerMode } from '../../shared/appearance'
 import { useThreadStore } from './threadStore'
 import { normalizeWorkspaceProjectKey } from '../../shared/workspaceProjectKey'
 import {
@@ -207,6 +208,8 @@ export interface UIState {
   planApprovalDismissed: Record<string, boolean>
   /** User preference for rendering reasoning text in the conversation. */
   showThinkingContent: boolean
+  /** Appearance preference for how code diffs are rendered. */
+  diffMarkers: DiffMarkerMode
 }
 
 interface UIStore extends UIState {
@@ -218,6 +221,7 @@ interface UIStore extends UIState {
   setActiveSettingsTab(tab: SettingsTab): void
   requestCloseSettings(): void
   requestOpenWhatsNew(): void
+  setDiffMarkers(mode: DiffMarkerMode): void
   toggleSidebar(): void
   setSidebarCollapsed(collapsed: boolean): void
   setSidebarWidth(width: number): void
@@ -405,6 +409,7 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
   welcomeDraftWorkspacePath: null,
   planApprovalDismissed: {},
   showThinkingContent: false,
+  diffMarkers: 'color',
 
   setActiveMainView(view) {
     set({ activeMainView: view })
@@ -893,6 +898,10 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
 
   setShowThinkingContent(visible) {
     set({ showThinkingContent: visible })
+  },
+
+  setDiffMarkers(mode) {
+    set({ diffMarkers: mode })
   },
 
   resetPlanApprovalDismissed() {

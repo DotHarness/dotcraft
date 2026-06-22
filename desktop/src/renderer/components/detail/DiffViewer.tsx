@@ -12,6 +12,7 @@ import rust from 'highlight.js/lib/languages/rust'
 import typescript from 'highlight.js/lib/languages/typescript'
 import xml from 'highlight.js/lib/languages/xml'
 import { useT } from '../../contexts/LocaleContext'
+import { useUIStore } from '../../stores/uiStore'
 import type { DiffLine, FileDiff } from '../../types/toolCall'
 import { detectLanguage } from './viewers/languageDetect'
 
@@ -88,6 +89,8 @@ export function UnifiedDiffBody({
   language?: string
   wordWrap?: boolean
 }): JSX.Element {
+  const signMode = useUIStore((s) => s.diffMarkers) === 'sign'
+
   if (diff.diffHunks.length === 0) {
     return <EmptyDiffMessage />
   }
@@ -118,7 +121,7 @@ export function UnifiedDiffBody({
                   style={{
                     display: 'flex',
                     minWidth: wordWrap ? undefined : 'max-content',
-                    background: diffLineBackground(line.type),
+                    background: diffLineBackground(line.type, signMode),
                     whiteSpace: wordWrap ? 'pre-wrap' : 'pre'
                   }}
                 >
@@ -131,7 +134,7 @@ export function UnifiedDiffBody({
                     title={relativePath}
                     style={{
                       padding: '0 10px 0 4px',
-                      color: line.type === 'remove' ? 'var(--text-secondary)' : 'var(--text-primary)',
+                      color: diffLineColor(line.type, signMode),
                       ...(wordWrap ? wrapContentStyle : null)
                     }}
                   >
@@ -256,6 +259,7 @@ function SplitCell({
   language: string
   wordWrap: boolean
 }): JSX.Element {
+  const signMode = useUIStore((s) => s.diffMarkers) === 'sign'
   const isBlank = line.type === 'blank'
   return (
     <div
@@ -263,7 +267,7 @@ function SplitCell({
         display: 'flex',
         width: wordWrap ? '100%' : 'max-content',
         minWidth: '100%',
-        background: isBlank ? 'var(--bg-primary)' : diffLineBackground(line.type),
+        background: isBlank ? 'var(--bg-primary)' : diffLineBackground(line.type, signMode),
         whiteSpace: wordWrap ? 'pre-wrap' : 'pre'
       }}
     >
@@ -274,7 +278,7 @@ function SplitCell({
         style={{
           minWidth: 0,
           padding: '0 10px 0 4px',
-          color: isBlank ? 'transparent' : line.type === 'remove' ? 'var(--text-secondary)' : 'var(--text-primary)',
+          color: diffLineColor(line.type, signMode),
           ...(wordWrap ? wrapContentStyle : null)
         }}
       >
@@ -422,10 +426,22 @@ function unchangedBeforeHunk(
   return Math.max(0, oldStart - previousOldEnd, newStart - previousNewEnd)
 }
 
-function diffLineBackground(type: NumberedLine['type']): string {
+function diffLineBackground(type: NumberedLine['type'], signMode: boolean): string {
+  if (signMode) return 'transparent'
   if (type === 'add') return 'var(--diff-add-bg)'
   if (type === 'remove') return 'var(--diff-remove-bg)'
   return 'transparent'
+}
+
+/** Content text color: in sign mode add/remove carry the change via semantic color (no fill). */
+function diffLineColor(type: NumberedLine['type'], signMode: boolean): string {
+  if (type === 'blank') return 'transparent'
+  if (signMode) {
+    if (type === 'add') return 'var(--success)'
+    if (type === 'remove') return 'var(--error)'
+    return 'var(--text-primary)'
+  }
+  return type === 'remove' ? 'var(--text-secondary)' : 'var(--text-primary)'
 }
 
 function markerStyle(type: NumberedLine['type']): CSSProperties {

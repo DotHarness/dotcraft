@@ -1,8 +1,34 @@
-export type ThemeMode = 'dark' | 'light'
+/** User-selectable theme preference. `system` follows the OS appearance. */
+export type ThemeMode = 'system' | 'dark' | 'light'
 
-export const DEFAULT_THEME: ThemeMode = 'light'
+/** The theme actually applied to the document (`system` resolved to one of these). */
+export type ResolvedTheme = 'dark' | 'light'
+
+/** Default theme preference when none is persisted. Preserves historical light-first behavior. */
+export const DEFAULT_THEME_MODE: ThemeMode = 'light'
+
+/** Applied-theme default (used where a concrete dark/light value is required up front). */
+export const DEFAULT_THEME: ResolvedTheme = 'light'
+
 export const THEME_CHANGED_EVENT = 'dotcraft:theme-changed'
 
+/** Normalize a persisted or unknown value to a valid theme preference. */
 export function resolveThemeMode(raw: unknown): ThemeMode {
-  return raw === 'dark' ? 'dark' : raw === 'light' ? 'light' : DEFAULT_THEME
+  return raw === 'dark'
+    ? 'dark'
+    : raw === 'light'
+      ? 'light'
+      : raw === 'system'
+        ? 'system'
+        : DEFAULT_THEME_MODE
+}
+
+/**
+ * Resolve a stored theme preference to the theme that should actually be applied.
+ * `system` resolves using the supplied OS dark-mode preference; explicit modes pass through.
+ */
+export function resolveAppliedTheme(mode: ThemeMode, systemPrefersDark: boolean): ResolvedTheme {
+  if (mode === 'dark') return 'dark'
+  if (mode === 'light') return 'light'
+  return systemPrefersDark ? 'dark' : 'light'
 }

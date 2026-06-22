@@ -3,11 +3,19 @@ import {
   TITLE_BAR_OVERLAY_BY_THEME,
   type TitleBarOverlayTheme
 } from '../shared/titleBarOverlay'
-import { resolveThemeMode } from '../shared/theme'
+import { resolveAppliedTheme, resolveThemeMode } from '../shared/theme'
 import type { BrowserWindow, BrowserWindowConstructorOptions } from 'electron'
 
-export function resolveInitialTheme(settings: Pick<AppSettings, 'theme'>): TitleBarOverlayTheme {
-  return resolveThemeMode(settings.theme)
+/**
+ * Resolve the persisted theme preference to the applied dark/light theme used for native
+ * window chrome. `system` is resolved via the caller-supplied OS preference (defaults to
+ * light so this module stays free of an electron runtime import).
+ */
+export function resolveInitialTheme(
+  settings: Pick<AppSettings, 'theme'>,
+  prefersDark = false
+): TitleBarOverlayTheme {
+  return resolveAppliedTheme(resolveThemeMode(settings.theme), prefersDark)
 }
 
 type WindowBackdropOptions = Pick<

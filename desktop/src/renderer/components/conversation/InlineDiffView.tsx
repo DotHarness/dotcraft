@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react'
 import type { FileDiff } from '../../types/toolCall'
 import { ActionTooltip } from '../ui/ActionTooltip'
+import { useUIStore } from '../../stores/uiStore'
 
 interface InlineDiffViewProps {
   diff: FileDiff
@@ -21,6 +22,8 @@ export function InlineDiffView({
   showStreamingIndicator = true,
   headerMode = 'full'
 }: InlineDiffViewProps): JSX.Element {
+  const diffMarkers = useUIStore((s) => s.diffMarkers)
+  const signMode = diffMarkers === 'sign'
   const totalAdd = diff.additions
   const totalDel = diff.deletions
   const embedded = variant === 'embedded'
@@ -121,8 +124,9 @@ export function InlineDiffView({
                     style={{
                       display: 'flex',
                       minWidth: 'max-content',
-                      background:
-                        line.type === 'add'
+                      background: signMode
+                        ? 'transparent'
+                        : line.type === 'add'
                           ? 'var(--diff-add-bg)'
                           : line.type === 'remove'
                             ? 'var(--diff-remove-bg)'
@@ -151,7 +155,15 @@ export function InlineDiffView({
                     <span
                       style={{
                         padding: '0 8px',
-                        color: line.type === 'add' ? 'var(--text-primary)' : 'var(--text-secondary)'
+                        color: signMode
+                          ? line.type === 'add'
+                            ? 'var(--success)'
+                            : line.type === 'remove'
+                              ? 'var(--error)'
+                              : 'var(--text-secondary)'
+                          : line.type === 'add'
+                            ? 'var(--text-primary)'
+                            : 'var(--text-secondary)'
                       }}
                     >
                       {line.content}
