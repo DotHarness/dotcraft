@@ -51,6 +51,17 @@ public sealed class HubClient(string? dotcraftBin = null, HubPaths? paths = null
     }
 
     /// <summary>
+    /// Ensures the current user's default Chat workspace AppServer and returns its connection metadata.
+    /// </summary>
+    public Task<HubAppServerResponse> EnsureDefaultChatAppServerAsync(
+        string clientName,
+        CancellationToken cancellationToken = default)
+    {
+        var workspacePath = DefaultChatWorkspace.Ensure(_paths);
+        return EnsureAppServerAsync(workspacePath, clientName, cancellationToken);
+    }
+
+    /// <summary>
     /// Restarts the Hub-managed AppServer for a workspace and returns the replacement endpoint metadata.
     /// </summary>
     public async Task<HubAppServerResponse> RestartAppServerAsync(

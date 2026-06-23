@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { isIP } from "node:net";
@@ -90,6 +90,22 @@ const POLL_MS = 200;
 
 export function hubLockPath(homeDir = homedir()): string {
   return join(homeDir, ".craft", "hub", "hub.lock");
+}
+
+export function defaultChatWorkspacePath(homeDir = homedir()): string {
+  return join(homeDir, ".craft", "workspaces", "chats");
+}
+
+export function ensureDefaultChatWorkspace(homeDir = homedir()): string {
+  const workspacePath = defaultChatWorkspacePath(homeDir);
+  const craftPath = join(workspacePath, ".craft");
+  mkdirSync(join(craftPath, "memory"), { recursive: true });
+  mkdirSync(join(craftPath, "skills"), { recursive: true });
+  mkdirSync(join(craftPath, "security"), { recursive: true });
+
+  const configPath = join(craftPath, "config.json");
+  if (!existsSync(configPath)) writeFileSync(configPath, "{}\n", "utf8");
+  return workspacePath;
 }
 
 export function readHubLockFromPath(path: string): HubLockInfo | null {
@@ -194,6 +210,13 @@ export class HubClient {
         runtimeTools: options.runtimeTools,
       }),
     });
+  }
+
+  async ensureDefaultChatAppServer(
+    options: HubEnsureAppServerOptions = {},
+  ): Promise<HubAppServerResponse> {
+    const workspacePath = ensureDefaultChatWorkspace(this.options.homeDir);
+    return await this.ensureAppServer(workspacePath, options);
   }
 
   async getStatus(): Promise<HubStatusResponse> {

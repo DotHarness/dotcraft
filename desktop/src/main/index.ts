@@ -83,7 +83,17 @@ import {
   parseWorkspaceOpenDeepLink,
   type WorkspaceOpenDeepLink
 } from './desktopDeepLink'
-import { NO_WORKSPACE_ARG, resolveWorkspacePathFromArgs } from './workspaceArgs'
+import {
+  NO_WORKSPACE_ARG,
+  hasRemoteEndpointArg,
+  resolveWorkspacePathFromArgs,
+  shouldOpenDefaultChatWorkspaceOnStartup
+} from './workspaceArgs'
+import {
+  ensureDefaultChatWorkspace,
+  isDefaultChatWorkspace,
+  resolveDefaultChatWorkspacePath
+} from './defaultChatWorkspace'
 import {
   getWorkspaceStatus,
   runWorkspaceSetup,
@@ -419,6 +429,37 @@ function emitWorkspaceProjects(): void {
   win.webContents.send('workspace:projects-changed', getWorkspaceProjectsPayload())
 }
 
+// Builds the dedicated `Chats` summary from the default Chat workspace connection.
+// Returns undefined in remote mode (the Chat workspace is a local concept and is
+// not connected then). The summary reuses WorkspaceProjectSummary so the renderer
+// can share thread-row rendering; `kind: 'chat'` keeps it out of the Projects list.
+function buildDefaultChatSummary(): WorkspaceProjectSummary | undefined {
+  if (activeRemoteProject || activeRemoteWorkspace || resolveConnectionMode(sharedSettings) !== 'local') {
+    return undefined
+  }
+  const chatPath = resolveDefaultChatWorkspacePath()
+  const entry = getWorkspaceConnection(chatPath)
+  let state: WorkspaceProjectState = 'cold'
+  if (isWorkspaceForeground(chatPath)) state = 'foreground'
+  else if (entry?.connecting) state = 'connecting'
+  else if (entry?.errorMessage) state = 'error'
+  else if (entry?.connected) state = 'secondary'
+  return {
+    projectId: localProjectId(chatPath),
+    kind: 'chat',
+    path: chatPath,
+    identityWorkspacePath: chatPath,
+    name: chatPath,
+    state,
+    running: Boolean(entry?.connected || entry?.connecting || state === 'foreground'),
+    loaded: Boolean(entry?.connected),
+    threadCount: entry?.threads.length ?? 0,
+    threads: entry?.threads ?? [],
+    pinnedThreadIds: getPinnedThreadIdsForWorkspace(chatPath),
+    ...(entry?.errorMessage ? { errorMessage: entry.errorMessage } : {})
+  }
+}
+
 function getWorkspaceProjectsPayload(): WorkspaceProjectsPayload {
   // Order projects by when they were first added (stable), not by most-recently
   // opened, so switching the active project never reshuffles the sidebar list.
@@ -472,11 +513,13 @@ function getWorkspaceProjectsPayload(): WorkspaceProjectsPayload {
       ...(entry?.errorMessage ? { errorMessage: entry.errorMessage } : {})
     })
   }
+  const chat = buildDefaultChatSummary()
   return {
     foregroundWorkspacePath: currentWorkspacePath,
     foregroundProjectId: activeRemoteProject?.projectId ?? (currentWorkspacePath ? localProjectId(currentWorkspacePath) : ''),
     secondaryLimit: SECONDARY_WORKSPACE_CONNECTION_LIMIT,
-    projects
+    projects,
+    ...(chat ? { chat } : {})
   }
 }
 
@@ -734,6 +777,27 @@ function resolveWorkspacePath(settings: AppSettings): string | null {
 function resolveConnectionMode(settings: AppSettings): ConnectionMode {
   const mode = settings.connectionMode
   return mode === 'remote' ? 'remote' : 'local'
+}
+
+function resolveInitialWorkspacePath(settings: AppSettings): string | null {
+  const workspacePath = resolveWorkspacePath(settings)
+  if (!shouldOpenDefaultChatWorkspaceOnStartup(
+    settings,
+    process.argv,
+    existsSync,
+    resolveConnectionMode(settings)
+  )) {
+    return workspacePath
+  }
+
+  return ensureDefaultChatWorkspace()
+}
+
+function workspaceTitleName(workspacePath: string | null | undefined, locale: AppLocale): string {
+  if (!workspacePath) return 'DotCraft'
+  return isDefaultChatWorkspace(workspacePath)
+    ? translate(locale, 'chatsRail.title')
+    : basename(workspacePath)
 }
 
 function buildRemoteWorkspaceStatus(
@@ -1322,7 +1386,7 @@ function createWindow(
     }
   })
 
-  const workspaceName = workspacePath ? basename(workspacePath) : 'DotCraft'
+  const workspaceName = workspaceTitleName(workspacePath, initialLocale)
   win.setTitle(translate(initialLocale, 'app.titleWithWorkspace', { name: workspaceName }))
 
   // Keep native window chrome in sync when the OS appearance changes while in `system` theme
@@ -2072,7 +2136,7 @@ function promoteWorkspaceConnection(entry: WorkspaceConnectionEntry): void {
     }
     const loc = normalizeLocale(sharedSettings.locale)
     mainWindow.setTitle(
-      translate(loc, 'app.titleWithWorkspace', { name: basename(entry.workspacePath) })
+      translate(loc, 'app.titleWithWorkspace', { name: workspaceTitleName(entry.workspacePath, loc) })
     )
   }
   startHubEventSubscription(entry.workspacePath, createHubClient(sharedSettings))
@@ -2081,7 +2145,8 @@ function promoteWorkspaceConnection(entry: WorkspaceConnectionEntry): void {
 
 function createSecondaryWorkspaceConnection(
   workspacePath: string,
-  wsUrl: string
+  wsUrl: string,
+  options: { kind?: WorkspaceProjectKind } = {}
 ): WorkspaceConnectionEntry {
   const key = normalizeWorkspaceConnectionKey(workspacePath)
   const existing = workspaceConnections.get(key)
@@ -2096,7 +2161,7 @@ function createSecondaryWorkspaceConnection(
   const entry: WorkspaceConnectionEntry = {
     key,
     projectId: localProjectId(workspacePath),
-    kind: 'local',
+    kind: options.kind ?? 'local',
     workspacePath,
     localWorkspacePath: workspacePath,
     displayPath: workspacePath,
@@ -2180,10 +2245,39 @@ function createSecondaryWorkspaceConnection(
   return entry
 }
 
+// Ensures the default Chat workspace (`~/.craft/workspaces/chats`) has a live,
+// secondary-style connection so the sidebar `Chats` group can list its threads
+// without the user opening it as a project. Skips when Chat is already the
+// foreground workspace (its connection is owned by connectViaWebSocket then), or
+// when it is already connected/connecting. Mirrors the backend default Chat helper:
+// ensure the workspace skeleton, then go through the existing Hub ensure flow.
+async function ensureDefaultChatConnection(): Promise<void> {
+  if (isAppQuitting) return
+  const chatPath = resolveDefaultChatWorkspacePath()
+  if (isWorkspaceForeground(chatPath)) return
+  const existing = getWorkspaceConnection(chatPath)
+  if (existing?.connected || existing?.connecting) return
+
+  try {
+    ensureDefaultChatWorkspace()
+    const ensured = await createHubClient(sharedSettings).ensureAppServer(chatPath, {
+      runtimeTools: resolveDotCraftRuntimeTools()
+    })
+    if (isAppQuitting || isWorkspaceForeground(chatPath)) return
+    const endpoint = ensured.endpoints?.appServerWebSocket
+    if (endpoint?.trim()) {
+      createSecondaryWorkspaceConnection(chatPath, endpoint, { kind: 'chat' })
+    }
+  } catch (error) {
+    console.warn('[desktop] failed to ensure default chat workspace connection', error)
+  }
+}
+
 async function refreshSecondaryWorkspaceConnections(): Promise<void> {
   if (isAppQuitting || activeRemoteWorkspace || resolveConnectionMode(sharedSettings) !== 'local') {
     return
   }
+  await ensureDefaultChatConnection()
   const recents = getRecentWorkspaces(sharedSettings)
     .filter((recent) => recent.path && !isWorkspaceForeground(recent.path))
   if (recents.length === 0) {
@@ -2225,6 +2319,9 @@ async function refreshSecondaryWorkspaceConnections(): Promise<void> {
 
   for (const entry of [...workspaceConnections.values()]) {
     if (entry.role !== 'secondary') continue
+    // The default Chat connection is managed by ensureDefaultChatConnection, not the
+    // recents-driven secondary set, so it must survive this prune.
+    if (isDefaultChatWorkspace(entry.workspacePath)) continue
     if (!allowedKeys.has(entry.key)) {
       disposeWorkspaceConnection(entry)
     }
@@ -2244,8 +2341,15 @@ function buildCallbacks(): IpcHandlerCallbacks {
         viewerBrowserManager.destroyAllTabs(mainWindow)
       }
       setViewerWorkspaceRoot(newPath)
-      addRecentWorkspace(sharedSettings, newPath)
-      saveSettings(sharedSettings)
+      // The default Chat workspace is surfaced as the `Chats` group, never as a
+      // Project, so opening one of its threads must not add it to recent projects.
+      // Ensure its skeleton first so it never diverts into the setup wizard.
+      if (isDefaultChatWorkspace(newPath)) {
+        ensureDefaultChatWorkspace()
+      } else {
+        addRecentWorkspace(sharedSettings, newPath)
+        saveSettings(sharedSettings)
+      }
       emitWorkspaceProjects()
       const workspaceStatus = getWorkspaceStatus(newPath)
       if (workspaceStatus.status === 'needs-setup') {
@@ -2256,7 +2360,7 @@ function buildCallbacks(): IpcHandlerCallbacks {
       if (mainWindow && !mainWindow.isDestroyed()) {
         const loc = normalizeLocale(sharedSettings.locale)
         mainWindow.setTitle(
-          translate(loc, 'app.titleWithWorkspace', { name: basename(newPath) })
+          translate(loc, 'app.titleWithWorkspace', { name: workspaceTitleName(newPath, loc) })
         )
       }
     },
@@ -2388,7 +2492,7 @@ async function connectToAppServer(workspacePath: string): Promise<void> {
     return
   }
   const remoteIdx = process.argv.indexOf('--remote')
-  const launchedWithRemoteUrl = remoteIdx !== -1 && Boolean(process.argv[remoteIdx + 1])
+  const launchedWithRemoteUrl = hasRemoteEndpointArg()
   const connectionMode = resolveConnectionMode(sharedSettings)
   const usingRemoteConnection = launchedWithRemoteUrl || connectionMode === 'remote'
   const preserveLocalConnections = !usingRemoteConnection && connectionMode === 'local'
@@ -2824,7 +2928,7 @@ app.whenReady().then(async () => {
     })
   }
 
-  let workspacePath = resolveWorkspacePath(sharedSettings)
+  let workspacePath = resolveInitialWorkspacePath(sharedSettings)
 
   const initialActiveStack =
     workspacePath && resolveConnectionMode(sharedSettings) === 'remote'
@@ -2837,8 +2941,10 @@ app.whenReady().then(async () => {
     if (!initialActiveStack) {
       acquireWorkspaceLock(workspacePath)
     }
-    addRecentWorkspace(sharedSettings, workspacePath)
-    saveSettings(sharedSettings)
+    if (!isDefaultChatWorkspace(workspacePath)) {
+      addRecentWorkspace(sharedSettings, workspacePath)
+      saveSettings(sharedSettings)
+    }
   }
   setActiveRemoteProject(initialActiveStack
     ? buildServersRemoteProject(initialActiveStack.host, initialActiveStack.stack, undefined, workspacePath ?? '')
@@ -2888,7 +2994,7 @@ app.whenReady().then(async () => {
     const windows = BrowserWindow.getAllWindows()
     if (windows.length === 0) {
       sharedSettings = loadSettings()
-      let wsPath = resolveWorkspacePath(sharedSettings)
+      let wsPath = resolveInitialWorkspacePath(sharedSettings)
       const activeStack =
         wsPath && resolveConnectionMode(sharedSettings) === 'remote'
           ? resolveActiveRemoteStack(sharedSettings)
@@ -2897,8 +3003,10 @@ app.whenReady().then(async () => {
         if (!activeStack) {
           acquireWorkspaceLock(wsPath)
         }
-        addRecentWorkspace(sharedSettings, wsPath)
-        saveSettings(sharedSettings)
+        if (!isDefaultChatWorkspace(wsPath)) {
+          addRecentWorkspace(sharedSettings, wsPath)
+          saveSettings(sharedSettings)
+        }
       }
       setActiveRemoteProject(activeStack
         ? buildServersRemoteProject(activeStack.host, activeStack.stack, undefined, wsPath ?? '')

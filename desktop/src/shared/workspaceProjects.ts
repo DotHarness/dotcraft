@@ -1,5 +1,5 @@
 export type WorkspaceProjectState = 'foreground' | 'secondary' | 'cold' | 'connecting' | 'error'
-export type WorkspaceProjectKind = 'local' | 'remote'
+export type WorkspaceProjectKind = 'local' | 'remote' | 'chat'
 export type WorkspaceRemoteProjectSource = 'servers' | 'manual' | 'cli'
 
 export interface WorkspaceRemoteProjectMetadata {
@@ -38,4 +38,10 @@ export interface WorkspaceProjectsPayload {
   foregroundProjectId?: string
   secondaryLimit: number
   projects: WorkspaceProjectSummary[]
+  /**
+   * Default Chat workspace (`~/.craft/workspaces/chats`), surfaced as a dedicated
+   * `Chats` group rather than a Project row. Its physical path is diagnostic only.
+   * Present only in local connection mode; omitted while a remote project is active.
+   */
+  chat?: WorkspaceProjectSummary
 }

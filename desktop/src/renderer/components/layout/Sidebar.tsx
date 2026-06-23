@@ -272,6 +272,7 @@ function CollapsedSidebar(): JSX.Element {
   const plugins = usePluginStore((s) => s.plugins)
   const desktopMainViews = getDesktopMainViewExtensions(plugins)
   const projects = useWorkspaceProjectsStore((s) => s.projects)
+  const chat = useWorkspaceProjectsStore((s) => s.chat)
   const foregroundProjectId = useWorkspaceProjectsStore((s) => s.foregroundProjectId)
   const foregroundWorkspacePath = useWorkspaceProjectsStore((s) => s.foregroundWorkspacePath)
   const collapsedAutomationsAvailable =
@@ -285,8 +286,9 @@ function CollapsedSidebar(): JSX.Element {
   }
 
   // Mirror the expanded Projects rail with one folder icon per project. Fall back
-  // to recent-thread dots while the projects rail has not been populated yet.
+  // to recent-thread dots only while neither Projects nor Chats are available.
   const showProjects = projects.length > 0
+  const showWorkspaceRail = showProjects || chat != null
   const recentThreads = threadList.slice(0, 5)
 
   function handleNewThread(): void {
@@ -305,6 +307,19 @@ function CollapsedSidebar(): JSX.Element {
         await window.api.workspace.switch(project.path)
       } catch (err) {
         console.error('Failed to switch workspace from collapsed sidebar:', err)
+        return
+      }
+    }
+    setActiveMainView('conversation')
+  }
+
+  async function handleChatClick(isForeground: boolean): Promise<void> {
+    if (!chat) return
+    if (!isForeground) {
+      try {
+        await window.api.workspace.switch(chat.path)
+      } catch (err) {
+        console.error('Failed to switch to Chats from collapsed sidebar:', err)
         return
       }
     }
@@ -437,36 +452,64 @@ function CollapsedSidebar(): JSX.Element {
           gap: '6px'
         }}
       >
-        {showProjects
-          ? projects.map((project) => {
-              const isForeground = isProjectForeground(
-                project,
-                foregroundProjectId,
-                foregroundWorkspacePath
-              )
-              const label = project.name || project.path
-              return (
-                <ActionTooltip key={projectIdentity(project)} label={label} placement="right">
-                  <button
-                    type="button"
-                    onClick={() => void handleProjectClick(project, isForeground)}
-                    aria-label={label}
-                    aria-current={isForeground ? 'true' : undefined}
-                    style={{
-                      ...iconButtonStyle,
-                      backgroundColor: isForeground ? 'var(--sidebar-control-active)' : 'transparent'
-                    }}
-                  >
-                    <ProjectGlyph
-                      project={project}
-                      collapsed={!isForeground}
-                      cold={isColdProject(project)}
-                      active={isForeground}
-                    />
-                  </button>
-                </ActionTooltip>
-              )
-            })
+        {showWorkspaceRail
+          ? (
+            <>
+              {projects.map((project) => {
+                const isForeground = isProjectForeground(
+                  project,
+                  foregroundProjectId,
+                  foregroundWorkspacePath
+                )
+                const label = project.name || project.path
+                return (
+                  <ActionTooltip key={projectIdentity(project)} label={label} placement="right">
+                    <button
+                      type="button"
+                      onClick={() => void handleProjectClick(project, isForeground)}
+                      aria-label={label}
+                      aria-current={isForeground ? 'true' : undefined}
+                      style={{
+                        ...iconButtonStyle,
+                        backgroundColor: isForeground ? 'var(--sidebar-control-active)' : 'transparent'
+                      }}
+                    >
+                      <ProjectGlyph
+                        project={project}
+                        collapsed={!isForeground}
+                        cold={isColdProject(project)}
+                        active={isForeground}
+                      />
+                    </button>
+                  </ActionTooltip>
+                )
+              })}
+              {chat && (() => {
+                const isForeground = isProjectForeground(
+                  chat,
+                  foregroundProjectId,
+                  foregroundWorkspacePath
+                )
+                return (
+                  <ActionTooltip key={projectIdentity(chat)} label={t('chatsRail.title')} placement="right">
+                    <button
+                      type="button"
+                      onClick={() => void handleChatClick(isForeground)}
+                      aria-label={t('chatsRail.title')}
+                      aria-current={isForeground ? 'true' : undefined}
+                      style={{
+                        ...iconButtonStyle,
+                        backgroundColor: isForeground ? 'var(--sidebar-control-active)' : 'transparent',
+                        color: isForeground ? 'var(--accent)' : 'var(--text-secondary)'
+                      }}
+                    >
+                      <MessageSquare size={16} strokeWidth={1.8} aria-hidden />
+                    </button>
+                  </ActionTooltip>
+                )
+              })()}
+            </>
+          )
           : recentThreads.map((thread) => {
               const letter = (thread.displayName ?? 'N')[0].toUpperCase()
               return (

@@ -6,6 +6,7 @@ import { WelcomeScreen } from '../components/WelcomeScreen'
 const settingsGet = vi.fn()
 const settingsSet = vi.fn()
 const workspaceGetRecent = vi.fn()
+const workspaceGetProjects = vi.fn()
 const workspacePickFolder = vi.fn()
 const workspaceSwitch = vi.fn()
 const onOpenWorkspace = vi.fn()
@@ -33,6 +34,23 @@ describe('WelcomeScreen', () => {
     settingsGet.mockResolvedValue({ locale: 'en' })
     settingsSet.mockResolvedValue(undefined)
     workspaceGetRecent.mockResolvedValue([])
+    workspaceGetProjects.mockResolvedValue({
+      foregroundWorkspacePath: '',
+      foregroundProjectId: '',
+      secondaryLimit: 8,
+      projects: [],
+      chat: {
+        projectId: 'C:\\Users\\me\\.craft\\workspaces\\chats',
+        kind: 'chat',
+        path: 'C:\\Users\\me\\.craft\\workspaces\\chats',
+        name: 'C:\\Users\\me\\.craft\\workspaces\\chats',
+        state: 'cold',
+        running: false,
+        loaded: false,
+        threadCount: 0,
+        threads: []
+      }
+    })
     workspacePickFolder.mockResolvedValue(null)
     workspaceSwitch.mockResolvedValue(undefined)
     onOpenWorkspace.mockResolvedValue(undefined)
@@ -59,6 +77,7 @@ describe('WelcomeScreen', () => {
         },
         workspace: {
           getRecent: workspaceGetRecent,
+          getProjects: workspaceGetProjects,
           pickFolder: workspacePickFolder,
           switch: workspaceSwitch
         }
@@ -114,6 +133,36 @@ describe('WelcomeScreen', () => {
     expect(screen.getByRole('button', { name: 'Open Workspace' })).toBeDisabled()
     expect(onOpenWorkspace).toHaveBeenCalledWith({
       path: 'F:\\dotcraft',
+      logoRect: {
+        left: 120,
+        top: 80,
+        width: 96,
+        height: 96
+      }
+    })
+    expect(workspaceSwitch).not.toHaveBeenCalled()
+  })
+
+  it('opens Chats from the welcome chooser without showing the physical path', async () => {
+    renderWelcome()
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    const chatsRow = screen.getByRole('button', { name: 'Chats' })
+    expect(screen.getByText('Start with a new chat')).toBeInTheDocument()
+    expect(screen.queryByText('C:\\Users\\me\\.craft\\workspaces\\chats')).not.toBeInTheDocument()
+
+    fireEvent.click(chatsRow)
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(chatsRow).toBeDisabled()
+    expect(onOpenWorkspace).toHaveBeenCalledWith({
+      path: 'C:\\Users\\me\\.craft\\workspaces\\chats',
       logoRect: {
         left: 120,
         top: 80,

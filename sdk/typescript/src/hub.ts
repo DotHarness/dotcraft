@@ -5,6 +5,8 @@
 export {
   HubClient,
   HubClientError,
+  defaultChatWorkspacePath,
+  ensureDefaultChatWorkspace,
   findSseBoundary,
   hubLockPath,
   isLoopbackHost,

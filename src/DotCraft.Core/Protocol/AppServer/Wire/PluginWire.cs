@@ -37,6 +37,12 @@ public sealed class PluginInstallResult
     public PluginInfoWire Plugin { get; set; } = new();
 }
 
+public sealed class PluginInstallLocalParams
+{
+    /// <summary>Absolute path to a local plugin root directory to install.</summary>
+    public string Path { get; set; } = string.Empty;
+}
+
 public sealed class PluginRemoveParams
 {
     public string Id { get; set; } = string.Empty;

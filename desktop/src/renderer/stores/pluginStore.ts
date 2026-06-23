@@ -153,6 +153,7 @@ interface PluginState {
   selectPlugin(id: string): Promise<void>
   clearSelection(): void
   installPlugin(id: string): Promise<void>
+  installLocalPlugin(path: string): Promise<PluginEntry | undefined>
   removePlugin(id: string): Promise<void>
   togglePluginEnabled(id: string, enabled: boolean): Promise<void>
 }
@@ -221,6 +222,25 @@ export const usePluginStore = create<PluginState>((set, get) => ({
       }
     } catch (e: unknown) {
       console.error('plugin/install failed:', e)
+      throw e
+    }
+  },
+
+  async installLocalPlugin(path: string) {
+    try {
+      const result = (await window.api.appServer.sendRequest('plugin/installLocal', { path })) as { plugin?: PluginEntry }
+      const updated = result.plugin ? normalizePlugin(result.plugin) : undefined
+      if (updated) {
+        set((state) => ({
+          plugins: upsertPlugin(state.plugins, updated),
+          selectedPlugin: state.selectedPlugin?.id === updated.id ? updated : state.selectedPlugin
+        }))
+      } else {
+        await get().fetchPlugins()
+      }
+      return updated
+    } catch (e: unknown) {
+      console.error('plugin/installLocal failed:', e)
       throw e
     }
   },

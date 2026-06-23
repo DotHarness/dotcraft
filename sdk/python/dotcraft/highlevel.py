@@ -67,6 +67,20 @@ class LocalOptions:
     client_version: str = "0.0.0"
     client_title: str | None = None
     dotcraft_bin: str | None = None
+    home_dir: str | None = None
+    hub_startup_timeout: float = 30.0
+    approval_handler: ApprovalHandler | None = None
+    user_input_handler: UserInputHandler | None = None
+    capabilities: dict | None = None
+
+
+@dataclass
+class LocalChatOptions:
+    client_name: str = "dotcraft-python"
+    client_version: str = "0.0.0"
+    client_title: str | None = None
+    dotcraft_bin: str | None = None
+    home_dir: str | None = None
     hub_startup_timeout: float = 30.0
     approval_handler: ApprovalHandler | None = None
     user_input_handler: UserInputHandler | None = None
@@ -132,7 +146,7 @@ class DotCraft:
 
     @classmethod
     async def connect_local(cls, options: LocalOptions) -> "DotCraft":
-        hub = HubClient(dotcraft_bin=options.dotcraft_bin)
+        hub = HubClient(dotcraft_bin=options.dotcraft_bin, home_dir=options.home_dir)
         ensured = await hub.ensure_app_server(
             options.workspace_path,
             client_name=options.client_name,
@@ -149,6 +163,27 @@ class DotCraft:
             approval_handler=options.approval_handler,
             user_input_handler=options.user_input_handler,
             capabilities=options.capabilities,
+        ))
+
+    @classmethod
+    async def connect_local_chat(cls, options: LocalChatOptions | None = None) -> "DotCraft":
+        value = options or LocalChatOptions()
+        hub = HubClient(dotcraft_bin=value.dotcraft_bin, home_dir=value.home_dir)
+        ensured = await hub.ensure_default_chat_app_server(
+            client_name=value.client_name,
+            client_version=value.client_version,
+            start_if_missing=True,
+            startup_timeout=value.hub_startup_timeout,
+        )
+        return await cls.connect_remote(RemoteOptions(
+            url=ensured.ws_url,
+            token=ensured.token,
+            client_name=value.client_name,
+            client_version=value.client_version,
+            client_title=value.client_title,
+            approval_handler=value.approval_handler,
+            user_input_handler=value.user_input_handler,
+            capabilities=value.capabilities,
         ))
 
     async def request(self, method: str, params: dict | None = None) -> Any:

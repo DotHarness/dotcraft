@@ -6,6 +6,8 @@ interface WorkspaceProjectsState {
   foregroundProjectId: string
   secondaryLimit: number
   projects: WorkspaceProjectSummary[]
+  /** Default Chat workspace, rendered as the dedicated `Chats` group (never a Project). */
+  chat: WorkspaceProjectSummary | null
   setPayload(payload: WorkspaceProjectsPayload): void
   reset(): void
 }
@@ -14,7 +16,8 @@ const initialState = {
   foregroundWorkspacePath: '',
   foregroundProjectId: '',
   secondaryLimit: 8,
-  projects: []
+  projects: [],
+  chat: null
 }
 
 export const useWorkspaceProjectsStore = create<WorkspaceProjectsState>((set) => ({
@@ -25,7 +28,8 @@ export const useWorkspaceProjectsStore = create<WorkspaceProjectsState>((set) =>
       foregroundWorkspacePath: payload.foregroundWorkspacePath ?? '',
       foregroundProjectId: payload.foregroundProjectId ?? payload.foregroundWorkspacePath ?? '',
       secondaryLimit: payload.secondaryLimit ?? 8,
-      projects: Array.isArray(payload.projects) ? payload.projects : []
+      projects: Array.isArray(payload.projects) ? payload.projects : [],
+      chat: payload.chat ?? null
     })
   },
 

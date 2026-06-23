@@ -151,4 +151,52 @@ describe('CollapsedSidebar projects rail', () => {
     // First-letter dot for the recent thread, not a project icon.
     expect(screen.getByRole('button', { name: 'Hello world' })).toHaveTextContent('H')
   })
+
+  it('shows Chats instead of recent-thread dots when only the chat workspace is available', () => {
+    useThreadStore.setState({
+      threadList: [
+        { id: 't1', displayName: 'Hello world' } as unknown as ThreadSummary
+      ]
+    })
+    useWorkspaceProjectsStore.getState().setPayload({
+      foregroundWorkspacePath: 'C:\\Users\\me\\.craft\\workspaces\\chats',
+      foregroundProjectId: 'C:\\Users\\me\\.craft\\workspaces\\chats',
+      secondaryLimit: 8,
+      projects: [],
+      chat: project({
+        projectId: 'C:\\Users\\me\\.craft\\workspaces\\chats',
+        kind: 'chat',
+        path: 'C:\\Users\\me\\.craft\\workspaces\\chats',
+        name: 'C:\\Users\\me\\.craft\\workspaces\\chats',
+        state: 'foreground'
+      })
+    })
+
+    renderCollapsedSidebar()
+
+    expect(screen.getByRole('button', { name: 'Chats' })).toHaveAttribute('aria-current', 'true')
+    expect(screen.queryByRole('button', { name: 'Hello world' })).not.toBeInTheDocument()
+  })
+
+  it('switches to the chat workspace from the collapsed Chats icon', () => {
+    useWorkspaceProjectsStore.getState().setPayload({
+      foregroundWorkspacePath: 'F:\\alpha',
+      foregroundProjectId: 'F:\\alpha',
+      secondaryLimit: 8,
+      projects: [project({ projectId: 'F:\\alpha', path: 'F:\\alpha', name: 'Alpha', state: 'foreground' })],
+      chat: project({
+        projectId: 'C:\\Users\\me\\.craft\\workspaces\\chats',
+        kind: 'chat',
+        path: 'C:\\Users\\me\\.craft\\workspaces\\chats',
+        name: 'C:\\Users\\me\\.craft\\workspaces\\chats',
+        state: 'secondary'
+      })
+    })
+
+    renderCollapsedSidebar()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Chats' }))
+
+    expect(switchWorkspace).toHaveBeenCalledWith('C:\\Users\\me\\.craft\\workspaces\\chats')
+  })
 })

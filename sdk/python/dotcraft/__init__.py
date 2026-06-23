@@ -45,13 +45,20 @@ from .errors import (
 from .events import RunEvent
 from .highlevel import (
     DotCraft,
+    LocalChatOptions,
     LocalOptions,
     RemoteOptions,
     RunResult,
     Thread,
     ThreadManager,
 )
-from .hub import HubClient, HubError, HubLockInfo
+from .hub import (
+    HubClient,
+    HubError,
+    HubLockInfo,
+    default_chat_workspace_path,
+    ensure_default_chat_workspace,
+)
 from .models import (
     DECISION_ACCEPT,
     DECISION_ACCEPT_ALWAYS,
@@ -96,6 +103,7 @@ __all__ = [
     "ThreadManager",
     "RunResult",
     "RunEvent",
+    "LocalChatOptions",
     "LocalOptions",
     "RemoteOptions",
     # Wire client
@@ -112,6 +120,8 @@ __all__ = [
     "HubClient",
     "HubLockInfo",
     "HubError",
+    "default_chat_workspace_path",
+    "ensure_default_chat_workspace",
     # App Binding
     "AppBindingManager",
     "AppBindingHandoff",

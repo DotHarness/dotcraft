@@ -20,6 +20,11 @@ public sealed record HubPaths(
     public string RuntimeToolsPath => Path.Combine(HubStatePath, "runtime.json");
 
     /// <summary>
+    /// Default local workspace used for projectless Chat entry points.
+    /// </summary>
+    public string DefaultChatWorkspacePath => Path.Combine(CraftHomePath, "workspaces", "chats");
+
+    /// <summary>
     /// Resolves Hub paths for the current user.
     /// </summary>
     public static HubPaths ForCurrentUser()

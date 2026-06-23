@@ -83,12 +83,48 @@ public sealed class DotCraftClient : IAsyncDisposable
         var hub = new HubClient(new DotCraftHubClientOptions
         {
             DotCraftBin = value.DotCraftBin,
+            UserProfilePath = value.UserProfilePath,
             HubLockPath = value.HubLockPath,
             StartupTimeout = value.HubStartupTimeout,
             StartHubIfMissing = true
         });
         var ensured = await hub.EnsureAppServerAsync(
             workspacePath,
+            new HubEnsureAppServerOptions
+            {
+                Client = new HubClientInfo
+                {
+                    Name = value.ClientName,
+                    Version = value.ClientVersion
+                },
+                StartIfMissing = true
+            },
+            cancellationToken);
+        if (!ensured.Endpoints.TryGetValue("appServerWebSocket", out var wsUrl) || string.IsNullOrWhiteSpace(wsUrl))
+        {
+            throw new InvalidOperationException("Hub response did not include endpoints.appServerWebSocket.");
+        }
+
+        return await ConnectRemoteAsync(wsUrl, token: null, value, cancellationToken);
+    }
+
+    /// <summary>
+    /// Connects to the current user's default Chat workspace AppServer.
+    /// </summary>
+    public static async Task<DotCraftClient> ConnectLocalChatAsync(
+        DotCraftLocalClientOptions? options = null,
+        CancellationToken cancellationToken = default)
+    {
+        var value = options ?? new DotCraftLocalClientOptions();
+        var hub = new HubClient(new DotCraftHubClientOptions
+        {
+            DotCraftBin = value.DotCraftBin,
+            UserProfilePath = value.UserProfilePath,
+            HubLockPath = value.HubLockPath,
+            StartupTimeout = value.HubStartupTimeout,
+            StartHubIfMissing = true
+        });
+        var ensured = await hub.EnsureDefaultChatAppServerAsync(
             new HubEnsureAppServerOptions
             {
                 Client = new HubClientInfo

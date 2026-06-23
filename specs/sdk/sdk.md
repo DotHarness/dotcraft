@@ -44,6 +44,7 @@ The canonical surface below is the spine all general-purpose bindings converge o
 | Concept | TypeScript | .NET | Python |
 |---------|-----------|------|--------|
 | Connect (local Hub) | `DotCraft.local()` | `DotCraftClient.ConnectLocalAsync()` | `DotCraft.connect_local()` |
+| Connect (default Chat) | `DotCraft.localChat()` | `DotCraftClient.ConnectLocalChatAsync()` | `DotCraft.connect_local_chat()` |
 | Connect (remote WebSocket) | `DotCraft.remote()` | `DotCraftClient.ConnectRemoteAsync()` | `DotCraft.connect_remote()` |
 | Raw request escape hatch | `request()` | `RequestAsync()` | `request()` |
 | Thread manager | `dotcraft.threads` | `client.Threads` | `dotcraft.threads` |
@@ -107,6 +108,8 @@ The Hub Bootstrap profile is required for local-workspace SDK clients:
 - Require `endpoints.appServerWebSocket` for local AppServer connections.
 - Avoid logging Hub tokens or AppServer WebSocket tokens.
 
+Default Chat local bootstrap is the same profile after resolving and ensuring the concrete workspace path `~/.craft/workspaces/chats`. It must not use an empty `workspacePath` or a separate Hub endpoint.
+
 Additional Hub management APIs, such as appserver lookup and event subscription, are optional typed wrappers when the language binding needs them.
 
 ### 3.3 Application Profile
@@ -166,6 +169,7 @@ The Channel Adapter profile is required only for languages that ship first-party
 All SDKs should expose these concepts using language-idiomatic names:
 
 - Local Hub-managed connection from `workspacePath`.
+- Local Hub-managed connection to the default Chat workspace.
 - Remote AppServer WebSocket connection from `url` plus optional token.
 - Low-level transport construction for protocol tests or embedded hosts.
 - Client identity fields: name, version, and optional title.
@@ -267,6 +271,7 @@ Parity Target applies to every general-purpose SDK (TypeScript, .NET, Python) un
 | Hub lock discovery and validation | Hub | Typed | Typed | Typed | Required local |
 | Hub startup | Hub | Typed | Typed | Typed | Required local |
 | AppServer ensure | Hub | Typed | Typed | Typed | Required local |
+| Default Chat AppServer ensure | Hub | Typed | Typed | Typed | Required local |
 | AppServer lookup by workspace | Hub | Gap | Typed | Gap | Optional typed |
 | Hub status | Hub | Typed | Gap | Gap | Optional typed |
 | Hub SSE events | Hub | Typed | Gap | Gap | Optional typed |

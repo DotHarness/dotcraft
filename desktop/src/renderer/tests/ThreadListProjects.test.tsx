@@ -607,17 +607,17 @@ describe('ThreadList project-first layout', () => {
   it('renders foreground thread-store rows when local project identity uses a path variant', () => {
     useThreadStore.getState().setThreadList([
       makeThread('foreground-thread', 'Foreground local thread')
-    ], 'F:/Git/dotcraft')
+    ], 'F:/fixtures/workspace')
     useWorkspaceProjectsStore.getState().setPayload({
-      foregroundWorkspacePath: 'F:\\Git\\dotcraft',
-      foregroundProjectId: 'f:\\git\\dotcraft',
+      foregroundWorkspacePath: 'F:\\fixtures\\workspace',
+      foregroundProjectId: 'f:\\fixtures\\workspace',
       secondaryLimit: 8,
       projects: [
         {
           kind: 'local',
-          path: 'F:\\Git\\dotcraft',
-          identityWorkspacePath: 'F:\\Git\\dotcraft',
-          name: 'dotcraft',
+          path: 'F:\\fixtures\\workspace',
+          identityWorkspacePath: 'F:\\fixtures\\workspace',
+          name: 'workspace',
           state: 'foreground',
           running: true,
           loaded: true,
@@ -913,5 +913,170 @@ describe('ThreadList project-first layout', () => {
     await waitFor(() => {
       expect(workspaceDisconnectRemote).toHaveBeenCalled()
     })
+  })
+
+  it('renders a Chats group with default chat workspace threads after Projects', () => {
+    useWorkspaceProjectsStore.getState().setPayload({
+      foregroundWorkspacePath: '/workspace/a',
+      foregroundProjectId: '/workspace/a',
+      secondaryLimit: 8,
+      projects: [
+        {
+          path: '/workspace/a',
+          name: 'a',
+          state: 'foreground',
+          running: true,
+          loaded: true,
+          threadCount: 0,
+          threads: [],
+          pinnedThreadIds: []
+        }
+      ],
+      chat: {
+        projectId: '/chats',
+        kind: 'chat',
+        path: '/chats',
+        identityWorkspacePath: '/chats',
+        name: '/chats',
+        state: 'secondary',
+        running: true,
+        loaded: true,
+        threadCount: 1,
+        threads: [makeThread('chat-1', 'General chat thread')],
+        pinnedThreadIds: []
+      }
+    })
+
+    renderList()
+
+    const projectsHeading = screen.getByText('Projects')
+    const chatsHeading = screen.getByText('Chats')
+    // Chats renders as its own group, after Projects.
+    expect(projectsHeading.compareDocumentPosition(chatsHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.getByText('General chat thread')).toBeInTheDocument()
+    // The Chats group is not a project: no folder row carrying its physical path.
+    expect(screen.queryByRole('button', { name: '/chats' })).not.toBeInTheDocument()
+  })
+
+  it('shows No chats when the default chat workspace has no threads', () => {
+    useWorkspaceProjectsStore.getState().setPayload({
+      foregroundWorkspacePath: '/workspace/a',
+      foregroundProjectId: '/workspace/a',
+      secondaryLimit: 8,
+      projects: [
+        {
+          path: '/workspace/a',
+          name: 'a',
+          state: 'foreground',
+          running: true,
+          loaded: true,
+          threadCount: 0,
+          threads: [],
+          pinnedThreadIds: []
+        }
+      ],
+      chat: {
+        projectId: '/chats',
+        kind: 'chat',
+        path: '/chats',
+        name: '/chats',
+        state: 'secondary',
+        running: true,
+        loaded: true,
+        threadCount: 0,
+        threads: [],
+        pinnedThreadIds: []
+      }
+    })
+
+    renderList()
+
+    expect(screen.getByText('Chats')).toBeInTheDocument()
+    expect(screen.getByText('No chats')).toBeInTheDocument()
+  })
+
+  it('New chat in the Chats group switches to the chat workspace and opens a new chat', async () => {
+    useThreadStore.getState().setActiveThreadId('old-thread')
+    useWorkspaceProjectsStore.getState().setPayload({
+      foregroundWorkspacePath: '/workspace/a',
+      foregroundProjectId: '/workspace/a',
+      secondaryLimit: 8,
+      projects: [
+        {
+          path: '/workspace/a',
+          name: 'a',
+          state: 'foreground',
+          running: true,
+          loaded: true,
+          threadCount: 0,
+          threads: [],
+          pinnedThreadIds: []
+        }
+      ],
+      chat: {
+        projectId: '/chats',
+        kind: 'chat',
+        path: '/chats',
+        name: '/chats',
+        state: 'secondary',
+        running: true,
+        loaded: true,
+        threadCount: 0,
+        threads: [],
+        pinnedThreadIds: []
+      }
+    })
+
+    renderList()
+    fireEvent.click(screen.getByRole('button', { name: 'New chat' }))
+
+    await waitFor(() => {
+      expect(workspaceSwitch).toHaveBeenCalledWith('/chats')
+      expect(useThreadStore.getState().activeThreadId).toBeNull()
+      expect(useUIStore.getState().activeMainView).toBe('conversation')
+    })
+  })
+
+  it('renders interactive chat rows without a project folder row when the chat workspace is foreground', () => {
+    useThreadStore.getState().setThreadList([
+      makeThread('chat-live', 'Live chat thread')
+    ], '/chats')
+    useWorkspaceProjectsStore.getState().setPayload({
+      foregroundWorkspacePath: '/chats',
+      foregroundProjectId: '/chats',
+      secondaryLimit: 8,
+      projects: [
+        {
+          path: '/workspace/a',
+          name: 'a',
+          state: 'secondary',
+          running: true,
+          loaded: true,
+          threadCount: 0,
+          threads: [],
+          pinnedThreadIds: []
+        }
+      ],
+      chat: {
+        projectId: '/chats',
+        kind: 'chat',
+        path: '/chats',
+        name: '/chats',
+        state: 'foreground',
+        running: true,
+        loaded: true,
+        threadCount: 1,
+        threads: [],
+        pinnedThreadIds: []
+      }
+    })
+
+    renderList({ workspacePath: '/chats' })
+
+    // The live foreground thread appears in the Chats group as an interactive row.
+    expect(screen.getByText('Live chat thread')).toBeInTheDocument()
+    // The foreground chat workspace is never synthesized as a Project row.
+    expect(screen.queryByRole('button', { name: '/chats' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'a' })).toBeInTheDocument()
   })
 })

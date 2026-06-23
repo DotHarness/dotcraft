@@ -54,9 +54,29 @@ class EnsuredAppServer:
     raw: dict | None = None
 
 
-def hub_lock_path() -> Path:
+def hub_lock_path(home_dir: str | Path | None = None) -> Path:
     """Resolve the Hub lock file path (``~/.craft/hub/hub.lock``)."""
-    return Path.home() / ".craft" / "hub" / "hub.lock"
+    root = Path(home_dir) if home_dir is not None else Path.home()
+    return root / ".craft" / "hub" / "hub.lock"
+
+
+def default_chat_workspace_path(home_dir: str | Path | None = None) -> Path:
+    """Resolve the default Chat workspace path (``~/.craft/workspaces/chats``)."""
+    root = Path(home_dir) if home_dir is not None else Path.home()
+    return root / ".craft" / "workspaces" / "chats"
+
+
+def ensure_default_chat_workspace(home_dir: str | Path | None = None) -> Path:
+    """Create the default Chat workspace skeleton without overwriting config."""
+    workspace = default_chat_workspace_path(home_dir)
+    craft = workspace / ".craft"
+    (craft / "memory").mkdir(parents=True, exist_ok=True)
+    (craft / "skills").mkdir(parents=True, exist_ok=True)
+    (craft / "security").mkdir(parents=True, exist_ok=True)
+    config = craft / "config.json"
+    if not config.exists():
+        config.write_text("{}\n", encoding="utf-8")
+    return workspace
 
 
 def is_loopback_host(host: str) -> bool:
@@ -87,9 +107,15 @@ def is_process_alive(pid: int) -> bool:
 class HubClient:
     """Discovers, validates, starts the local Hub, and ensures workspace AppServers."""
 
-    def __init__(self, dotcraft_bin: str | None = None, lock_path: str | None = None) -> None:
+    def __init__(
+        self,
+        dotcraft_bin: str | None = None,
+        lock_path: str | None = None,
+        home_dir: str | Path | None = None,
+    ) -> None:
         self._dotcraft_bin = dotcraft_bin
-        self._lock_path = Path(lock_path) if lock_path else hub_lock_path()
+        self._home_dir = Path(home_dir) if home_dir is not None else None
+        self._lock_path = Path(lock_path) if lock_path else hub_lock_path(self._home_dir)
 
     def read_lock(self) -> HubLockInfo | None:
         """Read and parse the Hub lock file, or None if absent/unparseable."""
@@ -146,7 +172,7 @@ class HubClient:
             {
                 "workspacePath": workspace_path,
                 "client": {"name": client_name, "version": client_version},
-                "startIfMissing": True,
+                "startIfMissing": start_if_missing,
             },
         )
         endpoints = result.get("endpoints") if isinstance(result, dict) else None
@@ -155,6 +181,23 @@ class HubClient:
             raise HubError("hubInvalidResponse", "Hub response did not include endpoints.appServerWebSocket.")
         token = result.get("token") if isinstance(result, dict) else None
         return EnsuredAppServer(ws_url=ws_url, token=token, raw=result)
+
+    async def ensure_default_chat_app_server(
+        self,
+        client_name: str = "dotcraft-python",
+        client_version: str = "0.0.0",
+        start_if_missing: bool = True,
+        startup_timeout: float = 30.0,
+    ) -> EnsuredAppServer:
+        """Ensure the default Chat workspace AppServer using the standard Hub endpoint."""
+        workspace_path = ensure_default_chat_workspace(self._home_dir)
+        return await self.ensure_app_server(
+            str(workspace_path),
+            client_name=client_name,
+            client_version=client_version,
+            start_if_missing=start_if_missing,
+            startup_timeout=startup_timeout,
+        )
 
     # ------------------------------------------------------------------
     # Internal

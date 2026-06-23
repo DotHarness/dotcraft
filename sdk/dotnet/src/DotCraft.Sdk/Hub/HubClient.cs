@@ -35,6 +35,17 @@ public sealed class HubClient
     }
 
     /// <summary>
+    /// Resolves the default Chat workspace path for a user profile.
+    /// </summary>
+    public static string ResolveDefaultChatWorkspacePath(string? userProfilePath = null)
+    {
+        var profile = string.IsNullOrWhiteSpace(userProfilePath)
+            ? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)
+            : userProfilePath;
+        return Path.Combine(profile, ".craft", "workspaces", "chats");
+    }
+
+    /// <summary>
     /// Reads a Hub lock file and validates its required fields.
     /// </summary>
     public static HubLockInfo? ReadHubLock(string lockPath)
@@ -241,6 +252,37 @@ public sealed class HubClient
 
         return await response.Content.ReadFromJsonAsync<HubAppServerResponse>(DotCraftJson.Options, cancellationToken)
                ?? throw new HubClientException("hubInvalidResponse", "Hub returned an empty AppServer response.");
+    }
+
+    /// <summary>
+    /// Ensures the default Chat workspace AppServer using the existing Hub ensure endpoint.
+    /// </summary>
+    public Task<HubAppServerResponse> EnsureDefaultChatAppServerAsync(
+        HubEnsureAppServerOptions? options = null,
+        CancellationToken cancellationToken = default)
+    {
+        var workspacePath = EnsureDefaultChatWorkspace(_options.UserProfilePath);
+        return EnsureAppServerAsync(workspacePath, options, cancellationToken);
+    }
+
+    /// <summary>
+    /// Ensures the default Chat workspace directory structure exists.
+    /// </summary>
+    public static string EnsureDefaultChatWorkspace(string? userProfilePath = null)
+    {
+        var workspacePath = Path.GetFullPath(ResolveDefaultChatWorkspacePath(userProfilePath));
+        var craftPath = Path.Combine(workspacePath, ".craft");
+        Directory.CreateDirectory(workspacePath);
+        Directory.CreateDirectory(craftPath);
+        Directory.CreateDirectory(Path.Combine(craftPath, "memory"));
+        Directory.CreateDirectory(Path.Combine(craftPath, "skills"));
+        Directory.CreateDirectory(Path.Combine(craftPath, "security"));
+
+        var configPath = Path.Combine(craftPath, "config.json");
+        if (!File.Exists(configPath))
+            File.WriteAllText(configPath, "{}" + Environment.NewLine);
+
+        return workspacePath;
     }
 
     private string GetLockPath() =>

@@ -32,6 +32,7 @@ import { useSubAgentStore } from './stores/subAgentStore'
 import { useAppBindingStore } from './stores/appBindingStore'
 import { isGitBranchProbeSettled, normalizeGitPathKey, useGitStore } from './stores/gitStore'
 import { useWorkspaceProjectsStore } from './stores/workspaceProjectsStore'
+import { isDefaultChatWorkspacePathCandidate } from '../shared/defaultChatWorkspace'
 import { CustomMenuBar } from './components/layout/CustomMenuBar'
 import { Sidebar } from './components/layout/Sidebar'
 import { SettingsSidebar } from './components/layout/SettingsSidebar'
@@ -627,6 +628,7 @@ export function App(): JSX.Element {
   const capabilities = useConnectionStore((s) => s.capabilities)
   const connectionEpoch = useConnectionStore((s) => s.connectionEpoch)
   const foregroundProjectId = useWorkspaceProjectsStore((s) => s.foregroundProjectId)
+  const foregroundChat = useWorkspaceProjectsStore((s) => s.chat)
   const showSlowConnectingHint = useSlowConnectingHint(status, workspacePath)
   const remoteWorkspaceActive = workspaceStatus.remote != null
   const activeProjectKey = resolveActiveProjectKey(
@@ -643,8 +645,19 @@ export function App(): JSX.Element {
   )
   const activeProjectKeyRef = useRef(activeProjectKey)
   activeProjectKeyRef.current = activeProjectKey
+  const foregroundChatKey = foregroundChat
+    ? normalizeWorkspaceProjectKey(
+      foregroundChat.projectId || foregroundChat.identityWorkspacePath || foregroundChat.path
+    )
+    : ''
+  const foregroundIsChat =
+    isDefaultChatWorkspacePathCandidate(protocolWorkspacePath || workspacePath) ||
+    Boolean(foregroundChatKey && foregroundChatKey === normalizeWorkspaceProjectKey(foregroundProjectId))
+  const displayWorkspaceName = foregroundIsChat
+    ? translate(locale, 'chatsRail.title')
+    : workspaceName
   const mainWorkspaceGitPathKey =
-    workspaceStatus.status === 'ready' && !remoteWorkspaceActive
+    workspaceStatus.status === 'ready' && !remoteWorkspaceActive && !foregroundIsChat
       ? normalizeGitPathKey(workspacePath)
       : ''
   const mainWorkspaceGitStatus = useGitStore((s) =>
@@ -654,6 +667,7 @@ export function App(): JSX.Element {
     remoteWorkspaceActive ||
     workspaceStatus.status !== 'ready' ||
     !workspacePath ||
+    foregroundIsChat ||
     isGitBranchProbeSettled(mainWorkspaceGitStatus)
   const remoteWorkspaceActiveRef = useRef(remoteWorkspaceActive)
   remoteWorkspaceActiveRef.current = remoteWorkspaceActive
@@ -905,8 +919,9 @@ export function App(): JSX.Element {
   useEffect(() => {
     if (workspaceStatus.status !== 'ready') return
     if (remoteWorkspaceActive || !workspacePath) return
+    if (foregroundIsChat) return
     void useGitStore.getState().ensureBranches(workspacePath)
-  }, [remoteWorkspaceActive, workspacePath, workspaceStatus.status])
+  }, [foregroundIsChat, remoteWorkspaceActive, workspacePath, workspaceStatus.status])
 
   const handleOpenWorkspaceFromWelcome = useCallback(async (request: {
     path: string
@@ -1125,10 +1140,10 @@ export function App(): JSX.Element {
   useEffect(() => {
     if (workspacePath) {
       window.api.window.setTitle(
-        translate(locale, 'app.titleWithWorkspace', { name: workspaceName })
+        translate(locale, 'app.titleWithWorkspace', { name: displayWorkspaceName })
       )
     }
-  }, [workspacePath, workspaceName, locale])
+  }, [workspacePath, displayWorkspaceName, locale])
 
   useEffect(() => {
     return window.api.window.onOpenChromeSettings(() => {
@@ -3466,7 +3481,7 @@ export function App(): JSX.Element {
               ? <SettingsSidebar />
               : (
                   <Sidebar
-                    workspaceName={workspaceName}
+                    workspaceName={displayWorkspaceName}
                     workspacePath={workspaceStatus.remote?.workspaceDir?.trim() || workspacePath}
                     localWorkspacePath={workspacePath}
                     remoteWorkspace={remoteWorkspaceActive}

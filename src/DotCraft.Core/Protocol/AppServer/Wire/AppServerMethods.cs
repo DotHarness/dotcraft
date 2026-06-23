@@ -241,6 +241,7 @@ public static class AppServerMethods
     public const string PluginList = "plugin/list";
     public const string PluginView = "plugin/view";
     public const string PluginInstall = "plugin/install";
+    public const string PluginInstallLocal = "plugin/installLocal";
     public const string PluginRemove = "plugin/remove";
     public const string PluginSetEnabled = "plugin/setEnabled";
 

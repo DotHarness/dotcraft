@@ -5,7 +5,7 @@ import { useLocale, useSetUiLocale, useT } from '../contexts/LocaleContext'
 import { ActionTooltip } from './ui/ActionTooltip'
 import { DotCraftFullLogo } from './ui/DotCraftLogo'
 import { elementToLaunchLogoRect, type LaunchLogoRect } from './WorkspaceLaunchTransition'
-import { ChevronRight, FolderOpen } from 'lucide-react'
+import { ChevronRight, FolderOpen, MessageCircle } from 'lucide-react'
 
 interface RecentWorkspace {
   path: string
@@ -37,13 +37,27 @@ export function WelcomeScreen({ onOpenWorkspace }: WelcomeScreenProps): JSX.Elem
   const [error, setError] = useState<string | null>(null)
   const [lockedPath, setLockedPath] = useState<string | null>(null)
   const [openingWorkspacePath, setOpeningWorkspacePath] = useState<string | null>(null)
+  const [chatWorkspacePath, setChatWorkspacePath] = useState<string | null>(null)
   const logoRef = useRef<HTMLDivElement>(null)
   // shakingPath drives the animation; cleared on animationEnd to allow re-triggering
   const [shakingPath, setShakingPath] = useState<string | null>(null)
   const isOpeningWorkspace = openingWorkspacePath != null
 
   useEffect(() => {
-    window.api.workspace.getRecent().then(setRecents).catch(() => {})
+    let disposed = false
+    window.api.workspace.getRecent()
+      .then((next) => {
+        if (!disposed) setRecents(next)
+      })
+      .catch(() => {})
+    window.api.workspace.getProjects?.()
+      .then((payload) => {
+        if (!disposed) setChatWorkspacePath(payload?.chat?.path?.trim() || null)
+      })
+      .catch(() => {})
+    return () => {
+      disposed = true
+    }
   }, [])
 
   async function openWorkspaceWithBrandTransition(path: string): Promise<void> {
@@ -77,6 +91,11 @@ export function WelcomeScreen({ onOpenWorkspace }: WelcomeScreenProps): JSX.Elem
 
   async function handleOpenRecent(path: string): Promise<void> {
     await openWorkspaceWithBrandTransition(path)
+  }
+
+  async function handleOpenChats(): Promise<void> {
+    if (!chatWorkspacePath) return
+    await openWorkspaceWithBrandTransition(chatWorkspacePath)
   }
 
   async function handleLocaleSwitch(nextLocale: AppLocale): Promise<void> {
@@ -226,6 +245,29 @@ export function WelcomeScreen({ onOpenWorkspace }: WelcomeScreenProps): JSX.Elem
             </span>
             <ChevronRight className="welcome-workspace-row-action" size={18} strokeWidth={2.1} aria-hidden="true" />
           </button>
+
+          {chatWorkspacePath && (
+            <button
+              type="button"
+              className="welcome-workspace-row welcome-chats-row"
+              onClick={() => { void handleOpenChats() }}
+              disabled={loading}
+              aria-label={t('welcome.openChats')}
+            >
+              <span className="welcome-workspace-row-icon" aria-hidden="true">
+                <MessageCircle size={22} strokeWidth={1.8} />
+              </span>
+              <span className="welcome-workspace-row-body">
+                <span className="welcome-workspace-row-title">
+                  {loading && openingWorkspacePath === chatWorkspacePath ? t('welcome.opening') : t('welcome.openChats')}
+                </span>
+                <span className="welcome-workspace-row-path">
+                  {t('welcome.openChatsHint')}
+                </span>
+              </span>
+              <ChevronRight className="welcome-workspace-row-action" size={18} strokeWidth={2.1} aria-hidden="true" />
+            </button>
+          )}
 
           {recents.map((r) => {
             const isLocked = lockedPath === r.path

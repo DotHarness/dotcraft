@@ -29,6 +29,7 @@ internal sealed class PluginRequestHandler(
         table.Map(AppServerMethods.PluginList, HandlePluginListAsync);
         table.Map(AppServerMethods.PluginView, HandlePluginViewAsync);
         table.Map(AppServerMethods.PluginInstall, HandlePluginInstallAsync);
+        table.Map(AppServerMethods.PluginInstallLocal, HandlePluginInstallLocalAsync);
         table.Map(AppServerMethods.PluginRemove, HandlePluginRemoveAsync);
         table.Map(AppServerMethods.PluginSetEnabled, HandlePluginSetEnabledAsync);
     }
@@ -155,7 +156,6 @@ internal sealed class PluginRequestHandler(
             throw AppServerErrors.InvalidParams("'id' is required.");
 
         var pluginId = PluginIds.Canonicalize(p.Id.Trim());
-        var current = appConfigMonitor?.Current ?? new AppConfig();
         var before = RefreshPluginRuntime();
         var beforeDiagnostics = before.Diagnostics.ToList();
         var beforeMcpSummaries = BuildPluginMcpSummaryIndex(before, beforeDiagnostics);
@@ -175,9 +175,44 @@ internal sealed class PluginRequestHandler(
         if (deployDiagnostics.Any(d => d.Severity == PluginDiagnosticSeverity.Error || d.Code == "BuiltInPluginNotFound"))
             throw AppServerErrors.InvalidParams($"Plugin '{pluginId}' could not be installed.");
 
+        return await FinalizeInstalledPluginAsync(pluginId, AppServerMethods.PluginInstall, "plugin/install", msg, ct);
+    }
+
+    private async Task<object?> HandlePluginInstallLocalAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    {
+        if (string.IsNullOrEmpty(workspaceCraftPath))
+            throw AppServerErrors.MethodNotFound(AppServerMethods.PluginInstallLocal);
+
+        var p = AppServerParams.Get<PluginInstallLocalParams>(msg);
+        if (string.IsNullOrWhiteSpace(p.Path))
+            throw AppServerErrors.InvalidParams("'path' is required.");
+
+        var install = new LocalPluginInstaller(Path.Combine(workspaceCraftPath, "plugins")).Install(p.Path.Trim());
+        PluginDiagnosticsStore.Shared.Append(install.Diagnostics);
+        PluginDiagnosticsLogger.Write(install.Diagnostics);
+        if (install.PluginId == null)
+        {
+            var error = install.Diagnostics.FirstOrDefault(d => d.Severity == PluginDiagnosticSeverity.Error);
+            throw AppServerErrors.InvalidParams(error?.Message ?? "The selected folder is not a valid plugin.");
+        }
+
+        return await FinalizeInstalledPluginAsync(install.PluginId, AppServerMethods.PluginInstallLocal, "plugin/installLocal", msg, ct);
+    }
+
+    // Shared tail for plugin/install and plugin/installLocal: clears the id from the
+    // workspace disabled list, refreshes runtime, reconciles MCP/LSP, notifies, and
+    // returns the installed PluginInfo (with any deferred App Binding notifications).
+    private async Task<object?> FinalizeInstalledPluginAsync(
+        string pluginId,
+        string source,
+        string appListReason,
+        AppServerIncomingMessage msg,
+        CancellationToken ct)
+    {
+        var current = appConfigMonitor?.Current ?? new AppConfig();
         var disabled = PluginsConfigPersistence.NormalizeDisabledPluginIds(current.Plugins.DisabledPlugins).ToList();
         disabled.RemoveAll(id => PluginIds.EqualsCanonical(id, pluginId));
-        PluginsConfigPersistence.WriteWorkspaceDisabledPlugins(workspaceCraftPath, disabled);
+        PluginsConfigPersistence.WriteWorkspaceDisabledPlugins(workspaceCraftPath!, disabled);
         current.Plugins.DisabledPlugins = disabled;
         current.Plugins.EnabledPlugins.RemoveAll(id => PluginIds.EqualsCanonical(id, pluginId));
 
@@ -185,7 +220,7 @@ internal sealed class PluginRequestHandler(
         await ReconnectEffectiveMcpRuntimeAsync(await GetWorkspaceMcpServersAsync(ct), ct);
         await ReconnectEffectiveLspRuntimeAsync(ct);
         appConfigMonitor?.NotifyChanged(
-            AppServerMethods.PluginInstall,
+            source,
             [ConfigChangeRegions.Plugins, ConfigChangeRegions.Skills, ConfigChangeRegions.Mcp, ConfigChangeRegions.Lsp]);
         AppServerContextInvalidation.MarkSkills(contextPageManager);
 
@@ -203,7 +238,7 @@ internal sealed class PluginRequestHandler(
         return await MaybeSendAppBindingLifecycleNotificationsAfterResponseAsync(
             msg,
             result,
-            TryBuildAppListUpdatedNotification(discovery, pluginId, "plugin/install"),
+            TryBuildAppListUpdatedNotification(discovery, pluginId, appListReason),
             [],
             ct);
     }
