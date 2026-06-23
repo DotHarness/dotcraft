@@ -35,7 +35,7 @@ export function InlineDiffView({
       data-testid="inline-diff-view"
       style={{
         fontFamily: 'var(--font-mono)',
-        fontSize: '12px',
+        fontSize: 'var(--text-code-size)',
         lineHeight: '1.5',
         borderRadius: embedded ? 0 : '4px',
         overflow: 'hidden',
@@ -124,44 +124,48 @@ export function InlineDiffView({
                     style={{
                       display: 'flex',
                       minWidth: 'max-content',
-                      background: signMode
-                        ? 'transparent'
-                        : line.type === 'add'
+                      background:
+                        line.type === 'add'
                           ? 'var(--diff-add-bg)'
                           : line.type === 'remove'
                             ? 'var(--diff-remove-bg)'
                             : 'transparent',
+                      // Color mode marks the change with a left accent bar; +/- mode uses the gutter sign.
+                      boxShadow: signMode
+                        ? undefined
+                        : line.type === 'add'
+                          ? 'inset 2px 0 0 var(--success)'
+                          : line.type === 'remove'
+                            ? 'inset 2px 0 0 var(--error)'
+                            : undefined,
                       whiteSpace: 'pre'
                     }}
                   >
                     <span style={lineNumberStyle}>{oldNum}</span>
                     <span style={lineNumberStyle}>{newNum}</span>
-                    <span
-                      style={{
-                        width: '16px',
-                        flexShrink: 0,
-                        textAlign: 'center',
-                        color:
-                          line.type === 'add'
-                            ? 'var(--success)'
-                            : line.type === 'remove'
-                              ? 'var(--error)'
-                              : 'var(--text-dimmed)',
-                        userSelect: 'none'
-                      }}
-                    >
-                      {line.type === 'add' ? '+' : line.type === 'remove' ? '-' : ' '}
-                    </span>
+                    {signMode && (
+                      <span
+                        style={{
+                          width: '16px',
+                          flexShrink: 0,
+                          textAlign: 'center',
+                          color:
+                            line.type === 'add'
+                              ? 'var(--success)'
+                              : line.type === 'remove'
+                                ? 'var(--error)'
+                                : 'var(--text-dimmed)',
+                          userSelect: 'none'
+                        }}
+                      >
+                        {line.type === 'add' ? '+' : line.type === 'remove' ? '-' : ' '}
+                      </span>
+                    )}
                     <span
                       style={{
                         padding: '0 8px',
-                        color: signMode
-                          ? line.type === 'add'
-                            ? 'var(--success)'
-                            : line.type === 'remove'
-                              ? 'var(--error)'
-                              : 'var(--text-secondary)'
-                          : line.type === 'add'
+                        color:
+                          line.type === 'add'
                             ? 'var(--text-primary)'
                             : 'var(--text-secondary)'
                       }}

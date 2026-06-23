@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { resolveAppliedTheme, resolveThemeMode } from './theme'
 import {
   DEFAULT_APPEARANCE,
+  DEFAULT_UI_FONT_SIZE,
+  UI_FONT_SIZE_MAX,
+  UI_FONT_SIZE_MIN,
   normalizeAccentHex,
   normalizeCodeFontSize,
   normalizeDiffMarkers,
@@ -76,10 +79,12 @@ describe('enum normalization', () => {
     expect(normalizePointerCursors(undefined)).toBe(true)
   })
 
-  it('clamps interface zoom and defaults out-of-range/invalid to 100%', () => {
-    expect(normalizeInterfaceZoom(1.1)).toBe(1.1)
-    expect(normalizeInterfaceZoom(0.5)).toBe(0.8)
-    expect(normalizeInterfaceZoom(3)).toBe(1.5)
+  it('snaps interface zoom to the UI-font px grid and clamps out-of-range/invalid to 100%', () => {
+    expect(normalizeInterfaceZoom(1)).toBe(1) // 14px base
+    expect(normalizeInterfaceZoom(15 / 14)).toBe(15 / 14) // 15px round-trips exactly
+    expect(normalizeInterfaceZoom(1.2)).toBe(17 / 14) // raw 1.2 snaps to the nearest px (17px)
+    expect(normalizeInterfaceZoom(0.5)).toBe(UI_FONT_SIZE_MIN / DEFAULT_UI_FONT_SIZE) // clamps to 11px
+    expect(normalizeInterfaceZoom(3)).toBe(UI_FONT_SIZE_MAX / DEFAULT_UI_FONT_SIZE) // clamps to 21px
     expect(normalizeInterfaceZoom('big')).toBe(1)
   })
 
@@ -114,7 +119,7 @@ describe('resolveAppearanceSettings', () => {
       diffMarkers: 'sign',
       reduceMotion: 'on',
       pointerCursors: true,
-      interfaceZoom: 1.2,
+      interfaceZoom: 17 / 14, // resolves 1.2 by snapping to 17px
       translucentSidebar: false
     })
   })

@@ -133,9 +133,13 @@ function paneStyle(side: 'left' | 'right'): CSSProperties {
 
 function lineStyle(changed: boolean, side: 'left' | 'right', signMode: boolean): CSSProperties {
   const style: CSSProperties = { display: 'flex', minWidth: 'max-content', whiteSpace: 'pre' }
-  if (changed && !signMode) {
+  if (changed) {
+    // The tinted background stays in both modes; color mode adds a left accent bar, while
+    // +/- mode drops the bar in favor of the gutter sign rendered in <Pane>.
     style.background = side === 'left' ? 'var(--diff-remove-bg)' : 'var(--diff-add-bg)'
-    style.boxShadow = `inset 2px 0 0 ${side === 'left' ? 'var(--error)' : 'var(--success)'}`
+    if (!signMode) {
+      style.boxShadow = `inset 2px 0 0 ${side === 'left' ? 'var(--error)' : 'var(--success)'}`
+    }
   }
   return style
 }

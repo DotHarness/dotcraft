@@ -86,11 +86,12 @@ describe('AppearancePanel', () => {
     expect(settingsSet).toHaveBeenCalledWith({ accent: '' })
   })
 
-  it('persists interface zoom and applies it via the renderer', async () => {
+  it('persists the UI font size as an interface-zoom factor and applies it via the renderer', async () => {
     await renderPanel()
-    fireEvent.click(screen.getByRole('button', { name: 'Increase interface zoom' }))
-    expect(settingsSet).toHaveBeenCalledWith({ interfaceZoom: 1.1 })
-    expect(setZoomFactor).toHaveBeenCalledWith(1.1)
+    fireEvent.click(screen.getByRole('button', { name: 'Increase UI font size' }))
+    // Default is 14px (zoom 1); +1px -> 15px, persisted/applied as the 15/14 zoom factor.
+    expect(settingsSet).toHaveBeenCalledWith({ interfaceZoom: 15 / 14 })
+    expect(setZoomFactor).toHaveBeenCalledWith(15 / 14)
   })
 
   it('persists the translucent sidebar preference (default on, toggled off)', async () => {

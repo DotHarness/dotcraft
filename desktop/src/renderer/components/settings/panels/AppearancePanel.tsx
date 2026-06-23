@@ -16,11 +16,12 @@ import {
   CODE_FONT_SIZE_MIN,
   DEFAULT_APPEARANCE,
   DEFAULT_CODE_FONT_SIZE,
-  INTERFACE_ZOOM_MAX,
-  INTERFACE_ZOOM_MIN,
-  INTERFACE_ZOOM_STEP,
+  UI_FONT_SIZE_MAX,
+  UI_FONT_SIZE_MIN,
+  interfaceZoomToUiFontPx,
   normalizeAccentHex,
   resolveAppearanceSettings,
+  uiFontPxToInterfaceZoom,
   type AppearanceSettings,
   type DiffMarkerMode,
   type ReduceMotionMode
@@ -105,11 +106,14 @@ export function AppearancePanel(): JSX.Element {
     void persist({ pointerCursors: on })
   }
 
-  function handleInterfaceZoom(next: number): void {
-    const clamped = Math.round(Math.min(INTERFACE_ZOOM_MAX, Math.max(INTERFACE_ZOOM_MIN, next)) * 10) / 10
-    setAppearance((prev) => ({ ...prev, interfaceZoom: clamped }))
-    window.api.window.setZoomFactor(clamped)
-    void persist({ interfaceZoom: clamped })
+  // The control reads as a UI font size in px but is applied as a whole-interface zoom anchored on
+  // the 14px base, so each px step persists as the `px / 14` zoom factor (see shared/appearance.ts).
+  function handleUiFontSize(nextPx: number): void {
+    const clampedPx = Math.min(UI_FONT_SIZE_MAX, Math.max(UI_FONT_SIZE_MIN, nextPx))
+    const zoom = uiFontPxToInterfaceZoom(clampedPx)
+    setAppearance((prev) => ({ ...prev, interfaceZoom: zoom }))
+    window.api.window.setZoomFactor(zoom)
+    void persist({ interfaceZoom: zoom })
   }
 
   function handleTranslucentSidebar(on: boolean): void {
@@ -121,7 +125,7 @@ export function AppearancePanel(): JSX.Element {
   const accentLower = appearance.accent?.toLowerCase() ?? null
   const isCustomAccent = accentLower !== null && !ACCENT_PRESETS.includes(accentLower)
   const codeSize = appearance.codeFontSize ?? DEFAULT_CODE_FONT_SIZE
-  const zoomPct = Math.round(appearance.interfaceZoom * 100)
+  const uiFontPx = interfaceZoomToUiFontPx(appearance.interfaceZoom)
 
   return (
     <SettingsPanelShell title={t('settings.tab.appearance')} description={t('settings.appearance.description')}>
@@ -207,19 +211,19 @@ export function AppearancePanel(): JSX.Element {
               <button
                 type="button"
                 aria-label={t('settings.appearance.interfaceZoom.decrease')}
-                disabled={appearance.interfaceZoom <= INTERFACE_ZOOM_MIN}
-                onClick={() => handleInterfaceZoom(appearance.interfaceZoom - INTERFACE_ZOOM_STEP)}
-                style={stepperButtonStyle(appearance.interfaceZoom <= INTERFACE_ZOOM_MIN)}
+                disabled={uiFontPx <= UI_FONT_SIZE_MIN}
+                onClick={() => handleUiFontSize(uiFontPx - 1)}
+                style={stepperButtonStyle(uiFontPx <= UI_FONT_SIZE_MIN)}
               >
                 <Minus size={15} strokeWidth={2} aria-hidden />
               </button>
-              <span style={stepperValueStyle}>{zoomPct}%</span>
+              <span style={stepperValueStyle}>{uiFontPx}px</span>
               <button
                 type="button"
                 aria-label={t('settings.appearance.interfaceZoom.increase')}
-                disabled={appearance.interfaceZoom >= INTERFACE_ZOOM_MAX}
-                onClick={() => handleInterfaceZoom(appearance.interfaceZoom + INTERFACE_ZOOM_STEP)}
-                style={stepperButtonStyle(appearance.interfaceZoom >= INTERFACE_ZOOM_MAX)}
+                disabled={uiFontPx >= UI_FONT_SIZE_MAX}
+                onClick={() => handleUiFontSize(uiFontPx + 1)}
+                style={stepperButtonStyle(uiFontPx >= UI_FONT_SIZE_MAX)}
               >
                 <Plus size={15} strokeWidth={2} aria-hidden />
               </button>

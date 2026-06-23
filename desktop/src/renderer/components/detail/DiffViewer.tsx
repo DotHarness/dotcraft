@@ -66,7 +66,7 @@ export function DiffViewer({ diff, workspacePath, mode = 'inline', wordWrap = fa
       data-wrap={wordWrap ? 'true' : undefined}
       style={{
         fontFamily: 'var(--font-mono)',
-        fontSize: '12px',
+        fontSize: 'var(--text-code-size)',
         lineHeight: '1.55',
         overflow: 'hidden'
       }}
@@ -121,20 +121,23 @@ export function UnifiedDiffBody({
                   style={{
                     display: 'flex',
                     minWidth: wordWrap ? undefined : 'max-content',
-                    background: diffLineBackground(line.type, signMode),
+                    background: diffLineBackground(line.type),
+                    boxShadow: diffLineBar(line.type, signMode),
                     whiteSpace: wordWrap ? 'pre-wrap' : 'pre'
                   }}
                 >
                   <span style={lineNumberStyle}>{oldNum}</span>
                   <span style={lineNumberStyle}>{newNum}</span>
-                  <span style={markerStyle(line.type)}>
-                    {line.type === 'add' ? '+' : line.type === 'remove' ? '-' : ' '}
-                  </span>
+                  {signMode && (
+                    <span style={markerStyle(line.type)}>
+                      {line.type === 'add' ? '+' : line.type === 'remove' ? '-' : ' '}
+                    </span>
+                  )}
                   <span
                     title={relativePath}
                     style={{
                       padding: '0 10px 0 4px',
-                      color: diffLineColor(line.type, signMode),
+                      color: diffLineColor(line.type),
                       ...(wordWrap ? wrapContentStyle : null)
                     }}
                   >
@@ -267,18 +270,21 @@ function SplitCell({
         display: 'flex',
         width: wordWrap ? '100%' : 'max-content',
         minWidth: '100%',
-        background: isBlank ? 'var(--bg-primary)' : diffLineBackground(line.type, signMode),
+        background: isBlank ? 'var(--bg-primary)' : diffLineBackground(line.type),
+        boxShadow: isBlank ? undefined : diffLineBar(line.type, signMode),
         whiteSpace: wordWrap ? 'pre-wrap' : 'pre'
       }}
     >
       <span style={lineNumberStyle}>{line.num}</span>
-      <span style={markerStyle(line.type)}>{line.type === 'add' ? '+' : line.type === 'remove' ? '-' : ' '}</span>
+      {signMode && (
+        <span style={markerStyle(line.type)}>{line.type === 'add' ? '+' : line.type === 'remove' ? '-' : ' '}</span>
+      )}
       <span
         title={title}
         style={{
           minWidth: 0,
           padding: '0 10px 0 4px',
-          color: diffLineColor(line.type, signMode),
+          color: diffLineColor(line.type),
           ...(wordWrap ? wrapContentStyle : null)
         }}
       >
@@ -426,21 +432,23 @@ function unchangedBeforeHunk(
   return Math.max(0, oldStart - previousOldEnd, newStart - previousNewEnd)
 }
 
-function diffLineBackground(type: NumberedLine['type'], signMode: boolean): string {
-  if (signMode) return 'transparent'
+function diffLineBackground(type: NumberedLine['type']): string {
   if (type === 'add') return 'var(--diff-add-bg)'
   if (type === 'remove') return 'var(--diff-remove-bg)'
   return 'transparent'
 }
 
-/** Content text color: in sign mode add/remove carry the change via semantic color (no fill). */
-function diffLineColor(type: NumberedLine['type'], signMode: boolean): string {
+/** Color mode marks changed lines with a left accent bar; +/- mode drops it for the gutter sign. */
+function diffLineBar(type: NumberedLine['type'], signMode: boolean): string | undefined {
+  if (signMode) return undefined
+  if (type === 'add') return 'inset 2px 0 0 var(--success)'
+  if (type === 'remove') return 'inset 2px 0 0 var(--error)'
+  return undefined
+}
+
+/** Content text color. Add/remove read from the tinted fill (both modes), so text stays neutral. */
+function diffLineColor(type: NumberedLine['type']): string {
   if (type === 'blank') return 'transparent'
-  if (signMode) {
-    if (type === 'add') return 'var(--success)'
-    if (type === 'remove') return 'var(--error)'
-    return 'var(--text-primary)'
-  }
   return type === 'remove' ? 'var(--text-secondary)' : 'var(--text-primary)'
 }
 

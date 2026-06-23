@@ -30,10 +30,27 @@ export const CODE_FONT_SIZE_MAX = 20
 /** Matches the `--text-code-size` default in tokens.css. */
 export const DEFAULT_CODE_FONT_SIZE = 12
 
-export const INTERFACE_ZOOM_MIN = 0.8
-export const INTERFACE_ZOOM_MAX = 1.5
-export const INTERFACE_ZOOM_STEP = 0.1
+/**
+ * The base UI font size in px that a 100% interface zoom represents — matches `--type-body-size`
+ * in tokens.css. The Appearance control reads as a UI font size anchored on this value, but it is
+ * applied as a whole-interface zoom (not a font CSS var), so the persisted value stays a zoom factor.
+ */
+export const DEFAULT_UI_FONT_SIZE = 14
+/** UI font size bounds (px), spanning roughly the historical 0.8-1.5 interface-zoom range. */
+export const UI_FONT_SIZE_MIN = 11
+export const UI_FONT_SIZE_MAX = 21
+/** Interface zoom factor (1 = 100% = the base UI font size). Applied via the renderer zoom. */
 export const DEFAULT_INTERFACE_ZOOM = 1
+
+/** The UI font size (px) an interface-zoom factor renders, anchored on {@link DEFAULT_UI_FONT_SIZE}. */
+export function interfaceZoomToUiFontPx(zoom: number): number {
+  return Math.round(zoom * DEFAULT_UI_FONT_SIZE)
+}
+
+/** The interface-zoom factor that renders the UI at the given font size (px). */
+export function uiFontPxToInterfaceZoom(px: number): number {
+  return px / DEFAULT_UI_FONT_SIZE
+}
 
 export const DEFAULT_APPEARANCE: AppearanceSettings = {
   themeMode: 'light',
@@ -81,11 +98,15 @@ export function normalizePointerCursors(raw: unknown): boolean {
   return raw !== false
 }
 
-/** Clamp a zoom factor to the supported range (rounded to one decimal), defaulting to 100%. */
+/**
+ * Snap a zoom factor to the UI-font px grid and clamp it to the supported size range, defaulting
+ * to 100%. The control steps by whole px and persists `px / 14`, so snapping here keeps those
+ * values stable across reloads — a raw 1-decimal round would drift (12px -> 0.857 -> 0.9 -> 13px).
+ */
 export function normalizeInterfaceZoom(raw: unknown): number {
   if (typeof raw !== 'number' || !Number.isFinite(raw)) return DEFAULT_INTERFACE_ZOOM
-  const clamped = Math.min(INTERFACE_ZOOM_MAX, Math.max(INTERFACE_ZOOM_MIN, raw))
-  return Math.round(clamped * 10) / 10
+  const px = Math.min(UI_FONT_SIZE_MAX, Math.max(UI_FONT_SIZE_MIN, Math.round(raw * DEFAULT_UI_FONT_SIZE)))
+  return px / DEFAULT_UI_FONT_SIZE
 }
 
 /** Sidebar translucency defaults to on; only an explicit `false` makes it opaque. */
