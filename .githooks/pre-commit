@@ -1,0 +1,13 @@
+#!/bin/sh
+set -eu
+
+repo_root="$(git rev-parse --show-toplevel 2>/dev/null)"
+cd "$repo_root"
+
+if ! command -v node >/dev/null 2>&1; then
+  echo "pre-commit: node is required to normalize staged whitespace." >&2
+  echo "Run setup.bat /check to verify the DotCraft developer environment." >&2
+  exit 1
+fi
+
+exec node scripts/precommit-normalize-whitespace.mjs

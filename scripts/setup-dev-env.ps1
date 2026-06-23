@@ -327,6 +327,91 @@ function Get-ToolResults {
     )
 }
 
+function Get-RepositoryRoot {
+    $git = Get-Command git -ErrorAction SilentlyContinue
+    if (-not $git) {
+        return $null
+    }
+
+    $root = @(& $git.Source rev-parse --show-toplevel 2>$null | Select-Object -First 1)
+    if ($root.Count -eq 0 -or [string]::IsNullOrWhiteSpace($root[0])) {
+        return $null
+    }
+
+    return $root[0]
+}
+
+function Test-HooksPathValue {
+    param(
+        [Parameter(Mandatory = $true)][string]$RepositoryRoot,
+        [Parameter(Mandatory = $true)][string]$Value
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        return $false
+    }
+
+    $pathSeparators = [char[]]@([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar)
+    $normalizedValue = $Value.Trim().TrimEnd($pathSeparators)
+    if ($normalizedValue -eq ".githooks") {
+        return $true
+    }
+
+    $expected = [System.IO.Path]::GetFullPath((Join-Path $RepositoryRoot ".githooks")).TrimEnd($pathSeparators)
+    if ([System.IO.Path]::IsPathRooted($normalizedValue)) {
+        $actual = [System.IO.Path]::GetFullPath($normalizedValue).TrimEnd($pathSeparators)
+    } else {
+        $actual = [System.IO.Path]::GetFullPath((Join-Path $RepositoryRoot $normalizedValue)).TrimEnd($pathSeparators)
+    }
+
+    return [string]::Equals($actual, $expected, [System.StringComparison]::OrdinalIgnoreCase)
+}
+
+function Test-GitHooks {
+    $git = Get-Command git -ErrorAction SilentlyContinue
+    if (-not $git) {
+        return New-ToolResult -Id "githooks" -Name "Git hooks" -Installed $false -Detail "git command not found; cannot configure repository hooks."
+    }
+
+    $repositoryRoot = Get-RepositoryRoot
+    if (-not $repositoryRoot) {
+        return New-ToolResult -Id "githooks" -Name "Git hooks" -Installed $false -Detail "current directory is not inside a Git repository."
+    }
+
+    $hookPath = Join-Path $repositoryRoot ".githooks\pre-commit"
+    if (-not (Test-Path -LiteralPath $hookPath)) {
+        return New-ToolResult -Id "githooks" -Name "Git hooks" -Installed $false -Detail "missing .githooks/pre-commit."
+    }
+
+    $configured = @(& $git.Source -C $repositoryRoot config --get core.hooksPath 2>$null | Select-Object -First 1)
+    if ($configured.Count -eq 0 -or [string]::IsNullOrWhiteSpace($configured[0])) {
+        return New-ToolResult -Id "githooks" -Name "Git hooks" -Installed $false -Detail "core.hooksPath is not configured; expected .githooks."
+    }
+
+    if (Test-HooksPathValue -RepositoryRoot $repositoryRoot -Value $configured[0]) {
+        return New-ToolResult -Id "githooks" -Name "Git hooks" -Installed $true -Detail "core.hooksPath is configured as $($configured[0])."
+    }
+
+    return New-ToolResult -Id "githooks" -Name "Git hooks" -Installed $false -Detail "core.hooksPath is '$($configured[0])'; expected .githooks."
+}
+
+function Enable-GitHooks {
+    $git = Get-Command git -ErrorAction SilentlyContinue
+    if (-not $git) {
+        throw "git command not found; cannot configure repository hooks."
+    }
+
+    $repositoryRoot = Get-RepositoryRoot
+    if (-not $repositoryRoot) {
+        throw "Current directory is not inside a Git repository."
+    }
+
+    & $git.Source -C $repositoryRoot config core.hooksPath .githooks
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to set core.hooksPath to .githooks."
+    }
+}
+
 function Write-ManualInstallHelp {
     Write-Host ""
     Write-Host "WinGet was not found, so setup cannot install missing tools automatically." -ForegroundColor Yellow
@@ -373,24 +458,37 @@ function Main {
         Write-ToolResult -Result $result
     }
 
+    Write-Section -Text "Checking Git hooks"
+    $hooksResult = Test-GitHooks
+    Write-ToolResult -Result $hooksResult
+
     $missing = @($results | Where-Object { -not $_.Installed })
-    if ($missing.Count -eq 0) {
+    $hooksMissing = -not $hooksResult.Installed
+    if ($missing.Count -eq 0 -and -not $hooksMissing) {
         Write-Host ""
         Write-Host "All required tools are available. You can run build.bat now." -ForegroundColor Green
         return 0
     }
 
-    Write-Host ""
-    Write-Host "Missing tools:" -ForegroundColor Yellow
-    foreach ($result in $missing) {
-        Write-Host "  - $($result.Name): $($result.Detail)"
+    if ($missing.Count -gt 0) {
+        Write-Host ""
+        Write-Host "Missing tools:" -ForegroundColor Yellow
+        foreach ($result in $missing) {
+            Write-Host "  - $($result.Name): $($result.Detail)"
+        }
+    }
+
+    if ($hooksMissing) {
+        Write-Host ""
+        Write-Host "Git hooks are not ready:" -ForegroundColor Yellow
+        Write-Host "  - $($hooksResult.Detail)"
     }
 
     $actions = @($missing | ForEach-Object { $_.InstallAction } | Where-Object { $_ -ne $null })
 
     if ($Check) {
         Write-Host ""
-        Write-Host "Check mode does not install anything. Run setup.bat to install missing tools." -ForegroundColor Yellow
+        Write-Host "Check mode does not install tools or change Git config. Run setup.bat to fix missing setup steps." -ForegroundColor Yellow
         if ($actions.Count -gt 0) {
             Write-Host ""
             Write-Host "Planned WinGet commands:"
@@ -402,44 +500,58 @@ function Main {
         return 1
     }
 
-    $wingetPath = Test-Winget
-    if (-not $wingetPath) {
-        Write-ManualInstallHelp
-        return 1
-    }
+    if ($missing.Count -gt 0) {
+        $wingetPath = Test-Winget
+        if (-not $wingetPath) {
+            Write-ManualInstallHelp
+            return 1
+        }
 
-    Write-Host ""
-    Write-Host "The following WinGet commands will be run:" -ForegroundColor Cyan
-    foreach ($action in $actions) {
-        Write-Host "  $($action.DisplayCommand)"
-    }
-
-    if (-not $Yes) {
         Write-Host ""
-        $answer = Read-Host "Install missing tools now? [y/N]"
-        if ($answer -notmatch '^(y|yes)$') {
-            Write-Host "Setup cancelled. No tools were installed." -ForegroundColor Yellow
+        Write-Host "The following WinGet commands will be run:" -ForegroundColor Cyan
+        foreach ($action in $actions) {
+            Write-Host "  $($action.DisplayCommand)"
+        }
+
+        if (-not $Yes) {
+            Write-Host ""
+            $answer = Read-Host "Install missing tools now? [y/N]"
+            if ($answer -notmatch '^(y|yes)$') {
+                Write-Host "Setup cancelled. No tools were installed." -ForegroundColor Yellow
+                return 1
+            }
+        }
+
+        foreach ($action in $actions) {
+            Invoke-InstallAction -WingetPath $wingetPath -Action $action
+        }
+
+        Write-Section -Text "Refreshing PATH and rechecking"
+        Update-ProcessPath
+        $afterResults = Get-ToolResults
+        foreach ($result in $afterResults) {
+            Write-ToolResult -Result $result
+        }
+
+        $stillMissing = @($afterResults | Where-Object { -not $_.Installed })
+        if ($stillMissing.Count -gt 0) {
+            Write-Host ""
+            Write-Host "Some tools are still not visible in this terminal." -ForegroundColor Yellow
+            Write-Host "Restart the terminal, then run setup.bat /check before build.bat."
             return 1
         }
     }
 
-    foreach ($action in $actions) {
-        Invoke-InstallAction -WingetPath $wingetPath -Action $action
-    }
-
-    Write-Section -Text "Refreshing PATH and rechecking"
-    Update-ProcessPath
-    $afterResults = Get-ToolResults
-    foreach ($result in $afterResults) {
-        Write-ToolResult -Result $result
-    }
-
-    $stillMissing = @($afterResults | Where-Object { -not $_.Installed })
-    if ($stillMissing.Count -gt 0) {
-        Write-Host ""
-        Write-Host "Some tools are still not visible in this terminal." -ForegroundColor Yellow
-        Write-Host "Restart the terminal, then run setup.bat /check before build.bat."
-        return 1
+    if ($hooksMissing) {
+        Write-Section -Text "Configuring Git hooks"
+        Enable-GitHooks
+        $afterHooksResult = Test-GitHooks
+        Write-ToolResult -Result $afterHooksResult
+        if (-not $afterHooksResult.Installed) {
+            Write-Host ""
+            Write-Host "Git hooks are still not configured correctly." -ForegroundColor Yellow
+            return 1
+        }
     }
 
     Write-Host ""

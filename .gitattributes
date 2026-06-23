@@ -1,6 +1,9 @@
 # Auto detect text files and perform LF normalization
 * text=auto
 .gitattributes text eol=lf
+.githooks/* text eol=lf
+scripts/*.mjs text eol=lf
+scripts/*.ps1 text eol=lf
 
 # GitHub Linguist language stats
 desktop/src/shared/locales/messages/*.ts text eol=lf linguist-generated=true
