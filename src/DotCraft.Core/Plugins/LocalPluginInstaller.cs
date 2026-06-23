@@ -48,6 +48,15 @@ public sealed class LocalPluginInstaller(string workspacePluginsPath)
             return new LocalPluginInstallResult(null, diagnostics);
         }
 
+        if (TryFindReparsePoint(fullSource, out var linkPath))
+        {
+            diagnostics.Add(PluginDiagnostic.Error(
+                "LocalPluginPathContainsLink",
+                "The selected plugin folder cannot contain symbolic links or reparse points.",
+                path: linkPath));
+            return new LocalPluginInstallResult(null, diagnostics);
+        }
+
         if (!PluginManifestParser.IsValidPluginRoot(fullSource))
         {
             diagnostics.Add(PluginDiagnostic.Error(
@@ -98,6 +107,16 @@ public sealed class LocalPluginInstaller(string workspacePluginsPath)
                 return new LocalPluginInstallResult(null, diagnostics);
             }
 
+            if (TryFindReparsePoint(fullSource, out linkPath))
+            {
+                diagnostics.Add(PluginDiagnostic.Error(
+                    "LocalPluginPathContainsLink",
+                    "The selected plugin folder cannot contain symbolic links or reparse points.",
+                    pluginId,
+                    path: linkPath));
+                return new LocalPluginInstallResult(null, diagnostics);
+            }
+
             Directory.CreateDirectory(workspacePluginsPath);
             CopyDirectoryAtomic(fullSource, fullTarget);
         }
@@ -139,6 +158,37 @@ public sealed class LocalPluginInstaller(string workspacePluginsPath)
             Directory.CreateDirectory(Path.GetDirectoryName(targetFile)!);
             File.Copy(file, targetFile, overwrite: true);
         }
+    }
+
+    private static bool TryFindReparsePoint(string root, out string path)
+    {
+        var pending = new Stack<DirectoryInfo>();
+        pending.Push(new DirectoryInfo(root));
+
+        while (pending.Count > 0)
+        {
+            var directory = pending.Pop();
+            if (directory.Attributes.HasFlag(FileAttributes.ReparsePoint))
+            {
+                path = directory.FullName;
+                return true;
+            }
+
+            foreach (var entry in directory.EnumerateFileSystemInfos("*", new EnumerationOptions { AttributesToSkip = 0 }))
+            {
+                if (entry.Attributes.HasFlag(FileAttributes.ReparsePoint))
+                {
+                    path = entry.FullName;
+                    return true;
+                }
+
+                if (entry is DirectoryInfo childDirectory)
+                    pending.Push(childDirectory);
+            }
+        }
+
+        path = string.Empty;
+        return false;
     }
 
     private static bool PathsEqual(string left, string right) =>

@@ -434,7 +434,9 @@ function emitWorkspaceProjects(): void {
 // not connected then). The summary reuses WorkspaceProjectSummary so the renderer
 // can share thread-row rendering; `kind: 'chat'` keeps it out of the Projects list.
 function buildDefaultChatSummary(): WorkspaceProjectSummary | undefined {
-  if (activeRemoteProject || activeRemoteWorkspace) return undefined
+  if (activeRemoteProject || activeRemoteWorkspace || resolveConnectionMode(sharedSettings) !== 'local') {
+    return undefined
+  }
   const chatPath = resolveDefaultChatWorkspacePath()
   const entry = getWorkspaceConnection(chatPath)
   let state: WorkspaceProjectState = 'cold'

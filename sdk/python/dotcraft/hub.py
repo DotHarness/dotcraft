@@ -172,7 +172,7 @@ class HubClient:
             {
                 "workspacePath": workspace_path,
                 "client": {"name": client_name, "version": client_version},
-                "startIfMissing": True,
+                "startIfMissing": start_if_missing,
             },
         )
         endpoints = result.get("endpoints") if isinstance(result, dict) else None

@@ -127,6 +127,38 @@ public sealed class LocalPluginInstallerTests
         Assert.True(File.Exists(sentinel));
     }
 
+    [Fact]
+    public void Install_RejectsPluginFolderContainingEscapingDirectoryLink()
+    {
+        var root = NewTempDir();
+        var source = Path.Combine(root, "my-plugin");
+        WritePlugin(source, "my-plugin");
+        var outside = Path.Combine(root, "outside");
+        Directory.CreateDirectory(outside);
+        File.WriteAllText(Path.Combine(outside, "secret.txt"), "do not copy");
+        var link = Path.Combine(source, "skills", "escape");
+
+        try
+        {
+            Directory.CreateSymbolicLink(link, outside);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or PlatformNotSupportedException)
+        {
+            return;
+        }
+
+        var workspacePlugins = Path.Combine(root, ".craft", "plugins");
+
+        var result = new LocalPluginInstaller(workspacePlugins).Install(source);
+
+        Assert.Null(result.PluginId);
+        Assert.Contains(result.Diagnostics, d =>
+            d.Severity == PluginDiagnosticSeverity.Error
+            && d.Code == "LocalPluginPathContainsLink"
+            && d.Path == link);
+        Assert.False(Directory.Exists(workspacePlugins));
+    }
+
     private static string NewTempDir()
     {
         var dir = Path.Combine(Path.GetTempPath(), "dotcraft-localplugin-test-" + Guid.NewGuid().ToString("N"));

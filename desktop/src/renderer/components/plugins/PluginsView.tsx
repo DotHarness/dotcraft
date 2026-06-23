@@ -5,6 +5,7 @@ import { useT } from '../../contexts/LocaleContext'
 import type { MessageKey } from '../../../shared/locales'
 import { usePluginStore, type PluginDiagnosticEntry, type PluginEntry } from '../../stores/pluginStore'
 import { useConnectionStore } from '../../stores/connectionStore'
+import { useConversationStore } from '../../stores/conversationStore'
 import { useSkillsStore } from '../../stores/skillsStore'
 import { useUIStore, type PluginCatalogSurface } from '../../stores/uiStore'
 import { addToast } from '../../stores/toastStore'
@@ -47,6 +48,7 @@ export function PluginsView(): JSX.Element {
   const confirm = useConfirmDialog()
   const capabilities = useConnectionStore((s) => s.capabilities)
   const pluginManagement = capabilities?.pluginManagement === true
+  const remoteWorkspaceActive = useConversationStore((s) => s.remoteWorkspaceActive)
   const {
     plugins,
     diagnostics,
@@ -394,11 +396,13 @@ export function PluginsView(): JSX.Element {
           position={menuPosition}
           onClose={() => setMenuPosition(null)}
           items={[
-            {
-              label: t('plugins.installLocal.menu'),
-              icon: <FolderInput size={14} />,
-              onClick: () => void handleInstallFromDisk()
-            },
+            ...(!remoteWorkspaceActive
+              ? [{
+                  label: t('plugins.installLocal.menu'),
+                  icon: <FolderInput size={14} />,
+                  onClick: () => void handleInstallFromDisk()
+                }]
+              : []),
             {
               label: t('plugins.refresh'),
               icon: <RefreshIcon size={14} />,

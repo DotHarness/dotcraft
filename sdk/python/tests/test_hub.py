@@ -58,11 +58,16 @@ async def test_ensure_default_chat_app_server_uses_existing_ensure_endpoint(
     monkeypatch.setattr(client, "try_get_live_hub", fake_live_hub)
     monkeypatch.setattr(client, "_post", fake_post)
 
-    ensured = await client.ensure_default_chat_app_server(client_name="pytest", client_version="0.1")
+    ensured = await client.ensure_default_chat_app_server(
+        client_name="pytest",
+        client_version="0.1",
+        start_if_missing=False,
+    )
     body = captured["body"]
 
     assert captured["path"] == "/v1/appservers/ensure"
     assert isinstance(body, dict)
     assert body["workspacePath"] == str(default_chat_workspace_path(tmp_path))
+    assert body["startIfMissing"] is False
     assert ensured.ws_url == "ws://127.0.0.1:5000/ws?token=x"
     assert (default_chat_workspace_path(tmp_path) / ".craft" / "config.json").read_text(encoding="utf-8") == "{}\n"

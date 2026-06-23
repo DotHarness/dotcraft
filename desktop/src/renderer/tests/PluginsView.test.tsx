@@ -6,6 +6,7 @@ import { useConnectionStore } from '../stores/connectionStore'
 import { useAppBindingStore, type AppInfo } from '../stores/appBindingStore'
 import { usePluginStore, type PluginEntry } from '../stores/pluginStore'
 import { useSkillsStore, type SkillEntry } from '../stores/skillsStore'
+import { useConversationStore } from '../stores/conversationStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
 
@@ -310,6 +311,7 @@ describe('PluginsView local plugin visibility', () => {
     settingsGet.mockResolvedValue({ locale: 'en' })
     useConnectionStore.getState().reset()
     useAppBindingStore.getState().reset()
+    useConversationStore.setState({ remoteWorkspaceActive: false })
     useThreadStore.getState().reset()
     useConnectionStore.getState().setStatus({
       status: 'connected',
@@ -399,6 +401,21 @@ describe('PluginsView local plugin visibility', () => {
     fireEvent.click(await screen.findByText('Install from disk'))
 
     await waitFor(() => expect(workspacePickFolder).toHaveBeenCalled())
+    expect(appServerSendRequest).not.toHaveBeenCalledWith('plugin/installLocal', expect.anything())
+  })
+
+  it('hides install from disk for remote workspaces', async () => {
+    useConversationStore.setState({ remoteWorkspaceActive: true })
+    appServerSendRequest.mockResolvedValue({ plugins: [browserUsePlugin], diagnostics: [] })
+
+    renderPluginsView()
+    await screen.findByText('Browser')
+
+    fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
+
+    expect(await screen.findByText('Refresh')).toBeInTheDocument()
+    expect(screen.queryByText('Install from disk')).not.toBeInTheDocument()
+    expect(workspacePickFolder).not.toHaveBeenCalled()
     expect(appServerSendRequest).not.toHaveBeenCalledWith('plugin/installLocal', expect.anything())
   })
 
