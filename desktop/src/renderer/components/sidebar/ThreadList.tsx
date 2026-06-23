@@ -12,7 +12,9 @@ import {
   FolderPlus,
   LogOut,
   MoreHorizontal,
+  RotateCw,
   Server,
+  Square,
   SquarePen,
   Trash2
 } from 'lucide-react'
@@ -740,7 +742,7 @@ function ProjectHeader({
     const viewportWidth = window.innerWidth || 320
     const viewportHeight = window.innerHeight || 480
     const menuWidth = 220
-    const estimatedMenuHeight = isRemoteProject(project) ? 144 : 176
+    const estimatedMenuHeight = isRemoteProject(project) ? 144 : project.running ? 264 : 176
     // Left-aligned to the project row so the menu opens downward-right from its left edge.
     const left = Math.max(8, Math.min(rect.left, viewportWidth - menuWidth - 8))
     const belowTop = rect.bottom + 4
@@ -804,6 +806,16 @@ function ProjectHeader({
     await window.api.workspace.disconnectRemote()
   }
 
+  async function restartWorkspace(): Promise<void> {
+    if (isRemoteProject(project)) return
+    await window.api.workspace.restart(project.path)
+  }
+
+  async function stopWorkspace(): Promise<void> {
+    if (isRemoteProject(project)) return
+    await window.api.workspace.stop(project.path)
+  }
+
   function handlePrimaryAction(): void {
     if (cold) return
     onToggle()
@@ -835,6 +847,11 @@ function ProjectHeader({
       onKeyDown={handleKeyDown}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      onContextMenu={(event) => {
+        event.preventDefault()
+        updateProjectMenuPosition()
+        setMenuOpen(true)
+      }}
       style={{
         position: 'relative',
         display: 'grid',
@@ -939,6 +956,12 @@ function ProjectHeader({
             <ProjectMenuItem icon={<FolderOpen size={14} aria-hidden />} label={t('workspaceHeader.openInExplorer')} onClick={() => { setMenuOpen(false); void window.api.shell.openPath(project.path) }} />
           )}
           <ProjectMenuItem icon={<Copy size={14} aria-hidden />} label={t('projectsRail.copyPath')} onClick={() => { setMenuOpen(false); void copyPath() }} />
+          {!isRemoteProject(project) && project.running && (
+            <ProjectMenuItem icon={<RotateCw size={14} aria-hidden />} label={t('tray.restartAppServer')} onClick={() => { setMenuOpen(false); void restartWorkspace() }} />
+          )}
+          {!isRemoteProject(project) && project.running && (
+            <ProjectMenuItem icon={<Square size={14} aria-hidden />} label={t('tray.stopAppServer')} onClick={() => { setMenuOpen(false); void stopWorkspace() }} />
+          )}
           {isRemoteProject(project) ? (
             <ProjectMenuItem
               icon={<LogOut size={14} aria-hidden />}

@@ -960,6 +960,14 @@ const api = {
       return ipcRenderer.invoke('workspace:disconnect-remote')
     },
 
+    restart(path: string): Promise<void> {
+      return ipcRenderer.invoke('workspace:restart', path)
+    },
+
+    stop(path: string): Promise<void> {
+      return ipcRenderer.invoke('workspace:stop', path)
+    },
+
     onProjectsChange(callback: (payload: WorkspaceProjectsPayload) => void): UnsubscribeFn {
       const token = ++workspaceProjectsToken
       activeWorkspaceProjectsCallback = callback

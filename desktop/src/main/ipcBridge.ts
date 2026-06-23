@@ -922,6 +922,10 @@ export interface IpcHandlerCallbacks {
   getWorkspaceProjects?: () => WorkspaceProjectsPayload
   /** Removes a non-foreground workspace from the recent projects list. */
   removeRecentWorkspace?: (workspacePath: string) => void
+  /** Restarts the managed AppServer for the given workspace. */
+  restartWorkspace?: (workspacePath: string) => void | Promise<void>
+  /** Stops the managed AppServer for the given workspace. */
+  stopWorkspace?: (workspacePath: string) => void | Promise<void>
   /** Clears and persists the recent workspaces list. */
   clearRecentWorkspaces?: () => void
   /** Returns the latest known connection status snapshot. */
@@ -1602,6 +1606,14 @@ export function registerIpcHandlers(
 
   handleSafe('workspace:remove-recent', (_event, workspacePath: string) => {
     callbacks?.removeRecentWorkspace?.(workspacePath)
+  })
+
+  handleSafe('workspace:restart', async (_event, workspacePath: string) => {
+    await callbacks?.restartWorkspace?.(workspacePath)
+  })
+
+  handleSafe('workspace:stop', async (_event, workspacePath: string) => {
+    await callbacks?.stopWorkspace?.(workspacePath)
   })
 
   handleSafe('workspace:disconnect-remote', async () => {
@@ -2542,6 +2554,8 @@ export function unregisterIpcHandlers(): void {
   ipcMain.removeHandler('workspace:get-recent')
   ipcMain.removeHandler('workspace:get-projects')
   ipcMain.removeHandler('workspace:remove-recent')
+  ipcMain.removeHandler('workspace:restart')
+  ipcMain.removeHandler('workspace:stop')
   ipcMain.removeHandler('workspace:disconnect-remote')
   ipcMain.removeHandler('workspace:clear-recent')
   ipcMain.removeHandler('workspace:get-status')

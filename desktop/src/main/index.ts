@@ -2308,6 +2308,14 @@ function buildCallbacks(): IpcHandlerCallbacks {
       saveSettings(sharedSettings)
       emitWorkspaceProjects()
     },
+    restartWorkspace: async (workspacePath: string) => {
+      const hubClient = createHubClient(sharedSettings)
+      await hubClient.restartAppServer(workspacePath, resolveDotCraftRuntimeTools())
+    },
+    stopWorkspace: async (workspacePath: string) => {
+      const hubClient = createHubClient(sharedSettings)
+      await hubClient.stopAppServer(workspacePath)
+    },
     onAppServerRequestCompleted: (client, method, params) => {
       observeAppServerRequestCompletion(client, method, params)
     },

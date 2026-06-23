@@ -523,6 +523,8 @@ declare global {
         getProjects(): Promise<WorkspaceProjectsPayload>
         removeRecent(path: string): Promise<void>
         disconnectRemote(): Promise<void>
+        restart(path: string): Promise<void>
+        stop(path: string): Promise<void>
         onProjectsChange(callback: (payload: WorkspaceProjectsPayload) => void): UnsubscribeFn
         clearRecent(): Promise<void>
         getStatus(): Promise<WorkspaceStatusPayload>
