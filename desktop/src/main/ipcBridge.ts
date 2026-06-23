@@ -1524,13 +1524,15 @@ export function registerIpcHandlers(
 
   // ─── Workspace management ──────────────────────────────────────────────────
 
-  // Renderer -> Main: open native folder picker dialog
-  handleSafe('workspace:pick-folder', async (_event) => {
+  // Renderer -> Main: open native folder picker dialog. An optional localized title
+  // lets callers (e.g. plugin install-from-disk) relabel the picker; the renderer owns
+  // localization, so the title text is passed in rather than localized here.
+  handleSafe('workspace:pick-folder', async (_event, options?: { title?: string }) => {
     const focusedWin = BrowserWindow.getFocusedWindow()
     const result = await dialog.showOpenDialog(
       focusedWin ?? BrowserWindow.getAllWindows()[0],
       {
-        title: 'Select Workspace Folder',
+        title: options?.title?.trim() || 'Select Workspace Folder',
         properties: ['openDirectory', 'createDirectory']
       }
     )

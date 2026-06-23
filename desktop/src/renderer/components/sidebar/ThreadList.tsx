@@ -67,6 +67,7 @@ export function ThreadList({
   const t = useT()
   const { threadList, threadListProjectKey, searchQuery, loading, pinnedThreadIds } = useThreadStore()
   const projects = useWorkspaceProjectsStore((s) => s.projects)
+  const chat = useWorkspaceProjectsStore((s) => s.chat)
   const foregroundWorkspacePath = useWorkspaceProjectsStore((s) => s.foregroundWorkspacePath)
   const foregroundProjectId = useWorkspaceProjectsStore((s) => s.foregroundProjectId)
   const [collapsedProjects, setCollapsedProjects] = useState<Set<string>>(() => new Set())
@@ -79,8 +80,12 @@ export function ThreadList({
     dragActive?.kind === 'automation-task' ? dragActive.title : null
 
   const showProjects = projects.length > 0
+  // The default Chat workspace is surfaced as a dedicated `Chats` group sibling to
+  // `Projects`. Once present it drives the same grouped layout so Chats always shows.
+  const showChats = chat != null
+  const showGroupedLayout = showProjects || showChats
 
-  if (loading && !showProjects) {
+  if (loading && !showGroupedLayout) {
     return (
       <div
         role="status"
@@ -100,7 +105,7 @@ export function ThreadList({
     )
   }
 
-  if (!showProjects && threadList.length === 0) {
+  if (!showGroupedLayout && threadList.length === 0) {
     return (
       <div style={emptyStyle}>
         <span style={{
@@ -117,7 +122,7 @@ export function ThreadList({
     )
   }
 
-  if (!showProjects && filteredThreads.length === 0 && searchQuery) {
+  if (!showGroupedLayout && filteredThreads.length === 0 && searchQuery) {
     return (
       <div style={emptyStyle}>
         <span style={{
@@ -137,7 +142,7 @@ export function ThreadList({
     pinnedThreadIds
   )
 
-  if (showProjects) {
+  if (showGroupedLayout) {
     const openingProjectKey = foregroundOpening
       ? normalizeWorkspacePath(openingWorkspacePath || workspacePath || '')
       : ''
@@ -153,9 +158,16 @@ export function ThreadList({
     const foregroundProject = projects.find((project) =>
       isProjectForeground(project, effectiveForegroundProjectId, effectiveForegroundWorkspacePath)
     )
+    // When the default Chat workspace is foreground, the `Chats` group represents it,
+    // so the foreground must not be synthesized as a Project row below.
+    const chatIsForeground =
+      chat != null &&
+      isProjectForeground(chat, effectiveForegroundProjectId, effectiveForegroundWorkspacePath)
+    const chatForegroundListMatches =
+      chatIsForeground && isForegroundThreadListForProject(threadListProjectKey, projectIdentity(chat!))
     // Keep the project order stable (store order); the active project is marked
     // with a badge on its folder icon rather than being hoisted to the top.
-    const projectsForRender = foregroundProject
+    const projectsForRender = foregroundProject || chatIsForeground
       ? projects
       : [
           {
@@ -198,12 +210,14 @@ export function ThreadList({
         {pinnedProjectRows.length > 0 && (
           <PinnedProjectSection rows={pinnedProjectRows} />
         )}
-        <ProjectsSectionHeader
-          workspacePath={workspacePath || foregroundWorkspacePath}
-          localWorkspacePath={localWorkspacePath}
-          localActionsDisabled={localActionsDisabled}
-        />
-        {projectsForRender.map((project) => {
+        {showProjects && (
+          <ProjectsSectionHeader
+            workspacePath={workspacePath || foregroundWorkspacePath}
+            localWorkspacePath={localWorkspacePath}
+            localActionsDisabled={localActionsDisabled}
+          />
+        )}
+        {showProjects && projectsForRender.map((project) => {
           const projectKey = projectIdentity(project)
           const isForeground = isProjectForeground(project, effectiveForegroundProjectId, effectiveForegroundWorkspacePath)
           const cachedProjectThreads = orderSubAgentsAfterParents(filterProjectThreads(project, searchQuery))
@@ -265,6 +279,17 @@ export function ThreadList({
             </div>
           )
         })}
+        {showChats && chat && (
+          <ChatsSection
+            chat={chat}
+            interactive={chatForegroundListMatches}
+            foreground={chatIsForeground}
+            foregroundThreads={orderedThreads}
+            foregroundPinnedThreadIds={pinnedThreadIds}
+            searchQuery={searchQuery}
+            opening={chatIsForeground && (foregroundOpening || chat.state === 'connecting')}
+          />
+        )}
       </div>
     )
   }
@@ -607,6 +632,114 @@ function ProjectsSectionHeader({
         document.body
       )}
       {addProject.dialog}
+    </div>
+  )
+}
+
+/**
+ * The `Chats` group: threads from the default Chat workspace, rendered sibling to
+ * `Projects`. It deliberately has no folder icon, project path, or project actions —
+ * only a `New chat` affordance and the same thread rows used elsewhere. When the Chat
+ * workspace is the foreground connection its rows are interactive (ThreadEntry);
+ * otherwise they are read-only rows that promote the workspace on click.
+ */
+function ChatsSection({
+  chat,
+  interactive,
+  foreground,
+  foregroundThreads,
+  foregroundPinnedThreadIds,
+  searchQuery,
+  opening
+}: {
+  chat: WorkspaceProjectSummary
+  interactive: boolean
+  foreground: boolean
+  foregroundThreads: ThreadSummary[]
+  foregroundPinnedThreadIds: string[]
+  searchQuery: string
+  opening: boolean
+}): JSX.Element {
+  const t = useT()
+  const setActiveMainView = useUIStore((s) => s.setActiveMainView)
+  const chatKey = projectIdentity(chat)
+  const rawThreads = interactive
+    ? foregroundThreads
+    : orderSubAgentsAfterParents(filterProjectThreads(chat, searchQuery))
+  const pinnedIds = interactive ? foregroundPinnedThreadIds : (chat.pinnedThreadIds ?? [])
+  const { pinnedThreads, unpinnedThreads } = partitionPinnedThreads(rawThreads, pinnedIds)
+  const threads = [...pinnedThreads, ...unpinnedThreads]
+  const showSkeleton = opening && threads.length === 0
+
+  async function newChat(): Promise<void> {
+    // Creating a chat targets the Chat workspace, so promote it to foreground first
+    // (mirrors a project's New chat). The switch never adds it to recent Projects.
+    if (!foreground) {
+      await window.api.workspace.switch(chat.path)
+    }
+    useUIStore.getState().goToNewChat({ workspacePath: chatKey })
+    setActiveMainView('conversation')
+  }
+
+  return (
+    <div style={{ marginBottom: '6px' }}>
+      <ChatsSectionHeader onNewChat={() => { void newChat() }} />
+      {showSkeleton ? (
+        <ProjectThreadSkeletonList />
+      ) : threads.length === 0 ? (
+        <ProjectHint label={searchQuery ? t('threadList.noSearchResults') : t('projectsRail.noChats')} />
+      ) : (
+        threads.map((thread) => (
+          interactive ? (
+            <ThreadEntry key={thread.id} thread={thread} />
+          ) : (
+            <ReadonlyThreadRow
+              key={thread.id}
+              thread={thread}
+              project={chat}
+              pinned={pinnedIds.includes(thread.id)}
+            />
+          )
+        ))
+      )}
+    </div>
+  )
+}
+
+function ChatsSectionHeader({ onNewChat }: { onNewChat: () => void }): JSX.Element {
+  const t = useT()
+  return (
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'minmax(0, 1fr) 28px',
+        alignItems: 'center',
+        gap: '4px',
+        minHeight: '28px',
+        padding: '8px 8px 2px'
+      }}
+    >
+      <span
+        style={{
+          color: 'var(--text-dimmed)',
+          fontSize: 'var(--type-secondary-size)',
+          lineHeight: 'var(--type-secondary-line-height)'
+        }}
+      >
+        {t('chatsRail.title')}
+      </span>
+      <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end' }}>
+        <ActionTooltip label={t('sidebar.newThreadLabel')}>
+          <button
+            type="button"
+            aria-label={t('sidebar.newThreadLabel')}
+            onClick={onNewChat}
+            style={projectIconButtonStyle}
+          >
+            <SquarePen size={15} aria-hidden />
+          </button>
+        </ActionTooltip>
+      </div>
     </div>
   )
 }

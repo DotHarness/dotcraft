@@ -239,6 +239,8 @@ Behavior mirrors [Unified SDK Specification §3.2](sdk.md#32-hub-bootstrap-profi
 
 `connect_local()` must not stop the Hub-managed AppServer when the SDK client closes.
 
+`DotCraft.connect_local_chat()` follows the same flow after resolving and initializing the default Chat workspace (`~/.craft/workspaces/chats`). It calls the existing Hub AppServer ensure endpoint with that concrete `workspace_path`; it must not use an empty path or a separate Hub endpoint.
+
 ### 6.2 Remote Mode
 
 `DotCraft.connect_remote()` connects directly to an AppServer WebSocket endpoint.
@@ -299,6 +301,8 @@ When Hub is not live, the SDK starts `dotcraft hub` (or `dotnet <dotcraft_bin> h
 
 `HubClient.ensure_app_server(workspace_path, ...)` calls `POST /v1/appservers/ensure` and requires `endpoints.appServerWebSocket` in the response. A missing endpoint raises `HubError`.
 
+`HubClient.ensure_default_chat_app_server(...)` resolves and initializes the default Chat workspace, then calls `ensure_app_server()` with that concrete path.
+
 ---
 
 ## 8. Wire Client
@@ -345,6 +349,8 @@ The wire client provides typed wrappers for the AppServer methods listed in [Uni
 class DotCraft:
     @classmethod
     async def connect_local(cls, options: LocalOptions) -> "DotCraft": ...
+    @classmethod
+    async def connect_local_chat(cls, options: LocalChatOptions | None = None) -> "DotCraft": ...
     @classmethod
     async def connect_remote(cls, options: RemoteOptions) -> "DotCraft": ...
 

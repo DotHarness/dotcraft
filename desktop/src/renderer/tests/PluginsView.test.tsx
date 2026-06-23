@@ -13,6 +13,7 @@ const appServerSendRequest = vi.fn()
 const settingsGet = vi.fn()
 const shellOpenExternal = vi.fn()
 const shellGetProtocolHandlerName = vi.fn()
+const workspacePickFolder = vi.fn()
 const confirmDialog = vi.fn()
 
 const browserUsePlugin: PluginEntry = {
@@ -339,9 +340,11 @@ describe('PluginsView local plugin visibility', () => {
       value: {
         settings: { get: settingsGet },
         appServer: { sendRequest: appServerSendRequest },
-        shell: { openExternal: shellOpenExternal, getProtocolHandlerName: shellGetProtocolHandlerName }
+        shell: { openExternal: shellOpenExternal, getProtocolHandlerName: shellGetProtocolHandlerName },
+        workspace: { pickFolder: workspacePickFolder }
       }
     })
+    workspacePickFolder.mockResolvedValue(null)
     ;(window as Window & { __confirmDialog?: unknown }).__confirmDialog = confirmDialog
     shellOpenExternal.mockResolvedValue(undefined)
     shellGetProtocolHandlerName.mockResolvedValue('')
@@ -360,6 +363,43 @@ describe('PluginsView local plugin visibility', () => {
     expect(screen.getByText('External Process Echo')).toBeInTheDocument()
     expect(screen.getByText('Browser')).toBeInTheDocument()
     expect(screen.getByText('All publishers')).toBeInTheDocument()
+  })
+
+  it('installs a plugin from a picked disk folder via plugin/installLocal', async () => {
+    appServerSendRequest.mockImplementation((method: string) => {
+      if (method === 'plugin/installLocal') {
+        return Promise.resolve({
+          plugin: { ...browserUsePlugin, id: 'disk-plugin', installed: true, enabled: true, removable: true }
+        })
+      }
+      return Promise.resolve({ plugins: [browserUsePlugin], diagnostics: [] })
+    })
+    workspacePickFolder.mockResolvedValue('/disk/my-plugin')
+
+    renderPluginsView()
+    await screen.findByText('Browser')
+
+    fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
+    fireEvent.click(await screen.findByText('Install from disk'))
+
+    await waitFor(() => {
+      expect(workspacePickFolder).toHaveBeenCalledWith({ title: 'Select plugin folder' })
+      expect(appServerSendRequest).toHaveBeenCalledWith('plugin/installLocal', { path: '/disk/my-plugin' })
+    })
+  })
+
+  it('does not call plugin/installLocal when the folder picker is cancelled', async () => {
+    appServerSendRequest.mockResolvedValue({ plugins: [browserUsePlugin], diagnostics: [] })
+    workspacePickFolder.mockResolvedValue(null)
+
+    renderPluginsView()
+    await screen.findByText('Browser')
+
+    fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
+    fireEvent.click(await screen.findByText('Install from disk'))
+
+    await waitFor(() => expect(workspacePickFolder).toHaveBeenCalled())
+    expect(appServerSendRequest).not.toHaveBeenCalledWith('plugin/installLocal', expect.anything())
   })
 
   it('does not render a separate native app catalog section', async () => {

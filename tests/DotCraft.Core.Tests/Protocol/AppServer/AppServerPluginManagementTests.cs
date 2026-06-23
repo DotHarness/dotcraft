@@ -434,6 +434,78 @@ public sealed class AppServerPluginManagementTests : IDisposable
     }
 
     [Fact]
+    public async Task PluginInstallLocal_InstallsUserPluginAsRemovable()
+    {
+        var loader = CreateSkillsLoader(new AppConfig());
+        using var harness = CreateHarness(loader: loader);
+        await harness.InitializeAsync(configChange: true);
+
+        var source = Path.Combine(_tempRoot, "source-plugin");
+        WriteSkillOnlyPlugin(source);
+
+        var msg = harness.BuildRequest(AppServerMethods.PluginInstallLocal, new { path = source });
+        await harness.ExecuteRequestAsync(msg);
+
+        using var response = await harness.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(response);
+        var plugin = response.RootElement.GetProperty("result").GetProperty("plugin");
+        Assert.Equal("demo-plugin", plugin.GetProperty("id").GetString());
+        Assert.True(plugin.GetProperty("installed").GetBoolean());
+        Assert.True(plugin.GetProperty("enabled").GetBoolean());
+        Assert.True(plugin.GetProperty("removable").GetBoolean());
+
+        var installed = Path.Combine(_workspaceCraftPath, "plugins", "demo-plugin");
+        Assert.True(File.Exists(Path.Combine(installed, ".craft-plugin", "plugin.json")));
+        // Local installs are user-owned: no .builtin marker is written, yet the plugin is removable.
+        Assert.False(File.Exists(Path.Combine(installed, ".builtin")));
+        Assert.Contains(loader.ListSkills(filterUnavailable: false), skill => skill.Name == "demo-skill");
+    }
+
+    [Fact]
+    public async Task PluginInstallLocal_RejectsNonPluginFolder()
+    {
+        using var harness = CreateHarness();
+        await harness.InitializeAsync(configChange: true);
+
+        var source = Path.Combine(_tempRoot, "not-a-plugin");
+        Directory.CreateDirectory(source);
+
+        var msg = harness.BuildRequest(AppServerMethods.PluginInstallLocal, new { path = source });
+        await harness.ExecuteRequestAsync(msg);
+
+        using var response = await harness.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
+        Assert.False(Directory.Exists(Path.Combine(_workspaceCraftPath, "plugins", "demo-plugin")));
+    }
+
+    [Fact]
+    public async Task PluginInstallLocal_RejectsRelativePathWithoutWritingWorkspacePlugin()
+    {
+        using var harness = CreateHarness();
+        await harness.InitializeAsync(configChange: true);
+
+        var relativeSource = "dotcraft-relative-plugin-test-" + Guid.NewGuid().ToString("N");
+        var source = Path.Combine(Directory.GetCurrentDirectory(), relativeSource);
+
+        try
+        {
+            WriteSkillOnlyPlugin(source);
+
+            var msg = harness.BuildRequest(AppServerMethods.PluginInstallLocal, new { path = relativeSource });
+            await harness.ExecuteRequestAsync(msg);
+
+            using var response = await harness.Transport.ReadNextSentAsync();
+            AppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
+            Assert.False(Directory.Exists(Path.Combine(_workspaceCraftPath, "plugins")));
+        }
+        finally
+        {
+            if (Directory.Exists(source))
+                Directory.Delete(source, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task PluginInstall_DeploysOratorioAppAndSkill()
     {
         var loader = CreateSkillsLoader(new AppConfig());

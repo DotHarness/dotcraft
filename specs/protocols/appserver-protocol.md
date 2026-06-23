@@ -4398,6 +4398,22 @@ Installs a known desktop-bundled built-in plugin into the workspace. Uninstalled
 
 On success, the server copies the selected bundled plugin source to `.craft/plugins/<id>`, writes a `.builtin` source fingerprint marker, removes that id from `Plugins.DisabledPlugins`, refreshes plugin-contributed skill sources, reconciles effective MCP runtime state, and emits `workspace/configChanged` with `source: "plugin/install"` and `regions: ["plugins", "skills", "mcp"]`.
 
+#### `plugin/installLocal`
+
+Installs a plugin from a local directory the client points at, for example a plugin checked out on disk. This lets users add plugins to workspaces that are not browsed as projects, such as the default Chat workspace. The directory must be a plugin root containing `.craft-plugin/plugin.json`.
+
+**Params**:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `path` | string | yes | Absolute path to the plugin root directory to install. |
+
+**Result**: `{ "plugin": PluginInfo }`
+
+Before copying anything, the server validates the directory by parsing `.craft-plugin/plugin.json` with the standard plugin manifest validator. If the directory is missing, is not a plugin root, or the manifest has errors, the request is rejected with `InvalidParams` carrying the validation message and nothing is written. The server also rejects a directory whose canonical plugin id is already installed in the workspace; the client must remove the existing plugin before reinstalling.
+
+On success, the server copies the directory to `.craft/plugins/<id>` as a user-owned workspace plugin — no `.builtin` marker is written, so the plugin is installed, enabled, and removable via `plugin/remove`. The server removes that id from `Plugins.DisabledPlugins`, refreshes plugin-contributed skill sources, reconciles effective MCP and LSP runtime state, and emits `workspace/configChanged` with `source: "plugin/installLocal"` and `regions: ["plugins", "skills", "mcp", "lsp"]`.
+
 #### `plugin/remove`
 
 Removes a DotCraft-managed built-in plugin from the workspace.

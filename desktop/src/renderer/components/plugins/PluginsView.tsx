@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { CSSProperties, MouseEvent } from 'react'
-import { Box, ChevronLeft, Code2, Ellipsis, ExternalLink, Link, MessageCircle, Plus, Server, Settings, Trash2, Wrench } from 'lucide-react'
+import { Box, ChevronLeft, Code2, Ellipsis, ExternalLink, FolderInput, Link, MessageCircle, Plus, Server, Settings, Trash2, Wrench } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import type { MessageKey } from '../../../shared/locales'
 import { usePluginStore, type PluginDiagnosticEntry, type PluginEntry } from '../../stores/pluginStore'
@@ -58,6 +58,7 @@ export function PluginsView(): JSX.Element {
     selectPlugin,
     clearSelection,
     installPlugin,
+    installLocalPlugin,
     removePlugin,
     togglePluginEnabled
   } = usePluginStore()
@@ -148,6 +149,30 @@ export function PluginsView(): JSX.Element {
       }}
     />
   ) : null
+
+  // Install a plugin from a local folder the user points at. The backend validates the
+  // folder (a valid `.craft-plugin/plugin.json`) before copying anything; on failure it
+  // returns the reason, which we surface in the toast. This makes it possible to add
+  // plugins to workspaces that are not browsed as projects, such as the default Chat one.
+  async function handleInstallFromDisk(): Promise<void> {
+    let path: string | null
+    try {
+      path = await window.api.workspace.pickFolder({ title: t('plugins.installLocal.pickTitle') })
+    } catch {
+      return
+    }
+    if (!path) return
+    try {
+      const installed = await installLocalPlugin(path)
+      await fetchSkills()
+      await fetchPlugins()
+      if (installed) await selectPlugin(installed.id)
+      addToast(t('plugins.installLocal.success'), 'success')
+    } catch (err) {
+      const detail = err instanceof Error ? extractInstallErrorDetail(err.message) : ''
+      addToast(detail || t('plugins.installLocal.failed'), 'error')
+    }
+  }
 
   if (surface === 'skills' && mode !== 'manage') {
     return (
@@ -369,6 +394,11 @@ export function PluginsView(): JSX.Element {
           position={menuPosition}
           onClose={() => setMenuPosition(null)}
           items={[
+            {
+              label: t('plugins.installLocal.menu'),
+              icon: <FolderInput size={14} />,
+              onClick: () => void handleInstallFromDisk()
+            },
             {
               label: t('plugins.refresh'),
               icon: <RefreshIcon size={14} />,
@@ -853,6 +883,15 @@ function resolvePluginExternalUrl(href?: string | null): string | null {
     return null
   }
   return null
+}
+
+// AppServer surfaces validation failures as `Invalid params: <reason>`. Strip the
+// generic JSON-RPC prefix so the toast shows just the actionable reason; fall back to
+// the full message when the prefix is absent.
+function extractInstallErrorDetail(message: string): string {
+  const trimmed = message.trim()
+  const prefix = 'Invalid params: '
+  return (trimmed.startsWith(prefix) ? trimmed.slice(prefix.length) : trimmed).trim()
 }
 
 function filterPlugins(

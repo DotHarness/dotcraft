@@ -327,6 +327,8 @@ public sealed class DotCraftLocalClientOptions : DotCraftClientOptions
 
 Local mode must not stop the Hub-managed AppServer when the SDK client is disposed. Disposing the SDK client closes only the SDK's AppServer transport.
 
+`DotCraftClient.ConnectLocalChatAsync()` follows the same flow after resolving and initializing the default Chat workspace (`~/.craft/workspaces/chats`). It then calls the existing Hub AppServer ensure endpoint with that concrete workspace path.
+
 ### 6.2 Remote Mode
 
 `DotCraftClient.ConnectRemoteAsync()` connects directly to an AppServer WebSocket endpoint.
@@ -462,6 +464,8 @@ Payload fields:
 - `runtimeTools`
 
 The SDK requires `endpoints.appServerWebSocket` when `ConnectLocalAsync()` uses the result.
+
+`HubClient.EnsureDefaultChatAppServerAsync()` is a convenience wrapper around the same endpoint. It resolves and initializes the default Chat workspace, then sends the resolved path as `workspacePath`.
 
 ---
 

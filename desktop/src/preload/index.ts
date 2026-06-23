@@ -901,11 +901,12 @@ const api = {
 
   workspace: {
     /**
-     * Opens the native folder picker dialog.
+     * Opens the native folder picker dialog. Pass an optional localized `title` to
+     * relabel the picker (for example when choosing a plugin folder to install).
      * Returns the selected path, or null if cancelled.
      */
-    pickFolder(): Promise<string | null> {
-      return ipcRenderer.invoke('workspace:pick-folder')
+    pickFolder(options?: { title?: string }): Promise<string | null> {
+      return ipcRenderer.invoke('workspace:pick-folder', options)
     },
 
     /**

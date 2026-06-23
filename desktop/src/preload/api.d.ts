@@ -510,7 +510,7 @@ declare global {
         appServerRequest(params: { grantId: string; method: string; params?: unknown; timeoutMs?: number }): Promise<unknown>
       }
       workspace: {
-        pickFolder(): Promise<string | null>
+        pickFolder(options?: { title?: string }): Promise<string | null>
         /** Creates a new local project folder under Documents, git-inits it, and returns its absolute path. */
         createLocalProject(params: { name: string }): Promise<{ path: string; gitInitialized: boolean }>
         /** Opens the native file picker and returns selected local file paths, including files outside the workspace. */

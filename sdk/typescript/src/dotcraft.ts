@@ -46,10 +46,13 @@ export interface DotCraftLocalOptions {
   clientTitle?: string;
   dotcraftBin?: string;
   hubStartupTimeoutMs?: number;
+  homeDir?: string;
   approvalHandler?: ApprovalHandler;
   userInputHandler?: UserInputHandler;
   capabilities?: DotCraftCapabilityOptions;
 }
+
+export type DotCraftLocalChatOptions = Omit<DotCraftLocalOptions, "workspacePath">;
 
 export interface DotCraftRemoteOptions {
   url: string;
@@ -1124,6 +1127,7 @@ export class DotCraft {
     const hub = new HubClient({
       dotcraftBin: options.dotcraftBin,
       hubStartupTimeoutMs: options.hubStartupTimeoutMs,
+      homeDir: options.homeDir,
     });
     const ensured = await hub.ensureAppServer(options.workspacePath, {
       clientName: options.clientName ?? "dotcraft-sdk",
@@ -1132,6 +1136,24 @@ export class DotCraft {
     const wsUrl = ensured.endpoints.appServerWebSocket;
     if (!wsUrl) throw new InitializationError("Hub response did not include endpoints.appServerWebSocket.");
     return await DotCraft.connect(new WebSocketTransport({ url: wsUrl }), options);
+  }
+
+  static async localChat(options: DotCraftLocalChatOptions = {}): Promise<DotCraft> {
+    const hub = new HubClient({
+      dotcraftBin: options.dotcraftBin,
+      hubStartupTimeoutMs: options.hubStartupTimeoutMs,
+      homeDir: options.homeDir,
+    });
+    const ensured = await hub.ensureDefaultChatAppServer({
+      clientName: options.clientName ?? "dotcraft-sdk",
+      clientVersion: options.clientVersion ?? "0.1.0",
+    });
+    const wsUrl = ensured.endpoints.appServerWebSocket;
+    if (!wsUrl) throw new InitializationError("Hub response did not include endpoints.appServerWebSocket.");
+    return await DotCraft.connect(new WebSocketTransport({ url: wsUrl }), {
+      ...options,
+      workspacePath: ensured.workspacePath,
+    });
   }
 
   static async remote(options: DotCraftRemoteOptions): Promise<DotCraft> {

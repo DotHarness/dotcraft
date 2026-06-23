@@ -76,6 +76,11 @@ public sealed class DotCraftLocalClientOptions : DotCraftClientOptions
     public string? HubLockPath { get; set; }
 
     /// <summary>
+    /// Optional user profile directory used to resolve Hub and default Chat workspace paths.
+    /// </summary>
+    public string? UserProfilePath { get; set; }
+
+    /// <summary>
     /// Hub startup timeout.
     /// </summary>
     public TimeSpan HubStartupTimeout { get; set; } = TimeSpan.FromSeconds(15);

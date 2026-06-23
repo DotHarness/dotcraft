@@ -5,7 +5,7 @@
 | **Version** | 0.3.0 |
 | **Status** | Living |
 | **Date** | 2026-05-18 |
-| **Related Specs** | [AppServer Protocol](../protocols/appserver-protocol.md), [Desktop Client](../clients/desktop-client.md), [TUI Client](../clients/tui-client.md) |
+| **Related Specs** | [AppServer Protocol](../protocols/appserver-protocol.md), [Default Chat Workspace](default-chat-workspace.md), [Desktop Client](../clients/desktop-client.md), [TUI Client](../clients/tui-client.md) |
 
 Purpose: Define DotCraft Hub as a local coordinator that discovers, starts, reuses, monitors, and stops workspace-bound AppServer processes without changing the AppServer Protocol or replacing DotCraft's per-workspace runtime model.
 
@@ -68,6 +68,8 @@ Desktop / TUI / CLI
 ```
 
 Hub state lives under `~/.craft/hub/`. Hub itself only loads global configuration and must not require the current directory to be a `.craft` workspace.
+
+Hub also defines the default Chat workspace path `~/.craft/workspaces/chats` as a reusable local bootstrap target. This path is still a normal workspace root; Hub does not add any chat-specific AppServer Protocol routing.
 
 ---
 
@@ -147,6 +149,8 @@ Errors use this shape:
   }
 }
 ```
+
+Default Chat helpers do not add another Hub endpoint. They resolve and initialize `~/.craft/workspaces/chats`, then call `POST /v1/appservers/ensure` with that concrete `workspacePath`.
 
 Common error codes include `unauthorized`, `workspaceNotFound`, `workspaceLocked`, `appServerStartFailed`, `appServerUnhealthy`, `portUnavailable`, `invalidNotification`, and `hubInternalError`.
 
@@ -329,6 +333,8 @@ Security constraints:
 ## 13. Compatibility
 
 AppServer Protocol is unchanged. Clients still use existing AppServer methods after connecting to the workspace AppServer.
+
+The default Chat workspace is compatible with this rule: it is a product alias for a concrete workspace path, not a new routing mode or thread type.
 
 Existing AppServer modes remain valid:
 

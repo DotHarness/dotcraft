@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.Json;
 using DotCraft.Sdk.Hub;
 
 namespace DotCraft.Sdk.Tests;
@@ -67,6 +68,74 @@ public sealed class HubClientTests
     {
         var ex = Assert.Throws<HubClientException>(() => HubClient.ParseHubBaseUrl("http://example.com:1234"));
         Assert.Equal("invalidHubLock", ex.Code);
+    }
+
+    [Fact]
+    public async Task EnsureDefaultChatAppServerAsync_CreatesWorkspaceAndUsesExistingEnsureEndpoint()
+    {
+        using var temp = new TemporaryDirectory();
+        var hubDir = Path.Combine(temp.Path, ".craft", "hub");
+        Directory.CreateDirectory(hubDir);
+        await File.WriteAllTextAsync(Path.Combine(hubDir, "hub.lock"), $$"""
+            {
+              "pid": {{Environment.ProcessId}},
+              "apiBaseUrl": "http://127.0.0.1:49124",
+              "token": "hub-token"
+            }
+            """);
+
+        string? capturedWorkspace = null;
+        var handler = new CaptureHandler(request =>
+        {
+            if (request.RequestUri?.AbsolutePath == "/v1/status")
+            {
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent("""{"hubVersion":"test","pid":1,"startedAt":"2026-05-18T00:00:00Z","statePath":"","apiBaseUrl":"http://127.0.0.1:49124","capabilities":{}}""")
+                };
+            }
+
+            Assert.Equal("/v1/appservers/ensure", request.RequestUri?.AbsolutePath);
+            Assert.Equal("Bearer", request.Headers.Authorization?.Scheme);
+            Assert.Equal("hub-token", request.Headers.Authorization?.Parameter);
+            using var body = JsonDocument.Parse(request.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
+            capturedWorkspace = body.RootElement.GetProperty("workspacePath").GetString();
+            var responseBody = JsonSerializer.Serialize(new
+            {
+                workspacePath = capturedWorkspace,
+                canonicalWorkspacePath = capturedWorkspace,
+                state = HubAppServerStates.Running,
+                pid = 123,
+                endpoints = new Dictionary<string, string>
+                {
+                    ["appServerWebSocket"] = "ws://127.0.0.1:5000/ws?token=x"
+                },
+                serviceStatus = new Dictionary<string, object>(),
+                serverVersion = "0.1",
+                startedByHub = true,
+                exitCode = (int?)null,
+                lastError = (string?)null,
+                recentStderr = (string?)null
+            });
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(responseBody)
+            };
+        });
+        var hub = new HubClient(new DotCraftHubClientOptions
+        {
+            UserProfilePath = temp.Path,
+            StartHubIfMissing = false,
+            HttpClientFactory = () => new HttpClient(handler)
+        });
+
+        var response = await hub.EnsureDefaultChatAppServerAsync();
+        var expectedWorkspace = Path.GetFullPath(Path.Combine(temp.Path, ".craft", "workspaces", "chats"));
+
+        Assert.Equal(expectedWorkspace, capturedWorkspace);
+        Assert.Equal(expectedWorkspace, response.WorkspacePath);
+        Assert.True(Directory.Exists(Path.Combine(expectedWorkspace, ".craft", "memory")));
+        Assert.Equal("{}" + Environment.NewLine, await File.ReadAllTextAsync(Path.Combine(expectedWorkspace, ".craft", "config.json")));
     }
 
     private sealed class CaptureHandler(Func<HttpRequestMessage, HttpResponseMessage> handle) : HttpMessageHandler

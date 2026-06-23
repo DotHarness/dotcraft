@@ -347,6 +347,72 @@ public sealed class ManagedAppServerRegistryTests : IDisposable
         Assert.Equal(catalog, env["DOTCRAFT_BUILTIN_PLUGIN_CATALOGS"]);
     }
 
+    [Fact]
+    public void HubPaths_ResolvesDefaultChatWorkspaceUnderCraftHome()
+    {
+        var paths = HubPaths.Resolve(_tempDir);
+
+        Assert.Equal(
+            Path.Combine(_tempDir, ".craft", "workspaces", "chats"),
+            paths.DefaultChatWorkspacePath);
+    }
+
+    [Fact]
+    public void DefaultChatWorkspace_EnsureCreatesSkeletonAndPreservesConfig()
+    {
+        var paths = HubPaths.Resolve(_tempDir);
+        var workspace = DefaultChatWorkspace.Ensure(paths);
+        var craftPath = Path.Combine(workspace, ".craft");
+        var configPath = Path.Combine(craftPath, "config.json");
+
+        Assert.Equal(Path.GetFullPath(paths.DefaultChatWorkspacePath), workspace);
+        Assert.True(Directory.Exists(Path.Combine(craftPath, "memory")));
+        Assert.True(Directory.Exists(Path.Combine(craftPath, "skills")));
+        Assert.True(Directory.Exists(Path.Combine(craftPath, "security")));
+        Assert.Equal("{}" + Environment.NewLine, File.ReadAllText(configPath));
+
+        File.WriteAllText(configPath, "{\"keep\":true}" + Environment.NewLine);
+        DefaultChatWorkspace.Ensure(paths);
+
+        Assert.Equal("{\"keep\":true}" + Environment.NewLine, File.ReadAllText(configPath));
+    }
+
+    [Fact]
+    public async Task Ensure_StartsDefaultChatWorkspaceCreatedByHelper()
+    {
+        var registryPath = Path.Combine(_tempDir, "hub", "appservers.json");
+        var workspace = DefaultChatWorkspace.Ensure(HubPaths.Resolve(_tempDir));
+        var process = new FakeManagedAppServerProcess(
+            processId: Environment.ProcessId,
+            exitCode: null,
+            recentStderr: string.Empty);
+
+        await using var registry = new ManagedAppServerRegistry(
+            new HubEventBus(),
+            "http://127.0.0.1:43000",
+            "hub-token",
+            registryPath: registryPath)
+        {
+            StartAppServerProcessAsync = (_, canonical, _, _) =>
+            {
+                var lockPath = AppServerWorkspaceLock.GetLockFilePath(Path.Combine(canonical, ".craft"));
+                WriteWorkspaceLock(lockPath, canonical, pid: Environment.ProcessId, wsUrl: "ws://127.0.0.1:43123/ws?token=x");
+                return Task.FromResult<IManagedAppServerProcess>(process);
+            },
+            ManagedWebSocketProbeAsync = (_, _, _) => Task.CompletedTask
+        };
+
+        var response = await registry.EnsureAsync(new EnsureAppServerRequest
+        {
+            WorkspacePath = workspace,
+            StartIfMissing = true
+        }, CancellationToken.None);
+
+        Assert.Equal(HubAppServerStates.Running, response.State);
+        Assert.Equal(Path.GetFullPath(workspace), response.CanonicalWorkspacePath);
+        Assert.True(response.StartedByHub);
+    }
+
     private string CreateWorkspace(string name)
     {
         var path = Path.Combine(_tempDir, name);

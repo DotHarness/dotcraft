@@ -31,6 +31,7 @@ export type {
   AppScopeDescriptor,
   AppToolCatalogEntry,
   DotCraftCapabilityOptions,
+  DotCraftLocalChatOptions,
   DotCraftLocalOptions,
   DotCraftRemoteOptions,
   DotCraftRunEvent,

@@ -366,6 +366,8 @@ Behavior:
 
 `DotCraft.local()` must not stop the Hub-managed AppServer when the SDK client closes. Closing the SDK client closes only its WebSocket connection.
 
+`DotCraft.localChat()` follows the same flow after resolving and initializing the default Chat workspace (`~/.craft/workspaces/chats`). It calls the existing Hub AppServer ensure endpoint with that concrete `workspacePath`; it must not use an empty path or a separate Hub endpoint.
+
 ### 6.2 Remote Mode
 
 `DotCraft.remote()` connects directly to an existing AppServer WebSocket endpoint.
@@ -572,6 +574,7 @@ Core methods and properties:
 ```ts
 class DotCraft {
   static local(options: DotCraftLocalOptions): Promise<DotCraft>;
+  static localChat(options?: Omit<DotCraftLocalOptions, "workspacePath">): Promise<DotCraft>;
   static remote(options: DotCraftRemoteOptions): Promise<DotCraft>;
 
   readonly serverInfo: ServerInfo;

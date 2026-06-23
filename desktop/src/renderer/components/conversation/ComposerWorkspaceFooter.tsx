@@ -252,6 +252,7 @@ export function ComposerWorkspaceFooter({
   const t = useT()
   const capabilities = useConnectionStore((s) => s.capabilities)
   const projects = useWorkspaceProjectsStore((s) => s.projects)
+  const chat = useWorkspaceProjectsStore((s) => s.chat)
   const foregroundProjectId = useWorkspaceProjectsStore((s) => s.foregroundProjectId)
   const [openMenu, setOpenMenu] = useState<OpenMenu>(null)
   const [branchQuery, setBranchQuery] = useState('')
@@ -324,7 +325,10 @@ export function ComposerWorkspaceFooter({
   const selectedProject = projectOptions.find((project) =>
     projectIdentity(project) === selectedProjectId
   )
-  const showProjectSelector = variant === 'welcome' && projectOptions.length > 0
+  // The default Chat workspace is not a project: when it is foreground, suppress the
+  // project picker rather than surfacing the Chat workspace path as a project label.
+  const foregroundIsChat = chat != null && projectIdentity(chat) === selectedProjectId
+  const showProjectSelector = variant === 'welcome' && projectOptions.length > 0 && !foregroundIsChat
   const filteredProjects = useMemo(() => {
     const query = projectQuery.trim().toLowerCase()
     if (!query) return projectOptions
