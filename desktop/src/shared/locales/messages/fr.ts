@@ -307,7 +307,7 @@ export const MESSAGES_FR = {
   'threadHeader.panelToggleHide': 'Masquer le panneau de visualisation (Ctrl+Shift+B)',
   'threadHeader.moreActions': 'Autres actions de chat',
   'threadHeader.worktreeBadge': 'Worktree : {{branch}}',
-  'common.cancel': 'Annuler',
+  'common.cancel': 'Annuler',
 
   // Settings coverage
   'settings.remoteUrl': 'Télécommande WebSocket URL',

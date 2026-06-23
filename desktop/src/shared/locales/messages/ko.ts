@@ -307,7 +307,7 @@ export const MESSAGES_KO = {
   'threadHeader.panelToggleHide': '뷰어 패널 숨기기 (Ctrl+Shift+B)',
   'threadHeader.moreActions': '추가 채팅 작업',
   'threadHeader.worktreeBadge': 'Worktree: {{branch}}',
-  'common.cancel': '취소',
+  'common.cancel': '취소',
 
   // Settings coverage
   'settings.remoteUrl': '원격 WebSocket URL',

@@ -307,7 +307,7 @@ export const MESSAGES_JA = {
   'threadHeader.panelToggleHide': 'ビューアーパネルを隠す (Ctrl+Shift+B)',
   'threadHeader.moreActions': 'その他のチャット操作',
   'threadHeader.worktreeBadge': 'Worktree: {{branch}}',
-  'common.cancel': 'キャンセル',
+  'common.cancel': 'キャンセル',
 
   // Settings coverage
   'settings.remoteUrl': 'リモート WebSocket URL',

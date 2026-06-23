@@ -307,7 +307,7 @@ export const MESSAGES_DE = {
   'threadHeader.panelToggleHide': 'Viewer-Bereich ausblenden (Ctrl+Shift+B)',
   'threadHeader.moreActions': 'Weitere Chat-Aktionen',
   'threadHeader.worktreeBadge': 'Worktree: {{branch}}',
-  'common.cancel': 'Abbrechen',
+  'common.cancel': 'Abbrechen',
 
   // Settings coverage
   'settings.remoteUrl': 'Fernbedienung WebSocket URL',

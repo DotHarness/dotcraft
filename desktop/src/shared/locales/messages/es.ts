@@ -307,7 +307,7 @@ export const MESSAGES_ES = {
   'threadHeader.panelToggleHide': 'Ocultar panel del visor (Ctrl+Shift+B)',
   'threadHeader.moreActions': 'Mas acciones de chat',
   'threadHeader.worktreeBadge': 'Worktree: {{branch}}',
-  'common.cancel': 'Cancelar',
+  'common.cancel': 'Cancelar',
 
   // Settings coverage
   'settings.remoteUrl': 'Remoto WebSocket URL',
