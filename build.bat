@@ -223,6 +223,12 @@ if %ERRORLEVEL% neq 0 (
     cd ..
     goto :failure
 )
+call powershell -NoProfile -ExecutionPolicy Bypass -File "..\scripts\repair-electron-builder-cache.ps1"
+if %ERRORLEVEL% neq 0 (
+    echo Desktop electron-builder cache repair failed with exit code %ERRORLEVEL%.
+    cd ..
+    goto :failure
+)
 call npm run dist
 if %ERRORLEVEL% neq 0 (
     echo Desktop build failed with exit code %ERRORLEVEL%.
