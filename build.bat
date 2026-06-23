@@ -217,7 +217,7 @@ if %ERRORLEVEL% neq 0 (
 if exist dist (
     rmdir /s /q dist
 )
-call npm ci --prefer-offline
+call npm ci --prefer-offline --omit=peer
 if %ERRORLEVEL% neq 0 (
     echo Desktop npm ci failed with exit code %ERRORLEVEL%.
     cd ..
