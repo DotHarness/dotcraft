@@ -195,6 +195,8 @@ export const MESSAGES_ES = {
   'welcome.language': 'Idioma',
   'welcome.openWorkspace': 'Abrir espacio de trabajo',
   'welcome.openWorkspaceHint': 'Elige una carpeta local para comenzar',
+  'welcome.openChats': 'Chats',
+  'welcome.openChatsHint': 'Empieza con un chat nuevo',
   'welcome.opening': 'Abriendo...',
   'welcome.recent': 'Recientes',
   'welcome.alreadyOpen': 'Ya está abierto en otra ventana',

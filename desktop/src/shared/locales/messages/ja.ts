@@ -195,6 +195,8 @@ export const MESSAGES_JA = {
   'welcome.language': '言語',
   'welcome.openWorkspace': 'ワークスペースを開く',
   'welcome.openWorkspaceHint': 'ローカルフォルダーを選択して開始',
+  'welcome.openChats': 'チャット',
+  'welcome.openChatsHint': '新しいチャットから始める',
   'welcome.opening': '開いています...',
   'welcome.recent': '最近使った項目',
   'welcome.alreadyOpen': '別のウィンドウで既に開かれています',

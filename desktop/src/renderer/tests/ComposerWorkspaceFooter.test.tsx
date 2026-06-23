@@ -162,6 +162,41 @@ describe('ComposerWorkspaceFooter', () => {
     expect(gitListBranches).not.toHaveBeenCalled()
   })
 
+  it('hides project and Git controls for the default chat workspace', async () => {
+    const chatPath = 'C:\\Users\\me\\.craft\\workspaces\\chats'
+    const chatThread = makeThread({
+      workspacePath: chatPath,
+      effectiveWorkspacePath: chatPath
+    })
+    useWorkspaceProjectsStore.getState().setPayload({
+      foregroundWorkspacePath: chatPath,
+      foregroundProjectId: chatPath,
+      secondaryLimit: 8,
+      projects: [],
+      chat: {
+        projectId: chatPath,
+        kind: 'chat',
+        path: chatPath,
+        name: chatPath,
+        state: 'foreground',
+        running: true,
+        loaded: true,
+        threadCount: 1,
+        threads: [chatThread]
+      }
+    })
+
+    renderFooter(chatThread, 'local')
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(screen.queryByRole('button', { name: 'Local' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'main' })).not.toBeInTheDocument()
+    expect(gitListBranches).not.toHaveBeenCalled()
+  })
+
   it('lets the welcome composer choose another project from the footer', async () => {
     const onWelcomeWorkspaceChange = vi.fn().mockResolvedValue(undefined)
     useWorkspaceProjectsStore.getState().setPayload({

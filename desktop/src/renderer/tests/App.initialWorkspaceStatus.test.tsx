@@ -152,6 +152,13 @@ const readyWorkspaceStatus: WorkspaceStatusPayload = {
   providers: []
 }
 
+const defaultChatReadyWorkspaceStatus: WorkspaceStatusPayload = {
+  status: 'ready',
+  workspacePath: 'C:\\Users\\me\\.craft\\workspaces\\chats',
+  hasUserConfig: true,
+  providers: []
+}
+
 const remoteReadyWorkspaceStatus: WorkspaceStatusPayload = {
   ...readyWorkspaceStatus,
   remote: {
@@ -513,6 +520,20 @@ describe('App initial workspace status bootstrap', () => {
     expect(container.querySelector('.workspace-launch-transition__scrim')).toBeInTheDocument()
     expect(container.querySelector('.workspace-launch-transition__logo')).toBeInTheDocument()
     expect(queryByTestId('welcome-screen')).not.toBeInTheDocument()
+  })
+
+  it('renders a ready default chat workspace as the main UI without probing Git', async () => {
+    const gitListBranches = vi.fn().mockResolvedValue(gitSnapshot())
+    installApi(defaultChatReadyWorkspaceStatus, { gitListBranches })
+    useConnectionStore.getState().setStatus({ status: 'connected' })
+
+    renderApp()
+    await flushPromises()
+
+    expect(screen.queryByTestId('welcome-screen')).not.toBeInTheDocument()
+    expect(screen.getByTestId('three-panel')).toBeInTheDocument()
+    expect(screen.getByTestId('sidebar')).toHaveAttribute('data-workspace-name', 'Chats')
+    expect(gitListBranches).not.toHaveBeenCalled()
   })
 
   it('keeps a remote restored workspace covered while the initial connection is disconnected', () => {

@@ -8,6 +8,7 @@ import { useWorkspaceProjectsStore } from '../../stores/workspaceProjectsStore'
 import { addToast } from '../../stores/toastStore'
 import type { Thread } from '../../types/thread'
 import type { WorkspaceProjectSummary } from '../../../shared/workspaceProjects'
+import { isDefaultChatWorkspacePathCandidate } from '../../../shared/defaultChatWorkspace'
 import { normalizeWorkspaceProjectKey } from '../../../shared/workspaceProjectKey'
 import { WorktreeHandoffDialog } from './WorktreeHandoffDialog'
 import { AddProjectMenuOptions, useAddProjectFlow } from '../projects/AddProject'
@@ -274,12 +275,16 @@ export function ComposerWorkspaceFooter({
   const handoffDisabledReason = isThread && threadBusy
     ? t('workspaceFooter.handoffUnavailableDuringConversation')
     : null
+  const selectedProjectId = foregroundProjectId || normalizeWorkspaceProjectKey(workspacePath)
+  const foregroundIsChat =
+    isDefaultChatWorkspacePathCandidate(workspacePath) ||
+    (chat != null && projectIdentity(chat) === selectedProjectId)
   const branchActionPath = workspacePath.trim()
   const branchActionPathKey = normalizeGitPathKey(branchActionPath)
   const gitPathState = useGitStore((s) =>
     branchActionPathKey ? s.branchesByPath[branchActionPathKey] : undefined
   )
-  const gitAvailability = remoteWorkspace || !branchActionPath
+  const gitAvailability = remoteWorkspace || !branchActionPath || foregroundIsChat
     ? 'unavailable'
     : gitPathState?.status ?? 'checking'
   const branches = gitPathState?.snapshot ?? null
@@ -301,13 +306,12 @@ export function ComposerWorkspaceFooter({
   const showBranchHandoffOnly = variant === 'thread' && mode === 'worktree'
   const projectOptions = useMemo(() => {
     if (variant !== 'welcome') return []
-    const activeProjectId = foregroundProjectId || normalizeWorkspaceProjectKey(workspacePath)
-    if (projects.some((project) => projectIdentity(project) === activeProjectId)) {
+    if (projects.some((project) => projectIdentity(project) === selectedProjectId)) {
       return projects
     }
     return [
       {
-        projectId: activeProjectId,
+        projectId: selectedProjectId,
         kind: 'local' as const,
         path: workspacePath,
         identityWorkspacePath: workspacePath,
@@ -320,14 +324,12 @@ export function ComposerWorkspaceFooter({
       },
       ...projects
     ].filter((project) => project.path.trim().length > 0)
-  }, [foregroundProjectId, projects, variant, workspacePath])
-  const selectedProjectId = foregroundProjectId || normalizeWorkspaceProjectKey(workspacePath)
+  }, [projects, selectedProjectId, variant, workspacePath])
   const selectedProject = projectOptions.find((project) =>
     projectIdentity(project) === selectedProjectId
   )
   // The default Chat workspace is not a project: when it is foreground, suppress the
   // project picker rather than surfacing the Chat workspace path as a project label.
-  const foregroundIsChat = chat != null && projectIdentity(chat) === selectedProjectId
   const showProjectSelector = variant === 'welcome' && projectOptions.length > 0 && !foregroundIsChat
   const filteredProjects = useMemo(() => {
     const query = projectQuery.trim().toLowerCase()
@@ -396,20 +398,20 @@ export function ComposerWorkspaceFooter({
   ])
 
   const loadBranches = useCallback(async (options: { force?: boolean } = {}) => {
-    if (remoteWorkspace || !branchActionPath) {
+    if (remoteWorkspace || !branchActionPath || foregroundIsChat) {
       hideForUnavailableGit()
       return
     }
     await useGitStore.getState().ensureBranches(branchActionPath, { force: options.force })
-  }, [branchActionPath, hideForUnavailableGit, remoteWorkspace])
+  }, [branchActionPath, foregroundIsChat, hideForUnavailableGit, remoteWorkspace])
 
   useEffect(() => {
-    if (remoteWorkspace || !branchActionPath) {
+    if (remoteWorkspace || !branchActionPath || foregroundIsChat) {
       hideForUnavailableGit()
       return
     }
     void loadBranches()
-  }, [branchActionPath, hideForUnavailableGit, loadBranches, remoteWorkspace])
+  }, [branchActionPath, foregroundIsChat, hideForUnavailableGit, loadBranches, remoteWorkspace])
 
   useEffect(() => {
     if (gitAvailability !== 'unavailable') return
@@ -422,12 +424,12 @@ export function ComposerWorkspaceFooter({
   }, [baseRef, branches, mode, onBaseRefChange, variant])
 
   useEffect(() => {
-    if (remoteWorkspace || !branchActionPath || gitAvailability !== 'available') return
+    if (remoteWorkspace || !branchActionPath || foregroundIsChat || gitAvailability !== 'available') return
     const timer = window.setInterval(() => {
       void loadBranches({ force: true })
     }, GIT_BRANCH_REFRESH_INTERVAL_MS)
     return () => window.clearInterval(timer)
-  }, [branchActionPath, gitAvailability, loadBranches, remoteWorkspace])
+  }, [branchActionPath, foregroundIsChat, gitAvailability, loadBranches, remoteWorkspace])
 
   const filteredBranches = useMemo(() => {
     const query = branchQuery.trim().toLowerCase()
@@ -503,7 +505,7 @@ export function ComposerWorkspaceFooter({
       onComplete={() => { void loadBranches({ force: true }) }}
     />
   ) : null
-  const showFooterControls = !remoteWorkspace && Boolean(branchActionPath) && gitAvailability !== 'unavailable'
+  const showFooterControls = !foregroundIsChat && !remoteWorkspace && Boolean(branchActionPath) && gitAvailability !== 'unavailable'
 
   return (
     <>

@@ -766,6 +766,8 @@ export const MESSAGES_EN = {
   'welcome.language': 'Language',
   'welcome.openWorkspace': 'Open Workspace',
   'welcome.openWorkspaceHint': 'Choose a local folder to begin',
+  'welcome.openChats': 'Chats',
+  'welcome.openChatsHint': 'Start with a new chat',
   'welcome.opening': 'Opening...',
   'welcome.recent': 'Recent',
   'welcome.alreadyOpen': 'Already open in another window',

@@ -736,6 +736,8 @@ export const MESSAGES_ZH_HANS = {
   'welcome.language': '语言',
   'welcome.openWorkspace': '打开工作区',
   'welcome.openWorkspaceHint': '选择本机文件夹开始',
+  'welcome.openChats': '对话',
+  'welcome.openChatsHint': '从新的对话开始',
   'welcome.opening': '正在打开…',
   'welcome.recent': '最近使用',
   'welcome.alreadyOpen': '已在其他窗口中打开',

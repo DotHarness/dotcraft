@@ -195,6 +195,8 @@ export const MESSAGES_KO = {
   'welcome.language': '언어',
   'welcome.openWorkspace': '워크스페이스 열기',
   'welcome.openWorkspaceHint': '로컬 폴더를 선택해 시작',
+  'welcome.openChats': '채팅',
+  'welcome.openChatsHint': '새 채팅으로 시작',
   'welcome.opening': '여는 중...',
   'welcome.recent': '최근 항목',
   'welcome.alreadyOpen': '다른 창에서 이미 열려 있음',

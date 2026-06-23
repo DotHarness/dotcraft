@@ -4,6 +4,15 @@ import { findWorkspaceOpenDeepLink } from './desktopDeepLink'
 
 export const NO_WORKSPACE_ARG = '--no-workspace'
 
+export function hasNoWorkspaceArg(argv: readonly string[] = process.argv): boolean {
+  return argv.includes(NO_WORKSPACE_ARG)
+}
+
+export function hasRemoteEndpointArg(argv: readonly string[] = process.argv): boolean {
+  const remoteIdx = argv.indexOf('--remote')
+  return remoteIdx !== -1 && Boolean(argv[remoteIdx + 1])
+}
+
 export function resolveWorkspacePathFromArgs(
   settings: AppSettings,
   argv: readonly string[] = process.argv,
@@ -28,4 +37,16 @@ export function resolveWorkspacePathFromArgs(
   }
 
   return null
+}
+
+export function shouldOpenDefaultChatWorkspaceOnStartup(
+  settings: AppSettings,
+  argv: readonly string[] = process.argv,
+  pathExists: (path: string) => boolean = existsSync,
+  connectionMode: 'local' | 'remote' = 'local'
+): boolean {
+  if (connectionMode !== 'local') return false
+  if (hasNoWorkspaceArg(argv)) return false
+  if (hasRemoteEndpointArg(argv)) return false
+  return resolveWorkspacePathFromArgs(settings, argv, pathExists) == null
 }

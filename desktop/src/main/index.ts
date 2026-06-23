@@ -83,7 +83,12 @@ import {
   parseWorkspaceOpenDeepLink,
   type WorkspaceOpenDeepLink
 } from './desktopDeepLink'
-import { NO_WORKSPACE_ARG, resolveWorkspacePathFromArgs } from './workspaceArgs'
+import {
+  NO_WORKSPACE_ARG,
+  hasRemoteEndpointArg,
+  resolveWorkspacePathFromArgs,
+  shouldOpenDefaultChatWorkspaceOnStartup
+} from './workspaceArgs'
 import {
   ensureDefaultChatWorkspace,
   isDefaultChatWorkspace,
@@ -772,6 +777,27 @@ function resolveConnectionMode(settings: AppSettings): ConnectionMode {
   return mode === 'remote' ? 'remote' : 'local'
 }
 
+function resolveInitialWorkspacePath(settings: AppSettings): string | null {
+  const workspacePath = resolveWorkspacePath(settings)
+  if (!shouldOpenDefaultChatWorkspaceOnStartup(
+    settings,
+    process.argv,
+    existsSync,
+    resolveConnectionMode(settings)
+  )) {
+    return workspacePath
+  }
+
+  return ensureDefaultChatWorkspace()
+}
+
+function workspaceTitleName(workspacePath: string | null | undefined, locale: AppLocale): string {
+  if (!workspacePath) return 'DotCraft'
+  return isDefaultChatWorkspace(workspacePath)
+    ? translate(locale, 'chatsRail.title')
+    : basename(workspacePath)
+}
+
 function buildRemoteWorkspaceStatus(
   host: RemoteHost,
   stack: RemoteStack
@@ -1358,7 +1384,7 @@ function createWindow(
     }
   })
 
-  const workspaceName = workspacePath ? basename(workspacePath) : 'DotCraft'
+  const workspaceName = workspaceTitleName(workspacePath, initialLocale)
   win.setTitle(translate(initialLocale, 'app.titleWithWorkspace', { name: workspaceName }))
 
   // Keep native window chrome in sync when the OS appearance changes while in `system` theme
@@ -2108,7 +2134,7 @@ function promoteWorkspaceConnection(entry: WorkspaceConnectionEntry): void {
     }
     const loc = normalizeLocale(sharedSettings.locale)
     mainWindow.setTitle(
-      translate(loc, 'app.titleWithWorkspace', { name: basename(entry.workspacePath) })
+      translate(loc, 'app.titleWithWorkspace', { name: workspaceTitleName(entry.workspacePath, loc) })
     )
   }
   startHubEventSubscription(entry.workspacePath, createHubClient(sharedSettings))
@@ -2332,7 +2358,7 @@ function buildCallbacks(): IpcHandlerCallbacks {
       if (mainWindow && !mainWindow.isDestroyed()) {
         const loc = normalizeLocale(sharedSettings.locale)
         mainWindow.setTitle(
-          translate(loc, 'app.titleWithWorkspace', { name: basename(newPath) })
+          translate(loc, 'app.titleWithWorkspace', { name: workspaceTitleName(newPath, loc) })
         )
       }
     },
@@ -2464,7 +2490,7 @@ async function connectToAppServer(workspacePath: string): Promise<void> {
     return
   }
   const remoteIdx = process.argv.indexOf('--remote')
-  const launchedWithRemoteUrl = remoteIdx !== -1 && Boolean(process.argv[remoteIdx + 1])
+  const launchedWithRemoteUrl = hasRemoteEndpointArg()
   const connectionMode = resolveConnectionMode(sharedSettings)
   const usingRemoteConnection = launchedWithRemoteUrl || connectionMode === 'remote'
   const preserveLocalConnections = !usingRemoteConnection && connectionMode === 'local'
@@ -2900,7 +2926,7 @@ app.whenReady().then(async () => {
     })
   }
 
-  let workspacePath = resolveWorkspacePath(sharedSettings)
+  let workspacePath = resolveInitialWorkspacePath(sharedSettings)
 
   const initialActiveStack =
     workspacePath && resolveConnectionMode(sharedSettings) === 'remote'
@@ -2913,8 +2939,10 @@ app.whenReady().then(async () => {
     if (!initialActiveStack) {
       acquireWorkspaceLock(workspacePath)
     }
-    addRecentWorkspace(sharedSettings, workspacePath)
-    saveSettings(sharedSettings)
+    if (!isDefaultChatWorkspace(workspacePath)) {
+      addRecentWorkspace(sharedSettings, workspacePath)
+      saveSettings(sharedSettings)
+    }
   }
   setActiveRemoteProject(initialActiveStack
     ? buildServersRemoteProject(initialActiveStack.host, initialActiveStack.stack, undefined, workspacePath ?? '')
@@ -2964,7 +2992,7 @@ app.whenReady().then(async () => {
     const windows = BrowserWindow.getAllWindows()
     if (windows.length === 0) {
       sharedSettings = loadSettings()
-      let wsPath = resolveWorkspacePath(sharedSettings)
+      let wsPath = resolveInitialWorkspacePath(sharedSettings)
       const activeStack =
         wsPath && resolveConnectionMode(sharedSettings) === 'remote'
           ? resolveActiveRemoteStack(sharedSettings)
@@ -2973,8 +3001,10 @@ app.whenReady().then(async () => {
         if (!activeStack) {
           acquireWorkspaceLock(wsPath)
         }
-        addRecentWorkspace(sharedSettings, wsPath)
-        saveSettings(sharedSettings)
+        if (!isDefaultChatWorkspace(wsPath)) {
+          addRecentWorkspace(sharedSettings, wsPath)
+          saveSettings(sharedSettings)
+        }
       }
       setActiveRemoteProject(activeStack
         ? buildServersRemoteProject(activeStack.host, activeStack.stack, undefined, wsPath ?? '')
