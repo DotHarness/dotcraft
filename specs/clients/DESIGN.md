@@ -400,6 +400,23 @@ The app owns the inner UI; Desktop owns only the host frame around it.
 - Non-Desktop clients do not render the iframe; they show the tool result's text. Do not
   design flows that require the interactive UI.
 
+## Appearance Preferences
+
+Desktop exposes an Appearance settings tab backed by `settings.json` and applied to the
+renderer root element:
+
+- Theme mode `system | light | dark` via `data-theme` (`system` resolves from the OS).
+- A custom accent overrides `--accent` / `--accent-hover`; unset falls back to the per-theme
+  token defaults. A custom accent stays restrained per the Colors rules — it is not promoted
+  to a primary-action fill.
+- Code font size overrides `--text-code-size`.
+- Diff markers (`color` vs `+/-`) change how `InlineDiffView` / `DiffViewer` present changes.
+- `data-reduce-motion` (`system | on | off`) gates animations; `data-pointer-cursors`
+  toggles pointer cursors on interactive elements.
+
+When adding animated, accent-driven, or code-sized UI, rely on these tokens/attributes rather
+than hardcoding colors, sizes, or unconditional animations, so user preferences are honored.
+
 ## Do's and Don'ts
 
 Do:

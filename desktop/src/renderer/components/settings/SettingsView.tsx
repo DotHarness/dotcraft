@@ -7,7 +7,7 @@ import {
   Trash2
 } from 'lucide-react'
 import { addToast } from '../../stores/toastStore'
-import { applyTheme, resolveTheme, type ThemeMode } from '../../utils/theme'
+import { AppearancePanel } from './panels/AppearancePanel'
 import { normalizeLocale, SUPPORTED_LOCALES, type AppLocale } from '../../../shared/locales'
 import { useSetUiLocale, useT } from '../../contexts/LocaleContext'
 import type { MessageKey } from '../../../shared/locales'
@@ -1379,7 +1379,6 @@ export function SettingsView({
   const [remoteUrl, setRemoteUrl] = useState('')
   const [remoteToken, setRemoteToken] = useState('')
   const [activeRemoteStack, setActiveRemoteStack] = useState<ActiveRemoteStackRef | null>(null)
-  const [theme, setTheme] = useState<ThemeMode>('light')
   const [locale, setLocale] = useState<AppLocale>(normalizeLocale(undefined))
   const [taskCompletionNotificationMode, setTaskCompletionNotificationMode] =
     useState<TaskCompletionNotificationMode>('whenUnfocused')
@@ -2430,7 +2429,6 @@ export function SettingsView({
             ? { hostId: s.activeRemoteStack.hostId, stackId: s.activeRemoteStack.stackId }
             : null
         )
-        setTheme(resolveTheme(s.theme))
         setLocale(normalizeLocale(s.locale))
         setTaskCompletionNotificationMode(
           s.notifications?.taskCompletionMode === 'always' || s.notifications?.taskCompletionMode === 'never'
@@ -2750,21 +2748,6 @@ export function SettingsView({
       setActiveMainView('skills')
     } catch (err) {
       addToast(`Failed to open plugin: ${err instanceof Error ? err.message : String(err)}`, 'error')
-    }
-  }
-
-  async function handleThemeChange(next: ThemeMode): Promise<void> {
-    setTheme(next)
-    applyTheme(next)
-    try {
-      await window.api.settings.set({ theme: next })
-    } catch (err) {
-      addToast(
-        t('settings.saveThemeFailed', {
-          error: err instanceof Error ? err.message : String(err)
-        }),
-        'error'
-      )
     }
   }
 
@@ -3238,6 +3221,8 @@ export function SettingsView({
               </ProfilePanel>
             )}
 
+            {activeSettingsTab === 'appearance' && <AppearancePanel />}
+
             {activeSettingsTab === 'general' && (
               <GeneralPanel>
               <SettingsPanelShell
@@ -3260,25 +3245,6 @@ export function SettingsView({
                           value: item.value,
                           label: item.nativeName
                         }))}
-                      />
-                    }
-                  />
-
-                  <SettingsRow
-                    label={t('settings.theme')}
-                    htmlFor="settings-theme"
-                    control={
-                      <SettingsSelect
-                        id="settings-theme"
-                        value={theme}
-                        onValueChange={(nextTheme) => {
-                          void handleThemeChange(nextTheme as ThemeMode)
-                        }}
-                        style={{ width: SETTINGS_SELECT_WIDTH }}
-                        options={[
-                          { value: 'dark', label: t('settings.optionThemeDark') },
-                          { value: 'light', label: t('settings.optionThemeLight') }
-                        ]}
                       />
                     }
                   />

@@ -35,7 +35,7 @@
   },
   "dependencies": {
     "@dotcraft/sdk": "*",
-    "grammy": "^1.42.0",
+    "grammy": "^1.44.0",
     "https-proxy-agent": "^7.0.6"
   },
   "devDependencies": {

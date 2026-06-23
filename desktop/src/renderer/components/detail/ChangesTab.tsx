@@ -356,7 +356,6 @@ function FileDiffSection({
             </span>
           )}
         </span>
-        <FileStats additions={file.additions} deletions={file.deletions} dim={isReverted} />
         <ActionTooltip label={t('changesFile.openFolder')} placement="bottom">
           <button
             type="button"
@@ -390,6 +389,7 @@ function FileDiffSection({
             <Undo2 size={14} strokeWidth={1.8} aria-hidden />
           </button>
         </ActionTooltip>
+        <FileStats additions={file.additions} deletions={file.deletions} dim={isReverted} />
         <span style={{ color: 'var(--text-secondary)', width: '16px', display: 'inline-flex', justifyContent: 'center' }}>
           {expanded ? <ChevronUp size={15} strokeWidth={1.8} /> : <ChevronDown size={15} strokeWidth={1.8} />}
         </span>

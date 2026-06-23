@@ -3,11 +3,27 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { THEME_CHANGED_EVENT } from '../../shared/theme'
 import { applyTheme, resolveTheme } from '../utils/theme'
 
+function mockMatchMedia(prefersDark: boolean): void {
+  Object.defineProperty(window, 'matchMedia', {
+    configurable: true,
+    value: vi.fn().mockImplementation((query: string) => ({
+      matches: prefersDark,
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn()
+    }))
+  })
+}
+
 describe('theme utilities', () => {
   beforeEach(() => {
     document.documentElement.removeAttribute('data-theme')
     document.getElementById('dotcraft-hljs-theme')?.remove()
     vi.restoreAllMocks()
+    mockMatchMedia(false)
     Object.defineProperty(window, 'api', {
       configurable: true,
       value: {
@@ -22,10 +38,11 @@ describe('theme utilities', () => {
   it('resolves missing or unknown values to light', () => {
     expect(resolveTheme(undefined)).toBe('light')
     expect(resolveTheme(null)).toBe('light')
-    expect(resolveTheme('system')).toBe('light')
+    expect(resolveTheme('bogus')).toBe('light')
   })
 
-  it('preserves explicit dark and light values', () => {
+  it('preserves explicit system, dark, and light preferences', () => {
+    expect(resolveTheme('system')).toBe('system')
     expect(resolveTheme('dark')).toBe('dark')
     expect(resolveTheme('light')).toBe('light')
   })
@@ -41,5 +58,17 @@ describe('theme utilities', () => {
     expect(window.api.window.setTitleBarOverlayTheme).toHaveBeenCalledWith('light')
     expect(listener).toHaveBeenCalledTimes(1)
     window.removeEventListener(THEME_CHANGED_EVENT, listener)
+  })
+
+  it('resolves system mode to the OS preference', () => {
+    mockMatchMedia(true)
+    applyTheme('system')
+    expect(document.documentElement.getAttribute('data-theme')).toBe('dark')
+    expect(window.api.window.setTitleBarOverlayTheme).toHaveBeenCalledWith('dark')
+
+    mockMatchMedia(false)
+    applyTheme('system')
+    expect(document.documentElement.getAttribute('data-theme')).toBe('light')
+    expect(window.api.window.setTitleBarOverlayTheme).toHaveBeenLastCalledWith('light')
   })
 })

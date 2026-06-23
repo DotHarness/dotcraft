@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer, shell, webUtils } from 'electron'
+import { contextBridge, ipcRenderer, shell, webFrame, webUtils } from 'electron'
 import { resolveThemeMode, type ThemeMode } from '../shared/theme'
 import { readInitialWorkspaceStatusFromArgv } from '../shared/initialWorkspaceStatus'
 import type { DesktopProviderProtocol } from '../shared/providerProtocols'
@@ -80,6 +80,12 @@ function readInitialTheme(): ThemeMode {
   return resolveThemeMode(raw)
 }
 
+/** The dark/light theme main already resolved (incl. `system`), used for a flash-free first paint. */
+function readAppliedTheme(): 'dark' | 'light' {
+  const arg = process.argv.find((value) => value.startsWith('--dotcraft-applied-theme='))
+  return arg?.slice('--dotcraft-applied-theme='.length) === 'dark' ? 'dark' : 'light'
+}
+
 function readInitialLocale(): AppLocale {
   const arg = process.argv.find((value) => value.startsWith('--dotcraft-initial-locale='))
   const raw = arg?.slice('--dotcraft-initial-locale='.length)
@@ -87,13 +93,16 @@ function readInitialLocale(): AppLocale {
 }
 
 const initialTheme = readInitialTheme()
+const initialAppliedTheme = readAppliedTheme()
 const initialLocale = readInitialLocale()
 const initialWorkspaceStatus = readInitialWorkspaceStatusFromArgv(process.argv) as WorkspaceStatusPayload
 
 function applyInitialDocumentState(): void {
   const root = document.documentElement
   if (!root) return
-  root.setAttribute('data-theme', initialTheme)
+  // Use the dark/light value main already resolved (initialTheme is the preference, which may
+  // be `system`). The renderer re-applies from the preference and installs an OS listener.
+  root.setAttribute('data-theme', initialAppliedTheme)
   root.lang = localeToHtmlLang(initialLocale)
 }
 
@@ -647,6 +656,14 @@ const api = {
      */
     setTitleBarOverlayTheme(theme: 'dark' | 'light'): Promise<void> {
       return ipcRenderer.invoke('window:set-title-bar-overlay-theme', theme)
+    },
+
+    /**
+     * Scales the whole renderer UI (1 = 100%). Applied immediately via webFrame; the
+     * preference is persisted separately and re-applied by the main process on load.
+     */
+    setZoomFactor(factor: number): void {
+      webFrame.setZoomFactor(factor)
     },
 
     minimize(): Promise<void> {
@@ -1321,7 +1338,14 @@ const api = {
       }
       modulesDirectory?: string
       activeModuleVariants?: Record<string, string>
-      theme?: 'dark' | 'light'
+      theme?: 'system' | 'dark' | 'light'
+      accent?: string
+      codeFontSize?: number
+      diffMarkers?: 'color' | 'sign'
+      reduceMotion?: 'system' | 'on' | 'off'
+      pointerCursors?: boolean
+      interfaceZoom?: number
+      translucentSidebar?: boolean
       locale?: AppLocale
       showThinkingContent?: boolean
       showInMenuBar?: boolean
@@ -1365,7 +1389,14 @@ const api = {
       }
       modulesDirectory?: string
       activeModuleVariants?: Record<string, string>
-      theme?: 'dark' | 'light'
+      theme?: 'system' | 'dark' | 'light'
+      accent?: string
+      codeFontSize?: number
+      diffMarkers?: 'color' | 'sign'
+      reduceMotion?: 'system' | 'on' | 'off'
+      pointerCursors?: boolean
+      interfaceZoom?: number
+      translucentSidebar?: boolean
       locale?: AppLocale
       showThinkingContent?: boolean
       showInMenuBar?: boolean

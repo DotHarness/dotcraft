@@ -1,4 +1,4 @@
-import { app, BrowserWindow, session, Menu, ipcMain, shell, nativeImage } from 'electron'
+import { app, BrowserWindow, session, Menu, ipcMain, shell, nativeImage, nativeTheme } from 'electron'
 import {
   registerViewerScheme,
   installViewerProtocolHandler,
@@ -94,7 +94,9 @@ import {
 } from './workspaceSetup'
 import { encodeInitialWorkspaceStatusArg } from '../shared/initialWorkspaceStatus'
 import { getEnabledEmbeddedModuleChannelNames } from '../shared/channelModulePersistence'
-import { resolveInitialTheme, resolveWindowBackdropOptions } from './windowTheme'
+import { applyWindowBackdropTheme, resolveInitialTheme, resolveWindowBackdropOptions } from './windowTheme'
+import { resolveThemeMode } from '../shared/theme'
+import { normalizeInterfaceZoom } from '../shared/appearance'
 import {
   normalizeLocale,
   translate,
@@ -712,6 +714,12 @@ async function updateSharedSettings(partial: Partial<AppSettings>): Promise<void
       ensureTrayProcess(sharedSettings)
     }
   }
+  if (partial.theme !== undefined) {
+    const win = mainWindow
+    if (win && !win.isDestroyed()) {
+      applyWindowBackdropTheme(win, resolveInitialTheme(sharedSettings, nativeTheme.shouldUseDarkColors))
+    }
+  }
 }
 
 browserUseManager.setPolicyHost({
@@ -1274,7 +1282,10 @@ function createWindow(
   const isMac = process.platform === 'darwin'
   const isDev = import.meta.env.DEV
   const iconPath = resolveWindowIconPath()
-  const initialTheme = resolveInitialTheme(sharedSettings)
+  const initialTheme = resolveInitialTheme(sharedSettings, nativeTheme.shouldUseDarkColors)
+  // The renderer receives the MODE (incl. `system`) and resolves it via matchMedia so it can
+  // also react to OS appearance changes; native chrome below uses the resolved dark/light value.
+  const initialThemeMode = resolveThemeMode(sharedSettings.theme)
   const windowBackdrop = resolveWindowBackdropOptions(initialTheme)
   const initialLocale = normalizeLocale(sharedSettings.locale)
   const win = new BrowserWindow({
@@ -1300,7 +1311,8 @@ function createWindow(
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       additionalArguments: [
-        `--dotcraft-initial-theme=${initialTheme}`,
+        `--dotcraft-initial-theme=${initialThemeMode}`,
+        `--dotcraft-applied-theme=${initialTheme}`,
         `--dotcraft-initial-locale=${initialLocale}`,
         encodeInitialWorkspaceStatusArg(initialWorkspaceStatus)
       ],
@@ -1312,6 +1324,18 @@ function createWindow(
 
   const workspaceName = workspacePath ? basename(workspacePath) : 'DotCraft'
   win.setTitle(translate(initialLocale, 'app.titleWithWorkspace', { name: workspaceName }))
+
+  // Keep native window chrome in sync when the OS appearance changes while in `system` theme
+  // mode. Resolution is a no-op for fixed dark/light modes, so this can run unconditionally.
+  // Registered once; the handler reads the current foreground window lazily.
+  if (nativeTheme.listenerCount('updated') === 0) {
+    nativeTheme.on('updated', () => {
+      const current = mainWindow
+      if (current && !current.isDestroyed()) {
+        applyWindowBackdropTheme(current, resolveInitialTheme(sharedSettings, nativeTheme.shouldUseDarkColors))
+      }
+    })
+  }
 
   let showFallbackTimer: ReturnType<typeof setTimeout> | null = null
   let electronReadyToShow = isDev
@@ -1372,6 +1396,12 @@ function createWindow(
   win.webContents.on('unresponsive', () => {
     console.warn('[desktop] renderer became unresponsive')
     forceShow()
+  })
+
+  // Re-apply the persisted interface zoom on every load (webContents zoom resets per load),
+  // so the UI scales without a flash. Runtime changes go through the renderer (webFrame).
+  win.webContents.on('did-finish-load', () => {
+    win.webContents.setZoomFactor(normalizeInterfaceZoom(sharedSettings.interfaceZoom))
   })
 
   const sendMaximizedState = (): void => {

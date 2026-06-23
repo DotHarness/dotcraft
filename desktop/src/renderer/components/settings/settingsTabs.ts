@@ -6,6 +6,7 @@ import {
   Cpu,
   Globe2,
   Monitor,
+  Palette,
   Server,
   Settings as SettingsIcon,
   SlidersHorizontal,
@@ -34,6 +35,7 @@ export interface SettingsTabOptions {
 export function buildSettingsTabs(t: Translate, options: SettingsTabOptions): SettingsTabDefinition[] {
   const tabs: SettingsTabDefinition[] = [
     { id: 'general', label: t('settings.tab.general'), icon: SettingsIcon },
+    { id: 'appearance', label: t('settings.tab.appearance'), icon: Palette },
     { id: 'profile', label: t('settings.tab.profile'), icon: UserRound },
     { id: 'connection', label: t('settings.tab.connection'), icon: Cable },
     { id: 'servers', label: t('settings.tab.servers'), icon: Server },

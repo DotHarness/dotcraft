@@ -5,6 +5,14 @@ import { normalizeLocale, type AppLocale } from '../shared/locales'
 import { isValidAppVersion } from '../shared/whatsNew'
 import { normalizeRemoteHosts, type RemoteHost } from '../shared/remoteServers'
 import { normalizeWorkspaceProjectKey, sameWorkspaceProjectKey } from '../shared/workspaceProjectKey'
+import {
+  DEFAULT_INTERFACE_ZOOM,
+  normalizeAccentHex,
+  normalizeCodeFontSize,
+  normalizeInterfaceZoom,
+  type DiffMarkerMode,
+  type ReduceMotionMode
+} from '../shared/appearance'
 
 export interface RecentWorkspace {
   path: string
@@ -18,7 +26,7 @@ export interface RecentWorkspace {
   firstOpenedAt?: string
 }
 
-export type UiTheme = 'dark' | 'light'
+export type UiTheme = 'system' | 'dark' | 'light'
 export type ConnectionMode = 'local' | 'remote'
 export type BinarySource = 'bundled' | 'path' | 'custom'
 export type LastOpenEditorId =
@@ -78,8 +86,22 @@ export interface AppSettings {
   remote?: RemoteConnectionSettings
   /** Persisted Servers-surface connection target; tunnels are rebuilt from this on startup. */
   activeRemoteStack?: ActiveRemoteStackSettings
-  /** UI theme; omitted or invalid values are treated as light by the renderer */
+  /** UI theme preference; omitted or invalid values are treated as light by the renderer. `system` follows the OS. */
   theme?: UiTheme
+  /** Custom accent color (`#rrggbb`); omitted uses the per-theme token default. */
+  accent?: string
+  /** Code font size in px; omitted uses the token default. */
+  codeFontSize?: number
+  /** Diff rendering style; omitted is treated as `color`. */
+  diffMarkers?: DiffMarkerMode
+  /** Motion preference; omitted is treated as `system`. */
+  reduceMotion?: ReduceMotionMode
+  /** Whether interactive elements show a pointer cursor on hover; omitted defaults to true. */
+  pointerCursors?: boolean
+  /** Whole-interface zoom factor (1 = 100%); omitted defaults to 1. */
+  interfaceZoom?: number
+  /** Whether the window chrome around the sidebar stays translucent; omitted defaults to true. */
+  translucentSidebar?: boolean
   /** Display language (BCP 47); omitted or invalid values are treated as English */
   locale?: AppLocale
   /** Renderer-only preference; omitted or invalid values are treated as true */
@@ -223,6 +245,43 @@ export function normalizeProfileSettings(settings: AppSettings): ProfileSettings
   return { githubUsername: username }
 }
 
+function normalizeUiTheme(settings: AppSettings): UiTheme | undefined {
+  const theme = settings.theme
+  return theme === 'system' || theme === 'dark' || theme === 'light' ? theme : undefined
+}
+
+function normalizeAccentSetting(settings: AppSettings): string | undefined {
+  return normalizeAccentHex(settings.accent) ?? undefined
+}
+
+function normalizeCodeFontSizeSetting(settings: AppSettings): number | undefined {
+  return normalizeCodeFontSize(settings.codeFontSize) ?? undefined
+}
+
+/** Persist only the non-default value so settings.json stays minimal. */
+function normalizeDiffMarkersSetting(settings: AppSettings): DiffMarkerMode | undefined {
+  return settings.diffMarkers === 'sign' ? 'sign' : undefined
+}
+
+function normalizeReduceMotionSetting(settings: AppSettings): ReduceMotionMode | undefined {
+  return settings.reduceMotion === 'on' || settings.reduceMotion === 'off' ? settings.reduceMotion : undefined
+}
+
+function normalizePointerCursorsSetting(settings: AppSettings): boolean | undefined {
+  // Pointer cursors default to on, so only persist an explicit opt-out (false).
+  return settings.pointerCursors === false ? false : undefined
+}
+
+function normalizeInterfaceZoomSetting(settings: AppSettings): number | undefined {
+  const zoom = normalizeInterfaceZoom(settings.interfaceZoom)
+  return zoom === DEFAULT_INTERFACE_ZOOM ? undefined : zoom
+}
+
+function normalizeTranslucentSidebarSetting(settings: AppSettings): boolean | undefined {
+  // Translucent sidebar defaults to on, so only persist an explicit opt-out (false).
+  return settings.translucentSidebar === false ? false : undefined
+}
+
 function normalizeShowThinkingContent(settings: AppSettings): boolean | undefined {
   return typeof settings.showThinkingContent === 'boolean'
     ? settings.showThinkingContent
@@ -306,6 +365,14 @@ export function loadSettings(): AppSettings {
       raw.activeModuleVariants = normalizeActiveModuleVariants(raw)
       raw.showThinkingContent = normalizeShowThinkingContent(raw)
       raw.showInMenuBar = normalizeShowInMenuBar(raw)
+      raw.theme = normalizeUiTheme(raw)
+      raw.accent = normalizeAccentSetting(raw)
+      raw.codeFontSize = normalizeCodeFontSizeSetting(raw)
+      raw.diffMarkers = normalizeDiffMarkersSetting(raw)
+      raw.reduceMotion = normalizeReduceMotionSetting(raw)
+      raw.pointerCursors = normalizePointerCursorsSetting(raw)
+      raw.interfaceZoom = normalizeInterfaceZoomSetting(raw)
+      raw.translucentSidebar = normalizeTranslucentSidebarSetting(raw)
       raw.lastSeenWhatsNewVersion = normalizeLastSeenWhatsNewVersion(raw)
       raw.profile = normalizeProfileSettings(raw)
       raw.pinnedThreadIdsByWorkspace = normalizePinnedThreadIdsByWorkspace(raw)
@@ -342,6 +409,14 @@ export function saveSettings(settings: AppSettings): void {
     settings.activeModuleVariants = normalizeActiveModuleVariants(settings)
     settings.showThinkingContent = normalizeShowThinkingContent(settings)
     settings.showInMenuBar = normalizeShowInMenuBar(settings)
+    settings.theme = normalizeUiTheme(settings)
+    settings.accent = normalizeAccentSetting(settings)
+    settings.codeFontSize = normalizeCodeFontSizeSetting(settings)
+    settings.diffMarkers = normalizeDiffMarkersSetting(settings)
+    settings.reduceMotion = normalizeReduceMotionSetting(settings)
+    settings.pointerCursors = normalizePointerCursorsSetting(settings)
+    settings.interfaceZoom = normalizeInterfaceZoomSetting(settings)
+    settings.translucentSidebar = normalizeTranslucentSidebarSetting(settings)
     settings.lastSeenWhatsNewVersion = normalizeLastSeenWhatsNewVersion(settings)
     settings.profile = normalizeProfileSettings(settings)
     settings.pinnedThreadIdsByWorkspace = normalizePinnedThreadIdsByWorkspace(settings)
