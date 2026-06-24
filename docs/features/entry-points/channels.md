@@ -44,6 +44,8 @@ See [Unified Session Core](../../developing/architecture/session-core) for the m
 
 You can bind an existing Desktop conversation to a connected social channel. Open the conversation's Apps menu, choose a connected channel, then send the shown `/bind 123456` command in the target chat. DotCraft links that chat to the same Thread, so future messages from the channel continue the conversation instead of creating a separate bot thread.
 
+Binding applies only to that target chat. Other chats that are not bound keep using the channel's normal bot conversation and thread routing.
+
 Replies triggered from the social channel are delivered back to that channel automatically. Messages you send from Desktop stay in Desktop unless a channel message starts the turn.
 
 ## Scenarios

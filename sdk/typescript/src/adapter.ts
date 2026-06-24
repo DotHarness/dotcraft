@@ -282,6 +282,12 @@ export abstract class ChannelAdapter {
       if (await this.tryAcceptSocialBinding(opts, sender, channelContext, bindCode)) return;
     }
 
+    const sender = buildChannelSender(opts, channelContext);
+    if (this.buildSocialTarget(opts, sender, channelContext)) {
+      this.enqueueMessage(opts);
+      return;
+    }
+
     const result = await this.commandRouter.routeBeforeQueue(opts);
     if (result === "enqueue") this.enqueueMessage(opts);
   }
@@ -365,6 +371,10 @@ export abstract class ChannelAdapter {
           socialTarget: target,
         },
       );
+      const identityKey = this.identityKey(opts.userId, channelContext);
+      this.threadResolver.setCachedThread(identityKey, result.binding.threadId);
+      this.threadResolver.clearFreshThread(identityKey);
+      this.onThreadContextBound(result.binding.threadId, channelContext);
       await this.onSocialBindingAccepted(result.binding, target, opts);
     } catch (error) {
       await this.onSocialBindingFailed(error, target, opts);
@@ -458,7 +468,6 @@ export abstract class ChannelAdapter {
     const socialBinding = socialTarget
       ? await this.resolveSocialBindingForMessage(socialTarget)
       : null;
-    if (socialTarget && !socialBinding) return;
 
     let threadId: string;
     if (!socialBinding) {
@@ -570,7 +579,9 @@ export abstract class ChannelAdapter {
       return binding?.state === "active" ? binding : null;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      console.warn(`[${this.channelName}] social binding resolve failed; message was ignored: ${message}`);
+      console.warn(
+        `[${this.channelName}] social binding resolve failed; falling back to normal channel routing: ${message}`,
+      );
       return null;
     }
   }
