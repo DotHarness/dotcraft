@@ -470,9 +470,17 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
                     new { query = "no matching tools" }))
             ],
             [
-                new StreamingResponseCompletedUpdate
+                new StreamingResponseOutputTextDeltaUpdate
                 {
                     SequenceNumber = 2,
+                    ItemId = "msg-1",
+                    OutputIndex = 0,
+                    ContentIndex = 0,
+                    Delta = "done"
+                },
+                new StreamingResponseCompletedUpdate
+                {
+                    SequenceNumber = 3,
                     Response = new ResponseResult
                     {
                         Usage = new ResponseTokenUsage

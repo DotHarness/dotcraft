@@ -150,6 +150,8 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
         var guidanceContinuationCount = 0;
         var toolMessageId = Guid.NewGuid().ToString("N");
         var hasAnyEffectiveProviderOutput = false;
+        var awaitingPostToolContinuation = false;
+        var postToolEmptyResponseRetries = 0;
 
         for (var iteration = 0; ; iteration++)
         {
@@ -218,7 +220,21 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
                 throw new EmptyProviderResponseException(
                     "The model provider returned an empty streaming response before any assistant content, reasoning output, or tool call was received.");
             }
+            if (!hasEffectiveProviderOutput && awaitingPostToolContinuation)
+            {
+                if (postToolEmptyResponseRetries == 0)
+                {
+                    postToolEmptyResponseRetries++;
+                    continue;
+                }
+
+                throw new EmptyProviderResponseException(
+                    "The model provider returned an empty streaming response after tool results were returned to the model.");
+            }
+
             hasAnyEffectiveProviderOutput |= hasEffectiveProviderOutput;
+            awaitingPostToolContinuation = false;
+            postToolEmptyResponseRetries = 0;
 
             var response = updates.ToChatResponse();
             (responseMessages ??= []).AddRange(response.Messages);
@@ -289,6 +305,7 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
             await TryAppendGuidanceAsync(nextHistory, cancellationToken);
             UpdateOptionsForNextIteration(ref options, response.ConversationId);
             currentMessages = nextHistory;
+            awaitingPostToolContinuation = toolMessages.Messages.Count > 0;
         }
     }
 

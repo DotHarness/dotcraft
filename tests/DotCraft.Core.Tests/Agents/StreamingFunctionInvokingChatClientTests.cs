@@ -264,6 +264,40 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
     }
 
     [Fact]
+    public async Task GetStreamingResponseAsync_RetriesEmptyProviderResponseAfterToolResult()
+    {
+        var inner = new PostToolEmptyResponseFakeChatClient(emptyResponsesAfterTool: 1);
+        var tool = AIFunctionFactory.Create(() => "tool ok", name: "GetStatus");
+        var client = new StreamingFunctionInvokingChatClient(inner)
+        {
+            AdditionalTools = [tool]
+        };
+
+        var updates = await CollectAsync(client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")]));
+
+        Assert.Equal(3, inner.Calls.Count);
+        Assert.Contains(updates, update => update.Contents.OfType<FunctionResultContent>().Any(result => result.CallId == "call-1"));
+        Assert.Contains(updates, update => update.Text.Contains("done", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task GetStreamingResponseAsync_ThrowsWhenPostToolEmptyProviderResponseRepeats()
+    {
+        var inner = new PostToolEmptyResponseFakeChatClient(emptyResponsesAfterTool: 2);
+        var tool = AIFunctionFactory.Create(() => "tool ok", name: "GetStatus");
+        var client = new StreamingFunctionInvokingChatClient(inner)
+        {
+            AdditionalTools = [tool]
+        };
+
+        var ex = await Assert.ThrowsAsync<EmptyProviderResponseException>(async () =>
+            await CollectAsync(client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")])));
+
+        Assert.Contains("after tool results", ex.Message, StringComparison.Ordinal);
+        Assert.Equal(3, inner.Calls.Count);
+    }
+
+    [Fact]
     public async Task GetStreamingResponseAsync_TerminateOnUnknownCallsLeavesCallForCaller()
     {
         var inner = new UnknownToolFakeChatClient();
@@ -810,6 +844,48 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
                 yield return new ChatResponseUpdate(ChatRole.Assistant, [
                     new FunctionCallContent("call-1", "Missing", new Dictionary<string, object?>())
                 ]);
+            }
+            else
+            {
+                yield return new ChatResponseUpdate(ChatRole.Assistant, "done");
+            }
+
+            await Task.CompletedTask;
+        }
+
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+
+        public void Dispose()
+        {
+        }
+    }
+
+    private sealed class PostToolEmptyResponseFakeChatClient(int emptyResponsesAfterTool) : IChatClient
+    {
+        public List<List<ChatMessage>> Calls { get; } = [];
+
+        public Task<ChatResponse> GetResponseAsync(
+            IEnumerable<ChatMessage> chatMessages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ChatResponse([new ChatMessage(ChatRole.Assistant, "ok")]));
+
+        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+            IEnumerable<ChatMessage> chatMessages,
+            ChatOptions? options = null,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            Calls.Add(chatMessages.ToList());
+            if (Calls.Count == 1)
+            {
+                yield return new ChatResponseUpdate(ChatRole.Assistant, [
+                    new FunctionCallContent("call-1", "GetStatus", new Dictionary<string, object?>())
+                ]);
+            }
+            else if (Calls.Count <= emptyResponsesAfterTool + 1)
+            {
+                await Task.CompletedTask;
+                yield break;
             }
             else
             {

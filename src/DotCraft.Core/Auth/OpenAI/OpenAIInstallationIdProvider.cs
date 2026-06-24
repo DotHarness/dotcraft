@@ -4,9 +4,8 @@ namespace DotCraft.Auth.OpenAI;
 
 /// <summary>
 /// Provides a stable per-installation UUID v4 persisted at <c>~/.craft/installation_id</c>.
-/// The id is sent as the <c>x-codex-installation-id</c> header on
-/// <c>chatgpt.com/backend-api/codex/responses</c> requests, where the backend uses it as a
-/// sticky cache-shard routing hint.
+/// The id is sent on subscription Responses requests, where the backend uses it as a sticky
+/// cache-shard routing hint.
 /// </summary>
 public sealed class OpenAIInstallationIdProvider
 {

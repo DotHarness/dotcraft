@@ -147,7 +147,9 @@ internal static class ResponsesToolSearchMapper
         if (!string.IsNullOrWhiteSpace(preferredPromptCacheKey))
             return new PromptCacheKeyResolution(preferredPromptCacheKey.Trim(), "preferred");
 
-        var active = TracingChatClient.CurrentSessionKey ?? TracingChatClient.GetActiveSessionKey();
+        var active = OpenAIResponsesCodexRuntimeScope.Current?.ThreadId
+            ?? TracingChatClient.CurrentSessionKey
+            ?? TracingChatClient.GetActiveSessionKey();
         return string.IsNullOrWhiteSpace(active)
             ? new PromptCacheKeyResolution(null, null)
             : new PromptCacheKeyResolution(active!.Trim(), "activeSession");

@@ -42,11 +42,13 @@ public sealed class ThreadStore
     internal ThreadStore(string botPath, StateRuntime? stateRuntime)
     {
         _botPath = Path.GetFullPath(botPath);
-        var runtime = stateRuntime ?? new StateRuntime(botPath);
-        _metadataStore = new ThreadMetadataStore(runtime);
+        StateRuntime = stateRuntime ?? new StateRuntime(botPath);
+        _metadataStore = new ThreadMetadataStore(StateRuntime);
         _rolloutStore = new ThreadRolloutStore(botPath);
-        _attachmentStore = new ThreadAttachmentStore(runtime, botPath);
+        _attachmentStore = new ThreadAttachmentStore(StateRuntime, botPath);
     }
+
+    internal StateRuntime StateRuntime { get; }
 
     /// <summary>
     /// Persists a thread to canonical thread JSONL storage and upserts queryable metadata in SQLite.

@@ -215,6 +215,61 @@ public sealed partial class SessionService(
             runtime.ContextUsageAnchor = null;
     }
 
+    private CodexContextWindowRecord GetOrCreateCodexContextWindow(string threadId)
+    {
+        try
+        {
+            return persistence.GetOrCreateCodexContextWindow(threadId);
+        }
+        catch (Exception ex)
+        {
+            logger?.LogDebug(ex, "Falling back to a transient provider context window for thread {ThreadId}", threadId);
+            return CodexContextWindowRecord.Transient(threadId);
+        }
+    }
+
+    private void TryAdvanceCodexContextWindowAfterReplacement(string threadId)
+    {
+        try
+        {
+            var record = persistence.AdvanceCodexContextWindow(threadId);
+            var context = OpenAIResponsesCodexRuntimeScope.Current;
+            if (context != null && string.Equals(context.ThreadId, threadId, StringComparison.Ordinal))
+                context.WindowId = record.CurrentWindowId;
+        }
+        catch (Exception ex)
+        {
+            logger?.LogDebug(ex, "Failed to advance provider context window for thread {ThreadId}", threadId);
+        }
+    }
+
+    private static OpenAIResponsesCodexRuntimeContext CreateCodexRuntimeContext(
+        SessionThread thread,
+        SessionTurn? turn,
+        CodexContextWindowRecord window,
+        string requestKind)
+    {
+        var subAgent = thread.Source.SubAgent;
+        return new OpenAIResponsesCodexRuntimeContext
+        {
+            ThreadId = thread.Id,
+            TurnId = turn?.Id,
+            WindowId = window.CurrentWindowId,
+            RequestKind = requestKind,
+            TurnStartedAtUnixMs = turn?.StartedAt.ToUnixTimeMilliseconds() ?? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+            ParentThreadId = subAgent?.ParentThreadId ?? thread.Source.SpawnedFromThreadId,
+            ForkedFromThreadId = thread.ForkedFromId,
+            SubagentKind = subAgent == null
+                ? null
+                : !string.IsNullOrWhiteSpace(subAgent.RuntimeType)
+                    ? subAgent.RuntimeType
+                    : !string.IsNullOrWhiteSpace(subAgent.AgentRole)
+                        ? subAgent.AgentRole
+                        : "subagent",
+            ThreadSource = thread.Source.Kind
+        };
+    }
+
     private TurnRuntime? TryGetTurnRuntime(TurnKey turnKey) =>
         _runtimeRegistry.TryGetRuntime(turnKey.ThreadId, out var runtime)
             && runtime.TryGetTurn(turnKey.TurnId, out var turnRuntime)
@@ -1525,8 +1580,12 @@ public sealed partial class SessionService(
                     tokenCount: threshold.Tokens);
 
                 CompactionHistoryResult result;
+                var codexContext = OpenAIResponsesCodexRuntimeScope.Current;
+                var previousCodexRequestKind = codexContext?.RequestKind;
                 try
                 {
+                    if (codexContext != null)
+                        codexContext.RequestKind = OpenAIResponsesCodexRequestKinds.Compaction;
                     result = await pipeline.TryAutoCompactHistoryAsync(
                         compactHistory,
                         threadId,
@@ -1550,6 +1609,11 @@ public sealed partial class SessionService(
                         contextUsage: preCompactUsage);
                     return null;
                 }
+                finally
+                {
+                    if (codexContext != null && previousCodexRequestKind != null)
+                        codexContext.RequestKind = previousCodexRequestKind;
+                }
 
                 var status = result.Status;
                 switch (status.Outcome)
@@ -1572,6 +1636,7 @@ public sealed partial class SessionService(
                             status.ThresholdAfter.Tokens,
                             source: "compacted_estimate",
                             ct: CancellationToken.None);
+                        TryAdvanceCodexContextWindowAfterReplacement(threadId);
                         ReleaseStableContextPages(threadId);
                         if (status.Outcome == CompactionOutcome.Partial)
                             traceCollector?.RecordContextCompaction(threadId);
@@ -1898,6 +1963,13 @@ public sealed partial class SessionService(
                     RootThreadId = currentSubAgentSource?.RootThreadId ?? thread.Id,
                     Depth = currentSubAgentSource?.Depth ?? 0
                 });
+                var codexContextWindow = GetOrCreateCodexContextWindow(threadId);
+                using var codexResponsesScope = OpenAIResponsesCodexRuntimeScope.Set(
+                    CreateCodexRuntimeContext(
+                        thread,
+                        turn,
+                        codexContextWindow,
+                        OpenAIResponsesCodexRequestKinds.Turn));
                 try
                 {
                     using var preSamplingCompactionScope = PreSamplingCompactionRuntimeScope.Set(
@@ -2512,6 +2584,12 @@ public sealed partial class SessionService(
                     try
                     {
                         eventChannel.EmitSystemEvent("compacting");
+                        using var reactiveCodexScope = OpenAIResponsesCodexRuntimeScope.Set(
+                            CreateCodexRuntimeContext(
+                                thread,
+                                turn,
+                                GetOrCreateCodexContextWindow(threadId),
+                                OpenAIResponsesCodexRequestKinds.Compaction));
                         var status = await GetCompactionPipelineForThread(thread).TryReactiveCompactAsync(
                             session,
                             threadId,
@@ -2531,6 +2609,7 @@ public sealed partial class SessionService(
                                 status.ThresholdAfter.Tokens,
                                 source: "compacted_estimate",
                                 ct: CancellationToken.None);
+                            TryAdvanceCodexContextWindowAfterReplacement(threadId);
                             ReleaseStableContextPages(threadId);
                             traceCollector?.RecordContextCompaction(threadId);
                             eventChannel.EmitSystemEvent(
@@ -3631,7 +3710,7 @@ public sealed partial class SessionService(
 
         if (!_runtimeRegistry.TryGetThread(threadId, out var thread) || thread.HistoryMode != HistoryMode.Server)
             return false;
-            
+
         try
         {
             await persistence.SaveSessionAsync(agent, session, threadId, ct: CancellationToken.None);

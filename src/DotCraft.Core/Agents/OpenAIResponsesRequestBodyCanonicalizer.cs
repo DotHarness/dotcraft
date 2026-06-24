@@ -27,37 +27,86 @@ internal static class OpenAIResponsesRequestBodyCanonicalizer
         return body.ToJsonString();
     }
 
+    internal static string? RemoveTopLevelFields(string json, params string[] fieldNames)
+    {
+        if (fieldNames.Length == 0 || !TryParseTopLevelObject(json, out var body))
+            return null;
+
+        var normalizedFieldNames = fieldNames
+            .Where(static name => !string.IsNullOrWhiteSpace(name))
+            .Select(static name => name.Trim())
+            .ToHashSet(StringComparer.Ordinal);
+        if (normalizedFieldNames.Count == 0)
+            return null;
+
+        var changed = body.HadDuplicateTopLevelKeys;
+        foreach (var fieldName in normalizedFieldNames)
+            changed |= body.RemoveRawValue(fieldName);
+
+        return changed ? body.ToJsonString() : null;
+    }
+
     internal static string? AddInstallationIdMetadata(
         string json,
         string installationIdHeader,
         string installationId)
     {
         if (string.IsNullOrWhiteSpace(installationIdHeader) ||
-            string.IsNullOrWhiteSpace(installationId) ||
-            !TryParseTopLevelObject(json, out var body))
+            string.IsNullOrWhiteSpace(installationId))
         {
             return null;
         }
+
+        return AddClientMetadata(
+            json,
+            new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                [installationIdHeader] = installationId
+            });
+    }
+
+    internal static string? AddClientMetadata(
+        string json,
+        IReadOnlyDictionary<string, string> metadataValues)
+    {
+        if (metadataValues.Count == 0 || !TryParseTopLevelObject(json, out var body))
+            return null;
+
+        var normalizedValues = metadataValues
+            .Where(static pair => !string.IsNullOrWhiteSpace(pair.Key) && !string.IsNullOrWhiteSpace(pair.Value))
+            .ToDictionary(
+                static pair => pair.Key.Trim(),
+                static pair => pair.Value.Trim(),
+                StringComparer.Ordinal);
+        if (normalizedValues.Count == 0)
+            return null;
 
         var changed = body.HadDuplicateTopLevelKeys;
         if (body.TryGetRawValue(ClientMetadataField, out var rawMetadata) &&
             TryParseTopLevelObject(rawMetadata, out var metadata))
         {
-            if (metadata.TryGetRawValue(installationIdHeader, out var existingRaw) &&
-                TryReadString(existingRaw, out var existing) &&
-                string.Equals(existing, installationId, StringComparison.Ordinal))
+            changed |= metadata.HadDuplicateTopLevelKeys;
+            foreach (var pair in normalizedValues)
             {
-                return changed ? body.ToJsonString() : null;
+                if (metadata.TryGetRawValue(pair.Key, out var existingRaw) &&
+                    TryReadString(existingRaw, out var existing) &&
+                    string.Equals(existing, pair.Value, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                metadata.SetRawValue(pair.Key, JsonSerializer.Serialize(pair.Value));
+                changed = true;
             }
 
-            metadata.SetRawValue(installationIdHeader, JsonSerializer.Serialize(installationId));
+            if (!changed)
+                return null;
+
             body.SetRawValue(ClientMetadataField, metadata.ToJsonString());
             return body.ToJsonString();
         }
 
-        body.SetRawValue(
-            ClientMetadataField,
-            BuildSingleStringPropertyObject(installationIdHeader, installationId));
+        body.SetRawValue(ClientMetadataField, BuildStringPropertyObject(normalizedValues));
         return body.ToJsonString();
     }
 
@@ -98,13 +147,14 @@ internal static class OpenAIResponsesRequestBodyCanonicalizer
         }
     }
 
-    private static string BuildSingleStringPropertyObject(string propertyName, string value)
+    private static string BuildStringPropertyObject(IReadOnlyDictionary<string, string> values)
     {
         var buffer = new ArrayBufferWriter<byte>();
         using (var writer = new Utf8JsonWriter(buffer))
         {
             writer.WriteStartObject();
-            writer.WriteString(propertyName, value);
+            foreach (var pair in values)
+                writer.WriteString(pair.Key, pair.Value);
             writer.WriteEndObject();
         }
 
@@ -156,6 +206,16 @@ internal static class OpenAIResponsesRequestBodyCanonicalizer
                 entries[index] = entry;
             else
                 entries.Add(entry);
+        }
+
+        public bool RemoveRawValue(string name)
+        {
+            var index = FindIndex(name);
+            if (index < 0)
+                return false;
+
+            entries.RemoveAt(index);
+            return true;
         }
 
         public string ToJsonString()

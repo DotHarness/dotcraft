@@ -154,6 +154,8 @@ public sealed class OpenAIClientProviderTests : IDisposable
         var previousBeta = Environment.GetEnvironmentVariable(OpenAIOAuthPipelinePolicy.OpenAIBetaEnvironmentVariable);
         const string installationId = "11111111-1111-4111-8111-111111111111";
         const string sessionKey = "thread-oauth-wire";
+        const string turnId = "turn_001";
+        const string windowId = "0192b455-3e7c-7000-8000-000000000001";
 
         try
         {
@@ -162,12 +164,23 @@ public sealed class OpenAIClientProviderTests : IDisposable
             await using var server = RecordingHttpServer.Start(JsonResponse(SuccessfulResponseJson));
             var provider = CreateOAuthProvider(installationId, accountId: "acct_token");
             TracingChatClient.CurrentSessionKey = sessionKey;
+            using var codexScope = OpenAIResponsesCodexRuntimeScope.Set(new OpenAIResponsesCodexRuntimeContext
+            {
+                ThreadId = sessionKey,
+                TurnId = turnId,
+                WindowId = windowId,
+                TurnStartedAtUnixMs = 1778544000000,
+                RequestKind = OpenAIResponsesCodexRequestKinds.Turn
+            });
 
             await provider.GetOpenAIClient(OAuthRuntime(
                     $"{server.Endpoint}/backend-api/codex",
                     accountId: "acct_config_stale"))
                 .GetResponsesClient()
-                .CreateResponseAsync(CreateNonStreamingResponseOptions("gpt-test", "hello"));
+                .CreateResponseAsync(CreateNonStreamingResponseOptions(
+                    "gpt-test",
+                    "hello",
+                    maxOutputTokens: 12000));
 
             var request = Assert.Single(server.Requests);
             Assert.Equal("POST", request.Method);
@@ -180,17 +193,31 @@ public sealed class OpenAIClientProviderTests : IDisposable
             Assert.Equal(sessionKey, request.Headers[OpenAIAuthConstants.ThreadIdHeader]);
             Assert.Equal(sessionKey, request.Headers[OpenAIAuthConstants.SessionIdCompatHeader]);
             Assert.Equal(sessionKey, request.Headers[OpenAIAuthConstants.ConversationIdHeader]);
+            Assert.Equal(windowId, request.Headers[OpenAIAuthConstants.WindowIdHeader]);
+            Assert.True(request.Headers.ContainsKey(OpenAIAuthConstants.TurnMetadataHeader));
+            Assert.False(request.Headers.ContainsKey(OpenAIAuthConstants.TurnStateHeader));
             Assert.StartsWith("DotCraft/", request.Headers["User-Agent"], StringComparison.Ordinal);
             Assert.False(request.Headers.ContainsKey("OpenAI-Beta"));
 
             using var document = JsonDocument.Parse(request.Body);
             Assert.Equal(sessionKey, document.RootElement.GetProperty("prompt_cache_key").GetString());
-            Assert.Equal(
-                installationId,
-                document.RootElement
-                    .GetProperty("client_metadata")
-                    .GetProperty(OpenAIAuthConstants.InstallationIdHeader)
-                    .GetString());
+            Assert.False(document.RootElement.TryGetProperty("max_output_tokens", out _));
+            var metadata = document.RootElement.GetProperty("client_metadata");
+            Assert.Equal(installationId, metadata.GetProperty(OpenAIAuthConstants.InstallationIdHeader).GetString());
+            Assert.Equal(sessionKey, metadata.GetProperty(OpenAIAuthConstants.SessionIdCompatHeader).GetString());
+            Assert.Equal(sessionKey, metadata.GetProperty("thread_id").GetString());
+            Assert.Equal(turnId, metadata.GetProperty("turn_id").GetString());
+            Assert.Equal(windowId, metadata.GetProperty(OpenAIAuthConstants.WindowIdHeader).GetString());
+
+            using var turnMetadata = JsonDocument.Parse(metadata.GetProperty(OpenAIAuthConstants.TurnMetadataHeader).GetString()!);
+            var turnMetadataRoot = turnMetadata.RootElement;
+            Assert.Equal(installationId, turnMetadataRoot.GetProperty("installation_id").GetString());
+            Assert.Equal(sessionKey, turnMetadataRoot.GetProperty("session_id").GetString());
+            Assert.Equal(sessionKey, turnMetadataRoot.GetProperty("thread_id").GetString());
+            Assert.Equal(turnId, turnMetadataRoot.GetProperty("turn_id").GetString());
+            Assert.Equal(windowId, turnMetadataRoot.GetProperty("window_id").GetString());
+            Assert.Equal("turn", turnMetadataRoot.GetProperty("request_kind").GetString());
+            Assert.Equal(1778544000000, turnMetadataRoot.GetProperty("turn_started_at_unix_ms").GetInt64());
         }
         finally
         {
@@ -206,6 +233,7 @@ public sealed class OpenAIClientProviderTests : IDisposable
     {
         const string installationId = "11111111-1111-4111-8111-111111111111";
         const string sessionKey = "thread-oauth-retry";
+        const string windowId = "0192b455-3e7c-7000-8000-000000000002";
         var auth = new FakeOpenAIAuthService("acct_token");
 
         try
@@ -215,6 +243,16 @@ public sealed class OpenAIClientProviderTests : IDisposable
                 JsonResponse(SuccessfulResponseJson));
             var provider = CreateOAuthProvider(installationId, auth);
             TracingChatClient.CurrentSessionKey = sessionKey;
+            var codexContext = new OpenAIResponsesCodexRuntimeContext
+            {
+                ThreadId = sessionKey,
+                TurnId = "turn_001",
+                WindowId = windowId,
+                TurnStartedAtUnixMs = 1778544000000,
+                RequestKind = OpenAIResponsesCodexRequestKinds.Turn
+            };
+            codexContext.TryCaptureTurnState("state-existing");
+            using var codexScope = OpenAIResponsesCodexRuntimeScope.Set(codexContext);
 
             await provider.GetOpenAIClient(OAuthRuntime($"{server.Endpoint}/backend-api/codex"))
                 .GetResponsesClient()
@@ -233,7 +271,71 @@ public sealed class OpenAIClientProviderTests : IDisposable
                 Assert.Equal(sessionKey, request.Headers[OpenAIAuthConstants.ThreadIdHeader]);
                 Assert.Equal(sessionKey, request.Headers[OpenAIAuthConstants.SessionIdCompatHeader]);
                 Assert.Equal(sessionKey, request.Headers[OpenAIAuthConstants.ConversationIdHeader]);
+                Assert.Equal(windowId, request.Headers[OpenAIAuthConstants.WindowIdHeader]);
+                Assert.Equal("state-existing", request.Headers[OpenAIAuthConstants.TurnStateHeader]);
             }
+        }
+        finally
+        {
+            TracingChatClient.CurrentSessionKey = null;
+            TracingChatClient.ClearActiveSession(sessionKey);
+        }
+    }
+
+    [Fact]
+    public async Task ChatGptOAuthResponsesReplaysTurnStateOnlyWithinSameRuntimeScope()
+    {
+        const string installationId = "11111111-1111-4111-8111-111111111111";
+        const string sessionKey = "thread-oauth-turn-state";
+        const string firstWindowId = "0192b455-3e7c-7000-8000-000000000003";
+        const string secondWindowId = "0192b455-3e7c-7000-8000-000000000004";
+
+        try
+        {
+            await using var server = RecordingHttpServer.Start(
+                JsonResponse(
+                    SuccessfulResponseJson,
+                    headers: new Dictionary<string, string>
+                    {
+                        [OpenAIAuthConstants.TurnStateHeader] = "state-one"
+                    }),
+                JsonResponse(SuccessfulResponseJson),
+                JsonResponse(SuccessfulResponseJson));
+            var provider = CreateOAuthProvider(installationId, accountId: "acct_token");
+            var client = provider.GetOpenAIClient(OAuthRuntime($"{server.Endpoint}/backend-api/codex"))
+                .GetResponsesClient();
+            TracingChatClient.CurrentSessionKey = sessionKey;
+
+            var firstContext = new OpenAIResponsesCodexRuntimeContext
+            {
+                ThreadId = sessionKey,
+                TurnId = "turn_001",
+                WindowId = firstWindowId,
+                TurnStartedAtUnixMs = 1778544000000,
+                RequestKind = OpenAIResponsesCodexRequestKinds.Turn
+            };
+            using (OpenAIResponsesCodexRuntimeScope.Set(firstContext))
+            {
+                await client.CreateResponseAsync(CreateNonStreamingResponseOptions("gpt-test", "first"));
+                await client.CreateResponseAsync(CreateNonStreamingResponseOptions("gpt-test", "second"));
+            }
+
+            using (OpenAIResponsesCodexRuntimeScope.Set(new OpenAIResponsesCodexRuntimeContext
+            {
+                ThreadId = sessionKey,
+                TurnId = "turn_002",
+                WindowId = secondWindowId,
+                TurnStartedAtUnixMs = 1778544100000,
+                RequestKind = OpenAIResponsesCodexRequestKinds.Turn
+            }))
+            {
+                await client.CreateResponseAsync(CreateNonStreamingResponseOptions("gpt-test", "third"));
+            }
+
+            Assert.Equal(3, server.Requests.Count);
+            Assert.False(server.Requests[0].Headers.ContainsKey(OpenAIAuthConstants.TurnStateHeader));
+            Assert.Equal("state-one", server.Requests[1].Headers[OpenAIAuthConstants.TurnStateHeader]);
+            Assert.False(server.Requests[2].Headers.ContainsKey(OpenAIAuthConstants.TurnStateHeader));
         }
         finally
         {
@@ -328,20 +430,25 @@ public sealed class OpenAIClientProviderTests : IDisposable
 
     private static OpenAI.Responses.CreateResponseOptions CreateNonStreamingResponseOptions(
         string model,
-        string userMessage)
+        string userMessage,
+        int? maxOutputTokens = null)
     {
         var options = ResponsesToolSearchMapper.CreateResponseOptions(
             model,
             [new ChatMessage(ChatRole.User, userMessage)],
-            new ChatOptions());
+            new ChatOptions
+            {
+                MaxOutputTokens = maxOutputTokens
+            });
         options.StreamingEnabled = false;
         return options;
     }
 
     private static RecordingHttpServer.ResponseSpec JsonResponse(
         string json,
-        HttpStatusCode status = HttpStatusCode.OK)
-        => new(status, "application/json", json);
+        HttpStatusCode status = HttpStatusCode.OK,
+        IReadOnlyDictionary<string, string>? headers = null)
+        => new(status, "application/json", json, headers);
 
     private const string SuccessfulResponseJson = """
         {
@@ -718,9 +825,13 @@ public sealed class OpenAIClientProviderTests : IDisposable
             CancellationToken cancellationToken)
         {
             var body = Encoding.UTF8.GetBytes(response.Body);
+            var extraHeaders = response.Headers == null
+                ? string.Empty
+                : string.Concat(response.Headers.Select(header => $"{header.Key}: {header.Value}\r\n"));
             var header = Encoding.ASCII.GetBytes(
                 $"HTTP/1.1 {(int)response.StatusCode} {ReasonPhrase(response.StatusCode)}\r\n" +
                 $"Content-Type: {response.ContentType}\r\n" +
+                extraHeaders +
                 $"Content-Length: {body.Length}\r\n" +
                 "Connection: close\r\n\r\n");
             await stream.WriteAsync(header, cancellationToken);
@@ -734,7 +845,11 @@ public sealed class OpenAIClientProviderTests : IDisposable
             _ => statusCode.ToString()
         };
 
-        public sealed record ResponseSpec(HttpStatusCode StatusCode, string ContentType, string Body);
+        public sealed record ResponseSpec(
+            HttpStatusCode StatusCode,
+            string ContentType,
+            string Body,
+            IReadOnlyDictionary<string, string>? Headers = null);
     }
 
     private sealed record RecordedHttpRequest(

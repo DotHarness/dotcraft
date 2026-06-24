@@ -209,6 +209,16 @@ public sealed class StateRuntime
                     FOREIGN KEY(thread_id) REFERENCES threads(thread_id) ON DELETE CASCADE
                 );
 
+                CREATE TABLE IF NOT EXISTS thread_context_windows (
+                    thread_id TEXT PRIMARY KEY,
+                    first_window_id TEXT NOT NULL,
+                    previous_window_id TEXT,
+                    current_window_id TEXT NOT NULL,
+                    generation INTEGER NOT NULL DEFAULT 0,
+                    updated_at TEXT NOT NULL,
+                    FOREIGN KEY(thread_id) REFERENCES threads(thread_id) ON DELETE CASCADE
+                );
+
                 CREATE TABLE IF NOT EXISTS thread_goals (
                     thread_id TEXT PRIMARY KEY,
                     goal_id TEXT NOT NULL,
