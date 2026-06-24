@@ -717,7 +717,7 @@ public static class SubAgentSessionControl
                 {
                     ThreadId = childThreadId,
                     Status = "timeout",
-                    Message = "Timed out waiting for subagent; it may still be running."
+                    Message = "Wait timed out."
                 };
             }
         }

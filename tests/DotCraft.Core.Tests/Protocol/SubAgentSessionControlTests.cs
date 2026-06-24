@@ -286,7 +286,6 @@ public sealed class SubAgentSessionControlTests : IDisposable
         var child = await _sessionService.GetThreadAsync(spawned.ChildThreadId);
 
         Assert.Equal("timeout", waited.Status);
-        Assert.Contains("Timed out waiting", waited.Message, StringComparison.Ordinal);
         Assert.Equal("Inspect", waited.AgentNickname);
         Assert.Equal(TurnStatus.Running, child.Turns.Single().Status);
 

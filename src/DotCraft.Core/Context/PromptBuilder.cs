@@ -346,13 +346,13 @@ Newly created or updated skills may not affect the current prompt immediately; t
 
         var controls = new List<string>();
         if (hasListAgents)
-            controls.Add("Use `ListAgents` to inspect available `agentPath` targets before sending follow-up work.");
+            controls.Add("Use `ListAgents` to list live agents in the current root thread tree.");
         if (hasSendMessage)
             controls.Add("Use `SendMessage` for mailbox-only coordination; it records a message for the target and does not start a turn.");
         if (hasFollowupTask)
             controls.Add("Use `FollowupTask` to start or queue a target agent turn; set `deliveryMode` to `steer` only when a running native target should receive same-turn guidance, otherwise keep the default `queue`. Pending mailbox messages for that target are delivered with the task.");
         if (hasWaitAgent)
-            controls.Add($"Use `WaitAgent` only when the parent is blocked on mailbox or SubAgent graph changes; `timeoutMs` is milliseconds, defaults to {timeoutOptions.DefaultTimeoutMs}, and must be between {timeoutOptions.MinTimeoutMs} and {timeoutOptions.MaxTimeoutMs}.");
+            controls.Add($"Use `WaitAgent` to wait for a mailbox update from any live agent; it does not return content; `timeoutMs` is milliseconds, defaults to {timeoutOptions.DefaultTimeoutMs}, and must be between {timeoutOptions.MinTimeoutMs} and {timeoutOptions.MaxTimeoutMs}.");
         if (hasCloseAgent)
             controls.Add("Use `CloseAgent` with an `agentPath` when a child thread is no longer needed; do not keep idle child agents open indefinitely.");
 

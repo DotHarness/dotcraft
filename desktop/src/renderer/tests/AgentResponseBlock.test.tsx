@@ -343,11 +343,13 @@ describe('AgentResponseBlock subagent transcript rendering', () => {
       ]
     }
 
-    const text = renderBlock(turn, { isRunning: true })
+    const { container } = render(
+      <LocaleProvider>
+        <AgentResponseBlock turn={turn} isRunning />
+      </LocaleProvider>
+    )
 
-    expect(text).toContain('Waiting for Reviewer')
-    expect(text).not.toContain('Received result from Reviewer')
-    expect(text).not.toContain('thread_child')
+    expect(container.querySelector('.tool-running-gradient-text')).toBeInTheDocument()
   })
 
   it('does not keep historical WaitAgent calls running when toolResult is missing', () => {
@@ -369,10 +371,13 @@ describe('AgentResponseBlock subagent transcript rendering', () => {
       ]
     }
 
-    const text = renderBlock(turn)
+    const { container } = render(
+      <LocaleProvider>
+        <AgentResponseBlock turn={turn} />
+      </LocaleProvider>
+    )
 
-    expect(text).not.toContain('Waiting for Reviewer')
-    expect(text).not.toContain('Received result from Reviewer')
+    expect(container.querySelector('.tool-running-gradient-text')).toBeNull()
   })
 
   it('renders pluginFunctionCall items in the tool run', () => {

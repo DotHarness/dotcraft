@@ -1158,7 +1158,7 @@ function getSubAgentToolDisplay(
     accentColor: getSubAgentAccent(childThreadId ?? label),
     childThreadId,
     message: isTimeout
-      ? (message ?? translate(locale, 'toolCall.subAgent.timeoutMessage'))
+      ? (message && !isTimeoutMessage(message) ? message : null)
       : !success && error
         ? error
         : message,
