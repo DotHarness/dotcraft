@@ -877,11 +877,14 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
         var userMessage = Assert.Single(chatClient.LastMessages, message => message.Role == ChatRole.User);
         var modelInput = string.Concat(userMessage.Contents.OfType<TextContent>().Select(content => content.Text));
         Assert.Contains("<system-reminder>", modelInput);
-        Assert.Contains("## Runtime Context", modelInput);
+        Assert.Contains("## Environment", modelInput);
+        Assert.Contains("## Mode", modelInput);
         Assert.Contains("CurrentMode: Agent", modelInput);
+        Assert.Contains("## Request Source", modelInput);
         Assert.Contains("Channel: qq", modelInput);
-        Assert.Contains("ChannelContext: group:123456", modelInput);
+        Assert.Contains("Conversation: group:123456", modelInput);
         Assert.Contains("SenderName: Alice", modelInput);
+        Assert.DoesNotContain("SenderId: 10001", modelInput);
         var systemInstructions = chatClient.LastOptions?.Instructions ?? string.Empty;
         Assert.DoesNotContain("SenderName: Alice", systemInstructions);
         Assert.DoesNotContain("SenderId: 10001", systemInstructions);
