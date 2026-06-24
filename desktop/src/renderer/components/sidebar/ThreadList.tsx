@@ -708,8 +708,21 @@ function ChatsSection({
 
 function ChatsSectionHeader({ onNewChat }: { onNewChat: () => void }): JSX.Element {
   const t = useT()
+  const [hovered, setHovered] = useState(false)
+  const [focused, setFocused] = useState(false)
+  // Mirror the Projects header: the New chat affordance stays hidden until the
+  // row is hovered or its button is focused, keeping the rail visually quiet.
+  const showActions = hovered || focused
   return (
     <div
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onFocus={() => setFocused(true)}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          setFocused(false)
+        }
+      }}
       style={{
         display: 'grid',
         gridTemplateColumns: 'minmax(0, 1fr) 28px',
@@ -728,7 +741,16 @@ function ChatsSectionHeader({ onNewChat }: { onNewChat: () => void }): JSX.Eleme
       >
         {t('chatsRail.title')}
       </span>
-      <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end' }}>
+      <div
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'flex-end',
+          opacity: showActions ? 1 : 0,
+          pointerEvents: showActions ? 'auto' : 'none',
+          transition: 'opacity 120ms ease'
+        }}
+      >
         <ActionTooltip label={t('sidebar.newThreadLabel')}>
           <button
             type="button"

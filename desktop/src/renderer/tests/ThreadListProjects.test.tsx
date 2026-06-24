@@ -1028,6 +1028,7 @@ describe('ThreadList project-first layout', () => {
     })
 
     renderList()
+    fireEvent.mouseEnter(screen.getByText('Chats').parentElement as HTMLElement)
     fireEvent.click(screen.getByRole('button', { name: 'New chat' }))
 
     await waitFor(() => {
