@@ -15,20 +15,15 @@ export function AnsiPre({
   truncatedLinesOver
 }: AnsiPreProps): JSX.Element {
   const renderedNodes = useMemo(() => {
-    const spans = parseAnsi(text)
-    const totalLines = text.split('\n').length
-    const shouldTruncate = truncatedLinesOver != null && totalLines > truncatedLinesOver
-    const lineLimit = shouldTruncate ? truncatedLinesOver : undefined
+    const truncated = truncateTextByLines(text, truncatedLinesOver)
+    const spans = parseAnsi(truncated.text)
     const nodes: Array<JSX.Element | string> = []
     let currentLine = 0
 
-    outer: for (const span of spans) {
+    for (const span of spans) {
       const parts = span.text.split('\n')
       for (let idx = 0; idx < parts.length; idx++) {
         if (idx > 0) {
-          if (lineLimit != null && currentLine + 1 >= lineLimit) {
-            break outer
-          }
           nodes.push('\n')
           currentLine++
         }
@@ -45,8 +40,8 @@ export function AnsiPre({
       }
     }
 
-    if (shouldTruncate && lineLimit != null) {
-      if (lineLimit > 0) {
+    if (truncated.truncated) {
+      if (truncated.text.length > 0) {
         nodes.push('\n')
       }
       nodes.push(<span key="ansi-truncation-ellipsis">…</span>)
@@ -69,6 +64,29 @@ export function AnsiPre({
       {renderedNodes}
     </pre>
   )
+}
+
+function truncateTextByLines(
+  text: string,
+  lineLimit: number | undefined
+): { text: string; truncated: boolean } {
+  if (lineLimit == null) {
+    return { text, truncated: false }
+  }
+  if (lineLimit <= 0) {
+    return { text: '', truncated: text.length > 0 }
+  }
+
+  let linesSeen = 1
+  for (let index = 0; index < text.length; index++) {
+    if (text.charCodeAt(index) !== 10) continue
+    linesSeen++
+    if (linesSeen > lineLimit) {
+      return { text: text.slice(0, index), truncated: true }
+    }
+  }
+
+  return { text, truncated: false }
 }
 
 function resolveSpanStyle(

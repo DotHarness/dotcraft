@@ -342,6 +342,12 @@ export interface PinnedThreadIdsChangedPayload {
   threadIds: string[]
 }
 
+export interface WindowVisibilityState {
+  minimized: boolean
+  visible: boolean
+  focused: boolean
+}
+
 // ---------------------------------------------------------------------------
 // Single-listener dispatchers for notifications and connection status.
 //
@@ -474,6 +480,12 @@ let maximizedChangeToken = 0
 let activeMaximizedChangeCallback: ((maximized: boolean) => void) | null = null
 ipcRenderer.on('window:maximized-change', (_event: Electron.IpcRendererEvent, maximized: boolean) => {
   activeMaximizedChangeCallback?.(maximized)
+})
+
+let visibilityChangeToken = 0
+let activeVisibilityChangeCallback: ((state: WindowVisibilityState) => void) | null = null
+ipcRenderer.on('window:visibility-changed', (_event: Electron.IpcRendererEvent, state: WindowVisibilityState) => {
+  activeVisibilityChangeCallback?.(state)
 })
 
 /**
@@ -682,6 +694,10 @@ const api = {
       return ipcRenderer.invoke('window:is-maximized')
     },
 
+    getVisibilityState(): Promise<WindowVisibilityState> {
+      return ipcRenderer.invoke('window:get-visibility-state')
+    },
+
     rendererReadyForShow(): void {
       ipcRenderer.send('window:renderer-ready-for-show')
     },
@@ -692,6 +708,16 @@ const api = {
       return () => {
         if (maximizedChangeToken === token) {
           activeMaximizedChangeCallback = null
+        }
+      }
+    },
+
+    onVisibilityChanged(callback: (state: WindowVisibilityState) => void): () => void {
+      const token = ++visibilityChangeToken
+      activeVisibilityChangeCallback = callback
+      return () => {
+        if (visibilityChangeToken === token) {
+          activeVisibilityChangeCallback = null
         }
       }
     },

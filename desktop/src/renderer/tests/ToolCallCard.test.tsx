@@ -11,6 +11,7 @@ import { useSubAgentStore } from '../stores/subAgentStore'
 import { useThreadStore } from '../stores/threadStore'
 import type { ConversationItem } from '../types/conversation'
 import type { FileDiff } from '../types/toolCall'
+import * as ansiUtils from '../utils/ansi'
 
 function renderWithLocale(node: JSX.Element): ReturnType<typeof render> {
   return render(<LocaleProvider>{node}</LocaleProvider>)
@@ -535,6 +536,35 @@ describe('ToolCallCard shell rendering', () => {
     const pre = document.querySelector('pre')
     expect(pre?.textContent).toContain(' RUN v3.2.4')
     expect(pre?.textContent).not.toContain('\u001b')
+  })
+
+  it('does not strip the full shell output while the card is collapsed', () => {
+    const stripAnsiSpy = vi.spyOn(ansiUtils, 'stripAnsi')
+    const fullOutput = `\u001b[32m${'large output\n'.repeat(1000)}\u001b[0m`
+    const item: ConversationItem = {
+      id: 'tool-large-collapsed-shell',
+      type: 'toolCall',
+      status: 'completed',
+      toolName: 'Exec',
+      toolCallId: 'exec-large-collapsed',
+      arguments: { command: 'pnpm test' },
+      aggregatedOutput: fullOutput,
+      result: fullOutput,
+      success: true,
+      createdAt: new Date().toISOString()
+    }
+
+    try {
+      const { container } = renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
+
+      expectDisclosureInsideTitleGroup(container)
+      expect(stripAnsiSpy.mock.calls.every((call) => {
+        const value = call[0] as string
+        return value.length < fullOutput.length && value.length <= 4096
+      })).toBe(true)
+    } finally {
+      stripAnsiSpy.mockRestore()
+    }
   })
 
   it('renders failed shell commands with neutral styling and no Failed prefix', () => {

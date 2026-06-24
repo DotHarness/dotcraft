@@ -132,7 +132,23 @@ function formatFileToolLabel(
 }
 
 function hasVisibleText(value: string | undefined): boolean {
-  return stripAnsi(value ?? '').trim().length > 0
+  if (!value) return false
+  for (let index = 0; index < value.length; index++) {
+    const code = value.charCodeAt(index)
+    if (code === 0x1b) {
+      index++
+      if (value.charCodeAt(index) === 0x5b) {
+        while (index < value.length) {
+          const ansiCode = value.charCodeAt(index)
+          if (ansiCode >= 0x40 && ansiCode <= 0x7e) break
+          index++
+        }
+      }
+      continue
+    }
+    if (code > 32) return true
+  }
+  return false
 }
 
 function hasRenderableDiff(diff: FileDiff | undefined): boolean {
@@ -488,13 +504,15 @@ export const ToolCallCard = memo(function ToolCallCard({
     ? formatFileToolLabel(toolName, fileDiff, fallbackLabel, locale)
     : fallbackLabel
   const failureText = item.errorMessage ?? item.resultPreview ?? item.result ?? shellOutput
-  const failedPreview = stripAnsi(
-    isSkillManageTool
-      ? (skillManageDisplay?.message ?? '')
-      : isSkillViewTool
-        ? (skillViewDisplay?.message ?? '')
-        : (failureText ?? '')
-  )
+  const failurePreviewSource = isSkillManageTool
+    ? (skillManageDisplay?.message ?? '')
+    : isSkillViewTool
+      ? (skillViewDisplay?.message ?? '')
+      : (failureText ?? '')
+  const hasFailurePreview = hasVisibleText(failurePreviewSource)
+  const failedPreview = hasFailurePreview
+    ? stripAnsi(failurePreviewSource.slice(0, 512)).trim()
+    : ''
   const hasFlushWebSearchTable =
     toolName === 'WebSearch'
     && parseWebSearchResultDisplay(item.result)?.kind === 'results'
@@ -546,7 +564,7 @@ export const ToolCallCard = memo(function ToolCallCard({
         >
           <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {success ? label : translate(locale, 'toolCall.failed', { label })}
-            {!success && hasVisibleText(failureText) && (
+            {!success && hasFailurePreview && failedPreview && (
               <span style={{ color: 'var(--error)', marginLeft: '6px' }}>
                 - {failedPreview.slice(0, 80)}{failedPreview.length > 80 ? '…' : ''}
               </span>

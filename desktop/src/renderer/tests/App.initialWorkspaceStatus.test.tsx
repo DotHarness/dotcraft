@@ -318,6 +318,7 @@ function installApi(
     settingsSet?: ReturnType<typeof vi.fn>
     appServerSendRequest?: ReturnType<typeof vi.fn>
     onNotification?: ReturnType<typeof vi.fn>
+    onServerRequest?: ReturnType<typeof vi.fn>
     modulesList?: ReturnType<typeof vi.fn>
     modulesRunning?: ReturnType<typeof vi.fn>
     getReleases?: ReturnType<typeof vi.fn>
@@ -328,6 +329,8 @@ function installApi(
     onWorkspaceStatusChange?: ReturnType<typeof vi.fn>
     workspaceGetProjects?: ReturnType<typeof vi.fn>
     onProjectsChange?: ReturnType<typeof vi.fn>
+    windowGetVisibilityState?: ReturnType<typeof vi.fn>
+    onWindowVisibilityChanged?: ReturnType<typeof vi.fn>
   } = {}
 ): {
   settingsGet: ReturnType<typeof vi.fn>
@@ -340,12 +343,15 @@ function installApi(
   onWorkspaceStatusChange: ReturnType<typeof vi.fn>
   workspaceGetProjects: ReturnType<typeof vi.fn>
   onProjectsChange: ReturnType<typeof vi.fn>
+  windowGetVisibilityState: ReturnType<typeof vi.fn>
+  onWindowVisibilityChanged: ReturnType<typeof vi.fn>
 } {
   const pending = new Promise<never>(() => {})
   const settingsGet = overrides.settingsGet ?? vi.fn(() => pending)
   const settingsSet = overrides.settingsSet ?? vi.fn().mockResolvedValue(undefined)
   const appServerSendRequest = overrides.appServerSendRequest ?? vi.fn().mockResolvedValue({})
   const onNotification = overrides.onNotification ?? vi.fn(() => vi.fn())
+  const onServerRequest = overrides.onServerRequest ?? vi.fn(() => vi.fn())
   const modulesList = overrides.modulesList ?? vi.fn(() => pending)
   const modulesRunning = overrides.modulesRunning ?? vi.fn(() => pending)
   const getReleases = overrides.getReleases ?? vi.fn().mockResolvedValue(WHATS_NEW_TEST_RELEASES)
@@ -356,6 +362,9 @@ function installApi(
   const onWorkspaceStatusChange = overrides.onWorkspaceStatusChange ?? vi.fn(() => vi.fn())
   const workspaceGetProjects = overrides.workspaceGetProjects ?? vi.fn(() => pending)
   const onProjectsChange = overrides.onProjectsChange ?? vi.fn(() => vi.fn())
+  const windowGetVisibilityState = overrides.windowGetVisibilityState
+    ?? vi.fn().mockResolvedValue({ minimized: false, visible: true, focused: true })
+  const onWindowVisibilityChanged = overrides.onWindowVisibilityChanged ?? vi.fn(() => vi.fn())
   Object.defineProperty(window, 'api', {
     configurable: true,
     value: {
@@ -372,7 +381,9 @@ function installApi(
         setTitle: vi.fn(),
         setTitleBarOverlayTheme: vi.fn().mockResolvedValue(undefined),
         isMaximized: vi.fn().mockResolvedValue(false),
+        getVisibilityState: windowGetVisibilityState,
         onMaximizedChange: vi.fn(() => vi.fn()),
+        onVisibilityChanged: onWindowVisibilityChanged,
         onOpenChromeSettings: vi.fn(() => vi.fn()),
         onOpenWhatsNew: vi.fn(() => vi.fn()),
         onOpenThread: vi.fn(() => vi.fn())
@@ -388,7 +399,7 @@ function installApi(
         getConnectionStatus: vi.fn(() => pending),
         onConnectionStatus: vi.fn(() => vi.fn()),
         onNotification,
-        onServerRequest: vi.fn(() => vi.fn()),
+        onServerRequest,
         sendServerResponse: vi.fn()
       },
       workspace: {
@@ -444,7 +455,9 @@ function installApi(
     workspaceGetStatus,
     onWorkspaceStatusChange,
     workspaceGetProjects,
-    onProjectsChange
+    onProjectsChange,
+    windowGetVisibilityState,
+    onWindowVisibilityChanged
   }
 }
 
@@ -1494,5 +1507,154 @@ describe('App initial workspace status bootstrap', () => {
     })
 
     expect(useThreadStore.getState().threadList.map((thread) => thread.id)).not.toContain('thread-secondary')
+  })
+
+  it('defers active conversation deltas while hidden and reconciles once when restored', async () => {
+    const threadId = 'thread-hidden'
+    let notificationHandler: ((payload: { method: string; params?: unknown }) => void) | undefined
+    let visibilityHandler: ((state: { minimized: boolean; visible: boolean; focused: boolean }) => void) | undefined
+    const onNotification = vi.fn((handler: typeof notificationHandler) => {
+      notificationHandler = handler
+      return vi.fn()
+    })
+    const onWindowVisibilityChanged = vi.fn((handler: typeof visibilityHandler) => {
+      visibilityHandler = handler
+      return vi.fn()
+    })
+    const appServerSendRequest = vi.fn(async (
+      method: string,
+      params?: { threadId?: string; includeTurns?: boolean }
+    ) => {
+      if (method === 'thread/read') {
+        return {
+          thread: makeThread(params?.threadId ?? threadId, readyWorkspaceStatus.workspacePath, 'Hidden thread')
+        }
+      }
+      if (method === 'thread/list') return { data: [makeThreadSummary(threadId, readyWorkspaceStatus.workspacePath)] }
+      return {}
+    })
+    installApi(readyWorkspaceStatus, {
+      appServerSendRequest,
+      onNotification,
+      onWindowVisibilityChanged,
+      settingsGet: vi.fn().mockResolvedValue({}),
+      modulesList: vi.fn().mockResolvedValue([]),
+      modulesRunning: vi.fn().mockResolvedValue({})
+    })
+    useConnectionStore.getState().setStatus({ status: 'connected' })
+    useThreadStore.getState().setActiveThreadId(threadId)
+    const agentDeltaSpy = vi.spyOn(useConversationStore.getState(), 'onAgentMessageDelta')
+
+    renderApp()
+
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith('thread/read', {
+        threadId,
+        includeTurns: true
+      })
+    })
+    await flushPromises()
+    appServerSendRequest.mockClear()
+    agentDeltaSpy.mockClear()
+
+    await act(async () => {
+      visibilityHandler?.({ minimized: true, visible: false, focused: false })
+      notificationHandler?.({
+        method: 'item/agentMessage/delta',
+        params: { threadId, delta: 'hidden output' }
+      })
+      notificationHandler?.({
+        method: 'item/commandExecution/outputDelta',
+        params: { threadId, turnId: 'turn-1', itemId: 'item-1', delta: 'line 1' }
+      })
+    })
+
+    expect(agentDeltaSpy).not.toHaveBeenCalled()
+    expect(appServerSendRequest.mock.calls.filter((call) => call[0] === 'thread/read')).toHaveLength(0)
+
+    await act(async () => {
+      visibilityHandler?.({ minimized: false, visible: true, focused: true })
+    })
+
+    await waitFor(() => {
+      const fullReads = appServerSendRequest.mock.calls.filter((call) => {
+        const params = call[1] as { includeTurns?: boolean } | undefined
+        return call[0] === 'thread/read' && params?.includeTurns === true
+      })
+      expect(fullReads).toHaveLength(1)
+    })
+  })
+
+  it('keeps interactive server requests live while active conversation deltas are deferred', async () => {
+    const threadId = 'thread-input-hidden'
+    let serverRequestHandler: ((payload: {
+      bridgeId: string
+      method: string
+      params?: unknown
+    }) => void) | undefined
+    let visibilityHandler: ((state: { minimized: boolean; visible: boolean; focused: boolean }) => void) | undefined
+    const onServerRequest = vi.fn((handler: typeof serverRequestHandler) => {
+      serverRequestHandler = handler
+      return vi.fn()
+    })
+    const onWindowVisibilityChanged = vi.fn((handler: typeof visibilityHandler) => {
+      visibilityHandler = handler
+      return vi.fn()
+    })
+    const appServerSendRequest = vi.fn(async (
+      method: string,
+      params?: { threadId?: string }
+    ) => {
+      if (method === 'thread/read') {
+        return {
+          thread: makeThread(params?.threadId ?? threadId, readyWorkspaceStatus.workspacePath, 'Hidden input')
+        }
+      }
+      if (method === 'thread/list') return { data: [makeThreadSummary(threadId, readyWorkspaceStatus.workspacePath)] }
+      return {}
+    })
+    installApi(readyWorkspaceStatus, {
+      appServerSendRequest,
+      onServerRequest,
+      onWindowVisibilityChanged,
+      settingsGet: vi.fn().mockResolvedValue({}),
+      modulesList: vi.fn().mockResolvedValue([]),
+      modulesRunning: vi.fn().mockResolvedValue({})
+    })
+    useConnectionStore.getState().setStatus({ status: 'connected' })
+    useThreadStore.getState().setActiveThreadId(threadId)
+
+    renderApp()
+
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith('thread/read', {
+        threadId,
+        includeTurns: true
+      })
+    })
+    await flushPromises()
+
+    await act(async () => {
+      visibilityHandler?.({ minimized: true, visible: false, focused: false })
+      serverRequestHandler?.({
+        bridgeId: 'bridge-input-hidden',
+        method: 'item/tool/requestUserInput',
+        params: {
+          threadId,
+          turnId: 'turn-1',
+          requestId: 'request-input-hidden',
+          questions: [
+            {
+              id: 'confirm',
+              question: 'Continue?',
+              options: [{ label: 'Yes' }, { label: 'No' }]
+            }
+          ]
+        }
+      })
+    })
+
+    expect(useConversationStore.getState().pendingUserInput?.bridgeId).toBe('bridge-input-hidden')
+    expect(useConversationStore.getState().pendingUserInput?.requestId).toBe('request-input-hidden')
   })
 })

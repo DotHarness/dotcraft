@@ -101,6 +101,12 @@ import {
 import { sendDesktopAppServerRequest } from './desktopRuntimeThreadTools'
 import type { WorkspaceProjectsPayload } from '../shared/workspaceProjects'
 
+interface WindowVisibilityState {
+  minimized: boolean
+  visible: boolean
+  focused: boolean
+}
+
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'error'
 
 export type ConnectionErrorType = 'binary-not-found' | 'handshake-timeout' | 'crash' | 'remote-config-invalid'
@@ -1334,6 +1340,18 @@ export function registerIpcHandlers(
     return win != null && !win.isDestroyed() && win.isMaximized()
   })
 
+  handleSafe('window:get-visibility-state', (event): WindowVisibilityState => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win || win.isDestroyed()) {
+      return { minimized: false, visible: false, focused: false }
+    }
+    return {
+      minimized: win.isMinimized(),
+      visible: win.isVisible(),
+      focused: win.isFocused()
+    }
+  })
+
   // Renderer -> Main: get workspace path
   handleSafe('window:get-workspace-path', () => workspacePath)
 
@@ -2531,6 +2549,7 @@ export function unregisterIpcHandlers(): void {
   ipcMain.removeHandler('window:toggle-maximize')
   ipcMain.removeHandler('window:close')
   ipcMain.removeHandler('window:is-maximized')
+  ipcMain.removeHandler('window:get-visibility-state')
   ipcMain.removeHandler('window:get-workspace-path')
   ipcMain.removeHandler('shell:open-external')
   ipcMain.removeHandler('shell:get-protocol-handler-name')
