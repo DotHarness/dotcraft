@@ -167,7 +167,7 @@ public sealed class PartialCompactorTests
         Assert.Contains("Task: context_compaction", client.Messages[^1].Text);
         Assert.Equal("stable base", client.Options?.Instructions);
         Assert.Equal("gpt-test", client.Options?.ModelId);
-        Assert.Equal(64_000, client.Options?.MaxOutputTokens);
+        Assert.Equal(12_000, client.Options?.MaxOutputTokens);
         var capturedTool = Assert.Single(client.Options?.Tools ?? []);
         Assert.Equal("ReadFile", capturedTool.Name);
     }
@@ -205,6 +205,84 @@ public sealed class PartialCompactorTests
         Assert.NotNull(result.Result);
         Assert.Equal(2, client.CallCount);
         Assert.Contains("legacy after overflow", result.Result!.FormattedSummary);
+        Assert.Equal(ChatRole.System, client.Messages[0].Role);
+        AssertLegacyContextCompactionTask(client.Messages[^1]);
+    }
+
+    [Fact]
+    public async Task CompactAsync_WithOversizedSnapshotPreflightFallsBackToLegacySummary()
+    {
+        var cfg = new CompactionConfig
+        {
+            ContextWindow = 1_000,
+            SummaryMaxOutputTokens = 100,
+            KeepRecentMinTokens = 1,
+            KeepRecentMinGroups = 1,
+            KeepRecentMaxTokens = 100_000,
+        };
+        var client = new StubChatClient("<analysis>thinking</analysis><summary>legacy after preflight</summary>");
+        var partial = new PartialCompactor(client, cfg, new MaintenanceForkRunner(client));
+
+        var messages = new List<ChatMessage>();
+        for (var round = 0; round < 4; round++)
+        {
+            messages.Add(new ChatMessage(ChatRole.User, $"user turn {round}"));
+            messages.Add(new ChatMessage(ChatRole.Assistant, $"assistant turn {round}"));
+        }
+        var snapshot = PromptRequestSnapshot.Capture(
+            messages,
+            new ChatOptions
+            {
+                Instructions = "stable base",
+                ModelId = "gpt-test"
+            },
+            estimatedInputTokens: 10_000);
+
+        var result = await partial.CompactAsync(messages, snapshot);
+
+        Assert.NotNull(result.Result);
+        Assert.Equal(1, client.CallCount);
+        Assert.Contains("legacy after preflight", result.Result!.FormattedSummary);
+        Assert.Equal(ChatRole.System, client.Messages[0].Role);
+        AssertLegacyContextCompactionTask(client.Messages[^1]);
+    }
+
+    [Fact]
+    public async Task CompactAsync_WithSnapshotEmptyErrorContentFallsBackToLegacySummary()
+    {
+        var cfg = new CompactionConfig
+        {
+            KeepRecentMinTokens = 1,
+            KeepRecentMinGroups = 1,
+            KeepRecentMaxTokens = 100_000,
+        };
+        var client = new SequenceChatClient(
+            new ChatResponse(new ChatMessage(ChatRole.Assistant, (IList<AIContent>)
+            [
+                new ErrorContent("provider returned an empty error response")
+            ])),
+            new ChatResponse(new ChatMessage(ChatRole.Assistant, "<analysis>thinking</analysis><summary>legacy after empty error</summary>")));
+        var partial = new PartialCompactor(client, cfg, new MaintenanceForkRunner(client));
+
+        var messages = new List<ChatMessage>();
+        for (var round = 0; round < 4; round++)
+        {
+            messages.Add(new ChatMessage(ChatRole.User, $"user turn {round}"));
+            messages.Add(new ChatMessage(ChatRole.Assistant, $"assistant turn {round}"));
+        }
+        var snapshot = PromptRequestSnapshot.Capture(
+            messages,
+            new ChatOptions
+            {
+                Instructions = "stable base",
+                ModelId = "gpt-test"
+            });
+
+        var result = await partial.CompactAsync(messages, snapshot);
+
+        Assert.NotNull(result.Result);
+        Assert.Equal(2, client.CallCount);
+        Assert.Contains("legacy after empty error", result.Result!.FormattedSummary);
         Assert.Equal(ChatRole.System, client.Messages[0].Role);
         AssertLegacyContextCompactionTask(client.Messages[^1]);
     }
@@ -373,6 +451,44 @@ public sealed class PartialCompactorTests
         AssertLegacyContextCompactionTask(client.Messages[^1]);
     }
 
+    [Fact]
+    public async Task CompactAsync_PreflightTruncatesToolResultsBeforeDroppingGroups()
+    {
+        var cfg = new CompactionConfig
+        {
+            ContextWindow = 2_000,
+            SummaryReserveTokens = 0,
+            AutoCompactBufferTokens = 0,
+            KeepRecentMinTokens = 1,
+            KeepRecentMinGroups = 1,
+            KeepRecentMaxTokens = 100_000,
+        };
+        var client = new StubChatClient("<analysis>thinking</analysis><summary>truncated tool summary</summary>");
+        var partial = new PartialCompactor(client, cfg);
+        var messages = new List<ChatMessage>();
+        for (var round = 0; round < 3; round++)
+        {
+            var callId = $"call-{round}";
+            messages.Add(new ChatMessage(ChatRole.User, $"user turn {round}"));
+            messages.Add(new ChatMessage(ChatRole.Assistant, (IList<AIContent>)
+            [
+                new FunctionCallContent(callId, "ReadFile", new Dictionary<string, object?>())
+            ]));
+            messages.Add(new ChatMessage(ChatRole.Tool, (IList<AIContent>)
+            [
+                new FunctionResultContent(callId, round == 0 ? new string('x', 6_000) : "small result")
+            ]));
+        }
+
+        var result = await partial.CompactAsync(messages);
+
+        Assert.NotNull(result.Result);
+        Assert.Contains(client.Messages, m => m.Text?.Contains("user turn 0", StringComparison.Ordinal) == true);
+        var toolResults = client.Messages.SelectMany(message => message.Contents).OfType<FunctionResultContent>().ToArray();
+        Assert.Contains(toolResults, result => result.Result?.ToString()?.Contains("Output exceeded the available model context", StringComparison.Ordinal) == true);
+        Assert.DoesNotContain(toolResults, result => result.Result?.ToString()?.Length > 1_000);
+    }
+
     private static void AssertLegacyContextCompactionTask(ChatMessage message)
     {
         Assert.Equal(ChatRole.User, message.Role);
@@ -380,6 +496,36 @@ public sealed class PartialCompactorTests
         Assert.Contains("## Maintenance Task", message.Text);
         Assert.Contains("Task: context_compaction", message.Text);
         Assert.Contains("Do not call tools", message.Text);
+    }
+
+    private sealed class SequenceChatClient(params ChatResponse[] responses) : IChatClient
+    {
+        private readonly Queue<ChatResponse> _responses = new(responses);
+
+        public IReadOnlyList<ChatMessage> Messages { get; private set; } = [];
+        public ChatOptions? Options { get; private set; }
+        public int CallCount { get; private set; }
+
+        public Task<ChatResponse> GetResponseAsync(
+            IEnumerable<ChatMessage> messages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default)
+        {
+            CallCount++;
+            Messages = messages.ToArray();
+            Options = options;
+            return Task.FromResult(_responses.Dequeue());
+        }
+
+        public IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+            IEnumerable<ChatMessage> messages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+
+        public void Dispose() { }
     }
 
     private sealed class StubChatClient : IChatClient

@@ -17,9 +17,8 @@ public static class OpenAIAuthConstants
     public const string ClientId = "app_EMoamEEZ73f0CkXaXp7hrann";
 
     /// <summary>
-    /// Value sent in the <see cref="OriginatorHeader"/> on requests to
-    /// <c>chatgpt.com/backend-api/codex</c>. The ChatGPT backend rejects requests with unknown
-    /// originators on this path.
+    /// Value sent in the <see cref="OriginatorHeader"/> on subscription backend requests. The
+    /// backend rejects requests with unknown originators on this path.
     /// </summary>
     public const string Originator = "codex_cli_rs";
 
@@ -66,15 +65,30 @@ public static class OpenAIAuthConstants
     public const string ThreadIdHeader = "thread-id";
 
     /// <summary>
-    /// Compatibility spelling used by some Codex-adjacent gateways for the same value as
+    /// Compatibility spelling used by some OAuth-adjacent gateways for the same value as
     /// <see cref="SessionIdHeader"/>. DotCraft sends it only as an additional sticky-routing hint.
     /// </summary>
     public const string SessionIdCompatHeader = "session_id";
 
     /// <summary>
-    /// Compatibility spelling used by some Codex-adjacent gateways for the active thread id.
+    /// Compatibility spelling used by some OAuth-adjacent gateways for the active thread id.
     /// </summary>
     public const string ConversationIdHeader = "conversation_id";
+
+    /// <summary>Responses context-window identifier for the active provider-visible history lineage.</summary>
+    public const string WindowIdHeader = "x-codex-window-id";
+
+    /// <summary>Canonical Responses metadata envelope.</summary>
+    public const string TurnMetadataHeader = "x-codex-turn-metadata";
+
+    /// <summary>Provider-returned state replayed only within the same logical turn.</summary>
+    public const string TurnStateHeader = "x-codex-turn-state";
+
+    /// <summary>Provider compatibility header for child/fork lineage when known.</summary>
+    public const string ParentThreadIdHeader = "x-codex-parent-thread-id";
+
+    /// <summary>Provider compatibility metadata key for subagent kind when known.</summary>
+    public const string SubAgentHeader = "x-openai-subagent";
 
     /// <summary>Background refresh cadence for OAuth access tokens.</summary>
     public static readonly TimeSpan RefreshInterval = TimeSpan.FromHours(8);

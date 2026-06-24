@@ -47,7 +47,8 @@ internal static class ProviderChatClientAdapters
             promptCaching,
             traceCollector,
             includePromptCaching,
-            useDefaultReasoning);
+            useDefaultReasoning,
+            removesUnsupportedOAuthResponsesFields: ModelProviderAuthMethods.Normalize(runtime.AuthMethod) == ModelProviderAuthMethods.ChatGptOAuth);
     }
 
     public static void UseProviderAdapters(
@@ -61,7 +62,8 @@ internal static class ProviderChatClientAdapters
         AppConfig.PromptCachingConfig promptCaching,
         TraceCollector? traceCollector,
         bool includePromptCaching = true,
-        bool useDefaultReasoning = true)
+        bool useDefaultReasoning = true,
+        bool removesUnsupportedOAuthResponsesFields = false)
     {
         var normalizedProtocol = NormalizeProtocolOrNull(protocol);
         if (includePromptCaching)
@@ -77,7 +79,12 @@ internal static class ProviderChatClientAdapters
             reasoningConfig,
             useDefaultReasoning);
 
-        UsePromptCacheRequestShapeTracing(builder, normalizedProtocol, model, traceCollector);
+        UsePromptCacheRequestShapeTracing(
+            builder,
+            normalizedProtocol,
+            model,
+            traceCollector,
+            removesUnsupportedOAuthResponsesFields);
     }
 
     private static void UsePromptCaching(
@@ -151,7 +158,8 @@ internal static class ProviderChatClientAdapters
         ChatClientBuilder builder,
         string? normalizedProtocol,
         string? model,
-        TraceCollector? traceCollector)
+        TraceCollector? traceCollector,
+        bool removesUnsupportedOAuthResponsesFields)
     {
         if (traceCollector == null)
             return;
@@ -164,7 +172,8 @@ internal static class ProviderChatClientAdapters
         builder.Use(innerClient => new PromptCacheRequestShapeTracingChatClient(
             innerClient,
             traceCollector,
-            modelId));
+            modelId,
+            removesUnsupportedOAuthResponsesFields));
     }
 
     private static string? NormalizeProtocolOrNull(string? protocol)

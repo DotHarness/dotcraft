@@ -17,8 +17,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DotCraft.Automations", "src
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DotCraft.App.Tests", "tests\DotCraft.App.Tests\DotCraft.App.Tests.csproj", "{A81F6648-F084-4A1D-A881-D5684F9D3F1E}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{827E0CD3-B72D-47B6-A68D-7590B98EB39B}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DotCraft.Teams", "src\DotCraft.Teams\DotCraft.Teams.csproj", "{C52907E3-B6EA-4C96-B4F3-DFF45333F0AC}"
 EndProject
 Global

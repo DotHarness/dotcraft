@@ -98,6 +98,52 @@ public sealed class SessionServiceManualCompactionTests : IDisposable
     }
 
     [Fact]
+    public async Task CompactForkSendCompactAndResume_PreservesCompactedModelHistory()
+    {
+        var mainChat = new StreamingReplyChatClient("ok");
+        var summaryChat = new SequenceSummaryChatClient(
+            "<summary>base compacted history</summary>",
+            "<summary>fork compacted history</summary>");
+        await using var agentFactory = CreateAgentFactory(summaryChat);
+        var service = CreateService(agentFactory, mainChat);
+        var thread = await service.CreateThreadAsync(MakeIdentity());
+        for (var i = 0; i < 4; i++)
+        {
+            await DrainAsync(service.SubmitInputAsync(
+                thread.Id,
+                [new TextContent($"seed {i} " + new string('u', 1200))]));
+        }
+
+        var baseCompact = await service.CompactThreadAsync(thread.Id);
+        Assert.Equal("partial", baseCompact.Outcome);
+        await DrainAsync(service.SubmitInputAsync(
+            thread.Id,
+            [new TextContent("AFTER_COMPACT " + new string('a', 1200))]));
+        var fork = await service.ForkThreadAsync(thread.Id);
+        await DrainAsync(service.SubmitInputAsync(
+            fork.Id,
+            [new TextContent("AFTER_FORK " + new string('f', 1200))]));
+
+        var forkCompact = await service.CompactThreadAsync(fork.Id);
+        Assert.Equal("partial", forkCompact.Outcome);
+
+        Assert.True(summaryChat.Calls.Count >= 2);
+        var secondCompactRequest = string.Join("\n", summaryChat.Calls[^1].Select(MessageText));
+        Assert.True(
+            secondCompactRequest.Contains("base compacted history", StringComparison.Ordinal)
+            || secondCompactRequest.Contains("AFTER_COMPACT", StringComparison.Ordinal)
+            || secondCompactRequest.Contains("AFTER_FORK", StringComparison.Ordinal),
+            secondCompactRequest);
+
+        var store = new ThreadStore(_tempDir);
+        Assert.True(store.SessionFileExists(fork.Id));
+        store.DeleteSessionFile(fork.Id);
+        var session = await store.LoadOrCreateSessionAsync(CreateAgent(), fork.Id);
+        var restored = FormatHistory(session);
+        Assert.Contains(restored, text => text.Contains("fork compacted history", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task CompactThreadAsync_ShortHistoryFallsBackToFullCompaction()
     {
         var mainChat = new StreamingReplyChatClient("ok");
@@ -491,6 +537,27 @@ public sealed class SessionServiceManualCompactionTests : IDisposable
         evt.EventType == SessionEventType.ItemCompleted
         && evt.Payload is SessionItem { Payload: SystemNoticePayload { Kind: "compacted", Trigger: "manual" } };
 
+    private static AIAgent CreateAgent() =>
+        new StreamingReplyChatClient("unused").AsAIAgent(new ChatClientAgentOptions());
+
+    private static List<string> FormatHistory(AgentSession session)
+    {
+        Assert.True(session.TryGetInMemoryChatHistory(
+            out var chatHistory,
+            jsonSerializerOptions: SessionPersistenceJsonOptions.Default));
+
+        return chatHistory.Select(message => $"{message.Role}:{MessageText(message)}").ToList();
+    }
+
+    private static string MessageText(ChatMessage message) =>
+        string.Concat(message.Contents.Select(content => content switch
+        {
+            TextContent text => text.Text,
+            FunctionCallContent call => $"function_call:{call.Name}:{call.CallId}",
+            FunctionResultContent result => $"function_result:{result.CallId}:{result.Result}",
+            _ => content.ToString() ?? string.Empty
+        }));
+
     private static void AddCompletedTurn(SessionThread thread, int index, DateTimeOffset timestamp)
     {
         var turn = new SessionTurn
@@ -578,6 +645,34 @@ public sealed class SessionServiceManualCompactionTests : IDisposable
             CancellationToken cancellationToken = default)
         {
             Options = options;
+            return Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, responseText)));
+        }
+
+        public IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+            IEnumerable<ChatMessage> messages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+
+        public void Dispose() { }
+    }
+
+    private sealed class SequenceSummaryChatClient(params string[] responseTexts) : IChatClient
+    {
+        private int _callIndex;
+
+        public List<IReadOnlyList<ChatMessage>> Calls { get; } = [];
+
+        public Task<ChatResponse> GetResponseAsync(
+            IEnumerable<ChatMessage> messages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default)
+        {
+            Calls.Add(messages.ToList());
+            var responseText = responseTexts[Math.Min(_callIndex, responseTexts.Length - 1)];
+            _callIndex++;
             return Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, responseText)));
         }
 

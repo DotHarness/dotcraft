@@ -14,6 +14,12 @@ internal static class CompactionPreflightTrimmer
         var budget = Math.Max(1, config.EffectiveContextWindow());
         while (result.Count > 0 && EstimateSummaryRequest(result, summaryPrompt, taskMessage) > budget)
         {
+            if (CompactionMessageTruncator.TryTruncateOldestToolResult(result, out var toolTrimmed))
+            {
+                result = toolTrimmed;
+                continue;
+            }
+
             var trimmed = CompactionMessageTruncator.TruncateOldestGroups(result);
             if (trimmed.Count == 0 || trimmed.Count >= result.Count)
                 break;

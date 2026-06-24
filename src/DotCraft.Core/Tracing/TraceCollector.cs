@@ -134,6 +134,102 @@ public sealed class TraceCollector(TraceStore store)
         });
     }
 
+    public void RecordResponseTerminal(
+        string sessionKey,
+        string? responseId,
+        string? messageId,
+        string? modelId,
+        string? finishReason,
+        int? requestIndex,
+        object? metadata = null,
+        DateTimeOffset? timestamp = null,
+        string? reasoningEffort = null)
+    {
+        store.Record(new TraceEvent
+        {
+            Type = TraceEventType.ResponseTerminal,
+            SessionKey = sessionKey,
+            Timestamp = timestamp ?? DateTimeOffset.UtcNow,
+            Content = "Streaming response terminal",
+            ResponseId = responseId,
+            MessageId = messageId,
+            ModelId = modelId,
+            ReasoningEffort = reasoningEffort,
+            FinishReason = finishReason,
+            RequestIndex = requestIndex,
+            MetadataJson = SerializeMetadata(metadata)
+        });
+    }
+
+    public void RecordProviderError(
+        string sessionKey,
+        string? errorCode,
+        string? message,
+        string? contentType,
+        int? requestIndex,
+        string? responseId = null,
+        string? modelId = null,
+        DateTimeOffset? timestamp = null)
+    {
+        var messagePreview = TruncatePreview(message, 1000);
+        store.Record(new TraceEvent
+        {
+            Type = TraceEventType.ProviderError,
+            SessionKey = sessionKey,
+            Timestamp = timestamp ?? DateTimeOffset.UtcNow,
+            Content = string.IsNullOrWhiteSpace(messagePreview) ? "(provider error)" : messagePreview,
+            ResponseId = responseId,
+            ModelId = modelId,
+            RequestIndex = requestIndex,
+            MetadataJson = SerializeMetadata(new
+            {
+                errorCode,
+                messagePreview,
+                contentType,
+                requestIndex
+            })
+        });
+    }
+
+    public void RecordProviderResponseDiagnostic(
+        string sessionKey,
+        string providerProtocol,
+        string eventType,
+        string? responseId,
+        string? modelId,
+        string? status,
+        string? incompleteReason,
+        string? rawFinishReason,
+        bool usagePresent,
+        int? requestIndex = null,
+        bool metadataExtractionFailed = false,
+        DateTimeOffset? timestamp = null)
+    {
+        store.Record(new TraceEvent
+        {
+            Type = TraceEventType.ProviderResponseDiagnostic,
+            SessionKey = sessionKey,
+            Timestamp = timestamp ?? DateTimeOffset.UtcNow,
+            Content = string.IsNullOrWhiteSpace(incompleteReason)
+                ? $"{providerProtocol} {eventType}"
+                : $"{providerProtocol} {eventType}: {incompleteReason}",
+            ResponseId = responseId,
+            ModelId = modelId,
+            FinishReason = rawFinishReason,
+            RequestIndex = requestIndex,
+            MetadataJson = SerializeMetadata(new
+            {
+                providerProtocol,
+                eventType,
+                status,
+                incompleteReason,
+                rawFinishReason,
+                usagePresent,
+                metadataExtractionFailed
+            })
+        });
+    }
+
     /// <summary>
     /// Records that a skill was exercised — either referenced as a <c>$name</c> tag in turn
     /// input or loaded by the agent via the SkillView tool — powering the Profile skill
@@ -367,7 +463,14 @@ public sealed class TraceCollector(TraceStore store)
                 reasoningHash = snapshot.ReasoningHash,
                 inputHash = snapshot.InputHash,
                 inputItemCount = snapshot.InputItemCount,
-                inputItemHashes = snapshot.InputItemHashes
+                inputItemHashes = snapshot.InputItemHashes,
+                maxOutputTokensRequested = snapshot.MaxOutputTokensRequested,
+                maxOutputTokensPresentAfterOAuthRewrite = snapshot.MaxOutputTokensPresentAfterOAuthRewrite,
+                maxOutputTokensRemovedByOAuthRewrite = snapshot.MaxOutputTokensRemovedByOAuthRewrite,
+                reasoningEffort = snapshot.ReasoningEffort,
+                toolChoiceKind = snapshot.ToolChoiceKind,
+                toolCount = snapshot.ToolCount,
+                streamingEnabled = snapshot.StreamingEnabled
             })
         });
     }
@@ -389,6 +492,9 @@ public sealed class TraceCollector(TraceStore store)
         long? estimatedInputTokens = null,
         string? snapshotSource = null,
         string? snapshotInvalidReason = null,
+        int? effectiveBudgetTokens = null,
+        string? inputBudgetSource = null,
+        bool? preflightRejected = null,
         bool? cacheShapeApplied = null,
         string? cacheShapeKind = null,
         bool? promptCacheKeyPresent = null,
@@ -425,6 +531,9 @@ public sealed class TraceCollector(TraceStore store)
                 estimatedInputTokens,
                 snapshotSource,
                 snapshotInvalidReason,
+                effectiveBudgetTokens,
+                inputBudgetSource,
+                preflightRejected,
                 cacheShapeApplied,
                 cacheShapeKind,
                 promptCacheKeyPresent,
@@ -863,6 +972,13 @@ public sealed class TraceCollector(TraceStore store)
         }
     }
 
+    private static string? TruncatePreview(string? value, int maxChars)
+    {
+        if (string.IsNullOrEmpty(value) || value.Length <= maxChars)
+            return value;
+        return value[..maxChars].TrimEnd() + "...";
+    }
+
     private static string? NormalizeOptional(string? value)
     {
         var trimmed = value?.Trim();
@@ -963,6 +1079,13 @@ public sealed class TraceCollector(TraceStore store)
             callId = result.CallId,
             result = Agents.ImageContentSanitizingChatClient.DescribeResult(result.Result),
             exception = result.Exception?.Message
+        },
+        ErrorContent error => new
+        {
+            type = "error",
+            message = error.Message,
+            errorCode = error.ErrorCode,
+            details = error.Details?.ToString()
         },
         DataContent data => new
         {

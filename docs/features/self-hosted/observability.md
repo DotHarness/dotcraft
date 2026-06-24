@@ -42,6 +42,8 @@ After triggering a session, open **Trace Timeline** and confirm:
 
 If the token stream is empty, provider credentials / endpoint usually do not match. Check the merged result in the **Settings** page under `Providers[id]`.
 
+Provider-side terminal diagnostics are also recorded separately from visible response text. Use `ResponseTerminal`, `ProviderError`, and `ProviderResponseDiagnostic` events to distinguish empty text, provider error content, and provider incomplete/length-limit metadata.
+
 ### 2. Diagnose a failed tool call
 
 Open the session detail:

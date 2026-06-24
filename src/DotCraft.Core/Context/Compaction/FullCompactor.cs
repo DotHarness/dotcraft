@@ -94,7 +94,7 @@ public sealed class FullCompactor
             var fork = await RunSnapshotForkAsync(snapshot, snapshotTail, cancellationToken);
             if (fork.FallbackReason is not null)
             {
-                if (fork.FallbackReason == MaintenanceForkFallbackReasons.SnapshotTooLarge)
+                if (MaintenanceForkFallbackReasons.ShouldFallbackToTrimmedCompaction(fork.FallbackReason))
                     rawSummary = await RunLegacySummaryAsync(paired, snapshot, fallbackTools, threadId, cancellationToken);
                 else
                     return FullCompactAttempt.Unavailable(fork.FallbackReason);
@@ -139,7 +139,12 @@ public sealed class FullCompactor
             snapshot,
             new MaintenanceForkTask(
                 MaintenanceForkTaskKind.ContextCompaction,
-                BuildFullContextCompactionTaskInstructions()),
+                BuildFullContextCompactionTaskInstructions())
+            {
+                InputBudgetTokens = CompactionSummaryBudget.ResolveSnapshotInputBudget(_config, snapshot),
+                InputBudgetSource = "compaction.context_window_minus_summary_output",
+                MaxOutputTokensOverride = CompactionSummaryBudget.ResolveMaxOutputTokens(_config, snapshot)
+            },
             messagesBeforeTask,
             cancellationToken);
 
@@ -188,7 +193,9 @@ public sealed class FullCompactor
                 if (attempt == MaxPromptTooLongRetries)
                     return null;
 
-                candidate = CompactionMessageTruncator.TruncateOldestGroups(candidate);
+                candidate = CompactionMessageTruncator.TryTruncateOldestToolResult(candidate, out var toolTrimmed)
+                    ? toolTrimmed
+                    : CompactionMessageTruncator.TruncateOldestGroups(candidate);
                 if (candidate.Count == 0)
                     return null;
             }

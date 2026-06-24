@@ -56,6 +56,7 @@ internal sealed class OpenAIOAuthPipelinePolicy : PipelinePolicy
         ApplyAuthHeaders(message, token);
 
         await ProcessNextAsync(message, pipeline, currentIndex).ConfigureAwait(false);
+        CaptureTurnState(message);
 
         if (message.Response?.Status != 401)
             return;
@@ -74,11 +75,15 @@ internal sealed class OpenAIOAuthPipelinePolicy : PipelinePolicy
         // The transport policy below produces a fresh response on the retry; we do not need to
         // explicitly clear the existing one.
         await ProcessNextAsync(message, pipeline, currentIndex).ConfigureAwait(false);
+        CaptureTurnState(message);
     }
 
     private void ApplyAuthHeaders(PipelineMessage message, string accessToken)
     {
         var isResponsesRequest = IsResponsesRequest(message);
+        var codexMetadata = isResponsesRequest && !string.IsNullOrEmpty(_installationId)
+            ? OpenAIResponsesCodexMetadata.CreateSnapshot(_installationId)
+            : null;
         message.Request.Headers.Set("Authorization", $"Bearer {accessToken}");
         var accountId = ResolveAccountId();
         if (!string.IsNullOrEmpty(accountId))
@@ -87,7 +92,7 @@ internal sealed class OpenAIOAuthPipelinePolicy : PipelinePolicy
         if (!string.IsNullOrEmpty(_installationId))
             message.Request.Headers.Set(OpenAIAuthConstants.InstallationIdHeader, _installationId);
 
-        var sessionKey = TracingChatClient.CurrentSessionKey ?? TracingChatClient.GetActiveSessionKey();
+        var sessionKey = codexMetadata?.ThreadId ?? TracingChatClient.CurrentSessionKey ?? TracingChatClient.GetActiveSessionKey();
         if (!string.IsNullOrWhiteSpace(sessionKey))
         {
             var trimmed = sessionKey.Trim();
@@ -103,7 +108,29 @@ internal sealed class OpenAIOAuthPipelinePolicy : PipelinePolicy
                 "ChatGPT OAuth Responses request has no active DotCraft thread id; sending without thread-scoped sticky-routing headers.");
         }
 
+        if (codexMetadata != null)
+        {
+            SetIfPresent(message, OpenAIAuthConstants.WindowIdHeader, codexMetadata.WindowId);
+            SetIfPresent(message, OpenAIAuthConstants.TurnMetadataHeader, codexMetadata.TurnMetadataJson);
+            SetIfPresent(message, OpenAIAuthConstants.ParentThreadIdHeader, codexMetadata.ParentThreadId);
+            SetIfPresent(message, OpenAIAuthConstants.SubAgentHeader, codexMetadata.SubagentKind);
+            SetIfPresent(message, OpenAIAuthConstants.TurnStateHeader, codexMetadata.TurnState);
+        }
+
         ApplyExperimentalHeaders(message, isResponsesRequest);
+    }
+
+    private static void CaptureTurnState(PipelineMessage message)
+    {
+        if (!IsResponsesRequest(message))
+            return;
+
+        var context = OpenAIResponsesCodexRuntimeScope.Current;
+        if (context == null || message.Response == null)
+            return;
+
+        if (message.Response.Headers.TryGetValue(OpenAIAuthConstants.TurnStateHeader, out var value))
+            context.TryCaptureTurnState(value);
     }
 
     private string? ResolveAccountId()
@@ -150,6 +177,12 @@ internal sealed class OpenAIOAuthPipelinePolicy : PipelinePolicy
         var uri = message.Request.Uri;
         return uri is not null &&
                uri.AbsolutePath.EndsWith(ResponsesPathSuffix, StringComparison.Ordinal);
+    }
+
+    private static void SetIfPresent(PipelineMessage message, string headerName, string? value)
+    {
+        if (!string.IsNullOrWhiteSpace(value))
+            message.Request.Headers.Set(headerName, value.Trim());
     }
 
     private static string BuildCodexCompatibleUserAgent()

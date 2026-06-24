@@ -153,6 +153,36 @@ public sealed class StateBackedStoreTests : IDisposable
     }
 
     [Fact]
+    public void TraceStore_ResponseTerminal_UpdatesFinishReasonWithoutResponseCount()
+    {
+        var writer = new TraceStore(_tracingPath, 5000, true, _stateRuntime);
+        writer.Record(new TraceEvent
+        {
+            SessionKey = "thread-terminal",
+            Type = TraceEventType.ResponseTerminal,
+            FinishReason = "Length",
+            ResponseId = "resp-terminal",
+            MetadataJson = JsonSerializer.Serialize(new
+            {
+                hasText = false,
+                terminalUpdateSeen = true
+            })
+        });
+
+        var reader = new TraceStore(_tracingPath, 5000, false, _stateRuntime);
+        reader.LoadFromDisk();
+
+        var session = reader.GetSession("thread-terminal");
+        var evt = Assert.Single(reader.GetEvents("thread-terminal"));
+
+        Assert.Equal("Length", session?.LastFinishReason);
+        Assert.Equal(0, session?.ResponseCount);
+        Assert.Equal(TraceEventType.ResponseTerminal, evt.Type);
+        Assert.Equal("resp-terminal", evt.ResponseId);
+        Assert.Contains("terminalUpdateSeen", evt.MetadataJson);
+    }
+
+    [Fact]
     public void TraceStore_PageQuery_Returns_Latest_StateDb_Events_Beyond_InMemory_Cap()
     {
         var writer = new TraceStore(_tracingPath, 5000, true, _stateRuntime);

@@ -558,9 +558,8 @@ The current operational mode is provided in the latest system reminder runtime c
 
 Runtime context fields:
 - CurrentMode is Plan or Agent.
-- ModeTransition is None or PlanToAgent.
-- AllowedActionProfile describes the action class the execution policy allows for this turn.
-- PlanState describes whether a saved plan is available for this thread.
+- ModeTransition appears only as PlanToAgent on the first Agent turn after leaving Plan mode.
+- Plan appears only when a saved plan is available for this thread.
 
 The latest `## Mode Action` block is an instruction, not telemetry. Follow it when deciding whether to explore, create a plan, update task progress, or perform workspace-changing actions.
 
@@ -572,7 +571,7 @@ If you accidentally call a tool that the execution policy rejects, read the deni
 
 ### Agent Mode
 
-Agent mode may execute approved workspace changes according to the normal approval and sandbox policy. When an active plan exists or ModeTransition is PlanToAgent, follow the plan and keep progress state current for non-trivial work.
+Agent mode may execute approved workspace changes according to the normal approval and sandbox policy. When an active plan exists or the latest runtime context includes ModeTransition: PlanToAgent, follow the plan and keep progress state current for non-trivial work.
 
 ### Task State
 

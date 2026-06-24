@@ -7,16 +7,15 @@ using Microsoft.Extensions.Logging;
 namespace DotCraft.Agents;
 
 /// <summary>
-/// Injects <c>client_metadata.x-codex-installation-id</c> into outgoing OpenAI Responses request
-/// bodies when the underlying OpenAI client is bound to a ChatGPT subscription (OAuth) account.
-/// The ChatGPT backend uses this field as a stable sticky-routing hint that improves
-/// <c>prompt_cache_key</c> hit rates. Only patches requests whose path ends in
-/// <c>/responses</c>; preserves matching caller metadata and overwrites a mismatched
-/// installation id with the local ChatGPT OAuth installation id.
+/// Injects provider-compatible <c>client_metadata</c> into outgoing OpenAI Responses request bodies
+/// when the underlying OpenAI client is bound to a ChatGPT subscription (OAuth) account.
+/// Only patches requests whose path ends in <c>/responses</c>; preserves unrelated caller
+/// metadata while treating provider-reserved keys as authoritative runtime state.
 /// </summary>
 internal sealed class OpenAIResponsesClientMetadataPipelinePolicy : PipelinePolicy
 {
     private const string ResponsesPathSuffix = "/responses";
+    private const string MaxOutputTokensField = "max_output_tokens";
 
     private readonly string _installationId;
     private readonly ILogger? _logger;
@@ -79,8 +78,12 @@ internal sealed class OpenAIResponsesClientMetadataPipelinePolicy : PipelinePoli
     private void ApplyPatch(PipelineMessage message, MemoryStream stream)
     {
         var original = BinaryData.FromBytes(stream.ToArray()).ToString();
+        var snapshot = OpenAIResponsesCodexMetadata.CreateSnapshot(_installationId);
         var hadMismatchedInstallationId = HasDifferentInstallationIdMetadata(original, _installationId);
-        var rewritten = AddInstallationIdMetadata(original, _installationId);
+        var stripped = RemoveUnsupportedOAuthResponsesFields(original);
+        var working = stripped ?? original;
+        var withMetadata = AddCodexClientMetadata(working, snapshot);
+        var rewritten = withMetadata ?? stripped;
         if (rewritten is null)
             return;
 
@@ -102,6 +105,18 @@ internal sealed class OpenAIResponsesClientMetadataPipelinePolicy : PipelinePoli
             OpenAIAuthConstants.InstallationIdHeader,
             installationId);
     }
+
+    internal static string? AddCodexClientMetadata(
+        string json,
+        OpenAIResponsesCodexMetadataSnapshot snapshot)
+    {
+        return OpenAIResponsesRequestBodyCanonicalizer.AddClientMetadata(
+            json,
+            OpenAIResponsesCodexMetadata.BuildClientMetadata(snapshot));
+    }
+
+    internal static string? RemoveUnsupportedOAuthResponsesFields(string json) =>
+        OpenAIResponsesRequestBodyCanonicalizer.RemoveTopLevelFields(json, MaxOutputTokensField);
 
     private static bool HasDifferentInstallationIdMetadata(string json, string installationId)
     {

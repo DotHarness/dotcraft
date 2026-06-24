@@ -15,6 +15,9 @@ public enum TraceEventType
     DeferredToolLoading,
     TokenUsage,
     Error,
+    ResponseTerminal,
+    ProviderError,
+    ProviderResponseDiagnostic,
     ContextCompaction,
     Thinking,
     PromptCachePoint,
@@ -196,7 +199,14 @@ internal sealed record PromptCacheRequestShapeSnapshot(
     string? ReasoningHash,
     string InputHash,
     int InputItemCount,
-    IReadOnlyList<string> InputItemHashes);
+    IReadOnlyList<string> InputItemHashes,
+    int? MaxOutputTokensRequested,
+    bool MaxOutputTokensPresentAfterOAuthRewrite,
+    bool MaxOutputTokensRemovedByOAuthRewrite,
+    string? ReasoningEffort,
+    string ToolChoiceKind,
+    int ToolCount,
+    bool StreamingEnabled);
 
 internal sealed record PromptCacheSelectedPointDiagnostic(
     string Role,

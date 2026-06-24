@@ -7,7 +7,8 @@ namespace DotCraft.Agents;
 internal sealed class PromptCacheRequestShapeTracingChatClient(
     IChatClient innerClient,
     TraceCollector traceCollector,
-    string model) : DelegatingChatClient(innerClient)
+    string model,
+    bool removesUnsupportedOAuthResponsesFields = false) : DelegatingChatClient(innerClient)
 {
     public override async Task<ChatResponse> GetResponseAsync(
         IEnumerable<ChatMessage> messages,
@@ -15,6 +16,7 @@ internal sealed class PromptCacheRequestShapeTracingChatClient(
         CancellationToken cancellationToken = default)
     {
         var prepared = PrepareAndRecord(messages, options, out var preparedMessages);
+        using var traceScope = OpenAIResponsesToolSearchChatClient.UseTraceCollector(traceCollector);
         return await base.GetResponseAsync(preparedMessages, prepared, cancellationToken).ConfigureAwait(false);
     }
 
@@ -24,6 +26,7 @@ internal sealed class PromptCacheRequestShapeTracingChatClient(
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         var prepared = PrepareAndRecord(messages, options, out var preparedMessages);
+        using var traceScope = OpenAIResponsesToolSearchChatClient.UseTraceCollector(traceCollector);
         await foreach (var update in base.GetStreamingResponseAsync(preparedMessages, prepared, cancellationToken)
                            .WithCancellation(cancellationToken)
                            .ConfigureAwait(false))
@@ -39,7 +42,11 @@ internal sealed class PromptCacheRequestShapeTracingChatClient(
     {
         preparedMessages = messages as IReadOnlyList<ChatMessage> ?? messages.ToList();
         var preparedOptions = ResponsesToolSearchMapper.PreparePromptCacheOptions(options);
-        var request = ResponsesToolSearchMapper.CreateResponseRequest(model, preparedMessages, preparedOptions);
+        var request = ResponsesToolSearchMapper.CreateResponseRequest(
+            model,
+            preparedMessages,
+            preparedOptions,
+            removesUnsupportedOAuthResponsesFields: removesUnsupportedOAuthResponsesFields);
         var sessionKey = TracingChatClient.CurrentSessionKey ?? TracingChatClient.GetActiveSessionKey();
         if (!string.IsNullOrWhiteSpace(sessionKey))
         {

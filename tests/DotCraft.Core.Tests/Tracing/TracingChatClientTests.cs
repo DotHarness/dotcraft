@@ -55,6 +55,36 @@ public sealed class TracingChatClientTests
         Assert.Equal("model-a", evt.ModelId);
         Assert.Equal(ChatFinishReason.Stop.ToString(), evt.FinishReason);
         Assert.Equal(1, session?.ResponseCount);
+        Assert.Equal(ChatFinishReason.Stop.ToString(), session?.LastFinishReason);
+        Assert.Single(EventsOfType(store, "trace-response", TraceEventType.ResponseTerminal));
+    }
+
+    [Fact]
+    public async Task StreamingTerminalWithoutText_RecordsResponseTerminalAndLastFinishReason()
+    {
+        var store = await RunStreamingAsync([
+            new ChatResponseUpdate
+            {
+                Role = ChatRole.Assistant,
+                ResponseId = "resp-length",
+                ModelId = "model-a",
+                FinishReason = ChatFinishReason.Length
+            }
+        ], "trace-terminal-length");
+
+        var terminal = Assert.Single(EventsOfType(store, "trace-terminal-length", TraceEventType.ResponseTerminal));
+        var session = store.GetSession("trace-terminal-length");
+
+        Assert.Equal(ChatFinishReason.Length.ToString(), terminal.FinishReason);
+        Assert.Equal("resp-length", terminal.ResponseId);
+        Assert.Equal("model-a", terminal.ModelId);
+        Assert.Equal(ChatFinishReason.Length.ToString(), session?.LastFinishReason);
+        Assert.Equal(0, session?.ResponseCount);
+        Assert.Empty(EventsOfType(store, "trace-terminal-length", TraceEventType.Response));
+
+        using var metadata = System.Text.Json.JsonDocument.Parse(terminal.MetadataJson!);
+        Assert.False(metadata.RootElement.GetProperty("hasText").GetBoolean());
+        Assert.True(metadata.RootElement.GetProperty("terminalUpdateSeen").GetBoolean());
     }
 
     [Fact]
@@ -99,11 +129,11 @@ public sealed class TracingChatClientTests
         var events = NonRequestEvents(store, "trace-alternating");
 
         Assert.Equal(
-            [TraceEventType.Thinking, TraceEventType.Response, TraceEventType.Thinking],
+            [TraceEventType.Thinking, TraceEventType.Response, TraceEventType.Thinking, TraceEventType.ResponseTerminal],
             events.Select(e => e.Type).ToArray());
         Assert.Equal(
             ["first thought", "answer", "second thought"],
-            events.Select(e => e.Content ?? string.Empty).ToArray());
+            events.Take(3).Select(e => e.Content ?? string.Empty).ToArray());
     }
 
     [Fact]
@@ -121,7 +151,7 @@ public sealed class TracingChatClientTests
         var session = store.GetSession("trace-tool-boundary");
 
         Assert.Equal(
-            [TraceEventType.Response, TraceEventType.ToolCallStarted, TraceEventType.Response],
+            [TraceEventType.Response, TraceEventType.ToolCallStarted, TraceEventType.Response, TraceEventType.ResponseTerminal],
             events.Select(e => e.Type).ToArray());
         Assert.Equal("before tool", events[0].Content);
         Assert.Equal("ReadFile", events[1].ToolName);
@@ -140,11 +170,11 @@ public sealed class TracingChatClientTests
         var events = NonRequestEvents(store, "trace-exception");
 
         Assert.Equal(
-            [TraceEventType.Thinking, TraceEventType.Response, TraceEventType.Error],
+            [TraceEventType.Thinking, TraceEventType.Response, TraceEventType.ResponseTerminal, TraceEventType.Error],
             events.Select(e => e.Type).ToArray());
         Assert.Equal("thinking", events[0].Content);
         Assert.Equal("partial answer", events[1].Content);
-        Assert.Equal("boom", events[2].Content);
+        Assert.Equal("boom", events[3].Content);
     }
 
     [Fact]
@@ -177,11 +207,11 @@ public sealed class TracingChatClientTests
             Assert.Equal(2, session?.ThinkingCount);
             Assert.Equal(1, session?.ResponseCount);
             Assert.Equal(
-                [TraceEventType.Thinking, TraceEventType.Response, TraceEventType.Thinking],
+                [TraceEventType.Thinking, TraceEventType.Response, TraceEventType.Thinking, TraceEventType.ResponseTerminal],
                 events.Select(e => e.Type).ToArray());
             Assert.Equal(
                 ["one two", "answer segment", "after"],
-                events.Select(e => e.Content ?? string.Empty).ToArray());
+                events.Take(3).Select(e => e.Content ?? string.Empty).ToArray());
         }
         finally
         {
@@ -232,6 +262,50 @@ public sealed class TracingChatClientTests
         Assert.Equal(12, session?.TotalCacheWriteInputTokens);
         Assert.Equal(24, session?.TotalFreshInputTokens);
         Assert.Equal(0.64, session?.CacheHitRate);
+    }
+
+    [Fact]
+    public async Task StreamingUsageOnly_RecordsTokenUsageAndResponseTerminalWithoutResponseSegment()
+    {
+        var store = await RunStreamingAsync([
+            new ChatResponseUpdate(ChatRole.Assistant, [
+                new UsageContent(new UsageDetails
+                {
+                    InputTokenCount = 12,
+                    OutputTokenCount = 3
+                })
+            ])
+        ], "trace-usage-only");
+
+        Assert.Single(EventsOfType(store, "trace-usage-only", TraceEventType.TokenUsage));
+        Assert.Single(EventsOfType(store, "trace-usage-only", TraceEventType.ResponseTerminal));
+        Assert.Empty(EventsOfType(store, "trace-usage-only", TraceEventType.Response));
+    }
+
+    [Fact]
+    public async Task StreamingErrorContent_RecordsProviderError()
+    {
+        var store = await RunStreamingAsync([
+            new ChatResponseUpdate(ChatRole.Assistant, [
+                new ErrorContent("provider said no")
+                {
+                    ErrorCode = "provider_error",
+                    Details = "extra detail"
+                }
+            ])
+            {
+                ResponseId = "resp-error",
+                ModelId = "model-a"
+            }
+        ], "trace-provider-error");
+
+        var providerError = Assert.Single(EventsOfType(store, "trace-provider-error", TraceEventType.ProviderError));
+
+        Assert.Equal("resp-error", providerError.ResponseId);
+        Assert.Equal("model-a", providerError.ModelId);
+        Assert.Contains("provider said no", providerError.Content);
+        Assert.Contains("provider_error", providerError.MetadataJson);
+        Assert.Contains(nameof(ErrorContent), providerError.MetadataJson);
     }
 
     [Fact]

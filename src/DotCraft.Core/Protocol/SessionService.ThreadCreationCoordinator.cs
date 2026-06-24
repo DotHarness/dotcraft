@@ -1,4 +1,5 @@
 using System.Text.Json;
+using DotCraft.Context.Compaction;
 
 namespace DotCraft.Protocol;
 
@@ -142,13 +143,50 @@ public sealed partial class SessionService
 
             if (!forked.Ephemeral)
             {
+                var materialization = await owner.Persistence.BuildForkModelHistoryMaterializationAsync(source, forked, ct);
                 await owner.PersistThreadWithMaterializationAsync(forked, ct);
-                await owner.SaveContextUsageSnapshotAsync(forked.Id, 0, ct);
+                await PersistForkModelHistoryAsync(forked, materialization, ct);
             }
 
             broker.PublishThreadEvent(SessionEventType.ThreadCreated, forked);
             owner.ThreadCreatedForBroadcast?.Invoke(forked);
             return forked;
+        }
+
+        private async Task PersistForkModelHistoryAsync(
+            SessionThread forked,
+            ForkModelHistoryMaterialization materialization,
+            CancellationToken ct)
+        {
+            if (materialization.HasCompatibleCheckpoint)
+            {
+                var checkpointTokens = MessageTokenEstimator.Estimate(materialization.CheckpointReplacementHistory!);
+                await owner.Persistence.AppendCompactionCheckpointAsync(
+                    forked.Id,
+                    materialization.CheckpointCoveredThroughTurnId!,
+                    materialization.CheckpointReplacementHistory!,
+                    trigger: "fork",
+                    mode: string.IsNullOrWhiteSpace(materialization.CheckpointMode)
+                        ? "partial"
+                        : materialization.CheckpointMode!,
+                    tokensBefore: materialization.EstimatedTokens,
+                    tokensAfter: checkpointTokens,
+                    ct);
+            }
+
+            if (forked.HistoryMode == HistoryMode.Server && materialization.History.Count > 0)
+            {
+                await owner.EnsurePerThreadAgentIfMissingAsync(forked.Id, forked, ct);
+                var agent = owner.GetThreadAgentOrDefault(forked.Id);
+                await owner.Persistence.SaveSessionFromHistoryAsync(agent, forked.Id, materialization.History, ct);
+            }
+
+            await owner.SaveContextUsageSnapshotAsync(
+                forked.Id,
+                materialization.EstimatedTokens,
+                materialization.UsageSource,
+                materialization.UsageIsEstimate,
+                ct);
         }
 
         private async Task<SessionThread> LoadForkSourceThreadAsync(

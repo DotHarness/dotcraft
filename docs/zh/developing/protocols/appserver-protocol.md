@@ -414,7 +414,7 @@ Client 在调用 `skills/*` 前应检查 `capabilities.skillsManagement`，调�
 
 - `plugin/install`：把 Desktop 绑定分发的内置插件安装到当前工作区 `.craft/plugins/<id>/`，写入 `.builtin` marker，并默认启用。
 - `plugin/setEnabled`：只切换已安装插件是否进入 Agent 上下文，不安装也不删除目录。
-- `plugin/remove`：只移除带 `.builtin` marker 的 DotCraft 管理内置插件目录；不会删除用户维护的本地插件目录。
+- `plugin/remove`：移除 `.craft/plugins/<id>/` 下的工作区插件目录，包括 DotCraft 管理的内置插件，以及通过 `plugin/installLocal` 安装的用户本地插件；不会删除显式配置的外部插件 root 或 user-global 插件目录。
 
 插件安装、移除或启用状态变化会广播 `workspace/configChanged`，`regions: ["plugins", "skills"]`。插件贡献的 tools 在会话中投影为 `pluginFunctionCall` item；它们不会再生成 companion `toolCall` / `toolResult` item。面向用户的插件模型见 [插件与工具](../../features/agent-system/plugins-tools)。
 

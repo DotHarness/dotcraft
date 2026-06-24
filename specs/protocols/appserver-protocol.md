@@ -4352,7 +4352,7 @@ Returns one plugin by id.
 |-------|------|-------------|
 | `installed` | boolean | True when the plugin exists in a discovered local plugin root and can contribute runtime behavior. |
 | `installable` | boolean | True for known desktop-bundled built-in catalog entries that are not installed in the workspace. |
-| `removable` | boolean | True for DotCraft-managed built-in plugin directories that carry a `.builtin` marker. |
+| `removable` | boolean | True for workspace plugin directories under `.craft/plugins/<id>` that DotCraft can remove. |
 | `functions` | `PluginFunctionInfo[]` | Compatibility field for older clients; manifest native tools are no longer supported, so this is empty for plugin manifest contributions. |
 | `skills` | `PluginSkillInfo[]` | Plugin-contained skills declared by the bundle. |
 | `apps` | `PluginAppInfo[]` | Plugin-contained App Binding descriptors declared by the bundle. These are catalog/detail metadata; connection and binding still use `app/*` and `thread/appBindings/*`. |
@@ -4416,7 +4416,7 @@ On success, the server copies the directory to `.craft/plugins/<id>` as a user-o
 
 #### `plugin/remove`
 
-Removes a DotCraft-managed built-in plugin from the workspace.
+Removes a removable workspace plugin from the workspace.
 
 **Params**:
 
@@ -4426,7 +4426,7 @@ Removes a DotCraft-managed built-in plugin from the workspace.
 
 **Result**: `{ "plugin": PluginInfo }`
 
-The server deletes only workspace plugin directories that carry the `.builtin` marker and are inside `.craft/plugins`. User-owned plugin directories are rejected. On success, the server refreshes plugin-contributed skill sources, reconciles effective MCP runtime state, and emits `workspace/configChanged` with `source: "plugin/remove"` and `regions: ["plugins", "skills", "mcp"]`.
+The server deletes only removable workspace plugin directories that are inside `.craft/plugins`. This includes DotCraft-managed built-in installs and user-owned plugins installed with `plugin/installLocal`; explicit external plugin roots and user-global plugin directories are rejected. On success, the server refreshes plugin-contributed skill sources, reconciles effective MCP and LSP runtime state, and emits `workspace/configChanged` with `source: "plugin/remove"` and `regions: ["plugins", "skills", "mcp", "lsp"]`.
 
 #### `plugin/setEnabled`
 

@@ -80,9 +80,12 @@ Invariants the runtime must uphold:
 
 ### 2.3 `openai-responses` — ChatGPT OAuth path
 
-Same wire body as 2.2. The official Codex HTTP Responses baseline uses the body-level
-`prompt_cache_key` together with the hyphenated `session-id` / `thread-id` headers. DotCraft sends
-those baseline hints and a small set of additional sticky-routing hints for the
+Same wire body as 2.2 except that the OAuth transport omits the top-level `max_output_tokens`
+field. That field is an API-key Responses parameter; on this backend path it is treated as a local
+DotCraft budget only, with compaction summary length still enforced after the provider returns. The
+upstream HTTP Responses baseline uses the body-level `prompt_cache_key` together with the
+hyphenated `session-id` / `thread-id` headers. DotCraft sends those baseline hints and a small set
+of additional sticky-routing hints for the
 `chatgpt.com/backend-api/codex/responses` path:
 
 | Hint | Location | Value |
@@ -91,10 +94,13 @@ those baseline hints and a small set of additional sticky-routing hints for the
 | `chatgpt-account-id` | HTTP header | ChatGPT account id, resolved from the signed-in token/account store before runtime config |
 | `originator` | HTTP header | Fixed identifier the backend recognises (see [openai-subscription-auth](openai-subscription-auth.md)) |
 | `x-codex-installation-id` | HTTP header **and** request body `client_metadata` | Per-machine UUID v4, stable across processes and accounts |
-| `session-id` | HTTP header | Active thread id; Codex HTTP baseline |
-| `thread-id` | HTTP header | Active thread id; Codex HTTP baseline |
+| `session-id` | HTTP header | Active thread id; upstream HTTP baseline |
+| `thread-id` | HTTP header | Active thread id; upstream HTTP baseline |
 | `session_id` | HTTP header | Active thread id; DotCraft compatibility header for gateways/clients that key on snake_case |
 | `conversation_id` | HTTP header | Active thread id; DotCraft compatibility header for gateways/clients that key on snake_case |
+| `x-codex-window-id` | HTTP header and request body `client_metadata` | Stable internal context-window id for the active thread |
+| `x-codex-turn-metadata` | HTTP header and request body `client_metadata` | Canonical provider metadata JSON envelope for Responses routing |
+| `x-codex-turn-state` | HTTP header | Provider-returned state replayed only within the same logical turn |
 
 Each header is a stickiness signal at a different granularity:
 
@@ -106,9 +112,18 @@ chatgpt-account-id  ⊂  x-codex-installation-id  ⊂  session/thread headers
 Finer-grained signals let the load balancer park thread-scoped traffic on the cache shard that already holds the prefix. Coarser signals fall back when the LB cannot honour the finer one. All hints are sent on every request because each costs nothing.
 
 If the request carries caller-provided `client_metadata`, DotCraft preserves unrelated keys but
-treats `client_metadata.x-codex-installation-id` as authoritative local state. A mismatched value is
-overwritten to match the `x-codex-installation-id` header; otherwise the header/body pair could
-route the same request under two different installation identities.
+treats provider-reserved keys as authoritative runtime state. A mismatched reserved value is
+overwritten to match the active OAuth/runtime context; otherwise the header/body pair could route
+the same request under split identities. The body-level `x-codex-turn-metadata` string is the
+canonical metadata envelope. Flat `client_metadata` keys and HTTP headers are compatibility
+projections of the same values.
+
+Provider metadata and same-turn `x-codex-turn-state` are routing/runtime metadata. They are
+not model-visible prompt content and MUST NOT be considered part of DotCraft's prompt-prefix
+identity. Prompt-cache diagnostics may record separate metadata fingerprints for debugging, but
+changes in `turn_id`, `turn_started_at_unix_ms`, `x-codex-turn-state`, or other provider runtime
+metadata MUST NOT be classified as prompt/input/tool drift. Omitting OAuth-unsupported transport
+parameters such as `max_output_tokens` likewise MUST NOT be reported as prompt-prefix drift.
 
 Backend-specific thresholds — the public OpenAI thresholds do **not** apply here:
 
@@ -123,7 +138,7 @@ Backend-specific thresholds — the public OpenAI thresholds do **not** apply he
 | `prompt_cache_key` only | ~14% |
 | `prompt_cache_key` + `session_id` | ~38% (legacy isolated experiment) |
 | `prompt_cache_key` + `session-id` + `thread-id` + installation id | ~49% (pre-compat baseline) |
-| Current default: pre-compat baseline + `session_id` + `conversation_id` | Pending live-token A/B |
+| Current default: pre-compat baseline + `session_id` + `conversation_id` + provider metadata/state parity | Pending live-token A/B |
 
 ### 2.4 `anthropic`
 
@@ -156,6 +171,10 @@ For `openai-responses`, each provider request records a `PromptCacheRequestShape
 
 Prompt-cache investigations compare adjacent `PromptCacheRequestShape` events by `inputItemHashes` from the start of the array. A long common prefix with only appended tail items means the provider-visible prefix stayed stable; an early hash mismatch means the prefix changed at or before that input item. If `inputItemHashes` stay stable but `promptCacheKeyHash` changes, the cache identity changed. If both stay stable but cached reads drop, the trace should classify the evidence as provider/cache-routing-side rather than a DotCraft prefix mutation.
 
+The request-shape event intentionally excludes OAuth/runtime metadata from the prefix hashes.
+When emitted, a metadata diagnostic hash is informational only and is not used to increment prompt
+drift counters.
+
 ---
 
 ## 3. Cross-cutting design rules
@@ -184,6 +203,7 @@ These rules apply to every protocol unless the protocol contract above explicitl
 | Cache-read drop after reasoning settings change | Prompt-cache diagnostics MUST include a reasoning/thinking fingerprint and classify the drop as a request-shape change instead of likely server-side routing |
 | One-shot maintenance fork writes an unneeded tail breakpoint | Fork cache shaping MUST use `readOnlyPrefix` when no tool execution is enabled, mark only the reusable prefix, and skip committing fork-local remembered breakpoints |
 | Provider sticky-routing flap (ChatGPT OAuth) | Recognised as an upstream limitation. The runtime reports observed coverage faithfully and does not retry just to chase a higher hit rate |
+| Provider returns an empty post-tool response | After at least one tool result has been returned to the model, an empty provider response is retried once. If the retry is also empty, the turn fails explicitly with `agent_empty_response` rather than completing silently |
 
 ---
 
@@ -209,7 +229,7 @@ Each protocol's envelope is a calibration baseline, not a contract. Provider rou
 
 ## 6. Future work
 
-- Verify each routing header in isolation against the ChatGPT backend to learn which of installation id / `session-id` / `thread-id` / `session_id` / `conversation_id` carries the most weight. Today they are all sent because each costs little and none requires turn-state fabrication.
-- Run opt-in A/B profiles for Codex-shaped User-Agent and explicit `OpenAI-Beta` values, measuring cache coverage, 401/403 rate, first-token latency, and rate-limit headers before considering any default change.
+- Verify each routing header in isolation against the ChatGPT backend to learn which of installation id / `session-id` / `thread-id` / `session_id` / `conversation_id` / `x-codex-window-id` / `x-codex-turn-state` carries the most weight. Today they are all sent when available because each costs little and turn-state is replayed only when the provider establishes it.
+- Run opt-in A/B profiles for the alternate User-Agent profile and explicit `OpenAI-Beta` values, measuring cache coverage, 401/403 rate, first-token latency, and rate-limit headers before considering any default change.
 - Surface per-call cache coverage in the desktop dashboard so drift from the expected pattern is visible without trace-database inspection.
 - Audit cache-marker placement on the anthropic protocol: the current marks cover system prompt and snapshot prefix; additional marks on large stable always-loaded tool definitions or the first user instruction block may raise the envelope.

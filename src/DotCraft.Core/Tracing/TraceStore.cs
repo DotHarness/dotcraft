@@ -748,6 +748,10 @@ public sealed class TraceStore
                 if (!string.IsNullOrEmpty(evt.FinishReason))
                     session.LastFinishReason = evt.FinishReason;
                 break;
+            case TraceEventType.ResponseTerminal:
+                if (!string.IsNullOrEmpty(evt.FinishReason))
+                    session.LastFinishReason = evt.FinishReason;
+                break;
             case TraceEventType.MaintenanceForkResponse:
                 session.MaintenanceForkResponseCount++;
                 break;
@@ -777,6 +781,7 @@ public sealed class TraceStore
                     session.AddReasoningOutputTokens(evt.ReasoningOutputTokens.Value);
                 break;
             case TraceEventType.Error:
+            case TraceEventType.ProviderError:
                 session.ErrorCount++;
                 break;
             case TraceEventType.ContextCompaction:

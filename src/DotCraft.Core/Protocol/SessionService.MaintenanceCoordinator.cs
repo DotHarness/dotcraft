@@ -85,6 +85,12 @@ public sealed partial class SessionService
                 CompactionStatus status;
                 try
                 {
+                    using var codexResponsesScope = OpenAIResponsesCodexRuntimeScope.Set(
+                        CreateCodexRuntimeContext(
+                            thread,
+                            turn: null,
+                            owner.GetOrCreateCodexContextWindow(threadId),
+                            OpenAIResponsesCodexRequestKinds.Compaction));
                     var compactResult = await pipeline.TryManualCompactHistoryAsync(
                         historyForEstimate,
                         threadId,
@@ -147,6 +153,7 @@ public sealed partial class SessionService
                             status.ThresholdAfter.Tokens,
                             source: "compacted_estimate",
                             ct: maintenanceCt);
+                        owner.TryAdvanceCodexContextWindowAfterReplacement(threadId);
                         owner.ReleaseStableContextPages(threadId);
                         if (status.Outcome == CompactionOutcome.Partial)
                             owner.TraceCollector?.RecordContextCompaction(threadId);
@@ -277,6 +284,12 @@ public sealed partial class SessionService
             using var linkedMaintenanceCts = CancellationTokenSource.CreateLinkedTokenSource(ct, maintenance.Token);
             try
             {
+                using var codexResponsesScope = OpenAIResponsesCodexRuntimeScope.Set(
+                    CreateCodexRuntimeContext(
+                        thread,
+                        turn: null,
+                        owner.GetOrCreateCodexContextWindow(threadId),
+                        OpenAIResponsesCodexRequestKinds.Memory));
                 return await RunMemoryConsolidationAsync(
                     threadId,
                     thread,

@@ -27,7 +27,21 @@ public enum MaintenanceForkTaskKind
 /// <param name="Instructions">Task-specific instructions appended at the tail.</param>
 public sealed record MaintenanceForkTask(
     MaintenanceForkTaskKind Kind,
-    string Instructions);
+    string Instructions)
+{
+    /// <summary>
+    /// Optional input-token budget for the maintenance fork. When the estimated
+    /// request exceeds this value, the provider request is skipped and a
+    /// fallback reason is returned.
+    /// </summary>
+    public int? InputBudgetTokens { get; init; }
+
+    /// <summary>Machine-readable source for <see cref="InputBudgetTokens"/> diagnostics.</summary>
+    public string? InputBudgetSource { get; init; }
+
+    /// <summary>Optional maximum output-token budget for this maintenance task.</summary>
+    public int? MaxOutputTokensOverride { get; init; }
+}
 
 /// <summary>
 /// Result returned from a maintenance fork attempt.
@@ -65,6 +79,13 @@ public static class MaintenanceForkFallbackReasons
 {
     /// <summary>Provider rejected the snapshot fork because the input exceeded the context window.</summary>
     public const string SnapshotTooLarge = "maintenance_snapshot_too_large";
+
+    /// <summary>Provider returned empty assistant text with non-fatal error content.</summary>
+    public const string EmptyErrorResponse = "maintenance_empty_error_response";
+
+    /// <summary>True when a compaction snapshot failure should try the trimmed legacy path.</summary>
+    public static bool ShouldFallbackToTrimmedCompaction(string? reason) =>
+        reason is SnapshotTooLarge or EmptyErrorResponse;
 }
 
 /// <summary>
@@ -156,7 +177,7 @@ public sealed class MaintenanceForkRunner(
         CancellationToken cancellationToken = default)
     {
         var messages = BuildMessages(snapshot, task, messagesBeforeTask).ToList();
-        var options = BuildOptions(snapshot);
+        var options = BuildOptions(snapshot, task);
         var sessionKey = ResolveTraceSessionKey(snapshot);
         var maintenancePathKey = BuildMaintenancePathKey(snapshot, task, sessionKey);
         var cacheWriteMode = ResolveCacheWriteMode(toolExecution);
@@ -187,6 +208,11 @@ public sealed class MaintenanceForkRunner(
             estimatedInputTokens: estimatedInputTokens,
             snapshotSource: snapshot.SnapshotSource,
             snapshotInvalidReason: snapshot.SnapshotInvalidReason,
+            effectiveBudgetTokens: task.InputBudgetTokens,
+            inputBudgetSource: task.InputBudgetSource,
+            preflightRejected: task.InputBudgetTokens is > 0
+                ? IsOverInputBudget(estimatedInputTokens, task)
+                : null,
             cacheShapeApplied: cacheDiagnostics.CacheShapeApplied,
             cacheShapeKind: cacheDiagnostics.CacheShapeKind,
             promptCacheKeyPresent: cacheDiagnostics.PromptCacheKeyPresent,
@@ -196,6 +222,20 @@ public sealed class MaintenanceForkRunner(
             cacheWriteMode: cacheDiagnostics.CacheWriteMode,
             tailCacheWriteSkipped: cacheDiagnostics.TailCacheWriteSkipped,
             providerImplicitCacheWrite: cacheDiagnostics.ProviderImplicitCacheWrite);
+
+        if (IsOverInputBudget(estimatedInputTokens, task))
+        {
+            traceCollector?.RecordMaintenanceForkResponse(
+                sessionKey,
+                task.Kind,
+                MaintenanceForkFallbackReasons.SnapshotTooLarge,
+                providerError: "maintenance fork preflight rejected because the estimated input exceeded the effective maintenance input budget");
+            return new MaintenanceForkResult(
+                task.Kind,
+                null,
+                MaintenanceForkFallbackReasons.SnapshotTooLarge,
+                null);
+        }
 
         try
         {
@@ -215,7 +255,7 @@ public sealed class MaintenanceForkRunner(
             TokenUsageSnapshot? usage = response.Usage is null
                 ? null
                 : TokenUsageExtractor.FromResponse(response);
-            var fallbackReason = ClassifyFallbackReason(response);
+            var fallbackReason = CompactionTrace.ClassifyFallbackReason(response);
             traceCollector?.RecordMaintenanceForkResponse(
                 sessionKey,
                 task.Kind,
@@ -393,7 +433,7 @@ public sealed class MaintenanceForkRunner(
     internal static ChatMessage BuildTaskMessage(MaintenanceForkTask task) =>
         new(ChatRole.User, FormatTask(task));
 
-    internal static ChatOptions BuildOptions(PromptRequestSnapshot snapshot)
+    internal static ChatOptions BuildOptions(PromptRequestSnapshot snapshot, MaintenanceForkTask? task = null)
     {
         return new ChatOptions
         {
@@ -402,7 +442,7 @@ public sealed class MaintenanceForkRunner(
             Tools = snapshot.Tools.ToList(),
             Reasoning = snapshot.Reasoning,
             ResponseFormat = snapshot.ResponseFormat,
-            MaxOutputTokens = snapshot.MaxOutputTokens,
+            MaxOutputTokens = task?.MaxOutputTokensOverride ?? snapshot.MaxOutputTokens,
             AllowMultipleToolCalls = snapshot.AllowMultipleToolCalls,
             ToolMode = snapshot.ToolMode
         };
@@ -492,26 +532,8 @@ Task: {FormatKind(task.Kind)}
         return Convert.ToHexString(bytes)[..12];
     }
 
-    private static string? ClassifyFallbackReason(ChatResponse response)
-    {
-        if (!string.IsNullOrWhiteSpace(response.Text))
-            return null;
-
-        return ResponseContainsToolCall(response)
-            ? "tool_call_without_text"
-            : "empty_response";
-    }
-
-    private static bool ResponseContainsToolCall(ChatResponse response)
-    {
-        foreach (var message in response.Messages)
-        {
-            if (message.Contents.OfType<FunctionCallContent>().Any())
-                return true;
-        }
-
-        return false;
-    }
+    private static bool IsOverInputBudget(long estimatedInputTokens, MaintenanceForkTask task) =>
+        task.InputBudgetTokens is > 0 && estimatedInputTokens > task.InputBudgetTokens.Value;
 
     private static long EstimateInputTokens(
         PromptRequestSnapshot snapshot,

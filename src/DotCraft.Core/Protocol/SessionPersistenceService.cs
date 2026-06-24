@@ -30,10 +30,13 @@ public sealed class SessionPersistenceService(
 {
     private readonly TraceStore _traceStore = traceStore ?? new TraceStore();
     private readonly TokenUsageStore? _tokenUsageStore = tokenUsageStore;
-    private readonly StateRuntime? _stateRuntime = stateRuntime;
+    private readonly StateRuntime _stateRuntime = stateRuntime ?? threadStore.StateRuntime;
+    private readonly CodexContextWindowStore _codexContextWindowStore = new(stateRuntime ?? threadStore.StateRuntime);
 
     public Task SaveThreadAsync(SessionThread thread, CancellationToken ct = default)
         => threadStore.SaveThreadAsync(thread, ct);
+
+    internal StateRuntime StateRuntime => _stateRuntime;
 
     public Task<SessionThread?> LoadThreadAsync(string threadId, CancellationToken ct = default)
         => threadStore.LoadThreadAsync(threadId, ct);
@@ -50,6 +53,19 @@ public sealed class SessionPersistenceService(
         string threadId,
         CancellationToken ct = default)
         => threadStore.SaveSessionAsync(agent, session, threadId, ct);
+
+    internal Task<AgentSession> SaveSessionFromHistoryAsync(
+        AIAgent agent,
+        string threadId,
+        IReadOnlyList<ChatMessage> history,
+        CancellationToken ct = default)
+        => threadStore.SaveSessionFromHistoryAsync(agent, threadId, history, ct);
+
+    internal Task<ForkModelHistoryMaterialization> BuildForkModelHistoryMaterializationAsync(
+        SessionThread source,
+        SessionThread forked,
+        CancellationToken ct = default)
+        => threadStore.BuildForkModelHistoryMaterializationAsync(source, forked, ct);
 
     public Task RebuildAndSaveSessionFromThreadAsync(
         AIAgent agent,
@@ -139,6 +155,12 @@ public sealed class SessionPersistenceService(
         bool isEstimate,
         CancellationToken ct = default)
         => threadStore.SaveContextUsageAnchorAsync(threadId, displayTokens, anchor, source, isEstimate, ct);
+
+    internal CodexContextWindowRecord GetOrCreateCodexContextWindow(string threadId)
+        => _codexContextWindowStore.GetOrCreate(threadId);
+
+    internal CodexContextWindowRecord AdvanceCodexContextWindow(string threadId)
+        => _codexContextWindowStore.Advance(threadId);
 
     public IReadOnlyDictionary<string, string> GetItemWidgetStates(string threadId)
         => threadStore.LoadItemWidgetStates(threadId);
@@ -307,9 +329,6 @@ public sealed class SessionPersistenceService(
     /// </summary>
     public bool CompactStateIfWorthwhile(bool force = false)
     {
-        if (_stateRuntime == null)
-            return false;
-
         try
         {
             return _stateRuntime.CompactIfWorthwhile(force);

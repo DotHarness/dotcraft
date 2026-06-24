@@ -80,6 +80,20 @@ public sealed class OpenAIResponsesRequestBodyCanonicalizerTests
         Assert.Null(rewritten);
     }
 
+    [Fact]
+    public void RemoveTopLevelFields_RemovesUnsupportedFieldAndPreservesOtherFields()
+    {
+        var rewritten = OpenAIResponsesRequestBodyCanonicalizer.RemoveTopLevelFields(
+            """{"model":"gpt-test","max_output_tokens":12000,"input":[],"stream":true}""",
+            "max_output_tokens");
+
+        Assert.NotNull(rewritten);
+        using var document = JsonDocument.Parse(rewritten!);
+        Assert.False(document.RootElement.TryGetProperty("max_output_tokens", out _));
+        Assert.Equal("gpt-test", document.RootElement.GetProperty("model").GetString());
+        Assert.True(document.RootElement.GetProperty("stream").GetBoolean());
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("[]")]

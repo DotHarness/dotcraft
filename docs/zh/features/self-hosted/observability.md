@@ -42,6 +42,8 @@ dotcraft gateway
 
 如果 token 流为空，多半是 Provider 凭据 / Endpoint 不匹配；可在 **Settings** 页面的 `Providers[id]` 部分查看合并结果。
 
+Provider 侧终止诊断会和可见响应文本分开记录。排查空文本、provider 错误内容或 provider incomplete / length-limit 元数据时，优先查看 `ResponseTerminal`、`ProviderError` 和 `ProviderResponseDiagnostic` 事件。
+
 ### 2. 排查工具调用失败
 
 打开会话详情：
