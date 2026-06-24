@@ -299,7 +299,45 @@ public sealed class MaintenanceForkRunnerTests
     }
 
     [Fact]
-    public async Task RunAsync_RecordsEstimatedInputWithoutPreflightMetadata()
+    public async Task RunAsync_PreflightRejectsOversizedSnapshotWithTerminalTrace()
+    {
+        var store = new TraceStore();
+        var collector = new TraceCollector(store);
+        var chatClient = new RecordingChatClient("<summary>provider should not be called</summary>");
+        var runner = new MaintenanceForkRunner(chatClient, collector);
+        var snapshot = PromptRequestSnapshot.Capture(
+            [new ChatMessage(ChatRole.User, "start")],
+            new ChatOptions { Instructions = "stable base", ModelId = "gpt-test" },
+            mode: "agent",
+            threadId: "thread_1",
+            turnId: "turn_1",
+            estimatedInputTokens: 10_000);
+
+        var result = await runner.RunAsync(
+            snapshot,
+            new MaintenanceForkTask(MaintenanceForkTaskKind.ContextCompaction, "Summarize older context.")
+            {
+                InputBudgetTokens = 1_000,
+                InputBudgetSource = "test-budget",
+                MaxOutputTokensOverride = 123
+            });
+
+        Assert.Equal(MaintenanceForkFallbackReasons.SnapshotTooLarge, result.FallbackReason);
+        Assert.Empty(chatClient.Messages);
+        var request = Assert.Single(
+            store.GetEvents("thread_1"),
+            e => e.Type == TraceEventType.MaintenanceForkRequest);
+        Assert.Contains("\"effectiveBudgetTokens\":1000", request.MetadataJson);
+        Assert.Contains("\"inputBudgetSource\":\"test-budget\"", request.MetadataJson);
+        Assert.Contains("\"preflightRejected\":true", request.MetadataJson);
+        var response = Assert.Single(
+            store.GetEvents("thread_1"),
+            e => e.Type == TraceEventType.MaintenanceForkResponse);
+        Assert.Contains($"\"fallbackReason\":\"{MaintenanceForkFallbackReasons.SnapshotTooLarge}\"", response.MetadataJson);
+    }
+
+    [Fact]
+    public async Task RunAsync_RecordsEstimatedInputWithEmptyBudgetMetadata()
     {
         var store = new TraceStore();
         var collector = new TraceCollector(store);
@@ -323,12 +361,54 @@ public sealed class MaintenanceForkRunnerTests
             store.GetEvents("thread_1"),
             e => e.Type == TraceEventType.MaintenanceForkRequest);
         Assert.Contains("\"estimatedInputTokens\":", request.MetadataJson);
-        Assert.DoesNotContain("effectiveBudgetTokens", request.MetadataJson);
-        Assert.DoesNotContain("preflightRejected", request.MetadataJson);
+        Assert.Contains("\"effectiveBudgetTokens\":null", request.MetadataJson);
+        Assert.Contains("\"inputBudgetSource\":null", request.MetadataJson);
+        Assert.Contains("\"preflightRejected\":null", request.MetadataJson);
         var response = Assert.Single(
             store.GetEvents("thread_1"),
             e => e.Type == TraceEventType.MaintenanceForkResponse);
         Assert.Contains("\"fallbackReason\":null", response.MetadataJson);
+    }
+
+    [Fact]
+    public async Task RunAsync_RecordsEmptyErrorContentFallback()
+    {
+        var store = new TraceStore();
+        var collector = new TraceCollector(store);
+        var response = new ChatResponse(new ChatMessage(ChatRole.Assistant, (IList<AIContent>)
+        [
+            new ErrorContent("provider returned an empty error response")
+        ]));
+        var runner = new MaintenanceForkRunner(new RecordingChatClient(response), collector);
+        var snapshot = CreateSnapshot();
+
+        var result = await runner.RunAsync(
+            snapshot,
+            new MaintenanceForkTask(MaintenanceForkTaskKind.ContextCompaction, "Summarize older context."));
+
+        Assert.Equal(MaintenanceForkFallbackReasons.EmptyErrorResponse, result.FallbackReason);
+        var trace = Assert.Single(
+            store.GetEvents("thread_1"),
+            e => e.Type == TraceEventType.MaintenanceForkResponse);
+        Assert.Contains($"\"fallbackReason\":\"{MaintenanceForkFallbackReasons.EmptyErrorResponse}\"", trace.MetadataJson);
+        Assert.Contains("\"type\":\"error\"", trace.MetadataJson);
+    }
+
+    [Fact]
+    public async Task RunAsync_MapsEmptyContextOverflowErrorContentToSnapshotTooLarge()
+    {
+        var response = new ChatResponse(new ChatMessage(ChatRole.Assistant, (IList<AIContent>)
+        [
+            new ErrorContent("context_length_exceeded: input exceeds the context window")
+        ]));
+        var runner = new MaintenanceForkRunner(new RecordingChatClient(response));
+        var snapshot = CreateSnapshot();
+
+        var result = await runner.RunAsync(
+            snapshot,
+            new MaintenanceForkTask(MaintenanceForkTaskKind.ContextCompaction, "Summarize older context."));
+
+        Assert.Equal(MaintenanceForkFallbackReasons.SnapshotTooLarge, result.FallbackReason);
     }
 
     [Fact]

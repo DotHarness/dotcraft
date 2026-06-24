@@ -494,7 +494,7 @@ public sealed class CompactionPipelineTests
         Assert.Single(events, e => e.Type == TraceEventType.MaintenanceForkResponse);
         Assert.Contains("\"toolCount\":1", events.First(e => e.Type == TraceEventType.MaintenanceForkRequest).MetadataJson);
         Assert.Equal("ReadFile", chat.Options?.Tools?.Single().Name);
-        Assert.Equal(64_000, chat.Options?.MaxOutputTokens);
+        Assert.Equal(12_000, chat.Options?.MaxOutputTokens);
     }
 
     [Fact]

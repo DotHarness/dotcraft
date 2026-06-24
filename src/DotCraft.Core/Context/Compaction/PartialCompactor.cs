@@ -166,7 +166,7 @@ public sealed class PartialCompactor
             var fork = await RunSnapshotForkAsync(snapshot, splitIndex, tail, messagesBeforeTask, cancellationToken);
             if (fork.FallbackReason is not null)
             {
-                if (fork.FallbackReason == MaintenanceForkFallbackReasons.SnapshotTooLarge)
+                if (MaintenanceForkFallbackReasons.ShouldFallbackToTrimmedCompaction(fork.FallbackReason))
                     rawSummary = await RunLegacySummaryAsync(paired, snapshot, fallbackTools, threadId, cancellationToken);
                 else
                     return PartialCompactAttempt.Unavailable(fork.FallbackReason);
@@ -213,7 +213,12 @@ public sealed class PartialCompactor
             snapshot,
             new MaintenanceForkTask(
                 MaintenanceForkTaskKind.ContextCompaction,
-                instructions),
+                instructions)
+            {
+                InputBudgetTokens = CompactionSummaryBudget.ResolveSnapshotInputBudget(_config, snapshot),
+                InputBudgetSource = "compaction.context_window_minus_summary_output",
+                MaxOutputTokensOverride = CompactionSummaryBudget.ResolveMaxOutputTokens(_config, snapshot)
+            },
             messagesBeforeTask,
             cancellationToken);
 
@@ -252,7 +257,9 @@ public sealed class PartialCompactor
                 if (attempt == MaxPromptTooLongRetries)
                     return null;
 
-                candidate = CompactionMessageTruncator.TruncateOldestGroups(candidate);
+                candidate = CompactionMessageTruncator.TryTruncateOldestToolResult(candidate, out var toolTrimmed)
+                    ? toolTrimmed
+                    : CompactionMessageTruncator.TruncateOldestGroups(candidate);
                 if (candidate.Count == 0)
                     return null;
             }

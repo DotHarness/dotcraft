@@ -609,6 +609,35 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
     }
 
     [Fact]
+    public async Task GetStreamingResponseAsync_ThrowsEmptyResponse_WhenProviderEmitsOnlyErrorContent()
+    {
+        var client = new StreamingFunctionInvokingChatClient(
+            new FixedUpdatesFakeChatClient(new ChatResponseUpdate(ChatRole.Assistant, [
+                new ErrorContent("provider returned an empty error response")
+            ])));
+
+        var ex = await Assert.ThrowsAsync<EmptyProviderResponseException>(() =>
+            CollectAsync(client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")])));
+
+        Assert.Contains("provider returned an empty error response", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task GetStreamingResponseAsync_ThrowsContextOverflow_WhenErrorContentSaysPromptTooLong()
+    {
+        var client = new StreamingFunctionInvokingChatClient(
+            new FixedUpdatesFakeChatClient(new ChatResponseUpdate(ChatRole.Assistant, [
+                new ErrorContent("context_length_exceeded: input exceeds the context window")
+            ])));
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            CollectAsync(client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")])));
+
+        Assert.IsNotType<EmptyProviderResponseException>(ex);
+        Assert.Contains("context_length_exceeded", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task GetStreamingResponseAsync_EmitsToolExecutionCompletionAsEachParallelToolFinishes()
     {
         var inner = new ParallelToolsFakeChatClient();

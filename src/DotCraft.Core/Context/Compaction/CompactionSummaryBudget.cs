@@ -14,6 +14,14 @@ internal static class CompactionSummaryBudget
             : configured;
     }
 
+    public static int ResolveSnapshotInputBudget(
+        CompactionConfig config,
+        PromptRequestSnapshot? snapshot)
+    {
+        var maxOutputTokens = ResolveMaxOutputTokens(config, snapshot);
+        return Math.Max(1, config.ContextWindow - maxOutputTokens);
+    }
+
     public static bool ExceedsMaxOutputTokens(
         string summary,
         CompactionConfig config)

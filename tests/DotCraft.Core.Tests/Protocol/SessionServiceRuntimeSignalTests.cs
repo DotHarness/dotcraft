@@ -428,6 +428,47 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
     }
 
     [Fact]
+    public async Task SubmitInputAsync_WhenPreSamplingCompactionFailsAboveBlockingLimit_MarksTurnFailed()
+    {
+        IChatClient seedChatClient = new FakeChatClient(
+        [
+            new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("seed ok")])
+        ]);
+        await using var seedFactory = CreateAgentFactory(seedChatClient, configureConfig: ConfigureSmallCompaction);
+        var seedService = CreateService(seedFactory, seedChatClient);
+        var thread = await seedService.CreateThreadAsync(MakeIdentity());
+        await DrainAsync(seedService.SubmitInputAsync(thread.Id, [new TextContent("seed " + new string('u', 2_000))]));
+
+        var mainChatClient = new RecordingChatClient("main should not run");
+        await using var failingFactory = CreateAgentFactory(
+            mainChatClient,
+            configureConfig: ConfigureSmallCompaction,
+            compactionChatClient: new ThrowingChatClient(new InvalidOperationException("summary failed")));
+        var svc = CreateService(failingFactory, mainChatClient, useStreamingFunctionInvoker: true);
+        await svc.ResumeThreadAsync(thread.Id);
+        await new ThreadStore(_tempDir).SaveContextUsageTokensAsync(
+            thread.Id,
+            50_000,
+            source: "history_estimate",
+            isEstimate: true);
+
+        var events = await CollectAsync(svc.SubmitInputAsync(thread.Id, [new TextContent("continue")]));
+
+        Assert.Contains(events, evt => IsSystemEvent(evt, "compacting"));
+        Assert.Contains(events, evt => IsSystemEvent(evt, "compactFailed"));
+        Assert.DoesNotContain(events, evt => evt.EventType == SessionEventType.TurnCompleted);
+        Assert.Contains(events, evt => evt.EventType == SessionEventType.TurnFailed);
+        Assert.Empty(mainChatClient.LastMessages);
+        var updatedThread = await svc.GetThreadAsync(thread.Id);
+        var turn = updatedThread.Turns.Last();
+        Assert.Equal(TurnStatus.Failed, turn.Status);
+        var errorItem = Assert.Single(turn.Items, item => item.Type == ItemType.Error);
+        var errorPayload = Assert.IsType<ErrorPayload>(errorItem.Payload);
+        Assert.Equal("agent_context_compaction_failed", errorPayload.Code);
+        Assert.Contains("Context compaction failed", errorPayload.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task SubmitInputAsync_UnverifiedProviderContextDoesNotAutoCompact()
     {
         IChatClient chatClient = new FakeChatClient([

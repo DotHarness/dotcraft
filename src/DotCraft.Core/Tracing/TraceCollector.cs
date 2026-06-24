@@ -389,6 +389,9 @@ public sealed class TraceCollector(TraceStore store)
         long? estimatedInputTokens = null,
         string? snapshotSource = null,
         string? snapshotInvalidReason = null,
+        int? effectiveBudgetTokens = null,
+        string? inputBudgetSource = null,
+        bool? preflightRejected = null,
         bool? cacheShapeApplied = null,
         string? cacheShapeKind = null,
         bool? promptCacheKeyPresent = null,
@@ -425,6 +428,9 @@ public sealed class TraceCollector(TraceStore store)
                 estimatedInputTokens,
                 snapshotSource,
                 snapshotInvalidReason,
+                effectiveBudgetTokens,
+                inputBudgetSource,
+                preflightRejected,
                 cacheShapeApplied,
                 cacheShapeKind,
                 promptCacheKeyPresent,
@@ -963,6 +969,13 @@ public sealed class TraceCollector(TraceStore store)
             callId = result.CallId,
             result = Agents.ImageContentSanitizingChatClient.DescribeResult(result.Result),
             exception = result.Exception?.Message
+        },
+        ErrorContent error => new
+        {
+            type = "error",
+            message = error.Message,
+            errorCode = error.ErrorCode,
+            details = error.Details?.ToString()
         },
         DataContent data => new
         {

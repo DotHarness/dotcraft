@@ -99,6 +99,25 @@ public sealed class ModelContextWindowCatalogTests : IDisposable
     }
 
     [Fact]
+    public void ResolveCompactionConfig_CapsGpt55InferredWindowByDefault()
+    {
+        Assert.Equal(1_050_000, ModelContextWindowCatalog.Resolve("gpt-5.5"));
+
+        var config = new AppConfig
+        {
+            Model = "gpt-5.5"
+        };
+        ModelContextWindowCatalog.ApplyToConfig(
+            config,
+            System.Text.Json.Nodes.JsonNode.Parse("""{ "Model": "gpt-5.5" }""")!,
+            globalConfigPath: null,
+            workspaceConfigPath: null);
+
+        Assert.Equal(256_000, config.Compaction.ContextWindow);
+        Assert.Equal(236_000, config.Compaction.EffectiveContextWindow());
+    }
+
+    [Fact]
     public void ResolveCompactionConfig_UsesEffectiveModel_WhenContextWindowIsInferred()
     {
         var config = new AppConfig

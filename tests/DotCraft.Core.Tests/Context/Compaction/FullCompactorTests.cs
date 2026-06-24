@@ -43,7 +43,7 @@ public sealed class FullCompactorTests
         Assert.Contains("Task: context_compaction", client.Messages[^1].Text);
         Assert.Equal("stable base instructions", client.Options?.Instructions);
         Assert.Equal("gpt-test", client.Options?.ModelId);
-        Assert.Equal(64_000, client.Options?.MaxOutputTokens);
+        Assert.Equal(12_000, client.Options?.MaxOutputTokens);
         var capturedTool = Assert.Single(client.Options?.Tools ?? []);
         Assert.Equal("ReadFile", capturedTool.Name);
     }
@@ -73,6 +73,71 @@ public sealed class FullCompactorTests
         Assert.NotNull(result.Result);
         Assert.Equal(2, client.CallCount);
         Assert.Contains("legacy full after overflow", result.Result!.FormattedSummary);
+        Assert.Equal(ChatRole.System, client.Messages[0].Role);
+        AssertLegacyContextCompactionTask(client.Messages[^1]);
+    }
+
+    [Fact]
+    public async Task CompactAsync_WithOversizedSnapshotPreflightFallsBackToLegacySummary()
+    {
+        var client = new RecordingChatClient("<analysis>ok</analysis><summary>legacy full after preflight</summary>");
+        var config = new CompactionConfig
+        {
+            ContextWindow = 1_000,
+            SummaryMaxOutputTokens = 100
+        };
+        var full = new FullCompactor(client, new MaintenanceForkRunner(client), config: config);
+        var snapshotMessages = new List<ChatMessage>
+        {
+            new(ChatRole.User, "first user"),
+            new(ChatRole.Assistant, "first assistant")
+        };
+        var snapshot = PromptRequestSnapshot.Capture(
+            snapshotMessages,
+            new ChatOptions
+            {
+                Instructions = "stable base instructions",
+                ModelId = "gpt-test"
+            },
+            estimatedInputTokens: 10_000);
+
+        var result = await full.CompactAsync(snapshotMessages, snapshot);
+
+        Assert.NotNull(result.Result);
+        Assert.Equal(1, client.CallCount);
+        Assert.Contains("legacy full after preflight", result.Result!.FormattedSummary);
+        Assert.Equal(ChatRole.System, client.Messages[0].Role);
+        AssertLegacyContextCompactionTask(client.Messages[^1]);
+    }
+
+    [Fact]
+    public async Task CompactAsync_WithSnapshotEmptyErrorContentFallsBackToLegacySummary()
+    {
+        var client = new SequenceChatClient(
+            new ChatResponse(new ChatMessage(ChatRole.Assistant, (IList<AIContent>)
+            [
+                new ErrorContent("provider returned an empty error response")
+            ])),
+            new ChatResponse(new ChatMessage(ChatRole.Assistant, "<analysis>ok</analysis><summary>legacy full after empty error</summary>")));
+        var full = new FullCompactor(client, new MaintenanceForkRunner(client));
+        var snapshotMessages = new List<ChatMessage>
+        {
+            new(ChatRole.User, "first user"),
+            new(ChatRole.Assistant, "first assistant")
+        };
+        var snapshot = PromptRequestSnapshot.Capture(
+            snapshotMessages,
+            new ChatOptions
+            {
+                Instructions = "stable base instructions",
+                ModelId = "gpt-test"
+            });
+
+        var result = await full.CompactAsync(snapshotMessages, snapshot);
+
+        Assert.NotNull(result.Result);
+        Assert.Equal(2, client.CallCount);
+        Assert.Contains("legacy full after empty error", result.Result!.FormattedSummary);
         Assert.Equal(ChatRole.System, client.Messages[0].Role);
         AssertLegacyContextCompactionTask(client.Messages[^1]);
     }
@@ -198,6 +263,36 @@ public sealed class FullCompactorTests
         Assert.Contains("## Maintenance Task", message.Text);
         Assert.Contains("Task: context_compaction", message.Text);
         Assert.Contains("Do not call tools", message.Text);
+    }
+
+    private sealed class SequenceChatClient(params ChatResponse[] responses) : IChatClient
+    {
+        private readonly Queue<ChatResponse> _responses = new(responses);
+
+        public IReadOnlyList<ChatMessage> Messages { get; private set; } = [];
+        public ChatOptions? Options { get; private set; }
+        public int CallCount { get; private set; }
+
+        public Task<ChatResponse> GetResponseAsync(
+            IEnumerable<ChatMessage> messages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default)
+        {
+            CallCount++;
+            Messages = messages.ToArray();
+            Options = options;
+            return Task.FromResult(_responses.Dequeue());
+        }
+
+        public IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+            IEnumerable<ChatMessage> messages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+
+        public void Dispose() { }
     }
 
     private sealed class RecordingChatClient(string responseText, int promptTooLongFailures = 0) : IChatClient

@@ -6,6 +6,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.ExceptionServices;
 using System.Text.RegularExpressions;
 using DotCraft.Context;
+using DotCraft.Context.Compaction;
 using DotCraft.Protocol;
 using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
@@ -215,10 +216,16 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
             }
 
             var hasEffectiveProviderOutput = HasEffectiveProviderOutput(updates);
+            var providerErrorText = CollectErrorContentText(updates);
             if (!hasEffectiveProviderOutput && !hasAnyEffectiveProviderOutput)
             {
-                throw new EmptyProviderResponseException(
-                    "The model provider returned an empty streaming response before any assistant content, reasoning output, or tool call was received.");
+                var message = BuildEmptyProviderResponseMessage(
+                    "The model provider returned an empty streaming response before any assistant content, reasoning output, or tool call was received.",
+                    providerErrorText);
+                if (CompactionErrors.IsPromptTooLongMessage(providerErrorText))
+                    throw new InvalidOperationException(message);
+
+                throw new EmptyProviderResponseException(message);
             }
             if (!hasEffectiveProviderOutput && awaitingPostToolContinuation)
             {
@@ -228,8 +235,13 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
                     continue;
                 }
 
-                throw new EmptyProviderResponseException(
-                    "The model provider returned an empty streaming response after tool results were returned to the model.");
+                var message = BuildEmptyProviderResponseMessage(
+                    "The model provider returned an empty streaming response after tool results were returned to the model.",
+                    providerErrorText);
+                if (CompactionErrors.IsPromptTooLongMessage(providerErrorText))
+                    throw new InvalidOperationException(message);
+
+                throw new EmptyProviderResponseException(message);
             }
 
             hasAnyEffectiveProviderOutput |= hasEffectiveProviderOutput;
@@ -417,6 +429,7 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
         content switch
         {
             UsageContent => false,
+            ErrorContent => false,
             TextContent text => !string.IsNullOrEmpty(text.Text),
             TextReasoningContent reasoning => ReasoningContentHelper.TryGetText(reasoning, out _),
             ToolCallArgumentsDeltaContent delta => !string.IsNullOrEmpty(delta.ArgumentsDelta)
@@ -426,6 +439,42 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
             FunctionCallContent => false,
             _ => true
         };
+
+    private static string? CollectErrorContentText(IEnumerable<ChatResponseUpdate> updates)
+    {
+        List<string>? values = null;
+        foreach (var update in updates)
+        {
+            foreach (var content in update.Contents)
+            {
+                if (content is not ErrorContent error)
+                    continue;
+
+                values ??= [];
+                Add(error.ErrorCode);
+                Add(error.Message);
+                Add(error.Details?.ToString());
+            }
+        }
+
+        return values is { Count: > 0 }
+            ? string.Join(" ", values)
+            : null;
+
+        void Add(string? value)
+        {
+            if (!string.IsNullOrWhiteSpace(value))
+                values!.Add(value.Trim());
+        }
+    }
+
+    private static string BuildEmptyProviderResponseMessage(string fallbackMessage, string? providerErrorText)
+    {
+        if (string.IsNullOrWhiteSpace(providerErrorText))
+            return fallbackMessage;
+
+        return fallbackMessage + " Provider error: " + providerErrorText;
+    }
 
     private static void MarkServerHandledFunctionCalls(List<ChatResponseUpdate> updates, List<FunctionCallContent> functionCalls)
     {

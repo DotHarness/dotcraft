@@ -1607,6 +1607,9 @@ public sealed partial class SessionService(
                         percentLeft: threshold.PercentLeft,
                         tokenCount: threshold.Tokens,
                         contextUsage: preCompactUsage);
+                    if (threshold.AboveBlocking)
+                        throw new ContextCompactionFailedException(BuildContextCompactionFailedMessage(ex.Message));
+
                     return null;
                 }
                 finally
@@ -1677,11 +1680,23 @@ public sealed partial class SessionService(
                             percentLeft: status.ThresholdAfter.PercentLeft,
                             tokenCount: status.ThresholdAfter.Tokens,
                             contextUsage: preCompactUsage);
+                        if (threshold.AboveBlocking)
+                            throw new ContextCompactionFailedException(BuildContextCompactionFailedMessage(status.FailureReason));
+
                         return null;
 
                     default:
                         return null;
                 }
+            }
+
+            static string BuildContextCompactionFailedMessage(string? failureReason)
+            {
+                const string fallback =
+                    "Context compaction failed while the thread was over the blocking context limit. Compact, roll back, or start a new thread, then retry.";
+                return string.IsNullOrWhiteSpace(failureReason)
+                    ? fallback
+                    : fallback + " Failure reason: " + failureReason;
             }
 
             async Task FailAndPersistTurnAsync(string errorMsg, string errorCode)
@@ -2562,6 +2577,13 @@ public sealed partial class SessionService(
                 eventChannel.EmitTurnCancelled(turn, "Caller cancelled");
                 ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnCancelled);
                 await PersistCancelledTurnAsync();
+            }
+            catch (ContextCompactionFailedException ex)
+            {
+                logger?.LogError(ex, "Turn execution failed because context compaction failed above the blocking limit for thread {ThreadId}", threadId);
+                await FailAndPersistTurnAsync(
+                    ex.Message,
+                    "agent_context_compaction_failed");
             }
             catch (EmptyProviderResponseException ex)
             {
@@ -3808,6 +3830,8 @@ public sealed partial class SessionService(
         string Mode,
         long TokensBefore,
         long TokensAfter);
+
+    private sealed class ContextCompactionFailedException(string message) : InvalidOperationException(message);
 
     private async Task<AIAgent> BuildAgentForThreadAsync(
         SessionThread thread,
