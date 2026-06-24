@@ -563,13 +563,29 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
       return
     }
     // The closed tab was active — pick the nearest remaining open system tab,
-    // else the supplied viewer tab, else the launcher. Panel visibility is left
-    // untouched (the user closed a tab from inside the already-open panel).
+    // else the supplied viewer tab, else the launcher.
     const nextActive: ActiveDetailTab = openSystemTabs.length > 0
       ? { kind: 'system', id: openSystemTabs[openSystemTabs.length - 1] }
       : fallbackViewerId
         ? { kind: 'viewer', id: fallbackViewerId }
         : { kind: 'launcher' }
+    // Closing the last tab empties the panel — auto-hide it instead of leaving the
+    // launcher (welcome) state on screen. The launcher is only meant to appear when
+    // the user manually opens an empty panel. A remaining system/viewer tab keeps
+    // the panel visible (untouched, since the user closed the tab from inside it).
+    if (nextActive.kind === 'launcher') {
+      set({
+        openSystemTabs,
+        activeDetailTab: nextActive,
+        detailPanelPreferredVisible: false,
+        ...resolveResponsivePanels(
+          state.responsiveLayout,
+          state.sidebarPreferredCollapsed,
+          false
+        )
+      })
+      return
+    }
     set({ openSystemTabs, activeDetailTab: nextActive })
   },
 
@@ -598,12 +614,21 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
     // Fall back to an open system tab (preferring the last-active one if it is
     // still open), otherwise the launcher.
     const open = state.openSystemTabs
-    const nextActive: ActiveDetailTab = open.length > 0
-      ? { kind: 'system', id: open.includes(state.lastActiveSystemTab) ? state.lastActiveSystemTab : open[open.length - 1] }
-      : { kind: 'launcher' }
-    const detailPanelPreferredVisible = options?.reveal === false
-      ? state.detailPanelPreferredVisible
-      : true
+    const fallsBackToLauncher = open.length === 0
+    const nextActive: ActiveDetailTab = fallsBackToLauncher
+      ? { kind: 'launcher' }
+      : { kind: 'system', id: open.includes(state.lastActiveSystemTab) ? state.lastActiveSystemTab : open[open.length - 1] }
+    // Closing the last tab empties the panel — auto-hide it instead of leaving the
+    // launcher (welcome) state on screen, so the welcome page only appears when the
+    // user manually opens an empty panel. This also covers the thread-switch sync
+    // (closeViewerTab({ reveal: false })): switching to a thread with no tabs closes
+    // the panel rather than auto-opening it onto the launcher. A remaining system
+    // tab keeps the panel visible (honoring an explicit reveal:false).
+    const detailPanelPreferredVisible = fallsBackToLauncher
+      ? false
+      : options?.reveal === false
+        ? state.detailPanelPreferredVisible
+        : true
     set({
       activeDetailTab: nextActive,
       detailPanelPreferredVisible,

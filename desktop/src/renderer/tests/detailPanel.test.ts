@@ -367,6 +367,58 @@ describe('optional system tabs', () => {
     expect(ui().activeDetailTab).toEqual({ kind: 'launcher' })
   })
 
+  it('closeViewerTab auto-hides the panel when closing the last tab (no launcher)', () => {
+    useUIStore.setState({ detailPanelPreferredVisible: true, detailPanelVisible: true, responsiveLayout: 'full' })
+    ui().setActiveViewerTab('vtab-1')
+    ui().closeViewerTab()
+    expect(ui().activeDetailTab).toEqual({ kind: 'launcher' })
+    expect(ui().detailPanelPreferredVisible).toBe(false)
+    expect(ui().detailPanelVisible).toBe(false)
+  })
+
+  it('closeViewerTab keeps the panel open when a system tab remains', () => {
+    useUIStore.setState({ detailPanelPreferredVisible: true, detailPanelVisible: true, responsiveLayout: 'full' })
+    ui().setActiveDetailTab('plan')
+    ui().setActiveViewerTab('vtab-2')
+    ui().closeViewerTab()
+    expect(ui().activeDetailTab).toEqual({ kind: 'system', id: 'plan' })
+    expect(ui().detailPanelPreferredVisible).toBe(true)
+    expect(ui().detailPanelVisible).toBe(true)
+  })
+
+  it('closeViewerTab({ reveal: false }) still hides the panel when it empties (thread switch)', () => {
+    // Mirrors App.tsx's thread-switch sync: switching to a thread with no tabs must
+    // close the panel rather than auto-open it onto the launcher/welcome page.
+    useUIStore.setState({
+      detailPanelPreferredVisible: true,
+      detailPanelVisible: true,
+      responsiveLayout: 'full',
+      openSystemTabs: [],
+      activeDetailTab: { kind: 'viewer', id: 'vtab-from-prev-thread' }
+    })
+    ui().closeViewerTab({ reveal: false })
+    expect(ui().activeDetailTab).toEqual({ kind: 'launcher' })
+    expect(ui().detailPanelPreferredVisible).toBe(false)
+    expect(ui().detailPanelVisible).toBe(false)
+  })
+
+  it('closeSystemTab auto-hides the panel when closing the last tab (no launcher)', () => {
+    useUIStore.setState({ detailPanelPreferredVisible: true, detailPanelVisible: true, responsiveLayout: 'full' })
+    ui().setActiveDetailTab('changes')
+    ui().closeSystemTab('changes')
+    expect(ui().activeDetailTab).toEqual({ kind: 'launcher' })
+    expect(ui().detailPanelPreferredVisible).toBe(false)
+    expect(ui().detailPanelVisible).toBe(false)
+  })
+
+  it('closeSystemTab keeps the panel open when a viewer tab remains', () => {
+    useUIStore.setState({ detailPanelPreferredVisible: true, detailPanelVisible: true, responsiveLayout: 'full' })
+    ui().setActiveDetailTab('changes')
+    ui().closeSystemTab('changes', 'vtab-9')
+    expect(ui().activeDetailTab).toEqual({ kind: 'viewer', id: 'vtab-9' })
+    expect(ui().detailPanelVisible).toBe(true)
+  })
+
   it('resetDetailTabs clears open tabs and shows the launcher', () => {
     ui().setActiveDetailTab('changes')
     ui().resetDetailTabs()
