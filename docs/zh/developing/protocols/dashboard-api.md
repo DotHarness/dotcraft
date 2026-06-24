@@ -28,6 +28,9 @@ dotcraft dashboard --workspace /path/to/workspace --host 127.0.0.1 --port 8081
 | `DeferredToolLoading` | provider-native 延迟加载通过 `tool_search` 激活 deferred tools |
 | `TokenUsage` | 单次 LLM 请求 token 用量 |
 | `Error` | 运行错误 |
+| `ResponseTerminal` | 单次 streaming 模型请求的终止诊断，即使没有文本也会记录 |
+| `ProviderError` | provider 返回的非致命错误内容或 stream 错误元数据 |
+| `ProviderResponseDiagnostic` | provider 终止/status 元数据摘要，例如 OpenAI Responses incomplete reason |
 | `ContextCompaction` | 上下文压缩 |
 | `Thinking` | 模型思考内容段 |
 | `PromptCachePoint` | prompt cache 断点摘要 |
@@ -38,11 +41,13 @@ dotcraft dashboard --workspace /path/to/workspace --host 127.0.0.1 --port 8081
 
 Dashboard 按连续 streaming 内容段记录 `Thinking` 和 `Response` trace 事件，既不按每个 chunk 记录，也不会把整轮合并为单条。`ThinkingCount` 和 `ResponseCount` 因此表示内容段数量。实时事件流会在当前段结束并落库后发送该段事件。
 
+`ResponseTerminal`、`ProviderError` 和 `ProviderResponseDiagnostic` 都是诊断事件，不会作为 assistant 文本写入 thread rollout。`ResponseTerminal` 会记录 finish reason 和 stream 形状元数据，即使用量-only 或空 terminal update 也会保留证据。Provider 诊断只记录经过清洗的 status、error、incomplete reason 等字段；不得持久化原始 prompt、完整请求体或大型工具参数。
+
 上下文压缩和记忆整理等维护请求会额外记录 `MaintenanceForkRequest` / `MaintenanceForkResponse`。这些事件保留维护请求的 snapshot/cache 元数据、模型原始文本、tool-call-only 响应、空响应和 fallback reason，便于从 Dashboard 诊断 `summary_unavailable` 一类问题。
 
 `DeferredToolLoading` 用于 provider-native 延迟工具加载，目前包括 OpenAI Responses 和 Anthropic beta tool references。它记录本次由 `tool_search` 新激活的工具、配置策略、实际生效模式、provider protocol 和 provider wire shape；该事件不代表顶层 `tools` 被注入，也不会标记为 prompt-cache tool extension。
 
-`PromptCacheRequestShape` 记录 OpenAI Responses 请求组件的 SHA-256 哈希和计数，用于比较相邻请求的前缀稳定性。
+`PromptCacheRequestShape` 记录 OpenAI Responses 请求组件的 SHA-256 哈希和计数，用于比较相邻请求的前缀稳定性。它还会记录清洗后的有效选项标记，例如请求是否设置 max output tokens、OAuth rewrite 是否会在传输前移除该字段、reasoning effort、tool-choice 类型、工具数量和 streaming 模式。
 
 ## 端点
 

@@ -697,6 +697,9 @@ body {
 .trace-event.type-DeferredToolLoading { border-left-color: var(--cyan); }
 .trace-event.type-TokenUsage { border-left-color: var(--cyan); }
 .trace-event.type-Error { border-left-color: var(--error); }
+.trace-event.type-ResponseTerminal { border-left-color: var(--text-muted); }
+.trace-event.type-ProviderError { border-left-color: var(--error); }
+.trace-event.type-ProviderResponseDiagnostic { border-left-color: var(--cyan); }
 .trace-event.type-ContextCompaction { border-left-color: var(--text-muted); }
 .trace-event.type-ThreadRollback { border-left-color: var(--warning); }
 .trace-event.type-Thinking { border-left-color: var(--thinking); }
@@ -736,7 +739,10 @@ body {
 .trace-event.type-ToolInjection .trace-icon,
 .trace-event.type-DeferredToolLoading .trace-icon,
 .trace-event.type-TokenUsage .trace-icon { color: var(--cyan); border-color: color-mix(in srgb, var(--cyan) 45%, var(--border)); background: var(--cyan-dim); }
-.trace-event.type-Error .trace-icon { color: var(--error); border-color: color-mix(in srgb, var(--error) 45%, var(--border)); background: var(--error-dim); }
+.trace-event.type-Error .trace-icon,
+.trace-event.type-ProviderError .trace-icon { color: var(--error); border-color: color-mix(in srgb, var(--error) 45%, var(--border)); background: var(--error-dim); }
+.trace-event.type-ResponseTerminal .trace-icon { color: var(--text-muted); border-color: color-mix(in srgb, var(--text-muted) 45%, var(--border)); background: var(--bg-card); }
+.trace-event.type-ProviderResponseDiagnostic .trace-icon { color: var(--cyan); border-color: color-mix(in srgb, var(--cyan) 45%, var(--border)); background: var(--cyan-dim); }
 .trace-event.type-ThreadRollback .trace-icon { color: var(--warning); border-color: color-mix(in srgb, var(--warning) 45%, var(--border)); background: var(--warning-dim); }
 .trace-event.type-Thinking .trace-icon { color: var(--thinking); border-color: color-mix(in srgb, var(--thinking) 45%, var(--border)); background: var(--thinking-dim); }
 
@@ -3212,6 +3218,62 @@ function renderTraceEvent(e) {
           ${metaLine}
           ${renderMetadataDetail(evtId, e.metadataJson)}
         </div></div>`;
+
+    case 'ResponseTerminal': {
+      const md = parseTraceMetadata(e.metadataJson) || {};
+      const badges = [
+        md.terminalUpdateSeen ? '<span class="badge badge-success">terminal update</span>' : '<span class="badge badge-warning">stream ended</span>',
+        md.hasText ? '<span class="badge badge-success">text</span>' : '<span class="badge badge-info">no text</span>',
+        md.hasToolCall ? '<span class="badge badge-warning">tool call</span>' : '',
+        md.hasUsage ? '<span class="badge badge-info">usage</span>' : '',
+        md.requestIndex != null ? `<span class="badge badge-info">request ${escapeHtml(String(md.requestIndex))}</span>` : ''
+      ].filter(Boolean).join('');
+      return `<div class="trace-event type-ResponseTerminal">
+        <div class="trace-time">${time}</div>
+        <div class="trace-icon">${iconSvg('stop', 14)}</div>
+        <div class="trace-body">
+          <div class="trace-label">Response Terminal${e.sessionKey && !selectedSession ? ' <span class="badge badge-info">' + escapeHtml(e.sessionKey) + '</span>' : ''}</div>
+          <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">${badges}</div>
+          ${metaLine}
+          ${renderMetadataDetail(evtId, e.metadataJson)}
+        </div></div>`;
+    }
+
+    case 'ProviderError': {
+      const md = parseTraceMetadata(e.metadataJson) || {};
+      const code = md.errorCode ? `<span class="badge badge-warning">${escapeHtml(md.errorCode)}</span>` : '';
+      const request = md.requestIndex != null ? `<span class="badge badge-info">request ${escapeHtml(String(md.requestIndex))}</span>` : '';
+      return `<div class="trace-event type-ProviderError">
+        <div class="trace-time">${time}</div>
+        <div class="trace-icon">${iconSvg('alert', 14)}</div>
+        <div class="trace-body">
+          <div class="trace-label error">Provider Error ${code} ${request}</div>
+          ${renderExpandableTraceText(evtId, e.content, 500, { tone: 'error' })}
+          ${metaLine}
+          ${renderMetadataDetail(evtId, e.metadataJson)}
+        </div></div>`;
+    }
+
+    case 'ProviderResponseDiagnostic': {
+      const md = parseTraceMetadata(e.metadataJson) || {};
+      const badges = [
+        md.providerProtocol ? `<span class="badge badge-info">${escapeHtml(md.providerProtocol)}</span>` : '',
+        md.eventType ? `<span class="badge badge-accent">${escapeHtml(md.eventType)}</span>` : '',
+        md.status ? `<span class="badge badge-info">status ${escapeHtml(md.status)}</span>` : '',
+        md.incompleteReason ? `<span class="badge badge-warning">${escapeHtml(md.incompleteReason)}</span>` : '',
+        md.usagePresent ? '<span class="badge badge-info">usage</span>' : '',
+        md.metadataExtractionFailed ? '<span class="badge badge-warning">metadata partial</span>' : ''
+      ].filter(Boolean).join('');
+      return `<div class="trace-event type-ProviderResponseDiagnostic">
+        <div class="trace-time">${time}</div>
+        <div class="trace-icon">${iconSvg('info', 14)}</div>
+        <div class="trace-body">
+          <div class="trace-label">Provider Response Diagnostic${e.sessionKey && !selectedSession ? ' <span class="badge badge-info">' + escapeHtml(e.sessionKey) + '</span>' : ''}</div>
+          <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">${badges}</div>
+          ${metaLine}
+          ${renderMetadataDetail(evtId, e.metadataJson)}
+        </div></div>`;
+    }
 
     case 'MaintenanceForkRequest': {
       const md = parseTraceMetadata(e.metadataJson) || {};

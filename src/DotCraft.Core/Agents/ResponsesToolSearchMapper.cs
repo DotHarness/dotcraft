@@ -71,7 +71,8 @@ internal static class ResponsesToolSearchMapper
         string model,
         IEnumerable<ChatMessage> chatMessages,
         ChatOptions? options,
-        bool includeReasoning = true)
+        bool includeReasoning = true,
+        bool removesUnsupportedOAuthResponsesFields = false)
     {
         var messages = chatMessages as IReadOnlyList<ChatMessage> ?? chatMessages.ToList();
         var callNames = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -129,7 +130,10 @@ internal static class ResponsesToolSearchMapper
                 input,
                 tools,
                 includeReasoning,
-                reasoningOptions));
+                reasoningOptions,
+                responseOptions,
+                options,
+                removesUnsupportedOAuthResponsesFields));
     }
 
     internal static string? ResolvePromptCacheKey(
@@ -392,11 +396,16 @@ internal static class ResponsesToolSearchMapper
         JsonArray input,
         JsonArray tools,
         bool includeReasoning,
-        ResponseReasoningOptions? reasoningOptions)
+        ResponseReasoningOptions? reasoningOptions,
+        CreateResponseOptions responseOptions,
+        ChatOptions? options,
+        bool removesUnsupportedOAuthResponsesFields)
     {
         var inputItemHashes = input
             .Select(static item => item == null ? HashUtf8String("null") : HashJsonNode(item))
             .ToArray();
+        var maxOutputTokensRequested = options?.MaxOutputTokens;
+        var maxOutputTokensRemovedByOAuthRewrite = maxOutputTokensRequested.HasValue && removesUnsupportedOAuthResponsesFields;
 
         return new PromptCacheRequestShapeSnapshot(
             PromptCacheRequestShapeSchemaVersion,
@@ -409,7 +418,26 @@ internal static class ResponsesToolSearchMapper
             HashReasoningShape(includeReasoning, reasoningOptions),
             HashJsonNode(input),
             input.Count,
-            inputItemHashes);
+            inputItemHashes,
+            maxOutputTokensRequested,
+            maxOutputTokensRequested.HasValue && !maxOutputTokensRemovedByOAuthRewrite,
+            maxOutputTokensRemovedByOAuthRewrite,
+            options?.Reasoning?.Effort is { } effort ? NormalizeReasoningEffortToken(effort) : null,
+            DescribeToolChoiceKind(options?.ToolMode),
+            tools.Count,
+            responseOptions.StreamingEnabled == true);
+    }
+
+    private static string DescribeToolChoiceKind(ChatToolMode? toolMode)
+    {
+        if (toolMode == null || ReferenceEquals(toolMode, ChatToolMode.Auto))
+            return "Auto";
+        if (ReferenceEquals(toolMode, ChatToolMode.None))
+            return "None";
+        if (ReferenceEquals(toolMode, ChatToolMode.RequireAny)
+            || toolMode.GetType().Name.Contains("Required", StringComparison.Ordinal))
+            return "Required";
+        return toolMode.GetType().Name;
     }
 
     private static string? HashReasoningShape(

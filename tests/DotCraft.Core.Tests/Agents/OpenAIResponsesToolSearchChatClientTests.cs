@@ -456,6 +456,36 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
     }
 
     [Fact]
+    public void CreateResponseRequestShape_RecordsSanitizedEffectiveOptions()
+    {
+        var shape = ResponsesToolSearchMapper.CreateResponseRequest(
+            "gpt-test",
+            [new ChatMessage(ChatRole.User, "sample user prompt")],
+            new ChatOptions
+            {
+                MaxOutputTokens = 1234,
+                ToolMode = ChatToolMode.RequireAny,
+                Tools = [new NativeToolSearchTool(new DeferredToolRegistry([]))],
+                Reasoning = new ReasoningOptions
+                {
+                    Effort = ReasoningEffort.High
+                }
+            },
+            removesUnsupportedOAuthResponsesFields: true).Shape;
+
+        var shapeJson = JsonSerializer.Serialize(shape, JsonOptions);
+
+        Assert.Equal(1234, shape.MaxOutputTokensRequested);
+        Assert.False(shape.MaxOutputTokensPresentAfterOAuthRewrite);
+        Assert.True(shape.MaxOutputTokensRemovedByOAuthRewrite);
+        Assert.Equal("high", shape.ReasoningEffort);
+        Assert.Equal("Required", shape.ToolChoiceKind);
+        Assert.Equal(1, shape.ToolCount);
+        Assert.True(shape.StreamingEnabled);
+        Assert.DoesNotContain("sample user prompt", shapeJson, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task StreamingFunctionLoop_RecordsPromptCacheRequestShapeTraceForEachRequest()
     {
         const string sessionKey = "responses-request-shape-trace";
@@ -543,6 +573,10 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
         var root = metadata.RootElement;
         Assert.Equal(1, root.GetProperty("requestIndex").GetInt32());
         Assert.Equal("openai-responses", root.GetProperty("protocol").GetString());
+        Assert.False(root.GetProperty("maxOutputTokensPresentAfterOAuthRewrite").GetBoolean());
+        Assert.False(root.GetProperty("maxOutputTokensRemovedByOAuthRewrite").GetBoolean());
+        Assert.Equal("Auto", root.GetProperty("toolChoiceKind").GetString());
+        Assert.True(root.GetProperty("streamingEnabled").GetBoolean());
         Assert.Equal("gpt-test", root.GetProperty("model").GetString());
         Assert.Equal(1, root.GetProperty("inputItemCount").GetInt32());
         Assert.StartsWith("sha256:", root.GetProperty("inputHash").GetString(), StringComparison.Ordinal);
@@ -1108,6 +1142,64 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
         Assert.Equal(2, usage.Details.ReasoningTokenCount);
     }
 
+    [Fact]
+    public async Task GetStreamingResponseAsync_RecordsProviderDiagnosticForIncompleteResponse()
+    {
+        const string sessionKey = "responses-provider-incomplete-trace";
+        var previous = TracingChatClient.CurrentSessionKey;
+        var store = new TraceStore();
+        var collector = new TraceCollector(store);
+        var inner = new FakeChatClient(new ChatResponse([new ChatMessage(ChatRole.Assistant, "inner response")]));
+        var transport = new FakeToolSearchTransport(CreateStreamingUpdate("""
+            {
+              "type": "response.incomplete",
+              "sequence_number": 1,
+              "response": {
+                "id": "resp-incomplete",
+                "object": "response",
+                "created_at": 0,
+                "model": "gpt-test",
+                "status": "incomplete",
+                "incomplete_details": {
+                  "reason": "max_output_tokens"
+                },
+                "usage": {
+                  "input_tokens": 10,
+                  "output_tokens": 4,
+                  "total_tokens": 14
+                }
+              }
+            }
+            """));
+        using var client = CreateClient(inner, transport, collector);
+
+        try
+        {
+            TracingChatClient.ResetCallState(sessionKey);
+            TracingChatClient.CurrentSessionKey = sessionKey;
+
+            _ = await CollectStreamingAsync(client.GetStreamingResponseAsync(
+                [new ChatMessage(ChatRole.User, "hello")],
+                new ChatOptions { Tools = [new NativeToolSearchTool(new DeferredToolRegistry([]))] }));
+        }
+        finally
+        {
+            TracingChatClient.ResetCallState(sessionKey);
+            TracingChatClient.CurrentSessionKey = previous;
+        }
+
+        var diagnostic = Assert.Single(
+            store.GetEvents(sessionKey),
+            e => e.Type == TraceEventType.ProviderResponseDiagnostic);
+
+        Assert.Equal("resp-incomplete", diagnostic.ResponseId);
+        Assert.Equal("gpt-test", diagnostic.ModelId);
+        Assert.Equal("max_output_tokens", diagnostic.FinishReason);
+        Assert.Contains("response.incomplete", diagnostic.MetadataJson);
+        Assert.Contains("max_output_tokens", diagnostic.MetadataJson);
+        Assert.Contains("\"usagePresent\":true", diagnostic.MetadataJson);
+    }
+
     private static async Task<List<ChatResponseUpdate>> CollectStreamingAsync(
         IAsyncEnumerable<ChatResponseUpdate> streaming)
     {
@@ -1230,12 +1322,14 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
 
     private static OpenAIResponsesToolSearchChatClient CreateClient(
         IChatClient innerClient,
-        IResponsesToolSearchTransport transport) =>
+        IResponsesToolSearchTransport transport,
+        TraceCollector? traceCollector = null) =>
         new(
             new ResponsesClient("sk-test"),
             "gpt-test",
             innerClient,
-            transport);
+            transport,
+            traceCollector);
 
     private sealed class FakeToolSearchTransport : IResponsesToolSearchTransport
     {

@@ -28,6 +28,9 @@ Read-only mode only exposes trace, session listing, token usage, tools, runtime 
 | `DeferredToolLoading` | Provider-native deferred loading activated deferred tools through `tool_search` |
 | `TokenUsage` | Token usage for one LLM request |
 | `Error` | Runtime error |
+| `ResponseTerminal` | Terminal diagnostic for one streaming model request, even when no text was emitted |
+| `ProviderError` | Non-fatal provider error content or provider stream error metadata |
+| `ProviderResponseDiagnostic` | Sanitized provider terminal/status metadata such as OpenAI Responses incomplete reasons |
 | `ContextCompaction` | Context compaction |
 | `Thinking` | Model thinking content segment |
 | `PromptCachePoint` | Prompt cache breakpoint summary |
@@ -38,11 +41,13 @@ Read-only mode only exposes trace, session listing, token usage, tools, runtime 
 
 Dashboard records `Thinking` and `Response` trace events by contiguous streaming content segment, not per chunk, and does not collapse a full turn into one event. `ThinkingCount` and `ResponseCount` therefore count segments. The realtime event stream emits a segment event once that segment ends and is recorded.
 
+`ResponseTerminal`, `ProviderError`, and `ProviderResponseDiagnostic` are diagnostic-only events. They are not written into thread rollout history as assistant text. `ResponseTerminal` records finish reason and stream-shape metadata even for usage-only or empty terminal updates. Provider diagnostics record sanitized status, error, and incomplete reason fields only; they must not persist raw prompts, full request bodies, or large tool arguments.
+
 Maintenance requests such as context compaction and memory consolidation also record `MaintenanceForkRequest` / `MaintenanceForkResponse` events. These events preserve snapshot/cache metadata, raw model text, tool-call-only responses, empty responses, and fallback reasons so Dashboard can diagnose issues such as `summary_unavailable`.
 
 `DeferredToolLoading` is used for provider-native deferred tool loading, currently OpenAI Responses and Anthropic beta tool references. It records the tools newly activated by `tool_search`, the configured strategy, the effective mode, the provider protocol, and the provider wire shape; it does not mean top-level `tools` were injected and it is not marked as a prompt-cache tool extension.
 
-`PromptCacheRequestShape` records SHA-256 hashes and counts for OpenAI Responses request components so adjacent requests can be compared for prefix stability.
+`PromptCacheRequestShape` records SHA-256 hashes and counts for OpenAI Responses request components so adjacent requests can be compared for prefix stability. It also records sanitized effective option flags such as requested max output tokens, whether OAuth rewriting removes them before transport, reasoning effort, tool-choice kind, tool count, and streaming mode.
 
 ## Endpoints
 

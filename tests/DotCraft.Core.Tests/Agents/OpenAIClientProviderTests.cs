@@ -287,6 +287,7 @@ public sealed class OpenAIClientProviderTests : IDisposable
     {
         const string installationId = "11111111-1111-4111-8111-111111111111";
         const string sessionKey = "thread-oauth-turn-state";
+        const string accountId = "acct_test";
         const string firstWindowId = "0192b455-3e7c-7000-8000-000000000003";
         const string secondWindowId = "0192b455-3e7c-7000-8000-000000000004";
 
@@ -301,7 +302,7 @@ public sealed class OpenAIClientProviderTests : IDisposable
                     }),
                 JsonResponse(SuccessfulResponseJson),
                 JsonResponse(SuccessfulResponseJson));
-            var provider = CreateOAuthProvider(installationId, accountId: "acct_token");
+            var provider = CreateOAuthProvider(installationId, accountId: accountId);
             var client = provider.GetOpenAIClient(OAuthRuntime($"{server.Endpoint}/backend-api/codex"))
                 .GetResponsesClient();
             TracingChatClient.CurrentSessionKey = sessionKey;

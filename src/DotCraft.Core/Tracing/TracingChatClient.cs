@@ -189,6 +189,7 @@ public sealed class TracingChatClient(IChatClient innerClient, TraceCollector co
         var pendingRequestUsage = new TokenUsageSnapshot();
         int? currentUsageRequestIndex = null;
         int? pendingUsageRequestIndex = null;
+        var terminalTrace = new TerminalTraceState();
 
         void FlushPendingUsage()
         {
@@ -261,6 +262,33 @@ public sealed class TracingChatClient(IChatClient innerClient, TraceCollector co
             FlushResponse(includeResponseFinishReason);
         }
 
+        void RecordTerminalIfPending(bool streamCompleted)
+        {
+            if (!terminalTrace.SawUpdate)
+                return;
+
+            var finalUpdate = terminalTrace.LastUpdate ?? state.LastUpdate;
+            collector.RecordResponseTerminal(
+                sessionKey,
+                terminalTrace.ResponseId ?? finalUpdate?.ResponseId,
+                terminalTrace.MessageId ?? finalUpdate?.MessageId,
+                terminalTrace.ModelId ?? finalUpdate?.ModelId,
+                terminalTrace.FinishReason?.ToString(),
+                terminalTrace.RequestIndex,
+                new
+                {
+                    hasText = terminalTrace.HasText,
+                    hasToolCall = terminalTrace.HasToolCall,
+                    hasUsage = terminalTrace.HasUsage,
+                    contentKinds = terminalTrace.ContentKinds,
+                    terminalUpdateSeen = terminalTrace.TerminalUpdateSeen,
+                    streamCompleted,
+                    requestIndex = terminalTrace.RequestIndex
+                },
+                reasoningEffort: reasoningEffort);
+            terminalTrace.Reset();
+        }
+
         void AppendThinking(string text)
         {
             if (string.IsNullOrEmpty(text))
@@ -306,6 +334,7 @@ public sealed class TracingChatClient(IChatClient innerClient, TraceCollector co
             catch (Exception ex)
             {
                 FlushPendingSegments(includeResponseFinishReason: false);
+                RecordTerminalIfPending(streamCompleted: false);
                 FlushPendingUsage();
                 collector.RecordError(sessionKey, ex.Message);
                 throw;
@@ -315,10 +344,12 @@ public sealed class TracingChatClient(IChatClient innerClient, TraceCollector co
             var updateRequestIndex = TokenUsageRequestMetadata.TryGetRequestIndex(update);
             if (updateRequestIndex.HasValue)
                 currentUsageRequestIndex = updateRequestIndex;
+            terminalTrace.ObserveUpdate(update, currentUsageRequestIndex);
             var sawTextContent = false;
 
             foreach (var content in update.Contents)
             {
+                terminalTrace.ObserveContent(content);
                 switch (content)
                 {
                     case TextReasoningContent reasoning:
@@ -372,16 +403,38 @@ public sealed class TracingChatClient(IChatClient innerClient, TraceCollector co
                         AccumulateUsage(TokenUsageExtractor.FromUsageContent(usage));
                         break;
                     }
+                    case ErrorContent error:
+                    {
+                        collector.RecordProviderError(
+                            sessionKey,
+                            error.ErrorCode,
+                            BuildErrorContentMessage(error),
+                            nameof(ErrorContent),
+                            currentUsageRequestIndex,
+                            update.ResponseId,
+                            update.ModelId);
+                        break;
+                    }
                 }
             }
 
             if (!sawTextContent && !string.IsNullOrEmpty(update.Text))
+            {
+                terminalTrace.MarkText();
                 AppendResponse(update.Text, update);
+            }
+
+            if (update.FinishReason.HasValue)
+            {
+                FlushPendingSegments(includeResponseFinishReason: true);
+                RecordTerminalIfPending(streamCompleted: true);
+            }
 
             yield return update;
         }
 
         FlushPendingSegments(includeResponseFinishReason: true);
+        RecordTerminalIfPending(streamCompleted: true);
         FlushPendingUsage();
     }
 
@@ -392,6 +445,16 @@ public sealed class TracingChatClient(IChatClient innerClient, TraceCollector co
             CachedInputTokens: left.CachedInputTokens + right.CachedInputTokens,
             ReasoningOutputTokens: left.ReasoningOutputTokens + right.ReasoningOutputTokens,
             CacheWriteInputTokens: left.CacheWriteInputTokens + right.CacheWriteInputTokens);
+
+    private static string BuildErrorContentMessage(ErrorContent error)
+    {
+        var parts = new List<string>(capacity: 2);
+        if (!string.IsNullOrWhiteSpace(error.Message))
+            parts.Add(error.Message);
+        if (!string.IsNullOrWhiteSpace(error.Details))
+            parts.Add(error.Details!);
+        return string.Join("\n", parts);
+    }
 
     private void RecordRequestIfFirst(string sessionKey, IList<ChatMessage> messages, SessionCallState state)
     {
@@ -460,6 +523,76 @@ public sealed class TracingChatClient(IChatClient innerClient, TraceCollector co
         public readonly Dictionary<string, Stopwatch> ToolTimers = new();
         public readonly Dictionary<string, string> ToolNameMap = new();
         public ChatResponseUpdate? LastUpdate;
+    }
+
+    private sealed class TerminalTraceState
+    {
+        private readonly HashSet<string> _contentKinds = new(StringComparer.Ordinal);
+
+        public bool SawUpdate { get; private set; }
+        public bool HasText { get; private set; }
+        public bool HasToolCall { get; private set; }
+        public bool HasUsage { get; private set; }
+        public bool TerminalUpdateSeen { get; private set; }
+        public int? RequestIndex { get; private set; }
+        public string? ResponseId { get; private set; }
+        public string? MessageId { get; private set; }
+        public string? ModelId { get; private set; }
+        public ChatFinishReason? FinishReason { get; private set; }
+        public ChatResponseUpdate? LastUpdate { get; private set; }
+        public string[] ContentKinds => _contentKinds.OrderBy(static kind => kind, StringComparer.Ordinal).ToArray();
+
+        public void ObserveUpdate(ChatResponseUpdate update, int? requestIndex)
+        {
+            SawUpdate = true;
+            LastUpdate = update;
+            RequestIndex = requestIndex ?? RequestIndex;
+            ResponseId = update.ResponseId ?? ResponseId;
+            MessageId = update.MessageId ?? MessageId;
+            ModelId = update.ModelId ?? ModelId;
+            if (update.FinishReason.HasValue)
+            {
+                FinishReason = update.FinishReason.Value;
+                TerminalUpdateSeen = true;
+            }
+            if (!string.IsNullOrEmpty(update.Text))
+                HasText = true;
+        }
+
+        public void ObserveContent(AIContent content)
+        {
+            _contentKinds.Add(content.GetType().Name);
+            switch (content)
+            {
+                case TextContent text when !string.IsNullOrEmpty(text.Text):
+                    HasText = true;
+                    break;
+                case FunctionCallContent:
+                    HasToolCall = true;
+                    break;
+                case UsageContent:
+                    HasUsage = true;
+                    break;
+            }
+        }
+
+        public void MarkText() => HasText = true;
+
+        public void Reset()
+        {
+            SawUpdate = false;
+            HasText = false;
+            HasToolCall = false;
+            HasUsage = false;
+            TerminalUpdateSeen = false;
+            RequestIndex = null;
+            ResponseId = null;
+            MessageId = null;
+            ModelId = null;
+            FinishReason = null;
+            LastUpdate = null;
+            _contentKinds.Clear();
+        }
     }
 
     private sealed class RestoreCallStateKeyScope(string? previous) : IDisposable

@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
 using OpenAI.Responses;
 
@@ -8,17 +9,25 @@ namespace DotCraft.Agents;
 
 internal sealed class OpenAIResponsesToolSearchChatClient : IChatClient
 {
+    private const string OpenAIResponsesProtocolName = "openai-responses";
+    private static readonly AsyncLocal<TraceCollector?> CurrentTraceCollectorLocal = new();
+
     private readonly ResponsesClient _responsesClient;
     private readonly string _model;
     private readonly IChatClient _innerClient;
     private readonly IResponsesToolSearchTransport _toolSearchTransport;
+    private readonly TraceCollector? _traceCollector;
 
-    public OpenAIResponsesToolSearchChatClient(ResponsesClient responsesClient, string model)
+    public OpenAIResponsesToolSearchChatClient(
+        ResponsesClient responsesClient,
+        string model,
+        TraceCollector? traceCollector = null)
         : this(
             responsesClient,
             NormalizeRequiredModel(model),
             CreateInnerClient(responsesClient, model),
-            CreateTransport(responsesClient))
+            CreateTransport(responsesClient),
+            traceCollector)
     {
     }
 
@@ -26,7 +35,8 @@ internal sealed class OpenAIResponsesToolSearchChatClient : IChatClient
         ResponsesClient responsesClient,
         string model,
         IChatClient innerClient,
-        IResponsesToolSearchTransport toolSearchTransport)
+        IResponsesToolSearchTransport toolSearchTransport,
+        TraceCollector? traceCollector = null)
     {
         _responsesClient = responsesClient ?? throw new ArgumentNullException(nameof(responsesClient));
         _model = string.IsNullOrWhiteSpace(model)
@@ -34,6 +44,7 @@ internal sealed class OpenAIResponsesToolSearchChatClient : IChatClient
             : model.Trim();
         _innerClient = innerClient ?? throw new ArgumentNullException(nameof(innerClient));
         _toolSearchTransport = toolSearchTransport ?? throw new ArgumentNullException(nameof(toolSearchTransport));
+        _traceCollector = traceCollector;
     }
 
     public async Task<ChatResponse> GetResponseAsync(
@@ -55,7 +66,10 @@ internal sealed class OpenAIResponsesToolSearchChatClient : IChatClient
         var preparedOptions = ResponsesToolSearchMapper.PreparePromptCacheOptions(options);
         var messages = chatMessages as IReadOnlyList<ChatMessage> ?? chatMessages.ToList();
         var responseOptions = ResponsesToolSearchMapper.CreateResponseOptions(_model, messages, preparedOptions);
+        var traceCollector = _traceCollector ?? CurrentTraceCollectorLocal.Value;
         var sdkUpdates = _toolSearchTransport.CreateResponseStreamingAsync(responseOptions, cancellationToken);
+        if (traceCollector != null)
+            sdkUpdates = RecordProviderResponseDiagnostics(sdkUpdates, traceCollector, cancellationToken);
         var functionCallNamespaces = new Dictionary<string, string>(StringComparer.Ordinal);
         var normalizedUpdates = ResponsesToolSearchMapper.NormalizeToolSearchCalls(
             sdkUpdates,
@@ -78,6 +92,13 @@ internal sealed class OpenAIResponsesToolSearchChatClient : IChatClient
         _innerClient.GetService(serviceType, serviceKey);
 
     public void Dispose() => _innerClient.Dispose();
+
+    internal static IDisposable UseTraceCollector(TraceCollector? traceCollector)
+    {
+        var previous = CurrentTraceCollectorLocal.Value;
+        CurrentTraceCollectorLocal.Value = traceCollector;
+        return new RestoreTraceCollectorScope(previous);
+    }
 
     private static IChatClient CreateInnerClient(ResponsesClient responsesClient, string model)
     {
@@ -103,5 +124,101 @@ internal sealed class OpenAIResponsesToolSearchChatClient : IChatClient
         update.ConversationId = null;
         update.ContinuationToken = null;
         return update;
+    }
+
+    private static async IAsyncEnumerable<StreamingResponseUpdate> RecordProviderResponseDiagnostics(
+        IAsyncEnumerable<StreamingResponseUpdate> updates,
+        TraceCollector traceCollector,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        await foreach (var update in updates.WithCancellation(cancellationToken).ConfigureAwait(false))
+        {
+            RecordProviderResponseDiagnostic(update, traceCollector);
+            yield return update;
+        }
+    }
+
+    private static void RecordProviderResponseDiagnostic(
+        StreamingResponseUpdate update,
+        TraceCollector traceCollector)
+    {
+        var sessionKey = TracingChatClient.CurrentSessionKey ?? TracingChatClient.GetActiveSessionKey();
+        if (string.IsNullOrWhiteSpace(sessionKey))
+            return;
+
+        switch (update)
+        {
+            case StreamingResponseCompletedUpdate completed:
+                RecordResponseResultDiagnostic(
+                    traceCollector,
+                    sessionKey,
+                    "response.completed",
+                    completed.Response,
+                    metadataExtractionFailed: completed.Response == null);
+                break;
+            case StreamingResponseIncompleteUpdate incomplete:
+                RecordResponseResultDiagnostic(
+                    traceCollector,
+                    sessionKey,
+                    "response.incomplete",
+                    incomplete.Response,
+                    metadataExtractionFailed: incomplete.Response == null);
+                break;
+            case StreamingResponseFailedUpdate failed:
+                RecordResponseResultDiagnostic(
+                    traceCollector,
+                    sessionKey,
+                    "response.failed",
+                    failed.Response,
+                    metadataExtractionFailed: failed.Response == null);
+                if (failed.Response?.Error != null)
+                {
+                    traceCollector.RecordProviderError(
+                        sessionKey,
+                        failed.Response.Error.Code.ToString(),
+                        failed.Response.Error.Message,
+                        "StreamingResponseFailedUpdate",
+                        PromptCacheRequestShapeTraceScope.RequestIndex,
+                        failed.Response.Id,
+                        failed.Response.Model);
+                }
+                break;
+            case StreamingResponseErrorUpdate error:
+                traceCollector.RecordProviderError(
+                    sessionKey,
+                    error.Code,
+                    error.Message,
+                    "StreamingResponseErrorUpdate",
+                    PromptCacheRequestShapeTraceScope.RequestIndex);
+                break;
+        }
+    }
+
+    private static void RecordResponseResultDiagnostic(
+        TraceCollector traceCollector,
+        string sessionKey,
+        string eventType,
+        ResponseResult? response,
+        bool metadataExtractionFailed)
+    {
+        var incompleteReason = response?.IncompleteStatusDetails?.Reason?.ToString();
+        var status = response?.Status?.ToString();
+        traceCollector.RecordProviderResponseDiagnostic(
+            sessionKey,
+            OpenAIResponsesProtocolName,
+            eventType,
+            response?.Id,
+            response?.Model,
+            status,
+            incompleteReason,
+            incompleteReason,
+            response?.Usage != null,
+            PromptCacheRequestShapeTraceScope.RequestIndex,
+            metadataExtractionFailed);
+    }
+
+    private sealed class RestoreTraceCollectorScope(TraceCollector? previous) : IDisposable
+    {
+        public void Dispose() => CurrentTraceCollectorLocal.Value = previous;
     }
 }
