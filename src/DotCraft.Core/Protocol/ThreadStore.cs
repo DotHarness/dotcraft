@@ -8,6 +8,20 @@ using Microsoft.Extensions.AI;
 
 namespace DotCraft.Protocol;
 
+internal sealed record ForkModelHistoryMaterialization(
+    IReadOnlyList<ChatMessage> History,
+    IReadOnlyList<ChatMessage>? CheckpointReplacementHistory,
+    string? CheckpointCoveredThroughTurnId,
+    string? CheckpointMode,
+    long EstimatedTokens,
+    string UsageSource,
+    bool UsageIsEstimate)
+{
+    public bool HasCompatibleCheckpoint =>
+        CheckpointReplacementHistory is not null &&
+        !string.IsNullOrWhiteSpace(CheckpointCoveredThroughTurnId);
+}
+
 /// <summary>
 /// Manages thread persistence under the .craft directory.
 /// Canonical thread history is stored as thread JSONL under threads/active|archived while metadata and agent sessions live in SQLite.
@@ -96,6 +110,11 @@ public sealed class ThreadStore
             ct);
     }
 
+    internal Task<IReadOnlyList<ThreadCompactionCheckpoint>> LoadCompactionCheckpointsAsync(
+        string threadId,
+        CancellationToken ct = default) =>
+        _rolloutStore.LoadCompactionCheckpointsAsync(threadId, ct);
+
     /// <summary>
     /// Loads a thread by replaying canonical thread history.
     /// </summary>
@@ -158,6 +177,61 @@ public sealed class ThreadStore
     {
         var serialized = await agent.SerializeSessionAsync(session, SessionPersistenceJsonOptions.Default, ct);
         _metadataStore.SaveSessionJson(threadId, serialized.GetRawText());
+    }
+
+    internal async Task<AgentSession> SaveSessionFromHistoryAsync(
+        AIAgent agent,
+        string threadId,
+        IReadOnlyList<ChatMessage> history,
+        CancellationToken ct = default)
+    {
+        var session = await CreateSessionWithHistoryAsync(agent, history.ToList(), ct);
+        await SaveSessionAsync(agent, session, threadId, ct);
+        return session;
+    }
+
+    internal async Task<ForkModelHistoryMaterialization> BuildForkModelHistoryMaterializationAsync(
+        SessionThread source,
+        SessionThread forked,
+        CancellationToken ct = default)
+    {
+        ct.ThrowIfCancellationRequested();
+        var orderedForkTurns = OrderTurns(forked.Turns);
+        var checkpoints = await _rolloutStore.LoadCompactionCheckpointsAsync(source.Id, ct);
+        for (var i = checkpoints.Count - 1; i >= 0; i--)
+        {
+            var checkpoint = checkpoints[i];
+            if (!IsCheckpointCompatibleForFork(source, orderedForkTurns, checkpoint))
+                continue;
+
+            if (!TryDeserializeCheckpointHistory(checkpoint, out var checkpointHistory))
+                continue;
+
+            var history = checkpointHistory.ToList();
+            var coveredTurnIndex = orderedForkTurns.FindIndex(turn =>
+                string.Equals(turn.Id, checkpoint.CoveredThroughTurnId, StringComparison.Ordinal));
+            for (var turnIndex = coveredTurnIndex + 1; turnIndex < orderedForkTurns.Count; turnIndex++)
+                history.AddRange(BuildModelVisibleHistoryFromTurn(orderedForkTurns[turnIndex]));
+
+            return new ForkModelHistoryMaterialization(
+                history,
+                checkpointHistory,
+                checkpoint.CoveredThroughTurnId,
+                checkpoint.Mode,
+                MessageTokenEstimator.Estimate(history),
+                "compacted_estimate",
+                UsageIsEstimate: true);
+        }
+
+        var rawHistory = BuildModelVisibleHistoryFromTurns(orderedForkTurns);
+        return new ForkModelHistoryMaterialization(
+            rawHistory,
+            CheckpointReplacementHistory: null,
+            CheckpointCoveredThroughTurnId: null,
+            CheckpointMode: null,
+            MessageTokenEstimator.Estimate(rawHistory),
+            "history_estimate",
+            UsageIsEstimate: true);
     }
 
     /// <summary>
@@ -452,10 +526,7 @@ public sealed class ThreadStore
         if (checkpoints.Count == 0)
             return null;
 
-        var orderedTurns = thread.Turns
-            .OrderBy(t => t.StartedAt)
-            .ThenBy(t => t.Id, StringComparer.Ordinal)
-            .ToList();
+        var orderedTurns = OrderTurns(thread.Turns);
 
         for (var i = checkpoints.Count - 1; i >= 0; i--)
         {
@@ -501,10 +572,67 @@ public sealed class ThreadStore
     private static List<ChatMessage> BuildModelVisibleHistoryFromTurns(IEnumerable<SessionTurn> turns)
     {
         var history = new List<ChatMessage>();
-        foreach (var turn in turns.OrderBy(t => t.StartedAt).ThenBy(t => t.Id, StringComparer.Ordinal))
+        foreach (var turn in OrderTurns(turns))
             history.AddRange(BuildModelVisibleHistoryFromTurn(turn));
 
         return history;
+    }
+
+    private static List<SessionTurn> OrderTurns(IEnumerable<SessionTurn> turns) =>
+        turns.OrderBy(t => t.StartedAt).ThenBy(t => t.Id, StringComparer.Ordinal).ToList();
+
+    private static bool IsCheckpointCompatibleForFork(
+        SessionThread source,
+        List<SessionTurn> orderedForkTurns,
+        ThreadCompactionCheckpoint checkpoint)
+    {
+        var sourceTurn = source.Turns.FirstOrDefault(turn =>
+            string.Equals(turn.Id, checkpoint.CoveredThroughTurnId, StringComparison.Ordinal));
+        if (sourceTurn == null)
+            return false;
+
+        var forkTurnIndex = orderedForkTurns.FindIndex(turn =>
+            string.Equals(turn.Id, checkpoint.CoveredThroughTurnId, StringComparison.Ordinal));
+        if (forkTurnIndex < 0)
+            return false;
+
+        var forkTurn = orderedForkTurns[forkTurnIndex];
+        var forkItems = forkTurnIndex == orderedForkTurns.Count - 1
+            ? RemoveTrailingForkNotice(forkTurn.Items)
+            : forkTurn.Items;
+        return SameItemPrefix(sourceTurn.Items, forkItems, requireCompleteSourcePrefix: true);
+    }
+
+    private static IReadOnlyList<SessionItem> RemoveTrailingForkNotice(IReadOnlyList<SessionItem> items)
+    {
+        if (items.Count == 0 || !IsForkNotice(items[^1]))
+            return items;
+
+        return items.Take(items.Count - 1).ToList();
+    }
+
+    private static bool IsForkNotice(SessionItem item) =>
+        item.Type == ItemType.SystemNotice &&
+        item.Payload is SystemNoticePayload { Kind: "forked" };
+
+    private static bool SameItemPrefix(
+        IReadOnlyList<SessionItem> sourceItems,
+        IReadOnlyList<SessionItem> forkItems,
+        bool requireCompleteSourcePrefix)
+    {
+        if (requireCompleteSourcePrefix && sourceItems.Count != forkItems.Count)
+            return false;
+
+        if (forkItems.Count > sourceItems.Count)
+            return false;
+
+        for (var i = 0; i < forkItems.Count; i++)
+        {
+            if (!string.Equals(sourceItems[i].Id, forkItems[i].Id, StringComparison.Ordinal))
+                return false;
+        }
+
+        return true;
     }
 
     internal static IReadOnlyList<ChatMessage> BuildModelVisibleHistoryFromTurn(SessionTurn turn)

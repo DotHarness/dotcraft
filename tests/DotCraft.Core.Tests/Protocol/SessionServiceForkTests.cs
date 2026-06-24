@@ -6,6 +6,8 @@ using DotCraft.Protocol;
 using DotCraft.Security;
 using DotCraft.Sessions;
 using DotCraft.Skills;
+using Microsoft.Agents.AI;
+using Microsoft.Extensions.AI;
 
 namespace DotCraft.Tests.Sessions.Protocol;
 
@@ -124,6 +126,111 @@ public sealed class SessionServiceForkTests : IDisposable
     }
 
     [Fact]
+    public async Task ForkThreadAsync_FromCompactedSource_PersistsForkCheckpointSessionAndUsesCompactedHistory()
+    {
+        var chatClient = new RecordingChatClient("fork answer");
+        await using var agentFactory = CreateAgentFactory();
+        var service = CreateService(agentFactory, chatClient);
+        var source = await service.CreateThreadAsync(MakeIdentity());
+        AddCompletedTurn(source, "turn_001", "RAW_BEFORE_COMPACT", "raw answer");
+        AddCompletedTurn(source, "turn_002", "covered raw request", "covered raw answer");
+        AddCompletedTurn(source, "turn_003", "AFTER_COMPACT", "after answer");
+        await _store.SaveThreadAsync(source);
+        var replacementHistory = new[]
+        {
+            new ChatMessage(ChatRole.User, "COMPACTED_SUMMARY"),
+            new ChatMessage(ChatRole.Assistant, "summary answer")
+        };
+        await _store.AppendCompactionCheckpointAsync(
+            source.Id,
+            "turn_002",
+            replacementHistory,
+            "manual",
+            "partial",
+            tokensBefore: 10_000,
+            tokensAfter: 100);
+
+        var fork = await service.ForkThreadAsync(source.Id);
+
+        Assert.True(_store.SessionFileExists(fork.Id));
+        var checkpoints = await _store.LoadCompactionCheckpointsAsync(fork.Id);
+        var checkpoint = Assert.Single(checkpoints);
+        Assert.Equal(fork.Id, checkpoint.ThreadId);
+        Assert.Equal("turn_002", checkpoint.CoveredThroughTurnId);
+        Assert.Equal("fork", checkpoint.Trigger);
+        Assert.Equal("partial", checkpoint.Mode);
+        var usage = _store.LoadContextUsageSnapshot(fork.Id);
+        Assert.NotNull(usage);
+        Assert.True(usage!.Tokens > 0);
+        Assert.Equal("compacted_estimate", usage.Source);
+        Assert.True(usage.IsEstimate);
+
+        var session = await _store.LoadOrCreateSessionAsync(CreateAgent(), fork.Id);
+        Assert.Equal(
+            [
+                "user:COMPACTED_SUMMARY",
+                "assistant:summary answer",
+                "user:AFTER_COMPACT",
+                "assistant:after answer"
+            ],
+            FormatHistory(session));
+
+        await DrainAsync(service.SubmitInputAsync(fork.Id, [new TextContent("FOLLOW_UP")]));
+        var requestText = string.Join("\n", chatClient.LastMessages.Select(MessageText));
+        Assert.Contains("COMPACTED_SUMMARY", requestText, StringComparison.Ordinal);
+        Assert.Contains("AFTER_COMPACT", requestText, StringComparison.Ordinal);
+        Assert.Contains("FOLLOW_UP", requestText, StringComparison.Ordinal);
+        Assert.DoesNotContain("RAW_BEFORE_COMPACT", requestText, StringComparison.Ordinal);
+        Assert.DoesNotContain("covered raw request", requestText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ForkThreadAsync_ItemForkPointInsideCheckpointCoveredTurn_DoesNotRebaseCheckpoint()
+    {
+        await using var agentFactory = CreateAgentFactory();
+        var service = CreateService(agentFactory);
+        var source = await service.CreateThreadAsync(MakeIdentity());
+        AddCompletedTurn(source, "turn_001", "first", "answer one");
+        AddCompletedTurn(source, "turn_002", "covered raw request", "covered raw answer");
+        await _store.SaveThreadAsync(source);
+        await _store.AppendCompactionCheckpointAsync(
+            source.Id,
+            "turn_002",
+            [new ChatMessage(ChatRole.User, "COMPACTED_SUMMARY")],
+            "manual",
+            "partial",
+            tokensBefore: 10_000,
+            tokensAfter: 100);
+
+        var fork = await service.ForkThreadAsync(
+            source.Id,
+            new ThreadForkOptions
+            {
+                ForkPoint = new ThreadForkPoint
+                {
+                    TurnId = "turn_002",
+                    ItemId = "turn_002_user",
+                    Position = ThreadForkPositions.After
+                }
+            });
+
+        Assert.Empty(await _store.LoadCompactionCheckpointsAsync(fork.Id));
+        Assert.True(_store.SessionFileExists(fork.Id));
+        var usage = _store.LoadContextUsageSnapshot(fork.Id);
+        Assert.NotNull(usage);
+        Assert.Equal("history_estimate", usage!.Source);
+        Assert.True(usage.IsEstimate);
+        var session = await _store.LoadOrCreateSessionAsync(CreateAgent(), fork.Id);
+        Assert.Equal(
+            [
+                "user:first",
+                "assistant:answer one",
+                "user:covered raw request"
+            ],
+            FormatHistory(session));
+    }
+
+    [Fact]
     public async Task ForkThreadAsync_EphemeralFork_IsCachedButNotPersistedOrListed()
     {
         await using var agentFactory = CreateAgentFactory();
@@ -141,9 +248,11 @@ public sealed class SessionServiceForkTests : IDisposable
         Assert.DoesNotContain(listed, summary => summary.Id == fork.Id);
     }
 
-    private SessionService CreateService(AgentFactory agentFactory)
+    private SessionService CreateService(AgentFactory agentFactory, IChatClient? chatClient = null)
     {
-        var defaultAgent = agentFactory.CreateAgentForMode(AgentMode.Agent);
+        var defaultAgent = chatClient == null
+            ? agentFactory.CreateAgentForMode(AgentMode.Agent)
+            : chatClient.AsAIAgent(new ChatClientAgentOptions());
         return new SessionService(agentFactory, defaultAgent, _persistence, new SessionGate());
     }
 
@@ -210,5 +319,63 @@ public sealed class SessionServiceForkTests : IDisposable
         var notice = Assert.IsType<SystemNoticePayload>(item.Payload);
         Assert.Equal("forked", notice.Kind);
         Assert.Equal(sourceThreadId, notice.SourceThreadId);
+    }
+
+    private static AIAgent CreateAgent() =>
+        new RecordingChatClient("unused").AsAIAgent(new ChatClientAgentOptions());
+
+    private static List<string> FormatHistory(AgentSession session)
+    {
+        Assert.True(session.TryGetInMemoryChatHistory(
+            out var chatHistory,
+            jsonSerializerOptions: SessionPersistenceJsonOptions.Default));
+
+        return chatHistory.Select(message => $"{message.Role}:{MessageText(message)}").ToList();
+    }
+
+    private static string MessageText(ChatMessage message) =>
+        string.Concat(message.Contents.Select(content => content switch
+        {
+            TextContent text => text.Text,
+            FunctionCallContent call => $"function_call:{call.Name}:{call.CallId}",
+            FunctionResultContent result => $"function_result:{result.CallId}:{result.Result}",
+            _ => content.ToString() ?? string.Empty
+        }));
+
+    private static async Task DrainAsync(IAsyncEnumerable<SessionEvent> events)
+    {
+        await foreach (var _ in events)
+        {
+        }
+    }
+
+    private sealed class RecordingChatClient(string responseText) : IChatClient
+    {
+        public IReadOnlyList<ChatMessage> LastMessages { get; private set; } = [];
+
+        public Task<ChatResponse> GetResponseAsync(
+            IEnumerable<ChatMessage> chatMessages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default)
+        {
+            LastMessages = chatMessages.ToList();
+            return Task.FromResult(new ChatResponse([new ChatMessage(ChatRole.Assistant, responseText)]));
+        }
+
+        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+            IEnumerable<ChatMessage> chatMessages,
+            ChatOptions? options = null,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            LastMessages = chatMessages.ToList();
+            yield return new ChatResponseUpdate(ChatRole.Assistant, [new TextContent(responseText)]);
+            await Task.CompletedTask;
+        }
+
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+
+        public void Dispose()
+        {
+        }
     }
 }

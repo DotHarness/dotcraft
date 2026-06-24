@@ -1206,6 +1206,52 @@ public sealed class ThreadStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task LoadOrCreateSessionAsync_ForkCheckpointAfterDeletedSession_RebuildsReplacementHistoryPlusSuffix()
+    {
+        var thread = CreateThread();
+        thread.ForkedFromId = "thread_source";
+        AddTurnWithMessages(thread, "raw before compact", "raw answer");
+        AddTurnWithMessages(thread, "covered raw request", "covered raw answer");
+        AddTurnWithMessages(thread, "after compact", "after answer");
+        await _store.SaveThreadAsync(thread);
+        var replacementHistory = new[]
+        {
+            new ChatMessage(ChatRole.User, "compacted summary"),
+            new ChatMessage(ChatRole.Assistant, "summary answer")
+        };
+        await _store.AppendCompactionCheckpointAsync(
+            thread.Id,
+            thread.Turns[1].Id,
+            replacementHistory,
+            "fork",
+            "partial",
+            10_000,
+            100);
+        var agent = CreateAgent();
+        await _store.SaveSessionFromHistoryAsync(
+            agent,
+            thread.Id,
+            [
+                .. replacementHistory,
+                new ChatMessage(ChatRole.User, "after compact"),
+                new ChatMessage(ChatRole.Assistant, "after answer")
+            ]);
+        Assert.True(_store.SessionFileExists(thread.Id));
+        _store.DeleteSessionFile(thread.Id);
+
+        var session = await new ThreadStore(_root).LoadOrCreateSessionAsync(CreateAgent(), thread.Id);
+
+        Assert.Equal(
+            [
+                "user:compacted summary",
+                "assistant:summary answer",
+                "user:after compact",
+                "assistant:after answer"
+            ],
+            await ExtractHistoryAsync(CreateAgent(), session));
+    }
+
+    [Fact]
     public async Task AccountThreadGoalUsageAsync_ActiveOnly_SkipsStoppedAndCompleteGoals()
     {
         foreach (var status in new[]

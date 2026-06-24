@@ -226,6 +226,8 @@ Fork contract:
 - Forks do not inherit queued inputs, pending approvals, active user-input requests, app bindings, active goals, or durable plan state. Transcript items already copied remain visible as history.
 - Forks copy thread configuration, then apply request-level overrides.
 - Forked threads include a persisted `SystemNotice` item with `kind = "forked"` and `sourceThreadId` at the boundary between inherited source history and fork-specific work. This marker is client-visible but not model-visible.
+- A persistent fork must materialize its own optimized model-visible session state when source history has already been compacted. If the selected fork prefix fully retains a source compaction checkpoint's covered turn, Session Core rebases that checkpoint into the fork rollout, stores a fork-local `thread_sessions` row from the checkpoint replacement history plus retained later turns, and records an estimated context usage snapshot. If the fork point cuts inside or before the checkpoint-covered turn, that checkpoint is not compatible and an older compatible checkpoint may be used instead.
+- Fork rebuilds must prefer fork-local compaction checkpoints and must not expand compacted source history back into the full pre-compaction transcript when a compatible checkpoint exists.
 
 #### 4.1.1.2 Worktree Handoff
 

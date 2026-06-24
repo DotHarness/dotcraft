@@ -51,6 +51,19 @@ public sealed class SessionPersistenceService(
         CancellationToken ct = default)
         => threadStore.SaveSessionAsync(agent, session, threadId, ct);
 
+    internal Task<AgentSession> SaveSessionFromHistoryAsync(
+        AIAgent agent,
+        string threadId,
+        IReadOnlyList<ChatMessage> history,
+        CancellationToken ct = default)
+        => threadStore.SaveSessionFromHistoryAsync(agent, threadId, history, ct);
+
+    internal Task<ForkModelHistoryMaterialization> BuildForkModelHistoryMaterializationAsync(
+        SessionThread source,
+        SessionThread forked,
+        CancellationToken ct = default)
+        => threadStore.BuildForkModelHistoryMaterializationAsync(source, forked, ct);
+
     public Task RebuildAndSaveSessionFromThreadAsync(
         AIAgent agent,
         string threadId,
