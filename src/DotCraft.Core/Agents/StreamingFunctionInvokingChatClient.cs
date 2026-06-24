@@ -807,6 +807,7 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
                 toolExecution?.CompleteFailure(SanitizeToolFailureMessage(resultException.Message), value);
             else
                 toolExecution?.CompleteSuccess(value);
+            await NotifyToolHandlerFinishedAsync(call.Name, call.CallId, cancellationToken);
             return new FunctionInvocationOutcome(call, FunctionInvocationStatus.RanToCompletion, value, null, context.Terminate);
         }
         catch (OperationCanceledException ex)
@@ -817,16 +818,37 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
         catch (Exception ex) when (captureExceptions && ex is not OperationCanceledException)
         {
             toolExecution?.CompleteFailure(SanitizeToolFailureMessage(ex.Message));
+            await NotifyToolHandlerFinishedAsync(call.Name, call.CallId, cancellationToken);
             return new FunctionInvocationOutcome(call, FunctionInvocationStatus.Exception, null, ex, false);
         }
         catch (Exception ex)
         {
             toolExecution?.CompleteFailure(SanitizeToolFailureMessage(ex.Message));
+            await NotifyToolHandlerFinishedAsync(call.Name, call.CallId, cancellationToken);
             throw;
         }
         finally
         {
             CurrentInvocationContext.Value = previousContext;
+        }
+    }
+
+    private static async Task NotifyToolHandlerFinishedAsync(
+        string toolName,
+        string callId,
+        CancellationToken cancellationToken)
+    {
+        var callback = TurnGuidanceRuntimeScope.Current?.OnToolHandlerFinishedAsync;
+        if (callback == null)
+            return;
+
+        try
+        {
+            await callback(toolName, callId, cancellationToken);
+        }
+        catch
+        {
+            // Tool lifecycle observers must not change the tool result delivered to the model.
         }
     }
 

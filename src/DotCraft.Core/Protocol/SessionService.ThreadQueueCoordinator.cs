@@ -206,29 +206,42 @@ public sealed partial class SessionService
             {
                 thread = await owner.GetOrLoadThreadAsync(threadId, ct);
                 IReadOnlyList<QueuedTurnInput> queueSnapshot;
+                var shouldStartQueuedTurn = false;
                 using (await owner.AcquireThreadQueueLockAsync(threadId, ct))
                 {
                     if (owner._runtimeRegistry.TryGetThread(threadId, out var cachedThread))
                         thread = cachedThread;
 
                     var queue = thread.QueuedInputs.ToList();
+                    var removedLegacyBudgetGuidance = queue.RemoveAll(IsLegacyGoalBudgetGuidanceInput) > 0;
                     var queueIndex = queue.FindIndex(q => string.Equals(q.Status, "queued", StringComparison.Ordinal));
-                    if (queueIndex < 0)
-                        return;
-                    if (thread.Turns.Any(t => t.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput))
-                        return;
-                    if (owner._runtimeRegistry.TryGetRuntime(threadId, out var runtime) && runtime.Maintenance != null)
-                        return;
+                    if (queueIndex < 0
+                        || thread.Turns.Any(t => t.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput)
+                        || (owner._runtimeRegistry.TryGetRuntime(threadId, out var runtime) && runtime.Maintenance != null))
+                    {
+                        if (!removedLegacyBudgetGuidance)
+                            return;
 
-                    queued = queue[queueIndex];
-                    queue.RemoveAt(queueIndex);
-                    thread.QueuedInputs = queue;
-                    thread.LastActiveAt = DateTimeOffset.UtcNow;
-                    await owner.PersistThreadWithMaterializationAsync(thread, ct);
-                    queueSnapshot = queue.ToList();
+                        thread.QueuedInputs = queue;
+                        thread.LastActiveAt = DateTimeOffset.UtcNow;
+                        await owner.PersistThreadWithMaterializationAsync(thread, ct);
+                        queueSnapshot = queue.ToList();
+                    }
+                    else
+                    {
+                        queued = queue[queueIndex];
+                        queue.RemoveAt(queueIndex);
+                        thread.QueuedInputs = queue;
+                        thread.LastActiveAt = DateTimeOffset.UtcNow;
+                        await owner.PersistThreadWithMaterializationAsync(thread, ct);
+                        queueSnapshot = queue.ToList();
+                        shouldStartQueuedTurn = true;
+                    }
                 }
 
                 owner.PublishQueueUpdated(thread.Id, queueSnapshot);
+                if (!shouldStartQueuedTurn || queued == null)
+                    return;
 
                 var content = await ResolveInputPartsAsync(queued.MaterializedInputParts.ToList(), ct);
                 if (content.Count == 0)

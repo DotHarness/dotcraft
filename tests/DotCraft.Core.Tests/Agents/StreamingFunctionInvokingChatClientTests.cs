@@ -45,6 +45,96 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
     }
 
     [Fact]
+    public async Task GetStreamingResponseAsync_NotifiesToolHandlerFinishedAfterHandlerRuns()
+    {
+        var inner = new RoundTripFakeChatClient();
+        var tool = AIFunctionFactory.Create(() => "tool ok", name: "GetStatus");
+        var client = new StreamingFunctionInvokingChatClient(inner)
+        {
+            AdditionalTools = [tool]
+        };
+        var callbacks = new List<(string ToolName, string CallId)>();
+
+        using var scope = TurnGuidanceRuntimeScope.Set(new TurnGuidanceRuntimeContext
+        {
+            ThreadId = "thread_1",
+            TurnId = "turn_1",
+            TryDrainGuidanceMessageAsync = _ => Task.FromResult<ChatMessage?>(null),
+            OnToolHandlerFinishedAsync = (toolName, callId, _) =>
+            {
+                callbacks.Add((toolName, callId));
+                return Task.CompletedTask;
+            }
+        });
+
+        await CollectAsync(client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")]));
+
+        var callback = Assert.Single(callbacks);
+        Assert.Equal("GetStatus", callback.ToolName);
+        Assert.Equal("call-1", callback.CallId);
+    }
+
+    [Fact]
+    public async Task GetStreamingResponseAsync_DoesNotNotifyToolHandlerFinishedForPolicyDeniedOrMissingTool()
+    {
+        var deniedInner = new RoundTripFakeChatClient();
+        var deniedClient = new StreamingFunctionInvokingChatClient(deniedInner)
+        {
+            AdditionalTools = [AIFunctionFactory.Create(() => "tool ok", name: "GetStatus")],
+            ToolCallPolicy = _ => ModeToolPolicyDecision.DenyRecoverable("TOOL_POLICY_DENIED")
+        };
+        var missingInner = new UnknownToolFakeChatClient();
+        var missingClient = new StreamingFunctionInvokingChatClient(missingInner);
+        var callbacks = 0;
+
+        using var scope = TurnGuidanceRuntimeScope.Set(new TurnGuidanceRuntimeContext
+        {
+            ThreadId = "thread_1",
+            TurnId = "turn_1",
+            TryDrainGuidanceMessageAsync = _ => Task.FromResult<ChatMessage?>(null),
+            OnToolHandlerFinishedAsync = (_, _, _) =>
+            {
+                callbacks++;
+                return Task.CompletedTask;
+            }
+        });
+
+        await CollectAsync(deniedClient.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")]));
+        await CollectAsync(missingClient.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")]));
+
+        Assert.Equal(0, callbacks);
+    }
+
+    [Fact]
+    public async Task GetStreamingResponseAsync_DoesNotNotifyToolHandlerFinishedForCancelledHandler()
+    {
+        var inner = new RoundTripFakeChatClient();
+        var client = new StreamingFunctionInvokingChatClient(inner)
+        {
+            AdditionalTools = [AIFunctionFactory.Create(() => "tool ok", name: "GetStatus")],
+            FunctionInvoker = (_, _) => throw new OperationCanceledException("cancelled")
+        };
+        var callbacks = 0;
+
+        using var scope = TurnGuidanceRuntimeScope.Set(new TurnGuidanceRuntimeContext
+        {
+            ThreadId = "thread_1",
+            TurnId = "turn_1",
+            TryDrainGuidanceMessageAsync = _ => Task.FromResult<ChatMessage?>(null),
+            OnToolHandlerFinishedAsync = (_, _, _) =>
+            {
+                callbacks++;
+                return Task.CompletedTask;
+            }
+        });
+
+        await Assert.ThrowsAsync<OperationCanceledException>(async () =>
+            await CollectAsync(client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")])));
+
+        Assert.Equal(0, callbacks);
+    }
+
+    [Fact]
     public async Task GetStreamingResponseAsync_DrainsMailboxTurnContextAsUserBeforeNextModelRequest()
     {
         var inner = new RoundTripFakeChatClient();

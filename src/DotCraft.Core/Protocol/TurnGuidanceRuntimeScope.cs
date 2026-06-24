@@ -32,7 +32,8 @@ public static class TurnGuidanceRuntimeScope
 }
 
 /// <summary>
-/// Runtime callbacks for inserting queued guidance into the current turn.
+/// Runtime callbacks for inserting same-turn guidance into the current turn
+/// and observing safe model/tool-loop boundaries.
 /// </summary>
 public sealed class TurnGuidanceRuntimeContext
 {
@@ -41,4 +42,10 @@ public sealed class TurnGuidanceRuntimeContext
     public required string TurnId { get; init; }
 
     public required Func<CancellationToken, Task<ChatMessage?>> TryDrainGuidanceMessageAsync { get; init; }
+
+    /// <summary>
+    /// Optional callback invoked after a tool handler has actually run and produced
+    /// either a normal result or a handler exception.
+    /// </summary>
+    public Func<string, string, CancellationToken, Task>? OnToolHandlerFinishedAsync { get; init; }
 }

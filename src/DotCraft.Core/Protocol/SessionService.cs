@@ -41,6 +41,12 @@ internal sealed record GoalTurnSnapshot(
         this with { AccountedUsage = usage, LastAccountedAt = accountedAt };
 }
 
+internal enum GoalBudgetLimitSteering
+{
+    Suppress,
+    InjectIfNew
+}
+
 internal sealed record AutoMemoryConsolidationWork(
     SessionThread Thread,
     SessionTurn Turn,
@@ -703,13 +709,27 @@ public sealed partial class SessionService(
 
     private bool GoalsEnabled => Goals.Enabled;
 
+    private Task RecordGoalUsageAsync(
+        TurnKey turnKey,
+        TokenUsageInfo latestTurnUsage,
+        CancellationToken ct = default) =>
+        Goals.RecordUsageAsync(turnKey, latestTurnUsage, ct);
+
     private async Task<ThreadGoal?> AccountGoalUsageAsync(
         TurnKey turnKey,
         TokenUsageInfo latestTurnUsage,
         string? notificationTurnId,
         GoalAccountingMode mode = GoalAccountingMode.ActiveOnly,
+        CancellationToken ct = default,
+        GoalBudgetLimitSteering budgetLimitSteering = GoalBudgetLimitSteering.Suppress) =>
+        await Goals.AccountUsageAsync(turnKey, latestTurnUsage, notificationTurnId, mode, ct, budgetLimitSteering);
+
+    private async Task AccountGoalToolCompletionAsync(
+        TurnKey turnKey,
+        string toolName,
+        string callId,
         CancellationToken ct = default) =>
-        await Goals.AccountUsageAsync(turnKey, latestTurnUsage, notificationTurnId, mode, ct);
+        await Goals.AccountToolCompletionAsync(turnKey, toolName, callId, ct);
 
     private async Task PauseActiveGoalForInterruptAsync(TurnKey turnKey, CancellationToken ct = default)
         => await Goals.PauseActiveForInterruptAsync(turnKey, ct);
@@ -727,6 +747,11 @@ public sealed partial class SessionService(
             throw new ArgumentException("threadId is required.", nameof(threadId));
         return normalized;
     }
+
+    private static bool IsLegacyGoalBudgetGuidanceInput(QueuedTurnInput input) =>
+        string.Equals(input.TriggerKind, "goal", StringComparison.Ordinal)
+        && (string.Equals(input.TriggerLabel, "Goal budget reached", StringComparison.Ordinal)
+            || string.Equals(input.DisplayText, "Goal budget reached", StringComparison.Ordinal));
 
     // =========================================================================
     // Thread lifecycle
@@ -1361,7 +1386,19 @@ public sealed partial class SessionService(
                 if (mailboxMessage != null)
                     return mailboxMessage;
 
+                var goalSteeringMessage = TryDrainGoalSteeringMessage();
+                if (goalSteeringMessage != null)
+                    return goalSteeringMessage;
+
                 return await TryDrainGuidanceMessageAsync(drainCt);
+            }
+
+            ChatMessage? TryDrainGoalSteeringMessage()
+            {
+                var text = TryGetTurnRuntime(turnKey)?.TryDequeueGoalSteering();
+                return string.IsNullOrWhiteSpace(text)
+                    ? null
+                    : new ChatMessage(ChatRole.System, text);
             }
 
             async Task<ChatMessage?> TryDrainSubAgentMailboxMessageAsync(CancellationToken drainCt)
@@ -1432,17 +1469,28 @@ public sealed partial class SessionService(
 
             async Task<ChatMessage?> TryDrainGuidanceMessageAsync(CancellationToken drainCt)
             {
-                QueuedTurnInput queued;
+                QueuedTurnInput? queued;
+                IReadOnlyList<QueuedTurnInput>? cleanupSnapshot = null;
                 using (await AcquireThreadQueueLockAsync(threadId, drainCt))
                 {
-                    var queueIndex = thread.QueuedInputs.FindIndex(q =>
+                    var queue = thread.QueuedInputs.ToList();
+                    if (queue.RemoveAll(IsLegacyGoalBudgetGuidanceInput) > 0)
+                    {
+                        thread.QueuedInputs = queue;
+                        thread.LastActiveAt = DateTimeOffset.UtcNow;
+                        await PersistThreadWithMaterializationAsync(thread, drainCt);
+                        cleanupSnapshot = queue.ToList();
+                    }
+
+                    var queueIndex = queue.FindIndex(q =>
                         string.Equals(q.Status, "guidancePending", StringComparison.Ordinal) &&
                         string.Equals(q.ReadyAfterTurnId, turn.Id, StringComparison.Ordinal));
-                    if (queueIndex < 0)
-                        return null;
-
-                    queued = thread.QueuedInputs[queueIndex];
+                    queued = queueIndex < 0 ? null : queue[queueIndex];
                 }
+                if (cleanupSnapshot != null)
+                    PublishQueueUpdated(thread.Id, cleanupSnapshot);
+                if (queued == null)
+                    return null;
 
                 var contentParts = await ThreadQueue.ResolveInputPartsAsync(queued.MaterializedInputParts.ToList(), drainCt);
                 if (contentParts.Count == 0)
@@ -1517,11 +1565,18 @@ public sealed partial class SessionService(
                 IReadOnlyList<QueuedTurnInput> queueSnapshot;
                 using (await AcquireThreadQueueLockAsync(threadId, CancellationToken.None))
                 {
-                    var restored = false;
+                    var changed = false;
                     var queue = thread.QueuedInputs.ToList();
-                    for (var i = 0; i < queue.Count; i++)
+                    for (var i = queue.Count - 1; i >= 0; i--)
                     {
                         var queued = queue[i];
+                        if (IsLegacyGoalBudgetGuidanceInput(queued))
+                        {
+                            queue.RemoveAt(i);
+                            changed = true;
+                            continue;
+                        }
+
                         if (!string.Equals(queued.Status, "guidancePending", StringComparison.Ordinal) ||
                             !string.Equals(queued.ReadyAfterTurnId, turn.Id, StringComparison.Ordinal))
                         {
@@ -1529,10 +1584,10 @@ public sealed partial class SessionService(
                         }
 
                         queue[i] = queued with { Status = "queued" };
-                        restored = true;
+                        changed = true;
                     }
 
-                    if (!restored)
+                    if (!changed)
                         return;
 
                     thread.QueuedInputs = queue;
@@ -2010,7 +2065,9 @@ public sealed partial class SessionService(
                     {
                         ThreadId = threadId,
                         TurnId = turn.Id,
-                        TryDrainGuidanceMessageAsync = TryDrainTurnContextMessageAsync
+                        TryDrainGuidanceMessageAsync = TryDrainTurnContextMessageAsync,
+                        OnToolHandlerFinishedAsync = async (toolName, callId, toolCt) =>
+                            await AccountGoalToolCompletionAsync(turnKey, toolName, callId, toolCt)
                     });
                     using var modelStreamRetryScope = ModelStreamRetryRuntimeScope.Set(
                         new ModelStreamRetryRuntimeContext
@@ -2362,7 +2419,7 @@ public sealed partial class SessionService(
                                                 turnOutputTokens: outputTokens,
                                                 turnLlmCalls: llmCallCount,
                                                 contextUsage: contextUsage);
-                                            await AccountGoalUsageAsync(
+                                            await RecordGoalUsageAsync(
                                                 turnKey,
                                                 new TokenUsageInfo
                                                 {
@@ -2374,8 +2431,6 @@ public sealed partial class SessionService(
                                                     LlmCallCount = llmCallCount,
                                                     TotalTokens = inputTokens + outputTokens
                                                 },
-                                                turn.Id,
-                                                GoalAccountingMode.ActiveOnly,
                                                 CancellationToken.None);
                                         }
                                     }
@@ -2685,7 +2740,7 @@ public sealed partial class SessionService(
                 if (_runtimeRegistry.TryGetRuntime(turnKey.ThreadId, out var runtime)
                     && runtime.TryRemoveTurn(turnKey.TurnId, out var removedTurnRuntime))
                 {
-                    removedTurnRuntime.Cancellation?.Dispose();
+                    removedTurnRuntime.Dispose();
                 }
                 eventChannel.Complete();
             }

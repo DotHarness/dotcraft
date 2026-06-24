@@ -222,11 +222,11 @@ public sealed partial class SessionService
                 ephemeral = thread.Ephemeral;
                 foreach (var turn in thread.Turns.Where(t => t.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput))
                 {
-                    if (runtime.TryRemoveTurn(turn.Id, out var turnRuntime)
-                        && turnRuntime.Cancellation != null)
+                    if (runtime.TryRemoveTurn(turn.Id, out var turnRuntime))
                     {
-                        await turnRuntime.Cancellation.CancelAsync();
-                        turnRuntime.Cancellation.Dispose();
+                        if (turnRuntime.Cancellation != null)
+                            await turnRuntime.Cancellation.CancelAsync();
+                        turnRuntime.Dispose();
                     }
                 }
             }

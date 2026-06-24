@@ -72,7 +72,7 @@ internal sealed class ThreadRuntime(SessionThread thread) : IAsyncDisposable, ID
     private int _goalContinuationStarting;
     private int _turnsSinceConsolidation;
     private AutoMemoryConsolidationWork? _pendingAutoMemoryConsolidation;
-    private readonly ConcurrentDictionary<string, byte> _goalBudgetGuidanceQueued = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, byte> _goalBudgetLimitReported = new(StringComparer.Ordinal);
 
     public SessionThread Thread { get; set; } = thread;
 
@@ -133,8 +133,8 @@ internal sealed class ThreadRuntime(SessionThread thread) : IAsyncDisposable, ID
     public void CompleteGoalContinuation() =>
         Interlocked.Exchange(ref _goalContinuationStarting, 0);
 
-    public bool TryQueueGoalBudgetGuidance(string goalId) =>
-        _goalBudgetGuidanceQueued.TryAdd(goalId, 0);
+    public bool TryMarkGoalBudgetLimitReported(string goalId) =>
+        _goalBudgetLimitReported.TryAdd(goalId, 0);
 
     public PromptRequestSnapshot? LastPromptRequest { get; set; }
 
@@ -172,8 +172,11 @@ internal sealed class ThreadRuntime(SessionThread thread) : IAsyncDisposable, ID
     }
 }
 
-internal sealed class TurnRuntime
+internal sealed class TurnRuntime : IDisposable
 {
+    private readonly object _goalSteeringLock = new();
+    private readonly Queue<string> _pendingGoalSteering = new();
+
     public CancellationTokenSource? Cancellation { get; set; }
 
     public SessionApprovalService? PendingApproval { get; set; }
@@ -183,4 +186,27 @@ internal sealed class TurnRuntime
     public GoalTurnSnapshot? GoalSnapshot { get; set; }
 
     public TokenUsageInfo LatestGoalUsage { get; set; } = new();
+
+    public SemaphoreSlim GoalAccountingLock { get; } = new(1, 1);
+
+    public void EnqueueGoalSteering(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return;
+
+        lock (_goalSteeringLock)
+            _pendingGoalSteering.Enqueue(text);
+    }
+
+    public string? TryDequeueGoalSteering()
+    {
+        lock (_goalSteeringLock)
+            return _pendingGoalSteering.Count == 0 ? null : _pendingGoalSteering.Dequeue();
+    }
+
+    public void Dispose()
+    {
+        Cancellation?.Dispose();
+        GoalAccountingLock.Dispose();
+    }
 }
