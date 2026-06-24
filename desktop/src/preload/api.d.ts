@@ -63,6 +63,12 @@ export interface PinnedThreadIdsChangedPayload {
   threadIds: string[]
 }
 
+export interface WindowVisibilityState {
+  minimized: boolean
+  visible: boolean
+  focused: boolean
+}
+
 export interface BrowserEventPayload {
   tabId: string
   threadId?: string
@@ -443,8 +449,10 @@ declare global {
         toggleMaximize(): Promise<boolean>
         close(): Promise<void>
         isMaximized(): Promise<boolean>
+        getVisibilityState(): Promise<WindowVisibilityState>
         rendererReadyForShow(): void
         onMaximizedChange(callback: (maximized: boolean) => void): () => void
+        onVisibilityChanged(callback: (state: WindowVisibilityState) => void): () => void
         getWorkspacePath(): Promise<string>
         onOpenChromeSettings(callback: () => void): () => void
         onOpenWhatsNew(callback: () => void): () => void

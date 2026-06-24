@@ -1462,20 +1462,36 @@ function createWindow(
     forceShow()
   })
 
-  // Re-apply the persisted interface zoom on every load (webContents zoom resets per load),
-  // so the UI scales without a flash. Runtime changes go through the renderer (webFrame).
-  win.webContents.on('did-finish-load', () => {
-    win.webContents.setZoomFactor(normalizeInterfaceZoom(sharedSettings.interfaceZoom))
-  })
-
   const sendMaximizedState = (): void => {
     if (win.isDestroyed()) return
     win.webContents.send('window:maximized-change', win.isMaximized())
   }
+  const sendVisibilityState = (): void => {
+    if (win.isDestroyed()) return
+    win.webContents.send('window:visibility-changed', {
+      minimized: win.isMinimized(),
+      visible: win.isVisible(),
+      focused: win.isFocused()
+    })
+  }
+
+  // Re-apply the persisted interface zoom on every load (webContents zoom resets per load),
+  // so the UI scales without a flash. Runtime changes go through the renderer (webFrame).
+  win.webContents.on('did-finish-load', () => {
+    win.webContents.setZoomFactor(normalizeInterfaceZoom(sharedSettings.interfaceZoom))
+    sendVisibilityState()
+  })
+
   win.on('maximize', sendMaximizedState)
   win.on('unmaximize', sendMaximizedState)
   win.on('enter-full-screen', sendMaximizedState)
   win.on('leave-full-screen', sendMaximizedState)
+  win.on('minimize', sendVisibilityState)
+  win.on('restore', sendVisibilityState)
+  win.on('show', sendVisibilityState)
+  win.on('hide', sendVisibilityState)
+  win.on('focus', sendVisibilityState)
+  win.on('blur', sendVisibilityState)
 
   win.on('close', () => {
     viewerBrowserManager.destroyAllTabs(win)

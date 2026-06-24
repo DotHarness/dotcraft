@@ -101,6 +101,7 @@ import type {
   BrowserUseApprovalResponseAction,
   DiscoveredModule,
   ModuleStatusMap,
+  WindowVisibilityState,
   WorkspaceSetupRequest,
   WorkspaceStatusPayload
 } from '../preload/api.d'
@@ -112,6 +113,15 @@ const WORKSPACE_LAUNCH_TRANSITION_MS = 620
 const WORKSPACE_LAUNCH_REVEAL_MS = 360
 const ACTIVE_THREAD_METADATA_REFRESH_INTERVAL_MS = 5_000
 const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0'
+const DEFAULT_WINDOW_VISIBILITY_STATE: WindowVisibilityState = {
+  minimized: false,
+  visible: true,
+  focused: true
+}
+
+function isDesktopWindowBackgrounded(state: WindowVisibilityState): boolean {
+  return state.minimized || !state.visible
+}
 
 type WorkspaceLaunchTarget = 'unknown' | 'setup' | 'main' | 'error'
 
@@ -721,6 +731,11 @@ export function App(): JSX.Element {
   const threadListReloadGenerationRef = useRef(0)
   const ensureThreadSubscribedRef = useRef<EnsureThreadSubscribed | null>(null)
   const reconcileActiveThreadSnapshotRef = useRef<((reason?: string) => void) | null>(null)
+  const windowVisibilityStateRef = useRef<WindowVisibilityState>(DEFAULT_WINDOW_VISIBILITY_STATE)
+  const deferredActiveConversationRef = useRef<{
+    threadId: string
+    count: number
+  } | null>(null)
   const activeThreadSnapshotReconcileInFlightRef = useRef<{
     threadId: string
     scope: string
@@ -757,6 +772,74 @@ export function App(): JSX.Element {
   const isThreadRestoreGated = useCallback((threadId: string | null): boolean => {
     return threadId != null && threadRestoreGateRef.current?.threadId === threadId
   }, [])
+
+  const isConversationRenderPaused = useCallback((): boolean => {
+    return document.hidden === true || isDesktopWindowBackgrounded(windowVisibilityStateRef.current)
+  }, [])
+
+  const markActiveConversationDeferred = useCallback((threadId: string): void => {
+    const current = deferredActiveConversationRef.current
+    deferredActiveConversationRef.current = {
+      threadId,
+      count: current?.threadId === threadId ? current.count + 1 : 1
+    }
+  }, [])
+
+  const clearDeferredActiveConversation = useCallback((threadId?: string): void => {
+    const current = deferredActiveConversationRef.current
+    if (!current) return
+    if (threadId != null && current.threadId !== threadId) return
+    deferredActiveConversationRef.current = null
+  }, [])
+
+  const hasDeferredActiveConversation = useCallback((): boolean => {
+    const activeId = useThreadStore.getState().activeThreadId
+    const current = deferredActiveConversationRef.current
+    return activeId != null && current?.threadId === activeId && current.count > 0
+  }, [])
+
+  const reconcileDeferredActiveConversation = useCallback((reason: string): void => {
+    if (!hasDeferredActiveConversation()) return
+    reconcileActiveThreadSnapshotRef.current?.(reason)
+  }, [hasDeferredActiveConversation])
+
+  const shouldDeferActiveConversationUpdate = useCallback((
+    threadId: string | null | undefined
+  ): boolean => {
+    if (!threadId) return false
+    if (useThreadStore.getState().activeThreadId !== threadId) return false
+    if (!isConversationRenderPaused()) return false
+    markActiveConversationDeferred(threadId)
+    return true
+  }, [isConversationRenderPaused, markActiveConversationDeferred])
+
+  useEffect(() => {
+    const handleForegrounded = (): void => {
+      if (!isConversationRenderPaused()) {
+        reconcileDeferredActiveConversation('window-foregrounded')
+      }
+    }
+    const applyVisibilityState = (state: WindowVisibilityState): void => {
+      const wasPaused = isConversationRenderPaused()
+      windowVisibilityStateRef.current = state
+      if (wasPaused && !isConversationRenderPaused()) {
+        reconcileDeferredActiveConversation('window-visibility-restored')
+      }
+    }
+
+    const unsubscribeVisibility = window.api.window.onVisibilityChanged?.(applyVisibilityState)
+    void window.api.window.getVisibilityState?.()
+      .then(applyVisibilityState)
+      .catch(() => undefined)
+    document.addEventListener('visibilitychange', handleForegrounded)
+    window.addEventListener('focus', handleForegrounded)
+    return () => {
+      unsubscribeVisibility?.()
+      document.removeEventListener('visibilitychange', handleForegrounded)
+      window.removeEventListener('focus', handleForegrounded)
+    }
+  }, [isConversationRenderPaused, reconcileDeferredActiveConversation])
+
   const lastSeenWhatsNewVersionRef = useRef<string | undefined>(undefined)
 
   useEffect(() => {
@@ -1758,7 +1841,11 @@ export function App(): JSX.Element {
                 conversation: useConversationStore.getState(),
                 runtime: runtimeSnapshot
               })) {
-                reconcileActiveThreadSnapshotRef.current?.('runtimeChanged')
+                if (isConversationRenderPaused()) {
+                  markActiveConversationDeferred(threadId)
+                } else {
+                  reconcileActiveThreadSnapshotRef.current?.('runtimeChanged')
+                }
               }
             }
             break
@@ -1788,7 +1875,10 @@ export function App(): JSX.Element {
           case 'turn/started': {
             const rawTurn = (p.turn ?? p) as Record<string, unknown>
             const startedThreadId = (rawTurn.threadId as string | undefined) ?? (p.threadId as string | undefined)
-            if (shouldUpdateActiveConversation(startedThreadId)) {
+            if (
+              shouldUpdateActiveConversation(startedThreadId)
+              && !shouldDeferActiveConversationUpdate(startedThreadId)
+            ) {
               conv.onTurnStarted(rawTurn)
             }
             if (shouldUpdateReviewThread(startedThreadId)) {
@@ -1801,7 +1891,10 @@ export function App(): JSX.Element {
           case 'turn/completed': {
             const rawTurn = (p.turn ?? p) as Record<string, unknown>
             const completedThreadId = (rawTurn.threadId as string | undefined) ?? (p.threadId as string | undefined)
-            if (shouldUpdateActiveConversation(completedThreadId)) {
+            if (
+              shouldUpdateActiveConversation(completedThreadId)
+              && !shouldDeferActiveConversationUpdate(completedThreadId)
+            ) {
               conv.onTurnCompleted(rawTurn)
             }
             // Fallback: poll thread/read if sidebar still has no displayName (e.g. missed thread/renamed).
@@ -1884,7 +1977,7 @@ export function App(): JSX.Element {
           case 'item/agentMessage/delta': {
             const tid = (p.threadId as string | undefined) ?? ''
             const delta = (p.delta as string) ?? ''
-            if (shouldUpdateActiveConversation(tid)) {
+            if (shouldUpdateActiveConversation(tid) && !shouldDeferActiveConversationUpdate(tid)) {
               conv.onAgentMessageDelta(delta)
             }
             if (shouldUpdateReviewThread(tid)) {
@@ -1897,7 +1990,7 @@ export function App(): JSX.Element {
           case 'item/reasoning/delta': {
             const tid = (p.threadId as string | undefined) ?? ''
             const delta = (p.delta as string) ?? ''
-            if (shouldUpdateActiveConversation(tid)) {
+            if (shouldUpdateActiveConversation(tid) && !shouldDeferActiveConversationUpdate(tid)) {
               conv.onReasoningDelta(delta)
             }
             if (shouldUpdateReviewThread(tid)) {
@@ -1915,7 +2008,7 @@ export function App(): JSX.Element {
               itemId: (p.itemId as string | undefined),
               delta: (p.delta as string | undefined)
             }
-            if (shouldUpdateActiveConversation(tid)) {
+            if (shouldUpdateActiveConversation(tid) && !shouldDeferActiveConversationUpdate(tid)) {
               conv.onCommandExecutionDelta(params)
             }
             if (shouldUpdateReviewThread(tid)) {
@@ -1937,7 +2030,7 @@ export function App(): JSX.Element {
               terminal,
               delta: (p.delta as string | undefined)
             }
-            if (shouldUpdateActiveConversation(tid)) {
+            if (shouldUpdateActiveConversation(tid) && !shouldDeferActiveConversationUpdate(tid)) {
               conv.onTerminalEvent(params)
             }
             if (shouldUpdateReviewThread(tid)) {
@@ -1949,7 +2042,7 @@ export function App(): JSX.Element {
 
           case 'item/toolCall/argumentsDelta': {
             const tid = (p.threadId as string | undefined) ?? ''
-            if (shouldUpdateActiveConversation(tid)) {
+            if (shouldUpdateActiveConversation(tid) && !shouldDeferActiveConversationUpdate(tid)) {
               conv.onToolCallArgumentsDelta({
                 threadId: (p.threadId as string | undefined),
                 turnId: (p.turnId as string | undefined),
@@ -1964,7 +2057,7 @@ export function App(): JSX.Element {
 
           case 'item/completed': {
             const tid = (p.threadId as string | undefined) ?? ''
-            if (shouldUpdateActiveConversation(tid)) {
+            if (shouldUpdateActiveConversation(tid) && !shouldDeferActiveConversationUpdate(tid)) {
               conv.onItemCompleted(p)
             }
             if (shouldUpdateReviewThread(tid)) {
@@ -1977,6 +2070,7 @@ export function App(): JSX.Element {
           case 'item/usage/delta': {
             const tid = (p.threadId as string | undefined) ?? ''
             if (!shouldUpdateActiveConversation(tid)) break
+            if (shouldDeferActiveConversationUpdate(tid)) break
             const input = (p.inputTokens as number) ?? 0
             const output = (p.outputTokens as number) ?? 0
             const totalInput = typeof p.totalInputTokens === 'number' ? (p.totalInputTokens as number) : null
@@ -2796,6 +2890,7 @@ export function App(): JSX.Element {
 
     // Always reset conversation state on thread switch
     useConversationStore.getState().reset()
+    clearDeferredActiveConversation()
 
     // Unsubscribe from previous thread when genuinely switching (not StrictMode remount)
     if (prev && prev !== curr) {
@@ -2849,6 +2944,7 @@ export function App(): JSX.Element {
             preserveExistingRealtime: true,
             realtimeScopeThreadId: requestedId
           })
+          clearDeferredActiveConversation(requestedId)
           if (res.thread.plan) {
             useConversationStore.getState().onPlanUpdated(res.thread.plan)
           }
@@ -3066,6 +3162,7 @@ export function App(): JSX.Element {
     beginThreadRestoreGate,
     clearThreadRestoreGate,
     clearThreadSubscriptionState,
+    clearDeferredActiveConversation,
     ensureThreadSubscribed,
     queueThreadUnsubscribe
   ])
@@ -3116,6 +3213,7 @@ export function App(): JSX.Element {
         preserveExistingRealtime: true,
         realtimeScopeThreadId: requestedId
       })
+      clearDeferredActiveConversation(requestedId)
       if (thread.plan) {
         useConversationStore.getState().onPlanUpdated(thread.plan)
       }
@@ -3192,6 +3290,7 @@ export function App(): JSX.Element {
     let refreshInFlight = false
     const refreshActiveThreadMetadata = async (): Promise<void> => {
       if (refreshInFlight) return
+      if (isConversationRenderPaused()) return
       refreshInFlight = true
       const requestedId = activeThreadId
       try {
@@ -3224,7 +3323,7 @@ export function App(): JSX.Element {
       disposed = true
       window.clearInterval(timer)
     }
-  }, [activeThreadId, applyActiveThreadSnapshot, reconcileActiveThreadSnapshot, status])
+  }, [activeThreadId, applyActiveThreadSnapshot, isConversationRenderPaused, reconcileActiveThreadSnapshot, status])
 
   // -------------------------------------------------------------------------
   // Render

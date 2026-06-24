@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { AnsiPre } from '../components/conversation/AnsiPre'
+import * as ansiUtils from '../utils/ansi'
 
 describe('AnsiPre', () => {
   it('renders ansi segments as styled spans', () => {
@@ -27,5 +28,18 @@ describe('AnsiPre', () => {
     expect(screen.getByText('b')).toBeInTheDocument()
     expect(screen.getByText('…')).toBeInTheDocument()
     expect(screen.queryByText('c')).toBeNull()
+  })
+
+  it('parses only the displayed line prefix when truncating large output', () => {
+    const parseSpy = vi.spyOn(ansiUtils, 'parseAnsi')
+
+    try {
+      render(<AnsiPre text={`\u001b[32ma\nb\n${'c\n'.repeat(1000)}\u001b[0m`} truncatedLinesOver={2} />)
+
+      expect(parseSpy).toHaveBeenCalledWith('\u001b[32ma\nb')
+      expect(screen.queryByText('c')).toBeNull()
+    } finally {
+      parseSpy.mockRestore()
+    }
   })
 })
