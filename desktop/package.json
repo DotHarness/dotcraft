@@ -87,7 +87,6 @@
   "build": {
     "appId": "com.dotcraft.desktop",
     "productName": "DotCraft",
-    "electronDist": "node_modules/electron/dist",
     "icon": "resources/icon.png",
     "directories": {
       "buildResources": "resources"
