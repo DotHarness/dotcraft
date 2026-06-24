@@ -303,7 +303,7 @@ function dispatch(payload: { method: string; params: unknown }): void {
     case 'subagent/graphChanged': {
       const parentThreadId = (p.parentThreadId as string | undefined) ?? ''
       if (parentThreadId) {
-        void useSubAgentStore.getState().fetchChildren(parentThreadId)
+        void useSubAgentStore.getState().fetchChildren(parentThreadId, { authoritative: true })
       }
       break
     }
@@ -863,6 +863,72 @@ describe('notification dispatch payload format', () => {
       })
       expect(useThreadStore.getState().threadList.some((thread) => thread.id === 'child-graph')).toBe(true)
     })
+  })
+
+  it('does not resurrect closed subagents from stale progress after graph changes', async () => {
+    useSubAgentStore.getState().setChildren('thread-1', [
+      {
+        childThreadId: 'child-1',
+        parentThreadId: 'thread-1',
+        nickname: 'Lovelace',
+        agentRole: null,
+        profileName: 'native',
+        runtimeType: 'native',
+        supportsSendInput: true,
+        supportsResume: true,
+        supportsClose: true,
+        status: 'open',
+        lastToolDisplay: 'Reading sprite atlas',
+        currentTool: 'ReadFile',
+        inputTokens: 12,
+        outputTokens: 34,
+        isCompleted: false,
+        runtime: {
+          running: true,
+          waitingOnApproval: false,
+          waitingOnPlanConfirmation: false
+        }
+      }
+    ])
+    const sendRequest = vi.fn(async (method: string) => {
+      if (method === 'subagent/children/list') {
+        return { data: [] }
+      }
+      return {}
+    })
+    vi.stubGlobal('window', {
+      api: {
+        appServer: { sendRequest }
+      }
+    })
+
+    dispatch({
+      method: 'subagent/graphChanged',
+      params: { parentThreadId: 'thread-1', childThreadId: 'child-1' }
+    })
+
+    await vi.waitFor(() => {
+      expect(useSubAgentStore.getState().childrenByParent.get('thread-1')).toEqual([])
+    })
+
+    dispatch({
+      method: 'subagent/progress',
+      params: {
+        threadId: 'thread-1',
+        entries: [
+          {
+            label: 'Lovelace',
+            isCompleted: false,
+            inputTokens: 99,
+            outputTokens: 101,
+            currentTool: 'ReadFile',
+            currentToolDisplay: 'Reading stale output'
+          }
+        ]
+      }
+    })
+
+    expect(useSubAgentStore.getState().childrenByParent.get('thread-1')).toEqual([])
   })
 
   it('dispatches turn/started correctly from { method, params } payload', () => {

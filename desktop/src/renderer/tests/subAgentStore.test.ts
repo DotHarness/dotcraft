@@ -421,6 +421,51 @@ describe('subAgentStore', () => {
     expect(useSubAgentStore.getState().collapsedByParent.get('parent-1')).toBe(true)
   })
 
+  it('clears authoritative empty child lists and blocks stale progress placeholders', async () => {
+    useSubAgentStore.getState().setChildren('parent-1', [
+      {
+        childThreadId: 'child-1',
+        parentThreadId: 'parent-1',
+        nickname: 'Lovelace',
+        agentRole: null,
+        profileName: 'native',
+        runtimeType: 'native',
+        supportsSendInput: true,
+        supportsResume: true,
+        supportsClose: true,
+        status: 'open',
+        lastToolDisplay: 'Reading sprite atlas',
+        currentTool: 'ReadFile',
+        inputTokens: 7,
+        outputTokens: 11,
+        isCompleted: false,
+        runtime: {
+          running: true,
+          waitingOnApproval: false,
+          waitingOnPlanConfirmation: false
+        }
+      }
+    ])
+    appServerSendRequest.mockResolvedValue({ data: [] })
+
+    await useSubAgentStore.getState().fetchChildren('parent-1', { authoritative: true })
+
+    expect(useSubAgentStore.getState().childrenByParent.get('parent-1')).toEqual([])
+
+    useSubAgentStore.getState().updateProgress('parent-1', [
+      {
+        label: 'Lovelace',
+        isCompleted: false,
+        inputTokens: 99,
+        outputTokens: 101,
+        currentTool: 'ReadFile',
+        currentToolDisplay: 'Reading stale output'
+      }
+    ])
+
+    expect(useSubAgentStore.getState().childrenByParent.get('parent-1')).toEqual([])
+  })
+
   it('hydrates placeholder rows with real child threads while preserving progress display', async () => {
     useSubAgentStore.getState().updateProgress('parent-1', [
       {

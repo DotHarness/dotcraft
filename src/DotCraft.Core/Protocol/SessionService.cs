@@ -2153,12 +2153,19 @@ public sealed partial class SessionService(
                                     if (string.Equals(fc.Name, "SpawnAgent", StringComparison.Ordinal)
                                         && fc.Arguments != null)
                                     {
-                                        var rawLabel = fc.Arguments.TryGetValue("agentNickname", out var labelObj)
-                                            ? labelObj?.ToString()
-                                            : null;
-                                        var rawTask = fc.Arguments.TryGetValue("agentPrompt", out var taskObj)
-                                            ? taskObj?.ToString()
-                                            : null;
+                                        string? rawLabel = null;
+                                        if (fc.Arguments.TryGetValue("agentNickname", out var labelObj))
+                                            rawLabel = labelObj?.ToString();
+                                        else if (fc.Arguments.TryGetValue("taskName", out var taskNameLabelObj))
+                                            rawLabel = taskNameLabelObj?.ToString();
+
+                                        string? rawTask = null;
+                                        if (fc.Arguments.TryGetValue("message", out var messageObj))
+                                            rawTask = messageObj?.ToString();
+                                        else if (fc.Arguments.TryGetValue("agentPrompt", out var taskObj))
+                                            rawTask = taskObj?.ToString();
+                                        else if (fc.Arguments.TryGetValue("taskName", out var taskNameTaskObj))
+                                            rawTask = taskNameTaskObj?.ToString();
 
                                         if (rawLabel != null || rawTask != null)
                                         {

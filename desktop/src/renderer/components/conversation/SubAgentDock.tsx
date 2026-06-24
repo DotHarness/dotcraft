@@ -82,7 +82,7 @@ export function BackgroundActivityDock({
   const stopAll = async (): Promise<void> => {
     try {
       await Promise.all(closeableRunning.map((child) => closeSubAgent(parentThreadId, child.agentPath!)))
-      await fetchChildren(parentThreadId)
+      await fetchChildren(parentThreadId, { authoritative: true })
     } catch (err) {
       addToast(err instanceof Error ? err.message : String(err), 'error')
     }
@@ -182,7 +182,7 @@ export function BackgroundActivityDock({
                 child={child}
                 parentThreadId={parentThreadId}
                 color={getSubAgentAccent(child.childThreadId || child.nickname || String(index))}
-                onRefresh={() => { void fetchChildren(parentThreadId) }}
+                onRefresh={() => { void fetchChildren(parentThreadId, { authoritative: true }) }}
               />
             ))}
           </div>

@@ -787,6 +787,7 @@ public static class SubAgentSessionControl
         var child = await sessionService.GetThreadAsync(childThreadId, ct);
         var parentThreadId = child.Source.SubAgent?.ParentThreadId ?? child.ChannelContext;
         child = await CancelActiveChildTurnForCloseAsync(sessionService, childThreadId, child, ct);
+        MarkNativeProgressCompletedForClose(child);
 
         if (!string.IsNullOrWhiteSpace(parentThreadId))
             await sessionService.SetThreadSpawnEdgeStatusAsync(parentThreadId!, childThreadId, ThreadSpawnEdgeStatus.Closed, ct);
@@ -812,6 +813,30 @@ public static class SubAgentSessionControl
             SupportsFollowupTask = child.Source.SubAgent?.SupportsFollowupTask ?? true,
             SupportsClose = child.Source.SubAgent?.SupportsClose ?? true
         };
+    }
+
+    private static void MarkNativeProgressCompletedForClose(SessionThread child)
+    {
+        var source = child.Source.SubAgent;
+        if (source == null)
+            return;
+
+        var runtimeType = NormalizeOptional(source.RuntimeType) ?? NativeSubAgentRuntime.RuntimeTypeName;
+        if (!string.Equals(runtimeType, NativeSubAgentRuntime.RuntimeTypeName, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        var label = NormalizeOptional(source.AgentNickname)
+            ?? NormalizeOptional(source.TaskName)
+            ?? NormalizeOptional(child.DisplayName)
+            ?? child.Id;
+        var task = NormalizeOptional(source.TaskName) ?? label;
+        var bridgeKey = SubAgentManager.NormalizeLabel(label, task);
+        var progress = SubAgentProgressBridge.GetOrCreate(bridgeKey);
+        progress.CurrentTool = null;
+        progress.CurrentToolDisplay = null;
+        progress.LastTool = "closed";
+        progress.LastToolDisplay = $"Closed {bridgeKey}";
+        progress.IsCompleted = true;
     }
 
     private static async Task<SessionThread> CancelActiveChildTurnForCloseAsync(

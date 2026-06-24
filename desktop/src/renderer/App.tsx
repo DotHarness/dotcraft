@@ -2017,7 +2017,7 @@ export function App(): JSX.Element {
           case 'subagent/graphChanged': {
             const parentThreadId = (p.parentThreadId as string | undefined) ?? ''
             if (parentThreadId) {
-              void useSubAgentStore.getState().fetchChildren(parentThreadId)
+              void useSubAgentStore.getState().fetchChildren(parentThreadId, { authoritative: true })
             }
             void reloadThreadList()
             break
