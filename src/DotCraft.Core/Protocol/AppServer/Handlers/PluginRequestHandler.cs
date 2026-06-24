@@ -274,7 +274,7 @@ internal sealed class PluginRequestHandler(
         var removalCatalog = TryDiscoverAppBindingCatalog();
         var appListUpdate = TryBuildAppListUpdatedNotification(before, pluginId, "plugin/remove");
 
-        Directory.Delete(pluginRoot, recursive: true);
+        PluginDirectoryDeleter.Delete(pluginRoot);
 
         var current = appConfigMonitor?.Current ?? new AppConfig();
         var disabled = PluginsConfigPersistence.NormalizeDisabledPluginIds(current.Plugins.DisabledPlugins).ToList();

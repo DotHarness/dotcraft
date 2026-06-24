@@ -414,7 +414,7 @@ Plugin lifecycle separates installation from enablement:
 
 - `plugin/install`: installs a Desktop-bundled built-in plugin into the current workspace at `.craft/plugins/<id>/`, writes a `.builtin` marker, and enables it by default.
 - `plugin/setEnabled`: only controls whether an installed plugin enters the Agent context. It does not install or delete plugin files.
-- `plugin/remove`: removes only DotCraft-managed built-in plugin directories that carry a `.builtin` marker. It does not delete user-owned local plugin directories.
+- `plugin/remove`: removes workspace plugin directories under `.craft/plugins/<id>/`, including DotCraft-managed built-ins and user-owned plugins installed with `plugin/installLocal`. It does not delete explicit external plugin roots or user-global plugin directories.
 
 Plugin install, remove, and enablement changes broadcast `workspace/configChanged` with `regions: ["plugins", "skills"]`. Tools contributed by plugins are projected in conversations as `pluginFunctionCall` items; they do not create companion `toolCall` / `toolResult` items. For the user-facing plugin model, see [Plugins & Tools](../../features/agent-system/plugins-tools).
 
