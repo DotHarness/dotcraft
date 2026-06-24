@@ -49,6 +49,49 @@ describe('CreatePlanCard', () => {
     expect(screen.getAllByRole('button', { name: 'Expand plan' }).length).toBeGreaterThan(0)
   })
 
+  it('streams todo items from the partial preview while CreatePlan runs', () => {
+    const item: ConversationItem = {
+      id: 'plan-streaming-todos',
+      type: 'toolCall',
+      status: 'started',
+      toolName: 'CreatePlan',
+      toolCallId: 'call-stream-todos',
+      argumentsPreview:
+        '{"plan":"# Streaming Plan\\n\\n## Summary\\n\\nDraft","todos":[{"id":"t1","content":"First task","status":"pending"},{"id":"t2","content":"Second task",',
+      createdAt: new Date().toISOString()
+    }
+
+    renderWithLocale(<CreatePlanCard item={item} locale="en" />)
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Expand plan' })[0])
+
+    // The closed todo object renders; the still-streaming one waits for its
+    // closing brace, matching the Detail Panel's line-by-line behavior.
+    expect(screen.getByText('First task')).toBeInTheDocument()
+    expect(screen.queryByText('Second task')).toBeNull()
+  })
+
+  it('does not duplicate the overview when the plan markdown already shows it', () => {
+    const item: ConversationItem = {
+      id: 'plan-overview-dedup',
+      type: 'toolCall',
+      status: 'completed',
+      toolName: 'CreatePlan',
+      toolCallId: 'call-overview-dedup',
+      arguments: {
+        plan: '# Dedup Plan\n\n## Summary\n\nThe single summary line\n\n## Implementation Changes\n\n- step a'
+      },
+      success: true,
+      createdAt: new Date().toISOString()
+    }
+
+    renderWithLocale(<CreatePlanCard item={item} locale="en" />)
+
+    // The summary appears once (inside the markdown content), not a second time
+    // as a standalone overview hint above it.
+    expect(screen.getAllByText('The single summary line')).toHaveLength(1)
+  })
+
   it('expands full plan output and collapses back to preview', () => {
     const item: ConversationItem = {
       id: 'plan-complete',

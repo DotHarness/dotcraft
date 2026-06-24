@@ -3,6 +3,7 @@ import { Check, ChevronDown, ChevronUp, Copy } from 'lucide-react'
 import { translate, type AppLocale } from '../../../shared/locales'
 import type { ConversationItem } from '../../types/conversation'
 import { addToast } from '../../stores/toastStore'
+import { extractPartialTodos } from '../../stores/conversationStore'
 import { extractPartialJsonStringValue } from '../../utils/toolCallDisplay'
 import { parsePlanMarkdown } from '../../utils/planMarkdown'
 import { MarkdownRenderer } from './MarkdownRenderer'
@@ -192,7 +193,7 @@ export function CreatePlanCard({ item, locale }: CreatePlanCardProps): JSX.Eleme
         {title}
       </h3>
 
-      {parsed.overview.trim().length > 0 && (
+      {!hasContent && parsed.overview.trim().length > 0 && (
         <p
           style={{
             margin: '0 0 10px',
@@ -303,18 +304,31 @@ function parseCreatePlanData(item: ConversationItem): ParsedCreatePlan {
   const title = markdown.title || fallbackTitle
   const overview = markdown.overview || fallbackOverview
   const content = markdown.content || fallbackContent
+  // When the full arguments have parsed, use the structured todos. While the
+  // CreatePlan call is still streaming, fall back to the same partial-todos
+  // parser the Detail Panel uses so todos appear line by line as each object
+  // closes, instead of all at once on completion.
   const todos = Array.isArray(item.arguments?.todos)
-    ? item.arguments.todos
-      .filter((entry): entry is Record<string, unknown> => typeof entry === 'object' && entry != null)
-      .map((entry, index) => ({
-        id: typeof entry.id === 'string' && entry.id.trim().length > 0 ? entry.id : `todo-${index}`,
-        content: typeof entry.content === 'string' ? entry.content : '',
-        status: normalizeTodoStatus(entry.status)
-      }))
-      .filter((todo) => todo.content.trim().length > 0)
-    : []
+    ? normalizeTodoEntries(
+      item.arguments.todos.filter(
+        (entry): entry is Record<string, unknown> => typeof entry === 'object' && entry != null
+      )
+    )
+    : normalizeTodoEntries(extractPartialTodos(item.argumentsPreview ?? ''))
 
   return { title, overview, content, todos }
+}
+
+function normalizeTodoEntries(
+  entries: ReadonlyArray<{ id?: unknown; content?: unknown; status?: unknown }>
+): PlanTodo[] {
+  return entries
+    .map((entry, index) => ({
+      id: typeof entry.id === 'string' && entry.id.trim().length > 0 ? entry.id : `todo-${index}`,
+      content: typeof entry.content === 'string' ? entry.content : '',
+      status: normalizeTodoStatus(entry.status)
+    }))
+    .filter((todo) => todo.content.trim().length > 0)
 }
 
 function normalizeTodoStatus(value: unknown): PlanTodo['status'] {
@@ -325,13 +339,14 @@ function normalizeTodoStatus(value: unknown): PlanTodo['status'] {
 }
 
 const expandToggleStyle: CSSProperties = {
-  border: '1px solid var(--border-default)',
+  border: '1px solid var(--text-primary)',
   borderRadius: '999px',
   padding: '4px 10px',
-  background: 'var(--bg-primary)',
-  color: 'var(--text-secondary)',
+  background: 'var(--text-primary)',
+  color: 'var(--bg-primary)',
   cursor: 'pointer',
-  fontSize: '12px'
+  fontSize: '12px',
+  fontWeight: 600
 }
 
 function planMarkdownFrameStyle(expanded: boolean): CSSProperties {
@@ -379,26 +394,34 @@ function IconButton(
     onClick: () => void
   }
 ): JSX.Element {
+  const [hovered, setHovered] = useState(false)
+  const [focused, setFocused] = useState(false)
+  const chromeVisible = hovered || focused
   return (
     <ActionTooltip label={ariaLabel} placement="top">
       <button
         type="button"
         aria-label={ariaLabel}
         onClick={onClick}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
         style={{
-        width: '24px',
-        height: '24px',
-        borderRadius: '6px',
-        border: '1px solid var(--border-default)',
-        background: 'var(--bg-secondary)',
-        color: active ? 'var(--success)' : 'var(--text-secondary)',
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        cursor: 'pointer'
-      }}
-    >
-      {icon}
+          width: '24px',
+          height: '24px',
+          borderRadius: '6px',
+          border: '1px solid transparent',
+          background: chromeVisible ? 'var(--bg-tertiary)' : 'transparent',
+          color: active ? 'var(--success)' : chromeVisible ? 'var(--text-primary)' : 'var(--text-secondary)',
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          transition: 'color 120ms ease, background 120ms ease'
+        }}
+      >
+        {icon}
       </button>
     </ActionTooltip>
   )

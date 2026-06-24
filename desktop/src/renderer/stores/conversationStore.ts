@@ -3477,7 +3477,7 @@ interface StreamingCreatePlanMatch {
  * requiring the buffer to be fully parseable. Best-effort: returns a partial
  * list of `{id, content, status}` objects whose closing quotes have arrived.
  */
-function extractPartialTodos(rawArgs: string): StreamingPlanDraft['todos'] {
+export function extractPartialTodos(rawArgs: string): StreamingPlanDraft['todos'] {
   if (!rawArgs) return []
   const needle = '"todos"'
   const keyIndex = rawArgs.indexOf(needle)
