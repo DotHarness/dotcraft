@@ -16,6 +16,18 @@ class NoopTransport implements Transport {
   async close(): Promise<void> {}
 }
 
+async function withTimeout<T>(promise: Promise<T>, message: string, ms = 1000): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  const timer = new Promise<never>((_resolve, reject) => {
+    timeout = setTimeout(() => reject(new Error(message)), ms);
+  });
+  try {
+    return await Promise.race([promise, timer]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}
+
 class RecordingAdapter extends ChannelAdapter {
   readonly segments: Array<{ text: string; isFinal: boolean; channelContext: string }> = [];
   /** Full-reply deliveries only (mirrors base ChannelAdapter: skipped when segments already sent). */
@@ -230,22 +242,31 @@ test("processMessage enqueues bound social input instead of streaming a turn", a
   });
 });
 
-test("processMessage ignores unbound social input instead of creating a thread", async () => {
+test("processMessage falls back to normal channel routing for unbound social input", async () => {
   const adapter = new SocialRecordingAdapter();
   const client = (adapter as unknown as { client: Record<string, unknown> }).client;
   let resolveParams: Record<string, unknown> | null = null;
+  let turnStartParams: Record<string, unknown> | null = null;
+  let getOrCreateCalls = 0;
 
   (adapter as unknown as {
     getOrCreateThread: (...args: unknown[]) => Promise<Thread>;
-  }).getOrCreateThread = async () => {
-    throw new Error("unbound social input must not create a thread");
+  }).getOrCreateThread = async (...args: unknown[]) => {
+    getOrCreateCalls += 1;
+    assert.deepEqual(args, ["u:group-123", "u", "group-123", ""]);
+    return new Thread("thread-unbound-1", "active");
   };
-  client.turnStart = async () => {
-    throw new Error("unbound social input must not start a turn");
+  client.turnStart = async (threadId: unknown, input: unknown, sender: unknown) => {
+    turnStartParams = { threadId, input, sender };
+    return new Turn("turn-unbound-1", "thread-unbound-1", "running");
   };
-  client.streamEvents = () => {
-    throw new Error("unbound social input must not open a stream");
-  };
+  client.streamEvents = () =>
+    (async function* () {
+      yield {
+        method: "turn/completed",
+        params: { threadId: "thread-unbound-1", turn: { items: [] } },
+      };
+    })();
   client.request = async (method: unknown, params: unknown) => {
     if (method === "app/socialBinding/resolve") {
       resolveParams = params as Record<string, unknown>;
@@ -270,6 +291,177 @@ test("processMessage ignores unbound social input instead of creating a thread",
     conversationKind: "group",
     conversationId: "group-123",
   });
+  assert.equal(getOrCreateCalls, 1);
+  assert.deepEqual(turnStartParams, {
+    threadId: "thread-unbound-1",
+    input: [{ type: "text", text: "hello unbound" }],
+    sender: { senderId: "u", senderName: "Tester", groupId: "group-123" },
+  });
+});
+
+test("processMessage falls back to normal channel routing when social binding resolve fails", async () => {
+  const adapter = new SocialRecordingAdapter();
+  const client = (adapter as unknown as { client: Record<string, unknown> }).client;
+  const warnMessages: string[] = [];
+  let turnStarted = false;
+
+  (adapter as unknown as {
+    getOrCreateThread: (...args: unknown[]) => Promise<Thread>;
+  }).getOrCreateThread = async () => new Thread("thread-fallback-1", "active");
+  client.turnStart = async () => {
+    turnStarted = true;
+    return new Turn("turn-fallback-1", "thread-fallback-1", "running");
+  };
+  client.streamEvents = () =>
+    (async function* () {
+      yield {
+        method: "turn/completed",
+        params: { threadId: "thread-fallback-1", turn: { items: [] } },
+      };
+    })();
+  client.request = async (method: unknown) => {
+    if (method === "app/socialBinding/resolve") throw new Error("resolve unavailable");
+    throw new Error(`unexpected request ${String(method)}`);
+  };
+
+  const originalWarn = console.warn;
+  console.warn = (...args: unknown[]) => {
+    warnMessages.push(args.map(String).join(" "));
+  };
+  try {
+    await (adapter as unknown as {
+      processMessage: (identityKey: string, opts: Record<string, unknown>) => Promise<void>;
+    }).processMessage("u:group-123", {
+      userId: "u",
+      userName: "Tester",
+      text: "hello fallback",
+      channelContext: "group-123",
+    });
+  } finally {
+    console.warn = originalWarn;
+  }
+
+  assert.equal(turnStarted, true);
+  assert.match(warnMessages[0] ?? "", /falling back to normal channel routing/);
+});
+
+test("handleMessage caches accepted social binding thread", async () => {
+  const adapter = new SocialRecordingAdapter();
+  const client = (adapter as unknown as { client: Record<string, unknown> }).client;
+  const requests: string[] = [];
+
+  client.request = async (method: unknown) => {
+    requests.push(String(method));
+    if (method === "app/binding/request/get") {
+      return {
+        bindingRequestId: "req-social-1",
+        requestedScopes: ["conversation.receive", "message.send"],
+      };
+    }
+    if (method === "app/binding/accept") {
+      return {
+        binding: {
+          bindingId: "bind-social-1",
+          threadId: "thread-bound-1",
+          appId: "com.dotharness.channel.test-channel",
+          grantId: "grant-social-1",
+          bindingKind: "socialChannel",
+          state: "active",
+          connectionState: "connected",
+          grantedScopes: ["conversation.receive", "message.send"],
+          attachedToolCount: 0,
+          lastChangedAt: "2026-06-20T00:00:00Z",
+        },
+      };
+    }
+    throw new Error(`unexpected request ${String(method)}`);
+  };
+
+  await adapter.handleMessage({
+    userId: "u",
+    userName: "Tester",
+    text: "/bind 482913",
+    channelContext: "group-123",
+  });
+
+  assert.deepEqual(requests, ["app/binding/request/get", "app/binding/accept"]);
+  assert.equal(
+    (adapter as unknown as { threadResolver: { getCachedThreadId(identityKey: string): string | undefined } })
+      .threadResolver.getCachedThreadId("u:group-123"),
+    "thread-bound-1",
+  );
+});
+
+test("handleMessage resolves social binding before running slash commands", async () => {
+  const adapter = new SocialRecordingAdapter();
+  const client = (adapter as unknown as { client: Record<string, unknown> }).client;
+  let resolveParams: Record<string, unknown> | null = null;
+  let commandThreadId: string | null = null;
+  let commandResolved!: () => void;
+  const commandSeen = new Promise<void>((resolve) => {
+    commandResolved = resolve;
+  });
+
+  (adapter as unknown as { running: boolean }).running = true;
+  (adapter as unknown as { threadResolver: { setCachedThread(identityKey: string, threadId: string): void } })
+    .threadResolver.setCachedThread("u:group-123", "thread-legacy-1");
+  client.request = async (method: unknown, params: unknown) => {
+    if (method === "app/socialBinding/resolve") {
+      resolveParams = params as Record<string, unknown>;
+      return {
+        binding: {
+          bindingId: "bind-social-1",
+          threadId: "thread-bound-1",
+          appId: "com.dotharness.channel.test-channel",
+          grantId: "grant-social-1",
+          bindingKind: "socialChannel",
+          state: "active",
+          connectionState: "connected",
+          grantedScopes: ["conversation.receive", "message.send"],
+          attachedToolCount: 0,
+          lastChangedAt: "2026-06-20T00:00:00Z",
+        },
+      };
+    }
+    throw new Error(`unexpected request ${String(method)}`);
+  };
+  client.commandExecute = async (params: { threadId: string }) => {
+    commandThreadId = params.threadId;
+    commandResolved();
+    return { handled: true, message: "help text" };
+  };
+  client.turnStart = async () => {
+    throw new Error("handled bound slash command must not start a streaming turn");
+  };
+  client.streamEvents = () => {
+    throw new Error("handled bound slash command must not open a stream");
+  };
+
+  try {
+    await adapter.handleMessage({
+      userId: "u",
+      userName: "Tester",
+      text: "/help",
+      channelContext: "group-123",
+    });
+    await withTimeout(commandSeen, "slash command was not executed");
+  } finally {
+    (adapter as unknown as { running: boolean }).running = false;
+  }
+
+  assert.deepEqual(resolveParams, {
+    appId: "com.dotharness.channel.test-channel",
+    channelName: "test-channel",
+    accountId: undefined,
+    conversationKind: "group",
+    conversationId: "group-123",
+  });
+  assert.equal(commandThreadId, "thread-bound-1");
+  assert.equal(
+    (adapter as unknown as { threadResolver: { getCachedThreadId(identityKey: string): string | undefined } })
+      .threadResolver.getCachedThreadId("u:group-123"),
+    "thread-bound-1",
+  );
 });
 
 test("ChannelAdapter lets explicit sender override thread identity and omit implicit channel context groupId", async () => {

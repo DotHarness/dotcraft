@@ -61,11 +61,21 @@ interface SubAgentStoreState {
   collapsedByParent: Map<string, boolean>
   userCollapsedByParent: Map<string, boolean>
   loadingParents: Set<string>
+  staleProgressBlockedParents: Set<string>
+}
+
+interface FetchChildrenOptions {
+  authoritative?: boolean
+}
+
+interface SetChildrenOptions {
+  preserveRunningPlaceholders?: boolean
+  blockStaleProgressWhenEmpty?: boolean
 }
 
 interface SubAgentStoreActions {
-  setChildren(parentThreadId: string, children: SubAgentChild[]): void
-  fetchChildren(parentThreadId: string): Promise<void>
+  setChildren(parentThreadId: string, children: SubAgentChild[], options?: SetChildrenOptions): void
+  fetchChildren(parentThreadId: string, options?: FetchChildrenOptions): Promise<void>
   updateProgress(parentThreadId: string, entries: SubAgentEntry[]): void
   updateChildRuntime(childThreadId: string, runtime: ThreadRuntimeSnapshot): void
   setParentCollapsed(parentThreadId: string, collapsed: boolean, userInitiated?: boolean): void
@@ -79,7 +89,8 @@ const initialState: SubAgentStoreState = {
   childrenByParent: new Map(),
   collapsedByParent: new Map(),
   userCollapsedByParent: new Map(),
-  loadingParents: new Set()
+  loadingParents: new Set(),
+  staleProgressBlockedParents: new Set()
 }
 
 function normalizeText(value: unknown): string | null {
@@ -255,10 +266,16 @@ function ensureDefaultCollapsed(
 export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
   ...initialState,
 
-  setChildren(parentThreadId, children) {
+  setChildren(parentThreadId, children, options) {
     set((state) => {
       const previous = state.childrenByParent.get(parentThreadId) ?? []
-      if (children.length === 0 && previous.some((child) => child.isPlaceholder)) {
+      const preserveRunningPlaceholders = options?.preserveRunningPlaceholders ?? true
+      const blockStaleProgressWhenEmpty = options?.blockStaleProgressWhenEmpty === true
+      if (
+        children.length === 0
+        && preserveRunningPlaceholders
+        && previous.some((child) => child.isPlaceholder)
+      ) {
         const runningPlaceholders = previous.filter((child) =>
           child.isPlaceholder === true && isSubAgentChildRunning(child)
         )
@@ -292,11 +309,23 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
       const childrenByParent = new Map(state.childrenByParent)
       childrenByParent.set(parentThreadId, merged)
       const collapsedByParent = ensureDefaultCollapsed(state, parentThreadId, merged)
-      return collapsedByParent ? { childrenByParent, collapsedByParent } : { childrenByParent }
+      const staleProgressBlockedParents = cloneSet(state.staleProgressBlockedParents)
+      let staleProgressChanged = false
+      if (merged.length > 0 && staleProgressBlockedParents.delete(parentThreadId)) {
+        staleProgressChanged = true
+      } else if (merged.length === 0 && blockStaleProgressWhenEmpty && !staleProgressBlockedParents.has(parentThreadId)) {
+        staleProgressBlockedParents.add(parentThreadId)
+        staleProgressChanged = true
+      }
+      return {
+        childrenByParent,
+        ...(collapsedByParent ? { collapsedByParent } : {}),
+        ...(staleProgressChanged ? { staleProgressBlockedParents } : {})
+      }
     })
   },
 
-  async fetchChildren(parentThreadId) {
+  async fetchChildren(parentThreadId, options) {
     if (!parentThreadId) return
     if (useConnectionStore.getState().capabilities?.subAgentSessions !== true) return
     set((state) => {
@@ -317,7 +346,9 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
         .map((child) => child.threadSummary)
         .filter((thread): thread is ThreadSummary => thread != null)
       useThreadStore.getState().upsertThreads(childThreads)
-      get().setChildren(parentThreadId, children)
+      get().setChildren(parentThreadId, children, options?.authoritative === true
+        ? { preserveRunningPlaceholders: false, blockStaleProgressWhenEmpty: children.length === 0 }
+        : undefined)
     } finally {
       set((state) => {
         const loadingParents = new Set(state.loadingParents)
@@ -330,6 +361,7 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
   updateProgress(parentThreadId, entries) {
     set((state) => {
       const current = state.childrenByParent.get(parentThreadId) ?? []
+      const allowPlaceholderCreation = !state.staleProgressBlockedParents.has(parentThreadId)
       const unmatched = [...entries]
       const next = current.map((child) => {
         const index = unmatched.findIndex((entry) => entry.label === child.nickname)
@@ -348,14 +380,22 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
             : child.runtime
         }
       })
-      for (let index = 0; index < unmatched.length; index += 1) {
-        next.push(createPlaceholderChild(parentThreadId, unmatched[index], current.length + index))
+      if (allowPlaceholderCreation) {
+        for (let index = 0; index < unmatched.length; index += 1) {
+          next.push(createPlaceholderChild(parentThreadId, unmatched[index], current.length + index))
+        }
       }
       if (next.length === 0 && current.length === 0) return state
       const childrenByParent = new Map(state.childrenByParent)
       childrenByParent.set(parentThreadId, next)
       const collapsedByParent = ensureDefaultCollapsed(state, parentThreadId, next)
-      return collapsedByParent ? { childrenByParent, collapsedByParent } : { childrenByParent }
+      const staleProgressBlockedParents = cloneSet(state.staleProgressBlockedParents)
+      const staleProgressChanged = next.length > 0 && staleProgressBlockedParents.delete(parentThreadId)
+      return {
+        childrenByParent,
+        ...(collapsedByParent ? { collapsedByParent } : {}),
+        ...(staleProgressChanged ? { staleProgressBlockedParents } : {})
+      }
     })
   },
 
@@ -407,10 +447,12 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
       const childrenByParent = new Map(state.childrenByParent)
       const collapsedByParent = new Map(state.collapsedByParent)
       const userCollapsedByParent = new Map(state.userCollapsedByParent)
+      const staleProgressBlockedParents = cloneSet(state.staleProgressBlockedParents)
       childrenByParent.delete(parentThreadId)
       collapsedByParent.delete(parentThreadId)
       userCollapsedByParent.delete(parentThreadId)
-      return { childrenByParent, collapsedByParent, userCollapsedByParent }
+      staleProgressBlockedParents.delete(parentThreadId)
+      return { childrenByParent, collapsedByParent, userCollapsedByParent, staleProgressBlockedParents }
     })
   },
 
@@ -419,7 +461,12 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
       childrenByParent: new Map(),
       collapsedByParent: new Map(),
       userCollapsedByParent: new Map(),
-      loadingParents: new Set()
+      loadingParents: new Set(),
+      staleProgressBlockedParents: new Set()
     })
   }
 }))
+
+function cloneSet<T>(source: Set<T>): Set<T> {
+  return new Set(source)
+}

@@ -525,6 +525,42 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
     }
 
     [Fact]
+    public async Task SubmitInputAsync_SpawnAgentMessageArguments_TracksTaskNameProgressLabel()
+    {
+        SubAgentProgressBridge.Remove("inspect");
+        try
+        {
+            IChatClient chatClient = new FakeChatClient([
+                new ChatResponseUpdate(ChatRole.Assistant, [new FunctionCallContent(
+                    callId: "call-spawn",
+                    name: "SpawnAgent",
+                    arguments: new Dictionary<string, object?>
+                    {
+                        ["message"] = "Inspect tests",
+                        ["taskName"] = "inspect"
+                    })]),
+                new ChatResponseUpdate(ChatRole.Assistant, [new FunctionResultContent(
+                    "call-spawn",
+                    "{\"childThreadId\":\"thread_child\",\"status\":\"running\"}")])
+            ]);
+            await using var agentFactory = CreateAgentFactory(chatClient);
+            var svc = CreateService(agentFactory, chatClient);
+            var thread = await svc.CreateThreadAsync(MakeIdentity());
+
+            var events = await CollectAsync(svc.SubmitInputAsync(thread.Id, [new TextContent("hello")]));
+
+            var progressEvent = events.LastOrDefault(e => e.EventType == SessionEventType.SubAgentProgress);
+            Assert.NotNull(progressEvent);
+            var entry = Assert.Single(progressEvent!.SubAgentProgressPayload!.Entries);
+            Assert.Equal("inspect", entry.Label);
+        }
+        finally
+        {
+            SubAgentProgressBridge.Remove("inspect");
+        }
+    }
+
+    [Fact]
     public async Task SubmitInputAsync_ReasoningAroundTool_PersistsSeparateReasoningItems()
     {
         IChatClient chatClient = new FakeChatClient([

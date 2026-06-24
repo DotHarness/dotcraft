@@ -1093,6 +1093,29 @@ public sealed class SubAgentSessionControlTests : IDisposable
     }
 
     [Fact]
+    public async Task CloseAgent_WithNativeProfile_MarksProgressEntryCompleted()
+    {
+        SubAgentProgressBridge.Remove("Inspect");
+        try
+        {
+            var context = await CreateContextAsync();
+            await CreatePathSubAgentAsync(context);
+
+            await SubAgentSessionControl.CloseAgentAsync(context, "/root/inspect", CancellationToken.None);
+
+            var progress = SubAgentProgressBridge.TryGet("Inspect");
+            Assert.NotNull(progress);
+            Assert.True(progress!.IsCompleted);
+            Assert.Null(progress.CurrentTool);
+            Assert.Null(progress.CurrentToolDisplay);
+        }
+        finally
+        {
+            SubAgentProgressBridge.Remove("Inspect");
+        }
+    }
+
+    [Fact]
     public async Task SpawnAgent_ForkTurnsSelectsParentHistory()
     {
         var context = await CreateContextAsync();

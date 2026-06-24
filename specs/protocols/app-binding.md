@@ -392,6 +392,8 @@ Every binding record has a `bindingKind`:
 
 `Thread.OriginChannel` remains the thread creation attribution and must not be rewritten by `socialChannel` binding. A Desktop-created thread can be bound to QQ, WeCom, or another social channel; later inbound social messages resolve the binding by social address.
 
+Social binding is additive to the external channel adapter contract. If `app/socialBinding/resolve` returns no active binding, or the adapter cannot use App Binding for the message, the adapter must process the inbound message through its normal channel thread resolution and command flow. Only a resolved active binding changes the target thread and dispatches input through `app/threadInput/enqueue`.
+
 A social binding stores:
 
 ```json
