@@ -1,6 +1,6 @@
 {
   "name": "@dotcraft/channel-qq",
-  "version": "0.2.7",
+  "version": "0.2.8",
   "private": true,
   "type": "module",
   "description": "DotCraft channel adapter for QQ using OneBot v11",

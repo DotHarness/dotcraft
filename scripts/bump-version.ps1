@@ -57,6 +57,18 @@ function Update-XmlVersionFile {
     Write-Utf8NoBomFile -Path $Path -Content $content
 }
 
+function Update-DotNetPackageVersionFile {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$NewVersion
+    )
+
+    Assert-Exists -Path $Path
+    $content = [System.IO.File]::ReadAllText($Path)
+    $content = Replace-Regex -Content $content -Pattern "<Version>[^<]+</Version>" -Replacement "<Version>$NewVersion</Version>"
+    Write-Utf8NoBomFile -Path $Path -Content $content
+}
+
 function Update-TomlVersionLine {
     param(
         [Parameter(Mandatory = $true)][string]$Path,
@@ -138,6 +150,7 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 
 $targets = @(
     @{ Type = "xml"; Path = "src/DotCraft.App/DotCraft.App.csproj" },
+    @{ Type = "dotnetPackage"; Path = "sdk/dotnet/src/DotCraft.Sdk/DotCraft.Sdk.csproj" },
     @{ Type = "toml"; Path = "sdk/python/pyproject.toml" },
     @{ Type = "toml"; Path = "tui/Cargo.toml" },
     @{ Type = "cargoLock"; Path = "tui/Cargo.lock" },
@@ -162,6 +175,9 @@ foreach ($target in $targets) {
     switch ($target.Type) {
         "xml" {
             Update-XmlVersionFile -Path $absolutePath -NewVersion $Version
+        }
+        "dotnetPackage" {
+            Update-DotNetPackageVersionFile -Path $absolutePath -NewVersion $Version
         }
         "toml" {
             Update-TomlVersionLine -Path $absolutePath -NewVersion $Version
