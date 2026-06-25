@@ -1,0 +1,4 @@
+version: 1
+display_name: "DotCraft Unity"
+short_description: "Use Unity Editor tools without disrupting the editor"
+default_prompt: "Use $dotcraft-unity to inspect or automate the connected Unity Editor safely."

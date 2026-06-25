@@ -4,7 +4,8 @@
   "version": "0.1.0",
   "displayName": "dotcraft-unity",
   "description": "Bind running Unity Editor instances to DotCraft threads.",
-  "capabilities": ["app"],
+  "capabilities": ["skill", "app"],
+  "skills": "./skills/",
   "apps": "./apps.json",
   "interface": {
     "displayName": "dotcraft-unity",
@@ -12,7 +13,7 @@
     "longDescription": "dotcraft-unity connects running Unity Editor projects to DotCraft threads so agents can invoke Unity tools.",
     "developerName": "DotHarness",
     "category": "Engineering",
-    "capabilities": ["App", "Unity", "Read", "Write"],
+    "capabilities": ["App", "Skill", "Unity", "Read", "Write"],
     "defaultPrompt": "Fix the error in the Unity Editor console.",
     "brandColor": "#1E88E5",
     "composerIcon": "./assets/dotcraft-unity.svg",
