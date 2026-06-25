@@ -554,6 +554,48 @@ describe('AgentResponseBlock subagent transcript rendering', () => {
       .toHaveAttribute('src', 'data:image/png;base64,preview')
   })
 
+  it('renders ReadFile image output from a hydrated toolResult after the tool row', () => {
+    const turn: ConversationTurn = {
+      id: 'turn-readfile-image',
+      threadId: 'thread-1',
+      status: 'completed',
+      startedAt: '2026-04-18T10:06:10.000Z',
+      items: [
+        {
+          ...makeToolCallItem('read-image-tool-1', 'read-image-call-1', 'ReadFile', '2026-04-18T10:06:11.000Z'),
+          arguments: { path: 'docs/diagram.png' }
+        },
+        {
+          id: 'read-image-result-1',
+          type: 'toolResult',
+          status: 'completed',
+          toolCallId: 'read-image-call-1',
+          result: 'Image: diagram.png (3 bytes, image/png)',
+          success: true,
+          contentItems: [
+            { type: 'text', text: 'Image: diagram.png (3 bytes, image/png)' },
+            { type: 'image', mediaType: 'image/png', dataBase64: 'AQID' }
+          ],
+          createdAt: '2026-04-18T10:06:12.000Z',
+          completedAt: '2026-04-18T10:06:12.000Z'
+        }
+      ]
+    }
+
+    render(
+      <LocaleProvider>
+        <AgentResponseBlock turn={turn} />
+      </LocaleProvider>
+    )
+
+    expect(screen.getByTestId('tool-output-image-gallery')).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: 'Tool output image 1' }))
+      .toHaveAttribute('src', 'data:image/png;base64,AQID')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Preview tool output image 1' }))
+    expect(screen.getByRole('dialog', { name: 'Image preview' })).toBeInTheDocument()
+  })
+
   it('shows the tool output image context menu and selects all', () => {
     const execCommand = vi.fn()
     Object.defineProperty(document, 'execCommand', {

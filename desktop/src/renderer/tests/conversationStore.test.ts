@@ -701,6 +701,10 @@ describe('turn lifecycle', () => {
         payload: {
           callId: 'read-early-result',
           result: 'file contents',
+          contentItems: [
+            { type: 'text', text: 'Image: notes.png (3 bytes, image/png)' },
+            { type: 'image', mediaType: 'image/png', dataBase64: 'AQID' }
+          ],
           success: true
         }
       }
@@ -731,6 +735,55 @@ describe('turn lifecycle', () => {
     expect(toolItem?.success).toBe(true)
     expect(toolItem?.duration).toBe(2000)
     expect(toolItem?.completedAt).toBe('2026-04-25T10:00:03.000Z')
+    expect(toolItem?.contentItems?.[1]).toEqual({
+      type: 'image',
+      mediaType: 'image/png',
+      dataBase64: 'AQID'
+    })
+  })
+
+  it('merges toolResult contentItems into an existing matching toolCall', () => {
+    s().onTurnStarted(makeTurn())
+    s().onItemStarted({
+      turnId: 'turn-1',
+      item: {
+        id: 'tool-read-image-result',
+        type: 'toolCall',
+        createdAt: '2026-04-25T10:00:01.000Z',
+        payload: {
+          callId: 'read-image-result',
+          toolName: 'ReadFile',
+          arguments: { path: 'docs/diagram.png' }
+        }
+      }
+    })
+
+    s().onItemCompleted({
+      turnId: 'turn-1',
+      item: {
+        id: 'result-read-image',
+        type: 'toolResult',
+        completedAt: '2026-04-25T10:00:03.000Z',
+        payload: {
+          callId: 'read-image-result',
+          result: 'Image: diagram.png (3 bytes, image/png)',
+          contentItems: [
+            { type: 'text', text: 'Image: diagram.png (3 bytes, image/png)' },
+            { type: 'image', mediaType: 'image/png', dataBase64: 'AQID' }
+          ],
+          success: true
+        }
+      }
+    })
+
+    const toolItem = s().turns[0].items.find((i) => i.id === 'tool-read-image-result')
+    expect(toolItem?.type).toBe('toolCall')
+    expect(toolItem?.status).toBe('completed')
+    expect(toolItem?.result).toBe('Image: diagram.png (3 bytes, image/png)')
+    expect(toolItem?.contentItems).toEqual([
+      { type: 'text', text: 'Image: diagram.png (3 bytes, image/png)' },
+      { type: 'image', mediaType: 'image/png', dataBase64: 'AQID' }
+    ])
   })
 
   it('preserves realtime completed toolCall state over a stale thread/read hydrate', () => {

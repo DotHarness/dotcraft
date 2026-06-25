@@ -345,6 +345,32 @@ describe('wireItemToConversationItem — nested payload format (thread/read)', (
     expect(item.success).toBe(true)
   })
 
+  it('maps toolResult contentItems for ordinary tool output images', () => {
+    const item = wireItemToConversationItem({
+      id: 'tool-result-image-1',
+      type: 'toolResult',
+      payload: {
+        callId: 'read-image-call-1',
+        result: 'Image: sample.png (3 bytes, image/png)',
+        contentItems: [
+          { type: 'text', text: 'Image: sample.png (3 bytes, image/png)' },
+          { type: 'image', mediaType: 'image/png', dataBase64: 'AQID' }
+        ],
+        success: true
+      },
+      createdAt: '2025-01-01T00:00:00Z'
+    })
+
+    expect(item.type).toBe('toolResult')
+    expect(item.toolCallId).toBe('read-image-call-1')
+    expect(item.result).toBe('Image: sample.png (3 bytes, image/png)')
+    expect(item.contentItems).toEqual([
+      { type: 'text', text: 'Image: sample.png (3 bytes, image/png)' },
+      { type: 'image', mediaType: 'image/png', dataBase64: 'AQID' }
+    ])
+    expect(item.success).toBe(true)
+  })
+
   it('extracts command execution payload fields', () => {
     const item = wireItemToConversationItem({
       id: 'i4b',

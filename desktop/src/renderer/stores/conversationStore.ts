@@ -827,6 +827,7 @@ function mergeToolResultIntoToolCall(
     ...item,
     status: 'completed',
     result: toolResult.result ?? item.result ?? '',
+    contentItems: toolResult.contentItems ?? item.contentItems,
     success: toolResult.success ?? item.success ?? true,
     duration,
     completedAt
