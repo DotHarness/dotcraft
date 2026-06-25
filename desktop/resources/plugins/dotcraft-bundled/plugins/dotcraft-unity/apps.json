@@ -5,7 +5,7 @@
       "toolNamespace": "unity",
       "displayName": "Unity Editor",
       "developerName": "DotHarness",
-      "description": "Invoke explicitly enabled Unity Editor runtime tools from selected DotCraft threads.",
+      "description": "Connect a running Unity Editor so selected DotCraft threads can run C# automation through unity_execute_csharp.",
       "category": "Engineering",
       "icon": "./assets/dotcraft-unity.svg",
       "releasePage": "https://github.com/DotHarness/dotcraft-unity",
@@ -23,28 +23,16 @@
       },
       "scopes": [
         {
-          "id": "unity.read",
-          "displayName": "Read Unity project",
-          "description": "Read scene hierarchy, selection, console logs, and project metadata.",
-          "risk": "read",
-          "defaultSelected": true
-        },
-        {
-          "id": "unity.edit",
-          "displayName": "Edit Unity project",
-          "description": "Run enabled Unity tools that can mutate scene, asset, or project state.",
-          "risk": "mutate"
-        },
-        {
           "id": "unity.execute",
-          "displayName": "Execute Unity actions",
-          "description": "Run enabled Unity tools that execute editor actions or plugin code.",
-          "risk": "mutate"
+          "displayName": "Execute Unity C#",
+          "description": "Run C# automation through unity_execute_csharp in the connected Unity Editor.",
+          "risk": "mutate",
+          "defaultSelected": true
         }
       ],
       "dynamicToolCatalog": {
         "enabled": true,
-        "description": "The running Unity Editor attaches the currently enabled AgentToolAttribute runtime tools."
+        "description": "The running Unity Editor publishes unity_execute_csharp for this thread."
       },
       "toolCatalog": []
     }
