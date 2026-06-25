@@ -1316,6 +1316,7 @@ function hydrateToolCallItems(items: ConversationItem[]): ConversationItem[] {
         ...hydrated,
         status: 'completed',
         result: resultItem.result ?? hydrated.result,
+        contentItems: resultItem.contentItems ?? hydrated.contentItems,
         success: resultItem.success ?? hydrated.success ?? true,
         duration: hydrated.duration ?? computeItemDurationMs(hydrated.createdAt, resultItem.completedAt),
         completedAt: resultItem.completedAt ?? hydrated.completedAt

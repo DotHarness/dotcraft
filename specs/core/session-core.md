@@ -361,7 +361,7 @@ Fields:
   - `ToolCall` — Agent invokes a tool. Payload includes tool name and arguments.
   - `PluginFunctionCall` — Agent invokes a Plugin Function. Payload includes plugin identity, function name, arguments, content items, structured result, and success/failure metadata. Plugin-backed tools do not create companion `ToolResult` items.
   - `DynamicToolCall` — Agent invokes a runtime dynamic tool declared by an AppServer client. Payload includes optional namespace, tool name, arguments, content items, structured result, and success/failure metadata. Runtime dynamic tools do not create companion `ToolCall` / `ToolResult` items.
-  - `ToolResult` — Result of a tool invocation. Payload includes result text and success/failure.
+  - `ToolResult` — Result of a tool invocation. Payload includes result text, optional rich result content, and success/failure.
   - `ApprovalRequest` — Agent requests user approval for a sensitive operation.
   - `ApprovalResponse` — User's approval decision (approved/rejected).
   - `UserInputRequest` — Plan Mode agent asks the client to collect structured user input.
@@ -542,9 +542,22 @@ Runtime Dynamic Tool invocations are represented by this single item. Session Co
 {
   "callId": string,       // Matches the ToolCall.callId
   "result": string,       // Textual result
+  "contentItems": [       // Optional rich result content for clients
+    {
+      "type": string,     // "text" | "image"
+      "text": string,     // Text content when type is "text"
+      "mediaType": string,// Image media type when type is "image"
+      "dataBase64": string// Base64 image data when type is "image"
+    }
+  ],
   "success": boolean      // Whether the tool execution succeeded
 }
 ```
+
+For ordinary tools that return non-text `AIContent`, `result` remains the
+model/history-safe text fallback. Clients may use `contentItems` for richer
+presentation, such as showing image output from a file read, but history
+reconstruction continues to use `result`.
 
 #### CommandExecution
 

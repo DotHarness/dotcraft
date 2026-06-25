@@ -464,7 +464,15 @@ public sealed record ToolResultPayload
     /// </summary>
     public string CallId { get; init; } = string.Empty;
 
+    /// <summary>
+    /// Text fallback for the tool result. Used for model history reconstruction.
+    /// </summary>
     public string Result { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Optional rich content for client presentation, such as image outputs.
+    /// </summary>
+    public IReadOnlyList<PluginFunctionContentItem>? ContentItems { get; init; }
 
     public bool Success { get; init; }
 }

@@ -2345,6 +2345,7 @@ public sealed partial class SessionService(
                                         break;
                                     }
                                     var resultText = ImageContentSanitizingChatClient.DescribeResult(fr.Result);
+                                    var contentItems = ExtractToolResultContentItems(fr.Result);
                                     var toolResultItem = new SessionItem
                                     {
                                         Id = SessionIdGenerator.NewItemId(NextItemSeq()),
@@ -2357,6 +2358,7 @@ public sealed partial class SessionService(
                                         {
                                             CallId = fr.CallId,
                                             Result = resultText,
+                                            ContentItems = contentItems,
                                             Success = fr.Exception == null
                                                 && !StreamingFunctionInvokingChatClient.IsInvalidToolArgumentsResult(fr)
                                         }
@@ -3241,6 +3243,42 @@ public sealed partial class SessionService(
         }
         return images;
     }
+
+    private static IReadOnlyList<PluginFunctionContentItem>? ExtractToolResultContentItems(object? result)
+    {
+        if (result is not IEnumerable<AIContent> items)
+            return null;
+
+        var contentItems = new List<PluginFunctionContentItem>();
+        var hasImage = false;
+        foreach (var item in items)
+        {
+            switch (item)
+            {
+                case TextContent text when !string.IsNullOrEmpty(text.Text):
+                    contentItems.Add(new PluginFunctionContentItem
+                    {
+                        Type = "text",
+                        Text = text.Text
+                    });
+                    break;
+                case DataContent data when IsImageMediaType(data.MediaType):
+                    hasImage = true;
+                    contentItems.Add(new PluginFunctionContentItem
+                    {
+                        Type = "image",
+                        MediaType = data.MediaType,
+                        DataBase64 = Convert.ToBase64String(data.Data.ToArray())
+                    });
+                    break;
+            }
+        }
+
+        return hasImage ? contentItems : null;
+    }
+
+    private static bool IsImageMediaType(string? mediaType) =>
+        mediaType?.StartsWith("image/", StringComparison.OrdinalIgnoreCase) == true;
 
     private static bool TryGetStringProperty(
         IReadOnlyDictionary<string, object?> properties,

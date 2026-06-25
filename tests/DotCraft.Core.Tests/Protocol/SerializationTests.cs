@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Commands.Core;
+using DotCraft.Plugins;
 using DotCraft.Protocol;
 using DotCraft.Protocol.AppServer;
 using DotCraft.Skills;
@@ -296,6 +297,37 @@ public class SerializationTests
         Assert.Equal("call_abc", payload.CallId);
         Assert.Equal("file contents", payload.Result);
         Assert.True(payload.Success);
+    }
+
+    [Fact]
+    public void SessionItem_ToolResult_WithContentItems_RoundTrip()
+    {
+        var item = BuildItem(ItemType.ToolResult, ItemStatus.Completed,
+            new ToolResultPayload
+            {
+                CallId = "call_image",
+                Result = "Image: sample.png (3 bytes, image/png)",
+                ContentItems =
+                [
+                    new PluginFunctionContentItem { Type = "text", Text = "Image: sample.png" },
+                    new PluginFunctionContentItem { Type = "image", MediaType = "image/png", DataBase64 = "AQID" }
+                ],
+                Success = true
+            });
+
+        var deserialized = RoundTrip(item);
+        var payload = deserialized.AsToolResult;
+        Assert.NotNull(payload);
+        Assert.Equal("call_image", payload.CallId);
+        Assert.Equal("Image: sample.png (3 bytes, image/png)", payload.Result);
+        Assert.True(payload.Success);
+        var contentItems = Assert.IsAssignableFrom<IReadOnlyList<PluginFunctionContentItem>>(payload.ContentItems);
+        Assert.Equal(2, contentItems.Count);
+        Assert.Equal("text", contentItems[0].Type);
+        Assert.Equal("Image: sample.png", contentItems[0].Text);
+        Assert.Equal("image", contentItems[1].Type);
+        Assert.Equal("image/png", contentItems[1].MediaType);
+        Assert.Equal("AQID", contentItems[1].DataBase64);
     }
 
     [Fact]

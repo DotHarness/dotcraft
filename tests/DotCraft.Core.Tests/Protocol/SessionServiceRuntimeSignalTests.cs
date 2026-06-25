@@ -523,6 +523,52 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
     }
 
     [Fact]
+    public async Task SubmitInputAsync_ImageToolResult_PersistsAndEmitsContentItems()
+    {
+        var imageBytes = "abc"u8.ToArray();
+        IChatClient chatClient = new FakeChatClient([
+            new ChatResponseUpdate(ChatRole.Assistant, [
+                new FunctionResultContent(
+                    "call-image",
+                    (IList<AIContent>)
+                    [
+                        new TextContent("Image: sample.png (3 bytes, image/png)"),
+                        new DataContent(imageBytes, "image/png")
+                    ])
+            ])
+        ]);
+        await using var agentFactory = CreateAgentFactory(chatClient);
+        var svc = CreateService(agentFactory, chatClient);
+        var thread = await svc.CreateThreadAsync(MakeIdentity());
+
+        var events = await CollectAsync(svc.SubmitInputAsync(thread.Id, [new TextContent("hello")]));
+
+        var loaded = await new ThreadStore(_tempDir).LoadThreadAsync(thread.Id);
+        var turn = Assert.Single(loaded!.Turns);
+        var resultItem = Assert.Single(turn.Items, item => item.Type == ItemType.ToolResult);
+        var payload = Assert.IsType<ToolResultPayload>(resultItem.Payload);
+        Assert.True(payload.Success);
+        Assert.Equal("call-image", payload.CallId);
+        Assert.Contains("Image: sample.png", payload.Result, StringComparison.Ordinal);
+        Assert.Contains("[Image (image/png), 3 bytes]", payload.Result, StringComparison.Ordinal);
+        var contentItems = Assert.IsAssignableFrom<IReadOnlyList<DotCraft.Plugins.PluginFunctionContentItem>>(payload.ContentItems);
+        Assert.Equal(2, contentItems.Count);
+        Assert.Equal("Image: sample.png (3 bytes, image/png)", contentItems[0].Text);
+        Assert.Equal("image", contentItems[1].Type);
+        Assert.Equal("image/png", contentItems[1].MediaType);
+        Assert.Equal(Convert.ToBase64String(imageBytes), contentItems[1].DataBase64);
+
+        var completedEvent = Assert.Single(
+            events,
+            e => e.EventType == SessionEventType.ItemCompleted
+                && e.ItemPayload?.Type == ItemType.ToolResult);
+        var eventPayload = Assert.IsType<ToolResultPayload>(completedEvent.ItemPayload!.Payload);
+        var eventContentItems = Assert.IsAssignableFrom<IReadOnlyList<DotCraft.Plugins.PluginFunctionContentItem>>(eventPayload.ContentItems);
+        Assert.Equal("image/png", eventContentItems[1].MediaType);
+        Assert.Equal(Convert.ToBase64String(imageBytes), eventContentItems[1].DataBase64);
+    }
+
+    [Fact]
     public async Task SubmitInputAsync_SpawnAgentArgumentsDelta_CompletesSameToolCallItem()
     {
         IChatClient chatClient = new FakeChatClient([
