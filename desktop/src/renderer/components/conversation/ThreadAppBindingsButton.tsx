@@ -647,13 +647,17 @@ const iconButton: CSSProperties = { width: 28, height: 28, border: 'none', borde
 const mutedText: CSSProperties = { color: 'var(--text-secondary)', fontSize: 12, padding: 8 }
 const errorText: CSSProperties = { color: 'var(--error)', fontSize: 12, padding: 8 }
 
+// Transparent fill (not --bg-secondary) so this "Apps" button matches the other
+// thread-header buttons — Open (openButtonStyle) and Commit (headerButtonStyle) —
+// which are all outlined with a transparent background. A filled background here
+// made the Apps button read as a different control in the header row.
 const buttonStyle: CSSProperties = {
   height: 28,
   minWidth: 28,
   padding: '0 8px',
   border: '1px solid var(--border-default)',
   borderRadius: 6,
-  background: 'var(--bg-secondary)',
+  background: 'transparent',
   color: 'var(--text-secondary)',
   cursor: 'pointer',
   display: 'inline-flex',
