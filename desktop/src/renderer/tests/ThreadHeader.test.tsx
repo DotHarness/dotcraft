@@ -1,14 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { ThreadHeader } from '../components/conversation/ThreadHeader'
 import { useConnectionStore } from '../stores/connectionStore'
 import { useConversationStore } from '../stores/conversationStore'
+import { usePerforceChangelistStore } from '../stores/perforceChangelistStore'
+import { useSourceControlStore } from '../stores/sourceControlStore'
 import { useThreadStore } from '../stores/threadStore'
 import type { Thread } from '../types/thread'
 
 const settingsGet = vi.fn()
 const appServerSendRequest = vi.fn()
+const gitCommit = vi.fn()
 
 function makeThread(): Thread {
   return {
@@ -26,13 +29,14 @@ function makeThread(): Thread {
   }
 }
 
-function renderHeader(): void {
+function renderHeader(remoteWorkspace = false, workspacePath = 'fixtures\\sample-app'): void {
   render(
     <LocaleProvider>
       <ThreadHeader
         threadName="Thread"
         threadId="thread-1"
-        workspacePath="fixtures\\sample-app"
+        workspacePath={workspacePath}
+        remoteWorkspace={remoteWorkspace}
       />
     </LocaleProvider>
   )
@@ -43,9 +47,12 @@ describe('ThreadHeader', () => {
     vi.clearAllMocks()
     useConnectionStore.getState().reset()
     useConversationStore.getState().reset()
+    usePerforceChangelistStore.getState().reset()
+    useSourceControlStore.setState({ workspacePath: null, effectiveProvider: null, status: null })
     useThreadStore.getState().reset()
     settingsGet.mockResolvedValue({ locale: 'en' })
     appServerSendRequest.mockResolvedValue({})
+    gitCommit.mockResolvedValue(undefined)
 
     const thread = makeThread()
     useThreadStore.setState({
@@ -59,6 +66,7 @@ describe('ThreadHeader', () => {
       value: {
         settings: { get: settingsGet },
         appServer: { sendRequest: appServerSendRequest },
+        git: { commit: gitCommit },
         shell: {
           listEditors: vi.fn().mockResolvedValue([])
         }
@@ -92,5 +100,111 @@ describe('ThreadHeader', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'More chat actions' }))
 
     expect(screen.queryByRole('menuitem', { name: 'Fork' })).not.toBeInTheDocument()
+  })
+
+  it('prepares a Perforce changelist from the header without using local git', async () => {
+    const workspacePath = 'C:\\workspace\\sample-app'
+    useConnectionStore.setState({
+      status: 'connected',
+      capabilities: { sourceControlManagement: true }
+    })
+    const thread = makeThread({
+      workspacePath,
+      effectiveWorkspacePath: workspacePath
+    })
+    thread.metadata = {
+      'sourceControl.provider': 'perforce',
+      'sourceControl.perforce.changelist': '123'
+    }
+    useThreadStore.setState({
+      activeThreadId: thread.id,
+      activeThread: thread,
+      threadList: [thread]
+    })
+    useSourceControlStore.setState({
+      workspacePath,
+      effectiveProvider: 'perforce',
+      status: 'connected'
+    })
+    usePerforceChangelistStore.setState({
+      byThreadId: {
+        'thread-1': {
+          threadId: 'thread-1',
+          status: 'available',
+          snapshot: {
+            changelists: [
+              { id: 'default', isDefault: true, description: 'Default changelist', user: 'me', client: 'ws', status: 'pending' },
+              { id: '123', isDefault: false, description: 'Task CL', user: 'me', client: 'ws', status: 'pending' }
+            ],
+            target: { provider: 'perforce', changelist: '123' }
+          },
+          errorMessage: null,
+          requestId: 1
+        }
+      }
+    })
+    useConversationStore.getState().upsertChangedFile({
+      filePath: 'C:\\workspace\\sample-app\\src\\a.ts',
+      turnId: 'turn-1',
+      turnIds: ['turn-1'],
+      additions: 2,
+      deletions: 1,
+      diffHunks: [],
+      status: 'written',
+      isNewFile: false
+    })
+    appServerSendRequest.mockImplementation(async (method: string) => {
+      if (method === 'sourceControl/changelist/prepare') {
+        return {
+          status: 'prepared',
+          changelist: '123',
+          movedPaths: ['src/a.ts'],
+          skippedPaths: [],
+          warnings: []
+        }
+      }
+      if (method === 'sourceControl/changelist/list') {
+        return {
+          changelists: [
+            { id: 'default', isDefault: true, description: 'Default changelist', user: 'me', client: 'ws', status: 'pending' },
+            { id: '123', isDefault: false, description: 'Task CL', user: 'me', client: 'ws', status: 'pending' }
+          ],
+          target: { provider: 'perforce', changelist: '123' }
+        }
+      }
+      return {}
+    })
+
+    renderHeader(true, workspacePath)
+    await act(async () => {
+      useSourceControlStore.setState({
+        workspacePath,
+        effectiveProvider: 'perforce',
+        status: 'connected'
+      })
+    })
+
+    const prepareButton = await screen.findByRole('button', { name: 'Prepare Perforce changelist' })
+    expect(prepareButton).not.toBeDisabled()
+    fireEvent.click(prepareButton)
+    expect(screen.getByRole('dialog', { name: 'Prepare changelist' })).toBeInTheDocument()
+    fireEvent.change(screen.getByPlaceholderText('Describe the pending changelist...'), {
+      target: { value: 'Prepare task CL' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Prepare CL' }))
+
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith(
+        'sourceControl/changelist/prepare',
+        {
+          threadId: 'thread-1',
+          description: 'Prepare task CL',
+          paths: ['src/a.ts'],
+          target: '123'
+        },
+        60_000
+      )
+    })
+    expect(gitCommit).not.toHaveBeenCalled()
   })
 })

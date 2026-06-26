@@ -1,5 +1,6 @@
 using System.Text.Json;
 using DotCraft.Configuration;
+using DotCraft.Protocol;
 using DotCraft.Protocol.AppServer;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
@@ -208,8 +209,51 @@ public sealed class SourceControlConfigTests : IDisposable
         var result = SingleResult(sent);
         Assert.Equal("perforce", result.GetProperty("provider").GetString());
         Assert.Equal("notTested", result.GetProperty("status").GetString());
+        Assert.True(result.GetProperty("capabilities").GetProperty("perforceChangelist").GetBoolean());
         Assert.False(result.GetProperty("capabilities").GetProperty("perforceSubmit").GetBoolean());
         Assert.DoesNotContain("assword", result.GetRawText(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task SourceControlThreadTarget_Update_PersistsPerThreadPerforceTarget()
+    {
+        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
+        await harness.InitializeAsync(configChange: true);
+        var thread = await harness.Service.CreateThreadAsync(harness.Identity);
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.SourceControlThreadTargetGet, new
+        {
+            threadId = thread.Id
+        }));
+        var initial = SingleResult(await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5)));
+        Assert.Equal("default", initial.GetProperty("target").GetProperty("changelist").GetString());
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.SourceControlThreadTargetUpdate, new
+        {
+            threadId = thread.Id,
+            target = new { provider = "perforce", changelist = "12345" }
+        }));
+        var sent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
+        var result = SingleResult(sent);
+        Assert.Equal("12345", result.GetProperty("target").GetProperty("changelist").GetString());
+
+        var updated = await harness.Service.GetThreadAsync(thread.Id);
+        Assert.Equal("perforce", updated.Metadata[ThreadSourceControlMetadata.ProviderKey]);
+        Assert.Equal("12345", updated.Metadata[ThreadSourceControlMetadata.PerforceChangelistKey]);
+    }
+
+    [Fact]
+    public async Task ForkThread_DoesNotInheritPerforceThreadTarget()
+    {
+        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
+        var source = await harness.Service.CreateThreadAsync(harness.Identity);
+        await harness.Service.UpdateThreadSourceControlTargetAsync(
+            source.Id,
+            new ThreadSourceControlTarget { Provider = "perforce", Changelist = "555" });
+
+        var fork = await harness.Service.ForkThreadAsync(source.Id);
+
+        Assert.DoesNotContain(fork.Metadata, kv => kv.Key.StartsWith("sourceControl.", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

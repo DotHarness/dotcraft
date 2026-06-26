@@ -78,6 +78,11 @@ public static class AppServerMethods
     public const string SourceControlGet = "sourceControl/get";
     public const string SourceControlUpdate = "sourceControl/update";
     public const string SourceControlTest = "sourceControl/test";
+    public const string SourceControlChangelistList = "sourceControl/changelist/list";
+    public const string SourceControlChangelistCreate = "sourceControl/changelist/create";
+    public const string SourceControlChangelistPrepare = "sourceControl/changelist/prepare";
+    public const string SourceControlThreadTargetGet = "sourceControl/threadTarget/get";
+    public const string SourceControlThreadTargetUpdate = "sourceControl/threadTarget/update";
     public const string DreamsStatus = "dreams/status";
     public const string DreamsRun = "dreams/run";
     public const string DreamsCreate = "dreams/create";

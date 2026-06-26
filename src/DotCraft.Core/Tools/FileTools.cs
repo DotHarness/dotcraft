@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using DotCraft.Lsp;
 using DotCraft.Security;
+using DotCraft.SourceControl;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Tools;
@@ -23,7 +24,8 @@ public sealed class FileTools(
     IReadOnlyList<string>? trustedReadPaths = null,
     LspServerManager? lspServerManager = null,
     string? ripgrepPath = null,
-    TimeSpan? searchTimeout = null)
+    TimeSpan? searchTimeout = null,
+    ISourceControlWriteCoordinator? sourceControlWriteCoordinator = null)
 {
     private const int MaxGrepMatches = 100;
     
@@ -175,8 +177,17 @@ public sealed class FileTools(
                 if (!string.IsNullOrEmpty(directory))
                     Directory.CreateDirectory(directory);
 
-                var encoding = File.Exists(fullPath) ? DetectFileEncoding(fullPath) : Utf8NoBom;
-                if (File.Exists(fullPath))
+                var existedBefore = File.Exists(fullPath);
+                var sourceControlWarnings = new List<string>();
+                var beforeWrite = sourceControlWriteCoordinator == null
+                    ? SourceControlWriteResult.Ok()
+                    : await sourceControlWriteCoordinator.BeforeWriteAsync(fullPath, existedBefore);
+                if (!beforeWrite.Continue)
+                    return $"Error: {beforeWrite.ErrorMessage}";
+                AddWarning(sourceControlWarnings, beforeWrite.WarningMessage);
+
+                var encoding = existedBefore ? DetectFileEncoding(fullPath) : Utf8NoBom;
+                if (existedBefore)
                 {
                     var existing = await File.ReadAllTextAsync(fullPath, encoding);
                     content = RestoreLineEndings(NormalizeToLf(content), UsesCrLf(existing));
@@ -187,11 +198,19 @@ public sealed class FileTools(
                 }
 
                 await WriteAllTextEnsuringDirectoryAsync(fullPath, content, encoding);
-            }
 
-            await NotifyLspFileChangedAsync(fullPath, content);
-            var lineCount = content.Split('\n').Length;
-            return $"Successfully wrote {content.Length} bytes ({lineCount} lines) to {path}";
+                var afterWrite = sourceControlWriteCoordinator == null
+                    ? SourceControlWriteResult.Ok()
+                    : await sourceControlWriteCoordinator.AfterWriteAsync(fullPath, existedBefore);
+                if (!afterWrite.Continue)
+                    return $"Error: {afterWrite.ErrorMessage}";
+                AddWarning(sourceControlWarnings, afterWrite.WarningMessage);
+
+                await NotifyLspFileChangedAsync(fullPath, content);
+                var lineCount = content.Split('\n').Length;
+                var result = $"Successfully wrote {content.Length} bytes ({lineCount} lines) to {path}";
+                return AppendWarnings(result, sourceControlWarnings);
+            }
         }
         catch (UnauthorizedAccessException)
         {
@@ -234,7 +253,21 @@ public sealed class FileTools(
 
                 var encoding = DetectFileEncoding(fullPath);
                 var content = await File.ReadAllTextAsync(fullPath, encoding);
-                (result, writtenContent) = await ApplySearchReplaceEdit(fullPath, path, content, oldText, newText, encoding, replaceAll);
+                var prepared = PrepareSearchReplaceEdit(path, content, oldText, newText, replaceAll);
+                if (prepared.WrittenContent == null)
+                    return prepared.Result;
+
+                var sourceControlWarnings = new List<string>();
+                var beforeWrite = sourceControlWriteCoordinator == null
+                    ? SourceControlWriteResult.Ok()
+                    : await sourceControlWriteCoordinator.BeforeWriteAsync(fullPath, fileExists: true);
+                if (!beforeWrite.Continue)
+                    return $"Error: {beforeWrite.ErrorMessage}";
+                AddWarning(sourceControlWarnings, beforeWrite.WarningMessage);
+
+                await File.WriteAllTextAsync(fullPath, prepared.WrittenContent, encoding);
+                result = AppendWarnings(prepared.Result, sourceControlWarnings);
+                writtenContent = prepared.WrittenContent;
             }
 
             if (writtenContent != null)
@@ -598,9 +631,8 @@ public sealed class FileTools(
         }
     }
 
-    private static async Task<(string Result, string? WrittenContent)> ApplySearchReplaceEdit(
-        string fullPath, string displayPath, string content, string oldText, string newText,
-        Encoding encoding, bool replaceAll)
+    private static (string Result, string? WrittenContent) PrepareSearchReplaceEdit(
+        string displayPath, string content, string oldText, string newText, bool replaceAll)
     {
         // Normalize all inputs to LF for consistent matching, restore on write
         var useCrLf = UsesCrLf(content);
@@ -614,7 +646,6 @@ public sealed class FileTools(
             return (error!, null);
 
         var newContent = RestoreLineEndings(newLfContent, useCrLf);
-        await File.WriteAllTextAsync(fullPath, newContent, encoding);
 
         if (replaceCount > 1)
             return ($"Successfully replaced {replaceCount} occurrences in {displayPath}", newContent);
@@ -670,6 +701,19 @@ public sealed class FileTools(
 
     private static string RestoreLineEndings(string content, bool useCrLf)
         => useCrLf ? content.Replace("\n", "\r\n") : content;
+
+    private static void AddWarning(List<string> warnings, string? warning)
+    {
+        if (!string.IsNullOrWhiteSpace(warning))
+            warnings.Add(warning.Trim());
+    }
+
+    private static string AppendWarnings(string result, IReadOnlyList<string> warnings)
+    {
+        if (warnings.Count == 0)
+            return result;
+        return result + "\nWarning: " + string.Join("\nWarning: ", warnings);
+    }
 
     #endregion
 }

@@ -238,6 +238,7 @@ public sealed partial class SessionService
                 .Where(key =>
                     key.StartsWith("subagent.", StringComparison.OrdinalIgnoreCase)
                     || key.StartsWith("dotcraft.worktree", StringComparison.OrdinalIgnoreCase)
+                    || key.StartsWith("sourceControl.", StringComparison.OrdinalIgnoreCase)
                     || string.Equals(key, "dotcraft.internal", StringComparison.OrdinalIgnoreCase))
                 .ToList())
             {

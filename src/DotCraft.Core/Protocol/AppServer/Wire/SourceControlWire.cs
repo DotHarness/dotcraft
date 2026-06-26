@@ -195,3 +195,104 @@ public sealed class SourceControlTestResult
 
     public List<SourceControlDiagnosticItem> Errors { get; set; } = [];
 }
+
+// ───── sourceControl/changelist/*, sourceControl/threadTarget/* ─────
+
+public sealed class SourceControlThreadTargetParams
+{
+    public string ThreadId { get; set; } = string.Empty;
+}
+
+public sealed class SourceControlThreadTargetUpdateParams
+{
+    public string ThreadId { get; set; } = string.Empty;
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public SourceControlThreadTargetWire? Target { get; set; }
+}
+
+public sealed class SourceControlThreadTargetWire
+{
+    public string Provider { get; set; } = "perforce";
+
+    public string Changelist { get; set; } = "default";
+}
+
+public sealed class SourceControlThreadTargetResult
+{
+    public SourceControlThreadTargetWire Target { get; set; } = new();
+}
+
+public sealed class SourceControlChangelistListParams
+{
+    public string ThreadId { get; set; } = string.Empty;
+}
+
+public sealed class SourceControlChangelistEntryWire
+{
+    public string Id { get; set; } = string.Empty;
+
+    public bool IsDefault { get; set; }
+
+    public string Description { get; set; } = string.Empty;
+
+    public string User { get; set; } = string.Empty;
+
+    public string Client { get; set; } = string.Empty;
+
+    public string Status { get; set; } = "pending";
+}
+
+public sealed class SourceControlChangelistListResult
+{
+    public List<SourceControlChangelistEntryWire> Changelists { get; set; } = [];
+
+    public SourceControlThreadTargetWire Target { get; set; } = new();
+}
+
+public sealed class SourceControlChangelistCreateParams
+{
+    public string ThreadId { get; set; } = string.Empty;
+
+    public string Description { get; set; } = string.Empty;
+
+    public bool SetAsTarget { get; set; } = true;
+}
+
+public sealed class SourceControlChangelistCreateResult
+{
+    public SourceControlChangelistEntryWire Changelist { get; set; } = new();
+
+    public SourceControlThreadTargetWire Target { get; set; } = new();
+}
+
+public sealed class SourceControlChangelistPrepareParams
+{
+    public string ThreadId { get; set; } = string.Empty;
+
+    public string Description { get; set; } = string.Empty;
+
+    public string[] Paths { get; set; } = [];
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Target { get; set; }
+}
+
+public sealed class SourceControlChangelistPrepareResult
+{
+    public string Status { get; set; } = "ok";
+
+    public string Code { get; set; } = "Prepared";
+
+    public string Changelist { get; set; } = "default";
+
+    public bool Created { get; set; }
+
+    public List<string> MovedPaths { get; set; } = [];
+
+    public List<string> SkippedPaths { get; set; } = [];
+
+    public List<SourceControlDiagnosticItem> Warnings { get; set; } = [];
+
+    public List<SourceControlDiagnosticItem> Errors { get; set; } = [];
+}

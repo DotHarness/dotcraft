@@ -69,6 +69,27 @@ internal sealed class TestableSessionService : ISessionService, IThreadAgentRefr
 
     public TestableSessionService(ThreadStore store) => _store = store;
 
+    public async Task<SessionThread> UpdateThreadSourceControlTargetAsync(
+        string threadId,
+        ThreadSourceControlTarget? target,
+        CancellationToken ct = default)
+    {
+        var thread = await GetOrLoadAsync(threadId, ct);
+        if (target == null)
+        {
+            ThreadSourceControlMetadata.ClearSourceControlTarget(thread.Metadata);
+        }
+        else
+        {
+            ThreadSourceControlMetadata.ApplyPerforceTarget(thread.Metadata, target.Changelist);
+        }
+
+        _cache[thread.Id] = thread;
+        await _store.SaveThreadAsync(thread, ct);
+        ThreadUpdatedForBroadcast?.Invoke(thread);
+        return thread;
+    }
+
     // -------------------------------------------------------------------------
     // Canned event configuration
     // -------------------------------------------------------------------------
@@ -257,7 +278,7 @@ internal sealed class TestableSessionService : ISessionService, IThreadAgentRefr
             ForkedFromId = source.Id,
             Ephemeral = options.Ephemeral,
             Worktree = options.Worktree,
-            Metadata = new Dictionary<string, string>(source.Metadata),
+            Metadata = CopyForkMetadata(source.Metadata),
             Turns = forkTurns,
             QueuedInputs = []
         };
@@ -280,6 +301,22 @@ internal sealed class TestableSessionService : ISessionService, IThreadAgentRefr
             await _store.SaveThreadAsync(fork, ct);
         ThreadCreatedForBroadcast?.Invoke(fork);
         return fork;
+    }
+
+    private static Dictionary<string, string> CopyForkMetadata(IReadOnlyDictionary<string, string> source)
+    {
+        var metadata = new Dictionary<string, string>(source, StringComparer.Ordinal);
+        foreach (var key in metadata.Keys
+            .Where(key =>
+                key.StartsWith("subagent.", StringComparison.OrdinalIgnoreCase)
+                || key.StartsWith("dotcraft.worktree", StringComparison.OrdinalIgnoreCase)
+                || key.StartsWith("sourceControl.", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(key, "dotcraft.internal", StringComparison.OrdinalIgnoreCase))
+            .ToList())
+        {
+            metadata.Remove(key);
+        }
+        return metadata;
     }
 
     public async Task<WorktreeCreateAndForkResult> CreateWorktreeAndForkAsync(

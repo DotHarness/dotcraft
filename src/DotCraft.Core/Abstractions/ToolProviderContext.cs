@@ -13,6 +13,7 @@ using DotCraft.Lsp;
 using DotCraft.Tools;
 using DotCraft.Tools.BackgroundTerminals;
 using DotCraft.Protocol;
+using DotCraft.SourceControl;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Abstractions;
@@ -290,4 +291,9 @@ public sealed class ToolProviderContext
         get => field ??= new HostAgentFileSystem(WorkspacePath);
         set;
     }
+
+    /// <summary>
+    /// Optional source-control write coordinator used by file tools before and after mutations.
+    /// </summary>
+    public ISourceControlWriteCoordinator? SourceControlWriteCoordinator { get; set; }
 }

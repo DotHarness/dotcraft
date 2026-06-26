@@ -4,6 +4,8 @@ import { LocaleProvider } from '../contexts/LocaleContext'
 import { ComposerWorkspaceFooter } from '../components/conversation/ComposerWorkspaceFooter'
 import { useConnectionStore } from '../stores/connectionStore'
 import { normalizeGitPathKey, useGitStore, type GitBranchListSnapshot } from '../stores/gitStore'
+import { usePerforceChangelistStore } from '../stores/perforceChangelistStore'
+import { useSourceControlStore } from '../stores/sourceControlStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useToastStore } from '../stores/toastStore'
 import { useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
@@ -96,6 +98,8 @@ describe('ComposerWorkspaceFooter', () => {
     vi.clearAllMocks()
     useConnectionStore.getState().reset()
     useGitStore.getState().reset()
+    usePerforceChangelistStore.getState().reset()
+    useSourceControlStore.setState({ workspacePath: null, effectiveProvider: null, status: null })
     useThreadStore.getState().reset()
     useWorkspaceProjectsStore.getState().reset()
     useToastStore.setState({ toasts: [] })
@@ -308,6 +312,125 @@ describe('ComposerWorkspaceFooter', () => {
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'feat/example' })).toBeInTheDocument()
     })
+  })
+
+  it('shows a Perforce changelist selector and updates the thread target', async () => {
+    const thread = makeThread()
+    useConnectionStore.setState({
+      status: 'connected',
+      capabilities: {
+        gitWorktrees: true,
+        sourceControlManagement: true
+      }
+    })
+    useSourceControlStore.setState({
+      workspacePath: 'fixtures\\sample-app',
+      effectiveProvider: 'perforce',
+      status: 'connected'
+    })
+    usePerforceChangelistStore.setState({
+      byThreadId: {
+        'thread-1': {
+          threadId: 'thread-1',
+          status: 'available',
+          snapshot: {
+            changelists: [
+              { id: 'default', isDefault: true, description: 'Default changelist', user: 'me', client: 'ws', status: 'pending' },
+              { id: '123', isDefault: false, description: 'Task CL', user: 'me', client: 'ws', status: 'pending' }
+            ],
+            target: { provider: 'perforce', changelist: 'default' }
+          },
+          errorMessage: null,
+          requestId: 1
+        }
+      }
+    })
+    appServerSendRequest.mockResolvedValue({
+      target: { provider: 'perforce', changelist: '123' }
+    })
+
+    renderFooter(thread, 'local')
+
+    expect(screen.queryByRole('button', { name: 'Local' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'CL default' }))
+    fireEvent.click(screen.getByRole('button', { name: /CL 123.*Task CL/ }))
+
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith(
+        'sourceControl/threadTarget/update',
+        { threadId: 'thread-1', target: { provider: 'perforce', changelist: '123' } },
+        20_000
+      )
+    })
+    expect(screen.getByRole('button', { name: 'CL 123' })).toBeInTheDocument()
+  })
+
+  it('creates a Perforce changelist from the selector and sets it as the thread target', async () => {
+    const thread = makeThread()
+    useConnectionStore.setState({
+      status: 'connected',
+      capabilities: {
+        gitWorktrees: true,
+        sourceControlManagement: true
+      }
+    })
+    useSourceControlStore.setState({
+      workspacePath: 'fixtures\\sample-app',
+      effectiveProvider: 'perforce',
+      status: 'connected'
+    })
+    usePerforceChangelistStore.setState({
+      byThreadId: {
+        'thread-1': {
+          threadId: 'thread-1',
+          status: 'available',
+          snapshot: {
+            changelists: [
+              { id: 'default', isDefault: true, description: 'Default changelist', user: 'me', client: 'ws', status: 'pending' }
+            ],
+            target: { provider: 'perforce', changelist: 'default' }
+          },
+          errorMessage: null,
+          requestId: 1
+        }
+      }
+    })
+    appServerSendRequest.mockImplementation(async (method: string) => {
+      if (method === 'sourceControl/changelist/create') {
+        return {
+          changelist: { id: '777', isDefault: false, description: 'New work', user: 'me', client: 'ws', status: 'pending' },
+          target: { provider: 'perforce', changelist: '777' }
+        }
+      }
+      if (method === 'sourceControl/changelist/list') {
+        return {
+          changelists: [
+            { id: 'default', isDefault: true, description: 'Default changelist', user: 'me', client: 'ws', status: 'pending' },
+            { id: '777', isDefault: false, description: 'New work', user: 'me', client: 'ws', status: 'pending' }
+          ],
+          target: { provider: 'perforce', changelist: '777' }
+        }
+      }
+      return {}
+    })
+
+    renderFooter(thread, 'local')
+
+    fireEvent.click(screen.getByRole('button', { name: 'CL default' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Create changelist...' }))
+    fireEvent.change(screen.getByLabelText('Changelist description'), {
+      target: { value: 'New work' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith(
+        'sourceControl/changelist/create',
+        { threadId: 'thread-1', description: 'New work', setAsTarget: true },
+        30_000
+      )
+    })
+    expect(await screen.findByRole('button', { name: 'CL 777' })).toBeInTheDocument()
   })
 
   it('hides and resets welcome worktree choices after Git is confirmed unavailable', async () => {

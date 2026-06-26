@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Archive, ArrowRightLeft, GitFork, Laptop, MoreHorizontal, Pencil, Pin, PanelRightOpen } from 'lucide-react'
+import { Archive, ArrowRightLeft, GitFork, Laptop, ListChecks, MoreHorizontal, Pencil, Pin, PanelRightOpen } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useConnectionStore } from '../../stores/connectionStore'
@@ -8,7 +8,9 @@ import { useThreadStore } from '../../stores/threadStore'
 import { useUIStore } from '../../stores/uiStore'
 import { addToast, useToastStore } from '../../stores/toastStore'
 import { CommitDialog, toRelativePath } from '../detail/CommitDialog'
+import { PerforcePrepareDialog } from '../detail/PerforcePrepareDialog'
 import { CommitIcon } from '../ui/AppIcons'
+import { usePerforceChangelistStore } from '../../stores/perforceChangelistStore'
 import { OpenWorkspaceButton } from './OpenWorkspaceButton'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
@@ -38,6 +40,7 @@ export function ThreadHeader({
 }: ThreadHeaderProps): JSX.Element {
   const t = useT()
   const [commitOpen, setCommitOpen] = useState(false)
+  const [prepareOpen, setPrepareOpen] = useState(false)
   const [menuPosition, setMenuPosition] = useState<ContextMenuPosition | null>(null)
   const [renaming, setRenaming] = useState(false)
   const [renameValue, setRenameValue] = useState(threadName)
@@ -57,12 +60,23 @@ export function ThreadHeader({
   const sourceControlProvider = useSourceControlStore((s) =>
     s.workspacePath === workspacePath ? s.effectiveProvider : null
   )
+  const threadSourceControlProvider = typeof activeThread?.metadata?.['sourceControl.provider'] === 'string'
+    ? activeThread.metadata['sourceControl.provider']
+    : null
   const isPerforceWorkspace = sourceControlProvider === 'perforce'
+    || (sourceControlProvider == null && threadSourceControlProvider === 'perforce')
+  const changelistState = usePerforceChangelistStore((s) => s.byThreadId[threadId])
+  const selectedChangelist = changelistState?.snapshot?.target?.changelist ?? 'default'
   const confirm = useConfirmDialog()
 
   useEffect(() => {
     ensureSourceControl(workspacePath, sourceControlEnabled)
   }, [ensureSourceControl, workspacePath, sourceControlEnabled])
+
+  useEffect(() => {
+    if (!isPerforceWorkspace) return
+    void usePerforceChangelistStore.getState().ensure(threadId)
+  }, [isPerforceWorkspace, threadId])
 
   const writtenFiles = Array.from(changedFiles.values()).filter((f) => f.status === 'written')
   const hasWrittenFiles = writtenFiles.length > 0
@@ -147,7 +161,6 @@ export function ThreadHeader({
    */
   async function runCommit(message: string): Promise<void> {
     if (isPerforceWorkspace) {
-      addToast(t('threadHeader.perforceCommitUnavailable'), 'warning')
       return
     }
     if (remoteWorkspace) {
@@ -195,6 +208,56 @@ export function ThreadHeader({
     } catch (err) {
       clearCommitting()
       addToast(t('commit.toast.failed', { error: err instanceof Error ? err.message : String(err) }), 'error')
+    }
+  }
+
+  async function runPrepareChangelist(description: string): Promise<void> {
+    const files = Array.from(useConversationStore.getState().changedFiles.values()).filter(
+      (f) => f.status === 'written'
+    )
+    if (files.length === 0) return
+
+    addToast(t('perforcePrepare.preparing'), 'info', 60_000)
+    const preparingId = useToastStore.getState().toasts.at(-1)?.id
+    const clearPreparing = (): void => {
+      if (preparingId) useToastStore.getState().removeToast(preparingId)
+    }
+
+    try {
+      const result = await window.api.appServer.sendRequest(
+        'sourceControl/changelist/prepare',
+        {
+          threadId,
+          description: description || threadName,
+          paths: files.map((f) => toRelativePath(f.filePath, workspacePath)),
+          target: selectedChangelist
+        },
+        60_000
+      ) as {
+        status?: string
+        changelist?: string
+        movedPaths?: string[]
+        skippedPaths?: string[]
+        warnings?: Array<{ code?: string, fallbackText?: string }>
+        errors?: Array<{ code?: string, fallbackText?: string }>
+      }
+      clearPreparing()
+      if (result.status === 'error') {
+        const message = result.errors?.[0]?.fallbackText || t('perforcePrepare.toast.failedUnknown')
+        addToast(t('perforcePrepare.toast.failed', { error: message }), 'error')
+        return
+      }
+      await usePerforceChangelistStore.getState().ensure(threadId, { force: true })
+      const warning = result.warnings?.[0]?.fallbackText
+      addToast(
+        warning
+          ? t('perforcePrepare.toast.doneWithWarning', { changelist: result.changelist ?? selectedChangelist, warning })
+          : t('perforcePrepare.toast.done', { changelist: result.changelist ?? selectedChangelist }),
+        warning ? 'warning' : 'success'
+      )
+    } catch (err) {
+      clearPreparing()
+      addToast(t('perforcePrepare.toast.failed', { error: err instanceof Error ? err.message : String(err) }), 'error')
     }
   }
 
@@ -340,12 +403,12 @@ export function ThreadHeader({
 
         <ThreadAppBindingsButton threadId={threadId} />
 
-        {/* Commit button */}
+        {/* Commit / Perforce prepare button */}
         <ActionTooltip
-          label={t('threadHeader.commitTitle')}
+          label={isPerforceWorkspace ? t('threadHeader.prepareChangelistTitle') : t('threadHeader.commitTitle')}
           disabledReason={
             isPerforceWorkspace
-              ? t('threadHeader.perforceCommitUnavailable')
+              ? (!hasWrittenFiles ? t('threadHeader.noPrepareChangelistTitle') : undefined)
               : remoteWorkspace
                 ? t('threadHeader.remoteLocalGitUnavailable')
                 : !hasWrittenFiles
@@ -355,17 +418,20 @@ export function ThreadHeader({
           placement="bottom"
         >
           <button
-            onClick={() => setCommitOpen(true)}
-            disabled={isPerforceWorkspace || remoteWorkspace || !hasWrittenFiles}
+            onClick={() => {
+              if (isPerforceWorkspace) setPrepareOpen(true)
+              else setCommitOpen(true)
+            }}
+            disabled={isPerforceWorkspace ? !hasWrittenFiles : remoteWorkspace || !hasWrittenFiles}
             style={{
               ...headerButtonStyle,
-              opacity: !isPerforceWorkspace && !remoteWorkspace && hasWrittenFiles ? 1 : 0.4,
-              cursor: !isPerforceWorkspace && !remoteWorkspace && hasWrittenFiles ? 'pointer' : 'default'
+              opacity: (isPerforceWorkspace ? hasWrittenFiles : !remoteWorkspace && hasWrittenFiles) ? 1 : 0.4,
+              cursor: (isPerforceWorkspace ? hasWrittenFiles : !remoteWorkspace && hasWrittenFiles) ? 'pointer' : 'default'
             }}
-            aria-label={t('threadHeader.commitTitle')}
+            aria-label={isPerforceWorkspace ? t('threadHeader.prepareChangelistTitle') : t('threadHeader.commitTitle')}
           >
-            <CommitIcon size={13} />
-            {t('threadHeader.commit')}
+            {isPerforceWorkspace ? <ListChecks size={13} /> : <CommitIcon size={13} />}
+            {isPerforceWorkspace ? t('threadHeader.prepareChangelist') : t('threadHeader.commit')}
           </button>
         </ActionTooltip>
 
@@ -403,6 +469,16 @@ export function ThreadHeader({
             void runCommit(message)
           }}
           onClose={() => setCommitOpen(false)}
+        />
+      )}
+      {prepareOpen && (
+        <PerforcePrepareDialog
+          workspacePath={workspacePath}
+          changelist={selectedChangelist}
+          onPrepare={(description) => {
+            void runPrepareChangelist(description)
+          }}
+          onClose={() => setPrepareOpen(false)}
         />
       )}
       {menuPosition && (

@@ -88,7 +88,8 @@ public sealed class CoreToolProvider : IAgentToolProvider
             trustedReadPaths: [userDotCraftPath],
             lspServerManager: context.LspServerManager,
             ripgrepPath: context.Config.Tools.File.RipgrepPath,
-            searchTimeout: fileSearchTimeout);
+            searchTimeout: fileSearchTimeout,
+            sourceControlWriteCoordinator: context.SourceControlWriteCoordinator);
         tools.Add(GeneratedToolFunctions.FileTools_ReadFile(fileTools));
         tools.Add(GeneratedToolFunctions.FileTools_WriteFile(fileTools));
         tools.Add(GeneratedToolFunctions.FileTools_EditFile(fileTools));
