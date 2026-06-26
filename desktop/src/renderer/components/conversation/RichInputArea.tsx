@@ -490,7 +490,12 @@ export const RichInputArea = forwardRef(function RichInputArea(
         range.insertNode(span)
         range.setStartAfter(span)
         range.insertNode(space)
-        range.setStartAfter(space)
+        // Place the caret *inside* the trailing spacer text node rather than at the
+        // parent-element boundary after it. Leaving the caret at the element boundary
+        // adjacent to the contenteditable=false chip makes Chromium double-insert the
+        // first IME-committed character (e.g. full-width punctuation), while buffered
+        // pinyin letters are unaffected. Anchoring inside a real text node avoids it.
+        range.setStart(space, space.length)
         range.collapse(true)
         const sel = window.getSelection()
         sel?.removeAllRanges()

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Sparkle, Terminal } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import type { CustomCommandInfo } from '../../hooks/useCustomCommandCatalog'
@@ -57,6 +57,7 @@ export function CommandSearchPopover({
   const skillList = skills ?? []
   const systemActionList = systemActions ?? []
   const [highlight, setHighlight] = useState(0)
+  const containerRef = useRef<HTMLDivElement>(null)
   const filteredSystemActions = useMemo(() => {
     const prefix = query.toLowerCase()
     if (!prefix) return systemActionList
@@ -94,6 +95,18 @@ export function CommandSearchPopover({
   useEffect(() => {
     setHighlight(0)
   }, [entries, query])
+
+  // Keep the highlighted row visible as Arrow keys move the selection past the
+  // scrollable container's edge. `block: 'nearest'` only scrolls this overflow
+  // container the minimum needed and leaves an already-visible row untouched, so
+  // mouse hover (which also sets `highlight`) never triggers a jump.
+  useEffect(() => {
+    if (!visible) return
+    const active = containerRef.current?.querySelector(`[data-entry-index="${highlight}"]`)
+    if (active instanceof HTMLElement && typeof active.scrollIntoView === 'function') {
+      active.scrollIntoView({ block: 'nearest' })
+    }
+  }, [highlight, visible, entries])
 
   useEffect(() => {
     if (!visible) return
@@ -133,6 +146,7 @@ export function CommandSearchPopover({
 
   return (
     <div
+      ref={containerRef}
       role="listbox"
       style={mentionPopoverContainerStyle({
         constrainToAnchor,
@@ -159,6 +173,7 @@ export function CommandSearchPopover({
               <button
                 type="button"
                 role="option"
+                data-entry-index={index}
                 aria-selected={index === highlight}
                 onMouseEnter={() => {
                   setHighlight(index)
@@ -187,6 +202,7 @@ export function CommandSearchPopover({
               <button
                 type="button"
                 role="option"
+                data-entry-index={index}
                 aria-selected={index === highlight}
                 onMouseEnter={() => {
                   setHighlight(index)
@@ -217,6 +233,7 @@ export function CommandSearchPopover({
               <button
                 type="button"
                 role="option"
+                data-entry-index={index}
                 aria-selected={index === highlight}
                 onMouseEnter={() => {
                   setHighlight(index)

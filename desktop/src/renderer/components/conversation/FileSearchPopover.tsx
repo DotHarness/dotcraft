@@ -57,6 +57,7 @@ export function FileSearchPopover({
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastReq = useRef(0)
   const lastQueryRef = useRef('')
+  const containerRef = useRef<HTMLDivElement>(null)
 
   const clearPoll = useCallback((): void => {
     if (pollRef.current) {
@@ -125,6 +126,16 @@ export function FileSearchPopover({
     setHighlight(0)
   }, [files])
 
+  // Keep the highlighted row scrolled into view as Arrow keys move past the
+  // scrollable container's edge (see CommandSearchPopover for the same pattern).
+  useEffect(() => {
+    if (!visible) return
+    const active = containerRef.current?.querySelector(`[data-entry-index="${highlight}"]`)
+    if (active instanceof HTMLElement && typeof active.scrollIntoView === 'function') {
+      active.scrollIntoView({ block: 'nearest' })
+    }
+  }, [highlight, visible, files])
+
   useEffect(() => {
     if (!visible) return
     const onKey = (e: KeyboardEvent): void => {
@@ -158,6 +169,7 @@ export function FileSearchPopover({
 
   return (
     <div
+      ref={containerRef}
       role="listbox"
       style={mentionPopoverContainerStyle({
         constrainToAnchor,
@@ -190,6 +202,7 @@ export function FileSearchPopover({
         <button
           type="button"
           role="option"
+          data-entry-index={i}
           aria-selected={i === highlight}
           onMouseEnter={() => { setHighlight(i) }}
           onClick={() => { onSelect(f.relativePath) }}

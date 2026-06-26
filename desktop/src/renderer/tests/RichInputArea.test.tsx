@@ -214,6 +214,36 @@ describe('RichInputArea keyboard submit behavior', () => {
   })
 })
 
+describe('RichInputArea ref insertion caret placement', () => {
+  // Regression for the IME double-insert bug: the caret must land *inside* the
+  // trailing spacer text node, not at the parent-element boundary right after the
+  // contenteditable=false chip. At the element boundary, Chromium double-inserts
+  // the first IME-committed character (e.g. full-width punctuation).
+  it('places the caret inside the trailing text node after inserting a skill tag', () => {
+    const ref = createRef<RichInputAreaHandle>()
+
+    render(<RichInputArea ref={ref} onSubmit={vi.fn()} onSkillQuery={vi.fn()} />)
+
+    act(() => {
+      ref.current?.setPlainText('$me')
+      ref.current?.setSelectionRange({ start: 3, end: 3 })
+      ref.current?.insertSkillTag('memory')
+    })
+
+    const textbox = screen.getByRole('textbox')
+    expect(textbox.querySelector(`.${SKILL_REF_CLASS}`)).not.toBeNull()
+
+    const selection = window.getSelection()
+    expect(selection).not.toBeNull()
+    const anchor = selection!.anchorNode
+    // Caret sits inside the trailing spacer text node…
+    expect(anchor?.nodeType).toBe(Node.TEXT_NODE)
+    expect(anchor?.textContent?.charCodeAt(0)).toBe(0x00a0)
+    // …whose immediate predecessor is the chip itself.
+    expect((anchor?.previousSibling as HTMLElement | null)?.classList.contains(SKILL_REF_CLASS)).toBe(true)
+  })
+})
+
 describe('RichInputArea catalog-aware paste parsing', () => {
   it('keeps unmatched slash and skill tokens as plain text when pasted', () => {
     const ref = createRef<RichInputAreaHandle>()
