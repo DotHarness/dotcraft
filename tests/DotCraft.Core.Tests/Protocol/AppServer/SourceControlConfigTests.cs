@@ -95,6 +95,99 @@ public sealed class SourceControlConfigTests : IDisposable
     }
 
     [Fact]
+    public async Task SourceControlUpdate_PartialPerforcePatch_PreservesOmittedFields()
+    {
+        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
+        using var bridge = AttachConfigChangedBridge(harness);
+        await harness.InitializeAsync(configChange: true);
+
+        await SeedPerforceConfigAsync(harness);
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.SourceControlUpdate, new
+        {
+            provider = "perforce",
+            perforce = new
+            {
+                timeoutSeconds = 60
+            }
+        }));
+        var sent = await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
+
+        var result = SingleResult(sent);
+        var perforce = result.GetProperty("perforce");
+        Assert.Equal("ssl:p4:1666", perforce.GetProperty("port").GetString());
+        Assert.Equal("game-main-alice", perforce.GetProperty("client").GetString());
+        Assert.Equal("alice", perforce.GetProperty("user").GetString());
+        Assert.Equal(60, perforce.GetProperty("timeoutSeconds").GetInt32());
+
+        var json = await File.ReadAllTextAsync(_configPath);
+        using var doc = JsonDocument.Parse(json);
+        var persisted = doc.RootElement.GetProperty("SourceControl").GetProperty("Perforce");
+        Assert.Equal("ssl:p4:1666", persisted.GetProperty("Port").GetString());
+        Assert.Equal("game-main-alice", persisted.GetProperty("Client").GetString());
+        Assert.Equal("alice", persisted.GetProperty("User").GetString());
+        Assert.Equal(60, persisted.GetProperty("TimeoutSeconds").GetInt32());
+    }
+
+    [Fact]
+    public async Task SourceControlUpdate_NullPerforce_ClearsStaleFields()
+    {
+        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
+        using var bridge = AttachConfigChangedBridge(harness);
+        await harness.InitializeAsync(configChange: true);
+
+        await SeedPerforceConfigAsync(harness);
+
+        var req = JsonSerializer.Deserialize<AppServerIncomingMessage>(
+            """
+            {
+              "jsonrpc": "2.0",
+              "id": 1,
+              "method": "sourceControl/update",
+              "params": {
+                "provider": "git",
+                "perforce": null
+              }
+            }
+            """)!;
+        await harness.ExecuteRequestAsync(req);
+        var sent = await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
+
+        var result = SingleResult(sent);
+        Assert.Equal("git", result.GetProperty("provider").GetString());
+        Assert.False(result.TryGetProperty("perforce", out _));
+
+        var json = await File.ReadAllTextAsync(_configPath);
+        using var doc = JsonDocument.Parse(json);
+        var perforce = doc.RootElement.GetProperty("SourceControl").GetProperty("Perforce");
+        Assert.Equal(string.Empty, perforce.GetProperty("Port").GetString());
+        Assert.Equal(string.Empty, perforce.GetProperty("Client").GetString());
+        Assert.Equal(string.Empty, perforce.GetProperty("User").GetString());
+    }
+
+    [Fact]
+    public async Task SourceControlUpdate_OmittedPerforce_PreservesExistingPerforceConfig()
+    {
+        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
+        using var bridge = AttachConfigChangedBridge(harness);
+        await harness.InitializeAsync(configChange: true);
+
+        await SeedPerforceConfigAsync(harness);
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.SourceControlUpdate, new
+        {
+            provider = "perforce",
+            connectionMode = "p4config"
+        }));
+        var sent = await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
+
+        var result = SingleResult(sent);
+        Assert.Equal("p4config", result.GetProperty("connectionMode").GetString());
+        Assert.Equal("ssl:p4:1666", result.GetProperty("perforce").GetProperty("port").GetString());
+        Assert.Equal("game-main-alice", result.GetProperty("perforce").GetProperty("client").GetString());
+    }
+
+    [Fact]
     public async Task SourceControlGet_AfterBind_ReturnsPerforceSnapshotWithoutPassword()
     {
         using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
@@ -165,6 +258,25 @@ public sealed class SourceControlConfigTests : IDisposable
         var result = SingleResult(sent);
         Assert.Equal("git", result.GetProperty("provider").GetString());
         Assert.Equal("git", result.GetProperty("effectiveProvider").GetString());
+    }
+
+    private static async Task SeedPerforceConfigAsync(AppServerTestHarness harness)
+    {
+        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.SourceControlUpdate, new
+        {
+            provider = "perforce",
+            connectionMode = "manual",
+            perforce = new
+            {
+                port = "ssl:p4:1666",
+                client = "game-main-alice",
+                user = "alice",
+                charset = "none",
+                p4ConfigName = ".p4config",
+                timeoutSeconds = 45
+            }
+        }));
+        await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
     }
 
     private static JsonElement SingleResult(IReadOnlyList<JsonDocument> sent)

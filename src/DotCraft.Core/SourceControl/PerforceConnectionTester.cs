@@ -93,7 +93,9 @@ public static class PerforceErrorCodes
     public const string LoginRequired = "LoginRequired";
     public const string AuthenticationFailed = "AuthenticationFailed";
     public const string ClientNotFound = "ClientNotFound";
+    public const string ClientHostMismatch = "ClientHostMismatch";
     public const string ClientRootMismatch = "ClientRootMismatch";
+    public const string WorkspaceNotMapped = "WorkspaceNotMapped";
     public const string WorkspaceOutsideClientRoot = "WorkspaceOutsideClientRoot";
     public const string Unknown = "Unknown";
 }
@@ -113,6 +115,10 @@ public static class PerforceConnectionTester
         var identity = new PerforceReportIdentity(
             Charset: NullIfEmpty(request.Charset),
             ConnectionMode: request.ConnectionMode);
+
+        if (request.ConnectionMode == SourceControlConnectionModes.Manual
+            && string.IsNullOrWhiteSpace(request.Port))
+            return Fail(PerforceErrorCodes.MissingPort, "A Perforce server address (P4PORT) is required.", diag, identity);
 
         // 1) p4 executable present and runnable.
         var version = await runner.RunAsync(["-V"], null, ct).ConfigureAwait(false);
@@ -180,7 +186,7 @@ public static class PerforceConnectionTester
         if (string.IsNullOrWhiteSpace(root))
             return Fail(PerforceErrorCodes.ClientNotFound, "The Perforce client/workspace was not found.", diag, identity, auth: auth.Auth);
 
-        // 5) workspace mapping — is the DotCraft workspace inside the client root / alt roots?
+        // 5) workspace mapping — root containment first, then p4 view mapping.
         var mappingOk = IsInsideAny(request.WorkspacePath, root, altRoots);
         var workspace = new PerforceReportWorkspace(
             WorkspacePath: NullIfEmpty(request.WorkspacePath),
@@ -202,11 +208,35 @@ public static class PerforceConnectionTester
                 Errors = [new PerforceReportItem(PerforceErrorCodes.WorkspaceOutsideClientRoot, "The current workspace is outside the client root or view.")]
             };
 
+        var where = await runner.RunAsync([.. globals, "where", request.WorkspacePath], null, ct).ConfigureAwait(false);
+        if (where.TimedOut)
+            return Fail(
+                PerforceErrorCodes.Timeout,
+                "The server did not respond before the timeout.",
+                diag,
+                identity,
+                auth: auth.Auth,
+                workspace: workspace with { MappingOk = false });
+
+        if (!where.Ok)
+        {
+            var whereText = where.StdOut + "\n" + where.StdErr;
+            var code = ClassifyWhereFailure(whereText);
+            var fallback = WhereFailureFallback(code);
+            return Fail(
+                code,
+                fallback,
+                diag,
+                identity,
+                auth: auth.Auth,
+                workspace: workspace with { MappingOk = false });
+        }
+
         return new PerforceConnectionReport
         {
             Status = SourceControlStatuses.Connected,
             Code = PerforceErrorCodes.Connected,
-            Summary = $"Connected to {server} as {user} using client {client}. Workspace path is inside the client root.",
+            Summary = $"Connected to {server} as {user} using client {client}. Workspace path is inside the client root and view.",
             FallbackText = $"Connected to {server} as {user} using client {client}.",
             Identity = identity,
             Workspace = workspace,
@@ -269,8 +299,12 @@ public static class PerforceConnectionTester
         PerforceReportIdentity identity,
         string? server = null,
         string? user = null,
-        PerforceReportAuth? auth = null)
+        PerforceReportAuth? auth = null,
+        PerforceReportWorkspace? workspace = null)
     {
+        _ = server;
+        _ = user;
+
         return new PerforceConnectionReport
         {
             Status = SourceControlStatuses.Error,
@@ -278,6 +312,7 @@ public static class PerforceConnectionTester
             Summary = fallback,
             FallbackText = fallback,
             Identity = identity,
+            Workspace = workspace ?? new PerforceReportWorkspace(),
             Authentication = auth ?? new PerforceReportAuth(),
             Diagnostics = diag with { ErrorCode = code },
             Errors = [new PerforceReportItem(code, fallback)]
@@ -296,6 +331,39 @@ public static class PerforceConnectionTester
         || text.Contains("connection refused", StringComparison.OrdinalIgnoreCase)
         || text.Contains("host unknown", StringComparison.OrdinalIgnoreCase)
         || text.Contains("couldn't connect", StringComparison.OrdinalIgnoreCase);
+
+    private static string ClassifyWhereFailure(string text)
+    {
+        if (LooksLikeClientHostMismatch(text))
+            return PerforceErrorCodes.ClientHostMismatch;
+        if (LooksLikeClientRootMismatch(text))
+            return PerforceErrorCodes.ClientRootMismatch;
+        if (LooksLikeWorkspaceNotMapped(text))
+            return PerforceErrorCodes.WorkspaceNotMapped;
+        return PerforceErrorCodes.WorkspaceNotMapped;
+    }
+
+    private static string WhereFailureFallback(string code) => code switch
+    {
+        PerforceErrorCodes.ClientHostMismatch => "The Perforce client is restricted to a different host.",
+        PerforceErrorCodes.ClientRootMismatch => "The current workspace path does not match the Perforce client root.",
+        PerforceErrorCodes.WorkspaceNotMapped => "The current workspace path is not mapped by the Perforce client view.",
+        _ => "The current workspace path is not mapped by the Perforce client view."
+    };
+
+    private static bool LooksLikeClientHostMismatch(string text) =>
+        text.Contains("can only be used from host", StringComparison.OrdinalIgnoreCase)
+        || text.Contains("host mismatch", StringComparison.OrdinalIgnoreCase);
+
+    private static bool LooksLikeClientRootMismatch(string text) =>
+        text.Contains("not under client", StringComparison.OrdinalIgnoreCase)
+        || text.Contains("not under client's root", StringComparison.OrdinalIgnoreCase)
+        || text.Contains("client root", StringComparison.OrdinalIgnoreCase);
+
+    private static bool LooksLikeWorkspaceNotMapped(string text) =>
+        text.Contains("not in client view", StringComparison.OrdinalIgnoreCase)
+        || text.Contains("not mapped", StringComparison.OrdinalIgnoreCase)
+        || text.Contains("no such file", StringComparison.OrdinalIgnoreCase);
 
     private static Dictionary<string, string> ParseTaggedish(string stdout)
     {

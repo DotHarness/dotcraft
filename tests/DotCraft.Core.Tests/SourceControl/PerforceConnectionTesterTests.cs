@@ -19,6 +19,21 @@ public sealed class PerforceConnectionTesterTests
         Ok($"User name: alice\nClient name: ws\nClient root: {root}\nServer address: ssl:perforce.example.com:1666\n");
 
     [Fact]
+    public async Task Manual_mode_missing_port_fails_before_invoking_p4()
+    {
+        var runner = new FakeRunner((_, _) => Ok());
+
+        var report = await PerforceConnectionTester.TestAsync(
+            runner,
+            ManualRequest() with { Port = string.Empty },
+            default);
+
+        Assert.Equal(PerforceErrorCodes.MissingPort, report.Code);
+        Assert.Equal(SourceControlStatuses.Error, report.Status);
+        Assert.Empty(runner.Calls);
+    }
+
+    [Fact]
     public async Task Missing_p4_executable_maps_to_P4ExecutableNotFound()
     {
         var runner = new FakeRunner((args, _) => args.Contains("-V") ? Missing : Ok());
@@ -86,6 +101,7 @@ public sealed class PerforceConnectionTesterTests
             if (args.Contains("info")) return Info(Root);
             if (IsLoginStatus(args)) return Ok("User alice ticket expires in 10 hours.");
             if (IsClientSpec(args)) return Ok($"Client: ws\nRoot:\t{Root}\n");
+            if (IsWhere(args)) return Ok($"//depot/main/... //ws/main/... {Root}\n");
             return Ok();
         });
 
@@ -95,6 +111,14 @@ public sealed class PerforceConnectionTesterTests
         Assert.Equal(SourceControlStatuses.Connected, report.Status);
         Assert.True(report.Workspace.MappingOk);
         Assert.Equal("alice", report.Identity.User);
+        Assert.Contains(
+            runner.Calls,
+            c => IsWhere(c.Args)
+                 && c.Args.Contains("-p")
+                 && c.Args.Contains("ssl:perforce.example.com:1666")
+                 && c.Args.Contains("-c")
+                 && c.Args.Contains("ws")
+                 && c.Args.Contains(Root));
     }
 
     [Fact]
@@ -117,6 +141,65 @@ public sealed class PerforceConnectionTesterTests
     }
 
     [Fact]
+    public async Task Workspace_inside_root_but_not_in_view_maps_to_WorkspaceNotMapped()
+    {
+        var runner = new FakeRunner((args, _) =>
+        {
+            if (args.Contains("-V")) return Ok("P4/TEST");
+            if (args.Contains("info")) return Info(Root);
+            if (IsLoginStatus(args)) return Ok("ticket valid");
+            if (IsClientSpec(args)) return Ok($"Root:\t{Root}\n");
+            if (IsWhere(args)) return Fail(1, $"{Root} - file(s) not in client view.");
+            return Ok();
+        });
+
+        var report = await PerforceConnectionTester.TestAsync(runner, ManualRequest(workspacePath: Root), default);
+
+        Assert.Equal(PerforceErrorCodes.WorkspaceNotMapped, report.Code);
+        Assert.False(report.Workspace.MappingOk);
+    }
+
+    [Fact]
+    public async Task Where_timeout_maps_to_Timeout()
+    {
+        var runner = new FakeRunner((args, _) =>
+        {
+            if (args.Contains("-V")) return Ok("P4/TEST");
+            if (args.Contains("info")) return Info(Root);
+            if (IsLoginStatus(args)) return Ok("ticket valid");
+            if (IsClientSpec(args)) return Ok($"Root:\t{Root}\n");
+            if (IsWhere(args)) return TimedOut;
+            return Ok();
+        });
+
+        var report = await PerforceConnectionTester.TestAsync(runner, ManualRequest(workspacePath: Root), default);
+
+        Assert.Equal(PerforceErrorCodes.Timeout, report.Code);
+        Assert.False(report.Workspace.MappingOk);
+    }
+
+    [Theory]
+    [InlineData("Client 'ws' can only be used from host 'build01'.", PerforceErrorCodes.ClientHostMismatch)]
+    [InlineData("Path is not under client's root '/other/root'.", PerforceErrorCodes.ClientRootMismatch)]
+    public async Task Where_host_and_root_failures_map_to_stable_codes(string error, string expectedCode)
+    {
+        var runner = new FakeRunner((args, _) =>
+        {
+            if (args.Contains("-V")) return Ok("P4/TEST");
+            if (args.Contains("info")) return Info(Root);
+            if (IsLoginStatus(args)) return Ok("ticket valid");
+            if (IsClientSpec(args)) return Ok($"Root:\t{Root}\n");
+            if (IsWhere(args)) return Fail(1, error);
+            return Ok();
+        });
+
+        var report = await PerforceConnectionTester.TestAsync(runner, ManualRequest(workspacePath: Root), default);
+
+        Assert.Equal(expectedCode, report.Code);
+        Assert.False(report.Workspace.MappingOk);
+    }
+
+    [Fact]
     public async Task Transient_password_is_sent_via_stdin_never_in_args()
     {
         var loginStatusCalls = 0;
@@ -132,6 +215,7 @@ public sealed class PerforceConnectionTesterTests
             }
             if (IsLogin(args)) return Ok();
             if (IsClientSpec(args)) return Ok($"Root:\t{Root}\n");
+            if (IsWhere(args)) return Ok();
             return Ok();
         });
 
@@ -161,6 +245,7 @@ public sealed class PerforceConnectionTesterTests
     private static bool IsLoginStatus(IReadOnlyList<string> args) => args.Contains("login") && args.Contains("-s");
     private static bool IsLogin(IReadOnlyList<string> args) => args.Contains("login") && !args.Contains("-s");
     private static bool IsClientSpec(IReadOnlyList<string> args) => args.Contains("client") && args.Contains("-o");
+    private static bool IsWhere(IReadOnlyList<string> args) => args.Contains("where");
 
     private sealed class FakeRunner(Func<IReadOnlyList<string>, string?, PerforceCommandResult> handler) : IPerforceCommandRunner
     {

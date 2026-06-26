@@ -49,7 +49,7 @@ internal sealed class SourceControlRequestHandler(
             throw AppServerErrors.InvalidParams("'provider' is required.");
 
         var current = appConfigMonitor?.Current.SourceControl ?? new SourceControlConfig();
-        var updated = ApplyUpdate(current, p);
+        var updated = ApplyUpdate(current, p, msg.Params.Value);
 
         Persist(updated);
 
@@ -174,8 +174,8 @@ internal sealed class SourceControlRequestHandler(
         };
     }
 
-    /// <summary>Merges update params into the current config. A provided Perforce object replaces the stored one.</summary>
-    private static SourceControlConfig ApplyUpdate(SourceControlConfig current, SourceControlUpdateParams p)
+    /// <summary>Merges update params into the current config, preserving omitted Perforce fields.</summary>
+    private static SourceControlConfig ApplyUpdate(SourceControlConfig current, SourceControlUpdateParams p, JsonElement paramsEl)
     {
         return new SourceControlConfig
         {
@@ -183,7 +183,7 @@ internal sealed class SourceControlRequestHandler(
             ConnectionMode = p.ConnectionMode != null
                 ? SourceControlConnectionModes.Normalize(p.ConnectionMode)
                 : SourceControlConnectionModes.Normalize(current.ConnectionMode),
-            Perforce = p.Perforce != null ? FromWire(p.Perforce) : current.Perforce
+            Perforce = MergePerforceUpdate(current.Perforce, paramsEl)
         };
     }
 
@@ -217,17 +217,75 @@ internal sealed class SourceControlRequestHandler(
         AutoOffline = c.AutoOffline
     };
 
-    private static PerforceConnectionConfig FromWire(PerforceConnectionWire w) => new()
+    private static PerforceConnectionConfig MergePerforceUpdate(PerforceConnectionConfig? current, JsonElement paramsEl)
     {
-        Port = (w.Port ?? string.Empty).Trim(),
-        Client = (w.Client ?? string.Empty).Trim(),
-        User = (w.User ?? string.Empty).Trim(),
-        Charset = (w.Charset ?? string.Empty).Trim(),
-        P4ConfigName = (w.P4ConfigName ?? string.Empty).Trim(),
-        P4ExecutablePath = (w.P4ExecutablePath ?? string.Empty).Trim(),
-        TimeoutSeconds = w.TimeoutSeconds > 0 ? w.TimeoutSeconds : 30,
-        Online = w.Online,
-        AutoOffline = w.AutoOffline
+        if (!TryGetCaseInsensitiveProperty(paramsEl, "perforce", out var perforceEl))
+            return ClonePerforce(current);
+
+        if (perforceEl.ValueKind == JsonValueKind.Null)
+            return new PerforceConnectionConfig();
+
+        if (perforceEl.ValueKind != JsonValueKind.Object)
+            throw AppServerErrors.InvalidParams("'perforce' must be an object or null.");
+
+        var result = ClonePerforce(current);
+        if (TryGetCaseInsensitiveProperty(perforceEl, "port", out var portEl))
+            result.Port = ParseOptionalString(portEl, "perforce.port");
+        if (TryGetCaseInsensitiveProperty(perforceEl, "client", out var clientEl))
+            result.Client = ParseOptionalString(clientEl, "perforce.client");
+        if (TryGetCaseInsensitiveProperty(perforceEl, "user", out var userEl))
+            result.User = ParseOptionalString(userEl, "perforce.user");
+        if (TryGetCaseInsensitiveProperty(perforceEl, "charset", out var charsetEl))
+            result.Charset = ParseOptionalString(charsetEl, "perforce.charset");
+        if (TryGetCaseInsensitiveProperty(perforceEl, "p4ConfigName", out var p4ConfigNameEl))
+            result.P4ConfigName = ParseOptionalString(p4ConfigNameEl, "perforce.p4ConfigName");
+        if (TryGetCaseInsensitiveProperty(perforceEl, "p4ExecutablePath", out var p4ExecutablePathEl))
+            result.P4ExecutablePath = ParseOptionalString(p4ExecutablePathEl, "perforce.p4ExecutablePath");
+        if (TryGetCaseInsensitiveProperty(perforceEl, "timeoutSeconds", out var timeoutSecondsEl))
+            result.TimeoutSeconds = ParseTimeoutSeconds(timeoutSecondsEl, "perforce.timeoutSeconds");
+        if (TryGetCaseInsensitiveProperty(perforceEl, "online", out var onlineEl))
+            result.Online = ParseOptionalBoolean(onlineEl, "perforce.online", defaultValue: true);
+        if (TryGetCaseInsensitiveProperty(perforceEl, "autoOffline", out var autoOfflineEl))
+            result.AutoOffline = ParseOptionalBoolean(autoOfflineEl, "perforce.autoOffline", defaultValue: true);
+
+        return result;
+    }
+
+    private static PerforceConnectionConfig ClonePerforce(PerforceConnectionConfig? current) => new()
+    {
+        Port = current?.Port ?? string.Empty,
+        Client = current?.Client ?? string.Empty,
+        User = current?.User ?? string.Empty,
+        Charset = current?.Charset ?? string.Empty,
+        P4ConfigName = current?.P4ConfigName ?? string.Empty,
+        P4ExecutablePath = current?.P4ExecutablePath ?? string.Empty,
+        TimeoutSeconds = current?.TimeoutSeconds > 0 ? current.TimeoutSeconds : 30,
+        Online = current?.Online ?? true,
+        AutoOffline = current?.AutoOffline ?? true
+    };
+
+    private static string ParseOptionalString(JsonElement element, string fieldName) => element.ValueKind switch
+    {
+        JsonValueKind.Null => string.Empty,
+        JsonValueKind.String => (element.GetString() ?? string.Empty).Trim(),
+        _ => throw AppServerErrors.InvalidParams($"'{fieldName}' must be a string or null.")
+    };
+
+    private static int ParseTimeoutSeconds(JsonElement element, string fieldName)
+    {
+        if (element.ValueKind == JsonValueKind.Null)
+            return 30;
+        if (element.ValueKind != JsonValueKind.Number || !element.TryGetInt32(out var value))
+            throw AppServerErrors.InvalidParams($"'{fieldName}' must be an integer or null.");
+        return value > 0 ? value : 30;
+    }
+
+    private static bool ParseOptionalBoolean(JsonElement element, string fieldName, bool defaultValue) => element.ValueKind switch
+    {
+        JsonValueKind.Null => defaultValue,
+        JsonValueKind.True => true,
+        JsonValueKind.False => false,
+        _ => throw AppServerErrors.InvalidParams($"'{fieldName}' must be a boolean or null.")
     };
 
     private static bool ParamsContainPassword(JsonElement paramsEl)
@@ -250,4 +308,25 @@ internal sealed class SourceControlRequestHandler(
         name.Equals("password", StringComparison.OrdinalIgnoreCase)
         || name.Equals("passwd", StringComparison.OrdinalIgnoreCase)
         || name.Equals("p4passwd", StringComparison.OrdinalIgnoreCase);
+
+    private static bool TryGetCaseInsensitiveProperty(JsonElement obj, string expectedName, out JsonElement value)
+    {
+        if (obj.ValueKind != JsonValueKind.Object)
+        {
+            value = default;
+            return false;
+        }
+
+        foreach (var prop in obj.EnumerateObject())
+        {
+            if (string.Equals(prop.Name, expectedName, StringComparison.OrdinalIgnoreCase))
+            {
+                value = prop.Value;
+                return true;
+            }
+        }
+
+        value = default;
+        return false;
+    }
 }
