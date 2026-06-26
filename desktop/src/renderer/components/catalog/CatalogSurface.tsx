@@ -219,7 +219,11 @@ export const styles = {
     flexDirection: 'column',
     height: '100%',
     minHeight: 0,
-    backgroundColor: 'var(--bg-primary)',
+    // Transparent so the shared ThreePanel main-surface frame (rounded card +
+    // inset edge borders) shows through, matching the conversation, welcome, and
+    // settings views. An opaque --bg-primary here painted over and hid the frame,
+    // and also rendered a slightly different surface color than --main-surface.
+    backgroundColor: 'transparent',
     color: 'var(--text-primary)'
   },
   tabs: {
