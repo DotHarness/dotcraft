@@ -4,6 +4,7 @@ import {
   Bot,
   Cable,
   Cpu,
+  GitBranch,
   Globe2,
   Monitor,
   Palette,
@@ -28,6 +29,7 @@ export interface SettingsTabDefinition {
 
 export interface SettingsTabOptions {
   personalizationAvailable: boolean
+  sourceControlEnabled: boolean
   mcpEnabled: boolean
   subAgentEnabled: boolean
 }
@@ -48,6 +50,9 @@ export function buildSettingsTabs(t: Translate, options: SettingsTabOptions): Se
   if (options.personalizationAvailable) {
     // After General and Profile.
     tabs.splice(2, 0, { id: 'personalization', label: t('settings.tab.personalization'), icon: SlidersHorizontal })
+  }
+  if (options.sourceControlEnabled) {
+    tabs.push({ id: 'sourceControl', label: t('settings.tab.sourceControl'), icon: GitBranch })
   }
   if (options.mcpEnabled) {
     tabs.push({ id: 'mcp', label: 'MCP', icon: McpIcon })

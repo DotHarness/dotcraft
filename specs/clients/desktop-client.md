@@ -631,6 +631,11 @@ Required behavior:
 - The Connections settings group distinguishes lifecycle ownership:
   - Local mode shows Hub-managed AppServer actions, including Apply & Restart when local process settings change.
   - Remote mode uses Apply & Connect for URL/token changes, validates before persisting, and hides or disables local-only AppServer binary and restart controls with explanatory copy.
+- When `capabilities.sourceControlManagement` is available, Desktop exposes a workspace-scoped `Source Control` tab:
+  - the user selects a provider (`auto`, `none`, `git`, `perforce`); for Perforce, the user configures the connection (P4CONFIG/default or manual parameters) and runs Test Connection.
+  - Test Connection and provider detection execute on the AppServer (`sourceControl/test`/`sourceControl/get`) so results reflect the workspace-owning environment in both local and remote modes; Desktop never runs `p4` locally.
+  - binding is saved with `sourceControl/update`, which persists only non-sensitive fields (no password/ticket); a workspace may be bound while unverified, surfaced as a `Not verified` status.
+  - Desktop reacts to `workspace/configChanged` with the `sourceControl` region to refresh the binding status without manual refresh, and gates the local Git commit entry when the effective provider is Perforce.
 - Desktop exposes a workspace-level `Personalization` tab with an `Enable personalized welcome suggestions` toggle backed by workspace config rather than client-global preferences.
 - Desktop groups Personalization settings into Conversation, Learning, Memory, and Dreams cards when the corresponding capabilities are available. Empty groups are hidden.
 - Toggling personalized welcome suggestions applies immediately for the active workspace. On success, the client reacts to the resulting `workspace/configChanged` notification and updates the welcome surface without requiring manual refresh or app restart.

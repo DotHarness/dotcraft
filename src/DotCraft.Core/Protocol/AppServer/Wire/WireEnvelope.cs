@@ -368,6 +368,13 @@ public sealed class AppServerServerCapabilities
     public bool WorkspaceConfigManagement { get; set; }
 
     /// <summary>
+    /// Server supports workspace source control binding methods
+    /// (<c>sourceControl/get</c>, <c>sourceControl/update</c>, <c>sourceControl/test</c>).
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool SourceControlManagement { get; set; }
+
+    /// <summary>
     /// Server supports workspace memory management methods (<c>memory/reset</c>).
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
