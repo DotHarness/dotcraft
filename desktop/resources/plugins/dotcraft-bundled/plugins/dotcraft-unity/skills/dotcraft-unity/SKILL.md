@@ -17,6 +17,7 @@ Load only the reference needed for the current task:
 
 - **GameView screenshots**: Read `references/gameview-screenshot.md` when the user asks to capture, compare, inspect, or save the Unity GameView image.
 - **Console reading**: Read `references/console-reading.md` when the user asks to inspect, summarize, search, or diagnose Unity Console logs.
+- **API helpers**: Read `references/api.md` when a `unity_execute_csharp` snippet needs loaded-type lookup or third-party component reflection.
 
 ## Default Behavior
 
@@ -60,6 +61,8 @@ When confirmation is needed, describe the exact Unity action and the state it ma
 ## Snippet Style
 
 Keep snippets short and deterministic. Prefer one clear task per call.
+
+Use `DotCraft.Editor` API helpers for high-boilerplate inspection work. `unity_execute_csharp` snippets already import this namespace, so use `Dcu.Type`, `Dcu.Components`, `Dcu.Get`, and `Dcu.Call` directly when they replace substantial reflection or type-search code.
 
 Validate inputs and return early with a readable message when required objects, assets, scenes, or Unity internal APIs are missing.
 
