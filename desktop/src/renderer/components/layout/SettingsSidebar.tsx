@@ -21,6 +21,7 @@ export function SettingsSidebar(): JSX.Element {
   const personalizationAvailable = workspaceCoreApiAvailable || memoryManagementEnabled || dreamsCapabilityEnabled
   const tabs = buildSettingsTabs(t, {
     personalizationAvailable,
+    sourceControlEnabled: capabilities?.sourceControlManagement === true,
     mcpEnabled: capabilities?.mcpManagement === true,
     subAgentEnabled: capabilities?.subAgentManagement === true
   })

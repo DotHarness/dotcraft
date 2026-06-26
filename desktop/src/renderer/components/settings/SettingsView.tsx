@@ -43,6 +43,7 @@ import { ToggleSwitch } from '../channels/ToggleSwitch'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
 import { SettingsGroup, SettingsRow } from './SettingsGroup'
 import { SettingsPanelShell } from './SettingsPanelShell'
+import { SourceControlPanel } from './panels/SourceControlPanel'
 import { SettingsBreadcrumb } from './SettingsBreadcrumb'
 import { PluginCatalogItem, PluginIcon, pluginSubtitle, pluginTitle } from '../plugins/PluginCatalogItem'
 import { PluginInstallDialog } from '../plugins/PluginInstallDialog'
@@ -1501,6 +1502,7 @@ export function SettingsView({
   const mcpEnabled = capabilities?.mcpManagement === true
   const mcpOriginsEnabled = capabilities?.mcpServerOrigins === true
   const subAgentEnabled = capabilities?.subAgentManagement === true
+  const sourceControlEnabled = capabilities?.sourceControlManagement === true
   const pluginManagementEnabled = capabilities?.pluginManagement === true
   const providerManagementEnabled = capabilities?.providerManagement === true
   const modelCatalogManagementEnabled = capabilities?.modelCatalogManagement === true
@@ -2389,7 +2391,10 @@ export function SettingsView({
     if (activeSettingsTab === 'subAgents' && !subAgentEnabled) {
       setActiveSettingsTab('general')
     }
-  }, [activeSettingsTab, mcpEnabled, subAgentEnabled])
+    if (activeSettingsTab === 'sourceControl' && !sourceControlEnabled) {
+      setActiveSettingsTab('general')
+    }
+  }, [activeSettingsTab, mcpEnabled, subAgentEnabled, sourceControlEnabled])
 
   useEffect(() => {
     if ((activeSettingsTab === 'browserUse' || activeSettingsTab === 'computerControl') && pluginManagementEnabled) {
@@ -4862,6 +4867,10 @@ export function SettingsView({
                 </SettingsGroup>
               </SettingsPanelShell>
               </UsagePanel>
+            )}
+
+            {activeSettingsTab === 'sourceControl' && (
+              <SourceControlPanel workspacePath={workspacePath} />
             )}
 
             {activeSettingsTab === 'mcp' && (

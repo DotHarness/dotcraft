@@ -73,6 +73,11 @@ public static class AppServerMethods
     public const string WorkspaceConfigSchema = "workspace/config/schema";
     public const string WorkspaceConfigUpdate = "workspace/config/update";
     public const string WorkspaceConfigChanged = "workspace/configChanged";
+
+    /// <summary>Source control binding methods (spec Section 25A). Gated by <c>sourceControlManagement</c>.</summary>
+    public const string SourceControlGet = "sourceControl/get";
+    public const string SourceControlUpdate = "sourceControl/update";
+    public const string SourceControlTest = "sourceControl/test";
     public const string DreamsStatus = "dreams/status";
     public const string DreamsRun = "dreams/run";
     public const string DreamsCreate = "dreams/create";

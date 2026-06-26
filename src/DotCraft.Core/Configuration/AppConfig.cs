@@ -10,6 +10,7 @@ using DotCraft.Lsp;
 using DotCraft.Mcp;
 using DotCraft.Dreams;
 using DotCraft.Protocol;
+using DotCraft.SourceControl;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Configuration;
@@ -154,6 +155,13 @@ public sealed class AppConfig
 
     [ConfigField(Ignore = true)]
     public WelcomeSuggestionsConfig WelcomeSuggestions { get; set; } = new();
+
+    /// <summary>
+    /// Workspace source control binding (provider selection + Perforce connection params).
+    /// Never stores a password or ticket.
+    /// </summary>
+    [ConfigField(Ignore = true)]
+    public SourceControlConfig SourceControl { get; set; } = new();
 
     [ConfigField(Ignore = true)]
     public HooksConfig Hooks { get; set; } = new();
@@ -859,9 +867,9 @@ public sealed class AppConfig
     public sealed class ToolsConfig
     {
         public FileToolsConfig File { get; set; } = new();
-        
+
         public ShellToolsConfig Shell { get; set; } = new();
-        
+
         public WebToolsConfig Web { get; set; } = new();
 
         public SandboxConfig Sandbox { get; set; } = new();
@@ -946,10 +954,10 @@ public sealed class AppConfig
     public sealed class HeartbeatConfig
     {
         public bool Enabled { get; set; }
-        
+
         [ConfigField(Min = 1)]
         public int IntervalSeconds { get; set; } = 1800;
-        
+
         public bool NotifyAdmin { get; set; } = true;
     }
 
@@ -957,7 +965,7 @@ public sealed class AppConfig
     public sealed class CronConfig
     {
         public bool Enabled { get; set; } = true;
-        
+
         public string StorePath { get; set; } = "cron/jobs.json";
     }
 

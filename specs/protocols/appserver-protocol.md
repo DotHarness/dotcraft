@@ -403,6 +403,7 @@ Built-in channels do not negotiate these capabilities over `initialize`; they pr
 | `capabilities.providerManagement` | boolean | Server supports personal model provider management methods (`provider/list`, `provider/create`, `provider/update`, `provider/delete`, `provider/test`). |
 | `capabilities.modelCatalogManagement` | boolean | Server supports model catalog methods (`model/list`). |
 | `capabilities.workspaceConfigManagement` | boolean | Server supports workspace configuration methods (`workspace/config/schema`, `workspace/config/update`). |
+| `capabilities.sourceControlManagement` | boolean | Server supports workspace source control binding methods (`sourceControl/get`, `sourceControl/update`, `sourceControl/test`). |
 | `capabilities.memoryManagement` | boolean | Server supports workspace memory management methods (`memory/reset`). |
 | `capabilities.dreams` | boolean | Server supports workspace Dreams status, manual/create run requests, review lifecycle, and Dreams settings. |
 | `capabilities.mcpManagement` | boolean | Server supports MCP configuration management methods (`mcp/list`, `mcp/get`, `mcp/upsert`, `mcp/remove`). |
@@ -6064,6 +6065,7 @@ Current `regions` taxonomy:
 | `mcp` | `mcp/upsert`, `mcp/remove`, `plugin/install`, `plugin/remove`, `plugin/setEnabled` |
 | `externalChannel` | `externalChannel/upsert`, `externalChannel/remove` |
 | `subagent` | `subagent/settings/update`, `subagent/profiles/setEnabled`, `subagent/profiles/upsert`, `subagent/profiles/remove` |
+| `sourceControl` | `sourceControl/update` |
 
 Semantics:
 
@@ -6075,6 +6077,186 @@ Semantics:
 
 - Clients that set `capabilities.configChange = false` are supported indefinitely and simply do not receive `workspace/configChanged` on that connection.
 - Older servers may not emit `workspace/configChanged`; clients must tolerate its absence and rely on existing refresh paths.
+
+## 25A. Source Control Methods
+
+### 25A.1 Scope
+
+These methods bind a workspace to a source control provider and validate provider connectivity. They cover **selection, connection configuration, connectivity testing, and binding** only. They do **not** perform version control operations (no commit, changelist, shelve, or submit).
+
+Connectivity testing runs in the **AppServer environment** with the workspace path as the working directory, so results reflect the machine, PATH, and credential context that actually owns the workspace (correct for both local and remote AppServers). Clients never execute `p4` locally.
+
+Clients must check `capabilities.sourceControlManagement` in `initialize` before calling these methods (`sourceControl/get`, `sourceControl/update`, `sourceControl/test`). If absent or `false`, the server returns `-32601` (Method not found).
+
+Credentials are never persisted: `sourceControl/update` rejects any password field, and the `password` supplied to `sourceControl/test` is transient (used only for a one-shot login attempt, never written to config and never echoed in results or logs). Long-lived Perforce authentication relies on the server-side ticket (`P4TICKETS`).
+
+### 25A.2 `sourceControl/get`
+
+Return the effective source control binding snapshot for the current workspace.
+
+**Direction**: client → server (request)
+
+**Params**: `{}`
+
+**Result**:
+
+```json
+{
+  "provider": "perforce",
+  "effectiveProvider": "perforce",
+  "connectionMode": "manual",
+  "status": "notTested",
+  "workspacePath": "/projects/game-main",
+  "perforce": {
+    "port": "ssl:p4.example.com:1666",
+    "client": "game-main-alice",
+    "user": "alice",
+    "charset": "none",
+    "p4ConfigName": ".p4config",
+    "p4ExecutablePath": "",
+    "timeoutSeconds": 30,
+    "online": true,
+    "autoOffline": true
+  },
+  "capabilities": {
+    "gitCommit": false,
+    "perforceBinding": true,
+    "perforceChangelist": false,
+    "perforceShelve": false,
+    "perforceSubmit": false
+  }
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `provider` | string | User-selected provider: `none`, `git`, or `perforce` (default `git`). |
+| `effectiveProvider` | string | Resolved provider; equals `provider` in this version (no auto-detection). A legacy stored `auto` value normalizes to `git`. |
+| `connectionMode` | string \| null | Perforce connection mode: `p4config` or `manual`. Null for non-Perforce providers. |
+| `status` | string | Derived binding status (see [25A.5](#25a5-status-and-error-taxonomy)). `sourceControl/get` never runs `p4`; live connectivity comes from `sourceControl/test`. |
+| `workspacePath` | string | Absolute workspace path owned by this AppServer. |
+| `perforce` | object \| null | Non-sensitive Perforce connection fields. Null when no Perforce config exists. Never contains a password or ticket. |
+| `capabilities` | object | Booleans gating client UI. In this version `perforceChangelist`/`perforceShelve`/`perforceSubmit` are always `false`; `gitCommit` is `true` only when `effectiveProvider` is `git`. |
+
+**Semantics**:
+
+- Snapshot reflects the merged global + workspace config (`SourceControl` section), workspace values taking precedence.
+- The default provider is `git`. There is no auto-detection: `effectiveProvider` equals the configured provider. A legacy stored `auto` value (from earlier versions) is normalized to `git`.
+- `status` is `notConfigured` when no provider is bound, `notTested` for a bound Perforce provider not yet tested this session, and `offline` when `perforce.online` is `false`.
+
+### 25A.3 `sourceControl/update`
+
+Persist the workspace source control binding (non-sensitive fields only).
+
+**Direction**: client → server (request)
+
+**Params**:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `provider` | string | yes | `none`, `git`, or `perforce`. |
+| `connectionMode` | string \| null | no | Perforce connection mode: `p4config` or `manual`. Ignored for non-Perforce providers. |
+| `perforce` | object \| null | no | Non-sensitive Perforce fields: `port`, `client`, `user`, `charset`, `p4ConfigName`, `p4ExecutablePath`, `timeoutSeconds`, `online`, `autoOffline`. Omitted fields are left unchanged; a `null` object clears the Perforce section. |
+
+**Result**: the updated snapshot, identical in shape to [`sourceControl/get`](#25a2-sourcecontrolget).
+
+**Semantics**:
+
+- Writes only non-sensitive values to the workspace `.craft/config.json` `SourceControl` section, preserving unrelated configuration and key casing.
+- A `password` (or any `P4PASSWD`-equivalent) field in params is rejected with `-32602` (Invalid params). Passwords are never persisted.
+- Binding is allowed regardless of test outcome (a workspace may be bound while `status` is `notTested`); clients surface "Not verified" rather than blocking offline/VPN scenarios.
+- On success the server emits `workspace/configChanged` with `source: "sourceControl/update"` and region `sourceControl`.
+
+### 25A.4 `sourceControl/test`
+
+Validate Perforce connectivity in the AppServer environment and return a structured diagnostic. Does **not** persist anything.
+
+**Direction**: client → server (request)
+
+**Params**:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `provider` | string | yes | Must be `perforce` in this version. |
+| `connectionMode` | string \| null | no | `p4config` or `manual`. |
+| `perforce` | object \| null | no | Same non-sensitive fields as `sourceControl/update`. Used to override environment/`P4CONFIG` for this test only. |
+| `password` | string \| null | no | Transient. Used only for a one-shot `p4 login` attempt when a ticket is missing. Never persisted, never returned, never logged. |
+
+**Result**:
+
+```json
+{
+  "status": "connected",
+  "code": "Connected",
+  "summary": "Connected to ssl:p4.example.com:1666 as alice using client game-main-alice. Workspace path is inside the client root.",
+  "fallbackText": "Connected to ssl:p4.example.com:1666 as alice using client game-main-alice.",
+  "identity": {
+    "serverAddress": "ssl:p4.example.com:1666",
+    "user": "alice",
+    "client": "game-main-alice",
+    "charset": "none",
+    "connectionMode": "manual"
+  },
+  "workspace": {
+    "workspacePath": "/projects/game-main",
+    "clientRoot": "/projects/game-main",
+    "altRoots": [],
+    "mappingOk": true
+  },
+  "authentication": {
+    "ticketStatus": "valid",
+    "loginRequired": false,
+    "expiresMessage": "Ticket expires in 11 hours."
+  },
+  "diagnostics": {
+    "p4Version": "P4/LINUX26.../...",
+    "timeoutSeconds": 30,
+    "warningCount": 0,
+    "errorCode": null
+  },
+  "warnings": [],
+  "errors": []
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `status` | string | Overall outcome (see [25A.5](#25a5-status-and-error-taxonomy)). |
+| `code` | string | Stable machine-readable result code. Clients map it to localized copy. |
+| `summary` | string | One-line English summary for badge/toast; clients may localize via `code`. |
+| `fallbackText` | string | English fallback detail when the client has no localized string for `code`. |
+| `identity` / `workspace` / `authentication` / `diagnostics` | object | Detail groups for the expandable result panel. |
+| `warnings` / `errors` | array | Zero or more `{ code, fallbackText }` items. `warnings` are non-blocking (binding still allowed); a non-empty `errors` array means the test did not fully succeed. |
+
+**Semantics**:
+
+- The server resolves the `p4` executable (params `p4ExecutablePath`, else the AppServer `PATH`), then runs a read-only sequence in the workspace directory: version probe, `p4 info`, `p4 login -s`, `p4 client -o`, and a `p4 where`/client-root mapping check. Connection parameters are passed as global options (`-p`/`-c`/`-u`/`-C`/`-d`) ahead of each command.
+- Each step maps failures to a `code` in [25A.5](#25a5-status-and-error-taxonomy). Raw `p4` stderr is never the primary message and is redacted of any credential-bearing content.
+- SSL trust is reported as `SSLTrustRequired`; this version surfaces it but does not run `p4 trust` from the UI.
+- The `password`, if provided, is passed to `p4 login` via stdin only and discarded immediately.
+
+### 25A.5 Status and Error Taxonomy
+
+**Status** (`status` field of `sourceControl/get` and `sourceControl/test`):
+
+| Status | Meaning |
+|--------|---------|
+| `notConfigured` | No provider bound (or `auto` with nothing detected). |
+| `notTested` | Provider bound but not validated this session. |
+| `connected` | Test succeeded: server, client, user, and workspace mapping all passed. |
+| `loginRequired` | Server and client reachable but no valid ticket. |
+| `offline` | `perforce.online` is `false`, or auto-offline engaged after the server was unreachable. |
+| `error` | Configuration or connectivity error (see codes below). |
+
+**Error / warning codes** (`code` and items in `errors`/`warnings`):
+
+`P4ExecutableNotFound`, `P4ExecutableInvalid`, `P4ConfigMissing`, `MissingPort`, `MissingClient`, `MissingUser`, `ServerUnavailable`, `Timeout`, `SSLTrustRequired`, `LoginRequired`, `AuthenticationFailed`, `ClientNotFound`, `ClientHostMismatch`, `ClientRootMismatch`, `WorkspaceNotMapped`, `WorkspaceOutsideClientRoot`, `Unknown`.
+
+Codes are stable wire contracts; servers emit `code` plus an English `fallbackText`, and clients own localization. New codes are forward-compatible and unknown codes must fall back to `fallbackText`.
+
+### 25A.6 Capability Advertisement
+
+Clients must check `capabilities.sourceControlManagement` before calling source control methods. The server advertises it when a workspace `.craft` path is available (same gating as `workspaceConfigManagement`). `sourceControl/update` participates in `workspace/configChanged` via the `sourceControl` region; clients that set `capabilities.configChange = false` simply do not receive the notification.
 
 ## 26. Memory Management Methods
 

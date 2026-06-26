@@ -3,6 +3,7 @@ import { Archive, ArrowRightLeft, GitFork, Laptop, MoreHorizontal, Pencil, Pin, 
 import { useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useConnectionStore } from '../../stores/connectionStore'
+import { useSourceControlStore } from '../../stores/sourceControlStore'
 import { useThreadStore } from '../../stores/threadStore'
 import { useUIStore } from '../../stores/uiStore'
 import { addToast, useToastStore } from '../../stores/toastStore'
@@ -51,7 +52,17 @@ export function ThreadHeader({
   const setActiveThreadId = useThreadStore((s) => s.setActiveThreadId)
   const removeThreadTree = useThreadStore((s) => s.removeThreadTree)
   const capabilities = useConnectionStore((s) => s.capabilities)
+  const sourceControlEnabled = capabilities?.sourceControlManagement === true
+  const ensureSourceControl = useSourceControlStore((s) => s.ensure)
+  const sourceControlProvider = useSourceControlStore((s) =>
+    s.workspacePath === workspacePath ? s.effectiveProvider : null
+  )
+  const isPerforceWorkspace = sourceControlProvider === 'perforce'
   const confirm = useConfirmDialog()
+
+  useEffect(() => {
+    ensureSourceControl(workspacePath, sourceControlEnabled)
+  }, [ensureSourceControl, workspacePath, sourceControlEnabled])
 
   const writtenFiles = Array.from(changedFiles.values()).filter((f) => f.status === 'written')
   const hasWrittenFiles = writtenFiles.length > 0
@@ -135,6 +146,10 @@ export function ThreadHeader({
    * completion, so the user is never held on the dialog. Spec §16.5.
    */
   async function runCommit(message: string): Promise<void> {
+    if (isPerforceWorkspace) {
+      addToast(t('threadHeader.perforceCommitUnavailable'), 'warning')
+      return
+    }
     if (remoteWorkspace) {
       addToast(t('threadHeader.remoteLocalGitUnavailable'), 'warning')
       return
@@ -329,21 +344,23 @@ export function ThreadHeader({
         <ActionTooltip
           label={t('threadHeader.commitTitle')}
           disabledReason={
-            remoteWorkspace
-              ? t('threadHeader.remoteLocalGitUnavailable')
-              : !hasWrittenFiles
-                ? t('threadHeader.noCommitTitle')
-                : undefined
+            isPerforceWorkspace
+              ? t('threadHeader.perforceCommitUnavailable')
+              : remoteWorkspace
+                ? t('threadHeader.remoteLocalGitUnavailable')
+                : !hasWrittenFiles
+                  ? t('threadHeader.noCommitTitle')
+                  : undefined
           }
           placement="bottom"
         >
           <button
             onClick={() => setCommitOpen(true)}
-            disabled={remoteWorkspace || !hasWrittenFiles}
+            disabled={isPerforceWorkspace || remoteWorkspace || !hasWrittenFiles}
             style={{
               ...headerButtonStyle,
-              opacity: !remoteWorkspace && hasWrittenFiles ? 1 : 0.4,
-              cursor: !remoteWorkspace && hasWrittenFiles ? 'pointer' : 'default'
+              opacity: !isPerforceWorkspace && !remoteWorkspace && hasWrittenFiles ? 1 : 0.4,
+              cursor: !isPerforceWorkspace && !remoteWorkspace && hasWrittenFiles ? 'pointer' : 'default'
             }}
             aria-label={t('threadHeader.commitTitle')}
           >

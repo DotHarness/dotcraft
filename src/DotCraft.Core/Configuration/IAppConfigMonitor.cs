@@ -53,6 +53,7 @@ public static class ConfigChangeRegions
     public const string Lsp = "lsp";
     public const string ExternalChannel = "externalChannel";
     public const string SubAgent = "subagent";
+    public const string SourceControl = "sourceControl";
 }
 
 /// <summary>
