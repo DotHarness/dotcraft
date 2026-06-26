@@ -74,8 +74,8 @@ describe('SourceControlPanel', () => {
     renderPanel()
 
     fireEvent.click(await screen.findByRole('radio', { name: 'Perforce' }))
-    // No successful test yet -> the primary action is "Save Anyway".
-    fireEvent.click(screen.getByRole('button', { name: 'Save Anyway' }))
+    // No successful test yet -> the primary action is just "Save".
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     expect(appServerSendRequest).toHaveBeenCalledWith(
       'sourceControl/update',

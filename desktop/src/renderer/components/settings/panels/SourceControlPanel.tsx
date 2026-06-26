@@ -153,7 +153,6 @@ export function SourceControlPanel({ workspacePath }: SourceControlPanelProps): 
   const [provider, setProvider] = useState<SourceControlProvider>('git')
   const [connectionMode, setConnectionMode] = useState<SourceControlConnectionMode>('p4config')
   const [form, setForm] = useState<PerforceConnectionWire>(DEFAULT_PERFORCE)
-  const [password, setPassword] = useState('')
 
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -214,6 +213,8 @@ export function SourceControlPanel({ workspacePath }: SourceControlPanelProps): 
   const updateForm = useCallback(<K extends keyof PerforceConnectionWire>(key: K, value: PerforceConnectionWire[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }))
     setSavedTick(false)
+    // Editing the connection invalidates any prior test result.
+    setTestResult(null)
   }, [])
 
   const dirty = useMemo(() => {
@@ -231,7 +232,6 @@ export function SourceControlPanel({ workspacePath }: SourceControlPanelProps): 
     dirtyRef.current = dirty
   }, [dirty])
 
-  const liveStatus = testResult?.status ?? snapshot?.status ?? 'notConfigured'
   const isPerforce = provider === 'perforce'
   const testConnected = testResult?.status === 'connected'
 
@@ -242,8 +242,7 @@ export function SourceControlPanel({ workspacePath }: SourceControlPanelProps): 
       const result = await scRequest<SourceControlTestResult>('sourceControl/test', {
         provider: 'perforce',
         connectionMode,
-        perforce: form,
-        password: password ? password : undefined
+        perforce: form
       })
       setTestResult(result)
       setShowDetails(result.status !== 'connected')
@@ -264,7 +263,7 @@ export function SourceControlPanel({ workspacePath }: SourceControlPanelProps): 
     } finally {
       setTesting(false)
     }
-  }, [connectionMode, form, password])
+  }, [connectionMode, form])
 
   const handleSave = useCallback(async () => {
     setSaving(true)
@@ -287,7 +286,6 @@ export function SourceControlPanel({ workspacePath }: SourceControlPanelProps): 
 
   const handleDiscard = useCallback(() => {
     if (snapshot) applySnapshot(snapshot)
-    setPassword('')
     setTestResult(null)
     setSaveError(null)
     setSavedTick(false)
@@ -318,7 +316,6 @@ export function SourceControlPanel({ workspacePath }: SourceControlPanelProps): 
     <SettingsPanelShell
       title={t('settings.sourceControl.title')}
       description={t('settings.sourceControl.description')}
-      action={isPerforce ? <StatusBadge status={liveStatus} verified={testConnected} t={t} /> : undefined}
     >
       {loading && (
         <SettingsGroup flush>
@@ -341,6 +338,7 @@ export function SourceControlPanel({ workspacePath }: SourceControlPanelProps): 
                 onChange={(value) => {
                   setProvider(value)
                   setSavedTick(false)
+                  setTestResult(null)
                 }}
                 t={t}
               />
@@ -377,6 +375,7 @@ export function SourceControlPanel({ workspacePath }: SourceControlPanelProps): 
                     onChange={(value) => {
                       setConnectionMode(value)
                       setSavedTick(false)
+                      setTestResult(null)
                     }}
                   />
                 }
@@ -481,22 +480,6 @@ export function SourceControlPanel({ workspacePath }: SourceControlPanelProps): 
 
           {isPerforce && (
             <SettingsGroup title={t('settings.sourceControl.test.title')}>
-              <SettingsRow
-                label={t('settings.sourceControl.password.label')}
-                description={t('settings.sourceControl.password.hint')}
-                orientation="block"
-                control={
-                  <input
-                    type="password"
-                    aria-label={t('settings.sourceControl.password.label')}
-                    value={password}
-                    placeholder={t('settings.sourceControl.password.placeholder')}
-                    onChange={(e) => setPassword(e.target.value)}
-                    autoComplete="off"
-                    style={inputStyle}
-                  />
-                }
-              />
               <SettingsRow>
                 <button
                   type="button"
@@ -532,11 +515,9 @@ export function SourceControlPanel({ workspacePath }: SourceControlPanelProps): 
               {t('settings.sourceControl.action.discard')}
             </button>
             <button type="button" onClick={() => void handleSave()} disabled={saving} style={primaryButtonStyle(saving)}>
-              {!isPerforce
-                ? t('settings.sourceControl.action.saveGeneric')
-                : testConnected
-                  ? t('settings.sourceControl.action.save')
-                  : t('settings.sourceControl.action.saveAnyway')}
+              {isPerforce && testConnected
+                ? t('settings.sourceControl.action.save')
+                : t('settings.sourceControl.action.saveGeneric')}
             </button>
           </div>
         </>
@@ -546,21 +527,6 @@ export function SourceControlPanel({ workspacePath }: SourceControlPanelProps): 
 }
 
 // ─── Subcomponents ───
-
-function StatusBadge({
-  status,
-  verified,
-  t
-}: {
-  status: string
-  verified: boolean
-  t: (key: MessageKey, vars?: Record<string, string | number>) => string
-}): JSX.Element {
-  const tone = statusTone(status)
-  const label = t(`settings.sourceControl.status.${status}` as MessageKey)
-  const text = verified ? label : status === 'notTested' ? t('settings.sourceControl.status.notVerified') : label
-  return <span style={badgeStyle(tone)}>{text}</span>
-}
 
 function ProviderCards({
   value,
@@ -673,7 +639,7 @@ function TestResultView({
   localizeCode: (code: string, fallbackText: string) => string
   t: (key: MessageKey, vars?: Record<string, string | number>) => string
 }): JSX.Element {
-  const tone = result.status === 'connected' ? 'info' : result.status === 'loginRequired' ? 'warning' : 'error'
+  const tone = result.status === 'connected' ? 'success' : result.status === 'loginRequired' ? 'warning' : 'error'
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
       <div style={noticeStyle(tone)}>{result.summary || localizeCode(result.code, result.fallbackText)}</div>
@@ -722,42 +688,6 @@ function DetailRow({ label, value }: { label: string; value?: string }): JSX.Ele
 }
 
 // ─── Styles ───
-
-type Tone = 'neutral' | 'success' | 'warning' | 'error'
-
-function statusTone(status: string): Tone {
-  switch (status) {
-    case 'connected':
-      return 'success'
-    case 'notTested':
-    case 'loginRequired':
-      return 'warning'
-    case 'error':
-      return 'error'
-    default:
-      return 'neutral'
-  }
-}
-
-function badgeStyle(tone: Tone): CSSProperties {
-  const palette: Record<Tone, { bg: string; fg: string }> = {
-    neutral: { bg: 'var(--bg-tertiary)', fg: 'var(--text-secondary)' },
-    success: { bg: 'rgba(52, 199, 89, 0.15)', fg: 'var(--success, #34c759)' },
-    warning: { bg: 'rgba(255, 149, 0, 0.15)', fg: 'var(--warning, #ff9500)' },
-    error: { bg: 'rgba(255, 69, 58, 0.14)', fg: 'var(--error, #ff453a)' }
-  }
-  return {
-    display: 'inline-flex',
-    alignItems: 'center',
-    padding: '3px 10px',
-    borderRadius: '999px',
-    fontSize: '12px',
-    fontWeight: 600,
-    backgroundColor: palette[tone].bg,
-    color: palette[tone].fg,
-    whiteSpace: 'nowrap'
-  }
-}
 
 const providerCardsStyle: CSSProperties = {
   display: 'grid',
@@ -835,13 +765,15 @@ function secondaryButtonStyle(disabled: boolean): CSSProperties {
   }
 }
 
-function noticeStyle(tone: 'error' | 'info' | 'warning'): CSSProperties {
+function noticeStyle(tone: 'error' | 'info' | 'warning' | 'success'): CSSProperties {
   const palette =
     tone === 'error'
       ? { bg: 'rgba(255, 69, 58, 0.12)', fg: 'var(--error, #ff453a)' }
       : tone === 'warning'
         ? { bg: 'rgba(255, 149, 0, 0.12)', fg: 'var(--warning, #ff9500)' }
-        : { bg: 'var(--bg-tertiary)', fg: 'var(--text-secondary)' }
+        : tone === 'success'
+          ? { bg: 'rgba(34, 197, 94, 0.14)', fg: 'var(--success, #22c55e)' }
+          : { bg: 'var(--bg-tertiary)', fg: 'var(--text-secondary)' }
   return {
     padding: '10px 12px',
     borderRadius: '10px',
