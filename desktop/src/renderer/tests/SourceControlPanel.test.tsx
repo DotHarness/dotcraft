@@ -61,6 +61,32 @@ const P4_CONNECTED = {
   errors: []
 }
 
+const P4_ONLINE_SNAPSHOT = {
+  provider: 'perforce',
+  effectiveProvider: 'perforce',
+  connectionMode: 'manual',
+  status: 'connected',
+  workspacePath: 'fixtures/sample-app',
+  perforce: {
+    port: 'ssl:p4:1666',
+    client: 'game-main-alice',
+    user: 'alice',
+    charset: '',
+    p4ConfigName: '',
+    p4ExecutablePath: '',
+    timeoutSeconds: 30,
+    online: true,
+    autoOffline: true
+  },
+  capabilities: {
+    gitCommit: false,
+    perforceBinding: true,
+    perforceChangelist: true,
+    perforceShelve: false,
+    perforceSubmit: false
+  }
+}
+
 function renderPanel(): void {
   render(
     <LocaleProvider>
@@ -179,6 +205,85 @@ describe('SourceControlPanel', () => {
           perforce: expect.objectContaining({ online: true })
         }),
         expect.any(Number)
+      )
+    })
+  })
+
+  it('preserves an unchanged online Perforce binding without requiring another test', async () => {
+    appServerSendRequest.mockImplementation((method: string) => {
+      if (method === 'sourceControl/get' || method === 'sourceControl/update') {
+        return Promise.resolve(P4_ONLINE_SNAPSHOT)
+      }
+      return Promise.resolve({})
+    })
+    renderPanel()
+
+    expect(await screen.findByRole('radio', { name: 'Perforce' })).toHaveAttribute('aria-checked', 'true')
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith(
+        'sourceControl/update',
+        expect.objectContaining({
+          provider: 'perforce',
+          perforce: expect.objectContaining({ online: true })
+        }),
+        expect.any(Number)
+      )
+    })
+  })
+
+  it('saves a changed online Perforce connection offline until it is retested', async () => {
+    appServerSendRequest.mockImplementation((method: string) => {
+      if (method === 'sourceControl/get' || method === 'sourceControl/update') {
+        return Promise.resolve(P4_ONLINE_SNAPSHOT)
+      }
+      return Promise.resolve({})
+    })
+    renderPanel()
+
+    fireEvent.change(await screen.findByLabelText('Server (P4PORT)'), {
+      target: { value: 'ssl:p4-alt:1666' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith(
+        'sourceControl/update',
+        expect.objectContaining({
+          provider: 'perforce',
+          perforce: expect.objectContaining({
+            port: 'ssl:p4-alt:1666',
+            online: false
+          })
+        }),
+        expect.any(Number)
+      )
+    })
+  })
+
+  it('uses the configured Perforce timeout for Test Connection requests', async () => {
+    appServerSendRequest.mockImplementation((method: string) => {
+      if (method === 'sourceControl/test') return Promise.resolve(P4_CONNECTED)
+      if (method === 'sourceControl/get' || method === 'sourceControl/update') return Promise.resolve(GIT_SNAPSHOT)
+      return Promise.resolve({})
+    })
+    renderPanel()
+
+    fireEvent.click(await screen.findByRole('radio', { name: 'Perforce' }))
+    fireEvent.change(screen.getByLabelText('Timeout (seconds)'), {
+      target: { value: '60' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Test Connection' }))
+
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith(
+        'sourceControl/test',
+        expect.objectContaining({
+          provider: 'perforce',
+          perforce: expect.objectContaining({ timeoutSeconds: 60 })
+        }),
+        65_000
       )
     })
   })

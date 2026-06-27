@@ -69,8 +69,11 @@ export function ThreadHeader({
   const isPerforceWorkspace = sourceControlProvider === 'perforce'
     || (sourceControlProvider == null && threadSourceControlProvider === 'perforce')
   const canPreparePerforce = sourceControlProvider === 'perforce' && perforceChangelistAvailable
+  const metadataChangelist = typeof activeThread?.metadata?.['sourceControl.perforce.changelist'] === 'string'
+    ? activeThread.metadata['sourceControl.perforce.changelist']
+    : 'default'
   const changelistState = usePerforceChangelistStore((s) => s.byThreadId[threadId])
-  const selectedChangelist = changelistState?.snapshot?.target?.changelist ?? 'default'
+  const selectedChangelist = changelistState?.snapshot?.target?.changelist ?? metadataChangelist
   const confirm = useConfirmDialog()
 
   useEffect(() => {

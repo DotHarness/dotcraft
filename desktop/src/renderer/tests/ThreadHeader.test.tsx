@@ -260,4 +260,74 @@ describe('ThreadHeader', () => {
       expect.anything()
     )
   })
+
+  it('uses thread metadata changelist while the changelist snapshot is loading', async () => {
+    const workspacePath = 'C:\\workspace\\sample-app'
+    useConnectionStore.setState({
+      status: 'connected',
+      capabilities: { sourceControlManagement: true }
+    })
+    const thread = makeThread({
+      workspacePath,
+      effectiveWorkspacePath: workspacePath,
+      metadata: {
+        'sourceControl.provider': 'perforce',
+        'sourceControl.perforce.changelist': '123'
+      }
+    })
+    useThreadStore.setState({
+      activeThreadId: thread.id,
+      activeThread: thread,
+      threadList: [thread]
+    })
+    useSourceControlStore.setState({
+      workspacePath,
+      effectiveProvider: 'perforce',
+      status: 'connected',
+      perforceChangelist: true
+    })
+    useConversationStore.getState().upsertChangedFile({
+      filePath: 'C:\\workspace\\sample-app\\src\\a.ts',
+      turnId: 'turn-1',
+      turnIds: ['turn-1'],
+      additions: 2,
+      deletions: 1,
+      diffHunks: [],
+      status: 'written',
+      isNewFile: false
+    })
+    appServerSendRequest.mockImplementation(async (method: string) => {
+      if (method === 'sourceControl/changelist/list') {
+        return new Promise(() => {})
+      }
+      if (method === 'sourceControl/changelist/prepare') {
+        return {
+          status: 'error',
+          errors: [{ fallbackText: 'stop after request' }]
+        }
+      }
+      return {}
+    })
+
+    renderHeader(true, workspacePath)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Prepare Perforce changelist' }))
+    fireEvent.change(screen.getByPlaceholderText('Describe the pending changelist...'), {
+      target: { value: 'Prepare task CL' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Prepare CL' }))
+
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith(
+        'sourceControl/changelist/prepare',
+        {
+          threadId: 'thread-1',
+          description: 'Prepare task CL',
+          paths: ['src/a.ts'],
+          target: '123'
+        },
+        60_000
+      )
+    })
+  })
 })

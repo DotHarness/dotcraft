@@ -4,6 +4,22 @@ namespace DotCraft.Tests.SourceControl;
 
 public sealed class PerforceChangelistManagerTests
 {
+    public static IEnumerable<object[]> ChangeReadFailures()
+    {
+        yield return [Fail("Perforce password (P4PASSWD) invalid or unset."), PerforceChangelistCodes.LoginRequired];
+        yield return [TimedOut(), PerforceChangelistCodes.Timeout];
+        yield return [MissingExecutable(), PerforceChangelistCodes.P4ExecutableNotFound];
+        yield return [Fail("Connect to server failed; check $P4PORT."), PerforceChangelistCodes.P4CommandFailed];
+        yield return [Fail("No such changelist 555."), PerforceChangelistCodes.ChangelistNotFound];
+    }
+
+    public static IEnumerable<object[]> OpenedFailures()
+    {
+        yield return [Fail("Perforce password (P4PASSWD) invalid or unset."), PerforceChangelistCodes.LoginRequired];
+        yield return [TimedOut(), PerforceChangelistCodes.Timeout];
+        yield return [MissingExecutable(), PerforceChangelistCodes.P4ExecutableNotFound];
+    }
+
     [Fact]
     public async Task ListAsync_ReturnsDefaultAndPendingNumberedChanges()
     {
@@ -30,6 +46,68 @@ public sealed class PerforceChangelistManagerTests
         Assert.Equal(["default", "123", "456"], list.Select(c => c.Id));
         Assert.True(list[0].IsDefault);
         Assert.Equal("Fix gameplay loop", list[1].Description);
+    }
+
+    [Fact]
+    public async Task ListAsync_P4Config_ResolvesUserAndClientBeforeListingChanges()
+    {
+        var runner = new FakeRunner((args, _) =>
+        {
+            if (args.SequenceEqual(["info"]))
+            {
+                return Ok("""
+User name: alice
+Client name: game-main
+""");
+            }
+
+            if (args.SequenceEqual(["-ztag", "changes", "-s", "pending", "-u", "alice", "-c", "game-main"]))
+            {
+                return Ok("""
+... change 123
+... user alice
+... client game-main
+... status pending
+... desc Fix gameplay loop
+""");
+            }
+
+            return Fail("unexpected " + string.Join(" ", args));
+        });
+
+        var manager = CreateManager(
+            runner,
+            connectionMode: SourceControlConnectionModes.P4Config,
+            client: "",
+            user: "");
+        var list = await manager.ListAsync();
+
+        Assert.Equal(["info"], runner.Calls[0]);
+        Assert.Equal(["-ztag", "changes", "-s", "pending", "-u", "alice", "-c", "game-main"], runner.Calls[1]);
+        Assert.Equal(["default", "123"], list.Select(c => c.Id));
+        Assert.Equal("alice", list[0].User);
+        Assert.Equal("game-main", list[0].Client);
+    }
+
+    [Fact]
+    public async Task ListAsync_WhenInfoDoesNotResolveIdentity_DoesNotRunUnscopedChanges()
+    {
+        var runner = new FakeRunner((args, _) =>
+        {
+            if (args.SequenceEqual(["info"]))
+                return Ok("Server address: ssl:p4:1666\n");
+            return Fail("unexpected " + string.Join(" ", args));
+        });
+        var manager = CreateManager(
+            runner,
+            connectionMode: SourceControlConnectionModes.P4Config,
+            client: "",
+            user: "");
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => manager.ListAsync());
+
+        Assert.Single(runner.Calls);
+        Assert.DoesNotContain(runner.Calls, args => args.Contains("changes"));
     }
 
     [Fact]
@@ -79,6 +157,66 @@ public sealed class PerforceChangelistManagerTests
     }
 
     [Fact]
+    public async Task PrepareAsync_DefaultTarget_AllFilesInOtherChangelists_DoesNotCreateEmptyChange()
+    {
+        using var workspace = new TempWorkspace();
+        var keepA = Path.Combine(workspace.Path, "keep-a.cs");
+        var keepB = Path.Combine(workspace.Path, "keep-b.cs");
+        await File.WriteAllTextAsync(keepA, "");
+        await File.WriteAllTextAsync(keepB, "");
+
+        var runner = new FakeRunner((args, _) =>
+        {
+            if (args.SequenceEqual(["-p", "ssl:p4:1666", "-c", "client", "-u", "alice", "opened", keepA]))
+                return Ok("//depot/keep-a.cs#1 - edit change 777 (text)\n");
+            if (args.SequenceEqual(["-p", "ssl:p4:1666", "-c", "client", "-u", "alice", "opened", keepB]))
+                return Ok("//depot/keep-b.cs#1 - edit change 888 (text)\n");
+            return Fail("unexpected " + string.Join(" ", args));
+        });
+
+        var manager = CreateManager(runner, workspace.Path);
+        var result = await manager.PrepareAsync([keepA, keepB], "default", "Thread result");
+
+        Assert.Equal("ok", result.Status);
+        Assert.False(result.Created);
+        Assert.Equal("default", result.Changelist);
+        Assert.Empty(result.MovedPaths);
+        Assert.Equal([keepA, keepB], result.SkippedPaths);
+        Assert.Equal(2, result.Warnings.Count);
+        Assert.DoesNotContain(runner.Calls, args => args.SequenceEqual(["-p", "ssl:p4:1666", "-c", "client", "-u", "alice", "change", "-i"]));
+        Assert.DoesNotContain(runner.Calls, args => args.Contains("reopen"));
+    }
+
+    [Theory]
+    [MemberData(nameof(OpenedFailures))]
+    public async Task PrepareAsync_DefaultTarget_OpenedFailure_ReturnsStableErrorWithoutCreatingChange(
+        PerforceCommandResult openedFailure,
+        string expectedCode)
+    {
+        using var workspace = new TempWorkspace();
+        var file = Path.Combine(workspace.Path, "src", "main.cs");
+        Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+        await File.WriteAllTextAsync(file, "content");
+
+        var runner = new FakeRunner((args, _) =>
+        {
+            if (args.SequenceEqual(["-p", "ssl:p4:1666", "-c", "client", "-u", "alice", "opened", file]))
+                return openedFailure;
+            return Fail("unexpected " + string.Join(" ", args));
+        });
+
+        var manager = CreateManager(runner, workspace.Path);
+        var result = await manager.PrepareAsync(["src/main.cs"], "default", "Thread result");
+
+        Assert.Equal("error", result.Status);
+        Assert.Equal(expectedCode, result.Code);
+        Assert.Equal("default", result.Changelist);
+        Assert.False(result.Created);
+        Assert.Empty(result.MovedPaths);
+        Assert.DoesNotContain(runner.Calls, args => args.Contains("change"));
+    }
+
+    [Fact]
     public async Task PrepareAsync_NumberedTarget_SkipsFilesAlreadyOpenedInOtherChangelist()
     {
         using var workspace = new TempWorkspace();
@@ -111,19 +249,55 @@ public sealed class PerforceChangelistManagerTests
         Assert.Contains(result.Warnings, w => w.Code == PerforceChangelistCodes.FileAlreadyInOtherChangelist);
     }
 
-    private static PerforceChangelistManager CreateManager(FakeRunner runner, string? workspacePath = null) =>
+    [Theory]
+    [MemberData(nameof(ChangeReadFailures))]
+    public async Task PrepareAsync_NumberedTarget_ChangeReadFailure_ReturnsStableError(
+        PerforceCommandResult changeReadFailure,
+        string expectedCode)
+    {
+        using var workspace = new TempWorkspace();
+        var file = Path.Combine(workspace.Path, "main.cs");
+        await File.WriteAllTextAsync(file, "");
+        var runner = new FakeRunner((args, _) =>
+        {
+            if (args.SequenceEqual(["-p", "ssl:p4:1666", "-c", "client", "-u", "alice", "change", "-o", "555"]))
+                return changeReadFailure;
+            return Fail("unexpected " + string.Join(" ", args));
+        });
+
+        var manager = CreateManager(runner, workspace.Path);
+        var result = await manager.PrepareAsync([file], "555", "Updated");
+
+        Assert.Equal("error", result.Status);
+        Assert.Equal(expectedCode, result.Code);
+        Assert.Equal("555", result.Changelist);
+        Assert.Empty(result.MovedPaths);
+        Assert.DoesNotContain(runner.Calls, args => args.Contains("opened"));
+        Assert.DoesNotContain(runner.Calls, args => args.Contains("reopen"));
+    }
+
+    private static PerforceChangelistManager CreateManager(
+        FakeRunner runner,
+        string? workspacePath = null,
+        string connectionMode = SourceControlConnectionModes.Manual,
+        string client = "client",
+        string user = "alice") =>
         new(runner, new PerforceWorkspaceCommandOptions
         {
             WorkspacePath = workspacePath ?? "C:\\workspace",
-            ConnectionMode = SourceControlConnectionModes.Manual,
+            ConnectionMode = connectionMode,
             Port = "ssl:p4:1666",
-            Client = "client",
-            User = "alice"
+            Client = client,
+            User = user
         });
 
     private static PerforceCommandResult Ok(string stdout = "") => new(0, stdout, string.Empty, false, false);
 
     private static PerforceCommandResult Fail(string stderr) => new(1, string.Empty, stderr, false, false);
+
+    private static PerforceCommandResult MissingExecutable() => new(-1, string.Empty, "p4 not found", true, false);
+
+    private static PerforceCommandResult TimedOut() => new(-1, string.Empty, string.Empty, false, true);
 
     private sealed class FakeRunner(Func<IReadOnlyList<string>, string?, PerforceCommandResult> handler) : IPerforceCommandRunner
     {

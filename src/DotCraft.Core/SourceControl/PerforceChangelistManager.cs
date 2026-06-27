@@ -67,8 +67,9 @@ public sealed class PerforceChangelistManager(
 
     public async Task<IReadOnlyList<PerforceChangelistEntry>> ListAsync(CancellationToken ct = default)
     {
+        var identity = await ResolveIdentityFiltersAsync(ct).ConfigureAwait(false);
         var result = await runner.RunAsync(
-            [.. BuildGlobals(), "-ztag", "changes", "-s", "pending", .. BuildIdentityFilters()],
+            [.. BuildGlobals(), "-ztag", "changes", "-s", "pending", .. BuildIdentityFilters(identity.User, identity.Client)],
             null,
             ct).ConfigureAwait(false);
 
@@ -81,8 +82,8 @@ public sealed class PerforceChangelistManager(
                 Id = PerforceChangelistIds.Default,
                 IsDefault = true,
                 Description = "Default changelist",
-                User = options.User,
-                Client = options.Client,
+                User = identity.User,
+                Client = identity.Client,
                 Status = "pending"
             }
         };
@@ -118,7 +119,12 @@ public sealed class PerforceChangelistManager(
             return true;
 
         var result = await runner.RunAsync([.. BuildGlobals(), "change", "-o", changelist], null, ct).ConfigureAwait(false);
-        return result.Ok;
+        if (result.Ok)
+            return true;
+        if (ClassifyFailureCode(result) == PerforceChangelistCodes.ChangelistNotFound)
+            return false;
+        ThrowIfFailed(result, $"Unable to read Perforce changelist {changelist}.");
+        return false;
     }
 
     public async Task UpdateDescriptionAsync(string changelist, string description, CancellationToken ct = default)
@@ -152,22 +158,11 @@ public sealed class PerforceChangelistManager(
 
         target = NormalizeChangelist(target);
         var created = false;
-        if (target == PerforceChangelistIds.Default)
+        if (target != PerforceChangelistIds.Default)
         {
-            var createdChange = await CreateAsync(description, ct).ConfigureAwait(false);
-            target = createdChange.Id;
-            created = true;
-        }
-        else if (!await ChangelistExistsAsync(target, ct).ConfigureAwait(false))
-        {
-            return Error(
-                PerforceChangelistCodes.ChangelistNotFound,
-                $"Perforce changelist {target} was not found.",
-                target);
-        }
-        else
-        {
-            await UpdateDescriptionAsync(target, description, ct).ConfigureAwait(false);
+            var targetError = await EnsureNumberedTargetReadyAsync(target, description, ct).ConfigureAwait(false);
+            if (targetError != null)
+                return targetError;
         }
 
         var toMove = new List<string>();
@@ -175,7 +170,17 @@ public sealed class PerforceChangelistManager(
         var warnings = new List<PerforceChangelistDiagnostic>();
         foreach (var path in normalizedPaths)
         {
-            var opened = await GetOpenedChangelistAsync(path, ct).ConfigureAwait(false);
+            var openedResult = await GetOpenedChangelistAsync(path, ct).ConfigureAwait(false);
+            if (openedResult.Failure.HasValue)
+            {
+                var failure = openedResult.Failure.Value;
+                return Error(
+                    ClassifyFailureCode(failure),
+                    FailureText(failure, "Unable to read Perforce opened file state."),
+                    target);
+            }
+
+            var opened = openedResult.Changelist;
             if (opened is { Length: > 0 }
                 && opened != PerforceChangelistIds.Default
                 && !string.Equals(opened, target, StringComparison.Ordinal))
@@ -187,8 +192,15 @@ public sealed class PerforceChangelistManager(
                 continue;
             }
 
-            if (!string.Equals(opened, target, StringComparison.Ordinal))
+            if (target == PerforceChangelistIds.Default || !string.Equals(opened, target, StringComparison.Ordinal))
                 toMove.Add(path);
+        }
+
+        if (target == PerforceChangelistIds.Default && toMove.Count > 0)
+        {
+            var createdChange = await CreateAsync(description, ct).ConfigureAwait(false);
+            target = createdChange.Id;
+            created = true;
         }
 
         if (toMove.Count > 0)
@@ -213,18 +225,69 @@ public sealed class PerforceChangelistManager(
         };
     }
 
-    private async Task<string?> GetOpenedChangelistAsync(string path, CancellationToken ct)
+    private async Task<OpenedChangelistLookup> GetOpenedChangelistAsync(string path, CancellationToken ct)
     {
         var result = await runner.RunAsync([.. BuildGlobals(), "opened", path], null, ct).ConfigureAwait(false);
         var text = result.StdOut + "\n" + result.StdErr;
         if (!result.Ok && text.Contains("not opened", StringComparison.OrdinalIgnoreCase))
-            return null;
+            return new OpenedChangelistLookup(null, null);
         if (!result.Ok)
-            return null;
+            return new OpenedChangelistLookup(null, result);
         if (text.Contains("default change", StringComparison.OrdinalIgnoreCase))
-            return PerforceChangelistIds.Default;
+            return new OpenedChangelistLookup(PerforceChangelistIds.Default, null);
         var match = OpenedChangeRegex.Match(text);
-        return match.Success ? match.Groups[1].Value : null;
+        return new OpenedChangelistLookup(match.Success ? match.Groups[1].Value : null, null);
+    }
+
+    private async Task<PerforceChangelistPrepareResult?> EnsureNumberedTargetReadyAsync(
+        string target,
+        string description,
+        CancellationToken ct)
+    {
+        var specResult = await runner.RunAsync([.. BuildGlobals(), "change", "-o", target], null, ct).ConfigureAwait(false);
+        if (!specResult.Ok)
+        {
+            var code = ClassifyFailureCode(specResult);
+            var fallback = code == PerforceChangelistCodes.ChangelistNotFound
+                ? $"Perforce changelist {target} was not found."
+                : $"Unable to read Perforce changelist {target}.";
+            return Error(code, FailureText(specResult, fallback), target);
+        }
+
+        if (string.IsNullOrWhiteSpace(description))
+            return null;
+
+        var updatedSpec = ReplaceDescription(specResult.StdOut, description);
+        var updateResult = await runner.RunAsync([.. BuildGlobals(), "change", "-i"], updatedSpec, ct).ConfigureAwait(false);
+        if (!updateResult.Ok)
+        {
+            return Error(
+                ClassifyFailureCode(updateResult),
+                FailureText(updateResult, $"Unable to update Perforce changelist {target}."),
+                target);
+        }
+
+        return null;
+    }
+
+    private async Task<PerforceIdentityFilters> ResolveIdentityFiltersAsync(CancellationToken ct)
+    {
+        var user = options.User?.Trim() ?? string.Empty;
+        var client = options.Client?.Trim() ?? string.Empty;
+        if (options.ConnectionMode == SourceControlConnectionModes.P4Config
+            || string.IsNullOrWhiteSpace(user)
+            || string.IsNullOrWhiteSpace(client))
+        {
+            var info = await runner.RunAsync([.. BuildGlobals(), "info"], null, ct).ConfigureAwait(false);
+            ThrowIfFailed(info, "Unable to resolve Perforce client and user for changelist listing.");
+            user = ParseInfoValue(info.StdOut, "User name", "userName") ?? user;
+            client = ParseInfoValue(info.StdOut, "Client name", "clientName") ?? client;
+        }
+
+        if (string.IsNullOrWhiteSpace(user) || string.IsNullOrWhiteSpace(client))
+            throw new InvalidOperationException("Unable to resolve Perforce client and user for changelist listing.");
+
+        return new PerforceIdentityFilters(user, client);
     }
 
     private List<string> BuildGlobals()
@@ -240,11 +303,11 @@ public sealed class PerforceChangelistManager(
         return g;
     }
 
-    private List<string> BuildIdentityFilters()
+    private static List<string> BuildIdentityFilters(string user, string client)
     {
         var args = new List<string>();
-        AddOption(args, "-u", options.User);
-        AddOption(args, "-c", options.Client);
+        AddOption(args, "-u", user);
+        AddOption(args, "-c", client);
         return args;
     }
 
@@ -374,6 +437,20 @@ public sealed class PerforceChangelistManager(
         return match.Success ? match.Groups[1].Value : null;
     }
 
+    private static string? ParseInfoValue(string stdout, string plainKey, string taggedKey)
+    {
+        foreach (var raw in stdout.Split('\n'))
+        {
+            var line = raw.TrimEnd('\r');
+            if (line.StartsWith(plainKey + ":", StringComparison.OrdinalIgnoreCase))
+                return line[(plainKey.Length + 1)..].Trim();
+            var taggedPrefix = "... " + taggedKey + " ";
+            if (line.StartsWith(taggedPrefix, StringComparison.OrdinalIgnoreCase))
+                return line[taggedPrefix.Length..].Trim();
+        }
+        return null;
+    }
+
     private static bool IsInside(string root, string candidate)
     {
         var r = Path.TrimEndingDirectorySeparator(Path.GetFullPath(root));
@@ -440,4 +517,8 @@ public sealed class PerforceChangelistManager(
         }
         return null;
     }
+
+    private readonly record struct OpenedChangelistLookup(string? Changelist, PerforceCommandResult? Failure);
+
+    private readonly record struct PerforceIdentityFilters(string User, string Client);
 }

@@ -104,6 +104,7 @@ describe('ComposerWorkspaceFooter', () => {
     useWorkspaceProjectsStore.getState().reset()
     useToastStore.setState({ toasts: [] })
     settingsGet.mockResolvedValue({ locale: 'en' })
+    appServerSendRequest.mockResolvedValue({})
     gitListBranches.mockResolvedValue({
       current: 'main',
       detachedHead: null,
@@ -480,11 +481,87 @@ describe('ComposerWorkspaceFooter', () => {
         sourceControlManagement: true
       }
     })
+    appServerSendRequest.mockImplementation(async (method: string) => {
+      if (method === 'sourceControl/get') {
+        return {
+          effectiveProvider: 'perforce',
+          status: 'notTested',
+          capabilities: { perforceChangelist: true }
+        }
+      }
+      return {}
+    })
+    useGitStore.setState({
+      branchesByPath: {
+        [normalizeGitPathKey('fixtures\\sample-app')]: {
+          path: 'fixtures\\sample-app',
+          status: 'available',
+          snapshot: branchSnapshot('main'),
+          refreshing: false,
+          errorMessage: null,
+          updatedAt: Date.now(),
+          requestId: 1
+        }
+      }
+    })
+    const onWelcomeModeChange = vi.fn()
+    const onBaseRefChange = vi.fn()
+    const onWorktreeBranchNameChange = vi.fn()
+
+    const view = render(
+      <LocaleProvider>
+        <ComposerWorkspaceFooter
+          workspacePath="fixtures\\sample-app"
+          mode="worktree"
+          variant="welcome"
+          baseRef="main"
+          worktreeBranchName="dotcraft/sample-app"
+          onWelcomeModeChange={onWelcomeModeChange}
+          onBaseRefChange={onBaseRefChange}
+          onWorktreeBranchNameChange={onWorktreeBranchNameChange}
+        />
+      </LocaleProvider>
+    )
+
+    expect(gitListBranches).not.toHaveBeenCalled()
+    await waitFor(() => {
+      expect(onWelcomeModeChange).toHaveBeenCalledWith('local')
+    })
+    expect(onBaseRefChange).toHaveBeenCalledWith(null)
+    expect(onWorktreeBranchNameChange).toHaveBeenCalledWith(null)
+
+    view.rerender(
+      <LocaleProvider>
+        <ComposerWorkspaceFooter
+          workspacePath="fixtures\\sample-app"
+          mode="local"
+          variant="welcome"
+          baseRef={null}
+          worktreeBranchName={null}
+          onWelcomeModeChange={onWelcomeModeChange}
+          onBaseRefChange={onBaseRefChange}
+          onWorktreeBranchNameChange={onWorktreeBranchNameChange}
+        />
+      </LocaleProvider>
+    )
+
+    expect(screen.queryByRole('button', { name: 'New worktree' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'main' })).not.toBeInTheDocument()
+  })
+
+  it('keeps welcome Git worktree controls while source control provider is loading', async () => {
+    useConnectionStore.setState({
+      status: 'connected',
+      capabilities: {
+        gitWorktrees: true,
+        sourceControlManagement: true
+      }
+    })
     useSourceControlStore.setState({
       workspacePath: 'fixtures\\sample-app',
-      effectiveProvider: 'perforce',
-      status: 'notTested',
-      perforceChangelist: true
+      effectiveProvider: null,
+      status: null,
+      perforceChangelist: null
     })
     useGitStore.setState({
       branchesByPath: {
@@ -518,14 +595,15 @@ describe('ComposerWorkspaceFooter', () => {
       </LocaleProvider>
     )
 
-    expect(screen.queryByRole('button', { name: 'New worktree' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'main' })).not.toBeInTheDocument()
-    expect(gitListBranches).not.toHaveBeenCalled()
-    await waitFor(() => {
-      expect(onWelcomeModeChange).toHaveBeenCalledWith('local')
+    expect(screen.getByRole('button', { name: 'New worktree' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'dotcraft/sample-app' })).toBeInTheDocument()
+    await act(async () => {
+      await Promise.resolve()
     })
-    expect(onBaseRefChange).toHaveBeenCalledWith(null)
-    expect(onWorktreeBranchNameChange).toHaveBeenCalledWith(null)
+    expect(onWelcomeModeChange).not.toHaveBeenCalled()
+    expect(onBaseRefChange).not.toHaveBeenCalled()
+    expect(onWorktreeBranchNameChange).not.toHaveBeenCalled()
+    expect(gitListBranches).not.toHaveBeenCalled()
   })
 
   it('hides and resets welcome worktree choices after Git is confirmed unavailable', async () => {

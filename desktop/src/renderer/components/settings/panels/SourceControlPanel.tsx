@@ -130,8 +130,23 @@ const DEFAULT_PERFORCE: PerforceConnectionWire = {
   autoOffline: true
 }
 
-function scRequest<T>(method: string, params: unknown): Promise<T> {
-  return window.api.appServer.sendRequest(method, params, 20_000) as Promise<T>
+const PERFORCE_CONNECTION_KEYS: Array<keyof PerforceConnectionWire> = [
+  'port',
+  'client',
+  'user',
+  'charset',
+  'p4ConfigName',
+  'p4ExecutablePath',
+  'timeoutSeconds'
+]
+
+function scRequest<T>(method: string, params: unknown, timeoutMs = 20_000): Promise<T> {
+  return window.api.appServer.sendRequest(method, params, timeoutMs) as Promise<T>
+}
+
+function testRequestTimeoutMs(timeoutSeconds: number): number {
+  const effectiveTimeoutSeconds = timeoutSeconds > 0 ? timeoutSeconds : 30
+  return Math.max(20_000, effectiveTimeoutSeconds * 1000 + 5_000)
 }
 
 // Map any persisted/legacy provider value (incl. the removed "auto") to a known one.
@@ -240,16 +255,35 @@ export function SourceControlPanel({ workspacePath }: SourceControlPanelProps): 
 
   const isPerforce = provider === 'perforce'
   const testConnected = testResult?.status === 'connected'
+  const connectionFieldsChanged = useMemo(() => {
+    if (!snapshot) return true
+    if (provider !== snapshot.provider) return true
+    if (provider !== 'perforce') return false
+    if (connectionMode !== (snapshot.connectionMode ?? 'p4config')) return true
+    const base = snapshot.perforce ?? DEFAULT_PERFORCE
+    return PERFORCE_CONNECTION_KEYS.some((k) => form[k] !== base[k])
+  }, [snapshot, provider, connectionMode, form])
+  const canPreserveOnlineWithoutRetest =
+    isPerforce
+    && !connectionFieldsChanged
+    && snapshot?.perforce?.online === true
+  const perforceOnlineForSave = isPerforce
+    ? (testConnected ? form.online : canPreserveOnlineWithoutRetest ? form.online : false)
+    : false
 
   const handleTest = useCallback(async () => {
     setTesting(true)
     setTestResult(null)
     try {
-      const result = await scRequest<SourceControlTestResult>('sourceControl/test', {
-        provider: 'perforce',
-        connectionMode,
-        perforce: form
-      })
+      const result = await scRequest<SourceControlTestResult>(
+        'sourceControl/test',
+        {
+          provider: 'perforce',
+          connectionMode,
+          perforce: form
+        },
+        testRequestTimeoutMs(form.timeoutSeconds)
+      )
       setTestResult(result)
       if (result.status === 'connected') {
         setForm((prev) => ({ ...prev, online: true }))
@@ -280,7 +314,7 @@ export function SourceControlPanel({ workspacePath }: SourceControlPanelProps): 
     setSaveError(null)
     try {
       const perforceForSave = isPerforce
-        ? { ...form, online: testConnected ? form.online : false }
+        ? { ...form, online: perforceOnlineForSave }
         : undefined
       const snap = await scRequest<SourceControlSnapshot>('sourceControl/update', {
         provider,
@@ -295,7 +329,7 @@ export function SourceControlPanel({ workspacePath }: SourceControlPanelProps): 
     } finally {
       setSaving(false)
     }
-  }, [provider, connectionMode, form, isPerforce, testConnected, applySnapshot])
+  }, [provider, connectionMode, form, isPerforce, perforceOnlineForSave, applySnapshot])
 
   const handleDiscard = useCallback(() => {
     if (snapshot) applySnapshot(snapshot)
@@ -324,7 +358,7 @@ export function SourceControlPanel({ workspacePath }: SourceControlPanelProps): 
     }
     return opts
   }, [t, form.charset])
-  const willSavePerforceOffline = isPerforce && !testConnected
+  const willSavePerforceOffline = isPerforce && !perforceOnlineForSave
 
   return (
     <SettingsPanelShell
