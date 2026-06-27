@@ -433,6 +433,61 @@ describe('ComposerWorkspaceFooter', () => {
     expect(await screen.findByRole('button', { name: 'CL 777' })).toBeInTheDocument()
   })
 
+  it('hides welcome Git worktree controls when the workspace provider is Perforce', async () => {
+    useConnectionStore.setState({
+      status: 'connected',
+      capabilities: {
+        gitWorktrees: true,
+        sourceControlManagement: true
+      }
+    })
+    useSourceControlStore.setState({
+      workspacePath: 'fixtures\\sample-app',
+      effectiveProvider: 'perforce',
+      status: 'notTested'
+    })
+    useGitStore.setState({
+      branchesByPath: {
+        [normalizeGitPathKey('fixtures\\sample-app')]: {
+          path: 'fixtures\\sample-app',
+          status: 'available',
+          snapshot: branchSnapshot('main'),
+          refreshing: false,
+          errorMessage: null,
+          updatedAt: Date.now(),
+          requestId: 1
+        }
+      }
+    })
+    const onWelcomeModeChange = vi.fn()
+    const onBaseRefChange = vi.fn()
+    const onWorktreeBranchNameChange = vi.fn()
+
+    render(
+      <LocaleProvider>
+        <ComposerWorkspaceFooter
+          workspacePath="fixtures\\sample-app"
+          mode="worktree"
+          variant="welcome"
+          baseRef="main"
+          worktreeBranchName="dotcraft/sample-app"
+          onWelcomeModeChange={onWelcomeModeChange}
+          onBaseRefChange={onBaseRefChange}
+          onWorktreeBranchNameChange={onWorktreeBranchNameChange}
+        />
+      </LocaleProvider>
+    )
+
+    expect(screen.queryByRole('button', { name: 'New worktree' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'main' })).not.toBeInTheDocument()
+    expect(gitListBranches).not.toHaveBeenCalled()
+    await waitFor(() => {
+      expect(onWelcomeModeChange).toHaveBeenCalledWith('local')
+    })
+    expect(onBaseRefChange).toHaveBeenCalledWith(null)
+    expect(onWorktreeBranchNameChange).toHaveBeenCalledWith(null)
+  })
+
   it('hides and resets welcome worktree choices after Git is confirmed unavailable', async () => {
     gitListBranches.mockRejectedValue(new Error('not a git repository'))
     const onWelcomeModeChange = vi.fn()

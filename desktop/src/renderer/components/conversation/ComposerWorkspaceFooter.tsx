@@ -290,7 +290,9 @@ export function ComposerWorkspaceFooter({
   const sourceControlProvider = useSourceControlStore((s) =>
     s.workspacePath === branchActionPath ? s.effectiveProvider : null
   )
-  const isPerforceWorkspace = variant === 'thread' && sourceControlProvider === 'perforce' && Boolean(thread?.id)
+  const isPerforceProvider = sourceControlProvider === 'perforce'
+  const hideGitForSourceControl = sourceControlEnabled && sourceControlProvider !== 'git'
+  const isPerforceWorkspace = variant === 'thread' && isPerforceProvider && Boolean(thread?.id)
   const changelistState = usePerforceChangelistStore((s) =>
     thread?.id ? s.byThreadId[thread.id] : undefined
   )
@@ -304,7 +306,7 @@ export function ComposerWorkspaceFooter({
   const gitPathState = useGitStore((s) =>
     branchActionPathKey ? s.branchesByPath[branchActionPathKey] : undefined
   )
-  const gitAvailability = remoteWorkspace || !branchActionPath || foregroundIsChat || isPerforceWorkspace
+  const gitAvailability = remoteWorkspace || !branchActionPath || foregroundIsChat || hideGitForSourceControl
     ? 'unavailable'
     : gitPathState?.status ?? 'checking'
   const branches = gitPathState?.snapshot ?? null
@@ -433,20 +435,20 @@ export function ComposerWorkspaceFooter({
   ])
 
   const loadBranches = useCallback(async (options: { force?: boolean } = {}) => {
-    if (remoteWorkspace || !branchActionPath || foregroundIsChat) {
+    if (remoteWorkspace || !branchActionPath || foregroundIsChat || hideGitForSourceControl) {
       hideForUnavailableGit()
       return
     }
     await useGitStore.getState().ensureBranches(branchActionPath, { force: options.force })
-  }, [branchActionPath, foregroundIsChat, hideForUnavailableGit, remoteWorkspace])
+  }, [branchActionPath, foregroundIsChat, hideForUnavailableGit, hideGitForSourceControl, remoteWorkspace])
 
   useEffect(() => {
-    if (remoteWorkspace || !branchActionPath || foregroundIsChat) {
+    if (remoteWorkspace || !branchActionPath || foregroundIsChat || hideGitForSourceControl) {
       hideForUnavailableGit()
       return
     }
     void loadBranches()
-  }, [branchActionPath, foregroundIsChat, hideForUnavailableGit, loadBranches, remoteWorkspace])
+  }, [branchActionPath, foregroundIsChat, hideForUnavailableGit, hideGitForSourceControl, loadBranches, remoteWorkspace])
 
   useEffect(() => {
     if (gitAvailability !== 'unavailable') return
