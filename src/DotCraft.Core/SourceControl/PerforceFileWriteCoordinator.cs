@@ -15,9 +15,11 @@ public sealed class PerforceFileWriteCoordinator(
     public async Task<SourceControlWriteResult> BeforeWriteAsync(string fullPath, bool fileExists, CancellationToken ct = default)
     {
         var target = PerforceChangelistManager.NormalizeChangelist(changelistProvider());
-        if (target != PerforceChangelistIds.Default && !await ChangelistExistsAsync(target, ct).ConfigureAwait(false))
+        if (target != PerforceChangelistIds.Default)
         {
-            return SourceControlWriteResult.Error($"Perforce changelist {target} was not found. Select a valid changelist target and retry.");
+            var targetError = await ValidateChangelistAsync(target, ct).ConfigureAwait(false);
+            if (targetError != null)
+                return targetError;
         }
 
         if (!fileExists)
@@ -60,10 +62,12 @@ public sealed class PerforceFileWriteCoordinator(
         return SourceControlWriteResult.Ok();
     }
 
-    private async Task<bool> ChangelistExistsAsync(string changelist, CancellationToken ct)
+    private async Task<SourceControlWriteResult?> ValidateChangelistAsync(string changelist, CancellationToken ct)
     {
         var result = await runner.RunAsync([.. BuildGlobals(), "change", "-o", changelist], null, ct).ConfigureAwait(false);
-        return result.Ok;
+        if (result.Ok)
+            return null;
+        return SourceControlWriteResult.Error(MapFailure(result, $"Unable to read Perforce changelist {changelist}."));
     }
 
     private async Task<string?> GetOpenedChangelistAsync(string fullPath, CancellationToken ct)
