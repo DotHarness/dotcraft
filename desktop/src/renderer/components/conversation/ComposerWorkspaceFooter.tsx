@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FocusEvent, type JSX, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { ArrowRightLeft, Check, ChevronDown, ChevronRight, Cloud, Folder, FolderPlus, GitBranch, Laptop, Plus, Search, Server } from 'lucide-react'
+import { ArrowRightLeft, Check, ChevronDown, ChevronRight, Cloud, Folder, FolderPlus, GitBranch, Laptop, ListChecks, Plus, Search, Server } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { normalizeGitPathKey, useGitStore, type GitBranchListSnapshot } from '../../stores/gitStore'
+import { changelistLabel, usePerforceChangelistStore } from '../../stores/perforceChangelistStore'
+import { useSourceControlStore } from '../../stores/sourceControlStore'
 import { useWorkspaceProjectsStore } from '../../stores/workspaceProjectsStore'
 import { addToast } from '../../stores/toastStore'
 import type { Thread } from '../../types/thread'
@@ -29,7 +31,7 @@ interface ComposerWorkspaceFooterProps {
   onWelcomeWorkspaceChange?: (workspacePath: string) => Promise<void> | void
 }
 
-type OpenMenu = 'project' | 'workspace' | 'branch' | null
+type OpenMenu = 'project' | 'workspace' | 'branch' | 'changelist' | null
 
 const GIT_BRANCH_REFRESH_INTERVAL_MS = 5_000
 
@@ -257,14 +259,17 @@ export function ComposerWorkspaceFooter({
   const foregroundProjectId = useWorkspaceProjectsStore((s) => s.foregroundProjectId)
   const [openMenu, setOpenMenu] = useState<OpenMenu>(null)
   const [branchQuery, setBranchQuery] = useState('')
+  const [changelistQuery, setChangelistQuery] = useState('')
   const [projectQuery, setProjectQuery] = useState('')
   const [addMenuOpen, setAddMenuOpen] = useState(false)
   const addMenuCloseTimer = useRef<number | null>(null)
   const addProject = useAddProjectFlow()
   const [busy, setBusy] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
+  const [createChangelistOpen, setCreateChangelistOpen] = useState(false)
   const [handoffMode, setHandoffMode] = useState<ComposerWorkspaceMode | null>(null)
   const [branchDraft, setBranchDraft] = useState('dotcraft/')
+  const [changelistDraft, setChangelistDraft] = useState('')
   const footerRef = useRef<HTMLDivElement>(null)
   const isThread = variant === 'thread'
   const threadBusy = thread?.runtime?.busy === true
@@ -280,11 +285,37 @@ export function ComposerWorkspaceFooter({
     isDefaultChatWorkspacePathCandidate(workspacePath) ||
     (chat != null && projectIdentity(chat) === selectedProjectId)
   const branchActionPath = workspacePath.trim()
+  const sourceControlEnabled = capabilities?.sourceControlManagement === true
+  const ensureSourceControl = useSourceControlStore((s) => s.ensure)
+  const sourceControlWorkspacePath = useSourceControlStore((s) => s.workspacePath)
+  const sourceControlProvider = useSourceControlStore((s) =>
+    s.workspacePath === branchActionPath ? s.effectiveProvider : null
+  )
+  const perforceChangelistAvailable = useSourceControlStore((s) =>
+    s.workspacePath === branchActionPath ? s.perforceChangelist === true : false
+  )
+  const isPerforceProvider = sourceControlProvider === 'perforce'
+  const sourceControlProviderLoading =
+    sourceControlEnabled && Boolean(branchActionPath) && (
+      sourceControlWorkspacePath !== branchActionPath ||
+      sourceControlProvider == null
+    )
+  const hideGitForSourceControl = sourceControlEnabled && sourceControlProvider != null && sourceControlProvider !== 'git'
+  const isPerforceWorkspace = variant === 'thread' && isPerforceProvider && perforceChangelistAvailable && Boolean(thread?.id)
+  const changelistState = usePerforceChangelistStore((s) =>
+    thread?.id ? s.byThreadId[thread.id] : undefined
+  )
+  const changelistSnapshot = changelistState?.snapshot ?? null
+  const changelists = changelistSnapshot?.changelists ?? [
+    { id: 'default', isDefault: true, description: t('workspaceFooter.changelistDefault'), user: '', client: '', status: 'pending' }
+  ]
+  const selectedChangelist = changelistSnapshot?.target?.changelist ?? 'default'
+  const changelistControlsReady = changelistState?.status === 'available'
   const branchActionPathKey = normalizeGitPathKey(branchActionPath)
   const gitPathState = useGitStore((s) =>
     branchActionPathKey ? s.branchesByPath[branchActionPathKey] : undefined
   )
-  const gitAvailability = remoteWorkspace || !branchActionPath || foregroundIsChat
+  const gitAvailability = remoteWorkspace || !branchActionPath || foregroundIsChat || hideGitForSourceControl
     ? 'unavailable'
     : gitPathState?.status ?? 'checking'
   const branches = gitPathState?.snapshot ?? null
@@ -348,6 +379,21 @@ export function ComposerWorkspaceFooter({
     return () => document.removeEventListener('mousedown', closeOnOutsideClick)
   }, [])
 
+  useEffect(() => {
+    ensureSourceControl(branchActionPath, sourceControlEnabled)
+  }, [branchActionPath, ensureSourceControl, sourceControlEnabled])
+
+  useEffect(() => {
+    if (!isPerforceWorkspace || !thread?.id) return
+    void usePerforceChangelistStore.getState().ensure(thread.id)
+  }, [isPerforceWorkspace, thread?.id])
+
+  useEffect(() => {
+    if (openMenu !== 'changelist') {
+      setChangelistQuery('')
+    }
+  }, [openMenu])
+
   const cancelAddMenuClose = useCallback(() => {
     if (addMenuCloseTimer.current != null) {
       window.clearTimeout(addMenuCloseTimer.current)
@@ -398,25 +444,32 @@ export function ComposerWorkspaceFooter({
   ])
 
   const loadBranches = useCallback(async (options: { force?: boolean } = {}) => {
-    if (remoteWorkspace || !branchActionPath || foregroundIsChat) {
+    if (sourceControlProviderLoading) {
+      return
+    }
+    if (remoteWorkspace || !branchActionPath || foregroundIsChat || hideGitForSourceControl) {
       hideForUnavailableGit()
       return
     }
     await useGitStore.getState().ensureBranches(branchActionPath, { force: options.force })
-  }, [branchActionPath, foregroundIsChat, hideForUnavailableGit, remoteWorkspace])
+  }, [branchActionPath, foregroundIsChat, hideForUnavailableGit, hideGitForSourceControl, remoteWorkspace, sourceControlProviderLoading])
 
   useEffect(() => {
-    if (remoteWorkspace || !branchActionPath || foregroundIsChat) {
+    if (sourceControlProviderLoading) {
+      return
+    }
+    if (remoteWorkspace || !branchActionPath || foregroundIsChat || hideGitForSourceControl) {
       hideForUnavailableGit()
       return
     }
     void loadBranches()
-  }, [branchActionPath, foregroundIsChat, hideForUnavailableGit, loadBranches, remoteWorkspace])
+  }, [branchActionPath, foregroundIsChat, hideForUnavailableGit, hideGitForSourceControl, loadBranches, remoteWorkspace, sourceControlProviderLoading])
 
   useEffect(() => {
+    if (sourceControlProviderLoading) return
     if (gitAvailability !== 'unavailable') return
     hideForUnavailableGit()
-  }, [gitAvailability, hideForUnavailableGit])
+  }, [gitAvailability, hideForUnavailableGit, sourceControlProviderLoading])
 
   useEffect(() => {
     if (variant !== 'welcome' || mode !== 'worktree' || baseRef || !branches) return
@@ -437,6 +490,15 @@ export function ComposerWorkspaceFooter({
     if (!query) return values
     return values.filter((branch) => branch.name.toLowerCase().includes(query))
   }, [branchQuery, branches])
+
+  const filteredChangelists = useMemo(() => {
+    const query = changelistQuery.trim().toLowerCase()
+    if (!query) return changelists
+    return changelists.filter((entry) =>
+      changelistLabel(entry.id).toLowerCase().includes(query) ||
+      entry.description.toLowerCase().includes(query)
+    )
+  }, [changelistQuery, changelists])
 
   async function selectBranch(branchName: string): Promise<void> {
     setOpenMenu(null)
@@ -491,6 +553,37 @@ export function ComposerWorkspaceFooter({
     }
   }
 
+  async function selectChangelist(changelist: string): Promise<void> {
+    if (!thread?.id) return
+    setOpenMenu(null)
+    setBusy(true)
+    try {
+      await usePerforceChangelistStore.getState().setTarget(thread.id, changelist)
+      addToast(t('workspaceFooter.changelistSelected', { changelist: changelistLabel(changelist) }), 'success')
+    } catch (err) {
+      addToast(t('workspaceFooter.changelistFailed', { error: err instanceof Error ? err.message : String(err) }), 'error')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function createChangelist(): Promise<void> {
+    if (!thread?.id) return
+    setBusy(true)
+    try {
+      const created = await usePerforceChangelistStore.getState().createChangelist(thread.id, changelistDraft)
+      await usePerforceChangelistStore.getState().ensure(thread.id, { force: true })
+      setCreateChangelistOpen(false)
+      setOpenMenu(null)
+      setChangelistDraft('')
+      addToast(t('workspaceFooter.changelistCreated', { changelist: changelistLabel(created.id) }), 'success')
+    } catch (err) {
+      addToast(t('workspaceFooter.changelistFailed', { error: err instanceof Error ? err.message : String(err) }), 'error')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const handoffDialog = variant === 'thread' && handoffMode && thread ? (
     <WorktreeHandoffDialog
       key="handoff-dialog"
@@ -505,11 +598,12 @@ export function ComposerWorkspaceFooter({
       onComplete={() => { void loadBranches({ force: true }) }}
     />
   ) : null
-  const showFooterControls = !foregroundIsChat && !remoteWorkspace && Boolean(branchActionPath) && gitAvailability !== 'unavailable'
+  const showGitFooterControls = !foregroundIsChat && !remoteWorkspace && Boolean(branchActionPath) && gitAvailability !== 'unavailable'
+  const showPerforceFooterControls = isPerforceWorkspace && Boolean(thread?.id)
 
   return (
     <>
-    {(showProjectSelector || showFooterControls) && (
+    {(showProjectSelector || showGitFooterControls || showPerforceFooterControls) && (
       <div ref={footerRef} style={footerStyle}>
       {showProjectSelector && (
         <div style={{ position: 'relative' }}>
@@ -605,7 +699,7 @@ export function ComposerWorkspaceFooter({
           {addProject.dialog}
         </div>
       )}
-      {showFooterControls && (
+      {showGitFooterControls && (
         <>
       <div style={{ position: 'relative' }}>
         <WorkspaceFooterPill
@@ -750,6 +844,94 @@ export function ComposerWorkspaceFooter({
         document.body
       )}
         </>
+      )}
+      {showPerforceFooterControls && (
+        <div style={{ position: 'relative' }}>
+          <WorkspaceFooterPill
+            disabled={busy}
+            open={openMenu === 'changelist'}
+            onClick={() => setOpenMenu(openMenu === 'changelist' ? null : 'changelist')}
+          >
+            <ListChecks size={15} strokeWidth={1.8} aria-hidden />
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {changelistLabel(selectedChangelist)}
+            </span>
+            <ChevronDown size={14} strokeWidth={1.8} aria-hidden />
+          </WorkspaceFooterPill>
+          {openMenu === 'changelist' && (
+            <div style={{ ...menuStyle, width: '320px' }}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                height: '32px',
+                padding: '0 8px',
+                color: 'var(--text-dimmed)'
+              }}>
+                <Search size={14} strokeWidth={1.8} aria-hidden />
+                <input
+                  value={changelistQuery}
+                  onChange={(e) => setChangelistQuery(e.target.value)}
+                  placeholder={t('workspaceFooter.searchChangelists')}
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    border: 'none',
+                    outline: 'none',
+                    background: 'transparent',
+                    color: 'var(--text-primary)',
+                    font: 'inherit'
+                  }}
+                />
+              </div>
+              <div style={{ maxHeight: '220px', overflowY: 'auto', padding: '4px 0' }}>
+                {filteredChangelists.length === 0 ? (
+                  <div style={{ padding: '8px', color: 'var(--text-dimmed)' }}>
+                    {changelistControlsReady ? t('workspaceFooter.noChangelists') : t('workspaceFooter.loadingChangelists')}
+                  </div>
+                ) : filteredChangelists.map((entry) => (
+                  <FooterMenuButton
+                    key={entry.id}
+                    icon={<ListChecks size={14} strokeWidth={1.8} aria-hidden />}
+                    checked={selectedChangelist === entry.id}
+                    disabled={busy}
+                    onClick={() => { void selectChangelist(entry.id) }}
+                  >
+                    <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {changelistLabel(entry.id)}
+                      {entry.description ? (
+                        <span style={{ color: 'var(--text-dimmed)' }}> · {entry.description}</span>
+                      ) : null}
+                    </span>
+                  </FooterMenuButton>
+                ))}
+              </div>
+              <div
+                style={{
+                  height: '1px',
+                  background: 'color-mix(in srgb, var(--text-primary) 9%, transparent)',
+                  margin: '6px 8px'
+                }}
+              />
+              <FooterMenuButton
+                icon={<Plus size={15} strokeWidth={1.8} aria-hidden />}
+                onClick={() => setCreateChangelistOpen(true)}
+              >
+                <span>{t('workspaceFooter.createChangelist')}</span>
+              </FooterMenuButton>
+            </div>
+          )}
+        </div>
+      )}
+      {createChangelistOpen && createPortal(
+        <CreateChangelistDialog
+          value={changelistDraft}
+          busy={busy}
+          onChange={setChangelistDraft}
+          onCancel={() => setCreateChangelistOpen(false)}
+          onConfirm={() => { void createChangelist() }}
+        />,
+        document.body
       )}
       </div>
     )}
@@ -941,6 +1123,105 @@ function CreateBranchDialog({
             }}
           >
             {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function CreateChangelistDialog({
+  value,
+  busy,
+  onChange,
+  onCancel,
+  onConfirm
+}: {
+  value: string
+  busy: boolean
+  onChange: (value: string) => void
+  onCancel: () => void
+  onConfirm: () => void
+}): JSX.Element {
+  const t = useT()
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent): void {
+      if (event.key === 'Escape') onCancel()
+      if ((event.metaKey || event.ctrlKey) && event.key === 'Enter' && !busy) onConfirm()
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [busy, onCancel, onConfirm])
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="create-changelist-title"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 10000,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'var(--overlay-scrim)'
+      }}
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onCancel()
+      }}
+    >
+      <div
+        style={{
+          width: '420px',
+          maxWidth: 'calc(100vw - 48px)',
+          padding: '22px',
+          borderRadius: '10px',
+          background: 'var(--bg-secondary)',
+          boxShadow: 'var(--shadow-level-3)'
+        }}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <h2 id="create-changelist-title" style={{ margin: '0 0 16px', fontSize: '18px', color: 'var(--text-primary)' }}>
+          {t('workspaceFooter.createChangelistTitle')}
+        </h2>
+        <label style={{ display: 'grid', gap: '8px', color: 'var(--text-primary)', fontSize: '13px', fontWeight: 600 }}>
+          {t('workspaceFooter.changelistDescription')}
+          <textarea
+            value={value}
+            autoFocus
+            rows={4}
+            onChange={(e) => onChange(e.target.value)}
+            style={{
+              minHeight: '96px',
+              resize: 'vertical',
+              borderRadius: '8px',
+              border: 'none',
+              background: 'var(--bg-tertiary)',
+              color: 'var(--text-primary)',
+              padding: '10px 12px',
+              font: 'inherit',
+              outline: 'none'
+            }}
+          />
+        </label>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
+          <button type="button" onClick={onCancel} style={{ ...dialogButtonStyle, background: 'var(--bg-tertiary)', color: 'var(--text-primary)' }}>
+            {t('workspaceFooter.close')}
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onConfirm}
+            style={{
+              ...dialogButtonStyle,
+              background: 'var(--text-primary)',
+              color: 'var(--bg-primary)',
+              opacity: busy ? 0.55 : 1
+            }}
+          >
+            {t('workspaceFooter.create')}
           </button>
         </div>
       </div>

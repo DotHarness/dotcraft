@@ -12,6 +12,7 @@ using DotCraft.Mcp;
 using DotCraft.Plugins;
 using DotCraft.Protocol.AppServer;
 using DotCraft.Security;
+using DotCraft.SourceControl;
 using DotCraft.Sessions;
 using DotCraft.Skills;
 using DotCraft.Logging;
@@ -2873,6 +2874,34 @@ public sealed partial class SessionService(
         CancellationToken ct = default)
         => await ThreadConfig.UpdateAsync(threadId, config, ct);
 
+    /// <inheritdoc/>
+    public async Task<SessionThread> UpdateThreadSourceControlTargetAsync(
+        string threadId,
+        ThreadSourceControlTarget? target,
+        CancellationToken ct = default)
+    {
+        using (await Gate.AcquireAsync(threadId, ct))
+        {
+            var thread = await GetOrLoadThreadAsync(threadId, ct);
+            if (target == null)
+            {
+                ThreadSourceControlMetadata.ClearSourceControlTarget(thread.Metadata);
+            }
+            else if (string.Equals(target.Provider, "perforce", StringComparison.OrdinalIgnoreCase))
+            {
+                ThreadSourceControlMetadata.ApplyPerforceTarget(thread.Metadata, target.Changelist);
+            }
+            else
+            {
+                throw new ArgumentException("Only provider 'perforce' is supported for thread source-control targets.");
+            }
+
+            await PersistThreadWithMaterializationAsync(thread, ct);
+            ThreadUpdatedForBroadcast?.Invoke(thread);
+            return thread;
+        }
+    }
+
     /// <inheritdoc />
     public async Task RefreshThreadAgentAsync(string threadId, CancellationToken ct = default)
         => await ThreadConfig.RefreshAgentAsync(threadId, ct);
@@ -4047,6 +4076,8 @@ public sealed partial class SessionService(
             await toolContext.McpClientManager.WaitForStartupCompletionAsync(ct);
         }
 
+        toolContext.SourceControlWriteCoordinator = CreateSourceControlWriteCoordinator(currentConfig, toolContext.WorkspacePath, thread);
+
         toolContext.DeferredToolRegistry = null;
         var capabilityPolicy = new ThreadCapabilityPolicyEvaluator(config, toolContext);
         toolContext.ToolCallPolicy = capabilityPolicy.EvaluateCall;
@@ -4139,6 +4170,42 @@ public sealed partial class SessionService(
 
     private static IChatClient ResolveThreadChatClient(ToolProviderContext baseContext, EffectiveModelRuntime runtime) =>
         baseContext.ChatClientRegistry.GetChatClient(runtime);
+
+    private static ISourceControlWriteCoordinator? CreateSourceControlWriteCoordinator(
+        AppConfig config,
+        string workspacePath,
+        SessionThread thread)
+    {
+        var sourceControl = config.SourceControl;
+        var effective = SourceControlResolver.ResolveEffectiveProvider(sourceControl, workspacePath);
+        if (!string.Equals(effective, SourceControlProviders.Perforce, StringComparison.OrdinalIgnoreCase)
+            || !sourceControl.Perforce.Online)
+        {
+            return null;
+        }
+
+        var perforce = sourceControl.Perforce;
+        var timeoutSeconds = perforce.TimeoutSeconds > 0 ? perforce.TimeoutSeconds : 30;
+        var executable = string.IsNullOrWhiteSpace(perforce.P4ExecutablePath) ? "p4" : perforce.P4ExecutablePath.Trim();
+        var env = new Dictionary<string, string>(StringComparer.Ordinal);
+        var mode = SourceControlConnectionModes.Normalize(sourceControl.ConnectionMode);
+        if (mode == SourceControlConnectionModes.P4Config && !string.IsNullOrWhiteSpace(perforce.P4ConfigName))
+            env["P4CONFIG"] = perforce.P4ConfigName.Trim();
+
+        var runner = new DefaultPerforceCommandRunner(executable, workspacePath, TimeSpan.FromSeconds(timeoutSeconds), env);
+        return new PerforceFileWriteCoordinator(
+            runner,
+            new PerforceWorkspaceCommandOptions
+            {
+                WorkspacePath = workspacePath,
+                ConnectionMode = mode,
+                Port = perforce.Port,
+                Client = perforce.Client,
+                User = perforce.User,
+                Charset = perforce.Charset
+            },
+            () => ThreadSourceControlMetadata.GetPerforceTarget(thread.Metadata).Changelist);
+    }
 
     private static ToolProviderContext CloneContextWithChatClient(
         ToolProviderContext source,

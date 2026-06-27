@@ -403,7 +403,7 @@ Built-in channels do not negotiate these capabilities over `initialize`; they pr
 | `capabilities.providerManagement` | boolean | Server supports personal model provider management methods (`provider/list`, `provider/create`, `provider/update`, `provider/delete`, `provider/test`). |
 | `capabilities.modelCatalogManagement` | boolean | Server supports model catalog methods (`model/list`). |
 | `capabilities.workspaceConfigManagement` | boolean | Server supports workspace configuration methods (`workspace/config/schema`, `workspace/config/update`). |
-| `capabilities.sourceControlManagement` | boolean | Server supports workspace source control binding methods (`sourceControl/get`, `sourceControl/update`, `sourceControl/test`). |
+| `capabilities.sourceControlManagement` | boolean | Server supports workspace source control binding methods (`sourceControl/get`, `sourceControl/update`, `sourceControl/test`) and source-control provider extensions advertised by `sourceControl/get.capabilities`, such as Perforce pending changelist selection/preparation. |
 | `capabilities.memoryManagement` | boolean | Server supports workspace memory management methods (`memory/reset`). |
 | `capabilities.dreams` | boolean | Server supports workspace Dreams status, manual/create run requests, review lifecycle, and Dreams settings. |
 | `capabilities.mcpManagement` | boolean | Server supports MCP configuration management methods (`mcp/list`, `mcp/get`, `mcp/upsert`, `mcp/remove`). |
@@ -6082,11 +6082,11 @@ Semantics:
 
 ### 25A.1 Scope
 
-These methods bind a workspace to a source control provider and validate provider connectivity. They cover **selection, connection configuration, connectivity testing, and binding** only. They do **not** perform version control operations (no commit, changelist, shelve, or submit).
+These methods bind a workspace to a source control provider, validate provider connectivity, and expose the current v1 Perforce pending-changelist workflow. They cover **selection, connection configuration, connectivity testing, workspace binding, thread-scoped Perforce write target selection, pending changelist creation, and changelist preparation**. They do **not** submit, shelve, or implement a general-purpose version control console.
 
 Connectivity testing runs in the **AppServer environment** with the workspace path as the working directory, so results reflect the machine, PATH, and credential context that actually owns the workspace (correct for both local and remote AppServers). Clients never execute `p4` locally.
 
-Clients must check `capabilities.sourceControlManagement` in `initialize` before calling these methods (`sourceControl/get`, `sourceControl/update`, `sourceControl/test`). If absent or `false`, the server returns `-32601` (Method not found).
+Clients must check `capabilities.sourceControlManagement` in `initialize` before calling these methods (`sourceControl/get`, `sourceControl/update`, `sourceControl/test`, `sourceControl/changelist/*`, `sourceControl/threadTarget/*`). If absent or `false`, the server returns `-32601` (Method not found). Clients must also check `sourceControl/get.capabilities.perforceChangelist` before showing Perforce changelist UI; it is false while the Perforce binding is offline, and `perforceShelve`/`perforceSubmit` remain `false` in this version.
 
 Credentials are never persisted: `sourceControl/update` rejects any password field, and the `password` supplied to `sourceControl/test` is transient (used only for a one-shot login attempt, never written to config and never echoed in results or logs). Long-lived Perforce authentication relies on the server-side ticket (`P4TICKETS`).
 
@@ -6121,7 +6121,7 @@ Return the effective source control binding snapshot for the current workspace.
   "capabilities": {
     "gitCommit": false,
     "perforceBinding": true,
-    "perforceChangelist": false,
+    "perforceChangelist": true,
     "perforceShelve": false,
     "perforceSubmit": false
   }
@@ -6133,10 +6133,10 @@ Return the effective source control binding snapshot for the current workspace.
 | `provider` | string | User-selected provider: `none`, `git`, or `perforce` (default `git`). |
 | `effectiveProvider` | string | Resolved provider; equals `provider` in this version (no auto-detection). A legacy stored `auto` value normalizes to `git`. |
 | `connectionMode` | string \| null | Perforce connection mode: `p4config` or `manual`. Null for non-Perforce providers. |
-| `status` | string | Derived binding status (see [25A.5](#25a5-status-and-error-taxonomy)). `sourceControl/get` never runs `p4`; live connectivity comes from `sourceControl/test`. |
+| `status` | string | Derived binding status (see [25A.9](#25a9-status-and-error-taxonomy)). `sourceControl/get` never runs `p4`; live connectivity comes from `sourceControl/test`. |
 | `workspacePath` | string | Absolute workspace path owned by this AppServer. |
 | `perforce` | object \| null | Non-sensitive Perforce connection fields. Null when no Perforce config exists. Never contains a password or ticket. |
-| `capabilities` | object | Booleans gating client UI. In this version `perforceChangelist`/`perforceShelve`/`perforceSubmit` are always `false`; `gitCommit` is `true` only when `effectiveProvider` is `git`. |
+| `capabilities` | object | Booleans gating client UI. `perforceChangelist` is `true` only when `effectiveProvider` is `perforce` and `perforce.online` is true; `perforceShelve` and `perforceSubmit` are always `false` in this version. `gitCommit` is `true` only when `effectiveProvider` is `git`. |
 
 **Semantics**:
 
@@ -6164,7 +6164,7 @@ Persist the workspace source control binding (non-sensitive fields only).
 
 - Writes only non-sensitive values to the workspace `.craft/config.json` `SourceControl` section, preserving unrelated configuration and key casing.
 - A `password` (or any `P4PASSWD`-equivalent) field in params is rejected with `-32602` (Invalid params). Passwords are never persisted.
-- Binding is allowed regardless of test outcome (a workspace may be bound while `status` is `notTested`); clients surface "Not verified" rather than blocking offline/VPN scenarios.
+- Binding is allowed regardless of test outcome (a workspace may be bound while `status` is `notTested` or `offline`); clients surface "Not verified" / offline state rather than blocking offline/VPN scenarios. Clients may save an unverified Perforce binding with `perforce.online = false` until `sourceControl/test` succeeds.
 - On success the server emits `workspace/configChanged` with `source: "sourceControl/update"` and region `sourceControl`.
 
 ### 25A.4 `sourceControl/test`
@@ -6221,7 +6221,7 @@ Validate Perforce connectivity in the AppServer environment and return a structu
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `status` | string | Overall outcome (see [25A.5](#25a5-status-and-error-taxonomy)). |
+| `status` | string | Overall outcome (see [25A.9](#25a9-status-and-error-taxonomy)). |
 | `code` | string | Stable machine-readable result code. Clients map it to localized copy. |
 | `summary` | string | One-line English summary for badge/toast; clients may localize via `code`. |
 | `fallbackText` | string | English fallback detail when the client has no localized string for `code`. |
@@ -6231,11 +6231,134 @@ Validate Perforce connectivity in the AppServer environment and return a structu
 **Semantics**:
 
 - The server resolves the `p4` executable (params `p4ExecutablePath`, else the AppServer `PATH`), then runs a read-only sequence in the workspace directory: version probe, `p4 info`, `p4 login -s`, `p4 client -o`, and a `p4 where`/client-root mapping check. Connection parameters are passed as global options (`-p`/`-c`/`-u`/`-C`/`-d`) ahead of each command.
-- Each step maps failures to a `code` in [25A.5](#25a5-status-and-error-taxonomy). Raw `p4` stderr is never the primary message and is redacted of any credential-bearing content.
+- Each step maps failures to a `code` in [25A.9](#25a9-status-and-error-taxonomy). Raw `p4` stderr is never the primary message and is redacted of any credential-bearing content.
 - SSL trust is reported as `SSLTrustRequired`; this version surfaces it but does not run `p4 trust` from the UI.
 - The `password`, if provided, is passed to `p4 login` via stdin only and discarded immediately.
 
-### 25A.5 Status and Error Taxonomy
+### 25A.5 Thread Target Shape
+
+Perforce changelist targets are thread-scoped. The server stores them in `SessionThread.Metadata` using server-owned keys such as `sourceControl.provider = "perforce"` and `sourceControl.perforce.changelist = "default" | "<number>"`. Clients read/write them only through the RPCs below; handlers must not mutate persisted thread state directly outside `ISessionService`.
+
+`SourceControlThreadTarget`:
+
+```json
+{
+  "provider": "perforce",
+  "changelist": "default"
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `provider` | string | Currently `perforce`. |
+| `changelist` | string | `"default"` or a numbered pending changelist id encoded as a string, e.g. `"12345"`. Clients must not send numbers. |
+
+New and ordinary threads default to `{ provider: "perforce", changelist: "default" }` when the workspace provider is Perforce. Forked threads must not inherit an existing Perforce target to avoid unintentionally sharing a pending changelist across separate work streams.
+
+### 25A.6 `sourceControl/threadTarget/get` and `sourceControl/threadTarget/update`
+
+Read or update the current thread's Perforce write target.
+
+`sourceControl/threadTarget/get`
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `threadId` | string | yes | Target thread. |
+
+Result: `{ "target": SourceControlThreadTarget }`
+
+`sourceControl/threadTarget/update`
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `threadId` | string | yes | Target thread. |
+| `target` | SourceControlThreadTarget \| null | no | New target. `null` clears stored source-control target metadata; a subsequent read returns the default target. |
+
+Result: `{ "target": SourceControlThreadTarget }`
+
+On update, the server persists via `ISessionService` and emits `thread/updated`. Clients merge the returned target and the broadcast thread metadata. Changelist existence is validated by operations that need a live Perforce server; a bare target update is a metadata write.
+
+### 25A.7 `sourceControl/changelist/list`
+
+List the default changelist plus the current user/client's pending numbered Perforce changelists, and return the current thread target.
+
+**Direction**: client -> server (request)
+
+**Params**: `{ "threadId": "<thread-id>" }`
+
+**Result**:
+
+```json
+{
+  "changelists": [
+    { "id": "default", "isDefault": true, "description": "Default changelist", "user": "alice", "client": "game-main-alice", "status": "pending" },
+    { "id": "12345", "isDefault": false, "description": "Fix asset import", "user": "alice", "client": "game-main-alice", "status": "pending" }
+  ],
+  "target": { "provider": "perforce", "changelist": "default" }
+}
+```
+
+The server synthesizes the `default` entry and obtains numbered entries with `p4 -ztag changes -s pending -u <user> -c <client>` using the AppServer Perforce connection settings. Live changelist RPCs require `effectiveProvider = "perforce"` and `perforce.online = true`; when offline, the server must not run `p4` and should reject live changelist operations as unavailable.
+
+### 25A.8 `sourceControl/changelist/create` and `sourceControl/changelist/prepare`
+
+`sourceControl/changelist/create` creates a numbered pending changelist with `p4 change -i`.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `threadId` | string | yes | Target thread. |
+| `description` | string | no | Changelist description. Empty descriptions are allowed and normalized by the server. |
+| `setAsTarget` | boolean | no | Default `true`. When true, stores the new changelist as the thread target and emits `thread/updated`. |
+
+Result:
+
+```json
+{
+  "changelist": { "id": "12345", "isDefault": false, "description": "Fix asset import", "user": "alice", "client": "game-main-alice", "status": "pending" },
+  "target": { "provider": "perforce", "changelist": "12345" }
+}
+```
+
+`sourceControl/changelist/prepare` prepares a pending changelist for the current thread's written files. It never submits or shelves.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `threadId` | string | yes | Target thread. |
+| `description` | string | no | Changelist description to create/update when applicable. |
+| `paths` | string[] | yes | Workspace-relative paths for this thread's files. Empty is invalid. |
+| `target` | string | no | Optional override target. Omitted or empty uses the stored thread target; `"default"` means create a numbered changelist first. |
+
+Result:
+
+```json
+{
+  "status": "ok",
+  "code": "Created",
+  "changelist": "12345",
+  "created": true,
+  "movedPaths": ["src/a.cs"],
+  "skippedPaths": [],
+  "warnings": [],
+  "errors": []
+}
+```
+
+Prepare semantics:
+
+- If target is `"default"`, the server creates a numbered pending changelist and then moves this thread's files into it with `p4 reopen -c <change> -- <paths>`. On success it updates the thread target to the new id and emits `thread/updated`.
+- If target is a numbered changelist, the server confirms it exists with `p4 change -o <change>`, updates its description when provided, and moves default-opened/current-thread files into it.
+- If a file is already opened in a different pending changelist, v1 leaves it there, adds the path to `skippedPaths`, and returns a warning with code `FileAlreadyInOtherChangelist`; it does not automatically move user-owned CLs.
+- Stable result/error codes include `Prepared`, `Created`, `NoFiles`, `Timeout`, `LoginRequired`, `ChangelistNotFound`, `FileAlreadyInOtherChangelist`, `P4ExecutableNotFound`, and `P4CommandFailed`.
+
+Tool write coordination:
+
+- When the effective workspace provider is `perforce` and source control is online, AppServer file tools coordinate writes against the current thread target.
+- Existing mapped files are opened with `p4 edit -c <target>` before `WriteFile`/`EditFile` writes. New files are added with `p4 add -c <target>` after a successful write.
+- If the target is a numbered changelist that no longer exists, the write fails with a stable source-control error and the client should ask the user to choose another target.
+- Files already opened in a different pending numbered changelist are not reopened by v1; the write may continue with a warning so user-owned changelist membership is preserved.
+- This protocol version does not define a general delete file tool. Future delete-type operations under Perforce MUST use `p4 delete -c <target>`.
+
+### 25A.9 Status and Error Taxonomy
 
 **Status** (`status` field of `sourceControl/get` and `sourceControl/test`):
 
@@ -6254,9 +6377,9 @@ Validate Perforce connectivity in the AppServer environment and return a structu
 
 Codes are stable wire contracts; servers emit `code` plus an English `fallbackText`, and clients own localization. New codes are forward-compatible and unknown codes must fall back to `fallbackText`.
 
-### 25A.6 Capability Advertisement
+### 25A.10 Capability Advertisement
 
-Clients must check `capabilities.sourceControlManagement` before calling source control methods. The server advertises it when a workspace `.craft` path is available (same gating as `workspaceConfigManagement`). `sourceControl/update` participates in `workspace/configChanged` via the `sourceControl` region; clients that set `capabilities.configChange = false` simply do not receive the notification.
+Clients must check `capabilities.sourceControlManagement` before calling source control methods. The server advertises it when a workspace `.craft` path is available (same gating as `workspaceConfigManagement`). `sourceControl/get.capabilities.perforceChangelist` gates the Perforce changelist UI and RPCs and is false while Perforce is offline; `perforceShelve` and `perforceSubmit` remain false. `sourceControl/update` participates in `workspace/configChanged` via the `sourceControl` region; thread target changes use `thread/updated`.
 
 ## 26. Memory Management Methods
 

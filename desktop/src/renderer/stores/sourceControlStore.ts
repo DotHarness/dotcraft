@@ -13,6 +13,7 @@ interface SourceControlState {
   workspacePath: string | null
   effectiveProvider: string | null
   status: string | null
+  perforceChangelist: boolean | null
   ensure: (workspacePath: string | null | undefined, capable: boolean) => void
   refresh: (workspacePath: string | null | undefined, capable: boolean) => Promise<void>
 }
@@ -34,17 +35,18 @@ export const useSourceControlStore = create<SourceControlState>((set, get) => ({
   workspacePath: null,
   effectiveProvider: null,
   status: null,
+  perforceChangelist: null,
   ensure: (workspacePath, capable) => {
     if (!capable || !workspacePath) {
       if (get().workspacePath !== null) {
-        set({ workspacePath: null, effectiveProvider: null, status: null })
+        set({ workspacePath: null, effectiveProvider: null, status: null, perforceChangelist: null })
       }
       return
     }
     ensureNotificationSubscription()
     if (get().workspacePath === workspacePath) return
     // Set the target path optimistically so concurrent ensures dedupe to one fetch.
-    set({ workspacePath, effectiveProvider: null, status: null })
+    set({ workspacePath, effectiveProvider: null, status: null, perforceChangelist: null })
     void get().refresh(workspacePath, capable)
   },
   refresh: async (workspacePath, capable) => {
@@ -53,13 +55,20 @@ export const useSourceControlStore = create<SourceControlState>((set, get) => ({
       const snap = (await window.api.appServer.sendRequest('sourceControl/get', {}, 20_000)) as {
         effectiveProvider?: string
         status?: string
+        capabilities?: {
+          perforceChangelist?: boolean
+        }
       }
       // Ignore stale responses if the foreground workspace changed during the request.
       if (get().workspacePath !== workspacePath) return
-      set({ effectiveProvider: snap?.effectiveProvider ?? null, status: snap?.status ?? null })
+      set({
+        effectiveProvider: snap?.effectiveProvider ?? null,
+        status: snap?.status ?? null,
+        perforceChangelist: snap?.capabilities?.perforceChangelist ?? null
+      })
     } catch {
       if (get().workspacePath !== workspacePath) return
-      set({ effectiveProvider: null, status: null })
+      set({ effectiveProvider: null, status: null, perforceChangelist: null })
     }
   }
 }))

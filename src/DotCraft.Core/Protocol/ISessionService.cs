@@ -388,6 +388,15 @@ public interface ISessionService
         CancellationToken ct = default);
 
     /// <summary>
+    /// Updates the per-thread source-control write target metadata.
+    /// </summary>
+    Task<SessionThread> UpdateThreadSourceControlTargetAsync(
+        string threadId,
+        ThreadSourceControlTarget? target,
+        CancellationToken ct = default) =>
+        throw new NotSupportedException("Thread source-control target updates are not supported by this session service.");
+
+    /// <summary>
     /// Returns the full Thread state including all Turns and Items.
     /// </summary>
     Task<SessionThread> GetThreadAsync(string threadId, CancellationToken ct = default);

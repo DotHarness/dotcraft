@@ -4,6 +4,8 @@ import { LocaleProvider } from '../contexts/LocaleContext'
 import { ComposerWorkspaceFooter } from '../components/conversation/ComposerWorkspaceFooter'
 import { useConnectionStore } from '../stores/connectionStore'
 import { normalizeGitPathKey, useGitStore, type GitBranchListSnapshot } from '../stores/gitStore'
+import { usePerforceChangelistStore } from '../stores/perforceChangelistStore'
+import { useSourceControlStore } from '../stores/sourceControlStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useToastStore } from '../stores/toastStore'
 import { useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
@@ -96,10 +98,13 @@ describe('ComposerWorkspaceFooter', () => {
     vi.clearAllMocks()
     useConnectionStore.getState().reset()
     useGitStore.getState().reset()
+    usePerforceChangelistStore.getState().reset()
+    useSourceControlStore.setState({ workspacePath: null, effectiveProvider: null, status: null, perforceChangelist: null })
     useThreadStore.getState().reset()
     useWorkspaceProjectsStore.getState().reset()
     useToastStore.setState({ toasts: [] })
     settingsGet.mockResolvedValue({ locale: 'en' })
+    appServerSendRequest.mockResolvedValue({})
     gitListBranches.mockResolvedValue({
       current: 'main',
       detachedHead: null,
@@ -308,6 +313,297 @@ describe('ComposerWorkspaceFooter', () => {
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'feat/example' })).toBeInTheDocument()
     })
+  })
+
+  it('shows a Perforce changelist selector and updates the thread target', async () => {
+    const thread = makeThread()
+    useConnectionStore.setState({
+      status: 'connected',
+      capabilities: {
+        gitWorktrees: true,
+        sourceControlManagement: true
+      }
+    })
+    useSourceControlStore.setState({
+      workspacePath: 'fixtures\\sample-app',
+      effectiveProvider: 'perforce',
+      status: 'connected',
+      perforceChangelist: true
+    })
+    usePerforceChangelistStore.setState({
+      byThreadId: {
+        'thread-1': {
+          threadId: 'thread-1',
+          status: 'available',
+          snapshot: {
+            changelists: [
+              { id: 'default', isDefault: true, description: 'Default changelist', user: 'me', client: 'ws', status: 'pending' },
+              { id: '123', isDefault: false, description: 'Task CL', user: 'me', client: 'ws', status: 'pending' }
+            ],
+            target: { provider: 'perforce', changelist: 'default' }
+          },
+          errorMessage: null,
+          requestId: 1
+        }
+      }
+    })
+    appServerSendRequest.mockResolvedValue({
+      target: { provider: 'perforce', changelist: '123' }
+    })
+
+    renderFooter(thread, 'local')
+
+    expect(screen.queryByRole('button', { name: 'Local' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'CL default' }))
+    fireEvent.click(screen.getByRole('button', { name: /CL 123.*Task CL/ }))
+
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith(
+        'sourceControl/threadTarget/update',
+        { threadId: 'thread-1', target: { provider: 'perforce', changelist: '123' } },
+        20_000
+      )
+    })
+    expect(screen.getByRole('button', { name: 'CL 123' })).toBeInTheDocument()
+  })
+
+  it('creates a Perforce changelist from the selector and sets it as the thread target', async () => {
+    const thread = makeThread()
+    useConnectionStore.setState({
+      status: 'connected',
+      capabilities: {
+        gitWorktrees: true,
+        sourceControlManagement: true
+      }
+    })
+    useSourceControlStore.setState({
+      workspacePath: 'fixtures\\sample-app',
+      effectiveProvider: 'perforce',
+      status: 'connected',
+      perforceChangelist: true
+    })
+    usePerforceChangelistStore.setState({
+      byThreadId: {
+        'thread-1': {
+          threadId: 'thread-1',
+          status: 'available',
+          snapshot: {
+            changelists: [
+              { id: 'default', isDefault: true, description: 'Default changelist', user: 'me', client: 'ws', status: 'pending' }
+            ],
+            target: { provider: 'perforce', changelist: 'default' }
+          },
+          errorMessage: null,
+          requestId: 1
+        }
+      }
+    })
+    appServerSendRequest.mockImplementation(async (method: string) => {
+      if (method === 'sourceControl/changelist/create') {
+        return {
+          changelist: { id: '777', isDefault: false, description: 'New work', user: 'me', client: 'ws', status: 'pending' },
+          target: { provider: 'perforce', changelist: '777' }
+        }
+      }
+      if (method === 'sourceControl/changelist/list') {
+        return {
+          changelists: [
+            { id: 'default', isDefault: true, description: 'Default changelist', user: 'me', client: 'ws', status: 'pending' },
+            { id: '777', isDefault: false, description: 'New work', user: 'me', client: 'ws', status: 'pending' }
+          ],
+          target: { provider: 'perforce', changelist: '777' }
+        }
+      }
+      return {}
+    })
+
+    renderFooter(thread, 'local')
+
+    fireEvent.click(screen.getByRole('button', { name: 'CL default' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Create changelist...' }))
+    fireEvent.change(screen.getByLabelText('Changelist description'), {
+      target: { value: 'New work' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith(
+        'sourceControl/changelist/create',
+        { threadId: 'thread-1', description: 'New work', setAsTarget: true },
+        30_000
+      )
+    })
+    expect(await screen.findByRole('button', { name: 'CL 777' })).toBeInTheDocument()
+  })
+
+  it('hides Git and changelist controls for offline Perforce threads', () => {
+    const thread = makeThread()
+    useConnectionStore.setState({
+      status: 'connected',
+      capabilities: {
+        gitWorktrees: true,
+        sourceControlManagement: true
+      }
+    })
+    useSourceControlStore.setState({
+      workspacePath: 'fixtures\\sample-app',
+      effectiveProvider: 'perforce',
+      status: 'offline',
+      perforceChangelist: false
+    })
+    useGitStore.setState({
+      branchesByPath: {
+        [normalizeGitPathKey('fixtures\\sample-app')]: {
+          path: 'fixtures\\sample-app',
+          status: 'available',
+          snapshot: branchSnapshot('main'),
+          refreshing: false,
+          errorMessage: null,
+          updatedAt: Date.now(),
+          requestId: 1
+        }
+      }
+    })
+
+    renderFooter(thread, 'local')
+
+    expect(screen.queryByRole('button', { name: 'Local' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'main' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'CL default' })).not.toBeInTheDocument()
+    expect(gitListBranches).not.toHaveBeenCalled()
+  })
+
+  it('hides welcome Git worktree controls when the workspace provider is Perforce', async () => {
+    useConnectionStore.setState({
+      status: 'connected',
+      capabilities: {
+        gitWorktrees: true,
+        sourceControlManagement: true
+      }
+    })
+    appServerSendRequest.mockImplementation(async (method: string) => {
+      if (method === 'sourceControl/get') {
+        return {
+          effectiveProvider: 'perforce',
+          status: 'notTested',
+          capabilities: { perforceChangelist: true }
+        }
+      }
+      return {}
+    })
+    useGitStore.setState({
+      branchesByPath: {
+        [normalizeGitPathKey('fixtures\\sample-app')]: {
+          path: 'fixtures\\sample-app',
+          status: 'available',
+          snapshot: branchSnapshot('main'),
+          refreshing: false,
+          errorMessage: null,
+          updatedAt: Date.now(),
+          requestId: 1
+        }
+      }
+    })
+    const onWelcomeModeChange = vi.fn()
+    const onBaseRefChange = vi.fn()
+    const onWorktreeBranchNameChange = vi.fn()
+
+    const view = render(
+      <LocaleProvider>
+        <ComposerWorkspaceFooter
+          workspacePath="fixtures\\sample-app"
+          mode="worktree"
+          variant="welcome"
+          baseRef="main"
+          worktreeBranchName="dotcraft/sample-app"
+          onWelcomeModeChange={onWelcomeModeChange}
+          onBaseRefChange={onBaseRefChange}
+          onWorktreeBranchNameChange={onWorktreeBranchNameChange}
+        />
+      </LocaleProvider>
+    )
+
+    expect(gitListBranches).not.toHaveBeenCalled()
+    await waitFor(() => {
+      expect(onWelcomeModeChange).toHaveBeenCalledWith('local')
+    })
+    expect(onBaseRefChange).toHaveBeenCalledWith(null)
+    expect(onWorktreeBranchNameChange).toHaveBeenCalledWith(null)
+
+    view.rerender(
+      <LocaleProvider>
+        <ComposerWorkspaceFooter
+          workspacePath="fixtures\\sample-app"
+          mode="local"
+          variant="welcome"
+          baseRef={null}
+          worktreeBranchName={null}
+          onWelcomeModeChange={onWelcomeModeChange}
+          onBaseRefChange={onBaseRefChange}
+          onWorktreeBranchNameChange={onWorktreeBranchNameChange}
+        />
+      </LocaleProvider>
+    )
+
+    expect(screen.queryByRole('button', { name: 'New worktree' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'main' })).not.toBeInTheDocument()
+  })
+
+  it('keeps welcome Git worktree controls while source control provider is loading', async () => {
+    useConnectionStore.setState({
+      status: 'connected',
+      capabilities: {
+        gitWorktrees: true,
+        sourceControlManagement: true
+      }
+    })
+    useSourceControlStore.setState({
+      workspacePath: 'fixtures\\sample-app',
+      effectiveProvider: null,
+      status: null,
+      perforceChangelist: null
+    })
+    useGitStore.setState({
+      branchesByPath: {
+        [normalizeGitPathKey('fixtures\\sample-app')]: {
+          path: 'fixtures\\sample-app',
+          status: 'available',
+          snapshot: branchSnapshot('main'),
+          refreshing: false,
+          errorMessage: null,
+          updatedAt: Date.now(),
+          requestId: 1
+        }
+      }
+    })
+    const onWelcomeModeChange = vi.fn()
+    const onBaseRefChange = vi.fn()
+    const onWorktreeBranchNameChange = vi.fn()
+
+    render(
+      <LocaleProvider>
+        <ComposerWorkspaceFooter
+          workspacePath="fixtures\\sample-app"
+          mode="worktree"
+          variant="welcome"
+          baseRef="main"
+          worktreeBranchName="dotcraft/sample-app"
+          onWelcomeModeChange={onWelcomeModeChange}
+          onBaseRefChange={onBaseRefChange}
+          onWorktreeBranchNameChange={onWorktreeBranchNameChange}
+        />
+      </LocaleProvider>
+    )
+
+    expect(screen.getByRole('button', { name: 'New worktree' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'dotcraft/sample-app' })).toBeInTheDocument()
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(onWelcomeModeChange).not.toHaveBeenCalled()
+    expect(onBaseRefChange).not.toHaveBeenCalled()
+    expect(onWorktreeBranchNameChange).not.toHaveBeenCalled()
+    expect(gitListBranches).not.toHaveBeenCalled()
   })
 
   it('hides and resets welcome worktree choices after Git is confirmed unavailable', async () => {

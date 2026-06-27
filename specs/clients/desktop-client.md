@@ -464,6 +464,8 @@ Worktree execution:
 - Worktree indicators are compact status affordances. They should reveal branch/path details when useful without visually dominating the conversation.
 - The composer may expose worktree and branch controls in a compact footer below the input chrome. These controls are outside the editable composer body.
 - Desktop caches Git branch state per effective Git directory and reuses that state across welcome, local thread, and worktree thread composers. Refreshes must keep the previous branch snapshot visible until the new probe settles; the footer hides only after a local path is confirmed unavailable for Git or when the workspace is remote.
+- The composer footer is provider-aware for existing threads. Git workspaces show the Git branch/worktree selector. Perforce workspaces show a thread-scoped changelist selector backed by AppServer `sourceControl/changelist/list`, `sourceControl/threadTarget/update`, and `sourceControl/changelist/create`; the default target is `CL default`. None/non-VCS workspaces do not show a VCS selector.
+- The Perforce changelist selector is scoped to the current thread, not the workspace. Selecting or creating a changelist updates the server-side thread target and relies on `thread/updated` to keep other clients in sync.
 - For a restored or newly selected local ready workspace, the launch transition must wait for both AppServer connection and the main workspace Git branch probe to settle before revealing the main workspace UI. Remote workspaces are treated as Git-settled immediately.
 - On the welcome screen, `Work locally` starts a normal local thread. `New worktree` calls `worktree/createAndStart`; its branch selector chooses the worktree `baseRef` and must not switch the local checkout.
 - On an existing local thread, the footer opens a confirmation dialog before calling `thread/worktree/handoff` with `mode = "worktree"`. The branch field defaults to `dotcraft/<workspace-folder-slug>`, and the current branch is sent as `baseRef`.
@@ -471,7 +473,7 @@ Worktree execution:
 - Desktop may show a local progress checklist while a handoff request is pending. These checklist rows are presentation hints and are not protocol progress notifications.
 - Worktree -> local handoff checks out the worktree branch locally, applies the worktree's uncommitted changes back to the local workspace, and removes the managed worktree. If local dirty changes conflict, Desktop shows the server error and does not switch UI state.
 - Branch checkout and create-and-checkout controls operate on the current effective Git directory. Local mode operates on the main workspace; worktree mode operates on the selected thread's worktree path.
-- Desktop hides or disables worktree and branch controls for remote workspaces, missing capabilities, and non-Git directories. For existing threads that are running, waiting for approval/input, or in blocking maintenance, the local/worktree handoff menu remains available, but the confirmation dialog disables the final handoff action and explains that the workspace cannot be switched while a conversation is in progress.
+- Desktop hides or disables Git worktree and branch controls for remote workspaces, missing capabilities, non-Git directories, and Perforce workspaces. Perforce changelist controls remain available in remote workspaces because all Perforce operations run through AppServer. For existing threads that are running, waiting for approval/input, or in blocking maintenance, the local/worktree handoff menu remains available, but the confirmation dialog disables the final handoff action and explains that the workspace cannot be switched while a conversation is in progress.
 
 ### 5.11 Manage Thread Goal
 
@@ -632,10 +634,15 @@ Required behavior:
   - Local mode shows Hub-managed AppServer actions, including Apply & Restart when local process settings change.
   - Remote mode uses Apply & Connect for URL/token changes, validates before persisting, and hides or disables local-only AppServer binary and restart controls with explanatory copy.
 - When `capabilities.sourceControlManagement` is available, Desktop exposes a workspace-scoped `Source Control` tab:
-  - the user selects a provider (`auto`, `none`, `git`, `perforce`); for Perforce, the user configures the connection (P4CONFIG/default or manual parameters) and runs Test Connection.
+  - the user selects a provider (`git`, `perforce`, `none`); any legacy stored `auto` value is normalized by AppServer to Git and is not shown as an auto-detection mode.
+  - for Perforce, the user configures the connection (P4CONFIG/default or manual parameters) and runs Test Connection.
   - Test Connection and provider detection execute on the AppServer (`sourceControl/test`/`sourceControl/get`) so results reflect the workspace-owning environment in both local and remote modes; Desktop never runs `p4` locally.
-  - binding is saved with `sourceControl/update`, which persists only non-sensitive fields (no password/ticket); a workspace may be bound while unverified, surfaced as a `Not verified` status.
-  - Desktop reacts to `workspace/configChanged` with the `sourceControl` region to refresh the binding status without manual refresh, and gates the local Git commit entry when the effective provider is Perforce.
+  - binding is saved with `sourceControl/update`, which persists only non-sensitive fields (no password/ticket); a workspace may be bound while unverified, surfaced as a `Not verified` or offline status.
+  - when a Perforce form has not passed Test Connection in the current edit session, Desktop still allows Save but persists `perforce.online = false`; only a connected test result allows saving the binding online.
+  - an offline Perforce binding suppresses Git branch/worktree controls, but does not enable Perforce changelist selection or `Prepare CL`; the user must configure the AppServer `p4` environment and pass Test Connection to bring it online.
+  - Desktop reacts to `workspace/configChanged` with the `sourceControl` region to refresh the binding status without manual refresh.
+  - When `sourceControl/get.capabilities.perforceChangelist = true`, Desktop replaces the Git branch footer selector with a Perforce changelist selector and changes the Thread Header commit action to `Prepare CL`.
+  - `Prepare CL` calls `sourceControl/changelist/prepare` and never invokes local `window.api.git.commit`; the dialog and toast copy must avoid submit/commit semantics. Desktop does not expose Perforce submit or shelve in this version.
 - Desktop exposes a workspace-level `Personalization` tab with an `Enable personalized welcome suggestions` toggle backed by workspace config rather than client-global preferences.
 - Desktop groups Personalization settings into Conversation, Learning, Memory, and Dreams cards when the corresponding capabilities are available. Empty groups are hidden.
 - Toggling personalized welcome suggestions applies immediately for the active workspace. On success, the client reacts to the resulting `workspace/configChanged` notification and updates the welcome surface without requiring manual refresh or app restart.

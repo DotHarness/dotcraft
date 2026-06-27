@@ -1,5 +1,6 @@
 using System.Text.Json;
 using DotCraft.Configuration;
+using DotCraft.Protocol;
 using DotCraft.SourceControl;
 
 namespace DotCraft.Protocol.AppServer;
@@ -10,6 +11,7 @@ namespace DotCraft.Protocol.AppServer;
 /// Connection testing (<c>sourceControl/test</c>) is registered separately.
 /// </summary>
 internal sealed class SourceControlRequestHandler(
+    ISessionService sessionService,
     IAppConfigMonitor? appConfigMonitor,
     string? workspaceCraftPath,
     string? hostWorkspacePath) : IAppServerDomainHandler
@@ -19,6 +21,11 @@ internal sealed class SourceControlRequestHandler(
         table.Map(AppServerMethods.SourceControlGet, HandleGetAsync);
         table.Map(AppServerMethods.SourceControlUpdate, HandleUpdateAsync);
         table.Map(AppServerMethods.SourceControlTest, HandleTestAsync);
+        table.Map(AppServerMethods.SourceControlChangelistList, HandleChangelistListAsync);
+        table.Map(AppServerMethods.SourceControlChangelistCreate, HandleChangelistCreateAsync);
+        table.Map(AppServerMethods.SourceControlChangelistPrepare, HandleChangelistPrepareAsync);
+        table.Map(AppServerMethods.SourceControlThreadTargetGet, HandleThreadTargetGetAsync);
+        table.Map(AppServerMethods.SourceControlThreadTargetUpdate, HandleThreadTargetUpdateAsync);
     }
 
     private Task<object?> HandleGetAsync(AppServerIncomingMessage msg, CancellationToken ct)
@@ -99,6 +106,108 @@ internal sealed class SourceControlRequestHandler(
         return ToWire(report);
     }
 
+    private async Task<object?> HandleThreadTargetGetAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    {
+        EnsureManagementAvailable();
+        var p = AppServerParams.Get<SourceControlThreadTargetParams>(msg);
+        var thread = await GetRequiredThreadAsync(p.ThreadId, ct);
+        return new SourceControlThreadTargetResult
+        {
+            Target = ToWire(ThreadSourceControlMetadata.GetPerforceTarget(thread.Metadata))
+        };
+    }
+
+    private async Task<object?> HandleThreadTargetUpdateAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    {
+        EnsureManagementAvailable();
+        var p = AppServerParams.Get<SourceControlThreadTargetUpdateParams>(msg);
+        _ = await GetRequiredThreadAsync(p.ThreadId, ct);
+
+        var target = p.Target == null
+            ? null
+            : new ThreadSourceControlTarget
+            {
+                Provider = string.IsNullOrWhiteSpace(p.Target.Provider) ? SourceControlProviders.Perforce : p.Target.Provider,
+                Changelist = PerforceChangelistManager.NormalizeChangelist(p.Target.Changelist)
+            };
+        var updated = await sessionService.UpdateThreadSourceControlTargetAsync(p.ThreadId, target, ct);
+        return new SourceControlThreadTargetResult
+        {
+            Target = ToWire(ThreadSourceControlMetadata.GetPerforceTarget(updated.Metadata))
+        };
+    }
+
+    private async Task<object?> HandleChangelistListAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    {
+        EnsureManagementAvailable();
+        var p = AppServerParams.Get<SourceControlChangelistListParams>(msg);
+        var thread = await GetRequiredThreadAsync(p.ThreadId, ct);
+        var config = RequirePerforceConfig();
+        var manager = CreatePerforceManager(config, ResolveEffectiveWorkspacePath(thread));
+        var entries = await manager.ListAsync(ct);
+        return new SourceControlChangelistListResult
+        {
+            Changelists = entries.Select(ToWire).ToList(),
+            Target = ToWire(ThreadSourceControlMetadata.GetPerforceTarget(thread.Metadata))
+        };
+    }
+
+    private async Task<object?> HandleChangelistCreateAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    {
+        EnsureManagementAvailable();
+        var p = AppServerParams.Get<SourceControlChangelistCreateParams>(msg);
+        var thread = await GetRequiredThreadAsync(p.ThreadId, ct);
+        var config = RequirePerforceConfig();
+        var manager = CreatePerforceManager(config, ResolveEffectiveWorkspacePath(thread));
+        var entry = await manager.CreateAsync(p.Description, ct);
+        var target = ThreadSourceControlMetadata.GetPerforceTarget(thread.Metadata);
+        if (p.SetAsTarget)
+        {
+            var updated = await sessionService.UpdateThreadSourceControlTargetAsync(
+                p.ThreadId,
+                new ThreadSourceControlTarget
+                {
+                    Provider = SourceControlProviders.Perforce,
+                    Changelist = entry.Id
+                },
+                ct);
+            target = ThreadSourceControlMetadata.GetPerforceTarget(updated.Metadata);
+        }
+
+        return new SourceControlChangelistCreateResult
+        {
+            Changelist = ToWire(entry),
+            Target = ToWire(target)
+        };
+    }
+
+    private async Task<object?> HandleChangelistPrepareAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    {
+        EnsureManagementAvailable();
+        var p = AppServerParams.Get<SourceControlChangelistPrepareParams>(msg);
+        var thread = await GetRequiredThreadAsync(p.ThreadId, ct);
+        var config = RequirePerforceConfig();
+        var target = string.IsNullOrWhiteSpace(p.Target)
+            ? ThreadSourceControlMetadata.GetPerforceTarget(thread.Metadata).Changelist
+            : PerforceChangelistManager.NormalizeChangelist(p.Target);
+        var manager = CreatePerforceManager(config, ResolveEffectiveWorkspacePath(thread));
+        var result = await manager.PrepareAsync(p.Paths, target, p.Description, ct);
+        if (string.Equals(result.Status, "ok", StringComparison.Ordinal)
+            && !string.Equals(result.Changelist, target, StringComparison.Ordinal))
+        {
+            await sessionService.UpdateThreadSourceControlTargetAsync(
+                p.ThreadId,
+                new ThreadSourceControlTarget
+                {
+                    Provider = SourceControlProviders.Perforce,
+                    Changelist = result.Changelist
+                },
+                ct);
+        }
+
+        return ToWire(result);
+    }
+
     private static SourceControlTestResult ToWire(PerforceConnectionReport r) => new()
     {
         Status = r.Status,
@@ -149,6 +258,7 @@ internal sealed class SourceControlRequestHandler(
         var workspacePath = ResolveHostWorkspacePath();
         var effective = SourceControlResolver.ResolveEffectiveProvider(config, workspacePath);
         var status = SourceControlResolver.DeriveStatus(config, effective);
+        var perforceOnline = config.Perforce.Online;
         var includePerforce =
             effective == SourceControlProviders.Perforce
             || SourceControlProviders.Normalize(config.Provider) == SourceControlProviders.Perforce
@@ -166,8 +276,7 @@ internal sealed class SourceControlRequestHandler(
             {
                 GitCommit = effective == SourceControlProviders.Git,
                 PerforceBinding = effective == SourceControlProviders.Perforce,
-                // Workflow capabilities are not available in this version.
-                PerforceChangelist = false,
+                PerforceChangelist = effective == SourceControlProviders.Perforce && perforceOnline,
                 PerforceShelve = false,
                 PerforceSubmit = false
             }
@@ -204,6 +313,54 @@ internal sealed class SourceControlRequestHandler(
         ?? (workspaceCraftPath == null ? Directory.GetCurrentDirectory() : Directory.GetParent(workspaceCraftPath)?.FullName)
         ?? Directory.GetCurrentDirectory();
 
+    private async Task<SessionThread> GetRequiredThreadAsync(string? threadId, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(threadId))
+            throw AppServerErrors.InvalidParams("'threadId' is required.");
+        return await sessionService.GetThreadAsync(threadId.Trim(), ct);
+    }
+
+    private SourceControlConfig RequirePerforceConfig()
+    {
+        var config = appConfigMonitor?.Current.SourceControl ?? new SourceControlConfig();
+        var effective = SourceControlResolver.ResolveEffectiveProvider(config, ResolveHostWorkspacePath());
+        if (!string.Equals(effective, SourceControlProviders.Perforce, StringComparison.OrdinalIgnoreCase))
+            throw AppServerErrors.InvalidParams("Perforce changelist methods require a Perforce source control binding.");
+        if (!config.Perforce.Online)
+            throw AppServerErrors.InvalidParams("Perforce source control is offline. Test the connection and save it online before using changelist methods.");
+        return config;
+    }
+
+    private PerforceChangelistManager CreatePerforceManager(SourceControlConfig config, string workspacePath)
+    {
+        var perforce = config.Perforce;
+        var timeoutSeconds = perforce.TimeoutSeconds > 0 ? perforce.TimeoutSeconds : 30;
+        var executable = string.IsNullOrWhiteSpace(perforce.P4ExecutablePath) ? "p4" : perforce.P4ExecutablePath.Trim();
+        var env = new Dictionary<string, string>(StringComparer.Ordinal);
+        var mode = SourceControlConnectionModes.Normalize(config.ConnectionMode);
+        if (mode == SourceControlConnectionModes.P4Config && !string.IsNullOrWhiteSpace(perforce.P4ConfigName))
+            env["P4CONFIG"] = perforce.P4ConfigName.Trim();
+        var runner = new DefaultPerforceCommandRunner(executable, workspacePath, TimeSpan.FromSeconds(timeoutSeconds), env);
+        return new PerforceChangelistManager(runner, new PerforceWorkspaceCommandOptions
+        {
+            WorkspacePath = workspacePath,
+            ConnectionMode = mode,
+            Port = perforce.Port,
+            Client = perforce.Client,
+            User = perforce.User,
+            Charset = perforce.Charset
+        });
+    }
+
+    private static string ResolveEffectiveWorkspacePath(SessionThread thread)
+    {
+        var execution = thread.Configuration?.ExecutionWorkspaceOverride;
+        if (!string.IsNullOrWhiteSpace(execution))
+            return execution;
+        var workspace = thread.Configuration?.WorkspaceOverride;
+        return string.IsNullOrWhiteSpace(workspace) ? thread.WorkspacePath : workspace;
+    }
+
     private static PerforceConnectionWire ToWire(PerforceConnectionConfig c) => new()
     {
         Port = c.Port,
@@ -215,6 +372,34 @@ internal sealed class SourceControlRequestHandler(
         TimeoutSeconds = c.TimeoutSeconds,
         Online = c.Online,
         AutoOffline = c.AutoOffline
+    };
+
+    private static SourceControlThreadTargetWire ToWire(ThreadSourceControlTarget target) => new()
+    {
+        Provider = target.Provider,
+        Changelist = target.Changelist
+    };
+
+    private static SourceControlChangelistEntryWire ToWire(PerforceChangelistEntry entry) => new()
+    {
+        Id = entry.Id,
+        IsDefault = entry.IsDefault,
+        Description = entry.Description,
+        User = entry.User,
+        Client = entry.Client,
+        Status = entry.Status
+    };
+
+    private static SourceControlChangelistPrepareResult ToWire(PerforceChangelistPrepareResult result) => new()
+    {
+        Status = result.Status,
+        Code = result.Code,
+        Changelist = result.Changelist,
+        Created = result.Created,
+        MovedPaths = result.MovedPaths.ToList(),
+        SkippedPaths = result.SkippedPaths.ToList(),
+        Warnings = result.Warnings.Select(w => new SourceControlDiagnosticItem { Code = w.Code, FallbackText = w.FallbackText }).ToList(),
+        Errors = result.Errors.Select(e => new SourceControlDiagnosticItem { Code = e.Code, FallbackText = e.FallbackText }).ToList()
     };
 
     private static PerforceConnectionConfig MergePerforceUpdate(PerforceConnectionConfig? current, JsonElement paramsEl)
