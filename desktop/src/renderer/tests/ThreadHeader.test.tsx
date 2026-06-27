@@ -13,7 +13,7 @@ const settingsGet = vi.fn()
 const appServerSendRequest = vi.fn()
 const gitCommit = vi.fn()
 
-function makeThread(): Thread {
+function makeThread(overrides: Partial<Thread> = {}): Thread {
   return {
     id: 'thread-1',
     userId: 'local',
@@ -25,7 +25,8 @@ function makeThread(): Thread {
     createdAt: '2026-01-01T00:00:00.000Z',
     lastActiveAt: '2026-01-01T00:00:00.000Z',
     metadata: {},
-    turns: []
+    turns: [],
+    ...overrides
   }
 }
 
@@ -48,7 +49,7 @@ describe('ThreadHeader', () => {
     useConnectionStore.getState().reset()
     useConversationStore.getState().reset()
     usePerforceChangelistStore.getState().reset()
-    useSourceControlStore.setState({ workspacePath: null, effectiveProvider: null, status: null })
+    useSourceControlStore.setState({ workspacePath: null, effectiveProvider: null, status: null, perforceChangelist: null })
     useThreadStore.getState().reset()
     settingsGet.mockResolvedValue({ locale: 'en' })
     appServerSendRequest.mockResolvedValue({})
@@ -124,7 +125,8 @@ describe('ThreadHeader', () => {
     useSourceControlStore.setState({
       workspacePath,
       effectiveProvider: 'perforce',
-      status: 'connected'
+      status: 'connected',
+      perforceChangelist: true
     })
     usePerforceChangelistStore.setState({
       byThreadId: {
@@ -180,7 +182,8 @@ describe('ThreadHeader', () => {
       useSourceControlStore.setState({
         workspacePath,
         effectiveProvider: 'perforce',
-        status: 'connected'
+        status: 'connected',
+        perforceChangelist: true
       })
     })
 
@@ -206,5 +209,55 @@ describe('ThreadHeader', () => {
       )
     })
     expect(gitCommit).not.toHaveBeenCalled()
+  })
+
+  it('keeps Prepare CL unavailable when Perforce is offline', async () => {
+    const workspacePath = 'C:\\workspace\\sample-app'
+    useConnectionStore.setState({
+      status: 'connected',
+      capabilities: { sourceControlManagement: true }
+    })
+    const thread = makeThread({
+      workspacePath,
+      effectiveWorkspacePath: workspacePath,
+      metadata: {
+        'sourceControl.provider': 'perforce',
+        'sourceControl.perforce.changelist': '123'
+      }
+    })
+    useThreadStore.setState({
+      activeThreadId: thread.id,
+      activeThread: thread,
+      threadList: [thread]
+    })
+    useSourceControlStore.setState({
+      workspacePath,
+      effectiveProvider: 'perforce',
+      status: 'offline',
+      perforceChangelist: false
+    })
+    useConversationStore.getState().upsertChangedFile({
+      filePath: 'C:\\workspace\\sample-app\\src\\a.ts',
+      turnId: 'turn-1',
+      turnIds: ['turn-1'],
+      additions: 2,
+      deletions: 1,
+      diffHunks: [],
+      status: 'written',
+      isNewFile: false
+    })
+
+    renderHeader(true, workspacePath)
+
+    const prepareButton = await screen.findByRole('button', { name: 'Prepare Perforce changelist' })
+    expect(prepareButton).toBeDisabled()
+    fireEvent.click(prepareButton)
+
+    expect(gitCommit).not.toHaveBeenCalled()
+    expect(appServerSendRequest).not.toHaveBeenCalledWith(
+      'sourceControl/changelist/prepare',
+      expect.anything(),
+      expect.anything()
+    )
   })
 })

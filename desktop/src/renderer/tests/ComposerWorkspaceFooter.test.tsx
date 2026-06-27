@@ -99,7 +99,7 @@ describe('ComposerWorkspaceFooter', () => {
     useConnectionStore.getState().reset()
     useGitStore.getState().reset()
     usePerforceChangelistStore.getState().reset()
-    useSourceControlStore.setState({ workspacePath: null, effectiveProvider: null, status: null })
+    useSourceControlStore.setState({ workspacePath: null, effectiveProvider: null, status: null, perforceChangelist: null })
     useThreadStore.getState().reset()
     useWorkspaceProjectsStore.getState().reset()
     useToastStore.setState({ toasts: [] })
@@ -326,7 +326,8 @@ describe('ComposerWorkspaceFooter', () => {
     useSourceControlStore.setState({
       workspacePath: 'fixtures\\sample-app',
       effectiveProvider: 'perforce',
-      status: 'connected'
+      status: 'connected',
+      perforceChangelist: true
     })
     usePerforceChangelistStore.setState({
       byThreadId: {
@@ -377,7 +378,8 @@ describe('ComposerWorkspaceFooter', () => {
     useSourceControlStore.setState({
       workspacePath: 'fixtures\\sample-app',
       effectiveProvider: 'perforce',
-      status: 'connected'
+      status: 'connected',
+      perforceChangelist: true
     })
     usePerforceChangelistStore.setState({
       byThreadId: {
@@ -433,6 +435,43 @@ describe('ComposerWorkspaceFooter', () => {
     expect(await screen.findByRole('button', { name: 'CL 777' })).toBeInTheDocument()
   })
 
+  it('hides Git and changelist controls for offline Perforce threads', () => {
+    const thread = makeThread()
+    useConnectionStore.setState({
+      status: 'connected',
+      capabilities: {
+        gitWorktrees: true,
+        sourceControlManagement: true
+      }
+    })
+    useSourceControlStore.setState({
+      workspacePath: 'fixtures\\sample-app',
+      effectiveProvider: 'perforce',
+      status: 'offline',
+      perforceChangelist: false
+    })
+    useGitStore.setState({
+      branchesByPath: {
+        [normalizeGitPathKey('fixtures\\sample-app')]: {
+          path: 'fixtures\\sample-app',
+          status: 'available',
+          snapshot: branchSnapshot('main'),
+          refreshing: false,
+          errorMessage: null,
+          updatedAt: Date.now(),
+          requestId: 1
+        }
+      }
+    })
+
+    renderFooter(thread, 'local')
+
+    expect(screen.queryByRole('button', { name: 'Local' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'main' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'CL default' })).not.toBeInTheDocument()
+    expect(gitListBranches).not.toHaveBeenCalled()
+  })
+
   it('hides welcome Git worktree controls when the workspace provider is Perforce', async () => {
     useConnectionStore.setState({
       status: 'connected',
@@ -444,7 +483,8 @@ describe('ComposerWorkspaceFooter', () => {
     useSourceControlStore.setState({
       workspacePath: 'fixtures\\sample-app',
       effectiveProvider: 'perforce',
-      status: 'notTested'
+      status: 'notTested',
+      perforceChangelist: true
     })
     useGitStore.setState({
       branchesByPath: {

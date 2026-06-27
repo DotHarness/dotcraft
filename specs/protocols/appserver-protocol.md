@@ -6086,7 +6086,7 @@ These methods bind a workspace to a source control provider, validate provider c
 
 Connectivity testing runs in the **AppServer environment** with the workspace path as the working directory, so results reflect the machine, PATH, and credential context that actually owns the workspace (correct for both local and remote AppServers). Clients never execute `p4` locally.
 
-Clients must check `capabilities.sourceControlManagement` in `initialize` before calling these methods (`sourceControl/get`, `sourceControl/update`, `sourceControl/test`, `sourceControl/changelist/*`, `sourceControl/threadTarget/*`). If absent or `false`, the server returns `-32601` (Method not found). Clients must also check `sourceControl/get.capabilities.perforceChangelist` before showing Perforce changelist UI; `perforceShelve` and `perforceSubmit` remain `false` in this version.
+Clients must check `capabilities.sourceControlManagement` in `initialize` before calling these methods (`sourceControl/get`, `sourceControl/update`, `sourceControl/test`, `sourceControl/changelist/*`, `sourceControl/threadTarget/*`). If absent or `false`, the server returns `-32601` (Method not found). Clients must also check `sourceControl/get.capabilities.perforceChangelist` before showing Perforce changelist UI; it is false while the Perforce binding is offline, and `perforceShelve`/`perforceSubmit` remain `false` in this version.
 
 Credentials are never persisted: `sourceControl/update` rejects any password field, and the `password` supplied to `sourceControl/test` is transient (used only for a one-shot login attempt, never written to config and never echoed in results or logs). Long-lived Perforce authentication relies on the server-side ticket (`P4TICKETS`).
 
@@ -6136,7 +6136,7 @@ Return the effective source control binding snapshot for the current workspace.
 | `status` | string | Derived binding status (see [25A.9](#25a9-status-and-error-taxonomy)). `sourceControl/get` never runs `p4`; live connectivity comes from `sourceControl/test`. |
 | `workspacePath` | string | Absolute workspace path owned by this AppServer. |
 | `perforce` | object \| null | Non-sensitive Perforce connection fields. Null when no Perforce config exists. Never contains a password or ticket. |
-| `capabilities` | object | Booleans gating client UI. `perforceChangelist` is `true` only when `effectiveProvider` is `perforce`; `perforceShelve` and `perforceSubmit` are always `false` in this version. `gitCommit` is `true` only when `effectiveProvider` is `git`. |
+| `capabilities` | object | Booleans gating client UI. `perforceChangelist` is `true` only when `effectiveProvider` is `perforce` and `perforce.online` is true; `perforceShelve` and `perforceSubmit` are always `false` in this version. `gitCommit` is `true` only when `effectiveProvider` is `git`. |
 
 **Semantics**:
 
@@ -6164,7 +6164,7 @@ Persist the workspace source control binding (non-sensitive fields only).
 
 - Writes only non-sensitive values to the workspace `.craft/config.json` `SourceControl` section, preserving unrelated configuration and key casing.
 - A `password` (or any `P4PASSWD`-equivalent) field in params is rejected with `-32602` (Invalid params). Passwords are never persisted.
-- Binding is allowed regardless of test outcome (a workspace may be bound while `status` is `notTested`); clients surface "Not verified" rather than blocking offline/VPN scenarios.
+- Binding is allowed regardless of test outcome (a workspace may be bound while `status` is `notTested` or `offline`); clients surface "Not verified" / offline state rather than blocking offline/VPN scenarios. Clients may save an unverified Perforce binding with `perforce.online = false` until `sourceControl/test` succeeds.
 - On success the server emits `workspace/configChanged` with `source: "sourceControl/update"` and region `sourceControl`.
 
 ### 25A.4 `sourceControl/test`
@@ -6298,7 +6298,7 @@ List the default changelist plus the current user/client's pending numbered Perf
 }
 ```
 
-The server synthesizes the `default` entry and obtains numbered entries with `p4 -ztag changes -s pending -u <user> -c <client>` using the AppServer Perforce connection settings.
+The server synthesizes the `default` entry and obtains numbered entries with `p4 -ztag changes -s pending -u <user> -c <client>` using the AppServer Perforce connection settings. Live changelist RPCs require `effectiveProvider = "perforce"` and `perforce.online = true`; when offline, the server must not run `p4` and should reject live changelist operations as unavailable.
 
 ### 25A.8 `sourceControl/changelist/create` and `sourceControl/changelist/prepare`
 
@@ -6379,7 +6379,7 @@ Codes are stable wire contracts; servers emit `code` plus an English `fallbackTe
 
 ### 25A.10 Capability Advertisement
 
-Clients must check `capabilities.sourceControlManagement` before calling source control methods. The server advertises it when a workspace `.craft` path is available (same gating as `workspaceConfigManagement`). `sourceControl/get.capabilities.perforceChangelist` gates the Perforce changelist UI and RPCs; `perforceShelve` and `perforceSubmit` remain false. `sourceControl/update` participates in `workspace/configChanged` via the `sourceControl` region; thread target changes use `thread/updated`.
+Clients must check `capabilities.sourceControlManagement` before calling source control methods. The server advertises it when a workspace `.craft` path is available (same gating as `workspaceConfigManagement`). `sourceControl/get.capabilities.perforceChangelist` gates the Perforce changelist UI and RPCs and is false while Perforce is offline; `perforceShelve` and `perforceSubmit` remain false. `sourceControl/update` participates in `workspace/configChanged` via the `sourceControl` region; thread target changes use `thread/updated`.
 
 ## 26. Memory Management Methods
 

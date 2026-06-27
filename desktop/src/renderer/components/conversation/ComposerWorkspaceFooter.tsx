@@ -290,9 +290,12 @@ export function ComposerWorkspaceFooter({
   const sourceControlProvider = useSourceControlStore((s) =>
     s.workspacePath === branchActionPath ? s.effectiveProvider : null
   )
+  const perforceChangelistAvailable = useSourceControlStore((s) =>
+    s.workspacePath === branchActionPath ? s.perforceChangelist === true : false
+  )
   const isPerforceProvider = sourceControlProvider === 'perforce'
   const hideGitForSourceControl = sourceControlEnabled && sourceControlProvider !== 'git'
-  const isPerforceWorkspace = variant === 'thread' && isPerforceProvider && Boolean(thread?.id)
+  const isPerforceWorkspace = variant === 'thread' && isPerforceProvider && perforceChangelistAvailable && Boolean(thread?.id)
   const changelistState = usePerforceChangelistStore((s) =>
     thread?.id ? s.byThreadId[thread.id] : undefined
   )

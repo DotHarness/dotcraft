@@ -637,7 +637,9 @@ Required behavior:
   - the user selects a provider (`git`, `perforce`, `none`); any legacy stored `auto` value is normalized by AppServer to Git and is not shown as an auto-detection mode.
   - for Perforce, the user configures the connection (P4CONFIG/default or manual parameters) and runs Test Connection.
   - Test Connection and provider detection execute on the AppServer (`sourceControl/test`/`sourceControl/get`) so results reflect the workspace-owning environment in both local and remote modes; Desktop never runs `p4` locally.
-  - binding is saved with `sourceControl/update`, which persists only non-sensitive fields (no password/ticket); a workspace may be bound while unverified, surfaced as a `Not verified` status.
+  - binding is saved with `sourceControl/update`, which persists only non-sensitive fields (no password/ticket); a workspace may be bound while unverified, surfaced as a `Not verified` or offline status.
+  - when a Perforce form has not passed Test Connection in the current edit session, Desktop still allows Save but persists `perforce.online = false`; only a connected test result allows saving the binding online.
+  - an offline Perforce binding suppresses Git branch/worktree controls, but does not enable Perforce changelist selection or `Prepare CL`; the user must configure the AppServer `p4` environment and pass Test Connection to bring it online.
   - Desktop reacts to `workspace/configChanged` with the `sourceControl` region to refresh the binding status without manual refresh.
   - When `sourceControl/get.capabilities.perforceChangelist = true`, Desktop replaces the Git branch footer selector with a Perforce changelist selector and changes the Thread Header commit action to `Prepare CL`.
   - `Prepare CL` calls `sourceControl/changelist/prepare` and never invokes local `window.api.git.commit`; the dialog and toast copy must avoid submit/commit semantics. Desktop does not expose Perforce submit or shelve in this version.

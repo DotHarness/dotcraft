@@ -210,11 +210,17 @@ export function SourceControlPanel({ workspacePath }: SourceControlPanelProps): 
     return unsubscribe
   }, [refreshSilently])
 
-  const updateForm = useCallback(<K extends keyof PerforceConnectionWire>(key: K, value: PerforceConnectionWire[K]) => {
+  const updateForm = useCallback(<K extends keyof PerforceConnectionWire>(
+    key: K,
+    value: PerforceConnectionWire[K],
+    options: { invalidateTest?: boolean } = {}
+  ) => {
     setForm((prev) => ({ ...prev, [key]: value }))
     setSavedTick(false)
-    // Editing the connection invalidates any prior test result.
-    setTestResult(null)
+    if (options.invalidateTest ?? true) {
+      // Editing the connection invalidates any prior test result.
+      setTestResult(null)
+    }
   }, [])
 
   const dirty = useMemo(() => {
@@ -245,6 +251,10 @@ export function SourceControlPanel({ workspacePath }: SourceControlPanelProps): 
         perforce: form
       })
       setTestResult(result)
+      if (result.status === 'connected') {
+        setForm((prev) => ({ ...prev, online: true }))
+        setSavedTick(false)
+      }
       setShowDetails(result.status !== 'connected')
     } catch (err) {
       setTestResult({
@@ -269,11 +279,14 @@ export function SourceControlPanel({ workspacePath }: SourceControlPanelProps): 
     setSaving(true)
     setSaveError(null)
     try {
+      const perforceForSave = isPerforce
+        ? { ...form, online: testConnected ? form.online : false }
+        : undefined
       const snap = await scRequest<SourceControlSnapshot>('sourceControl/update', {
         provider,
         connectionMode: isPerforce ? connectionMode : undefined,
         // Password is never sent to update — it is transient to Test Connection only.
-        perforce: isPerforce ? form : undefined
+        perforce: perforceForSave
       })
       applySnapshot(snap)
       setSavedTick(true)
@@ -282,7 +295,7 @@ export function SourceControlPanel({ workspacePath }: SourceControlPanelProps): 
     } finally {
       setSaving(false)
     }
-  }, [provider, connectionMode, form, isPerforce, applySnapshot])
+  }, [provider, connectionMode, form, isPerforce, testConnected, applySnapshot])
 
   const handleDiscard = useCallback(() => {
     if (snapshot) applySnapshot(snapshot)
@@ -311,6 +324,7 @@ export function SourceControlPanel({ workspacePath }: SourceControlPanelProps): 
     }
     return opts
   }, [t, form.charset])
+  const willSavePerforceOffline = isPerforce && !testConnected
 
   return (
     <SettingsPanelShell
@@ -459,7 +473,7 @@ export function SourceControlPanel({ workspacePath }: SourceControlPanelProps): 
                 control={
                   <PillSwitch
                     checked={form.online}
-                    onChange={(v) => updateForm('online', v)}
+                    onChange={(v) => updateForm('online', v, { invalidateTest: false })}
                     aria-label={t('settings.sourceControl.perforce.online')}
                   />
                 }
@@ -470,11 +484,18 @@ export function SourceControlPanel({ workspacePath }: SourceControlPanelProps): 
                 control={
                   <PillSwitch
                     checked={form.autoOffline}
-                    onChange={(v) => updateForm('autoOffline', v)}
+                    onChange={(v) => updateForm('autoOffline', v, { invalidateTest: false })}
                     aria-label={t('settings.sourceControl.perforce.autoOffline')}
                   />
                 }
               />
+              {willSavePerforceOffline && (
+                <SettingsRow>
+                  <div style={noticeStyle('info')}>
+                    {t('settings.sourceControl.perforce.offlineUntilVerified')}
+                  </div>
+                </SettingsRow>
+              )}
             </SettingsGroup>
           )}
 
@@ -640,9 +661,12 @@ function TestResultView({
   t: (key: MessageKey, vars?: Record<string, string | number>) => string
 }): JSX.Element {
   const tone = result.status === 'connected' ? 'success' : result.status === 'loginRequired' ? 'warning' : 'error'
+  const headline = result.status === 'connected'
+    ? (result.summary || localizeCode(result.code, result.fallbackText))
+    : localizeCode(result.code, result.fallbackText || result.summary)
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
-      <div style={noticeStyle(tone)}>{result.summary || localizeCode(result.code, result.fallbackText)}</div>
+      <div style={noticeStyle(tone)}>{headline}</div>
 
       {result.errors.length > 0 && (
         <ul style={diagListStyle}>

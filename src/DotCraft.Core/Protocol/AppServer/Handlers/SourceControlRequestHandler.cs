@@ -258,6 +258,7 @@ internal sealed class SourceControlRequestHandler(
         var workspacePath = ResolveHostWorkspacePath();
         var effective = SourceControlResolver.ResolveEffectiveProvider(config, workspacePath);
         var status = SourceControlResolver.DeriveStatus(config, effective);
+        var perforceOnline = config.Perforce.Online;
         var includePerforce =
             effective == SourceControlProviders.Perforce
             || SourceControlProviders.Normalize(config.Provider) == SourceControlProviders.Perforce
@@ -275,7 +276,7 @@ internal sealed class SourceControlRequestHandler(
             {
                 GitCommit = effective == SourceControlProviders.Git,
                 PerforceBinding = effective == SourceControlProviders.Perforce,
-                PerforceChangelist = effective == SourceControlProviders.Perforce,
+                PerforceChangelist = effective == SourceControlProviders.Perforce && perforceOnline,
                 PerforceShelve = false,
                 PerforceSubmit = false
             }
@@ -325,6 +326,8 @@ internal sealed class SourceControlRequestHandler(
         var effective = SourceControlResolver.ResolveEffectiveProvider(config, ResolveHostWorkspacePath());
         if (!string.Equals(effective, SourceControlProviders.Perforce, StringComparison.OrdinalIgnoreCase))
             throw AppServerErrors.InvalidParams("Perforce changelist methods require a Perforce source control binding.");
+        if (!config.Perforce.Online)
+            throw AppServerErrors.InvalidParams("Perforce source control is offline. Test the connection and save it online before using changelist methods.");
         return config;
     }
 

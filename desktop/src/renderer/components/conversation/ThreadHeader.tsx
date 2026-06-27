@@ -60,11 +60,15 @@ export function ThreadHeader({
   const sourceControlProvider = useSourceControlStore((s) =>
     s.workspacePath === workspacePath ? s.effectiveProvider : null
   )
+  const perforceChangelistAvailable = useSourceControlStore((s) =>
+    s.workspacePath === workspacePath ? s.perforceChangelist === true : false
+  )
   const threadSourceControlProvider = typeof activeThread?.metadata?.['sourceControl.provider'] === 'string'
     ? activeThread.metadata['sourceControl.provider']
     : null
   const isPerforceWorkspace = sourceControlProvider === 'perforce'
     || (sourceControlProvider == null && threadSourceControlProvider === 'perforce')
+  const canPreparePerforce = sourceControlProvider === 'perforce' && perforceChangelistAvailable
   const changelistState = usePerforceChangelistStore((s) => s.byThreadId[threadId])
   const selectedChangelist = changelistState?.snapshot?.target?.changelist ?? 'default'
   const confirm = useConfirmDialog()
@@ -74,9 +78,9 @@ export function ThreadHeader({
   }, [ensureSourceControl, workspacePath, sourceControlEnabled])
 
   useEffect(() => {
-    if (!isPerforceWorkspace) return
+    if (!canPreparePerforce) return
     void usePerforceChangelistStore.getState().ensure(threadId)
-  }, [isPerforceWorkspace, threadId])
+  }, [canPreparePerforce, threadId])
 
   const writtenFiles = Array.from(changedFiles.values()).filter((f) => f.status === 'written')
   const hasWrittenFiles = writtenFiles.length > 0
@@ -212,6 +216,10 @@ export function ThreadHeader({
   }
 
   async function runPrepareChangelist(description: string): Promise<void> {
+    if (!canPreparePerforce) {
+      addToast(t('perforcePrepare.toast.offline'), 'warning')
+      return
+    }
     const files = Array.from(useConversationStore.getState().changedFiles.values()).filter(
       (f) => f.status === 'written'
     )
@@ -408,7 +416,11 @@ export function ThreadHeader({
           label={isPerforceWorkspace ? t('threadHeader.prepareChangelistTitle') : t('threadHeader.commitTitle')}
           disabledReason={
             isPerforceWorkspace
-              ? (!hasWrittenFiles ? t('threadHeader.noPrepareChangelistTitle') : undefined)
+              ? (!canPreparePerforce
+                  ? t('threadHeader.prepareChangelistUnavailableTitle')
+                  : !hasWrittenFiles
+                    ? t('threadHeader.noPrepareChangelistTitle')
+                    : undefined)
               : remoteWorkspace
                 ? t('threadHeader.remoteLocalGitUnavailable')
                 : !hasWrittenFiles
@@ -419,14 +431,16 @@ export function ThreadHeader({
         >
           <button
             onClick={() => {
-              if (isPerforceWorkspace) setPrepareOpen(true)
+              if (isPerforceWorkspace) {
+                if (canPreparePerforce) setPrepareOpen(true)
+              }
               else setCommitOpen(true)
             }}
-            disabled={isPerforceWorkspace ? !hasWrittenFiles : remoteWorkspace || !hasWrittenFiles}
+            disabled={isPerforceWorkspace ? !canPreparePerforce || !hasWrittenFiles : remoteWorkspace || !hasWrittenFiles}
             style={{
               ...headerButtonStyle,
-              opacity: (isPerforceWorkspace ? hasWrittenFiles : !remoteWorkspace && hasWrittenFiles) ? 1 : 0.4,
-              cursor: (isPerforceWorkspace ? hasWrittenFiles : !remoteWorkspace && hasWrittenFiles) ? 'pointer' : 'default'
+              opacity: (isPerforceWorkspace ? canPreparePerforce && hasWrittenFiles : !remoteWorkspace && hasWrittenFiles) ? 1 : 0.4,
+              cursor: (isPerforceWorkspace ? canPreparePerforce && hasWrittenFiles : !remoteWorkspace && hasWrittenFiles) ? 'pointer' : 'default'
             }}
             aria-label={isPerforceWorkspace ? t('threadHeader.prepareChangelistTitle') : t('threadHeader.commitTitle')}
           >

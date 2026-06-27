@@ -215,6 +215,73 @@ public sealed class SourceControlConfigTests : IDisposable
     }
 
     [Fact]
+    public async Task SourceControlGet_OfflinePerforce_DisablesChangelistCapability()
+    {
+        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
+        using var bridge = AttachConfigChangedBridge(harness);
+        await harness.InitializeAsync(configChange: true);
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.SourceControlUpdate, new
+        {
+            provider = "perforce",
+            connectionMode = "manual",
+            perforce = new
+            {
+                port = "ssl:p4:1666",
+                client = "c",
+                user = "u",
+                online = false
+            }
+        }));
+        await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.SourceControlGet, new { }));
+        var sent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
+
+        var result = SingleResult(sent);
+        Assert.Equal("perforce", result.GetProperty("provider").GetString());
+        Assert.Equal("perforce", result.GetProperty("effectiveProvider").GetString());
+        Assert.Equal("offline", result.GetProperty("status").GetString());
+        var capabilities = result.GetProperty("capabilities");
+        Assert.False(capabilities.GetProperty("gitCommit").GetBoolean());
+        Assert.True(capabilities.GetProperty("perforceBinding").GetBoolean());
+        Assert.False(capabilities.GetProperty("perforceChangelist").GetBoolean());
+        Assert.False(capabilities.GetProperty("perforceShelve").GetBoolean());
+        Assert.False(capabilities.GetProperty("perforceSubmit").GetBoolean());
+    }
+
+    [Fact]
+    public async Task SourceControlChangelistList_OfflinePerforce_ReturnsInvalidParams()
+    {
+        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
+        using var bridge = AttachConfigChangedBridge(harness);
+        await harness.InitializeAsync(configChange: true);
+        var thread = await harness.Service.CreateThreadAsync(harness.Identity);
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.SourceControlUpdate, new
+        {
+            provider = "perforce",
+            connectionMode = "manual",
+            perforce = new
+            {
+                port = "ssl:p4:1666",
+                client = "c",
+                user = "u",
+                online = false
+            }
+        }));
+        await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.SourceControlChangelistList, new
+        {
+            threadId = thread.Id
+        }));
+        var sent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
+
+        AppServerTestHarness.AssertIsErrorResponse(Assert.Single(sent), AppServerErrors.InvalidParamsCode);
+    }
+
+    [Fact]
     public async Task SourceControlThreadTarget_Update_PersistsPerThreadPerforceTarget()
     {
         using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
