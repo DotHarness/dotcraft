@@ -8,6 +8,7 @@ import {
   composerFooterControlBoxStyle,
   composerFooterControlHoverBackground
 } from './ComposerShell'
+import { ComposerOverlapBand, useComposerOverlapBandHeight } from './useComposerOverlapBand'
 
 export type ReasoningQuickValue = 'default' | 'off' | ReasoningEffortWire
 
@@ -54,6 +55,7 @@ export function ModelPicker({
   const [highlight, setHighlight] = useState(0)
   const [triggerActive, setTriggerActive] = useState(false)
   const wrapRef = useRef<HTMLDivElement>(null)
+  const popupRef = useRef<HTMLDivElement>(null)
   const listId = useId()
 
   const modelChoices = useMemo(() => {
@@ -129,6 +131,7 @@ export function ModelPicker({
   )
   const hasError = Boolean(errorMessage)
   const interactive = !disabled && !loading && (!unsupported || hasError) && selectableIndexes.length > 0
+  const overlapBandHeight = useComposerOverlapBandHeight(popupRef, interactive && open)
   const selectedIndex = Math.max(0, rows.findIndex((row) =>
     (row.kind === 'model' && row.value === modelName) ||
     (row.kind === 'reasoning' && !row.disabled && row.value === reasoningValue)
@@ -344,6 +347,7 @@ export function ModelPicker({
 
       {interactive && open && (
         <div
+          ref={popupRef}
           id={listId}
           role="listbox"
           aria-label={t('composer.selectModelTitle')}
@@ -353,18 +357,21 @@ export function ModelPicker({
             bottom: 'calc(100% + 8px)',
             minWidth: '240px',
             maxWidth: '320px',
-            maxHeight: '320px',
-            overflowY: 'auto',
             zIndex: 70,
+            // Frameless; the overlap hairline is the band below. The scroll lives on an
+            // inner wrapper so the absolutely-positioned band stays pinned to the popup
+            // bottom instead of scrolling away with the list.
             border: 'none',
             borderRadius: '12px',
+            overflow: 'hidden',
             background: 'var(--glass-surface-strong)',
             boxShadow: 'var(--glass-shadow-soft)',
             backdropFilter: 'var(--glass-blur)',
-            WebkitBackdropFilter: 'var(--glass-blur)',
-            padding: '6px'
+            WebkitBackdropFilter: 'var(--glass-blur)'
           }}
         >
+          <ComposerOverlapBand height={overlapBandHeight} />
+          <div style={{ maxHeight: '320px', overflowY: 'auto', padding: '6px' }}>
           {errorMessage && (
             <div
               role="status"
@@ -485,6 +492,7 @@ export function ModelPicker({
               </button>
             )
           })}
+          </div>
         </div>
       )}
     </div>

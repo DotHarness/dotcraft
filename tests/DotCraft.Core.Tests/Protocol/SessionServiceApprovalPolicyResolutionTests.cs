@@ -63,6 +63,26 @@ public sealed class SessionServiceApprovalPolicyResolutionTests : IDisposable
         Assert.Equal(ApprovalPolicy.Interrupt, resolved);
     }
 
+    [Fact]
+    public async Task ResolveApprovalPolicy_Prompt_DoesNotInheritWorkspaceAutoApprove()
+    {
+        await using var agentFactory = CreateAgentFactory();
+        var monitor = new AppConfigMonitor(new AppConfig
+        {
+            Permissions = new AppConfig.PermissionsConfig
+            {
+                DefaultApprovalPolicy = ApprovalPolicy.AutoApprove
+            }
+        });
+        var service = CreateService(agentFactory, monitor);
+
+        // `prompt` always forces the interactive flow; it must never fall back to a
+        // full-access workspace default.
+        var resolved = InvokeResolveApprovalPolicy(service, ApprovalPolicy.Prompt);
+
+        Assert.Equal(ApprovalPolicy.Prompt, resolved);
+    }
+
     private SessionService CreateService(AgentFactory agentFactory, IAppConfigMonitor monitor)
     {
         var defaultAgent = agentFactory.CreateAgentForMode(AgentMode.Agent);

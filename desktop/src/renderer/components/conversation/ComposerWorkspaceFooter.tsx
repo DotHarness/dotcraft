@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FocusEvent, type JSX, type ReactNode } from 'react'
+import { ComposerOverlapBand, useComposerOverlapBandHeight } from './useComposerOverlapBand'
 import { createPortal } from 'react-dom'
 import { ArrowRightLeft, Check, ChevronDown, ChevronRight, Cloud, Folder, FolderPlus, GitBranch, Laptop, ListChecks, Plus, Search, Server } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
@@ -86,7 +87,11 @@ const addProjectSubmenuStyle: CSSProperties = {
   padding: '8px',
   borderRadius: '10px',
   background: 'var(--glass-surface-strong)',
-  border: 'none',
+  borderTop: 'none',
+  borderRight: 'none',
+  borderBottom: 'none',
+  // Opens to the right; its left edge meets the same-tone parent menu. See DESIGN.md.
+  borderLeft: '1px solid var(--glass-border)',
   boxShadow: 'var(--glass-shadow-soft)',
   backdropFilter: 'var(--glass-blur)',
   WebkitBackdropFilter: 'var(--glass-blur)',
@@ -271,6 +276,16 @@ export function ComposerWorkspaceFooter({
   const [branchDraft, setBranchDraft] = useState('dotcraft/')
   const [changelistDraft, setChangelistDraft] = useState('')
   const footerRef = useRef<HTMLDivElement>(null)
+  // Each footer dropdown opens upward over the same-tone composer card; the band stops
+  // exactly at the card's top edge (the hook finds the card via the composer root).
+  const projectMenuRef = useRef<HTMLDivElement>(null)
+  const workspaceMenuRef = useRef<HTMLDivElement>(null)
+  const branchMenuRef = useRef<HTMLDivElement>(null)
+  const changelistMenuRef = useRef<HTMLDivElement>(null)
+  const projectBandHeight = useComposerOverlapBandHeight(projectMenuRef, openMenu === 'project')
+  const workspaceBandHeight = useComposerOverlapBandHeight(workspaceMenuRef, openMenu === 'workspace')
+  const branchBandHeight = useComposerOverlapBandHeight(branchMenuRef, openMenu === 'branch')
+  const changelistBandHeight = useComposerOverlapBandHeight(changelistMenuRef, openMenu === 'changelist')
   const isThread = variant === 'thread'
   const threadBusy = thread?.runtime?.busy === true
     || thread?.runtime?.running === true
@@ -619,7 +634,8 @@ export function ComposerWorkspaceFooter({
             <ChevronDown size={14} strokeWidth={1.8} aria-hidden />
           </WorkspaceFooterPill>
           {openMenu === 'project' && (
-            <div style={menuStyle}>
+            <div ref={projectMenuRef} style={menuStyle}>
+              <ComposerOverlapBand height={projectBandHeight} radius={10} />
               <div style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -712,7 +728,8 @@ export function ComposerWorkspaceFooter({
           <ChevronDown size={14} strokeWidth={1.8} aria-hidden />
         </WorkspaceFooterPill>
         {openMenu === 'workspace' && (
-          <div style={menuStyle}>
+          <div ref={workspaceMenuRef} style={menuStyle}>
+            <ComposerOverlapBand height={workspaceBandHeight} radius={10} />
             {showBranchHandoffOnly ? (
               <WorkspaceMenuItem
                 label={t('workspaceFooter.handoffToBranch')}
@@ -766,7 +783,8 @@ export function ComposerWorkspaceFooter({
           <ChevronDown size={14} strokeWidth={1.8} aria-hidden />
         </WorkspaceFooterPill>
         {openMenu === 'branch' && (
-          <div style={{ ...menuStyle, width: '320px' }}>
+          <div ref={branchMenuRef} style={{ ...menuStyle, width: '320px' }}>
+            <ComposerOverlapBand height={branchBandHeight} radius={10} />
             <div style={{
               display: 'flex',
               alignItems: 'center',
@@ -859,7 +877,8 @@ export function ComposerWorkspaceFooter({
             <ChevronDown size={14} strokeWidth={1.8} aria-hidden />
           </WorkspaceFooterPill>
           {openMenu === 'changelist' && (
-            <div style={{ ...menuStyle, width: '320px' }}>
+            <div ref={changelistMenuRef} style={{ ...menuStyle, width: '320px' }}>
+              <ComposerOverlapBand height={changelistBandHeight} radius={10} />
               <div style={{
                 display: 'flex',
                 alignItems: 'center',

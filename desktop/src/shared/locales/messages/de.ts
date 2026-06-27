@@ -475,7 +475,7 @@ export const MESSAGES_DE = {
   'settings.permissions.description': 'Wählen Sie in diesem Arbeitsbereich das Standardgenehmigungsverhalten für neue Threads aus. Kanäle ohne Pro-Thread-Steuerelemente verwenden diese Einstellung.',
   'settings.permissions.workspaceDefault.label': 'Standardberechtigungen für den Arbeitsbereich',
   'settings.permissions.workspaceDefault.description': 'Wird für neue Threads verwendet; Kanäle ohne Pro-Thread-Steuerelemente verwenden es ebenfalls.',
-  'settings.permissions.default.label': 'Standardberechtigungen',
+  'settings.permissions.default.label': 'Um Genehmigung fragen',
   'settings.permissions.fullAccess.label': 'Voller Zugriff',
   'settings.permissions.fullAccess.warningTitle': 'Vollzugriff aktivieren?',
   'settings.permissions.fullAccess.warningBody': 'Vollzugriff genehmigt automatisch genehmigungsgesteuerte Aktionen. DotCraft kann Dateien außerhalb des Arbeitsbereichs bearbeiten oder Netzwerkbefehle ausführen, ohne vorher zu fragen. Aktivieren Sie dies nur für Arbeitsbereiche und Kanäle, denen Sie vertrauen.',
@@ -1897,8 +1897,10 @@ export const MESSAGES_DE = {
   'settings.dreams.discardSucceeded': 'Träume werden verworfen',
   'settings.dreams.archiveSucceeded': 'Träume laufen archiviert',
   'settings.dreams.cancelSucceeded': 'Dreams-Lauf abgesagt',
-  'settings.permissions.default.description': 'Standardmäßig kann DotCraft Dateien in seinem Arbeitsbereich lesen und bearbeiten. Bei Bedarf kann es um zusätzliche Berechtigungen bitten.',
-  'settings.permissions.fullAccess.description': 'Wenn DotCraft mit vollem Zugriff ausgeführt wird, kann es jede Datei auf Ihrem Computer bearbeiten und Netzwerkbefehle ohne Ihre Zustimmung ausführen. Dies erhöht das Risiko von Datenverlust, Datenlecks oder unbeabsichtigtem Verhalten erheblich.',
+  'settings.permissions.default.description':
+    'DotCraft fragt nach, bevor Dateien außerhalb des Arbeitsbereichs bearbeitet oder Befehle ausgeführt werden.',
+  'settings.permissions.fullAccess.description':
+    'Genehmigt jede Aktion automatisch. Höheres Risiko – nur für Arbeitsbereiche, denen Sie vertrauen.',
   'settings.llm.workspaceModelHint': 'Wählen Sie ein aufgelistetes Modell aus oder geben Sie eines manuell ein.',
   'settings.llm.workspaceSave': 'Auswahl speichern',
   'settings.llm.workspaceSaving': 'Sparen…',
@@ -2571,8 +2573,14 @@ export const MESSAGES_DE = {
   'composer.consolidate.unavailable': 'Die Speicherkonsolidierung ist nur für Leerlaufgespräche mit Verlauf verfügbar.',
   'composer.approval.label': 'Genehmigungsrichtlinie',
   'composer.approval.selectTitle': 'Wählen Sie die Genehmigungsrichtlinie aus',
-  'composer.approval.default.label': 'Standardberechtigungen',
+  'composer.approval.default.label': 'Arbeitsbereichsstandard',
+  'composer.approval.default.description': 'Folgt Ihrer Arbeitsbereichseinstellung ({{policy}})',
+  'composer.approval.prompt.label': 'Um Genehmigung fragen',
+  'composer.approval.prompt.description':
+    'Fragt immer nach, bevor Dateien außerhalb des Arbeitsbereichs bearbeitet oder Befehle ausgeführt werden',
   'composer.approval.fullAccess.label': 'Voller Zugriff',
+  'composer.approval.fullAccess.description':
+    'Genehmigt jede Aktion automatisch – höheres Risiko',
   'composer.approval.workspaceDefaultHint': 'Arbeitsbereichsstandard: {{policy}}',
   'composer.approval.updateFailed': 'Genehmigungsrichtlinie konnte nicht aktualisiert werden: {{error}}',
   'planApproval.title': 'Diesen Plan umsetzen?',

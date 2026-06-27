@@ -1,4 +1,5 @@
-import type { CSSProperties, JSX, ReactNode } from 'react'
+import type { CSSProperties, JSX, ReactNode, RefObject } from 'react'
+import { ComposerOverlapBand, useComposerOverlapBandHeight } from './useComposerOverlapBand'
 
 /**
  * Shared visual language for the composer mention popovers (`@` files and `/`
@@ -22,32 +23,63 @@ interface ContainerOptions {
   maxHeight: string
 }
 
-export function mentionPopoverContainerStyle({
+interface MentionPopoverSurfaceProps extends ContainerOptions {
+  /** Outer popover element; measured for the overlap band and used by callers for keyboard scroll-into-view. */
+  popupRef: RefObject<HTMLDivElement | null>
+  /** Whether the popover is shown (drives the overlap-band measurement). */
+  open: boolean
+  role: string
+  ariaLabel?: string
+  children: ReactNode
+}
+
+/**
+ * Outer surface for the composer mention popovers (`@` files and `/` commands). The
+ * overlay is frameless; its overlap with the same-tone composer card is drawn by
+ * {@link ComposerOverlapBand}. The list scrolls on an inner wrapper so the
+ * absolutely-positioned band stays pinned to the popover's bottom instead of scrolling
+ * away with the rows. See specs/clients/DESIGN.md.
+ */
+export function MentionPopoverSurface({
+  popupRef,
+  open,
+  role,
+  ariaLabel,
   constrainToAnchor,
   minWidth,
   maxWidth,
-  maxHeight
-}: ContainerOptions): CSSProperties {
-  return {
-    position: 'absolute',
-    bottom: '100%',
-    left: 0,
-    marginBottom: '4px',
-    width: constrainToAnchor ? '100%' : undefined,
-    minWidth: constrainToAnchor ? 'min(280px, 100%)' : minWidth,
-    maxWidth: constrainToAnchor ? '100%' : maxWidth,
-    maxHeight,
-    overflowY: 'auto',
-    zIndex: 50,
-    boxShadow: 'var(--glass-shadow-soft)',
-    background: 'var(--glass-surface-strong)',
-    border: 'none',
-    borderRadius: '12px',
-    backdropFilter: 'var(--glass-blur)',
-    WebkitBackdropFilter: 'var(--glass-blur)',
-    // Inset padding so the rounded row highlight floats inside the surface.
-    padding: '6px'
-  }
+  maxHeight,
+  children
+}: MentionPopoverSurfaceProps): JSX.Element {
+  const overlapBandHeight = useComposerOverlapBandHeight(popupRef, open)
+  return (
+    <div
+      ref={popupRef}
+      role={role}
+      aria-label={ariaLabel}
+      style={{
+        position: 'absolute',
+        bottom: '100%',
+        left: 0,
+        marginBottom: '4px',
+        width: constrainToAnchor ? '100%' : undefined,
+        minWidth: constrainToAnchor ? 'min(280px, 100%)' : minWidth,
+        maxWidth: constrainToAnchor ? '100%' : maxWidth,
+        zIndex: 50,
+        boxShadow: 'var(--glass-shadow-soft)',
+        background: 'var(--glass-surface-strong)',
+        border: 'none',
+        borderRadius: '12px',
+        overflow: 'hidden',
+        backdropFilter: 'var(--glass-blur)',
+        WebkitBackdropFilter: 'var(--glass-blur)'
+      }}
+    >
+      <ComposerOverlapBand height={overlapBandHeight} />
+      {/* Inset padding so the rounded row highlight floats inside the surface. */}
+      <div style={{ maxHeight, overflowY: 'auto', padding: '6px' }}>{children}</div>
+    </div>
+  )
 }
 
 export function MentionSectionHeader({ label }: { label: string }): JSX.Element {

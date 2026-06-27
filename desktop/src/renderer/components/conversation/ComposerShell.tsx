@@ -549,6 +549,7 @@ export function ComposerShell({
   const mascotShadowColor = mascotAvatar ? paletteOf(mascotAvatar).shadow : '#0b3d62'
   return (
     <div
+      data-composer-root
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
@@ -614,6 +615,7 @@ export function ComposerShell({
           }}
         />
         <div
+          data-composer-card
           style={{
             position: 'relative',
             zIndex: 1,

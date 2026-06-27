@@ -36,6 +36,18 @@ public class ToolProfileAndApprovalPolicyTests
     }
 
     [Fact]
+    public void ThreadConfiguration_SerializesPromptApprovalPolicyAsWireString()
+    {
+        var cfg = new ThreadConfiguration { ApprovalPolicy = ApprovalPolicy.Prompt };
+        var json = JsonSerializer.Serialize(cfg, SessionJsonOptions.Default);
+        Assert.Contains("\"approvalPolicy\":\"prompt\"", json);
+
+        var roundTrip = JsonSerializer.Deserialize<ThreadConfiguration>(json, SessionJsonOptions.Default);
+        Assert.NotNull(roundTrip);
+        Assert.Equal(ApprovalPolicy.Prompt, roundTrip.ApprovalPolicy);
+    }
+
+    [Fact]
     public void ThreadConfiguration_RoundTripsToolProfile()
     {
         var cfg = new ThreadConfiguration { ToolProfile = "local-task" };

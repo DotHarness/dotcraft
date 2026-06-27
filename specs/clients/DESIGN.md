@@ -22,6 +22,7 @@ colors:
   error: "var(--error)"
   info: "var(--info)"
   ref-skill: "var(--ref-skill)"
+  permission-full-access: "var(--permission-full-access)"
   glass-surface-strong: "var(--glass-surface-strong)"
   background-activity-dock-background: "var(--background-activity-dock-background)"
   composer-top-accessory-separator: "var(--composer-top-accessory-separator)"
@@ -145,6 +146,7 @@ Semantic colors communicate state, not decoration:
 - `--warning`: caution, pending review, risky but recoverable.
 - `--error`: destructive action, failed state, blocked state.
 - `--info`: informational status when neutral text is insufficient.
+- `--permission-full-access`: the full-access / auto-approve permission state — a warmer orange than `--warning`, used only on the composer approval pill and small option icons.
 
 Semantic colors should normally appear in icons, compact badges, borders, small
 text, or alert surfaces. They should not take over an entire view.
