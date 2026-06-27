@@ -7,6 +7,7 @@ import {
   composerFooterControlHoverBackground
 } from './ComposerShell'
 import { ActionTooltip } from '../ui/ActionTooltip'
+import { ComposerOverlapBand, useComposerOverlapBandHeight } from './useComposerOverlapBand'
 
 interface ComposerAttachmentMenuProps {
   title: string
@@ -41,9 +42,11 @@ export function ComposerAttachmentMenu({
   const [triggerActive, setTriggerActive] = useState(false)
   const wrapRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const popupRef = useRef<HTMLDivElement>(null)
   const menuId = useId()
   const showPlanModeToggle = Boolean(planModeLabel && onTogglePlanMode)
   const attachmentsDisabled = Boolean(attachmentDisabledReason)
+  const overlapBandHeight = useComposerOverlapBandHeight(popupRef, open && !disabled)
 
   useEffect(() => {
     if (!open) return
@@ -141,6 +144,7 @@ export function ComposerAttachmentMenu({
 
       {open && !disabled && (
         <div
+          ref={popupRef}
           id={menuId}
           role="menu"
           aria-label={ariaLabel}
@@ -150,6 +154,8 @@ export function ComposerAttachmentMenu({
             bottom: 'calc(100% + 8px)',
             minWidth: '180px',
             zIndex: 70,
+            // Frameless; the overlap hairline is drawn by the band element below,
+            // sized to the part of the popup that overlaps the composer card.
             border: 'none',
             borderRadius: '12px',
             background: 'var(--glass-surface-strong)',
@@ -159,6 +165,7 @@ export function ComposerAttachmentMenu({
             padding: '6px'
           }}
         >
+          <ComposerOverlapBand height={overlapBandHeight} />
           <ComposerAttachmentMenuItem
             role="menuitem"
             disabled={attachmentsDisabled}

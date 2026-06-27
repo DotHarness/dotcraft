@@ -115,6 +115,9 @@
   /* Inline reference (chip) skill colour — a calmer sage than the status-green
      --success, which reads too loud as inline text. Link chips reuse --info. */
   --ref-skill: #56a87c;
+  /* Full-access (auto-approve) permission state: a warmer orange than the --warning
+     yellow. Used only on the composer approval pill + small option icons to flag risk. */
+  --permission-full-access: #e8924f;
 
   /* Running-tool shimmer: dim resting base + a white core tinted with brand accent.
      Defined per theme so the highlight stays white-anchored (never inverts to a dark
@@ -417,6 +420,8 @@ html[data-theme="light"] {
   --info: #2563eb;
   /* Darker sage for legibility on the light surface (see dark-theme note). */
   --ref-skill: #3e8c64;
+  /* Deeper orange for legibility on the light surface (see dark-theme note). */
+  --permission-full-access: #c2601f;
 
   /* Light theme: base stays dark ink so the white-anchored core reads as a highlight
      sweeping over readable text, not a dark streak. */
@@ -2631,13 +2636,11 @@ kbd {
 }
 
 .dc-settings-select-option__description {
-  overflow: hidden;
   color: var(--text-secondary);
   font-size: 11px;
   font-weight: 400;
   line-height: 1.35;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .dc-settings-select-option__check {

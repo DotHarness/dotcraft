@@ -7,7 +7,7 @@ import type { QueuedTurnInput } from './conversation'
 
 export type ThreadStatus = 'active' | 'paused' | 'archived'
 
-export type ApprovalPolicyWire = 'default' | 'autoApprove' | 'interrupt'
+export type ApprovalPolicyWire = 'default' | 'prompt' | 'autoApprove' | 'interrupt'
 
 export type ThreadGoalStatus = 'active' | 'paused' | 'blocked' | 'usageLimited' | 'budgetLimited' | 'complete'
 

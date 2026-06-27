@@ -1220,6 +1220,7 @@ public sealed partial class AgentProfileStore
         return raw.Trim() switch
         {
             "default" => ApprovalPolicy.Default,
+            "prompt" => ApprovalPolicy.Prompt,
             "autoApprove" => ApprovalPolicy.AutoApprove,
             "interrupt" => ApprovalPolicy.Interrupt,
             _ => AddApprovalPolicyError(diagnostics)
@@ -1228,7 +1229,7 @@ public sealed partial class AgentProfileStore
 
     private static ApprovalPolicy AddApprovalPolicyError(List<AgentProfileDiagnostic> diagnostics)
     {
-        diagnostics.Add(Error("InvalidPolicyValue", "permissions.approvalPolicy must be 'default', 'autoApprove', or 'interrupt'."));
+        diagnostics.Add(Error("InvalidPolicyValue", "permissions.approvalPolicy must be 'default', 'prompt', 'autoApprove', or 'interrupt'."));
         return ApprovalPolicy.Default;
     }
 
@@ -1649,6 +1650,7 @@ public sealed partial class AgentProfileStore
         policy switch
         {
             ApprovalPolicy.Default => string.Equals(raw, "default", StringComparison.OrdinalIgnoreCase),
+            ApprovalPolicy.Prompt => string.Equals(raw, "prompt", StringComparison.OrdinalIgnoreCase),
             ApprovalPolicy.AutoApprove => string.Equals(raw, "autoApprove", StringComparison.OrdinalIgnoreCase),
             ApprovalPolicy.Interrupt => string.Equals(raw, "interrupt", StringComparison.OrdinalIgnoreCase),
             _ => false

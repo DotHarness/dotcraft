@@ -6,7 +6,7 @@ import {
   MentionRowIcon,
   MentionSectionHeader,
   mentionEmptyStyle,
-  mentionPopoverContainerStyle,
+  MentionPopoverSurface,
   mentionRowDescStyle,
   mentionRowNameStyle,
   mentionRowStyle
@@ -168,15 +168,14 @@ export function FileSearchPopover({
   if (!visible) return null
 
   return (
-    <div
-      ref={containerRef}
+    <MentionPopoverSurface
+      popupRef={containerRef}
+      open={visible}
       role="listbox"
-      style={mentionPopoverContainerStyle({
-        constrainToAnchor,
-        minWidth: '300px',
-        maxWidth: '440px',
-        maxHeight: '260px'
-      })}
+      constrainToAnchor={constrainToAnchor}
+      minWidth="300px"
+      maxWidth="440px"
+      maxHeight="260px"
     >
       {loading && files.length === 0 && (
         <div style={mentionEmptyStyle}>{t('fileSearch.loading')}</div>
@@ -217,7 +216,7 @@ export function FileSearchPopover({
         </ActionTooltip>
         )
       })}
-    </div>
+    </MentionPopoverSurface>
   )
 }
 

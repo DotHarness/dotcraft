@@ -56,17 +56,41 @@ describe('ApprovalPolicyPicker', () => {
     })
   })
 
-  it('shows the current approval label and workspace-default hint', async () => {
+  it('shows the workspace-default label and the resolved inherit description', async () => {
     renderPicker()
 
     const trigger = await screen.findByTestId('approval-policy-trigger')
-    expect(trigger).toHaveTextContent('Default permissions')
+    expect(trigger).toHaveTextContent('Workspace default')
     expect(screen.getByTestId('approval-policy-icon-default')).toBeInTheDocument()
 
-    const pickerBody = trigger.closest('div') as HTMLElement
-    expect(pickerBody).not.toHaveAttribute('title')
-    fireEvent.mouseEnter(pickerBody.parentElement as HTMLElement)
-    expect(await screen.findByRole('tooltip')).toHaveTextContent('Workspace default: Full access')
+    fireEvent.click(trigger)
+    const defaultOption = await screen.findByTestId('approval-policy-option-default')
+    // The inherit option discloses what the workspace default currently resolves to.
+    await waitFor(() =>
+      expect(defaultOption).toHaveTextContent('Follow your workspace setting (Full access)')
+    )
+  })
+
+  it('selects ask-for-approval without a full-access warning and writes prompt', async () => {
+    const confirm = vi.fn().mockResolvedValue(true)
+    ;(window as Window & { __confirmDialog?: unknown }).__confirmDialog = confirm
+
+    renderPicker()
+
+    fireEvent.click(await screen.findByTestId('approval-policy-trigger'))
+    fireEvent.click(await screen.findByTestId('approval-policy-option-prompt'))
+
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith('thread/config/update', {
+        threadId: 'thread_1',
+        config: {
+          mode: 'agent',
+          approvalPolicy: 'prompt'
+        }
+      })
+    })
+    expect(confirm).not.toHaveBeenCalled()
+    expect(useThreadStore.getState().activeThread?.configuration?.approvalPolicy).toBe('prompt')
   })
 
   it('warns before enabling full access and merges thread config update', async () => {

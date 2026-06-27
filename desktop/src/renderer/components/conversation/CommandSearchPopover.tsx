@@ -7,7 +7,7 @@ import {
   MentionRowIcon,
   MentionSectionHeader,
   mentionEmptyStyle,
-  mentionPopoverContainerStyle,
+  MentionPopoverSurface,
   mentionRowDescStyle,
   mentionRowNameStyle,
   mentionRowStyle
@@ -145,15 +145,14 @@ export function CommandSearchPopover({
   if (!visible) return null
 
   return (
-    <div
-      ref={containerRef}
+    <MentionPopoverSurface
+      popupRef={containerRef}
+      open={visible}
       role="listbox"
-      style={mentionPopoverContainerStyle({
-        constrainToAnchor,
-        minWidth: '320px',
-        maxWidth: '480px',
-        maxHeight: '280px'
-      })}
+      constrainToAnchor={constrainToAnchor}
+      minWidth="320px"
+      maxWidth="480px"
+      maxHeight="280px"
     >
       {loading && <div style={mentionEmptyStyle}>{t('slashSearch.loading')}</div>}
       {!loading && entries.length === 0 && query.trim() !== '' && (
@@ -252,7 +251,7 @@ export function CommandSearchPopover({
             </ActionTooltip>
           )
         })}
-    </div>
+    </MentionPopoverSurface>
   )
 }
 

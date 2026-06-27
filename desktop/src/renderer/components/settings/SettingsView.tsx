@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type JSX } from 'react'
 import {
+  Hand,
   ListChecks,
+  OctagonAlert,
   Pencil,
   Plus,
   TestTube2,
@@ -3322,8 +3324,18 @@ export function SettingsView({
                         }}
                         style={{ width: SETTINGS_SELECT_WIDTH }}
                         options={[
-                          { value: 'default', label: t('settings.permissions.default.label') },
-                          { value: 'autoApprove', label: t('settings.permissions.fullAccess.label') }
+                          {
+                            value: 'default',
+                            label: t('settings.permissions.default.label'),
+                            description: t('settings.permissions.default.description'),
+                            icon: <Hand size={15} strokeWidth={1.9} />
+                          },
+                          {
+                            value: 'autoApprove',
+                            label: t('settings.permissions.fullAccess.label'),
+                            description: t('settings.permissions.fullAccess.description'),
+                            icon: <OctagonAlert size={15} strokeWidth={1.9} />
+                          }
                         ]}
                       />
                     }

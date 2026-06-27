@@ -363,12 +363,12 @@ export const MESSAGES_EN = {
   'settings.permissions.workspaceDefault.label': 'Workspace default permissions',
   'settings.permissions.workspaceDefault.description':
     'Used for new threads; channels without per-thread controls use it too.',
-  'settings.permissions.default.label': 'Default permissions',
+  'settings.permissions.default.label': 'Ask for approval',
   'settings.permissions.default.description':
-    'By default, DotCraft can read and edit files in its workspace. When needed, it can ask for extra permissions.',
+    'DotCraft asks before editing files outside the workspace or running commands.',
   'settings.permissions.fullAccess.label': 'Full access',
   'settings.permissions.fullAccess.description':
-    'When DotCraft runs with full access, it can edit any file on your computer and run network commands without your approval. This significantly increases the risk of data loss, leaks, or unintended behavior.',
+    'Approve every action automatically. Higher risk — only for workspaces you trust.',
   'settings.permissions.fullAccess.warningTitle': 'Enable full access?',
   'settings.permissions.fullAccess.warningBody':
     'Full access automatically approves approval-gated actions. DotCraft may edit files outside the workspace or run network commands without asking first. Only enable this for workspaces and channels you trust.',
@@ -2046,8 +2046,13 @@ export const MESSAGES_EN = {
   'composer.consolidate.unavailable': 'Memory consolidation is available only for idle conversations with history.',
   'composer.approval.label': 'Approval policy',
   'composer.approval.selectTitle': 'Select approval policy',
-  'composer.approval.default.label': 'Default permissions',
+  'composer.approval.default.label': 'Workspace default',
+  'composer.approval.default.description': 'Follow your workspace setting ({{policy}})',
+  'composer.approval.prompt.label': 'Ask for approval',
+  'composer.approval.prompt.description':
+    'Always ask before editing files outside the workspace or running commands',
   'composer.approval.fullAccess.label': 'Full access',
+  'composer.approval.fullAccess.description': 'Approve every action automatically — higher risk',
   'composer.approval.workspaceDefaultHint': 'Workspace default: {{policy}}',
   'composer.approval.updateFailed': 'Failed to update approval policy: {{error}}',
   'planApproval.title': 'Implement this plan?',

@@ -4,7 +4,7 @@ using System.Text.Json.Serialization;
 namespace DotCraft.Protocol;
 
 /// <summary>
-/// Serializes <see cref="ApprovalPolicy"/> as wire strings: default, autoApprove, interrupt.
+/// Serializes <see cref="ApprovalPolicy"/> as wire strings: default, prompt, autoApprove, interrupt.
 /// </summary>
 public sealed class ApprovalPolicyJsonConverter : JsonConverter<ApprovalPolicy>
 {
@@ -17,6 +17,7 @@ public sealed class ApprovalPolicyJsonConverter : JsonConverter<ApprovalPolicy>
         return s switch
         {
             "default" or "Default" => ApprovalPolicy.Default,
+            "prompt" or "Prompt" => ApprovalPolicy.Prompt,
             "autoApprove" or "AutoApprove" => ApprovalPolicy.AutoApprove,
             "interrupt" or "Interrupt" => ApprovalPolicy.Interrupt,
             _ => throw new JsonException($"Unknown ApprovalPolicy: {s}")
@@ -28,6 +29,7 @@ public sealed class ApprovalPolicyJsonConverter : JsonConverter<ApprovalPolicy>
         var str = value switch
         {
             ApprovalPolicy.Default => "default",
+            ApprovalPolicy.Prompt => "prompt",
             ApprovalPolicy.AutoApprove => "autoApprove",
             ApprovalPolicy.Interrupt => "interrupt",
             _ => throw new ArgumentOutOfRangeException(nameof(value), value, null)

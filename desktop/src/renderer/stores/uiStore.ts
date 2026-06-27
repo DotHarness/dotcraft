@@ -84,7 +84,7 @@ export interface WelcomeDraft {
     effort: ReasoningEffortWire
     output: ReasoningOutputWire
   }
-  approvalPolicy?: Extract<ApprovalPolicyWire, 'default' | 'autoApprove'>
+  approvalPolicy?: Extract<ApprovalPolicyWire, 'default' | 'prompt' | 'autoApprove'>
   updatedAt: number
 }
 
@@ -191,7 +191,7 @@ export interface UIState {
       output: ReasoningOutputWire
     }
     /** Approval policy chosen on Welcome before thread exists; applied after thread/read. */
-    approvalPolicy?: Extract<ApprovalPolicyWire, 'default' | 'autoApprove'>
+    approvalPolicy?: Extract<ApprovalPolicyWire, 'default' | 'prompt' | 'autoApprove'>
     /** True when this first turn establishes the thread goal (durable "sent as goal"). */
     sentAsGoal?: boolean
     createdAt: number
@@ -292,7 +292,7 @@ interface UIStore extends UIState {
         effort: ReasoningEffortWire
         output: ReasoningOutputWire
       }
-      approvalPolicy?: Extract<ApprovalPolicyWire, 'default' | 'autoApprove'>
+      approvalPolicy?: Extract<ApprovalPolicyWire, 'default' | 'prompt' | 'autoApprove'>
       sentAsGoal?: boolean
     } | null
   ): void
@@ -311,7 +311,7 @@ interface UIStore extends UIState {
       effort: ReasoningEffortWire
       output: ReasoningOutputWire
     }
-    approvalPolicy?: Extract<ApprovalPolicyWire, 'default' | 'autoApprove'>
+    approvalPolicy?: Extract<ApprovalPolicyWire, 'default' | 'prompt' | 'autoApprove'>
     sentAsGoal?: boolean
   } | null
   /** Clear pending welcome turn when it targets the given thread (e.g. thread/read failed). */
