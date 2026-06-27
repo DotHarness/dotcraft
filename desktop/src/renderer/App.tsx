@@ -12,6 +12,7 @@ import {
   type PendingApproval
 } from './stores/conversationStore'
 import { useUIStore } from './stores/uiStore'
+import { welcomeApprovalPolicyToWrite } from './stores/welcomeApprovalPolicy'
 import { useViewerTabStore } from './stores/viewerTabStore'
 import { useWindowMaximized } from './hooks/useWindowMaximized'
 import { QuickOpenDialog } from './components/detail/QuickOpenDialog'
@@ -3000,15 +3001,15 @@ export function App(): JSX.Element {
               typeof pendingWelcome.model === 'string' ? pendingWelcome.model.trim() : ''
             const welcomeModel =
               rawWelcomeModel !== '' && rawWelcomeModel !== 'Default' ? rawWelcomeModel : ''
-            const welcomeApprovalPolicy = pendingWelcome.approvalPolicy === 'autoApprove'
-              ? 'autoApprove'
-              : 'default'
+            // Preserve an explicit per-thread choice (prompt / autoApprove); `default`
+            // stays unwritten so the thread inherits the workspace default.
+            const welcomeApprovalWrite = welcomeApprovalPolicyToWrite(pendingWelcome.approvalPolicy)
             const welcomeReasoning = pendingWelcome.reasoning
             useConversationStore.getState().setThreadMode(welcomeMode)
             if (
               welcomeModel.length > 0 ||
               welcomeMode !== 'agent' ||
-              welcomeApprovalPolicy === 'autoApprove' ||
+              welcomeApprovalWrite != null ||
               welcomeReasoning != null
             ) {
               const existingConfig =
@@ -3029,8 +3030,8 @@ export function App(): JSX.Element {
               if (welcomeModel.length > 0) {
                 setCaseInsensitiveField(existingConfig, 'model', welcomeModel)
               }
-              if (welcomeApprovalPolicy === 'autoApprove') {
-                setCaseInsensitiveField(existingConfig, 'approvalPolicy', welcomeApprovalPolicy)
+              if (welcomeApprovalWrite != null) {
+                setCaseInsensitiveField(existingConfig, 'approvalPolicy', welcomeApprovalWrite)
               }
               if (welcomeReasoning != null) {
                 setCaseInsensitiveField(existingConfig, 'reasoning', welcomeReasoning)
@@ -3050,8 +3051,8 @@ export function App(): JSX.Element {
                   if (welcomeModel.length > 0) {
                     setCaseInsensitiveField(mergedCfg, 'model', welcomeModel)
                   }
-                  if (welcomeApprovalPolicy === 'autoApprove') {
-                    setCaseInsensitiveField(mergedCfg, 'approvalPolicy', welcomeApprovalPolicy)
+                  if (welcomeApprovalWrite != null) {
+                    setCaseInsensitiveField(mergedCfg, 'approvalPolicy', welcomeApprovalWrite)
                   }
                   if (welcomeReasoning != null) {
                     setCaseInsensitiveField(mergedCfg, 'reasoning', welcomeReasoning)
