@@ -5,7 +5,7 @@ import { useT } from '../../contexts/LocaleContext'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { useProfileStore, type UsageDayWire } from '../../stores/profileStore'
 import { ActionTooltip } from '../ui/ActionTooltip'
-import { RunningSpinner } from '../ui/RunningSpinner'
+import { Skeleton } from '../ui/Skeleton'
 import { SettingsPageHeader } from './SettingsPageHeader'
 import { TokenActivityHeatmap, type HeatmapMode } from './profile/TokenActivityHeatmap'
 import { ActivityInsights } from './profile/ActivityInsights'
@@ -76,6 +76,7 @@ export function ProfileView(): JSX.Element {
         <ProfileHeader editing={editing} onClose={() => setEditing(false)} t={t} />
 
         {capable && loadedOnce && <StatStrip days={days} longestTaskMs={longestTaskMs} t={t} />}
+        {capable && !loadedOnce && loading && <StatStripSkeleton />}
 
         <section style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           <header style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -131,12 +132,7 @@ function ActivityBody({
     return <div style={dimmedTextStyle}>{t('settings.usage.unavailable')}</div>
   }
   if (loading && !loadedOnce) {
-    return (
-      <div style={{ ...dimmedTextStyle, display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <RunningSpinner size={12} />
-        {t('settings.usage.refresh')}
-      </div>
-    )
+    return <ActivitySkeleton label={t('settings.usage.refresh')} />
   }
   if (error && !loadedOnce) {
     return (
@@ -149,6 +145,69 @@ function ActivityBody({
     )
   }
   return <TokenActivityHeatmap days={days} mode={mode} />
+}
+
+/**
+ * Loading placeholder for the activity heatmap. Mirrors the contribution grid's
+ * shape (53 week columns × 7 day rows) so the layout doesn't shift when the real
+ * heatmap arrives. Scales to fit like the real SVG; no spinner.
+ */
+function ActivitySkeleton({ label }: { label: string }): JSX.Element {
+  return (
+    <div
+      role="status"
+      aria-busy="true"
+      aria-label={label}
+      style={{ overflowX: 'auto', paddingBottom: '2px' }}
+    >
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(53, minmax(0, 1fr))',
+          gridTemplateRows: 'repeat(7, 11px)',
+          gap: '3px',
+          width: '100%'
+        }}
+      >
+        {Array.from({ length: 53 * 7 }, (_, index) => (
+          <Skeleton key={index} height={11} radius={2} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/** Placeholder for the stat strip while the first usage payload loads, so the
+ * strip's space is held instead of appearing and shifting content down. */
+function StatStripSkeleton(): JSX.Element {
+  return (
+    <div
+      aria-hidden="true"
+      style={{
+        display: 'flex',
+        border: '1px solid var(--border-default)',
+        borderRadius: '10px',
+        padding: '10px 8px'
+      }}
+    >
+      {Array.from({ length: 5 }, (_, index) => (
+        <div
+          key={index}
+          style={{
+            flex: 1,
+            minWidth: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '6px'
+          }}
+        >
+          <Skeleton width={46} height={18} />
+          <Skeleton width={62} height={10} />
+        </div>
+      ))}
+    </div>
+  )
 }
 
 // ── Identity header (centered, borderless) ───────────────────────────────────

@@ -256,26 +256,24 @@ export function ThreadList({
                   })
                 }}
               />
-              {!collapsed && (
-                <>
-                  {showProjectThreadSkeleton ? (
-                    <ProjectThreadSkeletonList />
-                  ) : (
-                    <>
-                      {projectThreads.length === 0 && project.loaded && searchQuery && (
-                        <ProjectHint label={t('threadList.noSearchResults')} />
-                      )}
-                      {projectThreads.map((thread) => (
-                        isForeground ? (
-                          <ThreadEntryWrapper key={thread.id} thread={thread} />
-                        ) : (
-                          <ReadonlyThreadRow key={thread.id} thread={thread} project={project} />
-                        )
-                      ))}
-                    </>
-                  )}
-                </>
-              )}
+              <CollapsibleThreads collapsed={collapsed}>
+                {showProjectThreadSkeleton ? (
+                  <ProjectThreadSkeletonList />
+                ) : (
+                  <>
+                    {projectThreads.length === 0 && project.loaded && searchQuery && (
+                      <ProjectHint label={t('threadList.noSearchResults')} />
+                    )}
+                    {projectThreads.map((thread) => (
+                      isForeground ? (
+                        <ThreadEntryWrapper key={thread.id} thread={thread} />
+                      ) : (
+                        <ReadonlyThreadRow key={thread.id} thread={thread} project={project} />
+                      )
+                    ))}
+                  </>
+                )}
+              </CollapsibleThreads>
             </div>
           )
         })}
@@ -1149,6 +1147,99 @@ function ProjectErrorIndicator({ label }: { label: string }): JSX.Element {
         </span>
       </ActionTooltip>
     </span>
+  )
+}
+
+const PROJECT_COLLAPSE_MS = 260
+const PROJECT_COLLAPSE_TRANSITION =
+  `grid-template-rows ${PROJECT_COLLAPSE_MS}ms cubic-bezier(0.4, 0, 0.2, 1), opacity 180ms ease`
+
+/**
+ * Animates a project's thread list collapsing and expanding. The wrapper stays
+ * mounted — so both directions animate reliably and the slot height never jumps
+ * — while the rows inside mount on expand and unmount after the collapse
+ * transition, so a collapsed project keeps rendering no rows (no perf or focus
+ * cost). Height animates via the `grid-template-rows: 1fr ↔ 0fr` technique (no JS
+ * measuring); the global reduce-motion rule collapses it to an instant snap.
+ * `transitionend` drives the row unmount, with a timeout fallback for when the
+ * transition is suppressed or never fires. The `-2px` top margin cancels the
+ * header's bottom margin, which this wrapper (a grid + overflow formatting
+ * context) would otherwise stop from collapsing — keeping the spacing identical
+ * to a project that has no list.
+ */
+function CollapsibleThreads({
+  collapsed,
+  children
+}: {
+  collapsed: boolean
+  children: ReactNode
+}): JSX.Element {
+  const [present, setPresent] = useState(!collapsed)
+  const [open, setOpen] = useState(!collapsed)
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const rafRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    const clearClose = (): void => {
+      if (closeTimerRef.current != null) {
+        clearTimeout(closeTimerRef.current)
+        closeTimerRef.current = null
+      }
+    }
+    const clearRaf = (): void => {
+      if (rafRef.current != null) {
+        cancelAnimationFrame(rafRef.current)
+        rafRef.current = null
+      }
+    }
+    clearClose()
+    clearRaf()
+    if (!collapsed) {
+      setPresent(true)
+      // The wrapper is already mounted at 0fr; flip to 1fr next frame so the
+      // height transitions in instead of snapping.
+      rafRef.current = requestAnimationFrame(() => {
+        setOpen(true)
+        rafRef.current = null
+      })
+    } else {
+      setOpen(false)
+      closeTimerRef.current = setTimeout(() => {
+        setPresent(false)
+        closeTimerRef.current = null
+      }, PROJECT_COLLAPSE_MS + 80)
+    }
+    return () => {
+      clearClose()
+      clearRaf()
+    }
+  }, [collapsed])
+
+  return (
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateRows: open ? '1fr' : '0fr',
+        opacity: open ? 1 : 0,
+        // Cancel the header's bottom margin, which this grid wrapper would
+        // otherwise stop from collapsing into the project's bottom margin.
+        marginTop: '-2px',
+        transition: PROJECT_COLLAPSE_TRANSITION
+      }}
+      onTransitionEnd={(event) => {
+        if (event.propertyName === 'grid-template-rows' && collapsed) {
+          if (closeTimerRef.current != null) {
+            clearTimeout(closeTimerRef.current)
+            closeTimerRef.current = null
+          }
+          setPresent(false)
+        }
+      }}
+    >
+      <div style={{ overflow: 'hidden', minWidth: 0 }} inert={collapsed}>
+        {present ? children : null}
+      </div>
+    </div>
   )
 }
 

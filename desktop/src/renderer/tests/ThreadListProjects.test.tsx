@@ -325,7 +325,7 @@ describe('ThreadList project-first layout', () => {
     expect(screen.getByRole('button', { name: 'b' })).not.toHaveAttribute('aria-current')
   })
 
-  it('clicking a project row collapses it without switching workspace', () => {
+  it('clicking a project row collapses it without switching workspace', async () => {
     useWorkspaceProjectsStore.getState().setPayload({
       foregroundWorkspacePath: '/workspace/a',
       secondaryLimit: 8,
@@ -348,7 +348,9 @@ describe('ThreadList project-first layout', () => {
     fireEvent.click(screen.getByRole('button', { name: 'b' }))
 
     expect(workspaceSwitch).not.toHaveBeenCalled()
-    expect(screen.queryByText('Thread B')).not.toBeInTheDocument()
+    // The collapse animation keeps the rows mounted through the height
+    // transition, then unmounts them.
+    await waitFor(() => expect(screen.queryByText('Thread B')).not.toBeInTheDocument())
   })
 
   it('keeps cold projects collapsed and starts them only on double click', () => {
