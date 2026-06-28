@@ -175,11 +175,16 @@ internal sealed class PluginRequestHandler(
             .DeployPlugin(pluginId);
         PluginDiagnosticsStore.Shared.Append(deployDiagnostics);
         PluginDiagnosticsLogger.Write(deployDiagnostics);
-        if (deployDiagnostics.Any(d => d.Severity == PluginDiagnosticSeverity.Error || d.Code == "BuiltInPluginNotFound"))
+        if (deployDiagnostics.Any(d => IsBlockingDeployDiagnosticForPlugin(d, pluginId)))
             throw AppServerErrors.InvalidParams($"Plugin '{pluginId}' could not be installed.");
 
         return await FinalizeInstalledPluginAsync(pluginId, AppServerMethods.PluginInstall, "plugin/install", msg, ct);
     }
+
+    private static bool IsBlockingDeployDiagnosticForPlugin(PluginDiagnostic diagnostic, string pluginId) =>
+        (diagnostic.Severity == PluginDiagnosticSeverity.Error || diagnostic.Code == "BuiltInPluginNotFound")
+        && !string.IsNullOrWhiteSpace(diagnostic.PluginId)
+        && PluginIds.EqualsCanonical(diagnostic.PluginId, pluginId);
 
     private async Task<object?> HandlePluginInstallLocalAsync(AppServerIncomingMessage msg, CancellationToken ct)
     {

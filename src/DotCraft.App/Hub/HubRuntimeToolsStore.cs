@@ -115,7 +115,7 @@ internal sealed class HubRuntimeToolsStore(string path)
         if (normalized == null)
             return null;
         if (Uri.TryCreate(normalized, UriKind.Absolute, out var uri)
-            && uri.Scheme is "http" or "https")
+            && string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
         {
             return normalized;
         }

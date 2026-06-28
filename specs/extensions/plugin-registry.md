@@ -80,7 +80,7 @@ Rules:
 - `source.source` must be `local`. v1 does not support marketplace entry sources such as `url` or `git-subdir`.
 - `source.path` must be a relative path beginning with `./`, must not contain `..`, and must stay inside the registry snapshot.
 - The target directory must contain `.craft-plugin/plugin.json`.
-- `policy.installation` controls whether the plugin is shown as installable; v1 supports `AVAILABLE`.
+- `policy.installation` controls whether the plugin is shown as installable, is required, and must be explicitly set to `AVAILABLE` in v1.
 - `policy.authentication` describes when the plugin expects authentication or app connection setup; v1 supports `ON_INSTALL`.
 - Runtime contribution metadata must stay in the plugin manifest and descriptor files, not in the marketplace entry.
 
@@ -94,7 +94,7 @@ DotCraft may discover registries from multiple sources:
 - additional configured sources in `Plugins.PluginRegistries`;
 - environment-provided sources for deployment-specific overrides.
 
-A registry source points to a repository snapshot archive or a local registry directory. The default marketplace path is `.craft/plugins/marketplace.json`; configured sources may override that path.
+A registry source points to an HTTPS repository snapshot archive, a local archive file, or a local registry directory. The default marketplace path is `.craft/plugins/marketplace.json`; configured sources may override that path.
 
 Users and organizations may disable the default official registry with `Plugins.DisableDefaultPluginRegistry`. This supports private or internal-only deployments where only company-managed registries should be used.
 

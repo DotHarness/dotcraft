@@ -314,7 +314,7 @@ The `Plugins` config section contains:
 - `PluginRoots`: additional local plugin roots or plugin container directories. Relative paths resolve against the workspace root.
 - `EnabledPlugins`: plugin ids explicitly enabled for the workspace.
 - `DisabledPlugins`: plugin ids explicitly disabled for the workspace. Disabled entries override enabled/default entries.
-- `PluginRegistries`: additional plugin registry sources. Each source declares a snapshot `url` and may override the marketplace path.
+- `PluginRegistries`: additional plugin registry sources. Each source declares an HTTPS snapshot `url` or local path and may override the marketplace path.
 - `DisableDefaultPluginRegistry`: disables the host-provided default official plugin registry.
 
 Installed built-in plugins and local manifest plugins are enabled by default unless disabled. Built-ins that are visible only through the catalog are installable but not enabled and do not contribute tools or skills to agent context.

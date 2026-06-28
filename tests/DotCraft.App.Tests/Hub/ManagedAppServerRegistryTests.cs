@@ -335,6 +335,26 @@ public sealed class ManagedAppServerRegistryTests : IDisposable
     }
 
     [Fact]
+    public void RuntimeToolsMerge_AcceptsHttpsDefaultPluginRegistryUrl()
+    {
+        var merged = HubRuntimeToolsStore.Merge(
+            new HubRuntimeToolsRequest(),
+            new HubRuntimeToolsRequest { DefaultPluginRegistryUrl = " https://example.test/registry.zip " });
+
+        Assert.Equal("https://example.test/registry.zip", merged.DefaultPluginRegistryUrl);
+    }
+
+    [Fact]
+    public void RuntimeToolsMerge_RejectsHttpDefaultPluginRegistryUrl()
+    {
+        var merged = HubRuntimeToolsStore.Merge(
+            new HubRuntimeToolsRequest { DefaultPluginRegistryUrl = "https://existing.test/registry.zip" },
+            new HubRuntimeToolsRequest { DefaultPluginRegistryUrl = "http://example.test/registry.zip" });
+
+        Assert.Equal("https://existing.test/registry.zip", merged.DefaultPluginRegistryUrl);
+    }
+
+    [Fact]
     public void HubPaths_ResolvesDefaultChatWorkspaceUnderCraftHome()
     {
         var paths = HubPaths.Resolve(_tempDir);

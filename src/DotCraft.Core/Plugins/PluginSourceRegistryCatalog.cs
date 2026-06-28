@@ -190,9 +190,7 @@ internal static class PluginSourceRegistryCatalog
             return null;
         }
 
-        if (entry.Policy != null
-            && !string.IsNullOrWhiteSpace(entry.Policy.Installation)
-            && !string.Equals(entry.Policy.Installation, "AVAILABLE", StringComparison.Ordinal))
+        if (!string.Equals(entry.Policy?.Installation, "AVAILABLE", StringComparison.Ordinal))
         {
             diagnostics.Add(PluginDiagnostic.Warning(
                 "PluginRegistryEntryNotAvailable",
@@ -253,13 +251,13 @@ internal static class PluginSourceRegistryCatalog
                    ?? ResolveCachedSnapshot(source, diagnostics, warnWhenMissing: false);
 
         if (!Uri.TryCreate(source.Url, UriKind.Absolute, out var uri)
-            || uri.Scheme is not ("http" or "https"))
+            || !string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
         {
             diagnostics.Add(PluginDiagnostic.Warning(
                 "InvalidPluginRegistrySourceUrl",
-                $"Plugin registry source '{source.Name}' must be an HTTP(S) archive URL or a local archive/directory path.",
+                $"Plugin registry source '{source.Name}' must be an HTTPS archive URL or a local archive/directory path.",
                 path: source.Url));
-            return ResolveCachedSnapshot(source, diagnostics, warnWhenMissing: false);
+            return null;
         }
 
         var cacheRoot = CacheRootFor(source);

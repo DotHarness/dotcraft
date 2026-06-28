@@ -866,6 +866,54 @@ public sealed class PluginDiscoveryTests
     }
 
     [Fact]
+    public void BuiltInPluginCatalog_RequiresExplicitAvailableRegistryInstallationPolicy()
+    {
+        var root = NewTempDir();
+        var registryRoot = Path.Combine(root, "registry");
+        WriteRegistryMarketplace(registryRoot, "policy-demo", policyInstallation: null);
+        WriteSkillOnlyPlugin(Path.Combine(registryRoot, "plugins", "policy-demo"), id: "policy-demo");
+        var config = new AppConfig();
+        config.Plugins.PluginRegistries.Add(new AppConfig.PluginRegistryConfig { Url = registryRoot });
+
+        var result = new BuiltInPluginCatalog([], config.Plugins).Discover();
+
+        Assert.Empty(result.Plugins);
+        Assert.Contains(result.Diagnostics, d => d.Code == "PluginRegistryEntryNotAvailable" && d.PluginId == "policy-demo");
+    }
+
+    [Fact]
+    public void BuiltInPluginCatalog_RejectsPlainHttpRegistryArchiveUrl()
+    {
+        var config = new AppConfig();
+        config.Plugins.PluginRegistries.Add(new AppConfig.PluginRegistryConfig
+        {
+            Url = "http://example.test/registry.zip"
+        });
+
+        var result = new BuiltInPluginCatalog([], config.Plugins).Discover();
+
+        Assert.Empty(result.Plugins);
+        Assert.Contains(result.Diagnostics, d => d.Code == "InvalidPluginRegistrySourceUrl");
+        Assert.DoesNotContain(result.Diagnostics, d => d.Code == "PluginRegistryDownloadFailed");
+    }
+
+    [Fact]
+    public void BuiltInPluginCatalog_AcceptsHttpsRegistryArchiveUrlAsRemoteSource()
+    {
+        var config = new AppConfig();
+        config.Plugins.PluginRegistries.Add(new AppConfig.PluginRegistryConfig
+        {
+            Url = "https://127.0.0.1:9/registry.zip"
+        });
+
+        var result = new BuiltInPluginCatalog([], config.Plugins).Discover();
+
+        Assert.Empty(result.Plugins);
+        Assert.DoesNotContain(result.Diagnostics, d => d.Code == "InvalidPluginRegistrySourceUrl");
+        Assert.Contains(result.Diagnostics, d => d.Code == "PluginRegistryDownloadFailed");
+    }
+
+    [Fact]
     public void BuiltInPluginDeployer_DeploysSourceRegistryPlugin()
     {
         var root = NewTempDir();
@@ -1077,9 +1125,24 @@ public sealed class PluginDiscoveryTests
         string registryRoot,
         string pluginId,
         string? sourcePath = null,
-        string sourceKind = "local")
+        string sourceKind = "local",
+        string? policyInstallation = "AVAILABLE")
     {
         Directory.CreateDirectory(Path.Combine(registryRoot, ".craft", "plugins"));
+        var policy = policyInstallation == null
+            ? """
+,
+      "policy": {
+        "authentication": "ON_INSTALL"
+      }
+"""
+            : $$"""
+,
+      "policy": {
+        "installation": "{{policyInstallation}}",
+        "authentication": "ON_INSTALL"
+      }
+""";
         File.WriteAllText(
             Path.Combine(registryRoot, ".craft", "plugins", "marketplace.json"),
             $$"""
@@ -1094,11 +1157,7 @@ public sealed class PluginDiscoveryTests
       "source": {
         "source": "{{sourceKind}}",
         "path": "{{sourcePath ?? "./plugins/" + pluginId}}"
-      },
-      "policy": {
-        "installation": "AVAILABLE",
-        "authentication": "ON_INSTALL"
-      },
+      }{{policy}},
       "category": "Testing"
     }
   ]

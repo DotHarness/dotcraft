@@ -534,6 +534,26 @@ public sealed class AppServerPluginManagementTests : IDisposable
     }
 
     [Fact]
+    public async Task PluginInstall_DeploysRegistryPluginWhenUnrelatedRegistryEntryHasError()
+    {
+        var config = new AppConfig();
+        ConfigureRegistryAppRegistry(config, includeBrokenEntry: true);
+        var loader = CreateSkillsLoader(config);
+        using var harness = CreateHarness(config, loader);
+        await harness.InitializeAsync(configChange: true);
+
+        var msg = harness.BuildRequest(AppServerMethods.PluginInstall, new { id = "registry-app" });
+        await harness.ExecuteRequestAsync(msg);
+
+        using var response = await harness.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(response);
+        var plugin = response.RootElement.GetProperty("result").GetProperty("plugin");
+        Assert.Equal("registry-app", plugin.GetProperty("id").GetString());
+        Assert.True(plugin.GetProperty("installed").GetBoolean());
+        Assert.True(File.Exists(Path.Combine(_workspaceCraftPath, "plugins", "registry-app", ".builtin")));
+    }
+
+    [Fact]
     public async Task PluginInstall_DeploysAgentTeamsMetadataPlugin()
     {
         using var harness = CreateHarness();
@@ -782,18 +802,35 @@ public sealed class AppServerPluginManagementTests : IDisposable
         throw new InvalidOperationException("Could not find repository root.");
     }
 
-    private void ConfigureRegistryAppRegistry(AppConfig config)
+    private void ConfigureRegistryAppRegistry(AppConfig config, bool includeBrokenEntry = false)
     {
         var registryRoot = Path.Combine(_tempRoot, "registry");
         Directory.CreateDirectory(Path.Combine(registryRoot, ".craft", "plugins"));
         Directory.CreateDirectory(Path.Combine(registryRoot, "plugins"));
-        WriteRegistryMarketplace(registryRoot, "registry-app");
+        WriteRegistryMarketplace(registryRoot, "registry-app", includeBrokenEntry);
         WriteRegistryAppPlugin(Path.Combine(registryRoot, "plugins", "registry-app"));
         config.Plugins.PluginRegistries.Add(new AppConfig.PluginRegistryConfig { Url = registryRoot });
     }
 
-    private static void WriteRegistryMarketplace(string registryRoot, string pluginId)
+    private static void WriteRegistryMarketplace(string registryRoot, string pluginId, bool includeBrokenEntry = false)
     {
+        var brokenEntry = includeBrokenEntry
+            ? """
+,
+    {
+      "name": "broken-registry-entry",
+      "source": {
+        "source": "local",
+        "path": "./../broken-registry-entry"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Testing"
+    }
+"""
+            : string.Empty;
         File.WriteAllText(
             Path.Combine(registryRoot, ".craft", "plugins", "marketplace.json"),
             $$"""
@@ -815,6 +852,7 @@ public sealed class AppServerPluginManagementTests : IDisposable
       },
       "category": "Productivity"
     }
+    {{brokenEntry}}
   ]
 }
 """);
