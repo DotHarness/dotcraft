@@ -245,10 +245,7 @@ jobs:
 
     - name: Build desktop app
       if: runner.os != 'Linux'
-      run: |
-        npm run build
-        npx electron-builder ${{ matrix.electron_builder_args }} --publish never
-        npm run verify:package
+      run: npm run dist:package -- ${{ matrix.electron_builder_args }}
       working-directory: desktop
       env:
         # No code signing cert in CI; skip discovery so macOS/Windows builds do not fail.

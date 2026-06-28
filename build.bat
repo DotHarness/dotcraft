@@ -229,7 +229,7 @@ if %ERRORLEVEL% neq 0 (
     cd ..
     goto :failure
 )
-call npm run dist
+call npm run dist:package -- --win --x64
 if %ERRORLEVEL% neq 0 (
     echo Desktop build failed with exit code %ERRORLEVEL%.
     cd ..

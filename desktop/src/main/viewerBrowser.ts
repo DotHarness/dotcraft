@@ -384,6 +384,7 @@ export class ViewerBrowserManager {
     const view = new WebContentsView({
       webPreferences: {
         session: partitionSession,
+        devTools: import.meta.env.DEV,
         contextIsolation: true,
         sandbox: true,
         nodeIntegration: false
