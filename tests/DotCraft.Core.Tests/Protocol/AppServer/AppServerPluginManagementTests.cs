@@ -804,9 +804,9 @@ public sealed class AppServerPluginManagementTests : IDisposable
   },
   "plugins": [
     {
-      "id": "{{pluginId}}",
+      "name": "{{pluginId}}",
       "source": {
-        "kind": "registryPath",
+        "source": "local",
         "path": "./plugins/{{pluginId}}"
       },
       "policy": {

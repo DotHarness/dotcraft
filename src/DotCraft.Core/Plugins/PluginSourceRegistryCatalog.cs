@@ -145,24 +145,24 @@ internal static class PluginSourceRegistryCatalog
         PluginRegistryEntry entry,
         List<PluginDiagnostic> diagnostics)
     {
-        var id = NormalizeOptional(entry.Id);
-        if (!PluginManifestParser.IsValidPluginId(id))
+        var name = NormalizeOptional(entry.Name);
+        if (!PluginManifestParser.IsValidPluginId(name))
         {
             diagnostics.Add(PluginDiagnostic.Error(
-                "InvalidPluginRegistryEntryId",
-                "Plugin registry entry id is invalid.",
-                id,
+                "InvalidPluginRegistryEntryName",
+                "Plugin registry entry name is invalid.",
+                name,
                 path: marketplacePath));
             return null;
         }
 
-        var pluginId = id!;
+        var pluginId = name!;
         var entrySource = entry.Source;
-        if (entrySource == null || !string.Equals(entrySource.Kind, "registryPath", StringComparison.Ordinal))
+        if (entrySource == null || !string.Equals(entrySource.Source, "local", StringComparison.Ordinal))
         {
             diagnostics.Add(PluginDiagnostic.Error(
                 "InvalidPluginRegistryEntrySource",
-                "Plugin registry entry source.kind must be registryPath.",
+                "Plugin registry entry source.source must be local.",
                 pluginId,
                 path: marketplacePath));
             return null;
@@ -232,7 +232,7 @@ internal static class PluginSourceRegistryCatalog
         {
             diagnostics.Add(PluginDiagnostic.Error(
                 "PluginRegistryManifestIdMismatch",
-                $"Plugin registry entry id '{pluginId}' does not match plugin manifest id '{parse.Manifest.Id}'.",
+                $"Plugin registry entry name '{pluginId}' does not match plugin manifest id '{parse.Manifest.Id}'.",
                 pluginId,
                 path: parse.Manifest.ManifestPath));
             return null;
@@ -498,7 +498,7 @@ internal static class PluginSourceRegistryCatalog
 
     private sealed class PluginRegistryEntry
     {
-        public string? Id { get; set; }
+        public string? Name { get; set; }
 
         public PluginRegistryEntrySource? Source { get; set; }
 
@@ -509,7 +509,7 @@ internal static class PluginSourceRegistryCatalog
 
     private sealed class PluginRegistryEntrySource
     {
-        public string? Kind { get; set; }
+        public string? Source { get; set; }
 
         public string? Path { get; set; }
     }

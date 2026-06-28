@@ -4336,9 +4336,9 @@ public sealed class AppBindingProtocolTests : IDisposable
   },
   "plugins": [
     {
-      "id": "{{pluginId}}",
+      "name": "{{pluginId}}",
       "source": {
-        "kind": "registryPath",
+        "source": "local",
         "path": "./plugins/{{pluginId}}"
       },
       "policy": {

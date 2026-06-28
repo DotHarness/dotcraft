@@ -335,19 +335,6 @@ public sealed class ManagedAppServerRegistryTests : IDisposable
     }
 
     [Fact]
-    public void AddRuntimeTools_ForwardsBuiltInPluginCatalogsAsEnvironmentOverride()
-    {
-        var env = new Dictionary<string, string?>(StringComparer.Ordinal);
-        var catalog = Path.Combine(_tempDir, "resources", "plugins", "dotcraft-bundled", "catalog.json");
-
-        ManagedAppServerRegistry.AddRuntimeTools(
-            new HubRuntimeToolsRequest { BuiltInPluginCatalogs = $" {catalog} " },
-            env);
-
-        Assert.Equal(catalog, env["DOTCRAFT_BUILTIN_PLUGIN_CATALOGS"]);
-    }
-
-    [Fact]
     public void HubPaths_ResolvesDefaultChatWorkspaceUnderCraftHome()
     {
         var paths = HubPaths.Resolve(_tempDir);

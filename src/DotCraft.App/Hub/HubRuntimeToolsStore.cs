@@ -67,7 +67,6 @@ internal sealed class HubRuntimeToolsStore(string path)
             NodeRunAsNode = update.NodeRunAsNode ?? current.NodeRunAsNode,
             ModulesDir = ExistingDirectory(update.ModulesDir) ?? current.ModulesDir,
             BuiltInPluginRoots = ExistingDirectoryPathList(update.BuiltInPluginRoots) ?? current.BuiltInPluginRoots,
-            BuiltInPluginCatalogs = ExistingFilePathList(update.BuiltInPluginCatalogs) ?? current.BuiltInPluginCatalogs,
             DefaultPluginRegistryUrl = ValidRegistryUrl(update.DefaultPluginRegistryUrl) ?? current.DefaultPluginRegistryUrl
         };
     }
@@ -101,21 +100,6 @@ internal sealed class HubRuntimeToolsStore(string path)
             .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Select(Normalize)
             .Where(path => path != null && Directory.Exists(path))
-            .Select(path => path!)
-            .ToArray();
-
-        return roots.Length == 0 ? null : string.Join(Path.PathSeparator, roots);
-    }
-
-    private static string? ExistingFilePathList(string? pathValue)
-    {
-        if (string.IsNullOrWhiteSpace(pathValue))
-            return null;
-
-        var roots = pathValue
-            .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Select(Normalize)
-            .Where(path => path != null && File.Exists(path))
             .Select(path => path!)
             .ToArray();
 

@@ -16,12 +16,12 @@ Purpose: define the product and process contract for curated DotCraft plugin reg
 A DotCraft plugin registry is a curated source repository. It contains:
 
 - a marketplace index at `.craft/plugins/marketplace.json`;
-- one plugin source directory per listed plugin, normally under `plugins/<pluginId>/`;
+- one plugin source directory per listed plugin, normally under `plugins/<pluginName>/`;
 - CI validation that ensures marketplace entries point to valid plugin roots inside the repository.
 
 The registry follows the same broad model as a source-based marketplace: the index controls discovery and ordering, while each plugin directory remains the source bundle that DotCraft installs. Registry entries do not define plugin runtime contributions. Skills, app descriptors, MCP/LSP descriptors, Desktop extensions, assets, and path metadata are read from the plugin's `.craft-plugin/plugin.json` and referenced files.
 
-Installing a registry plugin copies the verified registry plugin directory into the workspace at `.craft/plugins/<pluginId>`. DotCraft loads plugin contributions only after local installation.
+Installing a registry plugin copies the verified registry plugin directory into the workspace at `.craft/plugins/<pluginName>`. DotCraft loads plugin contributions only after local installation.
 
 ---
 
@@ -59,9 +59,9 @@ The marketplace document has this v1 shape:
   },
   "plugins": [
     {
-      "id": "example-plugin",
+      "name": "example-plugin",
       "source": {
-        "kind": "registryPath",
+        "source": "local",
         "path": "./plugins/example-plugin"
       },
       "policy": {
@@ -76,10 +76,10 @@ The marketplace document has this v1 shape:
 
 Rules:
 
-- `source.kind` must be `registryPath`.
+- `name` identifies the plugin entry and must match the plugin manifest `id`.
+- `source.source` must be `local`. v1 does not support marketplace entry sources such as `url` or `git-subdir`.
 - `source.path` must be a relative path beginning with `./`, must not contain `..`, and must stay inside the registry snapshot.
 - The target directory must contain `.craft-plugin/plugin.json`.
-- The marketplace entry `id` must match the plugin manifest `id`.
 - `policy.installation` controls whether the plugin is shown as installable; v1 supports `AVAILABLE`.
 - `policy.authentication` describes when the plugin expects authentication or app connection setup; v1 supports `ON_INSTALL`.
 - Runtime contribution metadata must stay in the plugin manifest and descriptor files, not in the marketplace entry.
@@ -124,8 +124,8 @@ Installing a registry plugin must:
 
 - load a registry snapshot from cache or source;
 - resolve the marketplace entry to a repository-local plugin directory;
-- validate the plugin manifest id against the marketplace id;
-- copy the plugin directory to `.craft/plugins/<pluginId>`;
+- validate the plugin manifest id against the marketplace entry name;
+- copy the plugin directory to `.craft/plugins/<pluginName>`;
 - write a managed marker for DotCraft-owned refresh/removal behavior;
 - refresh plugin-contributed skills, apps, MCP/LSP servers, and Desktop extension metadata through the normal plugin runtime.
 
@@ -139,7 +139,7 @@ The registry is a curated trust boundary, not a sandbox.
 
 - DotCraft must not execute plugin code directly from the registry URL.
 - DotCraft must reject marketplace paths that escape the registry snapshot.
-- DotCraft must reject plugins whose manifest id does not match the marketplace id.
+- DotCraft must reject plugins whose manifest id does not match the marketplace entry name.
 - Registry review should check misleading metadata, missing referenced files, unsupported contribution types, and obvious provenance problems.
 - Desktop extensions remain trusted installed plugin code and load only after installation and enablement.
 - App Binding, MCP/LSP, dynamic tools, and Desktop extension permissions remain governed by their existing specs and runtime consent flows.
@@ -150,7 +150,7 @@ The registry is a curated trust boundary, not a sandbox.
 
 The intended publishing flow is:
 
-1. A contributor updates or adds a plugin directory under `plugins/<pluginId>/`.
+1. A contributor updates or adds a plugin directory under `plugins/<pluginName>/`.
 2. The contributor updates `.craft/plugins/marketplace.json`.
 3. CI validates marketplace shape, path safety, manifest id consistency, and referenced files.
 4. DotCraft maintainers review and merge the registry pull request.

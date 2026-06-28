@@ -5,8 +5,7 @@ namespace DotCraft.Plugins;
 internal sealed record BuiltInPluginSource(
     PluginManifest Manifest,
     string PluginRoot,
-    string ContainerRoot,
-    RemoteBuiltInPluginPackage? RemotePackage = null);
+    string ContainerRoot);
 
 internal static class BuiltInPluginSourceResolver
 {
@@ -70,25 +69,6 @@ internal static class BuiltInPluginSourceResolver
 
                 sources.Add(new BuiltInPluginSource(manifest, fullPluginRoot, fullRoot));
             }
-        }
-
-        foreach (var remote in RemoteBuiltInPluginCatalog.Discover(diagnostics))
-        {
-            if (!seenPluginIds.Add(remote.Manifest.Id))
-            {
-                diagnostics.Add(PluginDiagnostic.Warning(
-                    "DuplicateBuiltInPluginId",
-                    $"Remote built-in plugin '{remote.Manifest.Id}' was skipped because a higher-priority bundled root already provided it.",
-                    remote.Manifest.Id,
-                    path: remote.CatalogPath));
-                continue;
-            }
-
-            sources.Add(new BuiltInPluginSource(
-                remote.Manifest,
-                remote.CatalogPath,
-                remote.CatalogPath,
-                remote.Package));
         }
 
         foreach (var registryPlugin in PluginSourceRegistryCatalog.Discover(pluginsConfig, diagnostics))
