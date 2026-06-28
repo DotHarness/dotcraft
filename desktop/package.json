@@ -24,6 +24,7 @@
     "shot": "npx tsx e2e/shot.ts",
     "verify:package": "node scripts/verify-package.mjs",
     "pack": "npm run ensure:electron && node --require ./scripts/electron-builder-rename-retry.cjs ./node_modules/electron-builder/cli.js --dir",
+    "dist:package": "node scripts/dist-package.mjs",
     "dist": "npm run ensure:electron && electron-vite build && node --require ./scripts/electron-builder-rename-retry.cjs ./node_modules/electron-builder/cli.js && npm run verify:package"
   },
   "dependencies": {
@@ -91,6 +92,15 @@
     "directories": {
       "buildResources": "resources"
     },
+    "electronLanguages": [
+      "en-US",
+      "zh-CN",
+      "ja",
+      "ko",
+      "es",
+      "fr",
+      "de"
+    ],
     "files": [
       "out/**/*"
     ],

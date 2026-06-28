@@ -1374,6 +1374,7 @@ function createWindow(
     autoHideMenuBar: !isMac,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
+      devTools: isDev,
       additionalArguments: [
         `--dotcraft-initial-theme=${initialThemeMode}`,
         `--dotcraft-applied-theme=${initialTheme}`,
@@ -2744,7 +2745,7 @@ function buildAppMenu(locale: AppLocale): Menu {
       submenu: [
         { role: 'reload' },
         { role: 'forceReload' },
-        { role: 'toggleDevTools' },
+        ...(import.meta.env.DEV ? ([{ role: 'toggleDevTools' }] as MenuItemConstructorOptions[]) : []),
         { type: 'separator' },
         { role: 'resetZoom' },
         { role: 'zoomIn' },
