@@ -77,20 +77,20 @@ describe('mergeUpdatedSettings', () => {
   it('merges pinned thread ids by workspace without dropping other workspaces', () => {
     const current: AppSettings = {
       pinnedThreadIdsByWorkspace: {
-        'E:\\Git\\dotcraft': ['thread-a'],
-        'E:\\Git\\oratorio': ['thread-b']
+        'C:\\Projects\\dotcraft-sample': ['thread-a'],
+        'C:\\Projects\\workflow-sample': ['thread-b']
       }
     }
 
     const next = mergeUpdatedSettings(current, {
       pinnedThreadIdsByWorkspace: {
-        'E:\\Git\\dotcraft': ['thread-c', 'thread-a']
+        'C:\\Projects\\dotcraft-sample': ['thread-c', 'thread-a']
       }
     })
 
     expect(next.pinnedThreadIdsByWorkspace).toEqual({
-      'E:\\Git\\dotcraft': ['thread-c', 'thread-a'],
-      'E:\\Git\\oratorio': ['thread-b']
+      'C:\\Projects\\dotcraft-sample': ['thread-c', 'thread-a'],
+      'C:\\Projects\\workflow-sample': ['thread-b']
     })
   })
 })

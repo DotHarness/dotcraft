@@ -22,12 +22,12 @@ describe('appBindingStore', () => {
     sendRequest.mockResolvedValueOnce({
       apps: [
         {
-          appId: 'com.dotharness.oratorio',
-          toolNamespace: 'oratorio',
-          displayName: 'Oratorio',
-          developerName: 'DotHarness',
+          appId: 'com.example.workflow',
+          toolNamespace: 'workflow',
+          displayName: 'Workflow App',
+          developerName: 'Example Labs',
           description: 'Board tools',
-          pluginId: 'oratorio',
+          pluginId: 'workflow',
           installed: true,
           enabled: true,
           catalogVisible: true,
@@ -46,7 +46,7 @@ describe('appBindingStore', () => {
       surface: 'sdk/default'
     })
     const [app] = useAppBindingStore.getState().apps
-    expect(app?.appId).toBe('com.dotharness.oratorio')
+    expect(app?.appId).toBe('com.example.workflow')
     expect(app?.handoffModes).toEqual([])
     expect(app?.scopes).toEqual([])
     expect(app?.toolCatalog).toEqual([])
@@ -59,7 +59,7 @@ describe('appBindingStore', () => {
     sendRequest.mockResolvedValueOnce({
       bindingRequestId: 'request-1',
       threadId: 'thread-1',
-      appId: 'com.dotharness.dotcraft-unity',
+      appId: 'com.example.dynamic-tools',
       requestedScopes: ['unity.read'],
       state: 'pending',
       tokenExpiresAt: '2026-05-18T00:00:00Z',
@@ -68,7 +68,7 @@ describe('appBindingStore', () => {
 
     await useAppBindingStore.getState().createBindingRequest({
       threadId: 'thread-1',
-      appId: 'com.dotharness.dotcraft-unity',
+      appId: 'com.example.dynamic-tools',
       requestedScopes: ['unity.read'],
       requestedTools: undefined,
       source: 'pluginDetail'
@@ -76,7 +76,7 @@ describe('appBindingStore', () => {
 
     expect(sendRequest).toHaveBeenCalledWith('app/binding/request/create', {
       threadId: 'thread-1',
-      appId: 'com.dotharness.dotcraft-unity',
+      appId: 'com.example.dynamic-tools',
       requestedScopes: ['unity.read'],
       source: 'pluginDetail'
     })
@@ -90,7 +90,7 @@ describe('appBindingStore', () => {
             {
               bindingId: 'bind-1',
               threadId: 'thread-1',
-              appId: 'com.dotharness.oratorio',
+              appId: 'com.example.workflow',
               state: 'active',
               connectionState: 'connected',
               lastChangedAt: '2026-05-16T00:00:00Z'
@@ -150,12 +150,12 @@ describe('appBindingStore', () => {
         return {
           apps: [
             {
-              appId: 'com.dotharness.oratorio',
-              toolNamespace: 'oratorio',
-              displayName: 'Oratorio',
-              developerName: 'DotHarness',
+              appId: 'com.example.workflow',
+              toolNamespace: 'workflow',
+              displayName: 'Workflow App',
+              developerName: 'Example Labs',
               description: 'Board tools',
-              pluginId: 'oratorio',
+              pluginId: 'workflow',
               installed: true,
               enabled: true,
               catalogVisible: true,
@@ -169,7 +169,7 @@ describe('appBindingStore', () => {
 
     const app = await useAppBindingStore
       .getState()
-      .waitForConnection('com.dotharness.oratorio', { timeoutMs: 2, intervalMs: 0 })
+      .waitForConnection('com.example.workflow', { timeoutMs: 2, intervalMs: 0 })
 
     expect(app.connectionState).toBe('connected')
     expect(appListCalls).toBe(2)
@@ -181,12 +181,12 @@ describe('appBindingStore', () => {
         return {
           apps: [
             {
-              appId: 'com.dotharness.oratorio',
-              toolNamespace: 'oratorio',
-              displayName: 'Oratorio',
-              developerName: 'DotHarness',
+              appId: 'com.example.workflow',
+              toolNamespace: 'workflow',
+              displayName: 'Workflow App',
+              developerName: 'Example Labs',
               description: 'Board tools',
-              pluginId: 'oratorio',
+              pluginId: 'workflow',
               installed: true,
               enabled: true,
               catalogVisible: true,
@@ -200,7 +200,7 @@ describe('appBindingStore', () => {
 
     await expect(useAppBindingStore
       .getState()
-      .waitForConnection('com.dotharness.oratorio', { timeoutMs: 1, intervalMs: 0 }))
+      .waitForConnection('com.example.workflow', { timeoutMs: 1, intervalMs: 0 }))
       .rejects.toThrow('App connection failed')
   })
 
@@ -215,7 +215,7 @@ describe('appBindingStore', () => {
               bindingRequestId: 'request-1',
               bindingId: 'binding-1',
               threadId: 'thread-1',
-              appId: 'com.dotharness.oratorio',
+              appId: 'com.example.workflow',
               state: 'active',
               connectionState: 'connected',
               grantedScopes: ['board.read'],
@@ -231,7 +231,7 @@ describe('appBindingStore', () => {
     const binding = await useAppBindingStore.getState().waitForThreadBinding(
       {
         threadId: 'thread-1',
-        appId: 'com.dotharness.oratorio',
+        appId: 'com.example.workflow',
         bindingRequestId: 'request-1'
       },
       { timeoutMs: 2, intervalMs: 0 }
@@ -295,7 +295,7 @@ describe('appBindingStore', () => {
               bindingRequestId: 'request-1',
               bindingId: 'binding-1',
               threadId: 'thread-1',
-              appId: 'com.dotharness.oratorio',
+              appId: 'com.example.workflow',
               state: 'active',
               connectionState: 'connected',
               grantedScopes: ['board.read'],
@@ -311,7 +311,7 @@ describe('appBindingStore', () => {
     await expect(useAppBindingStore.getState().waitForThreadBinding(
       {
         threadId: 'thread-1',
-        appId: 'com.dotharness.oratorio',
+        appId: 'com.example.workflow',
         bindingRequestId: 'request-1'
       },
       { timeoutMs: 1, intervalMs: 0 }

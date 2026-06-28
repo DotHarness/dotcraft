@@ -168,7 +168,10 @@ internal sealed class PluginRequestHandler(
         if (!beforePlugin.Installable)
             throw AppServerErrors.InvalidParams($"Plugin '{pluginId}' is not installable.");
 
-        var deployDiagnostics = new BuiltInPluginDeployer(Path.Combine(workspaceCraftPath, "plugins"), builtInPluginSourceRoots)
+        var deployDiagnostics = new BuiltInPluginDeployer(
+                Path.Combine(workspaceCraftPath, "plugins"),
+                builtInPluginSourceRoots,
+                appConfigMonitor?.Current.Plugins ?? new AppConfig.PluginsConfig())
             .DeployPlugin(pluginId);
         PluginDiagnosticsStore.Shared.Append(deployDiagnostics);
         PluginDiagnosticsLogger.Write(deployDiagnostics);

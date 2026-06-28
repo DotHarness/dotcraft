@@ -923,7 +923,7 @@ describe('ToolCallCard shell rendering', () => {
       toolName: 'tool_search',
       toolCallId: 'tool-search-1',
       arguments: { query: 'board task' },
-      result: 'Found 1 matching tool(s):\n- oratorio.CreateBoardTask: Create an Oratorio board task.',
+      result: 'Found 1 matching tool(s):\n- workflow.CreateBoardTask: Create a Workflow App board task.',
       success: true,
       createdAt: new Date().toISOString()
     }

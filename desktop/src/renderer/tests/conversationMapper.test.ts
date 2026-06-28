@@ -317,7 +317,7 @@ describe('wireItemToConversationItem — nested payload format (thread/read)', (
       id: 'dynamic-1',
       type: 'dynamicToolCall',
       payload: {
-        namespace: 'oratorio',
+        namespace: 'workflow',
         toolName: 'ListBoardItems',
         callId: 'dynamic-call-1',
         arguments: { status: 'todo' },
@@ -334,7 +334,7 @@ describe('wireItemToConversationItem — nested payload format (thread/read)', (
     expect(item.type).toBe('dynamicToolCall')
     expect(item.toolName).toBe('ListBoardItems')
     expect(item.toolCallId).toBe('dynamic-call-1')
-    expect(item.pluginNamespace).toBe('oratorio')
+    expect(item.pluginNamespace).toBe('workflow')
     expect(item.arguments).toEqual({ status: 'todo' })
     expect(item.result).toBe('2 board items')
     expect(item.contentItems).toEqual([

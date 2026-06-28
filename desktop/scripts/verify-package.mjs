@@ -85,6 +85,16 @@ function verifyResourcesDir(target) {
     }
   }
 
+  const forbiddenBundledPlugins = [
+    path.join(resourcesDir, 'plugins', 'dotcraft-bundled', 'plugins', 'dotcraft-unity'),
+    path.join(resourcesDir, 'plugins', 'dotcraft-bundled', 'plugins', 'oratorio')
+  ]
+  for (const forbidden of forbiddenBundledPlugins) {
+    if (existsSync(forbidden)) {
+      fail(`External integration plugin must not be bundled in Desktop resources: ${path.relative(resourcesDir, forbidden)}.`)
+    }
+  }
+
   const entries = new Set(listPackage(appAsar).map(normalizeAsarPath))
   const requiredAsarEntries = [
     'node_modules/@vscode/ripgrep/lib/index.js',

@@ -2,13 +2,17 @@ using System.Buffers;
 using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text;
+using DotCraft.Configuration;
 
 namespace DotCraft.Plugins;
 
 /// <summary>
 /// Copies desktop-bundled built-in plugin directories into a workspace.
 /// </summary>
-public sealed class BuiltInPluginDeployer(string workspacePluginsPath, IReadOnlyList<string>? sourceRoots = null)
+public sealed class BuiltInPluginDeployer(
+    string workspacePluginsPath,
+    IReadOnlyList<string>? sourceRoots = null,
+    AppConfig.PluginsConfig? pluginsConfig = null)
 {
     private static readonly Lock DeploymentLock = new();
 
@@ -40,7 +44,7 @@ public sealed class BuiltInPluginDeployer(string workspacePluginsPath, IReadOnly
     private IReadOnlyList<PluginDiagnostic> DeployCoreLocked(string? targetPluginId)
     {
         var diagnostics = new List<PluginDiagnostic>();
-        var sources = BuiltInPluginSourceResolver.Discover(sourceRoots, diagnostics);
+        var sources = BuiltInPluginSourceResolver.Discover(sourceRoots, diagnostics, pluginsConfig);
         var foundTarget = string.IsNullOrWhiteSpace(targetPluginId);
 
         Directory.CreateDirectory(workspacePluginsPath);

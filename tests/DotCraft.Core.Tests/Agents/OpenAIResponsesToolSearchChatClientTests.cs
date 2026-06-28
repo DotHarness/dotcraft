@@ -176,9 +176,9 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
     {
         var dynamicTool = new DeferredDynamicFunction(
             "CreateBoardTask",
-            "Create an Oratorio board task.");
+            "Create an Workflow App board task.");
         var registry = new DeferredToolRegistry(
-            [new DeferredToolEntry(dynamicTool, "dynamic", "oratorio")],
+            [new DeferredToolEntry(dynamicTool, "dynamic", "workflow")],
             DeferredToolLoadingMode.Native);
         var searchTool = new NativeToolSearchTool(registry);
 
@@ -191,8 +191,8 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
         using var document = JsonDocument.Parse(JsonSerializer.Serialize(output, JsonOptions));
         var namespaceTool = Assert.Single(document.RootElement.GetProperty("tools").EnumerateArray());
         Assert.Equal("namespace", namespaceTool.GetProperty("type").GetString());
-        Assert.Equal("oratorio", namespaceTool.GetProperty("name").GetString());
-        Assert.Equal("Tools in the oratorio namespace.", namespaceTool.GetProperty("description").GetString());
+        Assert.Equal("workflow", namespaceTool.GetProperty("name").GetString());
+        Assert.Equal("Tools in the workflow namespace.", namespaceTool.GetProperty("description").GetString());
 
         var child = Assert.Single(namespaceTool.GetProperty("tools").EnumerateArray());
         Assert.Equal("function", child.GetProperty("type").GetString());
@@ -203,8 +203,8 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
 
         var display = ImageContentSanitizingChatClient.DescribeResult(output);
         Assert.Contains("Found 1 matching tool(s):", display);
-        Assert.Contains("oratorio.CreateBoardTask", display);
-        Assert.Contains("Create an Oratorio board task.", display);
+        Assert.Contains("workflow.CreateBoardTask", display);
+        Assert.Contains("Create an Workflow App board task.", display);
         Assert.DoesNotContain(nameof(NativeToolSearchOutput), display);
     }
 
@@ -216,9 +216,9 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
         var collector = new TraceCollector(store);
         var dynamicTool = new DeferredDynamicFunction(
             "CreateBoardTask",
-            "Create an Oratorio board task.");
+            "Create an Workflow App board task.");
         var registry = new DeferredToolRegistry(
-            [new DeferredToolEntry(dynamicTool, "dynamic", "oratorio")],
+            [new DeferredToolEntry(dynamicTool, "dynamic", "workflow")],
             DeferredToolLoadingMode.Native);
         var searchTool = new NativeToolSearchTool(
             registry,
@@ -277,7 +277,7 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
         var tool = Assert.Single(root.GetProperty("tools").EnumerateArray());
         Assert.Equal("CreateBoardTask", tool.GetProperty("name").GetString());
         Assert.Equal("dynamic", tool.GetProperty("source").GetString());
-        Assert.Equal("oratorio", tool.GetProperty("namespace").GetString());
+        Assert.Equal("workflow", tool.GetProperty("namespace").GetString());
 
         var session = store.GetSession(sessionKey);
         Assert.NotNull(session);
@@ -718,7 +718,7 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
             new ChatMessage(ChatRole.Tool, [
                 new FunctionResultContent(
                     "create-call",
-                    "Created Oratorio local task.")
+                    "Created Workflow App local task.")
             ])
         };
 
@@ -742,7 +742,7 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
         Assert.Equal(JsonValueKind.Array, input[reasoningIndex].GetProperty("content").ValueKind);
         Assert.Equal(JsonValueKind.Array, input[reasoningIndex].GetProperty("summary").ValueKind);
         Assert.Equal("CreateBoardTask", input[callIndex].GetProperty("name").GetString());
-        Assert.Equal("Created Oratorio local task.", input[outputIndex].GetProperty("output").GetString());
+        Assert.Equal("Created Workflow App local task.", input[outputIndex].GetProperty("output").GetString());
     }
 
     [Fact]
@@ -755,7 +755,7 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
         {
             AdditionalProperties = new AdditionalPropertiesDictionary
             {
-                [ResponsesToolSearchMapper.FunctionCallNamespaceMetadataKey] = "oratorio"
+                [ResponsesToolSearchMapper.FunctionCallNamespaceMetadataKey] = "workflow"
             }
         };
         var messages = new[]
@@ -766,7 +766,7 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
                     "create-call",
                     new List<AIContent>
                     {
-                        new TextContent("Created Oratorio task DEF-188."),
+                        new TextContent("Created Workflow App task DEF-188."),
                         new TextContent("{\"id\":\"DEF-188\"}")
                     })
             ])
@@ -782,11 +782,11 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
 
         var input = document.RootElement.GetProperty("input").EnumerateArray().ToArray();
         var functionCall = input.Single(item => item.GetProperty("type").GetString() == "function_call");
-        Assert.Equal("oratorio", functionCall.GetProperty("namespace").GetString());
+        Assert.Equal("workflow", functionCall.GetProperty("namespace").GetString());
 
         var output = input.Single(item => item.GetProperty("type").GetString() == "function_call_output");
         var outputText = output.GetProperty("output").GetString();
-        Assert.Equal("Created Oratorio task DEF-188.\n{\"id\":\"DEF-188\"}", outputText);
+        Assert.Equal("Created Workflow App task DEF-188.\n{\"id\":\"DEF-188\"}", outputText);
         Assert.DoesNotContain(nameof(TextContent), outputText, StringComparison.Ordinal);
         Assert.DoesNotContain(nameof(AIContent.AdditionalProperties), outputText, StringComparison.Ordinal);
     }
@@ -972,14 +972,14 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
     {
         var dynamicTool = new DeferredDynamicFunction(
             "CreateBoardTask",
-            "Create an Oratorio board task.",
+            "Create an Workflow App board task.",
             new List<AIContent>
             {
-                new TextContent("Created Oratorio task DEF-188."),
+                new TextContent("Created Workflow App task DEF-188."),
                 new TextContent("{\"id\":\"DEF-188\"}")
             });
         var registry = new DeferredToolRegistry(
-            [new DeferredToolEntry(dynamicTool, "dynamic", "oratorio")],
+            [new DeferredToolEntry(dynamicTool, "dynamic", "workflow")],
             DeferredToolLoadingMode.Native);
         var searchTool = new NativeToolSearchTool(registry);
         var inner = new FakeChatClient(new ChatResponse([new ChatMessage(ChatRole.Assistant, "inner response")]));
@@ -992,7 +992,7 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
             [
                 CreateOutputItemDone(CreateFunctionCallItem(
                     "create-call",
-                    "oratorio",
+                    "workflow",
                     "CreateBoardTask",
                     new { title = "Ship it" }))
             ],
@@ -1030,7 +1030,7 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
             .Single(item => item.GetProperty("type").GetString() == "tool_search_output");
         var namespaceTool = Assert.Single(searchOutput.GetProperty("tools").EnumerateArray());
         Assert.Equal("namespace", namespaceTool.GetProperty("type").GetString());
-        Assert.Equal("oratorio", namespaceTool.GetProperty("name").GetString());
+        Assert.Equal("workflow", namespaceTool.GetProperty("name").GetString());
         var child = Assert.Single(namespaceTool.GetProperty("tools").EnumerateArray());
         Assert.Equal("CreateBoardTask", child.GetProperty("name").GetString());
         Assert.False(child.GetProperty("strict").GetBoolean());
@@ -1039,11 +1039,11 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
         var thirdInput = thirdRequest.RootElement.GetProperty("input").EnumerateArray().ToArray();
         var functionCall = thirdInput.Single(item => item.GetProperty("type").GetString() == "function_call");
         Assert.Equal("CreateBoardTask", functionCall.GetProperty("name").GetString());
-        Assert.Equal("oratorio", functionCall.GetProperty("namespace").GetString());
+        Assert.Equal("workflow", functionCall.GetProperty("namespace").GetString());
 
         var functionOutput = thirdInput.Single(item => item.GetProperty("type").GetString() == "function_call_output");
         var outputText = functionOutput.GetProperty("output").GetString();
-        Assert.Equal("Created Oratorio task DEF-188.\n{\"id\":\"DEF-188\"}", outputText);
+        Assert.Equal("Created Workflow App task DEF-188.\n{\"id\":\"DEF-188\"}", outputText);
         Assert.DoesNotContain(nameof(TextContent), outputText, StringComparison.Ordinal);
         Assert.DoesNotContain(nameof(AIContent.AdditionalProperties), outputText, StringComparison.Ordinal);
     }

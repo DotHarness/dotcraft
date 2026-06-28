@@ -906,6 +906,18 @@ public sealed class AppConfig
         [ConfigField(Hint = "JSON array of local plugin roots or directories containing plugins.")]
         public List<string> PluginRoots { get; set; } = [];
 
+        /// <summary>
+        /// Additional online plugin registries to browse for installable plugins.
+        /// </summary>
+        [ConfigField(Hint = "JSON array of registry source objects with url and optional marketplacePath.")]
+        public List<PluginRegistryConfig> PluginRegistries { get; set; } = [];
+
+        /// <summary>
+        /// Disables the host-provided default official plugin registry.
+        /// </summary>
+        [ConfigField(Hint = "When true, DotCraft ignores the default official plugin registry URL supplied by the host.")]
+        public bool DisableDefaultPluginRegistry { get; set; }
+
         public bool IsPluginEnabled(string pluginId, bool defaultEnabled)
         {
             var canonicalPluginId = PluginIds.Canonicalize(pluginId);
@@ -917,6 +929,24 @@ public sealed class AppConfig
 
             return defaultEnabled;
         }
+    }
+
+    public sealed class PluginRegistryConfig
+    {
+        /// <summary>
+        /// Optional display or diagnostic name for this registry source.
+        /// </summary>
+        public string? Name { get; set; }
+
+        /// <summary>
+        /// HTTPS archive URL or local archive/directory path for this registry source.
+        /// </summary>
+        public string? Url { get; set; }
+
+        /// <summary>
+        /// Marketplace JSON path inside the registry snapshot.
+        /// </summary>
+        public string? MarketplacePath { get; set; }
     }
 
     [ConfigSection("Tools.ResultLimits", DisplayName = "Tools > Result limits", Order = 24)]

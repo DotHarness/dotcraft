@@ -48,6 +48,8 @@ public sealed class HubRuntimeToolsRequest
     public string? BuiltInPluginRoots { get; set; }
 
     public string? BuiltInPluginCatalogs { get; set; }
+
+    public string? DefaultPluginRegistryUrl { get; set; }
 }
 
 public sealed class HubNotificationRequest

@@ -2736,7 +2736,7 @@ describe('pluginFunctionCall items', () => {
         type: 'dynamicToolCall',
         createdAt: '2025-01-01T00:00:00.000Z',
         payload: {
-          namespace: 'oratorio',
+          namespace: 'workflow',
           callId: 'dynamic-call-1',
           toolName: 'ListBoardItems',
           arguments: { status: 'todo' }
@@ -2748,7 +2748,7 @@ describe('pluginFunctionCall items', () => {
     expect(item?.type).toBe('dynamicToolCall')
     expect(item?.toolName).toBe('ListBoardItems')
     expect(item?.toolCallId).toBe('dynamic-call-1')
-    expect(item?.pluginNamespace).toBe('oratorio')
+    expect(item?.pluginNamespace).toBe('workflow')
 
     s().onItemCompleted({
       turnId: 'turn-1',
@@ -2757,7 +2757,7 @@ describe('pluginFunctionCall items', () => {
         type: 'dynamicToolCall',
         completedAt: '2025-01-01T00:00:01.000Z',
         payload: {
-          namespace: 'oratorio',
+          namespace: 'workflow',
           callId: 'dynamic-call-1',
           toolName: 'ListBoardItems',
           arguments: { status: 'todo' },

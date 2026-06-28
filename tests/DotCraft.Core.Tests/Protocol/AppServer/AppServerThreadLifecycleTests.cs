@@ -1952,7 +1952,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
     private static DynamicToolSpec CreateReviewToolSpec()
         => new()
         {
-            Namespace = "oratorio",
+            Namespace = "workflow",
             Name = "SubmitReviewDraft",
             Description = "Submit a structured code review draft",
             InputSchema = new JsonObject

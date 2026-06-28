@@ -64,7 +64,7 @@ public sealed class AppBindingProtocolTests : IDisposable
     [Fact]
     public async Task Initialize_ReportsAppBindingCapabilityAndListReturnsPluginApp()
     {
-        WriteOratorioPlugin();
+        WriteWorkflowPlugin();
         var service = new AppBindingService();
         using var harness = CreateHarness(service);
 
@@ -90,9 +90,9 @@ public sealed class AppBindingProtocolTests : IDisposable
         AppServerTestHarness.AssertIsSuccessResponse(response);
         var app = Assert.Single(
             response.RootElement.GetProperty("result").GetProperty("apps").EnumerateArray(),
-            item => item.GetProperty("appId").GetString() == "com.dotharness.oratorio");
-        Assert.Equal("com.dotharness.oratorio", app.GetProperty("appId").GetString());
-        Assert.Equal("oratorio", app.GetProperty("toolNamespace").GetString());
+            item => item.GetProperty("appId").GetString() == "com.example.workflow");
+        Assert.Equal("com.example.workflow", app.GetProperty("appId").GetString());
+        Assert.Equal("workflow", app.GetProperty("toolNamespace").GetString());
         Assert.True(app.GetProperty("installed").GetBoolean());
         Assert.True(app.GetProperty("enabled").GetBoolean());
         Assert.Equal("notConnected", app.GetProperty("connectionState").GetString());
@@ -101,7 +101,7 @@ public sealed class AppBindingProtocolTests : IDisposable
     [Fact]
     public async Task ContextBlocks_UpsertListPromptAndRemoveWithoutCreatingTurns()
     {
-        WriteOratorioPlugin();
+        WriteWorkflowPlugin();
         var service = new AppBindingService();
         using var harness = CreateHarness(service);
         await harness.InitializeAsync();
@@ -116,7 +116,7 @@ public sealed class AppBindingProtocolTests : IDisposable
             new
             {
                 bindingId,
-                appId = "com.dotharness.oratorio",
+                appId = "com.example.workflow",
                 grantId = "grant-1",
                 blockId = "role",
                 kind = "role",
@@ -140,7 +140,7 @@ public sealed class AppBindingProtocolTests : IDisposable
             new
             {
                 bindingId,
-                appId = "com.dotharness.oratorio",
+                appId = "com.example.workflow",
                 grantId = "grant-1",
                 blockId = "debug",
                 kind = "teamState",
@@ -159,7 +159,7 @@ public sealed class AppBindingProtocolTests : IDisposable
             new
             {
                 bindingId,
-                appId = "com.dotharness.oratorio",
+                appId = "com.example.workflow",
                 grantId = "grant-1",
                 blockId = "expired",
                 kind = "mailboxDigest",
@@ -208,7 +208,7 @@ public sealed class AppBindingProtocolTests : IDisposable
             new
             {
                 bindingId,
-                appId = "com.dotharness.oratorio",
+                appId = "com.example.workflow",
                 grantId = "grant-1",
                 blockId = "role"
             });
@@ -221,7 +221,7 @@ public sealed class AppBindingProtocolTests : IDisposable
             new
             {
                 bindingId,
-                appId = "com.dotharness.oratorio",
+                appId = "com.example.workflow",
                 grantId = "grant-1",
                 blockId = "role"
             });
@@ -242,7 +242,7 @@ public sealed class AppBindingProtocolTests : IDisposable
     [Fact]
     public async Task ContextBlocks_RejectWrongGrantAndRevokedBinding()
     {
-        WriteOratorioPlugin();
+        WriteWorkflowPlugin();
         var service = new AppBindingService();
         using var harness = CreateHarness(service);
         await harness.InitializeAsync();
@@ -264,7 +264,7 @@ public sealed class AppBindingProtocolTests : IDisposable
             new
             {
                 bindingId,
-                appId = "com.dotharness.oratorio",
+                appId = "com.example.workflow",
                 grantId = "wrong-grant",
                 blockId = "role",
                 kind = "role",
@@ -294,7 +294,7 @@ public sealed class AppBindingProtocolTests : IDisposable
             new
             {
                 bindingId,
-                appId = "com.dotharness.oratorio",
+                appId = "com.example.workflow",
                 grantId = "grant-1",
                 blockId = "role",
                 kind = "role",
@@ -314,7 +314,7 @@ public sealed class AppBindingProtocolTests : IDisposable
             new
             {
                 bindingId = expiredBindingId,
-                appId = "com.dotharness.oratorio",
+                appId = "com.example.workflow",
                 grantId = "grant-1",
                 blockId = "role",
                 kind = "role",
@@ -332,7 +332,7 @@ public sealed class AppBindingProtocolTests : IDisposable
     [Fact]
     public async Task ContextBlocks_UpsertReleasesCachedAppContextPromptPage()
     {
-        WriteOratorioPlugin();
+        WriteWorkflowPlugin();
         var service = new AppBindingService();
         var manager = new ContextPageManager();
         using var harness = CreateHarness(service, contextPageManager: manager);
@@ -359,7 +359,7 @@ public sealed class AppBindingProtocolTests : IDisposable
             new
             {
                 bindingId,
-                appId = "com.dotharness.oratorio",
+                appId = "com.example.workflow",
                 grantId = "grant-1",
                 blockId = "role",
                 kind = "role",
@@ -378,7 +378,7 @@ public sealed class AppBindingProtocolTests : IDisposable
     public async Task ThreadInputEnqueue_PersistsTeamTriggerMetadataAndAudit()
     {
         const string teamsAppId = "com.dotharness.dotcraft-teams";
-        WriteOratorioPlugin(appId: teamsAppId, toolNamespace: "teams", rootName: "teams-app");
+        WriteWorkflowPlugin(appId: teamsAppId, toolNamespace: "teams", rootName: "teams-app");
         var service = new AppBindingService();
         using var harness = CreateHarness(service);
         await harness.InitializeAsync();
@@ -729,7 +729,7 @@ public sealed class AppBindingProtocolTests : IDisposable
     [Fact]
     public async Task ThreadArchive_DoesNotRevokeOrdinaryAppBinding()
     {
-        WriteOratorioPlugin();
+        WriteWorkflowPlugin();
         var service = new AppBindingService();
         using var harness = CreateHarness(service);
         await harness.InitializeAsync();
@@ -2126,7 +2126,7 @@ public sealed class AppBindingProtocolTests : IDisposable
     [Fact]
     public async Task ThreadInputEnqueue_RunWhenIdleDoesNotInterruptActiveTurn()
     {
-        WriteOratorioPlugin();
+        WriteWorkflowPlugin();
         var service = new AppBindingService();
         using var harness = CreateHarness(service);
         await harness.InitializeAsync();
@@ -2149,7 +2149,7 @@ public sealed class AppBindingProtocolTests : IDisposable
             new
             {
                 bindingId = busyBindingId,
-                appId = "com.dotharness.oratorio",
+                appId = "com.example.workflow",
                 grantId = "grant-1",
                 input = new[] { new { type = "text", text = "wait for idle" } },
                 startPolicy = "runWhenIdle"
@@ -2169,7 +2169,7 @@ public sealed class AppBindingProtocolTests : IDisposable
             new
             {
                 bindingId = idleBindingId,
-                appId = "com.dotharness.oratorio",
+                appId = "com.example.workflow",
                 grantId = "grant-1",
                 input = new[] { new { type = "text", text = "start while idle" } },
                 startPolicy = "runWhenIdle"
@@ -2185,7 +2185,7 @@ public sealed class AppBindingProtocolTests : IDisposable
     [Fact]
     public async Task ThreadInputEnqueue_RejectsRevokedAndExpiredBindings()
     {
-        WriteOratorioPlugin();
+        WriteWorkflowPlugin();
         var service = new AppBindingService();
         using var harness = CreateHarness(service);
         await harness.InitializeAsync();
@@ -2220,7 +2220,7 @@ public sealed class AppBindingProtocolTests : IDisposable
             new
             {
                 bindingId = revokedBindingId,
-                appId = "com.dotharness.oratorio",
+                appId = "com.example.workflow",
                 grantId = "grant-1",
                 input = new[] { new { type = "text", text = "should not enqueue" } }
             });
@@ -2235,7 +2235,7 @@ public sealed class AppBindingProtocolTests : IDisposable
             new
             {
                 bindingId = expiredBindingId,
-                appId = "com.dotharness.oratorio",
+                appId = "com.example.workflow",
                 grantId = "grant-1",
                 input = new[] { new { type = "text", text = "should not enqueue" } }
             });
@@ -2249,10 +2249,12 @@ public sealed class AppBindingProtocolTests : IDisposable
     }
 
     [Fact]
-    public async Task AppList_IncludesInstallableOratorioPluginAppCatalogEntry()
+    public async Task AppList_IncludesInstallableRegistryPluginAppCatalogEntry()
     {
         var service = new AppBindingService();
-        using var harness = CreateHarness(service);
+        var config = new AppConfig();
+        ConfigureWorkflowRegistry(config);
+        using var harness = CreateHarness(service, config);
         await harness.InitializeAsync();
 
         using var response = await ExecuteAndReadResponseAsync(harness, AppList, new { includeCatalog = true });
@@ -2260,11 +2262,11 @@ public sealed class AppBindingProtocolTests : IDisposable
         AppServerTestHarness.AssertIsSuccessResponse(response);
         var app = Assert.Single(
             response.RootElement.GetProperty("result").GetProperty("apps").EnumerateArray(),
-            item => item.GetProperty("appId").GetString() == "com.dotharness.oratorio");
-        Assert.Equal("com.dotharness.oratorio", app.GetProperty("appId").GetString());
+            item => item.GetProperty("appId").GetString() == "com.example.workflow");
+        Assert.Equal("com.example.workflow", app.GetProperty("appId").GetString());
         Assert.False(app.GetProperty("installed").GetBoolean());
         Assert.False(app.GetProperty("enabled").GetBoolean());
-        Assert.Equal("oratorio", app.GetProperty("nativeApp").GetProperty("protocol").GetString());
+        Assert.Equal("workflow", app.GetProperty("nativeApp").GetProperty("protocol").GetString());
         Assert.Equal("unknown", app.GetProperty("nativeApp").GetProperty("status").GetString());
 
         using var hiddenResponse = await ExecuteAndReadResponseAsync(harness, AppList, new { includeCatalog = false });
@@ -2310,13 +2312,15 @@ public sealed class AppBindingProtocolTests : IDisposable
     public async Task ConnectionStart_RejectsCatalogAppBeforeOwningPluginInstall()
     {
         var service = new AppBindingService();
-        using var harness = CreateHarness(service);
+        var config = new AppConfig();
+        ConfigureWorkflowRegistry(config);
+        using var harness = CreateHarness(service, config);
         await harness.InitializeAsync();
 
         using var response = await ExecuteAndReadResponseAsync(
             harness,
             AppConnectionStart,
-            new { appId = "com.dotharness.oratorio" });
+            new { appId = "com.example.workflow" });
 
         AppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
         Assert.Contains(
@@ -2325,13 +2329,15 @@ public sealed class AppBindingProtocolTests : IDisposable
     }
 
     [Fact]
-    public async Task PluginInstall_MakesBuiltInOratorioAppConnectable()
+    public async Task PluginInstall_MakesRegistryAppConnectable()
     {
         var service = new AppBindingService();
-        using var harness = CreateHarness(service);
+        var config = new AppConfig();
+        ConfigureWorkflowRegistry(config);
+        using var harness = CreateHarness(service, config);
         await harness.InitializeAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.PluginInstall, new { id = "oratorio" }));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.PluginInstall, new { id = "workflow" }));
 
         using var installResponse = await harness.Transport.ReadNextSentAsync();
         AppServerTestHarness.AssertIsSuccessResponse(installResponse);
@@ -2345,7 +2351,7 @@ public sealed class AppBindingProtocolTests : IDisposable
         AppServerTestHarness.AssertIsNotification(notification, AppListUpdated);
         Assert.Contains(
             notification.RootElement.GetProperty("params").GetProperty("appIds").EnumerateArray(),
-            appId => appId.GetString() == "com.dotharness.oratorio");
+            appId => appId.GetString() == "com.example.workflow");
 
         using var listResponse = await ExecuteAndReadResponseAsync(
             harness,
@@ -2354,14 +2360,14 @@ public sealed class AppBindingProtocolTests : IDisposable
         AppServerTestHarness.AssertIsSuccessResponse(listResponse);
         var app = Assert.Single(
             listResponse.RootElement.GetProperty("result").GetProperty("apps").EnumerateArray(),
-            item => item.GetProperty("appId").GetString() == "com.dotharness.oratorio");
+            item => item.GetProperty("appId").GetString() == "com.example.workflow");
         Assert.True(app.GetProperty("installed").GetBoolean());
         Assert.True(app.GetProperty("enabled").GetBoolean());
 
         using var startResponse = await ExecuteAndReadResponseAsync(
             harness,
             AppConnectionStart,
-            new { appId = "com.dotharness.oratorio" },
+            new { appId = "com.example.workflow" },
             expectedNotificationMethod: "app/connection/changed");
         AppServerTestHarness.AssertIsSuccessResponse(startResponse);
     }
@@ -2369,7 +2375,7 @@ public sealed class AppBindingProtocolTests : IDisposable
     [Fact]
     public async Task ConnectionRequestGet_ReturnsPendingRequestWithoutConsumingToken()
     {
-        WriteOratorioPlugin();
+        WriteWorkflowPlugin();
         var service = new AppBindingService();
         using var harness = CreateHarness(service);
         await harness.InitializeAsync();
@@ -2377,7 +2383,7 @@ public sealed class AppBindingProtocolTests : IDisposable
         using var startResponse = await ExecuteAndReadResponseAsync(
             harness,
             AppConnectionStart,
-            new { appId = "com.dotharness.oratorio" },
+            new { appId = "com.example.workflow" },
             expectedNotificationMethod: "app/connection/changed");
         var connectionRequestId = startResponse.RootElement.GetProperty("result").GetProperty("connectionRequestId").GetString()!;
         var token = ExtractToken(startResponse.RootElement
@@ -2393,10 +2399,10 @@ public sealed class AppBindingProtocolTests : IDisposable
             {
                 connectionRequestId,
                 requestToken = token,
-                appId = "com.dotharness.oratorio"
+                appId = "com.example.workflow"
             });
         AppServerTestHarness.AssertIsSuccessResponse(inspectResponse);
-        Assert.Equal("Oratorio", inspectResponse.RootElement.GetProperty("result").GetProperty("displayName").GetString());
+        Assert.Equal("Workflow App", inspectResponse.RootElement.GetProperty("result").GetProperty("displayName").GetString());
 
         using var connectResponse = await ExecuteAndReadResponseAsync(
             harness,
@@ -2405,8 +2411,8 @@ public sealed class AppBindingProtocolTests : IDisposable
             {
                 connectionRequestId,
                 requestToken = token,
-                appId = "com.dotharness.oratorio",
-                accountLabel = "local-oratorio"
+                appId = "com.example.workflow",
+                accountLabel = "local-workflow"
             },
             expectedNotificationMethod: "app/connection/changed");
         AppServerTestHarness.AssertIsSuccessResponse(connectResponse);
@@ -2415,7 +2421,7 @@ public sealed class AppBindingProtocolTests : IDisposable
     [Fact]
     public async Task ConnectionConnect_ExposesOnlySafePublicMetadata()
     {
-        WriteOratorioPlugin();
+        WriteWorkflowPlugin();
         var service = new AppBindingService();
         using var harness = CreateHarness(service);
         await harness.InitializeAsync();
@@ -2423,7 +2429,7 @@ public sealed class AppBindingProtocolTests : IDisposable
         using var startResponse = await ExecuteAndReadResponseAsync(
             harness,
             AppConnectionStart,
-            new { appId = "com.dotharness.oratorio" },
+            new { appId = "com.example.workflow" },
             expectedNotificationMethod: "app/connection/changed");
         var connectionRequestId = startResponse.RootElement.GetProperty("result").GetProperty("connectionRequestId").GetString()!;
         var token = ExtractToken(startResponse.RootElement
@@ -2439,15 +2445,15 @@ public sealed class AppBindingProtocolTests : IDisposable
             {
                 connectionRequestId,
                 requestToken = token,
-                appId = "com.dotharness.oratorio",
-                accountLabel = "local-oratorio",
+                appId = "com.example.workflow",
+                accountLabel = "local-workflow",
                 connectionProof = new
                 {
                     secret = "not returned"
                 },
                 publicMetadata = new
                 {
-                    displayName = "Oratorio Local",
+                    displayName = "Workflow App Local",
                     ignored = "not returned",
                     surfaceEndpoints = new
                     {
@@ -2462,10 +2468,10 @@ public sealed class AppBindingProtocolTests : IDisposable
         using var statusResponse = await ExecuteAndReadResponseAsync(
             harness,
             AppConnectionStatus,
-            new { appId = "com.dotharness.oratorio" });
+            new { appId = "com.example.workflow" });
         AppServerTestHarness.AssertIsSuccessResponse(statusResponse);
         var metadata = statusResponse.RootElement.GetProperty("result").GetProperty("publicMetadata");
-        Assert.Equal("Oratorio Local", metadata.GetProperty("displayName").GetString());
+        Assert.Equal("Workflow App Local", metadata.GetProperty("displayName").GetString());
         Assert.Equal(
             "http://127.0.0.1:5087/api/v1",
             metadata.GetProperty("surfaceEndpoints").GetProperty("boardApiBaseUrl").GetString());
@@ -2476,7 +2482,7 @@ public sealed class AppBindingProtocolTests : IDisposable
         using var revokeResponse = await ExecuteAndReadResponseAsync(
             harness,
             AppConnectionRevoke,
-            new { appId = "com.dotharness.oratorio", reason = "disconnect" },
+            new { appId = "com.example.workflow", reason = "disconnect" },
             expectedNotificationMethod: "app/connection/changed");
         AppServerTestHarness.AssertIsSuccessResponse(revokeResponse);
         Assert.Equal("notConnected", revokeResponse.RootElement.GetProperty("result").GetProperty("state").GetString());
@@ -2485,7 +2491,7 @@ public sealed class AppBindingProtocolTests : IDisposable
         using var revokedStatusResponse = await ExecuteAndReadResponseAsync(
             harness,
             AppConnectionStatus,
-            new { appId = "com.dotharness.oratorio" });
+            new { appId = "com.example.workflow" });
         AppServerTestHarness.AssertIsSuccessResponse(revokedStatusResponse);
         Assert.Equal("notConnected", revokedStatusResponse.RootElement.GetProperty("result").GetProperty("state").GetString());
         Assert.False(revokedStatusResponse.RootElement.GetProperty("result").TryGetProperty("publicMetadata", out _));
@@ -2494,17 +2500,17 @@ public sealed class AppBindingProtocolTests : IDisposable
     [Fact]
     public async Task ConnectionRefreshMetadata_UpdatesLoopbackEndpointWithMatchingProof()
     {
-        WriteOratorioPlugin();
+        WriteWorkflowPlugin();
         var service = new AppBindingService();
         using var harness = CreateHarness(service);
         await harness.InitializeAsync();
 
-        object Proof() => new { appId = "com.dotharness.oratorio", workspaceLabel = "ws", mode = "deepLink" };
+        object Proof() => new { appId = "com.example.workflow", workspaceLabel = "ws", mode = "deepLink" };
 
         using var startResponse = await ExecuteAndReadResponseAsync(
             harness,
             AppConnectionStart,
-            new { appId = "com.dotharness.oratorio" },
+            new { appId = "com.example.workflow" },
             expectedNotificationMethod: "app/connection/changed");
         var connectionRequestId = startResponse.RootElement.GetProperty("result").GetProperty("connectionRequestId").GetString()!;
         var token = ExtractToken(startResponse.RootElement
@@ -2517,8 +2523,8 @@ public sealed class AppBindingProtocolTests : IDisposable
             {
                 connectionRequestId,
                 requestToken = token,
-                appId = "com.dotharness.oratorio",
-                accountLabel = "local-oratorio",
+                appId = "com.example.workflow",
+                accountLabel = "local-workflow",
                 connectionProof = Proof(),
                 publicMetadata = new { surfaceEndpoints = new { apiBase = "http://127.0.0.1:5087/api/v1" } }
             },
@@ -2531,7 +2537,7 @@ public sealed class AppBindingProtocolTests : IDisposable
             AppConnectionRefreshMetadata,
             new
             {
-                appId = "com.dotharness.oratorio",
+                appId = "com.example.workflow",
                 connectionProof = Proof(),
                 publicMetadata = new
                 {
@@ -2548,7 +2554,7 @@ public sealed class AppBindingProtocolTests : IDisposable
         using var statusResponse = await ExecuteAndReadResponseAsync(
             harness,
             AppConnectionStatus,
-            new { appId = "com.dotharness.oratorio" });
+            new { appId = "com.example.workflow" });
         var endpoints = statusResponse.RootElement.GetProperty("result").GetProperty("publicMetadata").GetProperty("surfaceEndpoints");
         Assert.Equal("http://127.0.0.1:49555/api/v1", endpoints.GetProperty("apiBase").GetString());
         Assert.False(endpoints.TryGetProperty("unsafeUrl", out _));
@@ -2559,8 +2565,8 @@ public sealed class AppBindingProtocolTests : IDisposable
             AppConnectionRefreshMetadata,
             new
             {
-                appId = "com.dotharness.oratorio",
-                connectionProof = new { appId = "com.dotharness.oratorio", workspaceLabel = "ws", mode = "forged" },
+                appId = "com.example.workflow",
+                connectionProof = new { appId = "com.example.workflow", workspaceLabel = "ws", mode = "forged" },
                 publicMetadata = new { surfaceEndpoints = new { apiBase = "http://127.0.0.1:60000/api/v1" } }
             });
         AppServerTestHarness.AssertIsErrorResponse(wrongProofResponse, AppServerErrors.InvalidParamsCode);
@@ -2568,7 +2574,7 @@ public sealed class AppBindingProtocolTests : IDisposable
         using var unchangedStatus = await ExecuteAndReadResponseAsync(
             harness,
             AppConnectionStatus,
-            new { appId = "com.dotharness.oratorio" });
+            new { appId = "com.example.workflow" });
         Assert.Equal(
             "http://127.0.0.1:49555/api/v1",
             unchangedStatus.RootElement.GetProperty("result").GetProperty("publicMetadata")
@@ -2578,7 +2584,7 @@ public sealed class AppBindingProtocolTests : IDisposable
     [Fact]
     public async Task ConnectionRefreshMetadata_RejectsWhenNotConnected()
     {
-        WriteOratorioPlugin();
+        WriteWorkflowPlugin();
         var service = new AppBindingService();
         using var harness = CreateHarness(service);
         await harness.InitializeAsync();
@@ -2588,8 +2594,8 @@ public sealed class AppBindingProtocolTests : IDisposable
             AppConnectionRefreshMetadata,
             new
             {
-                appId = "com.dotharness.oratorio",
-                connectionProof = new { appId = "com.dotharness.oratorio" },
+                appId = "com.example.workflow",
+                connectionProof = new { appId = "com.example.workflow" },
                 publicMetadata = new { surfaceEndpoints = new { apiBase = "http://127.0.0.1:5087/api/v1" } }
             });
         AppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
@@ -2598,7 +2604,7 @@ public sealed class AppBindingProtocolTests : IDisposable
     [Fact]
     public async Task ConnectionStart_StatusAndAppListReportConnecting()
     {
-        WriteOratorioPlugin();
+        WriteWorkflowPlugin();
         var service = new AppBindingService();
         using var harness = CreateHarness(service);
         await harness.InitializeAsync();
@@ -2606,14 +2612,14 @@ public sealed class AppBindingProtocolTests : IDisposable
         using var startResponse = await ExecuteAndReadResponseAsync(
             harness,
             AppConnectionStart,
-            new { appId = "com.dotharness.oratorio" },
+            new { appId = "com.example.workflow" },
             expectedNotificationMethod: "app/connection/changed");
         AppServerTestHarness.AssertIsSuccessResponse(startResponse);
 
         using var statusResponse = await ExecuteAndReadResponseAsync(
             harness,
             AppConnectionStatus,
-            new { appId = "com.dotharness.oratorio" });
+            new { appId = "com.example.workflow" });
         AppServerTestHarness.AssertIsSuccessResponse(statusResponse);
         Assert.Equal("connecting", statusResponse.RootElement.GetProperty("result").GetProperty("state").GetString());
 
@@ -2623,14 +2629,14 @@ public sealed class AppBindingProtocolTests : IDisposable
             new { includeDisabled = true });
         var app = Assert.Single(
             listResponse.RootElement.GetProperty("result").GetProperty("apps").EnumerateArray(),
-            item => item.GetProperty("appId").GetString() == "com.dotharness.oratorio");
+            item => item.GetProperty("appId").GetString() == "com.example.workflow");
         Assert.Equal("connecting", app.GetProperty("connectionState").GetString());
     }
 
     [Fact]
     public async Task BindingRequest_ListIncludesPendingAndCancelRemovesIt()
     {
-        WriteOratorioPlugin();
+        WriteWorkflowPlugin();
         var service = new AppBindingService();
         using var harness = CreateHarness(service);
         await harness.InitializeAsync();
@@ -2643,7 +2649,7 @@ public sealed class AppBindingProtocolTests : IDisposable
             AppBindingRequestGet,
             new
             {
-                appId = "com.dotharness.oratorio",
+                appId = "com.example.workflow",
                 bindingRequestId = request.BindingRequestId,
                 requestToken = request.Token
             });
@@ -2681,18 +2687,18 @@ public sealed class AppBindingProtocolTests : IDisposable
     [Fact]
     public void CatalogDiscovery_RejectsInvalidAppIdsAndDuplicateNamespaces()
     {
-        WriteOratorioPlugin();
-        WriteOratorioPlugin(
+        WriteWorkflowPlugin();
+        WriteWorkflowPlugin(
             pluginId: "bad-app",
             appId: "Not.ReverseDns",
             toolNamespace: "badnamespace",
             rootName: "bad-app");
-        WriteOratorioPlugin(
+        WriteWorkflowPlugin(
             pluginId: "duplicate-namespace-a",
             appId: "com.dotharness.duplicatea",
             toolNamespace: "duplicate_ns",
             rootName: "duplicate-namespace-a");
-        WriteOratorioPlugin(
+        WriteWorkflowPlugin(
             pluginId: "duplicate-namespace-b",
             appId: "com.dotharness.duplicateb",
             toolNamespace: "duplicate_ns",
@@ -2702,7 +2708,7 @@ public sealed class AppBindingProtocolTests : IDisposable
 
         Assert.DoesNotContain(catalog.Entries, entry => entry.Descriptor.AppId == "Not.ReverseDns");
         Assert.Contains(catalog.Entries, entry =>
-            entry.Descriptor.AppId == "com.dotharness.oratorio"
+            entry.Descriptor.AppId == "com.example.workflow"
             && entry.Plugin.SourceKind == PluginDiscoverySourceKind.Workspace);
         Assert.DoesNotContain(catalog.Entries, entry => entry.Descriptor.AppId == "com.dotharness.duplicatea");
         Assert.DoesNotContain(catalog.Entries, entry => entry.Descriptor.AppId == "com.dotharness.duplicateb");
@@ -2713,15 +2719,15 @@ public sealed class AppBindingProtocolTests : IDisposable
     [Fact]
     public void ResolveOriginApp_AttributesThreadByDeclaredOriginChannel()
     {
-        WriteOratorioPlugin(originChannel: "oratorio");
+        WriteWorkflowPlugin(originChannel: "workflow");
         var service = new AppBindingService();
         var catalog = AppBindingCatalog.Discover(new AppConfig(), _tempRoot, _workspaceCraftPath);
 
-        var origin = service.ResolveOriginApp(catalog, "oratorio");
+        var origin = service.ResolveOriginApp(catalog, "workflow");
 
         Assert.NotNull(origin);
-        Assert.Equal("com.dotharness.oratorio", origin!.AppId);
-        Assert.Equal("Oratorio", origin.DisplayName);
+        Assert.Equal("com.example.workflow", origin!.AppId);
+        Assert.Equal("Workflow App", origin.DisplayName);
         Assert.NotNull(origin.Icon);
         Assert.StartsWith("data:image/svg+xml;base64,", origin.Icon!);
     }
@@ -2729,7 +2735,7 @@ public sealed class AppBindingProtocolTests : IDisposable
     [Fact]
     public void ResolveOriginApp_ReturnsNullForUnmatchedOrBlankChannel()
     {
-        WriteOratorioPlugin(originChannel: "oratorio");
+        WriteWorkflowPlugin(originChannel: "workflow");
         var service = new AppBindingService();
         var catalog = AppBindingCatalog.Discover(new AppConfig(), _tempRoot, _workspaceCraftPath);
 
@@ -2742,24 +2748,24 @@ public sealed class AppBindingProtocolTests : IDisposable
     public void ResolveOriginApp_IsOptInAndDoesNotMatchToolNamespace()
     {
         // App is installed but does not declare originChannel: no implicit toolNamespace match.
-        WriteOratorioPlugin(originChannel: null);
+        WriteWorkflowPlugin(originChannel: null);
         var service = new AppBindingService();
         var catalog = AppBindingCatalog.Discover(new AppConfig(), _tempRoot, _workspaceCraftPath);
 
-        Assert.Null(service.ResolveOriginApp(catalog, "oratorio"));
+        Assert.Null(service.ResolveOriginApp(catalog, "workflow"));
     }
 
     [Fact]
     public void ResolveOriginApp_AttributesMemberWhenChannelContextMatches()
     {
-        WriteOratorioPlugin(originChannel: "oratorio", withOriginMembers: true);
+        WriteWorkflowPlugin(originChannel: "workflow", withOriginMembers: true);
         var service = new AppBindingService();
         var catalog = AppBindingCatalog.Discover(new AppConfig(), _tempRoot, _workspaceCraftPath);
 
-        var origin = service.ResolveOriginApp(catalog, "oratorio", "mission_x:alpha");
+        var origin = service.ResolveOriginApp(catalog, "workflow", "mission_x:alpha");
 
         Assert.NotNull(origin);
-        Assert.Equal("com.dotharness.oratorio", origin!.AppId);
+        Assert.Equal("com.example.workflow", origin!.AppId);
         Assert.Equal("Alpha", origin.DisplayName);
         Assert.Equal("alpha", origin.MemberId);
         Assert.NotNull(origin.Icon);
@@ -2769,39 +2775,39 @@ public sealed class AppBindingProtocolTests : IDisposable
     [Fact]
     public void ResolveOriginApp_FallsBackToAppWhenNoMemberMatches()
     {
-        WriteOratorioPlugin(originChannel: "oratorio", withOriginMembers: true);
+        WriteWorkflowPlugin(originChannel: "workflow", withOriginMembers: true);
         var service = new AppBindingService();
         var catalog = AppBindingCatalog.Discover(new AppConfig(), _tempRoot, _workspaceCraftPath);
 
-        var origin = service.ResolveOriginApp(catalog, "oratorio", "mission_x:gamma");
+        var origin = service.ResolveOriginApp(catalog, "workflow", "mission_x:gamma");
 
         Assert.NotNull(origin);
-        Assert.Equal("Oratorio", origin!.DisplayName);
+        Assert.Equal("Workflow App", origin!.DisplayName);
         Assert.Null(origin.MemberId);
     }
 
-    // Reproduces the oratorio-bridge worktree case: the declaring app is a bundled built-in
+    // Reproduces the workflow-bridge worktree case: the declaring app is a bundled built-in
     // (installable, not workspace-installed in that thread's workspace). Origin branding is cosmetic and
     // must still resolve, otherwise such threads fall back to the generic channel icon.
     [Fact]
     public void ResolveOriginApp_AttributesBundledBuiltInApp_NotJustWorkspaceInstalled()
     {
         var builtInRoot = Path.Combine(_tempRoot, "builtin");
-        WriteOratorioPlugin(originChannel: "oratorio", containerRoot: builtInRoot);
+        WriteWorkflowPlugin(originChannel: "workflow", containerRoot: builtInRoot);
         var service = new AppBindingService();
         var catalog = AppBindingCatalog.Discover(
             new AppConfig(), _tempRoot, _workspaceCraftPath, builtInPluginSourceRoots: [builtInRoot]);
 
-        var entry = catalog.Entries.FirstOrDefault(e => e.Descriptor.AppId == "com.dotharness.oratorio");
+        var entry = catalog.Entries.FirstOrDefault(e => e.Descriptor.AppId == "com.example.workflow");
         Assert.NotNull(entry);
         Assert.False(entry!.Plugin.Installed);
         Assert.True(entry.Plugin.Installable);
 
-        var origin = service.ResolveOriginApp(catalog, "oratorio");
+        var origin = service.ResolveOriginApp(catalog, "workflow");
 
         Assert.NotNull(origin);
-        Assert.Equal("com.dotharness.oratorio", origin!.AppId);
-        Assert.Equal("Oratorio", origin.DisplayName);
+        Assert.Equal("com.example.workflow", origin!.AppId);
+        Assert.Equal("Workflow App", origin.DisplayName);
         Assert.NotNull(origin.Icon);
         Assert.StartsWith("data:image/svg+xml;base64,", origin.Icon!);
     }
@@ -2835,14 +2841,14 @@ public sealed class AppBindingProtocolTests : IDisposable
     [Fact]
     public async Task PluginLifecycle_ForAppPluginEmitsAppListUpdated()
     {
-        WriteOratorioPlugin();
+        WriteWorkflowPlugin();
         var service = new AppBindingService();
         using var harness = CreateHarness(service);
         await harness.InitializeAsync();
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(
             AppServerMethods.PluginSetEnabled,
-            new { id = "oratorio", enabled = false }));
+            new { id = "workflow", enabled = false }));
 
         using var response = await harness.Transport.ReadNextSentAsync();
         AppServerTestHarness.AssertIsSuccessResponse(response);
@@ -2850,17 +2856,17 @@ public sealed class AppBindingProtocolTests : IDisposable
 
         using var notification = await harness.Transport.ReadNextSentAsync();
         AppServerTestHarness.AssertIsNotification(notification, AppListUpdated);
-        Assert.Equal("oratorio", notification.RootElement.GetProperty("params").GetProperty("pluginId").GetString());
+        Assert.Equal("workflow", notification.RootElement.GetProperty("params").GetProperty("pluginId").GetString());
         Assert.Equal("plugin/disable", notification.RootElement.GetProperty("params").GetProperty("reason").GetString());
         Assert.Contains(
             notification.RootElement.GetProperty("params").GetProperty("appIds").EnumerateArray(),
-            appId => appId.GetString() == "com.dotharness.oratorio");
+            appId => appId.GetString() == "com.example.workflow");
     }
 
     [Fact]
     public async Task PluginDisable_MovesActiveBindingsOfflineAndNotifiesThreads()
     {
-        WriteOratorioPlugin();
+        WriteWorkflowPlugin();
         var service = new AppBindingService();
         using var harness = CreateHarness(service);
         await harness.InitializeAsync();
@@ -2871,7 +2877,7 @@ public sealed class AppBindingProtocolTests : IDisposable
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(
             AppServerMethods.PluginSetEnabled,
-            new { id = "oratorio", enabled = false }));
+            new { id = "workflow", enabled = false }));
 
         using var response = await harness.Transport.ReadNextSentAsync();
         AppServerTestHarness.AssertIsSuccessResponse(response);
@@ -2899,7 +2905,7 @@ public sealed class AppBindingProtocolTests : IDisposable
     [Fact]
     public async Task BindingFlow_ConnectsAcceptsAttachesAndDispatchesRuntimeTool()
     {
-        WriteOratorioPlugin();
+        WriteWorkflowPlugin();
         var service = new AppBindingService();
         using var harness = CreateHarness(service);
         await harness.InitializeAsync();
@@ -2968,7 +2974,7 @@ public sealed class AppBindingProtocolTests : IDisposable
     [Fact]
     public async Task RefreshBindings_MarksActiveBindingOfflineWhenToolChannelClosed()
     {
-        WriteOratorioPlugin();
+        WriteWorkflowPlugin();
         var service = new AppBindingService();
         using var harness = CreateHarness(service);
         await harness.InitializeAsync();
@@ -3007,7 +3013,7 @@ public sealed class AppBindingProtocolTests : IDisposable
     [Fact]
     public async Task RefreshBindings_RestoresOfflineBindingAfterToolReattach()
     {
-        WriteOratorioPlugin();
+        WriteWorkflowPlugin();
         var service = new AppBindingService();
         using var harness = CreateHarness(service);
         await harness.InitializeAsync();
@@ -3049,7 +3055,7 @@ public sealed class AppBindingProtocolTests : IDisposable
     [Fact]
     public async Task ThreadWire_IncludesLightweightAppBindingSummaries()
     {
-        WriteOratorioPlugin();
+        WriteWorkflowPlugin();
         var service = new AppBindingService();
         using var harness = CreateHarness(service);
         await harness.InitializeAsync();
@@ -3069,9 +3075,9 @@ public sealed class AppBindingProtocolTests : IDisposable
             .GetProperty("appBindings")
             .EnumerateArray());
         Assert.Equal(bindingId, readBinding.GetProperty("bindingId").GetString());
-        Assert.Equal("com.dotharness.oratorio", readBinding.GetProperty("appId").GetString());
-        Assert.Equal("Oratorio", readBinding.GetProperty("displayName").GetString());
-        Assert.Equal("oratorio", readBinding.GetProperty("toolNamespace").GetString());
+        Assert.Equal("com.example.workflow", readBinding.GetProperty("appId").GetString());
+        Assert.Equal("Workflow App", readBinding.GetProperty("displayName").GetString());
+        Assert.Equal("workflow", readBinding.GetProperty("toolNamespace").GetString());
         Assert.Equal("active", readBinding.GetProperty("state").GetString());
         Assert.Equal("connected", readBinding.GetProperty("connectionState").GetString());
         Assert.StartsWith("data:image/svg+xml;base64,", readBinding.GetProperty("icon").GetString());
@@ -3093,7 +3099,7 @@ public sealed class AppBindingProtocolTests : IDisposable
     [Fact]
     public async Task ThreadDelete_RevokesPersistedAppBindings()
     {
-        WriteOratorioPlugin();
+        WriteWorkflowPlugin();
         var service = new AppBindingService();
         using var harness = CreateHarness(service);
         await harness.InitializeAsync();
@@ -3120,7 +3126,7 @@ public sealed class AppBindingProtocolTests : IDisposable
     [Fact]
     public async Task ConnectionRevoke_MovesActiveBindingsOfflineAndNotifiesThreads()
     {
-        WriteOratorioPlugin();
+        WriteWorkflowPlugin();
         var service = new AppBindingService();
         using var harness = CreateHarness(service);
         await harness.InitializeAsync();
@@ -3131,7 +3137,7 @@ public sealed class AppBindingProtocolTests : IDisposable
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(
             AppConnectionRevoke,
-            new { appId = "com.dotharness.oratorio", reason = "disconnect" }));
+            new { appId = "com.example.workflow", reason = "disconnect" }));
 
         using var response = await harness.Transport.ReadNextSentAsync();
         AppServerTestHarness.AssertIsSuccessResponse(response);
@@ -3161,7 +3167,7 @@ public sealed class AppBindingProtocolTests : IDisposable
     [Fact]
     public async Task RevokeBinding_InterruptsActiveTurn()
     {
-        WriteOratorioPlugin();
+        WriteWorkflowPlugin();
         var service = new AppBindingService();
         using var harness = CreateHarness(service);
         await harness.InitializeAsync();
@@ -3192,7 +3198,7 @@ public sealed class AppBindingProtocolTests : IDisposable
     [Fact]
     public async Task AttachTools_RejectsToolsOutsideDeclaredNamespace()
     {
-        WriteOratorioPlugin();
+        WriteWorkflowPlugin();
         var service = new AppBindingService();
         using var harness = CreateHarness(service);
         await harness.InitializeAsync();
@@ -3208,7 +3214,7 @@ public sealed class AppBindingProtocolTests : IDisposable
             {
                 bindingId,
                 threadId = thread.Id,
-                appId = "com.dotharness.oratorio",
+                appId = "com.example.workflow",
                 grantId = "grant-1",
                 tools = new[]
                 {
@@ -3225,19 +3231,19 @@ public sealed class AppBindingProtocolTests : IDisposable
         using var response = await harness.Transport.ReadNextSentAsync();
         AppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
         Assert.Contains(
-            "must use namespace 'oratorio'",
+            "must use namespace 'workflow'",
             response.RootElement.GetProperty("error").GetProperty("data").GetProperty("detail").GetString());
     }
 
     [Fact]
     public async Task DynamicCatalogApp_AllowsUrlOnlyDescriptorAndEmptyRequestedTools()
     {
-        WriteUnityDynamicPlugin();
+        WriteDynamicToolPlugin();
         var service = new AppBindingService();
         using var harness = CreateHarness(service);
         await harness.InitializeAsync();
         var thread = await harness.Service.CreateThreadAsync(CreateIdentity());
-        await ConnectAppAsync(harness, "com.example.unitydynamic", "unity-editor");
+        await ConnectAppAsync(harness, "com.example.dynamictools", "dynamic-tool-runtime");
 
         using var listResponse = await ExecuteAndReadResponseAsync(
             harness,
@@ -3245,7 +3251,7 @@ public sealed class AppBindingProtocolTests : IDisposable
             new { includeDisabled = true });
         var app = Assert.Single(
             listResponse.RootElement.GetProperty("result").GetProperty("apps").EnumerateArray(),
-            item => item.GetProperty("appId").GetString() == "com.example.unitydynamic");
+            item => item.GetProperty("appId").GetString() == "com.example.dynamictools");
         Assert.Equal("", app.GetProperty("nativeApp").GetProperty("protocol").GetString());
         Assert.True(app.GetProperty("dynamicToolCatalog").GetProperty("enabled").GetBoolean());
         Assert.Empty(app.GetProperty("toolCatalog").EnumerateArray());
@@ -3253,8 +3259,8 @@ public sealed class AppBindingProtocolTests : IDisposable
         var request = await CreateBindingRequestAsync(
             harness,
             thread.Id,
-            appId: "com.example.unitydynamic",
-            requestedScopes: ["unity.read", "unity.edit"],
+            appId: "com.example.dynamictools",
+            requestedScopes: ["dynamic.read", "dynamic.edit"],
             requestedTools: null,
             omitRequestedTools: true);
         using var inspectResponse = await ExecuteAndReadResponseAsync(
@@ -3262,7 +3268,7 @@ public sealed class AppBindingProtocolTests : IDisposable
             AppBindingRequestGet,
             new
             {
-                appId = "com.example.unitydynamic",
+                appId = "com.example.dynamictools",
                 bindingRequestId = request.BindingRequestId,
                 requestToken = request.Token
             });
@@ -3275,26 +3281,26 @@ public sealed class AppBindingProtocolTests : IDisposable
     [Fact]
     public async Task AttachTools_AcceptsDynamicCatalogAndEnforcesMutateDeferred()
     {
-        WriteUnityDynamicPlugin();
+        WriteDynamicToolPlugin();
         var service = new AppBindingService();
         using var harness = CreateHarness(service);
         await harness.InitializeAsync();
         var thread = await harness.Service.CreateThreadAsync(CreateIdentity());
-        await ConnectAppAsync(harness, "com.example.unitydynamic", "unity-editor");
+        await ConnectAppAsync(harness, "com.example.dynamictools", "dynamic-tool-runtime");
 
         var request = await CreateBindingRequestAsync(
             harness,
             thread.Id,
-            appId: "com.example.unitydynamic",
-            requestedScopes: ["unity.read", "unity.edit"],
+            appId: "com.example.dynamictools",
+            requestedScopes: ["dynamic.read", "dynamic.edit"],
             requestedTools: null,
             omitRequestedTools: true);
         var bindingId = await AcceptBindingAsync(
             harness,
             request.BindingRequestId,
             request.Token,
-            grantedScopes: ["unity.read", "unity.edit"],
-            approvedBy: "unity-editor");
+            grantedScopes: ["dynamic.read", "dynamic.edit"],
+            approvedBy: "dynamic-tool-runtime");
 
         using var attachResponse = await ExecuteAndReadResponseAsync(
             harness,
@@ -3303,14 +3309,14 @@ public sealed class AppBindingProtocolTests : IDisposable
             {
                 bindingId,
                 threadId = thread.Id,
-                appId = "com.example.unitydynamic",
+                appId = "com.example.dynamictools",
                 grantId = "grant-1",
                 tools = new[]
                 {
                     new DynamicToolSpec
                     {
-                        Namespace = "unity_test",
-                        Name = "unity_move_object",
+                        Namespace = "dynamictools_test",
+                        Name = "dynamic_move_object",
                         Description = "Move an object.",
                         InputSchema = CreateCardSchema()
                     }
@@ -3319,14 +3325,14 @@ public sealed class AppBindingProtocolTests : IDisposable
                 {
                     new AppToolCatalogEntry
                     {
-                        Name = "unity_move_object",
-                        Scope = "unity.edit",
+                        Name = "dynamic_move_object",
+                        Scope = "dynamic.edit",
                         Risk = "mutate",
                         DefaultExposure = "direct",
                         Description = "Move an object."
                     }
                 },
-                directToolNames = new[] { "unity_move_object" }
+                directToolNames = new[] { "dynamic_move_object" }
             },
             expectedNotificationMethod: "thread/appBindings/changed");
 
@@ -3345,26 +3351,26 @@ public sealed class AppBindingProtocolTests : IDisposable
     [Fact]
     public async Task AttachTools_RejectsDynamicToolWithoutCatalogEntry()
     {
-        WriteUnityDynamicPlugin();
+        WriteDynamicToolPlugin();
         var service = new AppBindingService();
         using var harness = CreateHarness(service);
         await harness.InitializeAsync();
         var thread = await harness.Service.CreateThreadAsync(CreateIdentity());
-        await ConnectAppAsync(harness, "com.example.unitydynamic", "unity-editor");
+        await ConnectAppAsync(harness, "com.example.dynamictools", "dynamic-tool-runtime");
 
         var request = await CreateBindingRequestAsync(
             harness,
             thread.Id,
-            appId: "com.example.unitydynamic",
-            requestedScopes: ["unity.read"],
+            appId: "com.example.dynamictools",
+            requestedScopes: ["dynamic.read"],
             requestedTools: null,
             omitRequestedTools: true);
         var bindingId = await AcceptBindingAsync(
             harness,
             request.BindingRequestId,
             request.Token,
-            grantedScopes: ["unity.read"],
-            approvedBy: "unity-editor");
+            grantedScopes: ["dynamic.read"],
+            approvedBy: "dynamic-tool-runtime");
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(
             AppBindingAttachTools,
@@ -3372,14 +3378,14 @@ public sealed class AppBindingProtocolTests : IDisposable
             {
                 bindingId,
                 threadId = thread.Id,
-                appId = "com.example.unitydynamic",
+                appId = "com.example.dynamictools",
                 grantId = "grant-1",
                 tools = new[]
                 {
                     new DynamicToolSpec
                     {
-                        Namespace = "unity_test",
-                        Name = "unity_scene_query",
+                        Namespace = "dynamictools_test",
+                        Name = "dynamic_scene_query",
                         Description = "Query scene.",
                         InputSchema = CreateCardSchema()
                     }
@@ -3396,26 +3402,26 @@ public sealed class AppBindingProtocolTests : IDisposable
     [Fact]
     public async Task AttachTools_RejectsDynamicToolWithUngrantedScope()
     {
-        WriteUnityDynamicPlugin();
+        WriteDynamicToolPlugin();
         var service = new AppBindingService();
         using var harness = CreateHarness(service);
         await harness.InitializeAsync();
         var thread = await harness.Service.CreateThreadAsync(CreateIdentity());
-        await ConnectAppAsync(harness, "com.example.unitydynamic", "unity-editor");
+        await ConnectAppAsync(harness, "com.example.dynamictools", "dynamic-tool-runtime");
 
         var request = await CreateBindingRequestAsync(
             harness,
             thread.Id,
-            appId: "com.example.unitydynamic",
-            requestedScopes: ["unity.read"],
+            appId: "com.example.dynamictools",
+            requestedScopes: ["dynamic.read"],
             requestedTools: null,
             omitRequestedTools: true);
         var bindingId = await AcceptBindingAsync(
             harness,
             request.BindingRequestId,
             request.Token,
-            grantedScopes: ["unity.read"],
-            approvedBy: "unity-editor");
+            grantedScopes: ["dynamic.read"],
+            approvedBy: "dynamic-tool-runtime");
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(
             AppBindingAttachTools,
@@ -3423,14 +3429,14 @@ public sealed class AppBindingProtocolTests : IDisposable
             {
                 bindingId,
                 threadId = thread.Id,
-                appId = "com.example.unitydynamic",
+                appId = "com.example.dynamictools",
                 grantId = "grant-1",
                 tools = new[]
                 {
                     new DynamicToolSpec
                     {
-                        Namespace = "unity_test",
-                        Name = "unity_move_object",
+                        Namespace = "dynamictools_test",
+                        Name = "dynamic_move_object",
                         Description = "Move an object.",
                         InputSchema = CreateCardSchema()
                     }
@@ -3439,8 +3445,8 @@ public sealed class AppBindingProtocolTests : IDisposable
                 {
                     new AppToolCatalogEntry
                     {
-                        Name = "unity_move_object",
-                        Scope = "unity.edit",
+                        Name = "dynamic_move_object",
+                        Scope = "dynamic.edit",
                         Risk = "mutate",
                         DefaultExposure = "deferred"
                     }
@@ -3450,7 +3456,7 @@ public sealed class AppBindingProtocolTests : IDisposable
         using var response = await harness.Transport.ReadNextSentAsync();
         AppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
         Assert.Contains(
-            "requires ungranted scope 'unity.edit'",
+            "requires ungranted scope 'dynamic.edit'",
             response.RootElement.GetProperty("error").GetProperty("data").GetProperty("detail").GetString());
     }
 
@@ -3647,7 +3653,7 @@ public sealed class AppBindingProtocolTests : IDisposable
     [Fact]
     public async Task UiResourceRead_BrokersDeclaredResourceToAppAndRejectsUndeclaredUri()
     {
-        WriteOratorioPlugin();
+        WriteWorkflowPlugin();
         var service = new AppBindingService();
         using var harness = CreateHarness(service);
         await harness.InitializeAsync();
@@ -3665,7 +3671,7 @@ public sealed class AppBindingProtocolTests : IDisposable
                 [
                     new UiResourceContent
                     {
-                        Uri = "ui://oratorio/board",
+                        Uri = "ui://workflow/board",
                         MimeType = "text/html;profile=mcp-app",
                         Text = "<!doctype html><body>board</body>"
                     }
@@ -3673,20 +3679,20 @@ public sealed class AppBindingProtocolTests : IDisposable
             });
         };
 
-        var result = await service.ReadUiResourceAsync(_workspaceCraftPath, thread.Id, "oratorio", "ui://oratorio/board", default);
+        var result = await service.ReadUiResourceAsync(_workspaceCraftPath, thread.Id, "workflow", "ui://workflow/board", default);
         var content = Assert.Single(result.Contents);
-        Assert.Equal("ui://oratorio/board", content.Uri);
+        Assert.Equal("ui://workflow/board", content.Uri);
         Assert.Equal("text/html;profile=mcp-app", content.MimeType);
         Assert.Contains("board", content.Text);
 
         await Assert.ThrowsAsync<AppServerException>(() =>
-            service.ReadUiResourceAsync(_workspaceCraftPath, thread.Id, "oratorio", "ui://oratorio/missing", default).AsTask());
+            service.ReadUiResourceAsync(_workspaceCraftPath, thread.Id, "workflow", "ui://workflow/missing", default).AsTask());
     }
 
     [Fact]
     public async Task UiToolCall_DispatchesAppVisibleToolDecoupledFromConversation()
     {
-        WriteOratorioPlugin();
+        WriteWorkflowPlugin();
         var service = new AppBindingService();
         using var harness = CreateHarness(service);
         await harness.InitializeAsync();
@@ -3709,7 +3715,7 @@ public sealed class AppBindingProtocolTests : IDisposable
         var result = await service.InvokeUiToolAsync(
             _workspaceCraftPath,
             thread.Id,
-            "oratorio",
+            "workflow",
             "CreateCard",
             new JsonObject { ["title"] = "From UI" },
             sourceCallId: "dyntool_1",
@@ -3733,7 +3739,7 @@ public sealed class AppBindingProtocolTests : IDisposable
     [Fact]
     public async Task UiOpenLink_RecordedOnAuditTrail()
     {
-        WriteOratorioPlugin();
+        WriteWorkflowPlugin();
         var service = new AppBindingService();
         using var harness = CreateHarness(service);
         await harness.InitializeAsync(interactiveToolUi: true);
@@ -3744,7 +3750,7 @@ public sealed class AppBindingProtocolTests : IDisposable
         using var response = await ExecuteAndReadResponseAsync(
             harness,
             "ui/open-link",
-            new { threadId = thread.Id, @namespace = "oratorio", url = "https://example.com", sourceCallId = "dyntool_1" });
+            new { threadId = thread.Id, @namespace = "workflow", url = "https://example.com", sourceCallId = "dyntool_1" });
 
         AppServerTestHarness.AssertIsSuccessResponse(response);
         Assert.Equal("https://example.com", response.RootElement.GetProperty("result").GetProperty("url").GetString());
@@ -3755,7 +3761,7 @@ public sealed class AppBindingProtocolTests : IDisposable
     [Fact]
     public async Task UiToolCall_RejectsToolNotExposedToUi()
     {
-        WriteOratorioPlugin();
+        WriteWorkflowPlugin();
         var service = new AppBindingService();
         using var harness = CreateHarness(service);
         await harness.InitializeAsync();
@@ -3766,7 +3772,7 @@ public sealed class AppBindingProtocolTests : IDisposable
         var result = await service.InvokeUiToolAsync(
             _workspaceCraftPath,
             thread.Id,
-            "oratorio",
+            "workflow",
             "CreateCard",
             new JsonObject { ["title"] = "From UI" },
             sourceCallId: null,
@@ -3782,7 +3788,7 @@ public sealed class AppBindingProtocolTests : IDisposable
     [Fact]
     public async Task UiToolCall_RejectsMutatingToolWithoutApprovalGate()
     {
-        WriteOratorioPlugin();
+        WriteWorkflowPlugin();
         var service = new AppBindingService();
         using var harness = CreateHarness(service);
         await harness.InitializeAsync();
@@ -3794,7 +3800,7 @@ public sealed class AppBindingProtocolTests : IDisposable
         var result = await service.InvokeUiToolAsync(
             _workspaceCraftPath,
             thread.Id,
-            "oratorio",
+            "workflow",
             "CreateCard",
             new JsonObject { ["title"] = "From UI" },
             sourceCallId: "dyntool_1",
@@ -3811,7 +3817,7 @@ public sealed class AppBindingProtocolTests : IDisposable
     [Fact]
     public async Task UiToolCall_MutatingToolDispatchesWhenApproved()
     {
-        WriteOratorioPlugin();
+        WriteWorkflowPlugin();
         var service = new AppBindingService();
         using var harness = CreateHarness(service);
         await harness.InitializeAsync();
@@ -3840,7 +3846,7 @@ public sealed class AppBindingProtocolTests : IDisposable
         var result = await service.InvokeUiToolAsync(
             _workspaceCraftPath,
             thread.Id,
-            "oratorio",
+            "workflow",
             "CreateCard",
             new JsonObject { ["title"] = "From UI" },
             sourceCallId: "dyntool_1",
@@ -3862,7 +3868,7 @@ public sealed class AppBindingProtocolTests : IDisposable
     [Fact]
     public async Task UiToolCall_MutatingToolRejectedWhenDeclined()
     {
-        WriteOratorioPlugin();
+        WriteWorkflowPlugin();
         var service = new AppBindingService();
         using var harness = CreateHarness(service);
         await harness.InitializeAsync();
@@ -3875,7 +3881,7 @@ public sealed class AppBindingProtocolTests : IDisposable
         var result = await service.InvokeUiToolAsync(
             _workspaceCraftPath,
             thread.Id,
-            "oratorio",
+            "workflow",
             "CreateCard",
             new JsonObject { ["title"] = "From UI" },
             sourceCallId: "dyntool_1",
@@ -3893,7 +3899,7 @@ public sealed class AppBindingProtocolTests : IDisposable
     [Fact]
     public async Task UiOpenLink_AllowsHttpsMailtoAndBoundAppProtocolRejectsOtherSchemes()
     {
-        WriteOratorioPlugin();
+        WriteWorkflowPlugin();
         var service = new AppBindingService();
         using var harness = CreateHarness(service);
         await harness.InitializeAsync();
@@ -3903,25 +3909,25 @@ public sealed class AppBindingProtocolTests : IDisposable
         var catalog = AppBindingCatalog.Discover(new AppConfig(), _tempRoot, _workspaceCraftPath);
 
         var https = service.OpenLink(
-            catalog, _workspaceCraftPath, thread.Id, "oratorio", "https://oratorio.example/board/1", "dyntool_1", "test_user");
-        Assert.Equal("https://oratorio.example/board/1", https.Url);
+            catalog, _workspaceCraftPath, thread.Id, "workflow", "https://workflow.example/board/1", "dyntool_1", "test_user");
+        Assert.Equal("https://workflow.example/board/1", https.Url);
 
         var mailto = service.OpenLink(
-            catalog, _workspaceCraftPath, thread.Id, "oratorio", "mailto:team@example.com", null, "test_user");
+            catalog, _workspaceCraftPath, thread.Id, "workflow", "mailto:team@example.com", null, "test_user");
         Assert.Equal("mailto:team@example.com", mailto.Url);
 
         // The bound app's own declared nativeApplication.protocol is an allowed deep-link scheme (M-v).
         var deepLink = service.OpenLink(
-            catalog, _workspaceCraftPath, thread.Id, "oratorio", "oratorio://open/task/t1", "dyntool_1", "test_user");
-        Assert.Equal("oratorio://open/task/t1", deepLink.Url);
+            catalog, _workspaceCraftPath, thread.Id, "workflow", "workflow://open/task/t1", "dyntool_1", "test_user");
+        Assert.Equal("workflow://open/task/t1", deepLink.Url);
 
         Assert.Throws<AppServerException>(() =>
-            service.OpenLink(catalog, _workspaceCraftPath, thread.Id, "oratorio", "javascript:alert(1)", null, "test_user"));
+            service.OpenLink(catalog, _workspaceCraftPath, thread.Id, "workflow", "javascript:alert(1)", null, "test_user"));
         Assert.Throws<AppServerException>(() =>
-            service.OpenLink(catalog, _workspaceCraftPath, thread.Id, "oratorio", "file:///etc/passwd", null, "test_user"));
+            service.OpenLink(catalog, _workspaceCraftPath, thread.Id, "workflow", "file:///etc/passwd", null, "test_user"));
         // A custom scheme the bound app did NOT declare stays rejected.
         Assert.Throws<AppServerException>(() =>
-            service.OpenLink(catalog, _workspaceCraftPath, thread.Id, "oratorio", "vscode://open?file=x", null, "test_user"));
+            service.OpenLink(catalog, _workspaceCraftPath, thread.Id, "workflow", "vscode://open?file=x", null, "test_user"));
 
         AssertAppBindingAuditContains("binding.uiOpenLink");
         AssertAppBindingAuditContains("binding.uiOpenLink.blocked");
@@ -3931,7 +3937,7 @@ public sealed class AppBindingProtocolTests : IDisposable
     [Fact]
     public async Task UiUpdateModelContext_UpsertsModelVisibleBlockThenClearsOnEmpty()
     {
-        WriteOratorioPlugin();
+        WriteWorkflowPlugin();
         var service = new AppBindingService();
         using var harness = CreateHarness(service);
         await harness.InitializeAsync();
@@ -3940,7 +3946,7 @@ public sealed class AppBindingProtocolTests : IDisposable
         await CreateAcceptAndAttachUiToolAsync(harness, thread.Id);
 
         var upsert = service.UpdateModelContext(
-            _workspaceCraftPath, thread.Id, "oratorio", "dyntool_1", "Selected card", "The user selected card-7.", "test_user");
+            _workspaceCraftPath, thread.Id, "workflow", "dyntool_1", "Selected card", "The user selected card-7.", "test_user");
         Assert.False(upsert.Cleared);
         Assert.Equal("ui:dyntool_1", upsert.BlockId);
 
@@ -3959,7 +3965,7 @@ public sealed class AppBindingProtocolTests : IDisposable
 
         // Last-write-wins clear (e.g. on teardown): empty content removes the block.
         var cleared = service.UpdateModelContext(
-            _workspaceCraftPath, thread.Id, "oratorio", "dyntool_1", null, "", "test_user");
+            _workspaceCraftPath, thread.Id, "workflow", "dyntool_1", null, "", "test_user");
         Assert.True(cleared.Cleared);
         Assert.Empty(service.ListThreadContextBlocks(_workspaceCraftPath, thread.Id, includeInactive: true).Blocks);
 
@@ -3981,13 +3987,13 @@ public sealed class AppBindingProtocolTests : IDisposable
             {
                 bindingId,
                 threadId,
-                appId = "com.dotharness.oratorio",
+                appId = "com.example.workflow",
                 grantId = "grant-1",
                 tools = new[]
                 {
                     new DynamicToolSpec
                     {
-                        Namespace = "oratorio",
+                        Namespace = "workflow",
                         Name = "CreateCard",
                         Description = "Create a card",
                         InputSchema = CreateCardSchema(),
@@ -4005,7 +4011,7 @@ public sealed class AppBindingProtocolTests : IDisposable
                         {
                             Ui = new UiToolMeta
                             {
-                                ResourceUri = "ui://oratorio/board",
+                                ResourceUri = "ui://workflow/board",
                                 Visibility = ["model", "app"]
                             }
                         }
@@ -4088,8 +4094,8 @@ public sealed class AppBindingProtocolTests : IDisposable
 
     private async Task ConnectAppAsync(
         AppServerTestHarness harness,
-        string appId = "com.dotharness.oratorio",
-        string accountLabel = "local-oratorio")
+        string appId = "com.example.workflow",
+        string accountLabel = "local-workflow")
     {
         using var startResponse = await ExecuteAndReadResponseAsync(
             harness,
@@ -4132,13 +4138,13 @@ public sealed class AppBindingProtocolTests : IDisposable
             {
                 bindingId,
                 threadId,
-                appId = "com.dotharness.oratorio",
+                appId = "com.example.workflow",
                 grantId = "grant-1",
                 tools = new[]
                 {
                     new DynamicToolSpec
                     {
-                        Namespace = "oratorio",
+                        Namespace = "workflow",
                         Name = "CreateCard",
                         Description = "Create a card",
                         InputSchema = CreateCardSchema()
@@ -4179,13 +4185,13 @@ public sealed class AppBindingProtocolTests : IDisposable
             {
                 BindingId = bindingId,
                 ThreadId = threadId,
-                AppId = "com.dotharness.oratorio",
+                AppId = "com.example.workflow",
                 GrantId = "grant-1",
                 Tools =
                 [
                     new DynamicToolSpec
                     {
-                        Namespace = "oratorio",
+                        Namespace = "workflow",
                         Name = "CreateCard",
                         Description = "Create a card",
                         InputSchema = CreateCardSchema()
@@ -4198,7 +4204,7 @@ public sealed class AppBindingProtocolTests : IDisposable
     private async Task<(string BindingRequestId, string Token)> CreateBindingRequestAsync(
         AppServerTestHarness harness,
         string threadId,
-        string appId = "com.dotharness.oratorio",
+        string appId = "com.example.workflow",
         string[]? requestedScopes = null,
         string[]? requestedTools = null,
         bool omitRequestedTools = false)
@@ -4228,7 +4234,7 @@ public sealed class AppBindingProtocolTests : IDisposable
         string bindingRequestId,
         string token,
         string[]? grantedScopes = null,
-        string approvedBy = "local-oratorio",
+        string approvedBy = "local-workflow",
         DateTimeOffset? expiresAt = null)
     {
         grantedScopes ??= ["board.read", "board.manage"];
@@ -4307,12 +4313,51 @@ public sealed class AppBindingProtocolTests : IDisposable
         throw new InvalidOperationException("Could not find repository root.");
     }
 
-    private void WriteOratorioPlugin(
-        string pluginId = "oratorio",
-        string appId = "com.dotharness.oratorio",
-        string toolNamespace = "oratorio",
-        string rootName = "oratorio",
-        string? originChannel = "oratorio",
+    private void ConfigureWorkflowRegistry(AppConfig config)
+    {
+        var registryRoot = Path.Combine(_tempRoot, "registry");
+        var pluginContainer = Path.Combine(registryRoot, "plugins");
+        Directory.CreateDirectory(Path.Combine(registryRoot, ".craft", "plugins"));
+        Directory.CreateDirectory(pluginContainer);
+        WriteRegistryMarketplace(registryRoot, "workflow");
+        WriteWorkflowPlugin(containerRoot: pluginContainer);
+        config.Plugins.PluginRegistries.Add(new AppConfig.PluginRegistryConfig { Url = registryRoot });
+    }
+
+    private static void WriteRegistryMarketplace(string registryRoot, string pluginId)
+    {
+        File.WriteAllText(
+            Path.Combine(registryRoot, ".craft", "plugins", "marketplace.json"),
+            $$"""
+{
+  "name": "test-registry",
+  "interface": {
+    "displayName": "Test Registry"
+  },
+  "plugins": [
+    {
+      "id": "{{pluginId}}",
+      "source": {
+        "kind": "registryPath",
+        "path": "./plugins/{{pluginId}}"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}
+""");
+    }
+
+    private void WriteWorkflowPlugin(
+        string pluginId = "workflow",
+        string appId = "com.example.workflow",
+        string toolNamespace = "workflow",
+        string rootName = "workflow",
+        string? originChannel = "workflow",
         bool withOriginMembers = false,
         string? containerRoot = null)
     {
@@ -4333,8 +4378,8 @@ public sealed class AppBindingProtocolTests : IDisposable
   "schemaVersion": 1,
   "id": "{{pluginId}}",
   "version": "1.0.0",
-  "displayName": "Oratorio",
-  "description": "Manage Oratorio boards from selected DotCraft threads.",
+  "displayName": "Workflow App",
+  "description": "Manage Workflow App boards from selected DotCraft threads.",
   "capabilities": ["app"],
   "apps": "./apps.json"
 }
@@ -4347,21 +4392,21 @@ public sealed class AppBindingProtocolTests : IDisposable
     {
       "appId": "{{appId}}",
       "toolNamespace": "{{toolNamespace}}",
-      "displayName": "Oratorio",
-      "developerName": "DotHarness",
-      "description": "Manage Oratorio boards from selected DotCraft threads.",
+      "displayName": "Workflow App",
+      "developerName": "Example Labs",
+      "description": "Manage Workflow App boards from selected DotCraft threads.",
       "category": "Productivity",
-      "icon": "./oratorio.svg",
+      "icon": "./workflow.svg",
 {{originChannelJson}}{{originMembersJson}}      "nativeApplication": {
-        "displayName": "Oratorio",
-        "protocol": "oratorio",
-        "installUrl": "https://github.com/DotHarness/oratorio/releases"
+        "displayName": "Workflow App",
+        "protocol": "workflow",
+        "installUrl": "https://example.com/workflow-app"
       },
       "connection": {
         "handoffModes": [
           {
             "mode": "customProtocol",
-            "uriTemplate": "oratorio://dotcraft/{operation}?app={appId}&request={requestId}&token={requestToken}&endpoint={endpoint}"
+            "uriTemplate": "workflow://dotcraft/{operation}?app={appId}&request={requestId}&token={requestToken}&endpoint={endpoint}"
           }
         ]
       },
@@ -4394,7 +4439,7 @@ public sealed class AppBindingProtocolTests : IDisposable
 }
 """);
         File.WriteAllText(
-            Path.Combine(pluginRoot, "oratorio.svg"),
+            Path.Combine(pluginRoot, "workflow.svg"),
             """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect width="24" height="24" rx="6" fill="#5865f2"/></svg>""");
         if (withOriginMembers)
         {
@@ -4425,7 +4470,7 @@ public sealed class AppBindingProtocolTests : IDisposable
   "interface": {
     "displayName": "Agent Teams",
     "shortDescription": "Run missions with a small robot team",
-    "developerName": "DotHarness",
+    "developerName": "Example Labs",
     "category": "Productivity",
     "composerIcon": "./assets/agent-teams.svg",
     "logo": "./assets/agent-teams.svg"
@@ -4440,19 +4485,19 @@ public sealed class AppBindingProtocolTests : IDisposable
         }
     }
 
-    private void WriteUnityDynamicPlugin()
+    private void WriteDynamicToolPlugin()
     {
-        var pluginRoot = Path.Combine(_workspaceCraftPath, "plugins", "dotcraft-unity");
+        var pluginRoot = Path.Combine(_workspaceCraftPath, "plugins", "dynamic-tools-plugin");
         Directory.CreateDirectory(Path.Combine(pluginRoot, ".craft-plugin"));
         File.WriteAllText(
             Path.Combine(pluginRoot, ".craft-plugin", "plugin.json"),
             """
 {
   "schemaVersion": 1,
-  "id": "dotcraft-unity",
+  "id": "dynamic-tools-plugin",
   "version": "1.0.0",
-  "displayName": "dotcraft-unity",
-  "description": "Bind Unity Editor tools.",
+  "displayName": "dynamic-tools-plugin",
+  "description": "Bind Dynamic Tool Runtime tools.",
   "capabilities": ["app"],
   "apps": "./apps.json"
 }
@@ -4463,14 +4508,14 @@ public sealed class AppBindingProtocolTests : IDisposable
 {
   "apps": [
     {
-      "appId": "com.example.unitydynamic",
-      "toolNamespace": "unity_test",
-      "displayName": "Unity Editor",
-      "developerName": "DotHarness",
-      "description": "Bind enabled Unity runtime tools.",
+      "appId": "com.example.dynamictools",
+      "toolNamespace": "dynamictools_test",
+      "displayName": "Dynamic Tool Runtime",
+      "developerName": "Example Labs",
+      "description": "Bind enabled dynamic runtime tools.",
       "nativeApplication": {
-        "displayName": "Unity Editor",
-        "installUrl": "https://unity.com/download"
+        "displayName": "Dynamic Tool Runtime",
+        "installUrl": "https://example.com/dynamic-tools"
       },
       "connection": {
         "handoffModes": [
@@ -4482,16 +4527,16 @@ public sealed class AppBindingProtocolTests : IDisposable
       },
       "scopes": [
         {
-          "id": "unity.read",
-          "displayName": "Read Unity",
-          "description": "Read Unity state.",
+          "id": "dynamic.read",
+          "displayName": "Read dynamic runtime",
+          "description": "Read dynamic runtime state.",
           "risk": "read",
           "defaultSelected": true
         },
         {
-          "id": "unity.edit",
-          "displayName": "Edit Unity",
-          "description": "Mutate Unity state.",
+          "id": "dynamic.edit",
+          "displayName": "Edit dynamic runtime",
+          "description": "Mutate dynamic runtime state.",
           "risk": "mutate"
         }
       ],

@@ -5,7 +5,7 @@
 | **Version** | 1.3.0 |
 | **Status** | Living |
 | **Date** | 2026-05-19 |
-| **Related Specs** | [AppServer Protocol](../protocols/appserver-protocol.md), [Tool Result Presentation](../protocols/tool-result-presentation.md), [Session Core](../core/session-core.md), [External Channel Adapter](../protocols/external-channel-adapter.md), [Desktop Client](../clients/desktop-client.md) |
+| **Related Specs** | [AppServer Protocol](../protocols/appserver-protocol.md), [Plugin Registry](plugin-registry.md), [Tool Result Presentation](../protocols/tool-result-presentation.md), [Session Core](../core/session-core.md), [External Channel Adapter](../protocols/external-channel-adapter.md), [Desktop Client](../clients/desktop-client.md) |
 
 Purpose: define the durable architecture for DotCraft plugins, including plugin-contained skills, local plugin manifests, plugin-bundled MCP servers, client-facing plugin metadata, and the TypeScript external channel module contract.
 
@@ -169,6 +169,7 @@ DotCraft discovers plugin roots from:
 2. Explicit roots in `Plugins.PluginRoots` order
 3. User-global root: `<craft-home>/plugins`
 4. Desktop-bundled built-in catalog roots from `DOTCRAFT_BUILTIN_PLUGIN_ROOTS`
+5. Configured plugin registry snapshots
 
 Explicit roots may point either to one plugin root containing `.craft-plugin/plugin.json` or to a container directory containing multiple plugin roots. Missing roots are skipped with diagnostics. Local manifest plugins are enabled by default; `Plugins.DisabledPlugins` disables a plugin even when it is discovered from a default or explicit root.
 
@@ -230,15 +231,16 @@ Chrome setup detection must not inspect cookies, passwords, session stores, loca
 
 The long-term Chrome automation runtime contract is defined in [Chrome Browser Runtime](../runtime/chrome-browser-runtime.md). Plugin architecture owns contribution and installation semantics; Chrome Browser Runtime owns browser session lifecycle, tab ownership, command timeout, diagnostics, and runtime migration goals.
 
-### Oratorio Built-In Plugin
+### External Integration Registry Plugins
 
-DotCraft ships Oratorio as the built-in plugin `oratorio`. It contributes:
+Optional external application integrations should be distributed through the plugin registry rather than bundled with the DotCraft Desktop package. A registry plugin may contribute:
 
-- The `oratorio` skill, loaded from the plugin's `skills` directory. It describes the Oratorio board model and how agents should use Oratorio app-bound tools in user conversations.
-- The Oratorio App Binding descriptor, loaded from the plugin's `apps.json`.
-- Client-facing metadata for Desktop and plugin-management views.
+- skills loaded from the plugin's `skills` directory;
+- App Binding descriptors loaded from plugin-owned descriptor files;
+- Desktop extension descriptors and assets;
+- client-facing metadata for Desktop and plugin-management views.
 
-Installing the plugin does not install or launch the native Oratorio Desktop application. The Oratorio App Binding descriptor declares the native app requirement and OS protocol handoff; Desktop surfaces native app installation, connection, and thread binding as separate steps.
+Installing a registry plugin does not install or launch any native application required by the integration. The plugin's App Binding descriptor declares native app requirements and handoff behavior; Desktop surfaces native app installation, connection, and thread binding as separate steps.
 
 ### External Channel Tools
 
@@ -260,7 +262,7 @@ MCP tools are configured through workspace `McpServers`, per-thread `ThreadConfi
 
 ## 6. Built-In Plugin Lifecycle
 
-Built-in plugin manifests are desktop-bundled filesystem plugins exposed through a built-in catalog. Desktop bundles the source-of-truth plugin container under `resources/plugins/dotcraft-bundled/plugins` and launches AppServer with `DOTCRAFT_BUILTIN_PLUGIN_ROOTS` pointing at that container. Catalog entries are visible to clients before installation, but they are not active until installed into workspace `.craft/plugins/<pluginId>`.
+Built-in plugin manifests are desktop-bundled filesystem plugins exposed through a built-in catalog. Desktop bundles the source-of-truth plugin container under `resources/plugins/dotcraft-bundled/plugins` and launches AppServer with `DOTCRAFT_BUILTIN_PLUGIN_ROOTS` pointing at that container. Registry plugin manifests are discovered from configured source registry snapshots. Catalog entries are visible to clients before installation, but they are not active until installed into workspace `.craft/plugins/<pluginId>`.
 
 `DOTCRAFT_BUILTIN_PLUGIN_ROOTS` is a platform path-list. Each entry may be a plugin container directory or a direct plugin root. Entries must be absolute; missing or invalid entries produce non-fatal plugin diagnostics. When the variable is absent or empty, AppServer exposes no uninstalled built-in catalog entries, but already-installed workspace plugins remain discoverable.
 
@@ -270,9 +272,9 @@ Installed built-ins carry a `.builtin` marker:
 - `.builtin` stores a fingerprint of the source directory. Directories with `.builtin` are owned by DotCraft and can be refreshed or removed by DotCraft lifecycle operations.
 - Directories without `.builtin` are treated as user-owned and are not overwritten or removed by DotCraft.
 
-`plugin/remove` removes an installed workspace plugin directory under `.craft/plugins/<pluginId>` when that directory is controlled by the current workspace plugin manager. Managed built-ins still carry `.builtin` so DotCraft can refresh them and can distinguish them from user-owned local plugins, but workspace-local user plugins may also be removed explicitly through `plugin/remove`. Removing a plugin is distinct from disabling it: removed built-ins are absent from runtime discovery but remain visible in the installable catalog when desktop-bundled roots are configured, while disabled installed plugins remain on disk and can be re-enabled.
+`plugin/remove` removes an installed workspace plugin directory under `.craft/plugins/<pluginId>` when that directory is controlled by the current workspace plugin manager. Managed built-ins and registry-installed plugins carry `.builtin` so DotCraft can refresh them and can distinguish them from user-owned local plugins, but workspace-local user plugins may also be removed explicitly through `plugin/remove`. Removing a plugin is distinct from disabling it: removed built-ins and registry plugins are absent from runtime discovery but remain visible in the installable catalog when their source is configured, while disabled installed plugins remain on disk and can be re-enabled.
 
-Built-in catalog entries may also be remote release entries instead of bundled source directories. A remote entry supplies plugin metadata plus a GitHub Release ZIP URL, a fixed version, and a SHA-256 checksum. `plugin/install` downloads the ZIP, verifies the checksum, rejects path traversal or manifest-id mismatches, then installs the extracted plugin into `.craft/plugins/<pluginId>` with a managed marker. DotCraft never executes code directly from a remote URL; Desktop loads only the locally installed extension bundle.
+Registry catalog entries are source paths inside a registry snapshot. `plugin/install` validates the marketplace entry, validates the target plugin manifest id, then copies the registry plugin directory into `.craft/plugins/<pluginId>` with a managed marker. DotCraft never executes code directly from a registry URL; Desktop loads only the locally installed extension bundle. The public registry process for these curated source entries is defined in [Plugin Registry](plugin-registry.md).
 
 ---
 
@@ -312,6 +314,8 @@ The `Plugins` config section contains:
 - `PluginRoots`: additional local plugin roots or plugin container directories. Relative paths resolve against the workspace root.
 - `EnabledPlugins`: plugin ids explicitly enabled for the workspace.
 - `DisabledPlugins`: plugin ids explicitly disabled for the workspace. Disabled entries override enabled/default entries.
+- `PluginRegistries`: additional plugin registry sources. Each source declares a snapshot `url` and may override the marketplace path.
+- `DisableDefaultPluginRegistry`: disables the host-provided default official plugin registry.
 
 Installed built-in plugins and local manifest plugins are enabled by default unless disabled. Built-ins that are visible only through the catalog are installable but not enabled and do not contribute tools or skills to agent context.
 

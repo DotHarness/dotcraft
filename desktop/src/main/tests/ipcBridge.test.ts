@@ -56,7 +56,7 @@ vi.mock('electron', () => {
     isPackaged: true,
     getPath: vi.fn(() => 'C:\\Users\\tester'),
     getAppPath: vi.fn(() => 'C:\\sample\\desktop-app'),
-    getApplicationNameForProtocol: vi.fn((url: string) => url.startsWith('oratorio://') ? 'Oratorio' : '')
+    getApplicationNameForProtocol: vi.fn((url: string) => url.startsWith('workflow://') ? 'Workflow App' : '')
   },
   ipcMain: {
     handle: vi.fn(),
@@ -192,23 +192,23 @@ function mockDesktopExtensionPluginFixture(options: {
   extension?: Record<string, unknown>
   apps?: unknown[]
 } = {}): string {
-  const rootPath = path.resolve(options.rootPath ?? '/plugins/oratorio')
+  const rootPath = path.resolve(options.rootPath ?? '/plugins/workflow')
   const manifestPath = path.join(rootPath, '.craft-plugin', 'plugin.json')
   const desktopExtensionsPath = path.join(rootPath, 'desktop-extensions.json')
   const appsPath = path.join(rootPath, 'apps.json')
   const files = new Map<string, string>([
     [manifestPath, JSON.stringify({
       schemaVersion: 1,
-      id: 'oratorio',
+      id: 'workflow',
       desktopExtensions: './desktop-extensions.json',
       apps: './apps.json'
     })],
     [desktopExtensionsPath, JSON.stringify({
       extensions: [
         {
-          id: 'oratorio-board',
-          entry: './desktop/oratorio-board.mjs',
-          requiredAppIds: ['com.dotharness.oratorio'],
+          id: 'workflow-board',
+          entry: './desktop/workflow-board.mjs',
+          requiredAppIds: ['com.example.workflow'],
           connectOrigins: ['http://127.0.0.1:*'],
           surfaceWriteScopes: ['board.manage'],
           ...(options.extension ?? {})
@@ -218,11 +218,11 @@ function mockDesktopExtensionPluginFixture(options: {
     [appsPath, JSON.stringify({
       apps: options.apps ?? [
         {
-          appId: 'com.dotharness.oratorio',
+          appId: 'com.example.workflow',
           nativeApplication: {
-            protocol: 'oratorio',
+            protocol: 'workflow',
             platforms: {
-              windows: { protocol: 'oratorio' }
+              windows: { protocol: 'workflow' }
             }
           }
         }
@@ -342,8 +342,8 @@ describe('openExternalUrl', () => {
 
   it('allows app deep link URLs', async () => {
     vi.mocked(shell.openExternal).mockClear()
-    await openExternalUrl('oratorio://dotcraft/connect?request=req_1')
-    expect(shell.openExternal).toHaveBeenCalledWith('oratorio://dotcraft/connect?request=req_1')
+    await openExternalUrl('workflow://dotcraft/connect?request=req_1')
+    expect(shell.openExternal).toHaveBeenCalledWith('workflow://dotcraft/connect?request=req_1')
   })
 
   it('rejects unsupported schemes', async () => {
@@ -359,7 +359,7 @@ describe('openAppHandoffUrl', () => {
     vi.stubGlobal('fetch', fetchMock)
     vi.mocked(shell.openExternal).mockClear()
 
-    await openAppHandoffUrl('http://127.0.0.1:39777/dotcraft/bind?app=com.dotharness.dotcraft-unity')
+    await openAppHandoffUrl('http://127.0.0.1:39777/dotcraft/bind?app=com.example.dynamic-tools')
 
     expect(fetchMock).toHaveBeenCalledTimes(1)
     expect(shell.openExternal).not.toHaveBeenCalled()
@@ -369,9 +369,9 @@ describe('openAppHandoffUrl', () => {
   it('falls back to the OS handler for custom protocol handoffs', async () => {
     vi.mocked(shell.openExternal).mockClear()
 
-    await openAppHandoffUrl('oratorio://dotcraft/bind?request=req_1')
+    await openAppHandoffUrl('workflow://dotcraft/bind?request=req_1')
 
-    expect(shell.openExternal).toHaveBeenCalledWith('oratorio://dotcraft/bind?request=req_1')
+    expect(shell.openExternal).toHaveBeenCalledWith('workflow://dotcraft/bind?request=req_1')
   })
 })
 
@@ -463,7 +463,7 @@ describe('postDesktopExtensionJson', () => {
 
 describe('getProtocolHandlerName', () => {
   it('queries the OS protocol handler name', () => {
-    expect(getProtocolHandlerName('oratorio')).toBe('Oratorio')
+    expect(getProtocolHandlerName('workflow')).toBe('Workflow App')
   })
 })
 
@@ -498,9 +498,9 @@ describe('registerIpcHandlers', () => {
     const handlers = registerHandlersForTest()
 
     const grant = await handlers.get('desktop-extension:authorize-extension')?.({}, {
-      pluginId: 'oratorio',
+      pluginId: 'workflow',
       rootPath,
-      extensionId: 'oratorio-board'
+      extensionId: 'workflow-board'
     }) as { grantId: string }
 
     await expect(handlers.get('desktop-extension:fetch-json')?.({}, {
@@ -575,9 +575,9 @@ describe('registerIpcHandlers', () => {
     const handlers = registerHandlersForTest()
 
     const grant = await handlers.get('desktop-extension:authorize-extension')?.({}, {
-      pluginId: 'oratorio',
+      pluginId: 'workflow',
       rootPath,
-      extensionId: 'oratorio-board'
+      extensionId: 'workflow-board'
     }) as { grantId: string }
 
     await expect(handlers.get('desktop-extension:post-json')?.({}, {
@@ -592,19 +592,19 @@ describe('registerIpcHandlers', () => {
 
   it('desktop extension app binding IPC is scoped by requiredAppIds', async () => {
     const rootPath = mockDesktopExtensionPluginFixture()
-    const sendRequest = vi.fn().mockResolvedValue({ appId: 'com.dotharness.oratorio', state: 'connected' })
+    const sendRequest = vi.fn().mockResolvedValue({ appId: 'com.example.workflow', state: 'connected' })
     const handlers = registerHandlersForTest('/workspace', () => ({ sendRequest } as never))
 
     const grant = await handlers.get('desktop-extension:authorize-extension')?.({}, {
-      pluginId: 'oratorio',
+      pluginId: 'workflow',
       rootPath,
-      extensionId: 'oratorio-board'
+      extensionId: 'workflow-board'
     }) as { grantId: string }
 
     await expect(handlers.get('desktop-extension:app-connection-status')?.({}, {
       grantId: grant.grantId,
-      appId: 'com.dotharness.oratorio'
-    })).resolves.toEqual({ appId: 'com.dotharness.oratorio', state: 'connected' })
+      appId: 'com.example.workflow'
+    })).resolves.toEqual({ appId: 'com.example.workflow', state: 'connected' })
 
     await expect(handlers.get('desktop-extension:app-connection-start')?.({}, {
       grantId: grant.grantId,
@@ -613,7 +613,7 @@ describe('registerIpcHandlers', () => {
 
     expect(sendRequest).toHaveBeenCalledWith(
       'app/connection/status',
-      { appId: 'com.dotharness.oratorio' },
+      { appId: 'com.example.workflow' },
       20_000
     )
   })
@@ -623,33 +623,33 @@ describe('registerIpcHandlers', () => {
     const handlers = registerHandlersForTest()
 
     const grant = await handlers.get('desktop-extension:authorize-extension')?.({}, {
-      pluginId: 'oratorio',
+      pluginId: 'workflow',
       rootPath,
-      extensionId: 'oratorio-board'
+      extensionId: 'workflow-board'
     }) as { grantId: string }
 
     await expect(handlers.get('desktop-extension:app-open')?.({}, {
       grantId: grant.grantId,
-      appId: 'com.dotharness.oratorio',
+      appId: 'com.example.workflow',
       url: 'https://example.com/open'
     })).rejects.toThrow('not allowed')
 
     await handlers.get('desktop-extension:app-open')?.({}, {
       grantId: grant.grantId,
-      appId: 'com.dotharness.oratorio',
-      url: 'oratorio://open/board'
+      appId: 'com.example.workflow',
+      url: 'workflow://open/board'
     })
 
-    expect(shell.openExternal).toHaveBeenCalledWith('oratorio://open/board')
+    expect(shell.openExternal).toHaveBeenCalledWith('workflow://open/board')
   })
 
   it('desktop extension grants are invalidated when IPC handlers unregister', async () => {
     const rootPath = mockDesktopExtensionPluginFixture()
     const handlers = registerHandlersForTest()
     const grant = await handlers.get('desktop-extension:authorize-extension')?.({}, {
-      pluginId: 'oratorio',
+      pluginId: 'workflow',
       rootPath,
-      extensionId: 'oratorio-board'
+      extensionId: 'workflow-board'
     }) as { grantId: string }
 
     unregisterIpcHandlers()
@@ -664,9 +664,9 @@ describe('registerIpcHandlers', () => {
     const rootPath = mockDesktopExtensionPluginFixture()
     const handlers = registerHandlersForTest()
     const grant = await handlers.get('desktop-extension:authorize-extension')?.({}, {
-      pluginId: 'oratorio',
+      pluginId: 'workflow',
       rootPath,
-      extensionId: 'oratorio-board'
+      extensionId: 'workflow-board'
     }) as { grantId: string }
 
     await expect(handlers.get('desktop-extension:revoke-extension')?.({}, {

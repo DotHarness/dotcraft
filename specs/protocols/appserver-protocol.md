@@ -4287,7 +4287,7 @@ Clients must check `capabilities.pluginManagement` before calling any `plugin/*`
 
 #### `plugin/list`
 
-Returns discovered plugins, including disabled installed plugins and installable built-in catalog plugins when requested.
+Returns discovered plugins, including disabled installed plugins and installable catalog plugins when requested. Catalog plugins may come from Desktop-bundled built-ins or configured plugin registries.
 
 **Direction**: client → server (request)
 
@@ -4354,7 +4354,7 @@ Returns one plugin by id.
 | Field | Type | Description |
 |-------|------|-------------|
 | `installed` | boolean | True when the plugin exists in a discovered local plugin root and can contribute runtime behavior. |
-| `installable` | boolean | True for known desktop-bundled built-in catalog entries that are not installed in the workspace. |
+| `installable` | boolean | True for known bundled or registry catalog entries that are not installed in the workspace. |
 | `removable` | boolean | True for workspace plugin directories under `.craft/plugins/<id>` that DotCraft can remove. |
 | `functions` | `PluginFunctionInfo[]` | Compatibility field for older clients; manifest native tools are no longer supported, so this is empty for plugin manifest contributions. |
 | `skills` | `PluginSkillInfo[]` | Plugin-contained skills declared by the bundle. |
@@ -4389,7 +4389,7 @@ Returns one plugin by id.
 
 #### `plugin/install`
 
-Installs a known desktop-bundled built-in plugin into the workspace. Uninstalled built-ins are installable only when AppServer was launched with `DOTCRAFT_BUILTIN_PLUGIN_ROOTS` pointing at bundled plugin source roots.
+Installs a known catalog plugin into the workspace. Uninstalled bundled plugins are installable when AppServer was launched with `DOTCRAFT_BUILTIN_PLUGIN_ROOTS` pointing at bundled plugin source roots. Uninstalled registry plugins are installable when a configured registry source can be loaded from cache or source.
 
 **Params**:
 
@@ -4399,7 +4399,7 @@ Installs a known desktop-bundled built-in plugin into the workspace. Uninstalled
 
 **Result**: `{ "plugin": PluginInfo }`
 
-On success, the server copies the selected bundled plugin source to `.craft/plugins/<id>`, writes a `.builtin` source fingerprint marker, removes that id from `Plugins.DisabledPlugins`, refreshes plugin-contributed skill sources, reconciles effective MCP runtime state, and emits `workspace/configChanged` with `source: "plugin/install"` and `regions: ["plugins", "skills", "mcp"]`.
+On success, the server copies the selected catalog plugin source to `.craft/plugins/<id>`, writes a `.builtin` source fingerprint marker, removes that id from `Plugins.DisabledPlugins`, refreshes plugin-contributed skill sources, reconciles effective MCP runtime state, and emits `workspace/configChanged` with `source: "plugin/install"` and `regions: ["plugins", "skills", "mcp"]`.
 
 #### `plugin/installLocal`
 

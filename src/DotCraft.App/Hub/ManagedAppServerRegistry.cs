@@ -146,6 +146,7 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
                 entry.TypeScriptModulesDir = plan.TypeScriptModulesDir;
                 entry.BuiltInPluginRoots = plan.BuiltInPluginRoots;
                 entry.BuiltInPluginCatalogs = plan.BuiltInPluginCatalogs;
+                entry.DefaultPluginRegistryUrl = plan.DefaultPluginRegistryUrl;
                 entry.RecentStderr = process.RecentStderr;
                 entry.LastStartedAt = DateTimeOffset.UtcNow;
                 entry.LastSeenAt = DateTimeOffset.UtcNow;
@@ -432,7 +433,8 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
             runtimeTools?.NodeRunAsNode == true,
             NormalizeOptionalPath(runtimeTools?.ModulesDir),
             NormalizeOptionalValue(runtimeTools?.BuiltInPluginRoots),
-            NormalizeOptionalValue(runtimeTools?.BuiltInPluginCatalogs));
+            NormalizeOptionalValue(runtimeTools?.BuiltInPluginCatalogs),
+            NormalizeOptionalValue(runtimeTools?.DefaultPluginRegistryUrl));
     }
 
     internal static void AddRuntimeTools(
@@ -455,6 +457,8 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
             environment["DOTCRAFT_BUILTIN_PLUGIN_ROOTS"] = runtimeTools.BuiltInPluginRoots.Trim();
         if (!string.IsNullOrWhiteSpace(runtimeTools?.BuiltInPluginCatalogs))
             environment["DOTCRAFT_BUILTIN_PLUGIN_CATALOGS"] = runtimeTools.BuiltInPluginCatalogs.Trim();
+        if (!string.IsNullOrWhiteSpace(runtimeTools?.DefaultPluginRegistryUrl))
+            environment["DOTCRAFT_DEFAULT_PLUGIN_REGISTRY_URL"] = runtimeTools.DefaultPluginRegistryUrl.Trim();
 
         if (status != null)
         {
@@ -634,6 +638,7 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
         var modulesDir = NormalizeOptionalPath(runtimeTools.ModulesDir);
         var builtInPluginRoots = NormalizeOptionalValue(runtimeTools.BuiltInPluginRoots);
         var builtInPluginCatalogs = NormalizeOptionalValue(runtimeTools.BuiltInPluginCatalogs);
+        var defaultPluginRegistryUrl = NormalizeOptionalValue(runtimeTools.DefaultPluginRegistryUrl);
         if (!string.Equals(entry.TypeScriptNodeBin, nodeBin, StringComparison.OrdinalIgnoreCase))
             return "TypeScript channel Node runtime changed; restart the AppServer to apply it.";
         if (entry.TypeScriptNodeRunAsNode != (runtimeTools.NodeRunAsNode == true))
@@ -644,6 +649,8 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
             return "Built-in plugin roots changed; restart the AppServer to apply them.";
         if (!string.Equals(entry.BuiltInPluginCatalogs, builtInPluginCatalogs, StringComparison.OrdinalIgnoreCase))
             return "Built-in plugin catalogs changed; restart the AppServer to apply them.";
+        if (!string.Equals(entry.DefaultPluginRegistryUrl, defaultPluginRegistryUrl, StringComparison.OrdinalIgnoreCase))
+            return "Default plugin registry URL changed; restart the AppServer to apply it.";
         return null;
     }
 
@@ -657,7 +664,9 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
             : "builtInPlugins";
         var url = statusKey == "typescriptRuntime"
             ? NormalizeOptionalPath(runtimeTools.ModulesDir)
-            : NormalizeOptionalValue(runtimeTools.BuiltInPluginCatalogs) ?? NormalizeOptionalValue(runtimeTools.BuiltInPluginRoots);
+            : NormalizeOptionalValue(runtimeTools.DefaultPluginRegistryUrl)
+              ?? NormalizeOptionalValue(runtimeTools.BuiltInPluginCatalogs)
+              ?? NormalizeOptionalValue(runtimeTools.BuiltInPluginRoots);
         entry.ServiceStatus = WithServiceStatus(
             entry.ServiceStatus,
             statusKey,
@@ -1006,7 +1015,8 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
         bool TypeScriptNodeRunAsNode,
         string? TypeScriptModulesDir,
         string? BuiltInPluginRoots,
-        string? BuiltInPluginCatalogs);
+        string? BuiltInPluginCatalogs,
+        string? DefaultPluginRegistryUrl);
 
     private sealed class ManagedEntry
     {
@@ -1037,6 +1047,8 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
         public string? BuiltInPluginRoots { get; set; }
 
         public string? BuiltInPluginCatalogs { get; set; }
+
+        public string? DefaultPluginRegistryUrl { get; set; }
 
         public int? Pid { get; set; }
 

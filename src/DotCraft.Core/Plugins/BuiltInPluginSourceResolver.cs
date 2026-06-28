@@ -1,3 +1,5 @@
+using DotCraft.Configuration;
+
 namespace DotCraft.Plugins;
 
 internal sealed record BuiltInPluginSource(
@@ -12,12 +14,10 @@ internal static class BuiltInPluginSourceResolver
 
     public static IReadOnlyList<BuiltInPluginSource> Discover(
         IReadOnlyList<string>? sourceRoots,
-        List<PluginDiagnostic> diagnostics)
+        List<PluginDiagnostic> diagnostics,
+        AppConfig.PluginsConfig? pluginsConfig = null)
     {
         var roots = sourceRoots ?? ResolveEnvironmentRoots();
-        if (roots.Count == 0)
-            return [];
-
         var sources = new List<BuiltInPluginSource>();
         var seenPluginIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var seenPluginRoots = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -89,6 +89,21 @@ internal static class BuiltInPluginSourceResolver
                 remote.CatalogPath,
                 remote.CatalogPath,
                 remote.Package));
+        }
+
+        foreach (var registryPlugin in PluginSourceRegistryCatalog.Discover(pluginsConfig, diagnostics))
+        {
+            if (!seenPluginIds.Add(registryPlugin.Manifest.Id))
+            {
+                diagnostics.Add(PluginDiagnostic.Warning(
+                    "DuplicateBuiltInPluginId",
+                    $"Registry plugin '{registryPlugin.Manifest.Id}' was skipped because a higher-priority source already provided it.",
+                    registryPlugin.Manifest.Id,
+                    path: registryPlugin.PluginRoot));
+                continue;
+            }
+
+            sources.Add(registryPlugin);
         }
 
         return sources;

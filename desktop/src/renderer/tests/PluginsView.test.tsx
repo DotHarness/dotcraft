@@ -31,7 +31,7 @@ const browserUsePlugin: PluginEntry = {
   interface: {
     displayName: 'Browser',
     shortDescription: 'Control the in-app browser with DotCraft',
-    developerName: 'DotHarness',
+    developerName: 'Example Labs',
     category: 'Coding'
   },
   functions: [{ name: 'NodeReplJs', namespace: 'node_repl', description: 'Evaluate JavaScript.' }],
@@ -40,10 +40,10 @@ const browserUsePlugin: PluginEntry = {
   lspServers: []
 }
 
-const oratorioPlugin: PluginEntry = {
-  id: 'oratorio',
-  displayName: 'Oratorio',
-  description: 'Manage Oratorio boards from selected DotCraft threads.',
+const workflowPlugin: PluginEntry = {
+  id: 'workflow',
+  displayName: 'Workflow App',
+  description: 'Manage Workflow App boards from selected DotCraft threads.',
   version: '0.1.0',
   enabled: false,
   installed: false,
@@ -52,27 +52,27 @@ const oratorioPlugin: PluginEntry = {
   source: 'builtin',
   rootPath: '',
   interface: {
-    displayName: 'Oratorio',
-    shortDescription: 'Manage Oratorio boards from selected DotCraft threads',
-    developerName: 'DotHarness',
+    displayName: 'Workflow App',
+    shortDescription: 'Manage Workflow App boards from selected DotCraft threads',
+    developerName: 'Example Labs',
     category: 'Productivity',
     capabilities: ['App', 'Skill']
   },
   functions: [],
-  skills: [{ name: 'oratorio', description: 'Oratorio', enabled: false }],
+  skills: [{ name: 'workflow', description: 'Workflow App', enabled: false }],
   apps: [
     {
-      appId: 'com.dotharness.oratorio',
-      toolNamespace: 'oratorio',
-      displayName: 'Oratorio',
-      developerName: 'DotHarness',
-      description: 'Manage Oratorio board items and review rounds from selected DotCraft threads.',
+      appId: 'com.example.workflow',
+      toolNamespace: 'workflow',
+      displayName: 'Workflow App',
+      developerName: 'Example Labs',
+      description: 'Manage Workflow App board items and review rounds from selected DotCraft threads.',
       category: 'Productivity',
-      releasePage: 'https://github.com/DotHarness/oratorio/releases',
+      releasePage: 'https://example.com/workflow/releases',
       nativeApplication: {
-        displayName: 'Oratorio',
-        protocol: 'oratorio',
-        installUrl: 'https://github.com/DotHarness/oratorio/releases'
+        displayName: 'Workflow App',
+        protocol: 'workflow',
+        installUrl: 'https://example.com/workflow/releases'
       },
       toolCatalog: [
         {
@@ -104,7 +104,7 @@ const agentTeamsPlugin: PluginEntry = {
     displayName: 'Agent Teams',
     shortDescription: 'Run missions with a small robot team',
     longDescription: 'Agent Teams opens a DotCraft Team card board where robot teammates plan missions, split work into tasks, and keep progress visible as stackable cards.',
-    developerName: 'DotHarness',
+    developerName: 'Example Labs',
     category: 'Productivity',
     capabilities: ['Team', 'Missions', 'Card Board']
   },
@@ -140,7 +140,7 @@ const agentTeamsPlugin: PluginEntry = {
   ]
 }
 
-function oratorioAppInfo({
+function workflowAppInfo({
   nativeStatus = 'missing',
   connectionState = 'notConnected',
   bindingState = null
@@ -150,20 +150,20 @@ function oratorioAppInfo({
   bindingState?: string | null
 } = {}): AppInfo {
   return {
-    appId: 'com.dotharness.oratorio',
-    pluginId: 'oratorio',
-    toolNamespace: 'oratorio',
-    displayName: 'Oratorio',
-    developerName: 'DotHarness',
-    description: 'Manage Oratorio board items and review rounds from selected DotCraft threads.',
+    appId: 'com.example.workflow',
+    pluginId: 'workflow',
+    toolNamespace: 'workflow',
+    displayName: 'Workflow App',
+    developerName: 'Example Labs',
+    description: 'Manage Workflow App board items and review rounds from selected DotCraft threads.',
     installed: true,
     enabled: true,
     catalogVisible: true,
     nativeApp: {
-      displayName: 'Oratorio',
-      protocol: 'oratorio',
+      displayName: 'Workflow App',
+      protocol: 'workflow',
       status: nativeStatus,
-      installUrl: 'https://github.com/DotHarness/oratorio/releases'
+      installUrl: 'https://example.com/workflow/releases'
     },
     connectionState,
     bindingSummary: bindingState == null
@@ -171,13 +171,13 @@ function oratorioAppInfo({
       : {
           threadId: 'thread-1',
           bindingId: 'binding-1',
-          appId: 'com.dotharness.oratorio',
-          displayName: 'Oratorio',
+          appId: 'com.example.workflow',
+          displayName: 'Workflow App',
           state: bindingState,
           connectionState,
           grantedScopes: ['board.read'],
           icon: null,
-          toolNamespace: 'oratorio'
+          toolNamespace: 'workflow'
         },
     handoffModes: [],
     scopes: [],
@@ -421,13 +421,13 @@ describe('PluginsView local plugin visibility', () => {
 
   it('does not render a separate native app catalog section', async () => {
     appServerSendRequest.mockResolvedValue({
-      plugins: [oratorioPlugin, browserUsePlugin],
+      plugins: [workflowPlugin, browserUsePlugin],
       diagnostics: []
     })
 
     renderPluginsView()
 
-    expect((await screen.findAllByText('Oratorio')).length).toBeGreaterThan(0)
+    expect((await screen.findAllByText('Workflow App')).length).toBeGreaterThan(0)
     expect(screen.queryByText('Native apps')).not.toBeInTheDocument()
   })
 
@@ -440,30 +440,30 @@ describe('PluginsView local plugin visibility', () => {
       }
     })
     useAppBindingStore.setState({
-      apps: [oratorioAppInfo()],
+      apps: [workflowAppInfo()],
       appsLoading: false,
       appsError: null
     })
     appServerSendRequest.mockImplementation(async (method: string) => {
-      if (method === 'plugin/list') return { plugins: [oratorioPlugin], diagnostics: [] }
-      if (method === 'plugin/view') return { plugin: oratorioPlugin }
-      if (method === 'app/list') return { apps: [oratorioAppInfo()] }
+      if (method === 'plugin/list') return { plugins: [workflowPlugin], diagnostics: [] }
+      if (method === 'plugin/view') return { plugin: workflowPlugin }
+      if (method === 'app/list') return { apps: [workflowAppInfo()] }
       return {}
     })
 
     renderPluginsView()
 
-    const oratorioLabel = await screen.findByText('Oratorio')
-    const oratorioRow = oratorioLabel.closest('[role="button"]')
-    expect(oratorioRow).toBeTruthy()
-    fireEvent.click(oratorioRow!)
+    const workflowLabel = await screen.findByText('Workflow App')
+    const workflowRow = workflowLabel.closest('[role="button"]')
+    expect(workflowRow).toBeTruthy()
+    fireEvent.click(workflowRow!)
 
-    expect(await screen.findByRole('heading', { name: 'Oratorio' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Workflow App' })).toBeInTheDocument()
     expect(screen.queryByText('Connected Apps')).not.toBeInTheDocument()
   })
 
   it('shows app settings with authorization and offline thread availability on plugin details', async () => {
-    const installedOratorio = { ...oratorioPlugin, installed: true, enabled: true, installable: false }
+    const installedWorkflowApp = { ...workflowPlugin, installed: true, enabled: true, installable: false }
     useConnectionStore.getState().setStatus({
       status: 'connected',
       capabilities: {
@@ -473,8 +473,8 @@ describe('PluginsView local plugin visibility', () => {
     })
     useThreadStore.getState().setActiveThreadId('thread-1')
     appServerSendRequest.mockImplementation(async (method: string) => {
-      if (method === 'plugin/list') return { plugins: [installedOratorio], diagnostics: [] }
-      if (method === 'plugin/view') return { plugin: installedOratorio }
+      if (method === 'plugin/list') return { plugins: [installedWorkflowApp], diagnostics: [] }
+      if (method === 'plugin/view') return { plugin: installedWorkflowApp }
       if (method === 'thread/appBindings/refresh') {
         return { bindings: [{ bindingId: 'binding-1', state: 'offline', attachedToolCount: 0 }] }
       }
@@ -482,7 +482,7 @@ describe('PluginsView local plugin visibility', () => {
       if (method === 'app/list') {
         return {
           apps: [
-            oratorioAppInfo({
+            workflowAppInfo({
               nativeStatus: 'installed',
               connectionState: 'connected',
               bindingState: 'offline'
@@ -495,7 +495,7 @@ describe('PluginsView local plugin visibility', () => {
 
     renderPluginsView()
 
-    fireEvent.click(await screen.findByText('Oratorio'))
+    fireEvent.click(await screen.findByText('Workflow App'))
 
     expect(await screen.findByText('App Settings')).toBeInTheDocument()
     expect(screen.getByText('Authorized')).toBeInTheDocument()
@@ -507,13 +507,13 @@ describe('PluginsView local plugin visibility', () => {
 
   it('shows the fixed category set including Productivity', async () => {
     appServerSendRequest.mockResolvedValue({
-      plugins: [oratorioPlugin, browserUsePlugin],
+      plugins: [workflowPlugin, browserUsePlugin],
       diagnostics: []
     })
 
     renderPluginsView()
 
-    expect(await screen.findByText('Oratorio')).toBeInTheDocument()
+    expect(await screen.findByText('Workflow App')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Filter plugin category' }))
 
     expect(screen.getByRole('menuitem', { name: 'Coding' })).toBeInTheDocument()
@@ -734,8 +734,8 @@ describe('PluginsView local plugin visibility', () => {
 
   it('shows ordinary plugin install first for app plugins', async () => {
     appServerSendRequest.mockImplementation(async (method: string) => {
-      if (method === 'plugin/list') return { plugins: [oratorioPlugin], diagnostics: [] }
-      if (method === 'plugin/view') return { plugin: oratorioPlugin }
+      if (method === 'plugin/list') return { plugins: [workflowPlugin], diagnostics: [] }
+      if (method === 'plugin/view') return { plugin: workflowPlugin }
       return {}
     })
 
@@ -743,23 +743,23 @@ describe('PluginsView local plugin visibility', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Install' }))
 
-    expect(await screen.findByRole('heading', { name: 'Install Oratorio' })).toBeInTheDocument()
-    expect((await screen.findAllByText('Oratorio')).length).toBeGreaterThan(0)
+    expect(await screen.findByRole('heading', { name: 'Install Workflow App' })).toBeInTheDocument()
+    expect((await screen.findAllByText('Workflow App')).length).toBeGreaterThan(0)
     expect(screen.getByText('App')).toBeInTheDocument()
-    expect(screen.getByText('oratorio')).toBeInTheDocument()
+    expect(screen.getByText('workflow')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Add to DotCraft' })).toBeInTheDocument()
-    expect(screen.queryByText('Install or open Oratorio')).not.toBeInTheDocument()
-    expect(screen.queryByText('Connect Oratorio')).not.toBeInTheDocument()
+    expect(screen.queryByText('Install or open Workflow App')).not.toBeInTheDocument()
+    expect(screen.queryByText('Connect Workflow App')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Install app' })).not.toBeInTheDocument()
   })
 
   it('shows only the native app install stage after installing an app plugin with a missing app', async () => {
     appServerSendRequest.mockImplementation(async (method: string) => {
-      if (method === 'plugin/list') return { plugins: [oratorioPlugin], diagnostics: [] }
-      if (method === 'plugin/view') return { plugin: oratorioPlugin }
-      if (method === 'plugin/install') return { plugin: { ...oratorioPlugin, installed: true, enabled: true, installable: false } }
+      if (method === 'plugin/list') return { plugins: [workflowPlugin], diagnostics: [] }
+      if (method === 'plugin/view') return { plugin: workflowPlugin }
+      if (method === 'plugin/install') return { plugin: { ...workflowPlugin, installed: true, enabled: true, installable: false } }
       if (method === 'skills/list') return { skills: [] }
-      if (method === 'app/list') return { apps: [oratorioAppInfo({ nativeStatus: 'missing' })] }
+      if (method === 'app/list') return { apps: [workflowAppInfo({ nativeStatus: 'missing' })] }
       return {}
     })
 
@@ -770,23 +770,23 @@ describe('PluginsView local plugin visibility', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Add to DotCraft' }))
 
     await waitFor(() => {
-      expect(appServerSendRequest).toHaveBeenCalledWith('plugin/install', { id: 'oratorio' })
+      expect(appServerSendRequest).toHaveBeenCalledWith('plugin/install', { id: 'workflow' })
     })
-    expect(await screen.findByRole('heading', { name: 'Complete setup Oratorio' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Complete setup Workflow App' })).toBeInTheDocument()
     expect(screen.getByText('Required app')).toBeInTheDocument()
-    expect(await screen.findByText('Install or open Oratorio')).toBeInTheDocument()
+    expect(await screen.findByText('Install or open Workflow App')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Install app' })).toBeInTheDocument()
-    expect(screen.queryByText('Connect Oratorio')).not.toBeInTheDocument()
+    expect(screen.queryByText('Connect Workflow App')).not.toBeInTheDocument()
   })
 
   it('shows only the connect stage after installing an app plugin when the native app is installed', async () => {
-    shellGetProtocolHandlerName.mockResolvedValue('Oratorio')
+    shellGetProtocolHandlerName.mockResolvedValue('Workflow App')
     appServerSendRequest.mockImplementation(async (method: string) => {
-      if (method === 'plugin/list') return { plugins: [oratorioPlugin], diagnostics: [] }
-      if (method === 'plugin/view') return { plugin: oratorioPlugin }
-      if (method === 'plugin/install') return { plugin: { ...oratorioPlugin, installed: true, enabled: true, installable: false } }
+      if (method === 'plugin/list') return { plugins: [workflowPlugin], diagnostics: [] }
+      if (method === 'plugin/view') return { plugin: workflowPlugin }
+      if (method === 'plugin/install') return { plugin: { ...workflowPlugin, installed: true, enabled: true, installable: false } }
       if (method === 'skills/list') return { skills: [] }
-      if (method === 'app/list') return { apps: [oratorioAppInfo({ nativeStatus: 'installed' })] }
+      if (method === 'app/list') return { apps: [workflowAppInfo({ nativeStatus: 'installed' })] }
       return {}
     })
 
@@ -796,28 +796,28 @@ describe('PluginsView local plugin visibility', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Add to DotCraft' }))
 
     expect(await screen.findByText('Connect required app')).toBeInTheDocument()
-    expect(await screen.findByText('Connect Oratorio')).toBeInTheDocument()
+    expect(await screen.findByText('Connect Workflow App')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Connect' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Install app' })).not.toBeInTheDocument()
   })
 
   it('shows a handoff-opened waiting state while app connection is pending', async () => {
-    shellGetProtocolHandlerName.mockResolvedValue('Oratorio')
+    shellGetProtocolHandlerName.mockResolvedValue('Workflow App')
     let connectionState = 'notConnected'
     appServerSendRequest.mockImplementation(async (method: string) => {
-      if (method === 'plugin/list') return { plugins: [oratorioPlugin], diagnostics: [] }
-      if (method === 'plugin/view') return { plugin: oratorioPlugin }
-      if (method === 'plugin/install') return { plugin: { ...oratorioPlugin, installed: true, enabled: true, installable: false } }
+      if (method === 'plugin/list') return { plugins: [workflowPlugin], diagnostics: [] }
+      if (method === 'plugin/view') return { plugin: workflowPlugin }
+      if (method === 'plugin/install') return { plugin: { ...workflowPlugin, installed: true, enabled: true, installable: false } }
       if (method === 'skills/list') return { skills: [] }
-      if (method === 'app/list') return { apps: [oratorioAppInfo({ nativeStatus: 'installed', connectionState })] }
+      if (method === 'app/list') return { apps: [workflowAppInfo({ nativeStatus: 'installed', connectionState })] }
       if (method === 'app/connection/start') {
         connectionState = 'connecting'
         return {
           connectionRequestId: 'connection-1',
-          appId: 'com.dotharness.oratorio',
+          appId: 'com.example.workflow',
           state: 'connecting',
           expiresAt: '2026-05-18T00:00:00Z',
-          handoff: { mode: 'customProtocol', uri: 'oratorio://dotcraft/connect?request=connection-1' }
+          handoff: { mode: 'customProtocol', uri: 'workflow://dotcraft/connect?request=connection-1' }
         }
       }
       return {}
@@ -838,13 +838,13 @@ describe('PluginsView local plugin visibility', () => {
   })
 
   it('shows the completion state when required apps are already connected', async () => {
-    shellGetProtocolHandlerName.mockResolvedValue('Oratorio')
+    shellGetProtocolHandlerName.mockResolvedValue('Workflow App')
     appServerSendRequest.mockImplementation(async (method: string) => {
-      if (method === 'plugin/list') return { plugins: [oratorioPlugin], diagnostics: [] }
-      if (method === 'plugin/view') return { plugin: oratorioPlugin }
-      if (method === 'plugin/install') return { plugin: { ...oratorioPlugin, installed: true, enabled: true, installable: false } }
+      if (method === 'plugin/list') return { plugins: [workflowPlugin], diagnostics: [] }
+      if (method === 'plugin/view') return { plugin: workflowPlugin }
+      if (method === 'plugin/install') return { plugin: { ...workflowPlugin, installed: true, enabled: true, installable: false } }
       if (method === 'skills/list') return { skills: [] }
-      if (method === 'app/list') return { apps: [oratorioAppInfo({ nativeStatus: 'installed', connectionState: 'connected' })] }
+      if (method === 'app/list') return { apps: [workflowAppInfo({ nativeStatus: 'installed', connectionState: 'connected' })] }
       return {}
     })
 
@@ -853,7 +853,7 @@ describe('PluginsView local plugin visibility', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Install' }))
     fireEvent.click(screen.getByRole('button', { name: 'Add to DotCraft' }))
 
-    expect(await screen.findByRole('heading', { name: 'Complete setup Oratorio' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Complete setup Workflow App' })).toBeInTheDocument()
     expect(await screen.findByText('Setup complete')).toBeInTheDocument()
     expect(screen.getByText('Required apps are authorized')).toBeInTheDocument()
   })

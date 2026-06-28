@@ -43,6 +43,7 @@ export interface HubRuntimeToolsRequest {
   modulesDir?: string
   builtInPluginRoots?: string
   builtInPluginCatalogs?: string
+  defaultPluginRegistryUrl?: string
 }
 
 export interface HubStatusResponse {

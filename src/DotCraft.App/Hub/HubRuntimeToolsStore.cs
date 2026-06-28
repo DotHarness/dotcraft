@@ -67,7 +67,8 @@ internal sealed class HubRuntimeToolsStore(string path)
             NodeRunAsNode = update.NodeRunAsNode ?? current.NodeRunAsNode,
             ModulesDir = ExistingDirectory(update.ModulesDir) ?? current.ModulesDir,
             BuiltInPluginRoots = ExistingDirectoryPathList(update.BuiltInPluginRoots) ?? current.BuiltInPluginRoots,
-            BuiltInPluginCatalogs = ExistingFilePathList(update.BuiltInPluginCatalogs) ?? current.BuiltInPluginCatalogs
+            BuiltInPluginCatalogs = ExistingFilePathList(update.BuiltInPluginCatalogs) ?? current.BuiltInPluginCatalogs,
+            DefaultPluginRegistryUrl = ValidRegistryUrl(update.DefaultPluginRegistryUrl) ?? current.DefaultPluginRegistryUrl
         };
     }
 
@@ -123,6 +124,21 @@ internal sealed class HubRuntimeToolsStore(string path)
 
     private static string? Normalize(string? pathValue) =>
         string.IsNullOrWhiteSpace(pathValue) ? null : Path.GetFullPath(pathValue.Trim());
+
+    private static string? ValidRegistryUrl(string? value)
+    {
+        var normalized = string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+        if (normalized == null)
+            return null;
+        if (Uri.TryCreate(normalized, UriKind.Absolute, out var uri)
+            && uri.Scheme is "http" or "https")
+        {
+            return normalized;
+        }
+        return Directory.Exists(normalized) || File.Exists(normalized)
+            ? Path.GetFullPath(normalized)
+            : null;
+    }
 }
 
 internal sealed record HubRuntimeToolsDocument(

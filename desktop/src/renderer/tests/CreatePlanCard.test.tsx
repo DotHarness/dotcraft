@@ -155,7 +155,7 @@ describe('CreatePlanCard', () => {
           '',
           '## Summary',
           '',
-          'Keep existing Unity metadata stable.',
+          'Keep existing dynamic runtime metadata stable.',
           '',
           '## Assumptions',
           '',

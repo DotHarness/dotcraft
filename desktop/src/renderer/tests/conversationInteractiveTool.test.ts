@@ -4,15 +4,15 @@ import { normalizeToolUiDescriptor, wireItemToConversationItem } from '../types/
 describe('normalizeToolUiDescriptor', () => {
   it('accepts a ui:// descriptor and parses csp/visibility', () => {
     const descriptor = normalizeToolUiDescriptor({
-      resourceUri: 'ui://oratorio/board',
+      resourceUri: 'ui://workflow/board',
       visibility: ['model', 'app'],
       prefersBorder: false,
-      csp: { connectDomains: ['https://api.oratorio.app'] }
+      csp: { connectDomains: ['https://api.workflow.example'] }
     })
-    expect(descriptor?.resourceUri).toBe('ui://oratorio/board')
+    expect(descriptor?.resourceUri).toBe('ui://workflow/board')
     expect(descriptor?.visibility).toEqual(['model', 'app'])
     expect(descriptor?.prefersBorder).toBe(false)
-    expect(descriptor?.csp?.connectDomains).toEqual(['https://api.oratorio.app'])
+    expect(descriptor?.csp?.connectDomains).toEqual(['https://api.workflow.example'])
   })
 
   it('rejects a non-ui:// or malformed descriptor', () => {
@@ -30,13 +30,13 @@ describe('wireItemToConversationItem — interactive tool UI', () => {
       type: 'dynamicToolCall',
       payload: {
         toolName: 'CreateCard',
-        namespace: 'oratorio',
+        namespace: 'workflow',
         structuredResult: { cardId: 'c1' },
         _meta: { highlight: true },
-        ui: { resourceUri: 'ui://oratorio/board', visibility: ['model', 'app'] }
+        ui: { resourceUri: 'ui://workflow/board', visibility: ['model', 'app'] }
       }
     })
-    expect(item.toolUi?.resourceUri).toBe('ui://oratorio/board')
+    expect(item.toolUi?.resourceUri).toBe('ui://workflow/board')
     expect(item.meta).toEqual({ highlight: true })
     expect(item.structuredResult).toEqual({ cardId: 'c1' })
   })
@@ -45,7 +45,7 @@ describe('wireItemToConversationItem — interactive tool UI', () => {
     const item = wireItemToConversationItem({
       id: 'i2',
       type: 'agentMessage',
-      payload: { ui: { resourceUri: 'ui://oratorio/board' } }
+      payload: { ui: { resourceUri: 'ui://workflow/board' } }
     })
     expect(item.toolUi).toBeUndefined()
     expect(item.meta).toBeUndefined()

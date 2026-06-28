@@ -29,6 +29,23 @@ const gitListBranches = vi.fn()
 const gitCheckoutBranch = vi.fn()
 const gitCreateAndCheckoutBranch = vi.fn()
 
+class ResizeObserverMock {
+  observe(): void {}
+  unobserve(): void {}
+  disconnect(): void {}
+}
+
+Object.defineProperty(window, 'ResizeObserver', {
+  configurable: true,
+  writable: true,
+  value: ResizeObserverMock
+})
+Object.defineProperty(globalThis, 'ResizeObserver', {
+  configurable: true,
+  writable: true,
+  value: ResizeObserverMock
+})
+
 function createDeferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void
   let reject!: (reason?: unknown) => void
@@ -139,7 +156,7 @@ function agentTeamsWelcomeApp(overrides: Record<string, unknown> = {}) {
     appId: 'com.dotharness.dotcraft-teams',
     toolNamespace: 'teams',
     displayName: 'Agent Teams',
-    developerName: 'DotHarness',
+    developerName: 'Example Labs',
     description: 'Create Team missions',
     pluginId: 'agent-teams',
     installed: true,
@@ -231,7 +248,7 @@ describe('ConversationWelcome composer', () => {
     })
     settingsGet.mockResolvedValue({ locale: 'en' })
     shellOpenExternal.mockResolvedValue(undefined)
-    shellGetProtocolHandlerName.mockResolvedValue('Oratorio')
+    shellGetProtocolHandlerName.mockResolvedValue('Workflow App')
     gitListBranches.mockResolvedValue({
       current: 'main',
       detachedHead: null,
@@ -492,17 +509,17 @@ describe('ConversationWelcome composer', () => {
         return {
           apps: [
             {
-              appId: 'com.dotharness.oratorio',
-              toolNamespace: 'oratorio',
-              displayName: 'Oratorio',
-              developerName: 'DotHarness',
+              appId: 'com.example.workflow',
+              toolNamespace: 'workflow',
+              displayName: 'Workflow App',
+              developerName: 'Example Labs',
               description: 'Board tools',
-              pluginId: 'oratorio',
+              pluginId: 'workflow',
               installed: true,
               enabled: true,
               catalogVisible: true,
               connectionState: 'connected',
-              nativeApp: { displayName: 'Oratorio', protocol: 'oratorio', status: 'installed' },
+              nativeApp: { displayName: 'Workflow App', protocol: 'workflow', status: 'installed' },
               scopes: [],
               toolCatalog: []
             }
@@ -515,7 +532,7 @@ describe('ConversationWelcome composer', () => {
     renderWelcome()
 
     fireEvent.click(await screen.findByRole('button', { name: 'Apps' }))
-    const appSwitch = await screen.findByRole('switch', { name: 'Use Oratorio for the first turn' })
+    const appSwitch = await screen.findByRole('switch', { name: 'Use Workflow App for the first turn' })
     expect(appSwitch).toHaveAttribute('aria-checked', 'true')
     expect(screen.getByText('Authorized')).toBeInTheDocument()
     expect(screen.queryByText('Connected')).not.toBeInTheDocument()
@@ -525,7 +542,7 @@ describe('ConversationWelcome composer', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
 
     await waitFor(() => {
-      expect(screen.getByRole('switch', { name: 'Use Oratorio for the first turn' }))
+      expect(screen.getByRole('switch', { name: 'Use Workflow App for the first turn' }))
         .toHaveAttribute('aria-checked', 'false')
     })
   })
@@ -920,19 +937,19 @@ describe('ConversationWelcome composer', () => {
         return {
           apps: [
             {
-              appId: 'com.dotharness.oratorio',
-              toolNamespace: 'oratorio',
-              displayName: 'Oratorio',
-              developerName: 'DotHarness',
+              appId: 'com.example.workflow',
+              toolNamespace: 'workflow',
+              displayName: 'Workflow App',
+              developerName: 'Example Labs',
               description: 'Board tools',
-              pluginId: 'oratorio',
+              pluginId: 'workflow',
               installed: true,
               enabled: true,
               catalogVisible: true,
               connectionState: 'connected',
               nativeApp: {
-                displayName: 'Oratorio',
-                protocol: 'oratorio',
+                displayName: 'Workflow App',
+                protocol: 'workflow',
                 status: 'installed'
               },
               scopes: [{ id: 'board.read', displayName: 'Board read', risk: 'read' }],
@@ -957,11 +974,11 @@ describe('ConversationWelcome composer', () => {
         return {
           bindingRequestId: 'request-1',
           threadId: 'thread-welcome',
-          appId: 'com.dotharness.oratorio',
+          appId: 'com.example.workflow',
           requestedScopes: ['board.read'],
           state: 'pending',
           tokenExpiresAt: '2026-05-16T00:01:00Z',
-          handoff: { mode: 'customProtocol', uri: 'oratorio://dotcraft/bind?request=request-1' }
+          handoff: { mode: 'customProtocol', uri: 'workflow://dotcraft/bind?request=request-1' }
         }
       }
       if (method === 'thread/appBindings/list') return bindingList.promise
@@ -971,18 +988,18 @@ describe('ConversationWelcome composer', () => {
     renderWelcome()
 
     fireEvent.click(await screen.findByRole('button', { name: 'Apps' }))
-    const appSwitch = await screen.findByRole('switch', { name: 'Use Oratorio for the first turn' })
+    const appSwitch = await screen.findByRole('switch', { name: 'Use Workflow App for the first turn' })
     expect(appSwitch).toHaveAttribute('aria-checked', 'true')
 
     const textbox = await screen.findByRole('textbox')
-    textbox.textContent = 'List my Oratorio board items'
+    textbox.textContent = 'List my Workflow App board items'
     fireEvent.input(textbox)
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
 
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith('app/binding/request/create', expect.objectContaining({
         threadId: 'thread-welcome',
-        appId: 'com.dotharness.oratorio',
+        appId: 'com.example.workflow',
         source: 'welcome'
       }))
     })
@@ -997,8 +1014,8 @@ describe('ConversationWelcome composer', () => {
           bindingRequestId: 'request-1',
           bindingId: 'binding-1',
           threadId: 'thread-welcome',
-          appId: 'com.dotharness.oratorio',
-          displayName: 'Oratorio',
+          appId: 'com.example.workflow',
+          displayName: 'Workflow App',
           state: 'active',
           connectionState: 'connected',
           grantedScopes: ['board.read'],
@@ -1011,7 +1028,7 @@ describe('ConversationWelcome composer', () => {
     await waitFor(() => {
       expect(useUIStore.getState().pendingWelcomeTurn).toMatchObject({
         threadId: 'thread-welcome',
-        text: 'List my Oratorio board items'
+        text: 'List my Workflow App board items'
       })
     })
   })

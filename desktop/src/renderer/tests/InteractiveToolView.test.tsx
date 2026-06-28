@@ -19,12 +19,12 @@ function makeItem(): ConversationItem {
     status: 'completed',
     createdAt: new Date(0).toISOString(),
     toolName: 'CreateCard',
-    pluginNamespace: 'oratorio',
+    pluginNamespace: 'workflow',
     arguments: { title: 'Hi' },
     structuredResult: { cardId: 'c1' },
     meta: { highlight: true },
     success: true,
-    toolUi: { resourceUri: 'ui://oratorio/board' }
+    toolUi: { resourceUri: 'ui://workflow/board' }
   } as ConversationItem
 }
 
@@ -107,7 +107,7 @@ describe('InteractiveToolView', () => {
 
     const item = {
       ...makeItem(),
-      toolUi: { resourceUri: 'ui://oratorio/board', permissions: ['camera', 'microphone', 'clipboardWrite', 'bogus'] }
+      toolUi: { resourceUri: 'ui://workflow/board', permissions: ['camera', 'microphone', 'clipboardWrite', 'bogus'] }
     } as ConversationItem
     const { container: c2 } = render(<InteractiveToolView item={item} threadId="t1" locale="en" />)
     // Known tokens map to Permissions-Policy names; unknown ('bogus') dropped; geolocation not granted.
@@ -142,7 +142,7 @@ describe('InteractiveToolView', () => {
     await waitFor(() => expect(sendRequest).toHaveBeenCalled())
     expect(sendRequest).toHaveBeenCalledWith(
       'ui/tool/call',
-      expect.objectContaining({ threadId: 't1', namespace: 'oratorio', tool: 'ListItems', sourceCallId: 'i1' }),
+      expect.objectContaining({ threadId: 't1', namespace: 'workflow', tool: 'ListItems', sourceCallId: 'i1' }),
       expect.any(Number)
     )
     await waitFor(() => {
@@ -164,13 +164,13 @@ describe('InteractiveToolView', () => {
   })
 
   it('forwards ui/open-link and opens the cleared url', async () => {
-    sendRequest.mockResolvedValue({ url: 'https://oratorio.example/board/1' })
+    sendRequest.mockResolvedValue({ url: 'https://workflow.example/board/1' })
     const { frameWindow, postSpy } = mountFrame()
     const bridgeToken = initializeBridge(frameWindow, postSpy)
-    dispatch(frameWindow, { id: 6, method: 'ui/open-link', bridgeToken, params: { url: 'https://oratorio.example/board/1' } })
+    dispatch(frameWindow, { id: 6, method: 'ui/open-link', bridgeToken, params: { url: 'https://workflow.example/board/1' } })
 
-    await waitFor(() => expect(openExternal).toHaveBeenCalledWith('https://oratorio.example/board/1'))
-    expect(sendRequest).toHaveBeenCalledWith('ui/open-link', expect.objectContaining({ url: 'https://oratorio.example/board/1' }), expect.any(Number))
+    await waitFor(() => expect(openExternal).toHaveBeenCalledWith('https://workflow.example/board/1'))
+    expect(sendRequest).toHaveBeenCalledWith('ui/open-link', expect.objectContaining({ url: 'https://workflow.example/board/1' }), expect.any(Number))
   })
 
   it('forwards ui/update-model-context with the item-derived sourceCallId', async () => {
@@ -202,7 +202,7 @@ describe('InteractiveToolView', () => {
     sendRequest.mockClear()
 
     act(() => {
-      useAppBindingStore.setState({ apps: [{ toolNamespace: 'oratorio', enabled: false }] as unknown as AppInfo[] })
+      useAppBindingStore.setState({ apps: [{ toolNamespace: 'workflow', enabled: false }] as unknown as AppInfo[] })
     })
 
     await waitFor(() =>
@@ -379,8 +379,8 @@ function seedBindings(state: string): void {
         {
           bindingId: 'b1',
           threadId: 't1',
-          appId: 'oratorio.app',
-          toolNamespace: 'oratorio',
+          appId: 'workflow.app',
+          toolNamespace: 'workflow',
           state,
           connectionState: 'connected',
           grantedScopes: [],
@@ -430,7 +430,7 @@ describe('InteractiveToolView degraded states', () => {
 
   it('shows the plugin-disabled state when the app is disabled, even with an active binding', () => {
     seedBindings('active')
-    useAppBindingStore.setState({ apps: [{ toolNamespace: 'oratorio', enabled: false }] as unknown as AppInfo[] })
+    useAppBindingStore.setState({ apps: [{ toolNamespace: 'workflow', enabled: false }] as unknown as AppInfo[] })
     const container = renderView()
     expect(container.querySelector('iframe')).toBeNull()
     expect(container.textContent).toContain('Plugin is disabled')
