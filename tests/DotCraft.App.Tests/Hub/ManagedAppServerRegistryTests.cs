@@ -335,16 +335,23 @@ public sealed class ManagedAppServerRegistryTests : IDisposable
     }
 
     [Fact]
-    public void AddRuntimeTools_ForwardsBuiltInPluginCatalogsAsEnvironmentOverride()
+    public void RuntimeToolsMerge_AcceptsHttpsDefaultPluginRegistryUrl()
     {
-        var env = new Dictionary<string, string?>(StringComparer.Ordinal);
-        var catalog = Path.Combine(_tempDir, "resources", "plugins", "dotcraft-bundled", "catalog.json");
+        var merged = HubRuntimeToolsStore.Merge(
+            new HubRuntimeToolsRequest(),
+            new HubRuntimeToolsRequest { DefaultPluginRegistryUrl = " https://example.test/registry.zip " });
 
-        ManagedAppServerRegistry.AddRuntimeTools(
-            new HubRuntimeToolsRequest { BuiltInPluginCatalogs = $" {catalog} " },
-            env);
+        Assert.Equal("https://example.test/registry.zip", merged.DefaultPluginRegistryUrl);
+    }
 
-        Assert.Equal(catalog, env["DOTCRAFT_BUILTIN_PLUGIN_CATALOGS"]);
+    [Fact]
+    public void RuntimeToolsMerge_RejectsHttpDefaultPluginRegistryUrl()
+    {
+        var merged = HubRuntimeToolsStore.Merge(
+            new HubRuntimeToolsRequest { DefaultPluginRegistryUrl = "https://existing.test/registry.zip" },
+            new HubRuntimeToolsRequest { DefaultPluginRegistryUrl = "http://example.test/registry.zip" });
+
+        Assert.Equal("https://existing.test/registry.zip", merged.DefaultPluginRegistryUrl);
     }
 
     [Fact]

@@ -58,7 +58,7 @@ public sealed class PluginDiscoveryService(
     public PluginDiscoveryResult DiscoverAll(AppConfig config, string workspacePath, string botPath)
     {
         var diagnostics = new List<PluginDiagnostic>();
-        RefreshManagedBuiltInPlugins(Path.Combine(botPath, "plugins"), diagnostics);
+        RefreshManagedBuiltInPlugins(config, Path.Combine(botPath, "plugins"), diagnostics);
         var candidates = EnumerateCandidates(config, workspacePath, botPath, diagnostics);
         var discovered = new List<DiscoveredPlugin>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -113,7 +113,7 @@ public sealed class PluginDiscoveryService(
                 Removable: removable));
         }
 
-        var builtInDiscovery = new BuiltInPluginCatalog(builtInPluginSourceRoots).Discover();
+        var builtInDiscovery = new BuiltInPluginCatalog(builtInPluginSourceRoots, config.Plugins).Discover();
         diagnostics.AddRange(builtInDiscovery.Diagnostics);
         foreach (var builtIn in builtInDiscovery.Plugins)
         {
@@ -126,7 +126,10 @@ public sealed class PluginDiscoveryService(
         return new PluginDiscoveryResult(discovered, diagnostics);
     }
 
-    private void RefreshManagedBuiltInPlugins(string workspacePluginsRoot, List<PluginDiagnostic> diagnostics)
+    private void RefreshManagedBuiltInPlugins(
+        AppConfig config,
+        string workspacePluginsRoot,
+        List<PluginDiagnostic> diagnostics)
     {
         if (!Directory.Exists(workspacePluginsRoot))
             return;
@@ -143,7 +146,7 @@ public sealed class PluginDiscoveryService(
             if (IsRemovedPluginId(parse.Manifest.Id))
                 continue;
 
-            diagnostics.AddRange(new BuiltInPluginDeployer(workspacePluginsRoot, builtInPluginSourceRoots).DeployPlugin(parse.Manifest.Id));
+            diagnostics.AddRange(new BuiltInPluginDeployer(workspacePluginsRoot, builtInPluginSourceRoots, config.Plugins).DeployPlugin(parse.Manifest.Id));
         }
     }
 

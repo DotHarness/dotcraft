@@ -80,6 +80,12 @@ static HubRuntimeToolsRequest ParseHubRuntimeTools(string[] args)
             continue;
         }
 
+        if (arg.Equals("--default-plugin-registry-url", StringComparison.OrdinalIgnoreCase))
+        {
+            result.DefaultPluginRegistryUrl = ConsumeHubRuntimeValue(args, ref i, "--default-plugin-registry-url");
+            continue;
+        }
+
         if (arg.Equals("--electron-run-as-node", StringComparison.OrdinalIgnoreCase)
             || arg.Equals("--node-run-as-node", StringComparison.OrdinalIgnoreCase))
         {

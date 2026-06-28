@@ -1,6 +1,7 @@
 using DotCraft.Configuration;
 using DotCraft.Lsp;
 using DotCraft.Plugins;
+using System.IO.Compression;
 
 namespace DotCraft.Core.Tests.Plugins;
 
@@ -680,7 +681,6 @@ public sealed class PluginDiscoveryTests
         Assert.True(File.Exists(Path.Combine(root, "agent-teams", ".craft-plugin", "plugin.json")));
         Assert.True(File.Exists(Path.Combine(root, "agent-teams", ".builtin")));
         Assert.True(File.Exists(Path.Combine(root, "agent-teams", "assets", "agent-teams.svg")));
-        Assert.True(File.Exists(Path.Combine(root, "dotcraft-unity", "assets", "dotcraft-unity.svg")));
     }
 
     [Fact]
@@ -734,55 +734,205 @@ public sealed class PluginDiscoveryTests
     }
 
     [Fact]
-    public void BuiltInPluginCatalog_CoalescesNullRemoteCatalogCapabilities()
+    public void BuiltInPluginCatalog_DiscoversSourceRegistryPluginFromLocalDirectory()
     {
         var root = NewTempDir();
-        var emptyBuiltInRoot = Path.Combine(root, "builtins");
-        Directory.CreateDirectory(emptyBuiltInRoot);
-        var catalogPath = Path.Combine(root, "catalog.json");
-        File.WriteAllText(
-            catalogPath,
-            """
-{
-  "plugins": [
-    {
-      "id": "remote-demo",
-      "version": "1.0.0",
-      "displayName": "Remote Demo",
-      "description": "Remote demo plugin.",
-      "capabilities": null,
-      "interface": {
-        "displayName": "Remote Demo",
-        "capabilities": null
-      },
-      "package": {
-        "kind": "githubRelease",
-        "url": "https://github.com/DotHarness/dotcraft/releases/download/v1.0.0/remote-demo.zip",
-        "version": "1.0.0",
-        "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-      }
+        var registryRoot = Path.Combine(root, "registry");
+        WriteRegistryMarketplace(registryRoot, "registry-demo");
+        WriteSkillOnlyPlugin(Path.Combine(registryRoot, "plugins", "registry-demo"), id: "registry-demo", displayName: "Registry Demo");
+        var config = new AppConfig();
+        config.Plugins.PluginRegistries.Add(new AppConfig.PluginRegistryConfig { Url = registryRoot });
+
+        var result = new BuiltInPluginCatalog([], config.Plugins).Discover();
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Severity == PluginDiagnosticSeverity.Error);
+        var plugin = Assert.Single(result.Plugins);
+        Assert.Equal("registry-demo", plugin.Manifest.Id);
+        Assert.Equal("Registry Demo", plugin.Manifest.DisplayName);
+        Assert.False(plugin.Installed);
+        Assert.True(plugin.Installable);
     }
-  ]
-}
-""");
-        var previousCatalogs = Environment.GetEnvironmentVariable("DOTCRAFT_BUILTIN_PLUGIN_CATALOGS");
+
+    [Fact]
+    public void BuiltInPluginCatalog_DiscoversSourceRegistryPluginFromArchiveSnapshot()
+    {
+        var root = NewTempDir();
+        var registryRoot = Path.Combine(root, "registry");
+        WriteRegistryMarketplace(registryRoot, "registry-archive");
+        WriteSkillOnlyPlugin(Path.Combine(registryRoot, "plugins", "registry-archive"), id: "registry-archive", displayName: "Registry Archive");
+        var zipPath = Path.Combine(root, "registry.zip");
+        ZipFile.CreateFromDirectory(registryRoot, zipPath);
+        var config = new AppConfig();
+        config.Plugins.PluginRegistries.Add(new AppConfig.PluginRegistryConfig { Url = zipPath });
+
+        var result = new BuiltInPluginCatalog([], config.Plugins).Discover();
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Severity == PluginDiagnosticSeverity.Error);
+        var plugin = Assert.Single(result.Plugins);
+        Assert.Equal("registry-archive", plugin.Manifest.Id);
+        Assert.Equal("Registry Archive", plugin.Manifest.DisplayName);
+    }
+
+    [Fact]
+    public void BuiltInPluginCatalog_DisableDefaultRegistryIgnoresHostDefaultUrl()
+    {
+        var root = NewTempDir();
+        var registryRoot = Path.Combine(root, "registry");
+        WriteRegistryMarketplace(registryRoot, "default-demo");
+        WriteSkillOnlyPlugin(Path.Combine(registryRoot, "plugins", "default-demo"), id: "default-demo");
+        const string defaultRegistryEnv = "DOTCRAFT_DEFAULT_PLUGIN_REGISTRY_URL";
+        var previous = Environment.GetEnvironmentVariable(defaultRegistryEnv);
         try
         {
-            Environment.SetEnvironmentVariable("DOTCRAFT_BUILTIN_PLUGIN_CATALOGS", catalogPath);
+            Environment.SetEnvironmentVariable(defaultRegistryEnv, registryRoot);
+            var config = new AppConfig();
+            config.Plugins.DisableDefaultPluginRegistry = true;
 
-            var result = new BuiltInPluginCatalog([emptyBuiltInRoot]).Discover();
+            var result = new BuiltInPluginCatalog([], config.Plugins).Discover();
 
-            Assert.DoesNotContain(result.Diagnostics, d => d.Severity == PluginDiagnosticSeverity.Error);
-            var plugin = Assert.Single(result.Plugins);
-            Assert.Equal("remote-demo", plugin.Manifest.Id);
-            Assert.Empty(plugin.Manifest.Capabilities);
-            Assert.NotNull(plugin.Manifest.Interface);
-            Assert.Empty(plugin.Manifest.Interface!.Capabilities);
+            Assert.Empty(result.Plugins);
         }
         finally
         {
-            Environment.SetEnvironmentVariable("DOTCRAFT_BUILTIN_PLUGIN_CATALOGS", previousCatalogs);
+            Environment.SetEnvironmentVariable(defaultRegistryEnv, previous);
         }
+    }
+
+    [Fact]
+    public void BuiltInPluginCatalog_BundledPluginSuppressesRegistryDuplicate()
+    {
+        var root = NewTempDir();
+        var bundledRoot = Path.Combine(root, "bundled");
+        var registryRoot = Path.Combine(root, "registry");
+        WriteSkillOnlyPlugin(Path.Combine(bundledRoot, "demo"), id: "demo", displayName: "Bundled Demo");
+        WriteRegistryMarketplace(registryRoot, "demo");
+        WriteSkillOnlyPlugin(Path.Combine(registryRoot, "plugins", "demo"), id: "demo", displayName: "Registry Demo");
+        var config = new AppConfig();
+        config.Plugins.PluginRegistries.Add(new AppConfig.PluginRegistryConfig { Url = registryRoot });
+
+        var result = new BuiltInPluginCatalog([bundledRoot], config.Plugins).Discover();
+
+        var plugin = Assert.Single(result.Plugins, plugin => plugin.Manifest.Id == "demo");
+        Assert.Equal("Bundled Demo", plugin.Manifest.DisplayName);
+        Assert.Contains(result.Diagnostics, d => d.Code == "DuplicateBuiltInPluginId");
+    }
+
+    [Fact]
+    public void BuiltInPluginCatalog_RejectsRegistrySourcePathEscape()
+    {
+        var root = NewTempDir();
+        var registryRoot = Path.Combine(root, "registry");
+        WriteRegistryMarketplace(registryRoot, "escape-demo", sourcePath: "./../escape-demo");
+        WriteSkillOnlyPlugin(Path.Combine(root, "escape-demo"), id: "escape-demo");
+        var config = new AppConfig();
+        config.Plugins.PluginRegistries.Add(new AppConfig.PluginRegistryConfig { Url = registryRoot });
+
+        var result = new BuiltInPluginCatalog([], config.Plugins).Discover();
+
+        Assert.Empty(result.Plugins);
+        Assert.Contains(result.Diagnostics, d => d.Code == "InvalidPluginRegistryEntryPath");
+    }
+
+    [Fact]
+    public void BuiltInPluginCatalog_RejectsUnsupportedRegistrySourceKind()
+    {
+        var root = NewTempDir();
+        var registryRoot = Path.Combine(root, "registry");
+        WriteRegistryMarketplace(registryRoot, "source-demo", sourceKind: "git-subdir");
+        WriteSkillOnlyPlugin(Path.Combine(registryRoot, "plugins", "source-demo"), id: "source-demo");
+        var config = new AppConfig();
+        config.Plugins.PluginRegistries.Add(new AppConfig.PluginRegistryConfig { Url = registryRoot });
+
+        var result = new BuiltInPluginCatalog([], config.Plugins).Discover();
+
+        Assert.Empty(result.Plugins);
+        Assert.Contains(result.Diagnostics, d => d.Code == "InvalidPluginRegistryEntrySource");
+    }
+
+    [Fact]
+    public void BuiltInPluginCatalog_RejectsRegistryManifestIdMismatch()
+    {
+        var root = NewTempDir();
+        var registryRoot = Path.Combine(root, "registry");
+        WriteRegistryMarketplace(registryRoot, "marketplace-demo");
+        WriteSkillOnlyPlugin(Path.Combine(registryRoot, "plugins", "marketplace-demo"), id: "manifest-demo");
+        var config = new AppConfig();
+        config.Plugins.PluginRegistries.Add(new AppConfig.PluginRegistryConfig { Url = registryRoot });
+
+        var result = new BuiltInPluginCatalog([], config.Plugins).Discover();
+
+        Assert.Empty(result.Plugins);
+        Assert.Contains(result.Diagnostics, d => d.Code == "PluginRegistryManifestIdMismatch");
+    }
+
+    [Fact]
+    public void BuiltInPluginCatalog_RequiresExplicitAvailableRegistryInstallationPolicy()
+    {
+        var root = NewTempDir();
+        var registryRoot = Path.Combine(root, "registry");
+        WriteRegistryMarketplace(registryRoot, "policy-demo", policyInstallation: null);
+        WriteSkillOnlyPlugin(Path.Combine(registryRoot, "plugins", "policy-demo"), id: "policy-demo");
+        var config = new AppConfig();
+        config.Plugins.PluginRegistries.Add(new AppConfig.PluginRegistryConfig { Url = registryRoot });
+
+        var result = new BuiltInPluginCatalog([], config.Plugins).Discover();
+
+        Assert.Empty(result.Plugins);
+        Assert.Contains(result.Diagnostics, d => d.Code == "PluginRegistryEntryNotAvailable" && d.PluginId == "policy-demo");
+    }
+
+    [Fact]
+    public void BuiltInPluginCatalog_RejectsPlainHttpRegistryArchiveUrl()
+    {
+        var config = new AppConfig();
+        config.Plugins.PluginRegistries.Add(new AppConfig.PluginRegistryConfig
+        {
+            Url = "http://example.test/registry.zip"
+        });
+
+        var result = new BuiltInPluginCatalog([], config.Plugins).Discover();
+
+        Assert.Empty(result.Plugins);
+        Assert.Contains(result.Diagnostics, d => d.Code == "InvalidPluginRegistrySourceUrl");
+        Assert.DoesNotContain(result.Diagnostics, d => d.Code == "PluginRegistryDownloadFailed");
+    }
+
+    [Fact]
+    public void BuiltInPluginCatalog_AcceptsHttpsRegistryArchiveUrlAsRemoteSource()
+    {
+        var config = new AppConfig();
+        config.Plugins.PluginRegistries.Add(new AppConfig.PluginRegistryConfig
+        {
+            Url = "https://127.0.0.1:9/registry.zip"
+        });
+
+        var result = new BuiltInPluginCatalog([], config.Plugins).Discover();
+
+        Assert.Empty(result.Plugins);
+        Assert.DoesNotContain(result.Diagnostics, d => d.Code == "InvalidPluginRegistrySourceUrl");
+        Assert.Contains(result.Diagnostics, d => d.Code == "PluginRegistryDownloadFailed");
+    }
+
+    [Fact]
+    public void BuiltInPluginDeployer_DeploysSourceRegistryPlugin()
+    {
+        var root = NewTempDir();
+        var registryRoot = Path.Combine(root, "registry");
+        var workspacePluginsRoot = Path.Combine(root, "workspace", ".craft", "plugins");
+        WriteRegistryMarketplace(registryRoot, "registry-install");
+        WriteSkillOnlyPlugin(Path.Combine(registryRoot, "plugins", "registry-install"), id: "registry-install");
+        var config = new AppConfig();
+        config.Plugins.PluginRegistries.Add(new AppConfig.PluginRegistryConfig { Url = registryRoot });
+
+        var diagnostics = new BuiltInPluginDeployer(workspacePluginsRoot, [], config.Plugins)
+            .DeployPlugin("registry-install");
+
+        Assert.DoesNotContain(diagnostics, d => d.Severity == PluginDiagnosticSeverity.Error);
+        Assert.True(File.Exists(Path.Combine(workspacePluginsRoot, "registry-install", ".craft-plugin", "plugin.json")));
+        Assert.StartsWith(
+            "filesystem;sha256:",
+            File.ReadAllText(Path.Combine(workspacePluginsRoot, "registry-install", BuiltInPluginDeployer.MarkerFile)),
+            StringComparison.Ordinal);
     }
 
     [Fact]
@@ -967,6 +1117,50 @@ public sealed class PluginDiscoveryTests
   "displayName": "{{displayName}}",
   "description": "Demo plugin.",
   "capabilities": ["skill"]{{skills}}{{extra}}
+}
+""");
+    }
+
+    private static void WriteRegistryMarketplace(
+        string registryRoot,
+        string pluginId,
+        string? sourcePath = null,
+        string sourceKind = "local",
+        string? policyInstallation = "AVAILABLE")
+    {
+        Directory.CreateDirectory(Path.Combine(registryRoot, ".craft", "plugins"));
+        var policy = policyInstallation == null
+            ? """
+,
+      "policy": {
+        "authentication": "ON_INSTALL"
+      }
+"""
+            : $$"""
+,
+      "policy": {
+        "installation": "{{policyInstallation}}",
+        "authentication": "ON_INSTALL"
+      }
+""";
+        File.WriteAllText(
+            Path.Combine(registryRoot, ".craft", "plugins", "marketplace.json"),
+            $$"""
+{
+  "name": "test-registry",
+  "interface": {
+    "displayName": "Test Registry"
+  },
+  "plugins": [
+    {
+      "name": "{{pluginId}}",
+      "source": {
+        "source": "{{sourceKind}}",
+        "path": "{{sourcePath ?? "./plugins/" + pluginId}}"
+      }{{policy}},
+      "category": "Testing"
+    }
+  ]
 }
 """);
     }

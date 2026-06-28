@@ -126,9 +126,11 @@ public sealed class AppServerPluginManagementTests : IDisposable
     }
 
     [Fact]
-    public async Task PluginList_ReturnsInstallableOratorioAppContents()
+    public async Task PluginList_ReturnsInstallableRegistryAppContents()
     {
-        using var harness = CreateHarness();
+        var config = new AppConfig();
+        ConfigureRegistryAppRegistry(config);
+        using var harness = CreateHarness(config);
         await harness.InitializeAsync();
 
         var msg = harness.BuildRequest(AppServerMethods.PluginList, new { includeDisabled = true });
@@ -138,21 +140,21 @@ public sealed class AppServerPluginManagementTests : IDisposable
         AppServerTestHarness.AssertIsSuccessResponse(response);
         var plugin = Assert.Single(
             response.RootElement.GetProperty("result").GetProperty("plugins").EnumerateArray(),
-            item => item.GetProperty("id").GetString() == "oratorio");
+            item => item.GetProperty("id").GetString() == "registry-app");
         Assert.False(plugin.GetProperty("installed").GetBoolean());
         Assert.True(plugin.GetProperty("installable").GetBoolean());
 
         var app = Assert.Single(plugin.GetProperty("apps").EnumerateArray());
-        Assert.Equal("com.dotharness.oratorio", app.GetProperty("appId").GetString());
-        Assert.Equal("Oratorio", app.GetProperty("displayName").GetString());
-        Assert.Equal("oratorio", app.GetProperty("nativeApplication").GetProperty("protocol").GetString());
+        Assert.Equal("com.example.registry-app", app.GetProperty("appId").GetString());
+        Assert.Equal("Registry App", app.GetProperty("displayName").GetString());
+        Assert.Equal("registryapp", app.GetProperty("nativeApplication").GetProperty("protocol").GetString());
         Assert.Contains(
             app.GetProperty("toolCatalog").EnumerateArray(),
-            tool => tool.GetProperty("name").GetString() == "QueueReviewRound");
+            tool => tool.GetProperty("name").GetString() == "RunRegistryAction");
 
         Assert.Contains(
             plugin.GetProperty("skills").EnumerateArray(),
-            item => item.GetProperty("name").GetString() == "oratorio");
+            item => item.GetProperty("name").GetString() == "registry-app");
     }
 
     [Fact]
@@ -506,27 +508,49 @@ public sealed class AppServerPluginManagementTests : IDisposable
     }
 
     [Fact]
-    public async Task PluginInstall_DeploysOratorioAppAndSkill()
+    public async Task PluginInstall_DeploysRegistryAppAndSkill()
     {
-        var loader = CreateSkillsLoader(new AppConfig());
-        using var harness = CreateHarness(loader: loader);
+        var config = new AppConfig();
+        ConfigureRegistryAppRegistry(config);
+        var loader = CreateSkillsLoader(config);
+        using var harness = CreateHarness(config, loader);
         await harness.InitializeAsync(configChange: true);
 
-        var msg = harness.BuildRequest(AppServerMethods.PluginInstall, new { id = "oratorio" });
+        var msg = harness.BuildRequest(AppServerMethods.PluginInstall, new { id = "registry-app" });
         await harness.ExecuteRequestAsync(msg);
 
         using var response = await harness.Transport.ReadNextSentAsync();
         AppServerTestHarness.AssertIsSuccessResponse(response);
         var plugin = response.RootElement.GetProperty("result").GetProperty("plugin");
-        Assert.Equal("oratorio", plugin.GetProperty("id").GetString());
+        Assert.Equal("registry-app", plugin.GetProperty("id").GetString());
         Assert.True(plugin.GetProperty("installed").GetBoolean());
         Assert.True(plugin.GetProperty("enabled").GetBoolean());
-        Assert.True(File.Exists(Path.Combine(_workspaceCraftPath, "plugins", "oratorio", ".builtin")));
-        Assert.Contains(loader.ListSkills(filterUnavailable: false), skill => skill.Name == "oratorio");
+        Assert.True(File.Exists(Path.Combine(_workspaceCraftPath, "plugins", "registry-app", ".builtin")));
+        Assert.Contains(loader.ListSkills(filterUnavailable: false), skill => skill.Name == "registry-app");
 
         var app = Assert.Single(plugin.GetProperty("apps").EnumerateArray());
-        Assert.Equal("com.dotharness.oratorio", app.GetProperty("appId").GetString());
-        Assert.Equal("oratorio", app.GetProperty("toolNamespace").GetString());
+        Assert.Equal("com.example.registry-app", app.GetProperty("appId").GetString());
+        Assert.Equal("registryapp", app.GetProperty("toolNamespace").GetString());
+    }
+
+    [Fact]
+    public async Task PluginInstall_DeploysRegistryPluginWhenUnrelatedRegistryEntryHasError()
+    {
+        var config = new AppConfig();
+        ConfigureRegistryAppRegistry(config, includeBrokenEntry: true);
+        var loader = CreateSkillsLoader(config);
+        using var harness = CreateHarness(config, loader);
+        await harness.InitializeAsync(configChange: true);
+
+        var msg = harness.BuildRequest(AppServerMethods.PluginInstall, new { id = "registry-app" });
+        await harness.ExecuteRequestAsync(msg);
+
+        using var response = await harness.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(response);
+        var plugin = response.RootElement.GetProperty("result").GetProperty("plugin");
+        Assert.Equal("registry-app", plugin.GetProperty("id").GetString());
+        Assert.True(plugin.GetProperty("installed").GetBoolean());
+        Assert.True(File.Exists(Path.Combine(_workspaceCraftPath, "plugins", "registry-app", ".builtin")));
     }
 
     [Fact]
@@ -778,6 +802,140 @@ public sealed class AppServerPluginManagementTests : IDisposable
         throw new InvalidOperationException("Could not find repository root.");
     }
 
+    private void ConfigureRegistryAppRegistry(AppConfig config, bool includeBrokenEntry = false)
+    {
+        var registryRoot = Path.Combine(_tempRoot, "registry");
+        Directory.CreateDirectory(Path.Combine(registryRoot, ".craft", "plugins"));
+        Directory.CreateDirectory(Path.Combine(registryRoot, "plugins"));
+        WriteRegistryMarketplace(registryRoot, "registry-app", includeBrokenEntry);
+        WriteRegistryAppPlugin(Path.Combine(registryRoot, "plugins", "registry-app"));
+        config.Plugins.PluginRegistries.Add(new AppConfig.PluginRegistryConfig { Url = registryRoot });
+    }
+
+    private static void WriteRegistryMarketplace(string registryRoot, string pluginId, bool includeBrokenEntry = false)
+    {
+        var brokenEntry = includeBrokenEntry
+            ? """
+,
+    {
+      "name": "broken-registry-entry",
+      "source": {
+        "source": "local",
+        "path": "./../broken-registry-entry"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Testing"
+    }
+"""
+            : string.Empty;
+        File.WriteAllText(
+            Path.Combine(registryRoot, ".craft", "plugins", "marketplace.json"),
+            $$"""
+{
+  "name": "test-registry",
+  "interface": {
+    "displayName": "Test Registry"
+  },
+  "plugins": [
+    {
+      "name": "{{pluginId}}",
+      "source": {
+        "source": "local",
+        "path": "./plugins/{{pluginId}}"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+    {{brokenEntry}}
+  ]
+}
+""");
+    }
+
+    private static void WriteRegistryAppPlugin(string pluginRoot)
+    {
+        Directory.CreateDirectory(Path.Combine(pluginRoot, ".craft-plugin"));
+        Directory.CreateDirectory(Path.Combine(pluginRoot, "skills", "registry-app"));
+        File.WriteAllText(
+            Path.Combine(pluginRoot, "skills", "registry-app", "SKILL.md"),
+            "---\nname: registry-app\ndescription: Registry App\n---\n# Registry App");
+        File.WriteAllText(
+            Path.Combine(pluginRoot, "apps.json"),
+            """
+{
+  "apps": [
+    {
+      "appId": "com.example.registry-app",
+      "toolNamespace": "registryapp",
+      "displayName": "Registry App",
+      "developerName": "Example Labs",
+      "description": "Manage registry app workflows from selected DotCraft threads.",
+      "category": "Productivity",
+      "nativeApplication": {
+        "displayName": "Registry App",
+        "protocol": "registryapp",
+        "installUrl": "https://example.com/registry-app"
+      },
+      "connection": {
+        "handoffModes": [
+          {
+            "mode": "customProtocol",
+            "uriTemplate": "registryapp://dotcraft/{operation}?app={appId}&request={requestId}&token={requestToken}&endpoint={endpoint}"
+          }
+        ]
+      },
+      "scopes": [
+        {
+          "id": "board.write",
+          "displayName": "Board write",
+          "description": "Read and write board items.",
+          "risk": "externalWrite"
+        }
+      ],
+      "toolCatalog": [
+        {
+          "name": "RunRegistryAction",
+          "scope": "board.write",
+          "risk": "externalWrite",
+          "defaultExposure": "direct",
+          "description": "Run a registry app action."
+        }
+      ]
+    }
+  ]
+}
+""");
+        File.WriteAllText(
+            Path.Combine(pluginRoot, ".craft-plugin", "plugin.json"),
+            """
+{
+  "schemaVersion": 1,
+  "id": "registry-app",
+  "version": "0.1.0",
+  "displayName": "Registry App",
+  "description": "Manage registry app workflows from selected DotCraft threads.",
+  "capabilities": ["skill", "app"],
+  "skills": "./skills/",
+  "apps": "./apps.json",
+  "interface": {
+    "displayName": "Registry App",
+    "shortDescription": "Manage and inspect agent board",
+    "developerName": "Example Labs",
+    "category": "Productivity",
+    "capabilities": ["App", "Skill"],
+    "defaultPrompt": "Manage Registry App workflow tasks.",
+    "brandColor": "#5B6FF0"
+  }
+}
+""");
+    }
+
     private static void WriteSkillOnlyPlugin(string pluginRoot)
     {
         Directory.CreateDirectory(Path.Combine(pluginRoot, ".craft-plugin"));
@@ -836,7 +994,7 @@ public sealed class AppServerPluginManagementTests : IDisposable
   "interface": {
     "displayName": "Review Tools",
     "shortDescription": "Review workflows and MCP tools",
-    "developerName": "DotHarness",
+    "developerName": "Example Labs",
     "category": "Coding",
     "capabilities": ["Skill", "MCP"],
     "defaultPrompt": "Review this change.",

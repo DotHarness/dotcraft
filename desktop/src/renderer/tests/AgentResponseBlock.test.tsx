@@ -2323,7 +2323,7 @@ describe('AgentResponseBlock interactive card pinning', () => {
           success: true,
           createdAt: '2026-06-10T11:30:01.000Z'
         },
-        makeInteractiveCardItem('card-board', 'ListBoardItems', 'ui://oratorio/board.html', '2026-06-10T11:30:03.000Z'),
+        makeInteractiveCardItem('card-board', 'ListBoardItems', 'ui://workflow/board.html', '2026-06-10T11:30:03.000Z'),
         {
           id: 'assistant-final',
           type: 'agentMessage',
@@ -2359,7 +2359,7 @@ describe('AgentResponseBlock interactive card pinning', () => {
       startedAt: '2026-06-10T11:40:00.000Z',
       completedAt: '2026-06-10T11:40:09.000Z',
       items: [
-        makeInteractiveCardItem('card-first', 'ListBoardItems', 'ui://oratorio/board.html', '2026-06-10T11:40:01.000Z'),
+        makeInteractiveCardItem('card-first', 'ListBoardItems', 'ui://workflow/board.html', '2026-06-10T11:40:01.000Z'),
         {
           id: 'tool-read',
           type: 'toolCall',
@@ -2370,7 +2370,7 @@ describe('AgentResponseBlock interactive card pinning', () => {
           success: true,
           createdAt: '2026-06-10T11:40:02.000Z'
         },
-        makeInteractiveCardItem('card-latest', 'GetBoardItem', 'ui://oratorio/item.html', '2026-06-10T11:40:05.000Z'),
+        makeInteractiveCardItem('card-latest', 'GetBoardItem', 'ui://workflow/item.html', '2026-06-10T11:40:05.000Z'),
         {
           id: 'assistant-final',
           type: 'agentMessage',
@@ -2414,7 +2414,7 @@ describe('AgentResponseBlock interactive card pinning', () => {
           success: true,
           createdAt: '2026-06-10T11:50:02.000Z'
         },
-        makeInteractiveCardItem('card-board', 'ListBoardItems', 'ui://oratorio/board.html', '2026-06-10T11:50:04.000Z'),
+        makeInteractiveCardItem('card-board', 'ListBoardItems', 'ui://workflow/board.html', '2026-06-10T11:50:04.000Z'),
         {
           id: 'assistant-final',
           type: 'agentMessage',

@@ -67,7 +67,7 @@ internal sealed class HubRuntimeToolsStore(string path)
             NodeRunAsNode = update.NodeRunAsNode ?? current.NodeRunAsNode,
             ModulesDir = ExistingDirectory(update.ModulesDir) ?? current.ModulesDir,
             BuiltInPluginRoots = ExistingDirectoryPathList(update.BuiltInPluginRoots) ?? current.BuiltInPluginRoots,
-            BuiltInPluginCatalogs = ExistingFilePathList(update.BuiltInPluginCatalogs) ?? current.BuiltInPluginCatalogs
+            DefaultPluginRegistryUrl = ValidRegistryUrl(update.DefaultPluginRegistryUrl) ?? current.DefaultPluginRegistryUrl
         };
     }
 
@@ -106,23 +106,23 @@ internal sealed class HubRuntimeToolsStore(string path)
         return roots.Length == 0 ? null : string.Join(Path.PathSeparator, roots);
     }
 
-    private static string? ExistingFilePathList(string? pathValue)
-    {
-        if (string.IsNullOrWhiteSpace(pathValue))
-            return null;
-
-        var roots = pathValue
-            .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Select(Normalize)
-            .Where(path => path != null && File.Exists(path))
-            .Select(path => path!)
-            .ToArray();
-
-        return roots.Length == 0 ? null : string.Join(Path.PathSeparator, roots);
-    }
-
     private static string? Normalize(string? pathValue) =>
         string.IsNullOrWhiteSpace(pathValue) ? null : Path.GetFullPath(pathValue.Trim());
+
+    private static string? ValidRegistryUrl(string? value)
+    {
+        var normalized = string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+        if (normalized == null)
+            return null;
+        if (Uri.TryCreate(normalized, UriKind.Absolute, out var uri)
+            && string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+        {
+            return normalized;
+        }
+        return Directory.Exists(normalized) || File.Exists(normalized)
+            ? Path.GetFullPath(normalized)
+            : null;
+    }
 }
 
 internal sealed record HubRuntimeToolsDocument(

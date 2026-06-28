@@ -45,12 +45,12 @@ describe('registerDotCraftAppScheme', () => {
 
 describe('buildDotCraftAppUrl', () => {
   it('encodes threadId, namespace, and uri', () => {
-    const parsed = new URL(buildDotCraftAppUrl('thread_1', 'oratorio', 'ui://oratorio/board'))
+    const parsed = new URL(buildDotCraftAppUrl('thread_1', 'workflow', 'ui://workflow/board'))
     expect(parsed.protocol).toBe(`${DOTCRAFT_APP_SCHEME}:`)
     expect(parsed.hostname).toBe('resource')
     expect(parsed.searchParams.get('threadId')).toBe('thread_1')
-    expect(parsed.searchParams.get('namespace')).toBe('oratorio')
-    expect(parsed.searchParams.get('uri')).toBe('ui://oratorio/board')
+    expect(parsed.searchParams.get('namespace')).toBe('workflow')
+    expect(parsed.searchParams.get('uri')).toBe('ui://workflow/board')
   })
 
   it('omits an empty namespace', () => {
@@ -95,11 +95,11 @@ describe('buildInteractiveToolCsp', () => {
 describe('handleDotCraftAppRequest', () => {
   it('brokers ui/resource/read and serves HTML with a per-resource CSP', async () => {
     const sendRequest = vi.fn().mockResolvedValue({
-      contents: [{ uri: 'ui://oratorio/board', mimeType: 'text/html', text: '<!doctype html><body>ok</body>' }]
+      contents: [{ uri: 'ui://workflow/board', mimeType: 'text/html', text: '<!doctype html><body>ok</body>' }]
     })
     installDotCraftAppProtocolHandler(fakeClient(sendRequest))
 
-    const url = buildDotCraftAppUrl('t1', 'oratorio', 'ui://oratorio/board')
+    const url = buildDotCraftAppUrl('t1', 'workflow', 'ui://workflow/board')
     const res = await handleDotCraftAppRequest({ url } as Request)
 
     expect(res.status).toBe(200)
@@ -107,7 +107,7 @@ describe('handleDotCraftAppRequest', () => {
     expect(await res.text()).toContain('ok')
     expect(sendRequest).toHaveBeenCalledWith(
       'ui/resource/read',
-      { threadId: 't1', namespace: 'oratorio', uri: 'ui://oratorio/board' },
+      { threadId: 't1', namespace: 'workflow', uri: 'ui://workflow/board' },
       expect.any(Number)
     )
   })
@@ -125,7 +125,7 @@ describe('handleDotCraftAppRequest', () => {
   it('returns 503 when no app client is connected', async () => {
     installDotCraftAppProtocolHandler((() => null) as never)
     const res = await handleDotCraftAppRequest({
-      url: buildDotCraftAppUrl('t1', 'oratorio', 'ui://oratorio/board')
+      url: buildDotCraftAppUrl('t1', 'workflow', 'ui://workflow/board')
     } as Request)
     expect(res.status).toBe(503)
   })

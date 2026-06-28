@@ -268,7 +268,7 @@ public sealed class WireDynamicToolProxyTests
         {
             Ui = new UiToolMeta
             {
-                ResourceUri = "ui://oratorio/board",
+                ResourceUri = "ui://workflow/board",
                 Visibility = ["model", "app"]
             }
         };
@@ -281,7 +281,7 @@ public sealed class WireDynamicToolProxyTests
             {
                 Ui = new UiToolMeta
                 {
-                    ResourceUri = "ui://oratorio/board",
+                    ResourceUri = "ui://workflow/board",
                     Visibility = ["app"]
                 }
             }

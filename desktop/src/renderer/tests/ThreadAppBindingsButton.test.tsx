@@ -15,10 +15,10 @@ function threadBinding(state = 'active') {
   return {
     bindingId: 'binding-1',
     threadId: 'thread-1',
-    appId: 'com.dotharness.oratorio',
-    displayName: 'Oratorio',
+    appId: 'com.example.workflow',
+    displayName: 'Workflow App',
     icon: 'data:image/svg+xml;base64,PHN2Zy8+',
-    toolNamespace: 'oratorio',
+    toolNamespace: 'workflow',
     state,
     connectionState: 'connected',
     grantedScopes: ['board.read', 'board.manage'],
@@ -29,17 +29,17 @@ function threadBinding(state = 'active') {
 
 function appInfo(overrides: Record<string, unknown> = {}) {
   return {
-    appId: 'com.dotharness.oratorio',
-    toolNamespace: 'oratorio',
-    displayName: 'Oratorio',
-    developerName: 'DotHarness',
+    appId: 'com.example.workflow',
+    toolNamespace: 'workflow',
+    displayName: 'Workflow App',
+    developerName: 'Example Labs',
     description: 'Board tools',
-    pluginId: 'oratorio',
+    pluginId: 'workflow',
     installed: true,
     enabled: true,
     catalogVisible: true,
     connectionState: 'connected',
-    nativeApp: { displayName: 'Oratorio', protocol: 'oratorio', status: 'installed' },
+    nativeApp: { displayName: 'Workflow App', protocol: 'workflow', status: 'installed' },
     handoffModes: [],
     scopes: [
       { id: 'board.read', displayName: 'Read boards', description: 'Read cards', risk: 'read' },
@@ -56,7 +56,7 @@ function socialAppInfo(overrides: Record<string, unknown> = {}) {
     appId: 'com.dotharness.channel.qq',
     toolNamespace: 'qq',
     displayName: 'QQ',
-    developerName: 'DotHarness',
+    developerName: 'Example Labs',
     description: 'Continue this thread in QQ.',
     pluginId: 'channel-qq',
     managed: true,
@@ -105,7 +105,7 @@ describe('ThreadAppBindingsButton', () => {
     vi.clearAllMocks()
     settingsGet.mockResolvedValue({ locale: 'en' })
     shellOpenAppHandoff.mockResolvedValue(undefined)
-    shellGetProtocolHandlerName.mockResolvedValue('Oratorio')
+    shellGetProtocolHandlerName.mockResolvedValue('Workflow App')
     useConnectionStore.getState().reset()
     useAppBindingStore.getState().reset()
     useToastStore.setState({ toasts: [] })
@@ -149,7 +149,7 @@ describe('ThreadAppBindingsButton', () => {
 
     fireEvent.click(button)
 
-    expect(await screen.findByText('Oratorio')).toBeInTheDocument()
+    expect(await screen.findByText('Workflow App')).toBeInTheDocument()
     expect(screen.getByText('Bound')).toBeInTheDocument()
     expect(screen.queryByText('board.read, board.manage')).toBeNull()
     expect(container.querySelector('img[src^="data:image/svg+xml"]')).not.toBeNull()
@@ -177,7 +177,7 @@ describe('ThreadAppBindingsButton', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Apps' }))
 
-    expect(await screen.findByText('Oratorio')).toBeInTheDocument()
+    expect(await screen.findByText('Workflow App')).toBeInTheDocument()
     expect(screen.getByText('Authorized')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Bind thread' })).toBeInTheDocument()
     await waitFor(() => {
@@ -202,12 +202,12 @@ describe('ThreadAppBindingsButton', () => {
         return {
           bindingRequestId: 'bind-req-1',
           threadId: 'thread-1',
-          appId: 'com.dotharness.oratorio',
+          appId: 'com.example.workflow',
           requestedScopes: ['board.read', 'board.manage'],
           state: 'pending',
           tokenExpiresAt: '2026-05-18T00:00:00Z',
-          handoff: { mode: 'customProtocol', uri: 'oratorio://dotcraft/bind?request=bind-req-1' },
-          confirmation: { required: true, risk: 'mutate', message: 'Grant Oratorio access to this thread?' }
+          handoff: { mode: 'customProtocol', uri: 'workflow://dotcraft/bind?request=bind-req-1' },
+          confirmation: { required: true, risk: 'mutate', message: 'Grant Workflow App access to this thread?' }
         }
       }
       return {}
@@ -225,12 +225,12 @@ describe('ThreadAppBindingsButton', () => {
     await waitFor(() => {
       expect(sendRequest).toHaveBeenCalledWith('app/binding/request/create', {
         threadId: 'thread-1',
-        appId: 'com.dotharness.oratorio',
+        appId: 'com.example.workflow',
         requestedScopes: ['board.read', 'board.manage'],
         requestedTools: ['CreateCard'],
         source: 'threadMenu'
       })
-      expect(shellOpenAppHandoff).toHaveBeenCalledWith('oratorio://dotcraft/bind?request=bind-req-1')
+      expect(shellOpenAppHandoff).toHaveBeenCalledWith('workflow://dotcraft/bind?request=bind-req-1')
     })
   })
 
@@ -252,10 +252,10 @@ describe('ThreadAppBindingsButton', () => {
         connected = true
         return {
           connectionRequestId: 'connection-1',
-          appId: 'com.dotharness.oratorio',
+          appId: 'com.example.workflow',
           state: 'connecting',
           expiresAt: '2026-05-18T00:00:00Z',
-          handoff: { mode: 'customProtocol', uri: 'oratorio://dotcraft/connect?request=connection-1' }
+          handoff: { mode: 'customProtocol', uri: 'workflow://dotcraft/connect?request=connection-1' }
         }
       }
       return {}
@@ -272,7 +272,7 @@ describe('ThreadAppBindingsButton', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
 
     await waitFor(() => {
-      expect(shellOpenAppHandoff).toHaveBeenCalledWith('oratorio://dotcraft/connect?request=connection-1')
+      expect(shellOpenAppHandoff).toHaveBeenCalledWith('workflow://dotcraft/connect?request=connection-1')
       expect(screen.getByRole('button', { name: 'Bind thread' })).toBeInTheDocument()
     })
     expect(sendRequest).not.toHaveBeenCalledWith('app/binding/request/create', expect.anything())
@@ -363,27 +363,27 @@ describe('ThreadAppBindingsButton', () => {
       if (method === 'app/connection/start') {
         return {
           connectionRequestId: 'connection-1',
-          appId: 'com.dotharness.oratorio',
+          appId: 'com.example.workflow',
           state: 'connecting',
           expiresAt: '2026-05-18T00:00:00Z',
-          handoff: { mode: 'customProtocol', uri: 'oratorio://dotcraft/connect?request=connection-1' }
+          handoff: { mode: 'customProtocol', uri: 'workflow://dotcraft/connect?request=connection-1' }
         }
       }
       if (method === 'app/list') {
         return {
           apps: [
             {
-              appId: 'com.dotharness.oratorio',
-              toolNamespace: 'oratorio',
-              displayName: 'Oratorio',
-              developerName: 'DotHarness',
+              appId: 'com.example.workflow',
+              toolNamespace: 'workflow',
+              displayName: 'Workflow App',
+              developerName: 'Example Labs',
               description: 'Board tools',
-              pluginId: 'oratorio',
+              pluginId: 'workflow',
               installed: true,
               enabled: true,
               catalogVisible: true,
               connectionState: 'connected',
-              nativeApp: { displayName: 'Oratorio', protocol: 'oratorio', status: 'installed' },
+              nativeApp: { displayName: 'Workflow App', protocol: 'workflow', status: 'installed' },
               handoffModes: [],
               scopes: [],
               toolCatalog: []
@@ -411,9 +411,9 @@ describe('ThreadAppBindingsButton', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open app' }))
 
     await waitFor(() => {
-      expect(shellOpenAppHandoff).toHaveBeenCalledWith('oratorio://dotcraft/connect?request=connection-1')
+      expect(shellOpenAppHandoff).toHaveBeenCalledWith('workflow://dotcraft/connect?request=connection-1')
       expect(sendRequest).toHaveBeenCalledWith('app/connection/start', {
-        appId: 'com.dotharness.oratorio',
+        appId: 'com.example.workflow',
         handoffMode: undefined
       })
       expect(sendRequest).toHaveBeenCalledWith('thread/appBindings/refresh', {

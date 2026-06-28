@@ -638,33 +638,33 @@ describe('ThreadEntry', () => {
     const icon = 'data:image/svg+xml;base64,PHN2Zz48L3N2Zz4='
     renderThreadEntry(
       makeThread({
-        originChannel: 'oratorio',
-        originApp: { appId: 'com.dotharness.oratorio', displayName: 'Oratorio', icon }
+        originChannel: 'workflow',
+        originApp: { appId: 'com.example.workflow', displayName: 'Workflow App', icon }
       })
     )
 
-    const badge = await screen.findByLabelText('Origin app: Oratorio')
+    const badge = await screen.findByLabelText('Origin app: Workflow App')
     expect(badge).toBeInTheDocument()
     const img = badge.querySelector('img')
     expect(img?.getAttribute('src')).toBe(icon)
   })
 
   it('falls back to the channel badge when originApp is absent', () => {
-    renderThreadEntry(makeThread({ originChannel: 'oratorio' }))
+    renderThreadEntry(makeThread({ originChannel: 'workflow' }))
 
-    expect(screen.getByLabelText('Origin channel: oratorio')).toBeInTheDocument()
-    expect(screen.queryByLabelText('Origin app: Oratorio')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Origin channel: workflow')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Origin app: Workflow App')).not.toBeInTheDocument()
   })
 
   it('renders the app-origin badge by name even when its icon is missing', async () => {
     renderThreadEntry(
       makeThread({
-        originChannel: 'oratorio',
-        originApp: { appId: 'com.dotharness.oratorio', displayName: 'Oratorio', icon: null }
+        originChannel: 'workflow',
+        originApp: { appId: 'com.example.workflow', displayName: 'Workflow App', icon: null }
       })
     )
 
-    expect(await screen.findByLabelText('Origin app: Oratorio')).toBeInTheDocument()
+    expect(await screen.findByLabelText('Origin app: Workflow App')).toBeInTheDocument()
   })
 
   it('uses the per-member tooltip when originApp carries a memberId', async () => {

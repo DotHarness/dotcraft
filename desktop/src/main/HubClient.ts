@@ -42,7 +42,7 @@ export interface HubRuntimeToolsRequest {
   nodeRunAsNode?: boolean
   modulesDir?: string
   builtInPluginRoots?: string
-  builtInPluginCatalogs?: string
+  defaultPluginRegistryUrl?: string
 }
 
 export interface HubStatusResponse {
