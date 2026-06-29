@@ -141,8 +141,23 @@ internal sealed class SourceControlRequestHandler(
     {
         EnsureManagementAvailable();
         var p = AppServerParams.Get<SourceControlChangelistListParams>(msg);
-        var thread = await GetRequiredThreadAsync(p.ThreadId, ct);
         var config = RequirePerforceConfig();
+
+        // Welcome (pre-thread) listing has no thread: enumerate the foreground workspace's
+        // pending changelists and report the default target, mirroring how git branches list
+        // before a thread exists.
+        if (string.IsNullOrWhiteSpace(p.ThreadId))
+        {
+            var welcomeManager = CreatePerforceManager(config, ResolveHostWorkspacePath());
+            var welcomeEntries = await welcomeManager.ListAsync(ct);
+            return new SourceControlChangelistListResult
+            {
+                Changelists = welcomeEntries.Select(ToWire).ToList(),
+                Target = ToWire(ThreadSourceControlMetadata.DefaultPerforceTarget)
+            };
+        }
+
+        var thread = await GetRequiredThreadAsync(p.ThreadId, ct);
         var manager = CreatePerforceManager(config, ResolveEffectiveWorkspacePath(thread));
         var entries = await manager.ListAsync(ct);
         return new SourceControlChangelistListResult
@@ -156,8 +171,27 @@ internal sealed class SourceControlRequestHandler(
     {
         EnsureManagementAvailable();
         var p = AppServerParams.Get<SourceControlChangelistCreateParams>(msg);
-        var thread = await GetRequiredThreadAsync(p.ThreadId, ct);
         var config = RequirePerforceConfig();
+
+        // Welcome (pre-thread) creation: create on the foreground workspace. There is no thread
+        // yet to persist a target, so the client carries the returned id as its pre-selection
+        // until the first thread is started.
+        if (string.IsNullOrWhiteSpace(p.ThreadId))
+        {
+            var welcomeManager = CreatePerforceManager(config, ResolveHostWorkspacePath());
+            var welcomeEntry = await welcomeManager.CreateAsync(p.Description, ct);
+            return new SourceControlChangelistCreateResult
+            {
+                Changelist = ToWire(welcomeEntry),
+                Target = ToWire(new ThreadSourceControlTarget
+                {
+                    Provider = SourceControlProviders.Perforce,
+                    Changelist = welcomeEntry.Id
+                })
+            };
+        }
+
+        var thread = await GetRequiredThreadAsync(p.ThreadId, ct);
         var manager = CreatePerforceManager(config, ResolveEffectiveWorkspacePath(thread));
         var entry = await manager.CreateAsync(p.Description, ct);
         var target = ThreadSourceControlMetadata.GetPerforceTarget(thread.Metadata);

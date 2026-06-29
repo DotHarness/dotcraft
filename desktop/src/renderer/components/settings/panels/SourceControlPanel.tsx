@@ -698,13 +698,16 @@ function TestResultView({
   const headline = result.status === 'connected'
     ? (result.summary || localizeCode(result.code, result.fallbackText))
     : localizeCode(result.code, result.fallbackText || result.summary)
+  // The headline already conveys the primary code; only surface errors that add something new
+  // so a single-error failure does not print the same sentence twice.
+  const extraErrors = result.errors.filter((e) => e.code !== result.code)
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
       <div style={noticeStyle(tone)}>{headline}</div>
 
-      {result.errors.length > 0 && (
+      {extraErrors.length > 0 && (
         <ul style={diagListStyle}>
-          {result.errors.map((e, i) => (
+          {extraErrors.map((e, i) => (
             <li key={`e-${i}`} style={{ color: 'var(--error, #ff453a)' }}>{localizeCode(e.code, e.fallbackText)}</li>
           ))}
         </ul>

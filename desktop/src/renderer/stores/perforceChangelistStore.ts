@@ -42,7 +42,7 @@ const inFlight = new Map<string, Promise<void>>()
 
 export function changelistLabel(changelist: string | null | undefined): string {
   const value = (changelist ?? '').trim()
-  return value && value !== 'default' ? `CL ${value}` : 'CL default'
+  return value && value !== 'default' ? value : 'default'
 }
 
 export const usePerforceChangelistStore = create<PerforceChangelistStore>((set, get) => ({

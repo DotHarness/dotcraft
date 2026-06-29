@@ -118,7 +118,8 @@ public sealed class PerforceConnectionTesterTests
                  && c.Args.Contains("ssl:perforce.example.com:1666")
                  && c.Args.Contains("-c")
                  && c.Args.Contains("ws")
-                 && c.Args.Contains(Root));
+                 // The workspace root is probed as a `<root>/...` tree spec, never the bare directory.
+                 && c.Args.Contains(WhereSpec(Root)));
     }
 
     [Fact]
@@ -241,6 +242,9 @@ public sealed class PerforceConnectionTesterTests
         User = "alice",
         TimeoutSeconds = 30
     };
+
+    private static string WhereSpec(string root) =>
+        Path.TrimEndingDirectorySeparator(root) + Path.DirectorySeparatorChar + "...";
 
     private static bool IsLoginStatus(IReadOnlyList<string> args) => args.Contains("login") && args.Contains("-s");
     private static bool IsLogin(IReadOnlyList<string> args) => args.Contains("login") && !args.Contains("-s");

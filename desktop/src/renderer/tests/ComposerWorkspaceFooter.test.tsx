@@ -354,8 +354,8 @@ describe('ComposerWorkspaceFooter', () => {
     renderFooter(thread, 'local')
 
     expect(screen.queryByRole('button', { name: 'Local' })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'CL default' }))
-    fireEvent.click(screen.getByRole('button', { name: /CL 123.*Task CL/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'default' }))
+    fireEvent.click(screen.getByRole('button', { name: /123.*Task CL/ }))
 
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith(
@@ -364,7 +364,7 @@ describe('ComposerWorkspaceFooter', () => {
         20_000
       )
     })
-    expect(screen.getByRole('button', { name: 'CL 123' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '123' })).toBeInTheDocument()
   })
 
   it('creates a Perforce changelist from the selector and sets it as the thread target', async () => {
@@ -419,7 +419,7 @@ describe('ComposerWorkspaceFooter', () => {
 
     renderFooter(thread, 'local')
 
-    fireEvent.click(screen.getByRole('button', { name: 'CL default' }))
+    fireEvent.click(screen.getByRole('button', { name: 'default' }))
     fireEvent.click(screen.getByRole('button', { name: 'Create changelist...' }))
     fireEvent.change(screen.getByLabelText('Changelist description'), {
       target: { value: 'New work' }
@@ -433,7 +433,111 @@ describe('ComposerWorkspaceFooter', () => {
         30_000
       )
     })
-    expect(await screen.findByRole('button', { name: 'CL 777' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: '777' })).toBeInTheDocument()
+  })
+
+  it('lets the welcome composer pre-select a Perforce changelist for the new thread', async () => {
+    useConnectionStore.setState({
+      status: 'connected',
+      capabilities: { gitWorktrees: true, sourceControlManagement: true }
+    })
+    useSourceControlStore.setState({
+      workspacePath: 'fixtures\\sample-app',
+      effectiveProvider: 'perforce',
+      status: 'connected',
+      perforceChangelist: true
+    })
+    appServerSendRequest.mockImplementation(async (method: string) => {
+      if (method === 'sourceControl/changelist/list') {
+        return {
+          changelists: [
+            { id: 'default', isDefault: true, description: 'Default changelist', user: 'me', client: 'ws', status: 'pending' },
+            { id: '555', isDefault: false, description: 'Welcome work', user: 'me', client: 'ws', status: 'pending' }
+          ],
+          target: { provider: 'perforce', changelist: 'default' }
+        }
+      }
+      return {}
+    })
+    const onWelcomeChangelistChange = vi.fn()
+
+    render(
+      <LocaleProvider>
+        <ComposerWorkspaceFooter
+          workspacePath={'fixtures\\sample-app'}
+          mode="local"
+          variant="welcome"
+          welcomeChangelist="default"
+          onWelcomeChangelistChange={onWelcomeChangelistChange}
+        />
+      </LocaleProvider>
+    )
+
+    fireEvent.click(await screen.findByRole('button', { name: 'default' }))
+    fireEvent.click(await screen.findByRole('button', { name: /555.*Welcome work/ }))
+
+    await waitFor(() => {
+      expect(onWelcomeChangelistChange).toHaveBeenCalledWith('555')
+    })
+  })
+
+  it('creates a Perforce changelist from the welcome composer without a thread', async () => {
+    useConnectionStore.setState({
+      status: 'connected',
+      capabilities: { gitWorktrees: true, sourceControlManagement: true }
+    })
+    useSourceControlStore.setState({
+      workspacePath: 'fixtures\\sample-app',
+      effectiveProvider: 'perforce',
+      status: 'connected',
+      perforceChangelist: true
+    })
+    appServerSendRequest.mockImplementation(async (method: string) => {
+      if (method === 'sourceControl/changelist/list') {
+        return {
+          changelists: [
+            { id: 'default', isDefault: true, description: 'Default changelist', user: 'me', client: 'ws', status: 'pending' }
+          ],
+          target: { provider: 'perforce', changelist: 'default' }
+        }
+      }
+      if (method === 'sourceControl/changelist/create') {
+        return {
+          changelist: { id: '888', isDefault: false, description: 'New', user: 'me', client: 'ws', status: 'pending' },
+          target: { provider: 'perforce', changelist: '888' }
+        }
+      }
+      return {}
+    })
+    const onWelcomeChangelistChange = vi.fn()
+
+    render(
+      <LocaleProvider>
+        <ComposerWorkspaceFooter
+          workspacePath={'fixtures\\sample-app'}
+          mode="local"
+          variant="welcome"
+          welcomeChangelist="default"
+          onWelcomeChangelistChange={onWelcomeChangelistChange}
+        />
+      </LocaleProvider>
+    )
+
+    fireEvent.click(await screen.findByRole('button', { name: 'default' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Create changelist...' }))
+    fireEvent.change(screen.getByLabelText('Changelist description'), {
+      target: { value: 'New' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith(
+        'sourceControl/changelist/create',
+        { description: 'New', setAsTarget: true },
+        30_000
+      )
+    })
+    expect(onWelcomeChangelistChange).toHaveBeenCalledWith('888')
   })
 
   it('hides Git and changelist controls for offline Perforce threads', () => {
@@ -469,7 +573,7 @@ describe('ComposerWorkspaceFooter', () => {
 
     expect(screen.queryByRole('button', { name: 'Local' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'main' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'CL default' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'default' })).not.toBeInTheDocument()
     expect(gitListBranches).not.toHaveBeenCalled()
   })
 
