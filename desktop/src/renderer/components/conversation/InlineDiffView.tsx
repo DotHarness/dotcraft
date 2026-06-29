@@ -7,7 +7,6 @@ interface InlineDiffViewProps {
   diff: FileDiff
   streaming?: boolean
   variant?: 'standalone' | 'embedded'
-  showStreamingIndicator?: boolean
   headerMode?: 'full' | 'compact'
 }
 
@@ -19,7 +18,6 @@ export function InlineDiffView({
   diff,
   streaming = false,
   variant = 'standalone',
-  showStreamingIndicator = true,
   headerMode = 'full'
 }: InlineDiffViewProps): JSX.Element {
   const diffMarkers = useUIStore((s) => s.diffMarkers)
@@ -74,22 +72,8 @@ export function InlineDiffView({
           <span style={{ color: 'var(--text-dimmed)', flexShrink: 0 }}>(new file)</span>
         )}
         <span style={{ marginLeft: 'auto', display: 'flex', gap: '6px', flexShrink: 0 }}>
-          {streaming && showStreamingIndicator && (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--text-dimmed)' }}>
-              <span
-                className="animate-spin-custom"
-                style={{
-                  display: 'inline-block',
-                  width: '8px',
-                  height: '8px',
-                  borderRadius: '50%',
-                  border: '1px solid var(--border-active)',
-                  borderTopColor: 'var(--accent)'
-                }}
-              />
-              <span>streaming</span>
-            </span>
-          )}
+          {/* No streaming spinner or label — the visibly-growing diff below is
+              the running cue; the header keeps the +/- counts only. */}
           {totalAdd > 0 && <span style={{ color: 'var(--success)' }}>+{totalAdd}</span>}
           {totalDel > 0 && <span style={{ color: 'var(--error)' }}>-{totalDel}</span>}
         </span>

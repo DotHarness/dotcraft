@@ -46,15 +46,16 @@ describe('InlineDiffView', () => {
     expect(await screen.findByRole('tooltip')).toHaveTextContent('src/deep/AgentTools.cs')
   })
 
-  it('can hide the streaming text while keeping the live cursor', () => {
+  it('shows no streaming spinner or label, keeping only the live cursor', () => {
     render(
       <InlineDiffView
         diff={baseDiff}
         streaming
-        showStreamingIndicator={false}
       />
     )
 
+    // The visibly-growing diff (live cursor) is the only running cue; the header
+    // no longer renders a spinner or "streaming" label.
     expect(screen.queryByText('streaming')).toBeNull()
     expect(screen.getByText('|')).toBeInTheDocument()
   })

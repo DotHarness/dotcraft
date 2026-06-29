@@ -41,25 +41,10 @@ export function hasCreatePlanDisplayData(item: ConversationItem): boolean {
 export function CreatePlanCard({ item, locale }: CreatePlanCardProps): JSX.Element {
   const [expanded, setExpanded] = useState(false)
   const [copied, setCopied] = useState(false)
-  const [elapsedMs, setElapsedMs] = useState(0)
   const copyResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const parsed = useMemo(() => parseCreatePlanData(item), [item])
   const isRunning = item.status !== 'completed'
 
-  useEffect(() => {
-    const start = item.createdAt ? new Date(item.createdAt).getTime() : Date.now()
-    if (!isRunning) {
-      setElapsedMs(Math.max(0, Date.now() - start))
-      return
-    }
-    setElapsedMs(Math.max(0, Date.now() - start))
-    const interval = setInterval(() => {
-      setElapsedMs(Math.max(0, Date.now() - start))
-    }, 100)
-    return () => clearInterval(interval)
-  }, [isRunning, item.createdAt])
-
-  const runningElapsedLabel = `${(elapsedMs / 1000).toFixed(1)}s`
   const title =
     parsed.title.trim().length > 0
       ? parsed.title
@@ -152,12 +137,6 @@ export function CreatePlanCard({ item, locale }: CreatePlanCardProps): JSX.Eleme
           gap: '6px'
         }}
       >
-        {isRunning && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-dimmed)', fontSize: '11px' }}>
-            <span className="animate-spin-custom" style={spinnerStyle} />
-            <span>{runningElapsedLabel}</span>
-          </div>
-        )}
         {copyButton}
         {expandButton}
       </div>
@@ -370,15 +349,6 @@ function planMarkdownFrameStyle(expanded: boolean): CSSProperties {
     maskImage: 'linear-gradient(to bottom, #000 65%, transparent)',
     WebkitMaskImage: 'linear-gradient(to bottom, #000 65%, transparent)'
   }
-}
-
-const spinnerStyle: CSSProperties = {
-  display: 'inline-block',
-  width: '10px',
-  height: '10px',
-  borderRadius: '50%',
-  border: '2px solid var(--border-active)',
-  borderTopColor: 'var(--accent)'
 }
 
 function IconButton(

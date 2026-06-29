@@ -48,7 +48,9 @@ describe('PlanTab', () => {
 
     const { container } = renderPlanTab()
 
-    expect(screen.getByText('Drafting plan…')).toBeInTheDocument()
+    // Partial-streaming state renders arrived content as-is, with no spinner and
+    // no visible "drafting" label.
+    expect(screen.queryByText('Drafting plan…')).toBeNull()
     expect(screen.getByText('实时计划')).toBeInTheDocument()
     expect(screen.getAllByText('正在写入计划正文。').length).toBeGreaterThan(0)
     expect(screen.queryByText('验证方案')).toBeNull()
@@ -79,7 +81,9 @@ describe('PlanTab', () => {
 
     renderPlanTab()
 
-    expect(screen.getByText('Drafting plan…')).toBeInTheDocument()
+    // Nothing has arrived yet → a shape-matched skeleton stands in for the plan.
+    // The "drafting" string survives only as the skeleton's accessible label.
+    expect(screen.getByRole('status', { name: 'Drafting plan…' })).toBeInTheDocument()
     expect(screen.queryByText('实时计划')).toBeNull()
   })
 
@@ -105,7 +109,8 @@ describe('PlanTab', () => {
 
     const { container } = renderPlanTab()
 
-    expect(screen.getByText('Drafting plan…')).toBeInTheDocument()
+    // Partial-streaming state: real content, no spinner, no visible label.
+    expect(screen.queryByText('Drafting plan…')).toBeNull()
     expect(screen.getByText('实时计划')).toBeInTheDocument()
     expect(screen.getByText('Run tests')).toBeInTheDocument()
     expect(container.querySelector('[data-plan-todo-status="pending"]')).toBeInTheDocument()

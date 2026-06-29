@@ -8,6 +8,7 @@ import {
 } from '../../stores/conversationStore'
 import type { PlanTodoItem, PlanTodoStatus } from '../../stores/conversationStore'
 import { PlanTodoStatusIcon } from '../plan/PlanTodoStatusIcon'
+import { Skeleton } from '../ui/Skeleton'
 
 /**
  * Plan tab — renders the agent's plan from plan/updated events.
@@ -33,8 +34,7 @@ export function PlanTab(): JSX.Element {
   if (streamingItemId) {
     if (streamingDraft?.overview || streamingTodos.length > 0) {
       return (
-        <div style={planScrollContainerStyle}>
-          <StreamingDraftBadge label={t('plan.streamingDraftBadge')} />
+        <div style={planScrollContainerStyle} aria-busy="true">
           {streamingDraft.title && (
             <h2
               style={{
@@ -73,44 +73,20 @@ export function PlanTab(): JSX.Element {
           {streamingTodos.length > 0 && (
             <PlanTodoList todos={streamingTodos} />
           )}
+          {/* Trailing skeleton rows mark the todos still streaming in — no
+              spinner and no "loading" label; the skeleton pulse is the cue. */}
+          <PlanDraftTodoSkeleton
+            count={2}
+            style={{ marginTop: streamingTodos.length > 0 ? '6px' : '0' }}
+          />
         </div>
       )
     }
 
-    return (
-      <div
-        style={{
-          flex: 1,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '16px'
-        }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            fontSize: '13px',
-            color: 'var(--text-dimmed)'
-          }}
-        >
-          <span
-            className="animate-spin-custom"
-            style={{
-              display: 'inline-block',
-              width: '10px',
-              height: '10px',
-              borderRadius: '50%',
-              border: '2px solid var(--border-active)',
-              borderTopColor: 'var(--accent)'
-            }}
-          />
-          <span>{t('plan.streamingDraftBadge')}</span>
-        </div>
-      </div>
-    )
+    // Nothing has arrived yet: the plan's shape is known, so render a full
+    // shape-matched skeleton (title bar + overview lines + todo rows) instead of
+    // a centered spinner. The pulse is the running signal.
+    return <PlanDraftSkeleton label={t('plan.streamingDraftBadge')} />
   }
 
   if (!plan) {
@@ -186,30 +162,59 @@ export function PlanTab(): JSX.Element {
   )
 }
 
-function StreamingDraftBadge({ label }: { label: string }): JSX.Element {
+/**
+ * Full shape-matched skeleton for the empty-streaming Plan tab: a title bar, two
+ * overview lines, and four todo rows. Carries the accessible "drafting" label so
+ * screen readers still hear the loading state that the visible spinner used to
+ * convey.
+ */
+function PlanDraftSkeleton({ label }: { label: string }): JSX.Element {
   return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-        fontSize: '13px',
-        color: 'var(--text-dimmed)',
-        marginBottom: '12px'
-      }}
-    >
-      <span
-        className="animate-spin-custom"
+    <div role="status" aria-busy="true" aria-label={label} style={planScrollContainerStyle}>
+      <Skeleton width="58%" height={14} style={{ marginBottom: '8px' }} />
+      <hr
         style={{
-          display: 'inline-block',
-          width: '10px',
-          height: '10px',
-          borderRadius: '50%',
-          border: '2px solid var(--border-active)',
-          borderTopColor: 'var(--accent)'
+          border: 'none',
+          borderTop: '1px solid var(--border-default)',
+          margin: '0 0 12px'
         }}
       />
-      <span>{label}</span>
+      <Skeleton width="100%" height={11} style={{ marginBottom: '7px' }} />
+      <Skeleton width="82%" height={11} style={{ marginBottom: '18px' }} />
+      <PlanDraftTodoSkeleton count={4} />
+    </div>
+  )
+}
+
+// Widths cycle so stacked skeleton todo rows read as varied content, not a grid.
+const PLAN_SKELETON_TODO_WIDTHS = ['70%', '55%', '62%', '44%']
+
+/**
+ * A stack of placeholder todo rows (status circle + text bar) used both for the
+ * full draft skeleton and as the trailing "still streaming" rows in the
+ * partial-content state.
+ */
+function PlanDraftTodoSkeleton({
+  count,
+  style
+}: {
+  count: number
+  style?: CSSProperties
+}): JSX.Element {
+  return (
+    <div
+      aria-hidden="true"
+      style={{ display: 'flex', flexDirection: 'column', gap: '10px', ...style }}
+    >
+      {Array.from({ length: count }, (_, index) => (
+        <div key={index} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Skeleton width={16} height={16} circle />
+          <Skeleton
+            width={PLAN_SKELETON_TODO_WIDTHS[index % PLAN_SKELETON_TODO_WIDTHS.length]}
+            height={11}
+          />
+        </div>
+      ))}
     </div>
   )
 }

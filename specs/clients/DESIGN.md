@@ -402,6 +402,33 @@ The app owns the inner UI; Desktop owns only the host frame around it.
 - Non-Desktop clients do not render the iframe; they show the tool result's text. Do not
   design flows that require the interactive UI.
 
+## Loading & Progress
+
+Loading is communicated by a placeholder shaped like the content that will
+arrive, not by a generic spinner or a "Loading…" label. The shared building
+block is `ui/Skeleton.tsx` (`Skeleton`, `SkeletonRow`, `SkeletonList`,
+`SkeletonCatalogGrid`) — a `--bg-tertiary` block on the `skeleton-pulse`
+animation; the pulse itself is the running signal.
+
+- Known-shape content → skeleton, not a centered spinner. When the layout of
+  what is loading is known (a plan, a list, a card grid), render a shape-matched
+  skeleton. Reserve the spinner (`animate-spin-custom`) for genuinely shapeless,
+  indeterminate waits inside a control — a busy button, an inline refresh, a
+  connection check.
+- Partial content renders as it arrives. Once part of a streamed payload has
+  parsed, render those parts as real content and keep pulsing skeleton rows only
+  for what is still streaming. Do not hold arrived content behind a spinner.
+- One running signal per surface. If a surface already shows it is working — a
+  shimmering badge (`tool-running-gradient-text`), visibly growing diff text, a
+  streaming caret — do not add a second spinner beside it. Remove the redundant
+  indicator, along with any elapsed-time counter that rides with it.
+- Mark loading regions `aria-busy`; give content-free skeletons `role="status"`
+  with an `aria-label` so the loading state a removed spinner used to convey is
+  still announced. Skeleton blocks themselves stay `aria-hidden`.
+- Skeleton animation honors `data-reduce-motion` via the global reduced-motion
+  rule; never gate the *meaning* of a loading state on motion — under reduced
+  motion the skeleton still reads as a placeholder.
+
 ## Appearance Preferences
 
 Desktop exposes an Appearance settings tab backed by `settings.json` and applied to the
@@ -454,6 +481,8 @@ Review checklist:
 - Each surface has at most one immediate primary action.
 - Semantic colors are used only for status, risk, or validation.
 - Provider/channel colors remain small identity accents.
+- Known-shape loading uses a shape-matched skeleton; spinners are reserved for
+  indeterminate in-control waits, and no surface shows two running signals at once.
 - Interactive tool UI renders in a sandboxed iframe with a neutral host frame; Desktop
   does not restyle the app's inner UI, and hands theme/accent to it via host context.
 - Non-Desktop clients fall back to tool-result text; no flow requires the iframe.

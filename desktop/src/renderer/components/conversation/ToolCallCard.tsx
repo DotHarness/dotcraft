@@ -480,7 +480,6 @@ export const ToolCallCard = memo(function ToolCallCard({
                   diff={renderableStreamingFileDiff}
                   streaming
                   variant="embedded"
-                  showStreamingIndicator={false}
                   headerMode="compact"
                 />
               ) : null
@@ -646,7 +645,6 @@ function ExpandedContent({
       <InlineDiffView
         diff={fileDiff.diff}
         variant="embedded"
-        showStreamingIndicator={false}
         headerMode="compact"
       />
     )

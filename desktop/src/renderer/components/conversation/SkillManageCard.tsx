@@ -38,7 +38,6 @@ export function SkillManageCard({ item, locale, diff }: SkillManageCardProps): J
           <InlineDiffView
             diff={diff}
             variant="embedded"
-            showStreamingIndicator={false}
             headerMode="compact"
           />
         </div>
