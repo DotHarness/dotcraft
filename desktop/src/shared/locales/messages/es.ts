@@ -2569,7 +2569,7 @@ export const MESSAGES_ES = {
   'composer.consolidate.unavailable': 'La consolidación de memoria está disponible sólo para conversaciones inactivas con el historial.',
   'composer.approval.label': 'Política de aprobación',
   'composer.approval.selectTitle': 'Seleccionar política de aprobación',
-  'composer.approval.default.label': 'Valor predeterminado del espacio de trabajo',
+  'composer.approval.default.label': 'Predeterminado',
   'composer.approval.default.description':
     'Sigue la configuración de tu espacio de trabajo ({{policy}})',
   'composer.approval.prompt.label': 'Pedir aprobación',

@@ -2046,7 +2046,7 @@ export const MESSAGES_EN = {
   'composer.consolidate.unavailable': 'Memory consolidation is available only for idle conversations with history.',
   'composer.approval.label': 'Approval policy',
   'composer.approval.selectTitle': 'Select approval policy',
-  'composer.approval.default.label': 'Workspace default',
+  'composer.approval.default.label': 'Default',
   'composer.approval.default.description': 'Follow your workspace setting ({{policy}})',
   'composer.approval.prompt.label': 'Ask for approval',
   'composer.approval.prompt.description':

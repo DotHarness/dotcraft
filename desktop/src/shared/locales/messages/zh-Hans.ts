@@ -1986,7 +1986,7 @@ export const MESSAGES_ZH_HANS = {
   'composer.consolidate.unavailable': '长期记忆整理仅适用于已有历史且空闲的会话。',
   'composer.approval.label': '审批策略',
   'composer.approval.selectTitle': '选择审批策略',
-  'composer.approval.default.label': '工作区默认',
+  'composer.approval.default.label': '默认',
   'composer.approval.default.description': '跟随工作区设置（{{policy}}）',
   'composer.approval.prompt.label': '请求批准',
   'composer.approval.prompt.description': '在编辑工作区以外的文件或运行命令前始终询问',

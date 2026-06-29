@@ -2573,7 +2573,7 @@ export const MESSAGES_DE = {
   'composer.consolidate.unavailable': 'Die Speicherkonsolidierung ist nur für Leerlaufgespräche mit Verlauf verfügbar.',
   'composer.approval.label': 'Genehmigungsrichtlinie',
   'composer.approval.selectTitle': 'Wählen Sie die Genehmigungsrichtlinie aus',
-  'composer.approval.default.label': 'Arbeitsbereichsstandard',
+  'composer.approval.default.label': 'Standard',
   'composer.approval.default.description': 'Folgt Ihrer Arbeitsbereichseinstellung ({{policy}})',
   'composer.approval.prompt.label': 'Um Genehmigung fragen',
   'composer.approval.prompt.description':

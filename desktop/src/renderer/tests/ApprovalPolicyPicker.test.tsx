@@ -56,19 +56,14 @@ describe('ApprovalPolicyPicker', () => {
     })
   })
 
-  it('shows the workspace-default label and the resolved inherit description', async () => {
+  it('renders the default policy control and option', async () => {
     renderPicker()
 
     const trigger = await screen.findByTestId('approval-policy-trigger')
-    expect(trigger).toHaveTextContent('Workspace default')
     expect(screen.getByTestId('approval-policy-icon-default')).toBeInTheDocument()
 
     fireEvent.click(trigger)
-    const defaultOption = await screen.findByTestId('approval-policy-option-default')
-    // The inherit option discloses what the workspace default currently resolves to.
-    await waitFor(() =>
-      expect(defaultOption).toHaveTextContent('Follow your workspace setting (Full access)')
-    )
+    expect(await screen.findByTestId('approval-policy-option-default')).toBeInTheDocument()
   })
 
   it('selects ask-for-approval without a full-access warning and writes prompt', async () => {

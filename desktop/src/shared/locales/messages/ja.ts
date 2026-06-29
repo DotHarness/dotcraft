@@ -2564,7 +2564,7 @@ export const MESSAGES_JA = {
   'composer.consolidate.unavailable': 'メモリの統合は、履歴のあるアイドル状態の会話に対してのみ使用できます。',
   'composer.approval.label': '承認ポリシー',
   'composer.approval.selectTitle': '承認ポリシーの選択',
-  'composer.approval.default.label': 'ワークスペースのデフォルト',
+  'composer.approval.default.label': 'デフォルト',
   'composer.approval.default.description': 'ワークスペースの設定に従います ({{policy}})',
   'composer.approval.prompt.label': '承認を求める',
   'composer.approval.prompt.description':

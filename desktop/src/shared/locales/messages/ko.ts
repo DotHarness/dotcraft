@@ -2566,7 +2566,7 @@ export const MESSAGES_KO = {
   'composer.consolidate.unavailable': '메모리 통합은 기록이 있는 유휴 대화에만 사용할 수 있습니다.',
   'composer.approval.label': '승인 정책',
   'composer.approval.selectTitle': '승인 정책 선택',
-  'composer.approval.default.label': '작업공간 기본값',
+  'composer.approval.default.label': '기본값',
   'composer.approval.default.description': '작업공간 설정을 따릅니다 ({{policy}})',
   'composer.approval.prompt.label': '승인 요청',
   'composer.approval.prompt.description':
