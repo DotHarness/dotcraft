@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Archive, ArrowRightLeft, GitFork, Laptop, ListChecks, MoreHorizontal, Pencil, Pin, PanelRightOpen } from 'lucide-react'
+import { Archive, ArrowRightLeft, GitFork, Laptop, MoreHorizontal, Pencil, Pin, PanelRightOpen } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useConnectionStore } from '../../stores/connectionStore'
@@ -447,7 +447,7 @@ export function ThreadHeader({
             }}
             aria-label={isPerforceWorkspace ? t('threadHeader.prepareChangelistTitle') : t('threadHeader.commitTitle')}
           >
-            {isPerforceWorkspace ? <ListChecks size={13} /> : <CommitIcon size={13} />}
+            <CommitIcon size={13} />
             {isPerforceWorkspace ? t('threadHeader.prepareChangelist') : t('threadHeader.commit')}
           </button>
         </ActionTooltip>
