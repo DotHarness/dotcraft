@@ -5,7 +5,7 @@ import { ArrowRightLeft, Check, ChevronDown, ChevronRight, Cloud, Folder, Folder
 import { useT } from '../../contexts/LocaleContext'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { normalizeGitPathKey, useGitStore, type GitBranchListSnapshot } from '../../stores/gitStore'
-import { changelistLabel, usePerforceChangelistStore } from '../../stores/perforceChangelistStore'
+import { changelistLabel, usePerforceChangelistStore, type PerforceChangelistEntry, type PerforceChangelistSnapshot } from '../../stores/perforceChangelistStore'
 import { useSourceControlStore } from '../../stores/sourceControlStore'
 import { useWorkspaceProjectsStore } from '../../stores/workspaceProjectsStore'
 import { addToast } from '../../stores/toastStore'
@@ -30,6 +30,9 @@ interface ComposerWorkspaceFooterProps {
   onBaseRefChange?: (baseRef: string | null) => void
   onWorktreeBranchNameChange?: (branchName: string | null) => void
   onWelcomeWorkspaceChange?: (workspacePath: string) => Promise<void> | void
+  // Perforce changelist pre-selected on the welcome screen; applied to the thread the first message creates.
+  welcomeChangelist?: string | null
+  onWelcomeChangelistChange?: (changelist: string) => void
 }
 
 type OpenMenu = 'project' | 'workspace' | 'branch' | 'changelist' | null
@@ -255,7 +258,9 @@ export function ComposerWorkspaceFooter({
   onWelcomeModeChange,
   onBaseRefChange,
   onWorktreeBranchNameChange,
-  onWelcomeWorkspaceChange
+  onWelcomeWorkspaceChange,
+  welcomeChangelist = null,
+  onWelcomeChangelistChange
 }: ComposerWorkspaceFooterProps): JSX.Element | null {
   const t = useT()
   const capabilities = useConnectionStore((s) => s.capabilities)
@@ -317,15 +322,27 @@ export function ComposerWorkspaceFooter({
     )
   const hideGitForSourceControl = sourceControlEnabled && sourceControlProvider != null && sourceControlProvider !== 'git'
   const isPerforceWorkspace = variant === 'thread' && isPerforceProvider && perforceChangelistAvailable && Boolean(thread?.id)
+  // Welcome (pre-thread) Perforce: list/select/create a changelist against the foreground
+  // workspace and stash the pick in welcome state, applied to the thread the first message creates.
+  const isPerforceWelcome = variant === 'welcome' && isPerforceProvider && perforceChangelistAvailable && Boolean(branchActionPath)
+  const [welcomeChangelists, setWelcomeChangelists] = useState<PerforceChangelistEntry[]>([])
+  const [welcomeChangelistStatus, setWelcomeChangelistStatus] = useState<'idle' | 'loading' | 'available' | 'error'>('idle')
   const changelistState = usePerforceChangelistStore((s) =>
     thread?.id ? s.byThreadId[thread.id] : undefined
   )
   const changelistSnapshot = changelistState?.snapshot ?? null
-  const changelists = changelistSnapshot?.changelists ?? [
-    { id: 'default', isDefault: true, description: t('workspaceFooter.changelistDefault'), user: '', client: '', status: 'pending' }
-  ]
-  const selectedChangelist = changelistSnapshot?.target?.changelist ?? 'default'
-  const changelistControlsReady = changelistState?.status === 'available'
+  const defaultChangelistEntry: PerforceChangelistEntry = {
+    id: 'default', isDefault: true, description: t('workspaceFooter.changelistDefault'), user: '', client: '', status: 'pending'
+  }
+  const changelistEntries = isPerforceWelcome
+    ? (welcomeChangelists.length > 0 ? welcomeChangelists : [defaultChangelistEntry])
+    : (changelistSnapshot?.changelists ?? [defaultChangelistEntry])
+  const selectedChangelist = isPerforceWelcome
+    ? (welcomeChangelist ?? 'default')
+    : (changelistSnapshot?.target?.changelist ?? 'default')
+  const changelistControlsReady = isPerforceWelcome
+    ? welcomeChangelistStatus === 'available'
+    : changelistState?.status === 'available'
   const branchActionPathKey = normalizeGitPathKey(branchActionPath)
   const gitPathState = useGitStore((s) =>
     branchActionPathKey ? s.branchesByPath[branchActionPathKey] : undefined
@@ -402,6 +419,27 @@ export function ComposerWorkspaceFooter({
     if (!isPerforceWorkspace || !thread?.id) return
     void usePerforceChangelistStore.getState().ensure(thread.id)
   }, [isPerforceWorkspace, thread?.id])
+
+  useEffect(() => {
+    if (!isPerforceWelcome) {
+      setWelcomeChangelists([])
+      setWelcomeChangelistStatus('idle')
+      return
+    }
+    let cancelled = false
+    setWelcomeChangelistStatus('loading')
+    // No threadId → the AppServer lists the foreground workspace's pending changelists.
+    void window.api.appServer.sendRequest('sourceControl/changelist/list', {}, 30_000)
+      .then((snap) => {
+        if (cancelled) return
+        setWelcomeChangelists((snap as PerforceChangelistSnapshot)?.changelists ?? [])
+        setWelcomeChangelistStatus('available')
+      })
+      .catch(() => {
+        if (!cancelled) setWelcomeChangelistStatus('error')
+      })
+    return () => { cancelled = true }
+  }, [isPerforceWelcome, branchActionPath])
 
   useEffect(() => {
     if (openMenu !== 'changelist') {
@@ -508,12 +546,12 @@ export function ComposerWorkspaceFooter({
 
   const filteredChangelists = useMemo(() => {
     const query = changelistQuery.trim().toLowerCase()
-    if (!query) return changelists
-    return changelists.filter((entry) =>
+    if (!query) return changelistEntries
+    return changelistEntries.filter((entry) =>
       changelistLabel(entry.id).toLowerCase().includes(query) ||
       entry.description.toLowerCase().includes(query)
     )
-  }, [changelistQuery, changelists])
+  }, [changelistQuery, changelistEntries])
 
   async function selectBranch(branchName: string): Promise<void> {
     setOpenMenu(null)
@@ -569,6 +607,11 @@ export function ComposerWorkspaceFooter({
   }
 
   async function selectChangelist(changelist: string): Promise<void> {
+    if (isPerforceWelcome) {
+      setOpenMenu(null)
+      onWelcomeChangelistChange?.(changelist)
+      return
+    }
     if (!thread?.id) return
     setOpenMenu(null)
     setBusy(true)
@@ -583,6 +626,29 @@ export function ComposerWorkspaceFooter({
   }
 
   async function createChangelist(): Promise<void> {
+    if (isPerforceWelcome) {
+      setBusy(true)
+      try {
+        // No threadId → the AppServer creates the changelist on the foreground workspace; we
+        // carry the id as the welcome pre-selection until the first thread is created.
+        const result = await window.api.appServer.sendRequest(
+          'sourceControl/changelist/create',
+          { description: changelistDraft, setAsTarget: true },
+          30_000
+        ) as { changelist: PerforceChangelistEntry }
+        setWelcomeChangelists((prev) => [...prev.filter((entry) => entry.id !== result.changelist.id), result.changelist])
+        onWelcomeChangelistChange?.(result.changelist.id)
+        setCreateChangelistOpen(false)
+        setOpenMenu(null)
+        setChangelistDraft('')
+        addToast(t('workspaceFooter.changelistCreated', { changelist: changelistLabel(result.changelist.id) }), 'success')
+      } catch (err) {
+        addToast(t('workspaceFooter.changelistFailed', { error: err instanceof Error ? err.message : String(err) }), 'error')
+      } finally {
+        setBusy(false)
+      }
+      return
+    }
     if (!thread?.id) return
     setBusy(true)
     try {
@@ -614,7 +680,7 @@ export function ComposerWorkspaceFooter({
     />
   ) : null
   const showGitFooterControls = !foregroundIsChat && !remoteWorkspace && Boolean(branchActionPath) && gitAvailability !== 'unavailable'
-  const showPerforceFooterControls = isPerforceWorkspace && Boolean(thread?.id)
+  const showPerforceFooterControls = (isPerforceWorkspace && Boolean(thread?.id)) || isPerforceWelcome
 
   return (
     <>

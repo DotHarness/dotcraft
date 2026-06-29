@@ -168,7 +168,7 @@ describe('SourceControlPanel', () => {
     expect(screen.getByText(/This Perforce binding will be saved offline/)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Test Connection' }))
 
-    expect(await screen.findAllByText('The p4 command was not found in the server environment. Set the p4 executable path or install the Perforce CLI.')).not.toHaveLength(0)
+    expect(await screen.findByText('The p4 command was not found in the server environment. Set the p4 executable path or install the Perforce CLI.')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() => {

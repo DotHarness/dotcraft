@@ -5,6 +5,7 @@ import { useConnectionStore } from '../../stores/connectionStore'
 import { useModelCatalogStore, type ReasoningEffortWire, type ReasoningOutputWire } from '../../stores/modelCatalogStore'
 import { useProvidersStore, useChatGptOAuthSummary } from '../../stores/providersStore'
 import { useThreadStore } from '../../stores/threadStore'
+import { usePerforceChangelistStore } from '../../stores/perforceChangelistStore'
 import { useUIStore } from '../../stores/uiStore'
 import { useSkillsStore } from '../../stores/skillsStore'
 import { useAppBindingStore, type AppHandoff, type AppInfo } from '../../stores/appBindingStore'
@@ -150,6 +151,11 @@ export function ConversationWelcome({
   const [welcomeWorkspaceMode, setWelcomeWorkspaceMode] = useState<ComposerWorkspaceMode>('local')
   const [welcomeBaseRef, setWelcomeBaseRef] = useState<string | null>(null)
   const [welcomeWorktreeBranchName, setWelcomeWorktreeBranchName] = useState<string | null>(null)
+  /** Perforce changelist pre-selected on the welcome screen; applied when the first thread is created. */
+  const [welcomeChangelist, setWelcomeChangelist] = useState<string>('default')
+  useEffect(() => {
+    setWelcomeChangelist('default')
+  }, [identityPath])
   const [welcomeApprovalPolicy, setWelcomeApprovalPolicy] = useState<VisibleApprovalPolicy>('default')
   const [modelName, setModelName] = useState<string>('Default')
   const [reasoningConfig, setReasoningConfig] = useState<ResolvedReasoningConfig>(DEFAULT_REASONING_CONFIG)
@@ -971,22 +977,28 @@ export function ConversationWelcome({
       workspacePath: identityPath
     }
 
-    if (welcomeWorkspaceMode === 'worktree') {
-      const res = await window.api.appServer.sendRequest('worktree/createAndStart', {
-        identity,
-        historyMode: 'server',
-        baseRef: welcomeBaseRef || undefined,
-        branchName: welcomeWorktreeBranchName || undefined
-      }, 180_000) as { thread: ThreadSummary }
-      return res.thread
-    }
+    const thread = welcomeWorkspaceMode === 'worktree'
+      ? (await window.api.appServer.sendRequest('worktree/createAndStart', {
+          identity,
+          historyMode: 'server',
+          baseRef: welcomeBaseRef || undefined,
+          branchName: welcomeWorktreeBranchName || undefined
+        }, 180_000) as { thread: ThreadSummary }).thread
+      : (await window.api.appServer.sendRequest('thread/start', {
+          identity,
+          historyMode: 'server'
+        }) as { thread: ThreadSummary }).thread
 
-    const res = await window.api.appServer.sendRequest('thread/start', {
-      identity,
-      historyMode: 'server'
-    }) as { thread: ThreadSummary }
-    return res.thread
-  }, [identityPath, welcomeBaseRef, welcomeWorkspaceMode, welcomeWorktreeBranchName])
+    // Apply a welcome pre-selected Perforce changelist to the new thread (non-default only).
+    if (welcomeChangelist && welcomeChangelist !== 'default') {
+      try {
+        await usePerforceChangelistStore.getState().setTarget(thread.id, welcomeChangelist)
+      } catch {
+        // Non-fatal: the thread still starts; its target stays on the default changelist.
+      }
+    }
+    return thread
+  }, [identityPath, welcomeBaseRef, welcomeChangelist, welcomeWorkspaceMode, welcomeWorktreeBranchName])
 
   // Apply a profile chosen via /Profile to the freshly created thread (the only method that lands the
   // profile's compiled config). No-op when no profile was selected.
@@ -1664,6 +1676,8 @@ export function ConversationWelcome({
                     onBaseRefChange={setWelcomeBaseRef}
                     onWorktreeBranchNameChange={setWelcomeWorktreeBranchName}
                     onWelcomeWorkspaceChange={switchWelcomeWorkspace}
+                    welcomeChangelist={welcomeChangelist}
+                    onWelcomeChangelistChange={setWelcomeChangelist}
                   />
                 )
               }

@@ -208,7 +208,12 @@ public static class PerforceConnectionTester
                 Errors = [new PerforceReportItem(PerforceErrorCodes.WorkspaceOutsideClientRoot, "The current workspace is outside the client root or view.")]
             };
 
-        var where = await runner.RunAsync([.. globals, "where", request.WorkspacePath], null, ct).ConfigureAwait(false);
+        // Probe the directory's view mapping with a `/...` spec rather than the bare workspace root.
+        // `p4 where <root>` treats the argument as a single file, and the client root itself is not a
+        // mapped file, so a healthy workspace would report "file(s) not in client view"; `<root>/...`
+        // asks p4 how the tree under the root maps, which is what we actually want to validate.
+        var whereSpec = WorkspaceViewSpec(request.WorkspacePath);
+        var where = await runner.RunAsync([.. globals, "where", whereSpec], null, ct).ConfigureAwait(false);
         if (where.TimedOut)
             return Fail(
                 PerforceErrorCodes.Timeout,
@@ -398,6 +403,17 @@ public static class PerforceConnectionTester
         if (IsInside(workspacePath, root))
             return true;
         return altRoots.Any(alt => IsInside(workspacePath, alt));
+    }
+
+    /// <summary>
+    /// Builds the `p4 where` argument for a workspace directory: the directory plus Perforce's
+    /// `...` recursive wildcard, so the probe validates the tree mapping instead of resolving the
+    /// bare root as a single (unmapped) file.
+    /// </summary>
+    private static string WorkspaceViewSpec(string workspacePath)
+    {
+        var trimmed = Path.TrimEndingDirectorySeparator(workspacePath.Trim());
+        return trimmed + Path.DirectorySeparatorChar + "...";
     }
 
     private static bool IsInside(string candidate, string root)

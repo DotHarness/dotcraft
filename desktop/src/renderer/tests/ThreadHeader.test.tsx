@@ -194,7 +194,7 @@ describe('ThreadHeader', () => {
     fireEvent.change(screen.getByPlaceholderText('Describe the pending changelist...'), {
       target: { value: 'Prepare task CL' }
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Prepare CL' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Checkout' }))
 
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith(
@@ -211,7 +211,7 @@ describe('ThreadHeader', () => {
     expect(gitCommit).not.toHaveBeenCalled()
   })
 
-  it('keeps Prepare CL unavailable when Perforce is offline', async () => {
+  it('keeps Checkout unavailable when Perforce is offline', async () => {
     const workspacePath = 'C:\\workspace\\sample-app'
     useConnectionStore.setState({
       status: 'connected',
@@ -315,7 +315,7 @@ describe('ThreadHeader', () => {
     fireEvent.change(screen.getByPlaceholderText('Describe the pending changelist...'), {
       target: { value: 'Prepare task CL' }
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Prepare CL' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Checkout' }))
 
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith(

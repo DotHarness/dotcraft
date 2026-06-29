@@ -6232,7 +6232,7 @@ Validate Perforce connectivity in the AppServer environment and return a structu
 
 **Semantics**:
 
-- The server resolves the `p4` executable (params `p4ExecutablePath`, else the AppServer `PATH`), then runs a read-only sequence in the workspace directory: version probe, `p4 info`, `p4 login -s`, `p4 client -o`, and a `p4 where`/client-root mapping check. Connection parameters are passed as global options (`-p`/`-c`/`-u`/`-C`/`-d`) ahead of each command.
+- The server resolves the `p4` executable (params `p4ExecutablePath`, else the AppServer `PATH`), then runs a read-only sequence in the workspace directory: version probe, `p4 info`, `p4 login -s`, `p4 client -o`, and a client-root containment check followed by a `p4 where <workspace>/...` view-mapping probe. The recursive `/...` spec is required because `p4 where` resolves a bare directory as a single (unmapped) file, which would misreport a healthy workspace root as `WorkspaceNotMapped`. Connection parameters are passed as global options (`-p`/`-c`/`-u`/`-C`/`-d`) ahead of each command.
 - Each step maps failures to a `code` in [25A.9](#25a9-status-and-error-taxonomy). Raw `p4` stderr is never the primary message and is redacted of any credential-bearing content.
 - SSL trust is reported as `SSLTrustRequired`; this version surfaces it but does not run `p4 trust` from the UI.
 - The `password`, if provided, is passed to `p4 login` via stdin only and discarded immediately.
@@ -6288,6 +6288,8 @@ List the default changelist plus the current user/client's pending numbered Perf
 
 **Params**: `{ "threadId": "<thread-id>" }`
 
+`threadId` is optional. When omitted (the welcome / pre-thread surface, mirroring how git branches list before a thread exists), the server lists the **foreground workspace's** pending changelists and returns the default target (`{ "provider": "perforce", "changelist": "default" }`) since there is no thread to carry a target yet. When present, the server lists the thread's effective workspace and returns that thread's persisted target.
+
 **Result**:
 
 ```json
@@ -6308,9 +6310,9 @@ The server synthesizes the `default` entry and obtains numbered entries with `p4
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `threadId` | string | yes | Target thread. |
+| `threadId` | string | no | Target thread. When omitted (welcome / pre-thread), the changelist is created on the **foreground workspace** and no thread target is persisted; the client carries the returned id as its pre-selection until the first thread is started. |
 | `description` | string | no | Changelist description. Empty descriptions are allowed and normalized by the server. |
-| `setAsTarget` | boolean | no | Default `true`. When true, stores the new changelist as the thread target and emits `thread/updated`. |
+| `setAsTarget` | boolean | no | Default `true`. When true and a `threadId` is present, stores the new changelist as the thread target and emits `thread/updated`. Ignored when `threadId` is omitted (no thread to target). |
 
 Result:
 
