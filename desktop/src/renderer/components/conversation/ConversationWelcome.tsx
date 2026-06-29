@@ -153,6 +153,9 @@ export function ConversationWelcome({
   const [welcomeWorktreeBranchName, setWelcomeWorktreeBranchName] = useState<string | null>(null)
   /** Perforce changelist pre-selected on the welcome screen; applied when the first thread is created. */
   const [welcomeChangelist, setWelcomeChangelist] = useState<string>('default')
+  useEffect(() => {
+    setWelcomeChangelist('default')
+  }, [identityPath])
   const [welcomeApprovalPolicy, setWelcomeApprovalPolicy] = useState<VisibleApprovalPolicy>('default')
   const [modelName, setModelName] = useState<string>('Default')
   const [reasoningConfig, setReasoningConfig] = useState<ResolvedReasoningConfig>(DEFAULT_REASONING_CONFIG)
