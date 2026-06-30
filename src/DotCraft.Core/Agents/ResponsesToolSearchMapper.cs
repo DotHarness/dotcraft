@@ -513,24 +513,40 @@ internal static class ResponsesToolSearchMapper
 
     private static JsonObject CreateContentPartOrPlaceholder(ChatRole role, AIContent content)
     {
-        if (role == ChatRole.User && TryCreateUserImagePart(content, out var imagePart))
-            return imagePart;
+        if (role == ChatRole.User)
+        {
+            if (TryCreateUserImagePart(content, out var imagePart, out var placeholderText))
+                return imagePart;
+            if (!string.IsNullOrWhiteSpace(placeholderText))
+                return CreateTextContentPart(role, placeholderText);
+        }
 
         return CreateTextContentPart(role, DescribeUnsupportedContent(content));
     }
 
-    private static bool TryCreateUserImagePart(AIContent content, out JsonObject part)
+    private static bool TryCreateUserImagePart(
+        AIContent content,
+        out JsonObject part,
+        out string? placeholderText)
     {
         part = null!;
+        placeholderText = null;
         string? imageUri = null;
 
         switch (content)
         {
-            case DataContent data when IsImageMediaType(data.MediaType):
-                imageUri = data.Uri?.ToString();
+            case DataContent data when ModelImageInputPreparer.IsImageMediaType(data.MediaType):
+                var prepared = ModelImageInputPreparer.Prepare(data);
+                if (prepared.Content == null)
+                {
+                    placeholderText = prepared.PlaceholderText;
+                    return false;
+                }
+
+                imageUri = CreateDataUri(prepared.Content);
                 break;
 
-            case UriContent uri when IsImageMediaType(uri.MediaType):
+            case UriContent uri when ModelImageInputPreparer.IsSupportedRemoteImageMediaType(uri.MediaType):
                 imageUri = uri.Uri?.ToString();
                 break;
         }
@@ -545,6 +561,9 @@ internal static class ResponsesToolSearchMapper
         };
         return true;
     }
+
+    private static string CreateDataUri(DataContent content) =>
+        $"data:{NormalizeMediaType(content.MediaType)};base64,{Convert.ToBase64String(content.Data.ToArray())}";
 
     private static JsonObject CreateFunctionCallItem(FunctionCallContent call)
     {
@@ -820,9 +839,6 @@ internal static class ResponsesToolSearchMapper
             ? $"[Unsupported content: {typeName}]"
             : $"[Unsupported content: {typeName} ({mediaType})]";
     }
-
-    private static bool IsImageMediaType(string? mediaType) =>
-        mediaType?.StartsWith("image/", StringComparison.OrdinalIgnoreCase) == true;
 
     private static string NormalizeMediaType(string? mediaType) =>
         string.IsNullOrWhiteSpace(mediaType)

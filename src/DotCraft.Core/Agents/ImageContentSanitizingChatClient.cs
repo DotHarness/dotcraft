@@ -72,12 +72,24 @@ public sealed class ImageContentSanitizingChatClient(IChatClient innerClient) : 
                 {
                     if (isCurrentRoundTool && frc.Result is IEnumerable<AIContent> items)
                     {
+                        var placeholderTexts = new List<string>();
                         foreach (var item in items)
                         {
                             if (item is DataContent dc &&
-                                dc.MediaType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
-                                promotedImages.Add(dc);
+                                ModelImageInputPreparer.IsImageMediaType(dc.MediaType))
+                            {
+                                var prepared = ModelImageInputPreparer.Prepare(dc);
+                                if (prepared.Content != null)
+                                    promotedImages.Add(prepared.Content);
+                                else if (!string.IsNullOrWhiteSpace(prepared.PlaceholderText))
+                                    placeholderTexts.Add(prepared.PlaceholderText);
+                            }
                         }
+
+                        newContents.Add(new FunctionResultContent(
+                            frc.CallId,
+                            AppendPlaceholders(DescribeResult(frc.Result), placeholderTexts)));
+                        continue;
                     }
 
                     newContents.Add(new FunctionResultContent(frc.CallId, DescribeResult(frc.Result)));
@@ -102,6 +114,17 @@ public sealed class ImageContentSanitizingChatClient(IChatClient innerClient) : 
         }
 
         return result;
+    }
+
+    private static string AppendPlaceholders(string text, IReadOnlyList<string> placeholderTexts)
+    {
+        if (placeholderTexts.Count == 0)
+            return text;
+
+        var parts = new List<string> { text };
+        foreach (var placeholder in placeholderTexts.Distinct(StringComparer.Ordinal))
+            parts.Add(placeholder);
+        return string.Join("\n", parts);
     }
 
     private static bool HasNonTextContent(object? result)
