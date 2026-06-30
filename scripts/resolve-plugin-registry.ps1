@@ -68,12 +68,12 @@ function Get-CacheBaseRoot {
         return [System.IO.Path]::GetFullPath($CacheRoot.Trim())
     }
 
-    $home = [Environment]::GetFolderPath([Environment+SpecialFolder]::UserProfile)
-    if ([string]::IsNullOrWhiteSpace($home)) {
-        $home = [System.IO.Path]::GetTempPath()
+    $userHome = [Environment]::GetFolderPath([Environment+SpecialFolder]::UserProfile)
+    if ([string]::IsNullOrWhiteSpace($userHome)) {
+        $userHome = [System.IO.Path]::GetTempPath()
     }
 
-    return Join-Path $home ".craft\cache\plugin-registries"
+    return Join-Path $userHome ".craft\cache\plugin-registries"
 }
 
 function Get-DefaultRegistryUrl {

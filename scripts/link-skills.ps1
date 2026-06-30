@@ -72,7 +72,7 @@ function New-PerSkillLinks {
         }
     }
 
-    $skillDirs = Get-ChildItem -LiteralPath $SourceDir -Directory
+    $skillDirs = @(Get-ChildItem -LiteralPath $SourceDir -Directory)
     if (-not $skillDirs -or $skillDirs.Count -eq 0) {
         Write-Host "No skill directories found under source. Skipping." -ForegroundColor Yellow
         return
