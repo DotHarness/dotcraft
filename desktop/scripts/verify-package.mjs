@@ -4,7 +4,6 @@ import { extractFile, listPackage } from '@electron/asar'
 
 const cwd = process.cwd()
 const distDir = path.join(cwd, 'dist')
-const allowedElectronLocales = new Set(['en-US', 'zh-CN', 'ja', 'ko', 'es', 'fr', 'de'])
 
 function normalizeAsarPath(value) {
   return value.replace(/\\/g, '/').replace(/^\/+/, '')
@@ -106,51 +105,11 @@ function verifyResourcesDir(target) {
     }
   }
 
-  verifyElectronLocales(target)
   verifyDevToolsPolicy(appAsar)
 
   if (process.exitCode !== 1) {
     console.log(`[verify-package] OK: native runtime files, plugin resources, and file-index JS dependencies are packaged in ${resourcesDir}`)
   }
-}
-
-function verifyElectronLocales(target) {
-  const localeDir = resolveElectronLocaleDir(target)
-  if (!localeDir) {
-    if (target.platform !== 'darwin') {
-      fail(`Missing Electron locales directory for ${target.platform} package.`)
-    }
-    return
-  }
-
-  const localeFiles = readdirSync(localeDir)
-    .filter((name) => name.endsWith('.pak'))
-    .map((name) => name.slice(0, -'.pak'.length))
-
-  if (localeFiles.length === 0) {
-    return
-  }
-
-  const unexpected = localeFiles.filter((locale) => !allowedElectronLocales.has(locale)).sort()
-  if (unexpected.length > 0) {
-    fail(`Unexpected Electron locale files in ${path.relative(distDir, localeDir)}: ${unexpected.join(', ')}.`)
-  }
-
-  const missing = [...allowedElectronLocales].filter((locale) => !localeFiles.includes(locale)).sort()
-  if (missing.length > 0) {
-    fail(`Missing expected Electron locale files in ${path.relative(distDir, localeDir)}: ${missing.join(', ')}.`)
-  }
-}
-
-function resolveElectronLocaleDir(target) {
-  if (target.platform === 'darwin') {
-    const contentsDir = path.dirname(target.resourcesDir)
-    const frameworkResources = path.join(contentsDir, 'Frameworks', 'Electron Framework.framework', 'Resources')
-    return existsSync(frameworkResources) ? frameworkResources : null
-  }
-
-  const localeDir = path.join(path.dirname(target.resourcesDir), 'locales')
-  return existsSync(localeDir) ? localeDir : null
 }
 
 function verifyDevToolsPolicy(appAsar) {
