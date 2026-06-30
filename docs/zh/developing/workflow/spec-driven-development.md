@@ -38,7 +38,7 @@ SDD 在 2025–2026 年间逐渐流行，作为对 AI 辅助下随性"vibe codin
 
 ## 工具：dotcraft-dev 插件
 
-位于 [`samples/plugins/dotcraft-dev`](https://github.com/DotHarness/dotcraft/tree/master/samples/plugins/dotcraft-dev) 的开发插件把这套工作流打包为 Agent 技能，因此当你让 Agent 规划或构建时，它会遵循 SDD。从插件目录启用它（参见 [插件与工具](../../features/agent-system/plugins-tools)），随后通过它的技能推进工作：
+官方 `dotcraft-dev` 插件把这套工作流打包为 Agent 技能，因此当你让 Agent 规划或构建时，它会遵循 SDD。从 Plugins catalog 启用它（参见 [插件与工具](../../features/agent-system/plugins-tools)），随后通过它的技能推进工作：
 
 | 技能 | 作用 |
 |---|---|
@@ -48,12 +48,12 @@ SDD 在 2025–2026 年间逐渐流行，作为对 AI 辅助下随性"vibe codin
 | `svg-design` | 设计与校验仓库原生的 SVG 资源。 |
 | `release-draft` | 起草发布说明。 |
 
-启用插件后，像"规划一个新功能"这样的请求会引导 Agent 进入 `feature-workflow` 技能：它会讨论范围、提出里程碑、把规范写入 `specs/`，然后才实现并对照规范验证。这些技能也以独立形式放在 `samples/skills/` 下，便于你在不使用整套插件的情况下采用。
+启用插件后，像"规划一个新功能"这样的请求会引导 Agent 进入 `feature-workflow` 技能：它会讨论范围、提出里程碑、把规范写入 `specs/`，然后才实现并对照规范验证。
 
 ## 参见
 
 - [架构总览](../architecture/overview)——规范所描述的运行时。
 - [插件与工具](../../features/agent-system/plugins-tools)——安装与启用像 `dotcraft-dev` 这样的插件。
-- [示例与模板](../../resources/samples)——`samples/` 目录，含独立的技能模板。
+- [外部 Agent 协作](./workspace-handoff)——为外部编码 Agent 导出上下文。
 
 延伸阅读：[What is Spec-Driven Development?（IBM）](https://www.ibm.com/think/topics/spec-driven-development) · [Understanding Spec-Driven Development（Martin Fowler）](https://martinfowler.com/articles/exploring-gen-ai/sdd-3-tools.html)

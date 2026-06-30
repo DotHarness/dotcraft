@@ -111,4 +111,4 @@ Skills 页面右上角 **管理** 是批量启用/禁用入口：
 
 - [Plugins 与工具](./plugins-tools) — 用插件分发 skills + tools 的能力包
 - [项目级工作区](../project-first) — `.craft/skills/` 在整体目录中的位置
-- [示例与模板](../../resources/samples) — `dev-guide`、`feature-workflow` 等可复制示例
+- [Spec-Driven Development](../../developing/workflow/spec-driven-development) — `dotcraft-dev` 打包的开发技能

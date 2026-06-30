@@ -43,7 +43,7 @@
     <text x="28" y="96" class="label" fill="#4459B8">User-owned repository</text>
     <text x="28" y="122" class="mono">code/</text>
     <text x="28" y="146" class="mono">docs/</text>
-    <text x="28" y="170" class="mono">samples/</text>
+    <text x="28" y="170" class="mono">tests/</text>
     <text x="28" y="194" class="mono">README.md</text>
     <text x="28" y="224" class="muted">DotCraft works beside the project, not above it.</text>
   </g>

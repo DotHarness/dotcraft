@@ -33,22 +33,19 @@ dotnet test tests/DotCraft.Core.Tests
 ### 1. Code Contributions
 
 #### Using AI-Powered Tools
-If you're using AI coding assistants, load the skill from `samples/skills/dev-guide/`:
+If you're using AI coding assistants, install or enable the official `dotcraft-dev` plugin and load the `dev-guide` skill:
 - The AI will automatically follow code style and module conventions
 - Example prompts: "Help me create a new Discord channel module"
 
 #### Manual Development
 Reference the development guidelines:
-- **Code style**: `samples/skills/dev-guide/SKILL.md`
-- **Module spec**: `samples/skills/dev-guide/references/module-development-spec.md`
+- **Code style and module rules**: `dev-guide` skill from the official `dotcraft-dev` plugin
 - **Reference implementations**: `sdk/typescript/packages/channel-qq/` (external channel), [dotcraft-unity](https://github.com/DotHarness/dotcraft-unity) (ACP runtime tools)
 
 ### 2. Documentation Contributions
 
-- Chinese docs: `docs/*.md`
-- English docs (root): `docs/*.md`
+- English docs: `docs/*.md`
 - Chinese docs: `docs/zh/*.md`
-- Sample projects: `samples/` (each sample needs `README.md` + `README_ZH.md`)
 
 ### 3. Test Contributions
 
@@ -90,7 +87,7 @@ Reference the development guidelines:
 | Rust | Idiomatic Rust | `snake_case`, `anyhow::Result`, `#[tokio::main]` |
 | TypeScript/React | Standard React | Functional components, Zustand, Tailwind CSS 4 |
 
-See `samples/skills/dev-guide/SKILL.md` for complete guidelines.
+See the `dev-guide` skill from the official `dotcraft-dev` plugin for complete guidelines.
 
 ## Pre-Submission Checklist
 
@@ -119,7 +116,7 @@ See `samples/skills/dev-guide/SKILL.md` for complete guidelines.
 
 ## Need Help?
 
-- **Development guidelines**: `samples/skills/dev-guide/`
+- **Development guidelines**: `dev-guide` skill from the official `dotcraft-dev` plugin
 - **Code examples**: `sdk/typescript/packages/channel-qq/`, [dotcraft-unity](https://github.com/DotHarness/dotcraft-unity)
 - **User docs**: `docs/`
 - **Questions**: Open a GitHub Issue

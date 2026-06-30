@@ -440,6 +440,8 @@ Dashboard 示例：
 | 配置项 | 说明 | 默认值 |
 |--------|------|--------|
 | `Plugins.PluginRoots` | `.craft/plugins/` 之外额外维护的 plugin root 目录 | `[]` |
+| `Plugins.PluginRegistries` | 额外的 plugin registry 来源，支持 HTTPS zip URL 或本地归档/目录路径 | `[]` |
+| `Plugins.DisableDefaultPluginRegistry` | 忽略宿主提供的默认官方 plugin registry | `false` |
 | `McpServers` | MCP 服务配置集合 | `{}` |
 | `Tools.DeferredLoading.Strategy` | 工具延迟加载策略：`Off`、`Auto`、`Simulated` 或 `Native` | `Auto` |
 | `Tools.DeferredLoading.AlwaysLoadedTools` | 始终预加载的 MCP 工具名列表 | `[]` |
@@ -448,12 +450,14 @@ Dashboard 示例：
 | `LspServers` | LSP 服务配置集合 | `{}` |
 | `Tools.Lsp.Enabled` | 是否启用内置 LSP 工具 | `false` |
 
-外部 plugin root 示例：
+DotCraft Desktop 会通过 `DOTCRAFT_DEFAULT_PLUGIN_REGISTRY_URL` 提供默认的官方 plugin marketplace registry。只有在本地开发 marketplace 之外的插件时，才需要配置本地 checkout。
+
+本地插件开发覆盖示例：
 
 ```json
 {
   "Plugins": {
-    "PluginRoots": ["./samples/plugins"]
+    "PluginRoots": ["/path/to/local/plugins"]
   }
 }
 ```

@@ -176,5 +176,5 @@ Dashboard is DotCraft's visual inspection and configuration surface for sessions
 
 - Use [Hooks](./features/self-hosted/security#hooks) to run scripts on lifecycle events.
 - Use [Security & Sandbox](./features/self-hosted/security) to constrain file, shell, and network access.
-- Use [Samples & Templates](./resources/samples) to validate a complete workspace template.
+- Use [Plugins & Tools](./features/agent-system/plugins-tools) to install reusable capability bundles.
 - For an architectural view, jump to [Architecture Overview](./developing/architecture/overview).

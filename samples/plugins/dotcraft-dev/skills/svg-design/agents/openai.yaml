@@ -1,4 +1,0 @@
-interface:
-  display_name: "SVG Design"
-  short_description: "Design, simplify, preview, and validate SVG assets"
-  default_prompt: "Use $svg-design to create or refine SVG icons and verify them with preview screenshots."

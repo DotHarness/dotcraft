@@ -111,4 +111,4 @@ When self-learning is on, DotCraft gives the agent an on-demand `skill-authoring
 
 - [Plugins & Tools](./plugins-tools) — distributing skills + tools as plugins
 - [Project Workspace](../project-first) — where `.craft/skills/` sits
-- [Samples](../../resources/samples) — `dev-guide`, `feature-workflow`, copy-and-adapt templates
+- [Spec-Driven Development](../../developing/workflow/spec-driven-development) — development skills packaged by `dotcraft-dev`

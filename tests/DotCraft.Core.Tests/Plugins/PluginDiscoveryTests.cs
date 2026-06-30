@@ -470,12 +470,21 @@ public sealed class PluginDiscoveryTests
     }
 
     [Theory]
-    [InlineData("csharp-lsp")]
-    [InlineData("cpp-lsp")]
-    public void SampleLspPlugins_AreSkillAndLspPlugins(string sampleName)
+    [InlineData("csharp-lsp", "csharp", "./server/csharp-ls/csharp-ls")]
+    [InlineData("cpp-lsp", "cpp", "./server/clangd/bin/clangd")]
+    public void SkillAndLspPlugins_AreParsedWithLspAndSkillsPaths(
+        string pluginId,
+        string serverName,
+        string command)
     {
-        var root = FindRepositoryRoot();
-        var pluginRoot = Path.Combine(root, "samples", "plugins", sampleName);
+        var pluginRoot = Path.Combine(NewTempDir(), pluginId);
+        WriteSkillAndLspPlugin(
+            pluginRoot,
+            pluginId,
+            serverName,
+            command,
+            serverName == "cpp" ? ".cpp" : ".cs",
+            serverName);
 
         var result = PluginManifestParser.Load(pluginRoot);
 
@@ -488,12 +497,22 @@ public sealed class PluginDiscoveryTests
     }
 
     [Theory]
-    [InlineData("csharp-lsp", "server", "csharp-ls", "csharp-ls")]
-    [InlineData("cpp-lsp", "server", "clangd", "bin", "clangd")]
-    public void SampleLspPlugins_LoadWithoutBundledServerBinary(string sampleName, params string[] commandSegments)
+    [InlineData("csharp-lsp", "csharp", "./server/csharp-ls/csharp-ls", "server", "csharp-ls", "csharp-ls")]
+    [InlineData("cpp-lsp", "cpp", "./server/clangd/bin/clangd", "server", "clangd", "bin", "clangd")]
+    public void SkillAndLspPlugins_LoadRelativeServerCommandWithoutBundledServerBinary(
+        string pluginId,
+        string serverName,
+        string command,
+        params string[] commandSegments)
     {
-        var root = FindRepositoryRoot();
-        var pluginRoot = Path.Combine(root, "samples", "plugins", sampleName);
+        var pluginRoot = Path.Combine(NewTempDir(), pluginId);
+        WriteSkillAndLspPlugin(
+            pluginRoot,
+            pluginId,
+            serverName,
+            command,
+            serverName == "cpp" ? ".cpp" : ".cs",
+            serverName);
         var workspace = Path.Combine(NewTempDir(), "workspace");
         var botPath = Path.Combine(workspace, ".craft");
         var config = new AppConfig();
@@ -1193,6 +1212,56 @@ public sealed class PluginDiscoveryTests
       "command": "node",
       "args": ["server.js"],
       "cwd": "./server"
+    }
+  }
+}
+""");
+    }
+
+    private static void WriteSkillAndLspPlugin(
+        string pluginRoot,
+        string id,
+        string serverName,
+        string command,
+        string extension = ".cs",
+        string language = "csharp")
+    {
+        Directory.CreateDirectory(Path.Combine(pluginRoot, ".craft-plugin"));
+        Directory.CreateDirectory(Path.Combine(pluginRoot, "skills", id));
+        File.WriteAllText(
+            Path.Combine(pluginRoot, "skills", id, "SKILL.md"),
+            $$"""
+---
+name: {{id}}
+description: Test skill
+---
+# {{id}}
+""");
+        File.WriteAllText(
+            Path.Combine(pluginRoot, ".craft-plugin", "plugin.json"),
+            $$"""
+{
+  "schemaVersion": 1,
+  "id": "{{id}}",
+  "version": "1.0.0",
+  "displayName": "Demo",
+  "description": "Demo plugin.",
+  "capabilities": ["skill", "lsp"],
+  "skills": "./skills/",
+  "lspServers": "./.lsp.json"
+}
+""");
+        File.WriteAllText(
+            Path.Combine(pluginRoot, ".lsp.json"),
+            $$"""
+{
+  "lspServers": {
+    "{{serverName}}": {
+      "transport": "stdio",
+      "command": "{{command}}",
+      "extensionToLanguage": {
+        "{{extension}}": "{{language}}"
+      }
     }
   }
 }

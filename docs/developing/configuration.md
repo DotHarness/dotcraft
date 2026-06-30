@@ -440,6 +440,8 @@ Platform connections, allowlists, and approval timeouts live in adapter-specific
 | Field | Description | Default |
 |-------|-------------|---------|
 | `Plugins.PluginRoots` | Extra plugin root directories maintained outside `.craft/plugins/` | `[]` |
+| `Plugins.PluginRegistries` | Additional plugin registry sources, using HTTPS zip URLs or local archive/directory paths | `[]` |
+| `Plugins.DisableDefaultPluginRegistry` | Ignore the host-provided default official plugin registry | `false` |
 | `McpServers` | MCP server configuration map | `{}` |
 | `Tools.DeferredLoading.Strategy` | Deferred tool loading strategy: `Off`, `Auto`, `Simulated`, or `Native` | `Auto` |
 | `Tools.DeferredLoading.AlwaysLoadedTools` | MCP tool names always loaded upfront | `[]` |
@@ -448,12 +450,14 @@ Platform connections, allowlists, and approval timeouts live in adapter-specific
 | `LspServers` | LSP server configuration map | `{}` |
 | `Tools.Lsp.Enabled` | Enables built-in LSP tools | `false` |
 
-External plugin root example:
+DotCraft Desktop supplies the official plugin marketplace as the default registry through `DOTCRAFT_DEFAULT_PLUGIN_REGISTRY_URL`. Local checkouts are only needed when developing plugins outside the marketplace flow.
+
+Local plugin development override example:
 
 ```json
 {
   "Plugins": {
-    "PluginRoots": ["./samples/plugins"]
+    "PluginRoots": ["/path/to/local/plugins"]
   }
 }
 ```

@@ -87,5 +87,4 @@ When DotCraft is exposed through external channels or the public internet, enabl
 
 - [Observability](./observability) — view approval and block records in Dashboard
 - [SubAgents](../agent-system/subagents) — bound delegated work with role tool policies
-- [Samples](../../resources/samples) — Hooks templates
 - [Configuration Reference](../../developing/configuration) — complete security and tool fields

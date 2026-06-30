@@ -1,5 +1,9 @@
 [CmdletBinding()]
-param()
+param(
+    [string]$PluginsRepoRoot = $env:DOTCRAFT_PLUGINS_REPO,
+    [string]$PluginRegistryUrl = $env:DOTCRAFT_DEFAULT_PLUGIN_REGISTRY_URL,
+    [switch]$ForcePluginRegistryRefresh
+)
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
@@ -111,10 +115,37 @@ function New-PerSkillLinks {
 }
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
+$pluginRegistrySource = "local override"
+if ([string]::IsNullOrWhiteSpace($PluginsRepoRoot)) {
+    $resolverPath = Join-Path $PSScriptRoot "resolve-plugin-registry.ps1"
+    if (-not (Test-Path -LiteralPath $resolverPath -PathType Leaf)) {
+        throw "Plugin registry resolver not found: $resolverPath"
+    }
+
+    $resolverArgs = @{
+        MarketplacePath = ".craft/plugins/marketplace.json"
+    }
+    if (-not [string]::IsNullOrWhiteSpace($PluginRegistryUrl)) {
+        $resolverArgs.RegistryUrl = $PluginRegistryUrl
+    }
+    if ($ForcePluginRegistryRefresh) {
+        $resolverArgs.ForceRefresh = $true
+    }
+
+    $resolvedRegistryRoots = @(& $resolverPath @resolverArgs)
+    $PluginsRepoRoot = [string]($resolvedRegistryRoots | Select-Object -Last 1)
+    if ([string]::IsNullOrWhiteSpace($PluginsRepoRoot)) {
+        throw "Plugin registry resolver did not return a registry root."
+    }
+
+    $pluginRegistrySource = "resolved registry"
+}
+
+$dotcraftDevSkillsPath = Join-Path $PluginsRepoRoot "plugins\dotcraft-dev\skills"
 $skillSources = @(
     @{
         Name = "DotCraft dev skills"
-        Path = Join-Path $repoRoot "samples\plugins\dotcraft-dev\skills"
+        Path = $dotcraftDevSkillsPath
     },
     @{
         Name = "DotCraft Doctor skills"
@@ -127,6 +158,8 @@ $claudeSkillsPath = Join-Path $env:USERPROFILE ".claude\skills"
 
 Write-Section -Text "DotCraft Skills Linker"
 Write-Host "Repository root: $repoRoot" -ForegroundColor Gray
+Write-Host "Plugin registry source: $pluginRegistrySource" -ForegroundColor Gray
+Write-Host "Plugin registry root:   $PluginsRepoRoot" -ForegroundColor Gray
 Write-Host "Source skills:" -ForegroundColor Gray
 foreach ($skillSource in $skillSources) {
     Write-Host "  - $($skillSource.Name): $($skillSource.Path)" -ForegroundColor Gray
@@ -134,6 +167,10 @@ foreach ($skillSource in $skillSources) {
 
 foreach ($skillSource in $skillSources) {
     if (-not (Test-Path -LiteralPath $skillSource.Path)) {
+        if ($skillSource.Name -eq "DotCraft dev skills") {
+            throw "Source skills directory not found: $($skillSource.Path). Pass -PluginsRepoRoot or set DOTCRAFT_PLUGINS_REPO for a local checkout, or pass -PluginRegistryUrl / set DOTCRAFT_DEFAULT_PLUGIN_REGISTRY_URL for another registry."
+        }
+
         throw "Source skills directory not found: $($skillSource.Path)"
     }
 }
@@ -164,4 +201,5 @@ Write-Host "Done." -ForegroundColor Green
 Write-Host "  - Cursor gets per-skill junctions; unrelated existing skills are left untouched." -ForegroundColor Green
 Write-Host "  - Codex gets per-skill junctions; unrelated existing skills are left untouched." -ForegroundColor Green
 Write-Host "  - Claude gets per-skill junctions; unrelated existing skills are left untouched." -ForegroundColor Green
-Write-Host "Skill edits in the repo take effect immediately in all linked tools." -ForegroundColor Green
+Write-Host "DotCraft Doctor skill edits in this repo take effect immediately in all linked tools." -ForegroundColor Green
+Write-Host "DotCraft dev skills come from the local override or resolved plugin registry; use -ForcePluginRegistryRefresh to refresh the registry now." -ForegroundColor Green

@@ -42,7 +42,7 @@ Prerequisite: .NET 10 SDK (preview).
 - TypeScript channel packages: `sdk/typescript/packages/channel-{qq,wecom,feishu,weixin,telegram}/`
 - Specs and tests: `specs/`, `tests/`
 - SDKs and clients: `sdk/`, `tui/`, `desktop/`
-- Docs and examples: `docs/` (English root, Chinese under `docs/zh/`), `samples/`
+- Docs: `docs/` (English root, Chinese under `docs/zh/`)
 
 ## Localization
 

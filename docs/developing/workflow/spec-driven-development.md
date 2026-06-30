@@ -38,7 +38,7 @@ For a substantial feature, the rhythm is discussion-first, spec-before-code, one
 
 ## Tooling: the dotcraft-dev plugin
 
-The development plugin at [`samples/plugins/dotcraft-dev`](https://github.com/DotHarness/dotcraft/tree/master/samples/plugins/dotcraft-dev) packages this workflow as agent skills, so the agent follows SDD when you ask it to plan or build something. Enable it from the Plugins catalog (see [Plugins & Tools](../../features/agent-system/plugins-tools)), then drive work through its skills:
+The official `dotcraft-dev` plugin packages this workflow as agent skills, so the agent follows SDD when you ask it to plan or build something. Enable it from the Plugins catalog (see [Plugins & Tools](../../features/agent-system/plugins-tools)), then drive work through its skills:
 
 | Skill | Role |
 |---|---|
@@ -48,12 +48,12 @@ The development plugin at [`samples/plugins/dotcraft-dev`](https://github.com/Do
 | `svg-design` | Designing and validating repo-native SVG assets. |
 | `release-draft` | Drafting release notes. |
 
-With the plugin enabled, a request like "plan a new feature" leads the agent into the `feature-workflow` skill: it discusses scope, proposes milestones, writes specs into `specs/`, and only then implements and validates against them. The individual skills also ship standalone under `samples/skills/` if you want to adopt them without the bundle.
+With the plugin enabled, a request like "plan a new feature" leads the agent into the `feature-workflow` skill: it discusses scope, proposes milestones, writes specs into `specs/`, and only then implements and validates against them.
 
 ## See also
 
 - [Architecture](../architecture/overview) — the runtime the specs describe.
 - [Plugins & Tools](../../features/agent-system/plugins-tools) — installing and enabling plugins like `dotcraft-dev`.
-- [Samples & Templates](../../resources/samples) — the `samples/` directory, including standalone skill templates.
+- [Workspace Handoff](./workspace-handoff) — exporting context for outside coding agents.
 
 Further reading: [What is Spec-Driven Development? (IBM)](https://www.ibm.com/think/topics/spec-driven-development) · [Understanding Spec-Driven Development (Martin Fowler)](https://martinfowler.com/articles/exploring-gen-ai/sdd-3-tools.html)

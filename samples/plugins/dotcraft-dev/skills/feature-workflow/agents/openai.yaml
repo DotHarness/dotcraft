@@ -1,4 +1,0 @@
-interface:
-  display_name: "DotCraft Feature Workflow"
-  short_description: "Guide large DotCraft feature development from planning through implementation"
-  default_prompt: "Use $dotcraft-feature-workflow to plan and deliver a substantial DotCraft feature."

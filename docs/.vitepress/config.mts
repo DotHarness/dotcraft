@@ -151,13 +151,6 @@ const enSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
         ]
       }
     ]
-  },
-  {
-    text: 'Resources',
-    items: [
-      { text: withIcon('book', 'Samples & Templates'), link: '/resources/samples' },
-      { text: withIcon('tag', 'GitHub Releases'), link: 'https://github.com/DotHarness/dotcraft/releases' }
-    ]
   }
 ])
 
@@ -283,13 +276,6 @@ const zhSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
         ]
       }
     ]
-  },
-  {
-    text: '资源',
-    items: [
-      { text: withIcon('book', '示例与模板'), link: '/zh/resources/samples' },
-      { text: withIcon('tag', 'GitHub Releases'), link: 'https://github.com/DotHarness/dotcraft/releases' }
-    ]
   }
 ])
 
@@ -297,16 +283,14 @@ const enNav: DefaultTheme.NavItem[] = [
   { text: 'Overview', link: '/' },
   { text: 'Getting Started', link: '/getting-started' },
   { text: 'Features', link: '/features/project-first' },
-  { text: 'Developing', link: '/developing/workflow/spec-driven-development' },
-  { text: 'Samples', link: '/resources/samples' }
+  { text: 'Developing', link: '/developing/workflow/spec-driven-development' }
 ]
 
 const zhNav: DefaultTheme.NavItem[] = [
   { text: '总览', link: '/zh/' },
   { text: '快速开始', link: '/zh/getting-started' },
   { text: '功能', link: '/zh/features/project-first' },
-  { text: '开发', link: '/zh/developing/workflow/spec-driven-development' },
-  { text: '示例', link: '/zh/resources/samples' }
+  { text: '开发', link: '/zh/developing/workflow/spec-driven-development' }
 ]
 
 const redirectMap: Record<string, string> = {
@@ -379,12 +363,7 @@ const redirectMap: Record<string, string> = {
   'developing/sdk-dotnet.md': 'developing/sdks/dotnet.md',
   'developing/sdk-python.md': 'developing/sdks/python.md',
   'developing/app-binding.md': 'developing/integrations/app-binding.md',
-  'developing/typescript-module.md': 'developing/integrations/typescript-module.md',
-  'samples/index.md': 'resources/samples.md',
-  'samples/automations.md': 'resources/samples.md',
-  'samples/bootstrap.md': 'resources/samples.md',
-  'samples/hooks.md': 'resources/samples.md',
-  'samples/skills.md': 'resources/samples.md'
+  'developing/typescript-module.md': 'developing/integrations/typescript-module.md'
 }
 
 const rewrites: Record<string, string> = {}

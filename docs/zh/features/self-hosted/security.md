@@ -87,5 +87,4 @@ OpenSandbox 服务前置条件和所有沙箱字段见 [Tools, Security 与 Sand
 
 - [可观测性](./observability) — 在 Dashboard 查看审批和拦截记录
 - [SubAgents](../agent-system/subagents) — 用 role 工具策略限制委派任务
-- [示例与模板](../../resources/samples) — Hooks 模板
 - [配置完整参考](../../developing/configuration) — 完整安全和工具字段
