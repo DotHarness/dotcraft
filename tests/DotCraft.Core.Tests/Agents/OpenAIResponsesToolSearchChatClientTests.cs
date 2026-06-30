@@ -9,6 +9,8 @@ using DotCraft.Tools;
 using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
 using OpenAI.Responses;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
 
 #pragma warning disable OPENAI001
 
@@ -81,7 +83,7 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
     [Fact]
     public void CreateResponseOptions_PreservesUserImageContentParts()
     {
-        var dataImage = new DataContent(new byte[] { 1, 2, 3 }, "image/png");
+        var dataImage = new DataContent(CreateImageBytes("image/png"), "image/png");
         var remoteImage = new UriContent("https://example.test/cat.jpg", "image/jpeg");
 
         using var document = JsonDocument.Parse(CreateRequestJson(
@@ -117,6 +119,52 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
     }
 
     [Fact]
+    public void CreateResponseOptions_TranscodesUserBmpContentPartToPng()
+    {
+        using var document = JsonDocument.Parse(CreateRequestJson(
+            "gpt-test",
+            [
+                new ChatMessage(ChatRole.User, (IList<AIContent>)
+                [
+                    new DataContent(CreateImageBytes("image/bmp"), "image/bmp")
+                ])
+            ],
+            new ChatOptions
+            {
+                Tools = [new NativeToolSearchTool(new DeferredToolRegistry([]))]
+            }));
+
+        var message = Assert.Single(document.RootElement.GetProperty("input").EnumerateArray());
+        var content = Assert.Single(message.GetProperty("content").EnumerateArray());
+
+        Assert.Equal("input_image", content.GetProperty("type").GetString());
+        Assert.StartsWith("data:image/png;base64,", content.GetProperty("image_url").GetString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CreateResponseOptions_DegradesInvalidImageContentWithVisiblePlaceholder()
+    {
+        using var document = JsonDocument.Parse(CreateRequestJson(
+            "gpt-test",
+            [
+                new ChatMessage(ChatRole.User, (IList<AIContent>)
+                [
+                    new DataContent(new byte[] { 1, 2, 3 }, "image/bmp")
+                ])
+            ],
+            new ChatOptions
+            {
+                Tools = [new NativeToolSearchTool(new DeferredToolRegistry([]))]
+            }));
+
+        var message = Assert.Single(document.RootElement.GetProperty("input").EnumerateArray());
+        var content = Assert.Single(message.GetProperty("content").EnumerateArray());
+
+        Assert.Equal("input_text", content.GetProperty("type").GetString());
+        Assert.Equal(ModelImageInputPreparer.CouldNotProcessPlaceholder, content.GetProperty("text").GetString());
+    }
+
+    [Fact]
     public async Task GetStreamingResponseAsync_WithNativeToolSearch_PreservesPromotedImageMessage()
     {
         var inner = new FakeChatClient(new ChatResponse([new ChatMessage(ChatRole.Assistant, "inner response")]));
@@ -128,7 +176,7 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
                 new ChatMessage(ChatRole.User, (IList<AIContent>)
                 [
                     new TextContent("[Image content from tool results - attached for vision analysis.]"),
-                    new DataContent(new byte[] { 9, 8, 7 }, "image/png")
+                    new DataContent(CreateImageBytes("image/png"), "image/png")
                 ])
             ],
             new ChatOptions { Tools = [new NativeToolSearchTool(new DeferredToolRegistry([]))] }));
@@ -1330,6 +1378,23 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
             innerClient,
             transport,
             traceCollector);
+
+    private static byte[] CreateImageBytes(string mediaType)
+    {
+        using var image = new Image<Rgba32>(1, 1, new Rgba32(0xff, 0, 0));
+        using var stream = new MemoryStream();
+        switch (mediaType)
+        {
+            case "image/bmp":
+                image.SaveAsBmp(stream);
+                break;
+            default:
+                image.SaveAsPng(stream);
+                break;
+        }
+
+        return stream.ToArray();
+    }
 
     private sealed class FakeToolSearchTransport : IResponsesToolSearchTransport
     {

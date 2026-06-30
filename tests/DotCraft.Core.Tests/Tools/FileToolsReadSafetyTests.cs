@@ -174,13 +174,15 @@ public sealed class FileToolsReadSafetyTests : IDisposable
         Assert.True(FileContentClassifier.LooksBinary(sample));
     }
 
-    [Fact]
-    public async Task ReadFile_ImageExtension_StillReturnsVisionInput()
+    [Theory]
+    [InlineData("pixel.png", "image/png")]
+    [InlineData("pixel.bmp", "image/bmp")]
+    public async Task ReadFile_ImageExtension_StillReturnsVisionInput(string fileName, string mediaType)
     {
-        await File.WriteAllBytesAsync(Path.Combine(_workspace, "pixel.png"), [0x89, 0x50, 0x4E, 0x47]);
+        await File.WriteAllBytesAsync(Path.Combine(_workspace, fileName), [0x89, 0x50, 0x4E, 0x47]);
         var tools = new FileTools(_workspace, requireApprovalOutsideWorkspace: false);
 
-        var result = await tools.ReadFile("pixel.png");
+        var result = await tools.ReadFile(fileName);
 
         Assert.Collection(
             result,
@@ -188,7 +190,7 @@ public sealed class FileToolsReadSafetyTests : IDisposable
             content =>
             {
                 var data = Assert.IsType<DataContent>(content);
-                Assert.Equal("image/png", data.MediaType);
+                Assert.Equal(mediaType, data.MediaType);
             });
     }
 

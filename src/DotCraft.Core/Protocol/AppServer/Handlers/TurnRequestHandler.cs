@@ -595,6 +595,7 @@ internal sealed class TurnRequestHandler(
             ".png" => "image/png",
             ".gif" => "image/gif",
             ".webp" => "image/webp",
+            ".bmp" => "image/bmp",
             _ => "image/jpeg"
         };
     }
