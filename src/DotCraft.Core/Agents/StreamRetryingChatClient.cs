@@ -105,6 +105,12 @@ internal sealed class StreamRetryingChatClient(
                 continue;
             }
 
+            if (ShouldReportRetrySuppressed(failure, cancellationToken, emittedVisibleUpdate, retries))
+                ModelStreamRetryRuntimeScope.Current?.NotifyRetrySuppressed?.Invoke(failure, "visible_output_emitted");
+
+            if (retries > 0)
+                ModelStreamRetryRuntimeScope.Current?.NotifyFinalFailure?.Invoke(failure);
+
             throw failure;
         }
     }
@@ -158,6 +164,16 @@ internal sealed class StreamRetryingChatClient(
         && retries < retryOptions.MaxRetries
         && IsRetryable(exception);
 
+    private bool ShouldReportRetrySuppressed(
+        Exception exception,
+        CancellationToken cancellationToken,
+        bool emittedVisibleUpdate,
+        int retries) =>
+        !cancellationToken.IsCancellationRequested
+        && emittedVisibleUpdate
+        && retries < retryOptions.MaxRetries
+        && IsRetryable(exception);
+
     private static bool IsVisibleUpdate(ChatResponseUpdate update)
     {
         foreach (var content in update.Contents)
@@ -200,9 +216,31 @@ internal sealed class StreamRetryingChatClient(
         if (exception is SocketException || ContainsInner<SocketException>(exception))
             return true;
 
+        if (LooksLikePrematureResponsesEnd(exception))
+            return true;
+
         var statusCode = TryReadStatusCode(exception);
         return statusCode.HasValue && IsRetryableStatusCode(statusCode.Value);
     }
+
+    private static bool LooksLikePrematureResponsesEnd(Exception exception)
+    {
+        for (var current = exception; current != null; current = current.InnerException)
+        {
+            if (string.Equals(current.GetType().Name, "ResponseEnded", StringComparison.Ordinal)
+                || ContainsInvariant(current.Message, "response ended prematurely")
+                || ContainsInvariant(current.Message, "response ended before")
+                || ContainsInvariant(current.Message, "stream ended prematurely"))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool ContainsInvariant(string? value, string needle) =>
+        value?.IndexOf(needle, StringComparison.OrdinalIgnoreCase) >= 0;
 
     private static bool IsRetryableStatusCode(HttpStatusCode? statusCode)
     {
