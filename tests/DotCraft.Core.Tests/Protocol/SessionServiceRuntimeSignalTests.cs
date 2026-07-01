@@ -168,10 +168,34 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
         var events = await CollectAsync(svc.SubmitInputAsync(thread.Id, [new TextContent("hello")]));
 
         Assert.Equal(2, inner.Calls);
-        Assert.Contains(events, evt => IsSystemEvent(evt, "streamError"));
+        var streamError = Assert.Single(
+            events.Select(evt => evt.SystemEventPayload),
+            payload => payload?.Kind == "streamError");
+        Assert.Equal("Reconnecting... 1/1", streamError?.Message);
         Assert.Contains(events, evt => evt.EventType == SessionEventType.TurnCompleted);
         var updatedThread = await svc.GetThreadAsync(thread.Id);
         Assert.Equal(TurnStatus.Completed, Assert.Single(updatedThread.Turns).Status);
+    }
+
+    [Fact]
+    public async Task SubmitInputAsync_WhenRetryableStreamFailsAfterVisibleUpdate_DoesNotEmitStreamErrorAndFails()
+    {
+        IChatClient inner = new ThrowingAfterUpdatesChatClient(
+            [new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("partial")])],
+            new IOException("stream closed after partial output"));
+        IChatClient chatClient = new StreamRetryingChatClient(
+            inner,
+            new StreamRetryOptions(1, TimeSpan.FromSeconds(30)));
+        await using var agentFactory = CreateAgentFactory(chatClient);
+        var svc = CreateService(agentFactory, chatClient);
+        var thread = await svc.CreateThreadAsync(MakeIdentity());
+
+        var events = await CollectAsync(svc.SubmitInputAsync(thread.Id, [new TextContent("hello")]));
+
+        Assert.DoesNotContain(events, evt => evt.SystemEventPayload?.Kind == "streamError");
+        Assert.Contains(events, evt => evt.EventType == SessionEventType.TurnFailed);
+        var updatedThread = await svc.GetThreadAsync(thread.Id);
+        Assert.Equal(TurnStatus.Failed, Assert.Single(updatedThread.Turns).Status);
     }
 
     [Fact]

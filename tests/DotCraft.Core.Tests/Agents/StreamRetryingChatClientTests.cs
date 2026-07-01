@@ -51,6 +51,27 @@ public sealed class StreamRetryingChatClientTests
     }
 
     [Fact]
+    public async Task GetStreamingResponseAsync_RetriesPrematureResponseEndedBeforeVisibleUpdate()
+    {
+        var inner = new SequenceChatClient(
+            _ => ThrowStream(new ResponseEnded("The response ended prematurely.")),
+            _ => Stream([new ChatResponseUpdate(ChatRole.Assistant, "ok")]));
+        var client = new StreamRetryingChatClient(inner, Options(maxRetries: 1));
+        var notifications = new List<string>();
+
+        using var scope = ModelStreamRetryRuntimeScope.Set(new ModelStreamRetryRuntimeContext
+        {
+            NotifyRetry = (attempt, maxRetries, exception) => notifications.Add($"{attempt}/{maxRetries}:{exception.GetType().Name}")
+        });
+
+        var updates = await CollectAsync(client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "hi")]));
+
+        Assert.Equal(2, inner.Calls);
+        Assert.Equal(["1/1:ResponseEnded"], notifications);
+        Assert.Equal("ok", string.Concat(updates.SelectMany(update => update.Contents).OfType<TextContent>().Select(text => text.Text)));
+    }
+
+    [Fact]
     public async Task GetStreamingResponseAsync_DoesNotRetryAfterVisibleUpdate()
     {
         var inner = new SequenceChatClient(
@@ -60,6 +81,13 @@ public sealed class StreamRetryingChatClientTests
             _ => Stream([new ChatResponseUpdate(ChatRole.Assistant, "retry")]));
         var client = new StreamRetryingChatClient(inner, Options(maxRetries: 1));
         var seen = new List<ChatResponseUpdate>();
+        var suppressed = new List<string>();
+
+        using var scope = ModelStreamRetryRuntimeScope.Set(new ModelStreamRetryRuntimeContext
+        {
+            NotifyRetry = (_, _, _) => { },
+            NotifyRetrySuppressed = (exception, reason) => suppressed.Add($"{exception.GetType().Name}:{reason}")
+        });
 
         await Assert.ThrowsAsync<IOException>(async () =>
         {
@@ -69,6 +97,7 @@ public sealed class StreamRetryingChatClientTests
 
         Assert.Equal(1, inner.Calls);
         Assert.Equal("partial", string.Concat(seen.SelectMany(update => update.Contents).OfType<TextContent>().Select(text => text.Text)));
+        Assert.Equal(["IOException:visible_output_emitted"], suppressed);
     }
 
     [Fact]
@@ -181,6 +210,13 @@ public sealed class StreamRetryingChatClientTests
             _ => ThrowStream(new IOException("first")),
             _ => ThrowStream(new IOException("second")));
         var client = new StreamRetryingChatClient(inner, Options(maxRetries: 1));
+        var finalFailures = new List<string>();
+
+        using var scope = ModelStreamRetryRuntimeScope.Set(new ModelStreamRetryRuntimeContext
+        {
+            NotifyRetry = (_, _, _) => { },
+            NotifyFinalFailure = exception => finalFailures.Add($"{exception.GetType().Name}:{exception.Message}")
+        });
 
         var exception = await Assert.ThrowsAsync<IOException>(async () =>
         {
@@ -191,6 +227,7 @@ public sealed class StreamRetryingChatClientTests
 
         Assert.Equal("second", exception.Message);
         Assert.Equal(2, inner.Calls);
+        Assert.Equal(["IOException:second"], finalFailures);
     }
 
     [Fact]
@@ -278,6 +315,8 @@ public sealed class StreamRetryingChatClientTests
         {
         }
     }
+
+    private sealed class ResponseEnded(string message) : Exception(message);
 
     private sealed class DisposeThrowingStream(Exception moveNextException, Exception disposeException)
         : IAsyncEnumerable<ChatResponseUpdate>, IAsyncEnumerator<ChatResponseUpdate>

@@ -10,6 +10,18 @@ public sealed class ModelStreamRetryRuntimeContext
     /// Reports that the current sampling request will be retried.
     /// </summary>
     public required Action<int, int, Exception> NotifyRetry { get; init; }
+
+    /// <summary>
+    /// Reports that stream retry handling is giving up on the current failure.
+    /// </summary>
+    public Action<Exception>? NotifyFinalFailure { get; init; }
+
+    /// <summary>
+    /// Reports that a retryable stream failure was not retried because replaying
+    /// the sampling request could duplicate already-emitted visible output or
+    /// tool effects.
+    /// </summary>
+    public Action<Exception, string>? NotifyRetrySuppressed { get; init; }
 }
 
 /// <summary>
