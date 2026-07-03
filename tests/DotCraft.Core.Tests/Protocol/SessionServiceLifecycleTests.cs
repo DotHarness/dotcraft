@@ -16,7 +16,7 @@ public sealed class SessionServiceLifecycleTests : IDisposable
 
     public SessionServiceLifecycleTests()
     {
-        _tempDir = Path.Combine(Path.GetTempPath(), "SSLifecycle_" + Guid.NewGuid().ToString("N")[..8]);
+        _tempDir = Path.Combine(Path.GetTempPath(), "dotcraft-session-lifecycle-tests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_tempDir);
         _store = new ThreadStore(_tempDir);
         _svc = new FakeSessionService(_store);
@@ -456,7 +456,7 @@ public sealed class SessionServiceLifecycleTests : IDisposable
     [Fact]
     public async Task FindThreads_ChannelContextIsolation_DifferentContextsReturnSeparateThreads()
     {
-        var ws = Path.Combine(Path.GetTempPath(), "ctx_test_" + Guid.NewGuid().ToString("N")[..8]);
+        var ws = Path.Combine(Path.GetTempPath(), "dotcraft-session-lifecycle-context-tests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(ws);
         try
         {

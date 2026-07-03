@@ -19,7 +19,7 @@ public sealed class SessionServiceWorktreeTests : IDisposable
 
     public SessionServiceWorktreeTests()
     {
-        _tempDir = Path.Combine(Path.GetTempPath(), "SSWorktree_" + Guid.NewGuid().ToString("N")[..8]);
+        _tempDir = Path.Combine(Path.GetTempPath(), "dotcraft-session-worktree-tests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_tempDir);
         RunGit("init");
         RunGit("config", "user.email", "test@example.com");
@@ -507,6 +507,7 @@ public sealed class SessionServiceWorktreeTests : IDisposable
         };
         foreach (var arg in args)
             psi.ArgumentList.Add(arg);
+        ConfigureGitEnvironment(psi, workingDirectory);
 
         using var process = Process.Start(psi)
             ?? throw new InvalidOperationException("Failed to start git setup command.");
@@ -538,6 +539,7 @@ public sealed class SessionServiceWorktreeTests : IDisposable
         };
         foreach (var arg in args)
             psi.ArgumentList.Add(arg);
+        ConfigureGitEnvironment(psi, workingDirectory);
 
         using var process = Process.Start(psi)
             ?? throw new InvalidOperationException("Failed to start git setup command.");
@@ -549,6 +551,15 @@ public sealed class SessionServiceWorktreeTests : IDisposable
         }
 
         return process.ExitCode;
+    }
+
+    private static void ConfigureGitEnvironment(ProcessStartInfo psi, string workingDirectory)
+    {
+        psi.Environment["GIT_TERMINAL_PROMPT"] = "0";
+        psi.Environment["GCM_INTERACTIVE"] = "never";
+        psi.Environment["GIT_PAGER"] = "cat";
+        psi.Environment["PAGER"] = "cat";
+        psi.Environment["PWD"] = workingDirectory;
     }
 
     private sealed class RecordingToolProvider : IAgentToolProvider

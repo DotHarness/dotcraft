@@ -4,6 +4,13 @@ using DotCraft.Configuration;
 
 namespace DotCraft.Tests.Agents;
 
+[CollectionDefinition(CliOneshotRuntimeEnvironmentCollection.Name, DisableParallelization = true)]
+public sealed class CliOneshotRuntimeEnvironmentCollection
+{
+    public const string Name = "CliOneshotRuntimeEnvironment";
+}
+
+[Collection(CliOneshotRuntimeEnvironmentCollection.Name)]
 public sealed class CliOneshotRuntimeTests : IDisposable
 {
     private readonly string _rootPath = Path.Combine(Path.GetTempPath(), $"cli_oneshot_runtime_{Guid.NewGuid():N}");

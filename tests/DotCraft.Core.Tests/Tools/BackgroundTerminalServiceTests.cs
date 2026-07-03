@@ -54,7 +54,12 @@ public sealed class BackgroundTerminalServiceTests : IAsyncLifetime
     public async Task StartAsync_ForegroundCommand_OutputDeltaCarriesCorrelationIds()
     {
         var events = new List<BackgroundTerminalEvent>();
-        Service.TerminalEvent += events.Add;
+        var eventsLock = new object();
+        Service.TerminalEvent += terminalEvent =>
+        {
+            lock (eventsLock)
+                events.Add(terminalEvent);
+        };
 
         var snapshot = await Service.StartAsync(new BackgroundTerminalStartRequest
         {
@@ -68,7 +73,10 @@ public sealed class BackgroundTerminalServiceTests : IAsyncLifetime
         });
 
         Assert.Equal(BackgroundTerminalStatus.Completed, snapshot.Status);
-        var outputDelta = Assert.Single(events, e => e.EventType == "outputDelta");
+        BackgroundTerminalEvent[] capturedEvents;
+        lock (eventsLock)
+            capturedEvents = events.ToArray();
+        var outputDelta = Assert.Single(capturedEvents, e => e.EventType == "outputDelta");
         Assert.Equal("call_live", outputDelta.Terminal.CallId);
         Assert.Equal("thread_live", outputDelta.Terminal.ThreadId);
         Assert.Equal("turn_live", outputDelta.Terminal.TurnId);
