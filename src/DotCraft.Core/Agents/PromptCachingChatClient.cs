@@ -147,7 +147,7 @@ public sealed class PromptCachingChatClient : DelegatingChatClient
 
         var candidates = BuildCachePointCandidates(preparedMessages);
         var selected = SelectCachePoints(state, candidates, keys.MaintenanceScope, insertedSystemMessage);
-        ApplyCacheControl(preparedMessages, selected, cacheControl);
+        ApplyCacheControl(preparedMessages, selected, cacheControl, _markerStrategy);
         var commitCachePoints = keys.MaintenanceScope?.CacheWriteMode != PromptCacheMaintenanceWriteMode.ReadOnlyPrefix;
         var llmCallIndex = selected.Count == 0
             ? (int?)null
@@ -547,7 +547,8 @@ public sealed class PromptCachingChatClient : DelegatingChatClient
     private static void ApplyCacheControl(
         List<ChatMessage> messages,
         IReadOnlyList<SelectedCachePoint> cachePoints,
-        CacheControlMarker cacheControl)
+        CacheControlMarker cacheControl,
+        PromptCacheMarkerStrategy markerStrategy)
     {
         var replacements = new Dictionary<int, IReadOnlyList<ChatMessage>>();
         foreach (var group in cachePoints.GroupBy(static point => point.Candidate.MessageIndex))
@@ -555,6 +556,12 @@ public sealed class PromptCachingChatClient : DelegatingChatClient
             var message = messages[group.Key];
             var targetIndexes = group.Select(static point => point.Candidate.ContentIndex).ToHashSet();
             if (message.Role == ChatRole.Tool &&
+                markerStrategy == PromptCacheMarkerStrategy.AnthropicNative &&
+                TryCreateCachedGroupedToolMessage(message, targetIndexes, cacheControl, out var groupedToolMessage))
+            {
+                replacements[group.Key] = [groupedToolMessage];
+            }
+            else if (message.Role == ChatRole.Tool &&
                 TryCreateCachedToolMessages(message, targetIndexes, cacheControl, out var toolMessages))
             {
                 replacements[group.Key] = toolMessages;
@@ -823,6 +830,47 @@ public sealed class PromptCachingChatClient : DelegatingChatClient
             return false;
 
         cachedMessages = messages;
+        return true;
+    }
+
+    private static bool TryCreateCachedGroupedToolMessage(
+        ChatMessage message,
+        HashSet<int> targetIndexes,
+        CacheControlMarker cacheControl,
+        out ChatMessage cachedMessage)
+    {
+        cachedMessage = message;
+        var contents = new List<AIContent>(message.Contents.Count);
+        var markedAny = false;
+
+        for (var i = 0; i < message.Contents.Count; i++)
+        {
+            if (message.Contents[i] is not FunctionResultContent result)
+                return false;
+
+            AIContent toolContent = result;
+            if (targetIndexes.Contains(i))
+            {
+                if (!TryCreateCachedFunctionResultContent(result, cacheControl, out var cachedResult))
+                    return false;
+
+                toolContent = cachedResult;
+                markedAny = true;
+            }
+
+            contents.Add(toolContent);
+        }
+
+        if (!markedAny)
+            return false;
+
+        cachedMessage = new ChatMessage(ChatRole.Tool, contents)
+        {
+            AdditionalProperties = message.AdditionalProperties,
+            AuthorName = message.AuthorName,
+            CreatedAt = message.CreatedAt,
+            MessageId = message.MessageId
+        };
         return true;
     }
 

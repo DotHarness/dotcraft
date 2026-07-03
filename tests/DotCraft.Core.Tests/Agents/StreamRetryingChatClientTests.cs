@@ -7,6 +7,8 @@ namespace DotCraft.Tests.Agents;
 
 public sealed class StreamRetryingChatClientTests
 {
+    private const int FastIdleTimeoutMs = 250;
+
     [Fact]
     public async Task GetStreamingResponseAsync_RetriesBeforeVisibleUpdateAndReportsStreamError()
     {
@@ -34,7 +36,7 @@ public sealed class StreamRetryingChatClientTests
         var inner = new SequenceChatClient(
             _ => new HangingStream(),
             _ => Stream([new ChatResponseUpdate(ChatRole.Assistant, "ok")]));
-        var client = new StreamRetryingChatClient(inner, Options(maxRetries: 1, idleTimeoutMs: 25));
+        var client = new StreamRetryingChatClient(inner, Options(maxRetries: 1, idleTimeoutMs: FastIdleTimeoutMs));
         var notifications = new List<string>();
 
         using var scope = ModelStreamRetryRuntimeScope.Set(new ModelStreamRetryRuntimeContext
@@ -106,7 +108,7 @@ public sealed class StreamRetryingChatClientTests
         var inner = new SequenceChatClient(
             _ => new HangingStream([new ChatResponseUpdate(ChatRole.Assistant, "partial")]),
             _ => Stream([new ChatResponseUpdate(ChatRole.Assistant, "retry")]));
-        var client = new StreamRetryingChatClient(inner, Options(maxRetries: 1, idleTimeoutMs: 25));
+        var client = new StreamRetryingChatClient(inner, Options(maxRetries: 1, idleTimeoutMs: FastIdleTimeoutMs));
         var seen = new List<ChatResponseUpdate>();
 
         var exception = await Record.ExceptionAsync(async () =>

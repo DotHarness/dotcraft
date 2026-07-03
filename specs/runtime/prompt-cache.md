@@ -154,6 +154,17 @@ Breakpoint placement contract:
 2. **Snapshot prefix** — marked at the last message of a captured snapshot so successive maintenance forks reuse the snapshot segment.
 3. **Maintenance fork cache mode** — one-shot maintenance forks with no tool execution use `readOnlyPrefix`: they mark only the reusable system / snapshot prefix and do not mark the appended maintenance task tail. Tool-executing maintenance forks use `writeThrough`: they keep an internal cache-state path separate from the main conversation so tool-loop tails can advance their own remembered breakpoints without overwriting the main thread's remembered points.
 
+Anthropic cache markers are provider-visible content-block annotations. They MUST NOT be implemented
+by splitting, duplicating, reordering, or otherwise changing the semantic shape of messages. In
+particular, tool results for a single assistant tool-use turn remain one grouped tool-result message:
+if an assistant message emits multiple `tool_use` blocks, the immediately following provider-visible
+user/tool-result message contains one `tool_result` block per `tool_use`, each `tool_use_id` appears
+exactly once, and the `tool_result` blocks stay at the front of that message's content array. When a
+cache breakpoint lands on one result inside such a grouped message, DotCraft marks that existing
+result block in place and preserves the surrounding result blocks and message boundary. Prompt-cache
+shaping is allowed to clone selected content blocks request-locally, but it is not allowed to mutate
+the persisted thread rollout or rewrite the tool-use/tool-result pairing.
+
 The cache write that produced a segment counts as `cache_write_input_tokens` on that call and as `cached_input_tokens` on subsequent calls; both fields surface in trace.
 
 Native deferred tool loading uses Anthropic's beta tool-reference path without changing this cache-control contract:

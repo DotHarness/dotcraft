@@ -219,9 +219,11 @@ public sealed class PromptCachingChatClientTests
 
         AssertAnthropicCacheControl(AssertLastTextContent(prepared.Messages[0]), expectedTtl: null);
         AssertAnthropicCacheControl(AssertLastTextContent(prepared.Messages[1]), expectedTtl: null);
-        Assert.Equal(4, prepared.Messages.Count);
-        var firstPrepared = Assert.IsType<FunctionResultContent>(Assert.Single(prepared.Messages[2].Contents));
-        var secondPrepared = Assert.IsType<FunctionResultContent>(Assert.Single(prepared.Messages[3].Contents));
+        Assert.Equal(3, prepared.Messages.Count);
+        Assert.Equal(ChatRole.Tool, prepared.Messages[2].Role);
+        Assert.Equal(2, prepared.Messages[2].Contents.Count);
+        var firstPrepared = Assert.IsType<FunctionResultContent>(prepared.Messages[2].Contents[0]);
+        var secondPrepared = Assert.IsType<FunctionResultContent>(prepared.Messages[2].Contents[1]);
         Assert.Same(firstResult, firstPrepared);
         Assert.NotSame(secondResult, secondPrepared);
         Assert.Equal("call_2", secondPrepared.CallId);
@@ -379,6 +381,12 @@ public sealed class PromptCachingChatClientTests
     }
 
     [Fact]
+    public async Task GetResponseAsync_AnthropicNative_WithParallelToolResultsKeepsGroupedToolResultMessage()
+    {
+        await AssertAnthropicGroupedToolResultWireAsync(handler => CreateAnthropicNativeHttpClient(handler));
+    }
+
+    [Fact]
     public async Task GetResponseAsync_AnthropicBetaNative_SerializesUserAndToolResultCacheControl()
     {
         var handler = new AnthropicCaptureHandler();
@@ -404,6 +412,12 @@ public sealed class PromptCachingChatClientTests
         var toolResult = FindFirstContentBlock(root, "tool_result");
         Assert.Equal("call_1", toolResult.GetProperty("tool_use_id").GetString());
         AssertWireCacheControl(toolResult, expectedTtl: null);
+    }
+
+    [Fact]
+    public async Task GetResponseAsync_AnthropicBetaNative_WithParallelToolResultsKeepsGroupedToolResultMessage()
+    {
+        await AssertAnthropicGroupedToolResultWireAsync(handler => CreateAnthropicBetaNativeHttpClient(handler));
     }
 
     [Fact]
@@ -1499,6 +1513,44 @@ public sealed class PromptCachingChatClientTests
         }
 
         throw new InvalidOperationException($"Content block '{type}' was not found.");
+    }
+
+    private static async Task AssertAnthropicGroupedToolResultWireAsync(
+        Func<AnthropicCaptureHandler, PromptCachingChatClient> createClient)
+    {
+        var handler = new AnthropicCaptureHandler();
+        var client = createClient(handler);
+
+        await client.GetResponseAsync([
+            new ChatMessage(ChatRole.User, "hello"),
+            new ChatMessage(ChatRole.Assistant, (IList<AIContent>)[
+                new TextContent("I will inspect both paths."),
+                new FunctionCallContent("call_1", "FindFiles", new Dictionary<string, object?>()),
+                new FunctionCallContent("call_2", "GrepFiles", new Dictionary<string, object?>())
+            ]),
+            new ChatMessage(ChatRole.Tool, (IList<AIContent>)[
+                new FunctionResultContent("call_1", "first result"),
+                new FunctionResultContent("call_2", "second result")
+            ])
+        ]);
+
+        Assert.NotNull(handler.LastRequestJson);
+        using var document = JsonDocument.Parse(handler.LastRequestJson!);
+        var messages = document.RootElement.GetProperty("messages");
+        Assert.Equal(3, messages.GetArrayLength());
+        Assert.Equal("assistant", messages[1].GetProperty("role").GetString());
+        Assert.Equal("user", messages[2].GetProperty("role").GetString());
+
+        var resultContent = messages[2].GetProperty("content");
+        Assert.Equal(2, resultContent.GetArrayLength());
+        var firstResult = resultContent[0];
+        var secondResult = resultContent[1];
+        Assert.Equal("tool_result", firstResult.GetProperty("type").GetString());
+        Assert.Equal("tool_result", secondResult.GetProperty("type").GetString());
+        Assert.Equal("call_1", firstResult.GetProperty("tool_use_id").GetString());
+        Assert.Equal("call_2", secondResult.GetProperty("tool_use_id").GetString());
+        Assert.False(firstResult.TryGetProperty(PromptCachingChatClient.CacheControlKey, out _));
+        AssertWireCacheControl(secondResult, expectedTtl: null);
     }
 
     private static TextContent AssertLastTextContent(ChatMessage message) =>
