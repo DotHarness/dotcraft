@@ -636,11 +636,13 @@ function PluginManageItem({
         </span>
       </button>
       <span style={manageSource}>{pluginSourceLabel(plugin)}</span>
-      {plugin.installed ? (
-        <PillSwitch checked={plugin.enabled} onChange={onToggle} size="sm" aria-label={`${pluginTitle(plugin)} enabled`} />
-      ) : (
-        <button type="button" onClick={onInstall} style={installMiniButton(active)}>{t('plugins.install')}</button>
-      )}
+      <span style={manageActionSlot}>
+        {plugin.installed ? (
+          <PillSwitch checked={plugin.enabled} onChange={onToggle} size="sm" aria-label={`${pluginTitle(plugin)} enabled`} />
+        ) : (
+          <button type="button" onClick={onInstall} style={installMiniButton(active)}>{t('plugins.install')}</button>
+        )}
+      </span>
     </div>
   )
 }
@@ -1156,7 +1158,17 @@ function interactiveManageRow(active: boolean): CSSProperties {
 }
 
 const manageItemMain: CSSProperties = { ...compactItem, flex: 1, padding: 0, height: 'auto' }
-const manageSource: CSSProperties = { width: '86px', color: 'var(--text-secondary)', fontSize: '13px', textAlign: 'left' }
+const manageSource: CSSProperties = { width: '86px', flexShrink: 0, color: 'var(--text-secondary)', fontSize: '13px', textAlign: 'left' }
+// Fixed-width, centered slot for the trailing control so the Install button and the
+// PillSwitch share one column: this keeps the developer column at a constant x across
+// installed/uninstalled rows and centers both controls on the same vertical line.
+const manageActionSlot: CSSProperties = {
+  width: '84px',
+  flexShrink: 0,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center'
+}
 function installMiniButton(rowActive: boolean): CSSProperties {
   return {
     border: 'none',

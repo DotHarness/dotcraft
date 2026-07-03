@@ -593,12 +593,14 @@ function SkillManageItem({
         <div style={rowDesc}>{skillSubtitle(skill, t)}</div>
       </div>
       <span style={manageSource}>{sourceLabel(skill, t)}</span>
-      <PillSwitch
-        checked={skill.enabled}
-        onChange={(enabled) => onToggleEnabled(skill, enabled)}
-        size="sm"
-        aria-label={skill.enabled ? t('skillCard.toggleDisable') : t('skillCard.toggleEnable')}
-      />
+      <span style={manageActionSlot}>
+        <PillSwitch
+          checked={skill.enabled}
+          onChange={(enabled) => onToggleEnabled(skill, enabled)}
+          size="sm"
+          aria-label={skill.enabled ? t('skillCard.toggleDisable') : t('skillCard.toggleEnable')}
+        />
+      </span>
     </div>
   )
 }
@@ -1011,10 +1013,21 @@ function interactiveManageRow(active: boolean): React.CSSProperties {
 }
 
 const manageSource: React.CSSProperties = {
-  width: '72px',
+  width: '86px',
+  flexShrink: 0,
   color: 'var(--text-secondary)',
   fontSize: '13px',
   textAlign: 'left'
+}
+
+// Fixed-width, centered slot for the trailing control so the skill toggle lines up
+// with the plugin list's Install/PillSwitch column (see PluginsView manageActionSlot).
+const manageActionSlot: React.CSSProperties = {
+  width: '84px',
+  flexShrink: 0,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center'
 }
 
 const emptyText: React.CSSProperties = catalogStyles.emptyText
