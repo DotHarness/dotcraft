@@ -10,6 +10,7 @@ using DotCraft.Cron;
 using DotCraft.Text;
 using DotCraft.Logging;
 using DotCraft.Hosting;
+using DotCraft.Hooks;
 using DotCraft.Memory;
 using DotCraft.Dreams;
 using DotCraft.Mcp;
@@ -265,6 +266,7 @@ public sealed class AppServerHost(
                 PlanStore = runtime.PlanStore,
                 TraceStore = _services.GetService<TraceStore>(),
                 WireRuntimeAdditionalContextProvider = _services.GetService<WireRuntimeAdditionalContextProvider>(),
+                HookRunner = _services.GetService<HookRunner>(),
             });
     }
 

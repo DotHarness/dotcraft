@@ -5,6 +5,7 @@ using DotCraft.Configuration;
 using DotCraft.Context;
 using DotCraft.Memory;
 using DotCraft.Dreams;
+using DotCraft.Hooks;
 using DotCraft.Mcp;
 using DotCraft.Modules;
 using DotCraft.Protocol;
@@ -65,7 +66,8 @@ internal sealed class AppServerTestHarness : IDisposable
         TraceStore? traceStore = null,
         IReadOnlyList<string>? builtInPluginSourceRoots = null,
         WireRuntimeAdditionalContextProvider? wireRuntimeAdditionalContextProvider = null,
-        Func<SessionThread, SubAgentCoordinator?>? subAgentCoordinatorFactory = null)
+        Func<SessionThread, SubAgentCoordinator?>? subAgentCoordinatorFactory = null,
+        HookRunner? hookRunner = null)
     {
         _tempDir = Path.Combine(
             Path.GetTempPath(),
@@ -113,6 +115,7 @@ internal sealed class AppServerTestHarness : IDisposable
                 BuiltInPluginSourceRoots = builtInPluginSourceRoots,
                 WireRuntimeAdditionalContextProvider = wireRuntimeAdditionalContextProvider,
                 SubAgentCoordinatorFactory = subAgentCoordinatorFactory,
+                HookRunner = hookRunner,
             });
 
         Identity = new SessionIdentity

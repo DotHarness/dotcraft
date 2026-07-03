@@ -101,7 +101,7 @@ Or specify runtime, language, and validation:
 $plugin-creator Create a local plugin that exposes an EchoText dynamic tool via a Python process, and produce install validation steps.
 ```
 
-`plugin-creator` generates the plugin directory and manifest, a plugin-contained skill, optional MCP config, and an optional Desktop extension. After generation, usually three things remain:
+`plugin-creator` generates the plugin directory and manifest, a plugin-contained skill, optional MCP config, optional hooks, and an optional Desktop extension. After generation, usually three things remain:
 
 1. Replace the placeholder text and sample copy
 2. Implement or adjust the tool process logic

@@ -26,8 +26,11 @@ export interface ServerCapabilities {
   memoryManagement?: boolean
   dreams?: boolean
   mcpManagement?: boolean
+  hooksManagement?: boolean
+  pluginManagement?: boolean
   externalChannelManagement?: boolean
   mcpStatus?: boolean
+  subAgentManagement?: boolean
   manualCompaction?: boolean
   backgroundTerminals?: boolean
 }

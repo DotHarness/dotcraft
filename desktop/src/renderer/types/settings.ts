@@ -12,5 +12,6 @@ export type SettingsTab =
   | 'usage'
   | 'archivedThreads'
   | 'sourceControl'
+  | 'hooks'
   | 'mcp'
   | 'subAgents'

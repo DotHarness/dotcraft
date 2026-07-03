@@ -69,6 +69,7 @@ import { UsageOverview } from './UsageOverview'
 import { ProfilePanel } from './panels/ProfilePanel'
 import { ProfileView } from './ProfileView'
 import { McpPanel } from './panels/McpPanel'
+import { HooksPanel } from './panels/HooksPanel'
 import { SubAgentsPanel } from './panels/SubAgentsPanel'
 import {
   useMcpStore,
@@ -1504,6 +1505,7 @@ export function SettingsView({
   const mcpEnabled = capabilities?.mcpManagement === true
   const mcpOriginsEnabled = capabilities?.mcpServerOrigins === true
   const subAgentEnabled = capabilities?.subAgentManagement === true
+  const hooksEnabled = capabilities?.hooksManagement === true
   const sourceControlEnabled = capabilities?.sourceControlManagement === true
   const pluginManagementEnabled = capabilities?.pluginManagement === true
   const providerManagementEnabled = capabilities?.providerManagement === true
@@ -2396,7 +2398,10 @@ export function SettingsView({
     if (activeSettingsTab === 'sourceControl' && !sourceControlEnabled) {
       setActiveSettingsTab('general')
     }
-  }, [activeSettingsTab, mcpEnabled, subAgentEnabled, sourceControlEnabled])
+    if (activeSettingsTab === 'hooks' && !hooksEnabled) {
+      setActiveSettingsTab('general')
+    }
+  }, [activeSettingsTab, hooksEnabled, mcpEnabled, subAgentEnabled, sourceControlEnabled])
 
   useEffect(() => {
     if ((activeSettingsTab === 'browserUse' || activeSettingsTab === 'computerControl') && pluginManagementEnabled) {
@@ -4884,6 +4889,8 @@ export function SettingsView({
             {activeSettingsTab === 'sourceControl' && (
               <SourceControlPanel workspacePath={workspacePath} />
             )}
+
+            {activeSettingsTab === 'hooks' && <HooksPanel />}
 
             {activeSettingsTab === 'mcp' && (
               <McpPanel>

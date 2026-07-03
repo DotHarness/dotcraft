@@ -440,6 +440,12 @@ public sealed class AppServerServerCapabilities
     public bool McpStatus { get; set; }
 
     /// <summary>
+    /// Server supports lifecycle hook listing and per-hook user state methods.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool HooksManagement { get; set; }
+
+    /// <summary>
     /// Server supports the aggregate usage telemetry method (<c>usage/summary</c>).
     /// False when tracing is disabled (no trace store available). See spec Section 27A.
     /// </summary>

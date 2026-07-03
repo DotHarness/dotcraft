@@ -101,11 +101,20 @@ public sealed class PluginInfoWire
 
     public List<PluginDesktopExtensionInfoWire> DesktopExtensions { get; set; } = [];
 
+    public List<PluginHookInfoWire> Hooks { get; set; } = [];
+
     public List<PluginMcpServerInfoWire> McpServers { get; set; } = [];
 
     public List<PluginLspServerInfoWire> LspServers { get; set; } = [];
 
     public List<PluginDiagnosticWire> Diagnostics { get; set; } = [];
+}
+
+public sealed class PluginHookInfoWire
+{
+    public string Key { get; set; } = string.Empty;
+
+    public string EventName { get; set; } = string.Empty;
 }
 
 public sealed class PluginDesktopExtensionInfoWire

@@ -11,6 +11,7 @@ using DotCraft.Mcp;
 using DotCraft.Dreams;
 using DotCraft.Protocol;
 using DotCraft.SourceControl;
+using DotCraft.Hooks;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Configuration;
@@ -1127,6 +1128,12 @@ public sealed class AppConfig
         /// Set to false to globally disable all hooks.
         /// </summary>
         public bool Enabled { get; set; } = true;
+
+        /// <summary>
+        /// Per-hook user enablement and trust state keyed by the stable hook key.
+        /// </summary>
+        [ConfigField(Ignore = true)]
+        public Dictionary<string, HookStateConfig> State { get; set; } = new(StringComparer.Ordinal);
     }
 
     [ConfigSection("Tracing", DisplayName = "Tracing", Order = 45)]

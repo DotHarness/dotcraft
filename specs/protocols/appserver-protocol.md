@@ -397,6 +397,7 @@ Built-in channels do not negotiate these capabilities over `initialize`; they pr
 | `capabilities.heartbeatManagement` | boolean | Server supports heartbeat management methods (`heartbeat/trigger`). Absent or `false` when the heartbeat service is not configured. |
 | `capabilities.skillsManagement` | boolean | Server supports skills management methods (`skills/list`, `skills/read`, `skills/view`, `skills/restoreOriginal`, `skills/setEnabled`, `skills/uninstall`). |
 | `capabilities.pluginManagement` | boolean | Server supports plugin management methods (`plugin/list`, `plugin/view`, `plugin/install`, `plugin/remove`, `plugin/setEnabled`). |
+| `capabilities.hooksManagement` | boolean | Server supports hook discovery and user-state methods (`hooks/list`, `hooks/setState`). |
 | `capabilities.skillVariants` | boolean | Server has skill variants enabled for the current runtime. Clients may use effective skill views and restore source-skill behavior (`skills/view`, `skills/restoreOriginal`) without exposing variant internals. |
 | `capabilities.toolCatalog` | boolean | Server supports the built-in tool catalog method (`tool/list`). Always `true` for servers built on this protocol version; the catalog is derived from server reflection and has no workspace dependency. |
 | `capabilities.commandManagement` | boolean | Server supports command management methods (`command/list`, `command/execute`). |
@@ -4322,6 +4323,9 @@ Returns discovered plugins, including disabled installed plugins and installable
       "functions": [],
       "skills": [{ "name": "browser", "displayName": "Browser", "enabled": true }],
       "apps": [],
+      "hooks": [
+        { "key": "review-tools:hooks/hooks.json:session_start:0:0", "eventName": "SessionStart" }
+      ],
       "mcpServers": [
         {
           "name": "review",
@@ -4359,6 +4363,7 @@ Returns one plugin by id.
 | `functions` | `PluginFunctionInfo[]` | Compatibility field for older clients; manifest native tools are no longer supported, so this is empty for plugin manifest contributions. |
 | `skills` | `PluginSkillInfo[]` | Plugin-contained skills declared by the bundle. |
 | `apps` | `PluginAppInfo[]` | Plugin-contained App Binding descriptors declared by the bundle. These are catalog/detail metadata; connection and binding still use `app/*` and `thread/appBindings/*`. |
+| `hooks` | `PluginHookInfo[]` | Plugin-contained hook declarations summarized by hook key and event name. Full metadata, trust, and enablement state are returned by `hooks/list`. |
 | `mcpServers` | `PluginMcpServerInfo[]` | Plugin-bundled MCP declarations. This is declaration metadata for the plugin detail page, not an editable workspace MCP config. |
 
 `PluginAppInfo` fields:
@@ -4387,6 +4392,13 @@ Returns one plugin by id.
 | `active` | boolean | True when the plugin is installed, enabled, the server is enabled, and it is not shadowed by workspace or higher-priority plugin MCP. |
 | `shadowedBy` | `"workspace" \| "plugin"` | Optional reason the bundled server is not active. |
 
+`PluginHookInfo` fields:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `key` | string | Stable hook identity used to correlate with `hooks/list`. |
+| `eventName` | string | Hook lifecycle event name. |
+
 #### `plugin/install`
 
 Installs a known catalog plugin into the workspace. Uninstalled bundled plugins are installable when AppServer was launched with `DOTCRAFT_BUILTIN_PLUGIN_ROOTS` pointing at bundled plugin source roots. Uninstalled registry plugins are installable when a configured registry source can be loaded from cache or source.
@@ -4399,7 +4411,7 @@ Installs a known catalog plugin into the workspace. Uninstalled bundled plugins 
 
 **Result**: `{ "plugin": PluginInfo }`
 
-On success, the server copies the selected catalog plugin source to `.craft/plugins/<id>`, writes a `.builtin` source fingerprint marker, removes that id from `Plugins.DisabledPlugins`, refreshes plugin-contributed skill sources, reconciles effective MCP runtime state, and emits `workspace/configChanged` with `source: "plugin/install"` and `regions: ["plugins", "skills", "mcp"]`.
+On success, the server copies the selected catalog plugin source to `.craft/plugins/<id>`, writes a `.builtin` source fingerprint marker, removes that id from `Plugins.DisabledPlugins`, refreshes plugin-contributed skill sources, reconciles effective MCP/LSP/hooks runtime state, and emits `workspace/configChanged` with `source: "plugin/install"` and `regions: ["plugins", "skills", "mcp", "lsp", "hooks"]`.
 
 #### `plugin/installLocal`
 
@@ -4415,7 +4427,7 @@ Installs a plugin from a local directory the client points at, for example a plu
 
 Before copying anything, the server validates the directory by parsing `.craft-plugin/plugin.json` with the standard plugin manifest validator. If the directory is missing, is not a plugin root, or the manifest has errors, the request is rejected with `InvalidParams` carrying the validation message and nothing is written. The server also rejects a directory whose canonical plugin id is already installed in the workspace; the client must remove the existing plugin before reinstalling.
 
-On success, the server copies the directory to `.craft/plugins/<id>` as a user-owned workspace plugin — no `.builtin` marker is written, so the plugin is installed, enabled, and removable via `plugin/remove`. The server removes that id from `Plugins.DisabledPlugins`, refreshes plugin-contributed skill sources, reconciles effective MCP and LSP runtime state, and emits `workspace/configChanged` with `source: "plugin/installLocal"` and `regions: ["plugins", "skills", "mcp", "lsp"]`.
+On success, the server copies the directory to `.craft/plugins/<id>` as a user-owned workspace plugin — no `.builtin` marker is written, so the plugin is installed, enabled, and removable via `plugin/remove`. The server removes that id from `Plugins.DisabledPlugins`, refreshes plugin-contributed skill sources, reconciles effective MCP, LSP, and hooks runtime state, and emits `workspace/configChanged` with `source: "plugin/installLocal"` and `regions: ["plugins", "skills", "mcp", "lsp", "hooks"]`.
 
 #### `plugin/remove`
 
@@ -4429,7 +4441,7 @@ Removes a removable workspace plugin from the workspace.
 
 **Result**: `{ "plugin": PluginInfo }`
 
-The server deletes only removable workspace plugin directories that are inside `.craft/plugins`. This includes DotCraft-managed built-in installs and user-owned plugins installed with `plugin/installLocal`; explicit external plugin roots and user-global plugin directories are rejected. On success, the server refreshes plugin-contributed skill sources, reconciles effective MCP and LSP runtime state, and emits `workspace/configChanged` with `source: "plugin/remove"` and `regions: ["plugins", "skills", "mcp", "lsp"]`.
+The server deletes only removable workspace plugin directories that are inside `.craft/plugins`. This includes DotCraft-managed built-in installs and user-owned plugins installed with `plugin/installLocal`; explicit external plugin roots and user-global plugin directories are rejected. On success, the server refreshes plugin-contributed skill sources, reconciles effective MCP, LSP, and hooks runtime state, and emits `workspace/configChanged` with `source: "plugin/remove"` and `regions: ["plugins", "skills", "mcp", "lsp", "hooks"]`.
 
 #### `plugin/setEnabled`
 
@@ -4444,7 +4456,7 @@ Enables or disables an installed plugin for the workspace.
 
 **Result**: `{ "plugin": PluginInfo }`
 
-`plugin/setEnabled` does not install a built-in catalog entry. If the plugin is not installed, the server rejects the request. On success, the server persists `Plugins.DisabledPlugins`, refreshes plugin-contributed skill sources, reconciles effective MCP runtime state, and emits `workspace/configChanged` with `source: "plugin/setEnabled"` and `regions: ["plugins", "skills", "mcp"]`.
+`plugin/setEnabled` does not install a built-in catalog entry. If the plugin is not installed, the server rejects the request. On success, the server persists `Plugins.DisabledPlugins`, refreshes plugin-contributed skill sources, reconciles effective MCP/LSP/hooks runtime state, and emits `workspace/configChanged` with `source: "plugin/setEnabled"` and `regions: ["plugins", "skills", "mcp", "lsp", "hooks"]`.
 
 ### 18.9 Error Codes
 
@@ -5207,6 +5219,95 @@ Server notification emitted when one server's runtime status changes.
 | `-32073` | `McpServerTestFailed` | Temporary test/probe failed. |
 | `-32074` | `McpServerNameConflict` | Name conflicts with an existing logical key after case-insensitive comparison. |
 | `-32075` | `McpServerReadOnly` | A write method attempted to modify a plugin-origin read-only MCP server. |
+
+## 22A. Hooks Management Methods
+
+### 22A.1 Scope
+
+These methods expose lifecycle hook metadata discovered from user config, workspace config, and enabled plugins. They do not edit hook commands. The command-bearing files remain the source of truth; AppServer only persists per-user state such as enablement and trust.
+
+Clients must check `capabilities.hooksManagement` before calling `hooks/list` or `hooks/setState`. If absent or `false`, the server returns `-32601` (Method not found).
+
+### 22A.2 `HookMetadata` Wire DTO
+
+```json
+{
+  "key": "review-tools:hooks/hooks.json:session_start:0:0",
+  "eventName": "SessionStart",
+  "handlerType": "command",
+  "matcher": null,
+  "command": "${DOTCRAFT_PLUGIN_ROOT}\\hooks\\session-start.cmd",
+  "timeoutSec": 30,
+  "statusMessage": null,
+  "sourcePath": "/workspace/.craft/plugins/review-tools/hooks/hooks.json",
+  "source": "plugin",
+  "pluginId": "review-tools",
+  "displayOrder": 2,
+  "enabled": false,
+  "isManaged": false,
+  "currentHash": "sha256:...",
+  "trustStatus": "untrusted"
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `key` | string | Stable hook identity. Config hook keys use `<absoluteSourcePath>:<snake_case_event>:<groupIndex>:<handlerIndex>`; plugin hook keys use `<pluginId>:<sourceRelativePath>:<snake_case_event>:<groupIndex>:<handlerIndex>`. |
+| `eventName` | string | One of `SessionStart`, `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `PrePrompt`, or `Stop`. |
+| `handlerType` | string | Currently `command`. |
+| `matcher` | string? | Tool matcher for tool events. Empty or null matches all applicable tool events. |
+| `command` | string? | Declared command string after runtime variable expansion for plugin hooks. |
+| `timeoutSec` | integer? | Command timeout in seconds. |
+| `statusMessage` | string? | Optional diagnostic or state message for clients. |
+| `sourcePath` | string? | Absolute source file path when available. |
+| `source` | string | `user`, `workspace`, `plugin`, or `unknown`. |
+| `pluginId` | string? | Owning plugin id for plugin hooks. |
+| `displayOrder` | integer | Effective execution order for UI sorting. |
+| `enabled` | boolean | Effective state after global enablement, per-hook disable, and trust checks. |
+| `isManaged` | boolean | Reserved for runtime-managed hooks. Config and plugin hooks currently return `false`. |
+| `currentHash` | string | Normalized hash over event, matcher, command, and timeout. Machine-specific expanded paths are excluded. |
+| `trustStatus` | string | `trusted`, `untrusted`, `modified`, or `managed`. |
+
+### 22A.3 `hooks/list`
+
+Returns current hook metadata plus non-fatal discovery warnings and errors.
+
+**Direction**: client -> server (request)
+
+**Params**: omitted, `null`, or `{}`
+
+**Result**:
+
+```json
+{
+  "hooks": [],
+  "warnings": [],
+  "errors": []
+}
+```
+
+`warnings` and `errors` entries have `source`, optional `path`, and `message` fields. Invalid plugin hook files are reported here and in plugin diagnostics but do not block other plugin contributions.
+
+### 22A.4 `hooks/setState`
+
+Writes user-global hook state to `~/.craft/config.json` under `Hooks.State`. This avoids committing personal trust or disable choices to workspace config.
+
+**Params**:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `key` | string | yes | Hook key returned by `hooks/list`. |
+| `enabled` | boolean? | no | Set to `false` to disable one hook; set to `true` to clear a previous disable. |
+| `trustedHash` | string? | no | Set to the current `currentHash` to trust or re-trust the hook. |
+
+**Result**: same shape as `hooks/list`.
+
+**Semantics**:
+
+- `hooks/setState` rebuilds the runtime hook snapshot immediately.
+- If the effective tool-hook set changes, existing thread agent caches are invalidated so future turns rebind tool wrappers.
+- On success, the server emits `workspace/configChanged` with `source: "hooks/setState"` and `regions: ["hooks"]`.
+- Trust is hash-based. A modified hook returns `trustStatus: "modified"` and does not run until the client writes the new hash.
 
 ## 23. External Channel Management Methods
 
@@ -6046,7 +6147,7 @@ Server notification emitted after a successful workspace configuration write.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `source` | string | RPC method that triggered the mutation (`provider/create`, `provider/update`, `provider/delete`, `workspace/config/update`, `memory/reset`, `skills/setEnabled`, `skills/uninstall`, `plugin/install`, `plugin/remove`, `plugin/setEnabled`, `mcp/upsert`, `mcp/remove`, `externalChannel/upsert`, `externalChannel/remove`, `subagent/settings/update`, `subagent/profiles/setEnabled`, `subagent/profiles/upsert`, `subagent/profiles/remove`). |
+| `source` | string | RPC method that triggered the mutation (`provider/create`, `provider/update`, `provider/delete`, `workspace/config/update`, `memory/reset`, `skills/setEnabled`, `skills/uninstall`, `plugin/install`, `plugin/remove`, `plugin/setEnabled`, `mcp/upsert`, `mcp/remove`, `hooks/setState`, `externalChannel/upsert`, `externalChannel/remove`, `subagent/settings/update`, `subagent/profiles/setEnabled`, `subagent/profiles/upsert`, `subagent/profiles/remove`). |
 | `regions` | string[] | Coarse region tags describing what changed. |
 | `changedAt` | string (ISO-8601) | Server-side UTC timestamp when the change event was emitted. |
 
@@ -6065,6 +6166,7 @@ Current `regions` taxonomy:
 | `workspace.defaultApprovalPolicy` | `workspace/config/update` |
 | `lsp` | `workspace/config/update`, `plugin/install`, `plugin/remove`, `plugin/setEnabled` |
 | `mcp` | `mcp/upsert`, `mcp/remove`, `plugin/install`, `plugin/remove`, `plugin/setEnabled` |
+| `hooks` | `hooks/setState`, `plugin/install`, `plugin/remove`, `plugin/setEnabled` |
 | `externalChannel` | `externalChannel/upsert`, `externalChannel/remove` |
 | `subagent` | `subagent/settings/update`, `subagent/profiles/setEnabled`, `subagent/profiles/upsert`, `subagent/profiles/remove` |
 | `sourceControl` | `sourceControl/update` |

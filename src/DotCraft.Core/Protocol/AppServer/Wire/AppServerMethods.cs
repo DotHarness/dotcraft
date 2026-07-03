@@ -131,6 +131,8 @@ public static class AppServerMethods
     public const string SubAgentClose = "subagent/close";
     public const string McpStatusList = "mcp/status/list";
     public const string McpTest = "mcp/test";
+    public const string HooksList = "hooks/list";
+    public const string HooksSetState = "hooks/setState";
 
     // Client → Server notification (no id)
     public const string Initialized = "initialized";

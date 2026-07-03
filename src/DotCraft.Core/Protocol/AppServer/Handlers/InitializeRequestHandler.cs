@@ -61,6 +61,7 @@ internal sealed class InitializeRequestHandler(
             AuthOpenAiUsage = services.OpenAIUsageService != null,
             SubAgentSessions = true,
             McpStatus = services.McpClientManager != null,
+            HooksManagement = !string.IsNullOrWhiteSpace(workspaceCraftPath),
             UsageTelemetry = services.TraceStore != null
         };
 

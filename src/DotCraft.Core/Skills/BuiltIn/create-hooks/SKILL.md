@@ -13,9 +13,9 @@ DotCraft hooks are lifecycle event triggers that run external shell commands at 
 
 1. Ask the user what they want to achieve (security guard, auto-format, logging, notification, etc.)
 2. Determine which lifecycle event(s) to use
-3. Determine scope: workspace (`.craft/hooks.json`) or global (`~/.craft/hooks.json`)
+3. Determine scope: workspace (`.craft/hooks.json`), global (`~/.craft/hooks.json`), or plugin (`<plugin-root>/hooks/hooks.json`)
 4. Generate the `hooks.json` config and any helper scripts
-5. Place scripts in `.craft/hooks/` directory
+5. Place scripts in `.craft/hooks/`, the user's chosen global hooks directory, or the plugin's `hooks/` directory
 
 ## Config File Locations
 
@@ -23,8 +23,9 @@ DotCraft hooks are lifecycle event triggers that run external shell commands at 
 |-------|------|---------|
 | Global | `~/.craft/hooks.json` | Shared across all workspaces |
 | Workspace | `<workspace>/.craft/hooks.json` | Current workspace only |
+| Plugin | `<plugin-root>/hooks/hooks.json` | Contributed by an installed and enabled plugin |
 
-Global hooks load first; workspace hooks are **appended** (additive, not overriding).
+Global hooks load first, workspace hooks are appended, and enabled plugin hooks run after config hooks. Plugin hooks are additive and read-only from Desktop; Desktop manages only user state.
 
 ## Config Format
 
@@ -55,6 +56,30 @@ Global hooks load first; workspace hooks are **appended** (additive, not overrid
 | `type` | string | Always `"command"` |
 | `command` | string | Shell command. Linux/macOS: `/bin/bash -c`; Windows: `powershell.exe` |
 | `timeout` | number | Seconds before kill, default `30` |
+
+## Trust and User State
+
+DotCraft stores per-hook user state in global `~/.craft/config.json` under `Hooks.State`.
+
+```json
+{
+  "Hooks": {
+    "State": {
+      "<hook-key>": {
+        "Enabled": false,
+        "TrustedHash": "sha256:..."
+      }
+    }
+  }
+}
+```
+
+- `Enabled: false` disables one hook without editing `hooks.json`.
+- `TrustedHash` records the normalized hook definition the user approved.
+- Config and plugin hooks must be trusted before they run. Modified hooks need trust again.
+- Do not write trust state into workspace `.craft/config.json`; it is personal user state.
+
+For plugin hooks, commands may use `${DOTCRAFT_PLUGIN_ROOT}` and `${DOTCRAFT_PLUGIN_DATA}`. DotCraft expands these variables in the command and also injects them as environment variables.
 
 ## Lifecycle Events
 
@@ -128,7 +153,7 @@ TOOL_ARGS=$(echo "$INPUT" | jq -c '.toolArgs')
 
 1. **Always consume stdin** — even if unused, read it (`cat > /dev/null` or `[Console]::In.ReadToEnd() | Out-Null`) to avoid broken pipe errors
 2. **Use `jq` (bash) or `ConvertFrom-Json` (PowerShell)** for JSON parsing
-3. **Append `|| true` (bash) or `try/catch` (PowerShell)** for non-critical hooks
+3. **Append `|| true` (bash) or `try/catch` (PowerShell)** inside helper scripts for non-critical work
 4. **Set reasonable timeouts** — default is 30s, increase for slow operations
 5. **Only use `exit 2` to block** — reserve for `PreToolUse` and `PrePrompt` when you genuinely want to prevent the action
 6. **Write block reasons to stderr** — `echo "reason" >&2` (bash) or `[Console]::Error.WriteLine("reason")` (PowerShell)
@@ -140,9 +165,10 @@ TOOL_ARGS=$(echo "$INPUT" | jq -c '.toolArgs')
 When generating hooks for the user:
 
 1. **Detect the OS from workspace context** — use PowerShell syntax on Windows, bash on Linux/macOS
-2. **For complex hooks, create script files** in `.craft/hooks/` and reference them in the `command` field
-3. **Always create the `.craft/hooks/` directory** if placing script files there
+2. **For complex hooks, create script files** in the selected hooks directory and reference them in the `command` field
+3. **Always create the hooks script directory** before placing script files there
 4. **Merge with existing config** — if `.craft/hooks.json` already exists, read it first and merge new hooks into the existing config rather than overwriting
 5. **Validate event names** — only use: `SessionStart`, `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `PrePrompt`, `Stop`
 6. **Validate matcher patterns** — ensure regex is valid
 7. **Ensure hooks are enabled** — check that `config.json` does not have `"Hooks": { "Enabled": false }`
+8. **Leave trust to the user** — mention that new or modified hooks must be trusted through Desktop Hooks settings or `hooks/setState`

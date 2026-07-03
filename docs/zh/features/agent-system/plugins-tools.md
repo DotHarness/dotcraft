@@ -101,7 +101,7 @@ $plugin-creator 创建一个名为 External Process Echo 的插件，包含一�
 $plugin-creator 创建一个本地插件，用 Python 进程提供 EchoText dynamic tool，并生成安装验证说明。
 ```
 
-`plugin-creator` 会生成插件目录和 manifest、plugin-contained skill、可选 MCP 配置，以及可选 Desktop extension。生成后通常只需要：
+`plugin-creator` 会生成插件目录和 manifest、plugin-contained skill、可选 MCP 配置、可选 hooks，以及可选 Desktop extension。生成后通常只需要：
 
 1. 替换占位文案和示例内容
 2. 实现或调整 tool 进程逻辑

@@ -1,6 +1,6 @@
 ---
 name: plugin-creator
-description: Create and scaffold DotCraft local plugin directories with `.craft-plugin/plugin.json`, plugin-contained skills, optional plugin-bundled MCP server config, and optional assets. Use when developing DotCraft plugins or creating a skill/MCP plugin bundle for `.craft/plugins` or `~/.craft/plugins`.
+description: Create and scaffold DotCraft local plugin directories with `.craft-plugin/plugin.json`, plugin-contained skills, optional plugin-bundled MCP server config, optional lifecycle hooks, and optional assets. Use when developing DotCraft plugins or creating a skill/MCP/hooks plugin bundle for `.craft/plugins` or `~/.craft/plugins`.
 ---
 
 # Plugin Creator
@@ -34,14 +34,16 @@ python .craft/skills/plugin-creator/scripts/create_basic_plugin.py "My Plugin" -
 - Create a skill plugin by default with `skills: "./skills/"`.
 - Create `skills/<skill-name>/SKILL.md`; `--skill-name` defaults to the plugin id.
 - Add `--with-mcp` to create a plugin-bundled `.mcp.json` placeholder.
+- Add `--with-hooks` to create a plugin-bundled `hooks/hooks.json` placeholder.
 - Add `--with-assets` to create plugin-level icon/logo placeholders.
 
 ## Manifest Rules
 
-DotCraft schema version `1` allows a plugin to contribute skills, MCP servers, interface metadata, or a combination of these.
+DotCraft schema version `1` allows a plugin to contribute skills, MCP servers, lifecycle hooks, interface metadata, or a combination of these.
 
 - Skill-only plugins are valid when `skills` points to a plugin-contained skills directory.
 - MCP-only plugins are valid when `mcpServers` points to a plugin-bundled MCP config or a root `.mcp.json` exists.
+- Hooks-only plugins are valid when `hooks` points to plugin hook files or a root `hooks/hooks.json` exists.
 - Interface-only plugins are valid for catalog or UI metadata.
 - Manifest fields `tools`, `functions`, and `processes` are unsupported legacy native tool fields and must not be generated for new plugins.
 - Reusable executable capabilities should be exposed through MCP.
@@ -60,6 +62,16 @@ python .craft/skills/plugin-creator/scripts/create_basic_plugin.py review-tools 
 
 After generation, replace placeholder descriptions and edit `.mcp.json` to point at the real MCP server command or HTTPS endpoint.
 
+## Hooks Plugin Template
+
+Use this when creating a plugin that bundles lifecycle hooks:
+
+```powershell
+python .craft/skills/plugin-creator/scripts/create_basic_plugin.py audit-hooks --without-skill --with-hooks
+```
+
+After generation, replace placeholder descriptions, edit `hooks/hooks.json`, and update helper scripts under `hooks/`. Plugin hook commands can use `${DOTCRAFT_PLUGIN_ROOT}` and `${DOTCRAFT_PLUGIN_DATA}`. First run still requires user trust through Desktop Hooks settings or `hooks/setState`.
+
 ## Validation
 
 After scaffolding:
@@ -68,4 +80,5 @@ After scaffolding:
 2. Confirm every manifest-relative path starts with `./`.
 3. If the plugin has skills, confirm each child skill has `SKILL.md`.
 4. If the plugin has MCP servers, confirm `.mcp.json` uses the same schema as workspace `McpServers`.
-5. Run relevant DotCraft tests when changing the runtime, or start DotCraft and confirm `plugin/list` and `skills/list` show the plugin.
+5. If the plugin has hooks, confirm `hooks/hooks.json` uses the same shape as `.craft/hooks.json`.
+6. Run relevant DotCraft tests when changing the runtime, or start DotCraft and confirm `plugin/list`, `skills/list`, and `hooks/list` show the plugin contributions.

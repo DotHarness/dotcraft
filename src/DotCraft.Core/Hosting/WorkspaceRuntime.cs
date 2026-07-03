@@ -5,6 +5,7 @@ using DotCraft.Configuration;
 using DotCraft.Context;
 using DotCraft.Cron;
 using DotCraft.Heartbeat;
+using DotCraft.Hooks;
 using DotCraft.Lsp;
 using DotCraft.Mcp;
 using DotCraft.Dreams;
@@ -275,6 +276,7 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                     traceCollector: traceCollector,
                     planStore: planStore,
                     onPlanUpdated: (threadId, plan) => PlanUpdated?.Invoke(threadId, plan),
+                    hookRunner: Services.GetService<HookRunner>(),
                     chatClientRegistry: chatClientRegistry);
 
                 if (Services.GetService<IChannelRuntimeToolProvider>() is IReservedRuntimeToolNameConfigurator reservedToolNameConfigurator)

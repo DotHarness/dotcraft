@@ -5,7 +5,7 @@ import { useT } from '../../contexts/LocaleContext'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { useUIStore } from '../../stores/uiStore'
 import { ActionTooltip } from '../ui/ActionTooltip'
-import { buildSettingsTabs } from '../settings/settingsTabs'
+import { buildSettingsTabs, type SettingsTabGroup } from '../settings/settingsTabs'
 
 export function SettingsSidebar(): JSX.Element {
   const t = useT()
@@ -23,6 +23,7 @@ export function SettingsSidebar(): JSX.Element {
     personalizationAvailable,
     sourceControlEnabled: capabilities?.sourceControlManagement === true,
     mcpEnabled: capabilities?.mcpManagement === true,
+    hooksEnabled: capabilities?.hooksManagement === true,
     subAgentEnabled: capabilities?.subAgentManagement === true
   })
 
@@ -77,29 +78,49 @@ export function SettingsSidebar(): JSX.Element {
       </button>
 
       <nav aria-label={t('settings.title')} style={navStyle}>
-        {tabs.map((tab) => {
+        {tabs.map((tab, index) => {
           const active = activeSettingsTab === tab.id
           const TabIcon = tab.icon
+          const showGroupLabel = index === 0 || tabs[index - 1].group !== tab.group
           return (
-            <button
-              className="dc-settings-sidebar-button dotcraft-sidebar-control-radius"
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveSettingsTab(tab.id)}
-              style={expandedTabStyle(active)}
-              aria-current={active ? 'page' : undefined}
-              data-active={active ? 'true' : undefined}
-            >
-              <span style={iconSlotStyle}>
-                <TabIcon size={17} strokeWidth={1.9} aria-hidden="true" />
-              </span>
-              <span style={labelStyle}>{tab.label}</span>
-            </button>
+            <div key={tab.id} style={tabGroupItemStyle(showGroupLabel)}>
+              {showGroupLabel && (
+                <div style={groupLabelStyle}>
+                  {settingsGroupLabel(tab.group, t)}
+                </div>
+              )}
+              <button
+                className="dc-settings-sidebar-button dotcraft-sidebar-control-radius"
+                type="button"
+                onClick={() => setActiveSettingsTab(tab.id)}
+                style={expandedTabStyle(active)}
+                aria-current={active ? 'page' : undefined}
+                data-active={active ? 'true' : undefined}
+              >
+                <span style={iconSlotStyle}>
+                  <TabIcon size={17} strokeWidth={1.9} aria-hidden="true" />
+                </span>
+                <span style={labelStyle}>{tab.label}</span>
+              </button>
+            </div>
           )
         })}
       </nav>
     </div>
   )
+}
+
+function settingsGroupLabel(group: SettingsTabGroup, t: ReturnType<typeof useT>): string {
+  switch (group) {
+    case 'personal':
+      return t('settings.sidebar.group.personal')
+    case 'integrations':
+      return t('settings.sidebar.group.integrations')
+    case 'coding':
+      return t('settings.sidebar.group.coding')
+    case 'archived':
+      return t('settings.sidebar.group.archived')
+  }
 }
 
 const expandedContainerStyle: CSSProperties = {
@@ -128,6 +149,23 @@ const navStyle: CSSProperties = {
   minHeight: 0,
   overflowY: 'auto',
   gap: '2px'
+}
+
+function tabGroupItemStyle(showGroupLabel: boolean): CSSProperties {
+  return {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '2px',
+    marginTop: showGroupLabel ? '8px' : 0
+  }
+}
+
+const groupLabelStyle: CSSProperties = {
+  padding: '0 8px 2px',
+  color: 'var(--text-dimmed)',
+  fontSize: '11px',
+  lineHeight: 1.35,
+  fontWeight: 500
 }
 
 const backRowStyle: CSSProperties = {

@@ -64,6 +64,53 @@ Matching `.mcp.json`:
 }
 ```
 
+## Hooks plugin
+
+```json
+{
+  "schemaVersion": 1,
+  "id": "audit-hooks",
+  "version": "0.1.0",
+  "displayName": "Audit Hooks",
+  "description": "Lifecycle hooks for workspace audit logging.",
+  "capabilities": ["hooks"],
+  "hooks": "./hooks/hooks.json",
+  "interface": {
+    "displayName": "Audit Hooks",
+    "shortDescription": "Hook-based audit logging.",
+    "longDescription": "A plugin that contributes lifecycle hook commands.",
+    "developerName": "DotCraft",
+    "category": "Coding",
+    "capabilities": ["Hooks"],
+    "defaultPrompt": "Use audit hooks.",
+    "brandColor": "#2563EB"
+  }
+}
+```
+
+Matching `hooks/hooks.json`:
+
+```json
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${DOTCRAFT_PLUGIN_ROOT}/hooks/session-start.js\"",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+Plugin hook commands run from the workspace root. DotCraft expands `${DOTCRAFT_PLUGIN_ROOT}` and `${DOTCRAFT_PLUGIN_DATA}` in commands and injects the same names as environment variables. Users must trust plugin hooks before they run.
+
 ## Interface-only plugin
 
 ```json
@@ -146,9 +193,11 @@ Matching `desktop-extensions.json`:
 - `schemaVersion` must be `1`.
 - `id` must contain only ASCII letters, digits, `.`, `_`, `-`, or `:`.
 - `displayName` is required.
-- At least one supported contribution is required: `skills`, `mcpServers` or default root `.mcp.json`, `desktopExtensions`, or `interface`.
+- At least one supported contribution is required: `skills`, `mcpServers` or default root `.mcp.json`, `hooks` or default root `hooks/hooks.json`, `desktopExtensions`, or `interface`.
 - Plugin-bundled MCP servers use the same schema as workspace `McpServers`.
 - If `mcpServers` is omitted, DotCraft looks for `.mcp.json` in the plugin root.
+- Plugin hooks use the same schema as workspace `.craft/hooks.json`.
+- If `hooks` is omitted, DotCraft looks for `hooks/hooks.json` in the plugin root.
 - Manifest paths must start with `./`, must not contain `..`, and must stay inside the plugin root. This includes `desktopExtensions`, Desktop extension `entry`, and Desktop extension `styles`.
 - Desktop extension bundles are trusted local ESM loaded by Desktop after the plugin is installed and enabled.
 - `tools`, `functions`, and `processes` are unsupported legacy native tool fields; new plugins must not use them.
