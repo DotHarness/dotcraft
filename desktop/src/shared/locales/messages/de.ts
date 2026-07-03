@@ -70,6 +70,8 @@ export const MESSAGES_DE = {
   'update.closeAria': 'Update-Dialog schließen',
 
   'settings.title': 'Einstellungen',
+  'settings.learnMore': 'Mehr erfahren',
+  'settings.learnMoreAbout': 'Mehr über {{topic}} erfahren',
   'settings.language': 'Sprache',
   'settings.modulesDirectoryBrowse': 'Durchsuchen',
   'settings.connectionMode': 'Verbindungsmodus',
@@ -135,7 +137,6 @@ export const MESSAGES_DE = {
   'settings.sidebar.group.archived': 'Archiviert',
   'settings.hooks.title': 'Hooks',
   'settings.hooks.description': 'Verwalten Sie Lifecycle-Hooks aus Konfiguration und aktivierten Plugins.',
-  'settings.hooks.learnMore': 'Mehr erfahren',
   'settings.hooks.refresh': 'Hooks aktualisieren',
   'settings.hooks.fromConfig': 'Aus Konfiguration',
   'settings.hooks.fromPlugins': 'Aus Plugins',

@@ -70,6 +70,8 @@ export const MESSAGES_KO = {
   'update.closeAria': '업데이트 대화상자 닫기',
 
   'settings.title': '설정',
+  'settings.learnMore': '자세히 알아보기',
+  'settings.learnMoreAbout': '{{topic}} 자세히 알아보기',
   'settings.language': '언어',
   'settings.modulesDirectoryBrowse': '찾아보기',
   'settings.connectionMode': '연결 모드',
@@ -135,7 +137,6 @@ export const MESSAGES_KO = {
   'settings.sidebar.group.archived': '보관됨',
   'settings.hooks.title': 'Hooks',
   'settings.hooks.description': '설정과 활성화된 플러그인의 라이프사이클 hooks를 관리합니다.',
-  'settings.hooks.learnMore': '자세히 보기',
   'settings.hooks.refresh': 'Hooks 새로 고침',
   'settings.hooks.fromConfig': '설정에서',
   'settings.hooks.fromPlugins': '플러그인에서',

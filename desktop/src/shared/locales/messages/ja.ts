@@ -70,6 +70,8 @@ export const MESSAGES_JA = {
   'update.closeAria': '更新ダイアログを閉じる',
 
   'settings.title': '設定',
+  'settings.learnMore': '詳細',
+  'settings.learnMoreAbout': '{{topic}} の詳細',
   'settings.language': '言語',
   'settings.modulesDirectoryBrowse': '参照',
   'settings.connectionMode': '接続モード',
@@ -135,7 +137,6 @@ export const MESSAGES_JA = {
   'settings.sidebar.group.archived': 'アーカイブ',
   'settings.hooks.title': 'Hooks',
   'settings.hooks.description': '設定と有効なプラグインからライフサイクル hook を管理します。',
-  'settings.hooks.learnMore': '詳細',
   'settings.hooks.refresh': 'Hooks を更新',
   'settings.hooks.fromConfig': '設定から',
   'settings.hooks.fromPlugins': 'プラグインから',

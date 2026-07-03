@@ -73,6 +73,8 @@ export const MESSAGES_EN = {
 
   // Settings
   'settings.title': 'Settings',
+  'settings.learnMore': 'Learn more',
+  'settings.learnMoreAbout': 'Learn more about {{topic}}',
   'settings.language': 'Language',
   'settings.modulesDirectoryBrowse': 'Browse',
   'settings.connectionMode': 'Connection mode',
@@ -103,7 +105,6 @@ export const MESSAGES_EN = {
   'settings.sidebar.group.archived': 'Archived',
   'settings.hooks.title': 'Hooks',
   'settings.hooks.description': 'Manage lifecycle hooks from config and enabled plugins.',
-  'settings.hooks.learnMore': 'Learn more',
   'settings.hooks.refresh': 'Refresh hooks',
   'settings.hooks.fromConfig': 'From Config',
   'settings.hooks.fromPlugins': 'From Plugins',

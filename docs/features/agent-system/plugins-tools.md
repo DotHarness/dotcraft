@@ -119,7 +119,14 @@ Let `plugin-creator` scaffold the manifest and the matching files; the generated
 
 ## MCP Servers
 
-Beyond built-in tools and plugin dynamic tools, DotCraft also speaks MCP. MCP server registration and deferred loading options live in the [Configuration Reference](../../developing/configuration#plugins-mcp-and-lsp).
+Beyond built-in tools and plugin dynamic tools, DotCraft also speaks MCP. In Desktop, open **Settings -> MCP Servers** to add servers for the current workspace without editing JSON.
+
+- **STDIO** starts a local command and exposes the MCP tools it provides.
+- **Streamable HTTP** connects to an HTTP MCP endpoint, usually ending in `/mcp`.
+- **Secrets** should come from environment variables. Use bearer-token env vars or environment-backed headers for tokens instead of pasting secret values into literal headers.
+- **Test connection** checks reachability and shows how many tools DotCraft discovered before you rely on the server in a session.
+
+MCP server registration, deferred loading options, and the complete field list live in the [Configuration Reference](../../developing/configuration#plugins-mcp-and-lsp).
 
 ## Safety & Trust
 

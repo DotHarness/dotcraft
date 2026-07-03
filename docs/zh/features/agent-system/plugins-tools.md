@@ -119,7 +119,14 @@ $plugin-creator 创建一个本地插件，用 Python 进程提供 EchoText dyna
 
 ## MCP Servers
 
-除了内置工具和插件 dynamic tool，DotCraft 也支持通过 MCP 协议接入外部工具。MCP server 注册和延迟加载选项见 [配置完整参考](../../developing/configuration#plugins-mcp-与-lsp)。
+除了内置工具和插件 dynamic tool，DotCraft 也支持通过 MCP 协议接入外部工具。在 Desktop 中打开 **Settings -> MCP Servers**，即可为当前 workspace 添加 MCP server，而不必手写 JSON。
+
+- **STDIO** 会启动本地命令，并暴露该 MCP server 提供的 tools。
+- **Streamable HTTP** 会连接 HTTP MCP endpoint，通常以 `/mcp` 结尾。
+- **Secrets** 应来自环境变量。Token 请优先使用 bearer-token env var 或 environment-backed headers，不要把 secret value 直接写进 literal headers。
+- **Test connection** 会检查连通性，并显示 DotCraft 在会话中使用该 server 前发现了多少 tools。
+
+MCP server 注册、延迟加载选项和完整字段列表见 [配置完整参考](../../developing/configuration#plugins-mcp-与-lsp)。
 
 ## 安全与信任
 

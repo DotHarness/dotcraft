@@ -198,6 +198,8 @@ export const MESSAGES_ZH_HANS = {
   'update.closeAria': '关闭更新弹窗',
 
   'settings.title': '设置',
+  'settings.learnMore': '了解更多',
+  'settings.learnMoreAbout': '了解更多：{{topic}}',
   'settings.language': '语言',
   'settings.modulesDirectoryBrowse': '浏览',
   'settings.connectionMode': '连接模式',
@@ -226,7 +228,6 @@ export const MESSAGES_ZH_HANS = {
   'settings.sidebar.group.archived': '归档',
   'settings.hooks.title': 'Hooks',
   'settings.hooks.description': '管理来自配置和已启用插件的生命周期 hooks。',
-  'settings.hooks.learnMore': '了解更多',
   'settings.hooks.refresh': '刷新 hooks',
   'settings.hooks.fromConfig': '来自配置',
   'settings.hooks.fromPlugins': '来自插件',

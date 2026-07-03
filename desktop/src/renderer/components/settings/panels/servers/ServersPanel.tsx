@@ -21,6 +21,7 @@ import {
   Search
 } from 'lucide-react'
 import { SettingsPanelShell } from '../../SettingsPanelShell'
+import { SettingsDescriptionWithLearnMore } from '../../SettingsLearnMoreLink'
 import { SettingsGroup, SettingsRow } from '../../SettingsGroup'
 import { useConfirmDialog } from '../../../ui/ConfirmDialog'
 import { useT } from '../../../../contexts/LocaleContext'
@@ -1234,7 +1235,11 @@ export function ServersPanel(): JSX.Element {
   return (
     <SettingsPanelShell
       title={t('settings.servers.title')}
-      description={t('settings.servers.description')}
+      description={
+        <SettingsDescriptionWithLearnMore topic="servers" aboutKey="settings.servers.title">
+          {t('settings.servers.description')}
+        </SettingsDescriptionWithLearnMore>
+      }
       action={
         store.hosts.length > 0 ? (
           <button style={s.btnPrimary} onClick={() => setServerForm({ kind: 'addServer' })}>

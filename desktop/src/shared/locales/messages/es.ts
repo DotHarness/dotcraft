@@ -70,6 +70,8 @@ export const MESSAGES_ES = {
   'update.closeAria': 'Cerrar diálogo de actualización',
 
   'settings.title': 'Configuración',
+  'settings.learnMore': 'Más información',
+  'settings.learnMoreAbout': 'Más información sobre {{topic}}',
   'settings.language': 'Idioma',
   'settings.modulesDirectoryBrowse': 'Examinar',
   'settings.connectionMode': 'Modo de conexión',
@@ -135,7 +137,6 @@ export const MESSAGES_ES = {
   'settings.sidebar.group.archived': 'Archivado',
   'settings.hooks.title': 'Hooks',
   'settings.hooks.description': 'Administra hooks de ciclo de vida desde la configuración y plugins activos.',
-  'settings.hooks.learnMore': 'Más información',
   'settings.hooks.refresh': 'Actualizar hooks',
   'settings.hooks.fromConfig': 'De configuración',
   'settings.hooks.fromPlugins': 'De plugins',

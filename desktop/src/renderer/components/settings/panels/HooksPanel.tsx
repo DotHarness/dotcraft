@@ -23,10 +23,9 @@ import { PluginIcon, pluginTitle } from '../../plugins/PluginCatalogItem'
 import { IconButton } from '../../ui/IconButton'
 import { PillSwitch } from '../../ui/PillSwitch'
 import { SettingsBreadcrumb } from '../SettingsBreadcrumb'
+import { SettingsDescriptionWithLearnMore } from '../SettingsLearnMoreLink'
 import { SettingsGroup, SettingsRow } from '../SettingsGroup'
 import { SettingsPanelShell } from '../SettingsPanelShell'
-
-const HOOKS_DOCS_URL = 'https://www.dotcraft.net/developing/configuration#automations-goals-and-hooks'
 
 type SourceKey = 'user' | 'workspace' | `plugin:${string}`
 
@@ -128,16 +127,9 @@ export function HooksPanel(): JSX.Element {
   )
 
   const description = (
-    <>
-      {t('settings.hooks.description')}{' '}
-      <button
-        type="button"
-        onClick={() => void window.api.shell.openExternal(HOOKS_DOCS_URL)}
-        style={linkButtonStyle}
-      >
-        {t('settings.hooks.learnMore')}
-      </button>
-    </>
+    <SettingsDescriptionWithLearnMore topic="hooks" aboutKey="settings.hooks.title">
+      {t('settings.hooks.description')}
+    </SettingsDescriptionWithLearnMore>
   )
 
   if (selectedSummary) {
@@ -543,15 +535,6 @@ function trustIcon(status: HookTrustStatus): ReactNode {
     case 'untrusted':
       return <ShieldQuestion size={13} aria-hidden />
   }
-}
-
-const linkButtonStyle: CSSProperties = {
-  border: 'none',
-  background: 'transparent',
-  color: 'var(--accent)',
-  padding: 0,
-  font: 'inherit',
-  cursor: 'pointer'
 }
 
 const sourceRowButtonStyle: CSSProperties = {
