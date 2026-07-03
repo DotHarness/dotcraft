@@ -24,9 +24,10 @@ public static class RuntimeContextBuilder
         AgentModeManager? modeManager = null,
         string? workspacePath = null,
         bool hasActivePlan = false,
-        ThreadGoal? threadGoal = null)
+        ThreadGoal? threadGoal = null,
+        string? sessionStartHookContext = null)
     {
-        var block = BuildBlock(initiator, modeManager, workspacePath, hasActivePlan, threadGoal);
+        var block = BuildBlock(initiator, modeManager, workspacePath, hasActivePlan, threadGoal, sessionStartHookContext);
         contents.Add(new TextContent($"\n{block}"));
         if (modeManager?.JustSwitchedFromPlan == true)
             modeManager.AcknowledgeTransition();
@@ -38,7 +39,8 @@ public static class RuntimeContextBuilder
         AgentModeManager? modeManager = null,
         string? workspacePath = null,
         bool hasActivePlan = false,
-        ThreadGoal? threadGoal = null)
+        ThreadGoal? threadGoal = null,
+        string? sessionStartHookContext = null)
     {
         var mode = modeManager?.CurrentMode ?? AgentMode.Agent;
         var transition = modeManager?.JustSwitchedFromPlan == true ? "PlanToAgent" : null;
@@ -68,6 +70,9 @@ public static class RuntimeContextBuilder
             .ToList();
         if (providerLines.Count > 0)
             sections.Add("## Additional Runtime Context\n" + string.Join("\n", providerLines));
+
+        if (!string.IsNullOrWhiteSpace(sessionStartHookContext))
+            sections.Add("## SessionStart Hook Context\n" + sessionStartHookContext.Trim());
 
         if (threadGoal != null)
             sections.Add(BuildThreadGoalSection(threadGoal));

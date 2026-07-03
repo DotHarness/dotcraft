@@ -1,4 +1,5 @@
 using DotCraft.Configuration;
+using DotCraft.Hooks;
 using DotCraft.Lsp;
 using DotCraft.Plugins;
 using System.IO.Compression;
@@ -130,6 +131,125 @@ public sealed class PluginDiscoveryTests
         Assert.DoesNotContain(result.Diagnostics, d => d.Severity == PluginDiagnosticSeverity.Error);
         Assert.NotNull(result.Manifest);
         Assert.Equal(Path.Combine(pluginRoot, "desktop-extensions.json"), result.Manifest!.DesktopExtensionsPath);
+    }
+
+    [Fact]
+    public void ManifestParser_AcceptsDefaultHooksOnlyManifest()
+    {
+        var root = NewTempDir();
+        var pluginRoot = Path.Combine(root, "demo");
+        WriteHookOnlyPlugin(pluginRoot, id: "demo-plugin");
+
+        var result = PluginManifestParser.Load(pluginRoot);
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Severity == PluginDiagnosticSeverity.Error);
+        Assert.NotNull(result.Manifest);
+        var hooksPath = Assert.Single(result.Manifest!.Hooks!.Paths);
+        Assert.Equal(Path.Combine(pluginRoot, "hooks", "hooks.json"), hooksPath);
+    }
+
+    [Fact]
+    public void ManifestParser_AcceptsExplicitAndInlineHooks()
+    {
+        var root = NewTempDir();
+        var pluginRoot = Path.Combine(root, "demo");
+        Directory.CreateDirectory(Path.Combine(pluginRoot, ".craft-plugin"));
+        Directory.CreateDirectory(Path.Combine(pluginRoot, "hooks"));
+        File.WriteAllText(Path.Combine(pluginRoot, "hooks", "one.json"), HookJson("echo one"));
+        File.WriteAllText(
+            Path.Combine(pluginRoot, ".craft-plugin", "plugin.json"),
+            """
+{
+  "schemaVersion": 1,
+  "id": "demo-plugin",
+  "version": "1.0.0",
+  "displayName": "Demo",
+  "description": "Demo plugin.",
+  "capabilities": ["hooks"],
+  "hooks": [
+    "./hooks/one.json",
+    {
+      "hooks": {
+        "Stop": [
+          {
+            "hooks": [
+              { "type": "command", "command": "echo inline" }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
+""");
+
+        var result = PluginManifestParser.Load(pluginRoot);
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Severity == PluginDiagnosticSeverity.Error);
+        Assert.NotNull(result.Manifest);
+        Assert.Equal(Path.Combine(pluginRoot, "hooks", "one.json"), Assert.Single(result.Manifest!.Hooks!.Paths));
+        Assert.Single(result.Manifest.Hooks.Inline);
+    }
+
+    [Fact]
+    public void ManifestParser_RejectsEscapingHooksPath()
+    {
+        var root = NewTempDir();
+        var pluginRoot = Path.Combine(root, "demo");
+        Directory.CreateDirectory(Path.Combine(pluginRoot, ".craft-plugin"));
+        File.WriteAllText(
+            Path.Combine(pluginRoot, ".craft-plugin", "plugin.json"),
+            """
+{
+  "schemaVersion": 1,
+  "id": "demo-plugin",
+  "version": "1.0.0",
+  "displayName": "Demo",
+  "description": "Demo plugin.",
+  "capabilities": ["hooks"],
+  "hooks": "./../hooks.json"
+}
+""");
+
+        var result = PluginManifestParser.Load(pluginRoot);
+
+        Assert.Null(result.Manifest);
+        Assert.Contains(result.Diagnostics, d => d.Code == "InvalidPluginManifestPath");
+    }
+
+    [Fact]
+    public void HooksLoader_DiscoversPluginHooksWithTrustState()
+    {
+        var root = NewTempDir();
+        var workspace = Path.Combine(root, "workspace");
+        var botPath = Path.Combine(workspace, ".craft");
+        var pluginRoot = Path.Combine(botPath, "plugins", "demo");
+        WriteHookOnlyPlugin(
+            pluginRoot,
+            id: "demo-plugin",
+            command: "dotnet ${DOTCRAFT_PLUGIN_ROOT}/hooks/check.dll");
+        var config = new AppConfig();
+
+        var first = new HooksLoader(botPath).Discover(config, workspace);
+
+        var hook = Assert.Single(first.Hooks);
+        Assert.Equal("demo-plugin:hooks/hooks.json:pre_tool_use:0:0", hook.Key);
+        Assert.Equal(HookSources.Plugin, hook.Source);
+        Assert.Equal("demo-plugin", hook.PluginId);
+        Assert.Equal(HookTrustStatuses.Untrusted, hook.TrustStatus);
+        Assert.Contains(pluginRoot, hook.Command);
+        Assert.Empty(first.RuntimeConfig.Hooks);
+
+        config.Hooks.State[hook.Key] = new HookStateConfig { TrustedHash = hook.CurrentHash };
+
+        var trusted = new HooksLoader(botPath).Discover(config, workspace);
+
+        var trustedHook = Assert.Single(trusted.Hooks);
+        Assert.Equal(HookTrustStatuses.Trusted, trustedHook.TrustStatus);
+        var group = Assert.Single(trusted.RuntimeConfig.Hooks[nameof(HookEvent.PreToolUse)]);
+        var runtimeHook = Assert.Single(group.Hooks);
+        Assert.Equal(pluginRoot, runtimeHook.EnvironmentVariables["DOTCRAFT_PLUGIN_ROOT"]);
+        Assert.Equal("demo-plugin", runtimeHook.PluginId);
     }
 
     [Fact]
@@ -1397,6 +1517,49 @@ description: Test skill
 }
 """);
     }
+
+    private static void WriteHookOnlyPlugin(
+        string pluginRoot,
+        string id,
+        string displayName = "Demo",
+        string command = "echo plugin hook")
+    {
+        Directory.CreateDirectory(Path.Combine(pluginRoot, ".craft-plugin"));
+        Directory.CreateDirectory(Path.Combine(pluginRoot, "hooks"));
+        File.WriteAllText(
+            Path.Combine(pluginRoot, ".craft-plugin", "plugin.json"),
+            $$"""
+{
+  "schemaVersion": 1,
+  "id": "{{id}}",
+  "version": "1.0.0",
+  "displayName": "{{displayName}}",
+  "description": "Demo hook plugin.",
+  "capabilities": ["hooks"]
+}
+""");
+        File.WriteAllText(Path.Combine(pluginRoot, "hooks", "hooks.json"), HookJson(command));
+    }
+
+    private static string HookJson(string command) =>
+        $$"""
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Shell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "{{command}}",
+            "timeout": 7
+          }
+        ]
+      }
+    ]
+  }
+}
+""";
 
     private sealed class NoopPluginInvoker : IPluginFunctionInvoker
     {

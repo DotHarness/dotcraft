@@ -28,6 +28,7 @@ import { useProvidersStore } from './stores/providersStore'
 import { useMcpStore, type McpServerStatusWire } from './stores/mcpStore'
 import { useSkillsStore } from './stores/skillsStore'
 import { usePluginStore } from './stores/pluginStore'
+import { useHooksStore } from './stores/hooksStore'
 import { usePendingRestartStore } from './stores/pendingRestartStore'
 import { useSubAgentStore } from './stores/subAgentStore'
 import { useAppBindingStore } from './stores/appBindingStore'
@@ -2258,6 +2259,9 @@ export function App(): JSX.Element {
             }
             if (event.regions.includes('plugins')) {
               void usePluginStore.getState().fetchPlugins()
+            }
+            if (event.regions.includes('hooks')) {
+              void useHooksStore.getState().fetchHooks()
             }
             if (
               event.regions.includes('providers') ||

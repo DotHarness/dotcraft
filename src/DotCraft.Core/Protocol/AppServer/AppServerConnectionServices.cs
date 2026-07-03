@@ -6,6 +6,7 @@ using DotCraft.Configuration;
 using DotCraft.Context;
 using DotCraft.Cron;
 using DotCraft.Heartbeat;
+using DotCraft.Hooks;
 using DotCraft.Logging;
 using DotCraft.Lsp;
 using DotCraft.Mcp;
@@ -88,4 +89,5 @@ public sealed record AppServerConnectionServices
     public IReadOnlyList<string>? BuiltInPluginSourceRoots { get; init; }
     public WireRuntimeAdditionalContextProvider? WireRuntimeAdditionalContextProvider { get; init; }
     public Func<SessionThread, SubAgentCoordinator?>? SubAgentCoordinatorFactory { get; init; }
+    public HookRunner? HookRunner { get; init; }
 }

@@ -68,7 +68,7 @@ public sealed class HookInput
 /// </summary>
 public sealed class HookRunner
 {
-    private readonly HooksFileConfig _config;
+    private HookDiscoveryResult _snapshot;
     private readonly string _workspacePath;
     private Action<string>? _debugLogger;
 
@@ -94,31 +94,64 @@ public sealed class HookRunner
         (_debugLogger ?? Console.Error.WriteLine).Invoke(message);
 
     public HookRunner(HooksFileConfig config, string workspacePath)
+        : this(new HookDiscoveryResult { RuntimeConfig = config }, workspacePath)
     {
-        _config = config;
+    }
+
+    public HookRunner(HookDiscoveryResult discovery, string workspacePath)
+    {
+        _snapshot = discovery;
         _workspacePath = workspacePath;
 
         if (DebugModeService.IsEnabled())
         {
-            var eventNames = string.Join(", ", config.Hooks.Keys);
-            Console.Error.WriteLine($"[Hooks] Loaded {config.Hooks.Count} event(s): {eventNames}");
+            var eventNames = string.Join(", ", discovery.RuntimeConfig.Hooks.Keys);
+            Console.Error.WriteLine($"[Hooks] Loaded {discovery.RuntimeConfig.Hooks.Count} event(s): {eventNames}");
             Console.Error.WriteLine($"[Hooks] HasToolHooks={HasToolHooks}, WorkspacePath={workspacePath}");
         }
     }
 
     /// <summary>
+    /// Replaces the current hook snapshot after config/plugin state changes.
+    /// </summary>
+    public void ReplaceSnapshot(HookDiscoveryResult discovery)
+    {
+        Volatile.Write(ref _snapshot, discovery);
+        if (DebugModeService.IsEnabled())
+        {
+            var eventNames = string.Join(", ", discovery.RuntimeConfig.Hooks.Keys);
+            WriteDebug($"[Hooks] Snapshot refreshed: {discovery.RuntimeConfig.Hooks.Count} event(s): {eventNames}");
+        }
+    }
+
+    /// <summary>
+    /// Client-visible metadata for the current snapshot.
+    /// </summary>
+    public IReadOnlyList<HookMetadata> Hooks => Volatile.Read(ref _snapshot).Hooks;
+
+    public IReadOnlyList<string> Warnings => Volatile.Read(ref _snapshot).Warnings;
+
+    public IReadOnlyList<HookErrorInfo> Errors => Volatile.Read(ref _snapshot).Errors;
+
+    /// <summary>
     /// Whether any PreToolUse, PostToolUse, or PostToolUseFailure hooks are configured.
     /// Used to decide whether to wrap tools with <see cref="HookWrappedFunction"/>.
     /// </summary>
-    public bool HasToolHooks =>
-        _config.Hooks.ContainsKey(nameof(HookEvent.PreToolUse)) ||
-        _config.Hooks.ContainsKey(nameof(HookEvent.PostToolUse)) ||
-        _config.Hooks.ContainsKey(nameof(HookEvent.PostToolUseFailure));
+    public bool HasToolHooks
+    {
+        get
+        {
+            var hooks = Volatile.Read(ref _snapshot).RuntimeConfig.Hooks;
+            return hooks.ContainsKey(nameof(HookEvent.PreToolUse)) ||
+                   hooks.ContainsKey(nameof(HookEvent.PostToolUse)) ||
+                   hooks.ContainsKey(nameof(HookEvent.PostToolUseFailure));
+        }
+    }
 
     /// <summary>
     /// Whether any hooks are configured at all.
     /// </summary>
-    public bool HasAnyHooks => _config.Hooks.Count > 0;
+    public bool HasAnyHooks => Volatile.Read(ref _snapshot).RuntimeConfig.Hooks.Count > 0;
 
     /// <summary>
     /// Runs all matching hooks for the given event.
@@ -132,10 +165,12 @@ public sealed class HookRunner
     public async Task<HookResult> RunAsync(HookEvent evt, HookInput input, CancellationToken ct)
     {
         var eventName = evt.ToString();
-        if (!_config.Hooks.TryGetValue(eventName, out var matcherGroups))
+        var snapshot = Volatile.Read(ref _snapshot);
+        if (!snapshot.RuntimeConfig.Hooks.TryGetValue(eventName, out var matcherGroups))
             return new HookResult();
 
         var isDebug = DebugModeService.IsEnabled();
+        var canBlock = evt is HookEvent.PreToolUse or HookEvent.PrePrompt;
         var aggregateResult = new HookResult();
         var outputParts = new List<string>();
 
@@ -169,7 +204,7 @@ public sealed class HookRunner
                 if (!string.IsNullOrWhiteSpace(result.Output))
                     outputParts.Add(result.Output);
 
-                if (result.Blocked)
+                if (result.Blocked && canBlock)
                 {
                     aggregateResult.Blocked = true;
                     aggregateResult.BlockReason = result.BlockReason;
@@ -232,6 +267,8 @@ public sealed class HookRunner
                 StandardOutputEncoding = Encoding.UTF8,
                 StandardErrorEncoding = Encoding.UTF8,
             };
+            foreach (var (key, value) in hookEntry.EnvironmentVariables)
+                psi.EnvironmentVariables[key] = value;
 
             if (isWindows)
             {

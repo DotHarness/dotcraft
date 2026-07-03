@@ -1,4 +1,5 @@
 import {
+  Anchor,
   Archive,
   BarChart3,
   Bot,
@@ -25,42 +26,59 @@ export interface SettingsTabDefinition {
   id: SettingsTab
   label: string
   icon: LucideIcon
+  group: SettingsTabGroup
 }
+
+export type SettingsTabGroup = 'personal' | 'integrations' | 'coding' | 'archived'
 
 export interface SettingsTabOptions {
   personalizationAvailable: boolean
   sourceControlEnabled: boolean
   mcpEnabled: boolean
+  hooksEnabled: boolean
   subAgentEnabled: boolean
 }
 
 export function buildSettingsTabs(t: Translate, options: SettingsTabOptions): SettingsTabDefinition[] {
   const tabs: SettingsTabDefinition[] = [
-    { id: 'general', label: t('settings.tab.general'), icon: SettingsIcon },
-    { id: 'appearance', label: t('settings.tab.appearance'), icon: Palette },
-    { id: 'profile', label: t('settings.tab.profile'), icon: UserRound },
-    { id: 'connection', label: t('settings.tab.connection'), icon: Cable },
-    { id: 'servers', label: t('settings.tab.servers'), icon: Server },
-    { id: 'llmService', label: t('settings.tab.llmService'), icon: Cpu },
-    { id: 'browserUse', label: t('settings.tab.browserUse'), icon: Globe2 },
-    { id: 'computerControl', label: t('settings.tab.computerControl'), icon: Monitor },
-    { id: 'usage', label: t('settings.tab.usage'), icon: BarChart3 }
+    { id: 'general', label: t('settings.tab.general'), icon: SettingsIcon, group: 'personal' },
+    { id: 'profile', label: t('settings.tab.profile'), icon: UserRound, group: 'personal' },
+    { id: 'appearance', label: t('settings.tab.appearance'), icon: Palette, group: 'personal' },
+    { id: 'usage', label: t('settings.tab.usage'), icon: BarChart3, group: 'personal' },
+    { id: 'browserUse', label: t('settings.tab.browserUse'), icon: Globe2, group: 'integrations' },
+    { id: 'computerControl', label: t('settings.tab.computerControl'), icon: Monitor, group: 'integrations' },
+    { id: 'connection', label: t('settings.tab.connection'), icon: Cable, group: 'coding' },
+    { id: 'servers', label: t('settings.tab.servers'), icon: Server, group: 'coding' },
+    { id: 'llmService', label: t('settings.tab.llmService'), icon: Cpu, group: 'coding' }
   ]
 
   if (options.personalizationAvailable) {
     // After General and Profile.
-    tabs.splice(2, 0, { id: 'personalization', label: t('settings.tab.personalization'), icon: SlidersHorizontal })
-  }
-  if (options.sourceControlEnabled) {
-    tabs.push({ id: 'sourceControl', label: t('settings.tab.sourceControl'), icon: GitBranch })
+    tabs.splice(3, 0, {
+      id: 'personalization',
+      label: t('settings.tab.personalization'),
+      icon: SlidersHorizontal,
+      group: 'personal'
+    })
   }
   if (options.mcpEnabled) {
-    tabs.push({ id: 'mcp', label: 'MCP', icon: McpIcon })
+    tabs.splice(5, 0, { id: 'mcp', label: 'MCP', icon: McpIcon, group: 'integrations' })
+  }
+  if (options.sourceControlEnabled) {
+    tabs.push({ id: 'sourceControl', label: t('settings.tab.sourceControl'), icon: GitBranch, group: 'coding' })
+  }
+  if (options.hooksEnabled) {
+    tabs.splice(tabs.findIndex((tab) => tab.group === 'coding'), 0, {
+      id: 'hooks',
+      label: t('settings.tab.hooks'),
+      icon: Anchor,
+      group: 'coding'
+    })
   }
   if (options.subAgentEnabled) {
-    tabs.push({ id: 'subAgents', label: t('settings.tab.subAgents'), icon: Bot })
+    tabs.push({ id: 'subAgents', label: t('settings.tab.subAgents'), icon: Bot, group: 'coding' })
   }
-  tabs.push({ id: 'archivedThreads', label: t('settings.tab.archivedThreads'), icon: Archive })
+  tabs.push({ id: 'archivedThreads', label: t('settings.tab.archivedThreads'), icon: Archive, group: 'archived' })
 
   return tabs
 }

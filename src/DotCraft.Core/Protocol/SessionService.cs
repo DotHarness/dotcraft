@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text;
 using System.Text.Json.Nodes;
 using DotCraft.Abstractions;
@@ -135,6 +136,7 @@ public sealed partial class SessionService(
     private static readonly IReadOnlySet<string> EmptyDynamicToolNames = new HashSet<string>(StringComparer.Ordinal);
     private static readonly HttpClient QueuedInputHttpClient = new();
     private readonly IAppConfigMonitor? _appConfigMonitor = appConfigMonitor;
+    private readonly ConcurrentDictionary<string, byte> _sessionStartHookThreads = new(StringComparer.Ordinal);
     private volatile bool _forcePerThreadAgents;
 
     private WorktreeCoordinator Worktrees => _worktreeCoordinator ??= new WorktreeCoordinator(this);
@@ -1874,6 +1876,8 @@ public sealed partial class SessionService(
                     }
                 }
 
+                var sessionStartHookContext = await RunSessionStartHookOnceAsync(threadId, executionCt);
+
                 var userMessage = new ChatMessage(
                     ChatRole.User,
                     content.AppendRuntimeContext(
@@ -1881,7 +1885,8 @@ public sealed partial class SessionService(
                         runtimeModeManager,
                         thread.WorkspacePath,
                         hasActivePlan,
-                        threadGoalForContext));
+                        threadGoalForContext,
+                        sessionStartHookContext));
 
                 // Step 5d: Run PrePrompt hooks
                 if (hookRunner != null)
@@ -2945,6 +2950,33 @@ public sealed partial class SessionService(
 
     private void MarkMemoryContextDirty() =>
         agentFactory.ToolProviderContext.ContextPageManager?.MarkDirty(ContextPageKeys.MemoryLongTerm("*"));
+
+    private async Task<string?> RunSessionStartHookOnceAsync(string threadId, CancellationToken ct)
+    {
+        if (hookRunner == null)
+            return null;
+
+        if (!_sessionStartHookThreads.TryAdd(threadId, 0))
+            return null;
+
+        try
+        {
+            var hookInput = new HookInput { SessionId = threadId };
+            var hookResult = await hookRunner.RunAsync(HookEvent.SessionStart, hookInput, ct).ConfigureAwait(false);
+            return string.IsNullOrWhiteSpace(hookResult.Output)
+                ? null
+                : hookResult.Output;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            logger?.LogWarning(ex, "SessionStart hook failed for thread {ThreadId}", threadId);
+            return null;
+        }
+    }
 
     private async Task<SessionThread> GetOrLoadThreadAsync(string threadId, CancellationToken ct)
     {

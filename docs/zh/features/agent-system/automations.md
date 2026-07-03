@@ -81,8 +81,8 @@ Automations 适合"按时间或手动触发一次任务"，Goals 适合"让同�
 | 自动跑测试套件并把摘要写入对话 | Automations，带完成摘要 |
 | 持续推进一项重构或文档整理 | Goals |
 | 让定时任务沿着同一长期目标推进 | Automations + Goals |
-| 文件写入后自动 lint/format | [Hooks](../self-hosted/security#hooks) `AfterToolCall` |
-| 阻止危险 Shell 命令 | [Hooks](../self-hosted/security#hooks) `BeforeToolCall` |
+| 文件写入后自动 lint/format | [Hooks](../self-hosted/security#hooks) `PostToolUse` |
+| 阻止危险 Shell 命令 | [Hooks](../self-hosted/security#hooks) `PreToolUse` |
 
 ## 相关文档
 

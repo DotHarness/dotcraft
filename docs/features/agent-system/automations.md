@@ -81,8 +81,8 @@ Automations are best for "run this task on a schedule or on demand." Goals are b
 | Run a test suite and write the summary to a conversation | Automations with a completion summary |
 | Keep advancing a refactor or documentation pass | Goals |
 | Make scheduled work follow the same long-running objective | Automations + Goals |
-| Auto-lint / format after file writes | [Hooks](../self-hosted/security#hooks) `AfterToolCall` |
-| Block dangerous shell commands | [Hooks](../self-hosted/security#hooks) `BeforeToolCall` |
+| Auto-lint / format after file writes | [Hooks](../self-hosted/security#hooks) `PostToolUse` |
+| Block dangerous shell commands | [Hooks](../self-hosted/security#hooks) `PreToolUse` |
 
 ## Related docs
 

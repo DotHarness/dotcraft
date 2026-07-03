@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace DotCraft.Hooks;
 
 /// <summary>
@@ -21,6 +23,30 @@ public sealed class HookEntry
     /// Timeout in seconds for this hook command (default: 30).
     /// </summary>
     public int Timeout { get; set; } = 30;
+
+    /// <summary>
+    /// Runtime-only environment variables injected when executing the hook.
+    /// </summary>
+    [JsonIgnore]
+    public Dictionary<string, string> EnvironmentVariables { get; set; } = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Runtime-only source path for diagnostics and listing.
+    /// </summary>
+    [JsonIgnore]
+    public string SourcePath { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Runtime-only source kind, such as <c>user</c>, <c>workspace</c>, or <c>plugin</c>.
+    /// </summary>
+    [JsonIgnore]
+    public string Source { get; set; } = HookSources.Unknown;
+
+    /// <summary>
+    /// Runtime-only plugin id for plugin-contributed hooks.
+    /// </summary>
+    [JsonIgnore]
+    public string? PluginId { get; set; }
 }
 
 /// <summary>
@@ -50,4 +76,20 @@ public sealed class HooksFileConfig
     /// Map of event name to list of matcher groups.
     /// </summary>
     public Dictionary<string, List<HookMatcherGroup>> Hooks { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+}
+
+/// <summary>
+/// Per-hook user state stored in <c>Hooks.State</c>.
+/// </summary>
+public sealed class HookStateConfig
+{
+    /// <summary>
+    /// Optional enablement override. Missing or <c>true</c> means the hook may run.
+    /// </summary>
+    public bool? Enabled { get; set; }
+
+    /// <summary>
+    /// Hash of the last user-trusted hook definition.
+    /// </summary>
+    public string? TrustedHash { get; set; }
 }

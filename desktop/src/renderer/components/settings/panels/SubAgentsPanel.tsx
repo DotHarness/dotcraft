@@ -8,6 +8,7 @@ import { PresetProfileDetail } from './subAgents/PresetProfileDetail'
 import { CustomProfileEditor } from './subAgents/CustomProfileEditor'
 import { SubAgentList } from './subAgents/SubAgentList'
 import { SettingsPanelShell } from '../SettingsPanelShell'
+import { SettingsDescriptionWithLearnMore } from '../SettingsLearnMoreLink'
 import {
   isPresetProfileName,
   type SubAgentProfileEntryWire,
@@ -293,7 +294,11 @@ export function SubAgentsPanel({ enabled, refreshTick = 0 }: SubAgentsPanelProps
     return (
       <SettingsPanelShell
         title={t('settings.subAgents.title')}
-        description={t('settings.subAgents.description')}
+        description={
+          <SettingsDescriptionWithLearnMore topic="subAgents" aboutKey="settings.subAgents.title">
+            {t('settings.subAgents.description')}
+          </SettingsDescriptionWithLearnMore>
+        }
       >
         <SettingsGroup title={t('settings.group.workspaceSettings')}>
           <SettingsRow>
@@ -363,7 +368,11 @@ export function SubAgentsPanel({ enabled, refreshTick = 0 }: SubAgentsPanelProps
   return (
     <SettingsPanelShell
       title={t('settings.subAgents.title')}
-      description={t('settings.subAgents.description')}
+      description={
+        <SettingsDescriptionWithLearnMore topic="subAgents" aboutKey="settings.subAgents.title">
+          {t('settings.subAgents.description')}
+        </SettingsDescriptionWithLearnMore>
+      }
     >
       <SettingsGroup title={t('settings.group.workspaceSettings')}>
         <SettingsRow

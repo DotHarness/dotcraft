@@ -130,6 +130,21 @@ internal sealed class AppServerRuntimeConfigRefresher(
             .ToList();
     }
 
+    public void RefreshCurrentHooksConfig()
+    {
+        if (appConfigMonitor == null)
+            return;
+
+        if (!string.IsNullOrWhiteSpace(workspaceCraftPath))
+        {
+            var mergedConfig = LoadMergedWorkspaceConfig(useGlobalFallback: true);
+            appConfigMonitor.Current.Hooks = mergedConfig.Hooks;
+            return;
+        }
+
+        appConfigMonitor.Current.Hooks = new AppConfig.HooksConfig();
+    }
+
     public void InvalidateThreadAgents()
     {
         if (sessionService is IThreadAgentRefreshService refreshService)

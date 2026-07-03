@@ -44,6 +44,7 @@ import { PillSwitch } from '../ui/PillSwitch'
 import { ToggleSwitch } from '../channels/ToggleSwitch'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
 import { SettingsGroup, SettingsRow } from './SettingsGroup'
+import { SettingsDescriptionWithLearnMore } from './SettingsLearnMoreLink'
 import { SettingsPanelShell } from './SettingsPanelShell'
 import { SourceControlPanel } from './panels/SourceControlPanel'
 import { SettingsBreadcrumb } from './SettingsBreadcrumb'
@@ -69,6 +70,7 @@ import { UsageOverview } from './UsageOverview'
 import { ProfilePanel } from './panels/ProfilePanel'
 import { ProfileView } from './ProfileView'
 import { McpPanel } from './panels/McpPanel'
+import { HooksPanel } from './panels/HooksPanel'
 import { SubAgentsPanel } from './panels/SubAgentsPanel'
 import {
   useMcpStore,
@@ -1504,6 +1506,7 @@ export function SettingsView({
   const mcpEnabled = capabilities?.mcpManagement === true
   const mcpOriginsEnabled = capabilities?.mcpServerOrigins === true
   const subAgentEnabled = capabilities?.subAgentManagement === true
+  const hooksEnabled = capabilities?.hooksManagement === true
   const sourceControlEnabled = capabilities?.sourceControlManagement === true
   const pluginManagementEnabled = capabilities?.pluginManagement === true
   const providerManagementEnabled = capabilities?.providerManagement === true
@@ -2396,7 +2399,10 @@ export function SettingsView({
     if (activeSettingsTab === 'sourceControl' && !sourceControlEnabled) {
       setActiveSettingsTab('general')
     }
-  }, [activeSettingsTab, mcpEnabled, subAgentEnabled, sourceControlEnabled])
+    if (activeSettingsTab === 'hooks' && !hooksEnabled) {
+      setActiveSettingsTab('general')
+    }
+  }, [activeSettingsTab, hooksEnabled, mcpEnabled, subAgentEnabled, sourceControlEnabled])
 
   useEffect(() => {
     if ((activeSettingsTab === 'browserUse' || activeSettingsTab === 'computerControl') && pluginManagementEnabled) {
@@ -3307,7 +3313,11 @@ export function SettingsView({
 
                 <SettingsGroup
                   title={t('settings.group.permissions')}
-                  description={t('settings.permissions.description')}
+                  description={
+                    <SettingsDescriptionWithLearnMore topic="security" aboutKey="settings.group.permissions">
+                      {t('settings.permissions.description')}
+                    </SettingsDescriptionWithLearnMore>
+                  }
                 >
                   <SettingsRow
                     label={t('settings.permissions.workspaceDefault.label')}
@@ -3350,7 +3360,13 @@ export function SettingsView({
               <GeneralPanel>
               <SettingsPanelShell
                   title={t('settings.llm.title')}
-                  description={providerEditorId === null ? t('settings.llm.description') : undefined}
+                  description={
+                    providerEditorId === null ? (
+                      <SettingsDescriptionWithLearnMore topic="modelProviders" aboutKey="settings.llm.title">
+                        {t('settings.llm.description')}
+                      </SettingsDescriptionWithLearnMore>
+                    ) : undefined
+                  }
                   breadcrumb={
                     providerEditorId === null ? undefined : (
                       <SettingsBreadcrumb
@@ -3976,7 +3992,11 @@ export function SettingsView({
               <GeneralPanel>
               <SettingsPanelShell
                   title={t('settings.tab.personalization')}
-                  description={t('settings.personalization.description')}
+                  description={
+                    <SettingsDescriptionWithLearnMore topic="memory" aboutKey="settings.tab.personalization">
+                      {t('settings.personalization.description')}
+                    </SettingsDescriptionWithLearnMore>
+                  }
                 >
                 <SettingsGroup
                   title={t('settings.personalization.group.conversation')}
@@ -4181,7 +4201,11 @@ export function SettingsView({
               <GeneralPanel>
               <SettingsPanelShell
                   title={t('settings.dreams.title')}
-                  description={t('settings.dreams.description')}
+                  description={
+                    <SettingsDescriptionWithLearnMore topic="memory" aboutKey="settings.dreams.title">
+                      {t('settings.dreams.description')}
+                    </SettingsDescriptionWithLearnMore>
+                  }
                 >
                 <SettingsGroup
                   title={t('settings.dreams.overview')}
@@ -4318,7 +4342,11 @@ export function SettingsView({
               <ConnectionPanel>
               <SettingsPanelShell
                 title={t('settings.tab.connection')}
-                description={t('settings.connection.description')}
+                description={
+                  <SettingsDescriptionWithLearnMore topic="connection" aboutKey="settings.tab.connection">
+                    {t('settings.connection.description')}
+                  </SettingsDescriptionWithLearnMore>
+                }
               >
                 <SettingsGroup title={t('settings.group.connectionMode')}>
                   <SettingsRow
@@ -4885,6 +4913,8 @@ export function SettingsView({
               <SourceControlPanel workspacePath={workspacePath} />
             )}
 
+            {activeSettingsTab === 'hooks' && <HooksPanel />}
+
             {activeSettingsTab === 'mcp' && (
               <McpPanel>
               <SettingsPanelShell
@@ -4892,7 +4922,11 @@ export function SettingsView({
                 description={
                   mcpEnabled && editingServerName !== null
                     ? t('settings.mcp.editIntro')
-                    : t('settings.mcp.description')
+                    : (
+                      <SettingsDescriptionWithLearnMore topic="mcp" aboutKey="settings.mcp.title">
+                        {t('settings.mcp.description')}
+                      </SettingsDescriptionWithLearnMore>
+                    )
                 }
                 breadcrumb={
                   mcpEnabled && editingServerName !== null ? (

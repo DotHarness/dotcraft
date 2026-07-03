@@ -1,6 +1,7 @@
 using DotCraft.AppBinding;
 using DotCraft.Configuration;
 using DotCraft.Context;
+using DotCraft.Hooks;
 using DotCraft.Lsp;
 using DotCraft.Mcp;
 using DotCraft.Plugins;
@@ -19,7 +20,9 @@ internal sealed class PluginRequestHandler(
     LspServerManager? lspServerManager,
     IContextPageManager? contextPageManager,
     AppBindingService? appBindingService,
-    WorkspaceConfigEditor workspaceConfig) : IAppServerDomainHandler
+    WorkspaceConfigEditor workspaceConfig,
+    AppServerRuntimeConfigRefresher runtimeConfig,
+    HookRunner? hookRunner) : IAppServerDomainHandler
 {
     private const string AppBindingAppListUpdatedNotification = "app/list/updated";
     private const string AppBindingThreadBindingsChangedNotification = "thread/appBindings/changed";
@@ -43,11 +46,12 @@ internal sealed class PluginRequestHandler(
         var p = AppServerParams.Get<PluginListParams>(msg);
         var discovery = RefreshPluginRuntime();
         var diagnostics = discovery.Diagnostics.ToList();
+        var hookSummaries = BuildPluginHookSummaryIndex(discovery, diagnostics);
         var mcpSummaries = BuildPluginMcpSummaryIndex(discovery, diagnostics);
         var lspSummaries = BuildPluginLspSummaryIndex(discovery, diagnostics);
         var plugins = discovery.Plugins
             .Where(plugin => p.IncludeDisabled != false || plugin.Enabled)
-            .Select(plugin => MapPluginToWire(plugin, diagnostics, mcpSummaries, lspSummaries))
+            .Select(plugin => MapPluginToWire(plugin, diagnostics, hookSummaries, mcpSummaries, lspSummaries))
             .OrderBy(plugin => plugin.DisplayName, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
@@ -70,6 +74,7 @@ internal sealed class PluginRequestHandler(
 
         var discovery = RefreshPluginRuntime();
         var diagnostics = discovery.Diagnostics.ToList();
+        var hookSummaries = BuildPluginHookSummaryIndex(discovery, diagnostics);
         var mcpSummaries = BuildPluginMcpSummaryIndex(discovery, diagnostics);
         var lspSummaries = BuildPluginLspSummaryIndex(discovery, diagnostics);
         var plugin = discovery.Plugins.FirstOrDefault(
@@ -79,7 +84,7 @@ internal sealed class PluginRequestHandler(
 
         return Task.FromResult<object?>(new PluginViewResult
         {
-            Plugin = MapPluginToWire(plugin, diagnostics, mcpSummaries, lspSummaries)
+            Plugin = MapPluginToWire(plugin, diagnostics, hookSummaries, mcpSummaries, lspSummaries)
         });
     }
 
@@ -114,12 +119,14 @@ internal sealed class PluginRequestHandler(
         var discovery = RefreshPluginRuntime();
         await ReconnectEffectiveMcpRuntimeAsync(await GetWorkspaceMcpServersAsync(ct), ct);
         await ReconnectEffectiveLspRuntimeAsync(ct);
+        RefreshHooksAfterPluginChange();
         appConfigMonitor?.NotifyChanged(
             AppServerMethods.PluginSetEnabled,
-            [ConfigChangeRegions.Plugins, ConfigChangeRegions.Skills, ConfigChangeRegions.Mcp, ConfigChangeRegions.Lsp]);
+            [ConfigChangeRegions.Plugins, ConfigChangeRegions.Skills, ConfigChangeRegions.Mcp, ConfigChangeRegions.Lsp, ConfigChangeRegions.Hooks]);
         AppServerContextInvalidation.MarkSkills(contextPageManager);
 
         var diagnostics = discovery.Diagnostics.ToList();
+        var hookSummaries = BuildPluginHookSummaryIndex(discovery, diagnostics);
         var mcpSummaries = BuildPluginMcpSummaryIndex(discovery, diagnostics);
         var lspSummaries = BuildPluginLspSummaryIndex(discovery, diagnostics);
         var plugin = discovery.Plugins.FirstOrDefault(candidate => PluginIds.EqualsCanonical(candidate.Manifest.Id, pluginId));
@@ -128,7 +135,7 @@ internal sealed class PluginRequestHandler(
 
         var result = new PluginSetEnabledResult
         {
-            Plugin = MapPluginToWire(plugin, diagnostics, mcpSummaries, lspSummaries)
+            Plugin = MapPluginToWire(plugin, diagnostics, hookSummaries, mcpSummaries, lspSummaries)
         };
         var appListUpdate = TryBuildAppListUpdatedNotification(discovery, pluginId, p.Enabled ? "plugin/enable" : "plugin/disable");
         IReadOnlyList<ThreadAppBindingWire> offlineBindings = p.Enabled
@@ -158,13 +165,14 @@ internal sealed class PluginRequestHandler(
         var pluginId = PluginIds.Canonicalize(p.Id.Trim());
         var before = RefreshPluginRuntime();
         var beforeDiagnostics = before.Diagnostics.ToList();
+        var beforeHookSummaries = BuildPluginHookSummaryIndex(before, beforeDiagnostics);
         var beforeMcpSummaries = BuildPluginMcpSummaryIndex(before, beforeDiagnostics);
         var beforeLspSummaries = BuildPluginLspSummaryIndex(before, beforeDiagnostics);
         var beforePlugin = before.Plugins.FirstOrDefault(candidate => PluginIds.EqualsCanonical(candidate.Manifest.Id, pluginId));
         if (beforePlugin == null)
             throw AppServerErrors.InvalidParams($"Plugin '{pluginId}' was not found.");
         if (beforePlugin.Installed)
-            return new PluginInstallResult { Plugin = MapPluginToWire(beforePlugin, beforeDiagnostics, beforeMcpSummaries, beforeLspSummaries) };
+            return new PluginInstallResult { Plugin = MapPluginToWire(beforePlugin, beforeDiagnostics, beforeHookSummaries, beforeMcpSummaries, beforeLspSummaries) };
         if (!beforePlugin.Installable)
             throw AppServerErrors.InvalidParams($"Plugin '{pluginId}' is not installable.");
 
@@ -227,12 +235,14 @@ internal sealed class PluginRequestHandler(
         var discovery = RefreshPluginRuntime();
         await ReconnectEffectiveMcpRuntimeAsync(await GetWorkspaceMcpServersAsync(ct), ct);
         await ReconnectEffectiveLspRuntimeAsync(ct);
+        RefreshHooksAfterPluginChange();
         appConfigMonitor?.NotifyChanged(
             source,
-            [ConfigChangeRegions.Plugins, ConfigChangeRegions.Skills, ConfigChangeRegions.Mcp, ConfigChangeRegions.Lsp]);
+            [ConfigChangeRegions.Plugins, ConfigChangeRegions.Skills, ConfigChangeRegions.Mcp, ConfigChangeRegions.Lsp, ConfigChangeRegions.Hooks]);
         AppServerContextInvalidation.MarkSkills(contextPageManager);
 
         var diagnostics = discovery.Diagnostics.ToList();
+        var hookSummaries = BuildPluginHookSummaryIndex(discovery, diagnostics);
         var mcpSummaries = BuildPluginMcpSummaryIndex(discovery, diagnostics);
         var lspSummaries = BuildPluginLspSummaryIndex(discovery, diagnostics);
         var plugin = discovery.Plugins.FirstOrDefault(candidate => PluginIds.EqualsCanonical(candidate.Manifest.Id, pluginId));
@@ -241,7 +251,7 @@ internal sealed class PluginRequestHandler(
 
         var result = new PluginInstallResult
         {
-            Plugin = MapPluginToWire(plugin, diagnostics, mcpSummaries, lspSummaries)
+            Plugin = MapPluginToWire(plugin, diagnostics, hookSummaries, mcpSummaries, lspSummaries)
         };
         return await MaybeSendAppBindingLifecycleNotificationsAfterResponseAsync(
             msg,
@@ -263,13 +273,14 @@ internal sealed class PluginRequestHandler(
         var pluginId = PluginIds.Canonicalize(p.Id.Trim());
         var before = RefreshPluginRuntime();
         var beforeDiagnostics = before.Diagnostics.ToList();
+        var beforeHookSummaries = BuildPluginHookSummaryIndex(before, beforeDiagnostics);
         var beforeMcpSummaries = BuildPluginMcpSummaryIndex(before, beforeDiagnostics);
         var beforeLspSummaries = BuildPluginLspSummaryIndex(before, beforeDiagnostics);
         var beforePlugin = before.Plugins.FirstOrDefault(candidate => PluginIds.EqualsCanonical(candidate.Manifest.Id, pluginId));
         if (beforePlugin == null)
             throw AppServerErrors.InvalidParams($"Plugin '{pluginId}' was not found.");
         if (!beforePlugin.Installed)
-            return new PluginRemoveResult { Plugin = MapPluginToWire(beforePlugin, beforeDiagnostics, beforeMcpSummaries, beforeLspSummaries) };
+            return new PluginRemoveResult { Plugin = MapPluginToWire(beforePlugin, beforeDiagnostics, beforeHookSummaries, beforeMcpSummaries, beforeLspSummaries) };
         if (!beforePlugin.Removable)
             throw AppServerErrors.InvalidParams($"Plugin '{pluginId}' cannot be removed by DotCraft.");
 
@@ -294,18 +305,20 @@ internal sealed class PluginRequestHandler(
         var discovery = RefreshPluginRuntime();
         await ReconnectEffectiveMcpRuntimeAsync(await GetWorkspaceMcpServersAsync(ct), ct);
         await ReconnectEffectiveLspRuntimeAsync(ct);
+        RefreshHooksAfterPluginChange();
         appConfigMonitor?.NotifyChanged(
             AppServerMethods.PluginRemove,
-            [ConfigChangeRegions.Plugins, ConfigChangeRegions.Skills, ConfigChangeRegions.Mcp, ConfigChangeRegions.Lsp]);
+            [ConfigChangeRegions.Plugins, ConfigChangeRegions.Skills, ConfigChangeRegions.Mcp, ConfigChangeRegions.Lsp, ConfigChangeRegions.Hooks]);
         AppServerContextInvalidation.MarkSkills(contextPageManager);
 
         var diagnostics = discovery.Diagnostics.ToList();
+        var hookSummaries = BuildPluginHookSummaryIndex(discovery, diagnostics);
         var mcpSummaries = BuildPluginMcpSummaryIndex(discovery, diagnostics);
         var lspSummaries = BuildPluginLspSummaryIndex(discovery, diagnostics);
         var plugin = discovery.Plugins.FirstOrDefault(candidate => PluginIds.EqualsCanonical(candidate.Manifest.Id, pluginId));
         var result = new PluginRemoveResult
         {
-            Plugin = plugin == null ? null : MapPluginToWire(plugin, diagnostics, mcpSummaries, lspSummaries)
+            Plugin = plugin == null ? null : MapPluginToWire(plugin, diagnostics, hookSummaries, mcpSummaries, lspSummaries)
         };
         var offlineBindings = TryMoveActiveAppBindingsOfflineForPlugin(
             removalCatalog,
@@ -476,6 +489,21 @@ internal sealed class PluginRequestHandler(
             builtInPluginSourceRoots);
     }
 
+    private void RefreshHooksAfterPluginChange()
+    {
+        if (hookRunner == null)
+            return;
+
+        AppServerHookRuntimeRefresher.Refresh(
+            hookRunner,
+            appConfigMonitor,
+            workspaceCraftPath,
+            hostWorkspacePath,
+            workspaceConfig,
+            runtimeConfig,
+            builtInPluginSourceRoots);
+    }
+
     private async Task<List<McpServerConfig>> GetWorkspaceMcpServersAsync(CancellationToken ct)
         => await mcpConfig.GetWorkspaceServersAsync(ct);
 
@@ -519,6 +547,22 @@ internal sealed class PluginRequestHandler(
             GetWorkspaceMcpServersSnapshot(),
             diagnostics);
 
+    private static IReadOnlyDictionary<string, IReadOnlyList<PluginHookDeclaration>> BuildPluginHookSummaryIndex(
+        PluginDiscoveryResult discovery,
+        List<PluginDiagnostic> diagnostics)
+    {
+        var summaries = new Dictionary<string, IReadOnlyList<PluginHookDeclaration>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var plugin in discovery.Plugins)
+        {
+            var hookSources = PluginHookLoader.LoadPluginHooks(plugin, diagnostics);
+            var declarations = PluginHookLoader.BuildDeclarations(hookSources);
+            if (declarations.Count > 0)
+                summaries[plugin.Manifest.Id] = declarations;
+        }
+
+        return summaries;
+    }
+
     private IReadOnlyDictionary<string, IReadOnlyList<PluginLspServerSummary>> BuildPluginLspSummaryIndex(
         PluginDiscoveryResult discovery,
         List<PluginDiagnostic> diagnostics) =>
@@ -531,6 +575,7 @@ internal sealed class PluginRequestHandler(
     private PluginInfoWire MapPluginToWire(
         DiscoveredPlugin plugin,
         IReadOnlyList<PluginDiagnostic> diagnostics,
+        IReadOnlyDictionary<string, IReadOnlyList<PluginHookDeclaration>> hookSummaries,
         IReadOnlyDictionary<string, IReadOnlyList<PluginMcpServerSummary>> mcpSummaries,
         IReadOnlyDictionary<string, IReadOnlyList<PluginLspServerSummary>> lspSummaries)
     {
@@ -562,6 +607,9 @@ internal sealed class PluginRequestHandler(
             Skills = MapPluginSkillsToWire(plugin),
             Apps = apps,
             DesktopExtensions = desktopExtensions,
+            Hooks = hookSummaries.TryGetValue(manifest.Id, out var hooks)
+                ? hooks.Select(MapPluginHookToWire).ToList()
+                : [],
             McpServers = mcpSummaries.TryGetValue(manifest.Id, out var servers)
                 ? servers.Select(MapPluginMcpServerToWire).ToList()
                 : [],
@@ -658,6 +706,13 @@ internal sealed class PluginRequestHandler(
             Enabled = server.Enabled,
             Active = server.Active,
             ShadowedBy = server.ShadowedBy
+        };
+
+    private static PluginHookInfoWire MapPluginHookToWire(PluginHookDeclaration hook) =>
+        new()
+        {
+            Key = hook.Key,
+            EventName = hook.EventName
         };
 
     private static PluginLspServerInfoWire MapPluginLspServerToWire(PluginLspServerSummary server) =>

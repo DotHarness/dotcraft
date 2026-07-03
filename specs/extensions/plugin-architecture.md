@@ -48,12 +48,13 @@ Manifest metadata includes:
 - `interface`
 - `skills`
 - `mcpServers`
+- `hooks`
 - `lspServers`
 - `apps`
 - `desktopExtensions`
 - `paths`
 
-Plugins must declare at least one supported contribution: a plugin-contained `skills` path, plugin-bundled MCP servers, App Binding descriptors, LSP server descriptors, Desktop extensions, or interface metadata. Skill-only, MCP-only, app-only, desktop-extension-only, and interface-only plugins are valid.
+Plugins must declare at least one supported contribution: a plugin-contained `skills` path, plugin-bundled MCP servers, lifecycle hooks, App Binding descriptors, LSP server descriptors, Desktop extensions, or interface metadata. Skill-only, MCP-only, hooks-only, app-only, desktop-extension-only, and interface-only plugins are valid.
 
 `mcpServers` is an optional manifest-relative path to a plugin-contained MCP configuration file. If omitted, DotCraft looks for `./.mcp.json` in the plugin root. The MCP file may use either `{ "mcpServers": { ... } }` or a direct server map. Plugin MCP config should use canonical DotCraft fields such as `arguments`, `environmentVariables`, and `headers`; for compatibility with common MCP config files, DotCraft also accepts `args`, `env`, and `httpHeaders` as read aliases. Plugin-bundled MCP servers use the same runtime as workspace `McpServers`; relative MCP `cwd` values resolve under the plugin root. At runtime, contributed server names are prefixed as `{pluginId}:{serverName}` to avoid collisions with workspace MCP servers and other plugins.
 
@@ -64,6 +65,19 @@ Effective MCP merge rules:
 - If a plugin runtime name conflicts with a workspace server or a higher-priority plugin server, the plugin declaration is marked shadowed in plugin metadata and is not connected.
 - `mcp/list` returns the effective runtime view. Workspace config writes (`mcp/upsert`, `mcp/remove`, and config persistence) never write plugin-origin servers into `.craft/config.json`.
 - Plugin-bundled MCP startup is non-fatal. A missing command, bad endpoint, timeout, or protocol error is reported through MCP runtime status (`mcp/status/list` / `mcp/status/updated`) and diagnostics where applicable; it must not prevent plugin discovery, AppServer readiness, or Desktop connection. Agent tool materialization waits for the current effective MCP startup attempt to settle, so ready plugin MCP tools are available to new turns without making AppServer startup synchronous.
+
+`hooks` declares plugin-contained lifecycle hook files. It accepts any of these shapes:
+
+- `"hooks": "./hooks/hooks.json"`
+- `"hooks": ["./hooks/a.json", "./hooks/b.json"]`
+- `"hooks": { "hooks": { ... } }`
+- `"hooks": [{ "hooks": { ... } }]`
+
+If `hooks` is omitted, DotCraft automatically discovers `./hooks/hooks.json` under the plugin root. Hook paths use the same manifest-relative path rules as other plugin paths: they must start with `./`, must not escape the plugin root, and must resolve inside the plugin directory. Plugin hook files reuse the workspace `.craft/hooks.json` shape. v1 supports the existing hook events `SessionStart`, `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `PrePrompt`, and `Stop`, and command handlers with `type`, `command`, `timeout`, and `matcher`.
+
+Plugin hooks are loaded only from installed and enabled plugins. They are listed by `hooks/list` with source `plugin`, and summarized in `plugin/list` / `plugin/view` as `{ key, eventName }`. Commands run from the workspace root, like config hooks. DotCraft expands `${DOTCRAFT_PLUGIN_ROOT}` and `${DOTCRAFT_PLUGIN_DATA}` in plugin hook commands and injects the same values as environment variables. Plugin data uses the LSP data location: `%LocalAppData%/DotCraft/plugins/<pluginId>/data` on Windows, with platform-equivalent app data paths elsewhere.
+
+Plugin hooks are user-trusted runtime behavior. Installing or enabling a plugin does not automatically trust its hooks. First appearance and any hash-changing edit returns `trustStatus` `untrusted` or `modified` from `hooks/list`; the hook runs only after `hooks/setState` stores the current hash in user-global `Hooks.State`.
 
 Example MCP plugin:
 
@@ -77,12 +91,13 @@ Example MCP plugin:
   "capabilities": ["skill", "mcp"],
   "skills": "./skills/",
   "mcpServers": "./.mcp.json",
+  "hooks": "./hooks/hooks.json",
   "interface": {
     "displayName": "Review Tools",
     "shortDescription": "Review workflows and MCP tools.",
     "developerName": "DotCraft",
     "category": "Coding",
-    "capabilities": ["Skill", "MCP"],
+    "capabilities": ["Skill", "MCP", "Hooks"],
     "defaultPrompt": "Review this change.",
     "brandColor": "#2563EB"
   }
@@ -196,9 +211,9 @@ Plugin loading has three responsibilities:
 
 1. The manifest parser reads `.craft-plugin/plugin.json`, validates supported fields, normalizes paths, and returns metadata plus diagnostics.
 2. The discovery service scans roots, resolves duplicate plugin ids, applies plugin enablement config, and produces plugin records.
-3. Enabled plugins contribute skill sources, plugin-bundled MCP server declarations, app descriptors, and Desktop extension descriptors to the workspace runtime/client metadata.
+3. Enabled plugins contribute skill sources, plugin-bundled MCP server declarations, lifecycle hook declarations, app descriptors, and Desktop extension descriptors to the workspace runtime/client metadata.
 
-Diagnostics are non-fatal and available to logs and UI surfaces. They cover invalid JSON, missing fields, missing supported plugin capabilities, invalid ids, invalid manifest-relative paths, unsupported legacy native tool fields, duplicate plugin ids, disabled plugins, invalid MCP declarations, and missing roots.
+Diagnostics are non-fatal and available to logs and UI surfaces. They cover invalid JSON, missing fields, missing supported plugin capabilities, invalid ids, invalid manifest-relative paths, unsupported legacy native tool fields, duplicate plugin ids, disabled plugins, invalid MCP declarations, invalid hook declarations, and missing roots.
 
 If a manifest declares `tools`, `functions`, or `processes`, DotCraft emits `UnsupportedPluginNativeTools` and ignores those fields. If no supported contribution remains, DotCraft also emits `MissingPluginCapabilities` and the plugin is not loaded.
 

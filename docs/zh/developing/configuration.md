@@ -267,7 +267,7 @@ OpenSandbox 示例：
 | `Goals.Enabled` | 启用目标存储、AppServer 方法、目标上下文注入、用量统计和模型 Goal 工具 | `true` |
 | `Goals.AutoContinueEnabled` | 允许 active 目标在线程空闲时自动继续 | `true` |
 | `Hooks.Enabled` | 是否启用 Hooks | `true` |
-| `Hooks.Events` | Hook 事件配置列表 | `[]` |
+| `Hooks.State` | 按稳定 hook key 保存的用户态配置。Desktop toggle/trust 会写入 `Enabled` 和 `TrustedHash` | `{}` |
 | `Cron.Enabled` | 是否启用 Cron 定时任务服务 | `true` |
 | `Heartbeat.Enabled` | 是否启用心跳服务 | `false` |
 | `Heartbeat.IntervalSeconds` | 检查间隔（秒） | `1800` |
@@ -298,53 +298,60 @@ Goal AppServer 方法：
 | `thread/goal/get` | 读取当前 Thread goal 状态 |
 | `thread/goal/clear` | 清除当前 Thread goal |
 
-Hook 快速示例：
+Hook 命令放在 `hooks.json`，不是 `config.json`。DotCraft 会从 `~/.craft/hooks.json` 加载全局 hooks，从 `.craft/hooks.json` 加载工作区 hooks，并从已启用插件的 hook 文件加载 plugin hooks。
+
+Hook 快速示例（`.craft/hooks.json`）：
 
 ```json
 {
-  "Hooks": {
-    "Enabled": true,
-    "Events": {
-      "AfterToolCall": [
-        {
-          "name": "log-tool-call",
-          "type": "command",
-          "command": "node .craft/hooks/log-tool-call.js",
-          "matcher": ".*",
-          "timeoutSeconds": 10
-        }
-      ]
-    }
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Exec",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .craft/hooks/log-tool-call.js",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
   }
 }
 ```
 
-Hook 条目字段：
+Hook matcher group 字段：
 
 | 字段 | 说明 |
 |---|---|
-| `name` | Hook 名称，用于日志和排查 |
+| `matcher` | 匹配工具名的正则；为空时匹配所有工具相关事件 |
+| `hooks` | 当前事件和 matcher 下按顺序执行的 hook handler 列表 |
+
+Hook handler 字段：
+
+| 字段 | 说明 |
+|---|---|
 | `type` | 支持 `"command"` |
 | `command` | 要运行的 Shell 命令 |
-| `matcher` | 匹配工具名的正则；为空时匹配所有工具相关事件 |
-| `timeoutSeconds` | Hook 超时时间 |
+| `timeout` | Hook 超时时间（秒） |
 
 生命周期事件：
 
 | Event | 用途 |
 |---|---|
-| `BeforeToolCall` | 工具调用前检查或阻塞 |
-| `AfterToolCall` | 工具调用后记录、格式化或通知 |
-| `BeforeTurn` | Agent turn 前准备上下文 |
-| `AfterTurn` | Agent turn 后记录结果或通知 |
-| `BeforeAutomationTask` | 自动化任务运行前检查 |
-| `AfterAutomationTask` | 自动化任务完成后同步状态 |
+| `SessionStart` | 新会话开始时运行 |
+| `PrePrompt` | 用户 prompt 提交前运行 |
+| `PreToolUse` | 工具调用前检查或阻塞 |
+| `PostToolUse` | 工具调用成功后记录、格式化或通知 |
+| `PostToolUseFailure` | 工具调用失败后运行 |
+| `Stop` | DotCraft 结束本轮前运行 |
 
 工具相关 Hook stdin 通常包含：
 
 ```json
 {
-  "event": "BeforeToolCall",
+  "event": "PreToolUse",
   "workspace": "F:\\project",
   "sessionId": "thread-id",
   "toolName": "Exec",
@@ -358,7 +365,7 @@ Turn 相关 Hook stdin 通常包含：
 
 ```json
 {
-  "event": "AfterTurn",
+  "event": "Stop",
   "workspace": "F:\\project",
   "sessionId": "thread-id",
   "summary": "Agent completed the turn"
@@ -370,7 +377,8 @@ Turn 相关 Hook stdin 通常包含：
 | 退出码 | 含义 |
 |---|---|
 | `0` | 成功，继续执行 |
-| 非零 | Hook 失败；`Before*` 事件可以阻塞当前操作 |
+| `2` | 阻塞当前操作，并停止执行该事件后续 hooks |
+| 其他非零 | Hook 失败；DotCraft 记录失败并按该事件的运行时策略继续 |
 
 Matcher 示例：
 
@@ -379,6 +387,25 @@ Matcher 示例：
 | `WriteFile\|EditFile` | 文件写入和编辑 |
 | `Exec` | Shell 命令 |
 | `.*` | 所有工具 |
+
+Desktop 会把每个 hook 的用户态写入 `~/.craft/config.json`：
+
+```json
+{
+  "Hooks": {
+    "State": {
+      "/workspace/.craft/hooks.json:pre_tool_use:0:0": {
+        "Enabled": false,
+        "TrustedHash": "sha256:..."
+      }
+    }
+  }
+}
+```
+
+`Enabled: false` 可以在不编辑来源文件的情况下停用单个 hook。`TrustedHash` 记录上次信任的规范化 hook 定义。来自 config 和 plugins 的 hooks 必须被信任后才会运行；修改后的 hooks 需要重新信任。
+
+Plugin hook 文件使用同样的 `hooks.json` 结构。在 plugin hook 命令中，DotCraft 会展开 `${DOTCRAFT_PLUGIN_ROOT}` 和 `${DOTCRAFT_PLUGIN_DATA}`，并注入同名环境变量。
 
 ## Entry Points and Services
 

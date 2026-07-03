@@ -101,7 +101,7 @@ Or specify runtime, language, and validation:
 $plugin-creator Create a local plugin that exposes an EchoText dynamic tool via a Python process, and produce install validation steps.
 ```
 
-`plugin-creator` generates the plugin directory and manifest, a plugin-contained skill, optional MCP config, and an optional Desktop extension. After generation, usually three things remain:
+`plugin-creator` generates the plugin directory and manifest, a plugin-contained skill, optional MCP config, optional hooks, and an optional Desktop extension. After generation, usually three things remain:
 
 1. Replace the placeholder text and sample copy
 2. Implement or adjust the tool process logic
@@ -119,7 +119,14 @@ Let `plugin-creator` scaffold the manifest and the matching files; the generated
 
 ## MCP Servers
 
-Beyond built-in tools and plugin dynamic tools, DotCraft also speaks MCP. MCP server registration and deferred loading options live in the [Configuration Reference](../../developing/configuration#plugins-mcp-and-lsp).
+Beyond built-in tools and plugin dynamic tools, DotCraft also speaks MCP. In Desktop, open **Settings -> MCP Servers** to add servers for the current workspace without editing JSON.
+
+- **STDIO** starts a local command and exposes the MCP tools it provides.
+- **Streamable HTTP** connects to an HTTP MCP endpoint, usually ending in `/mcp`.
+- **Secrets** should come from environment variables. Use bearer-token env vars or environment-backed headers for tokens instead of pasting secret values into literal headers.
+- **Test connection** checks reachability and shows how many tools DotCraft discovered before you rely on the server in a session.
+
+MCP server registration, deferred loading options, and the complete field list live in the [Configuration Reference](../../developing/configuration#plugins-mcp-and-lsp).
 
 ## Safety & Trust
 

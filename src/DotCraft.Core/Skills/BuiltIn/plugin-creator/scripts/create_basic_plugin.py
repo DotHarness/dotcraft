@@ -39,6 +39,7 @@ def build_manifest(
     plugin_id: str,
     skill_name: str | None,
     with_mcp: bool,
+    with_hooks: bool,
     with_assets: bool,
     with_desktop_extension: bool,
 ) -> dict[str, Any]:
@@ -51,6 +52,9 @@ def build_manifest(
     if with_mcp:
         capabilities.append("mcp")
         interface_capabilities.append("MCP")
+    if with_hooks:
+        capabilities.append("hooks")
+        interface_capabilities.append("Hooks")
     if with_desktop_extension:
         capabilities.append("desktopExtension")
         interface_capabilities.append("Desktop")
@@ -81,6 +85,8 @@ def build_manifest(
         manifest["skills"] = "./skills/"
     if with_mcp:
         manifest["mcpServers"] = "./.mcp.json"
+    if with_hooks:
+        manifest["hooks"] = "./hooks/hooks.json"
     if with_desktop_extension:
         manifest["desktopExtensions"] = "./desktop-extensions.json"
     if with_assets:
@@ -99,6 +105,25 @@ def build_mcp_config() -> dict[str, Any]:
                 "args": ["./mcp-server/index.js"],
                 "cwd": "./",
             }
+        }
+    }
+
+
+def build_hooks_config() -> dict[str, Any]:
+    return {
+        "hooks": {
+            "SessionStart": [
+                {
+                    "matcher": "",
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": "node \"${DOTCRAFT_PLUGIN_ROOT}/hooks/session-start.js\"",
+                            "timeout": 30,
+                        }
+                    ],
+                }
+            ]
         }
     }
 
@@ -261,6 +286,11 @@ def parse_args() -> argparse.Namespace:
         help="Create a plugin-bundled .mcp.json placeholder.",
     )
     parser.add_argument(
+        "--with-hooks",
+        action="store_true",
+        help="Create a plugin-bundled hooks/hooks.json placeholder.",
+    )
+    parser.add_argument(
         "--with-desktop-extension",
         action="store_true",
         help="Create a trusted Desktop extension descriptor and placeholder main view.",
@@ -288,7 +318,14 @@ def main() -> None:
 
     write_json(
         manifest_path,
-        build_manifest(plugin_id, skill_name, args.with_mcp, args.with_assets, args.with_desktop_extension),
+        build_manifest(
+            plugin_id,
+            skill_name,
+            args.with_mcp,
+            args.with_hooks,
+            args.with_assets,
+            args.with_desktop_extension,
+        ),
         args.force,
     )
 
@@ -296,6 +333,13 @@ def main() -> None:
         write_text(plugin_root / "skills" / skill_name / "SKILL.md", build_skill_md(skill_name), args.force)
     if args.with_mcp:
         write_json(plugin_root / ".mcp.json", build_mcp_config(), args.force)
+    if args.with_hooks:
+        write_json(plugin_root / "hooks" / "hooks.json", build_hooks_config(), args.force)
+        write_text(
+            plugin_root / "hooks" / "session-start.js",
+            "process.stdin.resume();\nprocess.stdin.on('end', () => process.exit(0));\n",
+            args.force,
+        )
     if args.with_desktop_extension:
         write_json(plugin_root / "desktop-extensions.json", build_desktop_extensions(plugin_id), args.force)
         write_text(plugin_root / "desktop" / "main-view.mjs", build_desktop_main_view_js(plugin_id), args.force)
@@ -309,6 +353,8 @@ def main() -> None:
         print(f"Plugin skill: {plugin_root / 'skills' / skill_name / 'SKILL.md'}")
     if args.with_mcp:
         print(f"Plugin MCP config: {plugin_root / '.mcp.json'}")
+    if args.with_hooks:
+        print(f"Plugin hooks config: {plugin_root / 'hooks' / 'hooks.json'}")
     if args.with_desktop_extension:
         print(f"Plugin Desktop extensions: {plugin_root / 'desktop-extensions.json'}")
 

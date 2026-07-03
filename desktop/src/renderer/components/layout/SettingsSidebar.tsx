@@ -5,7 +5,12 @@ import { useT } from '../../contexts/LocaleContext'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { useUIStore } from '../../stores/uiStore'
 import { ActionTooltip } from '../ui/ActionTooltip'
-import { buildSettingsTabs } from '../settings/settingsTabs'
+import { buildSettingsTabs, type SettingsTabGroup } from '../settings/settingsTabs'
+import {
+  SIDEBAR_NAV_BORDER_INACTIVE,
+  SIDEBAR_NAV_ICON_SLOT,
+  SIDEBAR_NAV_ROW_OUTER
+} from '../sidebar/sidebarNavRowStyles'
 
 export function SettingsSidebar(): JSX.Element {
   const t = useT()
@@ -23,6 +28,7 @@ export function SettingsSidebar(): JSX.Element {
     personalizationAvailable,
     sourceControlEnabled: capabilities?.sourceControlManagement === true,
     mcpEnabled: capabilities?.mcpManagement === true,
+    hooksEnabled: capabilities?.hooksManagement === true,
     subAgentEnabled: capabilities?.subAgentManagement === true
   })
 
@@ -37,7 +43,7 @@ export function SettingsSidebar(): JSX.Element {
             aria-label={t('common.backToApp')}
             style={collapsedButtonStyle}
           >
-            <ArrowLeft size={18} strokeWidth={2} aria-hidden="true" />
+            <ArrowLeft size={16} strokeWidth={2} aria-hidden="true" />
           </button>
         </ActionTooltip>
 
@@ -54,7 +60,7 @@ export function SettingsSidebar(): JSX.Element {
                 data-active={active ? 'true' : undefined}
                 style={collapsedButtonStyle}
               >
-                <TabIcon size={17} strokeWidth={1.9} aria-hidden="true" />
+                <TabIcon size={16} strokeWidth={2} aria-hidden="true" />
               </button>
             </ActionTooltip>
           )
@@ -72,29 +78,36 @@ export function SettingsSidebar(): JSX.Element {
         style={backRowStyle}
         aria-label={t('common.backToApp')}
       >
-        <ArrowLeft size={17} strokeWidth={2} aria-hidden="true" />
+        <ArrowLeft size={16} strokeWidth={2} aria-hidden="true" />
         <span style={labelStyle}>{t('common.backToApp')}</span>
       </button>
 
       <nav aria-label={t('settings.title')} style={navStyle}>
-        {tabs.map((tab) => {
+        {tabs.map((tab, index) => {
           const active = activeSettingsTab === tab.id
           const TabIcon = tab.icon
+          const showGroupLabel = index === 0 || tabs[index - 1].group !== tab.group
           return (
-            <button
-              className="dc-settings-sidebar-button dotcraft-sidebar-control-radius"
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveSettingsTab(tab.id)}
-              style={expandedTabStyle(active)}
-              aria-current={active ? 'page' : undefined}
-              data-active={active ? 'true' : undefined}
-            >
-              <span style={iconSlotStyle}>
-                <TabIcon size={17} strokeWidth={1.9} aria-hidden="true" />
-              </span>
-              <span style={labelStyle}>{tab.label}</span>
-            </button>
+            <div key={tab.id} style={tabGroupItemStyle(showGroupLabel)}>
+              {showGroupLabel && (
+                <div style={groupLabelStyle}>
+                  {settingsGroupLabel(tab.group, t)}
+                </div>
+              )}
+              <button
+                className="dc-settings-sidebar-button dotcraft-sidebar-control-radius"
+                type="button"
+                onClick={() => setActiveSettingsTab(tab.id)}
+                style={expandedTabStyle}
+                aria-current={active ? 'page' : undefined}
+                data-active={active ? 'true' : undefined}
+              >
+                <span style={iconSlotStyle}>
+                  <TabIcon size={16} strokeWidth={2} aria-hidden="true" />
+                </span>
+                <span style={labelStyle}>{tab.label}</span>
+              </button>
+            </div>
           )
         })}
       </nav>
@@ -102,12 +115,25 @@ export function SettingsSidebar(): JSX.Element {
   )
 }
 
+function settingsGroupLabel(group: SettingsTabGroup, t: ReturnType<typeof useT>): string {
+  switch (group) {
+    case 'personal':
+      return t('settings.sidebar.group.personal')
+    case 'integrations':
+      return t('settings.sidebar.group.integrations')
+    case 'coding':
+      return t('settings.sidebar.group.coding')
+    case 'archived':
+      return t('settings.sidebar.group.archived')
+  }
+}
+
 const expandedContainerStyle: CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   height: '100%',
   minHeight: 0,
-  padding: '10px 8px',
+  padding: '10px 0',
   gap: '8px',
   overflow: 'hidden'
 }
@@ -126,47 +152,43 @@ const navStyle: CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   minHeight: 0,
-  overflowY: 'auto',
-  gap: '2px'
+  overflowY: 'auto'
+}
+
+function tabGroupItemStyle(showGroupLabel: boolean): CSSProperties {
+  return {
+    display: 'flex',
+    flexDirection: 'column',
+    marginTop: showGroupLabel ? '8px' : 0
+  }
+}
+
+const groupLabelStyle: CSSProperties = {
+  padding: '0 16px 2px',
+  color: 'var(--text-dimmed)',
+  fontSize: '11px',
+  lineHeight: 1.35,
+  fontWeight: 500
 }
 
 const backRowStyle: CSSProperties = {
-  width: '100%',
-  minHeight: 34,
-  padding: '6px 8px',
-  display: 'flex',
-  alignItems: 'center',
-  gap: '8px',
-  border: 'none',
-  borderRadius: 6,
+  ...SIDEBAR_NAV_ROW_OUTER,
+  ...SIDEBAR_NAV_BORDER_INACTIVE,
   background: 'var(--settings-sidebar-row-bg, transparent)',
   color: 'var(--settings-sidebar-row-color, var(--text-secondary))',
-  fontSize: 'var(--type-ui-size)',
-  lineHeight: 'var(--type-ui-line-height)',
   cursor: 'pointer',
-  textAlign: 'left',
   transition: 'background-color 120ms ease, color 120ms ease'
 }
 
-function expandedTabStyle(active: boolean): CSSProperties {
-  return {
-    width: '100%',
-    minHeight: 34,
-    padding: '7px 8px',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    border: 'none',
-    borderRadius: 6,
-    background: 'var(--settings-sidebar-row-bg, transparent)',
-    color: 'var(--settings-sidebar-row-color, var(--text-secondary))',
-    fontSize: 'var(--type-ui-size)',
-    lineHeight: 'var(--type-ui-line-height)',
-    fontWeight: active ? 600 : 500,
-    cursor: 'pointer',
-    textAlign: 'left',
-    transition: 'background-color 120ms ease, color 120ms ease'
-  }
+const expandedTabStyle: CSSProperties = {
+  ...SIDEBAR_NAV_ROW_OUTER,
+  ...SIDEBAR_NAV_BORDER_INACTIVE,
+  background: 'var(--settings-sidebar-row-bg, transparent)',
+  color: 'var(--settings-sidebar-row-color, var(--text-secondary))',
+  // Match the main sidebar nav rows: active state changes background + text
+  // colour only (via the dc-settings-sidebar-button CSS vars), never weight.
+  cursor: 'pointer',
+  transition: 'background-color 120ms ease, color 120ms ease'
 }
 
 const collapsedButtonStyle: CSSProperties = {
@@ -176,7 +198,7 @@ const collapsedButtonStyle: CSSProperties = {
   alignItems: 'center',
   justifyContent: 'center',
   border: 'none',
-  borderRadius: 6,
+  borderRadius: 'var(--sidebar-icon-control-radius)',
   background: 'var(--settings-sidebar-row-bg, transparent)',
   color: 'var(--settings-sidebar-row-color, var(--text-secondary))',
   cursor: 'pointer',
@@ -184,14 +206,7 @@ const collapsedButtonStyle: CSSProperties = {
   transition: 'background-color 120ms ease, color 120ms ease'
 }
 
-const iconSlotStyle: CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  width: 20,
-  height: 20,
-  flexShrink: 0
-}
+const iconSlotStyle: CSSProperties = SIDEBAR_NAV_ICON_SLOT
 
 const labelStyle: CSSProperties = {
   minWidth: 0,

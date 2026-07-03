@@ -111,6 +111,11 @@ export interface PluginLspServerInfo {
   shadowedBy?: 'workspace' | 'plugin' | null
 }
 
+export interface PluginHookInfo {
+  key: string
+  eventName: string
+}
+
 export interface PluginEntry {
   id: string
   displayName: string
@@ -127,6 +132,7 @@ export interface PluginEntry {
   skills: PluginSkillInfo[]
   apps?: PluginAppInfo[]
   desktopExtensions?: PluginDesktopExtensionInfo[]
+  hooks?: PluginHookInfo[]
   mcpServers: PluginMcpServerInfo[]
   lspServers: PluginLspServerInfo[]
   diagnostics?: Array<{ severity: string; code: string; message: string; pluginId?: string; path?: string }>
@@ -306,6 +312,7 @@ function normalizePlugin(plugin: PluginEntry): PluginEntry {
       connectOrigins: extension.connectOrigins ?? [],
       surfaceWriteScopes: extension.surfaceWriteScopes ?? []
     })),
+    hooks: plugin.hooks ?? [],
     mcpServers: plugin.mcpServers ?? [],
     lspServers: (plugin.lspServers ?? []).map((server) => ({
       ...server,

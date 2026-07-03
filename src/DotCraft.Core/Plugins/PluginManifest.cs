@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
+using DotCraft.Hooks;
 
 namespace DotCraft.Plugins;
 
@@ -37,6 +38,8 @@ public sealed record PluginManifest
 
     public string? DesktopExtensionsPath { get; init; }
 
+    public PluginManifestHooks? Hooks { get; init; }
+
     public required string RootPath { get; init; }
 
     public required string ManifestPath { get; init; }
@@ -69,6 +72,18 @@ public sealed record PluginInterfaceMetadata
     public string? PrivacyPolicyUrl { get; init; }
 
     public string? TermsOfServiceUrl { get; init; }
+}
+
+/// <summary>
+/// Hook declarations contributed by a plugin manifest.
+/// </summary>
+public sealed record PluginManifestHooks
+{
+    public IReadOnlyList<string> Paths { get; init; } = [];
+
+    public IReadOnlyList<HooksFileConfig> Inline { get; init; } = [];
+
+    public bool HasAny => Paths.Count > 0 || Inline.Count > 0;
 }
 
 /// <summary>
@@ -197,6 +212,7 @@ public static partial class PluginManifestParser
             raw.Id,
             manifestPath,
             diagnostics);
+        var hooks = ParseManifestHooks(pluginRoot, raw.Hooks, raw.Id, manifestPath, diagnostics);
         var interfaceMetadata = ParseInterface(
             pluginRoot,
             raw.Interface,
@@ -209,11 +225,12 @@ public static partial class PluginManifestParser
             && lspServersPath == null
             && appsPath == null
             && desktopExtensionsPath == null
+            && hooks?.HasAny != true
             && interfaceMetadata == null)
         {
             diagnostics.Add(PluginDiagnostic.Error(
                 "MissingPluginCapabilities",
-                "Plugin manifest must declare skills, mcpServers, lspServers, apps, desktopExtensions, or interface metadata.",
+                "Plugin manifest must declare skills, mcpServers, lspServers, apps, desktopExtensions, hooks, or interface metadata.",
                 raw.Id,
                 path: manifestPath));
         }
@@ -240,6 +257,7 @@ public static partial class PluginManifestParser
             LspServersPath = lspServersPath,
             AppsPath = appsPath,
             DesktopExtensionsPath = desktopExtensionsPath,
+            Hooks = hooks,
             RootPath = Path.GetFullPath(pluginRoot),
             ManifestPath = Path.GetFullPath(manifestPath)
         };
@@ -383,6 +401,135 @@ public static partial class PluginManifestParser
         return null;
     }
 
+    private static PluginManifestHooks? ParseManifestHooks(
+        string pluginRoot,
+        JsonNode? rawHooks,
+        string? pluginId,
+        string manifestPath,
+        List<PluginDiagnostic> diagnostics)
+    {
+        if (rawHooks == null)
+        {
+            var defaultPath = Path.Combine(pluginRoot, "hooks", "hooks.json");
+            return File.Exists(defaultPath)
+                ? new PluginManifestHooks { Paths = [Path.GetFullPath(defaultPath)] }
+                : null;
+        }
+
+        var paths = new List<string>();
+        var inline = new List<HooksFileConfig>();
+        switch (rawHooks)
+        {
+            case JsonValue value when value.TryGetValue<string>(out var path):
+                AddHookPath(paths, pluginRoot, path, "hooks", pluginId, manifestPath, diagnostics);
+                break;
+
+            case JsonArray array:
+                ParseHookArray(paths, inline, pluginRoot, array, pluginId, manifestPath, diagnostics);
+                break;
+
+            case JsonObject obj:
+                AddInlineHook(inline, obj, pluginId, manifestPath, diagnostics);
+                break;
+
+            default:
+                diagnostics.Add(PluginDiagnostic.Warning(
+                    "InvalidPluginHooks",
+                    "Plugin hooks must be a path string, path array, object, or object array.",
+                    pluginId,
+                    path: manifestPath));
+                break;
+        }
+
+        return paths.Count == 0 && inline.Count == 0
+            ? null
+            : new PluginManifestHooks
+            {
+                Paths = paths,
+                Inline = inline
+            };
+    }
+
+    private static void ParseHookArray(
+        List<string> paths,
+        List<HooksFileConfig> inline,
+        string pluginRoot,
+        JsonArray array,
+        string? pluginId,
+        string manifestPath,
+        List<PluginDiagnostic> diagnostics)
+    {
+        foreach (var item in array)
+        {
+            switch (item)
+            {
+                case JsonValue value when value.TryGetValue<string>(out var path):
+                    AddHookPath(paths, pluginRoot, path, "hooks", pluginId, manifestPath, diagnostics);
+                    break;
+
+                case JsonObject obj:
+                    AddInlineHook(inline, obj, pluginId, manifestPath, diagnostics);
+                    break;
+
+                case null:
+                    break;
+
+                default:
+                    diagnostics.Add(PluginDiagnostic.Warning(
+                        "InvalidPluginHooks",
+                        "Plugin hooks array entries must be path strings or hook objects.",
+                        pluginId,
+                        path: manifestPath));
+                    break;
+            }
+        }
+    }
+
+    private static void AddHookPath(
+        List<string> paths,
+        string pluginRoot,
+        string? value,
+        string fieldName,
+        string? pluginId,
+        string manifestPath,
+        List<PluginDiagnostic> diagnostics)
+    {
+        var path = ResolveOptionalManifestPath(pluginRoot, value, fieldName, pluginId, manifestPath, diagnostics);
+        if (!string.IsNullOrWhiteSpace(path))
+            paths.Add(path);
+    }
+
+    private static void AddInlineHook(
+        List<HooksFileConfig> inline,
+        JsonObject obj,
+        string? pluginId,
+        string manifestPath,
+        List<PluginDiagnostic> diagnostics)
+    {
+        try
+        {
+            var parsed = obj.Deserialize<HooksFileConfig>(JsonOptions);
+            if (parsed?.Hooks.Count > 0)
+                inline.Add(NormalizeHookConfig(parsed));
+        }
+        catch (JsonException ex)
+        {
+            diagnostics.Add(PluginDiagnostic.Warning(
+                "InvalidPluginHooks",
+                $"Failed to parse inline plugin hooks: {ex.Message}",
+                pluginId,
+                path: manifestPath));
+        }
+    }
+
+    private static HooksFileConfig NormalizeHookConfig(HooksFileConfig config)
+    {
+        var normalized = new HooksFileConfig();
+        foreach (var (eventName, groups) in config.Hooks)
+            normalized.Hooks[eventName] = groups ?? [];
+        return normalized;
+    }
+
     private static PluginInterfaceMetadata? ParseInterface(
         string pluginRoot,
         RawPluginInterface? raw,
@@ -501,6 +648,8 @@ public static partial class PluginManifestParser
         public string? Apps { get; set; }
 
         public string? DesktopExtensions { get; set; }
+
+        public JsonNode? Hooks { get; set; }
 
         [JsonPropertyName("interface")]
         public RawPluginInterface? Interface { get; set; }

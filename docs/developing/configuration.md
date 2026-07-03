@@ -267,7 +267,7 @@ OpenSandbox example:
 | `Goals.Enabled` | Enables goal storage, AppServer methods, goal context injection, usage accounting, and model goal tools | `true` |
 | `Goals.AutoContinueEnabled` | Allows active goals to continue when a Thread is idle | `true` |
 | `Hooks.Enabled` | Enables Hooks | `true` |
-| `Hooks.Events` | Hook lists grouped by event name | `[]` |
+| `Hooks.State` | Per-hook user state keyed by stable hook key. Stores `Enabled` and `TrustedHash` for Desktop toggle/trust actions | `{}` |
 | `Cron.Enabled` | Enables Cron scheduled tasks | `true` |
 | `Heartbeat.Enabled` | Enables heartbeat service | `false` |
 | `Heartbeat.IntervalSeconds` | Check interval in seconds | `1800` |
@@ -298,53 +298,60 @@ Goal AppServer methods:
 | `thread/goal/get` | Read current Thread goal state |
 | `thread/goal/clear` | Clear current Thread goal |
 
-Hook quick start:
+Hook commands live in `hooks.json`, not in `config.json`. DotCraft loads global hooks from `~/.craft/hooks.json`, workspace hooks from `.craft/hooks.json`, and plugin hooks from enabled plugin hook files.
+
+Hook quick start (`.craft/hooks.json`):
 
 ```json
 {
-  "Hooks": {
-    "Enabled": true,
-    "Events": {
-      "AfterToolCall": [
-        {
-          "name": "log-tool-call",
-          "type": "command",
-          "command": "node .craft/hooks/log-tool-call.js",
-          "matcher": ".*",
-          "timeoutSeconds": 10
-        }
-      ]
-    }
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Exec",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .craft/hooks/log-tool-call.js",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
   }
 }
 ```
 
-Hook item fields:
+Hook matcher group fields:
 
 | Field | Description |
 |---|---|
-| `name` | Hook name for logs and troubleshooting |
+| `matcher` | Regex for matching tool names. Empty matches all tool-related events |
+| `hooks` | Ordered list of hook handlers for the event and matcher |
+
+Hook handler fields:
+
+| Field | Description |
+|---|---|
 | `type` | Supports `"command"` |
 | `command` | Shell command to run |
-| `matcher` | Regex for matching tool names. Empty matches all tool-related events |
-| `timeoutSeconds` | Hook timeout |
+| `timeout` | Hook timeout in seconds |
 
 Lifecycle events:
 
 | Event | Purpose |
 |---|---|
-| `BeforeToolCall` | Check or block before tool calls |
-| `AfterToolCall` | Log, format, or notify after tool calls |
-| `BeforeTurn` | Prepare context before an Agent turn |
-| `AfterTurn` | Record results or notify after an Agent turn |
-| `BeforeAutomationTask` | Check before an automation task runs |
-| `AfterAutomationTask` | Sync state after an automation task completes |
+| `SessionStart` | Runs when a new session starts |
+| `PrePrompt` | Runs before a user prompt is submitted |
+| `PreToolUse` | Checks or blocks before tool calls |
+| `PostToolUse` | Logs, formats, or notifies after successful tool calls |
+| `PostToolUseFailure` | Runs after a tool call fails |
+| `Stop` | Runs right before DotCraft ends its turn |
 
 Tool-related Hook stdin usually includes:
 
 ```json
 {
-  "event": "BeforeToolCall",
+  "event": "PreToolUse",
   "workspace": "F:\\project",
   "sessionId": "thread-id",
   "toolName": "Exec",
@@ -358,7 +365,7 @@ Turn-related Hook stdin usually includes:
 
 ```json
 {
-  "event": "AfterTurn",
+  "event": "Stop",
   "workspace": "F:\\project",
   "sessionId": "thread-id",
   "summary": "Agent completed the turn"
@@ -370,7 +377,8 @@ Exit code semantics:
 | Exit code | Meaning |
 |---|---|
 | `0` | Success, continue |
-| Non-zero | Hook failed; `Before*` events can block the current operation |
+| `2` | Block the current operation and stop running later hooks for that event |
+| Other non-zero | Hook failed; DotCraft records the failure and continues according to the event's runtime policy |
 
 Matcher examples:
 
@@ -379,6 +387,25 @@ Matcher examples:
 | `WriteFile\|EditFile` | File writes and edits |
 | `Exec` | Shell commands |
 | `.*` | All tools |
+
+Desktop manages per-user hook state in `~/.craft/config.json`:
+
+```json
+{
+  "Hooks": {
+    "State": {
+      "/workspace/.craft/hooks.json:pre_tool_use:0:0": {
+        "Enabled": false,
+        "TrustedHash": "sha256:..."
+      }
+    }
+  }
+}
+```
+
+`Enabled: false` disables one hook without editing the source file. `TrustedHash` records the last trusted normalized hook definition. Hooks from config and plugins must be trusted before they run, and modified hooks must be trusted again.
+
+Plugin hook files use the same `hooks.json` structure. In plugin hook commands, DotCraft expands `${DOTCRAFT_PLUGIN_ROOT}` and `${DOTCRAFT_PLUGIN_DATA}` and injects the same names as environment variables.
 
 ## Entry Points and Services
 

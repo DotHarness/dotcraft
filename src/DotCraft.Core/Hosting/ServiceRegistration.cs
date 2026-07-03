@@ -121,13 +121,10 @@ public static class ServiceRegistration
         services.AddSingleton<CronTools>(sp => new CronTools(sp.GetRequiredService<CronService>()));
 
         // Hooks
-        if (config.Hooks.Enabled)
-        {
-            var hooksLoader = new HooksLoader(botPath);
-            var hooksConfig = hooksLoader.Load();
-            var hookRunner = new HookRunner(hooksConfig, workspacePath);
-            services.AddSingleton(hookRunner);
-        }
+        var hooksLoader = new HooksLoader(botPath);
+        var hooksDiscovery = hooksLoader.Discover(config, workspacePath);
+        var hookRunner = new HookRunner(hooksDiscovery, workspacePath);
+        services.AddSingleton(hookRunner);
 
         services.AddSingleton(sp =>
             new McpClientManager(sp.GetService<ILoggerFactory>()?.CreateLogger<McpClientManager>()));

@@ -2,7 +2,7 @@ import type { CSSProperties, JSX, MouseEvent, ReactNode } from 'react'
 
 interface SettingsGroupProps {
   title?: string
-  description?: string
+  description?: ReactNode
   headerAction?: ReactNode
   children: ReactNode
   /**
