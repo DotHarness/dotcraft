@@ -424,7 +424,7 @@ export default withMermaid(defineConfig({
     }
   },
   themeConfig: {
-    logo: '/dotcraft-logo.svg',
+    logo: `${base}dotcraft-logo.svg`,
     siteTitle: 'DotCraft',
     search: { provider: 'local' },
     socialLinks: [{ icon: 'github', link: repo }],

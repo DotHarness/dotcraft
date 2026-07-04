@@ -38,6 +38,7 @@ jobs:
             docs/demo/package-lock.json
 
       - name: Setup Pages
+        id: pages
         uses: actions/configure-pages@v6
 
       - name: Install desktop demo dependencies
@@ -55,6 +56,41 @@ jobs:
       - name: Build site
         run: npm run build
         working-directory: docs
+        env:
+          VITEPRESS_BASE: ${{ steps.pages.outputs.base_path }}/
+
+      - name: Write build metadata
+        shell: bash
+        run: |
+          node <<'EOF'
+          const fs = require('node:fs')
+          const metadata = {
+            sha: process.env.GITHUB_SHA,
+            runId: process.env.GITHUB_RUN_ID,
+            runAttempt: process.env.GITHUB_RUN_ATTEMPT,
+            repository: process.env.GITHUB_REPOSITORY,
+            ref: process.env.GITHUB_REF,
+            basePath: process.env.VITEPRESS_BASE,
+            builtAt: new Date().toISOString()
+          }
+          fs.writeFileSync('docs/.vitepress/dist/build-info.json', `${JSON.stringify(metadata, null, 2)}\n`)
+          EOF
+        env:
+          VITEPRESS_BASE: ${{ steps.pages.outputs.base_path }}/
+
+      - name: Validate Pages artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s docs/.vitepress/dist/index.html
+          test -d docs/.vitepress/dist/assets
+          test -s docs/.vitepress/dist/build-info.json
+          file_count=$(find docs/.vitepress/dist -type f | wc -l)
+          if [ "$file_count" -lt 10 ]; then
+            echo "::error::Pages artifact looks incomplete: only $file_count files"
+            exit 1
+          fi
+          echo "Pages artifact contains $file_count files"
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v5
@@ -72,3 +108,35 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
+
+      - name: Verify published build
+        timeout-minutes: 5
+        shell: bash
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [ -z "${PAGE_URL:-}" ]; then
+            echo "::error::deploy-pages did not return a page_url output"
+            exit 1
+          fi
+
+          info_url="${PAGE_URL%/}/build-info.json"
+          for attempt in {1..18}; do
+            rm -f build-info.remote.json
+            if curl -fsSL "$info_url" -o build-info.remote.json; then
+              actual_sha=$(node -e "const fs = require('node:fs'); const data = JSON.parse(fs.readFileSync('build-info.remote.json', 'utf8')); console.log(data.sha || '')" 2>/dev/null || true)
+              if [ "$actual_sha" = "$EXPECTED_SHA" ]; then
+                echo "Published build matches $EXPECTED_SHA"
+                exit 0
+              fi
+              echo "Published SHA is '${actual_sha:-<missing>}' at $info_url; waiting for $EXPECTED_SHA (attempt $attempt/18)"
+            else
+              echo "Could not fetch $info_url yet (attempt $attempt/18)"
+            fi
+            sleep 10
+          done
+
+          echo "::error::Pages did not serve build-info.json for $EXPECTED_SHA at $info_url"
+          exit 1
