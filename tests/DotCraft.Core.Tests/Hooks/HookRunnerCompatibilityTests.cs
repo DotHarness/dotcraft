@@ -169,6 +169,55 @@ public sealed class HookRunnerCompatibilityTests : IDisposable
     }
 
     [Fact]
+    public async Task RunAsync_StopAsyncRewakeSkipsHookOriginTurn()
+    {
+        var rewakeCalled = false;
+        var runner = new HookRunner(new HooksFileConfig
+        {
+            Hooks =
+            {
+                [nameof(HookEvent.Stop)] =
+                [
+                    new HookMatcherGroup
+                    {
+                        Hooks =
+                        [
+                            new HookEntry
+                            {
+                                Key = "hook-key",
+                                Type = "command",
+                                Command = JsonBlockCommand("review finding"),
+                                AsyncRewake = true,
+                                RewakeMessage = "Review feedback:"
+                            }
+                        ]
+                    }
+                ]
+            }
+        }, _tempDir)
+        {
+            RewakeHandler = (_, _) =>
+            {
+                rewakeCalled = true;
+                return Task.CompletedTask;
+            }
+        };
+
+        await runner.RunAsync(
+            HookEvent.Stop,
+            new HookInput
+            {
+                SessionId = "thread_1",
+                TurnId = "turn_1",
+                Response = "done",
+                StopHookActive = true
+            },
+            CancellationToken.None);
+
+        Assert.False(rewakeCalled);
+    }
+
+    [Fact]
     public async Task RunAsync_AsyncRewakeUsesAdditionalContextAsContinuation()
     {
         var tcs = new TaskCompletionSource<HookRewakeRequest>(TaskCreationOptions.RunContinuationsAsynchronously);

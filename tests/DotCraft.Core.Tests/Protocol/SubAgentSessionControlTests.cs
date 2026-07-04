@@ -1,5 +1,7 @@
+using System.Collections.Concurrent;
 using DotCraft.Agents;
 using DotCraft.Configuration;
+using DotCraft.Hooks;
 using DotCraft.Protocol;
 using DotCraft.Tests.Sessions.Protocol.AppServer;
 using Microsoft.Extensions.AI;
@@ -85,6 +87,47 @@ public sealed class SubAgentSessionControlTests : IDisposable
         Assert.Equal("cli ok", turn.Items.Last().AsAgentMessage?.Text);
         Assert.Equal(3, turn.TokenUsage?.InputTokens);
         Assert.Equal(5, turn.TokenUsage?.OutputTokens);
+    }
+
+    [Fact]
+    public async Task SpawnAgent_RunsSubagentStartAndStopLifecycleHooks()
+    {
+        var events = new ConcurrentQueue<(HookEvent Event, string? AgentPath, string? Status)>();
+        var runtime = new FakeRuntime(CliOneshotRuntime.RuntimeTypeName, "cli ok");
+        var coordinator = CreateCoordinator(runtime, supportsResume: false, resumeEnabled: false);
+        var context = await CreateContextAsync(lifecycleHook: (request, _) =>
+        {
+            events.Enqueue((
+                request.Event,
+                request.ChildThread.Source.SubAgent?.AgentPath,
+                request.Status));
+            return Task.CompletedTask;
+        });
+
+        var result = await SubAgentSessionControl.SpawnAgentAsync(
+            context,
+            new SubAgentSpawnOptions
+            {
+                AgentPrompt = "inspect code",
+                TaskName = "inspect",
+                AgentNickname = "Inspect",
+                ProfileName = "cli-run"
+            },
+            waitForCompletion: false,
+            coordinator,
+            CancellationToken.None);
+        await SubAgentSessionControl.WaitAgentAsync(
+            _sessionService,
+            result.ChildThreadId,
+            timeoutSeconds: 5,
+            CancellationToken.None);
+        await WaitUntilAsync(() => events.Any(evt => evt.Event == HookEvent.SubagentStop));
+
+        var observed = events.ToArray();
+        Assert.Equal([HookEvent.SubagentStart, HookEvent.SubagentStop], observed.Select(evt => evt.Event).ToArray());
+        Assert.All(observed, evt => Assert.Equal("/root/inspect", evt.AgentPath));
+        Assert.Equal("running", observed[0].Status);
+        Assert.Equal("completed", observed[1].Status);
     }
 
     [Fact]
@@ -175,6 +218,51 @@ public sealed class SubAgentSessionControlTests : IDisposable
         Assert.Equal("subagentInput", child.Turns[1].Input?.AsUserMessage?.TriggerKind);
         Assert.Equal("Inspect", child.Turns[1].Input?.AsUserMessage?.TriggerLabel);
         Assert.Equal("/root/inspect", child.Turns[1].Input?.AsUserMessage?.TriggerRefId);
+    }
+
+    [Fact]
+    public async Task SendInput_RunsSubagentStartAndStopLifecycleHooks()
+    {
+        var events = new ConcurrentQueue<(HookEvent Event, string? AgentPath, string? Status)>();
+        var runtime = new FakeRuntime(CliOneshotRuntime.RuntimeTypeName, "cli ok", resultSessionId: "sess-1");
+        var store = new FakeExternalCliSessionStore();
+        var coordinator = CreateCoordinator(runtime, supportsResume: true, resumeEnabled: true, store);
+        var context = await CreateContextAsync();
+        var spawned = await SubAgentSessionControl.SpawnAgentAsync(
+            context,
+            new SubAgentSpawnOptions { AgentPrompt = "inspect code", TaskName = "inspect", AgentNickname = "Inspect", ProfileName = "cli-run" },
+            waitForCompletion: true,
+            coordinator,
+            CancellationToken.None);
+
+        runtime.ResultText = "continued";
+        runtime.ResultSessionId = "sess-2";
+        await SubAgentSessionControl.SendInputAsync(
+            _sessionService,
+            spawned.ChildThreadId,
+            "continue",
+            coordinator,
+            (request, _) =>
+            {
+                events.Enqueue((
+                    request.Event,
+                    request.ChildThread.Source.SubAgent?.AgentPath,
+                    request.Status));
+                return Task.CompletedTask;
+            },
+            CancellationToken.None);
+        await SubAgentSessionControl.WaitAgentAsync(
+            _sessionService,
+            spawned.ChildThreadId,
+            timeoutSeconds: 5,
+            CancellationToken.None);
+        await WaitUntilAsync(() => events.Any(evt => evt.Event == HookEvent.SubagentStop));
+
+        var observed = events.ToArray();
+        Assert.Equal([HookEvent.SubagentStart, HookEvent.SubagentStop], observed.Select(evt => evt.Event).ToArray());
+        Assert.All(observed, evt => Assert.Equal("/root/inspect", evt.AgentPath));
+        Assert.Equal("running", observed[0].Status);
+        Assert.Equal("completed", observed[1].Status);
     }
 
     [Fact]
@@ -1196,7 +1284,10 @@ public sealed class SubAgentSessionControlTests : IDisposable
         Assert.Contains("inspect code", runtime.LastRequest?.Task, StringComparison.Ordinal);
     }
 
-    private async Task<SubAgentSessionContext> CreateContextAsync(ThreadConfiguration? config = null, int depth = 0)
+    private async Task<SubAgentSessionContext> CreateContextAsync(
+        ThreadConfiguration? config = null,
+        int depth = 0,
+        Func<SubAgentLifecycleHookRequest, CancellationToken, Task>? lifecycleHook = null)
     {
         var parent = await _sessionService.CreateThreadAsync(new SessionIdentity
         {
@@ -1211,8 +1302,18 @@ public sealed class SubAgentSessionControlTests : IDisposable
             ParentThread = parent,
             ParentTurnId = "turn_001",
             RootThreadId = parent.Id,
-            Depth = depth
+            Depth = depth,
+            LifecycleHook = lifecycleHook
         };
+    }
+
+    private static async Task WaitUntilAsync(Func<bool> predicate)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        while (!predicate())
+        {
+            await Task.Delay(20, timeout.Token);
+        }
     }
 
     private async Task<SessionThread> CreatePathSubAgentAsync(

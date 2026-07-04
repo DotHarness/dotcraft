@@ -1632,6 +1632,31 @@ public sealed partial class SessionService(
                     tokenHint,
                     usageEstimate.Source,
                     usageEstimate.IsEstimate);
+                var preCompactHook = await RunCompactionHookAsync(
+                    HookEvent.PreCompact,
+                    thread,
+                    turn.Id,
+                    "auto",
+                    threshold,
+                    thresholdAfter: null,
+                    preCompactUsage,
+                    outcome: null,
+                    compactionCt);
+                if (preCompactHook.Blocked)
+                {
+                    var message = BuildHookBlockedMessage("Context compaction", preCompactHook);
+                    eventChannel.EmitSystemEvent(
+                        threshold.AboveBlocking ? "compactFailed" : "compactSkipped",
+                        message: message,
+                        percentLeft: threshold.PercentLeft,
+                        tokenCount: threshold.Tokens,
+                        contextUsage: preCompactUsage);
+                    if (threshold.AboveBlocking)
+                        throw new ContextCompactionFailedException(message);
+
+                    return null;
+                }
+
                 eventChannel.EmitSystemEvent(
                     "compacting",
                     percentLeft: threshold.PercentLeft,
@@ -1720,6 +1745,16 @@ public sealed partial class SessionService(
                         ThreadRuntimeSignalForBroadcast?.Invoke(
                             threadId,
                             SessionThreadRuntimeSignal.ContextCompacted);
+                        await RunCompactionHookAsync(
+                            HookEvent.PostCompact,
+                            thread,
+                            turn.Id,
+                            "auto",
+                            status.ThresholdBefore,
+                            status.ThresholdAfter,
+                            contextUsage,
+                            CompactionOutcomeToWire(status.Outcome),
+                            compactionCt);
                         return result.Messages;
 
                     case CompactionOutcome.Skipped:
@@ -1952,6 +1987,18 @@ public sealed partial class SessionService(
                         break;
                 }
 
+                if (hookRunner != null)
+                {
+                    turnApprovalService = new HookApprovalService(
+                        turnApprovalService,
+                        hookRunner,
+                        threadId,
+                        turn.Id,
+                        thread.WorkspacePath,
+                        stopHookActive,
+                        logger);
+                }
+
                 approvalOverride = SessionScopedApprovalService.SetOverride(turnApprovalService);
 
                 var userInputRequestService = new SessionUserInputRequestService(
@@ -2061,7 +2108,8 @@ public sealed partial class SessionService(
                     ParentThread = thread,
                     ParentTurnId = turn.Id,
                     RootThreadId = currentSubAgentSource?.RootThreadId ?? thread.Id,
-                    Depth = currentSubAgentSource?.Depth ?? 0
+                    Depth = currentSubAgentSource?.Depth ?? 0,
+                    LifecycleHook = RunSubAgentLifecycleHookAsync
                 });
                 var codexContextWindow = GetOrCreateCodexContextWindow(threadId);
                 using var codexResponsesScope = OpenAIResponsesCodexRuntimeScope.Set(
@@ -2700,64 +2748,107 @@ public sealed partial class SessionService(
                 {
                     try
                     {
-                        eventChannel.EmitSystemEvent("compacting");
-                        using var reactiveCodexScope = OpenAIResponsesCodexRuntimeScope.Set(
-                            CreateCodexRuntimeContext(
-                                thread,
-                                turn,
-                                GetOrCreateCodexContextWindow(threadId),
-                                OpenAIResponsesCodexRequestKinds.Compaction));
-                        var status = await GetCompactionPipelineForThread(thread).TryReactiveCompactAsync(
-                            session,
-                            threadId,
-                            thread.LastActiveAt,
+                        var reactivePipeline = GetCompactionPipelineForThread(thread);
+                        var existingContextUsage = TryGetContextUsageSnapshot(threadId);
+                        var preReactiveTokens = existingContextUsage?.Tokens ?? tokenTracker?.LastContextTokens ?? 0;
+                        var preReactiveThreshold = reactivePipeline.EvaluateThreshold(preReactiveTokens);
+                        var preReactiveUsage = existingContextUsage
+                            ?? CreateContextUsageSnapshot(
+                                threadId,
+                                preReactiveTokens,
+                                source: "reactive_estimate",
+                                isEstimate: true);
+                        var preCompactHook = await RunCompactionHookAsync(
+                            HookEvent.PreCompact,
+                            thread,
+                            turn.Id,
+                            "reactive",
+                            preReactiveThreshold,
+                            thresholdAfter: null,
+                            preReactiveUsage,
+                            outcome: null,
                             CancellationToken.None);
-                        if (status.Success)
+                        if (preCompactHook.Blocked)
                         {
-                            tokenTracker?.Reset();
-                            pendingCompactionCheckpoint = new PendingCompactionCheckpoint(
-                                "reactive",
-                                CompactionOutcomeToWire(status.Outcome),
-                                status.ThresholdBefore.Tokens,
-                                status.ThresholdAfter.Tokens);
-                            InvalidatePromptRequestSnapshot(threadId, "reactive_compaction");
-                            var contextUsage = await SaveReplacementContextUsageSnapshotAsync(
-                                threadId,
-                                status.ThresholdAfter.Tokens,
-                                source: "compacted_estimate",
-                                ct: CancellationToken.None);
-                            TryAdvanceCodexContextWindowAfterReplacement(threadId);
-                            ReleaseStableContextPages(threadId);
-                            traceCollector?.RecordContextCompaction(threadId);
+                            reactiveMessage = BuildHookBlockedMessage("Context compaction", preCompactHook);
                             eventChannel.EmitSystemEvent(
-                                "compacted",
-                                percentLeft: status.ThresholdAfter.PercentLeft,
-                                tokenCount: status.ThresholdAfter.Tokens,
-                                contextUsage: contextUsage);
-                            {
-                                var noticeItem = CreateCompactionNoticeItem(
-                                    turn,
-                                    NextItemSeq(),
-                                    trigger: "reactive",
-                                    status);
-                                turn.Items.Add(noticeItem);
-                                eventChannel.EmitItemStarted(noticeItem);
-                                eventChannel.EmitItemCompleted(noticeItem);
-                            }
-                            ThreadRuntimeSignalForBroadcast?.Invoke(
-                                threadId,
-                                SessionThreadRuntimeSignal.ContextCompacted);
-                            reactiveMessage =
-                                "The request exceeded the model's context window. "
-                                + "History has been compacted; please re-send the message.";
+                                "compactFailed",
+                                message: reactiveMessage,
+                                percentLeft: preReactiveThreshold.PercentLeft,
+                                tokenCount: preReactiveThreshold.Tokens,
+                                contextUsage: preReactiveUsage);
                         }
                         else
                         {
-                            eventChannel.EmitSystemEvent(
-                                "compactFailed",
-                                message: status.FailureReason,
-                                percentLeft: status.ThresholdAfter.PercentLeft,
-                                tokenCount: status.ThresholdAfter.Tokens);
+                            eventChannel.EmitSystemEvent("compacting");
+                            using var reactiveCodexScope = OpenAIResponsesCodexRuntimeScope.Set(
+                                CreateCodexRuntimeContext(
+                                    thread,
+                                    turn,
+                                    GetOrCreateCodexContextWindow(threadId),
+                                    OpenAIResponsesCodexRequestKinds.Compaction));
+                            var status = await reactivePipeline.TryReactiveCompactAsync(
+                                session,
+                                threadId,
+                                thread.LastActiveAt,
+                                CancellationToken.None);
+                            if (status.Success)
+                            {
+                                tokenTracker?.Reset();
+                                pendingCompactionCheckpoint = new PendingCompactionCheckpoint(
+                                    "reactive",
+                                    CompactionOutcomeToWire(status.Outcome),
+                                    status.ThresholdBefore.Tokens,
+                                    status.ThresholdAfter.Tokens);
+                                InvalidatePromptRequestSnapshot(threadId, "reactive_compaction");
+                                var contextUsage = await SaveReplacementContextUsageSnapshotAsync(
+                                    threadId,
+                                    status.ThresholdAfter.Tokens,
+                                    source: "compacted_estimate",
+                                    ct: CancellationToken.None);
+                                TryAdvanceCodexContextWindowAfterReplacement(threadId);
+                                ReleaseStableContextPages(threadId);
+                                traceCollector?.RecordContextCompaction(threadId);
+                                eventChannel.EmitSystemEvent(
+                                    "compacted",
+                                    percentLeft: status.ThresholdAfter.PercentLeft,
+                                    tokenCount: status.ThresholdAfter.Tokens,
+                                    contextUsage: contextUsage);
+                                {
+                                    var noticeItem = CreateCompactionNoticeItem(
+                                        turn,
+                                        NextItemSeq(),
+                                        trigger: "reactive",
+                                        status);
+                                    turn.Items.Add(noticeItem);
+                                    eventChannel.EmitItemStarted(noticeItem);
+                                    eventChannel.EmitItemCompleted(noticeItem);
+                                }
+                                ThreadRuntimeSignalForBroadcast?.Invoke(
+                                    threadId,
+                                    SessionThreadRuntimeSignal.ContextCompacted);
+                                await RunCompactionHookAsync(
+                                    HookEvent.PostCompact,
+                                    thread,
+                                    turn.Id,
+                                    "reactive",
+                                    status.ThresholdBefore,
+                                    status.ThresholdAfter,
+                                    contextUsage,
+                                    CompactionOutcomeToWire(status.Outcome),
+                                    CancellationToken.None);
+                                reactiveMessage =
+                                    "The request exceeded the model's context window. "
+                                    + "History has been compacted; please re-send the message.";
+                            }
+                            else
+                            {
+                                eventChannel.EmitSystemEvent(
+                                    "compactFailed",
+                                    message: status.FailureReason,
+                                    percentLeft: status.ThresholdAfter.PercentLeft,
+                                    tokenCount: status.ThresholdAfter.Tokens);
+                            }
                         }
                     }
                     catch (Exception compactEx)
@@ -3057,6 +3148,130 @@ public sealed partial class SessionService(
             logger?.LogWarning(ex, "SessionStart hook failed for thread {ThreadId}", threadId);
             return new HookResult();
         }
+    }
+
+    private async Task<HookResult> RunLifecycleHookAsync(
+        HookEvent evt,
+        string threadId,
+        string? turnId,
+        string? workspacePath,
+        IReadOnlyDictionary<string, object?>? context,
+        CancellationToken ct)
+    {
+        if (hookRunner == null)
+            return new HookResult();
+
+        try
+        {
+            var hookInput = new HookInput
+            {
+                SessionId = threadId,
+                TurnId = turnId,
+                Cwd = workspacePath,
+                ToolName = evt.ToString(),
+                ToolArgs = context,
+                StopHookActive = string.Equals(TurnTriggerScope.Current?.Kind, "hook", StringComparison.Ordinal)
+            };
+            return await hookRunner.RunAsync(evt, hookInput, ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            logger?.LogWarning(ex, "{EventName} hook failed for thread {ThreadId}", evt, threadId);
+            return new HookResult();
+        }
+    }
+
+    private async Task<HookResult> RunCompactionHookAsync(
+        HookEvent evt,
+        SessionThread thread,
+        string? turnId,
+        string trigger,
+        CompactionThreshold thresholdBefore,
+        CompactionThreshold? thresholdAfter,
+        ContextUsageSnapshot? contextUsage,
+        string? outcome,
+        CancellationToken ct)
+    {
+        var context = new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            ["trigger"] = trigger,
+            ["compactionTrigger"] = trigger,
+            ["compaction_trigger"] = trigger,
+            ["outcome"] = outcome,
+            ["tokensBefore"] = thresholdBefore.Tokens,
+            ["tokens_before"] = thresholdBefore.Tokens,
+            ["percentLeftBefore"] = thresholdBefore.PercentLeft,
+            ["percent_left_before"] = thresholdBefore.PercentLeft,
+            ["tokensAfter"] = thresholdAfter?.Tokens,
+            ["tokens_after"] = thresholdAfter?.Tokens,
+            ["percentLeftAfter"] = thresholdAfter?.PercentLeft,
+            ["percent_left_after"] = thresholdAfter?.PercentLeft,
+            ["contextUsage"] = contextUsage,
+            ["context_usage"] = contextUsage
+        };
+
+        return await RunLifecycleHookAsync(
+            evt,
+            thread.Id,
+            turnId,
+            thread.WorkspacePath,
+            context,
+            ct).ConfigureAwait(false);
+    }
+
+    internal async Task RunSubAgentLifecycleHookAsync(
+        SubAgentLifecycleHookRequest request,
+        CancellationToken ct)
+    {
+        var child = request.ChildThread;
+        var source = child.Source.SubAgent;
+        var turnId = child.Turns.LastOrDefault()?.Id ?? source?.ParentTurnId;
+        var context = new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            ["childThreadId"] = child.Id,
+            ["child_thread_id"] = child.Id,
+            ["parentThreadId"] = source?.ParentThreadId ?? child.ChannelContext,
+            ["parent_thread_id"] = source?.ParentThreadId ?? child.ChannelContext,
+            ["parentTurnId"] = source?.ParentTurnId,
+            ["parent_turn_id"] = source?.ParentTurnId,
+            ["rootThreadId"] = source?.RootThreadId,
+            ["root_thread_id"] = source?.RootThreadId,
+            ["agentPath"] = source?.AgentPath,
+            ["agent_path"] = source?.AgentPath,
+            ["taskName"] = source?.TaskName,
+            ["task_name"] = source?.TaskName,
+            ["agentNickname"] = source?.AgentNickname,
+            ["agent_nickname"] = source?.AgentNickname,
+            ["agentRole"] = source?.AgentRole,
+            ["agent_role"] = source?.AgentRole,
+            ["profileName"] = source?.ProfileName,
+            ["profile_name"] = source?.ProfileName,
+            ["runtimeType"] = source?.RuntimeType,
+            ["runtime_type"] = source?.RuntimeType,
+            ["depth"] = source?.Depth,
+            ["status"] = request.Status,
+            ["message"] = request.Message
+        };
+
+        await RunLifecycleHookAsync(
+            request.Event,
+            child.Id,
+            turnId,
+            child.WorkspacePath,
+            context,
+            ct).ConfigureAwait(false);
+    }
+
+    private static string BuildHookBlockedMessage(string action, HookResult result)
+    {
+        var reason = string.IsNullOrWhiteSpace(result.BlockReason)
+            ? "no reason given"
+            : result.BlockReason;
+        return $"{action} blocked by hook: {reason}";
     }
 
     private static string? ExtractHookContext(HookResult result)
