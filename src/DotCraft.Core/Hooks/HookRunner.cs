@@ -490,6 +490,9 @@ public sealed class HookRunner
         if (!hookEntry.AsyncRewake || RewakeHandler == null)
             return;
 
+        if (evt == HookEvent.Stop && input.StopHookActive)
+            return;
+
         if (string.IsNullOrWhiteSpace(result.ContinuationPrompt) || string.IsNullOrWhiteSpace(input.SessionId))
             return;
 
